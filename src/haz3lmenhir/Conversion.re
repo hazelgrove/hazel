@@ -130,7 +130,11 @@ module rec Exp: {
         of_menhir_ast(e),
       )
     | BuiltinFun(s) => BuiltinFun(s)
-    | DeferredAp(f, a) => DeferredAp(of_menhir_ast(f), [of_menhir_ast(a)])
+    | DeferredAp(f) =>
+      switch (f) {
+      | ApExp(fn, a) => DeferredAp(of_menhir_ast(fn), [of_menhir_ast(a)])
+      | _ => raise(Invalid_argument("Expected ApExp"))
+      }
     | Fun(p, e, name_opt) =>
       switch (name_opt) {
       | Some(name_str) =>

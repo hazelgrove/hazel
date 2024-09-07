@@ -1,0 +1,2225 @@
+State 0:
+## Known stack suffix:
+##
+## LR(1) items:
+program' -> . program [ # ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On program shift to state 127
+-- On exp shift to state 128
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 1:
+## Known stack suffix:
+## STRING
+## LR(1) items:
+exp -> STRING . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production exp -> STRING
+
+State 2:
+## Known stack suffix:
+## OPEN_SQUARE_BRACKET
+## LR(1) items:
+exp -> OPEN_SQUARE_BRACKET . loption(separated_nonempty_list(COMMA,exp)) CLOSE_SQUARE_BRACKET [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On separated_nonempty_list(COMMA,exp) shift to state 118
+-- On loption(separated_nonempty_list(COMMA,exp)) shift to state 125
+-- On exp shift to state 121
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+-- On CLOSE_SQUARE_BRACKET
+--   reduce production loption(separated_nonempty_list(COMMA,exp)) ->
+
+State 3:
+## Known stack suffix:
+## OPEN_PAREN
+## LR(1) items:
+exp -> OPEN_PAREN . exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> OPEN_PAREN . exp COMMA loption(separated_nonempty_list(COMMA,exp)) CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 116
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 4:
+## Known stack suffix:
+## LET
+## LR(1) items:
+exp -> LET . pat SINGLE_EQUAL exp IN exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On WILD shift to state 5
+-- On TRUE shift to state 6
+-- On STRING shift to state 7
+-- On QUESTION shift to state 8
+-- On OPEN_SQUARE_BRACKET shift to state 10
+-- On OPEN_PAREN shift to state 11
+-- On INT shift to state 12
+-- On IDENT shift to state 13
+-- On FLOAT shift to state 14
+-- On FALSE shift to state 15
+-- On CONSTRUCTOR_IDENT shift to state 16
+-- On varPat shift to state 40
+-- On patTuple shift to state 42
+-- On pat shift to state 55
+## Reductions:
+
+State 5:
+## Known stack suffix:
+## WILD
+## LR(1) items:
+pat -> WILD . [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production pat -> WILD
+
+State 6:
+## Known stack suffix:
+## TRUE
+## LR(1) items:
+pat -> TRUE . [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production pat -> TRUE
+
+State 7:
+## Known stack suffix:
+## STRING
+## LR(1) items:
+pat -> STRING . [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production pat -> STRING
+
+State 8:
+## Known stack suffix:
+## QUESTION
+## LR(1) items:
+pat -> QUESTION . STRING [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+pat -> QUESTION . [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 9
+## Reductions:
+-- On SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production pat -> QUESTION
+
+State 9:
+## Known stack suffix:
+## QUESTION STRING
+## LR(1) items:
+pat -> QUESTION STRING . [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production pat -> QUESTION STRING
+
+State 10:
+## Known stack suffix:
+## OPEN_SQUARE_BRACKET
+## LR(1) items:
+pat -> OPEN_SQUARE_BRACKET . loption(separated_nonempty_list(COMMA,pat)) CLOSE_SQUARE_BRACKET [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On WILD shift to state 5
+-- On TRUE shift to state 6
+-- On STRING shift to state 7
+-- On QUESTION shift to state 8
+-- On OPEN_SQUARE_BRACKET shift to state 10
+-- On OPEN_PAREN shift to state 11
+-- On INT shift to state 12
+-- On IDENT shift to state 13
+-- On FLOAT shift to state 14
+-- On FALSE shift to state 15
+-- On CONSTRUCTOR_IDENT shift to state 16
+-- On varPat shift to state 40
+-- On separated_nonempty_list(COMMA,pat) shift to state 41
+-- On patTuple shift to state 42
+-- On pat shift to state 43
+-- On loption(separated_nonempty_list(COMMA,pat)) shift to state 53
+## Reductions:
+-- On CLOSE_SQUARE_BRACKET
+--   reduce production loption(separated_nonempty_list(COMMA,pat)) ->
+
+State 11:
+## Known stack suffix:
+## OPEN_PAREN
+## LR(1) items:
+patTuple -> OPEN_PAREN . loption(separated_nonempty_list(COMMA,pat)) CLOSE_PAREN [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On WILD shift to state 5
+-- On TRUE shift to state 6
+-- On STRING shift to state 7
+-- On QUESTION shift to state 8
+-- On OPEN_SQUARE_BRACKET shift to state 10
+-- On OPEN_PAREN shift to state 11
+-- On INT shift to state 12
+-- On IDENT shift to state 13
+-- On FLOAT shift to state 14
+-- On FALSE shift to state 15
+-- On CONSTRUCTOR_IDENT shift to state 16
+-- On varPat shift to state 40
+-- On separated_nonempty_list(COMMA,pat) shift to state 41
+-- On patTuple shift to state 42
+-- On pat shift to state 43
+-- On loption(separated_nonempty_list(COMMA,pat)) shift to state 51
+## Reductions:
+-- On CLOSE_PAREN
+--   reduce production loption(separated_nonempty_list(COMMA,pat)) ->
+
+State 12:
+## Known stack suffix:
+## INT
+## LR(1) items:
+pat -> INT . [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production pat -> INT
+
+State 13:
+## Known stack suffix:
+## IDENT
+## LR(1) items:
+varPat -> IDENT . [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production varPat -> IDENT
+
+State 14:
+## Known stack suffix:
+## FLOAT
+## LR(1) items:
+pat -> FLOAT . [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production pat -> FLOAT
+
+State 15:
+## Known stack suffix:
+## FALSE
+## LR(1) items:
+pat -> FALSE . [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production pat -> FALSE
+
+State 16:
+## Known stack suffix:
+## CONSTRUCTOR_IDENT
+## LR(1) items:
+pat -> CONSTRUCTOR_IDENT . COLON typ [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On COLON shift to state 17
+## Reductions:
+
+State 17:
+## Known stack suffix:
+## CONSTRUCTOR_IDENT COLON
+## LR(1) items:
+pat -> CONSTRUCTOR_IDENT COLON . typ [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On UNKNOWN shift to state 18
+-- On UNIT shift to state 20
+-- On STRING_TYPE shift to state 21
+-- On QUESTION shift to state 22
+-- On OPEN_SQUARE_BRACKET shift to state 24
+-- On OPEN_PAREN shift to state 25
+-- On INT_TYPE shift to state 26
+-- On FLOAT_TYPE shift to state 27
+-- On BOOL_TYPE shift to state 28
+-- On typ shift to state 39
+## Reductions:
+
+State 18:
+## Known stack suffix:
+## UNKNOWN
+## LR(1) items:
+typ -> UNKNOWN . INTERNAL [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On INTERNAL shift to state 19
+## Reductions:
+
+State 19:
+## Known stack suffix:
+## UNKNOWN INTERNAL
+## LR(1) items:
+typ -> UNKNOWN INTERNAL . [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production typ -> UNKNOWN INTERNAL
+
+State 20:
+## Known stack suffix:
+## UNIT
+## LR(1) items:
+typ -> UNIT . [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production typ -> UNIT
+
+State 21:
+## Known stack suffix:
+## STRING_TYPE
+## LR(1) items:
+typ -> STRING_TYPE . [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production typ -> STRING_TYPE
+
+State 22:
+## Known stack suffix:
+## QUESTION
+## LR(1) items:
+typ -> QUESTION . STRING [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 23
+## Reductions:
+
+State 23:
+## Known stack suffix:
+## QUESTION STRING
+## LR(1) items:
+typ -> QUESTION STRING . [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production typ -> QUESTION STRING
+
+State 24:
+## Known stack suffix:
+## OPEN_SQUARE_BRACKET
+## LR(1) items:
+typ -> OPEN_SQUARE_BRACKET . typ CLOSE_SQUARE_BRACKET [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On UNKNOWN shift to state 18
+-- On UNIT shift to state 20
+-- On STRING_TYPE shift to state 21
+-- On QUESTION shift to state 22
+-- On OPEN_SQUARE_BRACKET shift to state 24
+-- On OPEN_PAREN shift to state 25
+-- On INT_TYPE shift to state 26
+-- On FLOAT_TYPE shift to state 27
+-- On BOOL_TYPE shift to state 28
+-- On typ shift to state 37
+## Reductions:
+
+State 25:
+## Known stack suffix:
+## OPEN_PAREN
+## LR(1) items:
+typ -> OPEN_PAREN . loption(separated_nonempty_list(COMMA,typ)) CLOSE_PAREN [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On UNKNOWN shift to state 18
+-- On UNIT shift to state 20
+-- On STRING_TYPE shift to state 21
+-- On QUESTION shift to state 22
+-- On OPEN_SQUARE_BRACKET shift to state 24
+-- On OPEN_PAREN shift to state 25
+-- On INT_TYPE shift to state 26
+-- On FLOAT_TYPE shift to state 27
+-- On BOOL_TYPE shift to state 28
+-- On typ shift to state 29
+-- On separated_nonempty_list(COMMA,typ) shift to state 34
+-- On loption(separated_nonempty_list(COMMA,typ)) shift to state 35
+## Reductions:
+-- On CLOSE_PAREN
+--   reduce production loption(separated_nonempty_list(COMMA,typ)) ->
+
+State 26:
+## Known stack suffix:
+## INT_TYPE
+## LR(1) items:
+typ -> INT_TYPE . [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production typ -> INT_TYPE
+
+State 27:
+## Known stack suffix:
+## FLOAT_TYPE
+## LR(1) items:
+typ -> FLOAT_TYPE . [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production typ -> FLOAT_TYPE
+
+State 28:
+## Known stack suffix:
+## BOOL_TYPE
+## LR(1) items:
+typ -> BOOL_TYPE . [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production typ -> BOOL_TYPE
+
+State 29:
+## Known stack suffix:
+## typ
+## LR(1) items:
+separated_nonempty_list(COMMA,typ) -> typ . [ CLOSE_PAREN ]
+separated_nonempty_list(COMMA,typ) -> typ . COMMA separated_nonempty_list(COMMA,typ) [ CLOSE_PAREN ]
+typ -> typ . DASH_ARROW typ [ DASH_ARROW COMMA CLOSE_PAREN ]
+## Transitions:
+-- On DASH_ARROW shift to state 30
+-- On COMMA shift to state 32
+## Reductions:
+-- On CLOSE_PAREN
+--   reduce production separated_nonempty_list(COMMA,typ) -> typ
+
+State 30:
+## Known stack suffix:
+## typ DASH_ARROW
+## LR(1) items:
+typ -> typ DASH_ARROW . typ [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On UNKNOWN shift to state 18
+-- On UNIT shift to state 20
+-- On STRING_TYPE shift to state 21
+-- On QUESTION shift to state 22
+-- On OPEN_SQUARE_BRACKET shift to state 24
+-- On OPEN_PAREN shift to state 25
+-- On INT_TYPE shift to state 26
+-- On FLOAT_TYPE shift to state 27
+-- On BOOL_TYPE shift to state 28
+-- On typ shift to state 31
+## Reductions:
+
+State 31:
+## Known stack suffix:
+## typ DASH_ARROW typ
+## LR(1) items:
+typ -> typ . DASH_ARROW typ [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+typ -> typ DASH_ARROW typ . [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production typ -> typ DASH_ARROW typ
+
+State 32:
+## Known stack suffix:
+## typ COMMA
+## LR(1) items:
+separated_nonempty_list(COMMA,typ) -> typ COMMA . separated_nonempty_list(COMMA,typ) [ CLOSE_PAREN ]
+## Transitions:
+-- On UNKNOWN shift to state 18
+-- On UNIT shift to state 20
+-- On STRING_TYPE shift to state 21
+-- On QUESTION shift to state 22
+-- On OPEN_SQUARE_BRACKET shift to state 24
+-- On OPEN_PAREN shift to state 25
+-- On INT_TYPE shift to state 26
+-- On FLOAT_TYPE shift to state 27
+-- On BOOL_TYPE shift to state 28
+-- On typ shift to state 29
+-- On separated_nonempty_list(COMMA,typ) shift to state 33
+## Reductions:
+
+State 33:
+## Known stack suffix:
+## typ COMMA separated_nonempty_list(COMMA,typ)
+## LR(1) items:
+separated_nonempty_list(COMMA,typ) -> typ COMMA separated_nonempty_list(COMMA,typ) . [ CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On CLOSE_PAREN
+--   reduce production separated_nonempty_list(COMMA,typ) -> typ COMMA separated_nonempty_list(COMMA,typ)
+
+State 34:
+## Known stack suffix:
+## separated_nonempty_list(COMMA,typ)
+## LR(1) items:
+loption(separated_nonempty_list(COMMA,typ)) -> separated_nonempty_list(COMMA,typ) . [ CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On CLOSE_PAREN
+--   reduce production loption(separated_nonempty_list(COMMA,typ)) -> separated_nonempty_list(COMMA,typ)
+
+State 35:
+## Known stack suffix:
+## OPEN_PAREN loption(separated_nonempty_list(COMMA,typ))
+## LR(1) items:
+typ -> OPEN_PAREN loption(separated_nonempty_list(COMMA,typ)) . CLOSE_PAREN [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On CLOSE_PAREN shift to state 36
+## Reductions:
+
+State 36:
+## Known stack suffix:
+## OPEN_PAREN loption(separated_nonempty_list(COMMA,typ)) CLOSE_PAREN
+## LR(1) items:
+typ -> OPEN_PAREN loption(separated_nonempty_list(COMMA,typ)) CLOSE_PAREN . [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production typ -> OPEN_PAREN loption(separated_nonempty_list(COMMA,typ)) CLOSE_PAREN
+
+State 37:
+## Known stack suffix:
+## OPEN_SQUARE_BRACKET typ
+## LR(1) items:
+typ -> OPEN_SQUARE_BRACKET typ . CLOSE_SQUARE_BRACKET [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+typ -> typ . DASH_ARROW typ [ DASH_ARROW CLOSE_SQUARE_BRACKET ]
+## Transitions:
+-- On DASH_ARROW shift to state 30
+-- On CLOSE_SQUARE_BRACKET shift to state 38
+## Reductions:
+
+State 38:
+## Known stack suffix:
+## OPEN_SQUARE_BRACKET typ CLOSE_SQUARE_BRACKET
+## LR(1) items:
+typ -> OPEN_SQUARE_BRACKET typ CLOSE_SQUARE_BRACKET . [ TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN SINGLE_EQUAL QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EQUAL_ARROW EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production typ -> OPEN_SQUARE_BRACKET typ CLOSE_SQUARE_BRACKET
+
+State 39:
+## Known stack suffix:
+## CONSTRUCTOR_IDENT COLON typ
+## LR(1) items:
+pat -> CONSTRUCTOR_IDENT COLON typ . [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+typ -> typ . DASH_ARROW typ [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW DASH_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On DASH_ARROW shift to state 30
+## Reductions:
+-- On SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production pat -> CONSTRUCTOR_IDENT COLON typ
+
+State 40:
+## Known stack suffix:
+## varPat
+## LR(1) items:
+pat -> varPat . [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production pat -> varPat
+
+State 41:
+## Known stack suffix:
+## separated_nonempty_list(COMMA,pat)
+## LR(1) items:
+loption(separated_nonempty_list(COMMA,pat)) -> separated_nonempty_list(COMMA,pat) . [ CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production loption(separated_nonempty_list(COMMA,pat)) -> separated_nonempty_list(COMMA,pat)
+
+State 42:
+## Known stack suffix:
+## patTuple
+## LR(1) items:
+pat -> patTuple . [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production pat -> patTuple
+
+State 43:
+## Known stack suffix:
+## pat
+## LR(1) items:
+pat -> pat . CONS pat [ OPEN_PAREN CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+pat -> pat . OPEN_PAREN pat CLOSE_PAREN [ OPEN_PAREN CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+separated_nonempty_list(COMMA,pat) -> pat . [ CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+separated_nonempty_list(COMMA,pat) -> pat . COMMA separated_nonempty_list(COMMA,pat) [ CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On OPEN_PAREN shift to state 44
+-- On CONS shift to state 46
+-- On COMMA shift to state 49
+## Reductions:
+-- On CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production separated_nonempty_list(COMMA,pat) -> pat
+
+State 44:
+## Known stack suffix:
+## pat OPEN_PAREN
+## LR(1) items:
+pat -> pat OPEN_PAREN . pat CLOSE_PAREN [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On WILD shift to state 5
+-- On TRUE shift to state 6
+-- On STRING shift to state 7
+-- On QUESTION shift to state 8
+-- On OPEN_SQUARE_BRACKET shift to state 10
+-- On OPEN_PAREN shift to state 11
+-- On INT shift to state 12
+-- On IDENT shift to state 13
+-- On FLOAT shift to state 14
+-- On FALSE shift to state 15
+-- On CONSTRUCTOR_IDENT shift to state 16
+-- On varPat shift to state 40
+-- On patTuple shift to state 42
+-- On pat shift to state 45
+## Reductions:
+
+State 45:
+## Known stack suffix:
+## pat OPEN_PAREN pat
+## LR(1) items:
+pat -> pat . CONS pat [ OPEN_PAREN CONS CLOSE_PAREN ]
+pat -> pat . OPEN_PAREN pat CLOSE_PAREN [ OPEN_PAREN CONS CLOSE_PAREN ]
+pat -> pat OPEN_PAREN pat . CLOSE_PAREN [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On OPEN_PAREN shift to state 44
+-- On CONS shift to state 46
+-- On CLOSE_PAREN shift to state 48
+## Reductions:
+
+State 46:
+## Known stack suffix:
+## pat CONS
+## LR(1) items:
+pat -> pat CONS . pat [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On WILD shift to state 5
+-- On TRUE shift to state 6
+-- On STRING shift to state 7
+-- On QUESTION shift to state 8
+-- On OPEN_SQUARE_BRACKET shift to state 10
+-- On OPEN_PAREN shift to state 11
+-- On INT shift to state 12
+-- On IDENT shift to state 13
+-- On FLOAT shift to state 14
+-- On FALSE shift to state 15
+-- On CONSTRUCTOR_IDENT shift to state 16
+-- On varPat shift to state 40
+-- On patTuple shift to state 42
+-- On pat shift to state 47
+## Reductions:
+
+State 47:
+## Known stack suffix:
+## pat CONS pat
+## LR(1) items:
+pat -> pat . CONS pat [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+pat -> pat CONS pat . [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+pat -> pat . OPEN_PAREN pat CLOSE_PAREN [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On OPEN_PAREN shift to state 44
+## Reductions:
+-- On SINGLE_EQUAL EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production pat -> pat CONS pat
+
+State 48:
+## Known stack suffix:
+## pat OPEN_PAREN pat CLOSE_PAREN
+## LR(1) items:
+pat -> pat OPEN_PAREN pat CLOSE_PAREN . [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production pat -> pat OPEN_PAREN pat CLOSE_PAREN
+
+State 49:
+## Known stack suffix:
+## pat COMMA
+## LR(1) items:
+separated_nonempty_list(COMMA,pat) -> pat COMMA . separated_nonempty_list(COMMA,pat) [ CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On WILD shift to state 5
+-- On TRUE shift to state 6
+-- On STRING shift to state 7
+-- On QUESTION shift to state 8
+-- On OPEN_SQUARE_BRACKET shift to state 10
+-- On OPEN_PAREN shift to state 11
+-- On INT shift to state 12
+-- On IDENT shift to state 13
+-- On FLOAT shift to state 14
+-- On FALSE shift to state 15
+-- On CONSTRUCTOR_IDENT shift to state 16
+-- On varPat shift to state 40
+-- On separated_nonempty_list(COMMA,pat) shift to state 50
+-- On patTuple shift to state 42
+-- On pat shift to state 43
+## Reductions:
+
+State 50:
+## Known stack suffix:
+## pat COMMA separated_nonempty_list(COMMA,pat)
+## LR(1) items:
+separated_nonempty_list(COMMA,pat) -> pat COMMA separated_nonempty_list(COMMA,pat) . [ CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production separated_nonempty_list(COMMA,pat) -> pat COMMA separated_nonempty_list(COMMA,pat)
+
+State 51:
+## Known stack suffix:
+## OPEN_PAREN loption(separated_nonempty_list(COMMA,pat))
+## LR(1) items:
+patTuple -> OPEN_PAREN loption(separated_nonempty_list(COMMA,pat)) . CLOSE_PAREN [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On CLOSE_PAREN shift to state 52
+## Reductions:
+
+State 52:
+## Known stack suffix:
+## OPEN_PAREN loption(separated_nonempty_list(COMMA,pat)) CLOSE_PAREN
+## LR(1) items:
+patTuple -> OPEN_PAREN loption(separated_nonempty_list(COMMA,pat)) CLOSE_PAREN . [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production patTuple -> OPEN_PAREN loption(separated_nonempty_list(COMMA,pat)) CLOSE_PAREN
+
+State 53:
+## Known stack suffix:
+## OPEN_SQUARE_BRACKET loption(separated_nonempty_list(COMMA,pat))
+## LR(1) items:
+pat -> OPEN_SQUARE_BRACKET loption(separated_nonempty_list(COMMA,pat)) . CLOSE_SQUARE_BRACKET [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On CLOSE_SQUARE_BRACKET shift to state 54
+## Reductions:
+
+State 54:
+## Known stack suffix:
+## OPEN_SQUARE_BRACKET loption(separated_nonempty_list(COMMA,pat)) CLOSE_SQUARE_BRACKET
+## LR(1) items:
+pat -> OPEN_SQUARE_BRACKET loption(separated_nonempty_list(COMMA,pat)) CLOSE_SQUARE_BRACKET . [ SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On SINGLE_EQUAL OPEN_PAREN EQUAL_ARROW CONS COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production pat -> OPEN_SQUARE_BRACKET loption(separated_nonempty_list(COMMA,pat)) CLOSE_SQUARE_BRACKET
+
+State 55:
+## Known stack suffix:
+## LET pat
+## LR(1) items:
+exp -> LET pat . SINGLE_EQUAL exp IN exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+pat -> pat . CONS pat [ SINGLE_EQUAL OPEN_PAREN CONS ]
+pat -> pat . OPEN_PAREN pat CLOSE_PAREN [ SINGLE_EQUAL OPEN_PAREN CONS ]
+## Transitions:
+-- On SINGLE_EQUAL shift to state 56
+-- On OPEN_PAREN shift to state 44
+-- On CONS shift to state 46
+## Reductions:
+
+State 56:
+## Known stack suffix:
+## LET pat SINGLE_EQUAL
+## LR(1) items:
+exp -> LET pat SINGLE_EQUAL . exp IN exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 113
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 57:
+## Known stack suffix:
+## INT
+## LR(1) items:
+exp -> INT . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production exp -> INT
+
+State 58:
+## Known stack suffix:
+## IF
+## LR(1) items:
+exp -> IF . exp THEN exp ELSE exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 108
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 59:
+## Known stack suffix:
+## IDENT
+## LR(1) items:
+exp -> IDENT . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production exp -> IDENT
+
+State 60:
+## Known stack suffix:
+## FLOAT
+## LR(1) items:
+exp -> FLOAT . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production exp -> FLOAT
+
+State 61:
+## Known stack suffix:
+## CONSTRUCTOR_IDENT
+## LR(1) items:
+exp -> CONSTRUCTOR_IDENT . COLON typ [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On COLON shift to state 62
+## Reductions:
+
+State 62:
+## Known stack suffix:
+## CONSTRUCTOR_IDENT COLON
+## LR(1) items:
+exp -> CONSTRUCTOR_IDENT COLON . typ [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On UNKNOWN shift to state 18
+-- On UNIT shift to state 20
+-- On STRING_TYPE shift to state 21
+-- On QUESTION shift to state 22
+-- On OPEN_SQUARE_BRACKET shift to state 24
+-- On OPEN_PAREN shift to state 25
+-- On INT_TYPE shift to state 26
+-- On FLOAT_TYPE shift to state 27
+-- On BOOL_TYPE shift to state 28
+-- On typ shift to state 63
+## Reductions:
+
+State 63:
+## Known stack suffix:
+## CONSTRUCTOR_IDENT COLON typ
+## LR(1) items:
+exp -> CONSTRUCTOR_IDENT COLON typ . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+typ -> typ . DASH_ARROW typ [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE DASH_ARROW COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On DASH_ARROW shift to state 30
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production exp -> CONSTRUCTOR_IDENT COLON typ
+
+State 64:
+## Known stack suffix:
+## CASE
+## LR(1) items:
+case -> CASE . exp list(rul) END [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 65
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 65:
+## Known stack suffix:
+## CASE exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . MINUS exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . TIMES exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . POWER exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . DIVIDE exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . DOUBLE_EQUAL exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . NOT_EQUAL exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . GREATER_THAN exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+case -> CASE exp . list(rul) END [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+## Transitions:
+-- On TURNSTILE shift to state 66
+-- On TIMES shift to state 70
+-- On QUESTION shift to state 72
+-- On POWER shift to state 81
+-- On PLUS shift to state 85
+-- On OPEN_PAREN shift to state 78
+-- On NOT_EQUAL shift to state 87
+-- On MINUS shift to state 89
+-- On LESS_THAN_EQUAL shift to state 91
+-- On GREATER_THAN_EQUAL shift to state 93
+-- On GREATER_THAN shift to state 95
+-- On DOUBLE_EQUAL shift to state 97
+-- On DIVIDE shift to state 99
+-- On rul shift to state 104
+-- On list(rul) shift to state 106
+## Reductions:
+-- On END
+--   reduce production list(rul) ->
+
+State 66:
+## Known stack suffix:
+## TURNSTILE
+## LR(1) items:
+rul -> TURNSTILE . pat EQUAL_ARROW exp [ TURNSTILE END ]
+## Transitions:
+-- On WILD shift to state 5
+-- On TRUE shift to state 6
+-- On STRING shift to state 7
+-- On QUESTION shift to state 8
+-- On OPEN_SQUARE_BRACKET shift to state 10
+-- On OPEN_PAREN shift to state 11
+-- On INT shift to state 12
+-- On IDENT shift to state 13
+-- On FLOAT shift to state 14
+-- On FALSE shift to state 15
+-- On CONSTRUCTOR_IDENT shift to state 16
+-- On varPat shift to state 40
+-- On patTuple shift to state 42
+-- On pat shift to state 67
+## Reductions:
+
+State 67:
+## Known stack suffix:
+## TURNSTILE pat
+## LR(1) items:
+pat -> pat . CONS pat [ OPEN_PAREN EQUAL_ARROW CONS ]
+pat -> pat . OPEN_PAREN pat CLOSE_PAREN [ OPEN_PAREN EQUAL_ARROW CONS ]
+rul -> TURNSTILE pat . EQUAL_ARROW exp [ TURNSTILE END ]
+## Transitions:
+-- On OPEN_PAREN shift to state 44
+-- On EQUAL_ARROW shift to state 68
+-- On CONS shift to state 46
+## Reductions:
+
+State 68:
+## Known stack suffix:
+## TURNSTILE pat EQUAL_ARROW
+## LR(1) items:
+rul -> TURNSTILE pat EQUAL_ARROW . exp [ TURNSTILE END ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 69
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 69:
+## Known stack suffix:
+## TURNSTILE pat EQUAL_ARROW exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . MINUS exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . TIMES exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . POWER exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . DIVIDE exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . DOUBLE_EQUAL exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . NOT_EQUAL exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . GREATER_THAN exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN END DOUBLE_EQUAL DIVIDE ]
+rul -> TURNSTILE pat EQUAL_ARROW exp . [ TURNSTILE END ]
+## Transitions:
+-- On TIMES shift to state 70
+-- On QUESTION shift to state 72
+-- On POWER shift to state 81
+-- On PLUS shift to state 85
+-- On OPEN_PAREN shift to state 78
+-- On NOT_EQUAL shift to state 87
+-- On MINUS shift to state 89
+-- On LESS_THAN_EQUAL shift to state 91
+-- On GREATER_THAN_EQUAL shift to state 93
+-- On GREATER_THAN shift to state 95
+-- On DOUBLE_EQUAL shift to state 97
+-- On DIVIDE shift to state 99
+## Reductions:
+-- On TURNSTILE END
+--   reduce production rul -> TURNSTILE pat EQUAL_ARROW exp
+
+State 70:
+## Known stack suffix:
+## exp TIMES
+## LR(1) items:
+binExp -> exp TIMES . exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 71
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 71:
+## Known stack suffix:
+## exp TIMES exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . MINUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . TIMES exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp TIMES exp . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . POWER exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DIVIDE exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DOUBLE_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . NOT_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On QUESTION shift to state 72
+-- On OPEN_PAREN shift to state 78
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production binExp -> exp TIMES exp
+** Conflict on QUESTION
+
+State 72:
+## Known stack suffix:
+## exp QUESTION
+## LR(1) items:
+exp -> exp QUESTION . LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On LESS_THAN shift to state 73
+## Reductions:
+
+State 73:
+## Known stack suffix:
+## exp QUESTION LESS_THAN
+## LR(1) items:
+exp -> exp QUESTION LESS_THAN . typ EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On UNKNOWN shift to state 18
+-- On UNIT shift to state 20
+-- On STRING_TYPE shift to state 21
+-- On QUESTION shift to state 22
+-- On OPEN_SQUARE_BRACKET shift to state 24
+-- On OPEN_PAREN shift to state 25
+-- On INT_TYPE shift to state 26
+-- On FLOAT_TYPE shift to state 27
+-- On BOOL_TYPE shift to state 28
+-- On typ shift to state 74
+## Reductions:
+
+State 74:
+## Known stack suffix:
+## exp QUESTION LESS_THAN typ
+## LR(1) items:
+exp -> exp QUESTION LESS_THAN typ . EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+typ -> typ . DASH_ARROW typ [ EQUAL_ARROW DASH_ARROW ]
+## Transitions:
+-- On EQUAL_ARROW shift to state 75
+-- On DASH_ARROW shift to state 30
+## Reductions:
+
+State 75:
+## Known stack suffix:
+## exp QUESTION LESS_THAN typ EQUAL_ARROW
+## LR(1) items:
+exp -> exp QUESTION LESS_THAN typ EQUAL_ARROW . typ GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On UNKNOWN shift to state 18
+-- On UNIT shift to state 20
+-- On STRING_TYPE shift to state 21
+-- On QUESTION shift to state 22
+-- On OPEN_SQUARE_BRACKET shift to state 24
+-- On OPEN_PAREN shift to state 25
+-- On INT_TYPE shift to state 26
+-- On FLOAT_TYPE shift to state 27
+-- On BOOL_TYPE shift to state 28
+-- On typ shift to state 76
+## Reductions:
+
+State 76:
+## Known stack suffix:
+## exp QUESTION LESS_THAN typ EQUAL_ARROW typ
+## LR(1) items:
+exp -> exp QUESTION LESS_THAN typ EQUAL_ARROW typ . GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+typ -> typ . DASH_ARROW typ [ GREATER_THAN DASH_ARROW ]
+## Transitions:
+-- On GREATER_THAN shift to state 77
+-- On DASH_ARROW shift to state 30
+## Reductions:
+
+State 77:
+## Known stack suffix:
+## exp QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN
+## LR(1) items:
+exp -> exp QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production exp -> exp QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN
+
+State 78:
+## Known stack suffix:
+## exp OPEN_PAREN
+## LR(1) items:
+exp -> exp OPEN_PAREN . exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp OPEN_PAREN . WILD exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On WILD shift to state 79
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 102
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 79:
+## Known stack suffix:
+## exp OPEN_PAREN WILD
+## LR(1) items:
+exp -> exp OPEN_PAREN WILD . exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 80
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 80:
+## Known stack suffix:
+## exp OPEN_PAREN WILD exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . MINUS exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . TIMES exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . POWER exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . DIVIDE exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . DOUBLE_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . NOT_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+exp -> exp OPEN_PAREN WILD exp . CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+## Transitions:
+-- On TIMES shift to state 70
+-- On QUESTION shift to state 72
+-- On POWER shift to state 81
+-- On PLUS shift to state 85
+-- On OPEN_PAREN shift to state 78
+-- On NOT_EQUAL shift to state 87
+-- On MINUS shift to state 89
+-- On LESS_THAN_EQUAL shift to state 91
+-- On GREATER_THAN_EQUAL shift to state 93
+-- On GREATER_THAN shift to state 95
+-- On DOUBLE_EQUAL shift to state 97
+-- On DIVIDE shift to state 99
+-- On CLOSE_PAREN shift to state 101
+## Reductions:
+
+State 81:
+## Known stack suffix:
+## exp POWER
+## LR(1) items:
+binExp -> exp POWER . exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 82
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 82:
+## Known stack suffix:
+## exp POWER exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . MINUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . TIMES exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . POWER exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp POWER exp . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DIVIDE exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DOUBLE_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . NOT_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On QUESTION shift to state 72
+-- On OPEN_PAREN shift to state 78
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production binExp -> exp POWER exp
+** Conflict on QUESTION
+
+State 83:
+## Known stack suffix:
+## case
+## LR(1) items:
+exp -> case . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production exp -> case
+
+State 84:
+## Known stack suffix:
+## binExp
+## LR(1) items:
+exp -> binExp . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production exp -> binExp
+
+State 85:
+## Known stack suffix:
+## exp PLUS
+## LR(1) items:
+binExp -> exp PLUS . exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 86
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 86:
+## Known stack suffix:
+## exp PLUS exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp PLUS exp . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . MINUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . TIMES exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . POWER exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DIVIDE exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DOUBLE_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . NOT_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On QUESTION shift to state 72
+-- On OPEN_PAREN shift to state 78
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production binExp -> exp PLUS exp
+** Conflict on QUESTION
+
+State 87:
+## Known stack suffix:
+## exp NOT_EQUAL
+## LR(1) items:
+binExp -> exp NOT_EQUAL . exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 88
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 88:
+## Known stack suffix:
+## exp NOT_EQUAL exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . MINUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . TIMES exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . POWER exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DIVIDE exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DOUBLE_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . NOT_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp NOT_EQUAL exp . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On QUESTION shift to state 72
+-- On OPEN_PAREN shift to state 78
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production binExp -> exp NOT_EQUAL exp
+** Conflict on QUESTION
+
+State 89:
+## Known stack suffix:
+## exp MINUS
+## LR(1) items:
+binExp -> exp MINUS . exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 90
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 90:
+## Known stack suffix:
+## exp MINUS exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . MINUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp MINUS exp . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . TIMES exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . POWER exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DIVIDE exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DOUBLE_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . NOT_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On QUESTION shift to state 72
+-- On OPEN_PAREN shift to state 78
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production binExp -> exp MINUS exp
+** Conflict on QUESTION
+
+State 91:
+## Known stack suffix:
+## exp LESS_THAN_EQUAL
+## LR(1) items:
+binExp -> exp LESS_THAN_EQUAL . exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 92
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 92:
+## Known stack suffix:
+## exp LESS_THAN_EQUAL exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . MINUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . TIMES exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . POWER exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DIVIDE exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DOUBLE_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . NOT_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp LESS_THAN_EQUAL exp . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On QUESTION shift to state 72
+-- On OPEN_PAREN shift to state 78
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production binExp -> exp LESS_THAN_EQUAL exp
+** Conflict on QUESTION
+
+State 93:
+## Known stack suffix:
+## exp GREATER_THAN_EQUAL
+## LR(1) items:
+binExp -> exp GREATER_THAN_EQUAL . exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 94
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 94:
+## Known stack suffix:
+## exp GREATER_THAN_EQUAL exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . MINUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . TIMES exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . POWER exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DIVIDE exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DOUBLE_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . NOT_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp GREATER_THAN_EQUAL exp . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On QUESTION shift to state 72
+-- On OPEN_PAREN shift to state 78
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production binExp -> exp GREATER_THAN_EQUAL exp
+** Conflict on QUESTION
+
+State 95:
+## Known stack suffix:
+## exp GREATER_THAN
+## LR(1) items:
+binExp -> exp GREATER_THAN . exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 96
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 96:
+## Known stack suffix:
+## exp GREATER_THAN exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . MINUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . TIMES exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . POWER exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DIVIDE exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DOUBLE_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . NOT_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp GREATER_THAN exp . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On QUESTION shift to state 72
+-- On OPEN_PAREN shift to state 78
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production binExp -> exp GREATER_THAN exp
+** Conflict on QUESTION
+
+State 97:
+## Known stack suffix:
+## exp DOUBLE_EQUAL
+## LR(1) items:
+binExp -> exp DOUBLE_EQUAL . exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 98
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 98:
+## Known stack suffix:
+## exp DOUBLE_EQUAL exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . MINUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . TIMES exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . POWER exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DIVIDE exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DOUBLE_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp DOUBLE_EQUAL exp . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . NOT_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On QUESTION shift to state 72
+-- On OPEN_PAREN shift to state 78
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production binExp -> exp DOUBLE_EQUAL exp
+** Conflict on QUESTION
+
+State 99:
+## Known stack suffix:
+## exp DIVIDE
+## LR(1) items:
+binExp -> exp DIVIDE . exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 100
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 100:
+## Known stack suffix:
+## exp DIVIDE exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . MINUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . TIMES exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . POWER exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DIVIDE exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp DIVIDE exp . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DOUBLE_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . NOT_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On QUESTION shift to state 72
+-- On OPEN_PAREN shift to state 78
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production binExp -> exp DIVIDE exp
+** Conflict on QUESTION
+
+State 101:
+## Known stack suffix:
+## exp OPEN_PAREN WILD exp CLOSE_PAREN
+## LR(1) items:
+exp -> exp OPEN_PAREN WILD exp CLOSE_PAREN . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production exp -> exp OPEN_PAREN WILD exp CLOSE_PAREN
+
+State 102:
+## Known stack suffix:
+## exp OPEN_PAREN exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . MINUS exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . TIMES exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . POWER exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . DIVIDE exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . DOUBLE_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . NOT_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+exp -> exp OPEN_PAREN exp . CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE CLOSE_PAREN ]
+## Transitions:
+-- On TIMES shift to state 70
+-- On QUESTION shift to state 72
+-- On POWER shift to state 81
+-- On PLUS shift to state 85
+-- On OPEN_PAREN shift to state 78
+-- On NOT_EQUAL shift to state 87
+-- On MINUS shift to state 89
+-- On LESS_THAN_EQUAL shift to state 91
+-- On GREATER_THAN_EQUAL shift to state 93
+-- On GREATER_THAN shift to state 95
+-- On DOUBLE_EQUAL shift to state 97
+-- On DIVIDE shift to state 99
+-- On CLOSE_PAREN shift to state 103
+## Reductions:
+
+State 103:
+## Known stack suffix:
+## exp OPEN_PAREN exp CLOSE_PAREN
+## LR(1) items:
+exp -> exp OPEN_PAREN exp CLOSE_PAREN . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production exp -> exp OPEN_PAREN exp CLOSE_PAREN
+
+State 104:
+## Known stack suffix:
+## rul
+## LR(1) items:
+list(rul) -> rul . list(rul) [ END ]
+## Transitions:
+-- On TURNSTILE shift to state 66
+-- On rul shift to state 104
+-- On list(rul) shift to state 105
+## Reductions:
+-- On END
+--   reduce production list(rul) ->
+
+State 105:
+## Known stack suffix:
+## rul list(rul)
+## LR(1) items:
+list(rul) -> rul list(rul) . [ END ]
+## Transitions:
+## Reductions:
+-- On END
+--   reduce production list(rul) -> rul list(rul)
+
+State 106:
+## Known stack suffix:
+## CASE exp list(rul)
+## LR(1) items:
+case -> CASE exp list(rul) . END [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On END shift to state 107
+## Reductions:
+
+State 107:
+## Known stack suffix:
+## CASE exp list(rul) END
+## LR(1) items:
+case -> CASE exp list(rul) END . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production case -> CASE exp list(rul) END
+
+State 108:
+## Known stack suffix:
+## IF exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . MINUS exp [ TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . TIMES exp [ TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . POWER exp [ TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . DIVIDE exp [ TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . DOUBLE_EQUAL exp [ TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . NOT_EQUAL exp [ TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . GREATER_THAN exp [ TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+exp -> IF exp . THEN exp ELSE exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+## Transitions:
+-- On TIMES shift to state 70
+-- On THEN shift to state 109
+-- On QUESTION shift to state 72
+-- On POWER shift to state 81
+-- On PLUS shift to state 85
+-- On OPEN_PAREN shift to state 78
+-- On NOT_EQUAL shift to state 87
+-- On MINUS shift to state 89
+-- On LESS_THAN_EQUAL shift to state 91
+-- On GREATER_THAN_EQUAL shift to state 93
+-- On GREATER_THAN shift to state 95
+-- On DOUBLE_EQUAL shift to state 97
+-- On DIVIDE shift to state 99
+## Reductions:
+
+State 109:
+## Known stack suffix:
+## IF exp THEN
+## LR(1) items:
+exp -> IF exp THEN . exp ELSE exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 110
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 110:
+## Known stack suffix:
+## IF exp THEN exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN ELSE DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . MINUS exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN ELSE DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . TIMES exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN ELSE DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . POWER exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN ELSE DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . DIVIDE exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN ELSE DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . DOUBLE_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN ELSE DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . NOT_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN ELSE DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN ELSE DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . GREATER_THAN exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN ELSE DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN ELSE DOUBLE_EQUAL DIVIDE ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN ELSE DOUBLE_EQUAL DIVIDE ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN ELSE DOUBLE_EQUAL DIVIDE ]
+exp -> IF exp THEN exp . ELSE exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN ELSE DOUBLE_EQUAL DIVIDE ]
+## Transitions:
+-- On TIMES shift to state 70
+-- On QUESTION shift to state 72
+-- On POWER shift to state 81
+-- On PLUS shift to state 85
+-- On OPEN_PAREN shift to state 78
+-- On NOT_EQUAL shift to state 87
+-- On MINUS shift to state 89
+-- On LESS_THAN_EQUAL shift to state 91
+-- On GREATER_THAN_EQUAL shift to state 93
+-- On GREATER_THAN shift to state 95
+-- On ELSE shift to state 111
+-- On DOUBLE_EQUAL shift to state 97
+-- On DIVIDE shift to state 99
+## Reductions:
+
+State 111:
+## Known stack suffix:
+## IF exp THEN exp ELSE
+## LR(1) items:
+exp -> IF exp THEN exp ELSE . exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 112
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 112:
+## Known stack suffix:
+## IF exp THEN exp ELSE exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . MINUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . TIMES exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . POWER exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DIVIDE exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DOUBLE_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . NOT_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> IF exp THEN exp ELSE exp . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On TIMES shift to state 70
+-- On QUESTION shift to state 72
+-- On POWER shift to state 81
+-- On PLUS shift to state 85
+-- On OPEN_PAREN shift to state 78
+-- On NOT_EQUAL shift to state 87
+-- On MINUS shift to state 89
+-- On LESS_THAN_EQUAL shift to state 91
+-- On GREATER_THAN_EQUAL shift to state 93
+-- On GREATER_THAN shift to state 95
+-- On DOUBLE_EQUAL shift to state 97
+-- On DIVIDE shift to state 99
+## Reductions:
+-- On TURNSTILE THEN QUESTION IN EOF END ELSE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production exp -> IF exp THEN exp ELSE exp
+** Conflict on QUESTION
+
+State 113:
+## Known stack suffix:
+## LET pat SINGLE_EQUAL exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . MINUS exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . TIMES exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . POWER exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . DIVIDE exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . DOUBLE_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . NOT_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . GREATER_THAN exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+exp -> LET pat SINGLE_EQUAL exp . IN exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE ]
+## Transitions:
+-- On TIMES shift to state 70
+-- On QUESTION shift to state 72
+-- On POWER shift to state 81
+-- On PLUS shift to state 85
+-- On OPEN_PAREN shift to state 78
+-- On NOT_EQUAL shift to state 87
+-- On MINUS shift to state 89
+-- On LESS_THAN_EQUAL shift to state 91
+-- On IN shift to state 114
+-- On GREATER_THAN_EQUAL shift to state 93
+-- On GREATER_THAN shift to state 95
+-- On DOUBLE_EQUAL shift to state 97
+-- On DIVIDE shift to state 99
+## Reductions:
+
+State 114:
+## Known stack suffix:
+## LET pat SINGLE_EQUAL exp IN
+## LR(1) items:
+exp -> LET pat SINGLE_EQUAL exp IN . exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On exp shift to state 115
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 115:
+## Known stack suffix:
+## LET pat SINGLE_EQUAL exp IN exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . MINUS exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . TIMES exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . POWER exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DIVIDE exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DOUBLE_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . NOT_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> LET pat SINGLE_EQUAL exp IN exp . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On TIMES shift to state 70
+-- On QUESTION shift to state 72
+-- On POWER shift to state 81
+-- On PLUS shift to state 85
+-- On OPEN_PAREN shift to state 78
+-- On NOT_EQUAL shift to state 87
+-- On MINUS shift to state 89
+-- On LESS_THAN_EQUAL shift to state 91
+-- On GREATER_THAN_EQUAL shift to state 93
+-- On GREATER_THAN shift to state 95
+-- On DOUBLE_EQUAL shift to state 97
+-- On DIVIDE shift to state 99
+## Reductions:
+-- On TURNSTILE THEN QUESTION IN EOF END ELSE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production exp -> LET pat SINGLE_EQUAL exp IN exp
+** Conflict on QUESTION
+
+State 116:
+## Known stack suffix:
+## OPEN_PAREN exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_PAREN ]
+binExp -> exp . MINUS exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_PAREN ]
+binExp -> exp . TIMES exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_PAREN ]
+binExp -> exp . POWER exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_PAREN ]
+binExp -> exp . DIVIDE exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_PAREN ]
+binExp -> exp . DOUBLE_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_PAREN ]
+binExp -> exp . NOT_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_PAREN ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_PAREN ]
+exp -> OPEN_PAREN exp . CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> OPEN_PAREN exp . COMMA loption(separated_nonempty_list(COMMA,exp)) CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_PAREN ]
+## Transitions:
+-- On TIMES shift to state 70
+-- On QUESTION shift to state 72
+-- On POWER shift to state 81
+-- On PLUS shift to state 85
+-- On OPEN_PAREN shift to state 78
+-- On NOT_EQUAL shift to state 87
+-- On MINUS shift to state 89
+-- On LESS_THAN_EQUAL shift to state 91
+-- On GREATER_THAN_EQUAL shift to state 93
+-- On GREATER_THAN shift to state 95
+-- On DOUBLE_EQUAL shift to state 97
+-- On DIVIDE shift to state 99
+-- On COMMA shift to state 117
+-- On CLOSE_PAREN shift to state 124
+## Reductions:
+
+State 117:
+## Known stack suffix:
+## OPEN_PAREN exp COMMA
+## LR(1) items:
+exp -> OPEN_PAREN exp COMMA . loption(separated_nonempty_list(COMMA,exp)) CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On separated_nonempty_list(COMMA,exp) shift to state 118
+-- On loption(separated_nonempty_list(COMMA,exp)) shift to state 119
+-- On exp shift to state 121
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+-- On CLOSE_PAREN
+--   reduce production loption(separated_nonempty_list(COMMA,exp)) ->
+
+State 118:
+## Known stack suffix:
+## separated_nonempty_list(COMMA,exp)
+## LR(1) items:
+loption(separated_nonempty_list(COMMA,exp)) -> separated_nonempty_list(COMMA,exp) . [ CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production loption(separated_nonempty_list(COMMA,exp)) -> separated_nonempty_list(COMMA,exp)
+
+State 119:
+## Known stack suffix:
+## OPEN_PAREN exp COMMA loption(separated_nonempty_list(COMMA,exp))
+## LR(1) items:
+exp -> OPEN_PAREN exp COMMA loption(separated_nonempty_list(COMMA,exp)) . CLOSE_PAREN [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On CLOSE_PAREN shift to state 120
+## Reductions:
+
+State 120:
+## Known stack suffix:
+## OPEN_PAREN exp COMMA loption(separated_nonempty_list(COMMA,exp)) CLOSE_PAREN
+## LR(1) items:
+exp -> OPEN_PAREN exp COMMA loption(separated_nonempty_list(COMMA,exp)) CLOSE_PAREN . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production exp -> OPEN_PAREN exp COMMA loption(separated_nonempty_list(COMMA,exp)) CLOSE_PAREN
+
+State 121:
+## Known stack suffix:
+## exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . MINUS exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . TIMES exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . POWER exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DIVIDE exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . DOUBLE_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . NOT_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+separated_nonempty_list(COMMA,exp) -> exp . [ CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+separated_nonempty_list(COMMA,exp) -> exp . COMMA separated_nonempty_list(COMMA,exp) [ CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On TIMES shift to state 70
+-- On QUESTION shift to state 72
+-- On POWER shift to state 81
+-- On PLUS shift to state 85
+-- On OPEN_PAREN shift to state 78
+-- On NOT_EQUAL shift to state 87
+-- On MINUS shift to state 89
+-- On LESS_THAN_EQUAL shift to state 91
+-- On GREATER_THAN_EQUAL shift to state 93
+-- On GREATER_THAN shift to state 95
+-- On DOUBLE_EQUAL shift to state 97
+-- On DIVIDE shift to state 99
+-- On COMMA shift to state 122
+## Reductions:
+-- On CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production separated_nonempty_list(COMMA,exp) -> exp
+
+State 122:
+## Known stack suffix:
+## exp COMMA
+## LR(1) items:
+separated_nonempty_list(COMMA,exp) -> exp COMMA . separated_nonempty_list(COMMA,exp) [ CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On STRING shift to state 1
+-- On OPEN_SQUARE_BRACKET shift to state 2
+-- On OPEN_PAREN shift to state 3
+-- On LET shift to state 4
+-- On INT shift to state 57
+-- On IF shift to state 58
+-- On IDENT shift to state 59
+-- On FLOAT shift to state 60
+-- On CONSTRUCTOR_IDENT shift to state 61
+-- On CASE shift to state 64
+-- On separated_nonempty_list(COMMA,exp) shift to state 123
+-- On exp shift to state 121
+-- On case shift to state 83
+-- On binExp shift to state 84
+## Reductions:
+
+State 123:
+## Known stack suffix:
+## exp COMMA separated_nonempty_list(COMMA,exp)
+## LR(1) items:
+separated_nonempty_list(COMMA,exp) -> exp COMMA separated_nonempty_list(COMMA,exp) . [ CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production separated_nonempty_list(COMMA,exp) -> exp COMMA separated_nonempty_list(COMMA,exp)
+
+State 124:
+## Known stack suffix:
+## OPEN_PAREN exp CLOSE_PAREN
+## LR(1) items:
+exp -> OPEN_PAREN exp CLOSE_PAREN . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production exp -> OPEN_PAREN exp CLOSE_PAREN
+
+State 125:
+## Known stack suffix:
+## OPEN_SQUARE_BRACKET loption(separated_nonempty_list(COMMA,exp))
+## LR(1) items:
+exp -> OPEN_SQUARE_BRACKET loption(separated_nonempty_list(COMMA,exp)) . CLOSE_SQUARE_BRACKET [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+-- On CLOSE_SQUARE_BRACKET shift to state 126
+## Reductions:
+
+State 126:
+## Known stack suffix:
+## OPEN_SQUARE_BRACKET loption(separated_nonempty_list(COMMA,exp)) CLOSE_SQUARE_BRACKET
+## LR(1) items:
+exp -> OPEN_SQUARE_BRACKET loption(separated_nonempty_list(COMMA,exp)) CLOSE_SQUARE_BRACKET . [ TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN ]
+## Transitions:
+## Reductions:
+-- On TURNSTILE TIMES THEN QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL IN GREATER_THAN_EQUAL GREATER_THAN EOF END ELSE DOUBLE_EQUAL DIVIDE COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+--   reduce production exp -> OPEN_SQUARE_BRACKET loption(separated_nonempty_list(COMMA,exp)) CLOSE_SQUARE_BRACKET
+
+State 127:
+## Known stack suffix:
+## program
+## LR(1) items:
+program' -> program . [ # ]
+## Transitions:
+## Reductions:
+-- On #
+--   accept program
+
+State 128:
+## Known stack suffix:
+## exp
+## LR(1) items:
+binExp -> exp . PLUS exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN EOF DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . MINUS exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN EOF DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . TIMES exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN EOF DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . POWER exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN EOF DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . DIVIDE exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN EOF DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . DOUBLE_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN EOF DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . NOT_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN EOF DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . LESS_THAN_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN EOF DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . GREATER_THAN exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN EOF DOUBLE_EQUAL DIVIDE ]
+binExp -> exp . GREATER_THAN_EQUAL exp [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN EOF DOUBLE_EQUAL DIVIDE ]
+exp -> exp . OPEN_PAREN exp CLOSE_PAREN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN EOF DOUBLE_EQUAL DIVIDE ]
+exp -> exp . OPEN_PAREN WILD exp CLOSE_PAREN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN EOF DOUBLE_EQUAL DIVIDE ]
+exp -> exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN [ TIMES QUESTION POWER PLUS OPEN_PAREN NOT_EQUAL MINUS LESS_THAN_EQUAL GREATER_THAN_EQUAL GREATER_THAN EOF DOUBLE_EQUAL DIVIDE ]
+program -> exp . EOF [ # ]
+## Transitions:
+-- On TIMES shift to state 70
+-- On QUESTION shift to state 72
+-- On POWER shift to state 81
+-- On PLUS shift to state 85
+-- On OPEN_PAREN shift to state 78
+-- On NOT_EQUAL shift to state 87
+-- On MINUS shift to state 89
+-- On LESS_THAN_EQUAL shift to state 91
+-- On GREATER_THAN_EQUAL shift to state 93
+-- On GREATER_THAN shift to state 95
+-- On EOF shift to state 129
+-- On DOUBLE_EQUAL shift to state 97
+-- On DIVIDE shift to state 99
+## Reductions:
+
+State 129:
+## Known stack suffix:
+## exp EOF
+## LR(1) items:
+program -> exp EOF . [ # ]
+## Transitions:
+## Reductions:
+-- On #
+--   reduce production program -> exp EOF
+

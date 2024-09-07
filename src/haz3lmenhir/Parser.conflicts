@@ -1,0 +1,332 @@
+
+** Conflict (shift/reduce) in state 115.
+** Token involved: QUESTION
+** This state is reached from program after reading:
+
+LET pat SINGLE_EQUAL exp IN exp
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+program 
+exp EOF 
+(?)
+
+** In state 115, looking ahead at QUESTION, reducing production
+** exp -> LET pat SINGLE_EQUAL exp IN exp
+** is permitted because of the following sub-derivation:
+
+exp QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN // lookahead token appears
+LET pat SINGLE_EQUAL exp IN exp . 
+
+** In state 115, looking ahead at QUESTION, shifting is permitted
+** because of the following sub-derivation:
+
+LET pat SINGLE_EQUAL exp IN exp 
+                            exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN 
+
+** Conflict (shift/reduce) in state 112.
+** Token involved: QUESTION
+** This state is reached from program after reading:
+
+IF exp THEN exp ELSE exp
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+program 
+exp EOF 
+(?)
+
+** In state 112, looking ahead at QUESTION, reducing production
+** exp -> IF exp THEN exp ELSE exp
+** is permitted because of the following sub-derivation:
+
+exp QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN // lookahead token appears
+IF exp THEN exp ELSE exp . 
+
+** In state 112, looking ahead at QUESTION, shifting is permitted
+** because of the following sub-derivation:
+
+IF exp THEN exp ELSE exp 
+                     exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN 
+
+** Conflict (shift/reduce) in state 100.
+** Token involved: QUESTION
+** This state is reached from program after reading:
+
+exp DIVIDE exp
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+program 
+exp EOF 
+(?)
+
+** In state 100, looking ahead at QUESTION, reducing production
+** binExp -> exp DIVIDE exp
+** is permitted because of the following sub-derivation:
+
+exp QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN // lookahead token appears
+binExp // lookahead token is inherited
+exp DIVIDE exp . 
+
+** In state 100, looking ahead at QUESTION, shifting is permitted
+** because of the following sub-derivation:
+
+binExp 
+exp DIVIDE exp 
+           exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN 
+
+** Conflict (shift/reduce) in state 98.
+** Token involved: QUESTION
+** This state is reached from program after reading:
+
+exp DOUBLE_EQUAL exp
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+program 
+exp EOF 
+(?)
+
+** In state 98, looking ahead at QUESTION, reducing production
+** binExp -> exp DOUBLE_EQUAL exp
+** is permitted because of the following sub-derivation:
+
+exp QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN // lookahead token appears
+binExp // lookahead token is inherited
+exp DOUBLE_EQUAL exp . 
+
+** In state 98, looking ahead at QUESTION, shifting is permitted
+** because of the following sub-derivation:
+
+binExp 
+exp DOUBLE_EQUAL exp 
+                 exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN 
+
+** Conflict (shift/reduce) in state 96.
+** Token involved: QUESTION
+** This state is reached from program after reading:
+
+exp GREATER_THAN exp
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+program 
+exp EOF 
+(?)
+
+** In state 96, looking ahead at QUESTION, reducing production
+** binExp -> exp GREATER_THAN exp
+** is permitted because of the following sub-derivation:
+
+exp QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN // lookahead token appears
+binExp // lookahead token is inherited
+exp GREATER_THAN exp . 
+
+** In state 96, looking ahead at QUESTION, shifting is permitted
+** because of the following sub-derivation:
+
+binExp 
+exp GREATER_THAN exp 
+                 exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN 
+
+** Conflict (shift/reduce) in state 94.
+** Token involved: QUESTION
+** This state is reached from program after reading:
+
+exp GREATER_THAN_EQUAL exp
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+program 
+exp EOF 
+(?)
+
+** In state 94, looking ahead at QUESTION, reducing production
+** binExp -> exp GREATER_THAN_EQUAL exp
+** is permitted because of the following sub-derivation:
+
+exp QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN // lookahead token appears
+binExp // lookahead token is inherited
+exp GREATER_THAN_EQUAL exp . 
+
+** In state 94, looking ahead at QUESTION, shifting is permitted
+** because of the following sub-derivation:
+
+binExp 
+exp GREATER_THAN_EQUAL exp 
+                       exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN 
+
+** Conflict (shift/reduce) in state 92.
+** Token involved: QUESTION
+** This state is reached from program after reading:
+
+exp LESS_THAN_EQUAL exp
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+program 
+exp EOF 
+(?)
+
+** In state 92, looking ahead at QUESTION, reducing production
+** binExp -> exp LESS_THAN_EQUAL exp
+** is permitted because of the following sub-derivation:
+
+exp QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN // lookahead token appears
+binExp // lookahead token is inherited
+exp LESS_THAN_EQUAL exp . 
+
+** In state 92, looking ahead at QUESTION, shifting is permitted
+** because of the following sub-derivation:
+
+binExp 
+exp LESS_THAN_EQUAL exp 
+                    exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN 
+
+** Conflict (shift/reduce) in state 90.
+** Token involved: QUESTION
+** This state is reached from program after reading:
+
+exp MINUS exp
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+program 
+exp EOF 
+(?)
+
+** In state 90, looking ahead at QUESTION, reducing production
+** binExp -> exp MINUS exp
+** is permitted because of the following sub-derivation:
+
+exp QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN // lookahead token appears
+binExp // lookahead token is inherited
+exp MINUS exp . 
+
+** In state 90, looking ahead at QUESTION, shifting is permitted
+** because of the following sub-derivation:
+
+binExp 
+exp MINUS exp 
+          exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN 
+
+** Conflict (shift/reduce) in state 88.
+** Token involved: QUESTION
+** This state is reached from program after reading:
+
+exp NOT_EQUAL exp
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+program 
+exp EOF 
+(?)
+
+** In state 88, looking ahead at QUESTION, reducing production
+** binExp -> exp NOT_EQUAL exp
+** is permitted because of the following sub-derivation:
+
+exp QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN // lookahead token appears
+binExp // lookahead token is inherited
+exp NOT_EQUAL exp . 
+
+** In state 88, looking ahead at QUESTION, shifting is permitted
+** because of the following sub-derivation:
+
+binExp 
+exp NOT_EQUAL exp 
+              exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN 
+
+** Conflict (shift/reduce) in state 86.
+** Token involved: QUESTION
+** This state is reached from program after reading:
+
+exp PLUS exp
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+program 
+exp EOF 
+(?)
+
+** In state 86, looking ahead at QUESTION, reducing production
+** binExp -> exp PLUS exp
+** is permitted because of the following sub-derivation:
+
+exp QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN // lookahead token appears
+binExp // lookahead token is inherited
+exp PLUS exp . 
+
+** In state 86, looking ahead at QUESTION, shifting is permitted
+** because of the following sub-derivation:
+
+binExp 
+exp PLUS exp 
+         exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN 
+
+** Conflict (shift/reduce) in state 82.
+** Token involved: QUESTION
+** This state is reached from program after reading:
+
+exp POWER exp
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+program 
+exp EOF 
+(?)
+
+** In state 82, looking ahead at QUESTION, reducing production
+** binExp -> exp POWER exp
+** is permitted because of the following sub-derivation:
+
+exp QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN // lookahead token appears
+binExp // lookahead token is inherited
+exp POWER exp . 
+
+** In state 82, looking ahead at QUESTION, shifting is permitted
+** because of the following sub-derivation:
+
+binExp 
+exp POWER exp 
+          exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN 
+
+** Conflict (shift/reduce) in state 71.
+** Token involved: QUESTION
+** This state is reached from program after reading:
+
+exp TIMES exp
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+program 
+exp EOF 
+(?)
+
+** In state 71, looking ahead at QUESTION, reducing production
+** binExp -> exp TIMES exp
+** is permitted because of the following sub-derivation:
+
+exp QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN // lookahead token appears
+binExp // lookahead token is inherited
+exp TIMES exp . 
+
+** In state 71, looking ahead at QUESTION, shifting is permitted
+** because of the following sub-derivation:
+
+binExp 
+exp TIMES exp 
+          exp . QUESTION LESS_THAN typ EQUAL_ARROW typ GREATER_THAN 

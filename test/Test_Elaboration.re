@@ -231,12 +231,6 @@ let constructor_menhir = () =>
 /*
  <<1 / 2 ? `a`>>
      */
-print_endline("SEXP seiralization:");
-InvalidOperationError.DivideByZero
-|> InvalidOperationError.sexp_of_t
-|> Sexplib.Sexp.to_string
-|> print_endline;
-
 let dynamic_error_hole_str = "<<(1/0) ? `DivideByZero`>> <Unknown Internal => Int>";
 let dynamic_error_hole_uexp: Exp.t = {
   ids: [id_at(0)],
