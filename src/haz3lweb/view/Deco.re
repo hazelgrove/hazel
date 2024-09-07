@@ -253,7 +253,7 @@ module Deco =
             {
               font_metrics,
               measurement,
-              tips: p |> ProjectorBase.shapes |> PieceDec.tips_of_shapes,
+              tips: p |> ProjectorBase.shapes_p |> PieceDec.tips_of_shapes,
             },
             ~sort=ProjectorBase.mold_of(p, Exp).out,
             ~at_caret=true,
@@ -431,7 +431,7 @@ module Deco =
       switch (Id.Map.find_opt(id, M.meta.syntax.projectors)) {
       | Some(p) =>
         /* Special case for projectors as they are not in tile map */
-        let shapes = ProjectorBase.shapes(p);
+        let shapes = ProjectorBase.shapes_p(p);
         let measurement = Id.Map.find(id, M.meta.syntax.measured.projectors);
         div_c(
           "errors-piece",

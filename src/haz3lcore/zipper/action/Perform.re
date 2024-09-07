@@ -115,8 +115,9 @@ let go_z =
       Move.jump_to_id_indicated,
       Move.jump_to_side_of_id,
       Move.primary,
-      Move.do_until_wrap,
+      Move.do_until,
       Select.nice_term,
+      Select.indicated_token,
       a,
       z,
     )

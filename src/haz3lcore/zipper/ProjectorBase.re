@@ -137,12 +137,61 @@ module Cook = (C: Projector) : Cooked => {
   let focus = C.focus;
 };
 
-/* Projectors currently are all convex */
-let shapes = (_: Base.projector) => Nib.Shape.(Convex, Convex);
+let get =
+    (f_w, f_g, f_t: Base.tile => _, f_p: Base.projector => _, p: Base.piece) =>
+  switch (p) {
+  | Secondary(w) => f_w(w)
+  | Grout(g) => f_g(g)
+  | Tile(t) => f_t(t)
+  | Projector(p) => f_p(p)
+  };
+let rec shapes = piece =>
+  get(
+    // _ => Some(Nib.Shape.(Convex, Concave(Precedence.min))),
+    _ => None,
+    g => Some(Grout.shapes(g)),
+    t => Some(Tile.shapes(t)),
+    p => Some(shapes_p(p)),
+    piece,
+  )
+/* Projectors currently are all convex... NOT!!! */
+and shapes_p = (p: Base.projector): (Nib.Shape.t, Nib.Shape.t) => {
+  // WARNING: this will fuck up if secondary is projected
+  //open OptUtil.Syntax;
+  let seg = p.syntax;
+  if (seg != []) {
+    let (fst, lst) = (List.hd(seg), List.hd(List.rev(seg)));
+    let (l, _) =
+      shapes(fst)
+      |> Option.value(
+           ~default=(
+             //TODO(andrew): burn this
+             Nib.Shape.(Convex),
+             Nib.Shape.(Concave(Precedence.min)),
+           ),
+         );
+    let (_, r) =
+      shapes(lst)
+      |> Option.value(
+           ~default=(
+             //TODO(andrew): burn this
+             Nib.Shape.(Convex),
+             Nib.Shape.(Concave(Precedence.min)),
+           ),
+         );
+    (l, r);
+  } else {
+    (
+      //TODO(andrew): burn this
+      Nib.Shape.(Convex),
+      Nib.Shape.(Concave(Precedence.min)),
+    );
+  };
+};
 
 /* Projectors currently have a unique molding */
 let mold_of = (p, sort: Sort.t): Mold.t => {
-  let (l, r) = shapes(p);
+  let (l, r) = shapes_p(p);
   {
     nibs: {
       ({shape: l, sort}, {shape: r, sort});

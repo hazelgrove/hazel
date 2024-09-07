@@ -589,6 +589,12 @@ let go =
       // };
       // let seg = ZipperBase.MapSegment.of_segment(ff, seg);
       let seg = rm_and_log_projectors(seg);
+      //TODO(andrew): remove whole pass if possible
+      // let seg =
+      //   ZipperBase.MapSegment.of_segment(
+      //     ProjectorPerform.Update.remove_all',
+      //     seg,
+      //   );
       let term = exp(unsorted(Segment.skel(seg), seg));
       {term, terms: map^, projectors: projectors^};
     },

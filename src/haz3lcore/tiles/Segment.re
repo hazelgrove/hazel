@@ -66,7 +66,7 @@ let shape_affix =
       | Grout(g) => (Aba.cons([], g, wgw), s, tl)
       | Projector(p) =>
         let (l, _) =
-          ProjectorBase.shapes(p) |> (d == Left ? TupleUtil.swap : Fun.id);
+          ProjectorBase.shapes_p(p) |> (d == Left ? TupleUtil.swap : Fun.id);
         (empty_wgw, l, tl);
       | Tile(t) =>
         let (l, _) = Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
@@ -505,7 +505,8 @@ and regrout_affix =
         | Projector(pr) =>
           let p = Piece.Projector(pr);
           let (l', r') =
-            ProjectorBase.shapes(pr) |> (d == Left ? TupleUtil.swap : Fun.id);
+            ProjectorBase.shapes_p(pr)
+            |> (d == Left ? TupleUtil.swap : Fun.id);
           let trim = Trim.regrout(d, (r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         | Tile(t) =>
@@ -707,8 +708,8 @@ let term_partitions = (seg: t, id: Id.t): option((t, t, t)) => {
   open OptUtil.Syntax;
   // eliminate segs that have no term and hence will crash skel
   let* _ = trim_secondary(Left, seg) == [] ? None : Some();
-  print_endline("term_partitions:");
-  print_endline(show(seg));
+  //print_endline("term_partitions:");
+  //print_endline(show(seg));
   print_endline("CCC");
   let* skel =
     try(Some(skel(seg))) {

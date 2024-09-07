@@ -239,13 +239,19 @@ module Make = (M: Editor.Meta.S) => {
   /* Do move_action until the indicated piece is such that piece_p is true,
      restarting from the beginning/end if not found in forward direction.
      If no such piece is found, don't move. */
-  let do_until_wrap = (p, d, z) =>
+  let do_until_wrap = (p, d, z) => {
+    let* start_id = Indicated.index(z);
     switch (do_until(primary(ByToken, d), p, z)) {
     | None =>
       let* z = to_edge(Direction.toggle(d), z);
-      do_until(primary(ByToken, d), p, z);
+      do_until(
+        primary(ByToken, d),
+        piece => p(piece) || Piece.id(piece) == start_id,
+        z,
+      );
     | Some(z) => Some(z)
     };
+  };
 
   /* Jump to id moves the caret to the leftmost edge of
    * the piece with the target id. Note that this may not

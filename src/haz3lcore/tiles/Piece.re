@@ -35,7 +35,7 @@ let nibs =
     },
     t => Some(Tile.nibs(t)),
     p => {
-      let (l, r) = ProjectorBase.shapes(p);
+      let (l, r) = ProjectorBase.shapes_p(p);
       Some(Nib.({shape: l, sort: Any}, {shape: r, sort: Any}));
     },
   );
@@ -76,13 +76,7 @@ let disassemble = (p: t): segment =>
   | Tile(t) => Tile.disassemble(t)
   };
 
-let shapes =
-  get(
-    _ => None,
-    g => Some(Grout.shapes(g)),
-    t => Some(Tile.shapes(t)),
-    p => Some(ProjectorBase.shapes(p)),
-  );
+let shapes = ProjectorBase.shapes;
 
 let is_convex = (p: t): bool =>
   switch (shapes(p)) {

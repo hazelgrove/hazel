@@ -44,15 +44,11 @@ let backing_deco =
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~shape: shape,
+      ~tips,
     ) =>
   switch (shape) {
   | Inline(_)
-  | Block(_) =>
-    PieceDec.relative_shard({
-      font_metrics,
-      measurement,
-      tips: (Some(Convex), Some(Convex)),
-    })
+  | Block(_) => PieceDec.relative_shard({font_metrics, measurement, tips})
   };
 
 /* Adds attributes to a projector UI to support
@@ -87,6 +83,8 @@ let view_wrapper =
       view: Node.t,
     ) => {
   let shape = Projector.shape(p, info);
+  let (l, r) = ProjectorBase.shapes_p(p);
+  let tips = (Some(l), Some(r));
   let focus = (id, _) =>
     Effect.(
       Many([
@@ -102,14 +100,14 @@ let view_wrapper =
       Attr.on_mousedown(focus(info.id)),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
-    [view, backing_deco(~font_metrics, ~measurement, ~shape)],
+    [view, backing_deco(~font_metrics, ~measurement, ~shape, ~tips)],
   );
 };
 
 /* Dispatches projector external actions to editor-level actions */
 let handle = (id, action: external_action): Action.project =>
   switch (action) {
-  | Remove => Remove(id)
+  | Remove => RemoveIndicated(id)
   | Escape(d) => Escape(id, d)
   | SetSyntax(f) => SetSyntax(id, f)
   };
@@ -229,7 +227,8 @@ module Panel = {
 
   let toggle_projector = (active, id, ci): Action.project =>
     active || applicable_projectors(ci) == []
-      ? Remove(id) : SetIndicated(List.hd(applicable_projectors(ci)));
+      ? RemoveIndicated(id)
+      : SetIndicated(List.hd(applicable_projectors(ci)));
 
   let toggle_view = (~inject, ci, id, active: bool, might_project) =>
     div(
@@ -279,11 +278,21 @@ module Panel = {
     );
 
   let view = (~inject, editor: Editor.t, ci: Info.t) => {
-    let might_project =
+    print_endline("projector view");
+    //TODO(andrew): reinstate some minimum condition
+    let _might_project =
       switch (Indicated.subsegment(editor.state.zipper)) {
-      | Some(subseg) => minimum_projection_condition(subseg)
-      | None => false
+      | Some(subseg) =>
+        print_endline("subseg returns Some");
+        print_endline(
+          "minproj:" ++ string_of_bool(minimum_projection_condition(subseg)),
+        );
+        minimum_projection_condition(subseg);
+      | None =>
+        print_endline("subseg returns None");
+        false;
       };
+    let might_project = true;
     let applicable_projectors = applicable_projectors(ci);
     let should_show = might_project && applicable_projectors != [];
     let select_view =

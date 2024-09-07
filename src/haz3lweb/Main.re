@@ -57,7 +57,9 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
         "ERROR: Exception during apply: %s\n",
         Printexc.to_string(exc),
       );
-      Error(Exception(Printexc.to_string(exc)));
+      //Error(Exception(Printexc.to_string(exc)));
+      //TODO(andrew): reinstate?
+      raise(exc);
     }
   ) {
   | Ok(model) => model
