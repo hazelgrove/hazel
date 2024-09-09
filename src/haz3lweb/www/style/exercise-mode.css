@@ -381,12 +381,8 @@
 }
 
 /* Show the dropdown menu on hover */
-.deduction-concl:hover .dropdown {
+.deduction-concl .cell:hover .dropdown {
   display: flex;
-}
-
-.deduction-concl:hover .del-premise-btn {
-  display: inline-flex;
 }
 
 .dropdown-option {

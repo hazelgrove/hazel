@@ -331,15 +331,15 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["~"], []) => make_ctr_term("NumLit", [r])
         | (["!"], []) => UnOp(Bool(Not), r)
-        | (["fun_", "->"], [Pat(pat)]) =>
+        | (["_fun", "->"], [Pat(pat)]) =>
           make_ctr_term("Fun", [parse_pat_term(pat), r])
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
-        | (["fix_", "->"], [Pat(pat)]) =>
+        | (["_fix", "->"], [Pat(pat)]) =>
           make_ctr_term("Fix", [parse_pat_term(pat), r])
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
-        | (["let_", "be", "in"], [Pat(pat), Exp(def)]) =>
+        | (["_let", "be", "in"], [Pat(pat), Exp(def)]) =>
           switch (parse_pat_term_pair(pat)) {
           | Some((x1, x2)) => make_ctr_term("LetPair", [x1, x2, def, r])
           | None => make_ctr_term("Let", [parse_pat_term(pat), def, r])
@@ -354,12 +354,12 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           Filter(Filter({act: (Step, All), pat: filter}), r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
-        | (["if_", "then", "else"], [Exp(cond), Exp(conseq)]) =>
+        | (["_if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           make_ctr_term("If", [cond, conseq, r])
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
         | (
-            ["case_", "of_L", "->", "else_R", "->"],
+            ["_case", "of_L", "->", "else_R", "->"],
             [Exp(e), Pat(x1), Exp(l), Pat(x2)],
           ) =>
           make_ctr_term(

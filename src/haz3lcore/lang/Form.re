@@ -337,10 +337,10 @@ let forms: list((string, t)) = [
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   // ALFA
-  ("alfa_fun", mk(ds, ["fun_", "->"], mk_pre(P.fun_, Exp, [Pat]))),
+  ("alfa_fun", mk(ds, ["_fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("fix", mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   // ALFA
-  ("alfa_fix", mk(ds, ["fix_", "->"], mk_pre(P.fun_, Exp, [Pat]))),
+  ("alfa_fix", mk(ds, ["_fix", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("typfun", mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))),
   ("forall", mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [TPat]))),
   ("rec", mk(ds, ["rec", "->"], mk_pre(P.fun_, Typ, [TPat]))),
@@ -359,7 +359,7 @@ let forms: list((string, t)) = [
   // ALFA
   (
     "alfa_let",
-    mk(ds, ["let_", "be", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+    mk(ds, ["_let", "be", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
   ),
   (
     "type_alias",
@@ -369,14 +369,14 @@ let forms: list((string, t)) = [
   // ALFA
   (
     "alfa_if",
-    mk(ds, ["if_", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp])),
+    mk(ds, ["_if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp])),
   ),
   // ALFA
   (
     "alfa_case",
     mk(
       ds,
-      ["case_", "of_L", "->", "else_R", "->"],
+      ["_case", "of_L", "->", "else_R", "->"],
       mk_pre(P.case_, Exp, [Exp, Pat, Exp, Pat]),
     ),
   ),

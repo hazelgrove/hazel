@@ -145,7 +145,8 @@ let proof_view =
     div(
       ~attrs=[Attr.class_("dropdown")],
       (
-        settings.instructor_mode && pos == Trees(0, Value)
+        !settings.instructor_mode
+        && pos == Trees(List.length(eds.trees) - 1, Value)
           ? [] : [del_premise_btn_view(~pos)]
       )
       @ (
