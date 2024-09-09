@@ -220,14 +220,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
-        | (["hide", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Eval, One), pat: filter}), r)
-        | (["eval", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Eval, All), pat: filter}), r)
-        | (["pause", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Step, One), pat: filter}), r)
-        | (["debug", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Step, All), pat: filter}), r)
+        | (["debug", "in"], [Exp(pat)]) => Filter(None, pat, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>

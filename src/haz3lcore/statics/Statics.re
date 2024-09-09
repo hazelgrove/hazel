@@ -311,15 +311,35 @@ and uexp_to_info_map =
   | Test(e) =>
     let (e, m) = go(~mode=Ana(Bool |> Typ.temp), e, m);
     add(~self=Just(Prod([]) |> Typ.temp), ~co_ctx=e.co_ctx, m);
-  | Filter(Filter({pat: cond, _}), body) =>
-    let (cond, m) = go(~mode=Syn, cond, m, ~is_in_filter=true);
+  | Filter(_, pat, body) =>
     let (body, m) = go(~mode, body, m);
-    add(
-      ~self=Just(body.ty),
-      ~co_ctx=CoCtx.union([cond.co_ctx, body.co_ctx]),
-      m,
-    );
-  | Filter(Residue(_), body) =>
+    switch (pat.term) {
+    | Ap(_, fn, arg) =>
+      switch (fn.term) {
+      | Var("eval" | "hide" | "pause" | "debug") =>
+        let (arg, m) = go(~mode=Syn, arg, m, ~is_in_filter=true);
+        add(
+          ~self=Just(body.ty),
+          ~co_ctx=CoCtx.union([arg.co_ctx, body.co_ctx]),
+          m,
+        );
+      | _ =>
+        let (pat, m) = go(~mode=Ana(Filter |> Typ.temp), pat, m);
+        add(
+          ~self=Just(body.ty),
+          ~co_ctx=CoCtx.union([pat.co_ctx, body.co_ctx]),
+          m,
+        );
+      }
+    | _ =>
+      let (pat, m) = go(~mode=Ana(Filter |> Typ.temp), pat, m);
+      add(
+        ~self=Just(body.ty),
+        ~co_ctx=CoCtx.union([pat.co_ctx, body.co_ctx]),
+        m,
+      );
+    };
+  | Residue(_, _, body) =>
     let (body, m) = go(~mode, body, m);
     add(~self=Just(body.ty), ~co_ctx=CoCtx.union([body.co_ctx]), m);
   | Seq(e1, e2) =>
@@ -841,7 +861,8 @@ and utyp_to_info_map =
   | Int
   | Float
   | Bool
-  | String => add(m)
+  | String
+  | Filter => add(m)
   | Var(_) =>
     /* Names are resolved in Info.status_typ */
     add(m)

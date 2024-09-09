@@ -36,7 +36,7 @@ let rec matches =
   let (mact, midx) = FilterMatcher.matches(~env, ~exp=composed, ~act, flt);
   let (act, idx) =
     switch (ctx) {
-    | Term({term: Filter(_, _), _}) => (pact, pidx)
+    | Term({term: Filter(_, _, _), _}) => (pact, pidx)
     | _ => midx > pidx ? (mact, midx) : (pact, pidx)
     };
   let map = ((a, i, c), f) => {
@@ -52,11 +52,12 @@ let rec matches =
       | Closure(env, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Closure(env, ctx) |> rewrap;
-      | Filter(Filter(flt'), ctx) =>
-        let flt = flt |> FilterEnvironment.extends(flt');
+      | Filter(Some(fact), fpat, ctx) =>
+        let flt = flt |> FilterEnvironment.extends({act: fact, pat: fpat});
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Filter(Filter(flt'), ctx) |> rewrap;
-      | Filter(Residue(idx', act'), ctx) =>
+        Filter(Some(fact), fpat, ctx) |> rewrap;
+      | Filter(None, _, _) => failwith("Invalid filter expression")
+      | Residue(idx', act', ctx) =>
         let (ract, ridx, rctx) =
           if (idx > idx') {
             matches(env, flt, ctx, exp, act, idx);
@@ -64,7 +65,7 @@ let rec matches =
             matches(env, flt, ctx, exp, act', idx');
           };
         if (act' |> snd == All) {
-          (ract, ridx, Filter(Residue(idx', act'), rctx) |> rewrap);
+          (ract, ridx, Residue(idx', act', rctx) |> rewrap);
         } else {
           (ract, ridx, rctx);
         };
@@ -167,7 +168,7 @@ let rec matches =
   | _ when midx > pidx && mact |> snd == All => (
       ract,
       ridx,
-      Term({term: Filter(Residue(midx, mact), rctx), ids: [Id.mk()]}),
+      Term({term: Residue(midx, mact, rctx), ids: [Id.mk()]}),
     )
   | _ => (ract, ridx, rctx)
   };

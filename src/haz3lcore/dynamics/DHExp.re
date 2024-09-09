@@ -51,6 +51,7 @@ let rec strip_casts =
         | MultiHole(_)
         | Seq(_)
         | Filter(_)
+        | Residue(_)
         | Let(_)
         | FixF(_)
         | TyAlias(_)
@@ -129,6 +130,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Match(_)
           | DynamicErrorHole(_)
           | Filter(_)
+          | Residue(_)
           | If(_)
           | EmptyHole
           | Invalid(_)

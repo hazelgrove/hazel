@@ -14,10 +14,23 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     let d3 = subst_var(m, d1, x, d3);
     let d4 = subst_var(m, d1, x, d4);
     Seq(d3, d4) |> rewrap;
-  | Filter(filter, dbody) =>
+  | Filter(None, pat, dbody) =>
+    let pat =
+      switch (pat.term) {
+      | Ap(direction, fn, arg) =>
+        let arg = subst_var(m, d1, x, arg);
+        {...pat, term: TermBase.Exp.Ap(direction, fn, arg)};
+      | _ => pat
+      };
     let dbody = subst_var(m, d1, x, dbody);
-    let filter = subst_var_filter(m, d1, x, filter);
-    Filter(filter, dbody) |> rewrap;
+    Filter(None, pat, dbody) |> rewrap;
+  | Filter(Some(act), pat, dbody) =>
+    let pat = subst_var(m, d1, x, pat);
+    let dbody = subst_var(m, d1, x, dbody);
+    Filter(Some(act), pat, dbody) |> rewrap;
+  | Residue(idx, act, dbody) =>
+    let dbody = subst_var(m, d1, x, dbody);
+    Residue(idx, act, dbody) |> rewrap;
   | Let(dp, d3, d4) =>
     let d3 = subst_var(m, d1, x, d3);
     let d4 =
@@ -159,12 +172,6 @@ and subst_var_env =
        );
 
   ClosureEnvironment.wrap(id, map);
-}
-
-and subst_var_filter =
-    (m, d1: DHExp.t, x: Var.t, flt: TermBase.StepperFilterKind.t)
-    : TermBase.StepperFilterKind.t => {
-  flt |> TermBase.StepperFilterKind.map(subst_var(m, d1, x));
 };
 
 let subst = (m, env: Environment.t, d: DHExp.t): DHExp.t =>

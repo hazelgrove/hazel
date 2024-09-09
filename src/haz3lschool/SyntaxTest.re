@@ -98,7 +98,8 @@ let rec find_fn =
   | TyAlias(_, _, u1)
   | Test(u1)
   | Closure(_, u1)
-  | Filter(_, u1) => l |> find_fn(name, u1)
+  | Filter(_, _, u1)
+  | Residue(_, _, u1) => l |> find_fn(name, u1)
   | Ap(_, u1, u2)
   | Seq(u1, u2)
   | Cons(u1, u2)
@@ -194,7 +195,8 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Parens(u)
   | UnOp(_, u)
   | TyAlias(_, _, u)
-  | Filter(_, u) => var_mention(name, u)
+  | Filter(_, _, u)
+  | Residue(_, _, u) => var_mention(name, u)
   | DynamicErrorHole(u, _) => var_mention(name, u)
   | FailedCast(u, _, _) => var_mention(name, u)
   | FixF(args, body, _) =>
@@ -255,7 +257,8 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Parens(u)
   | UnOp(_, u)
   | TyAlias(_, _, u)
-  | Filter(_, u) => var_applied(name, u)
+  | Filter(_, _, u)
+  | Residue(_, _, u) => var_applied(name, u)
   | TypAp(u, _) =>
     switch (u.term) {
     | Var(x) => x == name ? true : false
@@ -346,7 +349,8 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Test(_) => false
   | TyAlias(_, _, u)
   | Cast(u, _, _)
-  | Filter(_, u)
+  | Filter(_, _, u)
+  | Residue(_, _, u)
   | Closure(_, u)
   | TypFun(_, u, _)
   | TypAp(u, _)

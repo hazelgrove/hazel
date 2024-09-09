@@ -100,6 +100,8 @@ let rec matches_exp =
         : bool => {
   let matches_exp = (~denv=denv, ~fenv=fenv, d, f) =>
     matches_exp(~denv, d, ~fenv, f);
+  Printf.printf("d: %s\n", DHExp.show(d));
+  Printf.printf("f: %s\n", DHExp.show(f));
   if (d == f) {
     true;
   } else {
@@ -154,7 +156,12 @@ let rec matches_exp =
     | (_, EmptyHole)
     | (_, Constructor("$e", _)) => true
 
-    | (Cast(d, _, _), Cast(f, _, _)) => matches_exp(d, f)
+    | (Cast(d, dty1, dty2), Cast(f, fty1, fty2)) =>
+      matches_exp(d, f)
+      && matches_typ(dty1, fty1)
+      && matches_typ(dty2, fty2)
+    | (Cast(_), _) => false
+
     | (Closure(denv, d), Closure(fenv, f)) =>
       matches_exp(~denv, d, ~fenv, f)
 
@@ -163,9 +170,8 @@ let rec matches_exp =
     | (_, FailedCast(f, _, _)) => matches_exp(d, f)
 
     | (Closure(denv, d), _) => matches_exp(~denv, d, f)
-    | (Cast(d, _, _), _) => matches_exp(d, f)
     | (FailedCast(d, _, _), _) => matches_exp(d, f)
-    | (Filter(Residue(_), d), _) => matches_exp(d, f)
+    | (Residue(_, _, d), _) => matches_exp(d, f)
 
     | (Var(dx), Var(fx)) =>
       if (String.starts_with(~prefix=alpha_magic, dx)
@@ -198,8 +204,8 @@ let rec matches_exp =
     | (Deferral(x), Deferral(y)) => x == y
     | (Deferral(_), _) => false
 
-    | (Filter(df, dd), Filter(ff, fd)) =>
-      TermBase.StepperFilterKind.fast_equal(df, ff) && matches_exp(dd, fd)
+    | (Filter(da, dp, dd), Filter(fa, fp, fd)) =>
+      da == fa && matches_exp(dp, fp) && matches_exp(dd, fd)
     | (Filter(_), _) => false
 
     | (Bool(dv), Bool(fv)) => dv == fv
@@ -225,8 +231,15 @@ let rec matches_exp =
     | (BuiltinFun(dn), BuiltinFun(fn)) => dn == fn
     | (BuiltinFun(_), _) => false
 
-    | (TypFun(pat1, d1, s1), TypFun(pat2, d2, s2)) =>
-      s1 == s2 && matches_utpat(pat1, pat2) && matches_exp(d1, d2)
+    | (TypFun(dpat, d, _), TypFun(fpat, f, _)) =>
+      switch (dpat |> IdTagged.term_of, fpat |> IdTagged.term_of) {
+      | (_, EmptyHole) => matches_exp(d, f)
+      | _ =>
+        let id = alpha_magic ++ Uuidm.to_string(Uuidm.v(`V4));
+        let d' = DHExp.ty_subst(Typ.Var(id) |> IdTagged.fresh, dpat, d);
+        let f' = DHExp.ty_subst(Typ.Var(id) |> IdTagged.fresh, fpat, f);
+        matches_exp(d', f');
+      }
     | (TypFun(_), _) => false
 
     | (Fun(dp1, d1, Some(denv), _), Fun(fp1, f1, Some(fenv), _)) =>
@@ -390,7 +403,7 @@ let matches =
     (
       ~env: ClosureEnvironment.t,
       ~exp: DHExp.t,
-      ~flt: TermBase.StepperFilterKind.filter,
+      ~flt: FilterEnvironment.filter,
     )
     : option(FilterAction.t) =>
   if (matches_exp(~denv=env, exp, ~fenv=env, flt.pat)) {

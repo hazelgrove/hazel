@@ -572,14 +572,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     Exp.{
       term:
         Exp.Filter(
-          Filter({
-            act: FilterAction.(act, One),
-            pat: {
-              term: Constructor("$e", Unknown(Internal) |> Typ.temp),
-              copied: false,
-              ids: [Id.mk()],
-            },
-          }),
+          Some(FilterAction.(act, One)),
+          {
+            term: Constructor("$e", Unknown(Internal) |> Typ.temp),
+            copied: false,
+            ids: [Id.mk()],
+          },
           term,
         ),
       copied: false,

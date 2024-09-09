@@ -209,6 +209,7 @@ type form_id =
   | FloatTyp
   | BoolTyp
   | StrTyp
+  | FilterTyp
   | VarTyp
   | ListTyp
   | ForallTyp
@@ -303,6 +304,7 @@ type group_id =
   | FloatTyp
   | BoolTyp
   | StrTyp
+  | FilterTyp
   | VarTyp
   | ListTyp
   | ForallTyp

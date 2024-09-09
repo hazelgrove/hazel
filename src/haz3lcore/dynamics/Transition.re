@@ -768,10 +768,23 @@ module Transition = (EV: EV_MODE) => {
     | TyAlias(_, _, d) =>
       let. _ = otherwise(env, d);
       Step({expr: d, state_update, kind: RemoveTypeAlias, is_value: false});
-    | Filter(f1, d1) =>
-      let. _ = otherwise(env, d1 => Filter(f1, d1) |> rewrap)
+    | Filter(a1, p1, d1) =>
+      let. _ = otherwise(env, d1 => Filter(a1, p1, d1) |> rewrap)
       and. d1 =
-        req_final(req(state, env), d1 => Filter(f1, d1) |> wrap_ctx, d1);
+        req_final(
+          req(state, env),
+          d1 => Filter(a1, p1, d1) |> wrap_ctx,
+          d1,
+        );
+      Step({expr: d1, state_update, kind: CompleteFilter, is_value: true});
+    | Residue(a1, p1, d1) =>
+      let. _ = otherwise(env, d1 => Residue(a1, p1, d1) |> rewrap)
+      and. d1 =
+        req_final(
+          req(state, env),
+          d1 => Residue(a1, p1, d1) |> wrap_ctx,
+          d1,
+        );
       Step({expr: d1, state_update, kind: CompleteFilter, is_value: true});
     };
   };
