@@ -89,7 +89,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
       fun
       | Correct => "✅"
       | Pending(err) => "⌛️ " ++ ExternalError.show(err)
-      | Incorrect(err) => "❌ " ++ Verify.show_failure(err);
+      | Incorrect(err) => "❌ " ++ Verify.repr_failure(err);
 
     let verify_single =
         (
@@ -108,7 +108,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         | Just(Ok(_)) when !are_prems_ready => Pending(PremiseNotReady)
         | Just(Ok({jdmt: concl, rule: Some(rule)})) =>
           let prems = prems |> List.map(Option.get);
-          switch (Verify.verify(rule, prems, concl)) {
+          switch (Verify.verify(rule, {prems, concl}, ~with_ghost=false)) {
           | Ok(_) => Correct
           | Error(err) => Incorrect(err)
           };

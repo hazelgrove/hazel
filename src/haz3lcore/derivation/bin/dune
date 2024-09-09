@@ -1,9 +1,0 @@
-(executable
- (name main)
- (public_name main)
- (libraries derivation_system))
-
-(env
- (dev
-  (flags
-   (:standard -warn-error -A))))

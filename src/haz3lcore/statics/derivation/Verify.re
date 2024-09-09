@@ -1,5 +1,10 @@
 open Util;
-open Prop;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = {
+  self: Prop.t,
+  ghost: option(Prop.t),
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type operation =
@@ -22,13 +27,139 @@ type operation =
   | Mem(t)
   | MemHasTy(t, t);
 
+let repr_operation: (t, operation) => string =
+  (p, op) => {
+    let repr = p => Prop.repr(p.self);
+    switch (op) {
+    | Neg(p') =>
+      Printf.sprintf("Expect %s equal to -%s.", repr(p), repr(p'))
+    | Plus(p1, p2) =>
+      Printf.sprintf(
+        "Expect %s equal to %s + %s.",
+        repr(p),
+        repr(p1),
+        repr(p2),
+      )
+    | Minus(p1, p2) =>
+      Printf.sprintf(
+        "Expect %s equal to %s - %s.",
+        repr(p),
+        repr(p1),
+        repr(p2),
+      )
+    | Times(p1, p2) =>
+      Printf.sprintf(
+        "Expect %s equal to %s * %s.",
+        repr(p),
+        repr(p1),
+        repr(p2),
+      )
+    | Lt(p') => Printf.sprintf("Expect %s less than %s.", repr(p), repr(p'))
+    | NotLt(p') =>
+      Printf.sprintf("Expect %s not less than %s.", repr(p), repr(p'))
+    | Gt(p') =>
+      Printf.sprintf("Expect %s greater than %s.", repr(p), repr(p'))
+    | NotGt(p') =>
+      Printf.sprintf("Expect %s not greater than %s.", repr(p), repr(p'))
+    | Eq(p') => Printf.sprintf("Expect %s equal to %s.", repr(p), repr(p'))
+    | NotEq(p') =>
+      Printf.sprintf("Expect %s not equal to %s.", repr(p), repr(p'))
+    | Subst((v, x), p') =>
+      Printf.sprintf(
+        "Expect %s equal to %s with %s replaced by %s.",
+        repr(p),
+        repr(p'),
+        repr(x),
+        repr(v),
+      )
+    | Subst2((v1, x1), (v2, x2), p') =>
+      Printf.sprintf(
+        "Expect %s equal to %s with %s replaced by %s and %s replaced by %s.",
+        repr(p),
+        repr(p'),
+        repr(x1),
+        repr(v1),
+        repr(x2),
+        repr(v2),
+      )
+    | SubstTy((v, x), p') =>
+      Printf.sprintf(
+        "Expect %s equal to %s with %s replaced by %s.",
+        repr(p),
+        repr(p'),
+        repr(x),
+        repr(v),
+      )
+    | Cons(p1, p2) =>
+      Printf.sprintf(
+        "Expect %s equal to %s extended by %s.",
+        repr(p),
+        repr(p1),
+        repr(p2),
+      )
+    | ConsHasTy((x, t), p') =>
+      Printf.sprintf(
+        "Expect %s equal to %s extended by %s : %s.",
+        repr(p),
+        repr(p'),
+        repr(x),
+        repr(t),
+      )
+    | ConsHasTy2((x1, t1), (x2, t2), p') =>
+      Printf.sprintf(
+        "Expect %s equal to %s extended by %s : %s, %s : %s.",
+        repr(p),
+        repr(p'),
+        repr(x1),
+        repr(t1),
+        repr(x2),
+        repr(t2),
+      )
+    | Mem(p') =>
+      Printf.sprintf("Expect %s to be a member of %s.", repr(p'), repr(p))
+    | MemHasTy(p', t) =>
+      Printf.sprintf(
+        "Expect %s : %s to be a member of %s.",
+        repr(p'),
+        repr(t),
+        repr(p),
+      )
+    };
+  };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type failure =
+  | PremiseMismatch(int, int) /* expected, actual */
+  | FailUnbox(Prop.cls, t)
+  | NotAList(t) // Should be caught by the typechecker. Not expected to happen
+  | NotEqual(t, t)
+  | FailTest(t, operation); // expect {1} equal to {2}
+
+let repr_failure: failure => string =
+  fun
+  | PremiseMismatch(e, a) =>
+    Printf.sprintf("Expected %d premise(s), but got %d.", e, a)
+  | FailUnbox(cls, p) =>
+    Printf.sprintf(
+      "Failed to unbox %s from %s.",
+      Prop.show_cls(cls),
+      Prop.repr(p.self),
+    )
+  | NotAList(p) =>
+    Printf.sprintf("Expected a list, but got %s.", Prop.repr(p.self))
+  | NotEqual(p1, p2) =>
+    Printf.sprintf(
+      "Expected %s equal to %s.",
+      Prop.repr(p1.self),
+      Prop.repr(p2.self),
+    )
+  | FailTest(p, op) => repr_operation(p, op);
+
 type req('a) =
   // Top-level
   | Get: req(t) // get term
   | TestEq(t): req(unit) // test term equality
   | Test(operation): req(unit) // check term
-  // Ctx
-  | Ctx: req(list(t))
   // ALFA Typ
   | Num: req(unit)
   | Bool: req(unit)
@@ -89,13 +220,6 @@ type req('a) =
   | Eval(req('a), req('b)): req(('a, 'b))
   | Entail(req('a), req('b)): req(('a, 'b));
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type failure =
-  | PremiseMismatch(int, int) /* expected, actual */
-  | FailUnbox(Prop.cls, t)
-  | NotEqual(t, t)
-  | FailTest(t, operation); // expect {1} equal to {2}
-
 let (let$) = (x, f) =>
   switch (x) {
   | Ok(x) => f(x)
@@ -104,16 +228,25 @@ let (let$) = (x, f) =>
 
 
 let rec unbox: type a. (t, req(a)) => result(a, failure) =
-  (p, req) => {
-    switch (req, IdTagged.term_of(p)) {
+  ({self, ghost}, req) => {
+    switch (ghost) {
+    | None => unbox_self(self, req)
+    | Some(ghost) => unbox_with_ghost(self, ghost, req)
+    };
+  }
+
+and unbox_self: type a. (Prop.t, req(a)) => result(a, failure) =
+  (self, req) => {
+    let p = {self, ghost: None};
+    let unbox = self => unbox({self, ghost: None});
+    switch (req, IdTagged.term_of(p.self)) {
     // Top-level
     | (Get, _) => Ok(p)
-    | (TestEq(p'), _) => eq(p', p) ? Ok() : Error(NotEqual(p, p'))
+    | (TestEq(p'), _) =>
+      Prop.eq(p'.self, p.self) ? Ok() : Error(NotEqual(p, p'))
     | (Test(op), _) =>
       let$ result = check(p, op);
       result ? Ok() : Error(FailTest(p, op));
-    | (Ctx, Ctx(l)) => Ok(l)
-    | (Ctx, _) => Error(FailUnbox(Ctx, p))
     | (Sum(ra, rb), Sum(a, b)) =>
       let$ a = unbox(a, ra);
       let$ b = unbox(b, rb);
@@ -197,6 +330,9 @@ let rec unbox: type a. (t, req(a)) => result(a, failure) =
     | (Triv, Triv) => Ok()
     | (Triv, _) => Error(FailUnbox(Triv, p))
     | (Pat, Pat(s)) => Ok(s)
+    | (Pat, PatAnn(a, _)) =>
+      let$ a = unbox(a, Pat);
+      Ok(a);
     | (Pat, _) => Error(FailUnbox(Pat, p))
     | (PatAnn(ra, rb), PatAnn(a, b)) =>
       let$ a = unbox(a, ra);
@@ -314,8 +450,239 @@ let rec unbox: type a. (t, req(a)) => result(a, failure) =
     };
   }
 
+and unbox_with_ghost: type a. (Prop.t, Prop.t, req(a)) => result(a, failure) =
+  (self, ghost, req) => {
+    let p = {self, ghost: Some(ghost)};
+    let unbox = (self, ghost) => unbox({self, ghost: Some(ghost)});
+    switch (req, IdTagged.term_of(self), IdTagged.term_of(ghost)) {
+    // Top-level
+    | (Get, _, _) => Ok(p)
+    | (TestEq(p'), _, _) =>
+      // p' should also have ghost
+      Prop.eq(p'.self, p.self) && Prop.eq(p'.ghost |> Option.get, ghost)
+        ? Ok() : Error(NotEqual(p, p'))
+    | (Test(op), _, _) =>
+      let$ result = check(p, op);
+      result ? Ok() : Error(FailTest(p, op));
+    | (Sum(ra, rb), Sum(a, b), Sum(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Sum(_), _, _) => Error(FailUnbox(Sum, p))
+    | (TVar, TVar(s), TVar(_)) => Ok(s)
+    | (TVar, _, _) => Error(FailUnbox(TVar, p))
+    | (Rec(ra, rb), Rec(a, b), Rec(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Rec(_), _, _) => Error(FailUnbox(Rec, p))
+    | (TPat, TPat(s), TPat(_)) => Ok(s)
+    | (TPat, _, _) => Error(FailUnbox(TPat, p))
+    | (Fix(ra, rb), Fix(a, b), Fix(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Fix(_), _, _) => Error(FailUnbox(Fix, p))
+    | (InjL(ra), InjL(a), InjL(a')) =>
+      let$ a = unbox(a, a', ra);
+      Ok(a);
+    | (InjL(_), _, _) => Error(FailUnbox(InjL, p))
+    | (InjR(ra), InjR(a), InjR(a')) =>
+      let$ a = unbox(a, a', ra);
+      Ok(a);
+    | (InjR(_), _, _) => Error(FailUnbox(InjR, p))
+    | (
+        Case(ra, rb, rc, rd, re),
+        Case(a, b, c, d, e),
+        Case(a', b', c', d', e'),
+      ) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      let$ c = unbox(c, c', rc);
+      let$ d = unbox(d, d', rd);
+      let$ e = unbox(e, e', re);
+      Ok((a, b, c, d, e));
+    | (Case(_), _, _) => Error(FailUnbox(Case, p))
+    | (Roll(ra), Roll(a), Roll(a')) =>
+      let$ a = unbox(a, a', ra);
+      Ok(a);
+    | (Roll(_), _, _) => Error(FailUnbox(Roll, p))
+    | (Unroll(ra), Unroll(a), Unroll(a')) =>
+      let$ a = unbox(a, a', ra);
+      Ok(a);
+    | (Unroll(_), _, _) => Error(FailUnbox(Unroll, p))
+    // ALFp
+    | (Num, Num, Num) => Ok()
+    | (Num, _, _) => Error(FailUnbox(Num, p))
+    | (Bool, Bool, Bool) => Ok()
+    | (Bool, _, _) => Error(FailUnbox(Bool, p))
+    | (Arrow(ra, rb), Arrow(a, b), Arrow(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Arrow(_), _, _) => Error(FailUnbox(Arrow, p))
+    | (Prod(ra, rb), Prod(a, b), Prod(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Prod(_), _, _) => Error(FailUnbox(Prod, p))
+    | (Unit, Unit, Unit) => Ok()
+    | (Unit, _, _) => Error(FailUnbox(Unit, p))
+    | (Pair(ra, rb), Pair(a, b), Pair(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Pair(_), _, _) => Error(FailUnbox(Pair, p))
+    | (
+        LetPair(ra, rb, rc, rd),
+        LetPair(a, b, c, d),
+        LetPair(a', b', c', d'),
+      ) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      let$ c = unbox(c, c', rc);
+      let$ d = unbox(d, d', rd);
+      Ok((a, b, c, d));
+    | (LetPair(_), _, _) => Error(FailUnbox(LetPair, p))
+    | (PrjL(ra), PrjL(a), PrjL(a')) =>
+      let$ a = unbox(a, a', ra);
+      Ok(a);
+    | (PrjL(_), _, _) => Error(FailUnbox(PrjL, p))
+    | (PrjR(ra), PrjR(a), PrjR(a')) =>
+      let$ a = unbox(a, a', ra);
+      Ok(a);
+    | (PrjR(_), _, _) => Error(FailUnbox(PrjR, p))
+    | (Triv, Triv, Triv) => Ok()
+    | (Triv, _, _) => Error(FailUnbox(Triv, p))
+    | (Pat, Pat(s), Pat(_)) => Ok(s)
+    | (Pat, PatAnn(a, _), Pat(_)) =>
+      let$ a = unbox_self(a, Pat);
+      Ok(a);
+    | (Pat, _, _) => Error(FailUnbox(Pat, p))
+    | (PatAnn(ra, rb), PatAnn(a, b), PatAnn(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (PatAnn(_), _, _) => Error(FailUnbox(PatAnn, p))
+    // ALF
+    | (True, True, True) => Ok()
+    | (True, _, _) => Error(FailUnbox(True, p))
+    | (False, False, False) => Ok()
+    | (False, _, _) => Error(FailUnbox(False, p))
+    | (If(ra, rb, rc), If(a, b, c), If(a', b', c')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      let$ c = unbox(c, c', rc);
+      Ok((a, b, c));
+    | (If(_), _, _) => Error(FailUnbox(If, p))
+    | (Var, Var(s), Var(_)) => Ok(s)
+    | (Var, _, _) => Error(FailUnbox(Var, p))
+    | (Let(ra, rb, rc), Let(a, b, c), Let(a', b', c')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      let$ c = unbox(c, c', rc);
+      Ok((a, b, c));
+    | (Let(_), _, _) => Error(FailUnbox(Let, p))
+    | (Fun(ra, rb), Fun(a, b), Fun(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Fun(_), _, _) => Error(FailUnbox(Fun, p))
+    | (Ap(ra, rb), Ap(a, b), Ap(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Ap(_), _, _) => Error(FailUnbox(Ap, p))
+    | (OpLt, OpLt, OpLt) => Ok()
+    | (OpLt, _, _) => Error(FailUnbox(OpLt, p))
+    | (OpGt, OpGt, OpGt) => Ok()
+    | (OpGt, _, _) => Error(FailUnbox(OpGt, p))
+    | (OpEq, OpEq, OpEq) => Ok()
+    | (OpEq, _, _) => Error(FailUnbox(OpEq, p))
+    // AL
+    | (NumLit, NumLit(n), NumLit(_)) => Ok(n)
+    | (NumLit, _, _) => Error(FailUnbox(NumLit, p))
+    | (UnOp(ra, rb), UnOp(a, b), UnOp(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (UnOp(_), _, _) => Error(FailUnbox(UnOp, p))
+    | (BinOp(ra, rb, rc), BinOp(a, b, c), BinOp(a', b', c')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      let$ c = unbox(c, c', rc);
+      Ok((a, b, c));
+    | (BinOp(_), _, _) => Error(FailUnbox(BinOp, p))
+    | (OpNeg, OpNeg, OpNeg) => Ok()
+    | (OpNeg, _, _) => Error(FailUnbox(OpNeg, p))
+    | (OpPlus, OpPlus, OpPlus) => Ok()
+    | (OpPlus, _, _) => Error(FailUnbox(OpPlus, p))
+    | (OpMinus, OpMinus, OpMinus) => Ok()
+    | (OpMinus, _, _) => Error(FailUnbox(OpMinus, p))
+    | (OpTimes, OpTimes, OpTimes) => Ok()
+    | (OpTimes, _, _) => Error(FailUnbox(OpTimes, p))
+    // ALFA proposition
+    | (HasTy(ra, rb), HasTy(a, b), HasTy(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (HasTy(_), _, _) => Error(FailUnbox(HasTy, p))
+    | (Syn(ra, rb), Syn(a, b), Syn(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Syn(_), _, _) => Error(FailUnbox(Syn, p))
+    | (Ana(ra, rb), Ana(a, b), Ana(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Ana(_), _, _) => Error(FailUnbox(Ana, p))
+    // Propositional logic
+    | (And(ra, rb), And(a, b), And(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (And(_), _, _) => Error(FailUnbox(And, p))
+    | (Or(ra, rb), Or(a, b), Or(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Or(_), _, _) => Error(FailUnbox(Or, p))
+    | (Implies(ra, rb), Implies(a, b), Implies(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Implies(_), _, _) => Error(FailUnbox(Implies, p))
+    | (Truth, Truth, Truth) => Ok()
+    | (Truth, _, _) => Error(FailUnbox(Truth, p))
+    | (Falsity, Falsity, Falsity) => Ok()
+    | (Falsity, _, _) => Error(FailUnbox(Falsity, p))
+    // Judgments
+    | (Val(ra), Val(a), Val(a')) =>
+      let$ a = unbox(a, a', ra);
+      Ok(a);
+    | (Val(_), _, _) => Error(FailUnbox(Val, p))
+    | (Eval(ra, rb), Eval(a, b), Eval(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Eval(_), _, _) => Error(FailUnbox(Eval, p))
+    | (Entail(ra, rb), Entail(a, b), Entail(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Entail(_), _, _) => Error(FailUnbox(Entail, p))
+    };
+  }
+
 and check: (t, operation) => result(bool, failure) =
-  (p, op) => {
+  ({self, _} as p, op) => {
+    let unbox_list = p => {
+      switch (IdTagged.term_of(p.self)) {
+      | Ctx(l) => Ok(l)
+      | _ => Error(NotAList(p))
+      };
+    };
     let unbox_num2 = (p1, p2) => {
       let$ n1 = unbox(p1, NumLit);
       let$ n2 = unbox(p2, NumLit);
@@ -329,7 +696,7 @@ and check: (t, operation) => result(bool, failure) =
     };
     let unbox_pat = x => {
       let$ x = unbox(x, Pat);
-      Ok(Var(x) |> temp);
+      Ok(Var(x) |> Prop.temp);
     };
     switch (op) {
     | Neg(p') =>
@@ -346,13 +713,13 @@ and check: (t, operation) => result(bool, failure) =
       Ok(n == n1 * n2);
     | Lt(p') =>
       let$ (n, n') = unbox_num2(p, p');
-      Ok(n < n');
+      Ok(n > n');
     | NotLt(p') =>
       let$ (n, n') = unbox_num2(p, p');
       Ok(n <= n');
     | Gt(p') =>
       let$ (n, n') = unbox_num2(p, p');
-      Ok(n > n');
+      Ok(n < n');
     | NotGt(p') =>
       let$ (n, n') = unbox_num2(p, p');
       Ok(n >= n');
@@ -364,41 +731,55 @@ and check: (t, operation) => result(bool, failure) =
       Ok(n != n');
     | Subst((v, x), e) =>
       let$ x = unbox(x, Pat);
-      Ok(eq(p, subst(v, x, e)));
+      Ok(Prop.eq(self, Prop.subst(v.self, x, e.self)));
     | Subst2((v1, x1), (v2, x2), e) =>
       let$ x1 = unbox(x1, Pat);
       let$ x2 = unbox(x2, Pat);
-      Ok(eq(p, subst(v2, x2, subst(v1, x1, e))));
+      Ok(
+        Prop.eq(
+          self,
+          Prop.subst(v2.self, x2, Prop.subst(v1.self, x1, e.self)),
+        ),
+      );
     | SubstTy((t, a), e) =>
       let$ a = unbox(a, TVar);
-      Ok(p == subst_ty(t, a, e));
+      Ok(Prop.eq(self, Prop.subst_ty(t.self, a, e.self)));
     | Cons(e, l) =>
-      let$ l = unbox(l, Ctx);
-      let l = Ctx(cons_ctx(e, l)) |> temp;
-      Ok(eq(p, l));
+      let$ l = unbox_list(l);
+      let l = Ctx(Prop.cons_ctx(e.self, l)) |> Prop.temp;
+      Ok(Prop.eq(self, l));
     | ConsHasTy((pat, t), l) =>
-      let$ l = unbox(l, Ctx);
+      let$ l = unbox_list(l);
       let$ x = unbox_pat(pat);
-      let l = Ctx(cons_ctx(HasTy(x, t) |> temp, l)) |> temp;
-      Ok(eq(p, l));
+      let l =
+        Ctx(Prop.cons_ctx(HasTy(x, t.self) |> Prop.temp, l)) |> Prop.temp;
+      if (!Prop.eq(self, l)) {
+        print_endline(Prop.show(self));
+        print_endline(Prop.show(l));
+      };
+      Ok(Prop.eq(self, l));
     | ConsHasTy2((pat1, t1), (pat2, t2), l) =>
-      let$ l = unbox(l, Ctx);
+      let$ l = unbox_list(l);
       let$ x1 = unbox_pat(pat1);
       let$ x2 = unbox_pat(pat2);
-      let l = cons_ctx(HasTy(x1, t1) |> temp, l);
-      let l = Ctx(cons_ctx(HasTy(x2, t2) |> temp, l)) |> temp;
-      Ok(eq(p, l));
+      let l = Prop.cons_ctx(HasTy(x1, t1.self) |> Prop.temp, l);
+      let l =
+        Ctx(Prop.cons_ctx(HasTy(x2, t2.self) |> Prop.temp, l)) |> Prop.temp;
+      if (!Prop.eq(self, l)) {
+        print_endline(Prop.show(self));
+        print_endline(Prop.show(l));
+      };
+      Ok(Prop.eq(self, l));
     | Mem(e) =>
-      let$ l = unbox(p, Ctx);
-      Ok(mem_ctx(e, l));
-    | MemHasTy(pat, t) =>
-      let$ l = unbox(p, Ctx);
-      let$ x = unbox_pat(pat);
-      Ok(mem_ctx(HasTy(x, t) |> temp, l));
+      let$ l = unbox_list(p);
+      Ok(Prop.mem_ctx(e.self, l));
+    | MemHasTy(x, t) =>
+      let$ l = unbox_list(p);
+      Ok(Prop.mem_ctx(HasTy(x.self, t.self) |> Prop.temp, l));
     };
   };
 
-let expect_prems_num: (Rule.t, list(Prop.t)) => result(int => t, failure) =
+let expect_prems_num: (Rule.t, list(t)) => result(int => t, failure) =
   (rule, prems) => {
     let got = List.length(prems);
     let expect = Rule.prems_num(rule);
@@ -635,7 +1016,7 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ (ctx, (((x, t_def), e_def, e_body), t)) =
       concl >> Entail(__, HasTy(Let(PatAnn(__, __), __, __), __));
     let ctx' = ConsHasTy((x, t_def), ctx);
-    let$ _ = prems(0) >> Entail(!ctx, Syn(!e_def, !t_def));
+    let$ _ = prems(0) >> Entail(!ctx, HasTy(!e_def, !t_def));
     let$ _ = prems(1) >> Entail(!!ctx', HasTy(!e_body, !t));
     Ok();
   | S_Let =>
@@ -655,7 +1036,7 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
   | T_Let =>
     let$ (ctx, ((x, e_def, e_body), t)) =
       concl >> Entail(__, HasTy(Let(__, __, __), __));
-    let$ (_, (_, t_def)) = prems(0) >> Entail(!ctx, Ana(!e_def, __));
+    let$ (_, (_, t_def)) = prems(0) >> Entail(!ctx, HasTy(!e_def, __));
     let ctx' = ConsHasTy((x, t_def), ctx);
     let$ _ = prems(1) >> Entail(!!ctx', HasTy(!e_body, !t));
     Ok();
@@ -703,13 +1084,13 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
   | T_Fix =>
     let$ (ctx, ((x, e), t)) =
       concl >> Entail(__, HasTy(Fix(__, __), __));
-    let _ = prems(0) >> Entail(!!ConsHasTy((x, t), ctx), HasTy(!e, !t));
+    let$ _ = prems(0) >> Entail(!!ConsHasTy((x, t), ctx), HasTy(!e, !t));
     Ok();
   | T_FixAnn =>
     let$ (ctx, (((x, t), e), t')) =
       concl >> Entail(__, HasTy(Fix(PatAnn(__, __), __), __));
     let$ _ = t >> !t';
-    let _ = prems(0) >> Entail(!!ConsHasTy((x, t), ctx), HasTy(!e, !t));
+    let$ _ = prems(0) >> Entail(!!ConsHasTy((x, t), ctx), HasTy(!e, !t));
     Ok();
   | E_Fix =>
     let$ (e, v) = concl >> Eval(__, __);
@@ -734,7 +1115,7 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ ((e_fun, e_arg), v) = concl >> Eval(Ap(__, __), __);
     let$ (_, (x, e_body)) = prems(0) >> Eval(!e_fun, Fun(__, __));
     let$ (_, v_arg) = prems(1) >> Eval(!e_arg, __);
-    let$ _ = prems(3) >> Eval(!!Subst((v_arg, x), e_body), !v);
+    let$ _ = prems(2) >> Eval(!!Subst((v_arg, x), e_body), !v);
     Ok();
   | S_Pair =>
     let$ (ctx, (el, tl)) = prems(0) >> Entail(__, Syn(__, __));
@@ -956,4 +1337,61 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = prems(0) >> Entail(!ctx, Falsity);
     Ok();
   };
+};
+
+let bind_ghost:
+  (Prop.deduction(Prop.t), Prop.deduction(Prop.t)) => Prop.deduction(t) =
+  (self, ghost) => {
+    prems:
+      List.map2(
+        (p1, p2) => {self: p1, ghost: Some(p2)},
+        self.prems,
+        ghost.prems,
+      ),
+    concl: {
+      self: self.concl,
+      ghost: Some(ghost.concl),
+    },
+  };
+
+let bind_none: Prop.deduction(Prop.t) => Prop.deduction(t) =
+  self => {
+    prems: List.map(p => {self: p, ghost: None}, self.prems),
+    concl: {
+      self: self.concl,
+      ghost: None,
+    },
+  };
+
+let verify =
+    (rule: Rule.t, d: Prop.deduction(Prop.t), ~with_ghost: bool)
+    : result(unit, failure) => {
+  let Prop.{prems, concl} =
+    if (with_ghost) {
+      bind_ghost(d, Ghost.of_ghost(rule));
+    } else {
+      bind_none(d);
+    };
+  verify(rule, prems, concl);
+};
+
+let verify_ghost = (rule: Rule.t) =>
+  verify(rule, Ghost.of_ghost(rule), ~with_ghost=false);
+
+let verify_all_ghosts = (): unit => {
+  let rules = Rule.all;
+  List.iter(
+    rule =>
+      rule
+      |> verify_ghost
+      |> (
+        fun
+        | Ok(_) => ()
+        | Error(f) => {
+            print_endline("Failed to verify rule: " ++ Rule.show(rule));
+            print_endline("Failure: " ++ show_failure(f));
+          }
+      ),
+    rules,
+  );
 };

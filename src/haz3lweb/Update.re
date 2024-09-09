@@ -268,7 +268,12 @@ let exercise_pos_check: Exercise.state => Exercise.state =
       | (Proof({trees, _}), Proof(Trees(i, pos))) =>
         let len = List.length(trees);
         if (i < len) {
-          Proof(Trees(i, Tree.farthest(List.nth(trees, i), pos)));
+          let tree = List.nth(trees, i);
+          let farthest = Tree.farthest(tree, pos);
+          switch (Tree.nth(tree, farthest)) {
+          | Abbr(_) => Proof(Prelude)
+          | Just(_) => Proof(Trees(i, farthest))
+          };
         } else if (len > 0) {
           Proof(Trees(len - 1, Value));
         } else {

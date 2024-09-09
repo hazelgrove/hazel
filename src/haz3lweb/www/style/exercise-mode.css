@@ -257,11 +257,13 @@
 }
 
 .deduction-concl {
+  position: relative;
   display: flex;
   justify-content: center;
 }
 
 .deduction-concl .cell {
+  position: relative;
   border-left: none !important;
 }
 
@@ -315,11 +317,6 @@
   background: var(--BR2);
 }
 
-.deduction-label-container {
-  position: relative;
-  display: flex;
-}
-
 /* Dropdown button */
 .deduction-label {
   color: var(--ui-bkg);
@@ -334,41 +331,30 @@
   text-wrap: nowrap;
   background-color: var(--BR2);
   transform: translateY(0.05rem);
-  cursor: grab;
+  cursor: pointer;
 }
 
 .del-premise-btn {
-  display: none;
-  position: absolute;
-  top: 0;
-  right: -1rem;
   padding: 0 0.3rem;
-  font-size: 0.7rem;
-  height: 1.05rem;
-  min-width: 0.4rem;
-  border-radius: 0.4rem;
-  background-color: var(--BR2);
-  color: var(--test-fail);
-  z-index: var(--top-bar-z);
+  font-size: 1.2rem;
   transform: translateY(0.05rem);
 }
 
 .del-premise-btn:hover {
-  background-color: var(--test-fail);
-  color: var(--ui-bkg);
+  color: var(--test-fail);
+    cursor: pointer;
 }
 
 /* Dropdown content (hidden by default) */
 .dropdown {
   display: none;
   position: absolute;
-  bottom: 1rem;
-  left: 0;
+  left: 100%;
+    bottom: 5%;
   background-color: var(--ui-bkg);
   border: var(--BR2) 0.1rem solid;
   border-radius: 0.4em;
   z-index: var(--top-bar-z);
-  transform: translateY(0.05rem);
 }
 
 .dropdown-result {
@@ -378,7 +364,6 @@
   border-bottom: var(--BR2) 0.1em solid;
 }
 
-.dropdown.correct,
 .deduction-prems-label.correct {
   border-color: var(--test-pass);
 }
@@ -387,7 +372,6 @@
   background-color: var(--test-pass);
 }
 
-.dropdown.incorrect,
 .deduction-prems-label.incorrect {
   border-color: var(--test-fail);
 }
@@ -396,43 +380,21 @@
   background-color: var(--test-fail);
 }
 
-/* Links inside the dropdown */
-.dropdown-option-container {
-  padding: 0.4rem;
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-  text-align: left;
-  min-width: 28rem;
-  border-bottom: var(--BR2) 0.1em solid;
-}
-
 /* Show the dropdown menu on hover */
-.deduction-label-container:hover .dropdown {
-  display: block;
+.deduction-concl:hover .dropdown {
+  display: flex;
 }
 
-.deduction-label-container:hover .del-premise-btn {
+.deduction-concl:hover .del-premise-btn {
   display: inline-flex;
 }
 
 .dropdown-option {
-  color: var(--ui-bkg);
-  height: 1rem;
-  display: flex;
+  height: 1.8rem;
   padding: 0 0.3rem;
-  font-size: 0.7em;
-  border-radius: 0.4em;
-  background-color: var(--BR2);
   align-items: center;
-  box-sizing: border-box;
   color: var(--token-exp);
-  background-color: var(--ui-bkg);
-  border: var(--token-exp) 0.1rem solid;
-}
-
-.dropdown-option.abbr {
-  height: 1.5rem;
+  border-left: var(--token-exp) 0.1rem solid;
 }
 
 .dropdown-option.default {
@@ -446,6 +408,9 @@
   text-decoration: strong;
 }
 
+.dropdown-option .code.fakecode {
+  height: auto;
+}
 #ninja-keys-rules::part(actions-list) {
   display: flex;
   flex-wrap: wrap;

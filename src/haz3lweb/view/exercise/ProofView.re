@@ -124,18 +124,11 @@ let proof_view =
       [abbr_to_label(index)],
     );
 
-  let dropdown_option_abbr_container_view = (~pos): t =>
-    div(
-      ~attrs=[Attr.class_("dropdown-option-container")],
-      Exercise.Proof.all_abbrs(pos)
-      |> List.map(dropdown_option_abbr_view(~pos, ~index=_)),
-    );
-
-  let dropdown_result_view = (~res): t =>
-    div(
-      ~attrs=[Attr.class_("dropdown-result")],
-      [text(VerifiedTree.show_res(res))],
-    );
+  // let dropdown_result_view = (~res): t =>
+  //   div(
+  //     ~attrs=[Attr.class_("dropdown-result")],
+  //     [text(VerifiedTree.show_res(res))],
+  //   );
 
   let class_of_result: VerifiedTree.res => string =
     fun
@@ -143,13 +136,24 @@ let proof_view =
     | Correct => "correct"
     | Pending(_) => "pending";
 
-  let dropdown_view = (~pos, ~res: VerifiedTree.res): t =>
+  let pos_is_value =
+    fun
+    | Trees(_, Value) => true
+    | _ => false;
+
+  let dropdown_view = (~pos, ~index): t =>
     div(
-      ~attrs=[Attr.class_("dropdown"), Attr.class_(class_of_result(res))],
-      [
-        dropdown_result_view(~res),
-        dropdown_option_abbr_container_view(~pos),
-      ],
+      ~attrs=[Attr.class_("dropdown")],
+      (
+        settings.instructor_mode && pos == Trees(0, Value)
+          ? [] : [del_premise_btn_view(~pos)]
+      )
+      @ (
+        Exercise.Proof.all_abbrs(pos)
+        |> List.filter(abbr => abbr != index)
+        |> List.filter(abbr => !(Option.is_none(abbr) && pos_is_value(pos)))
+        |> List.map(dropdown_option_abbr_view(~pos, ~index=_))
+      ),
     );
 
   let label_view = (~pos, ~res, ~label) =>
@@ -186,16 +190,6 @@ let proof_view =
       [text(label)],
     );
 
-  let label_view = (~pos, ~res, ~label): t =>
-    div(
-      ~attrs=[Attr.class_("deduction-label-container")],
-      [
-        label_view(~pos, ~res, ~label),
-        del_premise_btn_view(~pos),
-        dropdown_view(~pos, ~res),
-      ],
-    );
-
   let premises_view = (~children_node, ~pos, ~res, ~rule) => {
     let n = List.length(children_node);
     let label = rule_to_label(rule);
@@ -217,7 +211,7 @@ let proof_view =
   };
 
   let editor_view =
-      (this_pos, ~editor, ~di: Exercise.DynamicsItem.t, ~caption) =>
+      (this_pos, ~editor, ~di: Exercise.DynamicsItem.t, ~caption, ~footer) =>
     Cell.editor_view(
       ~selected=(Proof(pos): Exercise.pos) == this_pos,
       ~override_statics=di.statics,
@@ -229,13 +223,22 @@ let proof_view =
       ~caption,
       ~target_id=Exercise.show_pos(this_pos),
       ~test_results=ModelResult.test_results(di.result),
+      ~footer,
       editor,
     );
 
   let conclusion_view = (~pos, ~editor, ~di) =>
     div(
       ~attrs=[Attr.class_("deduction-concl")],
-      [editor_view(Proof(pos), ~editor, ~di, ~caption=None)],
+      [
+        editor_view(
+          Proof(pos),
+          ~editor,
+          ~di,
+          ~caption=None,
+          ~footer=[dropdown_view(~pos, ~index=None)],
+        ),
+      ],
     );
 
   let deduction_view = (~children_node, ~pos, ~res, ~rule, ~editor, ~di) =>
@@ -261,7 +264,7 @@ let proof_view =
         ),
         div(
           ~attrs=[Attr.class_("deduction-concl")],
-          [abbr_to_label(index)],
+          [abbr_to_label(index), dropdown_view(~pos, ~index)],
         ),
       ],
     );
@@ -361,6 +364,7 @@ let proof_view =
           "Prelude",
           ~rest=settings.instructor_mode ? "" : " (Read-Only)",
         ),
+      ~footer=[],
     );
 
   let setup_view =
@@ -369,6 +373,7 @@ let proof_view =
       ~editor=eds.setup,
       ~di=stitched_dynamics.setup,
       ~caption=Cell.caption("Setup"),
+      ~footer=[],
     );
 
   [prelude_view, setup_view, derivation_view];

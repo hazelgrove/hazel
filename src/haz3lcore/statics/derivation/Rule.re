@@ -142,21 +142,23 @@ type t =
   | Falsity_E;
 
 let repr =
-  fun
-  // Propositional logic
-  | Assumption => "Asm."
-  | And_I => "∧-I"
-  | And_E_L => "∧-E-L"
-  | And_E_R => "∧-E-R"
-  | Or_I_L => "∨-I-L"
-  | Or_I_R => "∨-I-R"
-  | Or_E => "∨-E"
-  | Implies_I => "⊃-I"
-  | Implies_E => "⊃-E"
-  | Truth_I => "⊤-I"
-  | Falsity_E => "⊥-E"
-  | A_Subsumption => "A-Sub"
-  | rule => show(rule) |> String.map(c => c == '_' ? '-' : c);
+    // fun
+    // // Propositional logic
+    // | Assumption => "Asm."
+    // | And_I => "∧-I"
+    // | And_E_L => "∧-E-L"
+    // | And_E_R => "∧-E-R"
+    // | Or_I_L => "∨-I-L"
+    // | Or_I_R => "∨-I-R"
+    // | Or_E => "∨-E"
+    // | Implies_I => "⊃-I"
+    // | Implies_E => "⊃-E"
+    // | Truth_I => "⊤-I"
+    // | Falsity_E => "⊥-E"
+    // | A_Subsumption => "A-Sub"
+    // |
+    rule =>
+  show(rule) |> String.map(c => c == '_' ? '-' : c);
 
 let prems_num =
   fun
@@ -202,7 +204,7 @@ let prems_num =
   | S_If
   | T_If => 3
   | E_If_T
-  | E_If_F => 3
+  | E_If_F => 2
   | S_Var
   | T_Var => 0
   | S_LetAnn

@@ -10,66 +10,11 @@ exception Unreachable;
 
  */
 
-// type req('a) =
-//     // ALFA Typ
-//     | Num: req(unit)
-//     | Bool: req(unit)
-//     | Arrow(req('a), req('b)): req(('a, 'b))
-//     | Prod(req('a), req('b)): req(('a, 'b))
-//     | Unit: req(unit)
-//     | Sum(req('a), req('b)): req(('a, 'b))
-//     | TVar: req(string)
-//     | Rec(req('a), req('b)): req(('a, 'b))
-//     // ALFA Exp
-//     | NumLit: req(int)
-//     | UnOp(req('a), req('b)): req(('a, 'b))
-//     | BinOp(req('a), req('b), req('c)): req(('a, 'b, 'c))
-//     | True: req(unit)
-//     | False: req(unit)
-//     | If(req('a), req('b), req('c)): req(('a, 'b, 'c))
-//     | Var: req(string)
-//     | Let(req('a), req('b), req('c)): req(('a, 'b, 'c))
-//     | Fix(req('a), req('b)): req(('a, 'b))
-//     | Fun(req('a), req('b)): req(('a, 'b))
-//     | Ap(req('a), req('b)): req(('a, 'b))
-//     | Pair(req('a), req('b)): req(('a, 'b))
-//     | Triv: req(unit)
-//     | PrjL(req('a)): req('a)
-//     | PrjR(req('a)): req('a)
-//     | LetPair(req('a), req('b), req('c), req('d)): req(('a, 'b, 'c, 'd))
-//     | InjL(req('a)): req('a)
-//     | InjR(req('a)): req('a)
-//     | Case(req('a), req('b), req('c), req('d), req('e))
-//       : req(('a, 'b, 'c, 'd, 'e))
-//     | Roll(req('a)): req('a)
-//     | Unroll(req('a)): req('a)
-//     // ALFA UnOp
-//     | OpNeg: req(unit)
-//     // ALFA BinOp
-//     | OpPlus: req(unit)
-//     | OpMinus: req(unit)
-//     | OpTimes: req(unit)
-//     | OpLt: req(unit)
-//     | OpGt: req(unit)
-//     | OpEq: req(unit)
-//     // ALFA Meta
-//     | TPat: req(string)
-//     | Pat: req(string)
-//     | PatAnn(req('a), req('b)): req(('a, 'b))
-//     // ALFA Proposition
-//     | HasTy(req('a), req('b)): req(('a, 'b))
-//     | Syn(req('a), req('b)): req(('a, 'b))
-//     | Ana(req('a), req('b)): req(('a, 'b))
-//     // Logical Proposition
-//     | And(req('a), req('b)): req(('a, 'b))
-//     | Or(req('a), req('b)): req(('a, 'b))
-//     | Implies(req('a), req('b)): req(('a, 'b))
-//     | Truth: req(unit)
-//     | Falsity: req(unit)
-//     // Judgments
-//     | Val(req('a)): req('a)
-//     | Eval(req('a), req('b)): req(('a, 'b))
-//     | Entail(req('a), req('b)): req(('a, 'b));
+[@deriving (show({with_path: false}), sexp, yojson)]
+type deduction('a) = {
+  concl: 'a,
+  prems: list('a),
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type term =
@@ -198,73 +143,161 @@ type cls =
   | Eval
   | Entail;
 
-// let repr: t => string = {
-//   let precedence: t => int =
-//     fun
-//     | Hole(_)
-//     | Fail(_)
-//     | Atom(_)
-//     | Truth
-//     | Falsity
-//     | Ctx(_)
-//     | NumLit(_)
-//     | Val(_)
-//     | UnOp(_)
-//     | BinOp(_)
-//     | OpNeg
-//     | OpPlus
-//     | OpMinus
-//     | OpTimes
-//     | Eval(_)
-//     | Entail(_) => Precedence.entail
-//     | And(_) => Precedence.prop_and
-//     | Or(_) => Precedence.prop_or
-//     | Implies(_) => Precedence.prop_implies;
-//   let rec aux = (p: int, prop: t): string => {
-//     let p' = precedence(prop);
-//     let aux = aux(p');
-//     let print_binop = (op: string, a: t, b: t) =>
-//       Printf.sprintf("%s %s %s", aux(a), op, aux(b));
-//     let print_unop = (op: string, a: t) =>
-//       Printf.sprintf("%s%s", op, aux(a));
-//     (
-//       switch (prop) {
-//       | Hole(s) => s
-//       // TODO(zhiyao): make it colorful
-//       | Fail(_) => ""
-//       | Atom(s) => s
-//       | And(a, b) => print_binop("∧", a, b)
-//       | Or(a, b) => print_binop("∨", a, b)
-//       | Implies(a, Falsity) => print_unop("¬", a)
-//       | Implies(a, b) => print_binop("⊃", a, b)
-//       | Truth => "⊤"
-//       | Falsity => "⊥"
-//       | Ctx(ctx) =>
-//         if (Ctx.length(ctx) == 0) {
-//           "·";
-//         } else {
-//           ctx
-//           |> Ctx.map(aux)
-//           |> String.concat(", ")
-//           |> Printf.sprintf("[%s]");
-//         }
-//       | Entail(a, b) => print_binop("⊢", a, b)
+module P = Precedence;
 
-//       | NumLit(i) => "_" ++ string_of_int(i) ++ "_"
-//       | Val(a) => aux(a) ++ " val"
-//       | UnOp(op, a) => print_unop(aux(op), a)
-//       | BinOp(op, a, b) => print_binop(aux(op), a, b)
-//       | OpNeg => "-"
-//       | OpPlus => "+"
-//       | OpMinus => "-"
-//       | OpTimes => "*"
-//       | Eval(_) => "=>"
-//       }
-//     )
-//     |> (p < p' ? Printf.sprintf("(%s)") : Fun.id);
-//   };
-//   aux(0);
-// };
+let precedence: t => int =
+  p =>
+    switch (IdTagged.term_of(p)) {
+    | Hole(_) => P.max
+    | Ctx(_) => P.max
+    | Num => P.max
+    | Bool => P.max
+    | Arrow(_) => P.type_arrow
+    | Prod(_) => P.type_prod
+    | Unit => P.max
+    | Sum(_) => P.type_plus
+    | TVar(_) => P.max
+    | Rec(_) => P.max
+    // ALFA Exp
+    | NumLit(_) => P.max
+    | UnOp(_) => P.max
+    | BinOp(_) => P.max
+    | True => P.max
+    | False => P.max
+    | If(_) => P.if_
+    | Var(_) => P.max
+    | Let(_) => P.let_
+    | Fix(_) => P.fun_
+    | Fun(_) => P.fun_
+    | Ap(_) => P.ap
+    | Pair(_) => P.prod
+    | Triv => P.max
+    | PrjL(_) => P.neg
+    | PrjR(_) => P.neg
+    | LetPair(_) => P.let_
+    | InjL(_) => P.neg
+    | InjR(_) => P.neg
+    | Case(_) => P.case_
+    | Roll(_) => P.max
+    | Unroll(_) => P.max
+    // ALFA UnOp
+    | OpNeg => P.neg
+    // ALFA BinOp
+    | OpPlus => P.plus
+    | OpMinus => P.plus
+    | OpTimes => P.mult
+    | OpLt => P.eqs
+    | OpGt => P.eqs
+    | OpEq => P.eqs
+    // ALFA Meta
+    | TPat(_) => P.max
+    | Pat(_) => P.max
+    | PatAnn(_) => P.ann
+    // ALFA Proposition
+    | HasTy(_) => P.ann
+    | Syn(_) => P.ann
+    | Ana(_) => P.ann
+    // Logical Proposition
+    | Atom(_) => P.max
+    | And(_) => P.and_
+    | Or(_) => P.or_
+    | Implies(_) => P.fun_
+    | Truth => P.max
+    | Falsity => P.max
+    // Judgments
+    | Val(_) => P.min
+    | Eval(_) => P.prop_implies
+    | Entail(_) => P.entail
+    };
+
+let rec repr = (p: int, prop: t): string => {
+  let p' = precedence(prop);
+  let repr = repr(p');
+  let repr_aba = (as_: list(string), bs: list(t)) =>
+    Aba.mk(as_, bs)
+    |> Aba.join(Fun.id, repr)
+    |> String.concat(" ")
+    |> String.trim;
+  let repr_binop = (op: string, a: t, b: t) =>
+    repr_aba(["", op, ""], [a, b]);
+  let repr_preop = (op: string, a: t) => repr_aba([op, ""], [a]);
+  let repr_postop = (op: string, a: t) => repr_aba(["", op], [a]);
+  (
+    switch (IdTagged.term_of(prop)) {
+    | Hole(s) => Printf.sprintf("[[%s]]", s)
+    | Atom(s) => s
+    | And(a, b) => repr_binop("∧", a, b)
+    | Or(a, b) => repr_binop("∨", a, b)
+    | Implies(a, b) when IdTagged.term_of(b) == Falsity =>
+      repr_postop("¬", a)
+    | Implies(a, b) => repr_binop("⊃", a, b)
+    | Truth => "⊤"
+    | Falsity => "⊥"
+    | Ctx(ctx) =>
+      if (List.length(ctx) == 0) {
+        "·";
+      } else {
+        ctx
+        |> List.map(repr)
+        |> String.concat(", ")
+        |> Printf.sprintf("[%s]");
+      }
+    | Entail(a, b) => repr_binop("⊢", a, b)
+    | NumLit(i) => "_" ++ string_of_int(i) ++ "_"
+    | Val(a) => repr_postop("val", a)
+    | UnOp(op, a) => repr_preop(repr(op), a)
+    | BinOp(op, a, b) => repr_binop(repr(op), a, b)
+    | OpNeg => "-"
+    | OpPlus => "+"
+    | OpMinus => "-"
+    | OpTimes => "*"
+    | Eval(a, b) => repr_binop("⇓", a, b)
+    | Num => "Num"
+    | Bool => "Bool"
+    | Arrow(a, b) => repr_binop("→", a, b)
+    | Prod(a, b) => repr_binop("×", a, b)
+    | Unit => "Unit"
+    | Sum(a, b) => repr_binop("+", a, b)
+    | TVar(x) => x
+    | Rec(x, a) => repr_aba(["rec", "→", ""], [x, a])
+    | True => "True"
+    | False => "False"
+    | If(a, b, c) => repr_aba(["if", "then", "else", ""], [a, b, c])
+    | Var(x) => x
+    | Let(x, a, b) => repr_aba(["let", "be", "in", ""], [x, a, b])
+    | Fix(x, a) => repr_aba(["fix", "→", ""], [x, a])
+    | Fun(x, a) => repr_aba(["fun", "→", ""], [x, a])
+    | Ap(a, b) => repr_aba(["", "(", ")"], [a, b])
+    | Pair(a, b) => repr_aba(["(", ",", ")"], [a, b])
+    | Triv => "()"
+    | PrjL(a) => repr_postop(".fst", a)
+    | PrjR(a) => repr_postop(".snd", a)
+    | LetPair(x, y, a, b) =>
+      repr_aba(["let (", ",", ") be", "in", ""], [x, y, a, b])
+    | InjL(a) => repr_preop("L", a)
+    | InjR(a) => repr_preop("R", a)
+    | Case(a, x, b, y, c) =>
+      repr_aba(
+        ["case", "of L(", ")→", "else R(", ")→", ""],
+        [a, x, b, y, c],
+      )
+    | Roll(a) => repr_aba(["roll(", ")"], [a])
+    | Unroll(a) => repr_aba(["unroll(", ")"], [a])
+    | OpLt => "<"
+    | OpGt => ">"
+    | OpEq => "="
+    | TPat(x) => x
+    | Pat(x) => x
+    | PatAnn(a, b) => repr_binop(":", a, b)
+    | HasTy(a, b) => repr_binop(":", a, b)
+    | Syn(a, b) => repr_binop("⇒", a, b)
+    | Ana(a, b) => repr_binop("⇐", a, b)
+    }
+  )
+  |> (p < p' ? Printf.sprintf("(%s)") : Fun.id);
+};
+
+let repr = repr(P.max);
 
 let rec eq: (t, t) => bool =
   (a, b) =>
