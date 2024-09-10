@@ -39,7 +39,16 @@ let scratch_view = (~inject, ~cur_slide, ~slides) =>
   [mode_menu(~inject, ~mode=Scratch)]
   @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(slides));
 
-let documentation_view = (~inject, ~name, ~editors) => {
+let instructor_toggle = (~inject, ~instructor_mode) =>
+  ExerciseSettings.show_instructor
+    ? [
+      toggle("🎓", ~tooltip="Toggle Instructor Mode", instructor_mode, _ =>
+        inject(Update.Set(InstructorMode))
+      ),
+    ]
+    : [];
+
+let documentation_view = (~inject, ~name, ~editors, ~instructor_mode) => {
   let editor_names = List.map(fst, editors);
   let rec find_prev_next: list(string) => (option(string), option(string)) =
     fun
@@ -80,8 +89,9 @@ let documentation_view = (~inject, ~name, ~editors) => {
              ~disabled=true,
            ),
        );
-  [
-    mode_menu(~inject, ~mode=Documentation),
+  [mode_menu(~inject, ~mode=Documentation)]
+  @ instructor_toggle(~inject, ~instructor_mode)
+  @ [
     prev,
     select(
       ~attr=
@@ -94,20 +104,17 @@ let documentation_view = (~inject, ~name, ~editors) => {
   ];
 };
 
-let instructor_toggle = (~inject, ~instructor_mode) =>
-  ExerciseSettings.show_instructor
-    ? [
-      toggle("🎓", ~tooltip="Toggle Instructor Mode", instructor_mode, _ =>
-        inject(Update.Set(InstructorMode))
-      ),
-    ]
-    : [];
-
 let exercises_view = (~inject, ~cur_slide, ~specs, ~instructor_mode) => {
   [mode_menu(~inject, ~mode=Exercises)]
   @ instructor_toggle(~inject, ~instructor_mode)
   @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(specs));
 };
+
+// let tutorial_view = (~inject, ~cur_slide, ~specs, ~instructor_mode) => {
+//   [mode_menu(~inject, ~mode=Documentation)]
+//   @ instructor_toggle(~inject, ~instructor_mode)
+//   @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(specs));
+// };
 
 let view =
     (
@@ -121,7 +128,7 @@ let view =
     | Scratch(cur_slide, slides) =>
       scratch_view(~inject, ~cur_slide, ~slides)
     | Documentation(name, editors) =>
-      documentation_view(~inject, ~name, ~editors)
+      documentation_view(~inject, ~name, ~editors, ~instructor_mode)
     | Exercises(cur_slide, specs, _) =>
       exercises_view(~cur_slide, ~specs, ~inject, ~instructor_mode)
     };
