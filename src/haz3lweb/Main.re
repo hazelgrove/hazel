@@ -3,6 +3,8 @@ open Js_of_ocaml;
 open Incr_dom;
 open Haz3lweb;
 
+Strudel.initOnLoad();
+
 let scroll_to_caret = ref(true);
 let edit_action_applied = ref(true);
 let last_edit_action = ref(JsUtil.timestamp());

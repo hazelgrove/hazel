@@ -24,22 +24,10 @@
       }
   </script>
   <script type="module" src="ninja_module.js"></script>
-
-  <script src="https://unpkg.com/@strudel/web@1.0.3"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      initStrudel();
-      document.getElementById('play').addEventListener('click', () => note('<c a f e>(3,8)').jux(rev).play());
-      document.getElementById('stop').addEventListener('click', () => hush());
-      console.log("strudel initialized");
-        });
-  </script>
-
+  
   </head>
 
   <body spellcheck="false">
-    <button id="play" style="position: absolute;z-index: 500; right: 5px;">play</button>
-    <button id="stop" style="position: absolute;z-index: 500; right: 50px;">stop</button>
     <div id="container">
       <div class="loading">
         <div class="spinner">
@@ -51,6 +39,7 @@
     </div>
   </body>
   <ninja-keys id="ninja-keys" placeholder="Find Action" hideBreadcrumbs></ninja-keys>
+  <script src="https://unpkg.com/@strudel/web@1.0.3"></script>
 
   <script src="hazel.js"></script>
 </html>
