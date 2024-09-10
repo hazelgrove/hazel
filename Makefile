@@ -61,7 +61,7 @@ repl:
 test:
 	dune fmt --auto-promote || true
 	dune build @src/fmt @test/fmt --auto-promote src test --profile dev
-	node $(TEST_DIR)/haz3ltest.bc.js
+	node --max-old-space-size=16384 $(TEST_DIR)/haz3ltest.bc.js
 
 watch-test:
 	dune build @fmt @runtest --auto-promote --watch

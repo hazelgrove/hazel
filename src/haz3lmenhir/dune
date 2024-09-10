@@ -3,7 +3,12 @@
  (libraries util re sexplib unionFind haz3lcore)
  (modules AST Conversion Interface Lexer Parser)
  (preprocess
-  (pps ppx_let ppx_sexp_conv ppx_deriving.show ppx_yojson_conv)))
+  (pps
+   ppx_let
+   ppx_sexp_conv
+   ppx_deriving.show
+   ppx_yojson_conv
+   ppx_deriving_qcheck)))
 
 (ocamllex Lexer)
 

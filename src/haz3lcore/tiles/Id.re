@@ -57,7 +57,10 @@ let t_of_yojson: Yojson.Safe.t => Uuidm.t =
   | _ => failwith("Uuidm.t_of_yojson: not valid UUID (2)");
 
 type t = Uuidm.t;
-
+let gen: QCheck.Gen.t(t) = {
+  let gen_uuid = Uuidm.v4_gen(Random.State.make_self_init());
+  QCheck.Gen.map(_ => gen_uuid(), QCheck.Gen.unit);
+};
 let mk: unit => t = Uuidm.v4_gen(Random.State.make_self_init());
 
 let compare: (t, t) => int = Uuidm.compare;

@@ -15,6 +15,17 @@ let fun_exp = AST.Fun(VarPat("x"), Var("x"), None);
 
 let fun_str = "fun x -> x";
 
+let identity =
+  QCheck.Test.make(
+    ~name="Identity",
+    ~count=10,
+    AST.arb_exp_sized(1),
+    s => {
+      print_endline(AST.show_exp(s));
+      s == s;
+    },
+  );
+
 let tests = [
   test_case(
     "Integer Literal",
@@ -27,4 +38,5 @@ let tests = [
     `Quick,
     parser_test("Same String", String("Hello World"), "\"Hello World\""),
   ),
+  QCheck_alcotest.to_alcotest(identity),
 ];
