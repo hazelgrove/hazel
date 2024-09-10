@@ -21,6 +21,7 @@
  ; (tags
  ; (topics "to describe" your project))
  (depends
+  brr
   (ocaml
    (>= 5.2.0))
   (menhir
