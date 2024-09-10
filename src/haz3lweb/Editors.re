@@ -45,11 +45,15 @@ let put_editor = (ed: ScratchSlide.state, eds: t): t =>
     // NEW //
     let update_slide =
         (hint: string, state: DocumentationEnv.state)
-        : (string, DocumentationEnv.state) => {
-      let updatedState =
-        DocumentationEnv.put_editor(state, ed.hidden_tests.tests);
-      (hint, updatedState);
-    };
+        : (string, DocumentationEnv.state) =>
+      if (hint == name) {
+        let updatedState =
+          DocumentationEnv.put_editor(state, ed.hidden_tests.tests);
+        (hint, updatedState);
+      } else {
+        (hint, state);
+      };
+
     let updatedSlides =
       List.map(
         slide => {
@@ -177,6 +181,13 @@ let reset_nth_slide = (n, slides) => {
   Util.ListUtil.put_nth(n, init_nth, slides);
 };
 
+// let reset_nth_slide_doc = (n, slides) => {
+//   let (_, init_editors, _) = Init.startup.scratch;
+//   let data = List.nth(init_editors, n);
+//   let init_nth = DocumentationEnv.unpersist_state(data);
+//   Util.ListUtil.put_nth(n, init_nth, slides);
+// };
+
 let reset_named_slide = (name, slides) => {
   let (_, init_editors, _) = Init.startup.documentation;
   let data = List.assoc(name, init_editors);
@@ -194,6 +205,8 @@ let reset_current = (editors: t, ~instructor_mode: bool): t =>
     Scratch(n, editorList);
 
   | Documentation(name, slides) =>
+    // Need a reset here
+
     // let toEditor = (state: DocumentationEnv.state): Editor.t => {
     //   switch (state) {
     //   | s => s.eds.your_impl
