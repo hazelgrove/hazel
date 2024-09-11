@@ -102,12 +102,6 @@ let typ_exp_binop_bin_string: Operators.op_bin_string => Typ.t =
   | Concat => String |> Typ.temp
   | Equals => Bool |> Typ.temp;
 
-let typ_exp_binop_bin_prop: Operators.op_bin_prop => Typ.t =
-  fun
-  | And
-  | Or
-  | Implies => Prop(Expr) |> Typ.temp; // TODO(zhiyao): check this
-
 let typ_exp_binop: Operators.op_bin => (Typ.t, Typ.t, Typ.t) =
   fun
   | Bool(And | Or) => (Bool |> Typ.temp, Bool |> Typ.temp, Bool |> Typ.temp)
@@ -159,6 +153,7 @@ let rec any_to_info_map =
       CoCtx.empty,
       utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd,
     )
+  | Drv(_) // TODO(zhiyao): implement derivation type checking
   | Rul(_)
   | Nul ()
   | Any () => (CoCtx.empty, m)
@@ -237,6 +232,7 @@ and uexp_to_info_map =
   | Int(_) => atomic(Just(Int |> Typ.temp))
   | Float(_) => atomic(Just(Float |> Typ.temp))
   | String(_) => atomic(Just(String |> Typ.temp))
+  | Derivation(d) => atomic(Just(Derivation(Drv.of_typ(d)) |> Typ.temp))
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
     let modes = Mode.of_list_lit(ctx, List.length(es), mode);
@@ -847,7 +843,7 @@ and utyp_to_info_map =
   | Int
   | Float
   | Bool
-  | Prop(_)
+  | Derivation(_)
   | String => add(m)
   | Var(_) =>
     /* Names are resolved in Info.status_typ */

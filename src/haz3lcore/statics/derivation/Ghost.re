@@ -20,7 +20,6 @@ let of_ghost: Rule.t => Prop.deduction(Prop.t) =
     let t2 = () => !TVar("t₂");
     let x = () => !Var("x");
     let xp = () => !Pat("x");
-    let xt = () => !PatAnn(xp(), t1());
     let ex = () => !Var("[v₁/x]e₁");
     let yp = () => !Pat("y");
     let n = () => !NumLit(7);
@@ -260,21 +259,24 @@ let of_ghost: Rule.t => Prop.deduction(Prop.t) =
         !Entail(ctx(), !Syn(e1(), t1())),
         !Entail(ctx_x(), !Syn(e2(), t())),
       ];
-      let concl = !Entail(ctx(), !Syn(!Let(xt(), e1(), e2()), t()));
+      let concl =
+        !Entail(ctx(), !Syn(!LetAnn(xp(), t1(), e1(), e2()), t()));
       {concl, prems};
     | A_LetAnn =>
       let prems = [
         !Entail(ctx(), !Syn(e1(), t1())),
         !Entail(ctx_x(), !Ana(e2(), t())),
       ];
-      let concl = !Entail(ctx(), !Ana(!Let(xt(), e1(), e2()), t()));
+      let concl =
+        !Entail(ctx(), !Ana(!LetAnn(xp(), t1(), e1(), e2()), t()));
       {concl, prems};
     | T_LetAnn =>
       let prems = [
         !Entail(ctx(), !HasTy(e1(), t1())),
         !Entail(ctx_x(), !HasTy(e2(), t())),
       ];
-      let concl = !Entail(ctx(), !HasTy(!Let(xt(), e1(), e2()), t()));
+      let concl =
+        !Entail(ctx(), !HasTy(!LetAnn(xp(), t1(), e1(), e2()), t()));
       {concl, prems};
     | S_Let =>
       let prems = [
@@ -304,17 +306,29 @@ let of_ghost: Rule.t => Prop.deduction(Prop.t) =
     | S_FunAnn =>
       let prems = [!Entail(ctx_x(), !Syn(e1(), t2()))];
       let concl =
-        !Entail(ctx(), !Syn(!Fun(xt(), e1()), !Arrow(t1(), t2())));
+        !
+          Entail(
+            ctx(),
+            !Syn(!FunAnn(xp(), t1(), e1()), !Arrow(t1(), t2())),
+          );
       {concl, prems};
     | A_FunAnn =>
       let prems = [!Entail(ctx_x(), !Ana(e1(), t2()))];
       let concl =
-        !Entail(ctx(), !Ana(!Fun(xt(), e1()), !Arrow(t1(), t2())));
+        !
+          Entail(
+            ctx(),
+            !Ana(!FunAnn(xp(), t1(), e1()), !Arrow(t1(), t2())),
+          );
       {concl, prems};
     | T_FunAnn =>
       let prems = [!Entail(ctx_x(), !HasTy(e1(), t2()))];
       let concl =
-        !Entail(ctx(), !HasTy(!Fun(xt(), e1()), !Arrow(t1(), t2())));
+        !
+          Entail(
+            ctx(),
+            !HasTy(!FunAnn(xp(), t1(), e1()), !Arrow(t1(), t2())),
+          );
       {concl, prems};
     | A_Fun =>
       let prems = [!Entail(ctx_x(), !Ana(e1(), t2()))];
@@ -335,7 +349,7 @@ let of_ghost: Rule.t => Prop.deduction(Prop.t) =
       {concl, prems};
     | T_FixAnn =>
       let prems = [!Entail(ctx_x(), !HasTy(e(), t1()))];
-      let concl = !Entail(ctx(), !HasTy(!Fix(xt(), e()), t1()));
+      let concl = !Entail(ctx(), !HasTy(!FixAnn(xp(), t1(), e()), t1()));
       {concl, prems};
     | E_Fix =>
       let prems = [!Eval(ex(), v())];
@@ -580,13 +594,10 @@ let of_ghost: Rule.t => Prop.deduction(Prop.t) =
       {concl, prems};
     | Implies_I =>
       let prems = [!Entail(ctx_a(), b())];
-      let concl = !Entail(ctx(), !Implies(a(), b()));
+      let concl = !Entail(ctx(), !Impl(a(), b()));
       {concl, prems};
     | Implies_E =>
-      let prems = [
-        !Entail(ctx(), !Implies(a(), b())),
-        !Entail(ctx(), a()),
-      ];
+      let prems = [!Entail(ctx(), !Impl(a(), b())), !Entail(ctx(), a())];
       let concl = !Entail(ctx(), b());
       {concl, prems};
     | Truth_I =>

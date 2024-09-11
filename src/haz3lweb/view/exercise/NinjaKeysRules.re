@@ -1,6 +1,5 @@
 open Js_of_ocaml;
 open Util;
-open Haz3lcore.Derivation;
 
 let pos = ref(Haz3lschool.ProofCore.Trees(0, Value));
 
@@ -18,7 +17,7 @@ let map_model = (f, state: Exercise.state): Exercise.state => {
     },
 };
 
-let update_rule: Rule.t => UpdateAction.t =
+let update_rule: Haz3lcore.Rule.t => UpdateAction.t =
   rule =>
     UpdateAction.MapExercise(
       map_model(
@@ -31,7 +30,7 @@ let update_rule: Rule.t => UpdateAction.t =
  */
 
 let from_rule =
-    (schedule_action: UpdateAction.t => unit, rule: Rule.t)
+    (schedule_action: UpdateAction.t => unit, rule: Haz3lcore.Rule.t)
     : {
         .
         "handler": Js.readonly_prop(unit => unit),
@@ -41,16 +40,18 @@ let from_rule =
       } => {
   [%js
    {
-     val id = Rule.show(rule);
-     val title = Rule.repr(rule);
+     val id = Haz3lcore.Rule.show(rule);
+     val title = Haz3lcore.Rule.repr(rule);
      val section =
-       Js.Optdef.option(Some(Rule.show_kind(Rule.of_kind(rule))));
+       Js.Optdef.option(
+         Some(Haz3lcore.Rule.show_kind(Haz3lcore.Rule.of_kind(rule))),
+       );
      val handler = () => update_rule(rule) |> schedule_action
    }];
 };
 
 let options = (schedule_action: UpdateAction.t => unit) =>
-  Array.of_list(List.map(from_rule(schedule_action), Rule.all));
+  Array.of_list(List.map(from_rule(schedule_action), Haz3lcore.Rule.all));
 
 let elem = () => JsUtil.get_elem_by_id("ninja-keys-rules");
 

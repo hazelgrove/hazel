@@ -78,6 +78,7 @@ let shape_affix =
 
 let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   switch (s) {
+  | Drv(_) => remold_template(s, shape, seg)
   | Any => seg
   | Typ => remold_typ(shape, seg)
   | Pat => remold_pat(shape, seg)
@@ -116,6 +117,81 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
       [],
     );
   {...remolded, children};
+}
+and subsort_of = (sort: Sort.t): list(Sort.t) =>
+  switch (sort) {
+  | Drv(drv) =>
+    (
+      switch (drv) {
+      | Jdmt => [Prop, Exp, Pat, Typ, TPat]
+      | Prop => [Exp, Pat, Typ, TPat]
+      | Exp => [Pat, Typ, TPat]
+      | Pat => [Typ]
+      | Typ => []
+      | TPat => [Typ]
+      }
+    )
+    |> List.map(drv => Sort.Drv(drv))
+  | _ => failwith("subsort_of unexpected")
+  }
+and remold_template = (sort: Sort.t, shape, seg: t): t => {
+  let remold = remold_template(sort);
+  let subsort = subsort_of(sort);
+  switch (seg) {
+  | [] => []
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Secondary(_)
+    | Grout(_)
+    | Projector(_) => [hd, ...remold(shape, tl)]
+    | Tile(t) =>
+      switch (remold_tile(sort, shape, t)) {
+      | None => [Tile(t), ...remold(snd(Tile.shapes(t)), tl)]
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort}) when List.mem(sort, subsort) =>
+          let (remolded, shape, rest) = remold_template_uni(sort, shape, tl);
+          [Piece.Tile(t), ...remolded] @ remold(shape, rest);
+        | _ => [Tile(t), ...remold(snd(Tile.shapes(t)), tl)]
+        }
+      }
+    }
+  };
+}
+and remold_template_uni = (sort: Sort.t, shape, seg: t): (t, Nib.Shape.t, t) => {
+  let remold_uni = remold_template_uni(sort);
+  let subsort = subsort_of(sort);
+  switch (seg) {
+  | [] => ([], shape, [])
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Secondary(_)
+    | Grout(_)
+    | Projector(_) =>
+      let (remolded, shape, rest) = remold_uni(shape, tl);
+      ([hd, ...remolded], shape, rest);
+    | Tile(t) =>
+      switch (remold_tile(sort, shape, t)) {
+      | None => ([], shape, seg)
+      | Some(t) when !Tile.has_end(Right, t) =>
+        let (_, r) = Tile.nibs(t);
+        let remolded = remold(~shape=r.shape, tl, r.sort);
+        let (_, shape, _) = shape_affix(Left, remolded, r.shape);
+        ([Tile(t), ...remolded], shape, []);
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort}) when List.mem(sort, subsort) =>
+          let (remolded, shape, rest) = remold_template_uni(sort, shape, tl);
+          let (remolded_rest, shape, rest) = remold_uni(shape, rest);
+          ([Piece.Tile(t), ...remolded] @ remolded_rest, shape, rest);
+        | _ =>
+          let (remolded, shape, rest) =
+            remold_uni(snd(Tile.shapes(t)), tl);
+          ([Tile(t), ...remolded], shape, rest);
+        }
+      }
+    }
+  };
 }
 and remold_typ = (shape, seg: t): t =>
   switch (seg) {
@@ -299,6 +375,11 @@ and remold_exp_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
         | (_, {shape, sort: Rul}) =>
           // TODO review short circuit
           ([Tile(t)], shape, tl)
+        | (_, {shape, sort: Drv(_) as sort}) =>
+          let (remolded_drv, shape, rest) =
+            remold_template_uni(sort, shape, tl);
+          let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest);
+          ([Piece.Tile(t), ...remolded_drv] @ remolded_exp, shape, rest);
         | _ =>
           let (remolded, shape, rest) =
             remold_exp_uni(snd(Tile.shapes(t)), tl);
@@ -360,6 +441,9 @@ and remold_exp = (shape, seg: t): t =>
           let (remolded, shape, rest) = remold_typ_uni(shape, tl);
           [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
         | (_, {shape, sort: Rul}) => [Tile(t), ...remold_rul(shape, tl)]
+        | (_, {shape, sort: Drv(_) as sort}) =>
+          let (remolded, shape, rest) = remold_template_uni(sort, shape, tl);
+          [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
         | _ => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
         }
       }

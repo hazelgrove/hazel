@@ -23,7 +23,7 @@ module FakeCode = {
 
 type view_info = (pos, VerifiedTree.res, ed)
 and ed =
-  | Just(option(Derivation.Rule.t), Editor.t, Exercise.DynamicsItem.t)
+  | Just(option(Rule.t), Editor.t, Exercise.DynamicsItem.t)
   | Abbr(option(int));
 
 let proof_view =
@@ -97,7 +97,7 @@ let proof_view =
 
   let rule_to_label =
     fun
-    | Some(rule) => Derivation.Rule.repr(rule)
+    | Some(rule) => Rule.repr(rule)
     | None => "?";
 
   let abbr_to_label = index =>

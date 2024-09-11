@@ -368,10 +368,6 @@ let ctx_init: Ctx.t = {
     Pervasives.builtins,
   )
   |> Ctx.extend(_, meta)
-  // |> Ctx.extend(_, BuiltinsDerivation.tvar_entries)
-  |> List.fold_left(Ctx.extend, _, BuiltinsDerivation.ctr_entries)
-  |> List.fold_left(Ctx.extend, _, BuiltinsDerivation.tvar_entries)
-  // |> BuiltinsDerivation.add_tvar_entries
   |> Ctx.add_ctrs(_, "$Meta", Id.invalid, meta_cons_map);
 };
 

@@ -1,5 +1,6 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
+  | Drv(Drv.cls)
   | Exp(Exp.cls)
   | Pat(Pat.cls)
   | Typ(Typ.cls)
@@ -9,6 +10,7 @@ type t =
 
 let show = (cls: t) =>
   switch (cls) {
+  | Drv(cls) => Drv.show_cls(cls)
   | Exp(cls) => Exp.show_cls(cls)
   | Pat(cls) => Pat.show_cls(cls)
   | Typ(cls) => Typ.show_cls(cls)

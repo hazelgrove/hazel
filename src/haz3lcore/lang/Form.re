@@ -227,20 +227,45 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ),
   ("wild", (is_wild, [mk_op(Pat, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
+  (
+    "int_lit",
+    (is_int, [mk_op(Exp, []), mk_op(Pat, []), mk_op(Drv(Typ), [])]),
+  ),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("undefined_lit", (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("empty_list", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
     "empty_tuple",
-    (is_empty_tuple, [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])]),
+    (
+      is_empty_tuple,
+      [
+        mk_op(Exp, []),
+        mk_op(Pat, []),
+        mk_op(Typ, []),
+        mk_op(Drv(Exp), []),
+        mk_op(Drv(Prop), []),
+      ],
+    ),
   ),
   ("deferral", (is_wild, [mk_op(Exp, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
   ("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_base_typ, [mk_op(Typ, [])])),
+  (
+    "drv_var",
+    (
+      is_typ_var,
+      [
+        mk_op(Drv(Prop), []),
+        mk_op(Drv(Exp), []),
+        mk_op(Drv(Pat), []),
+        mk_op(Drv(Typ), []),
+        mk_op(Drv(TPat), []),
+      ],
+    ),
+  ),
 ];
 
 /* C. Compound Forms:
@@ -251,32 +276,18 @@ let forms: list((string, t)) = [
   // INFIX OPERATORS
   ("typ_plus", mk_infix("+", Typ, P.type_plus)),
   ("type-arrow", mk_infix("->", Typ, P.type_arrow)),
-  // ALFA
-  ("alfa_type-prod", mk_infix("*", Typ, P.type_arrow)),
   ("cell-join", mk_infix(";", Exp, P.semi)),
   ("plus", mk_infix("+", Exp, P.plus)),
-  ("alfa_plus", mk_infix("~+", Exp, P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),
-  ("alfa_minus", mk_infix("~-", Exp, P.plus)),
   ("times", mk_infix("*", Exp, P.mult)),
-  ("alfa_times", mk_infix("~*", Exp, P.plus)),
   ("power", mk_infix("**", Exp, P.power)),
   ("fpower", mk_infix("**.", Exp, P.power)),
   ("divide", mk_infix("/", Exp, P.mult)),
   ("equals", mk_infix("==", Exp, P.eqs)),
-  ("alfa_equals", mk_infix("~==", Exp, P.plus)),
   ("string_equals", mk_infix("$==", Exp, P.eqs)),
   ("string_concat", mk_infix("++", Exp, P.plus)),
-  // ALFA
-  ("prop_and", mk_infix("/\\", Exp, P.prop_and)),
-  ("prop_or", mk_infix("\\/", Exp, P.prop_or)),
-  ("prop_implies", mk_infix("==>", Exp, P.prop_implies)),
-  ("alfa_entail", mk_infix("|-", Exp, P.entail)),
-  ("alfa_eval", mk_infix("$>", Exp, P.entail)),
   ("lt", mk_infix("<", Exp, P.eqs)),
-  ("alfa_lt", mk_infix("~<", Exp, P.plus)),
   ("gt", mk_infix(">", Exp, P.eqs)),
-  ("alfa_gt", mk_infix("~>", Exp, P.plus)),
   ("not_equals", mk_infix("!=", Exp, P.eqs)),
   ("gte", mk_infix(">=", Exp, P.eqs)),
   ("lte", mk_infix("<=", Exp, P.eqs)),
@@ -291,22 +302,16 @@ let forms: list((string, t)) = [
   ("fgte", mk_infix(">=.", Exp, P.eqs)),
   ("flte", mk_infix("<=.", Exp, P.eqs)),
   ("logical_and", mk_infix("&&", Exp, P.and_)),
-  ("logical_or_legacy", mk_infix("\\/", Exp, P.or_)),
+  // ("logical_or_legacy", mk_infix("\\/", Exp, P.or_)),
   ("logical_or", mk_infix("||", Exp, P.or_)),
   ("list_concat", mk_infix("@", Exp, P.plus)),
   ("cons_exp", mk_infix("::", Exp, P.cons)),
   ("cons_pat", mk_infix("::", Pat, P.cons)),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
-  // ALFA
-  ("alfa_hasty", mk(ss, [":"], mk_bin'(P.ann, Exp, Exp, [], Typ))),
-  ("alfa_ana", mk(ss, [":<"], mk_bin'(P.ann, Exp, Exp, [], Typ))),
-  ("alfa_syn", mk(ss, [":>"], mk_bin'(P.ann, Exp, Exp, [], Typ))),
   // UNARY PREFIX OPERATORS
   ("not", mk(ii, ["!"], mk_pre(P.not_, Exp, []))),
-  ("alfa_numlit", mk(ii, ["~"], mk_pre(P.max, Exp, []))),
   ("typ_sum_single", mk(ss, ["+"], mk_pre(P.or_, Typ, []))),
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
-  ("alfa_unary_minus", mk_infix("~-", Exp, P.plus)),
   ("unquote", mk(ss, ["$"], mk_pre(P.unquote, Exp, []))),
   // N-ARY OPS (on the semantics level)
   ("comma_exp", mk_infix(",", Exp, P.comma)),
@@ -328,19 +333,11 @@ let forms: list((string, t)) = [
     "ap_exp_typ",
     mk((Instant, Static), ["@<", ">"], mk_post(P.ap, Exp, [Typ])),
   ),
-  // ALFA
-  ("alfa_prjl", mk(ii, [".fst"], mk_post(P.ap, Exp, []))),
-  ("alfa_prjr", mk(ii, [".snd"], mk_post(P.ap, Exp, []))),
-  ("alfa_val", mk(ii, ["val"], mk_post(P.ap, Exp, []))),
   ("at_sign", mk_nul_infix("@", P.eqs)), // HACK: SUBSTRING REQ
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
-  // ALFA
-  ("alfa_fun", mk(ds, ["_fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("fix", mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))),
-  // ALFA
-  ("alfa_fix", mk(ds, ["_fix", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("typfun", mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))),
   ("forall", mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [TPat]))),
   ("rec", mk(ds, ["rec", "->"], mk_pre(P.fun_, Typ, [TPat]))),
@@ -356,30 +353,123 @@ let forms: list((string, t)) = [
   ("filter_debug", mk(ds, ["debug", "in"], mk_pre(P.let_, Exp, [Exp]))),
   // TRIPLE DELIMITERS
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
-  // ALFA
-  (
-    "alfa_let",
-    mk(ds, ["_let", "be", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
-  ),
   (
     "type_alias",
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
-  // ALFA
+  // Drv
+  ("of_alfa_typ", mk(ds, ["of_Typ", "end"], mk_op(Exp, [Drv(Typ)]))),
+  ("of_alfa_exp", mk(ds, ["of_Exp", "end"], mk_op(Exp, [Drv(Exp)]))),
+  ("of_alfa_pat", mk(ds, ["of_Pat", "end"], mk_op(Exp, [Drv(Pat)]))),
+  ("of_alfa_tpat", mk(ds, ["of_TPat", "end"], mk_op(Exp, [Drv(TPat)]))),
+  ("of_prop", mk(ds, ["of_Prop", "end"], mk_op(Exp, [Drv(Prop)]))),
+  ("of_jdmt", mk(ds, ["of_Jdmt", "end"], mk_op(Exp, [Drv(Jdmt)]))),
+  // Drv(Jdmt)
   (
-    "alfa_if",
-    mk(ds, ["_if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp])),
-  ),
-  // ALFA
-  (
-    "alfa_case",
+    "val",
     mk(
-      ds,
-      ["_case", "of_L", "->", "else_R", "->"],
-      mk_pre(P.case_, Exp, [Exp, Pat, Exp, Pat]),
+      ii,
+      [".val"],
+      mk_post'(P.filter, Drv(Jdmt), Drv(Exp), [], Drv(Exp)),
     ),
   ),
+  (
+    "eval",
+    mk(ii, ["$>"], mk_bin'(P.filter, Drv(Jdmt), Drv(Exp), [], Drv(Exp))),
+  ),
+  (
+    "entail",
+    mk(
+      ii,
+      ["|-"],
+      mk_bin'(P.filter, Drv(Jdmt), Drv(Prop), [], Drv(Prop)),
+    ),
+  ),
+  // Drv(Prop)
+  (
+    "hasty",
+    mk(ds, [":"], mk_bin'(P.semi, Drv(Prop), Drv(Exp), [], Drv(Typ))),
+  ),
+  (
+    "syn",
+    mk(ds, ["<="], mk_bin'(P.semi, Drv(Prop), Drv(Exp), [], Drv(Typ))),
+  ),
+  (
+    "ana",
+    mk(ds, ["=>"], mk_bin'(P.semi, Drv(Prop), Drv(Exp), [], Drv(Typ))),
+  ),
+  ("and", mk_infix("/\\", Drv(Prop), P.and_)),
+  ("or", mk_infix("\\/", Drv(Prop), P.or_)),
+  ("impl", mk_infix("==>", Drv(Prop), P.ann)),
+  ("cons", mk_infix(",", Drv(Prop), P.comma)),
+  ("parens_prop", mk(ii, ["(", ")"], mk_op(Drv(Prop), [Drv(Prop)]))),
+  // Drv(Exp)
+  ("exp_neg", mk(ds, ["-"], mk_pre(P.neg, Drv(Exp), []))),
+  ("exp_plus", mk_infix("+", Drv(Exp), P.plus)),
+  ("exp_minus", mk_infix("-", Drv(Exp), P.plus)),
+  ("exp_times", mk_infix("*", Drv(Exp), P.mult)),
+  ("exp_eq", mk_infix("==", Drv(Exp), P.eqs)),
+  ("exp_lt", mk_infix("<", Drv(Exp), P.eqs)),
+  ("exp_gt", mk_infix(">", Drv(Exp), P.eqs)),
+  (
+    "exp_if",
+    mk(
+      ds,
+      ["if", "then", "else"],
+      mk_pre(P.if_, Drv(Exp), [Drv(Exp), Drv(Exp)]),
+    ),
+  ),
+  (
+    "exp_let",
+    mk(
+      ds,
+      ["let", "=", "in"],
+      mk_pre(P.let_, Drv(Exp), [Drv(Pat), Drv(Exp)]),
+    ),
+  ),
+  (
+    "exp_fix",
+    mk(ds, ["fix", "->"], mk_pre(P.fun_, Drv(Exp), [Drv(Pat)])),
+  ),
+  (
+    "exp_fun",
+    mk(ds, ["fun", "->"], mk_pre(P.fun_, Drv(Exp), [Drv(Pat)])),
+  ),
+  ("exp_ap", mk(ii, ["(", ")"], mk_post(P.ap, Drv(Exp), [Drv(Exp)]))),
+  ("exp_pair", mk_infix(",", Drv(Exp), P.comma)),
+  ("exp_prjl", mk(ii, [".fst"], mk_post(P.ap, Drv(Exp), []))),
+  ("exp_prjr", mk(ii, [".snd"], mk_post(P.ap, Drv(Exp), []))),
+  (
+    "exp_case",
+    mk(
+      ds,
+      ["case_sum", "of", "->", "else", "->"],
+      mk_pre(
+        P.fun_,
+        Drv(Exp),
+        [Drv(Exp), Drv(Pat), Drv(Exp), Drv(Pat)],
+      ),
+    ),
+  ),
+  ("exp_parens", mk(ii, ["(", ")"], mk_op(Drv(Exp), [Drv(Exp)]))),
+  // Drv(Pat)
+  (
+    "pat_cast",
+    mk(ss, [":"], mk_bin'(P.ann, Drv(Pat), Drv(Pat), [], Drv(Typ))),
+  ),
+  ("pat_ap", mk(ii, ["(", ")"], mk_post(P.ap, Drv(Pat), [Drv(Pat)]))),
+  ("pat_pair", mk_infix(",", Drv(Pat), P.comma)),
+  ("pat_parens", mk(ii, ["(", ")"], mk_op(Drv(Pat), [Drv(Pat)]))),
+  // Drv(Typ)
+  ("typ_arrow", mk_infix("->", Drv(Typ), P.type_arrow)),
+  ("typ_prod", mk_infix("*", Drv(Typ), P.type_prod)),
+  ("typ_sum", mk_infix("+", Drv(Typ), P.type_plus)),
+  (
+    "typ_rec",
+    mk(ds, ["rec", "->"], mk_pre(P.fun_, Drv(Typ), [Drv(TPat)])),
+  ),
+  ("typ_parens", mk(ii, ["(", ")"], mk_op(Drv(Typ), [Drv(Typ)]))),
 ];
 
 let get: String.t => t =

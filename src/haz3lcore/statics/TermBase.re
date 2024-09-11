@@ -45,6 +45,7 @@ let stop = (_, x) => x;
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
+    | Drv(Drv.t)
     | Exp(Exp.t)
     | Pat(Pat.t)
     | Typ(Typ.t)
@@ -61,6 +62,7 @@ module rec Any: {
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      ~f_derivation: Drv.mapper=?,
       t
     ) =>
     t;
@@ -69,6 +71,7 @@ module rec Any: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
+    | Drv(Drv.t)
     | Exp(Exp.t)
     | Pat(Pat.t)
     | Typ(Typ.t)
@@ -85,12 +88,25 @@ module rec Any: {
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
+        ~f_derivation=Drv.continue,
         x,
       ) => {
     let rec_call = y =>
       switch (y) {
+      | Drv(x) => Drv(Drv.map_term(f_derivation, x))
       | Exp(x) =>
-        Exp(Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
+        Exp(
+          Exp.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_tpat,
+            ~f_rul,
+            ~f_any,
+            ~f_derivation,
+            x,
+          ),
+        )
       | Pat(x) =>
         Pat(Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
       | Typ(x) =>
@@ -109,6 +125,7 @@ module rec Any: {
 
   let fast_equal = (x, y) =>
     switch (x, y) {
+    | (Drv(x), Drv(y)) => Drv.fast_equal(x, y)
     | (Exp(x), Exp(y)) => Exp.fast_equal(x, y)
     | (Pat(x), Pat(y)) => Pat.fast_equal(x, y)
     | (Typ(x), Typ(y)) => Typ.fast_equal(x, y)
@@ -116,6 +133,7 @@ module rec Any: {
     | (Rul(x), Rul(y)) => Rul.fast_equal(x, y)
     | (Nul (), Nul ()) => true
     | (Any (), Any ()) => true
+    | (Drv(_), _)
     | (Exp(_), _)
     | (Pat(_), _)
     | (Typ(_), _)
@@ -177,6 +195,7 @@ and Exp: {
        two consistent types. Both types should be normalized in
        dynamics for the cast calculus to work right. */
     | Cast(t, Typ.t, Typ.t) // first Typ.t field is only meaningful in dynamic expressions
+    | Derivation(Drv.t)
   and t = IdTagged.t(term);
 
   let map_term:
@@ -187,6 +206,7 @@ and Exp: {
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      ~f_derivation: Drv.mapper=?,
       t
     ) =>
     t;
@@ -241,6 +261,7 @@ and Exp: {
     | BuiltinFun(string) /// Doesn't currently have a distinguishable syntax
     | Match(t, list((Pat.t, t)))
     | Cast(t, Typ.t, Typ.t)
+    | Derivation(Drv.t)
   and t = IdTagged.t(term);
 
   let map_term =
@@ -251,10 +272,19 @@ and Exp: {
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
+        ~f_derivation=Drv.continue,
         x,
       ) => {
     let exp_map_term =
-      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Exp.map_term(
+        ~f_exp,
+        ~f_pat,
+        ~f_typ,
+        ~f_tpat,
+        ~f_rul,
+        ~f_any,
+        ~f_derivation,
+      );
     let pat_map_term =
       Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let typ_map_term =
@@ -326,6 +356,7 @@ and Exp: {
             ),
           )
         | Cast(e, t1, t2) => Cast(exp_map_term(e), t1, t2)
+        | Derivation(d) => Derivation(Drv.map_term(f_derivation, d))
         },
     };
     x |> f_exp(rec_call);
@@ -410,6 +441,7 @@ and Exp: {
          )
     | (Cast(e1, t1, t2), Cast(e2, t3, t4)) =>
       fast_equal(e1, e2) && Typ.fast_equal(t1, t3) && Typ.fast_equal(t2, t4)
+    | (Derivation(d1), Derivation(d2)) => Drv.fast_equal(d1, d2)
     | (Invalid(_), _)
     | (FailedCast(_), _)
     | (Deferral(_), _)
@@ -441,6 +473,7 @@ and Exp: {
     | (BuiltinFun(_), _)
     | (Match(_), _)
     | (Cast(_), _)
+    | (Derivation(_), _)
     | (MultiHole(_), _)
     | (EmptyHole, _)
     | (Undefined, _) => false
@@ -610,7 +643,7 @@ and Typ: {
     | Float
     | Bool
     | String
-    | Prop(DerivationBase.alias)
+    | Derivation(DrvTyp.t)
     | Var(string)
     | List(t)
     | Arrow(t, t)
@@ -663,7 +696,7 @@ and Typ: {
     | Float
     | Bool
     | String
-    | Prop(DerivationBase.alias)
+    | Derivation(DrvTyp.t)
     | Var(string)
     | List(t)
     | Arrow(t, t)
@@ -705,7 +738,7 @@ and Typ: {
         | Int
         | Float
         | String
-        | Prop(_)
+        | Derivation(_)
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>
@@ -741,7 +774,7 @@ and Typ: {
       | Float => Float |> rewrap
       | Bool => Bool |> rewrap
       | String => String |> rewrap
-      | Prop(t) => Prop(t) |> rewrap
+      | Derivation(d) => Derivation(d) |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
@@ -790,8 +823,8 @@ and Typ: {
     | (Bool, _) => false
     | (String, String) => true
     | (String, _) => false
-    | (Prop(a1), Prop(a2)) => a1 == a2
-    | (Prop(_), _) => false
+    | (Derivation(d1), Derivation(d2)) => d1 == d2
+    | (Derivation(_), _) => false
     | (Ap(t1, t2), Ap(t1', t2')) =>
       eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
     | (Ap(_), _) => false
@@ -1173,5 +1206,100 @@ and StepperFilterKind: {
     | (Residue(i1, a1), Residue(i2, a2)) => i1 == i2 && a1 == a2
     | (Filter(_), _)
     | (Residue(_), _) => false
+    };
+}
+and Drv: {
+  open DrvTermBase;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Jdmt(Jdmt.t)
+    | Prop(Prop.t)
+    | Exp(ALFA_Exp.t)
+    | Pat(ALFA_Pat.t)
+    | Typ(ALFA_Typ.t)
+    | TPat(ALFA_TPat.t);
+
+  type mapper = {
+    f_jdmt: (Jdmt.t => Jdmt.t, Jdmt.t) => Jdmt.t,
+    f_prop: (Prop.t => Prop.t, Prop.t) => Prop.t,
+    f_exp: (ALFA_Exp.t => ALFA_Exp.t, ALFA_Exp.t) => ALFA_Exp.t,
+    f_pat: (ALFA_Pat.t => ALFA_Pat.t, ALFA_Pat.t) => ALFA_Pat.t,
+    f_typ: (ALFA_Typ.t => ALFA_Typ.t, ALFA_Typ.t) => ALFA_Typ.t,
+    f_tpat: (ALFA_TPat.t => ALFA_TPat.t, ALFA_TPat.t) => ALFA_TPat.t,
+  };
+
+  let continue: mapper;
+
+  let map_term: (mapper, t) => t;
+
+  let fast_equal: (t, t) => bool;
+} = {
+  open DrvTermBase;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Jdmt(Jdmt.t)
+    | Prop(Prop.t)
+    | Exp(ALFA_Exp.t)
+    | Pat(ALFA_Pat.t)
+    | Typ(ALFA_Typ.t)
+    | TPat(ALFA_TPat.t);
+
+  type mapper = {
+    f_jdmt: (Jdmt.t => Jdmt.t, Jdmt.t) => Jdmt.t,
+    f_prop: (Prop.t => Prop.t, Prop.t) => Prop.t,
+    f_exp: (ALFA_Exp.t => ALFA_Exp.t, ALFA_Exp.t) => ALFA_Exp.t,
+    f_pat: (ALFA_Pat.t => ALFA_Pat.t, ALFA_Pat.t) => ALFA_Pat.t,
+    f_typ: (ALFA_Typ.t => ALFA_Typ.t, ALFA_Typ.t) => ALFA_Typ.t,
+    f_tpat: (ALFA_TPat.t => ALFA_TPat.t, ALFA_TPat.t) => ALFA_TPat.t,
+  };
+
+  let continue = {
+    f_jdmt: continue,
+    f_prop: continue,
+    f_exp: continue,
+    f_pat: continue,
+    f_typ: continue,
+    f_tpat: continue,
+  };
+
+  let map_term: (mapper, t) => t =
+    ({f_jdmt, f_prop, f_exp, f_pat, f_typ, f_tpat}, x) => {
+      switch (x) {
+      | Jdmt(jdmt) =>
+        Jdmt(
+          Jdmt.map_term(
+            ~f_jdmt,
+            ~f_prop,
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_tpat,
+            jdmt,
+          ),
+        )
+      | Prop(prop) =>
+        Prop(Prop.map_term(~f_prop, ~f_exp, ~f_pat, ~f_typ, ~f_tpat, prop))
+      | Exp(exp) =>
+        Exp(ALFA_Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, exp))
+      | Pat(pat) => Pat(ALFA_Pat.map_term(~f_pat, ~f_typ, ~f_tpat, pat))
+      | Typ(typ) => Typ(ALFA_Typ.map_term(~f_typ, ~f_tpat, typ))
+      | TPat(tpat) => TPat(ALFA_TPat.map_term(~f_tpat, tpat))
+      };
+    };
+
+  let fast_equal = (x, y) =>
+    switch (x, y) {
+    | (Jdmt(j1), Jdmt(j2)) => Jdmt.fast_equal(j1, j2)
+    | (Jdmt(_), _) => false
+    | (Prop(p1), Prop(p2)) => Prop.fast_equal(p1, p2)
+    | (Prop(_), _) => false
+    | (Exp(e1), Exp(e2)) => ALFA_Exp.fast_equal(e1, e2)
+    | (Exp(_), _) => false
+    | (Pat(p1), Pat(p2)) => ALFA_Pat.fast_equal(p1, p2)
+    | (Pat(_), _) => false
+    | (Typ(t1), Typ(t2)) => ALFA_Typ.fast_equal(t1, t2)
+    | (Typ(_), _) => false
+    | (TPat(tp1), TPat(tp2)) => ALFA_TPat.fast_equal(tp1, tp2)
+    | (TPat(_), _) => false
     };
 };

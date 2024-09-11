@@ -145,7 +145,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
        in elaboration or in the cast calculus. */
     | (
         _,
-        Bool(_) | Int(_) | Float(_) | String(_) | Constructor(_) |
+        Bool(_) | Int(_) | Float(_) | String(_) | Derivation(_) |
+        Constructor(_) |
         BuiltinFun(_) |
         Deferral(_) |
         DeferredAp(_) |

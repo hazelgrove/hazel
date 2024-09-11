@@ -51,11 +51,14 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
       | Evaluation({evaluation, _}) =>
         switch (evaluation) {
         | ResultOk({result, _}) =>
+          ignore(rule);
           switch (result) {
-          | BoxedValue(d) =>
-            Ok({jdmt: BuiltinsDerivation.prop_of_dhexp(d), rule})
-          | Indet(_) => Error(EvalIndet)
-          }
+          // TODO(zhiyao): revise this part
+          // | BoxedValue(d) =>
+          //   Ok({jdmt: BuiltinsDerivation.prop_of_dhexp(d), rule})
+          // | Indet(_) => Error(EvalIndet)
+          | _ => Error(EvalIndet)
+          };
         | Off(_) => Error(EvalOff)
         | ResultFail(_) => Error(EvalFail)
         | ResultPending => Error(EvalPending)

@@ -178,8 +178,11 @@ type req('a) =
   | If(req('a), req('b), req('c)): req(('a, 'b, 'c))
   | Var: req(string)
   | Let(req('a), req('b), req('c)): req(('a, 'b, 'c))
+  | LetAnn(req('a), req('b), req('c), req('d)): req(('a, 'b, 'c, 'd))
   | Fix(req('a), req('b)): req(('a, 'b))
+  | FixAnn(req('a), req('b), req('c)): req(('a, 'b, 'c))
   | Fun(req('a), req('b)): req(('a, 'b))
+  | FunAnn(req('a), req('b), req('c)): req(('a, 'b, 'c))
   | Ap(req('a), req('b)): req(('a, 'b))
   | Pair(req('a), req('b)): req(('a, 'b))
   | Triv: req(unit)
@@ -204,7 +207,6 @@ type req('a) =
   // ALFA Meta
   | TPat: req(string)
   | Pat: req(string)
-  | PatAnn(req('a), req('b)): req(('a, 'b))
   // ALFA Proposition
   | HasTy(req('a), req('b)): req(('a, 'b))
   | Syn(req('a), req('b)): req(('a, 'b))
@@ -212,7 +214,7 @@ type req('a) =
   // Logical Proposition
   | And(req('a), req('b)): req(('a, 'b))
   | Or(req('a), req('b)): req(('a, 'b))
-  | Implies(req('a), req('b)): req(('a, 'b))
+  | Impl(req('a), req('b)): req(('a, 'b))
   | Truth: req(unit)
   | Falsity: req(unit)
   // Judgments
@@ -269,6 +271,12 @@ and unbox_self: type a. (Prop.t, req(a)) => result(a, failure) =
     | (InjL(ra), InjL(a)) =>
       let$ a = unbox(a, ra);
       Ok(a);
+    | (FixAnn(ra, rb, rc), FixAnn(a, b, c)) =>
+      let$ a = unbox(a, ra);
+      let$ b = unbox(b, rb);
+      let$ c = unbox(c, rc);
+      Ok((a, b, c));
+    | (FixAnn(_), _) => Error(FailUnbox(FixAnn, p))
     | (InjL(_), _) => Error(FailUnbox(InjL, p))
     | (InjR(ra), InjR(a)) =>
       let$ a = unbox(a, ra);
@@ -330,15 +338,7 @@ and unbox_self: type a. (Prop.t, req(a)) => result(a, failure) =
     | (Triv, Triv) => Ok()
     | (Triv, _) => Error(FailUnbox(Triv, p))
     | (Pat, Pat(s)) => Ok(s)
-    | (Pat, PatAnn(a, _)) =>
-      let$ a = unbox(a, Pat);
-      Ok(a);
     | (Pat, _) => Error(FailUnbox(Pat, p))
-    | (PatAnn(ra, rb), PatAnn(a, b)) =>
-      let$ a = unbox(a, ra);
-      let$ b = unbox(b, rb);
-      Ok((a, b));
-    | (PatAnn(_), _) => Error(FailUnbox(PatAnn, p))
     // ALF
     | (True, True) => Ok()
     | (True, _) => Error(FailUnbox(True, p))
@@ -358,11 +358,24 @@ and unbox_self: type a. (Prop.t, req(a)) => result(a, failure) =
       let$ c = unbox(c, rc);
       Ok((a, b, c));
     | (Let(_), _) => Error(FailUnbox(Let, p))
+    | (LetAnn(ra, rb, rc, rd), LetAnn(a, b, c, d)) =>
+      let$ a = unbox(a, ra);
+      let$ b = unbox(b, rb);
+      let$ c = unbox(c, rc);
+      let$ d = unbox(d, rd);
+      Ok((a, b, c, d));
+    | (LetAnn(_), _) => Error(FailUnbox(LetAnn, p))
     | (Fun(ra, rb), Fun(a, b)) =>
       let$ a = unbox(a, ra);
       let$ b = unbox(b, rb);
       Ok((a, b));
     | (Fun(_), _) => Error(FailUnbox(Fun, p))
+    | (FunAnn(ra, rb, rc), FunAnn(a, b, c)) =>
+      let$ a = unbox(a, ra);
+      let$ b = unbox(b, rb);
+      let$ c = unbox(c, rc);
+      Ok((a, b, c));
+    | (FunAnn(_), _) => Error(FailUnbox(FunAnn, p))
     | (Ap(ra, rb), Ap(a, b)) =>
       let$ a = unbox(a, ra);
       let$ b = unbox(b, rb);
@@ -423,11 +436,11 @@ and unbox_self: type a. (Prop.t, req(a)) => result(a, failure) =
       let$ b = unbox(b, rb);
       Ok((a, b));
     | (Or(_), _) => Error(FailUnbox(Or, p))
-    | (Implies(ra, rb), Implies(a, b)) =>
+    | (Impl(ra, rb), Impl(a, b)) =>
       let$ a = unbox(a, ra);
       let$ b = unbox(b, rb);
       Ok((a, b));
-    | (Implies(_), _) => Error(FailUnbox(Implies, p))
+    | (Impl(_), _) => Error(FailUnbox(Impl, p))
     | (Truth, Truth) => Ok()
     | (Truth, _) => Error(FailUnbox(Truth, p))
     | (Falsity, Falsity) => Ok()
@@ -483,6 +496,12 @@ and unbox_with_ghost: type a. (Prop.t, Prop.t, req(a)) => result(a, failure) =
       let$ b = unbox(b, b', rb);
       Ok((a, b));
     | (Fix(_), _, _) => Error(FailUnbox(Fix, p))
+    | (FixAnn(ra, rb, rc), FixAnn(a, b, c), FixAnn(a', b', c')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      let$ c = unbox(c, c', rc);
+      Ok((a, b, c));
+    | (FixAnn(_), _, _) => Error(FailUnbox(FixAnn, p))
     | (InjL(ra), InjL(a), InjL(a')) =>
       let$ a = unbox(a, a', ra);
       Ok(a);
@@ -555,15 +574,7 @@ and unbox_with_ghost: type a. (Prop.t, Prop.t, req(a)) => result(a, failure) =
     | (Triv, Triv, Triv) => Ok()
     | (Triv, _, _) => Error(FailUnbox(Triv, p))
     | (Pat, Pat(s), Pat(_)) => Ok(s)
-    | (Pat, PatAnn(a, _), Pat(_)) =>
-      let$ a = unbox_self(a, Pat);
-      Ok(a);
     | (Pat, _, _) => Error(FailUnbox(Pat, p))
-    | (PatAnn(ra, rb), PatAnn(a, b), PatAnn(a', b')) =>
-      let$ a = unbox(a, a', ra);
-      let$ b = unbox(b, b', rb);
-      Ok((a, b));
-    | (PatAnn(_), _, _) => Error(FailUnbox(PatAnn, p))
     // ALF
     | (True, True, True) => Ok()
     | (True, _, _) => Error(FailUnbox(True, p))
@@ -583,11 +594,24 @@ and unbox_with_ghost: type a. (Prop.t, Prop.t, req(a)) => result(a, failure) =
       let$ c = unbox(c, c', rc);
       Ok((a, b, c));
     | (Let(_), _, _) => Error(FailUnbox(Let, p))
+    | (LetAnn(ra, rb, rc, rd), LetAnn(a, b, c, d), LetAnn(a', b', c', d')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      let$ c = unbox(c, c', rc);
+      let$ d = unbox(d, d', rd);
+      Ok((a, b, c, d));
+    | (LetAnn(_), _, _) => Error(FailUnbox(LetAnn, p))
     | (Fun(ra, rb), Fun(a, b), Fun(a', b')) =>
       let$ a = unbox(a, a', ra);
       let$ b = unbox(b, b', rb);
       Ok((a, b));
     | (Fun(_), _, _) => Error(FailUnbox(Fun, p))
+    | (FunAnn(ra, rb, rc), FunAnn(a, b, c), FunAnn(a', b', c')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      let$ c = unbox(c, c', rc);
+      Ok((a, b, c));
+    | (FunAnn(_), _, _) => Error(FailUnbox(FunAnn, p))
     | (Ap(ra, rb), Ap(a, b), Ap(a', b')) =>
       let$ a = unbox(a, a', ra);
       let$ b = unbox(b, b', rb);
@@ -648,11 +672,11 @@ and unbox_with_ghost: type a. (Prop.t, Prop.t, req(a)) => result(a, failure) =
       let$ b = unbox(b, b', rb);
       Ok((a, b));
     | (Or(_), _, _) => Error(FailUnbox(Or, p))
-    | (Implies(ra, rb), Implies(a, b), Implies(a', b')) =>
+    | (Impl(ra, rb), Impl(a, b), Impl(a', b')) =>
       let$ a = unbox(a, a', ra);
       let$ b = unbox(b, b', rb);
       Ok((a, b));
-    | (Implies(_), _, _) => Error(FailUnbox(Implies, p))
+    | (Impl(_), _, _) => Error(FailUnbox(Impl, p))
     | (Truth, Truth, Truth) => Ok()
     | (Truth, _, _) => Error(FailUnbox(Truth, p))
     | (Falsity, Falsity, Falsity) => Ok()
@@ -999,22 +1023,22 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = ctx >> !!Mem(p);
     Ok();
   | S_LetAnn =>
-    let$ (ctx, (((x, t_def), e_def, e_body), t)) =
-      concl >> Entail(__, Syn(Let(PatAnn(__, __), __, __), __));
+    let$ (ctx, ((x, t_def, e_def, e_body), t)) =
+      concl >> Entail(__, Syn(LetAnn(__, __, __, __), __));
     let ctx' = ConsHasTy((x, t_def), ctx);
     let$ _ = prems(0) >> Entail(!ctx, Syn(!e_def, !t_def));
     let$ _ = prems(1) >> Entail(!!ctx', Syn(!e_body, !t));
     Ok();
   | A_LetAnn =>
-    let$ (ctx, (((x, t_def), e_def, e_body), t)) =
-      concl >> Entail(__, Ana(Let(PatAnn(__, __), __, __), __));
+    let$ (ctx, ((x, t_def, e_def, e_body), t)) =
+      concl >> Entail(__, Ana(LetAnn(__, __, __, __), __));
     let ctx' = ConsHasTy((x, t_def), ctx);
     let$ _ = prems(0) >> Entail(!ctx, Syn(!e_def, !t_def));
     let$ _ = prems(1) >> Entail(!!ctx', Ana(!e_body, !t));
     Ok();
   | T_LetAnn =>
-    let$ (ctx, (((x, t_def), e_def, e_body), t)) =
-      concl >> Entail(__, HasTy(Let(PatAnn(__, __), __, __), __));
+    let$ (ctx, ((x, t_def, e_def, e_body), t)) =
+      concl >> Entail(__, HasTy(LetAnn(__, __, __, __), __));
     let ctx' = ConsHasTy((x, t_def), ctx);
     let$ _ = prems(0) >> Entail(!ctx, HasTy(!e_def, !t_def));
     let$ _ = prems(1) >> Entail(!!ctx', HasTy(!e_body, !t));
@@ -1046,22 +1070,22 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = prems(1) >> Eval(!!Subst((v_def, x), e_body), !v);
     Ok();
   | S_FunAnn =>
-    let$ (ctx, (((x, t_in), e_body), (t_in', t_out))) =
-      concl >> Entail(__, Syn(Fun(PatAnn(__, __), __), Arrow(__, __)));
+    let$ (ctx, ((x, t_in, e_body), (t_in', t_out))) =
+      concl >> Entail(__, Syn(FunAnn(__, __, __), Arrow(__, __)));
     let$ _ = t_in' >> !t_in;
     let ctx' = ConsHasTy((x, t_in), ctx);
     let$ _ = prems(0) >> Entail(!!ctx', Syn(!e_body, !t_out));
     Ok();
   | A_FunAnn =>
-    let$ (ctx, (((x, t_in), e_body), (t_in', t_out))) =
-      concl >> Entail(__, Ana(Fun(PatAnn(__, __), __), Arrow(__, __)));
+    let$ (ctx, ((x, t_in, e_body), (t_in', t_out))) =
+      concl >> Entail(__, Ana(FunAnn(__, __, __), Arrow(__, __)));
     let$ _ = t_in' >> !t_in;
     let ctx' = ConsHasTy((x, t_in), ctx);
     let$ _ = prems(0) >> Entail(!!ctx', Ana(!e_body, !t_out));
     Ok();
   | T_FunAnn =>
-    let$ (ctx, (((x, t_in), e_body), (t_in', t_out))) =
-      concl >> Entail(__, HasTy(Fun(PatAnn(__, __), __), Arrow(__, __)));
+    let$ (ctx, ((x, t_in, e_body), (t_in', t_out))) =
+      concl >> Entail(__, HasTy(FunAnn(__, __, __), Arrow(__, __)));
     let$ _ = t_in' >> !t_in;
     let ctx' = ConsHasTy((x, t_in), ctx);
     let$ _ = prems(0) >> Entail(!!ctx', HasTy(!e_body, !t_out));
@@ -1087,8 +1111,8 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = prems(0) >> Entail(!!ConsHasTy((x, t), ctx), HasTy(!e, !t));
     Ok();
   | T_FixAnn =>
-    let$ (ctx, (((x, t), e), t')) =
-      concl >> Entail(__, HasTy(Fix(PatAnn(__, __), __), __));
+    let$ (ctx, ((x, t, e), t')) =
+      concl >> Entail(__, HasTy(FixAnn(__, __, __), __));
     let$ _ = t >> !t';
     let$ _ = prems(0) >> Entail(!!ConsHasTy((x, t), ctx), HasTy(!e, !t));
     Ok();
@@ -1321,11 +1345,11 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = prems(2) >> Entail(!!Cons(b, ctx), !c);
     Ok();
   | Implies_I =>
-    let$ (ctx, (a, b)) = concl >> Entail(__, Implies(__, __));
+    let$ (ctx, (a, b)) = concl >> Entail(__, Impl(__, __));
     let$ _ = prems(0) >> Entail(!!Cons(a, ctx), !b);
     Ok();
   | Implies_E =>
-    let$ (ctx, (a, b)) = prems(0) >> Entail(__, Implies(__, __));
+    let$ (ctx, (a, b)) = prems(0) >> Entail(__, Impl(__, __));
     let$ _ = prems(1) >> Entail(!ctx, !a);
     let$ _ = concl >> Entail(!ctx, !b);
     Ok();

@@ -19,17 +19,22 @@ type deduction('a) = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type term =
   | Hole(string) // When DHExp.t not convertable, convert by `e => Hole(DHExp.show(e))`
+  // Judgments
+  | Val(t)
+  | Eval(t, t)
+  | Entail(t, t)
+  // Proposition
+  | HasTy(t, t)
+  | Syn(t, t)
+  | Ana(t, t)
+  | Atom(string)
+  | And(t, t)
+  | Or(t, t)
+  | Impl(t, t)
+  | Truth
+  | Falsity
   // Ctx
   | Ctx(list(t))
-  // ALFA Typ
-  | Num
-  | Bool
-  | Arrow(t, t)
-  | Prod(t, t)
-  | Unit
-  | Sum(t, t)
-  | TVar(string)
-  | Rec(t, t)
   // ALFA Exp
   | NumLit(int)
   | UnOp(t, t)
@@ -39,8 +44,11 @@ type term =
   | If(t, t, t)
   | Var(string)
   | Let(t, t, t)
+  | LetAnn(t, t, t, t)
   | Fix(t, t)
+  | FixAnn(t, t, t)
   | Fun(t, t)
+  | FunAnn(t, t, t)
   | Ap(t, t)
   | Pair(t, t)
   | Triv
@@ -61,25 +69,19 @@ type term =
   | OpLt
   | OpGt
   | OpEq
-  // ALFA Meta
-  | TPat(string)
+  // ALFA Pat
   | Pat(string)
-  | PatAnn(t, t)
-  // ALFA Proposition
-  | HasTy(t, t)
-  | Syn(t, t)
-  | Ana(t, t)
-  // Logical Proposition
-  | Atom(string) // No corresponding req because we never need to unbox an Atom
-  | And(t, t)
-  | Or(t, t)
-  | Implies(t, t)
-  | Truth
-  | Falsity
-  // Judgments
-  | Val(t)
-  | Eval(t, t)
-  | Entail(t, t)
+  // ALFA Typ
+  | Num
+  | Bool
+  | Arrow(t, t)
+  | Prod(t, t)
+  | Unit
+  | Sum(t, t)
+  | TVar(string)
+  | Rec(t, t)
+  // ALFA TPat
+  | TPat(string)
 and t = IdTagged.t(term);
 
 let fresh = (term: term) => IdTagged.fresh(term);
@@ -90,15 +92,19 @@ let temp = (term: term) =>
 [@deriving (show({with_path: false}), sexp, yojson)]
 type cls =
   | Hole
+  | Val
+  | Eval
+  | Entail
+  | HasTy
+  | Syn
+  | Ana
+  | Atom
+  | And
+  | Or
+  | Impl
+  | Truth
+  | Falsity
   | Ctx
-  | Num
-  | Bool
-  | Arrow
-  | Prod
-  | Unit
-  | Sum
-  | TVar
-  | Rec
   | NumLit
   | UnOp
   | BinOp
@@ -107,8 +113,11 @@ type cls =
   | If
   | Var
   | Let
+  | LetAnn
   | Fix
+  | FixAnn
   | Fun
+  | FunAnn
   | Ap
   | Pair
   | Triv
@@ -127,21 +136,16 @@ type cls =
   | OpLt
   | OpGt
   | OpEq
-  | TPat
   | Pat
-  | PatAnn
-  | HasTy
-  | Syn
-  | Ana
-  | Atom
-  | And
-  | Or
-  | Implies
-  | Truth
-  | Falsity
-  | Val
-  | Eval
-  | Entail;
+  | Num
+  | Bool
+  | Arrow
+  | Prod
+  | Unit
+  | Sum
+  | TVar
+  | Rec
+  | TPat;
 
 module P = Precedence;
 
@@ -149,15 +153,19 @@ let precedence: t => int =
   p =>
     switch (IdTagged.term_of(p)) {
     | Hole(_) => P.max
+    | Val(_) => P.filter
+    | Eval(_) => P.filter
+    | Entail(_) => P.filter
+    | HasTy(_) => P.semi
+    | Syn(_) => P.semi
+    | Ana(_) => P.semi
+    | Atom(_) => P.max
+    | And(_) => P.and_
+    | Or(_) => P.or_
+    | Impl(_) => P.ann
+    | Truth => P.max
+    | Falsity => P.max
     | Ctx(_) => P.max
-    | Num => P.max
-    | Bool => P.max
-    | Arrow(_) => P.type_arrow
-    | Prod(_) => P.type_prod
-    | Unit => P.max
-    | Sum(_) => P.type_plus
-    | TVar(_) => P.max
-    | Rec(_) => P.max
     // ALFA Exp
     | NumLit(_) => P.max
     | UnOp(_) => P.max
@@ -167,19 +175,22 @@ let precedence: t => int =
     | If(_) => P.if_
     | Var(_) => P.max
     | Let(_) => P.let_
+    | LetAnn(_) => P.let_
     | Fix(_) => P.fun_
+    | FixAnn(_) => P.fun_
     | Fun(_) => P.fun_
+    | FunAnn(_) => P.fun_
     | Ap(_) => P.ap
-    | Pair(_) => P.prod
+    | Pair(_) => P.comma
     | Triv => P.max
-    | PrjL(_) => P.neg
-    | PrjR(_) => P.neg
+    | PrjL(_) => P.ap
+    | PrjR(_) => P.ap
     | LetPair(_) => P.let_
-    | InjL(_) => P.neg
-    | InjR(_) => P.neg
-    | Case(_) => P.case_
-    | Roll(_) => P.max
-    | Unroll(_) => P.max
+    | InjL(_) => P.ap
+    | InjR(_) => P.ap
+    | Case(_) => P.fun_
+    | Roll(_) => P.ap
+    | Unroll(_) => P.ap
     // ALFA UnOp
     | OpNeg => P.neg
     // ALFA BinOp
@@ -189,25 +200,16 @@ let precedence: t => int =
     | OpLt => P.eqs
     | OpGt => P.eqs
     | OpEq => P.eqs
-    // ALFA Meta
-    | TPat(_) => P.max
     | Pat(_) => P.max
-    | PatAnn(_) => P.ann
-    // ALFA Proposition
-    | HasTy(_) => P.ann
-    | Syn(_) => P.ann
-    | Ana(_) => P.ann
-    // Logical Proposition
-    | Atom(_) => P.max
-    | And(_) => P.and_
-    | Or(_) => P.or_
-    | Implies(_) => P.fun_
-    | Truth => P.max
-    | Falsity => P.max
-    // Judgments
-    | Val(_) => P.min
-    | Eval(_) => P.prop_implies
-    | Entail(_) => P.entail
+    | Num => P.max
+    | Bool => P.max
+    | Arrow(_) => P.type_arrow
+    | Prod(_) => P.type_prod
+    | Unit => P.max
+    | Sum(_) => P.type_plus
+    | TVar(_) => P.max
+    | Rec(_) => P.fun_
+    | TPat(_) => P.max
     };
 
 let rec repr = (p: int, prop: t): string => {
@@ -228,9 +230,8 @@ let rec repr = (p: int, prop: t): string => {
     | Atom(s) => s
     | And(a, b) => repr_binop("∧", a, b)
     | Or(a, b) => repr_binop("∨", a, b)
-    | Implies(a, b) when IdTagged.term_of(b) == Falsity =>
-      repr_postop("¬", a)
-    | Implies(a, b) => repr_binop("⊃", a, b)
+    | Impl(a, b) when IdTagged.term_of(b) == Falsity => repr_postop("¬", a)
+    | Impl(a, b) => repr_binop("⊃", a, b)
     | Truth => "⊤"
     | Falsity => "⊥"
     | Ctx(ctx) =>
@@ -244,7 +245,7 @@ let rec repr = (p: int, prop: t): string => {
       }
     | Entail(a, b) => repr_binop("⊢", a, b)
     | NumLit(i) => "_" ++ string_of_int(i) ++ "_"
-    | Val(a) => repr_postop("val", a)
+    | Val(a) => repr_postop(".val", a)
     | UnOp(op, a) => repr_preop(repr(op), a)
     | BinOp(op, a, b) => repr_binop(repr(op), a, b)
     | OpNeg => "-"
@@ -264,16 +265,20 @@ let rec repr = (p: int, prop: t): string => {
     | False => "False"
     | If(a, b, c) => repr_aba(["if", "then", "else", ""], [a, b, c])
     | Var(x) => x
-    | Let(x, a, b) => repr_aba(["let", "be", "in", ""], [x, a, b])
+    | Let(x, a, b) => repr_aba(["let", "→", "in", ""], [x, a, b])
+    | LetAnn(x, t, a, b) =>
+      repr_aba(["let", ":", "→", "in", ""], [x, t, a, b])
     | Fix(x, a) => repr_aba(["fix", "→", ""], [x, a])
+    | FixAnn(x, t, a) => repr_aba(["fix", ":", "→", ""], [x, t, a])
     | Fun(x, a) => repr_aba(["fun", "→", ""], [x, a])
+    | FunAnn(x, t, a) => repr_aba(["fun", ":", "→", ""], [x, t, a])
     | Ap(a, b) => repr_aba(["", "(", ")"], [a, b])
     | Pair(a, b) => repr_aba(["(", ",", ")"], [a, b])
     | Triv => "()"
     | PrjL(a) => repr_postop(".fst", a)
     | PrjR(a) => repr_postop(".snd", a)
     | LetPair(x, y, a, b) =>
-      repr_aba(["let (", ",", ") be", "in", ""], [x, y, a, b])
+      repr_aba(["let (", ",", ") =", "in", ""], [x, y, a, b])
     | InjL(a) => repr_preop("L", a)
     | InjR(a) => repr_preop("R", a)
     | Case(a, x, b, y, c) =>
@@ -288,7 +293,6 @@ let rec repr = (p: int, prop: t): string => {
     | OpEq => "="
     | TPat(x) => x
     | Pat(x) => x
-    | PatAnn(a, b) => repr_binop(":", a, b)
     | HasTy(a, b) => repr_binop(":", a, b)
     | Syn(a, b) => repr_binop("⇒", a, b)
     | Ana(a, b) => repr_binop("⇐", a, b)
@@ -341,10 +345,19 @@ let rec eq: (t, t) => bool =
     | (Let(a1, a2, a3), Let(b1, b2, b3)) =>
       eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
     | (Let(_), _) => false
+    | (LetAnn(a1, a2, a3, a4), LetAnn(b1, b2, b3, b4)) =>
+      eq(a1, b1) && eq(a2, b2) && eq(a3, b3) && eq(a4, b4)
+    | (LetAnn(_), _) => false
     | (Fix(a1, a2), Fix(b1, b2)) => eq(a1, b1) && eq(a2, b2)
     | (Fix(_), _) => false
+    | (FixAnn(a1, a2, a3), FixAnn(b1, b2, b3)) =>
+      eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
+    | (FixAnn(_), _) => false
     | (Fun(a1, a2), Fun(b1, b2)) => eq(a1, b1) && eq(a2, b2)
     | (Fun(_), _) => false
+    | (FunAnn(a1, a2, a3), FunAnn(b1, b2, b3)) =>
+      eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
+    | (FunAnn(_), _) => false
     | (Ap(a1, a2), Ap(b1, b2)) => eq(a1, b1) && eq(a2, b2)
     | (Ap(_), _) => false
     | (Pair(a1, a2), Pair(b1, b2)) => eq(a1, b1) && eq(a2, b2)
@@ -387,8 +400,6 @@ let rec eq: (t, t) => bool =
     | (TPat(_), _) => false
     | (Pat(a), Pat(b)) => String.equal(a, b)
     | (Pat(_), _) => false
-    | (PatAnn(a1, a2), PatAnn(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (PatAnn(_), _) => false
     | (HasTy(a1, a2), HasTy(b1, b2)) => eq(a1, b1) && eq(a2, b2)
     | (HasTy(_), _) => false
     | (Syn(a1, a2), Syn(b1, b2)) => eq(a1, b1) && eq(a2, b2)
@@ -401,8 +412,8 @@ let rec eq: (t, t) => bool =
     | (And(_), _) => false
     | (Or(a1, a2), Or(b1, b2)) => eq(a1, b1) && eq(a2, b2)
     | (Or(_), _) => false
-    | (Implies(a1, a2), Implies(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Implies(_), _) => false
+    | (Impl(a1, a2), Impl(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Impl(_), _) => false
     | (Truth, Truth) => true
     | (Truth, _) => false
     | (Falsity, Falsity) => true
@@ -420,19 +431,10 @@ let rec subst: (t, string, t) => t =
     let (term, rewrap: term => t) = IdTagged.unwrap(e);
     let subst = subst(v, x);
     let is_shadow = (p: t) =>
-      (
-        switch (IdTagged.term_of(p)) {
-        | PatAnn(p, _) => p
-        | _ => p
-        }
-      )
-      |> (
-        p =>
-          switch (IdTagged.term_of(p)) {
-          | Pat(x') => String.equal(x', x)
-          | _ => false
-          }
-      );
+      switch (IdTagged.term_of(p)) {
+      | Pat(x') => String.equal(x', x)
+      | _ => false
+      };
     let subst' = p => is_shadow(p) ? Fun.id : subst;
     switch (term) {
     | Hole(_)
@@ -455,8 +457,12 @@ let rec subst: (t, string, t) => t =
     | If(e1, e2, e3) => If(subst(e1), subst(e2), subst(e3)) |> rewrap
     | Var(x') => String.equal(x', x) ? v : e
     | Let(x, e1, e2) => Let(x, subst(e1), subst'(x, e2)) |> rewrap
+    | LetAnn(x, t, e1, e2) =>
+      LetAnn(x, t, subst(e1), subst'(x, e2)) |> rewrap
     | Fix(x, e) => Fix(x, subst'(x, e)) |> rewrap
+    | FixAnn(x, t, e) => FixAnn(x, t, subst'(x, e)) |> rewrap
     | Fun(x, e) => Fun(x, subst'(x, e)) |> rewrap
+    | FunAnn(x, t, e) => FunAnn(x, t, subst'(x, e)) |> rewrap
     | Ap(e1, e2) => Ap(subst(e1), subst(e2)) |> rewrap
     | Pair(e1, e2) => Pair(subst(e1), subst(e2)) |> rewrap
     | Triv => e
@@ -488,7 +494,6 @@ let rec subst: (t, string, t) => t =
     // Meta
     | TPat(_)
     | Pat(_)
-    | PatAnn(_) => e
     // Proposition
     | HasTy(_)
     | Syn(_)
@@ -497,7 +502,7 @@ let rec subst: (t, string, t) => t =
     | Atom(_)
     | And(_)
     | Or(_)
-    | Implies(_)
+    | Impl(_)
     | Truth
     | Falsity => e
     // Judgments
@@ -538,10 +543,13 @@ let rec subst_ty: (t, string, t) => t =
     | If(e1, e2, e3) =>
       If(subst_ty(e1), subst_ty(e2), subst_ty(e3)) |> rewrap
     | Var(_) => e
-    | Let(x, e1, e2) =>
-      Let(subst_ty(x), subst_ty(e1), subst_ty(e2)) |> rewrap
-    | Fix(x, e) => Fix(subst_ty(x), subst_ty(e)) |> rewrap
-    | Fun(x, e) => Fun(subst_ty(x), subst_ty(e)) |> rewrap
+    | Let(x, e1, e2) => Let(x, subst_ty(e1), subst_ty(e2)) |> rewrap
+    | LetAnn(x, t, e1, e2) =>
+      LetAnn(x, subst_ty(t), subst_ty(e1), subst_ty(e2)) |> rewrap
+    | Fix(x, e) => Fix(x, subst_ty(e)) |> rewrap
+    | FixAnn(x, t, e) => FixAnn(x, subst_ty(t), subst_ty(e)) |> rewrap
+    | Fun(x, e) => Fun(x, subst_ty(e)) |> rewrap
+    | FunAnn(x, t, e) => FunAnn(x, subst_ty(t), subst_ty(e)) |> rewrap
     | Ap(e1, e2) => Ap(subst_ty(e1), subst_ty(e2)) |> rewrap
     | Pair(e1, e2) => Pair(subst_ty(e1), subst_ty(e2)) |> rewrap
     | Triv => e
@@ -575,7 +583,6 @@ let rec subst_ty: (t, string, t) => t =
     // Meta
     | TPat(_)
     | Pat(_) => e
-    | PatAnn(x, t) => PatAnn(x, subst_ty(t)) |> rewrap
     // Proposition
     | HasTy(_)
     | Syn(_)
@@ -584,7 +591,7 @@ let rec subst_ty: (t, string, t) => t =
     | Atom(_)
     | And(_)
     | Or(_)
-    | Implies(_)
+    | Impl(_)
     | Truth
     | Falsity => e
     // Judgments

@@ -1,3 +1,5 @@
+include DrvTerm;
+
 module Pat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -317,6 +319,7 @@ module Exp = {
     | BuiltinFun
     | Match
     | Cast
+    | Derivation
     | ListConcat;
 
   let hole = (tms: list(TermBase.Any.t)): term =>
@@ -366,7 +369,8 @@ module Exp = {
     | BinOp(op, _, _) => BinOp(op)
     | BuiltinFun(_) => BuiltinFun
     | Match(_) => Match
-    | Cast(_) => Cast;
+    | Cast(_) => Cast
+    | Derivation(_) => Derivation;
 
   let show_cls: cls => string =
     fun
@@ -409,7 +413,8 @@ module Exp = {
     | UnOp(op) => Operators.show_unop(op)
     | BuiltinFun => "Built-in Function"
     | Match => "Case expression"
-    | Cast => "Cast expression";
+    | Cast => "Cast expression"
+    | Derivation => "Cast derivation sort";
 
   // Typfun should be treated as a function here as this is only used to
   // determine when to allow for recursive definitions in a let binding.
@@ -450,7 +455,8 @@ module Exp = {
     | UnOp(_)
     | BinOp(_)
     | Match(_)
-    | Constructor(_) => false
+    | Constructor(_)
+    | Derivation(_) => false
     };
   };
 
@@ -493,7 +499,8 @@ module Exp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
-      | Constructor(_) => false
+      | Constructor(_)
+      | Derivation(_) => false
       }
     );
 
@@ -550,7 +557,8 @@ module Exp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
-      | Constructor(_) => None
+      | Constructor(_)
+      | Derivation(_) => None
       };
     };
 };
@@ -601,6 +609,12 @@ module Any = {
 
   let rec ids =
     fun
+    | Drv(Jdmt(tm)) => tm.ids
+    | Drv(Prop(tm)) => tm.ids
+    | Drv(Exp(tm)) => tm.ids
+    | Drv(Pat(tm)) => tm.ids
+    | Drv(Typ(tm)) => tm.ids
+    | Drv(TPat(tm)) => tm.ids
     | Exp(tm) => tm.ids
     | Pat(tm) => tm.ids
     | Typ(tm) => tm.ids
@@ -622,6 +636,12 @@ module Any = {
   // (This would change for n-tuples if we decided parentheses are necessary.)
   let rep_id =
     fun
+    | Drv(Jdmt(tm)) => Jdmt.rep_id(tm)
+    | Drv(Prop(tm)) => Prop.rep_id(tm)
+    | Drv(Exp(tm)) => ALFA_Exp.rep_id(tm)
+    | Drv(Pat(tm)) => ALFA_Pat.rep_id(tm)
+    | Drv(Typ(tm)) => ALFA_Typ.rep_id(tm)
+    | Drv(TPat(tm)) => ALFA_TPat.rep_id(tm)
     | Exp(tm) => Exp.rep_id(tm)
     | Pat(tm) => Pat.rep_id(tm)
     | Typ(tm) => Typ.rep_id(tm)

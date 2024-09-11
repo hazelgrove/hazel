@@ -564,6 +564,7 @@ let get_doc =
       | Int(i) => get_message(TerminalExp.int_exps(i))
       | Float(f) => get_message(TerminalExp.float_exps(f))
       | String(s) => get_message(TerminalExp.string_exps(s))
+      | Derivation(_) => get_message(TerminalExp.string_exps("")) // TOOD(zhiyao): DerivationExp.derivation_exps
       | ListLit(terms) =>
         get_message(
           ~format=
@@ -2137,7 +2138,7 @@ let get_doc =
     | Float => get_message(TerminalTyp.float)
     | Bool => get_message(TerminalTyp.bool)
     | String => get_message(TerminalTyp.str)
-    | Prop(_) => get_message(TerminalTyp.prop) // TODO: Add prop to TerminalTyp
+    | Derivation(_) => get_message(TerminalTyp.prop) // TODO(zhiyao): Add prop to TerminalTyp
     | List(elem) =>
       let elem_id = List.nth(elem.ids, 0);
       get_message(

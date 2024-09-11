@@ -169,6 +169,9 @@ let rec matches_exp =
     | (String(dv), String(fv)) => dv == fv
     | (String(_), _) => false
 
+    | (Derivation(d), Derivation(f)) => d == f
+    | (Derivation(_), _) => false
+
     | (
         Constructor(_),
         Ap(_, {term: Constructor("~MVal", _), _}, {term: Tuple([]), _}),

@@ -18,7 +18,7 @@ let precedence = (ty: Typ.t): int =>
   | Float
   | Bool
   | String
-  | Prop(_)
+  | Derivation(_)
   | Unknown(_)
   | Var(_)
   | Forall(_)
@@ -76,7 +76,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
     | Float => (text("Float"), parenthesize)
     | Bool => (text("Bool"), parenthesize)
     | String => (text("String"), parenthesize)
-    | Prop(a) => (text(DerivationBase.show_alias(a)), parenthesize)
+    | Derivation(d) => (text(DrvTyp.repr(d)), parenthesize)
     | Var(name) => (text(name), parenthesize)
     | List(ty) => (
         hcats([

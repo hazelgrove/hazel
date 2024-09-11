@@ -49,12 +49,6 @@ type op_bin_string =
   | Equals;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type op_bin_prop =
-  | And
-  | Or
-  | Implies;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type op_un =
   | Meta(op_un_meta)
   | Int(op_un_int)

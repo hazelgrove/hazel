@@ -480,6 +480,7 @@ module Transition = (EV: EV_MODE) => {
     | Int(_)
     | Float(_)
     | String(_)
+    | Derivation(_)
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);

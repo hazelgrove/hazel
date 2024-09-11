@@ -185,8 +185,10 @@ module Make = (M: Editor.Meta.S) => {
         let* ci_gp = statics_of(gp);
         switch (Info.cls_of(ci_parent), Info.cls_of(ci_gp)) {
         | (
-            Exp(Tuple) | Pat(Tuple) | Typ(Prod),
-            Exp(Parens) | Pat(Parens) | Typ(Parens),
+            Exp(Tuple) | Pat(Tuple) | Typ(Prod) |
+            Drv(Prop(Cons) | Exp(Pair) | Pat(Pair) | Typ(Prod)),
+            Exp(Parens) | Pat(Parens) | Typ(Parens) |
+            Drv(Prop(Parens) | Exp(Parens) | Pat(Parens) | Typ(Parens)),
           ) =>
           /* If parent is tuple, check if it's in parens,
            * and if so, select the parens as well */

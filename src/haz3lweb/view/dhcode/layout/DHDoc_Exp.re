@@ -42,12 +42,6 @@ let precedence_bin_string_op = (bso: Operators.op_bin_string) =>
   | Concat => DHDoc_common.precedence_Plus
   | Equals => DHDoc_common.precedence_Equals
   };
-let precedence_bin_prop_op = (bpo: Operators.op_bin_prop) =>
-  switch (bpo) {
-  | And => DHDoc_common.precedence_PropAnd
-  | Or => DHDoc_common.precedence_PropOr
-  | Implies => DHDoc_common.precedence_PropImplies
-  };
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);
   switch (DHExp.term_of(d)) {
@@ -59,6 +53,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Test(_)
   | Float(_)
   | String(_)
+  | Derivation(_)
   | ListLit(_)
   | EmptyHole
   | Constructor(_)
@@ -319,6 +314,7 @@ let mk =
       | Int(n) => DHDoc_common.mk_IntLit(n)
       | Float(f) => DHDoc_common.mk_FloatLit(f)
       | String(s) => DHDoc_common.mk_StringLit(s)
+      | Derivation(d) => DHDoc_common.mk_DerivationLit(d)
       | Undefined => DHDoc_common.mk_Undefined()
       | Test(d) => DHDoc_common.mk_Test(go'(d))
       | Deferral(_) => text("_")

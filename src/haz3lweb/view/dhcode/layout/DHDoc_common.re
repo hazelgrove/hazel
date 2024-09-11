@@ -21,10 +21,10 @@ let precedence_And = P.and_;
 let precedence_Or = P.or_;
 let precedence_Comma = P.comma;
 let precedence_max = P.min;
-let precedence_PropAnd = P.prop_and;
-let precedence_PropOr = P.prop_or;
-let precedence_PropImplies = P.prop_implies;
-let precedence_Entail = P.entail;
+let precedence_PropAnd = P.and_;
+let precedence_PropOr = P.or_;
+let precedence_PropImplies = P.eqs;
+let precedence_Entail = P.fun_;
 
 let pad_child =
     (
@@ -102,7 +102,7 @@ let mk_IntLit = n => Doc.text(string_of_int(n));
 
 let mk_StringLit = s => Doc.text(Form.string_quote(s));
 
-// let mk_PropLit = p => Doc.text(Derivation.Syntax.repr(p));
+let mk_DerivationLit = (t: Drv.t) => Doc.text(Drv.show(t));
 
 let mk_Test = t => Doc.(hcats([text("Test"), t, text("End")]));
 
