@@ -153,7 +153,7 @@ let rec any_to_info_map =
       CoCtx.empty,
       utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd,
     )
-  | Drv(_) // TODO(zhiyao): implement derivation type checking
+  | Drv(drv) => (CoCtx.empty, m |> drv_to_info_map(drv) |> snd)
   | Rul(_)
   | Nul ()
   | Any () => (CoCtx.empty, m)
@@ -167,6 +167,152 @@ and multi = (~ctx, ~ancestors, m, tms) =>
     ([], m),
     tms,
   )
+and drv_to_info_map = (drv: Drv.t, m: Map.t): (DrvInfo.t, Map.t) => {
+  let add = (drv, info, m) => (
+    info,
+    add_info(Drv.of_id(drv), InfoDrv(info), m),
+  );
+  let rec go_jdmt = (jdmt, m) => {
+    let info: DrvInfo.t = Jdmt(DrvInfo.derived_jdmt(jdmt));
+    let m =
+      switch (jdmt.term) {
+      | Hole(_) => m
+      | Val(e) => m |> go_exp'(e) |> snd
+      | Eval(e1, e2) => m |> go_exp'(e1) |> snd |> go_exp'(e2) |> snd
+      | Entail(p1, p2) => m |> go_prop(p1) |> snd |> go_prop(p2) |> snd
+      };
+    add(Jdmt(jdmt), info, m);
+  }
+  and go_prop = (prop: Drv.Prop.t, m) => {
+    let info: DrvInfo.t = Prop(DrvInfo.derived_prop(prop));
+    let m =
+      switch (prop.term) {
+      | Hole(_) => m
+      | HasTy(e, t)
+      | Syn(e, t)
+      | Ana(e, t) => m |> go_exp'(e) |> snd |> go_typ(t) |> snd
+      | Var(_) => m
+      | And(p1, p2)
+      | Or(p1, p2)
+      | Impl(p1, p2) => m |> go_prop(p1) |> snd |> go_prop(p2) |> snd
+      | Truth
+      | Falsity => m
+      | Cons(p1, p2) => m |> go_prop(p1) |> snd |> go_prop(p2) |> snd
+      | Nil => m
+      | Parens(p) => m |> go_prop(p) |> snd
+      };
+    add(Prop(prop), info, m);
+  }
+  and go_exp = (exp: Drv.Exp.t, m, ~left_ap: bool) => {
+    let info = DrvInfo.derived_exp(exp);
+    let info': DrvInfo.t = Exp(info);
+    let add = add(Exp(exp));
+    let add' = add(info');
+    switch (exp.term) {
+    | Hole(_) => m |> add'
+    | NumLit(_) => m |> add'
+    | UnOp(_, e) => m |> go_exp'(e) |> snd |> add'
+    | BinOp(_, e1, e2) =>
+      m |> go_exp'(e1) |> snd |> go_exp'(e2) |> snd |> add'
+    | True
+    | False => m |> add'
+    | If(e1, e2, e3) =>
+      let m = m |> go_exp'(e1) |> snd;
+      let m = m |> go_exp'(e2) |> snd;
+      m |> go_exp'(e3) |> snd |> add';
+    | Var(_) => m |> add'
+    | Let(p, e1, e2) =>
+      let m = m |> go_pat(p, ~expect=Pair_Or_Case_Var) |> snd;
+      let m = m |> go_exp'(e1) |> snd;
+      m |> go_exp'(e2) |> snd |> add';
+    | Fix(p, e) =>
+      m |> go_pat(p, ~expect=Cast_Var) |> snd |> go_exp'(e) |> snd |> add'
+    | Fun(p, e) =>
+      m |> go_pat(p, ~expect=Cast_Var) |> snd |> go_exp'(e) |> snd |> add'
+    | Ap(e1, e2) =>
+      m |> go_exp(e1, ~left_ap=true) |> snd |> go_exp'(e2) |> snd |> add'
+    | Pair(e1, e2) => m |> go_exp'(e1) |> snd |> go_exp'(e2) |> snd |> add'
+    | Triv => m |> add'
+    | PrjL(e)
+    | PrjR(e) => m |> go_exp'(e) |> snd |> add'
+    | InjL
+    | InjR
+    | Roll
+    | Unroll when !left_ap =>
+      m |> add(Exp({...info, status: InHole(NotAllowSingle)}))
+    | InjL
+    | InjR
+    | Roll
+    | Unroll => m |> add'
+    | Case(e, p1, e1, p2, e2) =>
+      let m = m |> go_exp'(e) |> snd;
+      let m = m |> go_pat(p1, ~expect=Ap_InjL) |> snd;
+      let m = m |> go_exp'(e1) |> snd;
+      let m = m |> go_pat(p2, ~expect=Ap_InjR) |> snd;
+      m |> go_exp'(e2) |> snd |> add';
+    | Parens(e) => m |> go_exp(e, ~left_ap) |> snd |> add'
+    };
+  }
+  and go_exp' = go_exp(~left_ap=false)
+  and go_pat = (pat: Drv.Pat.t, m, ~expect: DrvInfo.pat_expect) => {
+    let info = DrvInfo.derived_pat(pat);
+    let add = add(Pat(pat));
+    let add_err = add(Pat({...info, status: InHole(Expect(expect))}));
+    let add = add(Pat(info));
+    let add_cond = allows => List.mem(expect, allows) ? add : add_err;
+    switch (pat.term) {
+    | Hole(_) => m |> add
+    | Var(_) => m |> add_cond([Var, Cast_Var, Pair_Or_Case_Var])
+    | Cast(p, t) =>
+      let m = m |> go_pat(p, ~expect=Var) |> snd;
+      m |> go_typ(t) |> snd |> add_cond([Cast_Var, Pair_Or_Case_Var]);
+    | Pair(p1, p2) =>
+      let m = m |> go_pat(p1, ~expect=Var) |> snd;
+      m |> go_pat(p2, ~expect=Var) |> snd |> add_cond([Pair_Or_Case_Var]);
+    | Ap(p1, p2) =>
+      let expect: DrvInfo.pat_expect =
+        switch (expect) {
+        | Ap_InjL => InjL
+        | Ap_InjR => InjR
+        | _ => Any
+        };
+      let m = m |> go_pat(p1, ~expect) |> snd;
+      m |> go_pat(p2, ~expect=Var) |> snd |> add_cond([Ap_InjL, Ap_InjR]);
+    | InjL => m |> add_cond([InjL])
+    | InjR => m |> add_cond([InjR])
+    | Parens(p) => m |> go_pat(p, ~expect) |> snd |> add
+    };
+  }
+  and go_typ = (typ: Drv.Typ.t, m) => {
+    let info: DrvInfo.t = Typ(DrvInfo.derived_typ(typ));
+    let m =
+      switch (typ.term) {
+      | Hole(_) => m
+      | Num => m
+      | Bool => m
+      | Arrow(t1, t2) => m |> go_typ(t1) |> snd |> go_typ(t2) |> snd
+      | Prod(t1, t2) => m |> go_typ(t1) |> snd |> go_typ(t2) |> snd
+      | Unit => m
+      | Sum(t1, t2) => m |> go_typ(t1) |> snd |> go_typ(t2) |> snd
+      | Var(_) => m
+      | Rec(p, t) => m |> go_tpat(p) |> snd |> go_typ(t) |> snd
+      | Parens(t) => m |> go_typ(t) |> snd
+      };
+    add(Typ(typ), info, m);
+  }
+  and go_tpat = (tpat: Drv.TPat.t, m) => {
+    let info: DrvInfo.t = TPat(DrvInfo.derived_tpat(tpat));
+    add(TPat(tpat), info, m);
+  };
+  switch (drv) {
+  | Jdmt(jdmt) => go_jdmt(jdmt, m)
+  | Prop(prop) => go_prop(prop, m)
+  | Exp(exp) => go_exp(exp, m, ~left_ap=false)
+  | Pat(pat) => go_pat(pat, m, ~expect=Var)
+  | Typ(ty) => go_typ(ty, m)
+  | TPat(tp) => go_tpat(tp, m)
+  };
+}
 and uexp_to_info_map =
     (
       ~ctx: Ctx.t,
@@ -232,7 +378,13 @@ and uexp_to_info_map =
   | Int(_) => atomic(Just(Int |> Typ.temp))
   | Float(_) => atomic(Just(Float |> Typ.temp))
   | String(_) => atomic(Just(String |> Typ.temp))
-  | Derivation(d) => atomic(Just(Derivation(Drv.of_typ(d)) |> Typ.temp))
+  | Derivation(d) =>
+    let m = drv_to_info_map(d, m) |> snd;
+    add(
+      ~self=Just(Derivation(Drv.of_typ(d)) |> Typ.temp),
+      ~co_ctx=CoCtx.empty,
+      m,
+    );
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
     let modes = Mode.of_list_lit(ctx, List.length(es), mode);

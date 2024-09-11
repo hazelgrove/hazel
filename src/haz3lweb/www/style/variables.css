@@ -38,6 +38,7 @@
 
   /* GLASS - sorts */
   --TYP: oklch(60% 0.2 300);
+  --DRV: oklch(60% 0.1 126);
   --PAT: oklch(from var(--TYP) l c calc(h - 1 * 75));
   --TPAT: var(--PAT);
 
@@ -81,6 +82,7 @@
   --token-exp: var(--STONE);
   --token-pat: var(--PAT);
   --token-typ: var(--TYP);
+  --token-drv: var(--DRV);
   --token-tpat: var(--TPAT);
   --token-string-lit: var(--Y3);
   --token-comment: var(--G2);
@@ -101,9 +103,11 @@
   --shard-exp: var(--T2);
   --shard-caret-pat: oklch(from var(--token-pat) 95% calc(c/4) h);
   --shard-caret-typ: oklch(from var(--token-typ) 95% calc(c/4) h);
+  --shard-caret-drv: oklch(from var(--token-drv) 95% calc(c/4) h);
   --shard-caret-tpat: oklch(from var(--token-tpat) 95% calc(c/4) h);
   --shard-pat: var(--shard-caret-pat);
   --shard-typ: var(--shard-caret-typ);
+  --shard-drv: var(--shard-caret-drv);
   --shard-tpat: var(--shard-caret-tpat);
   --shard-selected: var(--Y1);
   --shard-buffer: var(--T1);

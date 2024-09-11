@@ -48,6 +48,9 @@
 #cursor-inspector .Typ .gamma {
   background-color: var(--token-typ);
 }
+#cursor-inspector .Drv .gamma {
+  background-color: var(--token-drv);
+}
 #cursor-inspector .TPat .gamma {
   background-color: var(--token-tpat);
 }
@@ -103,6 +106,9 @@
 #cursor-inspector .ci-header.ok.Typ .toggle-switch.active  {
   background-color: var(--token-typ);
 }
+#cursor-inspector .ci-header.ok.Drv .toggle-switch.active  {
+  background-color: var(--token-drv);
+}
 #cursor-inspector .ci-header.ok.TPat .toggle-switch.active  {
   background-color: var(--token-tpat);
 }
@@ -114,6 +120,9 @@
 }
 #cursor-inspector .ci-header.ok.Typ .toggle-switch .toggle-knob {
   color: var(--token-typ);
+}
+#cursor-inspector .ci-header.ok.Drv .toggle-switch .toggle-knob {
+  color: var(--token-drv);
 }
 #cursor-inspector .ci-header.ok.TPat .toggle-switch .toggle-knob {
   color: var(--token-tpat);
@@ -138,6 +147,10 @@
 #cursor-inspector .ci-header.ok.Typ {
   background-color: var(--shard-typ);
   color: var(--token-typ);
+}
+#cursor-inspector .ci-header.ok.Drv {
+  background-color: var(--shard-drv);
+  color: var(--token-drv);
 }
 #cursor-inspector .ci-header.ok.Rul {
   background-color: var(--shard-rul);

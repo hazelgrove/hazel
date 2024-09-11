@@ -8,6 +8,24 @@ module DrvSort = {
     | Typ
     | TPat;
 
+  let show =
+    fun
+    | Jdmt => "Jdmt"
+    | Prop => "Prop"
+    | Exp => "ALFA_Exp"
+    | Pat => "ALFA_Pat"
+    | Typ => "ALFA_Typ"
+    | TPat => "ALFA_TPat";
+
+  let class_of =
+    fun
+    | Jdmt => "Drv"
+    | Prop => "Drv"
+    | Exp => "Exp"
+    | Pat => "Pat"
+    | Typ => "Typ"
+    | TPat => "TPat";
+
   let all = [Jdmt, Prop, Exp, Pat, Typ, TPat];
 
   let to_string =
@@ -40,6 +58,16 @@ type t =
   | Rul
   | Exp;
 
+let show =
+  fun
+  | Drv(s) => DrvSort.show(s)
+  | _ as s => show(s);
+
+let class_of =
+  fun
+  | Drv(s) => DrvSort.class_of(s)
+  | _ as s => show(s);
+
 let root = Exp;
 
 let all =
@@ -57,7 +85,7 @@ let consistent = (s, s') =>
 
 let to_string =
   fun
-  | Drv(s) => DrvSort.to_string(s)
+  | Drv(s) => DrvSort.class_of(s)
   | Any => "Any"
   | Nul => "Nul"
   | Pat => "Pat"

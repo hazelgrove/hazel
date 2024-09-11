@@ -1,0 +1,267 @@
+open Util;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type ok_common = unit;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error_common =
+  | BadToken(Token.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type status_common =
+  | NotInHole(ok_common)
+  | InHole(error_common);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type jdmt = {
+  term: Drv.Jdmt.t,
+  cls: Cls.t,
+  status: status_common,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type prop = {
+  term: Drv.Prop.t,
+  cls: Cls.t,
+  status: status_common,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error_exp =
+  | BadToken(Token.t)
+  | NotAllowSingle;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type status_exp =
+  | NotInHole(ok_common)
+  | InHole(error_exp);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type exp = {
+  term: Drv.Exp.t,
+  cls: Cls.t,
+  status: status_exp,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type pat_expect =
+  | Any
+  | Var
+  | Cast_Var
+  | Pair_Or_Case_Var
+  | Ap_InjL
+  | Ap_InjR
+  | InjL
+  | InjR;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error_pat =
+  | BadToken(Token.t)
+  | NotAVar
+  | Expect(pat_expect);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type status_pat =
+  | NotInHole(ok_common)
+  | InHole(error_pat);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type pat = {
+  term: Drv.Pat.t,
+  cls: Cls.t,
+  status: status_pat,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typ = {
+  term: Drv.Typ.t,
+  cls: Cls.t,
+  status: status_common,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tpat = {
+  term: Drv.TPat.t,
+  cls: Cls.t,
+  status: status_common,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t =
+  | Jdmt(jdmt)
+  | Prop(prop)
+  | Exp(exp)
+  | Pat(pat)
+  | Typ(typ)
+  | TPat(tpat);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error =
+  | Jdmt(error_common)
+  | Prop(error_common)
+  | Exp(error_exp)
+  | Pat(error_pat)
+  | Typ(error_common)
+  | TPat(error_common);
+
+let sort_of: t => Sort.DrvSort.t =
+  fun
+  | Jdmt(_) => Jdmt
+  | Prop(_) => Prop
+  | Exp(_) => Exp
+  | Pat(_) => Pat
+  | Typ(_) => Typ
+  | TPat(_) => TPat;
+
+let cls_of: t => Cls.t =
+  fun
+  | Jdmt(jdmt) => jdmt.cls
+  | Prop(prop) => prop.cls
+  | Exp(exp) => exp.cls
+  | Pat(pat) => pat.cls
+  | Typ(typ) => typ.cls
+  | TPat(tpat) => tpat.cls;
+
+let id_of: t => Id.t =
+  fun
+  | Jdmt(jdmt) => Drv.Jdmt.rep_id(jdmt.term)
+  | Prop(prop) => Drv.Prop.rep_id(prop.term)
+  | Exp(exp) => Drv.Exp.rep_id(exp.term)
+  | Pat(pat) => Drv.Pat.rep_id(pat.term)
+  | Typ(typ) => Drv.Typ.rep_id(typ.term)
+  | TPat(tpat) => Drv.TPat.rep_id(tpat.term);
+
+let error_of: t => option(error) =
+  fun
+  | Jdmt({status: NotInHole(_), _})
+  | Prop({status: NotInHole(_), _})
+  | Exp({status: NotInHole(_), _})
+  | Pat({status: NotInHole(_), _})
+  | Typ({status: NotInHole(_), _})
+  | TPat({status: NotInHole(_), _}) => None
+  | Jdmt({status: InHole(err), _}) => Some(Jdmt(err))
+  | Prop({status: InHole(err), _}) => Some(Prop(err))
+  | Exp({status: InHole(err), _}) => Some(Exp(err))
+  | Pat({status: InHole(err), _}) => Some(Pat(err))
+  | Typ({status: InHole(err), _}) => Some(Typ(err))
+  | TPat({status: InHole(err), _}) => Some(TPat(err));
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type status_drv =
+  | Jdmt(status_common)
+  | Prop(status_common)
+  | Exp(status_exp)
+  | Pat(status_pat)
+  | Typ(status_common)
+  | TPat(status_common);
+
+let status_jdmt = (jdmt: Drv.Jdmt.t): status_common =>
+  switch (jdmt.term) {
+  | Hole(Invalid(token)) => InHole(BadToken(token))
+  | _ => NotInHole()
+  };
+
+let status_prop = (prop: Drv.Prop.t): status_common =>
+  switch (prop.term) {
+  | Hole(Invalid(token)) => InHole(BadToken(token))
+  | _ => NotInHole()
+  };
+
+let status_exp = (exp: Drv.Exp.t): status_exp =>
+  switch (exp.term) {
+  | Hole(Invalid(token)) => InHole(BadToken(token))
+  | _ => NotInHole()
+  };
+
+let status_pat = (pat: Drv.Pat.t): status_pat =>
+  switch (pat.term) {
+  | Hole(Invalid(token)) => InHole(BadToken(token))
+  | Hole(MultiHole(_)) => InHole(NotAVar)
+  | _ => NotInHole()
+  };
+
+let status_typ = (typ: Drv.Typ.t): status_common =>
+  switch (typ.term) {
+  | Hole(Invalid(token)) => InHole(BadToken(token))
+  | _ => NotInHole()
+  };
+
+let status_tpat = (tpat: Drv.TPat.t): status_common =>
+  switch (tpat.term) {
+  | Hole(Invalid(token)) => InHole(BadToken(token))
+  | _ => NotInHole()
+  };
+
+let status_drv = (drv: Drv.t): status_drv =>
+  switch (drv) {
+  | Jdmt(term) => Jdmt(status_jdmt(term))
+  | Prop(term) => Prop(status_prop(term))
+  | Exp(term) => Exp(status_exp(term))
+  | Pat(term) => Pat(status_pat(term))
+  | Typ(term) => Typ(status_typ(term))
+  | TPat(term) => TPat(status_tpat(term))
+  };
+
+let is_error = (ci: t): bool => {
+  switch (ci) {
+  | Jdmt({status: InHole(_), _})
+  | Prop({status: InHole(_), _})
+  | Exp({status: InHole(_), _})
+  | Pat({status: InHole(_), _})
+  | Typ({status: InHole(_), _})
+  | TPat({status: InHole(_), _}) => true
+  | Jdmt({status: NotInHole(_), _})
+  | Prop({status: NotInHole(_), _})
+  | Exp({status: NotInHole(_), _})
+  | Pat({status: NotInHole(_), _})
+  | Typ({status: NotInHole(_), _})
+  | TPat({status: NotInHole(_), _}) => false
+  };
+};
+
+let derived_jdmt = (jdmt: Drv.Jdmt.t): jdmt => {
+  let cls = Cls.Drv(Jdmt(Drv.Jdmt.cls_of_term(jdmt.term)));
+  let status = status_jdmt(jdmt);
+  {term: jdmt, cls, status};
+};
+
+let derived_prop = (prop: Drv.Prop.t): prop => {
+  let cls = Cls.Drv(Prop(Drv.Prop.cls_of_term(prop.term)));
+  let status = status_prop(prop);
+  {term: prop, cls, status};
+};
+
+let derived_exp = (exp: Drv.Exp.t): exp => {
+  let cls = Cls.Drv(Exp(Drv.Exp.cls_of_term(exp.term)));
+  let status = status_exp(exp);
+  {term: exp, cls, status};
+};
+
+let derived_pat = (pat: Drv.Pat.t): pat => {
+  let cls = Cls.Drv(Pat(Drv.Pat.cls_of_term(pat.term)));
+  let status = status_pat(pat);
+  {term: pat, cls, status};
+};
+
+let derived_typ = (typ: Drv.Typ.t): typ => {
+  let cls = Cls.Drv(Typ(Drv.Typ.cls_of_term(typ.term)));
+  let status = status_typ(typ);
+  {term: typ, cls, status};
+};
+
+let derived_tpat = (tpat: Drv.TPat.t): tpat => {
+  let cls = Cls.Drv(TPat(Drv.TPat.cls_of_term(tpat.term)));
+  let status = status_tpat(tpat);
+  {term: tpat, cls, status};
+};
+
+let derived_drv = (drv: Drv.t): t => {
+  switch (drv) {
+  | Jdmt(jdmt) => Jdmt(derived_jdmt(jdmt))
+  | Prop(prop) => Prop(derived_prop(prop))
+  | Exp(exp) => Exp(derived_exp(exp))
+  | Pat(pat) => Pat(derived_pat(pat))
+  | Typ(typ) => Typ(derived_typ(typ))
+  | TPat(tpat) => TPat(derived_tpat(tpat))
+  };
+};

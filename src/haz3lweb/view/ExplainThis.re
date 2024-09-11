@@ -528,6 +528,7 @@ let get_doc =
   };
 
   switch (info) {
+  | Some(InfoDrv(_)) => simple("No message available") // TODO(zhiyao): DerivationExp.derivation_exps
   | Some(InfoExp({term, _})) =>
     let rec get_message_exp =
             (term)

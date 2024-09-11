@@ -248,6 +248,7 @@ type secondary = {
 /* The static information collated for each term */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
+  | InfoDrv(DrvInfo.t)
   | InfoExp(exp)
   | InfoPat(pat)
   | InfoTyp(typ)
@@ -256,6 +257,7 @@ type t =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error =
+  | Drv(DrvInfo.error)
   | Exp(error_exp)
   | Pat(error_pat)
   | Typ(error_typ)
@@ -263,6 +265,7 @@ type error =
 
 let sort_of: t => Sort.t =
   fun
+  | InfoDrv(drv) => Drv(DrvInfo.sort_of(drv))
   | InfoExp(_) => Exp
   | InfoPat(_) => Pat
   | InfoTyp(_) => Typ
@@ -271,6 +274,7 @@ let sort_of: t => Sort.t =
 
 let cls_of: t => Cls.t =
   fun
+  | InfoDrv(drv) => DrvInfo.cls_of(drv)
   | InfoExp({cls, _})
   | InfoPat({cls, _})
   | InfoTyp({cls, _})
@@ -279,6 +283,7 @@ let cls_of: t => Cls.t =
 
 let ctx_of: t => Ctx.t =
   fun
+  | InfoDrv(_) => []
   | InfoExp({ctx, _})
   | InfoPat({ctx, _})
   | InfoTyp({ctx, _})
@@ -287,6 +292,7 @@ let ctx_of: t => Ctx.t =
 
 let ancestors_of: t => ancestors =
   fun
+  | InfoDrv(_) => []
   | InfoExp({ancestors, _})
   | InfoPat({ancestors, _})
   | InfoTyp({ancestors, _})
@@ -295,6 +301,7 @@ let ancestors_of: t => ancestors =
 
 let id_of: t => Id.t =
   fun
+  | InfoDrv(drv) => DrvInfo.id_of(drv)
   | InfoExp(i) => Exp.rep_id(i.term)
   | InfoPat(i) => Pat.rep_id(i.term)
   | InfoTyp(i) => Typ.rep_id(i.term)
@@ -303,6 +310,11 @@ let id_of: t => Id.t =
 
 let error_of: t => option(error) =
   fun
+  | InfoDrv(drv) =>
+    switch (DrvInfo.error_of(drv)) {
+    | None => None
+    | Some(err) => Some(Drv(err))
+    }
   | InfoExp({status: NotInHole(_), _})
   | InfoPat({status: NotInHole(_), _})
   | InfoTyp({status: NotInHole(_), _})
@@ -514,6 +526,7 @@ let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
 /* Determines whether any term is in an error hole. */
 let is_error = (ci: t): bool => {
   switch (ci) {
+  | InfoDrv(drv) => DrvInfo.is_error(drv)
   | InfoExp({mode, self, ctx, _}) =>
     switch (status_exp(ctx, mode, self)) {
     | InHole(_) => true

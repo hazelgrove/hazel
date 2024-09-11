@@ -183,14 +183,14 @@ and jdmt = unsorted => {
 }
 and jdmt_term: unsorted => (Drv.Jdmt.term, list(Id.t)) = {
   let ret = (tm: Drv.Jdmt.term) => (tm, []);
-  let hole = Drv.Jdmt.Invalid;
+  let hole = unsorted => Drv.Jdmt.hole(kids_of_unsorted(unsorted));
   fun
   | Post(Drv(Exp(l)), ([(_id, ([".val"], []))], [])) => ret(Val(l))
   | Bin(Drv(Exp(l)), ([(_id, (["$>"], []))], []), Drv(Exp(r))) =>
     ret(Eval(l, r))
   | Bin(Drv(Prop(l)), ([(_id, (["|-"], []))], []), Drv(Prop(r))) =>
     ret(Entail(l, r))
-  | _ => ret(hole);
+  | _ as tm => ret(hole(tm));
 }
 
 and prop = unsorted => {
@@ -200,34 +200,34 @@ and prop = unsorted => {
 }
 and prop_term: unsorted => (Drv.Prop.term, list(Id.t)) = {
   let ret = (tm: Drv.Prop.term) => (tm, []);
-  let hole = Drv.Prop.Invalid;
+  let hole = unsorted => Drv.Prop.hole(kids_of_unsorted(unsorted));
   fun
-  | Op(([(_id, ([t], []))], [])) =>
+  | Op(([(_id, ([t], []))], [])) as tm =>
     switch (t) {
     | "()" => ret(Nil)
     | "Truth" => ret(Truth)
     | "Falsity" => ret(Falsity)
     | _ when Form.is_typ_var(t) => ret(Var(t))
-    | _ => ret(hole)
+    | _ => ret(hole(tm))
     }
   | Op(([(_id, (["(", ")"], [Drv(Prop(body))]))], [])) =>
     ret(Parens(body))
-  | Bin(Drv(Prop(l)), ([(_id, ([t], []))], []), Drv(Prop(r))) =>
+  | Bin(Drv(Prop(l)), ([(_id, ([t], []))], []), Drv(Prop(r))) as tm =>
     switch (t) {
     | "/\\" => ret(And(l, r))
     | "\\/" => ret(Or(l, r))
     | "==>" => ret(Impl(l, r))
     | "," => ret(Cons(l, r))
-    | _ => ret(hole)
+    | _ => ret(hole(tm))
     }
-  | Bin(Drv(Exp(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) =>
+  | Bin(Drv(Exp(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) as tm =>
     switch (t) {
     | ":" => ret(HasTy(l, r))
     | "=>" => ret(Syn(l, r))
     | "<=" => ret(Ana(l, r))
-    | _ => ret(hole)
+    | _ => ret(hole(tm))
     }
-  | _ => ret(hole);
+  | _ as tm => ret(hole(tm));
 }
 
 and alfa_exp = unsorted => {
@@ -237,9 +237,9 @@ and alfa_exp = unsorted => {
 }
 and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
   let ret = (tm: Drv.Exp.term) => (tm, []);
-  let hole = Drv.Exp.Invalid;
+  let hole = unsorted => Drv.Exp.hole(kids_of_unsorted(unsorted));
   fun
-  | Op(([(_id, ([t], []))], [])) =>
+  | Op(([(_id, ([t], []))], [])) as tm =>
     switch (t) {
     | _ when Form.is_empty_tuple(t) => ret(Triv)
     | _ when Form.is_int(t) => ret(NumLit(int_of_string(t)))
@@ -250,11 +250,11 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     | "roll" => ret(Roll)
     | "unroll" => ret(Unroll)
     | _ when Form.is_typ_var(t) => ret(Var(t))
-    | _ => ret(hole)
+    | _ => ret(hole(tm))
     }
   | Op(([(_id, (["(", ")"], [Drv(Exp(body))]))], [])) =>
     ret(Parens(body))
-  | Pre(([(_id, t)], []), Drv(Exp(r))) =>
+  | Pre(([(_id, t)], []), Drv(Exp(r))) as tm =>
     switch (t) {
     | (["-"], []) => ret(UnOp(OpNeg, r))
     | (["if", "then", "else"], [Drv(Exp(cond)), Drv(Exp(conseq))]) =>
@@ -268,16 +268,16 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
         [Drv(Exp(scrut)), Drv(Pat(pl)), Drv(Exp(l)), Drv(Pat(pr))],
       ) =>
       ret(Case(scrut, pl, l, pr, r))
-    | _ => ret(hole)
+    | _ => ret(hole(tm))
     }
-  | Post(Drv(Exp(l)), ([(_id, t)], [])) =>
+  | Post(Drv(Exp(l)), ([(_id, t)], [])) as tm =>
     switch (t) {
     | ([".fst"], []) => ret(PrjL(l))
     | ([".snd"], []) => ret(PrjR(l))
     | (["(", ")"], [Drv(Exp(r))]) => ret(Ap(l, r))
-    | _ => ret(hole)
+    | _ => ret(hole(tm))
     }
-  | Bin(Drv(Exp(l)), ([(_id, ([t], []))], []), Drv(Exp(r))) =>
+  | Bin(Drv(Exp(l)), ([(_id, ([t], []))], []), Drv(Exp(r))) as tm =>
     switch (t) {
     | "+" => ret(BinOp(OpPlus, l, r))
     | "-" => ret(BinOp(OpMinus, l, r))
@@ -286,9 +286,9 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     | "<" => ret(BinOp(OpLt, l, r))
     | ">" => ret(BinOp(OpGt, l, r))
     | "," => ret(Pair(l, r))
-    | _ => ret(hole)
+    | _ => ret(hole(tm))
     }
-  | _ => ret(hole);
+  | _ as tm => ret(hole(tm));
 }
 
 and alfa_pat = unsorted => {
@@ -298,14 +298,14 @@ and alfa_pat = unsorted => {
 }
 and alfa_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
   let ret = (tm: Drv.Pat.term) => (tm, []);
-  let hole = Drv.Pat.Invalid;
+  let hole = unsorted => Drv.Pat.hole(kids_of_unsorted(unsorted));
   fun
-  | Op(([(_id, ([t], []))], [])) =>
+  | Op(([(_id, ([t], []))], [])) as tm =>
     switch (t) {
     | "L" => ret(InjL)
     | "R" => ret(InjR)
     | _ when Form.is_typ_var(t) => ret(Var(t))
-    | _ => ret(hole)
+    | _ => ret(hole(tm))
     }
   | Op(([(_id, (["(", ")"], [Drv(Pat(body))]))], [])) =>
     ret(Parens(body))
@@ -315,7 +315,7 @@ and alfa_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
     ret(Cast(l, r))
   | Bin(Drv(Pat(l)), ([(_id, ([","], []))], []), Drv(Pat(r))) =>
     ret(Pair(l, r))
-  | _ => ret(hole);
+  | _ as tm => ret(hole(tm));
 }
 
 and alfa_typ = unsorted => {
@@ -325,29 +325,29 @@ and alfa_typ = unsorted => {
 }
 and alfa_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
   let ret = (tm: Drv.Typ.term) => (tm, []);
-  let hole = Drv.Typ.Invalid;
+  let hole = unsorted => Drv.Typ.hole(kids_of_unsorted(unsorted));
   fun
-  | Op(([(_id, ([t], []))], [])) =>
+  | Op(([(_id, ([t], []))], [])) as tm =>
     switch (t) {
     | "Num" => ret(Num)
     | "Bool" => ret(Bool)
     | "1"
     | "Unit" => ret(Unit)
     | _ when Form.is_typ_var(t) => ret(Var(t))
-    | _ => ret(hole)
+    | _ => ret(hole(tm))
     }
   | Op(([(_id, (["(", ")"], [Drv(Typ(body))]))], [])) =>
     ret(Parens(body))
   | Pre(([(_id, (["rec", "->"], [Drv(TPat(p))]))], []), Drv(Typ(t))) =>
     ret(Rec(p, t))
-  | Bin(Drv(Typ(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) =>
+  | Bin(Drv(Typ(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) as tm =>
     switch (t) {
     | "->" => ret(Arrow(l, r))
     | "*" => ret(Prod(l, r))
     | "+" => ret(Sum(l, r))
-    | _ => ret(hole)
+    | _ => ret(hole(tm))
     }
-  | _ => ret(hole);
+  | _ as tm => ret(hole(tm));
 }
 
 and alfa_tpat = unsorted => {
@@ -357,10 +357,10 @@ and alfa_tpat = unsorted => {
 }
 and alfa_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
   let ret = (tm: Drv.TPat.term) => (tm, []);
-  let hole = Drv.TPat.Invalid;
+  let hole = unsorted => Drv.TPat.hole(kids_of_unsorted(unsorted));
   fun
   | Op(([(_id, ([t], []))], [])) when Form.is_typ_var(t) => ret(Var(t))
-  | _ => ret(hole);
+  | _ as tm => ret(hole(tm));
 }
 
 and exp = unsorted => {
