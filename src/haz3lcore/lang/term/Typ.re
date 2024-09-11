@@ -326,6 +326,7 @@ let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
 
 let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
   switch (term_of(ty)) {
+  | Parens(t) => weak_head_normalize(ctx, t)
   | Var(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => weak_head_normalize(ctx, ty)
