@@ -1,6 +1,7 @@
 open Util;
+open Base_quickcheck;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, quickcheck)]
 type t('a) = {
   [@show.opaque]
   ids: list(Id.t),

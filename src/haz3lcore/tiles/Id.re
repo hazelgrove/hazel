@@ -59,7 +59,10 @@ let t_of_yojson: Yojson.Safe.t => Uuidm.t =
 type t = Uuidm.t;
 
 let mk: unit => t = Uuidm.v4_gen(Random.State.make_self_init());
-
+let quickcheck_generator: Base_quickcheck.Generator.t(t) =
+  Base_quickcheck.Generator.return(mk()); // TODO
+let quickcheck_observer = Base_quickcheck.Observer.opaque; // TODO
+let quickcheck_shrinker = Base_quickcheck.Shrinker.atomic; // TODO
 let compare: (t, t) => int = Uuidm.compare;
 let to_string: (~upper: bool=?, t) => string = Uuidm.to_string;
 let of_string: (~pos: int=?, string) => option(t) = Uuidm.of_string;

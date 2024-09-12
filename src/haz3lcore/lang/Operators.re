@@ -1,21 +1,21 @@
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, quickcheck)]
 type op_un_bool =
   | Not;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, quickcheck)]
 type op_un_meta =
   | Unquote;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, quickcheck)]
 type op_un_int =
   | Minus;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, quickcheck)]
 type op_bin_bool =
   | And
   | Or;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, quickcheck)]
 type op_bin_int =
   | Plus
   | Minus
@@ -29,7 +29,7 @@ type op_bin_int =
   | Equals
   | NotEquals;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, quickcheck)]
 type op_bin_float =
   | Plus
   | Minus
@@ -43,25 +43,25 @@ type op_bin_float =
   | Equals
   | NotEquals;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, quickcheck)]
 type op_bin_string =
   | Concat
   | Equals;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, quickcheck)]
 type op_un =
   | Meta(op_un_meta)
   | Int(op_un_int)
   | Bool(op_un_bool);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, quickcheck)]
 type op_bin =
   | Int(op_bin_int)
   | Float(op_bin_float)
   | Bool(op_bin_bool)
   | String(op_bin_string);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, quickcheck)]
 type ap_direction =
   | Forward
   | Reverse;

@@ -3,6 +3,7 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = string;
 
+let gen: Base_quickcheck.Generator.t(t) = Base_quickcheck.Generator.string;
 let eq = String.equal;
 
 let length = String.length;

@@ -8,6 +8,7 @@
   (pps
    ppx_yojson_conv
    js_of_ocaml-ppx
+   ppx_jane
    ppx_let
    ppx_sexp_conv
    ppx_deriving.show)))

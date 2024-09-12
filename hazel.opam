@@ -25,6 +25,8 @@ depends: [
   "ocamlformat"
   "junit_alcotest" {with-test}
   "ocaml-lsp-server"
+  "qcheck-alcotest" {with-test}
+  "ppx_deriving_qcheck"
   "odoc" {with-doc}
 ]
 build: [

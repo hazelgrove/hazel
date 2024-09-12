@@ -702,7 +702,7 @@ and upat_to_info_map =
       ((ctx, tys, cons, m), e, mode) =>
         go(~ctx, ~mode, e, m)
         |> (
-          ((info, m)) => (
+          ((info: Info.pat, m)) => (
             info.ctx,
             tys @ [info.ty],
             cons @ [info.constraint_],
@@ -981,10 +981,10 @@ let get_error_at = (info_map: Map.t, id: Id.t) => {
   |> Option.bind(
        _,
        fun
-       | InfoExp(e) => Some(e)
+       | (InfoExp(e): Info.t) => Some(e)
        | _ => None,
      )
-  |> Option.bind(_, e =>
+  |> Option.bind(_, (e: Info.exp) =>
        switch (e.status) {
        | InHole(err_info) => Some(err_info)
        | NotInHole(_) => None
@@ -998,10 +998,10 @@ let get_pat_error_at = (info_map: Map.t, id: Id.t) => {
   |> Option.bind(
        _,
        fun
-       | InfoPat(e) => Some(e)
+       | (InfoPat(e): Info.t) => Some(e)
        | _ => None,
      )
-  |> Option.bind(_, e =>
+  |> Option.bind(_, (e: Info.pat) =>
        switch (e.status) {
        | InHole(err_info) => Some(err_info)
        | NotInHole(_) => None
