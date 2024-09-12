@@ -1,2 +1,2 @@
-type t = list(TermBase.StepperFilterKind.filter);
+type t = list(TermBase.filter);
 let extends = (flt, env) => [flt, ...env];
