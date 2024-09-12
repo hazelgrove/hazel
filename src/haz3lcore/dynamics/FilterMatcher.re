@@ -24,7 +24,9 @@ let evaluate_extend_env_with_pat =
         {
           ids,
           copied,
-          IdTagged.term: TermBase.Exp.FixF(pat, exp, Some(to_extend)),
+          IdTagged.term: (
+            FixF(pat, exp, Some(to_extend)): TermBase.exp_term
+          ),
         },
       )),
       to_extend,
@@ -36,14 +38,12 @@ let evaluate_extend_env_with_pat =
         binding =>
           (
             binding,
-            TermBase.Exp.Let(
-              pat,
-              {
-                ids,
-                copied,
-                term: TermBase.Exp.FixF(pat, exp, Some(to_extend)),
-              },
-              TermBase.Exp.Var(binding) |> IdTagged.fresh,
+            (
+              Let(
+                pat,
+                {ids, copied, term: FixF(pat, exp, Some(to_extend))},
+                (Var(binding): TermBase.exp_term) |> IdTagged.fresh,
+              ): TermBase.exp_term
             )
             |> IdTagged.fresh,
           ),
@@ -75,13 +75,13 @@ let tangle =
     let denv_subst: list((string, 'a)) =
       List.mapi(
         (i, binding) =>
-          (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+          (binding, (Var(ids[i]): TermBase.exp_term) |> IdTagged.fresh),
         dvars,
       );
     let fenv_subst: list((string, 'a)) =
       List.mapi(
         (i, binding) =>
-          (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+          (binding, (Var(ids[i]): TermBase.exp_term) |> IdTagged.fresh),
         fvars,
       );
     let denv = evaluate_extend_env(Environment.of_list(denv_subst), denv);
@@ -356,13 +356,13 @@ and matches_fun =
     let denv_subst: list((string, 'a)) =
       List.mapi(
         (i, binding) =>
-          (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+          (binding, (Var(ids[i]): TermBase.exp_term) |> IdTagged.fresh),
         dvars,
       );
     let fenv_subst: list((string, 'a)) =
       List.mapi(
         (i, binding) =>
-          (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+          (binding, (Var(ids[i]): TermBase.exp_term) |> IdTagged.fresh),
         fvars,
       );
     let denv = evaluate_extend_env(Environment.of_list(denv_subst), denv);
@@ -387,11 +387,7 @@ and matches_utpat = (d: TPat.t, f: TPat.t): bool => {
 };
 
 let matches =
-    (
-      ~env: ClosureEnvironment.t,
-      ~exp: DHExp.t,
-      ~flt: TermBase.StepperFilterKind.filter,
-    )
+    (~env: ClosureEnvironment.t, ~exp: DHExp.t, ~flt: TermBase.filter)
     : option(FilterAction.t) =>
   if (matches_exp(~denv=env, exp, ~fenv=env, flt.pat)) {
     Some(flt.act);
