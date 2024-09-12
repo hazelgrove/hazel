@@ -3,7 +3,7 @@ open Util;
 let continue = x => x;
 let stop = (_, x) => x;
 [@deriving (show({with_path: false}), sexp, yojson)]
-type deferral_position =
+type deferral_position_t =
   | InAp
   | OutsideAp;
 
@@ -61,7 +61,7 @@ and exp_term =
   | MultiHole(list(any_t))
   | DynamicErrorHole(exp_t, InvalidOperationError.t)
   | FailedCast(exp_t, typ_t, typ_t)
-  | Deferral(deferral_position)
+  | Deferral(deferral_position_t)
   | Undefined
   | Bool(bool)
   | Int(int)
@@ -165,6 +165,7 @@ and filter = {
 };
 
 module rec Any: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
 
   let map_term:
@@ -181,6 +182,7 @@ module rec Any: {
 
   let fast_equal: (t, t) => bool;
 } = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
 
   let map_term =
@@ -232,9 +234,12 @@ module rec Any: {
     };
 }
 and Exp: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type term = exp_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = exp_t;
-
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type deferral_position = deferral_position_t;
   let map_term:
     (
       ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
@@ -249,8 +254,12 @@ and Exp: {
 
   let fast_equal: (t, t) => bool;
 } = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type term = exp_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = exp_t;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type deferral_position = deferral_position_t;
 
   let map_term =
       (
@@ -456,7 +465,9 @@ and Exp: {
     };
 }
 and Pat: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type term = pat_term; // The second Typ.t field is only meaningful in dynamic patterns
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = pat_t;
 
   let map_term:
@@ -473,7 +484,9 @@ and Pat: {
 
   let fast_equal: (t, t) => bool;
 } = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type term = pat_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = pat_t;
 
   let map_term =
@@ -729,6 +742,7 @@ and Typ: {
 and TPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = tpat_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = tpat_t;
 
   let map_term:
@@ -749,6 +763,7 @@ and TPat: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = tpat_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = tpat_t;
 
   let map_term =
@@ -799,6 +814,7 @@ and TPat: {
 and Rul: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = rul_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = rul_t;
 
   let map_term:
@@ -890,7 +906,7 @@ and Environment: {
 
 and ClosureEnvironment: {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t;
+  type t = closure_environment_t;
 
   let wrap: (Id.t, Environment.t) => t;
 
@@ -1001,6 +1017,7 @@ and ClosureEnvironment: {
   let without_keys = keys => update(Environment.without_keys(keys));
 }
 and StepperFilterKind: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = stepper_filter_kind_t;
 
   let map_term:
@@ -1019,6 +1036,7 @@ and StepperFilterKind: {
 
   let fast_equal: (t, t) => bool;
 } = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = stepper_filter_kind_t;
 
   let map = (mapper, filter: t): t => {
