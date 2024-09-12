@@ -1,3 +1,95 @@
+let evaluate_extend_env =
+    (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
+    : ClosureEnvironment.t => {
+  to_extend
+  |> ClosureEnvironment.map_of
+  |> Environment.union(new_bindings)
+  |> ClosureEnvironment.of_environment;
+};
+
+let evaluate_extend_env_with_pat =
+    (
+      ids: list(Uuidm.t),
+      copied: bool,
+      pat: DHPat.t,
+      exp: DHExp.t,
+      to_extend: ClosureEnvironment.t,
+    )
+    : ClosureEnvironment.t => {
+  switch (DHPat.get_var(pat)) {
+  | Some(fname) =>
+    evaluate_extend_env(
+      Environment.singleton((
+        fname,
+        {
+          ids,
+          copied,
+          IdTagged.term: TermBase.Exp.FixF(pat, exp, Some(to_extend)),
+        },
+      )),
+      to_extend,
+    )
+  | None =>
+    let bindings = DHPat.bound_vars(pat);
+    let substitutions =
+      List.map(
+        binding =>
+          (
+            binding,
+            TermBase.Exp.Let(
+              pat,
+              {
+                ids,
+                copied,
+                term: TermBase.Exp.FixF(pat, exp, Some(to_extend)),
+              },
+              TermBase.Exp.Var(binding) |> IdTagged.fresh,
+            )
+            |> IdTagged.fresh,
+          ),
+        bindings,
+      );
+    evaluate_extend_env(Environment.of_list(substitutions), to_extend);
+  };
+};
+
+let alpha_magic = "__alpha_id__";
+
+let tangle =
+    (
+      dp: DHPat.t,
+      denv: ClosureEnvironment.t,
+      fp: DHPat.t,
+      fenv: ClosureEnvironment.t,
+    )
+    : option((ClosureEnvironment.t, ClosureEnvironment.t)) => {
+  let dvars = DHPat.bound_vars(dp);
+  let fvars = DHPat.bound_vars(fp);
+  if (List.length(dvars) != List.length(fvars)) {
+    None;
+  } else {
+    let ids =
+      Array.init(List.length(dvars), _ => {
+        alpha_magic ++ Uuidm.to_string(Uuidm.v(`V4))
+      });
+    let denv_subst: list((string, 'a)) =
+      List.mapi(
+        (i, binding) =>
+          (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+        dvars,
+      );
+    let fenv_subst: list((string, 'a)) =
+      List.mapi(
+        (i, binding) =>
+          (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+        fvars,
+      );
+    let denv = evaluate_extend_env(Environment.of_list(denv_subst), denv);
+    let fenv = evaluate_extend_env(Environment.of_list(fenv_subst), fenv);
+    Some((denv, fenv));
+  };
+};
+
 let rec matches_exp =
         (
           ~denv: ClosureEnvironment.t,
@@ -11,7 +103,10 @@ let rec matches_exp =
   if (d == f) {
     true;
   } else {
-    switch (d, f) {
+    switch (d |> DHExp.term_of, f |> DHExp.term_of) {
+    | (Parens(d), _) => matches_exp(d, f)
+    | (_, Parens(f)) => matches_exp(d, f)
+
     | (Constructor("$e", _), _) => failwith("$e in matched expression")
     | (Constructor("$v", _), _) => failwith("$v in matched expression")
 
@@ -23,28 +118,47 @@ let rec matches_exp =
     | (_, TupLabel(_, fv)) => matches_exp(d, fv)
 
     // HACK[Matt]: ignore fixpoints in comparison, to allow pausing on fixpoint steps
-    | (FixF(dp, dt, dc), FixF(fp, ft, fc)) =>
-      dp == fp
-      && dt == ft
-      && matches_exp(
-           ~denv=denv |> ClosureEnvironment.without_keys([dp]),
-           dc,
-           ~fenv=fenv |> ClosureEnvironment.without_keys([fp]),
-           fc,
-         )
-    | (FixF(dp, _, dc), f) =>
-      matches_exp(~denv=denv |> ClosureEnvironment.without_keys([dp]), dc, f)
-    | (d, FixF(fp, _, fc)) =>
-      matches_exp(d, ~fenv=fenv |> ClosureEnvironment.without_keys([fp]), fc)
+    | (FixF(dp, dc, None), FixF(fp, fc, None)) =>
+      switch (tangle(dp, denv, fp, fenv)) {
+      | None => false
+      | Some((denv, fenv)) => matches_exp(~denv, dc, ~fenv, fc)
+      }
+    | (FixF(dp, dc, None), FixF(fp, fc, Some(fenv))) =>
+      switch (tangle(dp, denv, fp, fenv)) {
+      | None => false
+      | Some((denv, fenv)) => matches_exp(~denv, dc, ~fenv, fc)
+      }
+    | (FixF(dp, dc, Some(denv)), FixF(fp, fc, None)) =>
+      switch (tangle(dp, denv, fp, fenv)) {
+      | None => false
+      | Some((denv, fenv)) => matches_exp(~denv, dc, ~fenv, fc)
+      }
+    | (FixF(dp, dc, Some(denv)), FixF(fp, fc, Some(fenv))) =>
+      switch (tangle(dp, denv, fp, fenv)) {
+      | None => false
+      | Some((denv, fenv)) => matches_exp(~denv, dc, ~fenv, fc)
+      }
+    | (FixF(dp, dc, None), _) =>
+      let denv = evaluate_extend_env_with_pat(d.ids, d.copied, dp, dc, denv);
+      matches_exp(~denv, dc, ~fenv, f);
+    | (FixF(dp, dc, Some(denv)), _) =>
+      let denv = evaluate_extend_env_with_pat(d.ids, d.copied, dp, dc, denv);
+      matches_exp(~denv, dc, ~fenv, f);
+    | (_, FixF(fp, fc, None)) =>
+      let fenv = evaluate_extend_env_with_pat(f.ids, f.copied, fp, fc, fenv);
+      matches_exp(~denv, d, ~fenv, fc);
+    | (_, FixF(fp, fc, Some(fenv))) =>
+      let fenv = evaluate_extend_env_with_pat(f.ids, f.copied, fp, fc, fenv);
+      matches_exp(~denv, d, ~fenv, fc);
 
     | (_, Constructor("$v", _)) =>
-      switch (ValueChecker.check_value(denv, d)) {
+      switch (ValueChecker.check_value((), denv, d)) {
       | Indet
       | Value => true
       | Expr => false
       }
 
-    | (_, EmptyHole(_))
+    | (_, EmptyHole)
     | (_, Constructor("$e", _)) => true
 
     | (Cast(d, _, _), Cast(f, _, _)) => matches_exp(d, f)
@@ -60,104 +174,61 @@ let rec matches_exp =
     | (FailedCast(d, _, _), _) => matches_exp(d, f)
     | (Filter(Residue(_), d), _) => matches_exp(d, f)
 
-    | (BoundVar(dx), BoundVar(fx))
-        when String.starts_with(dx, ~prefix="__mutual__") =>
-      String.starts_with(fx, ~prefix="__mutual__") && dx == fx
-    | (BoundVar(dx), BoundVar(fx)) =>
-      switch (
-        ClosureEnvironment.lookup(denv, dx),
-        ClosureEnvironment.lookup(fenv, fx),
-      ) {
-      | (
-          Some(Fun(_, _, Closure(denv, _), Some(dname)) as d),
-          Some(Fun(_, _, Closure(fenv, _), Some(fname)) as f),
-        )
-          when
-            ClosureEnvironment.lookup(denv, dname) == Some(d)
-            && ClosureEnvironment.lookup(fenv, fname) == Some(f) =>
-        matches_exp(
-          ~denv=ClosureEnvironment.without_keys([dname], denv),
-          d,
-          ~fenv=ClosureEnvironment.without_keys([fname], fenv),
-          f,
-        )
-      | (
-          Some(Fun(_, _, Closure(denv, _), Some(dname)) as d),
-          Some(Fun(_, _, _, Some(fname)) as f),
-        )
-          when
-            ClosureEnvironment.lookup(denv, dname) == Some(d)
-            && ClosureEnvironment.lookup(fenv, fname) == Some(f) =>
-        matches_exp(
-          ~denv=ClosureEnvironment.without_keys([dname], denv),
-          d,
-          ~fenv=ClosureEnvironment.without_keys([fname], fenv),
-          f,
-        )
-      | (
-          Some(Fun(_, _, _, Some(dname)) as d),
-          Some(Fun(_, _, _, Some(fname)) as f),
-        )
-          when
-            ClosureEnvironment.lookup(denv, dname) == Some(d)
-            && ClosureEnvironment.lookup(fenv, fname) == Some(f) =>
-        matches_exp(
-          ~denv=ClosureEnvironment.without_keys([dname], denv),
-          d,
-          ~fenv=ClosureEnvironment.without_keys([fname], fenv),
-          f,
-        )
-      | (
-          Some(Fun(_, _, _, Some(dname)) as d),
-          Some(Fun(_, _, _, Some(fname)) as f),
-        )
-          when
-            ClosureEnvironment.lookup(denv, dname) == Some(d)
-            && ClosureEnvironment.lookup(fenv, fname) == Some(f) =>
-        matches_exp(
-          ~denv=ClosureEnvironment.without_keys([dname], denv),
-          d,
-          ~fenv=ClosureEnvironment.without_keys([fname], denv),
-          f,
-        )
-      | (Some(d), Some(f)) => matches_exp(d, f)
-      | (Some(_), None) => false
-      | (None, Some(_)) => false
-      | (None, None) => true
+    | (Var(dx), Var(fx)) =>
+      if (String.starts_with(~prefix=alpha_magic, dx)
+          && String.starts_with(~prefix=alpha_magic, fx)) {
+        String.equal(dx, fx);
+      } else {
+        switch (
+          ClosureEnvironment.lookup(denv, dx),
+          ClosureEnvironment.lookup(fenv, fx),
+        ) {
+        | (Some(d), Some(f)) => matches_exp(d, f)
+        | (Some(_), None) => false
+        | (None, Some(_)) => false
+        | (None, None) => true
+        };
       }
-    | (BoundVar(dx), _) =>
+    | (Var(dx), _) =>
       switch (ClosureEnvironment.lookup(denv, dx)) {
       | Some(d) => matches_exp(d, f)
       | None => false
       }
-    | (_, BoundVar(fx)) =>
+    | (_, Var(fx)) =>
       switch (ClosureEnvironment.lookup(fenv, fx)) {
       | Some(f) => matches_exp(d, f)
       | None => false
       }
 
-    | (EmptyHole(_), _) => false
+    | (EmptyHole, _) => false
+
+    | (Deferral(x), Deferral(y)) => x == y
+    | (Deferral(_), _) => false
 
     | (Filter(df, dd), Filter(ff, fd)) =>
-      DH.DHFilter.fast_equal(df, ff) && matches_exp(dd, fd)
+      TermBase.StepperFilterKind.fast_equal(df, ff) && matches_exp(dd, fd)
     | (Filter(_), _) => false
 
-    | (BoolLit(dv), BoolLit(fv)) => dv == fv
-    | (BoolLit(_), _) => false
+    | (Bool(dv), Bool(fv)) => dv == fv
+    | (Bool(_), _) => false
 
-    | (IntLit(dv), IntLit(fv)) => dv == fv
-    | (IntLit(_), _) => false
+    | (Int(dv), Int(fv)) => dv == fv
+    | (Int(_), _) => false
 
-    | (FloatLit(dv), FloatLit(fv)) => dv == fv
-    | (FloatLit(_), _) => false
+    | (Float(dv), Float(fv)) => dv == fv
+    | (Float(_), _) => false
 
-    | (StringLit(dv), StringLit(fv)) => dv == fv
-    | (StringLit(_), _) => false
+    | (String(dv), String(fv)) => dv == fv
+    | (String(_), _) => false
 
     | (Label(dv), Label(fv)) => dv == fv
     | (Label(_), _) => false
 
-    | (Constructor(_), Ap(Constructor("~MVal", _), Tuple([]))) => true
+    | (
+        Constructor(_),
+        Ap(_, {term: Constructor("~MVal", _), _}, {term: Tuple([]), _}),
+      ) =>
+      true
     | (Constructor(dt, _), Constructor(ft, _)) => dt == ft
     | (Constructor(_), _) => false
 
@@ -168,61 +239,60 @@ let rec matches_exp =
       s1 == s2 && matches_utpat(pat1, pat2) && matches_exp(d1, d2)
     | (TypFun(_), _) => false
 
-    | (
-        Fun(dp1, _, Closure(denv, d1), _),
-        Fun(fp1, _, Closure(fenv, f1), _),
-      ) =>
+    | (Fun(dp1, d1, Some(denv), _), Fun(fp1, f1, Some(fenv), _)) =>
       matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
-    | (Fun(dp1, _, Closure(denv, d1), _), Fun(fp1, _, f1, _)) =>
+    | (Fun(dp1, d1, Some(denv), _), Fun(fp1, f1, None, _)) =>
       matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
-    | (Fun(dp1, _, d1, _), Fun(fp1, _, Closure(fenv, f1), _)) =>
+    | (Fun(dp1, d1, None, _), Fun(fp1, f1, Some(fenv), _)) =>
       matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
-    | (Fun(dp1, _, d1, _), Fun(fp1, _, f1, _)) =>
+    | (Fun(dp1, d1, None, _), Fun(fp1, f1, None, _)) =>
       matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
     | (Fun(_), _) => false
 
-    | (FreeVar(du, di, dx), FreeVar(fu, fi, fx)) =>
-      du == fu && di == fi && dx == fx
-    | (FreeVar(_), _) => false
-
     | (Let(dp, d1, d2), Let(fp, f1, f2)) =>
-      matches_pat(dp, fp) && matches_exp(d1, f1) && matches_exp(d2, f2)
+      switch (tangle(dp, denv, fp, fenv)) {
+      | None => false
+      | Some((denv, fenv)) =>
+        matches_exp(d1, f1) && matches_exp(~denv, d2, ~fenv, f2)
+      }
     | (Let(_), _) => false
 
     | (TypAp(d1, t1), TypAp(d2, t2)) =>
       matches_exp(d1, d2) && matches_typ(t1, t2)
     | (TypAp(_), _) => false
 
-    | (Ap(d1, d2), Ap(f1, f2)) =>
+    // TODO: do we want f(x) to match x |> f ???
+    | (Ap(_, d1, d2), Ap(_, f1, f2)) =>
       matches_exp(d1, f1) && matches_exp(d2, f2)
     | (Ap(_), _) => false
 
-    | (IfThenElse(dc, d1, d2, d3), IfThenElse(fc, f1, f2, f3)) =>
-      dc == fc
-      && matches_exp(d1, f1)
-      && matches_exp(d2, f2)
-      && matches_exp(d3, f3)
-    | (IfThenElse(_), _) => false
+    | (DeferredAp(d1, d2), DeferredAp(f1, f2)) =>
+      matches_exp(d1, f1)
+      && List.fold_left2(
+           (acc, d, f) => acc && matches_exp(d, f),
+           true,
+           d2,
+           f2,
+         )
+    | (DeferredAp(_), _) => false
 
-    | (Sequence(d1, d2), Sequence(f1, f2)) =>
+    | (If(d1, d2, d3), If(f1, f2, f3)) =>
+      matches_exp(d1, f1) && matches_exp(d2, f2) && matches_exp(d3, f3)
+    | (If(_), _) => false
+
+    | (Seq(d1, d2), Seq(f1, f2)) =>
       matches_exp(d1, f1) && matches_exp(d2, f2)
-    | (Sequence(_), _) => false
+    | (Seq(_), _) => false
 
-    | (Test(id1, d2), Test(id2, f2)) => id1 == id2 && matches_exp(d2, f2)
+    | (Test(d2), Test(f2)) => matches_exp(d2, f2)
     | (Test(_), _) => false
 
     | (Cons(d1, d2), Cons(f1, f2)) =>
       matches_exp(d1, f1) && matches_exp(d2, f2)
     | (Cons(_), _) => false
 
-    | (ListLit(_, _, dt, dv), ListLit(_, _, ft, fv)) =>
-      dt == ft
-      && List.fold_left2(
-           (acc, d, f) => acc && matches_exp(d, f),
-           true,
-           dv,
-           fv,
-         )
+    | (ListLit(dv), ListLit(fv)) =>
+      List.fold_left2((acc, d, f) => acc && matches_exp(d, f), true, dv, fv)
     | (ListLit(_), _) => false
 
     | (Dot(d1, d2), Dot(f1, f2)) =>
@@ -233,40 +303,29 @@ let rec matches_exp =
       List.fold_left2((acc, d, f) => acc && matches_exp(d, f), true, dv, fv)
     | (Tuple(_), _) => false
 
-    | (BinBoolOp(d_op_bin, d1, d2), BinBoolOp(f_op_bin, f1, f2)) =>
-      d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
+    | (UnOp(d_op, d1), UnOp(f_op, f1)) =>
+      d_op == f_op && matches_exp(d1, f1)
+    | (UnOp(_), _) => false
 
-    | (BinBoolOp(_), _) => false
+    | (BinOp(d_op, d1, d2), BinOp(f_op, f1, f2)) =>
+      d_op == f_op && matches_exp(d1, f1) && matches_exp(d2, f2)
+    | (BinOp(_), _) => false
 
-    | (BinIntOp(d_op_bin, d1, d2), BinIntOp(f_op_bin, f1, f2)) =>
-      d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
-    | (BinIntOp(_), _) => false
-
-    | (BinFloatOp(d_op_bin, d1, d2), BinFloatOp(f_op_bin, f1, f2)) =>
-      d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
-    | (BinFloatOp(_), _) => false
-
-    | (BinStringOp(d_op_bin, d1, d2), BinStringOp(f_op_bin, f1, f2)) =>
-      d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
-    | (BinStringOp(_), _) => false
-
+    | (ListConcat(d1, d2), ListConcat(f1, f2)) =>
+      matches_exp(d1, f1) && matches_exp(d2, f2)
     | (ListConcat(_), _) => false
 
-    | (
-        ConsistentCase(Case(dscrut, drule, _)),
-        ConsistentCase(Case(fscrut, frule, _)),
-      )
-    | (
-        InconsistentBranches(_, _, Case(dscrut, drule, _)),
-        InconsistentBranches(_, _, Case(fscrut, frule, _)),
-      ) =>
+    | (Match(dscrut, drule), Match(fscrut, frule)) =>
       matches_exp(dscrut, fscrut)
       && (
         switch (
-          List.fold_left2(
-            (res, drule, frule) =>
-              res && matches_rul(~denv, drule, ~fenv, frule),
-            true,
+          List.for_all2(
+            ((dk, dv), (fk, fv)) => {
+              switch (tangle(dk, denv, fk, fenv)) {
+              | None => false
+              | Some((denv, fenv)) => matches_exp(~denv, dv, ~fenv, fv)
+              }
+            },
             drule,
             frule,
           )
@@ -275,24 +334,21 @@ let rec matches_exp =
         | res => res
         }
       )
-    | (ConsistentCase(_), _)
-    | (InconsistentBranches(_), _) => false
-
-    | (NonEmptyHole(_), _) => false
-    | (InvalidText(_), _) => false
-    | (InvalidOperation(_), _) => false
+    | (Match(_), _) => false
+    // TODO: should these not default to false?
+    | (MultiHole(_), _) => false
+    | (Invalid(_), _) => false
+    | (DynamicErrorHole(_), _) => false
 
     | (Undefined, _) => false
 
-    | (ApBuiltin(dname, darg), ApBuiltin(fname, farg)) =>
-      dname == fname && matches_exp(darg, farg)
-    | (ApBuiltin(_), _) => false
-
-    | (Prj(dv, di), Prj(fv, fi)) => matches_exp(dv, fv) && di == fi
-    | (Prj(_), _) => false
+    | (TyAlias(dtp, dut, dd), TyAlias(ftp, fut, fd)) =>
+      dtp == ftp && dut == fut && matches_exp(dd, fd)
+    | (TyAlias(_), _) => false
     };
   };
 }
+
 and matches_fun =
     (
       ~denv: ClosureEnvironment.t,
@@ -302,77 +358,38 @@ and matches_fun =
       fp: DHPat.t,
       f: DHExp.t,
     ) => {
-  matches_pat(dp, fp)
-  && matches_exp(
-       ~denv=ClosureEnvironment.without_keys(DHPat.bound_vars(dp), denv),
-       d,
-       ~fenv=ClosureEnvironment.without_keys(DHPat.bound_vars(fp), fenv),
-       f,
-     );
-}
-and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
-  switch (d, f) {
-  /* Labels are a special case*/
-  | (TupLabel(_, dx), TupLabel(_, fx)) =>
-    LabeledTuple.equal(DHPat.get_label(d), DHPat.get_label(f))
-    && matches_pat(dx, fx)
-  | (TupLabel(_, dx), _) => matches_pat(dx, f)
-  | (_, TupLabel(_, fx)) => matches_pat(d, fx)
-  | (_, EmptyHole(_)) => true
-  | (Wild, Wild) => true
-  | (Wild, _) => false
-  | (IntLit(dv), IntLit(fv)) => dv == fv
-  | (IntLit(_), _) => false
-  | (FloatLit(dv), FloatLit(fv)) => dv == fv
-  | (FloatLit(_), _) => false
-  | (BoolLit(dv), BoolLit(fv)) => dv == fv
-  | (BoolLit(_), _) => false
-  | (StringLit(dv), StringLit(fv)) => dv == fv
-  | (StringLit(_), _) => false
-  | (Label(dv), Label(fv)) => dv == fv
-  | (Label(_), _) => false
-  | (ListLit(dty1, dl), ListLit(fty1, fl)) =>
-    switch (
-      List.fold_left2((res, d, f) => res && matches_pat(d, f), true, dl, fl)
-    ) {
-    | exception (Invalid_argument(_)) => false
-    | res => matches_typ(dty1, fty1) && res
-    }
-  | (ListLit(_), _) => false
-  | (Constructor(dt, _), Constructor(ft, _)) => dt == ft
-  | (Constructor(_), _) => false
-  | (Var(_), Var(_)) => true
-  | (Var(_), _) => false
-  | (Tuple(dl), Tuple(fl)) =>
-    switch (
-      List.fold_left2((res, d, f) => res && matches_pat(d, f), true, dl, fl)
-    ) {
-    | exception (Invalid_argument(_)) => false
-    | res => res
-    }
-  | (Tuple(_), _) => false
-  | (Ap(d1, d2), Ap(f1, f2)) => matches_pat(d1, f1) && matches_pat(d2, f2)
-  | (Ap(_), _) => false
-  | (BadConstructor(_, _, dt), BadConstructor(_, _, ft)) => dt == ft
-  | (BadConstructor(_), _) => false
-  | (Cons(d1, d2), Cons(f1, f2)) =>
-    matches_pat(d1, f1) && matches_pat(d2, f2)
-  | (Cons(_), _) => false
-  | (EmptyHole(_), _) => false
-  | (NonEmptyHole(_), _) => false
-  | (InvalidText(_), _) => false
+  let dvars = DHPat.bound_vars(dp);
+  let fvars = DHPat.bound_vars(fp);
+  if (List.length(dvars) != List.length(fvars)) {
+    false;
+  } else {
+    let ids =
+      Array.init(List.length(dvars), _ => {
+        alpha_magic ++ Uuidm.to_string(Uuidm.v(`V4))
+      });
+    let denv_subst: list((string, 'a)) =
+      List.mapi(
+        (i, binding) =>
+          (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+        dvars,
+      );
+    let fenv_subst: list((string, 'a)) =
+      List.mapi(
+        (i, binding) =>
+          (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+        fvars,
+      );
+    let denv = evaluate_extend_env(Environment.of_list(denv_subst), denv);
+    let fenv = evaluate_extend_env(Environment.of_list(fenv_subst), fenv);
+    matches_exp(~denv, d, ~fenv, f);
   };
 }
+
 and matches_typ = (d: Typ.t, f: Typ.t) => {
   Typ.eq(d, f);
 }
-and matches_rul = (~denv, d: DHExp.rule, ~fenv, f: DHExp.rule) => {
-  switch (d, f) {
-  | (Rule(dp, d), Rule(fp, f)) =>
-    matches_pat(dp, fp) && matches_exp(~denv, d, ~fenv, f)
-  };
-}
-and matches_utpat = (d: Term.UTPat.t, f: Term.UTPat.t): bool => {
+
+and matches_utpat = (d: TPat.t, f: TPat.t): bool => {
   switch (d.term, f.term) {
   | (Invalid(_), _) => false
   | (_, Invalid(_)) => false
@@ -384,7 +401,11 @@ and matches_utpat = (d: Term.UTPat.t, f: Term.UTPat.t): bool => {
 };
 
 let matches =
-    (~env: ClosureEnvironment.t, ~exp: DHExp.t, ~flt: Filter.t)
+    (
+      ~env: ClosureEnvironment.t,
+      ~exp: DHExp.t,
+      ~flt: TermBase.StepperFilterKind.filter,
+    )
     : option(FilterAction.t) =>
   if (matches_exp(~denv=env, exp, ~fenv=env, flt.pat)) {
     Some(flt.act);

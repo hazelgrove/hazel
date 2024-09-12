@@ -1,7 +1,5 @@
 open Suggestion;
 
-let expander = AssistantExpander.c;
-
 /* For suggestions in patterns, suggest variables which
  * occur free in that pattern's scope. */
 let free_variables =
@@ -50,12 +48,12 @@ let bound_constructors =
 let bound_aps = (ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
   List.filter_map(
     fun
-    | Ctx.VarEntry({typ: Arrow(_, ty_out) as ty_arr, name, _})
+    | Ctx.VarEntry({typ: {term: Arrow(_, ty_out), _} as ty_arr, name, _})
         when
           Typ.is_consistent(ctx, ty_expect, ty_out)
           && !Typ.is_consistent(ctx, ty_expect, ty_arr) => {
         Some({
-          content: name ++ "(" ++ expander,
+          content: name ++ "(",
           strategy: Exp(Common(FromCtxAp(ty_out))),
         });
       }
@@ -66,14 +64,15 @@ let bound_aps = (ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
 let bound_constructor_aps = (wrap, ty: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
   List.filter_map(
     fun
-    | Ctx.ConstructorEntry({typ: Arrow(_, ty_out) as ty_arr, name, _})
+    | Ctx.ConstructorEntry({
+        typ: {term: Arrow(_, ty_out), _} as ty_arr,
+        name,
+        _,
+      })
         when
           Typ.is_consistent(ctx, ty, ty_out)
           && !Typ.is_consistent(ctx, ty, ty_arr) =>
-      Some({
-        content: name ++ "(" ++ expander,
-        strategy: wrap(FromCtxAp(ty_out)),
-      })
+      Some({content: name ++ "(", strategy: wrap(FromCtxAp(ty_out))})
     | _ => None,
     ctx,
   );
@@ -141,7 +140,7 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
     let exp_aps = ty =>
       bound_aps(ty, ctx)
       @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
-    switch (Mode.ty_of(mode)) {
+    switch (Mode.ty_of(mode) |> Typ.term_of) {
     | List(ty) =>
       List.map(restrategize(" )::"), exp_aps(ty))
       @ List.map(restrategize("::"), exp_refs(ty))
@@ -152,12 +151,12 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
       @ List.map(restrategize(commas), exp_refs(ty));
     | Bool =>
       /* TODO: Find a UI to make these less confusing */
-      exp_refs(Int)
-      @ exp_refs(Float)
-      @ exp_refs(String)
-      @ exp_aps(Int)
-      @ exp_aps(Float)
-      @ exp_aps(String)
+      exp_refs(Int |> Typ.fresh)
+      @ exp_refs(Float |> Typ.fresh)
+      @ exp_refs(String |> Typ.fresh)
+      @ exp_aps(Int |> Typ.fresh)
+      @ exp_aps(Float |> Typ.fresh)
+      @ exp_aps(String |> Typ.fresh)
     | _ => []
     };
   | InfoPat({mode, co_ctx, _}) =>
@@ -165,7 +164,7 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
       free_variables(ty, ctx, co_ctx)
       @ bound_constructors(x => Pat(Common(x)), ty, ctx);
     let pat_aps = ty => bound_constructor_aps(x => Pat(Common(x)), ty, ctx);
-    switch (Mode.ty_of(mode)) {
+    switch (Mode.ty_of(mode) |> Typ.term_of) {
     | List(ty) =>
       List.map(restrategize(" )::"), pat_aps(ty))
       @ List.map(restrategize("::"), pat_refs(ty))

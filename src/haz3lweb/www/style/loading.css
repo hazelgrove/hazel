@@ -1,0 +1,35 @@
+/* LOADING: This shows before the app is loaded */
+
+#container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--light-page-color);
+  color: var(--STONE);
+  font-size: 1.75em;
+  font-style: italic;
+}
+
+#container .loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#container .loading .spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#container .loading .spinner .spinner-nut {
+  position: fixed;
+  transform: scale(0.25);
+  filter: invert();
+}
