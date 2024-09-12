@@ -1,3 +1,3 @@
 include
-   (module type of DH.ClosureEnvironment) with
-    type t = DH.ClosureEnvironment.t;
+   (module type of TermBase.ClosureEnvironment) with
+    type t = TermBase.ClosureEnvironment.t;

@@ -118,7 +118,7 @@ let rec is_inconsistent = (xis: list(Constraint.t)): bool =>
       | (ss, []) => is_inconsistent_string(ss)
       | (ss, others) => is_inconsistent(others @ ss)
       }
-    | TupLabel(_, xi) => is_inconsistent([xi, ...xis'])
+    | TupLabel(_, xi') => is_inconsistent([xi', ...xis'])
     | Pair(_, _) =>
       switch (
         List.partition(

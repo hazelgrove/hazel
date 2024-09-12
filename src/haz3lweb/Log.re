@@ -8,27 +8,21 @@ let is_action_logged: UpdateAction.t => bool =
   | Save
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | ExportPersistentData
+  | Export(_)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | Benchmark(_)
   | DebugConsole(_) => false
   | Reset
   | TAB
-  | Assistant(_)
   | Set(_)
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | SwitchEditor(_)
   | ResetCurrentEditor
-  | ReparseCurrentEditor
   | PerformAction(_)
-  | Cut
-  | Copy
-  | Paste(_)
   | Undo
   | Redo
-  | MoveToNextHole(_)
   | UpdateResult(_)
   | ToggleStepper(_)
   | StepperAction(_, StepForward(_) | StepBackward)

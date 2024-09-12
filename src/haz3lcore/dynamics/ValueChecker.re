@@ -1,6 +1,5 @@
 open DHExp;
 open Transition;
-open Util;
 
 type t =
   | Value
@@ -56,6 +55,13 @@ module ValueCheckerEVMode: {
       ([], (Value, true)),
     );
 
+  let req_final_or_value = (vc, _, d) =>
+    switch (vc(d)) {
+    | Value => ((d, true), (Value, true))
+    | Indet => ((d, false), (Value, true))
+    | Expr => ((d, false), (Value, false))
+    };
+
   let otherwise = (_, _) => ((), (Value, true));
 
   let (let.) = ((v, (r, b)), rule) =>
@@ -71,27 +77,20 @@ module ValueCheckerEVMode: {
     ((v1, v2), combine(r1, r2));
   };
 
-  let update_test = ((), _, _) => ();
+  let update_test = (_, _, _) => ();
 };
 
 module CV = Transition(ValueCheckerEVMode);
 
-let rec check_value = ((), env, d) => CV.transition(check_value, (), env, d);
+let rec check_value = (state, env, d) =>
+  CV.transition(check_value, state, env, d);
 
-let check_value = check_value();
-
-let rec check_value_mod_ctx = ((), env) =>
-  fun
-  | BoundVar(x) =>
-    check_value_mod_ctx(
-      (),
-      env,
-      ClosureEnvironment.lookup(env, x)
-      |> OptUtil.get(() => {
-           print_endline("FreeInvalidVar:" ++ x);
-           raise(EvaluatorError.Exception(FreeInvalidVar(x)));
-         }),
-    )
-  | d => CV.transition(check_value_mod_ctx, (), env, d);
-
-let check_value_mod_ctx = check_value_mod_ctx();
+let rec check_value_mod_ctx = ((), env, d) =>
+  switch (DHExp.term_of(d)) {
+  | Var(x) =>
+    switch (ClosureEnvironment.lookup(env, x)) {
+    | Some(v) => check_value_mod_ctx((), env, v)
+    | None => CV.transition(check_value_mod_ctx, (), env, d)
+    }
+  | _ => CV.transition(check_value_mod_ctx, (), env, d)
+  };

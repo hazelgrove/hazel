@@ -9,6 +9,7 @@ let precedence_Power: int;
 let precedence_Divide: int;
 let precedence_Plus: int;
 let precedence_Minus: int;
+let precedence_Not: int;
 let precedence_Cons: int;
 let precedence_Equals: int;
 let precedence_LessThan: int;
@@ -30,7 +31,7 @@ let pad_child:
 module Delim: {
   let mk: string => DHDoc.t;
 
-  let empty_hole: HoleInstance.t => DHDoc.t;
+  let empty_hole: ClosureEnvironment.t => DHDoc.t;
 
   let list_nil: DHDoc.t;
   let triv: DHDoc.t;
@@ -55,6 +56,7 @@ module Delim: {
 
   let open_Cast: DHDoc.t;
   let arrow_Cast: DHDoc.t;
+  let back_arrow_Cast: DHDoc.t;
   let close_Cast: DHDoc.t;
 
   let open_FailedCast: Pretty.Doc.t(DHAnnot.t);
@@ -63,9 +65,9 @@ module Delim: {
 };
 
 let mk_EmptyHole:
-  (~selected: bool=?, HoleInstance.t) => Pretty.Doc.t(DHAnnot.t);
+  (~selected: bool=?, ClosureEnvironment.t) => Pretty.Doc.t(DHAnnot.t);
 
-let mk_InvalidText: (string, HoleInstance.t) => Pretty.Doc.t(DHAnnot.t);
+let mk_InvalidText: string => Pretty.Doc.t(DHAnnot.t);
 
 let mk_Sequence: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
@@ -95,7 +97,7 @@ let mk_TypAp: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
-let mk_Prj: (Pretty.Doc.t(DHAnnot.t), int) => Pretty.Doc.t(DHAnnot.t);
+let mk_rev_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Dot: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 

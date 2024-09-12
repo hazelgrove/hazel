@@ -3,24 +3,20 @@ open Node;
 open Util.Web;
 open Haz3lcore;
 
+let tpat_view = (tpat: Haz3lcore.TPat.t): string =>
+  switch (tpat.term) {
+  | Var(x) => x
+  | _ => "?"
+  };
+
 let ty_view = (cls: string, s: string): Node.t =>
   div(~attrs=[clss(["typ-view", cls])], [text(s)]);
 
 let alias_view = (s: string): Node.t =>
   div(~attrs=[clss(["typ-alias-view"])], [text(s)]);
 
-let prov_view: Typ.type_provenance => Node.t =
-  fun
-  | Internal => div([])
-  | Free(name) =>
-    div(~attrs=[clss(["typ-mod", "free-type-var"])], [text(name)])
-  | TypeHole =>
-    div(~attrs=[clss(["typ-mod", "type-hole"])], [text("𝜏")])
-  | SynSwitch =>
-    div(~attrs=[clss(["typ-mod", "syn-switch"])], [text("⇒")]);
-
 let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
-  switch (ty) {
+  switch (Typ.term_of(ty)) {
   | Unknown(prov) =>
     div(
       ~attrs=[
@@ -29,6 +25,7 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
       ],
       [text("?") /*, prov_view(prov)*/],
     )
+  | Parens(ty) => view_ty(ty)
   | Int => ty_view("Int", "Int")
   | Float => ty_view("Float", "Float")
   | String => ty_view("String", "String")
@@ -39,12 +36,12 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
   | Rec(name, t) =>
     div(
       ~attrs=[clss(["typ-view", "Rec"])],
-      [text("rec " ++ name ++ " -> "), view_ty(t)],
+      [text("Rec " ++ tpat_view(name) ++ ". "), view_ty(t)],
     )
   | Forall(name, t) =>
     div(
       ~attrs=[clss(["typ-view", "Forall"])],
-      [text("forall " ++ name ++ " -> "), view_ty(t)],
+      [text("forall " ++ tpat_view(name) ++ " -> "), view_ty(t)],
     )
   | List(t) =>
     div(
@@ -99,16 +96,25 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
         ctr_view(t0) @ ts_views;
       },
     )
+  | Ap(_) =>
+    div(
+      ~attrs=[
+        clss(["typ-view", "atom", "unknown"]),
+        Attr.title(Typ.show_type_provenance(Internal)),
+      ],
+      [text("?") /*, prov_view(prov)*/],
+    )
   }
-and ctr_view = ((ctr, typ)) =>
-  switch (typ) {
-  | None => [text(ctr)]
-  | Some(typ) => [
+and ctr_view =
+  fun
+  | Variant(ctr, _, None) => [text(ctr)]
+  | Variant(ctr, _, Some(typ)) => [
       text(ctr ++ "("),
-      view_ty(~strip_outer_parens=true, typ),
+      view_ty(typ),
       text(")"),
     ]
-  }
+  | BadEntry(typ) => [view_ty(typ)]
+
 and paren_view = typ =>
   if (Typ.needs_parens(typ)) {
     [text("("), view_ty(~strip_outer_parens=true, typ), text(")")];
@@ -117,4 +123,4 @@ and paren_view = typ =>
   };
 
 let view = (ty: Haz3lcore.Typ.t): Node.t =>
-  div_c("typ-wrapper", [view_ty(ty)]);
+  div(~attrs=[clss(["type", "code"])], [view_ty(ty)]);
