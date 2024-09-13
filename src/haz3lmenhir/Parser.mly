@@ -100,11 +100,24 @@ open AST
 %nonassoc LET_EXP
 
 %left PLUS MINUS TIMES POWER DIVIDE DOUBLE_EQUAL NOT_EQUAL LESS_THAN LESS_THAN_EQUAL GREATER_THAN GREATER_THAN_EQUAL 
+
+%left PLUS_FLOAT MINUS_FLOAT TIMES_FLOAT POWER_FLOAT DIVIDE_FLOAT DOUBLE_EQUAL_FLOAT NOT_EQUAL_FLOAT LESS_THAN_FLOAT LESS_THAN_EQUAL_FLOAT GREATER_THAN_FLOAT GREATER_THAN_EQUAL_FLOAT
+
 (* Other *)
 %left DASH_ARROW
 %left CONS
 %left OPEN_PAREN
+%right QUESTION
+%left COLON
+%left COMMA
+%left AT_SYMBOL
+%left SEMI_COLON
+%left IN
+%left DOLLAR_SIGN
+%left L_NOT L_AND L_OR
 
+(* Might not be correct - milan *)
+%left IDENT
 
 %type <AST.exp> exp
 
@@ -152,7 +165,7 @@ program:
     | b = boolOp { b }
 
 binExp:
-    | e1 = exp; b = intOp; e2 = exp { BinExp (e1, b, e2) }
+    | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
 
 typ:
     | QUESTION; s = STRING { InvalidTyp(s) }
@@ -178,7 +191,6 @@ pat:
     | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { ConstructorPat(c, t) }
     | p = varPat {p}
     | t = patTuple { t }
-    (* | t = typeAnn { t } *)
     | i = INT { IntPat i }
     | f = FLOAT { FloatPat f }
     | s = STRING { StringPat s}
@@ -191,9 +203,6 @@ pat:
 
 patTuple: 
     | OPEN_PAREN; pats = separated_list(COMMA, pat); CLOSE_PAREN { TuplePat(pats) }
-
-(* typeAnn:  *)
-    (* | p = pat; COLON; t = typ { TypeAnn(p, t) } *)
 
 rul:
     | TURNSTILE; p = pat; EQUAL_ARROW; e = exp; { (p, e) }
@@ -226,9 +235,6 @@ unExp:
     | L_NOT; e = exp {UnOp(Bool(Not), e)}
 
 
-(* apExp: *)
-(*     | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) } *)
-
 exp:
     | b = binExp { b }
     | i = INT { Int i }
@@ -245,24 +251,24 @@ exp:
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
     | i = ifExp { i }
     | e1 = exp; QUESTION; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN {FailedCast(e1, t1, t2)}
-    (* | e1 = exp; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN { Cast(e1, t1, t2) } *)
-    (* | TRUE { Bool true } *)
-    (* | f = funExp {f} *)
-    (* | FALSE { Bool false }     *)
-    (* | FIX;  p = pat; DASH_ARROW; e = exp { FixF(p, e) } *)
-    (* | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)} *)
-    (* | QUESTION { EmptyHole } *)
-    (* | a = filterAction; cond = exp; body = exp { Filter(a, cond, body)} *)
-    (* | TEST; e = exp; END { Test(e) } *)
-    (* | e1 = exp; AT_SYMBOL; e2 = exp { ListConcat(e1, e2) } *)
-    (* | e1 = exp; CONS; e2 = exp { Cons(e1, e2) } *)
-    (* | e1 = exp; SEMI_COLON; e2 = exp { Seq(e1, e2) } *)
-    (* | QUESTION; s = STRING; { InvalidExp(s) } *)
-    (* | IN_AP; WILD {Deferral(InAp)} *)
-    (* | OUT_AP; WILD {Deferral(OutsideAp)} *)
-    (* | e = exp; AT_SYMBOL; LESS_THAN; ty = typ; GREATER_THAN; {TypAp(e, ty)} *)
-    (* | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)} *)
-    (* | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = SEXP_STRING; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)} *)
-    (* | b = BUILTIN; {BuiltinFun(b)} *)
-    (* | UNDEF; {Undefined} *)
-    (* | u = unExp { u } *)
+    | e1 = exp; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN { Cast(e1, t1, t2) }
+    | TRUE { Bool true }
+    | f = funExp {f}
+    | FALSE { Bool false }    
+    | FIX;  p = pat; DASH_ARROW; e = exp { FixF(p, e) }
+    | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
+    | QUESTION { EmptyHole }
+    | a = filterAction; cond = exp; COMMA; body = exp { Filter(a, cond, body)}
+    | TEST; e = exp; END { Test(e) }
+    | e1 = exp; AT_SYMBOL; e2 = exp { ListConcat(e1, e2) }
+    | e1 = exp; CONS; e2 = exp { Cons(e1, e2) }
+    | e1 = exp; SEMI_COLON; e2 = exp { Seq(e1, e2) }
+    | QUESTION; s = STRING; { InvalidExp(s) }
+    | IN_AP; WILD {Deferral(InAp)}
+    | OUT_AP; WILD {Deferral(OutsideAp)}
+    | e = exp; AT_SYMBOL; LESS_THAN; ty = typ; GREATER_THAN; {TypAp(e, ty)}
+    | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)}
+    | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = SEXP_STRING; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
+    | b = BUILTIN; {BuiltinFun(b)}
+    | UNDEF; {Undefined}
+    | u = unExp { u }
