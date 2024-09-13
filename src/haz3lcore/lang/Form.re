@@ -110,7 +110,9 @@ let is_keyword = match(keyword_regexp);
 
 /* Potential tokens: These are fallthrough classes which determine
  * the behavior when inserting a character in contact with a token */
-let is_potential_operand = match(regexp("^[a-zA-Z0-9_'\\.?]+$"));
+let is_potential_operand = x =>
+  match(regexp("^[a-zA-Z0-9_'?]+$"), x)
+  || match(regexp("^[0-9_'\\.?]+$"), x);
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
