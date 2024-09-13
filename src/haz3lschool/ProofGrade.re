@@ -53,10 +53,9 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         | ResultOk({result, _}) =>
           ignore(rule);
           switch (result) {
-          // TODO(zhiyao): revise this part
-          // | BoxedValue(d) =>
-          //   Ok({jdmt: BuiltinsDerivation.prop_of_dhexp(d), rule})
-          // | Indet(_) => Error(EvalIndet)
+          | BoxedValue({term: Derivation(d), _}) =>
+            Ok({jdmt: DrvElab.elaborate(d), rule})
+          | Indet(_) => Error(EvalIndet)
           | _ => Error(EvalIndet)
           };
         | Off(_) => Error(EvalOff)

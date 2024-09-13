@@ -365,8 +365,16 @@ and alfa_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
 
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
-  let ids = ids(unsorted) @ inner_ids;
-  return(e => Exp(e), ids, {ids, copied: false, term});
+  switch (term) {
+  | MultiHole([Drv(_), _]) =>
+    let (term, inner_ids) = jdmt_term(unsorted);
+    let ids = ids(unsorted) @ inner_ids;
+    let jdmt = return(e => Drv(Jdmt(e)), ids, {ids, copied: false, term});
+    TermBase.Exp.Derivation(Jdmt(jdmt)) |> IdTagged.fresh;
+  | _ =>
+    let ids = ids(unsorted) @ inner_ids;
+    return(e => Exp(e), ids, {ids, copied: false, term});
+  };
 }
 and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   let ret = (tm: UExp.term) => (tm, []);

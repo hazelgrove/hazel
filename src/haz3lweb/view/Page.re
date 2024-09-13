@@ -162,7 +162,7 @@ let main_view =
           ~ui_state,
           ~settings,
           ~explainThisModel,
-          cursor_info,
+          cursor_info // Now a {info, results}
         )
       : div([]);
   [
