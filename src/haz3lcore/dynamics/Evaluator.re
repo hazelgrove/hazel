@@ -133,7 +133,6 @@ let rec evaluate = (state, env, d) => {
 };
 
 let evaluate = (env, {d}: Elaborator.Elaboration.t) => {
-  print_endline("eval");
   let state = ref(EvaluatorState.init);
   let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);
@@ -143,6 +142,5 @@ let evaluate = (env, {d}: Elaborator.Elaboration.t) => {
     | (Indet, x) => Indet(x |> DHExp.repair_ids)
     | (Uneval, x) => Indet(x |> DHExp.repair_ids)
     };
-  print_endline("eval end");
   (state^, result);
 };
