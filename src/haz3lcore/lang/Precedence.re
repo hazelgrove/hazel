@@ -25,15 +25,15 @@ let ann = 13;
 let if_ = 14;
 let fun_ = 15;
 let lab = 16;
-let semi = 16;
-let let_ = 17;
-let filter = 18;
-let rule_arr = 19;
-let rule_pre = 20;
-let rule_sep = 21;
-let case_ = 22;
+let semi = 17;
+let let_ = 18;
+let filter = 19;
+let rule_arr = 20;
+let rule_pre = 21;
+let rule_sep = 22;
+let case_ = 23;
 
-let comma = 17;
+let comma = 18;
 
 let type_plus = 5;
 let type_arrow = 6;
