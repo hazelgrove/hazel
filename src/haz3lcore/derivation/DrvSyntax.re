@@ -37,8 +37,13 @@ type term =
   | Ctx(list(t))
   // ALFA Exp
   | NumLit(int)
-  | UnOp(t, t)
-  | BinOp(t, t, t)
+  | Neg(t)
+  | Plus(t, t)
+  | Minus(t, t)
+  | Times(t, t)
+  | Lt(t, t)
+  | Gt(t, t)
+  | Eq(t, t)
   | True
   | False
   | If(t, t, t)
@@ -60,15 +65,6 @@ type term =
   | Case(t, t, t, t, t)
   | Roll(t)
   | Unroll(t)
-  // ALFA UnOp
-  | OpNeg
-  // ALFA BinOp
-  | OpPlus
-  | OpMinus
-  | OpTimes
-  | OpLt
-  | OpGt
-  | OpEq
   // ALFA Pat
   | Pat(string)
   // ALFA Typ
@@ -106,8 +102,13 @@ type cls =
   | Falsity
   | Ctx
   | NumLit
-  | UnOp
-  | BinOp
+  | Neg
+  | Plus
+  | Minus
+  | Times
+  | Lt
+  | Gt
+  | Eq
   | True
   | False
   | If
@@ -129,13 +130,6 @@ type cls =
   | Case
   | Roll
   | Unroll
-  | OpNeg
-  | OpPlus
-  | OpMinus
-  | OpTimes
-  | OpLt
-  | OpGt
-  | OpEq
   | Pat
   | Num
   | Bool
@@ -168,8 +162,13 @@ let precedence: t => int =
     | Ctx(_) => P.max
     // ALFA Exp
     | NumLit(_) => P.max
-    | UnOp(_) => P.max
-    | BinOp(_) => P.max
+    | Neg(_) => P.neg
+    | Plus(_) => P.plus
+    | Minus(_) => P.plus
+    | Times(_) => P.mult
+    | Lt(_) => P.eqs
+    | Gt(_) => P.eqs
+    | Eq(_) => P.eqs
     | True => P.max
     | False => P.max
     | If(_) => P.if_
@@ -191,15 +190,6 @@ let precedence: t => int =
     | Case(_) => P.fun_
     | Roll(_) => P.ap
     | Unroll(_) => P.ap
-    // ALFA UnOp
-    | OpNeg => P.neg
-    // ALFA BinOp
-    | OpPlus => P.plus
-    | OpMinus => P.plus
-    | OpTimes => P.mult
-    | OpLt => P.eqs
-    | OpGt => P.eqs
-    | OpEq => P.eqs
     | Pat(_) => P.max
     | Num => P.max
     | Bool => P.max
@@ -220,13 +210,15 @@ let rec repr = (p: int, prop: t): string => {
     |> Aba.join(Fun.id, repr)
     |> String.concat(" ")
     |> String.trim;
+  let repr_aba_tight = (as_: list(string), bs: list(t)) =>
+    Aba.mk(as_, bs) |> Aba.join(Fun.id, repr) |> String.concat("");
   let repr_binop = (op: string, a: t, b: t) =>
     repr_aba(["", op, ""], [a, b]);
   let repr_preop = (op: string, a: t) => repr_aba([op, ""], [a]);
   let repr_postop = (op: string, a: t) => repr_aba(["", op], [a]);
   (
     switch (IdTagged.term_of(prop)) {
-    | Hole(s) => Printf.sprintf("[[%s]]", s)
+    | Hole(s) => Printf.sprintf("[%s]", s)
     | Atom(s) => s
     | And(a, b) => repr_binop("∧", a, b)
     | Or(a, b) => repr_binop("∨", a, b)
@@ -244,14 +236,15 @@ let rec repr = (p: int, prop: t): string => {
         |> Printf.sprintf("[%s]");
       }
     | Entail(a, b) => repr_binop("⊢", a, b)
-    | NumLit(i) => "_" ++ string_of_int(i) ++ "_"
+    | NumLit(i) => string_of_int(i)
     | Val(a) => repr_postop(".val", a)
-    | UnOp(op, a) => repr_preop(repr(op), a)
-    | BinOp(op, a, b) => repr_binop(repr(op), a, b)
-    | OpNeg => "-"
-    | OpPlus => "+"
-    | OpMinus => "-"
-    | OpTimes => "*"
+    | Neg(a) => repr_preop("-", a)
+    | Plus(a, b) => repr_binop("+", a, b)
+    | Minus(a, b) => repr_binop("-", a, b)
+    | Times(a, b) => repr_binop("*", a, b)
+    | Lt(a, b) => repr_binop("<", a, b)
+    | Gt(a, b) => repr_binop(">", a, b)
+    | Eq(a, b) => repr_binop("==", a, b)
     | Eval(a, b) => repr_binop("⇓", a, b)
     | Num => "Num"
     | Bool => "Bool"
@@ -272,8 +265,8 @@ let rec repr = (p: int, prop: t): string => {
     | FixAnn(x, t, a) => repr_aba(["fix", ":", "→", ""], [x, t, a])
     | Fun(x, a) => repr_aba(["fun", "→", ""], [x, a])
     | FunAnn(x, t, a) => repr_aba(["fun", ":", "→", ""], [x, t, a])
-    | Ap(a, b) => repr_aba(["", "(", ")"], [a, b])
-    | Pair(a, b) => repr_aba(["(", ",", ")"], [a, b])
+    | Ap(a, b) => repr_aba_tight(["", "(", ")"], [a, b])
+    | Pair(a, b) => repr_aba_tight(["(", ",", ")"], [a, b])
     | Triv => "()"
     | PrjL(a) => repr_postop(".fst", a)
     | PrjR(a) => repr_postop(".snd", a)
@@ -283,14 +276,11 @@ let rec repr = (p: int, prop: t): string => {
     | InjR(a) => repr_preop("R", a)
     | Case(a, x, b, y, c) =>
       repr_aba(
-        ["case", "of L(", ")→", "else R(", ")→", ""],
+        ["case", "of L", "→", "else R", "→", ""],
         [a, x, b, y, c],
       )
-    | Roll(a) => repr_aba(["roll(", ")"], [a])
-    | Unroll(a) => repr_aba(["unroll(", ")"], [a])
-    | OpLt => "<"
-    | OpGt => ">"
-    | OpEq => "="
+    | Roll(a) => repr_aba_tight(["roll(", ")"], [a])
+    | Unroll(a) => repr_aba_tight(["unroll(", ")"], [a])
     | TPat(x) => x
     | Pat(x) => x
     | HasTy(a, b) => repr_binop(":", a, b)
@@ -301,7 +291,7 @@ let rec repr = (p: int, prop: t): string => {
   |> (p < p' ? Printf.sprintf("(%s)") : Fun.id);
 };
 
-let repr = repr(P.max);
+let repr = repr(P.min);
 
 let rec eq: (t, t) => bool =
   (a, b) =>
@@ -328,11 +318,20 @@ let rec eq: (t, t) => bool =
     | (Rec(_), _) => false
     | (NumLit(a), NumLit(b)) => Int.equal(a, b)
     | (NumLit(_), _) => false
-    | (UnOp(a1, a2), UnOp(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (UnOp(_), _) => false
-    | (BinOp(a1, a2, a3), BinOp(b1, b2, b3)) =>
-      eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
-    | (BinOp(_), _) => false
+    | (Neg(a), Neg(b)) => eq(a, b)
+    | (Neg(_), _) => false
+    | (Plus(a1, a2), Plus(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Plus(_), _) => false
+    | (Minus(a1, a2), Minus(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Minus(_), _) => false
+    | (Times(a1, a2), Times(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Times(_), _) => false
+    | (Lt(a1, a2), Lt(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Lt(_), _) => false
+    | (Gt(a1, a2), Gt(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Gt(_), _) => false
+    | (Eq(a1, a2), Eq(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Eq(_), _) => false
     | (True, True) => true
     | (True, _) => false
     | (False, False) => true
@@ -382,20 +381,6 @@ let rec eq: (t, t) => bool =
     | (Roll(_), _) => false
     | (Unroll(a), Unroll(b)) => eq(a, b)
     | (Unroll(_), _) => false
-    | (OpNeg, OpNeg) => true
-    | (OpNeg, _) => false
-    | (OpPlus, OpPlus) => true
-    | (OpPlus, _) => false
-    | (OpMinus, OpMinus) => true
-    | (OpMinus, _) => false
-    | (OpTimes, OpTimes) => true
-    | (OpTimes, _) => false
-    | (OpLt, OpLt) => true
-    | (OpLt, _) => false
-    | (OpGt, OpGt) => true
-    | (OpGt, _) => false
-    | (OpEq, OpEq) => true
-    | (OpEq, _) => false
     | (TPat(a), TPat(b)) => String.equal(a, b)
     | (TPat(_), _) => false
     | (Pat(a), Pat(b)) => String.equal(a, b)
@@ -450,8 +435,13 @@ let rec subst: (t, string, t) => t =
     | Rec(_) => e
     // Exp
     | NumLit(_) => e
-    | UnOp(u, e) => UnOp(u, subst(e)) |> rewrap
-    | BinOp(b, e1, e2) => BinOp(b, subst(e1), subst(e2)) |> rewrap
+    | Neg(e) => Neg(subst(e)) |> rewrap
+    | Plus(e1, e2) => Plus(subst(e1), subst(e2)) |> rewrap
+    | Minus(e1, e2) => Minus(subst(e1), subst(e2)) |> rewrap
+    | Times(e1, e2) => Times(subst(e1), subst(e2)) |> rewrap
+    | Lt(e1, e2) => Lt(subst(e1), subst(e2)) |> rewrap
+    | Gt(e1, e2) => Gt(subst(e1), subst(e2)) |> rewrap
+    | Eq(e1, e2) => Eq(subst(e1), subst(e2)) |> rewrap
     | True
     | False => e
     | If(e1, e2, e3) => If(subst(e1), subst(e2), subst(e3)) |> rewrap
@@ -482,15 +472,6 @@ let rec subst: (t, string, t) => t =
       Case(subst(e1), x, subst'(x, e2), y, subst'(y, e3)) |> rewrap
     | Roll(e) => Roll(subst(e)) |> rewrap
     | Unroll(e) => Unroll(subst(e)) |> rewrap
-    // UnOp
-    | OpNeg => e
-    // BinOp
-    | OpPlus
-    | OpMinus
-    | OpTimes
-    | OpLt
-    | OpGt
-    | OpEq => e
     // Meta
     | TPat(_)
     | Pat(_)
@@ -536,8 +517,13 @@ let rec subst_ty: (t, string, t) => t =
     | Rec(x, t1) => Rec(x, subst_ty'(x, t1)) |> rewrap
     // Exp
     | NumLit(_) => e
-    | UnOp(u, e) => UnOp(u, subst_ty(e)) |> rewrap
-    | BinOp(b, e1, e2) => BinOp(b, subst_ty(e1), subst_ty(e2)) |> rewrap
+    | Neg(e) => Neg(subst_ty(e)) |> rewrap
+    | Plus(e1, e2) => Plus(subst_ty(e1), subst_ty(e2)) |> rewrap
+    | Minus(e1, e2) => Minus(subst_ty(e1), subst_ty(e2)) |> rewrap
+    | Times(e1, e2) => Times(subst_ty(e1), subst_ty(e2)) |> rewrap
+    | Lt(e1, e2) => Lt(subst_ty(e1), subst_ty(e2)) |> rewrap
+    | Gt(e1, e2) => Gt(subst_ty(e1), subst_ty(e2)) |> rewrap
+    | Eq(e1, e2) => Eq(subst_ty(e1), subst_ty(e2)) |> rewrap
     | True
     | False => e
     | If(e1, e2, e3) =>
@@ -571,15 +557,6 @@ let rec subst_ty: (t, string, t) => t =
       |> rewrap
     | Roll(e) => Roll(subst_ty(e)) |> rewrap
     | Unroll(e) => Unroll(subst_ty(e)) |> rewrap
-    // UnOp
-    | OpNeg => e
-    // BinOp
-    | OpPlus
-    | OpMinus
-    | OpTimes
-    | OpLt
-    | OpGt
-    | OpEq => e
     // Meta
     | TPat(_)
     | Pat(_) => e

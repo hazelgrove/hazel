@@ -5,7 +5,8 @@ type ok_common = unit;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_common =
-  | BadToken(Token.t);
+  | BadToken(Token.t)
+  | MultiHole;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_common =
@@ -29,6 +30,7 @@ type prop = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
   | BadToken(Token.t)
+  | MultiHole
   | NotAllowSingle;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -57,7 +59,7 @@ type pat_expect =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_pat =
   | BadToken(Token.t)
-  | NotAVar
+  | MultiHole
   | Expect(pat_expect);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -158,37 +160,42 @@ type status_drv =
 let status_jdmt = (jdmt: Drv.Jdmt.t): status_common =>
   switch (jdmt.term) {
   | Hole(Invalid(token)) => InHole(BadToken(token))
+  | Hole(MultiHole(_)) => InHole(MultiHole)
   | _ => NotInHole()
   };
 
 let status_prop = (prop: Drv.Prop.t): status_common =>
   switch (prop.term) {
   | Hole(Invalid(token)) => InHole(BadToken(token))
+  | Hole(MultiHole(_)) => InHole(MultiHole)
   | _ => NotInHole()
   };
 
 let status_exp = (exp: Drv.Exp.t): status_exp =>
   switch (exp.term) {
   | Hole(Invalid(token)) => InHole(BadToken(token))
+  | Hole(MultiHole(_)) => InHole(MultiHole)
   | _ => NotInHole()
   };
 
 let status_pat = (pat: Drv.Pat.t): status_pat =>
   switch (pat.term) {
   | Hole(Invalid(token)) => InHole(BadToken(token))
-  | Hole(MultiHole(_)) => InHole(NotAVar)
+  | Hole(MultiHole(_)) => InHole(MultiHole)
   | _ => NotInHole()
   };
 
 let status_typ = (typ: Drv.Typ.t): status_common =>
   switch (typ.term) {
   | Hole(Invalid(token)) => InHole(BadToken(token))
+  | Hole(MultiHole(_)) => InHole(MultiHole)
   | _ => NotInHole()
   };
 
 let status_tpat = (tpat: Drv.TPat.t): status_common =>
   switch (tpat.term) {
   | Hole(Invalid(token)) => InHole(BadToken(token))
+  | Hole(MultiHole(_)) => InHole(MultiHole)
   | _ => NotInHole()
   };
 

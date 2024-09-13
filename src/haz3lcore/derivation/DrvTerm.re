@@ -85,8 +85,13 @@ module ALFA_Exp = {
   type cls =
     | Hole
     | NumLit
-    | UnOp
-    | BinOp
+    | Neg
+    | Plus
+    | Minus
+    | Times
+    | Lt
+    | Gt
+    | Eq
     | True
     | False
     | If
@@ -126,8 +131,13 @@ module ALFA_Exp = {
     fun
     | Hole(_) => Hole
     | NumLit(_) => NumLit
-    | UnOp(_) => UnOp
-    | BinOp(_) => BinOp
+    | Neg(_) => Neg
+    | Plus(_) => Plus
+    | Minus(_) => Minus
+    | Times(_) => Times
+    | Lt(_) => Lt
+    | Gt(_) => Gt
+    | Eq(_) => Eq
     | True => True
     | False => False
     | If(_) => If

@@ -1,8 +1,8 @@
-open Prop;
+open DrvSyntax;
 
-let of_ghost: Rule.t => Prop.deduction(Prop.t) =
+let of_ghost: Rule.t => deduction(t) =
   rule => {
-    let (!): Prop.term => Prop.t = IdTagged.fresh;
+    let (!): term => t = IdTagged.fresh;
     let e = () => !Var("e");
     let e1 = () => !Var("e₁");
     let e2 = () => !Var("e₂");
@@ -78,137 +78,135 @@ let of_ghost: Rule.t => Prop.deduction(Prop.t) =
       {concl, prems: []};
     | S_Neg =>
       let prems = [!Entail(ctx(), !Syn(e(), !Num))];
-      let concl = !Entail(ctx(), !Syn(!UnOp(!OpNeg, e()), !Num));
+      let concl = !Entail(ctx(), !Syn(!Neg(e()), !Num));
       {concl, prems};
     | T_Neg =>
       let prems = [!Entail(ctx(), !HasTy(e(), !Num))];
-      let concl = !Entail(ctx(), !HasTy(!UnOp(!OpNeg, e()), !Num));
+      let concl = !Entail(ctx(), !HasTy(!Neg(e()), !Num));
       {concl, prems};
     | E_Neg =>
       let prems = [!Eval(e(), !NumLit(-7))];
-      let concl = !Eval(!UnOp(!OpNeg, e()), n());
+      let concl = !Eval(!Neg(e()), n());
       {concl, prems};
     | S_Plus =>
       let prems = [
         !Entail(ctx(), !Ana(e1(), !Num)),
         !Entail(ctx(), !Ana(e2(), !Num)),
       ];
-      let concl = !Entail(ctx(), !Syn(!BinOp(!OpPlus, e1(), e2()), !Num));
+      let concl = !Entail(ctx(), !Syn(!Plus(e1(), e2()), !Num));
       {concl, prems};
     | T_Plus =>
       let prems = [
         !Entail(ctx(), !HasTy(e1(), !Num)),
         !Entail(ctx(), !HasTy(e2(), !Num)),
       ];
-      let concl = !Entail(ctx(), !HasTy(!BinOp(!OpPlus, e1(), e2()), !Num));
+      let concl = !Entail(ctx(), !HasTy(!Plus(e1(), e2()), !Num));
       {concl, prems};
     | E_Plus =>
       let prems = [!Eval(e1(), !NumLit(3)), !Eval(e2(), !NumLit(4))];
-      let concl = !Eval(!BinOp(!OpPlus, e1(), e2()), n());
+      let concl = !Eval(!Plus(e1(), e2()), n());
       {concl, prems};
     | S_Minus =>
       let prems = [
         !Entail(ctx(), !Ana(e1(), !Num)),
         !Entail(ctx(), !Ana(e2(), !Num)),
       ];
-      let concl = !Entail(ctx(), !Syn(!BinOp(!OpMinus, e1(), e2()), !Num));
+      let concl = !Entail(ctx(), !Syn(!Minus(e1(), e2()), !Num));
       {concl, prems};
     | T_Minus =>
       let prems = [
         !Entail(ctx(), !HasTy(e1(), !Num)),
         !Entail(ctx(), !HasTy(e2(), !Num)),
       ];
-      let concl =
-        !Entail(ctx(), !HasTy(!BinOp(!OpMinus, e1(), e2()), !Num));
+      let concl = !Entail(ctx(), !HasTy(!Minus(e1(), e2()), !Num));
       {concl, prems};
     | E_Minus =>
       let prems = [!Eval(e1(), !NumLit(10)), !Eval(e2(), !NumLit(3))];
-      let concl = !Eval(!BinOp(!OpMinus, e1(), e2()), n());
+      let concl = !Eval(!Minus(e1(), e2()), n());
       {concl, prems};
     | S_Times =>
       let prems = [
         !Entail(ctx(), !Ana(e1(), !Num)),
         !Entail(ctx(), !Ana(e2(), !Num)),
       ];
-      let concl = !Entail(ctx(), !Syn(!BinOp(!OpTimes, e1(), e2()), !Num));
+      let concl = !Entail(ctx(), !Syn(!Times(e1(), e2()), !Num));
       {concl, prems};
     | T_Times =>
       let prems = [
         !Entail(ctx(), !HasTy(e1(), !Num)),
         !Entail(ctx(), !HasTy(e2(), !Num)),
       ];
-      let concl =
-        !Entail(ctx(), !HasTy(!BinOp(!OpTimes, e1(), e2()), !Num));
+      let concl = !Entail(ctx(), !HasTy(!Times(e1(), e2()), !Num));
       {concl, prems};
     | E_Times =>
       let prems = [!Eval(e1(), !NumLit(1)), !Eval(e2(), !NumLit(7))];
-      let concl = !Eval(!BinOp(!OpTimes, e1(), e2()), n());
+      let concl = !Eval(!Times(e1(), e2()), n());
       {concl, prems};
     | S_Lt =>
       let prems = [
         !Entail(ctx(), !Ana(e1(), !Num)),
         !Entail(ctx(), !Ana(e2(), !Num)),
       ];
-      let concl = !Entail(ctx(), !Syn(!BinOp(!OpLt, e1(), e2()), !Bool));
+      let concl = !Entail(ctx(), !Syn(!Lt(e1(), e2()), !Bool));
       {concl, prems};
     | T_Lt =>
       let prems = [
         !Entail(ctx(), !HasTy(e1(), !Num)),
         !Entail(ctx(), !HasTy(e2(), !Num)),
       ];
-      let concl = !Entail(ctx(), !HasTy(!BinOp(!OpLt, e1(), e2()), !Bool));
+      let concl = !Entail(ctx(), !HasTy(!Lt(e1(), e2()), !Bool));
       {concl, prems};
     | E_Lt_T =>
       let prems = [!Eval(e1(), !NumLit(2)), !Eval(e2(), !NumLit(4))];
-      let concl = !Eval(!BinOp(!OpLt, e1(), e2()), !True);
+      let concl = !Eval(!Lt(e1(), e2()), !True);
       {concl, prems};
     | E_Lt_F =>
       let prems = [!Eval(e1(), !NumLit(7)), !Eval(e2(), !NumLit(5))];
-      let concl = !Eval(!BinOp(!OpLt, e1(), e2()), !False);
+      let concl = !Eval(!Lt(e1(), e2()), !False);
       {concl, prems};
     | S_Gt =>
       let prems = [
         !Entail(ctx(), !Ana(e1(), !Num)),
         !Entail(ctx(), !Ana(e2(), !Num)),
       ];
-      let concl = !Entail(ctx(), !Syn(!BinOp(!OpGt, e1(), e2()), !Bool));
+      let concl = !Entail(ctx(), !Syn(!Gt(e1(), e2()), !Bool));
       {concl, prems};
     | T_Gt =>
       let prems = [
         !Entail(ctx(), !HasTy(e1(), !Num)),
         !Entail(ctx(), !HasTy(e2(), !Num)),
       ];
-      let concl = !Entail(ctx(), !HasTy(!BinOp(!OpGt, e1(), e2()), !Bool));
+      let concl = !Entail(ctx(), !HasTy(!Gt(e1(), e2()), !Bool));
       {concl, prems};
     | E_Gt_T =>
       let prems = [!Eval(e1(), !NumLit(5)), !Eval(e2(), !NumLit(3))];
-      let concl = !Eval(!BinOp(!OpGt, e1(), e2()), !True);
+      let concl = !Eval(!Gt(e1(), e2()), !True);
       {concl, prems};
     | E_Gt_F =>
       let prems = [!Eval(e1(), !NumLit(2)), !Eval(e2(), !NumLit(7))];
-      let concl = !Eval(!BinOp(!OpGt, e1(), e2()), !False);
+      let concl = !Eval(!Gt(e1(), e2()), !False);
       {concl, prems};
     | S_Eq =>
       let prems = [
         !Entail(ctx(), !Ana(e1(), !Num)),
         !Entail(ctx(), !Ana(e2(), !Num)),
       ];
-      let concl = !Entail(ctx(), !Syn(!BinOp(!OpEq, e1(), e2()), !Bool));
+      let concl = !Entail(ctx(), !Syn(!Eq(e1(), e2()), !Bool));
       {concl, prems};
     | T_Eq =>
       let prems = [
         !Entail(ctx(), !HasTy(e1(), !Num)),
         !Entail(ctx(), !HasTy(e2(), !Num)),
       ];
-      let concl = !Entail(ctx(), !HasTy(!BinOp(!OpEq, e1(), e2()), !Bool));
+      let concl = !Entail(ctx(), !HasTy(!Eq(e1(), e2()), !Bool));
       {concl, prems};
     | E_Eq_T =>
       let prems = [!Eval(e1(), n()), !Eval(e2(), n())];
-      let concl = !Eval(!BinOp(!OpEq, e1(), e2()), !True);
+      let concl = !Eval(!Eq(e1(), e2()), !True);
       {concl, prems};
     | E_Eq_F =>
       let prems = [!Eval(e1(), n()), !Eval(e2(), !NumLit(8))];
-      let concl = !Eval(!BinOp(!OpEq, e1(), e2()), !False);
+      let concl = !Eval(!Eq(e1(), e2()), !False);
       {concl, prems};
     | S_If =>
       let prems = [

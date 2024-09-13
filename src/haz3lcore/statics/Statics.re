@@ -211,9 +211,15 @@ and drv_to_info_map = (drv: Drv.t, m: Map.t): (DrvInfo.t, Map.t) => {
     switch (exp.term) {
     | Hole(_) => m |> add'
     | NumLit(_) => m |> add'
-    | UnOp(_, e) => m |> go_exp'(e) |> snd |> add'
-    | BinOp(_, e1, e2) =>
-      m |> go_exp'(e1) |> snd |> go_exp'(e2) |> snd |> add'
+    | Neg(e) => m |> go_exp'(e) |> snd |> add'
+    | Plus(e1, e2)
+    | Minus(e1, e2)
+    | Times(e1, e2)
+    | Lt(e1, e2)
+    | Gt(e1, e2)
+    | Eq(e1, e2) =>
+      let m = m |> go_exp'(e1) |> snd;
+      m |> go_exp'(e2) |> snd |> add';
     | True
     | False => m |> add'
     | If(e1, e2, e3) =>

@@ -102,7 +102,8 @@ let mk_IntLit = n => Doc.text(string_of_int(n));
 
 let mk_StringLit = s => Doc.text(Form.string_quote(s));
 
-let mk_DerivationLit = (t: Drv.t) => Doc.text(Drv.show(t));
+let mk_DerivationLit = (t: Drv.t) =>
+  Doc.text(DrvSyntax.repr(DrvElab.elaborate(t)));
 
 let mk_Test = t => Doc.(hcats([text("Test"), t, text("End")]));
 

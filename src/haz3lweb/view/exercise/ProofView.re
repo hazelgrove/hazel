@@ -212,7 +212,14 @@ let proof_view =
   };
 
   let editor_view =
-      (this_pos, ~editor, ~di: Exercise.DynamicsItem.t, ~caption, ~footer) =>
+      (
+        this_pos,
+        ~editor,
+        ~di: Exercise.DynamicsItem.t,
+        ~caption,
+        ~footer,
+        ~sort,
+      ) =>
     Cell.editor_view(
       ~selected=(Proof(pos): Exercise.pos) == this_pos,
       ~override_statics=di.statics,
@@ -225,6 +232,7 @@ let proof_view =
       ~target_id=Exercise.show_pos(this_pos),
       ~test_results=ModelResult.test_results(di.result),
       ~footer,
+      ~sort,
       editor,
     );
 
@@ -237,6 +245,7 @@ let proof_view =
           ~editor,
           ~di,
           ~caption=None,
+          ~sort=Drv(Jdmt),
           ~footer=[dropdown_view(~pos, ~index=None)],
         ),
       ],
@@ -365,6 +374,7 @@ let proof_view =
           "Prelude",
           ~rest=settings.instructor_mode ? "" : " (Read-Only)",
         ),
+      ~sort=Exp,
       ~footer=[],
     );
 
@@ -374,6 +384,7 @@ let proof_view =
       ~editor=eds.setup,
       ~di=stitched_dynamics.setup,
       ~caption=Cell.caption("Setup"),
+      ~sort=Exp,
       ~footer=[],
     );
 

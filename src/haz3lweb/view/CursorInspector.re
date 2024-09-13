@@ -204,7 +204,12 @@ let drv_view = (status: DrvInfo.t) => {
         | InjR => "A Right Injection pattern"
         };
       div_err([text("Expected " ++ expect)]);
-    | Pat(NotAVar) => div_err([text("Expected a variable pattern")])
+    | Jdmt(MultiHole)
+    | Prop(MultiHole)
+    | Exp(MultiHole)
+    | Pat(MultiHole)
+    | Typ(MultiHole)
+    | TPat(MultiHole) => div_err([text("Expecting operator or delimiter")])
     | Exp(NotAllowSingle) =>
       div_err([text("Expected a compound expression of this")])
     }

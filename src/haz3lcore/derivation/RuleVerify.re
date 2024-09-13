@@ -1,9 +1,11 @@
 open Util;
 
+open DrvSyntax;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  self: Prop.t,
-  ghost: option(Prop.t),
+  self: DrvSyntax.t,
+  ghost: option(DrvSyntax.t),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -29,7 +31,7 @@ type operation =
 
 let repr_operation: (t, operation) => string =
   (p, op) => {
-    let repr = p => Prop.repr(p.self);
+    let repr = p => repr(p.self);
     switch (op) {
     | Neg(p') =>
       Printf.sprintf("Expect %s equal to -%s.", repr(p), repr(p'))
@@ -130,7 +132,7 @@ let repr_operation: (t, operation) => string =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type failure =
   | PremiseMismatch(int, int) /* expected, actual */
-  | FailUnbox(Prop.cls, t)
+  | FailUnbox(cls, t)
   | NotAList(t) // Should be caught by the typechecker. Not expected to happen
   | NotEqual(t, t)
   | FailTest(t, operation); // expect {1} equal to {2}
@@ -142,17 +144,13 @@ let repr_failure: failure => string =
   | FailUnbox(cls, p) =>
     Printf.sprintf(
       "Failed to unbox %s from %s.",
-      Prop.show_cls(cls),
-      Prop.repr(p.self),
+      show_cls(cls),
+      repr(p.self),
     )
   | NotAList(p) =>
-    Printf.sprintf("Expected a list, but got %s.", Prop.repr(p.self))
+    Printf.sprintf("Expected a list, but got %s.", repr(p.self))
   | NotEqual(p1, p2) =>
-    Printf.sprintf(
-      "Expected %s equal to %s.",
-      Prop.repr(p1.self),
-      Prop.repr(p2.self),
-    )
+    Printf.sprintf("Expected %s equal to %s.", repr(p1.self), repr(p2.self))
   | FailTest(p, op) => repr_operation(p, op);
 
 type req('a) =
@@ -171,8 +169,13 @@ type req('a) =
   | Rec(req('a), req('b)): req(('a, 'b))
   // ALFA Exp
   | NumLit: req(int)
-  | UnOp(req('a), req('b)): req(('a, 'b))
-  | BinOp(req('a), req('b), req('c)): req(('a, 'b, 'c))
+  | Neg(req('a)): req('a)
+  | Plus(req('a), req('b)): req(('a, 'b))
+  | Minus(req('a), req('b)): req(('a, 'b))
+  | Times(req('a), req('b)): req(('a, 'b))
+  | Lt(req('a), req('b)): req(('a, 'b))
+  | Gt(req('a), req('b)): req(('a, 'b))
+  | Eq(req('a), req('b)): req(('a, 'b))
   | True: req(unit)
   | False: req(unit)
   | If(req('a), req('b), req('c)): req(('a, 'b, 'c))
@@ -195,15 +198,6 @@ type req('a) =
     : req(('a, 'b, 'c, 'd, 'e))
   | Roll(req('a)): req('a)
   | Unroll(req('a)): req('a)
-  // ALFA UnOp
-  | OpNeg: req(unit)
-  // ALFA BinOp
-  | OpPlus: req(unit)
-  | OpMinus: req(unit)
-  | OpTimes: req(unit)
-  | OpLt: req(unit)
-  | OpGt: req(unit)
-  | OpEq: req(unit)
   // ALFA Meta
   | TPat: req(string)
   | Pat: req(string)
@@ -237,7 +231,7 @@ let rec unbox: type a. (t, req(a)) => result(a, failure) =
     };
   }
 
-and unbox_self: type a. (Prop.t, req(a)) => result(a, failure) =
+and unbox_self: type a. (DrvSyntax.t, req(a)) => result(a, failure) =
   (self, req) => {
     let p = {self, ghost: None};
     let unbox = self => unbox({self, ghost: None});
@@ -245,7 +239,7 @@ and unbox_self: type a. (Prop.t, req(a)) => result(a, failure) =
     // Top-level
     | (Get, _) => Ok(p)
     | (TestEq(p'), _) =>
-      Prop.eq(p'.self, p.self) ? Ok() : Error(NotEqual(p, p'))
+      eq(p'.self, p.self) ? Ok() : Error(NotEqual(p, p'))
     | (Test(op), _) =>
       let$ result = check(p, op);
       result ? Ok() : Error(FailTest(p, op));
@@ -381,34 +375,43 @@ and unbox_self: type a. (Prop.t, req(a)) => result(a, failure) =
       let$ b = unbox(b, rb);
       Ok((a, b));
     | (Ap(_), _) => Error(FailUnbox(Ap, p))
-    | (OpLt, OpLt) => Ok()
-    | (OpLt, _) => Error(FailUnbox(OpLt, p))
-    | (OpGt, OpGt) => Ok()
-    | (OpGt, _) => Error(FailUnbox(OpGt, p))
-    | (OpEq, OpEq) => Ok()
-    | (OpEq, _) => Error(FailUnbox(OpEq, p))
     // AL
     | (NumLit, NumLit(n)) => Ok(n)
     | (NumLit, _) => Error(FailUnbox(NumLit, p))
-    | (UnOp(ra, rb), UnOp(a, b)) =>
+    | (Neg(ra), Neg(a)) =>
+      let$ a = unbox(a, ra);
+      Ok(a);
+    | (Neg(_), _) => Error(FailUnbox(Neg, p))
+    | (Plus(ra, rb), Plus(a, b)) =>
       let$ a = unbox(a, ra);
       let$ b = unbox(b, rb);
       Ok((a, b));
-    | (UnOp(_), _) => Error(FailUnbox(UnOp, p))
-    | (BinOp(ra, rb, rc), BinOp(a, b, c)) =>
+    | (Plus(_), _) => Error(FailUnbox(Plus, p))
+    | (Minus(ra, rb), Minus(a, b)) =>
       let$ a = unbox(a, ra);
       let$ b = unbox(b, rb);
-      let$ c = unbox(c, rc);
-      Ok((a, b, c));
-    | (BinOp(_), _) => Error(FailUnbox(BinOp, p))
-    | (OpNeg, OpNeg) => Ok()
-    | (OpNeg, _) => Error(FailUnbox(OpNeg, p))
-    | (OpPlus, OpPlus) => Ok()
-    | (OpPlus, _) => Error(FailUnbox(OpPlus, p))
-    | (OpMinus, OpMinus) => Ok()
-    | (OpMinus, _) => Error(FailUnbox(OpMinus, p))
-    | (OpTimes, OpTimes) => Ok()
-    | (OpTimes, _) => Error(FailUnbox(OpTimes, p))
+      Ok((a, b));
+    | (Minus(_), _) => Error(FailUnbox(Minus, p))
+    | (Times(ra, rb), Times(a, b)) =>
+      let$ a = unbox(a, ra);
+      let$ b = unbox(b, rb);
+      Ok((a, b));
+    | (Times(_), _) => Error(FailUnbox(Times, p))
+    | (Lt(ra, rb), Lt(a, b)) =>
+      let$ a = unbox(a, ra);
+      let$ b = unbox(b, rb);
+      Ok((a, b));
+    | (Lt(_), _) => Error(FailUnbox(Lt, p))
+    | (Gt(ra, rb), Gt(a, b)) =>
+      let$ a = unbox(a, ra);
+      let$ b = unbox(b, rb);
+      Ok((a, b));
+    | (Gt(_), _) => Error(FailUnbox(Gt, p))
+    | (Eq(ra, rb), Eq(a, b)) =>
+      let$ a = unbox(a, ra);
+      let$ b = unbox(b, rb);
+      Ok((a, b));
+    | (Eq(_), _) => Error(FailUnbox(Eq, p))
     // ALFA proposition
     | (HasTy(ra, rb), HasTy(a, b)) =>
       let$ a = unbox(a, ra);
@@ -463,7 +466,8 @@ and unbox_self: type a. (Prop.t, req(a)) => result(a, failure) =
     };
   }
 
-and unbox_with_ghost: type a. (Prop.t, Prop.t, req(a)) => result(a, failure) =
+and unbox_with_ghost:
+  type a. (DrvSyntax.t, DrvSyntax.t, req(a)) => result(a, failure) =
   (self, ghost, req) => {
     let p = {self, ghost: Some(ghost)};
     let unbox = (self, ghost) => unbox({self, ghost: Some(ghost)});
@@ -472,7 +476,7 @@ and unbox_with_ghost: type a. (Prop.t, Prop.t, req(a)) => result(a, failure) =
     | (Get, _, _) => Ok(p)
     | (TestEq(p'), _, _) =>
       // p' should also have ghost
-      Prop.eq(p'.self, p.self) && Prop.eq(p'.ghost |> Option.get, ghost)
+      eq(p'.self, p.self) && eq(p'.ghost |> Option.get, ghost)
         ? Ok() : Error(NotEqual(p, p'))
     | (Test(op), _, _) =>
       let$ result = check(p, op);
@@ -617,34 +621,43 @@ and unbox_with_ghost: type a. (Prop.t, Prop.t, req(a)) => result(a, failure) =
       let$ b = unbox(b, b', rb);
       Ok((a, b));
     | (Ap(_), _, _) => Error(FailUnbox(Ap, p))
-    | (OpLt, OpLt, OpLt) => Ok()
-    | (OpLt, _, _) => Error(FailUnbox(OpLt, p))
-    | (OpGt, OpGt, OpGt) => Ok()
-    | (OpGt, _, _) => Error(FailUnbox(OpGt, p))
-    | (OpEq, OpEq, OpEq) => Ok()
-    | (OpEq, _, _) => Error(FailUnbox(OpEq, p))
     // AL
     | (NumLit, NumLit(n), NumLit(_)) => Ok(n)
     | (NumLit, _, _) => Error(FailUnbox(NumLit, p))
-    | (UnOp(ra, rb), UnOp(a, b), UnOp(a', b')) =>
+    | (Neg(ra), Neg(a), Neg(a')) =>
+      let$ a = unbox(a, a', ra);
+      Ok(a);
+    | (Neg(_), _, _) => Error(FailUnbox(Neg, p))
+    | (Plus(ra, rb), Plus(a, b), Plus(a', b')) =>
       let$ a = unbox(a, a', ra);
       let$ b = unbox(b, b', rb);
       Ok((a, b));
-    | (UnOp(_), _, _) => Error(FailUnbox(UnOp, p))
-    | (BinOp(ra, rb, rc), BinOp(a, b, c), BinOp(a', b', c')) =>
+    | (Plus(_), _, _) => Error(FailUnbox(Plus, p))
+    | (Minus(ra, rb), Minus(a, b), Minus(a', b')) =>
       let$ a = unbox(a, a', ra);
       let$ b = unbox(b, b', rb);
-      let$ c = unbox(c, c', rc);
-      Ok((a, b, c));
-    | (BinOp(_), _, _) => Error(FailUnbox(BinOp, p))
-    | (OpNeg, OpNeg, OpNeg) => Ok()
-    | (OpNeg, _, _) => Error(FailUnbox(OpNeg, p))
-    | (OpPlus, OpPlus, OpPlus) => Ok()
-    | (OpPlus, _, _) => Error(FailUnbox(OpPlus, p))
-    | (OpMinus, OpMinus, OpMinus) => Ok()
-    | (OpMinus, _, _) => Error(FailUnbox(OpMinus, p))
-    | (OpTimes, OpTimes, OpTimes) => Ok()
-    | (OpTimes, _, _) => Error(FailUnbox(OpTimes, p))
+      Ok((a, b));
+    | (Minus(_), _, _) => Error(FailUnbox(Minus, p))
+    | (Times(ra, rb), Times(a, b), Times(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Times(_), _, _) => Error(FailUnbox(Times, p))
+    | (Lt(ra, rb), Lt(a, b), Lt(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Lt(_), _, _) => Error(FailUnbox(Lt, p))
+    | (Gt(ra, rb), Gt(a, b), Gt(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Gt(_), _, _) => Error(FailUnbox(Gt, p))
+    | (Eq(ra, rb), Eq(a, b), Eq(a', b')) =>
+      let$ a = unbox(a, a', ra);
+      let$ b = unbox(b, b', rb);
+      Ok((a, b));
+    | (Eq(_), _, _) => Error(FailUnbox(Eq, p))
     // ALFA proposition
     | (HasTy(ra, rb), HasTy(a, b), HasTy(a', b')) =>
       let$ a = unbox(a, a', ra);
@@ -720,7 +733,7 @@ and check: (t, operation) => result(bool, failure) =
     };
     let unbox_pat = x => {
       let$ x = unbox(x, Pat);
-      Ok(Var(x) |> Prop.temp);
+      Ok(Var(x) |> temp);
     };
     switch (op) {
     | Neg(p') =>
@@ -740,66 +753,51 @@ and check: (t, operation) => result(bool, failure) =
       Ok(n > n');
     | NotLt(p') =>
       let$ (n, n') = unbox_num2(p, p');
-      Ok(n <= n');
+      Ok(!(n > n'));
     | Gt(p') =>
       let$ (n, n') = unbox_num2(p, p');
       Ok(n < n');
     | NotGt(p') =>
       let$ (n, n') = unbox_num2(p, p');
-      Ok(n >= n');
+      Ok(!(n < n'));
     | Eq(p') =>
       let$ (n, n') = unbox_num2(p, p');
       Ok(n == n');
     | NotEq(p') =>
       let$ (n, n') = unbox_num2(p, p');
-      Ok(n != n');
+      Ok(!(n == n'));
     | Subst((v, x), e) =>
       let$ x = unbox(x, Pat);
-      Ok(Prop.eq(self, Prop.subst(v.self, x, e.self)));
+      Ok(eq(self, subst(v.self, x, e.self)));
     | Subst2((v1, x1), (v2, x2), e) =>
       let$ x1 = unbox(x1, Pat);
       let$ x2 = unbox(x2, Pat);
-      Ok(
-        Prop.eq(
-          self,
-          Prop.subst(v2.self, x2, Prop.subst(v1.self, x1, e.self)),
-        ),
-      );
+      Ok(eq(self, subst(v2.self, x2, subst(v1.self, x1, e.self))));
     | SubstTy((t, a), e) =>
       let$ a = unbox(a, TVar);
-      Ok(Prop.eq(self, Prop.subst_ty(t.self, a, e.self)));
+      Ok(eq(self, subst_ty(t.self, a, e.self)));
     | Cons(e, l) =>
       let$ l = unbox_list(l);
-      let l = Ctx(Prop.cons_ctx(e.self, l)) |> Prop.temp;
-      Ok(Prop.eq(self, l));
+      let l = Ctx(cons_ctx(e.self, l)) |> temp;
+      Ok(eq(self, l));
     | ConsHasTy((pat, t), l) =>
       let$ l = unbox_list(l);
       let$ x = unbox_pat(pat);
-      let l =
-        Ctx(Prop.cons_ctx(HasTy(x, t.self) |> Prop.temp, l)) |> Prop.temp;
-      if (!Prop.eq(self, l)) {
-        print_endline(Prop.show(self));
-        print_endline(Prop.show(l));
-      };
-      Ok(Prop.eq(self, l));
+      let l = Ctx(cons_ctx(HasTy(x, t.self) |> temp, l)) |> temp;
+      Ok(eq(self, l));
     | ConsHasTy2((pat1, t1), (pat2, t2), l) =>
       let$ l = unbox_list(l);
       let$ x1 = unbox_pat(pat1);
       let$ x2 = unbox_pat(pat2);
-      let l = Prop.cons_ctx(HasTy(x1, t1.self) |> Prop.temp, l);
-      let l =
-        Ctx(Prop.cons_ctx(HasTy(x2, t2.self) |> Prop.temp, l)) |> Prop.temp;
-      if (!Prop.eq(self, l)) {
-        print_endline(Prop.show(self));
-        print_endline(Prop.show(l));
-      };
-      Ok(Prop.eq(self, l));
+      let l = cons_ctx(HasTy(x1, t1.self) |> temp, l);
+      let l = Ctx(cons_ctx(HasTy(x2, t2.self) |> temp, l)) |> temp;
+      Ok(eq(self, l));
     | Mem(e) =>
       let$ l = unbox_list(p);
-      Ok(Prop.mem_ctx(e.self, l));
+      Ok(mem_ctx(e.self, l));
     | MemHasTy(x, t) =>
       let$ l = unbox_list(p);
-      Ok(Prop.mem_ctx(HasTy(x.self, t.self) |> Prop.temp, l));
+      Ok(mem_ctx(HasTy(x.self, t.self) |> temp, l));
     };
   };
 
@@ -867,120 +865,120 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     Ok();
   | S_Neg =>
     let$ (ctx, (e, _)) = prems(0) >> Entail(__, Syn(__, Num));
-    let$ _ = concl >> Entail(!ctx, Syn(UnOp(OpNeg, !e), Num));
+    let$ _ = concl >> Entail(!ctx, Syn(Neg(!e), Num));
     Ok();
   | T_Neg =>
     let$ (ctx, (e, _)) = prems(0) >> Entail(__, HasTy(__, Num));
-    let$ _ = concl >> Entail(!ctx, HasTy(UnOp(OpNeg, !e), Num));
+    let$ _ = concl >> Entail(!ctx, HasTy(Neg(!e), Num));
     Ok();
   | E_Neg =>
     let$ (e, v) = prems(0) >> Eval(__, __);
-    let$ _ = concl >> Eval(UnOp(OpNeg, !e), !!Neg(v));
+    let$ _ = concl >> Eval(Neg(!e), !!Neg(v));
     Ok();
   | S_Plus =>
     let$ (ctx, (e1, _)) = prems(0) >> Entail(__, Ana(__, Num));
     let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, Ana(__, Num));
-    let$ _ = concl >> Entail(!ctx, Syn(BinOp(OpPlus, !e1, !e2), Num));
+    let$ _ = concl >> Entail(!ctx, Syn(Plus(!e1, !e2), Num));
     Ok();
   | T_Plus =>
     let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasTy(__, Num));
     let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasTy(__, Num));
-    let$ _ = concl >> Entail(!ctx, HasTy(BinOp(OpPlus, !e1, !e2), Num));
+    let$ _ = concl >> Entail(!ctx, HasTy(Plus(!e1, !e2), Num));
     Ok();
   | E_Plus =>
     let$ (e1, v1) = prems(0) >> Eval(__, __);
     let$ (e2, v2) = prems(1) >> Eval(__, __);
-    let$ _ = concl >> Eval(BinOp(OpPlus, !e1, !e2), !!Plus(v1, v2));
+    let$ _ = concl >> Eval(Plus(!e1, !e2), !!Plus(v1, v2));
     Ok();
   | S_Minus =>
     let$ (ctx, (e1, _)) = prems(0) >> Entail(__, Ana(__, Num));
     let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, Ana(__, Num));
-    let$ _ = concl >> Entail(!ctx, Syn(BinOp(OpMinus, !e1, !e2), Num));
+    let$ _ = concl >> Entail(!ctx, Syn(Minus(!e1, !e2), Num));
     Ok();
   | T_Minus =>
     let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasTy(__, Num));
     let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasTy(__, Num));
-    let$ _ = concl >> Entail(!ctx, HasTy(BinOp(OpMinus, !e1, !e2), Num));
+    let$ _ = concl >> Entail(!ctx, HasTy(Minus(!e1, !e2), Num));
     Ok();
   | E_Minus =>
     let$ (e1, v1) = prems(0) >> Eval(__, __);
     let$ (e2, v2) = prems(1) >> Eval(__, __);
-    let$ _ = concl >> Eval(BinOp(OpMinus, !e1, !e2), !!Minus(v1, v2));
+    let$ _ = concl >> Eval(Minus(!e1, !e2), !!Minus(v1, v2));
     Ok();
   | S_Times =>
     let$ (ctx, (e1, _)) = prems(0) >> Entail(__, Ana(__, Num));
     let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, Ana(__, Num));
-    let$ _ = concl >> Entail(!ctx, Syn(BinOp(OpTimes, !e1, !e2), Num));
+    let$ _ = concl >> Entail(!ctx, Syn(Times(!e1, !e2), Num));
     Ok();
   | T_Times =>
     let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasTy(__, Num));
     let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasTy(__, Num));
-    let$ _ = concl >> Entail(!ctx, HasTy(BinOp(OpTimes, !e1, !e2), Num));
+    let$ _ = concl >> Entail(!ctx, HasTy(Times(!e1, !e2), Num));
     Ok();
   | E_Times =>
     let$ (e1, v1) = prems(0) >> Eval(__, __);
     let$ (e2, v2) = prems(1) >> Eval(__, __);
-    let$ _ = concl >> Eval(BinOp(OpTimes, !e1, !e2), !!Times(v1, v2));
+    let$ _ = concl >> Eval(Times(!e1, !e2), !!Times(v1, v2));
     Ok();
   | S_Lt =>
     let$ (ctx, (e1, _)) = prems(0) >> Entail(__, Ana(__, Num));
     let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, Ana(__, Num));
-    let$ _ = concl >> Entail(!ctx, Syn(BinOp(OpLt, !e1, !e2), Bool));
+    let$ _ = concl >> Entail(!ctx, Syn(Lt(!e1, !e2), Bool));
     Ok();
   | T_Lt =>
     let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasTy(__, Num));
     let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasTy(__, Num));
-    let$ _ = concl >> Entail(!ctx, HasTy(BinOp(OpLt, !e1, !e2), Bool));
+    let$ _ = concl >> Entail(!ctx, HasTy(Lt(!e1, !e2), Bool));
     Ok();
   | E_Lt_T =>
     let$ (e1, v1) = prems(0) >> Eval(__, __);
     let$ (e2, _) = prems(1) >> Eval(__, !!Lt(v1));
-    let$ _ = concl >> Eval(BinOp(OpLt, !e1, !e2), True);
+    let$ _ = concl >> Eval(Lt(!e1, !e2), True);
     Ok();
   | E_Lt_F =>
     let$ (e1, v1) = prems(0) >> Eval(__, __);
     let$ (e2, _) = prems(1) >> Eval(__, !!NotLt(v1));
-    let$ _ = concl >> Eval(BinOp(OpLt, !e1, !e2), False);
+    let$ _ = concl >> Eval(Lt(!e1, !e2), False);
     Ok();
   | S_Gt =>
     let$ (ctx, (e1, _)) = prems(0) >> Entail(__, Ana(__, Num));
     let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, Ana(__, Num));
-    let$ _ = concl >> Entail(!ctx, Syn(BinOp(OpGt, !e1, !e2), Bool));
+    let$ _ = concl >> Entail(!ctx, Syn(Gt(!e1, !e2), Bool));
     Ok();
   | T_Gt =>
     let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasTy(__, Num));
     let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasTy(__, Num));
-    let$ _ = concl >> Entail(!ctx, HasTy(BinOp(OpGt, !e1, !e2), Bool));
+    let$ _ = concl >> Entail(!ctx, HasTy(Gt(!e1, !e2), Bool));
     Ok();
   | E_Gt_T =>
     let$ (e1, v1) = prems(0) >> Eval(__, __);
     let$ (e2, _) = prems(1) >> Eval(__, !!Gt(v1));
-    let$ _ = concl >> Eval(BinOp(OpGt, !e1, !e2), True);
+    let$ _ = concl >> Eval(Gt(!e1, !e2), True);
     Ok();
   | E_Gt_F =>
     let$ (e1, v1) = prems(0) >> Eval(__, __);
     let$ (e2, _) = prems(1) >> Eval(__, !!NotGt(v1));
-    let$ _ = concl >> Eval(BinOp(OpGt, !e1, !e2), False);
+    let$ _ = concl >> Eval(Gt(!e1, !e2), False);
     Ok();
   | S_Eq =>
     let$ (ctx, (e1, _)) = prems(0) >> Entail(__, Ana(__, Num));
     let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, Ana(__, Num));
-    let$ _ = concl >> Entail(!ctx, Syn(BinOp(OpEq, !e1, !e2), Bool));
+    let$ _ = concl >> Entail(!ctx, Syn(Eq(!e1, !e2), Bool));
     Ok();
   | T_Eq =>
     let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasTy(__, Num));
     let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasTy(__, Num));
-    let$ _ = concl >> Entail(!ctx, HasTy(BinOp(OpEq, !e1, !e2), Bool));
+    let$ _ = concl >> Entail(!ctx, HasTy(Eq(!e1, !e2), Bool));
     Ok();
   | E_Eq_T =>
     let$ (e1, v1) = prems(0) >> Eval(__, __);
     let$ (e2, _) = prems(1) >> Eval(__, !!Eq(v1));
-    let$ _ = concl >> Eval(BinOp(OpEq, !e1, !e2), True);
+    let$ _ = concl >> Eval(Eq(!e1, !e2), True);
     Ok();
   | E_Eq_F =>
     let$ (e1, v1) = prems(0) >> Eval(__, __);
     let$ (e2, _) = prems(1) >> Eval(__, !!NotEq(v1));
-    let$ _ = concl >> Eval(BinOp(OpEq, !e1, !e2), False);
+    let$ _ = concl >> Eval(Eq(!e1, !e2), False);
     Ok();
   | S_If =>
     let$ (ctx, (e_cond, _)) = prems(0) >> Entail(__, Ana(__, Bool));
@@ -1364,7 +1362,7 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
 };
 
 let bind_ghost:
-  (Prop.deduction(Prop.t), Prop.deduction(Prop.t)) => Prop.deduction(t) =
+  (deduction(DrvSyntax.t), deduction(DrvSyntax.t)) => deduction(t) =
   (self, ghost) => {
     prems:
       List.map2(
@@ -1378,7 +1376,7 @@ let bind_ghost:
     },
   };
 
-let bind_none: Prop.deduction(Prop.t) => Prop.deduction(t) =
+let bind_none: deduction(DrvSyntax.t) => deduction(t) =
   self => {
     prems: List.map(p => {self: p, ghost: None}, self.prems),
     concl: {
@@ -1388,11 +1386,11 @@ let bind_none: Prop.deduction(Prop.t) => Prop.deduction(t) =
   };
 
 let verify =
-    (rule: Rule.t, d: Prop.deduction(Prop.t), ~with_ghost: bool)
+    (rule: Rule.t, d: deduction(DrvSyntax.t), ~with_ghost: bool)
     : result(unit, failure) => {
-  let Prop.{prems, concl} =
+  let {prems, concl} =
     if (with_ghost) {
-      bind_ghost(d, Ghost.of_ghost(rule));
+      bind_ghost(d, RuleExample.of_ghost(rule));
     } else {
       bind_none(d);
     };
@@ -1400,7 +1398,7 @@ let verify =
 };
 
 let verify_ghost = (rule: Rule.t) =>
-  verify(rule, Ghost.of_ghost(rule), ~with_ghost=false);
+  verify(rule, RuleExample.of_ghost(rule), ~with_ghost=false);
 
 let verify_all_ghosts = (): unit => {
   let rules = Rule.all;

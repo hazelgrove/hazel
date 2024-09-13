@@ -44,7 +44,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     open ExternalError;
 
     type t = list(Tree.p(abbr(res)))
-    and res = result(deduction(Prop.t), ExternalError.t);
+    and res = result(deduction(DrvSyntax.t), ExternalError.t);
 
     let res_of_di = ({result, _}: DynamicsItem.t, rule): res =>
       switch (result) {
@@ -85,20 +85,20 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     type t = list(Tree.p(res))
     and res =
       | Correct
-      | Incorrect(Verify.failure)
+      | Incorrect(RuleVerify.failure)
       | Pending(ExternalError.t);
 
     let show_res: res => string =
       fun
       | Correct => "✅"
       | Pending(err) => "⌛️ " ++ ExternalError.show(err)
-      | Incorrect(err) => "❌ " ++ Verify.repr_failure(err);
+      | Incorrect(err) => "❌ " ++ RuleVerify.repr_failure(err);
 
     let verify_single =
         (
-          acc: list((tree(res), option(Prop.t))),
+          acc: list((tree(res), option(DrvSyntax.t))),
           concl: abbr(ProofTree.res),
-          prems: list((tree(res), option(Prop.t))),
+          prems: list((tree(res), option(DrvSyntax.t))),
         ) => {
       let (sub_trees, prems) = List.split(prems);
       let are_prems_ready = List.for_all(Option.is_some, prems);
@@ -111,7 +111,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         | Just(Ok(_)) when !are_prems_ready => Pending(PremiseNotReady)
         | Just(Ok({jdmt: concl, rule: Some(rule)})) =>
           let prems = prems |> List.map(Option.get);
-          switch (Verify.verify(rule, {prems, concl}, ~with_ghost=false)) {
+          switch (RuleVerify.verify(rule, {prems, concl}, ~with_ghost=false)) {
           | Ok(_) => Correct
           | Error(err) => Incorrect(err)
           };

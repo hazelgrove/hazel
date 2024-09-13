@@ -1493,22 +1493,16 @@ and Prop: {
 }
 and ALFA_Exp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type unop =
-    | OpNeg;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type binop =
-    | OpLt
-    | OpGt
-    | OpEq
-    | OpPlus
-    | OpMinus
-    | OpTimes;
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Hole(TypeHole.t)
     | NumLit(int)
-    | UnOp(unop, t)
-    | BinOp(binop, t, t)
+    | Neg(t)
+    | Plus(t, t)
+    | Minus(t, t)
+    | Times(t, t)
+    | Gt(t, t)
+    | Lt(t, t)
+    | Eq(t, t)
     | True
     | False
     | If(t, t, t)
@@ -1546,22 +1540,16 @@ and ALFA_Exp: {
   let fast_equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type unop =
-    | OpNeg;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type binop =
-    | OpLt
-    | OpGt
-    | OpEq
-    | OpPlus
-    | OpMinus
-    | OpTimes;
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Hole(TypeHole.t)
     | NumLit(int)
-    | UnOp(unop, t)
-    | BinOp(binop, t, t)
+    | Neg(t)
+    | Plus(t, t)
+    | Minus(t, t)
+    | Times(t, t)
+    | Gt(t, t)
+    | Lt(t, t)
+    | Eq(t, t)
     | True
     | False
     | If(t, t, t)
@@ -1592,9 +1580,13 @@ and ALFA_Exp: {
         switch (term) {
         | Hole(_) => term
         | NumLit(n) => NumLit(n)
-        | UnOp(op, e) => UnOp(op, exp_map_term(e))
-        | BinOp(op, e1, e2) =>
-          BinOp(op, exp_map_term(e1), exp_map_term(e2))
+        | Neg(e) => Neg(exp_map_term(e))
+        | Plus(e1, e2) => Plus(exp_map_term(e1), exp_map_term(e2))
+        | Minus(e1, e2) => Minus(exp_map_term(e1), exp_map_term(e2))
+        | Times(e1, e2) => Times(exp_map_term(e1), exp_map_term(e2))
+        | Gt(e1, e2) => Gt(exp_map_term(e1), exp_map_term(e2))
+        | Lt(e1, e2) => Lt(exp_map_term(e1), exp_map_term(e2))
+        | Eq(e1, e2) => Eq(exp_map_term(e1), exp_map_term(e2))
         | True => True
         | False => False
         | If(e1, e2, e3) =>
@@ -1635,8 +1627,13 @@ and ALFA_Exp: {
     switch (term) {
     | Hole(_) => e
     | NumLit(_) => e
-    | UnOp(op, e) => UnOp(op, subst(e)) |> rewrap
-    | BinOp(op, e1, e2) => BinOp(op, subst(e1), subst(e2)) |> rewrap
+    | Neg(e) => Neg(subst(e)) |> rewrap
+    | Plus(e1, e2) => Plus(subst(e1), subst(e2)) |> rewrap
+    | Minus(e1, e2) => Minus(subst(e1), subst(e2)) |> rewrap
+    | Times(e1, e2) => Times(subst(e1), subst(e2)) |> rewrap
+    | Gt(e1, e2) => Gt(subst(e1), subst(e2)) |> rewrap
+    | Lt(e1, e2) => Lt(subst(e1), subst(e2)) |> rewrap
+    | Eq(e1, e2) => Eq(subst(e1), subst(e2)) |> rewrap
     | True => e
     | False => e
     | If(e1, e2, e3) => If(subst(e1), subst(e2), subst(e3)) |> rewrap
@@ -1666,8 +1663,13 @@ and ALFA_Exp: {
     switch (term) {
     | Hole(_) => e
     | NumLit(_) => e
-    | UnOp(op, e) => UnOp(op, subst_ty(e)) |> rewrap
-    | BinOp(op, e1, e2) => BinOp(op, subst_ty(e1), subst_ty(e2)) |> rewrap
+    | Neg(e) => Neg(subst_ty(e)) |> rewrap
+    | Plus(e1, e2) => Plus(subst_ty(e1), subst_ty(e2)) |> rewrap
+    | Minus(e1, e2) => Minus(subst_ty(e1), subst_ty(e2)) |> rewrap
+    | Times(e1, e2) => Times(subst_ty(e1), subst_ty(e2)) |> rewrap
+    | Gt(e1, e2) => Gt(subst_ty(e1), subst_ty(e2)) |> rewrap
+    | Lt(e1, e2) => Lt(subst_ty(e1), subst_ty(e2)) |> rewrap
+    | Eq(e1, e2) => Eq(subst_ty(e1), subst_ty(e2)) |> rewrap
     | True => e
     | False => e
     | If(e1, e2, e3) =>
@@ -1704,14 +1706,26 @@ and ALFA_Exp: {
     | (Hole(_), _) => false
     | (NumLit(n1), NumLit(n2)) => n1 == n2
     | (NumLit(_), _) => false
-    | (UnOp(op1, e1), UnOp(op2, e2)) =>
-      op1 == op2 && ALFA_Exp.fast_equal(e1, e2)
-    | (UnOp(_), _) => false
-    | (BinOp(op1, e11, e12), BinOp(op2, e21, e22)) =>
-      op1 == op2
-      && ALFA_Exp.fast_equal(e11, e21)
-      && ALFA_Exp.fast_equal(e12, e22)
-    | (BinOp(_), _) => false
+    | (Neg(e1), Neg(e2)) => ALFA_Exp.fast_equal(e1, e2)
+    | (Neg(_), _) => false
+    | (Plus(e11, e12), Plus(e21, e22)) =>
+      ALFA_Exp.fast_equal(e11, e21) && ALFA_Exp.fast_equal(e12, e22)
+    | (Plus(_), _) => false
+    | (Minus(e11, e12), Minus(e21, e22)) =>
+      ALFA_Exp.fast_equal(e11, e21) && ALFA_Exp.fast_equal(e12, e22)
+    | (Minus(_), _) => false
+    | (Times(e11, e12), Times(e21, e22)) =>
+      ALFA_Exp.fast_equal(e11, e21) && ALFA_Exp.fast_equal(e12, e22)
+    | (Times(_), _) => false
+    | (Gt(e11, e12), Gt(e21, e22)) =>
+      ALFA_Exp.fast_equal(e11, e21) && ALFA_Exp.fast_equal(e12, e22)
+    | (Gt(_), _) => false
+    | (Lt(e11, e12), Lt(e21, e22)) =>
+      ALFA_Exp.fast_equal(e11, e21) && ALFA_Exp.fast_equal(e12, e22)
+    | (Lt(_), _) => false
+    | (Eq(e11, e12), Eq(e21, e22)) =>
+      ALFA_Exp.fast_equal(e11, e21) && ALFA_Exp.fast_equal(e12, e22)
+    | (Eq(_), _) => false
     | (True, True) => true
     | (True, _) => false
     | (False, False) => true

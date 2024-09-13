@@ -256,7 +256,7 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     ret(Parens(body))
   | Pre(([(_id, t)], []), Drv(Exp(r))) as tm =>
     switch (t) {
-    | (["-"], []) => ret(UnOp(OpNeg, r))
+    | (["-"], []) => ret(Neg(r))
     | (["if", "then", "else"], [Drv(Exp(cond)), Drv(Exp(conseq))]) =>
       ret(If(cond, conseq, r))
     | (["let", "=", "in"], [Drv(Pat(pat)), Drv(Exp(def))]) =>
@@ -279,12 +279,12 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     }
   | Bin(Drv(Exp(l)), ([(_id, ([t], []))], []), Drv(Exp(r))) as tm =>
     switch (t) {
-    | "+" => ret(BinOp(OpPlus, l, r))
-    | "-" => ret(BinOp(OpMinus, l, r))
-    | "*" => ret(BinOp(OpTimes, l, r))
-    | "==" => ret(BinOp(OpEq, l, r))
-    | "<" => ret(BinOp(OpLt, l, r))
-    | ">" => ret(BinOp(OpGt, l, r))
+    | "+" => ret(Plus(l, r))
+    | "-" => ret(Minus(l, r))
+    | "*" => ret(Times(l, r))
+    | "==" => ret(Eq(l, r))
+    | "<" => ret(Lt(l, r))
+    | ">" => ret(Gt(l, r))
     | "," => ret(Pair(l, r))
     | _ => ret(hole(tm))
     }
