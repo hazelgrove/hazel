@@ -162,8 +162,6 @@ module Transition = (EV: EV_MODE) => {
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t => Term({term, ids: [rep_id(d)]});
-    print_endline("transition");
-    print_endline(DHExp.show_term(d.term));
 
     // Transition rules
     switch (term) {
