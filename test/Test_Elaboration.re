@@ -49,6 +49,7 @@ let f =
     f
     in
 55";
+
 let let_fun_menhir = () =>
   alco_check_menhir(
     "Let expression for a function which is not recursive (menhir)",
@@ -276,7 +277,7 @@ let test_uexp: Exp.t = {
 let test_menhir = () =>
   alco_check_menhir("Test failed (menhir)", test_str, test_uexp);
 
-let filter_str = "eval 1 0";
+let filter_str = "eval 1, 0";
 let stepper_filter_kind =
   TermBase.StepperFilterKind.Filter({
     pat: Int(1) |> Exp.fresh,
