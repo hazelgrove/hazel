@@ -198,6 +198,7 @@ let rearrange:
 // Checks all labeled pairs in l2 are in l1 and performs f on each pair
 // Checks all labeled pairs in l1 are in l2 and performs f on each pair
 // Checks remaining None pairs in order and performs f on each pair
+// TODO: Outdated? Rearrange instead.
 let ana_tuple:
   (
     'b => option((t, 'b)),
