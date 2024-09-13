@@ -209,7 +209,6 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
   let (elaborated_type, ctx, co_ctx) = elaborated_type(m, uexp);
   let cast_from = (ty, exp) => fresh_cast(exp, ty, elaborated_type);
   let (term, rewrap) = UExp.unwrap(uexp);
-  print_endline("Elaborating");
 
   let dhexp =
     switch (term) {

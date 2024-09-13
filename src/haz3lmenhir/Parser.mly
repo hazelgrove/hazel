@@ -99,15 +99,18 @@ open AST
 %nonassoc IF_EXP
 %nonassoc LET_EXP
 
-%left PLUS MINUS TIMES POWER DIVIDE DOUBLE_EQUAL NOT_EQUAL LESS_THAN LESS_THAN_EQUAL GREATER_THAN GREATER_THAN_EQUAL 
+%left DASH_ARROW
+
+%left PLUS MINUS TIMES POWER DIVIDE DOUBLE_EQUAL NOT_EQUAL LESS_THAN_EQUAL GREATER_THAN_EQUAL 
+
+%left GREATER_THAN LESS_THAN
 
 %left PLUS_FLOAT MINUS_FLOAT TIMES_FLOAT POWER_FLOAT DIVIDE_FLOAT DOUBLE_EQUAL_FLOAT NOT_EQUAL_FLOAT LESS_THAN_FLOAT LESS_THAN_EQUAL_FLOAT GREATER_THAN_FLOAT GREATER_THAN_EQUAL_FLOAT
 
 (* Other *)
-%left DASH_ARROW
 %left CONS
 %left OPEN_PAREN
-%right QUESTION
+%left QUESTION
 %left COLON
 %left COMMA
 %left AT_SYMBOL
@@ -179,17 +182,13 @@ typ:
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
 
-varPat:
-    | i = IDENT { VarPat (i) }
-
-
 pat:
     | QUESTION; s = STRING { InvalidPat(s) }
     | WILD { WildPat }
     | QUESTION { EmptyHolePat }
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
     | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { ConstructorPat(c, t) }
-    | p = varPat {p}
+    | p = IDENT { VarPat(p) }
     | t = patTuple { t }
     | i = INT { IntPat i }
     | f = FLOAT { FloatPat f }
@@ -211,7 +210,7 @@ case:
     | CASE; e = exp; l = list(rul); END; { CaseExp(e, l) }
 
 funExp: 
-    | FUN; p = pat; DASH_ARROW; e1 = exp;  { Fun (p, e1, None) }
+    | FUN; p = pat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) }
     | FUN; p = pat; DASH_ARROW; e1 = exp; name = IDENT { Fun (p, e1, Some(name)) }
 
 
