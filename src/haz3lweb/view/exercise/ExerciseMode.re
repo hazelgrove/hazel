@@ -24,6 +24,8 @@ let view =
       ~exercise: Exercise.state,
       ~stitched_dynamics: Exercise.stitched(Exercise.DynamicsItem.t),
       ~highlights,
+      ~explainThisModel,
+      ~cursor_info,
     ) => {
   let grading_report = GradingReport.mk(exercise.model, ~stitched_dynamics);
   let score_view = grading_report |> GradingReport.overall_score |> score_view;
@@ -32,42 +34,74 @@ let view =
     Cell.narrative_cell(
       div(~attrs=[Attr.class_("cell-prompt")], [exercise.header.prompt]),
     );
-  [score_view, title_view, prompt_view]
-  @ (
+  let (view, cursor_info) =
     switch (exercise, stitched_dynamics, grading_report) {
     | (
         {pos: Programming(pos), model: Programming(eds), _},
         Programming(stitched_dynamics),
         Programming(grading_report),
-      ) =>
-      ProgrammingView.programming_view(
-        ~inject,
-        ~ui_state,
-        ~settings,
-        ~pos,
-        ~eds,
-        ~grading_report,
-        ~stitched_dynamics,
-        ~highlights,
+      ) => (
+        ProgrammingView.programming_view(
+          ~inject,
+          ~ui_state,
+          ~settings,
+          ~pos,
+          ~eds,
+          ~grading_report,
+          ~stitched_dynamics,
+          ~highlights,
+        ),
+        cursor_info,
       )
     | (
         {pos: Proof(pos), model: Proof(eds), _},
         Proof(stitched_dynamics),
         Proof(grading_report),
       ) =>
-      ProofView.proof_view(
-        ~inject,
-        ~ui_state,
-        ~settings,
-        ~pos,
-        ~eds,
-        ~grading_report,
-        ~stitched_dynamics,
-        ~highlights,
-      )
+      let trees = grading_report.proof_report.verified_tree;
+      let info =
+        switch (NinjaKeysRules.staged^, NinjaKeysRules.pos^) {
+        | (true, Trees(i, pos)) =>
+          ExplainThis.Deduction(
+            try({
+              let tree = List.nth(trees, i);
+              let res = Tree.nth(tree, pos);
+              let tree = List.nth(eds.trees, i);
+              let ed = Tree.nth(tree, pos);
+              switch (ed) {
+              | Just({rule: Some(rule), _}) =>
+                print_endline("rule is " ++ Haz3lcore.Rule.show(rule));
+                Some({
+                  ...res,
+                  rule: Some(rule),
+                  ghost: Some(Haz3lcore.RuleExample.of_ghost(rule)),
+                });
+              | _ => Some(res)
+              };
+            }) {
+            | _ => None
+            },
+          )
+        | _ => cursor_info
+        };
+      let highlights =
+        ExplainThis.get_color_map(~settings, ~explainThisModel, info);
+      (
+        ProofView.proof_view(
+          ~inject,
+          ~ui_state,
+          ~settings,
+          ~pos,
+          ~eds,
+          ~grading_report,
+          ~stitched_dynamics,
+          ~highlights,
+        ),
+        info,
+      );
     | _ => failwith("Impossible")
-    }
-  );
+    };
+  ([score_view, title_view, prompt_view] @ view, cursor_info);
 };
 
 let reset_button = inject =>

@@ -151,7 +151,33 @@ type pat_sub_form_id =
   | Ap;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type test_id =
+  | Neg
+  | Plus
+  | Minus
+  | Times
+  | Lt
+  | NotLt
+  | Gt
+  | NotGt
+  | Eq
+  | NotEq
+  | Subst
+  | Subst2
+  | SubstTy
+  | Cons
+  | ConsHasTy
+  | ConsHasTy2
+  | Mem
+  | MemHasTy;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type form_id =
+  | DrvPremiseMismatch
+  | DrvFailUnbox
+  | DrvNotAList
+  | DrvNotEqual
+  | DrvFailTest(test_id)
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
@@ -247,6 +273,11 @@ type form = {
 // MAYBE don't even need an id at all for the group - just use the most specific (1st) form id in forms
 [@deriving (show({with_path: false}), sexp, yojson)]
 type group_id =
+  | DrvPremiseMismatch
+  | DrvFailUnbox
+  | DrvNotAList
+  | DrvNotEqual
+  | DrvFailTest(test_id)
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp

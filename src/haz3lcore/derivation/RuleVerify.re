@@ -1365,10 +1365,16 @@ let bind_ghost:
   (deduction(DrvSyntax.t), deduction(DrvSyntax.t)) => deduction(t) =
   (self, ghost) => {
     prems:
-      List.map2(
-        (p1, p2) => {self: p1, ghost: Some(p2)},
+      List.mapi(
+        (i, p) =>
+          {
+            self: p,
+            ghost:
+              try(Some(List.nth(ghost.prems, i))) {
+              | _ => None
+              },
+          },
         self.prems,
-        ghost.prems,
       ),
     concl: {
       self: self.concl,
@@ -1384,6 +1390,8 @@ let bind_none: deduction(DrvSyntax.t) => deduction(t) =
       ghost: None,
     },
   };
+
+let verify_original = verify;
 
 let verify =
     (rule: Rule.t, d: deduction(DrvSyntax.t), ~with_ghost: bool)

@@ -1,6 +1,42 @@
 open Haz3lcore;
 open Util;
 
+module ExternalError = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | NoRule
+    | NoAbbr
+    | PremiseNotReady
+    | NotAJudgment
+    | EvalOff
+    | EvalFail
+    | EvalPending
+    | EvalIndet
+    | Stepper
+    | NoElab;
+
+  let repr =
+    fun
+    | NoRule => "Rule not specified"
+    | NoAbbr => "Abbreviation not specified"
+    | PremiseNotReady => "Premise(s) not ready"
+    | NotAJudgment => "Conclusion not a judgement"
+    | _ as a => show(a);
+};
+
+module VerifiedTree = {
+  type t = list(Tree.p(info))
+  and info = {
+    ghost: option(DrvSyntax.deduction(DrvSyntax.t)),
+    rule: option(Rule.t),
+    res,
+  }
+  and res =
+    | Correct
+    | Incorrect(RuleVerify.failure)
+    | Pending(ExternalError.t);
+};
+
 module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
   open Exercise.F(ExerciseEnv);
   open ProofCore;
@@ -15,29 +51,6 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
   let score_of_percent = (percent, max_points) => {
     let max_points = float_of_int(max_points);
     (percent *. max_points, max_points);
-  };
-
-  module ExternalError = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | NoRule
-      | NoAbbr
-      | PremiseNotReady
-      | NotAJudgment
-      | EvalOff
-      | EvalFail
-      | EvalPending
-      | EvalIndet
-      | Stepper
-      | NoElab;
-
-    let repr =
-      fun
-      | NoRule => "Rule not specified"
-      | NoAbbr => "Abbreviation not specified"
-      | PremiseNotReady => "Premise(s) not ready"
-      | NotAJudgment => "Conclusion not a judgement"
-      | _ as a => show(a);
   };
 
   module ProofTree = {
@@ -81,11 +94,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     };
   };
   module VerifiedTree = {
-    type t = list(Tree.p(res))
-    and res =
-      | Correct
-      | Incorrect(RuleVerify.failure)
-      | Pending(ExternalError.t);
+    include VerifiedTree;
 
     let show_res: res => string =
       fun
@@ -95,25 +104,55 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
 
     let verify_single =
         (
-          acc: list((tree(res), option(DrvSyntax.t))),
+          acc: list((tree(info), option(DrvSyntax.t))),
           concl: abbr(ProofTree.res),
-          prems: list((tree(res), option(DrvSyntax.t))),
+          prems: list((tree(info), option(DrvSyntax.t))),
         ) => {
       let (sub_trees, prems) = List.split(prems);
       let are_prems_ready = List.for_all(Option.is_some, prems);
       let res =
         switch (concl) {
         | Abbr(Some(i)) => List.nth(acc, i) |> fst |> Tree.value
-        | Abbr(None) => Pending(NoAbbr)
-        | Just(Error(exn)) => Pending(exn)
-        | Just(Ok({rule: None, _})) => Pending(NoRule)
-        | Just(Ok(_)) when !are_prems_ready => Pending(PremiseNotReady)
+        | Abbr(None) => {res: Pending(NoAbbr), ghost: None, rule: None}
+        | Just(Error(exn)) => {res: Pending(exn), ghost: None, rule: None}
+        | Just(Ok({rule: None, _})) => {
+            res: Pending(NoRule),
+            ghost: None,
+            rule: None,
+          }
+        | Just(Ok(_)) when !are_prems_ready => {
+            res: Pending(PremiseNotReady),
+            ghost: None,
+            rule: None,
+          }
         | Just(Ok({jdmt: concl, rule: Some(rule)})) =>
           let prems = prems |> List.map(Option.get);
-          switch (RuleVerify.verify(rule, {prems, concl}, ~with_ghost=false)) {
-          | Ok(_) => Correct
-          | Error(err) => Incorrect(err)
+          let deduction: DrvSyntax.deduction(DrvSyntax.t) = {prems, concl};
+          let ghost = RuleExample.of_ghost(rule);
+          let deduction = RuleVerify.bind_ghost(deduction, ghost);
+          switch (
+            RuleVerify.verify_original(rule, deduction.prems, deduction.concl)
+          ) {
+          | Ok(_) => {res: Correct, ghost: Some(ghost), rule: Some(rule)}
+          | Error(err) => {
+              res: Incorrect(err),
+              ghost: Some(ghost),
+              rule: Some(rule),
+            }
           };
+        };
+      let res =
+        switch (res.rule) {
+        | Some(_) => res
+        | None =>
+          switch (concl) {
+          | Just(Ok({rule: Some(rule), _})) => {
+              ...res,
+              rule: Some(rule),
+              ghost: Some(RuleExample.of_ghost(rule)),
+            }
+          | _ => res
+          }
         };
       let concl =
         switch (concl) {
@@ -152,7 +191,15 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
               (value: abbr('a), children: list(Tree.p('a))) =>
                 switch (value) {
                 | Just(v) => Tree.Node(v, children)
-                | Abbr(None) => Tree.Node(VerifiedTree.Pending(NoAbbr), [])
+                | Abbr(None) =>
+                  Tree.Node(
+                    VerifiedTree.{
+                      res: VerifiedTree.Pending(NoAbbr),
+                      ghost: None,
+                      rule: None,
+                    },
+                    [],
+                  )
                 | Abbr(Some(i)) => List.nth(acc, i)
                 },
               tree,
@@ -161,11 +208,11 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         [],
       );
 
-    let grade_tree: Tree.p(VerifiedTree.res) => percentage =
-      Tree.fold_deep((value: VerifiedTree.res, children: list(percentage)) =>
+    let grade_tree: Tree.p(VerifiedTree.info) => percentage =
+      Tree.fold_deep((value: VerifiedTree.info, children: list(percentage)) =>
         switch (value, children) {
-        | (Correct, []) => 1.
-        | (Correct, _) =>
+        | ({res: Correct, _}, []) => 1.
+        | ({res: Correct, _}, _) =>
           List.fold_left((acc, x) => acc +. x, 0., children)
           /. float_of_int(List.length(children))
           *. 0.5

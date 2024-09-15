@@ -317,6 +317,12 @@
   background: var(--BR2);
 }
 
+.deduction-label-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
 /* Dropdown button */
 .deduction-label {
   color: var(--ui-bkg);

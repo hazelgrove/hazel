@@ -21,7 +21,7 @@ module FakeCode = {
     );
 };
 
-type view_info = (pos, VerifiedTree.res, ed)
+type view_info = (pos, VerifiedTree.info, ed)
 and ed =
   | Just(option(Rule.t), Editor.t, Exercise.DynamicsItem.t)
   | Abbr(option(int));
@@ -130,11 +130,12 @@ let proof_view =
   //     [text(VerifiedTree.show_res(res))],
   //   );
 
-  let class_of_result: VerifiedTree.res => string =
-    fun
+  let class_of_result = ({res, _}: VerifiedTree.info) =>
+    switch (res) {
     | Incorrect(_) => "incorrect"
     | Correct => "correct"
-    | Pending(_) => "pending";
+    | Pending(_) => "pending"
+    };
 
   let pos_is_value =
     fun
@@ -189,6 +190,41 @@ let proof_view =
         // Attr.on_mousemove(_ => label_on_mouseover(~pos)),
       ],
       [text(label)],
+    );
+
+  let result_btn_view = (~pos, ~res: VerifiedTree.info) =>
+    create(
+      "img",
+      ~attrs=[
+        Attr.class_("result-icon"),
+        Attr.src(
+          switch (res.res) {
+          | Correct => "img/icons8-check-mark.svg"
+          | Incorrect(_) => "img/icons8-cancel.svg"
+          | Pending(_) => "img/icons8-clock.svg"
+          },
+        ),
+        Attr.on_click(_ => {
+          if (NinjaKeysRules.pos^ == pos) {
+            NinjaKeysRules.staged := ! NinjaKeysRules.staged^;
+          } else {
+            NinjaKeysRules.staged := true;
+            NinjaKeysRules.pos := pos;
+          };
+          if (!settings.explainThis.show) {
+            inject(UpdateAction.Set(ExplainThis(ToggleShow)));
+          } else {
+            Ui_effect.Ignore;
+          };
+        }),
+      ],
+      [],
+    );
+
+  let label_view = (~pos, ~res, ~label) =>
+    div(
+      ~attrs=[Attr.class_("deduction-label-wrapper")],
+      [result_btn_view(~pos, ~res), label_view(~pos, ~res, ~label)],
     );
 
   let premises_view = (~children_node, ~pos, ~res, ~rule) => {

@@ -432,7 +432,7 @@ type message_mode =
 
 type info =
   | Code(option(Statics.Info.t))
-  | Deduction(option(result(unit, RuleVerify.failure)));
+  | Deduction(option(Haz3lschool.ProofGrade.VerifiedTree.info));
 
 let get_doc =
     (
@@ -526,7 +526,13 @@ let get_doc =
             ~model=docs,
           );
         (syntactic_form_view, ([explanation], color_map), example_view);
-      | Deduction(_) => ([], ([explanation], color_map), [])
+      | Deduction(info) =>
+        print_endline(
+          "Deduction info is " ++ string_of_bool(Option.is_some(info)),
+        );
+        let rule_example_view =
+          DeductionExp.rule_example_view(~info, ~color_map);
+        ([], ([rule_example_view, explanation], color_map), []);
       };
     | Colorings =>
       let (_, color_map) = mk_translation(~inject=None, explanation_msg);
@@ -540,13 +546,24 @@ let get_doc =
     get_message(~colorings, ~format=None, ~explanation, group);
   };
 
+  let fake_get_message = msg =>
+    get_message(~format=Some(_msg => msg), DeductionExp.premise_mismatch);
+
   switch (info) {
-  | Deduction(None) => simple("No deduction result available")
-  | Deduction(Some(Ok ())) => simple("Deduction successful")
-  | Deduction(Some(Error(failure))) =>
+  | Deduction(None) => fake_get_message("Deduction not available")
+  | Deduction(Some({res: Correct, _})) =>
+    fake_get_message("Deduction correct")
+  | Deduction(Some({res: Pending(p), _})) =>
+    fake_get_message(
+      Printf.sprintf(
+        "Deduction pending: %s",
+        Haz3lschool.ProofGrade.ExternalError.show(p),
+      ),
+    )
+  | Deduction(Some({res: Incorrect(failure), _})) =>
     switch (failure) {
     | PremiseMismatch(expected, actual) =>
-      simple(
+      fake_get_message(
         Printf.sprintf(
           "Premise mismatch: expected %s, got %s",
           string_of_int(expected),
@@ -556,7 +573,6 @@ let get_doc =
     | FailUnbox(cls, syntax) =>
       let syntax_id = List.nth(syntax.self.ids, 0);
       get_message(
-        ~colorings=DeductionExp.failunbox_coloring_ids(~syntax),
         ~format=
           Some(
             msg =>
@@ -565,12 +581,11 @@ let get_doc =
                 Id.to_string(syntax_id),
               ),
           ),
-        DeductionExp.failunbox_exps,
+        DeductionExp.failunbox(cls),
       );
     | NotAList(syntax) =>
       let syntax_id = List.nth(syntax.self.ids, 0);
       get_message(
-        ~colorings=DeductionExp.notalist_coloring_ids(~syntax),
         ~format=
           Some(
             msg =>
@@ -579,13 +594,12 @@ let get_doc =
                 Id.to_string(syntax_id),
               ),
           ),
-        DeductionExp.notalist_exps,
+        DeductionExp.notalist,
       );
     | NotEqual(syntax, syntax') =>
       let syntax_id = List.nth(syntax.self.ids, 0);
       let syntax_id' = List.nth(syntax'.self.ids, 0);
       get_message(
-        ~colorings=DeductionExp.notequal_coloring_ids(~syntax, ~syntax'),
         ~format=
           Some(
             msg =>
@@ -595,7 +609,7 @@ let get_doc =
                 Id.to_string(syntax_id'),
               ),
           ),
-        DeductionExp.notequal_exps,
+        DeductionExp.notequal,
       );
     | FailTest(s, operation) =>
       let s_id = List.nth(s.self.ids, 0);
@@ -603,7 +617,6 @@ let get_doc =
       | Neg(n) =>
         let n_id = List.nth(n.self.ids, 0);
         get_message(
-          ~colorings=DeductionExp.neg_coloring_ids(~s, ~n),
           ~format=
             Some(
               msg =>
@@ -613,13 +626,12 @@ let get_doc =
                   Id.to_string(n_id),
                 ),
             ),
-          DeductionExp.neg_exps,
+          DeductionExp.neg,
         );
       | Plus(n1, n2) =>
         let n1_id = List.nth(n1.self.ids, 0);
         let n2_id = List.nth(n2.self.ids, 0);
         get_message(
-          ~colorings=DeductionExp.plus_coloring_ids(~s, ~n1, ~n2),
           ~format=
             Some(
               msg =>
@@ -630,13 +642,12 @@ let get_doc =
                   Id.to_string(n2_id),
                 ),
             ),
-          DeductionExp.plus_exps,
+          DeductionExp.plus,
         );
       | Minus(n1, n2) =>
         let n1_id = List.nth(n1.self.ids, 0);
         let n2_id = List.nth(n2.self.ids, 0);
         get_message(
-          ~colorings=DeductionExp.minus_coloring_ids(~s, ~n1, ~n2),
           ~format=
             Some(
               msg =>
@@ -647,13 +658,12 @@ let get_doc =
                   Id.to_string(n2_id),
                 ),
             ),
-          DeductionExp.minus_exps,
+          DeductionExp.minus,
         );
       | Times(n1, n2) =>
         let n1_id = List.nth(n1.self.ids, 0);
         let n2_id = List.nth(n2.self.ids, 0);
         get_message(
-          ~colorings=DeductionExp.times_coloring_ids(~s, ~n1, ~n2),
           ~format=
             Some(
               msg =>
@@ -664,12 +674,11 @@ let get_doc =
                   Id.to_string(n2_id),
                 ),
             ),
-          DeductionExp.times_exps,
+          DeductionExp.times,
         );
       | Lt(n) =>
         let n_id = List.nth(n.self.ids, 0);
         get_message(
-          ~colorings=DeductionExp.lt_coloring_ids(~s, ~n),
           ~format=
             Some(
               msg =>
@@ -679,12 +688,11 @@ let get_doc =
                   Id.to_string(n_id),
                 ),
             ),
-          DeductionExp.lt_exps,
+          DeductionExp.lt,
         );
       | NotLt(n) =>
         let n_id = List.nth(n.self.ids, 0);
         get_message(
-          ~colorings=DeductionExp.notlt_coloring_ids(~s, ~n),
           ~format=
             Some(
               msg =>
@@ -694,12 +702,11 @@ let get_doc =
                   Id.to_string(n_id),
                 ),
             ),
-          DeductionExp.notlt_exps,
+          DeductionExp.notlt,
         );
       | Gt(n) =>
         let n_id = List.nth(n.self.ids, 0);
         get_message(
-          ~colorings=DeductionExp.gt_coloring_ids(~s, ~n),
           ~format=
             Some(
               msg =>
@@ -709,12 +716,11 @@ let get_doc =
                   Id.to_string(n_id),
                 ),
             ),
-          DeductionExp.gt_exps,
+          DeductionExp.gt,
         );
       | NotGt(n) =>
         let n_id = List.nth(n.self.ids, 0);
         get_message(
-          ~colorings=DeductionExp.notgt_coloring_ids(~s, ~n),
           ~format=
             Some(
               msg =>
@@ -724,12 +730,11 @@ let get_doc =
                   Id.to_string(n_id),
                 ),
             ),
-          DeductionExp.notgt_exps,
+          DeductionExp.notgt,
         );
       | Eq(n) =>
         let n_id = List.nth(n.self.ids, 0);
         get_message(
-          ~colorings=DeductionExp.eq_coloring_ids(~s, ~n),
           ~format=
             Some(
               msg =>
@@ -739,12 +744,11 @@ let get_doc =
                   Id.to_string(n_id),
                 ),
             ),
-          DeductionExp.eq_exps,
+          DeductionExp.eq,
         );
       | NotEq(n) =>
         let n_id = List.nth(n.self.ids, 0);
         get_message(
-          ~colorings=DeductionExp.noteq_coloring_ids(~s, ~n),
           ~format=
             Some(
               msg =>
@@ -754,26 +758,25 @@ let get_doc =
                   Id.to_string(n_id),
                 ),
             ),
-          DeductionExp.noteq_exps,
+          DeductionExp.noteq,
         );
       | Subst((v, x), e) =>
         let v_id = List.nth(v.self.ids, 0);
         let x_id = List.nth(x.self.ids, 0);
         let e_id = List.nth(e.self.ids, 0);
         get_message(
-          ~colorings=DeductionExp.subst_coloring_ids(~s, ~v, ~x, ~e),
           ~format=
             Some(
               msg =>
                 Printf.sprintf(
                   Scanf.format_from_string(msg, "%s%s%s%s"),
                   Id.to_string(s_id),
-                  Id.to_string(v_id),
-                  Id.to_string(x_id),
                   Id.to_string(e_id),
+                  Id.to_string(x_id),
+                  Id.to_string(v_id),
                 ),
             ),
-          DeductionExp.subst_exps,
+          DeductionExp.subst,
         );
       | Subst2((v1, x1), (v2, x2), e) =>
         let v1_id = List.nth(v1.self.ids, 0);
@@ -782,77 +785,72 @@ let get_doc =
         let x2_id = List.nth(x2.self.ids, 0);
         let e_id = List.nth(e.self.ids, 0);
         get_message(
-          ~colorings=
-            DeductionExp.subst2_coloring_ids(~s, ~v1, ~x1, ~v2, ~x2, ~e),
           ~format=
             Some(
               msg =>
                 Printf.sprintf(
                   Scanf.format_from_string(msg, "%s%s%s%s%s%s"),
                   Id.to_string(s_id),
-                  Id.to_string(v1_id),
-                  Id.to_string(x1_id),
-                  Id.to_string(v2_id),
-                  Id.to_string(x2_id),
                   Id.to_string(e_id),
+                  Id.to_string(x1_id),
+                  Id.to_string(v1_id),
+                  Id.to_string(x2_id),
+                  Id.to_string(v2_id),
                 ),
             ),
-          DeductionExp.subst2_exps,
+          DeductionExp.subst2,
         );
       | SubstTy((t, a), e) =>
         let t_id = List.nth(t.self.ids, 0);
         let a_id = List.nth(a.self.ids, 0);
         let e_id = List.nth(e.self.ids, 0);
         get_message(
-          ~colorings=DeductionExp.substty_coloring_ids(~s, ~t, ~a, ~e),
           ~format=
             Some(
               msg =>
                 Printf.sprintf(
                   Scanf.format_from_string(msg, "%s%s%s%s"),
                   Id.to_string(s_id),
-                  Id.to_string(t_id),
-                  Id.to_string(a_id),
                   Id.to_string(e_id),
+                  Id.to_string(a_id),
+                  Id.to_string(t_id),
                 ),
             ),
-          DeductionExp.substty_exps,
+          DeductionExp.substty,
         );
       | Cons(p, l) =>
         let p_id = List.nth(p.self.ids, 0);
         let l_id = List.nth(l.self.ids, 0);
         get_message(
-          ~colorings=DeductionExp.cons_coloring_ids(~s, ~p, ~l),
           ~format=
             Some(
               msg =>
                 Printf.sprintf(
                   Scanf.format_from_string(msg, "%s%s%s"),
                   Id.to_string(s_id),
-                  Id.to_string(p_id),
                   Id.to_string(l_id),
+                  Id.to_string(p_id),
                 ),
             ),
-          DeductionExp.cons_exps,
+          DeductionExp.cons,
         );
       | ConsHasTy((x, t), l) =>
         let x_id = List.nth(x.self.ids, 0);
         let t_id = List.nth(t.self.ids, 0);
         let l_id = List.nth(l.self.ids, 0);
         get_message(
-          ~colorings=DeductionExp.conshasty_coloring_ids(~s, ~x, ~t, ~l),
           ~format=
             Some(
               msg =>
                 Printf.sprintf(
                   Scanf.format_from_string(msg, "%s%s%s%s"),
                   Id.to_string(s_id),
+                  Id.to_string(l_id),
                   Id.to_string(x_id),
                   Id.to_string(t_id),
-                  Id.to_string(l_id),
                 ),
             ),
-          DeductionExp.conshasty_exps,
+          DeductionExp.conshasty,
         );
       | ConsHasTy2((x1, t1), (x2, t2), l) =>
         let x1_id = List.nth(x1.self.ids, 0);
@@ -861,54 +859,50 @@ let get_doc =
         let t2_id = List.nth(t2.self.ids, 0);
         let l_id = List.nth(l.self.ids, 0);
         get_message(
-          ~colorings=
-            DeductionExp.conshasty2_coloring_ids(~s, ~x1, ~t1, ~x2, ~t2, ~l),
           ~format=
             Some(
               msg =>
                 Printf.sprintf(
                   Scanf.format_from_string(msg, "%s%s%s%s%s%s"),
                   Id.to_string(s_id),
+                  Id.to_string(l_id),
                   Id.to_string(x1_id),
                   Id.to_string(t1_id),
                   Id.to_string(x2_id),
                   Id.to_string(t2_id),
-                  Id.to_string(l_id),
                 ),
             ),
-          DeductionExp.conshasty2_exps,
+          DeductionExp.conshasty2,
         );
       | Mem(p) =>
         let p_id = List.nth(p.self.ids, 0);
         get_message(
-          ~colorings=DeductionExp.mem_coloring_ids(~s, ~p),
           ~format=
             Some(
               msg =>
                 Printf.sprintf(
                   Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(s_id),
                   Id.to_string(p_id),
+                  Id.to_string(s_id),
                 ),
             ),
-          DeductionExp.mem_exps,
+          DeductionExp.mem,
         );
       | MemHasTy(x, t) =>
         let x_id = List.nth(x.self.ids, 0);
         let t_id = List.nth(t.self.ids, 0);
         get_message(
-          ~colorings=DeductionExp.memhasty_coloring_ids(~s, ~x, ~t),
           ~format=
             Some(
               msg =>
                 Printf.sprintf(
                   Scanf.format_from_string(msg, "%s%s%s"),
-                  Id.to_string(s_id),
                   Id.to_string(x_id),
                   Id.to_string(t_id),
+                  Id.to_string(s_id),
                 ),
             ),
-          DeductionExp.memhasty_exps,
+          DeductionExp.memhasty,
         );
       };
     }
@@ -2798,7 +2792,7 @@ let view =
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
       ~explainThisModel: ExplainThisModel.t,
-      info: option(Info.t),
+      info: info,
     ) => {
   let (syn_form, (explanation, _), example) =
     get_doc(
@@ -2839,8 +2833,9 @@ let view =
             ~section_clss="syntactic-form",
             ~title=
               switch (info) {
-              | None => "Whitespace or Comment"
-              | Some(info) => Info.cls_of(info) |> Cls.show
+              // TODO(zhiyao): fix this
+              | Code(Some(info)) => Info.cls_of(info) |> Cls.show
+              | _ => "Whitespace or Comment"
               },
             syn_form @ explanation,
           ),

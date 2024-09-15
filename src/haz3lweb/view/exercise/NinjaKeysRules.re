@@ -3,6 +3,8 @@ open Util;
 
 let pos = ref(Haz3lschool.ProofCore.Trees(0, Value));
 
+let staged = ref(false);
+
 let init = () =>
   ""
   |> Exercise.zipper_of_code
