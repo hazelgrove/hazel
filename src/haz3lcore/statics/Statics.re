@@ -126,24 +126,29 @@ let typ_exp_unop: Operators.op_un => (Typ.t, Typ.t) =
   | Bool(Not) => (Bool |> Typ.temp, Bool |> Typ.temp)
   | Int(Minus) => (Int |> Typ.temp, Int |> Typ.temp);
 
-let rec caf_input_type = (args: UPat.t): UTyp.t =>
-  switch (args.term) {
-  | Tuple(ps) => {ids: args.ids, term: Tuple(List.map(caf_input_type, ps))}
-  | TypeAnn(_, t) => t
-  | _ => {ids: args.ids, term: EmptyHole}
+let rec caf_input_type = (args: UPat.t): UTyp.t => {
+  let (arg_term, arg_rule) = IdTagged.unwrap(args);
+  switch (arg_term) {
+  | Tuple(ps) => UTyp.Prod(List.map(caf_input_type, ps)) |> arg_rule
+  | Cast(_, _, t) => t
+  | _ => Unknown(Hole(EmptyHole)) |> arg_rule
   };
+};
 
 let check_annotated_function_helper =
-    (pat: UPat.t, ret_type: UTyp.t): option((Var.t, UPat.t, UTyp.t)) =>
-  switch (pat.term) {
-  | Ap({ids: _, term: Var(func_name)}, args) =>
-    Some((
-      func_name,
-      args,
-      {ids: pat.ids, term: Arrow(caf_input_type(args), ret_type)},
-    ))
+    (pat: UPat.t, ret_type: UTyp.t): option((Var.t, UPat.t, UTyp.t)) => {
+  let (pat_term, pat_rule) = IdTagged.unwrap(pat);
+  switch (pat_term) {
+  | Ap(func_name_group, args) =>
+    switch (IdTagged.term_of(func_name_group)) {
+    | Var(func_name) =>
+      let func_type = UTyp.Arrow(caf_input_type(args), ret_type) |> pat_rule;
+      Some((func_name, args, func_type));
+    | _ => None
+    }
   | _ => None
   };
+};
 
 /*
  * Check whether a particular let binding is an annotated function under the new syntax.
@@ -151,13 +156,16 @@ let check_annotated_function_helper =
  * I am not sure what is the top-level pattern; the only thing similar seems to be UPat.Ap.
  */
 let check_annotated_function =
-    (pat: UPat.t): option((Var.t, UPat.t, UTyp.t)) =>
-  switch (pat.term) {
-  | TypeAnn(inner_pat, ret_type) =>
+    (pat: UPat.t): option((Var.t, UPat.t, UTyp.t)) => {
+  let (pat_term, pat_rule) = IdTagged.unwrap(pat);
+  switch (pat_term) {
+  | Cast(inner_pat, _, ret_type) =>
     check_annotated_function_helper(inner_pat, ret_type)
   | _ =>
-    check_annotated_function_helper(pat, {ids: pat.ids, term: EmptyHole})
+    let ret_type = UTyp.Unknown(Hole(EmptyHole)) |> pat_rule;
+    check_annotated_function_helper(pat, ret_type);
   };
+};
 
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, Map.t) =>
@@ -438,7 +446,12 @@ and uexp_to_info_map =
             let def: UExp.t = {ids, term: UExp.Fun(f_args, def)};
             let p: UPat.t = {
               ids,
-              term: UPat.TypeAnn({ids, term: UPat.Var(f_name)}, f_type),
+              term:
+                UPat.Cast(
+                  {ids, term: UPat.Var(f_name)},
+                  Typ.temp(Unknown(Internal)),
+                  f_type,
+                ),
             };
             let (p_syn, _) =
               go_pat(
