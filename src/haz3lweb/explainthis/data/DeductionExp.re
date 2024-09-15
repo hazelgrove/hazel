@@ -11,35 +11,50 @@ let highlight = (msg: list(Node.t), id: Id.t, mapping: ColorSteps.t): Node.t => 
   let attrs = [classes];
   Node.span(~attrs, msg);
 };
-let rec repr = (p: int, prop: t, ~color_map: ColorSteps.t): Node.t => {
+let rec repr = (p: int, prop: t, ~color_map: ColorSteps.t): list(Node.t) => {
   let p' = precedence(prop);
+  let mk = x => [Node.text(x)];
   let repr = repr(p', ~color_map);
-  let repr_aba = (as_: list(string), bs: list(t)): Node.t =>
-    Aba.mk(as_, bs) |> Aba.join(Node.text, repr) |> Node.span;
+  // let insert_space = (a: list(Node.t), b: list(Node.t)) =>
+  //   List.concat([a, mk(" "), b]);
+  let repr_aba = (as_: list(string), bs: list(t)): list(Node.t) =>
+    Aba.mk(as_, bs)
+    |> Aba.join(mk, repr)
+    |> Aba.mk(
+         _,
+         List.init(List.length(bs) + List.length(as_) - 1, _ =>
+           Unicode.nbsp
+         ),
+       )
+    |> Aba.join(Fun.id, mk)
+    |> List.concat;
   let repr_aba_tight = (as_: list(string), bs: list(t)) =>
-    Aba.mk(as_, bs) |> Aba.join(Node.text, repr) |> Node.span;
+    Aba.mk(as_, bs) |> Aba.join(mk, repr) |> List.concat;
   let repr_binop = (op: string, a: t, b: t) =>
-    repr_aba(["", op, ""], [a, b]);
-  let repr_preop = (op, a: t) => repr_aba([op, ""], [a]);
-  let repr_postop = (op, a: t) => repr_aba(["", op], [a]);
+    [repr(a), [Node.text(Unicode.nbsp ++ op ++ Unicode.nbsp)], repr(b)]
+    |> List.concat;
+  let repr_preop = (op, a: t) =>
+    [repr(a), [Node.text(Unicode.nbsp ++ op)]] |> List.concat;
+  let repr_postop = (op, a: t) =>
+    [[Node.text(op ++ Unicode.nbsp)], repr(a)] |> List.concat;
   (
     switch (IdTagged.term_of(prop)) {
-    | Hole(s) => Printf.sprintf("[%s]", s) |> Node.text
-    | Atom(s) => s |> Node.text
+    | Hole(s) => Printf.sprintf("[%s]", s) |> mk
+    | Atom(s) => s |> mk
     | And(a, b) => repr_binop("∧", a, b)
     | Or(a, b) => repr_binop("∨", a, b)
     | Impl(a, b) when IdTagged.term_of(b) == Falsity => repr_postop("¬", a)
     | Impl(a, b) => repr_binop("⊃", a, b)
-    | Truth => "⊤" |> Node.text
-    | Falsity => "⊥" |> Node.text
+    | Truth => "⊤" |> mk
+    | Falsity => "⊥" |> mk
     | Ctx(ctx) =>
       if (List.length(ctx) == 0) {
-        "·" |> Node.text;
+        "·" |> mk;
       } else {
-        ctx |> List.map(repr) |> Node.span;
+        ctx |> List.map(repr) |> List.concat;
       }
     | Entail(a, b) => repr_binop("⊢", a, b)
-    | NumLit(i) => string_of_int(i) |> Node.text
+    | NumLit(i) => string_of_int(i) |> mk
     | Val(a) => repr_postop(".val", a)
     | Neg(a) => repr_preop("-", a)
     | Plus(a, b) => repr_binop("+", a, b)
@@ -49,18 +64,18 @@ let rec repr = (p: int, prop: t, ~color_map: ColorSteps.t): Node.t => {
     | Gt(a, b) => repr_binop(">", a, b)
     | Eq(a, b) => repr_binop("==", a, b)
     | Eval(a, b) => repr_binop("⇓", a, b)
-    | Num => "Num" |> Node.text
-    | Bool => "Bool" |> Node.text
+    | Num => "Num" |> mk
+    | Bool => "Bool" |> mk
     | Arrow(a, b) => repr_binop("→", a, b)
     | Prod(a, b) => repr_binop("×", a, b)
-    | Unit => "Unit" |> Node.text
+    | Unit => "Unit" |> mk
     | Sum(a, b) => repr_binop("+", a, b)
-    | TVar(x) => x |> Node.text
+    | TVar(x) => x |> mk
     | Rec(x, a) => repr_aba(["rec", "→", ""], [x, a])
-    | True => "True" |> Node.text
-    | False => "False" |> Node.text
+    | True => "True" |> mk
+    | False => "False" |> mk
     | If(a, b, c) => repr_aba(["if", "then", "else", ""], [a, b, c])
-    | Var(x) => x |> Node.text
+    | Var(x) => x |> mk
     | Let(x, a, b) => repr_aba(["let", "→", "in", ""], [x, a, b])
     | LetAnn(x, t, a, b) =>
       repr_aba(["let", ":", "→", "in", ""], [x, t, a, b])
@@ -70,7 +85,7 @@ let rec repr = (p: int, prop: t, ~color_map: ColorSteps.t): Node.t => {
     | FunAnn(x, t, a) => repr_aba(["fun", ":", "→", ""], [x, t, a])
     | Ap(a, b) => repr_aba_tight(["", "(", ")"], [a, b])
     | Pair(a, b) => repr_aba_tight(["(", ",", ")"], [a, b])
-    | Triv => "()" |> Node.text
+    | Triv => "()" |> mk
     | PrjL(a) => repr_postop(".fst", a)
     | PrjR(a) => repr_postop(".snd", a)
     | LetPair(x, y, a, b) =>
@@ -84,24 +99,21 @@ let rec repr = (p: int, prop: t, ~color_map: ColorSteps.t): Node.t => {
       )
     | Roll(a) => repr_aba_tight(["roll(", ")"], [a])
     | Unroll(a) => repr_aba_tight(["unroll(", ")"], [a])
-    | TPat(x) => x |> Node.text
-    | Pat(x) => x |> Node.text
+    | TPat(x) => x |> mk
+    | Pat(x) => x |> mk
     | HasTy(a, b) => repr_binop(":", a, b)
     | Syn(a, b) => repr_binop("⇒", a, b)
     | Ana(a, b) => repr_binop("⇐", a, b)
     }
   )
-  |> (
-    x =>
-      p < p' ? Node.span([Node.text("("), x, Node.text(")")]) : Fun.id(x)
-  )
+  |> (x => p < p' ? List.concat([mk("("), x, mk(")")]) : x)
   |> (
     x =>
       switch (
         Haz3lcore.Id.Map.find_opt(IdTagged.rep_id(prop), fst(color_map))
       ) {
       | None => x
-      | Some(_) => highlight([x], IdTagged.rep_id(prop), color_map)
+      | Some(_) => [highlight(x, IdTagged.rep_id(prop), color_map)]
       }
   );
 };
@@ -164,7 +176,7 @@ let copy_color_map =
 let conclusion_view = (~syntax: DrvSyntax.t, ~color_map: ColorSteps.t) =>
   Node.div(
     ~attrs=[Attr.class_("deduction-concl")],
-    [repr(syntax, ~color_map)],
+    repr(syntax, ~color_map),
   );
 
 let rule_to_label =
@@ -182,13 +194,18 @@ let premises_view =
     ~attrs=[Attr.class_("deduction-prems-label")],
     [
       Node.div(
-        ~attrs=[Attr.class_("deduction-prems")],
+        ~attrs=[
+          Attr.class_("deduction-prems"),
+          Attr.class_("drv-explainthis"),
+        ],
         List.map(
           syntax =>
-            Node.div(
-              ~attrs=[Attr.class_("deduction-prem")],
-              [repr(syntax, ~color_map)],
-            ),
+            Node.div([
+              Node.span(repr(syntax, ~color_map)),
+              Node.span([
+                Node.text(Unicode.nbsp ++ Unicode.nbsp ++ Unicode.nbsp),
+              ]),
+            ]),
           syntaxes,
         ),
       ),
@@ -204,30 +221,42 @@ let rule_example_view =
     )
     : Node.t => {
   let (rule, res) = (info.rule, info);
+  Id.Map.iter(
+    (id, color) =>
+      print_endline(Printf.sprintf("%s[:] %s", Id.show(id), color)),
+    fst(color_map),
+  );
   let color_map =
     switch (res.res) {
     | Correct => color_map
-    | Incorrect(failure) => copy_color_map(failure, color_map)
+    | Incorrect(failure) =>
+      switch (failure) {
+      | NotAList({self, ghost: Some(ghost)}) =>
+        print_endline(
+          Printf.sprintf("self: %s", Id.show(IdTagged.rep_id(self))),
+        );
+        print_endline(
+          Printf.sprintf("ghost: %s", Id.show(IdTagged.rep_id(ghost))),
+        );
+      | _ => ()
+      };
+      copy_color_map(failure, color_map);
     | Pending(_) => color_map
     };
-  let {prems, concl} = res.ghost |> Option.get;
+  Id.Map.iter(
+    (id, color) =>
+      print_endline(Printf.sprintf("%s: %s", Id.show(id), color)),
+    fst(color_map),
+  );
   Node.div(
     ~attrs=[Attr.class_("section"), Attr.class_("syntactic-form")],
-    [
-      Node.div(
-        ~attrs=[Attr.class_("section-title")],
-        [
-          Node.text(
-            switch (rule) {
-            | Some(rule) => "Rule " ++ Rule.show(rule)
-            | None => "Rule ?"
-            },
-          ),
-        ],
-      ),
-      premises_view(~syntaxes=prems, ~rule, ~color_map),
-      conclusion_view(~syntax=concl, ~color_map),
-    ],
+    switch (res.ghost) {
+    | Some({prems, concl}) => [
+        premises_view(~syntaxes=prems, ~rule, ~color_map),
+        conclusion_view(~syntax=concl, ~color_map),
+      ]
+    | None => []
+    },
   );
 };
 
@@ -240,6 +269,12 @@ let rule_example_view =
   | Some(info) => rule_example_view(~info, ~color_map)
   | None => Node.div([])
   };
+
+let mk_explanation_title = () =>
+  Node.div(
+    ~attrs=[Attr.class_("section-title")],
+    [Node.text("Verification Result")],
+  );
 
 let premise_mismatch: group = {
   id: DrvPremiseMismatch,

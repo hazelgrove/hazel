@@ -80,19 +80,15 @@ let proof_view =
     );
 
   let del_premise_btn_view = (~pos) =>
-    div(
-      ~attrs=[
-        Attr.class_("del-premise-btn"),
-        Attr.id(show_pos(pos) ++ "-del-btn"),
-        Attr.on_click(_ =>
-          inject(
-            UpdateAction.MapExercise(
-              map_model(Exercise.Proof.del_premise(~pos)),
-            ),
-          )
+    Widgets.button_named(
+      Icons.trash,
+      _ =>
+        inject(
+          UpdateAction.MapExercise(
+            map_model(Exercise.Proof.del_premise(~pos)),
+          ),
         ),
-      ],
-      [text("x")],
+      ~tooltip="Delete Premise",
     );
 
   let rule_to_label =
@@ -109,26 +105,65 @@ let proof_view =
     ]);
 
   let dropdown_option_abbr_view = (~pos: pos, ~index: option(int)) =>
-    div(
-      ~attrs=[
-        Attr.class_("dropdown-option"),
-        Attr.class_("abbr"),
-        Attr.on_click(_ =>
+    switch (index) {
+    | Some(index) =>
+      Widgets.button_named(
+        abbr_to_label(Some(index)),
+        _ =>
           inject(
             UpdateAction.MapExercise(
-              map_model(Exercise.Proof.switch_abbr(~pos, ~index)),
+              map_model(
+                Exercise.Proof.switch_abbr(~pos, ~index=Some(index)),
+              ),
             ),
-          )
-        ),
-      ],
-      [abbr_to_label(index)],
+          ),
+        ~tooltip="Use Abbr d" ++ string_of_int(index),
+      )
+    | None => Node.none
+    };
+
+  let dropdown_switch_rule_view = (~pos: pos) =>
+    Widgets.button_named(
+      Icons.command_palette_sparkle,
+      _ => {
+        NinjaKeysRules.pos := pos;
+        // let nj = JsUtil.get_elem_by_id("ninja-keys-rules");
+        // let em =
+        //   nj##getElementsByTagName(Js_of_ocaml.Js.string("ninja-action"));
+        // Js_of_ocaml.Dom.list_of_nodeList(em)
+        // |> List.iter(e =>
+        //      e##setAttribute(
+        //        Js_of_ocaml.Js.string("style"),
+        //        Js_of_ocaml.Js.string("display: none;"),
+        //      )
+        //    );
+        NinjaKeysRules.open_command_palette();
+        Effect.Ignore;
+      },
+      // Attr.draggable(true),
+      // Attr.on_dragstart(drag_event => {
+      //   print_endline("drag_start");
+      //   drag_event##.dataTransfer##setData(
+      //     Js.string("pos"),
+      //     Js.string(show_pos(pos)),
+      //   );
+      //   Ui_effect.Ignore;
+      // }),
+      // Attr.on_mousemove(_ => label_on_mouseover(~pos))
+      ~tooltip="Switch Rule",
     );
 
-  // let dropdown_result_view = (~res): t =>
-  //   div(
-  //     ~attrs=[Attr.class_("dropdown-result")],
-  //     [text(VerifiedTree.show_res(res))],
-  //   );
+  let dropdown_switch_just_view = (~pos: pos) =>
+    Widgets.button_named(
+      Icons.forward,
+      _ =>
+        inject(
+          UpdateAction.MapExercise(
+            map_model(Exercise.Proof.switch_rule(~pos, ~rule=None, ~init)),
+          ),
+        ),
+      ~tooltip="Cancel Abbreviation",
+    );
 
   let class_of_result = ({res, _}: VerifiedTree.info) =>
     switch (res) {
@@ -146,85 +181,76 @@ let proof_view =
     div(
       ~attrs=[Attr.class_("dropdown")],
       (
-        !settings.instructor_mode
-        && pos == Trees(List.length(eds.trees) - 1, Value)
-          ? [] : [del_premise_btn_view(~pos)]
-      )
-      @ (
         Exercise.Proof.all_abbrs(pos)
         |> List.filter(abbr => abbr != index)
         |> List.filter(abbr => !(Option.is_none(abbr) && pos_is_value(pos)))
         |> List.map(dropdown_option_abbr_view(~pos, ~index=_))
-      ),
+      )
+      @ (
+        switch (index) {
+        | Some(_) => [dropdown_switch_just_view(~pos)]
+        | None => []
+        }
+      )
+      @ (
+        !settings.instructor_mode
+        && pos == Trees(List.length(eds.trees) - 1, Value)
+          ? [] : [del_premise_btn_view(~pos)]
+      )
+      @ [dropdown_switch_rule_view(~pos)],
     );
 
-  let label_view = (~pos, ~res, ~label) =>
+  let label_view = (~pos, ~res, ~label, ~index) =>
     div(
       ~attrs=[
         Attr.class_("deduction-label"),
         Attr.class_(class_of_result(res)),
-        Attr.on_click(_ => {
-          NinjaKeysRules.pos := pos;
-          // let nj = JsUtil.get_elem_by_id("ninja-keys-rules");
-          // let em =
-          //   nj##getElementsByTagName(Js_of_ocaml.Js.string("ninja-action"));
-          // Js_of_ocaml.Dom.list_of_nodeList(em)
-          // |> List.iter(e =>
-          //      e##setAttribute(
-          //        Js_of_ocaml.Js.string("style"),
-          //        Js_of_ocaml.Js.string("display: none;"),
-          //      )
-          //    );
-          NinjaKeysRules.open_command_palette();
-          Effect.Ignore;
-        }),
-        // Attr.draggable(true),
-        // Attr.on_dragstart(drag_event => {
-        //   print_endline("drag_start");
-        //   drag_event##.dataTransfer##setData(
-        //     Js.string("pos"),
-        //     Js.string(show_pos(pos)),
-        //   );
-        //   Ui_effect.Ignore;
-        // }),
-        // Attr.on_mousemove(_ => label_on_mouseover(~pos)),
       ],
-      [text(label)],
+      [text(label), dropdown_view(~pos, ~index)],
     );
 
   let result_btn_view = (~pos, ~res: VerifiedTree.info) =>
     create(
       "img",
-      ~attrs=[
-        Attr.class_("result-icon"),
-        Attr.src(
-          switch (res.res) {
-          | Correct => "img/icons8-check-mark.svg"
-          | Incorrect(_) => "img/icons8-cancel.svg"
-          | Pending(_) => "img/icons8-clock.svg"
-          },
+      ~attrs=
+        [
+          Attr.class_("result-icon"),
+          Attr.class_(class_of_result(res)),
+          Attr.src(
+            switch (res.res) {
+            | Correct => "img/icons8-check-mark.svg"
+            | Incorrect(_) => "img/icons8-cancel.svg"
+            | Pending(_) => "img/icons8-clock.svg"
+            },
+          ),
+          Attr.on_click(_ => {
+            if (NinjaKeysRules.pos^ == pos) {
+              NinjaKeysRules.staged := ! NinjaKeysRules.staged^;
+            } else {
+              NinjaKeysRules.staged := true;
+              NinjaKeysRules.pos := pos;
+            };
+            if (!settings.explainThis.show) {
+              inject(UpdateAction.Set(ExplainThis(ToggleShow)));
+            } else {
+              Ui_effect.Ignore;
+            };
+          }),
+        ]
+        @ (
+          if (NinjaKeysRules.pos^ == pos && NinjaKeysRules.staged^) {
+            [Attr.class_("staged")];
+          } else {
+            [];
+          }
         ),
-        Attr.on_click(_ => {
-          if (NinjaKeysRules.pos^ == pos) {
-            NinjaKeysRules.staged := ! NinjaKeysRules.staged^;
-          } else {
-            NinjaKeysRules.staged := true;
-            NinjaKeysRules.pos := pos;
-          };
-          if (!settings.explainThis.show) {
-            inject(UpdateAction.Set(ExplainThis(ToggleShow)));
-          } else {
-            Ui_effect.Ignore;
-          };
-        }),
-      ],
       [],
     );
 
-  let label_view = (~pos, ~res, ~label) =>
+  let label_view = (~pos, ~res, ~label, ~index) =>
     div(
       ~attrs=[Attr.class_("deduction-label-wrapper")],
-      [result_btn_view(~pos, ~res), label_view(~pos, ~res, ~label)],
+      [result_btn_view(~pos, ~res), label_view(~pos, ~res, ~label, ~index)],
     );
 
   let premises_view = (~children_node, ~pos, ~res, ~rule) => {
@@ -243,7 +269,7 @@ let proof_view =
           |> Aba.join(Fun.id, Fun.id),
         ),
       ]
-      @ [label_view(~pos, ~res, ~label)],
+      @ [label_view(~pos, ~res, ~label, ~index=None)],
     );
   };
 
@@ -282,7 +308,7 @@ let proof_view =
           ~di,
           ~caption=None,
           ~sort=Drv(Jdmt),
-          ~footer=[dropdown_view(~pos, ~index=None)],
+          ~footer=[],
         ),
       ],
     );
@@ -306,11 +332,11 @@ let proof_view =
             Attr.class_("deduction-prems"),
             Attr.class_(class_of_result(res)),
           ],
-          [label_view(~pos, ~res, ~label="•")],
+          [label_view(~pos, ~res, ~label="•", ~index)],
         ),
         div(
           ~attrs=[Attr.class_("deduction-concl")],
-          [abbr_to_label(index), dropdown_view(~pos, ~index)],
+          [abbr_to_label(index)],
         ),
       ],
     );
@@ -334,7 +360,7 @@ let proof_view =
       ]
       |> code_wrapper;
     let lower_code = [span_exp("in")] |> code_wrapper;
-    div([upper_code, t, lower_code]);
+    div(~attrs=[Attr.class_("abbr-wrapper")], [upper_code, t, lower_code]);
   };
 
   let add_abbr_btn_view = (~index) =>
@@ -349,7 +375,7 @@ let proof_view =
           )
         ),
       ],
-      [text("•")],
+      [text("—")],
     );
 
   // type view_info = (Exercise.pos, VerifiedTree.res, ed)

@@ -68,14 +68,13 @@ let view =
               let res = Tree.nth(tree, pos);
               let tree = List.nth(eds.trees, i);
               let ed = Tree.nth(tree, pos);
-              switch (ed) {
-              | Just({rule: Some(rule), _}) =>
-                print_endline("rule is " ++ Haz3lcore.Rule.show(rule));
+              switch (ed, res) {
+              | (Just({rule: Some(rule), _}), {rule: None, _}) =>
                 Some({
                   ...res,
                   rule: Some(rule),
                   ghost: Some(Haz3lcore.RuleExample.of_ghost(rule)),
-                });
+                })
               | _ => Some(res)
               };
             }) {

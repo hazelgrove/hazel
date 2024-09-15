@@ -480,7 +480,8 @@ module Deco =
 
   let selection = (z: Zipper.t) => div_c("selects", segment_selected(z));
 
-  let always = () => [errors()];
+  // TODO(zhiyao): Need this for color highlights to work even not selecting
+  let always = () => [errors(), color_highlights()];
 
   let all = z => [
     caret(z),

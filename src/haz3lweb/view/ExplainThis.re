@@ -478,6 +478,7 @@ let get_doc =
           explanation_msg,
           docs,
         );
+      print_endline("Reached here");
       switch (info) {
       | Code(info) =>
         let highlights =
@@ -527,12 +528,14 @@ let get_doc =
           );
         (syntactic_form_view, ([explanation], color_map), example_view);
       | Deduction(info) =>
-        print_endline(
-          "Deduction info is " ++ string_of_bool(Option.is_some(info)),
-        );
         let rule_example_view =
           DeductionExp.rule_example_view(~info, ~color_map);
-        ([], ([rule_example_view, explanation], color_map), []);
+        let explanation_title = DeductionExp.mk_explanation_title();
+        (
+          [rule_example_view],
+          ([explanation_title, explanation], color_map),
+          [],
+        );
       };
     | Colorings =>
       let (_, color_map) = mk_translation(~inject=None, explanation_msg);
@@ -2835,7 +2838,10 @@ let view =
               switch (info) {
               // TODO(zhiyao): fix this
               | Code(Some(info)) => Info.cls_of(info) |> Cls.show
-              | _ => "Whitespace or Comment"
+              | Code(None) => "Whitespace or Comment"
+              | Deduction(Some({rule: Some(rule), _})) =>
+                "Rule " ++ Rule.show(rule)
+              | Deduction(_) => "Rule ?"
               },
             syn_form @ explanation,
           ),
