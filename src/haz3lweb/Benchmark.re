@@ -1,3 +1,5 @@
+open Util;
+
 let sample_1 = {|# Hazel Language Quick Reference #
 
 # Recursive Functions (arrow type annotation required) #
@@ -43,7 +45,6 @@ let str_to_inserts = (str: string): list(UpdateAction.t) =>
     String.length(str),
     i => {
       let c = String.sub(str, i, 1);
-      let c = c == "\n" ? Haz3lcore.Form.linebreak : c;
       UpdateAction.PerformAction(Insert(c));
     },
   );

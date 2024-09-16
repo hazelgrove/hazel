@@ -12,6 +12,17 @@ let get_elem_by_id = id => {
   );
 };
 
+let get_elem_by_selector = selector => {
+  let doc = Dom_html.document;
+  Js.Opt.get(
+    doc##querySelector(Js.string(selector)),
+    () => {
+      print_endline(selector);
+      assert(false);
+    },
+  );
+};
+
 let date_now = () => {
   [%js new Js.date_now];
 };
@@ -31,6 +42,9 @@ let num_clicks = (evt: Js.t(Js_of_ocaml.Dom_html.mouseEvent)): int =>
 
 let is_double_click = (evt: Js.t(Js_of_ocaml.Dom_html.mouseEvent)): bool =>
   num_clicks(evt) == 2;
+
+let mouse_button = (evt: Js.t(Js_of_ocaml.Dom_html.mouseEvent)): int =>
+  Js.Unsafe.coerce(evt)##.button;
 
 let download_string_file =
     (~filename: string, ~content_type: string, ~contents: string) => {
