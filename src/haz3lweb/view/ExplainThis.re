@@ -552,22 +552,16 @@ let get_doc =
     get_message(~format=Some(_msg => msg), DeductionExp.premise_mismatch);
 
   switch (info) {
-  | Deduction(None) => fake_get_message("Deduction not available")
-  | Deduction(Some({res: Correct, _})) =>
-    fake_get_message("Deduction correct")
+  | Deduction(None) => fake_get_message("Deduction Not Available")
+  | Deduction(Some({res: Correct, _})) => fake_get_message("Correct")
   | Deduction(Some({res: Pending(p), _})) =>
-    fake_get_message(
-      Printf.sprintf(
-        "Deduction pending: %s",
-        Haz3lschool.ProofGrade.ExternalError.show(p),
-      ),
-    )
+    fake_get_message(Haz3lschool.ProofGrade.ExternalError.show(p))
   | Deduction(Some({res: Incorrect(failure), _})) =>
     switch (failure) {
     | PremiseMismatch(expected, actual) =>
       fake_get_message(
         Printf.sprintf(
-          "Premise mismatch: expected %s, got %s",
+          "Expected %s premises, but got %s",
           string_of_int(expected),
           string_of_int(actual),
         ),
@@ -583,7 +577,7 @@ let get_doc =
                 Id.to_string(syntax_id),
               ),
           ),
-        DeductionExp.failunbox(cls),
+        DeductionExp.failunbox(cls, syntax),
       );
     | NotAList(syntax) =>
       let syntax_id = List.nth(syntax.self.ids, 0);
@@ -596,7 +590,7 @@ let get_doc =
                 Id.to_string(syntax_id),
               ),
           ),
-        DeductionExp.notalist,
+        DeductionExp.notalist(syntax),
       );
     | NotEqual(syntax, syntax') =>
       let syntax_id = List.nth(syntax.self.ids, 0);
@@ -611,7 +605,7 @@ let get_doc =
                 Id.to_string(syntax_id'),
               ),
           ),
-        DeductionExp.notequal,
+        DeductionExp.notequal(syntax, syntax'),
       );
     | FailTest(s, operation) =>
       let s_id = List.nth(s.self.ids, 0);
@@ -628,7 +622,7 @@ let get_doc =
                   Id.to_string(n_id),
                 ),
             ),
-          DeductionExp.neg,
+          DeductionExp.neg(s.ghost, n.ghost),
         );
       | Plus(n1, n2) =>
         let n1_id = List.nth(n1.self.ids, 0);
@@ -644,7 +638,7 @@ let get_doc =
                   Id.to_string(n2_id),
                 ),
             ),
-          DeductionExp.plus,
+          DeductionExp.plus(s.ghost, n1.ghost, n2.ghost),
         );
       | Minus(n1, n2) =>
         let n1_id = List.nth(n1.self.ids, 0);
@@ -660,7 +654,7 @@ let get_doc =
                   Id.to_string(n2_id),
                 ),
             ),
-          DeductionExp.minus,
+          DeductionExp.minus(s.ghost, n1.ghost, n2.ghost),
         );
       | Times(n1, n2) =>
         let n1_id = List.nth(n1.self.ids, 0);
@@ -676,7 +670,7 @@ let get_doc =
                   Id.to_string(n2_id),
                 ),
             ),
-          DeductionExp.times,
+          DeductionExp.times(s.ghost, n1.ghost, n2.ghost),
         );
       | Lt(n) =>
         let n_id = List.nth(n.self.ids, 0);
@@ -690,7 +684,7 @@ let get_doc =
                   Id.to_string(n_id),
                 ),
             ),
-          DeductionExp.lt,
+          DeductionExp.lt(s.ghost, n.ghost),
         );
       | NotLt(n) =>
         let n_id = List.nth(n.self.ids, 0);
@@ -704,7 +698,7 @@ let get_doc =
                   Id.to_string(n_id),
                 ),
             ),
-          DeductionExp.notlt,
+          DeductionExp.notlt(s.ghost, n.ghost),
         );
       | Gt(n) =>
         let n_id = List.nth(n.self.ids, 0);
@@ -718,7 +712,7 @@ let get_doc =
                   Id.to_string(n_id),
                 ),
             ),
-          DeductionExp.gt,
+          DeductionExp.gt(s.ghost, n.ghost),
         );
       | NotGt(n) =>
         let n_id = List.nth(n.self.ids, 0);
@@ -732,7 +726,7 @@ let get_doc =
                   Id.to_string(n_id),
                 ),
             ),
-          DeductionExp.notgt,
+          DeductionExp.notgt(s.ghost, n.ghost),
         );
       | Eq(n) =>
         let n_id = List.nth(n.self.ids, 0);
@@ -746,7 +740,7 @@ let get_doc =
                   Id.to_string(n_id),
                 ),
             ),
-          DeductionExp.eq,
+          DeductionExp.eq(s.ghost, n.ghost),
         );
       | NotEq(n) =>
         let n_id = List.nth(n.self.ids, 0);
@@ -760,7 +754,7 @@ let get_doc =
                   Id.to_string(n_id),
                 ),
             ),
-          DeductionExp.noteq,
+          DeductionExp.noteq(s.ghost, n.ghost),
         );
       | Subst((v, x), e) =>
         let v_id = List.nth(v.self.ids, 0);
@@ -778,7 +772,7 @@ let get_doc =
                   Id.to_string(v_id),
                 ),
             ),
-          DeductionExp.subst,
+          DeductionExp.subst(s.ghost, (v.ghost, x.ghost), e.ghost),
         );
       | Subst2((v1, x1), (v2, x2), e) =>
         let v1_id = List.nth(v1.self.ids, 0);
@@ -800,7 +794,12 @@ let get_doc =
                   Id.to_string(v2_id),
                 ),
             ),
-          DeductionExp.subst2,
+          DeductionExp.subst2(
+            s.ghost,
+            (v1.ghost, x1.ghost),
+            (v2.ghost, x2.ghost),
+            e.ghost,
+          ),
         );
       | SubstTy((t, a), e) =>
         let t_id = List.nth(t.self.ids, 0);
@@ -818,7 +817,7 @@ let get_doc =
                   Id.to_string(t_id),
                 ),
             ),
-          DeductionExp.substty,
+          DeductionExp.substty(s.ghost, (t.ghost, a.ghost), e.ghost),
         );
       | Cons(p, l) =>
         let p_id = List.nth(p.self.ids, 0);
@@ -834,7 +833,7 @@ let get_doc =
                   Id.to_string(p_id),
                 ),
             ),
-          DeductionExp.cons,
+          DeductionExp.cons(s.ghost, p.ghost, l.ghost),
         );
       | ConsHasTy((x, t), l) =>
         let x_id = List.nth(x.self.ids, 0);
@@ -852,7 +851,7 @@ let get_doc =
                   Id.to_string(t_id),
                 ),
             ),
-          DeductionExp.conshasty,
+          DeductionExp.conshasty(s.ghost, (x.ghost, t.ghost), l.ghost),
         );
       | ConsHasTy2((x1, t1), (x2, t2), l) =>
         let x1_id = List.nth(x1.self.ids, 0);
@@ -874,7 +873,12 @@ let get_doc =
                   Id.to_string(t2_id),
                 ),
             ),
-          DeductionExp.conshasty2,
+          DeductionExp.conshasty2(
+            s.ghost,
+            (x1.ghost, t1.ghost),
+            (x2.ghost, t2.ghost),
+            l.ghost,
+          ),
         );
       | Mem(p) =>
         let p_id = List.nth(p.self.ids, 0);
@@ -888,7 +892,7 @@ let get_doc =
                   Id.to_string(s_id),
                 ),
             ),
-          DeductionExp.mem,
+          DeductionExp.mem(s.ghost, p.ghost),
         );
       | MemHasTy(x, t) =>
         let x_id = List.nth(x.self.ids, 0);
@@ -904,7 +908,7 @@ let get_doc =
                   Id.to_string(s_id),
                 ),
             ),
-          DeductionExp.memhasty,
+          DeductionExp.memhasty(s.ghost, (x.ghost, t.ghost)),
         );
       };
     }

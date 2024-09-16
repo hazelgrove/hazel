@@ -33,9 +33,9 @@ let rec repr = (p: int, prop: t, ~color_map: ColorSteps.t): list(Node.t) => {
   let repr_binop = (op: string, a: t, b: t) =>
     [repr(a), [Node.text(Unicode.nbsp ++ op ++ Unicode.nbsp)], repr(b)]
     |> List.concat;
-  let repr_preop = (op, a: t) =>
-    [repr(a), [Node.text(Unicode.nbsp ++ op)]] |> List.concat;
   let repr_postop = (op, a: t) =>
+    [repr(a), [Node.text(Unicode.nbsp ++ op)]] |> List.concat;
+  let repr_preop = (op, a: t) =>
     [[Node.text(op ++ Unicode.nbsp)], repr(a)] |> List.concat;
   (
     switch (IdTagged.term_of(prop)) {
@@ -126,9 +126,16 @@ let copy_color_map =
     List.fold_left(
       (new_map, RuleVerify.{self, ghost}) => {
         let id = IdTagged.rep_id(self);
-        let ghost_id = ghost |> Option.get |> IdTagged.rep_id;
-        let color = Haz3lcore.Id.Map.find_opt(id, map) |> Option.get;
-        Haz3lcore.Id.Map.add(ghost_id, color, new_map);
+        switch (ghost) {
+        | None => new_map
+        | Some(ghost) =>
+          let ghost_id = ghost |> IdTagged.rep_id;
+          let color = Haz3lcore.Id.Map.find_opt(id, map);
+          switch (color) {
+          | None => new_map
+          | Some(color) => Haz3lcore.Id.Map.add(ghost_id, color, new_map)
+          };
+        };
       },
       Haz3lcore.Id.Map.empty,
       terms,
@@ -255,6 +262,12 @@ let mk_explanation_title = () =>
     [Node.text("Verification Result")],
   );
 
+let show_ghost = (t: option(t)) =>
+  switch (t) {
+  | Some(t) => DrvSyntax.repr(t)
+  | None => "?"
+  };
+
 let premise_mismatch: group = {
   id: DrvPremiseMismatch,
   forms: [
@@ -268,8 +281,8 @@ let premise_mismatch: group = {
   ],
 };
 
-let failunbox: DrvSyntax.cls => group =
-  cls => {
+let failunbox: (DrvSyntax.cls, RuleVerify.t) => group =
+  (cls, {ghost: g, _}) => {
     id: DrvFailUnbox,
     forms: [
       {
@@ -277,7 +290,9 @@ let failunbox: DrvSyntax.cls => group =
         syntactic_form: [],
         expandable_id: None,
         explanation:
-          "Failed to unbox [*term*](%s), expected "
+          "Failed to unbox [*"
+          ++ (g |> show_ghost)
+          ++ "*](%s), expected "
           ++ DrvSyntax.show_cls(cls)
           ++ ".",
         examples: [],
@@ -285,31 +300,38 @@ let failunbox: DrvSyntax.cls => group =
     ],
   };
 
-let notalist: group = {
-  id: DrvNotAList,
-  forms: [
-    {
-      id: DrvNotAList,
-      syntactic_form: [],
-      expandable_id: None,
-      explanation: "[*ctx*](%s) is not a list.",
-      examples: [],
-    },
-  ],
-};
+let notalist: RuleVerify.t => group =
+  ({ghost: g, _}) => {
+    id: DrvNotAList,
+    forms: [
+      {
+        id: DrvNotAList,
+        syntactic_form: [],
+        expandable_id: None,
+        explanation: "[*" ++ (g |> show_ghost) ++ "*](%s) is not a list.",
+        examples: [],
+      },
+    ],
+  };
 
-let notequal: group = {
-  id: DrvNotEqual,
-  forms: [
-    {
-      id: DrvNotEqual,
-      syntactic_form: [],
-      expandable_id: None,
-      explanation: "[*term1*](%s) is not equal to [*term2*](%s).",
-      examples: [],
-    },
-  ],
-};
+let notequal: (RuleVerify.t, RuleVerify.t) => group =
+  ({ghost: g1, _}, {ghost: g2, _}) => {
+    id: DrvNotEqual,
+    forms: [
+      {
+        id: DrvNotEqual,
+        syntactic_form: [],
+        expandable_id: None,
+        explanation:
+          "[*"
+          ++ (g1 |> show_ghost)
+          ++ "*](%s) is not equal to [*"
+          ++ (g2 |> show_ghost)
+          ++ "*](%s).",
+        examples: [],
+      },
+    ],
+  };
 
 let failtest: (test_id, string) => group =
   (id, explanation) => {
@@ -345,75 +367,220 @@ let failtest: (test_id, string) => group =
 //   | Mem(t)
 //   | MemHasTy(t, t);
 
-let neg: group =
-  failtest(Neg, "Expect [*n*](%s) to be the negation of [*n1*](%s).");
+let neg = (s, n) =>
+  failtest(
+    Neg,
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be the negation of [*"
+    ++ (n |> show_ghost)
+    ++ "*](%s).",
+  );
 
-let plus: group =
-  failtest(Plus, "Expect [*n*](%s) to be [*n1*](%s) plus [*n2*](%s).");
+let plus = (s, n1, n2) =>
+  failtest(
+    Plus,
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be [*"
+    ++ (n1 |> show_ghost)
+    ++ "*](%s) plus [*"
+    ++ (n2 |> show_ghost)
+    ++ "*](%s).",
+  );
 
-let minus: group =
-  failtest(Minus, "Expect [*n*](%s) to be [*n1*](%s) minus [*n2*](%s).");
+let minus = (s, n1, n2) =>
+  failtest(
+    Minus,
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be [*"
+    ++ (n1 |> show_ghost)
+    ++ "*](%s) minus [*"
+    ++ (n2 |> show_ghost)
+    ++ "*](%s).",
+  );
 
-let times: group =
-  failtest(Times, "Expect [*n*](%s) to be [*n1*](%s) times [*n2*](%s).");
+let times = (s, n1, n2) =>
+  failtest(
+    Times,
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be [*"
+    ++ (n1 |> show_ghost)
+    ++ "*](%s) times [*"
+    ++ (n2 |> show_ghost)
+    ++ "*](%s).",
+  );
 
-let lt: group = failtest(Lt, "Expect [*n*](%s) to be less than [*n1*](%s).");
+let lt = (s, n) =>
+  failtest(
+    Lt,
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be less than [*"
+    ++ (n |> show_ghost)
+    ++ "*](%s).",
+  );
 
-let notlt: group =
-  failtest(NotLt, "Expect [*n*](%s) to be not less than [*n1*](%s).");
+let notlt = (s, n) =>
+  failtest(
+    NotLt,
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be not less than [*"
+    ++ (n |> show_ghost)
+    ++ "*](%s).",
+  );
 
-let gt: group =
-  failtest(Gt, "Expect [*n*](%s) to be greater than [*n1*](%s).");
+let gt = (s, n) =>
+  failtest(
+    Gt,
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be greater than [*"
+    ++ (n |> show_ghost)
+    ++ "*](%s).",
+  );
 
-let notgt: group =
-  failtest(NotGt, "Expect [*n*](%s) to be not greater than [*n1*](%s).");
+let notgt = (s, n) =>
+  failtest(
+    NotGt,
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be not greater than [*"
+    ++ (n |> show_ghost)
+    ++ "*](%s).",
+  );
 
-let eq: group = failtest(Eq, "Expect [*n*](%s) to be equal to [*n1*](%s).");
+let eq = (s, n) =>
+  failtest(
+    Eq,
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be equal to [*"
+    ++ (n |> show_ghost)
+    ++ "*](%s).",
+  );
 
-let noteq: group =
-  failtest(NotEq, "Expect [*n*](%s) to be not equal to [*n1*](%s).");
+let noteq = (s, n) =>
+  failtest(
+    NotEq,
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be not equal to [*"
+    ++ (n |> show_ghost)
+    ++ "*](%s).",
+  );
 
-let subst: group =
+let subst = (s, (v, x), e) =>
   failtest(
     Subst,
-    "Expect [*e*](%s) to be [*e1*](%s) after substituting [*x*](%s) by [*v1*](%s).",
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be [*"
+    ++ (e |> show_ghost)
+    ++ "*](%s) after substituting [*"
+    ++ (x |> show_ghost)
+    ++ "*](%s) by [*"
+    ++ (v |> show_ghost)
+    ++ "*](%s).",
   );
 
-let subst2: group =
+let subst2 = (s, (v1, x), (v2, y), e) =>
   failtest(
     Subst2,
-    "Expect [*e*](%s) to be [*e1*](%s) after substituting [*x*](%s) by [*v1*](%s) and [*y*](%s) by [*v2*](%s).",
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be [*"
+    ++ (e |> show_ghost)
+    ++ "*](%s) after substituting [*"
+    ++ (x |> show_ghost)
+    ++ "*](%s) by [*"
+    ++ (v1 |> show_ghost)
+    ++ "*](%s) and [*"
+    ++ (y |> show_ghost)
+    ++ "*](%s) by [*"
+    ++ (v2 |> show_ghost)
+    ++ "*](%s).",
   );
 
-let substty: group =
+let substty = (s, (t, a), e) =>
   failtest(
     SubstTy,
-    "Expect [*e*](%s) to be [*e1*](%s) after substituting [*a*](%s) by [*t*](%s).",
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be [*"
+    ++ (e |> show_ghost)
+    ++ "*](%s) after substituting [*"
+    ++ (a |> show_ghost)
+    ++ "*](%s) by [*"
+    ++ (t |> show_ghost)
+    ++ "*](%s).",
   );
 
-let cons: group =
+let cons = (s, p, l) =>
   failtest(
     Cons,
-    "Expect [*ctx*](%s) to be [*ctx1*](%s) extended by [*x*](%s).",
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be [*"
+    ++ (l |> show_ghost)
+    ++ "*](%s) extended by [*"
+    ++ (p |> show_ghost)
+    ++ "*](%s).",
   );
 
-let conshasty: group =
+let conshasty = (s, (x, t), l) =>
   failtest(
     ConsHasTy,
-    "Expect [*ctx*](%s) to be [*ctx1*](%s) extended by [*x*](%s) : [*t1*](%s).",
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be [*"
+    ++ (l |> show_ghost)
+    ++ "*](%s) extended by [*"
+    ++ (x |> show_ghost)
+    ++ "*](%s) : [*"
+    ++ (t |> show_ghost)
+    ++ "*](%s).",
   );
 
-let conshasty2: group =
+let conshasty2 = (s, (x, t1), (y, t2), l) =>
   failtest(
     ConsHasTy2,
-    "Expect [*ctx*](%s) to be [*ctx1*](%s) extended by [*x*](%s) : [*t1*](%s) and [*y*](%s) : [*t2*](%s).",
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be [*"
+    ++ (l |> show_ghost)
+    ++ "*](%s) extended by [*"
+    ++ (x |> show_ghost)
+    ++ "*](%s) : [*"
+    ++ (t1 |> show_ghost)
+    ++ "*](%s) and [*"
+    ++ (y |> show_ghost)
+    ++ "*](%s) : [*"
+    ++ (t2 |> show_ghost)
+    ++ "*](%s).",
   );
 
-let mem: group =
-  failtest(Mem, "Expect [*p*](%s) to be a member of [*ctx*](%s).");
+let mem = (s, p) =>
+  failtest(
+    Mem,
+    "Expect [*"
+    ++ (p |> show_ghost)
+    ++ "*](%s) to be a member of [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s).",
+  );
 
-let memhasty: group =
+let memhasty = (s, (x, t)) =>
   failtest(
     MemHasTy,
-    "Expect [*x*](%s) : [*t*](%s) to be a member of [*ctx*](%s).",
+    "Expect [*"
+    ++ (x |> show_ghost)
+    ++ "*](%s) : [*"
+    ++ (t |> show_ghost)
+    ++ "*](%s) to be a member of [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s).",
   );

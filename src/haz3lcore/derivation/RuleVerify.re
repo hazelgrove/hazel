@@ -721,14 +721,14 @@ and check: (t, operation) => result(bool, failure) =
       };
     };
     let unbox_num2 = (p1, p2) => {
-      let$ n1 = unbox(p1, NumLit);
-      let$ n2 = unbox(p2, NumLit);
+      let$ n1 = unbox_self(p1.self, NumLit);
+      let$ n2 = unbox_self(p2.self, NumLit);
       Ok((n1, n2));
     };
     let unbox_num3 = (p1, p2, p3) => {
-      let$ n1 = unbox(p1, NumLit);
-      let$ n2 = unbox(p2, NumLit);
-      let$ n3 = unbox(p3, NumLit);
+      let$ n1 = unbox_self(p1.self, NumLit);
+      let$ n2 = unbox_self(p2.self, NumLit);
+      let$ n3 = unbox_self(p3.self, NumLit);
       Ok((n1, n2, n3));
     };
     let unbox_pat = x => {

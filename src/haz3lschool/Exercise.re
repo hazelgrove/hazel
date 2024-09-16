@@ -193,10 +193,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ~settings: CoreSettings.t,
       )
       : state => {
-    print_endline("Unpersisting state");
-    print_endline(
-      persistent_state |> sexp_of_persistent_state |> Sexplib.Sexp.to_string,
-    );
     set_instructor_mode(
       {
         header: spec.header,

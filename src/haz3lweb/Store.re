@@ -281,10 +281,6 @@ module Exercise = {
     let keystring = keystring_of_key(key);
     ignore(instructor_mode);
     let value = Exercise.serialize_exercise(exercise);
-    prerr_endline("Save key");
-    print_endline(keystring);
-    prerr_endline("Saving exercise");
-    print_endline(value);
     JsUtil.set_localstore(keystring, value);
   };
 

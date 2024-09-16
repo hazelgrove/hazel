@@ -15,13 +15,18 @@ module ExternalError = {
     | Stepper
     | NoElab;
 
-  let repr =
+  let show =
     fun
     | NoRule => "Rule not specified"
     | NoAbbr => "Abbreviation not specified"
     | PremiseNotReady => "Premise(s) not ready"
     | NotAJudgment => "Conclusion not a judgement"
-    | _ as a => show(a);
+    | EvalOff => "Evaluation is off"
+    | EvalFail => "Evaluation failed"
+    | EvalPending => "Evaluation pending"
+    | EvalIndet => "Evaluation indet"
+    | Stepper => "Stepper error"
+    | NoElab => "No elaboration";
 };
 
 module VerifiedTree = {
