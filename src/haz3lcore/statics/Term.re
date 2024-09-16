@@ -606,6 +606,10 @@ module Any = {
     fun
     | Typ(t) => Some(t)
     | _ => None;
+  let is_prop: t => option(TermBase.Prop.t) =
+    fun
+    | Drv(Prop(p)) => Some(p)
+    | _ => None;
 
   let rec ids =
     fun

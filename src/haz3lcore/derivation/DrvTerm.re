@@ -43,8 +43,7 @@ module Prop = {
     | Impl
     | Truth
     | Falsity
-    | Cons
-    | Nil
+    | Tuple
     | Parens;
 
   include TermBase.Prop;
@@ -75,8 +74,7 @@ module Prop = {
     | Impl(_) => Impl
     | Truth => Truth
     | Falsity => Falsity
-    | Cons(_) => Cons
-    | Nil => Nil
+    | Tuple(_) => Tuple
     | Parens(_) => Parens;
 };
 

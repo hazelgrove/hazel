@@ -778,19 +778,19 @@ and check: (t, operation) => result(bool, failure) =
       Ok(eq(self, subst_ty(t.self, a, e.self)));
     | Cons(e, l) =>
       let$ l = unbox_list(l);
-      let l = Ctx(cons_ctx(e.self, l)) |> temp;
+      let l = Ctx(cons_ctx(l, e.self)) |> temp;
       Ok(eq(self, l));
     | ConsHasTy((pat, t), l) =>
       let$ l = unbox_list(l);
       let$ x = unbox_pat(pat);
-      let l = Ctx(cons_ctx(HasTy(x, t.self) |> temp, l)) |> temp;
+      let l = Ctx(cons_ctx(l, HasTy(x, t.self) |> temp)) |> temp;
       Ok(eq(self, l));
     | ConsHasTy2((pat1, t1), (pat2, t2), l) =>
       let$ l = unbox_list(l);
       let$ x1 = unbox_pat(pat1);
       let$ x2 = unbox_pat(pat2);
-      let l = cons_ctx(HasTy(x1, t1.self) |> temp, l);
-      let l = Ctx(cons_ctx(HasTy(x2, t2.self) |> temp, l)) |> temp;
+      let l = cons_ctx(l, HasTy(x1, t1.self) |> temp);
+      let l = Ctx(cons_ctx(l, HasTy(x2, t2.self) |> temp)) |> temp;
       Ok(eq(self, l));
     | Mem(e) =>
       let$ l = unbox_list(p);

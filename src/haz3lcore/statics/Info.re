@@ -292,7 +292,7 @@ let ctx_of: t => Ctx.t =
 
 let ancestors_of: t => ancestors =
   fun
-  | InfoDrv(_) => []
+  | InfoDrv(drv) => DrvInfo.ancestors_of(drv)
   | InfoExp({ancestors, _})
   | InfoPat({ancestors, _})
   | InfoTyp({ancestors, _})

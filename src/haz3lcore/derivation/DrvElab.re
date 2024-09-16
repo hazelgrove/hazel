@@ -33,17 +33,21 @@ and elab_prop: Drv.Prop.t => t =
       | Impl(p1, p2) => Impl(elab_prop(p1), elab_prop(p2))
       | Truth => Truth
       | Falsity => Falsity
-      | Cons(p1, p2) =>
-        let p1 = elab_prop(p1);
-        let p2 = elab_prop(p2);
-        switch (IdTagged.term_of(p1), IdTagged.term_of(p2)) {
-        | (Ctx(ctx1), Ctx(ctx2)) =>
-          Ctx(List.fold_right(cons_ctx, ctx1, ctx2))
-        | (Ctx(ctx), _) => Ctx(cons_ctx(p2, ctx))
-        | (_, Ctx(ctx)) => Ctx(cons_ctx(p1, ctx))
-        | (_, _) => Ctx(cons_ctx(p1, [p2]))
-        };
-      | Nil => Ctx([])
+      | Tuple(ps) =>
+        Ctx(
+          ps
+          |> List.map(p =>
+               p
+               |> elab_prop
+               |> (
+                 fun
+                 | {term: Ctx(ctx), _} => ctx
+                 | p => [p]
+               )
+             )
+          |> List.concat
+          |> List.fold_left(cons_ctx, []),
+        )
       | Parens(p) => IdTagged.term_of(elab_prop(p))
       };
     {...prop, term};

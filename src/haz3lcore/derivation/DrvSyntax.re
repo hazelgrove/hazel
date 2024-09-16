@@ -580,11 +580,11 @@ let rec subst_ty: (t, string, t) => t =
 
 let mem_ctx = p => List.exists(eq(p));
 
-let cons_ctx = p => {
+let cons_ctx = (ctx, p) => {
   let cmp = p' => show(p') <= show(p);
   let rec insert =
     fun
     | [] => [p]
     | [hd, ...tl] => cmp(hd) ? [p, hd, ...tl] : [hd, ...insert(tl)];
-  insert;
+  insert(ctx);
 };

@@ -186,7 +186,7 @@ module Make = (M: Editor.Meta.S) => {
         switch (Info.cls_of(ci_parent), Info.cls_of(ci_gp)) {
         | (
             Exp(Tuple) | Pat(Tuple) | Typ(Prod) |
-            Drv(Prop(Cons) | Exp(Pair) | Pat(Pair) | Typ(Prod)),
+            Drv(Prop(Tuple) | Exp(Pair) | Pat(Pair) | Typ(Prod)),
             Exp(Parens) | Pat(Parens) | Typ(Parens) |
             Drv(Prop(Parens) | Exp(Parens) | Pat(Parens) | Typ(Parens)),
           ) =>

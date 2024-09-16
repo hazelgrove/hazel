@@ -366,24 +366,41 @@ let forms: list((string, t)) = [
   ("of_prop", mk(ds, ["of_Prop", "end"], mk_op(Exp, [Drv(Prop)]))),
   ("of_jdmt", mk(ds, ["of_Jdmt", "end"], mk_op(Exp, [Drv(Jdmt)]))),
   // Drv(Jdmt)
-  (
-    "val",
-    mk(
-      ii,
-      [".val"],
-      mk_post'(P.filter, Drv(Jdmt), Drv(Exp), [], Drv(Exp)),
-    ),
-  ),
+  // (
+  //   "val",
+  //   mk(
+  //     ii,
+  //     [".val"],
+  //     mk_post'(P.filter, Drv(Jdmt), Drv(Exp), [], Drv(Exp)),
+  //   ),
+  // ),
+  // (
+  //   "eval",
+  //   mk(ii, ["$>"], mk_bin'(P.filter, Drv(Jdmt), Drv(Exp), [], Drv(Exp))),
+  // ),
+  // (
+  //   "entail",
+  //   mk(
+  //     ii,
+  //     ["|-"],
+  //     mk_bin'(P.filter, Drv(Jdmt), Drv(Prop), [], Drv(Prop)),
+  //   ),
+  // ),
+  ("val", mk(ii, ["val", "end"], mk_op(Drv(Jdmt), [Drv(Exp)]))),
   (
     "eval",
-    mk(ii, ["$>"], mk_bin'(P.filter, Drv(Jdmt), Drv(Exp), [], Drv(Exp))),
+    mk(
+      ii,
+      ["eval", "to", "end"],
+      mk_op(Drv(Jdmt), [Drv(Exp), Drv(Exp)]),
+    ),
   ),
   (
     "entail",
     mk(
       ii,
-      ["|-"],
-      mk_bin'(P.filter, Drv(Jdmt), Drv(Prop), [], Drv(Prop)),
+      ["entail", "|-", "end"],
+      mk_op(Drv(Jdmt), [Drv(Prop), Drv(Prop)]),
     ),
   ),
   // Drv(Prop)

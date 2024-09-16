@@ -478,7 +478,6 @@ let get_doc =
           explanation_msg,
           docs,
         );
-      print_endline("Reached here");
       switch (info) {
       | Code(info) =>
         let highlights =

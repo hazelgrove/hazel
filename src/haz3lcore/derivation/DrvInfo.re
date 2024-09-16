@@ -1,6 +1,9 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type ancestors = list(Id.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type ok_common = unit;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -17,6 +20,7 @@ type status_common =
 type jdmt = {
   term: Drv.Jdmt.t,
   cls: Cls.t,
+  ancestors,
   status: status_common,
 };
 
@@ -24,6 +28,7 @@ type jdmt = {
 type prop = {
   term: Drv.Prop.t,
   cls: Cls.t,
+  ancestors,
   status: status_common,
 };
 
@@ -42,6 +47,7 @@ type status_exp =
 type exp = {
   term: Drv.Exp.t,
   cls: Cls.t,
+  ancestors,
   status: status_exp,
 };
 
@@ -71,6 +77,7 @@ type status_pat =
 type pat = {
   term: Drv.Pat.t,
   cls: Cls.t,
+  ancestors,
   status: status_pat,
 };
 
@@ -78,6 +85,7 @@ type pat = {
 type typ = {
   term: Drv.Typ.t,
   cls: Cls.t,
+  ancestors,
   status: status_common,
 };
 
@@ -85,6 +93,7 @@ type typ = {
 type tpat = {
   term: Drv.TPat.t,
   cls: Cls.t,
+  ancestors,
   status: status_common,
 };
 
@@ -226,49 +235,58 @@ let is_error = (ci: t): bool => {
   };
 };
 
-let derived_jdmt = (jdmt: Drv.Jdmt.t): jdmt => {
+let ancestors_of: t => ancestors =
+  fun
+  | Jdmt({ancestors, _})
+  | Prop({ancestors, _})
+  | Exp({ancestors, _})
+  | Pat({ancestors, _})
+  | Typ({ancestors, _})
+  | TPat({ancestors, _}) => ancestors;
+
+let derived_jdmt = (jdmt: Drv.Jdmt.t, ~ancestors): jdmt => {
   let cls = Cls.Drv(Jdmt(Drv.Jdmt.cls_of_term(jdmt.term)));
   let status = status_jdmt(jdmt);
-  {term: jdmt, cls, status};
+  {term: jdmt, cls, status, ancestors};
 };
 
-let derived_prop = (prop: Drv.Prop.t): prop => {
+let derived_prop = (prop: Drv.Prop.t, ~ancestors): prop => {
   let cls = Cls.Drv(Prop(Drv.Prop.cls_of_term(prop.term)));
   let status = status_prop(prop);
-  {term: prop, cls, status};
+  {term: prop, cls, status, ancestors};
 };
 
-let derived_exp = (exp: Drv.Exp.t): exp => {
+let derived_exp = (exp: Drv.Exp.t, ~ancestors): exp => {
   let cls = Cls.Drv(Exp(Drv.Exp.cls_of_term(exp.term)));
   let status = status_exp(exp);
-  {term: exp, cls, status};
+  {term: exp, cls, status, ancestors};
 };
 
-let derived_pat = (pat: Drv.Pat.t): pat => {
+let derived_pat = (pat: Drv.Pat.t, ~ancestors): pat => {
   let cls = Cls.Drv(Pat(Drv.Pat.cls_of_term(pat.term)));
   let status = status_pat(pat);
-  {term: pat, cls, status};
+  {term: pat, cls, status, ancestors};
 };
 
-let derived_typ = (typ: Drv.Typ.t): typ => {
+let derived_typ = (typ: Drv.Typ.t, ~ancestors): typ => {
   let cls = Cls.Drv(Typ(Drv.Typ.cls_of_term(typ.term)));
   let status = status_typ(typ);
-  {term: typ, cls, status};
+  {term: typ, cls, status, ancestors};
 };
 
-let derived_tpat = (tpat: Drv.TPat.t): tpat => {
+let derived_tpat = (tpat: Drv.TPat.t, ~ancestors): tpat => {
   let cls = Cls.Drv(TPat(Drv.TPat.cls_of_term(tpat.term)));
   let status = status_tpat(tpat);
-  {term: tpat, cls, status};
+  {term: tpat, cls, status, ancestors};
 };
 
-let derived_drv = (drv: Drv.t): t => {
+let derived_drv = (drv: Drv.t, ~ancestors): t => {
   switch (drv) {
-  | Jdmt(jdmt) => Jdmt(derived_jdmt(jdmt))
-  | Prop(prop) => Prop(derived_prop(prop))
-  | Exp(exp) => Exp(derived_exp(exp))
-  | Pat(pat) => Pat(derived_pat(pat))
-  | Typ(typ) => Typ(derived_typ(typ))
-  | TPat(tpat) => TPat(derived_tpat(tpat))
+  | Jdmt(jdmt) => Jdmt(derived_jdmt(jdmt, ~ancestors))
+  | Prop(prop) => Prop(derived_prop(prop, ~ancestors))
+  | Exp(exp) => Exp(derived_exp(exp, ~ancestors))
+  | Pat(pat) => Pat(derived_pat(pat, ~ancestors))
+  | Typ(typ) => Typ(derived_typ(typ, ~ancestors))
+  | TPat(tpat) => TPat(derived_tpat(tpat, ~ancestors))
   };
 };

@@ -391,7 +391,7 @@
   border-bottom-right-radius: 0;
 }
 
-.named-menu-item {
+.deduction-label .named-menu-item {
   height: 1.4rem;
   background: var(--menu-bkg);
   color: var(--token-exp);
@@ -405,7 +405,7 @@
   z-index: var(--top-bar-z);
 }
 
-.named-menu-item:last-child {
+.deduction-label .named-menu-item:last-child {
   border-bottom: none;
   border-radius: 0.6rem;
 }
@@ -414,24 +414,25 @@
   transform: scale(0.7);
 }
 
-.named-menu-item:hover {
+.deduction-label .named-menu-item:hover {
   background-color: var(--cell-active);
 }
 
-.named-menu-item.default {
+.deduction-label .named-menu-item.default {
   color: var(--token-explicit-hole);
   text-shadow: 1px 1px 0px var(--token-explicit-hole-shadow);
 }
 
 /* Add a grey background color to dropdown links on hover */
-.named-menu-item:hover {
+.deduction-label .named-menu-item:hover {
   cursor: pointer;
   text-decoration: strong;
 }
 
-.named-menu-item .code.fakecode {
+.deduction-label .named-menu-item .code.fakecode {
   height: auto;
 }
+
 #ninja-keys-rules::part(actions-list) {
   display: flex;
   flex-wrap: wrap;

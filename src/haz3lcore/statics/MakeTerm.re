@@ -53,6 +53,7 @@ let is_nary =
 let is_tuple_exp = is_nary(Any.is_exp, ",");
 let is_tuple_pat = is_nary(Any.is_pat, ",");
 let is_tuple_typ = is_nary(Any.is_typ, ",");
+let is_tuple_prop = is_nary(Any.is_prop, ",");
 let is_typ_bsum = is_nary(Any.is_typ, "+");
 
 let is_grout = tiles =>
@@ -185,11 +186,22 @@ and jdmt_term: unsorted => (Drv.Jdmt.term, list(Id.t)) = {
   let ret = (tm: Drv.Jdmt.term) => (tm, []);
   let hole = unsorted => Drv.Jdmt.hole(kids_of_unsorted(unsorted));
   fun
-  | Post(Drv(Exp(l)), ([(_id, ([".val"], []))], [])) => ret(Val(l))
-  | Bin(Drv(Exp(l)), ([(_id, (["$>"], []))], []), Drv(Exp(r))) =>
+  | Op(([(_id, (["val", "end"], [Drv(Exp(e))]))], [])) => ret(Val(e))
+  | Op((
+      [(_id, (["eval", "to", "end"], [Drv(Exp(l)), Drv(Exp(r))]))],
+      [],
+    )) =>
     ret(Eval(l, r))
-  | Bin(Drv(Prop(l)), ([(_id, (["|-"], []))], []), Drv(Prop(r))) =>
+  | Op((
+      [(_id, (["entail", "|-", "end"], [Drv(Prop(l)), Drv(Prop(r))]))],
+      [],
+    )) =>
     ret(Entail(l, r))
+  // | Post(Drv(Exp(l)), ([(_id, ([".val"], []))], [])) => ret(Val(l))
+  // | Bin(Drv(Exp(l)), ([(_id, (["$>"], []))], []), Drv(Exp(r))) =>
+  //   ret(Eval(l, r))
+  // | Bin(Drv(Prop(l)), ([(_id, (["|-"], []))], []), Drv(Prop(r))) =>
+  //   ret(Entail(l, r))
   | _ as tm => ret(hole(tm));
 }
 
@@ -204,7 +216,7 @@ and prop_term: unsorted => (Drv.Prop.term, list(Id.t)) = {
   fun
   | Op(([(_id, ([t], []))], [])) as tm =>
     switch (t) {
-    | "()" => ret(Nil)
+    | "()" => ret(Tuple([]))
     | "Truth" => ret(Truth)
     | "Falsity" => ret(Falsity)
     | _ when Form.is_typ_var(t) => ret(Var(t))
@@ -217,8 +229,13 @@ and prop_term: unsorted => (Drv.Prop.term, list(Id.t)) = {
     | "/\\" => ret(And(l, r))
     | "\\/" => ret(Or(l, r))
     | "==>" => ret(Impl(l, r))
-    | "," => ret(Cons(l, r))
+    | "," => ret(Tuple([l, r]))
     | _ => ret(hole(tm))
+    }
+  | Bin(Drv(Prop(l)), tiles, Drv(Prop(r))) as tm =>
+    switch (is_tuple_prop(tiles)) {
+    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | None => ret(hole(tm))
     }
   | Bin(Drv(Exp(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) as tm =>
     switch (t) {
@@ -366,7 +383,7 @@ and alfa_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   switch (term) {
-  | MultiHole([Drv(_), _]) =>
+  | MultiHole([Drv(_), ..._]) =>
     let (term, inner_ids) = jdmt_term(unsorted);
     let ids = ids(unsorted) @ inner_ids;
     let jdmt = return(e => Drv(Jdmt(e)), ids, {ids, copied: false, term});

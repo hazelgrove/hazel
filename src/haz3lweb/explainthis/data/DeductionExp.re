@@ -221,33 +221,12 @@ let rule_example_view =
     )
     : Node.t => {
   let (rule, res) = (info.rule, info);
-  Id.Map.iter(
-    (id, color) =>
-      print_endline(Printf.sprintf("%s[:] %s", Id.show(id), color)),
-    fst(color_map),
-  );
   let color_map =
     switch (res.res) {
     | Correct => color_map
-    | Incorrect(failure) =>
-      switch (failure) {
-      | NotAList({self, ghost: Some(ghost)}) =>
-        print_endline(
-          Printf.sprintf("self: %s", Id.show(IdTagged.rep_id(self))),
-        );
-        print_endline(
-          Printf.sprintf("ghost: %s", Id.show(IdTagged.rep_id(ghost))),
-        );
-      | _ => ()
-      };
-      copy_color_map(failure, color_map);
+    | Incorrect(failure) => copy_color_map(failure, color_map)
     | Pending(_) => color_map
     };
-  Id.Map.iter(
-    (id, color) =>
-      print_endline(Printf.sprintf("%s: %s", Id.show(id), color)),
-    fst(color_map),
-  );
   Node.div(
     ~attrs=[Attr.class_("section"), Attr.class_("syntactic-form")],
     switch (res.ghost) {

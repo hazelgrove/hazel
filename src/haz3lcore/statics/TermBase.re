@@ -1385,8 +1385,7 @@ and Prop: {
     | Impl(t, t)
     | Truth
     | Falsity
-    | Cons(t, t)
-    | Nil
+    | Tuple(list(t))
     | Parens(t)
   and t = IdTagged.t(term);
 
@@ -1415,8 +1414,7 @@ and Prop: {
     | Impl(t, t)
     | Truth
     | Falsity
-    | Cons(t, t)
-    | Nil
+    | Tuple(list(t))
     | Parens(t)
   and t = IdTagged.t(term);
 
@@ -1447,8 +1445,7 @@ and Prop: {
         | Impl(p1, p2) => Impl(prop_map_term(p1), prop_map_term(p2))
         | Truth => Truth
         | Falsity => Falsity
-        | Cons(p1, p2) => Cons(prop_map_term(p1), prop_map_term(p2))
-        | Nil => Nil
+        | Tuple(pl) => Tuple(List.map(prop_map_term, pl))
         | Parens(p) => Parens(prop_map_term(p))
         },
     };
@@ -1482,11 +1479,8 @@ and Prop: {
     | (Truth, _) => false
     | (Falsity, Falsity)
     | (Falsity, _) => false
-    | (Cons(p1, p2), Cons(p1', p2')) =>
-      Prop.fast_equal(p1, p1') && Prop.fast_equal(p2, p2')
-    | (Cons(_), _) => false
-    | (Nil, Nil)
-    | (Nil, _) => false
+    | (Tuple(pl1), Tuple(pl2)) => List.equal(Prop.fast_equal, pl1, pl2)
+    | (Tuple(_), _) => false
     | (Parens(p1), Parens(p2)) => Prop.fast_equal(p1, p2)
     | (Parens(_), _) => false
     };

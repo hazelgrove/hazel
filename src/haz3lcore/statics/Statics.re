@@ -153,7 +153,7 @@ let rec any_to_info_map =
       CoCtx.empty,
       utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd,
     )
-  | Drv(drv) => (CoCtx.empty, m |> drv_to_info_map(drv) |> snd)
+  | Drv(drv) => (CoCtx.empty, m |> drv_to_info_map(drv, ~ancestors) |> snd)
   | Rul(_)
   | Nul ()
   | Any () => (CoCtx.empty, m)
@@ -167,13 +167,13 @@ and multi = (~ctx, ~ancestors, m, tms) =>
     ([], m),
     tms,
   )
-and drv_to_info_map = (drv: Drv.t, m: Map.t): (DrvInfo.t, Map.t) => {
+and drv_to_info_map = (drv: Drv.t, m: Map.t, ~ancestors): (DrvInfo.t, Map.t) => {
   let add = (drv, info, m) => (
     info,
     add_info(Drv.of_id(drv), InfoDrv(info), m),
   );
   let rec go_jdmt = (jdmt, m) => {
-    let info: DrvInfo.t = Jdmt(DrvInfo.derived_jdmt(jdmt));
+    let info: DrvInfo.t = Jdmt(DrvInfo.derived_jdmt(jdmt, ~ancestors));
     let m =
       switch (jdmt.term) {
       | Hole(_) => m
@@ -184,7 +184,7 @@ and drv_to_info_map = (drv: Drv.t, m: Map.t): (DrvInfo.t, Map.t) => {
     add(Jdmt(jdmt), info, m);
   }
   and go_prop = (prop: Drv.Prop.t, m) => {
-    let info: DrvInfo.t = Prop(DrvInfo.derived_prop(prop));
+    let info: DrvInfo.t = Prop(DrvInfo.derived_prop(prop, ~ancestors));
     let m =
       switch (prop.term) {
       | Hole(_) => m
@@ -197,14 +197,13 @@ and drv_to_info_map = (drv: Drv.t, m: Map.t): (DrvInfo.t, Map.t) => {
       | Impl(p1, p2) => m |> go_prop(p1) |> snd |> go_prop(p2) |> snd
       | Truth
       | Falsity => m
-      | Cons(p1, p2) => m |> go_prop(p1) |> snd |> go_prop(p2) |> snd
-      | Nil => m
+      | Tuple(ps) => List.fold_left((m, p) => m |> go_prop(p) |> snd, m, ps)
       | Parens(p) => m |> go_prop(p) |> snd
       };
     add(Prop(prop), info, m);
   }
   and go_exp = (exp: Drv.Exp.t, m, ~left_ap: bool) => {
-    let info = DrvInfo.derived_exp(exp);
+    let info = DrvInfo.derived_exp(exp, ~ancestors);
     let info': DrvInfo.t = Exp(info);
     let add = add(Exp(exp));
     let add' = add(info');
@@ -261,7 +260,7 @@ and drv_to_info_map = (drv: Drv.t, m: Map.t): (DrvInfo.t, Map.t) => {
   }
   and go_exp' = go_exp(~left_ap=false)
   and go_pat = (pat: Drv.Pat.t, m, ~expect: DrvInfo.pat_expect) => {
-    let info = DrvInfo.derived_pat(pat);
+    let info = DrvInfo.derived_pat(pat, ~ancestors);
     let add = add(Pat(pat));
     let add_err = add(Pat({...info, status: InHole(Expect(expect))}));
     let add = add(Pat(info));
@@ -290,7 +289,7 @@ and drv_to_info_map = (drv: Drv.t, m: Map.t): (DrvInfo.t, Map.t) => {
     };
   }
   and go_typ = (typ: Drv.Typ.t, m) => {
-    let info: DrvInfo.t = Typ(DrvInfo.derived_typ(typ));
+    let info: DrvInfo.t = Typ(DrvInfo.derived_typ(typ, ~ancestors));
     let m =
       switch (typ.term) {
       | Hole(_) => m
@@ -307,7 +306,7 @@ and drv_to_info_map = (drv: Drv.t, m: Map.t): (DrvInfo.t, Map.t) => {
     add(Typ(typ), info, m);
   }
   and go_tpat = (tpat: Drv.TPat.t, m) => {
-    let info: DrvInfo.t = TPat(DrvInfo.derived_tpat(tpat));
+    let info: DrvInfo.t = TPat(DrvInfo.derived_tpat(tpat, ~ancestors));
     add(TPat(tpat), info, m);
   };
   switch (drv) {
@@ -385,7 +384,7 @@ and uexp_to_info_map =
   | Float(_) => atomic(Just(Float |> Typ.temp))
   | String(_) => atomic(Just(String |> Typ.temp))
   | Derivation(d) =>
-    let m = drv_to_info_map(d, m) |> snd;
+    let m = drv_to_info_map(d, m, ~ancestors) |> snd;
     add(
       ~self=Just(Derivation(Drv.of_typ(d)) |> Typ.temp),
       ~co_ctx=CoCtx.empty,
