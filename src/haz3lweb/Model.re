@@ -94,7 +94,7 @@ let save_editors =
   | Exercises(n, specs, exercise) =>
     // let spec = List.nth(specs, n);
     // let specs = ListUtil.put_nth(n, update_spec(exercise, spec), specs);
-    Store.Exercise.save((n, specs, exercise), ~instructor_mode);
+    Store.Exercise.save((n, specs, exercise), ~instructor_mode)
   };
 
 let load = (init_model: t): t => {

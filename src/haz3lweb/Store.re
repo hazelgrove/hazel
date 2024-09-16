@@ -279,7 +279,12 @@ module Exercise = {
   let save_exercise = (exercise, ~instructor_mode): unit => {
     let key = Exercise.key_of_state(exercise);
     let keystring = keystring_of_key(key);
-    let value = Exercise.serialize_exercise(exercise, ~instructor_mode);
+    ignore(instructor_mode);
+    let value = Exercise.serialize_exercise(exercise);
+    prerr_endline("Save key");
+    print_endline(keystring);
+    prerr_endline("Saving exercise");
+    print_endline(value);
     JsUtil.set_localstore(keystring, value);
   };
 
@@ -299,14 +304,7 @@ module Exercise = {
     switch (JsUtil.get_localstore(keystring)) {
     | Some(data) =>
       let exercise =
-        try(
-          Exercise.deserialize_exercise(
-            data,
-            ~spec,
-            ~instructor_mode,
-            ~settings,
-          )
-        ) {
+        try(Exercise.deserialize_exercise(data, ~instructor_mode, ~settings)) {
         | _ => init_exercise(spec, ~instructor_mode, ~settings)
         };
       JsUtil.set_localstore(cur_exercise_key, keystring);
@@ -348,10 +346,9 @@ module Exercise = {
         switch (JsUtil.get_localstore(keystring)) {
         | Some(data) =>
           let exercise =
-            try(
-              deserialize_exercise(data, ~spec, ~instructor_mode, ~settings)
-            ) {
-            | _ => init_exercise(spec, ~instructor_mode, ~settings)
+            try(deserialize_exercise(data, ~instructor_mode, ~settings)) {
+            | err => raise(err)
+            // | _ => init_exercise(spec, ~instructor_mode, ~settings)
             };
           (n, specs, exercise);
         | None =>
@@ -389,7 +386,7 @@ module Exercise = {
              let key = Exercise.key(spec);
              let exercise =
                load_exercise(key, spec, ~instructor_mode, ~settings)
-               |> Exercise.persistent_state_of_state(~instructor_mode);
+               |> Exercise.persistent_state_of_state;
              (key, exercise);
            }),
     };
@@ -416,11 +413,10 @@ module Exercise = {
          switch (spec) {
          | None =>
            print_endline("Warning: saved key does not correspond to exercise")
-         | Some((_, spec)) =>
+         | Some(_) =>
            save_exercise(
              Exercise.unpersist_state(
                persistent_state,
-               ~spec,
                ~instructor_mode,
                ~settings,
              ),

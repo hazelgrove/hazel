@@ -114,7 +114,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   type state = p(Editor.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_state = (pos, list((pos, PersistentZipper.t)));
+  type persistent_state = p(PersistentZipper.t);
 
   let editor_of_state = ({pos, model, _}: state): Editor.t => {
     ModelUtil.nth(model, pos);
@@ -178,38 +178,37 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     {...spec, model: eds_of_spec(~settings, spec)}
     |> set_instructor_mode(~new_mode=instructor_mode);
 
-  let persistent_state_of_state =
-      ({pos, _} as state: state, ~instructor_mode: bool) => {
-    let zippers =
-      positioned_editors(state)
-      |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
-      |> List.map(((pos, editor)) => {
-           (pos, PersistentZipper.persist(Editor.(editor.state.zipper)))
-         });
-    (pos, zippers);
+  let persistent_state_of_state = (state: state): persistent_state => {
+    {
+      ...state,
+      model:
+        state.model
+        |> ModelUtil.map(ed =>
+             Editor.(ed.state.zipper) |> PersistentZipper.persist
+           ),
+    };
   };
 
   let unpersist_state =
       (
-        (pos, positioned_zippers): persistent_state,
-        ~spec: spec,
+        persistent_state: persistent_state,
         ~instructor_mode: bool,
         ~settings: CoreSettings.t,
       )
       : state => {
-    let lookup = (pos, default) =>
-      if (visible_in(pos, ~instructor_mode)) {
-        let persisted_zipper = List.assoc(pos, positioned_zippers);
-        let zipper = PersistentZipper.unpersist(persisted_zipper);
-        Editor.init(zipper, ~settings);
-      } else {
-        editor_of_serialization(default, ~settings);
-      };
+    print_endline("Unpersisting state");
+    print_endline(
+      persistent_state |> sexp_of_persistent_state |> Sexplib.Sexp.to_string,
+    );
     set_instructor_mode(
       {
-        header: spec.header,
-        pos,
-        model: spec.model |> ModelUtil.mapi(lookup),
+        header: persistent_state.header,
+        pos: persistent_state.pos,
+        model:
+          persistent_state.model
+          |> ModelUtil.map(z =>
+               z |> PersistentZipper.unpersist |> Editor.init(~settings)
+             ),
       },
       ~new_mode=instructor_mode,
     );
@@ -277,16 +276,24 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     exercise_data: list((key, persistent_state)),
   };
 
-  let serialize_exercise = (exercise, ~instructor_mode) =>
-    persistent_state_of_state(exercise, ~instructor_mode)
+  let serialize_exercise = exercise =>
+    persistent_state_of_state(exercise)
     |> sexp_of_persistent_state
     |> Sexplib.Sexp.to_string;
 
-  let deserialize_exercise = (data, ~spec, ~instructor_mode) =>
-    data
-    |> Sexplib.Sexp.of_string
-    |> persistent_state_of_sexp
-    |> unpersist_state(~spec, ~instructor_mode);
+  let deserialize_exercise = (data, ~instructor_mode) => {
+    let x = data |> Sexplib.Sexp.of_string;
+    prerr_endline("1");
+    print_endline(Sexplib.Sexp.to_string_hum(x));
+    let x = x |> persistent_state_of_sexp;
+    prerr_endline("2");
+    print_endline(x |> show_persistent_state);
+    unpersist_state(~instructor_mode, x);
+  };
+  // data
+  // |> Sexplib.Sexp.of_string
+  // |> persistent_state_of_sexp
+  // |> unpersist_state(~instructor_mode);
 
   let deserialize_exercise_export = data =>
     data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
