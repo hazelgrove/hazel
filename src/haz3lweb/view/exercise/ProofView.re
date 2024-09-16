@@ -106,18 +106,20 @@ let proof_view =
 
   let dropdown_option_abbr_view = (~pos: pos, ~index: option(int)) =>
     switch (index) {
-      | Some(index) =>
-        Widgets.button_named(
-          abbr_to_label(Some(index)),
-          _ =>
-            inject(
-              UpdateAction.MapExercise(
-                map_model(Exercise.Proof.switch_abbr(~pos, ~index=Some(index))),
+    | Some(index) =>
+      Widgets.button_named(
+        abbr_to_label(Some(index)),
+        _ =>
+          inject(
+            UpdateAction.MapExercise(
+              map_model(
+                Exercise.Proof.switch_abbr(~pos, ~index=Some(index)),
               ),
             ),
-          ~tooltip="Use Abbr d" ++ string_of_int(index),
-        )
-      | None => Node.none;
+          ),
+        ~tooltip="Use Abbr d" ++ string_of_int(index),
+      )
+    | None => Node.none
     };
 
   let dropdown_switch_rule_view = (~pos: pos) =>

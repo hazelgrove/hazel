@@ -386,11 +386,11 @@ let forms: list((string, t)) = [
   //     mk_bin'(P.filter, Drv(Jdmt), Drv(Prop), [], Drv(Prop)),
   //   ),
   // ),
-  ("val", mk(ii, ["val", "end"], mk_op(Drv(Jdmt), [Drv(Exp)]))),
+  ("val", mk(ds, ["val", "end"], mk_op(Drv(Jdmt), [Drv(Exp)]))),
   (
     "eval",
     mk(
-      ii,
+      ds,
       ["eval", "to", "end"],
       mk_op(Drv(Jdmt), [Drv(Exp), Drv(Exp)]),
     ),
@@ -398,7 +398,7 @@ let forms: list((string, t)) = [
   (
     "entail",
     mk(
-      ii,
+      ds,
       ["entail", "|-", "end"],
       mk_op(Drv(Jdmt), [Drv(Prop), Drv(Prop)]),
     ),

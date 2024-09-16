@@ -15,7 +15,19 @@ and elab_jdmt: Drv.Jdmt.t => t =
       | Hole(s) => Hole(TermBase.TypeHole.show(s))
       | Val(e) => Val(elab_exp(e))
       | Eval(e1, e2) => Eval(elab_exp(e1), elab_exp(e2))
-      | Entail(p1, p2) => Entail(elab_prop(p1), elab_prop(p2))
+      | Entail(p1, p2) =>
+        Entail(
+          elab_prop(p1)
+          |> (
+            p => {
+              switch (p.term) {
+              | Ctx(_) => p
+              | _ => (Ctx([p]): term) |> IdTagged.fresh
+              };
+            }
+          ),
+          elab_prop(p2),
+        )
       };
     {...jdmt, term};
   }
