@@ -304,7 +304,14 @@ module Exercise = {
     switch (JsUtil.get_localstore(keystring)) {
     | Some(data) =>
       let exercise =
-        try(Exercise.deserialize_exercise(data, ~instructor_mode, ~settings)) {
+        try(
+          Exercise.deserialize_exercise(
+            data,
+            ~instructor_mode,
+            ~settings,
+            ~spec,
+          )
+        ) {
         | _ => init_exercise(spec, ~instructor_mode, ~settings)
         };
       JsUtil.set_localstore(cur_exercise_key, keystring);
@@ -346,9 +353,11 @@ module Exercise = {
         switch (JsUtil.get_localstore(keystring)) {
         | Some(data) =>
           let exercise =
-            try(deserialize_exercise(data, ~instructor_mode, ~settings)) {
-            | err => raise(err)
-            // | _ => init_exercise(spec, ~instructor_mode, ~settings)
+            try(
+              deserialize_exercise(data, ~spec, ~instructor_mode, ~settings)
+            ) {
+            // | err => raise(err)
+            | _ => init_exercise(spec, ~instructor_mode, ~settings)
             };
           (n, specs, exercise);
         | None =>
@@ -413,10 +422,11 @@ module Exercise = {
          switch (spec) {
          | None =>
            print_endline("Warning: saved key does not correspond to exercise")
-         | Some(_) =>
+         | Some((_, spec)) =>
            save_exercise(
              Exercise.unpersist_state(
                persistent_state,
+               ~spec,
                ~instructor_mode,
                ~settings,
              ),

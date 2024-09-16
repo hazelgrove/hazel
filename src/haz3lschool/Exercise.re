@@ -114,7 +114,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   type state = p(Editor.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_state = p(PersistentZipper.t);
+  type persistent_state = model(PersistentZipper.t);
 
   let editor_of_state = ({pos, model, _}: state): Editor.t => {
     ModelUtil.nth(model, pos);
@@ -179,19 +179,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     |> set_instructor_mode(~new_mode=instructor_mode);
 
   let persistent_state_of_state = (state: state): persistent_state => {
-    {
-      ...state,
-      model:
-        state.model
-        |> ModelUtil.map(ed =>
-             Editor.(ed.state.zipper) |> PersistentZipper.persist
-           ),
-    };
+    state.model
+    |> ModelUtil.map(ed =>
+         Editor.(ed.state.zipper) |> PersistentZipper.persist
+       );
   };
 
   let unpersist_state =
       (
         persistent_state: persistent_state,
+        ~spec: spec,
         ~instructor_mode: bool,
         ~settings: CoreSettings.t,
       )
@@ -202,10 +199,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     );
     set_instructor_mode(
       {
-        header: persistent_state.header,
-        pos: persistent_state.pos,
+        header: spec.header,
+        pos: spec.pos,
         model:
-          persistent_state.model
+          persistent_state
           |> ModelUtil.map(z =>
                z |> PersistentZipper.unpersist |> Editor.init(~settings)
              ),
@@ -281,19 +278,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     |> sexp_of_persistent_state
     |> Sexplib.Sexp.to_string;
 
-  let deserialize_exercise = (data, ~instructor_mode) => {
-    let x = data |> Sexplib.Sexp.of_string;
-    prerr_endline("1");
-    print_endline(Sexplib.Sexp.to_string_hum(x));
-    let x = x |> persistent_state_of_sexp;
-    prerr_endline("2");
-    print_endline(x |> show_persistent_state);
-    unpersist_state(~instructor_mode, x);
-  };
-  // data
-  // |> Sexplib.Sexp.of_string
-  // |> persistent_state_of_sexp
-  // |> unpersist_state(~instructor_mode);
+  let deserialize_exercise = (data, ~instructor_mode) =>
+    data
+    |> Sexplib.Sexp.of_string
+    |> persistent_state_of_sexp
+    |> unpersist_state(~instructor_mode);
 
   let deserialize_exercise_export = data =>
     data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
