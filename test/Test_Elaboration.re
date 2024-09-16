@@ -20,7 +20,7 @@ let empty_hole = () => alco_check("Empty hole", u2, dhexp_of_uexp(u2));
 
 let u3: Exp.t = {
   ids: [id_at(0)],
-  term: Parens({ids: [id_at(1)], term: Var("y"), copied: false}),
+  term: Parens({ids: [id_at(1)], term: Var("y", false), copied: false}),
   copied: false,
 };
 
@@ -30,7 +30,11 @@ let u4: Exp.t =
   Let(
     Tuple([Var("a") |> Pat.fresh, Var("b") |> Pat.fresh]) |> Pat.fresh,
     Tuple([Int(4) |> Exp.fresh, Int(6) |> Exp.fresh]) |> Exp.fresh,
-    BinOp(Int(Minus), Var("a") |> Exp.fresh, Var("b") |> Exp.fresh)
+    BinOp(
+      Int(Minus),
+      Var("a", false) |> Exp.fresh,
+      Var("b", false) |> Exp.fresh,
+    )
     |> Exp.fresh,
   )
   |> Exp.fresh;
@@ -39,7 +43,7 @@ let let_exp = () =>
   alco_check("Let expression for tuple (a, b)", u4, dhexp_of_uexp(u4));
 
 let u5 =
-  BinOp(Int(Plus), Bool(false) |> Exp.fresh, Var("y") |> Exp.fresh)
+  BinOp(Int(Plus), Bool(false) |> Exp.fresh, Var("y", false) |> Exp.fresh)
   |> Exp.fresh;
 
 let d5 =
@@ -48,7 +52,7 @@ let d5 =
     FailedCast(Bool(false) |> Exp.fresh, Bool |> Typ.fresh, Int |> Typ.fresh)
     |> Exp.fresh,
     Cast(
-      Var("y") |> Exp.fresh,
+      Var("y", false) |> Exp.fresh,
       Unknown(Internal) |> Typ.fresh,
       Int |> Typ.fresh,
     )
@@ -85,7 +89,7 @@ let u7: Exp.t =
       None,
     )
     |> Exp.fresh,
-    Var("y") |> Exp.fresh,
+    Var("y", false) |> Exp.fresh,
   )
   |> Exp.fresh;
 
@@ -147,7 +151,7 @@ let u9: Exp.t =
     |> Pat.fresh,
     Fun(
       Var("x") |> Pat.fresh,
-      BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
+      BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x", false) |> Exp.fresh)
       |> Exp.fresh,
       None,
       None,
@@ -162,7 +166,7 @@ let d9: Exp.t =
     Var("f") |> Pat.fresh,
     Fun(
       Var("x") |> Pat.fresh,
-      BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
+      BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x", false) |> Exp.fresh)
       |> Exp.fresh,
       None,
       Some("f"),
