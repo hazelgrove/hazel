@@ -73,6 +73,17 @@ let load_editors =
     (Exercises(n, specs, exercise), ModelResults.empty);
   };
 
+// let update_spec =
+//     (exercise: Exercise.state, spec: Exercise.spec): Exercise.spec => {
+//   switch (exercise.model) {
+//   | Proof(exercise_model) =>
+//     let spec_model =
+//       Exercise.Proof.ModelUtil.map(_ => Zipper.init(), exercise_model);
+//     {...spec, model: Proof(spec_model), pos: exercise.pos};
+//   | _ => spec
+//   };
+// };
+
 let save_editors =
     (editors: Editors.t, results: ModelResults.t, ~instructor_mode: bool)
     : unit =>
@@ -81,7 +92,9 @@ let save_editors =
   | Documentation(name, slides) =>
     Store.Documentation.save((name, slides, results))
   | Exercises(n, specs, exercise) =>
-    Store.Exercise.save((n, specs, exercise), ~instructor_mode)
+    // let spec = List.nth(specs, n);
+    // let specs = ListUtil.put_nth(n, update_spec(exercise, spec), specs);
+    Store.Exercise.save((n, specs, exercise), ~instructor_mode);
   };
 
 let load = (init_model: t): t => {
