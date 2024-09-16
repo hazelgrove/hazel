@@ -43,7 +43,7 @@ let evaluate_extend_env_with_pat =
                 copied,
                 term: TermBase.Exp.FixF(pat, exp, Some(to_extend)),
               },
-              TermBase.Exp.Var(binding) |> IdTagged.fresh,
+              TermBase.Exp.Var(binding, false) |> IdTagged.fresh,
             )
             |> IdTagged.fresh,
           ),
@@ -75,13 +75,13 @@ let tangle =
     let denv_subst: list((string, 'a)) =
       List.mapi(
         (i, binding) =>
-          (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+          (binding, TermBase.Exp.Var(ids[i], false) |> IdTagged.fresh),
         dvars,
       );
     let fenv_subst: list((string, 'a)) =
       List.mapi(
         (i, binding) =>
-          (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+          (binding, TermBase.Exp.Var(ids[i], false) |> IdTagged.fresh),
         fvars,
       );
     let denv = evaluate_extend_env(Environment.of_list(denv_subst), denv);
@@ -167,7 +167,7 @@ let rec matches_exp =
     | (FailedCast(d, _, _), _) => matches_exp(d, f)
     | (Filter(Residue(_), d), _) => matches_exp(d, f)
 
-    | (Var(dx), Var(fx)) =>
+    | (Var(dx, _), Var(fx, _)) =>
       if (String.starts_with(~prefix=alpha_magic, dx)
           && String.starts_with(~prefix=alpha_magic, fx)) {
         String.equal(dx, fx);
@@ -182,12 +182,12 @@ let rec matches_exp =
         | (None, None) => true
         };
       }
-    | (Var(dx), _) =>
+    | (Var(dx, _), _) =>
       switch (ClosureEnvironment.lookup(denv, dx)) {
       | Some(d) => matches_exp(d, f)
       | None => false
       }
-    | (_, Var(fx)) =>
+    | (_, Var(fx, _)) =>
       switch (ClosureEnvironment.lookup(fenv, fx)) {
       | Some(f) => matches_exp(d, f)
       | None => false
@@ -356,13 +356,13 @@ and matches_fun =
     let denv_subst: list((string, 'a)) =
       List.mapi(
         (i, binding) =>
-          (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+          (binding, TermBase.Exp.Var(ids[i], false) |> IdTagged.fresh),
         dvars,
       );
     let fenv_subst: list((string, 'a)) =
       List.mapi(
         (i, binding) =>
-          (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+          (binding, TermBase.Exp.Var(ids[i], false) |> IdTagged.fresh),
         fvars,
       );
     let denv = evaluate_extend_env(Environment.of_list(denv_subst), denv);

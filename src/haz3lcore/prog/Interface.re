@@ -1,4 +1,4 @@
-let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
+let dh_err = (error: string): DHExp.t => Var(error, true) |> DHExp.fresh;
 
 let elaborate =
   Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);

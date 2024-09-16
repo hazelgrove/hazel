@@ -277,7 +277,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
     | Tuple(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
-    | Var(v) =>
+    | Var(_, true) => uexp |> cast_from(Typ.temp(Typ.Unknown(Internal)))
+    | Var(v, false) =>
       uexp
       |> cast_from(
            Ctx.lookup_var(ctx, v)
@@ -423,9 +424,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
     | UnOp(Meta(Unquote), e) =>
       switch (e.term) {
       // TODO: confirm whether these types are correct
-      | Var("e") =>
+      | Var("e", _) =>
         Constructor("$e", Unknown(Internal) |> Typ.temp) |> rewrap
-      | Var("v") =>
+      | Var("v", _) =>
         Constructor("$v", Unknown(Internal) |> Typ.temp) |> rewrap
       | _ =>
         DHExp.EmptyHole

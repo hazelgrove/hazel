@@ -154,7 +154,7 @@ and Exp: {
       )
     | TypFun(TPat.t, t, option(Var.t))
     | Tuple(list(t))
-    | Var(Var.t)
+    | Var(Var.t, bool) //  bool is true if the variable is unbound
     | Let(Pat.t, t, t)
     | FixF(Pat.t, t, option(ClosureEnvironment.t))
     | TyAlias(TPat.t, Typ.t, t)
@@ -221,7 +221,7 @@ and Exp: {
       )
     | TypFun(TPat.t, t, option(string))
     | Tuple(list(t))
-    | Var(Var.t)
+    | Var(Var.t, bool) // bool is true if the variable is unbound
     | Let(Pat.t, t, t)
     | FixF(Pat.t, t, [@show.opaque] option(ClosureEnvironment.t))
     | TyAlias(TPat.t, Typ.t, t)
@@ -363,7 +363,7 @@ and Exp: {
       TPat.fast_equal(tp1, tp2) && fast_equal(e1, e2)
     | (Tuple(xs), Tuple(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
-    | (Var(v1), Var(v2)) => v1 == v2
+    | (Var(v1, b1), Var(v2, b2)) => v1 == v2 && b1 == b2
     | (Let(p1, e1, e2), Let(p2, e3, e4)) =>
       Pat.fast_equal(p1, p2) && fast_equal(e1, e3) && fast_equal(e2, e4)
     | (FixF(p1, e1, c1), FixF(p2, e2, c2)) =>
