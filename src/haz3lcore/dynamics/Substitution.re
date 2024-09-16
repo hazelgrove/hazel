@@ -2,12 +2,13 @@
 let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   let (term, rewrap) = DHExp.unwrap(d2);
   switch (term) {
-  | Var(y) =>
+  | Var(y, false) =>
     if (Var.eq(x, y)) {
       d1;
     } else {
       d2;
     }
+  | Var(_, true) => d2
   | Invalid(_) => d2
   | Undefined => d2
   | Seq(d3, d4) =>

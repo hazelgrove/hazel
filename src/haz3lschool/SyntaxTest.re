@@ -169,7 +169,8 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
  */
 let rec var_mention = (name: string, uexp: Exp.t): bool => {
   switch (uexp.term) {
-  | Var(x) => x == name
+  | Var(x, false) => x == name
+  | Var(_, true)
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)
@@ -258,7 +259,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Filter(_, u) => var_applied(name, u)
   | TypAp(u, _) =>
     switch (u.term) {
-    | Var(x) => x == name ? true : false
+    | Var(x, _) => x == name ? true : false
     | _ => var_applied(name, u)
     }
   | DynamicErrorHole(_) => false
@@ -269,12 +270,12 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Cast(d, _, _) => var_applied(name, d)
   | Ap(_, u1, u2) =>
     switch (u1.term) {
-    | Var(x) => x == name ? true : var_applied(name, u2)
+    | Var(x, _) => x == name ? true : var_applied(name, u2)
     | _ => var_applied(name, u1) || var_applied(name, u2)
     }
   | DeferredAp(u1, us) =>
     switch (u1.term) {
-    | Var(x) => x == name ? true : List.exists(var_applied(name), us)
+    | Var(x, _) => x == name ? true : List.exists(var_applied(name), us)
     | _ => List.exists(var_applied(name), us)
     }
   | Cons(u1, u2)

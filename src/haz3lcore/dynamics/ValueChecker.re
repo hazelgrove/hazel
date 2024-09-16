@@ -87,7 +87,7 @@ let rec check_value = (state, env, d) =>
 
 let rec check_value_mod_ctx = ((), env, d) =>
   switch (DHExp.term_of(d)) {
-  | Var(x) =>
+  | Var(x, false) =>
     switch (ClosureEnvironment.lookup(env, x)) {
     | Some(v) => check_value_mod_ctx((), env, v)
     | None => CV.transition(check_value_mod_ctx, (), env, d)

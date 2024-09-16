@@ -46,6 +46,7 @@ open PatternMatch;
 type step_kind =
   | InvalidStep
   | VarLookup
+  | VarLookupFail
   | Seq
   | LetBind
   | FunClosure
@@ -164,8 +165,8 @@ module Transition = (EV: EV_MODE) => {
 
     // Transition rules
     switch (term) {
-    | Var(x) =>
-      let. _ = otherwise(env, Var(x) |> rewrap);
+    | Var(x, false) =>
+      let. _ = otherwise(env, Var(x, false) |> rewrap);
       switch (ClosureEnvironment.lookup(env, x)) {
       | Some(d) =>
         Step({
@@ -174,8 +175,17 @@ module Transition = (EV: EV_MODE) => {
           kind: VarLookup,
           is_value: false,
         })
-      | None => Indet
+      | None =>
+        Step({
+          expr: Var(x, true) |> rewrap,
+          state_update,
+          kind: VarLookupFail,
+          is_value: false,
+        })
       };
+    | Var(_, true) =>
+      let. _ = otherwise(env, d);
+      Indet;
     | Seq(d1, d2) =>
       let. _ = otherwise(env, d1 => Seq(d1, d2) |> rewrap)
       and. _ =
@@ -240,7 +250,7 @@ module Transition = (EV: EV_MODE) => {
                 Let(
                   dp,
                   FixF(dp, d1, Some(env)) |> rewrap,
-                  Var(binding) |> fresh,
+                  Var(binding, false) |> fresh,
                 )
                 |> fresh,
               ),
@@ -808,4 +818,5 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | BuiltinWrap
   | FunClosure
   | FixClosure
+  | VarLookupFail
   | RemoveParens => true;

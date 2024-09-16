@@ -673,7 +673,7 @@ let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
    exists in the context, return the id where the binding occurs */
 let get_binding_site = (info: t): option(Id.t) => {
   switch (info) {
-  | InfoExp({term: {term: Var(name), _}, ctx, _}) =>
+  | InfoExp({term: {term: Var(name, _), _}, ctx, _}) =>
     let+ entry = Ctx.lookup_var(ctx, name);
     entry.id;
   | InfoExp({term: {term: Constructor(name, _), _}, ctx, _})

@@ -150,6 +150,7 @@ let mk =
         | (TypFunAp, _) // TODO: Could also do something here for type variable substitution like in FunAp?
         | (InvalidStep, _)
         | (VarLookup, _)
+        | (VarLookupFail, _)
         | (Seq, _)
         | (FunClosure, _)
         | (FixClosure, _)
@@ -294,8 +295,8 @@ let mk =
           env,
         )
       | Invalid(t) => DHDoc_common.mk_InvalidText(t)
-      | Var(x) when settings.show_lookup_steps => text(x)
-      | Var(x) =>
+      | Var(x, _) when settings.show_lookup_steps => text(x)
+      | Var(x, _) =>
         switch (ClosureEnvironment.lookup(env, x)) {
         | None => text(x)
         | Some(d') =>
@@ -649,7 +650,7 @@ let mk =
       switch (substitution) {
       | Some((step, _)) =>
         switch (DHExp.term_of(step.d_loc)) {
-        | Var(v) when List.mem(v, recent_subst) =>
+        | Var(v, _) when List.mem(v, recent_subst) =>
           hcats([text(v) |> annot(DHAnnot.Substituted), doc])
         | _ => doc
         }

@@ -260,7 +260,9 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
       m,
     );
-  | Var(name) =>
+  | Var(name, true) =>
+    add'(~self=Self.of_exp_var([], name), ~co_ctx=CoCtx.empty, m)
+  | Var(name, false) =>
     add'(
       ~self=Self.of_exp_var(ctx, name),
       ~co_ctx=CoCtx.singleton(name, UExp.rep_id(uexp), Mode.ty_of(mode)),
@@ -276,8 +278,10 @@ and uexp_to_info_map =
       copied: false,
       term:
         switch (e.term) {
-        | Var("e") => UExp.Constructor("$e", Unknown(Internal) |> Typ.temp)
-        | Var("v") => UExp.Constructor("$v", Unknown(Internal) |> Typ.temp)
+        | Var("e", _) =>
+          UExp.Constructor("$e", Unknown(Internal) |> Typ.temp)
+        | Var("v", _) =>
+          UExp.Constructor("$v", Unknown(Internal) |> Typ.temp)
         | _ => e.term
         },
     };
