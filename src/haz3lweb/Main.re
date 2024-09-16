@@ -1,3 +1,4 @@
+open Util;
 open Js_of_ocaml;
 open Incr_dom;
 open Haz3lweb;

@@ -1,0 +1,237 @@
+/* Exercise mode styles. This may also contain
+ * some styling around test decorations which
+ * could be factored out */
+
+#main.Exercises {
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.2em;
+  background-color: var(--ui-bkg);
+}
+
+#main.Exercises {
+  scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+}
+
+#main.Exercises .cell {
+  width: auto;
+  min-width: auto;
+}
+
+#main.Exercises .cell-caption {
+  color: var(--ui-header-text);
+  font-size: 0.8em;
+}
+
+#main.Exercises .cell-caption strong {
+  text-transform: uppercase;
+}
+
+#main.Exercises .cell.deselected {
+  border-left: 1px solid var(--cell-exercises-border);
+}
+
+#main.Exercises .cell.selected {
+  border-left: 1px solid var(--cell-selected-accent);
+  background-color: var(--cell-active);
+}
+
+#main.Exercises .cell-report {
+  padding: 1.2em;
+  background-color: var(--test-panel-bkg);
+  border-left: 1px solid #0000;
+}
+
+#main.Exercises .cell .cell-item:first-child {
+  border-top-left-radius: 0.4em;
+  border-top-right-radius: 0.4em;
+}
+
+#main.Exercises .cell .cell-item:last-child {
+  border-bottom-left-radius: 0.4em;
+  border-bottom-right-radius: 0.4em;
+}
+
+#main.Exercises .test-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+  padding: 1em;
+  background-color: var(--test-panel-bkg);
+  border-bottom: 0.5px solid var(--BR2);
+}
+
+#main.Exercises .test-reports {
+  position: relative;
+}
+
+#main.Exercises .test-report {
+  margin-right: 1em;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1em;
+  padding: 0.3em;
+  cursor: pointer;
+}
+
+#main.Exercises .test-report + .test-report {
+  border-top: 1px dotted var(--BR2);
+}
+
+#main.Exercises .test-report:hover {
+  background-color: var(--SAND);
+}
+
+.test-id.Pass {
+  color: var(--test-pass);
+}
+
+.test-id.Fail {
+  color: var(--test-fail);
+}
+
+.test-result:after {
+  position: relative;
+  bottom: 0.15em;
+  margin-left: 0.17em;
+  font-size: 64%;
+  vertical-align: super;
+  z-index: var(--test-result-z);
+}
+
+.test-instance.Pass:before,
+.test-result.Pass:after {
+  content: "✔";
+  color: var(--test-pass);
+}
+
+.test-instance.Fail:before,
+.test-result.Fail:after {
+  content: "✘";
+  color: var(--test-fail);
+}
+
+.test-instance.Indet:before,
+.test-result.Indet:after {
+  content: "?";
+  color: var(--test-indet);
+}
+
+.test-instance:before {
+  position: relative;
+  margin-top: 0.2em;
+  margin-right: 1em;
+  font-size: 64%;
+  display: flex;
+  align-items: center;
+}
+
+#main.Exercises .test-instances {
+  display: flex;
+  flex-direction: row;
+  gap: 0.2em;
+  flex-grow: 1;
+}
+
+#main.Exercises .test-instance {
+  display: flex;
+  flex-grow: 1;
+  flex-direction: row;
+}
+
+#main.Exercises .test-summary {
+  display: flex;
+  flex-direction: row;
+  gap: 1em;
+  justify-content: space-between;
+}
+
+#main.Exercises .test-bar {
+  width: 16em;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+#main.Exercises .test-text {
+  display: flex;
+  gap: 0.5em;
+  white-space: nowrap;
+}
+
+#main.Exercises .test-percent {
+  height: 1.7em;
+  display: flex;
+  padding: 0 1em 0 1em;
+  font-size: 0.7em;
+  border-radius: 1.08em;
+  background-color: var(--BR2);
+  align-items: center;
+}
+
+#main.Exercises > .test-percent {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 0.5em;
+  z-index: 1000;
+}
+
+#main.Exercises .test-percent.all-pass {
+  background-color: var(--test-pass);
+  color: var(--test-percent-text);
+  animation: jello 1s ease 0s 1 normal none;
+}
+
+#main.Exercises .test-percent.some-fail {
+  color: var(--light-page-color);
+}
+
+#main.Exercises .test-bar .segment:first-child {
+  border-radius: 0.3em 0 0 0.3em;
+}
+
+#main.Exercises .test-bar .segment:last-child {
+  border-radius: 0 0.3em 0.3em 0;
+}
+
+#main.Exercises .test-bar .segment:only-child {
+  border-radius: 0.3em 0.3em 0.3em 0.3em;
+}
+
+#main.Exercises .test-bar .segment {
+  flex-grow: 1;
+  height: 0.5em;
+  cursor: pointer;
+}
+
+#main.Exercises .test-bar .segment.Pass {
+  background-color: var(--test-pass);
+}
+
+#main.Exercises .test-bar .segment.Pass:hover {
+  background-color: var(--test-pass-active);
+}
+
+#main.Exercises .test-bar .segment.Fail {
+  background-color: var(--test-fail);
+}
+
+#main.Exercises .test-bar .segment.Fail:hover {
+  background-color: var(--test-fail-active);
+}
+
+#main.Exercises .test-bar .segment.Indet {
+  background-color: var(--test-indet);
+}
+
+#main.Exercises .test-bar .segment.Indet:hover {
+  background-color: var(--test-indet-active);
+}
+
+#main.Exercises .context-entry {
+  max-width: fit-content; /* Correct implementation type sigs */
+}

@@ -488,6 +488,18 @@ let first_and_last = (xss: list(list('a))): list(('a, 'a)) =>
        | [x, ...xs] => Some((x, last(xs))),
      );
 
+let rec unsnoc = (xs: list('a)): option(('a, list('a))) => {
+  switch ((xs: list('a))) {
+  | [] => None
+  | [head, ...tail] =>
+    switch (unsnoc(tail)) {
+    | None => Some((head, []))
+    | Some((tail_last: 'a, tail_init: list('a))) =>
+      Some((tail_last, [head, ...tail_init]))
+    }
+  };
+};
+
 let rec rev_concat: (list('a), list('a)) => list('a) =
   (ls, rs) => {
     switch (ls) {
