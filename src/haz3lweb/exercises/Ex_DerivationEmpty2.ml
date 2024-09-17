@@ -5,7 +5,7 @@ let exercise : Exercise.spec =
     {
       header =
         {
-          title = "Derivation Playground";
+          title = "Derivation Playground 2";
           version = 1;
           module_name = "Ex_DerivationPlayground_2";
           prompt;

@@ -51,7 +51,11 @@ let rec repr = (p: int, prop: t, ~color_map: ColorSteps.t): list(Node.t) => {
       if (List.length(ctx) == 0) {
         "·" |> mk;
       } else {
-        ctx |> List.map(repr) |> List.concat;
+        repr_aba_tight(
+          [""] @ List.init(List.length(ctx), _ => ", ") @ [""],
+          ctx,
+          // ctx |> List.map(repr) |> List.concat;
+        );
       }
     | Entail(a, b) => repr_binop("⊢", a, b)
     | NumLit(i) => string_of_int(i) |> mk
