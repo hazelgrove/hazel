@@ -527,6 +527,11 @@ let get_doc =
           );
         (syntactic_form_view, ([explanation], color_map), example_view);
       | Deduction(info) =>
+        switch (info) {
+        | Some(info) =>
+          print_endline(info |> Haz3lschool.ProofGrade.VerifiedTree.show_info)
+        | None => ()
+        };
         let rule_example_view =
           DeductionExp.rule_example_view(~info, ~color_map);
         let explanation_title = DeductionExp.mk_explanation_title();

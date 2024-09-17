@@ -76,9 +76,9 @@ let rec repr = (p: int, prop: t, ~color_map: ColorSteps.t): list(Node.t) => {
     | False => "False" |> mk
     | If(a, b, c) => repr_aba(["if", "then", "else", ""], [a, b, c])
     | Var(x) => x |> mk
-    | Let(x, a, b) => repr_aba(["let", "→", "in", ""], [x, a, b])
+    | Let(x, a, b) => repr_aba(["let", "=", "in", ""], [x, a, b])
     | LetAnn(x, t, a, b) =>
-      repr_aba(["let", ":", "→", "in", ""], [x, t, a, b])
+      repr_aba(["let", ":", "=", "in", ""], [x, t, a, b])
     | Fix(x, a) => repr_aba(["fix", "→", ""], [x, a])
     | FixAnn(x, t, a) => repr_aba(["fix", ":", "→", ""], [x, t, a])
     | Fun(x, a) => repr_aba(["fun", "→", ""], [x, a])

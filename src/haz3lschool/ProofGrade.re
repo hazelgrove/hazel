@@ -30,6 +30,7 @@ module ExternalError = {
 };
 
 module VerifiedTree = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(Tree.p(info))
   and info = {
     ghost: option(DrvSyntax.deduction(DrvSyntax.t)),

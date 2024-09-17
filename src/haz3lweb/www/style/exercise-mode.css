@@ -362,6 +362,9 @@
 .abbr-wrapper .deduction-just {
   padding-left: 1.4rem;
 }
+.abbr-wrapper .deduction-just .deduction-just {
+  padding-left: 0;
+}
 
 .deduction-prems-label.correct {
   border-color: var(--test-pass);

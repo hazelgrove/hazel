@@ -224,6 +224,13 @@ and prop_term: unsorted => (Drv.Prop.term, list(Id.t)) = {
     }
   | Op(([(_id, (["(", ")"], [Drv(Prop(body))]))], [])) =>
     ret(Parens(body))
+  | Pre(([(_id, ([t1, t2], [Drv(Exp(l))]))], []), Drv(Typ(r))) as tm =>
+    switch (t1, t2) {
+    | ("hasty", ":") => ret(HasTy(l, r))
+    | ("syn", "=>") => ret(Syn(l, r))
+    | ("ana", "<=") => ret(Ana(l, r))
+    | _ => ret(hole(tm))
+    }
   | Bin(Drv(Prop(l)), ([(_id, ([t], []))], []), Drv(Prop(r))) as tm =>
     switch (t) {
     | "/\\" => ret(And(l, r))
@@ -236,13 +243,6 @@ and prop_term: unsorted => (Drv.Prop.term, list(Id.t)) = {
     switch (is_tuple_prop(tiles)) {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
     | None => ret(hole(tm))
-    }
-  | Bin(Drv(Exp(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) as tm =>
-    switch (t) {
-    | ":" => ret(HasTy(l, r))
-    | "=>" => ret(Syn(l, r))
-    | "<=" => ret(Ana(l, r))
-    | _ => ret(hole(tm))
     }
   | _ as tm => ret(hole(tm));
 }

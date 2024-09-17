@@ -377,6 +377,10 @@ and unbox_self: type a. (DrvSyntax.t, req(a)) => result(a, failure) =
     | (Ap(_), _) => Error(FailUnbox(Ap, p))
     // AL
     | (NumLit, NumLit(n)) => Ok(n)
+    | (NumLit, Neg(n)) =>
+      print_endline("unbox NumLit Neg--");
+      let$ n = unbox(n, NumLit);
+      Ok(- n);
     | (NumLit, _) => Error(FailUnbox(NumLit, p))
     | (Neg(ra), Neg(a)) =>
       let$ a = unbox(a, ra);
@@ -486,14 +490,14 @@ and unbox_with_ghost:
       let$ b = unbox(b, b', rb);
       Ok((a, b));
     | (Sum(_), _, _) => Error(FailUnbox(Sum, p))
-    | (TVar, TVar(s), TVar(_)) => Ok(s)
+    | (TVar, TVar(s), _) => Ok(s)
     | (TVar, _, _) => Error(FailUnbox(TVar, p))
     | (Rec(ra, rb), Rec(a, b), Rec(a', b')) =>
       let$ a = unbox(a, a', ra);
       let$ b = unbox(b, b', rb);
       Ok((a, b));
     | (Rec(_), _, _) => Error(FailUnbox(Rec, p))
-    | (TPat, TPat(s), TPat(_)) => Ok(s)
+    | (TPat, TPat(s), _) => Ok(s)
     | (TPat, _, _) => Error(FailUnbox(TPat, p))
     | (Fix(ra, rb), Fix(a, b), Fix(a', b')) =>
       let$ a = unbox(a, a', ra);
@@ -622,7 +626,10 @@ and unbox_with_ghost:
       Ok((a, b));
     | (Ap(_), _, _) => Error(FailUnbox(Ap, p))
     // AL
-    | (NumLit, NumLit(n), NumLit(_)) => Ok(n)
+    | (NumLit, NumLit(n), _) => Ok(n)
+    | (NumLit, Neg(a), _) =>
+      let$ a = unbox_self(a, NumLit);
+      Ok(- a);
     | (NumLit, _, _) => Error(FailUnbox(NumLit, p))
     | (Neg(ra), Neg(a), Neg(a')) =>
       let$ a = unbox(a, a', ra);

@@ -406,15 +406,27 @@ let forms: list((string, t)) = [
   // Drv(Prop)
   (
     "hasty",
-    mk(ds, [":"], mk_bin'(P.semi, Drv(Prop), Drv(Exp), [], Drv(Typ))),
+    mk(
+      ds,
+      ["hasty", ":"],
+      mk_pre'(P.semi, Drv(Prop), Drv(Prop), [Drv(Exp)], Drv(Typ)),
+    ),
   ),
   (
     "syn",
-    mk(ds, ["<="], mk_bin'(P.semi, Drv(Prop), Drv(Exp), [], Drv(Typ))),
+    mk(
+      ds,
+      ["syn", "<="],
+      mk_pre'(P.semi, Drv(Prop), Drv(Prop), [Drv(Exp)], Drv(Typ)),
+    ),
   ),
   (
     "ana",
-    mk(ds, ["=>"], mk_bin'(P.semi, Drv(Prop), Drv(Exp), [], Drv(Typ))),
+    mk(
+      ds,
+      ["ana", "=>"],
+      mk_pre'(P.semi, Drv(Prop), Drv(Prop), [Drv(Exp)], Drv(Typ)),
+    ),
   ),
   ("and", mk_infix("/\\", Drv(Prop), P.and_)),
   ("or", mk_infix("\\/", Drv(Prop), P.or_)),

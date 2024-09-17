@@ -202,41 +202,49 @@ let precedence: t => int =
     | TPat(_) => P.max
     };
 
-let rec repr = (p: int, prop: t): string => {
+let rec repr = (p: int, prop: t): list(string) => {
   let p' = precedence(prop);
+  let mk = x => [x];
   let repr = repr(p');
-  let repr_aba = (as_: list(string), bs: list(t)) =>
+  // let insert_space = (a: list(Node.t), b: list(Node.t)) =>
+  //   List.concat([a, mk(" "), b]);
+  let repr_aba = (as_: list(string), bs: list(t)): list(string) =>
     Aba.mk(as_, bs)
-    |> Aba.join(Fun.id, repr)
-    |> String.concat(" ")
-    |> String.trim;
+    |> Aba.join(mk, repr)
+    |> Aba.mk(
+         _,
+         List.init(List.length(bs) + List.length(as_) - 1, _ =>
+           Unicode.nbsp
+         ),
+       )
+    |> Aba.join(Fun.id, mk)
+    |> List.concat;
   let repr_aba_tight = (as_: list(string), bs: list(t)) =>
-    Aba.mk(as_, bs) |> Aba.join(Fun.id, repr) |> String.concat("");
+    Aba.mk(as_, bs) |> Aba.join(mk, repr) |> List.concat;
   let repr_binop = (op: string, a: t, b: t) =>
-    repr_aba(["", op, ""], [a, b]);
-  let repr_preop = (op: string, a: t) => repr_aba([op, ""], [a]);
-  let repr_postop = (op: string, a: t) => repr_aba(["", op], [a]);
+    [repr(a), [Unicode.nbsp ++ op ++ Unicode.nbsp], repr(b)] |> List.concat;
+  let repr_postop = (op, a: t) =>
+    [repr(a), [Unicode.nbsp ++ op]] |> List.concat;
+  let repr_preop = (op, a: t) =>
+    [[op ++ Unicode.nbsp], repr(a)] |> List.concat;
   (
     switch (IdTagged.term_of(prop)) {
-    | Hole(s) => Printf.sprintf("[%s]", s)
-    | Atom(s) => s
+    | Hole(s) => Printf.sprintf("[%s]", s) |> mk
+    | Atom(s) => s |> mk
     | And(a, b) => repr_binop("∧", a, b)
     | Or(a, b) => repr_binop("∨", a, b)
     | Impl(a, b) when IdTagged.term_of(b) == Falsity => repr_postop("¬", a)
     | Impl(a, b) => repr_binop("⊃", a, b)
-    | Truth => "⊤"
-    | Falsity => "⊥"
+    | Truth => "⊤" |> mk
+    | Falsity => "⊥" |> mk
     | Ctx(ctx) =>
       if (List.length(ctx) == 0) {
-        "·";
+        "·" |> mk;
       } else {
-        ctx
-        |> List.map(repr)
-        |> String.concat(", ")
-        |> Printf.sprintf("[%s]");
+        ctx |> List.map(repr) |> List.concat;
       }
     | Entail(a, b) => repr_binop("⊢", a, b)
-    | NumLit(i) => string_of_int(i)
+    | NumLit(i) => string_of_int(i) |> mk
     | Val(a) => repr_postop(".val", a)
     | Neg(a) => repr_preop("-", a)
     | Plus(a, b) => repr_binop("+", a, b)
@@ -246,28 +254,28 @@ let rec repr = (p: int, prop: t): string => {
     | Gt(a, b) => repr_binop(">", a, b)
     | Eq(a, b) => repr_binop("==", a, b)
     | Eval(a, b) => repr_binop("⇓", a, b)
-    | Num => "Num"
-    | Bool => "Bool"
+    | Num => "Num" |> mk
+    | Bool => "Bool" |> mk
     | Arrow(a, b) => repr_binop("→", a, b)
     | Prod(a, b) => repr_binop("×", a, b)
-    | Unit => "Unit"
+    | Unit => "Unit" |> mk
     | Sum(a, b) => repr_binop("+", a, b)
-    | TVar(x) => x
+    | TVar(x) => x |> mk
     | Rec(x, a) => repr_aba(["rec", "→", ""], [x, a])
-    | True => "True"
-    | False => "False"
+    | True => "True" |> mk
+    | False => "False" |> mk
     | If(a, b, c) => repr_aba(["if", "then", "else", ""], [a, b, c])
-    | Var(x) => x
-    | Let(x, a, b) => repr_aba(["let", "→", "in", ""], [x, a, b])
+    | Var(x) => x |> mk
+    | Let(x, a, b) => repr_aba(["let", "=", "in", ""], [x, a, b])
     | LetAnn(x, t, a, b) =>
-      repr_aba(["let", ":", "→", "in", ""], [x, t, a, b])
+      repr_aba(["let", ":", "=", "in", ""], [x, t, a, b])
     | Fix(x, a) => repr_aba(["fix", "→", ""], [x, a])
     | FixAnn(x, t, a) => repr_aba(["fix", ":", "→", ""], [x, t, a])
     | Fun(x, a) => repr_aba(["fun", "→", ""], [x, a])
     | FunAnn(x, t, a) => repr_aba(["fun", ":", "→", ""], [x, t, a])
     | Ap(a, b) => repr_aba_tight(["", "(", ")"], [a, b])
     | Pair(a, b) => repr_aba_tight(["(", ",", ")"], [a, b])
-    | Triv => "()"
+    | Triv => "()" |> mk
     | PrjL(a) => repr_postop(".fst", a)
     | PrjR(a) => repr_postop(".snd", a)
     | LetPair(x, y, a, b) =>
@@ -281,17 +289,17 @@ let rec repr = (p: int, prop: t): string => {
       )
     | Roll(a) => repr_aba_tight(["roll(", ")"], [a])
     | Unroll(a) => repr_aba_tight(["unroll(", ")"], [a])
-    | TPat(x) => x
-    | Pat(x) => x
+    | TPat(x) => x |> mk
+    | Pat(x) => x |> mk
     | HasTy(a, b) => repr_binop(":", a, b)
     | Syn(a, b) => repr_binop("⇒", a, b)
     | Ana(a, b) => repr_binop("⇐", a, b)
     }
   )
-  |> (p < p' ? Printf.sprintf("(%s)") : Fun.id);
+  |> (x => p < p' ? List.concat([mk("("), x, mk(")")]) : x);
 };
 
-let repr = repr(P.min);
+let repr = p => repr(P.min, p) |> String.concat("");
 
 let rec eq: (t, t) => bool =
   (a, b) =>

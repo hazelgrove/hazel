@@ -155,7 +155,7 @@ and elab_pat: Drv.Pat.t => t =
     let term: term =
       switch (pat.term) {
       | Hole(s) => Hole(TermBase.TypeHole.show(s))
-      | Var(x) => Var(x)
+      | Var(x) => Pat(x)
       | Cast(_)
       | InjL
       | InjR

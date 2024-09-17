@@ -44,8 +44,12 @@
 
   /* AURA - docs highlighting */
   --highlight-a: oklch(0.95 0.07 360);
-  --highlight-b: oklch(from var(--highlight-a) l c calc(h - 1 * 120));
-  --highlight-c: oklch(from var(--highlight-a) l c calc(h - 2 * 120));
+  --highlight-b: oklch(from var(--highlight-a) l c calc(h - 2 * 60));
+  --highlight-c: oklch(from var(--highlight-a) l c calc(h - 4 * 60));
+  --highlight-d: oklch(from var(--highlight-a) l c calc(h - 1 * 60));
+  --highlight-e: oklch(from var(--highlight-a) l c calc(h - 3 * 60));
+  --highlight-f: oklch(from var(--highlight-a) l c calc(h - 5 * 60));
+
 
   /* MOSS - affirmations */
   --G0: oklch(70% 0.15 150); /* page title, passing tests */
