@@ -52,7 +52,7 @@ let rec repr = (p: int, prop: t, ~color_map: ColorSteps.t): list(Node.t) => {
         "·" |> mk;
       } else {
         repr_aba_tight(
-          [""] @ List.init(List.length(ctx), _ => ", ") @ [""],
+          [""] @ List.init(List.length(ctx) - 1, _ => ", ") @ [""],
           ctx,
           // ctx |> List.map(repr) |> List.concat;
         );

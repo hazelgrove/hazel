@@ -106,6 +106,12 @@ let keywords = [
   "from",
   "to",
   "by",
+  "val",
+  "eval",
+  "entail",
+  "hasty",
+  "syn",
+  "ana",
 ];
 let reserved_keywords = ["of", "when", "with", "switch", "match"];
 let keyword_regexp = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
@@ -365,27 +371,8 @@ let forms: list((string, t)) = [
   ("of_alfa_tpat", mk(ds, ["of_TPat", "end"], mk_op(Exp, [Drv(TPat)]))),
   ("of_prop", mk(ds, ["of_Prop", "end"], mk_op(Exp, [Drv(Prop)]))),
   ("of_jdmt", mk(ds, ["of_Jdmt", "end"], mk_op(Exp, [Drv(Jdmt)]))),
-  // Drv(Jdmt)
-  // (
-  //   "val",
-  //   mk(
-  //     ii,
-  //     [".val"],
-  //     mk_post'(P.filter, Drv(Jdmt), Drv(Exp), [], Drv(Exp)),
-  //   ),
-  // ),
-  // (
-  //   "eval",
-  //   mk(ii, ["$>"], mk_bin'(P.filter, Drv(Jdmt), Drv(Exp), [], Drv(Exp))),
-  // ),
-  // (
-  //   "entail",
-  //   mk(
-  //     ii,
-  //     ["|-"],
-  //     mk_bin'(P.filter, Drv(Jdmt), Drv(Prop), [], Drv(Prop)),
-  //   ),
-  // ),
+  ("fake_val", mk(ds, ["val", "in"], mk_pre(P.filter, Exp, [Exp]))),
+  ("fake_entail", mk(ds, ["entail", "in"], mk_pre(P.filter, Exp, [Exp]))),
   ("val", mk(ii, ["val", "end"], mk_op(Drv(Jdmt), [Drv(Exp)]))),
   (
     "eval",
@@ -416,7 +403,7 @@ let forms: list((string, t)) = [
     "syn",
     mk(
       ds,
-      ["syn", "<="],
+      ["syn", "=>"],
       mk_pre'(P.semi, Drv(Prop), Drv(Prop), [Drv(Exp)], Drv(Typ)),
     ),
   ),
@@ -424,7 +411,7 @@ let forms: list((string, t)) = [
     "ana",
     mk(
       ds,
-      ["ana", "=>"],
+      ["ana", "<="],
       mk_pre'(P.semi, Drv(Prop), Drv(Prop), [Drv(Exp)], Drv(Typ)),
     ),
   ),
@@ -500,6 +487,32 @@ let forms: list((string, t)) = [
   ),
   ("typ_parens", mk(ii, ["(", ")"], mk_op(Drv(Typ), [Drv(Typ)]))),
 ];
+
+// let get: String.t => t =
+//   name => Util.ListUtil.assoc_err(name, forms, "Forms.get");
+
+// let redirect: string => string =
+//   s =>
+//     switch (s) {
+//     | "plus" => "exp_plus"
+//     | "minus" => "exp_minus"
+//     | "times" => "exp_times"
+//     | "equals" => "exp_eq"
+//     | "lt" => "exp_lt"
+//     | "gt" => "exp_gt"
+//     | "unary_minus" => "exp_neg"
+//     | "comma_exp" => "exp_pair"
+//     | "parens_exp" => "exp_parens"
+//     | "ap_exp" => "exp_ap"
+//     | "fun_" => "exp_fun"
+//     | "fix" => "exp_fix"
+//     | "rec" => "typ_rec"
+//     | "let_" => "exp_let"
+//     | "if_" => "exp_if"
+//     | _ => s
+//     };
+
+// let forms = List.map(((name, _)) => (name, get(redirect(name))), forms);
 
 let get: String.t => t =
   name => Util.ListUtil.assoc_err(name, forms, "Forms.get");

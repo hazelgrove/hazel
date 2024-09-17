@@ -382,6 +382,7 @@ and alfa_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
 
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
+  print_endline("term: " ++ TermBase.Exp.show_term(term));
   switch (term) {
   | MultiHole([Drv(_), ..._]) =>
     let (term, inner_ids) = jdmt_term(unsorted);
