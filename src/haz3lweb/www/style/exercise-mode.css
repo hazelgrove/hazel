@@ -6,7 +6,7 @@
   padding: 1em;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  /* justify-content: space-between; */
   gap: 1.2em;
   background-color: var(--ui-bkg);
 }
@@ -311,7 +311,7 @@
 }
 
 .add-abbr-btn {
-  height: 1rem;
+  height: 1.4rem;
   width: -webkit-fill-available;
 }
 
@@ -366,6 +366,7 @@
   padding-left: 0;
 }
 
+.dropdown.correct,
 .deduction-prems-label.correct {
   border-color: var(--test-pass);
 }
@@ -374,6 +375,7 @@
   background-color: var(--test-pass);
 }
 
+.dropdown.incorrect,
 .deduction-prems-label.incorrect {
   border-color: var(--test-fail);
 }
@@ -388,7 +390,7 @@
   border-bottom-left-radius: 0;
 }
 
-.deduction-label:hover {
+.deduction-just .deduction-label:hover {
   display: flex;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;

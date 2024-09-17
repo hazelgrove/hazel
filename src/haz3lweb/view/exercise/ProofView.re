@@ -49,6 +49,13 @@ let proof_view =
       },
   };
 
+  let make_pos = (pos: pos, index): Exercise.pos =>
+    switch (pos) {
+    | Trees(i, pos) =>
+      Proof(Trees(i, Tree.pos_concat(Children(index, Value), pos)))
+    | _ => Proof(Prelude)
+    };
+
   let add_premise_btn_view = (~pos, ~index) =>
     div(
       ~attrs=[
@@ -56,7 +63,12 @@ let proof_view =
         Attr.on_click(_ =>
           inject(
             UpdateAction.MapExercise(
-              map_model(Exercise.Proof.add_premise(~pos, ~index, ~init)),
+              m =>
+                m
+                |> map_model(
+                     Exercise.Proof.add_premise(~pos, ~index, ~init),
+                   )
+                |> (m => {...m, pos: make_pos(pos, index)}),
             ),
           )
         ),
@@ -88,7 +100,11 @@ let proof_view =
             map_model(Exercise.Proof.del_premise(~pos)),
           ),
         ),
-      ~tooltip="Delete Premise",
+      ~tooltip=
+        switch (pos) {
+        | Trees(_, Value) => "Delete Abbreviation"
+        | _ => "Delete Premise"
+        },
     );
 
   let rule_to_label =
@@ -177,9 +193,9 @@ let proof_view =
     | Trees(_, Value) => true
     | _ => false;
 
-  let dropdown_view = (~pos, ~index): t =>
+  let dropdown_view = (~pos, ~res, ~index): t =>
     div(
-      ~attrs=[Attr.class_("dropdown")],
+      ~attrs=[Attr.class_("dropdown"), Attr.class_(class_of_result(res))],
       (
         Exercise.Proof.all_abbrs(pos)
         |> List.filter(abbr => abbr != index)
@@ -206,7 +222,7 @@ let proof_view =
         Attr.class_("deduction-label"),
         Attr.class_(class_of_result(res)),
       ],
-      [text(label), dropdown_view(~pos, ~index)],
+      [text(label), dropdown_view(~pos, ~res, ~index)],
     );
 
   let result_btn_view = (~pos, ~res: VerifiedTree.info) =>
@@ -370,7 +386,10 @@ let proof_view =
         Attr.on_click(_ =>
           inject(
             UpdateAction.MapExercise(
-              map_model(Exercise.Proof.add_abbr(~index, ~init)),
+              m =>
+                m
+                |> map_model(Exercise.Proof.add_abbr(~index, ~init))
+                |> (m => {...m, pos: Proof(Trees(index, Value))}),
             ),
           )
         ),
@@ -426,29 +445,32 @@ let proof_view =
       ],
     );
 
-  let prelude_view =
-    editor_view(
-      Proof(Prelude),
-      ~editor=eds.prelude,
-      ~di=stitched_dynamics.prelude,
-      ~caption=
-        Cell.caption(
-          "Prelude",
-          ~rest=settings.instructor_mode ? "" : " (Read-Only)",
-        ),
-      ~sort=Exp,
-      ~footer=[],
-    );
+  // let prelude_view =
+  //   editor_view(
+  //     Proof(Prelude),
+  //     ~editor=eds.prelude,
+  //     ~di=stitched_dynamics.prelude,
+  //     ~caption=
+  //       Cell.caption(
+  //         "Prelude",
+  //         ~rest=settings.instructor_mode ? "" : " (Read-Only)",
+  //       ),
+  //     ~sort=Exp,
+  //     ~footer=[],
+  //   );
 
-  let setup_view =
-    editor_view(
-      Proof(Setup),
-      ~editor=eds.setup,
-      ~di=stitched_dynamics.setup,
-      ~caption=Cell.caption("Setup"),
-      ~sort=Exp,
-      ~footer=[],
-    );
+  // let setup_view =
+  //   editor_view(
+  //     Proof(Setup),
+  //     ~editor=eds.setup,
+  //     ~di=stitched_dynamics.setup,
+  //     ~caption=Cell.caption("Setup"),
+  //     ~sort=Exp,
+  //     ~footer=[],
+  //   );
 
-  [prelude_view, setup_view, derivation_view];
+  [
+    // prelude_view, setup_view,
+    derivation_view,
+  ];
 };

@@ -7,7 +7,7 @@ let exercise : Exercise.spec =
         {
           title = "Derivation Playground";
           version = 1;
-          module_name = "Ex_DerivationPlayground";
+          module_name = "Ex_DerivationPlayground_3";
           prompt;
         };
       pos = Proof Prelude;

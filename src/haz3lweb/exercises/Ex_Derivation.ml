@@ -5,9 +5,9 @@ let exercise : Exercise.spec =
     {
       header =
         {
-          title = "Derivation";
+          title = "Derivation Example";
           version = 1;
-          module_name = "Ex_Derivation";
+          module_name = "Ex_Derivation_Example";
           prompt;
         };
       pos = Proof Prelude;

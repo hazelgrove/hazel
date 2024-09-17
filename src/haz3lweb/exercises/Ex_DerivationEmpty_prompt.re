@@ -1,11 +1,4 @@
 open Virtual_dom.Vdom;
 open Node;
 
-let prompt =
-  div([
-    p([
-      text(
-        "This is an empty derivation Exercise.\nTry proving anything you like.",
-      ),
-    ]),
-  ]);
+let prompt = div([p([text("Try proving anything you want. ")])]);

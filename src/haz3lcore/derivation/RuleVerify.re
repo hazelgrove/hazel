@@ -378,7 +378,6 @@ and unbox_self: type a. (DrvSyntax.t, req(a)) => result(a, failure) =
     // AL
     | (NumLit, NumLit(n)) => Ok(n)
     | (NumLit, Neg(n)) =>
-      print_endline("unbox NumLit Neg--");
       let$ n = unbox(n, NumLit);
       Ok(- n);
     | (NumLit, _) => Error(FailUnbox(NumLit, p))

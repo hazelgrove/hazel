@@ -55,7 +55,7 @@ let rec repr = (p: int, prop: t, ~color_map: ColorSteps.t): list(Node.t) => {
       }
     | Entail(a, b) => repr_binop("⊢", a, b)
     | NumLit(i) => string_of_int(i) |> mk
-    | Val(a) => repr_postop(".val", a)
+    | Val(a) => repr_postop("val", a)
     | Neg(a) => repr_preop("-", a)
     | Plus(a, b) => repr_binop("+", a, b)
     | Minus(a, b) => repr_binop("-", a, b)
