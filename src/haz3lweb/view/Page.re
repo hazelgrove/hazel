@@ -81,26 +81,6 @@ let top_bar =
         ~attrs=[Attr.class_("wrap")],
         [EditorModeView.view(~inject, ~settings, ~editors)],
       ),
-      div(
-        ~attrs=[
-          Attr.class_("wrap"),
-          Attr.on_click(_ => {
-            Strudel.playNote("<c a f e>(3,8)");
-            Effect.Ignore;
-          }),
-        ],
-        [div(~attrs=[], [text("PLAY")])],
-      ),
-      div(
-        ~attrs=[
-          Attr.class_("wrap"),
-          Attr.on_click(_ => {
-            Strudel.stopMusic();
-            Effect.Ignore;
-          }),
-        ],
-        [div(~attrs=[], [text("STOP")])],
-      ),
     ],
   );
 

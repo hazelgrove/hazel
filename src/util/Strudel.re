@@ -1,8 +1,5 @@
 open Js_of_ocaml;
 
-/* Strudel.re */
-/* Strudel.re */
-
 /* Direct bindings to Strudel functions */
 let initStrudel: unit => unit =
   () => {
