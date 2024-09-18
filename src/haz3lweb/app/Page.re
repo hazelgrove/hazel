@@ -200,15 +200,25 @@ module Update = {
   };
 
   let update =
-      (~import_log, ~schedule_action: t => unit, action: t, model: Model.t) => {
-    let globals = {...model.globals, export_all: Export.export_all};
+      (
+        ~import_log,
+        ~get_log_and,
+        ~schedule_action: t => unit,
+        action: t,
+        model: Model.t,
+      ) => {
+    let globals = {
+      ...model.globals,
+      export_all: Export.export_all,
+      get_log_and,
+    };
     switch (action) {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
     | Editors(action) =>
       let* editors =
         Editors.Update.update(
-          ~globals=model.globals,
+          ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
           action,
           model.editors,

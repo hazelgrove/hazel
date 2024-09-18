@@ -59,9 +59,13 @@ module Model = {
           "Cannot use inject_global outside of the main view function!",
         ),
       get_log_and: _ =>
-        failwith("Cannot use get_log_and outside of the main view function!"),
+        failwith(
+          "Cannot use get_log_and outside of the main view or update functions!",
+        ),
       export_all: (~settings as _, ~instructor_mode as _, ~log as _) =>
-        failwith("Cannot use export_all outside of the main view function!"),
+        failwith(
+          "Cannot use export_all outside of the main view or update functions!",
+        ),
       export_persistent: () =>
         failwith(
           "Cannot use export_persistent outside of the main view function!",
