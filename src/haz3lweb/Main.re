@@ -54,6 +54,7 @@ let apply =
     try(
       Page.Update.update(
         ~import_log=Log.import,
+        ~get_log_and=Log.get_and,
         ~schedule_action,
         action,
         model,
