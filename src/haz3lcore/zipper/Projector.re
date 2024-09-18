@@ -33,6 +33,13 @@ let placeholder = (p: Base.projector, ci: option(Info.t)): string =>
 
 /* TODO(andrew) Currently projection is limited to convex pieces */
 let minimum_projection_condition = (_syntax: syntax): bool => true;
+// !
+//   List.for_all(
+//     fun
+//     | Piece.Secondary(s) => Secondary.is_space(s)
+//     | _ => false,
+//     seg,
+//   );
 
 /* Returns the projector at the caret, if any */
 let indicated = (z: ZipperBase.t) => {

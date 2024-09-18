@@ -8,6 +8,12 @@ module Update = {
      * including cursor-info association. We maintain this invariant
      * when we update a projector's contained syntax */
     let (module P) = to_module(kind);
+    //TODO(andrew): cleanup
+    //print_endline("Seg: " ++ Segment.show(syntax));
+    // print_endline(
+    //   "min proj cond: "
+    //   ++ string_of_bool(minimum_projection_condition(syntax)),
+    // );
     switch (P.can_project(syntax) && minimum_projection_condition(syntax)) {
     | false => syntax
     | true => [Projector({id, kind, model: P.init, syntax})]

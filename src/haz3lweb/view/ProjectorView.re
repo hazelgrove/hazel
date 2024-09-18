@@ -283,14 +283,15 @@ module Panel = {
     let _might_project =
       switch (Indicated.subsegment(editor.state.zipper)) {
       | Some(subseg) =>
-        print_endline("subseg returns Some");
-        print_endline(
-          "minproj:" ++ string_of_bool(minimum_projection_condition(subseg)),
-        );
-        minimum_projection_condition(subseg);
+        // print_endline("subseg returns Some");
+        // print_endline("subseg:" ++ Segment.show(subseg));
+        // print_endline(
+        //   "minproj:" ++ string_of_bool(minimum_projection_condition(subseg)),
+        // );
+        minimum_projection_condition(subseg)
       | None =>
-        print_endline("subseg returns None");
-        false;
+        // print_endline("subseg returns None");
+        false
       };
     let might_project = true;
     let applicable_projectors = applicable_projectors(ci);
