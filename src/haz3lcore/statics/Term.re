@@ -742,6 +742,16 @@ module Exp = {
     | _ => e
     };
   };
+
+  let rec get_fn_name = (e: t) => {
+    switch (e.term) {
+    | Fun(_, _, _, n) => n
+    | FixF(_, e, _) => get_fn_name(e)
+    | Parens(e) => get_fn_name(e)
+    | TypFun(_, _, n) => n
+    | _ => None
+    };
+  };
 };
 
 module Rul = {

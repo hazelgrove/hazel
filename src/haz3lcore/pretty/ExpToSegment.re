@@ -117,6 +117,21 @@ let fold_if = (condition, pieces) =>
     pieces;
   };
 
+let fold_fun_if = (condition, f_name: string, pieces) =>
+  if (condition) {
+    [
+      ProjectorPerform.Update.init_from_str(
+        Fold,
+        mk_form("parens_exp", Id.mk(), [pieces]),
+        ({text: f_name}: FoldProj.t)
+        |> FoldProj.sexp_of_t
+        |> Sexplib.Sexp.to_string,
+      ),
+    ];
+  } else {
+    pieces;
+  };
+
 /* We assume that parentheses have already been added as necessary, and
       that the expression has no DynamicErrorHoles, Casts, or FailedCasts
    */
@@ -204,13 +219,29 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e = go(e);
-    [mk_form("fun_", id, [p])] @ e |> fold_if(settings.fold_fn_bodies);
+    let name = Exp.get_fn_name(exp) |> Option.value(~default="anon fun");
+    let name =
+      if (settings.hide_fixpoints && String.ends_with(~suffix="+", name)) {
+        String.sub(name, 0, String.length(name) - 1);
+      } else {
+        name;
+      };
+    let name = "<" ++ name ++ ">";
+    [mk_form("fun_", id, [p])]
+    @ e
+    |> fold_fun_if(settings.fold_fn_bodies, name);
   | TypFun(tp, e, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ e = go(e);
-    [mk_form("typfun", id, [tp])] @ e |> fold_if(settings.fold_fn_bodies);
+    let name =
+      "<"
+      ++ (Exp.get_fn_name(exp) |> Option.value(~default="anon typfun"))
+      ++ ">";
+    [mk_form("typfun", id, [tp])]
+    @ e
+    |> fold_fun_if(settings.fold_fn_bodies, name);
   | Tuple([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()")
   | Tuple([_]) => failwith("Singleton Tuples are not allowed")
   | Tuple([x, ...xs]) =>
@@ -239,7 +270,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e = go(e);
-    [mk_form("fix", id, [p])] @ e;
+    let name =
+      "<" ++ (Exp.get_fn_name(exp) |> Option.value(~default="fun")) ++ ">";
+    [mk_form("fix", id, [p])]
+    @ e
+    |> fold_fun_if(settings.fold_fn_bodies, name);
   | TyAlias(tp, t, e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
