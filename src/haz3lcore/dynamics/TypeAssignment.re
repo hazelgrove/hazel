@@ -30,6 +30,14 @@ let ground = (ty: Typ.t): bool => {
   };
 };
 
+/**
+ * Extends the given context with a new type assignment for the specified pattern.
+ *
+ * @param dhpat - The pattern to which the type will be assigned.
+ * @param ty - The type to be assigned to the pattern.
+ * @param ctx - The current context that will be extended.
+ * @return An option containing the new context if the extension is successful, or None if it fails.
+ */
 let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) => {
   let rec dhpat_var_entry =
           (dhpat: DHPat.t, ty: Typ.t): option(list(Ctx.entry)) => {

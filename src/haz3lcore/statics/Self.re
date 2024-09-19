@@ -114,7 +114,8 @@ let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
       },
   });
 
-let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
+let of_deferred_ap =
+    (args: list(Exp.t), ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   let expected = List.length(ty_ins);
   let actual = List.length(args);
   if (expected != actual) {
@@ -122,13 +123,14 @@ let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   } else if (List.for_all(Exp.is_deferral, args)) {
     IsBadPartialAp(NoDeferredArgs);
   } else {
-    let ty_ins =
+    let ty_ins: list(Typ.t) =
       List.combine(args, ty_ins)
       |> List.filter(((arg, _ty)) => Exp.is_deferral(arg))
       |> List.map(snd);
     let ty_in =
       List.length(ty_ins) == 1
-        ? List.hd(ty_ins) : Prod(ty_ins) |> Typ.fresh;
+        ? List.hd(ty_ins)
+        : Prod(List.map(x => (None, x), ty_ins)) |> Typ.fresh; // Probably need to do something if we want to support labeled arguments
     Common(Just(Arrow(ty_in, ty_out) |> Typ.fresh));
   };
 };

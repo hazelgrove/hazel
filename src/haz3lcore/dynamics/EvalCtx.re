@@ -49,6 +49,13 @@ and t =
       ids: list(Id.t),
     });
 
+/**
+ * Recursively composes a dynamic evaluation context with a given dynamic higher-order expression.
+ *
+ * @param ctx - The dynamic evaluation context.
+ * @param d - The dynamic higher-order expression to be composed.
+ * @return The resulting dynamic higher-order expression after composition.
+ */
 let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
   switch (ctx) {
   | Mark => d
@@ -124,7 +131,10 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
         Dot(d1, d2) |> wrap;
       | Tuple(ctx, (ld, rd)) =>
         let d = compose(ctx, d);
-        Tuple(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
+        Tuple(
+          List.map(x => (None, x), ListUtil.rev_concat(ld, [d, ...rd])),
+        )
+        |> wrap; // TODO Handle labels
       | ListLit(ctx, (ld, rd)) =>
         let d = compose(ctx, d);
         ListLit(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;

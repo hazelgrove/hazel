@@ -409,7 +409,7 @@ module Exp = {
         switch (e1.term) {
         | Tuple(ts) =>
           switch (e2.term) {
-          | Var(name) => LabeledTuple.find_label(get_label, ts, name)
+          | Var(name) => LabeledTuple.find_label(ts, name)
           | _ => None
           }
         | _ => None // TODO (Anthony): other exps
@@ -460,13 +460,13 @@ module Exp = {
       | Cast(e, _, _)
       | Parens(e) => is_tuple_of_functions(e)
       | TupLabel(_, e) => is_tuple_of_functions(e)
-      | Tuple(es) => es |> List.for_all(is_fun)
+      | Tuple(es) => es |> List.map(snd) |> List.for_all(is_fun)
       | Dot(e1, e2) =>
         let element: option(t) =
           switch (e1.term) {
           | Tuple(ts) =>
             switch (e2.term) {
-            | Var(name) => LabeledTuple.find_label(get_label, ts, name)
+            | Var(name) => LabeledTuple.find_label(ts, name)
             | _ => None
             }
           | _ => None // TODO (Anthony): other exps

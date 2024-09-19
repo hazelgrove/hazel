@@ -60,22 +60,23 @@ let of_forall = (ctx: Ctx.t, name_opt: option(string), mode: t): t =>
     };
   };
 
-let of_label = (ctx: Ctx.t, mode: t): (t, t) =>
-  switch (mode) {
-  | Syn
-  | SynFun
-  | SynTypFun => (Syn, Syn)
-  | Ana(ty) =>
-    let (ty1, ty2) = Typ.matched_label(ctx, ty);
-    (ana(ty1), ana(ty2));
-  };
+// let of_label = (ctx: Ctx.t, mode: t): (t, t) =>
+//   switch (mode) {
+//   | Syn
+//   | SynFun
+//   | SynTypFun => (Syn, Syn)
+//   | Ana(ty) =>
+//     let (ty1, ty2) = Typ.matched_label(ctx, ty);
+//     (ana(ty1), ana(ty2));
+//   };
 
-let of_prod = (ctx: Ctx.t, mode: t, ts: list('a), filt): list(t) =>
+let of_prod = (ctx: Ctx.t, mode: t, ts: list('a)): list(t) =>
   switch (mode) {
   | Syn
   | SynFun
   | SynTypFun => List.init(List.length(ts), _ => Syn)
-  | Ana(ty) => ty |> Typ.matched_prod(ctx, ts, filt) |> List.map(ana)
+  | Ana(ty) =>
+    ty |> Typ.matched_prod(ctx, List.length(ts), ts) |> List.map(ana) // TODO Look and see if this is correct
   };
 
 let of_cons_hd = (ctx: Ctx.t, mode: t): t =>

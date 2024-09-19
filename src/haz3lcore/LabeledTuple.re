@@ -282,15 +282,6 @@ let ana_tuple:
     };
   };
 
-let find_label: ('a => option((t, 'a)), list('a), t) => option('a) =
-  (filt, es, label) => {
-    find_opt(
-      e => {
-        switch (filt(e)) {
-        | Some((s, _)) => compare(s, label) == 0
-        | None => false
-        }
-      },
-      es,
-    );
-  };
+let find_label = (es: list((option(t), 'a)), label: t) => {
+  Option.map(snd, List.find_opt(((l, _t)) => {l == Some(label)}, es));
+};

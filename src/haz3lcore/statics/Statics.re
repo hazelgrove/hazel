@@ -71,7 +71,7 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
     let norm = Typ.normalize(ctx, syn);
     switch (norm |> Typ.term_of) {
     | Prod(syns) when List.length(syns) == num_vars =>
-      syns |> List.for_all(is_arrow_like)
+      List.map(snd, syns) |> List.for_all(is_arrow_like)
     | _ when is_arrow_like(norm) => num_vars == 1
     | _ => false
     };
@@ -305,35 +305,40 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Ana(ty1), e1, m);
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
-  | TupLabel(label, e) =>
-    let (labmode, mode) = Mode.of_label(ctx, mode);
-    let (lab, m) = go(~mode=labmode, label, m);
-    let (e, m) = go(~mode, e, m);
-    if (is_contained) {
-      add(
-        ~self=Just(TupLabel(lab.ty, e.ty) |> Typ.temp),
-        ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
-        m,
-      );
-    } else {
-      add(
-        ~self=Just(Prod([TupLabel(lab.ty, e.ty) |> Typ.temp]) |> Typ.temp),
-        ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
-        m,
-      );
-    };
+  | TupLabel(_label, _e) => assert(false)
+  // let (labmode, mode) = Mode.of_label(ctx, mode);
+  // let (lab, m) = go(~mode=labmode, label, m);
+  // let (e, m) = go(~mode, e, m);
+  // if (is_contained) {
+  //   add(
+  //     ~self=Just(TupLabel(lab.ty, e.ty) |> Typ.temp),
+  //     ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
+  //     m,
+  //   );
+  // } else {
+  //   add(
+  //     ~self=Just(Prod([TupLabel(lab.ty, e.ty) |> Typ.temp]) |> Typ.temp),
+  //     ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
+  //     m,
+  //   );
+  // };
   | BuiltinFun(string) =>
     add'(
       ~self=Self.of_exp_var(Builtins.ctx_init, string),
       ~co_ctx=CoCtx.empty,
       m,
     )
-  | Tuple(es) =>
-    let modes = Mode.of_prod(ctx, mode, es, UExp.get_label);
-    let (es, m) = map_m_go(m, modes, es, ~is_contained=true);
+  | Tuple(es: list((option(string), UExp.t))) =>
+    let modes = Mode.of_prod(ctx, mode, es);
+    let labels = List.map(fst, es);
+    let (es, m) = map_m_go(m, modes, List.map(snd, es), ~is_contained=true); // TODO Verify this
+    let es = List.combine(labels, es); // TODO This throws figure out a way if we can make this all correct by construction
     add(
-      ~self=Just(Prod(List.map(Info.exp_ty, es)) |> Typ.temp),
-      ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
+      ~self=
+        Just(
+          Prod(List.map(((l, e)) => (l, Info.exp_ty(e)), es)) |> Typ.temp,
+        ),
+      ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, List.map(snd, es))),
       m,
     );
   | Dot(e1, e2) =>
@@ -342,10 +347,7 @@ and uexp_to_info_map =
       switch (e2.term, info_e1.ty.term) {
       | (Var(name), Unknown(_)) =>
         let ty =
-          Typ.Prod([
-            TupLabel(Label(name) |> Typ.temp, Unknown(Internal) |> Typ.temp)
-            |> Typ.temp,
-          ])
+          Typ.Prod([(Some(name), Unknown(Internal) |> Typ.temp)])
           |> Typ.temp;
         let (_, m) = go(~mode=Mode.Ana(ty), e1, m);
         (ty, m);
@@ -357,8 +359,7 @@ and uexp_to_info_map =
     | Prod(ts) =>
       switch (e2.term) {
       | Var(name) =>
-        let element: option(Typ.t) =
-          LabeledTuple.find_label(Typ.get_label, ts, name);
+        let element: option(Typ.t) = LabeledTuple.find_label(ts, name);
         // let m =
         //   e2.ids
         //   |> List.fold_left(
@@ -424,7 +425,7 @@ and uexp_to_info_map =
     let arg =
       switch (arg.term, ty_in.term) {
       | (Tuple(_), Prod(_)) => arg
-      | (_, Prod([{term: TupLabel(_), _}])) => {
+      | (_, Prod([(_label, {term: TupLabel(_), _})])) => {
           ids: arg.ids,
           copied: arg.copied,
           term: Tuple([arg]),

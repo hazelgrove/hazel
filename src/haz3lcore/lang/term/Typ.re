@@ -307,13 +307,30 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     } else {
       // TODO I'm currently canonicalizing order. Don't do this
 
-      let tys1 =
-        List.map(List.stable_sort((x, y) => compare(fst(x), fst(y)), tys1));
+      let tys1: list((option(string), t)) =
+        List.stable_sort((x, y) => compare(fst(x), fst(y)), tys1);
       let tys2 =
         List.stable_sort((x, y) => compare(fst(x), fst(y)), tys2);
-      
-      let* tys = ListUtil.map2_opt(join', tys1, tys2);
-      let+ tys = OptUtil.sequence(tys);
+
+      let* combined: list(((option(string), t), (option(string), t))) =
+        ListUtil.opt_zip(tys1, tys2);
+      let matched: list(option((option(string), t))) =
+        List.map(
+          (
+            (
+              (l, ty1): (option(string), t),
+              (l2, ty2): (option(string), t),
+            ),
+          ) =>
+            if (l == l2) {
+              join'(ty1, ty2) |> Option.map(t => (l, t));
+            } else {
+              None;
+            },
+          combined,
+        );
+
+      let+ tys = OptUtil.sequence(matched);
       Prod(tys) |> temp;
     };
   | (Prod(_), _) => None
@@ -331,6 +348,13 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
 
 /* REQUIRES NORMALIZED TYPES
    Remove synswitches from t1 by matching against t2 */
+/**
+ * Recursively matches two terms `t1` and `t2` in a syntax switch.
+ *
+ * @param t1 - The first term to match.
+ * @param t2 - The second term to match.
+ * @return - The result of matching the two terms.
+ */
 let rec match_synswitch = (t1: t, t2: t) => {
   let (term1, rewrap1) = unwrap(t1);
   switch (term1, term_of(t2)) {
@@ -354,8 +378,13 @@ let rec match_synswitch = (t1: t, t2: t) => {
     Arrow(match_synswitch(ty1, ty1'), match_synswitch(ty2, ty2')) |> rewrap1
   | (Arrow(_), _) => t1
   | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
-    // TODO: Rearrange this prod?
-    let tys = List.map2(match_synswitch, tys1, tys2);
+    // TODO: Rearrange this prod? Do I need to match labels
+    let tys =
+      List.map2(
+        ((l1, t1), (_l2, t2)) => (l1, match_synswitch(t1, t2)),
+        tys1,
+        tys2,
+      );
     Prod(tys) |> rewrap1;
   | (Prod(_), _) => t1
   | (TupLabel(label1, ty1), TupLabel(label2, ty2)) =>
@@ -411,7 +440,8 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
-  | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
+  | Prod(ts) =>
+    Prod(List.map(TupleUtil.bimap_r(normalize(ctx)), ts)) |> rewrap
   | TupLabel(label, ty) =>
     TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
   | Sum(ts) =>
@@ -453,41 +483,33 @@ let matched_forall = (ctx, ty) =>
   matched_forall_strict(ctx, ty)
   |> Option.value(~default=(None, Unknown(Internal) |> temp));
 
-let matched_label = (ctx, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | TupLabel(lab, ty) => (lab, ty)
-  | Prod([ty]) =>
-    switch (term_of(weak_head_normalize(ctx, ty))) {
-    | TupLabel(lab, ty) => (lab, ty)
-    | _ => (Unknown(Internal) |> temp, ty)
-    }
-  | Unknown(SynSwitch) => (
-      Unknown(SynSwitch) |> temp,
-      Unknown(SynSwitch) |> temp,
-    )
-  | _ => (Unknown(Internal) |> temp, ty)
-  };
+// let matched_label = (ctx: Ctx.t, ty: t): (t, t) =>
+//   switch (term_of(weak_head_normalize(ctx, ty))) {
+//   | TupLabel(lab, ty) => (lab, ty)
+//   | Prod([ty]) =>
+//     switch (term_of(weak_head_normalize(ctx, ty))) {
+//     | TupLabel(lab, ty) => (lab, ty)
+//     | _ => (Unknown(Internal) |> temp, ty)
+//     }
+//   | Unknown(SynSwitch) => (
+//       Unknown(SynSwitch) |> temp,
+//       Unknown(SynSwitch) |> temp,
+//     )
+//   | _ => (Unknown(Internal) |> temp, ty)
+//   };
 
-let rec matched_prod_strict = (ctx, ts, get_label_ts, ty) =>
+let rec matched_prod_strict =
+        (ctx: Ctx.t, ts: list('a), length, ty: t): option(list(t)) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_prod_strict(ctx, ts, get_label_ts, ty)
-  | Prod(tys) =>
-    if (List.length(ts) != List.length(tys)) {
-      None;
-    } else {
-      Some(
-        LabeledTuple.rearrange(get_label_ts, get_label, ts, tys, (name, b) =>
-          TupLabel(Label(name) |> temp, b) |> temp
-        ),
-      );
-    }
+  | Parens(ty) => matched_prod_strict(ctx, ts, length, ty)
+  | Prod(tys) when List.length(tys) == length => Some(List.map(snd, tys)) // TODO Probably need to compare the labels and rethink this function. Also check if we should rearrange or not.
   | Unknown(SynSwitch) =>
     Some(List.init(List.length(ts), _ => Unknown(SynSwitch) |> temp))
   | _ => None
   };
 
-let matched_prod = (ctx, ts, get_label_ts, ty) =>
-  matched_prod_strict(ctx, ts, get_label_ts, ty)
+let matched_prod = (ctx, length, ts, ty) =>
+  matched_prod_strict(ctx, ts, length, ty)
   |> Option.value(
        ~default=List.init(List.length(ts), _ => Unknown(Internal) |> temp),
      );
@@ -504,11 +526,19 @@ let matched_list = (ctx, ty) =>
   matched_list_strict(ctx, ty)
   |> Option.value(~default=Unknown(Internal) |> temp);
 
-let rec matched_args = (ctx, default_arity, ty) => {
+/**
+ * Recursively matches arguments based on the given context, default arity, and type.
+ *
+ * @param ctx - The context in which the matching occurs.
+ * @param default_arity - The default number of arguments expected.
+ * @param ty - The type to be matched.
+ * @return A list of matched types.
+ */
+let rec matched_args = (ctx: Ctx.t, default_arity: int, ty: t): list(t) => {
   let ty' = weak_head_normalize(ctx, ty);
   switch (term_of(ty')) {
   | Parens(ty) => matched_args(ctx, default_arity, ty)
-  | Prod([_, ..._] as tys) => tys
+  | Prod([_, ..._] as tys) => List.map(snd, tys) // TODO Verify this is correct
   | Unknown(_) => List.init(default_arity, _ => ty')
   | _ => [ty']
   };
@@ -610,14 +640,18 @@ let rec pretty_print = (ty: t): string =>
       )
     }
   | Prod([]) => "()"
-  | Prod([t0, ...ts]) =>
-    "("
-    ++ List.fold_left(
-         (acc, t) => acc ++ ", " ++ pretty_print(t),
-         pretty_print(t0),
-         ts,
-       )
-    ++ ")"
+  | Prod(ts) =>
+    let components: list(string) =
+      List.map(
+        (t: (option(string), t)) => {
+          Option.value(~default="", Option.map(x => x ++ "=", fst(t)))
+          ++ pretty_print(snd(t))
+        },
+        ts,
+      );
+
+    let joined = String.concat(", ", components);
+    "(" ++ joined ++ ")";
   | TupLabel(label, t) => pretty_print(label) ++ "=" ++ pretty_print(t)
   | Rec(tv, t) =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)

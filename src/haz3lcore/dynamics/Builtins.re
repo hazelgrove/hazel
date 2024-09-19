@@ -58,7 +58,7 @@ module Pervasives = {
 
     let binary = (f: (DHExp.t, DHExp.t) => result, d: DHExp.t) => {
       switch (term_of(d)) {
-      | Tuple([d1, d2]) =>
+      | Tuple([(_l1, d1), (_l2, d2)]) =>
         switch (f(d1, d2)) {
         | Ok(r) => r
         | Error(e) => EvaluatorError.Exception(e) |> raise
@@ -69,7 +69,7 @@ module Pervasives = {
 
     let ternary = (f: (DHExp.t, DHExp.t, DHExp.t) => result, d: DHExp.t) => {
       switch (term_of(d)) {
-      | Tuple([d1, d2, d3]) =>
+      | Tuple([(_l1, d1), (_l2, d2), (_l3, d3)]) =>
         switch (f(d1, d2, d3)) {
         | Ok(r) => r
         | Error(e) => EvaluatorError.Exception(e) |> raise
@@ -323,27 +323,34 @@ module Pervasives = {
     |> fn("atan", Float, Float, atan)
     |> fn(
          "mod",
-         Prod([Int |> Typ.fresh, Int |> Typ.fresh]),
+         Prod([(None, Int |> Typ.fresh), (None, Int |> Typ.fresh)]),
          Int,
          int_mod("mod"),
        )
     |> fn("string_length", String, Int, string_length)
     |> fn(
          "string_compare",
-         Prod([String |> Typ.fresh, String |> Typ.fresh]),
+         Prod([(None, String |> Typ.fresh), (None, String |> Typ.fresh)]),
          Int,
          string_compare,
        )
     |> fn("string_trim", String, String, string_trim)
     |> fn(
          "string_concat",
-         Prod([String |> Typ.fresh, List(String |> Typ.fresh) |> Typ.fresh]),
+         Prod([
+           (None, String |> Typ.fresh),
+           (None, List(String |> Typ.fresh) |> Typ.fresh),
+         ]),
          String,
          string_concat,
        )
     |> fn(
          "string_sub",
-         Prod([String |> Typ.fresh, Int |> Typ.fresh, Int |> Typ.fresh]),
+         Prod([
+           (None, String |> Typ.fresh),
+           (None, Int |> Typ.fresh),
+           (None, Int |> Typ.fresh),
+         ]),
          String,
          string_sub("string_sub"),
        );

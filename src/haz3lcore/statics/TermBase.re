@@ -155,7 +155,7 @@ and Exp: {
     | TypFun(TPat.t, t, option(Var.t))
     | Label(string)
     | TupLabel(t, t)
-    | Tuple(list(t))
+    | Tuple(list((option(Var.t), t)))
     | Dot(t, t)
     | Var(Var.t)
     | Let(Pat.t, t, t)
@@ -225,7 +225,7 @@ and Exp: {
     | TypFun(TPat.t, t, option(string))
     | Label(string)
     | TupLabel(t, t)
-    | Tuple(list(t))
+    | Tuple(list((option(Var.t), t)))
     | Dot(t, t)
     | Var(Var.t)
     | Let(Pat.t, t, t)
@@ -302,7 +302,8 @@ and Exp: {
         | TypFun(tp, e, f) => TypFun(tpat_map_term(tp), exp_map_term(e), f)
         | TupLabel(label, e) =>
           TupLabel(exp_map_term(label), exp_map_term(e))
-        | Tuple(xs) => Tuple(List.map(exp_map_term, xs))
+        | Tuple(xs: list((option(string), t))) =>
+          Tuple(List.map(TupleUtil.bimap_r(exp_map_term), xs))
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
@@ -373,7 +374,9 @@ and Exp: {
     | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
       TPat.fast_equal(tp1, tp2) && fast_equal(e1, e2)
     | (Tuple(xs), Tuple(ys)) =>
-      List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
+      List.length(xs) == List.length(ys)
+      && List.equal((==), List.map(fst, xs), List.map(fst, ys))
+      && List.equal(fast_equal, List.map(snd, xs), List.map(snd, ys)) // TODO Figure out if there's a better way to build an equal method
     | (Var(v1), Var(v2)) => v1 == v2
     | (Let(p1, e1, e2), Let(p2, e3, e4)) =>
       Pat.fast_equal(p1, p2) && fast_equal(e1, e3) && fast_equal(e2, e4)
