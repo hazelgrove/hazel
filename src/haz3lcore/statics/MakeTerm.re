@@ -19,7 +19,7 @@ let tokens =
     _ => [],
     _ => [" "],
     (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
-    _ => [],
+    _ => [" "] //TODO(andrew): ??? necessary to avoid throwing aba exn
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -518,7 +518,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
   //TODO(andrew): check this one call is actually necessary
-  let seg = rm_and_log_projectors(seg);
+  //let seg = rm_and_log_projectors(seg);
   let tile_kids = (p: Piece.t): list(Term.Any.t) =>
     switch (p) {
     | Secondary(_)
@@ -548,9 +548,24 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
          let s = s_l == s_r ? s_l : Sort.Any;
          go_s(s, kid, seg);
        })
-    |> Aba.map_a(p
-         // TODO throw proper exception
-         => (Piece.id(p), Aba.mk(tokens(p), tile_kids(p))));
+    |> Aba.map_a(p => {
+         (
+           // TODO throw proper exception
+           //TODO(andrew): cleanup
+           //  print_endline("aba: ");
+           //  print_endline("p: " ++ Piece.show(p));
+           //  print_endline(
+           //    "tokens(p)"
+           //    ++ (List.map(Token.show, tokens(p)) |> String.concat(" ")),
+           //  );
+           //  print_endline(
+           //    "tile_kids(p): "
+           //    ++ (tile_kids(p) |> List.map(Any.show) |> String.concat(" ")),
+           //  );
+           Piece.id(p),
+           Aba.mk(tokens(p), tile_kids(p)),
+         )
+       });
 
   let (l_sort, r_sort) = {
     let p_l = Aba.first_a(root);
@@ -590,11 +605,7 @@ let go =
       // let seg = ZipperBase.MapSegment.of_segment(ff, seg);
       let seg = rm_and_log_projectors(seg);
       //TODO(andrew): remove whole pass if possible
-      let seg =
-        ZipperBase.MapSegment.of_segment(
-          ProjectorPerform.Update.remove_s,
-          seg,
-        );
+      //let seg = ZipperBase.MapSegment.of_segment(rm_and_log_projectors, seg);
       let term = exp(unsorted(Segment.skel(seg), seg));
       {term, terms: map^, projectors: projectors^};
     },
