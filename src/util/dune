@@ -1,6 +1,6 @@
 (library
  (name util)
- (libraries re base ptmap incr_dom virtual_dom yojson)
+ (libraries re base ptmap bonsai bonsai.web virtual_dom yojson)
  (js_of_ocaml)
  (preprocess
   (pps
