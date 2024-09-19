@@ -50,7 +50,7 @@ module Update = {
         },
       };
       Zipper.unselect(z);
-    | Some((_piece, _d, _rel)) =>
+    | Some((_piece, d, _rel)) =>
       //TODO(andrew): reinstate direction
       let z = select_term(z) |> Option.value(~default=z); //TODO(andrew): errors
       let content = init(id, k, z.selection.content);
@@ -61,6 +61,7 @@ module Update = {
           content,
         },
       };
+      let z = d == Left ? Zipper.toggle_focus(z) : z;
       Zipper.unselect(z);
     };
   };
