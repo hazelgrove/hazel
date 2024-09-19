@@ -460,6 +460,10 @@ and Exp: {
     | (Undefined, _) => false
     };
 }
+/**
+ * Represents a pattern used in pattern matching or destructuring.
+ */
+
 and Pat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -476,7 +480,7 @@ and Pat: {
     | Cons(t, t)
     | Var(Var.t)
     | Label(string)
-    | TupLabel(t, t)
+    | TupLabel(list((Var.t, t)))
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
@@ -512,7 +516,7 @@ and Pat: {
     | Cons(t, t)
     | Var(Var.t)
     | Label(string)
-    | TupLabel(t, t)
+    | TupLabel(list((Var.t, t)))
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
@@ -554,8 +558,10 @@ and Pat: {
         | Ap(e1, e2) => Ap(pat_map_term(e1), pat_map_term(e2))
         | Cons(e1, e2) => Cons(pat_map_term(e1), pat_map_term(e2))
         | Tuple(xs) => Tuple(List.map(pat_map_term, xs))
-        | TupLabel(label, e) =>
-          TupLabel(pat_map_term(label), pat_map_term(e))
+        | TupLabel(tup_labels) =>
+          TupLabel(
+            List.map(((v, e)) => (v, pat_map_term(e)), tup_labels),
+          )
         | Parens(e) => Parens(pat_map_term(e))
         | Cast(e, t1, t2) =>
           Cast(pat_map_term(e), typ_map_term(t1), typ_map_term(t2))
@@ -567,10 +573,6 @@ and Pat: {
   let rec fast_equal = (p1, p2) =>
     switch (p1 |> IdTagged.term_of, p2 |> IdTagged.term_of) {
     /* TODO: Labels are a special case, but should they be?*/
-    | (TupLabel(label1, d1'), TupLabel(label2, d2')) =>
-      fast_equal(label1, label2) && fast_equal(d1', d2')
-    | (TupLabel(_, d1), _) => fast_equal(d1, p2)
-    | (_, TupLabel(_, d2)) => fast_equal(p1, d2)
     | (Parens(x), _) => fast_equal(x, p2)
     | (_, Parens(x)) => fast_equal(p1, x)
     | (EmptyHole, EmptyHole) => true
@@ -593,6 +595,10 @@ and Pat: {
       fast_equal(x1, x2) && fast_equal(y1, y2)
     | (Tuple(xs), Tuple(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
+    | (TupLabel(xs), TupLabel(ys)) =>
+      List.length(xs) == List.length(ys)
+      && List.equal(fast_equal, List.map(snd, xs), List.map(snd, ys))
+      && List.equal((==), List.map(fst, xs), List.map(fst, ys))
     | (Ap(x1, y1), Ap(x2, y2)) => fast_equal(x1, x2) && fast_equal(y1, y2)
     | (Cast(x1, t1, t2), Cast(x2, u1, u2)) =>
       fast_equal(x1, x2) && Typ.fast_equal(t1, u1) && Typ.fast_equal(t2, u2)
@@ -610,6 +616,7 @@ and Pat: {
     | (Cons(_), _)
     | (Var(_), _)
     | (Tuple(_), _)
+    | (TupLabel(_), _)
     | (Ap(_), _)
     | (Cast(_), _) => false
     };
@@ -643,7 +650,7 @@ and Typ: {
     | List(t)
     | Arrow(t, t)
     | Sum(ConstructorMap.t(t))
-    | Prod(list(t))
+    | Prod(list((option(Var.t), t)))
     | TupLabel(t, t)
     | Parens(t)
     | Ap(t, t)
@@ -697,7 +704,7 @@ and Typ: {
     | List(t)
     | Arrow(t, t)
     | Sum(ConstructorMap.t(t))
-    | Prod(list(t))
+    | Prod(list((option(Var.t), t)))
     | TupLabel(t, t)
     | Parens(t)
     | Ap(t, t)
@@ -741,7 +748,7 @@ and Typ: {
         | Unknown(Hole(MultiHole(things))) =>
           Unknown(Hole(MultiHole(List.map(any_map_term, things))))
         | Ap(e1, e2) => Ap(typ_map_term(e1), typ_map_term(e2))
-        | Prod(xs) => Prod(List.map(typ_map_term, xs))
+        | Prod(xs) => Prod(List.map(TupleUtil.bimap_r(typ_map_term), xs))
         | TupLabel(label, e) =>
           TupLabel(typ_map_term(label), typ_map_term(e))
         | Parens(e) => Parens(typ_map_term(e))
@@ -777,7 +784,8 @@ and Typ: {
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
-      | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
+      | Prod(tys) =>
+        Prod(List.map(TupleUtil.bimap_r(subst(s, x)), tys)) |> rewrap
       | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
       | Sum(sm) =>
         Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
@@ -837,7 +845,18 @@ and Typ: {
     | (Arrow(t1, t2), Arrow(t1', t2')) =>
       eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
     | (Arrow(_), _) => false
-    | (Prod(tys1), Prod(tys2)) => List.equal(eq_internal(n), tys1, tys2)
+    | (Prod(tys1), Prod(tys2)) =>
+      List.length(tys1) == List.length(tys2)
+      && List.equal(
+           eq_internal(n),
+           List.map(snd, tys1),
+           List.map(snd, tys2),
+         )
+      && List.equal(
+           Option.equal(String.equal),
+           List.map(fst, tys1),
+           List.map(fst, tys2),
+         )
     | (Prod(_), _) => false
     | (List(t1), List(t2)) => eq_internal(n, t1, t2)
     | (List(_), _) => false

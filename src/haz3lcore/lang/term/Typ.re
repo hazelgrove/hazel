@@ -183,7 +183,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | List(ty) => free_vars(~bound, ty)
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
-  | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
+  | Prod(tys) => ListUtil.flat_map(free_vars(~bound), List.map(snd, tys))
   | TupLabel(_, ty) => free_vars(~bound, ty)
   | Rec(x, ty)
   | Forall(x, ty) =>
@@ -298,15 +298,20 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
   | (Arrow(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
     //TODO (Anthony): Clean up the repetition
-    let (l1_valid, _, _) = LabeledTuple.validate_uniqueness(get_label, tys1);
-    let (l2_valid, _, _) = LabeledTuple.validate_uniqueness(get_label, tys2);
+    let l1_valid =
+      ListUtil.are_duplicates(OptUtil.catopts(List.map(fst, tys1)));
+    let l2_valid =
+      ListUtil.are_duplicates(OptUtil.catopts(List.map(fst, tys2)));
     if (!l1_valid || !l2_valid || List.length(tys1) != List.length(tys2)) {
       None;
     } else {
+      // TODO I'm currently canonicalizing order. Don't do this
+
+      let tys1 =
+        List.map(List.stable_sort((x, y) => compare(fst(x), fst(y)), tys1));
       let tys2 =
-        LabeledTuple.rearrange(get_label, get_label, tys1, tys2, (t, b) =>
-          TupLabel(Label(t) |> temp, b) |> temp
-        );
+        List.stable_sort((x, y) => compare(fst(x), fst(y)), tys2);
+      
       let* tys = ListUtil.map2_opt(join', tys1, tys2);
       let+ tys = OptUtil.sequence(tys);
       Prod(tys) |> temp;

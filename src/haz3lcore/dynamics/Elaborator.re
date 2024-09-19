@@ -18,6 +18,14 @@ module ElaborationResult = {
     | DoesNotElaborate;
 };
 
+/**
+ * Function to perform a fresh cast of a DHExp.t expression from type t1 to type t2.
+ *
+ * @param d - The DHExp.t expression to be casted.
+ * @param t1 - The source type of the expression.
+ * @param t2 - The target type of the expression.
+ * @returns The DHExp.t expression after the cast.
+ */
 let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
   Typ.eq(t1, t2)
     ? d

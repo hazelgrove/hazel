@@ -84,7 +84,6 @@ module Pat = {
   let rec is_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat)
-    | TupLabel(_, pat)
     | Cast(pat, _, _) => is_var(pat)
     | Var(_) => true
     | Invalid(_)
@@ -98,68 +97,21 @@ module Pat = {
     | Label(_)
     | ListLit(_)
     | Cons(_, _)
+    | TupLabel(_)
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => false
     };
   };
-
-  let rec is_fun_var = (pat: t) => {
-    switch (pat.term) {
-    | Parens(pat) => is_fun_var(pat)
-    | TupLabel(_, pat) => is_fun_var(pat)
-    | Cast(pat, typ, _) =>
-      is_var(pat) && (UTyp.is_arrow(typ) || Typ.is_forall(typ))
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
-    | Label(_)
-    | ListLit(_)
-    | Cons(_, _)
-    | Var(_)
-    | Tuple(_)
-    | Constructor(_)
-    | Ap(_) => false
-    };
-  };
-
-  let rec is_tuple_of_arrows = (pat: t) =>
-    is_fun_var(pat)
-    || (
-      switch (pat.term) {
-      | Parens(pat) => is_tuple_of_arrows(pat)
-      | TupLabel(_, pat) => is_tuple_of_arrows(pat)
-      | Tuple(pats) => pats |> List.for_all(is_fun_var)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_)
-      | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
-      | Label(_)
-      | ListLit(_)
-      | Cons(_, _)
-      | Var(_)
-      | Cast(_)
-      | Constructor(_)
-      | Ap(_) => false
-      }
-    );
 
   let rec is_tuple_of_vars = (pat: t) =>
     is_var(pat)
     || (
       switch (pat.term) {
       | Parens(pat)
-      | TupLabel(_, pat)
       | Cast(pat, _, _) => is_tuple_of_vars(pat)
+      | TupLabel(labeled_entries) =>
+        labeled_entries |> List.map(snd) |> List.for_all(is_var)
       | Tuple(pats) => pats |> List.for_all(is_var)
       | Invalid(_)
       | EmptyHole
@@ -180,7 +132,6 @@ module Pat = {
 
   let rec get_var = (pat: t) => {
     switch (pat.term) {
-    | TupLabel(_, pat)
     | Parens(pat) => get_var(pat)
     | Var(x) => Some(x)
     | Cast(x, _, _) => get_var(x)
@@ -195,34 +146,7 @@ module Pat = {
     | Label(_)
     | ListLit(_)
     | Cons(_, _)
-    | Tuple(_)
-    | Constructor(_)
-    | Ap(_) => None
-    };
-  };
-
-  let rec get_fun_var = (pat: t) => {
-    switch (pat.term) {
-    | Parens(pat) => get_fun_var(pat)
-    | TupLabel(_, pat) => get_fun_var(pat)
-    | Cast(pat, t1, _) =>
-      if (Typ.is_arrow(t1) || UTyp.is_forall(t1)) {
-        get_var(pat) |> Option.map(var => var);
-      } else {
-        None;
-      }
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
-    | Label(_)
-    | ListLit(_)
-    | Cons(_, _)
-    | Var(_)
+    | TupLabel(_)
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => None
@@ -235,8 +159,14 @@ module Pat = {
     | None =>
       switch (pat.term) {
       | Parens(pat)
-      | TupLabel(_, pat)
       | Cast(pat, _, _) => get_bindings(pat)
+      | TupLabel(labeled_entries) =>
+        let vars = labeled_entries |> List.map(snd) |> List.map(get_var);
+        if (List.exists(Option.is_none, vars)) {
+          None;
+        } else {
+          Some(List.map(Option.get, vars));
+        };
       | Tuple(pats) =>
         let vars = pats |> List.map(get_var);
         if (List.exists(Option.is_none, vars)) {
@@ -267,10 +197,13 @@ module Pat = {
     } else {
       switch (pat.term) {
       | Parens(pat)
-      | TupLabel(_, pat)
       | Cast(pat, _, _) => get_num_of_vars(pat)
       | Tuple(pats) =>
         is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
+      | TupLabel(labeled_entries) =>
+        labeled_entries
+        |> List.map(snd)
+        |> (pats => is_tuple_of_vars(pat) ? Some(List.length(pats)) : None)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -293,17 +226,16 @@ module Pat = {
     | Constructor(name, _) => Some(name)
     | _ => None
     };
-
-  let get_label: t => option((LabeledTuple.t, t)) =
-    p =>
-      switch (p.term) {
-      | TupLabel(plab, p') =>
-        switch (plab.term) {
-        | Label(name) => Some((name, p'))
-        | _ => None
-        }
-      | _ => None
-      };
+  // let get_label: t => option((LabeledTuple.t, t)) =
+  //   p =>
+  //     switch (p.term) {
+  //     | TupLabel(plab, p') =>
+  //       switch (plab.term) {
+  //       | Label(name) => Some((name, p'))
+  //       | _ => None
+  //       }
+  //     | _ => None
+  //     };
 };
 
 module Exp = {

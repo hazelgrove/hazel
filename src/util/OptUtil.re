@@ -29,9 +29,13 @@ let unzip = (o: option(('a, 'b))): (option('a), option('b)) =>
 
 let sequence = (l: list(option('a))): option(list('a)) =>
   List.fold_right(map2((x, xs) => [x, ...xs]), l, Some([]));
+let sequence2 = ((a: 'a, b: option('b))): option(('a, 'b)) =>
+  zip(Some(a), b);
 
 let and_then = (f, o) => Option.bind(o, f);
 
+let catopts = (l: list(option('a))): list('a) =>
+  List.filter_map(Fun.id, l);
 module Syntax = {
   let ( let* ) = Option.bind;
   let (let+) = (o, f) => Option.map(f, o);

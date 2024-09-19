@@ -917,7 +917,7 @@ and upat_to_info_map =
       ~constraint_=Constraint.Truth,
       m,
     );
-  | TupLabel(label, p) =>
+  | TupLabel(labeled_entries) =>
     let (labmode, mode) = Mode.of_label(ctx, mode);
     let (lab, m) = go(~ctx, ~mode=labmode, label, m);
     let (p, m) = go(~ctx, ~mode, p, m);
