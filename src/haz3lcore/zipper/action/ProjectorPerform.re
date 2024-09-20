@@ -16,17 +16,6 @@ module Update = {
     };
   };
 
-  let from_selection =
-      (id, kind, focus: Util.Direction.t, z: Zipper.t): option(Zipper.t) => {
-    let+ p = init(id, kind, z.selection.content);
-    let z =
-      Zipper.put_selection(
-        {...z.selection, content: [Piece.Projector(p)], focus},
-        z,
-      );
-    Zipper.unselect(z);
-  };
-
   let rem_p_if = (id: Id.t, piece: Piece.t): Segment.t =>
     switch (piece) {
     | Projector(pr) when pr.id == id => pr.syntax
@@ -186,12 +175,9 @@ let go =
       };
     }
   | RemoveIndicated =>
-    //TODO(andrew): remove param
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)
-    | Some((piece, d, _rel)) =>
-      let id = Piece.id(piece);
-      Ok(remove_indicated(id, d, z));
+    | Some((piece, d, _)) => Ok(remove_indicated(Piece.id(piece), d, z))
     }
   | SetSyntax(id, syntax) =>
     /* Note we update piece id to keep in sync with projector id;
@@ -231,7 +217,6 @@ let go =
         z,
       ),
     );
-  //TODO(andrew): more principled approach?
   | SetModel(id, model) => Ok(Update.update(pr => {...pr, model}, id, z))
   | Focus(id, d) =>
     let z =

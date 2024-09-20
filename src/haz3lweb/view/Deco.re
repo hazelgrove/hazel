@@ -234,11 +234,20 @@ module Deco =
   let all_tiles = (p: Piece.t): list((Uuidm.t, Mold.t, Measured.Shards.t)) =>
     Id.Map.find(Piece.id(p), M.meta.syntax.terms)
     |> Any.ids
-    |> List.map(id => {
-         let t = tile(id);
-         let shards =
-           Measured.find_shards(~msg="all_tiles", t, M.meta.syntax.measured);
-         (id, t.mold, shards);
+    |> List.concat_map(id => {
+         switch (tile(id)) {
+         | exception Not_found =>
+           /* Special case for when case rules are individually folded */
+           []
+         | t =>
+           let shards =
+             Measured.find_shards(
+               ~msg="all_tiles",
+               t,
+               M.meta.syntax.measured,
+             );
+           [(id, t.mold, shards)];
+         }
        });
 
   let indicated_piece_deco = (z: Zipper.t): list(Node.t) => {
