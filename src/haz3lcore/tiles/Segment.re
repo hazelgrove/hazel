@@ -402,6 +402,9 @@ let skel =
     |> Skel.mk
   );
 
+let root_rep_id = (seg: t): Id.t =>
+  Piece.id(List.nth(seg, Util.Aba.first_a(Skel.root(skel(seg)))));
+
 let sorted_children = List.concat_map(Piece.sorted_children);
 let children = seg => List.map(snd, sorted_children(seg));
 

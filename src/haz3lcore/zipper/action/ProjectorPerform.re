@@ -182,7 +182,25 @@ let go =
   | SetSyntax(id, syntax) =>
     /* Note we update piece id to keep in sync with projector id;
      * See intial id setting in Update.init */
-    //TODO(andrew): verify new replacement logic works
+    /* all secondary? fine. complete term? fine
+       otherwise: check if either side has tile which is concave
+       at that side. if adding a hole to any such sides results
+       in a complete term, then we're good */
+    let top_id =
+      switch (syntax) {
+      | [] => failwith("ProjectorPerform: Expected non-empty syntax")
+      | [p] =>
+        /* Single piece case (e.g. let) */
+        Piece.id(p)
+      //TODO(andrew): multi-tile non-term case e.g. `: Int`
+      | [p, ..._] when List.for_all(Piece.is_secondary, syntax) =>
+        Piece.id(p)
+      | _ =>
+        switch (Segment.root_rep_id(syntax)) {
+        | exception _ => failwith("ProjectorPerform: Not complete term")
+        | id => id
+        }
+      };
     Ok(
       Update.update(
         pr =>
@@ -191,14 +209,15 @@ let go =
             syntax:
               List.map(
                 (p: Piece.t) =>
-                  pr.id == Piece.id(p) ? Piece.replace_id(id, p) : p,
+                  top_id == Piece.id(p) ? Piece.replace_id(id, p) : p,
                 syntax,
               ),
           },
         id,
         z,
       ),
-    )
+    );
+  //TODO(andrew): more principled approach?
   | SetModel(id, model) => Ok(Update.update(pr => {...pr, model}, id, z))
   | Focus(id, d) =>
     let z =
