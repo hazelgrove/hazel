@@ -77,77 +77,97 @@ let validate_uniqueness:
 // filt returns Some(string) if TupLabel or None if not a TupLabel
 // returns a permutation of l2 that matches labels in l1
 // other labels are in order, even if not matching.
-let rearrange:
-  (
-    'a => option((t, 'a)),
-    'b => option((t, 'b)),
-    list('a),
-    list('b),
-    (t, 'b) => 'b
-  ) =>
-  list('b) =
-  (get_label1, get_label2, l1, l2, constructor) => {
-    // TODO: Error handling in case of bad arguments
-    let (_, l1_lab, _) = validate_uniqueness(get_label1, l1);
-    let (_, l2_lab, _) = validate_uniqueness(get_label2, l2);
-    // Second item in the pair is the full tuplabel
-    let l2_matched =
-      List.fold_left(
-        (l2_matched, l1_item) => {
-          let l2_item =
-            find_opt(
-              l2_item => {
-                switch (l1_item, l2_item) {
-                | ((Some(s1), _), (Some(s2), _)) => compare(s1, s2) == 0
-                | (_, _) => false
-                }
-              },
-              l2_lab,
-            );
-          switch (l2_item) {
-          | Some(l2_item) => l2_matched @ [l2_item]
-          | None => l2_matched
+// 'a types
+// 'b expressions
+let rearrange =
+    (
+      ~show_a: option('a => string)=?,
+      ~show_b: option('b => string)=?,
+      get_label1: 'a => option((t, 'a)),
+      get_label2: 'b => option((t, 'b)),
+      l1: list('a),
+      l2: list('b),
+      constructor: (t, 'b) => 'b,
+    )
+    : list('b) => {
+  // TODO: Error handling in case of bad arguments
+  let (_, l1_lab, _) = validate_uniqueness(get_label1, l1);
+  let (_, l2_lab, _) = validate_uniqueness(get_label2, l2);
+  // Second item in the pair is the full tuplabel
+  let l2_matched: list((option(t), 'b)) =
+    List.fold_left(
+      (l2_matched, l1_item) => {
+        let l2_item =
+          find_opt(
+            l2_item => {
+              switch (l1_item, l2_item) {
+              | ((Some(s1), _), (Some(s2), _)) => compare(s1, s2) == 0
+              | (_, _) => false
+              }
+            },
+            l2_lab,
+          );
+        switch (l2_item) {
+        | Some(l2_item) => l2_matched @ [l2_item]
+        | None => l2_matched
+        };
+      },
+      [],
+      l1_lab,
+    );
+  // Second item in the pair is just the element half of the tuplabel
+  let l2_rem: list((option(t), 'b)) =
+    List.fold_left(
+      (l2_rem, item) => {
+        switch (get_label2(item)) {
+        | Some((s1, _))
+            when
+              List.exists(
+                l => {
+                  switch (l) {
+                  | (Some(s2), _) => compare(s1, s2) == 0
+                  | _ => false
+                  }
+                },
+                l2_matched,
+              ) => l2_rem
+        | Some((s1, it)) => l2_rem @ [(Some(s1), it)]
+        | _ => l2_rem @ [(None, item)]
+        }
+      },
+      [],
+      l2,
+    );
+  let rec rearrange_helper =
+          (
+            l1: list('a),
+            l2_matched: list((option(t), 'b)),
+            l2_rem: list((option(t), 'b)),
+          )
+          : list('y) => {
+    switch (l1) {
+    | [hd, ...tl] =>
+      switch (get_label1(hd)) {
+      | Some((s1, _)) =>
+        switch (l2_matched) {
+        | [] =>
+          switch (l2_rem) {
+          | [hd2, ...tl2] =>
+            switch (hd2) {
+            | (Some(s2), rem_val) =>
+              [constructor(s2, rem_val)]
+              @ rearrange_helper(tl, l2_matched, tl2)
+            | (None, rem_val) =>
+              [constructor(s1, rem_val)]
+              @ rearrange_helper(tl, l2_matched, tl2)
+            }
+          | [] => raise(Exception)
           };
-        },
-        [],
-        l1_lab,
-      );
-    // Second item in the pair is just the element half of the tuplabel
-    let l2_rem =
-      List.fold_left(
-        (l2_rem, item) => {
-          switch (get_label2(item)) {
-          | Some((s1, _))
-              when
-                List.exists(
-                  l => {
-                    switch (l) {
-                    | (Some(s2), _) => compare(s1, s2) == 0
-                    | _ => false
-                    }
-                  },
-                  l2_matched,
-                ) => l2_rem
-          | Some((s1, it)) => l2_rem @ [(Some(s1), it)]
-          | _ => l2_rem @ [(None, item)]
-          }
-        },
-        [],
-        l2,
-      );
-    let rec rearrange_helper =
-            (
-              l1: list('x),
-              l2_matched: list((option(t), 'y)),
-              l2_rem: list((option(t), 'y)),
-            )
-            : list('y) =>
-      switch (l1) {
-      | [hd, ...tl] =>
-        switch (get_label1(hd)) {
-        | Some((s1, _)) =>
-          switch (l2_matched) {
-          | [] =>
+        | [hd2, ...tl2] =>
+          switch (hd2) {
+          | (Some(s2), l2_val) when compare(s1, s2) == 0 =>
+            [l2_val] @ rearrange_helper(tl, tl2, l2_rem)
+          | _ =>
             switch (l2_rem) {
             | [hd2, ...tl2] =>
               switch (hd2) {
@@ -160,36 +180,60 @@ let rearrange:
               }
             | [] => raise(Exception)
             }
-          | [hd2, ...tl2] =>
-            switch (hd2) {
-            | (Some(s2), l2_val) when compare(s1, s2) == 0 =>
-              [l2_val] @ rearrange_helper(tl, tl2, l2_rem)
-            | _ =>
-              switch (l2_rem) {
-              | [hd2, ...tl2] =>
-                switch (hd2) {
-                | (Some(s2), rem_val) =>
-                  [constructor(s2, rem_val)]
-                  @ rearrange_helper(tl, l2_matched, tl2)
-                | (None, rem_val) =>
-                  [constructor(s1, rem_val)]
-                  @ rearrange_helper(tl, l2_matched, tl2)
-                }
-              | [] => raise(Exception)
-              }
-            }
           }
-        | None =>
-          switch (l2_rem) {
-          | [(_, hd2), ...tl2] =>
-            [hd2] @ rearrange_helper(tl, l2_matched, tl2)
-          | [] => raise(Exception)
-          }
+        };
+      | None =>
+        switch (l2_rem) {
+        | [(_, hd2), ...tl2] =>
+          [hd2] @ rearrange_helper(tl, l2_matched, tl2)
+        | [] => raise(Exception)
         }
-      | [] => []
-      };
-    rearrange_helper(l1, l2_matched, l2_rem);
+      }
+    | [] => []
+    };
   };
+  Option.iter(
+    sa => print_endline("l1: " ++ String.concat(",", List.map(sa, l1))),
+    show_a,
+  );
+  Option.iter(
+    sb => {
+      print_endline(
+        "l2_matched: "
+        ++ String.concat(
+             ".",
+             List.map(
+               (x: (option(t), 'y)) =>
+                 "("
+                 ++ [%derive.show: option(t)](fst(x))
+                 ++ ","
+                 ++ sb(snd(x))
+                 ++ ")",
+               l2_matched,
+             ),
+           ),
+      );
+      print_endline(
+        "l2_rem: "
+        ++ String.concat(
+             ".",
+             List.map(
+               (x: (option(t), 'y)) =>
+                 "("
+                 ++ [%derive.show: option(t)](fst(x))
+                 ++ ","
+                 ++ sb(snd(x))
+                 ++ ")",
+               l2_rem,
+             ),
+           ),
+      );
+      ();
+    },
+    show_b,
+  );
+  rearrange_helper(l1, l2_matched, l2_rem);
+};
 
 // Rename and clean this
 // Assumes all labels are unique

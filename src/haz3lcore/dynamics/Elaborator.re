@@ -234,8 +234,6 @@ let rec elaborate =
         (m: Statics.Map.t, uexp: UExp.t, in_container: bool)
         : (DHExp.t, Typ.t) => {
   let (elaborated_type, ctx, co_ctx) = elaborated_type(m, uexp);
-  print_endline("exp: " ++ UExp.show(uexp));
-  print_endline("typ: " ++ Typ.show(elaborated_type));
   let elaborate = (~in_container=false, m, uexp) =>
     elaborate(m, uexp, in_container);
   let cast_from = (ty, exp) => fresh_cast(exp, ty, elaborated_type);
@@ -309,26 +307,60 @@ let rec elaborate =
     | TupLabel(label, e) =>
       let (label', labty) = elaborate(m, label);
       let (e', ety) = elaborate(m, e);
-      if (in_container) {
-        Exp.TupLabel(label', e')
-        |> rewrap
-        |> cast_from(Typ.TupLabel(labty, ety) |> Typ.temp);
-      } else {
-        Tuple([Exp.TupLabel(label', e') |> rewrap])
-        |> Exp.fresh
-        |> cast_from(
-             Typ.Prod([Typ.TupLabel(labty, ety) |> Typ.temp]) |> Typ.temp,
-           );
-      };
+      let foo =
+        if (in_container) {
+          Exp.TupLabel(label', e')
+          |> rewrap
+          |> cast_from(Typ.TupLabel(labty, ety) |> Typ.temp);
+        } else {
+          Tuple([Exp.TupLabel(label', e') |> rewrap])
+          |> Exp.fresh
+          |> cast_from(
+               Typ.Prod([Typ.TupLabel(labty, ety) |> Typ.temp]) |> Typ.temp,
+             );
+        };
+
+      print_endline("exp: " ++ UExp.show(uexp));
+      print_endline("typ: " ++ Typ.show(elaborated_type));
+      print_endline("dhexp: " ++ DHExp.show(foo));
+      foo;
     | Tuple(es) =>
-      let (ds, tys) =
+      let (ds: list(DHExp.t), tys: list(Typ.t)) =
         List.map(elaborate(m, ~in_container=true), es) |> ListUtil.unzip;
+      let (foo : option(list(Typ.t))) = Typ.matched_prod_strict(
+        ~show_a=DHExp.show,
+        ~show_b=Typ.show,
+      ctx, ds, 
+      (d : DHExp.t) => {
+          switch(d.term) {
+          | TupLabel({term: Var(l), _}, ty) => Some((l, ty))
+          | _ => None
+          }
+      }
+      , elaborated_type);
+      print_endline("foo " ++ [%derive.show: option(list(Typ.t))](foo));
+
+      print_endline("tupls ds" ++ [%derive.show: list(DHExp.t)](ds));
+      print_endline("tupls tys" ++ [%derive.show: list(Typ.t)](tys));
       let ds =
         LabeledTuple.rearrange(
-          Typ.get_label, Exp.get_label, tys, ds, (name, p) =>
-          TupLabel(Label(name) |> Exp.fresh, p) |> Exp.fresh
+          ~show_a=Typ.show,
+          ~show_b=DHExp.show,
+          Typ.get_label,
+          Exp.get_label,
+          tys,
+          ds,
+          (name, p) => {
+            print_endline("tuple constructor name: " ++ name);
+            print_endline("tuple constructor p: " ++ DHExp.show(p));
+            TupLabel(Label(name) |> Exp.fresh, p) |> Exp.fresh;
+          },
         );
-      Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
+      let foo = Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
+      print_endline("tuple exp: " ++ UExp.show(uexp));
+      print_endline("tuple typ: " ++ Typ.show(elaborated_type));
+      print_endline("tuple dhexp: " ++ DHExp.show(foo));
+      foo;
     | Dot(e1, e2) =>
       let (e1, ty1) = elaborate(m, e1);
       let (e2, ty2) = elaborate(m, e2);
