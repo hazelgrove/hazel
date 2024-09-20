@@ -4,7 +4,7 @@ open Util.OptUtil.Syntax;
 
 /* Updates the underlying piece of syntax for a projector */
 module Update = {
-  let init = (id, kind: t, syntax: syntax): option(syntax) => {
+  let init = (id, kind: t, syntax: syntax): option(Base.projector) => {
     let (module P) = to_module(kind);
     switch (P.can_project(syntax) && minimum_projection_condition(syntax)) {
     | false => None
@@ -12,14 +12,18 @@ module Update = {
       /* We set the projector id equal to the root piece id for convienence
        * including cursor-info association. We maintain this invariant
        * when we update a projector's contained syntax */
-      Some([Piece.Projector({id, kind, model: P.init, syntax})])
+      Some({id, kind, model: P.init, syntax})
     };
   };
 
   let from_selection =
       (id, kind, focus: Util.Direction.t, z: Zipper.t): option(Zipper.t) => {
-    let+ content = init(id, kind, z.selection.content);
-    let z = Zipper.put_selection({...z.selection, content, focus}, z);
+    let+ p = init(id, kind, z.selection.content);
+    let z =
+      Zipper.put_selection(
+        {...z.selection, content: [Piece.Projector(p)], focus},
+        z,
+      );
     Zipper.unselect(z);
   };
 
@@ -152,25 +156,36 @@ let go =
       let id = Piece.id(piece);
       switch (Piece.is_projector(piece)) {
       | None =>
-        let z =
-          if (Piece.is_secondary(piece)) {
-            indicated_token(z);
-          } else {
-            select_term(z);
-          };
-        switch (Util.OptUtil.and_then(Update.from_selection(id, kind, d), z)) {
+        switch (
+          {
+            let* z: ZipperBase.t =
+              if (Piece.is_secondary(piece)) {
+                indicated_token(z);
+              } else {
+                select_term(z);
+              };
+            let+ p = Update.init(id, kind, z.selection.content);
+            let z =
+              Zipper.put_selection(
+                {...z.selection, content: [Piece.Projector(p)], focus: d},
+                z,
+              );
+            Zipper.unselect(z);
+          }
+        ) {
         | None => Error(Cant_project)
         | Some(z) => Ok(z)
-        };
+        }
       | Some(current) when current.kind == kind =>
         Ok(remove_indicated(id, d, z))
-      | Some(_old_proj) =>
-        //TODO(andrew): change action
-        // will need to take into account the projected syntax
-        Ok(remove_indicated(id, d, z))
+      | Some(current) =>
+        switch (Update.init(id, kind, current.syntax)) {
+        | None => Error(Cant_project)
+        | Some(p) => Ok(Update.update(_ => p, id, z))
+        }
       };
     }
-  | RemoveIndicated(_id) =>
+  | RemoveIndicated =>
     //TODO(andrew): remove param
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)

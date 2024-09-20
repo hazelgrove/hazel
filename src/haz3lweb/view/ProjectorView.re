@@ -107,7 +107,7 @@ let view_wrapper =
 /* Dispatches projector external actions to editor-level actions */
 let handle = (id, action: external_action): Action.project =>
   switch (action) {
-  | Remove => RemoveIndicated(id)
+  | Remove => RemoveIndicated
   | Escape(d) => Escape(id, d)
   | SetSyntax(f) => SetSyntax(id, f)
   };
@@ -225,12 +225,12 @@ module Panel = {
       }
     );
 
-  let toggle_projector = (active, id, ci): Action.project =>
+  let toggle_projector = (active, ci): Action.project =>
     active || applicable_projectors(ci) == []
-      ? RemoveIndicated(id)
+      ? RemoveIndicated
       : ToggleIndicated(List.hd(applicable_projectors(ci)));
 
-  let toggle_view = (~inject, ci, id, active: bool, might_project) =>
+  let toggle_view = (~inject, ci, active: bool, might_project) =>
     div(
       ~attrs=[
         clss(
@@ -240,7 +240,7 @@ module Panel = {
         ),
         Attr.on_mousedown(_ =>
           might_project
-            ? inject(toggle_projector(active, id, ci)) : Effect.Ignore
+            ? inject(toggle_projector(active, ci)) : Effect.Ignore
         ),
       ],
       [
@@ -308,13 +308,7 @@ module Panel = {
         |> List.map(currently_selected(editor)),
       );
     let toggle_view =
-      toggle_view(
-        ~inject,
-        ci,
-        id(editor),
-        kind(editor) != None,
-        might_project,
-      );
+      toggle_view(~inject, ci, kind(editor) != None, might_project);
     div(
       ~attrs=[Attr.id("projectors")],
       (should_show ? [select_view] : []) @ [toggle_view],
