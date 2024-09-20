@@ -35,7 +35,7 @@ fmt:
 	dune fmt --auto-promote
 
 watch: setup-instructor
-	dune build @src/fmt --auto-promote src --profile dev --watch
+	dune build --profile dev --watch
 
 watch-release: setup-instructor
 	dune build @src/fmt --auto-promote src --profile release --watch

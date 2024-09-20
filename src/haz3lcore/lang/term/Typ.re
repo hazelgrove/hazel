@@ -463,7 +463,9 @@ let matched_label = (ctx, ty) =>
   | _ => (Unknown(Internal) |> temp, ty)
   };
 
-let rec matched_prod_strict = (ctx, ts, get_label_ts, ty) =>
+let rec matched_prod_strict = (
+      ~show_a: option('a => string)=?,
+      ~show_b: option('b => string)=?, ctx, ts, get_label_ts, (ty : t)) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_prod_strict(ctx, ts, get_label_ts, ty)
   | Prod(tys) =>
@@ -471,7 +473,8 @@ let rec matched_prod_strict = (ctx, ts, get_label_ts, ty) =>
       None;
     } else {
       Some(
-        LabeledTuple.rearrange(get_label_ts, get_label, ts, tys, (name, b) =>
+        LabeledTuple.rearrange(~show_a=?show_a,
+        ~show_b=?show_b,get_label_ts, get_label, ts, tys, (name, b) =>
           TupLabel(Label(name) |> temp, b) |> temp
         ),
       );
