@@ -91,7 +91,6 @@ let go =
        eg for apps doesnt leave cursor at an indication position */
     /* NOTE: using nice_term here has unintended consequences for
        lets and case rules (former seems to work okay, latter is broken though) */
-    //TODO(andrew): unhardcode this direction Left
     //TODO(andrew): cleanup or clairfy
     let z_init =
       switch (

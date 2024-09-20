@@ -129,8 +129,7 @@ module MapSegment = {
 
   let fast_local = (f: updater, id: Id.t, z: t): t =>
     //TODO(andrew): cleanup, doc
-    //TODO(andrew): fix fast path?
-    //go(f, z);
+    //TODO(andrew): does fast path actually work?
     if (List.exists(p => Piece.id(p) == id, z.relatives.siblings |> fst)
         || List.exists(p => Piece.id(p) == id, z.relatives.siblings |> snd)) {
       let (l, r) = z.relatives.siblings;
