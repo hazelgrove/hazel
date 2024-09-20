@@ -217,11 +217,7 @@ and drv_to_info_map =
     | Tuple(_) when !can_tuple =>
       m |> add(Prop(prop), Prop({...info, status: InHole(NotAllowTuple)}))
     | Tuple(ps) =>
-      List.fold_left(
-        (m, p) => m |> go_prop(p, ~can_tuple=false) |> snd,
-        m,
-        ps,
-      )
+      List.fold_left((m, p) => m |> go_prop(p, ~can_tuple) |> snd, m, ps)
       |> add'
     | Abbr(p) =>
       m

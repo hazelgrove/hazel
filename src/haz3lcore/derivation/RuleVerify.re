@@ -816,6 +816,9 @@ let expect_prems_num: (Rule.t, list(t)) => result(int => t, failure) =
   };
 
 let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => {
+  prems |> List.iter(p => print_endline(show(p)));
+  print_endline(show(concl));
+
   let$ prems = expect_prems_num(rule, prems);
   // The following symbols / operators are defined for convenience just
   // under this function.

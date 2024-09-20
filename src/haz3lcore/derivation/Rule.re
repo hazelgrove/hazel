@@ -280,7 +280,11 @@ type kind =
   | Typing
   | Values
   | Evaluation
-  | PropositionalLogic;
+  | PropositionalLogic(prop_logic_kind)
+and prop_logic_kind =
+  | Assumption
+  | Introduction
+  | Elimination;
 
 let of_kind: t => kind =
   fun
@@ -392,17 +396,17 @@ let of_kind: t => kind =
   | E_Fix
   | E_Roll
   | E_Unroll => Evaluation
-  | Assumption
+  | Assumption => PropositionalLogic(Assumption)
   | And_I
-  | And_E_L
-  | And_E_R
   | Or_I_L
   | Or_I_R
-  | Or_E
   | Implies_I
+  | Truth_I => PropositionalLogic(Introduction)
+  | And_E_L
+  | And_E_R
+  | Or_E
   | Implies_E
-  | Truth_I
-  | Falsity_E => PropositionalLogic;
+  | Falsity_E => PropositionalLogic(Elimination);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type sort =
@@ -806,3 +810,26 @@ let all: list(t) = [
   Truth_I,
   Falsity_E,
 ];
+
+let keywords: t => list(string) =
+  rule =>
+    (repr(rule) |> String.split_on_char('-'))
+    @ (
+      switch (of_kind(rule)) {
+      | TypeValidity => ["Type", "Validity", "typ", "tv", "val"]
+      | Synthesis => ["Synthesis", "syn"]
+      | Analysis => ["Analysis", "ana"]
+      | Typing => ["Type", "Typing", "typ"]
+      | Values => ["Values", "val"]
+      | Evaluation => ["Evaluation", "eval"]
+      | PropositionalLogic(prop_logic_kind) =>
+        ["Propositional", "Logic", "prop"]
+        @ (
+          switch (prop_logic_kind) {
+          | Assumption => ["assump", "asm"]
+          | Introduction => ["Introduction", "Intro"]
+          | Elimination => ["Elimination", "Elim"]
+          }
+        )
+      }
+    );

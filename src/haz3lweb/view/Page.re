@@ -100,7 +100,7 @@ let main_view =
       ~explainThisModel,
       Code(cursor_info),
     );
-  let (editors_view, cursor_info) =
+  let (editors_view, cursor_info, cursor_info_for_sidebar) =
     switch (editors) {
     | Scratch(idx, _) =>
       let result_key = ScratchSlide.scratch_key(string_of_int(idx));
@@ -114,7 +114,7 @@ let main_view =
           ~result_key,
           editor,
         );
-      (view, ExplainThis.Code(cursor_info));
+      (view, cursor_info, ExplainThis.Code(cursor_info));
     | Documentation(name, _) =>
       let result_key = ScratchSlide.scratch_key(name);
       let view =
@@ -131,7 +131,7 @@ let main_view =
         SlideContent.get_content(editors)
         |> Option.map(i => div(~attrs=[Attr.id("slide")], [i]))
         |> Option.to_list;
-      (info @ view, ExplainThis.Code(cursor_info));
+      (info @ view, cursor_info, ExplainThis.Code(cursor_info));
     | Exercises(_, _, exercise) =>
       /* Note the exercises mode uses a seperate path to calculate
        * statics and dynamics via stitching together multiple editors */
@@ -151,7 +151,7 @@ let main_view =
           ~explainThisModel,
           Code(cursor_info),
         );
-      let (view, cursor_info) =
+      let (view, cursor_info') =
         ExerciseMode.view(
           ~inject,
           ~ui_state,
@@ -162,7 +162,7 @@ let main_view =
           ~exercise,
           ~cursor_info=Code(cursor_info),
         );
-      (view, cursor_info);
+      (view, cursor_info, cursor_info');
     };
 
   let sidebar =
@@ -172,11 +172,9 @@ let main_view =
           ~ui_state,
           ~settings,
           ~explainThisModel,
-          cursor_info // Now a {info, results}
+          cursor_info_for_sidebar,
         )
       : div([]);
-  let cursor_info =
-    Indicated.ci_of(editor.state.zipper, editor.state.meta.statics.info_map);
   let bottom_bar =
     CursorInspector.view(~inject, ~settings, editor, cursor_info);
   [

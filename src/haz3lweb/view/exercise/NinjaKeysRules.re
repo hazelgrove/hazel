@@ -39,6 +39,7 @@ let from_rule =
         "id": Js.readonly_prop(string),
         "title": Js.readonly_prop(string),
         "section": Js.readonly_prop(Js.optdef(string)),
+        "keywords": Js.readonly_prop(string),
       } => {
   [%js
    {
@@ -48,7 +49,8 @@ let from_rule =
        Js.Optdef.option(
          Some(Haz3lcore.Rule.show_kind(Haz3lcore.Rule.of_kind(rule))),
        );
-     val handler = () => update_rule(rule) |> schedule_action
+     val handler = () => update_rule(rule) |> schedule_action;
+     val keywords = Haz3lcore.Rule.keywords(rule) |> String.concat(" ")
    }];
 };
 

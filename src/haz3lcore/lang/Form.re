@@ -373,12 +373,12 @@ let forms: list((string, t)) = [
   ),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
   // Drv
-  // ("of_alfa_typ", mk(ds, ["of_Typ", "end"], mk_op(Exp, [Drv(Typ)]))),
-  // ("of_alfa_exp", mk(ds, ["of_Exp", "end"], mk_op(Exp, [Drv(Exp)]))),
-  // ("of_alfa_pat", mk(ds, ["of_Pat", "end"], mk_op(Exp, [Drv(Pat)]))),
-  // ("of_alfa_tpat", mk(ds, ["of_TPat", "end"], mk_op(Exp, [Drv(TPat)]))),
-  // ("of_prop", mk(ds, ["of_Prop", "end"], mk_op(Exp, [Drv(Prop)]))),
-  // ("of_jdmt", mk(ds, ["of_Jdmt", "end"], mk_op(Exp, [Drv(Jdmt)]))),
+  ("of_alfa_typ", mk(ds, ["of_Typ", "end"], mk_op(Exp, [Drv(Typ)]))),
+  ("of_alfa_exp", mk(ds, ["of_Exp", "end"], mk_op(Exp, [Drv(Exp)]))),
+  ("of_alfa_pat", mk(ds, ["of_Pat", "end"], mk_op(Exp, [Drv(Pat)]))),
+  ("of_alfa_tpat", mk(ds, ["of_TPat", "end"], mk_op(Exp, [Drv(TPat)]))),
+  ("of_prop", mk(ds, ["of_Prop", "end"], mk_op(Exp, [Drv(Prop)]))),
+  ("of_jdmt", mk(ds, ["of_Jdmt", "end"], mk_op(Exp, [Drv(Jdmt)]))),
   (
     "prop_alias",
     mk(ds, ["prop", "=", "in"], mk_pre(P.let_, Exp, [Pat, Drv(Prop)])),

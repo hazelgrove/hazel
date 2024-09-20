@@ -80,7 +80,9 @@ type term =
   | TPat(string)
 and t = IdTagged.t(term);
 
-let fresh = (term: term) => IdTagged.fresh(term);
+let fresh: term => t = IdTagged.fresh;
+
+let term_of: t => term = IdTagged.term_of;
 
 let temp = (term: term) =>
   IdTagged.{term, ids: [Id.invalid], copied: false};

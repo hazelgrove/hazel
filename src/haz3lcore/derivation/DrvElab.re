@@ -1,5 +1,17 @@
 open DrvSyntax;
 
+let to_list = d =>
+  switch (DrvSyntax.term_of(d)) {
+  | Ctx(ps) => ps
+  | _ => [d]
+  };
+
+let to_ctx = d =>
+  switch (DrvSyntax.term_of(d)) {
+  | Ctx(_) => d
+  | _ => Ctx([d]) |> DrvSyntax.fresh
+  };
+
 let rec elaborate: Drv.t => t =
   fun
   | Jdmt(jdmt) => elab_jdmt(jdmt)
@@ -15,19 +27,7 @@ and elab_jdmt: Drv.Jdmt.t => t =
       | Hole(s) => Hole(TermBase.TypeHole.show(s))
       | Val(e) => Val(elab_exp(e))
       | Eval(e1, e2) => Eval(elab_exp(e1), elab_exp(e2))
-      | Entail(p1, p2) =>
-        Entail(
-          elab_prop(p1)
-          |> (
-            p => {
-              switch (p.term) {
-              | Ctx(_) => p
-              | _ => (Ctx([p]): term) |> IdTagged.fresh
-              };
-            }
-          ),
-          elab_prop(p2),
-        )
+      | Entail(p1, p2) => Entail(elab_prop(p1) |> to_ctx, elab_prop(p2))
       };
     {...jdmt, term};
   }
@@ -48,15 +48,8 @@ and elab_prop: Drv.Prop.t => t =
       | Tuple(ps) =>
         Ctx(
           ps
-          |> List.map(p =>
-               p
-               |> elab_prop
-               |> (
-                 fun
-                 | {term: Ctx(ctx), _} => ctx
-                 | p => [p]
-               )
-             )
+          |> List.map(elab_prop)
+          |> List.map(to_list)
           |> List.concat
           |> List.fold_left(cons_ctx, []),
         )

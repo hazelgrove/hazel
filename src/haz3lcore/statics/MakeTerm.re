@@ -384,7 +384,6 @@ and alfa_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
 
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
-  print_endline("term: " ++ TermBase.Exp.show_term(term));
   switch (term) {
   | MultiHole([Drv(_), ..._]) =>
     let (term, inner_ids) = jdmt_term(unsorted);
@@ -428,6 +427,13 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           Match(scrut, rules),
           ids,
         )
+      | (["of_Typ", "end"], [Drv(Typ(ty))]) => ret(Derivation(Typ(ty)))
+      | (["of_Exp", "end"], [Drv(Exp(e))]) => ret(Derivation(Exp(e)))
+      | (["of_Pat", "end"], [Drv(Pat(p))]) => ret(Derivation(Pat(p)))
+      | (["of_TPat", "end"], [Drv(TPat(tp))]) =>
+        ret(Derivation(TPat(tp)))
+      | (["of_Prop", "end"], [Drv(Prop(p))]) => ret(Derivation(Prop(p)))
+      | (["of_Jdmt", "end"], [Drv(Jdmt(j))]) => ret(Derivation(Jdmt(j)))
       | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))

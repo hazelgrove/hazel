@@ -252,8 +252,8 @@ module Transition = (EV: EV_MODE) => {
         switch (term) {
         | Hole(s) => Hole(s)
         | Val(e) => Val(go_exp(e))
-        | Eval(e1, e2) => Eval(e1, e2)
-        | Entail(p1, p2) => Entail(p1, p2)
+        | Eval(e1, e2) => Eval(go_exp(e1), go_exp(e2))
+        | Entail(p1, p2) => Entail(go_prop(p1), go_prop(p2))
         };
       term |> rewrap;
     }
@@ -661,12 +661,12 @@ module Transition = (EV: EV_MODE) => {
       Constructor;
     | Derivation(_) =>
       let. _ = otherwise(env, d);
-      Step({
-        expr: replace_drv_abbrs(env, d),
-        state_update,
-        kind: InvalidStep,
-        is_value: true,
-      });
+      let d' = replace_drv_abbrs(env, d);
+      if (DHExp.fast_equal(d, d')) {
+        Constructor;
+      } else {
+        Step({expr: d', state_update, kind: CompleteClosure, is_value: true});
+      };
     | If(c, d1, d2) =>
       let. _ = otherwise(env, c => If(c, d1, d2) |> rewrap)
       and. c' =
