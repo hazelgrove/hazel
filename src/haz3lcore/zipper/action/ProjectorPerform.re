@@ -1,83 +1,36 @@
 open Projector;
 open ProjectorBase;
+open Util.OptUtil.Syntax;
 
 /* Updates the underlying piece of syntax for a projector */
 module Update = {
-  let init = (id, kind: t, syntax: syntax): syntax => {
-    /* We set the projector id equal to the root piece id for convienence
-     * including cursor-info association. We maintain this invariant
-     * when we update a projector's contained syntax */
+  let init = (id, kind: t, syntax: syntax): option(syntax) => {
     let (module P) = to_module(kind);
-    //TODO(andrew): cleanup
-    //print_endline("Seg: " ++ Segment.show(syntax));
-    // print_endline(
-    //   "min proj cond: "
-    //   ++ string_of_bool(minimum_projection_condition(syntax)),
-    // );
     switch (P.can_project(syntax) && minimum_projection_condition(syntax)) {
-    | false => syntax
-    | true => [Projector({id, kind, model: P.init, syntax})]
+    | false => None
+    | true =>
+      /* We set the projector id equal to the root piece id for convienence
+       * including cursor-info association. We maintain this invariant
+       * when we update a projector's contained syntax */
+      Some([Piece.Projector({id, kind, model: P.init, syntax})])
     };
   };
 
-  let add_projector = (kind: Base.kind, id: Id.t, seg: syntax) => {
-    print_endline("term_partitions add_projector");
-    switch (Segment.term_partitions(seg, id)) {
-    | None => seg
-    | Some((l, m, r)) => l @ init(id, kind, m) @ r
-    };
+  let from_selection =
+      (id, kind, focus: Util.Direction.t, z: Zipper.t): option(Zipper.t) => {
+    let+ content = init(id, kind, z.selection.content);
+    let z = Zipper.put_selection({...z.selection, content, focus}, z);
+    Zipper.unselect(z);
   };
 
-  // subseg => piece
-  // let add = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
-  //   ZipperBase.MapSegment.fast_local(add_projector(k, id), id, z);
-
-  let add =
-      (indicated_token, select_term, k: Base.kind, id: Id.t, z: ZipperBase.t)
-      : ZipperBase.t => {
-    //move_out_of_piece(d, rel, z)
-    switch (Indicated.for_index(z)) {
-    | None => z
-    | Some((piece, _d, _rel)) when Piece.is_secondary(piece) =>
-      //TODO(andrew): reinstate direction
-      let z = indicated_token(z) |> Option.value(~default=z); //TODO(andrew): errors
-      let content = init(id, k, z.selection.content);
-      let z = {
-        ...z,
-        selection: {
-          ...z.selection,
-          content,
-        },
-      };
-      Zipper.unselect(z);
-    | Some((_piece, d, _rel)) =>
-      //TODO(andrew): reinstate direction
-      let z = select_term(z) |> Option.value(~default=z); //TODO(andrew): errors
-      let content = init(id, k, z.selection.content);
-      let z = {
-        ...z,
-        selection: {
-          ...z.selection,
-          content,
-        },
-      };
-      let z = d == Left ? Zipper.toggle_focus(z) : z;
-      Zipper.unselect(z);
-    };
-  };
-
-  let remove_p_if = (id: Id.t, piece: Piece.t): Segment.t =>
+  let rem_p_if = (id: Id.t, piece: Piece.t): Segment.t =>
     switch (piece) {
     | Projector(pr) when pr.id == id => pr.syntax
     | x => [x]
     };
 
-  let remove_s_if = (id: Id.t, syntax: syntax) =>
-    List.concat(List.map(p => remove_p_if(id, p), syntax));
-
-  // TODO(andrew): piece => subseg
   let remove_if = (id: Id.t, z: ZipperBase.t): ZipperBase.t =>
-    ZipperBase.MapSegment.fast_local(remove_s_if(id), id, z);
+    ZipperBase.MapSegment.fast_local(List.concat_map(rem_p_if(id)), id, z);
 
   let remove_p = (piece: Piece.t): Segment.t =>
     switch (piece) {
@@ -85,29 +38,8 @@ module Update = {
     | x => [x]
     };
 
-  let remove_s = (seg: syntax) =>
-    List.concat(List.map(p => remove_p(p), seg));
-
   let remove_all = (z: ZipperBase.t): ZipperBase.t =>
-    ZipperBase.MapSegment.go(remove_s, z);
-
-  // let is_projector_of = (id: Id.t, seg: Segment.t): bool =>
-  //   List.exists(
-  //     (p: Piece.t) =>
-  //       switch (p) {
-  //       | Projector(pr) => pr.id == id
-  //       | _ => false
-  //       },
-  //     seg,
-  //   );
-
-  // let add_or_remove_projector = (kind: Base.kind, id: Id.t, seg: Segment.t) => {
-  //   is_projector_of(id, seg)
-  //     ? remove_projector(id, seg) : add_projector(kind, id, seg);
-  // };
-
-  // let add_or_remove = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
-  //   ZipperBase.MapSegment.fast_local(add_or_remove_projector(k, id), id, z);
+    ZipperBase.MapSegment.go(List.concat_map(p => remove_p(p)), z);
 
   let update_piece =
       (f: Base.projector => Base.projector, id: Id.t, piece: Piece.t) =>
@@ -116,7 +48,6 @@ module Update = {
     | x => x
     };
 
-  // piece => piece
   let update =
       (f: Base.projector => Base.projector, id: Id.t, z: ZipperBase.t)
       : ZipperBase.t =>
@@ -162,7 +93,6 @@ let go =
        lets and case rules (former seems to work okay, latter is broken though) */
     //TODO(andrew): unhardcode this direction Left
     //TODO(andrew): cleanup or clairfy
-    print_endline("AAA");
     let z_init =
       switch (
         do_until(
@@ -172,7 +102,6 @@ let go =
         )
       ) {
       | None =>
-        print_endline("BBB");
         switch (Indicated.piece'(~no_ws=false, ~ign=_ => false, z)) {
         | None => z
         | Some((piece, _, _)) when Piece.id(piece) == id =>
@@ -186,24 +115,24 @@ let go =
               z,
             )
             |> Option.value(~default=z);
-          print_endline("QQQ");
           z
           |> move_primary(
                Zipper.ByToken,
                d == Right ? Util.Direction.Right : Left,
              )
           |> Option.value(~default=z);
-        };
+        }
       | Some(z) =>
-        print_endline("CCC");
         move_primary(
           Zipper.ByToken,
           d == Right ? Util.Direction.Left : Right,
           z,
         )
-        |> Option.value(~default=z);
+        |> Option.value(~default=z)
       };
-    if (Indicated.index(z_init) == Some(id)) {
+    if (Indicated.index(z) == Some(id)) {
+      z;
+    } else if (Indicated.index(z_init) == Some(id)) {
       z_init;
     } else {
       z_init
@@ -217,38 +146,33 @@ let go =
   let remove_indicated = (id, d, z) =>
     Update.remove_if(id, z) |> move_to_id(d, id);
   switch (a) {
-  | SetIndicated(p) =>
+  | ToggleIndicated(kind) =>
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)
-    | Some((piece, _d, _rel)) =>
-      //TODO(andrew): reinstate direction
-      Ok(Update.add(indicated_token, select_term, p, Piece.id(piece), z))
-    }
-  | ToggleIndicated(p) =>
-    switch (Indicated.for_index(z)) {
-    | None => Error(Cant_project)
-    | Some((piece, d, _rel)) =>
+    | Some((piece, d, _)) =>
       let id = Piece.id(piece);
-      /* new strategy:
-         1. call select term
-         2. add_or_remove only acts on the selection,
-            which will be only the projector piece (if projected)
-            or a complete term segment (if not)
-            We'll have guaranteed locality, so no need to map thru
-            the zipper for this one.
-          */
-      Ok(
-        if (Piece.is_projector(piece) != None) {
-          print_endline("ZZZ");
-          let x = remove_indicated(id, d, z);
-          print_endline("WWW");
-          x;
-        } else {
-          Update.add(indicated_token, select_term, p, id, z);
-        },
-      );
+      switch (Piece.is_projector(piece)) {
+      | None =>
+        let z =
+          if (Piece.is_secondary(piece)) {
+            indicated_token(z);
+          } else {
+            select_term(z);
+          };
+        switch (Util.OptUtil.and_then(Update.from_selection(id, kind, d), z)) {
+        | None => Error(Cant_project)
+        | Some(z) => Ok(z)
+        };
+      | Some(current) when current.kind == kind =>
+        Ok(remove_indicated(id, d, z))
+      | Some(_old_proj) =>
+        //TODO(andrew): change action
+        // will need to take into account the projected syntax
+        Ok(remove_indicated(id, d, z))
+      };
     }
   | RemoveIndicated(_id) =>
+    //TODO(andrew): remove param
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)
     | Some((piece, d, _rel)) =>

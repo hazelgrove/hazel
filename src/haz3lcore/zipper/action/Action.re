@@ -49,7 +49,6 @@ type select =
  * and from each projector's own internal action type */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type project =
-  | SetIndicated(Base.kind) /* Project syntax at caret */
   | ToggleIndicated(Base.kind) /* Un/Project syntax at caret */
   | RemoveIndicated(Id.t) /* Remove projector at Id */
   | SetSyntax(Id.t, Segment.t) /* Set underlying syntax */
@@ -126,7 +125,6 @@ let is_edit: t => bool =
     switch (p) {
     | SetSyntax(_)
     | SetModel(_)
-    | SetIndicated(_)
     | ToggleIndicated(_)
     | RemoveIndicated(_) => true
     | Focus(_)
@@ -156,7 +154,6 @@ let is_historic: t => bool =
     switch (p) {
     | SetSyntax(_)
     | SetModel(_)
-    | SetIndicated(_)
     | ToggleIndicated(_)
     | RemoveIndicated(_) => true
     | Focus(_)
@@ -184,7 +181,6 @@ let prevent_in_read_only_editor = (a: t) => {
     switch (p) {
     | SetSyntax(_) => true
     | SetModel(_)
-    | SetIndicated(_)
     | ToggleIndicated(_)
     | RemoveIndicated(_)
     | Focus(_)

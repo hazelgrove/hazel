@@ -45,7 +45,7 @@ type info = {
  *    panel bottom bar UI, update ProjectorView.name,
  *    ProjectorView.of_name, and ProjectorView.applicable_projectors
  * 6. If you want to manually manage the projector as part of
- *    the update cycle, see the implementations of the SetIndicated
+ *    the update cycle, see the implementations of the ToggleIndicated
  *    and Remove actions in ProjectorPerform for how to manually
  *    add/remove projectors from an editor */
 module type Projector = {

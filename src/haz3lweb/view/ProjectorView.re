@@ -228,7 +228,7 @@ module Panel = {
   let toggle_projector = (active, id, ci): Action.project =>
     active || applicable_projectors(ci) == []
       ? RemoveIndicated(id)
-      : SetIndicated(List.hd(applicable_projectors(ci)));
+      : ToggleIndicated(List.hd(applicable_projectors(ci)));
 
   let toggle_view = (~inject, ci, id, active: bool, might_project) =>
     div(
@@ -300,7 +300,7 @@ module Panel = {
       Node.select(
         ~attrs=[
           Attr.on_change((_, name) =>
-            inject(Action.SetIndicated(of_name(name)))
+            inject(Action.ToggleIndicated(of_name(name)))
           ),
         ],
         (might_project ? applicable_projectors : [])
