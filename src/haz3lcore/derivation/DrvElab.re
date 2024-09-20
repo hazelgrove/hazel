@@ -60,6 +60,7 @@ and elab_prop: Drv.Prop.t => t =
           |> List.concat
           |> List.fold_left(cons_ctx, []),
         )
+      | Abbr(_) => Hole(Drv.Prop.show(prop))
       | Parens(p) => IdTagged.term_of(elab_prop(p))
       };
     {...prop, term};
@@ -146,6 +147,7 @@ and elab_exp: Drv.Exp.t => t =
         };
       | Roll => hole
       | Unroll => hole
+      | Abbr(_) => hole
       | Parens(e) => IdTagged.term_of(elab_exp(e))
       };
     {...exp, term};

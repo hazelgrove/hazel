@@ -44,6 +44,7 @@ module Prop = {
     | Truth
     | Falsity
     | Tuple
+    | Abbr
     | Parens;
 
   include TermBase.Prop;
@@ -75,6 +76,7 @@ module Prop = {
     | Truth => Truth
     | Falsity => Falsity
     | Tuple(_) => Tuple
+    | Abbr(_) => Abbr
     | Parens(_) => Parens;
 };
 
@@ -107,6 +109,7 @@ module ALFA_Exp = {
     | Case
     | Roll
     | Unroll
+    | Abbr
     | Parens;
 
   include TermBase.ALFA_Exp;
@@ -153,6 +156,7 @@ module ALFA_Exp = {
     | Case(_) => Case
     | Roll => Roll
     | Unroll => Unroll
+    | Abbr(_) => Abbr
     | Parens(_) => Parens;
 };
 

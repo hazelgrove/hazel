@@ -445,32 +445,29 @@ let proof_view =
       ],
     );
 
-  // let prelude_view =
-  //   editor_view(
-  //     Proof(Prelude),
-  //     ~editor=eds.prelude,
-  //     ~di=stitched_dynamics.prelude,
-  //     ~caption=
-  //       Cell.caption(
-  //         "Prelude",
-  //         ~rest=settings.instructor_mode ? "" : " (Read-Only)",
-  //       ),
-  //     ~sort=Exp,
-  //     ~footer=[],
-  //   );
+  let prelude_view =
+    editor_view(
+      Proof(Prelude),
+      ~editor=eds.prelude,
+      ~di=stitched_dynamics.prelude,
+      ~caption=
+        Cell.caption(
+          "Prelude",
+          ~rest=settings.instructor_mode ? "" : " (Read-Only)",
+        ),
+      ~sort=Exp,
+      ~footer=[],
+    );
 
-  // let setup_view =
-  //   editor_view(
-  //     Proof(Setup),
-  //     ~editor=eds.setup,
-  //     ~di=stitched_dynamics.setup,
-  //     ~caption=Cell.caption("Setup"),
-  //     ~sort=Exp,
-  //     ~footer=[],
-  //   );
+  let setup_view =
+    editor_view(
+      Proof(Setup),
+      ~editor=eds.setup,
+      ~di=stitched_dynamics.setup,
+      ~caption=Cell.caption("Setup"),
+      ~sort=Exp,
+      ~footer=[],
+    );
 
-  [
-    // prelude_view, setup_view,
-    derivation_view,
-  ];
+  [prelude_view, setup_view, derivation_view];
 };

@@ -25,11 +25,22 @@ type jdmt = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type error_prop =
+  | BadToken(Token.t)
+  | MultiHole
+  | NotAllowTuple;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type status_prop =
+  | NotInHole(ok_common)
+  | InHole(error_prop);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type prop = {
   term: Drv.Prop.t,
   cls: Cls.t,
   ancestors,
-  status: status_common,
+  status: status_prop,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -109,7 +120,7 @@ type t =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error =
   | Jdmt(error_common)
-  | Prop(error_common)
+  | Prop(error_prop)
   | Exp(error_exp)
   | Pat(error_pat)
   | Typ(error_common)
@@ -160,7 +171,7 @@ let error_of: t => option(error) =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_drv =
   | Jdmt(status_common)
-  | Prop(status_common)
+  | Prop(status_prop)
   | Exp(status_exp)
   | Pat(status_pat)
   | Typ(status_common)
@@ -173,7 +184,7 @@ let status_jdmt = (jdmt: Drv.Jdmt.t): status_common =>
   | _ => NotInHole()
   };
 
-let status_prop = (prop: Drv.Prop.t): status_common =>
+let status_prop = (prop: Drv.Prop.t): status_prop =>
   switch (prop.term) {
   | Hole(Invalid(token)) => InHole(BadToken(token))
   | Hole(MultiHole(_)) => InHole(MultiHole)

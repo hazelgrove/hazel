@@ -157,6 +157,215 @@ module Transition = (EV: EV_MODE) => {
      if anything about the current node changes, if only its
      children change, we use rewrap */
 
+  // let req_drv_value =
+  //     (req, state, env, drv: Drv.t, rewrap: Drv.t => t): EV.result => {
+  //   let req_jdmt_value =
+  //       (jdmt: Drv.Jdmt.t, rewrap: Drv.Jdmt.t => t): EV.result => {
+  //     // let. _ = otherwise(env, jdmt |> rewrap);
+  //     // Constructor;
+  //     // let wrap_ctx = (term): EvalCtx.t => Term({term, ids: [rep_id(jdmt)]});
+  //     let (term, rewrap_: Drv.Jdmt.term => Drv.Jdmt.t) =
+  //       IdTagged.unwrap(jdmt);
+  //     let rewrap = term => term |> rewrap_ |> rewrap;
+  //     switch (term) {
+  //     | Hole(s) =>
+  //       let. _ = otherwise(env, Hole(s) |> rewrap);
+  //       Constructor;
+  //     | Val(e) =>
+  //       let. _ = otherwise(env, Fun.id)
+  //       and. e' =
+  //         req_value(
+  //           req(state, env),
+  //           Fun.id,
+  //           (Derivation(Exp(e)): term) |> IdTagged.fresh,
+  //         );
+  //       let e' =
+  //         switch (IdTagged.term_of(e')) {
+  //         | Derivation(Exp(e')) => e'
+  //         | _ => raise(EvaluatorError.Exception(InvalidBoxedIntLit(e')))
+  //         };
+  //       Step({
+  //         expr: Val(e') |> rewrap,
+  //         state_update,
+  //         kind: InvalidStep,
+  //         is_value: true,
+  //       });
+  //     | Eval(e1, e2) =>
+  //       let. _ = otherwise(env, Eval(e1, e2) |> rewrap);
+  //       Constructor;
+  //     | Entail(p1, p2) =>
+  //       let. _ = otherwise(env, Entail(p1, p2) |> rewrap);
+  //       Constructor;
+  //     };
+  //   }
+  //   and req_prop_value = (prop: Drv.Prop.t, rewrap): EV.result => {
+  //     let (term, rewrap_) = IdTagged.unwrap(prop);
+  //     let rewrap = term => term |> rewrap_ |> rewrap;
+  //     switch (term) {
+  //     | Hole(s) =>
+  //       let. _ = otherwise(env, Hole(s) |> rewrap);
+  //       Constructor;
+  //     | HasTy(e, t) =>
+  //       let. _ = otherwise(env, (e, t) => HasTy(e, t) |> rewrap);
+  //       and. e' =
+  //         req_value(
+  //           req(state, env),
+  //           Fun.id,
+  //           (Derivation(Exp(e)): term) |> IdTagged.fresh,
+  //         )
+  //       and. t' =
+  //         req_value(
+  //           req(state, env),
+  //           Fun.id,
+  //           (Derivation(Typ(t)): term) |> IdTagged.fresh,
+  //         );
+  //       let e' =
+  //         switch (IdTagged.term_of(e')) {
+  //         | Derivation(Exp(e')) => e'
+  //         | _ => raise(EvaluatorError.Exception(InvalidBoxedIntLit(e')))
+  //         };
+  //     | _ =>
+  //       let. _ = otherwise(env, prop |> rewrap);
+  //       Constructor;
+  //     };
+  //   }
+  //   and req_exp_value = (exp: Drv.Exp.t, rewrap): EV.result => {
+  //     let. _ = otherwise(env, exp |> rewrap);
+  //     Constructor;
+  //   };
+  //   switch (drv) {
+  //   | Jdmt(jdmt) => req_jdmt_value(jdmt, jdmt => Jdmt(jdmt) |> rewrap)
+  //   | Prop(prop) => req_prop_value(prop, prop => Prop(prop) |> rewrap)
+  //   | Exp(exp) => req_exp_value(exp, exp => Exp(exp) |> rewrap)
+  //   | Pat(_)
+  //   | Typ(_)
+  //   | TPat(_) =>
+  //     let. _ = otherwise(env, drv |> rewrap);
+  //     Constructor;
+  //   };
+  // };
+
+  let replace_drv_abbrs = (env, d: t): t => {
+    let rec go_jdmt = jdmt => {
+      let (term, rewrap) = Drv.Jdmt.unwrap(jdmt);
+      let term: Drv.Jdmt.term =
+        switch (term) {
+        | Hole(s) => Hole(s)
+        | Val(e) => Val(go_exp(e))
+        | Eval(e1, e2) => Eval(e1, e2)
+        | Entail(p1, p2) => Entail(p1, p2)
+        };
+      term |> rewrap;
+    }
+    and go_prop = prop => {
+      let (term, rewrap) = Drv.Prop.unwrap(prop);
+      let term: Drv.Prop.term =
+        switch (term) {
+        | Hole(s) => Hole(s)
+        | HasTy(e, t) => HasTy(go_exp(e), t)
+        | Syn(e, t) => Syn(go_exp(e), t)
+        | Ana(e, t) => Ana(go_exp(e), t)
+        | Var(x) => Var(x)
+        | And(p1, p2) => And(go_prop(p1), go_prop(p2))
+        | Or(p1, p2) => Or(go_prop(p1), go_prop(p2))
+        | Impl(p1, p2) => Impl(go_prop(p1), go_prop(p2))
+        | Truth => Truth
+        | Falsity => Falsity
+        | Tuple(ps) => Tuple(List.map(go_prop, ps))
+        | Abbr(p) =>
+          let (let+) = (x, f) =>
+            switch (x) {
+            | Ok(x) => f(x)
+            | Error(s) => (Hole(Invalid(s)): Drv.Prop.term)
+            };
+          let+ p =
+            switch (IdTagged.term_of(p)) {
+            | Var(x) => Ok(x)
+            | _ => Error("Pat Not Var")
+            };
+          let+ d =
+            switch (ClosureEnvironment.lookup(env, p)) {
+            | Some(d) => Ok(d)
+            | None => Error("Pat Not Found")
+            };
+          let+ e =
+            switch (DHExp.term_of(d)) {
+            | Derivation(Prop(e)) => Ok(e)
+            | _ => Error("Pat Not Prop type")
+            };
+          e |> IdTagged.unwrap |> fst;
+        | Parens(p) => Parens(go_prop(p))
+        };
+      term |> rewrap;
+    }
+    and go_exp = exp => {
+      let (term, rewrap) = Drv.Exp.unwrap(exp);
+      let term: Drv.Exp.term =
+        switch (term) {
+        | Hole(s) => Hole(s)
+        | NumLit(n) => NumLit(n)
+        | Neg(e) => Neg(go_exp(e))
+        | Plus(e1, e2) => Plus(go_exp(e1), go_exp(e2))
+        | Minus(e1, e2) => Minus(go_exp(e1), go_exp(e2))
+        | Times(e1, e2) => Times(go_exp(e1), go_exp(e2))
+        | Gt(e1, e2) => Gt(go_exp(e1), go_exp(e2))
+        | Lt(e1, e2) => Lt(go_exp(e1), go_exp(e2))
+        | Eq(e1, e2) => Eq(go_exp(e1), go_exp(e2))
+        | True => True
+        | False => False
+        | If(e1, e2, e3) => If(go_exp(e1), go_exp(e2), go_exp(e3))
+        | Var(x) => Var(x)
+        | Let(x, e1, e2) => Let(x, go_exp(e1), go_exp(e2))
+        | Fix(x, e) => Fix(x, go_exp(e))
+        | Fun(x, e) => Fun(x, go_exp(e))
+        | Ap(e1, e2) => Ap(go_exp(e1), go_exp(e2))
+        | Pair(e1, e2) => Pair(go_exp(e1), go_exp(e2))
+        | Triv => Triv
+        | PrjL(e) => PrjL(go_exp(e))
+        | PrjR(e) => PrjR(go_exp(e))
+        | InjL => InjL
+        | InjR => InjR
+        | Case(e1, x, e2, y, e3) =>
+          Case(go_exp(e1), x, go_exp(e2), y, go_exp(e3))
+        | Roll => Roll
+        | Unroll => Unroll
+        | Abbr(p) =>
+          let (let+) = (x, f) =>
+            switch (x) {
+            | Ok(x) => f(x)
+            | Error(s) => (Hole(Invalid(s)): Drv.Exp.term)
+            };
+          let+ p =
+            switch (IdTagged.term_of(p)) {
+            | Var(x) => Ok(x)
+            | _ => Error("Pat Not Var")
+            };
+          let+ d =
+            switch (ClosureEnvironment.lookup(env, p)) {
+            | Some(d) => Ok(d)
+            | None => Error("Pat Not Found")
+            };
+          let+ e =
+            switch (DHExp.term_of(d)) {
+            | Derivation(Exp(e)) => Ok(e)
+            | _ => Error("Pat Not ALFA_Exp type")
+            };
+          e |> IdTagged.unwrap |> fst;
+        | Parens(e) => Parens(go_exp(e))
+        };
+      term |> rewrap;
+    };
+    let (term, rewrap) = IdTagged.unwrap(d);
+    let term: term =
+      switch (term) {
+      | Derivation(Jdmt(jdmt)) => Derivation(Jdmt(go_jdmt(jdmt)))
+      | Derivation(Prop(prop)) => Derivation(Prop(go_prop(prop)))
+      | Derivation(Exp(exp)) => Derivation(Exp(go_exp(exp)))
+      | _ => term
+      };
+    term |> rewrap;
+  };
+
   let transition = (req, state, env, d): 'a => {
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
@@ -343,23 +552,6 @@ module Transition = (EV: EV_MODE) => {
           d2,
         );
       switch (DHExp.term_of(d1')) {
-      // | Constructor(ctr, ty)
-      //     when
-      //       ctr
-      //       |> BuiltinsDerivation.to_term
-      //       |> Option.is_some
-      //       && Typ.matched_arrow([], ty)
-      //       |> snd
-      //       |> Typ.term_of == Typ.Prop =>
-      //   let term = ctr |> BuiltinsDerivation.to_term |> Option.get;
-      //   let expr = BuiltinsDerivation.transit(term, Some(d2'));
-      //   Step({
-      //     expr,
-      //     state_update,
-      //     // TODO(zhiyao): add new kind
-      //     kind: BuiltinAp(ctr),
-      //     is_value: false // Not necessarily a value because of InvalidOperations
-      //   });
       | Constructor(_) => Constructor
       | Fun(dp, d3, Some(env'), _) =>
         let.match env'' = (env', matches(dp, d2'));
@@ -459,32 +651,22 @@ module Transition = (EV: EV_MODE) => {
     | Deferral(_) =>
       let. _ = otherwise(env, d);
       Indet;
-    // | Constructor(ctr, ty)
-    //     when
-    //       ctr
-    //       |> BuiltinsDerivation.to_term
-    //       |> Option.is_some
-    //       && ty
-    //       |> Typ.term_of == Typ.Prop =>
-    //   let. _ = otherwise(env, d);
-    //   let term = ctr |> BuiltinsDerivation.to_term |> Option.get;
-    //   let expr = BuiltinsDerivation.transit(term, None);
-    //   Step({
-    //     expr,
-    //     state_update,
-    //     // TODO(zhiyao): add new kind
-    //     kind: BuiltinAp(ctr),
-    //     is_value: false // Not necessarily a value because of InvalidOperations
-    //   });
     | Bool(_)
     | Int(_)
     | Float(_)
     | String(_)
-    | Derivation(_)
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
+    | Derivation(_) =>
+      let. _ = otherwise(env, d);
+      Step({
+        expr: replace_drv_abbrs(env, d),
+        state_update,
+        kind: InvalidStep,
+        is_value: true,
+      });
     | If(c, d1, d2) =>
       let. _ = otherwise(env, c => If(c, d1, d2) |> rewrap)
       and. c' =

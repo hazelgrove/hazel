@@ -235,7 +235,15 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
     "int_lit",
-    (is_int, [mk_op(Exp, []), mk_op(Pat, []), mk_op(Drv(Typ), [])]),
+    (
+      is_int,
+      [
+        mk_op(Exp, []),
+        mk_op(Pat, []),
+        mk_op(Drv(Exp), []),
+        mk_op(Drv(Typ), []),
+      ],
+    ),
   ),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
@@ -365,12 +373,20 @@ let forms: list((string, t)) = [
   ),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
   // Drv
-  ("of_alfa_typ", mk(ds, ["of_Typ", "end"], mk_op(Exp, [Drv(Typ)]))),
-  ("of_alfa_exp", mk(ds, ["of_Exp", "end"], mk_op(Exp, [Drv(Exp)]))),
-  ("of_alfa_pat", mk(ds, ["of_Pat", "end"], mk_op(Exp, [Drv(Pat)]))),
-  ("of_alfa_tpat", mk(ds, ["of_TPat", "end"], mk_op(Exp, [Drv(TPat)]))),
-  ("of_prop", mk(ds, ["of_Prop", "end"], mk_op(Exp, [Drv(Prop)]))),
-  ("of_jdmt", mk(ds, ["of_Jdmt", "end"], mk_op(Exp, [Drv(Jdmt)]))),
+  // ("of_alfa_typ", mk(ds, ["of_Typ", "end"], mk_op(Exp, [Drv(Typ)]))),
+  // ("of_alfa_exp", mk(ds, ["of_Exp", "end"], mk_op(Exp, [Drv(Exp)]))),
+  // ("of_alfa_pat", mk(ds, ["of_Pat", "end"], mk_op(Exp, [Drv(Pat)]))),
+  // ("of_alfa_tpat", mk(ds, ["of_TPat", "end"], mk_op(Exp, [Drv(TPat)]))),
+  // ("of_prop", mk(ds, ["of_Prop", "end"], mk_op(Exp, [Drv(Prop)]))),
+  // ("of_jdmt", mk(ds, ["of_Jdmt", "end"], mk_op(Exp, [Drv(Jdmt)]))),
+  (
+    "prop_alias",
+    mk(ds, ["prop", "=", "in"], mk_pre(P.let_, Exp, [Pat, Drv(Prop)])),
+  ),
+  (
+    "alfa_alias",
+    mk(ds, ["alfa", "=", "in"], mk_pre(P.let_, Exp, [Pat, Drv(Exp)])),
+  ),
   ("fake_val", mk(ds, ["val", "in"], mk_pre(P.filter, Exp, [Exp]))),
   ("fake_entail", mk(ds, ["entail", "in"], mk_pre(P.filter, Exp, [Exp]))),
   ("val", mk(ii, ["val", "end"], mk_op(Drv(Jdmt), [Drv(Exp)]))),
@@ -420,6 +436,7 @@ let forms: list((string, t)) = [
   ("impl", mk_infix("==>", Drv(Prop), P.ann)),
   ("cons", mk_infix(",", Drv(Prop), P.comma)),
   ("parens_prop", mk(ii, ["(", ")"], mk_op(Drv(Prop), [Drv(Prop)]))),
+  ("abbr_prop", mk(ii, ["{", "}"], mk_op(Drv(Prop), [Pat]))),
   // Drv(Exp)
   ("exp_neg", mk(ds, ["-"], mk_pre(P.neg, Drv(Exp), []))),
   ("exp_plus", mk_infix("+", Drv(Exp), P.plus)),
@@ -469,6 +486,7 @@ let forms: list((string, t)) = [
     ),
   ),
   ("exp_parens", mk(ii, ["(", ")"], mk_op(Drv(Exp), [Drv(Exp)]))),
+  ("abbr_exp", mk(ii, ["{", "}"], mk_op(Drv(Exp), [Pat]))),
   // Drv(Pat)
   (
     "pat_cast",

@@ -191,6 +191,12 @@ let drv_view = (status: DrvInfo.t) => {
     | Typ(BadToken(token))
     | TPat(BadToken(token)) =>
       div_err([text(Printf.sprintf("\"%s\" isn't a valid token", token))])
+    | Jdmt(MultiHole)
+    | Prop(MultiHole)
+    | Exp(MultiHole)
+    | Pat(MultiHole)
+    | Typ(MultiHole)
+    | TPat(MultiHole) => div_err([text("Expecting operator or delimiter")])
     | Pat(Expect(expect)) =>
       let expect =
         switch (expect) {
@@ -204,14 +210,10 @@ let drv_view = (status: DrvInfo.t) => {
         | InjR => "A Right Injection pattern"
         };
       div_err([text("Expected " ++ expect)]);
-    | Jdmt(MultiHole)
-    | Prop(MultiHole)
-    | Exp(MultiHole)
-    | Pat(MultiHole)
-    | Typ(MultiHole)
-    | TPat(MultiHole) => div_err([text("Expecting operator or delimiter")])
     | Exp(NotAllowSingle) =>
       div_err([text("Expected a compound expression of this")])
+    | Prop(NotAllowTuple) =>
+      div_err([text("Expected no comma in this position")])
     }
   };
 };

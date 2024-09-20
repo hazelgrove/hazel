@@ -224,6 +224,7 @@ and prop_term: unsorted => (Drv.Prop.term, list(Id.t)) = {
     }
   | Op(([(_id, (["(", ")"], [Drv(Prop(body))]))], [])) =>
     ret(Parens(body))
+  | Op(([(_id, (["{", "}"], [Pat(var)]))], [])) => ret(Abbr(var))
   | Pre(([(_id, ([t1, t2], [Drv(Exp(l))]))], []), Drv(Typ(r))) as tm =>
     switch (t1, t2) {
     | ("hasty", ":") => ret(HasTy(l, r))
@@ -271,6 +272,7 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     }
   | Op(([(_id, (["(", ")"], [Drv(Exp(body))]))], [])) =>
     ret(Parens(body))
+  | Op(([(_id, (["{", "}"], [Pat(var)]))], [])) => ret(Abbr(var))
   | Pre(([(_id, t)], []), Drv(Exp(r))) as tm =>
     switch (t) {
     | (["-"], []) => ret(Neg(r))
@@ -426,13 +428,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           Match(scrut, rules),
           ids,
         )
-      | (["of_Typ", "end"], [Drv(Typ(ty))]) => ret(Derivation(Typ(ty)))
-      | (["of_Exp", "end"], [Drv(Exp(e))]) => ret(Derivation(Exp(e)))
-      | (["of_Pat", "end"], [Drv(Pat(p))]) => ret(Derivation(Pat(p)))
-      | (["of_TPat", "end"], [Drv(TPat(tp))]) =>
-        ret(Derivation(TPat(tp)))
-      | (["of_Prop", "end"], [Drv(Prop(p))]) => ret(Derivation(Prop(p)))
-      | (["of_Jdmt", "end"], [Drv(Jdmt(j))]) => ret(Derivation(Jdmt(j)))
       | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))
@@ -461,6 +456,10 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           Filter(Filter({act: (Step, All), pat: filter}), r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
+        | (["prop", "=", "in"], [Pat(pat), Drv(Prop(def))]) =>
+          Let(pat, UExp.Derivation(Prop(def)) |> UExp.fresh, r)
+        | (["alfa", "=", "in"], [Pat(pat), Drv(Exp(def))]) =>
+          Let(pat, UExp.Derivation(Exp(def)) |> UExp.fresh, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
         | _ => hole(tm)

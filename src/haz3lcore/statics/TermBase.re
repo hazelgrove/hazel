@@ -62,7 +62,7 @@ module rec Any: {
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      ~f_derivation: Drv.mapper=?,
+      ~f_drv: Drv.mapper=?,
       t
     ) =>
     t;
@@ -88,12 +88,14 @@ module rec Any: {
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
-        ~f_derivation=Drv.continue,
+        ~f_drv=Drv.drv_continue,
         x,
       ) => {
+    let pat_map_term =
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = y =>
       switch (y) {
-      | Drv(x) => Drv(Drv.map_term(f_derivation, x))
+      | Drv(x) => Drv(Drv.map_term(~f_hazel_pat=pat_map_term, ~f_drv, x))
       | Exp(x) =>
         Exp(
           Exp.map_term(
@@ -103,12 +105,11 @@ module rec Any: {
             ~f_tpat,
             ~f_rul,
             ~f_any,
-            ~f_derivation,
+            ~f_drv,
             x,
           ),
         )
-      | Pat(x) =>
-        Pat(Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
+      | Pat(x) => Pat(pat_map_term(x))
       | Typ(x) =>
         Typ(Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
       | TPat(x) =>
@@ -219,7 +220,7 @@ and Exp: {
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      ~f_derivation: Drv.mapper=?,
+      ~f_drv: Drv.mapper=?,
       t
     ) =>
     t;
@@ -285,19 +286,11 @@ and Exp: {
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
-        ~f_derivation=Drv.continue,
+        ~f_drv=Drv.drv_continue,
         x,
       ) => {
     let exp_map_term =
-      Exp.map_term(
-        ~f_exp,
-        ~f_pat,
-        ~f_typ,
-        ~f_tpat,
-        ~f_rul,
-        ~f_any,
-        ~f_derivation,
-      );
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
     let pat_map_term =
       Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let typ_map_term =
@@ -315,6 +308,7 @@ and Exp: {
         ~f_rul,
         ~f_any,
       );
+    let drv_map_term = Drv.map_term(~f_hazel_pat=pat_map_term, ~f_drv);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -369,7 +363,7 @@ and Exp: {
             ),
           )
         | Cast(e, t1, t2) => Cast(exp_map_term(e), t1, t2)
-        | Derivation(d) => Derivation(Drv.map_term(f_derivation, d))
+        | Derivation(e) => Derivation(drv_map_term(e))
         },
     };
     x |> f_exp(rec_call);
@@ -1228,9 +1222,9 @@ and Drv: {
     f_tpat: (ALFA_TPat.t => ALFA_TPat.t, ALFA_TPat.t) => ALFA_TPat.t,
   };
 
-  let continue: mapper;
+  let drv_continue: mapper;
 
-  let map_term: (mapper, t) => t;
+  let map_term: (~f_hazel_pat: Pat.t => Pat.t=?, ~f_drv: mapper=?, t) => t;
 
   let fast_equal: (t, t) => bool;
 } = {
@@ -1252,7 +1246,7 @@ and Drv: {
     f_tpat: (ALFA_TPat.t => ALFA_TPat.t, ALFA_TPat.t) => ALFA_TPat.t,
   };
 
-  let continue = {
+  let drv_continue = {
     f_jdmt: continue,
     f_prop: continue,
     f_exp: continue,
@@ -1261,30 +1255,43 @@ and Drv: {
     f_tpat: continue,
   };
 
-  let map_term: (mapper, t) => t =
-    ({f_jdmt, f_prop, f_exp, f_pat, f_typ, f_tpat}, x) => {
-      switch (x) {
-      | Jdmt(jdmt) =>
-        Jdmt(
-          Jdmt.map_term(
-            ~f_jdmt,
-            ~f_prop,
-            ~f_exp,
-            ~f_pat,
-            ~f_typ,
-            ~f_tpat,
-            jdmt,
-          ),
-        )
-      | Prop(prop) =>
-        Prop(Prop.map_term(~f_prop, ~f_exp, ~f_pat, ~f_typ, ~f_tpat, prop))
-      | Exp(exp) =>
-        Exp(ALFA_Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, exp))
-      | Pat(pat) => Pat(ALFA_Pat.map_term(~f_pat, ~f_typ, ~f_tpat, pat))
-      | Typ(typ) => Typ(ALFA_Typ.map_term(~f_typ, ~f_tpat, typ))
-      | TPat(tpat) => TPat(ALFA_TPat.map_term(~f_tpat, tpat))
-      };
+  let map_term = (~f_hazel_pat=continue, ~f_drv=drv_continue, x: t) => {
+    let {f_jdmt, f_prop, f_exp, f_pat, f_typ, f_tpat} = f_drv;
+    switch (x) {
+    | Jdmt(jdmt) =>
+      Jdmt(
+        Jdmt.map_term(
+          ~f_hazel_pat,
+          ~f_jdmt,
+          ~f_prop,
+          ~f_exp,
+          ~f_pat,
+          ~f_typ,
+          ~f_tpat,
+          jdmt,
+        ),
+      )
+    | Prop(prop) =>
+      Prop(
+        Prop.map_term(
+          ~f_hazel_pat,
+          ~f_prop,
+          ~f_exp,
+          ~f_pat,
+          ~f_typ,
+          ~f_tpat,
+          prop,
+        ),
+      )
+    | Exp(exp) =>
+      Exp(
+        ALFA_Exp.map_term(~f_hazel_pat, ~f_exp, ~f_pat, ~f_typ, ~f_tpat, exp),
+      )
+    | Pat(pat) => Pat(ALFA_Pat.map_term(~f_pat, ~f_typ, ~f_tpat, pat))
+    | Typ(typ) => Typ(ALFA_Typ.map_term(~f_typ, ~f_tpat, typ))
+    | TPat(tpat) => TPat(ALFA_TPat.map_term(~f_tpat, tpat))
     };
+  };
 
   let fast_equal = (x, y) =>
     switch (x, y) {
@@ -1313,6 +1320,7 @@ and Jdmt: {
 
   let map_term:
     (
+      ~f_hazel_pat: Pat.t => Pat.t=?,
       ~f_jdmt: (Jdmt.t => Jdmt.t, Jdmt.t) => Jdmt.t=?,
       ~f_prop: (Prop.t => Prop.t, Prop.t) => Prop.t=?,
       ~f_exp: (ALFA_Exp.t => ALFA_Exp.t, ALFA_Exp.t) => ALFA_Exp.t=?,
@@ -1335,6 +1343,7 @@ and Jdmt: {
 
   let map_term =
       (
+        ~f_hazel_pat=continue,
         ~f_jdmt=continue,
         ~f_prop=continue,
         ~f_exp=continue,
@@ -1344,8 +1353,9 @@ and Jdmt: {
         x,
       ) => {
     let prop_map_term =
-      Prop.map_term(~f_prop, ~f_exp, ~f_pat, ~f_typ, ~f_tpat);
-    let exp_map_term = ALFA_Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat);
+      Prop.map_term(~f_hazel_pat, ~f_prop, ~f_exp, ~f_pat, ~f_typ, ~f_tpat);
+    let exp_map_term =
+      ALFA_Exp.map_term(~f_hazel_pat, ~f_exp, ~f_pat, ~f_typ, ~f_tpat);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -1386,11 +1396,13 @@ and Prop: {
     | Truth
     | Falsity
     | Tuple(list(t))
+    | Abbr(Pat.t)
     | Parens(t)
   and t = IdTagged.t(term);
 
   let map_term:
     (
+      ~f_hazel_pat: Pat.t => Pat.t=?,
       ~f_prop: (Prop.t => Prop.t, Prop.t) => Prop.t=?,
       ~f_exp: (ALFA_Exp.t => ALFA_Exp.t, ALFA_Exp.t) => ALFA_Exp.t=?,
       ~f_pat: (ALFA_Pat.t => ALFA_Pat.t, ALFA_Pat.t) => ALFA_Pat.t=?,
@@ -1415,11 +1427,13 @@ and Prop: {
     | Truth
     | Falsity
     | Tuple(list(t))
+    | Abbr(Pat.t)
     | Parens(t)
   and t = IdTagged.t(term);
 
   let map_term =
       (
+        ~f_hazel_pat=continue,
         ~f_prop=continue,
         ~f_exp=continue,
         ~f_pat=continue,
@@ -1427,7 +1441,8 @@ and Prop: {
         ~f_tpat=continue,
         x,
       ) => {
-    let exp_map_term = ALFA_Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat);
+    let exp_map_term =
+      ALFA_Exp.map_term(~f_hazel_pat, ~f_exp, ~f_pat, ~f_typ, ~f_tpat);
     let typ_map_term = ALFA_Typ.map_term(~f_typ, ~f_tpat);
     let prop_map_term =
       Prop.map_term(~f_prop, ~f_exp, ~f_pat, ~f_typ, ~f_tpat);
@@ -1446,6 +1461,7 @@ and Prop: {
         | Truth => Truth
         | Falsity => Falsity
         | Tuple(pl) => Tuple(List.map(prop_map_term, pl))
+        | Abbr(e) => Abbr(f_hazel_pat(e))
         | Parens(p) => Parens(prop_map_term(p))
         },
     };
@@ -1481,6 +1497,8 @@ and Prop: {
     | (Falsity, _) => false
     | (Tuple(pl1), Tuple(pl2)) => List.equal(Prop.fast_equal, pl1, pl2)
     | (Tuple(_), _) => false
+    | (Abbr(p1), Abbr(p2)) => Pat.fast_equal(p1, p2)
+    | (Abbr(_), _) => false
     | (Parens(p1), Parens(p2)) => Prop.fast_equal(p1, p2)
     | (Parens(_), _) => false
     };
@@ -1514,11 +1532,13 @@ and ALFA_Exp: {
     | Case(t, ALFA_Pat.t, t, ALFA_Pat.t, t)
     | Roll
     | Unroll
+    | Abbr(Pat.t)
     | Parens(t)
   and t = IdTagged.t(term);
 
   let map_term:
     (
+      ~f_hazel_pat: Pat.t => Pat.t=?,
       ~f_exp: (ALFA_Exp.t => ALFA_Exp.t, ALFA_Exp.t) => ALFA_Exp.t=?,
       ~f_pat: (ALFA_Pat.t => ALFA_Pat.t, ALFA_Pat.t) => ALFA_Pat.t=?,
       ~f_typ: (ALFA_Typ.t => ALFA_Typ.t, ALFA_Typ.t) => ALFA_Typ.t=?,
@@ -1526,10 +1546,6 @@ and ALFA_Exp: {
       t
     ) =>
     t;
-
-  let subst: (t, Var.t, t) => t;
-
-  let subst_ty: (ALFA_Typ.t, Var.t, t) => t;
 
   let fast_equal: (t, t) => bool;
 } = {
@@ -1561,12 +1577,21 @@ and ALFA_Exp: {
     | Case(t, ALFA_Pat.t, t, ALFA_Pat.t, t)
     | Roll
     | Unroll
+    | Abbr(Pat.t)
     | Parens(t)
   and t = IdTagged.t(term);
 
   let map_term =
-      (~f_exp=continue, ~f_pat=continue, ~f_typ=continue, ~f_tpat=continue, x) => {
-    let exp_map_term = ALFA_Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat);
+      (
+        ~f_hazel_pat=continue,
+        ~f_exp=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_tpat=continue,
+        x,
+      ) => {
+    let exp_map_term =
+      ALFA_Exp.map_term(~f_hazel_pat, ~f_exp, ~f_pat, ~f_typ, ~f_tpat);
     let pat_map_term = ALFA_Pat.map_term(~f_pat, ~f_typ, ~f_tpat);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
@@ -1607,92 +1632,11 @@ and ALFA_Exp: {
           )
         | Roll => Roll
         | Unroll => Unroll
+        | Abbr(e) => Abbr(f_hazel_pat(e))
         | Parens(e) => Parens(exp_map_term(e))
         },
     };
     x |> f_exp(rec_call);
-  };
-
-  let rec subst = (v, x, e) => {
-    let (term, rewrap) = IdTagged.unwrap(e);
-    let subst = subst(v, x);
-    let is_shadowed = p => ALFA_Pat.var_of_pat(p) == Some(x);
-    let subx = p => is_shadowed(p) ? Fun.id : subst;
-    switch (term) {
-    | Hole(_) => e
-    | NumLit(_) => e
-    | Neg(e) => Neg(subst(e)) |> rewrap
-    | Plus(e1, e2) => Plus(subst(e1), subst(e2)) |> rewrap
-    | Minus(e1, e2) => Minus(subst(e1), subst(e2)) |> rewrap
-    | Times(e1, e2) => Times(subst(e1), subst(e2)) |> rewrap
-    | Gt(e1, e2) => Gt(subst(e1), subst(e2)) |> rewrap
-    | Lt(e1, e2) => Lt(subst(e1), subst(e2)) |> rewrap
-    | Eq(e1, e2) => Eq(subst(e1), subst(e2)) |> rewrap
-    | True => e
-    | False => e
-    | If(e1, e2, e3) => If(subst(e1), subst(e2), subst(e3)) |> rewrap
-    | Var(x') => x' == x ? v : e
-    | Let(p, e1, e2) => Let(p, subst(e1), subx(p, e2)) |> rewrap
-    | Fix(p, e) => Fix(p, subx(p, e)) |> rewrap
-    | Fun(p, e) => Fun(p, subx(p, e)) |> rewrap
-    | Ap(e1, e2) => Ap(subst(e1), subst(e2)) |> rewrap
-    | Pair(e1, e2) => Pair(subst(e1), subst(e2)) |> rewrap
-    | Triv => e
-    | PrjL(e) => PrjL(subst(e)) |> rewrap
-    | PrjR(e) => PrjR(subst(e)) |> rewrap
-    | InjL => e
-    | InjR => e
-    | Case(e, p1, e1, p2, e2) =>
-      Case(subst(e), p1, subx(p1, e1), p2, subx(p2, e2)) |> rewrap
-    | Roll => e
-    | Unroll => e
-    | Parens(e) => Parens(subst(e)) |> rewrap
-    };
-  };
-
-  let rec subst_ty = (t, x, e) => {
-    let (term, rewrap) = IdTagged.unwrap(e);
-    let subst_ty = subst_ty(t, x);
-    let pat_subst_ty = ALFA_Pat.subst_ty(t, x);
-    switch (term) {
-    | Hole(_) => e
-    | NumLit(_) => e
-    | Neg(e) => Neg(subst_ty(e)) |> rewrap
-    | Plus(e1, e2) => Plus(subst_ty(e1), subst_ty(e2)) |> rewrap
-    | Minus(e1, e2) => Minus(subst_ty(e1), subst_ty(e2)) |> rewrap
-    | Times(e1, e2) => Times(subst_ty(e1), subst_ty(e2)) |> rewrap
-    | Gt(e1, e2) => Gt(subst_ty(e1), subst_ty(e2)) |> rewrap
-    | Lt(e1, e2) => Lt(subst_ty(e1), subst_ty(e2)) |> rewrap
-    | Eq(e1, e2) => Eq(subst_ty(e1), subst_ty(e2)) |> rewrap
-    | True => e
-    | False => e
-    | If(e1, e2, e3) =>
-      If(subst_ty(e1), subst_ty(e2), subst_ty(e3)) |> rewrap
-    | Var(_) => e
-    | Let(p, e1, e2) =>
-      Let(pat_subst_ty(p), subst_ty(e1), subst_ty(e2)) |> rewrap
-    | Fix(p, e) => Fix(pat_subst_ty(p), subst_ty(e)) |> rewrap
-    | Fun(p, e) => Fun(pat_subst_ty(p), subst_ty(e)) |> rewrap
-    | Ap(e1, e2) => Ap(subst_ty(e1), subst_ty(e2)) |> rewrap
-    | Pair(e1, e2) => Pair(subst_ty(e1), subst_ty(e2)) |> rewrap
-    | Triv => e
-    | PrjL(e) => PrjL(subst_ty(e)) |> rewrap
-    | PrjR(e) => PrjR(subst_ty(e)) |> rewrap
-    | InjL => e
-    | InjR => e
-    | Case(e, p1, e1, p2, e2) =>
-      Case(
-        subst_ty(e),
-        pat_subst_ty(p1),
-        subst_ty(e1),
-        pat_subst_ty(p2),
-        subst_ty(e2),
-      )
-      |> rewrap
-    | Roll => e
-    | Unroll => e
-    | Parens(e) => Parens(subst_ty(e)) |> rewrap
-    };
   };
 
   let fast_equal = (x, y) =>
@@ -1769,6 +1713,8 @@ and ALFA_Exp: {
     | (Roll, _) => false
     | (Unroll, Unroll) => true
     | (Unroll, _) => false
+    | (Abbr(p1), Abbr(p2)) => Pat.fast_equal(p1, p2)
+    | (Abbr(_), _) => false
     | (Parens(e1), Parens(e2)) => ALFA_Exp.fast_equal(e1, e2)
     | (Parens(_), _) => false
     };
@@ -1794,10 +1740,6 @@ and ALFA_Pat: {
       t
     ) =>
     t;
-
-  let var_of_pat: t => option(Var.t);
-
-  let subst_ty: (ALFA_Typ.t, Var.t, t) => t;
 
   let fast_equal: (t, t) => bool;
 } = {
@@ -1831,34 +1773,6 @@ and ALFA_Pat: {
         },
     };
     x |> f_pat(rec_call);
-  };
-
-  let var_of_pat = x =>
-    switch (x |> IdTagged.term_of) {
-    | Hole(_) => None
-    | Var(v) => Some(v)
-    | Cast(p, _) => ALFA_Pat.var_of_pat(p)
-    | InjL => None
-    | InjR => None
-    | Ap(_) => None
-    | Pair(_) => None
-    | Parens(p) => ALFA_Pat.var_of_pat(p)
-    };
-
-  let rec subst_ty = (t, x, p) => {
-    let (term, rewrap) = IdTagged.unwrap(p);
-    let subst_ty = subst_ty(t, x);
-    switch (term) {
-    | Hole(_) => p
-    | Var(_) => p
-    | Cast(p, t') =>
-      Cast(subst_ty(p), ALFA_Typ.subst_ty(t, x, t')) |> rewrap
-    | InjL => p
-    | InjR => p
-    | Ap(t1, t2) => Ap(subst_ty(t1), subst_ty(t2)) |> rewrap
-    | Pair(t1, t2) => Pair(subst_ty(t1), subst_ty(t2)) |> rewrap
-    | Parens(p) => Parens(subst_ty(p)) |> rewrap
-    };
   };
 
   let fast_equal = (x, y) =>
@@ -1906,8 +1820,6 @@ and ALFA_Typ: {
     ) =>
     t;
 
-  let subst_ty: (ALFA_Typ.t, Var.t, t) => t;
-
   let fast_equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -1944,25 +1856,6 @@ and ALFA_Typ: {
         },
     };
     x |> f_typ(rec_call);
-  };
-
-  let rec subst_ty = (t, x, e) => {
-    let (term, rewrap) = IdTagged.unwrap(e);
-    let subst_ty = subst_ty(t, x);
-    let is_shadowed = p => ALFA_TPat.var_of_tpat(p) == Some(x);
-    let subx = p => is_shadowed(p) ? Fun.id : subst_ty;
-    switch (term) {
-    | Hole(_) => e
-    | Num => e
-    | Bool => e
-    | Arrow(t1, t2) => Arrow(subst_ty(t1), subst_ty(t2)) |> rewrap
-    | Prod(t1, t2) => Prod(subst_ty(t1), subst_ty(t2)) |> rewrap
-    | Unit => e
-    | Sum(t1, t2) => Sum(subst_ty(t1), subst_ty(t2)) |> rewrap
-    | Var(x') => x' == x ? t : e
-    | Rec(tp, t) => Rec(tp, subx(tp, t)) |> rewrap
-    | Parens(t) => Parens(subst_ty(t)) |> rewrap
-    };
   };
 
   let fast_equal = (x, y) =>
@@ -2003,8 +1896,6 @@ and ALFA_TPat: {
     (~f_tpat: (ALFA_TPat.t => ALFA_TPat.t, ALFA_TPat.t) => ALFA_TPat.t=?, t) =>
     t;
 
-  let var_of_tpat: t => option(Var.t);
-
   let fast_equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -2024,12 +1915,6 @@ and ALFA_TPat: {
     };
     x |> f_tpat(rec_call);
   };
-
-  let var_of_tpat = x =>
-    switch (x |> IdTagged.term_of) {
-    | Hole(_) => None
-    | Var(v) => Some(v)
-    };
 
   let fast_equal = (x, y) =>
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
