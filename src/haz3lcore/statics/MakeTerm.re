@@ -227,7 +227,7 @@ and prop_term: unsorted => (Drv.Prop.term, list(Id.t)) = {
   | Op(([(_id, (["{", "}"], [Pat(var)]))], [])) => ret(Abbr(var))
   | Pre(([(_id, ([t1, t2], [Drv(Exp(l))]))], []), Drv(Typ(r))) as tm =>
     switch (t1, t2) {
-    | ("hasty", ":") => ret(HasTy(l, r))
+    | ("typ", ":") => ret(HasTy(l, r))
     | ("syn", "=>") => ret(Syn(l, r))
     | ("ana", "<=") => ret(Ana(l, r))
     | _ => ret(hole(tm))

@@ -268,7 +268,7 @@ let mk_explanation_title = () =>
 
 let show_ghost = (t: option(t)) =>
   switch (t) {
-  | Some(t) => DrvSyntax.repr(t)
+  | Some(t) => DrvSyntax.repr(t) |> String.trim
   | None => "?"
   };
 

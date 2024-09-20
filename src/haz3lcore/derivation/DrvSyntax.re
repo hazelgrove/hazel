@@ -215,20 +215,16 @@ let rec repr = (p: int, prop: t): list(string) => {
     |> Aba.join(mk, repr)
     |> Aba.mk(
          _,
-         List.init(List.length(bs) + List.length(as_) - 1, _ =>
-           Unicode.nbsp
-         ),
+         List.init(List.length(bs) + List.length(as_) - 1, _ => " "),
        )
     |> Aba.join(Fun.id, mk)
     |> List.concat;
   let repr_aba_tight = (as_: list(string), bs: list(t)) =>
     Aba.mk(as_, bs) |> Aba.join(mk, repr) |> List.concat;
   let repr_binop = (op: string, a: t, b: t) =>
-    [repr(a), [Unicode.nbsp ++ op ++ Unicode.nbsp], repr(b)] |> List.concat;
-  let repr_postop = (op, a: t) =>
-    [repr(a), [Unicode.nbsp ++ op]] |> List.concat;
-  let repr_preop = (op, a: t) =>
-    [[op ++ Unicode.nbsp], repr(a)] |> List.concat;
+    [repr(a), [" " ++ op ++ " "], repr(b)] |> List.concat;
+  let repr_postop = (op, a: t) => [repr(a), [" " ++ op]] |> List.concat;
+  let repr_preop = (op, a: t) => [[op ++ " "], repr(a)] |> List.concat;
   (
     switch (IdTagged.term_of(prop)) {
     | Hole(s) => Printf.sprintf("[%s]", s) |> mk

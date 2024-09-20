@@ -109,7 +109,7 @@ let keywords = [
   "val",
   "eval",
   "entail",
-  "hasty",
+  "typ",
   "syn",
   "ana",
 ];
@@ -411,8 +411,8 @@ let forms: list((string, t)) = [
     "hasty",
     mk(
       ds,
-      ["hasty", ":"],
-      mk_pre'(P.semi, Drv(Prop), Drv(Prop), [Drv(Exp)], Drv(Typ)),
+      ["typ", ":"],
+      mk_pre'(P.fun_, Drv(Prop), Drv(Prop), [Drv(Exp)], Drv(Typ)),
     ),
   ),
   (
@@ -420,7 +420,7 @@ let forms: list((string, t)) = [
     mk(
       ds,
       ["syn", "=>"],
-      mk_pre'(P.semi, Drv(Prop), Drv(Prop), [Drv(Exp)], Drv(Typ)),
+      mk_pre'(P.fun_, Drv(Prop), Drv(Prop), [Drv(Exp)], Drv(Typ)),
     ),
   ),
   (
@@ -428,7 +428,7 @@ let forms: list((string, t)) = [
     mk(
       ds,
       ["ana", "<="],
-      mk_pre'(P.semi, Drv(Prop), Drv(Prop), [Drv(Exp)], Drv(Typ)),
+      mk_pre'(P.fun_, Drv(Prop), Drv(Prop), [Drv(Exp)], Drv(Typ)),
     ),
   ),
   ("and", mk_infix("/\\", Drv(Prop), P.and_)),

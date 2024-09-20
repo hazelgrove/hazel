@@ -780,7 +780,7 @@ and check: (t, operation) => result(bool, failure) =
       let$ x2 = unbox(x2, Pat);
       Ok(eq(self, subst(v2.self, x2, subst(v1.self, x1, e.self))));
     | SubstTy((t, a), e) =>
-      let$ a = unbox(a, TVar);
+      let$ a = unbox(a, TPat);
       Ok(eq(self, subst_ty(t.self, a, e.self)));
     | Cons(e, l) =>
       let$ l = unbox_list(l);
@@ -816,9 +816,6 @@ let expect_prems_num: (Rule.t, list(t)) => result(int => t, failure) =
   };
 
 let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => {
-  prems |> List.iter(p => print_endline(show(p)));
-  print_endline(show(concl));
-
   let$ prems = expect_prems_num(rule, prems);
   // The following symbols / operators are defined for convenience just
   // under this function.
@@ -1023,11 +1020,8 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = ctx >> !!MemHasTy(x, t);
     Ok();
   | T_Var =>
-    let$ (ctx, p) = concl >> Entail(__, __);
-    // TODO: The same as rule Assumption, we make it different by
-    // checking p is a HasTy proposition
-    let$ _ = p >> HasTy(__, __);
-    let$ _ = ctx >> !!Mem(p);
+    let$ (ctx, (x, t)) = concl >> Entail(__, HasTy(__, __));
+    let$ _ = ctx >> !!MemHasTy(x, t);
     Ok();
   | S_LetAnn =>
     let$ (ctx, ((x, t_def, e_def, e_body), t)) =
@@ -1169,7 +1163,9 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Eval(Pair(!el, !er), Pair(!vl, !vr));
     Ok();
   | V_Pair =>
-    let$ _ = concl >> Val(Pair(__, __));
+    let$ (vl, vr) = concl >> Val(Pair(__, __));
+    let$ _ = prems(0) >> Val(!vl);
+    let$ _ = prems(1) >> Val(!vr);
     Ok();
   | S_LetPair =>
     let$ (ctx, ((x, y, e_def, e_body), t)) =

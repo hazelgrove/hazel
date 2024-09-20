@@ -244,15 +244,11 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | S_Var =>
       let concl =
-        !Entail(!Ctx([!HasTy(x(), t1()), !Var("...")]), !Syn(x(), t1()));
+        !Entail(!Ctx([ctx(), !HasTy(x(), t1())]), !Syn(x(), t1()));
       {concl, prems: []};
     | T_Var =>
       let concl =
-        !
-          Entail(
-            !Ctx([!HasTy(x(), t1()), !Var("...")]),
-            !HasTy(x(), t1()),
-          );
+        !Entail(!Ctx([ctx(), !HasTy(x(), t1())]), !HasTy(x(), t1()));
       {concl, prems: []};
     | S_LetAnn =>
       let prems = [
@@ -352,7 +348,7 @@ let of_ghost: Rule.t => deduction(t) =
       let concl = !Entail(ctx(), !HasTy(!FixAnn(xp(), t1(), e()), t1()));
       {concl, prems};
     | E_Fix =>
-      let prems = [!Eval(ex(), v())];
+      let prems = [!Eval(!Var("[fix x → e₁/x]e₁"), v())];
       let concl = !Eval(!Fix(xp(), e1()), v());
       {concl, prems};
     | S_Ap =>
@@ -436,7 +432,7 @@ let of_ghost: Rule.t => deduction(t) =
     | E_LetPair =>
       let prems = [
         !Eval(e1(), !Pair(v1(), v2())),
-        !Eval(!Var("[v2/y][v1/x]e1"), v()),
+        !Eval(!Var("[v₂/y][v₁/x]e₁"), v()),
       ];
       let concl = !Eval(!LetPair(xp(), yp(), e1(), e2()), v());
       {concl, prems};
@@ -528,7 +524,10 @@ let of_ghost: Rule.t => deduction(t) =
       let concl = !Eval(!Case(e(), xp(), e1(), yp(), e2()), v());
       {concl, prems};
     | E_Case_R =>
-      let prems = [!Eval(e(), !InjR(v2())), !Eval(!Var("[v2/y]e2"), v())];
+      let prems = [
+        !Eval(e(), !InjR(v2())),
+        !Eval(!Var("[v₂/y]e₂"), v()),
+      ];
       let concl = !Eval(!Case(e(), xp(), e1(), yp(), e2()), v());
       {concl, prems};
     | T_Roll =>
@@ -553,7 +552,7 @@ let of_ghost: Rule.t => deduction(t) =
       let concl = !Eval(!Unroll(e()), v());
       {concl, prems};
     | Assumption =>
-      let concl = !Entail(!Ctx([!Var("Γ"), !TVar("p")]), p());
+      let concl = !Entail(!Ctx([ctx(), p()]), p());
       {concl, prems: []};
     | And_I =>
       let prems = [!Entail(ctx(), a()), !Entail(ctx(), b())];
