@@ -163,49 +163,49 @@ let rec rearrange2:
         | None => remaining
         };
       };
-    print_endline("================");
-    print_endline("l1: " ++ [%derive.show: list(option(string))](l1));
-    Option.iter(
-      sa =>
-        print_endline(
-          "l2: ["
-          ++ String.concat(
-               ",",
-               List.map(
-                 l2e =>
-                   "("
-                   ++ [%derive.show: option(string)](fst(l2e))
-                   ++ ","
-                   ++ sa(snd(l2e))
-                   ++ ")",
-                 l2,
-               ),
-             )
-          ++ "]",
-        ),
-      show_b,
-    );
-    Option.iter(
-      sa =>
-        print_endline(
-          "returnable: ["
-          ++ String.concat(
-               ",",
-               List.map(
-                 l2e =>
-                   "("
-                   ++ [%derive.show: option(string)](fst(l2e))
-                   ++ ","
-                   ++ sa(snd(l2e))
-                   ++ ")",
-                 returnable,
-               ),
-             )
-          ++ "]",
-        ),
-      show_b,
-    );
-    print_endline("================");
+    // print_endline("================");
+    // print_endline("l1: " ++ [%derive.show: list(option(string))](l1));
+    // Option.iter(
+    //   sa =>
+    //     print_endline(
+    //       "l2: ["
+    //       ++ String.concat(
+    //            ",",
+    //            List.map(
+    //              l2e =>
+    //                "("
+    //                ++ [%derive.show: option(string)](fst(l2e))
+    //                ++ ","
+    //                ++ sa(snd(l2e))
+    //                ++ ")",
+    //              l2,
+    //            ),
+    //          )
+    //       ++ "]",
+    //     ),
+    //   show_b,
+    // );
+    // Option.iter(
+    //   sa =>
+    //     print_endline(
+    //       "returnable: ["
+    //       ++ String.concat(
+    //            ",",
+    //            List.map(
+    //              l2e =>
+    //                "("
+    //                ++ [%derive.show: option(string)](fst(l2e))
+    //                ++ ","
+    //                ++ sa(snd(l2e))
+    //                ++ ")",
+    //              returnable,
+    //            ),
+    //          )
+    //       ++ "]",
+    //     ),
+    //   show_b,
+    // );
+    // print_endline("================");
 
     returnable;
   };

@@ -463,11 +463,19 @@ let matched_label = (ctx, ty) =>
   | _ => (Unknown(Internal) |> temp, ty)
   };
 
+let rec get_labels = (ctx, ty): list(option(string)) => {
+  let ty = weak_head_normalize(ctx, ty);
+  switch (term_of(ty)) {
+  | Parens(ty) => get_labels(ctx, ty)
+  | Prod(tys) => List.map(x =>Option.map(fst, get_label(x)), tys)
+  | _ => []
+  };
+};
+
 let rec matched_prod_strict:
-  'a 'b.
+  'a.
   (
     ~show_a: 'a => string=?,
-    ~show_b: 'b => string=?,
     Ctx.t,
     list('a),
     'a => option((string, 'a)),
@@ -475,30 +483,16 @@ let rec matched_prod_strict:
   ) =>
   option(list(t))
  =
-  (~show_a=?, ~show_b=?, ctx: Ctx.t, ts, get_label_ts, ty: t) => {
-    let _ = show_b;
+  (~show_a=?, ctx: Ctx.t, ts, get_label_ts : 'a => option((string, 'a)), ty: t) => {
     let normalized: term = term_of(weak_head_normalize(ctx, ty));
     print_endline("normalized: " ++ show_term(normalized));
     switch (normalized) {
-    | Parens(ty) =>
-      matched_prod_strict(~show_a?, ~show_b?, ctx, ts, get_label_ts, ty)
+    | Parens(ty) => matched_prod_strict(~show_a?, ctx, ts, get_label_ts, ty)
     | Prod(tys: list(t)) =>
       if (List.length(ts) != List.length(tys)) {
         None;
       } else {
-        let foo: t => option((string, t)) = get_label;
-        let get_label_ts2: 'a => option((string, 'a)) = get_label_ts;
-        let baz: list('a) =
-          LabeledTuple.rearrange(
-            foo,
-            get_label_ts2,
-            tys,
-            ts,
-            (_name, b) => {
-              let returnable: 'a = b;
-              returnable;
-            },
-          );
+        
         let bar: option(list(t)) =
           Some(
             LabeledTuple.rearrange(
@@ -506,12 +500,6 @@ let rec matched_prod_strict:
               TupLabel(Label(name) |> temp, b) |> temp
             ),
           );
-
-        Option.iter(
-          sa =>
-            print_endline("baz: " ++ String.concat(",", List.map(sa, baz))),
-          show_a,
-        );
         bar;
       }
     | Unknown(SynSwitch) =>
