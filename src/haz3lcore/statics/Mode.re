@@ -70,7 +70,9 @@ let of_label = (ctx: Ctx.t, mode: t): (t, t) =>
     (ana(ty1), ana(ty2));
   };
 
-let of_prod = (ctx: Ctx.t, mode: t, ts: list('a), filt): list(t) =>
+let of_prod =
+    (ctx: Ctx.t, mode: t, ts: list('a), filt: 'a => option((string, 'a)))
+    : list(t) =>
   switch (mode) {
   | Syn
   | SynFun

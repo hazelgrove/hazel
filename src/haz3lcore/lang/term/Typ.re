@@ -463,29 +463,66 @@ let matched_label = (ctx, ty) =>
   | _ => (Unknown(Internal) |> temp, ty)
   };
 
-let rec matched_prod_strict = (
-      ~show_a: option('a => string)=?,
-      ~show_b: option('b => string)=?, ctx, ts, get_label_ts, (ty : t)) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_prod_strict(ctx, ts, get_label_ts, ty)
-  | Prod(tys) =>
-    if (List.length(ts) != List.length(tys)) {
-      None;
-    } else {
-      Some(
-        LabeledTuple.rearrange(~show_a=?show_a,
-        ~show_b=?show_b,get_label_ts, get_label, ts, tys, (name, b) =>
-          TupLabel(Label(name) |> temp, b) |> temp
-        ),
-      );
-    }
-  | Unknown(SynSwitch) =>
-    Some(List.init(List.length(ts), _ => Unknown(SynSwitch) |> temp))
-  | _ => None
+let rec matched_prod_strict:
+  'a 'b.
+  (
+    ~show_a: 'a => string=?,
+    ~show_b: 'b => string=?,
+    Ctx.t,
+    list('a),
+    'a => option((string, 'a)),
+    t
+  ) =>
+  option(list(t))
+ =
+  (~show_a=?, ~show_b=?, ctx: Ctx.t, ts, get_label_ts, ty: t) => {
+    let _ = show_b;
+    let normalized: term = term_of(weak_head_normalize(ctx, ty));
+    print_endline("normalized: " ++ show_term(normalized));
+    switch (normalized) {
+    | Parens(ty) => matched_prod_strict(~show_a=?show_a, ~show_b=?show_b, ctx, ts, get_label_ts, ty)
+    | Prod(tys: list(t)) =>
+      if (List.length(ts) != List.length(tys)) {
+        None;
+      } else {
+        let foo : (t => (option((string, t)))) = get_label;
+        let get_label_ts2 : 'a => option((string, 'a)) = get_label_ts;
+        let (baz : list('a)) = LabeledTuple.rearrange(
+              foo, 
+              get_label_ts2,
+               tys, 
+               ts,
+               (_name, b) =>{
+              let (returnable : 'a) =b;
+              returnable}
+            );
+        let bar: option(list(t)) =
+          Some(
+            LabeledTuple.rearrange(
+              get_label_ts, get_label, ts, tys, (name, b) =>
+              TupLabel(Label(name) |> temp, b) |> temp
+            ),
+          );
+
+        Option.iter(sa => print_endline("baz: " ++ String.concat(",", List.map(sa, baz))), show_a);
+        bar;
+      }
+    | Unknown(SynSwitch) =>
+      Some(List.init(List.length(ts), _ => Unknown(SynSwitch) |> temp))
+    | _ => None
+    };
   };
 
-let matched_prod = (ctx, ts, get_label_ts, ty) =>
-  matched_prod_strict(ctx, ts, get_label_ts, ty)
+let matched_prod =
+    (
+      ~show_a: option('a => string)=?,
+      ctx: Ctx.t,
+      ts: list('a),
+      get_label_ts: 'a => option((string, 'a)),
+      ty: t,
+    )
+    : list(t) =>
+  matched_prod_strict(~show_a=?show_a,ctx, ts, get_label_ts, ty)
   |> Option.value(
        ~default=List.init(List.length(ts), _ => Unknown(Internal) |> temp),
      );

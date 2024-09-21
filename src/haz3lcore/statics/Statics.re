@@ -329,7 +329,9 @@ and uexp_to_info_map =
       m,
     )
   | Tuple(es) =>
-    let modes = Mode.of_prod(ctx, mode, es, UExp.get_label);
+    let filt = (y: UExp.t): option((string, UExp.t)) => UExp.get_label(y);
+    let elems = es;
+    let modes = Mode.of_prod(ctx, mode, elems, filt);
     let (es, m) = map_m_go(m, modes, es, ~is_contained=true);
     add(
       ~self=Just(Prod(List.map(Info.exp_ty, es)) |> Typ.temp),
