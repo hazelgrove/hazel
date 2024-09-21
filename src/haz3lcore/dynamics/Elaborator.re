@@ -325,26 +325,28 @@ let rec elaborate =
       print_endline("dhexp: " ++ DHExp.show(foo));
       foo;
     | Tuple(es) =>
-      let (ds: list(DHExp.t), tys: list(Typ.t)) =
+      let (ds, tys) =
         List.map(elaborate(m, ~in_container=true), es) |> ListUtil.unzip;
-      print_endline("ds: " ++ [%derive.show: list(DHExp.t)](ds));
-      print_endline("tys: " ++ [%derive.show: list(Typ.t)](tys));
-      let foos =
-        Typ.matched_prod(
-          ~show_a=DHExp.show,
-          ctx,
-          ds,
-          DHExp.get_label,
-          elaborated_type,
-        );
-      print_endline("foos: " ++ [%derive.show: list(Typ.t)](foos));
-      let ds =
-        LabeledTuple.rearrange(
-          Typ.get_label, Exp.get_label, foos, ds, (name, p) =>
-          TupLabel(Label(name) |> Exp.fresh, p) |> Exp.fresh
-        );
+      print_endline("ds: " ++ [%derive.show: list(DHExp.t)] (ds));
+      let (expected_labels : list(option(string))) = Typ.get_labels(ctx, elaborated_type);
+      let (elaborated_labeled : list((option(string), DHExp.t))) = List.map(exp => {
+        switch(DHExp.term_of(exp)) {
+          | TupLabel({term: Label(l), _}, exp) => (Some(l), exp)
+          | _ => (None, exp)
+        }
+      }, ds);
+      print_endline("elaborated_labeled: " ++ [%derive.show: list((option(string), DHExp.t))] (elaborated_labeled));
+      let (reordered : list((option(string), DHExp.t))) = LabeledTuple.rearrange2(expected_labels, elaborated_labeled);
+
+      let (ds : list(DHExp.t)) =
+        List.map(((optional_label, exp : DHExp.t)) => {
+          switch(optional_label) {
+            | Some(label) => Exp.TupLabel(Label(label) |> Exp.fresh, exp) |> Exp.fresh
+            | None => exp
+          };
+          }, reordered);
       Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
-    | Dot(e1, e2) =>
+          | Dot(e1, e2) =>
       let (e1, ty1) = elaborate(m, e1);
       let (e2, ty2) = elaborate(m, e2);
       let ty =
