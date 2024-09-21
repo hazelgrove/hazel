@@ -94,51 +94,120 @@ let intersect = (xs, ys) => {
 
 // Rearranges all the labels in l2 to match the order of the labels in l1. Labels are optional and should me reordered for all present labels first and then unlabled fields matched up pairwise. So labeled fields can be reordered and unlabeled ones can't. Also add labels to the unlabeled.
 // TODO Handle the unequal length case and extra labels case
-let rearrange2:
-  'a 'b.
-  (list((option(label), 'a)), list((option(label), 'b))) =>
+let rec rearrange2:
+  'b.
+  (
+    ~show_b: 'b => string=?,
+    list(option(label)),
+    list((option(label), 'b))
+  ) =>
   list((option(label), 'b))
  =
-  (l1: list((option(label), 'a)), l2: list((option(label), 'b))) => {
-    let l1_labels = List.filter_map(fst, l1);
+  (~show_b=?, l1: list(option(label)), l2: list((option(label), 'b))) => {
+    let l1_labels = List.filter_map(Fun.id, l1);
     let l2_labels = List.filter_map(fst, l2);
     let common_labels = intersect(l1_labels, l2_labels);
 
-    // let (x : list((option(label), 'b)), _) = List.fold_left(fn, ([], l2), l1);
+    let returnable =
+      switch (l1, l2) {
+      | ([], _) => l2
+      | (_, []) => []
+      | ([Some(expected_label), ...remaining_expectations], remaining) =>
+        let maybe_found = List.assoc_opt(Some(expected_label), remaining);
 
-    let x =
-      List.fold_left(
-        (
-          (
-            matched: list((option(label), 'b)),
-            remaining: list((option(label), 'b)),
-          ),
-          current,
-        ) => {
-          let new_matched: list((option(label), 'b)) =
-            switch (current) {
-            | (Some(_current_label), _a) => assert(false)
-            | (None, _a) =>
-              let _potential_matches: list((option(label), 'b)) =
-                List.filter(
-                  ((rl: option(label), _b: 'b)) =>
-                    switch (rl) {
-                    | None => false
-                    | Some(l2) => !List.mem(l2, common_labels)
-                    },
-                  remaining,
-                );
+        switch (maybe_found) {
+        | Some(found) =>
+          [(Some(expected_label), found)]
+          @ rearrange2(
+              ~show_b?,
+              remaining_expectations,
+              List.remove_assoc(Some(expected_label), remaining),
+            )
+        | None =>
+          let (
+            pre: list((option(label), 'b)),
+            current: option((option(label), 'b)),
+            post: list((option(label), 'b)),
+          ) =
+            ListUtil.split(remaining, ((label: option(label), _)) => {
+              switch (label) {
+              | Some(label) => !List.mem(label, common_labels)
+              | None => true
+              }
+            });
 
-              assert(false);
-            };
+          switch (current) {
+          | Some((_existing_label, b)) =>
+            [(Some(expected_label), b)]
+            @ rearrange2(~show_b?, remaining_expectations, pre @ post)
+          | None => remaining
+          };
+        };
+      | ([None, ...remaining_expectations], remaining) =>
+        // Pick the first one that's not in common labels and then keep the rest in remaining
+        let (
+          pre: list((option(label), 'b)),
+          current: option((option(label), 'b)),
+          post: list((option(label), 'b)),
+        ) =
+          ListUtil.split(remaining, ((label: option(label), _)) => {
+            switch (label) {
+            | Some(label) => !List.mem(label, common_labels)
+            | None => true
+            }
+          });
+        switch (current) {
+        | Some((_existing_label, b)) =>
+          [(None, b)]
+          @ rearrange2(~show_b?, remaining_expectations, pre @ post)
+        | None => remaining
+        };
+      };
+    print_endline("================");
+    print_endline("l1: " ++ [%derive.show: list(option(string))](l1));
+    Option.iter(
+      sa =>
+        print_endline(
+          "l2: ["
+          ++ String.concat(
+               ",",
+               List.map(
+                 l2e =>
+                   "("
+                   ++ [%derive.show: option(string)](fst(l2e))
+                   ++ ","
+                   ++ sa(snd(l2e))
+                   ++ ")",
+                 l2,
+               ),
+             )
+          ++ "]",
+        ),
+      show_b,
+    );
+    Option.iter(
+      sa =>
+        print_endline(
+          "returnable: ["
+          ++ String.concat(
+               ",",
+               List.map(
+                 l2e =>
+                   "("
+                   ++ [%derive.show: option(string)](fst(l2e))
+                   ++ ","
+                   ++ sa(snd(l2e))
+                   ++ ")",
+                 returnable,
+               ),
+             )
+          ++ "]",
+        ),
+      show_b,
+    );
+    print_endline("================");
 
-          (new_matched, remaining);
-        },
-        ([], l2),
-        l1,
-      );
-
-    fst(x);
+    returnable;
   };
 
 // Assumes all labels are unique

@@ -480,22 +480,25 @@ let rec matched_prod_strict:
     let normalized: term = term_of(weak_head_normalize(ctx, ty));
     print_endline("normalized: " ++ show_term(normalized));
     switch (normalized) {
-    | Parens(ty) => matched_prod_strict(~show_a=?show_a, ~show_b=?show_b, ctx, ts, get_label_ts, ty)
+    | Parens(ty) =>
+      matched_prod_strict(~show_a?, ~show_b?, ctx, ts, get_label_ts, ty)
     | Prod(tys: list(t)) =>
       if (List.length(ts) != List.length(tys)) {
         None;
       } else {
-        let foo : (t => (option((string, t)))) = get_label;
-        let get_label_ts2 : 'a => option((string, 'a)) = get_label_ts;
-        let (baz : list('a)) = LabeledTuple.rearrange(
-              foo, 
-              get_label_ts2,
-               tys, 
-               ts,
-               (_name, b) =>{
-              let (returnable : 'a) =b;
-              returnable}
-            );
+        let foo: t => option((string, t)) = get_label;
+        let get_label_ts2: 'a => option((string, 'a)) = get_label_ts;
+        let baz: list('a) =
+          LabeledTuple.rearrange(
+            foo,
+            get_label_ts2,
+            tys,
+            ts,
+            (_name, b) => {
+              let returnable: 'a = b;
+              returnable;
+            },
+          );
         let bar: option(list(t)) =
           Some(
             LabeledTuple.rearrange(
@@ -504,7 +507,11 @@ let rec matched_prod_strict:
             ),
           );
 
-        Option.iter(sa => print_endline("baz: " ++ String.concat(",", List.map(sa, baz))), show_a);
+        Option.iter(
+          sa =>
+            print_endline("baz: " ++ String.concat(",", List.map(sa, baz))),
+          show_a,
+        );
         bar;
       }
     | Unknown(SynSwitch) =>
@@ -522,7 +529,7 @@ let matched_prod =
       ty: t,
     )
     : list(t) =>
-  matched_prod_strict(~show_a=?show_a,ctx, ts, get_label_ts, ty)
+  matched_prod_strict(~show_a?, ctx, ts, get_label_ts, ty)
   |> Option.value(
        ~default=List.init(List.length(ts), _ => Unknown(Internal) |> temp),
      );

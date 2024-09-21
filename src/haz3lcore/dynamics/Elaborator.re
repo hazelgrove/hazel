@@ -329,8 +329,14 @@ let rec elaborate =
         List.map(elaborate(m, ~in_container=true), es) |> ListUtil.unzip;
       print_endline("ds: " ++ [%derive.show: list(DHExp.t)](ds));
       print_endline("tys: " ++ [%derive.show: list(Typ.t)](tys));
-      let foos = Typ.matched_prod(~show_a=DHExp.show,
-        ctx, ds, DHExp.get_label, elaborated_type);
+      let foos =
+        Typ.matched_prod(
+          ~show_a=DHExp.show,
+          ctx,
+          ds,
+          DHExp.get_label,
+          elaborated_type,
+        );
       print_endline("foos: " ++ [%derive.show: list(Typ.t)](foos));
       let ds =
         LabeledTuple.rearrange(
