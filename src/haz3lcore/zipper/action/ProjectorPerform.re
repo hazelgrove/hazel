@@ -82,7 +82,7 @@ let go =
     //TODO(andrew):
     /* This approach is suboptimal in that it sometimes
        eg for apps doesnt leave cursor at an indication position */
-    /* NOTE: using nice_term here has unintended consequences for
+    /* NOTE: using current_term_fancy here has unintended consequences for
        lets and case rules (former seems to work okay, latter is broken though) */
     //TODO(andrew): cleanup or clairfy
     let z_init =

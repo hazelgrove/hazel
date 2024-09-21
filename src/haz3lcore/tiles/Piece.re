@@ -161,6 +161,11 @@ let is_not_case_or_rule_or_space = (p: t) =>
   | Secondary(_) => false
   | _ => true
   };
+let not_space = (p: t) =>
+  switch (p) {
+  | Secondary(s) => !Secondary.is_space(s)
+  | _ => true
+  };
 let not_comment_or_space = (p: t) =>
   switch (p) {
   | Secondary(s) => Secondary.is_linebreak(s)
