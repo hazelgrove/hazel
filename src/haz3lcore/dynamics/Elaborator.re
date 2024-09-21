@@ -327,40 +327,17 @@ let rec elaborate =
     | Tuple(es) =>
       let (ds: list(DHExp.t), tys: list(Typ.t)) =
         List.map(elaborate(m, ~in_container=true), es) |> ListUtil.unzip;
-      let (foo : option(list(Typ.t))) = Typ.matched_prod_strict(
-        ~show_a=DHExp.show,
-        ~show_b=Typ.show,
-      ctx, ds, 
-      (d : DHExp.t) => {
-          switch(d.term) {
-          | TupLabel({term: Var(l), _}, ty) => Some((l, ty))
-          | _ => None
-          }
-      }
-      , elaborated_type);
-      print_endline("foo " ++ [%derive.show: option(list(Typ.t))](foo));
-
-      print_endline("tupls ds" ++ [%derive.show: list(DHExp.t)](ds));
-      print_endline("tupls tys" ++ [%derive.show: list(Typ.t)](tys));
+      print_endline("ds: " ++ [%derive.show: list(DHExp.t)](ds));
+      print_endline("tys: " ++ [%derive.show: list(Typ.t)](tys));
+      let foos = Typ.matched_prod(~show_a=DHExp.show,
+        ctx, ds, DHExp.get_label, elaborated_type);
+      print_endline("foos: " ++ [%derive.show: list(Typ.t)](foos));
       let ds =
         LabeledTuple.rearrange(
-          ~show_a=Typ.show,
-          ~show_b=DHExp.show,
-          Typ.get_label,
-          Exp.get_label,
-          tys,
-          ds,
-          (name, p) => {
-            print_endline("tuple constructor name: " ++ name);
-            print_endline("tuple constructor p: " ++ DHExp.show(p));
-            TupLabel(Label(name) |> Exp.fresh, p) |> Exp.fresh;
-          },
+          Typ.get_label, Exp.get_label, foos, ds, (name, p) =>
+          TupLabel(Label(name) |> Exp.fresh, p) |> Exp.fresh
         );
-      let foo = Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
-      print_endline("tuple exp: " ++ UExp.show(uexp));
-      print_endline("tuple typ: " ++ Typ.show(elaborated_type));
-      print_endline("tuple dhexp: " ++ DHExp.show(foo));
-      foo;
+      Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
     | Dot(e1, e2) =>
       let (e1, ty1) = elaborate(m, e1);
       let (e2, ty2) = elaborate(m, e2);
