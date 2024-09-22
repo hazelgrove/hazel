@@ -137,6 +137,42 @@ let update_exercise_prompt = (editors: t, new_prompt: string): t =>
     )
   };
 
+let set_editing_test_num = (editors: t, editing: bool): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.set_editing_test_num(exercise, editing))
+  };
+
+let update_test_num = (editors: t, new_test_num: int): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.update_test_num(exercise, new_test_num))
+  };
+
+let set_editing_point_dist = (editors: t, editing: bool): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.set_editing_point_dist(exercise, editing))
+  };
+
+let update_point_dist = (editors: t, new_point_dist: int, dist: string): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(
+      n,
+      specs,
+      Exercise.update_point_dist(exercise, new_point_dist, dist),
+    )
+  };
+
 let reset_nth_slide = (~settings: CoreSettings.t, n, slides): list(Editor.t) => {
   let (_, init_editors, _) = Init.startup.scratch;
   let data = List.nth(init_editors, n);

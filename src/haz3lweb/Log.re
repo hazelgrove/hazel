@@ -26,7 +26,7 @@ let is_action_logged: UpdateAction.t => bool =
   | UpdateResult(_)
   | UpdatePrompt(_)
   | UpdatePointDist(_)
-  | UpdateTestReq(_)
+  | UpdateTestNum(_)
   | ToggleStepper(_)
   | StepperAction(_, StepForward(_) | StepBackward)
   | UpdateExplainThisModel(_) => true;

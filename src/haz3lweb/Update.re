@@ -176,6 +176,8 @@ let update_settings =
         ...settings,
         instructor_mode: !settings.instructor_mode,
         editing_prompt: false,
+        editing_test_num: false,
+        editing_point_dist: false,
       },
     };
   | EditingPrompt =>
@@ -186,6 +188,26 @@ let update_settings =
       settings: {
         ...settings,
         editing_prompt: editing,
+      },
+    };
+  | EditingTestNum =>
+    let editing = !settings.editing_test_num;
+    {
+      ...model,
+      editors: Editors.set_editing_test_num(model.editors, editing),
+      settings: {
+        ...settings,
+        editing_test_num: editing,
+      },
+    };
+  | EditingPointDist =>
+    let editing = !settings.editing_point_dist;
+    {
+      ...model,
+      editors: Editors.set_editing_test_num(model.editors, editing),
+      settings: {
+        ...settings,
+        editing_point_dist: editing,
       },
     };
   | Mode(mode) => {
@@ -568,9 +590,18 @@ let apply =
       Model.save_and_return({
         ...model,
         editors: Editors.update_exercise_prompt(model.editors, new_prompt),
-      });
-    | UpdatePointDist(_) => Ok(model)
-    | UpdateTestReq(_) => Ok(model)
+      })
+    | UpdatePointDist(new_point_dist, dist) =>
+      Model.save_and_return({
+        ...model,
+        editors:
+          Editors.update_point_dist(model.editors, new_point_dist, dist),
+      })
+    | UpdateTestNum(new_test_num) =>
+      Model.save_and_return({
+        ...model,
+        editors: Editors.update_test_num(model.editors, new_test_num),
+      })
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));
 };

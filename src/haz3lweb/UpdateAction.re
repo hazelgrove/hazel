@@ -25,6 +25,8 @@ type settings_action =
   | ContextInspector
   | InstructorMode
   | EditingPrompt
+  | EditingPointDist
+  | EditingTestNum
   | Evaluation(evaluation_settings_action)
   | ExplainThis(ExplainThisModel.Settings.action)
   | Mode(Settings.mode);
@@ -90,8 +92,8 @@ type t =
   | StepperAction(ModelResults.Key.t, stepper_action)
   | UpdateResult(ModelResults.t)
   | UpdatePrompt(string)
-  | UpdatePointDist(int)
-  | UpdateTestReq(int);
+  | UpdatePointDist(int, string)
+  | UpdateTestNum(int);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -126,6 +128,8 @@ let is_edit: t => bool =
     | ContextInspector
     | InstructorMode
     | EditingPrompt
+    | EditingPointDist
+    | EditingTestNum
     | Evaluation(_) => false
     }
   | SetMeta(meta_action) =>
@@ -146,7 +150,7 @@ let is_edit: t => bool =
   | ResetCurrentEditor
   | UpdatePrompt(_)
   | UpdatePointDist(_)
-  | UpdateTestReq(_)
+  | UpdateTestNum(_)
   | Reset
   | TAB => true
   | UpdateResult(_)
@@ -183,6 +187,8 @@ let reevaluate_post_update: t => bool =
     | Dynamics
     | InstructorMode
     | EditingPrompt
+    | EditingPointDist
+    | EditingTestNum
     | Mode(_) => true
     }
   | SetMeta(meta_action) =>
@@ -200,7 +206,7 @@ let reevaluate_post_update: t => bool =
   | UpdateResult(_)
   | UpdatePrompt(_)
   | UpdatePointDist(_)
-  | UpdateTestReq(_)
+  | UpdateTestNum(_)
   | SwitchEditor(_)
   | DebugConsole(_)
   | Benchmark(_) => false
@@ -232,6 +238,8 @@ let should_scroll_to_caret =
     | ContextInspector
     | InstructorMode
     | EditingPrompt
+    | EditingPointDist
+    | EditingTestNum
     | Evaluation(_) => false
     }
   | SetMeta(meta_action) =>
@@ -245,7 +253,7 @@ let should_scroll_to_caret =
   | ToggleStepper(_)
   | UpdatePrompt(_)
   | UpdatePointDist(_)
-  | UpdateTestReq(_)
+  | UpdateTestNum(_)
   | StepperAction(_, StepBackward | StepForward(_)) => false
   | FinishImportScratchpad(_)
   | FinishImportAll(_)
