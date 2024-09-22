@@ -167,12 +167,25 @@ let update_settings =
     }
   | InstructorMode =>
     let new_mode = !settings.instructor_mode;
+    let editors = Editors.set_editing_prompt(model.editors, false);
+    let editors = Editors.set_instructor_mode(editors, new_mode);
     {
       ...model,
-      editors: Editors.set_instructor_mode(model.editors, new_mode),
+      editors,
       settings: {
         ...settings,
         instructor_mode: !settings.instructor_mode,
+        editing_prompt: false,
+      },
+    };
+  | EditingPrompt =>
+    let editing = !settings.editing_prompt;
+    {
+      ...model,
+      editors: Editors.set_editing_prompt(model.editors, editing),
+      settings: {
+        ...settings,
+        editing_prompt: editing,
       },
     };
   | Mode(mode) => {
@@ -244,7 +257,13 @@ let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
 };
 
 let switch_scratch_slide =
-    (~settings, editors: Editors.t, ~instructor_mode, idx: int)
+    (
+      ~settings,
+      editors: Editors.t,
+      ~instructor_mode,
+      idx: int,
+      ~editing_prompt,
+    )
     : option(Editors.t) =>
   switch (editors) {
   | Documentation(_) => None
@@ -254,9 +273,13 @@ let switch_scratch_slide =
   | Exercises(_, specs, _) when idx >= List.length(specs) => None
   | Exercises(_, specs, _) =>
     let spec = List.nth(specs, idx);
-    let key = Exercise.key_of(spec);
     let exercise =
-      Store.Exercise.load_exercise(key, spec, ~instructor_mode, ~settings);
+      Store.Exercise.load_exercise(
+        spec,
+        ~instructor_mode,
+        ~settings,
+        ~editing_prompt,
+      );
     Some(Exercises(idx, specs, exercise));
   };
 
@@ -451,16 +474,19 @@ let apply =
       Model.save_and_return({...model, editors});
     | SwitchScratchSlide(n) =>
       let instructor_mode = model.settings.instructor_mode;
+      let editors = Editors.set_editing_prompt(model.editors, false);
+      let settings = {...model.settings, editing_prompt: false};
       switch (
         switch_scratch_slide(
+          editors,
           ~settings=model.settings.core,
-          model.editors,
           ~instructor_mode,
+          ~editing_prompt=false,
           n,
         )
       ) {
       | None => Error(FailedToSwitch)
-      | Some(editors) => Model.save_and_return({...model, editors})
+      | Some(editors) => Model.save_and_return({...model, editors, settings})
       };
     | SwitchDocumentationSlide(name) =>
       switch (Editors.switch_example_slide(model.editors, name)) {
@@ -538,6 +564,11 @@ let apply =
       let results =
         ModelResults.union((_, _a, b) => Some(b), model.results, results);
       Ok({...model, results});
+    | UpdatePrompt(new_prompt) =>
+      Model.save_and_return({
+        ...model,
+        editors: Editors.update_exercise_prompt(model.editors, new_prompt),
+      })
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));
 };

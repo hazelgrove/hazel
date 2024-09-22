@@ -260,33 +260,19 @@ module Exercise = {
 
   let cur_exercise_key = "CUR_EXERCISE";
 
-  let keystring_of_key = key => {
-    key |> sexp_of_key |> Sexplib.Sexp.to_string;
-  };
-
-  let keystring_of = p => {
-    key_of(p) |> keystring_of_key;
-  };
-
-  let key_of_keystring = keystring => {
-    keystring |> Sexplib.Sexp.of_string |> key_of_sexp;
-  };
-
-  let save_exercise_key = key => {
-    JsUtil.set_localstore(cur_exercise_key, keystring_of_key(key));
+  let save_exercise_id = id => {
+    JsUtil.set_localstore(cur_exercise_key, Id.to_string(id));
   };
 
   let save_exercise = (exercise, ~instructor_mode): unit => {
-    let key = Exercise.key_of_state(exercise);
-    let keystring = keystring_of_key(key);
-    let value = Exercise.serialize_exercise(exercise, ~instructor_mode);
-    JsUtil.set_localstore(keystring, value);
+    let keystring = Id.to_string(exercise.eds.id);
+    let data = Exercise.serialize_exercise(exercise, ~instructor_mode);
+    JsUtil.set_localstore(keystring, data);
   };
 
   let init_exercise =
       (~settings: CoreSettings.t, spec, ~instructor_mode): state => {
-    let key = Exercise.key_of(spec);
-    let keystring = keystring_of_key(key);
+    let keystring = Id.to_string(spec.id);
     let exercise = Exercise.state_of_spec(spec, ~instructor_mode, ~settings);
     save_exercise(exercise, ~instructor_mode);
     JsUtil.set_localstore(cur_exercise_key, keystring);
@@ -294,16 +280,18 @@ module Exercise = {
   };
 
   let load_exercise =
-      (~settings: CoreSettings.t, key, spec, ~instructor_mode): Exercise.state => {
-    let keystring = keystring_of_key(key);
+      (~settings: CoreSettings.t, spec, ~instructor_mode, ~editing_prompt)
+      : Exercise.state => {
+    let keystring = Id.to_string(spec.id);
     switch (JsUtil.get_localstore(keystring)) {
     | Some(data) =>
       let exercise =
         try(
-          Exercise.deserialize_exercise(
+          deserialize_exercise(
             data,
             ~spec,
             ~instructor_mode,
+            ~editing_prompt,
             ~settings,
           )
         ) {
@@ -316,8 +304,7 @@ module Exercise = {
   };
 
   let save = ((n, specs, exercise), ~instructor_mode): unit => {
-    let key = key_of(List.nth(specs, n));
-    let keystring = keystring_of_key(key);
+    let keystring = Id.to_string(List.nth(specs, n).id);
     save_exercise(exercise, ~instructor_mode);
     JsUtil.set_localstore(cur_exercise_key, keystring);
   };
@@ -338,57 +325,82 @@ module Exercise = {
   };
 
   let load =
-      (~settings: CoreSettings.t, ~specs, ~instructor_mode)
+      (~settings: CoreSettings.t, ~specs, ~instructor_mode, ~editing_prompt)
       : (int, list(p(ZipperBase.t)), state) => {
     switch (JsUtil.get_localstore(cur_exercise_key)) {
     | Some(keystring) =>
-      let key = key_of_keystring(keystring);
-      switch (Exercise.find_key_opt(key, specs)) {
-      | Some((n, spec)) =>
-        switch (JsUtil.get_localstore(keystring)) {
-        | Some(data) =>
-          let exercise =
-            try(
-              deserialize_exercise(data, ~spec, ~instructor_mode, ~settings)
-            ) {
-            | _ => init_exercise(spec, ~instructor_mode, ~settings)
-            };
-          (n, specs, exercise);
+      switch (Id.of_string(keystring)) {
+      | Some(id) =>
+        switch (Exercise.find_id_opt(id, specs)) {
+        | Some((n, spec)) =>
+          switch (JsUtil.get_localstore(keystring)) {
+          | Some(data) =>
+            let exercise =
+              try(
+                Exercise.deserialize_exercise(
+                  data,
+                  ~spec,
+                  ~instructor_mode,
+                  ~editing_prompt,
+                  ~settings,
+                )
+              ) {
+              | _ => init_exercise(spec, ~instructor_mode, ~settings)
+              };
+            (n, specs, exercise);
+          | None =>
+            // initialize exercise from spec
+            let exercise =
+              Exercise.state_of_spec(spec, ~instructor_mode, ~settings);
+            save_exercise(exercise, ~instructor_mode);
+            (n, specs, exercise);
+          }
         | None =>
           // initialize exercise from spec
-          let exercise =
-            Exercise.state_of_spec(spec, ~instructor_mode, ~settings);
-          save_exercise(exercise, ~instructor_mode);
-          (n, specs, exercise);
+          let first_spec = List.nth(specs, 0);
+          (
+            0,
+            specs,
+            load_exercise(
+              first_spec,
+              ~instructor_mode,
+              ~editing_prompt,
+              ~settings,
+            ),
+          );
         }
-      | None =>
-        // invalid current exercise key saved, load the first exercise
-        let first_spec = List.nth(specs, 0);
-        let first_key = Exercise.key_of(first_spec);
-        (
-          0,
-          specs,
-          load_exercise(first_key, first_spec, ~instructor_mode, ~settings),
-        );
-      };
-    | None => init(~instructor_mode, ~settings)
+      | None => failwith("parse error")
+      }
+    | None => init(~settings, ~instructor_mode)
     };
   };
 
   let prep_exercise_export =
-      (~specs, ~instructor_mode: bool, ~settings: CoreSettings.t)
+      (
+        ~specs,
+        ~instructor_mode: bool,
+        ~settings: CoreSettings.t,
+        ~editing_prompt,
+      )
       : exercise_export => {
     {
       cur_exercise:
-        key_of_keystring(
-          Option.get(JsUtil.get_localstore(cur_exercise_key)),
+        Id.t_of_sexp(
+          Sexplib.Sexp.of_string(
+            Option.get(JsUtil.get_localstore(cur_exercise_key)),
+          ),
         ),
       exercise_data:
         specs
         |> List.map(spec => {
-             let key = Exercise.key_of(spec);
+             let key = spec.id;
              let exercise =
-               load_exercise(key, spec, ~instructor_mode, ~settings)
+               load_exercise(
+                 spec,
+                 ~instructor_mode,
+                 ~settings,
+                 ~editing_prompt,
+               )
                |> Exercise.persistent_state_of_state(~instructor_mode);
              (key, exercise);
            }),
@@ -397,7 +409,12 @@ module Exercise = {
 
   let serialize_exercise_export =
       (~specs, ~instructor_mode, ~settings: CoreSettings.t) => {
-    prep_exercise_export(~specs, ~instructor_mode, ~settings)
+    prep_exercise_export(
+      ~specs,
+      ~instructor_mode,
+      ~settings,
+      ~editing_prompt=false,
+    )
     |> sexp_of_exercise_export
     |> Sexplib.Sexp.to_string;
   };
@@ -407,12 +424,18 @@ module Exercise = {
   };
 
   let import =
-      (data, ~specs, ~instructor_mode: bool, ~settings: CoreSettings.t) => {
+      (
+        data,
+        ~specs,
+        ~instructor_mode: bool,
+        ~settings: CoreSettings.t,
+        ~editing_prompt,
+      ) => {
     let exercise_export = data |> deserialize_exercise_export;
-    save_exercise_key(exercise_export.cur_exercise);
+    save_exercise_id(exercise_export.cur_exercise);
     exercise_export.exercise_data
     |> List.iter(((key, persistent_state)) => {
-         let spec = Exercise.find_key_opt(key, specs);
+         let spec = Exercise.find_id_opt(key, specs);
          switch (spec) {
          | None =>
            print_endline("Warning: saved key does not correspond to exercise")
@@ -422,6 +445,7 @@ module Exercise = {
                persistent_state,
                ~spec,
                ~instructor_mode,
+               ~editing_prompt,
                ~settings,
              ),
              ~instructor_mode,

@@ -1,4 +1,5 @@
 open Util;
+// open Virtual_dom.Vdom;
 open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -113,6 +114,26 @@ let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
       n,
       specs,
       Exercise.set_instructor_mode(exercise, instructor_mode),
+    )
+  };
+
+let set_editing_prompt = (editors: t, editing: bool): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.set_editing_prompt(exercise, editing))
+  };
+
+let update_exercise_prompt = (editors: t, new_prompt: string): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(
+      n,
+      specs,
+      Exercise.update_exercise_prompt(exercise, new_prompt),
     )
   };
 

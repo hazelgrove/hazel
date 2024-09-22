@@ -10,27 +10,36 @@ let key_handler =
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~dir: Key.dir,
       editor: Editor.t,
+      model: Model.t,
       evt: Js.t(Dom_html.keyboardEvent),
     )
     : Effect.t(unit) => {
   open Effect;
   let key = Key.mk(dir, evt);
+  let get_settings = (model: Model.t): Settings.t => model.settings;
   switch (ProjectorView.key_handoff(editor, key)) {
   | Some(action) =>
     Many([Prevent_default, inject(PerformAction(Project(action)))])
   | None =>
     switch (Keyboard.handle_key_event(key)) {
     | None => Ignore
-    | Some(action) => Many([Prevent_default, inject(action)])
+    | Some(action) =>
+      get_settings(model).editing_prompt
+        ? Many([inject(action)])
+        : Many([Prevent_default, Stop_propagation, inject(action)])
     }
   };
 };
 
 let handlers =
-    (~inject: UpdateAction.t => Ui_effect.t(unit), editor: Editor.t) => {
-  [
-    Attr.on_keyup(key_handler(~inject, editor, ~dir=KeyUp)),
-    Attr.on_keydown(key_handler(~inject, editor, ~dir=KeyDown)),
+    (
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      editor: Editor.t,
+      model: Model.t,
+    ) => {
+  let attrs = [
+    Attr.on_keyup(key_handler(~inject, editor, model, ~dir=KeyUp)),
+    Attr.on_keydown(key_handler(~inject, editor, model, ~dir=KeyDown)),
     /* safety handler in case mousedown overlay doesn't catch it */
     Attr.on_mouseup(_ => inject(SetMeta(Mouseup))),
     Attr.on_blur(_ => {
@@ -57,6 +66,8 @@ let handlers =
       inject(PerformAction(Paste(pasted_text)));
     }),
   ];
+  model.settings.editing_prompt
+    ? attrs : attrs @ [Attr.on_keypress(_ => Effect.Prevent_default)];
 };
 
 let top_bar =
@@ -187,7 +198,7 @@ let view = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
   div(
     ~attrs=[
       Attr.id("page"),
-      ...handlers(~inject, Editors.get_editor(model.editors)),
+      ...handlers(~inject, Editors.get_editor(model.editors), model),
     ],
     [
       FontSpecimen.view("font-specimen"),

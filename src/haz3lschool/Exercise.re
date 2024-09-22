@@ -53,11 +53,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type p('code) = {
+    id: Id.t,
     title: string,
     version: int,
     module_name: string,
-    prompt:
-      [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] ExerciseEnv.node,
+    prompt: string,
     point_distribution,
     prelude: 'code,
     correct_impl: 'code,
@@ -68,15 +68,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     syntax_tests,
   };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type key = (string, int);
-
-  let key_of = p => {
-    (p.title, p.version);
+  let id_of = p => {
+    p.id;
   };
 
-  let find_key_opt = (key, specs: list(p('code))) => {
-    specs |> Util.ListUtil.findi_opt(spec => key_of(spec) == key);
+  let find_id_opt = (id, specs: list(p('code))) => {
+    specs |> Util.ListUtil.findi_opt(spec => id_of(spec) == id);
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -97,6 +94,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let map = (p: p('a), f: 'a => 'b): p('b) => {
     {
+      id: p.id,
       title: p.title,
       version: p.version,
       module_name: p.module_name,
@@ -135,10 +133,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     eds,
   };
 
-  let key_of_state = ({eds, _}) => key_of(eds);
-
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_state = (pos, list((pos, PersistentZipper.t)));
+  type persistent_state = (pos, list((pos, PersistentZipper.t)), string);
 
   let editor_of_state: state => Editor.t =
     ({pos, eds, _}) =>
@@ -285,6 +281,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let transition: transitionary_spec => spec =
     (
       {
+        id,
         title,
         version,
         module_name,
@@ -321,6 +318,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         {tests, hints};
       };
       {
+        id,
         title,
         version,
         module_name,
@@ -339,6 +337,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let eds_of_spec =
       (
         {
+          id,
           title,
           version,
           module_name,
@@ -375,6 +374,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       {tests, hints};
     };
     {
+      id,
       title,
       version,
       module_name,
@@ -467,6 +467,32 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     },
   };
 
+  let set_editing_prompt = ({eds, _} as state: state, editing: bool) => {
+    ...state,
+    eds: {
+      ...eds,
+      prelude: Editor.set_read_only(eds.prelude, editing),
+      correct_impl: Editor.set_read_only(eds.correct_impl, editing),
+      your_tests: {
+        let tests = Editor.set_read_only(eds.your_tests.tests, editing);
+        {
+          tests,
+          required: eds.your_tests.required,
+          provided: eds.your_tests.provided,
+        };
+      },
+      your_impl: Editor.set_read_only(eds.your_impl, editing),
+    },
+  };
+
+  let update_exercise_prompt = ({eds, _} as state: state, new_prompt: string) => {
+    ...state,
+    eds: {
+      ...eds,
+      prompt: new_prompt,
+    },
+  };
+
   let visible_in = (pos, ~instructor_mode) => {
     switch (pos) {
     | Prelude => instructor_mode
@@ -486,21 +512,22 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   let persistent_state_of_state =
-      ({pos, _} as state: state, ~instructor_mode: bool) => {
+      ({pos, eds} as state: state, ~instructor_mode: bool) => {
     let zippers =
       positioned_editors(state)
       |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
       |> List.map(((pos, editor)) => {
            (pos, PersistentZipper.persist(Editor.(editor.state.zipper)))
          });
-    (pos, zippers);
+    (pos, zippers, eds.prompt);
   };
 
   let unpersist_state =
       (
-        (pos, positioned_zippers): persistent_state,
+        (pos, positioned_zippers, prompt): persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
+        ~editing_prompt: bool,
         ~settings: CoreSettings.t,
       )
       : state => {
@@ -527,33 +554,36 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       );
     let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
 
-    set_instructor_mode(
-      {
-        pos,
-        eds: {
-          title: spec.title,
-          version: spec.version,
-          module_name: spec.module_name,
-          prompt: spec.prompt,
-          point_distribution: spec.point_distribution,
-          prelude,
-          correct_impl,
-          your_tests: {
-            tests: your_tests_tests,
-            required: spec.your_tests.required,
-            provided: spec.your_tests.provided,
+    let state =
+      set_instructor_mode(
+        {
+          pos,
+          eds: {
+            id: spec.id,
+            title: spec.title,
+            version: spec.version,
+            module_name: spec.module_name,
+            prompt,
+            point_distribution: spec.point_distribution,
+            prelude,
+            correct_impl,
+            your_tests: {
+              tests: your_tests_tests,
+              required: spec.your_tests.required,
+              provided: spec.your_tests.provided,
+            },
+            your_impl,
+            hidden_bugs,
+            hidden_tests: {
+              tests: hidden_tests_tests,
+              hints: spec.hidden_tests.hints,
+            },
+            syntax_tests: spec.syntax_tests,
           },
-          your_impl,
-          hidden_bugs,
-          hidden_tests: {
-            tests: hidden_tests_tests,
-            hints: spec.hidden_tests.hints,
-          },
-          syntax_tests: spec.syntax_tests,
         },
-      },
-      instructor_mode,
-    );
+        instructor_mode,
+      );
+    set_editing_prompt(state, editing_prompt);
   };
 
   // # Stitching
@@ -897,10 +927,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       );
     let hidden_tests_tests = Zipper.next_blank();
     {
+      id: Id.mk(),
       title,
       version: 1,
       module_name,
-      prompt: ExerciseEnv.default,
+      prompt: "",
       point_distribution,
       prelude,
       correct_impl,
@@ -923,8 +954,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type exercise_export = {
-    cur_exercise: key,
-    exercise_data: list((key, persistent_state)),
+    cur_exercise: Id.t,
+    exercise_data: list((Id.t, persistent_state)),
   };
 
   let serialize_exercise = (exercise, ~instructor_mode) => {
@@ -933,11 +964,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     |> Sexplib.Sexp.to_string;
   };
 
-  let deserialize_exercise = (data, ~spec, ~instructor_mode) => {
+  let deserialize_exercise = (data, ~spec, ~instructor_mode, ~editing_prompt) => {
     data
     |> Sexplib.Sexp.of_string
     |> persistent_state_of_sexp
-    |> unpersist_state(~spec, ~instructor_mode);
+    |> unpersist_state(~spec, ~instructor_mode, ~editing_prompt);
   };
 
   let deserialize_exercise_export = data => {

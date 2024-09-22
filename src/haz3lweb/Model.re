@@ -54,7 +54,12 @@ let mk = (editors, results) => {
 let blank = mk(Editors.Scratch(0, []), ModelResults.empty);
 
 let load_editors =
-    (~settings, ~mode: Settings.mode, ~instructor_mode: bool)
+    (
+      ~settings,
+      ~mode: Settings.mode,
+      ~instructor_mode: bool,
+      ~editing_prompt: bool,
+    )
     : (Editors.t, ModelResults.t) =>
   switch (mode) {
   | Scratch =>
@@ -69,6 +74,7 @@ let load_editors =
         ~settings,
         ~specs=ExerciseSettings.exercises,
         ~instructor_mode,
+        ~editing_prompt,
       );
     (Exercises(n, specs, exercise), ModelResults.empty);
   };
@@ -92,6 +98,7 @@ let load = (init_model: t): t => {
       ~settings=settings.core,
       ~mode=settings.mode,
       ~instructor_mode=settings.instructor_mode,
+      ~editing_prompt=settings.editing_prompt,
     );
   let ui_state = init_model.ui_state;
   {editors, settings, results, explainThisModel, ui_state};

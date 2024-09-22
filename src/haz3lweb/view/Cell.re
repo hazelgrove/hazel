@@ -65,10 +65,10 @@ let mousedown_handler =
   | (false, n) => inject(PerformAction(Select(Smart(n))))
   };
 
-let narrative_cell = (content: Node.t) =>
+let narrative_cell = (content: list(Node.t)) =>
   div(
     ~attrs=[Attr.class_("cell")],
-    [div(~attrs=[Attr.class_("cell-chapter")], [content])],
+    [div(~attrs=[Attr.class_("cell-chapter")], content)],
   );
 
 let simple_cell_item = (content: list(Node.t)) =>

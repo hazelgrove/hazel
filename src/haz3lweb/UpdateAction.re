@@ -24,6 +24,7 @@ type settings_action =
   | Benchmark
   | ContextInspector
   | InstructorMode
+  | EditingPrompt
   | Evaluation(evaluation_settings_action)
   | ExplainThis(ExplainThisModel.Settings.action)
   | Mode(Settings.mode);
@@ -44,6 +45,11 @@ type set_meta =
 type benchmark_action =
   | Start
   | Finish;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type edit_prompt =
+  | Prompt
+  | Model;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type export_action =
@@ -82,7 +88,8 @@ type t =
   | Benchmark(benchmark_action)
   | ToggleStepper(ModelResults.Key.t)
   | StepperAction(ModelResults.Key.t, stepper_action)
-  | UpdateResult(ModelResults.t);
+  | UpdateResult(ModelResults.t)
+  | UpdatePrompt(string);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -116,6 +123,7 @@ let is_edit: t => bool =
     | Benchmark
     | ContextInspector
     | InstructorMode
+    | EditingPrompt
     | Evaluation(_) => false
     }
   | SetMeta(meta_action) =>
@@ -134,6 +142,7 @@ let is_edit: t => bool =
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | ResetCurrentEditor
+  | UpdatePrompt(_)
   | Reset
   | TAB => true
   | UpdateResult(_)
@@ -169,6 +178,7 @@ let reevaluate_post_update: t => bool =
     | Assist
     | Dynamics
     | InstructorMode
+    | EditingPrompt
     | Mode(_) => true
     }
   | SetMeta(meta_action) =>
@@ -184,6 +194,7 @@ let reevaluate_post_update: t => bool =
   | UpdateExplainThisModel(_)
   | Export(_)
   | UpdateResult(_)
+  | UpdatePrompt(_)
   | SwitchEditor(_)
   | DebugConsole(_)
   | Benchmark(_) => false
@@ -214,6 +225,7 @@ let should_scroll_to_caret =
     | Benchmark
     | ContextInspector
     | InstructorMode
+    | EditingPrompt
     | Evaluation(_) => false
     }
   | SetMeta(meta_action) =>
@@ -225,6 +237,7 @@ let should_scroll_to_caret =
     }
   | UpdateResult(_)
   | ToggleStepper(_)
+  | UpdatePrompt(_)
   | StepperAction(_, StepBackward | StepForward(_)) => false
   | FinishImportScratchpad(_)
   | FinishImportAll(_)

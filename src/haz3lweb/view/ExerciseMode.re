@@ -66,10 +66,66 @@ let view =
   };
   let title_view = Cell.title_cell(eds.title);
 
-  let prompt_view =
-    Cell.narrative_cell(
-      div(~attrs=[Attr.class_("cell-prompt")], [eds.prompt]),
-    );
+  let update_prompt = _ => {
+    let new_prompt =
+      Obj.magic(
+        Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("prompt-input-box")),
+      )##.value;
+    let update_events = [
+      inject(Set(EditingPrompt)),
+      inject(UpdatePrompt(new_prompt)),
+    ];
+    Virtual_dom.Vdom.Effect.Many(update_events);
+  };
+
+  let prompt_view = {
+    let (msg, _) =
+      ExplainThis.mk_translation(~inject=Some(inject), eds.prompt);
+    let msg =
+      msg
+      @ [
+        div(
+          ~attrs=[Attr.class_("edit-icon")],
+          [Widgets.button(Icons.pencil, _ => inject(Set(EditingPrompt)))],
+        ),
+      ];
+    Cell.narrative_cell([
+      div(
+        ~attrs=[Attr.class_("cell-prompt")],
+        [
+          settings.instructor_mode
+            ? settings.editing_prompt
+                ? div(
+                    ~attrs=[Attr.class_("prompt-edit")],
+                    [
+                      textarea(
+                        ~attrs=[
+                          Attr.class_("prompt-text"),
+                          Attr.id("prompt-input-box"),
+                        ],
+                        [text(eds.prompt)],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [Widgets.button(Icons.confirm, update_prompt)],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.cancel, _ =>
+                            inject(Set(EditingPrompt))
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                : div(~attrs=[Attr.class_("prompt-content")], msg)
+            : div(~attrs=[Attr.class_("prompt-content")], msg),
+        ],
+      ),
+    ]);
+  };
+
   let prelude_view =
     Always(
       editor_view(

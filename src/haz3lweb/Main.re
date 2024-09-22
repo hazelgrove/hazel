@@ -62,7 +62,9 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
   ) {
   | Ok(model) => model
   | Error(FailedToPerform(err)) =>
+    // TODO(andrew): reinstate this history functionality
     print_endline(Update.Failure.show(FailedToPerform(err)));
+    //{...model, history: ActionHistory.failure(err, model.history)};
     model;
   | Error(err) =>
     print_endline(Update.Failure.show(err));
@@ -122,7 +124,7 @@ module App = {
           print_endline("Saving...");
           schedule_action(Update.Save);
         };
-        if (scroll_to_caret.contents) {
+        if (scroll_to_caret.contents && !model.settings.instructor_mode) {
           scroll_to_caret := false;
           JsUtil.scroll_cursor_into_view_if_needed();
         };
