@@ -89,7 +89,9 @@ type t =
   | ToggleStepper(ModelResults.Key.t)
   | StepperAction(ModelResults.Key.t, stepper_action)
   | UpdateResult(ModelResults.t)
-  | UpdatePrompt(string);
+  | UpdatePrompt(string)
+  | UpdatePointDist(int)
+  | UpdateTestReq(int);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -143,6 +145,8 @@ let is_edit: t => bool =
   | FinishImportScratchpad(_)
   | ResetCurrentEditor
   | UpdatePrompt(_)
+  | UpdatePointDist(_)
+  | UpdateTestReq(_)
   | Reset
   | TAB => true
   | UpdateResult(_)
@@ -195,6 +199,8 @@ let reevaluate_post_update: t => bool =
   | Export(_)
   | UpdateResult(_)
   | UpdatePrompt(_)
+  | UpdatePointDist(_)
+  | UpdateTestReq(_)
   | SwitchEditor(_)
   | DebugConsole(_)
   | Benchmark(_) => false
@@ -238,6 +244,8 @@ let should_scroll_to_caret =
   | UpdateResult(_)
   | ToggleStepper(_)
   | UpdatePrompt(_)
+  | UpdatePointDist(_)
+  | UpdateTestReq(_)
   | StepperAction(_, StepBackward | StepForward(_)) => false
   | FinishImportScratchpad(_)
   | FinishImportAll(_)
