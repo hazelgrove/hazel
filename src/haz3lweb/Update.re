@@ -497,13 +497,15 @@ let apply =
     | SwitchScratchSlide(n) =>
       let instructor_mode = model.settings.instructor_mode;
       let editors = Editors.set_editing_prompt(model.editors, false);
-      let settings = {...model.settings, editing_prompt: false};
+      let settings = {...model.settings, editing_prompt: false, editing_point_dist: false, editing_test_num: false};
       switch (
         switch_scratch_slide(
           editors,
           ~settings=model.settings.core,
           ~instructor_mode,
           ~editing_prompt=false,
+          ~editing_point_dist=false,
+          ~editing_test_num=false,
           n,
         )
       ) {
