@@ -23,6 +23,8 @@ type t = {
   context_inspector: bool,
   instructor_mode: bool,
   editing_prompt: bool,
+  editing_point_dist: bool,
+  editing_test_num: bool,
   benchmark: bool,
   explainThis: ExplainThisModel.Settings.t,
   mode,

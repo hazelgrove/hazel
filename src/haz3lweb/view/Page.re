@@ -24,9 +24,12 @@ let key_handler =
     switch (Keyboard.handle_key_event(key)) {
     | None => Ignore
     | Some(action) =>
-      get_settings(model).editing_prompt
+      let settings = get_settings(model);
+      settings.editing_prompt
+      || settings.editing_test_num
+      || settings.editing_point_dist
         ? Many([inject(action)])
-        : Many([Prevent_default, Stop_propagation, inject(action)])
+        : Many([Prevent_default, Stop_propagation, inject(action)]);
     }
   };
 };

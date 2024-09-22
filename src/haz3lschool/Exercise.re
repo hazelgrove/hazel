@@ -493,6 +493,81 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     },
   };
 
+  let set_editing_test_num = ({eds, _} as state: state, editing: bool) => {
+    ...state,
+    eds: {
+      ...eds,
+      prelude: Editor.set_read_only(eds.prelude, editing),
+      correct_impl: Editor.set_read_only(eds.correct_impl, editing),
+      your_tests: {
+        let tests = Editor.set_read_only(eds.your_tests.tests, editing);
+        {
+          tests,
+          required: eds.your_tests.required,
+          provided: eds.your_tests.provided,
+        };
+      },
+      your_impl: Editor.set_read_only(eds.your_impl, editing),
+    },
+  };
+
+  let update_test_num = ({eds, _} as state: state, new_test_num: int) => {
+    ...state,
+    eds: {
+      ...eds,
+      your_tests: {
+        ...eds.your_tests,
+        required: new_test_num,
+      },
+    },
+  };
+
+  let set_editing_point_dist = ({eds, _} as state: state, editing: bool) => {
+    ...state,
+    eds: {
+      ...eds,
+      prelude: Editor.set_read_only(eds.prelude, editing),
+      correct_impl: Editor.set_read_only(eds.correct_impl, editing),
+      your_tests: {
+        let tests = Editor.set_read_only(eds.your_tests.tests, editing);
+        {
+          tests,
+          required: eds.your_tests.required,
+          provided: eds.your_tests.provided,
+        };
+      },
+      your_impl: Editor.set_read_only(eds.your_impl, editing),
+    },
+  };
+
+  let update_point_dist =
+      ({eds, _} as state: state, new_point_dist: int, dist: string) => {
+    let updated_point_distribution =
+      switch (dist) {
+      | "test_validation" => {
+          ...eds.point_distribution,
+          test_validation: new_point_dist,
+        }
+      | "mutation_testing" => {
+          ...eds.point_distribution,
+          mutation_testing: new_point_dist,
+        }
+      | "impl_grading" => {
+          ...eds.point_distribution,
+          impl_grading: new_point_dist,
+        }
+      | _ => eds.point_distribution
+      };
+
+    {
+      ...state,
+      eds: {
+        ...eds,
+        point_distribution: updated_point_distribution,
+      },
+    };
+  };
+
   let visible_in = (pos, ~instructor_mode) => {
     switch (pos) {
     | Prelude => instructor_mode
