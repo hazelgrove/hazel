@@ -568,7 +568,9 @@ let apply =
       Model.save_and_return({
         ...model,
         editors: Editors.update_exercise_prompt(model.editors, new_prompt),
-      })
+      });
+    | UpdatePointDist(_) => Ok(model)
+    | UpdateTestReq(_) => Ok(model)
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));
 };
