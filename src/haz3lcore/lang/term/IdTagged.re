@@ -14,10 +14,11 @@ type t('a) = {
   term: 'a,
 };
 
-let pp: ((Format.formatter, 'a) => unit, Format.formatter, t('a)) => unit =
-  (fmt_a, formatter, ta) => {
-    fmt_a(formatter, ta.term);
-  };
+// To be used if you want to remove the id from the debug output
+// let pp: ((Format.formatter, 'a) => unit, Format.formatter, t('a)) => unit =
+//   (fmt_a, formatter, ta) => {
+//     fmt_a(formatter, ta.term);
+//   };
 
 let fresh = term => {
   let _x: ((Format.formatter, 'a) => unit, t('a)) => string = show;
