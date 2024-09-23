@@ -330,7 +330,6 @@ let forms: list((string, t)) = [
 
 let get: String.t => t = {
   name => {
-    print_endline("Forms.get: name = " ++ name);
     Util.ListUtil.assoc_err(name, forms, "Forms.get");
   };
 };

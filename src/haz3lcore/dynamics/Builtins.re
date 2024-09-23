@@ -371,6 +371,25 @@ let ctx_init: Ctx.t = {
   |> Ctx.add_ctrs(_, "$Meta", Id.invalid, meta_cons_map);
 };
 
+let filter_keyword_ctx_init: Ctx.t = {
+  let impl = _ => failwith("evaluating filter keyword");
+  Pervasives.builtins
+  |> fn("eval", Unknown(Internal), Filter, impl)
+  |> fn("hide", Unknown(Internal), Filter, impl)
+  |> fn("stop", Unknown(Internal), Filter, impl)
+  |> fn("step", Unknown(Internal), Filter, impl)
+  |> List.map(
+       fun
+       | (name, Const(typ, _)) => Ctx.VarEntry({name, typ, id: Id.invalid})
+       | (name, Fn(t1, t2, _)) =>
+         Ctx.VarEntry({
+           name,
+           typ: Arrow(t1, t2) |> Typ.fresh,
+           id: Id.invalid,
+         }),
+     );
+};
+
 let forms_init: forms =
   List.filter_map(
     fun

@@ -312,33 +312,57 @@ and uexp_to_info_map =
     let (e, m) = go(~mode=Ana(Bool |> Typ.temp), e, m);
     add(~self=Just(Prod([]) |> Typ.temp), ~co_ctx=e.co_ctx, m);
   | Filter(_, pat, body) =>
-    let (body, m) = go(~mode, body, m);
-    switch (pat.term) {
-    | Ap(_, fn, arg) =>
-      switch (fn.term) {
-      | Var("eval" | "hide" | "pause" | "debug") =>
-        let (arg, m) = go(~mode=Syn, arg, m, ~is_in_filter=true);
-        add(
-          ~self=Just(body.ty),
-          ~co_ctx=CoCtx.union([arg.co_ctx, body.co_ctx]),
-          m,
-        );
+    let (pat, m) = {
+      let uexp = pat;
+      let ids = pat.ids;
+      let add' = (~self, ~co_ctx, m) => {
+        let info =
+          Info.derived_exp(~uexp, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx);
+        (info, add_info(ids, InfoExp(info), m));
+      };
+      let add = (~self, ~co_ctx, m) => add'(~self=Common(self), ~co_ctx, m);
+      let ancestors = [UExp.rep_id(uexp)] @ ancestors;
+      let uexp_to_info_map =
+          (
+            ~ctx,
+            ~mode=Mode.Syn,
+            ~is_in_filter=is_in_filter,
+            ~ancestors=ancestors,
+            uexp: UExp.t,
+            m: Map.t,
+          ) => {
+        uexp_to_info_map(~ctx, ~mode, ~is_in_filter, ~ancestors, uexp, m);
+      };
+      let go' = uexp_to_info_map(~ancestors);
+      let go = go'(~ctx);
+      switch (pat.term) {
+      | Ap(_, fn, arg) =>
+        let fn_mode =
+          Mode.of_ap(ctx, Ana(Filter |> Typ.temp), UExp.ctr_name(fn));
+        let (fn, m) =
+          go'(~ctx=Builtins.filter_keyword_ctx_init, ~mode=fn_mode, fn, m);
+        let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+        let (arg, m) = go(~mode=Ana(ty_in), arg, m);
+        let self: Self.t =
+          Id.is_nullary_ap_flag(arg.term.ids)
+          && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
+            ? BadTrivAp(ty_in) : Just(ty_out);
+        add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
       | _ =>
-        let (pat, m) = go(~mode=Ana(Filter |> Typ.temp), pat, m);
-        add(
-          ~self=Just(body.ty),
-          ~co_ctx=CoCtx.union([pat.co_ctx, body.co_ctx]),
+        go'(
+          ~ctx=Builtins.filter_keyword_ctx_init,
+          ~mode=Ana(Filter |> Typ.temp),
+          pat,
           m,
-        );
-      }
-    | _ =>
-      let (pat, m) = go(~mode=Ana(Filter |> Typ.temp), pat, m);
-      add(
-        ~self=Just(body.ty),
-        ~co_ctx=CoCtx.union([pat.co_ctx, body.co_ctx]),
-        m,
-      );
+        )
+      };
     };
+    let (body, m) = go(~mode, body, m);
+    add(
+      ~self=Just(body.ty),
+      ~co_ctx=CoCtx.union([pat.co_ctx, body.co_ctx]),
+      m,
+    );
   | Residue(_, _, body) =>
     let (body, m) = go(~mode, body, m);
     add(~self=Just(body.ty), ~co_ctx=CoCtx.union([body.co_ctx]), m);
@@ -351,6 +375,12 @@ and uexp_to_info_map =
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+    Printf.printf("uexp_to_info_map: Ap: uexp = %s\n", UExp.show(uexp));
+    Printf.printf(
+      "uexp_to_info_map: Ap: ty_in = %s, ty_out = %s\n",
+      Typ.show(ty_in),
+      Typ.show(ty_out),
+    );
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
     let self: Self.t =
       Id.is_nullary_ap_flag(arg.term.ids)

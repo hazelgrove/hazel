@@ -13,8 +13,8 @@ type t = (action, count);
 
 let t_of_string = s => {
   switch (s) {
-  | "pause" => Some((Step, One))
-  | "debug" => Some((Step, All))
+  | "stop" => Some((Step, One))
+  | "step" => Some((Step, All))
   | "hide" => Some((Eval, One))
   | "eval" => Some((Eval, All))
   | _ => None
@@ -23,8 +23,8 @@ let t_of_string = s => {
 
 let string_of_t = v => {
   switch (v) {
-  | (Step, One) => "pause"
-  | (Step, All) => "debug"
+  | (Step, One) => "stop"
+  | (Step, All) => "step"
   | (Eval, One) => "hide"
   | (Eval, All) => "eval"
   };
