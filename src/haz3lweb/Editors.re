@@ -21,6 +21,12 @@ type t =
   | Documentation(string, list((string, DocumentationEnv.state)))
   | Exercises(int, list(Exercise.spec), Exercise.state);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type cur_state =
+  | ScratchState(ScratchSlide.state)
+  | DocumentationState(DocumentationEnv.state)
+  | ExerciseState(Exercise.state);
+
 let get_editor = (editors: t): Editor.t =>
   switch (editors) {
   | Scratch(n, slides) =>
@@ -34,42 +40,93 @@ let get_editor = (editors: t): Editor.t =>
   | Exercises(_, _, exercise) => Exercise.editor_of_state(exercise)
   };
 
-let put_editor = (ed: DocumentationEnv.state, eds: t): t =>
+// let put_editor = (ed: DocumentationEnv.state, eds: t): t =>
+//   switch (eds) {
+//   | Scratch(n, slides) =>
+//     assert(n < List.length(slides));
+//     let convert_to_state = (doc_state: DocumentationEnv.state): state => {
+//       title: doc_state.eds.title,
+//       description: doc_state.eds.description,
+//       // your_impl: doc_state.eds.your_impl,  // or however this field maps
+//       hidden_tests: {
+//         tests: doc_state.eds.hidden_tests.tests, // or however this field maps
+//         hints: doc_state.eds.hidden_tests.hints,
+//       },
+//     };
+//     let new_ed = convert_to_state(ed);
+//     Scratch(n, Util.ListUtil.put_nth(n, new_ed, slides));
+
+//   | Documentation(name, slides) =>
+//     assert(List.mem_assoc(name, slides));
+
+//     // NEW //
+//     let update_slide =
+//         (hint: string, state: DocumentationEnv.state)
+//         : (string, DocumentationEnv.state) =>
+//       if (hint == name) {
+//         let updatedState =
+//           switch (ed.pos) {
+//           | DocumentationEnv.HiddenTests =>
+//             DocumentationEnv.put_editor(state, ed.eds.hidden_tests.tests) // Update hidden_tests
+//           | DocumentationEnv.YourImpl =>
+//             DocumentationEnv.put_editor(state, ed.eds.your_impl) // Update your_impl
+//           };
+//         (hint, updatedState);
+//       } else {
+//         (hint, state);
+//       };
+
+//     let updatedSlides =
+//       List.map(
+//         slide => {
+//           let (hint, state) = slide;
+//           update_slide(hint, state);
+//         },
+//         slides,
+//       );
+
+//     Documentation(name, updatedSlides);
+//   // //
+
+//   | Exercises(n, specs, exercise) =>
+//     Exercises(
+//       n,
+//       specs,
+//       Exercise.put_editor(exercise, ed.eds.hidden_tests.tests),
+//     )
+//   };
+
+let put_editor = (editor: Editor.t, eds: t): t =>
   switch (eds) {
   | Scratch(n, slides) =>
     assert(n < List.length(slides));
-    let convert_to_state = (doc_state: DocumentationEnv.state): state => {
-      title: doc_state.eds.title,
-      description: doc_state.eds.description,
-      // your_impl: doc_state.eds.your_impl,  // or however this field maps
+
+    let new_ed: state = {
+      title: "",
+      description: "",
       hidden_tests: {
-        tests: doc_state.eds.hidden_tests.tests, // or however this field maps
-        hints: doc_state.eds.hidden_tests.hints,
+        tests: editor,
+        hints: [],
       },
     };
-    let new_ed = convert_to_state(ed);
+
     Scratch(n, Util.ListUtil.put_nth(n, new_ed, slides));
 
   | Documentation(name, slides) =>
     assert(List.mem_assoc(name, slides));
 
-    // NEW //
+    // Function to update the slide based on `editor`
     let update_slide =
         (hint: string, state: DocumentationEnv.state)
         : (string, DocumentationEnv.state) =>
       if (hint == name) {
-        let updatedState =
-          switch (ed.pos) {
-          | DocumentationEnv.HiddenTests =>
-            DocumentationEnv.put_editor(state, ed.eds.hidden_tests.tests) // Update hidden_tests
-          | DocumentationEnv.YourImpl =>
-            DocumentationEnv.put_editor(state, ed.eds.your_impl) // Update your_impl
-          };
+        let updatedState = DocumentationEnv.put_editor(state, editor);
         (hint, updatedState);
       } else {
         (hint, state);
       };
 
+    // Map the update function over the slides
     let updatedSlides =
       List.map(
         slide => {
@@ -80,14 +137,10 @@ let put_editor = (ed: DocumentationEnv.state, eds: t): t =>
       );
 
     Documentation(name, updatedSlides);
-  // //
 
   | Exercises(n, specs, exercise) =>
-    Exercises(
-      n,
-      specs,
-      Exercise.put_editor(exercise, ed.eds.hidden_tests.tests),
-    )
+    // For Exercises, update the hidden_tests with `editor`
+    Exercises(n, specs, Exercise.put_editor(exercise, editor))
   };
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;

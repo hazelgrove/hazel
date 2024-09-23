@@ -2,20 +2,29 @@ open Haz3lcore;
 
 include UpdateAction; // to prevent circularity
 
-let fromEditor = (editor: Editor.t): DocumentationEnv.state => {
-  {
-    pos: DocumentationEnv.YourImpl,
-    eds: {
-      title: "",
-      description: "",
-      your_impl: Editor.init(Zipper.init()),
-      hidden_tests: {
-        tests: editor,
-        hints: [],
-      },
-    },
-  };
-};
+// let fromEditor = (editor: Editor.t): ScratchSlide.state => {
+//   title: "",
+//   description: "",
+//   hidden_tests: {
+//     tests: editor,
+//     hints: [],
+//   },
+// };
+
+// let fromEditor = (editor: Editor.t): DocumentationEnv.state => {
+//   {
+//     pos: DocumentationEnv.YourImpl,
+//     eds: {
+//       title: "",
+//       description: "",
+//       your_impl: editor,
+//       hidden_tests: {
+//         tests: editor,
+//         hints: [],
+//       },
+//     },
+//   };
+// };
 
 let update_settings =
     (a: settings_action, {settings, _} as model: Model.t): Model.t =>
@@ -254,10 +263,7 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   ) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok(ed) =>
-    let model = {
-      ...model,
-      editors: Editors.put_editor(fromEditor(ed), model.editors),
-    };
+    let model = {...model, editors: Editors.put_editor(ed, model.editors)};
     /* Note: Not saving here as saving is costly to do each keystroke,
        we wait a second after the last edit action (see Main.re) */
     Ok(model);
@@ -471,7 +477,7 @@ let rec apply =
       | Some(z) =>
         //TODO: add correct action to history (Pick_up is wrong)
         let editor = Haz3lcore.Editor.new_state(Pick_up, z, ed);
-        let editors = Editors.put_editor(fromEditor(editor), model.editors);
+        let editors = Editors.put_editor(editor, model.editors);
         Ok({...model, editors});
       };
     | Cut =>
@@ -488,7 +494,7 @@ let rec apply =
       | Some(z) =>
         //HACK(andrew): below is not strictly a insert action...
         let ed = Haz3lcore.Editor.new_state(Insert(clipboard), z, ed);
-        let editors = Editors.put_editor(fromEditor(ed), model.editors);
+        let editors = Editors.put_editor(ed, model.editors);
         Ok({...model, editors});
       };
     | Undo =>
@@ -496,20 +502,14 @@ let rec apply =
       switch (Haz3lcore.Editor.undo(ed)) {
       | None => Error(CantUndo)
       | Some(ed) =>
-        Ok({
-          ...model,
-          editors: Editors.put_editor(fromEditor(ed), model.editors),
-        })
+        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
       };
     | Redo =>
       let ed = Editors.get_editor(model.editors);
       switch (Haz3lcore.Editor.redo(ed)) {
       | None => Error(CantRedo)
       | Some(ed) =>
-        Ok({
-          ...model,
-          editors: Editors.put_editor(fromEditor(ed), model.editors),
-        })
+        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
       };
     | MoveToNextHole(d) =>
       perform_action(model, Move(Goal(Piece(Grout, d))))
