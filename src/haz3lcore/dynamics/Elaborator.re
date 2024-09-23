@@ -322,7 +322,7 @@ let rec elaborate =
     | Tuple(es) =>
       let (ds, tys) =
         List.map(elaborate(m, ~in_container=true), es) |> ListUtil.unzip;
-      print_endline("ds: " ++ [%derive.show: list(DHExp.t)](ds));
+
       let expected_labels: list(option(string)) =
         Typ.get_labels(ctx, elaborated_type);
       let elaborated_labeled: list((option(string), DHExp.t)) =
@@ -335,12 +335,7 @@ let rec elaborate =
           },
           ds,
         );
-      print_endline(
-        "elaborated_labeled: "
-        ++ [%derive.show: list((option(string), DHExp.t))](
-             elaborated_labeled,
-           ),
-      );
+
       let reordered: list((option(string), DHExp.t)) =
         LabeledTuple.rearrange2(expected_labels, elaborated_labeled);
 
