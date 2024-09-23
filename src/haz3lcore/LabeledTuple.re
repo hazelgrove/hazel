@@ -75,6 +75,7 @@ let validate_uniqueness:
     results;
   };
 
+// TODO Just change t to label in the definition and consider adding a t = (option(label), 'a)
 type label = t;
 let seperate_labeled = (xs: list((option(label), 'a))) => {
   List.partition_map(
@@ -108,43 +109,21 @@ let rec rearrange2:
     let l2_labels = List.filter_map(fst, l2);
     let common_labels = intersect(l1_labels, l2_labels);
 
-    let returnable =
-      switch (l1, l2) {
-      | ([], _) => l2
-      | (_, []) => []
-      | ([Some(expected_label), ...remaining_expectations], remaining) =>
-        let maybe_found = List.assoc_opt(Some(expected_label), remaining);
+    switch (l1, l2) {
+    | ([], _) => l2
+    | (_, []) => []
+    | ([Some(expected_label), ...remaining_expectations], remaining) =>
+      let maybe_found = List.assoc_opt(Some(expected_label), remaining);
 
-        switch (maybe_found) {
-        | Some(found) =>
-          [(Some(expected_label), found)]
-          @ rearrange2(
-              ~show_b?,
-              remaining_expectations,
-              List.remove_assoc(Some(expected_label), remaining),
-            )
-        | None =>
-          let (
-            pre: list((option(label), 'b)),
-            current: option((option(label), 'b)),
-            post: list((option(label), 'b)),
-          ) =
-            ListUtil.split(remaining, ((label: option(label), _)) => {
-              switch (label) {
-              | Some(label) => !List.mem(label, common_labels)
-              | None => true
-              }
-            });
-
-          switch (current) {
-          | Some((_existing_label, b)) =>
-            [(Some(expected_label), b)]
-            @ rearrange2(~show_b?, remaining_expectations, pre @ post)
-          | None => remaining
-          };
-        };
-      | ([None, ...remaining_expectations], remaining) =>
-        // Pick the first one that's not in common labels and then keep the rest in remaining
+      switch (maybe_found) {
+      | Some(found) =>
+        [(Some(expected_label), found)]
+        @ rearrange2(
+            ~show_b?,
+            remaining_expectations,
+            List.remove_assoc(Some(expected_label), remaining),
+          )
+      | None =>
         let (
           pre: list((option(label), 'b)),
           current: option((option(label), 'b)),
@@ -156,58 +135,34 @@ let rec rearrange2:
             | None => true
             }
           });
+
         switch (current) {
         | Some((_existing_label, b)) =>
-          [(None, b)]
+          [(Some(expected_label), b)]
           @ rearrange2(~show_b?, remaining_expectations, pre @ post)
         | None => remaining
         };
       };
-    // print_endline("================");
-    // print_endline("l1: " ++ [%derive.show: list(option(string))](l1));
-    // Option.iter(
-    //   sa =>
-    //     print_endline(
-    //       "l2: ["
-    //       ++ String.concat(
-    //            ",",
-    //            List.map(
-    //              l2e =>
-    //                "("
-    //                ++ [%derive.show: option(string)](fst(l2e))
-    //                ++ ","
-    //                ++ sa(snd(l2e))
-    //                ++ ")",
-    //              l2,
-    //            ),
-    //          )
-    //       ++ "]",
-    //     ),
-    //   show_b,
-    // );
-    // Option.iter(
-    //   sa =>
-    //     print_endline(
-    //       "returnable: ["
-    //       ++ String.concat(
-    //            ",",
-    //            List.map(
-    //              l2e =>
-    //                "("
-    //                ++ [%derive.show: option(string)](fst(l2e))
-    //                ++ ","
-    //                ++ sa(snd(l2e))
-    //                ++ ")",
-    //              returnable,
-    //            ),
-    //          )
-    //       ++ "]",
-    //     ),
-    //   show_b,
-    // );
-    // print_endline("================");
-
-    returnable;
+    | ([None, ...remaining_expectations], remaining) =>
+      // Pick the first one that's not in common labels and then keep the rest in remaining
+      let (
+        pre: list((option(label), 'b)),
+        current: option((option(label), 'b)),
+        post: list((option(label), 'b)),
+      ) =
+        ListUtil.split(remaining, ((label: option(label), _)) => {
+          switch (label) {
+          | Some(label) => !List.mem(label, common_labels)
+          | None => true
+          }
+        });
+      switch (current) {
+      | Some((_existing_label, b)) =>
+        [(None, b)]
+        @ rearrange2(~show_b?, remaining_expectations, pre @ post)
+      | None => remaining
+      };
+    };
   };
 
 // Assumes all labels are unique
@@ -219,8 +174,6 @@ let rec rearrange2:
 let rearrange:
   'a 'b.
   (
-    ~show_a: 'a => string=?,
-    ~show_b: 'b => string=?,
     'a => option((t, 'a)),
     'b => option((t, 'b)),
     list('a),
@@ -229,9 +182,7 @@ let rearrange:
   ) =>
   list('b)
  =
-  (~show_a=?, ~show_b=?, get_label1, get_label2, l1, l2, constructor) => {
-    let _ = show_b;
-    let _ = show_a;
+  (get_label1, get_label2, l1, l2, constructor) => {
     // TODO: Error handling in case of bad arguments
     let (_, l1_lab, _) = validate_uniqueness(get_label1, l1);
     let (_, l2_lab, _) = validate_uniqueness(get_label2, l2);
