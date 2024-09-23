@@ -467,32 +467,24 @@ let rec get_labels = (ctx, ty): list(option(string)) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
   | Parens(ty) => get_labels(ctx, ty)
-  | Prod(tys) => List.map(x =>Option.map(fst, get_label(x)), tys)
+  | Prod(tys) => List.map(x => Option.map(fst, get_label(x)), tys)
   | _ => []
   };
 };
 
 let rec matched_prod_strict:
   'a.
-  (
-    ~show_a: 'a => string=?,
-    Ctx.t,
-    list('a),
-    'a => option((string, 'a)),
-    t
-  ) =>
-  option(list(t))
+  (Ctx.t, list('a), 'a => option((string, 'a)), t) => option(list(t))
  =
-  (~show_a=?, ctx: Ctx.t, ts, get_label_ts : 'a => option((string, 'a)), ty: t) => {
+  (ctx: Ctx.t, ts, get_label_ts: 'a => option((string, 'a)), ty: t) => {
     let normalized: term = term_of(weak_head_normalize(ctx, ty));
     print_endline("normalized: " ++ show_term(normalized));
     switch (normalized) {
-    | Parens(ty) => matched_prod_strict(~show_a?, ctx, ts, get_label_ts, ty)
+    | Parens(ty) => matched_prod_strict(ctx, ts, get_label_ts, ty)
     | Prod(tys: list(t)) =>
       if (List.length(ts) != List.length(tys)) {
         None;
       } else {
-        
         let bar: option(list(t)) =
           Some(
             LabeledTuple.rearrange(
@@ -510,14 +502,13 @@ let rec matched_prod_strict:
 
 let matched_prod =
     (
-      ~show_a: option('a => string)=?,
       ctx: Ctx.t,
       ts: list('a),
       get_label_ts: 'a => option((string, 'a)),
       ty: t,
     )
     : list(t) =>
-  matched_prod_strict(~show_a?, ctx, ts, get_label_ts, ty)
+  matched_prod_strict(ctx, ts, get_label_ts, ty)
   |> Option.value(
        ~default=List.init(List.length(ts), _ => Unknown(Internal) |> temp),
      );
