@@ -307,23 +307,18 @@ let rec elaborate =
     | TupLabel(label, e) =>
       let (label', labty) = elaborate(m, label);
       let (e', ety) = elaborate(m, e);
-      let foo =
-        if (in_container) {
-          Exp.TupLabel(label', e')
-          |> rewrap
-          |> cast_from(Typ.TupLabel(labty, ety) |> Typ.temp);
-        } else {
-          Tuple([Exp.TupLabel(label', e') |> rewrap])
-          |> Exp.fresh
-          |> cast_from(
-               Typ.Prod([Typ.TupLabel(labty, ety) |> Typ.temp]) |> Typ.temp,
-             );
-        };
+      if (in_container) {
+        Exp.TupLabel(label', e')
+        |> rewrap
+        |> cast_from(Typ.TupLabel(labty, ety) |> Typ.temp);
+      } else {
+        Tuple([Exp.TupLabel(label', e') |> rewrap])
+        |> Exp.fresh
+        |> cast_from(
+             Typ.Prod([Typ.TupLabel(labty, ety) |> Typ.temp]) |> Typ.temp,
+           );
+      };
 
-      print_endline("exp: " ++ UExp.show(uexp));
-      print_endline("typ: " ++ Typ.show(elaborated_type));
-      print_endline("dhexp: " ++ DHExp.show(foo));
-      foo;
     | Tuple(es) =>
       let (ds, tys) =
         List.map(elaborate(m, ~in_container=true), es) |> ListUtil.unzip;
