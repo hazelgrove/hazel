@@ -281,12 +281,43 @@ module D = (DocEnv: DocEnv) => {
   let switch_editor = (~pos, instructor_mode, ~documentation) =>
     if (!instructor_mode) {
       switch (pos) {
-      | HiddenTests
-      // | HiddenBugs(_) => exercise
-      | _ => {eds: documentation.eds, pos}
+      | HiddenTests =>
+        // Update the `hidden_tests` editor when position is HiddenTests
+        let updated_hidden_tests = documentation.eds.hidden_tests.tests;
+        {
+          // ...documentation,
+          eds: {
+            ...documentation.eds,
+            hidden_tests: {
+              ...documentation.eds.hidden_tests,
+              tests: updated_hidden_tests,
+            },
+          },
+          pos: HiddenTests,
+        };
+      | YourImpl =>
+        // Update the `your_impl` editor when position is YourImpl
+        let updated_your_impl = documentation.eds.your_impl;
+        {
+          //   ...documentation,
+          eds: {
+            ...documentation.eds,
+            your_impl: updated_your_impl,
+          },
+          pos: YourImpl,
+        };
+      // | _ => {
+      //     // Handle other cases by just updating the position
+      //     {eds: documentation.eds, pos};
+      //   }
       };
     } else {
-      {eds: documentation.eds, pos};
+      {
+        // When instructor_mode is enabled, decide if further logic is needed
+        // In this case, just return the documentation with updated position
+        eds: documentation.eds,
+        pos,
+      };
     };
 
   let zipper_of_code = code => {
@@ -351,6 +382,11 @@ module D = (DocEnv: DocEnv) => {
         // syntax_tests,
       };
     };
+
+  // let unpersist = (zipper: persistent_state) => {
+  //   let zipper = PersistentZipper.unpersist(zipper.hidden_tests.tests);
+  //   Editor.init(zipper, ~read_only=false);
+  // };
 
   let editor_of_serialization = zipper => Editor.init(zipper);
   let eds_of_spec: spec => eds =
@@ -444,7 +480,7 @@ module D = (DocEnv: DocEnv) => {
 
   let state_of_spec = (spec, ~instructor_mode: bool): state => {
     let eds = eds_of_spec(spec);
-    set_instructor_mode({pos: YourImpl, eds}, instructor_mode);
+    set_instructor_mode({pos: HiddenTests, eds}, instructor_mode);
   };
 
   let persistent_state_of_state =

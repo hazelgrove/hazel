@@ -1,13 +1,19 @@
 open Haz3lcore;
 include UpdateAction;
 
-let fromEditor = (editor: Editor.t): ScratchSlide.state => {
-  title: "",
-  description: "",
-  hidden_tests: {
-    tests: editor,
-    hints: [],
-  },
+let fromEditor = (editor: Editor.t): DocumentationEnv.state => {
+  {
+    pos: DocumentationEnv.YourImpl,
+    eds: {
+      title: "",
+      description: "",
+      your_impl: Editor.init(Zipper.init()),
+      hidden_tests: {
+        tests: editor,
+        hints: [],
+      },
+    },
+  };
 };
 
 /* NOTE: this is duplicated from Update */

@@ -29,16 +29,27 @@ let get_editor = (editors: t): Editor.t =>
   | Documentation(name, slides) =>
     assert(List.mem_assoc(name, slides));
     let slide_state = List.assoc(name, slides);
-    // List.assoc(name, slides).eds.your_impl;
     DocumentationEnv.editor_of_state(slide_state);
+  // List.assoc(name, slides).eds.your_impl;
   | Exercises(_, _, exercise) => Exercise.editor_of_state(exercise)
   };
 
-let put_editor = (ed: ScratchSlide.state, eds: t): t =>
+let put_editor = (ed: DocumentationEnv.state, eds: t): t =>
   switch (eds) {
   | Scratch(n, slides) =>
     assert(n < List.length(slides));
-    Scratch(n, Util.ListUtil.put_nth(n, ed, slides));
+    let convert_to_state = (doc_state: DocumentationEnv.state): state => {
+      title: doc_state.eds.title,
+      description: doc_state.eds.description,
+      // your_impl: doc_state.eds.your_impl,  // or however this field maps
+      hidden_tests: {
+        tests: doc_state.eds.hidden_tests.tests, // or however this field maps
+        hints: doc_state.eds.hidden_tests.hints,
+      },
+    };
+    let new_ed = convert_to_state(ed);
+    Scratch(n, Util.ListUtil.put_nth(n, new_ed, slides));
+
   | Documentation(name, slides) =>
     assert(List.mem_assoc(name, slides));
 
@@ -48,7 +59,12 @@ let put_editor = (ed: ScratchSlide.state, eds: t): t =>
         : (string, DocumentationEnv.state) =>
       if (hint == name) {
         let updatedState =
-          DocumentationEnv.put_editor(state, ed.hidden_tests.tests);
+          switch (ed.pos) {
+          | DocumentationEnv.HiddenTests =>
+            DocumentationEnv.put_editor(state, ed.eds.hidden_tests.tests) // Update hidden_tests
+          | DocumentationEnv.YourImpl =>
+            DocumentationEnv.put_editor(state, ed.eds.your_impl) // Update your_impl
+          };
         (hint, updatedState);
       } else {
         (hint, state);
@@ -67,7 +83,11 @@ let put_editor = (ed: ScratchSlide.state, eds: t): t =>
   // //
 
   | Exercises(n, specs, exercise) =>
-    Exercises(n, specs, Exercise.put_editor(exercise, ed.hidden_tests.tests))
+    Exercises(
+      n,
+      specs,
+      Exercise.put_editor(exercise, ed.eds.hidden_tests.tests),
+    )
   };
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
@@ -164,8 +184,23 @@ let get_spliced_elabs =
 
 let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
   switch (editors) {
-  | Scratch(_)
-  | Documentation(_) => editors
+  | Scratch(n, slides) => Scratch(n, slides)
+  | Documentation(name, slides) =>
+    // Assuming you want to pass instructor_mode down to each slide
+    let updated_slides =
+      List.map(
+        ((slide_name, slide_state)) => {
+          (
+            slide_name,
+            DocumentationEnv.set_instructor_mode(
+              slide_state,
+              instructor_mode,
+            ),
+          )
+        },
+        slides,
+      );
+    Documentation(name, updated_slides);
   | Exercises(n, specs, exercise) =>
     Exercises(
       n,
@@ -205,13 +240,6 @@ let reset_current = (editors: t, ~instructor_mode: bool): t =>
     Scratch(n, editorList);
 
   | Documentation(name, slides) =>
-    // Need a reset here
-
-    // let toEditor = (state: DocumentationEnv.state): Editor.t => {
-    //   switch (state) {
-    //   | s => s.eds.your_impl
-    //   };
-    // };
     let from_tup = ((word: string, status: DocumentationEnv.state)) => {
       // word,
       // toEditor(status),
@@ -232,9 +260,9 @@ let reset_current = (editors: t, ~instructor_mode: bool): t =>
       (word, DocumentationEnv.state_of_spec(spec, ~instructor_mode));
     };
 
-    let slides = List.map(from_tup, slides);
+    let updatedSlides = List.map(from_tup, slides);
 
-    Documentation(name, slides);
+    Documentation(name, updatedSlides);
 
   | Exercises(n, specs, _) =>
     Exercises(

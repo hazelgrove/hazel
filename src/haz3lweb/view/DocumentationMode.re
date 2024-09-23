@@ -198,7 +198,7 @@ let view =
         ~di=user_impl,
         ~footer=
           Cell.footer(
-            ~locked=false,
+            ~locked=true,
             ~settings,
             ~inject,
             ~ui_state,

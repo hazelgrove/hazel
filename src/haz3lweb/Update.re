@@ -2,13 +2,19 @@ open Haz3lcore;
 
 include UpdateAction; // to prevent circularity
 
-let fromEditor = (editor: Editor.t): ScratchSlide.state => {
-  title: "",
-  description: "",
-  hidden_tests: {
-    tests: editor,
-    hints: [],
-  },
+let fromEditor = (editor: Editor.t): DocumentationEnv.state => {
+  {
+    pos: DocumentationEnv.YourImpl,
+    eds: {
+      title: "",
+      description: "",
+      your_impl: Editor.init(Zipper.init()),
+      hidden_tests: {
+        tests: editor,
+        hints: [],
+      },
+    },
+  };
 };
 
 let update_settings =
@@ -301,12 +307,8 @@ let switch_doc_editor =
         },
         slides,
       );
-
     Some(Documentation(name, tutorial_states));
-
-  // Some(Documentation(name, tutorial_states));
-  | Scratch(_) => None
-  | Exercises(_) => None
+  | _ => None
   };
 
 /* This action saves a file which serializes all current editor
