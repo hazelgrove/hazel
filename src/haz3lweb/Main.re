@@ -70,13 +70,8 @@ let apply = (model, action, ~schedule_action): Model.t => {
 };
 
 let on_startup =
-    (
-      ~inject: UpdateAction.t => Ui_effect.t(unit),
-      ~schedule_event: Ui_effect.t(unit) => unit,
-      m: Model.t,
-    )
-    : Model.t => {
-  let schedule_action = action => schedule_event(inject(action));
+    (~inject: UpdateAction.t => Ui_effect.t(unit), m: Model.t)
+    : Ui_effect.t(unit) => {
   let _ =
     observe_font_specimen("font-specimen", fm =>
       schedule_action(Haz3lweb.Update.SetMeta(FontMetrics(fm)))
@@ -91,7 +86,7 @@ let on_startup =
       Js.string("MAC"),
     )
     >= 0;
-  m;
+  Ui_effect.Ignore;
 };
 
 module App = {
@@ -140,18 +135,26 @@ let app =
       (~inject, ~schedule_event) =>
         apply(~schedule_action=x => schedule_event(inject(x))),
     ~default_model=Model.load(Model.blank),
-    ~reset=on_startup,
   );
 
 open Bonsai.Let_syntax;
 
 let view = {
+  let startup_completed = Bonsai.toggle'(~default_model=false);
+  let%sub startup_completed = startup_completed;
   let%sub app = app;
+  let%sub after_display = {
+    switch%sub (startup_completed) {
+    | {state: false, set_state, _} =>
+      let%arr (model, inject) = app
+      and set_state = set_state;
+      Bonsai.Effect.Many([on_startup(~inject, model), set_state(true)]);
+    | {state: true, _} => Bonsai.Computation.return(Ui_effect.Ignore)
+    };
+  };
+  let%sub () = Bonsai.Edge.lifecycle(~after_display, ());
   let%arr (model, inject) = app;
   Haz3lweb.Page.view(~inject, model);
-  // Bonsai.Computation.map(app, ~f=((model, inject)) =>
-  //   Haz3lweb.Page.view(~inject, model)
-  // );
 };
 
 switch (JsUtil.Fragment.get_current()) {
