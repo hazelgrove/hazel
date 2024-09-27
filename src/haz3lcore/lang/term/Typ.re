@@ -298,9 +298,11 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     Arrow(ty1, ty2) |> temp;
   | (Arrow(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
-    //TODO (Anthony): Clean up the repetition
-    let (l1_valid, _, _) = LabeledTuple.validate_uniqueness(get_label, tys1);
-    let (l2_valid, _, _) = LabeledTuple.validate_uniqueness(get_label, tys2);
+    //TODO (Anthony): Clean up the repetition and check for validity. Maybe in statics though
+    // let (l1_valid, _, _) = LabeledTuple.validate_uniqueness(get_label, tys1);
+    // let (l2_valid, _, _) = LabeledTuple.validate_uniqueness(get_label, tys2);
+    let l1_valid = true;
+    let l2_valid = true;
     if (!l1_valid || !l2_valid || List.length(tys1) != List.length(tys2)) {
       None;
     } else {
