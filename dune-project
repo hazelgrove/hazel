@@ -29,7 +29,6 @@
   reason
   ppx_yojson_conv_lib
   ppx_yojson_conv
-  incr_dom
   (omd (>= 2.0.0~alpha4))
   ezjs_idb
   virtual_dom
