@@ -694,11 +694,13 @@ module Transition = (EV: EV_MODE) => {
         is_value: true,
       });
     | Dot(d1, d2) =>
-      let. _ = otherwise(env, d2 => Dot(d1, d2) |> rewrap)
+      let. _ = otherwise(env, (d1, d2) => Dot(d1, d2) |> rewrap)
       and. d1' =
-        req_final(req(state, env), d1 => Dot1(d1, d2) |> wrap_ctx, d1);
+        req_final(req(state, env), d1 => Dot1(d1, d2) |> wrap_ctx, d1)
+      and. d2' =
+        req_final(req(state, env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
       // TODO: Holes and other cases handled?
-      switch (DHExp.term_of(d1'), DHExp.term_of(d2)) {
+      switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
       | (Tuple(ds), Var(name)) =>
         Step({
           expr:
@@ -744,7 +746,7 @@ module Transition = (EV: EV_MODE) => {
           kind: CastAp,
           is_value: false,
         });
-      | _ => Indet
+      | _ => raise(EvaluatorError.Exception(BadPatternMatch))
       };
     | TupLabel(label, d1) =>
       // TODO (Anthony): Fix this if needed

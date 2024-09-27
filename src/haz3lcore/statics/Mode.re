@@ -71,7 +71,13 @@ let of_label = (ctx: Ctx.t, mode: t): (t, t) =>
   };
 
 let of_prod =
-    (ctx: Ctx.t, mode: t, es: list('a), filt, constructor)
+    (
+      ctx: Ctx.t,
+      mode: t,
+      es: list('a),
+      filt: 'a => option((string, 'a)),
+      constructor: (string, 'a) => 'a,
+    )
     : (list('a), list(t)) =>
   switch (mode) {
   | Syn
