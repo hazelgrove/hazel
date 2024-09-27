@@ -2,6 +2,7 @@ open Util;
 
 module CachedSyntax = {
   type t = {
+    old: bool,
     segment: Segment.t,
     measured: Measured.t,
     tiles: TileMap.t,
@@ -36,6 +37,7 @@ module CachedSyntax = {
     let segment = Zipper.unselect_and_zip(z);
     let MakeTerm.{term, terms, projectors} = MakeTerm.go(segment);
     {
+      old: false,
       segment,
       term_ranges: TermRanges.mk(segment),
       tiles: TileMap.mk(segment),
@@ -48,8 +50,10 @@ module CachedSyntax = {
     };
   };
 
-  let calculate = (~is_edited, z: Zipper.t, info_map, old: t) =>
-    is_edited
+  let mark_old: t => t = old => {...old, old: true};
+
+  let calculate = (z: Zipper.t, info_map, old: t) =>
+    old.old
       ? init(z, info_map)
       : {...old, selection_ids: Selection.selection_ids(z.selection)};
 };
@@ -160,6 +164,12 @@ module Update = {
             |> Option.value(~default=state.zipper),
         }
         : state;
+    let syntax =
+      if (settings.assist && settings.statics && a != Buffer(Accept)) {
+        CachedSyntax.mark_old(syntax);
+      } else {
+        syntax;
+      };
 
     print_endline("2");
     // 2. Add to undo history
@@ -232,7 +242,12 @@ module Update = {
   let can_redo = ed => Option.is_some(redo(ed));
 
   let calculate =
-      (~settings: CoreSettings.t, ~is_edited, new_statics, ed: Model.t) => {
+      (
+        ~settings: CoreSettings.t,
+        ~is_edited,
+        new_statics,
+        {syntax, state, history}: Model.t,
+      ) => {
     print_endline("6");
     // 1. Recalculate the autocomplete buffer if necessary
     let zipper =
@@ -242,31 +257,27 @@ module Update = {
             ~settings,
             new_statics,
             Buffer(Set(TyDi)),
-            Model.to_move_s(ed),
-            ed.state.zipper,
+            Model.to_move_s({syntax, state, history}),
+            state.zipper,
           )
         ) {
         | Ok(z) => z
-        | Error(_) => ed.state.zipper
+        | Error(_) => state.zipper
         };
       } else {
-        ed.state.zipper;
+        state.zipper;
       };
     print_endline("7");
     // 2. Recalculate syntax cache
-    let syntax =
-      CachedSyntax.calculate(
-        ~is_edited,
-        zipper,
-        new_statics.info_map,
-        ed.syntax,
-      );
+    let syntax = is_edited ? CachedSyntax.mark_old(syntax) : syntax;
+
+    let syntax = CachedSyntax.calculate(zipper, new_statics.info_map, syntax);
     print_endline("8");
     // Recombine
-    {
-      ...ed,
+    Model.{
+      history,
       state: {
-        ...ed.state,
+        ...state,
         zipper,
       },
       syntax,
