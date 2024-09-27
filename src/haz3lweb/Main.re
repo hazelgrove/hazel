@@ -6,23 +6,6 @@ let scroll_to_caret = ref(true);
 let edit_action_applied = ref(true);
 let last_edit_action = ref(JsUtil.timestamp());
 
-let observe_font_specimen = (id, update) =>
-  ResizeObserver.observe(
-    ~node=JsUtil.get_elem_by_id(id),
-    ~f=
-      (entries, _) => {
-        let specimen = Js.to_array(entries)[0];
-        let rect = specimen##.contentRect;
-        update(
-          Haz3lweb.FontMetrics.{
-            row_height: rect##.bottom -. rect##.top,
-            col_width: rect##.right -. rect##.left,
-          },
-        );
-      },
-    (),
-  );
-
 let restart_caret_animation = () =>
   // necessary to trigger reflow
   // <https://css-tricks.com/restart-css-animation/>
@@ -67,26 +50,6 @@ let apply = (model, action, ~schedule_action): Model.t => {
     print_endline(Update.Failure.show(err));
     model;
   };
-};
-
-let on_startup =
-    (~inject: UpdateAction.t => Ui_effect.t(unit), m: Model.t)
-    : Ui_effect.t(unit) => {
-  let _ =
-    observe_font_specimen("font-specimen", fm =>
-      schedule_action(Haz3lweb.Update.SetMeta(FontMetrics(fm)))
-    );
-  NinjaKeys.initialize(NinjaKeys.options(schedule_action));
-  JsUtil.focus_clipboard_shim();
-  /* initialize state. */
-  /* Initial evaluation on a worker */
-  Update.schedule_evaluation(~schedule_action, m);
-  Os.is_mac :=
-    Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
-      Js.string("MAC"),
-    )
-    >= 0;
-  Ui_effect.Ignore;
 };
 
 module App = {
@@ -146,9 +109,9 @@ let view = {
   let%sub after_display = {
     switch%sub (startup_completed) {
     | {state: false, set_state, _} =>
-      let%arr (model, inject) = app
+      let%arr (_model, inject) = app
       and set_state = set_state;
-      Bonsai.Effect.Many([on_startup(~inject, model), set_state(true)]);
+      Bonsai.Effect.Many([set_state(true), inject(Update.Startup)]);
     | {state: true, _} => Bonsai.Computation.return(Ui_effect.Ignore)
     };
   };
