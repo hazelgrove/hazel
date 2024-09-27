@@ -63,6 +63,8 @@ let app =
     ~default_model=Model.load(Model.blank),
   );
 
+/* This subcomponent is used to run an effect once when the app starts up,
+   After the first draw */
 let on_startup = effect => {
   let%sub startup_completed = Bonsai.toggle'(~default_model=false);
   let%sub after_display = {
@@ -74,7 +76,7 @@ let on_startup = effect => {
     | {state: true, _} => Bonsai.Computation.return(Ui_effect.Ignore)
     };
   };
-  Bonsai.Edge.lifecycle(~after_display, ());
+  Bonsai.Edge.after_display(after_display);
 };
 
 let view = {
