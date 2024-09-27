@@ -69,6 +69,18 @@ let view =
     );
   };
 
+  let update_title = _ => {
+    let new_title =
+      Obj.magic(
+        Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("title-input-box")),
+      )##.value;
+    let update_events = [
+      inject(Set(EditingTitle)),
+      inject(UpdateTitle(new_title)),
+    ];
+    Virtual_dom.Vdom.Effect.Many(update_events);
+  };
+
   let title_view = {
     Cell.simple_cell_view([
       div(
@@ -229,11 +241,10 @@ let view =
           ~attrs=[Attr.class_("wrong-impl-cell-caption")],
           [
             div(
-              ~attrs=
-                [
-                  Attr.class_("instructor-edit-icon"),
-                  Attr.id("add-icon"),
-                ],
+              ~attrs=[
+                Attr.class_("instructor-edit-icon"),
+                Attr.id("add-icon"),
+              ],
               [
                 Widgets.button(
                   Icons.add,

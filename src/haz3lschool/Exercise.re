@@ -134,25 +134,23 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     eds,
   };
 
-  // [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_state = (
-    pos,
-    list((pos, PersistentZipper.t)),
-    string,
-    list(wrong_impl(Editor.t)),
-  );
-
-  /*
-
-  type PersistentEditor = ;
-
-  type persistent_eds = p(PersistentEditor.t);
-
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent_state = {
-    pos,
-    persistent_eds,
+    focus: pos,
+    editors: list((pos, PersistentZipper.t)),
+    title: string,
+    hidden_bugs: list(wrong_impl(PersistentZipper.t)),
+    // NOTE: Add new fields to record here as new instructor editable features are
+    //       implemented (eg. prelude: PersistentZipper.t when adding the feature
+    //       to edit the prelude). After adding these field(s), you will need to
+    //       go into persistent_state_of_state and unpersist_state to implement
+    //       how these fields are saved and loaded to and from local memory
+    //       respectively.
+    // NOTE: It may be helpful to look at changes made in the mutant-add-delete
+    //       branch in the Hazelgrove repo to see and understand where changes
+    //       were made. It is likely that new implementations of editble features
+    //       will follow a similar route.
   };
-  */
 
   let editor_of_state: state => Editor.t =
     ({pos, eds, _}) =>
@@ -517,9 +515,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     },
   };
 
-  let add_buggy_impl = (state: state, ~editing_title) => {
+  let add_buggy_impl =
+      (~settings: CoreSettings.t, state: state, ~editing_title) => {
     let new_buggy_impl = {
-      impl: Editor.init(Zipper.init()),
+      impl: Editor.init(Zipper.init(), ~settings),
       hint: "no hint available",
     };
     let new_state = {
@@ -584,12 +583,22 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       |> List.map(((pos, editor)) => {
            (pos, PersistentZipper.persist(Editor.(editor.state.zipper)))
          });
-    (state.pos, zippers, state.eds.title);
+    let persistent_hidden_bugs =
+      state.eds.hidden_bugs
+      |> List.map(({impl, hint}) => {
+           {impl: PersistentZipper.persist(Editor.(impl.state.zipper)), hint}
+         });
+    {
+      focus: state.pos,
+      editors: zippers,
+      title: state.eds.title,
+      hidden_bugs: persistent_hidden_bugs,
+    };
   };
 
   let unpersist_state =
       (
-        (pos, positioned_zippers, title, hints): persistent_state,
+        {focus, editors, title, hidden_bugs}: persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
         ~editing_title: bool,
@@ -598,34 +607,28 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       : state => {
     let lookup = (pos, default) =>
       if (visible_in(pos, ~instructor_mode)) {
-        let persisted_zipper = List.assoc(pos, positioned_zippers);
+        let persisted_zipper = List.assoc(pos, editors);
         let zipper = PersistentZipper.unpersist(persisted_zipper);
         Editor.init(zipper, ~settings);
       } else {
         Editor.init(default, ~settings);
       };
-    print_endline("Unpersisting State Now");
     let prelude = lookup(Prelude, spec.prelude);
     let correct_impl = lookup(CorrectImpl, spec.correct_impl);
     let your_tests_tests = lookup(YourTestsValidation, spec.your_tests.tests);
     let your_impl = lookup(YourImpl, spec.your_impl);
-    let (_, hidden_bugs) =
-      List.fold_left(
-        ((i, hidden_bugs: list(wrong_impl(Editor.t))), hint) => {
-          let persisted_zipper =
-            List.assoc(HiddenBugs(i), positioned_zippers);
-          let zipper = PersistentZipper.unpersist(persisted_zipper);
-          let impl = Editor.init(zipper);
-          (i + 1, hidden_bugs @ [{impl, hint}]);
-        },
-        (0, []),
-        hints,
-      );
+    let hidden_bugs =
+      hidden_bugs
+      |> List.map(({impl, hint}) => {
+           let impl =
+             Editor.init(PersistentZipper.unpersist(impl), ~settings);
+           {impl, hint};
+         });
     let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
     let state =
       set_instructor_mode(
         {
-          pos,
+          pos: focus,
           eds: {
             id: spec.id,
             title,
@@ -1025,14 +1028,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   let serialize_exercise = (exercise, ~instructor_mode) => {
-    print_endline("Serializing Exercise Now");
     persistent_state_of_state(exercise, ~instructor_mode)
     |> sexp_of_persistent_state
     |> Sexplib.Sexp.to_string;
   };
 
   let deserialize_exercise = (data, ~spec, ~instructor_mode, ~editing_title) => {
-    print_endline("Deserializing Exercise Now");
     data
     |> Sexplib.Sexp.of_string
     |> persistent_state_of_sexp

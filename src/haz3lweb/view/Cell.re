@@ -316,7 +316,6 @@ let editor_view =
       ]),
     ],
     [
-      div(~attr=Attr.class_("cell-item"), Option.to_list(caption)),
       div(
         ~attrs=[
           Attr.classes(["cell-item"]),
@@ -353,6 +352,25 @@ let title_cell = title => {
       [div(~attrs=[Attr.class_("title-text")], [text(title)])],
     ),
   ]);
+};
+
+let wrong_impl_caption = (~inject, sub: string, n: int) => {
+  div(
+    ~attrs=[Attr.class_("wrong-impl-cell-caption")],
+    [
+      caption("", ~rest=sub),
+      div(
+        ~attrs=[Attr.class_("instructor-edit-icon")],
+        [
+          Widgets.button(
+            Icons.delete,
+            _ => inject(UpdateAction.DeleteBuggyImplementation(n)),
+            ~tooltip="Delete Buggy Implementation",
+          ),
+        ],
+      ),
+    ],
+  );
 };
 
 /* An editor view that is not selectable or editable,

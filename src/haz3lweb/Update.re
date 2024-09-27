@@ -574,6 +574,7 @@ let apply =
         ...model,
         editors:
           Editors.add_buggy_impl(
+            ~settings=model.settings.core,
             model.editors,
             ~editing_title=model.settings.editing_title,
           ),
