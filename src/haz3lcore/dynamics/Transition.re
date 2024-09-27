@@ -162,6 +162,7 @@ module Transition = (EV: EV_MODE) => {
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t => Term({term, ids: [rep_id(d)]});
+    // print_endline(Exp.show(d));
 
     // Transition rules
     switch (term) {
@@ -363,18 +364,35 @@ module Transition = (EV: EV_MODE) => {
                 args,
               );
             Tuple(labeled_args) |> DHPat.fresh;
+          // | TupLabel(_, _) => Tuple([dp]) |> DHPat.fresh
+          // | Var(name) =>
+          //   Tuple([
+          //     TupLabel(DHPat.Label(name) |> DHPat.fresh, dp) |> DHPat.fresh,
+          //   ])
+          //   |> DHPat.fresh
           | _ => dp
           };
         // TODO: Probably not the right way to deal with casts
         // let d2' =
-        //   switch (DHPat.term_of(d2'), DHPat.term_of(dp)) {
+        //   switch (d2'.term, DHPat.term_of(dp)) {
         //   | (Tuple(_), Tuple(_)) => d2'
-        //   | (Cast(Tuple(_), _, Prod(_)), Tuple(_)) => d2'
-        //   | (Cast(d, Prod(t1), Prod(t2)), Tuple(_)) =>
-        //     Cast(Tuple([d]), Prod(t1), Prod(t2))
-        //   | (Cast(d, t1, Prod(t2)), Tuple(_)) =>
-        //     Cast(Tuple([d]), Prod([t1]), Prod(t2))
-        //   | (_, Tuple([TupLabel(_)])) => Tuple([d2'])
+        //   | (Cast({term: Tuple(_), _}, _, {term: Prod(_), _}), Tuple(_)) => d2'
+        //   | (Cast(d, {term: Prod(t1), _}, {term: Prod(t2), _}), Tuple(_)) =>
+        //     Cast(
+        //       Tuple([d]) |> DHExp.fresh,
+        //       Prod(t1) |> Typ.temp,
+        //       Prod(t2) |> Typ.temp,
+        //     )
+        //     |> DHExp.fresh
+        //   | (Cast(d, t1, {term: Prod(t2), _}), Tuple(_)) =>
+        //     Cast(
+        //       Tuple([d]) |> DHExp.fresh,
+        //       Prod([t1]) |> Typ.temp,
+        //       Prod(t2) |> Typ.temp,
+        //     )
+        //     |> DHExp.fresh
+        //   | (_, Tuple([{term: TupLabel(_), _}])) =>
+        //     Tuple([d2']) |> DHExp.fresh
         //   | (_, _) => d2'
         //   };
         let.match env'' = (env', matches(dp, d2'));
@@ -686,24 +704,32 @@ module Transition = (EV: EV_MODE) => {
       | (Tuple(ds), Var(name)) =>
         Step({
           expr:
-            // let element = LabeledTuple.find_label(DHExp.get_label, ds, name);
             switch (LabeledTuple.find_label(DHExp.get_label, ds, name)) {
             | Some({term: TupLabel(_, exp), _}) => exp
-            // TODO (Anthony): operate on casts instead of the original tuple, like static checking.
-            | _ => raise(EvaluatorError.Exception(BadPatternMatch))
+            | _ => Undefined |> DHExp.fresh
             },
           state_update,
           kind: Dot,
           is_value: false,
         })
       | (_, Cast(d2', ty, ty')) =>
+        // TODO: Probably not right
         Step({
           expr: Cast(Dot(d1, d2') |> fresh, ty, ty') |> fresh,
           state_update,
           kind: CastAp,
           is_value: false,
         })
-      | (Cast(d3', {term: Prod(ts), _}, {term: Prod(ts'), _}), Var(name)) =>
+      | (Cast(d3', t2, t3), Var(name)) =>
+        // TODO: doen't work because you get to a cast(1, Unknown, Int) which is Indet
+        let rec get_typs = (t2, t3) =>
+          switch (Typ.term_of(t2), Typ.term_of(t3)) {
+          | (Prod(ts), Prod(ts')) => (ts, ts')
+          | (Parens(t2), _) => get_typs(t2, t3)
+          | (_, Parens(t3)) => get_typs(t2, t3)
+          | (_, _) => ([], [])
+          };
+        let (ts, ts') = get_typs(t2, t3);
         let ty =
           switch (LabeledTuple.find_label(Typ.get_label, ts, name)) {
           | Some({term: TupLabel(_, ty), _}) => ty
