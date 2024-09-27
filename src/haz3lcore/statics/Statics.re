@@ -189,6 +189,19 @@ and uexp_to_info_map =
     (info, add_info(ids, InfoExp(info), m));
   };
   let add = (~self, ~co_ctx, m) => add'(~self=Common(self), ~co_ctx, m);
+  // add if uexp changed
+  // let add_exp = (~self, ~co_ctx, ~uexp, m) => {
+  //   let info =
+  //     Info.derived_exp(
+  //       ~uexp,
+  //       ~ctx,
+  //       ~mode,
+  //       ~ancestors,
+  //       ~self=Common(self),
+  //       ~co_ctx,
+  //     );
+  //   (info, add_info(ids, InfoExp(info), m));
+  // };
   let ancestors = [UExp.rep_id(uexp)] @ ancestors;
   let uexp_to_info_map =
       (
@@ -329,11 +342,14 @@ and uexp_to_info_map =
       m,
     )
   | Tuple(es) =>
-    let modes = Mode.of_prod(ctx, mode, es, UExp.get_label);
-    let (es, m) = map_m_go(m, modes, es, ~is_contained=true);
+    let (es, modes) =
+      Mode.of_prod(ctx, mode, es, UExp.get_label, (name, b) =>
+        TupLabel(Label(name) |> Exp.fresh, b) |> Exp.fresh
+      );
+    let (es', m) = map_m_go(m, modes, es, ~is_contained=true);
     add(
-      ~self=Just(Prod(List.map(Info.exp_ty, es)) |> Typ.temp),
-      ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
+      ~self=Just(Prod(List.map(Info.exp_ty, es')) |> Typ.temp),
+      ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')),
       m,
     );
   | Dot(e1, e2) =>
@@ -378,7 +394,13 @@ and uexp_to_info_map =
         | Some(typ) =>
           let (body, m) =
             go'(
-              ~ctx=[VarEntry({name, id: List.nth(e2.ids, 0), typ})],
+              ~ctx=[
+                VarEntry({
+                  name,
+                  id: List.nth(e2.ids, 0),
+                  typ: Unknown(Internal) |> Typ.temp,
+                }),
+              ],
               ~mode,
               e2,
               m,
@@ -422,13 +444,9 @@ and uexp_to_info_map =
     // In case of singleton tuple for fun ty_in, implicitly convert arg if necessary
     // TODO: Is needed for TypAp or Deferred Ap?
     let arg =
-      switch (arg.term, ty_in.term) {
+      switch (arg.term, Typ.weak_head_normalize(ctx, ty_in).term) {
       | (Tuple(_), Prod(_)) => arg
-      | (_, Prod([{term: TupLabel(_), _}])) => {
-          ids: arg.ids,
-          copied: arg.copied,
-          term: Tuple([arg]),
-        }
+      | (_, Prod([{term: TupLabel(_), _}])) => Tuple([arg]) |> Exp.fresh
       | (_, _) => arg
       };
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
@@ -937,7 +955,10 @@ and upat_to_info_map =
       );
     };
   | Tuple(ps) =>
-    let modes = Mode.of_prod(ctx, mode, ps, UPat.get_label);
+    let (ps, modes) =
+      Mode.of_prod(ctx, mode, ps, UPat.get_label, (name, b) =>
+        TupLabel(Label(name) |> UPat.fresh, b) |> UPat.fresh
+      );
     let (ctx, tys, cons, m) =
       ctx_fold(ctx, m, ps, modes, ~is_contained=true);
     let rec cons_fold_tuple = cs =>
@@ -982,17 +1003,19 @@ and utyp_to_info_map =
       ~ctx,
       ~expects=Info.TypeExpected,
       ~ancestors,
+      ~is_contained=false,
       {ids, term, _} as utyp: UTyp.t,
       m: Map.t,
     )
     : (Info.typ, Map.t) => {
-  let add = m => {
+  let add = (~utyp=utyp, m) => {
     let info = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects);
     (info, add_info(ids, InfoTyp(info), m));
   };
   let ancestors = [UTyp.rep_id(utyp)] @ ancestors;
   let go' = utyp_to_info_map(~ctx, ~ancestors);
-  let go = go'(~expects=TypeExpected);
+  let go = (~is_contained=false) =>
+    go'(~expects=TypeExpected, ~is_contained);
   switch (term) {
   | Unknown(Hole(MultiHole(tms))) =>
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
@@ -1013,11 +1036,23 @@ and utyp_to_info_map =
     let m = go(t2, m) |> snd;
     add(m);
   | TupLabel(label, t) =>
-    let m = go(label, m) |> snd;
-    let m = go(t, m) |> snd;
-    add(m);
+    if (is_contained) {
+      let m = go(label, m) |> snd;
+      let m = go(t, m) |> snd;
+      add(m);
+    } else {
+      let m = map_m(go(~is_contained=true), [utyp], m) |> snd;
+      add(
+        ~utyp={
+          term: Prod([utyp.term |> Typ.fresh]),
+          ids,
+          copied: utyp.copied,
+        },
+        m,
+      );
+    }
   | Prod(ts) =>
-    let m = map_m(go, ts, m) |> snd;
+    let m = map_m(go(~is_contained=true), ts, m) |> snd;
     add(m);
   | Ap(t1, t2) =>
     let t1_mode: Info.typ_expects =

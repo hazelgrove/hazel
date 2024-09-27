@@ -33,8 +33,8 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
   | Label(name) =>
     let* name' = Unboxing.unbox(Label, d);
     name == name' ? Matches(Environment.empty) : DoesNotMatch;
-  | TupLabel(label, x) =>
-    let* x' = Unboxing.unbox(TupLabel(label), d);
+  | TupLabel(_, x) =>
+    let* x' = Unboxing.unbox(TupLabel(dp), d);
     matches(x, x');
   | ListLit(xs) =>
     let* s' = Unboxing.unbox(List, d);
