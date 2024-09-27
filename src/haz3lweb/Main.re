@@ -1,6 +1,7 @@
 open Util;
 open Js_of_ocaml;
 open Haz3lweb;
+open Bonsai.Let_syntax;
 
 let scroll_to_caret = ref(true);
 let edit_action_applied = ref(true);
@@ -52,44 +53,6 @@ let apply = (model, action, ~schedule_action): Model.t => {
   };
 };
 
-module App = {
-  module Model = Model;
-  module Action = Update;
-  module State = State;
-  //   let create =
-  //       (
-  //         model: Incr.t(Haz3lweb.Model.t),
-  //         ~old_model as _: Incr.t(Haz3lweb.Model.t),
-  //         ~inject,
-  //       ) => {
-  //     open Incr.Let_syntax;
-  //     let%map model = model;
-  //     /* Note: mapping over the old_model here may
-  //        trigger an additional redraw */
-  //     Component.create(
-  //       ~apply_action=apply(model),
-  //       model,
-  //       Haz3lweb.Page.view(~inject, model),
-  //       ~on_display=(_, ~schedule_action) => {
-  //         if (edit_action_applied^
-  //             && JsUtil.timestamp()
-  //             -. last_edit_action^ > 1000.0) {
-  //           /* If an edit action has been applied, but no other edit action
-  //              has been applied for 1 second, save the model. */
-  //           edit_action_applied := false;
-  //           print_endline("Saving...");
-  //           schedule_action(Update.Save);
-  //         };
-  //         if (scroll_to_caret.contents) {
-  //           scroll_to_caret := false;
-  //           JsUtil.scroll_cursor_into_view_if_needed();
-  //         };
-  //       },
-  //     );
-  //   };
-  // };
-};
-
 let app =
   Bonsai.state_machine0(
     (module Model),
@@ -100,22 +63,46 @@ let app =
     ~default_model=Model.load(Model.blank),
   );
 
-open Bonsai.Let_syntax;
-
-let view = {
-  let startup_completed = Bonsai.toggle'(~default_model=false);
-  let%sub startup_completed = startup_completed;
-  let%sub app = app;
+let on_startup = effect => {
+  let%sub startup_completed = Bonsai.toggle'(~default_model=false);
   let%sub after_display = {
     switch%sub (startup_completed) {
     | {state: false, set_state, _} =>
-      let%arr (_model, inject) = app
+      let%arr effect = effect
       and set_state = set_state;
-      Bonsai.Effect.Many([set_state(true), inject(Update.Startup)]);
+      Bonsai.Effect.Many([set_state(true), effect]);
     | {state: true, _} => Bonsai.Computation.return(Ui_effect.Ignore)
     };
   };
-  let%sub () = Bonsai.Edge.lifecycle(~after_display, ());
+  Bonsai.Edge.lifecycle(~after_display, ());
+};
+
+let view = {
+  let%sub app = app;
+  let%sub () = {
+    on_startup(
+      Bonsai.Value.map(~f=((_model, inject)) => inject(Startup), app),
+    );
+  };
+  let%sub after_display = {
+    let%arr (_model, inject) = app;
+    if (scroll_to_caret.contents) {
+      scroll_to_caret := false;
+      JsUtil.scroll_cursor_into_view_if_needed();
+    };
+    if (edit_action_applied^
+        && JsUtil.timestamp()
+        -. last_edit_action^ > 1000.0) {
+      /* If an edit action has been applied, but no other edit action
+         has been applied for 1 second, save the model. */
+      edit_action_applied := false;
+      print_endline("Saving...");
+      inject(Update.Save);
+    } else {
+      Ui_effect.Ignore;
+    };
+  };
+  let%sub () = Bonsai.Edge.after_display(after_display);
   let%arr (model, inject) = app;
   Haz3lweb.Page.view(~inject, model);
 };
