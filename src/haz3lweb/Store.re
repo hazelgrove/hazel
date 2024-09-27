@@ -187,7 +187,11 @@ module Documentation = {
   type persistent = PersistentData.documentation;
 
   let persist = ((name, editor: Editor.t)) => {
-    (name, PersistentZipper.persist(editor.state.zipper));
+    (
+      name,
+      PersistentZipper.persist(editor.state.zipper),
+      // dunno if this is correct
+    );
   };
 
   let unpersist = ((name, zipper)) => {

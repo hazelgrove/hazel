@@ -159,58 +159,29 @@ module D = (DocEnv: DocEnv) => {
       // | CorrectImpl => eds.correct_impl
       // | YourTestsValidation => eds.your_tests.tests
       // | YourTestsTesting => eds.your_tests.tests
-      | YourImpl => eds.your_impl
+      | YourImpl =>
+        // print_endline("grabs YourImpl");
+        eds.your_impl
       // | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
-      | HiddenTests => eds.hidden_tests.tests
+      | HiddenTests =>
+        // print_endline("grabs HiddenTests");
+        eds.hidden_tests.tests
       };
 
-  let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
+  let put_editor = ({pos, eds} as state: state, editor: Editor.t) =>
     switch (pos) {
-    // | Prelude => {
-    //     ...state,
-    //     eds: {
-    //       ...eds,
-    //       prelude: editor,
-    //     },
-    //   }
-    // | CorrectImpl => {
-    //     ...state,
-    //     eds: {
-    //       ...eds,
-    //       correct_impl: editor,
-    //     },
-    //   }
-    // | YourTestsValidation
-    // | YourTestsTesting => {
-    //     ...state,
-    //     eds: {
-    //       ...eds,
-    //       your_tests: {
-    //         ...eds.your_tests,
-    //         tests: editor,
-    //       },
-    //     },
-    //   }
-    | YourImpl => {
+    | YourImpl =>
+      // print_endline("YourImpl");
+      {
         ...state,
         eds: {
           ...eds,
           your_impl: editor,
         },
       }
-    // | HiddenBugs(n) => {
-    //     ...state,
-    //     eds: {
-    //       ...eds,
-    //       hidden_bugs:
-    //         Util.ListUtil.put_nth(
-    //           n,
-    //           {...List.nth(eds.hidden_bugs, n), impl: editor},
-    //           eds.hidden_bugs,
-    //         ),
-    //     },
-    //   }
-    | HiddenTests => {
+    | HiddenTests =>
+      // print_endline("HiddenTests");
+      {
         ...state,
         eds: {
           ...eds,
@@ -222,21 +193,22 @@ module D = (DocEnv: DocEnv) => {
       }
     };
 
-  let editors = ({eds, _}: state) =>
-    [
-      // eds.prelude,
-      // eds.correct_impl,
-      // eds.your_tests.tests,
-      // eds.your_tests.tests,
-      eds.your_impl,
-    ]
-    // @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
-    @ [eds.hidden_tests.tests];
+  let editors = ({eds, _}: state) => [
+    // eds.prelude,
+    // eds.correct_impl,
+    // eds.your_tests.tests,
+    // eds.your_tests.tests,
+    eds.your_impl,
+    eds.hidden_tests.tests,
+  ];
+  // @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
+  // @ [eds.hidden_tests.tests];
 
-  let editor_positions =
-    [YourImpl]
-    // @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
-    @ [HiddenTests];
+  // let editor_positions =
+  //   [YourImpl]
+  //   // @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
+  //   @ [HiddenTests];
+  let editor_positions = [YourImpl, HiddenTests];
 
   let positioned_editors = state =>
     List.combine(editor_positions, editors(state));
@@ -281,35 +253,41 @@ module D = (DocEnv: DocEnv) => {
   let switch_editor = (~pos, instructor_mode, ~documentation) =>
     if (!instructor_mode) {
       switch (pos) {
-      | HiddenTests =>
-        // Update the `hidden_tests` editor when position is HiddenTests
-        let updated_hidden_tests = documentation.eds.hidden_tests.tests;
-        {
-          // ...documentation,
-          eds: {
-            ...documentation.eds,
-            hidden_tests: {
-              ...documentation.eds.hidden_tests,
-              tests: updated_hidden_tests,
-            },
-          },
-          pos: HiddenTests,
-        };
-      | YourImpl =>
-        // Update the `your_impl` editor when position is YourImpl
-        let updated_your_impl = documentation.eds.your_impl;
-        {
-          //   ...documentation,
-          eds: {
-            ...documentation.eds,
-            your_impl: updated_your_impl,
-          },
-          pos: YourImpl,
-        };
-      // | _ => {
-      //     // Handle other cases by just updating the position
-      //     {eds: documentation.eds, pos};
-      //   }
+      | HiddenTests
+      // =>
+      // Update the `hidden_tests` editor when position is HiddenTests
+      // print_endline("Updating HiddenTests editor");
+      // let updated_hidden_tests = documentation.eds.hidden_tests.tests;
+      // {
+      //   // ...documentation,
+      //   eds: {
+      //     ...documentation.eds,
+      //     hidden_tests: {
+      //       ...documentation.eds.hidden_tests,
+      //       tests: updated_hidden_tests,
+      //     },
+      //     your_impl: documentation.eds.your_impl,
+      //   },
+      //   pos: HiddenTests,
+      // };
+      // | YourImpl =>
+      //   // Update the `your_impl` editor when position is YourImpl
+      //   print_endline("Updating YourImpl editor");
+      //   let updated_your_impl = documentation.eds.your_impl;
+      //   {
+      //     //   ...documentation,
+      //     eds: {
+      //       ...documentation.eds,
+      //       your_impl: updated_your_impl,
+      //       hidden_tests: documentation.eds.hidden_tests,
+      //     },
+      //     pos: YourImpl,
+      //   };
+      | _ => {
+          // Handle other cases by just updating the position
+          eds: documentation.eds,
+          pos,
+        }
       };
     } else {
       {
@@ -478,6 +456,11 @@ module D = (DocEnv: DocEnv) => {
     };
   };
 
+  // let state_of_spec = (spec, ~instructor_mode: bool): state => {
+  //   let eds = eds_of_spec(spec);
+  //   set_instructor_mode({pos: HiddenTests, eds}, instructor_mode);
+  // };
+
   let state_of_spec = (spec, ~instructor_mode: bool): state => {
     let eds = eds_of_spec(spec);
     set_instructor_mode({pos: HiddenTests, eds}, instructor_mode);
@@ -608,33 +591,48 @@ module D = (DocEnv: DocEnv) => {
   // term_of(ed3),
   // );
 
+  // let stitch_term = ({eds, _}: state): stitched(TermItem.t) => {
+  //   let instructor = eds.hidden_tests.tests |> term_of;
+  //   let user_impl_term = {
+  //     // let your_impl_term =
+  //     eds.your_impl |> term_of |> wrap_filter(FilterAction.Step); // let prelude_term =
+  //                                                                // EditorUtil.append_exp(your_impl_term);
+  //   };
+  //   // let test_validation_term =
+  //   //   stitch3(eds.prelude, eds.correct_impl, eds.your_tests.tests);
+  //   // let user_tests_term =
+  //   //   EditorUtil.append_exp(user_impl_term, term_of(eds.your_tests.tests));
+  //   let hidden_tests_term =
+  //     EditorUtil.append_exp(user_impl_term, term_of(eds.hidden_tests.tests));
+  //   {
+  //     // test_validation: wrap(test_validation_term, eds.your_tests.tests),
+  //     user_impl: wrap(user_impl_term, eds.your_impl),
+  //     // user_tests: wrap(user_tests_term, eds.your_tests.tests),
+  //     // instructor works here as long as you don't shadow anything in the prelude
+  //     // prelude: wrap(instructor, eds.prelude),
+  //     instructor: wrap(instructor, eds.hidden_tests.tests),
+  //     // hidden_bugs:
+  //     //   List.map(
+  //     //     (t): TermItem.t =>
+  //     //         // term_of(t.impl),
+  //     //       wrap(stitch3(eds.prelude, t.impl, eds.your_tests.tests), t.impl),
+  //     //     eds.hidden_bugs,
+  //     //   ),
+  //     hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
+  //   };
+  // };
   let stitch_term = ({eds, _}: state): stitched(TermItem.t) => {
     let instructor = eds.hidden_tests.tests |> term_of;
     let user_impl_term = {
-      // let your_impl_term =
-      eds.your_impl |> term_of |> wrap_filter(FilterAction.Step); // let prelude_term =
-                                                                 // EditorUtil.append_exp(your_impl_term);
+      eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
     };
-    // let test_validation_term =
-    //   stitch3(eds.prelude, eds.correct_impl, eds.your_tests.tests);
-    // let user_tests_term =
-    //   EditorUtil.append_exp(user_impl_term, term_of(eds.your_tests.tests));
-    let hidden_tests_term =
-      EditorUtil.append_exp(user_impl_term, term_of(eds.hidden_tests.tests));
+
+    // No combining of your_impl_term with hidden_tests
+    let hidden_tests_term = term_of(eds.hidden_tests.tests);
+
     {
-      // test_validation: wrap(test_validation_term, eds.your_tests.tests),
       user_impl: wrap(user_impl_term, eds.your_impl),
-      // user_tests: wrap(user_tests_term, eds.your_tests.tests),
-      // instructor works here as long as you don't shadow anything in the prelude
-      // prelude: wrap(instructor, eds.prelude),
       instructor: wrap(instructor, eds.hidden_tests.tests),
-      // hidden_bugs:
-      //   List.map(
-      //     (t): TermItem.t =>
-      //         // term_of(t.impl),
-      //       wrap(stitch3(eds.prelude, t.impl, eds.your_tests.tests), t.impl),
-      //     eds.hidden_bugs,
-      //   ),
       hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
     };
   };
@@ -647,6 +645,7 @@ module D = (DocEnv: DocEnv) => {
 
      Stitching is necessary to concatenate terms
      from different editors, which are then typechecked. */
+
   let stitch_static =
       (settings: CoreSettings.t, t: stitched(TermItem.t)): stitched_statics => {
     let mk = ({term, term_ranges, _}: TermItem.t): StaticsItem.t => {
@@ -953,7 +952,7 @@ module D = (DocEnv: DocEnv) => {
     // let prelude = Zipper.next_blank();
     // let correct_impl = Zipper.next_blank();
     // let your_tests_tests = Zipper.next_blank();
-    let your_impl = Zipper.next_blank();
+    let your_impl_m = Zipper.next_blank();
     // let hidden_bugs =
     //   List.init(
     //     num_wrong_impls,
@@ -977,7 +976,7 @@ module D = (DocEnv: DocEnv) => {
       //   required: required_tests,
       //   provided: provided_tests,
       // },
-      your_impl,
+      your_impl: your_impl_m,
       // hidden_bugs,
       hidden_tests: {
         tests: hidden_tests_tests,

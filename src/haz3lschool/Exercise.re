@@ -272,7 +272,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       | _ => {eds: exercise.eds, pos}
       };
     } else {
-      {eds: exercise.eds, pos};
+      {
+        // print_endline("im exercise");
+        eds: exercise.eds,
+        pos,
+      };
     };
 
   let zipper_of_code = code => {

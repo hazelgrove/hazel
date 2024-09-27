@@ -110,7 +110,10 @@ let import = (data: string): unit =>
 
 let update = (action: UpdateAction.t): unit =>
   if (is_action_logged(action)) {
-    Entry.save(Entry.mk(action));
+    // print_endline("Log Updating" ++ UpdateAction.show(action));
+    Entry.save(
+      Entry.mk(action),
+    );
   };
 
 let get_and = (f: string => unit): unit =>

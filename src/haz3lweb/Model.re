@@ -74,23 +74,13 @@ let load_editors =
     (Scratch(idx, slides), results);
   | Documentation =>
     let (name, slides, results) = Store.Documentation.load(~settings);
-    //   let toEditor = (state: DocumentationEnv.state): Editor.t => {
-    //   switch (state) {
-    //   | s => s.eds.hidden_tests.tests
-    //   };
-    // };
-    // let from_tup = ((word: string, status: DocumentationEnv.state)) => (
-    //   word,
-    //   toEditor(status),
-    // );
-    // let slides = List.map(from_tup, slides);
-    // let slides = reset_named_slide(name, slides);
+
     let fromEditor = (editor: Editor.t): DocumentationEnv.state => {
       pos: DocumentationEnv.YourImpl,
       eds: {
         title: "",
         description: "",
-        your_impl: editor,
+        your_impl: Editor.init(Zipper.init()),
         hidden_tests: {
           tests: editor,
           hints: [],
@@ -101,7 +91,14 @@ let load_editors =
       word,
       fromEditor(editor),
     );
+    print_endline("inside load editors");
     let slides = List.map(to_tup, slides);
+    // let (n, specs, exercise) =
+    //   Store.Exercise.load(
+    //     ~specs=ExerciseSettings.exercises,
+    //     ~instructor_mode,
+    //   );
+    // (Exercises(n, specs, exercise), ModelResults.empty);
 
     (Documentation(name, slides), results);
   | Exercises =>

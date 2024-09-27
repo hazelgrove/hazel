@@ -21,11 +21,11 @@ type t =
   | Documentation(string, list((string, DocumentationEnv.state)))
   | Exercises(int, list(Exercise.spec), Exercise.state);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type cur_state =
-  | ScratchState(ScratchSlide.state)
-  | DocumentationState(DocumentationEnv.state)
-  | ExerciseState(Exercise.state);
+// [@deriving (show({with_path: false}), sexp, yojson)]
+// type cur_state =
+//   | ScratchState(ScratchSlide.state)
+//   | DocumentationState(DocumentationEnv.state)
+//   | ExerciseState(Exercise.state);
 
 let get_editor = (editors: t): Editor.t =>
   switch (editors) {
@@ -120,10 +120,19 @@ let put_editor = (editor: Editor.t, eds: t): t =>
         (hint: string, state: DocumentationEnv.state)
         : (string, DocumentationEnv.state) =>
       if (hint == name) {
+        // print_endline("hint == name");
+        print_endline(hint);
+        print_endline(name);
+
         let updatedState = DocumentationEnv.put_editor(state, editor);
+
         (hint, updatedState);
       } else {
-        (hint, state);
+        (
+          // print_endline("different_slide");
+          hint,
+          state,
+        );
       };
 
     // Map the update function over the slides

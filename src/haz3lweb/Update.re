@@ -263,6 +263,7 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   ) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok(ed) =>
+    // print_endline("editor.perform_action2: " ++ Action.show(a));
     let model = {...model, editors: Editors.put_editor(ed, model.editors)};
     /* Note: Not saving here as saving is costly to do each keystroke,
        we wait a second after the last edit action (see Main.re) */
@@ -302,15 +303,18 @@ let switch_doc_editor =
   | Documentation(name, slides) =>
     let tutorial_states =
       List.map(
-        ((name, tutorial_state)) => {
-          let updated_state =
-            DocumentationEnv.switch_editor(
-              ~pos,
-              instructor_mode,
-              ~documentation=tutorial_state,
-            );
-          (name, updated_state);
-        },
+        ((hint, tutorial_state)) =>
+          if (hint == name) {
+            let updated_state =
+              DocumentationEnv.switch_editor(
+                ~pos,
+                instructor_mode,
+                ~documentation=tutorial_state,
+              );
+            (hint, updated_state);
+          } else {
+            (hint, tutorial_state);
+          },
         slides,
       );
     Some(Documentation(name, tutorial_states));
@@ -453,6 +457,8 @@ let rec apply =
     | PerformAction(a)
         when model.settings.core.assist && model.settings.core.statics =>
       let model = UpdateAssistant.reset_buffer(model);
+      // print_endline("perform 1");
+      // print_endline("Action type: " ++ Action.show(a));
       switch (perform_action(model, a)) {
       | Ok(model) when Action.is_edit(a) =>
         UpdateAssistant.apply(
@@ -462,7 +468,9 @@ let rec apply =
           ~state,
           ~main=apply,
         )
-      | x => x
+      | x =>
+        print_endline("not ok");
+        x;
       };
     | PerformAction(a) => perform_action(model, a)
     | ReparseCurrentEditor =>
@@ -477,6 +485,7 @@ let rec apply =
       | Some(z) =>
         //TODO: add correct action to history (Pick_up is wrong)
         let editor = Haz3lcore.Editor.new_state(Pick_up, z, ed);
+        print_endline("editor.reset_curr_editor");
         let editors = Editors.put_editor(editor, model.editors);
         Ok({...model, editors});
       };
@@ -494,6 +503,7 @@ let rec apply =
       | Some(z) =>
         //HACK(andrew): below is not strictly a insert action...
         let ed = Haz3lcore.Editor.new_state(Insert(clipboard), z, ed);
+        print_endline("editor.paste");
         let editors = Editors.put_editor(ed, model.editors);
         Ok({...model, editors});
       };
@@ -502,14 +512,16 @@ let rec apply =
       switch (Haz3lcore.Editor.undo(ed)) {
       | None => Error(CantUndo)
       | Some(ed) =>
-        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
+        print_endline("editor.undo");
+        Ok({...model, editors: Editors.put_editor(ed, model.editors)});
       };
     | Redo =>
       let ed = Editors.get_editor(model.editors);
       switch (Haz3lcore.Editor.redo(ed)) {
       | None => Error(CantRedo)
       | Some(ed) =>
-        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
+        print_endline("editor.redo");
+        Ok({...model, editors: Editors.put_editor(ed, model.editors)});
       };
     | MoveToNextHole(d) =>
       perform_action(model, Move(Goal(Piece(Grout, d))))

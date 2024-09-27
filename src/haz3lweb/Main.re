@@ -63,6 +63,7 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
   | Error(FailedToPerform(err)) =>
     // TODO(andrew): reinstate this history functionality
     print_endline(Update.Failure.show(FailedToPerform(err)));
+    // print_endline("ERROR IN MAIN UPDATE");
     //{...model, history: ActionHistory.failure(err, model.history)};
     model;
   | Error(err) =>
