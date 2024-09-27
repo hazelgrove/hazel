@@ -368,7 +368,7 @@ let rec elaborate =
             when LabeledTuple.equal(Typ.get_label(ty1), Some((name, e2))) => ty
         | _ => Unknown(Internal) |> Typ.temp
         };
-      // How to freshcast this?
+      // Freshcast this, if necessary?
       Exp.Dot(e1, e2) |> rewrap |> cast_from(ty);
     | Var(v) =>
       uexp
@@ -438,13 +438,32 @@ let rec elaborate =
       let (a', tya) = elaborate(m, a);
       let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
       let f'' = fresh_cast(f', tyf, Arrow(tyf1, tyf2) |> Typ.temp);
+      // In case of singleton tuple for fun ty_in, implicitly convert arg if necessary
+      // TODO: Is needed for other Aps?
+      let rec get_args = (a, tya, tyf1) =>
+        switch (
+          Typ.weak_head_normalize(ctx, tya).term,
+          Typ.weak_head_normalize(ctx, tyf1).term,
+        ) {
+        | (Parens(tya), _) => get_args(a, tya, tyf1)
+        | (Prod(_), Prod(_)) => (a, tya)
+        | (_, Prod([{term: TupLabel(_), _}])) => (
+            Tuple([a']) |> Exp.fresh,
+            Prod([tya]) |> Typ.temp,
+          )
+        | (_, _) => (a, tya)
+        };
+      let (a', tya) = get_args(a', tya, tyf1);
       let a'' = fresh_cast(a', tya, tyf1);
       Exp.Ap(dir, f'', a'') |> rewrap |> cast_from(tyf2);
     | DeferredAp(f, args) =>
       let (f', tyf) = elaborate(m, f);
       let (args', tys) = List.map(elaborate(m), args) |> ListUtil.unzip;
       let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
-      let ty_fargs = Typ.matched_prod(ctx, args, Exp.get_label, tyf1);
+      let (args, ty_fargs) =
+        Typ.matched_prod(ctx, args, Exp.get_label, tyf1, (name, b) =>
+          TupLabel(Label(name) |> Exp.fresh, b) |> Exp.fresh
+        );
       let f'' =
         fresh_cast(
           f',

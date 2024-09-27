@@ -54,7 +54,10 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty});
       Some([entry]);
     | Tuple(l1) =>
-      let* ts = Typ.matched_prod_strict(ctx, l1, Pat.get_label, ty);
+      let (l1, ts) =
+        Typ.matched_prod(ctx, l1, Pat.get_label, ty, (name, b) =>
+          TupLabel(Label(name) |> Pat.fresh, b) |> Pat.fresh
+        );
       let* l =
         List.map2((dhp, typ) => {dhpat_var_entry(dhp, typ)}, l1, ts)
         |> OptUtil.sequence;

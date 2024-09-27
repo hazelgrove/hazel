@@ -294,9 +294,10 @@ module Pat = {
     | _ => None
     };
 
-  let get_label: t => option((LabeledTuple.t, t)) =
+  let rec get_label: t => option((LabeledTuple.t, t)) =
     p =>
       switch (p.term) {
+      | Parens(p) => get_label(p)
       | TupLabel(plab, p') =>
         switch (plab.term) {
         | Label(name) => Some((name, p'))
@@ -451,9 +452,10 @@ module Exp = {
     | Match => "Case expression"
     | Cast => "Cast expression";
 
-  let get_label: t => option((LabeledTuple.t, t)) =
+  let rec get_label: t => option((LabeledTuple.t, t)) =
     e =>
       switch (e.term) {
+      | Parens(e) => get_label(e)
       | TupLabel(elab, e') =>
         switch (elab.term) {
         | Label(name) => Some((name, e'))

@@ -159,8 +159,9 @@ let join_type_provenance =
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
-let get_label = ty =>
+let rec get_label = ty =>
   switch (term_of(ty)) {
+  | Parens(ty) => get_label(ty)
   | TupLabel(label, t') =>
     switch (term_of(label)) {
     | Label(name) => Some((name, t'))
@@ -350,6 +351,10 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Arrow(_), _) => t1
   | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
     // TODO: Rearrange this prod?
+    let tys1 =
+      LabeledTuple.rearrange(get_label, get_label, tys1, tys2, (t, x) =>
+        TupLabel(Label(t) |> temp, x) |> temp
+      );
     let tys = List.map2(match_synswitch, tys1, tys2);
     Prod(tys) |> rewrap1;
   | (Prod(_), _) => t1
@@ -474,42 +479,53 @@ let rec get_labels = (ctx, ty): list(option(string)) => {
 
 let rec matched_prod_strict:
   'a.
-  (Ctx.t, list('a), 'a => option((string, 'a)), t) => option(list(t))
+  (Ctx.t, list('a), 'a => option((string, 'a)), t, (string, 'a) => 'a) =>
+  (list('a), option(list(t)))
  =
-  (ctx: Ctx.t, ts, get_label_ts: 'a => option((string, 'a)), ty: t) => {
+  (
+    ctx: Ctx.t,
+    es,
+    get_label_es: 'a => option((string, 'a)),
+    ty: t,
+    constructor,
+  ) => {
     switch (term_of(weak_head_normalize(ctx, ty))) {
-    | Parens(ty) => matched_prod_strict(ctx, ts, get_label_ts, ty)
+    | Parens(ty) =>
+      matched_prod_strict(ctx, es, get_label_es, ty, constructor)
     | Prod(tys: list(t)) =>
-      if (List.length(ts) != List.length(tys)) {
-        None;
+      if (List.length(es) != List.length(tys)) {
+        (es, None);
       } else {
-        let bar: option(list(t)) =
-          Some(
-            LabeledTuple.rearrange(
-              get_label_ts, get_label, ts, tys, (name, b) =>
-              TupLabel(Label(name) |> temp, b) |> temp
-            ),
-          );
-        bar;
+        (
+          LabeledTuple.rearrange(
+            get_label,
+            get_label_es,
+            tys,
+            es,
+            constructor,
+          ),
+          Some(tys),
+        );
       }
-    | Unknown(SynSwitch) =>
-      Some(List.init(List.length(ts), _ => Unknown(SynSwitch) |> temp))
-    | _ => None
+    | Unknown(SynSwitch) => (
+        es,
+        Some(List.init(List.length(es), _ => Unknown(SynSwitch) |> temp)),
+      )
+    | _ => (es, None)
     };
   };
 
-let matched_prod =
-    (
-      ctx: Ctx.t,
-      ts: list('a),
-      get_label_ts: 'a => option((string, 'a)),
-      ty: t,
-    )
-    : list(t) =>
-  matched_prod_strict(ctx, ts, get_label_ts, ty)
-  |> Option.value(
-       ~default=List.init(List.length(ts), _ => Unknown(Internal) |> temp),
-     );
+let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
+  let (es, tys_opt) =
+    matched_prod_strict(ctx, es, get_label_es, ty, constructor);
+  (
+    es,
+    tys_opt
+    |> Option.value(
+         ~default=List.init(List.length(es), _ => Unknown(Internal) |> temp),
+       ),
+  );
+};
 
 let rec matched_list_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
