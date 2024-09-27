@@ -60,20 +60,23 @@ let move_out_of_piece =
     }
   };
 
-let proj_rep_id = syntax =>
+let proj_rep_id = (syntax: Segment.t): option(Id.t) =>
   //TODO(andrew): currently permissive in that it permits truncating forms
   //in some cases eg "if true then" can be folded without the "else"
   switch (syntax) {
   | [] => failwith("ProjectorPerform: Expected non-empty syntax")
-  | [p] =>
-    /* Single piece case (e.g. let) */
-    Piece.id(p)
+  | [p] when Piece.is_complete(p) =>
+    /* Single complete piece case (e.g. let) */
+    Some(Piece.id(p))
   //TODO(andrew): multi-tile non-term case e.g. `: Int`
-  | [p, ..._] when List.for_all(Piece.is_secondary, syntax) => Piece.id(p)
+  | [p, ..._] when List.for_all(Piece.is_secondary, syntax) =>
+    Some(Piece.id(p))
   | _ =>
     switch (Segment.root_rep_id(syntax)) {
-    | exception _ => failwith("ProjectorPerform: Not complete term")
-    | id => id
+    | exception _ =>
+      print_endline("ProjectorPerform: Not complete term");
+      None;
+    | id => Some(id)
     }
   };
 
@@ -156,6 +159,7 @@ let go =
     Update.remove_if(id, z) |> move_to_id(d, id);
   switch (a) {
   | ToggleIndicated(kind) =>
+    print_endline("ToggleIndicated");
     switch (z.selection.content) {
     | [] =>
       switch (Indicated.for_index(z)) {
@@ -194,9 +198,10 @@ let go =
         };
       }
     | _ =>
+      /* If there's a selection, try to project that */
       switch (
         {
-          let id = proj_rep_id(z.selection.content);
+          let* id = proj_rep_id(z.selection.content);
           let+ p = Update.init(id, kind, z.selection.content);
           let z =
             Zipper.put_selection(
@@ -209,7 +214,7 @@ let go =
       | None => Error(Cant_project)
       | Some(z) => Ok(z)
       }
-    }
+    };
   | RemoveIndicated =>
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)
@@ -222,24 +227,27 @@ let go =
        otherwise: check if either side has tile which is concave
        at that side. if adding a hole to any such sides results
        in a complete term, then we're good */
+    switch (proj_rep_id(syntax)) {
+    | None => failwith("ProjectorPerform: Bad syntax")
+    | Some(proj_rep_id) =>
+      Ok(
+        Update.update(
+          pr =>
+            {
+              ...pr,
+              syntax:
+                List.map(
+                  (p: Piece.t) =>
+                    proj_rep_id == Piece.id(p) ? Piece.replace_id(id, p) : p,
+                  syntax,
+                ),
+            },
+          id,
+          z,
+        ),
+      )
+    }
 
-    Ok(
-      Update.update(
-        pr =>
-          {
-            ...pr,
-            syntax:
-              List.map(
-                (p: Piece.t) =>
-                  proj_rep_id(syntax) == Piece.id(p)
-                    ? Piece.replace_id(id, p) : p,
-                syntax,
-              ),
-          },
-        id,
-        z,
-      ),
-    )
   | SetModel(id, model) => Ok(Update.update(pr => {...pr, model}, id, z))
   | Focus(id, d) =>
     let z =
