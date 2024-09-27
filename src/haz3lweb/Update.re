@@ -397,9 +397,7 @@ let ui_state_update =
   };
 };
 
-let apply =
-    (model: Model.t, update: t, _state: State.t, ~schedule_action)
-    : Result.t(Model.t) => {
+let apply = (model: Model.t, update: t, ~schedule_action): Result.t(Model.t) => {
   let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
     switch (
       Editors.perform_action(~settings=model.settings.core, model.editors, a)

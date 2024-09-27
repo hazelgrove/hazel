@@ -31,7 +31,7 @@ let apply = (model, action, ~schedule_action): Model.t => {
   last_edit_action := JsUtil.timestamp();
   switch (
     try({
-      let new_model = Update.apply(model, action, (), ~schedule_action);
+      let new_model = Update.apply(model, action, ~schedule_action);
       Log.update(action);
       new_model;
     }) {
