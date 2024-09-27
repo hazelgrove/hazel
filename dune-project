@@ -31,7 +31,7 @@
   ppx_yojson_conv
   (omd (>= 2.0.0~alpha4))
   ezjs_idb
-  virtual_dom
+  bonsai
   ppx_deriving
   ptmap
   uuidm
