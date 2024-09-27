@@ -57,9 +57,10 @@ let rec bound_vars = (dp: t): list(Var.t) =>
   | Ap(_, dp1) => bound_vars(dp1)
   };
 
-let get_label: t => option((LabeledTuple.t, t)) =
+let rec get_label: t => option((LabeledTuple.t, t)) =
   dp =>
     switch (dp |> term_of) {
+    | Parens(dp) => get_label(dp)
     | TupLabel({term: Label(name), _}, t') => Some((name, t'))
     | _ => None
     };

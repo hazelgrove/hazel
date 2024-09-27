@@ -70,12 +70,16 @@ let of_label = (ctx: Ctx.t, mode: t): (t, t) =>
     (ana(ty1), ana(ty2));
   };
 
-let of_prod = (ctx: Ctx.t, mode: t, ts: list('a), filt): list(t) =>
+let of_prod =
+    (ctx: Ctx.t, mode: t, es: list('a), filt, constructor)
+    : (list('a), list(t)) =>
   switch (mode) {
   | Syn
   | SynFun
-  | SynTypFun => List.init(List.length(ts), _ => Syn)
-  | Ana(ty) => ty |> Typ.matched_prod(ctx, ts, filt) |> List.map(ana)
+  | SynTypFun => (es, List.init(List.length(es), _ => Syn))
+  | Ana(ty) =>
+    let (es, tys) = Typ.matched_prod(ctx, es, filt, ty, constructor);
+    (es, tys |> List.map(ana));
   };
 
 let of_cons_hd = (ctx: Ctx.t, mode: t): t =>
