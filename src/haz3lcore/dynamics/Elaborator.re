@@ -318,37 +318,55 @@ let rec elaborate =
              Typ.Prod([Typ.TupLabel(labty, ety) |> Typ.temp]) |> Typ.temp,
            );
       };
+
     | Tuple(es) =>
       let (ds, tys) =
         List.map(elaborate(m, ~in_container=true), es) |> ListUtil.unzip;
-      let elab_typ_list =
-        switch (Typ.weak_head_normalize(ctx, elaborated_type).term) {
-        | Prod(tys) => tys
-        | _ => tys
-        };
-      let ds =
-        LabeledTuple.rearrange(
-          Typ.get_label, Exp.get_label, elab_typ_list, ds, (name, p) =>
-          TupLabel(Label(name) |> Exp.fresh, p) |> Exp.fresh
+
+      let expected_labels: list(option(string)) =
+        Typ.get_labels(ctx, elaborated_type);
+      let elaborated_labeled: list((option(string), DHExp.t)) =
+        List.map(
+          exp => {
+            switch (DHExp.term_of(exp)) {
+            | TupLabel({term: Label(l), _}, exp) => (Some(l), exp)
+            | _ => (None, exp)
+            }
+          },
+          ds,
+        );
+
+      let reordered: list((option(string), DHExp.t)) =
+        LabeledTuple.rearrange2(expected_labels, elaborated_labeled);
+
+      let ds: list(DHExp.t) =
+        List.map(
+          ((optional_label, exp: DHExp.t)) => {
+            switch (optional_label) {
+            | Some(label) =>
+              Exp.TupLabel(Label(label) |> Exp.fresh, exp) |> Exp.fresh
+            | None => exp
+            }
+          },
+          reordered,
         );
       Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
+
     | Dot(e1, e2) =>
       let (e1, ty1) = elaborate(m, e1);
-      let (e2, _) = elaborate(m, e2);
-      let (e1, ty) =
+      // I don't think we need to elaborate labels
+      // let (e2, ty2) = elaborate(m, e2);
+      let ty =
         switch (Typ.weak_head_normalize(ctx, ty1).term, e2.term) {
         | (Prod(tys), Var(name)) =>
           let element = LabeledTuple.find_label(Typ.get_label, tys, name);
           switch (element) {
-          | Some({term: TupLabel(_, ty), _}) => (e1, ty)
-          | _ => (e1, Unknown(Internal) |> Typ.temp)
+          | Some({term: TupLabel(_, ty), _}) => ty
+          | _ => Unknown(Internal) |> Typ.temp
           };
         | (TupLabel(_, ty), Var(name))
-            when LabeledTuple.equal(Typ.get_label(ty1), Some((name, e2))) => (
-            e1,
-            ty,
-          )
-        | _ => (e1, Unknown(Internal) |> Typ.temp)
+            when LabeledTuple.equal(Typ.get_label(ty1), Some((name, e2))) => ty
+        | _ => Unknown(Internal) |> Typ.temp
         };
       // Freshcast this, if necessary?
       Exp.Dot(e1, e2) |> rewrap |> cast_from(ty);
