@@ -42,26 +42,44 @@ module Make = (M: Editor.Meta.S) => {
     Move.do_towards(Zipper.select, last, z);
   };
 
-  let term = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
-    //TODO: check if selection is already a term: no-op in this case
-    let* (l, r) = TermRanges.find_opt(id, M.term_ranges);
-    range(Piece.id(l), Piece.id(r), z);
-  };
-
   let tile = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
     let* z = Move.jump_to_id(z, id);
     let* Measured.{last, _} = Measured.find_by_id(id, M.measured);
     Move.do_towards(primary, last, z);
   };
 
-  let current_term = z => {
-    let* id = Indicated.index(z);
-    term(id, z);
-  };
-
   let current_tile = z => {
     let* id = Indicated.index(z);
     tile(id, z);
+  };
+
+  let term = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
+    let* (l, r) = TermRanges.find_opt(id, M.term_ranges);
+    range(Piece.id(l), Piece.id(r), z);
+  };
+
+  let current_term_id = (z: Zipper.t): option(Id.t) => {
+    let* (p, _, _) = Indicated.piece''(z);
+    switch (p) {
+    | Secondary(_) => None
+    | Grout(_)
+    | Projector(_) => Some(Piece.id(p))
+    | Tile(t) =>
+      /* Basic term selection uses termranges, which is out of data
+       * with the parsing logic which makes list listerals. We also
+       * treat tuples as including the parens (if any), though this
+       * is a free chocice */
+      switch (t.label, Zipper.parent(z)) {
+      | ([","], Some(Tile({label: ["[", "]"] | ["(", ")"], id, _}))) =>
+        Some(id)
+      | _ => Some(Piece.id(p))
+      }
+    };
+  };
+
+  let current_term = (z: Zipper.t): option(Zipper.t) => {
+    let* id = current_term_id(z);
+    term(id, z);
   };
 
   let grow_right_until_case_or_rule =
@@ -79,30 +97,14 @@ module Make = (M: Editor.Meta.S) => {
     shrink_left_until_not_case_or_rule_or_space(z);
   };
 
-  let nice_term = (z: Zipper.t) =>
-    switch (Indicated.piece''(z)) {
-    | Some((p, _, _)) =>
-      switch (p) {
-      | Secondary(_) => failwith("Select.nice_term unimplemented")
-      | Grout(_)
-      | Projector(_)
-      | Tile({
-          label: [_],
-          mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-          _,
-        }) =>
-        current_term(z)
-      | Tile({label: ["let" | "type", ..._], _}) => current_tile(z)
-      | Tile({label: ["|", "=>"], _}) => containing_rule(z)
-      | Tile(t) =>
-        switch (t.label, Zipper.parent(z)) {
-        | ([","], Some(Tile({label: ["[", "]"] | ["(", ")"], id, _}))) =>
-          term(id, z)
-        | _ => current_term(z)
-        }
-      }
-    | _ => None
+  let current_term_fancy = (z: Zipper.t) => {
+    let* (p, _, _) = Indicated.piece''(z);
+    switch (p) {
+    | Tile({label: ["let" | "type", ..._], _}) => current_tile(z)
+    | Tile({label: ["|", "=>"], _}) => containing_rule(z)
+    | _ => current_term(z)
     };
+  };
 
   let grow_right_until_not_comment_or_space =
     Move.do_until(go(Local(Right(ByToken))), Piece.not_comment_or_space);
@@ -140,60 +142,33 @@ module Make = (M: Editor.Meta.S) => {
     | _ => None
     };
 
-  let parent_of_indicated = (z: Zipper.t, info_map) => {
-    let statics_of = Id.Map.find_opt(_, info_map);
+  let is_inside_rule = (z: Zipper.t) => {
+    let* z = Move.left_until_case_or_rule(z);
+    let* (p, _, _) = Indicated.piece''(z);
+    switch (p) {
+    | Tile({label: ["|", "=>"], id, _}) => Some(id)
+    | _ => None
+    };
+  };
+
+  let parent_id = (z: Zipper.t, info_map) => {
     let* base_id = Indicated.index(z);
-    let* ci = statics_of(base_id);
-    let* id =
+    let* ci = Id.Map.find_opt(base_id, info_map);
+    /* Rules aren't counted as terms in the base syntax,
+     * but we do want to treat them as possible parents */
+    switch (is_inside_rule(z)) {
+    | Some(id) => Some(id)
+    | None =>
       switch (Info.ancestors_of(ci)) {
       | [] => None
       | [parent, ..._] => Some(parent)
-      };
-    let* ci_parent = statics_of(id);
-    switch (Info.cls_of(ci_parent)) {
-    | Exp(Let | TyAlias) =>
-      /* For definition-type forms, don't select the body,
-       * unless the body is precisely what we're clicking on */
-      switch (ci_parent) {
-      | InfoExp({term: t, _}) =>
-        switch (IdTagged.term_of(t)) {
-        | Let(_, _, body)
-        | TyAlias(_, _, body) =>
-          let body_id = IdTagged.rep_id(body);
-          base_id == body_id ? term(id, z) : tile(id, z);
-        | _ => tile(id, z)
-        }
-      | _ => tile(id, z)
-      }
-    | Exp(Match) =>
-      /* Case rules aren't terms in the syntax model,
-       * but here we pretend they are */
-      let* z = Move.left_until_case_or_rule(z);
-      switch (Indicated.piece''(z)) {
-      | Some((p, _, _)) =>
-        switch (p) {
-        | Tile({label: ["|", "=>"], _}) => containing_rule(z)
-        | Tile({label: ["case", "end"], _}) => term(id, z)
-        | _ => None
-        }
-      | _ => None
-      };
-    | _ =>
-      switch (Info.ancestors_of(ci_parent)) {
-      | [] => term(id, z)
-      | [gp, ..._] =>
-        let* ci_gp = statics_of(gp);
-        switch (Info.cls_of(ci_parent), Info.cls_of(ci_gp)) {
-        | (
-            Exp(Tuple) | Pat(Tuple) | Typ(Prod),
-            Exp(Parens) | Pat(Parens) | Typ(Parens),
-          ) =>
-          /* If parent is tuple, check if it's in parens,
-           * and if so, select the parens as well */
-          term(gp, z)
-        | _ => term(id, z)
-        };
       }
     };
+  };
+
+  let parent_of_indicated = (z: Zipper.t, info_map) => {
+    let* id = parent_id(z, info_map);
+    let* z = Move.jump_to_id_indicated(z, id);
+    current_term_fancy(z);
   };
 };

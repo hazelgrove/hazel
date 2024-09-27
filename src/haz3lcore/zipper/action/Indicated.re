@@ -132,3 +132,11 @@ let ci_of =
       ctx: Info.ctx_of(ci),
     });
   };
+
+let subsegment = (z: ZipperBase.t): option(Segment.t) => {
+  let* index = index(z);
+  let seg = ZipperBase.focal_segment(z);
+  print_endline("term_partitions Indicated");
+  let+ (_, t, _) = Segment.term_partitions(seg, index);
+  t;
+};

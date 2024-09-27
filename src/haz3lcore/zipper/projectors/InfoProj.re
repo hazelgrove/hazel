@@ -40,13 +40,16 @@ module M: Projector = {
 
   let init = Expected;
 
-  let can_project = (p: Piece.t): bool => {
-    switch (Piece.sort(p)) {
-    | (Exp | Pat, _) => true
-    | _ when Piece.is_grout(p) => true /* Grout don't have sorts rn */
+  let can_project = (seg: Segment.t): bool =>
+    switch (seg) {
+    | [p] =>
+      switch (Piece.sort(p)) {
+      | (Exp | Pat, _) => true
+      | _ when Piece.is_grout(p) => true /* Grout don't have sorts rn */
+      | _ => false
+      }
     | _ => false
     };
-  };
 
   let can_focus = false;
 

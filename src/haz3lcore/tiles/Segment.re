@@ -66,7 +66,7 @@ let shape_affix =
       | Grout(g) => (Aba.cons([], g, wgw), s, tl)
       | Projector(p) =>
         let (l, _) =
-          ProjectorBase.shapes(p) |> (d == Left ? TupleUtil.swap : Fun.id);
+          ProjectorBase.shapes_p(p) |> (d == Left ? TupleUtil.swap : Fun.id);
         (empty_wgw, l, tl);
       | Tile(t) =>
         let (l, _) = Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
@@ -123,8 +123,11 @@ and remold_typ = (shape, seg: t): t =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_)
-    | Projector(_) => [hd, ...remold_typ(shape, tl)]
+    | Grout(_) => [hd, ...remold_typ(shape, tl)]
+    | Projector(p) => [
+        hd,
+        ...remold_typ(snd(ProjectorBase.shapes_p(p)), tl),
+      ]
     | Tile(t) =>
       switch (remold_tile(Typ, shape, t)) {
       | None => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
@@ -138,9 +141,12 @@ and remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_)
-    | Projector(_) =>
+    | Grout(_) =>
       let (remolded, shape, rest) = remold_typ_uni(shape, tl);
+      ([hd, ...remolded], shape, rest);
+    | Projector(p) =>
+      let (remolded, shape, rest) =
+        remold_typ_uni(snd(ProjectorBase.shapes_p(p)), tl);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(Typ, shape, t)) {
@@ -155,6 +161,7 @@ and remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
           shape,
           seg,
         )
+
       | Some(t) =>
         let (remolded, shape, rest) =
           remold_typ_uni(snd(Tile.shapes(t)), tl);
@@ -168,9 +175,12 @@ and remold_pat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_)
-    | Projector(_) =>
+    | Grout(_) =>
       let (remolded, shape, rest) = remold_pat_uni(shape, tl);
+      ([hd, ...remolded], shape, rest);
+    | Projector(p) =>
+      let (remolded, shape, rest) =
+        remold_pat_uni(snd(ProjectorBase.shapes_p(p)), tl);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(Pat, shape, t)) {
@@ -200,8 +210,11 @@ and remold_pat = (shape, seg: t): t =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_)
-    | Projector(_) => [hd, ...remold_pat(shape, tl)]
+    | Grout(_) => [hd, ...remold_pat(shape, tl)]
+    | Projector(p) => [
+        hd,
+        ...remold_pat(snd(ProjectorBase.shapes_p(p)), tl),
+      ]
     | Tile(t) =>
       switch (remold_tile(Pat, shape, t)) {
       | None => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
@@ -221,9 +234,12 @@ and remold_tpat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_)
-    | Projector(_) =>
+    | Grout(_) =>
       let (remolded, shape, rest) = remold_tpat_uni(shape, tl);
+      ([hd, ...remolded], shape, rest);
+    | Projector(p) =>
+      let (remolded, shape, rest) =
+        remold_tpat_uni(snd(ProjectorBase.shapes_p(p)), tl);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(TPat, shape, t)) {
@@ -249,8 +265,11 @@ and remold_tpat = (shape, seg: t): t =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_)
-    | Projector(_) => [hd, ...remold_tpat(shape, tl)]
+    | Grout(_) => [hd, ...remold_tpat(shape, tl)]
+    | Projector(p) => [
+        hd,
+        ...remold_tpat(snd(ProjectorBase.shapes_p(p)), tl),
+      ]
     | Tile(t) =>
       switch (remold_tile(TPat, shape, t)) {
       | None => [Tile(t), ...remold_tpat(snd(Tile.shapes(t)), tl)]
@@ -270,9 +289,12 @@ and remold_exp_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_)
-    | Projector(_) =>
+    | Grout(_) =>
       let (remolded, shape, rest) = remold_exp_uni(shape, tl);
+      ([hd, ...remolded], shape, rest);
+    | Projector(p) =>
+      let (remolded, shape, rest) =
+        remold_exp_uni(snd(ProjectorBase.shapes_p(p)), tl);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(Exp, shape, t)) {
@@ -313,8 +335,11 @@ and remold_rul = (shape, seg: t): t =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_)
-    | Projector(_) => [hd, ...remold_rul(shape, tl)]
+    | Grout(_) => [hd, ...remold_rul(shape, tl)]
+    | Projector(p) => [
+        hd,
+        ...remold_rul(snd(ProjectorBase.shapes_p(p)), tl),
+      ]
     | Tile(t) =>
       switch (remold_tile(Rul, shape, t)) {
       | Some(t) =>
@@ -343,8 +368,11 @@ and remold_exp = (shape, seg: t): t =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_)
-    | Projector(_) => [hd, ...remold_exp(shape, tl)]
+    | Grout(_) => [hd, ...remold_exp(shape, tl)]
+    | Projector(p) => [
+        hd,
+        ...remold_exp(snd(ProjectorBase.shapes_p(p)), tl),
+      ]
     | Tile(t) =>
       switch (remold_tile(Exp, shape, t)) {
       | None => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
@@ -373,6 +401,9 @@ let skel =
     |> List.filter(((_, p)) => !Piece.is_secondary(p))
     |> Skel.mk
   );
+
+let root_rep_id = (seg: t): Id.t =>
+  Piece.id(List.nth(seg, Util.Aba.first_a(Skel.root(skel(seg)))));
 
 let sorted_children = List.concat_map(Piece.sorted_children);
 let children = seg => List.map(snd, sorted_children(seg));
@@ -504,7 +535,8 @@ and regrout_affix =
         | Projector(pr) =>
           let p = Piece.Projector(pr);
           let (l', r') =
-            ProjectorBase.shapes(pr) |> (d == Left ? TupleUtil.swap : Fun.id);
+            ProjectorBase.shapes_p(pr)
+            |> (d == Left ? TupleUtil.swap : Fun.id);
           let trim = Trim.regrout(d, (r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         | Tile(t) =>
@@ -674,3 +706,47 @@ and ids_of_piece = (p: Piece.t): list(Id.t) =>
   | Secondary(_)
   | Projector(_) => [Piece.id(p)]
   };
+
+let term_bounds = (skel, seg: t, id: Id.t): option((int, int)) => {
+  let is_root_id = (root: Aba.t(int, Skel.t)): bool => {
+    let index = Aba.first_a(root); // TODO(andrew): this assumes singleton maybe?
+    let piece = List.nth(seg, index);
+    Piece.id(piece) == id;
+  };
+  let rec go = (seg: t, skel: Skel.t): option((int, int)) => {
+    switch (skel) {
+    | Op(root) => is_root_id(root) ? Some(Skel.bounds(skel)) : None
+    | Pre(root, skel_r) =>
+      is_root_id(root) ? Some(Skel.bounds(skel)) : go(seg, skel_r)
+    | Post(skel_l, r) =>
+      is_root_id(r) ? Some(Skel.bounds(skel)) : go(seg, skel_l)
+    | Bin(skel_l, root, skel_r) =>
+      if (is_root_id(root)) {
+        Some(Skel.bounds(skel));
+      } else {
+        switch (go(seg, skel_l)) {
+        | Some(bounds) => Some(bounds)
+        | None => go(seg, skel_r)
+        };
+      }
+    };
+  };
+  go(seg, skel);
+};
+
+let term_partitions = (seg: t, id: Id.t): option((t, t, t)) => {
+  open OptUtil.Syntax;
+  // eliminate segs that have no term and hence will crash skel
+  let* _ = trim_secondary(Left, seg) == [] ? None : Some();
+  //print_endline("term_partitions:");
+  //print_endline(show(seg));
+  print_endline("CCC");
+  let* skel =
+    try(Some(skel(seg))) {
+    | _ => None
+    };
+  print_endline("DDD");
+  let* (l, r) = term_bounds(skel, seg, id);
+  print_endline("EEE");
+  ListUtil.split_sublist_opt(l, r + 1, seg);
+};

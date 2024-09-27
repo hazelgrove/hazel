@@ -62,11 +62,22 @@ let sibs_with_sel =
   | Right => (l_sibs @ content, r_sibs)
   };
 
-module MapPiece = {
-  type updater = Piece.t => Piece.t;
+let focal_segment =
+    (
+      {
+        selection: {content, _},
+        relatives: {siblings: (l_sibs, r_sibs), _},
+        _,
+      }: t,
+    )
+    : Segment.t =>
+  l_sibs @ content @ r_sibs;
+
+module MapSegment = {
+  type updater = Segment.t => Segment.t;
 
   let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
-    seg |> List.map(p => f(p)) |> List.map(of_piece(f));
+    seg |> List.map(of_piece(f)) |> f;
   }
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
@@ -80,10 +91,9 @@ module MapPiece = {
     {...t, children: List.map(of_segment(f), t.children)};
   };
 
-  let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
-    of_segment(f, fst(sibs)),
-    of_segment(f, snd(sibs)),
-  );
+  let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => {
+    (of_segment(f, fst(sibs)), of_segment(f, snd(sibs)));
+  };
 
   let of_ancestor = (f: updater, ancestor: Ancestor.t): Ancestor.t => {
     {
@@ -108,8 +118,6 @@ module MapPiece = {
     {...selection, content: of_segment(f, selection.content)};
   };
 
-  /* Maps the updater over all pieces in the zipper
-   * (that are not currently unzipped) */
   let go = (f: updater, z: t): t => {
     ...z,
     selection: of_selection(f, z.selection),
@@ -119,16 +127,40 @@ module MapPiece = {
     },
   };
 
+  let fast_local = (f: updater, id: Id.t, z: t): t =>
+    //TODO(andrew): cleanup, doc
+    //TODO(andrew): does fast path actually work?
+    if (List.exists(p => Piece.id(p) == id, z.relatives.siblings |> fst)
+        || List.exists(p => Piece.id(p) == id, z.relatives.siblings |> snd)) {
+      let (l, r) = z.relatives.siblings;
+      //this doesn't work as siblings may have incomplete term (or just whitespace)
+      // which will crash skel
+      let sibs = (f(l), f(r));
+      put_siblings(sibs, z);
+    } else {
+      go(f, z);
+    };
+};
+
+module MapPiece = {
+  /* Maps the updater over all pieces in the zipper
+   * (that are not currently unzipped) */
+
+  let go = (f: Piece.t => Piece.t, z: t): t => {
+    ...z,
+    selection: MapSegment.of_selection(List.map(f), z.selection),
+    relatives: {
+      ancestors: MapSegment.of_ancestors(List.map(f), z.relatives.ancestors),
+      siblings: MapSegment.of_siblings(List.map(f), z.relatives.siblings),
+    },
+  };
+
   let sib_has_id = (get, z: t, id: Id.t): bool => {
     switch (z.relatives.siblings |> get) {
     | Some(l) => Piece.id(l) == id
     | _ => false
     };
   };
-
-  let left_sib_has_id = sib_has_id(Siblings.left_neighbor);
-
-  let right_sib_has_id = sib_has_id(Siblings.right_neighbor);
 
   let update_left_sib = (f: Piece.t => Piece.t, z: t) => {
     let (l, r) = z.relatives.siblings;
@@ -152,9 +184,9 @@ module MapPiece = {
      * the cursor is not inside the piece to be updated. This is optimized to
      * be O(1) when the piece is directly to the left or right of the cursor,
      * otherwise it is O(|zipper|) */
-    if (left_sib_has_id(z, id)) {
+    if (sib_has_id(Siblings.left_neighbor, z, id)) {
       update_left_sib(f, z);
-    } else if (right_sib_has_id(z, id)) {
+    } else if (sib_has_id(Siblings.right_neighbor, z, id)) {
       update_right_sib(f, z);
     } else {
       go(f, z);

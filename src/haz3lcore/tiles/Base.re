@@ -34,7 +34,7 @@ and tile = {
 and projector = {
   id: Id.t,
   kind,
-  syntax: piece,
+  syntax: list(piece),
   model: string,
 };
 

@@ -35,7 +35,7 @@ let nibs =
     },
     t => Some(Tile.nibs(t)),
     p => {
-      let (l, r) = ProjectorBase.shapes(p);
+      let (l, r) = ProjectorBase.shapes_p(p);
       Some(Nib.({shape: l, sort: Any}, {shape: r, sort: Any}));
     },
   );
@@ -76,13 +76,7 @@ let disassemble = (p: t): segment =>
   | Tile(t) => Tile.disassemble(t)
   };
 
-let shapes =
-  get(
-    _ => None,
-    g => Some(Grout.shapes(g)),
-    t => Some(Tile.shapes(t)),
-    p => Some(ProjectorBase.shapes(p)),
-  );
+let shapes = ProjectorBase.shapes;
 
 let is_convex = (p: t): bool =>
   switch (shapes(p)) {
@@ -165,6 +159,11 @@ let is_not_case_or_rule_or_space = (p: t) =>
   | Tile({label: ["case", "end"], _}) => false
   | Tile({label: ["|", "=>"], _}) => false
   | Secondary(_) => false
+  | _ => true
+  };
+let not_space = (p: t) =>
+  switch (p) {
+  | Secondary(s) => !Secondary.is_space(s)
   | _ => true
   };
 let not_comment_or_space = (p: t) =>

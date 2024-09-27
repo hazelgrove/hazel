@@ -14,9 +14,9 @@ type shape =
   | Block(Point.t);
 
 /* The type of syntax which a projector can replace.
- * Right now projectors can replace a single piece */
+ * Right now projectors can replace a segment */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type syntax = Base.piece;
+type syntax = list(Base.piece);
 
 /* Global actions available to handlers in all projectors */
 type external_action =
@@ -45,7 +45,7 @@ type info = {
  *    panel bottom bar UI, update ProjectorView.name,
  *    ProjectorView.of_name, and ProjectorView.applicable_projectors
  * 6. If you want to manually manage the projector as part of
- *    the update cycle, see the implementations of the SetIndicated
+ *    the update cycle, see the implementations of the ToggleIndicated
  *    and Remove actions in ProjectorPerform for how to manually
  *    add/remove projectors from an editor */
 module type Projector = {
@@ -65,7 +65,7 @@ module type Projector = {
    * syntax (currently limited to convex pieces) is
    * supported by this projector. This is used to gate
    * adding the projector */
-  let can_project: Base.piece => bool;
+  let can_project: list(Base.piece) => bool;
   /* Does this projector have internal position states,
    * overriding the editor caret & keyboard handlers?
    * If yes, the focus method will be called when this
@@ -137,12 +137,61 @@ module Cook = (C: Projector) : Cooked => {
   let focus = C.focus;
 };
 
-/* Projectors currently are all convex */
-let shapes = (_: Base.projector) => Nib.Shape.(Convex, Convex);
+let get =
+    (f_w, f_g, f_t: Base.tile => _, f_p: Base.projector => _, p: Base.piece) =>
+  switch (p) {
+  | Secondary(w) => f_w(w)
+  | Grout(g) => f_g(g)
+  | Tile(t) => f_t(t)
+  | Projector(p) => f_p(p)
+  };
+let rec shapes = piece =>
+  get(
+    // _ => Some(Nib.Shape.(Convex, Concave(Precedence.min))),
+    _ => None,
+    g => Some(Grout.shapes(g)),
+    t => Some(Tile.shapes(t)),
+    p => Some(shapes_p(p)),
+    piece,
+  )
+/* Projectors currently are all convex... NOT!!! */
+and shapes_p = (p: Base.projector): (Nib.Shape.t, Nib.Shape.t) => {
+  // WARNING: this will fuck up if secondary is projected
+  //open OptUtil.Syntax;
+  let seg = p.syntax;
+  if (seg != []) {
+    let (fst, lst) = (List.hd(seg), List.hd(List.rev(seg)));
+    let (l, _) =
+      shapes(fst)
+      |> Option.value(
+           ~default=(
+             //TODO(andrew): burn this
+             Nib.Shape.(Convex),
+             Nib.Shape.(Concave(Precedence.min)),
+           ),
+         );
+    let (_, r) =
+      shapes(lst)
+      |> Option.value(
+           ~default=(
+             //TODO(andrew): burn this
+             Nib.Shape.(Convex),
+             Nib.Shape.(Concave(Precedence.min)),
+           ),
+         );
+    (l, r);
+  } else {
+    (
+      //TODO(andrew): burn this
+      Nib.Shape.(Convex),
+      Nib.Shape.(Concave(Precedence.min)),
+    );
+  };
+};
 
 /* Projectors currently have a unique molding */
 let mold_of = (p, sort: Sort.t): Mold.t => {
-  let (l, r) = shapes(p);
+  let (l, r) = shapes_p(p);
   {
     nibs: {
       ({shape: l, sort}, {shape: r, sort});
