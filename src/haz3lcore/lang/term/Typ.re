@@ -477,9 +477,7 @@ let rec matched_prod_strict:
   (Ctx.t, list('a), 'a => option((string, 'a)), t) => option(list(t))
  =
   (ctx: Ctx.t, ts, get_label_ts: 'a => option((string, 'a)), ty: t) => {
-    let normalized: term = term_of(weak_head_normalize(ctx, ty));
-    print_endline("normalized: " ++ show_term(normalized));
-    switch (normalized) {
+    switch (term_of(weak_head_normalize(ctx, ty))) {
     | Parens(ty) => matched_prod_strict(ctx, ts, get_label_ts, ty)
     | Prod(tys: list(t)) =>
       if (List.length(ts) != List.length(tys)) {

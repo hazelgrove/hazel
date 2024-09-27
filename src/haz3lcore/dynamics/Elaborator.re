@@ -351,11 +351,13 @@ let rec elaborate =
           reordered,
         );
       Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
+
     | Dot(e1, e2) =>
       let (e1, ty1) = elaborate(m, e1);
-      let (e2, ty2) = elaborate(m, e2);
+      // I don't think we need to elaborate labels
+      // let (e2, ty2) = elaborate(m, e2);
       let ty =
-        switch (ty1.term, ty2.term) {
+        switch (Typ.weak_head_normalize(ctx, ty1).term, e2.term) {
         | (Prod(tys), Var(name)) =>
           let element = LabeledTuple.find_label(Typ.get_label, tys, name);
           switch (element) {
@@ -363,7 +365,7 @@ let rec elaborate =
           | _ => Unknown(Internal) |> Typ.temp
           };
         | (TupLabel(_, ty), Var(name))
-            when LabeledTuple.equal(Typ.get_label(ty1), Some((name, ty2))) => ty
+            when LabeledTuple.equal(Typ.get_label(ty1), Some((name, e2))) => ty
         | _ => Unknown(Internal) |> Typ.temp
         };
       // How to freshcast this?
