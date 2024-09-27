@@ -60,6 +60,23 @@ let move_out_of_piece =
     }
   };
 
+let proj_rep_id = syntax =>
+  //TODO(andrew): currently permissive in that it permits truncating forms
+  //in some cases eg "if true then" can be folded without the "else"
+  switch (syntax) {
+  | [] => failwith("ProjectorPerform: Expected non-empty syntax")
+  | [p] =>
+    /* Single piece case (e.g. let) */
+    Piece.id(p)
+  //TODO(andrew): multi-tile non-term case e.g. `: Int`
+  | [p, ..._] when List.for_all(Piece.is_secondary, syntax) => Piece.id(p)
+  | _ =>
+    switch (Segment.root_rep_id(syntax)) {
+    | exception _ => failwith("ProjectorPerform: Not complete term")
+    | id => id
+    }
+  };
+
 let go =
     (
       jump_to_id_indicated,
@@ -139,40 +156,59 @@ let go =
     Update.remove_if(id, z) |> move_to_id(d, id);
   switch (a) {
   | ToggleIndicated(kind) =>
-    switch (Indicated.for_index(z)) {
-    | None => Error(Cant_project)
-    | Some((piece, d, _)) =>
-      let id = Piece.id(piece);
-      switch (Piece.is_projector(piece)) {
-      | None =>
-        switch (
-          {
-            let* z: ZipperBase.t =
-              if (Piece.is_secondary(piece)) {
-                indicated_token(z);
-              } else {
-                select_term(z);
-              };
-            let+ p = Update.init(id, kind, z.selection.content);
-            let z =
-              Zipper.put_selection(
-                {...z.selection, content: [Piece.Projector(p)], focus: d},
-                z,
-              );
-            Zipper.unselect(z);
+    switch (z.selection.content) {
+    | [] =>
+      switch (Indicated.for_index(z)) {
+      | None => Error(Cant_project)
+      | Some((piece, d, _)) =>
+        let id = Piece.id(piece);
+        switch (Piece.is_projector(piece)) {
+        | None =>
+          switch (
+            {
+              let* z: ZipperBase.t =
+                if (Piece.is_secondary(piece)) {
+                  indicated_token(z);
+                } else {
+                  select_term(z);
+                };
+              let+ p = Update.init(id, kind, z.selection.content);
+              let z =
+                Zipper.put_selection(
+                  {...z.selection, content: [Piece.Projector(p)], focus: d},
+                  z,
+                );
+              Zipper.unselect(z);
+            }
+          ) {
+          | None => Error(Cant_project)
+          | Some(z) => Ok(z)
           }
-        ) {
-        | None => Error(Cant_project)
-        | Some(z) => Ok(z)
+        | Some(current) when current.kind == kind =>
+          Ok(remove_indicated(id, d, z))
+        | Some(current) =>
+          switch (Update.init(id, kind, current.syntax)) {
+          | None => Error(Cant_project)
+          | Some(p) => Ok(Update.update(_ => p, id, z))
+          }
+        };
+      }
+    | _ =>
+      switch (
+        {
+          let id = proj_rep_id(z.selection.content);
+          let+ p = Update.init(id, kind, z.selection.content);
+          let z =
+            Zipper.put_selection(
+              {...z.selection, content: [Piece.Projector(p)]},
+              z,
+            );
+          Zipper.unselect(z);
         }
-      | Some(current) when current.kind == kind =>
-        Ok(remove_indicated(id, d, z))
-      | Some(current) =>
-        switch (Update.init(id, kind, current.syntax)) {
-        | None => Error(Cant_project)
-        | Some(p) => Ok(Update.update(_ => p, id, z))
-        }
-      };
+      ) {
+      | None => Error(Cant_project)
+      | Some(z) => Ok(z)
+      }
     }
   | RemoveIndicated =>
     switch (Indicated.for_index(z)) {
@@ -186,21 +222,7 @@ let go =
        otherwise: check if either side has tile which is concave
        at that side. if adding a hole to any such sides results
        in a complete term, then we're good */
-    let top_id =
-      switch (syntax) {
-      | [] => failwith("ProjectorPerform: Expected non-empty syntax")
-      | [p] =>
-        /* Single piece case (e.g. let) */
-        Piece.id(p)
-      //TODO(andrew): multi-tile non-term case e.g. `: Int`
-      | [p, ..._] when List.for_all(Piece.is_secondary, syntax) =>
-        Piece.id(p)
-      | _ =>
-        switch (Segment.root_rep_id(syntax)) {
-        | exception _ => failwith("ProjectorPerform: Not complete term")
-        | id => id
-        }
-      };
+
     Ok(
       Update.update(
         pr =>
@@ -209,14 +231,15 @@ let go =
             syntax:
               List.map(
                 (p: Piece.t) =>
-                  top_id == Piece.id(p) ? Piece.replace_id(id, p) : p,
+                  proj_rep_id(syntax) == Piece.id(p)
+                    ? Piece.replace_id(id, p) : p,
                 syntax,
               ),
           },
         id,
         z,
       ),
-    );
+    )
   | SetModel(id, model) => Ok(Update.update(pr => {...pr, model}, id, z))
   | Focus(id, d) =>
     let z =
