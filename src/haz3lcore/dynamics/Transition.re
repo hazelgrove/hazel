@@ -720,13 +720,7 @@ module Transition = (EV: EV_MODE) => {
           kind: CastAp,
           is_value: false,
         });
-      | _ =>
-        Step({
-          expr: Dot(d1', d2') |> fresh,
-          state_update,
-          kind: Dot,
-          is_value: false,
-        })
+      | _ => raise(EvaluatorError.Exception(BadPatternMatch))
       };
     | TupLabel(label, d1) =>
       // TODO (Anthony): Fix this if needed
