@@ -34,7 +34,7 @@
   bonsai
   ppx_deriving
   ptmap
-  uuidm
+  (uuidm (= 0.9.8)) ; 0.9.9 has breaking deprecated changes
   unionFind
   ocamlformat
   (junit_alcotest :with-test)
