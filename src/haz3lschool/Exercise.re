@@ -603,6 +603,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ~spec: spec,
         ~instructor_mode: bool,
         ~editing_prompt: bool,
+        ~editing_point_dist: bool,
+        ~editing_test_num: bool,
         ~settings: CoreSettings.t,
       )
       : state => {
@@ -658,7 +660,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         },
         instructor_mode,
       );
-    set_editing_prompt(state, editing_prompt);
+    let state = set_editing_prompt(state, editing_prompt);
+    let state = set_editing_point_dist(state, editing_point_dist);
+    set_editing_test_num(state, editing_test_num);
   };
 
   // # Stitching
@@ -1039,11 +1043,25 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     |> Sexplib.Sexp.to_string;
   };
 
-  let deserialize_exercise = (data, ~spec, ~instructor_mode, ~editing_prompt) => {
+  let deserialize_exercise =
+      (
+        data,
+        ~spec,
+        ~instructor_mode,
+        ~editing_prompt,
+        ~editing_point_dist,
+        ~editing_test_num,
+      ) => {
     data
     |> Sexplib.Sexp.of_string
     |> persistent_state_of_sexp
-    |> unpersist_state(~spec, ~instructor_mode, ~editing_prompt);
+    |> unpersist_state(
+         ~spec,
+         ~instructor_mode,
+         ~editing_prompt,
+         ~editing_point_dist,
+         ~editing_test_num,
+       );
   };
 
   let deserialize_exercise_export = data => {
