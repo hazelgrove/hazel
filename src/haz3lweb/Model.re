@@ -59,8 +59,9 @@ let load_editors =
       ~mode: Settings.mode,
       ~instructor_mode: bool,
       ~editing_prompt: bool,
-      ~editing_point_dist: bool,
-      ~editing_test_num: bool,
+      ~editing_test_val_rep: bool,
+      ~editing_mut_test_rep: bool,
+      ~editing_impl_grd_rep: bool,
     )
     : (Editors.t, ModelResults.t) =>
   switch (mode) {
@@ -77,8 +78,9 @@ let load_editors =
         ~specs=ExerciseSettings.exercises,
         ~instructor_mode,
         ~editing_prompt,
-        ~editing_point_dist,
-        ~editing_test_num,
+        ~editing_test_val_rep,
+        ~editing_mut_test_rep,
+        ~editing_impl_grd_rep,
       );
     (Exercises(n, specs, exercise), ModelResults.empty);
   };
@@ -103,8 +105,9 @@ let load = (init_model: t): t => {
       ~mode=settings.mode,
       ~instructor_mode=settings.instructor_mode,
       ~editing_prompt=settings.editing_prompt,
-      ~editing_point_dist=settings.editing_point_dist,
-      ~editing_test_num=settings.editing_test_num,
+      ~editing_test_val_rep=settings.editing_test_val_rep,
+      ~editing_mut_test_rep=settings.editing_mut_test_rep,
+      ~editing_impl_grd_rep=settings.editing_impl_grd_rep,
     );
   let ui_state = init_model.ui_state;
   {editors, settings, results, explainThisModel, ui_state};

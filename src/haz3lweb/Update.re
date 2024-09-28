@@ -176,8 +176,9 @@ let update_settings =
         ...settings,
         instructor_mode: !settings.instructor_mode,
         editing_prompt: false,
-        editing_test_num: false,
-        editing_point_dist: false,
+        editing_test_val_rep: false,
+        editing_mut_test_rep: false,
+        editing_impl_grd_rep: false,
       },
     };
   | EditingPrompt =>
@@ -190,24 +191,34 @@ let update_settings =
         editing_prompt: editing,
       },
     };
-  | EditingTestNum =>
-    let editing = !settings.editing_test_num;
+  | EditingTestValRep =>
+    let editing = !settings.editing_test_val_rep;
     {
       ...model,
-      editors: Editors.set_editing_test_num(model.editors, editing),
+      editors: Editors.set_editing_test_val_rep(model.editors, editing),
       settings: {
         ...settings,
-        editing_test_num: editing,
+        editing_test_val_rep: editing,
       },
     };
-  | EditingPointDist =>
-    let editing = !settings.editing_point_dist;
+  | EditingMutTestRep =>
+    let editing = !settings.editing_mut_test_rep;
     {
       ...model,
-      editors: Editors.set_editing_test_num(model.editors, editing),
+      editors: Editors.set_editing_mut_test_rep(model.editors, editing),
       settings: {
         ...settings,
-        editing_point_dist: editing,
+        editing_mut_test_rep: editing,
+      },
+    };
+  | EditingImplGrdRep =>
+    let editing = !settings.editing_impl_grd_rep;
+    {
+      ...model,
+      editors: Editors.set_editing_impl_grd_rep(model.editors, editing),
+      settings: {
+        ...settings,
+        editing_impl_grd_rep: editing,
       },
     };
   | Mode(mode) => {
@@ -285,8 +296,9 @@ let switch_scratch_slide =
       ~instructor_mode,
       idx: int,
       ~editing_prompt,
-      ~editing_point_dist,
-      ~editing_test_num,
+      ~editing_test_val_rep,
+      ~editing_mut_test_rep,
+      ~editing_impl_grd_rep,
     )
     : option(Editors.t) =>
   switch (editors) {
@@ -303,8 +315,9 @@ let switch_scratch_slide =
         ~instructor_mode,
         ~settings,
         ~editing_prompt,
-        ~editing_point_dist,
-        ~editing_test_num,
+        ~editing_test_val_rep,
+        ~editing_mut_test_rep,
+        ~editing_impl_grd_rep,
       );
     Some(Exercises(idx, specs, exercise));
   };
@@ -504,8 +517,9 @@ let apply =
       let settings = {
         ...model.settings,
         editing_prompt: false,
-        editing_point_dist: false,
-        editing_test_num: false,
+        editing_test_val_rep: false,
+        editing_mut_test_rep: false,
+        editing_impl_grd_rep: false,
       };
       switch (
         switch_scratch_slide(
@@ -513,8 +527,9 @@ let apply =
           ~settings=model.settings.core,
           ~instructor_mode,
           ~editing_prompt=false,
-          ~editing_point_dist=false,
-          ~editing_test_num=false,
+          ~editing_test_val_rep=false,
+          ~editing_mut_test_rep=false,
+          ~editing_impl_grd_rep=false,
           n,
         )
       ) {
@@ -602,16 +617,21 @@ let apply =
         ...model,
         editors: Editors.update_exercise_prompt(model.editors, new_prompt),
       })
-    | UpdatePointDist(new_point_dist, dist) =>
+    | UpdateTestValRep(new_test_num, new_dist) =>
       Model.save_and_return({
         ...model,
         editors:
-          Editors.update_point_dist(model.editors, new_point_dist, dist),
+          Editors.update_test_val_rep(model.editors, new_test_num, new_dist),
       })
-    | UpdateTestNum(new_test_num) =>
+    | UpdateMutTestRep(new_dist) =>
       Model.save_and_return({
         ...model,
-        editors: Editors.update_test_num(model.editors, new_test_num),
+        editors: Editors.update_mut_test_rep(model.editors, new_dist),
+      })
+    | UpdateImplGrdRep(new_dist) =>
+      Model.save_and_return({
+        ...model,
+        editors: Editors.update_impl_grd_rep(model.editors, new_dist),
       })
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));

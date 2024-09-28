@@ -53,6 +53,18 @@ module TestValidationReport = {
     };
   };
 
+  // let update_requirements = _ => {
+  //   let new_prompt =
+  //     Obj.magic(
+  //       Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("prompt-input-box")),
+  //     )##.value;
+  //   let update_events = [
+  //     inject(Set(EditingPrompt)),
+  //     inject(UpdatePrompt(new_prompt)),
+  //   ];
+  //   Virtual_dom.Vdom.Effect.Many(update_events);
+  // };
+
   let view = (~inject, report: t, max_points: int) => {
     Cell.report_footer_view([
       div(
@@ -234,6 +246,18 @@ module MutationTestingReport = {
   //   | Some([instance, ..._]) => (TestStatus.Pass, Some(instance))
   //   | _ => (TestStatus.Fail, None)
   //   };
+  // };
+
+  // let update_requirements = _ => {
+  //   let new_prompt =
+  //     Obj.magic(
+  //       Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("prompt-input-box")),
+  //     )##.value;
+  //   let update_events = [
+  //     inject(Set(EditingPrompt)),
+  //     inject(UpdatePrompt(new_prompt)),
+  //   ];
+  //   Virtual_dom.Vdom.Effect.Many(update_events);
   // };
 
   let view = (~inject, report: t, max_points: int) =>

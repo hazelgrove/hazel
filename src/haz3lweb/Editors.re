@@ -137,31 +137,15 @@ let update_exercise_prompt = (editors: t, new_prompt: string): t =>
     )
   };
 
-let set_editing_test_num = (editors: t, editing: bool): t =>
+let set_editing_test_val_rep = (editors: t, editing: bool): t =>
   switch (editors) {
   | Scratch(_)
   | Documentation(_) => editors
   | Exercises(n, specs, exercise) =>
-    Exercises(n, specs, Exercise.set_editing_test_num(exercise, editing))
+    Exercises(n, specs, Exercise.set_editing_test_val_rep(exercise, editing))
   };
 
-let update_test_num = (editors: t, new_test_num: int): t =>
-  switch (editors) {
-  | Scratch(_)
-  | Documentation(_) => editors
-  | Exercises(n, specs, exercise) =>
-    Exercises(n, specs, Exercise.update_test_num(exercise, new_test_num))
-  };
-
-let set_editing_point_dist = (editors: t, editing: bool): t =>
-  switch (editors) {
-  | Scratch(_)
-  | Documentation(_) => editors
-  | Exercises(n, specs, exercise) =>
-    Exercises(n, specs, Exercise.set_editing_point_dist(exercise, editing))
-  };
-
-let update_point_dist = (editors: t, new_point_dist: int, dist: string): t =>
+let update_test_val_rep = (editors: t, new_test_num: int, new_dist: int): t =>
   switch (editors) {
   | Scratch(_)
   | Documentation(_) => editors
@@ -169,8 +153,40 @@ let update_point_dist = (editors: t, new_point_dist: int, dist: string): t =>
     Exercises(
       n,
       specs,
-      Exercise.update_point_dist(exercise, new_point_dist, dist),
+      Exercise.update_test_val_rep(exercise, new_test_num, new_dist),
     )
+  };
+
+let set_editing_mut_test_rep = (editors: t, editing: bool): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.set_editing_mut_test_rep(exercise, editing))
+  };
+
+let update_mut_test_rep = (editors: t, new_dist: int): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.update_mut_test_rep(exercise, new_dist))
+  };
+
+let set_editing_impl_grd_rep = (editors: t, editing: bool): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.set_editing_impl_grd_rep(exercise, editing))
+  };
+
+let update_impl_grd_rep = (editors: t, new_dist: int): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.update_impl_grd_rep(exercise, new_dist))
   };
 
 let reset_nth_slide = (~settings: CoreSettings.t, n, slides): list(Editor.t) => {
