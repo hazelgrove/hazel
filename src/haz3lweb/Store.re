@@ -285,8 +285,9 @@ module Exercise = {
         spec,
         ~instructor_mode,
         ~editing_prompt,
-        ~editing_point_dist,
-        ~editing_test_num,
+        ~editing_test_val_rep,
+        ~editing_mut_test_rep,
+        ~editing_impl_grd_rep,
       )
       : Exercise.state => {
     let keystring = Id.to_string(spec.id);
@@ -299,8 +300,9 @@ module Exercise = {
             ~spec,
             ~instructor_mode,
             ~editing_prompt,
-            ~editing_point_dist,
-            ~editing_test_num,
+            ~editing_test_val_rep,
+            ~editing_mut_test_rep,
+            ~editing_impl_grd_rep,
             ~settings,
           )
         ) {
@@ -339,8 +341,9 @@ module Exercise = {
         ~specs,
         ~instructor_mode,
         ~editing_prompt,
-        ~editing_point_dist,
-        ~editing_test_num,
+        ~editing_test_val_rep,
+        ~editing_mut_test_rep,
+        ~editing_impl_grd_rep,
       )
       : (int, list(p(ZipperBase.t)), state) => {
     switch (JsUtil.get_localstore(cur_exercise_key)) {
@@ -358,8 +361,9 @@ module Exercise = {
                   ~spec,
                   ~instructor_mode,
                   ~editing_prompt,
-                  ~editing_point_dist,
-                  ~editing_test_num,
+                  ~editing_test_val_rep,
+                  ~editing_mut_test_rep,
+                  ~editing_impl_grd_rep,
                   ~settings,
                 )
               ) {
@@ -383,8 +387,9 @@ module Exercise = {
               first_spec,
               ~instructor_mode,
               ~editing_prompt,
-              ~editing_point_dist,
-              ~editing_test_num,
+              ~editing_test_val_rep,
+              ~editing_mut_test_rep,
+              ~editing_impl_grd_rep,
               ~settings,
             ),
           );
@@ -401,8 +406,9 @@ module Exercise = {
         ~instructor_mode: bool,
         ~settings: CoreSettings.t,
         ~editing_prompt,
-        ~editing_point_dist,
-        ~editing_test_num,
+        ~editing_test_val_rep,
+        ~editing_mut_test_rep,
+        ~editing_impl_grd_rep,
       )
       : exercise_export => {
     {
@@ -422,8 +428,9 @@ module Exercise = {
                  ~instructor_mode,
                  ~settings,
                  ~editing_prompt,
-                 ~editing_point_dist,
-                 ~editing_test_num,
+                 ~editing_test_val_rep,
+                 ~editing_mut_test_rep,
+                 ~editing_impl_grd_rep,
                )
                |> Exercise.persistent_state_of_state(~instructor_mode);
              (key, exercise);
@@ -438,8 +445,9 @@ module Exercise = {
       ~instructor_mode,
       ~settings,
       ~editing_prompt=false,
-      ~editing_point_dist=false,
-      ~editing_test_num=false,
+      ~editing_test_val_rep=false,
+      ~editing_mut_test_rep=false,
+      ~editing_impl_grd_rep=false,
     )
     |> sexp_of_exercise_export
     |> Sexplib.Sexp.to_string;
@@ -456,8 +464,9 @@ module Exercise = {
         ~instructor_mode: bool,
         ~settings: CoreSettings.t,
         ~editing_prompt,
-        ~editing_point_dist,
-        ~editing_test_num,
+        ~editing_test_val_rep,
+        ~editing_mut_test_rep,
+        ~editing_impl_grd_rep,
       ) => {
     let exercise_export = data |> deserialize_exercise_export;
     save_exercise_id(exercise_export.cur_exercise);
@@ -474,8 +483,9 @@ module Exercise = {
                ~spec,
                ~instructor_mode,
                ~editing_prompt,
-               ~editing_point_dist,
-               ~editing_test_num,
+               ~editing_test_val_rep,
+               ~editing_mut_test_rep,
+               ~editing_impl_grd_rep,
                ~settings,
              ),
              ~instructor_mode,

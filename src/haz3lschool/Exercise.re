@@ -493,7 +493,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     },
   };
 
-  let set_editing_test_num = ({eds, _} as state: state, editing: bool) => {
+  let set_editing_test_val_rep = ({eds, _} as state: state, editing: bool) => {
     ...state,
     eds: {
       ...eds,
@@ -511,7 +511,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     },
   };
 
-  let update_test_num = ({eds, _} as state: state, new_test_num: int) => {
+  let update_test_val_rep =
+      ({eds, _} as state: state, new_test_num: int, new_dist: int) => {
     ...state,
     eds: {
       ...eds,
@@ -519,10 +520,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ...eds.your_tests,
         required: new_test_num,
       },
+      point_distribution: {
+        ...eds.point_distribution,
+        test_validation: new_dist,
+      },
     },
   };
 
-  let set_editing_point_dist = ({eds, _} as state: state, editing: bool) => {
+  let set_editing_mut_test_rep = ({eds, _} as state: state, editing: bool) => {
     ...state,
     eds: {
       ...eds,
@@ -540,32 +545,44 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     },
   };
 
-  let update_point_dist =
-      ({eds, _} as state: state, new_point_dist: int, dist: string) => {
-    let updated_point_distribution =
-      switch (dist) {
-      | "test_validation" => {
-          ...eds.point_distribution,
-          test_validation: new_point_dist,
-        }
-      | "mutation_testing" => {
-          ...eds.point_distribution,
-          mutation_testing: new_point_dist,
-        }
-      | "impl_grading" => {
-          ...eds.point_distribution,
-          impl_grading: new_point_dist,
-        }
-      | _ => eds.point_distribution
-      };
-
-    {
-      ...state,
-      eds: {
-        ...eds,
-        point_distribution: updated_point_distribution,
+  let update_mut_test_rep = ({eds, _} as state: state, new_dist: int) => {
+    ...state,
+    eds: {
+      ...eds,
+      point_distribution: {
+        ...eds.point_distribution,
+        mutation_testing: new_dist,
       },
-    };
+    },
+  };
+
+  let set_editing_impl_grd_rep = ({eds, _} as state: state, editing: bool) => {
+    ...state,
+    eds: {
+      ...eds,
+      prelude: Editor.set_read_only(eds.prelude, editing),
+      correct_impl: Editor.set_read_only(eds.correct_impl, editing),
+      your_tests: {
+        let tests = Editor.set_read_only(eds.your_tests.tests, editing);
+        {
+          tests,
+          required: eds.your_tests.required,
+          provided: eds.your_tests.provided,
+        };
+      },
+      your_impl: Editor.set_read_only(eds.your_impl, editing),
+    },
+  };
+
+  let update_impl_grd_rep = ({eds, _} as state: state, new_dist: int) => {
+    ...state,
+    eds: {
+      ...eds,
+      point_distribution: {
+        ...eds.point_distribution,
+        impl_grading: new_dist,
+      },
+    },
   };
 
   let visible_in = (pos, ~instructor_mode) => {
@@ -603,8 +620,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ~spec: spec,
         ~instructor_mode: bool,
         ~editing_prompt: bool,
-        ~editing_point_dist: bool,
-        ~editing_test_num: bool,
+        ~editing_test_val_rep: bool,
+        ~editing_mut_test_rep: bool,
+        ~editing_impl_grd_rep: bool,
         ~settings: CoreSettings.t,
       )
       : state => {
@@ -661,8 +679,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         instructor_mode,
       );
     let state = set_editing_prompt(state, editing_prompt);
-    let state = set_editing_point_dist(state, editing_point_dist);
-    set_editing_test_num(state, editing_test_num);
+    let state = set_editing_test_val_rep(state, editing_test_val_rep);
+    let state = set_editing_mut_test_rep(state, editing_mut_test_rep);
+    set_editing_impl_grd_rep(state, editing_impl_grd_rep);
   };
 
   // # Stitching
@@ -1049,8 +1068,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ~spec,
         ~instructor_mode,
         ~editing_prompt,
-        ~editing_point_dist,
-        ~editing_test_num,
+        ~editing_test_val_rep,
+        ~editing_mut_test_rep,
+        ~editing_impl_grd_rep,
       ) => {
     data
     |> Sexplib.Sexp.of_string
@@ -1059,8 +1079,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
          ~spec,
          ~instructor_mode,
          ~editing_prompt,
-         ~editing_point_dist,
-         ~editing_test_num,
+         ~editing_test_val_rep,
+         ~editing_mut_test_rep,
+         ~editing_impl_grd_rep,
        );
   };
 

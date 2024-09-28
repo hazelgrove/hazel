@@ -26,8 +26,9 @@ let key_handler =
     | Some(action) =>
       let settings = get_settings(model);
       settings.editing_prompt
-      || settings.editing_test_num
-      || settings.editing_point_dist
+      || settings.editing_test_val_rep
+      || settings.editing_mut_test_rep
+      || settings.editing_impl_grd_rep
         ? Many([inject(action)])
         : Many([Prevent_default, Stop_propagation, inject(action)]);
     }

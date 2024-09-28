@@ -56,8 +56,9 @@ let import_all = (data, ~specs) => {
   Store.ExplainThisModel.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
   let editing_prompt = settings.editing_prompt;
-  let editing_point_dist = settings.editing_point_dist;
-  let editing_test_num = settings.editing_test_num;
+  let editing_test_val_rep = settings.editing_test_val_rep;
+  let editing_mut_test_rep = settings.editing_mut_test_rep;
+  let editing_impl_grd_rep = settings.editing_impl_grd_rep;
   Store.Scratch.import(~settings=settings.core, all.scratch);
   Store.Exercise.import(
     ~settings=settings.core,
@@ -65,8 +66,9 @@ let import_all = (data, ~specs) => {
     ~specs,
     ~instructor_mode,
     ~editing_prompt,
-    ~editing_point_dist,
-    ~editing_test_num,
+    ~editing_test_val_rep,
+    ~editing_mut_test_rep,
+    ~editing_impl_grd_rep,
   );
   Log.import(all.log);
 };
