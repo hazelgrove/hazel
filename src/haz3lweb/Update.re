@@ -285,6 +285,8 @@ let switch_scratch_slide =
       ~instructor_mode,
       idx: int,
       ~editing_prompt,
+      ~editing_point_dist,
+      ~editing_test_num,
     )
     : option(Editors.t) =>
   switch (editors) {
@@ -301,6 +303,8 @@ let switch_scratch_slide =
         ~instructor_mode,
         ~settings,
         ~editing_prompt,
+        ~editing_point_dist,
+        ~editing_test_num,
       );
     Some(Exercises(idx, specs, exercise));
   };
@@ -497,7 +501,12 @@ let apply =
     | SwitchScratchSlide(n) =>
       let instructor_mode = model.settings.instructor_mode;
       let editors = Editors.set_editing_prompt(model.editors, false);
-      let settings = {...model.settings, editing_prompt: false, editing_point_dist: false, editing_test_num: false};
+      let settings = {
+        ...model.settings,
+        editing_prompt: false,
+        editing_point_dist: false,
+        editing_test_num: false,
+      };
       switch (
         switch_scratch_slide(
           editors,
