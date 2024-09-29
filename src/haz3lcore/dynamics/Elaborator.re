@@ -163,10 +163,43 @@ let rec elaborate_pattern =
       let (ps', tys) =
         List.map(elaborate_pattern(m, ~in_container=true), ps)
         |> ListUtil.unzip;
-      let ps' =
-        LabeledTuple.rearrange(
-          Typ.get_label, DHPat.get_label, tys, ps', (name, p) =>
-          TupLabel(Label(name) |> DHPat.fresh, p) |> DHPat.fresh
+      let expected_labels: list(option(string)) =
+        Typ.get_labels(ctx, elaborated_type);
+      // let elaborated_labeled: list((option(string), DHPat.t)) =
+      //   List.map(
+      //     pat => {
+      //       switch (DHPat.term_of(pat)) {
+      //       | TupLabel({term: Label(l), _}, pat) => (Some(l), pat)
+      //       | _ => (None, pat)
+      //       }
+      //     },
+      //     ps',
+      //   );
+
+      // let reordered: list((option(string), DHPat.t)) =
+      //   LabeledTuple.rearrange_base(expected_labels, elaborated_labeled);
+
+      // let ps': list(DHPat.t) =
+      //   List.map(
+      //     ((optional_label, pat: DHPat.t)) => {
+      //       switch (optional_label) {
+      //       | Some(label) =>
+      //         DHPat.TupLabel(Label(label) |> DHPat.fresh, pat) |> DHPat.fresh
+      //       | None => pat
+      //       }
+      //     },
+      //     reordered,
+      //   );
+      let (ps', tys) =
+        LabeledTuple.rearrange2(
+          expected_labels,
+          DHPat.get_label,
+          Typ.get_label,
+          ps',
+          tys,
+          (name, p) =>
+            DHPat.TupLabel(Label(name) |> DHPat.fresh, p) |> DHPat.fresh,
+          (name, t) => Typ.TupLabel(Label(name) |> Typ.temp, t) |> Typ.temp,
         );
       DHPat.Tuple(ps') |> rewrap |> cast_from(Typ.Prod(tys) |> Typ.temp);
     | Ap(p1, p2) =>
@@ -296,9 +329,75 @@ let rec elaborate =
     | Fun(p, e, env, n) =>
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', tye) = elaborate(m, e);
+      // ensure that p is a labeled tuple, make it so if needed
+      let elaborated_typ =
+        //TODO: better way to get typ'
+        switch (elaborated_type.term) {
+        | Arrow(typ', _) => typ'
+        | Unknown(_) => elaborated_type
+        | _ => typ
+        };
+      let expected_labels = Typ.get_labels(ctx, elaborated_typ);
+      // TODO: Factor out code
+      // TODO: Error handling
+      let rec get_labels_pat = pat => {
+        switch (DHPat.term_of(pat)) {
+        | Parens(pat) => get_labels_pat(pat)
+        | Tuple(ps) => ps
+        | _ => [pat]
+        };
+      };
+      let rec get_labels_typ = typ => {
+        switch (Typ.term_of(typ)) {
+        | Parens(typ) => get_labels_typ(typ)
+        | Prod(ts) => ts
+        | _ => [typ]
+        };
+      };
+      let p_list = get_labels_pat(p');
+      let typ_list = get_labels_typ(typ);
+      // let reordered_ps =
+      //   LabeledTuple.rearrange_base(expected_labels, p_list);
+      // let ps: list(DHPat.t) =
+      //   List.map(
+      //     ((optional_label, pat: DHPat.t)) => {
+      //       switch (optional_label) {
+      //       | Some(label) =>
+      //         DHPat.TupLabel(Label(label) |> DHPat.fresh, pat) |> DHPat.fresh
+      //       | None => pat
+      //       }
+      //     },
+      //     reordered_ps,
+      //   );
+      // let reordered_ts =
+      //   LabeledTuple.rearrange_base(expected_labels, typ_list);
+      // let ts: list(Typ.t) =
+      //   List.map(
+      //     ((optional_label, typ: Typ.t)) => {
+      //       switch (optional_label) {
+      //       | Some(label) =>
+      //         Typ.TupLabel(Label(label) |> Typ.temp, typ) |> Typ.temp
+      //       | None => typ
+      //       }
+      //     },
+      //     reordered_ts,
+      //   );
+      let (ps, ts) =
+        LabeledTuple.rearrange2(
+          expected_labels,
+          DHPat.get_label,
+          Typ.get_label,
+          p_list,
+          typ_list,
+          (name, p) =>
+            DHPat.TupLabel(Label(name) |> DHPat.fresh, p) |> DHPat.fresh,
+          (name, t) => Typ.TupLabel(Label(name) |> Typ.temp, t) |> Typ.temp,
+        );
+      let p' = Tuple(ps) |> DHPat.fresh;
+      let typ' = Typ.Prod(ts) |> Typ.temp;
       Exp.Fun(p', e', env, n)
       |> rewrap
-      |> cast_from(Arrow(typ, tye) |> Typ.temp);
+      |> cast_from(Arrow(typ', tye) |> Typ.temp);
     | TypFun(tpat, e, name) =>
       let (e', tye) = elaborate(m, e);
       Exp.TypFun(tpat, e', name)
@@ -325,30 +424,41 @@ let rec elaborate =
 
       let expected_labels: list(option(string)) =
         Typ.get_labels(ctx, elaborated_type);
-      let elaborated_labeled: list((option(string), DHExp.t)) =
-        List.map(
-          exp => {
-            switch (DHExp.term_of(exp)) {
-            | TupLabel({term: Label(l), _}, exp) => (Some(l), exp)
-            | _ => (None, exp)
-            }
-          },
+      // let elaborated_labeled: list((option(string), DHExp.t)) =
+      //   List.map(
+      //     exp => {
+      //       switch (DHExp.term_of(exp)) {
+      //       | TupLabel({term: Label(l), _}, exp) => (Some(l), exp)
+      //       | _ => (None, exp)
+      //       }
+      //     },
+      //     ds,
+      //   );
+
+      // let reordered: list((option(string), DHExp.t)) =
+      //   LabeledTuple.rearrange_base(expected_labels, elaborated_labeled);
+
+      // let ds: list(DHExp.t) =
+      //   List.map(
+      //     ((optional_label, exp: DHExp.t)) => {
+      //       switch (optional_label) {
+      //       | Some(label) =>
+      //         Exp.TupLabel(Label(label) |> Exp.fresh, exp) |> Exp.fresh
+      //       | None => exp
+      //       }
+      //     },
+      //     reordered,
+      //   );
+      let (ds, tys) =
+        LabeledTuple.rearrange2(
+          expected_labels,
+          DHExp.get_label,
+          Typ.get_label,
           ds,
-        );
-
-      let reordered: list((option(string), DHExp.t)) =
-        LabeledTuple.rearrange2(expected_labels, elaborated_labeled);
-
-      let ds: list(DHExp.t) =
-        List.map(
-          ((optional_label, exp: DHExp.t)) => {
-            switch (optional_label) {
-            | Some(label) =>
-              Exp.TupLabel(Label(label) |> Exp.fresh, exp) |> Exp.fresh
-            | None => exp
-            }
-          },
-          reordered,
+          tys,
+          (name, e) =>
+            DHExp.TupLabel(Label(name) |> DHExp.fresh, e) |> DHExp.fresh,
+          (name, t) => Typ.TupLabel(Label(name) |> Typ.temp, t) |> Typ.temp,
         );
       Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
 
@@ -440,20 +550,38 @@ let rec elaborate =
       let f'' = fresh_cast(f', tyf, Arrow(tyf1, tyf2) |> Typ.temp);
       // In case of singleton tuple for fun ty_in, implicitly convert arg if necessary
       // TODO: Is needed for other Aps?
-      let rec get_args = (a, tya, tyf1) =>
-        switch (
-          Typ.weak_head_normalize(ctx, tya).term,
-          Typ.weak_head_normalize(ctx, tyf1).term,
-        ) {
-        | (Parens(tya), _) => get_args(a, tya, tyf1)
-        | (Prod(_), Prod(_)) => (a, tya)
-        | (_, Prod([{term: TupLabel(_), _}])) => (
-            Tuple([a']) |> Exp.fresh,
-            Prod([tya]) |> Typ.temp,
-          )
-        | (_, _) => (a, tya)
-        };
-      let (a', tya) = get_args(a', tya, tyf1);
+      // let rec get_args = (a: Exp.t, tya, tyf1) =>
+      //   switch (
+      //     a.term,
+      //     Typ.weak_head_normalize(ctx, tya).term,
+      //     Typ.weak_head_normalize(ctx, tyf1).term,
+      //   ) {
+      //   | (Parens(a), _, _) =>
+      //     //TODO: make sure weak_head_normalize doesn't unalign a and tya.
+      //     get_args(a, tya, tyf1)
+      //   | (Cast(a, cty1, cty2), _, _) =>
+      //     let (a, tya) = get_args(a, tya, tyf1);
+      //     (Cast(a, cty1, cty2) |> Exp.fresh, tya);
+      //   | (Tuple(es), Prod(tyas), Prod(tyf1s)) =>
+      //     //rearrange es and tyas to match tyf1s
+      //     let es' =
+      //       LabeledTuple.rearrange(
+      //         Typ.get_label, Exp.get_label, tyf1s, es, (name, e) =>
+      //         TupLabel(Label(name) |> Exp.fresh, e) |> Exp.fresh
+      //       );
+      //     let tyas' =
+      //       LabeledTuple.rearrange(
+      //         Typ.get_label, Typ.get_label, tyf1s, tyas, (name, t) =>
+      //         TupLabel(Label(name) |> Typ.temp, t) |> Typ.temp
+      //       );
+      //     (Tuple(es') |> Exp.fresh, Prod(tyas') |> Typ.temp);
+      //   | (_, _, Prod([{term: TupLabel(_), _}])) => (
+      //       Tuple([a']) |> Exp.fresh,
+      //       Prod([tya]) |> Typ.temp,
+      //     )
+      //   | (_, _, _) => (a, tya)
+      //   };
+      // let (a', tya) = get_args(a', tya, tyf1);
       let a'' = fresh_cast(a', tya, tyf1);
       Exp.Ap(dir, f'', a'') |> rewrap |> cast_from(tyf2);
     | DeferredAp(f, args) =>

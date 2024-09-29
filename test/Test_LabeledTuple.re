@@ -7,7 +7,7 @@ let test_rearrange = (name, analyzed_types, actual_values, expected_values) =>
     `Quick,
     () => {
       let actual =
-        LabeledTuple.rearrange2(
+        LabeledTuple.rearrange_base(
           ~show_b=[%derive.show: int],
           analyzed_types,
           actual_values,

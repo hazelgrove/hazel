@@ -349,29 +349,30 @@ module Transition = (EV: EV_MODE) => {
       | Fun(dp, d3, Some(env'), _) =>
         // Wrap the arguments into labels for label rearrangement
         // And implicitly wrap args into singleton tuples if necessary
-        let dp: DHPat.t =
-          switch (DHPat.term_of(dp)) {
-          | Tuple(args) =>
-            let labeled_args =
-              List.map(
-                (p): DHPat.t =>
-                  switch (DHPat.term_of(p)) {
-                  | DHPat.Var(name) =>
-                    TupLabel(DHPat.Label(name) |> DHPat.fresh, p)
-                    |> DHPat.fresh
-                  | _ => p
-                  },
-                args,
-              );
-            Tuple(labeled_args) |> DHPat.fresh;
-          // | TupLabel(_, _) => Tuple([dp]) |> DHPat.fresh
-          // | Var(name) =>
-          //   Tuple([
-          //     TupLabel(DHPat.Label(name) |> DHPat.fresh, dp) |> DHPat.fresh,
-          //   ])
-          //   |> DHPat.fresh
-          | _ => dp
-          };
+        // This should be done in elaborator instead
+        // let dp: DHPat.t =
+        //   switch (DHPat.term_of(dp)) {
+        //   | Tuple(args) =>
+        //     let labeled_args =
+        //       List.map(
+        //         (p): DHPat.t =>
+        //           switch (DHPat.term_of(p)) {
+        //           | DHPat.Var(name) =>
+        //             TupLabel(DHPat.Label(name) |> DHPat.fresh, p)
+        //             |> DHPat.fresh
+        //           | _ => p
+        //           },
+        //         args,
+        //       );
+        //     Tuple(labeled_args) |> DHPat.fresh;
+        //   | TupLabel(_, _) => Tuple([dp]) |> DHPat.fresh
+        //   | Var(name) =>
+        //     Tuple([
+        //       TupLabel(DHPat.Label(name) |> DHPat.fresh, dp) |> DHPat.fresh,
+        //     ])
+        //     |> DHPat.fresh
+        //   | _ => dp
+        //   };
         // TODO: Probably not the right way to deal with casts
         // let d2' =
         //   switch (d2'.term, DHPat.term_of(dp)) {

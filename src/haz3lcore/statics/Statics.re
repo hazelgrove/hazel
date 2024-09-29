@@ -445,8 +445,23 @@ and uexp_to_info_map =
     // TODO: Is needed for TypAp or Deferred Ap?
     let arg =
       switch (arg.term, Typ.weak_head_normalize(ctx, ty_in).term) {
-      | (Tuple(_), Prod(_)) => arg
-      | (_, Prod([{term: TupLabel(_), _}])) => Tuple([arg]) |> Exp.fresh
+      | (Tuple(es), Prod(ts)) =>
+        let es' =
+          LabeledTuple.rearrange(
+            Typ.get_label, Exp.get_label, ts, es, (name, e) =>
+            TupLabel(Label(name) |> Exp.fresh, e) |> Exp.fresh
+          );
+        let arg: Exp.t = {
+          term: Exp.Tuple(es'),
+          ids: arg.ids,
+          copied: arg.copied,
+        };
+        arg;
+      | (TupLabel(_), Prod([{term: TupLabel(_), _}])) =>
+        Tuple([arg]) |> Exp.fresh
+      | (_, Prod([{term: TupLabel({term: Label(name), _}, _), _}])) =>
+        Tuple([TupLabel(Label(name) |> Exp.fresh, arg) |> Exp.fresh])
+        |> Exp.fresh
       | (_, _) => arg
       };
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
@@ -484,8 +499,8 @@ and uexp_to_info_map =
     /* add co_ctx to pattern */
     let (p'', m) =
       go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~mode=mode_pat, p, m);
-    // convert variables into labeled expressions if needed
-    let rec get_var = (p1: UPat.t, p2) =>
+    // convert variables into labeled types if needed
+    let rec get_var = (p1: UPat.t, p2: Typ.t) =>
       switch (p1.term) {
       | UPat.Var(s) => Typ.TupLabel(Label(s) |> Typ.temp, p2) |> Typ.temp
       | Cast(s, _, _) => get_var(s, p2)
@@ -497,7 +512,7 @@ and uexp_to_info_map =
         let pt: list(Typ.t) = List.map2(get_var, l1, l2);
         Prod(pt) |> Typ.temp;
       | (Cast(s, _, _), t) => get_typ(s, t |> Typ.temp)
-      | _ => t
+      | _ => Prod([get_var(p, t)]) |> Typ.temp
       };
     let pty = get_typ(p, p''.ty);
     // TODO: factor out code
