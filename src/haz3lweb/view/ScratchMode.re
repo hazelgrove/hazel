@@ -30,6 +30,15 @@ let view =
              )
            )
       : None;
+  let projectors = [
+    ProjectorView.all(
+      editor.state.zipper,
+      ~meta=editor.state.meta,
+      ~inject,
+      ~settings,
+      ~ui_state,
+    ),
+  ];
   [
     Cell.editor_view(
       ~inject,
@@ -39,6 +48,7 @@ let view =
       ~test_results,
       ~footer?,
       ~highlights,
+      ~projectors,
       editor,
     ),
   ];

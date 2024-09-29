@@ -74,7 +74,7 @@ let status = (indicated: option(Direction.t), selected: bool, shape: shape) =>
 let view_wrapper =
     (
       ~inject: UpdateAction.t => Ui_effect.t(unit),
-      ~font_metrics: FontMetrics.t,
+      ~ui_state: Model.ui_state,
       ~measurement: Measured.measurement,
       ~info: info,
       ~indication: option(Direction.t),
@@ -82,6 +82,7 @@ let view_wrapper =
       p: Base.projector,
       view: Node.t,
     ) => {
+  let font_metrics = ui_state.font_metrics;
   let shape = Projector.shape(p, info);
   let (l, r) = ProjectorBase.shapes_p(p);
   let tips = (Some(l), Some(r));
@@ -121,22 +122,34 @@ let setup_view =
       id: Id.t,
       ~meta: Editor.Meta.t,
       ~inject: UpdateAction.t => Ui_effect.t(unit),
-      ~font_metrics,
+      ~ui_state,
+      ~settings,
       ~indication: option(Direction.t),
     )
     : option(Node.t) => {
   let* p = Id.Map.find_opt(id, meta.syntax.projectors);
   let* syntax = Some(p.syntax);
   let ci = Id.Map.find_opt(id, meta.statics.info_map);
-  let info = {id, ci, syntax};
+  let splice_view = (id: Id.t, segment) =>
+    Cell.splice_ed(
+      ~ui_state,
+      ~settings,
+      ~inject,
+      ~target_id=Id.to_string(id),
+      ~test_results=None, //TODO(andrew): passthrough
+      //~statics: Editor.CachedStatics.t, //TODO(andrew): passthrough
+      segment: Segment.t,
+    );
+  let info = {id, ci, syntax, splice_view: Some(splice_view)};
   let+ measurement = Measured.find_pr_opt(p, meta.syntax.measured);
   let (module P) = to_module(p.kind);
   let parent = a => inject(PerformAction(Project(handle(id, a))));
   let local = a =>
     inject(PerformAction(Project(SetModel(id, P.update(p.model, a)))));
+
   view_wrapper(
     ~inject,
-    ~font_metrics,
+    ~ui_state,
     ~measurement,
     ~indication,
     ~info,
@@ -154,13 +167,13 @@ let indication = (z, id) =>
 
 /* Returns a div containing all projector UIs, intended to
  * be absolutely positioned atop a rendered editor UI */
-let all = (z, ~meta: Editor.Meta.t, ~inject, ~font_metrics) =>
+let all = (z, ~meta: Editor.Meta.t, ~settings, ~inject, ~ui_state) =>
   div_c(
     "projectors",
     List.filter_map(
       ((id, _)) => {
         let indication = indication(z, id);
-        setup_view(id, ~meta, ~inject, ~font_metrics, ~indication);
+        setup_view(id, ~meta, ~inject, ~settings, ~ui_state, ~indication);
       },
       Id.Map.bindings(meta.syntax.projectors) |> List.rev,
     ),

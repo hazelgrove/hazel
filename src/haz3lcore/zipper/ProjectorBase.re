@@ -33,6 +33,7 @@ type info = {
   id: Id.t,
   syntax,
   ci: option(Info.t),
+  splice_view: option((Id.t, list(Base.piece)) => Node.t),
 };
 
 /* To add a new projector:

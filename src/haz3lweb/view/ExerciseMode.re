@@ -49,6 +49,15 @@ let view =
         ~di: Exercise.DynamicsItem.t,
         this_pos,
       ) => {
+    let projectors = [
+      ProjectorView.all(
+        editor.state.zipper,
+        ~meta=editor.state.meta,
+        ~inject,
+        ~settings,
+        ~ui_state,
+      ),
+    ];
     Cell.editor_view(
       ~selected=pos == this_pos,
       ~override_statics=di.statics,
@@ -61,6 +70,7 @@ let view =
       ~target_id=Exercise.show_pos(this_pos),
       ~test_results=ModelResult.test_results(di.result),
       ~footer?,
+      ~projectors,
       editor,
     );
   };

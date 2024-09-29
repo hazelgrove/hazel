@@ -109,7 +109,7 @@ let test_result_layer =
 
 let deco =
     (
-      ~inject,
+      ~inject as _,
       ~ui_state,
       ~selected,
       ~test_results: option(TestResults.t),
@@ -124,16 +124,6 @@ let deco =
       let highlights = highlights;
     });
   let decos = selected ? Deco.all(z) : Deco.always();
-  let decos =
-    decos
-    @ [
-      ProjectorView.all(
-        z,
-        ~meta,
-        ~inject,
-        ~font_metrics=ui_state.font_metrics,
-      ),
-    ];
   switch (test_results) {
   | None => decos
   | Some(test_results) =>
@@ -264,6 +254,7 @@ let editor_view =
       ~overlayer: option(Node.t)=None,
       ~sort=Sort.root,
       ~override_statics: option(Editor.CachedStatics.t)=?,
+      ~projectors=[],
       editor: Editor.t,
     ) => {
   let Model.{font_metrics, mousedown, _} = ui_state;
@@ -294,6 +285,7 @@ let editor_view =
       ~attrs=[Attr.id(target_id), Attr.classes(["code-container"])],
       [code_text_view]
       @ deco_view
+      @ projectors
       @ Option.to_list(overlayer)
       @ mousedown_overlay,
     );
@@ -440,6 +432,37 @@ let locked =
     ~target_id,
     ~footer,
     ~test_results=ModelResult.test_results(result),
+    editor,
+  );
+};
+
+let splice_ed =
+    (
+      ~ui_state,
+      ~settings: Settings.t,
+      ~inject,
+      ~target_id,
+      ~test_results,
+      //~statics: Editor.CachedStatics.t,
+      segment: Segment.t,
+    ) => {
+  //TODO(andrew): evolve to editor
+  let editor =
+    segment
+    |> Zipper.unzip
+    |> Editor.init(~settings=settings.core, ~read_only=true);
+  //let statics = editor.state.meta.statics;
+  editor_view(
+    //~override_statics=statics,
+    ~locked=true,
+    ~selected=false,
+    ~highlights=None,
+    ~inject,
+    ~ui_state,
+    ~settings,
+    ~target_id,
+    ~footer=[],
+    ~test_results,
     editor,
   );
 };
