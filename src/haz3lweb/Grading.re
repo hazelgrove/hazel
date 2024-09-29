@@ -1,7 +1,9 @@
+open Util;
 open Virtual_dom.Vdom;
 open Node;
 
 include Haz3lschool.Grading.F(Exercise.ExerciseEnv);
+include Update;
 
 let score_view = ((earned: points, max: points)) => {
   div(
@@ -53,28 +55,126 @@ module TestValidationReport = {
     };
   };
 
-  // let update_requirements = _ => {
-  //   let new_prompt =
-  //     Obj.magic(
-  //       Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("prompt-input-box")),
-  //     )##.value;
-  //   let update_events = [
-  //     inject(Set(EditingPrompt)),
-  //     inject(UpdatePrompt(new_prompt)),
-  //   ];
-  //   Virtual_dom.Vdom.Effect.Many(update_events);
-  // };
-
-  let view = (~inject, report: t, max_points: int) => {
+  let view =
+      (
+        ~inject,
+        report: t,
+        max_points: int,
+        max_tests: int,
+        settings: Settings.t,
+      ) => {
     Cell.report_footer_view([
       div(
         ~attrs=[Attr.classes(["test-summary"])],
         [
-          div(
-            ~attrs=[Attr.class_("test-text")],
-            [score_view(score_of_percent(percentage(report), max_points))]
-            @ textual_summary(report),
-          ),
+          settings.instructor_mode
+            ? settings.editing_test_val_rep
+                ? div(
+                    ~attrs=[Attr.class_("test-val-rep-edit")],
+                    [
+                      div(
+                        ~attrs=[Attr.class_("input-field")],
+                        [
+                          label([text("New point max:")]),
+                          input(
+                            ~attrs=[
+                              Attr.type_("number"),
+                              Attr.class_("point-num-input"),
+                              Attr.id("point-max-input"),
+                              Attr.value(string_of_int(max_points)),
+                            ],
+                            (),
+                          ),
+                        ],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("input-field")],
+                        [
+                          label([text("Tests required:")]),
+                          input(
+                            ~attrs=[
+                              Attr.type_("number"),
+                              Attr.class_("point-num-input"),
+                              Attr.id("test-required-input"),
+                              Attr.value(string_of_int(max_tests)),
+                            ],
+                            (),
+                          ),
+                        ],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(
+                            Icons.confirm,
+                            _ => {
+                              let new_dist =
+                                Obj.magic(
+                                  Js_of_ocaml.Js.some(
+                                    JsUtil.get_elem_by_id("point-max-input"),
+                                  ),
+                                )##.value;
+                              let new_test_num =
+                                Obj.magic(
+                                  Js_of_ocaml.Js.some(
+                                    JsUtil.get_elem_by_id(
+                                      "test-required-input",
+                                    ),
+                                  ),
+                                )##.value;
+
+                              let update_events = [
+                                inject(Set(EditingTestValRep)),
+                                inject(
+                                  UpdateTestValRep(
+                                    int_of_string(new_test_num),
+                                    int_of_string(new_dist),
+                                  ),
+                                ),
+                              ];
+                              Virtual_dom.Vdom.Effect.Many(update_events);
+                            },
+                          ),
+                        ],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.cancel, _ =>
+                            inject(Set(EditingTestValRep))
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                : div(
+                    ~attrs=[Attr.class_("test-text")],
+                    [
+                      score_view(
+                        score_of_percent(percentage(report), max_points),
+                      ),
+                    ]
+                    @ textual_summary(report)
+                    @ [
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.pencil, _ =>
+                            inject(Set(EditingTestValRep))
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+            : div(
+                ~attrs=[Attr.class_("test-text")],
+                [
+                  score_view(
+                    score_of_percent(percentage(report), max_points),
+                  ),
+                ]
+                @ textual_summary(report),
+              ),
         ]
         @ Option.to_list(
             report.test_results

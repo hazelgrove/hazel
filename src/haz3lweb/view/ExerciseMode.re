@@ -206,6 +206,8 @@ let view =
             ~inject,
             grading_report.test_validation_report,
             grading_report.point_distribution.test_validation,
+            eds.your_tests.required,
+            settings,
           ),
         ],
       ),
