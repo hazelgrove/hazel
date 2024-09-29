@@ -134,7 +134,13 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_state = (pos, list((pos, PersistentZipper.t)), string);
+  type persistent_state = (
+    pos,
+    list((pos, PersistentZipper.t)),
+    string,
+    point_distribution,
+    int,
+  );
 
   let editor_of_state: state => Editor.t =
     ({pos, eds, _}) =>
@@ -611,12 +617,18 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       |> List.map(((pos, editor)) => {
            (pos, PersistentZipper.persist(Editor.(editor.state.zipper)))
          });
-    (pos, zippers, eds.prompt);
+    (
+      pos,
+      zippers,
+      eds.prompt,
+      eds.point_distribution,
+      eds.your_tests.required,
+    );
   };
 
   let unpersist_state =
       (
-        (pos, positioned_zippers, prompt): persistent_state,
+        (pos, positioned_zippers, prompt, point_distribution, required): persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
         ~editing_prompt: bool,
@@ -659,12 +671,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
             version: spec.version,
             module_name: spec.module_name,
             prompt,
-            point_distribution: spec.point_distribution,
+            point_distribution,
             prelude,
             correct_impl,
             your_tests: {
               tests: your_tests_tests,
-              required: spec.your_tests.required,
+              required,
               provided: spec.your_tests.provided,
             },
             your_impl,

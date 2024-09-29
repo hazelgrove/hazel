@@ -71,6 +71,9 @@ let handlers =
     }),
   ];
   model.settings.editing_prompt
+  || model.settings.editing_test_val_rep
+  || model.settings.editing_mut_test_rep
+  || model.settings.editing_impl_grd_rep
     ? attrs : attrs @ [Attr.on_keypress(_ => Effect.Prevent_default)];
 };
 
