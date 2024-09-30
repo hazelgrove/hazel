@@ -94,6 +94,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         Programming.ModelUtil.visible_in(pos, instructor_mode)
       | Proof(pos) => Proof.ModelUtil.visible_in(pos, instructor_mode)
       };
+
+    let root_sort = (pos: pos): Sort.t =>
+      switch (pos) {
+      | Programming(pos) => Programming.ModelUtil.root_sort(pos)
+      | Proof(pos) => Proof.ModelUtil.root_sort(pos)
+      };
   };
 
   // Exported Functions
@@ -134,18 +140,24 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let positioned_editors = state =>
     List.combine(editor_positions(state), editors(state));
 
-  let zipper_of_code = code => {
-    switch (Printer.zipper_of_string(code)) {
+  let zipper_of_code = (code, ~root) => {
+    switch (Printer.zipper_of_string(code, ~root)) {
     | None => failwith("Transition failed.")
     | Some(zipper) => zipper
     };
   };
 
-  let transition: transitionary_spec => spec =
-    s => {...s, model: s.model |> ModelUtil.map(zipper_of_code)};
+  let transition = s => {
+    ...s,
+    model:
+      s.model
+      |> ModelUtil.mapi((pos, m) =>
+           zipper_of_code(~root=ModelUtil.root_sort(pos), m)
+         ),
+  };
 
   let editor_of_serialization = (zipper: Zipper.t, ~settings: CoreSettings.t) =>
-    Editor.init(zipper, ~settings);
+    Editor.init(zipper, ~settings, ~sort=Exp);
 
   let eds_of_spec = (~settings: CoreSettings.t, {model, _}: spec) =>
     model |> ModelUtil.map(editor_of_serialization(~settings));
@@ -199,8 +211,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         pos: spec.pos,
         model:
           persistent_state
-          |> ModelUtil.map(z =>
-               z |> PersistentZipper.unpersist |> Editor.init(~settings)
+          |> ModelUtil.mapi((pos, z) =>
+               z
+               |> PersistentZipper.unpersist(~root=ModelUtil.root_sort(pos))
+               |> Editor.init(~settings, ~sort=ModelUtil.root_sort(pos))
              ),
       },
       ~new_mode=instructor_mode,

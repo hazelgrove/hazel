@@ -226,7 +226,7 @@ and drv_to_info_map =
            ~co_ctx=CoCtx.empty,
            ~ctx,
            ~ancestors,
-           ~mode=Mode.Ana(Derivation(DrvTyp.Prop) |> Typ.fresh),
+           ~mode=Mode.Ana(Term(Drv(Prop)) |> Typ.fresh),
            p,
          )
       |> snd
@@ -295,7 +295,7 @@ and drv_to_info_map =
            ~co_ctx=CoCtx.empty,
            ~ctx,
            ~ancestors,
-           ~mode=Mode.Ana(Derivation(DrvTyp.Prop) |> Typ.fresh),
+           ~mode=Mode.Ana(Term(Drv(Exp)) |> Typ.fresh),
            p,
          )
       |> snd
@@ -428,10 +428,10 @@ and uexp_to_info_map =
   | Int(_) => atomic(Just(Int |> Typ.temp))
   | Float(_) => atomic(Just(Float |> Typ.temp))
   | String(_) => atomic(Just(String |> Typ.temp))
-  | Derivation(d) =>
-    let m = drv_to_info_map(d, m, ~ancestors, ~ctx) |> snd;
+  | Term(term) =>
+    let m = any_to_info_map(term, m, ~ancestors, ~ctx) |> snd;
     add(
-      ~self=Just(Derivation(Drv.of_typ(d)) |> Typ.temp),
+      ~self=Just(Term(Any.sort_of(term)) |> Typ.temp),
       ~co_ctx=CoCtx.empty,
       m,
     );
@@ -1045,7 +1045,7 @@ and utyp_to_info_map =
   | Int
   | Float
   | Bool
-  | Derivation(_)
+  | Term(_)
   | String => add(m)
   | Var(_) =>
     /* Names are resolved in Info.status_typ */

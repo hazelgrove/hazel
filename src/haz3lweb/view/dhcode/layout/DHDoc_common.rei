@@ -86,7 +86,7 @@ let mk_ConstructorLit: string => Pretty.Doc.t('a);
 
 let mk_StringLit: string => Pretty.Doc.t('a);
 
-let mk_DerivationLit: Drv.t => Pretty.Doc.t('a);
+let mk_Term: Any.t => Pretty.Doc.t('a);
 
 let mk_Cons: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 

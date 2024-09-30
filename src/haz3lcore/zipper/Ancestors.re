@@ -13,9 +13,9 @@ let parent: t => option(Ancestor.t) =
   | [] => None
   | [(parent, _), ..._] => Some(parent);
 
-let sort =
+let sort = (~root: Sort.t) =>
   fun
-  | [] => Sort.root
+  | [] => root
   | [(a, _), ..._] => Ancestor.sort(a);
 
 let zip_gen = (seg: Segment.t, (a, (pre, suf)): generation): Segment.t =>

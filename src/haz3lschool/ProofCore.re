@@ -159,6 +159,13 @@ module ModelUtil = {
            )
          ),
   };
+
+  let root_sort = (pos: pos): Haz3lcore.Sort.t =>
+    switch (pos) {
+    | Prelude => Exp
+    | Setup => Exp
+    | Trees(_, _) => Drv(Jdmt)
+    };
 };
 
 // UI functionality

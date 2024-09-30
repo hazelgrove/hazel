@@ -37,8 +37,10 @@ let proof_view =
       ~stitched_dynamics: stitched(Exercise.DynamicsItem.t),
       ~highlights,
     ) => {
-  let init = () =>
-    "" |> Exercise.zipper_of_code |> Editor.init(~settings=settings.core);
+  let init = (~sort, ()) =>
+    ""
+    |> Exercise.zipper_of_code(~root=sort)
+    |> Editor.init(~settings=settings.core, ~sort);
 
   let map_model = (f, state: Exercise.state): Exercise.state => {
     ...state,
@@ -66,7 +68,11 @@ let proof_view =
               m =>
                 m
                 |> map_model(
-                     Exercise.Proof.add_premise(~pos, ~index, ~init),
+                     Exercise.Proof.add_premise(
+                       ~pos,
+                       ~index,
+                       ~init=init(~sort=Drv(Jdmt)),
+                     ),
                    )
                 |> (m => {...m, pos: make_pos(pos, index)}),
             ),
@@ -175,7 +181,13 @@ let proof_view =
       _ =>
         inject(
           UpdateAction.MapExercise(
-            map_model(Exercise.Proof.switch_rule(~pos, ~rule=None, ~init)),
+            map_model(
+              Exercise.Proof.switch_rule(
+                ~pos,
+                ~rule=None,
+                ~init=init(~sort=Drv(Jdmt)),
+              ),
+            ),
           ),
         ),
       ~tooltip="Cancel Abbreviation",
@@ -388,7 +400,12 @@ let proof_view =
             UpdateAction.MapExercise(
               m =>
                 m
-                |> map_model(Exercise.Proof.add_abbr(~index, ~init))
+                |> map_model(
+                     Exercise.Proof.add_abbr(
+                       ~index,
+                       ~init=init(~sort=Drv(Jdmt)),
+                     ),
+                   )
                 |> (m => {...m, pos: Proof(Trees(index, Value))}),
             ),
           )

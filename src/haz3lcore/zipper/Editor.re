@@ -89,11 +89,17 @@ module Meta = {
     col_target: int,
     statics: CachedStatics.t,
     syntax: CachedSyntax.t,
+    sort: Sort.t,
   };
 
-  let init = (~settings: CoreSettings.t, z: Zipper.t) => {
+  let init = (~sort: Sort.t, ~settings: CoreSettings.t, z: Zipper.t) => {
     let statics = CachedStatics.init(~settings, z);
-    {col_target: 0, statics, syntax: CachedSyntax.init(z, statics.info_map)};
+    {
+      col_target: 0,
+      statics,
+      syntax: CachedSyntax.init(z, statics.info_map),
+      sort,
+    };
   };
 
   module type S = {
@@ -124,7 +130,7 @@ module Meta = {
       | Select(Resize(Local(Up | Down))) => meta.col_target
       | _ => (Zipper.caret_point(syntax.measured))(. z).col
       };
-    {col_target, syntax, statics};
+    {col_target, syntax, statics, sort: meta.sort};
   };
 };
 
@@ -136,9 +142,9 @@ module State = {
     meta: Meta.t,
   };
 
-  let init = (zipper, ~settings: CoreSettings.t) => {
+  let init = (~sort: Sort.t, zipper, ~settings: CoreSettings.t) => {
     zipper,
-    meta: Meta.init(zipper, ~settings),
+    meta: Meta.init(~sort, zipper, ~settings),
   };
 
   let next = (~settings: CoreSettings.t, a: Action.t, z: Zipper.t, state) => {
@@ -168,8 +174,8 @@ type t = {
   read_only: bool,
 };
 
-let init = (~read_only=false, z, ~settings: CoreSettings.t) => {
-  state: State.init(z, ~settings),
+let init = (~sort: Sort.t, ~read_only=false, z, ~settings: CoreSettings.t) => {
+  state: State.init(z, ~settings, ~sort),
   history: History.empty,
   read_only,
 };

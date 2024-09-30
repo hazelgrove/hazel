@@ -126,7 +126,7 @@ let rec find_fn =
   | Int(_)
   | Float(_)
   | String(_)
-  | Derivation(_)
+  | Term(_)
   | Constructor(_)
   | Undefined
   | BuiltinFun(_)
@@ -178,7 +178,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Int(_)
   | Float(_)
   | String(_)
-  | Derivation(_)
+  | Term(_)
   | Constructor(_)
   | Undefined
   | Deferral(_) => false
@@ -240,7 +240,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Int(_)
   | Float(_)
   | String(_)
-  | Derivation(_)
+  | Term(_)
   | Constructor(_)
   | Undefined
   | Deferral(_) => false
@@ -332,7 +332,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Int(_)
   | Float(_)
   | String(_)
-  | Derivation(_)
+  | Term(_)
   | Constructor(_)
   | Undefined
   | Var(_)

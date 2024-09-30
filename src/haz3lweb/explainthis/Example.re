@@ -130,8 +130,8 @@ let mk_unquote = mk_tile(Form.get("unquote"));
 let linebreak = () => mk_secondary(Form.linebreak);
 let space = () => mk_secondary(Form.space);
 
-let mk_example = str => {
-  switch (Printer.zipper_of_string(str)) {
+let mk_example = (~root=Sort.Exp, str) => {
+  switch (Printer.zipper_of_string(str, ~root)) {
   | None => []
   | Some(z) => Zipper.zip(z)
   };

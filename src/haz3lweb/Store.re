@@ -193,8 +193,8 @@ module Documentation = {
   };
 
   let unpersist = ((name, zipper), ~settings: CoreSettings.t) => {
-    let zipper = PersistentZipper.unpersist(zipper);
-    (name, Editor.init(zipper, ~read_only=false, ~settings));
+    let zipper = PersistentZipper.unpersist(zipper, ~root=Exp);
+    (name, Editor.init(zipper, ~read_only=false, ~settings, ~sort=Exp));
   };
 
   let to_persistent = ((string, slides, results)): persistent => (

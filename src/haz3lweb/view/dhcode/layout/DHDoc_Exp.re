@@ -53,7 +53,7 @@ let rec precedence = (~show_function_bodies, ~show_casts: bool, d: DHExp.t) => {
   | Test(_)
   | Float(_)
   | String(_)
-  | Derivation(_)
+  | Term(_)
   | ListLit(_)
   | EmptyHole
   | Constructor(_)
@@ -320,7 +320,7 @@ let mk =
       | Int(n) => DHDoc_common.mk_IntLit(n)
       | Float(f) => DHDoc_common.mk_FloatLit(f)
       | String(s) => DHDoc_common.mk_StringLit(s)
-      | Derivation(d) => DHDoc_common.mk_DerivationLit(d)
+      | Term(term) => DHDoc_common.mk_Term(term)
       | Undefined => DHDoc_common.mk_Undefined()
       | Test(d) => DHDoc_common.mk_Test(go'(d))
       | Deferral(_) => text("_")

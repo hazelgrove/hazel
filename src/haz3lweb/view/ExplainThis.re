@@ -244,6 +244,7 @@ let expander_deco =
         Editor.Meta.init(
           ~settings=CoreSettings.off,
           Zipper.unzip(doc.syntactic_form),
+          ~sort=Exp,
         );
       let highlights: option(ColorSteps.colorMap) = None;
     });
@@ -378,6 +379,7 @@ let example_view =
                   ~ui_state,
                   ~settings,
                   ~inject,
+                  ~sort=Exp,
                 ),
                 div(
                   ~attrs=[clss(["explanation"])],
@@ -951,7 +953,7 @@ let get_doc =
         | Int(i) => get_message(TerminalExp.int_exps(i))
         | Float(f) => get_message(TerminalExp.float_exps(f))
         | String(s) => get_message(TerminalExp.string_exps(s))
-        | Derivation(_) => get_message(TerminalExp.string_exps("")) // TOOD(zhiyao): DerivationExp.derivation_exps
+        | Term(_) => get_message(TerminalExp.string_exps("")) // TOOD(zhiyao): DerivationExp.derivation_exps
         | ListLit(terms) =>
           get_message(
             ~format=
@@ -2561,7 +2563,7 @@ let get_doc =
       | Float => get_message(TerminalTyp.float)
       | Bool => get_message(TerminalTyp.bool)
       | String => get_message(TerminalTyp.str)
-      | Derivation(_) => get_message(TerminalTyp.prop) // TODO(zhiyao): Add prop to TerminalTyp
+      | Term(_) => get_message(TerminalTyp.term) // TODO(zhiyao): Add prop to TerminalTyp
       | List(elem) =>
         let elem_id = List.nth(elem.ids, 0);
         get_message(

@@ -222,6 +222,11 @@ module ModelUtil = {
     },
     syntax_tests: p.syntax_tests,
   };
+
+  let root_sort = (pos: pos): Haz3lcore.Sort.t => {
+    ignore(pos);
+    Exp;
+  };
 };
 
 /* Multiple stitchings are needed for each exercise

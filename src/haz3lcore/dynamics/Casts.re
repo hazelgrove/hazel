@@ -58,7 +58,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Int
   | Float
   | String
-  | Derivation(_)
+  | Term(_)
   | Var(_)
   | Rec(_)
   | Forall(_, {term: Unknown(_), _})

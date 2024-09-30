@@ -284,7 +284,7 @@ module Drv = {
 
   include TermBase.Drv;
 
-  let of_typ: t => DrvTyp.t =
+  let sort_of: t => Sort.DrvSort.t =
     fun
     | Jdmt(_) => Jdmt
     | Prop(_) => Prop

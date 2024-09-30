@@ -290,7 +290,7 @@ module Transition = (EV: EV_MODE) => {
             };
           let+ e =
             switch (DHExp.term_of(d)) {
-            | Derivation(Prop(e)) => Ok(e)
+            | Term(Drv(Prop(e))) => Ok(e)
             | _ => Error("Pat Not Prop type")
             };
           e |> IdTagged.unwrap |> fst;
@@ -347,7 +347,7 @@ module Transition = (EV: EV_MODE) => {
             };
           let+ e =
             switch (DHExp.term_of(d)) {
-            | Derivation(Exp(e)) => Ok(e)
+            | Term(Drv(Exp(e))) => Ok(e)
             | _ => Error("Pat Not ALFA_Exp type")
             };
           e |> IdTagged.unwrap |> fst;
@@ -358,9 +358,9 @@ module Transition = (EV: EV_MODE) => {
     let (term, rewrap) = IdTagged.unwrap(d);
     let term: term =
       switch (term) {
-      | Derivation(Jdmt(jdmt)) => Derivation(Jdmt(go_jdmt(jdmt)))
-      | Derivation(Prop(prop)) => Derivation(Prop(go_prop(prop)))
-      | Derivation(Exp(exp)) => Derivation(Exp(go_exp(exp)))
+      | Term(Drv(Jdmt(jdmt))) => Term(Drv(Jdmt(go_jdmt(jdmt))))
+      | Term(Drv(Prop(prop))) => Term(Drv(Prop(go_prop(prop))))
+      | Term(Drv(Exp(exp))) => Term(Drv(Exp(go_exp(exp))))
       | _ => term
       };
     term |> rewrap;
@@ -659,7 +659,7 @@ module Transition = (EV: EV_MODE) => {
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
-    | Derivation(_) =>
+    | Term(_) =>
       let. _ = otherwise(env, d);
       let d' = replace_drv_abbrs(env, d);
       if (DHExp.fast_equal(d, d')) {

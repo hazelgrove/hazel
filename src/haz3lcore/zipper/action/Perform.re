@@ -19,12 +19,18 @@ let go_z =
       ~settings: CoreSettings.t,
       a: Action.t,
       z: Zipper.t,
+      ~root,
     )
     : Action.Result.t(Zipper.t) => {
   let meta =
     switch (meta) {
     | Some(m) => m
-    | None => Editor.Meta.init(z, ~settings)
+    | None =>
+      Editor.Meta.init(
+        z,
+        ~settings,
+        ~sort=Ancestors.sort(z.relatives.ancestors, ~root),
+      )
     };
   module M = (val Editor.Meta.module_of_t(meta));
   module Move = Move.Make(M);
@@ -32,14 +38,14 @@ let go_z =
 
   let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
     open Util.OptUtil.Syntax;
-    let* z = Printer.zipper_of_string(~zipper_init=z, str);
+    let* z = Printer.zipper_of_string(~zipper_init=z, str, ~root);
     /* HACK(andrew): Insert/Destruct below is a hack to deal
        with the fact that pasting something like "let a = b in"
        won't trigger the barfing of the "in"; to trigger this,
        we insert a space, and then we immediately delete it */
-    let* z = Insert.go(" ", z);
+    let* z = Insert.go(" ", z, ~root);
     let+ z = Destruct.go(Left, z);
-    remold_regrout(Left, z);
+    remold_regrout(Left, z, ~root);
   };
 
   let buffer_accept = (z): option(Zipper.t) =>
@@ -99,7 +105,7 @@ let go_z =
      * This doesn't change state but is included here for logging purposes */
     Ok(z)
   | Reparse =>
-    switch (Printer.reparse(z)) {
+    switch (Printer.reparse(z, ~root)) {
     | None => Error(CantReparse)
     | Some(z) => Ok(z)
     }
@@ -179,15 +185,15 @@ let go_z =
   | Destruct(d) =>
     z
     |> Destruct.go(d)
-    |> Option.map(remold_regrout(d))
+    |> Option.map(remold_regrout(d, ~root))
     |> Result.of_option(~error=Action.Failure.Cant_destruct)
   | Insert(char) =>
     z
-    |> Insert.go(char)
+    |> Insert.go(char, ~root)
     /* note: remolding here is done case-by-case */
     //|> Option.map((z) => remold_regrout(Right, z))
     |> Result.of_option(~error=Action.Failure.Cant_insert)
-  | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
+  | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z), ~root))
   | Put_down =>
     let z =
       /* Alternatively, putting down inside token could eiter merge-in or split */
@@ -196,7 +202,7 @@ let go_z =
       | Outer => Zipper.put_down(Left, z)
       };
     z
-    |> Option.map(remold_regrout(Left))
+    |> Option.map(remold_regrout(Left, ~root))
     |> Result.of_option(~error=Action.Failure.Cant_put_down);
   | RotateBackpack =>
     let z = {...z, backpack: Util.ListUtil.rotate(z.backpack)};
@@ -221,7 +227,7 @@ let go_history =
   open Result.Syntax;
   /* This function records action history */
   let Editor.State.{zipper, meta} = ed.state;
-  let+ z = go_z(~settings, ~meta, a, zipper);
+  let+ z = go_z(~settings, ~meta, a, zipper, ~root=meta.sort);
   Editor.new_state(~settings, a, z, ed);
 };
 

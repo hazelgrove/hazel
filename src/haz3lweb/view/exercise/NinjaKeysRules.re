@@ -7,8 +7,8 @@ let staged = ref(false);
 
 let init = () =>
   ""
-  |> Exercise.zipper_of_code
-  |> Haz3lcore.Editor.init(~settings=Haz3lcore.CoreSettings.on);
+  |> Exercise.zipper_of_code(~root=Haz3lcore.Sort.Drv(Jdmt))
+  |> Haz3lcore.Editor.init(~settings=Haz3lcore.CoreSettings.on, ~sort=Exp);
 
 let map_model = (f, state: Exercise.state): Exercise.state => {
   ...state,

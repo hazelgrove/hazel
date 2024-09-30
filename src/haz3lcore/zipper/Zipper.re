@@ -118,12 +118,13 @@ let regrout = (d: Direction.t, z: t): t => {
   {...z, relatives};
 };
 
-let remold = (z: t): t => {
+let remold = (~root, z: t): t => {
   assert(Selection.is_empty(z.selection));
-  {...z, relatives: Relatives.remold(z.relatives)};
+  {...z, relatives: Relatives.remold(z.relatives, ~root)};
 };
 
-let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
+let remold_regrout = (d: Direction.t, z: t, ~root): t =>
+  z |> remold(~root) |> regrout(d);
 
 let clear_unparsed_buffer = (z: t) =>
   switch (z.selection.mode) {

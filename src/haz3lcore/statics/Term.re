@@ -319,7 +319,7 @@ module Exp = {
     | BuiltinFun
     | Match
     | Cast
-    | Derivation
+    | Term
     | ListConcat;
 
   let hole = (tms: list(TermBase.Any.t)): term =>
@@ -370,7 +370,7 @@ module Exp = {
     | BuiltinFun(_) => BuiltinFun
     | Match(_) => Match
     | Cast(_) => Cast
-    | Derivation(_) => Derivation;
+    | Term(_) => Term;
 
   let show_cls: cls => string =
     fun
@@ -414,7 +414,7 @@ module Exp = {
     | BuiltinFun => "Built-in Function"
     | Match => "Case expression"
     | Cast => "Cast expression"
-    | Derivation => "Cast derivation sort";
+    | Term => "Term expression";
 
   // Typfun should be treated as a function here as this is only used to
   // determine when to allow for recursive definitions in a let binding.
@@ -456,7 +456,7 @@ module Exp = {
     | BinOp(_)
     | Match(_)
     | Constructor(_)
-    | Derivation(_) => false
+    | Term(_) => false
     };
   };
 
@@ -500,7 +500,7 @@ module Exp = {
       | BinOp(_)
       | Match(_)
       | Constructor(_)
-      | Derivation(_) => false
+      | Term(_) => false
       }
     );
 
@@ -558,7 +558,7 @@ module Exp = {
       | BinOp(_)
       | Match(_)
       | Constructor(_)
-      | Derivation(_) => None
+      | Term(_) => None
       };
     };
 };
@@ -610,6 +610,17 @@ module Any = {
     fun
     | Drv(Prop(p)) => Some(p)
     | _ => None;
+
+  let sort_of: t => Sort.t =
+    fun
+    | Any(_) => Any
+    | Exp(_) => Exp
+    | Pat(_) => Pat
+    | Typ(_) => Typ
+    | TPat(_) => TPat
+    | Rul(_) => Rul
+    | Drv(drv) => Drv(DrvTerm.Drv.sort_of(drv))
+    | Nul(_) => Nul;
 
   let rec ids =
     fun

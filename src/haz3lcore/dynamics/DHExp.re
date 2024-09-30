@@ -78,7 +78,7 @@ let rec strip_casts =
         | TypAp(_)
         | Undefined
         | If(_)
-        | Derivation(_) => continue(exp)
+        | Term(_) => continue(exp)
         /* Remove casts*/
         | FailedCast(d, _, _)
         | Cast(d, _, _) => strip_casts(d)
@@ -113,7 +113,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
             /* Note that we do not have to worry about capture avoidance, since s will always be closed. */
             }
           | Cast(_)
-          | Derivation(_)
+          | Term(_)
           | FixF(_)
           | Fun(_)
           | TypAp(_)

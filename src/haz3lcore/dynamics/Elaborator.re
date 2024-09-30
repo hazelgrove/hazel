@@ -242,8 +242,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
     | Bool(_) => uexp |> cast_from(Bool |> Typ.temp)
     | Float(_) => uexp |> cast_from(Float |> Typ.temp)
     | String(_) => uexp |> cast_from(String |> Typ.temp)
-    | Derivation(d) =>
-      uexp |> cast_from(Derivation(Drv.of_typ(d)) |> Typ.temp)
+    | Term(term) => uexp |> cast_from(Term(Any.sort_of(term)) |> Typ.temp)
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let inner_type =
