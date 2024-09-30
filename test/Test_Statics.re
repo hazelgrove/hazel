@@ -40,101 +40,89 @@ let unapplied_function = () =>
     ),
   );
 
-let tests = [
-  test_case("Function with unknown param", `Quick, () =>
-    alco_check(
-      "x => 4 + 5",
-      Some(FreshId.(arrow(unknown(Internal), int))),
-      type_of(
-        Fun(
-          Var("x") |> Pat.fresh,
-          BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
-          |> Exp.fresh,
-          None,
-          None,
-        )
-        |> Exp.fresh,
-      ),
-    )
-  ),
-  test_case("Function with known param", `Quick, () =>
-    alco_check(
-      "x : Int => 4 + 5",
-      Some(FreshId.(arrow(int, int))),
-      type_of(
-        Fun(
-          Pat.Cast(
+let tests =
+  FreshId.[
+    test_case("Function with unknown param", `Quick, () =>
+      alco_check(
+        "x => 4 + 5",
+        Some(arrow(unknown(Internal), int)),
+        type_of(
+          Fun(
             Var("x") |> Pat.fresh,
-            FreshId.int,
-            FreshId.unknown(Internal),
+            BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
+            |> Exp.fresh,
+            None,
+            None,
           )
-          |> Pat.fresh,
-          BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
           |> Exp.fresh,
-          None,
-          None,
-        )
-        |> Exp.fresh,
-      ),
-    )
-  ),
-  test_case("bifunction", `Quick, () =>
-    alco_check(
-      "x : Int, y: Int => x + y",
-      Some(FreshId.(arrow(prod([int, int]), int))),
-      type_of(
-        Fun(
-          Pat.Tuple([
-            Pat.Cast(
-              Var("x") |> Pat.fresh,
-              FreshId.int,
-              FreshId.unknown(Internal),
-            )
+        ),
+      )
+    ),
+    test_case("Function with known param", `Quick, () =>
+      alco_check(
+        "x : Int => 4 + 5",
+        Some(arrow(int, int)),
+        type_of(
+          Fun(
+            Cast(Var("x") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
+            BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
+            |> Exp.fresh,
+            None,
+            None,
+          )
+          |> Exp.fresh,
+        ),
+      )
+    ),
+    test_case("bifunction", `Quick, () =>
+      alco_check(
+        "x : Int, y: Int => x + y",
+        Some(arrow(prod([int, int]), int)),
+        type_of(
+          Fun(
+            Tuple([
+              Cast(Var("x") |> Pat.fresh, int, unknown(Internal))
+              |> Pat.fresh,
+              Cast(Var("y") |> Pat.fresh, int, unknown(Internal))
+              |> Pat.fresh,
+            ])
             |> Pat.fresh,
-            Pat.Cast(
-              Var("y") |> Pat.fresh,
-              FreshId.int,
-              FreshId.unknown(Internal),
-            )
-            |> Pat.fresh,
-          ])
-          |> Pat.fresh,
-          BinOp(Int(Plus), Var("x") |> Exp.fresh, Var("y") |> Exp.fresh)
+            BinOp(Int(Plus), Var("x") |> Exp.fresh, Var("y") |> Exp.fresh)
+            |> Exp.fresh,
+            None,
+            None,
+          )
           |> Exp.fresh,
-          None,
-          None,
-        )
-        |> Exp.fresh,
-      ),
-    )
-  ),
-  test_case("function application", `Quick, () =>
-    alco_check(
-      "float_of_int(1)",
-      Some(FreshId.(float)),
-      type_of(
-        Ap(Forward, Var("float_of_int") |> Exp.fresh, Int(1) |> Exp.fresh)
-        |> Exp.fresh,
-      ),
-    )
-  ),
-  test_case("function deferral", `Quick, () =>
-    alco_check(
-      "string_sub(\"hello\", 1, _)",
-      Some(FreshId.(string)),
-      type_of(
-        Ap(
-          Forward,
-          Var("string_sub") |> Exp.fresh,
-          Tuple([
-            String("hello") |> Exp.fresh,
-            Int(1) |> Exp.fresh,
-            Deferral(InAp) |> Exp.fresh,
-          ])
+        ),
+      )
+    ),
+    test_case("function application", `Quick, () =>
+      alco_check(
+        "float_of_int(1)",
+        Some(float),
+        type_of(
+          Ap(Forward, Var("float_of_int") |> Exp.fresh, Int(1) |> Exp.fresh)
           |> Exp.fresh,
-        )
-        |> Exp.fresh,
-      ),
-    )
-  ),
-];
+        ),
+      )
+    ),
+    test_case("function deferral", `Quick, () =>
+      alco_check(
+        "string_sub(\"hello\", 1, _)",
+        Some(string),
+        type_of(
+          Ap(
+            Forward,
+            Var("string_sub") |> Exp.fresh,
+            Tuple([
+              String("hello") |> Exp.fresh,
+              Int(1) |> Exp.fresh,
+              Deferral(InAp) |> Exp.fresh,
+            ])
+            |> Exp.fresh,
+          )
+          |> Exp.fresh,
+        ),
+      )
+    ),
+  ];
