@@ -41,15 +41,7 @@ and projector = {
 // This is for comment insertion
 let mk_secondary = (id, content) => [Secondary({id, content})];
 
-module Caret = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Outer
-    | Inner(int, int);
-};
-
 module Tile = {
-  exception Empty_tile;
   type t = tile;
 };
 
@@ -116,11 +108,20 @@ module Backpack = {
   type t = list(Selection.t);
 };
 
-// assuming single backpack, shards may appear in selection, backpack, or siblings
-[@deriving (show({with_path: false}), sexp, yojson)]
-type zipper = {
-  selection: Selection.t,
-  backpack: Backpack.t,
-  relatives: Relatives.t,
-  caret: Caret.t,
+module Caret = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Outer
+    | Inner(int, int);
+};
+
+module Zipper = {
+  // assuming single backpack, shards may appear in selection, backpack, or siblings
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    relatives: Relatives.t,
+    selection: Selection.t,
+    backpack: Backpack.t,
+    caret: Caret.t,
+  };
 };

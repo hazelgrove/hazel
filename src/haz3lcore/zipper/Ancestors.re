@@ -1,7 +1,6 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type generation = Base.Relatives.generation;
+include Base.Relatives;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Base.Relatives.ancestors;
@@ -19,7 +18,7 @@ let sort =
   | [(a, _), ..._] => Ancestor.sort(a);
 
 let zip_gen = (seg: Segment.t, (a, (pre, suf)): generation): Segment.t =>
-  pre @ [Tile(Ancestor.zip(seg, a)), ...suf];
+  pre @ [Piece.Tile(Ancestor.zip(seg, a)), ...suf];
 let zip = (seg: Segment.t, ancs: t) => ancs |> List.fold_left(zip_gen, seg);
 
 let regrout = (ancs: t) =>

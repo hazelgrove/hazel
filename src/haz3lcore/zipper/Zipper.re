@@ -1,6 +1,7 @@
 open Util;
 open OptUtil.Syntax;
 include ZipperBase;
+include Base.Zipper;
 
 module Caret = {
   include Base.Caret;
@@ -16,9 +17,6 @@ module Caret = {
     | Outer => 0
     | Inner(_, c) => c + 1;
 };
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = Base.zipper;
 
 let init: unit => t =
   () => {

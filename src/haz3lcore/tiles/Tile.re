@@ -2,6 +2,10 @@ open Util;
 open Base;
 include Base.Tile;
 
+type t = Base.Tile.t;
+
+exception Empty_tile;
+
 let id = t => t.id;
 
 let is_complete = (t: t) => List.length(t.label) == List.length(t.shards);
@@ -28,6 +32,8 @@ let shapes = (t: t) => {
   (l.shape, r.shape);
 };
 
+let to_piece = t => Tile(t);
+
 let sorted_children = ({mold, shards, children, _}: t) =>
   Aba.mk(shards, children)
   |> Aba.aba_triples
@@ -45,6 +51,21 @@ let contained_children = (t: t): list((t, Base.segment, t)) =>
        let r = {...t, shards: [r], children: []};
        (l, child, r);
      });
+
+let split_shards = (id, label, mold, shards) =>
+  shards |> List.map(i => {id, label, mold, shards: [i], children: []});
+
+// postcond: output segment is nonempty
+let disassemble = ({id, label, mold, shards, children}: t): segment => {
+  let shards = split_shards(id, label, mold, shards);
+  Aba.mk(shards, children)
+  |> Aba.join(s => [to_piece(s)], Fun.id)
+  |> List.concat;
+};
+
+let disintegrate = ({id, label, mold, shards, _}: t): list(tile) => {
+  split_shards(id, label, mold, shards);
+};
 
 let reassemble = (match: Aba.t(t, segment)): t => {
   let t = Aba.hd(match);
@@ -68,23 +89,6 @@ let reassemble = (match: Aba.t(t, segment)): t => {
     shards,
     children,
   };
-};
-
-let split_shards = (id, label, mold, shards) =>
-  shards |> List.map(i => {id, label, mold, shards: [i], children: []});
-
-let to_piece = t => Tile(t);
-
-let disintegrate = ({id, label, mold, shards, _}: t): list(tile) => {
-  split_shards(id, label, mold, shards);
-};
-
-// postcond: output segment is nonempty
-let disassemble = ({id, label, mold, shards, children}: t): segment => {
-  let shards = split_shards(id, label, mold, shards);
-  Aba.mk(shards, children)
-  |> Aba.join(s => [to_piece(s)], Fun.id)
-  |> List.concat;
 };
 
 let pop_l = (tile: t): (piece, segment) =>

@@ -1,17 +1,12 @@
 open Util;
+include Base.Ancestor;
 
 exception Empty_shard_affix;
 
-// [@deriving (show({with_path: false}), sexp, yojson)]
-// type step = int;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = Base.Ancestor.t;
-
 // TODO(d) revisit naming w.r.t. outer vs inner shards
-let l_shard = (a: t) =>
+let l_shard = a =>
   ListUtil.hd_opt(fst(a.shards)) |> OptUtil.get_or_raise(Empty_shard_affix);
-let r_shard = (a: t) =>
+let r_shard = a =>
   ListUtil.last_opt(snd(a.shards))
   |> OptUtil.get_or_raise(Empty_shard_affix);
 

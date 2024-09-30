@@ -1,9 +1,6 @@
 open Util;
 
-open Base.Selection;
-
-type t = Base.Selection.t;
-type buffer = Base.Selection.buffer;
+include Base.Selection;
 
 /* NOTE: backpack no longer uses selection focus */
 let mk = (~mode=Normal, ~focus=Direction.Left, content: Segment.t) => {
@@ -32,7 +29,7 @@ let toggle_focus = selection => {
 
 let is_empty = (selection: t) => selection.content == Segment.empty;
 
-let push = (p: Base.piece, {focus, content, mode}: t): t => {
+let push = (p: Piece.t, {focus, content, mode}: t): t => {
   let content =
     Segment.reassemble(
       switch (focus) {

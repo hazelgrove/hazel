@@ -1,4 +1,4 @@
-type t = Base.zipper;
+include Base.Zipper;
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
   ...z,
@@ -10,7 +10,7 @@ let update_siblings: (Siblings.t => Siblings.t, t) => t =
 
 let put_siblings = (siblings, z: t): t => update_siblings(_ => siblings, z);
 
-let put_selection_content = (content: Segment.t, z: t): t => {
+let put_selection_content = (content: Segment.t, z): t => {
   ...z,
   selection: {
     ...z.selection,
