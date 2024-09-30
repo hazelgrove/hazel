@@ -74,23 +74,20 @@ let consistent_if = () =>
     dhexp_of_uexp(u6),
   );
 
-let u7: Exp.t =
-  Ap(
-    Forward,
-    Fun(
-      Var("x") |> Pat.fresh,
-      BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
-      |> Exp.fresh,
-      None,
-      None,
-    )
-    |> Exp.fresh,
-    Var("y") |> Exp.fresh,
+let f =
+  Fun(
+    Var("x") |> Pat.fresh,
+    BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh) |> Exp.fresh,
+    None,
+    None,
   )
   |> Exp.fresh;
+let u7: Exp.t = Ap(Forward, f, Var("y") |> Exp.fresh) |> Exp.fresh;
 
 let ap_fun = () =>
   alco_check("Application of a function", u7, dhexp_of_uexp(u7));
+
+let unapplied_function = () => alco_check("A function", f, dhexp_of_uexp(f));
 
 let u8: Exp.t =
   Match(
@@ -186,6 +183,7 @@ let elaboration_tests = [
   test_case("Let expression", `Quick, let_exp),
   test_case("Inconsistent binary operation", `Quick, bin_op),
   test_case("Consistent if statement", `Quick, consistent_if),
+  test_case("An unapplied function", `Quick, unapplied_function),
   test_case("Application of function on free variable", `Quick, ap_fun),
   test_case("Inconsistent case statement", `Quick, inconsistent_case),
   test_case("Let expression for a function", `Quick, let_fun),
