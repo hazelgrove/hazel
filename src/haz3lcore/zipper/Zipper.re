@@ -2,7 +2,20 @@ open Util;
 open OptUtil.Syntax;
 include ZipperBase;
 
-module Caret = Base.Caret;
+module Caret = {
+  include Base.Caret;
+
+  let decrement: t => t =
+    fun
+    | Outer
+    | Inner(_, 0) => Outer
+    | Inner(d, c) => Inner(d, c - 1);
+
+  let offset: t => int =
+    fun
+    | Outer => 0
+    | Inner(_, c) => c + 1;
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Base.zipper;

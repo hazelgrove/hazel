@@ -172,6 +172,17 @@ let is_term = (p: t) =>
   | _ => false
   };
 
-let pop_l = Base.Piece.pop_l;
-
-let pop_r = Base.Piece.pop_r;
+let pop_l = (p: t): (t, segment) =>
+  switch (p) {
+  | Tile(t) => Tile.pop_l(t)
+  | Grout(_)
+  | Secondary(_)
+  | Projector(_) => (p, [])
+  };
+let pop_r = (p: t): (segment, t) =>
+  switch (p) {
+  | Tile(t) => Tile.pop_r(t)
+  | Grout(_)
+  | Secondary(_)
+  | Projector(_) => ([], p)
+  };

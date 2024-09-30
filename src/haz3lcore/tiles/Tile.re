@@ -1,11 +1,6 @@
 open Util;
 open Base;
-open Base.Tile;
-
-// exception Ambiguous_molds;
-// exception Invalid_mold;
-
-type t = Base.Tile.t;
+include Base.Tile;
 
 let id = t => t.id;
 
@@ -75,7 +70,28 @@ let reassemble = (match: Aba.t(t, segment)): t => {
   };
 };
 
-let disassemble = Base.Tile.disassemble;
-let to_piece = Base.Tile.to_piece;
-let split_shards = Base.Tile.split_shards;
-let disintegrate = Base.Tile.disintegrate;
+let split_shards = (id, label, mold, shards) =>
+  shards |> List.map(i => {id, label, mold, shards: [i], children: []});
+
+let to_piece = t => Tile(t);
+
+let disintegrate = ({id, label, mold, shards, _}: t): list(tile) => {
+  split_shards(id, label, mold, shards);
+};
+
+// postcond: output segment is nonempty
+let disassemble = ({id, label, mold, shards, children}: t): segment => {
+  let shards = split_shards(id, label, mold, shards);
+  Aba.mk(shards, children)
+  |> Aba.join(s => [to_piece(s)], Fun.id)
+  |> List.concat;
+};
+
+let pop_l = (tile: t): (piece, segment) =>
+  disassemble(tile)
+  |> ListUtil.split_first_opt
+  |> OptUtil.get_or_raise(Empty_tile);
+let pop_r = (tile: t): (segment, piece) =>
+  disassemble(tile)
+  |> ListUtil.split_last_opt
+  |> OptUtil.get_or_raise(Empty_tile);
