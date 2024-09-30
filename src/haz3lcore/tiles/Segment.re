@@ -1,4 +1,9 @@
 open Util;
+module T = Tile;
+module P = Piece;
+open Base;
+module Tile = T;
+module Piece = P;
 
 exception Empty_segment;
 
@@ -16,34 +21,34 @@ let of_tile = t => [Tile.to_piece(t)];
 let incomplete_tiles =
   List.filter_map(
     fun
-    | Piece.Tile(t) when !Tile.is_complete(t) => Some(t)
+    | Tile(t) when !Tile.is_complete(t) => Some(t)
     | _ => None,
   );
 let tiles =
   List.filter_map(
     fun
-    | Piece.Tile(t) => Some(t)
+    | Tile(t) => Some(t)
     | _ => None,
   );
 
 let convex_grout =
   List.filter_map(
     fun
-    | Piece.Grout(g) when g.shape == Convex => Some(g)
+    | Grout(g) when g.shape == Convex => Some(g)
     | _ => None,
   );
 
 let contains_matching = (t: Tile.t) =>
   List.exists(
     fun
-    | Piece.Tile(t') => t'.id == t.id
+    | Tile(t') => t'.id == t.id
     | _ => false,
   );
 
 let remove_matching = (t: Tile.t) =>
   List.filter_map(
     fun
-    | Piece.Tile(t') when t'.id == t.id => None
+    | Tile(t') when t'.id == t.id => None
     | p => Some(p),
   );
 
@@ -195,7 +200,7 @@ and remold_pat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
         | (_, {shape, sort: Typ}) =>
           let (remolded_typ, shape, rest) = remold_typ_uni(shape, tl);
           let (remolded_pat, shape, rest) = remold_pat_uni(shape, rest);
-          ([Piece.Tile(t), ...remolded_typ] @ remolded_pat, shape, rest);
+          ([Tile(t), ...remolded_typ] @ remolded_pat, shape, rest);
         | _ =>
           let (remolded, shape, rest) =
             remold_pat_uni(snd(Tile.shapes(t)), tl);
@@ -222,7 +227,7 @@ and remold_pat = (shape, seg: t): t =>
         switch (Tile.nibs(t)) {
         | (_, {shape, sort: Typ}) =>
           let (remolded, shape, rest) = remold_typ_uni(shape, tl);
-          [Piece.Tile(t), ...remolded] @ remold_pat(shape, rest);
+          [Tile(t), ...remolded] @ remold_pat(shape, rest);
         | _ => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
         }
       }
@@ -277,7 +282,7 @@ and remold_tpat = (shape, seg: t): t =>
         switch (Tile.nibs(t)) {
         | (_, {shape, sort: Typ}) =>
           let (remolded, shape, rest) = remold_typ_uni(shape, tl);
-          [Piece.Tile(t), ...remolded] @ remold_tpat(shape, rest);
+          [Tile(t), ...remolded] @ remold_tpat(shape, rest);
         | _ => [Tile(t), ...remold_tpat(snd(Tile.shapes(t)), tl)]
         }
       }
@@ -309,15 +314,15 @@ and remold_exp_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
         | (_, {shape, sort: TPat}) =>
           let (remolded_tpat, shape, rest) = remold_tpat_uni(shape, tl);
           let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest);
-          ([Piece.Tile(t), ...remolded_tpat] @ remolded_exp, shape, rest);
+          ([Tile(t), ...remolded_tpat] @ remolded_exp, shape, rest);
         | (_, {shape, sort: Pat}) =>
           let (remolded_pat, shape, rest) = remold_pat_uni(shape, tl);
           let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest);
-          ([Piece.Tile(t), ...remolded_pat] @ remolded_exp, shape, rest);
+          ([Tile(t), ...remolded_pat] @ remolded_exp, shape, rest);
         | (_, {shape, sort: Typ}) =>
           let (remolded_typ, shape, rest) = remold_typ_uni(shape, tl);
           let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest);
-          ([Piece.Tile(t), ...remolded_typ] @ remolded_exp, shape, rest);
+          ([Tile(t), ...remolded_typ] @ remolded_exp, shape, rest);
         | (_, {shape, sort: Rul}) =>
           // TODO review short circuit
           ([Tile(t)], shape, tl)
@@ -346,17 +351,17 @@ and remold_rul = (shape, seg: t): t =>
         switch (Tile.nibs(t)) {
         | (_, {shape, sort: Exp}) =>
           let (remolded, shape, rest) = remold_exp_uni(shape, tl);
-          [Piece.Tile(t), ...remolded] @ remold_rul(shape, rest);
+          [Tile(t), ...remolded] @ remold_rul(shape, rest);
         | (_, {shape, sort: Pat}) =>
           let (remolded, shape, rest) = remold_pat_uni(shape, tl);
           // TODO(d) continuing onto rule might not be right right...
-          [Piece.Tile(t), ...remolded] @ remold_rul(shape, rest);
+          [Tile(t), ...remolded] @ remold_rul(shape, rest);
         | _ => failwith("remold_rul unexpected")
         }
       | None =>
         let (remolded, shape, rest) = remold_exp_uni(shape, [hd, ...tl]);
         switch (remolded) {
-        | [] => [Piece.Tile(t), ...remold_rul(shape, tl)]
+        | [] => [Tile(t), ...remold_rul(shape, tl)]
         | [_, ..._] => remolded @ remold_rul(shape, rest)
         };
       }
@@ -380,13 +385,13 @@ and remold_exp = (shape, seg: t): t =>
         switch (Tile.nibs(t)) {
         | (_, {shape, sort: Pat}) =>
           let (remolded, shape, rest) = remold_pat_uni(shape, tl);
-          [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
+          [Tile(t), ...remolded] @ remold_exp(shape, rest);
         | (_, {shape, sort: TPat}) =>
           let (remolded, shape, rest) = remold_tpat_uni(shape, tl);
-          [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
+          [Tile(t), ...remolded] @ remold_exp(shape, rest);
         | (_, {shape, sort: Typ}) =>
           let (remolded, shape, rest) = remold_typ_uni(shape, tl);
-          [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
+          [Tile(t), ...remolded] @ remold_exp(shape, rest);
         | (_, {shape, sort: Rul}) => [Tile(t), ...remold_rul(shape, tl)]
         | _ => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
         }
@@ -515,7 +520,7 @@ module Trim = {
 
   let to_seg = (trim: t) =>
     trim
-    |> Aba.join(List.map(Piece.secondary), g => [Piece.Grout(g)])
+    |> Aba.join(List.map(Piece.secondary), g => [Grout(g)])
     |> List.concat;
 };
 
@@ -533,7 +538,7 @@ and regrout_affix =
         | Secondary(w) => (Trim.cons_w(w, trim), r, tl)
         | Grout(g) => (Trim.(merge(cons_g(g, trim))), r, tl)
         | Projector(pr) =>
-          let p = Piece.Projector(pr);
+          let p = Projector(pr);
           let (l', r') =
             ProjectorBase.shapes_p(pr)
             |> (d == Left ? TupleUtil.swap : Fun.id);
@@ -550,7 +555,7 @@ and regrout_affix =
               t.children,
               [],
             );
-          let p = Piece.Tile({...t, children});
+          let p = Tile({...t, children});
           let (l', r') =
             Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
           let trim = Trim.regrout(d, (r', r), trim);
@@ -566,7 +571,7 @@ and regrout_affix =
 let split_by_matching = (id: Id.t): (t => Aba.t(t, Tile.t)) =>
   Aba.split(
     fun
-    | Piece.Tile(t) when t.id == id => Either.R(t)
+    | Tile(t) when t.id == id => Either.R(t)
     | p => L(p),
   );
 
@@ -598,7 +603,7 @@ let trim_secondary: (Direction.t, t) => t =
     let rec trim_l = xs =>
       switch (xs) {
       | [] => []
-      | [Piece.Secondary(_), ...xs] => trim_l(xs)
+      | [Secondary(_), ...xs] => trim_l(xs)
       | [_, ..._] => xs
       };
     trim_f(trim_l, d, ps);
@@ -634,7 +639,7 @@ let edge_direction_of = (d: Direction.t, ps: t): option(Direction.t) =>
 let sameline_secondary =
   List.for_all(
     fun
-    | Piece.Secondary(w) => !Secondary.is_linebreak(w)
+    | Secondary(w) => !Secondary.is_linebreak(w)
     | _ => false,
   );
 
@@ -670,7 +675,7 @@ let expected_sorts = (sort: Sort.t, seg: t): list((int, Sort.t)) => {
 let rec holes = (segment: t): list(Grout.t) =>
   List.concat_map(
     fun
-    | Piece.Secondary(_)
+    | Secondary(_)
     | Projector(_) => []
     | Tile(t) => List.concat_map(holes, t.children)
     | Grout(g) => [g],
@@ -680,14 +685,14 @@ let rec holes = (segment: t): list(Grout.t) =>
 let get_childrens: t => list(t) =
   List.concat_map(
     fun
-    | Piece.Tile(t) => t.children
+    | Tile(t) => t.children
     | _ => [],
   );
 
 let rec get_incomplete_ids = (seg: t): list(Id.t) =>
   List.concat_map(
     fun
-    | Piece.Tile(t) => {
+    | Tile(t) => {
         let ids = List.concat_map(get_incomplete_ids, t.children);
         Tile.is_complete(t) ? ids : [t.id, ...ids];
       }

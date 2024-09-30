@@ -1,21 +1,19 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type buffer =
-  //| Parsed
-  | Unparsed;
+// [@deriving (show({with_path: false}), sexp, yojson)]
+// type buffer =
+//   //| Parsed
+//   | Unparsed;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type mode =
-  | Normal
-  | Buffer(buffer);
+// [@deriving (show({with_path: false}), sexp, yojson)]
+// type mode =
+//   | Normal
+//   | Buffer(buffer);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  focus: Direction.t,
-  content: Segment.t,
-  mode,
-};
+open Base.Selection;
+
+type t = Base.Selection.t;
+type buffer = Base.Selection.buffer;
 
 /* NOTE: backpack no longer uses selection focus */
 let mk = (~mode=Normal, ~focus=Direction.Left, content: Segment.t) => {
@@ -44,7 +42,7 @@ let toggle_focus = selection => {
 
 let is_empty = (selection: t) => selection.content == Segment.empty;
 
-let push = (p: Piece.t, {focus, content, mode}: t): t => {
+let push = (p: Base.piece, {focus, content, mode}: t): t => {
   let content =
     Segment.reassemble(
       switch (focus) {
@@ -55,14 +53,4 @@ let push = (p: Piece.t, {focus, content, mode}: t): t => {
   {focus, content, mode};
 };
 
-let pop = (sel: t): option((Piece.t, t)) =>
-  switch (sel.focus, sel.content, ListUtil.split_last_opt(sel.content)) {
-  | (_, [], _)
-  | (_, _, None) => None
-  | (Left, [p, ...content], _) =>
-    let (p, rest) = Piece.pop_l(p);
-    Some((p, {...sel, content: rest @ content}));
-  | (Right, _, Some((content, p))) =>
-    let (rest, p) = Piece.pop_r(p);
-    Some((p, {...sel, content: content @ rest}));
-  };
+let pop = Base.Selection.pop;

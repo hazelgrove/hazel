@@ -2,6 +2,11 @@ open Util;
 open OptUtil.Syntax;
 include ZipperBase;
 
+module Caret = Base.Caret;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = Base.zipper;
+
 let init: unit => t =
   () => {
     selection: Selection.mk([]),

@@ -1,4 +1,11 @@
 open Util;
+module T = Tile;
+module S = Segment;
+module SE = Selection;
+open Base;
+module Tile = T;
+module Segment = S;
+module Selection = SE;
 
 module ShardInfo = {
   module Order = {
@@ -204,7 +211,7 @@ module ShardInfo = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = list(Selection.t);
+type t = Base.Backpack.t;
 
 let empty = [];
 
@@ -294,7 +301,7 @@ let remove_uni_tiles_with_deep_matches = (bp: t, sel: Selection.t): t => {
   let ids = Segment.ids_of_incomplete_tiles_in_bidelimiteds(sel.content);
   List.filter_map(
     fun
-    | Selection.{content: [Piece.Tile({id, _})], _} when List.mem(id, ids) =>
+    | Base.Selection.{content: [Tile({id, _})], _} when List.mem(id, ids) =>
       None
     | x => Some(x),
     bp,

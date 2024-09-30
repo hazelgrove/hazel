@@ -9,7 +9,7 @@ let union = union((_, range, _) => Some(range));
 /* PERF: Up to 50% reduction in some cases by memoizing
  * this function. Might be better though to just do an
  * unmemoized traversal building a hashtbl avoiding unioning */
-let range_hash: Hashtbl.t(Tile.segment, Id.Map.t(range)) =
+let range_hash: Hashtbl.t(Segment.t, Id.Map.t(range)) =
   Hashtbl.create(1000);
 
 // NOTE: this calculation is out of sync with

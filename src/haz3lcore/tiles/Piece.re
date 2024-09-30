@@ -1,13 +1,14 @@
-include Base;
-
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = piece;
+type t = Base.piece;
+module T = Tile;
+include Base;
+module Tile = T;
 
 let secondary = w => Secondary(w);
 let grout = g => Grout(g);
 let tile = t => Tile(t);
 
-let get = (f_w, f_g, f_t: tile => _, f_p: projector => _, p: t) =>
+let get = (f_w, f_g, f_t: Base.tile => _, f_p: Base.projector => _, p: t) =>
   switch (p) {
   | Secondary(w) => f_w(w)
   | Grout(g) => f_g(g)
@@ -15,7 +16,7 @@ let get = (f_w, f_g, f_t: tile => _, f_p: projector => _, p: t) =>
   | Projector(p) => f_p(p)
   };
 
-let proj_id = projector => projector.id;
+let proj_id = (projector: Base.projector) => projector.id;
 let id = get(Secondary.id, Grout.id, tile => tile.id, proj_id);
 
 let sort =
@@ -53,22 +54,7 @@ let nib_sorts =
 
 let sorted_children = get(_ => [], _ => [], Tile.sorted_children, _ => []);
 
-let pop_l = (p: t): (t, segment) =>
-  switch (p) {
-  | Tile(t) => Tile.pop_l(t)
-  | Grout(_)
-  | Secondary(_)
-  | Projector(_) => (p, [])
-  };
-let pop_r = (p: t): (segment, t) =>
-  switch (p) {
-  | Tile(t) => Tile.pop_r(t)
-  | Grout(_)
-  | Secondary(_)
-  | Projector(_) => ([], p)
-  };
-
-let disassemble = (p: t): segment =>
+let disassemble = (p: t): Base.segment =>
   switch (p) {
   | Grout(_)
   | Secondary(_)
@@ -94,12 +80,12 @@ let is_secondary: t => bool =
   | Secondary(_) => true
   | _ => false;
 
-let is_tile: t => option(Tile.t) =
+let is_tile: t => option(Base.tile) =
   fun
   | Tile(t) => Some(t)
   | _ => None;
 
-let is_projector: t => option(projector) =
+let is_projector: t => option(Base.projector) =
   fun
   | Projector(p) => Some(p)
   | _ => None;
@@ -185,3 +171,7 @@ let is_term = (p: t) =>
   | Secondary(_) => false // debatable
   | _ => false
   };
+
+let pop_l = Base.Piece.pop_l;
+
+let pop_r = Base.Piece.pop_r;

@@ -1,7 +1,7 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = (Segment.t, Segment.t);
+type t = Base.Siblings.t;
 
 let empty = Segment.(empty, empty);
 
