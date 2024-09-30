@@ -42,7 +42,7 @@ let go_z =
     remold_regrout(Left, z);
   };
 
-  let buffer_accept = (z: t): option(Zipper.t) =>
+  let buffer_accept = (z): option(Zipper.t) =>
     switch (z.selection.mode) {
     | Normal => None
     | Buffer(Unparsed) =>

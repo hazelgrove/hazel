@@ -3,7 +3,7 @@ open Util;
 include Base.Relatives;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = Base.Relatives.ancestors;
+type t = ancestors;
 
 let empty = [];
 

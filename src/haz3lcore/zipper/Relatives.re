@@ -1,8 +1,6 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = Base.Relatives.t;
-open Base.Relatives;
+include Base.Relatives;
 
 let empty = {siblings: Siblings.empty, ancestors: Ancestors.empty};
 

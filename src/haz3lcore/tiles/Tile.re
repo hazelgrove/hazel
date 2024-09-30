@@ -2,8 +2,6 @@ open Util;
 open Base;
 include Base.Tile;
 
-type t = Base.Tile.t;
-
 exception Empty_tile;
 
 let id = t => t.id;

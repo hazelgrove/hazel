@@ -1,14 +1,6 @@
 open Util;
-module T = Tile;
-module P = Piece;
-open Base;
-module Tile = T;
-module Piece = P;
-
+include Base.Segment;
 exception Empty_segment;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = Base.segment;
 
 let empty = [];
 let cons = List.cons;
@@ -200,7 +192,7 @@ and remold_pat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
         | (_, {shape, sort: Typ}) =>
           let (remolded_typ, shape, rest) = remold_typ_uni(shape, tl);
           let (remolded_pat, shape, rest) = remold_pat_uni(shape, rest);
-          ([Tile(t), ...remolded_typ] @ remolded_pat, shape, rest);
+          ([Piece.Tile(t), ...remolded_typ] @ remolded_pat, shape, rest);
         | _ =>
           let (remolded, shape, rest) =
             remold_pat_uni(snd(Tile.shapes(t)), tl);
@@ -282,7 +274,7 @@ and remold_tpat = (shape, seg: t): t =>
         switch (Tile.nibs(t)) {
         | (_, {shape, sort: Typ}) =>
           let (remolded, shape, rest) = remold_typ_uni(shape, tl);
-          [Tile(t), ...remolded] @ remold_tpat(shape, rest);
+          [Piece.Tile(t), ...remolded] @ remold_tpat(shape, rest);
         | _ => [Tile(t), ...remold_tpat(snd(Tile.shapes(t)), tl)]
         }
       }
