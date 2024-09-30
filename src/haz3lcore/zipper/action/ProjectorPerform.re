@@ -108,7 +108,7 @@ let go =
     let z_init =
       switch (
         do_until(
-          move_primary(Zipper.ByToken, d),
+          move_primary(ActionBase.ByToken, d),
           (p: Piece.t) => Piece.id(p) == id,
           z,
         )
@@ -122,21 +122,21 @@ let go =
         | Some(_) =>
           let z =
             do_until(
-              move_primary(Zipper.ByToken, Util.Direction.toggle(d)),
+              move_primary(ActionBase.ByToken, Util.Direction.toggle(d)),
               (p: Piece.t) => Piece.id(p) == id,
               z,
             )
             |> Option.value(~default=z);
           z
           |> move_primary(
-               Zipper.ByToken,
+               ActionBase.ByToken,
                d == Right ? Util.Direction.Right : Left,
              )
           |> Option.value(~default=z);
         }
       | Some(z) =>
         move_primary(
-          Zipper.ByToken,
+          ActionBase.ByToken,
           d == Right ? Util.Direction.Left : Right,
           z,
         )
@@ -149,7 +149,7 @@ let go =
     } else {
       z_init
       |> move_primary(
-           Zipper.ByToken,
+           ActionBase.ByToken,
            d == Right ? Util.Direction.Right : Left,
          )
       |> Option.value(~default=z);

@@ -1,8 +1,6 @@
 open Util;
 
-include Id.Map;
-type range = (Piece.t, Piece.t);
-type nonrec t = t(range);
+include Base.TermRanges;
 
 let union = union((_, range, _) => Some(range));
 

@@ -1,5 +1,4 @@
-include Id.Map;
-type t = Id.Map.t(Tile.t);
+include Base.TileMap;
 
 // tail-recursive
 let rec mk = (~map=empty, seg: Segment.t): t =>

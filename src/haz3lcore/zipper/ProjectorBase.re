@@ -1,8 +1,6 @@
 open Util;
 open Virtual_dom.Vdom;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = Base.kind;
+include ProjectorKind;
 
 /* Projectors currently have two options for placeholder
  * shapes: A inline display of a given length, or a block

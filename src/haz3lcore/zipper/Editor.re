@@ -1,11 +1,5 @@
-open Util;
-
 module CachedStatics = {
-  type t = {
-    term: UExp.t,
-    info_map: Statics.Map.t,
-    error_ids: list(Id.t),
-  };
+  include Base.CachedStatics;
 
   let empty: t = {
     term: UExp.{ids: [Id.invalid], copied: false, term: Tuple([])},
@@ -37,30 +31,7 @@ module CachedStatics = {
 };
 
 module CachedSyntax = {
-  type t = {
-    segment: Segment.t,
-    measured: Measured.t,
-    tiles: TileMap.t,
-    holes: list(Grout.t),
-    selection_ids: list(Id.t),
-    term: UExp.t,
-    /* This term, and the term-derived data structured below, may differ
-     * from the term used for semantics. These terms are identical when
-     * the backpack is empty. If the backpack is non-empty, then when we
-     * make the term for semantics, we attempt to empty the backpack
-     * according to some simple heuristics (~ try to empty it greedily
-     * while moving rightwards from the current caret position).
-     * this is currently necessary to have the cursorinfo/completion
-     * workwhen the backpack is nonempty.
-     *
-     * This is a brittle part of the current implementation. there are
-     * some other comments at some of the weakest joints; the biggest
-     * issue is that dropping the backpack can add/remove grout, causing
-     * certain ids to be present/non-present unexpectedly. */
-    term_ranges: TermRanges.t,
-    terms: TermMap.t,
-    projectors: Id.Map.t(Base.projector),
-  };
+  include Base.CachedSyntax;
 
   let init = (z, info_map): t => {
     let segment = Zipper.unselect_and_zip(z);
@@ -85,22 +56,13 @@ module CachedSyntax = {
 };
 
 module Meta = {
-  type t = {
-    col_target: int,
-    statics: CachedStatics.t,
-    syntax: CachedSyntax.t,
-  };
+  include Base.Meta;
 
   let init = (~settings: CoreSettings.t, z: Zipper.t) => {
     let statics = CachedStatics.init(~settings, z);
     {col_target: 0, statics, syntax: CachedSyntax.init(z, statics.info_map)};
   };
 
-  module type S = {
-    let measured: Measured.t;
-    let term_ranges: TermRanges.t;
-    let col_target: int;
-  };
   let module_of_t = (m: t): (module S) =>
     (module
      {
@@ -108,12 +70,6 @@ module Meta = {
        let term_ranges = m.syntax.term_ranges;
        let col_target = m.col_target;
      });
-
-  // should not be serializing
-  let sexp_of_t = _ => failwith("Editor.Meta.sexp_of_t");
-  let t_of_sexp = _ => failwith("Editor.Meta.t_of_sexp");
-  let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
-  let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
   let next = (~settings: CoreSettings.t, a: Action.t, z: Zipper.t, meta: t): t => {
     let syntax = CachedSyntax.next(a, z, meta.statics.info_map, meta.syntax);
@@ -129,12 +85,7 @@ module Meta = {
 };
 
 module State = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    zipper: Zipper.t,
-    [@opaque]
-    meta: Meta.t,
-  };
+  include Base.State;
 
   let init = (zipper, ~settings: CoreSettings.t) => {
     zipper,
@@ -148,10 +99,7 @@ module State = {
 };
 
 module History = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type affix = list((Action.t, State.t));
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (affix, affix);
+  include Base.History;
 
   let empty = ([], []);
 
@@ -161,12 +109,7 @@ module History = {
   );
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  state: State.t,
-  history: History.t,
-  read_only: bool,
-};
+include Base.Editor;
 
 let init = (~read_only=false, z, ~settings: CoreSettings.t) => {
   state: State.init(z, ~settings),

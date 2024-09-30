@@ -31,20 +31,7 @@ let init: unit => t =
 
 let next_blank = _ => Id.mk();
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type chunkiness =
-  | ByChar
-  | MonoByChar
-  | ByToken;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type planar =
-  | Up
-  | Down
-  | Left(chunkiness)
-  | Right(chunkiness);
-
-let from_plane: planar => Direction.t =
+let from_plane: ActionBase.planar => Direction.t =
   fun
   | Left(_) => Left
   | Right(_) => Right

@@ -1,6 +1,8 @@
 open Zipper;
 open Util;
 open OptUtil.Syntax;
+open ActionBase;
+type t = Zipper.t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type movability =

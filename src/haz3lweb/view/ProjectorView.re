@@ -7,7 +7,7 @@ open Util;
 open Util.OptUtil.Syntax;
 open Util.Web;
 
-type kind = Base.kind;
+type kind = ProjectorKind.t;
 
 /* A friendly name for each projector. This is used
  * both for identifying a projector in the CSS and for
@@ -146,7 +146,6 @@ let setup_view =
   let parent = a => inject(PerformAction(Project(handle(id, a))));
   let local = a =>
     inject(PerformAction(Project(SetModel(id, P.update(p.model, a)))));
-
   view_wrapper(
     ~inject,
     ~ui_state,
@@ -196,8 +195,8 @@ let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) =>
     switch (key) {
     | {key, sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} when P.can_focus =>
       switch (key, d) {
-      | (D("ArrowRight"), Right) => Some(Action.Focus(id, Some(Left)))
-      | (D("ArrowLeft"), Left) => Some(Focus(id, Some(Right)))
+      | (D("ArrowRight"), Right) => Some(ActionBase.Focus(id, Some(Left)))
+      | (D("ArrowLeft"), Left) => Some(ActionBase.Focus(id, Some(Right)))
       | _ => None
       }
     | _ => None
@@ -215,11 +214,11 @@ module Panel = {
   /* Decide which projectors are applicable based on the cursor info.
    * This is slightly inside-out as elsewhere it depends on the underlying
    * syntax, which is not easily available here */
-  let applicable_projectors = (ci: Info.t): list(Base.kind) =>
+  let applicable_projectors = (ci: Info.t): list(ProjectorKind.t) =>
     (
       switch (Info.cls_of(ci)) {
       | Exp(Bool)
-      | Pat(Bool) => [Base.Checkbox]
+      | Pat(Bool) => [Checkbox]
       | Exp(Int)
       | Pat(Int) => [Slider]
       | Exp(Float)
@@ -229,11 +228,11 @@ module Panel = {
       | _ => []
       }
     )
-    @ [Base.Fold]
+    @ [Fold]
     @ (
       switch (ci) {
       | InfoExp(_)
-      | InfoPat(_) => [(Info: Base.kind)]
+      | InfoPat(_) => [(Info: ProjectorKind.t)]
       | _ => []
       }
     );
@@ -313,7 +312,7 @@ module Panel = {
       Node.select(
         ~attrs=[
           Attr.on_change((_, name) =>
-            inject(Action.ToggleIndicated(of_name(name)))
+            inject(ActionBase.ToggleIndicated(of_name(name)))
           ),
         ],
         (might_project ? applicable_projectors : [])

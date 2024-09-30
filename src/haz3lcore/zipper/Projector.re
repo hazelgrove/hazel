@@ -4,7 +4,7 @@ open ProjectorBase;
  * it can be instantiated. The first-class module created by
  * this function must be reified whenever projector methods
  * are to be called; see `shape` below for an example */
-let to_module = (kind: Base.kind): (module Cooked) =>
+let to_module = (kind: t): (module Cooked) =>
   switch (kind) {
   | Fold => (module Cook(FoldProj.M))
   | Info => (module Cook(InfoProj.M))

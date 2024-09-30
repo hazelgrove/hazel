@@ -1,26 +1,10 @@
 open Util;
 open Point;
 
-module Point = Point;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type measurement = {
-  origin: Point.t,
-  last: Point.t,
-};
-
-// indentation relative to container
-type rel_indent = int;
-// indentation relative to code container
-type abs_indent = int;
+include Base.Measured;
 
 module Rows = {
-  include IntMap;
-  type shape = {
-    indent: col,
-    max_col: col,
-  };
-  type t = IntMap.t(shape);
+  include Rows;
 
   let max_col = (rs: list(row), map: t) =>
     rs |> List.map(r => find(r, map).max_col) |> List.fold_left(max, 0);
@@ -32,10 +16,7 @@ module Rows = {
 };
 
 module Shards = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type shard = (int, measurement);
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = list(shard);
+  include Shards;
 
   // elements of returned list are nonempty
   let rec split_by_row: t => list(t) =
@@ -48,15 +29,6 @@ module Shards = {
         snd(List.hd(row)).origin.row == snd(hd).origin.row
           ? [[hd, ...row], ...rows] : [[hd], row, ...rows]
       };
-};
-
-type t = {
-  tiles: Id.Map.t(Shards.t),
-  grout: Id.Map.t(measurement),
-  secondary: Id.Map.t(measurement),
-  projectors: Id.Map.t(measurement),
-  rows: Rows.t,
-  linebreaks: Id.Map.t(rel_indent),
 };
 
 let empty = {
