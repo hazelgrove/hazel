@@ -302,8 +302,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         |> Option.get
         |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
       if (!is_recursive) {
-        print("p = " ++ DHPat.show(p));
+        print_endline("p = " ++ DHPat.show(p));
         let def = add_name(Pat.get_var(p), def);
+        print_endline("def = " ++ DHExp.show(def));
         let (def, ty2) = elaborate(m, def);
         let (body, ty) = elaborate(m, body);
         Exp.Let(p, fresh_cast(def, ty2, ty1), body)

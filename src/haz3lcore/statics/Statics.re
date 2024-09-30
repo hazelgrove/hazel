@@ -443,15 +443,20 @@ and uexp_to_info_map =
         let (def, p, p_syn) =
           switch (check_annotated_function(p)) {
           | Some((f_name, f_args, f_type)) =>
-            let def: UExp.t = {ids, term: UExp.Fun(f_args, def)};
+            let def: UExp.t = {
+              ids,
+              term: UExp.Fun(f_args, def, None, None),
+              copied: false,
+            };
             let p: UPat.t = {
               ids,
               term:
                 UPat.Cast(
-                  {ids, term: UPat.Var(f_name)},
+                  {ids, term: UPat.Var(f_name), copied: false},
                   Typ.temp(Unknown(Internal)),
                   f_type,
                 ),
+              copied: false,
             };
             let (p_syn, _) =
               go_pat(
