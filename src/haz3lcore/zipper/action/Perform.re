@@ -42,7 +42,7 @@ let go_z =
     remold_regrout(Left, z);
   };
 
-  let buffer_accept = (z): option(Zipper.t) =>
+  let buffer_accept = (z: t): option(Zipper.t) =>
     switch (z.selection.mode) {
     | Normal => None
     | Buffer(Unparsed) =>
@@ -224,8 +224,7 @@ let go_history =
     : Action.Result.t(Editor.t) => {
   open Result.Syntax;
   /* This function records action history */
-  let Editor.State.{zipper, meta} = ed.state;
-  let+ z = go_z(~settings, ~meta, a, zipper);
+  let+ z = go_z(~settings, ~meta=ed.state.meta, a, ed.state.zipper);
   Editor.new_state(~settings, a, z, ed);
 };
 

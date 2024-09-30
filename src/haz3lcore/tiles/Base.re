@@ -1,5 +1,65 @@
 open Util;
 
+module Caret = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Outer
+    | Inner(int, int);
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type selection_buffer =
+  //| Parsed
+  | Unparsed;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type selection_mode =
+  | Normal
+  | Buffer(selection_buffer);
+
+module Measured = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type measurement = {
+    origin: Point.t,
+    last: Point.t,
+  };
+
+  module Rows = {
+    include IntMap;
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type shape = {
+      indent: Point.col,
+      max_col: Point.col,
+    };
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = IntMap.t(shape);
+  };
+
+  module Shards = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type shard = (int, measurement);
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = list(shard);
+  };
+
+  // indentation relative to container
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type rel_indent = int;
+  // indentation relative to code container
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type abs_indent = int;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    tiles: Id.Map.t(Shards.t),
+    grout: Id.Map.t(measurement),
+    secondary: Id.Map.t(measurement),
+    projectors: Id.Map.t(measurement),
+    rows: Rows.t,
+    linebreaks: Id.Map.t(rel_indent),
+  };
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type segment = list(piece)
 and piece =
@@ -7,6 +67,13 @@ and piece =
   | Grout(Grout.t)
   | Secondary(Secondary.t)
   | Projector(projector)
+and ancestor = {
+  id: Id.t,
+  label: Label.t,
+  mold: Mold.t,
+  shards: (list(int), list(int)),
+  children: (list(segment), list(segment)),
+}
 and tile = {
   // invariants:
   // - length(mold.in_) + 1 == length(label)
@@ -24,8 +91,76 @@ and projector = {
   kind: ProjectorKind.t,
   syntax: list(piece),
   model: string,
-};
+}
+and zipper = {
+  relatives,
+  selection,
+  backpack,
+  caret: Caret.t,
+}
+and editor = {
+  state,
+  history,
+  read_only: bool,
+}
+and state = {
+  zipper,
+  [@opaque]
+  meta,
+}
+and affix = list((ActionBase.t(segment), state))
+and history = (affix, affix)
 
+and siblings = (segment, segment)
+and generation' = (ancestor, siblings)
+and ancestors' = list(generation')
+and relatives = {
+  siblings,
+  ancestors: ancestors',
+}
+and selection = {
+  focus: Direction.t,
+  content: segment,
+  mode: selection_mode,
+}
+and backpack = list(selection)
+and meta = {
+  col_target: int,
+  statics: cached_statics,
+  syntax: cached_syntax,
+}
+and cached_syntax = {
+  segment,
+  measured: Measured.t,
+  tiles,
+  holes: list(Grout.t),
+  selection_ids: list(Id.t),
+  term: UExp.t,
+  /* This term, and the term-derived data structured below, may differ
+   * from the term used for semantics. These terms are identical when
+   * the backpack is empty. If the backpack is non-empty, then when we
+   * make the term for semantics, we attempt to empty the backpack
+   * according to some simple heuristics (~ try to empty it greedily
+   * while moving rightwards from the current caret position).
+   * this is currently necessary to have the cursorinfo/completion
+   * workwhen the backpack is nonempty.
+   *
+   * This is a brittle part of the current implementation. there are
+   * some other comments at some of the weakest joints; the biggest
+   * issue is that dropping the backpack can add/remove grout, causing
+   * certain ids to be present/non-present unexpectedly. */
+  term_ranges,
+  terms: TermMap.t,
+  projectors: Id.Map.t(projector),
+}
+and range = (piece, piece)
+and term_ranges = Id.Map.t(range)
+and tiles = Id.Map.t(tile)
+and cached_statics = {
+  term: UExp.t,
+  info_map: Statics.Map.t,
+  error_ids: list(Id.t),
+};
 // This is for comment insertion
 let mk_secondary = (id, content) => [Secondary({id, content})];
 
@@ -44,190 +179,56 @@ module Segment = {
 
 module Ancestor = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    id: Id.t,
-    label: Label.t,
-    mold: Mold.t,
-    shards: (list(int), list(int)),
-    children: (list(segment), list(segment)),
-  };
+  type t = ancestor;
 };
 
 module Siblings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (Segment.t, Segment.t);
+  type t = siblings;
 };
 
 module Relatives = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type generation = (Ancestor.t, Siblings.t);
+  type generation = generation';
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type ancestors = list(generation);
+  type ancestors = ancestors';
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    siblings: Siblings.t,
-    ancestors,
-  };
+  type t = relatives;
 };
 
 module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type buffer =
-    //| Parsed
-    | Unparsed;
+  type t = selection;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type mode =
-    | Normal
-    | Buffer(buffer);
+  type buffer = selection_buffer;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    focus: Direction.t,
-    content: segment,
-    mode,
-  };
+  type mode = selection_mode;
 };
 
 module Backpack = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = list(Selection.t);
-};
-
-module Caret = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Outer
-    | Inner(int, int);
+  type t = backpack;
 };
 
 module Zipper = {
-  // assuming single backpack, shards may appear in selection, backpack, or siblings
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    relatives: Relatives.t,
-    selection: Selection.t,
-    backpack: Backpack.t,
-    caret: Caret.t,
-  };
-};
-
-module type MetaType = {
-  type t;
-  module type S;
-};
-
-module type HistoryType = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t;
-};
-
-module type StateType = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t;
-};
-
-module CachedStatics = {
-  type t = {
-    term: UExp.t,
-    info_map: Statics.Map.t,
-    error_ids: list(Id.t),
-  };
+  type t = zipper;
 };
 
 module TermRanges = {
-  include Id.Map;
-  type range = (Piece.t, Piece.t);
-  type nonrec t = t(range);
+  type t = term_ranges;
 };
 
 module TileMap = {
-  include Id.Map;
-  type t = Id.Map.t(Tile.t);
-};
-
-module Measured = {
-  module Point = Point;
-  open Util;
-  open Point;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type measurement = {
-    origin: Point.t,
-    last: Point.t,
-  };
-
-  module Rows = {
-    include IntMap;
-    type shape = {
-      indent: col,
-      max_col: col,
-    };
-    type t = IntMap.t(shape);
-  };
-
-  module Shards = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type shard = (int, measurement);
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = list(shard);
-  };
-
-  // indentation relative to container
-  type rel_indent = int;
-  // indentation relative to code container
-  type abs_indent = int;
-
-  type t = {
-    tiles: Id.Map.t(Shards.t),
-    grout: Id.Map.t(measurement),
-    secondary: Id.Map.t(measurement),
-    projectors: Id.Map.t(measurement),
-    rows: Rows.t,
-    linebreaks: Id.Map.t(rel_indent),
-  };
-};
-
-module CachedSyntax = {
-  type t = {
-    segment: Segment.t,
-    measured: Measured.t,
-    tiles: TileMap.t,
-    holes: list(Grout.t),
-    selection_ids: list(Id.t),
-    term: UExp.t,
-    /* This term, and the term-derived data structured below, may differ
-     * from the term used for semantics. These terms are identical when
-     * the backpack is empty. If the backpack is non-empty, then when we
-     * make the term for semantics, we attempt to empty the backpack
-     * according to some simple heuristics (~ try to empty it greedily
-     * while moving rightwards from the current caret position).
-     * this is currently necessary to have the cursorinfo/completion
-     * workwhen the backpack is nonempty.
-     *
-     * This is a brittle part of the current implementation. there are
-     * some other comments at some of the weakest joints; the biggest
-     * issue is that dropping the backpack can add/remove grout, causing
-     * certain ids to be present/non-present unexpectedly. */
-    term_ranges: TermRanges.t,
-    terms: TermMap.t,
-    projectors: Id.Map.t(projector),
-  };
+  type t = tiles;
 };
 
 module Meta = {
-  type t = {
-    col_target: int,
-    statics: CachedStatics.t,
-    syntax: CachedSyntax.t,
-  };
-  module type S = {
-    let measured: Measured.t;
-    let term_ranges: TermRanges.t;
-    let col_target: int;
-  };
+  type t = meta;
   // should not be serializing
   let sexp_of_t = _ => failwith("Editor.Meta.sexp_of_t");
   let t_of_sexp = _ => failwith("Editor.Meta.t_of_sexp");
@@ -235,27 +236,7 @@ module Meta = {
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 };
 
-module State = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    zipper: Zipper.t,
-    [@opaque]
-    meta: Meta.t,
-  };
-};
-
-module History = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type affix = list((ActionBase.t(Segment.t), State.t));
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (affix, affix);
-};
-
 module Editor = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    state: State.t,
-    history: History.t,
-    read_only: bool,
-  };
+  type t = editor;
 };

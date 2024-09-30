@@ -293,8 +293,7 @@ let remove_uni_tiles_with_deep_matches = (bp: t, sel: Selection.t): t => {
   let ids = Segment.ids_of_incomplete_tiles_in_bidelimiteds(sel.content);
   List.filter_map(
     fun
-    | Selection.{content: [Piece.Tile({id, _})], _} when List.mem(id, ids) =>
-      None
+    | Base.{content: [Tile({id, _})], _} when List.mem(id, ids) => None
     | x => Some(x),
     bp,
   );

@@ -490,8 +490,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     let zippers =
       positioned_editors(state)
       |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
-      |> List.map(((pos, editor)) => {
-           (pos, PersistentZipper.persist(Editor.(editor.state.zipper)))
+      |> List.map(((pos, editor: Editor.t)) => {
+           (pos, PersistentZipper.persist(editor.state.zipper))
          });
     (pos, zippers);
   };

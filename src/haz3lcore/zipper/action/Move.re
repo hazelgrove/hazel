@@ -118,10 +118,10 @@ module Make = (M: Editor.Meta.S) => {
 
   let do_towards =
       (
-        ~anchor: option(Measured.Point.t)=?,
+        ~anchor: option(Point.t)=?,
         ~force_progress: bool=false,
         f: (Direction.t, t) => option(t),
-        goal: Measured.Point.t,
+        goal: Point.t,
         z: t,
       )
       : option(t) => {
@@ -183,8 +183,7 @@ module Make = (M: Editor.Meta.S) => {
       };
     };
     let res = go(z, z);
-    Measured.Point.equals(caret_point(res), caret_point(z))
-      ? None : Some(res);
+    Point.equals(caret_point(res), caret_point(z)) ? None : Some(res);
   };
   let do_vertical =
       (f: (Direction.t, t) => option(t), d: Direction.t, z: t): option(t) => {

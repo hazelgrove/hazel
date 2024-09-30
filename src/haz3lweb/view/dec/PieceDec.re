@@ -2,7 +2,10 @@ open Util;
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
+//TODO(andrew): untie
+module P = Point;
 open SvgUtil;
+module Point = P;
 
 type tip = option(Nib.Shape.t);
 
@@ -104,7 +107,7 @@ let shards_of_tiles = tiles =>
   |> List.concat_map(((_, _, shards)) => shards)
   |> List.sort(
        ((_, m1: Measured.measurement), (_, m2: Measured.measurement)) =>
-       Measured.Point.compare(m1.origin, m2.origin)
+       Point.compare(m1.origin, m2.origin)
      );
 
 let rep_tips = (tiles: list((Id.t, Mold.t, Measured.Shards.t))) => {
@@ -191,7 +194,7 @@ let uni_lines =
     (
       ~font_metrics: FontMetrics.t,
       ~rows: Measured.Rows.t,
-      (l: Measured.Point.t, r: Measured.Point.t),
+      (l: Point.t, r: Point.t),
       tiles: list((Id.t, Mold.t, Measured.Shards.t)),
     ) => {
   open SvgUtil.Path;
@@ -209,7 +212,7 @@ let uni_lines =
       assert(row != []);
       ListUtil.last(row);
     };
-    if (Measured.Point.compare(l, m_first.origin) < 0) {
+    if (Point.compare(l, m_first.origin) < 0) {
       let max_col =
         Measured.Rows.max_col(
           ListUtil.range(~lo=l.row, m_first.origin.row),

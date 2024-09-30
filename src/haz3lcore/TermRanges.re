@@ -1,5 +1,5 @@
 open Util;
-
+include Id.Map;
 include Base.TermRanges;
 
 let union = union((_, range, _) => Some(range));
@@ -7,7 +7,7 @@ let union = union((_, range, _) => Some(range));
 /* PERF: Up to 50% reduction in some cases by memoizing
  * this function. Might be better though to just do an
  * unmemoized traversal building a hashtbl avoiding unioning */
-let range_hash: Hashtbl.t(Segment.t, Id.Map.t(range)) =
+let range_hash: Hashtbl.t(Segment.t, Id.Map.t(Base.range)) =
   Hashtbl.create(1000);
 
 // NOTE: this calculation is out of sync with
@@ -20,7 +20,7 @@ let range_hash: Hashtbl.t(Segment.t, Id.Map.t(range)) =
 //
 // tail-recursive in outer recursion
 let rec mk' = (seg: Segment.t) => {
-  let rec go = (skel: Skel.t): (range, t) => {
+  let rec go = (skel: Skel.t): (Base.range, t) => {
     let root = Skel.root(skel) |> Aba.map_a(List.nth(seg));
     let root_l = Aba.first_a(root);
     let root_r = Aba.last_a(root);

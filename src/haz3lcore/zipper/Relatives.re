@@ -2,7 +2,7 @@ open Util;
 
 include Base.Relatives;
 
-let empty = {siblings: Siblings.empty, ancestors: Ancestors.empty};
+let empty: t = {siblings: Siblings.empty, ancestors: Ancestors.empty};
 
 let push = (d: Direction.t, p: Piece.t, rs: t): t => {
   ...rs,
@@ -25,7 +25,7 @@ let pop = (d: Direction.t, rs: t): option((Piece.t, t)) =>
       let siblings' = Ancestor.disassemble(ancestor);
       let+ (p, siblings) =
         Siblings.(pop(d, concat([rs.siblings, siblings', siblings])));
-      (p, {siblings, ancestors});
+      (p, {siblings, ancestors}: t);
     }
   };
 
@@ -175,7 +175,7 @@ let reassemble = (rs: t): t => {
       ) {
       | (_, None) => failwith("impossible")
       | (None, Some((inner_r, match_r, outer_r))) =>
-        let {siblings: (pre, suf), ancestors} =
+        let {siblings: (pre, suf), ancestors}: t =
           go({...rs, siblings: (fst(rs.siblings), outer_r)});
         let t = Tile.reassemble(match_r);
         let suf = Segment.concat([inner_r, [Tile.to_piece(t), ...suf]]);

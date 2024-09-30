@@ -3,7 +3,7 @@ open Util;
 include Base.Selection;
 
 /* NOTE: backpack no longer uses selection focus */
-let mk = (~mode=Normal, ~focus=Direction.Left, content: Segment.t) => {
+let mk = (~mode=Base.Normal, ~focus=Direction.Left, content: Segment.t): t => {
   focus,
   content,
   mode,
@@ -20,9 +20,9 @@ let selection_ids = (sel: t): list(Id.t) => Segment.ids(sel.content);
 
 let empty = mk(Segment.empty);
 
-let map = (f, sel) => {...sel, content: f(sel.content)};
+let map = (f, sel: t): t => {...sel, content: f(sel.content)};
 
-let toggle_focus = selection => {
+let toggle_focus = (selection: t): t => {
   ...selection,
   focus: Util.Direction.toggle(selection.focus),
 };

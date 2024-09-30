@@ -1,5 +1,5 @@
 module CachedStatics = {
-  include Base.CachedStatics;
+  type t = Base.cached_statics;
 
   let empty: t = {
     term: UExp.{ids: [Id.invalid], copied: false, term: Tuple([])},
@@ -31,7 +31,7 @@ module CachedStatics = {
 };
 
 module CachedSyntax = {
-  include Base.CachedSyntax;
+  type t = Base.cached_syntax;
 
   let init = (z, info_map): t => {
     let segment = Zipper.unselect_and_zip(z);
@@ -58,9 +58,15 @@ module CachedSyntax = {
 module Meta = {
   include Base.Meta;
 
-  let init = (~settings: CoreSettings.t, z: Zipper.t) => {
+  let init = (~settings: CoreSettings.t, z: Zipper.t): t => {
     let statics = CachedStatics.init(~settings, z);
     {col_target: 0, statics, syntax: CachedSyntax.init(z, statics.info_map)};
+  };
+
+  module type S = {
+    let measured: Measured.t;
+    let term_ranges: TermRanges.t;
+    let col_target: int;
   };
 
   let module_of_t = (m: t): (module S) =>
@@ -85,21 +91,22 @@ module Meta = {
 };
 
 module State = {
-  include Base.State;
+  type t = Base.state;
 
-  let init = (zipper, ~settings: CoreSettings.t) => {
+  let init = (zipper, ~settings: CoreSettings.t): t => {
     zipper,
     meta: Meta.init(zipper, ~settings),
   };
 
-  let next = (~settings: CoreSettings.t, a: Action.t, z: Zipper.t, state) => {
+  let next =
+      (~settings: CoreSettings.t, a: Action.t, z: Zipper.t, state: t): t => {
     zipper: z,
     meta: Meta.next(~settings, a, z, state.meta),
   };
 };
 
 module History = {
-  include Base.History;
+  type t = Base.history;
 
   let empty = ([], []);
 
@@ -111,7 +118,7 @@ module History = {
 
 include Base.Editor;
 
-let init = (~read_only=false, z, ~settings: CoreSettings.t) => {
+let init = (~read_only=false, z, ~settings: CoreSettings.t): t => {
   state: State.init(z, ~settings),
   history: History.empty,
   read_only,
@@ -142,7 +149,7 @@ let update_statics = (~settings: CoreSettings.t, ed: t): t => {
   };
 };
 
-let undo = (ed: t) =>
+let undo = (ed: t): option(t) =>
   switch (ed.history) {
   | ([], _) => None
   | ([(a, prev), ...before], after) =>
@@ -152,7 +159,7 @@ let undo = (ed: t) =>
       read_only: ed.read_only,
     })
   };
-let redo = (ed: t) =>
+let redo = (ed: t): option(t) =>
   switch (ed.history) {
   | (_, []) => None
   | (before, [(a, next), ...after]) =>
@@ -166,7 +173,7 @@ let redo = (ed: t) =>
 let can_undo = ed => Option.is_some(undo(ed));
 let can_redo = ed => Option.is_some(redo(ed));
 
-let set_read_only = (ed, read_only) => {...ed, read_only};
+let set_read_only = (ed, read_only): t => {...ed, read_only};
 
 let trailing_hole_ctx = (ed: t, info_map: Statics.Map.t) => {
   let segment = Zipper.unselect_and_zip(ed.state.zipper);

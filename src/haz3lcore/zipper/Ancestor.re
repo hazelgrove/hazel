@@ -4,9 +4,9 @@ include Base.Ancestor;
 exception Empty_shard_affix;
 
 // TODO(d) revisit naming w.r.t. outer vs inner shards
-let l_shard = a =>
+let l_shard = (a: t) =>
   ListUtil.hd_opt(fst(a.shards)) |> OptUtil.get_or_raise(Empty_shard_affix);
-let r_shard = a =>
+let r_shard = (a: t) =>
   ListUtil.last_opt(snd(a.shards))
   |> OptUtil.get_or_raise(Empty_shard_affix);
 
