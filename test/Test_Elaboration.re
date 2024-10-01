@@ -177,6 +177,33 @@ let let_fun = () =>
     dhexp_of_uexp(u9),
   );
 
+let deferral = () =>
+  alco_check(
+    "string_sub(\"hello\", 1, _)",
+    dhexp_of_uexp(
+      DeferredAp(
+        Var("string_sub") |> Exp.fresh,
+        [
+          String("hello") |> Exp.fresh,
+          Int(1) |> Exp.fresh,
+          Deferral(InAp) |> Exp.fresh,
+        ],
+      )
+      |> Exp.fresh,
+    ),
+    dhexp_of_uexp(
+      DeferredAp(
+        Var("string_sub") |> Exp.fresh,
+        [
+          String("hello") |> Exp.fresh,
+          Int(1) |> Exp.fresh,
+          Deferral(InAp) |> Exp.fresh,
+        ],
+      )
+      |> Exp.fresh,
+    ),
+  );
+
 let elaboration_tests = [
   test_case("Single integer", `Quick, single_integer),
   test_case("Empty hole", `Quick, empty_hole),
@@ -188,4 +215,9 @@ let elaboration_tests = [
   test_case("Application of function on free variable", `Quick, ap_fun),
   test_case("Inconsistent case statement", `Quick, inconsistent_case),
   test_case("Let expression for a function", `Quick, let_fun),
+  test_case(
+    "Function application with a deferred argument",
+    `Quick,
+    deferral,
+  ),
 ];
