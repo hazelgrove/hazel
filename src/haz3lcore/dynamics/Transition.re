@@ -333,9 +333,10 @@ module Transition = (EV: EV_MODE) => {
         );
       Constructor;
     | Ap(dir, d1, d2) =>
+      // TODO I don't know why this needs to be final
       let. _ = otherwise(env, (d1, (d2, _)) => Ap(dir, d1, d2) |> rewrap)
       and. d1' =
-        req_value(req(state, env), d1 => Ap1(dir, d1, d2) |> wrap_ctx, d1)
+        req_final(req(state, env), d1 => Ap1(dir, d1, d2) |> wrap_ctx, d1)
       and. (d2', d2_is_value) =
         req_final_or_value(
           req(state, env),
@@ -396,14 +397,22 @@ module Transition = (EV: EV_MODE) => {
       | DeferredAp(d3, d4s) =>
         let n_args =
           List.length(
-            List.map(
+            List.filter(
               fun
               | {term: Deferral(_), _} => true
               | _ => false: Exp.t => bool,
               d4s,
             ),
           );
-        let-unbox args = (Tuple(n_args), d2);
+        let-unbox args =
+          if (n_args == 1) {
+            (
+              Tuple(n_args),
+              Tuple([d2]) |> fresh // TODO Should we not be going to a tuple?
+            );
+          } else {
+            (Tuple(n_args), d2);
+          };
         let new_args = {
           let rec go = (deferred, args) =>
             switch ((deferred: list(Exp.t))) {
@@ -424,11 +433,7 @@ module Transition = (EV: EV_MODE) => {
         });
       | Cast(_)
       | FailedCast(_) => Indet
-      | FixF(_) =>
-        print_endline(Exp.show(d1));
-        print_endline(Exp.show(d1'));
-        print_endline("FIXF");
-        failwith("FixF in Ap");
+      | FixF(_) => failwith("FixF in Ap")
       | _ =>
         Step({
           expr: {
