@@ -350,6 +350,11 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
           ((arg, _)) => Exp.is_deferral(arg),
           List.combine(args, ty_fargs),
         );
+      // TODO Should this be a product in the singleton case or not
+      // let remaining_arg_ty =
+      //   List.length(remaining_args) == 1
+      //     ? snd(List.hd(remaining_args))
+      //     : Prod(List.map(snd, remaining_args)) |> Typ.temp;
       let remaining_arg_ty = Prod(List.map(snd, remaining_args)) |> Typ.temp;
       DeferredAp(f'', args'')
       |> rewrap
