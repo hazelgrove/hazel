@@ -9,12 +9,12 @@
  (name workerServer)
  (modules WorkerServer)
  (libraries
+  str
   incr_dom
   virtual_dom.input_widgets
   util
   ppx_yojson_conv.expander
   haz3lcore
-  haz3lschool
   pretty
   omd)
  (js_of_ocaml)
@@ -29,7 +29,7 @@
 (library
  (name haz3lweb)
  (modules
-  (:standard \ Main)
+  (:standard \ Main Gradescope)
   \
   Worker
   WorkerServer)
@@ -43,7 +43,6 @@
   util
   ppx_yojson_conv.expander
   haz3lcore
-  haz3lschool
   pretty
   omd)
  (js_of_ocaml)

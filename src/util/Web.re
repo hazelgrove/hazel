@@ -1,6 +1,8 @@
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv;
 open Virtual_dom.Vdom;
+
+module Node = Node;
 open Node;
 open JsUtil;
 open Js_of_ocaml;

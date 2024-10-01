@@ -49,6 +49,11 @@
 }
 .projector.fold {
   cursor: pointer;
+  font-family: var(--code-font);
+}
+
+.result .projector.fold {
+  cursor: default;
 }
 
 /* PROJECTOR: INFO */

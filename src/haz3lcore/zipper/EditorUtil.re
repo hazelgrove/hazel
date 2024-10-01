@@ -48,3 +48,21 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
     }
   );
 };
+
+let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t =>
+  Exp.{
+    term:
+      Exp.Filter(
+        Filter({
+          act: FilterAction.(act, One),
+          pat: {
+            term: Constructor("$e", Unknown(Internal) |> Typ.fresh),
+            copied: false,
+            ids: [Id.mk()],
+          },
+        }),
+        term,
+      ),
+    copied: false,
+    ids: [Id.mk()],
+  };

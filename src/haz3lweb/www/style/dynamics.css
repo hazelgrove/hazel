@@ -13,10 +13,6 @@
   padding-left: 1.2em;
 }
 
-.selected .cell-result {
-  background-color: var(--cell-result);
-}
-
 .cell-result .status {
   position: relative;
   display: flex;
@@ -81,10 +77,6 @@
 
 .cell-result .equiv {
   font-family: var(--code-font);
-}
-
-.cell.selected + .cell-item {
-  border-left: 1px solid var(--cell-selected-accent);
 }
 
 .result {
@@ -221,17 +213,25 @@
   content: "←";
 }
 
-.steppable,
-.steppable *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
+.tile-next-step path,
+.tile-next-step path *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
   outline: 1px var(--step-hole-color);
-  background-color: var(--shard-selected);
+  fill: var(--G1);
   cursor: pointer;
 }
 
-.stepped,
-.stepped *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
+.tile-taken-step path,
+.tile-taken-step path *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
   border: 1px var(--step-hole-color);
-  background-color: var(--Y1);
+  fill: var(--BR1);
+}
+
+.child-line.Exp.next-step-line {
+  stroke: var(--G2);
+}
+
+.taken-step-line {
+  stroke: var(--BR1);
 }
 
 .substituted {
@@ -302,4 +302,21 @@
 .settings-modal .icon.disabled:hover svg {
   transform: scale(100%);
   cursor: not-allowed;
+}
+
+.tile-next-step .tile-path.Exp.indicated {
+  fill: #8aeda6;
+}
+
+.tile-taken-step .tile-path.Exp.indicated {
+  fill: #ddcda3;
+}
+
+svg.tile-next-step {
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.cell-result .code {
+  pointer-events: none;
 }

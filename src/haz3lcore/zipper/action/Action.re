@@ -97,7 +97,11 @@ module Failure = {
     | Cant_project
     | CantPaste
     | CantReparse
-    | CantAccept;
+    | CantAccept
+    | Cant_undo
+    | Cant_redo;
+
+  exception Exception(t);
 };
 
 module Result = {

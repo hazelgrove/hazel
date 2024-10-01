@@ -125,19 +125,28 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
 
     | (Hole, NotGroundOrHole(t2_grounded)) =>
       /* ITExpand rule */
-      let inner_cast = Cast(d1, t1, t2_grounded) |> DHExp.fresh;
+      let inner_cast =
+        Cast(d1, t1, t2_grounded |> DHExp.replace_all_ids_typ) |> DHExp.fresh;
       // HACK: we need to check the inner cast here
       let inner_cast =
         switch (transition(~recursive, inner_cast)) {
         | Some(d1) => d1
         | None => inner_cast
         };
-      Some(DHExp.Cast(inner_cast, t2_grounded, t2) |> DHExp.fresh);
+      Some(
+        DHExp.Cast(inner_cast, t2_grounded |> DHExp.replace_all_ids_typ, t2)
+        |> DHExp.fresh,
+      );
 
     | (NotGroundOrHole(t1_grounded), Hole) =>
       /* ITGround rule */
       Some(
-        DHExp.Cast(Cast(d1, t1, t1_grounded) |> DHExp.fresh, t1_grounded, t2)
+        DHExp.Cast(
+          Cast(d1, t1, t1_grounded |> DHExp.replace_all_ids_typ)
+          |> DHExp.fresh,
+          t1_grounded |> DHExp.replace_all_ids_typ,
+          t2,
+        )
         |> DHExp.fresh,
       )
 

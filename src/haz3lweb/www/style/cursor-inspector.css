@@ -172,6 +172,10 @@
   color: var(--ci-status-error-text);
 }
 
+#cursor-inspector .code {
+  position: relative;
+}
+
 
 #page > .context-inspector {
   position: absolute;
