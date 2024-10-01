@@ -109,17 +109,15 @@ let tests =
     test_case("function deferral", `Quick, () =>
       alco_check(
         "string_sub(\"hello\", 1, _)",
-        Some(string),
+        Some(arrow(int, string)),
         type_of(
-          Ap(
-            Forward,
+          DeferredAp(
             Var("string_sub") |> Exp.fresh,
-            Tuple([
+            [
               String("hello") |> Exp.fresh,
               Int(1) |> Exp.fresh,
               Deferral(InAp) |> Exp.fresh,
-            ])
-            |> Exp.fresh,
+            ],
           )
           |> Exp.fresh,
         ),
