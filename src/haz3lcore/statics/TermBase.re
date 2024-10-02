@@ -421,6 +421,8 @@ and Exp: {
          )
     | (Cast(e1, t1, t2), Cast(e2, t3, t4)) =>
       fast_equal(e1, e2) && Typ.fast_equal(t1, t3) && Typ.fast_equal(t2, t4)
+    | (TupLabel(e1, e2), TupLabel(e3, e4)) =>
+      fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Invalid(_), _)
     | (FailedCast(_), _)
     | (Deferral(_), _)
