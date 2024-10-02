@@ -355,6 +355,32 @@ let ty_alias_uexp: Exp.t = {
 let ty_alias_menhir = () =>
   alco_check_menhir("Type alias test (menhir)", ty_alias_str, ty_alias_uexp);
 
+let list_concat_str = "[1, 2] @ [3, 4]";
+let list_concat_uexp: Exp.t = {
+  ids: [id_at(0)],
+  term:
+    ListConcat(
+      ListLit([Int(1) |> Exp.fresh, Int(2) |> Exp.fresh]) |> Exp.fresh,
+      ListLit([Int(3) |> Exp.fresh, Int(4) |> Exp.fresh]) |> Exp.fresh,
+    ),
+  copied: false,
+};
+let list_concat_menhir = () =>
+  alco_check_menhir(
+    "List concat test (menhir)",
+    list_concat_str,
+    list_concat_uexp,
+  );
+
+let unop_str = "-1";
+let unop_uexp: Exp.t = {
+  ids: [id_at(0)],
+  term: UnOp(Int(Minus), Int(1) |> Exp.fresh),
+  copied: false,
+};
+let unop_menhir = () =>
+  alco_check_menhir("Unary operation test (menhir)", unop_str, unop_uexp);
+
 let elaboration_tests = [
   test_case("Filter test (menhir)", `Quick, filter_menhir),
   test_case("Test failed (menhir)", `Quick, test_menhir),
@@ -378,4 +404,6 @@ let elaboration_tests = [
   test_case("List exp (menhir)", `Quick, list_exp_menhir),
   test_case("Invalid test (menhir)", `Quick, invalid_menhir),
   test_case("Type alias test (menhir)", `Quick, ty_alias_menhir),
+  test_case("List concat test (menhir)", `Quick, list_concat_menhir),
+  test_case("Unary operation test (menhir)", `Quick, unop_menhir),
 ];
