@@ -138,13 +138,12 @@ type exp =
   | Undefined
   | Seq(exp, exp)
   | Test(exp)
-  | Deferral(deferral_pos)
+  | Deferral
   | TypFun(tpat, exp)
   | Cons(exp, exp)
   | ListConcat(exp, exp)
   | If(exp, exp, exp)
   | InvalidExp(string)
   | TypAp(exp, typ)
-  | DeferredAp(exp)
   | DynamicErrorHole(exp, string)
   | TyAlias(tpat, typ, exp);

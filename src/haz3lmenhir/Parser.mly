@@ -10,8 +10,6 @@ open AST
 %token DOLLAR_SIGN
 %token TYP
 %token TYP_FUN
-%token IN_AP
-%token OUT_AP
 %token FIX
 %token WILD
 %token QUESTION
@@ -246,7 +244,6 @@ exp:
     | c = case { c }
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ListExp(e) }
     | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) } 
-    | f = exp; OPEN_PAREN; WILD; a = exp; CLOSE_PAREN { DeferredAp(ApExp(f, a)) } 
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
     | i = ifExp { i }
     | e1 = exp; QUESTION; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN {FailedCast(e1, t1, t2)}
@@ -263,8 +260,7 @@ exp:
     | e1 = exp; CONS; e2 = exp { Cons(e1, e2) }
     | e1 = exp; SEMI_COLON; e2 = exp { Seq(e1, e2) }
     | QUESTION; s = STRING; { InvalidExp(s) }
-    | IN_AP; WILD {Deferral(InAp)}
-    | OUT_AP; WILD {Deferral(OutsideAp)}
+    |  WILD {Deferral}
     | e = exp; AT_SYMBOL; LESS_THAN; ty = typ; GREATER_THAN; {TypAp(e, ty)}
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)}
     | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = SEXP_STRING; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
