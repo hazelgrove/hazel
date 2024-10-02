@@ -166,6 +166,10 @@ let is_typ_var = str => is_var(str) || match(capitalized_name_regexp, str);
 let wild = "_";
 let is_wild = match(regexp("^" ++ wild ++ "$"));
 
+let is_livelit = str => {
+  match(regexp("^[\\^]([a-z][A-Za-z0-9_]*)?\t?$"), str);
+};
+
 /* List literals */
 let list_start = "[";
 let list_end = "]";
@@ -237,6 +241,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
   ("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("livelit", (is_livelit, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_base_typ, [mk_op(Typ, [])])),
 ];
 

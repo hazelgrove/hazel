@@ -539,6 +539,7 @@ let get_doc =
       | Closure(_)
       | Cast(_)
       | BuiltinFun(_) => simple("Internal expression")
+      | LivelitInvocation(_) => simple("Livelit invocation")
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
@@ -1058,6 +1059,7 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
         | Cast(_) => default // Shouldn't get hit?
+        | LivelitInvocation(_) => default // Shouldn't get hit?
         };
       | Tuple(terms) =>
         let basic = group_id =>
@@ -1312,6 +1314,7 @@ let get_doc =
               LetExp.lets_str,
             );
           }
+        | LivelitInvocation(_) => default
         | Tuple([]) =>
           if (LetExp.let_triv_exp.id
               == get_specificity_level(LetExp.lets_triv)) {
@@ -1937,6 +1940,15 @@ let get_doc =
         TerminalPat.boollit(b),
       )
     | String(s) =>
+      get_message(
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(Scanf.format_from_string(msg, "%s%s"), s, s),
+          ),
+        TerminalPat.strlit(s),
+      )
+    | LivelitInvocation(s) =>
       get_message(
         ~format=
           Some(

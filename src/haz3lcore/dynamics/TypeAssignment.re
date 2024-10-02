@@ -68,6 +68,8 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Int(_) => Typ.eq(ty, Int |> Typ.temp) ? Some([]) : None
     | Float(_) => Typ.eq(ty, Float |> Typ.temp) ? Some([]) : None
     | Bool(_) => Typ.eq(ty, Bool |> Typ.temp) ? Some([]) : None
+    | LivelitInvocation(_) =>
+      Typ.eq(ty, String |> Typ.temp) ? Some([]) : None
     | String(_) => Typ.eq(ty, String |> Typ.temp) ? Some([]) : None
     | Constructor(_) => Some([]) // TODO: make this stricter
     | Cast(dhp, ty1, ty2) =>
@@ -103,6 +105,7 @@ let rec dhpat_synthesize = (dhpat: DHPat.t, ctx: Ctx.t): option(Typ.t) => {
   | Float(_) => Some(Float |> Typ.temp)
   | Bool(_) => Some(Bool |> Typ.temp)
   | String(_) => Some(String |> Typ.temp)
+  | LivelitInvocation(_) => Some(String |> Typ.temp)
   | Cast(_, _, ty) => Some(ty)
   };
 };
@@ -291,6 +294,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
   | UnOp(Meta(Unquote), d) =>
     let* ty = typ_of_dhexp(ctx, m, d);
     Some(ty);
+  | LivelitInvocation(_) => Some(String |> Typ.temp)
   | ListLit([]) => Some(List(Unknown(Internal) |> Typ.temp) |> Typ.temp)
   | ListLit([x, ...xs]) =>
     let* t_x = typ_of_dhexp(ctx, m, x);

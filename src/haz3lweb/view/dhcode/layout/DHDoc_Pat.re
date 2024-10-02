@@ -19,6 +19,7 @@ let precedence = (dp: Pat.t) =>
   | Ap(_) => DHDoc_common.precedence_Ap
   | Parens(_) => DHDoc_common.precedence_const
   | Cast(_) => DHDoc_common.precedence_Ap
+  | LivelitInvocation(_) => DHDoc_common.precedence_const
   };
 
 let rec mk =
@@ -51,6 +52,7 @@ let rec mk =
     | Float(f) => DHDoc_common.mk_FloatLit(f)
     | Bool(b) => DHDoc_common.mk_BoolLit(b)
     | String(s) => DHDoc_common.mk_StringLit(s)
+    | LivelitInvocation(s) => DHDoc_common.mk_StringLit(s)
     | ListLit(d_list) =>
       let ol = List.map(mk', d_list);
       DHDoc_common.mk_ListLit(ol);
