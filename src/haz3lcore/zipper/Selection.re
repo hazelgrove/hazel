@@ -1,16 +1,16 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type buffer =
   //| Parsed
   | Unparsed;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type mode =
   | Normal
   | Buffer(buffer);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   focus: Direction.t,
   content: Segment.t,

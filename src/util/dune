@@ -11,7 +11,8 @@
    ppx_let
    ppx_sexp_conv
    ppx_deriving.show
-   bonsai.ppx_bonsai)))
+   bonsai.ppx_bonsai
+   ppx_deriving.eq)))
 
 (env
  (dev
