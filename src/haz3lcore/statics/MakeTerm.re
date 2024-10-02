@@ -341,6 +341,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
         | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
         | ([t], []) when Form.is_string(t) => String(Form.strip_quotes(t))
+        | ([t], []) when Form.is_livelit(t) => LivelitInvocation(t)
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) =>

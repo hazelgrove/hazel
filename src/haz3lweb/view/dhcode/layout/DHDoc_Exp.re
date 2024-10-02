@@ -54,6 +54,7 @@ let rec precedence = (~show_function_bodies, ~show_casts: bool, d: DHExp.t) => {
   | Float(_)
   | String(_)
   | ListLit(_)
+  | LivelitInvocation(_)
   | EmptyHole
   | Constructor(_)
   | FailedCast(_)
@@ -319,6 +320,7 @@ let mk =
       | Int(n) => DHDoc_common.mk_IntLit(n)
       | Float(f) => DHDoc_common.mk_FloatLit(f)
       | String(s) => DHDoc_common.mk_StringLit(s)
+      | LivelitInvocation(s) => DHDoc_common.mk_StringLit(s)
       | Undefined => DHDoc_common.mk_Undefined()
       | Test(d) => DHDoc_common.mk_Test(go'(d))
       | Deferral(_) => text("_")

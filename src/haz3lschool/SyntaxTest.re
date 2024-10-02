@@ -25,6 +25,7 @@ let rec find_var_upat = (name: string, upat: Pat.t): bool => {
   | Float(_)
   | Bool(_)
   | String(_)
+  | LivelitInvocation(_)
   | Constructor(_) => false
   | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
   | ListLit(l)
@@ -63,6 +64,7 @@ let rec find_in_let =
         ul,
       );
     }
+  | (LivelitInvocation(_), _)
   | (Var(_), _)
   | (Tuple(_), _)
   | (
@@ -126,6 +128,7 @@ let rec find_fn =
   | Int(_)
   | Float(_)
   | String(_)
+  | LivelitInvocation(_)
   | Constructor(_)
   | Undefined
   | BuiltinFun(_)
@@ -147,6 +150,7 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | Float(_)
   | Bool(_)
   | String(_)
+  | LivelitInvocation(_)
   | Constructor(_) => false
   | Cons(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
@@ -179,6 +183,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | String(_)
   | Constructor(_)
   | Undefined
+  | LivelitInvocation(_)
   | Deferral(_) => false
   | Fun(args, body, _, _) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
@@ -240,6 +245,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | String(_)
   | Constructor(_)
   | Undefined
+  | LivelitInvocation(_)
   | Deferral(_) => false
   | Fun(args, body, _, _)
   | FixF(args, body, _) =>
@@ -332,6 +338,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Constructor(_)
   | Undefined
   | Var(_)
+  | LivelitInvocation(_)
   | BuiltinFun(_) => true
   | FixF(args, body, _)
   | Fun(args, body, _, _) =>

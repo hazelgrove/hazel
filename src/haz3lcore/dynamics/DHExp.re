@@ -77,6 +77,7 @@ let rec strip_casts =
         | TypFun(_)
         | TypAp(_)
         | Undefined
+        | LivelitInvocation(_)
         | If(_) => continue(exp)
         /* Remove casts*/
         | FailedCast(d, _, _)
@@ -127,6 +128,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | ListConcat(_)
           | Tuple(_)
           | Match(_)
+          | LivelitInvocation(_)
           | DynamicErrorHole(_)
           | Filter(_)
           | If(_)

@@ -9,6 +9,7 @@ module Pat = {
     | Float
     | Bool
     | String
+    | LivelitInvocation
     | ListLit
     | Constructor
     | Cons
@@ -47,6 +48,7 @@ module Pat = {
     | Float(_) => Float
     | Bool(_) => Bool
     | String(_) => String
+    | LivelitInvocation(_) => LivelitInvocation
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Cons(_) => Cons
@@ -66,6 +68,7 @@ module Pat = {
     | Float => "Float literal"
     | Bool => "Boolean literal"
     | String => "String literal"
+    | LivelitInvocation => "Livelit invocation"
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Cons => "Cons"
@@ -88,6 +91,7 @@ module Pat = {
     | Float(_)
     | Bool(_)
     | String(_)
+    | LivelitInvocation(_)
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
@@ -109,6 +113,7 @@ module Pat = {
     | Float(_)
     | Bool(_)
     | String(_)
+    | LivelitInvocation(_)
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
@@ -132,6 +137,7 @@ module Pat = {
       | Float(_)
       | Bool(_)
       | String(_)
+      | LivelitInvocation(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -156,6 +162,7 @@ module Pat = {
       | Float(_)
       | Bool(_)
       | String(_)
+      | LivelitInvocation(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -177,6 +184,7 @@ module Pat = {
     | Float(_)
     | Bool(_)
     | String(_)
+    | LivelitInvocation(_)
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
@@ -202,6 +210,7 @@ module Pat = {
     | Float(_)
     | Bool(_)
     | String(_)
+    | LivelitInvocation(_)
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
@@ -233,6 +242,7 @@ module Pat = {
       | Float(_)
       | Bool(_)
       | String(_)
+      | LivelitInvocation(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -258,6 +268,7 @@ module Pat = {
       | Float(_)
       | Bool(_)
       | String(_)
+      | LivelitInvocation(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -316,6 +327,7 @@ module Exp = {
     | BuiltinFun
     | Match
     | Cast
+    | LivelitInvocation
     | ListConcat;
 
   let hole = (tms: list(TermBase.Any.t)): term =>
@@ -365,6 +377,7 @@ module Exp = {
     | BinOp(op, _, _) => BinOp(op)
     | BuiltinFun(_) => BuiltinFun
     | Match(_) => Match
+    | LivelitInvocation(_) => LivelitInvocation
     | Cast(_) => Cast;
 
   let show_cls: cls => string =
@@ -407,6 +420,7 @@ module Exp = {
     | UnOp(op) => Operators.show_unop(op)
     | BuiltinFun => "Built-in Function"
     | Match => "Case expression"
+    | LivelitInvocation => "Livelit invocation"
     | Cast => "Cast expression";
 
   // Typfun should be treated as a function here as this is only used to
@@ -448,6 +462,7 @@ module Exp = {
     | UnOp(_)
     | BinOp(_)
     | Match(_)
+    | LivelitInvocation(_)
     | Constructor(_) => false
     };
   };
@@ -491,6 +506,7 @@ module Exp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
+      | LivelitInvocation(_)
       | Constructor(_) => false
       }
     );
@@ -548,6 +564,7 @@ module Exp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
+      | LivelitInvocation(_)
       | Constructor(_) => None
       };
     };

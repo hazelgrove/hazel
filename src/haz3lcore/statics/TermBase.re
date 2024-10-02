@@ -173,6 +173,7 @@ and Exp: {
     | BinOp(Operators.op_bin, t, t)
     | BuiltinFun(string)
     | Match(t, list((Pat.t, t)))
+    | LivelitInvocation(string)
     /* INVARIANT: in dynamic expressions, casts must be between
        two consistent types. Both types should be normalized in
        dynamics for the cast calculus to work right. */
@@ -240,6 +241,7 @@ and Exp: {
     | BinOp(Operators.op_bin, t, t)
     | BuiltinFun(string) /// Doesn't currently have a distinguishable syntax
     | Match(t, list((Pat.t, t)))
+    | LivelitInvocation(string)
     | Cast(t, Typ.t, Typ.t)
   and t = IdTagged.t(term);
 
@@ -325,6 +327,7 @@ and Exp: {
               rls,
             ),
           )
+        | LivelitInvocation(str) => LivelitInvocation(str)
         | Cast(e, t1, t2) => Cast(exp_map_term(e), t1, t2)
         },
     };
@@ -417,6 +420,7 @@ and Exp: {
     | (Int(_), _)
     | (Float(_), _)
     | (String(_), _)
+    | (LivelitInvocation(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
     | (Fun(_), _)
@@ -457,6 +461,7 @@ and Pat: {
     | Float(float)
     | Bool(bool)
     | String(string)
+    | LivelitInvocation(string)
     | ListLit(list(t))
     | Constructor(string, Typ.t) // Typ.t field is only meaningful in dynamic patterns
     | Cons(t, t)
@@ -491,6 +496,7 @@ and Pat: {
     | Float(float)
     | Bool(bool)
     | String(string)
+    | LivelitInvocation(string)
     | ListLit(list(t))
     | Constructor(string, Typ.t)
     | Cons(t, t)
@@ -529,6 +535,7 @@ and Pat: {
         | Float(_)
         | Constructor(_)
         | String(_)
+        | LivelitInvocation(_)
         | Var(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | ListLit(ts) => ListLit(List.map(pat_map_term, ts))
@@ -577,6 +584,7 @@ and Pat: {
     | (Int(_), _)
     | (Float(_), _)
     | (String(_), _)
+    | (LivelitInvocation(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
     | (Cons(_), _)
