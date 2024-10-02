@@ -133,9 +133,12 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     let* ctx' = env_extend_ctx(env, m, ctx);
     typ_of_dhexp(ctx', m, d);
   | Filter(_, d) => typ_of_dhexp(ctx, m, d)
+  | Var(_, true) => Some(Unknown(Internal) |> Typ.temp)
   | Var(name, _) =>
-    let* var = Ctx.lookup_var(ctx, name);
-    Some(var.typ);
+    Ctx.lookup_var(ctx, name)
+    |> Option.map((x: Ctx.var_entry) => x.typ)
+    |> Option.value(~default=Unknown(Internal) |> Typ.temp)
+    |> Option.some
   | Seq(d1, d2) =>
     let* _ = typ_of_dhexp(ctx, m, d1);
     typ_of_dhexp(ctx, m, d2);
