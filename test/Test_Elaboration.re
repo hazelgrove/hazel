@@ -137,10 +137,6 @@ let ap_fun_uexp: Exp.t =
     Var("y") |> Exp.fresh,
   )
   |> Exp.fresh;
-let unapplied_function = () => alco_check("A function", f, dhexp_of_uexp(f));
-
-let u7: Exp.t = Ap(Forward, f, Var("y") |> Exp.fresh) |> Exp.fresh;
-
 let ap_fun_str = "
     (fun x -> 4 + 5)(y)
 ";
