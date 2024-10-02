@@ -8,6 +8,8 @@ module FreshId = {
   let int = Typ.fresh(Int);
   let float = Typ.fresh(Float);
   let prod = a => Prod(a) |> Typ.fresh;
+  let label = a => Label(a) |> Typ.fresh;
+  let tup_label = (a, b) => TupLabel(a, b) |> Typ.fresh;
   let string = Typ.fresh(String);
 };
 let ids = List.init(12, _ => Id.mk());
@@ -67,6 +69,27 @@ let tests =
             Cast(Var("x") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
             BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
             |> Exp.fresh,
+            None,
+            None,
+          )
+          |> Exp.fresh,
+        ),
+      )
+    ),
+    test_case("Unsure: Function with labeled param", `Quick, () =>
+      alco_check(
+        "fun (a=x) => 4",
+        Some(
+          arrow(prod([tup_label(label("a"), unknown(Internal))]), int),
+        ),
+        type_of(
+          Fun(
+            Parens(
+              TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
+              |> Pat.fresh,
+            )
+            |> Pat.fresh,
+            Int(4) |> Exp.fresh,
             None,
             None,
           )
