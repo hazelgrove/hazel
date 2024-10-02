@@ -251,6 +251,67 @@ let elaborated_labeled_tuple = () =>
     dhexp_of_uexp(full_labeled_tuple_program),
   );
 
+/* Labeled Tuple Rearranging
+     ```hazel
+    let val : (a=Int, b=String, Float, c=Bool)= (1,
+      1.0,
+      c=true,
+      b="a") in val ```
+     elaborates to
+     (a=1, b="a", 1.0, c=true)
+   */
+let rearranged_labeled_tuple_program: Exp.t =
+  Let(
+    Cast(
+      Var("val") |> Pat.fresh,
+      Parens(
+        Prod([
+          TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
+          TupLabel(Label("b") |> Typ.fresh, String |> Typ.fresh) |> Typ.fresh,
+          Float |> Typ.fresh,
+          TupLabel(Label("c") |> Typ.fresh, Bool |> Typ.fresh) |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+      )
+      |> Typ.fresh,
+      Unknown(Internal) |> Typ.fresh,
+    )
+    |> Pat.fresh,
+    Parens(
+      Tuple([
+        Int(1) |> Exp.fresh,
+        Float(1.0) |> Exp.fresh,
+        TupLabel(Label("c") |> Exp.fresh, Bool(true) |> Exp.fresh)
+        |> Exp.fresh,
+        TupLabel(Label("b") |> Exp.fresh, String("a") |> Exp.fresh)
+        |> Exp.fresh,
+      ])
+      |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    Var("val") |> Exp.fresh,
+  )
+  |> Exp.fresh;
+let rearranged_labeled_tuple = () =>
+  alco_check(
+    "Labeled Tuple rearrangement",
+    Let(
+      Var("val") |> Pat.fresh,
+      Tuple([
+        TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh) |> Exp.fresh,
+        TupLabel(Label("b") |> Exp.fresh, String("a") |> Exp.fresh)
+        |> Exp.fresh,
+        Float(1.0) |> Exp.fresh,
+        TupLabel(Label("c") |> Exp.fresh, Bool(true) |> Exp.fresh)
+        |> Exp.fresh,
+      ])
+      |> Exp.fresh,
+      Var("val") |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    dhexp_of_uexp(rearranged_labeled_tuple_program),
+  );
+
 let elaboration_tests = [
   test_case("Single integer", `Quick, single_integer),
   test_case("Empty hole", `Quick, empty_hole),
@@ -262,4 +323,5 @@ let elaboration_tests = [
   test_case("Inconsistent case statement", `Quick, inconsistent_case),
   test_case("Let expression for a function", `Quick, let_fun),
   test_case("Labeled tuple elaboration", `Quick, elaborated_labeled_tuple),
+  test_case("Rearranged labeled tuple", `Quick, rearranged_labeled_tuple),
 ];
