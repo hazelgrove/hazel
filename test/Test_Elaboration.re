@@ -179,6 +179,76 @@ let let_fun = () =>
     dhexp_of_uexp(u9),
   );
 
+/*
+  Label Elaboration test
+  ```hazel
+ let add : (street=String, city=String, state=String, zipcode=Int)= ("123 Maple St",
+   "Ann Arbor",
+   "MI",
+ 48103) in add ```
+  elaborates to
+  (street="123 Maple St", city="Ann Arbor", state="MI", zipcode=48103)
+  */
+let full_program: Exp.t =
+  Let(
+    Cast(
+      Var("add") |> Pat.fresh,
+      Parens(
+        Prod([
+          TupLabel(Label("street") |> Typ.fresh, String |> Typ.fresh)
+          |> Typ.fresh,
+          TupLabel(Label("city") |> Typ.fresh, String |> Typ.fresh)
+          |> Typ.fresh,
+          TupLabel(Label("state") |> Typ.fresh, String |> Typ.fresh)
+          |> Typ.fresh,
+          TupLabel(Label("zipcode") |> Typ.fresh, Int |> Typ.fresh)
+          |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+      )
+      |> Typ.fresh,
+      Unknown(Internal) |> Typ.fresh,
+    )
+    |> Pat.fresh,
+    Parens(
+      Tuple([
+        String("123 Maple St") |> Exp.fresh,
+        String("Ann Arbor") |> Exp.fresh,
+        String("MI") |> Exp.fresh,
+        Int(48103) |> Exp.fresh,
+      ])
+      |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    Var("add") |> Exp.fresh,
+  )
+  |> Exp.fresh;
+let elaborated: Exp.term =
+  Let(
+    Var("add") |> Pat.fresh,
+    Tuple([
+      TupLabel(
+        Label("street") |> Exp.fresh,
+        String("123 Maple St") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      TupLabel(Label("city") |> Exp.fresh, String("Ann Arbor") |> Exp.fresh)
+      |> Exp.fresh,
+      TupLabel(Label("state") |> Exp.fresh, String("MI") |> Exp.fresh)
+      |> Exp.fresh,
+      TupLabel(Label("zipcode") |> Exp.fresh, Int(48103) |> Exp.fresh)
+      |> Exp.fresh,
+    ])
+    |> Exp.fresh,
+    Var("add") |> Exp.fresh,
+  );
+let elaborated_labeled_tuple = () =>
+  alco_check(
+    "Labeled Tuple lable introduction",
+    elaborated |> Exp.fresh,
+    dhexp_of_uexp(full_program),
+  );
+
 let elaboration_tests = [
   test_case("Single integer", `Quick, single_integer),
   test_case("Empty hole", `Quick, empty_hole),
@@ -189,4 +259,5 @@ let elaboration_tests = [
   test_case("Application of function on free variable", `Quick, ap_fun),
   test_case("Inconsistent case statement", `Quick, inconsistent_case),
   test_case("Let expression for a function", `Quick, let_fun),
+  test_case("Labeled tuple elaboration", `Quick, elaborated_labeled_tuple),
 ];
