@@ -3,7 +3,7 @@ open Util;
 /**
  * higher precedence means lower int representation
  */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = int;
 
 let max: t = 0;
