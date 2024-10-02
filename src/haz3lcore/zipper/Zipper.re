@@ -15,13 +15,13 @@ let init: unit => t =
 
 let next_blank = _ => Id.mk();
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chunkiness =
   | ByChar
   | MonoByChar
   | ByToken;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type planar =
   | Up
   | Down

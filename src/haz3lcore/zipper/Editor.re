@@ -136,6 +136,7 @@ module State = {
     meta: Meta.t,
   };
 
+  let equal = (a: t, b: t) => Zipper.equal(a.zipper, b.zipper);
   let init = (zipper, ~settings: CoreSettings.t) => {
     zipper,
     meta: Meta.init(zipper, ~settings),
@@ -148,9 +149,9 @@ module State = {
 };
 
 module History = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type affix = list((Action.t, State.t));
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = (affix, affix);
 
   let empty = ([], []);
@@ -161,7 +162,7 @@ module History = {
   );
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   state: State.t,
   history: History.t,
