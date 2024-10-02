@@ -45,11 +45,13 @@ jobs:
           opam exec -- dune build @src/fmt --auto-promote src --profile release
         working-directory: ./source
       - name: Checkout the website build artifacts repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: hazelgrove/build
           token: ${{ secrets.ACCESS_TOKEN }}
           path: server
+          sparse-checkout: |
+            ${{ env.BRANCH_NAME }}
       - name: Clear any old build of this branch
         run: if [ -d "${BRANCH_NAME}" ] ; then rm -rf "${BRANCH_NAME}" ; fi 
         working-directory: ./server
