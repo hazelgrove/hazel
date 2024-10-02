@@ -137,7 +137,7 @@ and Exp: {
   type term =
     | Invalid(string) //? s
     | EmptyHole //?
-    | MultiHole(list(Any.t)) //<<e>>
+    | MultiHole(list(Any.t))
     | DynamicErrorHole(t, InvalidOperationError.t) //This exp takes in the Sexp serialization of the InvalidOperationError.t as a string (s); // <<e ? s>>
     | FailedCast(t, Typ.t, Typ.t) //e ?<ty1 => ty2>
     | Deferral(deferral_position) /*InAp _*/ /*OutAp _*/
@@ -164,7 +164,7 @@ and Exp: {
     | TypAp(t, Typ.t) /*e @ <ty> */
     | DeferredAp(t, list(t)) //e1(e2, _, e3)
     | If(t, t, t) //if e1 then e2 else e3
-    | Seq(t, t) //e1;e2
+    | Seq(t, t) //e1; e2
     | Test(t) //test e end
     | Filter(StepperFilterKind.t, t) /*let act represent filter action*/ //act e1 e2
     | Closure([@show.opaque] ClosureEnvironment.t, t) // menhir - spoke with cyrus we don't need closures in the menhir
@@ -173,7 +173,7 @@ and Exp: {
     | ListConcat(t, t) //e1 @ e2
     | UnOp(Operators.op_un, t) //!e    -e    $e
     | BinOp(Operators.op_bin, t, t) //e1 + e2
-    | BuiltinFun(string) //TODO menhir
+    | BuiltinFun(string) //builtin(e1)
     | Match(t, list((Pat.t, t)))
     /*
          case e1

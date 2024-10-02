@@ -381,6 +381,24 @@ let unop_uexp: Exp.t = {
 let unop_menhir = () =>
   alco_check_menhir("Unary operation test (menhir)", unop_str, unop_uexp);
 
+let seq_str = "1; 2";
+let seq_uexp: Exp.t = {
+  ids: [id_at(0)],
+  term: Seq(Int(1) |> Exp.fresh, Int(2) |> Exp.fresh),
+  copied: false,
+};
+let seq_menhir = () =>
+  alco_check_menhir("Sequence test (menhir)", seq_str, seq_uexp);
+
+let fixf_str = "fix x -> 1<Int => Unknown Internal>";
+let fixf_uexp: Exp.t = {
+  ids: [id_at(0)],
+  term: FixF(Var("x") |> Pat.fresh, Int(1) |> Exp.fresh, None),
+  copied: false,
+};
+let fixf_menhir = () =>
+  alco_check_menhir("FixF test (menhir)", fixf_str, fixf_uexp);
+
 let elaboration_tests = [
   test_case("Filter test (menhir)", `Quick, filter_menhir),
   test_case("Test failed (menhir)", `Quick, test_menhir),
@@ -406,4 +424,6 @@ let elaboration_tests = [
   test_case("Type alias test (menhir)", `Quick, ty_alias_menhir),
   test_case("List concat test (menhir)", `Quick, list_concat_menhir),
   test_case("Unary operation test (menhir)", `Quick, unop_menhir),
+  test_case("Sequence test (menhir)", `Quick, seq_menhir),
+  test_case("FixF test (menhir)", `Quick, fixf_menhir),
 ];
