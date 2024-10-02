@@ -33,6 +33,7 @@ let ui_state_init = {
   mousedown: false,
 };
 
+[@deriving sexp]
 type t = {
   editors: Editors.t,
   settings: Settings.t,
@@ -41,7 +42,7 @@ type t = {
   ui_state,
 };
 
-let cutoff = (===);
+let equal = (===);
 
 let mk = (editors, results) => {
   editors,
