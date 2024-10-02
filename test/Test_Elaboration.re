@@ -223,29 +223,31 @@ let full_program: Exp.t =
     Var("add") |> Exp.fresh,
   )
   |> Exp.fresh;
-let elaborated: Exp.term =
-  Let(
-    Var("add") |> Pat.fresh,
-    Tuple([
-      TupLabel(
-        Label("street") |> Exp.fresh,
-        String("123 Maple St") |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      TupLabel(Label("city") |> Exp.fresh, String("Ann Arbor") |> Exp.fresh)
-      |> Exp.fresh,
-      TupLabel(Label("state") |> Exp.fresh, String("MI") |> Exp.fresh)
-      |> Exp.fresh,
-      TupLabel(Label("zipcode") |> Exp.fresh, Int(48103) |> Exp.fresh)
-      |> Exp.fresh,
-    ])
-    |> Exp.fresh,
-    Var("add") |> Exp.fresh,
-  );
 let elaborated_labeled_tuple = () =>
   alco_check(
     "Labeled Tuple lable introduction",
-    elaborated |> Exp.fresh,
+    Let(
+      Var("add") |> Pat.fresh,
+      Tuple([
+        TupLabel(
+          Label("street") |> Exp.fresh,
+          String("123 Maple St") |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        TupLabel(
+          Label("city") |> Exp.fresh,
+          String("Ann Arbor") |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        TupLabel(Label("state") |> Exp.fresh, String("MI") |> Exp.fresh)
+        |> Exp.fresh,
+        TupLabel(Label("zipcode") |> Exp.fresh, Int(48103) |> Exp.fresh)
+        |> Exp.fresh,
+      ])
+      |> Exp.fresh,
+      Var("add") |> Exp.fresh,
+    )
+    |> Exp.fresh,
     dhexp_of_uexp(full_program),
   );
 
