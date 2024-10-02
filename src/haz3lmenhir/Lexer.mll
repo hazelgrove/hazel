@@ -105,8 +105,6 @@ rule token =
     | "?" {QUESTION}
     | "_" {WILD}
     | "fix" {FIX}
-    | "_InAp" {IN_AP}
-    | "_OutAp" {OUT_AP}
     | "typfun" {TYP_FUN}
     | "type" {TYP}
     | "$" {DOLLAR_SIGN}

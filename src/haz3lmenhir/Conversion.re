@@ -1,5 +1,4 @@
 include Sexplib.Std;
-
 module FilterAction = {
   open Haz3lcore.FilterAction;
   let of_menhir_ast = (a: AST.filter_action): t => {
@@ -106,11 +105,11 @@ module rec Exp: {
     | Bool(b) => Bool(b)
     | Var(x) => Var(x)
     | Constructor(x, ty) => Constructor(x, Typ.of_menhir_ast(ty))
-    | Deferral(pos) =>
-      switch (pos) {
-      | InAp => Deferral(InAp)
-      | OutsideAp => Deferral(OutsideAp)
-      }
+    | Deferral => Deferral(InAp)
+    // switch (pos) {
+    // | InAp => Deferral(InAp)
+    // | OutsideAp => Deferral(OutsideAp)
+    // }
     | ListExp(l) => ListLit(List.map(of_menhir_ast, l))
     | TupleExp(t) =>
       if (List.length(t) == 1) {
@@ -130,11 +129,6 @@ module rec Exp: {
         of_menhir_ast(e),
       )
     | BuiltinFun(s) => BuiltinFun(s)
-    | DeferredAp(f) =>
-      switch (f) {
-      | ApExp(fn, a) => DeferredAp(of_menhir_ast(fn), [of_menhir_ast(a)])
-      | _ => raise(Invalid_argument("Expected ApExp"))
-      }
     | Fun(p, e, name_opt) =>
       switch (name_opt) {
       | Some(name_str) =>
@@ -146,8 +140,25 @@ module rec Exp: {
         )
       | None => Fun(Pat.of_menhir_ast(p), of_menhir_ast(e), None, None)
       }
-    | ApExp(e1, e2) =>
-      Ap(Haz3lcore.Operators.Forward, of_menhir_ast(e1), of_menhir_ast(e2))
+    | ApExp(e1, args) =>
+      switch (args) {
+      | TupleExp(l) =>
+        List.mem(AST.Deferral, l)
+          ? DeferredAp(of_menhir_ast(e1), List.map(of_menhir_ast, l))
+          : Ap(
+              Haz3lcore.Operators.Forward,
+              of_menhir_ast(e1),
+              of_menhir_ast(args),
+            )
+      | Deferral => DeferredAp(of_menhir_ast(e1), [args |> of_menhir_ast])
+
+      | _ =>
+        Ap(
+          Haz3lcore.Operators.Forward,
+          of_menhir_ast(e1),
+          of_menhir_ast(args),
+        )
+      }
     | BinExp(e1, op, e2) =>
       BinOp(
         Operators.of_menhir_ast(op),

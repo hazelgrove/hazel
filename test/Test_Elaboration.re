@@ -291,6 +291,70 @@ let filter_uexp: Exp.t = {
 let filter_menhir = () =>
   alco_check_menhir("Filter test (menhir)", filter_str, filter_uexp);
 
+//NOTE: left out until deferral elaborations are fixed
+// let deferred_str = "
+// (fun x -> 4 + 5)(_)
+// ";
+// let deferred_uexp: Exp.t =
+//   DeferredAp(
+//     Fun(
+//       Var("x") |> Pat.fresh,
+//       BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
+//       |> Exp.fresh,
+//       None,
+//       None,
+//     )
+//     |> Exp.fresh,
+//     [Deferral(InAp) |> Exp.fresh],
+//   )
+//   |> Exp.fresh;
+// let deferred_ap_menhir = () =>
+//   alco_check_menhir("Deferred Ap Test (menhir)", deferred_str, deferred_uexp);
+
+let undefined_str = "
+undef
+";
+let undefined_uexp: Exp.t = Undefined |> Exp.fresh;
+let undefined_menhir = () =>
+  alco_check_menhir("Undefined test (menhir)", undefined_str, undefined_uexp);
+
+let list_exp_str = "[1, 2, 3]";
+let list_exp_uexp: Exp.t = {
+  ids: [id_at(0)],
+  term:
+    ListLit([
+      Int(1) |> Exp.fresh,
+      Int(2) |> Exp.fresh,
+      Int(3) |> Exp.fresh,
+    ]),
+  copied: false,
+};
+let list_exp_menhir = () =>
+  alco_check_menhir("List exp (menhir)", list_exp_str, list_exp_uexp);
+
+let invalid_str = "
+?\"x\"
+";
+let invalid_uexp: Exp.t = Invalid("x") |> Exp.fresh;
+let invalid_menhir = () =>
+  alco_check_menhir("Invalid test (menhir)", invalid_str, invalid_uexp);
+
+let ty_alias_str = "
+x
+";
+let ty_alias_uexp: Exp.t = {
+  ids: [id_at(0)],
+  term:
+    TyAlias(
+      Var("x") |> TPat.fresh,
+      Int |> Typ.fresh,
+      Var("x") |> Exp.fresh,
+    ),
+  copied: false,
+};
+let ty_alias_menhir = () =>
+  alco_check_menhir("Type alias test (menhir)", ty_alias_str, ty_alias_uexp);
+
 let elaboration_tests = [
   test_case("Filter test (menhir)", `Quick, filter_menhir),
   test_case("Test failed (menhir)", `Quick, test_menhir),
@@ -308,4 +372,10 @@ let elaboration_tests = [
   test_case("Inconsistent case (menhir)", `Quick, inconsistent_case_menhir),
   test_case("ap fun (menhir)", `Quick, ap_fun_menhir),
   test_case("Consistent if (menhir)", `Quick, consistent_if_menhir),
+  //NOTE: left out until deferral elaborations are fixed
+  // test_case("Deffered Ap Test (menhir)", `Quick, deferred_ap_menhir),
+  test_case("Undefined test (menhir)", `Quick, undefined_menhir),
+  test_case("List exp (menhir)", `Quick, list_exp_menhir),
+  test_case("Invalid test (menhir)", `Quick, invalid_menhir),
+  test_case("Type alias test (menhir)", `Quick, ty_alias_menhir),
 ];

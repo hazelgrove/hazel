@@ -27,4 +27,9 @@ let tests = [
     `Quick,
     parser_test("Same String", String("Hello World"), "\"Hello World\""),
   ),
+  test_case(
+    "Deferred Ap",
+    `Quick,
+    parser_test("Deferred Ap", AST.ApExp(Var("x"), Deferral), "x(_)"),
+  ),
 ];
