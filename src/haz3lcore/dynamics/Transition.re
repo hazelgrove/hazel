@@ -333,7 +333,6 @@ module Transition = (EV: EV_MODE) => {
         );
       Constructor;
     | Ap(dir, d1, d2) =>
-      // TODO I don't know why this needs to be final
       let. _ = otherwise(env, (d1, (d2, _)) => Ap(dir, d1, d2) |> rewrap)
       and. d1' =
         req_final(req(state, env), d1 => Ap1(dir, d1, d2) |> wrap_ctx, d1)
@@ -433,7 +432,11 @@ module Transition = (EV: EV_MODE) => {
         });
       | Cast(_)
       | FailedCast(_) => Indet
-      | FixF(_) => failwith("FixF in Ap")
+      | FixF(_) =>
+        print_endline(Exp.show(d1));
+        print_endline(Exp.show(d1'));
+        print_endline("FIXF");
+        failwith("FixF in Ap");
       | _ =>
         Step({
           expr: {
