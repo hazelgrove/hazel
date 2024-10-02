@@ -189,7 +189,7 @@ let let_fun = () =>
   elaborates to
   (street="123 Maple St", city="Ann Arbor", state="MI", zipcode=48103)
   */
-let full_program: Exp.t =
+let full_labeled_tuple_program: Exp.t =
   Let(
     Cast(
       Var("add") |> Pat.fresh,
@@ -225,7 +225,7 @@ let full_program: Exp.t =
   |> Exp.fresh;
 let elaborated_labeled_tuple = () =>
   alco_check(
-    "Labeled Tuple lable introduction",
+    "Labeled Tuple label introduction",
     Let(
       Var("add") |> Pat.fresh,
       Tuple([
@@ -248,7 +248,7 @@ let elaborated_labeled_tuple = () =>
       Var("add") |> Exp.fresh,
     )
     |> Exp.fresh,
-    dhexp_of_uexp(full_program),
+    dhexp_of_uexp(full_labeled_tuple_program),
   );
 
 let elaboration_tests = [
