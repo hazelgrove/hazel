@@ -2,6 +2,7 @@ module DrvSort = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Jdmt
+    | Ctxt
     | Prop
     | Exp
     | Pat
@@ -12,6 +13,7 @@ module DrvSort = {
     fun
     | Jdmt => "Jdmt"
     | Prop => "Prop"
+    | Ctxt => "Ctxt"
     | Exp => "ALFA_Exp"
     | Pat => "ALFA_Pat"
     | Typ => "ALFA_Typ"
@@ -20,6 +22,7 @@ module DrvSort = {
   let class_of =
     fun
     | Jdmt => "Drv"
+    | Ctxt => "Drv"
     | Prop => "Drv"
     | Exp => "Exp"
     | Pat => "Pat"
@@ -31,6 +34,7 @@ module DrvSort = {
   let to_string =
     fun
     | Jdmt => "Jdmt"
+    | Ctxt => "Ctxt"
     | Prop => "Prop"
     | Exp => "ALFA_Exp"
     | Pat => "ALFA_Pat"
@@ -40,6 +44,7 @@ module DrvSort = {
   let to_string_verbose =
     fun
     | Jdmt => "judgement"
+    | Ctxt => "context"
     | Prop => "proposition"
     | Exp => "ALFA expression"
     | Pat => "ALFA pattern"

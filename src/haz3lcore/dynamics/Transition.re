@@ -253,7 +253,16 @@ module Transition = (EV: EV_MODE) => {
         | Hole(s) => Hole(s)
         | Val(e) => Val(go_exp(e))
         | Eval(e1, e2) => Eval(go_exp(e1), go_exp(e2))
-        | Entail(p1, p2) => Entail(go_prop(p1), go_prop(p2))
+        | Entail(ctx, p) => Entail(go_ctxt(ctx), go_prop(p))
+        };
+      term |> rewrap;
+    }
+    and go_ctxt = ctxt => {
+      let (term, rewrap) = Drv.Ctxt.unwrap(ctxt);
+      let term: Drv.Ctxt.term =
+        switch (term) {
+        | Hole(s) => Hole(s)
+        | Ctxt(p) => Ctxt(go_prop(p))
         };
       term |> rewrap;
     }
@@ -262,7 +271,7 @@ module Transition = (EV: EV_MODE) => {
       let term: Drv.Prop.term =
         switch (term) {
         | Hole(s) => Hole(s)
-        | HasTy(e, t) => HasTy(go_exp(e), t)
+        | HasType(e, t) => HasType(go_exp(e), t)
         | Syn(e, t) => Syn(go_exp(e), t)
         | Ana(e, t) => Ana(go_exp(e), t)
         | Var(x) => Var(x)

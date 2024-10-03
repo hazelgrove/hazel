@@ -1247,6 +1247,7 @@ and Drv: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Jdmt(Jdmt.t)
+    | Ctxt(Ctxt.t)
     | Prop(Prop.t)
     | Exp(ALFA_Exp.t)
     | Pat(ALFA_Pat.t)
@@ -1255,6 +1256,7 @@ and Drv: {
 
   type mapper = {
     f_jdmt: (Jdmt.t => Jdmt.t, Jdmt.t) => Jdmt.t,
+    f_ctxt: (Ctxt.t => Ctxt.t, Ctxt.t) => Ctxt.t,
     f_prop: (Prop.t => Prop.t, Prop.t) => Prop.t,
     f_exp: (ALFA_Exp.t => ALFA_Exp.t, ALFA_Exp.t) => ALFA_Exp.t,
     f_pat: (ALFA_Pat.t => ALFA_Pat.t, ALFA_Pat.t) => ALFA_Pat.t,
@@ -1271,6 +1273,7 @@ and Drv: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Jdmt(Jdmt.t)
+    | Ctxt(Ctxt.t)
     | Prop(Prop.t)
     | Exp(ALFA_Exp.t)
     | Pat(ALFA_Pat.t)
@@ -1279,6 +1282,7 @@ and Drv: {
 
   type mapper = {
     f_jdmt: (Jdmt.t => Jdmt.t, Jdmt.t) => Jdmt.t,
+    f_ctxt: (Ctxt.t => Ctxt.t, Ctxt.t) => Ctxt.t,
     f_prop: (Prop.t => Prop.t, Prop.t) => Prop.t,
     f_exp: (ALFA_Exp.t => ALFA_Exp.t, ALFA_Exp.t) => ALFA_Exp.t,
     f_pat: (ALFA_Pat.t => ALFA_Pat.t, ALFA_Pat.t) => ALFA_Pat.t,
@@ -1288,6 +1292,7 @@ and Drv: {
 
   let drv_continue = {
     f_jdmt: continue,
+    f_ctxt: continue,
     f_prop: continue,
     f_exp: continue,
     f_pat: continue,
@@ -1296,19 +1301,33 @@ and Drv: {
   };
 
   let map_term = (~f_hazel_pat=continue, ~f_drv=drv_continue, x: t) => {
-    let {f_jdmt, f_prop, f_exp, f_pat, f_typ, f_tpat} = f_drv;
+    let {f_jdmt, f_ctxt, f_prop, f_exp, f_pat, f_typ, f_tpat} = f_drv;
     switch (x) {
     | Jdmt(jdmt) =>
       Jdmt(
         Jdmt.map_term(
           ~f_hazel_pat,
           ~f_jdmt,
+          ~f_ctxt,
           ~f_prop,
           ~f_exp,
           ~f_pat,
           ~f_typ,
           ~f_tpat,
           jdmt,
+        ),
+      )
+    | Ctxt(ctxt) =>
+      Ctxt(
+        Ctxt.map_term(
+          ~f_hazel_pat,
+          ~f_ctxt,
+          ~f_prop,
+          ~f_exp,
+          ~f_pat,
+          ~f_typ,
+          ~f_tpat,
+          ctxt,
         ),
       )
     | Prop(prop) =>
@@ -1337,6 +1356,8 @@ and Drv: {
     switch (x, y) {
     | (Jdmt(j1), Jdmt(j2)) => Jdmt.fast_equal(j1, j2)
     | (Jdmt(_), _) => false
+    | (Ctxt(c1), Ctxt(c2)) => Ctxt.fast_equal(c1, c2)
+    | (Ctxt(_), _) => false
     | (Prop(p1), Prop(p2)) => Prop.fast_equal(p1, p2)
     | (Prop(_), _) => false
     | (Exp(e1), Exp(e2)) => ALFA_Exp.fast_equal(e1, e2)
@@ -1355,13 +1376,14 @@ and Jdmt: {
     | Hole(TypeHole.t)
     | Val(ALFA_Exp.t)
     | Eval(ALFA_Exp.t, ALFA_Exp.t)
-    | Entail(Prop.t, Prop.t)
+    | Entail(Ctxt.t, Prop.t)
   and t = IdTagged.t(term);
 
   let map_term:
     (
       ~f_hazel_pat: Pat.t => Pat.t=?,
       ~f_jdmt: (Jdmt.t => Jdmt.t, Jdmt.t) => Jdmt.t=?,
+      ~f_ctxt: (Ctxt.t => Ctxt.t, Ctxt.t) => Ctxt.t=?,
       ~f_prop: (Prop.t => Prop.t, Prop.t) => Prop.t=?,
       ~f_exp: (ALFA_Exp.t => ALFA_Exp.t, ALFA_Exp.t) => ALFA_Exp.t=?,
       ~f_pat: (ALFA_Pat.t => ALFA_Pat.t, ALFA_Pat.t) => ALFA_Pat.t=?,
@@ -1378,13 +1400,14 @@ and Jdmt: {
     | Hole(TypeHole.t)
     | Val(ALFA_Exp.t)
     | Eval(ALFA_Exp.t, ALFA_Exp.t)
-    | Entail(Prop.t, Prop.t)
+    | Entail(Ctxt.t, Prop.t)
   and t = IdTagged.t(term);
 
   let map_term =
       (
         ~f_hazel_pat=continue,
         ~f_jdmt=continue,
+        ~f_ctxt=continue,
         ~f_prop=continue,
         ~f_exp=continue,
         ~f_pat=continue,
@@ -1392,6 +1415,16 @@ and Jdmt: {
         ~f_tpat=continue,
         x,
       ) => {
+    let ctxt_map_term =
+      Ctxt.map_term(
+        ~f_hazel_pat,
+        ~f_ctxt,
+        ~f_prop,
+        ~f_exp,
+        ~f_pat,
+        ~f_typ,
+        ~f_tpat,
+      );
     let prop_map_term =
       Prop.map_term(~f_hazel_pat, ~f_prop, ~f_exp, ~f_pat, ~f_typ, ~f_tpat);
     let exp_map_term =
@@ -1401,9 +1434,9 @@ and Jdmt: {
       term:
         switch (term) {
         | Hole(_) => term
-        | Val(p) => Val(exp_map_term(p))
-        | Eval(p1, p2) => Eval(exp_map_term(p1), exp_map_term(p2))
-        | Entail(p1, p2) => Entail(prop_map_term(p1), prop_map_term(p2))
+        | Val(e) => Val(exp_map_term(e))
+        | Eval(e1, e2) => Eval(exp_map_term(e1), exp_map_term(e2))
+        | Entail(ctx, p) => Entail(ctxt_map_term(ctx), prop_map_term(p))
         },
     };
     x |> f_jdmt(rec_call);
@@ -1418,15 +1451,74 @@ and Jdmt: {
       ALFA_Exp.fast_equal(p1, p1') && ALFA_Exp.fast_equal(p2, p2')
     | (Eval(_, _), _) => false
     | (Entail(p1, p2), Entail(p1', p2')) =>
-      Prop.fast_equal(p1, p1') && Prop.fast_equal(p2, p2')
+      Ctxt.fast_equal(p1, p1') && Prop.fast_equal(p2, p2')
     | (Entail(_, _), _) => false
     };
+}
+and Ctxt: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Hole(TypeHole.t)
+    | Ctxt(Prop.t)
+  and t = IdTagged.t(term);
+
+  let map_term:
+    (
+      ~f_hazel_pat: Pat.t => Pat.t=?,
+      ~f_ctxt: (Ctxt.t => Ctxt.t, Ctxt.t) => Ctxt.t=?,
+      ~f_prop: (Prop.t => Prop.t, Prop.t) => Prop.t=?,
+      ~f_exp: (ALFA_Exp.t => ALFA_Exp.t, ALFA_Exp.t) => ALFA_Exp.t=?,
+      ~f_pat: (ALFA_Pat.t => ALFA_Pat.t, ALFA_Pat.t) => ALFA_Pat.t=?,
+      ~f_typ: (ALFA_Typ.t => ALFA_Typ.t, ALFA_Typ.t) => ALFA_Typ.t=?,
+      ~f_tpat: (ALFA_TPat.t => ALFA_TPat.t, ALFA_TPat.t) => ALFA_TPat.t=?,
+      t
+    ) =>
+    t;
+
+  let fast_equal: (t, t) => bool;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Hole(TypeHole.t)
+    | Ctxt(Prop.t)
+  and t = IdTagged.t(term);
+
+  let map_term =
+      (
+        ~f_hazel_pat=continue,
+        ~f_ctxt=continue,
+        ~f_prop=continue,
+        ~f_exp=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_tpat=continue,
+        x,
+      ) => {
+    let prop_map_term =
+      Prop.map_term(~f_hazel_pat, ~f_prop, ~f_exp, ~f_pat, ~f_typ, ~f_tpat);
+    let rec_call = ({term, _} as exp: t) => {
+      ...exp,
+      term:
+        switch (term) {
+        | Hole(_) => term
+        | Ctxt(x) => Ctxt(prop_map_term(x))
+        },
+    };
+    x |> f_ctxt(rec_call);
+  };
+
+  let fast_equal = (x, y) => {
+    switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
+    | (Ctxt(x), Ctxt(y)) => Prop.fast_equal(x, y)
+    | _ => false
+    };
+  };
 }
 and Prop: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Hole(TypeHole.t)
-    | HasTy(ALFA_Exp.t, ALFA_Typ.t)
+    | HasType(ALFA_Exp.t, ALFA_Typ.t)
     | Syn(ALFA_Exp.t, ALFA_Typ.t)
     | Ana(ALFA_Exp.t, ALFA_Typ.t)
     | Var(Var.t)
@@ -1457,7 +1549,7 @@ and Prop: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Hole(TypeHole.t)
-    | HasTy(ALFA_Exp.t, ALFA_Typ.t)
+    | HasType(ALFA_Exp.t, ALFA_Typ.t)
     | Syn(ALFA_Exp.t, ALFA_Typ.t)
     | Ana(ALFA_Exp.t, ALFA_Typ.t)
     | Var(Var.t)
@@ -1491,7 +1583,7 @@ and Prop: {
       term:
         switch (term) {
         | Hole(_) => term
-        | HasTy(e, t) => HasTy(exp_map_term(e), typ_map_term(t))
+        | HasType(e, t) => HasType(exp_map_term(e), typ_map_term(t))
         | Syn(e, t) => Syn(exp_map_term(e), typ_map_term(t))
         | Ana(e, t) => Ana(exp_map_term(e), typ_map_term(t))
         | Var(v) => Var(v)
@@ -1511,9 +1603,9 @@ and Prop: {
   let fast_equal = (x, y) =>
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
     | (Hole(_), _) => false
-    | (HasTy(e1, t1), HasTy(e2, t2)) =>
+    | (HasType(e1, t1), HasType(e2, t2)) =>
       ALFA_Exp.fast_equal(e1, e2) && ALFA_Typ.fast_equal(t1, t2)
-    | (HasTy(_), _) => false
+    | (HasType(_), _) => false
     | (Syn(e1, t1), Syn(e2, t2)) =>
       ALFA_Exp.fast_equal(e1, e2) && ALFA_Typ.fast_equal(t1, t2)
     | (Syn(_), _) => false

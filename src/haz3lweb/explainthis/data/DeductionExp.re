@@ -105,7 +105,7 @@ let rec repr = (p: int, prop: t, ~color_map: ColorSteps.t): list(Node.t) => {
     | Unroll(a) => repr_aba_tight(["unroll(", ")"], [a])
     | TPat(x) => x |> mk
     | Pat(x) => x |> mk
-    | HasTy(a, b) => repr_binop(":", a, b)
+    | HasType(a, b) => repr_binop(":", a, b)
     | Syn(a, b) => repr_binop("⇒", a, b)
     | Ana(a, b) => repr_binop("⇐", a, b)
     }

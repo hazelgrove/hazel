@@ -109,7 +109,7 @@ let keywords = [
   "val",
   "eval",
   "entail",
-  "typ",
+  "hastype",
   "syn",
   "ana",
 ];
@@ -248,7 +248,13 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("undefined_lit", (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("empty_list", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
+  (
+    "empty_list",
+    (
+      is_empty_list,
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Drv(Ctxt), [])],
+    ),
+  ),
   (
     "empty_tuple",
     (
@@ -258,7 +264,6 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
         mk_op(Pat, []),
         mk_op(Typ, []),
         mk_op(Drv(Exp), []),
-        mk_op(Drv(Prop), []),
       ],
     ),
   ),
@@ -373,23 +378,27 @@ let forms: list((string, t)) = [
   ),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
   // Drv
-  ("of_alfa_typ", mk(ds, ["of_Typ", "end"], mk_op(Exp, [Drv(Typ)]))),
-  ("of_alfa_exp", mk(ds, ["of_Exp", "end"], mk_op(Exp, [Drv(Exp)]))),
-  ("of_alfa_pat", mk(ds, ["of_Pat", "end"], mk_op(Exp, [Drv(Pat)]))),
-  ("of_alfa_tpat", mk(ds, ["of_TPat", "end"], mk_op(Exp, [Drv(TPat)]))),
-  ("of_prop", mk(ds, ["of_Prop", "end"], mk_op(Exp, [Drv(Prop)]))),
-  ("of_jdmt", mk(ds, ["of_Jdmt", "end"], mk_op(Exp, [Drv(Jdmt)]))),
+  // ("of_alfa_typ", mk(ds, ["of_Typ", "end"], mk_op(Exp, [Drv(Typ)]))),
   (
-    "prop_alias",
-    mk(ds, ["prop", "=", "in"], mk_pre(P.let_, Exp, [Pat, Drv(Prop)])),
+    "of_alfa_exp",
+    mk(ds, ["of_alfa_exp", "end"], mk_op(Exp, [Drv(Exp)])),
   ),
-  (
-    "alfa_alias",
-    mk(ds, ["alfa", "=", "in"], mk_pre(P.let_, Exp, [Pat, Drv(Exp)])),
-  ),
-  ("fake_val", mk(ds, ["val", "in"], mk_pre(P.filter, Exp, [Exp]))),
-  ("fake_entail", mk(ds, ["entail", "in"], mk_pre(P.filter, Exp, [Exp]))),
-  ("val", mk(ii, ["val", "end"], mk_op(Drv(Jdmt), [Drv(Exp)]))),
+  // ("of_alfa_pat", mk(ds, ["of_Pat", "end"], mk_op(Exp, [Drv(Pat)]))),
+  // ("of_alfa_tpat", mk(ds, ["of_TPat", "end"], mk_op(Exp, [Drv(TPat)]))),
+  ("of_prop", mk(ds, ["of_prop", "end"], mk_op(Exp, [Drv(Prop)]))),
+  ("of_ctxt", mk(ds, ["of_ctxt", "end"], mk_op(Exp, [Drv(Ctxt)]))),
+  // ("of_jdmt", mk(ds, ["of_Jdmt", "end"], mk_op(Exp, [Drv(Jdmt)]))),
+  // (
+  //   "prop_alias",
+  //   mk(ds, ["prop", "=", "in"], mk_pre(P.let_, Exp, [Pat, Drv(Prop)])),
+  // ),
+  // (
+  //   "alfa_alias",
+  //   mk(ds, ["alfa", "=", "in"], mk_pre(P.let_, Exp, [Pat, Drv(Exp)])),
+  // ),
+  ("fake_val", mk(ds, ["val", "end"], mk_op(Exp, [Exp]))),
+  ("val", mk(ds, ["val", "end"], mk_op(Drv(Jdmt), [Drv(Exp)]))),
+  ("fake_eval", mk(ds, ["eval", "to", "end"], mk_op(Exp, [Exp, Exp]))),
   (
     "eval",
     mk(
@@ -398,20 +407,63 @@ let forms: list((string, t)) = [
       mk_op(Drv(Jdmt), [Drv(Exp), Drv(Exp)]),
     ),
   ),
+  // Note(zhiyao): there is no "fake_entail" because it will diable entail_hastype, entail_syn, and entail_ana
   (
     "entail",
     mk(
-      ii,
+      ds,
       ["entail", "|-", "end"],
-      mk_op(Drv(Jdmt), [Drv(Prop), Drv(Prop)]),
+      mk_op(Drv(Jdmt), [Drv(Ctxt), Drv(Prop)]),
     ),
   ),
-  // Drv(Prop)
   (
-    "hasty",
+    "fake_entail_hastype",
     mk(
       ds,
-      ["typ", ":"],
+      ["entail_hastype", "|-", ":", "end"],
+      mk_op(Exp, [Exp, Exp, Exp]),
+    ),
+  ),
+  (
+    "entail_hastype",
+    mk(
+      ii,
+      ["entail_hastype", "|-", ":", "end"],
+      mk_op(Drv(Jdmt), [Drv(Ctxt), Drv(Exp), Drv(Typ)]),
+    ),
+  ),
+  (
+    "fake_entail_syn",
+    mk(ds, ["entail_syn", "|-", "=>", "end"], mk_op(Exp, [Exp, Exp, Exp])),
+  ),
+  (
+    "entail_syn",
+    mk(
+      ii,
+      ["entail_syn", "|-", "=>", "end"],
+      mk_op(Drv(Jdmt), [Drv(Ctxt), Drv(Exp), Drv(Typ)]),
+    ),
+  ),
+  (
+    "fake_entail_ana",
+    mk(ds, ["entail_ana", "|-", "<=", "end"], mk_op(Exp, [Exp, Exp, Exp])),
+  ),
+  (
+    "entail_ana",
+    mk(
+      ii,
+      ["entail_ana", "|-", "<=", "end"],
+      mk_op(Drv(Jdmt), [Drv(Ctxt), Drv(Exp), Drv(Typ)]),
+    ),
+  ),
+  // Drv(Ctxt)
+  ("list_lit_ctxt", mk(ii, ["[", "]"], mk_op(Drv(Ctxt), [Drv(Prop)]))),
+  // Drv(Prop)
+  (
+    "hastype",
+    mk(
+      ds,
+      ["hastype", ":"],
       mk_pre'(P.fun_, Drv(Prop), Drv(Prop), [Drv(Exp)], Drv(Typ)),
     ),
   ),

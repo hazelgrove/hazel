@@ -146,6 +146,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
     Drv(
       switch (drv) {
       | Jdmt => Jdmt(jdmt(unsorted(skel, seg)))
+      | Ctxt => Ctxt(ctxt(unsorted(skel, seg)))
       | Prop => Prop(prop(unsorted(skel, seg)))
       | Exp => Exp(alfa_exp(unsorted(skel, seg)))
       | Pat => Pat(alfa_pat(unsorted(skel, seg)))
@@ -186,22 +187,55 @@ and jdmt_term: unsorted => (Drv.Jdmt.term, list(Id.t)) = {
   let ret = (tm: Drv.Jdmt.term) => (tm, []);
   let hole = unsorted => Drv.Jdmt.hole(kids_of_unsorted(unsorted));
   fun
-  | Op(([(_id, (["val", "end"], [Drv(Exp(e))]))], [])) => ret(Val(e))
-  | Op((
-      [(_id, (["eval", "to", "end"], [Drv(Exp(l)), Drv(Exp(r))]))],
-      [],
-    )) =>
-    ret(Eval(l, r))
-  | Op((
-      [(_id, (["entail", "|-", "end"], [Drv(Prop(l)), Drv(Prop(r))]))],
-      [],
-    )) =>
-    ret(Entail(l, r))
+  | Op(([(_id, t)], [])) as tm =>
+    switch (t) {
+    | (["val", "end"], [Drv(Exp(e))]) => ret(Val(e))
+    | (["eval", "to", "end"], [Drv(Exp(l)), Drv(Exp(r))]) =>
+      ret(Eval(l, r))
+    | (["entail", "|-", "end"], [Drv(Ctxt(l)), Drv(Prop(r))]) =>
+      ret(Entail(l, r))
+    | (
+        ["entail_hastype", "|-", ":", "end"],
+        [Drv(Ctxt(l)), Drv(Exp(e)), Drv(Typ(t))],
+      ) =>
+      ret(Entail(l, HasType(e, t) |> Drv.Prop.fresh))
+    | (
+        ["entail_syn", "|-", "=>", "end"],
+        [Drv(Ctxt(l)), Drv(Exp(e)), Drv(Typ(t))],
+      ) =>
+      ret(Entail(l, Syn(e, t) |> Drv.Prop.fresh))
+    | (
+        ["entail_ana", "|-", "<=", "end"],
+        [Drv(Ctxt(l)), Drv(Exp(e)), Drv(Typ(t))],
+      ) =>
+      ret(Entail(l, Ana(e, t) |> Drv.Prop.fresh))
+    | _ => ret(hole(tm))
+    }
   // | Post(Drv(Exp(l)), ([(_id, ([".val"], []))], [])) => ret(Val(l))
   // | Bin(Drv(Exp(l)), ([(_id, (["$>"], []))], []), Drv(Exp(r))) =>
   //   ret(Eval(l, r))
   // | Bin(Drv(Prop(l)), ([(_id, (["|-"], []))], []), Drv(Prop(r))) =>
   //   ret(Entail(l, r))
+  | _ as tm => ret(hole(tm));
+}
+
+and ctxt = unsorted => {
+  let (term, inner_ids) = ctxt_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  return(p => Drv(Ctxt(p)), ids, {ids, copied: false, term});
+}
+
+and ctxt_term: unsorted => (Drv.Ctxt.term, list(Id.t)) = {
+  let ret = (tm: Drv.Ctxt.term) => (tm, []);
+  let hole = unsorted => Drv.Ctxt.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(([(_id, t)], [])) as tm =>
+    switch (t) {
+    | ([t], []) when Form.is_empty_list(t) =>
+      ret(Ctxt(Drv.Prop.fresh(Tuple([]))))
+    | (["[", "]"], [Drv(Prop(body))]) => ret(Ctxt(body))
+    | _ => ret(hole(tm))
+    }
   | _ as tm => ret(hole(tm));
 }
 
@@ -216,7 +250,6 @@ and prop_term: unsorted => (Drv.Prop.term, list(Id.t)) = {
   fun
   | Op(([(_id, ([t], []))], [])) as tm =>
     switch (t) {
-    | "()" => ret(Tuple([]))
     | "Truth" => ret(Truth)
     | "Falsity" => ret(Falsity)
     | _ when Form.is_typ_var(t) => ret(Var(t))
@@ -227,7 +260,7 @@ and prop_term: unsorted => (Drv.Prop.term, list(Id.t)) = {
   | Op(([(_id, (["{", "}"], [Pat(var)]))], [])) => ret(Abbr(var))
   | Pre(([(_id, ([t1, t2], [Drv(Exp(l))]))], []), Drv(Typ(r))) as tm =>
     switch (t1, t2) {
-    | ("typ", ":") => ret(HasTy(l, r))
+    | ("hastype", ":") => ret(HasType(l, r))
     | ("syn", "=>") => ret(Syn(l, r))
     | ("ana", "<=") => ret(Ana(l, r))
     | _ => ret(hole(tm))
@@ -427,13 +460,16 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           Match(scrut, rules),
           ids,
         )
-      | (["of_Typ", "end"], [Drv(Typ(ty))]) => ret(Term(Drv(Typ(ty))))
-      | (["of_Exp", "end"], [Drv(Exp(e))]) => ret(Term(Drv(Exp(e))))
-      | (["of_Pat", "end"], [Drv(Pat(p))]) => ret(Term(Drv(Pat(p))))
-      | (["of_TPat", "end"], [Drv(TPat(tp))]) =>
-        ret(Term(Drv(TPat(tp))))
-      | (["of_Prop", "end"], [Drv(Prop(p))]) => ret(Term(Drv(Prop(p))))
-      | (["of_Jdmt", "end"], [Drv(Jdmt(j))]) => ret(Term(Drv(Jdmt(j))))
+      // | (["of_typ", "end"], [Drv(Typ(ty))]) => ret(Term(Drv(Typ(ty))))
+      | (["of_alfa_exp", "end"], [Drv(Exp(e))]) =>
+        ret(Term(Drv(Exp(e))))
+      // | (["of_pat", "end"], [Drv(Pat(p))]) => ret(Term(Drv(Pat(p))))
+      // | (["of_tpat", "end"], [Drv(TPat(tp))]) =>
+      //   ret(Term(Drv(TPat(tp))))
+      | (["of_ctxt", "end"], [Drv(Ctxt(ctx))]) =>
+        ret(Term(Drv(Ctxt(ctx))))
+      | (["of_prop", "end"], [Drv(Prop(p))]) => ret(Term(Drv(Prop(p))))
+      // | (["of_jdmt", "end"], [Drv(Jdmt(j))]) => ret(Term(Drv(Jdmt(j))))
       | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))

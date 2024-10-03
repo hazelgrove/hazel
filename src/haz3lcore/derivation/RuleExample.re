@@ -27,10 +27,15 @@ let of_ghost: Rule.t => deduction(t) =
     let n2 = () => !Var("n₂");
     let gamma = () => !Var("Γ");
     let ctx = () => !Ctx([gamma()]);
-    let ctx_x = () => !Ctx([gamma(), !HasTy(!Var("x"), t1())]);
-    let ctx_y = () => !Ctx([gamma(), !HasTy(!Var("y"), t2())]);
+    let ctx_x = () => !Ctx([gamma(), !HasType(!Var("x"), t1())]);
+    let ctx_y = () => !Ctx([gamma(), !HasType(!Var("y"), t2())]);
     let ctx_xy = () =>
-      !Ctx([gamma(), !HasTy(!Var("y"), t2()), !HasTy(!Var("x"), t1())]);
+      !
+        Ctx([
+          gamma(),
+          !HasType(!Var("y"), t2()),
+          !HasType(!Var("x"), t1()),
+        ]);
     let ctx_a = () => !Ctx([gamma(), a()]);
     let ctx_b = () => !Ctx([gamma(), b()]);
     switch (rule) {
@@ -46,7 +51,7 @@ let of_ghost: Rule.t => deduction(t) =
       let concl = !Entail(ctx(), !Syn(n(), !Num));
       {concl, prems: []};
     | T_Num =>
-      let concl = !Entail(ctx(), !HasTy(n(), !Num));
+      let concl = !Entail(ctx(), !HasType(n(), !Num));
       {concl, prems: []};
     | V_Num =>
       let concl = !Val(n());
@@ -55,7 +60,7 @@ let of_ghost: Rule.t => deduction(t) =
       let concl = !Entail(ctx(), !Syn(!True, !Bool));
       {concl, prems: []};
     | T_True =>
-      let concl = !Entail(ctx(), !HasTy(!True, !Bool));
+      let concl = !Entail(ctx(), !HasType(!True, !Bool));
       {concl, prems: []};
     | V_True =>
       let concl = !Val(!True);
@@ -64,7 +69,7 @@ let of_ghost: Rule.t => deduction(t) =
       let concl = !Entail(ctx(), !Syn(!False, !Bool));
       {concl, prems: []};
     | T_False =>
-      let concl = !Entail(ctx(), !HasTy(!False, !Bool));
+      let concl = !Entail(ctx(), !HasType(!False, !Bool));
       {concl, prems: []};
     | V_False =>
       let concl = !Val(!False);
@@ -73,7 +78,7 @@ let of_ghost: Rule.t => deduction(t) =
       let concl = !Entail(ctx(), !Syn(!Triv, !Unit));
       {concl, prems: []};
     | T_Triv =>
-      let concl = !Entail(ctx(), !HasTy(!Triv, !Unit));
+      let concl = !Entail(ctx(), !HasType(!Triv, !Unit));
       {concl, prems: []};
     | V_Triv =>
       let concl = !Val(!Triv);
@@ -83,8 +88,8 @@ let of_ghost: Rule.t => deduction(t) =
       let concl = !Entail(ctx(), !Syn(!Neg(e()), !Num));
       {concl, prems};
     | T_Neg =>
-      let prems = [!Entail(ctx(), !HasTy(e(), !Num))];
-      let concl = !Entail(ctx(), !HasTy(!Neg(e()), !Num));
+      let prems = [!Entail(ctx(), !HasType(e(), !Num))];
+      let concl = !Entail(ctx(), !HasType(!Neg(e()), !Num));
       {concl, prems};
     | E_Neg =>
       let prems = [!Eval(e(), n1())];
@@ -99,10 +104,10 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | T_Plus =>
       let prems = [
-        !Entail(ctx(), !HasTy(e1(), !Num)),
-        !Entail(ctx(), !HasTy(e2(), !Num)),
+        !Entail(ctx(), !HasType(e1(), !Num)),
+        !Entail(ctx(), !HasType(e2(), !Num)),
       ];
-      let concl = !Entail(ctx(), !HasTy(!Plus(e1(), e2()), !Num));
+      let concl = !Entail(ctx(), !HasType(!Plus(e1(), e2()), !Num));
       {concl, prems};
     | E_Plus =>
       let prems = [!Eval(e1(), n1()), !Eval(e2(), n2())];
@@ -117,10 +122,10 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | T_Minus =>
       let prems = [
-        !Entail(ctx(), !HasTy(e1(), !Num)),
-        !Entail(ctx(), !HasTy(e2(), !Num)),
+        !Entail(ctx(), !HasType(e1(), !Num)),
+        !Entail(ctx(), !HasType(e2(), !Num)),
       ];
-      let concl = !Entail(ctx(), !HasTy(!Minus(e1(), e2()), !Num));
+      let concl = !Entail(ctx(), !HasType(!Minus(e1(), e2()), !Num));
       {concl, prems};
     | E_Minus =>
       let prems = [!Eval(e1(), n1()), !Eval(e2(), n2())];
@@ -135,10 +140,10 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | T_Times =>
       let prems = [
-        !Entail(ctx(), !HasTy(e1(), !Num)),
-        !Entail(ctx(), !HasTy(e2(), !Num)),
+        !Entail(ctx(), !HasType(e1(), !Num)),
+        !Entail(ctx(), !HasType(e2(), !Num)),
       ];
-      let concl = !Entail(ctx(), !HasTy(!Times(e1(), e2()), !Num));
+      let concl = !Entail(ctx(), !HasType(!Times(e1(), e2()), !Num));
       {concl, prems};
     | E_Times =>
       let prems = [!Eval(e1(), n1()), !Eval(e2(), n2())];
@@ -153,10 +158,10 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | T_Lt =>
       let prems = [
-        !Entail(ctx(), !HasTy(e1(), !Num)),
-        !Entail(ctx(), !HasTy(e2(), !Num)),
+        !Entail(ctx(), !HasType(e1(), !Num)),
+        !Entail(ctx(), !HasType(e2(), !Num)),
       ];
-      let concl = !Entail(ctx(), !HasTy(!Lt(e1(), e2()), !Bool));
+      let concl = !Entail(ctx(), !HasType(!Lt(e1(), e2()), !Bool));
       {concl, prems};
     | E_Lt_T =>
       let prems = [!Eval(e1(), n1()), !Eval(e2(), n2())];
@@ -175,10 +180,10 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | T_Gt =>
       let prems = [
-        !Entail(ctx(), !HasTy(e1(), !Num)),
-        !Entail(ctx(), !HasTy(e2(), !Num)),
+        !Entail(ctx(), !HasType(e1(), !Num)),
+        !Entail(ctx(), !HasType(e2(), !Num)),
       ];
-      let concl = !Entail(ctx(), !HasTy(!Gt(e1(), e2()), !Bool));
+      let concl = !Entail(ctx(), !HasType(!Gt(e1(), e2()), !Bool));
       {concl, prems};
     | E_Gt_T =>
       let prems = [!Eval(e1(), n1()), !Eval(e2(), n2())];
@@ -197,10 +202,10 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | T_Eq =>
       let prems = [
-        !Entail(ctx(), !HasTy(e1(), !Num)),
-        !Entail(ctx(), !HasTy(e2(), !Num)),
+        !Entail(ctx(), !HasType(e1(), !Num)),
+        !Entail(ctx(), !HasType(e2(), !Num)),
       ];
-      let concl = !Entail(ctx(), !HasTy(!Eq(e1(), e2()), !Bool));
+      let concl = !Entail(ctx(), !HasType(!Eq(e1(), e2()), !Bool));
       {concl, prems};
     | E_Eq_T =>
       let prems = [!Eval(e1(), n()), !Eval(e2(), n())];
@@ -228,11 +233,11 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | T_If =>
       let prems = [
-        !Entail(ctx(), !HasTy(e1(), !Bool)),
-        !Entail(ctx(), !HasTy(e2(), t())),
-        !Entail(ctx(), !HasTy(e3(), t())),
+        !Entail(ctx(), !HasType(e1(), !Bool)),
+        !Entail(ctx(), !HasType(e2(), t())),
+        !Entail(ctx(), !HasType(e3(), t())),
       ];
-      let concl = !Entail(ctx(), !HasTy(!If(e1(), e2(), e3()), t()));
+      let concl = !Entail(ctx(), !HasType(!If(e1(), e2(), e3()), t()));
       {concl, prems};
     | E_If_T =>
       let prems = [!Eval(e1(), !True), !Eval(e2(), v2())];
@@ -244,11 +249,11 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | S_Var =>
       let concl =
-        !Entail(!Ctx([ctx(), !HasTy(x(), t1())]), !Syn(x(), t1()));
+        !Entail(!Ctx([ctx(), !HasType(x(), t1())]), !Syn(x(), t1()));
       {concl, prems: []};
     | T_Var =>
       let concl =
-        !Entail(!Ctx([ctx(), !HasTy(x(), t1())]), !HasTy(x(), t1()));
+        !Entail(!Ctx([ctx(), !HasType(x(), t1())]), !HasType(x(), t1()));
       {concl, prems: []};
     | S_LetAnn =>
       let prems = [
@@ -268,11 +273,11 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | T_LetAnn =>
       let prems = [
-        !Entail(ctx(), !HasTy(e1(), t1())),
-        !Entail(ctx_x(), !HasTy(e2(), t())),
+        !Entail(ctx(), !HasType(e1(), t1())),
+        !Entail(ctx_x(), !HasType(e2(), t())),
       ];
       let concl =
-        !Entail(ctx(), !HasTy(!LetAnn(xp(), t1(), e1(), e2()), t()));
+        !Entail(ctx(), !HasType(!LetAnn(xp(), t1(), e1(), e2()), t()));
       {concl, prems};
     | S_Let =>
       let prems = [
@@ -290,10 +295,10 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | T_Let =>
       let prems = [
-        !Entail(ctx(), !HasTy(e1(), t1())),
-        !Entail(ctx_x(), !HasTy(e2(), t())),
+        !Entail(ctx(), !HasType(e1(), t1())),
+        !Entail(ctx_x(), !HasType(e2(), t())),
       ];
-      let concl = !Entail(ctx(), !HasTy(!Let(xp(), e1(), e2()), t()));
+      let concl = !Entail(ctx(), !HasType(!Let(xp(), e1(), e2()), t()));
       {concl, prems};
     | E_Let =>
       let prems = [!Eval(e1(), v1()), !Eval(ex(), v2())];
@@ -318,12 +323,12 @@ let of_ghost: Rule.t => deduction(t) =
           );
       {concl, prems};
     | T_FunAnn =>
-      let prems = [!Entail(ctx_x(), !HasTy(e1(), t2()))];
+      let prems = [!Entail(ctx_x(), !HasType(e1(), t2()))];
       let concl =
         !
           Entail(
             ctx(),
-            !HasTy(!FunAnn(xp(), t1(), e1()), !Arrow(t1(), t2())),
+            !HasType(!FunAnn(xp(), t1(), e1()), !Arrow(t1(), t2())),
           );
       {concl, prems};
     | A_Fun =>
@@ -332,20 +337,20 @@ let of_ghost: Rule.t => deduction(t) =
         !Entail(ctx(), !Ana(!Fun(xp(), e1()), !Arrow(t1(), t2())));
       {concl, prems};
     | T_Fun =>
-      let prems = [!Entail(ctx_x(), !HasTy(e1(), t2()))];
+      let prems = [!Entail(ctx_x(), !HasType(e1(), t2()))];
       let concl =
-        !Entail(ctx(), !HasTy(!Fun(xp(), e1()), !Arrow(t1(), t2())));
+        !Entail(ctx(), !HasType(!Fun(xp(), e1()), !Arrow(t1(), t2())));
       {concl, prems};
     | V_Fun =>
       let concl = !Val(!Fun(xp(), e()));
       {concl, prems: []};
     | T_Fix =>
-      let prems = [!Entail(ctx_x(), !HasTy(e(), t1()))];
-      let concl = !Entail(ctx(), !HasTy(!Fix(xp(), e()), t1()));
+      let prems = [!Entail(ctx_x(), !HasType(e(), t1()))];
+      let concl = !Entail(ctx(), !HasType(!Fix(xp(), e()), t1()));
       {concl, prems};
     | T_FixAnn =>
-      let prems = [!Entail(ctx_x(), !HasTy(e(), t1()))];
-      let concl = !Entail(ctx(), !HasTy(!FixAnn(xp(), t1(), e()), t1()));
+      let prems = [!Entail(ctx_x(), !HasType(e(), t1()))];
+      let concl = !Entail(ctx(), !HasType(!FixAnn(xp(), t1(), e()), t1()));
       {concl, prems};
     | E_Fix =>
       let prems = [!Eval(!Var("[fix x → e₁/x]e₁"), v())];
@@ -360,10 +365,10 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | T_Ap =>
       let prems = [
-        !Entail(ctx(), !HasTy(e1(), !Arrow(t1(), t2()))),
-        !Entail(ctx(), !HasTy(e2(), t1())),
+        !Entail(ctx(), !HasType(e1(), !Arrow(t1(), t2()))),
+        !Entail(ctx(), !HasType(e2(), t1())),
       ];
-      let concl = !Entail(ctx(), !HasTy(!Ap(e1(), e2()), t2()));
+      let concl = !Entail(ctx(), !HasType(!Ap(e1(), e2()), t2()));
       {concl, prems};
     | E_Ap =>
       let prems = [
@@ -391,11 +396,11 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | T_Pair =>
       let prems = [
-        !Entail(ctx(), !HasTy(e1(), t1())),
-        !Entail(ctx(), !HasTy(e2(), t2())),
+        !Entail(ctx(), !HasType(e1(), t1())),
+        !Entail(ctx(), !HasType(e2(), t2())),
       ];
       let concl =
-        !Entail(ctx(), !HasTy(!Pair(e1(), e2()), !Prod(t1(), t2())));
+        !Entail(ctx(), !HasType(!Pair(e1(), e2()), !Prod(t1(), t2())));
       {concl, prems};
     | E_Pair =>
       let prems = [!Eval(e1(), v1()), !Eval(e2(), v2())];
@@ -423,11 +428,11 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | T_LetPair =>
       let prems = [
-        !Entail(ctx(), !HasTy(e1(), !Prod(t1(), t2()))),
-        !Entail(ctx_xy(), !HasTy(e2(), t())),
+        !Entail(ctx(), !HasType(e1(), !Prod(t1(), t2()))),
+        !Entail(ctx_xy(), !HasType(e2(), t())),
       ];
       let concl =
-        !Entail(ctx(), !HasTy(!LetPair(xp(), yp(), e1(), e2()), t()));
+        !Entail(ctx(), !HasType(!LetPair(xp(), yp(), e1(), e2()), t()));
       {concl, prems};
     | E_LetPair =>
       let prems = [
@@ -441,8 +446,8 @@ let of_ghost: Rule.t => deduction(t) =
       let concl = !Entail(ctx(), !Syn(!PrjL(e()), t1()));
       {concl, prems};
     | T_PrjL =>
-      let prems = [!Entail(ctx(), !HasTy(e(), !Prod(t1(), t2())))];
-      let concl = !Entail(ctx(), !HasTy(!PrjL(e()), t1()));
+      let prems = [!Entail(ctx(), !HasType(e(), !Prod(t1(), t2())))];
+      let concl = !Entail(ctx(), !HasType(!PrjL(e()), t1()));
       {concl, prems};
     | E_PrjL =>
       let prems = [!Eval(e(), !Pair(v1(), v2()))];
@@ -453,8 +458,8 @@ let of_ghost: Rule.t => deduction(t) =
       let concl = !Entail(ctx(), !Syn(!PrjR(e()), t2()));
       {concl, prems};
     | T_PrjR =>
-      let prems = [!Entail(ctx(), !HasTy(e(), !Prod(t1(), t2())))];
-      let concl = !Entail(ctx(), !HasTy(!PrjR(e()), t2()));
+      let prems = [!Entail(ctx(), !HasType(e(), !Prod(t1(), t2())))];
+      let concl = !Entail(ctx(), !HasType(!PrjR(e()), t2()));
       {concl, prems};
     | E_PrjR =>
       let prems = [!Eval(e(), !Pair(v1(), v2()))];
@@ -465,8 +470,8 @@ let of_ghost: Rule.t => deduction(t) =
       let concl = !Entail(ctx(), !Ana(!InjL(e()), !Sum(t1(), t2())));
       {concl, prems};
     | T_InjL =>
-      let prems = [!Entail(ctx(), !HasTy(e(), t1()))];
-      let concl = !Entail(ctx(), !HasTy(!InjL(e()), !Sum(t1(), t2())));
+      let prems = [!Entail(ctx(), !HasType(e(), t1()))];
+      let concl = !Entail(ctx(), !HasType(!InjL(e()), !Sum(t1(), t2())));
       {concl, prems};
     | E_InjL =>
       let prems = [!Eval(e(), v())];
@@ -481,8 +486,8 @@ let of_ghost: Rule.t => deduction(t) =
       let concl = !Entail(ctx(), !Ana(!InjR(e()), !Sum(t1(), t2())));
       {concl, prems};
     | T_InjR =>
-      let prems = [!Entail(ctx(), !HasTy(e(), t2()))];
-      let concl = !Entail(ctx(), !HasTy(!InjR(e()), !Sum(t1(), t2())));
+      let prems = [!Entail(ctx(), !HasType(e(), t2()))];
+      let concl = !Entail(ctx(), !HasType(!InjR(e()), !Sum(t1(), t2())));
       {concl, prems};
     | E_InjR =>
       let prems = [!Eval(e(), v())];
@@ -512,12 +517,12 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | T_Case =>
       let prems = [
-        !Entail(ctx(), !HasTy(e(), !Sum(t1(), t2()))),
-        !Entail(ctx_x(), !HasTy(e1(), t())),
-        !Entail(ctx_y(), !HasTy(e2(), t())),
+        !Entail(ctx(), !HasType(e(), !Sum(t1(), t2()))),
+        !Entail(ctx_x(), !HasType(e1(), t())),
+        !Entail(ctx_y(), !HasType(e2(), t())),
       ];
       let concl =
-        !Entail(ctx(), !HasTy(!Case(e(), xp(), e1(), yp(), e2()), t()));
+        !Entail(ctx(), !HasType(!Case(e(), xp(), e1(), yp(), e2()), t()));
       {concl, prems};
     | E_Case_L =>
       let prems = [!Eval(e(), !InjL(v1())), !Eval(ex(), v())];
@@ -531,8 +536,8 @@ let of_ghost: Rule.t => deduction(t) =
       let concl = !Eval(!Case(e(), xp(), e1(), yp(), e2()), v());
       {concl, prems};
     | T_Roll =>
-      let prems = [!Entail(ctx(), !HasTy(e(), !Var("[rec a is t/a]t")))];
-      let concl = !Entail(ctx(), !HasTy(!Roll(e()), !Rec(a(), t())));
+      let prems = [!Entail(ctx(), !HasType(e(), !Var("[rec a is t/a]t")))];
+      let concl = !Entail(ctx(), !HasType(!Roll(e()), !Rec(a(), t())));
       {concl, prems};
     | E_Roll =>
       let prems = [!Eval(e(), v())];
@@ -543,9 +548,9 @@ let of_ghost: Rule.t => deduction(t) =
       let concl = !Val(!Roll(v()));
       {concl, prems};
     | T_Unroll =>
-      let prems = [!Entail(ctx(), !HasTy(e(), !Rec(a(), t())))];
+      let prems = [!Entail(ctx(), !HasType(e(), !Rec(a(), t())))];
       let concl =
-        !Entail(ctx(), !HasTy(!Unroll(e()), !Var("[rec a is t/a]t")));
+        !Entail(ctx(), !HasType(!Unroll(e()), !Var("[rec a is t/a]t")));
       {concl, prems};
     | E_Unroll =>
       let prems = [!Eval(e(), !Roll(v()))];

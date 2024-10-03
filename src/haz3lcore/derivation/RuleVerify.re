@@ -202,7 +202,7 @@ type req('a) =
   | TPat: req(string)
   | Pat: req(string)
   // ALFA Proposition
-  | HasTy(req('a), req('b)): req(('a, 'b))
+  | HasType(req('a), req('b)): req(('a, 'b))
   | Syn(req('a), req('b)): req(('a, 'b))
   | Ana(req('a), req('b)): req(('a, 'b))
   // Logical Proposition
@@ -416,11 +416,11 @@ and unbox_self: type a. (DrvSyntax.t, req(a)) => result(a, failure) =
       Ok((a, b));
     | (Eq(_), _) => Error(FailUnbox(Eq, p))
     // ALFA proposition
-    | (HasTy(ra, rb), HasTy(a, b)) =>
+    | (HasType(ra, rb), HasType(a, b)) =>
       let$ a = unbox(a, ra);
       let$ b = unbox(b, rb);
       Ok((a, b));
-    | (HasTy(_), _) => Error(FailUnbox(HasTy, p))
+    | (HasType(_), _) => Error(FailUnbox(HasType, p))
     | (Syn(ra, rb), Syn(a, b)) =>
       let$ a = unbox(a, ra);
       let$ b = unbox(b, rb);
@@ -665,11 +665,11 @@ and unbox_with_ghost:
       Ok((a, b));
     | (Eq(_), _, _) => Error(FailUnbox(Eq, p))
     // ALFA proposition
-    | (HasTy(ra, rb), HasTy(a, b), HasTy(a', b')) =>
+    | (HasType(ra, rb), HasType(a, b), HasType(a', b')) =>
       let$ a = unbox(a, a', ra);
       let$ b = unbox(b, b', rb);
       Ok((a, b));
-    | (HasTy(_), _, _) => Error(FailUnbox(HasTy, p))
+    | (HasType(_), _, _) => Error(FailUnbox(HasType, p))
     | (Syn(ra, rb), Syn(a, b), Syn(a', b')) =>
       let$ a = unbox(a, a', ra);
       let$ b = unbox(b, b', rb);
@@ -789,21 +789,21 @@ and check: (t, operation) => result(bool, failure) =
     | ConsHasTy((pat, t), l) =>
       let$ l = unbox_list(l);
       let$ x = unbox_pat(pat);
-      let l = Ctx(cons_ctx(l, HasTy(x, t.self) |> temp)) |> temp;
+      let l = Ctx(cons_ctx(l, HasType(x, t.self) |> temp)) |> temp;
       Ok(eq(self, l));
     | ConsHasTy2((pat1, t1), (pat2, t2), l) =>
       let$ l = unbox_list(l);
       let$ x1 = unbox_pat(pat1);
       let$ x2 = unbox_pat(pat2);
-      let l = cons_ctx(l, HasTy(x1, t1.self) |> temp);
-      let l = Ctx(cons_ctx(l, HasTy(x2, t2.self) |> temp)) |> temp;
+      let l = cons_ctx(l, HasType(x1, t1.self) |> temp);
+      let l = Ctx(cons_ctx(l, HasType(x2, t2.self) |> temp)) |> temp;
       Ok(eq(self, l));
     | Mem(e) =>
       let$ l = unbox_list(p);
       Ok(mem_ctx(e.self, l));
     | MemHasTy(x, t) =>
       let$ l = unbox_list(p);
-      Ok(mem_ctx(HasTy(x.self, t.self) |> temp, l));
+      Ok(mem_ctx(HasType(x.self, t.self) |> temp, l));
     };
   };
 
@@ -837,7 +837,7 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Entail(__, Syn(NumLit, Num));
     Ok();
   | T_Num =>
-    let$ _ = concl >> Entail(__, HasTy(NumLit, Num));
+    let$ _ = concl >> Entail(__, HasType(NumLit, Num));
     Ok();
   | V_Num =>
     let$ _ = concl >> Val(NumLit);
@@ -846,7 +846,7 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Entail(__, Syn(True, Bool));
     Ok();
   | T_True =>
-    let$ _ = concl >> Entail(__, HasTy(True, Bool));
+    let$ _ = concl >> Entail(__, HasType(True, Bool));
     Ok();
   | V_True =>
     let$ _ = concl >> Val(True);
@@ -855,7 +855,7 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Entail(__, Syn(False, Bool));
     Ok();
   | T_False =>
-    let$ _ = concl >> Entail(__, HasTy(False, Bool));
+    let$ _ = concl >> Entail(__, HasType(False, Bool));
     Ok();
   | V_False =>
     let$ _ = concl >> Val(False);
@@ -864,7 +864,7 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Entail(__, Syn(Triv, Unit));
     Ok();
   | T_Triv =>
-    let$ _ = concl >> Entail(__, HasTy(Triv, Unit));
+    let$ _ = concl >> Entail(__, HasType(Triv, Unit));
     Ok();
   | V_Triv =>
     let$ _ = concl >> Val(Triv);
@@ -874,8 +874,8 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Entail(!ctx, Syn(Neg(!e), Num));
     Ok();
   | T_Neg =>
-    let$ (ctx, (e, _)) = prems(0) >> Entail(__, HasTy(__, Num));
-    let$ _ = concl >> Entail(!ctx, HasTy(Neg(!e), Num));
+    let$ (ctx, (e, _)) = prems(0) >> Entail(__, HasType(__, Num));
+    let$ _ = concl >> Entail(!ctx, HasType(Neg(!e), Num));
     Ok();
   | E_Neg =>
     let$ (e, v) = prems(0) >> Eval(__, __);
@@ -887,9 +887,9 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Entail(!ctx, Syn(Plus(!e1, !e2), Num));
     Ok();
   | T_Plus =>
-    let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasTy(__, Num));
-    let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasTy(__, Num));
-    let$ _ = concl >> Entail(!ctx, HasTy(Plus(!e1, !e2), Num));
+    let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasType(__, Num));
+    let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasType(__, Num));
+    let$ _ = concl >> Entail(!ctx, HasType(Plus(!e1, !e2), Num));
     Ok();
   | E_Plus =>
     let$ (e1, v1) = prems(0) >> Eval(__, __);
@@ -902,9 +902,9 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Entail(!ctx, Syn(Minus(!e1, !e2), Num));
     Ok();
   | T_Minus =>
-    let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasTy(__, Num));
-    let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasTy(__, Num));
-    let$ _ = concl >> Entail(!ctx, HasTy(Minus(!e1, !e2), Num));
+    let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasType(__, Num));
+    let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasType(__, Num));
+    let$ _ = concl >> Entail(!ctx, HasType(Minus(!e1, !e2), Num));
     Ok();
   | E_Minus =>
     let$ (e1, v1) = prems(0) >> Eval(__, __);
@@ -917,9 +917,9 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Entail(!ctx, Syn(Times(!e1, !e2), Num));
     Ok();
   | T_Times =>
-    let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasTy(__, Num));
-    let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasTy(__, Num));
-    let$ _ = concl >> Entail(!ctx, HasTy(Times(!e1, !e2), Num));
+    let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasType(__, Num));
+    let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasType(__, Num));
+    let$ _ = concl >> Entail(!ctx, HasType(Times(!e1, !e2), Num));
     Ok();
   | E_Times =>
     let$ (e1, v1) = prems(0) >> Eval(__, __);
@@ -932,9 +932,9 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Entail(!ctx, Syn(Lt(!e1, !e2), Bool));
     Ok();
   | T_Lt =>
-    let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasTy(__, Num));
-    let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasTy(__, Num));
-    let$ _ = concl >> Entail(!ctx, HasTy(Lt(!e1, !e2), Bool));
+    let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasType(__, Num));
+    let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasType(__, Num));
+    let$ _ = concl >> Entail(!ctx, HasType(Lt(!e1, !e2), Bool));
     Ok();
   | E_Lt_T =>
     let$ (e1, v1) = prems(0) >> Eval(__, __);
@@ -952,9 +952,9 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Entail(!ctx, Syn(Gt(!e1, !e2), Bool));
     Ok();
   | T_Gt =>
-    let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasTy(__, Num));
-    let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasTy(__, Num));
-    let$ _ = concl >> Entail(!ctx, HasTy(Gt(!e1, !e2), Bool));
+    let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasType(__, Num));
+    let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasType(__, Num));
+    let$ _ = concl >> Entail(!ctx, HasType(Gt(!e1, !e2), Bool));
     Ok();
   | E_Gt_T =>
     let$ (e1, v1) = prems(0) >> Eval(__, __);
@@ -972,9 +972,9 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Entail(!ctx, Syn(Eq(!e1, !e2), Bool));
     Ok();
   | T_Eq =>
-    let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasTy(__, Num));
-    let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasTy(__, Num));
-    let$ _ = concl >> Entail(!ctx, HasTy(Eq(!e1, !e2), Bool));
+    let$ (ctx, (e1, _)) = prems(0) >> Entail(__, HasType(__, Num));
+    let$ (_, (e2, _)) = prems(1) >> Entail(!ctx, HasType(__, Num));
+    let$ _ = concl >> Entail(!ctx, HasType(Eq(!e1, !e2), Bool));
     Ok();
   | E_Eq_T =>
     let$ (e1, v1) = prems(0) >> Eval(__, __);
@@ -999,11 +999,11 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Entail(!ctx, Ana(If(!e_cond, !e_then, !e_else), !t));
     Ok();
   | T_If =>
-    let$ (ctx, (e_cond, _)) = prems(0) >> Entail(__, HasTy(__, Bool));
-    let$ (_, (e_then, t)) = prems(1) >> Entail(!ctx, HasTy(__, __));
-    let$ (_, (e_else, _)) = prems(2) >> Entail(!ctx, HasTy(__, !t));
+    let$ (ctx, (e_cond, _)) = prems(0) >> Entail(__, HasType(__, Bool));
+    let$ (_, (e_then, t)) = prems(1) >> Entail(!ctx, HasType(__, __));
+    let$ (_, (e_else, _)) = prems(2) >> Entail(!ctx, HasType(__, !t));
     let$ _ =
-      concl >> Entail(!ctx, HasTy(If(!e_cond, !e_then, !e_else), !t));
+      concl >> Entail(!ctx, HasType(If(!e_cond, !e_then, !e_else), !t));
     Ok();
   | E_If_T =>
     let$ (e_cond, _) = prems(0) >> Eval(__, True);
@@ -1020,7 +1020,7 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = ctx >> !!MemHasTy(x, t);
     Ok();
   | T_Var =>
-    let$ (ctx, (x, t)) = concl >> Entail(__, HasTy(__, __));
+    let$ (ctx, (x, t)) = concl >> Entail(__, HasType(__, __));
     let$ _ = ctx >> !!MemHasTy(x, t);
     Ok();
   | S_LetAnn =>
@@ -1039,10 +1039,10 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     Ok();
   | T_LetAnn =>
     let$ (ctx, ((x, t_def, e_def, e_body), t)) =
-      concl >> Entail(__, HasTy(LetAnn(__, __, __, __), __));
+      concl >> Entail(__, HasType(LetAnn(__, __, __, __), __));
     let ctx' = ConsHasTy((x, t_def), ctx);
-    let$ _ = prems(0) >> Entail(!ctx, HasTy(!e_def, !t_def));
-    let$ _ = prems(1) >> Entail(!!ctx', HasTy(!e_body, !t));
+    let$ _ = prems(0) >> Entail(!ctx, HasType(!e_def, !t_def));
+    let$ _ = prems(1) >> Entail(!!ctx', HasType(!e_body, !t));
     Ok();
   | S_Let =>
     let$ (ctx, ((x, e_def, e_body), t)) =
@@ -1060,10 +1060,10 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     Ok();
   | T_Let =>
     let$ (ctx, ((x, e_def, e_body), t)) =
-      concl >> Entail(__, HasTy(Let(__, __, __), __));
-    let$ (_, (_, t_def)) = prems(0) >> Entail(!ctx, HasTy(!e_def, __));
+      concl >> Entail(__, HasType(Let(__, __, __), __));
+    let$ (_, (_, t_def)) = prems(0) >> Entail(!ctx, HasType(!e_def, __));
     let ctx' = ConsHasTy((x, t_def), ctx);
-    let$ _ = prems(1) >> Entail(!!ctx', HasTy(!e_body, !t));
+    let$ _ = prems(1) >> Entail(!!ctx', HasType(!e_body, !t));
     Ok();
   | E_Let =>
     let$ ((x, e_def, e_body), v) = concl >> Eval(Let(__, __, __), __);
@@ -1086,10 +1086,10 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     Ok();
   | T_FunAnn =>
     let$ (ctx, ((x, t_in, e_body), (t_in', t_out))) =
-      concl >> Entail(__, HasTy(FunAnn(__, __, __), Arrow(__, __)));
+      concl >> Entail(__, HasType(FunAnn(__, __, __), Arrow(__, __)));
     let$ _ = t_in' >> !t_in;
     let ctx' = ConsHasTy((x, t_in), ctx);
-    let$ _ = prems(0) >> Entail(!!ctx', HasTy(!e_body, !t_out));
+    let$ _ = prems(0) >> Entail(!!ctx', HasType(!e_body, !t_out));
     Ok();
   | A_Fun =>
     let$ (ctx, ((x, e_body), (t_in, t_out))) =
@@ -1099,23 +1099,25 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     Ok();
   | T_Fun =>
     let$ (ctx, ((x, e_body), (t_in, t_out))) =
-      concl >> Entail(__, HasTy(Fun(__, __), Arrow(__, __)));
+      concl >> Entail(__, HasType(Fun(__, __), Arrow(__, __)));
     let ctx' = ConsHasTy((x, t_in), ctx);
-    let$ _ = prems(0) >> Entail(!!ctx', HasTy(!e_body, !t_out));
+    let$ _ = prems(0) >> Entail(!!ctx', HasType(!e_body, !t_out));
     Ok();
   | V_Fun =>
     let$ _ = concl >> Val(Fun(__, __));
     Ok();
   | T_Fix =>
     let$ (ctx, ((x, e), t)) =
-      concl >> Entail(__, HasTy(Fix(__, __), __));
-    let$ _ = prems(0) >> Entail(!!ConsHasTy((x, t), ctx), HasTy(!e, !t));
+      concl >> Entail(__, HasType(Fix(__, __), __));
+    let$ _ =
+      prems(0) >> Entail(!!ConsHasTy((x, t), ctx), HasType(!e, !t));
     Ok();
   | T_FixAnn =>
     let$ (ctx, ((x, t, e), t')) =
-      concl >> Entail(__, HasTy(FixAnn(__, __, __), __));
+      concl >> Entail(__, HasType(FixAnn(__, __, __), __));
     let$ _ = t >> !t';
-    let$ _ = prems(0) >> Entail(!!ConsHasTy((x, t), ctx), HasTy(!e, !t));
+    let$ _ =
+      prems(0) >> Entail(!!ConsHasTy((x, t), ctx), HasType(!e, !t));
     Ok();
   | E_Fix =>
     let$ (e, v) = concl >> Eval(__, __);
@@ -1131,10 +1133,10 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     Ok();
   | T_Ap =>
     let$ (ctx, ((e_fun, e_arg), t_out)) =
-      concl >> Entail(__, HasTy(Ap(__, __), __));
+      concl >> Entail(__, HasType(Ap(__, __), __));
     let$ (_, (_, (t_in, _))) =
-      prems(0) >> Entail(!ctx, HasTy(!e_fun, Arrow(__, !t_out)));
-    let$ _ = prems(1) >> Entail(!ctx, HasTy(!e_arg, !t_in));
+      prems(0) >> Entail(!ctx, HasType(!e_fun, Arrow(__, !t_out)));
+    let$ _ = prems(1) >> Entail(!ctx, HasType(!e_arg, !t_in));
     Ok();
   | E_Ap =>
     let$ ((e_fun, e_arg), v) = concl >> Eval(Ap(__, __), __);
@@ -1153,9 +1155,10 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Entail(!ctx, Ana(Pair(!el, !er), Prod(!tl, !tr)));
     Ok();
   | T_Pair =>
-    let$ (ctx, (el, tl)) = prems(0) >> Entail(__, HasTy(__, __));
-    let$ (_, (er, tr)) = prems(1) >> Entail(!ctx, HasTy(__, __));
-    let$ _ = concl >> Entail(!ctx, HasTy(Pair(!el, !er), Prod(!tl, !tr)));
+    let$ (ctx, (el, tl)) = prems(0) >> Entail(__, HasType(__, __));
+    let$ (_, (er, tr)) = prems(1) >> Entail(!ctx, HasType(__, __));
+    let$ _ =
+      concl >> Entail(!ctx, HasType(Pair(!el, !er), Prod(!tl, !tr)));
     Ok();
   | E_Pair =>
     let$ (el, vl) = prems(0) >> Eval(__, __);
@@ -1185,11 +1188,11 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     Ok();
   | T_LetPair =>
     let$ (ctx, ((x, y, e_def, e_body), t)) =
-      concl >> Entail(__, HasTy(LetPair(__, __, __, __), __));
+      concl >> Entail(__, HasType(LetPair(__, __, __, __), __));
     let$ (_, (_, (tl, tr))) =
-      prems(0) >> Entail(!ctx, HasTy(!e_def, Prod(__, __)));
+      prems(0) >> Entail(!ctx, HasType(!e_def, Prod(__, __)));
     let ctx_xy = ConsHasTy2((x, tl), (y, tr), ctx);
-    let$ _ = prems(1) >> Entail(!!ctx_xy, HasTy(!e_body, !t));
+    let$ _ = prems(1) >> Entail(!!ctx_xy, HasType(!e_body, !t));
     Ok();
   | E_LetPair =>
     let$ ((x, y, e_def, e_body), v) =
@@ -1203,8 +1206,8 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = prems(0) >> Entail(!ctx, Syn(!e, Prod(!tl, __)));
     Ok();
   | T_PrjL =>
-    let$ (ctx, (e, tl)) = concl >> Entail(__, HasTy(PrjL(__), __));
-    let$ _ = prems(0) >> Entail(!ctx, HasTy(!e, Prod(!tl, __)));
+    let$ (ctx, (e, tl)) = concl >> Entail(__, HasType(PrjL(__), __));
+    let$ _ = prems(0) >> Entail(!ctx, HasType(!e, Prod(!tl, __)));
     Ok();
   | E_PrjL =>
     let$ (e, vl) = concl >> Eval(PrjL(__), __);
@@ -1215,8 +1218,8 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = prems(0) >> Entail(!ctx, Syn(!e, Prod(__, !tr)));
     Ok();
   | T_PrjR =>
-    let$ (ctx, (e, tr)) = concl >> Entail(__, HasTy(PrjR(__), __));
-    let$ _ = prems(0) >> Entail(!ctx, HasTy(!e, Prod(__, !tr)));
+    let$ (ctx, (e, tr)) = concl >> Entail(__, HasType(PrjR(__), __));
+    let$ _ = prems(0) >> Entail(!ctx, HasType(!e, Prod(__, !tr)));
     Ok();
   | E_PrjR =>
     let$ (e, vr) = concl >> Eval(PrjR(__), __);
@@ -1227,8 +1230,8 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Entail(!ctx, Ana(InjL(!e), Sum(!tl, __)));
     Ok();
   | T_InjL =>
-    let$ (ctx, (e, tl)) = prems(0) >> Entail(__, HasTy(__, __));
-    let$ _ = concl >> Entail(!ctx, HasTy(InjL(!e), Sum(!tl, __)));
+    let$ (ctx, (e, tl)) = prems(0) >> Entail(__, HasType(__, __));
+    let$ _ = concl >> Entail(!ctx, HasType(InjL(!e), Sum(!tl, __)));
     Ok();
   | E_InjL =>
     let$ (e, v) = prems(0) >> Eval(__, __);
@@ -1243,8 +1246,8 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Entail(!ctx, Ana(InjR(!e), Sum(__, !tr)));
     Ok();
   | T_InjR =>
-    let$ (ctx, (e, tr)) = prems(0) >> Entail(__, HasTy(__, __));
-    let$ _ = concl >> Entail(!ctx, HasTy(InjR(!e), Sum(__, !tr)));
+    let$ (ctx, (e, tr)) = prems(0) >> Entail(__, HasType(__, __));
+    let$ _ = concl >> Entail(!ctx, HasType(InjR(!e), Sum(__, !tr)));
     Ok();
   | E_InjR =>
     let$ (e, v) = prems(0) >> Eval(__, __);
@@ -1272,13 +1275,13 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     Ok();
   | T_Case =>
     let$ (ctx, ((e_scrut, x, el, y, er), t)) =
-      concl >> Entail(__, HasTy(Case(__, __, __, __, __), __));
+      concl >> Entail(__, HasType(Case(__, __, __, __, __), __));
     let$ (_, (_, (tl, tr))) =
-      prems(0) >> Entail(!ctx, HasTy(!e_scrut, Sum(__, __)));
+      prems(0) >> Entail(!ctx, HasType(!e_scrut, Sum(__, __)));
     let$ _ =
-      prems(1) >> Entail(!!ConsHasTy((x, tl), ctx), HasTy(!el, !t));
+      prems(1) >> Entail(!!ConsHasTy((x, tl), ctx), HasType(!el, !t));
     let$ _ =
-      prems(2) >> Entail(!!ConsHasTy((y, tr), ctx), HasTy(!er, !t));
+      prems(2) >> Entail(!!ConsHasTy((y, tr), ctx), HasType(!er, !t));
     Ok();
   | E_Case_L =>
     let$ ((e_scrut, x, el, _y, _er), v) =
@@ -1293,10 +1296,11 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = prems(1) >> Eval(!!Subst((v_data, y), er), !v);
     Ok();
   | T_Roll =>
-    let$ (ctx, (e_body, t)) = concl >> Entail(__, HasTy(Roll(__), __));
+    let$ (ctx, (e_body, t)) = concl >> Entail(__, HasType(Roll(__), __));
     let$ (a, t_body) = t >> Rec(__, __);
     let$ _ =
-      prems(0) >> Entail(!ctx, HasTy(!e_body, !!SubstTy((t, a), t_body)));
+      prems(0)
+      >> Entail(!ctx, HasType(!e_body, !!SubstTy((t, a), t_body)));
     Ok();
   | E_Roll =>
     let$ (e, v) = concl >> Eval(Roll(__), Roll(__));
@@ -1307,10 +1311,11 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = concl >> Val(Roll(!e));
     Ok();
   | T_Unroll =>
-    let$ (ctx, (e, t)) = prems(0) >> Entail(__, HasTy(__, __));
+    let$ (ctx, (e, t)) = prems(0) >> Entail(__, HasType(__, __));
     let$ (a, t_body) = t >> Rec(__, __);
     let$ _ =
-      concl >> Entail(!ctx, HasTy(Unroll(!e), !!SubstTy((t, a), t_body)));
+      concl
+      >> Entail(!ctx, HasType(Unroll(!e), !!SubstTy((t, a), t_body)));
     Ok();
   | E_Unroll =>
     let$ (e, v) = prems(0) >> Eval(__, Roll(__));

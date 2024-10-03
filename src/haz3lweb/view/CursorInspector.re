@@ -185,6 +185,7 @@ let drv_view = (status: DrvInfo.t) => {
   | Some(err) =>
     switch (err) {
     | Jdmt(BadToken(token))
+    | Ctxt(BadToken(token))
     | Prop(BadToken(token))
     | Exp(BadToken(token))
     | Pat(BadToken(token))
@@ -192,6 +193,7 @@ let drv_view = (status: DrvInfo.t) => {
     | TPat(BadToken(token)) =>
       div_err([text(Printf.sprintf("\"%s\" isn't a valid token", token))])
     | Jdmt(MultiHole)
+    | Ctxt(MultiHole)
     | Prop(MultiHole)
     | Exp(MultiHole)
     | Pat(MultiHole)

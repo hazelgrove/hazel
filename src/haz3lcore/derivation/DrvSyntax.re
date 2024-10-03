@@ -24,7 +24,7 @@ type term =
   | Eval(t, t)
   | Entail(t, t)
   // Proposition
-  | HasTy(t, t)
+  | HasType(t, t)
   | Syn(t, t)
   | Ana(t, t)
   | Atom(string)
@@ -93,7 +93,7 @@ type cls =
   | Val
   | Eval
   | Entail
-  | HasTy
+  | HasType
   | Syn
   | Ana
   | Atom
@@ -152,7 +152,7 @@ let precedence: t => int =
     | Val(_) => P.filter
     | Eval(_) => P.filter
     | Entail(_) => P.filter
-    | HasTy(_) => P.semi
+    | HasType(_) => P.semi
     | Syn(_) => P.semi
     | Ana(_) => P.semi
     | Atom(_) => P.max
@@ -293,7 +293,7 @@ let rec repr = (p: int, prop: t): list(string) => {
     | Unroll(a) => repr_aba_tight(["unroll(", ")"], [a])
     | TPat(x) => x |> mk
     | Pat(x) => x |> mk
-    | HasTy(a, b) => repr_binop(":", a, b)
+    | HasType(a, b) => repr_binop(":", a, b)
     | Syn(a, b) => repr_binop("⇒", a, b)
     | Ana(a, b) => repr_binop("⇐", a, b)
     }
@@ -395,8 +395,8 @@ let rec eq: (t, t) => bool =
     | (TPat(_), _) => false
     | (Pat(a), Pat(b)) => String.equal(a, b)
     | (Pat(_), _) => false
-    | (HasTy(a1, a2), HasTy(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (HasTy(_), _) => false
+    | (HasType(a1, a2), HasType(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (HasType(_), _) => false
     | (Syn(a1, a2), Syn(b1, b2)) => eq(a1, b1) && eq(a2, b2)
     | (Syn(_), _) => false
     | (Ana(a1, a2), Ana(b1, b2)) => eq(a1, b1) && eq(a2, b2)
@@ -486,7 +486,7 @@ let rec subst: (t, string, t) => t =
     | TPat(_)
     | Pat(_)
     // Proposition
-    | HasTy(_)
+    | HasType(_)
     | Syn(_)
     | Ana(_) => e
     // Logic
@@ -571,7 +571,7 @@ let rec subst_ty: (t, string, t) => t =
     | TPat(_)
     | Pat(_) => e
     // Proposition
-    | HasTy(_)
+    | HasType(_)
     | Syn(_)
     | Ana(_) => e
     // Logic

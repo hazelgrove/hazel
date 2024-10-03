@@ -123,7 +123,8 @@ and subsort_of = (sort: Sort.t): list(Sort.t) =>
   | Drv(drv) =>
     (
       switch (drv) {
-      | Jdmt => [Prop, Exp, Pat, Typ, TPat]
+      | Jdmt => [Ctxt, Prop, Exp, Pat, Typ, TPat]
+      | Ctxt => [Prop, Exp, Pat, Typ, TPat]
       | Prop => [Exp, Pat, Typ, TPat]
       | Exp => [Pat, Typ, TPat]
       | Pat => [Typ]

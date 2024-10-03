@@ -625,6 +625,7 @@ module Any = {
   let rec ids =
     fun
     | Drv(Jdmt(tm)) => tm.ids
+    | Drv(Ctxt(tm)) => tm.ids
     | Drv(Prop(tm)) => tm.ids
     | Drv(Exp(tm)) => tm.ids
     | Drv(Pat(tm)) => tm.ids
@@ -652,6 +653,7 @@ module Any = {
   let rep_id =
     fun
     | Drv(Jdmt(tm)) => Jdmt.rep_id(tm)
+    | Drv(Ctxt(tm)) => Ctxt.rep_id(tm)
     | Drv(Prop(tm)) => Prop.rep_id(tm)
     | Drv(Exp(tm)) => ALFA_Exp.rep_id(tm)
     | Drv(Pat(tm)) => ALFA_Pat.rep_id(tm)

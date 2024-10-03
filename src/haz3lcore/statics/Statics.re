@@ -183,14 +183,18 @@ and drv_to_info_map =
       | Hole(_) => m
       | Val(e) => m |> go_exp'(e) |> snd
       | Eval(e1, e2) => m |> go_exp'(e1) |> snd |> go_exp'(e2) |> snd
-      | Entail(p1, p2) =>
-        m
-        |> go_prop(p1, ~can_tuple=true)
-        |> snd
-        |> go_prop(p2, ~can_tuple=false)
-        |> snd
+      | Entail(ctx, p) =>
+        m |> go_ctxt(ctx) |> snd |> go_prop(p, ~can_tuple=false) |> snd
       };
     add(Jdmt(jdmt), info, m);
+  }
+  and go_ctxt = (ctxt: Drv.Ctxt.t, m) => {
+    let info = DrvInfo.derived_ctxt(ctxt, ~ancestors);
+    let add' = add(Ctxt(ctxt), Ctxt(info));
+    switch (ctxt.term) {
+    | Hole(_) => m |> add'
+    | Ctxt(p) => m |> go_prop(p, ~can_tuple=true) |> snd |> add'
+    };
   }
   and go_prop = (prop: Drv.Prop.t, m, ~can_tuple: bool) => {
     let info = DrvInfo.derived_prop(prop, ~ancestors);
@@ -198,7 +202,7 @@ and drv_to_info_map =
     // let m =
     switch (prop.term) {
     | Hole(_) => m |> add'
-    | HasTy(e, t)
+    | HasType(e, t)
     | Syn(e, t)
     | Ana(e, t) => m |> go_exp'(e) |> snd |> go_typ(t) |> snd |> add'
     | Var(_) => m |> add'
@@ -356,6 +360,7 @@ and drv_to_info_map =
   };
   switch (drv) {
   | Jdmt(jdmt) => go_jdmt(jdmt, m)
+  | Ctxt(ctxt) => go_ctxt(ctxt, m)
   | Prop(prop) => go_prop(prop, m, ~can_tuple=true)
   | Exp(exp) => go_exp(exp, m, ~left_ap=false)
   | Pat(pat) => go_pat(pat, m, ~expect=Var)

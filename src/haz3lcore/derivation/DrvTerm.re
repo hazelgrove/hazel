@@ -30,11 +30,39 @@ module Jdmt = {
     | Entail(_) => Entail;
 };
 
+module Ctxt = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Hole
+    | Ctxt;
+
+  include TermBase.Ctxt;
+
+  let hole = (tms: list(TermBase.Any.t)): term =>
+    Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
+
+  let rep_id = ({ids, _}: t) => {
+    assert(ids != []);
+    List.hd(ids);
+  };
+
+  let term_of: t => term = IdTagged.term_of;
+
+  let unwrap: t => (term, term => t) = IdTagged.unwrap;
+
+  let fresh: term => t = IdTagged.fresh;
+
+  let cls_of_term: term => cls =
+    fun
+    | Hole(_) => Hole
+    | Ctxt(_) => Ctxt;
+};
+
 module Prop = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Hole
-    | HasTy
+    | HasType
     | Syn
     | Ana
     | Var
@@ -66,7 +94,7 @@ module Prop = {
   let cls_of_term: term => cls =
     fun
     | Hole(_) => Hole
-    | HasTy(_) => HasTy
+    | HasType(_) => HasType
     | Syn(_) => Syn
     | Ana(_) => Ana
     | Var(_) => Var
@@ -276,6 +304,7 @@ module Drv = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Jdmt(Jdmt.cls)
+    | Ctxt(Ctxt.cls)
     | Prop(Prop.cls)
     | Exp(ALFA_Exp.cls)
     | Pat(ALFA_Pat.cls)
@@ -287,6 +316,7 @@ module Drv = {
   let sort_of: t => Sort.DrvSort.t =
     fun
     | Jdmt(_) => Jdmt
+    | Ctxt(_) => Ctxt
     | Prop(_) => Prop
     | Exp(_) => Exp
     | Pat(_) => Pat
@@ -296,6 +326,7 @@ module Drv = {
   let rep_id: t => Id.t =
     fun
     | Jdmt(jdmt) => Jdmt.rep_id(jdmt)
+    | Ctxt(ctxt) => Ctxt.rep_id(ctxt)
     | Prop(prop) => Prop.rep_id(prop)
     | Exp(exp) => ALFA_Exp.rep_id(exp)
     | Pat(pat) => ALFA_Pat.rep_id(pat)
@@ -305,6 +336,7 @@ module Drv = {
   let of_id: t => list(Id.t) =
     fun
     | Jdmt(jdmt) => jdmt.ids
+    | Ctxt(ctxt) => ctxt.ids
     | Prop(prop) => prop.ids
     | Exp(exp) => exp.ids
     | Pat(pat) => pat.ids
@@ -314,6 +346,7 @@ module Drv = {
   let cls_of: t => cls =
     fun
     | Jdmt(jdmt) => Jdmt(Jdmt.cls_of_term(jdmt.term))
+    | Ctxt(ctxt) => Ctxt(Ctxt.cls_of_term(ctxt.term))
     | Prop(prop) => Prop(Prop.cls_of_term(prop.term))
     | Exp(exp) => Exp(ALFA_Exp.cls_of_term(exp.term))
     | Pat(pat) => Pat(ALFA_Pat.cls_of_term(pat.term))

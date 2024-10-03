@@ -6,15 +6,10 @@ let to_list = d =>
   | _ => [d]
   };
 
-let to_ctx = d =>
-  switch (DrvSyntax.term_of(d)) {
-  | Ctx(_) => d
-  | _ => Ctx([d]) |> DrvSyntax.fresh
-  };
-
 let rec elaborate: Drv.t => t =
   fun
   | Jdmt(jdmt) => elab_jdmt(jdmt)
+  | Ctxt(ctxt) => elab_ctxt(ctxt)
   | Prop(prop) => elab_prop(prop)
   | Exp(exp) => elab_exp(exp)
   | Pat(pat) => elab_pat(pat)
@@ -27,16 +22,43 @@ and elab_jdmt: Drv.Jdmt.t => t =
       | Hole(s) => Hole(TermBase.TypeHole.show(s))
       | Val(e) => Val(elab_exp(e))
       | Eval(e1, e2) => Eval(elab_exp(e1), elab_exp(e2))
-      | Entail(p1, p2) => Entail(elab_prop(p1) |> to_ctx, elab_prop(p2))
+      | Entail(ctx, p) => Entail(elab_ctxt(ctx), elab_prop(p))
       };
     {...jdmt, term};
   }
+and elab_ctxt: Drv.Ctxt.t => t =
+  ctxt => {
+    let rec prop_term_of: Drv.Prop.t => Drv.Prop.term =
+      pat =>
+        switch (pat.term) {
+        | Parens(p) => prop_term_of(p)
+        | p => p
+        };
+    let term: term =
+      switch (ctxt.term) {
+      | Hole(s) => Hole(TermBase.TypeHole.show(s))
+      | Ctxt(p) =>
+        switch (prop_term_of(p)) {
+        | Tuple(ps) =>
+          Ctx(
+            ps
+            |> List.map(elab_prop)
+            |> List.map(to_list)
+            |> List.concat
+            |> List.fold_left(cons_ctx, []),
+          )
+        | _ => Ctx([elab_prop(p)])
+        }
+      };
+    {...ctxt, term};
+  }
 and elab_prop: Drv.Prop.t => t =
   prop => {
+    let hole: term = Hole(Drv.Prop.show(prop));
     let term: term =
       switch (prop.term) {
       | Hole(s) => Hole(TermBase.TypeHole.show(s))
-      | HasTy(e, t) => HasTy(elab_exp(e), elab_typ(t))
+      | HasType(e, t) => HasType(elab_exp(e), elab_typ(t))
       | Syn(e, t) => Syn(elab_exp(e), elab_typ(t))
       | Ana(e, t) => Ana(elab_exp(e), elab_typ(t))
       | Var(x) => Atom(x)
@@ -45,15 +67,8 @@ and elab_prop: Drv.Prop.t => t =
       | Impl(p1, p2) => Impl(elab_prop(p1), elab_prop(p2))
       | Truth => Truth
       | Falsity => Falsity
-      | Tuple(ps) =>
-        Ctx(
-          ps
-          |> List.map(elab_prop)
-          |> List.map(to_list)
-          |> List.concat
-          |> List.fold_left(cons_ctx, []),
-        )
-      | Abbr(_) => Hole(Drv.Prop.show(prop))
+      | Tuple(_) => hole
+      | Abbr(_) => hole
       | Parens(p) => IdTagged.term_of(elab_prop(p))
       };
     {...prop, term};
