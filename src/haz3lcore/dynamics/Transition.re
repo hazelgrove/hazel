@@ -91,7 +91,8 @@ type rule =
       is_value: bool,
     })
   | Constructor
-  | Indet;
+  | Indet
+  | Value;
 
 let (let-unbox) = ((request, v), f) =>
   switch (Unboxing.unbox(request, v)) {
@@ -331,7 +332,7 @@ module Transition = (EV: EV_MODE) => {
           (d2, ds) => DeferredAp2(d1, d2, ds) |> wrap_ctx,
           ds,
         );
-      Constructor;
+      Value;
     | Ap(dir, d1, d2) =>
       let. _ = otherwise(env, (d1, (d2, _)) => Ap(dir, d1, d2) |> rewrap)
       and. d1' =

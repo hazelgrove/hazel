@@ -136,6 +136,7 @@ module Decompose = {
         | (undo, Result.BoxedValue, env, v) =>
           switch (rl(v)) {
           | Constructor => Result.BoxedValue
+          | Value => Result.BoxedValue
           | Indet => Result.Indet
           | Step(s) => Result.Step([EvalObj.mk(Mark, env, undo, s.kind)])
           // TODO: Actually show these exceptions to the user!
@@ -187,6 +188,7 @@ module TakeStep = {
         state_update();
         Some(expr);
       | Constructor
+      | Value
       | Indet => None
       };
 
