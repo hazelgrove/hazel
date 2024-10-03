@@ -50,9 +50,120 @@ let test_function_deferral = () =>
     |> Exp.fresh,
   );
 
+let tet_ap_of_hole_deferral = () =>
+  evaluation_test(
+    "?(_, _, 3)(1., true)",
+    Ap(
+      Forward,
+      Cast(
+        EmptyHole |> Exp.fresh,
+        Unknown(Internal) |> Typ.fresh,
+        Arrow(
+          Unknown(Internal) |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Typ.fresh,
+      )
+      |> Exp.fresh,
+      Cast(
+        Tuple([
+          Cast(
+            Float(1.) |> Exp.fresh,
+            Float |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Exp.fresh,
+          Cast(
+            Bool(true) |> Exp.fresh,
+            Bool |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Exp.fresh,
+          Cast(
+            Int(3) |> Exp.fresh,
+            Int |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+        Prod([
+          Unknown(Internal) |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+        Unknown(Internal) |> Typ.fresh,
+      )
+      |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    Ap(
+      Forward,
+      DeferredAp(
+        Cast(
+          Cast(
+            EmptyHole |> Exp.fresh,
+            Unknown(Internal) |> Typ.fresh,
+            Arrow(
+              Unknown(Internal) |> Typ.fresh,
+              Unknown(Internal) |> Typ.fresh,
+            )
+            |> Typ.fresh,
+          )
+          |> Exp.fresh,
+          Arrow(
+            Unknown(Internal) |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Typ.fresh,
+          Arrow(
+            Prod([
+              Unknown(Internal) |> Typ.fresh,
+              Unknown(Internal) |> Typ.fresh,
+              Unknown(Internal) |> Typ.fresh,
+            ])
+            |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Typ.fresh,
+        )
+        |> Exp.fresh,
+        [
+          Deferral(InAp) |> Exp.fresh,
+          Deferral(InAp) |> Exp.fresh,
+          Cast(
+            Int(3) |> Exp.fresh,
+            Int |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Exp.fresh,
+        ],
+      )
+      |> Exp.fresh,
+      Tuple([
+        Cast(
+          Float(1.) |> Exp.fresh,
+          Float |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Exp.fresh,
+        Cast(
+          Bool(true) |> Exp.fresh,
+          Bool |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Exp.fresh,
+      ])
+      |> Exp.fresh,
+    )
+    |> Exp.fresh,
+  );
+
 let tests = [
   test_case("Integer literal", `Quick, test_int),
   test_case("Integer sum", `Quick, test_sum),
   test_case("Function application", `Quick, test_function_application),
   test_case("Function deferral", `Quick, test_function_deferral),
+  test_case("Deferral applied to hole", `Quick, tet_ap_of_hole_deferral),
 ];
