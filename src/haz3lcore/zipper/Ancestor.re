@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open Util;
 
 exception Empty_shard_affix;
@@ -47,19 +46,9 @@ let sorted_children = (a: t) => {
   (l, r);
 };
 
-// TODO flatten with shard indices
-// let step = (frame: t): step => {
-//   let (prefix, _) = frame.children;
-//   List.length(prefix);
-// };
-
 let remold = (a: t): list(t) =>
   Molds.get(a.label) |> List.map(mold => {...a, mold});
 
-// let sort = (frame: t): Sort.t => {
-//   assert(step(frame) >= 0 && step(frame) < List.length(frame.mold.in_));
-//   List.nth(frame.mold.in_, step(frame));
-// };
 let sort = (a: t): Sort.t => {
   let (pre, suf) = a.shards;
   switch (ListUtil.split_last_opt(pre), suf) {
@@ -107,48 +96,3 @@ let reassemble = (match_l: Aba.t(Tile.t, Segment.t) as 'm, match_r: 'm): t => {
     children: (t_l.children, t_r.children),
   };
 };
-
-// module Match = {
-//   module Prefix = Tile.Match.Make(Orientation.L);
-//   module Suffix = Tile.Match.Make(Orientation.R);
-
-//   type ancestor = t;
-//   type t = (Prefix.t, Suffix.t);
-
-//   let id = ((pre, _): t) => Prefix.id(pre);
-
-//   let shards = ((pre, suf): t) =>
-//     List.rev(Prefix.shards(pre)) @ Suffix.shards(suf);
-
-//   let label = ((_, suf)) => Suffix.label(suf);
-
-//   let length = ((pre, suf)) => Prefix.length(pre) + Suffix.length(suf);
-
-//   let children = ((pre, suf)) => (
-//     Prefix.children(pre),
-//     Suffix.children(suf),
-//   );
-
-//   let mold = (m: t) => {
-//     let molds =
-//       switch (Shard.consistent_molds(shards(m))) {
-//       | [] =>
-//         // this should only happen upon construct/destruct,
-//         // in which case everything will be subsequently remolded
-//         Molds.get(label(m))
-//       | [_, ..._] as molds => molds
-//       };
-//     assert(molds != []);
-//     List.hd(molds);
-//   };
-
-//   let join = ((pre, suf): t) => (Prefix.join(pre), Suffix.join(suf));
-
-//   let complete = (m: t): option(ancestor) => {
-//     let id = id(m);
-//     let label = label(m);
-//     let mold = mold(m);
-//     length(m) == Tile.Label.length(label)
-//       ? Some({id, label, mold, children: children(m)}) : None;
-//   };
-// };

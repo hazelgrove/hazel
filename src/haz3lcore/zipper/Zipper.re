@@ -1,34 +1,6 @@
-open Sexplib.Std;
 open Util;
 open OptUtil.Syntax;
-
-module Caret = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Outer
-    | Inner(int, int);
-
-  let decrement: t => t =
-    fun
-    | Outer
-    | Inner(_, 0) => Outer
-    | Inner(d, c) => Inner(d, c - 1);
-
-  let offset: t => int =
-    fun
-    | Outer => 0
-    | Inner(_, c) => c + 1;
-};
-
-// assuming single backpack, shards may appear in selection, backpack, or siblings
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  selection: Selection.t,
-  backpack: Backpack.t,
-  relatives: Relatives.t,
-  caret: Caret.t,
-  // col_target: int,
-};
+include ZipperBase;
 
 let init: unit => t =
   () => {
@@ -39,7 +11,6 @@ let init: unit => t =
       ancestors: [],
     },
     caret: Outer,
-    // col_target: 0,
   };
 
 let next_blank = _ => Id.mk();
@@ -70,17 +41,6 @@ let update_caret = (f: Caret.t => Caret.t, z: t): t => {
 };
 let set_caret = (caret: Caret.t): (t => t) => update_caret(_ => caret);
 
-let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
-  ...z,
-  relatives: f(z.relatives),
-};
-
-let update_siblings: (Siblings.t => Siblings.t, t) => t =
-  f => update_relatives(rs => {...rs, siblings: f(rs.siblings)});
-
-let parent = (z: t): option(Piece.t) =>
-  Relatives.parent(~sel=z.selection.content, z.relatives);
-
 let delete_parent = (z: t): t => {
   ...z,
   relatives: Relatives.delete_parent(z.relatives),
@@ -98,20 +58,6 @@ let unzip = (seg: Segment.t): t => {
   },
   caret: Outer,
 };
-
-let sibs_with_sel =
-    (
-      {
-        selection: {content, focus, _},
-        relatives: {siblings: (l_sibs, r_sibs), _},
-        _,
-      }: t,
-    )
-    : Siblings.t =>
-  switch (focus) {
-  | Left => (l_sibs, content @ r_sibs)
-  | Right => (l_sibs @ content, r_sibs)
-  };
 
 let pop_backpack = (z: t) =>
   Backpack.pop(Relatives.local_incomplete_tiles(z.relatives), z.backpack);
@@ -147,7 +93,7 @@ let clear_unparsed_buffer = (z: t) =>
 let unselect = (~erase_buffer=false, z: t): t => {
   /* NOTE(andrew): Erase buffer flag only applies to unparsed buffer,
    * that is, the buffer style that just contains a single flat token.
-   * Erasing a buffer the contains arbitrary tiles would be more complex
+   * Erasing a buffer that contains arbitrary tiles would be more complex
    * as we can't just empty the selection without regrouting */
   let z = erase_buffer ? clear_unparsed_buffer(z) : z;
   let relatives =
@@ -205,7 +151,6 @@ let directional_unselect = (d: Direction.t, z: t): t => {
 
 let move = (d: Direction.t, z: t): option(t) =>
   if (Selection.is_empty(z.selection)) {
-    // let balanced = !Backpack.is_balanced(z.backpack);
     let+ (p, relatives) = Relatives.pop(d, z.relatives);
     let relatives =
       relatives
@@ -226,9 +171,6 @@ let pick_up = (z: t): t => {
     |> Segment.trim_grout_around_secondary(Left)
     |> Segment.trim_grout_around_secondary(Right)
     |> Selection.mk;
-  Segment.tiles(selection.content)
-  |> List.map((t: Tile.t) => t.id)
-  |> Effect.s_touch;
   let backpack = Backpack.push(selection, z.backpack);
   {...z, backpack};
 };
@@ -247,7 +189,6 @@ let destruct = (~destroy_kids=true, z: t): t => {
   let to_pick_up =
     destroy_kids
       ? List.map(Tile.disintegrate, to_pick_up) |> List.flatten : to_pick_up;
-  Effect.s_touch(List.map((t: Tile.t) => t.id, to_pick_up));
   let backpack =
     backpack
     |> Backpack.remove_matching(to_remove)
@@ -263,9 +204,6 @@ let delete = (d: Direction.t, z: t): option(t) =>
 let put_down = (d: Direction.t, z: t): option(t) => {
   let z = destruct(z);
   let* (_, popped, backpack) = pop_backpack(z);
-  Segment.tiles(popped.content)
-  |> List.map((t: Tile.t) => t.id)
-  |> Effect.s_touch;
   let z = {...z, backpack} |> put_selection(popped) |> unselect;
   switch (d) {
   | Left => Some(z)
@@ -284,7 +222,6 @@ let rec construct =
     /* Special case for comments, can't rely on the last branch to construct */
     let content = Secondary.construct_comment(content);
     let id = Id.mk();
-    Effect.s_touch([id]);
     let z = destruct(z);
     let selections = [Selection.mk(Base.mk_secondary(id, content))];
     let backpack = Backpack.push_s(selections, z.backpack);
@@ -293,7 +230,6 @@ let rec construct =
   | [content] when Form.is_secondary(content) =>
     let content = Secondary.Whitespace(content);
     let id = Id.mk();
-    Effect.s_touch([id]);
     z |> update_siblings(((l, r)) => (l @ [Secondary({id, content})], r));
   | _ =>
     let z = destruct(z);
@@ -302,7 +238,6 @@ let rec construct =
     // initial mold to typecheck, will be remolded
     let mold = List.hd(molds);
     let id = Id.mk();
-    Effect.s_touch([id]);
     let selections =
       Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
       |> List.map(Segment.of_tile)
@@ -340,31 +275,35 @@ let caret_direction = (z: t): option(Direction.t) =>
   | Inner(_) => None
   | Outer =>
     switch (Siblings.neighbors(sibs_with_sel(z))) {
-    | (Some(l), Some(r)) when Piece.is_secondary(l) && Piece.is_secondary(r) =>
+    | (Some(l), Some(r))
+        when
+          Piece.is_secondary(l)
+          && Piece.is_secondary(r)
+          && Selection.is_empty(z.selection) =>
       None
     | _ => Siblings.direction_between(sibs_with_sel(z))
     }
   };
 
-let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
+let base_point = (measured: Measured.t, z: t): Point.t => {
   switch (representative_piece(z)) {
   | Some((p, d)) =>
     let seg = Piece.disassemble(p);
     switch (d) {
     | Left =>
       let p = ListUtil.last(seg);
-      let m = Measured.find_p(p, measured);
+      let m = Measured.find_p(~msg="base_point", p, measured);
       m.last;
     | Right =>
       let p = List.hd(seg);
-      let m = Measured.find_p(p, measured);
+      let m = Measured.find_p(~msg="base_point", p, measured);
       m.origin;
     };
   | None => {row: 0, col: 0}
   };
 };
-let caret_point = (measured, z: t): Measured.Point.t => {
-  let Measured.Point.{row, col} = base_point(measured, z);
+let caret_point = (measured, z: t): Point.t => {
+  let Point.{row, col} = base_point(measured, z);
   {row, col: col + Caret.offset(z.caret)};
 };
 

@@ -2,37 +2,86 @@ open Virtual_dom.Vdom;
 open Node;
 open Util;
 
+let caret_width = 0.2;
+
 let tip_width = 0.32;
-let concave_adj = 0.25;
-let convex_adj = (-0.13);
-let shadow_adj = 0.015;
+let concave_offset = 0.8 *. 0.32; /* Tuned parameter */
+let convex_offset = 0.6 *. 0.32; /* Tuned parameter  */
 
-let caret_adjust = (side: Direction.t, shape: option(Direction.t)) =>
-  switch (side, shape) {
-  | (_, None) => 0.
-  | (Left, Some(Left)) => concave_adj
-  | (Right, Some(Right)) => -. concave_adj
-  | (Left, Some(Right)) => convex_adj
-  | (Right, Some(Left)) => -. convex_adj
-  };
-
-let child_border_thickness = 0.05;
-
+let shadow_dy = 0.037;
+let shadow_dx = 0.08;
+let child_border_thickness = 0.; //0.05;
+let shadow_adj = shadow_dy /. 2.;
 let t = child_border_thickness /. 0.5;
+let short_tip_width = (1. -. t) *. tip_width;
 let short_tip_height = (1. -. t) *. 0.5;
 
-let stretch_dx = 0.15;
+let shape_adjust = (d1: Direction.t, d2: Direction.t): float =>
+  switch (d1, d2) {
+  | (Left, Left) => -. convex_offset
+  | (Right, Right) => convex_offset
+  | (Left, Right) => concave_offset
+  | (Right, Left) => -. concave_offset
+  };
 
-let raised_shadow_dx = "0.1";
-let raised_shadow_dy = "0.037";
-let shadow_dx = raised_shadow_dx;
-let shadow_dy = raised_shadow_dy;
+let shape_adjust = (side: Direction.t, shape: option(Direction.t)) =>
+  switch (shape) {
+  | None => 0.
+  | Some(d2) => shape_adjust(side, d2)
+  };
+
+let caret_run = (shape: option(Direction.t)) =>
+  switch (shape) {
+  | None => 0.
+  | Some(Left) => +. tip_width
+  | Some(Right) => -. tip_width
+  };
+
+let chevronf = (run: float, rise: float): list(SvgUtil.Path.cmd) =>
+  SvgUtil.Path.[L_({dx: -. run, dy: rise}), L_({dx: +. run, dy: rise})];
+
+let chevron = (direction: option(Direction.t), drawing_from: Direction.t) =>
+  chevronf(caret_run(direction), drawing_from == Left ? (-0.5) : 0.5);
+
+let chonky_shard_path_base =
+    ((l, r), x_offset, length: float, height: float): list(SvgUtil.Path.cmd) => {
+  List.flatten(
+    SvgUtil.Path.[
+      [M({x: -. x_offset, y: 0.}), H_({dx: length}), V({y: height})],
+      chevron(r, Right),
+      [H_({dx: -. length}), v(~y=1)],
+      chevron(l, Left),
+    ],
+  );
+};
+
+let caret_base_path = (side, shape): list(SvgUtil.Path.cmd) =>
+  chonky_shard_path_base(
+    (shape, shape),
+    shape_adjust(side, shape) +. 0.5 *. caret_width,
+    caret_width,
+    float_of_int(0),
+  );
+
+let shard_length = (length, d_l, d_r) =>
+  float_of_int(length)
+  +. shape_adjust(Left, d_l)
+  -. shape_adjust(Right, d_r);
+
+let shard_offset = d_l => shape_adjust(Left, d_l);
+
+let shard_path =
+    ((d_l, d_r), length: int, height: int): list(SvgUtil.Path.cmd) =>
+  chonky_shard_path_base(
+    (d_l, d_r),
+    shard_offset(d_l),
+    shard_length(length, d_l, d_r),
+    float_of_int(height),
+  );
 
 let extra_tail = 0.;
 let jagged_edge_h = child_border_thickness /. 3.;
 let jagged_edge_w = child_border_thickness /. 1.;
-
-let short_tip_width = (1. -. t) *. tip_width;
 
 type dims = {
   width: int,
@@ -59,30 +108,39 @@ let pos_str = (~d: dims, ~fudge: fdims=fzero, font_metrics: FontMetrics.t) =>
     Float.of_int(d.height) *. (font_metrics.row_height +. fudge.height),
   );
 
+let abs_dims = ({origin, last}: Haz3lcore.Measured.measurement): dims => {
+  left: origin.col,
+  top: origin.row,
+  width: abs(last.col - origin.col),
+  height: abs(last.row - origin.row + 1),
+};
+
+let abs_style = (~font_metrics, ~fudge: fdims=fzero, measurement): Attr.t =>
+  Attr.create(
+    "style",
+    pos_str(~d=abs_dims(measurement), ~fudge, font_metrics),
+  );
+
 let code_svg_sized =
     (
       ~font_metrics: FontMetrics.t,
-      ~measurement as {origin, last}: Haz3lcore.Measured.measurement,
+      ~absolute=true,
+      ~measurement: Haz3lcore.Measured.measurement,
       ~base_cls=[],
       ~path_cls=[],
       ~fudge: fdims=fzero,
       paths: list(SvgUtil.Path.cmd),
     ) => {
-  let (left, top) = (origin.col, origin.row);
-  let (width, height) = (
-    abs(last.col - origin.col),
-    abs(last.row - origin.row + 1),
-  );
-  let style = pos_str(~d={left, top, width, height}, ~fudge, font_metrics);
+  let d = abs_dims(measurement);
+  let d = absolute ? d : {left: 0, top: 0, width: d.width, height: d.height};
   create_svg(
     "svg",
-    ~attr=
-      Attr.many([
-        Attr.classes(base_cls),
-        Attr.create("style", style),
-        Attr.create("viewBox", Printf.sprintf("0 0 %d %d", width, height)),
-        Attr.create("preserveAspectRatio", "none"),
-      ]),
+    ~attrs=[
+      Attr.classes(base_cls),
+      Attr.create("style", pos_str(~d, ~fudge, font_metrics)),
+      Attr.create("viewBox", Printf.sprintf("0 0 %d %d", d.width, d.height)),
+      Attr.create("preserveAspectRatio", "none"),
+    ],
     [SvgUtil.Path.view(~attrs=[Attr.classes(path_cls)], paths)],
   );
 };
@@ -96,7 +154,7 @@ let position =
       ~height_fudge=0.0,
       ~scale=1.,
       ~font_metrics: FontMetrics.t,
-      origin: Haz3lcore.Measured.Point.t,
+      origin: Point.t,
     ) =>
   Attr.create(
     "style",
@@ -119,7 +177,7 @@ let abs_position =
       ~height_fudge=0.0,
       ~scale=1.,
       ~font_metrics: FontMetrics.t,
-      origin: Haz3lcore.Measured.Point.t,
+      origin: Point.t,
     ) => {
   position(
     ~style="position: absolute",
@@ -136,7 +194,7 @@ let abs_position =
 let code_svg =
     (
       ~font_metrics: FontMetrics.t,
-      ~origin: Haz3lcore.Measured.Point.t,
+      ~origin: Point.t,
       ~base_cls=[],
       ~path_cls=[],
       ~left_fudge=0.0,
@@ -152,87 +210,64 @@ let code_svg =
   // (https://bugs.chromium.org/p/chromium/issues/detail?id=424288) that
   // causes miaslignment between piece decorations and text.
   // Using a different viewBox size seems to fix this.
-  let scale = 2.;
+  let scale = 0.5;
   create_svg(
     "svg",
-    ~attr=
-      Attr.many(
-        (id == "" ? [] : [Attr.id(id)])
-        @ [
-          Attr.classes(base_cls),
-          abs_pos
-            ? abs_position(
-                ~font_metrics,
-                ~left_fudge,
-                ~top_fudge,
-                ~width_fudge,
-                ~height_fudge,
-                ~scale,
-                origin,
-              )
-            : position(
-                ~font_metrics,
-                ~left_fudge,
-                ~top_fudge,
-                ~width_fudge,
-                ~height_fudge,
-                ~scale,
-                origin,
-              ),
-          Attr.create("viewBox", Printf.sprintf("0 0 %f %f", scale, scale)),
-          Attr.create("preserveAspectRatio", "none"),
-        ]
-        @ attrs,
-      ),
+    ~attrs=
+      (id == "" ? [] : [Attr.id(id)])
+      @ [
+        Attr.classes(base_cls),
+        abs_pos
+          ? abs_position(
+              ~font_metrics,
+              ~left_fudge,
+              ~top_fudge,
+              ~width_fudge,
+              ~height_fudge,
+              ~scale,
+              origin,
+            )
+          : position(
+              ~font_metrics,
+              ~left_fudge,
+              ~top_fudge,
+              ~width_fudge,
+              ~height_fudge,
+              ~scale,
+              origin,
+            ),
+        Attr.create("viewBox", Printf.sprintf("0 0 %f %f", scale, scale)),
+        Attr.create("preserveAspectRatio", "none"),
+      ]
+      @ attrs,
     [SvgUtil.Path.view(~attrs=[Attr.classes(path_cls)], paths)],
   );
 };
 
-let raised_shadow_filter = (sort: Haz3lcore.Sort.t) => {
+let drop_shadow_filter = (sort: Haz3lcore.Sort.t) => {
   let s = Haz3lcore.Sort.to_string(sort);
   create_svg(
     "filter",
-    ~attr=Attr.id("raised-drop-shadow-" ++ s),
+    ~attrs=[Attr.id("drop-shadow-" ++ s)],
     [
       create_svg(
         "feDropShadow",
-        ~attr=
-          Attr.many([
-            Attr.classes(["tile-drop-shadow"]),
-            Attr.create("dx", raised_shadow_dx),
-            Attr.create("dy", raised_shadow_dy),
-            Attr.create("stdDeviation", "0"),
-          ]),
+        ~attrs=[
+          Attr.classes(["tile-drop-shadow"]),
+          Attr.create("dx", Printf.sprintf("%.3f", shadow_dx)),
+          Attr.create("dy", Printf.sprintf("%.3f", shadow_dy)),
+          Attr.create("stdDeviation", "0"),
+        ],
         [],
       ),
     ],
   );
 };
 
-let shadow_filter = (sort: Haz3lcore.Sort.t) => {
-  let s = Haz3lcore.Sort.to_string(sort);
-  create_svg(
-    "filter",
-    ~attr=Attr.id("drop-shadow-" ++ s),
-    [
-      create_svg(
-        "feDropShadow",
-        ~attr=
-          Attr.many([
-            Attr.classes(["tile-drop-shadow"]),
-            Attr.create("dx", shadow_dx),
-            Attr.create("dy", shadow_dy),
-            Attr.create("stdDeviation", "0"),
-          ]),
-        [],
-      ),
-    ],
-  );
-};
+let svg = (attrs, children) => Node.create_svg("svg", ~attrs, children);
 
 let filters =
-  NodeUtil.svg(
+  svg(
     Attr.[id("filters")],
-    List.map(raised_shadow_filter, Haz3lcore.Sort.all)
-    @ List.map(shadow_filter, Haz3lcore.Sort.all),
+    List.map(drop_shadow_filter, Haz3lcore.Sort.all),
   );

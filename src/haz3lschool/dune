@@ -13,3 +13,11 @@
  (libraries ppx_yojson_conv.expander haz3lcore haz3lschool)
  (preprocess
   (pps ppx_yojson_conv ppx_let ppx_sexp_conv ppx_deriving.show)))
+
+(env
+ (dev
+  (js_of_ocaml
+   (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
+ (release
+  (js_of_ocaml
+   (flags :standard))))

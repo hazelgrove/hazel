@@ -16,55 +16,42 @@ jobs:
           path: source
       - name: Add the name of the current branch to the environment as BRANCH_NAME
         uses: nelonoel/branch-name@v1.0.1
-      - name: Retrieve the build environment if cached
-        id: opam-cache
-        uses: actions/cache@v2
-        with:
-          path: '/home/runner/.opam/'
-          key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
       - name: Set-up OCaml
-        run: |
-          sudo apt --assume-yes install curl m4 opam
-          export OPAMYES=1
-          opam init --compiler=ocaml-base-compiler.5.0.0
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 5.2.0
+          dune-cache: true
+      - name: Retrieve the switch environment if cached
+        id: opam-cache-switch
+        uses: actions/cache@v4
+        with:
+          path: '_opam'
+          key: ${{ runner.os }}-modules-${{ hashFiles('./source/hazel.opam.locked') }}
       - name: Install dependencies
         run: |
           eval $(opam env)
           export OPAMYES=1
-          make deps 
+          export DUNE_CACHE=enabled
+          opam install . --deps-only --with-test --locked
         working-directory: ./source
-      - name: Build Hazel
+      - name: Clean opam switch
         run: |
           eval $(opam env)
-          make release
-        working-directory: ./source
-      - name: Run Tests
-        id: test
-        continue-on-error: true
+          export OPAMYES=1
+          opam clean --all-switches --download-cache --logs --repo-cache --unused-repositories
+      - name: Build Release
         run: |
-          eval $(opam env)
-          make test > test_output
-          if [ $? -eq 0 ]; then
-            echo "::set-output name=tests_passed::true"
-          else
-            echo "::set-output name=tests_passed::false"
-          fi
+          export DUNE_CACHE=enabled
+          opam exec -- dune build @src/fmt --auto-promote src --profile release
         working-directory: ./source
-      - name: Test Report
-        uses: dorny/test-reporter@v1
-        continue-on-error: true
-        with:
-          name: Test Report
-          path: junit_tests*.xml
-          reporter: java-junit
-          fail-on-error: true
-          working-directory: ./source
       - name: Checkout the website build artifacts repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: hazelgrove/build
           token: ${{ secrets.ACCESS_TOKEN }}
           path: server
+          sparse-checkout: |
+            ${{ env.BRANCH_NAME }}
       - name: Clear any old build of this branch
         run: if [ -d "${BRANCH_NAME}" ] ; then rm -rf "${BRANCH_NAME}" ; fi 
         working-directory: ./server
@@ -79,3 +66,18 @@ jobs:
           git status
           git diff-index --quiet HEAD || (git commit -m "github-deploy-action-${BRANCH_NAME}"; git push)
         working-directory: ./server
+      - name: Run Tests
+        id: test
+        run: |
+          eval $(opam env)
+          make test
+        working-directory: ./source
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        with:
+          name: Test Report
+          path: junit_tests*.xml
+          reporter: java-junit
+          fail-on-error: true
+          fail-on-empty: true # Use an empty test report to detect when something failed with the test runner
+          working-directory: ./source

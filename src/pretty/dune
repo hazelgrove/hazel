@@ -2,6 +2,14 @@
 
 (library
  (name pretty)
- (libraries sexplib)
+ (libraries util sexplib)
  (preprocess
   (pps ppx_let ppx_sexp_conv)))
+
+(env
+ (dev
+  (js_of_ocaml
+   (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
+ (release
+  (js_of_ocaml
+   (flags :standard))))

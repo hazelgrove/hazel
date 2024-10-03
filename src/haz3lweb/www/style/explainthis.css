@@ -1,0 +1,181 @@
+#explain-this {
+  display: flex;
+  width: 20em;
+  padding: 0.4em;
+  flex-direction: column;
+  gap: 1em;
+}
+
+#explain-this #examples {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+#explain-this .example {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+#explain-this .example + .example {
+  border-top: 1px dotted var(--BR2);
+  padding-top: 0.75em;
+}
+
+#explain-this .example .cell {
+  width: auto;
+  background-color: var(--T2);
+}
+
+#explain-this .example .cell-result {
+  border-radius: 0 0 0.4em 0.4em;
+}
+
+#explain-this .example .cell-result .toggle-switch {
+  display: none;
+}
+
+#explain-this .explanation {
+  white-space: normal;
+}
+
+#explain-this .specificity-options-menu {
+  transform-origin: top;
+  transform: scaleY(0);
+  transition: transform 0.07s ease;
+  background-color: var(--menu-bkg);
+  border: 0.6px solid var(--menu-outline);
+  border-top: none;
+}
+
+#explain-this .specificity-options-menu .selected {
+  filter: brightness(0.9);
+}
+
+#explain-this-button {
+  text-transform: none;
+}
+
+#explain-this .header {
+  display: flex;
+  justify-content: flex-start;
+  gap: 0.75em;
+}
+
+#explain-this .header .close {
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  margin-left: auto;
+  align-items: flex-start;
+}
+
+#explain-this .header .close svg {
+  fill: var(--BR2);
+}
+
+#explain-this .header .close:hover svg {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+  transform: scale(130%);
+  filter: brightness(1.1);
+}
+
+#explain-this .section {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0.75em;
+  gap: 0.5em;
+}
+
+#explain-this .section .explanation-contents .code {
+  font-family: var(--code-font);
+}
+
+#explain-this .section .section-title {
+  text-transform: uppercase;
+  font-weight: bold;
+  color: var(--ui-header-text);
+  font-size: 0.8em;
+}
+
+#explain-this .section .explanation-contents {
+  white-space: normal;
+}
+
+#explain-this div.expandable-target {
+  display: flex;
+  cursor: pointer;
+  z-index: var(--explainthis-expander-z);
+}
+
+#explain-this .clickable {
+  cursor: pointer;
+}
+
+/* https://css-tricks.com/snippets/css/css-triangle/ */
+#explain-this .arrow {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid var(--explain-this-expander);
+}
+#explain-this div.expandable-target:hover .arrow,
+#explain-this .arrow:hover {
+  border-top: 6px solid black;
+}
+
+#explain-this svg.expandable {
+  fill: none;
+  stroke-dasharray: 3, 3;
+  stroke: var(--explain-this-expander);
+  z-index: var(--err-hole-z);
+}
+
+#explain-this svg.expandable path {
+  vector-effect: non-scaling-stroke;
+}
+
+#explain-this .feedback {
+  display: flex;
+  padding-top: 10px;
+}
+
+#explain-this .feedback .message {
+  font-size: smaller;
+  font-style: italic;
+}
+
+#explain-this .feedback .option {
+  margin-left: 5px;
+  cursor: pointer;
+}
+
+#explain-this .feedback .option.active {
+  background-color: var(--BR2);
+}
+
+.highlight-a {
+  background-color: var(--highlight-a);
+}
+
+.highlight-code-a {
+  fill: var(--highlight-a);
+}
+
+.highlight-b {
+  background-color: var(--highlight-b);
+}
+
+.highlight-code-b {
+  fill: var(--highlight-b);
+}
+
+.highlight-c {
+  background-color: var(--highlight-c);
+}
+
+.highlight-code-c {
+  fill: var(--highlight-c);
+}
