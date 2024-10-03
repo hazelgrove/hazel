@@ -214,12 +214,23 @@ let startup : PersistentData.t =
         [
           ( "Casting",
             {
-              title = "";
+              focus = YourImpl;
+              title = "Casting";
               description = "";
-              hidden_tests =
-                {
-                  tests =
+              editors =
+                [
+                  ( YourImpl,
                     {
+                      zipper =
+                        "((selection((focus \
+                         Left)(content())))(backpack())(relatives((siblings(()((Grout((id \
+                         0)(shape Convex))))))(ancestors())))(caret Outer))";
+                      backup_text = " ";
+                    } );
+                  ( HiddenTests,
+                    {
+                      (* tests = *)
+                      (* { *)
                       zipper =
                         "((selection((focus Left)(content())(mode \
                          Normal)))(backpack())(relatives((siblings(()((Secondary((id \
@@ -7129,18 +7140,35 @@ let startup : PersistentData.t =
                          f(1, 2);\n\
                         \ \n\
                         \  ";
-                    };
-                  hints = [];
-                };
-            } );
+                    }
+                    (* hints = []; *)
+                    (* Closes Hidden Tests *) )
+                  (* Closes HiddenTests editor *);
+                ]
+                (* Closes Editors list *);
+            }
+            (* Closes P state record *) );
+          (* } ); *)
           ( "ADT Statics",
             {
-              title = "";
+              focus = DocumentationEnv.YourImpl;
+              title = "ADT Statics";
               description = "";
-              hidden_tests =
-                {
-                  tests =
+              editors =
+                [
+                  (* hidden_tests = *)
+                  ( YourImpl,
                     {
+                      zipper =
+                        "((selection((focus \
+                         Left)(content())))(backpack())(relatives((siblings(()((Grout((id \
+                         0)(shape Convex))))))(ancestors())))(caret Outer))";
+                      backup_text = " ";
+                    } );
+                  ( HiddenTests,
+                    {
+                      (* tests = *)
+                      (* { *)
                       zipper =
                         "((selection((focus Left)(content())(mode \
                          Normal)))(backpack())(relatives((siblings(()((Secondary((id \
@@ -9540,18 +9568,34 @@ let startup : PersistentData.t =
                          let Yo(1): +Yo = Yo in #err: type incons#\n\
                          let Yo(1): +Yo(Bool) = Yo(true) in #err: type incons#\n\
                          \"Thats all, folks\"\n";
-                    };
-                  hints = [];
-                };
+                    }
+                    (* hints = []; *)
+                    (* }; *) )
+                  (* closes cur hidden tests tuple *);
+                ]
+                (* closes editor list*);
             } );
           ( "Basic Reference",
             {
-              title = "";
+              focus = YourImpl;
+              title = "Basic Reference";
               description = "";
-              hidden_tests =
-                {
-                  tests =
+              editors =
+                [
+                  ( YourImpl,
+                    (* Editor for user implementation *)
                     {
+                      zipper =
+                        "((selection((focus \
+                         Left)(content())))(backpack())(relatives((siblings(()((Grout((id \
+                         0)(shape Convex))))))(ancestors())))(caret Outer))";
+                      backup_text = " ";
+                    } );
+                  ( HiddenTests,
+                    (* hidden_tests = *)
+                    {
+                      (* tests = *)
+                      (* { *)
                       zipper =
                         "((selection((focus Left)(content())(mode \
                          Normal)))(backpack())(relatives((siblings(()((Secondary((id \
@@ -12314,17 +12358,30 @@ let startup : PersistentData.t =
                          test 3 + 3 == 6 end;\n\
                          test 2 + 2 == 5 end;\n\n\
                          2 + 2";
-                    };
-                  hints = [];
-                };
+                      (* };
+                         hints = []; *)
+                    } );
+                ];
             } );
           ( "Types & static errors",
             {
+              focus = YourImpl;
               title = "";
               description = "";
-              hidden_tests =
-                {
-                  tests =
+              editors =
+                [
+                  ( YourImpl,
+                    (* Editor for user implementation *)
+                    {
+                      zipper = "";
+                      (* Serialized zipper data *)
+                      backup_text = " ";
+                    } );
+                  ( HiddenTests,
+                    (* { *)
+                    (* hidden_tests =
+                       { *)
+                    (* tests = *)
                     {
                       zipper =
                         "((selection((focus Left)(content())(mode \
@@ -14371,18 +14428,33 @@ let startup : PersistentData.t =
                          let _: [Int] = 1.0::[2] in #err#\n\
                          let _: [Int] = 1::[2.0] in #err#\n\
                          \"BYE\"";
-                    };
-                  hints = [];
-                };
+                    }
+                    (* hints = []; *)
+                    (* }; *) );
+                ];
             } );
+          (* } ); *)
           ( "ADT Dynamics",
             {
-              title = "";
+              focus = YourImpl;
+              title = "ADT Dynamics";
               description = "";
-              hidden_tests =
-                {
-                  tests =
+              editors =
+                [
+                  (* hidden_tests = *)
+                  ( YourImpl,
+                    (* Editor for user implementation *)
                     {
+                      zipper =
+                        "((selection((focus \
+                         Left)(content())))(backpack())(relatives((siblings(()((Grout((id \
+                         0)(shape Convex))))))(ancestors())))(caret Outer))";
+                      backup_text = "";
+                    } );
+                  ( HiddenTests,
+                    {
+                      (* tests =
+                         { *)
                       zipper =
                         "((selection((focus Left)(content())(mode \
                          Normal)))(backpack())(relatives((siblings(()((Secondary((id \
@@ -16397,17 +16469,31 @@ let startup : PersistentData.t =
                          eval(Ap(Lam(\"yo\", Var(\"yo\")), Lam(\"bro\", \
                          Var(\"bro\")))),\n\
                          Ok(Lam(\"bro\", Var(\"bro\")))) end";
-                    };
-                  hints = [];
-                };
+                    }
+                    (* hints = [];
+                       }; *) );
+                ];
             } );
+          (* } ); *)
           ( "Polymorphism",
             {
-              title = "";
+              focus = YourImpl;
+              title = "Polymorphism";
               description = "";
-              hidden_tests =
-                {
-                  tests =
+              editors =
+                [
+                  ( YourImpl,
+                    {
+                      zipper =
+                        "((selection((focus \
+                         Left)(content())))(backpack())(relatives((siblings(()((Grout((id \
+                         0)(shape Convex))))))(ancestors())))(caret Outer))";
+                      backup_text = "";
+                    } );
+                  ( HiddenTests,
+                    (* hidden_tests = *)
+                    (* {
+                       tests = *)
                     {
                       zipper =
                         "((selection((focus Left)(content())(mode \
@@ -18200,35 +18286,61 @@ let startup : PersistentData.t =
                          let ex5 = list_of_mylist(x) in # [1, 2, 3] #\n\n\n\
                          # All output from examples: #\n\
                          (ex1, ex2, ex3, ex4, ex5)";
-                    };
-                  hints = [];
-                };
+                    }
+                    (* hints = [];
+                       }; *) );
+                ];
             } );
           ( "Programming Expressively",
             {
-              title = "";
+              focus = YourImpl;
+              title = "Programming Expressively";
               description = "";
-              hidden_tests =
-                {
-                  tests =
+              editors =
+                [
+                  ( YourImpl,
                     {
+                      zipper =
+                        "((selection((focus \
+                         Left)(content())))(backpack())(relatives((siblings(()((Grout((id \
+                         0)(shape Convex))))))(ancestors())))(caret Outer))";
+                      backup_text = " ";
+                    } );
+                  ( HiddenTests,
+                    (* hidden_tests = *)
+                    {
+                      (* tests =
+                         { *)
                       zipper =
                         "((selection((focus Left)(content())(mode \
                          Normal)))(backpack())(relatives((siblings(()((Grout((id \
                          73cb2f1d-94b4-42eb-9d77-a832748556b0)(shape \
                          Convex))))))(ancestors())))(caret Outer))";
                       backup_text = " ";
-                    };
-                  hints = [];
-                };
+                    }
+                    (* hints = [];
+                       }; *) );
+                ];
             } );
           ( "Composing Arithmetic Expressions",
             {
-              title = "";
+              focus = YourImpl;
+              title = "Composing Arithmetic Expressions";
               description = "";
-              hidden_tests =
-                {
-                  tests =
+              editors =
+                [
+                  ( YourImpl,
+                    {
+                      zipper =
+                        "((selection((focus \
+                         Left)(content())))(backpack())(relatives((siblings(()((Grout((id \
+                         0)(shape Convex))))))(ancestors())))(caret Outer))";
+                      backup_text = " ";
+                    } );
+                  ( HiddenTests,
+                    (* hidden_tests = *)
+                    (* {
+                       tests = *)
                     {
                       zipper =
                         "((selection((focus Left)(content())(mode \
@@ -18236,17 +18348,30 @@ let startup : PersistentData.t =
                          41444a61-1cf6-408b-82c6-464f3ca6750e)(shape \
                          Convex))))))(ancestors())))(caret Outer))";
                       backup_text = " ";
-                    };
-                  hints = [];
-                };
+                    }
+                    (* hints = [];
+                       }; *) );
+                ];
             } );
           ( "Computing Equationally",
             {
-              title = "";
+              focus = YourImpl;
+              title = "Computing Equationally";
               description = "";
-              hidden_tests =
-                {
-                  tests =
+              editors =
+                [
+                  ( YourImpl,
+                    {
+                      zipper =
+                        "((selection((focus \
+                         Left)(content())))(backpack())(relatives((siblings(()((Grout((id \
+                         0)(shape Convex))))))(ancestors())))(caret Outer))";
+                      backup_text = " ";
+                    } );
+                  ( HiddenTests,
+                    (* hidden_tests = *)
+                    (* {
+                       tests = *)
                     {
                       zipper =
                         "((selection((focus Left)(content())(mode \
@@ -18254,17 +18379,30 @@ let startup : PersistentData.t =
                          c7e3b9bd-efaa-41f2-800d-9986a6e814d6)(shape \
                          Convex))))))(ancestors())))(caret Outer))";
                       backup_text = " ";
-                    };
-                  hints = [];
-                };
+                    }
+                    (* hints = [];
+                       }; *) );
+                ];
             } );
           ( "Variables",
             {
-              title = "";
+              focus = YourImpl;
+              title = "Variables";
               description = "";
-              hidden_tests =
-                {
-                  tests =
+              editors =
+                [
+                  ( YourImpl,
+                    {
+                      zipper =
+                        "((selection((focus \
+                         Left)(content())))(backpack())(relatives((siblings(()((Grout((id \
+                         0)(shape Convex))))))(ancestors())))(caret Outer))";
+                      backup_text = " ";
+                    } );
+                  ( HiddenTests,
+                    (* hidden_tests = *)
+                    (* {
+                       tests = *)
                     {
                       zipper =
                         "((selection((focus Left)(content())(mode \
@@ -18272,17 +18410,30 @@ let startup : PersistentData.t =
                          92e68905-30cc-415b-b920-6323180c56d1)(shape \
                          Convex))))))(ancestors())))(caret Outer))";
                       backup_text = " ";
-                    };
-                  hints = [];
-                };
+                    }
+                    (* hints = [];
+                       }; *) );
+                ];
             } );
           ( "Compositionality",
             {
-              title = "";
+              focus = YourImpl;
+              title = "Compositionality";
               description = "";
-              hidden_tests =
-                {
-                  tests =
+              editors =
+                [
+                  ( YourImpl,
+                    {
+                      zipper =
+                        "((selection((focus \
+                         Left)(content())))(backpack())(relatives((siblings(()((Grout((id \
+                         0)(shape Convex))))))(ancestors())))(caret Outer))";
+                      backup_text = " ";
+                    } );
+                  ( HiddenTests,
+                    (* hidden_tests = *)
+                    (* {
+                       tests = *)
                     {
                       zipper =
                         "((selection((focus Left)(content())(mode \
@@ -18290,17 +18441,30 @@ let startup : PersistentData.t =
                          661cbe22-ffdc-4fa3-b227-f7b56a1c8ed6)(shape \
                          Convex))))))(ancestors())))(caret Outer))";
                       backup_text = " ";
-                    };
-                  hints = [];
-                };
+                    }
+                    (* hints = [];
+                       }; *) );
+                ];
             } );
           ( "Scope",
             {
-              title = "";
+              focus = YourImpl;
+              title = "Scope";
               description = "";
-              hidden_tests =
-                {
-                  tests =
+              editors =
+                [
+                  ( YourImpl,
+                    {
+                      zipper =
+                        "((selection((focus \
+                         Left)(content())))(backpack())(relatives((siblings(()((Grout((id \
+                         0)(shape Convex))))))(ancestors())))(caret Outer))";
+                      backup_text = " ";
+                    } );
+                  ( HiddenTests,
+                    (* hidden_tests = *)
+                    (* {
+                       tests = *)
                     {
                       zipper =
                         "((selection((focus Left)(content())(mode \
@@ -18308,17 +18472,30 @@ let startup : PersistentData.t =
                          f213697c-e203-41c4-8888-fc12e3ac46bf)(shape \
                          Convex))))))(ancestors())))(caret Outer))";
                       backup_text = " ";
-                    };
-                  hints = [];
-                };
+                    }
+                    (* hints = [];
+                       }; *) );
+                ];
             } );
           ( "Shadowing",
             {
-              title = "";
+              focus = YourImpl;
+              title = "Shadowing";
               description = "";
-              hidden_tests =
-                {
-                  tests =
+              editors =
+                [
+                  ( YourImpl,
+                    {
+                      zipper =
+                        "((selection((focus \
+                         Left)(content())))(backpack())(relatives((siblings(()((Grout((id \
+                         0)(shape Convex))))))(ancestors())))(caret Outer))";
+                      backup_text = " ";
+                    } );
+                  ( HiddenTests,
+                    (* hidden_tests = *)
+                    (* {
+                       tests = *)
                     {
                       zipper =
                         "((selection((focus Left)(content())(mode \
@@ -18326,17 +18503,30 @@ let startup : PersistentData.t =
                          3d8e1707-1e20-4160-946e-73cdb9e98ee1)(shape \
                          Convex))))))(ancestors())))(caret Outer))";
                       backup_text = " ";
-                    };
-                  hints = [];
-                };
+                    }
+                    (* hints = [];
+                       }; *) );
+                ];
             } );
           ( "Booleans and Types",
             {
-              title = "";
+              focus = YourImpl;
+              title = "Booleans and Types";
               description = "";
-              hidden_tests =
-                {
-                  tests =
+              editors =
+                [
+                  ( YourImpl,
+                    {
+                      zipper =
+                        "((selection((focus \
+                         Left)(content())))(backpack())(relatives((siblings(()((Grout((id \
+                         0)(shape Convex))))))(ancestors())))(caret Outer))";
+                      backup_text = " ";
+                    } );
+                  ( HiddenTests,
+                    (* hidden_tests = *)
+                    (* {
+                       tests = *)
                     {
                       zipper =
                         "((selection((focus Left)(content())(mode \
@@ -18344,17 +18534,30 @@ let startup : PersistentData.t =
                          f49430b2-1265-4e87-a6d6-795eb57c37f8)(shape \
                          Convex))))))(ancestors())))(caret Outer))";
                       backup_text = " ";
-                    };
-                  hints = [];
-                };
+                    }
+                    (* hints = [];
+                       }; *) );
+                ];
             } );
           ( "Conditional Expressions",
             {
-              title = "";
+              focus = YourImpl;
+              title = "Conditional Expressions";
               description = "";
-              hidden_tests =
-                {
-                  tests =
+              editors =
+                [
+                  ( YourImpl,
+                    {
+                      zipper =
+                        "((selection((focus \
+                         Left)(content())))(backpack())(relatives((siblings(()((Grout((id \
+                         0)(shape Convex))))))(ancestors())))(caret Outer))";
+                      backup_text = " ";
+                    } );
+                  ( HiddenTests,
+                    (* hidden_tests = *)
+                    (* {
+                       tests = *)
                     {
                       zipper =
                         "((selection((focus Left)(content())(mode \
@@ -18362,17 +18565,30 @@ let startup : PersistentData.t =
                          e2b7d6b9-5b95-4fad-9278-60097f30375f)(shape \
                          Convex))))))(ancestors())))(caret Outer))";
                       backup_text = " ";
-                    };
-                  hints = [];
-                };
+                    }
+                    (* hints = []; *)
+                    (* }; *) );
+                ];
             } );
           ( "Functions",
             {
-              title = "";
+              focus = YourImpl;
+              title = "Functions";
               description = "";
-              hidden_tests =
-                {
-                  tests =
+              editors =
+                [
+                  ( YourImpl,
+                    {
+                      zipper =
+                        "((selection((focus \
+                         Left)(content())))(backpack())(relatives((siblings(()((Grout((id \
+                         0)(shape Convex))))))(ancestors())))(caret Outer))";
+                      backup_text = " ";
+                    } );
+                  ( HiddenTests,
+                    (* hidden_tests = *)
+                    (* {
+                       tests = *)
                     {
                       zipper =
                         "((selection((focus Left)(content())(mode \
@@ -18380,9 +18596,10 @@ let startup : PersistentData.t =
                          b60e7d0e-e290-4b23-b03c-7fe121fb5dcd)(shape \
                          Convex))))))(ancestors())))(caret Outer))";
                       backup_text = " ";
-                    };
-                  hints = [];
-                };
+                    }
+                    (* hints = [];
+                       }; *) );
+                ];
             } );
         ],
         [

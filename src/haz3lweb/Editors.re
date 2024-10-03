@@ -288,7 +288,7 @@ let reset_nth_slide = (n, slides) => {
 let reset_named_slide = (name, slides) => {
   let (_, init_editors, _) = Init.startup.documentation;
   let data = List.assoc(name, init_editors);
-  let init_name = ScratchSlide.unpersist(data);
+  let init_name = DocumentationEnv.unpersist_state(data);
   slides |> List.remove_assoc(name) |> List.cons((name, init_name));
 };
 

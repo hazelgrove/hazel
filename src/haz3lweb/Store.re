@@ -194,10 +194,10 @@ module Documentation = {
     );
   };
 
-  let unpersist = ((name, zipper)) => {
-    let zipper = PersistentZipper.unpersist(zipper);
-    (name, Editor.init(zipper, ~read_only=false));
-  };
+  // let unpersist = ((name, zipper)) => {
+  //   let zipper = PersistentZipper.unpersist(zipper);
+  //   (name, Editor.init(zipper, ~read_only=false));
+  // };
 
   // let fromEditor = (editor: Editor.t): ScratchSlide.persistent_state => {
   //   title: "",
@@ -206,14 +206,16 @@ module Documentation = {
   // };
 
   let pzipper_to_pstate =
-      (slide: PersistentZipper.t): ScratchSlide.persistent_state => {
-    // {
+      (slide: PersistentZipper.t): DocumentationEnv.persistent_state => {
+    focus: YourImpl,
     title: "",
     description: "",
-    hidden_tests: {
-      tests: slide,
-      hints: [],
-    },
+    editors: [(HiddenTests, slide)],
+    // your_impl: Editor.init(Zipper.init()),
+    // hidden_tests: {
+    //   tests: slide,
+    //   hints: [],
+    // },
     // };
   };
 
@@ -233,16 +235,23 @@ module Documentation = {
     );
   };
 
+  let unpersist = (state: DocumentationEnv.persistent_state) => {
+    let focused_zipper = List.assoc(state.focus, state.editors);
+    let zipper = PersistentZipper.unpersist(focused_zipper);
+    Editor.init(zipper, ~read_only=false);
+  };
+
   let of_persistent = (~settings, (string, slides, results): persistent) => {
-    let state_to_zipper =
-        ((str: string, status: ScratchSlide.persistent_state)) => {
-      (str, ScratchSlide.unpersist(status));
+    let state_to_editor =
+        ((str: string, status: DocumentationEnv.persistent_state)) => {
+      (str, unpersist(status));
     };
-    let slides = List.map(state_to_zipper, slides);
-    let slides = List.map(persist, slides);
+    let slides = List.map(state_to_editor, slides);
+    // let slides = List.map(persist, slides);
     (
       string,
-      List.map(unpersist, slides),
+      slides,
+      // List.map(unpersist, slides),
       results
       |> List.to_seq
       |> ModelResults.of_seq

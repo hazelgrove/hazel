@@ -81,6 +81,11 @@ let unpersist = (zipper: persistent_state) => {
   Editor.init(zipper, ~read_only=false);
 };
 
+// let unpersist = (zipper: persistent_state) => {
+//   let zipper = PersistentZipper.unpersist(zipper.hidden_tests.tests);
+//   Editor.init(zipper, ~read_only=false);
+// };
+
 let serialize = (state: state) => {
   let editor = persist(state.hidden_tests.tests);
   let persistent_state: persistent_state = {

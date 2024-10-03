@@ -74,7 +74,6 @@ let load_editors =
     (Scratch(idx, slides), results);
   | Documentation =>
     let (name, slides, results) = Store.Documentation.load(~settings);
-
     let fromEditor = (editor: Editor.t): DocumentationEnv.state => {
       pos: DocumentationEnv.YourImpl,
       eds: {
@@ -93,13 +92,6 @@ let load_editors =
     );
     print_endline("inside load editors");
     let slides = List.map(to_tup, slides);
-    // let (n, specs, exercise) =
-    //   Store.Exercise.load(
-    //     ~specs=ExerciseSettings.exercises,
-    //     ~instructor_mode,
-    //   );
-    // (Exercises(n, specs, exercise), ModelResults.empty);
-
     (Documentation(name, slides), results);
   | Exercises =>
     let (n, specs, exercise) =
@@ -134,6 +126,24 @@ let save_editors =
     Store.Exercise.save((n, specs, exercise), ~instructor_mode)
   };
 
+// let save_editors_2 = (editors: Editors.t, results: ModelResults.t): unit =>
+//   switch (editors) {
+//   | Scratch(_) => ()
+//   | Documentation(name, slides) =>
+//     let toEditor = (state: DocumentationEnv.state): Editor.t => {
+//       switch (state) {
+//       | s => s.eds.your_impl
+//       };
+//     };
+//     let from_tup = ((word: string, status: DocumentationEnv.state)) => (
+//       word,
+//       toEditor(status),
+//     );
+//     let slides = List.map(from_tup, slides);
+//     Store.Documentation.save((name, slides, results));
+//   | Exercises(_) => ()
+//   };
+
 let load = (init_model: t): t => {
   let settings = Store.Settings.load();
   let explainThisModel = Store.ExplainThisModel.load();
@@ -150,6 +160,7 @@ let load = (init_model: t): t => {
 
 let save = ({editors, settings, explainThisModel, results, _}: t) => {
   save_editors(editors, results, ~instructor_mode=settings.instructor_mode);
+  // save_editors_2(editors, results);
   Store.ExplainThisModel.save(explainThisModel);
   Store.Settings.save(settings);
 };
