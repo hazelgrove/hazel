@@ -33,10 +33,10 @@
   bisect_ppx
   (omd (>= 2.0.0~alpha4))
   ezjs_idb
-  virtual_dom
+  bonsai
   ppx_deriving
   ptmap
-  uuidm
+  (uuidm (= 0.9.8)) ; 0.9.9 has breaking deprecated changes
   unionFind
   ocamlformat
   (junit_alcotest :with-test)
