@@ -393,7 +393,6 @@ module Transition = (EV: EV_MODE) => {
         } else {
           Indet;
         }
-      /* This case isn't currently used because deferrals are elaborated away */
       | DeferredAp(d3, d4s) =>
         let n_args =
           List.length(
