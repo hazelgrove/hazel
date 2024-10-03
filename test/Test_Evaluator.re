@@ -16,7 +16,7 @@ let type_of = f => {
 };
 
 let int_evaluation =
-  Evaluator.evaluate(Builtins.env_init, {d: Exp.Int(8) |> Exp.fresh});
+  Evaluator.evaluate(Builtins.env_init, {d: Int(8) |> Exp.fresh});
 
 let evaluation_test = (msg, expected, unevaluated) =>
   check(
