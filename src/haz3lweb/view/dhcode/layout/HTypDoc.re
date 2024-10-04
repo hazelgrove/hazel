@@ -19,15 +19,15 @@ let precedence = (ty: Typ.t): int =>
   | Bool
   | String
   | Unknown(_)
-  | Var(_)
+  | TypVar(_)
   | Forall(_)
   | Rec(_)
   | Sum(_) => precedence_Sum
   | List(_) => precedence_Const
   | Prod(_) => precedence_Prod
   | Arrow(_, _) => precedence_Arrow
-  | Parens(_) => precedence_Const
-  | Ap(_) => precedence_Ap
+  | TypParens(_) => precedence_Const
+  | ApTyp(_) => precedence_Ap
   };
 
 let pad_child =
@@ -66,7 +66,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
   );
   let (doc, parenthesize) =
     switch (Typ.term_of(ty)) {
-    | Parens(ty) => (mk(~parenthesize=true, ~enforce_inline, ty), false)
+    | TypParens(ty) => (mk(~parenthesize=true, ~enforce_inline, ty), false)
     | Unknown(_) => (
         annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?"))),
         parenthesize,
@@ -75,7 +75,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
     | Float => (text("Float"), parenthesize)
     | Bool => (text("Bool"), parenthesize)
     | String => (text("String"), parenthesize)
-    | Var(name) => (text(name), parenthesize)
+    | TypVar(name) => (text(name), parenthesize)
     | List(ty) => (
         hcats([
           mk_delim("["),
@@ -173,7 +173,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
            )
         |> hcats;
       (center, true);
-    | Ap(t1, t2) => (
+    | ApTyp(t1, t2) => (
         hcats([mk'(t1), text("("), mk'(t2), text(")")]),
         parenthesize,
       )

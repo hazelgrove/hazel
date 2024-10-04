@@ -442,10 +442,10 @@ module Transition = (EV: EV_MODE) => {
     | Deferral(_) =>
       let. _ = otherwise(env, d);
       Indet;
-    | Bool(_)
-    | Int(_)
-    | Float(_)
-    | String(_)
+    | BoolLit(_)
+    | IntLit(_)
+    | FloatLit(_)
+    | StringLit(_)
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
@@ -477,7 +477,7 @@ module Transition = (EV: EV_MODE) => {
         );
       let-unbox n = (Int, d1');
       Step({
-        expr: Int(- n) |> fresh,
+        expr: IntLit(- n) |> fresh,
         state_update,
         kind: UnOp(Int(Minus)),
         is_value: true,
@@ -492,7 +492,7 @@ module Transition = (EV: EV_MODE) => {
         );
       let-unbox b = (Bool, d1');
       Step({
-        expr: Bool(!b) |> fresh,
+        expr: BoolLit(!b) |> fresh,
         state_update,
         kind: UnOp(Bool(Not)),
         is_value: true,
@@ -507,7 +507,7 @@ module Transition = (EV: EV_MODE) => {
         );
       let-unbox b1 = (Bool, d1');
       Step({
-        expr: b1 ? d2 : Bool(false) |> fresh,
+        expr: b1 ? d2 : BoolLit(false) |> fresh,
         state_update,
         kind: BinBoolOp(And),
         is_value: false,
@@ -522,7 +522,7 @@ module Transition = (EV: EV_MODE) => {
         );
       let-unbox b1 = (Bool, d1');
       Step({
-        expr: b1 ? Bool(true) |> fresh : d2,
+        expr: b1 ? BoolLit(true) |> fresh : d2,
         state_update,
         kind: BinBoolOp(Or),
         is_value: false,
@@ -547,27 +547,27 @@ module Transition = (EV: EV_MODE) => {
         expr:
           (
             switch (op) {
-            | Plus => Int(n1 + n2)
-            | Minus => Int(n1 - n2)
+            | Plus => IntLit(n1 + n2)
+            | Minus => IntLit(n1 - n2)
             | Power when n2 < 0 =>
               DynamicErrorHole(
                 BinOp(Int(op), d1', d2') |> rewrap,
                 NegativeExponent,
               )
-            | Power => Int(IntUtil.ipow(n1, n2))
-            | Times => Int(n1 * n2)
+            | Power => IntLit(IntUtil.ipow(n1, n2))
+            | Times => IntLit(n1 * n2)
             | Divide when n2 == 0 =>
               DynamicErrorHole(
                 BinOp(Int(op), d1', d2') |> rewrap,
                 DivideByZero,
               )
-            | Divide => Int(n1 / n2)
-            | LessThan => Bool(n1 < n2)
-            | LessThanOrEqual => Bool(n1 <= n2)
-            | GreaterThan => Bool(n1 > n2)
-            | GreaterThanOrEqual => Bool(n1 >= n2)
-            | Equals => Bool(n1 == n2)
-            | NotEquals => Bool(n1 != n2)
+            | Divide => IntLit(n1 / n2)
+            | LessThan => BoolLit(n1 < n2)
+            | LessThanOrEqual => BoolLit(n1 <= n2)
+            | GreaterThan => BoolLit(n1 > n2)
+            | GreaterThanOrEqual => BoolLit(n1 >= n2)
+            | Equals => BoolLit(n1 == n2)
+            | NotEquals => BoolLit(n1 != n2)
             }
           )
           |> fresh,
@@ -597,17 +597,17 @@ module Transition = (EV: EV_MODE) => {
         expr:
           (
             switch (op) {
-            | Plus => Float(n1 +. n2)
-            | Minus => Float(n1 -. n2)
-            | Power => Float(n1 ** n2)
-            | Times => Float(n1 *. n2)
-            | Divide => Float(n1 /. n2)
-            | LessThan => Bool(n1 < n2)
-            | LessThanOrEqual => Bool(n1 <= n2)
-            | GreaterThan => Bool(n1 > n2)
-            | GreaterThanOrEqual => Bool(n1 >= n2)
-            | Equals => Bool(n1 == n2)
-            | NotEquals => Bool(n1 != n2)
+            | Plus => FloatLit(n1 +. n2)
+            | Minus => FloatLit(n1 -. n2)
+            | Power => FloatLit(n1 ** n2)
+            | Times => FloatLit(n1 *. n2)
+            | Divide => FloatLit(n1 /. n2)
+            | LessThan => BoolLit(n1 < n2)
+            | LessThanOrEqual => BoolLit(n1 <= n2)
+            | GreaterThan => BoolLit(n1 > n2)
+            | GreaterThanOrEqual => BoolLit(n1 >= n2)
+            | Equals => BoolLit(n1 == n2)
+            | NotEquals => BoolLit(n1 != n2)
             }
           )
           |> fresh,
@@ -635,8 +635,8 @@ module Transition = (EV: EV_MODE) => {
       Step({
         expr:
           switch (op) {
-          | Concat => String(s1 ++ s2) |> fresh
-          | Equals => Bool(s1 == s2) |> fresh
+          | Concat => StringLit(s1 ++ s2) |> fresh
+          | Equals => BoolLit(s1 == s2) |> fresh
           },
         state_update,
         kind: BinStringOp(op),

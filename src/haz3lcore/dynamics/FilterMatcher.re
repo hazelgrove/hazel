@@ -202,17 +202,17 @@ let rec matches_exp =
       TermBase.StepperFilterKind.fast_equal(df, ff) && matches_exp(dd, fd)
     | (Filter(_), _) => false
 
-    | (Bool(dv), Bool(fv)) => dv == fv
-    | (Bool(_), _) => false
+    | (BoolLit(dv), BoolLit(fv)) => dv == fv
+    | (BoolLit(_), _) => false
 
-    | (Int(dv), Int(fv)) => dv == fv
-    | (Int(_), _) => false
+    | (IntLit(dv), IntLit(fv)) => dv == fv
+    | (IntLit(_), _) => false
 
-    | (Float(dv), Float(fv)) => dv == fv
-    | (Float(_), _) => false
+    | (FloatLit(dv), FloatLit(fv)) => dv == fv
+    | (FloatLit(_), _) => false
 
-    | (String(dv), String(fv)) => dv == fv
-    | (String(_), _) => false
+    | (StringLit(dv), StringLit(fv)) => dv == fv
+    | (StringLit(_), _) => false
 
     | (
         Constructor(_),
@@ -377,11 +377,12 @@ and matches_typ = (d: Typ.t, f: Typ.t) => {
 
 and matches_utpat = (d: TPat.t, f: TPat.t): bool => {
   switch (d.term, f.term) {
-  | (Invalid(_), _) => false
-  | (_, Invalid(_)) => false
-  | (_, EmptyHole) => true
-  | (MultiHole(l1), MultiHole(l2)) => List.length(l1) == List.length(l2) /* TODO: probably should define a matches_any and recurse in here...? */
-  | (Var(t1), Var(t2)) => t1 == t2
+  | (InvalidTPat(_), _) => false
+  | (_, InvalidTPat(_)) => false
+  | (_, EmptyHoleTPat) => true
+  | (MultiHoleTPat(l1), MultiHoleTPat(l2)) =>
+    List.length(l1) == List.length(l2) /* TODO: probably should define a matches_any and recurse in here...? */
+  | (VarTPat(t1), VarTPat(t2)) => t1 == t2
   | _ => false
   };
 };

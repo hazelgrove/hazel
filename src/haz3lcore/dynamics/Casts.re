@@ -34,7 +34,7 @@ let grounded_Arrow =
   );
 let grounded_Forall =
   NotGroundOrHole(
-    Forall(EmptyHole |> TPat.fresh, Unknown(Internal) |> Typ.temp)
+    Forall(EmptyHoleTPat |> TPat.fresh, Unknown(Internal) |> Typ.temp)
     |> Typ.temp,
   );
 let grounded_Prod = length =>
@@ -58,12 +58,12 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Int
   | Float
   | String
-  | Var(_)
+  | TypVar(_)
   | Rec(_)
   | Forall(_, {term: Unknown(_), _})
   | Arrow({term: Unknown(_), _}, {term: Unknown(_), _})
   | List({term: Unknown(_), _}) => Ground
-  | Parens(ty) => ground_cases_of(ty)
+  | TypParens(ty) => ground_cases_of(ty)
   | Prod(tys) =>
     if (List.for_all(
           fun
@@ -81,7 +81,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Arrow(_, _) => grounded_Arrow
   | Forall(_) => grounded_Forall
   | List(_) => grounded_List
-  | Ap(_) => failwith("type application in dynamics")
+  | ApTyp(_) => failwith("type application in dynamics")
   };
 };
 
@@ -183,7 +183,7 @@ let hole = EmptyHole |> DHExp.fresh;
 let pattern_fixup = (p: DHPat.t): DHPat.t => {
   let rec unwrap_casts = (p: DHPat.t): (DHPat.t, DHExp.t) => {
     switch (DHPat.term_of(p)) {
-    | Cast(p1, t1, t2) =>
+    | CastPat(p1, t1, t2) =>
       let (p1, d1) = unwrap_casts(p1);
       (
         p1,
@@ -198,13 +198,13 @@ let pattern_fixup = (p: DHPat.t): DHPat.t => {
     | EmptyHole => p
     | Cast(d1, t1, t2) =>
       let p1 = rewrap_casts((p, d1));
-      {term: Cast(p1, t1, t2), copied: d.copied, ids: d.ids};
+      {term: CastPat(p1, t1, t2), copied: d.copied, ids: d.ids};
     | FailedCast(d1, t1, t2) =>
       let p1 = rewrap_casts((p, d1));
       {
         term:
-          Cast(
-            Cast(p1, t1, Typ.fresh(Unknown(Internal))) |> DHPat.fresh,
+          CastPat(
+            CastPat(p1, t1, Typ.fresh(Unknown(Internal))) |> DHPat.fresh,
             Typ.fresh(Unknown(Internal)),
             t2,
           ),

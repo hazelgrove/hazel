@@ -33,28 +33,28 @@ module Pat = {
 
   let hole = (tms: list(TermBase.Any.t)): TermBase.Pat.term =>
     switch (tms) {
-    | [] => EmptyHole
-    | [_, ..._] => MultiHole(tms)
+    | [] => EmptyHolePat
+    | [_, ..._] => MultiHolePat(tms)
     };
 
   let cls_of_term: term => cls =
     fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
+    | InvalidPat(_) => Invalid
+    | EmptyHolePat => EmptyHole
+    | MultiHolePat(_) => MultiHole
     | Wild => Wild
-    | Int(_) => Int
-    | Float(_) => Float
-    | Bool(_) => Bool
-    | String(_) => String
-    | ListLit(_) => ListLit
-    | Constructor(_) => Constructor
-    | Cons(_) => Cons
-    | Var(_) => Var
-    | Tuple(_) => Tuple
-    | Parens(_) => Parens
-    | Ap(_) => Ap
-    | Cast(_) => Cast;
+    | IntPat(_) => Int
+    | FloatPat(_) => Float
+    | BoolPat(_) => Bool
+    | StringPat(_) => String
+    | ListLitPat(_) => ListLit
+    | ConstructorPat(_) => Constructor
+    | ConsPat(_) => Cons
+    | VarPat(_) => Var
+    | TuplePat(_) => Tuple
+    | ParensPat(_) => Parens
+    | ApPat(_) => Ap
+    | CastPat(_) => Cast;
 
   let show_cls: cls => string =
     fun
@@ -77,44 +77,44 @@ module Pat = {
 
   let rec is_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat)
-    | Cast(pat, _, _) => is_var(pat)
-    | Var(_) => true
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
+    | ParensPat(pat)
+    | CastPat(pat, _, _) => is_var(pat)
+    | VarPat(_) => true
+    | InvalidPat(_)
+    | EmptyHolePat
+    | MultiHolePat(_)
     | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
-    | ListLit(_)
-    | Cons(_, _)
-    | Tuple(_)
-    | Constructor(_)
-    | Ap(_) => false
+    | IntPat(_)
+    | FloatPat(_)
+    | BoolPat(_)
+    | StringPat(_)
+    | ListLitPat(_)
+    | ConsPat(_, _)
+    | TuplePat(_)
+    | ConstructorPat(_)
+    | ApPat(_) => false
     };
   };
 
   let rec is_fun_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => is_fun_var(pat)
-    | Cast(pat, typ, _) =>
+    | ParensPat(pat) => is_fun_var(pat)
+    | CastPat(pat, typ, _) =>
       is_var(pat) && (UTyp.is_arrow(typ) || Typ.is_forall(typ))
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
+    | InvalidPat(_)
+    | EmptyHolePat
+    | MultiHolePat(_)
     | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
-    | ListLit(_)
-    | Cons(_, _)
-    | Var(_)
-    | Tuple(_)
-    | Constructor(_)
-    | Ap(_) => false
+    | IntPat(_)
+    | FloatPat(_)
+    | BoolPat(_)
+    | StringPat(_)
+    | ListLitPat(_)
+    | ConsPat(_, _)
+    | VarPat(_)
+    | TuplePat(_)
+    | ConstructorPat(_)
+    | ApPat(_) => false
     };
   };
 
@@ -122,22 +122,22 @@ module Pat = {
     is_fun_var(pat)
     || (
       switch (pat.term) {
-      | Parens(pat) => is_tuple_of_arrows(pat)
-      | Tuple(pats) => pats |> List.for_all(is_fun_var)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_)
+      | ParensPat(pat) => is_tuple_of_arrows(pat)
+      | TuplePat(pats) => pats |> List.for_all(is_fun_var)
+      | InvalidPat(_)
+      | EmptyHolePat
+      | MultiHolePat(_)
       | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
-      | ListLit(_)
-      | Cons(_, _)
-      | Var(_)
-      | Cast(_)
-      | Constructor(_)
-      | Ap(_) => false
+      | IntPat(_)
+      | FloatPat(_)
+      | BoolPat(_)
+      | StringPat(_)
+      | ListLitPat(_)
+      | ConsPat(_, _)
+      | VarPat(_)
+      | CastPat(_)
+      | ConstructorPat(_)
+      | ApPat(_) => false
       }
     );
 
@@ -145,69 +145,69 @@ module Pat = {
     is_var(pat)
     || (
       switch (pat.term) {
-      | Parens(pat)
-      | Cast(pat, _, _) => is_tuple_of_vars(pat)
-      | Tuple(pats) => pats |> List.for_all(is_var)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_)
+      | ParensPat(pat)
+      | CastPat(pat, _, _) => is_tuple_of_vars(pat)
+      | TuplePat(pats) => pats |> List.for_all(is_var)
+      | InvalidPat(_)
+      | EmptyHolePat
+      | MultiHolePat(_)
       | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
-      | ListLit(_)
-      | Cons(_, _)
-      | Var(_)
-      | Constructor(_)
-      | Ap(_) => false
+      | IntPat(_)
+      | FloatPat(_)
+      | BoolPat(_)
+      | StringPat(_)
+      | ListLitPat(_)
+      | ConsPat(_, _)
+      | VarPat(_)
+      | ConstructorPat(_)
+      | ApPat(_) => false
       }
     );
 
   let rec get_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => get_var(pat)
-    | Var(x) => Some(x)
-    | Cast(x, _, _) => get_var(x)
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
+    | ParensPat(pat) => get_var(pat)
+    | VarPat(x) => Some(x)
+    | CastPat(x, _, _) => get_var(x)
+    | InvalidPat(_)
+    | EmptyHolePat
+    | MultiHolePat(_)
     | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
-    | ListLit(_)
-    | Cons(_, _)
-    | Tuple(_)
-    | Constructor(_)
-    | Ap(_) => None
+    | IntPat(_)
+    | FloatPat(_)
+    | BoolPat(_)
+    | StringPat(_)
+    | ListLitPat(_)
+    | ConsPat(_, _)
+    | TuplePat(_)
+    | ConstructorPat(_)
+    | ApPat(_) => None
     };
   };
 
   let rec get_fun_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => get_fun_var(pat)
-    | Cast(pat, t1, _) =>
+    | ParensPat(pat) => get_fun_var(pat)
+    | CastPat(pat, t1, _) =>
       if (Typ.is_arrow(t1) || UTyp.is_forall(t1)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
       }
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
+    | InvalidPat(_)
+    | EmptyHolePat
+    | MultiHolePat(_)
     | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
-    | ListLit(_)
-    | Cons(_, _)
-    | Var(_)
-    | Tuple(_)
-    | Constructor(_)
-    | Ap(_) => None
+    | IntPat(_)
+    | FloatPat(_)
+    | BoolPat(_)
+    | StringPat(_)
+    | ListLitPat(_)
+    | ConsPat(_, _)
+    | VarPat(_)
+    | TuplePat(_)
+    | ConstructorPat(_)
+    | ApPat(_) => None
     };
   };
 
@@ -216,28 +216,28 @@ module Pat = {
     | Some(x) => Some([x])
     | None =>
       switch (pat.term) {
-      | Parens(pat)
-      | Cast(pat, _, _) => get_bindings(pat)
-      | Tuple(pats) =>
+      | ParensPat(pat)
+      | CastPat(pat, _, _) => get_bindings(pat)
+      | TuplePat(pats) =>
         let vars = pats |> List.map(get_var);
         if (List.exists(Option.is_none, vars)) {
           None;
         } else {
           Some(List.map(Option.get, vars));
         };
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_)
+      | InvalidPat(_)
+      | EmptyHolePat
+      | MultiHolePat(_)
       | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
-      | ListLit(_)
-      | Cons(_, _)
-      | Var(_)
-      | Constructor(_)
-      | Ap(_) => None
+      | IntPat(_)
+      | FloatPat(_)
+      | BoolPat(_)
+      | StringPat(_)
+      | ListLitPat(_)
+      | ConsPat(_, _)
+      | VarPat(_)
+      | ConstructorPat(_)
+      | ApPat(_) => None
       }
     };
 
@@ -246,29 +246,29 @@ module Pat = {
       Some(1);
     } else {
       switch (pat.term) {
-      | Parens(pat)
-      | Cast(pat, _, _) => get_num_of_vars(pat)
-      | Tuple(pats) =>
+      | ParensPat(pat)
+      | CastPat(pat, _, _) => get_num_of_vars(pat)
+      | TuplePat(pats) =>
         is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_)
+      | InvalidPat(_)
+      | EmptyHolePat
+      | MultiHolePat(_)
       | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
-      | ListLit(_)
-      | Cons(_, _)
-      | Var(_)
-      | Constructor(_)
-      | Ap(_) => None
+      | IntPat(_)
+      | FloatPat(_)
+      | BoolPat(_)
+      | StringPat(_)
+      | ListLitPat(_)
+      | ConsPat(_, _)
+      | VarPat(_)
+      | ConstructorPat(_)
+      | ApPat(_) => None
       };
     };
 
   let ctr_name = (p: t): option(Constructor.t) =>
     switch (p.term) {
-    | Constructor(name, _) => Some(name)
+    | ConstructorPat(name, _) => Some(name)
     | _ => None
     };
 };
@@ -337,10 +337,10 @@ module Exp = {
     | FailedCast(_) => FailedCast
     | Deferral(_) => Deferral
     | Undefined => Undefined
-    | Bool(_) => Bool
-    | Int(_) => Int
-    | Float(_) => Float
-    | String(_) => String
+    | BoolLit(_) => Bool
+    | IntLit(_) => Int
+    | FloatLit(_) => Float
+    | StringLit(_) => String
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
@@ -425,10 +425,10 @@ module Exp = {
     | FailedCast(_)
     | Deferral(_)
     | Undefined
-    | Bool(_)
-    | Int(_)
-    | Float(_)
-    | String(_)
+    | BoolLit(_)
+    | IntLit(_)
+    | FloatLit(_)
+    | StringLit(_)
     | ListLit(_)
     | Tuple(_)
     | Var(_)
@@ -466,10 +466,10 @@ module Exp = {
       | FailedCast(_)
       | Deferral(_)
       | Undefined
-      | Bool(_)
-      | Int(_)
-      | Float(_)
-      | String(_)
+      | BoolLit(_)
+      | IntLit(_)
+      | FloatLit(_)
+      | StringLit(_)
       | ListLit(_)
       | Fun(_)
       | TypFun(_)
@@ -526,10 +526,10 @@ module Exp = {
       | Cast(_)
       | Deferral(_)
       | Undefined
-      | Bool(_)
-      | Int(_)
-      | Float(_)
-      | String(_)
+      | BoolLit(_)
+      | IntLit(_)
+      | FloatLit(_)
+      | StringLit(_)
       | ListLit(_)
       | Fun(_)
       | TypFun(_)

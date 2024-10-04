@@ -5,7 +5,7 @@ open Haz3lcore;
 
 let tpat_view = (tpat: Haz3lcore.TPat.t): string =>
   switch (tpat.term) {
-  | Var(x) => x
+  | VarTPat(x) => x
   | _ => "?"
   };
 
@@ -25,12 +25,12 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
       ],
       [text("?") /*, prov_view(prov)*/],
     )
-  | Parens(ty) => view_ty(ty)
+  | TypParens(ty) => view_ty(ty)
   | Int => ty_view("Int", "Int")
   | Float => ty_view("Float", "Float")
   | String => ty_view("String", "String")
   | Bool => ty_view("Bool", "Bool")
-  | Var(name) => ty_view("Var", name)
+  | TypVar(name) => ty_view("Var", name)
   | Rec(name, t) =>
     div(
       ~attrs=[clss(["typ-view", "Rec"])],
@@ -94,7 +94,7 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
         ctr_view(t0) @ ts_views;
       },
     )
-  | Ap(_) =>
+  | ApTyp(_) =>
     div(
       ~attrs=[
         clss(["typ-view", "atom", "unknown"]),

@@ -394,15 +394,15 @@ let example_view =
 
 let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
-  | Parens(p)
-  | Cast(p, _, _) => bypass_parens_and_annot_pat(p)
+  | ParensPat(p)
+  | CastPat(p, _, _) => bypass_parens_and_annot_pat(p)
   | _ => pat
   };
 };
 
 let rec bypass_parens_pat = (pat: Pat.t) => {
   switch (pat.term) {
-  | Parens(p) => bypass_parens_pat(p)
+  | ParensPat(p) => bypass_parens_pat(p)
   | _ => pat
   };
 };
@@ -416,7 +416,7 @@ let rec bypass_parens_exp = (exp: Exp.t) => {
 
 let rec bypass_parens_typ = (typ: Typ.t) => {
   switch (typ.term) {
-  | Parens(t) => bypass_parens_typ(t)
+  | TypParens(t) => bypass_parens_typ(t)
   | _ => typ
   };
 };
@@ -560,10 +560,10 @@ let get_doc =
         );
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
-      | Bool(b) => get_message(TerminalExp.bool_exps(b))
-      | Int(i) => get_message(TerminalExp.int_exps(i))
-      | Float(f) => get_message(TerminalExp.float_exps(f))
-      | String(s) => get_message(TerminalExp.string_exps(s))
+      | BoolLit(b) => get_message(TerminalExp.bool_exps(b))
+      | IntLit(i) => get_message(TerminalExp.int_exps(i))
+      | FloatLit(f) => get_message(TerminalExp.float_exps(f))
+      | StringLit(s) => get_message(TerminalExp.string_exps(s))
       | ListLit(terms) =>
         get_message(
           ~format=
@@ -623,7 +623,7 @@ let get_doc =
         let pat_id = List.nth(pat.ids, 0);
         let body_id = List.nth(body.ids, 0);
         switch (pat.term) {
-        | EmptyHole =>
+        | EmptyHolePat =>
           if (FunctionExp.function_empty_hole_exp.id
               == get_specificity_level(FunctionExp.functions_empty_hole)) {
             get_message(
@@ -647,7 +647,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_empty_hole);
           }
-        | MultiHole(_) =>
+        | MultiHolePat(_) =>
           if (FunctionExp.function_multi_hole_exp.id
               == get_specificity_level(FunctionExp.functions_multi_hole)) {
             get_message(
@@ -689,7 +689,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_wild);
           }
-        | Int(i) =>
+        | IntPat(i) =>
           if (FunctionExp.function_intlit_exp.id
               == get_specificity_level(FunctionExp.functions_int)) {
             get_message(
@@ -714,7 +714,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_int);
           }
-        | Float(f) =>
+        | FloatPat(f) =>
           if (FunctionExp.function_floatlit_exp.id
               == get_specificity_level(FunctionExp.functions_float)) {
             get_message(
@@ -739,7 +739,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_float);
           }
-        | Bool(b) =>
+        | BoolPat(b) =>
           if (FunctionExp.function_boollit_exp.id
               == get_specificity_level(FunctionExp.functions_bool)) {
             get_message(
@@ -764,7 +764,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_bool);
           }
-        | String(s) =>
+        | StringPat(s) =>
           if (FunctionExp.function_strlit_exp.id
               == get_specificity_level(FunctionExp.functions_str)) {
             get_message(
@@ -789,7 +789,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_str);
           }
-        | Tuple([]) =>
+        | TuplePat([]) =>
           if (FunctionExp.function_triv_exp.id
               == get_specificity_level(FunctionExp.functions_triv)) {
             get_message(
@@ -812,7 +812,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_triv);
           }
-        | ListLit(elements) =>
+        | ListLitPat(elements) =>
           if (List.length(elements) == 0) {
             if (FunctionExp.function_listnil_exp.id
                 == get_specificity_level(FunctionExp.functions_listnil)) {
@@ -861,7 +861,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_listlit);
           }
-        | Cons(hd, tl) =>
+        | ConsPat(hd, tl) =>
           if (FunctionExp.function_cons_exp.id
               == get_specificity_level(FunctionExp.functions_cons)) {
             let hd_id = List.nth(hd.ids, 0);
@@ -888,7 +888,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_cons);
           }
-        | Var(var) =>
+        | VarPat(var) =>
           if (FunctionExp.function_var_exp.id
               == get_specificity_level(FunctionExp.functions_var)) {
             get_message(
@@ -909,7 +909,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_var);
           }
-        | Tuple(elements) =>
+        | TuplePat(elements) =>
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
           let basic_tuple = group_id => {
@@ -1004,7 +1004,7 @@ let get_doc =
               basic(FunctionExp.functions_tuple);
             }
           };
-        | Ap(con, arg) =>
+        | ApPat(con, arg) =>
           if (FunctionExp.function_ap_exp.id
               == get_specificity_level(FunctionExp.functions_ap)) {
             let con_id = List.nth(con.ids, 0);
@@ -1031,7 +1031,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_ap);
           }
-        | Constructor(v, _) =>
+        | ConstructorPat(v, _) =>
           if (FunctionExp.function_ctr_exp.id
               == get_specificity_level(FunctionExp.functions_ctr)) {
             let pat_id = List.nth(pat.ids, 0);
@@ -1055,9 +1055,9 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_ctr);
           }
-        | Invalid(_) => default // Shouldn't get hit
-        | Parens(_) => default // Shouldn't get hit?
-        | Cast(_) => default // Shouldn't get hit?
+        | InvalidPat(_) => default // Shouldn't get hit
+        | ParensPat(_) => default // Shouldn't get hit?
+        | CastPat(_) => default // Shouldn't get hit?
         };
       | Tuple(terms) =>
         let basic = group_id =>
@@ -1147,7 +1147,7 @@ let get_doc =
           );
         };
         switch (pat.term) {
-        | EmptyHole =>
+        | EmptyHolePat =>
           if (LetExp.let_empty_hole_exp.id
               == get_specificity_level(LetExp.lets_emptyhole)) {
             get_message(
@@ -1168,7 +1168,7 @@ let get_doc =
           } else {
             basic(LetExp.lets_emptyhole);
           }
-        | MultiHole(_) =>
+        | MultiHolePat(_) =>
           if (LetExp.let_multi_hole_exp.id
               == get_specificity_level(LetExp.lets_mutlihole)) {
             get_message(
@@ -1209,7 +1209,7 @@ let get_doc =
           } else {
             basic(LetExp.lets_wild);
           }
-        | Int(i) =>
+        | IntPat(i) =>
           if (LetExp.let_int_exp.id == get_specificity_level(LetExp.lets_int)) {
             get_message(
               ~colorings=
@@ -1234,7 +1234,7 @@ let get_doc =
               LetExp.lets_int,
             );
           }
-        | Float(f) =>
+        | FloatPat(f) =>
           if (LetExp.let_float_exp.id
               == get_specificity_level(LetExp.lets_float)) {
             // TODO Make sure everywhere printing the float literal print it prettier
@@ -1261,7 +1261,7 @@ let get_doc =
               LetExp.lets_float,
             );
           }
-        | Bool(b) =>
+        | BoolPat(b) =>
           if (LetExp.let_bool_exp.id
               == get_specificity_level(LetExp.lets_bool)) {
             get_message(
@@ -1287,7 +1287,7 @@ let get_doc =
               LetExp.lets_bool,
             );
           }
-        | String(s) =>
+        | StringPat(s) =>
           if (LetExp.let_str_exp.id == get_specificity_level(LetExp.lets_str)) {
             get_message(
               ~colorings=
@@ -1312,7 +1312,7 @@ let get_doc =
               LetExp.lets_str,
             );
           }
-        | Tuple([]) =>
+        | TuplePat([]) =>
           if (LetExp.let_triv_exp.id
               == get_specificity_level(LetExp.lets_triv)) {
             get_message(
@@ -1337,7 +1337,7 @@ let get_doc =
               LetExp.lets_triv,
             );
           }
-        | ListLit(elements) =>
+        | ListLitPat(elements) =>
           if (List.length(elements) == 0) {
             if (LetExp.let_listnil_exp.id
                 == get_specificity_level(LetExp.lets_listnil)) {
@@ -1384,7 +1384,7 @@ let get_doc =
           } else {
             basic(LetExp.lets_listlit);
           }
-        | Cons(hd, tl) =>
+        | ConsPat(hd, tl) =>
           if (LetExp.let_cons_exp.id
               == get_specificity_level(LetExp.lets_cons)) {
             let hd_id = List.nth(hd.ids, 0);
@@ -1407,7 +1407,7 @@ let get_doc =
           } else {
             basic(LetExp.lets_cons);
           }
-        | Var(var) =>
+        | VarPat(var) =>
           if (LetExp.let_var_exp.id == get_specificity_level(LetExp.lets_var)) {
             get_message(
               ~colorings=
@@ -1428,7 +1428,7 @@ let get_doc =
           } else {
             basic(LetExp.lets_var);
           }
-        | Tuple(elements) =>
+        | TuplePat(elements) =>
           let basic_tuple = group_id => {
             get_message(
               ~colorings=LetExp.let_tuple_exp_coloring_ids(~pat_id, ~def_id),
@@ -1517,7 +1517,7 @@ let get_doc =
               basic(LetExp.lets_tuple);
             }
           };
-        | Ap(con, arg) =>
+        | ApPat(con, arg) =>
           if (LetExp.let_ap_exp.id == get_specificity_level(LetExp.lets_ap)) {
             let con_id = List.nth(con.ids, 0);
             let arg_id = List.nth(arg.ids, 0);
@@ -1539,7 +1539,7 @@ let get_doc =
           } else {
             basic(LetExp.lets_ap);
           }
-        | Constructor(v, _) =>
+        | ConstructorPat(v, _) =>
           if (LetExp.let_ctr_exp.id == get_specificity_level(LetExp.lets_ctr)) {
             get_message(
               ~colorings=
@@ -1561,9 +1561,9 @@ let get_doc =
           } else {
             basic(LetExp.lets_ctr);
           }
-        | Invalid(_) => default // Shouldn't get hit
-        | Parens(_) => default // Shouldn't get hit?
-        | Cast(_) => default // Shouldn't get hit?
+        | InvalidPat(_) => default // Shouldn't get hit
+        | ParensPat(_) => default // Shouldn't get hit?
+        | CastPat(_) => default // Shouldn't get hit?
         };
       | FixF(pat, body, _) =>
         message_single(
@@ -1710,28 +1710,28 @@ let get_doc =
             ),
           SeqExp.seqs,
         );
-      | Filter(Filter({act: (Step, One), pat}), body) =>
+      | Filter(FilterStepper({act: (Step, One), pat}), body) =>
         message_single(
           FilterExp.filter_pause(
             ~p_id=UExp.rep_id(pat),
             ~body_id=UExp.rep_id(body),
           ),
         )
-      | Filter(Filter({act: (Step, All), pat}), body) =>
+      | Filter(FilterStepper({act: (Step, All), pat}), body) =>
         message_single(
           FilterExp.filter_debug(
             ~p_id=UExp.rep_id(pat),
             ~body_id=UExp.rep_id(body),
           ),
         )
-      | Filter(Filter({act: (Eval, All), pat}), body) =>
+      | Filter(FilterStepper({act: (Eval, All), pat}), body) =>
         message_single(
           FilterExp.filter_eval(
             ~p_id=UExp.rep_id(pat),
             ~body_id=UExp.rep_id(body),
           ),
         )
-      | Filter(Filter({act: (Eval, One), pat}), body) =>
+      | Filter(FilterStepper({act: (Eval, One), pat}), body) =>
         message_single(
           FilterExp.filter_hide(
             ~p_id=UExp.rep_id(pat),
@@ -1906,10 +1906,10 @@ let get_doc =
     get_message_exp(term.term);
   | Some(InfoPat({term, _})) =>
     switch (bypass_parens_pat(term).term) {
-    | EmptyHole => get_message(HolePat.empty_hole)
-    | MultiHole(_) => get_message(HolePat.multi_hole)
+    | EmptyHolePat => get_message(HolePat.empty_hole)
+    | MultiHolePat(_) => get_message(HolePat.multi_hole)
     | Wild => get_message(TerminalPat.wild)
-    | Int(i) =>
+    | IntPat(i) =>
       get_message(
         ~format=
           Some(
@@ -1918,7 +1918,7 @@ let get_doc =
           ),
         TerminalPat.intlit(i),
       )
-    | Float(f) =>
+    | FloatPat(f) =>
       get_message(
         ~format=
           Some(
@@ -1927,7 +1927,7 @@ let get_doc =
           ),
         TerminalPat.floatlit(f),
       )
-    | Bool(b) =>
+    | BoolPat(b) =>
       get_message(
         ~format=
           Some(
@@ -1936,7 +1936,7 @@ let get_doc =
           ),
         TerminalPat.boollit(b),
       )
-    | String(s) =>
+    | StringPat(s) =>
       get_message(
         ~format=
           Some(
@@ -1945,8 +1945,8 @@ let get_doc =
           ),
         TerminalPat.strlit(s),
       )
-    | Tuple([]) => get_message(TerminalPat.triv)
-    | ListLit(elements) =>
+    | TuplePat([]) => get_message(TerminalPat.triv)
+    | ListLitPat(elements) =>
       if (List.length(elements) == 0) {
         get_message(ListPat.listnil);
       } else {
@@ -1962,7 +1962,7 @@ let get_doc =
           ListPat.listlit,
         );
       }
-    | Cons(hd, tl) =>
+    | ConsPat(hd, tl) =>
       let hd_id = List.nth(hd.ids, 0);
       let tl_id = List.nth(tl.ids, 0);
       let basic = doc =>
@@ -1980,7 +1980,7 @@ let get_doc =
           doc,
         );
       switch (tl.term) {
-      | Cons(hd2, tl2) =>
+      | ConsPat(hd2, tl2) =>
         if (ListPat.cons2_pat.id == get_specificity_level(ListPat.cons2)) {
           let hd2_id = List.nth(hd2.ids, 0);
           let tl2_id = List.nth(tl2.ids, 0);
@@ -2008,7 +2008,7 @@ let get_doc =
         }
       | _ => basic(ListPat.cons)
       };
-    | Var(v) =>
+    | VarPat(v) =>
       get_message(
         ~format=
           Some(
@@ -2016,7 +2016,7 @@ let get_doc =
           ),
         TerminalPat.var(v),
       )
-    | Tuple(elements) =>
+    | TuplePat(elements) =>
       let basic = group =>
         get_message(
           ~format=
@@ -2082,7 +2082,7 @@ let get_doc =
         }
       | _ => basic(TuplePat.tuple)
       };
-    | Ap(con, arg) =>
+    | ApPat(con, arg) =>
       let con_id = List.nth(con.ids, 0);
       let arg_id = List.nth(arg.ids, 0);
       get_message(
@@ -2098,7 +2098,7 @@ let get_doc =
           ),
         AppPat.ap,
       );
-    | Constructor(con, _) =>
+    | ConstructorPat(con, _) =>
       get_message(
         ~format=
           Some(
@@ -2106,7 +2106,7 @@ let get_doc =
           ),
         TerminalPat.ctr(con),
       )
-    | Cast(pat, typ, _) =>
+    | CastPat(pat, typ, _) =>
       let pat_id = List.nth(pat.ids, 0);
       let typ_id = List.nth(typ.ids, 0);
       get_message(
@@ -2122,8 +2122,8 @@ let get_doc =
           ),
         TypAnnPat.typann,
       );
-    | Invalid(_) => simple("Not a valid pattern")
-    | Parens(_) =>
+    | InvalidPat(_) => simple("Not a valid pattern")
+    | ParensPat(_) =>
       // Shouldn't be hit?
       default
     }
@@ -2131,8 +2131,10 @@ let get_doc =
     switch (bypass_parens_typ(term).term) {
     | Unknown(SynSwitch)
     | Unknown(Internal)
-    | Unknown(Hole(EmptyHole)) => get_message(HoleTyp.empty_hole)
-    | Unknown(Hole(MultiHole(_))) => get_message(HoleTyp.multi_hole)
+    | Unknown(HoleProvenance(EmptyTypeHole)) =>
+      get_message(HoleTyp.empty_hole)
+    | Unknown(HoleProvenance(MultiTypeHole(_))) =>
+      get_message(HoleTyp.multi_hole)
     | Int => get_message(TerminalTyp.int)
     | Float => get_message(TerminalTyp.float)
     | Bool => get_message(TerminalTyp.bool)
@@ -2302,9 +2304,9 @@ let get_doc =
         }
       | _ => basic(TupleTyp.tuple)
       };
-    | Var(c) when Info.typ_is_constructor_expected(typ_info) =>
+    | TypVar(c) when Info.typ_is_constructor_expected(typ_info) =>
       get_message(SumTyp.sum_typ_nullary_constructor_defs(c))
-    | Var(v) =>
+    | TypVar(v) =>
       get_message(
         ~format=
           Some(
@@ -2313,18 +2315,19 @@ let get_doc =
         TerminalTyp.var(v),
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
-    | Ap({term: Var(c), _}, _) =>
+    | ApTyp({term: TypVar(c), _}, _) =>
       get_message(SumTyp.sum_typ_unary_constructor_defs(c))
-    | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
-    | Ap(_)
-    | Parens(_) => default // Shouldn't be hit?
+    | Unknown(HoleProvenance(InvalidTypeHole(_))) =>
+      simple("Not a type or type operator")
+    | ApTyp(_)
+    | TypParens(_) => default // Shouldn't be hit?
     }
   | Some(InfoTPat(info)) =>
     switch (info.term.term) {
-    | Invalid(_) => simple("Type names must begin with a capital letter")
-    | EmptyHole => get_message(HoleTPat.empty_hole_tpats)
-    | MultiHole(_) => get_message(HoleTPat.multi_hole_tpats)
-    | Var(v) =>
+    | InvalidTPat(_) => simple("Type names must begin with a capital letter")
+    | EmptyHoleTPat => get_message(HoleTPat.empty_hole_tpats)
+    | MultiHoleTPat(_) => get_message(HoleTPat.multi_hole_tpats)
+    | VarTPat(v) =>
       get_message(
         ~format=
           Some(

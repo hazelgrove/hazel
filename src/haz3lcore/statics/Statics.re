@@ -120,7 +120,7 @@ let typ_exp_binop: Operators.op_bin => (Typ.t, Typ.t, Typ.t) =
 let typ_exp_unop: Operators.op_un => (Typ.t, Typ.t) =
   fun
   | Meta(Unquote) => (
-      Var("$Meta") |> Typ.temp,
+      TypVar("$Meta") |> Typ.temp,
       Unknown(Internal) |> Typ.temp,
     )
   | Bool(Not) => (Bool |> Typ.temp, Bool |> Typ.temp)
@@ -226,11 +226,12 @@ and uexp_to_info_map =
   | EmptyHole => atomic(Just(Unknown(Internal) |> Typ.temp))
   | Deferral(position) =>
     add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
-  | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
-  | Bool(_) => atomic(Just(Bool |> Typ.temp))
-  | Int(_) => atomic(Just(Int |> Typ.temp))
-  | Float(_) => atomic(Just(Float |> Typ.temp))
-  | String(_) => atomic(Just(String |> Typ.temp))
+  | Undefined =>
+    atomic(Just(Unknown(HoleProvenance(EmptyTypeHole)) |> Typ.temp))
+  | BoolLit(_) => atomic(Just(Bool |> Typ.temp))
+  | IntLit(_) => atomic(Just(Int |> Typ.temp))
+  | FloatLit(_) => atomic(Just(Float |> Typ.temp))
+  | StringLit(_) => atomic(Just(String |> Typ.temp))
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
     let modes = Mode.of_list_lit(ctx, List.length(es), mode);
@@ -281,7 +282,7 @@ and uexp_to_info_map =
         | _ => e.term
         },
     };
-    let ty_in = Var("$Meta") |> Typ.temp;
+    let ty_in = TypVar("$Meta") |> Typ.temp;
     let ty_out = Unknown(Internal) |> Typ.temp;
     let (e, m) = go(~mode=Ana(ty_in), e, m);
     add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
@@ -311,7 +312,7 @@ and uexp_to_info_map =
   | Test(e) =>
     let (e, m) = go(~mode=Ana(Bool |> Typ.temp), e, m);
     add(~self=Just(Prod([]) |> Typ.temp), ~co_ctx=e.co_ctx, m);
-  | Filter(Filter({pat: cond, _}), body) =>
+  | Filter(FilterStepper({pat: cond, _}), body) =>
     let (cond, m) = go(~mode=Syn, cond, m, ~is_in_filter=true);
     let (body, m) = go(~mode, body, m);
     add(
@@ -373,7 +374,7 @@ and uexp_to_info_map =
     let self =
       is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
     add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
-  | TypFun({term: Var(name), _} as utpat, body, _)
+  | TypFun({term: VarTPat(name), _} as utpat, body, _)
       when !Ctx.shadows_typ(ctx, name) =>
     let mode_body = Mode.of_forall(ctx, Some(name), mode);
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
@@ -600,7 +601,7 @@ and uexp_to_info_map =
   | TyAlias(typat, utyp, body) =>
     let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
     switch (typat.term) {
-    | Var(name) when !Ctx.shadows_typ(ctx, name) =>
+    | VarTPat(name) when !Ctx.shadows_typ(ctx, name) =>
       /* Currently we disallow all type shadowing */
       /* NOTE(andrew): Currently, UTyp.to_typ returns Unknown(TypeHole)
          for any type variable reference not in its ctx. So any free variables
@@ -615,7 +616,8 @@ and uexp_to_info_map =
              use a different name than the alias for the recursive parameter */
           //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
           let ty_rec =
-            Rec((Var(name): TPat.term) |> IdTagged.fresh, utyp) |> Typ.temp;
+            Rec((VarTPat(name): TPat.term) |> IdTagged.fresh, utyp)
+            |> Typ.temp;
           let ctx_def =
             Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
@@ -650,10 +652,10 @@ and uexp_to_info_map =
       let ty_escape = Typ.subst(ty_def, typat, ty_body);
       let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
       add(~self=Just(ty_escape), ~co_ctx, m);
-    | Var(_)
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_) =>
+    | VarTPat(_)
+    | InvalidTPat(_)
+    | EmptyHoleTPat
+    | MultiHoleTPat(_) =>
       let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
         go'(~ctx, ~mode, body, m);
       let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
@@ -713,25 +715,25 @@ and upat_to_info_map =
     );
   let hole = self => atomic(self, Constraint.Hole);
   switch (term) {
-  | MultiHole(tms) =>
+  | MultiHolePat(tms) =>
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
     add(~self=IsMulti, ~ctx, ~constraint_=Constraint.Hole, m);
-  | Invalid(token) => hole(BadToken(token))
-  | EmptyHole => hole(Just(unknown))
-  | Int(int) => atomic(Just(Int |> Typ.temp), Constraint.Int(int))
-  | Float(float) =>
+  | InvalidPat(token) => hole(BadToken(token))
+  | EmptyHolePat => hole(Just(unknown))
+  | IntPat(int) => atomic(Just(Int |> Typ.temp), Constraint.Int(int))
+  | FloatPat(float) =>
     atomic(Just(Float |> Typ.temp), Constraint.Float(float))
-  | Tuple([]) => atomic(Just(Prod([]) |> Typ.temp), Constraint.Truth)
-  | Bool(bool) =>
+  | TuplePat([]) => atomic(Just(Prod([]) |> Typ.temp), Constraint.Truth)
+  | BoolPat(bool) =>
     atomic(
       Just(Bool |> Typ.temp),
       bool
         ? Constraint.InjL(Constraint.Truth)
         : Constraint.InjR(Constraint.Truth),
     )
-  | String(string) =>
+  | StringPat(string) =>
     atomic(Just(String |> Typ.temp), Constraint.String(string))
-  | ListLit(ps) =>
+  | ListLitPat(ps) =>
     let ids = List.map(UPat.rep_id, ps);
     let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
     let (ctx, tys, cons, m) = ctx_fold(ctx, m, ps, modes);
@@ -747,7 +749,7 @@ and upat_to_info_map =
       ~constraint_=cons_fold_list(cons),
       m,
     );
-  | Cons(hd, tl) =>
+  | ConsPat(hd, tl) =>
     let (hd, m) = go(~ctx, ~mode=Mode.of_cons_hd(ctx, mode), hd, m);
     let (tl, m) =
       go(~ctx=hd.ctx, ~mode=Mode.of_cons_tl(ctx, mode, hd.ty), tl, m);
@@ -759,7 +761,7 @@ and upat_to_info_map =
       m,
     );
   | Wild => atomic(Just(unknown), Constraint.Truth)
-  | Var(name) =>
+  | VarPat(name) =>
     /* NOTE: The self type assigned to pattern variables (Unknown)
        may be SynSwitch, but SynSwitch is never added to the context;
        Unknown(Internal) is used in this case */
@@ -776,7 +778,7 @@ and upat_to_info_map =
       ~constraint_=Constraint.Truth,
       m,
     );
-  | Tuple(ps) =>
+  | TuplePat(ps) =>
     let modes = Mode.of_prod(ctx, mode, List.length(ps));
     let (ctx, tys, cons, m) = ctx_fold(ctx, m, ps, modes);
     let rec cons_fold_tuple = cs =>
@@ -791,13 +793,13 @@ and upat_to_info_map =
       ~constraint_=cons_fold_tuple(cons),
       m,
     );
-  | Parens(p) =>
+  | ParensPat(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
-  | Constructor(ctr, _) =>
+  | ConstructorPat(ctr, _) =>
     let self = Self.of_ctr(ctx, ctr);
     atomic(self, Constraint.of_ctr(ctx, mode, ctr, self));
-  | Ap(fn, arg) =>
+  | ApPat(fn, arg) =>
     let ctr = UPat.ctr_name(fn);
     let fn_mode = Mode.of_ap(ctx, mode, ctr);
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
@@ -810,7 +812,7 @@ and upat_to_info_map =
         Constraint.of_ap(ctx, mode, ctr, arg.constraint_, Some(ty_out)),
       m,
     );
-  | Cast(p, ann, _) =>
+  | CastPat(p, ann, _) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
     let (p, m) = go(~ctx, ~mode=Ana(ann.term), p, m);
     add(~self=Just(ann.term), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
@@ -833,7 +835,7 @@ and utyp_to_info_map =
   let go' = utyp_to_info_map(~ctx, ~ancestors);
   let go = go'(~expects=TypeExpected);
   switch (term) {
-  | Unknown(Hole(MultiHole(tms))) =>
+  | Unknown(HoleProvenance(MultiTypeHole(tms))) =>
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
     add(m);
   | Unknown(_)
@@ -841,11 +843,11 @@ and utyp_to_info_map =
   | Float
   | Bool
   | String => add(m)
-  | Var(_) =>
+  | TypVar(_) =>
     /* Names are resolved in Info.status_typ */
     add(m)
   | List(t)
-  | Parens(t) => add(go(t, m) |> snd)
+  | TypParens(t) => add(go(t, m) |> snd)
   | Arrow(t1, t2) =>
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
@@ -853,7 +855,7 @@ and utyp_to_info_map =
   | Prod(ts) =>
     let m = map_m(go, ts, m) |> snd;
     add(m);
-  | Ap(t1, t2) =>
+  | ApTyp(t1, t2) =>
     let t1_mode: Info.typ_expects =
       switch (expects) {
       | VariantExpected(m, sum_ty) =>
@@ -875,7 +877,7 @@ and utyp_to_info_map =
         variants,
       );
     add(m);
-  | Forall({term: Var(name), _} as utpat, tbody) =>
+  | Forall({term: VarTPat(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
     let m =
@@ -895,7 +897,7 @@ and utyp_to_info_map =
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
-  | Rec({term: Var(name), _} as utpat, tbody) =>
+  | Rec({term: VarTPat(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
     let m =
@@ -926,12 +928,12 @@ and utpat_to_info_map =
   };
   let ancestors = [TPat.rep_id(utpat)] @ ancestors;
   switch (term) {
-  | MultiHole(tms) =>
+  | MultiHoleTPat(tms) =>
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
     add(m);
-  | Invalid(_)
-  | EmptyHole
-  | Var(_) => add(m)
+  | InvalidTPat(_)
+  | EmptyHoleTPat
+  | VarTPat(_) => add(m)
   };
 }
 and variant_to_info_map =
@@ -954,7 +956,7 @@ and variant_to_info_map =
           List.mem(ctr, ctrs) ? Duplicate : Unique,
           ty_sum,
         ),
-        {term: Var(ctr), ids, copied: false},
+        {term: TypVar(ctr), ids, copied: false},
         m,
       )
       |> snd;

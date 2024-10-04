@@ -3,22 +3,22 @@ open Haz3lcore;
 
 let precedence = (dp: Pat.t) =>
   switch (DHPat.term_of(dp)) {
-  | EmptyHole
-  | MultiHole(_)
+  | EmptyHolePat
+  | MultiHolePat(_)
   | Wild
-  | Invalid(_)
-  | Var(_)
-  | Int(_)
-  | Float(_)
-  | Bool(_)
-  | String(_)
-  | ListLit(_)
-  | Constructor(_) => DHDoc_common.precedence_const
-  | Tuple(_) => DHDoc_common.precedence_Comma
-  | Cons(_) => DHDoc_common.precedence_Cons
-  | Ap(_) => DHDoc_common.precedence_Ap
-  | Parens(_) => DHDoc_common.precedence_const
-  | Cast(_) => DHDoc_common.precedence_Ap
+  | InvalidPat(_)
+  | VarPat(_)
+  | IntPat(_)
+  | FloatPat(_)
+  | BoolPat(_)
+  | StringPat(_)
+  | ListLitPat(_)
+  | ConstructorPat(_) => DHDoc_common.precedence_const
+  | TuplePat(_) => DHDoc_common.precedence_Comma
+  | ConsPat(_) => DHDoc_common.precedence_Cons
+  | ApPat(_) => DHDoc_common.precedence_Ap
+  | ParensPat(_) => DHDoc_common.precedence_const
+  | CastPat(_) => DHDoc_common.precedence_Ap
   };
 
 let rec mk =
@@ -41,27 +41,27 @@ let rec mk =
   );
   let doc =
     switch (DHPat.term_of(dp)) {
-    | MultiHole(_)
-    | EmptyHole => DHDoc_common.mk_EmptyHole(ClosureEnvironment.empty)
-    | Invalid(t) => DHDoc_common.mk_InvalidText(t)
-    | Var(x) => Doc.text(x)
+    | MultiHolePat(_)
+    | EmptyHolePat => DHDoc_common.mk_EmptyHole(ClosureEnvironment.empty)
+    | InvalidPat(t) => DHDoc_common.mk_InvalidText(t)
+    | VarPat(x) => Doc.text(x)
     | Wild => DHDoc_common.Delim.wild
-    | Constructor(name, _) => DHDoc_common.mk_ConstructorLit(name)
-    | Int(n) => DHDoc_common.mk_IntLit(n)
-    | Float(f) => DHDoc_common.mk_FloatLit(f)
-    | Bool(b) => DHDoc_common.mk_BoolLit(b)
-    | String(s) => DHDoc_common.mk_StringLit(s)
-    | ListLit(d_list) =>
+    | ConstructorPat(name, _) => DHDoc_common.mk_ConstructorLit(name)
+    | IntPat(n) => DHDoc_common.mk_IntLit(n)
+    | FloatPat(f) => DHDoc_common.mk_FloatLit(f)
+    | BoolPat(b) => DHDoc_common.mk_BoolLit(b)
+    | StringPat(s) => DHDoc_common.mk_StringLit(s)
+    | ListLitPat(d_list) =>
       let ol = List.map(mk', d_list);
       DHDoc_common.mk_ListLit(ol);
-    | Cons(dp1, dp2) =>
+    | ConsPat(dp1, dp2) =>
       let (doc1, doc2) =
         mk_right_associative_operands(DHDoc_common.precedence_Cons, dp1, dp2);
       DHDoc_common.mk_Cons(doc1, doc2);
-    | Tuple([]) => DHDoc_common.Delim.triv
-    | Tuple(ds) => DHDoc_common.mk_Tuple(List.map(mk', ds))
+    | TuplePat([]) => DHDoc_common.Delim.triv
+    | TuplePat(ds) => DHDoc_common.mk_Tuple(List.map(mk', ds))
     // TODO: Print type annotations
-    | Cast(dp, t1, t2) when show_casts =>
+    | CastPat(dp, t1, t2) when show_casts =>
       Doc.hcats([
         mk'(dp),
         Doc.annot(
@@ -75,10 +75,10 @@ let rec mk =
           ]),
         ),
       ])
-    | Cast(dp, _, _) => mk'(~parenthesize, dp)
-    | Parens(dp) =>
+    | CastPat(dp, _, _) => mk'(~parenthesize, dp)
+    | ParensPat(dp) =>
       mk(~enforce_inline, ~parenthesize=true, ~infomap, ~show_casts, dp)
-    | Ap(dp1, dp2) =>
+    | ApPat(dp1, dp2) =>
       let (doc1, doc2) =
         mk_left_associative_operands(DHDoc_common.precedence_Ap, dp1, dp2);
       DHDoc_common.mk_Ap(doc1, doc2);

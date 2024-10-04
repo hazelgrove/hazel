@@ -16,23 +16,24 @@ type syntax_result = {
 
 let rec find_var_upat = (name: string, upat: Pat.t): bool => {
   switch (upat.term) {
-  | Var(x) => x == name
-  | EmptyHole
+  | VarPat(x) => x == name
+  | EmptyHolePat
   | Wild
-  | Invalid(_)
-  | MultiHole(_)
-  | Int(_)
-  | Float(_)
-  | Bool(_)
-  | String(_)
-  | Constructor(_) => false
-  | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
-  | ListLit(l)
-  | Tuple(l) =>
+  | InvalidPat(_)
+  | MultiHolePat(_)
+  | IntPat(_)
+  | FloatPat(_)
+  | BoolPat(_)
+  | StringPat(_)
+  | ConstructorPat(_) => false
+  | ConsPat(up1, up2) =>
+    find_var_upat(name, up1) || find_var_upat(name, up2)
+  | ListLitPat(l)
+  | TuplePat(l) =>
     List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l)
-  | Parens(up) => find_var_upat(name, up)
-  | Ap(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
-  | Cast(up, _, _) => find_var_upat(name, up)
+  | ParensPat(up) => find_var_upat(name, up)
+  | ApPat(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
+  | CastPat(up, _, _) => find_var_upat(name, up)
   };
 };
 
@@ -47,12 +48,12 @@ let rec find_in_let =
         (name: string, upat: UPat.t, def: UExp.t, l: list(UExp.t))
         : list(UExp.t) => {
   switch (upat.term, def.term) {
-  | (Parens(up), Parens(ue)) => find_in_let(name, up, ue, l)
-  | (Parens(up), _) => find_in_let(name, up, def, l)
+  | (ParensPat(up), Parens(ue)) => find_in_let(name, up, ue, l)
+  | (ParensPat(up), _) => find_in_let(name, up, def, l)
   | (_, Parens(ue)) => find_in_let(name, upat, ue, l)
-  | (Cast(up, _, _), _) => find_in_let(name, up, def, l)
-  | (Var(x), Fun(_)) => x == name ? [def, ...l] : l
-  | (Tuple(pl), Tuple(ul)) =>
+  | (CastPat(up, _, _), _) => find_in_let(name, up, def, l)
+  | (VarPat(x), Fun(_)) => x == name ? [def, ...l] : l
+  | (TuplePat(pl), Tuple(ul)) =>
     if (List.length(pl) != List.length(ul)) {
       l;
     } else {
@@ -63,15 +64,17 @@ let rec find_in_let =
         ul,
       );
     }
-  | (Var(_), _)
-  | (Tuple(_), _)
+  | (VarPat(_), _)
+  | (TuplePat(_), _)
   | (
-      EmptyHole | Wild | Invalid(_) | MultiHole(_) | Int(_) | Float(_) | Bool(_) |
-      String(_) |
-      ListLit(_) |
-      Constructor(_) |
-      Cons(_, _) |
-      Ap(_, _),
+      EmptyHolePat | Wild | InvalidPat(_) | MultiHolePat(_) | IntPat(_) |
+      FloatPat(_) |
+      BoolPat(_) |
+      StringPat(_) |
+      ListLitPat(_) |
+      ConstructorPat(_) |
+      ConsPat(_, _) |
+      ApPat(_, _),
       _,
     ) => l
   };
@@ -122,10 +125,10 @@ let rec find_fn =
   | MultiHole(_)
   | DynamicErrorHole(_)
   | FailedCast(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | StringLit(_)
   | Constructor(_)
   | Undefined
   | BuiltinFun(_)
@@ -138,29 +141,29 @@ let rec find_fn =
  */
 let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   switch (upat.term) {
-  | Var(x) => x == name
-  | EmptyHole
+  | VarPat(x) => x == name
+  | EmptyHolePat
   | Wild
-  | Invalid(_)
-  | MultiHole(_)
-  | Int(_)
-  | Float(_)
-  | Bool(_)
-  | String(_)
-  | Constructor(_) => false
-  | Cons(up1, up2) =>
+  | InvalidPat(_)
+  | MultiHolePat(_)
+  | IntPat(_)
+  | FloatPat(_)
+  | BoolPat(_)
+  | StringPat(_)
+  | ConstructorPat(_) => false
+  | ConsPat(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
-  | ListLit(l)
-  | Tuple(l) =>
+  | ListLitPat(l)
+  | TuplePat(l) =>
     List.fold_left(
       (acc, up) => {acc || var_mention_upat(name, up)},
       false,
       l,
     )
-  | Parens(up) => var_mention_upat(name, up)
-  | Ap(up1, up2) =>
+  | ParensPat(up) => var_mention_upat(name, up)
+  | ApPat(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
-  | Cast(up, _, _) => var_mention_upat(name, up)
+  | CastPat(up, _, _) => var_mention_upat(name, up)
   };
 };
 
@@ -173,10 +176,10 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | StringLit(_)
   | Constructor(_)
   | Undefined
   | Deferral(_) => false
@@ -234,10 +237,10 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | StringLit(_)
   | Constructor(_)
   | Undefined
   | Deferral(_) => false
@@ -325,10 +328,10 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | MultiHole(_)
   | DynamicErrorHole(_)
   | FailedCast(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | StringLit(_)
   | Constructor(_)
   | Undefined
   | Var(_)

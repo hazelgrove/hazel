@@ -339,7 +339,7 @@ let rec status_common =
     switch (
       Typ.join_fix(
         ctx,
-        Forall(Var("?") |> TPat.fresh, Unknown(Internal) |> Typ.temp)
+        Forall(VarTPat("?") |> TPat.fresh, Unknown(Internal) |> Typ.temp)
         |> Typ.temp,
         ty,
       )
@@ -454,9 +454,10 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
    free, and whether a ctr name is a dupe. */
 let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
   switch (ty.term) {
-  | Unknown(Hole(Invalid(token))) => InHole(BadToken(token))
-  | Unknown(Hole(EmptyHole)) => NotInHole(Type(ty))
-  | Var(name) =>
+  | Unknown(HoleProvenance(InvalidTypeHole(token))) =>
+    InHole(BadToken(token))
+  | Unknown(HoleProvenance(EmptyTypeHole)) => NotInHole(Type(ty))
+  | TypVar(name) =>
     switch (expects) {
     | VariantExpected(Unique, sum_ty)
     | ConstructorExpected(Unique, sum_ty) =>
@@ -469,16 +470,16 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
       | false =>
         switch (Ctx.is_abstract(ctx, name)) {
         | false => InHole(FreeTypeVariable(name))
-        | true => NotInHole(Type(Var(name) |> Typ.temp))
+        | true => NotInHole(Type(TypVar(name) |> Typ.temp))
         }
       | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       }
     }
-  | Ap(t1, ty_in) =>
+  | ApTyp(t1, ty_in) =>
     switch (expects) {
     | VariantExpected(status_variant, ty_variant) =>
       switch (status_variant, t1.term) {
-      | (Unique, Var(name)) =>
+      | (Unique, TypVar(name)) =>
         NotInHole(Variant(name, Arrow(ty_in, ty_variant) |> Typ.temp))
       | _ =>
         NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant) |> Typ.temp))
@@ -496,8 +497,8 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
 
 let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
   switch (utpat.term) {
-  | EmptyHole => NotInHole(Empty)
-  | Var(name) when Ctx.shadows_typ(ctx, name) =>
+  | EmptyHoleTPat => NotInHole(Empty)
+  | VarTPat(name) when Ctx.shadows_typ(ctx, name) =>
     let f = src => InHole(ShadowsType(name, src));
     if (Form.is_base_typ(name)) {
       f(BaseTyp);
@@ -506,9 +507,9 @@ let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
     } else {
       f(TyVar);
     };
-  | Var(name) => NotInHole(Var(name))
-  | Invalid(_) => InHole(NotAVar(NotCapitalized))
-  | MultiHole(_) => InHole(NotAVar(Other))
+  | VarTPat(name) => NotInHole(Var(name))
+  | InvalidTPat(_) => InHole(NotAVar(NotCapitalized))
+  | MultiHoleTPat(_) => InHole(NotAVar(Other))
   };
 
 /* Determines whether any term is in an error hole. */
@@ -593,7 +594,7 @@ let fixed_constraint_pat =
     )
     : Constraint.t =>
   switch (upat.term) {
-  | Cast(_) => constraint_
+  | CastPat(_) => constraint_
   | _ =>
     switch (fixed_typ_pat(ctx, mode, self) |> Typ.term_of) {
     | Unknown(_) => Constraint.Hole
@@ -677,10 +678,10 @@ let get_binding_site = (info: t): option(Id.t) => {
     let+ entry = Ctx.lookup_var(ctx, name);
     entry.id;
   | InfoExp({term: {term: Constructor(name, _), _}, ctx, _})
-  | InfoPat({term: {term: Constructor(name, _), _}, ctx, _}) =>
+  | InfoPat({term: {term: ConstructorPat(name, _), _}, ctx, _}) =>
     let+ entry = Ctx.lookup_ctr(ctx, name);
     entry.id;
-  | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
+  | InfoTyp({term: {term: TypVar(name), _}, ctx, _}) =>
     Ctx.lookup_tvar_id(ctx, name)
   | _ => None
   };

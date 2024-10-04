@@ -41,13 +41,13 @@ let fn =
 module Pervasives = {
   module Impls = {
     /* constants */
-    let infinity = Float(Float.infinity) |> fresh;
-    let neg_infinity = Float(Float.neg_infinity) |> fresh;
-    let nan = Float(Float.nan) |> fresh;
-    let epsilon_float = Float(epsilon_float) |> fresh;
-    let pi = Float(Float.pi) |> fresh;
-    let max_int = Int(Int.max_int) |> fresh;
-    let min_int = Int(Int.min_int) |> fresh;
+    let infinity = FloatLit(Float.infinity) |> fresh;
+    let neg_infinity = FloatLit(Float.neg_infinity) |> fresh;
+    let nan = FloatLit(Float.nan) |> fresh;
+    let epsilon_float = FloatLit(epsilon_float) |> fresh;
+    let pi = FloatLit(Float.pi) |> fresh;
+    let max_int = IntLit(Int.max_int) |> fresh;
+    let min_int = IntLit(Int.min_int) |> fresh;
 
     let unary = (f: DHExp.t => result, d: DHExp.t) => {
       switch (f(d)) {
@@ -81,7 +81,7 @@ module Pervasives = {
     let is_finite =
       unary(d =>
         switch (term_of(d)) {
-        | Float(f) => Ok(fresh(Bool(Float.is_finite(f))))
+        | FloatLit(f) => Ok(fresh(BoolLit(Float.is_finite(f))))
         | _ => Error(InvalidBoxedFloatLit(d))
         }
       );
@@ -89,7 +89,7 @@ module Pervasives = {
     let is_infinite =
       unary(d =>
         switch (term_of(d)) {
-        | Float(f) => Ok(fresh(Bool(Float.is_infinite(f))))
+        | FloatLit(f) => Ok(fresh(BoolLit(Float.is_infinite(f))))
         | _ => Error(InvalidBoxedFloatLit(d))
         }
       );
@@ -97,7 +97,7 @@ module Pervasives = {
     let is_nan =
       unary(d =>
         switch (term_of(d)) {
-        | Float(f) => Ok(fresh(Bool(Float.is_nan(f))))
+        | FloatLit(f) => Ok(fresh(BoolLit(Float.is_nan(f))))
         | _ => Error(InvalidBoxedFloatLit(d))
         }
       );
@@ -105,7 +105,7 @@ module Pervasives = {
     let string_of_int =
       unary(d =>
         switch (term_of(d)) {
-        | Int(n) => Ok(fresh(String(string_of_int(n))))
+        | IntLit(n) => Ok(fresh(StringLit(string_of_int(n))))
         | _ => Error(InvalidBoxedIntLit(d))
         }
       );
@@ -113,7 +113,7 @@ module Pervasives = {
     let string_of_float =
       unary(d =>
         switch (term_of(d)) {
-        | Float(f) => Ok(fresh(String(string_of_float(f))))
+        | FloatLit(f) => Ok(fresh(StringLit(string_of_float(f))))
         | _ => Error(InvalidBoxedFloatLit(d))
         }
       );
@@ -121,7 +121,7 @@ module Pervasives = {
     let string_of_bool =
       unary(d =>
         switch (term_of(d)) {
-        | Bool(b) => Ok(fresh(String(string_of_bool(b))))
+        | BoolLit(b) => Ok(fresh(StringLit(string_of_bool(b))))
         | _ => Error(InvalidBoxedBoolLit(d))
         }
       );
@@ -129,7 +129,7 @@ module Pervasives = {
     let int_of_float =
       unary(d =>
         switch (term_of(d)) {
-        | Float(f) => Ok(fresh(Int(int_of_float(f))))
+        | FloatLit(f) => Ok(fresh(IntLit(int_of_float(f))))
         | _ => Error(InvalidBoxedFloatLit(d))
         }
       );
@@ -137,7 +137,7 @@ module Pervasives = {
     let float_of_int =
       unary(d =>
         switch (term_of(d)) {
-        | Int(n) => Ok(fresh(Float(float_of_int(n))))
+        | IntLit(n) => Ok(fresh(FloatLit(float_of_int(n))))
         | _ => Error(InvalidBoxedIntLit(d))
         }
       );
@@ -145,7 +145,7 @@ module Pervasives = {
     let abs =
       unary(d =>
         switch (term_of(d)) {
-        | Int(n) => Ok(fresh(Int(abs(n))))
+        | IntLit(n) => Ok(fresh(IntLit(abs(n))))
         | _ => Error(InvalidBoxedIntLit(d))
         }
       );
@@ -153,7 +153,7 @@ module Pervasives = {
     let float_op = fn =>
       unary(d =>
         switch (term_of(d)) {
-        | Float(f) => Ok(fresh(Float(fn(f))))
+        | FloatLit(f) => Ok(fresh(FloatLit(fn(f))))
         | _ => Error(InvalidBoxedFloatLit(d))
         }
       );
@@ -176,7 +176,7 @@ module Pervasives = {
         (convert: string => option('a), wrap: 'a => DHExp.t, name: string) =>
       unary(d =>
         switch (term_of(d)) {
-        | String(s) =>
+        | StringLit(s) =>
           switch (convert(s)) {
           | Some(n) => Ok(wrap(n))
           | None =>
@@ -190,17 +190,17 @@ module Pervasives = {
       );
 
     let int_of_string =
-      of_string(int_of_string_opt, n => Int(n) |> DHExp.fresh);
+      of_string(int_of_string_opt, n => IntLit(n) |> DHExp.fresh);
     let float_of_string =
-      of_string(float_of_string_opt, f => Float(f) |> DHExp.fresh);
+      of_string(float_of_string_opt, f => FloatLit(f) |> DHExp.fresh);
     let bool_of_string =
-      of_string(bool_of_string_opt, b => Bool(b) |> DHExp.fresh);
+      of_string(bool_of_string_opt, b => BoolLit(b) |> DHExp.fresh);
 
     let int_mod = (name, d1) =>
       binary(
         (d1, d2) =>
           switch (term_of(d1), term_of(d2)) {
-          | (Int(_), Int(0)) =>
+          | (IntLit(_), IntLit(0)) =>
             Ok(
               fresh(
                 DynamicErrorHole(
@@ -209,8 +209,8 @@ module Pervasives = {
                 ),
               ),
             )
-          | (Int(n), Int(m)) => Ok(Int(n mod m) |> fresh)
-          | (Int(_), _) =>
+          | (IntLit(n), IntLit(m)) => Ok(IntLit(n mod m) |> fresh)
+          | (IntLit(_), _) =>
             raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2)))
           | (_, _) =>
             raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
@@ -221,7 +221,7 @@ module Pervasives = {
     let string_length =
       unary(d =>
         switch (term_of(d)) {
-        | String(s) => Ok(Int(String.length(s)) |> fresh)
+        | StringLit(s) => Ok(IntLit(String.length(s)) |> fresh)
         | _ => Error(InvalidBoxedStringLit(d))
         }
       );
@@ -229,9 +229,9 @@ module Pervasives = {
     let string_compare =
       binary((d1, d2) =>
         switch (term_of(d1), term_of(d2)) {
-        | (String(s1), String(s2)) =>
-          Ok(Int(String.compare(s1, s2)) |> fresh)
-        | (String(_), _) => Error(InvalidBoxedStringLit(d2))
+        | (StringLit(s1), StringLit(s2)) =>
+          Ok(IntLit(String.compare(s1, s2)) |> fresh)
+        | (StringLit(_), _) => Error(InvalidBoxedStringLit(d2))
         | (_, _) => Error(InvalidBoxedStringLit(d1))
         }
       );
@@ -239,7 +239,7 @@ module Pervasives = {
     let string_trim =
       unary(d =>
         switch (term_of(d)) {
-        | String(s) => Ok(String(String.trim(s)) |> fresh)
+        | StringLit(s) => Ok(StringLit(String.trim(s)) |> fresh)
         | _ => Error(InvalidBoxedStringLit(d))
         }
       );
@@ -247,19 +247,19 @@ module Pervasives = {
     let string_of: DHExp.t => option(string) =
       d =>
         switch (term_of(d)) {
-        | String(s) => Some(s)
+        | StringLit(s) => Some(s)
         | _ => None
         };
 
     let string_concat =
       binary((d1, d2) =>
         switch (term_of(d1), term_of(d2)) {
-        | (String(s1), ListLit(xs)) =>
+        | (StringLit(s1), ListLit(xs)) =>
           switch (xs |> List.map(string_of) |> Util.OptUtil.sequence) {
           | None => Error(InvalidBoxedStringLit(List.hd(xs)))
-          | Some(xs) => Ok(String(String.concat(s1, xs)) |> fresh)
+          | Some(xs) => Ok(StringLit(String.concat(s1, xs)) |> fresh)
           }
-        | (String(_), _) => Error(InvalidBoxedListLit(d2))
+        | (StringLit(_), _) => Error(InvalidBoxedListLit(d2))
         | (_, _) => Error(InvalidBoxedStringLit(d1))
         }
       );
@@ -267,14 +267,14 @@ module Pervasives = {
     let string_sub = _ =>
       ternary((d1, d2, d3) =>
         switch (term_of(d1), term_of(d2), term_of(d3)) {
-        | (String(s), Int(idx), Int(len)) =>
-          try(Ok(String(String.sub(s, idx, len)) |> fresh)) {
+        | (StringLit(s), IntLit(idx), IntLit(len)) =>
+          try(Ok(StringLit(String.sub(s, idx, len)) |> fresh)) {
           | _ =>
             // TODO: make it clear that the problem could be with d3 too
             Ok(DynamicErrorHole(d2, IndexOutOfBounds) |> fresh)
           }
-        | (String(_), Int(_), _) => Error(InvalidBoxedIntLit(d3))
-        | (String(_), _, _) => Error(InvalidBoxedIntLit(d2))
+        | (StringLit(_), IntLit(_), _) => Error(InvalidBoxedIntLit(d3))
+        | (StringLit(_), _, _) => Error(InvalidBoxedIntLit(d2))
         | (_, _, _) => Error(InvalidBoxedIntLit(d1))
         }
       );
