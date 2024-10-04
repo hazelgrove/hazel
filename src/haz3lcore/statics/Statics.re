@@ -281,7 +281,7 @@ and uexp_to_info_map =
         | _ => e.term
         },
     };
-    let ty_in = Typ.Var("$Meta") |> Typ.temp;
+    let ty_in = Typ.Unknown(Internal) |> Typ.temp;
     let ty_out = Typ.Unknown(Internal) |> Typ.temp;
     let (e, m) = go(~mode=Ana(ty_in), e, m);
     add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
@@ -342,7 +342,7 @@ and uexp_to_info_map =
         let (fn, m) =
           go'(~ctx=Builtins.filter_keyword_ctx_init, ~mode=fn_mode, fn, m);
         let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
-        let (arg, m) = go(~mode=Ana(ty_in), arg, m);
+        let (arg, m) = go(~mode=Ana(ty_in), arg, m, ~is_in_filter=true);
         let self: Self.t =
           Id.is_nullary_ap_flag(arg.term.ids)
           && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
@@ -375,12 +375,6 @@ and uexp_to_info_map =
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
-    Printf.printf("uexp_to_info_map: Ap: uexp = %s\n", UExp.show(uexp));
-    Printf.printf(
-      "uexp_to_info_map: Ap: ty_in = %s, ty_out = %s\n",
-      Typ.show(ty_in),
-      Typ.show(ty_out),
-    );
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
     let self: Self.t =
       Id.is_nullary_ap_flag(arg.term.ids)

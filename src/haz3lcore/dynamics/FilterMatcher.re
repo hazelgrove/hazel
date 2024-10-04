@@ -100,8 +100,6 @@ let rec matches_exp =
         : bool => {
   let matches_exp = (~denv=denv, ~fenv=fenv, d, f) =>
     matches_exp(~denv, d, ~fenv, f);
-  Printf.printf("d: %s\n", DHExp.show(d));
-  Printf.printf("f: %s\n", DHExp.show(f));
   if (d == f) {
     true;
   } else {

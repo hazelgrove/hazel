@@ -413,19 +413,3 @@ let should_hide_step = (~settings, x: step): (FilterAction.action, step) =>
 
 let decompose = (~settings, d, st) =>
   decompose(d, st) |> List.map(should_hide_eval_obj(~settings));
-
-let evaluate_with_history = (~settings, d) => {
-  let state = ref(EvaluatorState.init);
-  let rec go = d =>
-    switch (decompose(~settings, d, state^)) {
-    | [] => []
-    | [(_, x), ..._] =>
-      switch (take_step(state, x.env, x.d_loc)) {
-      | None => []
-      | Some(d) =>
-        let next = EvalCtx.compose(x.ctx, d);
-        [next, ...go(next)];
-      }
-    };
-  go(d);
-};
