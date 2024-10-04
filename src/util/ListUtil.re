@@ -1,12 +1,5 @@
 let rev_if = (b: bool) => b ? List.rev : Fun.id;
 
-let dedup = xs =>
-  List.fold_right(
-    (x, deduped) => List.mem(x, deduped) ? deduped : [x, ...deduped],
-    xs,
-    [],
-  );
-
 let dedup_f = (f, xs) =>
   List.fold_right(
     (x, deduped) => List.exists(f(x), deduped) ? deduped : [x, ...deduped],
@@ -14,9 +7,22 @@ let dedup_f = (f, xs) =>
     [],
   );
 
-let are_duplicates = xs =>
-  List.length(List.sort_uniq(compare, xs)) == List.length(xs);
+let dedup = xs => dedup_f((==), xs);
 
+/**
+  Groups elements of a list by a specified key.
+
+ {b Note: The groups are not guaranteed to preserve the order of elements from the original list. }
+
+  @param key
+  The key function used to determine the grouping key.
+
+  @param xs
+  The list of elements to be grouped.
+
+  @return
+  A list of tuples where each tuple contains the grouping key and a list of elements that belong to that group.
+*/
 let group_by = (key: 'x => 'k, xs: list('x)): list(('k, list('x))) =>
   List.fold_left(
     (grouped, x) => {
@@ -32,7 +38,7 @@ let group_by = (key: 'x => 'k, xs: list('x)): list(('k, list('x))) =>
     xs,
   );
 
-let rec range = (~lo=0, hi) =>
+let rec range = (~lo: int=0, hi: int) =>
   if (lo > hi) {
     raise(Invalid_argument("ListUtil.range"));
   } else if (lo == hi) {
@@ -171,7 +177,15 @@ let split_sublist_opt =
 let split_sublist =
     (i: int, j: int, xs: list('x)): (list('x), list('x), list('x)) =>
   switch (split_sublist_opt(i, j, xs)) {
-  | None => raise(Invalid_argument("ListUtil.split_sublist"))
+  | None =>
+    raise(
+      Invalid_argument(
+        "ListUtil.split_sublist: "
+        ++ string_of_int(i)
+        ++ ", "
+        ++ string_of_int(j),
+      ),
+    )
   | Some(r) => r
   };
 let sublist = ((i, j), xs: list('x)): list('x) => {
