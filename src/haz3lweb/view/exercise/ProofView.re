@@ -71,7 +71,7 @@ let proof_view =
                      Exercise.Proof.add_premise(
                        ~pos,
                        ~index,
-                       ~init=init(~sort=Drv(Jdmt)),
+                       ~init=init(~sort=Drv(Exp)),
                      ),
                    )
                 |> (m => {...m, pos: make_pos(pos, index)}),
@@ -185,7 +185,7 @@ let proof_view =
               Exercise.Proof.switch_rule(
                 ~pos,
                 ~rule=None,
-                ~init=init(~sort=Drv(Jdmt)),
+                ~init=init(~sort=Drv(Exp)),
               ),
             ),
           ),
@@ -335,7 +335,7 @@ let proof_view =
           ~editor,
           ~di,
           ~caption=None,
-          ~sort=Drv(Jdmt),
+          ~sort=Drv(Exp),
           ~footer=[],
         ),
       ],
@@ -403,7 +403,7 @@ let proof_view =
                 |> map_model(
                      Exercise.Proof.add_abbr(
                        ~index,
-                       ~init=init(~sort=Drv(Jdmt)),
+                       ~init=init(~sort=Drv(Exp)),
                      ),
                    )
                 |> (m => {...m, pos: Proof(Trees(index, Value))}),

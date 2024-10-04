@@ -184,17 +184,11 @@ let drv_view = (status: DrvInfo.t) => {
   | None => div_ok([text("Fillable by any derivation element")])
   | Some(err) =>
     switch (err) {
-    | Jdmt(BadToken(token))
-    | Ctxt(BadToken(token))
-    | Prop(BadToken(token))
     | Exp(BadToken(token))
     | Pat(BadToken(token))
     | Typ(BadToken(token))
     | TPat(BadToken(token)) =>
       div_err([text(Printf.sprintf("\"%s\" isn't a valid token", token))])
-    | Jdmt(MultiHole)
-    | Ctxt(MultiHole)
-    | Prop(MultiHole)
     | Exp(MultiHole)
     | Pat(MultiHole)
     | Typ(MultiHole)
@@ -212,10 +206,27 @@ let drv_view = (status: DrvInfo.t) => {
         | InjR => "A Right Injection pattern"
         };
       div_err([text("Expected " ++ expect)]);
-    | Exp(NotAllowSingle) =>
-      div_err([text("Expected a compound expression of this")])
-    | Prop(NotAllowTuple) =>
-      div_err([text("Expected no comma in this position")])
+    | Exp(NoJoin(ty)) when ty == Arrow =>
+      // TODO(zhiyao): not sufficient
+      div_err([text("Function argument type inconsistent with arrow type")])
+    | Exp(NoJoin(ty)) =>
+      // TODO(zhiyao): not sufficient
+      div_err([
+        text(
+          "Expect sort "
+          ++ (
+            ty
+            |> (
+              fun
+              | Jdmt => "Jdmt"
+              | Ctx => "Ctx"
+              | Prop => "Prop"
+              | Exp => "ALFA_Exp"
+              | Arrow => "???"
+            )
+          ),
+        ),
+      ])
     }
   };
 };

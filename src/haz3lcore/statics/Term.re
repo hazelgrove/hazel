@@ -606,9 +606,9 @@ module Any = {
     fun
     | Typ(t) => Some(t)
     | _ => None;
-  let is_prop: t => option(TermBase.Prop.t) =
+  let is_alfa_exp: t => option(TermBase.ALFA_Exp.t) =
     fun
-    | Drv(Prop(p)) => Some(p)
+    | Drv(Exp(e)) => Some(e)
     | _ => None;
 
   let sort_of: t => Sort.t =
@@ -624,9 +624,6 @@ module Any = {
 
   let rec ids =
     fun
-    | Drv(Jdmt(tm)) => tm.ids
-    | Drv(Ctxt(tm)) => tm.ids
-    | Drv(Prop(tm)) => tm.ids
     | Drv(Exp(tm)) => tm.ids
     | Drv(Pat(tm)) => tm.ids
     | Drv(Typ(tm)) => tm.ids
@@ -652,9 +649,6 @@ module Any = {
   // (This would change for n-tuples if we decided parentheses are necessary.)
   let rep_id =
     fun
-    | Drv(Jdmt(tm)) => Jdmt.rep_id(tm)
-    | Drv(Ctxt(tm)) => Ctxt.rep_id(tm)
-    | Drv(Prop(tm)) => Prop.rep_id(tm)
     | Drv(Exp(tm)) => ALFA_Exp.rep_id(tm)
     | Drv(Pat(tm)) => ALFA_Pat.rep_id(tm)
     | Drv(Typ(tm)) => ALFA_Typ.rep_id(tm)

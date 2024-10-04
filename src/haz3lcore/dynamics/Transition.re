@@ -246,99 +246,14 @@ module Transition = (EV: EV_MODE) => {
   // };
 
   let replace_drv_abbrs = (env, d: t): t => {
-    let rec go_jdmt = jdmt => {
-      let (term, rewrap) = Drv.Jdmt.unwrap(jdmt);
-      let term: Drv.Jdmt.term =
-        switch (term) {
-        | Hole(s) => Hole(s)
-        | Val(e) => Val(go_exp(e))
-        | Eval(e1, e2) => Eval(go_exp(e1), go_exp(e2))
-        | Entail(ctx, p) => Entail(go_ctxt(ctx), go_prop(p))
-        };
-      term |> rewrap;
-    }
-    and go_ctxt = ctxt => {
-      let (term, rewrap) = Drv.Ctxt.unwrap(ctxt);
-      let term: Drv.Ctxt.term =
-        switch (term) {
-        | Hole(s) => Hole(s)
-        | Ctxt(p) => Ctxt(go_prop(p))
-        };
-      term |> rewrap;
-    }
-    and go_prop = prop => {
-      let (term, rewrap) = Drv.Prop.unwrap(prop);
-      let term: Drv.Prop.term =
-        switch (term) {
-        | Hole(s) => Hole(s)
-        | HasType(e, t) => HasType(go_exp(e), t)
-        | Syn(e, t) => Syn(go_exp(e), t)
-        | Ana(e, t) => Ana(go_exp(e), t)
-        | Var(x) => Var(x)
-        | And(p1, p2) => And(go_prop(p1), go_prop(p2))
-        | Or(p1, p2) => Or(go_prop(p1), go_prop(p2))
-        | Impl(p1, p2) => Impl(go_prop(p1), go_prop(p2))
-        | Truth => Truth
-        | Falsity => Falsity
-        | Tuple(ps) => Tuple(List.map(go_prop, ps))
-        | Abbr(p) =>
-          let (let+) = (x, f) =>
-            switch (x) {
-            | Ok(x) => f(x)
-            | Error(s) => (Hole(Invalid(s)): Drv.Prop.term)
-            };
-          let+ p =
-            switch (IdTagged.term_of(p)) {
-            | Var(x) => Ok(x)
-            | _ => Error("Pat Not Var")
-            };
-          let+ d =
-            switch (ClosureEnvironment.lookup(env, p)) {
-            | Some(d) => Ok(d)
-            | None => Error("Pat Not Found")
-            };
-          let+ e =
-            switch (DHExp.term_of(d)) {
-            | Term(Drv(Prop(e))) => Ok(e)
-            | _ => Error("Pat Not Prop type")
-            };
-          e |> IdTagged.unwrap |> fst;
-        | Parens(p) => Parens(go_prop(p))
-        };
-      term |> rewrap;
-    }
-    and go_exp = exp => {
+    let rec go_exp = exp => {
       let (term, rewrap) = Drv.Exp.unwrap(exp);
       let term: Drv.Exp.term =
         switch (term) {
         | Hole(s) => Hole(s)
-        | NumLit(n) => NumLit(n)
-        | Neg(e) => Neg(go_exp(e))
-        | Plus(e1, e2) => Plus(go_exp(e1), go_exp(e2))
-        | Minus(e1, e2) => Minus(go_exp(e1), go_exp(e2))
-        | Times(e1, e2) => Times(go_exp(e1), go_exp(e2))
-        | Gt(e1, e2) => Gt(go_exp(e1), go_exp(e2))
-        | Lt(e1, e2) => Lt(go_exp(e1), go_exp(e2))
-        | Eq(e1, e2) => Eq(go_exp(e1), go_exp(e2))
-        | True => True
-        | False => False
-        | If(e1, e2, e3) => If(go_exp(e1), go_exp(e2), go_exp(e3))
         | Var(x) => Var(x)
-        | Let(x, e1, e2) => Let(x, go_exp(e1), go_exp(e2))
-        | Fix(x, e) => Fix(x, go_exp(e))
-        | Fun(x, e) => Fun(x, go_exp(e))
-        | Ap(e1, e2) => Ap(go_exp(e1), go_exp(e2))
-        | Pair(e1, e2) => Pair(go_exp(e1), go_exp(e2))
-        | Triv => Triv
-        | PrjL(e) => PrjL(go_exp(e))
-        | PrjR(e) => PrjR(go_exp(e))
-        | InjL => InjL
-        | InjR => InjR
-        | Case(e1, x, e2, y, e3) =>
-          Case(go_exp(e1), x, go_exp(e2), y, go_exp(e3))
-        | Roll => Roll
-        | Unroll => Unroll
         | Abbr(p) =>
+          // TODO(zhiyao): Fix this
           let (let+) = (x, f) =>
             switch (x) {
             | Ok(x) => f(x)
@@ -361,14 +276,49 @@ module Transition = (EV: EV_MODE) => {
             };
           e |> IdTagged.unwrap |> fst;
         | Parens(e) => Parens(go_exp(e))
+        | Val(e) => Val(go_exp(e))
+        | Eval(e1, e2) => Eval(go_exp(e1), go_exp(e2))
+        | Entail(ctx, p) => Entail(go_exp(ctx), go_exp(p))
+        | Ctx(es) => Ctx(List.map(go_exp, es))
+        | HasType(e, t) => HasType(go_exp(e), t)
+        | Syn(e, t) => Syn(go_exp(e), t)
+        | Ana(e, t) => Ana(go_exp(e), t)
+        | And(p1, p2) => And(go_exp(p1), go_exp(p2))
+        | Or(p1, p2) => Or(go_exp(p1), go_exp(p2))
+        | Impl(p1, p2) => Impl(go_exp(p1), go_exp(p2))
+        | Truth => Truth
+        | Falsity => Falsity
+        | NumLit(n) => NumLit(n)
+        | Neg(e) => Neg(go_exp(e))
+        | Plus(e1, e2) => Plus(go_exp(e1), go_exp(e2))
+        | Minus(e1, e2) => Minus(go_exp(e1), go_exp(e2))
+        | Times(e1, e2) => Times(go_exp(e1), go_exp(e2))
+        | Gt(e1, e2) => Gt(go_exp(e1), go_exp(e2))
+        | Lt(e1, e2) => Lt(go_exp(e1), go_exp(e2))
+        | Eq(e1, e2) => Eq(go_exp(e1), go_exp(e2))
+        | True => True
+        | False => False
+        | If(e1, e2, e3) => If(go_exp(e1), go_exp(e2), go_exp(e3))
+        | Let(x, e1, e2) => Let(x, go_exp(e1), go_exp(e2))
+        | Fix(x, e) => Fix(x, go_exp(e))
+        | Fun(x, e) => Fun(x, go_exp(e))
+        | Ap(e1, e2) => Ap(go_exp(e1), go_exp(e2))
+        | Tuple(es) => Tuple(List.map(go_exp, es))
+        | Triv => Triv
+        | PrjL(e) => PrjL(go_exp(e))
+        | PrjR(e) => PrjR(go_exp(e))
+        | InjL => InjL
+        | InjR => InjR
+        | Case(e1, x, e2, y, e3) =>
+          Case(go_exp(e1), x, go_exp(e2), y, go_exp(e3))
+        | Roll => Roll
+        | Unroll => Unroll
         };
       term |> rewrap;
     };
     let (term, rewrap) = IdTagged.unwrap(d);
     let term: term =
       switch (term) {
-      | Term(Drv(Jdmt(jdmt))) => Term(Drv(Jdmt(go_jdmt(jdmt))))
-      | Term(Drv(Prop(prop))) => Term(Drv(Prop(go_prop(prop))))
       | Term(Drv(Exp(exp))) => Term(Drv(Exp(go_exp(exp))))
       | _ => term
       };

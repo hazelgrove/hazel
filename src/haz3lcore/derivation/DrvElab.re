@@ -6,57 +6,45 @@ let to_list = d =>
   | _ => [d]
   };
 
-let rec elaborate: Drv.t => t =
-  fun
-  | Jdmt(jdmt) => elab_jdmt(jdmt)
-  | Ctxt(ctxt) => elab_ctxt(ctxt)
-  | Prop(prop) => elab_prop(prop)
-  | Exp(exp) => elab_exp(exp)
-  | Pat(pat) => elab_pat(pat)
-  | Typ(typ) => elab_typ(typ)
-  | TPat(tpat) => elab_tpat(tpat)
-and elab_jdmt: Drv.Jdmt.t => t =
+let rec exp_term_of: Drv.Exp.t => Drv.Exp.term =
+  exp =>
+    switch (exp.term) {
+    | Parens(p) => exp_term_of(p)
+    | p => p
+    }
+and elab_jdmt: Drv.Exp.t => t =
   jdmt => {
     let term: term =
-      switch (jdmt.term) {
+      switch (exp_term_of(jdmt)) {
       | Hole(s) => Hole(TermBase.TypeHole.show(s))
       | Val(e) => Val(elab_exp(e))
       | Eval(e1, e2) => Eval(elab_exp(e1), elab_exp(e2))
       | Entail(ctx, p) => Entail(elab_ctxt(ctx), elab_prop(p))
+      | _ => Hole(Drv.Exp.show(jdmt))
       };
     {...jdmt, term};
   }
-and elab_ctxt: Drv.Ctxt.t => t =
-  ctxt => {
-    let rec prop_term_of: Drv.Prop.t => Drv.Prop.term =
-      pat =>
-        switch (pat.term) {
-        | Parens(p) => prop_term_of(p)
-        | p => p
-        };
+and elab_ctxt: Drv.Exp.t => t =
+  ctx => {
     let term: term =
-      switch (ctxt.term) {
+      switch (exp_term_of(ctx)) {
       | Hole(s) => Hole(TermBase.TypeHole.show(s))
-      | Ctxt(p) =>
-        switch (prop_term_of(p)) {
-        | Tuple(ps) =>
-          Ctx(
-            ps
-            |> List.map(elab_prop)
-            |> List.map(to_list)
-            |> List.concat
-            |> List.fold_left(cons_ctx, []),
-          )
-        | _ => Ctx([elab_prop(p)])
-        }
+      | Ctx(ps) =>
+        Ctx(
+          ps
+          |> List.map(elab_prop)
+          |> List.map(to_list)
+          |> List.concat
+          |> List.fold_left(cons_ctx, []),
+        )
+      | _ => Hole(Drv.Exp.show(ctx))
       };
-    {...ctxt, term};
+    {...ctx, term};
   }
-and elab_prop: Drv.Prop.t => t =
+and elab_prop: Drv.Exp.t => t =
   prop => {
-    let hole: term = Hole(Drv.Prop.show(prop));
     let term: term =
-      switch (prop.term) {
+      switch (exp_term_of(prop)) {
       | Hole(s) => Hole(TermBase.TypeHole.show(s))
       | HasType(e, t) => HasType(elab_exp(e), elab_typ(t))
       | Syn(e, t) => Syn(elab_exp(e), elab_typ(t))
@@ -67,9 +55,7 @@ and elab_prop: Drv.Prop.t => t =
       | Impl(p1, p2) => Impl(elab_prop(p1), elab_prop(p2))
       | Truth => Truth
       | Falsity => Falsity
-      | Tuple(_) => hole
-      | Abbr(_) => hole
-      | Parens(p) => IdTagged.term_of(elab_prop(p))
+      | _ => Hole(Drv.Exp.show(prop))
       };
     {...prop, term};
   }
@@ -89,7 +75,7 @@ and elab_exp: Drv.Exp.t => t =
         };
     let hole: term = Hole(Drv.Exp.show(exp));
     let term: term =
-      switch (exp.term) {
+      switch (exp_term_of(exp)) {
       | Hole(s) => Hole(TermBase.TypeHole.show(s))
       | NumLit(i) => NumLit(i)
       | Neg(e) => Neg(elab_exp(e))
@@ -135,7 +121,7 @@ and elab_exp: Drv.Exp.t => t =
         | Unroll => Unroll(e2)
         | _ => Ap(elab_exp(e1), e2)
         };
-      | Pair(e1, e2) => Pair(elab_exp(e1), elab_exp(e2))
+      | Tuple([e1, e2]) => Pair(elab_exp(e1), elab_exp(e2))
       | Triv => Triv
       | PrjL(e) => PrjL(elab_exp(e))
       | PrjR(e) => PrjR(elab_exp(e))
@@ -155,8 +141,7 @@ and elab_exp: Drv.Exp.t => t =
         };
       | Roll => hole
       | Unroll => hole
-      | Abbr(_) => hole
-      | Parens(e) => IdTagged.term_of(elab_exp(e))
+      | _ => hole
       };
     {...exp, term};
   }

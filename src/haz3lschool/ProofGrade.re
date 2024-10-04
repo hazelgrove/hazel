@@ -72,8 +72,8 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         | ResultOk({result, _}) =>
           ignore(rule);
           switch (result) {
-          | BoxedValue({term: Term(Drv(d)), _}) =>
-            Ok({jdmt: DrvElab.elaborate(d), rule})
+          | BoxedValue({term: Term(Drv(Exp(d))), _}) =>
+            Ok({jdmt: DrvElab.elab_jdmt(d), rule})
           | Indet(_) => Error(EvalIndet)
           | _ => Error(EvalIndet)
           };

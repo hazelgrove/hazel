@@ -1,117 +1,23 @@
-module Jdmt = {
+module ALFA_Exp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Hole
+    | Var
+    | Abbr
+    | Parens
+    | Tuple
     | Val
     | Eval
-    | Entail;
-
-  include TermBase.Jdmt;
-
-  let hole = (tms: list(TermBase.Any.t)): term =>
-    Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
-
-  let rep_id = ({ids, _}: t) => {
-    assert(ids != []);
-    List.hd(ids);
-  };
-
-  let term_of: t => term = IdTagged.term_of;
-
-  let unwrap: t => (term, term => t) = IdTagged.unwrap;
-
-  let fresh: term => t = IdTagged.fresh;
-
-  let cls_of_term: term => cls =
-    fun
-    | Hole(_) => Hole
-    | Val(_) => Val
-    | Eval(_) => Eval
-    | Entail(_) => Entail;
-};
-
-module Ctxt = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Hole
-    | Ctxt;
-
-  include TermBase.Ctxt;
-
-  let hole = (tms: list(TermBase.Any.t)): term =>
-    Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
-
-  let rep_id = ({ids, _}: t) => {
-    assert(ids != []);
-    List.hd(ids);
-  };
-
-  let term_of: t => term = IdTagged.term_of;
-
-  let unwrap: t => (term, term => t) = IdTagged.unwrap;
-
-  let fresh: term => t = IdTagged.fresh;
-
-  let cls_of_term: term => cls =
-    fun
-    | Hole(_) => Hole
-    | Ctxt(_) => Ctxt;
-};
-
-module Prop = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Hole
+    | Entail
+    | Ctx
     | HasType
     | Syn
     | Ana
-    | Var
     | And
     | Or
     | Impl
     | Truth
     | Falsity
-    | Tuple
-    | Abbr
-    | Parens;
-
-  include TermBase.Prop;
-
-  let hole = (tms: list(TermBase.Any.t)): term =>
-    Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
-
-  let rep_id = ({ids, _}: t) => {
-    assert(ids != []);
-    List.hd(ids);
-  };
-
-  let term_of: t => term = IdTagged.term_of;
-
-  let unwrap: t => (term, term => t) = IdTagged.unwrap;
-
-  let fresh: term => t = IdTagged.fresh;
-
-  let cls_of_term: term => cls =
-    fun
-    | Hole(_) => Hole
-    | HasType(_) => HasType
-    | Syn(_) => Syn
-    | Ana(_) => Ana
-    | Var(_) => Var
-    | And(_) => And
-    | Or(_) => Or
-    | Impl(_) => Impl
-    | Truth => Truth
-    | Falsity => Falsity
-    | Tuple(_) => Tuple
-    | Abbr(_) => Abbr
-    | Parens(_) => Parens;
-};
-
-module ALFA_Exp = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Hole
     | NumLit
     | Neg
     | Plus
@@ -123,12 +29,10 @@ module ALFA_Exp = {
     | True
     | False
     | If
-    | Var
     | Let
     | Fix
     | Fun
     | Ap
-    | Pair
     | Triv
     | PrjL
     | PrjR
@@ -136,9 +40,7 @@ module ALFA_Exp = {
     | InjR
     | Case
     | Roll
-    | Unroll
-    | Abbr
-    | Parens;
+    | Unroll;
 
   include TermBase.ALFA_Exp;
 
@@ -159,6 +61,22 @@ module ALFA_Exp = {
   let cls_of_term: term => cls =
     fun
     | Hole(_) => Hole
+    | Var(_) => Var
+    | Abbr(_) => Abbr
+    | Parens(_) => Parens
+    | Val(_) => Val
+    | Eval(_) => Eval
+    | Entail(_) => Entail
+    | Ctx(_) => Ctx
+    | HasType(_) => HasType
+    | Syn(_) => Syn
+    | Ana(_) => Ana
+    | And(_) => And
+    | Or(_) => Or
+    | Impl(_) => Impl
+    | Truth => Truth
+    | Falsity => Falsity
+    | Tuple(_) => Tuple
     | NumLit(_) => NumLit
     | Neg(_) => Neg
     | Plus(_) => Plus
@@ -170,12 +88,10 @@ module ALFA_Exp = {
     | True => True
     | False => False
     | If(_) => If
-    | Var(_) => Var
     | Let(_) => Let
     | Fix(_) => Fix
     | Fun(_) => Fun
     | Ap(_) => Ap
-    | Pair(_) => Pair
     | Triv => Triv
     | PrjL(_) => PrjL
     | PrjR(_) => PrjR
@@ -183,9 +99,7 @@ module ALFA_Exp = {
     | InjR => InjR
     | Case(_) => Case
     | Roll => Roll
-    | Unroll => Unroll
-    | Abbr(_) => Abbr
-    | Parens(_) => Parens;
+    | Unroll => Unroll;
 };
 
 module ALFA_Pat = {
@@ -303,9 +217,6 @@ module ALFA_TPat = {
 module Drv = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
-    | Jdmt(Jdmt.cls)
-    | Ctxt(Ctxt.cls)
-    | Prop(Prop.cls)
     | Exp(ALFA_Exp.cls)
     | Pat(ALFA_Pat.cls)
     | Typ(ALFA_Typ.cls)
@@ -315,9 +226,6 @@ module Drv = {
 
   let sort_of: t => Sort.DrvSort.t =
     fun
-    | Jdmt(_) => Jdmt
-    | Ctxt(_) => Ctxt
-    | Prop(_) => Prop
     | Exp(_) => Exp
     | Pat(_) => Pat
     | Typ(_) => Typ
@@ -325,9 +233,6 @@ module Drv = {
 
   let rep_id: t => Id.t =
     fun
-    | Jdmt(jdmt) => Jdmt.rep_id(jdmt)
-    | Ctxt(ctxt) => Ctxt.rep_id(ctxt)
-    | Prop(prop) => Prop.rep_id(prop)
     | Exp(exp) => ALFA_Exp.rep_id(exp)
     | Pat(pat) => ALFA_Pat.rep_id(pat)
     | Typ(typ) => ALFA_Typ.rep_id(typ)
@@ -335,9 +240,6 @@ module Drv = {
 
   let of_id: t => list(Id.t) =
     fun
-    | Jdmt(jdmt) => jdmt.ids
-    | Ctxt(ctxt) => ctxt.ids
-    | Prop(prop) => prop.ids
     | Exp(exp) => exp.ids
     | Pat(pat) => pat.ids
     | Typ(typ) => typ.ids
@@ -345,9 +247,6 @@ module Drv = {
 
   let cls_of: t => cls =
     fun
-    | Jdmt(jdmt) => Jdmt(Jdmt.cls_of_term(jdmt.term))
-    | Ctxt(ctxt) => Ctxt(Ctxt.cls_of_term(ctxt.term))
-    | Prop(prop) => Prop(Prop.cls_of_term(prop.term))
     | Exp(exp) => Exp(ALFA_Exp.cls_of_term(exp.term))
     | Pat(pat) => Pat(ALFA_Pat.cls_of_term(pat.term))
     | Typ(typ) => Typ(ALFA_Typ.cls_of_term(typ.term))

@@ -17,45 +17,18 @@ type status_common =
   | InHole(error_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type jdmt = {
-  term: Drv.Jdmt.t,
-  cls: Cls.t,
-  ancestors,
-  status: status_common,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type ctxt = {
-  term: Drv.Ctxt.t,
-  cls: Cls.t,
-  ancestors,
-  status: status_common,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type error_prop =
-  | BadToken(Token.t)
-  | MultiHole
-  | NotAllowTuple;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type status_prop =
-  | NotInHole(ok_common)
-  | InHole(error_prop);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type prop = {
-  term: Drv.Prop.t,
-  cls: Cls.t,
-  ancestors,
-  status: status_prop,
-};
+type ty_merged =
+  | Jdmt
+  | Ctx
+  | Prop
+  | Exp
+  | Arrow;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
   | BadToken(Token.t)
   | MultiHole
-  | NotAllowSingle;
+  | NoJoin(ty_merged); // expected
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_exp =
@@ -68,6 +41,7 @@ type exp = {
   cls: Cls.t,
   ancestors,
   status: status_exp,
+  ty: ty_merged,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -118,9 +92,6 @@ type tpat = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | Jdmt(jdmt)
-  | Ctxt(ctxt)
-  | Prop(prop)
   | Exp(exp)
   | Pat(pat)
   | Typ(typ)
@@ -128,9 +99,6 @@ type t =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error =
-  | Jdmt(error_common)
-  | Ctxt(error_common)
-  | Prop(error_prop)
   | Exp(error_exp)
   | Pat(error_pat)
   | Typ(error_common)
@@ -138,9 +106,9 @@ type error =
 
 let sort_of: t => Sort.DrvSort.t =
   fun
-  | Jdmt(_) => Jdmt
-  | Ctxt(_) => Ctxt
-  | Prop(_) => Prop
+  | Exp({ty: Jdmt, _}) => Jdmt
+  | Exp({ty: Ctx, _}) => Ctx
+  | Exp({ty: Prop, _}) => Prop
   | Exp(_) => Exp
   | Pat(_) => Pat
   | Typ(_) => Typ
@@ -148,9 +116,6 @@ let sort_of: t => Sort.DrvSort.t =
 
 let cls_of: t => Cls.t =
   fun
-  | Jdmt(jdmt) => jdmt.cls
-  | Ctxt(ctxt) => ctxt.cls
-  | Prop(prop) => prop.cls
   | Exp(exp) => exp.cls
   | Pat(pat) => pat.cls
   | Typ(typ) => typ.cls
@@ -158,9 +123,6 @@ let cls_of: t => Cls.t =
 
 let id_of: t => Id.t =
   fun
-  | Jdmt(jdmt) => Drv.Jdmt.rep_id(jdmt.term)
-  | Ctxt(ctxt) => Drv.Ctxt.rep_id(ctxt.term)
-  | Prop(prop) => Drv.Prop.rep_id(prop.term)
   | Exp(exp) => Drv.Exp.rep_id(exp.term)
   | Pat(pat) => Drv.Pat.rep_id(pat.term)
   | Typ(typ) => Drv.Typ.rep_id(typ.term)
@@ -168,16 +130,10 @@ let id_of: t => Id.t =
 
 let error_of: t => option(error) =
   fun
-  | Jdmt({status: NotInHole(_), _})
-  | Ctxt({status: NotInHole(_), _})
-  | Prop({status: NotInHole(_), _})
   | Exp({status: NotInHole(_), _})
   | Pat({status: NotInHole(_), _})
   | Typ({status: NotInHole(_), _})
   | TPat({status: NotInHole(_), _}) => None
-  | Jdmt({status: InHole(err), _}) => Some(Jdmt(err))
-  | Ctxt({status: InHole(err), _}) => Some(Ctxt(err))
-  | Prop({status: InHole(err), _}) => Some(Prop(err))
   | Exp({status: InHole(err), _}) => Some(Exp(err))
   | Pat({status: InHole(err), _}) => Some(Pat(err))
   | Typ({status: InHole(err), _}) => Some(Typ(err))
@@ -185,39 +141,61 @@ let error_of: t => option(error) =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_drv =
-  | Jdmt(status_common)
-  | Ctxt(status_common)
-  | Prop(status_prop)
   | Exp(status_exp)
   | Pat(status_pat)
   | Typ(status_common)
   | TPat(status_common);
 
-let status_jdmt = (jdmt: Drv.Jdmt.t): status_common =>
-  switch (jdmt.term) {
-  | Hole(Invalid(token)) => InHole(BadToken(token))
-  | Hole(MultiHole(_)) => InHole(MultiHole)
-  | _ => NotInHole()
+let types_of_exp = (exp: Drv.Exp.t): list(ty_merged) =>
+  switch (exp.term) {
+  | Hole(_)
+  | Abbr(_)
+  | Parens(_) => [Jdmt, Ctx, Prop, Exp, Arrow]
+  | Var(_) => [Prop, Exp, Arrow]
+  | Tuple(es) when List.length(es) == 2 => [Exp]
+  | Tuple(_) => []
+  | Val(_)
+  | Eval(_)
+  | Entail(_) => [Jdmt]
+  | Ctx(_) => [Ctx]
+  | HasType(_)
+  | Syn(_)
+  | Ana(_)
+  | And(_)
+  | Or(_)
+  | Impl(_)
+  | Truth
+  | Falsity => [Prop]
+  | NumLit(_)
+  | Neg(_)
+  | Plus(_)
+  | Minus(_)
+  | Times(_)
+  | Eq(_)
+  | Lt(_)
+  | Gt(_)
+  | True
+  | False
+  | If(_)
+  | Let(_)
+  | Fix(_)
+  | Fun(_)
+  | Ap(_)
+  | Triv
+  | PrjL(_)
+  | PrjR(_)
+  | Case(_) => [Exp, Arrow]
+  | InjL
+  | InjR
+  | Roll
+  | Unroll => [Arrow]
   };
 
-let status_ctxt = (ctxt: Drv.Ctxt.t): status_common =>
-  switch (ctxt.term) {
-  | Hole(Invalid(token)) => InHole(BadToken(token))
-  | Hole(MultiHole(_)) => InHole(MultiHole)
-  | _ => NotInHole()
-  };
-
-let status_prop = (prop: Drv.Prop.t): status_prop =>
-  switch (prop.term) {
-  | Hole(Invalid(token)) => InHole(BadToken(token))
-  | Hole(MultiHole(_)) => InHole(MultiHole)
-  | _ => NotInHole()
-  };
-
-let status_exp = (exp: Drv.Exp.t): status_exp =>
+let status_exp = (exp: Drv.Exp.t, ty: ty_merged): status_exp =>
   switch (exp.term) {
   | Hole(Invalid(token)) => InHole(BadToken(token))
   | Hole(MultiHole(_)) => InHole(MultiHole)
+  | _ when !List.mem(ty, types_of_exp(exp)) => InHole(NoJoin(ty))
   | _ => NotInHole()
   };
 
@@ -242,29 +220,12 @@ let status_tpat = (tpat: Drv.TPat.t): status_common =>
   | _ => NotInHole()
   };
 
-let status_drv = (drv: Drv.t): status_drv =>
-  switch (drv) {
-  | Jdmt(term) => Jdmt(status_jdmt(term))
-  | Ctxt(term) => Ctxt(status_ctxt(term))
-  | Prop(term) => Prop(status_prop(term))
-  | Exp(term) => Exp(status_exp(term))
-  | Pat(term) => Pat(status_pat(term))
-  | Typ(term) => Typ(status_typ(term))
-  | TPat(term) => TPat(status_tpat(term))
-  };
-
 let is_error = (ci: t): bool => {
   switch (ci) {
-  | Jdmt({status: InHole(_), _})
-  | Ctxt({status: InHole(_), _})
-  | Prop({status: InHole(_), _})
   | Exp({status: InHole(_), _})
   | Pat({status: InHole(_), _})
   | Typ({status: InHole(_), _})
   | TPat({status: InHole(_), _}) => true
-  | Jdmt({status: NotInHole(_), _})
-  | Ctxt({status: NotInHole(_), _})
-  | Prop({status: NotInHole(_), _})
   | Exp({status: NotInHole(_), _})
   | Pat({status: NotInHole(_), _})
   | Typ({status: NotInHole(_), _})
@@ -274,36 +235,15 @@ let is_error = (ci: t): bool => {
 
 let ancestors_of: t => ancestors =
   fun
-  | Jdmt({ancestors, _})
-  | Ctxt({ancestors, _})
-  | Prop({ancestors, _})
   | Exp({ancestors, _})
   | Pat({ancestors, _})
   | Typ({ancestors, _})
   | TPat({ancestors, _}) => ancestors;
 
-let derived_jdmt = (jdmt: Drv.Jdmt.t, ~ancestors): jdmt => {
-  let cls = Cls.Drv(Jdmt(Drv.Jdmt.cls_of_term(jdmt.term)));
-  let status = status_jdmt(jdmt);
-  {term: jdmt, cls, status, ancestors};
-};
-
-let derived_ctxt = (ctxt: Drv.Ctxt.t, ~ancestors): ctxt => {
-  let cls = Cls.Drv(Ctxt(Drv.Ctxt.cls_of_term(ctxt.term)));
-  let status = status_ctxt(ctxt);
-  {term: ctxt, cls, status, ancestors};
-};
-
-let derived_prop = (prop: Drv.Prop.t, ~ancestors): prop => {
-  let cls = Cls.Drv(Prop(Drv.Prop.cls_of_term(prop.term)));
-  let status = status_prop(prop);
-  {term: prop, cls, status, ancestors};
-};
-
-let derived_exp = (exp: Drv.Exp.t, ~ancestors): exp => {
+let derived_exp = (exp: Drv.Exp.t, ~ancestors, ~ty): exp => {
   let cls = Cls.Drv(Exp(Drv.Exp.cls_of_term(exp.term)));
-  let status = status_exp(exp);
-  {term: exp, cls, status, ancestors};
+  let status = status_exp(exp, ty);
+  {term: exp, cls, status, ancestors, ty};
 };
 
 let derived_pat = (pat: Drv.Pat.t, ~ancestors): pat => {
@@ -322,16 +262,4 @@ let derived_tpat = (tpat: Drv.TPat.t, ~ancestors): tpat => {
   let cls = Cls.Drv(TPat(Drv.TPat.cls_of_term(tpat.term)));
   let status = status_tpat(tpat);
   {term: tpat, cls, status, ancestors};
-};
-
-let derived_drv = (drv: Drv.t, ~ancestors): t => {
-  switch (drv) {
-  | Jdmt(jdmt) => Jdmt(derived_jdmt(jdmt, ~ancestors))
-  | Ctxt(ctxt) => Ctxt(derived_ctxt(ctxt, ~ancestors))
-  | Prop(prop) => Prop(derived_prop(prop, ~ancestors))
-  | Exp(exp) => Exp(derived_exp(exp, ~ancestors))
-  | Pat(pat) => Pat(derived_pat(pat, ~ancestors))
-  | Typ(typ) => Typ(derived_typ(typ, ~ancestors))
-  | TPat(tpat) => TPat(derived_tpat(tpat, ~ancestors))
-  };
 };

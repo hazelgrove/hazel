@@ -252,7 +252,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
     "empty_list",
     (
       is_empty_list,
-      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Drv(Ctxt), [])],
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Drv(Exp), [])],
     ),
   ),
   (
@@ -277,7 +277,6 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
     (
       is_typ_var,
       [
-        mk_op(Drv(Prop), []),
         mk_op(Drv(Exp), []),
         mk_op(Drv(Pat), []),
         mk_op(Drv(Typ), []),
@@ -367,7 +366,8 @@ let forms: list((string, t)) = [
   ("pipeline", mk_infix("|>", Exp, P.eqs)), // in OCaml, pipeline precedence is in same class as '=', '<', etc.
   // DOUBLE DELIMITERS
   ("filter_hide", mk(ds, ["hide", "in"], mk_pre(P.let_, Exp, [Exp]))),
-  ("filter_eval", mk(ds, ["eval", "in"], mk_pre(P.let_, Exp, [Exp]))),
+  // TODO(zhiyao): change it back to "eval", "in"
+  ("filter_eval", mk(ds, ["eval", "to"], mk_pre(P.let_, Exp, [Exp]))),
   ("filter_pause", mk(ds, ["pause", "in"], mk_pre(P.let_, Exp, [Exp]))),
   ("filter_debug", mk(ds, ["debug", "in"], mk_pre(P.let_, Exp, [Exp]))),
   // TRIPLE DELIMITERS
@@ -380,115 +380,52 @@ let forms: list((string, t)) = [
   // Drv
   // ("of_alfa_typ", mk(ds, ["of_Typ", "end"], mk_op(Exp, [Drv(Typ)]))),
   (
+    // TODO(zhiyao): fix this
     "of_alfa_exp",
     mk(ds, ["of_alfa_exp", "end"], mk_op(Exp, [Drv(Exp)])),
   ),
   // ("of_alfa_pat", mk(ds, ["of_Pat", "end"], mk_op(Exp, [Drv(Pat)]))),
   // ("of_alfa_tpat", mk(ds, ["of_TPat", "end"], mk_op(Exp, [Drv(TPat)]))),
-  ("of_prop", mk(ds, ["of_prop", "end"], mk_op(Exp, [Drv(Prop)]))),
-  ("of_ctxt", mk(ds, ["of_ctxt", "end"], mk_op(Exp, [Drv(Ctxt)]))),
-  // ("of_jdmt", mk(ds, ["of_Jdmt", "end"], mk_op(Exp, [Drv(Jdmt)]))),
+  ("of_prop", mk(ds, ["of_prop", "end"], mk_op(Exp, [Drv(Exp)]))),
+  ("of_ctxt", mk(ds, ["of_ctxt", "end"], mk_op(Exp, [Drv(Exp)]))),
+  // ("of_jdmt", mk(ds, ["of_Jdmt", "end"], mk_op(Exp, [Drv(Exp)]))),
   // (
   //   "prop_alias",
-  //   mk(ds, ["prop", "=", "in"], mk_pre(P.let_, Exp, [Pat, Drv(Prop)])),
+  //   mk(ds, ["prop", "=", "in"], mk_pre(P.let_, Exp, [Pat, Drv(Exp)])),
   // ),
   // (
   //   "alfa_alias",
   //   mk(ds, ["alfa", "=", "in"], mk_pre(P.let_, Exp, [Pat, Drv(Exp)])),
   // ),
+  // Drv(Jdmt)
   ("fake_val", mk(ds, ["val", "end"], mk_op(Exp, [Exp]))),
-  ("val", mk(ds, ["val", "end"], mk_op(Drv(Jdmt), [Drv(Exp)]))),
-  ("fake_eval", mk(ds, ["eval", "to", "end"], mk_op(Exp, [Exp, Exp]))),
-  (
-    "eval",
-    mk(
-      ii,
-      ["eval", "to", "end"],
-      mk_op(Drv(Jdmt), [Drv(Exp), Drv(Exp)]),
-    ),
-  ),
-  // Note(zhiyao): there is no "fake_entail" because it will diable entail_hastype, entail_syn, and entail_ana
-  (
-    "entail",
-    mk(
-      ds,
-      ["entail", "|-", "end"],
-      mk_op(Drv(Jdmt), [Drv(Ctxt), Drv(Prop)]),
-    ),
-  ),
-  (
-    "fake_entail_hastype",
-    mk(
-      ds,
-      ["entail_hastype", "|-", ":", "end"],
-      mk_op(Exp, [Exp, Exp, Exp]),
-    ),
-  ),
-  (
-    "entail_hastype",
-    mk(
-      ii,
-      ["entail_hastype", "|-", ":", "end"],
-      mk_op(Drv(Jdmt), [Drv(Ctxt), Drv(Exp), Drv(Typ)]),
-    ),
-  ),
-  (
-    "fake_entail_syn",
-    mk(ds, ["entail_syn", "|-", "=>", "end"], mk_op(Exp, [Exp, Exp, Exp])),
-  ),
-  (
-    "entail_syn",
-    mk(
-      ii,
-      ["entail_syn", "|-", "=>", "end"],
-      mk_op(Drv(Jdmt), [Drv(Ctxt), Drv(Exp), Drv(Typ)]),
-    ),
-  ),
-  (
-    "fake_entail_ana",
-    mk(ds, ["entail_ana", "|-", "<=", "end"], mk_op(Exp, [Exp, Exp, Exp])),
-  ),
-  (
-    "entail_ana",
-    mk(
-      ii,
-      ["entail_ana", "|-", "<=", "end"],
-      mk_op(Drv(Jdmt), [Drv(Ctxt), Drv(Exp), Drv(Typ)]),
-    ),
-  ),
-  // Drv(Ctxt)
-  ("list_lit_ctxt", mk(ii, ["[", "]"], mk_op(Drv(Ctxt), [Drv(Prop)]))),
-  // Drv(Prop)
+  ("val", mk(ds, ["val", "end"], mk_op(Drv(Exp), [Drv(Exp)]))),
+  ("val_simple", mk(ii, [".val"], mk_post(P.min, Drv(Exp), []))),
+  ("fake_eval", mk(ds, ["eval", "to"], mk_pre(P.min, Exp, [Exp]))),
+  ("eval", mk(ds, ["eval", "to"], mk_pre(P.min, Drv(Exp), [Drv(Exp)]))),
+  ("eval_simple", mk_infix("$>", Drv(Exp), P.min)),
+  ("entail", mk_infix("|-", Drv(Exp), P.min)),
+  // Drv(Ctx)
+  ("alfa_exp_list", mk(ii, ["[", "]"], mk_op(Drv(Exp), [Drv(Exp)]))),
+  ("alfa_cons", mk_infix(",", Drv(Exp), P.comma)),
+  ("alfa_paren", mk(ii, ["(", ")"], mk_op(Drv(Exp), [Drv(Exp)]))),
+  ("alfa_abbr", mk(ii, ["{", "}"], mk_op(Drv(Exp), [Pat]))),
+  // Drv(Exp)
   (
     "hastype",
-    mk(
-      ds,
-      ["hastype", ":"],
-      mk_pre'(P.fun_, Drv(Prop), Drv(Prop), [Drv(Exp)], Drv(Typ)),
-    ),
+    mk(ss, [":"], mk_bin'(P.filter, Drv(Exp), Drv(Exp), [], Drv(Typ))),
   ),
   (
     "syn",
-    mk(
-      ds,
-      ["syn", "=>"],
-      mk_pre'(P.fun_, Drv(Prop), Drv(Prop), [Drv(Exp)], Drv(Typ)),
-    ),
+    mk(ss, ["=>"], mk_bin'(P.filter, Drv(Exp), Drv(Exp), [], Drv(Typ))),
   ),
   (
     "ana",
-    mk(
-      ds,
-      ["ana", "<="],
-      mk_pre'(P.fun_, Drv(Prop), Drv(Prop), [Drv(Exp)], Drv(Typ)),
-    ),
+    mk(ss, ["<="], mk_bin'(P.filter, Drv(Exp), Drv(Exp), [], Drv(Typ))),
   ),
-  ("and", mk_infix("/\\", Drv(Prop), P.and_)),
-  ("or", mk_infix("\\/", Drv(Prop), P.or_)),
-  ("impl", mk_infix("==>", Drv(Prop), P.ann)),
-  ("cons", mk_infix(",", Drv(Prop), P.comma)),
-  ("parens_prop", mk(ii, ["(", ")"], mk_op(Drv(Prop), [Drv(Prop)]))),
-  ("abbr_prop", mk(ii, ["{", "}"], mk_op(Drv(Prop), [Pat]))),
+  ("and", mk_infix("/\\", Drv(Exp), P.and_)),
+  ("or", mk_infix("\\/", Drv(Exp), P.or_)),
+  ("impl", mk_infix("==>", Drv(Exp), P.ann)),
   // Drv(Exp)
   ("exp_neg", mk(ds, ["-"], mk_pre(P.neg, Drv(Exp), []))),
   ("exp_plus", mk_infix("+", Drv(Exp), P.plus)),
@@ -537,8 +474,6 @@ let forms: list((string, t)) = [
       ),
     ),
   ),
-  ("exp_parens", mk(ii, ["(", ")"], mk_op(Drv(Exp), [Drv(Exp)]))),
-  ("abbr_exp", mk(ii, ["{", "}"], mk_op(Drv(Exp), [Pat]))),
   // Drv(Pat)
   (
     "pat_cast",

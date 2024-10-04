@@ -164,7 +164,7 @@ module ModelUtil = {
     switch (pos) {
     | Prelude => Exp
     | Setup => Exp
-    | Trees(_, _) => Drv(Jdmt)
+    | Trees(_, _) => Drv(Exp)
     };
 };
 

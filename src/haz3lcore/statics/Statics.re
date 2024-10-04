@@ -176,76 +176,43 @@ and drv_to_info_map =
     info,
     add_info(Drv.of_id(drv), InfoDrv(info), m),
   );
-  let rec go_jdmt = (jdmt, m) => {
-    let info: DrvInfo.t = Jdmt(DrvInfo.derived_jdmt(jdmt, ~ancestors));
-    let m =
-      switch (jdmt.term) {
-      | Hole(_) => m
-      | Val(e) => m |> go_exp'(e) |> snd
-      | Eval(e1, e2) => m |> go_exp'(e1) |> snd |> go_exp'(e2) |> snd
-      | Entail(ctx, p) =>
-        m |> go_ctxt(ctx) |> snd |> go_prop(p, ~can_tuple=false) |> snd
-      };
-    add(Jdmt(jdmt), info, m);
-  }
-  and go_ctxt = (ctxt: Drv.Ctxt.t, m) => {
-    let info = DrvInfo.derived_ctxt(ctxt, ~ancestors);
-    let add' = add(Ctxt(ctxt), Ctxt(info));
-    switch (ctxt.term) {
-    | Hole(_) => m |> add'
-    | Ctxt(p) => m |> go_prop(p, ~can_tuple=true) |> snd |> add'
-    };
-  }
-  and go_prop = (prop: Drv.Prop.t, m, ~can_tuple: bool) => {
-    let info = DrvInfo.derived_prop(prop, ~ancestors);
-    let add' = add(Prop(prop), Prop(info));
-    // let m =
-    switch (prop.term) {
-    | Hole(_) => m |> add'
-    | HasType(e, t)
-    | Syn(e, t)
-    | Ana(e, t) => m |> go_exp'(e) |> snd |> go_typ(t) |> snd |> add'
-    | Var(_) => m |> add'
-    | And(p1, p2)
-    | Or(p1, p2)
-    | Impl(p1, p2) =>
-      m
-      |> go_prop(p1, ~can_tuple=false)
-      |> snd
-      |> go_prop(p2, ~can_tuple=false)
-      |> snd
-      |> add'
-
-    | Truth
-    | Falsity => m |> add'
-    | Tuple(_) when !can_tuple =>
-      m |> add(Prop(prop), Prop({...info, status: InHole(NotAllowTuple)}))
-    | Tuple(ps) =>
-      List.fold_left((m, p) => m |> go_prop(p, ~can_tuple) |> snd, m, ps)
-      |> add'
-    | Abbr(p) =>
-      m
-      |> upat_to_info_map(
-           ~is_synswitch=false,
-           ~co_ctx=CoCtx.empty,
-           ~ctx,
-           ~ancestors,
-           ~mode=Mode.Ana(Term(Drv(Prop)) |> Typ.fresh),
-           p,
-         )
-      |> snd
-      |> add'
-    | Parens(p) => m |> go_prop(p, ~can_tuple) |> snd |> add'
-    };
-    // add(Prop(prop), info, m);
-  }
-  and go_exp = (exp: Drv.Exp.t, m, ~left_ap: bool) => {
-    let info = DrvInfo.derived_exp(exp, ~ancestors);
+  let rec go_exp = (exp: Drv.Exp.t, m, ~ty: DrvInfo.ty_merged) => {
+    let info = DrvInfo.derived_exp(exp, ~ancestors, ~ty);
     let info': DrvInfo.t = Exp(info);
     let add = add(Exp(exp));
     let add' = add(info');
     switch (exp.term) {
     | Hole(_) => m |> add'
+    | Var(_) => m |> add'
+    | Abbr(p) =>
+      m  // TODO(zhiyao): change abbr
+      |> upat_to_info_map(
+           ~is_synswitch=false,
+           ~co_ctx=CoCtx.empty,
+           ~ctx,
+           ~ancestors,
+           ~mode=Mode.Ana(Term(Drv(Exp)) |> Typ.fresh),
+           p,
+         )
+      |> snd
+      |> add'
+    | Parens(e) => m |> go_exp(e, ~ty) |> snd |> add'
+    | Val(e) => m |> go_exp'(e) |> snd |> add'
+    | Eval(e1, e2) => m |> go_exp'(e1) |> snd |> go_exp'(e2) |> snd |> add'
+    | Entail(ctx, p) =>
+      m |> go_exp(ctx, ~ty=Ctx) |> snd |> go_exp(p, ~ty=Prop) |> snd |> add'
+    | Ctx(es) =>
+      List.fold_left((m, e) => m |> go_exp(e, ~ty=Prop) |> snd, m, es)
+      |> add'
+    | HasType(e, t)
+    | Syn(e, t)
+    | Ana(e, t) => m |> go_exp'(e) |> snd |> go_typ(t) |> snd |> add'
+    | And(p1, p2)
+    | Or(p1, p2)
+    | Impl(p1, p2) =>
+      m |> go_exp(p1, ~ty=Prop) |> snd |> go_exp(p2, ~ty=Prop) |> snd |> add'
+    | Truth
+    | Falsity => m |> add'
     | NumLit(_) => m |> add'
     | Neg(e) => m |> go_exp'(e) |> snd |> add'
     | Plus(e1, e2)
@@ -262,7 +229,6 @@ and drv_to_info_map =
       let m = m |> go_exp'(e1) |> snd;
       let m = m |> go_exp'(e2) |> snd;
       m |> go_exp'(e3) |> snd |> add';
-    | Var(_) => m |> add'
     | Let(p, e1, e2) =>
       let m = m |> go_pat(p, ~expect=Pair_Or_Case_Var) |> snd;
       let m = m |> go_exp'(e1) |> snd;
@@ -272,16 +238,12 @@ and drv_to_info_map =
     | Fun(p, e) =>
       m |> go_pat(p, ~expect=Cast_Var) |> snd |> go_exp'(e) |> snd |> add'
     | Ap(e1, e2) =>
-      m |> go_exp(e1, ~left_ap=true) |> snd |> go_exp'(e2) |> snd |> add'
-    | Pair(e1, e2) => m |> go_exp'(e1) |> snd |> go_exp'(e2) |> snd |> add'
+      m |> go_exp(e1, ~ty=Arrow) |> snd |> go_exp'(e2) |> snd |> add'
+    | Tuple(es) =>
+      List.fold_left((m, e) => m |> go_exp'(e) |> snd, m, es) |> add'
     | Triv => m |> add'
     | PrjL(e)
     | PrjR(e) => m |> go_exp'(e) |> snd |> add'
-    | InjL
-    | InjR
-    | Roll
-    | Unroll when !left_ap =>
-      m |> add(Exp({...info, status: InHole(NotAllowSingle)}))
     | InjL
     | InjR
     | Roll
@@ -292,22 +254,9 @@ and drv_to_info_map =
       let m = m |> go_exp'(e1) |> snd;
       let m = m |> go_pat(p2, ~expect=Ap_InjR) |> snd;
       m |> go_exp'(e2) |> snd |> add';
-    | Abbr(p) =>
-      m
-      |> upat_to_info_map(
-           ~is_synswitch=false,
-           ~co_ctx=CoCtx.empty,
-           ~ctx,
-           ~ancestors,
-           ~mode=Mode.Ana(Term(Drv(Exp)) |> Typ.fresh),
-           p,
-         )
-      |> snd
-      |> add'
-    | Parens(e) => m |> go_exp(e, ~left_ap) |> snd |> add'
     };
   }
-  and go_exp' = go_exp(~left_ap=false)
+  and go_exp' = go_exp(~ty=Exp)
   and go_pat = (pat: Drv.Pat.t, m, ~expect: DrvInfo.pat_expect) => {
     let info = DrvInfo.derived_pat(pat, ~ancestors);
     let add = add(Pat(pat));
@@ -359,10 +308,7 @@ and drv_to_info_map =
     add(TPat(tpat), info, m);
   };
   switch (drv) {
-  | Jdmt(jdmt) => go_jdmt(jdmt, m)
-  | Ctxt(ctxt) => go_ctxt(ctxt, m)
-  | Prop(prop) => go_prop(prop, m, ~can_tuple=true)
-  | Exp(exp) => go_exp(exp, m, ~left_ap=false)
+  | Exp(exp) => go_exp(exp, m, ~ty=Jdmt)
   | Pat(pat) => go_pat(pat, m, ~expect=Var)
   | Typ(ty) => go_typ(ty, m)
   | TPat(tp) => go_tpat(tp, m)
