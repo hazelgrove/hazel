@@ -336,7 +336,7 @@ module Transition = (EV: EV_MODE) => {
     | Ap(dir, d1, d2) =>
       let. _ = otherwise(env, (d1, (d2, _)) => Ap(dir, d1, d2) |> rewrap)
       and. d1' =
-        req_final(req(state, env), d1 => Ap1(dir, d1, d2) |> wrap_ctx, d1)
+        req_value(req(state, env), d1 => Ap1(dir, d1, d2) |> wrap_ctx, d1)
       and. (d2', d2_is_value) =
         req_final_or_value(
           req(state, env),
