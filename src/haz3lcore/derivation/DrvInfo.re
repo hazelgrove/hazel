@@ -157,7 +157,9 @@ let types_of_exp = (exp: Drv.Exp.t): list(ty_merged) =>
   | Val(_)
   | Eval(_)
   | Entail(_) => [Jdmt]
-  | Ctx(_) => [Ctx]
+  | Ctx(_)
+  | Cons(_)
+  | Concat(_) => [Ctx]
   | HasType(_)
   | Syn(_)
   | Ana(_)

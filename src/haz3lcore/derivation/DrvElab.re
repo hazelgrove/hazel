@@ -26,6 +26,7 @@ and elab_jdmt: Drv.Exp.t => t =
   }
 and elab_ctxt: Drv.Exp.t => t =
   ctx => {
+    let hole: term = Hole(Drv.Exp.show(ctx));
     let term: term =
       switch (exp_term_of(ctx)) {
       | Hole(s) => Hole(TermBase.TypeHole.show(s))
@@ -37,8 +38,22 @@ and elab_ctxt: Drv.Exp.t => t =
           |> List.concat
           |> List.fold_left(cons_ctx, []),
         )
-      | _ => Hole(Drv.Exp.show(ctx))
+      | Cons(p, ctx) =>
+        switch (IdTagged.term_of(elab_ctxt(ctx))) {
+        | Ctx(ps) => Ctx(cons_ctx(ps, elab_prop(p)))
+        | _ => hole
+        }
+      | Concat(ctx1, ctx2) =>
+        switch (
+          IdTagged.term_of(elab_ctxt(ctx1)),
+          IdTagged.term_of(elab_ctxt(ctx2)),
+        ) {
+        | (Ctx(ps1), Ctx(ps2)) => Ctx(List.fold_left(cons_ctx, ps2, ps1))
+        | _ => hole
+        }
+      | _ => hole
       };
+    print_endline("elab_ctxt" ++ DrvSyntax.show_term(term));
     {...ctx, term};
   }
 and elab_prop: Drv.Exp.t => t =
@@ -127,7 +142,7 @@ and elab_exp: Drv.Exp.t => t =
       | PrjR(e) => PrjR(elab_exp(e))
       | InjL => hole
       | InjR => hole
-      | Case(e, x, e1, y, e2) =>
+      | Case(e, [(x, e1), (y, e2)]) =>
         let e = elab_exp(e);
         let e1 = elab_exp(e1);
         let e2 = elab_exp(e2);

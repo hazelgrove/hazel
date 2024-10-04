@@ -590,11 +590,21 @@ let rec subst_ty: (t, string, t) => t =
 
 let mem_ctx = p => List.exists(eq(p));
 
+// Note(zhiyao): This implementation of cons_ctx is not linear.
 let cons_ctx = (ctx, p) => {
-  let cmp = p' => show(p') <= show(p);
+  let cmp = p' => show(p) < show(p');
+  let eq_key = p' =>
+    switch (IdTagged.term_of(p): term, IdTagged.term_of(p'): term) {
+    | (HasType(a, _), HasType(b, _)) => eq(a, b)
+    | (Syn(a, _), Syn(b, _)) => eq(a, b)
+    | (Ana(a, _), Ana(b, _)) => eq(a, b)
+    | _ => show(p) == show(p')
+    };
   let rec insert =
     fun
     | [] => [p]
-    | [hd, ...tl] => cmp(hd) ? [p, hd, ...tl] : [hd, ...insert(tl)];
+    | [hd, ...tl] when eq_key(hd) => [p, ...tl]
+    | [hd, ...tl] when cmp(hd) => [p, hd, ...tl]
+    | [hd, ...tl] => [hd, ...insert(tl)];
   insert(ctx);
 };

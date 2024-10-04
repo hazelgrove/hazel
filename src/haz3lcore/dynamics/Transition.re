@@ -280,6 +280,8 @@ module Transition = (EV: EV_MODE) => {
         | Eval(e1, e2) => Eval(go_exp(e1), go_exp(e2))
         | Entail(ctx, p) => Entail(go_exp(ctx), go_exp(p))
         | Ctx(es) => Ctx(List.map(go_exp, es))
+        | Cons(e1, e2) => Cons(go_exp(e1), go_exp(e2))
+        | Concat(e1, e2) => Concat(go_exp(e1), go_exp(e2))
         | HasType(e, t) => HasType(go_exp(e), t)
         | Syn(e, t) => Syn(go_exp(e), t)
         | Ana(e, t) => Ana(go_exp(e), t)
@@ -309,8 +311,8 @@ module Transition = (EV: EV_MODE) => {
         | PrjR(e) => PrjR(go_exp(e))
         | InjL => InjL
         | InjR => InjR
-        | Case(e1, x, e2, y, e3) =>
-          Case(go_exp(e1), x, go_exp(e2), y, go_exp(e3))
+        | Case(e1, rls) =>
+          Case(go_exp(e1), List.map(((p, e)) => (p, go_exp(e)), rls))
         | Roll => Roll
         | Unroll => Unroll
         };

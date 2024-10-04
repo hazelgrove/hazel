@@ -192,7 +192,6 @@ let go =
     : option(t) => {
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destruct(z) : z;
-  print_endline("before go: " ++ Zipper.show(z));
   switch (caret, neighbor_monotiles(siblings)) {
   /* If we try to insert a quote inside an existing string, or a #
    * in a comment, we are instead moved to the righthand side of

@@ -400,14 +400,14 @@ let forms: list((string, t)) = [
   // Drv(Jdmt)
   ("fake_val", mk(ds, ["val", "end"], mk_op(Exp, [Exp]))),
   ("val", mk(ds, ["val", "end"], mk_op(Drv(Exp), [Drv(Exp)]))),
-  ("val_simple", mk(ii, [".val"], mk_post(P.min, Drv(Exp), []))),
-  ("fake_eval", mk(ds, ["eval", "to"], mk_pre(P.min, Exp, [Exp]))),
-  ("eval", mk(ds, ["eval", "to"], mk_pre(P.min, Drv(Exp), [Drv(Exp)]))),
-  ("eval_simple", mk_infix("$>", Drv(Exp), P.min)),
+  ("eval", mk_infix("\=/", Drv(Exp), P.min)),
   ("entail", mk_infix("|-", Drv(Exp), P.min)),
+  ("unary_entail", mk(ss, ["|-"], mk_pre(P.min, Drv(Exp), []))),
   // Drv(Ctx)
   ("alfa_exp_list", mk(ii, ["[", "]"], mk_op(Drv(Exp), [Drv(Exp)]))),
   ("alfa_cons", mk_infix(",", Drv(Exp), P.comma)),
+  ("alfa_concat", mk_infix("@", Drv(Exp), P.plus)),
+  ("alfa_cons", mk_infix("::", Drv(Exp), P.cons)),
   ("alfa_paren", mk(ii, ["(", ")"], mk_op(Drv(Exp), [Drv(Exp)]))),
   ("alfa_abbr", mk(ii, ["{", "}"], mk_op(Drv(Exp), [Pat]))),
   // Drv(Exp)
@@ -462,16 +462,13 @@ let forms: list((string, t)) = [
   ("exp_pair", mk_infix(",", Drv(Exp), P.comma)),
   ("exp_prjl", mk(ii, [".fst"], mk_post(P.ap, Drv(Exp), []))),
   ("exp_prjr", mk(ii, [".snd"], mk_post(P.ap, Drv(Exp), []))),
+  ("alfa_case", mk(ds, ["case", "end"], mk_op(Drv(Exp), [Drv(Rul)]))),
   (
-    "exp_case",
+    "alfa_rule",
     mk(
       ds,
-      ["case_sum", "of", "->", "else", "->"],
-      mk_pre(
-        P.fun_,
-        Drv(Exp),
-        [Drv(Exp), Drv(Pat), Drv(Exp), Drv(Pat)],
-      ),
+      ["|", "=>"],
+      mk_bin'(P.rule_sep, Drv(Rul), Drv(Exp), [Drv(Pat)], Drv(Exp)),
     ),
   ),
   // Drv(Pat)

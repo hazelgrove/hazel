@@ -126,7 +126,8 @@ and subsort_of = (sort: Sort.t): list(Sort.t) =>
       | Jdmt
       | Ctx
       | Prop => failwith("subsort_of unexpected")
-      | Exp => [Pat, Typ, TPat]
+      | Exp => [Rul, Pat, Typ, TPat]
+      | Rul => [Exp, Pat, Typ, TPat]
       | Pat => [Typ]
       | Typ => []
       | TPat => [Typ]

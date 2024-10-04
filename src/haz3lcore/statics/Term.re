@@ -625,6 +625,7 @@ module Any = {
   let rec ids =
     fun
     | Drv(Exp(tm)) => tm.ids
+    | Drv(Rul(tm)) => tm.ids
     | Drv(Pat(tm)) => tm.ids
     | Drv(Typ(tm)) => tm.ids
     | Drv(TPat(tm)) => tm.ids
@@ -650,6 +651,7 @@ module Any = {
   let rep_id =
     fun
     | Drv(Exp(tm)) => ALFA_Exp.rep_id(tm)
+    | Drv(Rul(tm)) => ALFA_Rul.rep_id(tm)
     | Drv(Pat(tm)) => ALFA_Pat.rep_id(tm)
     | Drv(Typ(tm)) => ALFA_Typ.rep_id(tm)
     | Drv(TPat(tm)) => ALFA_TPat.rep_id(tm)

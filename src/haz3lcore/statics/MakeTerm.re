@@ -79,6 +79,27 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t)) => {
     |> OptUtil.sequence;
   Aba.mk(ps, clauses);
 };
+let is_alfa_rules =
+    ((ts, kids): tiles): option(Aba.t(Drv.Pat.t, Drv.Exp.t)) => {
+  open OptUtil.Syntax;
+  let+ ps =
+    ts
+    |> List.map(
+         fun
+         | (_, (["|", "=>"], [Any.Drv(Pat(p))])) => Some(p)
+         | _ => None,
+       )
+    |> OptUtil.sequence
+  and+ clauses =
+    kids
+    |> List.map(
+         fun
+         | Drv(Exp(clause)) => Some(clause)
+         | _ => None,
+       )
+    |> OptUtil.sequence;
+  Aba.mk(ps, clauses);
+};
 
 let ids_of_tiles = (tiles: tiles) => List.map(fst, Aba.get_as(tiles));
 let ids =
@@ -149,6 +170,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
       | Ctx
       | Prop => failwith("unexpected drv sort")
       | Exp => Exp(alfa_exp(unsorted(skel, seg)))
+      | Rul => Rul(alfa_rul(unsorted(skel, seg)))
       | Pat => Pat(alfa_pat(unsorted(skel, seg)))
       | Typ => Typ(alfa_typ(unsorted(skel, seg)))
       | TPat => TPat(alfa_tpat(unsorted(skel, seg)))
@@ -212,12 +234,19 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
       }
     | (["(", ")"], [Drv(Exp(body))]) => ret(Parens(body))
     | (["{", "}"], [Pat(var)]) => ret(Abbr(var))
+    | (["case", "end"], [Drv(Rul({ids, term: Rules(scrut, rules), _}))]) => (
+        Case(scrut, rules),
+        ids,
+      )
     | _ => ret(hole(tm))
     }
   | Bin(Drv(Exp(l)), ([(_id, ([t], []))], []), Drv(Exp(r))) as tm =>
     switch (t) {
-    | "$>" => ret(Eval(l, r))
+    | "\\=/" => ret(Eval(l, r))
     | "|-" => ret(Entail(l, r))
+    | "," => ret(Tuple([l, r]))
+    | "::" => ret(Cons(l, r))
+    | "@" => ret(Concat(l, r))
     | "/\\" => ret(And(l, r))
     | "\\/" => ret(Or(l, r))
     | "==>" => ret(Impl(l, r))
@@ -227,7 +256,6 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     | "==" => ret(Eq(l, r))
     | "<" => ret(Lt(l, r))
     | ">" => ret(Gt(l, r))
-    | "," => ret(Tuple([l, r]))
     | _ => ret(hole(tm))
     }
   | Bin(Drv(Exp(l)), tiles, Drv(Exp(r))) as tm =>
@@ -244,24 +272,18 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     }
   | Pre(([(_id, t)], []), Drv(Exp(r))) as tm =>
     switch (t) {
-    | (["eval", "to"], [Drv(Exp(l))]) => ret(Eval(l, r))
     | (["-"], []) => ret(Neg(r))
+    | (["|-"], []) => ret(Entail(Ctx([]) |> Drv.Exp.fresh, r))
     | (["if", "then", "else"], [Drv(Exp(cond)), Drv(Exp(conseq))]) =>
       ret(If(cond, conseq, r))
     | (["let", "=", "in"], [Drv(Pat(pat)), Drv(Exp(def))]) =>
       ret(Let(pat, def, r))
     | (["fix", "->"], [Drv(Pat(pat))]) => ret(Fix(pat, r))
     | (["fun", "->"], [Drv(Pat(pat))]) => ret(Fun(pat, r))
-    | (
-        ["case_sum", "of", "->", "else", "->"],
-        [Drv(Exp(scrut)), Drv(Pat(pl)), Drv(Exp(l)), Drv(Pat(pr))],
-      ) =>
-      ret(Case(scrut, pl, l, pr, r))
     | _ => ret(hole(tm))
     }
   | Post(Drv(Exp(l)), ([(_id, t)], [])) as tm =>
     switch (t) {
-    | ([".val"], []) => ret(Val(l))
     | ([".fst"], []) => ret(PrjL(l))
     | ([".snd"], []) => ret(PrjR(l))
     | (["(", ")"], [Drv(Exp(r))]) => ret(Ap(l, r))
@@ -269,7 +291,26 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     }
   | _ as tm => ret(hole(tm));
 }
-
+and alfa_rul = (unsorted: unsorted) => {
+  let hole = Drv.Rul.hole(kids_of_unsorted(unsorted));
+  switch (alfa_exp(unsorted)) {
+  | {term: Hole(MultiHole(_)), _} =>
+    switch (unsorted) {
+    | Bin(Drv(Exp(scrut)), tiles, Drv(Exp(last_clause))) =>
+      switch (is_alfa_rules(tiles)) {
+      | Some((ps, leading_clauses)) => {
+          ids: ids(unsorted),
+          term:
+            Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
+          copied: false,
+        }
+      | None => {ids: ids(unsorted), term: hole, copied: false}
+      }
+    | _ => {ids: ids(unsorted), term: hole, copied: false}
+    }
+  | _ => {ids: ids(unsorted), term: hole, copied: false}
+  };
+}
 and alfa_pat = unsorted => {
   let (term, inner_ids) = alfa_pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;

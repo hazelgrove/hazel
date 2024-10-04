@@ -5,6 +5,7 @@ module DrvSort = {
     | Ctx
     | Prop
     | Exp
+    | Rul
     | Pat
     | Typ
     | TPat;
@@ -15,6 +16,7 @@ module DrvSort = {
     | Prop => "Prop"
     | Ctx => "Ctx"
     | Exp => "ALFA_Exp"
+    | Rul => "ALFA_Rul"
     | Pat => "ALFA_Pat"
     | Typ => "ALFA_Typ"
     | TPat => "ALFA_TPat";
@@ -25,6 +27,7 @@ module DrvSort = {
     | Ctx => "Drv"
     | Prop => "Exp"
     | Exp => "Exp"
+    | Rul => "Rul"
     | Pat => "Pat"
     | Typ => "Typ"
     | TPat => "TPat";
@@ -37,6 +40,7 @@ module DrvSort = {
     | Ctx => "Ctx"
     | Prop => "Prop"
     | Exp => "ALFA_Exp"
+    | Rul => "ALFA_Rul"
     | Pat => "ALFA_Pat"
     | Typ => "ALFA_Typ"
     | TPat => "ALFA_TPat";
@@ -47,19 +51,21 @@ module DrvSort = {
     | Ctx => "context"
     | Prop => "proposition"
     | Exp => "ALFA expression"
+    | Rul => "ALFA rule"
     | Pat => "ALFA pattern"
     | Typ => "ALFA type"
     | TPat => "ALFA type pattern";
 
   let detail_sort: list(string) => t =
     fun
-    | [".val"] => Jdmt
     | ["val", "end"] => Jdmt
-    | ["eval", "to"] => Jdmt
     | ["|-"] => Jdmt
-    | ["$>"] => Jdmt
+    | ["\\=/"] => Jdmt
     | ["[]"] => Ctx
     | ["[", _] => Ctx
+    | [",", ",", _] => Ctx //TODO(zhiyao): not sufficient
+    | ["@"] => Ctx
+    | ["::"] => Ctx
     | _ => Exp;
 };
 

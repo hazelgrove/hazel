@@ -10,6 +10,8 @@ module ALFA_Exp = {
     | Eval
     | Entail
     | Ctx
+    | Cons
+    | Concat
     | HasType
     | Syn
     | Ana
@@ -68,6 +70,8 @@ module ALFA_Exp = {
     | Eval(_) => Eval
     | Entail(_) => Entail
     | Ctx(_) => Ctx
+    | Cons(_) => Cons
+    | Concat(_) => Concat
     | HasType(_) => HasType
     | Syn(_) => Syn
     | Ana(_) => Ana
@@ -100,6 +104,34 @@ module ALFA_Exp = {
     | Case(_) => Case
     | Roll => Roll
     | Unroll => Unroll;
+};
+
+module ALFA_Rul = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Hole
+    | Rules;
+
+  include TermBase.ALFA_Rul;
+
+  let hole = (tms: list(TermBase.Any.t)): term =>
+    Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
+
+  let rep_id = ({ids, _}: t) => {
+    assert(ids != []);
+    List.hd(ids);
+  };
+
+  let term_of: t => term = IdTagged.term_of;
+
+  let unwrap: t => (term, term => t) = IdTagged.unwrap;
+
+  let fresh: term => t = IdTagged.fresh;
+
+  let cls_of_term: term => cls =
+    fun
+    | Hole(_) => Hole
+    | Rules(_, _) => Rules;
 };
 
 module ALFA_Pat = {
@@ -218,6 +250,7 @@ module Drv = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Exp(ALFA_Exp.cls)
+    | Rul(ALFA_Rul.cls)
     | Pat(ALFA_Pat.cls)
     | Typ(ALFA_Typ.cls)
     | TPat(ALFA_TPat.cls);
@@ -227,6 +260,7 @@ module Drv = {
   let sort_of: t => Sort.DrvSort.t =
     fun
     | Exp(_) => Exp
+    | Rul(_) => Rul
     | Pat(_) => Pat
     | Typ(_) => Typ
     | TPat(_) => TPat;
@@ -234,6 +268,7 @@ module Drv = {
   let rep_id: t => Id.t =
     fun
     | Exp(exp) => ALFA_Exp.rep_id(exp)
+    | Rul(rul) => ALFA_Rul.rep_id(rul)
     | Pat(pat) => ALFA_Pat.rep_id(pat)
     | Typ(typ) => ALFA_Typ.rep_id(typ)
     | TPat(tpat) => ALFA_TPat.rep_id(tpat);
@@ -241,6 +276,7 @@ module Drv = {
   let of_id: t => list(Id.t) =
     fun
     | Exp(exp) => exp.ids
+    | Rul(rul) => rul.ids
     | Pat(pat) => pat.ids
     | Typ(typ) => typ.ids
     | TPat(tpat) => tpat.ids;
@@ -248,6 +284,7 @@ module Drv = {
   let cls_of: t => cls =
     fun
     | Exp(exp) => Exp(ALFA_Exp.cls_of_term(exp.term))
+    | Rul(rul) => Rul(ALFA_Rul.cls_of_term(rul.term))
     | Pat(pat) => Pat(ALFA_Pat.cls_of_term(pat.term))
     | Typ(typ) => Typ(ALFA_Typ.cls_of_term(typ.term))
     | TPat(tpat) => TPat(ALFA_TPat.cls_of_term(tpat.term));

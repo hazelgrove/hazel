@@ -1247,12 +1247,14 @@ and Drv: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Exp(ALFA_Exp.t)
+    | Rul(ALFA_Rul.t)
     | Pat(ALFA_Pat.t)
     | Typ(ALFA_Typ.t)
     | TPat(ALFA_TPat.t);
 
   type mapper = {
     f_exp: (ALFA_Exp.t => ALFA_Exp.t, ALFA_Exp.t) => ALFA_Exp.t,
+    f_rul: (ALFA_Rul.t => ALFA_Rul.t, ALFA_Rul.t) => ALFA_Rul.t,
     f_pat: (ALFA_Pat.t => ALFA_Pat.t, ALFA_Pat.t) => ALFA_Pat.t,
     f_typ: (ALFA_Typ.t => ALFA_Typ.t, ALFA_Typ.t) => ALFA_Typ.t,
     f_tpat: (ALFA_TPat.t => ALFA_TPat.t, ALFA_TPat.t) => ALFA_TPat.t,
@@ -1267,12 +1269,14 @@ and Drv: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Exp(ALFA_Exp.t)
+    | Rul(ALFA_Rul.t)
     | Pat(ALFA_Pat.t)
     | Typ(ALFA_Typ.t)
     | TPat(ALFA_TPat.t);
 
   type mapper = {
     f_exp: (ALFA_Exp.t => ALFA_Exp.t, ALFA_Exp.t) => ALFA_Exp.t,
+    f_rul: (ALFA_Rul.t => ALFA_Rul.t, ALFA_Rul.t) => ALFA_Rul.t,
     f_pat: (ALFA_Pat.t => ALFA_Pat.t, ALFA_Pat.t) => ALFA_Pat.t,
     f_typ: (ALFA_Typ.t => ALFA_Typ.t, ALFA_Typ.t) => ALFA_Typ.t,
     f_tpat: (ALFA_TPat.t => ALFA_TPat.t, ALFA_TPat.t) => ALFA_TPat.t,
@@ -1280,17 +1284,30 @@ and Drv: {
 
   let drv_continue = {
     f_exp: continue,
+    f_rul: continue,
     f_pat: continue,
     f_typ: continue,
     f_tpat: continue,
   };
 
   let map_term = (~f_hazel_pat=continue, ~f_drv=drv_continue, x: t) => {
-    let {f_exp, f_pat, f_typ, f_tpat} = f_drv;
+    let {f_exp, f_rul, f_pat, f_typ, f_tpat} = f_drv;
     switch (x) {
     | Exp(exp) =>
       Exp(
         ALFA_Exp.map_term(~f_hazel_pat, ~f_exp, ~f_pat, ~f_typ, ~f_tpat, exp),
+      )
+    | Rul(rul) =>
+      Rul(
+        ALFA_Rul.map_term(
+          ~f_hazel_pat,
+          ~f_exp,
+          ~f_rul,
+          ~f_pat,
+          ~f_typ,
+          ~f_tpat,
+          rul,
+        ),
       )
     | Pat(pat) => Pat(ALFA_Pat.map_term(~f_pat, ~f_typ, ~f_tpat, pat))
     | Typ(typ) => Typ(ALFA_Typ.map_term(~f_typ, ~f_tpat, typ))
@@ -1302,6 +1319,8 @@ and Drv: {
     switch (x, y) {
     | (Exp(e1), Exp(e2)) => ALFA_Exp.fast_equal(e1, e2)
     | (Exp(_), _) => false
+    | (Rul(r1), Rul(r2)) => ALFA_Rul.fast_equal(r1, r2)
+    | (Rul(_), _) => false
     | (Pat(p1), Pat(p2)) => ALFA_Pat.fast_equal(p1, p2)
     | (Pat(_), _) => false
     | (Typ(t1), Typ(t2)) => ALFA_Typ.fast_equal(t1, t2)
@@ -1324,6 +1343,8 @@ and ALFA_Exp: {
     | Entail(t, t)
     // Ctx
     | Ctx(list(t))
+    | Cons(t, t)
+    | Concat(t, t)
     // Prop
     | HasType(t, ALFA_Typ.t)
     | Syn(t, ALFA_Typ.t)
@@ -1354,7 +1375,7 @@ and ALFA_Exp: {
     | PrjR(t)
     | InjL
     | InjR
-    | Case(t, ALFA_Pat.t, t, ALFA_Pat.t, t)
+    | Case(t, list((ALFA_Pat.t, t)))
     | Roll
     | Unroll
   and t = IdTagged.t(term);
@@ -1385,6 +1406,8 @@ and ALFA_Exp: {
     | Entail(t, t)
     // Ctx
     | Ctx(list(t))
+    | Cons(t, t)
+    | Concat(t, t)
     // Prop
     | HasType(t, ALFA_Typ.t)
     | Syn(t, ALFA_Typ.t)
@@ -1415,7 +1438,7 @@ and ALFA_Exp: {
     | PrjR(t)
     | InjL
     | InjR
-    | Case(t, ALFA_Pat.t, t, ALFA_Pat.t, t)
+    | Case(t, list((ALFA_Pat.t, t)))
     | Roll
     | Unroll
   and t = IdTagged.t(term);
@@ -1444,6 +1467,8 @@ and ALFA_Exp: {
         | Eval(e1, e2) => Eval(exp_map_term(e1), exp_map_term(e2))
         | Entail(e1, e2) => Entail(exp_map_term(e1), exp_map_term(e2))
         | Ctx(e) => Ctx(List.map(exp_map_term, e))
+        | Cons(e1, e2) => Cons(exp_map_term(e1), exp_map_term(e2))
+        | Concat(e1, e2) => Concat(exp_map_term(e1), exp_map_term(e2))
         | HasType(e, t) => HasType(exp_map_term(e), t)
         | Syn(e, t) => Syn(exp_map_term(e), t)
         | Ana(e, t) => Ana(exp_map_term(e), t)
@@ -1475,13 +1500,13 @@ and ALFA_Exp: {
         | PrjR(e) => PrjR(exp_map_term(e))
         | InjL => InjL
         | InjR => InjR
-        | Case(e, p1, e1, p2, e2) =>
+        | Case(e, rls) =>
           Case(
             exp_map_term(e),
-            pat_map_term(p1),
-            exp_map_term(e1),
-            pat_map_term(p2),
-            exp_map_term(e2),
+            List.map(
+              ((p, e)) => (pat_map_term(p), exp_map_term(e)),
+              rls,
+            ),
           )
         | Roll => Roll
         | Unroll => Unroll
@@ -1511,6 +1536,12 @@ and ALFA_Exp: {
       List.length(es1) == List.length(es2)
       && List.for_all2(ALFA_Exp.fast_equal, es1, es2)
     | (Ctx(_), _) => false
+    | (Cons(e11, e12), Cons(e21, e22)) =>
+      ALFA_Exp.fast_equal(e11, e21) && ALFA_Exp.fast_equal(e12, e22)
+    | (Cons(_), _) => false
+    | (Concat(e11, e12), Concat(e21, e22)) =>
+      ALFA_Exp.fast_equal(e11, e21) && ALFA_Exp.fast_equal(e12, e22)
+    | (Concat(_), _) => false
     | (HasType(e1, t1), HasType(e2, t2)) =>
       ALFA_Exp.fast_equal(e1, e2) && ALFA_Typ.fast_equal(t1, t2)
     | (HasType(_), _) => false
@@ -1592,17 +1623,93 @@ and ALFA_Exp: {
     | (InjL, _) => false
     | (InjR, InjR) => true
     | (InjR, _) => false
-    | (Case(e1, p1, e11, p2, e12), Case(e2, p3, e21, p4, e22)) =>
+    | (Case(e1, rls1), Case(e2, rls2)) =>
       ALFA_Exp.fast_equal(e1, e2)
-      && ALFA_Pat.fast_equal(p1, p3)
-      && ALFA_Exp.fast_equal(e11, e21)
-      && ALFA_Pat.fast_equal(p2, p4)
-      && ALFA_Exp.fast_equal(e12, e22)
+      && List.length(rls1) == List.length(rls2)
+      && List.for_all2(
+           ((p1, e1), (p2, e2)) =>
+             ALFA_Pat.fast_equal(p1, p2) && ALFA_Exp.fast_equal(e1, e2),
+           rls1,
+           rls2,
+         )
     | (Case(_), _) => false
     | (Roll, Roll) => true
     | (Roll, _) => false
     | (Unroll, Unroll) => true
     | (Unroll, _) => false
+    };
+}
+and ALFA_Rul: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Hole(TypeHole.t)
+    | Rules(ALFA_Exp.t, list((ALFA_Pat.t, ALFA_Exp.t)))
+  and t = IdTagged.t(term);
+
+  let map_term:
+    (
+      ~f_hazel_pat: Pat.t => Pat.t=?,
+      ~f_exp: (ALFA_Exp.t => ALFA_Exp.t, ALFA_Exp.t) => ALFA_Exp.t=?,
+      ~f_rul: (ALFA_Rul.t => ALFA_Rul.t, ALFA_Rul.t) => ALFA_Rul.t=?,
+      ~f_pat: (ALFA_Pat.t => ALFA_Pat.t, ALFA_Pat.t) => ALFA_Pat.t=?,
+      ~f_typ: (ALFA_Typ.t => ALFA_Typ.t, ALFA_Typ.t) => ALFA_Typ.t=?,
+      ~f_tpat: (ALFA_TPat.t => ALFA_TPat.t, ALFA_TPat.t) => ALFA_TPat.t=?,
+      t
+    ) =>
+    t;
+
+  let fast_equal: (t, t) => bool;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Hole(TypeHole.t)
+    | Rules(ALFA_Exp.t, list((ALFA_Pat.t, ALFA_Exp.t)))
+  and t = IdTagged.t(term);
+
+  let map_term =
+      (
+        ~f_hazel_pat=continue,
+        ~f_exp=continue,
+        ~f_rul=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_tpat=continue,
+        x,
+      ) => {
+    let exp_map_term =
+      ALFA_Exp.map_term(~f_hazel_pat, ~f_exp, ~f_pat, ~f_typ, ~f_tpat);
+    let pat_map_term = ALFA_Pat.map_term(~f_pat, ~f_typ, ~f_tpat);
+    let rec_call = ({term, _} as exp: t) => {
+      ...exp,
+      term:
+        switch (term) {
+        | Hole(_) => term
+        | Rules(e, rls) =>
+          Rules(
+            exp_map_term(e),
+            List.map(
+              ((p, e)) => (pat_map_term(p), exp_map_term(e)),
+              rls,
+            ),
+          )
+        },
+    };
+    x |> f_rul(rec_call);
+  };
+
+  let fast_equal = (r1: t, r2: t) =>
+    switch (r1 |> IdTagged.term_of, r2 |> IdTagged.term_of) {
+    | (Hole(_), _) => false
+    | (Rules(e1, rls1), Rules(e2, rls2)) =>
+      ALFA_Exp.fast_equal(e1, e2)
+      && List.length(rls1) == List.length(rls2)
+      && List.for_all2(
+           ((p1, e1), (p2, e2)) =>
+             ALFA_Pat.fast_equal(p1, p2) && ALFA_Exp.fast_equal(e1, e2),
+           rls1,
+           rls2,
+         )
+    | (Rules(_), _) => false
     };
 }
 and ALFA_Pat: {

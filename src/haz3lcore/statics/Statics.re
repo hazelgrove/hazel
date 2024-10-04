@@ -204,6 +204,10 @@ and drv_to_info_map =
     | Ctx(es) =>
       List.fold_left((m, e) => m |> go_exp(e, ~ty=Prop) |> snd, m, es)
       |> add'
+    | Cons(e1, e2) =>
+      m |> go_exp(e1, ~ty=Prop) |> snd |> go_exp(e2, ~ty=Ctx) |> snd |> add'
+    | Concat(e1, e2) =>
+      m |> go_exp(e1, ~ty=Ctx) |> snd |> go_exp(e2, ~ty=Ctx) |> snd |> add'
     | HasType(e, t)
     | Syn(e, t)
     | Ana(e, t) => m |> go_exp'(e) |> snd |> go_typ(t) |> snd |> add'
@@ -248,12 +252,13 @@ and drv_to_info_map =
     | InjR
     | Roll
     | Unroll => m |> add'
-    | Case(e, p1, e1, p2, e2) =>
+    | Case(e, [(p1, e1), (p2, e2)]) =>
       let m = m |> go_exp'(e) |> snd;
       let m = m |> go_pat(p1, ~expect=Ap_InjL) |> snd;
       let m = m |> go_exp'(e1) |> snd;
       let m = m |> go_pat(p2, ~expect=Ap_InjR) |> snd;
       m |> go_exp'(e2) |> snd |> add';
+    | Case(_) => m |> add'
     };
   }
   and go_exp' = go_exp(~ty=Exp)
@@ -309,6 +314,7 @@ and drv_to_info_map =
   };
   switch (drv) {
   | Exp(exp) => go_exp(exp, m, ~ty=Jdmt)
+  | Rul(_) => failwith("Statics.drv_to_info_map: impossible rul")
   | Pat(pat) => go_pat(pat, m, ~expect=Var)
   | Typ(ty) => go_typ(ty, m)
   | TPat(tp) => go_tpat(tp, m)
