@@ -102,6 +102,35 @@ let rec is_arrow = (typ: t) => {
   };
 };
 
+let rec has_arrow = (ctx: Ctx.t, typ: t) =>
+  switch (typ.term) {
+  | Parens(typ) => has_arrow(ctx, typ)
+  | Arrow(_)
+  | Forall(_) => true
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String => false
+  | Var(tvar) =>
+    switch (Ctx.lookup_alias(ctx, tvar)) {
+    | Some(t) => has_arrow(ctx, t)
+    | None => false
+    }
+  | List(t) => has_arrow(ctx, t)
+  | Rec(tvar, tbody) => has_arrow(Ctx.extend_dummy_tvar(ctx, tvar), tbody)
+  | Sum(sm) =>
+    List.exists(
+      fun
+      | ConstructorMap.Variant(_, _, Some(t)) => has_arrow(ctx, t)
+      | _ => false,
+      sm,
+    )
+  // TODO(zhiyao): Idk if this is correct
+  | Ap(t1, t2) => has_arrow(ctx, t1) || has_arrow(ctx, t2)
+  | Prod(tys) => List.exists(has_arrow(ctx), tys)
+  };
+
 let rec is_forall = (typ: t) => {
   switch (typ.term) {
   | Parens(typ) => is_forall(typ)

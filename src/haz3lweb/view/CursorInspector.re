@@ -63,6 +63,7 @@ let elements_noun: Cls.t => string =
   | Exp(Match | If) => "Branches"
   | Exp(ListLit)
   | Pat(ListLit) => "Elements"
+  | Exp(BinOp(Int(Equals | NotEquals)))
   | Exp(ListConcat) => "Operands"
   | _ => failwith("elements_noun: Cls doesn't have elements");
 
@@ -84,6 +85,10 @@ let common_err_view = (cls: Cls.t, err: Info.error_common) =>
       text(":"),
       Type.view(typ),
       text("inconsistent with arrow type"),
+    ]
+  | Inconsistent(CompareArrow(typ)) => [
+      text("Cannot compare arrow types:"),
+      Type.view(typ),
     ]
   | Inconsistent(Expectation({ana, syn})) => [
       text(":"),

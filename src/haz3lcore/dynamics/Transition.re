@@ -527,6 +527,49 @@ module Transition = (EV: EV_MODE) => {
         kind: BinBoolOp(Or),
         is_value: false,
       });
+    | BinOp(Int((Equals | NotEquals) as op), d1, d2) =>
+      let. _ = otherwise(env, (d1, d2) => BinOp(Int(op), d1, d2) |> rewrap)
+      and. d1' =
+        req_value(
+          req(state, env),
+          d1 => BinOp1(Int(op), d1, d2) |> wrap_ctx,
+          d1,
+        )
+      and. d2' =
+        req_value(
+          req(state, env),
+          d2 => BinOp2(Int(op), d1, d2) |> wrap_ctx,
+          d2,
+        );
+      let (d1', d2') = (DHExp.strip_casts(d1'), DHExp.strip_casts(d2'));
+      // Note(zhiyao): detect either side contains a hole or intermediate type
+      if (!DHExp.ty_comparable(d1') || !DHExp.ty_comparable(d2')) {
+        Indet;
+      } else {
+        Step({
+          expr:
+            (
+              if (!DHExp.ty_consistent(d1', d2')) {
+                DynamicErrorHole(
+                  BinOp(Int(op), d1', d2') |> rewrap,
+                  Inconsistent,
+                );
+              } else if (DHExp.ty_has_arrow(d1') || DHExp.ty_has_arrow(d2')) {
+                DynamicErrorHole(
+                  BinOp(Int(op), d1', d2') |> rewrap,
+                  CompareArrow,
+                );
+              } else {
+                let res = DHExp.poly_equal(d1', d2');
+                Bool(op == Equals ? res : !res);
+              }
+            )
+            |> fresh,
+          state_update,
+          kind: BinIntOp(op),
+          is_value: false,
+        });
+      };
     | BinOp(Int(op), d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => BinOp(Int(op), d1, d2) |> rewrap)
       and. d1' =
@@ -566,6 +609,7 @@ module Transition = (EV: EV_MODE) => {
             | LessThanOrEqual => Bool(n1 <= n2)
             | GreaterThan => Bool(n1 > n2)
             | GreaterThanOrEqual => Bool(n1 >= n2)
+            // Note(zhiyao): never reached because of polymorphic comparison
             | Equals => Bool(n1 == n2)
             | NotEquals => Bool(n1 != n2)
             }

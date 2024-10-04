@@ -9,7 +9,10 @@
  */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t;
+type t = {
+  stats: EvaluatorStats.t,
+  tests: TestMap.t,
+};
 
 /**
   [init] is the initial state.

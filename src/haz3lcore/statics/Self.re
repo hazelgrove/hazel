@@ -23,12 +23,14 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type join_type =
   | Id
-  | List;
+  | List
+  | PolyEq;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Just(Typ.t) /* Just a regular type */
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
+  | CompareArrow(Typ.t) /* Type equality failed because of arrow type inside */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
   | IsMulti /* Multihole, treated as hole */
@@ -62,6 +64,7 @@ type pat =
 let join_of = (j: join_type, ty: Typ.t): Typ.t =>
   switch (j) {
   | Id => ty
+  | PolyEq => ty
   | List => List(ty) |> Typ.fresh
   };
 
@@ -73,6 +76,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     fun
     | Just(typ) => Some(typ)
     | IsConstructor({syn_ty, _}) => syn_ty
+    | CompareArrow(_) => Some(Bool |> Typ.fresh)
     | BadToken(_)
     | BadTrivAp(_)
     | IsMulti
@@ -151,4 +155,11 @@ let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
   | None => NoJoin(List, add_source(ids, tys))
   | Some(ty) => Just(ty)
+  };
+
+let poly_eq = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
+  | None => NoJoin(PolyEq, add_source(ids, tys))
+  | Some(ty) when Typ.has_arrow(ctx, ty) => CompareArrow(ty)
+  | Some(_) => Just(Bool |> Typ.fresh)
   };

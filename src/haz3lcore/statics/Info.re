@@ -41,6 +41,8 @@ type error_inconsistent =
     })
   /* Inconsistent match or listlit */
   | Internal(list(Typ.t))
+  /* Bad type equality due to arrow type inside */
+  | CompareArrow(Typ.t)
   /* Bad function position */
   | WithArrow(Typ.t);
 
@@ -368,6 +370,7 @@ let rec status_common =
     | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
     | _ => InHole(NoType(FreeConstructor(name)))
     }
+  | (CompareArrow(ty), _) => InHole(Inconsistent(CompareArrow(ty)))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
@@ -389,7 +392,11 @@ let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
   | (_, Redundant(self)) =>
     let additional_err =
       switch (status_pat(ctx, mode, self)) {
-      | InHole(Common(Inconsistent(Internal(_) | Expectation(_))) as err)
+      | InHole(
+          Common(
+            Inconsistent(Internal(_) | Expectation(_) | CompareArrow(_)),
+          ) as err,
+        )
       | InHole(Common(NoType(_)) as err) => Some(err)
       | NotInHole(_) => None
       | InHole(Common(Inconsistent(WithArrow(_))))
@@ -426,7 +433,12 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
       | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
         Some(inconsistent_err)
       | NotInHole(_)
-      | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
+      | InHole(
+          Common(
+            Inconsistent(Expectation(_) | WithArrow(_) | CompareArrow(_)),
+          ),
+        ) =>
+        None /* Type checking should fail and these errors would be nullified */
       | InHole(Common(NoType(_)))
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
@@ -552,6 +564,7 @@ let fixed_typ_err_common: error_common => Typ.t =
   | NoType(_) => Unknown(Internal) |> Typ.temp
   | Inconsistent(Expectation({ana, _})) => ana
   | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
+  | Inconsistent(CompareArrow(_)) => Bool |> Typ.temp
   | Inconsistent(WithArrow(_)) =>
     Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
     |> Typ.temp;

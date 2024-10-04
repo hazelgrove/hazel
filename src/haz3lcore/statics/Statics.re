@@ -289,6 +289,15 @@ and uexp_to_info_map =
     let (ty_in, ty_out) = typ_exp_unop(op);
     let (e, m) = go(~mode=Ana(ty_in), e, m);
     add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
+  | BinOp(Int(Equals | NotEquals), e1, e2) =>
+    let ids = List.map(UExp.rep_id, [e1, e2]);
+    let (es, m) = map_m_go(m, [Syn, Syn], [e1, e2]);
+    let tys = List.map(Info.exp_ty, es);
+    add(
+      ~self=Self.poly_eq(ctx, tys, ids),
+      ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
+      m,
+    );
   | BinOp(op, e1, e2) =>
     let (ty1, ty2, ty_out) = typ_exp_binop(op);
     let (e1, m) = go(~mode=Ana(ty1), e1, m);

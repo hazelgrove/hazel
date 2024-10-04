@@ -4,7 +4,9 @@ type t =
   | IndexOutOfBounds
   | DivideByZero
   | NegativeExponent
-  | OutOfFuel;
+  | OutOfFuel
+  | CompareArrow
+  | Inconsistent;
 
 let err_msg = (err: t): string =>
   switch (err) {
@@ -13,4 +15,6 @@ let err_msg = (err: t): string =>
   | DivideByZero => "Error: Divide by Zero"
   | NegativeExponent => "Error: Negative Exponent in Integer Exponentiation (Consider using **.)"
   | OutOfFuel => "Error: Out of Fuel"
+  | CompareArrow => "Error: Comparison of Arrow Types"
+  | Inconsistent => "Error: Inconsistent Type"
   };
