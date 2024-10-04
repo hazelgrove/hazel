@@ -68,7 +68,7 @@ let mk_parens_typ = mk_tile(Form.get("parens_typ"));
 let mk_list_exp = mk_tile(Form.get("list_lit_exp"));
 let mk_list_pat = mk_tile(Form.get("list_lit_pat"));
 let mk_list_typ = mk_tile(Form.get("list_typ"));
-let mk_forall = mk_tile(Form.get("forall"));
+let mk_type = mk_tile(Form.get("forall-type"));
 let mk_rec = mk_tile(Form.get("rec"));
 let arrow = () => mk_monotile(Form.get("type-arrow"));
 let unary_minus = () => mk_monotile(Form.get("unary_minus"));

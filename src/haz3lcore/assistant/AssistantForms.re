@@ -27,7 +27,7 @@ module Typ = {
     ("fun" ++ leading_expander, Arrow(unk, unk) |> Typ.fresh),
     (
       "typfun" ++ leading_expander,
-      Forall(Var("") |> TPat.fresh, unk) |> Typ.fresh,
+      Type(Var("") |> TPat.fresh, unk) |> Typ.fresh,
     ),
     ("if" ++ leading_expander, unk),
     ("let" ++ leading_expander, unk),

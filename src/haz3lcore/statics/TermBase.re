@@ -156,6 +156,7 @@ and Exp: {
     | Tuple(list(t))
     | Var(Var.t)
     | Let(Pat.t, t, t)
+    | Theorem(Pat.t, t, t)
     | FixF(Pat.t, t, option(ClosureEnvironment.t))
     | TyAlias(TPat.t, Typ.t, t)
     | Ap(Operators.ap_direction, t, t)
@@ -223,6 +224,7 @@ and Exp: {
     | Tuple(list(t))
     | Var(Var.t)
     | Let(Pat.t, t, t)
+    | Theorem(Pat.t, t, t)
     | FixF(Pat.t, t, [@show.opaque] option(ClosureEnvironment.t))
     | TyAlias(TPat.t, Typ.t, t)
     | Ap(Operators.ap_direction, t, t) // note: function is always first then argument; even in pipe mode
@@ -296,6 +298,8 @@ and Exp: {
         | Tuple(xs) => Tuple(List.map(exp_map_term, xs))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
+        | Theorem(p, e1, e2) =>
+          Theorem(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
         | FixF(p, e, env) => FixF(pat_map_term(p), exp_map_term(e), env)
         | TyAlias(tp, t, e) =>
           TyAlias(tpat_map_term(tp), typ_map_term(t), exp_map_term(e))
@@ -366,6 +370,8 @@ and Exp: {
     | (Var(v1), Var(v2)) => v1 == v2
     | (Let(p1, e1, e2), Let(p2, e3, e4)) =>
       Pat.fast_equal(p1, p2) && fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (Theorem(p1, e1, e2), Theorem(p2, e3, e4)) =>
+      Pat.fast_equal(p1, p2) && fast_equal(e1, e3) && fast_equal(e2, e4)
     | (FixF(p1, e1, c1), FixF(p2, e2, c2)) =>
       Pat.fast_equal(p1, p2)
       && fast_equal(e1, e2)
@@ -424,6 +430,7 @@ and Exp: {
     | (Tuple(_), _)
     | (Var(_), _)
     | (Let(_), _)
+    | (Theorem(_), _)
     | (FixF(_), _)
     | (TyAlias(_), _)
     | (Ap(_), _)
@@ -618,7 +625,9 @@ and Typ: {
     | Parens(t)
     | Ap(t, t)
     | Rec(TPat.t, t)
-    | Forall(TPat.t, t)
+    | Type(TPat.t, t)
+    | Forall(Pat.t, t)
+    | Equals(Exp.t, Exp.t)
   and t = IdTagged.t(term);
 
   type sum_map = ConstructorMap.t(t);
@@ -670,7 +679,9 @@ and Typ: {
     | Parens(t)
     | Ap(t, t)
     | Rec(TPat.t, t)
-    | Forall(TPat.t, t)
+    | Type(TPat.t, t)
+    | Forall(Pat.t, t)
+    | Equals(Exp.t, Exp.t)
   and t = IdTagged.t(term);
 
   type sum_map = ConstructorMap.t(t);
@@ -685,10 +696,14 @@ and Typ: {
         ~f_any=continue,
         x,
       ) => {
+    let exp_map_term =
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let typ_map_term =
       Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let any_map_term =
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let pat_map_term =
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let tpat_map_term =
       TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = ({term, _} as exp: t) => {
@@ -723,7 +738,9 @@ and Typ: {
             ),
           )
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
-        | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
+        | Type(tp, t) => Type(tpat_map_term(tp), typ_map_term(t))
+        | Forall(tp, t) => Forall(pat_map_term(tp), typ_map_term(t))
+        | Equals(e1, e2) => Equals(exp_map_term(e1), exp_map_term(e2))
         },
     };
     x |> f_typ(rec_call);
@@ -744,10 +761,13 @@ and Typ: {
       | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
       | Sum(sm) =>
         Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
-      | Forall(tp2, ty)
+      | Type(tp2, ty)
           when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-        Forall(tp2, ty) |> rewrap
-      | Forall(tp2, ty) => Forall(tp2, subst(s, x, ty)) |> rewrap
+        Type(tp2, ty) |> rewrap
+      | Type(tp2, ty) => Type(tp2, subst(s, x, ty)) |> rewrap
+      | Forall(p2, ty) => Forall(p2, subst(s, x, ty)) |> rewrap
+      // TODO: substitute into types in the term - requires helper for subst on expressions
+      | Equals(e1, e2) => Equals(e1, e2) |> rewrap
       | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
         Rec(tp2, ty) |> rewrap
       | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
@@ -768,7 +788,7 @@ and Typ: {
     | (Parens(t1), _) => eq_internal(n, t1, t2)
     | (_, Parens(t2)) => eq_internal(n, t1, t2)
     | (Rec(x1, t1), Rec(x2, t2))
-    | (Forall(x1, t1), Forall(x2, t2)) =>
+    | (Type(x1, t1), Type(x2, t2)) =>
       let alpha_subst =
         subst({
           term: Var("=" ++ string_of_int(n)),
@@ -777,7 +797,7 @@ and Typ: {
         });
       eq_internal(n + 1, alpha_subst(x1, t1), alpha_subst(x2, t2));
     | (Rec(_), _) => false
-    | (Forall(_), _) => false
+    | (Type(_), _) => false
     | (Int, Int) => true
     | (Int, _) => false
     | (Float, Float) => true
@@ -804,6 +824,12 @@ and Typ: {
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
+    // TODO(theorem): improve these two comparisons
+    | (Equals(e1, e2), Equals(e3, e4)) when e1 == e3 && e2 == e4 => true
+    | (Equals(_), _) => false
+    | (Forall(p1, t1), Forall(p2, t2)) =>
+      p1 == p2 && eq_internal(n, t1, t2)
+    | (Forall(_), _) => false
     };
   };
 

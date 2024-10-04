@@ -42,6 +42,9 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
     | Let(p, edef, ebody) =>
       let ebody' = append_exp(ebody, e2);
       {ids: e1.ids, copied: false, term: Let(p, edef, ebody')};
+    | Theorem(p, edef, ebody) =>
+      let ebody' = append_exp(ebody, e2);
+      {ids: e1.ids, copied: false, term: Theorem(p, edef, ebody')};
     | TyAlias(tp, tdef, ebody) =>
       let ebody' = append_exp(ebody, e2);
       {ids: e1.ids, copied: false, term: TyAlias(tp, tdef, ebody')};

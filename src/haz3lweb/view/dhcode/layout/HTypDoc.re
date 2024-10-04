@@ -20,13 +20,15 @@ let precedence = (ty: Typ.t): int =>
   | String
   | Unknown(_)
   | Var(_)
+  | Type(_)
   | Forall(_)
   | Rec(_)
   | Sum(_) => precedence_Sum
   | List(_) => precedence_Const
   | Prod(_) => precedence_Prod
   | Arrow(_, _) => precedence_Arrow
-  | Parens(_) => precedence_Const
+  | Parens(_)
+  | Equals(_) => precedence_Const
   | Ap(_) => precedence_Ap
   };
 
@@ -136,9 +138,9 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
         ]),
         parenthesize,
       )
-    | Forall(name, ty) => (
+    | Type(name, ty) => (
         hcats([
-          text("forall " ++ Type.tpat_view(name) ++ "->{"),
+          text("type " ++ Type.tpat_view(name) ++ "->{"),
           (
             (~enforce_inline) =>
               annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
@@ -148,6 +150,20 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
         ]),
         parenthesize,
       )
+    | Forall(name, ty) => (
+        hcats([
+          text("forall " ++ Type.pat_view(name) ++ "->{"),
+          (
+            (~enforce_inline) =>
+              annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
+          )
+          |> pad_child(~enforce_inline),
+          mk_delim("}"),
+        ]),
+        parenthesize,
+      )
+    // TODO: display expressions
+    | Equals(_, _) => (hcats([text("{ ... = ... }")]), parenthesize)
     | Sum(sum_map) =>
       let center =
         List.mapi(

@@ -100,7 +100,7 @@ module Pat = {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
     | Cast(pat, typ, _) =>
-      is_var(pat) && (UTyp.is_arrow(typ) || Typ.is_forall(typ))
+      is_var(pat) && (UTyp.is_arrow(typ) || Typ.is_type(typ))
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -189,7 +189,7 @@ module Pat = {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
     | Cast(pat, t1, _) =>
-      if (Typ.is_arrow(t1) || UTyp.is_forall(t1)) {
+      if (Typ.is_arrow(t1) || UTyp.is_type(t1)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
@@ -298,6 +298,7 @@ module Exp = {
     | Var
     | MetaVar
     | Let
+    | Theorem
     | FixF
     | TyAlias
     | Ap
@@ -348,6 +349,7 @@ module Exp = {
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
+    | Theorem(_) => Theorem
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
@@ -389,6 +391,7 @@ module Exp = {
     | Var => "Variable reference"
     | MetaVar => "Meta variable reference"
     | Let => "Let expression"
+    | Theorem => "Theorem expression"
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
@@ -433,6 +436,7 @@ module Exp = {
     | Tuple(_)
     | Var(_)
     | Let(_)
+    | Theorem(_)
     | FixF(_)
     | TyAlias(_)
     | Ap(_)
@@ -477,6 +481,7 @@ module Exp = {
       | BuiltinFun(_)
       | Var(_)
       | Let(_)
+      | Theorem(_)
       | FixF(_)
       | TyAlias(_)
       | Ap(_)
@@ -535,6 +540,7 @@ module Exp = {
       | TypFun(_)
       | Var(_)
       | Let(_)
+      | Theorem(_)
       | Filter(_)
       | TyAlias(_)
       | Ap(_)

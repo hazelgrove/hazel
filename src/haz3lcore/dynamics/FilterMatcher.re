@@ -247,6 +247,10 @@ let rec matches_exp =
       }
     | (Let(_), _) => false
 
+    | (Theorem(dp, d1, d2), Theorem(fp, f1, f2)) =>
+      matches_pat(dp, fp) && matches_exp(d1, f1) && matches_exp(d2, f2)
+    | (Theorem(_), _) => false
+
     | (TypAp(d1, t1), TypAp(d2, t2)) =>
       matches_exp(d1, d2) && matches_typ(t1, t2)
     | (TypAp(_), _) => false
@@ -368,6 +372,56 @@ and matches_fun =
     let denv = evaluate_extend_env(Environment.of_list(denv_subst), denv);
     let fenv = evaluate_extend_env(Environment.of_list(fenv_subst), fenv);
     matches_exp(~denv, d, ~fenv, f);
+  };
+}
+
+and matches_pat = (d: Pat.t, f: Pat.t): bool => {
+  switch (d |> DHPat.term_of, f |> DHPat.term_of) {
+  // Matt: I'm not sure what the exact semantics of matching should be here.
+  | (Parens(x), _) => matches_pat(x, f)
+  | (_, Parens(x)) => matches_pat(d, x)
+  | (Cast(x, _, _), _) => matches_pat(x, f)
+  | (_, Cast(x, _, _)) => matches_pat(d, x)
+  | (_, EmptyHole) => true
+  | (MultiHole(_), MultiHole(_)) => true
+  | (MultiHole(_), _) => false
+  | (Wild, Wild) => true
+  | (Wild, _) => false
+  | (Int(dv), Int(fv)) => dv == fv
+  | (Int(_), _) => false
+  | (Float(dv), Float(fv)) => dv == fv
+  | (Float(_), _) => false
+  | (Bool(dv), Bool(fv)) => dv == fv
+  | (Bool(_), _) => false
+  | (String(dv), String(fv)) => dv == fv
+  | (String(_), _) => false
+  | (ListLit(dl), ListLit(fl)) =>
+    switch (
+      List.fold_left2((res, d, f) => res && matches_pat(d, f), true, dl, fl)
+    ) {
+    | exception (Invalid_argument(_)) => false
+    | res => res
+    }
+  | (ListLit(_), _) => false
+  | (Constructor(dt, _), Constructor(ft, _)) => dt == ft
+  | (Constructor(_), _) => false
+  | (Var(_), Var(_)) => true
+  | (Var(_), _) => false
+  | (Tuple(dl), Tuple(fl)) =>
+    switch (
+      List.fold_left2((res, d, f) => res && matches_pat(d, f), true, dl, fl)
+    ) {
+    | exception (Invalid_argument(_)) => false
+    | res => res
+    }
+  | (Tuple(_), _) => false
+  | (Ap(d1, d2), Ap(f1, f2)) => matches_pat(d1, f1) && matches_pat(d2, f2)
+  | (Ap(_), _) => false
+  | (Cons(d1, d2), Cons(f1, f2)) =>
+    matches_pat(d1, f1) && matches_pat(d2, f2)
+  | (Cons(_), _) => false
+  | (EmptyHole, _) => false
+  | (Invalid(_), _) => false
   };
 }
 

@@ -35,7 +35,7 @@ let ty_of: t => Typ.t =
     Arrow(Unknown(SynSwitch) |> Typ.temp, Unknown(SynSwitch) |> Typ.temp)
     |> Typ.temp
   | SynTypFun =>
-    Forall(Var("syntypfun") |> TPat.fresh, Unknown(SynSwitch) |> Typ.temp)
+    Type(Var("syntypfun") |> TPat.fresh, Unknown(SynSwitch) |> Typ.temp)
     |> Typ.temp; /* TODO: naming the type variable? */
 
 let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
@@ -46,13 +46,13 @@ let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
   | Ana(ty) => ty |> Typ.matched_arrow(ctx) |> TupleUtil.map2(ana)
   };
 
-let of_forall = (ctx: Ctx.t, name_opt: option(string), mode: t): t =>
+let of_type = (ctx: Ctx.t, name_opt: option(string), mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun
   | SynTypFun => Syn
   | Ana(ty) =>
-    let (name_expected_opt, item) = Typ.matched_forall(ctx, ty);
+    let (name_expected_opt, item) = Typ.matched_type(ctx, ty);
     switch (name_opt, name_expected_opt) {
     | (Some(name), Some(name_expected)) =>
       Ana(Typ.subst(Var(name) |> Typ.temp, name_expected, item))

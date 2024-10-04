@@ -3,6 +3,12 @@ open Node;
 open Util.Web;
 open Haz3lcore;
 
+let pat_view = (pat: Haz3lcore.Pat.t): string =>
+  switch (pat.term) {
+  | Var(x) => x
+  | _ => "?"
+  };
+
 let tpat_view = (tpat: Haz3lcore.TPat.t): string =>
   switch (tpat.term) {
   | Var(x) => x
@@ -36,11 +42,19 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
       ~attrs=[clss(["typ-view", "Rec"])],
       [text("Rec " ++ tpat_view(name) ++ ". "), view_ty(t)],
     )
+  | Type(name, t) =>
+    div(
+      ~attrs=[clss(["typ-view", "Type"])],
+      [text("type " ++ tpat_view(name) ++ " -> "), view_ty(t)],
+    )
   | Forall(name, t) =>
     div(
       ~attrs=[clss(["typ-view", "Forall"])],
-      [text("forall " ++ tpat_view(name) ++ " -> "), view_ty(t)],
+      [text("forall " ++ pat_view(name) ++ " -> "), view_ty(t)],
     )
+  | Equals(_, _) =>
+    // TODO: view expressions
+    div(~attrs=[clss(["typ-view", "Equals"])], [text("{ ... = ... }")])
   | List(t) =>
     div(
       ~attrs=[clss(["typ-view", "atom", "List"])],

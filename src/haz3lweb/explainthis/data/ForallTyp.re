@@ -13,7 +13,7 @@ let forall_typ: form = {
   let explanation = "This forall type classifies polymorphic values varying over [*type variable*](%s) with [*instantiated type*](%s).";
   {
     id: ForallTyp,
-    syntactic_form: [mk_forall([[space(), _tpat, space()]]), _typ_arg],
+    syntactic_form: [mk_type([[space(), _tpat, space()]]), _typ_arg],
     expandable_id: Some((Piece.id(_tpat), [_typ_arg])),
     explanation,
     examples: [],

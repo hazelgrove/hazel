@@ -103,6 +103,9 @@ let keywords = [
   "if",
   "then",
   "else",
+  "theorem",
+  "proof",
+  "forall",
 ];
 let reserved_keywords = ["of", "when", "with", "switch", "match"];
 let keyword_regexp = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
@@ -297,6 +300,7 @@ let forms: list((string, t)) = [
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
+  ("prop-equals", mk(ii, ["{", "=", "}"], mk_op(Typ, [Exp, Exp]))),
   ("ap_exp_empty", mk(ii, ["()"], mk_post(P.ap, Exp, []))),
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
@@ -311,7 +315,8 @@ let forms: list((string, t)) = [
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("fix", mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("typfun", mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))),
-  ("forall", mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [TPat]))),
+  ("forall-type", mk(ds, ["type", "->"], mk_pre(P.fun_, Typ, [TPat]))),
+  ("forall-term", mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [Pat]))),
   ("rec", mk(ds, ["rec", "->"], mk_pre(P.fun_, Typ, [TPat]))),
   (
     "rule",
@@ -326,6 +331,10 @@ let forms: list((string, t)) = [
   // TRIPLE DELIMITERS
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   (
+    "theorem_",
+    mk(ds, ["theorem", "proof", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+  ),
+  (
     "type_alias",
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),
@@ -333,7 +342,7 @@ let forms: list((string, t)) = [
 ];
 
 let get: String.t => t =
-  name => Util.ListUtil.assoc_err(name, forms, "Forms.get");
+  name => Util.ListUtil.assoc_err(name, forms, "Form.get: " ++ name);
 
 let delims: list(Token.t) =
   forms
