@@ -1,5 +1,5 @@
 open Util;
-
+open Base_quickcheck;
 /* ID FAQ
 
    WHATS AN ID?
@@ -34,7 +34,7 @@ open Util;
 
    */
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, quickcheck)]
 let sexp_of_t: Uuidm.t => Sexplib.Sexp.t =
   t => Sexplib.Sexp.Atom(Uuidm.to_string(t));
 
@@ -59,6 +59,9 @@ let t_of_yojson: Yojson.Safe.t => Uuidm.t =
 type t = Uuidm.t;
 
 let mk: unit => t = Uuidm.v4_gen(Random.State.make_self_init());
+let quickcheck_generator = Generator.return(mk()); // TODO
+let quickcheck_observer = Observer.opaque;
+let quickcheck_shrinker = Shrinker.atomic;
 
 let compare: (t, t) => int = Uuidm.compare;
 let to_string: (~upper: bool=?, t) => string = Uuidm.to_string;

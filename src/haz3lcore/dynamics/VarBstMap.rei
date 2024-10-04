@@ -174,4 +174,9 @@ module Ordered: {
     [without_keys] removes all entires with the given keys from the map
    */
   let without_keys: (list(Var.t), t_('a)) => t_('a);
+
+  let quickcheck_observer_t_:
+    Base_quickcheck.Observer.t('a) => Base_quickcheck.Observer.t(t_('a));
+  let quickcheck_shrinker_t_:
+    Base_quickcheck.Shrinker.t('a) => Base_quickcheck.Shrinker.t(t_('a));
 };

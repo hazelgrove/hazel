@@ -1,5 +1,6 @@
 open Util;
 open Ppx_yojson_conv_lib.Yojson_conv;
+open Base_quickcheck;
 module Sexp = Sexplib.Sexp;
 
 module Inner = {
@@ -206,6 +207,9 @@ module Ordered = {
   let without_keys = (keys, m) => {
     filterk(((s, _)) => !List.exists(x => x == s, keys), m);
   };
+
+  let quickcheck_observer_t_ = __ => Observer.opaque;
+  let quickcheck_shrinker_t_ = __ => Shrinker.atomic;
 };
 
 include VarBstMap0;

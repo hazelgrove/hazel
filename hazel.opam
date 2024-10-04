@@ -24,6 +24,7 @@ depends: [
   "ocamlformat"
   "junit_alcotest" {with-test}
   "ocaml-lsp-server"
+  "base_quickcheck" {>= "0.17.0"}
   "odoc" {with-doc}
 ]
 build: [

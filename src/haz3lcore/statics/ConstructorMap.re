@@ -1,13 +1,13 @@
 open Util.OptUtil.Syntax;
 open Util;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
+open Base_quickcheck;
+[@deriving (show({with_path: false}), sexp, yojson, quickcheck)]
 type variant('a) =
   | Variant(Constructor.t, list(Id.t), option('a))
   | BadEntry('a);
 
 // Invariant: Must not have duplicate constructors
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, quickcheck)]
 type t('a) = list(variant('a));
 
 let mk =

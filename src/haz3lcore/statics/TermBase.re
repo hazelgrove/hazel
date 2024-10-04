@@ -1,8 +1,9 @@
 open Util;
+open Base_quickcheck;
 
 let continue = x => x;
 let stop = (_, x) => x;
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, quickcheck)]
 type deferral_position_t =
   | InAp
   | OutsideAp;
@@ -45,8 +46,7 @@ type deferral_position_t =
      structural equality except for the case of closures, where it just compares
      the id of the closure.
  */
-
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, quickcheck)]
 type any_t =
   | Exp(exp_t)
   | Pat(pat_t)
@@ -146,7 +146,9 @@ and rul_term =
   | Hole(list(any_t))
   | Rules(exp_t, list((pat_t, exp_t)))
 and rul_t = IdTagged.t(rul_term)
-and environment_t = VarBstMap.Ordered.t_(exp_t)
+and environment_t =
+  [@quickcheck.generator Generator.return(VarBstMap.Ordered.empty)]
+  VarBstMap.Ordered.t_(exp_t)
 and closure_environment_t = (Id.t, environment_t)
 and stepper_filter_kind_t =
   | FilterStepper(filter)

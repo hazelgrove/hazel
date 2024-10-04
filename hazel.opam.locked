@@ -1,7 +1,7 @@
 
 opam-version: "2.0"
 name: "hazel"
-version: "dev"
+version: "~dev"
 synopsis: "Hazel, a live functional programming environment with typed holes"
 maintainer: "Hazel Development Team"
 authors: "Hazel Development Team"
