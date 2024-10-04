@@ -499,25 +499,9 @@ and uexp_to_info_map =
     /* add co_ctx to pattern */
     let (p'', m) =
       go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~mode=mode_pat, p, m);
-    // convert variables into labeled types if needed
-    let rec get_var = (p1: UPat.t, p2: Typ.t) =>
-      switch (p1.term) {
-      | UPat.Var(s) => Typ.TupLabel(Label(s) |> Typ.temp, p2) |> Typ.temp
-      | Cast(s, _, _) => get_var(s, p2)
-      | _ => p2
-      };
-    let rec get_typ = (p: UPat.t, t: Typ.t): Typ.t =>
-      switch (p.term, t.term) {
-      | (Tuple(l1), Prod(l2)) =>
-        let pt: list(Typ.t) = List.map2(get_var, l1, l2);
-        Prod(pt) |> Typ.temp;
-      | (Cast(s, _, _), t) => get_typ(s, t |> Typ.temp)
-      | _ => Prod([get_var(p, t)]) |> Typ.temp
-      };
-    let pty = get_typ(p, p''.ty);
     // TODO: factor out code
     let unwrapped_self: Self.exp =
-      Common(Just(Arrow(pty, e.ty) |> Typ.temp));
+      Common(Just(Arrow(p''.ty, e.ty) |> Typ.temp));
     let is_exhaustive = p'' |> Info.pat_constraint |> Incon.is_exhaustive;
     let self =
       is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);

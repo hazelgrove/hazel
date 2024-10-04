@@ -253,8 +253,7 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     } else {
       None;
     }
-  | (TupLabel(_, ty1), _) => join'(ty1, ty2)
-  | (_, TupLabel(_, ty2)) => join'(ty1, ty2)
+  | (TupLabel(_), _) => None
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =
@@ -306,10 +305,6 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     if (!l1_valid || !l2_valid || List.length(tys1) != List.length(tys2)) {
       None;
     } else {
-      let tys2 =
-        LabeledTuple.rearrange(get_label, get_label, tys1, tys2, (t, b) =>
-          TupLabel(Label(t) |> temp, b) |> temp
-        );
       let* tys = ListUtil.map2_opt(join', tys1, tys2);
       let+ tys = OptUtil.sequence(tys);
       Prod(tys) |> temp;
