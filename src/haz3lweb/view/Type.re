@@ -21,7 +21,7 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
     div(
       ~attrs=[
         clss(["typ-view", "atom", "unknown"]),
-        Attr.title(Typ.show_type_provenance(prov)),
+        Attr.title(TermBase.show_type_provenance(prov)),
       ],
       [text("?") /*, prov_view(prov)*/],
     )
@@ -98,7 +98,7 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
     div(
       ~attrs=[
         clss(["typ-view", "atom", "unknown"]),
-        Attr.title(Typ.show_type_provenance(Internal)),
+        Attr.title(TermBase.show_type_provenance(Internal)),
       ],
       [text("?") /*, prov_view(prov)*/],
     )

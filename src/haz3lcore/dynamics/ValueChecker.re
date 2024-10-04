@@ -1,4 +1,3 @@
-open DHExp;
 open Transition;
 
 type t =
