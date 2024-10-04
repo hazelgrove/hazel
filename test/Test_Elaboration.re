@@ -180,6 +180,15 @@ let let_fun = () =>
 let deferral = () =>
   alco_check(
     "string_sub(\"hello\", 1, _)",
+    DeferredAp(
+      Var("string_sub") |> Exp.fresh,
+      [
+        String("hello") |> Exp.fresh,
+        Int(1) |> Exp.fresh,
+        Deferral(InAp) |> Exp.fresh,
+      ],
+    )
+    |> Exp.fresh,
     dhexp_of_uexp(
       DeferredAp(
         Var("string_sub") |> Exp.fresh,
@@ -191,7 +200,13 @@ let deferral = () =>
       )
       |> Exp.fresh,
     ),
-    dhexp_of_uexp(
+  );
+
+let ap_deferral_single_argument = () =>
+  alco_check(
+    "string_sub(\"hello\", 1, _)(2)",
+    Ap(
+      Forward,
       DeferredAp(
         Var("string_sub") |> Exp.fresh,
         [
@@ -199,6 +214,106 @@ let deferral = () =>
           Int(1) |> Exp.fresh,
           Deferral(InAp) |> Exp.fresh,
         ],
+      )
+      |> Exp.fresh,
+      Int(2) |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    dhexp_of_uexp(
+      Ap(
+        Forward,
+        DeferredAp(
+          Var("string_sub") |> Exp.fresh,
+          [
+            String("hello") |> Exp.fresh,
+            Int(1) |> Exp.fresh,
+            Deferral(InAp) |> Exp.fresh,
+          ],
+        )
+        |> Exp.fresh,
+        Int(2) |> Exp.fresh,
+      )
+      |> Exp.fresh,
+    ),
+  );
+
+let ap_of_deferral_of_hole = () =>
+  alco_check(
+    "?(_, _, 3)(1., true)",
+    Ap(
+      Forward,
+      DeferredAp(
+        Cast(
+          Cast(
+            EmptyHole |> Exp.fresh,
+            Unknown(Internal) |> Typ.fresh,
+            Arrow(
+              Unknown(Internal) |> Typ.fresh,
+              Unknown(Internal) |> Typ.fresh,
+            )
+            |> Typ.fresh,
+          )
+          |> Exp.fresh,
+          Arrow(
+            Unknown(Internal) |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Typ.fresh,
+          Arrow(
+            Prod([
+              Unknown(Internal) |> Typ.fresh,
+              Unknown(Internal) |> Typ.fresh,
+              Unknown(Internal) |> Typ.fresh,
+            ])
+            |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Typ.fresh,
+        )
+        |> Exp.fresh,
+        [
+          Deferral(InAp) |> Exp.fresh,
+          Deferral(InAp) |> Exp.fresh,
+          Cast(
+            Int(3) |> Exp.fresh,
+            Int |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Exp.fresh,
+        ],
+      )
+      |> Exp.fresh,
+      Tuple([
+        Cast(
+          Float(1.) |> Exp.fresh,
+          Float |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Exp.fresh,
+        Cast(
+          Bool(true) |> Exp.fresh,
+          Bool |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Exp.fresh,
+      ])
+      |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    dhexp_of_uexp(
+      Ap(
+        Forward,
+        DeferredAp(
+          EmptyHole |> Exp.fresh,
+          [
+            Deferral(InAp) |> Exp.fresh,
+            Deferral(InAp) |> Exp.fresh,
+            Int(3) |> Exp.fresh,
+          ],
+        )
+        |> Exp.fresh,
+        Tuple([Float(1.) |> Exp.fresh, Bool(true) |> Exp.fresh])
+        |> Exp.fresh,
       )
       |> Exp.fresh,
     ),
@@ -219,5 +334,15 @@ let elaboration_tests = [
     "Function application with a deferred argument",
     `Quick,
     deferral,
+  ),
+  test_case(
+    "Function application with a single remaining argument after deferral",
+    `Quick,
+    ap_deferral_single_argument,
+  ),
+  test_case(
+    "Function application with a deferral of a hole",
+    `Quick,
+    ap_of_deferral_of_hole,
   ),
 ];
