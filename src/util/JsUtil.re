@@ -148,6 +148,10 @@ let scroll_cursor_into_view_if_needed = () =>
       caret_elem##scrollIntoView(Js._true);
     } else if (caret_rect##.bottom > main_rect##.bottom) {
       caret_elem##scrollIntoView(Js._false);
+    } else if (caret_rect##.right > main_rect##.right) {
+      caret_elem##scrollIntoView(Js._true);
+    } else if (caret_rect##.left < main_rect##.left) {
+      caret_elem##scrollIntoView(Js._true);
     };
   }) {
   | Assert_failure(_) => ()
