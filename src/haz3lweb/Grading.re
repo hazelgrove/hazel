@@ -220,10 +220,73 @@ module MutationTestingReport = {
   include MutationTestingReport;
   open Haz3lcore;
 
-  let summary_message = (~score, ~total, ~found): Node.t =>
+  let summary_message =
+      (~inject, ~score, ~total, ~found, ~max_points, settings: Settings.t)
+      : Node.t =>
     div(
-      ~attrs=[Attr.classes(["test-text"])],
-      [score_view(score), text(summary_str(~total, ~found))],
+      ~attrs=[Attr.class_("test-text")],
+      settings.instructor_mode
+        ? settings.editing_mut_test_rep
+            ? [
+              div(
+                ~attrs=[Attr.class_("input-field")],
+                [
+                  label([text("New point max:")]),
+                  input(
+                    ~attrs=[
+                      Attr.type_("number"),
+                      Attr.class_("point-num-input"),
+                      Attr.id("point-max-input"),
+                      Attr.value(string_of_int(max_points)),
+                    ],
+                    (),
+                  ),
+                ],
+              ),
+              div(
+                ~attrs=[Attr.class_("edit-icon")],
+                [
+                  Widgets.button(
+                    Icons.confirm,
+                    _ => {
+                      let new_dist =
+                        Obj.magic(
+                          Js_of_ocaml.Js.some(
+                            JsUtil.get_elem_by_id("point-max-input"),
+                          ),
+                        )##.value;
+
+                      let update_events = [
+                        inject(Set(EditingMutTestRep)),
+                        inject(UpdateMutTestRep(int_of_string(new_dist))),
+                      ];
+                      Virtual_dom.Vdom.Effect.Many(update_events);
+                    },
+                  ),
+                ],
+              ),
+              div(
+                ~attrs=[Attr.class_("edit-icon")],
+                [
+                  Widgets.button(Icons.cancel, _ =>
+                    inject(Set(EditingMutTestRep))
+                  ),
+                ],
+              ),
+            ]
+            : [
+              score_view(score),
+              text(summary_str(~total, ~found)),
+              div(
+                ~attrs=[Attr.class_("edit-icon")],
+                [
+                  Widgets.button(Icons.pencil, _ =>
+                    inject(Set(EditingMutTestRep))
+                  ),
+                ],
+              ),
+            ]
+        : [score_view(score), text(summary_str(~total, ~found))],
     );
 
   let bar = (~inject, instances) =>
@@ -245,7 +308,7 @@ module MutationTestingReport = {
       ),
     );
 
-  let summary = (~inject, ~report, ~max_points) => {
+  let summary = (~inject, ~report, ~max_points, settings: Settings.t) => {
     let total = List.length(report.results);
     let found =
       List.length(
@@ -263,9 +326,12 @@ module MutationTestingReport = {
       ],
       [
         summary_message(
+          ~inject,
           ~score=score_of_percent(percentage(report), max_points),
           ~total,
           ~found,
+          ~max_points,
+          settings,
         ),
         bar(~inject, report.results),
       ],
@@ -385,7 +451,7 @@ module MutationTestingReport = {
   //   Virtual_dom.Vdom.Effect.Many(update_events);
   // };
 
-  let view = (~inject, report: t, max_points: int) =>
+  let view = (~inject, report: t, max_points: int, settings: Settings.t) =>
     if (max_points == 0) {
       Node.div([]);
     } else {
@@ -398,7 +464,7 @@ module MutationTestingReport = {
           ),
           individual_reports(~inject, report.results),
         ],
-        ~footer=Some(summary(~inject, ~report, ~max_points)),
+        ~footer=Some(summary(~inject, ~report, ~max_points, settings)),
       );
     };
 };

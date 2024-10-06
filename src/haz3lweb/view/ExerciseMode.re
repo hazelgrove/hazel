@@ -234,6 +234,7 @@ let view =
         ~inject,
         grading_report.mutation_testing_report,
         grading_report.point_distribution.mutation_testing,
+        settings,
       ),
     );
   let your_impl_view = {
