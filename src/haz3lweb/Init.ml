@@ -27,6 +27,9 @@ let startup : PersistentData.t =
         context_inspector = false;
         instructor_mode = true;
         editing_prompt = false;
+        editing_test_val_rep = false;
+        editing_mut_test_rep = false;
+        editing_impl_grd_rep = false;
         benchmark = false;
         explainThis =
           { show = true; show_feedback = false; highlight = NoHighlight };

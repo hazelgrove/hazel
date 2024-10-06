@@ -24,9 +24,13 @@ let key_handler =
     switch (Keyboard.handle_key_event(key)) {
     | None => Ignore
     | Some(action) =>
-      get_settings(model).editing_prompt
+      let settings = get_settings(model);
+      settings.editing_prompt
+      || settings.editing_test_val_rep
+      || settings.editing_mut_test_rep
+      || settings.editing_impl_grd_rep
         ? Many([inject(action)])
-        : Many([Prevent_default, Stop_propagation, inject(action)])
+        : Many([Prevent_default, Stop_propagation, inject(action)]);
     }
   };
 };
@@ -67,6 +71,9 @@ let handlers =
     }),
   ];
   model.settings.editing_prompt
+  || model.settings.editing_test_val_rep
+  || model.settings.editing_mut_test_rep
+  || model.settings.editing_impl_grd_rep
     ? attrs : attrs @ [Attr.on_keypress(_ => Effect.Prevent_default)];
 };
 
