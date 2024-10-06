@@ -88,7 +88,7 @@ type t =
   | StepperAction(ModelResults.Key.t, stepper_action)
   | UpdateResult(ModelResults.t)
   | UpdatePrompt(string)
-  | UpdateTestValRep(int, int)
+  | UpdateTestValRep(int, int, int)
   | UpdateMutTestRep(int)
   | UpdateImplGrdRep(int);
 

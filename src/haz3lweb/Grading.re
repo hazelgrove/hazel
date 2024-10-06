@@ -61,6 +61,7 @@ module TestValidationReport = {
         report: t,
         max_points: int,
         max_tests: int,
+        prov_tests: int,
         settings: Settings.t,
       ) => {
     Cell.report_footer_view([
@@ -103,6 +104,21 @@ module TestValidationReport = {
                         ],
                       ),
                       div(
+                        ~attrs=[Attr.class_("input-field")],
+                        [
+                          label([text("Tests provided:")]),
+                          input(
+                            ~attrs=[
+                              Attr.type_("number"),
+                              Attr.class_("point-num-input"),
+                              Attr.id("test-provided-input"),
+                              Attr.value(string_of_int(prov_tests)),
+                            ],
+                            (),
+                          ),
+                        ],
+                      ),
+                      div(
                         ~attrs=[Attr.class_("edit-icon")],
                         [
                           Widgets.button(
@@ -122,6 +138,14 @@ module TestValidationReport = {
                                     ),
                                   ),
                                 )##.value;
+                              let new_prov_test =
+                                Obj.magic(
+                                  Js_of_ocaml.Js.some(
+                                    JsUtil.get_elem_by_id(
+                                      "test-provided-input",
+                                    ),
+                                  ),
+                                )##.value;
 
                               let update_events = [
                                 inject(Set(EditingTestValRep)),
@@ -129,6 +153,7 @@ module TestValidationReport = {
                                   UpdateTestValRep(
                                     int_of_string(new_test_num),
                                     int_of_string(new_dist),
+                                    int_of_string(new_prov_test),
                                   ),
                                 ),
                               ];
