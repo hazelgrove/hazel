@@ -5,10 +5,10 @@ let (suite, _) =
     ~and_exit=false,
     "Dynamics",
     [
-      ("Elaboration", Test_Elaboration.elaboration_tests),
       ("Parser", Test_Menhir.tests),
       ("Statics", Test_Statics.tests),
       ("Evaluator", Test_Evaluator.tests),
-    ],
+    ]
+    @ Test_Elaboration.tests,
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
