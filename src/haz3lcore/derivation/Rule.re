@@ -2,14 +2,14 @@
 type t =
   | A_Subsumption
   // Type Validity
-  // | TV_Num
-  // | TV_Bool
-  // | TV_Unit
-  // | TV_Arrow
-  // | TV_Prod
-  // | TV_Sum
-  // | TV_Rec
-  // | TV_TVar
+  | TV_Num
+  | TV_Bool
+  | TV_Unit
+  | TV_Arrow
+  | TV_Prod
+  | TV_Sum
+  | TV_Rec
+  | TV_TVar
   // Typing
   // - Booleans
   | T_True
@@ -40,7 +40,7 @@ type t =
   | T_Var
   | S_Var
   | T_LetAnn
-  // | T_LetAnn_TV
+  | T_LetAnn_TV
   | S_LetAnn
   | A_LetAnn
   | T_Let
@@ -48,7 +48,7 @@ type t =
   | A_Let
   // - Functions
   | T_FunAnn
-  // | T_FunAnn_TV
+  | T_FunAnn_TV
   | S_FunAnn
   | A_FunAnn
   | T_Fun
@@ -79,7 +79,7 @@ type t =
   // - Fixpoints
   | T_Fix
   | T_FixAnn
-  // | T_FixAnn_TV
+  | T_FixAnn_TV
   // - Recursive
   | T_Roll
   | T_Unroll
@@ -162,6 +162,14 @@ let repr =
 
 let prems_num =
   fun
+  | TV_Num => 0
+  | TV_Bool => 0
+  | TV_Unit => 0
+  | TV_Arrow => 2
+  | TV_Prod => 2
+  | TV_Sum => 2
+  | TV_Rec => 1
+  | TV_TVar => 0
   | A_Subsumption => 1
   | E_Val => 1
   | S_Num
@@ -210,6 +218,7 @@ let prems_num =
   | S_LetAnn
   | A_LetAnn
   | T_LetAnn => 2
+  | T_LetAnn_TV => 3
   | S_Let
   | A_Let
   | T_Let => 2
@@ -217,11 +226,13 @@ let prems_num =
   | S_FunAnn
   | A_FunAnn
   | T_FunAnn => 1
+  | T_FunAnn_TV => 2
   | A_Fun
   | T_Fun => 1
   | V_Fun => 0
   | T_Fix => 1
   | T_FixAnn => 1
+  | T_FixAnn_TV => 2
   | E_Fix => 1
   | S_Ap
   | T_Ap => 2
@@ -288,14 +299,14 @@ and prop_logic_kind =
 
 let of_kind: t => kind =
   fun
-  // | TV_Num
-  // | TV_Bool
-  // | TV_Unit
-  // | TV_Arrow
-  // | TV_Prod
-  // | TV_Sum
-  // | TV_Rec
-  // | TV_TVar => TypeValidity
+  | TV_Num
+  | TV_Bool
+  | TV_Unit
+  | TV_Arrow
+  | TV_Prod
+  | TV_Sum
+  | TV_Rec
+  | TV_TVar => TypeValidity
   | S_True
   | S_False
   | S_If
@@ -342,10 +353,10 @@ let of_kind: t => kind =
   | T_Eq
   | T_Var
   | T_LetAnn
-  // | T_LetAnn_TV
+  | T_LetAnn_TV
   | T_Let
   | T_FunAnn
-  // | T_FunAnn_TV
+  | T_FunAnn_TV
   | T_Fun
   | T_Ap
   | T_Triv
@@ -358,7 +369,7 @@ let of_kind: t => kind =
   | T_Case
   | T_Fix
   | T_FixAnn
-  // | T_FixAnn_TV
+  | T_FixAnn_TV
   | T_Roll
   | T_Unroll => Typing
   | V_Num
@@ -425,14 +436,14 @@ type sort =
 
 let of_sort: t => sort =
   fun
-  // | TV_Num
-  // | TV_Bool
-  // | TV_Unit
-  // | TV_Arrow
-  // | TV_Prod
-  // | TV_Sum
-  // | TV_Rec
-  // | TV_TVar => TypeValidity
+  | TV_Num
+  | TV_Bool
+  | TV_Unit
+  | TV_Arrow
+  | TV_Prod
+  | TV_Sum
+  | TV_Rec
+  | TV_TVar => TypeValidity
   | T_True
   | S_True
   | V_True
@@ -474,7 +485,7 @@ let of_sort: t => sort =
   | T_Var
   | S_Var
   | T_LetAnn
-  // | T_LetAnn_TV
+  | T_LetAnn_TV
   | S_LetAnn
   | A_LetAnn
   | T_Let
@@ -482,7 +493,7 @@ let of_sort: t => sort =
   | A_Let
   | E_Let => Variable
   | T_FunAnn
-  // | T_FunAnn_TV
+  | T_FunAnn_TV
   | S_FunAnn
   | A_FunAnn
   | T_Fun
@@ -523,7 +534,7 @@ let of_sort: t => sort =
   | E_Case_L
   | E_Case_R => Sum
   | T_FixAnn
-  // | T_FixAnn_TV
+  | T_FixAnn_TV
   | T_Fix
   | E_Fix => Fixpoint
   | T_Roll
@@ -659,9 +670,20 @@ let of_version: t => version =
   | T_Case
   | E_Case_L
   | E_Case_R => ALFA
+  | TV_Num
+  | TV_Bool
+  | TV_Unit
+  | TV_Arrow
+  | TV_Prod
+  | TV_Sum
+  | TV_Rec
+  | TV_TVar
+  | T_LetAnn_TV
+  | T_FunAnn_TV
   | E_Fix
   | T_Fix
   | T_FixAnn
+  | T_FixAnn_TV
   | T_Roll
   | V_Roll
   | T_Unroll
@@ -671,14 +693,14 @@ let of_version: t => version =
 let all: list(t) = [
   A_Subsumption,
   // Type Validity
-  // | TV_Num
-  // | TV_Bool
-  // | TV_Unit
-  // | TV_Arrow
-  // | TV_Prod
-  // | TV_Sum
-  // | TV_Rec
-  // | TV_TVar
+  TV_Num,
+  TV_Bool,
+  TV_Unit,
+  TV_Arrow,
+  TV_Prod,
+  TV_Sum,
+  TV_Rec,
+  TV_TVar,
   // Typing
   // - Booleans
   T_True,
@@ -709,7 +731,7 @@ let all: list(t) = [
   T_Var,
   S_Var,
   T_LetAnn,
-  // , T_LetAnn_TV
+  T_LetAnn_TV,
   S_LetAnn,
   A_LetAnn,
   T_Let,
@@ -717,7 +739,7 @@ let all: list(t) = [
   A_Let,
   // - Functions
   T_FunAnn,
-  // , T_FunAnn_TV
+  T_FunAnn_TV,
   S_FunAnn,
   A_FunAnn,
   T_Fun,
@@ -748,7 +770,7 @@ let all: list(t) = [
   // - Fixpoints
   T_Fix,
   T_FixAnn,
-  // , T_FixAnn_TV
+  T_FixAnn_TV,
   // - Recursive
   T_Roll,
   T_Unroll,

@@ -24,6 +24,7 @@ type term =
   | Eval(t, t)
   | Entail(t, t)
   // Proposition
+  | Type(t)
   | HasType(t, t)
   | Syn(t, t)
   | Ana(t, t)
@@ -93,6 +94,7 @@ type cls =
   | Val
   | Eval
   | Entail
+  | Type
   | HasType
   | Syn
   | Ana
@@ -152,6 +154,7 @@ let precedence: t => int =
     | Val(_) => P.filter
     | Eval(_) => P.filter
     | Entail(_) => P.filter
+    | Type(_) => P.filter
     | HasType(_) => P.semi
     | Syn(_) => P.semi
     | Ana(_) => P.semi
@@ -293,6 +296,7 @@ let rec repr = (p: int, prop: t): list(string) => {
     | Unroll(a) => repr_aba_tight(["unroll(", ")"], [a])
     | TPat(x) => x |> mk
     | Pat(x) => x |> mk
+    | Type(a) => repr_postop("type", a)
     | HasType(a, b) => repr_binop(":", a, b)
     | Syn(a, b) => repr_binop("⇒", a, b)
     | Ana(a, b) => repr_binop("⇐", a, b)
@@ -302,124 +306,6 @@ let rec repr = (p: int, prop: t): list(string) => {
 };
 
 let repr = p => repr(P.min, p) |> String.concat("");
-
-let rec eq: (t, t) => bool =
-  (a, b) =>
-    switch (IdTagged.term_of(a), IdTagged.term_of(b)) {
-    | (Hole(_), _) => false
-    | (Ctx(as_), Ctx(bs)) =>
-      List.length(as_) == List.length(bs) && List.for_all2(eq, as_, bs)
-    | (Ctx(_), _) => false
-    | (Num, Num) => true
-    | (Num, _) => false
-    | (Bool, Bool) => true
-    | (Bool, _) => false
-    | (Arrow(a1, a2), Arrow(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Arrow(_), _) => false
-    | (Prod(a1, a2), Prod(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Prod(_), _) => false
-    | (Unit, Unit) => true
-    | (Unit, _) => false
-    | (Sum(a1, a2), Sum(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Sum(_), _) => false
-    | (TVar(a), TVar(b)) => String.equal(a, b)
-    | (TVar(_), _) => false
-    | (Rec(a1, a2), Rec(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Rec(_), _) => false
-    | (NumLit(a), NumLit(b)) => Int.equal(a, b)
-    | (NumLit(_), _) => false
-    | (Neg(a), Neg(b)) => eq(a, b)
-    | (Neg(_), _) => false
-    | (Plus(a1, a2), Plus(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Plus(_), _) => false
-    | (Minus(a1, a2), Minus(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Minus(_), _) => false
-    | (Times(a1, a2), Times(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Times(_), _) => false
-    | (Lt(a1, a2), Lt(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Lt(_), _) => false
-    | (Gt(a1, a2), Gt(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Gt(_), _) => false
-    | (Eq(a1, a2), Eq(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Eq(_), _) => false
-    | (True, True) => true
-    | (True, _) => false
-    | (False, False) => true
-    | (False, _) => false
-    | (If(a1, a2, a3), If(b1, b2, b3)) =>
-      eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
-    | (If(_), _) => false
-    | (Var(a), Var(b)) => String.equal(a, b)
-    | (Var(_), _) => false
-    | (Let(a1, a2, a3), Let(b1, b2, b3)) =>
-      eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
-    | (Let(_), _) => false
-    | (LetAnn(a1, a2, a3, a4), LetAnn(b1, b2, b3, b4)) =>
-      eq(a1, b1) && eq(a2, b2) && eq(a3, b3) && eq(a4, b4)
-    | (LetAnn(_), _) => false
-    | (Fix(a1, a2), Fix(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Fix(_), _) => false
-    | (FixAnn(a1, a2, a3), FixAnn(b1, b2, b3)) =>
-      eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
-    | (FixAnn(_), _) => false
-    | (Fun(a1, a2), Fun(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Fun(_), _) => false
-    | (FunAnn(a1, a2, a3), FunAnn(b1, b2, b3)) =>
-      eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
-    | (FunAnn(_), _) => false
-    | (Ap(a1, a2), Ap(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Ap(_), _) => false
-    | (Pair(a1, a2), Pair(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Pair(_), _) => false
-    | (Triv, Triv) => true
-    | (Triv, _) => false
-    | (PrjL(a), PrjL(b)) => eq(a, b)
-    | (PrjL(_), _) => false
-    | (PrjR(a), PrjR(b)) => eq(a, b)
-    | (PrjR(_), _) => false
-    | (LetPair(a1, a2, a3, a4), LetPair(b1, b2, b3, b4)) =>
-      eq(a1, b1) && eq(a2, b2) && eq(a3, b3) && eq(a4, b4)
-    | (LetPair(_), _) => false
-    | (InjL(a), InjL(b)) => eq(a, b)
-    | (InjL(_), _) => false
-    | (InjR(a), InjR(b)) => eq(a, b)
-    | (InjR(_), _) => false
-    | (Case(a1, a2, a3, a4, a5), Case(b1, b2, b3, b4, b5)) =>
-      eq(a1, b1) && eq(a2, b2) && eq(a3, b3) && eq(a4, b4) && eq(a5, b5)
-    | (Case(_), _) => false
-    | (Roll(a), Roll(b)) => eq(a, b)
-    | (Roll(_), _) => false
-    | (Unroll(a), Unroll(b)) => eq(a, b)
-    | (Unroll(_), _) => false
-    | (TPat(a), TPat(b)) => String.equal(a, b)
-    | (TPat(_), _) => false
-    | (Pat(a), Pat(b)) => String.equal(a, b)
-    | (Pat(_), _) => false
-    | (HasType(a1, a2), HasType(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (HasType(_), _) => false
-    | (Syn(a1, a2), Syn(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Syn(_), _) => false
-    | (Ana(a1, a2), Ana(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Ana(_), _) => false
-    | (Atom(a), Atom(b)) => String.equal(a, b)
-    | (Atom(_), _) => false
-    | (And(a1, a2), And(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (And(_), _) => false
-    | (Or(a1, a2), Or(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Or(_), _) => false
-    | (Impl(a1, a2), Impl(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Impl(_), _) => false
-    | (Truth, Truth) => true
-    | (Truth, _) => false
-    | (Falsity, Falsity) => true
-    | (Falsity, _) => false
-    | (Val(a), Val(b)) => eq(a, b)
-    | (Val(_), _) => false
-    | (Eval(a1, a2), Eval(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Eval(_), _) => false
-    | (Entail(a1, a2), Entail(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-    | (Entail(_), _) => false
-    };
 
 let rec subst: (t, string, t) => t =
   (v, x, e) => {
@@ -486,6 +372,7 @@ let rec subst: (t, string, t) => t =
     | TPat(_)
     | Pat(_)
     // Proposition
+    | Type(_)
     | HasType(_)
     | Syn(_)
     | Ana(_) => e
@@ -571,6 +458,7 @@ let rec subst_ty: (t, string, t) => t =
     | TPat(_)
     | Pat(_) => e
     // Proposition
+    | Type(_)
     | HasType(_)
     | Syn(_)
     | Ana(_) => e
@@ -588,7 +476,146 @@ let rec subst_ty: (t, string, t) => t =
     };
   };
 
-let mem_ctx = p => List.exists(eq(p));
+let rec eq: (t, t) => bool =
+  (a, b) =>
+    switch (IdTagged.term_of(a), IdTagged.term_of(b)) {
+    | (Hole(_), _) => false
+    | (Ctx(as_), Ctx(bs)) =>
+      List.length(as_) == List.length(bs) && List.for_all2(eq, as_, bs)
+    | (Ctx(_), _) => false
+    | (Num, Num) => true
+    | (Num, _) => false
+    | (Bool, Bool) => true
+    | (Bool, _) => false
+    | (Arrow(a1, a2), Arrow(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Arrow(_), _) => false
+    | (Prod(a1, a2), Prod(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Prod(_), _) => false
+    | (Unit, Unit) => true
+    | (Unit, _) => false
+    | (Sum(a1, a2), Sum(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Sum(_), _) => false
+    | (TVar(a), TVar(b)) => String.equal(a, b)
+    | (TVar(_), _) => false
+    | (Rec({term: TPat(a1), _}, a2), Rec({term: TPat(b1), _}, b2)) =>
+      let rep_id = TVar(Id.mk() |> Id.show) |> temp;
+      eq(subst_ty(rep_id, a1, a2), subst_ty(rep_id, b1, b2));
+    | (Rec(_), _) => false
+    | (NumLit(a), NumLit(b)) => Int.equal(a, b)
+    | (NumLit(_), _) => false
+    | (Neg(a), Neg(b)) => eq(a, b)
+    | (Neg(_), _) => false
+    | (Plus(a1, a2), Plus(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Plus(_), _) => false
+    | (Minus(a1, a2), Minus(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Minus(_), _) => false
+    | (Times(a1, a2), Times(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Times(_), _) => false
+    | (Lt(a1, a2), Lt(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Lt(_), _) => false
+    | (Gt(a1, a2), Gt(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Gt(_), _) => false
+    | (Eq(a1, a2), Eq(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Eq(_), _) => false
+    | (True, True) => true
+    | (True, _) => false
+    | (False, False) => true
+    | (False, _) => false
+    | (If(a1, a2, a3), If(b1, b2, b3)) =>
+      eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
+    | (If(_), _) => false
+    | (Var(a), Var(b)) => String.equal(a, b)
+    | (Var(_), _) => false
+    | (Let(a1, a2, a3), Let(b1, b2, b3)) =>
+      eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
+    | (Let(_), _) => false
+    | (LetAnn(a1, a2, a3, a4), LetAnn(b1, b2, b3, b4)) =>
+      eq(a1, b1) && eq(a2, b2) && eq(a3, b3) && eq(a4, b4)
+    | (LetAnn(_), _) => false
+    | (Fix(a1, a2), Fix(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Fix(_), _) => false
+    | (FixAnn(a1, a2, a3), FixAnn(b1, b2, b3)) =>
+      eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
+    | (FixAnn(_), _) => false
+    | (Fun(a1, a2), Fun(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Fun(_), _) => false
+    | (FunAnn(a1, a2, a3), FunAnn(b1, b2, b3)) =>
+      eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
+    | (FunAnn(_), _) => false
+    | (Ap(a1, a2), Ap(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Ap(_), _) => false
+    | (Pair(a1, a2), Pair(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Pair(_), _) => false
+    | (Triv, Triv) => true
+    | (Triv, _) => false
+    | (PrjL(a), PrjL(b)) => eq(a, b)
+    | (PrjL(_), _) => false
+    | (PrjR(a), PrjR(b)) => eq(a, b)
+    | (PrjR(_), _) => false
+    | (LetPair(a1, a2, a3, a4), LetPair(b1, b2, b3, b4)) =>
+      eq(a1, b1) && eq(a2, b2) && eq(a3, b3) && eq(a4, b4)
+    | (LetPair(_), _) => false
+    | (InjL(a), InjL(b)) => eq(a, b)
+    | (InjL(_), _) => false
+    | (InjR(a), InjR(b)) => eq(a, b)
+    | (InjR(_), _) => false
+    | (Case(a1, a2, a3, a4, a5), Case(b1, b2, b3, b4, b5)) =>
+      eq(a1, b1) && eq(a2, b2) && eq(a3, b3) && eq(a4, b4) && eq(a5, b5)
+    | (Case(_), _) => false
+    | (Roll(a), Roll(b)) => eq(a, b)
+    | (Roll(_), _) => false
+    | (Unroll(a), Unroll(b)) => eq(a, b)
+    | (Unroll(_), _) => false
+    | (TPat(a), TPat(b)) => String.equal(a, b)
+    | (TPat(_), _) => false
+    | (Pat(a), Pat(b)) => String.equal(a, b)
+    | (Pat(_), _) => false
+    | (Type(a), Type(b)) => eq(a, b)
+    | (Type(_), _) => false
+    | (HasType(a1, a2), HasType(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (HasType(_), _) => false
+    | (Syn(a1, a2), Syn(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Syn(_), _) => false
+    | (Ana(a1, a2), Ana(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Ana(_), _) => false
+    | (Atom(a), Atom(b)) => String.equal(a, b)
+    | (Atom(_), _) => false
+    | (And(a1, a2), And(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (And(_), _) => false
+    | (Or(a1, a2), Or(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Or(_), _) => false
+    | (Impl(a1, a2), Impl(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Impl(_), _) => false
+    | (Truth, Truth) => true
+    | (Truth, _) => false
+    | (Falsity, Falsity) => true
+    | (Falsity, _) => false
+    | (Val(a), Val(b)) => eq(a, b)
+    | (Val(_), _) => false
+    | (Eval(a1, a2), Eval(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Eval(_), _) => false
+    | (Entail(a1, a2), Entail(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Entail(_), _) => false
+    };
+
+let rec splice_on_exist = (p, l) =>
+  switch (l) {
+  | [] => []
+  | [hd, ...tl] => eq(p, hd) ? l : splice_on_exist(p, tl)
+  };
+
+let mem_ctx = (p, l) => splice_on_exist(p, l) != [];
+
+let rec subset_ctx = (s, l) =>
+  switch (s, l) {
+  | ([], _) => true
+  | (_, []) => false
+  | ([hd, ...tl], l) =>
+    switch (splice_on_exist(hd, l)) {
+    | [] => false
+    | [_, ...tl'] => subset_ctx(tl, tl')
+    }
+  };
 
 // Note(zhiyao): This implementation of cons_ctx is not linear.
 let cons_ctx = (ctx, p) => {

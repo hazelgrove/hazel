@@ -882,6 +882,22 @@ let get_doc =
             l.ghost,
           ),
         );
+      | ConsValid(p, l) =>
+        let p_id = List.nth(p.self.ids, 0);
+        let l_id = List.nth(l.self.ids, 0);
+        get_message(
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s%s"),
+                  Id.to_string(s_id),
+                  Id.to_string(l_id),
+                  Id.to_string(p_id),
+                ),
+            ),
+          DeductionExp.consvalid(s.ghost, p.ghost, l.ghost),
+        );
       | Mem(p) =>
         let p_id = List.nth(p.self.ids, 0);
         get_message(
@@ -911,6 +927,20 @@ let get_doc =
                 ),
             ),
           DeductionExp.memhasty(s.ghost, (x.ghost, t.ghost)),
+        );
+      | Subset(sub) =>
+        let sub_id = List.nth(sub.self.ids, 0);
+        get_message(
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(sub_id),
+                  Id.to_string(s_id),
+                ),
+            ),
+          DeductionExp.subset(s.ghost, sub.ghost),
         );
       };
     }

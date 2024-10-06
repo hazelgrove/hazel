@@ -105,6 +105,7 @@ let rec repr = (p: int, prop: t, ~color_map: ColorSteps.t): list(Node.t) => {
     | Unroll(a) => repr_aba_tight(["unroll(", ")"], [a])
     | TPat(x) => x |> mk
     | Pat(x) => x |> mk
+    | Type(t) => repr_postop("type", t)
     | HasType(a, b) => repr_binop(":", a, b)
     | Syn(a, b) => repr_binop("⇒", a, b)
     | Ana(a, b) => repr_binop("⇐", a, b)
@@ -176,8 +177,10 @@ let copy_color_map =
         | Cons(p1, p2) => [p1, p2]
         | ConsHasTy((p1, p2), p3) => [p1, p2, p3]
         | ConsHasTy2((p1, p2), (p3, p4), p5) => [p1, p2, p3, p4, p5]
+        | ConsValid(p1, p2) => [p1, p2]
         | Mem(p) => [p]
         | MemHasTy(p1, p2) => [p1, p2]
+        | Subset(p) => [p]
         }
       )
     };
@@ -567,6 +570,18 @@ let conshasty2 = (s, (x, t1), (y, t2), l) =>
     ++ "*](%s).",
   );
 
+let consvalid = (s, a, l) =>
+  failtest(
+    ConsValid,
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be [*"
+    ++ (l |> show_ghost)
+    ++ "*](%s) extended by [*"
+    ++ (a |> show_ghost)
+    ++ "*](%s) is a valid type.",
+  );
+
 let mem = (s, p) =>
   failtest(
     Mem,
@@ -586,5 +601,15 @@ let memhasty = (s, (x, t)) =>
     ++ (t |> show_ghost)
     ++ "*](%s) to be a member of [*"
     ++ (s |> show_ghost)
+    ++ "*](%s).",
+  );
+
+let subset = (s, l) =>
+  failtest(
+    Subset,
+    "Expect [*"
+    ++ (s |> show_ghost)
+    ++ "*](%s) to be a subset of [*"
+    ++ (l |> show_ghost)
     ++ "*](%s).",
   );

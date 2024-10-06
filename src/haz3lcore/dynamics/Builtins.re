@@ -360,6 +360,16 @@ let ctx_init: Ctx.t = {
       id: Id.invalid,
       kind: Ctx.Singleton(Sum(meta_cons_map) |> Typ.fresh),
     });
+  let drv_tys =
+    List.map(
+      t =>
+        Ctx.TVarEntry({
+          name: t,
+          id: Id.invalid,
+          kind: Ctx.Singleton(Typ.fresh(Var("Drv"))),
+        }),
+      ["Ctx", "Prop", "ALFA_Exp"],
+    );
   List.map(
     fun
     | (name, Const(typ, _)) => Ctx.VarEntry({name, typ, id: Id.invalid})
@@ -368,6 +378,7 @@ let ctx_init: Ctx.t = {
     Pervasives.builtins,
   )
   |> Ctx.extend(_, meta)
+  |> List.fold_left(Ctx.extend, drv_tys)
   |> Ctx.add_ctrs(_, "$Meta", Id.invalid, meta_cons_map);
 };
 

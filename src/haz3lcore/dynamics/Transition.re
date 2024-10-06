@@ -270,9 +270,9 @@ module Transition = (EV: EV_MODE) => {
             | None => Error("Pat Not Found")
             };
           let+ e =
-            switch (DHExp.term_of(d)) {
+            switch (DHExp.term_of(DHExp.strip_casts(d))) {
             | Term(Drv(Exp(e))) => Ok(e)
-            | _ => Error("Pat Not ALFA_Exp type")
+            | _ => Error("Pat Not Jdmt/Prop/Ctx/ALFA_Exp type")
             };
           e |> IdTagged.unwrap |> fst;
         | Parens(e) => Parens(go_exp(e))
@@ -282,6 +282,7 @@ module Transition = (EV: EV_MODE) => {
         | Ctx(es) => Ctx(List.map(go_exp, es))
         | Cons(e1, e2) => Cons(go_exp(e1), go_exp(e2))
         | Concat(e1, e2) => Concat(go_exp(e1), go_exp(e2))
+        | Type(t) => Type(t)
         | HasType(e, t) => HasType(go_exp(e), t)
         | Syn(e, t) => Syn(go_exp(e), t)
         | Ana(e, t) => Ana(go_exp(e), t)

@@ -26,8 +26,10 @@ type operation =
   | Cons(t, t)
   | ConsHasTy((t, t), t)
   | ConsHasTy2((t, t), (t, t), t)
+  | ConsValid(t, t)
   | Mem(t)
-  | MemHasTy(t, t);
+  | MemHasTy(t, t)
+  | Subset(t);
 
 let repr_operation: (t, operation) => string =
   (p, op) => {
@@ -117,6 +119,13 @@ let repr_operation: (t, operation) => string =
         repr(x2),
         repr(t2),
       )
+    | ConsValid(a, p') =>
+      Printf.sprintf(
+        "Expect %s equal to %s extended by %s is valid type.",
+        repr(p),
+        repr(p'),
+        repr(a),
+      )
     | Mem(p') =>
       Printf.sprintf("Expect %s to be a member of %s.", repr(p'), repr(p))
     | MemHasTy(p', t) =>
@@ -126,6 +135,8 @@ let repr_operation: (t, operation) => string =
         repr(t),
         repr(p),
       )
+    | Subset(s) =>
+      Printf.sprintf("Expect %s to be a subset of %s.", repr(p), repr(s))
     };
   };
 
@@ -202,6 +213,7 @@ type req('a) =
   | TPat: req(string)
   | Pat: req(string)
   // ALFA Proposition
+  | Type(req('a)): req('a)
   | HasType(req('a), req('b)): req(('a, 'b))
   | Syn(req('a), req('b)): req(('a, 'b))
   | Ana(req('a), req('b)): req(('a, 'b))
@@ -416,6 +428,10 @@ and unbox_self: type a. (DrvSyntax.t, req(a)) => result(a, failure) =
       Ok((a, b));
     | (Eq(_), _) => Error(FailUnbox(Eq, p))
     // ALFA proposition
+    | (Type(ra), Type(a)) =>
+      let$ a = unbox(a, ra);
+      Ok(a);
+    | (Type(_), _) => Error(FailUnbox(Type, p))
     | (HasType(ra, rb), HasType(a, b)) =>
       let$ a = unbox(a, ra);
       let$ b = unbox(b, rb);
@@ -665,6 +681,10 @@ and unbox_with_ghost:
       Ok((a, b));
     | (Eq(_), _, _) => Error(FailUnbox(Eq, p))
     // ALFA proposition
+    | (Type(ra), Type(a), Type(a')) =>
+      let$ a = unbox(a, a', ra);
+      Ok(a);
+    | (Type(_), _, _) => Error(FailUnbox(Type, p))
     | (HasType(ra, rb), HasType(a, b), HasType(a', b')) =>
       let$ a = unbox(a, a', ra);
       let$ b = unbox(b, b', rb);
@@ -741,6 +761,10 @@ and check: (t, operation) => result(bool, failure) =
       let$ x = unbox(x, Pat);
       Ok(Var(x) |> temp);
     };
+    let unbox_tpat = x => {
+      let$ x = unbox(x, TPat);
+      Ok(TVar(x) |> temp);
+    };
     switch (op) {
     | Neg(p') =>
       let$ (n, n') = unbox_num2(p, p');
@@ -798,12 +822,21 @@ and check: (t, operation) => result(bool, failure) =
       let l = cons_ctx(l, HasType(x1, t1.self) |> temp);
       let l = Ctx(cons_ctx(l, HasType(x2, t2.self) |> temp)) |> temp;
       Ok(eq(self, l));
+    | ConsValid(a, l) =>
+      let$ l = unbox_list(l);
+      let$ a = unbox_tpat(a);
+      let l = Ctx(cons_ctx(l, Type(a) |> temp)) |> temp;
+      Ok(eq(self, l));
     | Mem(e) =>
       let$ l = unbox_list(p);
       Ok(mem_ctx(e.self, l));
     | MemHasTy(x, t) =>
       let$ l = unbox_list(p);
       Ok(mem_ctx(HasType(x.self, t.self) |> temp, l));
+    | Subset(s) =>
+      let$ s = unbox_list(s);
+      let$ l = unbox_list(p);
+      Ok(subset_ctx(s, l));
     };
   };
 
@@ -825,6 +858,39 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
   let (>>) = unbox;
   switch (rule) {
   // ALFA
+  | TV_Num =>
+    let$ _ = concl >> Entail(__, Type(Num));
+    Ok();
+  | TV_Bool =>
+    let$ _ = concl >> Entail(__, Type(Bool));
+    Ok();
+  | TV_Unit =>
+    let$ _ = concl >> Entail(__, Type(Unit));
+    Ok();
+  | TV_Arrow =>
+    let$ (tv_ctx, (t1, t2)) = concl >> Entail(__, Type(Arrow(__, __)));
+    let$ _ = prems(0) >> Entail(!tv_ctx, Type(!t1));
+    let$ _ = prems(1) >> Entail(!tv_ctx, Type(!t2));
+    Ok();
+  | TV_Prod =>
+    let$ (tv_ctx, (t1, t2)) = concl >> Entail(__, Type(Prod(__, __)));
+    let$ _ = prems(0) >> Entail(!tv_ctx, Type(!t1));
+    let$ _ = prems(1) >> Entail(!tv_ctx, Type(!t2));
+    Ok();
+  | TV_Sum =>
+    let$ (tv_ctx, (t1, t2)) = concl >> Entail(__, Type(Sum(__, __)));
+    let$ _ = prems(0) >> Entail(!tv_ctx, Type(!t1));
+    let$ _ = prems(1) >> Entail(!tv_ctx, Type(!t2));
+    Ok();
+  | TV_Rec =>
+    let$ (tv_ctx, (a, t)) = concl >> Entail(__, Type(Rec(__, __)));
+    let$ _ = prems(0) >> Entail(!!ConsValid(a, tv_ctx), Type(!t));
+    Ok();
+  | TV_TVar =>
+    let$ (tv_ctx, s) = concl >> Entail(__, __);
+    let$ _ = s >> Type(TVar);
+    let$ _ = tv_ctx >> !!Mem(s);
+    Ok();
   | A_Subsumption =>
     let$ (ctx, (e, t)) = prems(0) >> Entail(__, Syn(__, __));
     let$ _ = concl >> Entail(!ctx, Ana(!e, !t));
@@ -1044,6 +1110,14 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = prems(0) >> Entail(!ctx, HasType(!e_def, !t_def));
     let$ _ = prems(1) >> Entail(!!ctx', HasType(!e_body, !t));
     Ok();
+  | T_LetAnn_TV =>
+    let$ (ctx, ((x, t_def, e_def, e_body), t)) =
+      concl >> Entail(__, HasType(LetAnn(__, __, __, __), __));
+    let ctx' = ConsHasTy((x, t_def), ctx);
+    let$ _ = prems(0) >> Entail(!!Subset(ctx), Type(!t_def));
+    let$ _ = prems(1) >> Entail(!ctx, HasType(!e_def, !t_def));
+    let$ _ = prems(2) >> Entail(!!ctx', HasType(!e_body, !t));
+    Ok();
   | S_Let =>
     let$ (ctx, ((x, e_def, e_body), t)) =
       concl >> Entail(__, Syn(Let(__, __, __), __));
@@ -1091,6 +1165,14 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let ctx' = ConsHasTy((x, t_in), ctx);
     let$ _ = prems(0) >> Entail(!!ctx', HasType(!e_body, !t_out));
     Ok();
+  | T_FunAnn_TV =>
+    let$ (ctx, ((x, t_in, e_body), (t_in', t_out))) =
+      concl >> Entail(__, HasType(FunAnn(__, __, __), Arrow(__, __)));
+    let$ _ = t_in' >> !t_in;
+    let ctx' = ConsHasTy((x, t_in), ctx);
+    let$ _ = prems(0) >> Entail(!!Subset(ctx), Type(!t_in));
+    let$ _ = prems(1) >> Entail(!!ctx', HasType(!e_body, !t_out));
+    Ok();
   | A_Fun =>
     let$ (ctx, ((x, e_body), (t_in, t_out))) =
       concl >> Entail(__, Ana(Fun(__, __), Arrow(__, __)));
@@ -1118,6 +1200,14 @@ let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => 
     let$ _ = t >> !t';
     let$ _ =
       prems(0) >> Entail(!!ConsHasTy((x, t), ctx), HasType(!e, !t));
+    Ok();
+  | T_FixAnn_TV =>
+    let$ (ctx, ((x, t, e), t')) =
+      concl >> Entail(__, HasType(FixAnn(__, __, __), __));
+    let$ _ = t >> !t';
+    let$ _ = prems(0) >> Entail(!!Subset(ctx), Type(!t));
+    let$ _ =
+      prems(1) >> Entail(!!ConsHasTy((x, t), ctx), HasType(!e, !t));
     Ok();
   | E_Fix =>
     let$ (e, v) = concl >> Eval(__, __);

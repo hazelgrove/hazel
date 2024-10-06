@@ -9,6 +9,8 @@
   /* justify-content: space-between; */
   gap: 1.2em;
   background-color: var(--ui-bkg);
+  /* Note(zhiyao): User may perfer to be able to scroll more than the page content */
+  padding-bottom: 100%;
 }
 
 #main.Exercises {
@@ -246,6 +248,12 @@
   align-items: flex-start;
 }
 
+.derivation-panel.cell-item {
+  padding-top: 0;
+  gap: 0;
+  /* background-color: var(--test-panel-bkg); */
+}
+
 .code-text:after {
   content: "";
 }
@@ -253,7 +261,10 @@
 .code.fakecode {
   display: flex;
   align-items: center;
-  height: 2.2rem;
+}
+
+.code.fakecode .code-text {
+  z-index: auto;
 }
 
 .deduction-concl {
@@ -268,7 +279,12 @@
 }
 
 .deduction-concl .cell-item {
+  background-color: var(--ui-bkg);
   padding: 0.3em 0.5em;
+}
+
+.deduction-concl .code.fakecode {
+  height: 2.2rem;
 }
 
 .deduction-concl .cell-item:hover {
@@ -299,11 +315,21 @@
 
 .add-abbr-btn,
 .add-premise-btn {
+  opacity: 0;
   cursor: pointer;
   color: var(--BR1);
-  border-radius: 0.4em;
-  margin: 0.2rem;
-  width: 1.2em;
+  border-radius: 2rem;
+  -webkit-transition: all 0.3s;
+  -moz-transition: all 0.3s;
+  -o-transition: all 0.3s;
+  -ms-transition: all 0.3s;
+  transition: all 0.3s;
+}
+
+.add-premise-btn {
+  margin-top: 0.3rem;
+  margin-bottom: 0.1rem;
+  width: 1.4em;
   height: 2em;
   display: inline-flex;
   align-items: center;
@@ -311,27 +337,69 @@
 }
 
 .add-abbr-btn {
-  height: 1.4rem;
-  width: -webkit-fill-available;
+  display: inline;
+  width: auto;
+}
+
+.add-abbr-btn .code .token{
+  color: var(--BR1);
+}
+
+.add-abbr-btn:hover .code .token{
+  color: var(--BR2);
 }
 
 .add-abbr-btn:hover,
 .add-premise-btn:hover {
   background: var(--cell-active);
-  filter: drop-shadow(0px 0px 2px var(--BR4));
+  /* filter: drop-shadow(0px 0px 1px var(--BR4)); */
   color: var(--BR2);
 }
 
+.add-abbr-btn:hover,
+.add-premise-btn:hover,
+.deduction-just:hover:has(>div>div>.deduction-just-wrapper:only-child) .add-premise-btn,
+.deduction-just-wrapper:has(>div>.deduction-concl:hover):not(:has(.add-premise-btn:hover))+.deduction-just-wrapper>.add-premise-btn,
+.deduction-just-wrapper:has(>div>.deduction-concl:hover)>.add-premise-btn,
+.cell-derivation:hover:has(.deduction-just~:hover)+.cell-derivation .add-abbr-btn,
+.cell-derivation:hover:not(:has(.deduction-just~:hover)):not(:has(.deduction-just:hover)) .add-abbr-btn,
+.cell-derivation:only-child .add-abbr-btn
+{
+  opacity: 1;
+}
+
+
+.add-premise-btn::after {
+  content: "•";
+}
+
+.add-premise-btn:hover::after {
+  content: "+";
+  font-weight: bold;
+}
+
 .deduction-label-wrapper {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   margin-left: 0.2rem;
 }
 
+.deduction-prems-label .test-result {
+  position: absolute;
+  right: -0.6rem;
+  bottom: -0.8rem;
+}
+
+.deduction-prems-label .test-result.staged {
+  animation: 1s blink step-end infinite;
+}
+
 /* Dropdown button */
-.deduction-label {    
+.deduction-label {
   color: var(--ui-bkg);
+  cursor: pointer;
   padding: 0 0.3rem;
   font-size: 0.8rem;
   height: 1.2rem;
@@ -351,19 +419,26 @@
   display: none;
   flex-direction: column;
   position: absolute;
-  left: 100%;
-  bottom: 0;
+  left: 0;
+  bottom: 1.1rem;
   background-color: var(--ui-bkg);
   border: var(--BR2) 0.1rem solid;
   border-radius: 0.6em;
+  border-bottom-left-radius: 0;
   z-index: var(--top-bar-z);
 }
 
 .abbr-wrapper .deduction-just {
   padding-left: 1.4rem;
 }
+
 .abbr-wrapper .deduction-just .deduction-just {
   padding-left: 0;
+}
+
+.deduction-just-wrapper {
+  display: flex;
+  align-items: flex-end;
 }
 
 .dropdown.correct,
@@ -385,19 +460,35 @@
 }
 
 /* Show the dropdown menu on hover */
-.deduction-label:hover .dropdown {
+/* .deduction-label-wrapper:hover {
+  filter: drop-shadow(0px 0px 4px var(--BR4));
+} */
+
+.deduction-label-wrapper:hover .dropdown {
   display: flex;
-  border-bottom-left-radius: 0;
 }
 
-.deduction-just .deduction-label:hover {
-  display: flex;
+.dropdown:hover::before {
+  content: "";
+  position: absolute;
+  top: -1rem;
+  /* Adjust this value to control the extra hover area */
+  right: -1rem;
+  bottom: 0;
+  left: -1rem;
+  z-index: -1;
+  /* Ensure it stays behind the dropdown */
+}
+
+.deduction-label-wrapper:hover .deduction-label {
+  border-top-left-radius: 0;
   border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
 }
 
-.deduction-label .named-menu-item {
+.deduction-label-wrapper .named-menu-item {
   height: 1.4rem;
+  font-size: 0.8rem;
+  text-wrap: nowrap;
   background: var(--menu-bkg);
   color: var(--token-exp);
   border-bottom: var(--BR2) 0.1rem solid;
@@ -410,65 +501,35 @@
   z-index: var(--top-bar-z);
 }
 
-.deduction-label .named-menu-item:last-child {
+.deduction-label-wrapper .named-menu-item:last-child {
   border-bottom: none;
   border-radius: 0.6rem;
 }
 
-.deduction-label .named-menu-item .icon {
+.deduction-label-wrapper .named-menu-item .icon {
   transform: scale(0.7);
 }
 
-.deduction-label .named-menu-item:hover {
+.deduction-label-wrapper .named-menu-item:hover {
   background-color: var(--cell-active);
 }
 
-.deduction-label .named-menu-item.default {
+.deduction-label-wrapper .named-menu-item.default {
   color: var(--token-explicit-hole);
   text-shadow: 1px 1px 0px var(--token-explicit-hole-shadow);
 }
 
 /* Add a grey background color to dropdown links on hover */
-.deduction-label .named-menu-item:hover {
+.deduction-label-wrapper .named-menu-item:hover {
   cursor: pointer;
   text-decoration: strong;
 }
 
-.deduction-label .named-menu-item .code.fakecode {
+.deduction-label-wrapper .named-menu-item .code.fakecode {
   height: auto;
 }
 
 #ninja-keys-rules::part(actions-list) {
   display: flex;
   flex-wrap: wrap;
-}
-
-.result-icon {
-  width: 1.3rem;
-  border-radius: 1.2rem;
-  cursor: pointer;
-  position: absolute;
-  bottom: 1.08rem;
-  right: -0.05rem;
-}
-
-.deduction-abbr .result-icon {
-  display: none;
-}
-
-.result-icon:hover {
-  background: var(--cell-active);
-  filter: drop-shadow(0px 0px 2px var(--BR4));
-}
-
-.result-icon.correct:hover {
-  filter: drop-shadow(0px 0px 2px var(--test-pass));
-}
-
-.result-icon.incorrect:hover {
-  filter: drop-shadow(0px 0px 2px var(--test-fail));
-}
-
-.result-icon.staged {
-  background: var(--Y1);
 }

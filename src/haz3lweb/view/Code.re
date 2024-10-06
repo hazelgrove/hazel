@@ -140,32 +140,6 @@ module Text =
          of_segment(buffer_ids, false, sort, seg)
        )
     |> List.concat;
-    // TODO(zhiyao): intended for derivation
-    // |> {
-    //   x =>
-    //     if (t.label == ["from", "to", "by", "end"]) {
-    //       let class_names = [
-    //         "label-from",
-    //         "term-prems",
-    //         "label-to",
-    //         "term-concl",
-    //         "label-by",
-    //         "term-rule",
-    //         "label-end",
-    //       ];
-    //       [
-    //         div(
-    //           ~attr=Attr.class_("derivaton"),
-    //           x
-    //           |> List.mapi((i, c) =>
-    //                div(~attr=Attr.class_(List.nth(class_names, i)), c)
-    //              ),
-    //         ),
-    //       ];
-    //     } else {
-    //       x |> List.concat;
-    //     };
-    // };
   };
 };
 

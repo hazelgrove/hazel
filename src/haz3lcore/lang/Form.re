@@ -106,12 +106,7 @@ let keywords = [
   "from",
   "to",
   "by",
-  "val",
   "eval",
-  "entail",
-  "hastype",
-  "syn",
-  "ana",
 ];
 let reserved_keywords = ["of", "when", "with", "switch", "match"];
 let keyword_regexp = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
@@ -366,8 +361,7 @@ let forms: list((string, t)) = [
   ("pipeline", mk_infix("|>", Exp, P.eqs)), // in OCaml, pipeline precedence is in same class as '=', '<', etc.
   // DOUBLE DELIMITERS
   ("filter_hide", mk(ds, ["hide", "in"], mk_pre(P.let_, Exp, [Exp]))),
-  // TODO(zhiyao): change it back to "eval", "in"
-  ("filter_eval", mk(ds, ["eval", "to"], mk_pre(P.let_, Exp, [Exp]))),
+  ("filter_eval", mk(ds, ["eval", "in"], mk_pre(P.let_, Exp, [Exp]))),
   ("filter_pause", mk(ds, ["pause", "in"], mk_pre(P.let_, Exp, [Exp]))),
   ("filter_debug", mk(ds, ["debug", "in"], mk_pre(P.let_, Exp, [Exp]))),
   // TRIPLE DELIMITERS
@@ -378,16 +372,17 @@ let forms: list((string, t)) = [
   ),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
   // Drv
+  ("to_alfa", mk(ii, ["{", "}"], mk_op(Exp, [Drv(Exp)]))),
   // ("of_alfa_typ", mk(ds, ["of_Typ", "end"], mk_op(Exp, [Drv(Typ)]))),
-  (
-    // TODO(zhiyao): fix this
-    "of_alfa_exp",
-    mk(ds, ["of_alfa_exp", "end"], mk_op(Exp, [Drv(Exp)])),
-  ),
+  // (
+  //   // TODO(zhiyao): fix this
+  //   "of_alfa_exp",
+  //   mk(ds, ["of_alfa_exp", "end"], mk_op(Exp, [Drv(Exp)])),
+  // ),
   // ("of_alfa_pat", mk(ds, ["of_Pat", "end"], mk_op(Exp, [Drv(Pat)]))),
   // ("of_alfa_tpat", mk(ds, ["of_TPat", "end"], mk_op(Exp, [Drv(TPat)]))),
-  ("of_prop", mk(ds, ["of_prop", "end"], mk_op(Exp, [Drv(Exp)]))),
-  ("of_ctxt", mk(ds, ["of_ctxt", "end"], mk_op(Exp, [Drv(Exp)]))),
+  // ("of_prop", mk(ds, ["of_prop", "end"], mk_op(Exp, [Drv(Exp)]))),
+  // ("of_ctxt", mk(ds, ["of_ctxt", "end"], mk_op(Exp, [Drv(Exp)]))),
   // ("of_jdmt", mk(ds, ["of_Jdmt", "end"], mk_op(Exp, [Drv(Exp)]))),
   // (
   //   "prop_alias",
@@ -398,7 +393,7 @@ let forms: list((string, t)) = [
   //   mk(ds, ["alfa", "=", "in"], mk_pre(P.let_, Exp, [Pat, Drv(Exp)])),
   // ),
   // Drv(Jdmt)
-  ("fake_val", mk(ds, ["val", "end"], mk_op(Exp, [Exp]))),
+  // ("fake_val", mk(ds, ["val", "end"], mk_op(Exp, [Exp]))),
   ("val", mk(ds, ["val", "end"], mk_op(Drv(Exp), [Drv(Exp)]))),
   ("eval", mk_infix("\=/", Drv(Exp), P.min)),
   ("entail", mk_infix("|-", Drv(Exp), P.min)),
@@ -410,7 +405,8 @@ let forms: list((string, t)) = [
   ("alfa_cons", mk_infix("::", Drv(Exp), P.cons)),
   ("alfa_paren", mk(ii, ["(", ")"], mk_op(Drv(Exp), [Drv(Exp)]))),
   ("alfa_abbr", mk(ii, ["{", "}"], mk_op(Drv(Exp), [Pat]))),
-  // Drv(Exp)
+  // Drv(Prop)
+  ("valid", mk(ds, ["valid", "end"], mk_op(Drv(Exp), [Drv(Typ)]))),
   (
     "hastype",
     mk(ss, [":"], mk_bin'(P.filter, Drv(Exp), Drv(Exp), [], Drv(Typ))),
@@ -426,6 +422,7 @@ let forms: list((string, t)) = [
   ("and", mk_infix("/\\", Drv(Exp), P.and_)),
   ("or", mk_infix("\\/", Drv(Exp), P.or_)),
   ("impl", mk_infix("==>", Drv(Exp), P.ann)),
+  ("prop_neg", mk(ds, ["!"], mk_pre(P.neg, Drv(Exp), []))),
   // Drv(Exp)
   ("exp_neg", mk(ds, ["-"], mk_pre(P.neg, Drv(Exp), []))),
   ("exp_plus", mk_infix("+", Drv(Exp), P.plus)),

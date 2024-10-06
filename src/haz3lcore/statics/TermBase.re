@@ -1346,6 +1346,7 @@ and ALFA_Exp: {
     | Cons(t, t)
     | Concat(t, t)
     // Prop
+    | Type(ALFA_Typ.t)
     | HasType(t, ALFA_Typ.t)
     | Syn(t, ALFA_Typ.t)
     | Ana(t, ALFA_Typ.t)
@@ -1409,6 +1410,7 @@ and ALFA_Exp: {
     | Cons(t, t)
     | Concat(t, t)
     // Prop
+    | Type(ALFA_Typ.t)
     | HasType(t, ALFA_Typ.t)
     | Syn(t, ALFA_Typ.t)
     | Ana(t, ALFA_Typ.t)
@@ -1469,6 +1471,7 @@ and ALFA_Exp: {
         | Ctx(e) => Ctx(List.map(exp_map_term, e))
         | Cons(e1, e2) => Cons(exp_map_term(e1), exp_map_term(e2))
         | Concat(e1, e2) => Concat(exp_map_term(e1), exp_map_term(e2))
+        | Type(t) => Type(ALFA_Typ.map_term(~f_typ, ~f_tpat, t))
         | HasType(e, t) => HasType(exp_map_term(e), t)
         | Syn(e, t) => Syn(exp_map_term(e), t)
         | Ana(e, t) => Ana(exp_map_term(e), t)
@@ -1542,6 +1545,8 @@ and ALFA_Exp: {
     | (Concat(e11, e12), Concat(e21, e22)) =>
       ALFA_Exp.fast_equal(e11, e21) && ALFA_Exp.fast_equal(e12, e22)
     | (Concat(_), _) => false
+    | (Type(t1), Type(t2)) => ALFA_Typ.fast_equal(t1, t2)
+    | (Type(_), _) => false
     | (HasType(e1, t1), HasType(e2, t2)) =>
       ALFA_Exp.fast_equal(e1, e2) && ALFA_Typ.fast_equal(t1, t2)
     | (HasType(_), _) => false

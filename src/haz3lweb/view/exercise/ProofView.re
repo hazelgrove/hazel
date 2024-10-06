@@ -94,7 +94,7 @@ let proof_view =
         // }
         // }),
       ],
-      [text("•")],
+      [],
     );
 
   let del_premise_btn_view = (~pos) =>
@@ -108,9 +108,33 @@ let proof_view =
         ),
       ~tooltip=
         switch (pos) {
-        | Trees(_, Value) => "Delete Abbreviation"
+        | Trees(_, Value) => "Delete Abbr"
         | _ => "Delete Premise"
         },
+    );
+
+  let pop_premise_btn_view = (~pos) =>
+    Widgets.button_named(
+      Icons.export,
+      _ =>
+        inject(
+          UpdateAction.MapExercise(
+            map_model(Exercise.Proof.pop_premise(~pos)),
+          ),
+        ),
+      ~tooltip="Pop out to Abbr",
+    );
+
+  let push_premise_btn_view = (~pos) =>
+    Widgets.button_named(
+      Icons.import,
+      _ =>
+        inject(
+          UpdateAction.MapExercise(
+            map_model(Exercise.Proof.push_premise(~pos)),
+          ),
+        ),
+      ~tooltip="Push back Abbr",
     );
 
   let rule_to_label =
@@ -190,7 +214,7 @@ let proof_view =
             ),
           ),
         ),
-      ~tooltip="Cancel Abbreviation",
+      ~tooltip="Cancel Abbr",
     );
 
   let class_of_result = ({res, _}: VerifiedTree.info) =>
@@ -211,12 +235,25 @@ let proof_view =
       (
         Exercise.Proof.all_abbrs(pos)
         |> List.filter(abbr => abbr != index)
-        |> List.filter(abbr => !(Option.is_none(abbr) && pos_is_value(pos)))
+        |> List.filter(_ => !pos_is_value(pos))
         |> List.map(dropdown_option_abbr_view(~pos, ~index=_))
       )
       @ (
         switch (index) {
         | Some(_) => [dropdown_switch_just_view(~pos)]
+        | None => []
+        }
+      )
+      @ (
+        switch (index) {
+        | Some(_) when !pos_is_value(pos) => [push_premise_btn_view(~pos)]
+        | Some(_) => []
+        | None
+            when
+              !pos_is_value(pos)
+              || pos == Trees(List.length(eds.trees) - 1, Value) => [
+            pop_premise_btn_view(~pos),
+          ]
         | None => []
         }
       )
@@ -228,43 +265,38 @@ let proof_view =
       @ [dropdown_switch_rule_view(~pos)],
     );
 
-  let label_view = (~pos, ~res, ~label, ~index) =>
+  let label_view = (~pos, ~res, ~label) =>
     div(
       ~attrs=[
         Attr.class_("deduction-label"),
         Attr.class_(class_of_result(res)),
+        Attr.on_click(_ => {
+          if (NinjaKeysRules.pos^ == pos) {
+            NinjaKeysRules.staged := ! NinjaKeysRules.staged^;
+          } else {
+            NinjaKeysRules.staged := true;
+            NinjaKeysRules.pos := pos;
+          };
+          if (!settings.explainThis.show) {
+            inject(UpdateAction.Set(ExplainThis(ToggleShow)));
+          } else {
+            Ui_effect.Ignore;
+          };
+        }),
       ],
-      [text(label), dropdown_view(~pos, ~res, ~index)],
+      [text(label)],
     );
 
-  let result_btn_view = (~pos, ~res: VerifiedTree.info) =>
-    create(
-      "img",
+  let result_btn_view = (~pos, ~res: VerifiedTree.info) => {
+    let status =
+      switch (res.res) {
+      | Correct => "Pass"
+      | Incorrect(_) => "Fail"
+      | Pending(_) => "Indet"
+      };
+    div(
       ~attrs=
-        [
-          Attr.class_("result-icon"),
-          Attr.class_(class_of_result(res)),
-          Attr.src(
-            switch (res.res) {
-            | Correct => "img/icons8-check-mark.svg"
-            | Incorrect(_) => "img/icons8-cancel.svg"
-            | Pending(_) => "img/icons8-clock.svg"
-            },
-          ),
-          Attr.on_click(_ => {
-            if (NinjaKeysRules.pos^ == pos) {
-              NinjaKeysRules.staged := ! NinjaKeysRules.staged^;
-            } else {
-              NinjaKeysRules.staged := true;
-              NinjaKeysRules.pos := pos;
-            };
-            if (!settings.explainThis.show) {
-              inject(UpdateAction.Set(ExplainThis(ToggleShow)));
-            } else {
-              Ui_effect.Ignore;
-            };
-          }),
-        ]
+        [Attr.classes(["test-result", status])]
         @ (
           if (NinjaKeysRules.pos^ == pos && NinjaKeysRules.staged^) {
             [Attr.class_("staged")];
@@ -274,15 +306,15 @@ let proof_view =
         ),
       [],
     );
+  };
 
   let label_view = (~pos, ~res, ~label, ~index) =>
     div(
       ~attrs=[Attr.class_("deduction-label-wrapper")],
-      [result_btn_view(~pos, ~res), label_view(~pos, ~res, ~label, ~index)],
+      [label_view(~pos, ~res, ~label), dropdown_view(~pos, ~res, ~index)],
     );
 
   let premises_view = (~children_node, ~pos, ~res, ~rule) => {
-    let n = List.length(children_node);
     let label = rule_to_label(rule);
     div(
       ~attrs=[
@@ -292,12 +324,32 @@ let proof_view =
       [
         div(
           ~attrs=[Attr.class_("deduction-prems")],
-          List.init(n + 1, add_premise_btn_view(~pos, ~index=_))
-          |> Aba.mk(_, children_node)
-          |> Aba.join(Fun.id, Fun.id),
+          (
+            children_node
+            |> List.mapi((i, t) =>
+                 div(
+                   ~attrs=[Attr.class_("deduction-just-wrapper")],
+                   [add_premise_btn_view(~pos, ~index=i), t],
+                 )
+               )
+          )
+          @ [
+            div(
+              ~attrs=[Attr.class_("deduction-just-wrapper")],
+              [
+                add_premise_btn_view(~pos, ~index=List.length(children_node)),
+              ],
+            ),
+          ],
+          // List.init(n + 1, add_premise_btn_view(~pos, ~index=_))
+          // |> Aba.mk(_, children_node)
+          // |> Aba.join(Fun.id, Fun.id),
         ),
       ]
-      @ [label_view(~pos, ~res, ~label, ~index=None)],
+      @ [
+        label_view(~pos, ~res, ~label, ~index=None),
+        result_btn_view(~pos, ~res),
+      ],
     );
   };
 
@@ -388,7 +440,14 @@ let proof_view =
       ]
       |> code_wrapper;
     let lower_code = [span_exp("in")] |> code_wrapper;
-    div(~attrs=[Attr.class_("abbr-wrapper")], [upper_code, t, lower_code]);
+    if (i == List.length(eds.trees) - 1) {
+      t;
+    } else {
+      div(
+        ~attrs=[Attr.class_("abbr-wrapper")],
+        [upper_code, t, lower_code],
+      );
+    };
   };
 
   let add_abbr_btn_view = (~index) =>
@@ -411,24 +470,23 @@ let proof_view =
           )
         ),
       ],
-      [text("—")],
+      [
+        (
+          if (index == List.length(eds.trees)) {
+            [];
+          } else {
+            [FakeCode.span_exp("let"), FakeCode.span_secondary(" ")];
+          }
+        )
+        @ [FakeCode.span_pat("...")]
+        |> FakeCode.code_wrapper,
+      ],
     );
 
   // type view_info = (Exercise.pos, VerifiedTree.res, ed)
   // and ed =
   //   | Just(Derivation.Rule.t, Editor.t, Exercise.DynamicsItem.t)
   //   | Abbr(index);
-
-  let derivation_wrapper = l =>
-    switch (List.rev(l)) {
-    | [] => []
-    | [hd, ...tl] => (tl |> List.rev |> List.mapi(abbr_wrapper)) @ [hd]
-    };
-
-  let add_abbr_btn_wrapper = l => {
-    let btns = List.init(List.length(l) + 1, add_abbr_btn_view(~index=_));
-    Aba.mk(btns, l) |> Aba.join(Fun.id, Fun.id);
-  };
 
   let info_tree =
     List.map2(Tree.combine, eds.trees, stitched_dynamics.trees)
@@ -445,23 +503,40 @@ let proof_view =
          Tree.mapi((pos, (res, ed)) => (Trees(i, pos), res, ed))
        );
 
-  let derivation_view =
+  let derivation_view = (i, info_single) =>
     div(
-      ~attrs=[Attr.classes(["cell deselected unlocked"])],
+      ~attrs=[Attr.class_("cell-derivation")],
+      [add_abbr_btn_view(~index=i)]
+      @ [info_single |> Tree.fold_deep(deduction_view) |> abbr_wrapper(i)],
+    );
+
+  let derivations_view =
+    div(
+      ~attrs=[Attr.classes(["cell"])],
       [
-        Cell.simple_cell_item([
-          Cell.caption("Derivation"),
-          div(
-            ~attrs=[Attr.class_("cell-derivation")],
-            info_tree
-            |> List.map(Tree.fold_deep(deduction_view))
-            |> derivation_wrapper
-            |> add_abbr_btn_wrapper,
+        div(
+          ~attrs=[Attr.classes(["cell-item derivation-panel"])],
+          (info_tree |> List.mapi(derivation_view))
+          @ (
+            if (settings.instructor_mode) {
+              [
+                div(
+                  ~attrs=[Attr.class_("cell-derivation")],
+                  [add_abbr_btn_view(~index=List.length(eds.trees))],
+                ),
+              ];
+            } else {
+              [];
+            }
           ),
-        ]),
+        ),
       ],
     );
 
+  // info_tree
+  // |> List.map(Tree.fold_deep(deduction_view))
+  // |> derivation_wrapper
+  // |> add_abbr_btn_wrapper,
   let prelude_view =
     editor_view(
       Proof(Prelude),
@@ -486,5 +561,5 @@ let proof_view =
       ~footer=[],
     );
 
-  [prelude_view, setup_view, derivation_view];
+  [prelude_view, setup_view, derivations_view];
 };

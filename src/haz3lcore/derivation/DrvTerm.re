@@ -12,6 +12,7 @@ module ALFA_Exp = {
     | Ctx
     | Cons
     | Concat
+    | Type
     | HasType
     | Syn
     | Ana
@@ -72,6 +73,7 @@ module ALFA_Exp = {
     | Ctx(_) => Ctx
     | Cons(_) => Cons
     | Concat(_) => Concat
+    | Type(_) => Type
     | HasType(_) => HasType
     | Syn(_) => Syn
     | Ana(_) => Ana

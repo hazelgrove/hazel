@@ -227,6 +227,7 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
       | _ => ret(hole(tm))
       }
     | (["val", "end"], [Drv(Exp(e))]) => ret(Val(e))
+    | (["valid", "end"], [Drv(Typ(t))]) => ret(Type(t))
     | (["[", "]"], [Drv(Exp(body))]) =>
       switch (body) {
       | {ids, copied: false, term: Tuple(es)} => (Ctx(es), ids)
@@ -273,6 +274,7 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
   | Pre(([(_id, t)], []), Drv(Exp(r))) as tm =>
     switch (t) {
     | (["-"], []) => ret(Neg(r))
+    | (["!"], []) => ret(Impl(r, Falsity |> Drv.Exp.fresh))
     | (["|-"], []) => ret(Entail(Ctx([]) |> Drv.Exp.fresh, r))
     | (["if", "then", "else"], [Drv(Exp(cond)), Drv(Exp(conseq))]) =>
       ret(If(cond, conseq, r))
@@ -429,14 +431,13 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           ids,
         )
       // | (["of_typ", "end"], [Drv(Typ(ty))]) => ret(Term(Drv(Typ(ty))))
-      | (["of_alfa_exp", "end"], [Drv(Exp(e))]) =>
-        ret(Term(Drv(Exp(e))))
+      | (["{", "}"], [Drv(Exp(e))]) => ret(Term(Drv(Exp(e))))
       // | (["of_pat", "end"], [Drv(Pat(p))]) => ret(Term(Drv(Pat(p))))
       // | (["of_tpat", "end"], [Drv(TPat(tp))]) =>
       //   ret(Term(Drv(TPat(tp))))
-      | (["of_ctxt", "end"], [Drv(Exp(ctx))]) =>
-        ret(Term(Drv(Exp(ctx))))
-      | (["of_prop", "end"], [Drv(Exp(p))]) => ret(Term(Drv(Exp(p))))
+      // | (["of_ctxt", "end"], [Drv(Exp(ctx))]) =>
+      //   ret(Term(Drv(Exp(ctx))))
+      // | (["of_prop", "end"], [Drv(Exp(p))]) => ret(Term(Drv(Exp(p))))
       // | (["of_jdmt", "end"], [Drv(Exp(j))]) => ret(Term(Drv(Exp(j))))
       | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
         ret(Invalid(t))
@@ -466,10 +467,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           Filter(Filter({act: (Step, All), pat: filter}), r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
-        | (["prop", "=", "in"], [Pat(pat), Drv(Exp(def))]) =>
-          Let(pat, UExp.Term(Drv(Exp(def))) |> UExp.fresh, r)
-        | (["alfa", "=", "in"], [Pat(pat), Drv(Exp(def))]) =>
-          Let(pat, UExp.Term(Drv(Exp(def))) |> UExp.fresh, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
         | _ => hole(tm)

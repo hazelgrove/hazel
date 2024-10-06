@@ -155,7 +155,7 @@ let rec any_to_info_map =
     )
   | Drv(drv) => (
       CoCtx.empty,
-      m |> drv_to_info_map(drv, ~ancestors, ~ctx) |> snd,
+      m |> drv_to_info_map(drv, ~ancestors, ~ctx, ~ty=DrvInfo.Jdmt) |> snd,
     )
   | Rul(_)
   | Nul ()
@@ -171,7 +171,7 @@ and multi = (~ctx, ~ancestors, m, tms) =>
     tms,
   )
 and drv_to_info_map =
-    (drv: Drv.t, m: Map.t, ~ctx, ~ancestors): (DrvInfo.t, Map.t) => {
+    (drv: Drv.t, m: Map.t, ~ctx, ~ancestors, ~ty): (DrvInfo.t, Map.t) => {
   let add = (drv, info, m) => (
     info,
     add_info(Drv.of_id(drv), InfoDrv(info), m),
@@ -208,6 +208,7 @@ and drv_to_info_map =
       m |> go_exp(e1, ~ty=Prop) |> snd |> go_exp(e2, ~ty=Ctx) |> snd |> add'
     | Concat(e1, e2) =>
       m |> go_exp(e1, ~ty=Ctx) |> snd |> go_exp(e2, ~ty=Ctx) |> snd |> add'
+    | Type(t) => m |> go_typ(t) |> snd |> add'
     | HasType(e, t)
     | Syn(e, t)
     | Ana(e, t) => m |> go_exp'(e) |> snd |> go_typ(t) |> snd |> add'
@@ -313,7 +314,7 @@ and drv_to_info_map =
     add(TPat(tpat), info, m);
   };
   switch (drv) {
-  | Exp(exp) => go_exp(exp, m, ~ty=Jdmt)
+  | Exp(exp) => go_exp(exp, m, ~ty)
   | Rul(_) => failwith("Statics.drv_to_info_map: impossible rul")
   | Pat(pat) => go_pat(pat, m, ~expect=Var)
   | Typ(ty) => go_typ(ty, m)
@@ -386,12 +387,25 @@ and uexp_to_info_map =
   | Float(_) => atomic(Just(Float |> Typ.temp))
   | String(_) => atomic(Just(String |> Typ.temp))
   | Term(term) =>
-    let m = any_to_info_map(term, m, ~ancestors, ~ctx) |> snd;
-    add(
-      ~self=Just(Term(Any.sort_of(term)) |> Typ.temp),
-      ~co_ctx=CoCtx.empty,
-      m,
-    );
+    let term =
+      switch (term) {
+      | Drv(drv) => drv
+      | _ => failwith("Statics.uexp_to_info_map: impossible term")
+      };
+    let ty: DrvInfo.ty_merged =
+      switch (mode) {
+      | Ana({term: Var(ty), _}) =>
+        switch (ty) {
+        | "Jdmt" => DrvInfo.Jdmt
+        | "Ctx" => DrvInfo.Ctx
+        | "Prop" => DrvInfo.Prop
+        | "ALFA_Exp" => DrvInfo.Exp
+        | _ => DrvInfo.Jdmt
+        }
+      | _ => DrvInfo.Jdmt
+      };
+    let m = drv_to_info_map(term, m, ~ancestors, ~ctx, ~ty) |> snd;
+    add(~self=Just(Term(Drv(Exp)) |> Typ.temp), ~co_ctx=CoCtx.empty, m);
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
     let modes = Mode.of_list_lit(ctx, List.length(es), mode);

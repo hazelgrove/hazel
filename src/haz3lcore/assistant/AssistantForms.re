@@ -33,13 +33,6 @@ module Typ = {
     ("let" ++ leading_expander, unk),
     ("test" ++ leading_expander, Prod([]) |> Typ.fresh),
     ("type" ++ leading_expander, unk),
-    ("val" ++ leading_expander, unk),
-    ("entail_hastype" ++ leading_expander, unk),
-    // ("entail_ana" ++ leading_expander, unk),
-    // ("entail_syn" ++ leading_expander, unk),
-    ("of_alfa_exp" ++ leading_expander, unk),
-    ("of_prop" ++ leading_expander, unk),
-    ("of_ctxt" ++ leading_expander, unk),
     ("eval" ++ leading_expander, unk),
   ];
 

@@ -168,8 +168,10 @@ type test_id =
   | Cons
   | ConsHasTy
   | ConsHasTy2
+  | ConsValid
   | Mem
-  | MemHasTy;
+  | MemHasTy
+  | Subset;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form_id =

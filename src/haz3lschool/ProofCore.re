@@ -226,6 +226,35 @@ let del_premise = (m: model('a), ~pos): model('a) =>
   | _ => del_premise(m, ~pos)
   };
 
+let pop_premise = (m: model('a), ~pos): model('a) => {
+  let (index, pos) = get_trees_pos(pos);
+  let abbr = m.trees |> List.nth(_, index) |> Tree.nth_node(_, pos);
+  let trees =
+    m.trees
+    |> List.mapi(i =>
+         i >= index ? Tree.map(Abbr.update_before_add(index)) : Fun.id
+       )
+    |> ListUtil.map_nth(
+         index,
+         Tree.put_nth_node(Tree.empty(Abbr.Abbr(Some(index))), _, pos),
+       )
+    |> ListUtil.insert(abbr, _, index);
+  {...m, trees};
+};
+
+let push_premise = (m: model('a), ~pos): model('a) => {
+  let (index, pos) = get_trees_pos(pos);
+  let addr_index =
+    switch (m.trees |> List.nth(_, index) |> Tree.nth(_, pos)) {
+    | Abbr.Abbr(Some(i)) => i
+    | _ => failwith("ProofCore.push_premise: Not an abbreviation")
+    };
+  let abbr = m.trees |> List.nth(_, addr_index);
+  let trees =
+    m.trees |> ListUtil.map_nth(index, Tree.put_nth_node(abbr, _, pos));
+  {...m, trees};
+};
+
 let switch_rule =
     (m: model('a), ~pos: pos, ~rule, ~init: unit => 'a): model('a) => {
   let (i, pos) = get_trees_pos(pos);

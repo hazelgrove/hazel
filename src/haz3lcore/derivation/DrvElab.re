@@ -61,6 +61,7 @@ and elab_prop: Drv.Exp.t => t =
     let term: term =
       switch (exp_term_of(prop)) {
       | Hole(s) => Hole(TermBase.TypeHole.show(s))
+      | Type(t) => Type(elab_typ(t))
       | HasType(e, t) => HasType(elab_exp(e), elab_typ(t))
       | Syn(e, t) => Syn(elab_exp(e), elab_typ(t))
       | Ana(e, t) => Ana(elab_exp(e), elab_typ(t))

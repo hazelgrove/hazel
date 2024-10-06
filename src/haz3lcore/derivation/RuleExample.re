@@ -26,19 +26,61 @@ let of_ghost: Rule.t => deduction(t) =
     let n1 = () => !Var("n₁");
     let n2 = () => !Var("n₂");
     let gamma = () => !Var("Γ");
+    let delta = () => !Var("Δ");
+    let tv_ctx = () => !Ctx([delta()]);
+    let tv_ctx_a = () => !Ctx(!Type(a()) |> cons_ctx([delta()]));
     let ctx = () => !Ctx([gamma()]);
-    let ctx_x = () => !Ctx([gamma(), !HasType(!Var("x"), t1())]);
-    let ctx_y = () => !Ctx([gamma(), !HasType(!Var("y"), t2())]);
+    let ctx_x = () =>
+      !Ctx(!HasType(!Var("x"), t1()) |> cons_ctx([gamma()]));
+    let ctx_y = () =>
+      !Ctx(!HasType(!Var("y"), t2()) |> cons_ctx([gamma()]));
     let ctx_xy = () =>
       !
-        Ctx([
-          gamma(),
-          !HasType(!Var("y"), t2()),
-          !HasType(!Var("x"), t1()),
-        ]);
-    let ctx_a = () => !Ctx([gamma(), a()]);
-    let ctx_b = () => !Ctx([gamma(), b()]);
+        Ctx(
+          !HasType(!Var("y"), t2())
+          |> cons_ctx(!HasType(!Var("x"), t1()) |> cons_ctx([gamma()])),
+        );
+    let ctx_a = () => !Ctx(a() |> cons_ctx([gamma()]));
+    let ctx_b = () => !Ctx(b() |> cons_ctx([gamma()]));
     switch (rule) {
+    | TV_Num =>
+      let concl = !Entail(tv_ctx(), !Type(!Num));
+      {concl, prems: []};
+    | TV_Bool =>
+      let concl = !Entail(tv_ctx(), !Type(!Bool));
+      {concl, prems: []};
+    | TV_Unit =>
+      let concl = !Entail(tv_ctx(), !Type(!Unit));
+      {concl, prems: []};
+    | TV_Arrow =>
+      let prems = [
+        !Entail(tv_ctx(), !Type(t1())),
+        !Entail(tv_ctx(), !Type(t2())),
+      ];
+      let concl = !Entail(tv_ctx(), !Type(!Arrow(t1(), t2())));
+      {concl, prems};
+    | TV_Prod =>
+      let prems = [
+        !Entail(tv_ctx(), !Type(t1())),
+        !Entail(tv_ctx(), !Type(t2())),
+      ];
+      let concl = !Entail(tv_ctx(), !Type(!Prod(t1(), t2())));
+      {concl, prems};
+    | TV_Sum =>
+      let prems = [
+        !Entail(tv_ctx(), !Type(t1())),
+        !Entail(tv_ctx(), !Type(t2())),
+      ];
+      let concl = !Entail(tv_ctx(), !Type(!Sum(t1(), t2())));
+      {concl, prems};
+    | TV_Rec =>
+      let prems = [!Entail(tv_ctx_a(), !Type(t()))];
+      let concl = !Entail(tv_ctx(), !Type(!Rec(a(), t())));
+      {concl, prems};
+    | TV_TVar =>
+      let concl =
+        !Entail(!Ctx(!Type(t()) |> cons_ctx([delta()])), !Type(t()));
+      {concl, prems: []};
     | A_Subsumption =>
       let prems = [!Entail(ctx(), !Syn(e(), t()))];
       let concl = !Entail(ctx(), !Ana(e(), t()));
@@ -249,11 +291,19 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | S_Var =>
       let concl =
-        !Entail(!Ctx([ctx(), !HasType(x(), t1())]), !Syn(x(), t1()));
+        !
+          Entail(
+            !Ctx(!HasType(x(), t1()) |> cons_ctx([ctx()])),
+            !Syn(x(), t1()),
+          );
       {concl, prems: []};
     | T_Var =>
       let concl =
-        !Entail(!Ctx([ctx(), !HasType(x(), t1())]), !HasType(x(), t1()));
+        !
+          Entail(
+            !Ctx(!HasType(x(), t1()) |> cons_ctx([ctx()])),
+            !HasType(x(), t1()),
+          );
       {concl, prems: []};
     | S_LetAnn =>
       let prems = [
@@ -273,6 +323,15 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | T_LetAnn =>
       let prems = [
+        !Entail(ctx(), !HasType(e1(), t1())),
+        !Entail(ctx_x(), !HasType(e2(), t())),
+      ];
+      let concl =
+        !Entail(ctx(), !HasType(!LetAnn(xp(), t1(), e1(), e2()), t()));
+      {concl, prems};
+    | T_LetAnn_TV =>
+      let prems = [
+        !Entail(!Ctx([]), !Type(t1())),
         !Entail(ctx(), !HasType(e1(), t1())),
         !Entail(ctx_x(), !HasType(e2(), t())),
       ];
@@ -331,6 +390,18 @@ let of_ghost: Rule.t => deduction(t) =
             !HasType(!FunAnn(xp(), t1(), e1()), !Arrow(t1(), t2())),
           );
       {concl, prems};
+    | T_FunAnn_TV =>
+      let prems = [
+        !Entail(!Ctx([]), !Type(t1())),
+        !Entail(ctx_x(), !HasType(e1(), t2())),
+      ];
+      let concl =
+        !
+          Entail(
+            ctx(),
+            !HasType(!FunAnn(xp(), t1(), e1()), !Arrow(t1(), t2())),
+          );
+      {concl, prems};
     | A_Fun =>
       let prems = [!Entail(ctx_x(), !Ana(e1(), t2()))];
       let concl =
@@ -350,6 +421,13 @@ let of_ghost: Rule.t => deduction(t) =
       {concl, prems};
     | T_FixAnn =>
       let prems = [!Entail(ctx_x(), !HasType(e(), t1()))];
+      let concl = !Entail(ctx(), !HasType(!FixAnn(xp(), t1(), e()), t1()));
+      {concl, prems};
+    | T_FixAnn_TV =>
+      let prems = [
+        !Entail(!Ctx([]), !Type(t1())),
+        !Entail(ctx_x(), !HasType(e(), t1())),
+      ];
       let concl = !Entail(ctx(), !HasType(!FixAnn(xp(), t1(), e()), t1()));
       {concl, prems};
     | E_Fix =>
@@ -557,7 +635,7 @@ let of_ghost: Rule.t => deduction(t) =
       let concl = !Eval(!Unroll(e()), v());
       {concl, prems};
     | Assumption =>
-      let concl = !Entail(!Ctx([ctx(), p()]), p());
+      let concl = !Entail(!Ctx(p() |> cons_ctx([ctx()])), p());
       {concl, prems: []};
     | And_I =>
       let prems = [!Entail(ctx(), a()), !Entail(ctx(), b())];
