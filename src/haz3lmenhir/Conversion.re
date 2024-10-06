@@ -132,12 +132,7 @@ module rec Exp: {
     | Fun(p, e, name_opt) =>
       switch (name_opt) {
       | Some(name_str) =>
-        Fun(
-          Pat.of_menhir_ast(p),
-          of_menhir_ast(e),
-          None,
-          Some(name_str ++ "+"),
-        )
+        Fun(Pat.of_menhir_ast(p), of_menhir_ast(e), None, Some(name_str))
       | None => Fun(Pat.of_menhir_ast(p), of_menhir_ast(e), None, None)
       }
     | ApExp(e1, args) =>

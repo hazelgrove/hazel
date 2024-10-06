@@ -573,6 +573,5 @@ let uexp_elab = (m: Statics.Map.t, uexp: UExp.t): ElaborationResult.t =>
   switch (elaborate(m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
   | (d, ty) =>
-    print_endline("Elaborated: " ++ DHExp.show(d));
     Elaborates(d, ty, Delta.empty);
   };
