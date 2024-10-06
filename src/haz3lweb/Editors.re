@@ -145,7 +145,8 @@ let set_editing_test_val_rep = (editors: t, editing: bool): t =>
     Exercises(n, specs, Exercise.set_editing_test_val_rep(exercise, editing))
   };
 
-let update_test_val_rep = (editors: t, new_test_num: int, new_dist: int): t =>
+let update_test_val_rep =
+    (editors: t, new_test_num: int, new_dist: int, new_prov: int): t =>
   switch (editors) {
   | Scratch(_)
   | Documentation(_) => editors
@@ -153,7 +154,12 @@ let update_test_val_rep = (editors: t, new_test_num: int, new_dist: int): t =>
     Exercises(
       n,
       specs,
-      Exercise.update_test_val_rep(exercise, new_test_num, new_dist),
+      Exercise.update_test_val_rep(
+        exercise,
+        new_test_num,
+        new_dist,
+        new_prov,
+      ),
     )
   };
 

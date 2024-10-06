@@ -617,11 +617,16 @@ let apply =
         ...model,
         editors: Editors.update_exercise_prompt(model.editors, new_prompt),
       })
-    | UpdateTestValRep(new_test_num, new_dist) =>
+    | UpdateTestValRep(new_test_num, new_dist, new_prov) =>
       Model.save_and_return({
         ...model,
         editors:
-          Editors.update_test_val_rep(model.editors, new_test_num, new_dist),
+          Editors.update_test_val_rep(
+            model.editors,
+            new_test_num,
+            new_dist,
+            new_prov,
+          ),
       })
     | UpdateMutTestRep(new_dist) =>
       Model.save_and_return({

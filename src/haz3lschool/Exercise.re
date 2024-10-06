@@ -518,13 +518,19 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   let update_test_val_rep =
-      ({eds, _} as state: state, new_test_num: int, new_dist: int) => {
+      (
+        {eds, _} as state: state,
+        new_test_num: int,
+        new_dist: int,
+        new_prov: int,
+      ) => {
     ...state,
     eds: {
       ...eds,
       your_tests: {
         ...eds.your_tests,
         required: new_test_num,
+        provided: new_prov,
       },
       point_distribution: {
         ...eds.point_distribution,
