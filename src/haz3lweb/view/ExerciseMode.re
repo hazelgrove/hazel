@@ -81,7 +81,7 @@ let view =
   let prompt_view = {
     let (msg, _) =
       ExplainThis.mk_translation(~inject=Some(inject), eds.prompt);
-    let msg =
+    let new_msg =
       msg
       @ [
         div(
@@ -119,7 +119,7 @@ let view =
                       ),
                     ],
                   )
-                : div(~attrs=[Attr.class_("prompt-content")], msg)
+                : div(~attrs=[Attr.class_("prompt-content")], new_msg)
             : div(~attrs=[Attr.class_("prompt-content")], msg),
         ],
       ),
