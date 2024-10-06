@@ -572,6 +572,5 @@ let fix_typ_ids =
 let uexp_elab = (m: Statics.Map.t, uexp: UExp.t): ElaborationResult.t =>
   switch (elaborate(m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
-  | (d, ty) =>
-    Elaborates(d, ty, Delta.empty);
+  | (d, ty) => Elaborates(d, ty, Delta.empty)
   };
