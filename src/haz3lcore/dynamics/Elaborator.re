@@ -36,8 +36,8 @@ let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
   Typ.eq(t1, t2)
     ? p
     : {
-      Cast(
-        DHPat.fresh(Cast(p, t1, Typ.temp(Unknown(Internal))))
+      CastPat(
+        DHPat.fresh(CastPat(p, t1, Typ.temp(Unknown(Internal))))
         |> Casts.pattern_fixup,
         Typ.temp(Unknown(Internal)),
         t2,
@@ -66,7 +66,7 @@ let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t, 'a) => {
       Arrow(ty1, ty2) |> Typ.temp;
     | SynTypFun =>
       let (tpat, ty) = Typ.matched_forall(ctx, self_ty);
-      let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHole));
+      let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHoleTPat));
       Forall(tpat, ty) |> Typ.temp;
     // We need to remove the synswitches from this type.
     | Ana(ana_ty) => Typ.match_synswitch(ana_ty, self_ty)
@@ -93,7 +93,7 @@ let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
       Arrow(ty1, ty2) |> Typ.temp;
     | SynTypFun =>
       let (tpat, ty) = Typ.matched_forall(ctx, self_ty);
-      let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHole));
+      let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHoleTPat));
       Forall(tpat, ty) |> Typ.temp;
     | Ana(ana_ty) =>
       switch (prev_synswitch) {
@@ -111,11 +111,11 @@ let rec elaborate_pattern =
   let (term, rewrap) = UPat.unwrap(upat);
   let dpat =
     switch (term) {
-    | Int(_) => upat |> cast_from(Int |> Typ.temp)
-    | Bool(_) => upat |> cast_from(Bool |> Typ.temp)
-    | Float(_) => upat |> cast_from(Float |> Typ.temp)
-    | String(_) => upat |> cast_from(String |> Typ.temp)
-    | ListLit(ps) =>
+    | IntPat(_) => upat |> cast_from(Int |> Typ.temp)
+    | BoolPat(_) => upat |> cast_from(Bool |> Typ.temp)
+    | FloatPat(_) => upat |> cast_from(Float |> Typ.temp)
+    | StringPat(_) => upat |> cast_from(String |> Typ.temp)
+    | ListLitPat(ps) =>
       let (ps, tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
       let inner_type =
         tys
@@ -125,9 +125,11 @@ let rec elaborate_pattern =
       |> List.map2((p, t) => fresh_pat_cast(p, t, inner_type), _, tys)
       |> (
         ps' =>
-          ListLit(ps') |> rewrap |> cast_from(List(inner_type) |> Typ.temp)
+          ListLitPat(ps')
+          |> rewrap
+          |> cast_from(List(inner_type) |> Typ.temp)
       );
-    | Cons(p1, p2) =>
+    | ConsPat(p1, p2) =>
       let (p1', ty1) = elaborate_pattern(m, p1);
       let (p2', ty2) = elaborate_pattern(m, p2);
       let ty2_inner = Typ.matched_list(ctx, ty2);
@@ -136,22 +138,22 @@ let rec elaborate_pattern =
         |> Option.value(~default=Typ.temp(Unknown(Internal)));
       let p1'' = fresh_pat_cast(p1', ty1, ty_inner);
       let p2'' = fresh_pat_cast(p2', ty2, List(ty_inner) |> Typ.temp);
-      Cons(p1'', p2'') |> rewrap |> cast_from(List(ty_inner) |> Typ.temp);
-    | Tuple(ps) =>
+      ConsPat(p1'', p2'') |> rewrap |> cast_from(List(ty_inner) |> Typ.temp);
+    | TuplePat(ps) =>
       let (ps', tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
-      Tuple(ps') |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
-    | Ap(p1, p2) =>
+      TuplePat(ps') |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
+    | ApPat(p1, p2) =>
       let (p1', ty1) = elaborate_pattern(m, p1);
       let (p2', ty2) = elaborate_pattern(m, p2);
       let (ty1l, ty1r) = Typ.matched_arrow(ctx, ty1);
       let p1'' = fresh_pat_cast(p1', ty1, Arrow(ty1l, ty1r) |> Typ.temp);
       let p2'' = fresh_pat_cast(p2', ty2, ty1l);
-      Ap(p1'', p2'') |> rewrap |> cast_from(ty1r);
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
+      ApPat(p1'', p2'') |> rewrap |> cast_from(ty1r);
+    | InvalidPat(_)
+    | EmptyHolePat
+    | MultiHolePat(_)
     | Wild => upat |> cast_from(Typ.temp(Unknown(Internal)))
-    | Var(v) =>
+    | VarPat(v) =>
       upat
       |> cast_from(
            Ctx.lookup_var(ctx, v)
@@ -159,11 +161,11 @@ let rec elaborate_pattern =
            |> Option.value(~default=Typ.temp(Unknown(Internal))),
          )
     // Type annotations should already appear
-    | Parens(p)
-    | Cast(p, _, _) =>
+    | ParensPat(p)
+    | CastPat(p, _, _) =>
       let (p', ty) = elaborate_pattern(m, p);
       p' |> cast_from(ty |> Typ.normalize(ctx));
-    | Constructor(c, _) =>
+    | ConstructorPat(c, _) =>
       let mode =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
         | Some(Info.InfoPat({mode, _})) => mode
@@ -176,7 +178,7 @@ let rec elaborate_pattern =
         | _ => Unknown(Internal) |> Typ.temp
         };
       let t = t |> Typ.normalize(ctx);
-      Constructor(c, t) |> rewrap |> cast_from(t);
+      ConstructorPat(c, t) |> rewrap |> cast_from(t);
     };
   (dpat, elaborated_type);
 };
@@ -234,10 +236,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let (e', ty) = elaborate(m, e);
       e' |> cast_from(ty);
     | Deferral(_) => uexp
-    | Int(_) => uexp |> cast_from(Int |> Typ.temp)
-    | Bool(_) => uexp |> cast_from(Bool |> Typ.temp)
-    | Float(_) => uexp |> cast_from(Float |> Typ.temp)
-    | String(_) => uexp |> cast_from(String |> Typ.temp)
+    | IntLit(_) => uexp |> cast_from(Int |> Typ.temp)
+    | BoolLit(_) => uexp |> cast_from(Bool |> Typ.temp)
+    | FloatLit(_) => uexp |> cast_from(Float |> Typ.temp)
+    | StringLit(_) => uexp |> cast_from(String |> Typ.temp)
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let inner_type =
@@ -353,7 +355,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let tye'' =
         Typ.subst(
           ut',
-          tpat |> Option.value(~default=TPat.fresh(EmptyHole)),
+          tpat |> Option.value(~default=TPat.fresh(EmptyHoleTPat)),
           tye',
         );
       TypAp(e', ut) |> rewrap |> cast_from(tye'');
@@ -382,7 +384,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let kind' =
         switch (kind) {
         | Residue(_) => kind
-        | Filter({act, pat}) => Filter({act, pat: elaborate(m, pat) |> fst})
+        | FilterStepper({act, pat}) =>
+          FilterStepper({act, pat: elaborate(m, pat) |> fst})
         };
       Filter(kind', e') |> rewrap |> cast_from(t);
     | Closure(env, e) =>

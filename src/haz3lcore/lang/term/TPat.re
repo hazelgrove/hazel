@@ -12,16 +12,16 @@ let fresh: term => t = IdTagged.fresh;
 
 let hole = (tms: list(TermBase.Any.t)): TermBase.TPat.term =>
   switch (tms) {
-  | [] => EmptyHole
-  | [_, ..._] => MultiHole(tms)
+  | [] => EmptyHoleTPat
+  | [_, ..._] => MultiHoleTPat(tms)
   };
 
 let cls_of_term: term => cls =
   fun
-  | Invalid(_) => Invalid
-  | EmptyHole => EmptyHole
-  | MultiHole(_) => MultiHole
-  | Var(_) => Var;
+  | InvalidTPat(_) => Invalid
+  | EmptyHoleTPat => EmptyHole
+  | MultiHoleTPat(_) => MultiHole
+  | VarTPat(_) => Var;
 
 let show_cls: cls => string =
   fun

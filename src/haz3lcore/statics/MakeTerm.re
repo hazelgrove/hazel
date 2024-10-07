@@ -126,16 +126,16 @@ let rm_and_log_projectors = (seg: Segment.t): Segment.t =>
 
 let parse_sum_term: UTyp.t => ConstructorMap.variant(UTyp.t) =
   fun
-  | {term: Var(ctr), ids, _} => Variant(ctr, ids, None)
-  | {term: Ap({term: Var(ctr), ids: ids_ctr, _}, u), ids: ids_ap, _} =>
+  | {term: TypVar(ctr), ids, _} => Variant(ctr, ids, None)
+  | {term: ApTyp({term: TypVar(ctr), ids: ids_ctr, _}, u), ids: ids_ap, _} =>
     Variant(ctr, ids_ctr @ ids_ap, Some(u))
   | t => BadEntry(t);
 
 let mk_bad = (ctr, ids, value) => {
-  let t: Typ.t = {ids, copied: false, term: Var(ctr)};
+  let t: Typ.t = {ids, copied: false, term: TypVar(ctr)};
   switch (value) {
   | None => t
-  | Some(u) => Ap(t, u) |> Typ.fresh
+  | Some(u) => ApTyp(t, u) |> Typ.fresh
   };
 };
 
@@ -182,12 +182,13 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | ([t], []) when Form.is_empty_tuple(t) => ret(Tuple([]))
       | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
       | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
-      | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))
+      | ([t], []) when Form.is_bool(t) => ret(BoolLit(bool_of_string(t)))
       | ([t], []) when Form.is_undefined(t) => ret(Undefined)
-      | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
+      | ([t], []) when Form.is_int(t) => ret(IntLit(int_of_string(t)))
       | ([t], []) when Form.is_string(t) =>
-        ret(String(Form.strip_quotes(t)))
-      | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
+        ret(StringLit(Form.strip_quotes(t)))
+      | ([t], []) when Form.is_float(t) =>
+        ret(FloatLit(float_of_string(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_ctr(t) =>
         ret(Constructor(t, Unknown(Internal) |> Typ.temp))
@@ -221,13 +222,13 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["hide", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Eval, One), pat: filter}), r)
+          Filter(FilterStepper({act: (Eval, One), pat: filter}), r)
         | (["eval", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Eval, All), pat: filter}), r)
+          Filter(FilterStepper({act: (Eval, All), pat: filter}), r)
         | (["pause", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Step, One), pat: filter}), r)
+          Filter(FilterStepper({act: (Step, One), pat: filter}), r)
         | (["debug", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Step, All), pat: filter}), r)
+          Filter(FilterStepper({act: (Step, All), pat: filter}), r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
@@ -335,23 +336,24 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
     | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
-        | ([t], []) when Form.is_empty_tuple(t) => Tuple([])
-        | ([t], []) when Form.is_empty_list(t) => ListLit([])
-        | ([t], []) when Form.is_bool(t) => Bool(bool_of_string(t))
-        | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
-        | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
-        | ([t], []) when Form.is_string(t) => String(Form.strip_quotes(t))
-        | ([t], []) when Form.is_var(t) => Var(t)
+        | ([t], []) when Form.is_empty_tuple(t) => TuplePat([])
+        | ([t], []) when Form.is_empty_list(t) => ListLitPat([])
+        | ([t], []) when Form.is_bool(t) => BoolPat(bool_of_string(t))
+        | ([t], []) when Form.is_float(t) => FloatPat(float_of_string(t))
+        | ([t], []) when Form.is_int(t) => IntPat(int_of_string(t))
+        | ([t], []) when Form.is_string(t) =>
+          StringPat(Form.strip_quotes(t))
+        | ([t], []) when Form.is_var(t) => VarPat(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) =>
-          Constructor(t, Unknown(Internal) |> Typ.fresh)
+          ConstructorPat(t, Unknown(Internal) |> Typ.fresh)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
-          Invalid(t)
-        | (["(", ")"], [Pat(body)]) => Parens(body)
+          InvalidPat(t)
+        | (["(", ")"], [Pat(body)]) => ParensPat(body)
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
-          | {term: Tuple(ps), _} => ListLit(ps)
-          | term => ListLit([term])
+          | {term: TuplePat(ps), _} => ListLitPat(ps)
+          | term => ListLitPat([term])
           }
         | _ => hole(tm)
         },
@@ -363,7 +365,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
-        | (["(", ")"], [Pat(arg)]) => Ap(l, arg)
+        | (["(", ")"], [Pat(arg)]) => ApPat(l, arg)
         | _ => hole(tm)
         },
       )
@@ -373,15 +375,15 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {
     | ([(_id, ([":"], []))], []) =>
-      ret(Cast(p, ty, Unknown(Internal) |> Typ.fresh))
+      ret(CastPat(p, ty, Unknown(Internal) |> Typ.fresh))
     | _ => ret(hole(tm))
     }
   | Bin(Pat(l), tiles, Pat(r)) as tm =>
     switch (is_tuple_pat(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | Some(between_kids) => ret(TuplePat([l] @ between_kids @ [r]))
     | None =>
       switch (tiles) {
-      | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
+      | ([(_id, (["::"], []))], []) => ret(ConsPat(l, r))
       | _ => ret(hole(tm))
       }
     }
@@ -406,11 +408,11 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         | (["Int"], []) => Int
         | (["Float"], []) => Float
         | (["String"], []) => String
-        | ([t], []) when Form.is_typ_var(t) => Var(t)
-        | (["(", ")"], [Typ(body)]) => Parens(body)
+        | ([t], []) when Form.is_typ_var(t) => TypVar(t)
+        | (["(", ")"], [Typ(body)]) => TypParens(body)
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
-          Unknown(Hole(Invalid(t)))
+          Unknown(HoleProvenance(InvalidTypeHole(t)))
         | _ => hole(tm)
         },
       )
@@ -418,7 +420,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     }
   | Post(Typ(t), tiles) as tm =>
     switch (tiles) {
-    | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
+    | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(ApTyp(t, typ))
     | _ => ret(hole(tm))
     }
   /* forall and rec have to be before sum so that they bind tighter.
@@ -476,9 +478,9 @@ and tpat_term: unsorted => TPat.term = {
     | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
-        | ([t], []) when Form.is_typ_var(t) => Var(t)
+        | ([t], []) when Form.is_typ_var(t) => VarTPat(t)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
-          Invalid(t)
+          InvalidTPat(t)
         | _ => hole(tm)
         },
       )

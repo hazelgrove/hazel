@@ -63,10 +63,10 @@ and exp_term =
   | FailedCast(exp_t, typ_t, typ_t)
   | Deferral(deferral_position_t)
   | Undefined
-  | Bool(bool)
-  | Int(int)
-  | Float(float)
-  | String(string)
+  | BoolLit(bool)
+  | IntLit(int)
+  | FloatLit(float)
+  | StringLit(string)
   | ListLit(list(exp_t))
   | Constructor(string, typ_t) // Typ.t field is only meaningful in dynamic expressions
   | Fun(
@@ -102,22 +102,22 @@ and exp_term =
   | Cast(exp_t, typ_t, typ_t)
 and exp_t = IdTagged.t(exp_term)
 and pat_term =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t))
+  | InvalidPat(string)
+  | EmptyHolePat
+  | MultiHolePat(list(any_t))
   | Wild
-  | Int(int)
-  | Float(float)
-  | Bool(bool)
-  | String(string)
-  | ListLit(list(pat_t))
-  | Constructor(string, typ_t) // Typ.t field is only meaningful in dynamic patterns
-  | Cons(pat_t, pat_t)
-  | Var(Var.t)
-  | Tuple(list(pat_t))
-  | Parens(pat_t)
-  | Ap(pat_t, pat_t)
-  | Cast(pat_t, typ_t, typ_t)
+  | IntPat(int)
+  | FloatPat(float)
+  | BoolPat(bool)
+  | StringPat(string)
+  | ListLitPat(list(pat_t))
+  | ConstructorPat(string, typ_t) // Typ.t field is only meaningful in dynamic patterns
+  | ConsPat(pat_t, pat_t)
+  | VarPat(Var.t)
+  | TuplePat(list(pat_t))
+  | ParensPat(pat_t)
+  | ApPat(pat_t, pat_t)
+  | CastPat(pat_t, typ_t, typ_t)
 and pat_t = IdTagged.t(pat_term)
 and typ_term =
   | Unknown(type_provenance)
@@ -125,39 +125,39 @@ and typ_term =
   | Float
   | Bool
   | String
-  | Var(string)
+  | TypVar(string)
   | List(typ_t)
   | Arrow(typ_t, typ_t)
   | Sum(ConstructorMap.t(typ_t))
   | Prod(list(typ_t))
-  | Parens(typ_t)
-  | Ap(typ_t, typ_t)
+  | TypParens(typ_t)
+  | ApTyp(typ_t, typ_t)
   | Rec(tpat_t, typ_t)
   | Forall(tpat_t, typ_t)
 and typ_t = IdTagged.t(typ_term)
 and tpat_term =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t))
-  | Var(string)
+  | InvalidTPat(string)
+  | EmptyHoleTPat
+  | MultiHoleTPat(list(any_t))
+  | VarTPat(string)
 and tpat_t = IdTagged.t(tpat_term)
 and rul_term =
-  | Invalid(string)
+  | InvalidRule(string)
   | Hole(list(any_t))
   | Rules(exp_t, list((pat_t, exp_t)))
 and rul_t = IdTagged.t(rul_term)
 and environment_t = VarBstMap.Ordered.t_(exp_t)
 and closure_environment_t = (Id.t, environment_t)
 and stepper_filter_kind_t =
-  | Filter(filter)
+  | FilterStepper(filter)
   | Residue(int, FilterAction.t)
 and type_hole =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t))
+  | InvalidTypeHole(string)
+  | EmptyTypeHole
+  | MultiTypeHole(list(any_t))
 and type_provenance =
   | SynSwitch
-  | Hole(type_hole)
+  | HoleProvenance(type_hole)
   | Internal
 and filter = {
   pat: exp_t,
@@ -296,11 +296,11 @@ and Exp: {
         switch (term) {
         | EmptyHole
         | Invalid(_)
-        | Bool(_)
-        | Int(_)
-        | Float(_)
+        | BoolLit(_)
+        | IntLit(_)
+        | FloatLit(_)
         | Constructor(_)
-        | String(_)
+        | StringLit(_)
         | Deferral(_)
         | Var(_)
         | Undefined => term
@@ -365,10 +365,10 @@ and Exp: {
       && Typ.fast_equal(t1, t3)
       && Typ.fast_equal(t2, t4)
     | (Deferral(d1), Deferral(d2)) => d1 == d2
-    | (Bool(b1), Bool(b2)) => b1 == b2
-    | (Int(i1), Int(i2)) => i1 == i2
-    | (Float(f1), Float(f2)) => f1 == f2
-    | (String(s1), String(s2)) => s1 == s2
+    | (BoolLit(b1), BoolLit(b2)) => b1 == b2
+    | (IntLit(i1), IntLit(i2)) => i1 == i2
+    | (FloatLit(f1), FloatLit(f2)) => f1 == f2
+    | (StringLit(s1), StringLit(s2)) => s1 == s2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Constructor(c1, ty1), Constructor(c2, ty2)) =>
@@ -431,10 +431,10 @@ and Exp: {
     | (Invalid(_), _)
     | (FailedCast(_), _)
     | (Deferral(_), _)
-    | (Bool(_), _)
-    | (Int(_), _)
-    | (Float(_), _)
-    | (String(_), _)
+    | (BoolLit(_), _)
+    | (IntLit(_), _)
+    | (FloatLit(_), _)
+    | (StringLit(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
     | (Fun(_), _)
@@ -509,23 +509,24 @@ and Pat: {
       ...exp,
       term:
         switch (term) {
-        | EmptyHole
-        | Invalid(_)
+        | EmptyHolePat
+        | InvalidPat(_)
         | Wild
-        | Bool(_)
-        | Int(_)
-        | Float(_)
-        | Constructor(_)
-        | String(_)
-        | Var(_) => term
-        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
-        | ListLit(ts) => ListLit(List.map(pat_map_term, ts))
-        | Ap(e1, e2) => Ap(pat_map_term(e1), pat_map_term(e2))
-        | Cons(e1, e2) => Cons(pat_map_term(e1), pat_map_term(e2))
-        | Tuple(xs) => Tuple(List.map(pat_map_term, xs))
-        | Parens(e) => Parens(pat_map_term(e))
-        | Cast(e, t1, t2) =>
-          Cast(pat_map_term(e), typ_map_term(t1), typ_map_term(t2))
+        | BoolPat(_)
+        | IntPat(_)
+        | FloatPat(_)
+        | ConstructorPat(_)
+        | StringPat(_)
+        | VarPat(_) => term
+        | MultiHolePat(things) =>
+          MultiHolePat(List.map(any_map_term, things))
+        | ListLitPat(ts) => ListLitPat(List.map(pat_map_term, ts))
+        | ApPat(e1, e2) => ApPat(pat_map_term(e1), pat_map_term(e2))
+        | ConsPat(e1, e2) => ConsPat(pat_map_term(e1), pat_map_term(e2))
+        | TuplePat(xs) => TuplePat(List.map(pat_map_term, xs))
+        | ParensPat(e) => ParensPat(pat_map_term(e))
+        | CastPat(e, t1, t2) =>
+          CastPat(pat_map_term(e), typ_map_term(t1), typ_map_term(t2))
         },
     };
     x |> f_pat(rec_call);
@@ -533,45 +534,46 @@ and Pat: {
 
   let rec fast_equal = (p1: t, p2: t) =>
     switch (p1 |> IdTagged.term_of, p2 |> IdTagged.term_of) {
-    | (Parens(x), _) => fast_equal(x, p2)
-    | (_, Parens(x)) => fast_equal(p1, x)
-    | (EmptyHole, EmptyHole) => true
-    | (MultiHole(xs), MultiHole(ys)) =>
+    | (ParensPat(x), _) => fast_equal(x, p2)
+    | (_, ParensPat(x)) => fast_equal(p1, x)
+    | (EmptyHolePat, EmptyHolePat) => true
+    | (MultiHolePat(xs), MultiHolePat(ys)) =>
       List.length(xs) == List.length(ys)
       && List.equal(Any.fast_equal, xs, ys)
-    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (InvalidPat(s1), InvalidPat(s2)) => s1 == s2
     | (Wild, Wild) => true
-    | (Bool(b1), Bool(b2)) => b1 == b2
-    | (Int(i1), Int(i2)) => i1 == i2
-    | (Float(f1), Float(f2)) => f1 == f2
-    | (String(s1), String(s2)) => s1 == s2
-    | (Constructor(c1, t1), Constructor(c2, t2)) =>
+    | (BoolPat(b1), BoolPat(b2)) => b1 == b2
+    | (IntPat(i1), IntPat(i2)) => i1 == i2
+    | (FloatPat(f1), FloatPat(f2)) => f1 == f2
+    | (StringPat(s1), StringPat(s2)) => s1 == s2
+    | (ConstructorPat(c1, t1), ConstructorPat(c2, t2)) =>
       c1 == c2 && Typ.fast_equal(t1, t2)
-    | (Var(v1), Var(v2)) => v1 == v2
-    | (ListLit(xs), ListLit(ys)) =>
+    | (VarPat(v1), VarPat(v2)) => v1 == v2
+    | (ListLitPat(xs), ListLitPat(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
-    | (Cons(x1, y1), Cons(x2, y2)) =>
+    | (ConsPat(x1, y1), ConsPat(x2, y2)) =>
       fast_equal(x1, x2) && fast_equal(y1, y2)
-    | (Tuple(xs), Tuple(ys)) =>
+    | (TuplePat(xs), TuplePat(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
-    | (Ap(x1, y1), Ap(x2, y2)) => fast_equal(x1, x2) && fast_equal(y1, y2)
-    | (Cast(x1, t1, t2), Cast(x2, u1, u2)) =>
+    | (ApPat(x1, y1), ApPat(x2, y2)) =>
+      fast_equal(x1, x2) && fast_equal(y1, y2)
+    | (CastPat(x1, t1, t2), CastPat(x2, u1, u2)) =>
       fast_equal(x1, x2) && Typ.fast_equal(t1, u1) && Typ.fast_equal(t2, u2)
-    | (EmptyHole, _)
-    | (MultiHole(_), _)
-    | (Invalid(_), _)
+    | (EmptyHolePat, _)
+    | (MultiHolePat(_), _)
+    | (InvalidPat(_), _)
     | (Wild, _)
-    | (Bool(_), _)
-    | (Int(_), _)
-    | (Float(_), _)
-    | (String(_), _)
-    | (ListLit(_), _)
-    | (Constructor(_), _)
-    | (Cons(_), _)
-    | (Var(_), _)
-    | (Tuple(_), _)
-    | (Ap(_), _)
-    | (Cast(_), _) => false
+    | (BoolPat(_), _)
+    | (IntPat(_), _)
+    | (FloatPat(_), _)
+    | (StringPat(_), _)
+    | (ListLitPat(_), _)
+    | (ConstructorPat(_), _)
+    | (ConsPat(_), _)
+    | (VarPat(_), _)
+    | (TuplePat(_), _)
+    | (ApPat(_), _)
+    | (CastPat(_), _) => false
     };
 }
 and Typ: {
@@ -625,21 +627,23 @@ and Typ: {
       ...exp,
       term:
         switch (term) {
-        | Unknown(Hole(EmptyHole))
-        | Unknown(Hole(Invalid(_)))
+        | Unknown(HoleProvenance(EmptyTypeHole))
+        | Unknown(HoleProvenance(InvalidTypeHole(_)))
         | Unknown(SynSwitch)
         | Unknown(Internal)
         | Bool
         | Int
         | Float
         | String
-        | Var(_) => term
+        | TypVar(_) => term
         | List(t) => List(typ_map_term(t))
-        | Unknown(Hole(MultiHole(things))) =>
-          Unknown(Hole(MultiHole(List.map(any_map_term, things))))
-        | Ap(e1, e2) => Ap(typ_map_term(e1), typ_map_term(e2))
+        | Unknown(HoleProvenance(MultiTypeHole(things))) =>
+          Unknown(
+            HoleProvenance(MultiTypeHole(List.map(any_map_term, things))),
+          )
+        | ApTyp(e1, e2) => ApTyp(typ_map_term(e1), typ_map_term(e2))
         | Prod(xs) => Prod(List.map(typ_map_term, xs))
-        | Parens(e) => Parens(typ_map_term(e))
+        | TypParens(e) => TypParens(typ_map_term(e))
         | Arrow(t1, t2) => Arrow(typ_map_term(t1), typ_map_term(t2))
         | Sum(variants) =>
           Sum(
@@ -682,9 +686,9 @@ and Typ: {
         Rec(tp2, ty) |> rewrap
       | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
       | List(ty) => List(subst(s, x, ty)) |> rewrap
-      | Var(y) => str == y ? s : Var(y) |> rewrap
-      | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
-      | Ap(t1, t2) => Ap(subst(s, x, t1), subst(s, x, t2)) |> rewrap
+      | TypVar(y) => str == y ? s : TypVar(y) |> rewrap
+      | TypParens(ty) => TypParens(subst(s, x, ty)) |> rewrap
+      | ApTyp(t1, t2) => ApTyp(subst(s, x, t1), subst(s, x, t2)) |> rewrap
       };
     | None => ty
     };
@@ -695,13 +699,13 @@ and Typ: {
 
   let rec eq_internal = (n: int, t1: t, t2: t) => {
     switch (IdTagged.term_of(t1), IdTagged.term_of(t2)) {
-    | (Parens(t1), _) => eq_internal(n, t1, t2)
-    | (_, Parens(t2)) => eq_internal(n, t1, t2)
+    | (TypParens(t1), _) => eq_internal(n, t1, t2)
+    | (_, TypParens(t2)) => eq_internal(n, t1, t2)
     | (Rec(x1, t1), Rec(x2, t2))
     | (Forall(x1, t1), Forall(x2, t2)) =>
       let alpha_subst =
         subst({
-          term: Var("=" ++ string_of_int(n)),
+          term: TypVar("=" ++ string_of_int(n)),
           copied: false,
           ids: [Id.invalid],
         });
@@ -716,9 +720,9 @@ and Typ: {
     | (Bool, _) => false
     | (String, String) => true
     | (String, _) => false
-    | (Ap(t1, t2), Ap(t1', t2')) =>
+    | (ApTyp(t1, t2), ApTyp(t1', t2')) =>
       eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
-    | (Ap(_), _) => false
+    | (ApTyp(_), _) => false
     | (Unknown(_), Unknown(_)) => true
     | (Unknown(_), _) => false
     | (Arrow(t1, t2), Arrow(t1', t2')) =>
@@ -732,8 +736,8 @@ and Typ: {
       /* Does not normalize the types. */
       ConstructorMap.equal(eq_internal(n), sm1, sm2)
     | (Sum(_), _) => false
-    | (Var(n1), Var(n2)) => n1 == n2
-    | (Var(_), _) => false
+    | (TypVar(n1), TypVar(n2)) => n1 == n2
+    | (TypVar(_), _) => false
     };
   };
 
@@ -782,10 +786,11 @@ and TPat: {
       ...exp,
       term:
         switch (term) {
-        | EmptyHole
-        | Invalid(_)
-        | Var(_) => term
-        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
+        | EmptyHoleTPat
+        | InvalidTPat(_)
+        | VarTPat(_) => term
+        | MultiHoleTPat(things) =>
+          MultiHoleTPat(List.map(any_map_term, things))
         },
     };
     x |> f_tpat(rec_call);
@@ -793,22 +798,22 @@ and TPat: {
 
   let tyvar_of_utpat = ({term, _}: t) =>
     switch (term) {
-    | Var(x) => Some(x)
+    | VarTPat(x) => Some(x)
     | _ => None
     };
 
   let fast_equal = (tp1: t, tp2: t) =>
     switch (tp1 |> IdTagged.term_of, tp2 |> IdTagged.term_of) {
-    | (EmptyHole, EmptyHole) => true
-    | (Invalid(s1), Invalid(s2)) => s1 == s2
-    | (MultiHole(xs), MultiHole(ys)) =>
+    | (EmptyHoleTPat, EmptyHoleTPat) => true
+    | (InvalidTPat(s1), InvalidTPat(s2)) => s1 == s2
+    | (MultiHoleTPat(xs), MultiHoleTPat(ys)) =>
       List.length(xs) == List.length(ys)
       && List.equal(Any.fast_equal, xs, ys)
-    | (Var(x), Var(y)) => x == y
-    | (EmptyHole, _)
-    | (Invalid(_), _)
-    | (MultiHole(_), _)
-    | (Var(_), _) => false
+    | (VarTPat(x), VarTPat(y)) => x == y
+    | (EmptyHoleTPat, _)
+    | (InvalidTPat(_), _)
+    | (MultiHoleTPat(_), _)
+    | (VarTPat(_), _) => false
     };
 }
 and Rul: {
@@ -856,7 +861,7 @@ and Rul: {
       ...exp,
       term:
         switch (term) {
-        | Invalid(_) => term
+        | InvalidRule(_) => term
         | Hole(things) => Hole(List.map(any_map_term, things))
         | Rules(e, rls) =>
           Rules(
@@ -873,7 +878,7 @@ and Rul: {
 
   let fast_equal = (r1: t, r2: t) =>
     switch (r1 |> IdTagged.term_of, r2 |> IdTagged.term_of) {
-    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (InvalidRule(s1), InvalidRule(s2)) => s1 == s2
     | (Hole(xs), Hole(ys)) =>
       List.length(xs) == List.length(ys)
       && List.equal(Any.fast_equal, xs, ys)
@@ -886,7 +891,7 @@ and Rul: {
            rls1,
            rls2,
          )
-    | (Invalid(_), _)
+    | (InvalidRule(_), _)
     | (Hole(_), _)
     | (Rules(_), _) => false
     };
@@ -1041,7 +1046,7 @@ and StepperFilterKind: {
 
   let map = (mapper, filter: t): t => {
     switch (filter) {
-    | Filter({act, pat}) => Filter({act, pat: mapper(pat)})
+    | FilterStepper({act, pat}) => FilterStepper({act, pat: mapper(pat)})
     | Residue(idx, act) => Residue(idx, act)
     };
   };
@@ -1059,7 +1064,8 @@ and StepperFilterKind: {
       Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     (
       fun
-      | Filter({pat: e, act}) => Filter({pat: exp_map_term(e), act})
+      | FilterStepper({pat: e, act}) =>
+        FilterStepper({pat: exp_map_term(e), act})
       | Residue(i, a) => Residue(i, a):
         t => t
     );
@@ -1067,10 +1073,10 @@ and StepperFilterKind: {
 
   let fast_equal = (f1: t, f2: t) =>
     switch (f1, f2) {
-    | (Filter({pat: e1, act: a1}), Filter({pat: e2, act: a2})) =>
+    | (FilterStepper({pat: e1, act: a1}), FilterStepper({pat: e2, act: a2})) =>
       Exp.fast_equal(e1, e2) && a1 == a2
     | (Residue(i1, a1), Residue(i2, a2)) => i1 == i2 && a1 == a2
-    | (Filter(_), _)
+    | (FilterStepper(_), _)
     | (Residue(_), _) => false
     };
 };

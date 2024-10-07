@@ -16,7 +16,7 @@ let type_of = f => {
 };
 
 let int_evaluation =
-  Evaluator.evaluate(Builtins.env_init, {d: Int(8) |> Exp.fresh});
+  Evaluator.evaluate(Builtins.env_init, {d: IntLit(8) |> Exp.fresh});
 
 let evaluation_test = (msg, expected, unevaluated) =>
   check(
@@ -29,13 +29,14 @@ let evaluation_test = (msg, expected, unevaluated) =>
   );
 
 let test_int = () =>
-  evaluation_test("8", Int(8) |> Exp.fresh, Int(8) |> Exp.fresh);
+  evaluation_test("8", IntLit(8) |> Exp.fresh, IntLit(8) |> Exp.fresh);
 
 let test_sum = () =>
   evaluation_test(
     "4 + 5",
-    Int(9) |> Exp.fresh,
-    BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh) |> Exp.fresh,
+    IntLit(9) |> Exp.fresh,
+    BinOp(Int(Plus), IntLit(4) |> Exp.fresh, IntLit(5) |> Exp.fresh)
+    |> Exp.fresh,
   );
 
 let tests = [

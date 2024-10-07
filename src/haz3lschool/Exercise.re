@@ -571,7 +571,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t => {
     term:
       Filter(
-        Filter({
+        FilterStepper({
           act: FilterAction.(act, One),
           pat: {
             term: Constructor("$e", Unknown(Internal) |> Typ.temp),

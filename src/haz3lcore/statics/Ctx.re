@@ -100,7 +100,8 @@ let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
   | Some(Abstract) => None
   | None =>
     Some(
-      (Unknown(Hole(Invalid(name))): TermBase.Typ.term) |> IdTagged.fresh,
+      (Unknown(HoleProvenance(InvalidTypeHole(name))): TermBase.Typ.term)
+      |> IdTagged.fresh,
     )
   };
 
@@ -114,10 +115,13 @@ let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t =
           id,
           typ:
             switch (typ) {
-            | None => (Var(name): TermBase.typ_term) |> IdTagged.fresh
+            | None => (TypVar(name): TermBase.typ_term) |> IdTagged.fresh
             | Some(typ) =>
               (
-                Arrow(typ, (Var(name): TermBase.typ_term) |> IdTagged.fresh): TermBase.typ_term
+                Arrow(
+                  typ,
+                  (TypVar(name): TermBase.typ_term) |> IdTagged.fresh,
+                ): TermBase.typ_term
               )
               |> IdTagged.fresh
             },

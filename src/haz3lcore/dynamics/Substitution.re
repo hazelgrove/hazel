@@ -60,10 +60,10 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     Ap(dir, d3, d4) |> rewrap;
   | BuiltinFun(_) => d2
   | Test(d3) => Test(subst_var(m, d1, x, d3)) |> rewrap
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | StringLit(_)
   | Constructor(_) => d2
   | ListLit(ds) => ListLit(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | Cons(d3, d4) =>

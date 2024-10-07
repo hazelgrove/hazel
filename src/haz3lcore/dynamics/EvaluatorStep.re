@@ -243,10 +243,10 @@ let rec matches =
       | Closure(env, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Closure(env, ctx) |> wrap_ids(ids);
-      | Filter(Filter(flt'), ctx) =>
+      | Filter(FilterStepper(flt'), ctx) =>
         let flt = flt |> FilterEnvironment.extends(flt');
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Filter(Filter(flt'), ctx) |> wrap_ids(ids);
+        Filter(FilterStepper(flt'), ctx) |> wrap_ids(ids);
       | Filter(Residue(idx', act'), ctx) =>
         let (ract, ridx, rctx) =
           if (idx > idx') {

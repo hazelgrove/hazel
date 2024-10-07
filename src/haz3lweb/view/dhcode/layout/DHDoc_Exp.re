@@ -47,12 +47,12 @@ let rec precedence = (~show_function_bodies, ~show_casts: bool, d: DHExp.t) => {
   switch (DHExp.term_of(d)) {
   | Var(_)
   | Invalid(_)
-  | Bool(_)
-  | Int(_)
   | Seq(_)
   | Test(_)
-  | Float(_)
-  | String(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | StringLit(_)
   | ListLit(_)
   | EmptyHole
   | Constructor(_)
@@ -255,7 +255,7 @@ let mk =
       | Filter(flt, d') =>
         if (settings.show_stepper_filters) {
           switch (flt) {
-          | Filter({pat, act}) =>
+          | FilterStepper({pat, act}) =>
             let keyword = FilterAction.string_of_t(act);
             let flt_doc = go_formattable(pat);
             vseps([
@@ -277,7 +277,7 @@ let mk =
         } else {
           switch (flt) {
           | Residue(_) => go'(d')
-          | Filter(_) => go'(d')
+          | FilterStepper(_) => go'(d')
           };
         }
 
@@ -315,10 +315,10 @@ let mk =
         }
       | BuiltinFun(f) => text(f)
       | Constructor(name, _) => DHDoc_common.mk_ConstructorLit(name)
-      | Bool(b) => DHDoc_common.mk_BoolLit(b)
-      | Int(n) => DHDoc_common.mk_IntLit(n)
-      | Float(f) => DHDoc_common.mk_FloatLit(f)
-      | String(s) => DHDoc_common.mk_StringLit(s)
+      | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
+      | IntLit(n) => DHDoc_common.mk_IntLit(n)
+      | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
+      | StringLit(s) => DHDoc_common.mk_StringLit(s)
       | Undefined => DHDoc_common.mk_Undefined()
       | Test(d) => DHDoc_common.mk_Test(go'(d))
       | Deferral(_) => text("_")

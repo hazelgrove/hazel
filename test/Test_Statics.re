@@ -30,8 +30,8 @@ let unapplied_function = () =>
     Some(FreshId.(arrow(unknown(Internal), int))),
     type_of(
       Fun(
-        Var("x") |> Pat.fresh,
-        BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
+        VarPat("x") |> Pat.fresh,
+        BinOp(Int(Plus), IntLit(4) |> Exp.fresh, IntLit(5) |> Exp.fresh)
         |> Exp.fresh,
         None,
         None,
@@ -48,8 +48,12 @@ let tests =
         Some(arrow(unknown(Internal), int)),
         type_of(
           Fun(
-            Var("x") |> Pat.fresh,
-            BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
+            VarPat("x") |> Pat.fresh,
+            BinOp(
+              Int(Plus),
+              IntLit(4) |> Exp.fresh,
+              IntLit(5) |> Exp.fresh,
+            )
             |> Exp.fresh,
             None,
             None,
@@ -64,8 +68,13 @@ let tests =
         Some(arrow(int, int)),
         type_of(
           Fun(
-            Cast(Var("x") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
-            BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
+            CastPat(VarPat("x") |> Pat.fresh, int, unknown(Internal))
+            |> Pat.fresh,
+            BinOp(
+              Int(Plus),
+              IntLit(4) |> Exp.fresh,
+              IntLit(5) |> Exp.fresh,
+            )
             |> Exp.fresh,
             None,
             None,
@@ -80,10 +89,10 @@ let tests =
         Some(arrow(prod([int, int]), int)),
         type_of(
           Fun(
-            Tuple([
-              Cast(Var("x") |> Pat.fresh, int, unknown(Internal))
+            TuplePat([
+              CastPat(VarPat("x") |> Pat.fresh, int, unknown(Internal))
               |> Pat.fresh,
-              Cast(Var("y") |> Pat.fresh, int, unknown(Internal))
+              CastPat(VarPat("y") |> Pat.fresh, int, unknown(Internal))
               |> Pat.fresh,
             ])
             |> Pat.fresh,
@@ -101,7 +110,11 @@ let tests =
         "float_of_int(1)",
         Some(float),
         type_of(
-          Ap(Forward, Var("float_of_int") |> Exp.fresh, Int(1) |> Exp.fresh)
+          Ap(
+            Forward,
+            Var("float_of_int") |> Exp.fresh,
+            IntLit(1) |> Exp.fresh,
+          )
           |> Exp.fresh,
         ),
       )
@@ -114,8 +127,8 @@ let tests =
           DeferredAp(
             Var("string_sub") |> Exp.fresh,
             [
-              String("hello") |> Exp.fresh,
-              Int(1) |> Exp.fresh,
+              StringLit("hello") |> Exp.fresh,
+              IntLit(1) |> Exp.fresh,
               Deferral(InAp) |> Exp.fresh,
             ],
           )

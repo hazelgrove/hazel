@@ -52,10 +52,10 @@ let rec matches =
       | Closure(env, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Closure(env, ctx) |> rewrap;
-      | Filter(Filter(flt'), ctx) =>
+      | Filter(FilterStepper(flt'), ctx) =>
         let flt = flt |> FilterEnvironment.extends(flt');
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Filter(Filter(flt'), ctx) |> rewrap;
+        Filter(FilterStepper(flt'), ctx) |> rewrap;
       | Filter(Residue(idx', act'), ctx) =>
         let (ract, ridx, rctx) =
           if (idx > idx') {

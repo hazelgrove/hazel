@@ -142,12 +142,12 @@ let typ_ok_view = (cls: Cls.t, ok: Info.ok_typ) =>
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
   | Type(ty) => [Type.view(ty), text("is a type")]
   | TypeAlias(name, ty_lookup) => [
-      Type.view(Var(name) |> Typ.fresh),
+      Type.view(TypVar(name) |> Typ.fresh),
       text("is an alias for"),
       Type.view(ty_lookup),
     ]
   | Variant(name, sum_ty) => [
-      Type.view(Var(name) |> Typ.fresh),
+      Type.view(TypVar(name) |> Typ.fresh),
       text("is a sum type constuctor of type"),
       Type.view(sum_ty),
     ]
@@ -160,7 +160,7 @@ let typ_ok_view = (cls: Cls.t, ok: Info.ok_typ) =>
 let typ_err_view = (ok: Info.error_typ) =>
   switch (ok) {
   | FreeTypeVariable(name) => [
-      Type.view(Var(name) |> Typ.fresh),
+      Type.view(TypVar(name) |> Typ.fresh),
       text("not found"),
     ]
   | BadToken(token) => [
@@ -171,7 +171,7 @@ let typ_err_view = (ok: Info.error_typ) =>
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
   | WantTypeFoundAp => [text("Must be part of a sum type")]
   | DuplicateConstructor(name) => [
-      Type.view(Var(name) |> Typ.fresh),
+      Type.view(TypVar(name) |> Typ.fresh),
       text("already used in this sum"),
     ]
   };
@@ -242,17 +242,17 @@ let tpat_view = (_: Cls.t, status: Info.status_tpat) =>
   | InHole(ShadowsType(name, BaseTyp)) =>
     div_err([
       text("Can't shadow base type"),
-      Type.view(Var(name) |> Typ.fresh),
+      Type.view(TypVar(name) |> Typ.fresh),
     ])
   | InHole(ShadowsType(name, TyAlias)) =>
     div_err([
       text("Can't shadow existing alias"),
-      Type.view(Var(name) |> Typ.fresh),
+      Type.view(TypVar(name) |> Typ.fresh),
     ])
   | InHole(ShadowsType(name, TyVar)) =>
     div_err([
       text("Can't shadow existing type variable"),
-      Type.view(Var(name) |> Typ.fresh),
+      Type.view(TypVar(name) |> Typ.fresh),
     ])
   };
 

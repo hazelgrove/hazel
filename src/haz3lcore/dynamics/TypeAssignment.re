@@ -34,43 +34,43 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
   let rec dhpat_var_entry =
           (dhpat: DHPat.t, ty: Typ.t): option(list(Ctx.entry)) => {
     switch (dhpat |> Pat.term_of) {
-    | Var(name) =>
+    | VarPat(name) =>
       let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty});
       Some([entry]);
-    | Tuple(l1) =>
+    | TuplePat(l1) =>
       let* ts = Typ.matched_prod_strict(ctx, List.length(l1), ty);
       let* l =
         List.map2((dhp, typ) => {dhpat_var_entry(dhp, typ)}, l1, ts)
         |> OptUtil.sequence;
       Some(List.concat(l));
-    | Cons(dhp1, dhp2) =>
+    | ConsPat(dhp1, dhp2) =>
       let* t = Typ.matched_list_strict(ctx, ty);
       let* l1 = dhpat_var_entry(dhp1, t);
       let* l2 = dhpat_var_entry(dhp2, List(t) |> Typ.temp);
       Some(l1 @ l2);
-    | ListLit(l) =>
+    | ListLitPat(l) =>
       let* t = Typ.matched_list_strict(ctx, ty);
       let* l =
         List.map(dhp => {dhpat_var_entry(dhp, t)}, l) |> OptUtil.sequence;
       Some(List.concat(l));
-    | Ap({term: Constructor(name, _), _}, dhp) =>
+    | ApPat({term: ConstructorPat(name, _), _}, dhp) =>
       // TODO: make this stricter
       let* ctrs = Typ.get_sum_constructors(ctx, ty);
       let* typ = ConstructorMap.get_entry(name, ctrs);
       let* (ty1, ty2) = Typ.matched_arrow_strict(ctx, typ);
       Typ.eq(ty2, ty) ? dhpat_var_entry(dhp, ty1) : None;
-    | Ap(_) => None
-    | EmptyHole
+    | ApPat(_) => None
+    | EmptyHolePat
     | Wild
-    | Invalid(_)
-    | MultiHole(_) => Some([])
-    | Parens(dhp) => dhpat_var_entry(dhp, ty)
-    | Int(_) => Typ.eq(ty, Int |> Typ.temp) ? Some([]) : None
-    | Float(_) => Typ.eq(ty, Float |> Typ.temp) ? Some([]) : None
-    | Bool(_) => Typ.eq(ty, Bool |> Typ.temp) ? Some([]) : None
-    | String(_) => Typ.eq(ty, String |> Typ.temp) ? Some([]) : None
-    | Constructor(_) => Some([]) // TODO: make this stricter
-    | Cast(dhp, ty1, ty2) =>
+    | InvalidPat(_)
+    | MultiHolePat(_) => Some([])
+    | ParensPat(dhp) => dhpat_var_entry(dhp, ty)
+    | IntPat(_) => Typ.eq(ty, Int |> Typ.temp) ? Some([]) : None
+    | FloatPat(_) => Typ.eq(ty, Float |> Typ.temp) ? Some([]) : None
+    | BoolPat(_) => Typ.eq(ty, Bool |> Typ.temp) ? Some([]) : None
+    | StringPat(_) => Typ.eq(ty, String |> Typ.temp) ? Some([]) : None
+    | ConstructorPat(_) => Some([]) // TODO: make this stricter
+    | CastPat(dhp, ty1, ty2) =>
       Typ.eq(ty, ty2) ? dhpat_var_entry(dhp, ty1) : None
     };
   };
@@ -81,29 +81,29 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
 /* patterns in functions and fixpoints must have a synthesizable type */
 let rec dhpat_synthesize = (dhpat: DHPat.t, ctx: Ctx.t): option(Typ.t) => {
   switch (dhpat |> Pat.term_of) {
-  | Var(_)
-  | Constructor(_)
-  | Ap(_) => None
-  | Tuple(dhs) =>
+  | VarPat(_)
+  | ConstructorPat(_)
+  | ApPat(_) => None
+  | TuplePat(dhs) =>
     let* l = List.map(dhpat_synthesize(_, ctx), dhs) |> OptUtil.sequence;
     Some(Prod(l) |> Typ.temp);
-  | Cons(dhp1, _) =>
+  | ConsPat(dhp1, _) =>
     let* t = dhpat_synthesize(dhp1, ctx);
     Some(List(t) |> Typ.temp);
-  | ListLit([]) => Some(List(Unknown(Internal) |> Typ.temp) |> Typ.temp)
-  | ListLit([x, ..._]) =>
+  | ListLitPat([]) => Some(List(Unknown(Internal) |> Typ.temp) |> Typ.temp)
+  | ListLitPat([x, ..._]) =>
     let* t_x = dhpat_synthesize(x, ctx);
     Some(List(t_x) |> Typ.temp);
-  | EmptyHole => Some(Unknown(Internal) |> Typ.temp)
+  | EmptyHolePat => Some(Unknown(Internal) |> Typ.temp)
   | Wild => Some(Unknown(Internal) |> Typ.temp)
-  | Invalid(_)
-  | MultiHole(_) => Some(Unknown(Internal) |> Typ.temp)
-  | Parens(dhp) => dhpat_synthesize(dhp, ctx)
-  | Int(_) => Some(Int |> Typ.temp)
-  | Float(_) => Some(Float |> Typ.temp)
-  | Bool(_) => Some(Bool |> Typ.temp)
-  | String(_) => Some(String |> Typ.temp)
-  | Cast(_, _, ty) => Some(ty)
+  | InvalidPat(_)
+  | MultiHolePat(_) => Some(Unknown(Internal) |> Typ.temp)
+  | ParensPat(dhp) => dhpat_synthesize(dhp, ctx)
+  | IntPat(_) => Some(Int |> Typ.temp)
+  | FloatPat(_) => Some(Float |> Typ.temp)
+  | BoolPat(_) => Some(Bool |> Typ.temp)
+  | StringPat(_) => Some(String |> Typ.temp)
+  | CastPat(_, _, ty) => Some(ty)
   };
 };
 
@@ -162,7 +162,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     let* ctx = dhpat_extend_ctx(dhp, ty_p, ctx);
     let* ty2 = typ_of_dhexp(ctx, m, d);
     Some(Arrow(ty_p, ty2) |> Typ.temp);
-  | TypFun({term: Var(name), _} as utpat, d, _)
+  | TypFun({term: VarTPat(name), _} as utpat, d, _)
       when !Ctx.shadows_typ(ctx, name) =>
     let ctx =
       Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
@@ -170,7 +170,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     Some(Forall(utpat, ty) |> Typ.temp);
   | TypFun(_, d, _) =>
     let* ty = typ_of_dhexp(ctx, m, d);
-    Some(Forall(Var("?") |> TPat.fresh, ty) |> Typ.temp);
+    Some(Forall(VarTPat("?") |> TPat.fresh, ty) |> Typ.temp);
   | TypAp(d, ty1) =>
     let* ty = typ_of_dhexp(ctx, m, d);
     let* (name, ty2) = Typ.matched_forall_strict(ctx, ty);
@@ -222,10 +222,10 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
   | Test(dtest) =>
     let* ty = typ_of_dhexp(ctx, m, dtest);
     Typ.eq(ty, Bool |> Typ.temp) ? Some(Prod([]) |> Typ.temp) : None;
-  | Bool(_) => Some(Bool |> Typ.temp)
-  | Int(_) => Some(Int |> Typ.temp)
-  | Float(_) => Some(Float |> Typ.temp)
-  | String(_) => Some(String |> Typ.temp)
+  | BoolLit(_) => Some(Bool |> Typ.temp)
+  | IntLit(_) => Some(Int |> Typ.temp)
+  | FloatLit(_) => Some(Float |> Typ.temp)
+  | StringLit(_) => Some(String |> Typ.temp)
   | BinOp(Bool(_), d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);

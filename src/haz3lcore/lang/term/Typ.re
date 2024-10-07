@@ -36,15 +36,15 @@ let rep_id: t => Id.t = IdTagged.rep_id;
 
 let hole = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
   switch (tms) {
-  | [] => Unknown(Hole(EmptyHole))
-  | [_, ..._] => Unknown(Hole(MultiHole(tms)))
+  | [] => Unknown(HoleProvenance(EmptyTypeHole))
+  | [_, ..._] => Unknown(HoleProvenance(MultiTypeHole(tms)))
   };
 
 let cls_of_term: term => cls =
   fun
-  | Unknown(Hole(Invalid(_))) => Invalid
-  | Unknown(Hole(EmptyHole)) => EmptyHole
-  | Unknown(Hole(MultiHole(_))) => MultiHole
+  | Unknown(HoleProvenance(InvalidTypeHole(_))) => Invalid
+  | Unknown(HoleProvenance(EmptyTypeHole)) => EmptyHole
+  | Unknown(HoleProvenance(MultiTypeHole(_))) => MultiHole
   | Unknown(SynSwitch) => SynSwitch
   | Unknown(Internal) => Internal
   | Int => Int
@@ -53,10 +53,10 @@ let cls_of_term: term => cls =
   | String => String
   | List(_) => List
   | Arrow(_) => Arrow
-  | Var(_) => Var
+  | TypVar(_) => Var
   | Prod(_) => Prod
-  | Parens(_) => Parens
-  | Ap(_) => Ap
+  | TypParens(_) => Parens
+  | ApTyp(_) => Ap
   | Sum(_) => Sum
   | Rec(_) => Rec
   | Forall(_) => Forall;
@@ -85,7 +85,7 @@ let show_cls: cls => string =
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
-  | Parens(typ) => is_arrow(typ)
+  | TypParens(typ) => is_arrow(typ)
   | Arrow(_) => true
   | Unknown(_)
   | Int
@@ -94,8 +94,8 @@ let rec is_arrow = (typ: t) => {
   | String
   | List(_)
   | Prod(_)
-  | Var(_)
-  | Ap(_)
+  | TypVar(_)
+  | ApTyp(_)
   | Sum(_)
   | Forall(_)
   | Rec(_) => false
@@ -104,7 +104,7 @@ let rec is_arrow = (typ: t) => {
 
 let rec is_forall = (typ: t) => {
   switch (typ.term) {
-  | Parens(typ) => is_forall(typ)
+  | TypParens(typ) => is_forall(typ)
   | Forall(_) => true
   | Unknown(_)
   | Int
@@ -114,8 +114,8 @@ let rec is_forall = (typ: t) => {
   | Arrow(_)
   | List(_)
   | Prod(_)
-  | Var(_)
-  | Ap(_)
+  | TypVar(_)
+  | ApTyp(_)
   | Sum(_)
   | Rec(_) => false
   };
@@ -140,13 +140,18 @@ let join_type_provenance =
     (p1: TermBase.type_provenance, p2: TermBase.type_provenance)
     : TermBase.type_provenance =>
   switch (p1, p2) {
-  | (Hole(h1), Hole(h2)) when h1 == h2 => Hole(h1)
-  | (Hole(EmptyHole), Hole(EmptyHole) | SynSwitch)
-  | (SynSwitch, Hole(EmptyHole)) => Hole(EmptyHole)
+  | (HoleProvenance(h1), HoleProvenance(h2)) when h1 == h2 =>
+    HoleProvenance(h1)
+  | (
+      HoleProvenance(EmptyTypeHole),
+      HoleProvenance(EmptyTypeHole) | SynSwitch,
+    )
+  | (SynSwitch, HoleProvenance(EmptyTypeHole)) =>
+    HoleProvenance(EmptyTypeHole)
   | (SynSwitch, Internal)
   | (Internal, SynSwitch) => SynSwitch
-  | (Internal | Hole(_), _)
-  | (_, Hole(_)) => Internal
+  | (Internal | HoleProvenance(_), _)
+  | (_, HoleProvenance(_)) => Internal
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
@@ -157,9 +162,9 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Float
   | Bool
   | String => []
-  | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
-  | Var(v) => List.mem(v, bound) ? [] : [v]
-  | Parens(ty) => free_vars(~bound, ty)
+  | ApTyp(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
+  | TypVar(v) => List.mem(v, bound) ? [] : [v]
+  | TypParens(ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
@@ -194,9 +199,9 @@ let eq = (t1: t, t2: t): bool => fast_equal(t1, t2);
 let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let join' = join(~resolve, ~fix, ctx);
   switch (term_of(ty1), term_of(ty2)) {
-  | (_, Parens(ty2)) => join'(ty1, ty2)
-  | (Parens(ty1), _) => join'(ty1, ty2)
-  | (_, Unknown(Hole(_))) when fix =>
+  | (_, TypParens(ty2)) => join'(ty1, ty2)
+  | (TypParens(ty1), _) => join'(ty1, ty2)
+  | (_, Unknown(HoleProvenance(_))) when fix =>
     /* NOTE(andrew): This is load bearing
        for ensuring that function literals get appropriate
        casts. Documentation/Dynamics has regression tests */
@@ -205,7 +210,7 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     Some(Unknown(join_type_provenance(p1, p2)) |> temp)
   | (Unknown(_), _) => Some(ty2)
   | (_, Unknown(Internal | SynSwitch)) => Some(ty1)
-  | (Var(n1), Var(n2)) =>
+  | (TypVar(n1), TypVar(n2)) =>
     if (n1 == n2) {
       Some(ty1);
     } else {
@@ -214,11 +219,11 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
       let+ ty_join = join'(ty1, ty2);
       !resolve && eq(ty1, ty_join) ? ty1 : ty_join;
     }
-  | (Var(name), _) =>
+  | (TypVar(name), _) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty2);
     !resolve && eq(ty_name, ty_join) ? ty1 : ty_join;
-  | (_, Var(name)) =>
+  | (_, TypVar(name)) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty1);
     !resolve && eq(ty_name, ty_join) ? ty2 : ty_join;
@@ -227,7 +232,7 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =
       switch (TPat.tyvar_of_utpat(tp2)) {
-      | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
+      | Some(x2) => subst(TypVar(x2) |> temp, tp1, ty1)
       | None => ty1
       };
     let+ ty_body = join(~resolve, ~fix, ctx, ty1', ty2);
@@ -237,7 +242,7 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     let ctx = Ctx.extend_dummy_tvar(ctx, x1);
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
-      | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
+      | Some(x2) => subst(TypVar(x2) |> temp, x1, ty1)
       | None => ty1
       };
     let+ ty_body = join(~resolve, ~fix, ctx, ty1', ty2);
@@ -275,7 +280,7 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     let+ ty = join'(ty1, ty2);
     List(ty) |> temp;
   | (List(_), _) => None
-  | (Ap(_), _) => failwith("Type join of ap")
+  | (ApTyp(_), _) => failwith("Type join of ap")
   };
 };
 
@@ -284,7 +289,7 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
 let rec match_synswitch = (t1: t, t2: t) => {
   let (term1, rewrap1) = unwrap(t1);
   switch (term1, term_of(t2)) {
-  | (Parens(t1), _) => Parens(match_synswitch(t1, t2)) |> rewrap1
+  | (TypParens(t1), _) => TypParens(match_synswitch(t1, t2)) |> rewrap1
   | (Unknown(SynSwitch), _) => t2
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
@@ -292,8 +297,8 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Float, _)
   | (Bool, _)
   | (String, _)
-  | (Var(_), _)
-  | (Ap(_), _)
+  | (TypVar(_), _)
+  | (ApTyp(_), _)
   | (Rec(_), _)
   | (Forall(_), _) => t1
   // These might
@@ -327,8 +332,8 @@ let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
 
 let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
   switch (term_of(ty)) {
-  | Parens(t) => weak_head_normalize(ctx, t)
-  | Var(x) =>
+  | TypParens(t) => weak_head_normalize(ctx, t)
+  | TypVar(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => weak_head_normalize(ctx, ty)
     | None => ty
@@ -339,7 +344,7 @@ let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
 let rec normalize = (ctx: Ctx.t, ty: t): t => {
   let (term, rewrap) = unwrap(ty);
   switch (term) {
-  | Var(x) =>
+  | TypVar(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => normalize(ctx, ty)
     | None => ty
@@ -349,9 +354,10 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Float
   | Bool
   | String => ty
-  | Parens(t) => Parens(normalize(ctx, t)) |> rewrap
+  | TypParens(t) => TypParens(normalize(ctx, t)) |> rewrap
   | List(t) => List(normalize(ctx, t)) |> rewrap
-  | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
+  | ApTyp(t1, t2) =>
+    ApTyp(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
@@ -369,7 +375,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
 
 let rec matched_arrow_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_arrow_strict(ctx, ty)
+  | TypParens(ty) => matched_arrow_strict(ctx, ty)
   | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
   | Unknown(SynSwitch) =>
     Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
@@ -384,7 +390,7 @@ let matched_arrow = (ctx, ty) =>
 
 let rec matched_forall_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_forall_strict(ctx, ty)
+  | TypParens(ty) => matched_forall_strict(ctx, ty)
   | Forall(t, ty) => Some((Some(t), ty))
   | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
   | _ => None // (None, Unknown(Internal) |> temp)
@@ -396,7 +402,7 @@ let matched_forall = (ctx, ty) =>
 
 let rec matched_prod_strict = (ctx, length, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_prod_strict(ctx, length, ty)
+  | TypParens(ty) => matched_prod_strict(ctx, length, ty)
   | Prod(tys) when List.length(tys) == length => Some(tys)
   | Unknown(SynSwitch) =>
     Some(List.init(length, _ => Unknown(SynSwitch) |> temp))
@@ -409,7 +415,7 @@ let matched_prod = (ctx, length, ty) =>
 
 let rec matched_list_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_list_strict(ctx, ty)
+  | TypParens(ty) => matched_list_strict(ctx, ty)
   | List(ty) => Some(ty)
   | Unknown(SynSwitch) => Some(Unknown(SynSwitch) |> temp)
   | _ => None
@@ -422,7 +428,7 @@ let matched_list = (ctx, ty) =>
 let rec matched_args = (ctx, default_arity, ty) => {
   let ty' = weak_head_normalize(ctx, ty);
   switch (term_of(ty')) {
-  | Parens(ty) => matched_args(ctx, default_arity, ty)
+  | TypParens(ty) => matched_args(ctx, default_arity, ty)
   | Prod([_, ..._] as tys) => tys
   | Unknown(_) => List.init(default_arity, _ => ty')
   | _ => [ty']
@@ -432,7 +438,7 @@ let rec matched_args = (ctx, default_arity, ty) => {
 let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
-  | Parens(ty) => get_sum_constructors(ctx, ty)
+  | TypParens(ty) => get_sum_constructors(ctx, ty)
   | Sum(sm) => Some(sm)
   | Rec(_) =>
     /* Note: We must unroll here to get right ctr types;
@@ -447,7 +453,7 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
        the below code will be incorrect! */
     let ty =
       switch (ty |> term_of) {
-      | Rec({term: Var(x), _}, ty_body) =>
+      | Rec({term: VarTPat(x), _}, ty_body) =>
         switch (Ctx.lookup_alias(ctx, x)) {
         | None => unroll(ty)
         | Some(_) => ty_body
@@ -464,7 +470,7 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
 
 let rec is_unknown = (ty: t): bool =>
   switch (ty |> term_of) {
-  | Parens(x) => is_unknown(x)
+  | TypParens(x) => is_unknown(x)
   | Unknown(_) => true
   | _ => false
   };
@@ -472,14 +478,14 @@ let rec is_unknown = (ty: t): bool =>
 /* Does the type require parentheses when on the left of an arrow for printing? */
 let rec needs_parens = (ty: t): bool =>
   switch (term_of(ty)) {
-  | Parens(ty) => needs_parens(ty)
-  | Ap(_)
+  | TypParens(ty) => needs_parens(ty)
+  | ApTyp(_)
   | Unknown(_)
   | Int
   | Float
   | String
   | Bool
-  | Var(_) => false
+  | TypVar(_) => false
   | Rec(_, _)
   | Forall(_, _) => true
   | List(_) => false /* is already wrapped in [] */
@@ -490,23 +496,23 @@ let rec needs_parens = (ty: t): bool =>
 
 let pretty_print_tvar = (tv: TPat.t): string =>
   switch (IdTagged.term_of(tv)) {
-  | Var(x) => x
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_) => "?"
+  | VarTPat(x) => x
+  | InvalidTPat(_)
+  | EmptyHoleTPat
+  | MultiHoleTPat(_) => "?"
   };
 
 /* Essentially recreates haz3lweb/view/Type.re's view_ty but with string output */
 let rec pretty_print = (ty: t): string =>
   switch (term_of(ty)) {
-  | Parens(ty) => pretty_print(ty)
-  | Ap(_)
+  | TypParens(ty) => pretty_print(ty)
+  | ApTyp(_)
   | Unknown(_) => "?"
   | Int => "Int"
   | Float => "Float"
   | Bool => "Bool"
   | String => "String"
-  | Var(tvar) => tvar
+  | TypVar(tvar) => tvar
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)
   | Sum(sm) =>

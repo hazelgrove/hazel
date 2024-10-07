@@ -49,15 +49,15 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
   (request, expr) => {
     switch (request, DHExp.term_of(expr)) {
     /* Remove parentheses from casts */
-    | (_, Cast(d, {term: Parens(x), _}, y))
-    | (_, Cast(d, x, {term: Parens(y), _})) =>
+    | (_, Cast(d, {term: TypParens(x), _}, y))
+    | (_, Cast(d, x, {term: TypParens(y), _})) =>
       unbox(request, Cast(d, x, y) |> DHExp.fresh)
 
     /* Base types are always already unboxed because of the ITCastID rule*/
-    | (Bool, Bool(b)) => Matches(b)
-    | (Int, Int(i)) => Matches(i)
-    | (Float, Float(f)) => Matches(f)
-    | (String, String(s)) => Matches(s)
+    | (Bool, BoolLit(b)) => Matches(b)
+    | (Int, IntLit(i)) => Matches(i)
+    | (Float, FloatLit(f)) => Matches(f)
+    | (String, StringLit(s)) => Matches(s)
 
     /* Lists can be either lists or list casts */
     | (List, ListLit(l)) => Matches(l)
@@ -145,7 +145,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
        in elaboration or in the cast calculus. */
     | (
         _,
-        Bool(_) | Int(_) | Float(_) | String(_) | Constructor(_) |
+        BoolLit(_) | IntLit(_) | FloatLit(_) | StringLit(_) | Constructor(_) |
         BuiltinFun(_) |
         Deferral(_) |
         DeferredAp(_) |
