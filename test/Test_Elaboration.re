@@ -11,7 +11,7 @@ let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init);
 let dhexp_of_uexp = u => Elaborator.elaborate(mk_map(u), u) |> fst;
 let alco_check = dhexp_typ |> Alcotest.check;
 
-let u1: Exp.t = {ids: [id_at(0)], term: Int(8), copied: false};
+let u1: Exp.t = {ids: [id_at(0)], term: IntLit(8), copied: false};
 let single_integer = () =>
   alco_check("Integer literal 8", u1, dhexp_of_uexp(u1));
 
@@ -28,8 +28,9 @@ let free_var = () => alco_check("free variable", u3, dhexp_of_uexp(u3));
 
 let u4: Exp.t =
   Let(
-    Tuple([Var("a") |> Pat.fresh, Var("b") |> Pat.fresh]) |> Pat.fresh,
-    Tuple([Int(4) |> Exp.fresh, Int(6) |> Exp.fresh]) |> Exp.fresh,
+    TuplePat([VarPat("a") |> Pat.fresh, VarPat("b") |> Pat.fresh])
+    |> Pat.fresh,
+    Tuple([IntLit(4) |> Exp.fresh, IntLit(6) |> Exp.fresh]) |> Exp.fresh,
     BinOp(Int(Minus), Var("a") |> Exp.fresh, Var("b") |> Exp.fresh)
     |> Exp.fresh,
   )
@@ -39,13 +40,17 @@ let let_exp = () =>
   alco_check("Let expression for tuple (a, b)", u4, dhexp_of_uexp(u4));
 
 let u5 =
-  BinOp(Int(Plus), Bool(false) |> Exp.fresh, Var("y") |> Exp.fresh)
+  BinOp(Int(Plus), BoolLit(false) |> Exp.fresh, Var("y") |> Exp.fresh)
   |> Exp.fresh;
 
 let d5 =
   BinOp(
     Int(Plus),
-    FailedCast(Bool(false) |> Exp.fresh, Bool |> Typ.fresh, Int |> Typ.fresh)
+    FailedCast(
+      BoolLit(false) |> Exp.fresh,
+      Bool |> Typ.fresh,
+      Int |> Typ.fresh,
+    )
     |> Exp.fresh,
     Cast(
       Var("y") |> Exp.fresh,
@@ -64,7 +69,11 @@ let bin_op = () =>
   );
 
 let u6: Exp.t =
-  If(Bool(false) |> Exp.fresh, Int(8) |> Exp.fresh, Int(6) |> Exp.fresh)
+  If(
+    BoolLit(false) |> Exp.fresh,
+    IntLit(8) |> Exp.fresh,
+    IntLit(6) |> Exp.fresh,
+  )
   |> Exp.fresh;
 
 let consistent_if = () =>
@@ -77,8 +86,9 @@ let consistent_if = () =>
 // x => 4 + 5
 let f =
   Fun(
-    Var("x") |> Pat.fresh,
-    BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh) |> Exp.fresh,
+    VarPat("x") |> Pat.fresh,
+    BinOp(Int(Plus), IntLit(4) |> Exp.fresh, IntLit(5) |> Exp.fresh)
+    |> Exp.fresh,
     None,
     None,
   )
@@ -92,33 +102,33 @@ let ap_fun = () =>
 
 let u8: Exp.t =
   Match(
-    BinOp(Int(Equals), Int(4) |> Exp.fresh, Int(3) |> Exp.fresh)
+    BinOp(Int(Equals), IntLit(4) |> Exp.fresh, IntLit(3) |> Exp.fresh)
     |> Exp.fresh,
     [
-      (Bool(true) |> Pat.fresh, Int(24) |> Exp.fresh),
-      (Bool(false) |> Pat.fresh, Bool(false) |> Exp.fresh),
+      (BoolPat(true) |> Pat.fresh, IntLit(24) |> Exp.fresh),
+      (BoolPat(false) |> Pat.fresh, BoolLit(false) |> Exp.fresh),
     ],
   )
   |> Exp.fresh;
 
 let d8: Exp.t =
   Match(
-    BinOp(Int(Equals), Int(4) |> Exp.fresh, Int(3) |> Exp.fresh)
+    BinOp(Int(Equals), IntLit(4) |> Exp.fresh, IntLit(3) |> Exp.fresh)
     |> Exp.fresh,
     [
       (
-        Bool(true) |> Pat.fresh,
+        BoolPat(true) |> Pat.fresh,
         Cast(
-          Int(24) |> Exp.fresh,
+          IntLit(24) |> Exp.fresh,
           Int |> Typ.fresh,
           Unknown(Internal) |> Typ.fresh,
         )
         |> Exp.fresh,
       ),
       (
-        Bool(false) |> Pat.fresh,
+        BoolPat(false) |> Pat.fresh,
         Cast(
-          Bool(false) |> Exp.fresh,
+          BoolLit(false) |> Exp.fresh,
           Bool |> Typ.fresh,
           Unknown(Internal) |> Typ.fresh,
         )
@@ -137,36 +147,36 @@ let inconsistent_case = () =>
 
 let u9: Exp.t =
   Let(
-    Cast(
-      Var("f") |> Pat.fresh,
+    CastPat(
+      VarPat("f") |> Pat.fresh,
       Arrow(Int |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
       Unknown(Internal) |> Typ.fresh,
     )
     |> Pat.fresh,
     Fun(
-      Var("x") |> Pat.fresh,
-      BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
+      VarPat("x") |> Pat.fresh,
+      BinOp(Int(Plus), IntLit(1) |> Exp.fresh, Var("x") |> Exp.fresh)
       |> Exp.fresh,
       None,
       None,
     )
     |> Exp.fresh,
-    Int(55) |> Exp.fresh,
+    IntLit(55) |> Exp.fresh,
   )
   |> Exp.fresh;
 
 let d9: Exp.t =
   Let(
-    Var("f") |> Pat.fresh,
+    VarPat("f") |> Pat.fresh,
     Fun(
-      Var("x") |> Pat.fresh,
-      BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
+      VarPat("x") |> Pat.fresh,
+      BinOp(Int(Plus), IntLit(1) |> Exp.fresh, Var("x") |> Exp.fresh)
       |> Exp.fresh,
       None,
       Some("f"),
     )
     |> Exp.fresh,
-    Int(55) |> Exp.fresh,
+    IntLit(55) |> Exp.fresh,
   )
   |> Exp.fresh;
 
@@ -184,8 +194,8 @@ let deferral = () =>
       DeferredAp(
         Var("string_sub") |> Exp.fresh,
         [
-          String("hello") |> Exp.fresh,
-          Int(1) |> Exp.fresh,
+          StringLit("hello") |> Exp.fresh,
+          IntLit(1) |> Exp.fresh,
           Deferral(InAp) |> Exp.fresh,
         ],
       )
@@ -195,8 +205,8 @@ let deferral = () =>
       DeferredAp(
         Var("string_sub") |> Exp.fresh,
         [
-          String("hello") |> Exp.fresh,
-          Int(1) |> Exp.fresh,
+          StringLit("hello") |> Exp.fresh,
+          IntLit(1) |> Exp.fresh,
           Deferral(InAp) |> Exp.fresh,
         ],
       )
