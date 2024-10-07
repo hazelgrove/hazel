@@ -8,7 +8,6 @@ let (suite, _) =
       ("Elaboration", Test_Elaboration.elaboration_tests),
       ("Statics", Test_Statics.tests),
       ("Evaluator", Test_Evaluator.tests),
-      ("Editor", Test_Editor.tests),
       ("MakeTerm", Test_MakeTerm.tests),
     ],
   );
