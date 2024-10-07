@@ -849,11 +849,11 @@ let expect_prems_num: (Rule.t, list(t)) => result(int => t, failure) =
   };
 
 let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => {
-  print_endline("[[[CONCL]]]" ++ (concl.self |> DrvSyntax.show));
-  List.iter(
-    p => print_endline("[[[PREM]]]" ++ (p.self |> DrvSyntax.show)),
-    prems,
-  );
+  // print_endline("[[[CONCL]]]" ++ (concl.self |> DrvSyntax.show));
+  // List.iter(
+  //   p => print_endline("[[[PREM]]]" ++ (p.self |> DrvSyntax.show)),
+  //   prems,
+  // );
   let$ prems = expect_prems_num(rule, prems);
   // The following symbols / operators are defined for convenience just
   // under this function.

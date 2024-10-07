@@ -189,9 +189,9 @@ let reevaluate_post_update: t => bool =
   | Export(_)
   | UpdateResult(_)
   | SwitchEditor(_)
-  | MapExercise(_)
   | DebugConsole(_)
   | Benchmark(_) => false
+  | MapExercise(_)
   | TAB
   | StepperAction(_, StepForward(_) | StepBackward)
   | ToggleStepper(_)

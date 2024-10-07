@@ -76,9 +76,11 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
             switch (DHExp.strip_casts(e)) {
             | {term: Term(Drv(Exp(d)), _), _} =>
               Ok({jdmt: DrvElab.elab_jdmt(d), rule})
-            | _ => Error(NotAJudgment)
+            | _ =>
+              Ok({jdmt: Hole("Not a Judgement") |> DrvSyntax.fresh, rule})
             }
-          | Indet(_) => Error(EvalIndet)
+          | Indet(_) =>
+            Ok({jdmt: Hole("Eval Idet") |> DrvSyntax.fresh, rule})
           };
         | Off(_) => Error(EvalOff)
         | ResultFail(_) => Error(EvalFail)
