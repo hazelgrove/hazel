@@ -26,14 +26,14 @@ let test_insert = () => {
   let ed: Action.Result.t(Editor.t) =
     Perform.go(~settings=CoreSettings.on, a, ed);
   let m: Mold.t = {
-    in_: [Any],
+    in_: [],
     out: Any,
     nibs: (Nib.{shape: Convex, sort: Any}, Nib.{shape: Convex, sort: Any}),
   };
   let t: Tile.t = {
-    label: ["4"],
+    label: ["4+5"],
     mold: m,
-    shards: [],
+    shards: [0],
     children: [],
     id: Id.mk(),
   };
@@ -47,16 +47,16 @@ let test_insert = () => {
     history,
     read_only: false,
   };
+
   check(
     zipper_typ,
-    "Insert 4",
+    "Insert 4+5",
     expected.state.zipper,
     Result.get_ok(ed).state.zipper,
   );
-  check(typ, "Insert 4", expected, Result.get_ok(ed));
 };
 
 let tests = [
   test_case("Initial editor", `Quick, test_initial_editor),
-  // test_case("Insert 4", `Quick, test_insert),
+  test_case("Insert 4", `Quick, test_insert),
 ];
