@@ -55,4 +55,16 @@ let tests = [
       "let f = fun x -> x in 1",
     )
   }),
+  test_case("Incomplete Function Definition", `Quick, () => {
+    exp_check(
+      Let(
+        EmptyHole |> Pat.fresh,
+        Fun(Var("x") |> Pat.fresh, EmptyHole |> Exp.fresh, None, None)
+        |> Exp.fresh,
+        EmptyHole |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      "let    = fun x ->   in  ",
+    )
+  }),
 ];
