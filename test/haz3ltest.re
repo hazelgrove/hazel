@@ -10,6 +10,7 @@ let (suite, _) =
       ("Evaluator", Test_Evaluator.tests),
       ("MakeTerm", Test_MakeTerm.tests),
       ("ExpToSegment", Test_ExpToSegment.tests),
+      ("Formatter", Test_Formatter.tests),
     ],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
