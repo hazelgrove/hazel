@@ -227,7 +227,7 @@ let shortcuts = (sys: Key.sys): list(shortcut) =>
   ]
   @ (if (ExerciseSettings.show_instructor) {instructor_shortcuts} else {[]});
 
-let handle_key_event = (k: Key.t): option(Update.t) => {
+let handle_key_event = (k: Key.t): option(UpdateAction.t) => {
   let now = (a: Action.t): option(UpdateAction.t) =>
     Some(PerformAction(a));
   switch (k) {
