@@ -57,6 +57,7 @@ type export_action =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   /* meta */
+  | Startup
   | Reset
   | Set(settings_action)
   | SetMeta(set_meta)
@@ -146,7 +147,8 @@ let is_edit: t => bool =
   | DebugConsole(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | Benchmark(_) => false;
+  | Benchmark(_)
+  | Startup => false;
 
 let reevaluate_post_update: t => bool =
   fun
@@ -200,7 +202,8 @@ let reevaluate_post_update: t => bool =
   | SwitchDocumentationSlide(_)
   | Reset
   | Undo
-  | Redo => true;
+  | Redo
+  | Startup => true;
 
 let should_scroll_to_caret =
   fun
@@ -239,7 +242,8 @@ let should_scroll_to_caret =
   | Reset
   | Undo
   | Redo
-  | TAB => true
+  | TAB
+  | Startup => true
   | PerformAction(a) =>
     switch (a) {
     | Move(_)
