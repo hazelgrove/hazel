@@ -8,6 +8,7 @@ let (suite, _) =
       ("Elaboration", Test_Elaboration.elaboration_tests),
       ("Statics", Test_Statics.tests),
       ("Evaluator", Test_Evaluator.tests),
+      ("ExpToSegment", Test_ExpToSegment.tests),
     ],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
