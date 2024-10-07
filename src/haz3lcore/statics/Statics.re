@@ -126,6 +126,47 @@ let typ_exp_unop: Operators.op_un => (Typ.t, Typ.t) =
   | Bool(Not) => (Bool |> Typ.temp, Bool |> Typ.temp)
   | Int(Minus) => (Int |> Typ.temp, Int |> Typ.temp);
 
+let rec caf_input_type = (args: UPat.t): UTyp.t => {
+  let (arg_term, arg_rule) = IdTagged.unwrap(args);
+  switch (arg_term) {
+  | Tuple(ps) => UTyp.Prod(List.map(caf_input_type, ps)) |> arg_rule
+  | Cast(_, _, t) => t
+  | _ => Unknown(Hole(EmptyHole)) |> arg_rule
+  };
+};
+
+let check_annotated_function_helper =
+    (pat: UPat.t, ret_type: UTyp.t): option((Var.t, UPat.t, UTyp.t)) => {
+  let (pat_term, pat_rule) = IdTagged.unwrap(pat);
+  switch (pat_term) {
+  | Ap(func_name_group, args) =>
+    switch (IdTagged.term_of(func_name_group)) {
+    | Var(func_name) =>
+      let func_type = UTyp.Arrow(caf_input_type(args), ret_type) |> pat_rule;
+      Some((func_name, args, func_type));
+    | _ => None
+    }
+  | _ => None
+  };
+};
+
+/*
+ * Check whether a particular let binding is an annotated function under the new syntax.
+ * It is parsed as a constructor syntax.
+ * I am not sure what is the top-level pattern; the only thing similar seems to be UPat.Ap.
+ */
+let check_annotated_function =
+    (pat: UPat.t): option((Var.t, UPat.t, UTyp.t)) => {
+  let (pat_term, pat_rule) = IdTagged.unwrap(pat);
+  switch (pat_term) {
+  | Cast(inner_pat, _, ret_type) =>
+    check_annotated_function_helper(inner_pat, ret_type)
+  | _ =>
+    let ret_type = UTyp.Unknown(Hole(EmptyHole)) |> pat_rule;
+    check_annotated_function_helper(pat, ret_type);
+  };
+};
+
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, Map.t) =>
   switch (any) {
@@ -399,8 +440,39 @@ and uexp_to_info_map =
       go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
     let (def, p_ana_ctx, m, ty_p_ana) =
       if (!is_recursive(ctx, p, def, p_syn.ty)) {
+        let (def, p, p_syn) =
+          switch (check_annotated_function(p)) {
+          | Some((f_name, f_args, f_type)) =>
+            let def: UExp.t = {
+              ids,
+              term: UExp.Fun(f_args, def, None, None),
+              copied: false,
+            };
+            let p: UPat.t = {
+              ids,
+              term:
+                UPat.Cast(
+                  {ids, term: UPat.Var(f_name), copied: false},
+                  Typ.temp(Unknown(Internal)),
+                  f_type,
+                ),
+              copied: false,
+            };
+            let (p_syn, _) =
+              go_pat(
+                ~is_synswitch=true,
+                ~co_ctx=CoCtx.empty,
+                ~mode=Syn,
+                p,
+                m,
+              );
+            (def, p, p_syn);
+          | None => (def, p, p_syn) // Use the original code
+          };
+
         let (def, m) = go(~mode=Ana(p_syn.ty), def, m);
         let ty_p_ana = def.ty;
+
         let (p_ana', _) =
           go_pat(
             ~is_synswitch=false,
@@ -415,6 +487,7 @@ and uexp_to_info_map =
           go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn.ty), def, m);
         let ty_p_ana = def_base.ty;
         /* Analyze pattern to incorporate def type into ctx */
+
         let (p_ana', _) =
           go_pat(
             ~is_synswitch=false,
