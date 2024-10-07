@@ -836,7 +836,7 @@ and check: (t, operation) => result(bool, failure) =
     | Subset(s) =>
       let$ s = unbox_list(s);
       let$ l = unbox_list(p);
-      Ok(subset_ctx(s, l));
+      Ok(subset_ctx(l, s));
     };
   };
 
@@ -849,6 +849,11 @@ let expect_prems_num: (Rule.t, list(t)) => result(int => t, failure) =
   };
 
 let verify = (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => {
+  print_endline("[[[CONCL]]]" ++ (concl.self |> DrvSyntax.show));
+  List.iter(
+    p => print_endline("[[[PREM]]]" ++ (p.self |> DrvSyntax.show)),
+    prems,
+  );
   let$ prems = expect_prems_num(rule, prems);
   // The following symbols / operators are defined for convenience just
   // under this function.

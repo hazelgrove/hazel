@@ -121,21 +121,18 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
 and subsort_of = (sort: Sort.t): list(Sort.t) =>
   switch (sort) {
   | Drv(drv) =>
-    (
-      switch (drv) {
-      | Jdmt
-      | Ctx
-      | Prop => failwith("subsort_of unexpected")
-      | Exp => [Rul, Pat, Typ, TPat]
-      | Rul => [Exp, Pat, Typ, TPat]
-      | Pat => [Typ]
-      | Typ => []
-      | TPat => [Typ]
-      }
-    )
-    |> List.map(drv => Sort.Drv(drv))
+    switch (drv) {
+    | Jdmt
+    | Ctx
+    | Prop => failwith("subsort_of unexpected")
+    | Exp => [Pat, Drv(Rul), Drv(Pat), Drv(Typ), Drv(TPat)]
+    | Rul => [Pat, Drv(Exp), Drv(Pat), Drv(Typ), Drv(TPat)]
+    | Pat => [Drv(Typ)]
+    | Typ => [Pat]
+    | TPat => [Drv(Typ)]
+    }
   // |> List.append([Any, Exp, Pat, Typ, TPat, Rul]: list(Sort.t))
-  | _ => failwith("subsort_of unexpected")
+  | _ => []
   }
 
 and remold_template = (sort: Sort.t, shape, seg: t): t => {

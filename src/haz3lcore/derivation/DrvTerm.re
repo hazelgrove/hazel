@@ -180,6 +180,7 @@ module ALFA_Typ = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Hole
+    | Abbr
     | Num
     | Bool
     | Arrow
@@ -209,6 +210,7 @@ module ALFA_Typ = {
   let cls_of_term: term => cls =
     fun
     | Hole(_) => Hole
+    | Abbr(_) => Abbr
     | Num => Num
     | Bool => Bool
     | Arrow(_) => Arrow

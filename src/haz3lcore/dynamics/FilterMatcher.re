@@ -214,7 +214,7 @@ let rec matches_exp =
     | (String(dv), String(fv)) => dv == fv
     | (String(_), _) => false
 
-    | (Term(d), Term(f)) => d == f
+    | (Term(d, _), Term(f, _)) => d == f
     | (Term(_), _) => false
 
     | (

@@ -297,6 +297,17 @@ and drv_to_info_map =
     let m =
       switch (typ.term) {
       | Hole(_) => m
+      | Abbr(p) =>
+        m
+        |> upat_to_info_map(
+             ~is_synswitch=false,
+             ~co_ctx=CoCtx.empty,
+             ~ctx,
+             ~ancestors,
+             ~mode=Mode.Ana(Term(Drv(Typ)) |> Typ.fresh),
+             p,
+           )
+        |> snd
       | Num => m
       | Bool => m
       | Arrow(t1, t2) => m |> go_typ(t1) |> snd |> go_typ(t2) |> snd
@@ -386,26 +397,22 @@ and uexp_to_info_map =
   | Int(_) => atomic(Just(Int |> Typ.temp))
   | Float(_) => atomic(Just(Float |> Typ.temp))
   | String(_) => atomic(Just(String |> Typ.temp))
-  | Term(term) =>
+  | Term(term, s) =>
     let term =
       switch (term) {
       | Drv(drv) => drv
       | _ => failwith("Statics.uexp_to_info_map: impossible term")
       };
     let ty: DrvInfo.ty_merged =
-      switch (mode) {
-      | Ana({term: Var(ty), _}) =>
-        switch (ty) {
-        | "Jdmt" => DrvInfo.Jdmt
-        | "Ctx" => DrvInfo.Ctx
-        | "Prop" => DrvInfo.Prop
-        | "ALFA_Exp" => DrvInfo.Exp
-        | _ => DrvInfo.Jdmt
-        }
-      | _ => DrvInfo.Jdmt
+      switch (s) {
+      | Drv(Jdmt) => Jdmt
+      | Drv(Ctx) => Ctx
+      | Drv(Prop) => Prop
+      | Drv(Exp) => Exp
+      | _ => Exp
       };
     let m = drv_to_info_map(term, m, ~ancestors, ~ctx, ~ty) |> snd;
-    add(~self=Just(Term(Drv(Exp)) |> Typ.temp), ~co_ctx=CoCtx.empty, m);
+    add(~self=Just(Unknown(Internal) |> Typ.temp), ~co_ctx=CoCtx.empty, m);
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
     let modes = Mode.of_list_lit(ctx, List.length(es), mode);

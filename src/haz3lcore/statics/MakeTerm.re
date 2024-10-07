@@ -360,6 +360,7 @@ and alfa_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
     }
   | Op(([(_id, (["(", ")"], [Drv(Typ(body))]))], [])) =>
     ret(Parens(body))
+  | Op(([(_id, (["{", "}"], [Pat(var)]))], [])) => ret(Abbr(var))
   | Pre(([(_id, (["rec", "->"], [Drv(TPat(p))]))], []), Drv(Typ(t))) =>
     ret(Rec(p, t))
   | Bin(Drv(Typ(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) as tm =>
@@ -392,7 +393,7 @@ and exp = unsorted => {
     let (term, inner_ids) = alfa_exp_term(unsorted);
     let ids = ids(unsorted) @ inner_ids;
     let exp = return(e => Drv(Exp(e)), ids, {ids, copied: false, term});
-    TermBase.Exp.Term(Drv(Exp(exp))) |> IdTagged.fresh;
+    TermBase.Exp.Term(Drv(Exp(exp)), Drv(Jdmt)) |> IdTagged.fresh;
   | _ =>
     let ids = ids(unsorted) @ inner_ids;
     return(e => Exp(e), ids, {ids, copied: false, term});
@@ -431,14 +432,21 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           ids,
         )
       // | (["of_typ", "end"], [Drv(Typ(ty))]) => ret(Term(Drv(Typ(ty))))
-      | (["{", "}"], [Drv(Exp(e))]) => ret(Term(Drv(Exp(e))))
       // | (["of_pat", "end"], [Drv(Pat(p))]) => ret(Term(Drv(Pat(p))))
       // | (["of_tpat", "end"], [Drv(TPat(tp))]) =>
       //   ret(Term(Drv(TPat(tp))))
       // | (["of_ctxt", "end"], [Drv(Exp(ctx))]) =>
       //   ret(Term(Drv(Exp(ctx))))
-      // | (["of_prop", "end"], [Drv(Exp(p))]) => ret(Term(Drv(Exp(p))))
-      // | (["of_jdmt", "end"], [Drv(Exp(j))]) => ret(Term(Drv(Exp(j))))
+      | (["of_jdmt", "end"], [Drv(Exp(j))]) =>
+        ret(Term(Drv(Exp(j)), Drv(Jdmt)))
+      | (["of_ctx", "end"], [Drv(Exp(c))]) =>
+        ret(Term(Drv(Exp(c)), Drv(Ctx)))
+      | (["of_prop", "end"], [Drv(Exp(p))]) =>
+        ret(Term(Drv(Exp(p)), Drv(Prop)))
+      | (["of_alfa_exp", "end"], [Drv(Exp(e))]) =>
+        ret(Term(Drv(Exp(e)), Drv(Exp)))
+      | (["of_alfa_typ", "end"], [Drv(Typ(t))]) =>
+        ret(Term(Drv(Typ(t)), Drv(Typ)))
       | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))

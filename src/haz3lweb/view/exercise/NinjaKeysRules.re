@@ -47,7 +47,7 @@ let from_rule =
   [%js
    {
      val id = Haz3lcore.Rule.show(rule);
-     val title = Haz3lcore.Rule.repr(rule);
+     val title = Haz3lcore.Rule.show(rule);
      val section =
        Js.Optdef.option(
          Some(Haz3lcore.Rule.show_kind(Haz3lcore.Rule.of_kind(rule))),

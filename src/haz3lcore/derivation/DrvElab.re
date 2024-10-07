@@ -53,7 +53,6 @@ and elab_ctxt: Drv.Exp.t => t =
         }
       | _ => hole
       };
-    print_endline("elab_ctxt" ++ DrvSyntax.show_term(term));
     {...ctx, term};
   }
 and elab_prop: Drv.Exp.t => t =
@@ -181,6 +180,7 @@ and elab_typ: Drv.Typ.t => t =
     let term: term =
       switch (typ.term) {
       | Hole(s) => Hole(TermBase.TypeHole.show(s))
+      | Abbr(_) => Hole(Drv.Typ.show(typ))
       | Num => Num
       | Bool => Bool
       | Arrow(t1, t2) => Arrow(elab_typ(t1), elab_typ(t2))

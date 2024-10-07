@@ -207,7 +207,7 @@ and Exp: {
     | Int(int)
     | Float(float)
     | String(string)
-    | Term(Any.t)
+    | Term(Any.t, Sort.t)
     | ListLit(list(t))
     | Constructor(string, Typ.t) // Typ.t field is only meaningful in dynamic expressions
     | Fun(
@@ -276,7 +276,7 @@ and Exp: {
     | Int(int)
     | Float(float)
     | String(string)
-    | Term(Any.t)
+    | Term(Any.t, Sort.t)
     | ListLit(list(t))
     | Constructor(string, Typ.t)
     | Fun(
@@ -393,7 +393,7 @@ and Exp: {
             ),
           )
         | Cast(e, t1, t2) => Cast(exp_map_term(e), t1, t2)
-        | Term(e) => Term(any_map_term(e))
+        | Term(e, s) => Term(any_map_term(e), s)
         },
     };
     x |> f_exp(rec_call);
@@ -478,7 +478,7 @@ and Exp: {
          )
     | (Cast(e1, t1, t2), Cast(e2, t3, t4)) =>
       fast_equal(e1, e2) && Typ.fast_equal(t1, t3) && Typ.fast_equal(t2, t4)
-    | (Term(t1), Term(t2)) => Any.fast_equal(t1, t2)
+    | (Term(t1, s1), Term(t2, s2)) => Any.fast_equal(t1, t2) && s1 == s2
     | (Invalid(_), _)
     | (FailedCast(_), _)
     | (Deferral(_), _)
@@ -1456,7 +1456,9 @@ and ALFA_Exp: {
       ) => {
     let exp_map_term =
       ALFA_Exp.map_term(~f_hazel_pat, ~f_exp, ~f_pat, ~f_typ, ~f_tpat);
-    let pat_map_term = ALFA_Pat.map_term(~f_pat, ~f_typ, ~f_tpat);
+    let pat_map_term =
+      ALFA_Pat.map_term(~f_hazel_pat, ~f_pat, ~f_typ, ~f_tpat);
+    let typ_map_term = ALFA_Typ.map_term(~f_hazel_pat, ~f_typ, ~f_tpat);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -1471,10 +1473,10 @@ and ALFA_Exp: {
         | Ctx(e) => Ctx(List.map(exp_map_term, e))
         | Cons(e1, e2) => Cons(exp_map_term(e1), exp_map_term(e2))
         | Concat(e1, e2) => Concat(exp_map_term(e1), exp_map_term(e2))
-        | Type(t) => Type(ALFA_Typ.map_term(~f_typ, ~f_tpat, t))
-        | HasType(e, t) => HasType(exp_map_term(e), t)
-        | Syn(e, t) => Syn(exp_map_term(e), t)
-        | Ana(e, t) => Ana(exp_map_term(e), t)
+        | Type(t) => Type(typ_map_term(t))
+        | HasType(e, t) => HasType(exp_map_term(e), typ_map_term(t))
+        | Syn(e, t) => Syn(exp_map_term(e), typ_map_term(t))
+        | Ana(e, t) => Ana(exp_map_term(e), typ_map_term(t))
         | And(e1, e2) => And(exp_map_term(e1), exp_map_term(e2))
         | Or(e1, e2) => Or(exp_map_term(e1), exp_map_term(e2))
         | Impl(e1, e2) => Impl(exp_map_term(e1), exp_map_term(e2))
@@ -1683,7 +1685,8 @@ and ALFA_Rul: {
       ) => {
     let exp_map_term =
       ALFA_Exp.map_term(~f_hazel_pat, ~f_exp, ~f_pat, ~f_typ, ~f_tpat);
-    let pat_map_term = ALFA_Pat.map_term(~f_pat, ~f_typ, ~f_tpat);
+    let pat_map_term =
+      ALFA_Pat.map_term(~f_hazel_pat, ~f_pat, ~f_typ, ~f_tpat);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -1732,6 +1735,7 @@ and ALFA_Pat: {
 
   let map_term:
     (
+      ~f_hazel_pat: Pat.t => Pat.t=?,
       ~f_pat: (ALFA_Pat.t => ALFA_Pat.t, ALFA_Pat.t) => ALFA_Pat.t=?,
       ~f_typ: (ALFA_Typ.t => ALFA_Typ.t, ALFA_Typ.t) => ALFA_Typ.t=?,
       ~f_tpat: (ALFA_TPat.t => ALFA_TPat.t, ALFA_TPat.t) => ALFA_TPat.t=?,
@@ -1753,9 +1757,16 @@ and ALFA_Pat: {
     | Parens(t)
   and t = IdTagged.t(term);
 
-  let map_term = (~f_pat=continue, ~f_typ=continue, ~f_tpat=continue, x) => {
+  let map_term =
+      (
+        ~f_hazel_pat=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_tpat=continue,
+        x,
+      ) => {
     let pat_map_term = ALFA_Pat.map_term(~f_pat, ~f_typ, ~f_tpat);
-    let typ_map_term = ALFA_Typ.map_term(~f_typ, ~f_tpat);
+    let typ_map_term = ALFA_Typ.map_term(~f_hazel_pat, ~f_typ, ~f_tpat);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -1799,6 +1810,7 @@ and ALFA_Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Hole(TypeHole.t)
+    | Abbr(Pat.t)
     | Num
     | Bool
     | Arrow(t, t)
@@ -1812,6 +1824,7 @@ and ALFA_Typ: {
 
   let map_term:
     (
+      ~f_hazel_pat: Pat.t => Pat.t=?,
       ~f_typ: (ALFA_Typ.t => ALFA_Typ.t, ALFA_Typ.t) => ALFA_Typ.t=?,
       ~f_tpat: (ALFA_TPat.t => ALFA_TPat.t, ALFA_TPat.t) => ALFA_TPat.t=?,
       t
@@ -1823,6 +1836,7 @@ and ALFA_Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Hole(TypeHole.t)
+    | Abbr(Pat.t)
     | Num
     | Bool
     | Arrow(t, t)
@@ -1834,7 +1848,7 @@ and ALFA_Typ: {
     | Parens(t)
   and t = IdTagged.t(term);
 
-  let map_term = (~f_typ=continue, ~f_tpat=continue, x) => {
+  let map_term = (~f_hazel_pat=continue, ~f_typ=continue, ~f_tpat=continue, x) => {
     let typ_map_term = ALFA_Typ.map_term(~f_typ, ~f_tpat);
     let tpat_map_term = ALFA_TPat.map_term(~f_tpat);
     let rec_call = ({term, _} as exp: t) => {
@@ -1842,6 +1856,7 @@ and ALFA_Typ: {
       term:
         switch (term) {
         | Hole(_) => term
+        | Abbr(e) => Abbr(f_hazel_pat(e))
         | Num => Num
         | Bool => Bool
         | Arrow(t1, t2) => Arrow(typ_map_term(t1), typ_map_term(t2))
@@ -1859,6 +1874,8 @@ and ALFA_Typ: {
   let fast_equal = (x, y) =>
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
     | (Hole(_), _) => false
+    | (Abbr(p1), Abbr(p2)) => Pat.fast_equal(p1, p2)
+    | (Abbr(_), _) => false
     | (Num, Num) => true
     | (Num, _) => false
     | (Bool, Bool) => true

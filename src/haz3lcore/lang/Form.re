@@ -372,7 +372,17 @@ let forms: list((string, t)) = [
   ),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
   // Drv
-  ("to_alfa", mk(ii, ["{", "}"], mk_op(Exp, [Drv(Exp)]))),
+  ("of_prop", mk(ds, ["of_prop", "end"], mk_op(Exp, [Drv(Exp)]))),
+  ("of_ctx", mk(ds, ["of_ctx", "end"], mk_op(Exp, [Drv(Exp)]))),
+  ("of_jdmt", mk(ds, ["of_jdmt", "end"], mk_op(Exp, [Drv(Exp)]))),
+  (
+    "of_alfa_exp",
+    mk(ds, ["of_alfa_exp", "end"], mk_op(Exp, [Drv(Exp)])),
+  ),
+  (
+    "to_alfa_typ",
+    mk(ds, ["of_alfa_typ", "end"], mk_op(Exp, [Drv(Typ)])),
+  ),
   // ("of_alfa_typ", mk(ds, ["of_Typ", "end"], mk_op(Exp, [Drv(Typ)]))),
   // (
   //   // TODO(zhiyao): fix this
@@ -381,9 +391,6 @@ let forms: list((string, t)) = [
   // ),
   // ("of_alfa_pat", mk(ds, ["of_Pat", "end"], mk_op(Exp, [Drv(Pat)]))),
   // ("of_alfa_tpat", mk(ds, ["of_TPat", "end"], mk_op(Exp, [Drv(TPat)]))),
-  // ("of_prop", mk(ds, ["of_prop", "end"], mk_op(Exp, [Drv(Exp)]))),
-  // ("of_ctxt", mk(ds, ["of_ctxt", "end"], mk_op(Exp, [Drv(Exp)]))),
-  // ("of_jdmt", mk(ds, ["of_Jdmt", "end"], mk_op(Exp, [Drv(Exp)]))),
   // (
   //   "prop_alias",
   //   mk(ds, ["prop", "=", "in"], mk_pre(P.let_, Exp, [Pat, Drv(Exp)])),
@@ -395,7 +402,7 @@ let forms: list((string, t)) = [
   // Drv(Jdmt)
   // ("fake_val", mk(ds, ["val", "end"], mk_op(Exp, [Exp]))),
   ("val", mk(ds, ["val", "end"], mk_op(Drv(Exp), [Drv(Exp)]))),
-  ("eval", mk_infix("\=/", Drv(Exp), P.min)),
+  ("eval", mk_infix("\\=/", Drv(Exp), P.min)),
   ("entail", mk_infix("|-", Drv(Exp), P.min)),
   ("unary_entail", mk(ss, ["|-"], mk_pre(P.min, Drv(Exp), []))),
   // Drv(Ctx)
@@ -409,15 +416,15 @@ let forms: list((string, t)) = [
   ("valid", mk(ds, ["valid", "end"], mk_op(Drv(Exp), [Drv(Typ)]))),
   (
     "hastype",
-    mk(ss, [":"], mk_bin'(P.filter, Drv(Exp), Drv(Exp), [], Drv(Typ))),
+    mk(ss, [":"], mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ))),
   ),
   (
     "syn",
-    mk(ss, ["=>"], mk_bin'(P.filter, Drv(Exp), Drv(Exp), [], Drv(Typ))),
+    mk(ss, ["=>"], mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ))),
   ),
   (
     "ana",
-    mk(ss, ["<="], mk_bin'(P.filter, Drv(Exp), Drv(Exp), [], Drv(Typ))),
+    mk(ss, ["<="], mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ))),
   ),
   ("and", mk_infix("/\\", Drv(Exp), P.and_)),
   ("or", mk_infix("\\/", Drv(Exp), P.or_)),
@@ -477,8 +484,9 @@ let forms: list((string, t)) = [
   ("pat_pair", mk_infix(",", Drv(Pat), P.comma)),
   ("pat_parens", mk(ii, ["(", ")"], mk_op(Drv(Pat), [Drv(Pat)]))),
   // Drv(Typ)
+  ("alfa_typ_abbr", mk(ii, ["{", "}"], mk_op(Drv(Typ), [Pat]))),
   ("typ_arrow", mk_infix("->", Drv(Typ), P.type_arrow)),
-  ("typ_prod", mk_infix("*", Drv(Typ), P.type_prod)),
+  ("typ_prod", mk_infix("*", Drv(Typ), P.type_plus - 1)),
   ("typ_sum", mk_infix("+", Drv(Typ), P.type_plus)),
   (
     "typ_rec",

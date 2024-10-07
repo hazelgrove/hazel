@@ -271,7 +271,7 @@ module Transition = (EV: EV_MODE) => {
             };
           let+ e =
             switch (DHExp.term_of(DHExp.strip_casts(d))) {
-            | Term(Drv(Exp(e))) => Ok(e)
+            | Term(Drv(Exp(e)), _) => Ok(e)
             | _ => Error("Pat Not Jdmt/Prop/Ctx/ALFA_Exp type")
             };
           e |> IdTagged.unwrap |> fst;
@@ -282,10 +282,10 @@ module Transition = (EV: EV_MODE) => {
         | Ctx(es) => Ctx(List.map(go_exp, es))
         | Cons(e1, e2) => Cons(go_exp(e1), go_exp(e2))
         | Concat(e1, e2) => Concat(go_exp(e1), go_exp(e2))
-        | Type(t) => Type(t)
-        | HasType(e, t) => HasType(go_exp(e), t)
-        | Syn(e, t) => Syn(go_exp(e), t)
-        | Ana(e, t) => Ana(go_exp(e), t)
+        | Type(t) => Type(go_typ(t))
+        | HasType(e, t) => HasType(go_exp(e), go_typ(t))
+        | Syn(e, t) => Syn(go_exp(e), go_typ(t))
+        | Ana(e, t) => Ana(go_exp(e), go_typ(t))
         | And(p1, p2) => And(go_exp(p1), go_exp(p2))
         | Or(p1, p2) => Or(go_exp(p1), go_exp(p2))
         | Impl(p1, p2) => Impl(go_exp(p1), go_exp(p2))
@@ -302,9 +302,9 @@ module Transition = (EV: EV_MODE) => {
         | True => True
         | False => False
         | If(e1, e2, e3) => If(go_exp(e1), go_exp(e2), go_exp(e3))
-        | Let(x, e1, e2) => Let(x, go_exp(e1), go_exp(e2))
-        | Fix(x, e) => Fix(x, go_exp(e))
-        | Fun(x, e) => Fun(x, go_exp(e))
+        | Let(x, e1, e2) => Let(go_pat(x), go_exp(e1), go_exp(e2))
+        | Fix(x, e) => Fix(go_pat(x), go_exp(e))
+        | Fun(x, e) => Fun(go_pat(x), go_exp(e))
         | Ap(e1, e2) => Ap(go_exp(e1), go_exp(e2))
         | Tuple(es) => Tuple(List.map(go_exp, es))
         | Triv => Triv
@@ -318,11 +318,81 @@ module Transition = (EV: EV_MODE) => {
         | Unroll => Unroll
         };
       term |> rewrap;
+    }
+    and go_rul = rul => {
+      let (term, rewrap) = Drv.Rul.unwrap(rul);
+      let term: Drv.Rul.term =
+        switch (term) {
+        | Hole(s) => Hole(s)
+        | Rules(e, rls) =>
+          let e = go_exp(e);
+          let rls = List.map(((p, e)) => (p, go_exp(e)), rls);
+          Rules(e, rls);
+        };
+      term |> rewrap;
+    }
+    and go_typ = typ => {
+      let (term, rewrap) = Drv.Typ.unwrap(typ);
+      let term: Drv.Typ.term =
+        switch (term) {
+        | Hole(s) => Hole(s)
+        | Abbr(p) =>
+          // TODO(zhiyao): Fix this
+          let (let+) = (x, f) =>
+            switch (x) {
+            | Ok(x) => f(x)
+            | Error(s) => (Hole(Invalid(s)): Drv.Typ.term)
+            };
+          let+ p =
+            switch (IdTagged.term_of(p)) {
+            | Var(x) => Ok(x)
+            | _ => Error("Pat Not Var")
+            };
+          let+ d =
+            switch (ClosureEnvironment.lookup(env, p)) {
+            | Some(d) => Ok(d)
+            | None => Error("Pat Not Found")
+            };
+          let+ e =
+            switch (DHExp.term_of(DHExp.strip_casts(d))) {
+            | Term(Drv(Typ(e)), _) => Ok(e)
+            | _ => Error("Pat Not Jdmt/Prop/Ctx/ALFA_Exp type")
+            };
+          e |> IdTagged.unwrap |> fst;
+        | Num => Num
+        | Bool => Bool
+        | Arrow(t1, t2) => Arrow(go_typ(t1), go_typ(t2))
+        | Prod(t1, t2) => Prod(go_typ(t1), go_typ(t2))
+        | Unit => Unit
+        | Sum(t1, t2) => Sum(go_typ(t1), go_typ(t2))
+        | Var(x) => Var(x)
+        | Rec(x, t) => Rec(x, go_typ(t))
+        | Parens(t) => Parens(go_typ(t))
+        };
+      term |> rewrap;
+    }
+    and go_pat = pat => {
+      let (term, rewrap) = Drv.Pat.unwrap(pat);
+      let term: Drv.Pat.term =
+        switch (term) {
+        | Hole(s) => Hole(s)
+        | Var(x) => Var(x)
+        | Cast(p, t) => Cast(go_pat(p), go_typ(t))
+        | InjL => InjL
+        | InjR => InjR
+        | Ap(p1, p2) => Ap(go_pat(p1), go_pat(p2))
+        | Pair(p1, p2) => Pair(go_pat(p1), go_pat(p2))
+        | Parens(p) => Parens(go_pat(p))
+        };
+      term |> rewrap;
     };
     let (term, rewrap) = IdTagged.unwrap(d);
     let term: term =
       switch (term) {
-      | Term(Drv(Exp(exp))) => Term(Drv(Exp(go_exp(exp))))
+      | Term(Drv(Exp(exp)), s) => Term(Drv(Exp(go_exp(exp))), s)
+      | Term(Drv(Rul(rul)), s) => Term(Drv(Rul(go_rul(rul))), s)
+      | Term(Drv(Typ(typ)), s) => Term(Drv(Typ(go_typ(typ))), s)
+      | Term(Drv(Pat(pat)), s) => Term(Drv(Pat(go_pat(pat))), s)
       | _ => term
       };
     term |> rewrap;

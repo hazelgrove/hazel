@@ -141,24 +141,24 @@ type t =
   | Truth_I
   | Falsity_E;
 
+let show = rule => show(rule) |> String.map(c => c == '_' ? '-' : c);
+
 let repr =
-    // fun
-    // // Propositional logic
-    // | Assumption => "Asm."
-    // | And_I => "∧-I"
-    // | And_E_L => "∧-E-L"
-    // | And_E_R => "∧-E-R"
-    // | Or_I_L => "∨-I-L"
-    // | Or_I_R => "∨-I-R"
-    // | Or_E => "∨-E"
-    // | Implies_I => "⊃-I"
-    // | Implies_E => "⊃-E"
-    // | Truth_I => "⊤-I"
-    // | Falsity_E => "⊥-E"
-    // | A_Subsumption => "A-Sub"
-    // |
-    rule =>
-  show(rule) |> String.map(c => c == '_' ? '-' : c);
+  fun
+  // // Propositional logic
+  | Assumption => "Asm."
+  | And_I => "∧-I"
+  | And_E_L => "∧-E-L"
+  | And_E_R => "∧-E-R"
+  | Or_I_L => "∨-I-L"
+  | Or_I_R => "∨-I-R"
+  | Or_E => "∨-E"
+  | Implies_I => "⊃-I"
+  | Implies_E => "⊃-E"
+  | Truth_I => "⊤-I"
+  | Falsity_E => "⊥-E"
+  | A_Subsumption => "A-Sub."
+  | rule => show(rule);
 
 let prems_num =
   fun
@@ -835,7 +835,7 @@ let all: list(t) = [
 
 let keywords: t => list(string) =
   rule =>
-    (repr(rule) |> String.split_on_char('-'))
+    (show(rule) |> String.split_on_char('_'))
     @ (
       switch (of_kind(rule)) {
       | TypeValidity => ["Type", "Validity", "typ", "tv", "val"]
