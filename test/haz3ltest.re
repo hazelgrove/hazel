@@ -9,6 +9,7 @@ let (suite, _) =
       ("Statics", Test_Statics.tests),
       ("Evaluator", Test_Evaluator.tests),
       ("Editor", Test_Editor.tests),
+      ("MakeTerm", Test_MakeTerm.tests),
     ],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
