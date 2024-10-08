@@ -18,8 +18,9 @@ let filter_pause = (~p_id: Id.t, ~body_id: Id.t): Simple.t => {
   examples: [
     {
       sub_id: FilterStep,
-      term: mk_example("eval $e + $e in\n(1 + 2) * (3 + 4)"),
-      message: "The expression (1 * 2) + (3 * 4) is guarded by a pause filter expression pause $v + $v, which instruct the evaluator to pause the evaluation when it sees a value is added to another value. After evaluating subterms (1 * 2) and (3 * 4), the expression turns into 2 + 12. 2 matches the first $v pattern, and 12 matches the second $v pattern. Therefore, the evaluator stops when the expression steps to 2 + 12",
+      term: mk_example({|debug stop($v + $v) in
+(1 + 2) * (3 + 4)|}),
+      message: "The expression (1 * 2) + (3 * 4) is guarded by a pause filter expression debug pause($v + $v), which instruct the evaluator to pause the evaluation when it sees a value is added to another value. After evaluating subterms (1 * 2) and (3 * 4), the expression turns into 2 + 12. 2 matches the first $v pattern, and 12 matches the second $v pattern. Therefore, the evaluator stops when the expression steps to 2 + 12",
     },
   ],
 };
@@ -42,9 +43,13 @@ let filter_eval = (~p_id: Id.t, ~body_id: Id.t): Simple.t => {
       sub_id: FilterEval,
       term:
         mk_example(
-          "pause $e in\nhide let = in in\nlet x = 1 in\nlet y = 2 in\nx + y",
+          {|debug stop($e) in
+debug eval(let = in) in
+let x = 1 in
+let x = y in
+x + y|},
         ),
-      message: "pause $e in instruct the evaluator to act like a single-stepper, e.g. stop at every step. The hide filter expression instructs the evaluator to skip over all evaluator steps that destructs perform substitution on a let-expression. Here, the substitution of variable x and y is skipped over and we directly got 1 + 2 in the result area.",
+      message: "debug stop($e) in instruct the evaluator to act like a single-stepper, e.g. stop at every step. The hide filter expression debug eval(let = in) instructs the evaluator to evaluate all let-expressions. Here, the evaluation of the two let-expressions are skipped over, and we get the final answer 2 immediately.",
     },
   ],
 };
@@ -67,7 +72,11 @@ let filter_hide = (~p_id: Id.t, ~body_id: Id.t): Simple.t => {
       sub_id: FilterHide,
       term:
         mk_example(
-          "pause $e in\nhide let = in in\nlet x = 1 in\nlet y = 2 in\nx + y",
+          {|debug stop($e) in
+debug hide(let = in) in
+let x = 1 in
+let y = 2 in
+x + y|},
         ),
       message: "pause $e in instruct the evaluator to act like a single-stepper, e.g. stop at every step. The hide filter expression instructs the evaluator to skip over all evaluator steps that destructs perform substitution on a let-expression. Here, the substitution of variable x and y is skipped over and we directly got 1 + 2 in the result area.",
     },

@@ -63,7 +63,8 @@ let rec precedence = (~show_function_bodies, ~show_casts: bool, d: DHExp.t) => {
   | BuiltinFun(_)
   | Deferral(_)
   | Undefined
-  | Filter(_) => DHDoc_common.precedence_const
+  | Filter(_)
+  | Residue(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_Ap : precedence'(d1)
   | DeferredAp(_)
@@ -252,34 +253,26 @@ let mk =
       switch (DHExp.term_of(d)) {
       | Parens(d') => go'(d')
       | Closure(env', d') => go'(d', ~env=env')
-      | Filter(flt, d') =>
-        if (settings.show_stepper_filters) {
-          switch (flt) {
-          | Filter({pat, act}) =>
-            let keyword = FilterAction.string_of_t(act);
-            let flt_doc = go_formattable(pat);
-            vseps([
-              hcats([
-                DHDoc_common.Delim.mk(keyword),
-                flt_doc
-                |> DHDoc_common.pad_child(
-                     ~inline_padding=(space(), space()),
-                     ~enforce_inline=false,
-                   ),
-                DHDoc_common.Delim.mk("in"),
-              ]),
-              go'(d'),
-            ]);
-          | Residue(_, act) =>
-            let keyword = FilterAction.string_of_t(act);
-            vseps([DHDoc_common.Delim.mk(keyword), go'(d')]);
-          };
-        } else {
-          switch (flt) {
-          | Residue(_) => go'(d')
-          | Filter(_) => go'(d')
-          };
-        }
+      | Filter(Some(act), pat, d') when settings.show_stepper_filters =>
+        let keyword = FilterAction.string_of_t(act);
+        let flt_doc = go_formattable(pat);
+        vseps([
+          hcats([
+            DHDoc_common.Delim.mk(keyword),
+            flt_doc
+            |> DHDoc_common.pad_child(
+                 ~inline_padding=(space(), space()),
+                 ~enforce_inline=false,
+               ),
+            DHDoc_common.Delim.mk("in"),
+          ]),
+          go'(d'),
+        ]);
+      | Filter(_, _, d') => go'(d')
+      | Residue(_, act, d') when settings.show_stepper_filters =>
+        let keyword = FilterAction.string_of_t(act);
+        vseps([DHDoc_common.Delim.mk(keyword), go'(d')]);
+      | Residue(_, _, d') => go'(d')
 
       /* Hole expressions must appear within a closure in
          the postprocessed result */

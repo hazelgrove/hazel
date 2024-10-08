@@ -164,7 +164,8 @@ and Exp: {
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
-    | Filter(StepperFilterKind.t, t)
+    | Filter(option(FilterAction.t), t, t)
+    | Residue(int, FilterAction.t, t)
     | Closure([@show.opaque] ClosureEnvironment.t, t)
     | Parens(t) // (
     | Cons(t, t)
@@ -231,7 +232,8 @@ and Exp: {
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
-    | Filter(StepperFilterKind.t, t)
+    | Filter(option(FilterAction.t), t, t)
+    | Residue(int, FilterAction.t, t)
     | Closure([@show.opaque] ClosureEnvironment.t, t)
     | Parens(t)
     | Cons(t, t)
@@ -263,15 +265,6 @@ and Exp: {
       TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let any_map_term =
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
-    let flt_map_term =
-      StepperFilterKind.map_term(
-        ~f_exp,
-        ~f_pat,
-        ~f_typ,
-        ~f_tpat,
-        ~f_rul,
-        ~f_any,
-      );
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -307,7 +300,9 @@ and Exp: {
           If(exp_map_term(e1), exp_map_term(e2), exp_map_term(e3))
         | Seq(e1, e2) => Seq(exp_map_term(e1), exp_map_term(e2))
         | Test(e) => Test(exp_map_term(e))
-        | Filter(f, e) => Filter(flt_map_term(f), exp_map_term(e))
+        | Filter(act, pat, e) =>
+          Filter(act, exp_map_term(pat), exp_map_term(e))
+        | Residue(idx, act, e) => Residue(idx, act, exp_map_term(e))
         | Closure(env, e) => Closure(env, exp_map_term(e))
         | Parens(e) => Parens(exp_map_term(e))
         | Cons(e1, e2) => Cons(exp_map_term(e1), exp_map_term(e2))
@@ -387,8 +382,10 @@ and Exp: {
     | (Seq(e1, e2), Seq(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Test(e1), Test(e2)) => fast_equal(e1, e2)
-    | (Filter(f1, e1), Filter(f2, e2)) =>
-      StepperFilterKind.fast_equal(f1, f2) && fast_equal(e1, e2)
+    | (Filter(_, f1, e1), Filter(_, f2, e2)) =>
+      fast_equal(f1, f2) && fast_equal(e1, e2)
+    | (Residue(i1, a1, e1), Residue(i2, a2, e2)) =>
+      i1 == i2 && a1 == a2 && fast_equal(e1, e2)
     | (Closure(c1, e1), Closure(c2, e2)) =>
       ClosureEnvironment.id_equal(c1, c2) && fast_equal(e1, e2)
     | (Cons(e1, e2), Cons(e3, e4)) =>
@@ -433,6 +430,7 @@ and Exp: {
     | (Seq(_), _)
     | (Test(_), _)
     | (Filter(_), _)
+    | (Residue(_), _)
     | (Closure(_), _)
     | (Cons(_), _)
     | (ListConcat(_), _)
@@ -610,6 +608,7 @@ and Typ: {
     | Float
     | Bool
     | String
+    | Filter
     | Var(string)
     | List(t)
     | Arrow(t, t)
@@ -662,6 +661,7 @@ and Typ: {
     | Float
     | Bool
     | String
+    | Filter
     | Var(string)
     | List(t)
     | Arrow(t, t)
@@ -703,6 +703,7 @@ and Typ: {
         | Int
         | Float
         | String
+        | Filter
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>
@@ -738,6 +739,7 @@ and Typ: {
       | Float => Float |> rewrap
       | Bool => Bool |> rewrap
       | String => String |> rewrap
+      | Filter => Filter |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
@@ -786,6 +788,8 @@ and Typ: {
     | (Bool, _) => false
     | (String, String) => true
     | (String, _) => false
+    | (Filter, Filter) => true
+    | (Filter, _) => false
     | (Ap(t1, t2), Ap(t1', t2')) =>
       eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
     | (Ap(_), _) => false
@@ -1097,75 +1101,4 @@ and ClosureEnvironment: {
   let placeholder = wrap(Id.invalid, Environment.empty);
 
   let without_keys = keys => update(Environment.without_keys(keys));
-}
-and StepperFilterKind: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type filter = {
-    pat: Exp.t,
-    act: FilterAction.t,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Filter(filter)
-    | Residue(int, FilterAction.t);
-
-  let map_term:
-    (
-      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
-      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
-      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
-      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
-      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
-      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      t
-    ) =>
-    t;
-
-  let map: (Exp.t => Exp.t, t) => t;
-
-  let fast_equal: (t, t) => bool;
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type filter = {
-    pat: Exp.t,
-    act: FilterAction.t,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Filter(filter)
-    | Residue(int, FilterAction.t);
-
-  let map = (mapper, filter) => {
-    switch (filter) {
-    | Filter({act, pat}) => Filter({act, pat: mapper(pat)})
-    | Residue(idx, act) => Residue(idx, act)
-    };
-  };
-
-  let map_term =
-      (
-        ~f_exp=continue,
-        ~f_pat=continue,
-        ~f_typ=continue,
-        ~f_tpat=continue,
-        ~f_rul=continue,
-        ~f_any=continue,
-      ) => {
-    let exp_map_term =
-      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
-    fun
-    | Filter({pat: e, act}) => Filter({pat: exp_map_term(e), act})
-    | Residue(i, a) => Residue(i, a);
-  };
-
-  let fast_equal = (f1, f2) =>
-    switch (f1, f2) {
-    | (Filter({pat: e1, act: a1}), Filter({pat: e2, act: a2})) =>
-      Exp.fast_equal(e1, e2) && a1 == a2
-    | (Residue(i1, a1), Residue(i2, a2)) => i1 == i2 && a1 == a2
-    | (Filter(_), _)
-    | (Residue(_), _) => false
-    };
 };

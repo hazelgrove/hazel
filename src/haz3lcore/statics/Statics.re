@@ -281,7 +281,7 @@ and uexp_to_info_map =
         | _ => e.term
         },
     };
-    let ty_in = Typ.Var("$Meta") |> Typ.temp;
+    let ty_in = Typ.Unknown(Internal) |> Typ.temp;
     let ty_out = Typ.Unknown(Internal) |> Typ.temp;
     let (e, m) = go(~mode=Ana(ty_in), e, m);
     add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
@@ -311,15 +311,59 @@ and uexp_to_info_map =
   | Test(e) =>
     let (e, m) = go(~mode=Ana(Bool |> Typ.temp), e, m);
     add(~self=Just(Prod([]) |> Typ.temp), ~co_ctx=e.co_ctx, m);
-  | Filter(Filter({pat: cond, _}), body) =>
-    let (cond, m) = go(~mode=Syn, cond, m, ~is_in_filter=true);
+  | Filter(_, pat, body) =>
+    let (pat, m) = {
+      let uexp = pat;
+      let ids = pat.ids;
+      let add' = (~self, ~co_ctx, m) => {
+        let info =
+          Info.derived_exp(~uexp, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx);
+        (info, add_info(ids, InfoExp(info), m));
+      };
+      let add = (~self, ~co_ctx, m) => add'(~self=Common(self), ~co_ctx, m);
+      let ancestors = [UExp.rep_id(uexp)] @ ancestors;
+      let uexp_to_info_map =
+          (
+            ~ctx,
+            ~mode=Mode.Syn,
+            ~is_in_filter=is_in_filter,
+            ~ancestors=ancestors,
+            uexp: UExp.t,
+            m: Map.t,
+          ) => {
+        uexp_to_info_map(~ctx, ~mode, ~is_in_filter, ~ancestors, uexp, m);
+      };
+      let go' = uexp_to_info_map(~ancestors);
+      let go = go'(~ctx);
+      switch (pat.term) {
+      | Ap(_, fn, arg) =>
+        let fn_mode =
+          Mode.of_ap(ctx, Ana(Filter |> Typ.temp), UExp.ctr_name(fn));
+        let (fn, m) =
+          go'(~ctx=Builtins.filter_keyword_ctx_init, ~mode=fn_mode, fn, m);
+        let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+        let (arg, m) = go(~mode=Ana(ty_in), arg, m, ~is_in_filter=true);
+        let self: Self.t =
+          Id.is_nullary_ap_flag(arg.term.ids)
+          && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
+            ? BadTrivAp(ty_in) : Just(ty_out);
+        add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+      | _ =>
+        go'(
+          ~ctx=Builtins.filter_keyword_ctx_init,
+          ~mode=Ana(Filter |> Typ.temp),
+          pat,
+          m,
+        )
+      };
+    };
     let (body, m) = go(~mode, body, m);
     add(
       ~self=Just(body.ty),
-      ~co_ctx=CoCtx.union([cond.co_ctx, body.co_ctx]),
+      ~co_ctx=CoCtx.union([pat.co_ctx, body.co_ctx]),
       m,
     );
-  | Filter(Residue(_), body) =>
+  | Residue(_, _, body) =>
     let (body, m) = go(~mode, body, m);
     add(~self=Just(body.ty), ~co_ctx=CoCtx.union([body.co_ctx]), m);
   | Seq(e1, e2) =>
@@ -841,7 +885,8 @@ and utyp_to_info_map =
   | Int
   | Float
   | Bool
-  | String => add(m)
+  | String
+  | Filter => add(m)
   | Var(_) =>
     /* Names are resolved in Info.status_typ */
     add(m)

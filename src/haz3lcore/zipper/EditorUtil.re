@@ -36,9 +36,12 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
     | Seq(e11, e12) =>
       let e12' = append_exp(e12, e2);
       {ids: e1.ids, copied: false, term: Seq(e11, e12')};
-    | Filter(kind, ebody) =>
+    | Filter(act, pat, ebody) =>
       let ebody' = append_exp(ebody, e2);
-      {ids: e1.ids, copied: false, term: Filter(kind, ebody')};
+      {ids: e1.ids, copied: false, term: Filter(act, pat, ebody')};
+    | Residue(idx, act, ebody) =>
+      let ebody' = append_exp(ebody, e2);
+      {ids: e1.ids, copied: false, term: Residue(idx, act, ebody')};
     | Let(p, edef, ebody) =>
       let ebody' = append_exp(ebody, e2);
       {ids: e1.ids, copied: false, term: Let(p, edef, ebody')};

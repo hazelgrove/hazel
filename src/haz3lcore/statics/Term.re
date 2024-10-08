@@ -308,6 +308,7 @@ module Exp = {
     | Seq
     | Test
     | Filter
+    | Residue
     | Closure
     | Parens
     | Cons
@@ -357,6 +358,7 @@ module Exp = {
     | Seq(_) => Seq
     | Test(_) => Test
     | Filter(_) => Filter
+    | Residue(_) => Residue
     | Closure(_) => Closure
     | Parens(_) => Parens
     | Cons(_) => Cons
@@ -399,6 +401,7 @@ module Exp = {
     | Seq => "Sequence expression"
     | Test => "Test"
     | Filter => "Filter"
+    | Residue => "Residue"
     | Closure => "Closure"
     | Parens => "Parenthesized expression"
     | Cons => "Cons"
@@ -442,6 +445,7 @@ module Exp = {
     | Seq(_)
     | Test(_)
     | Filter(_)
+    | Residue(_)
     | Cons(_)
     | ListConcat(_)
     | Closure(_)
@@ -486,6 +490,7 @@ module Exp = {
       | Seq(_)
       | Test(_)
       | Filter(_)
+      | Residue(_)
       | Cons(_)
       | ListConcat(_)
       | UnOp(_)
@@ -536,6 +541,7 @@ module Exp = {
       | Var(_)
       | Let(_)
       | Filter(_)
+      | Residue(_)
       | TyAlias(_)
       | Ap(_)
       | TypAp(_)

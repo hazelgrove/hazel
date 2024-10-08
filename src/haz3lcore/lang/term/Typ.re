@@ -12,6 +12,7 @@ type cls =
   | Float
   | Bool
   | String
+  | Filter
   | Arrow
   | Prod
   | Sum
@@ -51,6 +52,7 @@ let cls_of_term: term => cls =
   | Float => Float
   | Bool => Bool
   | String => String
+  | Filter => Filter
   | List(_) => List
   | Arrow(_) => Arrow
   | Var(_) => Var
@@ -72,6 +74,7 @@ let show_cls: cls => string =
   | Float
   | String
   | Bool => "Base type"
+  | Filter => "Filter type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
   | List => "List type"
@@ -92,6 +95,7 @@ let rec is_arrow = (typ: t) => {
   | Float
   | Bool
   | String
+  | Filter
   | List(_)
   | Prod(_)
   | Var(_)
@@ -111,6 +115,7 @@ let rec is_forall = (typ: t) => {
   | Float
   | Bool
   | String
+  | Filter
   | Arrow(_)
   | List(_)
   | Prod(_)
@@ -155,7 +160,8 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Int
   | Float
   | Bool
-  | String => []
+  | String
+  | Filter => []
   | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | Parens(ty) => free_vars(~bound, ty)
@@ -256,6 +262,8 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
   | (Bool, _) => None
   | (String, String) => Some(ty1)
   | (String, _) => None
+  | (Filter, Filter) => Some(ty1)
+  | (Filter, _) => None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     let* ty1 = join'(ty1, ty1');
     let+ ty2 = join'(ty2, ty2');
@@ -291,6 +299,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Float, _)
   | (Bool, _)
   | (String, _)
+  | (Filter, _)
   | (Var(_), _)
   | (Ap(_), _)
   | (Rec(_), _)
@@ -347,7 +356,8 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Int
   | Float
   | Bool
-  | String => ty
+  | String
+  | Filter => ty
   | Parens(t) => Parens(normalize(ctx, t)) |> rewrap
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
@@ -478,6 +488,7 @@ let rec needs_parens = (ty: t): bool =>
   | Float
   | String
   | Bool
+  | Filter
   | Var(_) => false
   | Rec(_, _)
   | Forall(_, _) => true
@@ -505,6 +516,7 @@ let rec pretty_print = (ty: t): string =>
   | Float => "Float"
   | Bool => "Bool"
   | String => "String"
+  | Filter => "Filter"
   | Var(tvar) => tvar
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)

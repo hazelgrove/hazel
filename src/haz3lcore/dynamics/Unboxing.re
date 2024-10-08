@@ -185,6 +185,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Seq(_) |
         Test(_) |
         Filter(_) |
+        Residue(_) |
         Closure(_) |
         Parens(_) |
         Cons(_) |

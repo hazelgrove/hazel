@@ -1710,35 +1710,68 @@ let get_doc =
             ),
           SeqExp.seqs,
         );
-      | Filter(Filter({act: (Step, One), pat}), body) =>
+      | Filter(Some((Step, One)), pat, body) =>
         message_single(
           FilterExp.filter_pause(
             ~p_id=UExp.rep_id(pat),
             ~body_id=UExp.rep_id(body),
           ),
         )
-      | Filter(Filter({act: (Step, All), pat}), body) =>
+      | Filter(Some((Step, All)), pat, body) =>
         message_single(
           FilterExp.filter_debug(
             ~p_id=UExp.rep_id(pat),
             ~body_id=UExp.rep_id(body),
           ),
         )
-      | Filter(Filter({act: (Eval, All), pat}), body) =>
+      | Filter(Some((Eval, All)), pat, body) =>
         message_single(
           FilterExp.filter_eval(
             ~p_id=UExp.rep_id(pat),
             ~body_id=UExp.rep_id(body),
           ),
         )
-      | Filter(Filter({act: (Eval, One), pat}), body) =>
+      | Filter(Some((Eval, One)), pat, body) =>
         message_single(
           FilterExp.filter_hide(
             ~p_id=UExp.rep_id(pat),
             ~body_id=UExp.rep_id(body),
           ),
         )
-      | Filter(_) => simple("Internal expression")
+      | Filter(None, {term: Ap(_, {term: Var(var), _}, _), _} as pat, body) =>
+        switch (var) {
+        | "stop" =>
+          message_single(
+            FilterExp.filter_pause(
+              ~p_id=UExp.rep_id(pat),
+              ~body_id=UExp.rep_id(body),
+            ),
+          )
+        | "step" =>
+          message_single(
+            FilterExp.filter_debug(
+              ~p_id=UExp.rep_id(pat),
+              ~body_id=UExp.rep_id(body),
+            ),
+          )
+        | "hide" =>
+          message_single(
+            FilterExp.filter_hide(
+              ~p_id=UExp.rep_id(pat),
+              ~body_id=UExp.rep_id(body),
+            ),
+          )
+        | "eval" =>
+          message_single(
+            FilterExp.filter_eval(
+              ~p_id=UExp.rep_id(pat),
+              ~body_id=UExp.rep_id(body),
+            ),
+          )
+        | _ => simple("Internal expression")
+        }
+      | Filter(None, _, _)
+      | Residue(_) => simple("Internal expression")
       | Test(body) =>
         let body_id = List.nth(body.ids, 0);
         get_message(
@@ -2137,6 +2170,7 @@ let get_doc =
     | Float => get_message(TerminalTyp.float)
     | Bool => get_message(TerminalTyp.bool)
     | String => get_message(TerminalTyp.str)
+    | Filter => get_message(TerminalTyp.str)
     | List(elem) =>
       let elem_id = List.nth(elem.ids, 0);
       get_message(

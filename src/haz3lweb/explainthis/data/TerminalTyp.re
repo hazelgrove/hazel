@@ -45,6 +45,17 @@ let str_typ: form = {
   };
 };
 
+let filter_typ: form = {
+  let explanation = "The `Filter` type classifies the filter used in `debug .. in` statement.";
+  {
+    id: FilterTyp,
+    syntactic_form: [typ("Filter")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 let var_typ = (name: string): form => {
   let explanation = "`%s` is a type variable.";
   {
@@ -65,3 +76,5 @@ let bool: group = {id: BoolTyp, forms: [bool_typ]};
 let str: group = {id: StrTyp, forms: [str_typ]};
 
 let var = (name: string): group => {id: VarTyp, forms: [var_typ(name)]};
+
+let filter: group = {id: FilterTyp, forms: [filter_typ]};

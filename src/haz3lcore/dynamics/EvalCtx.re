@@ -3,7 +3,8 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type term =
   | Closure([@show.opaque] ClosureEnvironment.t, t)
-  | Filter(TermBase.StepperFilterKind.t, t)
+  | Filter(option(FilterAction.t), DHExp.t, t)
+  | Residue(int, FilterAction.t, t)
   | Seq1(t, DHExp.t)
   | Seq2(DHExp.t, t)
   | Let1(Pat.t, t, DHExp.t)
@@ -56,9 +57,12 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | Closure(env, ctx) =>
         let d = compose(ctx, d);
         Closure(env, d) |> wrap;
-      | Filter(flt, ctx) =>
+      | Filter(act, pat, ctx) =>
         let d = compose(ctx, d);
-        Filter(flt, d) |> wrap;
+        Filter(act, pat, d) |> wrap;
+      | Residue(idx, act, ctx) =>
+        let d = compose(ctx, d);
+        Residue(idx, act, d) |> wrap;
       | Seq1(ctx, d2) =>
         let d1 = compose(ctx, d);
         Seq(d1, d2) |> wrap;

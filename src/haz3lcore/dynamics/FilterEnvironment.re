@@ -1,2 +1,9 @@
-type t = list(TermBase.StepperFilterKind.filter);
-let extends = (flt, env) => [flt, ...env];
+type filter = {
+  act: FilterAction.t,
+  pat: Exp.t,
+};
+type t = list(filter);
+let extends = (flt: filter, env: list(filter)): list(filter) => [
+  flt,
+  ...env,
+];

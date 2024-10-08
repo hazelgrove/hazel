@@ -385,14 +385,27 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       Test(fresh_cast(e', t, Bool |> Typ.temp))
       |> rewrap
       |> cast_from(Prod([]) |> Typ.temp);
-    | Filter(kind, e) =>
+    | Filter(_, p, e) =>
+      switch (p.term) {
+      | Ap(_, {term: Var(name), _}, arg) =>
+        switch (FilterAction.t_of_string(name)) {
+        | Some(act) =>
+          let (e', t) = elaborate(m, e);
+          let (p', _) = elaborate(m, arg);
+          Filter(Some(act), p', e') |> rewrap |> cast_from(t);
+        | None =>
+          let (e', t) = elaborate(m, e);
+          let (p', _) = elaborate(m, p);
+          Filter(None, p', e') |> rewrap |> cast_from(t);
+        }
+      | _ =>
+        let (e', t) = elaborate(m, e);
+        let (p', _) = elaborate(m, p);
+        Filter(None, p', e') |> rewrap |> cast_from(t);
+      }
+    | Residue(i, a, e) =>
       let (e', t) = elaborate(m, e);
-      let kind' =
-        switch (kind) {
-        | Residue(_) => kind
-        | Filter({act, pat}) => Filter({act, pat: elaborate(m, pat) |> fst})
-        };
-      Filter(kind', e') |> rewrap |> cast_from(t);
+      Residue(i, a, e') |> rewrap |> cast_from(t);
     | Closure(env, e) =>
       // Should we be elaborating the contents of the environment?
       let (e', t) = elaborate(m, e);

@@ -227,7 +227,7 @@ let rec matches =
   let (mact, midx) = FilterMatcher.matches(~env, ~exp=composed, ~act, flt);
   let (act, idx) =
     switch (ctx) {
-    | Term({term: Filter(_, _), _}) => (pact, pidx)
+    | Term({term: Filter(_, _, _), _}) => (pact, pidx)
     | _ => midx > pidx ? (mact, midx) : (pact, pidx)
     };
   let map = ((a, i, c), f: EvalCtx.t => EvalCtx.t) => {
@@ -243,11 +243,14 @@ let rec matches =
       | Closure(env, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Closure(env, ctx) |> wrap_ids(ids);
-      | Filter(Filter(flt'), ctx) =>
-        let flt = flt |> FilterEnvironment.extends(flt');
+      | Filter(Some(fact), pat, ctx) =>
+        let flt = flt |> FilterEnvironment.extends({act: fact, pat});
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Filter(Filter(flt'), ctx) |> wrap_ids(ids);
-      | Filter(Residue(idx', act'), ctx) =>
+        Filter(Some(fact), pat, ctx) |> wrap_ids(ids);
+      | Filter(fact, pat, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Filter(fact, pat, ctx) |> wrap_ids(ids);
+      | Residue(idx', act', ctx) =>
         let (ract, ridx, rctx) =
           if (idx > idx') {
             matches(env, flt, ctx, exp, act, idx);
@@ -258,10 +261,7 @@ let rec matches =
           (
             ract,
             ridx,
-            Term({
-              term: Filter(Residue(idx', act'), rctx),
-              ids: [Id.mk()],
-            }),
+            Term({term: Residue(idx', act', rctx), ids: [Id.mk()]}),
           );
         } else {
           (ract, ridx, rctx);
@@ -380,7 +380,7 @@ let rec matches =
   | _ when midx > pidx && mact |> snd == All => (
       ract,
       ridx,
-      Term({term: Filter(Residue(midx, mact), rctx), ids: [Id.mk()]}),
+      Term({term: Residue(midx, mact, rctx), ids: [Id.mk()]}),
     )
   | _ => (ract, ridx, rctx)
   };
@@ -413,19 +413,3 @@ let should_hide_step = (~settings, x: step): (FilterAction.action, step) =>
 
 let decompose = (~settings, d, st) =>
   decompose(d, st) |> List.map(should_hide_eval_obj(~settings));
-
-let evaluate_with_history = (~settings, d) => {
-  let state = ref(EvaluatorState.init);
-  let rec go = d =>
-    switch (decompose(~settings, d, state^)) {
-    | [] => []
-    | [(_, x), ..._] =>
-      switch (take_step(state, x.env, x.d_loc)) {
-      | None => []
-      | Some(d) =>
-        let next = EvalCtx.compose(x.ctx, d);
-        [next, ...go(next)];
-      }
-    };
-  go(d);
-};
