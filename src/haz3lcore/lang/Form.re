@@ -10,7 +10,10 @@ module P = Precedence;
    the 'convex_monos' table, for single-token forms, or the 'forms'
    table, for compound forms.
    The wrapping functions seen in both of those tables determine the
-   shape, precedence, and expansion behavior of the form. */
+   shape, precedence, and expansion behavior of the form.
+
+   convex_monos tale doesn't exist?
+   */
 
 /* A label is the textual expression of a form's delimiters */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -147,6 +150,15 @@ let is_bool = match(regexp("^(" ++ String.concat("|", bools) ++ ")$"));
 let undefined = "undefined";
 let is_undefined = match(regexp("^" ++ undefined ++ "$"));
 
+let is_livelit = str => {
+  let re = regexp("^(ll)([a-z][A-Za-z0-9_]*)$");
+  // print_endline("is_livelit");
+  // print_endline(str);
+  let result = match(re, str);
+  // print_endline(string_of_bool(result));
+  result;
+};
+
 let var_regexp =
   regexp(
     {|(^[a-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
@@ -154,8 +166,8 @@ let var_regexp =
 let is_var = str =>
   !is_bool(str)
   && !is_undefined(str)
+  && !is_livelit(str)
   && str != "_"
-  //&& !is_keyword(str)
   && match(var_regexp, str);
 let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_ctr = match(capitalized_name_regexp);
@@ -165,10 +177,6 @@ let is_base_typ =
 let is_typ_var = str => is_var(str) || match(capitalized_name_regexp, str);
 let wild = "_";
 let is_wild = match(regexp("^" ++ wild ++ "$"));
-
-let is_livelit = str => {
-  match(regexp("^[\\^]([a-z][A-Za-z0-9_]*)?\t?$"), str);
-};
 
 /* List literals */
 let list_start = "[";
@@ -218,6 +226,7 @@ let bad_token_cls: string => bad_token_cls =
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
+  ("livelit", (is_livelit, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
     "explicit_hole",
@@ -241,7 +250,6 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
   ("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("livelit", (is_livelit, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_base_typ, [mk_op(Typ, [])])),
 ];
 
