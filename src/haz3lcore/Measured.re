@@ -282,6 +282,16 @@ let last_of_token = (token: string, origin: Point.t): Point.t =>
     row: origin.row + StringUtil.num_linebreaks(token),
   };
 
+let livelit_padding = (t: Base.tile): abs_indent =>
+  switch (t.label) {
+  | [possible_livelit_name] =>
+    switch (Livelit.find_livelit(possible_livelit_name)) {
+    | Some(ll) => ll.width + 1 // Add one for margin
+    | None => 0
+    }
+  | _ => 0
+  };
+
 let of_segment = (seg: Segment.t, info_map: Statics.Map.t): t => {
   let is_indented = is_indented_map(seg);
 
@@ -360,11 +370,16 @@ let of_segment = (seg: Segment.t, info_map: Statics.Map.t): t => {
             let map = add_pr(p, {origin, last}, map);
             (contained_indent, last, map);
           | Tile(t) =>
+            let token = List.nth(t.label);
             let add_shard = (origin, shard, map) => {
-              let token = List.nth(t.label, shard);
-              let map = extra_rows(token, origin, map);
-              let last = last_of_token(token, origin);
-              let map = add_s(t.id, shard, {origin, last}, map);
+              let lp = livelit_padding(t);
+              let last =
+                Point.{
+                  ...origin,
+                  col:
+                    origin.col + (lp > 0 ? lp : String.length(token(shard))),
+                };
+              let map = map |> add_s(t.id, shard, {origin, last});
               (last, map);
             };
             let (last, map) =
