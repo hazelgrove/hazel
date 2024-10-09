@@ -1,0 +1,16 @@
+{
+	"compilerOptions": {
+		"module": "commonjs",
+		"noImplicitAny": true,
+		"removeComments": false,
+		"preserveConstEnums": true,
+		"sourceMap": true,
+		"outDir": "./dist",
+		"rootDir": "./",
+		"strict": true,
+		"target": "es2022",
+		"strictPropertyInitialization": false,
+		"experimentalDecorators": true
+	},
+	"include": ["src/**/*"]
+}
