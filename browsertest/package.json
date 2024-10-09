@@ -6,7 +6,8 @@
 	"scripts": {
 		"build:hazel": "cd .. && make deps && make release",
 		"dev:hazel": "cd .. && make serve",
-		"execute": "npm run dev:hazel > /dev/null 2>&1 & tsc --outDir dist && cd dist && node src/index.js; kill -9 $(lsof -t -i:8000)",
+		"execute:host": "npm run dev:hazel > /dev/null 2>&1 & tsc --outDir dist && cd dist && node src/index.js; kill -9 $(lsof -t -i:8000)",
+		"execute": "tsc --outDir dist && cd dist && node src/index.js",
     "test": "vitest",
 		"style": "prettier '**/*.ts' --write ."
 	},
