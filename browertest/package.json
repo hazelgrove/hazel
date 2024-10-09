@@ -1,0 +1,27 @@
+{
+	"name": "hazel_ci",
+	"version": "1.0.0",
+	"description": "",
+	"main": "tests/index.ts",
+	"scripts": {
+		"build:hazel": "cd .. && make deps && make release",
+		"dev:hazel": "cd .. && make serve",
+		"execute": "npm run dev:hazel > /dev/null 2>&1 & tsc --outDir dist && cd dist && node src/index.js; kill -9 $(lsof -t -i:8000)",
+    "test": "vitest",
+		"style": "prettier '**/*.ts' --write ."
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"dependencies": {
+		"@types/jsdom": "^21.1.7",
+		"jsdom": "^25.0.1",
+		"puppeteer": "^23.4.1",
+		"puppeteer-screen-recorder": "^3.0.3",
+		"vitest": "^2.1.1"
+	},
+	"devDependencies": {
+		"prettier": "^3.3.3",
+		"ts-node": "^10.9.2"
+	}
+}
