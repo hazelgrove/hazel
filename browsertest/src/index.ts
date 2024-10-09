@@ -243,13 +243,7 @@ class HazelController {
 	}
 }
 
-const g_combinator = (x: number) => `
-let comb = 
-	fun x, y ->
-		if (y < ${x}) then (x, y + 1) |> x 
-    	else "done", y
-in
-comb(comb, 0)`;
+const livelit = `llslider`;
 
 // Usage example
 (async () => {
@@ -257,18 +251,16 @@ comb(comb, 0)`;
 	await controller.launch("http://localhost:8000", true);
 
 	// Select "Exercises" mode
-	await controller.selectMode("Exercises");
+	await controller.selectMode("Scratch");
 
 	// Get all cells
 	const cells = await controller.getCells();
 
 	// edit the first cell with id "YourImpl"
-	const codeCell = cells.find((cell) => cell.ids.includes("YourImpl"))!;
-	await codeCell.scroll();
+	const scratchCell = cells[0];
 
-	console.log("Original content:", await codeCell.getContent());
-	await codeCell.clearContent();
-	await codeCell.typeString(g_combinator(5), 50);
+	await scratchCell.clearContent();
+	await scratchCell.typeString(livelit);
 	await wait(1000);
 
 	// save screenshot

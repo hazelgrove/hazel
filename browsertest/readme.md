@@ -34,3 +34,28 @@ Browser automation for hazel
 	await controller.close();
 })();
 ```
+
+## Installation
+
+```bash
+npm i
+```
+
+## Usage
+
+To host and run the tests:
+```bash
+npm run execute:host
+```
+
+To run the tests, assuming hazel is already running at `http://localhost:8000`:
+```bash
+npm run execute
+```
+
+## Output
+Output is stored in ./outout/demo-[timestamp].mp4. There is a helper script for converting a video to a gif:
+
+```bash
+bash mp4_to_gif.sh output/demo-[timestamp].mp4
+```
