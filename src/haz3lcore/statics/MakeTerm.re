@@ -189,7 +189,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         ret(String(Form.strip_quotes(t)))
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_livelit(t) =>
-        ret(LivelitInvocation("livelit name"))
+        ret(LivelitInvocation(Form.parse_livelit(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_ctr(t) =>
         ret(Constructor(t, Unknown(Internal) |> Typ.temp))
@@ -258,6 +258,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           term: Deferral(InAp),
         };
         switch (arg.term) {
+        | Var(l) when Form.is_livelit(l) =>
+          ret(LivelitInvocation(Form.parse_livelit(l)))
         | _ when UExp.is_deferral(arg) =>
           ret(DeferredAp(l, [use_deferral(arg)]))
         | Tuple(es) when List.exists(UExp.is_deferral, es) => (

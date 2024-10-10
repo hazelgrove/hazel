@@ -151,13 +151,16 @@ let undefined = "undefined";
 let is_undefined = match(regexp("^" ++ undefined ++ "$"));
 
 let is_livelit = str => {
-  let re = regexp("^(ll)([a-z][A-Za-z0-9_]*)$");
-  // print_endline("is_livelit");
-  // print_endline(str);
+  let re = regexp("^(\\^)([A-Za-z0-9_]*)$");
   let result = match(re, str);
-  // print_endline(string_of_bool(result));
   result;
 };
+let parse_livelit = str =>
+  if (String.length(str) > 1 && String.sub(str, 0, 1) == "^") {
+    String.sub(str, 1, String.length(str) - 1);
+  } else {
+    "invalid form";
+  };
 
 let var_regexp =
   regexp(
@@ -354,20 +357,34 @@ let delims: list(Token.t) =
   |> List.sort_uniq(compare);
 
 let atomic_molds: Token.t => list(Mold.t) =
-  s =>
+  s => {
+    print_endline("atomic_molds");
+    print_endline(s);
     List.fold_left(
       (acc, (_, (test, molds))) => test(s) ? molds @ acc : acc,
       [],
       atomic_forms,
     );
+  };
 
-let is_atomic = t => atomic_molds(t) != [];
+let is_atomic = t => {
+  print_endline("is_atomic");
+  print_endline(t);
+  atomic_molds(t) != [];
+};
 
 let is_delim = t => List.mem(t, delims);
 
-let is_valid_token = t => is_atomic(t) || is_secondary(t) || is_delim(t);
+let is_valid_token = t => {
+  print_endline("is_valid_token");
+  print_endline(t);
+  is_atomic(t) || is_secondary(t) || is_delim(t);
+};
 
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
+  print_endline("mk_atomic");
+  print_endline(t);
+
   assert(is_atomic(t));
   mk(ss, [t], Mold.(mk_op(sort, [])));
 };

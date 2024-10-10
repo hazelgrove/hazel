@@ -396,6 +396,7 @@ and Exp: {
       ClosureEnvironment.id_equal(c1, c2) && fast_equal(e1, e2)
     | (Cons(e1, e2), Cons(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (LivelitInvocation(s1), LivelitInvocation(s2)) => s1 == s2
     | (ListConcat(e1, e2), ListConcat(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (UnOp(o1, e1), UnOp(o2, e2)) => o1 == o2 && fast_equal(e1, e2)

@@ -67,4 +67,7 @@ let tests = [
       "let    = fun x ->   in  ",
     )
   }),
+  test_case("Livelit Invocation", `Quick, () => {
+    exp_check(LivelitInvocation("slider") |> Exp.fresh, "^slider")
+  }),
 ];
