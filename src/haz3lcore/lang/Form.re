@@ -113,7 +113,7 @@ let is_keyword = match(keyword_regexp);
 
 /* Potential tokens: These are fallthrough classes which determine
  * the behavior when inserting a character in contact with a token */
-let is_potential_operand = match(regexp("^[a-zA-Z0-9_'\\.?]+$"));
+let is_potential_operand = match(regexp("^[\\^a-zA-Z0-9_'\\.?]+$"));
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
@@ -151,8 +151,10 @@ let undefined = "undefined";
 let is_undefined = match(regexp("^" ++ undefined ++ "$"));
 
 let is_livelit = str => {
-  let re = regexp("^(\\^)([A-Za-z0-9_]*)$");
+  let re = regexp("^(\\^)([a-z][A-Za-z0-9_]*)$");
   let result = match(re, str);
+  print_endline("is_livelit: " ++ str ++ " " ++ string_of_bool(result));
+
   result;
 };
 let parse_livelit = str =>
