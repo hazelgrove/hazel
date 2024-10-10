@@ -3,7 +3,7 @@ open Util;
 /* The different kinds of projector. New projectors
  * types need to be registered here in order to be
  * able to create and update their instances */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type kind =
   | Fold
   | Info
@@ -12,7 +12,7 @@ type kind =
   | SliderF
   | TextArea;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type segment = list(piece)
 and piece =
   | Tile(tile)
@@ -25,6 +25,7 @@ and tile = {
   // - length(shards) <= length(label)
   // - length(shards) == length(children) + 1
   // - sort(shards) == shards
+  [@equal (_, _) => true]
   id: Id.t,
   label: Label.t,
   mold: Mold.t,
@@ -32,6 +33,7 @@ and tile = {
   children: list(segment),
 }
 and projector = {
+  [@equal (_, _) => true]
   id: Id.t,
   kind,
   syntax: piece,

@@ -1,7 +1,7 @@
 open Util;
 
 module Caret = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
     | Outer
     | Inner(int, int);
@@ -19,7 +19,7 @@ module Caret = {
 };
 
 // assuming single backpack, shards may appear in selection, backpack, or siblings
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   selection: Selection.t,
   backpack: Backpack.t,
