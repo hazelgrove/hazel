@@ -9,6 +9,7 @@ let (suite, _) =
       ("LabeledTuple", Test_LabeledTuple.tests),
       ("Statics", Test_Statics.tests),
       ("Evaluator", Test_Evaluator.tests),
+      ("MakeTerm", Test_MakeTerm.tests),
     ],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
