@@ -171,7 +171,6 @@ and uexp_to_info_map =
       ~ctx: Ctx.t,
       ~mode=Mode.Syn,
       ~is_in_filter=false,
-      ~is_contained=false,
       ~ancestors,
       {ids, copied: _, term} as uexp: UExp.t,
       m: Map.t,
@@ -208,30 +207,21 @@ and uexp_to_info_map =
         ~ctx,
         ~mode=Mode.Syn,
         ~is_in_filter=is_in_filter,
-        ~is_contained=false,
         ~ancestors=ancestors,
         uexp: UExp.t,
         m: Map.t,
       ) => {
-    uexp_to_info_map(
-      ~ctx,
-      ~mode,
-      ~is_in_filter,
-      ~is_contained,
-      ~ancestors,
-      uexp,
-      m,
-    );
+    uexp_to_info_map(~ctx, ~mode, ~is_in_filter, ~ancestors, uexp, m);
   };
   let go' = uexp_to_info_map(~ancestors);
   let go = go'(~ctx);
-  let map_m_go = (m, ~is_contained=false) =>
+  let map_m_go = m =>
     List.fold_left2(
       ((es, m), mode, e) =>
-        go(~mode, e, m, ~is_contained) |> (((e, m)) => (es @ [e], m)),
+        go(~mode, e, m) |> (((e, m)) => (es @ [e], m)),
       ([], m),
     );
-  let go_pat = upat_to_info_map(~ctx, ~ancestors, ~is_contained=false);
+  let go_pat = upat_to_info_map(~ctx, ~ancestors);
   let atomic = self => add(~self, ~co_ctx=CoCtx.empty, m);
   switch (term) {
   | Closure(_) =>
@@ -322,19 +312,11 @@ and uexp_to_info_map =
     let (labmode, mode) = Mode.of_label(ctx, mode);
     let (lab, m) = go(~mode=labmode, label, m);
     let (e, m) = go(~mode, e, m);
-    if (is_contained) {
-      add(
-        ~self=Just(TupLabel(lab.ty, e.ty) |> Typ.temp),
-        ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
-        m,
-      );
-    } else {
-      add(
-        ~self=Just(Prod([TupLabel(lab.ty, e.ty) |> Typ.temp]) |> Typ.temp),
-        ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
-        m,
-      );
-    };
+    add(
+      ~self=Just(TupLabel(lab.ty, e.ty) |> Typ.temp),
+      ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
+      m,
+    );
   | BuiltinFun(string) =>
     add'(
       ~self=Self.of_exp_var(Builtins.ctx_init, string),
@@ -346,7 +328,7 @@ and uexp_to_info_map =
       Mode.of_prod(ctx, mode, es, UExp.get_label, (name, b) =>
         TupLabel(Label(name) |> Exp.fresh, b) |> Exp.fresh
       );
-    let (es', m) = map_m_go(m, modes, es, ~is_contained=true);
+    let (es', m) = map_m_go(m, modes, es);
     add(
       ~self=Just(Prod(List.map(Info.exp_ty, es')) |> Typ.temp),
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')),
@@ -802,7 +784,6 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~mode: Mode.t=Mode.Syn,
-      ~is_contained=false,
       {ids, term, _} as upat: UPat.t,
       m: Map.t,
     )
@@ -835,7 +816,6 @@ and upat_to_info_map =
         ~co_ctx,
         ~ancestors,
         ~mode,
-        ~is_contained=false,
         upat: UPat.t,
         m: Map.t,
       ) => {
@@ -845,7 +825,6 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors,
       ~mode,
-      ~is_contained,
       upat,
       m: Map.t,
     );
@@ -854,10 +833,10 @@ and upat_to_info_map =
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
   let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx);
   let unknown = Typ.Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
-  let ctx_fold = (ctx: Ctx.t, m, ~is_contained=false) =>
+  let ctx_fold = (ctx: Ctx.t, m) =>
     List.fold_left2(
       ((ctx, tys, cons, m), e, mode) =>
-        go(~ctx, ~mode, ~is_contained, e, m)
+        go(~ctx, ~mode, e, m)
         |> (
           ((info, m)) => (
             info.ctx,
@@ -938,28 +917,18 @@ and upat_to_info_map =
     let (labmode, mode) = Mode.of_label(ctx, mode);
     let (lab, m) = go(~ctx, ~mode=labmode, label, m);
     let (p, m) = go(~ctx, ~mode, p, m);
-    if (is_contained) {
-      add(
-        ~self=Just(TupLabel(lab.ty, p.ty) |> Typ.temp),
-        ~ctx=p.ctx,
-        ~constraint_=Constraint.TupLabel(lab.constraint_, p.constraint_),
-        m,
-      );
-    } else {
-      add(
-        ~self=Just(Prod([TupLabel(lab.ty, p.ty) |> Typ.temp]) |> Typ.temp),
-        ~ctx=p.ctx,
-        ~constraint_=Constraint.TupLabel(lab.constraint_, p.constraint_),
-        m,
-      );
-    };
+    add(
+      ~self=Just(TupLabel(lab.ty, p.ty) |> Typ.temp),
+      ~ctx=p.ctx,
+      ~constraint_=Constraint.TupLabel(lab.constraint_, p.constraint_),
+      m,
+    );
   | Tuple(ps) =>
     let (ps, modes) =
       Mode.of_prod(ctx, mode, ps, UPat.get_label, (name, b) =>
         TupLabel(Label(name) |> UPat.fresh, b) |> UPat.fresh
       );
-    let (ctx, tys, cons, m) =
-      ctx_fold(ctx, m, ps, modes, ~is_contained=true);
+    let (ctx, tys, cons, m) = ctx_fold(ctx, m, ps, modes);
     let rec cons_fold_tuple = cs =>
       switch (cs) {
       | [] => Constraint.Truth
@@ -1002,7 +971,6 @@ and utyp_to_info_map =
       ~ctx,
       ~expects=Info.TypeExpected,
       ~ancestors,
-      ~is_contained=false,
       {ids, term, _} as utyp: UTyp.t,
       m: Map.t,
     )
@@ -1013,8 +981,7 @@ and utyp_to_info_map =
   };
   let ancestors = [UTyp.rep_id(utyp)] @ ancestors;
   let go' = utyp_to_info_map(~ctx, ~ancestors);
-  let go = (~is_contained=false) =>
-    go'(~expects=TypeExpected, ~is_contained);
+  let go = go'(~expects=TypeExpected);
   switch (term) {
   | Unknown(Hole(MultiHole(tms))) =>
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
@@ -1035,23 +1002,11 @@ and utyp_to_info_map =
     let m = go(t2, m) |> snd;
     add(m);
   | TupLabel(label, t) =>
-    if (is_contained) {
-      let m = go(label, m) |> snd;
-      let m = go(t, m) |> snd;
-      add(m);
-    } else {
-      let m = map_m(go(~is_contained=true), [utyp], m) |> snd;
-      add(
-        ~utyp={
-          term: Prod([utyp.term |> Typ.fresh]),
-          ids,
-          copied: utyp.copied,
-        },
-        m,
-      );
-    }
+    let m = go(label, m) |> snd;
+    let m = go(t, m) |> snd;
+    add(m);
   | Prod(ts) =>
-    let m = map_m(go(~is_contained=true), ts, m) |> snd;
+    let m = map_m(go, ts, m) |> snd;
     add(m);
   | Ap(t1, t2) =>
     let t1_mode: Info.typ_expects =

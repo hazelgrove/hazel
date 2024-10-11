@@ -198,16 +198,19 @@ let tests =
         ),
       )
     ),
-    test_case("Unsure: Function with labeled param", `Quick, () =>
+    test_case("Function with labeled param", `Quick, () =>
       alco_check(
-        "fun (a=x) => 4",
+        "fun (a=x) -> 4",
         Some(
           arrow(prod([tup_label(label("a"), unknown(Internal))]), int),
         ),
         type_of(
           Fun(
             Parens(
-              TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
+              Tuple([
+                TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
+                |> Pat.fresh,
+              ])
               |> Pat.fresh,
             )
             |> Pat.fresh,

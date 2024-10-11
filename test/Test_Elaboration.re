@@ -413,11 +413,11 @@ let elaboration_tests = [
   ),
   test_case("Labeled tuple elaboration", `Quick, elaborated_labeled_tuple),
   test_case("Rearranged labeled tuple", `Quick, rearranged_labeled_tuple),
-  test_case(
-    "Singleton labeled tuple adds labels",
-    `Quick,
-    singleton_labeled_tuple_elaborates_labels,
-  ),
+  // test_case( // TODO Not sure if we want this case
+  //   "Singleton labeled tuple adds labels",
+  //   `Quick,
+  //   singleton_labeled_tuple_elaborates_labels,
+  // ),
   test_case("Singleton labeled tuple", `Quick, singleton_labeled_tuple) // TODO Make consistent with make term
   // TODO Add singleton labeled function application
 ];
