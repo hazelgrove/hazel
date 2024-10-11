@@ -276,6 +276,64 @@ let elaborated_labeled_tuple = () =>
     dhexp_of_uexp(full_labeled_tuple_program),
   );
 
+let singleton_labeled_tuple = () =>
+  alco_check(
+    "Singleton Labeled Tuple",
+    Tuple([
+      TupLabel(
+        Label("label") |> Exp.fresh,
+        String("a string value") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+    ])
+    |> Exp.fresh,
+    dhexp_of_uexp(
+      Tuple([
+        TupLabel(
+          Label("label") |> Exp.fresh,
+          String("a string value") |> Exp.fresh,
+        )
+        |> Exp.fresh,
+      ])
+      |> Exp.fresh,
+    ),
+  );
+
+let singleton_labeled_tuple_elaborates_labels = () =>
+  alco_check(
+    "Labeled Tuple label introduction",
+    Let(
+      Var("x") |> Pat.fresh,
+      Tuple([
+        TupLabel(Label("l") |> Exp.fresh, String("a") |> Exp.fresh)
+        |> Exp.fresh,
+      ])
+      |> Exp.fresh,
+      Var("x") |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    dhexp_of_uexp(
+      Let(
+        Cast(
+          Var("x") |> Pat.fresh,
+          Parens(
+            Prod([
+              TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+            ])
+            |> Typ.fresh,
+          )
+          |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Pat.fresh,
+        Parens(Tuple([String("a") |> Exp.fresh]) |> Exp.fresh) |> Exp.fresh,
+        Var("x") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+    ),
+  );
+
 /* Labeled Tuple Rearranging
      ```hazel
     let val : (a=Int, b=String, Float, c=Bool)= (1,
@@ -355,4 +413,10 @@ let elaboration_tests = [
   ),
   test_case("Labeled tuple elaboration", `Quick, elaborated_labeled_tuple),
   test_case("Rearranged labeled tuple", `Quick, rearranged_labeled_tuple),
+  test_case(
+    "Singleton labeled tuple adds labels",
+    `Quick,
+    singleton_labeled_tuple_elaborates_labels,
+  ),
+  test_case("Singleton labeled tuple", `Quick, singleton_labeled_tuple),
 ];
