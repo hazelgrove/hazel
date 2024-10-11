@@ -279,6 +279,9 @@ module Selection = {
       ) =>
       CodeSelectable.Selection.handle_key_event(~selection, editor, event)
       |> Option.map(x => Update.EvalEditorAction(x))
+    | (Stepper(selection), Stepper(s)) =>
+      Stepper.Selection.handle_key_event(~selection, s, ~event)
+      |> Option.map(x => Update.StepperAction(x))
     | (_, Evaluation(_)) => None
     | (_, Stepper(_)) => None
     };
