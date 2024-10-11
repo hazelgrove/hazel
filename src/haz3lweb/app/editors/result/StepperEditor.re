@@ -45,6 +45,8 @@ module Update = {
 module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = CodeSelectable.Selection.t;
+
+  let handle_key_event = CodeSelectable.Selection.handle_key_event;
 };
 
 module View = {

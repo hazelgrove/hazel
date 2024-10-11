@@ -146,7 +146,6 @@ module Update = {
       )
       : Action.Result.t(Model.t) => {
     open Result.Syntax;
-    print_endline("1");
     // 1. Clear the autocomplete buffer if relevant
     let state =
       settings.assist && settings.statics && a != Buffer(Accept)
@@ -171,12 +170,10 @@ module Update = {
         syntax;
       };
 
-    print_endline("2");
     // 2. Add to undo history
     let history =
       Action.is_historic(a) ? History.add(a, state, history) : history;
 
-    print_endline("3");
     // 3. Record target column if moving up/down
     let col_target =
       switch (a) {
@@ -190,7 +187,6 @@ module Update = {
       };
     let state = {...state, col_target};
 
-    print_endline("4");
     // 4. Update the zipper
     let+ zipper =
       Perform.go_z(
@@ -201,7 +197,6 @@ module Update = {
         state.zipper,
       );
 
-    print_endline("5");
     // Recombine
     Model.{
       state: {
@@ -248,7 +243,6 @@ module Update = {
         new_statics,
         {syntax, state, history}: Model.t,
       ) => {
-    print_endline("6");
     // 1. Recalculate the autocomplete buffer if necessary
     let zipper =
       if (settings.assist && settings.statics && is_edited) {
@@ -267,12 +261,11 @@ module Update = {
       } else {
         state.zipper;
       };
-    print_endline("7");
     // 2. Recalculate syntax cache
     let syntax = is_edited ? CachedSyntax.mark_old(syntax) : syntax;
 
     let syntax = CachedSyntax.calculate(zipper, new_statics.info_map, syntax);
-    print_endline("8");
+
     // Recombine
     Model.{
       history,
