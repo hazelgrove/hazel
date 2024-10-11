@@ -34,4 +34,12 @@ let tests = [
       "let x : (l=String) = \"a\" in x",
     )
   }),
+  test_case("", `Quick, () => {
+    exp_check(
+      Int(7) |> Exp.fresh,
+      "let x = (l=32) in
+let y : (l=Int) = x in
+ ",
+    )
+  }),
 ];
