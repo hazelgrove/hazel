@@ -101,7 +101,8 @@ let main_view =
         editor,
       );
 
-    | Documentation(name, slides) =>
+    | Tutorial(name, slides) =>
+      print_endline("hi" ++ name);
       let info =
         SlideContent.get_content(editors)
         |> Option.map(i => div(~attr=Attr.id("slide"), [i]))
@@ -128,11 +129,27 @@ let main_view =
         };
 
       info @ result;
-    // let info =
-    //   SlideContent.get_content(editors)
-    //   |> Option.map(i => div(~attrs=[Attr.id("slide")], [i]))
-    //   |> Option.to_list;
-    // (info @ view, cursor_info);
+
+    | Documentation(name, _) =>
+      let result_key = ScratchSlide.scratch_key(name);
+      let info =
+        SlideContent.get_content(editors)
+        |> Option.map(i => div(~attr=Attr.id("slide"), [i]))
+        |> Option.to_list;
+      info
+      @ ScratchMode.view(
+          // let view =
+          //   ScratchMode.view(
+          ~inject,
+          ~ui_state,
+          ~settings,
+          ~highlights,
+          ~results,
+          ~result_key,
+          ~statics,
+          editor,
+        );
+
     | Exercises(_, _, exercise) =>
       ExerciseMode.view(
         ~inject,
@@ -210,11 +227,6 @@ let get_selection = (model: Model.t): string =>
 let view = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
   div(
     ~attr=Attr.many(Attr.[id("page"), ...handlers(~inject, model)]),
-    // ~attrs=
-    // Attr.[
-    //   id("page"),
-    //   ...handlers(~inject, Editors.get_editor(model.editors)),
-    // ],
     [
       FontSpecimen.view("font-specimen"),
       DecUtil.filters,

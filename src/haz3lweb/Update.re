@@ -274,6 +274,7 @@ let switch_scratch_slide =
     (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
   switch (editors) {
   | Documentation(_) => None
+  | Tutorial(_) => None
   | Scratch(n, _) when n == idx => None
   | Scratch(_, slides) when idx >= List.length(slides) => None
   | Scratch(_, slides) => Some(Scratch(idx, slides))
@@ -289,6 +290,7 @@ let switch_exercise_editor =
     (editors: Editors.t, ~pos, ~instructor_mode): option(Editors.t) =>
   switch (editors) {
   | Documentation(_)
+  | Tutorial(_)
   | Scratch(_) => None
   | Exercises(m, specs, exercise) =>
     let exercise = Exercise.switch_editor(~pos, instructor_mode, ~exercise);
@@ -300,11 +302,12 @@ let switch_exercise_editor =
 let switch_doc_editor =
     (editors: Editors.t, ~pos, ~instructor_mode): option(Editors.t) =>
   switch (editors) {
-  | Documentation(name, slides) =>
+  | Tutorial(name, slides) =>
     let tutorial_states =
       List.map(
         ((hint, tutorial_state)) =>
           if (hint == name) {
+            print_endline("Inside switch_doc_editor");
             let updated_state =
               DocumentationEnv.switch_editor(
                 ~pos,
@@ -317,7 +320,7 @@ let switch_doc_editor =
           },
         slides,
       );
-    Some(Documentation(name, tutorial_states));
+    Some(Tutorial(name, tutorial_states));
   | _ => None
   };
 
@@ -336,6 +339,9 @@ let export_persistent_data = () => {
     documentation:
       Store.Documentation.load(~settings=settings.core.evaluation)
       |> Store.Documentation.to_persistent,
+    tutorial:
+      Store.Tutorial.load(~settings=settings.core.evaluation)
+      |> Store.Tutorial.to_persistent,
     scratch:
       Store.Scratch.load(~settings=settings.core.evaluation)
       |> Store.Scratch.to_persistent,
@@ -425,6 +431,11 @@ let rec apply =
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
       }
+    | SwitchTutorialSlide(name) =>
+      switch (Editors.switch_example_slide(model.editors, name)) {
+      | None => Error(FailedToSwitch)
+      | Some(editors) => Model.save_and_return({...model, editors})
+      }
     | SwitchEditor(pos) =>
       let instructor_mode = model.settings.instructor_mode;
       switch (switch_exercise_editor(model.editors, ~pos, ~instructor_mode)) {
@@ -468,9 +479,7 @@ let rec apply =
           ~state,
           ~main=apply,
         )
-      | x =>
-        print_endline("not ok");
-        x;
+      | x => x
       };
     | PerformAction(a) => perform_action(model, a)
     | ReparseCurrentEditor =>

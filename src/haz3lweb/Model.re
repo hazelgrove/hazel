@@ -64,6 +64,18 @@ let fromEditor = (editor: Editor.t): ScratchSlide.state => {
   },
 };
 
+let from_tup = ((name: string, editor: Editor.t)) => {
+  (name, fromEditor(editor));
+};
+
+let toEditor = (state: ScratchSlide.state): Editor.t => {
+  state.hidden_tests.tests;
+};
+
+let to_tup = ((name: string, state: ScratchSlide.state)) => {
+  (name, toEditor(state));
+};
+
 let load_editors =
     (~settings, ~mode: Settings.mode, ~instructor_mode: bool)
     : (Editors.t, ModelResults.t) =>
@@ -74,25 +86,35 @@ let load_editors =
     (Scratch(idx, slides), results);
   | Documentation =>
     let (name, slides, results) = Store.Documentation.load(~settings);
-    let fromEditor = (editor: Editor.t): DocumentationEnv.state => {
-      pos: DocumentationEnv.YourImpl,
-      eds: {
-        title: "",
-        description: "",
-        your_impl: Editor.init(Zipper.init()),
-        hidden_tests: {
-          tests: editor,
-          hints: [],
-        },
-      },
-    };
-    let to_tup = ((word: string, editor: Editor.t)) => (
-      word,
-      fromEditor(editor),
-    );
-    print_endline("inside load editors");
-    let slides = List.map(to_tup, slides);
+    let slides = List.map(from_tup, slides);
     (Documentation(name, slides), results);
+  | Tutorial =>
+    let (name, slides, results) = Store.Tutorial.load(~settings);
+    (Tutorial(name, slides), results);
+  | Exercises =>
+    let (n, specs, exercise) =
+      Store.Exercise.load(
+        ~specs=ExerciseSettings.exercises,
+        ~instructor_mode,
+      );
+    (Exercises(n, specs, exercise), ModelResults.empty);
+  };
+
+let load_editors_2 =
+    (~settings, ~mode: Settings.mode, ~instructor_mode: bool)
+    : (Editors.t, ModelResults.t) =>
+  switch (mode) {
+  | Scratch =>
+    let (idx, slides, results) = Store.Scratch.load(~settings);
+    let slides = List.map(fromEditor, slides);
+    (Scratch(idx, slides), results);
+  | Documentation =>
+    let (name, slides, results) = Store.Documentation.load(~settings);
+    let slides = List.map(from_tup, slides);
+    (Documentation(name, slides), results);
+  | Tutorial =>
+    let (name, slides, results) = Store.Tutorial.load(~settings);
+    (Tutorial(name, slides), results);
   | Exercises =>
     let (n, specs, exercise) =
       Store.Exercise.load(
@@ -111,38 +133,29 @@ let save_editors =
     let slides = List.map(ScratchSlide.deserialize, slides);
     Store.Scratch.save((n, slides, results));
   | Documentation(name, slides) =>
-    let toEditor = (state: DocumentationEnv.state): Editor.t => {
-      switch (state) {
-      | s => s.eds.hidden_tests.tests
-      };
-    };
-    let from_tup = ((word: string, status: DocumentationEnv.state)) => (
-      word,
-      toEditor(status),
-    );
-    let slides = List.map(from_tup, slides);
+    let slides = List.map(to_tup, slides);
     Store.Documentation.save((name, slides, results));
+  | Tutorial(name, slides) => Store.Tutorial.save((name, slides, results))
   | Exercises(n, specs, exercise) =>
     Store.Exercise.save((n, specs, exercise), ~instructor_mode)
   };
 
-// let save_editors_2 = (editors: Editors.t, results: ModelResults.t): unit =>
-//   switch (editors) {
-//   | Scratch(_) => ()
-//   | Documentation(name, slides) =>
-//     let toEditor = (state: DocumentationEnv.state): Editor.t => {
-//       switch (state) {
-//       | s => s.eds.your_impl
-//       };
-//     };
-//     let from_tup = ((word: string, status: DocumentationEnv.state)) => (
-//       word,
-//       toEditor(status),
-//     );
-//     let slides = List.map(from_tup, slides);
-//     Store.Documentation.save((name, slides, results));
-//   | Exercises(_) => ()
-//   };
+let save_editors_2 =
+    (editors: Editors.t, results: ModelResults.t, ~instructor_mode: bool)
+    : unit =>
+  switch (editors) {
+  | Scratch(n, slides) =>
+    let slides = List.map(ScratchSlide.serialize, slides);
+    let slides = List.map(ScratchSlide.deserialize, slides);
+    Store.Scratch.save((n, slides, results));
+  | Documentation(name, slides) =>
+    let slides = List.map(to_tup, slides);
+    Store.Documentation.save((name, slides, results));
+  // Store.Documentation.save((name, slides, results));
+  | Tutorial(name, slides) => Store.Tutorial.save((name, slides, results))
+  | Exercises(n, specs, exercise) =>
+    Store.Exercise.save((n, specs, exercise), ~instructor_mode)
+  };
 
 let load = (init_model: t): t => {
   let settings = Store.Settings.load();

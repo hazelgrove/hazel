@@ -7,6 +7,7 @@ type all = {
   scratch: string,
   exercise: string,
   documentation: string,
+  tutorial: string,
   log: string,
 };
 
@@ -16,6 +17,7 @@ type all_f22 = {
   settings: string,
   scratch: string,
   exercise: string,
+  tutorial: string,
   log: string,
 };
 
@@ -26,12 +28,22 @@ let mk_all = (~instructor_mode, ~log) => {
   let scratch = Store.Scratch.export(~settings=settings_obj.core.evaluation);
   let documentation =
     Store.Documentation.export(~settings=settings_obj.core.evaluation);
+  let tutorial =
+    Store.Tutorial.export(~settings=settings_obj.core.evaluation);
   let exercise =
     Store.Exercise.export(
       ~specs=ExerciseSettings.exercises,
       ~instructor_mode,
     );
-  {settings, explainThisModel, scratch, documentation, exercise, log};
+  {
+    settings,
+    explainThisModel,
+    scratch,
+    documentation,
+    exercise,
+    tutorial,
+    log,
+  };
 };
 
 let export_all = (~instructor_mode, ~log) => {
@@ -47,6 +59,7 @@ let import_all = (data, ~specs) => {
         settings: all_f22.settings,
         scratch: all_f22.scratch,
         documentation: "",
+        tutorial: all_f22.tutorial,
         exercise: all_f22.exercise,
         log: all_f22.log,
         explainThisModel: "",
@@ -56,6 +69,7 @@ let import_all = (data, ~specs) => {
   Store.ExplainThisModel.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
   Store.Scratch.import(~settings=settings.core.evaluation, all.scratch);
+  Store.Tutorial.import(~settings=settings.core.evaluation, all.tutorial);
   Store.Exercise.import(all.exercise, ~specs, ~instructor_mode);
   Log.import(all.log);
 };

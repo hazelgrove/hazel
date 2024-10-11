@@ -120,10 +120,11 @@ let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
   | Scratch(slide_idx, slides) =>
     let state = List.nth(slides, slide_idx);
     [ScratchMode.export_button(state)];
-  | Documentation(_, _) =>
-    // DocumentationMode.export_submission(~settings),
-    // let state = List.assoc(name, slides);
-    [DocumentationMode.export_submission(~settings)]
+  | Documentation(_, _) => [DocumentationMode.export_submission(~settings)]
+  // DocumentationMode.export_submission(~settings),
+  // let state = List.assoc(name, slides);
+  // [DocumentationMode.export_submission(~settings)]
+  | Tutorial(_, _) => [DocumentationMode.export_submission(~settings)]
   | Exercises(_, _, exercise) when settings.instructor_mode => [
       export_persistent_data(~inject),
       ExerciseMode.export_submission(~settings),
@@ -137,6 +138,10 @@ let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
 let import_menu = (~inject, editors: Editors.t) =>
   switch (editors) {
   | Scratch(_)
+  | Tutorial(_) => [
+      ScratchMode.import_button(inject),
+      ScratchMode.reset_button(inject),
+    ]
   | Documentation(_) => [
       ScratchMode.import_button(inject),
       ScratchMode.reset_button(inject),

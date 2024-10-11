@@ -18,14 +18,9 @@ type exercises = (int, list(Exercise.spec), Exercise.state);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Scratch(int, list(ScratchSlide.state))
-  | Documentation(string, list((string, DocumentationEnv.state)))
+  | Documentation(string, list((string, ScratchSlide.state)))
+  | Tutorial(string, list((string, DocumentationEnv.state)))
   | Exercises(int, list(Exercise.spec), Exercise.state);
-
-// [@deriving (show({with_path: false}), sexp, yojson)]
-// type cur_state =
-//   | ScratchState(ScratchSlide.state)
-//   | DocumentationState(DocumentationEnv.state)
-//   | ExerciseState(Exercise.state);
 
 let get_editor = (editors: t): Editor.t =>
   switch (editors) {
@@ -33,6 +28,10 @@ let get_editor = (editors: t): Editor.t =>
     assert(n < List.length(slides));
     List.nth(slides, n).hidden_tests.tests;
   | Documentation(name, slides) =>
+    // assert(List.mem_assoc(name, slides));
+    // let slide_state = List.assoc(name, slides);
+    List.assoc(name, slides).hidden_tests.tests
+  | Tutorial(name, slides) =>
     assert(List.mem_assoc(name, slides));
     let slide_state = List.assoc(name, slides);
     DocumentationEnv.editor_of_state(slide_state);
@@ -40,61 +39,8 @@ let get_editor = (editors: t): Editor.t =>
   | Exercises(_, _, exercise) => Exercise.editor_of_state(exercise)
   };
 
-// let put_editor = (ed: DocumentationEnv.state, eds: t): t =>
-//   switch (eds) {
-//   | Scratch(n, slides) =>
-//     assert(n < List.length(slides));
-//     let convert_to_state = (doc_state: DocumentationEnv.state): state => {
-//       title: doc_state.eds.title,
-//       description: doc_state.eds.description,
-//       // your_impl: doc_state.eds.your_impl,  // or however this field maps
-//       hidden_tests: {
-//         tests: doc_state.eds.hidden_tests.tests, // or however this field maps
-//         hints: doc_state.eds.hidden_tests.hints,
-//       },
-//     };
-//     let new_ed = convert_to_state(ed);
-//     Scratch(n, Util.ListUtil.put_nth(n, new_ed, slides));
-
-//   | Documentation(name, slides) =>
-//     assert(List.mem_assoc(name, slides));
-
-//     // NEW //
-//     let update_slide =
-//         (hint: string, state: DocumentationEnv.state)
-//         : (string, DocumentationEnv.state) =>
-//       if (hint == name) {
-//         let updatedState =
-//           switch (ed.pos) {
-//           | DocumentationEnv.HiddenTests =>
-//             DocumentationEnv.put_editor(state, ed.eds.hidden_tests.tests) // Update hidden_tests
-//           | DocumentationEnv.YourImpl =>
-//             DocumentationEnv.put_editor(state, ed.eds.your_impl) // Update your_impl
-//           };
-//         (hint, updatedState);
-//       } else {
-//         (hint, state);
-//       };
-
-//     let updatedSlides =
-//       List.map(
-//         slide => {
-//           let (hint, state) = slide;
-//           update_slide(hint, state);
-//         },
-//         slides,
-//       );
-
-//     Documentation(name, updatedSlides);
-//   // //
-
-//   | Exercises(n, specs, exercise) =>
-//     Exercises(
-//       n,
-//       specs,
-//       Exercise.put_editor(exercise, ed.eds.hidden_tests.tests),
-//     )
-//   };
+let update_assoc = ((k, v), lst) =>
+  List.map(((k', v')) => k == k' ? (k, v) : (k', v'), lst);
 
 let put_editor = (editor: Editor.t, eds: t): t =>
   switch (eds) {
@@ -113,6 +59,18 @@ let put_editor = (editor: Editor.t, eds: t): t =>
     Scratch(n, Util.ListUtil.put_nth(n, new_ed, slides));
 
   | Documentation(name, slides) =>
+    assert(List.mem_assoc(name, slides));
+    let new_ed = {
+      title: "",
+      description: "",
+      hidden_tests: {
+        tests: editor,
+        hints: [],
+      },
+    };
+    Documentation(name, slides |> update_assoc((name, new_ed)));
+
+  | Tutorial(name, slides) =>
     assert(List.mem_assoc(name, slides));
 
     // Function to update the slide based on `editor`
@@ -145,8 +103,7 @@ let put_editor = (editor: Editor.t, eds: t): t =>
         slides,
       );
 
-    Documentation(name, updatedSlides);
-
+    Tutorial(name, updatedSlides);
   | Exercises(n, specs, exercise) =>
     // For Exercises, update the hidden_tests with `editor`
     Exercises(n, specs, Exercise.put_editor(exercise, editor))
@@ -173,6 +130,7 @@ let get_ctx_init = (~settings as _: Settings.t, editors: t): Ctx.t =>
   | Scratch(_)
   | Exercises(_)
   | Documentation(_) => Builtins.ctx_init
+  | Tutorial(_) => Builtins.ctx_init
   };
 
 let get_env_init = (~settings as _: Settings.t, editors: t): Environment.t =>
@@ -180,6 +138,7 @@ let get_env_init = (~settings as _: Settings.t, editors: t): Environment.t =>
   | Scratch(_)
   | Exercises(_)
   | Documentation(_) => Builtins.env_init
+  | Tutorial(_) => Builtins.env_init
   };
 
 let mk_statics = (~settings: Settings.t, editors: t): CachedStatics.t => {
@@ -192,6 +151,10 @@ let mk_statics = (~settings: Settings.t, editors: t): CachedStatics.t => {
     [(key, ScratchSlide.mk_statics(~settings, editor, ctx_init))]
     |> CachedStatics.mk;
   | Documentation(name, _) =>
+    let key = ScratchSlide.scratch_key(name);
+    [(key, ScratchSlide.mk_statics(~settings, editor, ctx_init))]
+    |> CachedStatics.mk;
+  | Tutorial(name, _) =>
     let key = ScratchSlide.scratch_key(name);
     [(key, ScratchSlide.mk_statics(~settings, editor, ctx_init))]
     |> CachedStatics.mk;
@@ -208,6 +171,9 @@ let lookup_statics =
     let key = ScratchSlide.scratch_key(string_of_int(idx));
     CachedStatics.lookup(statics, key);
   | Documentation(name, _) =>
+    let key = ScratchSlide.scratch_key(name);
+    CachedStatics.lookup(statics, key);
+  | Tutorial(name, _) =>
     let key = ScratchSlide.scratch_key(name);
     CachedStatics.lookup(statics, key);
   | Exercises(_, _, exercise) =>
@@ -232,12 +198,13 @@ let get_spliced_elabs =
       lookup_statics(~settings, ~statics, editors);
     let d = Interface.elaborate(~settings=settings.core, info_map, term);
     [(key, d)];
-  | Documentation(name, slides) =>
-    // let key = DocumentationEnv.scratch_key(name);
-    // let CachedStatics.{term, info_map, _} =
-    //   lookup_statics(~settings, ~statics, editors);
-    // let d = Interface.elaborate(~settings=settings.core, info_map, term);
-    // [(key, d)];
+  | Documentation(name, _) =>
+    let key = ScratchSlide.scratch_key(name);
+    let CachedStatics.{term, info_map, _} =
+      lookup_statics(~settings, ~statics, editors);
+    let d = Interface.elaborate(~settings=settings.core, info_map, term);
+    [(key, d)];
+  | Tutorial(name, slides) =>
     let slideState = List.assoc(name, slides);
     DocumentationEnv.spliced_elabs(settings.core, slideState);
   | Exercises(_, _, exercise) =>
@@ -247,7 +214,8 @@ let get_spliced_elabs =
 let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
   switch (editors) {
   | Scratch(n, slides) => Scratch(n, slides)
-  | Documentation(name, slides) =>
+  | Documentation(_) => editors
+  | Tutorial(name, slides) =>
     // Assuming you want to pass instructor_mode down to each slide
     let updated_slides =
       List.map(
@@ -262,7 +230,7 @@ let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
         },
         slides,
       );
-    Documentation(name, updated_slides);
+    Tutorial(name, updated_slides);
   | Exercises(n, specs, exercise) =>
     Exercises(
       n,
@@ -285,10 +253,17 @@ let reset_nth_slide = (n, slides) => {
 //   Util.ListUtil.put_nth(n, init_nth, slides);
 // };
 
+let reset_named_slide_2 = (name, slides) => {
+  let (_, init_editors, _) = Init.startup.tutorial;
+  let data = List.assoc(name, init_editors);
+  let init_name = DocumentationEnv.unpersist_state(data);
+  slides |> List.remove_assoc(name) |> List.cons((name, init_name));
+};
+
 let reset_named_slide = (name, slides) => {
   let (_, init_editors, _) = Init.startup.documentation;
   let data = List.assoc(name, init_editors);
-  let init_name = DocumentationEnv.unpersist_state(data);
+  let init_name = ScratchSlide.unpersist(data);
   slides |> List.remove_assoc(name) |> List.cons((name, init_name));
 };
 
@@ -302,6 +277,20 @@ let reset_current = (editors: t, ~instructor_mode: bool): t =>
     Scratch(n, editorList);
 
   | Documentation(name, slides) =>
+    let from_tup = ((word: string, status: state)) => (
+      word,
+      toEditor(status),
+    );
+    let slides = List.map(from_tup, slides);
+    let slides = reset_named_slide(name, slides);
+    let to_tup = ((word: string, editor: Editor.t)) => (
+      word,
+      fromEditor(editor),
+    );
+    let slides = List.map(to_tup, slides);
+    Documentation(name, slides);
+
+  | Tutorial(name, slides) =>
     let from_tup = ((word: string, status: DocumentationEnv.state)) => {
       // word,
       // toEditor(status),
@@ -324,7 +313,7 @@ let reset_current = (editors: t, ~instructor_mode: bool): t =>
 
     let updatedSlides = List.map(from_tup, slides);
 
-    Documentation(name, updatedSlides);
+    Tutorial(name, updatedSlides);
 
   | Exercises(n, specs, _) =>
     Exercises(
@@ -337,6 +326,7 @@ let reset_current = (editors: t, ~instructor_mode: bool): t =>
 let import_current = (editors: t, data: option(string)): t =>
   switch (editors) {
   | Documentation(_)
+  | Tutorial(_)
   | Exercises(_) => failwith("impossible")
   | Scratch(idx, slides) =>
     switch (data) {
@@ -370,4 +360,5 @@ let switch_example_slide = (editors: t, name: string): option(t) =>
       when !List.mem_assoc(name, slides) || cur == name =>
     None
   | Documentation(_, slides) => Some(Documentation(name, slides))
+  | Tutorial(_, slides) => Some(Tutorial(name, slides))
   };

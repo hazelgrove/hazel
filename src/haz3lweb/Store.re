@@ -187,17 +187,14 @@ module Documentation = {
   type persistent = PersistentData.documentation;
 
   let persist = ((name, editor: Editor.t)) => {
-    (
-      name,
-      PersistentZipper.persist(editor.state.zipper),
-      // dunno if this is correct
-    );
+    (name, PersistentZipper.persist(editor.state.zipper));
   };
 
-  // let unpersist = ((name, zipper)) => {
-  //   let zipper = PersistentZipper.unpersist(zipper);
-  //   (name, Editor.init(zipper, ~read_only=false));
-  // };
+  let unpersist = ((name, zipper)) => {
+    print_endline("in store file doc");
+    let zipper = PersistentZipper.unpersist(zipper);
+    (name, Editor.init(zipper, ~read_only=false));
+  };
 
   // let fromEditor = (editor: Editor.t): ScratchSlide.persistent_state => {
   //   title: "",
@@ -206,16 +203,14 @@ module Documentation = {
   // };
 
   let pzipper_to_pstate =
-      (slide: PersistentZipper.t): DocumentationEnv.persistent_state => {
-    focus: YourImpl,
+      (slide: PersistentZipper.t): ScratchSlide.persistent_state => {
+    // {
     title: "",
     description: "",
-    editors: [(HiddenTests, slide)],
-    // your_impl: Editor.init(Zipper.init()),
-    // hidden_tests: {
-    //   tests: slide,
-    //   hints: [],
-    // },
+    hidden_tests: {
+      tests: slide,
+      hints: [],
+    },
     // };
   };
 
@@ -235,10 +230,126 @@ module Documentation = {
     );
   };
 
-  let unpersist = (state: DocumentationEnv.persistent_state) => {
-    let focused_zipper = List.assoc(state.focus, state.editors);
-    let zipper = PersistentZipper.unpersist(focused_zipper);
-    Editor.init(zipper, ~read_only=false);
+  let of_persistent = (~settings, (string, slides, results): persistent) => {
+    let state_to_zipper =
+        ((str: string, status: ScratchSlide.persistent_state)) => {
+      (str, ScratchSlide.unpersist(status));
+    };
+    let slides = List.map(state_to_zipper, slides);
+    let slides = List.map(persist, slides);
+    (
+      string,
+      List.map(unpersist, slides),
+      results
+      |> List.to_seq
+      |> ModelResults.of_seq
+      |> ModelResults.map(ModelResult.of_persistent(~settings)),
+    );
+  };
+
+  let serialize = slides => {
+    slides |> to_persistent |> sexp_of_persistent |> Sexplib.Sexp.to_string;
+  };
+
+  let deserialize = data => {
+    data |> Sexplib.Sexp.of_string |> persistent_of_sexp |> of_persistent;
+  };
+
+  let save = (slides): unit => {
+    JsUtil.set_localstore(save_documentation_key, serialize(slides));
+  };
+
+  let init = (~settings) => {
+    let documentation = of_persistent(~settings, Init.startup.documentation);
+    save(documentation);
+    documentation;
+  };
+
+  let load = (~settings) =>
+    switch (JsUtil.get_localstore(save_documentation_key)) {
+    | None => init(~settings)
+    | Some(data) =>
+      try(deserialize(~settings, data)) {
+      | _ => init(~settings)
+      }
+    };
+
+  let export = (~settings) => serialize(load(~settings));
+  let import = (~settings, data) => save(deserialize(~settings, data));
+};
+
+module Tutorial = {
+  let save_documentation_key: string = "SAVE_TUTORIAL";
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = PersistentData.tutorial;
+
+  let persist =
+      ((name, state: DocumentationEnv.state))
+      : (string, DocumentationEnv.persistent_state) => {
+    let your_impl_zipper =
+      PersistentZipper.persist(state.eds.your_impl.state.zipper);
+    let hidden_tests_zipper =
+      PersistentZipper.persist(state.eds.hidden_tests.tests.state.zipper);
+
+    (
+      name,
+      {
+        focus: state.pos,
+        title: state.eds.title,
+        description: state.eds.description,
+        editors: [
+          (YourImpl, your_impl_zipper),
+          (HiddenTests, hidden_tests_zipper),
+        ],
+      },
+    );
+  };
+
+  let pzipper_to_pstate =
+      (slide: PersistentZipper.t): DocumentationEnv.persistent_state => {
+    focus: YourImpl,
+    title: "",
+    description: "",
+    editors: [(HiddenTests, slide)],
+  };
+
+  let to_persistent = ((string, slides, results)): persistent => {
+    let slides = List.map(persist, slides);
+    (
+      string,
+      slides,
+      results
+      |> ModelResults.map(ModelResult.to_persistent)
+      |> ModelResults.bindings,
+    );
+  };
+
+  let unpersist =
+      (state: DocumentationEnv.persistent_state): DocumentationEnv.state => {
+    /* Retrieve the stored zippers for your_impl and hidden_tests */
+    let your_impl_zipper =
+      List.assoc(DocumentationEnv.YourImpl, state.editors);
+    let hidden_tests_zipper =
+      List.assoc(DocumentationEnv.HiddenTests, state.editors);
+
+    print_endline("in store file tutorial");
+    let your_impl = PersistentZipper.unpersist(your_impl_zipper);
+    let hidden_tests = PersistentZipper.unpersist(hidden_tests_zipper);
+
+    /* Rebuild the state */
+    {
+      pos: state.focus, /* Restore the focus */
+      eds: {
+        title: state.title, /* Restore title */
+        description: state.description, /* Restore description */
+        your_impl: Editor.init(your_impl, ~read_only=false), /* Restore your_impl editor */
+        hidden_tests: {
+          tests: Editor.init(hidden_tests, ~read_only=false), /* Restore hidden_tests editor */
+          hints: [],
+        },
+      } /* Restore hints if necessary */
+    };
   };
 
   let of_persistent = (~settings, (string, slides, results): persistent) => {
@@ -272,7 +383,7 @@ module Documentation = {
   };
 
   let init = (~settings) => {
-    let documentation = of_persistent(~settings, Init.startup.documentation);
+    let documentation = of_persistent(~settings, Init.startup.tutorial);
     save(documentation);
     documentation;
   };

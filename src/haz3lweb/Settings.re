@@ -4,6 +4,7 @@ open Sexplib.Std;
 type mode =
   | Scratch
   | Documentation
+  | Tutorial
   | Exercises;
 
 let mode_of_string = (s: string): mode =>
@@ -11,6 +12,7 @@ let mode_of_string = (s: string): mode =>
   | "Scratch" => Scratch
   | "Documentation" => Documentation
   | "Exercises" => Exercises
+  | "Tutorial" => Tutorial
   | _ => failwith("mode_of_string: unknown mode:" ++ s)
   };
 

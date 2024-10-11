@@ -19,7 +19,7 @@ let mode_menu = (~inject: Update.t => 'a, ~mode: Settings.mode) =>
           ),
         List.map(
           option_view(Settings.show_mode(mode)),
-          ["Scratch", "Documentation", "Exercises"],
+          ["Scratch", "Documentation", "Tutorial", "Exercises"],
         ),
       ),
     ],
@@ -104,6 +104,60 @@ let documentation_view = (~inject, ~name, ~editors, ~instructor_mode) => {
   ];
 };
 
+let tutorial_view = (~inject, ~name, ~editors, ~instructor_mode) => {
+  let editor_names = List.map(fst, editors);
+  let rec find_prev_next: list(string) => (option(string), option(string)) =
+    fun
+    | []
+    | [_] => (None, None)
+    | [x, y] when name == x => (None, Some(y))
+    | [x, y] when name == y => (Some(x), None)
+    | [_, _] => (None, None)
+    | [x, y, ..._] when name == x => (None, Some(y))
+    | [x, y, z, ..._] when name == y => (Some(x), Some(z))
+    | [_, ...ys] => find_prev_next(ys);
+  let (prev, next) = find_prev_next(editor_names);
+  let prev =
+    prev
+    |> Option.map(s =>
+         button(Icons.back, _ => inject(Update.SwitchTutorialSlide(s)))
+       )
+    |> Option.value(
+         ~default=
+           button_d(
+             Icons.back,
+             inject(Update.SwitchTutorialSlide("none")),
+             ~disabled=true,
+           ),
+       );
+  let next =
+    next
+    |> Option.map(s =>
+         button(Icons.forward, _ => inject(Update.SwitchTutorialSlide(s)))
+       )
+    |> Option.value(
+         ~default=
+           button_d(
+             Icons.forward,
+             inject(Update.SwitchTutorialSlide("none")),
+             ~disabled=true,
+           ),
+       );
+  [mode_menu(~inject, ~mode=Tutorial)]
+  @ instructor_toggle(~inject, ~instructor_mode)
+  @ [
+    prev,
+    select(
+      ~attr=
+        Attr.on_change((_, name) =>
+          inject(Update.SwitchTutorialSlide(name))
+        ),
+      List.map(option_view(name), editor_names),
+    ),
+    next,
+  ];
+};
+
 let exercises_view = (~inject, ~cur_slide, ~specs, ~instructor_mode) => {
   [mode_menu(~inject, ~mode=Exercises)]
   @ instructor_toggle(~inject, ~instructor_mode)
@@ -129,6 +183,8 @@ let view =
       scratch_view(~inject, ~cur_slide, ~slides)
     | Documentation(name, editors) =>
       documentation_view(~inject, ~name, ~editors, ~instructor_mode)
+    | Tutorial(name, editors) =>
+      tutorial_view(~inject, ~name, ~editors, ~instructor_mode)
     | Exercises(cur_slide, specs, _) =>
       exercises_view(~cur_slide, ~specs, ~inject, ~instructor_mode)
     };

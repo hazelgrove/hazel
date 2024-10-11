@@ -70,7 +70,8 @@ type t =
   | FinishImportAll(option(string))
   | SwitchEditor(Exercise.pos) //exercisemode only
   | SwitchEditorDoc(DocumentationEnv.pos)
-  | SwitchDocumentationSlide(string) //examplemode only
+  | SwitchDocumentationSlide(string)
+  | SwitchTutorialSlide(string) //examplemode only
   // editors: scratchmode only
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportScratchpad(option(string))
@@ -141,6 +142,7 @@ let is_edit: t => bool =
   | Redo
   | Paste(_)
   | SwitchScratchSlide(_)
+  | SwitchTutorialSlide(_)
   | SwitchDocumentationSlide(_)
   | ToggleStepper(_)
   | StepperAction(_)
@@ -220,6 +222,7 @@ let reevaluate_post_update: t => bool =
   | ResetCurrentEditor
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
+  | SwitchTutorialSlide(_)
   | Reset
   | Cut
   | Paste(_)
@@ -262,6 +265,7 @@ let should_scroll_to_caret =
   | SwitchEditorDoc(_)
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
+  | SwitchTutorialSlide(_)
   | ReparseCurrentEditor
   | Reset
   | Copy

@@ -176,48 +176,10 @@ module D = (DocEnv: DocEnv) => {
     if (!instructor_mode) {
       switch (pos) {
       | HiddenTests
-      // =>
-      // Update the `hidden_tests` editor when position is HiddenTests
-      // print_endline("Updating HiddenTests editor");
-      // let updated_hidden_tests = documentation.eds.hidden_tests.tests;
-      // {
-      //   // ...documentation,
-      //   eds: {
-      //     ...documentation.eds,
-      //     hidden_tests: {
-      //       ...documentation.eds.hidden_tests,
-      //       tests: updated_hidden_tests,
-      //     },
-      //     your_impl: documentation.eds.your_impl,
-      //   },
-      //   pos: HiddenTests,
-      // };
-      // | YourImpl =>
-      //   // Update the `your_impl` editor when position is YourImpl
-      //   print_endline("Updating YourImpl editor");
-      //   let updated_your_impl = documentation.eds.your_impl;
-      //   {
-      //     //   ...documentation,
-      //     eds: {
-      //       ...documentation.eds,
-      //       your_impl: updated_your_impl,
-      //       hidden_tests: documentation.eds.hidden_tests,
-      //     },
-      //     pos: YourImpl,
-      //   };
-      | _ => {
-          // Handle other cases by just updating the position
-          eds: documentation.eds,
-          pos,
-        }
+      | _ => {eds: documentation.eds, pos}
       };
     } else {
-      {
-        // When instructor_mode is enabled, decide if further logic is needed
-        // In this case, just return the documentation with updated position
-        eds: documentation.eds,
-        pos,
-      };
+      {eds: documentation.eds, pos};
     };
 
   let zipper_of_code = code => {

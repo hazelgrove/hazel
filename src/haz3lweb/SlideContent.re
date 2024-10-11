@@ -19,7 +19,7 @@ let em = content => span(~attr=Attr.class_("em"), [text(content)]);
 
 let get_content =
   fun
-  | Documentation("Programming Expressively", _) =>
+  | Tutorial("Programming Expressively", _) =>
     Some(
       slide(
         "Programming Expressively",
@@ -47,7 +47,7 @@ let get_content =
         ],
       ),
     )
-  | Documentation("Composing Arithmetic Expressions", _) =>
+  | Tutorial("Composing Arithmetic Expressions", _) =>
     Some(
       slide(
         "Composing Arithmetic Expressions",
@@ -92,7 +92,7 @@ let get_content =
         ],
       ),
     )
-  | Documentation("Computing Equationally", _) =>
+  | Tutorial("Computing Equationally", _) =>
     Some(
       slide(
         "Computing Equationally",
@@ -116,7 +116,7 @@ let get_content =
         ],
       ),
     )
-  | Documentation("Variables", _) =>
+  | Tutorial("Variables", _) =>
     Some(
       slide(
         "Variables",
@@ -149,7 +149,7 @@ let get_content =
         ],
       ),
     )
-  | Documentation("Compositionality", _) =>
+  | Tutorial("Compositionality", _) =>
     Some(
       slide(
         "Compositionality",
@@ -160,7 +160,7 @@ let get_content =
         ],
       ),
     )
-  | Documentation("Scope", _) =>
+  | Tutorial("Scope", _) =>
     Some(
       slide(
         "Scope",
@@ -175,7 +175,7 @@ let get_content =
         ],
       ),
     )
-  | Documentation("Shadowing", _) =>
+  | Tutorial("Shadowing", _) =>
     Some(
       slide(
         "Shadowing",
@@ -197,7 +197,7 @@ let get_content =
         ],
       ),
     )
-  | Documentation("Booleans and Types", _) =>
+  | Tutorial("Booleans and Types", _) =>
     Some(
       slide(
         "Booleans and Types",
@@ -252,7 +252,7 @@ let get_content =
         ],
       ),
     )
-  | Documentation("Conditional Expressions", _) =>
+  | Tutorial("Conditional Expressions", _) =>
     Some(
       slide(
         "Conditional Expressions",
@@ -271,7 +271,7 @@ let get_content =
         ],
       ),
     )
-  | Documentation("Functions", _) =>
+  | Tutorial("Functions", _) =>
     Some(
       slide(
         "Functions",
