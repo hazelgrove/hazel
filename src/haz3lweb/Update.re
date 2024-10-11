@@ -580,10 +580,10 @@ let apply =
           ),
       })
     | DeleteBuggyImplementation(index) =>
-      Model.save_and_return({
-        ...model,
-        editors: Editors.delete_buggy_impl(model.editors, index),
-      })
+      print_endline("Deleting Buggy Impl");
+      let editors = Editors.delete_buggy_impl(model.editors, index);
+      // print_endline(Editors.show(editors));
+      Model.save_and_return({...model, editors});
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));
 };

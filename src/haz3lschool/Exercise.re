@@ -142,12 +142,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     hidden_bugs: list(wrong_impl(PersistentZipper.t)),
     // NOTE: Add new fields to record here as new instructor editable features are
     //       implemented (eg. prelude: PersistentZipper.t when adding the feature
-    //       to edit the prelude). After adding these field(s), you will need to
+    //       to edit the prelude). After adding these field(s), we will need to
     //       go into persistent_state_of_state and unpersist_state to implement
     //       how these fields are saved and loaded to and from local memory
     //       respectively.
-    // NOTE: It may be helpful to look at changes made in the mutant-add-delete
-    //       branch in the Hazelgrove repo to see and understand where changes
+    // NOTE: It may be helpful to look at changes made in the mutant-add-delete and title-editor
+    //       branches in the Hazel repo to see and understand where changes
     //       were made. It is likely that new implementations of editble features
     //       will follow a similar route.
   };
@@ -160,7 +160,15 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       | YourTestsValidation => eds.your_tests.tests
       | YourTestsTesting => eds.your_tests.tests
       | YourImpl => eds.your_impl
-      | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
+      | HiddenBugs(i) =>
+        print_string("Index is: ");
+        print_int(i);
+        print_endline("");
+        print_string("And the length is: ");
+        print_int(List.length(eds.hidden_bugs));
+        print_endline("");
+        let ret = List.nth(eds.hidden_bugs, i).impl;
+        ret;
       | HiddenTests => eds.hidden_tests.tests
       };
 
@@ -534,27 +542,25 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let delete_buggy_impl = (state: state, index: int) => {
     let length = List.length(state.eds.hidden_bugs);
-    let flag = length > 1;
     let editor_on =
-      flag
-        ? List.nth(
-            state.eds.hidden_bugs,
-            index < length - 1 ? index + 1 : index - 1,
-          ).
+      length > 1
+        ? List.nth(state.eds.hidden_bugs, index < length - 1 ? index + 1 : 0).
             impl
         : state.eds.your_tests.tests;
-    let position =
-      flag
-        ? HiddenBugs(index < length - 1 ? index : index - 1)
-        : YourTestsValidation;
+    let pos =
+      length > 1
+        ? HiddenBugs(index < length - 1 ? index : 0) : YourTestsValidation;
     let new_state = {
-      pos: position,
+      pos,
       eds: {
         ...state.eds,
         hidden_bugs:
           List.filteri((i, _) => i != index, state.eds.hidden_bugs),
       },
     };
+    print_string("New pos is: ");
+    print_string(show_pos(pos));
+    print_endline("");
     put_editor(new_state, editor_on);
   };
 

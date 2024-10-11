@@ -105,7 +105,9 @@ module App = {
         ~inject,
       ) => {
     open Incr.Let_syntax;
+    // This model seems to be the root of the problem. It seems to be the old model.
     let%map model = model;
+
     /* Note: mapping over the old_model here may
        trigger an additional redraw */
     Component.create(
