@@ -1,5 +1,3 @@
-open Virtual_dom.Vdom;
-open Node;
 open Util;
 
 module type Model = {
@@ -40,6 +38,7 @@ module Model = {
   type t = {
     kind,
     result,
+    previous_tests: option(Haz3lcore.TestResults.t) // Stops test results from being cleared on update
   };
 
   let make_test_report = (model: t): option(Haz3lcore.TestResults.t) =>
@@ -61,7 +60,7 @@ module Model = {
     | NoElab => None
     };
 
-  let init = {kind: Evaluation, result: NoElab};
+  let init = {kind: Evaluation, result: NoElab, previous_tests: None};
 
   let test_results = (model: t): option(Haz3lcore.TestResults.t) =>
     switch (model.result) {
@@ -79,7 +78,7 @@ module Model = {
         |> Haz3lcore.TestResults.mk_results,
       )
     | Evaluation(_)
-    | NoElab => None
+    | NoElab => model.previous_tests
     };
 
   let get_elaboration = (model: t): option(Haz3lcore.Exp.t) =>
@@ -155,6 +154,7 @@ module Update = {
             result_updated: true,
           }),
       }
+      |> (x => {...x, previous_tests: Model.test_results(x)})
       |> Updated.return
     | (UpdateResult(_), _) => model |> Updated.return_quiet
     };
@@ -288,6 +288,9 @@ module Selection = {
 };
 
 module View = {
+  open Virtual_dom.Vdom;
+  open Web.Node;
+
   type event =
     | MakeActive(Selection.t)
     | JumpTo(Haz3lcore.Id.t);
