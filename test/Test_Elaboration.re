@@ -301,7 +301,7 @@ let singleton_labeled_tuple = () =>
 
 let singleton_labeled_tuple_elaborates_labels = () =>
   alco_check(
-    "Labeled Tuple label introduction",
+    "let x : (l=String) = \"a\" in x",
     Let(
       Var("x") |> Pat.fresh,
       Tuple([
@@ -327,7 +327,7 @@ let singleton_labeled_tuple_elaborates_labels = () =>
           Unknown(Internal) |> Typ.fresh,
         )
         |> Pat.fresh,
-        Parens(Tuple([String("a") |> Exp.fresh]) |> Exp.fresh) |> Exp.fresh,
+        Parens(String("a") |> Exp.fresh) |> Exp.fresh, // TODO Should we require parens around singleton tables to ascribe labels
         Var("x") |> Exp.fresh,
       )
       |> Exp.fresh,
