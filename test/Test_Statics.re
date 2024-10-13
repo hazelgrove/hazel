@@ -16,6 +16,9 @@ let testable_status_exp =
     | _ => false
     }
   });
+
+let status_exp: testable(Info.status_exp) =
+  testable(Fmt.using(Info.show_status_exp, Fmt.string), (==));
 module FreshId = {
   let arrow = (a, b) => Arrow(a, b) |> Typ.fresh;
   let unknown = a => Unknown(a) |> Typ.fresh;
@@ -43,6 +46,30 @@ let info_of_id = (f: UExp.t, id: Id.t) => {
 let type_of = f => {
   Option.map((ie: Info.exp) => ie.ty, info_of_id(f, IdTagged.rep_id(f)));
 };
+
+let fully_consistent_typecheck = (name, serialized, expected, exp) => {
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let s = statics(exp);
+      let errors =
+        List.map(
+          (id: Id.t) => {
+            let info = Id.Map.find(id, s);
+            switch (info) {
+            | InfoExp(ie) => ie.status
+            | _ => fail("Expected InfoExp")
+            };
+          },
+          Statics.Map.error_ids(s),
+        );
+      Alcotest.check(list(status_exp), "Static Errors", [], errors);
+      alco_check(serialized, expected, type_of(exp));
+    },
+  );
+};
+
 let reusable_id = Id.mk();
 let unlabeled_tuple_to_labeled_fails =
   test_case(
@@ -244,109 +271,112 @@ let tests =
         ),
       )
     ),
-    test_case("function application", `Quick, () =>
-      alco_check(
-        "float_of_int(1)",
-        Some(float),
-        type_of(
-          Ap(Forward, Var("float_of_int") |> Exp.fresh, Int(1) |> Exp.fresh)
-          |> Exp.fresh,
-        ),
+    fully_consistent_typecheck(
+      "bifunction",
+      "x : Int, y: Int => x + y",
+      Some(arrow(prod([int, int]), int)),
+      Fun(
+        Tuple([
+          Cast(Var("x") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
+          Cast(Var("y") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
+        ])
+        |> Pat.fresh,
+        BinOp(Int(Plus), Var("x") |> Exp.fresh, Var("y") |> Exp.fresh)
+        |> Exp.fresh,
+        None,
+        None,
       )
+      |> Exp.fresh,
     ),
-    test_case("function deferral", `Quick, () =>
-      alco_check(
-        "string_sub(\"hello\", 1, _)",
-        Some(arrow(int, string)),
-        type_of(
-          DeferredAp(
-            Var("string_sub") |> Exp.fresh,
-            [
-              String("hello") |> Exp.fresh,
-              Int(1) |> Exp.fresh,
-              Deferral(InAp) |> Exp.fresh,
-            ],
-          )
-          |> Exp.fresh,
-        ),
+    fully_consistent_typecheck(
+      "function application",
+      "float_of_int(1)",
+      Some(float),
+      Ap(Forward, Var("float_of_int") |> Exp.fresh, Int(1) |> Exp.fresh)
+      |> Exp.fresh,
+    ),
+    fully_consistent_typecheck(
+      "function deferral",
+      "string_sub(\"hello\", 1, _)",
+      Some(arrow(int, string)),
+      DeferredAp(
+        Var("string_sub") |> Exp.fresh,
+        [
+          String("hello") |> Exp.fresh,
+          Int(1) |> Exp.fresh,
+          Deferral(InAp) |> Exp.fresh,
+        ],
       )
+      |> Exp.fresh,
     ),
     unlabeled_tuple_to_labeled_fails,
     simple_inconsistency,
-    test_case("Assigning labeled tuple to variable", `Quick, () => {
-      alco_check(
-        "let x = (l=32) in
-           let y : (l=Int) = x in y",
-        Some(
-          Prod([
-            TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
+    fully_consistent_typecheck(
+      "Assigning labeled tuple to variable",
+      "let x = (l=32) in let y : (l=Int) = x in y",
+      Some(
+        Prod([
+          TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+      ),
+      Let(
+        Var("x") |> Pat.fresh,
+        Parens(
+          Tuple([
+            TupLabel(Label("l") |> Exp.fresh, Int(32) |> Exp.fresh)
+            |> Exp.fresh,
           ])
-          |> Typ.fresh,
-        ),
-        type_of(
-          Let(
-            Var("x") |> Pat.fresh,
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        Let(
+          Cast(
+            Var("y") |> Pat.fresh,
             Parens(
-              Tuple([
-                TupLabel(Label("l") |> Exp.fresh, Int(32) |> Exp.fresh)
-                |> Exp.fresh,
+              Prod([
+                TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh)
+                |> Typ.fresh,
               ])
-              |> Exp.fresh,
-            )
-            |> Exp.fresh,
-            Let(
-              Cast(
-                Var("y") |> Pat.fresh,
-                Parens(
-                  Prod([
-                    TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh)
-                    |> Typ.fresh,
-                  ])
-                  |> Typ.fresh,
-                )
-                |> Typ.fresh,
-                Unknown(Internal) |> Typ.fresh,
-              )
-              |> Pat.fresh,
-              Var("x") |> Exp.fresh,
-              Var("y") |> Exp.fresh,
-            )
-            |> Exp.fresh,
-          )
-          |> Exp.fresh,
-        ),
-      )
-    }),
-    test_case("Singleton Labled Tuple ascription in let", `Quick, () => {
-      alco_check(
-        "let x : (l=String) = (\"a\") in x",
-        Some(
-          Prod([
-            TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
-            |> Typ.fresh,
-          ])
-          |> Typ.fresh,
-        ),
-        type_of(
-          Let(
-            Cast(
-              Var("x") |> Pat.fresh,
-              Parens(
-                Prod([
-                  TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
-                  |> Typ.fresh,
-                ])
-                |> Typ.fresh,
-              )
               |> Typ.fresh,
-              Unknown(Internal) |> Typ.fresh,
             )
-            |> Pat.fresh,
-            Parens(String("a") |> Exp.fresh) |> Exp.fresh, // TODO Need to assert there's no inconsistency in this branch
-            Var("x") |> Exp.fresh,
+            |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
           )
-          |> Exp.fresh,
-        ),
+          |> Pat.fresh,
+          Var("x") |> Exp.fresh,
+          Var("y") |> Exp.fresh,
+        )
+        |> Exp.fresh,
       )
-    }),
+      |> Exp.fresh,
+    ),
+    fully_consistent_typecheck(
+      "Singleton Labled Tuple ascription in let",
+      "let x : (l=String) = (\"a\") in x",
+      Some(
+        Prod([
+          TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh) |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+      ),
+      Let(
+        Cast(
+          Var("x") |> Pat.fresh,
+          Parens(
+            Prod([
+              TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+            ])
+            |> Typ.fresh,
+          )
+          |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Pat.fresh,
+        Parens(String("a") |> Exp.fresh) |> Exp.fresh, // TODO Need to assert there's no inconsistency in this branch
+        Var("x") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+    ),
   ];
