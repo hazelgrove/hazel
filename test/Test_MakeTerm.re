@@ -7,7 +7,6 @@ open Haz3lcore;
 
 let exp_typ = testable(Fmt.using(Exp.show, Fmt.string), Exp.fast_equal);
 
-// TODO Assertion if it doesn't parse
 let parse_exp = (s: string) =>
   MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
 let exp_check = (expected, actual) =>
