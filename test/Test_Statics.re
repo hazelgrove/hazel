@@ -273,4 +273,80 @@ let tests =
     ),
     unlabeled_tuple_to_labeled_fails,
     simple_inconsistency,
+    test_case("Assigning labeled tuple to variable", `Quick, () => {
+      alco_check(
+        "let x = (l=32) in
+           let y : (l=Int) = x in y",
+        Some(
+          Prod([
+            TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
+          ])
+          |> Typ.fresh,
+        ),
+        type_of(
+          Let(
+            Var("x") |> Pat.fresh,
+            Parens(
+              Tuple([
+                TupLabel(Label("l") |> Exp.fresh, Int(32) |> Exp.fresh)
+                |> Exp.fresh,
+              ])
+              |> Exp.fresh,
+            )
+            |> Exp.fresh,
+            Let(
+              Cast(
+                Var("y") |> Pat.fresh,
+                Parens(
+                  Prod([
+                    TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh)
+                    |> Typ.fresh,
+                  ])
+                  |> Typ.fresh,
+                )
+                |> Typ.fresh,
+                Unknown(Internal) |> Typ.fresh,
+              )
+              |> Pat.fresh,
+              Var("x") |> Exp.fresh,
+              Var("y") |> Exp.fresh,
+            )
+            |> Exp.fresh,
+          )
+          |> Exp.fresh,
+        ),
+      )
+    }),
+    test_case("Singleton Labled Tuple ascription in let", `Quick, () => {
+      alco_check(
+        "let x : (l=String) = (\"a\") in x",
+        Some(
+          Prod([
+            TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
+            |> Typ.fresh,
+          ])
+          |> Typ.fresh,
+        ),
+        type_of(
+          Let(
+            Cast(
+              Var("x") |> Pat.fresh,
+              Parens(
+                Prod([
+                  TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
+                  |> Typ.fresh,
+                ])
+                |> Typ.fresh,
+              )
+              |> Typ.fresh,
+              Unknown(Internal) |> Typ.fresh,
+            )
+            |> Pat.fresh,
+            Parens(String("a") |> Exp.fresh) |> Exp.fresh, // TODO Need to assert there's no inconsistency in this branch
+            Var("x") |> Exp.fresh,
+          )
+          |> Exp.fresh,
+        ),
+      )
+    }),
   ];

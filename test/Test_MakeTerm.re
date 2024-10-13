@@ -20,26 +20,57 @@ let tests = [
         Cast(
           Var("x") |> Pat.fresh,
           Parens(
-            TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)  // TODO Do we want to wrap the singleton case in a product
+            Prod([
+              TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+            ])
             |> Typ.fresh,
           )
           |> Typ.fresh,
           Unknown(Internal) |> Typ.fresh,
         )
         |> Pat.fresh,
-        Parens(String("a") |> Exp.fresh) |> Exp.fresh, // TODO Should we require parens around singleton tables to ascribe labels
+        Parens(String("a") |> Exp.fresh) |> Exp.fresh,
         Var("x") |> Exp.fresh,
       )
       |> Exp.fresh,
-      "let x : (l=String) = \"a\" in x",
+      "let x : (l=String) = (\"a\") in x",
     )
   }),
-  test_case("", `Quick, () => {
+  test_case("Assigning labeled tuple to variable", `Quick, () => {
     exp_check(
-      Int(7) |> Exp.fresh,
+      Let(
+        Var("x") |> Pat.fresh,
+        Parens(
+          Tuple([
+            TupLabel(Label("l") |> Exp.fresh, Int(32) |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        Let(
+          Cast(
+            Var("y") |> Pat.fresh,
+            Parens(
+              Prod([
+                TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh)
+                |> Typ.fresh,
+              ])
+              |> Typ.fresh,
+            )
+            |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Pat.fresh,
+          Var("x") |> Exp.fresh,
+          Var("y") |> Exp.fresh,
+        )
+        |> Exp.fresh,
+      )
+      |> Exp.fresh,
       "let x = (l=32) in
-let y : (l=Int) = x in
- ",
+       let y : (l=Int) = x in y",
     )
   }),
 ];
