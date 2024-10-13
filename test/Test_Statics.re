@@ -34,8 +34,12 @@ let id_at = x => x |> List.nth(ids);
 let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init);
 let alco_check = Alcotest.option(testable_typ) |> Alcotest.check;
 
-let info_of_id = (f: UExp.t, id: Id.t) => {
-  let s = statics(f);
+let info_of_id = (~statics_map=?, f: UExp.t, id: Id.t) => {
+  let s =
+    switch (statics_map) {
+    | Some(s) => s
+    | None => statics(f)
+    };
   switch (Id.Map.find(id, s)) {
   | InfoExp(ie) => Some(ie)
   | _ => None
@@ -43,8 +47,11 @@ let info_of_id = (f: UExp.t, id: Id.t) => {
 };
 
 // Get the type from the statics
-let type_of = f => {
-  Option.map((ie: Info.exp) => ie.ty, info_of_id(f, IdTagged.rep_id(f)));
+let type_of = (~statics_map=?, f) => {
+  Option.map(
+    (ie: Info.exp) => ie.ty,
+    info_of_id(~statics_map?, f, IdTagged.rep_id(f)),
+  );
 };
 
 let fully_consistent_typecheck = (name, serialized, expected, exp) => {
@@ -65,7 +72,7 @@ let fully_consistent_typecheck = (name, serialized, expected, exp) => {
           Statics.Map.error_ids(s),
         );
       Alcotest.check(list(status_exp), "Static Errors", [], errors);
-      alco_check(serialized, expected, type_of(exp));
+      alco_check(serialized, expected, type_of(~statics_map=s, exp));
     },
   );
 };
