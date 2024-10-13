@@ -32,7 +32,12 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
   | Label(name) => ty_view("Label", name)
   | Bool => ty_view("Bool", "Bool")
   | Var(name) => ty_view("Var", name)
-  | TupLabel(_, ty) => view_ty(ty) // TODO (Anthony): What to do here?
+  | TupLabel({term: Label(l), _}, ty) =>
+    div(
+      ~attrs=[clss(["typ-view", "TupLabel"])],
+      [text(l ++ "="), view_ty(ty)],
+    )
+  | TupLabel(_, ty) => view_ty(ty) // This should be impossible
   | Rec(name, t) =>
     div(
       ~attrs=[clss(["typ-view", "Rec"])],
