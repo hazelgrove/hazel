@@ -193,83 +193,67 @@ let unapplied_function = () =>
 
 let tests =
   FreshId.[
-    test_case("Function with unknown param", `Quick, () =>
-      alco_check(
-        "x => 4 + 5",
-        Some(arrow(unknown(Internal), int)),
-        type_of(
-          Fun(
-            Var("x") |> Pat.fresh,
-            BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
-            |> Exp.fresh,
-            None,
-            None,
-          )
-          |> Exp.fresh,
-        ),
+    fully_consistent_typecheck(
+      "Function with unknown param",
+      "x => 4 + 5",
+      Some(arrow(unknown(Internal), int)),
+      Fun(
+        Var("x") |> Pat.fresh,
+        BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
+        |> Exp.fresh,
+        None,
+        None,
       )
+      |> Exp.fresh,
     ),
-    test_case("Function with known param", `Quick, () =>
-      alco_check(
-        "x : Int => 4 + 5",
-        Some(arrow(int, int)),
-        type_of(
-          Fun(
-            Cast(Var("x") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
-            BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
-            |> Exp.fresh,
-            None,
-            None,
-          )
-          |> Exp.fresh,
-        ),
+    fully_consistent_typecheck(
+      "Function with known param",
+      "x : Int => 4 + 5",
+      Some(arrow(int, int)),
+      Fun(
+        Cast(Var("x") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
+        BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
+        |> Exp.fresh,
+        None,
+        None,
       )
+      |> Exp.fresh,
     ),
-    test_case("Function with labeled param", `Quick, () =>
-      alco_check(
-        "fun (a=x) -> 4",
-        Some(
-          arrow(prod([tup_label(label("a"), unknown(Internal))]), int),
-        ),
-        type_of(
-          Fun(
-            Parens(
-              Tuple([
-                TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
-                |> Pat.fresh,
-              ])
-              |> Pat.fresh,
-            )
+    fully_consistent_typecheck(
+      "Function with labeled param",
+      "fun (a=x) -> 4",
+      Some(arrow(prod([tup_label(label("a"), unknown(Internal))]), int)),
+      Fun(
+        Parens(
+          Tuple([
+            TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
             |> Pat.fresh,
-            Int(4) |> Exp.fresh,
-            None,
-            None,
-          )
-          |> Exp.fresh,
-        ),
+          ])
+          |> Pat.fresh,
+        )
+        |> Pat.fresh,
+        Int(4) |> Exp.fresh,
+        None,
+        None,
       )
+      |> Exp.fresh,
     ),
-    test_case("bifunction", `Quick, () =>
-      alco_check(
-        "x : Int, y: Int => x + y",
-        Some(arrow(prod([int, int]), int)),
-        type_of(
-          Fun(
-            Tuple([
-              Cast(Var("x") |> Pat.fresh, int, unknown(Internal))
-              |> Pat.fresh,
-              Cast(Var("y") |> Pat.fresh, int, unknown(Internal))
-              |> Pat.fresh,
-            ])
-            |> Pat.fresh,
-            BinOp(Int(Plus), Var("x") |> Exp.fresh, Var("y") |> Exp.fresh)
-            |> Exp.fresh,
-            None,
-            None,
-          )
-          |> Exp.fresh,
-        ),
+    fully_consistent_typecheck(
+      "bifunction",
+      "x : Int, y: Int => x + y",
+      Some(arrow(prod([int, int]), int)),
+      Fun(
+        Tuple([
+          Cast(Var("x") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
+          Cast(Var("y") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
+        ])
+        |> Pat.fresh,
+        BinOp(Int(Plus), Var("x") |> Exp.fresh, Var("y") |> Exp.fresh)
+        |> Exp.fresh,
+        None,
+        None,
       )
+      |> Exp.fresh,
     ),
     fully_consistent_typecheck(
       "bifunction",
