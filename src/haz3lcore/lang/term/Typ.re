@@ -598,13 +598,13 @@ let rec needs_parens = (ty: t): bool =>
   | String
   | Label(_)
   | Bool
+  | TupLabel(_, _)
   | Var(_) => false
   | Rec(_, _)
   | Forall(_, _) => true
   | List(_) => false /* is already wrapped in [] */
   | Arrow(_, _) => true
   | Prod(_)
-  | TupLabel(_, _)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
   };
 
