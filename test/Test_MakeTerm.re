@@ -73,4 +73,38 @@ let tests = [
        let y : (l=Int) = x in y",
     )
   }),
+  test_case("Multiple labels in tuple", `Quick, () => {
+    exp_check(
+      Let(
+        Cast(
+          Var("x") |> Pat.fresh,
+          Parens(
+            Prod([
+              TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh)
+              |> Typ.fresh,
+              TupLabel(Label("l2") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+            ])
+            |> Typ.fresh,
+          )
+          |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Pat.fresh,
+        Parens(
+          Tuple([
+            TupLabel(Label("l") |> Exp.fresh, Int(32) |> Exp.fresh)
+            |> Exp.fresh,
+            TupLabel(Label("l2") |> Exp.fresh, String("") |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        Var("x") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      {|let x : (l=Int, l2=String) = (l=32, l2="") in x|},
+    )
+  }),
 ];
