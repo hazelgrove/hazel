@@ -223,6 +223,29 @@ and uexp_to_info_map =
     );
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
   let atomic = self => add(~self, ~co_ctx=CoCtx.empty, m);
+
+  // This is to allow lifting single values into a singleton labeled tuple when the label is not present
+  // TODO Think about this real hard
+  let uexp =
+    switch (mode) {
+    | Ana(ty) =>
+      let ty = Typ.weak_head_normalize(ctx, ty).term;
+      switch (ty) {
+      | Prod([{term: TupLabel({term: Label(l1), _}, ty), _}]) =>
+        let (e, m) = go(~mode=Mode.Syn, uexp, m);
+        switch (Typ.weak_head_normalize(e.ctx, e.ty).term) {
+        | Prod([{term: TupLabel({term: Label(l2), _}, ty), _}])
+            when l1 == l2 => uexp
+        | _ =>
+
+          Tuple([uexp]) |> Exp.fresh;
+        };
+      | _ => uexp
+      };
+    | _ => uexp
+    };
+  let term = uexp.term;
+
   switch (term) {
   | Closure(_) =>
     failwith(
