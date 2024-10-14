@@ -1,7 +1,25 @@
 open Util;
+open Js_of_ocaml;
 open Haz3lcore;
 
 include UpdateAction; // to prevent circularity
+
+let observe_font_specimen = (id, update) =>
+  ResizeObserver.observe(
+    ~node=JsUtil.get_elem_by_id(id),
+    ~f=
+      (entries, _) => {
+        let specimen = Js.to_array(entries)[0];
+        let rect = specimen##.contentRect;
+        update(
+          FontMetrics.{
+            row_height: rect##.bottom -. rect##.top,
+            col_width: rect##.right -. rect##.left,
+          },
+        );
+      },
+    (),
+  );
 
 let update_settings =
     (a: settings_action, {settings, _} as model: Model.t): Model.t =>
@@ -226,6 +244,25 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
     };
   };
 
+let on_startup =
+    (~schedule_action: UpdateAction.t => unit, m: Model.t): Model.t => {
+  let _ =
+    observe_font_specimen("font-specimen", fm =>
+      schedule_action(UpdateAction.SetMeta(FontMetrics(fm)))
+    );
+  NinjaKeys.initialize(NinjaKeys.options(schedule_action));
+  JsUtil.focus_clipboard_shim();
+  /* initialize state. */
+  /* Initial evaluation on a worker */
+  schedule_evaluation(~schedule_action, m);
+  Os.is_mac :=
+    Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
+      Js.string("MAC"),
+    )
+    >= 0;
+  m;
+};
+
 let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
   let update_dynamics = reevaluate_post_update(update);
   /* If we switch editors, or change settings which require statics
@@ -383,9 +420,7 @@ let ui_state_update =
   };
 };
 
-let apply =
-    (model: Model.t, update: t, _state: State.t, ~schedule_action)
-    : Result.t(Model.t) => {
+let apply = (model: Model.t, update: t, ~schedule_action): Result.t(Model.t) => {
   let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
     switch (
       Editors.perform_action(~settings=model.settings.core, model.editors, a)
@@ -396,6 +431,7 @@ let apply =
   };
   let m: Result.t(Model.t) =
     switch (update) {
+    | Startup => Ok(on_startup(~schedule_action, model))
     | Reset => Ok(Model.reset(model))
     | Set(Evaluation(_) as s_action) => Ok(update_settings(s_action, model))
     | Set(s_action) =>
@@ -580,9 +616,8 @@ let apply =
           ),
       })
     | DeleteBuggyImplementation(index) =>
-      print_endline("Deleting Buggy Impl");
       let editors = Editors.delete_buggy_impl(model.editors, index);
-      // print_endline(Editors.show(editors));
+      print_endline(Editors.show(editors));
       Model.save_and_return({...model, editors});
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));
