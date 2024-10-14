@@ -418,6 +418,49 @@ let elaboration_tests = [
   //   `Quick,
   //   singleton_labeled_tuple_elaborates_labels,
   // ),
-  test_case("Singleton labeled tuple", `Quick, singleton_labeled_tuple) // TODO Make consistent with make term
+  test_case("Singleton labeled tuple", `Quick, singleton_labeled_tuple), // TODO Make consistent with make term
   // TODO Add singleton labeled function application
+  test_case("Singleton labeld tuple analysis adds label", `Quick, () =>
+    alco_check(
+      "Singleton labeld tuple analysis adds label",
+      Let(
+        Cast(
+          Var("x") |> Pat.fresh,
+          Parens(
+            Prod([
+              TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+            ])
+            |> Typ.fresh,
+          )
+          |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Pat.fresh,
+        Parens(Tuple([String("a") |> Exp.fresh]) |> Exp.fresh) |> Exp.fresh, // TODO Need to assert there's no inconsistency in this branch
+        Var("x") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      dhexp_of_uexp(
+        Let(
+          Cast(
+            Var("x") |> Pat.fresh,
+            Parens(
+              Prod([
+                TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
+                |> Typ.fresh,
+              ])
+              |> Typ.fresh,
+            )
+            |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Pat.fresh,
+          Parens(String("a") |> Exp.fresh) |> Exp.fresh, // TODO Need to assert there's no inconsistency in this branch
+          Var("x") |> Exp.fresh,
+        )
+        |> Exp.fresh,
+      ),
+    )
+  ),
 ];
