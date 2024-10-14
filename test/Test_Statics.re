@@ -54,6 +54,32 @@ let type_of = (~statics_map=?, f) => {
   );
 };
 
+let inconsistent_typecheck = (name, serialized, expected, exp) => {
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let s = statics(exp);
+      let errors =
+        List.map(
+          (id: Id.t) => {
+            let info = Id.Map.find(id, s);
+            switch (info) {
+            | InfoExp(ie) => ie.status
+            | _ => fail("Expected InfoExp")
+            };
+          },
+          Statics.Map.error_ids(s),
+        );
+      if (errors == []) {
+        fail("Expected errors");
+      };
+      print_endline(
+        "Errors: " ++ [%derive.show: list(Info.status_exp)](errors),
+      );
+    },
+  );
+};
 let fully_consistent_typecheck = (name, serialized, expected, exp) => {
   test_case(
     name,
@@ -370,6 +396,69 @@ let tests =
       )
       |> Exp.fresh,
     ),
+    inconsistent_typecheck(
+      "Singleton Labled Tuple ascription in let with wrong type should fail",
+      "let x : (l=String) = 1 in x",
+      Some(
+        Prod([
+          TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh) |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+      ),
+      Let(
+        Cast(
+          Var("x") |> Pat.fresh,
+          Parens(
+            Prod([
+              TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+            ])
+            |> Typ.fresh,
+          )
+          |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Pat.fresh,
+        Int(1) |> Exp.fresh, // TODO Need to assert there's no inconsistency in this branch
+        Var("x") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+    ),
+    fully_consistent_typecheck(
+      "Singleton Labled Tuple with specified label",
+      "let x : (l=String) = (l=\"a\") in x",
+      Some(
+        Prod([
+          TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh) |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+      ),
+      Let(
+        Cast(
+          Var("x") |> Pat.fresh,
+          Parens(
+            Prod([
+              TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+            ])
+            |> Typ.fresh,
+          )
+          |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Pat.fresh,
+        Parens(
+          Tuple([
+            TupLabel(Label("l") |> Exp.fresh, String("a") |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+        )
+        |> Exp.fresh, // TODO Need to assert there's no inconsistency in this branch
+        Var("x") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+    ),
     fully_consistent_typecheck(
       "Labeled tuple with multiple labels",
       {|(l=32, l2="")|},
@@ -394,24 +483,23 @@ let tests =
     ),
     fully_consistent_typecheck(
       "Let statement that adds labels during elaboration",
-      {|let add : (street=String, city=String, state=String, zipcode=Int)= ("123 Maple St", "Ann Arbor", "MI", 48103) |},
+      {|let x : (name=String, age=Int)= ("Bob", 20) |},
       Some(
         Prod([
-          TupLabel(Label("street") |> Typ.fresh, String |> Typ.fresh)
+          TupLabel(Label("name") |> Typ.fresh, String |> Typ.fresh)
           |> Typ.fresh,
-          TupLabel(Label("city") |> Typ.fresh, String |> Typ.fresh)
-          |> Typ.fresh,
+          TupLabel(Label("age") |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
         ])
         |> Typ.fresh,
       ),
       Let(
         Cast(
-          Var("add") |> Pat.fresh,
+          Var("x") |> Pat.fresh,
           Parens(
             Prod([
-              TupLabel(Label("street") |> Typ.fresh, String |> Typ.fresh)
+              TupLabel(Label("name") |> Typ.fresh, String |> Typ.fresh)
               |> Typ.fresh,
-              TupLabel(Label("city") |> Typ.fresh, String |> Typ.fresh)
+              TupLabel(Label("age") |> Typ.fresh, Int |> Typ.fresh)
               |> Typ.fresh,
             ])
             |> Typ.fresh,
@@ -421,14 +509,11 @@ let tests =
         )
         |> Pat.fresh,
         Parens(
-          Tuple([
-            String("123 Maple St") |> Exp.fresh,
-            String("Ann Arbor") |> Exp.fresh,
-          ])
+          Tuple([String("Bob") |> Exp.fresh, Int(20) |> Exp.fresh])
           |> Exp.fresh,
         )
         |> Exp.fresh,
-        Var("add") |> Exp.fresh,
+        Var("x") |> Exp.fresh,
       )
       |> Exp.fresh,
     ),
