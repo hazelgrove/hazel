@@ -233,12 +233,11 @@ and uexp_to_info_map =
       switch (ty) {
       | Prod([{term: TupLabel({term: Label(l1), _}, ty), _}]) =>
         let (e, m) = go(~mode=Mode.Syn, uexp, m);
+
         switch (Typ.weak_head_normalize(e.ctx, e.ty).term) {
         | Prod([{term: TupLabel({term: Label(l2), _}, ty), _}])
             when l1 == l2 => uexp
-        | _ =>
-
-          Tuple([uexp]) |> Exp.fresh;
+        | _ => Tuple([uexp]) |> Exp.fresh
         };
       | _ => uexp
       };
