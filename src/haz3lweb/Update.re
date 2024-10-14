@@ -185,12 +185,25 @@ let update_settings =
     }
   | InstructorMode =>
     let new_mode = !settings.instructor_mode;
+    let editors = Editors.set_editing_title(model.editors, false);
+    let editors = Editors.set_instructor_mode(editors, new_mode);
     {
       ...model,
-      editors: Editors.set_instructor_mode(model.editors, new_mode),
+      editors,
       settings: {
         ...settings,
         instructor_mode: !settings.instructor_mode,
+        editing_title: false,
+      },
+    };
+  | EditingTitle =>
+    let editing = !settings.editing_title;
+    {
+      ...model,
+      editors: Editors.set_editing_title(model.editors, editing),
+      settings: {
+        ...settings,
+        editing_title: editing,
       },
     };
   | Mode(mode) => {
@@ -281,7 +294,13 @@ let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
 };
 
 let switch_scratch_slide =
-    (~settings, editors: Editors.t, ~instructor_mode, idx: int)
+    (
+      ~settings,
+      editors: Editors.t,
+      ~instructor_mode,
+      ~editing_title,
+      idx: int,
+    )
     : option(Editors.t) =>
   switch (editors) {
   | Documentation(_) => None
@@ -291,9 +310,13 @@ let switch_scratch_slide =
   | Exercises(_, specs, _) when idx >= List.length(specs) => None
   | Exercises(_, specs, _) =>
     let spec = List.nth(specs, idx);
-    let key = Exercise.key_of(spec);
     let exercise =
-      Store.Exercise.load_exercise(key, spec, ~instructor_mode, ~settings);
+      Store.Exercise.load_exercise(
+        spec,
+        ~instructor_mode,
+        ~editing_title,
+        ~settings,
+      );
     Some(Exercises(idx, specs, exercise));
   };
 
@@ -487,16 +510,19 @@ let apply = (model: Model.t, update: t, ~schedule_action): Result.t(Model.t) => 
       Model.save_and_return({...model, editors});
     | SwitchScratchSlide(n) =>
       let instructor_mode = model.settings.instructor_mode;
+      let editors = Editors.set_editing_title(model.editors, false);
+      let settings = {...model.settings, editing_title: false};
       switch (
         switch_scratch_slide(
           ~settings=model.settings.core,
-          model.editors,
+          editors,
           ~instructor_mode,
+          ~editing_title=false,
           n,
         )
       ) {
       | None => Error(FailedToSwitch)
-      | Some(editors) => Model.save_and_return({...model, editors})
+      | Some(editors) => Model.save_and_return({...model, editors, settings})
       };
     | SwitchDocumentationSlide(name) =>
       switch (Editors.switch_example_slide(model.editors, name)) {
@@ -574,6 +600,25 @@ let apply = (model: Model.t, update: t, ~schedule_action): Result.t(Model.t) => 
       let results =
         ModelResults.union((_, _a, b) => Some(b), model.results, results);
       Ok({...model, results});
+    | UpdateTitle(new_title) =>
+      Model.save_and_return({
+        ...model,
+        editors: Editors.update_exercise_title(model.editors, new_title),
+      })
+    | AddBuggyImplementation =>
+      Model.save_and_return({
+        ...model,
+        editors:
+          Editors.add_buggy_impl(
+            ~settings=model.settings.core,
+            model.editors,
+            ~editing_title=model.settings.editing_title,
+          ),
+      })
+    | DeleteBuggyImplementation(index) =>
+      let editors = Editors.delete_buggy_impl(model.editors, index);
+      print_endline(Editors.show(editors));
+      Model.save_and_return({...model, editors});
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));
 };

@@ -22,6 +22,7 @@ type t = {
   async_evaluation: bool,
   context_inspector: bool,
   instructor_mode: bool,
+  editing_title: bool,
   benchmark: bool,
   explainThis: ExplainThisModel.Settings.t,
   mode,

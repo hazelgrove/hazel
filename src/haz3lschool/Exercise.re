@@ -53,8 +53,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type p('code) = {
+    id: Id.t,
     title: string,
-    version: int,
     module_name: string,
     prompt:
       [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] ExerciseEnv.node,
@@ -68,15 +68,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     syntax_tests,
   };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type key = (string, int);
+  type record = p(Zipper.t);
 
-  let key_of = p => {
-    (p.title, p.version);
+  let id_of = p => {
+    p.id;
   };
 
-  let find_key_opt = (key, specs: list(p('code))) => {
-    specs |> Util.ListUtil.findi_opt(spec => key_of(spec) == key);
+  let find_id_opt = (id, specs: list(p('code))) => {
+    specs |> Util.ListUtil.findi_opt(spec => id_of(spec) == id);
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -97,8 +96,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let map = (p: p('a), f: 'a => 'b): p('b) => {
     {
+      id: p.id,
       title: p.title,
-      version: p.version,
       module_name: p.module_name,
       prompt: p.prompt,
       point_distribution: p.point_distribution,
@@ -135,10 +134,29 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     eds,
   };
 
-  let key_of_state = ({eds, _}) => key_of(eds);
-
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_state = (pos, list((pos, PersistentZipper.t)));
+  type persistent_state = {
+    focus: pos,
+    editors: list((pos, PersistentZipper.t)),
+    title: string,
+    hidden_bugs: list(wrong_impl(PersistentZipper.t)),
+    // NOTE: Add new fields to record here as new instructor editable features are
+    //       implemented (eg. prelude: PersistentZipper.t when adding the feature
+    //       to edit the prelude). After adding these field(s), we will need to
+    //       go into persistent_state_of_state and unpersist_state to implement
+    //       how these fields are saved and loaded to and from local memory
+    //       respectively.
+    // NOTE: It may be helpful to look at changes made in the mutant-add-delete and title-editor
+    //       branches in the Hazel repo to see and understand where changes
+    //       were made. It is likely that new implementations of editble features
+    //       will follow a similar route.
+  };
+
+  let clamp_idx = (eds: eds, idx: int) => {
+    let length = List.length(eds.hidden_bugs);
+    let idx = idx > length - 1 ? idx - 1 : idx;
+    idx >= 0 ? Some(idx) : None;
+  };
 
   let editor_of_state: state => Editor.t =
     ({pos, eds, _}) =>
@@ -148,7 +166,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       | YourTestsValidation => eds.your_tests.tests
       | YourTestsTesting => eds.your_tests.tests
       | YourImpl => eds.your_impl
-      | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
+      | HiddenBugs(i) =>
+        switch (clamp_idx(eds, i)) {
+        | Some(idx) => List.nth(eds.hidden_bugs, idx).impl
+        | None => eds.your_impl
+        }
       | HiddenTests => eds.hidden_tests.tests
       };
 
@@ -285,8 +307,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let transition: transitionary_spec => spec =
     (
       {
+        id,
         title,
-        version,
         module_name,
         prompt,
         point_distribution,
@@ -321,8 +343,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         {tests, hints};
       };
       {
+        id,
         title,
-        version,
         module_name,
         prompt,
         point_distribution,
@@ -340,7 +362,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       (
         {
           title,
-          version,
+          id,
           module_name,
           prompt,
           point_distribution,
@@ -376,7 +398,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
     {
       title,
-      version,
+      id,
       module_name,
       prompt,
       point_distribution,
@@ -467,6 +489,84 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     },
   };
 
+  let set_editing_title = ({eds, _} as state: state, editing: bool) => {
+    ...state,
+    eds: {
+      ...eds,
+      prelude: Editor.set_read_only(eds.prelude, editing),
+      correct_impl: Editor.set_read_only(eds.correct_impl, editing),
+      your_tests: {
+        let tests = Editor.set_read_only(eds.your_tests.tests, editing);
+        {
+          tests,
+          required: eds.your_tests.required,
+          provided: eds.your_tests.provided,
+        };
+      },
+      hidden_bugs:
+        eds.hidden_bugs
+        |> List.map(({impl, hint}) => {
+             let impl = Editor.set_read_only(impl, editing);
+             {impl, hint};
+           }),
+      hidden_tests: {
+        let tests = Editor.set_read_only(eds.hidden_tests.tests, editing);
+        {tests, hints: eds.hidden_tests.hints};
+      },
+      your_impl: Editor.set_read_only(eds.your_impl, editing),
+    },
+  };
+
+  let update_exercise_title = ({eds, _} as state: state, new_title: string) => {
+    ...state,
+    eds: {
+      ...eds,
+      title: new_title,
+    },
+  };
+
+  let add_buggy_impl =
+      (~settings: CoreSettings.t, state: state, ~editing_title) => {
+    let new_buggy_impl = {
+      impl: Editor.init(Zipper.init(), ~settings),
+      hint: "no hint available",
+    };
+    let new_state = {
+      pos: HiddenBugs(List.length(state.eds.hidden_bugs)),
+      eds: {
+        ...state.eds,
+        hidden_bugs: state.eds.hidden_bugs @ [new_buggy_impl],
+      },
+    };
+    let new_state = set_editing_title(new_state, editing_title);
+    put_editor(new_state, new_buggy_impl.impl);
+  };
+
+  let delete_buggy_impl = (state: state, index: int) => {
+    let length = List.length(state.eds.hidden_bugs);
+    let editor_on =
+      length > 1
+        ? List.nth(
+            state.eds.hidden_bugs,
+            index < length - 1 ? index + 1 : index - 1,
+          ).
+            impl
+        : state.eds.your_tests.tests;
+    let pos =
+      length > 1
+        ? HiddenBugs(index < length - 1 ? index : index - 1)
+        : YourTestsValidation;
+    let new_state = {
+      pos,
+      eds: {
+        ...state.eds,
+        hidden_bugs:
+          List.filteri((i, _) => i != index, state.eds.hidden_bugs),
+      },
+    };
+    put_editor(new_state, editor_on);
+  };
+
   let visible_in = (pos, ~instructor_mode) => {
     switch (pos) {
     | Prelude => instructor_mode
@@ -485,28 +585,38 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     set_instructor_mode({pos: YourImpl, eds}, instructor_mode);
   };
 
-  let persistent_state_of_state =
-      ({pos, _} as state: state, ~instructor_mode: bool) => {
+  let persistent_state_of_state = (state: state, ~instructor_mode: bool) => {
     let zippers =
       positioned_editors(state)
       |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
       |> List.map(((pos, editor)) => {
            (pos, PersistentZipper.persist(Editor.(editor.state.zipper)))
          });
-    (pos, zippers);
+    let persistent_hidden_bugs =
+      state.eds.hidden_bugs
+      |> List.map(({impl, hint}) => {
+           {impl: PersistentZipper.persist(Editor.(impl.state.zipper)), hint}
+         });
+    {
+      focus: state.pos,
+      editors: zippers,
+      title: state.eds.title,
+      hidden_bugs: persistent_hidden_bugs,
+    };
   };
 
   let unpersist_state =
       (
-        (pos, positioned_zippers): persistent_state,
+        {focus, editors, title, hidden_bugs}: persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
+        ~editing_title: bool,
         ~settings: CoreSettings.t,
       )
       : state => {
     let lookup = (pos, default) =>
       if (visible_in(pos, ~instructor_mode)) {
-        let persisted_zipper = List.assoc(pos, positioned_zippers);
+        let persisted_zipper = List.assoc(pos, editors);
         let zipper = PersistentZipper.unpersist(persisted_zipper);
         Editor.init(zipper, ~settings);
       } else {
@@ -516,44 +626,43 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     let correct_impl = lookup(CorrectImpl, spec.correct_impl);
     let your_tests_tests = lookup(YourTestsValidation, spec.your_tests.tests);
     let your_impl = lookup(YourImpl, spec.your_impl);
-    let (_, hidden_bugs) =
-      List.fold_left(
-        ((i, hidden_bugs: list(wrong_impl(Editor.t))), {impl, hint}) => {
-          let impl = lookup(HiddenBugs(i), impl);
-          (i + 1, hidden_bugs @ [{impl, hint}]);
-        },
-        (0, []),
-        spec.hidden_bugs,
-      );
+    let hidden_bugs =
+      hidden_bugs
+      |> List.map(({impl, hint}) => {
+           let impl =
+             Editor.init(PersistentZipper.unpersist(impl), ~settings);
+           {impl, hint};
+         });
     let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
-
-    set_instructor_mode(
-      {
-        pos,
-        eds: {
-          title: spec.title,
-          version: spec.version,
-          module_name: spec.module_name,
-          prompt: spec.prompt,
-          point_distribution: spec.point_distribution,
-          prelude,
-          correct_impl,
-          your_tests: {
-            tests: your_tests_tests,
-            required: spec.your_tests.required,
-            provided: spec.your_tests.provided,
+    let state =
+      set_instructor_mode(
+        {
+          pos: focus,
+          eds: {
+            id: spec.id,
+            title,
+            module_name: spec.module_name,
+            prompt: spec.prompt,
+            point_distribution: spec.point_distribution,
+            prelude,
+            correct_impl,
+            your_tests: {
+              tests: your_tests_tests,
+              required: spec.your_tests.required,
+              provided: spec.your_tests.provided,
+            },
+            your_impl,
+            hidden_bugs,
+            hidden_tests: {
+              tests: hidden_tests_tests,
+              hints: spec.hidden_tests.hints,
+            },
+            syntax_tests: spec.syntax_tests,
           },
-          your_impl,
-          hidden_bugs,
-          hidden_tests: {
-            tests: hidden_tests_tests,
-            hints: spec.hidden_tests.hints,
-          },
-          syntax_tests: spec.syntax_tests,
         },
-      },
-      instructor_mode,
-    );
+        instructor_mode,
+      );
+    set_editing_title(state, editing_title);
   };
 
   // # Stitching
@@ -725,7 +834,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | YourTestsValidation => s.test_validation.statics
     | YourTestsTesting => s.user_tests.statics
     | YourImpl => s.user_impl.statics
-    | HiddenBugs(idx) => List.nth(s.hidden_bugs, idx).statics
+    | HiddenBugs(idx) =>
+      switch (clamp_idx(state.eds, idx)) {
+      | Some(idx) => List.nth(s.hidden_bugs, idx).statics
+      | None => s.user_impl.statics
+      }
     | HiddenTests => s.hidden_tests.statics
     };
 
@@ -897,8 +1010,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       );
     let hidden_tests_tests = Zipper.next_blank();
     {
+      id: Id.mk(),
       title,
-      version: 1,
       module_name,
       prompt: ExerciseEnv.default,
       point_distribution,
@@ -923,8 +1036,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type exercise_export = {
-    cur_exercise: key,
-    exercise_data: list((key, persistent_state)),
+    cur_exercise: Id.t,
+    exercise_data: list((Id.t, persistent_state)),
   };
 
   let serialize_exercise = (exercise, ~instructor_mode) => {
@@ -933,11 +1046,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     |> Sexplib.Sexp.to_string;
   };
 
-  let deserialize_exercise = (data, ~spec, ~instructor_mode) => {
+  let deserialize_exercise = (data, ~spec, ~instructor_mode, ~editing_title) => {
     data
     |> Sexplib.Sexp.of_string
     |> persistent_state_of_sexp
-    |> unpersist_state(~spec, ~instructor_mode);
+    |> unpersist_state(~spec, ~instructor_mode, ~editing_title);
   };
 
   let deserialize_exercise_export = data => {

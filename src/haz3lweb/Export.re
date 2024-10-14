@@ -55,12 +55,14 @@ let import_all = (data, ~specs) => {
   let settings = Store.Settings.import(all.settings);
   Store.ExplainThisModel.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
+  let editing_title = settings.editing_title;
   Store.Scratch.import(~settings=settings.core, all.scratch);
   Store.Exercise.import(
     ~settings=settings.core,
     all.exercise,
     ~specs,
     ~instructor_mode,
+    ~editing_title,
   );
   Log.import(all.log);
 };

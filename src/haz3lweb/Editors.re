@@ -115,6 +115,44 @@ let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
     )
   };
 
+let set_editing_title = (editors: t, editing: bool): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.set_editing_title(exercise, editing))
+  };
+
+let update_exercise_title = (editors: t, new_title: string): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.update_exercise_title(exercise, new_title))
+  };
+
+let add_buggy_impl = (~settings: CoreSettings.t, editors: t, ~editing_title) => {
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(
+      n,
+      specs,
+      Exercise.add_buggy_impl(~settings, exercise, ~editing_title),
+    )
+  };
+};
+
+let delete_buggy_impl = (editors: t, index: int) => {
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.delete_buggy_impl(exercise, index))
+  };
+};
+
 let reset_nth_slide = (~settings: CoreSettings.t, n, slides): list(Editor.t) => {
   let (_, init_editors, _) = Init.startup.scratch;
   let data = List.nth(init_editors, n);

@@ -26,6 +26,7 @@ let startup : PersistentData.t =
         async_evaluation = false;
         context_inspector = false;
         instructor_mode = true;
+        editing_title = false;
         benchmark = false;
         explainThis =
           { show = true; show_feedback = false; highlight = NoHighlight };

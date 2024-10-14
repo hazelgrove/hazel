@@ -354,6 +354,25 @@ let title_cell = title => {
   ]);
 };
 
+let wrong_impl_caption = (~inject, sub: string, n: int) => {
+  div(
+    ~attrs=[Attr.class_("wrong-impl-cell-caption")],
+    [
+      caption("", ~rest=sub),
+      div(
+        ~attrs=[Attr.class_("instructor-edit-icon")],
+        [
+          Widgets.button(
+            Icons.delete,
+            _ => inject(UpdateAction.DeleteBuggyImplementation(n)),
+            ~tooltip="Delete Buggy Implementation",
+          ),
+        ],
+      ),
+    ],
+  );
+};
+
 /* An editor view that is not selectable or editable,
  * and does not show error holes or test results.
  * Used in Docs to display the header example */
