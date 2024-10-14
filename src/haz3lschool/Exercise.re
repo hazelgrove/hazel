@@ -152,6 +152,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     //       will follow a similar route.
   };
 
+  let clamp_idx = (eds: eds, idx: int) => {
+    let length = List.length(eds.hidden_bugs);
+    let idx = idx > length - 1 ? idx - 1 : idx;
+    idx >= 0 ? Some(idx) : None;
+  };
+
   let editor_of_state: state => Editor.t =
     ({pos, eds, _}) =>
       switch (pos) {
@@ -161,14 +167,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       | YourTestsTesting => eds.your_tests.tests
       | YourImpl => eds.your_impl
       | HiddenBugs(i) =>
-        print_string("Index is: ");
-        print_int(i);
-        print_endline("");
-        print_string("And the length is: ");
-        print_int(List.length(eds.hidden_bugs));
-        print_endline("");
-        let ret = List.nth(eds.hidden_bugs, i).impl;
-        ret;
+        switch (clamp_idx(eds, i)) {
+        | Some(idx) => List.nth(eds.hidden_bugs, idx).impl
+        | None => eds.your_impl
+        }
       | HiddenTests => eds.hidden_tests.tests
       };
 
@@ -544,12 +546,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     let length = List.length(state.eds.hidden_bugs);
     let editor_on =
       length > 1
-        ? List.nth(state.eds.hidden_bugs, index < length - 1 ? index + 1 : 0).
+        ? List.nth(
+            state.eds.hidden_bugs,
+            index < length - 1 ? index + 1 : index - 1,
+          ).
             impl
         : state.eds.your_tests.tests;
     let pos =
       length > 1
-        ? HiddenBugs(index < length - 1 ? index : 0) : YourTestsValidation;
+        ? HiddenBugs(index < length - 1 ? index : index - 1)
+        : YourTestsValidation;
     let new_state = {
       pos,
       eds: {
@@ -558,9 +564,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           List.filteri((i, _) => i != index, state.eds.hidden_bugs),
       },
     };
-    print_string("New pos is: ");
-    print_string(show_pos(pos));
-    print_endline("");
     put_editor(new_state, editor_on);
   };
 
@@ -831,7 +834,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | YourTestsValidation => s.test_validation.statics
     | YourTestsTesting => s.user_tests.statics
     | YourImpl => s.user_impl.statics
-    | HiddenBugs(idx) => List.nth(s.hidden_bugs, idx).statics
+    | HiddenBugs(idx) =>
+      switch (clamp_idx(state.eds, idx)) {
+      | Some(idx) => List.nth(s.hidden_bugs, idx).statics
+      | None => s.user_impl.statics
+      }
     | HiddenTests => s.hidden_tests.statics
     };
 
