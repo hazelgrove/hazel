@@ -59,8 +59,6 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
       paren_view(t1) @ [text(" -> "), view_ty(t2)],
     )
   | Prod([]) => div(~attrs=[clss(["typ-view", "Prod"])], [text("()")])
-  | Prod([_]) =>
-    div(~attrs=[clss(["typ-view", "Prod"])], [text("Singleton Product")])
   | Prod([t0, ...ts]) =>
     div(
       ~attrs=[clss(["typ-view", "atom", "Prod"])],
