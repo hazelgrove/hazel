@@ -370,4 +370,26 @@ let tests =
       )
       |> Exp.fresh,
     ),
+    fully_consistent_typecheck(
+      "Labeled tuple with multiple labels",
+      {|(l=32, l2="")|},
+      Some(
+        Prod([
+          TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
+          TupLabel(Label("l2") |> Typ.fresh, String |> Typ.fresh)
+          |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+      ),
+      Parens(
+        Tuple([
+          TupLabel(Label("l") |> Exp.fresh, Int(32) |> Exp.fresh)
+          |> Exp.fresh,
+          TupLabel(Label("l2") |> Exp.fresh, String("") |> Exp.fresh)
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+      )
+      |> Exp.fresh,
+    ),
   ];
