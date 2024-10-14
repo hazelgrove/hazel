@@ -392,4 +392,44 @@ let tests =
       )
       |> Exp.fresh,
     ),
+    fully_consistent_typecheck(
+      "Let statement that adds labels during elaboration",
+      {|let add : (street=String, city=String, state=String, zipcode=Int)= ("123 Maple St", "Ann Arbor", "MI", 48103) |},
+      Some(
+        Prod([
+          TupLabel(Label("street") |> Typ.fresh, String |> Typ.fresh)
+          |> Typ.fresh,
+          TupLabel(Label("city") |> Typ.fresh, String |> Typ.fresh)
+          |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+      ),
+      Let(
+        Cast(
+          Var("add") |> Pat.fresh,
+          Parens(
+            Prod([
+              TupLabel(Label("street") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+              TupLabel(Label("city") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+            ])
+            |> Typ.fresh,
+          )
+          |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Pat.fresh,
+        Parens(
+          Tuple([
+            String("123 Maple St") |> Exp.fresh,
+            String("Ann Arbor") |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        Var("add") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+    ),
   ];
