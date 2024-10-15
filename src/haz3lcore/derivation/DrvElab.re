@@ -104,29 +104,9 @@ and elab_exp: Drv.Exp.t => t =
       | False => False
       | If(e1, e2, e3) => If(elab_exp(e1), elab_exp(e2), elab_exp(e3))
       | Var(x) => Var(x)
-      | Let(x, e1, e2) =>
-        let e1 = elab_exp(e1);
-        let e2 = elab_exp(e2);
-        switch (pat_term_of(x)) {
-        | Var(_) => Let(elab_pat(x), e1, e2)
-        | Cast(x, t) => LetAnn(elab_pat(x), elab_typ(t), e1, e2)
-        | Pair(x, y) => LetPair(elab_pat(x), elab_pat(y), e1, e2)
-        | _ => hole
-        };
-      | Fix(x, e) =>
-        let e = elab_exp(e);
-        switch (pat_term_of(x)) {
-        | Var(_) => Fix(elab_pat(x), e)
-        | Cast(x, t) => FixAnn(elab_pat(x), elab_typ(t), e)
-        | _ => hole
-        };
-      | Fun(x, e) =>
-        let e = elab_exp(e);
-        switch (pat_term_of(x)) {
-        | Var(_) => Fun(elab_pat(x), e)
-        | Cast(x, t) => FunAnn(elab_pat(x), elab_typ(t), e)
-        | _ => hole
-        };
+      | Let(p, e1, e2) => Let(elab_pat(p), elab_exp(e1), elab_exp(e2))
+      | Fix(p, e) => Fix(elab_pat(p), elab_exp(e))
+      | Fun(x, e) => Fun(elab_pat(x), elab_exp(e))
       | Ap(e1, e2) =>
         let e2 = elab_exp(e2);
         switch (exp_term_of(e1)) {
@@ -166,11 +146,11 @@ and elab_pat: Drv.Pat.t => t =
       switch (pat.term) {
       | Hole(s) => Hole(TermBase.TypeHole.show(s))
       | Var(x) => Pat(x)
-      | Cast(_)
+      | Cast(x, t) => Cast(elab_pat(x), elab_typ(t))
+      | Pair(x, y) => PatPair(elab_pat(x), elab_pat(y))
       | InjL
       | InjR
-      | Ap(_)
-      | Pair(_) => Hole(Drv.Pat.show(pat))
+      | Ap(_) => Hole(Drv.Pat.show(pat))
       | Parens(p) => IdTagged.term_of(elab_pat(p))
       };
     {...pat, term};

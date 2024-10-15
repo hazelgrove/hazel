@@ -50,17 +50,13 @@ type term =
   | If(t, t, t)
   | Var(string)
   | Let(t, t, t)
-  | LetAnn(t, t, t, t)
   | Fix(t, t)
-  | FixAnn(t, t, t)
   | Fun(t, t)
-  | FunAnn(t, t, t)
   | Ap(t, t)
   | Pair(t, t)
   | Triv
   | PrjL(t)
   | PrjR(t)
-  | LetPair(t, t, t, t)
   | InjL(t)
   | InjR(t)
   | Case(t, t, t, t, t)
@@ -68,6 +64,8 @@ type term =
   | Unroll(t)
   // ALFA Pat
   | Pat(string)
+  | Cast(t, t) // We allow at most one annotation for Let/Fun/Fix
+  | PatPair(t, t)
   // ALFA Typ
   | Num
   | Bool
@@ -89,63 +87,6 @@ let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
 let temp = (term: term) =>
   IdTagged.{term, ids: [Id.invalid], copied: false};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type cls =
-  | Hole
-  | Val
-  | Eval
-  | Entail
-  | Type
-  | HasType
-  | Syn
-  | Ana
-  | Atom
-  | And
-  | Or
-  | Impl
-  | Truth
-  | Falsity
-  | Ctx
-  | NumLit
-  | Neg
-  | Plus
-  | Minus
-  | Times
-  | Lt
-  | Gt
-  | Eq
-  | True
-  | False
-  | If
-  | Var
-  | Let
-  | LetAnn
-  | Fix
-  | FixAnn
-  | Fun
-  | FunAnn
-  | Ap
-  | Pair
-  | Triv
-  | PrjL
-  | PrjR
-  | LetPair
-  | InjL
-  | InjR
-  | Case
-  | Roll
-  | Unroll
-  | Pat
-  | Num
-  | Bool
-  | Arrow
-  | Prod
-  | Unit
-  | Sum
-  | TVar
-  | Rec
-  | TPat;
 
 module P = Precedence;
 
@@ -185,23 +126,21 @@ let precedence: t => int =
     | If(_) => P.if_
     | Var(_) => P.max
     | Let(_) => P.let_
-    | LetAnn(_) => P.let_
     | Fix(_) => P.fun_
-    | FixAnn(_) => P.fun_
     | Fun(_) => P.fun_
-    | FunAnn(_) => P.fun_
     | Ap(_) => P.ap
     | Pair(_) => P.max
     | Triv => P.max
     | PrjL(_) => P.ap
     | PrjR(_) => P.ap
-    | LetPair(_) => P.let_
     | InjL(_) => P.ap
     | InjR(_) => P.ap
     | Case(_) => P.fun_
     | Roll(_) => P.ap
     | Unroll(_) => P.ap
     | Pat(_) => P.max
+    | Cast(_, _) => P.ann
+    | PatPair(_) => P.comma
     | Num => P.max
     | Bool => P.max
     | Arrow(_) => P.type_arrow
@@ -245,17 +184,13 @@ let children = (syntax: t): list(t) =>
   | If(a, b, c) => [a, b, c]
   | Var(_) => []
   | Let(a, b, c) => [a, b, c]
-  | LetAnn(a, b, c, d) => [a, b, c, d]
   | Fix(a, b) => [a, b]
-  | FixAnn(a, b, c) => [a, b, c]
   | Fun(a, b) => [a, b]
-  | FunAnn(a, b, c) => [a, b, c]
   | Ap(a, b) => [a, b]
   | Pair(a, b) => [a, b]
   | Triv => []
   | PrjL(a) => [a]
   | PrjR(a) => [a]
-  | LetPair(a, b, c, d) => [a, b, c, d]
   | InjL(a) => [a]
   | InjR(a) => [a]
   | Case(a, b, c, d, e) => [a, b, c, d, e]
@@ -263,6 +198,8 @@ let children = (syntax: t): list(t) =>
   | Unroll(a) => [a]
   // ALFA Pat
   | Pat(_) => []
+  | Cast(a, b) => [a, b]
+  | PatPair(a, b) => [a, b]
   // ALFA Typ
   | Num => []
   | Bool => []
@@ -338,23 +275,21 @@ let repr = (~sp: string=" ", p: int, syntax: t): Aba.t(string, t) => {
     | If(_) => ["if", "then", "else"] |> pre
     | Var(x) => x |> op_sg
     | Let(_) => ["let", "be", "in"] |> pre
-    | LetAnn(_) => ["let", ":", "be", "in"] |> pre
     | Fix(_) => ["fix", "→"] |> pre
-    | FixAnn(_) => ["fix", ":", "→"] |> pre
     | Fun(_) => ["fun", "→"] |> pre
-    | FunAnn(_) => ["fun", ":", "→"] |> pre
     | Ap(_) => ["", " ", ""]
     | Pair(_) => ["(", ",", ")"] |> op
     | Triv => "()" |> op_sg
     | PrjL(_) => ".fst" |> post_sg
     | PrjR(_) => ".snd" |> post_sg
-    | LetPair(_) => ["let (", ",", ") be", "in"] |> pre
     | InjL(_) => "L" |> pre_sg
     | InjR(_) => "R" |> pre_sg
     | Case(_) => ["case", "of L(", ") →", "else R(", ") →"] |> pre
     | Roll(_) => ["roll(", ")"] |> op
     | Unroll(_) => ["unroll(", ")"] |> op
     | Pat(s) => s |> op_sg
+    | Cast(_) => ":" |> bin_sg
+    | PatPair(_) => "," |> bin_sg
     | TPat(s) => s |> op_sg
     | Type(_) => "type" |> post_sg
     | HasType(_) => ":" |> bin_sg
@@ -376,9 +311,11 @@ let rec subst: (t, string, t) => t =
   (v, x, e) => {
     let (term, rewrap: term => t) = IdTagged.unwrap(e);
     let subst = subst(v, x);
-    let is_shadow = (p: t) =>
+    let rec is_shadow = (p: t) =>
       switch (IdTagged.term_of(p)) {
       | Pat(x') => String.equal(x', x)
+      | Cast(p, _) => is_shadow(p)
+      | PatPair(p1, p2) => is_shadow(p1) || is_shadow(p2)
       | _ => false
       };
     let subst' = p => is_shadow(p) ? Fun.id : subst;
@@ -408,25 +345,13 @@ let rec subst: (t, string, t) => t =
     | If(e1, e2, e3) => If(subst(e1), subst(e2), subst(e3)) |> rewrap
     | Var(x') => String.equal(x', x) ? v : e
     | Let(x, e1, e2) => Let(x, subst(e1), subst'(x, e2)) |> rewrap
-    | LetAnn(x, t, e1, e2) =>
-      LetAnn(x, t, subst(e1), subst'(x, e2)) |> rewrap
     | Fix(x, e) => Fix(x, subst'(x, e)) |> rewrap
-    | FixAnn(x, t, e) => FixAnn(x, t, subst'(x, e)) |> rewrap
     | Fun(x, e) => Fun(x, subst'(x, e)) |> rewrap
-    | FunAnn(x, t, e) => FunAnn(x, t, subst'(x, e)) |> rewrap
     | Ap(e1, e2) => Ap(subst(e1), subst(e2)) |> rewrap
     | Pair(e1, e2) => Pair(subst(e1), subst(e2)) |> rewrap
     | Triv => e
     | PrjL(e) => PrjL(subst(e)) |> rewrap
     | PrjR(e) => PrjR(subst(e)) |> rewrap
-    | LetPair(x, y, e1, e2) =>
-      LetPair(
-        x,
-        y,
-        subst(e1),
-        is_shadow(x) || is_shadow(y) ? e2 : subst(e2),
-      )
-      |> rewrap
     | InjL(e) => InjL(subst(e)) |> rewrap
     | InjR(e) => InjR(subst(e)) |> rewrap
     | Case(e1, x, e2, y, e3) =>
@@ -436,6 +361,8 @@ let rec subst: (t, string, t) => t =
     // Meta
     | TPat(_)
     | Pat(_)
+    | Cast(_)
+    | PatPair(_) => e
     // Proposition
     | Type(_)
     | HasType(_)
@@ -491,37 +418,26 @@ let rec subst_ty: (t, string, t) => t =
     | If(e1, e2, e3) =>
       If(subst_ty(e1), subst_ty(e2), subst_ty(e3)) |> rewrap
     | Var(_) => e
-    | Let(x, e1, e2) => Let(x, subst_ty(e1), subst_ty(e2)) |> rewrap
-    | LetAnn(x, t, e1, e2) =>
-      LetAnn(x, subst_ty(t), subst_ty(e1), subst_ty(e2)) |> rewrap
-    | Fix(x, e) => Fix(x, subst_ty(e)) |> rewrap
-    | FixAnn(x, t, e) => FixAnn(x, subst_ty(t), subst_ty(e)) |> rewrap
-    | Fun(x, e) => Fun(x, subst_ty(e)) |> rewrap
-    | FunAnn(x, t, e) => FunAnn(x, subst_ty(t), subst_ty(e)) |> rewrap
+    | Let(x, e1, e2) =>
+      Let(subst_ty(x), subst_ty(e1), subst_ty(e2)) |> rewrap
+    | Fix(x, e) => Fix(subst_ty(x), subst_ty(e)) |> rewrap
+    | Fun(x, e) => Fun(subst_ty(x), subst_ty(e)) |> rewrap
     | Ap(e1, e2) => Ap(subst_ty(e1), subst_ty(e2)) |> rewrap
     | Pair(e1, e2) => Pair(subst_ty(e1), subst_ty(e2)) |> rewrap
     | Triv => e
     | PrjL(e) => PrjL(subst_ty(e)) |> rewrap
     | PrjR(e) => PrjR(subst_ty(e)) |> rewrap
-    | LetPair(x, y, e1, e2) =>
-      LetPair(subst_ty(x), subst_ty(y), subst_ty(e1), subst_ty(e2))
-      |> rewrap
     | InjL(e) => InjL(subst_ty(e)) |> rewrap
     | InjR(e) => InjR(subst_ty(e)) |> rewrap
     | Case(e1, x, e2, y, e3) =>
-      Case(
-        subst_ty(e1),
-        subst_ty(x),
-        subst_ty(e2),
-        subst_ty(y),
-        subst_ty(e3),
-      )
-      |> rewrap
+      Case(subst_ty(e1), x, subst_ty(e2), y, subst_ty(e3)) |> rewrap
     | Roll(e) => Roll(subst_ty(e)) |> rewrap
     | Unroll(e) => Unroll(subst_ty(e)) |> rewrap
     // Meta
     | TPat(_)
     | Pat(_) => e
+    | Cast(x, t) => Cast(subst_ty(x), subst_ty(t)) |> rewrap
+    | PatPair(x, y) => PatPair(subst_ty(x), subst_ty(y)) |> rewrap
     // Proposition
     | Type(_)
     | HasType(_)
@@ -594,19 +510,10 @@ let rec eq: (t, t) => bool =
     | (Let(a1, a2, a3), Let(b1, b2, b3)) =>
       eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
     | (Let(_), _) => false
-    | (LetAnn(a1, a2, a3, a4), LetAnn(b1, b2, b3, b4)) =>
-      eq(a1, b1) && eq(a2, b2) && eq(a3, b3) && eq(a4, b4)
-    | (LetAnn(_), _) => false
     | (Fix(a1, a2), Fix(b1, b2)) => eq(a1, b1) && eq(a2, b2)
     | (Fix(_), _) => false
-    | (FixAnn(a1, a2, a3), FixAnn(b1, b2, b3)) =>
-      eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
-    | (FixAnn(_), _) => false
     | (Fun(a1, a2), Fun(b1, b2)) => eq(a1, b1) && eq(a2, b2)
     | (Fun(_), _) => false
-    | (FunAnn(a1, a2, a3), FunAnn(b1, b2, b3)) =>
-      eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
-    | (FunAnn(_), _) => false
     | (Ap(a1, a2), Ap(b1, b2)) => eq(a1, b1) && eq(a2, b2)
     | (Ap(_), _) => false
     | (Pair(a1, a2), Pair(b1, b2)) => eq(a1, b1) && eq(a2, b2)
@@ -617,9 +524,6 @@ let rec eq: (t, t) => bool =
     | (PrjL(_), _) => false
     | (PrjR(a), PrjR(b)) => eq(a, b)
     | (PrjR(_), _) => false
-    | (LetPair(a1, a2, a3, a4), LetPair(b1, b2, b3, b4)) =>
-      eq(a1, b1) && eq(a2, b2) && eq(a3, b3) && eq(a4, b4)
-    | (LetPair(_), _) => false
     | (InjL(a), InjL(b)) => eq(a, b)
     | (InjL(_), _) => false
     | (InjR(a), InjR(b)) => eq(a, b)
@@ -635,6 +539,10 @@ let rec eq: (t, t) => bool =
     | (TPat(_), _) => false
     | (Pat(a), Pat(b)) => String.equal(a, b)
     | (Pat(_), _) => false
+    | (Cast(a1, a2), Cast(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (Cast(_), _) => false
+    | (PatPair(a1, a2), PatPair(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    | (PatPair(_), _) => false
     | (Type(a), Type(b)) => eq(a, b)
     | (Type(_), _) => false
     | (HasType(a1, a2), HasType(b1, b2)) => eq(a1, b1) && eq(a2, b2)

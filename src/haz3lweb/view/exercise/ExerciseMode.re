@@ -76,6 +76,7 @@ let view =
                     Some(
                       {
                         open Haz3lcore;
+                        print_endline("Uncaught Rule: " ++ Rule.show(rule));
                         let spec = RuleSpec.of_spec(rule);
                         let tests = RuleTest.of_tests(rule);
                         let (spec, tests) =

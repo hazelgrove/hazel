@@ -35,17 +35,13 @@ module M = (W: Wrapper) => {
     | If(t, t, t)
     | Var(t) // Copy self
     | Let(t, t, t)
-    | LetAnn(t, t, t, t)
     | Fix(t, t)
-    | FixAnn(t, t, t)
     | Fun(t, t)
-    | FunAnn(t, t, t)
     | Ap(t, t)
     | Pair(t, t)
     | Triv
     | PrjL(t)
     | PrjR(t)
-    | LetPair(t, t, t, t)
     | InjL(t)
     | InjR(t)
     | Case(t, t, t, t, t)
@@ -62,6 +58,9 @@ module M = (W: Wrapper) => {
     | Rec(t, t)
     // ALFA Pat
     | Pat(t) // Copy self
+    | Cast(t, t) // We allow at most one annotation for Let/Fun/Fix
+    | PatStrip(t) // Match either Pat or Cast
+    | PatPair(t, t)
     | TPat(t) // Copy self
     // Logical Proposition
     | Atom(t) // Copy self
@@ -108,19 +107,13 @@ let rec map_reg = (f: string => string, spec: t): t => {
     | If(a, b, c) => If(map_reg(a), map_reg(b), map_reg(c))
     | Var(a) => Var(map_reg(a))
     | Let(a, b, c) => Let(map_reg(a), map_reg(b), map_reg(c))
-    | LetAnn(a, b, c, d) =>
-      LetAnn(map_reg(a), map_reg(b), map_reg(c), map_reg(d))
     | Fix(a, b) => Fix(map_reg(a), map_reg(b))
-    | FixAnn(a, b, c) => FixAnn(map_reg(a), map_reg(b), map_reg(c))
     | Fun(a, b) => Fun(map_reg(a), map_reg(b))
-    | FunAnn(a, b, c) => FunAnn(map_reg(a), map_reg(b), map_reg(c))
     | Ap(a, b) => Ap(map_reg(a), map_reg(b))
     | Pair(a, b) => Pair(map_reg(a), map_reg(b))
     | Triv => Triv
     | PrjL(a) => PrjL(map_reg(a))
     | PrjR(a) => PrjR(map_reg(a))
-    | LetPair(a, b, c, d) =>
-      LetPair(map_reg(a), map_reg(b), map_reg(c), map_reg(d))
     | InjL(a) => InjL(map_reg(a))
     | InjR(a) => InjR(map_reg(a))
     | Case(a, b, c, d, e) =>
@@ -136,6 +129,9 @@ let rec map_reg = (f: string => string, spec: t): t => {
     | TVar(a) => TVar(map_reg(a))
     | Rec(a, b) => Rec(map_reg(a), map_reg(b))
     | Pat(a) => Pat(map_reg(a))
+    | Cast(a, b) => Cast(map_reg(a), map_reg(b))
+    | PatStrip(a) => PatStrip(map_reg(a))
+    | PatPair(a, b) => PatPair(map_reg(a), map_reg(b))
     | TPat(a) => TPat(map_reg(a))
     | Atom(a) => Atom(map_reg(a))
     | And(a, b) => And(map_reg(a), map_reg(b))
@@ -172,23 +168,13 @@ let rec of_syntax = (spec: t): DrvSyntax.t => {
   | Var(r) => of_syntax(r)
   | Let(a, b, c) =>
     Let(of_syntax(a), of_syntax(b), of_syntax(c)) |> rewrap
-  | LetAnn(a, b, c, d) =>
-    LetAnn(of_syntax(a), of_syntax(b), of_syntax(c), of_syntax(d))
-    |> rewrap
   | Fix(a, b) => Fix(of_syntax(a), of_syntax(b)) |> rewrap
-  | FixAnn(a, b, c) =>
-    FixAnn(of_syntax(a), of_syntax(b), of_syntax(c)) |> rewrap
   | Fun(a, b) => Fun(of_syntax(a), of_syntax(b)) |> rewrap
-  | FunAnn(a, b, c) =>
-    FunAnn(of_syntax(a), of_syntax(b), of_syntax(c)) |> rewrap
   | Ap(a, b) => Ap(of_syntax(a), of_syntax(b)) |> rewrap
   | Pair(a, b) => Pair(of_syntax(a), of_syntax(b)) |> rewrap
   | Triv => Triv |> rewrap
   | PrjL(a) => PrjL(of_syntax(a)) |> rewrap
   | PrjR(a) => PrjR(of_syntax(a)) |> rewrap
-  | LetPair(a, b, c, d) =>
-    LetPair(of_syntax(a), of_syntax(b), of_syntax(c), of_syntax(d))
-    |> rewrap
   | InjL(a) => InjL(of_syntax(a)) |> rewrap
   | InjR(a) => InjR(of_syntax(a)) |> rewrap
   | Case(a, b, c, d, e) =>
@@ -211,6 +197,9 @@ let rec of_syntax = (spec: t): DrvSyntax.t => {
   | TVar(r) => of_syntax(r)
   | Rec(a, b) => Rec(of_syntax(a), of_syntax(b)) |> rewrap
   | Pat(r) => of_syntax(r)
+  | Cast(a, b) => Cast(of_syntax(a), of_syntax(b)) |> rewrap
+  | PatStrip(r) => of_syntax(r)
+  | PatPair(a, b) => PatPair(of_syntax(a), of_syntax(b)) |> rewrap
   | TPat(r) => of_syntax(r)
   | Atom(r) => of_syntax(r)
   | And(a, b) => And(of_syntax(a), of_syntax(b)) |> rewrap
@@ -298,25 +287,13 @@ let rec go: ((map, list(failure)), specced) => (map, list(failure)) =
     | (Var(r), Var(_)) => info |> go(r, syntax)
     | (Let(ra, rb, rc), Let(a, b, c)) =>
       info |> go(ra, a) |> go(rb, b) |> go(rc, c)
-    | (Let(ra, rb, rc), LetAnn(a, _, b, c)) =>
-      info |> go(ra, a) |> go(rb, b) |> go(rc, c) // Note(zhiyao): we allow Let to be annotated
-    | (LetAnn(ra, rb, rc, rd), LetAnn(a, b, c, d)) =>
-      info |> go(ra, a) |> go(rb, b) |> go(rc, c) |> go(rd, d)
     | (Fix(ra, rb), Fix(a, b)) => info |> go(ra, a) |> go(rb, b)
-    | (Fix(ra, rb), FixAnn(a, _, b)) => info |> go(ra, a) |> go(rb, b) // Note(zhiyao): we allow Fix to be annotated
-    | (FixAnn(ra, rb, rc), FixAnn(a, b, c)) =>
-      info |> go(ra, a) |> go(rb, b) |> go(rc, c)
     | (Fun(ra, rb), Fun(a, b)) => info |> go(ra, a) |> go(rb, b)
-    | (Fun(ra, rb), FunAnn(a, _, b)) => info |> go(ra, a) |> go(rb, b) // Note(zhiyao): we allow Fun to be annotated
-    | (FunAnn(ra, rb, rc), FunAnn(a, b, c)) =>
-      info |> go(ra, a) |> go(rb, b) |> go(rc, c)
     | (Ap(ra, rb), Ap(a, b)) => info |> go(ra, a) |> go(rb, b)
     | (Pair(ra, rb), Pair(a, b)) => info |> go(ra, a) |> go(rb, b)
     | (Triv, Triv) => info
     | (PrjL(ra), PrjL(a)) => info |> go(ra, a)
     | (PrjR(ra), PrjR(a)) => info |> go(ra, a)
-    | (LetPair(ra, rb, rc, rd), LetPair(a, b, c, d)) =>
-      info |> go(ra, a) |> go(rb, b) |> go(rc, c) |> go(rd, d)
     | (InjL(ra), InjL(a)) => info |> go(ra, a)
     | (InjR(ra), InjR(a)) => info |> go(ra, a)
     | (Case(ra, rb, rc, rd, re), Case(a, b, c, d, e)) =>
@@ -339,6 +316,11 @@ let rec go: ((map, list(failure)), specced) => (map, list(failure)) =
     | (Rec(ra, rb), Rec(a, b)) => info |> go(ra, a) |> go(rb, b)
     // ALFA Pat
     | (Pat(r), Pat(_)) => info |> go(r, syntax)
+    | (Cast(ra, rb), Cast(a, b)) => info |> go(ra, a) |> go(rb, b)
+    | (PatStrip(r), Pat(_)) => info |> go(r, syntax)
+    | (PatStrip(r), Cast({term: Pat(_), _}, _)) => info |> go(r, syntax)
+    | (PatPair(ra, rb), PatPair(a, b)) => info |> go(ra, a) |> go(rb, b)
+    // ALFA TPat
     | (TPat(r), TPat(_)) => info |> go(r, syntax)
     // Logical Proposition
     | (Atom(r), Atom(_)) => info |> go(r, syntax)
@@ -368,17 +350,13 @@ let rec go: ((map, list(failure)), specced) => (map, list(failure)) =
     | (If(_), _)
     | (Var(_), _)
     | (Let(_), _)
-    | (LetAnn(_), _)
     | (Fix(_), _)
-    | (FixAnn(_), _)
     | (Fun(_), _)
-    | (FunAnn(_), _)
     | (Ap(_), _)
     | (Pair(_), _)
     | (Triv, _)
     | (PrjL(_), _)
     | (PrjR(_), _)
-    | (LetPair(_), _)
     | (InjL(_), _)
     | (InjR(_), _)
     | (Case(_), _)
@@ -393,6 +371,9 @@ let rec go: ((map, list(failure)), specced) => (map, list(failure)) =
     | (TVar(_), _)
     | (Rec(_), _)
     | (Pat(_), _)
+    | (Cast(_), _)
+    | (PatStrip(_), _)
+    | (PatPair(_), _)
     | (TPat(_), _)
     | (Atom(_), _)
     | (And(_), _)
@@ -555,11 +536,11 @@ let of_spec = (rule: Rule.t): (t, list(t)) => {
     | T_Var => (has(gamma, Var(x), t), [])
     | S_Var => (syn(gamma, Var(x), t), [])
     | T_LetAnn => (
-        has(gamma, LetAnn(Pat(x), t_def, e_def, e_body), t),
+        has(gamma, Let(Cast(Pat(x), t_def), e_def, e_body), t),
         [has(gamma, e_def, t_def), has(gamma', e_body, t)],
       )
     | T_LetAnn_TV => (
-        has(gamma, LetAnn(Pat(x), t_def, e_def, e_body), t),
+        has(gamma, Let(Cast(Pat(x), t_def), e_def, e_body), t),
         [
           type_(delta, t_def),
           has(gamma, e_def, t_def),
@@ -567,11 +548,11 @@ let of_spec = (rule: Rule.t): (t, list(t)) => {
         ],
       )
     | S_LetAnn => (
-        syn(gamma, LetAnn(Pat(x), t_def, e_def, e_body), t),
+        syn(gamma, Let(Cast(Pat(x), t_def), e_def, e_body), t),
         [ana(gamma, e_def, t_def), syn(gamma', e_body, t)],
       )
     | A_LetAnn => (
-        ana(gamma, LetAnn(Pat(x), t_def, e_def, e_body), t),
+        ana(gamma, Let(Cast(Pat(x), t_def), e_def, e_body), t),
         [ana(gamma, e_def, t_def), ana(gamma', e_body, t)],
       )
     | T_Let => (
@@ -587,23 +568,23 @@ let of_spec = (rule: Rule.t): (t, list(t)) => {
         [syn(gamma, e_def, t_def), ana(gamma', e_body, t)],
       )
     | E_Let => (
-        eval(Let(Pat(x), e_def, e_body), v),
+        eval(Let(PatStrip(x), e_def, e_body), v),
         [eval(e_def, v_def), eval(e_body', v)],
       )
     | T_FunAnn => (
-        has(gamma, FunAnn(Pat(x), t_in, e_body), Arrow(t_in, t_out)),
+        has(gamma, Fun(Cast(Pat(x), t_in), e_body), Arrow(t_in, t_out)),
         [has(gamma', e_body, t_out)],
       )
     | T_FunAnn_TV => (
-        has(gamma, FunAnn(Pat(x), t_in, e_body), Arrow(t_in, t_out)),
+        has(gamma, Fun(Cast(Pat(x), t_in), e_body), Arrow(t_in, t_out)),
         [type_(delta, t_in), has(gamma', e_body, t_out)],
       )
     | S_FunAnn => (
-        syn(gamma, FunAnn(Pat(x), t_in, e_body), Arrow(t_in, t_out)),
+        syn(gamma, Fun(Cast(Pat(x), t_in), e_body), Arrow(t_in, t_out)),
         [syn(gamma', e_body, t_out)],
       )
     | A_FunAnn => (
-        ana(gamma, FunAnn(Pat(x), t_in, e_body), Arrow(t_in, t_out)),
+        ana(gamma, Fun(Cast(Pat(x), t_in), e_body), Arrow(t_in, t_out)),
         [ana(gamma', e_body, t_out)],
       )
     | T_Fun => (
@@ -625,7 +606,11 @@ let of_spec = (rule: Rule.t): (t, list(t)) => {
       )
     | E_Ap => (
         eval(Ap(e1, e2), v),
-        [eval(e1, Fun(Pat(x), e_body)), eval(e2, v2), eval(e_body', v)],
+        [
+          eval(e1, Fun(PatStrip(x), e_body)),
+          eval(e2, v2),
+          eval(e_body', v),
+        ],
       )
     | T_Triv => (has(gamma, Triv, Unit), [])
     | S_Triv => (syn(gamma, Triv, Unit), [])
@@ -648,19 +633,19 @@ let of_spec = (rule: Rule.t): (t, list(t)) => {
         [eval(e1, v1), eval(e2, v2)],
       )
     | T_LetPair => (
-        has(gamma, LetPair(Pat(x), Pat(y), e_def, e_body), t),
+        has(gamma, Let(PatPair(Pat(x), Pat(y)), e_def, e_body), t),
         [has(gamma, e_def, Prod(t1, t2)), has(gamma', e_body, t)],
       )
     | S_LetPair => (
-        syn(gamma, LetPair(Pat(x), Pat(y), e_def, e_body), t),
+        syn(gamma, Let(PatPair(Pat(x), Pat(y)), e_def, e_body), t),
         [syn(gamma, e_def, Prod(t1, t2)), syn(gamma', e_body, t)],
       )
     | A_LetPair => (
-        ana(gamma, LetPair(Pat(x), Pat(y), e_def, e_body), t),
+        ana(gamma, Let(PatPair(Pat(x), Pat(y)), e_def, e_body), t),
         [syn(gamma, e_def, Prod(t1, t2)), ana(gamma', e_body, t)],
       )
     | E_LetPair => (
-        eval(LetPair(Pat(x), Pat(y), e_def, e_body), v),
+        eval(Let(PatPair(PatStrip(x), PatStrip(y)), e_def, e_body), v),
         [eval(e_def, Pair(v1, v2)), eval(e_body', v)],
       )
     | T_PrjL => (has(gamma, PrjL(e), t1), [has(gamma, e, Prod(t1, t2))])
@@ -710,15 +695,15 @@ let of_spec = (rule: Rule.t): (t, list(t)) => {
         [eval(e, InjR(v)), eval(e2', v2)],
       )
     | T_FixAnn => (
-        has(gamma, FixAnn(Pat(x), t, e), t),
+        has(gamma, Fix(Cast(Pat(x), t), e), t),
         [has(gamma', e, t)],
       )
     | T_FixAnn_TV => (
-        has(gamma, FixAnn(Pat(x), t, e), t),
+        has(gamma, Fix(Cast(Pat(x), t), e), t),
         [type_(delta, t), has(gamma', e, t)],
       )
     | T_Fix => (has(gamma, Fix(Pat(x), e), t), [has(gamma', e, t)])
-    | E_Fix => (eval(Fix(Pat(x), e_body), v), [eval(e', v)])
+    | E_Fix => (eval(Fix(PatStrip(x), e_body), v), [eval(e', v)])
     | T_Roll => (
         has(gamma, Roll(e), Rec(tpat, t_body)),
         [has(gamma, e, t_body')],
@@ -777,19 +762,13 @@ let of_spec = (rule: Rule.t): (t, list(t)) => {
     | If(a, b, c) => If(fresh(a), fresh(b), fresh(c))
     | Var(a) => Var(fresh(a))
     | Let(a, b, c) => Let(fresh(a), fresh(b), fresh(c))
-    | LetAnn(a, b, c, d) =>
-      LetAnn(fresh(a), fresh(b), fresh(c), fresh(d))
     | Fix(a, b) => Fix(fresh(a), fresh(b))
-    | FixAnn(a, b, c) => FixAnn(fresh(a), fresh(b), fresh(c))
     | Fun(a, b) => Fun(fresh(a), fresh(b))
-    | FunAnn(a, b, c) => FunAnn(fresh(a), fresh(b), fresh(c))
     | Ap(a, b) => Ap(fresh(a), fresh(b))
     | Pair(a, b) => Pair(fresh(a), fresh(b))
     | Triv => Triv
     | PrjL(a) => PrjL(fresh(a))
     | PrjR(a) => PrjR(fresh(a))
-    | LetPair(a, b, c, d) =>
-      LetPair(fresh(a), fresh(b), fresh(c), fresh(d))
     | InjL(a) => InjL(fresh(a))
     | InjR(a) => InjR(fresh(a))
     | Case(a, b, c, d, e) =>
@@ -805,6 +784,9 @@ let of_spec = (rule: Rule.t): (t, list(t)) => {
     | TVar(a) => TVar(fresh(a))
     | Rec(a, b) => Rec(fresh(a), fresh(b))
     | Pat(a) => Pat(fresh(a))
+    | Cast(a, b) => Cast(fresh(a), fresh(b))
+    | PatStrip(a) => PatStrip(fresh(a))
+    | PatPair(a, b) => PatPair(fresh(a), fresh(b))
     | TPat(a) => TPat(fresh(a))
     | Atom(a) => Atom(fresh(a))
     | And(a, b) => And(fresh(a), fresh(b))

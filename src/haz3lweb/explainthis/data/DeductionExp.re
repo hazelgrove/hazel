@@ -181,10 +181,10 @@ let show_ghost = (t: option(t)) =>
   };
 
 let premise_mismatch: group = {
-  id: DrvPremiseMismatch,
+  id: Derivation,
   forms: [
     {
-      id: DrvPremiseMismatch,
+      id: Derivation,
       syntactic_form: [],
       expandable_id: None,
       explanation: "",

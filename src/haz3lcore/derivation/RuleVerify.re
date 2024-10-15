@@ -12,7 +12,7 @@ type tests = list(RuleTest.t);
 let spec_fill_eq_test: (RuleTest.t, RuleSpec.t) => RuleSpec.t =
   fun
   | Eq(Get(s'), op) =>
-    RuleSpec.map_reg(s => s == s' ? RuleTest.show_op(op) : s)
+    RuleSpec.map_reg(s => s == s' ? RuleTest.Operation.show(op) : s)
   | _ => Fun.id;
 
 let spec_fill_eq_tests: (spec, tests) => spec =
@@ -26,7 +26,8 @@ let spec_fill_eq_tests: (spec, tests) => spec =
 let tests_fill_eq_tests: tests => tests =
   List.map(
     fun
-    | RuleTest.Eq(Get(s), op) => RuleTest.Eq(Get(RuleTest.show_op(op)), op)
+    | RuleTest.Eq(Get(_), op) =>
+      RuleTest.Eq(Get(RuleTest.Operation.show(op)), op)
     | _ as test => test,
   );
 
