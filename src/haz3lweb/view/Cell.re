@@ -162,6 +162,65 @@ let status_of: ProgramResult.t => string =
   | ResultFail(_) => "fail"
   | Off(_) => "off";
 
+let lastnote: ref(string) = ref("");
+
+let strudel_view = s =>
+  div([
+    button(
+      ~attrs=[
+        Attr.class_("wrap"),
+        Attr.on_click(_ => {
+          Strudel.playNote(s);
+          Effect.Ignore;
+        }),
+      ],
+      [div(~attrs=[], [text("PLAY")])],
+    ),
+    text(" " ++ s ++ " "),
+    button(
+      ~attrs=[
+        Attr.class_("wrap"),
+        Attr.on_click(_ => {
+          Strudel.stopMusic();
+          Effect.Ignore;
+        }),
+      ],
+      [div(~attrs=[], [text("STOP")])],
+    ),
+  ]);
+
+let audio_view = (~play, dhexp: DHExp.t): option(Node.t) =>
+  //the audio predicate avoids eg running audio when rendering explainthis
+  //print_endline("dhcode: " ++ DHExp.show_term(dhexp.term));
+  switch (dhexp.term) {
+  | Ap(_, {term: Constructor("Note", _), _}, arg) when !play =>
+    //TODO(andrew): more robust sln
+    //TODO(andrew): check if same audio is already playing, if so don't restart
+    //TODO(andrew): model state to enable stopping?
+    switch (DHExp.strip_casts(arg)) {
+    | {term: String(s), _} =>
+      switch (lastnote^ != s ? Strudel.playNote(s) : ()) {
+      | exception _ =>
+        lastnote := "";
+        // TODO(andrew): show strudel error view
+        None;
+      | _ =>
+        lastnote := s;
+        Some(strudel_view(s));
+      }
+    | _ =>
+      Strudel.stopMusic();
+      lastnote := "";
+      None;
+    }
+  | _ =>
+    if (!play) {
+      Strudel.stopMusic();
+    };
+    lastnote := "";
+    None;
+  };
+
 let live_eval =
     (
       ~inject,
@@ -178,7 +237,7 @@ let live_eval =
     | (ResultPending, ResultOk(res)) => ProgramResult.get_dhexp(res)
     | _ => result.elab.d
     };
-  let dhcode_view =
+  let dh_view = dhexp =>
     DHCode.view(
       ~locked,
       ~inject,
@@ -190,6 +249,11 @@ let live_eval =
       ~infomap=Id.Map.empty,
       dhexp,
     );
+  let live_view =
+    switch (audio_view(~play=locked, dhexp)) {
+    | Some(view) => view
+    | None => dh_view(dhexp)
+    };
   let exn_view =
     switch (result.evaluation) {
     | ResultFail(err) => [
@@ -213,7 +277,7 @@ let live_eval =
       ),
       div(
         ~attrs=[Attr.classes(["result", status_of(result.evaluation)])],
-        [dhcode_view],
+        [live_view],
       ),
       Widgets.toggle(~tooltip="Show Stepper", "s", false, _ =>
         inject(UpdateAction.ToggleStepper(result_key))

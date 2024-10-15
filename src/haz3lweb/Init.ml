@@ -24,12 +24,12 @@ let startup : PersistentData.t =
               };
           };
         async_evaluation = false;
-        context_inspector = false;
+        context_inspector = true;
         instructor_mode = true;
         benchmark = false;
         explainThis =
-          { show = true; show_feedback = false; highlight = NoHighlight };
-        mode = Documentation;
+          { show = false; show_feedback = false; highlight = NoHighlight };
+        mode = Exercises;
       };
     scratch =
       ( 0,
@@ -37,66 +37,66 @@ let startup : PersistentData.t =
           {
             zipper =
               "((selection((focus Left)(content())(mode \
-               Normal)))(backpack())(relatives((siblings((((Grout((id \
-               e87c8d67-9374-4a6f-ba01-5ec8f300b924)(shape \
+               Normal)))(backpack())(relatives((siblings(()((Grout((id \
+               5135510f-6c14-4d01-b614-1a43625095ab)(shape \
                Convex))))))(ancestors())))(caret Outer))";
-            backup_text = "";
+            backup_text = " ";
           };
           {
             zipper =
               "((selection((focus Left)(content())(mode \
-               Normal)))(backpack())(relatives((siblings((((Grout((id \
-               e87c8d67-9374-4a6f-ba01-5ec8f300b924)(shape \
+               Normal)))(backpack())(relatives((siblings(()((Grout((id \
+               87e7aec5-c9d1-4ba1-9952-39af8b6d46b0)(shape \
                Convex))))))(ancestors())))(caret Outer))";
-            backup_text = "";
+            backup_text = " ";
           };
           {
             zipper =
               "((selection((focus Left)(content())(mode \
-               Normal)))(backpack())(relatives((siblings((((Grout((id \
-               e87c8d67-9374-4a6f-ba01-5ec8f300b924)(shape \
+               Normal)))(backpack())(relatives((siblings(()((Grout((id \
+               18dff0eb-1502-4fd6-a4cf-39165b29f486)(shape \
                Convex))))))(ancestors())))(caret Outer))";
-            backup_text = "";
+            backup_text = " ";
           };
           {
             zipper =
               "((selection((focus Left)(content())(mode \
-               Normal)))(backpack())(relatives((siblings((((Grout((id \
-               e87c8d67-9374-4a6f-ba01-5ec8f300b924)(shape \
+               Normal)))(backpack())(relatives((siblings(()((Grout((id \
+               59f40402-3b6f-4b25-bbf8-500c80a75c4b)(shape \
                Convex))))))(ancestors())))(caret Outer))";
-            backup_text = "";
+            backup_text = " ";
           };
           {
             zipper =
               "((selection((focus Left)(content())(mode \
-               Normal)))(backpack())(relatives((siblings((((Grout((id \
-               e87c8d67-9374-4a6f-ba01-5ec8f300b924)(shape \
+               Normal)))(backpack())(relatives((siblings(()((Grout((id \
+               c679f8b4-c5ad-4779-bfb8-f1b10c329614)(shape \
                Convex))))))(ancestors())))(caret Outer))";
-            backup_text = "";
+            backup_text = " ";
           };
           {
             zipper =
               "((selection((focus Left)(content())(mode \
-               Normal)))(backpack())(relatives((siblings((((Grout((id \
-               e87c8d67-9374-4a6f-ba01-5ec8f300b924)(shape \
+               Normal)))(backpack())(relatives((siblings(()((Grout((id \
+               93621d5c-d7ab-457c-919f-6635375a4ebc)(shape \
                Convex))))))(ancestors())))(caret Outer))";
-            backup_text = "";
+            backup_text = " ";
           };
           {
             zipper =
               "((selection((focus Left)(content())(mode \
-               Normal)))(backpack())(relatives((siblings((((Grout((id \
-               e87c8d67-9374-4a6f-ba01-5ec8f300b924)(shape \
+               Normal)))(backpack())(relatives((siblings(()((Grout((id \
+               28546a72-f190-4b94-af46-6a37ce0c4d5f)(shape \
                Convex))))))(ancestors())))(caret Outer))";
-            backup_text = "";
+            backup_text = " ";
           };
           {
             zipper =
               "((selection((focus Left)(content())(mode \
-               Normal)))(backpack())(relatives((siblings((((Grout((id \
-               e87c8d67-9374-4a6f-ba01-5ec8f300b924)(shape \
+               Normal)))(backpack())(relatives((siblings(()((Grout((id \
+               0a99a0af-64c8-4bc9-9276-7097f711cda6)(shape \
                Convex))))))(ancestors())))(caret Outer))";
-            backup_text = "";
+            backup_text = " ";
           };
         ],
         [ ("scratch_0", Evaluation); ("scratch_1", Evaluation) ] );
@@ -12189,26 +12189,26 @@ let startup : PersistentData.t =
                  # Fold projectors cover terms with abstractions.     #\n\
                  # 1. A simple fold roles up any term, replacing      #\n\
                  #    it with ... until it is expanded again.         #\n\n\
-                 let fold =  in\n\n\
+                 let fold = (((((((((((()))))))))))) in\n\n\
                  # 2. A semantic fold covers a term with a property:  #\n\
                  #    Click to toggle inferred & synthesized types    #\n\n\
-                 let folds:  =  in\n\n\
+                 let folds: (Int -> Bool) =   in\n\n\
                  # Projectors on literal data are called livelits.    #\n\
                  # Three base types literals use inline views:        #\n\n\
-                 let guard: Bool =  in\n\
-                 let phase: Int =  in\n\
-                 let float: Float =  in\n\n\
+                 let guard: Bool = true in\n\
+                 let phase: Int = 44 in\n\
+                 let float: Float = 79.00 in\n\n\
                  # Inline error decorations (same as for tokens) #\n\n\
-                 let (a:Int, f: Float) = ,  in\n\n\
+                 let (a:Int, f: Float) = true, 28 in\n\n\
                  # The String base type get a multiline view: #\n\n\
-                 let _ =  in\n\
-                 let __ =  in\n\
-                 let ___ =  in\n\
-                 let ____ =  in\n\
-                 let _____ =  in\n\
-                 let ______ =  in\n\n\
+                 let _ = \"\" in\n\
+                 let __ = \"\\n\" in\n\
+                 let ___ = \"a\" in\n\
+                 let ____ = \"shift\\n\" in\n\
+                 let _____ = \"\\nmalicious\" in\n\
+                 let ______ = \"a\\n shift\\n   malicious\" in\n\n\
                  # Multiline error decorations #\n\n\
-                 let box: Int =  in\n\n\
+                 let box: Int = \"\\nmalicious\" in\n\n\
                  # ERRATA:                                            #\n\
                  # The bottom toggle can also be used to remove       #\n\
                  # projectors. Currently only bidelmited terms can    #\n\
@@ -12217,7 +12217,7 @@ let startup : PersistentData.t =
                  # currently are lost on cut/copy. Both these         #\n\
                  # restrictions will be removed in a future update.   #\n\n\
                  # Projectors playground #\n\n\
-                 if  &&  < ()   \n\
+                 if true && 23 < int_of_float(51.00)   \n\
                  then ______ else \"its: \" ++ box";
             } );
           ( "Types & static errors",
@@ -17555,6 +17555,40 @@ let startup : PersistentData.t =
                  # All output from examples: #\n\
                  (ex1, ex2, ex3, ex4, ex5)";
             } );
+          ( "Sound",
+            {
+              zipper =
+                "((selection((focus Left)(content())(mode \
+                 Normal)))(backpack())(relatives((siblings(()((Secondary((id \
+                 2a2c87fd-0d45-439f-be5b-a1ce4c8fb6c2)(content(Comment\"# The \
+                 builtin Sound type contains a single constructor:    \
+                 #\"))))(Secondary((id \
+                 f940334b-0367-40f0-8f56-225e7b7d3c28)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 c0d88904-736f-4211-999a-bdb1943dc37c)(content(Comment\"# \
+                 Note: String -> Sound                                    \
+                 #\"))))(Secondary((id \
+                 6ade100a-27bc-4331-8520-d796bb9deb5d)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 af07fe81-7764-4ba0-b3c7-bbb6881cc5e8)(content(Comment\"# The \
+                 string can be any Strudel / TidalCycles note pattern \
+                 #\"))))(Secondary((id \
+                 a9151714-1695-4e67-b2d6-d28f870b1818)(content(Whitespace\"\\n\"))))(Tile((id \
+                 a35e3c62-1e36-4342-a852-542129006276)(label(Note))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 aa1cc34c-81c5-47fb-bd77-e47c87d36c1a)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 2))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 0d4c6a9a-2f96-43ab-b027-3c8d7c5012cf)(label(\"\\\"<a b e \
+                 d>(3, 8)\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))))))))))(ancestors())))(caret \
+                 Outer))";
+              backup_text =
+                "# The builtin Sound type contains a single constructor:    #\n\
+                 # Note: String -> Sound                                    #\n\
+                 # The string can be any Strudel / TidalCycles note pattern #\n\
+                 Note(\"<a b e d>(3, 8)\")";
+            } );
           ( "Expressive Programming",
             {
               zipper =
@@ -17662,6 +17696,7 @@ let startup : PersistentData.t =
           ("scratch_Projectors", Evaluation);
           ("scratch_Scope", Evaluation);
           ("scratch_Shadowing", Evaluation);
+          ("scratch_Sound", Evaluation);
           ("scratch_Types & static errors", Evaluation);
           ("scratch_Variables", Evaluation);
         ] );

@@ -349,27 +349,49 @@ module Pervasives = {
        );
 };
 
-let ctx_init: Ctx.t = {
-  let meta_cons_map: ConstructorMap.t(Typ.t) = [
+let stepper_types: Ctx.t = {
+  let stepper_meta: ConstructorMap.t(Typ.t) = [
     Variant("$e", [Id.mk()], None),
     Variant("$v", [Id.mk()], None),
   ];
+  let name = "$Meta";
   let meta =
     Ctx.TVarEntry({
-      name: "$Meta",
+      name,
       id: Id.invalid,
-      kind: Ctx.Singleton(Sum(meta_cons_map) |> Typ.fresh),
+      kind: Ctx.Singleton(Sum(stepper_meta) |> Typ.fresh),
     });
+  [meta] |> Ctx.add_ctrs(_, name, Id.invalid, stepper_meta);
+};
+
+let strudel_types: Ctx.t = {
+  let strudel: ConstructorMap.t(Typ.t) = [
+    Variant("Note", [Id.mk()], Some(IdTagged.fresh(Typ.Var("String")))),
+  ];
+  let name = "Sound";
+  let sound =
+    Ctx.TVarEntry({
+      name,
+      id: Id.invalid,
+      kind: Ctx.Singleton(Sum(strudel) |> Typ.fresh),
+    });
+
+  [sound] |> Ctx.add_ctrs(_, name, Id.invalid, strudel);
+};
+
+let builtin_types: Ctx.t = stepper_types @ strudel_types;
+
+let builtin_values: Ctx.t = {
   List.map(
     fun
     | (name, Const(typ, _)) => Ctx.VarEntry({name, typ, id: Id.invalid})
     | (name, Fn(t1, t2, _)) =>
       Ctx.VarEntry({name, typ: Arrow(t1, t2) |> Typ.fresh, id: Id.invalid}),
     Pervasives.builtins,
-  )
-  |> Ctx.extend(_, meta)
-  |> Ctx.add_ctrs(_, "$Meta", Id.invalid, meta_cons_map);
+  );
 };
+
+let ctx_init: Ctx.t = builtin_values @ builtin_types;
 
 let forms_init: forms =
   List.filter_map(
