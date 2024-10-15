@@ -817,10 +817,19 @@ and uexp_to_info_map =
   switch (mode) {
   | Ana(ty) =>
     switch (Typ.weak_head_normalize(ctx, ty).term) {
-    | Prod([{term: TupLabel({term: Label(l1), _}, _), _}]) =>
+    | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
       let (e, m) = go(~mode=Mode.Syn, uexp, m);
-
-      switch (Typ.weak_head_normalize(e.ctx, e.ty).term) {
+      switch (Typ.weak_head_normalize(ctx, e.ty).term) {
+      | _ when Typ.is_consistent(ctx, ana_ty, e.ty) =>
+        uexp_to_info_map(
+          ~ctx,
+          ~mode=Mode.Ana(ty),
+          ~is_in_filter,
+          ~ancestors,
+          Tuple([TupLabel(Label(l1) |> Exp.fresh, uexp) |> Exp.fresh])
+          |> Exp.fresh,
+          m,
+        )
       | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
         default_case()
       | _ =>

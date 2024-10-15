@@ -517,4 +517,71 @@ let tests =
       )
       |> Exp.fresh,
     ),
+    fully_consistent_typecheck(
+      "Duplicate singleton labels",
+      {|let x : (l=Int) = 1 in
+        let y : (l=(l=Int)) = x in y|},
+      Some(
+        Prod([
+          TupLabel(
+            Label("l") |> Typ.fresh,
+            Parens(
+              Prod([
+                TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh)
+                |> Typ.fresh,
+              ])
+              |> Typ.fresh,
+            )
+            |> Typ.fresh,
+          )
+          |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+      ),
+      Let(
+        Cast(
+          Var("x") |> Pat.fresh,
+          Parens(
+            Prod([
+              TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh)
+              |> Typ.fresh,
+            ])
+            |> Typ.fresh,
+          )
+          |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Pat.fresh,
+        Int(1) |> Exp.fresh,
+        Let(
+          Cast(
+            Var("y") |> Pat.fresh,
+            Parens(
+              Prod([
+                TupLabel(
+                  Label("l") |> Typ.fresh,
+                  Parens(
+                    Prod([
+                      TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh)
+                      |> Typ.fresh,
+                    ])
+                    |> Typ.fresh,
+                  )
+                  |> Typ.fresh,
+                )
+                |> Typ.fresh,
+              ])
+              |> Typ.fresh,
+            )
+            |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Pat.fresh,
+          Var("x") |> Exp.fresh,
+          Var("y") |> Exp.fresh,
+        )
+        |> Exp.fresh,
+      )
+      |> Exp.fresh,
+    ),
   ];
