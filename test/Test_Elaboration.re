@@ -220,5 +220,9 @@ let elaboration_tests = [
     `Quick,
     deferral,
   ),
-  test_case("Rules print all", `Quick, Verify.__print_all_specs_and_tests),
+  test_case(
+    "Rules print all",
+    `Quick,
+    RuleVerify.__print_all_specs_and_tests,
+  ),
 ];
