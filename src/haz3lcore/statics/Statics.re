@@ -819,29 +819,59 @@ and uexp_to_info_map =
     switch (Typ.weak_head_normalize(ctx, ty).term) {
     | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
       let (e, m) = go(~mode=Mode.Syn, uexp, m);
+
       switch (Typ.weak_head_normalize(ctx, e.ty).term) {
       | _ when Typ.is_consistent(ctx, ana_ty, e.ty) =>
-        uexp_to_info_map(
-          ~ctx,
-          ~mode=Mode.Ana(ty),
-          ~is_in_filter,
-          ~ancestors,
+        let (e, m) =
+          uexp_to_info_map(
+            ~ctx,
+            ~mode=Mode.Ana(ana_ty),
+            ~is_in_filter,
+            ~ancestors,
+            uexp,
+            m,
+          );
+        let fake_uexp =
           Tuple([TupLabel(Label(l1) |> Exp.fresh, uexp) |> Exp.fresh])
-          |> Exp.fresh,
-          m,
-        )
+          |> Exp.fresh;
+        let info =
+          Info.derived_exp(
+            ~uexp=fake_uexp,
+            ~ctx,
+            ~mode,
+            ~ancestors,
+            ~self=Common(Just(ty)),
+            ~co_ctx=e.co_ctx,
+          );
+
+        (info, add_info(fake_uexp.ids, InfoExp(info), m));
       | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
         default_case()
       | _ =>
-        uexp_to_info_map(
-          ~ctx,
-          ~mode=Mode.Ana(ty),
-          ~is_in_filter,
-          ~ancestors,
+        // TODO Deduplicate
+        let (e, m) =
+          uexp_to_info_map(
+            ~ctx,
+            ~mode=Mode.Ana(ana_ty),
+            ~is_in_filter,
+            ~ancestors,
+            uexp,
+            m,
+          );
+        let fake_uexp =
           Tuple([TupLabel(Label(l1) |> Exp.fresh, uexp) |> Exp.fresh])
-          |> Exp.fresh,
-          m,
-        )
+          |> Exp.fresh;
+        let info =
+          Info.derived_exp(
+            ~uexp=fake_uexp,
+            ~ctx,
+            ~mode,
+            ~ancestors,
+            ~self=Common(Just(ty)),
+            ~co_ctx=e.co_ctx,
+          );
+
+        (info, add_info(fake_uexp.ids, InfoExp(info), m));
       };
     | _ => default_case()
     }
