@@ -54,7 +54,7 @@ let type_of = (~statics_map=?, f) => {
   );
 };
 
-let inconsistent_typecheck = (name, serialized, expected, exp) => {
+let inconsistent_typecheck = (name, _serialized, exp) => {
   test_case(
     name,
     `Quick,
@@ -399,12 +399,6 @@ let tests =
     inconsistent_typecheck(
       "Singleton Labled Tuple ascription in let with wrong type should fail",
       "let x : (l=String) = 1 in x",
-      Some(
-        Prod([
-          TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh) |> Typ.fresh,
-        ])
-        |> Typ.fresh,
-      ),
       Let(
         Cast(
           Var("x") |> Pat.fresh,
