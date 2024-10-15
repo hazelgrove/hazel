@@ -584,4 +584,30 @@ let tests =
       )
       |> Exp.fresh,
     ),
+    fully_consistent_typecheck(
+      "Reconstructed labeled tuple without values",
+      {|let x : (l=|},
+      Some(Unknown(Internal) |> Typ.fresh),
+      Let(
+        Cast(
+          Var("x") |> Pat.fresh,
+          Parens(
+            Prod([
+              TupLabel(
+                Label("l") |> Typ.fresh,
+                Unknown(Hole(EmptyHole)) |> Typ.fresh,
+              )
+              |> Typ.fresh,
+            ])
+            |> Typ.fresh,
+          )
+          |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Pat.fresh,
+        EmptyHole |> Exp.fresh,
+        EmptyHole |> Exp.fresh,
+      )
+      |> Exp.fresh,
+    ),
   ];
