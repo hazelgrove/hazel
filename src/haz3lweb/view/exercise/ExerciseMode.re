@@ -72,8 +72,18 @@ let view =
               | (Just({rule: Some(rule), _}), {rule: None, _}) =>
                 Some({
                   ...res,
-                  rule: Some(rule),
-                  ghost: Some(Haz3lcore.RuleExample.of_ghost(rule)),
+                  rule:
+                    Some(
+                      {
+                        open Haz3lcore;
+                        let spec = RuleSpec.of_spec(rule);
+                        let tests = RuleTest.of_tests(rule);
+                        let (spec, tests) =
+                          RuleVerify.fill_eq_tests(spec, tests);
+                        let tests = RuleVerify.test_remove_eq_test(tests);
+                        {rule, spec, tests};
+                      },
+                    ),
                 })
               | _ => Some(res)
               };

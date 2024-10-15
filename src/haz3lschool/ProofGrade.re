@@ -30,17 +30,20 @@ module ExternalError = {
 };
 
 module VerifiedTree = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(Tree.p(info))
   and info = {
-    ghost: option(DrvSyntax.deduction(DrvSyntax.t)),
-    rule: option(Rule.t),
+    rule: option(rule),
     res,
   }
   and res =
     | Correct
     | Incorrect(RuleVerify.failure)
-    | Pending(ExternalError.t);
+    | Pending(ExternalError.t)
+  and rule = {
+    rule: Rule.t,
+    spec: RuleVerify.spec,
+    tests: RuleVerify.tests,
+  };
 };
 
 module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
@@ -107,12 +110,6 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
   module VerifiedTree = {
     include VerifiedTree;
 
-    let show_res: res => string =
-      fun
-      | Correct => "✅"
-      | Pending(err) => "⌛️ " ++ ExternalError.show(err)
-      | Incorrect(err) => "❌ " ++ RuleVerify.repr_failure(err);
-
     let verify_single =
         (
           acc: list((tree(info), option(DrvSyntax.t))),
@@ -120,50 +117,31 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
           prems: list((tree(info), option(DrvSyntax.t))),
         ) => {
       let (sub_trees, prems) = List.split(prems);
-      let are_prems_ready = List.for_all(Option.is_some, prems);
       let res =
         switch (concl) {
         | Abbr(Some(i)) => List.nth(acc, i) |> fst |> Tree.value
-        | Abbr(None) => {res: Pending(NoAbbr), ghost: None, rule: None}
-        | Just(Error(exn)) => {res: Pending(exn), ghost: None, rule: None}
-        | Just(Ok({rule: None, _})) => {
-            res: Pending(NoRule),
-            ghost: None,
-            rule: None,
-          }
-        | Just(Ok(_)) when !are_prems_ready => {
-            res: Pending(PremiseNotReady),
-            ghost: None,
-            rule: None,
-          }
-        | Just(Ok({jdmt: concl, rule: Some(rule)})) =>
-          let prems = prems |> List.map(Option.get);
-          let deduction: DrvSyntax.deduction(DrvSyntax.t) = {prems, concl};
-          let ghost = RuleExample.of_ghost(rule);
-          let deduction = RuleVerify.bind_ghost(deduction, ghost);
-          switch (
-            RuleVerify.verify_original(rule, deduction.prems, deduction.concl)
-          ) {
-          | Ok(_) => {res: Correct, ghost: Some(ghost), rule: Some(rule)}
-          | Error(err) => {
-              res: Incorrect(err),
-              ghost: Some(ghost),
-              rule: Some(rule),
-            }
-          };
-        };
-      let res =
-        switch (res.rule) {
-        | Some(_) => res
-        | None =>
-          switch (concl) {
-          | Just(Ok({rule: Some(rule), _})) => {
-              ...res,
-              rule: Some(rule),
-              ghost: Some(RuleExample.of_ghost(rule)),
-            }
-          | _ => res
-          }
+        | Abbr(None) => {res: Pending(NoAbbr), rule: None}
+        | Just(Error(exn)) => {res: Pending(exn), rule: None}
+        | Just(Ok({rule: None, _})) => {res: Pending(NoRule), rule: None}
+        | Just(Ok({rule: Some(rule), jdmt: concl})) =>
+          let spec = RuleSpec.of_spec(rule);
+          let tests = RuleTest.of_tests(rule);
+          let (spec, tests) = RuleVerify.fill_eq_tests(spec, tests);
+          let res =
+            if (List.for_all(Option.is_some, prems)) {
+              let prems = prems |> List.map(Option.get);
+              let res = RuleVerify.verify(spec, tests, (concl, prems));
+              switch (res) {
+              | [] => Correct
+              // Note(zhiyao): we only show the first failure
+              // i.e. the last one in the list
+              | _ => Incorrect(res |> List.rev |> List.hd)
+              };
+            } else {
+              Pending(PremiseNotReady);
+            };
+          let tests = RuleVerify.test_remove_eq_test(tests);
+          {res, rule: Some({rule, spec, tests})};
         };
       let concl =
         switch (concl) {
@@ -206,7 +184,6 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
                   Tree.Node(
                     VerifiedTree.{
                       res: VerifiedTree.Pending(NoAbbr),
-                      ghost: None,
                       rule: None,
                     },
                     [],

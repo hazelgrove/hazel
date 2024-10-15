@@ -308,9 +308,16 @@
   align-items: flex-end;
 }
 
-.deduction-prems.drv-explainthis {
+.drv-explainthis {
+  font-family: math;
   display: flex;
   flex-wrap: wrap;
+  /* flex-direction: column;
+  align-items: center; */
+}
+
+.drv-explainthis .deduction-test {
+  background-color: lightgrey;
 }
 
 .add-abbr-btn,

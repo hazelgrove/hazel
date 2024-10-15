@@ -85,6 +85,8 @@ let fresh: term => t = IdTagged.fresh;
 
 let term_of: t => term = IdTagged.term_of;
 
+let unwrap: t => (term, term => t) = IdTagged.unwrap;
+
 let temp = (term: term) =>
   IdTagged.{term, ids: [Id.invalid], copied: false};
 
@@ -147,6 +149,10 @@ type cls =
 
 module P = Precedence;
 
+// Note(zhiyao): We have a little bit different precedence for printing
+// compared to the parser. This is because we want to make the printed
+// syntax more readable, while making writing easier.
+
 let precedence: t => int =
   p =>
     switch (IdTagged.term_of(p)) {
@@ -154,10 +160,10 @@ let precedence: t => int =
     | Val(_) => P.filter
     | Eval(_) => P.filter
     | Entail(_) => P.filter
-    | Type(_) => P.filter
-    | HasType(_) => P.semi
-    | Syn(_) => P.semi
-    | Ana(_) => P.semi
+    | Type(_) => P.ann
+    | HasType(_) => P.ann
+    | Syn(_) => P.ann
+    | Ana(_) => P.ann
     | Atom(_) => P.max
     | And(_) => P.and_
     | Or(_) => P.or_
@@ -185,7 +191,7 @@ let precedence: t => int =
     | Fun(_) => P.fun_
     | FunAnn(_) => P.fun_
     | Ap(_) => P.ap
-    | Pair(_) => P.comma
+    | Pair(_) => P.max
     | Triv => P.max
     | PrjL(_) => P.ap
     | PrjR(_) => P.ap
@@ -199,113 +205,172 @@ let precedence: t => int =
     | Num => P.max
     | Bool => P.max
     | Arrow(_) => P.type_arrow
-    | Prod(_) => P.type_prod
+    | Prod(_) => P.type_arrow + 1
     | Unit => P.max
     | Sum(_) => P.type_plus
     | TVar(_) => P.max
-    | Rec(_) => P.fun_
+    | Rec(_) => P.type_arrow + 2
     | TPat(_) => P.max
     };
 
-let rec repr = (p: int, prop: t): list(string) => {
-  let p' = precedence(prop);
-  let mk = x => [x];
-  let repr = repr(p');
-  // let insert_space = (a: list(Node.t), b: list(Node.t)) =>
-  //   List.concat([a, mk(" "), b]);
-  let repr_aba = (as_: list(string), bs: list(t)): list(string) =>
-    Aba.mk(as_, bs)
-    |> Aba.join(mk, repr)
-    |> Aba.mk(
-         _,
-         List.init(List.length(bs) + List.length(as_) - 1, _ => " "),
+let children = (syntax: t): list(t) =>
+  switch (term_of(syntax)) {
+  | Hole(_) => []
+  | Val(a) => [a]
+  | Eval(a, b) => [a, b]
+  | Entail(a, b) => [a, b]
+  | Type(a) => [a]
+  | HasType(a, b) => [a, b]
+  | Syn(a, b) => [a, b]
+  | Ana(a, b) => [a, b]
+  | Atom(_) => []
+  | And(a, b) => [a, b]
+  | Or(a, b) => [a, b]
+  | Impl(a, {term: Falsity, _}) => [a]
+  | Impl(a, b) => [a, b]
+  | Truth => []
+  | Falsity => []
+  | Ctx(ctx) => ctx
+  // ALFA Exp
+  | NumLit(_) => []
+  | Neg(a) => [a]
+  | Plus(a, b) => [a, b]
+  | Minus(a, b) => [a, b]
+  | Times(a, b) => [a, b]
+  | Lt(a, b) => [a, b]
+  | Gt(a, b) => [a, b]
+  | Eq(a, b) => [a, b]
+  | True => []
+  | False => []
+  | If(a, b, c) => [a, b, c]
+  | Var(_) => []
+  | Let(a, b, c) => [a, b, c]
+  | LetAnn(a, b, c, d) => [a, b, c, d]
+  | Fix(a, b) => [a, b]
+  | FixAnn(a, b, c) => [a, b, c]
+  | Fun(a, b) => [a, b]
+  | FunAnn(a, b, c) => [a, b, c]
+  | Ap(a, b) => [a, b]
+  | Pair(a, b) => [a, b]
+  | Triv => []
+  | PrjL(a) => [a]
+  | PrjR(a) => [a]
+  | LetPair(a, b, c, d) => [a, b, c, d]
+  | InjL(a) => [a]
+  | InjR(a) => [a]
+  | Case(a, b, c, d, e) => [a, b, c, d, e]
+  | Roll(a) => [a]
+  | Unroll(a) => [a]
+  // ALFA Pat
+  | Pat(_) => []
+  // ALFA Typ
+  | Num => []
+  | Bool => []
+  | Arrow(a, b) => [a, b]
+  | Prod(a, b) => [a, b]
+  | Unit => []
+  | Sum(a, b) => [a, b]
+  | TVar(_) => []
+  | Rec(a, b) => [a, b]
+  // ALFA TPat
+  | TPat(_) => []
+  };
+
+let repr = (~sp: string=" ", p: int, syntax: t): Aba.t(string, t) => {
+  let p' = precedence(syntax);
+  let tight_start = s =>
+    s == "" || List.exists(String.ends_with(s, ~suffix=_), ["(", "¬"]);
+  let tight_end = s =>
+    s == ""
+    || List.exists(String.starts_with(s, ~prefix=_), [")", ",", "."]);
+  let mk_parens = labels =>
+    labels
+    |> ListUtil.map_first(s => p < p' ? "(" ++ s : s)
+    |> ListUtil.map_last(s => p < p' ? s ++ ")" : s);
+  let op = labels =>
+    labels
+    |> List.map(s =>
+         (tight_end(s) ? "" : sp) ++ s ++ (tight_start(s) ? "" : sp)
        )
-    |> Aba.join(Fun.id, mk)
-    |> List.concat;
-  let repr_aba_tight = (as_: list(string), bs: list(t)) =>
-    Aba.mk(as_, bs) |> Aba.join(mk, repr) |> List.concat;
-  let repr_binop = (op: string, a: t, b: t) =>
-    [repr(a), [" " ++ op ++ " "], repr(b)] |> List.concat;
-  let repr_postop = (op, a: t) => [repr(a), [" " ++ op]] |> List.concat;
-  let repr_preop = (op, a: t) => [[op ++ " "], repr(a)] |> List.concat;
-  (
-    switch (IdTagged.term_of(prop)) {
-    | Hole(s) => Printf.sprintf("[%s]", s) |> mk
-    | Atom(s) => s |> mk
-    | And(a, b) => repr_binop("∧", a, b)
-    | Or(a, b) => repr_binop("∨", a, b)
-    | Impl(a, b) when IdTagged.term_of(b) == Falsity => repr_postop("¬", a)
-    | Impl(a, b) => repr_binop("⊃", a, b)
-    | Truth => "⊤" |> mk
-    | Falsity => "⊥" |> mk
+    |> ListUtil.map_first(s => String.trim(s) ++ (tight_start(s) ? "" : sp))
+    |> ListUtil.map_last(s => (tight_end(s) ? "" : sp) ++ String.trim(s));
+  let bin = (labels: list(string)) => op([""] @ labels @ [""]);
+  let pre = (labels: list(string)) => op(labels @ [""]);
+  let post = (labels: list(string)) => op([""] @ labels);
+  let op_sg = (label: string) => [label];
+  let bin_sg = (label: string) => bin([label]);
+  let pre_sg = (label: string) => pre([label]);
+  let post_sg = (label: string) => post([label]);
+  let lebals =
+    switch (IdTagged.term_of(syntax)) {
+    | Hole(s) => "[" ++ s ++ "]" |> op_sg
+    | Atom(s) => s |> op_sg
+    | And(_) => "∧" |> bin_sg
+    | Or(_) => "∨" |> bin_sg
+    | Impl(_, {term: Falsity, _}) => "¬" |> pre_sg
+    | Impl(_) => "⊃" |> bin_sg
+    | Truth => "⊤" |> op_sg
+    | Falsity => "⊥" |> op_sg
     | Ctx(ctx) =>
-      if (List.length(ctx) == 0) {
-        "·" |> mk;
-      } else {
-        repr_aba_tight(
-          [""] @ List.init(List.length(ctx) - 1, _ => ", ") @ [""],
-          ctx,
-          // ctx |> List.map(repr) |> List.concat;
-        );
-      }
-    | Entail(a, b) => repr_binop("⊢", a, b)
-    | NumLit(i) => string_of_int(i) |> mk
-    | Val(a) => repr_postop("val", a)
-    | Neg(a) => repr_preop("-", a)
-    | Plus(a, b) => repr_binop("+", a, b)
-    | Minus(a, b) => repr_binop("-", a, b)
-    | Times(a, b) => repr_binop("*", a, b)
-    | Lt(a, b) => repr_binop("<", a, b)
-    | Gt(a, b) => repr_binop(">", a, b)
-    | Eq(a, b) => repr_binop("==", a, b)
-    | Eval(a, b) => repr_binop("⇓", a, b)
-    | Num => "Num" |> mk
-    | Bool => "Bool" |> mk
-    | Arrow(a, b) => repr_binop("→", a, b)
-    | Prod(a, b) => repr_binop("×", a, b)
-    | Unit => "Unit" |> mk
-    | Sum(a, b) => repr_binop("+", a, b)
-    | TVar(x) => x |> mk
-    | Rec(x, a) => repr_aba(["rec", "→", ""], [x, a])
-    | True => "True" |> mk
-    | False => "False" |> mk
-    | If(a, b, c) => repr_aba(["if", "then", "else", ""], [a, b, c])
-    | Var(x) => x |> mk
-    | Let(x, a, b) => repr_aba(["let", "=", "in", ""], [x, a, b])
-    | LetAnn(x, t, a, b) =>
-      repr_aba(["let", ":", "=", "in", ""], [x, t, a, b])
-    | Fix(x, a) => repr_aba(["fix", "→", ""], [x, a])
-    | FixAnn(x, t, a) => repr_aba(["fix", ":", "→", ""], [x, t, a])
-    | Fun(x, a) => repr_aba(["fun", "→", ""], [x, a])
-    | FunAnn(x, t, a) => repr_aba(["fun", ":", "→", ""], [x, t, a])
-    | Ap(a, b) => repr_aba_tight(["", "(", ")"], [a, b])
-    | Pair(a, b) => repr_aba_tight(["(", ",", ")"], [a, b])
-    | Triv => "()" |> mk
-    | PrjL(a) => repr_postop(".fst", a)
-    | PrjR(a) => repr_postop(".snd", a)
-    | LetPair(x, y, a, b) =>
-      repr_aba(["let (", ",", ") =", "in", ""], [x, y, a, b])
-    | InjL(a) => repr_preop("L", a)
-    | InjR(a) => repr_preop("R", a)
-    | Case(a, x, b, y, c) =>
-      repr_aba(
-        ["case", "of L", "→", "else R", "→", ""],
-        [a, x, b, y, c],
-      )
-    | Roll(a) => repr_aba_tight(["roll(", ")"], [a])
-    | Unroll(a) => repr_aba_tight(["unroll(", ")"], [a])
-    | TPat(x) => x |> mk
-    | Pat(x) => x |> mk
-    | Type(a) => repr_postop("type", a)
-    | HasType(a, b) => repr_binop(":", a, b)
-    | Syn(a, b) => repr_binop("⇒", a, b)
-    | Ana(a, b) => repr_binop("⇐", a, b)
-    }
-  )
-  |> (x => p < p' ? List.concat([mk("("), x, mk(")")]) : x);
+      List.length(ctx) == 0
+        ? "·" |> op_sg : List.init(List.length(ctx) - 1, _ => ",") |> bin
+    | Entail(_) => "⊢" |> bin_sg
+    | NumLit(i) => string_of_int(i) |> op_sg
+    | Val(_) => "val" |> post_sg
+    | Neg(_) => "-" |> pre_sg
+    | Plus(_) => "+" |> bin_sg
+    | Minus(_) => "-" |> bin_sg
+    | Times(_) => "*" |> bin_sg
+    | Lt(_) => "<" |> bin_sg
+    | Gt(_) => ">" |> bin_sg
+    | Eq(_) => "=?" |> bin_sg
+    | Eval(_) => "⇓" |> bin_sg
+    | Num => "Num" |> op_sg
+    | Bool => "Bool" |> op_sg
+    | Arrow(_) => "→" |> bin_sg
+    | Prod(_) => "×" |> bin_sg
+    | Unit => "Unit" |> op_sg
+    | Sum(_) => "+" |> bin_sg
+    | TVar(x) => x |> op_sg
+    | Rec(_) => ["rec", "is"] |> pre
+    | True => "True" |> op_sg
+    | False => "False" |> op_sg
+    | If(_) => ["if", "then", "else"] |> pre
+    | Var(x) => x |> op_sg
+    | Let(_) => ["let", "be", "in"] |> pre
+    | LetAnn(_) => ["let", ":", "be", "in"] |> pre
+    | Fix(_) => ["fix", "→"] |> pre
+    | FixAnn(_) => ["fix", ":", "→"] |> pre
+    | Fun(_) => ["fun", "→"] |> pre
+    | FunAnn(_) => ["fun", ":", "→"] |> pre
+    | Ap(_) => ["", " ", ""]
+    | Pair(_) => ["(", ",", ")"] |> op
+    | Triv => "()" |> op_sg
+    | PrjL(_) => ".fst" |> post_sg
+    | PrjR(_) => ".snd" |> post_sg
+    | LetPair(_) => ["let (", ",", ") be", "in"] |> pre
+    | InjL(_) => "L" |> pre_sg
+    | InjR(_) => "R" |> pre_sg
+    | Case(_) => ["case", "of L(", ") →", "else R(", ") →"] |> pre
+    | Roll(_) => ["roll(", ")"] |> op
+    | Unroll(_) => ["unroll(", ")"] |> op
+    | Pat(s) => s |> op_sg
+    | TPat(s) => s |> op_sg
+    | Type(_) => "type" |> post_sg
+    | HasType(_) => ":" |> bin_sg
+    | Syn(_) => "⇒" |> bin_sg
+    | Ana(_) => "⇐" |> bin_sg
+    };
+  (lebals |> mk_parens, children(syntax));
 };
 
-let repr = p => repr(P.min, p) |> String.concat("");
+let rec show = (p, syntax) =>
+  syntax
+  |> repr(p)
+  |> Aba.join(Fun.id, show(precedence(syntax)))
+  |> String.concat("");
+
+let show = show(P.min);
 
 let rec subst: (t, string, t) => t =
   (v, x, e) => {

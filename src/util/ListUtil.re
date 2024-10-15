@@ -540,3 +540,14 @@ let rec remove = (xs, i) =>
   | ([hd, ...tl], _) => [hd, ...remove(tl, i - 1)]
   | ([], _) => failwith("ListUtil.remove")
   };
+
+let map_first = f =>
+  fun
+  | [] => []
+  | [x, ...xs] => [f(x), ...xs];
+
+let rec map_last = f =>
+  fun
+  | [] => []
+  | [x] => [f(x)]
+  | [x, ...xs] => [x, ...map_last(f, xs)];
