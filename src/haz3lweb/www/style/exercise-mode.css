@@ -6,9 +6,11 @@
   padding: 1em;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  /* justify-content: space-between; */
   gap: 1.2em;
   background-color: var(--ui-bkg);
+  /* Note(zhiyao): User may perfer to be able to scroll more than the page content */
+  padding-bottom: 100%;
 }
 
 #main.Exercises {
@@ -77,7 +79,7 @@
   cursor: pointer;
 }
 
-#main.Exercises .test-report + .test-report {
+#main.Exercises .test-report+.test-report {
   border-top: 1px dotted var(--BR2);
 }
 
@@ -172,7 +174,7 @@
   align-items: center;
 }
 
-#main.Exercises > .test-percent {
+#main.Exercises>.test-percent {
   position: absolute;
   top: 0;
   right: 0;
@@ -233,5 +235,308 @@
 }
 
 #main.Exercises .context-entry {
-  max-width: fit-content; /* Correct implementation type sigs */
+  max-width: fit-content;
+  /* Correct implementation type sigs */
+}
+
+
+/* DERIVATION */
+
+.cell-derivation {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.derivation-panel.cell-item {
+  padding-top: 0;
+  gap: 0;
+  /* background-color: var(--test-panel-bkg); */
+}
+
+.code-text:after {
+  content: "";
+}
+
+.code.fakecode {
+  display: flex;
+  align-items: center;
+}
+
+.code.fakecode .code-text {
+  z-index: auto;
+}
+
+.deduction-concl {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.deduction-concl .cell {
+  position: relative;
+  border-left: none !important;
+}
+
+.deduction-concl .cell-item {
+  background-color: var(--ui-bkg);
+  padding: 0.3em 0.5em;
+}
+
+.deduction-concl .code.fakecode {
+  height: 2.2rem;
+}
+
+.deduction-concl .cell-item:hover {
+  background-color: var(--cell-active)
+}
+
+.deduction-prems-label {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  border-bottom: var(--BR2) 0.1em solid;
+  border-bottom-right-radius: 0.6rem;
+  position: relative;
+}
+
+.deduction-prems {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.drv-explainthis {
+  font-family: math;
+  display: flex;
+  flex-wrap: wrap;
+  /* flex-direction: column;
+  align-items: center; */
+}
+
+.drv-explainthis .deduction-test {
+  background-color: lightgrey;
+}
+
+.add-abbr-btn,
+.add-premise-btn {
+  opacity: 0;
+  cursor: pointer;
+  color: var(--BR1);
+  border-radius: 2rem;
+  -webkit-transition: all 0.3s;
+  -moz-transition: all 0.3s;
+  -o-transition: all 0.3s;
+  -ms-transition: all 0.3s;
+  transition: all 0.3s;
+}
+
+.add-premise-btn {
+  margin-top: 0.3rem;
+  margin-bottom: 0.1rem;
+  width: 1.4em;
+  height: 2em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.add-abbr-btn {
+  display: inline;
+  width: auto;
+}
+
+.add-abbr-btn .code .token{
+  color: var(--BR1);
+}
+
+.add-abbr-btn:hover .code .token{
+  color: var(--BR2);
+}
+
+.add-abbr-btn:hover,
+.add-premise-btn:hover {
+  background: var(--cell-active);
+  /* filter: drop-shadow(0px 0px 1px var(--BR4)); */
+  color: var(--BR2);
+}
+
+.add-abbr-btn:hover,
+.add-premise-btn:hover,
+.deduction-just:hover:has(>div>div>.deduction-just-wrapper:only-child) .add-premise-btn,
+.deduction-just-wrapper:has(>div>.deduction-concl:hover):not(:has(.add-premise-btn:hover))+.deduction-just-wrapper>.add-premise-btn,
+.deduction-just-wrapper:has(>div>.deduction-concl:hover)>.add-premise-btn,
+.cell-derivation:hover:has(.deduction-just~:hover)+.cell-derivation .add-abbr-btn,
+.cell-derivation:hover:not(:has(.deduction-just~:hover)):not(:has(.deduction-just:hover)) .add-abbr-btn,
+.cell-derivation:only-child .add-abbr-btn
+{
+  opacity: 1;
+}
+
+
+.add-premise-btn::after {
+  content: "•";
+}
+
+.add-premise-btn:hover::after {
+  content: "+";
+  font-weight: bold;
+}
+
+.deduction-label-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-left: 0.2rem;
+}
+
+.deduction-prems-label .test-result {
+  position: absolute;
+  right: -0.6rem;
+  bottom: -0.8rem;
+}
+
+.deduction-prems-label .test-result.staged {
+  animation: 1s blink step-end infinite;
+}
+
+/* Dropdown button */
+.deduction-label {
+  color: var(--ui-bkg);
+  cursor: pointer;
+  padding: 0 0.3rem;
+  font-size: 0.8rem;
+  height: 1.2rem;
+  min-width: 0.6rem;
+  border-radius: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-wrap: nowrap;
+  background-color: var(--BR2);
+  position: relative;
+  bottom: -0.08rem;
+}
+
+/* Dropdown content (hidden by default) */
+.dropdown {
+  display: none;
+  flex-direction: column;
+  position: absolute;
+  left: 0;
+  bottom: 1.1rem;
+  background-color: var(--ui-bkg);
+  border: var(--BR2) 0.1rem solid;
+  border-radius: 0.6em;
+  border-bottom-left-radius: 0;
+  z-index: var(--top-bar-z);
+}
+
+.abbr-wrapper .deduction-just {
+  padding-left: 1.4rem;
+}
+
+.abbr-wrapper .deduction-just .deduction-just {
+  padding-left: 0;
+}
+
+.deduction-just-wrapper {
+  display: flex;
+  align-items: flex-end;
+}
+
+.dropdown.correct,
+.deduction-prems-label.correct {
+  border-color: var(--test-pass);
+}
+
+.deduction-label.correct {
+  background-color: var(--test-pass);
+}
+
+.dropdown.incorrect,
+.deduction-prems-label.incorrect {
+  border-color: var(--test-fail);
+}
+
+.deduction-label.incorrect {
+  background-color: var(--test-fail);
+}
+
+/* Show the dropdown menu on hover */
+/* .deduction-label-wrapper:hover {
+  filter: drop-shadow(0px 0px 4px var(--BR4));
+} */
+
+.deduction-label-wrapper:hover .dropdown {
+  display: flex;
+}
+
+.dropdown:hover::before {
+  content: "";
+  position: absolute;
+  top: -1rem;
+  /* Adjust this value to control the extra hover area */
+  right: -1rem;
+  bottom: 0;
+  left: -1rem;
+  z-index: -1;
+  /* Ensure it stays behind the dropdown */
+}
+
+.deduction-label-wrapper:hover .deduction-label {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.deduction-label-wrapper .named-menu-item {
+  height: 1.4rem;
+  font-size: 0.8rem;
+  text-wrap: nowrap;
+  background: var(--menu-bkg);
+  color: var(--token-exp);
+  border-bottom: var(--BR2) 0.1rem solid;
+  border-top-left-radius: 0.6rem;
+  border-top-right-radius: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.3rem;
+  z-index: var(--top-bar-z);
+}
+
+.deduction-label-wrapper .named-menu-item:last-child {
+  border-bottom: none;
+  border-radius: 0.6rem;
+}
+
+.deduction-label-wrapper .named-menu-item .icon {
+  transform: scale(0.7);
+}
+
+.deduction-label-wrapper .named-menu-item:hover {
+  background-color: var(--cell-active);
+}
+
+.deduction-label-wrapper .named-menu-item.default {
+  color: var(--token-explicit-hole);
+  text-shadow: 1px 1px 0px var(--token-explicit-hole-shadow);
+}
+
+/* Add a grey background color to dropdown links on hover */
+.deduction-label-wrapper .named-menu-item:hover {
+  cursor: pointer;
+  text-decoration: strong;
+}
+
+.deduction-label-wrapper .named-menu-item .code.fakecode {
+  height: auto;
+}
+
+#ninja-keys-rules::part(actions-list) {
+  display: flex;
+  flex-wrap: wrap;
 }

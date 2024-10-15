@@ -92,9 +92,15 @@ let main_view =
   let editor = Editors.get_editor(editors);
   let cursor_info =
     Indicated.ci_of(editor.state.zipper, editor.state.meta.statics.info_map);
+  // TODO(zhiyao): sorry I really messed up the cursor_info type here
+  // I will fix it before merging
   let highlights =
-    ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
-  let (editors_view, cursor_info) =
+    ExplainThis.get_color_map(
+      ~settings,
+      ~explainThisModel,
+      Code(cursor_info),
+    );
+  let (editors_view, cursor_info, cursor_info_for_sidebar) =
     switch (editors) {
     | Scratch(idx, _) =>
       let result_key = ScratchSlide.scratch_key(string_of_int(idx));
@@ -108,7 +114,7 @@ let main_view =
           ~result_key,
           editor,
         );
-      (view, cursor_info);
+      (view, cursor_info, ExplainThis.Code(cursor_info));
     | Documentation(name, _) =>
       let result_key = ScratchSlide.scratch_key(name);
       let view =
@@ -125,7 +131,7 @@ let main_view =
         SlideContent.get_content(editors)
         |> Option.map(i => div(~attrs=[Attr.id("slide")], [i]))
         |> Option.to_list;
-      (info @ view, cursor_info);
+      (info @ view, cursor_info, ExplainThis.Code(cursor_info));
     | Exercises(_, _, exercise) =>
       /* Note the exercises mode uses a seperate path to calculate
        * statics and dynamics via stitching together multiple editors */
@@ -140,21 +146,25 @@ let main_view =
       let cursor_info =
         Indicated.ci_of(editor.state.zipper, statics.info_map);
       let highlights =
-        ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
-      let view =
+        ExplainThis.get_color_map(
+          ~settings,
+          ~explainThisModel,
+          Code(cursor_info),
+        );
+      let (view, cursor_info') =
         ExerciseMode.view(
           ~inject,
           ~ui_state,
           ~settings,
           ~highlights,
           ~stitched_dynamics,
+          ~explainThisModel,
           ~exercise,
+          ~cursor_info=Code(cursor_info),
         );
-      (view, cursor_info);
+      (view, cursor_info, cursor_info');
     };
 
-  let bottom_bar =
-    CursorInspector.view(~inject, ~settings, editor, cursor_info);
   let sidebar =
     settings.explainThis.show && settings.core.statics
       ? ExplainThis.view(
@@ -162,9 +172,11 @@ let main_view =
           ~ui_state,
           ~settings,
           ~explainThisModel,
-          cursor_info,
+          cursor_info_for_sidebar,
         )
       : div([]);
+  let bottom_bar =
+    CursorInspector.view(~inject, ~settings, editor, cursor_info);
   [
     top_bar(~inject, ~settings, ~editors),
     div(

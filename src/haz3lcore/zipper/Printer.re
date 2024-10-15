@@ -89,10 +89,10 @@ let to_string_selection = (editor: Editor.t): string =>
   |> String.concat("\n");
 
 let zipper_of_string =
-    (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
+    (~zipper_init=Zipper.init(), str: string, ~root): option(Zipper.t) => {
   let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
     let* z = z;
-    try(c == "\r" ? Some(z) : Insert.go(c, z)) {
+    try(c == "\r" ? Some(z) : Insert.go(c, z, ~root)) {
     | exn =>
       print_endline("WARN: zipper_of_string: " ++ Printexc.to_string(exn));
       None;
@@ -104,5 +104,5 @@ let zipper_of_string =
 /* This serializes the current editor to text, resets the current
    editor, and then deserializes. It is intended as a (tactical)
    nuclear option for weird backpack states */
-let reparse = z =>
-  zipper_of_string(~zipper_init=Zipper.init(), zipper_to_string(z));
+let reparse = (z, ~root) =>
+  zipper_of_string(~zipper_init=Zipper.init(), zipper_to_string(z), ~root);

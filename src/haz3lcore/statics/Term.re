@@ -1,3 +1,5 @@
+include DrvTerm;
+
 module Pat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -290,6 +292,7 @@ module Exp = {
     | Int
     | Float
     | String
+    | Prop
     | ListLit
     | Constructor
     | Fun
@@ -316,6 +319,7 @@ module Exp = {
     | BuiltinFun
     | Match
     | Cast
+    | Term
     | ListConcat;
 
   let hole = (tms: list(TermBase.Any.t)): term =>
@@ -365,7 +369,8 @@ module Exp = {
     | BinOp(op, _, _) => BinOp(op)
     | BuiltinFun(_) => BuiltinFun
     | Match(_) => Match
-    | Cast(_) => Cast;
+    | Cast(_) => Cast
+    | Term(_) => Term;
 
   let show_cls: cls => string =
     fun
@@ -381,6 +386,7 @@ module Exp = {
     | Int => "Integer literal"
     | Float => "Float literal"
     | String => "String literal"
+    | Prop => "Proposition"
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Fun => "Function literal"
@@ -407,7 +413,8 @@ module Exp = {
     | UnOp(op) => Operators.show_unop(op)
     | BuiltinFun => "Built-in Function"
     | Match => "Case expression"
-    | Cast => "Cast expression";
+    | Cast => "Cast expression"
+    | Term => "Term expression";
 
   // Typfun should be treated as a function here as this is only used to
   // determine when to allow for recursive definitions in a let binding.
@@ -448,7 +455,8 @@ module Exp = {
     | UnOp(_)
     | BinOp(_)
     | Match(_)
-    | Constructor(_) => false
+    | Constructor(_)
+    | Term(_) => false
     };
   };
 
@@ -491,7 +499,8 @@ module Exp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
-      | Constructor(_) => false
+      | Constructor(_)
+      | Term(_) => false
       }
     );
 
@@ -548,7 +557,8 @@ module Exp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
-      | Constructor(_) => None
+      | Constructor(_)
+      | Term(_) => None
       };
     };
 };
@@ -596,9 +606,29 @@ module Any = {
     fun
     | Typ(t) => Some(t)
     | _ => None;
+  let is_alfa_exp: t => option(TermBase.ALFA_Exp.t) =
+    fun
+    | Drv(Exp(e)) => Some(e)
+    | _ => None;
+
+  let sort_of: t => Sort.t =
+    fun
+    | Any(_) => Any
+    | Exp(_) => Exp
+    | Pat(_) => Pat
+    | Typ(_) => Typ
+    | TPat(_) => TPat
+    | Rul(_) => Rul
+    | Drv(drv) => Drv(DrvTerm.Drv.sort_of(drv))
+    | Nul(_) => Nul;
 
   let rec ids =
     fun
+    | Drv(Exp(tm)) => tm.ids
+    | Drv(Rul(tm)) => tm.ids
+    | Drv(Pat(tm)) => tm.ids
+    | Drv(Typ(tm)) => tm.ids
+    | Drv(TPat(tm)) => tm.ids
     | Exp(tm) => tm.ids
     | Pat(tm) => tm.ids
     | Typ(tm) => tm.ids
@@ -620,6 +650,11 @@ module Any = {
   // (This would change for n-tuples if we decided parentheses are necessary.)
   let rep_id =
     fun
+    | Drv(Exp(tm)) => ALFA_Exp.rep_id(tm)
+    | Drv(Rul(tm)) => ALFA_Rul.rep_id(tm)
+    | Drv(Pat(tm)) => ALFA_Pat.rep_id(tm)
+    | Drv(Typ(tm)) => ALFA_Typ.rep_id(tm)
+    | Drv(TPat(tm)) => ALFA_TPat.rep_id(tm)
     | Exp(tm) => Exp.rep_id(tm)
     | Pat(tm) => Pat.rep_id(tm)
     | Typ(tm) => Typ.rep_id(tm)

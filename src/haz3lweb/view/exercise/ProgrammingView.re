@@ -1,7 +1,9 @@
-open Util;
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
+
+open Exercise.Programming;
+open ProgrammingGradingView;
 
 type vis_marked('a) =
   | InstructorOnly(unit => 'a)
@@ -18,16 +20,17 @@ let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
   );
 };
 
-let view =
+let programming_view =
     (
       ~inject,
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
-      ~exercise,
-      ~stitched_dynamics,
+      ~grading_report: GradingReport.t,
+      ~pos: pos,
+      ~eds: model(Editor.t),
+      ~stitched_dynamics: stitched(Exercise.DynamicsItem.t),
       ~highlights,
     ) => {
-  let Exercise.{eds, pos} = exercise;
   let {
     test_validation,
     user_impl,
@@ -36,10 +39,7 @@ let view =
     instructor,
     hidden_bugs,
     hidden_tests: _,
-  }:
-    Exercise.stitched(Exercise.DynamicsItem.t) = stitched_dynamics;
-  let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
-  let score_view = Grading.GradingReport.view_overall_score(grading_report);
+  } = stitched_dynamics;
   let editor_view =
       (
         ~editor: Editor.t,
@@ -50,7 +50,7 @@ let view =
         this_pos,
       ) => {
     Cell.editor_view(
-      ~selected=pos == this_pos,
+      ~selected=(Programming(pos): Exercise.pos) == this_pos,
       ~override_statics=di.statics,
       ~inject,
       ~ui_state,
@@ -61,19 +61,15 @@ let view =
       ~target_id=Exercise.show_pos(this_pos),
       ~test_results=ModelResult.test_results(di.result),
       ~footer?,
+      ~sort=Exp,
       editor,
     );
   };
-  let title_view = Cell.title_cell(eds.title);
 
-  let prompt_view =
-    Cell.narrative_cell(
-      div(~attrs=[Attr.class_("cell-prompt")], [eds.prompt]),
-    );
   let prelude_view =
     Always(
       editor_view(
-        Prelude,
+        Programming(Prelude),
         ~caption="Prelude",
         ~subcaption=settings.instructor_mode ? "" : " (Read-Only)",
         ~editor=eds.prelude,
@@ -85,7 +81,7 @@ let view =
     InstructorOnly(
       () =>
         editor_view(
-          CorrectImpl,
+          Programming(CorrectImpl),
           ~caption="Correct Implementation",
           ~editor=eds.correct_impl,
           ~di=instructor,
@@ -140,13 +136,13 @@ let view =
   let your_tests_view =
     Always(
       editor_view(
-        YourTestsValidation,
+        Programming(YourTests(Validation)),
         ~caption="Test Validation",
         ~subcaption=": Your Tests vs. Correct Implementation",
         ~editor=eds.your_tests.tests,
         ~di=test_validation,
         ~footer=[
-          Grading.TestValidationReport.view(
+          TestValidationReport.view(
             ~inject,
             grading_report.test_validation_report,
             grading_report.point_distribution.test_validation,
@@ -156,11 +152,11 @@ let view =
     );
   let wrong_impl_views =
     List.mapi(
-      (i, (Exercise.{impl, _}, di)) => {
+      (i, ({impl, _}, di)) => {
         InstructorOnly(
           () =>
             editor_view(
-              HiddenBugs(i),
+              Programming(HiddenBugs(i)),
               ~caption="Wrong Implementation " ++ string_of_int(i + 1),
               ~editor=impl,
               ~di,
@@ -171,7 +167,7 @@ let view =
     );
   let mutation_testing_view =
     Always(
-      Grading.MutationTestingReport.view(
+      MutationTestingReport.view(
         ~inject,
         grading_report.mutation_testing_report,
         grading_report.point_distribution.mutation_testing,
@@ -180,7 +176,7 @@ let view =
   let your_impl_view = {
     Always(
       editor_view(
-        YourImpl,
+        Programming(YourImpl),
         ~caption="Your Implementation",
         ~editor=eds.your_impl,
         ~di=user_impl,
@@ -191,18 +187,18 @@ let view =
             ~inject,
             ~ui_state,
             ~result=user_impl.result,
-            ~result_key=Exercise.user_impl_key,
+            ~result_key=StitchUtil.key(YourImpl),
           ),
       ),
     );
   };
   let syntax_grading_view =
-    Always(Grading.SyntaxReport.view(grading_report.syntax_report));
+    Always(SyntaxReport.view(grading_report.syntax_report));
 
   let impl_validation_view =
     Always(
       editor_view(
-        YourTestsTesting,
+        Programming(YourTests(Testing)),
         ~caption="Implementation Validation",
         ~subcaption=
           ": Your Tests (synchronized with Test Validation above) vs. Your Implementation",
@@ -221,7 +217,7 @@ let view =
     InstructorOnly(
       () =>
         editor_view(
-          HiddenTests,
+          Programming(HiddenTests),
           ~caption="Hidden Tests",
           ~editor=eds.hidden_tests.tests,
           ~di=instructor,
@@ -230,89 +226,25 @@ let view =
 
   let impl_grading_view =
     Always(
-      Grading.ImplGradingReport.view(
+      ImplGradingReport.view(
         ~inject,
         ~report=grading_report.impl_grading_report,
         ~syntax_report=grading_report.syntax_report,
         ~max_points=grading_report.point_distribution.impl_grading,
       ),
     );
-  [score_view, title_view, prompt_view]
-  @ render_cells(
-      settings,
-      [
-        prelude_view,
-        correct_impl_view,
-        correct_impl_ctx_view,
-        your_tests_view,
-      ]
-      @ wrong_impl_views
-      @ [
-        mutation_testing_view,
-        your_impl_view,
-        syntax_grading_view,
-        impl_validation_view,
-        hidden_tests_view,
-        impl_grading_view,
-      ],
-    );
+
+  render_cells(
+    settings,
+    [prelude_view, correct_impl_view, correct_impl_ctx_view, your_tests_view]
+    @ wrong_impl_views
+    @ [
+      mutation_testing_view,
+      your_impl_view,
+      syntax_grading_view,
+      impl_validation_view,
+      hidden_tests_view,
+      impl_grading_view,
+    ],
+  );
 };
-
-let reset_button = inject =>
-  Widgets.button_named(
-    Icons.trash,
-    _ => {
-      let confirmed =
-        JsUtil.confirm(
-          "Are you SURE you want to reset this exercise? You will lose any existing code that you have written, and course staff have no way to restore it!",
-        );
-      if (confirmed) {
-        inject(UpdateAction.ResetCurrentEditor);
-      } else {
-        Virtual_dom.Vdom.Effect.Ignore;
-      };
-    },
-    ~tooltip="Reset Exercise",
-  );
-
-let instructor_export = (inject: UpdateAction.t => Ui_effect.t(unit)) =>
-  Widgets.button_named(
-    Icons.export,
-    _ => inject(Export(ExerciseModule)),
-    ~tooltip="Export Exercise Module",
-  );
-
-let instructor_transitionary_export =
-    (inject: UpdateAction.t => Ui_effect.t(unit)) =>
-  Widgets.button_named(
-    Icons.export,
-    _ => {inject(Export(TransitionaryExerciseModule))},
-    ~tooltip="Export Transitionary Exercise Module",
-  );
-
-let instructor_grading_export = (inject: UpdateAction.t => Ui_effect.t(unit)) =>
-  Widgets.button_named(
-    Icons.export,
-    _ => {inject(Export(GradingExerciseModule))},
-    ~tooltip="Export Grading Exercise Module",
-  );
-
-let export_submission = (inject: UpdateAction.t => Ui_effect.t(unit)) =>
-  Widgets.button_named(
-    Icons.star,
-    _ => inject(Export(Submission)),
-    ~tooltip="Export Submission",
-  );
-
-let import_submission = (~inject) =>
-  Widgets.file_select_button_named(
-    "import-submission",
-    Icons.import,
-    file => {
-      switch (file) {
-      | None => Virtual_dom.Vdom.Effect.Ignore
-      | Some(file) => inject(UpdateAction.InitImportAll(file))
-      }
-    },
-    ~tooltip="Import Submission",
-  );

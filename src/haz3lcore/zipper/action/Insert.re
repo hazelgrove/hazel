@@ -129,13 +129,13 @@ let insert_outer = (char: string, z as state: t): option(t) =>
   | AppendRight(t) => replace_tile(t, Right, state)
   };
 
-let insert_duo = (lbl: Label.t, z: option(t)): option(t) =>
+let insert_duo = (lbl: Label.t, z: option(t), ~root): option(t) =>
   z
   |> Option.map(z => Zipper.construct(~caret=Left, ~backpack=Left, lbl, z))
   |> OptUtil.and_then(z => {
        //NOTE: regrout to put e.g. ap(1|) back together
        z
-       |> remold_regrout(Left)
+       |> remold_regrout(Left, ~root)
        |> Zipper.put_down(Left)
        |> OptUtil.and_then(Zipper.move(Left))
      });
@@ -145,7 +145,7 @@ let insert_monos = (l: Token.t, r: Token.t, z: option(t)): option(t) =>
   |> Option.map(Zipper.construct_mono(Right, r))
   |> Option.map(Zipper.construct_mono(Left, l));
 
-let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
+let split = (z: t, char: string, idx: int, t: Token.t, ~root): option(t) => {
   /* Current this necessarily creates three tokens; two from splitting
    * the existing one, and a new one. The two splitting tokens may become
    * delimiters of the same time (e.g. `[|]`=>`[<>|]`). In the future it
@@ -159,14 +159,14 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   |> (
     /* overwrite selection */
     switch (Form.duomerges([l, r])) {
-    | Some(_) => insert_duo([l, r])
+    | Some(_) => insert_duo([l, r], ~root)
     | None => insert_monos(l, r)
     }
   )
   |> OptUtil.and_then(expand_neighbors_and_make_new_tile(char));
 };
 
-let opt_regrold = d => Option.map(remold_regrout(d));
+let opt_regrold = (d, ~root) => Option.map(remold_regrout(d, ~root));
 
 let move_into_if_stringlit_or_comment = (char, z) =>
   /* This is special-case logic for advancing the caret to position between the quotes
@@ -188,7 +188,8 @@ let closing_stringlit_or_comment = (char, t) =>
   && Form.is_comment_delim(char);
 
 let go =
-    (char: string, {caret, relatives: {siblings, _}, _} as z: t): option(t) => {
+    (char: string, {caret, relatives: {siblings, _}, _} as z: t, ~root)
+    : option(t) => {
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destruct(z) : z;
   switch (caret, neighbor_monotiles(siblings)) {
@@ -215,8 +216,8 @@ let go =
       ? z
         |> Zipper.set_caret(Inner(d_idx, idx))
         |> Zipper.replace_mono(Right, new_t)
-        |> opt_regrold(Left)
-      : split(z, char, idx, t) |> opt_regrold(Right);
+        |> opt_regrold(Left, ~root)
+      : split(z, char, idx, t, ~root) |> opt_regrold(Right, ~root);
   /* Can't insert inside delimiter */
   | (Inner(_, _), (_, None)) => None
   | (Outer, (_, Some(_))) =>
@@ -232,12 +233,12 @@ let go =
     z
     |> insert_outer(char)
     |> Option.map(Zipper.set_caret(caret))
-    |> opt_regrold(Left)
+    |> opt_regrold(Left, ~root)
     |> Option.map(move_into_if_stringlit_or_comment(char));
   | (Outer, (_, None)) =>
     z
     |> insert_outer(char)
-    |> opt_regrold(Left)
+    |> opt_regrold(Left, ~root)
     |> Option.map(move_into_if_stringlit_or_comment(char))
   };
 };

@@ -13,8 +13,8 @@ let persist = (editor: Editor.t): persistent_state => {
 };
 
 let unpersist = (zipper: persistent_state, ~settings: CoreSettings.t): state => {
-  let zipper = PersistentZipper.unpersist(zipper);
-  Editor.init(zipper, ~read_only=false, ~settings);
+  let zipper = PersistentZipper.unpersist(zipper, ~root=Exp);
+  Editor.init(zipper, ~read_only=false, ~settings, ~sort=Exp);
 };
 
 let serialize = (state: state): string => {

@@ -226,6 +226,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
   | Int(_) => Some(Int |> Typ.temp)
   | Float(_) => Some(Float |> Typ.temp)
   | String(_) => Some(String |> Typ.temp)
+  | Term(d, _) => Some(Term(Any.sort_of(d)) |> Typ.temp)
   | BinOp(Bool(_), d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);

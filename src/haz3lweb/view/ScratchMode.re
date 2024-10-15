@@ -39,6 +39,7 @@ let view =
       ~test_results,
       ~footer?,
       ~highlights,
+      ~sort=Exp,
       editor,
     ),
   ];

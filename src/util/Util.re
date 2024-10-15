@@ -12,6 +12,7 @@ module PairUtil = PairUtil;
 module Result = Result;
 module StateMonad = StateMonad;
 module StringUtil = StringUtil;
+module Tree = Tree;
 module TimeUtil = TimeUtil;
 module TupleUtil = TupleUtil;
 module Web = Web;

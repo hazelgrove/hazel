@@ -1,0 +1,19 @@
+of_Jdmt False .val end;
+of_Jdmt 1 + 1 $> 2 end;
+of_Jdmt () |- () : Triv end;
+of_Jdmt (A, B) |- A /\ B end;
+of_Jdmt X ==> Y, X |- Y end;
+
+of_Prop L(2) <= (Num + (Bool * Unit) -> 1) end;
+of_Prop (False, True) => (Bool * Bool) end;
+of_Prop A \/ B end;
+of_Prop Falsity ==> Truth end;
+
+of_Exp if True then x else y end;
+of_Exp let x = 114 + 514 in x * 2 end;
+of_Exp let i : Num = 1 in i == 2 end;
+of_Exp let (x, y) = (114, 514) in (x + y) < 600 end;
+of_Exp fix f : rec a -> Num + a -> -490 - f(2 > x) end;
+of_Exp fun x -> x .snd < 1 end;
+of_Exp case_sum L(1) of L(x) -> x else R(y) -> 0 end;
+of_Exp R(roll(x .fst))

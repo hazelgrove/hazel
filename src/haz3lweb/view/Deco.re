@@ -480,7 +480,7 @@ module Deco =
 
   let selection = (z: Zipper.t) => div_c("selects", segment_selected(z));
 
-  let always = () => [errors()];
+  let always = () => [errors(), color_highlights()];
 
   let all = z => [
     caret(z),

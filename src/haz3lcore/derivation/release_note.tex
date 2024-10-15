@@ -1,0 +1,128 @@
+\section{Hazel Proof Tree System}\label{release-note}
+
+\subsection{Judgement Syntax}\label{derivation-tree-building-blocks}
+
+Editors within proof trees are expected to fill in a \li{Judgement}. All \li{Judgement}s available in Hazel are shown in Fig. ~\ref{fig:jdmt-syntax}.
+
+\begin{figure}[ht]
+\[\begin{array}{lll}
+\textbf{Written Form} & \textbf{Pronounce} & \textbf{Hazel Form} \\
+\evals{e}{v} & \text{e evaluates to v} & \text{\li{e \\=/ v}} \\
+\val{e} & \text{e is a value} & \text{\li{val e end}} \\
+\hasType{\Gamma}{e}{\tau} & \text{e has type $\tau$ assuming $\Gamma$} &
+\text{\li{gamma |- e : tau}} \\
+\synType{\Gamma}{e}{\tau} & \text{e synthesizes type $\tau$ assuming $\Gamma$} &
+\text{\li{gamma |- e => tau}} \\ 
+\anaType{\Gamma}{e}{\tau} & \text{e analyzes against $\tau$ assuming $\Gamma$} &
+\text{\li{gamma |- e <= tau}} \\
+\isType{\Delta}{\tau} & \text{$\tau$ is a valid type assuming $\Delta$} &
+\text{\li{delta |- valid tau end}} \\
+\ptrue{\Gamma}{p} & \text{$\Gamma$ entails p (in propositional logic)} &
+\text{\li{gamma |- p}} \\
+\end{array}\]
+\vspace{-10px}
+\caption{Syntax of \li{Judgement} in Hazel}
+\label{fig:jdmt-syntax}
+\end{figure}
+
+\begin{itemize}
+\item
+  \li{Proposition}s (the right operand of $\vdash$) can be
+  placed within context $\Gamma$.
+\item
+  You can use following notations/operations for contexts
+  $\Gamma$/$\Delta$:
+  \begin{itemize}
+  \item
+    Empty Context: \text{\li{[]}}
+  \item
+    Context Literal: \text{\li{[p1, p2, ...]}}
+  \item
+    Context Append: \text{\li{gamma_1 @ gamma_2}}
+  \item
+    Context Cons: \text{\li{p :: gamma}}
+  \end{itemize}
+\end{itemize}
+
+\subsection{ALFA Expression Syntax}\label{alfa-expression-forms}
+
+To write an ALFA expression in a derivation tree, refer to Fig. \ref{fig:syntax}. Some ALFA terms have slightly different syntax in Hazel, as detailed in Fig. \ref{fig:hazel-alfa-syntax}
+
+\begin{figure}[ht]
+\[\begin{array}{lll}
+\textbf{Structural Form} & \textbf{Concrete Form} & \textbf{Hazel Form} \\
+\TProd{\tau_1}{\tau_2} & \TProdC{\tau_1}{\tau_2} & \text{\li{tau1 * tau2}} \\
+\TRec{t}{\tau} & \TRecC{t}{\tau} & \text{\li{rec t -> tau}} \\
+\EqS{e_1}{e_2} & e_1 =?\ e_2 & \text{\li{e1 == e2}} \\
+\Let{e_1}{x}{e_2} & \LetC{x}{e_1}{e_2} & \text{\li{let x = e1 in e2}}\\
+\LetAnn{e_1}{\tau}{x}{e_2} & \LetAnnC{x}{\tau}{e_1}{e_2} & \text{\li{let x : tau = e1 in e2}} \\
+\LetPair{e_1}{x}{y}{e_2} & \LetPairC{x}{y}{e_1}{e_2} & \text{\li{let (x, y) = e1 in e2}} \\
+\ApS{e_1}{e_2} & e_1\ e_2 & \text{\li{e1(e2)} (explicit parentheses required)} \\
+\InjL{e} & \InjLC{e} & \text{\li{L(e)} (explicit parentheses required)} \\
+\InjR{e} & \InjRC{e} & \text{\li{R(e)} (explicit parentheses required)} \\
+\Case{e}{x}{e_1}{y}{e_2} & \CaseC{e}{x}{e_1}{y}{e_2} & \text{\li{case e | L(x) => e1 | R(y) => e2 end}} \\
+\end{array}\]
+\vspace{-10px}
+\caption{Syntax of Different Syntax of ALFA in Hazel}
+\label{fig:hazel-alfa-syntax}
+\end{figure}
+
+\subsection{Propositional Logic}\label{propositional-logic}
+
+We defined following forms for propositional logic in Proof Tree:
+
+\begin{figure}[ht]
+\[\begin{array}{ll}
+\textbf{Written Form} & \textbf{Hazel Form} \\
+\pand{A}{B} & \text{\li{A /\\ B}} \\ 
+\por{A}{B} & \text{\li{A \\/ B}} \\ 
+\pimplies{A}{B} & \text{\li{A ==> B}} \\ 
+\pnot{A} & \text{\li{!A}} \\ 
+\ptruth & \text{\li{Truth}} \\ 
+\pfalsity & \text{\li{Falsity}} \\ 
+\end{array}\]
+\vspace{-10px}
+\caption{Syntax of Propositional Logic in Hazel}
+\label{fig:logic-syntax}
+\end{figure}
+
+% \subsection{Define Variable Binding}\label{define-variable-binding}
+
+% You can bind a Judgement, Context, Proposition, ALFA Expression, or ALFA
+% Type using the following syntax: - Judgment: \text{\li{of\_jdmt\ ...\ end}
+% e.g.~\text{\li{of\_jdmt\ {[}{]}\ \textbar{}-\ A\ /\textbackslash{}\ B\ end}
+% - Context: \text{\li{of\_ctx\ ...\ end}
+% e.g.~\text{\li{of\_ctx\ {[}x\ :\ Num,\ y:\ Bool{]}\ end} - Proposition:
+% \text{\li{of\_prop\ ...\ end} e.g.~\text{\li{of\_prop\ valid\ t\ end\ end} -
+% ALFA Expression: \text{\li{of\_alfa\_exp\ ...\ end}
+% e.g.~\text{\li{of\_alfa\_exp\ let\ x\ =\ 1\ in\ x\ +\ 2\ end} - ALFA Type:
+% \text{\li{of\_alfa\_typ\ ...\ end}
+% e.g.~\text{\li{of\_alfa\_typ\ Num\ -\textgreater{}\ Bool\ end}
+
+% \textbf{Complete example}:
+
+% \begin{verbatim}
+% let ctx_a = of_ctx (a : Num)::[] end in
+% let tb = of_alfa_typ (Num -> Num) -> Num end in
+% let ctx_ab = of_ctx (b : {tb})::{ctx_a} end in 
+
+% /* In derivation tree
+%  *
+%  *    ____________________(T-Var)
+%  *    {ctx_ab} |- b : {tb}
+%  */
+% \end{verbatim}
+
+% \subsection{Rules Involving Calculative
+% Premises}\label{rules-involving-calculative-premises}
+
+% Some rules involve premises that is doing tests rather than doing
+% pattern matting on the syntax.
+
+% e.g - 1st premise of Assumption: p ∈ \gamma - 3rd premise of E-Times: n1 × n2
+% = n - 2nd premise of E-Let: {[}v1/x{]}e2 = e2'
+
+% In Hazel, you do not need to explicitly write out these kind of
+% premises. Because Hazel will do the check for you. If you are not sure
+% which premises can be omitted, click on the rule label and check the
+% sidebar infomation.

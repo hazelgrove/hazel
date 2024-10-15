@@ -69,6 +69,7 @@ type t =
   | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportAll(option(string))
   | SwitchEditor(Exercise.pos) //exercisemode only
+  | MapExercise(Exercise.state => Exercise.state) //exercisemode only
   | SwitchDocumentationSlide(string) //examplemode only
   // editors: scratchmode only
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
@@ -139,6 +140,7 @@ let is_edit: t => bool =
   | TAB => true
   | UpdateResult(_)
   | SwitchEditor(_)
+  | MapExercise(_)
   | Export(_)
   | Save
   | UpdateExplainThisModel(_)
@@ -189,6 +191,7 @@ let reevaluate_post_update: t => bool =
   | SwitchEditor(_)
   | DebugConsole(_)
   | Benchmark(_) => false
+  | MapExercise(_)
   | TAB
   | StepperAction(_, StepForward(_) | StepBackward)
   | ToggleStepper(_)
@@ -233,6 +236,7 @@ let should_scroll_to_caret =
   | FinishImportAll(_)
   | ResetCurrentEditor
   | SwitchEditor(_)
+  | MapExercise(_)
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | Reset

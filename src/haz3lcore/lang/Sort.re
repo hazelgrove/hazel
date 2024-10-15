@@ -1,5 +1,77 @@
+module DrvSort = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Jdmt
+    | Ctx
+    | Prop
+    | Exp
+    | Rul
+    | Pat
+    | Typ
+    | TPat;
+
+  let show =
+    fun
+    | Jdmt => "Jdmt"
+    | Prop => "Prop"
+    | Ctx => "Ctx"
+    | Exp => "ALFA_Exp"
+    | Rul => "ALFA_Rul"
+    | Pat => "ALFA_Pat"
+    | Typ => "ALFA_Typ"
+    | TPat => "ALFA_TPat";
+
+  let class_of =
+    fun
+    | Jdmt => "Drv"
+    | Ctx => "Drv"
+    | Prop => "Exp"
+    | Exp => "Exp"
+    | Rul => "Rul"
+    | Pat => "Pat"
+    | Typ => "Typ"
+    | TPat => "TPat";
+
+  let all = [Jdmt, Ctx, Prop, Exp, Pat, Typ, TPat];
+
+  let to_string =
+    fun
+    | Jdmt => "Jdmt"
+    | Ctx => "Ctx"
+    | Prop => "Prop"
+    | Exp => "ALFA_Exp"
+    | Rul => "ALFA_Rul"
+    | Pat => "ALFA_Pat"
+    | Typ => "ALFA_Typ"
+    | TPat => "ALFA_TPat";
+
+  let to_string_verbose =
+    fun
+    | Jdmt => "judgement"
+    | Ctx => "context"
+    | Prop => "proposition"
+    | Exp => "ALFA expression"
+    | Rul => "ALFA rule"
+    | Pat => "ALFA pattern"
+    | Typ => "ALFA type"
+    | TPat => "ALFA type pattern";
+
+  let detail_sort: list(string) => t =
+    fun
+    | ["val", "end"] => Jdmt
+    | ["|-"] => Jdmt
+    | ["\\=/"] => Jdmt
+    | ["[]"] => Ctx
+    | ["[", _] => Ctx
+    | [",", ",", _] => Ctx //TODO(zhiyao): not sufficient
+    | ["@"] => Ctx
+    | ["::"] => Ctx
+    | _ => Exp;
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
+  | Drv(DrvSort.t)
   | Any
   | Nul
   | Pat
@@ -8,9 +80,21 @@ type t =
   | Rul
   | Exp;
 
+let show =
+  fun
+  | Drv(s) => DrvSort.show(s)
+  | _ as s => show(s);
+
+let class_of =
+  fun
+  | Drv(s) => DrvSort.class_of(s)
+  | _ as s => show(s);
+
 let root = Exp;
 
-let all = [Any, Nul, Pat, Typ, Rul, Exp, TPat];
+let all =
+  (DrvSort.all |> List.map(s => Drv(s)))
+  @ [Any, Nul, Pat, Typ, Rul, Exp, TPat];
 
 let consistent = (s, s') =>
   switch (s, s') {
@@ -23,6 +107,7 @@ let consistent = (s, s') =>
 
 let to_string =
   fun
+  | Drv(s) => DrvSort.class_of(s)
   | Any => "Any"
   | Nul => "Nul"
   | Pat => "Pat"
@@ -33,6 +118,7 @@ let to_string =
 
 let to_string_verbose =
   fun
+  | Drv(s) => DrvSort.to_string_verbose(s)
   | Any => "any"
   | Nul => "null"
   | Pat => "pattern"

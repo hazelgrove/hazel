@@ -53,6 +53,7 @@ let is_nary =
 let is_tuple_exp = is_nary(Any.is_exp, ",");
 let is_tuple_pat = is_nary(Any.is_pat, ",");
 let is_tuple_typ = is_nary(Any.is_typ, ",");
+let is_tuple_prop = is_nary(Any.is_alfa_exp, ",");
 let is_typ_bsum = is_nary(Any.is_typ, "+");
 
 let is_grout = tiles =>
@@ -73,6 +74,27 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t)) => {
     |> List.map(
          fun
          | Exp(clause) => Some(clause)
+         | _ => None,
+       )
+    |> OptUtil.sequence;
+  Aba.mk(ps, clauses);
+};
+let is_alfa_rules =
+    ((ts, kids): tiles): option(Aba.t(Drv.Pat.t, Drv.Exp.t)) => {
+  open OptUtil.Syntax;
+  let+ ps =
+    ts
+    |> List.map(
+         fun
+         | (_, (["|", "=>"], [Any.Drv(Pat(p))])) => Some(p)
+         | _ => None,
+       )
+    |> OptUtil.sequence
+  and+ clauses =
+    kids
+    |> List.map(
+         fun
+         | Drv(Exp(clause)) => Some(clause)
          | _ => None,
        )
     |> OptUtil.sequence;
@@ -141,6 +163,19 @@ let mk_bad = (ctr, ids, value) => {
 
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   switch (s) {
+  | Drv(drv) =>
+    Drv(
+      switch (drv) {
+      | Jdmt
+      | Ctx
+      | Prop => failwith("unexpected drv sort")
+      | Exp => Exp(alfa_exp(unsorted(skel, seg)))
+      | Rul => Rul(alfa_rul(unsorted(skel, seg)))
+      | Pat => Pat(alfa_pat(unsorted(skel, seg)))
+      | Typ => Typ(alfa_typ(unsorted(skel, seg)))
+      | TPat => TPat(alfa_tpat(unsorted(skel, seg)))
+      },
+    )
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
   | Typ => Typ(typ(unsorted(skel, seg)))
@@ -164,11 +199,205 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
       }
     };
   }
+and alfa_exp = unsorted => {
+  let (term, inner_ids) = alfa_exp_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  return(e => Drv(Exp(e)), ids, {ids, copied: false, term});
+}
+and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
+  let ret = (tm: Drv.Exp.term) => (tm, []);
+  let hole = unsorted => Drv.Exp.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(([(_id, t)], [])) as tm =>
+    switch (t) {
+    | ([t], []) =>
+      switch (t) {
+      | "Truth" => ret(Truth)
+      | "Falsity" => ret(Falsity)
+      | "True" => ret(True)
+      | "False" => ret(False)
+      | "L" => ret(InjL)
+      | "R" => ret(InjR)
+      | "roll" => ret(Roll)
+      | "unroll" => ret(Unroll)
+      | _ when Form.is_empty_list(t) => ret(Ctx([]))
+      | _ when Form.is_empty_tuple(t) => ret(Triv)
+      | _ when Form.is_int(t) => ret(NumLit(int_of_string(t)))
+      | _ when Form.is_typ_var(t) => ret(Var(t))
+      | _ => ret(hole(tm))
+      }
+    | (["val", "end"], [Drv(Exp(e))]) => ret(Val(e))
+    | (["valid", "end"], [Drv(Typ(t))]) => ret(Type(t))
+    | (["[", "]"], [Drv(Exp(body))]) =>
+      switch (body) {
+      | {ids, copied: false, term: Tuple(es)} => (Ctx(es), ids)
+      | term => ret(Ctx([term]))
+      }
+    | (["(", ")"], [Drv(Exp(body))]) => ret(Parens(body))
+    | (["{", "}"], [Pat(var)]) => ret(Abbr(var))
+    | (["case", "end"], [Drv(Rul({ids, term: Rules(scrut, rules), _}))]) => (
+        Case(scrut, rules),
+        ids,
+      )
+    | _ => ret(hole(tm))
+    }
+  | Bin(Drv(Exp(l)), ([(_id, ([t], []))], []), Drv(Exp(r))) as tm =>
+    switch (t) {
+    | "\\=/" => ret(Eval(l, r))
+    | "|-" => ret(Entail(l, r))
+    | "," => ret(Tuple([l, r]))
+    | "::" => ret(Cons(l, r))
+    | "@" => ret(Concat(l, r))
+    | "/\\" => ret(And(l, r))
+    | "\\/" => ret(Or(l, r))
+    | "==>" => ret(Impl(l, r))
+    | "+" => ret(Plus(l, r))
+    | "-" => ret(Minus(l, r))
+    | "*" => ret(Times(l, r))
+    | "==" => ret(Eq(l, r))
+    | "<" => ret(Lt(l, r))
+    | ">" => ret(Gt(l, r))
+    | _ => ret(hole(tm))
+    }
+  | Bin(Drv(Exp(l)), tiles, Drv(Exp(r))) as tm =>
+    switch (is_tuple_prop(tiles)) {
+    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | None => ret(hole(tm))
+    }
+  | Bin(Drv(Exp(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) as tm =>
+    switch (t) {
+    | ":" => ret(HasType(l, r))
+    | "=>" => ret(Syn(l, r))
+    | "<=" => ret(Ana(l, r))
+    | _ => ret(hole(tm))
+    }
+  | Pre(([(_id, t)], []), Drv(Exp(r))) as tm =>
+    switch (t) {
+    | (["-"], []) => ret(Neg(r))
+    | (["!"], []) => ret(Impl(r, Falsity |> Drv.Exp.fresh))
+    | (["|-"], []) => ret(Entail(Ctx([]) |> Drv.Exp.fresh, r))
+    | (["if", "then", "else"], [Drv(Exp(cond)), Drv(Exp(conseq))]) =>
+      ret(If(cond, conseq, r))
+    | (["let", "=", "in"], [Drv(Pat(pat)), Drv(Exp(def))]) =>
+      ret(Let(pat, def, r))
+    | (["fix", "->"], [Drv(Pat(pat))]) => ret(Fix(pat, r))
+    | (["fun", "->"], [Drv(Pat(pat))]) => ret(Fun(pat, r))
+    | _ => ret(hole(tm))
+    }
+  | Post(Drv(Exp(l)), ([(_id, t)], [])) as tm =>
+    switch (t) {
+    | ([".fst"], []) => ret(PrjL(l))
+    | ([".snd"], []) => ret(PrjR(l))
+    | (["(", ")"], [Drv(Exp(r))]) => ret(Ap(l, r))
+    | _ => ret(hole(tm))
+    }
+  | _ as tm => ret(hole(tm));
+}
+and alfa_rul = (unsorted: unsorted) => {
+  let hole = Drv.Rul.hole(kids_of_unsorted(unsorted));
+  switch (alfa_exp(unsorted)) {
+  | {term: Hole(MultiHole(_)), _} =>
+    switch (unsorted) {
+    | Bin(Drv(Exp(scrut)), tiles, Drv(Exp(last_clause))) =>
+      switch (is_alfa_rules(tiles)) {
+      | Some((ps, leading_clauses)) => {
+          ids: ids(unsorted),
+          term:
+            Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
+          copied: false,
+        }
+      | None => {ids: ids(unsorted), term: hole, copied: false}
+      }
+    | _ => {ids: ids(unsorted), term: hole, copied: false}
+    }
+  | _ => {ids: ids(unsorted), term: hole, copied: false}
+  };
+}
+and alfa_pat = unsorted => {
+  let (term, inner_ids) = alfa_pat_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  return(p => Drv(Pat(p)), ids, {ids, term, copied: false});
+}
+and alfa_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
+  let ret = (tm: Drv.Pat.term) => (tm, []);
+  let hole = unsorted => Drv.Pat.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(([(_id, ([t], []))], [])) as tm =>
+    switch (t) {
+    | "L" => ret(InjL)
+    | "R" => ret(InjR)
+    | _ when Form.is_typ_var(t) => ret(Var(t))
+    | _ => ret(hole(tm))
+    }
+  | Op(([(_id, (["(", ")"], [Drv(Pat(body))]))], [])) =>
+    ret(Parens(body))
+  | Post(Drv(Pat(l)), ([(_id, (["(", ")"], [Drv(Pat(r))]))], [])) =>
+    ret(Ap(l, r))
+  | Bin(Drv(Pat(l)), ([(_id, ([":"], []))], []), Drv(Typ(r))) =>
+    ret(Cast(l, r))
+  | Bin(Drv(Pat(l)), ([(_id, ([","], []))], []), Drv(Pat(r))) =>
+    ret(Pair(l, r))
+  | _ as tm => ret(hole(tm));
+}
+
+and alfa_typ = unsorted => {
+  let (term, inner_ids) = alfa_typ_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  return(ty => Drv(Typ(ty)), ids, {ids, term, copied: false});
+}
+and alfa_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
+  let ret = (tm: Drv.Typ.term) => (tm, []);
+  let hole = unsorted => Drv.Typ.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(([(_id, ([t], []))], [])) as tm =>
+    switch (t) {
+    | "Num" => ret(Num)
+    | "Bool" => ret(Bool)
+    | "1"
+    | "Unit" => ret(Unit)
+    | _ when Form.is_typ_var(t) => ret(Var(t))
+    | _ => ret(hole(tm))
+    }
+  | Op(([(_id, (["(", ")"], [Drv(Typ(body))]))], [])) =>
+    ret(Parens(body))
+  | Op(([(_id, (["{", "}"], [Pat(var)]))], [])) => ret(Abbr(var))
+  | Pre(([(_id, (["rec", "->"], [Drv(TPat(p))]))], []), Drv(Typ(t))) =>
+    ret(Rec(p, t))
+  | Bin(Drv(Typ(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) as tm =>
+    switch (t) {
+    | "->" => ret(Arrow(l, r))
+    | "*" => ret(Prod(l, r))
+    | "+" => ret(Sum(l, r))
+    | _ => ret(hole(tm))
+    }
+  | _ as tm => ret(hole(tm));
+}
+
+and alfa_tpat = unsorted => {
+  let (term, inner_ids) = alfa_tpat_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  return(tpat => Drv(TPat(tpat)), ids, {ids, term, copied: false});
+}
+and alfa_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
+  let ret = (tm: Drv.TPat.term) => (tm, []);
+  let hole = unsorted => Drv.TPat.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(([(_id, ([t], []))], [])) when Form.is_typ_var(t) => ret(Var(t))
+  | _ as tm => ret(hole(tm));
+}
 
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
-  let ids = ids(unsorted) @ inner_ids;
-  return(e => Exp(e), ids, {ids, copied: false, term});
+  switch (term) {
+  | MultiHole([Drv(_), ..._]) =>
+    let (term, inner_ids) = alfa_exp_term(unsorted);
+    let ids = ids(unsorted) @ inner_ids;
+    let exp = return(e => Drv(Exp(e)), ids, {ids, copied: false, term});
+    TermBase.Exp.Term(Drv(Exp(exp)), Drv(Jdmt)) |> IdTagged.fresh;
+  | _ =>
+    let ids = ids(unsorted) @ inner_ids;
+    return(e => Exp(e), ids, {ids, copied: false, term});
+  };
 }
 and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   let ret = (tm: UExp.term) => (tm, []);
@@ -202,6 +431,22 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           Match(scrut, rules),
           ids,
         )
+      // | (["of_typ", "end"], [Drv(Typ(ty))]) => ret(Term(Drv(Typ(ty))))
+      // | (["of_pat", "end"], [Drv(Pat(p))]) => ret(Term(Drv(Pat(p))))
+      // | (["of_tpat", "end"], [Drv(TPat(tp))]) =>
+      //   ret(Term(Drv(TPat(tp))))
+      // | (["of_ctxt", "end"], [Drv(Exp(ctx))]) =>
+      //   ret(Term(Drv(Exp(ctx))))
+      | (["of_jdmt", "end"], [Drv(Exp(j))]) =>
+        ret(Term(Drv(Exp(j)), Drv(Jdmt)))
+      | (["of_ctx", "end"], [Drv(Exp(c))]) =>
+        ret(Term(Drv(Exp(c)), Drv(Ctx)))
+      | (["of_prop", "end"], [Drv(Exp(p))]) =>
+        ret(Term(Drv(Exp(p)), Drv(Prop)))
+      | (["of_alfa_exp", "end"], [Drv(Exp(e))]) =>
+        ret(Term(Drv(Exp(e)), Drv(Exp)))
+      | (["of_alfa_typ", "end"], [Drv(Typ(t))]) =>
+        ret(Term(Drv(Typ(t)), Drv(Typ)))
       | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))

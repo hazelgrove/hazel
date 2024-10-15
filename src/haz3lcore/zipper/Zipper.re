@@ -46,8 +46,49 @@ let delete_parent = (z: t): t => {
   relatives: Relatives.delete_parent(z.relatives),
 };
 
-let zip = (z: t): Segment.t =>
-  Relatives.zip(~sel=z.selection.content, z.relatives);
+// let drv_wrap_zip = (z: t): t => {
+//   let siblings = z.relatives.siblings |> fst;
+//   let fst_tile =
+//     List.fold_left(
+//       (acc, tile) =>
+//         switch (acc, tile: Piece.t) {
+//         | (Some(_), _) => acc
+//         | (None, Tile(t)) => Some(t)
+//         | _ => None
+//         },
+//       None,
+//       siblings,
+//     );
+//   switch (fst_tile) {
+//   | Some({label: [fst_label, _], _})
+//       when List.mem(fst_label, ["val", "eval", "entail"]) =>
+//     let shards = [0, 1];
+//     let children = [siblings];
+//     let mold: Mold.t = {
+//       out: Exp,
+//       in_: [Drv(Jdmt)],
+//       nibs: ({shape: Convex, sort: Exp}, {shape: Convex, sort: Exp}),
+//     };
+//     let label: Label.t = ["of_Jdmt", "end"];
+//     let tile = Piece.Tile({id: Id.mk(), label, mold, shards, children});
+//     {
+//       ...z,
+//       relatives: {
+//         ...z.relatives,
+//         siblings: ([tile], z.relatives.siblings |> snd),
+//       },
+//     };
+//   | _ => z
+//   };
+// };
+
+let zip = (z: t): Segment.t => {
+  // let z = drv_wrap_zip(z);
+  Relatives.zip(
+    ~sel=z.selection.content,
+    z.relatives,
+  );
+};
 
 let unzip = (seg: Segment.t): t => {
   selection: Selection.mk([]),
@@ -77,12 +118,13 @@ let regrout = (d: Direction.t, z: t): t => {
   {...z, relatives};
 };
 
-let remold = (z: t): t => {
+let remold = (~root, z: t): t => {
   assert(Selection.is_empty(z.selection));
-  {...z, relatives: Relatives.remold(z.relatives)};
+  {...z, relatives: Relatives.remold(z.relatives, ~root)};
 };
 
-let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
+let remold_regrout = (d: Direction.t, z: t, ~root): t =>
+  z |> remold(~root) |> regrout(d);
 
 let clear_unparsed_buffer = (z: t) =>
   switch (z.selection.mode) {

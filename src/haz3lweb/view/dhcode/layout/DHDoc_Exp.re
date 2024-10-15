@@ -53,6 +53,7 @@ let rec precedence = (~show_function_bodies, ~show_casts: bool, d: DHExp.t) => {
   | Test(_)
   | Float(_)
   | String(_)
+  | Term(_)
   | ListLit(_)
   | EmptyHole
   | Constructor(_)
@@ -67,7 +68,7 @@ let rec precedence = (~show_function_bodies, ~show_casts: bool, d: DHExp.t) => {
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_Ap : precedence'(d1)
   | DeferredAp(_)
-  | Ap(_)
+  | Ap(_) => DHDoc_common.precedence_Ap
   | TypAp(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
@@ -319,6 +320,7 @@ let mk =
       | Int(n) => DHDoc_common.mk_IntLit(n)
       | Float(f) => DHDoc_common.mk_FloatLit(f)
       | String(s) => DHDoc_common.mk_StringLit(s)
+      | Term(term, _) => DHDoc_common.mk_Term(term)
       | Undefined => DHDoc_common.mk_Undefined()
       | Test(d) => DHDoc_common.mk_Test(go'(d))
       | Deferral(_) => text("_")
@@ -476,6 +478,13 @@ let mk =
           Doc.text(InvalidOperationError.err_msg(err))
           |> annot(DHAnnot.OperationError(err));
         hcats([d_doc, decoration]);
+      // TODO(zhiyao): InvalidDerivation Disabling for now
+      // | InvalidDerivation(u, err) =>
+      //   let d_doc = go'(u, InvalidDerivation);
+      //   let decoration =
+      //     Doc.text(DerivationError.VerErr.repr(err))
+      //     |> annot(DHAnnot.DerivationError(err));
+      //   hcats([d_doc, decoration]);
       | If(c, d1, d2) =>
         let c_doc = go_formattable(c);
         let d1_doc = go_formattable(d1);

@@ -193,8 +193,8 @@ module Documentation = {
   };
 
   let unpersist = ((name, zipper), ~settings: CoreSettings.t) => {
-    let zipper = PersistentZipper.unpersist(zipper);
-    (name, Editor.init(zipper, ~read_only=false, ~settings));
+    let zipper = PersistentZipper.unpersist(zipper, ~root=Exp);
+    (name, Editor.init(zipper, ~read_only=false, ~settings, ~sort=Exp));
   };
 
   let to_persistent = ((string, slides, results)): persistent => (
@@ -265,7 +265,7 @@ module Exercise = {
   };
 
   let keystring_of = p => {
-    key_of(p) |> keystring_of_key;
+    key(p) |> keystring_of_key;
   };
 
   let key_of_keystring = keystring => {
@@ -279,7 +279,8 @@ module Exercise = {
   let save_exercise = (exercise, ~instructor_mode): unit => {
     let key = Exercise.key_of_state(exercise);
     let keystring = keystring_of_key(key);
-    let value = Exercise.serialize_exercise(exercise, ~instructor_mode);
+    ignore(instructor_mode);
+    let value = Exercise.serialize_exercise(exercise);
     JsUtil.set_localstore(keystring, value);
   };
 
@@ -302,9 +303,9 @@ module Exercise = {
         try(
           Exercise.deserialize_exercise(
             data,
-            ~spec,
             ~instructor_mode,
             ~settings,
+            ~spec,
           )
         ) {
         | _ => init_exercise(spec, ~instructor_mode, ~settings)
@@ -351,6 +352,7 @@ module Exercise = {
             try(
               deserialize_exercise(data, ~spec, ~instructor_mode, ~settings)
             ) {
+            // | err => raise(err)
             | _ => init_exercise(spec, ~instructor_mode, ~settings)
             };
           (n, specs, exercise);
@@ -386,10 +388,10 @@ module Exercise = {
       exercise_data:
         specs
         |> List.map(spec => {
-             let key = Exercise.key_of(spec);
+             let key = Exercise.key(spec);
              let exercise =
                load_exercise(key, spec, ~instructor_mode, ~settings)
-               |> Exercise.persistent_state_of_state(~instructor_mode);
+               |> Exercise.persistent_state_of_state;
              (key, exercise);
            }),
     };

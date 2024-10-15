@@ -8,6 +8,11 @@ let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
     ((label, is_in_buffer, sort, is_consistent, is_complete, indent, i)) => {
+      let sort =
+        switch (sort) {
+        | Sort.Drv(Exp) => Sort.Drv(Sort.DrvSort.detail_sort(label))
+        | _ => sort
+        };
       let cls =
         switch (label) {
         | _ when is_in_buffer => "in-buffer"

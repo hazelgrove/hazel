@@ -62,7 +62,6 @@ let app =
         apply(~schedule_action=x => schedule_event(inject(x))),
     ~default_model=Model.load(Model.blank),
   );
-
 /* This subcomponent is used to run an effect once when the app starts up,
    After the first draw */
 let on_startup = effect => {

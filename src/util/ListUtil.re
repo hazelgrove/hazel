@@ -526,3 +526,28 @@ let rec unzip = (lst: list(('a, 'b))): (list('a), list('b)) => {
     ([a, ..._as], [b, ...bs]);
   };
 };
+
+let rec insert = (x, xs, i) =>
+  switch (xs, i) {
+  | (_, 0) => [x, ...xs]
+  | ([hd, ...tl], _) => [hd, ...insert(x, tl, i - 1)]
+  | ([], _) => failwith("ListUtil.insert")
+  };
+
+let rec remove = (xs, i) =>
+  switch (xs, i) {
+  | ([_, ...tl], 0) => tl
+  | ([hd, ...tl], _) => [hd, ...remove(tl, i - 1)]
+  | ([], _) => failwith("ListUtil.remove")
+  };
+
+let map_first = f =>
+  fun
+  | [] => []
+  | [x, ...xs] => [f(x), ...xs];
+
+let rec map_last = f =>
+  fun
+  | [] => []
+  | [x] => [f(x)]
+  | [x, ...xs] => [x, ...map_last(f, xs)];

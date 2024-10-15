@@ -238,6 +238,7 @@ let on_startup =
       schedule_action(UpdateAction.SetMeta(FontMetrics(fm)))
     );
   NinjaKeys.initialize(NinjaKeys.options(schedule_action));
+  NinjaKeysRules.initialize(NinjaKeysRules.options(schedule_action));
   JsUtil.focus_clipboard_shim();
   /* initialize state. */
   /* Initial evaluation on a worker */
@@ -297,17 +298,57 @@ let switch_scratch_slide =
     Some(Exercises(idx, specs, exercise));
   };
 
-let switch_exercise_editor =
-    (editors: Editors.t, ~pos, ~instructor_mode): option(Editors.t) =>
+let exercise_pos_check: Exercise.state => Exercise.state =
+  state => {
+    ...state,
+    pos:
+      switch (state.model, state.pos) {
+      | (Proof({trees, _}), Proof(Trees(i, pos))) =>
+        let len = List.length(trees);
+        if (i < len) {
+          let tree = List.nth(trees, i);
+          let farthest = Tree.farthest(tree, pos);
+          switch (Tree.nth(tree, farthest)) {
+          | Abbr(_) => Proof(Prelude)
+          | Just(_) => Proof(Trees(i, farthest))
+          };
+        } else if (len > 0) {
+          Proof(Trees(len - 1, Value));
+        } else {
+          Proof(Prelude);
+        };
+      | _ => state.pos
+      },
+  };
+
+let map_exercise =
+    (editors: Editors.t, ~f: Exercise.state => Exercise.state)
+    : option(Editors.t) =>
   switch (editors) {
   | Documentation(_)
   | Scratch(_) => None
   | Exercises(m, specs, exercise) =>
-    let exercise = Exercise.switch_editor(~pos, instructor_mode, ~exercise);
-    //Note: now saving after each edit (delayed by 1 second) so no need to save here
-    //Store.Exercise.save_exercise(exercise, ~instructor_mode);
+    let exercise = f(exercise) |> exercise_pos_check;
     Some(Exercises(m, specs, exercise));
   };
+
+// let switch_exercise_editor =
+//     (editors: Editors.t, ~pos, ~instructor_mode): option(Editors.t) =>
+//   switch (editors) {
+//   | Documentation(_)
+//   | Scratch(_) => None
+//   | Exercises(m, specs, state) =>
+//     let state = Exercise.switch_editor(~pos, instructor_mode, ~state);
+//     //Note: now saving after each edit (delayed by 1 second) so no need to save here
+//     //Store.Exercise.save_exercise(exercise, ~instructor_mode);
+//     Some(Exercises(m, specs, state));
+//   };
+
+let switch_exercise_editor =
+    (editors: Editors.t, ~pos, ~instructor_mode): option(Editors.t) =>
+  map_exercise(editors, ~f=state =>
+    Exercise.switch_editor(~pos, instructor_mode, ~state)
+  );
 
 /* This action saves a file which serializes all current editor
    settings, including the states of all Scratch and Example slides.
@@ -345,8 +386,8 @@ let export_scratch_slide = (editor: Editor.t): unit => {
 };
 
 let export_exercise_module = (exercise: Exercise.state): unit => {
-  let module_name = exercise.eds.module_name;
-  let filename = exercise.eds.module_name ++ ".ml";
+  let module_name = exercise.header.module_name;
+  let filename = exercise.header.module_name ++ ".ml";
   let content_type = "text/plain";
   let contents = Exercise.export_module(module_name, exercise);
   JsUtil.download_string_file(~filename, ~content_type, ~contents);
@@ -360,8 +401,8 @@ let export_submission = (~instructor_mode) =>
 
 let export_transitionary = (exercise: Exercise.state) => {
   // .ml files because show uses OCaml syntax (dune handles seamlessly)
-  let module_name = exercise.eds.module_name;
-  let filename = exercise.eds.module_name ++ ".ml";
+  let module_name = exercise.header.module_name;
+  let filename = exercise.header.module_name ++ ".ml";
   let content_type = "text/plain";
   let contents = Exercise.export_transitionary_module(module_name, exercise);
   JsUtil.download_string_file(~filename, ~content_type, ~contents);
@@ -369,8 +410,8 @@ let export_transitionary = (exercise: Exercise.state) => {
 
 let export_instructor_grading_report = (exercise: Exercise.state) => {
   // .ml files because show uses OCaml syntax (dune handles seamlessly)
-  let module_name = exercise.eds.module_name;
-  let filename = exercise.eds.module_name ++ "_grading.ml";
+  let module_name = exercise.header.module_name;
+  let filename = exercise.header.module_name ++ "_grading.ml";
   let content_type = "text/plain";
   let contents = Exercise.export_grading_module(module_name, exercise);
   JsUtil.download_string_file(~filename, ~content_type, ~contents);
@@ -502,6 +543,11 @@ let apply = (model: Model.t, update: t, ~schedule_action): Result.t(Model.t) => 
       switch (Editors.switch_example_slide(model.editors, name)) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
+      }
+    | MapExercise(f) =>
+      switch (map_exercise(model.editors, ~f)) {
+      | None => Error(FailedToSwitch)
+      | Some(editors) => Ok({...model, editors})
       }
     | SwitchEditor(pos) =>
       let instructor_mode = model.settings.instructor_mode;

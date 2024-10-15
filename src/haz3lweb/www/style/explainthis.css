@@ -179,3 +179,27 @@
 .highlight-code-c {
   fill: var(--highlight-c);
 }
+
+.highlight-d {
+  background-color: var(--highlight-d);
+}
+
+.highlight-code-d {
+  fill: var(--highlight-d);
+}
+
+.highlight-e {
+  background-color: var(--highlight-e);
+}
+
+.highlight-code-e {
+  fill: var(--highlight-e);
+}
+
+.highlight-f {
+  background-color: var(--highlight-f);
+}
+
+.highlight-code-f {
+  fill: var(--highlight-f);
+}

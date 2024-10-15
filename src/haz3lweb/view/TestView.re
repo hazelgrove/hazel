@@ -52,7 +52,9 @@ let test_report_view =
   div(
     ~attrs=[
       Attr.class_("test-report"),
-      Attr.on_click(jump_to_test(~inject, YourTestsTesting, id)),
+      Attr.on_click(
+        jump_to_test(~inject, Programming(YourTests(Testing)), id),
+      ),
     ],
     [
       div(
@@ -155,7 +157,7 @@ let test_summary = (~inject, ~test_results: option(TestResults.t)) => {
       | None => [Node.text("No test results available.")]
       | Some(test_results) => [
           test_text(test_results),
-          test_bar(~inject, ~test_results, YourTestsTesting),
+          test_bar(~inject, ~test_results, Programming(YourTests(Testing))),
         ]
       };
     },

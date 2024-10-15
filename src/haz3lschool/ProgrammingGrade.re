@@ -3,6 +3,7 @@ open Util;
 
 module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
   open Exercise.F(ExerciseEnv);
+  open ProgrammingCore;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type percentage = float;
@@ -23,12 +24,10 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
       provided: int,
     };
 
-    let mk = (eds: eds, test_results: option(TestResults.t)) => {
-      {
-        test_results,
-        required: eds.your_tests.required,
-        provided: eds.your_tests.provided,
-      };
+    let mk = (eds: model(Editor.t), test_results: option(TestResults.t)) => {
+      test_results,
+      required: eds.your_tests.required,
+      provided: eds.your_tests.provided,
     };
 
     let percentage = (report: t): percentage => {
@@ -252,7 +251,8 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
       impl_grading_report: ImplGradingReport.t,
     };
 
-    let mk = (eds: eds, ~stitched_dynamics: stitched(DynamicsItem.t)) => {
+    let mk =
+        (eds: model(Editor.t), ~stitched_dynamics: stitched(DynamicsItem.t)) => {
       point_distribution: eds.point_distribution,
       test_validation_report:
         TestValidationReport.mk(

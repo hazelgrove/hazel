@@ -21,6 +21,10 @@ let precedence_And = P.and_;
 let precedence_Or = P.or_;
 let precedence_Comma = P.comma;
 let precedence_max = P.min;
+let precedence_PropAnd = P.and_;
+let precedence_PropOr = P.or_;
+let precedence_PropImplies = P.eqs;
+let precedence_Entail = P.fun_;
 
 let pad_child =
     (
@@ -98,6 +102,8 @@ let mk_IntLit = n => Doc.text(string_of_int(n));
 
 let mk_StringLit = s => Doc.text(Form.string_quote(s));
 
+let mk_Term = t => Doc.text(Any.show(t));
+
 let mk_Test = t => Doc.(hcats([text("Test"), t, text("End")]));
 
 let mk_FloatLit = (f: float) =>
@@ -114,7 +120,7 @@ let mk_ConstructorLit = Doc.text;
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
 let mk_ListConcat = (hd, tl) => Doc.(hcats([hd, text("@"), tl]));
-
+let mk_Entail = (ctx, prop) => Doc.(hcats([ctx, text(" ⊢ "), prop]));
 let mk_comma_seq = (ld, rd, l) => {
   let rec mk_comma_seq_inner = l => {
     switch (l) {

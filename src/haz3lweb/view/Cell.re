@@ -262,7 +262,7 @@ let editor_view =
       ~footer: option(list(Node.t))=?,
       ~highlights: option(ColorSteps.colorMap),
       ~overlayer: option(Node.t)=None,
-      ~sort=Sort.root,
+      ~sort,
       ~override_statics: option(Editor.CachedStatics.t)=?,
       editor: Editor.t,
     ) => {
@@ -382,7 +382,7 @@ let locked_no_statics =
     ~sort,
     segment
     |> Zipper.unzip
-    |> Editor.init(~settings=CoreSettings.off, ~read_only=true),
+    |> Editor.init(~settings=CoreSettings.off, ~read_only=true, ~sort),
   ),
 ];
 
@@ -396,11 +396,12 @@ let locked =
       ~inject,
       ~target_id,
       ~segment: Segment.t,
+      ~sort,
     ) => {
   let editor =
     segment
     |> Zipper.unzip
-    |> Editor.init(~settings=settings.core, ~read_only=true);
+    |> Editor.init(~settings=settings.core, ~read_only=true, ~sort);
   let statics = editor.state.meta.statics;
   let elab =
     settings.core.elaborate || settings.core.dynamics
@@ -440,6 +441,7 @@ let locked =
     ~target_id,
     ~footer,
     ~test_results=ModelResult.test_results(result),
+    ~sort,
     editor,
   );
 };

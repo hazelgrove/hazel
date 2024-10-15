@@ -97,6 +97,10 @@ let fgt = () => mk_monotile(Form.get("fgt"));
 let fgte = () => mk_monotile(Form.get("fgte"));
 let sequals = () => mk_monotile(Form.get("string_equals"));
 let sconcat = () => mk_monotile(Form.get("string_concat"));
+let prop_and = () => mk_monotile(Form.get("prop_and"));
+let prop_or = () => mk_monotile(Form.get("prop_or"));
+let prop_implies = () => mk_monotile(Form.get("prop_implies"));
+let entail = () => mk_monotile(Form.get("entail"));
 let logical_and = () => mk_monotile(Form.get("logical_and"));
 let logical_or = () => mk_monotile(Form.get("logical_or"));
 let comma_exp = () => mk_monotile(Form.get("comma_exp"));
@@ -126,8 +130,8 @@ let mk_unquote = mk_tile(Form.get("unquote"));
 let linebreak = () => mk_secondary(Form.linebreak);
 let space = () => mk_secondary(Form.space);
 
-let mk_example = str => {
-  switch (Printer.zipper_of_string(str)) {
+let mk_example = (~root=Sort.Exp, str) => {
+  switch (Printer.zipper_of_string(str, ~root)) {
   | None => []
   | Some(z) => Zipper.zip(z)
   };
