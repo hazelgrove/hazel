@@ -10,6 +10,8 @@ let id_at = x => x |> List.nth(ids);
 let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init);
 let dhexp_of_uexp = u => Elaborator.elaborate(mk_map(u), u, false) |> fst;
 let alco_check = dhexp_typ |> Alcotest.check;
+let parse_exp = (s: string) =>
+  MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
 
 let u1: Exp.t = {ids: [id_at(0)], term: Int(8), copied: false};
 let single_integer = () =>
@@ -312,26 +314,7 @@ let singleton_labeled_tuple_elaborates_labels = () =>
       Var("x") |> Exp.fresh,
     )
     |> Exp.fresh,
-    dhexp_of_uexp(
-      Let(
-        Cast(
-          Var("x") |> Pat.fresh,
-          Parens(
-            Prod([
-              TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
-              |> Typ.fresh,
-            ])
-            |> Typ.fresh,
-          )
-          |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Pat.fresh,
-        Parens(String("a") |> Exp.fresh) |> Exp.fresh, // TODO Should we require parens around singleton tables to ascribe labels
-        Var("x") |> Exp.fresh,
-      )
-      |> Exp.fresh,
-    ),
+    dhexp_of_uexp(parse_exp("let x : (l=String) = \"a\" in x")),
   );
 
 /* Labeled Tuple Rearranging
@@ -413,11 +396,12 @@ let elaboration_tests = [
   ),
   test_case("Labeled tuple elaboration", `Quick, elaborated_labeled_tuple),
   test_case("Rearranged labeled tuple", `Quick, rearranged_labeled_tuple),
-  // test_case( // TODO Not sure if we want this case
-  //   "Singleton labeled tuple adds labels",
-  //   `Quick,
-  //   singleton_labeled_tuple_elaborates_labels,
-  // ),
+  test_case(
+    // TODO Not sure if we want this case
+    "Singleton labeled tuple adds labels",
+    `Quick,
+    singleton_labeled_tuple_elaborates_labels,
+  ),
   test_case("Singleton labeled tuple", `Quick, singleton_labeled_tuple), // TODO Make consistent with make term
   // TODO Add singleton labeled function application
   test_case("Singleton labeld tuple analysis adds label", `Quick, () =>
