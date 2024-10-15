@@ -18,18 +18,42 @@ module ElaborationResult = {
     | DoesNotElaborate;
 };
 
-let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
-  Typ.eq(t1, t2)
-    ? d
-    : {
-      let d' =
-        DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
+let rec fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
+  switch (t2.term) {
+  | Prod([{term: TupLabel({term: Label(l), _}, t), _}]) =>
+    switch (t1.term) {
+    | Prod([{term: TupLabel({term: Label(l'), _}, t'), _}]) when l == l' =>
+      Typ.eq(t1, t2)
+        ? d
+        : {
+          let d' =
+            DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
+            |> DHExp.fresh
+            |> Casts.transition_multiple;
+          DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
+          |> DHExp.fresh
+          |> Casts.transition_multiple;
+        }
+    | _ =>
+      Tuple([
+        TupLabel(Label(l) |> DHExp.fresh, fresh_cast(d, t1, t))
+        |> DHExp.fresh,
+      ])
+      |> DHExp.fresh
+    }
+  | _ =>
+    Typ.eq(t1, t2)
+      ? d
+      : {
+        let d' =
+          DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
+          |> DHExp.fresh
+          |> Casts.transition_multiple;
+        DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
         |> DHExp.fresh
         |> Casts.transition_multiple;
-      DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
-      |> DHExp.fresh
-      |> Casts.transition_multiple;
-    };
+      }
+  };
 };
 
 let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
@@ -271,6 +295,7 @@ let rec elaborate =
     elaborate(m, uexp, in_container);
   let cast_from = (ty, exp) => fresh_cast(exp, ty, elaborated_type);
   let (term, rewrap) = UExp.unwrap(uexp);
+  print_endline("elaborating " ++ UExp.show(uexp));
   let dhexp =
     switch (term) {
     | Invalid(_)
