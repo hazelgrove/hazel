@@ -22,7 +22,7 @@ let rec fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
   switch (t2.term) {
   | Prod([{term: TupLabel({term: Label(l), _}, t), _}]) =>
     switch (t1.term) {
-    | Prod([{term: TupLabel({term: Label(l'), _}, t'), _}]) when l == l' =>
+    | Prod([{term: TupLabel({term: Label(l'), _}, _), _}]) when l == l' =>
       Typ.eq(t1, t2)
         ? d
         : {
@@ -42,6 +42,7 @@ let rec fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
       |> DHExp.fresh
     }
   | _ =>
+    // TODO Remove duplication in cases
     Typ.eq(t1, t2)
       ? d
       : {
@@ -480,7 +481,15 @@ let rec elaborate =
         let def = add_name(Pat.get_var(p), def);
         let (def, ty2) = elaborate(m, def);
         let (body, ty) = elaborate(m, body);
-        Exp.Let(p, fresh_cast(def, ty2, ty1), body)
+        Exp.Let(
+          p,
+          fresh_cast(
+            def,
+            Typ.weak_head_normalize(ctx, ty2),
+            Typ.weak_head_normalize(ctx, ty1),
+          ), // TODO abanduk: Is it safe to normalize here?
+          body,
+        )
         |> rewrap
         |> cast_from(ty);
       } else {
@@ -489,7 +498,17 @@ let rec elaborate =
         let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
         let (def, ty2) = elaborate(m, def);
         let (body, ty) = elaborate(m, body);
-        let fixf = FixF(p, fresh_cast(def, ty2, ty1), None) |> DHExp.fresh;
+        let fixf =
+          FixF(
+            p,
+            fresh_cast(
+              def,
+              Typ.weak_head_normalize(ctx, ty2),
+              Typ.weak_head_normalize(ctx, ty1),
+            ),
+            None,
+          )
+          |> DHExp.fresh; // TODO abanduk: Is it safe to normalize here?
         Exp.Let(p, fixf, body) |> rewrap |> cast_from(ty);
       };
     | FixF(p, e, env) =>
