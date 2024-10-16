@@ -183,6 +183,7 @@ let deferral = () =>
   alco_check(
     "string_sub(\"hello\", 1, _)",
     dhexp_of_uexp(
+      // This test seems broken
       DeferredAp(
         Var("string_sub") |> Exp.fresh,
         [
@@ -408,20 +409,12 @@ let elaboration_tests = [
     alco_check(
       "Singleton labeld tuple analysis adds label",
       Let(
-        Cast(
-          Var("x") |> Pat.fresh,
-          Parens(
-            Prod([
-              TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
-              |> Typ.fresh,
-            ])
-            |> Typ.fresh,
-          )
-          |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Pat.fresh,
-        Parens(Tuple([String("a") |> Exp.fresh]) |> Exp.fresh) |> Exp.fresh, // TODO Need to assert there's no inconsistency in this branch
+        Var("x") |> Pat.fresh,
+        Tuple([
+          TupLabel(Label("l") |> Exp.fresh, String("a") |> Exp.fresh)
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
         Var("x") |> Exp.fresh,
       )
       |> Exp.fresh,
@@ -440,7 +433,7 @@ let elaboration_tests = [
             Unknown(Internal) |> Typ.fresh,
           )
           |> Pat.fresh,
-          Parens(String("a") |> Exp.fresh) |> Exp.fresh, // TODO Need to assert there's no inconsistency in this branch
+          Parens(String("a") |> Exp.fresh) |> Exp.fresh,
           Var("x") |> Exp.fresh,
         )
         |> Exp.fresh,
