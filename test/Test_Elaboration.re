@@ -440,4 +440,43 @@ let elaboration_tests = [
       ),
     )
   ),
+  test_case(
+    "Singleton labeld tuple analysis adds label with type alias", `Quick, () =>
+    alco_check(
+      {|type T = (a=String) in
+        let x : T = "hello" in x|},
+      Let(
+        Var("x") |> Pat.fresh,
+        Tuple([
+          TupLabel(Label("a") |> Exp.fresh, String("hello") |> Exp.fresh)
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+        Var("x") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      dhexp_of_uexp(
+        parse_exp({|type T = (a=String) in let x : T = "hello" in x|}),
+      ),
+    )
+  ),
+  test_case(
+    "Singleton labeld tuple analysis adds label with type alias", `Quick, () =>
+    alco_check(
+      {|let zip_only : (zip=Int) = (zip=12345) in zip_only|},
+      Let(
+        Var("zip_only") |> Pat.fresh,
+        Tuple([
+          TupLabel(Label("zip") |> Exp.fresh, Int(12345) |> Exp.fresh)
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+        Var("zip_only") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      dhexp_of_uexp(
+        parse_exp({|let zip_only : (zip=Int) = (zip=12345) in zip_only|}),
+      ),
+    )
+  ),
 ];
