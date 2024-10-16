@@ -295,7 +295,6 @@ let rec elaborate =
     elaborate(m, uexp, in_container);
   let cast_from = (ty, exp) => fresh_cast(exp, ty, elaborated_type);
   let (term, rewrap) = UExp.unwrap(uexp);
-  print_endline("elaborating " ++ UExp.show(uexp));
   let dhexp =
     switch (term) {
     | Invalid(_)
