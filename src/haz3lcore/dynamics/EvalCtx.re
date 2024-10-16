@@ -21,7 +21,10 @@ type term =
   | UnOp(Operators.op_un, t)
   | BinOp1(Operators.op_bin, t, DHExp.t)
   | BinOp2(Operators.op_bin, DHExp.t, t)
+  | TupLabel(DHExp.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
+  | Dot1(t, DHExp.t)
+  | Dot2(DHExp.t, t)
   | Test(t)
   | ListLit(t, (list(DHExp.t), list(DHExp.t)))
   | MultiHole(t, (list(Any.t), list(Any.t)))
@@ -110,6 +113,15 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | ListConcat2(d1, ctx) =>
         let d2 = compose(ctx, d);
         ListConcat(d1, d2) |> wrap;
+      | TupLabel(label, ctx) =>
+        let d = compose(ctx, d);
+        TupLabel(label, d) |> wrap;
+      | Dot1(ctx, d2) =>
+        let d1 = compose(ctx, d);
+        Dot(d1, d2) |> wrap;
+      | Dot2(d1, ctx) =>
+        let d2 = compose(ctx, d);
+        Dot(d1, d2) |> wrap;
       | Tuple(ctx, (ld, rd)) =>
         let d = compose(ctx, d);
         Tuple(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;

@@ -77,6 +77,11 @@ let tuple3_fun_ex = {
   term: mk_example("fun (a, b, c) ->\na && b && c"),
   message: "When given a 3-tuple of booleans, the function evaluates to the logical-and of the three booleans.",
 };
+let tuplabel_fun_ex = {
+  sub_id: Fun(TupLabel),
+  term: mk_example("fun x=y, y=z ->\ny"),
+  message: "When given a 2-tuple of elements, the function evaluates to the first element (not the second).",
+};
 let ctr_fun_ex = {
   sub_id: Fun(Ctr),
   term: mk_example("fun None -> 1"),
@@ -219,6 +224,22 @@ let function_strlit_exp: form = {
     examples: [strlit_fun_ex],
   };
 };
+let _pat = pat("Label");
+let _exp = exp("e");
+let function_label_coloring_ids =
+  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
+let function_label: form = {
+  let explanation = "[TODO: Label docs] %s";
+
+  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
+  {
+    id: FunctionExp(Label),
+    syntactic_form: form,
+    expandable_id: Some((Piece.id(_pat), [pat("Label")])),
+    explanation,
+    examples: [],
+  };
+};
 let _pat = pat("()");
 let _exp = exp("e");
 let function_triv_exp_coloring_ids =
@@ -309,6 +330,30 @@ let function_var_exp: form = {
     expandable_id: Some((Piece.id(_pat), [pat("x")])),
     explanation,
     examples: [basic_fun_ex, var_incr_fun_ex, var_and_fun_ex],
+  };
+};
+
+let _labeled_pat = labeled_pat();
+let _exp = exp("e");
+let function_labeled_exp_coloring_ids =
+  _pat_body_function_exp_coloring_ids(
+    Piece.id(_labeled_pat),
+    Piece.id(_exp),
+  );
+let function_labeled_exp: form = {
+  let explanation = "Any unlabeled value matches with the [*argument*]. Only labeled elements that match the [*name*](%s) 'x' are accepted, and evaluate using the [*value*](%s) 'y' to the function [*body*](%s).";
+  let form = [
+    mk_fun([[space(), pat("x"), _labeled_pat, pat("y"), space()]]),
+    space(),
+    _exp,
+  ];
+  {
+    id: FunctionExp(TupLabel),
+    syntactic_form: form,
+    expandable_id:
+      Some((Piece.id(_labeled_pat), [pat("x"), labeled_pat(), pat("y")])),
+    explanation,
+    examples: [tuplabel_fun_ex],
   };
 };
 let _comma = comma_pat();
@@ -476,6 +521,11 @@ let functions_str = {
   forms: [function_strlit_exp, function_exp],
 };
 
+let functions_label = {
+  id: FunctionExp(Label),
+  forms: [function_label, function_exp],
+};
+
 let functions_triv = {
   id: FunctionExp(Triv),
   forms: [function_triv_exp, function_exp],
@@ -499,6 +549,11 @@ let functions_cons = {
 let functions_var = {
   id: FunctionExp(Var),
   forms: [function_var_exp, function_exp],
+};
+
+let functions_tuplabel = {
+  id: FunctionExp(TupLabel),
+  forms: [function_labeled_exp, function_exp],
 };
 
 let functions_tuple = {
