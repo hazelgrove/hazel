@@ -20,7 +20,9 @@ type unbox_request('a) =
   | Float: unbox_request(float)
   | Bool: unbox_request(bool)
   | String: unbox_request(string)
+  | Label: unbox_request(string)
   | Tuple(int): unbox_request(list(DHExp.t))
+  | TupLabel(DHPat.t): unbox_request(DHExp.t)
   | List: unbox_request(list(DHExp.t))
   | Cons: unbox_request((DHExp.t, DHExp.t))
   | SumNoArg(string): unbox_request(unit)
@@ -53,11 +55,64 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (_, Cast(d, x, {term: Parens(y), _})) =>
       unbox(request, Cast(d, x, y) |> DHExp.fresh)
 
+    /* TupLabels can be anything except for tuplabels with unmatching labels */
+    // TODO: Fix this
+    | (TupLabel(tuplabel), TupLabel(_, e)) =>
+      if (LabeledTuple.equal(
+            DHPat.get_label(tuplabel),
+            DHExp.get_label(expr),
+          )) {
+        Matches(e);
+      } else {
+        DoesNotMatch;
+      }
+    // | (
+    //     TupLabel(tuplabel),
+    //     Cast(e, {term: TupLabel(name1, _), _}, {term: TupLabel(name2, _), _}),
+    //   ) when String.equal(name1, name2) =>
+    //   switch (DHExp.term_of(e)) {
+    //   | TupLabel(_, e) => unbox(request, e)
+    //   | _ => unbox(request, e)
+    //   }
+    // | (
+    //     TupLabel(_),
+    //     Cast(e, {term: TupLabel(_, _), _}, {term: Unknown(_), _}),
+    //   ) =>
+    //   switch (DHExp.term_of(e)) {
+    //   | TupLabel(_, e) => unbox(request, e)
+    //   | _ => unbox(request, e)
+    //   }
+    | (
+        TupLabel(tl),
+        Cast(t, {term: TupLabel(_, ty1), _}, {term: TupLabel(_, ty2), _}),
+      ) =>
+      let* t = unbox(TupLabel(tl), t);
+      let t = fixup_cast(Cast(t, ty1, ty2) |> DHExp.fresh);
+      Matches(t);
+    | (TupLabel(tl), Cast(t, ty1, ty2)) =>
+      let* t = unbox(TupLabel(tl), t);
+      let t = fixup_cast(Cast(t, ty1, ty2) |> DHExp.fresh);
+      Matches(t);
+    | (TupLabel(_), _) => Matches(expr)
+
+    /* Remove Tuplabels from casts otherwise */
+    | (_, Cast(e, {term: TupLabel(_, e1), _}, e2)) =>
+      switch (DHExp.term_of(e)) {
+      | TupLabel(_, e) => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
+      | _ => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
+      }
+    | (_, Cast(e, e1, {term: TupLabel(_, e2), _})) =>
+      switch (DHExp.term_of(e)) {
+      | TupLabel(_, e) => unbox(request, Cast(e, e1, e2) |> DHExp.fresh) // shouldn't happen?
+      | _ => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
+      }
+
     /* Base types are always already unboxed because of the ITCastID rule*/
     | (Bool, Bool(b)) => Matches(b)
     | (Int, Int(i)) => Matches(i)
     | (Float, Float(f)) => Matches(f)
     | (String, String(s)) => Matches(s)
+    | (Label, Label(s)) => Matches(s)
 
     /* Lists can be either lists or list casts */
     | (List, ListLit(l)) => Matches(l)
@@ -89,6 +144,11 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Tuple(n), Cast(t, {term: Prod(t1s), _}, {term: Prod(t2s), _}))
         when n == List.length(t1s) && n == List.length(t2s) =>
       let* t = unbox(Tuple(n), t);
+      // let t1s =
+      //   LabeledTuple.rearrange(
+      //     Typ.get_label, Typ.get_label, t2s, t1s, (name, t) =>
+      //     Typ.TupLabel(Typ.Label(name) |> Typ.temp, t) |> Typ.temp
+      //   );
       let t =
         ListUtil.map3(
           (d, t1, t2) => Cast(d, t1, t2) |> DHExp.fresh,
@@ -145,12 +205,13 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
        in elaboration or in the cast calculus. */
     | (
         _,
-        Bool(_) | Int(_) | Float(_) | String(_) | Constructor(_) |
+        Bool(_) | Int(_) | Float(_) | String(_) | Label(_) | Constructor(_) |
         BuiltinFun(_) |
         Deferral(_) |
         DeferredAp(_) |
         Fun(_, _, _, Some(_)) |
         ListLit(_) |
+        TupLabel(_) |
         Tuple(_) |
         Cast(_) |
         Ap(_, {term: Constructor(_), _}, _) |
@@ -158,10 +219,16 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         TypAp(_),
       ) =>
       switch (request) {
+      | TupLabel(_) =>
+        // TODO: TupLabel error or remove tuplabel and try again?
+        raise(EvaluatorError.Exception(InvalidBoxedStringLit(expr)))
       | Bool => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(expr)))
       | Int => raise(EvaluatorError.Exception(InvalidBoxedIntLit(expr)))
       | Float => raise(EvaluatorError.Exception(InvalidBoxedFloatLit(expr)))
       | String =>
+        raise(EvaluatorError.Exception(InvalidBoxedStringLit(expr)))
+      | Label =>
+        // TODO: Label error
         raise(EvaluatorError.Exception(InvalidBoxedStringLit(expr)))
       | Tuple(_) => raise(EvaluatorError.Exception(InvalidBoxedTuple(expr)))
       | List
@@ -189,6 +256,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Parens(_) |
         Cons(_) |
         ListConcat(_) |
+        Dot(_) |
         UnOp(_) |
         BinOp(_) |
         Match(_),

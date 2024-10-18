@@ -330,6 +330,15 @@ let rec matches =
       | Tuple(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Tuple(ctx, ds) |> wrap_ids(ids);
+      | TupLabel(label, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        TupLabel(label, ctx) |> wrap_ids(ids);
+      | Dot1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Dot1(ctx, d2) |> wrap_ids(ids);
+      | Dot2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Dot2(d1, ctx) |> wrap_ids(ids);
       | MultiHole(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         MultiHole(ctx, ds) |> wrap_ids(ids);

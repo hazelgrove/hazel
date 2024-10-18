@@ -110,6 +110,13 @@ let rec matches_exp =
     | (Constructor("$e", _), _) => failwith("$e in matched expression")
     | (Constructor("$v", _), _) => failwith("$v in matched expression")
 
+    // TODO (Anthony): Is this right?
+    /* Labels are a special case*/
+    | (TupLabel(dl, dv), TupLabel(fl, fv)) =>
+      matches_exp(dl, fl) && matches_exp(dv, fv)
+    | (TupLabel(_, dv), _) => matches_exp(dv, f)
+    | (_, TupLabel(_, fv)) => matches_exp(d, fv)
+
     // HACK[Matt]: ignore fixpoints in comparison, to allow pausing on fixpoint steps
     | (FixF(dp, dc, None), FixF(fp, fc, None)) =>
       switch (tangle(dp, denv, fp, fenv)) {
@@ -214,6 +221,9 @@ let rec matches_exp =
     | (String(dv), String(fv)) => dv == fv
     | (String(_), _) => false
 
+    | (Label(dv), Label(fv)) => dv == fv
+    | (Label(_), _) => false
+
     | (
         Constructor(_),
         Ap(_, {term: Constructor("~MVal", _), _}, {term: Tuple([]), _}),
@@ -284,6 +294,10 @@ let rec matches_exp =
     | (ListLit(dv), ListLit(fv)) =>
       List.fold_left2((acc, d, f) => acc && matches_exp(d, f), true, dv, fv)
     | (ListLit(_), _) => false
+
+    | (Dot(d1, d2), Dot(f1, f2)) =>
+      matches_exp(d1, f1) && matches_exp(d2, f2)
+    | (Dot(_), _) => false
 
     | (Tuple(dv), Tuple(fv)) =>
       List.fold_left2((acc, d, f) => acc && matches_exp(d, f), true, dv, fv)

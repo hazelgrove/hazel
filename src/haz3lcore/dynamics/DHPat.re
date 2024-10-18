@@ -20,10 +20,12 @@ let rec binds_var = (m: Statics.Map.t, x: Var.t, dp: t): bool =>
     | Float(_)
     | Bool(_)
     | String(_)
+    | Label(_)
     | Constructor(_) => false
     | Cast(y, _, _)
     | Parens(y) => binds_var(m, x, y)
     | Var(y) => Var.eq(x, y)
+    | TupLabel(_, dp) => binds_var(m, x, dp)
     | Tuple(dps) => dps |> List.exists(binds_var(m, x))
     | Cons(dp1, dp2) => binds_var(m, x, dp1) || binds_var(m, x, dp2)
     | ListLit(d_list) =>
@@ -43,12 +45,22 @@ let rec bound_vars = (dp: t): list(Var.t) =>
   | Float(_)
   | Bool(_)
   | String(_)
+  | Label(_)
   | Constructor(_) => []
   | Cast(y, _, _)
   | Parens(y) => bound_vars(y)
   | Var(y) => [y]
+  | TupLabel(_, dp) => bound_vars(dp)
   | Tuple(dps) => List.flatten(List.map(bound_vars, dps))
   | Cons(dp1, dp2) => bound_vars(dp1) @ bound_vars(dp2)
   | ListLit(dps) => List.flatten(List.map(bound_vars, dps))
   | Ap(_, dp1) => bound_vars(dp1)
   };
+
+let rec get_label: t => option((LabeledTuple.label, t)) =
+  dp =>
+    switch (dp |> term_of) {
+    | Parens(dp) => get_label(dp)
+    | TupLabel({term: Label(name), _}, t') => Some((name, t'))
+    | _ => None
+    };

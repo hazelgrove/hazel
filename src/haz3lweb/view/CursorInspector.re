@@ -170,6 +170,7 @@ let typ_err_view = (ok: Info.error_typ) =>
   | WantConstructorFoundAp
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
   | WantTypeFoundAp => [text("Must be part of a sum type")]
+  | WantTuple => [text("Expect a valid tuple")]
   | DuplicateConstructor(name) => [
       Type.view(Var(name) |> Typ.fresh),
       text("already used in this sum"),
