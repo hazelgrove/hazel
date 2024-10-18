@@ -17,6 +17,7 @@ let precedence_GreaterThan: int;
 let precedence_And: int;
 let precedence_Or: int;
 let precedence_Comma: int;
+let precedence_Dot: int;
 let precedence_max: int;
 
 let pad_child:
@@ -82,6 +83,8 @@ let mk_ConstructorLit: string => Pretty.Doc.t('a);
 
 let mk_StringLit: string => Pretty.Doc.t('a);
 
+let mk_Label: string => Pretty.Doc.t('a);
+
 let mk_Cons: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_ListConcat: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
@@ -95,5 +98,7 @@ let mk_TypAp: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 let mk_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_rev_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
+
+let mk_Dot: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Undefined: unit => Pretty.Doc.t('a);

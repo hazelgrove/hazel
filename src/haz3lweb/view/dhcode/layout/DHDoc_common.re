@@ -20,6 +20,7 @@ let precedence_GreaterThan = P.eqs;
 let precedence_And = P.and_;
 let precedence_Or = P.or_;
 let precedence_Comma = P.comma;
+let precedence_Dot = P.dot;
 let precedence_max = P.min;
 
 let pad_child =
@@ -98,6 +99,8 @@ let mk_IntLit = n => Doc.text(string_of_int(n));
 
 let mk_StringLit = s => Doc.text(Form.string_quote(s));
 
+let mk_Label = name => Doc.text(name);
+
 let mk_Test = t => Doc.(hcats([text("Test"), t, text("End")]));
 
 let mk_FloatLit = (f: float) =>
@@ -137,5 +140,7 @@ let mk_Ap = (doc1, doc2) =>
   Doc.(hcats([doc1, text("("), doc2, text(")")]));
 
 let mk_rev_Ap = (doc1, doc2) => Doc.(hcats([doc1, text(" |> "), doc2]));
+
+let mk_Dot = (doc1, doc2) => Doc.(hcats([doc1, text("."), doc2]));
 
 let mk_Undefined = () => Doc.text("undefined");

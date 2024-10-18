@@ -29,8 +29,15 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
   | Int => ty_view("Int", "Int")
   | Float => ty_view("Float", "Float")
   | String => ty_view("String", "String")
+  | Label(name) => ty_view("Label", name)
   | Bool => ty_view("Bool", "Bool")
   | Var(name) => ty_view("Var", name)
+  | TupLabel({term: Label(l), _}, ty) =>
+    div(
+      ~attrs=[clss(["typ-view", "TupLabel"])],
+      [text(l ++ "="), view_ty(ty)],
+    )
+  | TupLabel(_, ty) => view_ty(ty) // This should be impossible
   | Rec(name, t) =>
     div(
       ~attrs=[clss(["typ-view", "Rec"])],
@@ -52,8 +59,6 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
       paren_view(t1) @ [text(" -> "), view_ty(t2)],
     )
   | Prod([]) => div(~attrs=[clss(["typ-view", "Prod"])], [text("()")])
-  | Prod([_]) =>
-    div(~attrs=[clss(["typ-view", "Prod"])], [text("Singleton Product")])
   | Prod([t0, ...ts]) =>
     div(
       ~attrs=[clss(["typ-view", "atom", "Prod"])],

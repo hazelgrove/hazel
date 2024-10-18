@@ -45,6 +45,8 @@ let rec strip_casts =
         switch (term_of(exp)) {
         /* Leave non-casts unchanged */
         | Tuple(_)
+        | TupLabel(_)
+        | Dot(_)
         | Cons(_)
         | ListConcat(_)
         | ListLit(_)
@@ -71,6 +73,7 @@ let rec strip_casts =
         | Int(_)
         | Float(_)
         | String(_)
+        | Label(_)
         | Constructor(_)
         | DynamicErrorHole(_)
         | Closure(_)
@@ -126,6 +129,8 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Cons(_)
           | ListConcat(_)
           | Tuple(_)
+          | TupLabel(_)
+          | Dot(_)
           | Match(_)
           | DynamicErrorHole(_)
           | Filter(_)
@@ -139,6 +144,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Int(_)
           | Float(_)
           | String(_)
+          | Label(_)
           | FailedCast(_, _, _)
           | MultiHole(_)
           | Deferral(_)

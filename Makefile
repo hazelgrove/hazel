@@ -64,7 +64,7 @@ test:
 	node $(TEST_DIR)/haz3ltest.bc.js
 
 watch-test:
-	dune build @fmt @runtest --auto-promote --watch
+	dune build @fmt @runtest @default --profile dev --auto-promote --watch
 
 clean:
 	dune clean
