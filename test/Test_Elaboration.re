@@ -479,4 +479,91 @@ let elaboration_tests = [
       ),
     )
   ),
+  test_case(
+    "Singleton labeled argument function application with known type",
+    `Quick,
+    () =>
+    alco_check(
+      {|(fun a=x->x)(a=1)|},
+      Ap(
+        Forward,
+        Fun(
+          Tuple([
+            TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
+            |> Pat.fresh,
+          ])
+          |> Pat.fresh,
+          Var("x") |> Exp.fresh,
+          None,
+          None,
+        )
+        |> Exp.fresh,
+        Tuple([
+          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(a=1)|})),
+    )
+  ),
+  test_case(
+    "Singleton labeled argument function application with no label in ap",
+    `Quick,
+    () =>
+    alco_check(
+      {|(fun a=x->x)(a=1)|},
+      Ap(
+        Forward,
+        Fun(
+          Tuple([
+            TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
+            |> Pat.fresh,
+          ])
+          |> Pat.fresh,
+          Var("x") |> Exp.fresh,
+          None,
+          None,
+        )
+        |> Exp.fresh,
+        Tuple([
+          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(1)|})),
+    )
+  ),
+  test_case(
+    "Singleton labeled argument function application with unknown type",
+    `Quick,
+    () =>
+    alco_check(
+      {|(fun a=x->x)(a=1)|},
+      Ap(
+        Forward,
+        Fun(
+          Tuple([
+            TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
+            |> Pat.fresh,
+          ])
+          |> Pat.fresh,
+          Var("x") |> Exp.fresh,
+          None,
+          None,
+        )
+        |> Exp.fresh,
+        Tuple([
+          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      dhexp_of_uexp(parse_exp({|(fun a=x->x)(a=1)|})),
+    )
+  ),
 ];
