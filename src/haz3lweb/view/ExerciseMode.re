@@ -206,6 +206,9 @@ let view =
             ~inject,
             grading_report.test_validation_report,
             grading_report.point_distribution.test_validation,
+            eds.your_tests.required,
+            eds.your_tests.provided,
+            settings,
           ),
         ],
       ),
@@ -231,6 +234,7 @@ let view =
         ~inject,
         grading_report.mutation_testing_report,
         grading_report.point_distribution.mutation_testing,
+        settings,
       ),
     );
   let your_impl_view = {
@@ -291,6 +295,7 @@ let view =
         ~report=grading_report.impl_grading_report,
         ~syntax_report=grading_report.syntax_report,
         ~max_points=grading_report.point_distribution.impl_grading,
+        ~settings,
       ),
     );
   [score_view, title_view, prompt_view]

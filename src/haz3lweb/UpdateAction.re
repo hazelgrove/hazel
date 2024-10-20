@@ -25,6 +25,9 @@ type settings_action =
   | ContextInspector
   | InstructorMode
   | EditingPrompt
+  | EditingTestValRep
+  | EditingMutTestRep
+  | EditingImplGrdRep
   | Evaluation(evaluation_settings_action)
   | ExplainThis(ExplainThisModel.Settings.action)
   | Mode(Settings.mode);
@@ -45,11 +48,6 @@ type set_meta =
 type benchmark_action =
   | Start
   | Finish;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type edit_prompt =
-  | Prompt
-  | Model;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type export_action =
@@ -89,7 +87,10 @@ type t =
   | ToggleStepper(ModelResults.Key.t)
   | StepperAction(ModelResults.Key.t, stepper_action)
   | UpdateResult(ModelResults.t)
-  | UpdatePrompt(string);
+  | UpdatePrompt(string)
+  | UpdateTestValRep(int, int, int)
+  | UpdateMutTestRep(int)
+  | UpdateImplGrdRep(int);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -124,6 +125,9 @@ let is_edit: t => bool =
     | ContextInspector
     | InstructorMode
     | EditingPrompt
+    | EditingTestValRep
+    | EditingMutTestRep
+    | EditingImplGrdRep
     | Evaluation(_) => false
     }
   | SetMeta(meta_action) =>
@@ -143,6 +147,9 @@ let is_edit: t => bool =
   | FinishImportScratchpad(_)
   | ResetCurrentEditor
   | UpdatePrompt(_)
+  | UpdateTestValRep(_)
+  | UpdateMutTestRep(_)
+  | UpdateImplGrdRep(_)
   | Reset
   | TAB => true
   | UpdateResult(_)
@@ -179,6 +186,9 @@ let reevaluate_post_update: t => bool =
     | Dynamics
     | InstructorMode
     | EditingPrompt
+    | EditingTestValRep
+    | EditingMutTestRep
+    | EditingImplGrdRep
     | Mode(_) => true
     }
   | SetMeta(meta_action) =>
@@ -195,6 +205,9 @@ let reevaluate_post_update: t => bool =
   | Export(_)
   | UpdateResult(_)
   | UpdatePrompt(_)
+  | UpdateTestValRep(_)
+  | UpdateMutTestRep(_)
+  | UpdateImplGrdRep(_)
   | SwitchEditor(_)
   | DebugConsole(_)
   | Benchmark(_) => false
@@ -226,6 +239,9 @@ let should_scroll_to_caret =
     | ContextInspector
     | InstructorMode
     | EditingPrompt
+    | EditingTestValRep
+    | EditingMutTestRep
+    | EditingImplGrdRep
     | Evaluation(_) => false
     }
   | SetMeta(meta_action) =>
@@ -238,6 +254,9 @@ let should_scroll_to_caret =
   | UpdateResult(_)
   | ToggleStepper(_)
   | UpdatePrompt(_)
+  | UpdateTestValRep(_)
+  | UpdateMutTestRep(_)
+  | UpdateImplGrdRep(_)
   | StepperAction(_, StepBackward | StepForward(_)) => false
   | FinishImportScratchpad(_)
   | FinishImportAll(_)

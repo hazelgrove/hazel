@@ -118,6 +118,9 @@ module Main = {
                  ~spec,
                  ~instructor_mode=true,
                  ~editing_prompt=false,
+                 ~editing_test_val_rep=false,
+                 ~editing_mut_test_rep=false,
+                 ~editing_impl_grd_rep=false,
                );
              let report = exercise |> gen_grading_report;
              {id, report};

@@ -134,7 +134,13 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_state = (pos, list((pos, PersistentZipper.t)), string);
+  type persistent_state = (
+    pos,
+    list((pos, PersistentZipper.t)),
+    string,
+    point_distribution,
+    int,
+  );
 
   let editor_of_state: state => Editor.t =
     ({pos, eds, _}) =>
@@ -493,6 +499,104 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     },
   };
 
+  let set_editing_test_val_rep = ({eds, _} as state: state, editing: bool) => {
+    ...state,
+    eds: {
+      ...eds,
+      prelude: Editor.set_read_only(eds.prelude, editing),
+      correct_impl: Editor.set_read_only(eds.correct_impl, editing),
+      your_tests: {
+        let tests = Editor.set_read_only(eds.your_tests.tests, editing);
+        {
+          tests,
+          required: eds.your_tests.required,
+          provided: eds.your_tests.provided,
+        };
+      },
+      your_impl: Editor.set_read_only(eds.your_impl, editing),
+    },
+  };
+
+  let update_test_val_rep =
+      (
+        {eds, _} as state: state,
+        new_test_num: int,
+        new_dist: int,
+        new_prov: int,
+      ) => {
+    ...state,
+    eds: {
+      ...eds,
+      your_tests: {
+        ...eds.your_tests,
+        required: new_test_num,
+        provided: new_prov,
+      },
+      point_distribution: {
+        ...eds.point_distribution,
+        test_validation: new_dist,
+      },
+    },
+  };
+
+  let set_editing_mut_test_rep = ({eds, _} as state: state, editing: bool) => {
+    ...state,
+    eds: {
+      ...eds,
+      prelude: Editor.set_read_only(eds.prelude, editing),
+      correct_impl: Editor.set_read_only(eds.correct_impl, editing),
+      your_tests: {
+        let tests = Editor.set_read_only(eds.your_tests.tests, editing);
+        {
+          tests,
+          required: eds.your_tests.required,
+          provided: eds.your_tests.provided,
+        };
+      },
+      your_impl: Editor.set_read_only(eds.your_impl, editing),
+    },
+  };
+
+  let update_mut_test_rep = ({eds, _} as state: state, new_dist: int) => {
+    ...state,
+    eds: {
+      ...eds,
+      point_distribution: {
+        ...eds.point_distribution,
+        mutation_testing: new_dist,
+      },
+    },
+  };
+
+  let set_editing_impl_grd_rep = ({eds, _} as state: state, editing: bool) => {
+    ...state,
+    eds: {
+      ...eds,
+      prelude: Editor.set_read_only(eds.prelude, editing),
+      correct_impl: Editor.set_read_only(eds.correct_impl, editing),
+      your_tests: {
+        let tests = Editor.set_read_only(eds.your_tests.tests, editing);
+        {
+          tests,
+          required: eds.your_tests.required,
+          provided: eds.your_tests.provided,
+        };
+      },
+      your_impl: Editor.set_read_only(eds.your_impl, editing),
+    },
+  };
+
+  let update_impl_grd_rep = ({eds, _} as state: state, new_dist: int) => {
+    ...state,
+    eds: {
+      ...eds,
+      point_distribution: {
+        ...eds.point_distribution,
+        impl_grading: new_dist,
+      },
+    },
+  };
+
   let visible_in = (pos, ~instructor_mode) => {
     switch (pos) {
     | Prelude => instructor_mode
@@ -519,15 +623,24 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       |> List.map(((pos, editor)) => {
            (pos, PersistentZipper.persist(Editor.(editor.state.zipper)))
          });
-    (pos, zippers, eds.prompt);
+    (
+      pos,
+      zippers,
+      eds.prompt,
+      eds.point_distribution,
+      eds.your_tests.required,
+    );
   };
 
   let unpersist_state =
       (
-        (pos, positioned_zippers, prompt): persistent_state,
+        (pos, positioned_zippers, prompt, point_distribution, required): persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
         ~editing_prompt: bool,
+        ~editing_test_val_rep: bool,
+        ~editing_mut_test_rep: bool,
+        ~editing_impl_grd_rep: bool,
         ~settings: CoreSettings.t,
       )
       : state => {
@@ -564,12 +677,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
             version: spec.version,
             module_name: spec.module_name,
             prompt,
-            point_distribution: spec.point_distribution,
+            point_distribution,
             prelude,
             correct_impl,
             your_tests: {
               tests: your_tests_tests,
-              required: spec.your_tests.required,
+              required,
               provided: spec.your_tests.provided,
             },
             your_impl,
@@ -583,7 +696,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         },
         instructor_mode,
       );
-    set_editing_prompt(state, editing_prompt);
+    let state = set_editing_prompt(state, editing_prompt);
+    let state = set_editing_test_val_rep(state, editing_test_val_rep);
+    let state = set_editing_mut_test_rep(state, editing_mut_test_rep);
+    set_editing_impl_grd_rep(state, editing_impl_grd_rep);
   };
 
   // # Stitching
@@ -964,11 +1080,27 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     |> Sexplib.Sexp.to_string;
   };
 
-  let deserialize_exercise = (data, ~spec, ~instructor_mode, ~editing_prompt) => {
+  let deserialize_exercise =
+      (
+        data,
+        ~spec,
+        ~instructor_mode,
+        ~editing_prompt,
+        ~editing_test_val_rep,
+        ~editing_mut_test_rep,
+        ~editing_impl_grd_rep,
+      ) => {
     data
     |> Sexplib.Sexp.of_string
     |> persistent_state_of_sexp
-    |> unpersist_state(~spec, ~instructor_mode, ~editing_prompt);
+    |> unpersist_state(
+         ~spec,
+         ~instructor_mode,
+         ~editing_prompt,
+         ~editing_test_val_rep,
+         ~editing_mut_test_rep,
+         ~editing_impl_grd_rep,
+       );
   };
 
   let deserialize_exercise_export = data => {
