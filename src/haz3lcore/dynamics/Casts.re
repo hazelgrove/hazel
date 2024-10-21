@@ -58,8 +58,10 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Int
   | Float
   | String
+  | Label(_)
   | Var(_)
   | Rec(_)
+  | TupLabel(_, {term: Unknown(_), _})
   | Forall(_, {term: Unknown(_), _})
   | Arrow({term: Unknown(_), _}, {term: Unknown(_), _})
   | List({term: Unknown(_), _}) => Ground
@@ -81,6 +83,10 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Arrow(_, _) => grounded_Arrow
   | Forall(_) => grounded_Forall
   | List(_) => grounded_List
+  | TupLabel(label, _) =>
+    NotGroundOrHole(
+      TupLabel(label, Unknown(Internal) |> Typ.temp) |> Typ.temp,
+    )
   | Ap(_) => failwith("type application in dynamics")
   };
 };

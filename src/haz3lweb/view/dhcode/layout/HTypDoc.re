@@ -18,10 +18,12 @@ let precedence = (ty: Typ.t): int =>
   | Float
   | Bool
   | String
+  | Label(_)
   | Unknown(_)
   | Var(_)
   | Forall(_)
   | Rec(_)
+  | TupLabel(_)
   | Sum(_) => precedence_Sum
   | List(_) => precedence_Const
   | Prod(_) => precedence_Prod
@@ -75,7 +77,12 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
     | Float => (text("Float"), parenthesize)
     | Bool => (text("Bool"), parenthesize)
     | String => (text("String"), parenthesize)
+    | Label(name) => (text(name), parenthesize)
     | Var(name) => (text(name), parenthesize)
+    | TupLabel(label, ty) => (
+        hcats([mk'(label), text("="), mk'(ty)]),
+        parenthesize,
+      ) // TODO (Anthony): What to do here?
     | List(ty) => (
         hcats([
           mk_delim("["),

@@ -53,6 +53,7 @@ let rec precedence = (~show_function_bodies, ~show_casts: bool, d: DHExp.t) => {
   | Test(_)
   | Float(_)
   | String(_)
+  | Label(_)
   | ListLit(_)
   | EmptyHole
   | Constructor(_)
@@ -71,7 +72,10 @@ let rec precedence = (~show_function_bodies, ~show_casts: bool, d: DHExp.t) => {
   | TypAp(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
+  // TODO (Anthony): what should this be?
+  | TupLabel(_) => DHDoc_common.precedence_Comma
   | Tuple(_) => DHDoc_common.precedence_Comma
+  | Dot(_) => DHDoc_common.precedence_Dot
   | TypFun(_)
   | Fun(_) when !show_function_bodies => DHDoc_common.precedence_const
   | TypFun(_)
@@ -164,6 +168,7 @@ let mk =
         | (BinIntOp(_), _)
         | (BinFloatOp(_), _)
         | (BinStringOp(_), _)
+        | (Dot, _)
         | (Projection, _)
         | (ListCons, _)
         | (ListConcat, _)
@@ -319,6 +324,7 @@ let mk =
       | Int(n) => DHDoc_common.mk_IntLit(n)
       | Float(f) => DHDoc_common.mk_FloatLit(f)
       | String(s) => DHDoc_common.mk_StringLit(s)
+      | Label(name) => DHDoc_common.mk_Label(name)
       | Undefined => DHDoc_common.mk_Undefined()
       | Test(d) => DHDoc_common.mk_Test(go'(d))
       | Deferral(_) => text("_")
@@ -398,6 +404,13 @@ let mk =
         let (doc1, doc2) =
           mk_right_associative_operands(precedence_bin_bool_op(op), d1, d2);
         hseps([doc1, mk_bin_bool_op(op), doc2]);
+      // TODO(Anthony): what to do here?
+      | TupLabel(l, d) =>
+        Doc.hcats([go'(l), DHDoc_common.Delim.mk("="), go'(d)])
+      | Dot(d1, d2) =>
+        let doc1 = go'(d1);
+        let doc2 = go'(d2);
+        DHDoc_common.mk_Dot(doc1, doc2);
       | Tuple([]) => DHDoc_common.Delim.triv
       | Tuple(ds) => DHDoc_common.mk_Tuple(ds |> List.map(d => go'(d)))
       | Match(dscrut, drs) => go_case(dscrut, drs)

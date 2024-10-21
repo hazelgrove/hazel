@@ -18,18 +18,59 @@ module ElaborationResult = {
     | DoesNotElaborate;
 };
 
-let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
-  Typ.eq(t1, t2)
-    ? d
-    : {
-      let d' =
-        DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
+let rec fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
+  switch (t1.term) {
+  | Label(_) =>
+    // TODO Remove duplication in cases
+    Typ.eq(t1, t2)
+      ? d
+      : {
+        let d' =
+          DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
+          |> DHExp.fresh
+          |> Casts.transition_multiple;
+        DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
         |> DHExp.fresh
         |> Casts.transition_multiple;
-      DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
-      |> DHExp.fresh
-      |> Casts.transition_multiple;
-    };
+      } // These should be a different sort. I don't think we should be casting them.
+  | _ =>
+    switch (t2.term) {
+    | Prod([{term: TupLabel({term: Label(l), _}, t), _}]) =>
+      switch (t1.term) {
+      | Prod([{term: TupLabel({term: Label(l'), _}, _), _}]) when l == l' =>
+        Typ.eq(t1, t2)
+          ? d
+          : {
+            let d' =
+              DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
+              |> DHExp.fresh
+              |> Casts.transition_multiple;
+            DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
+            |> DHExp.fresh
+            |> Casts.transition_multiple;
+          }
+      | _ =>
+        Tuple([
+          TupLabel(Label(l) |> DHExp.fresh, fresh_cast(d, t1, t))
+          |> DHExp.fresh,
+        ])
+        |> DHExp.fresh
+      }
+    | _ =>
+      // TODO Remove duplication in cases
+      Typ.eq(t1, t2)
+        ? d
+        : {
+          let d' =
+            DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
+            |> DHExp.fresh
+            |> Casts.transition_multiple;
+          DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
+          |> DHExp.fresh
+          |> Casts.transition_multiple;
+        }
+    }
+  };
 };
 
 let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
@@ -105,8 +146,11 @@ let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
 };
 
 let rec elaborate_pattern =
-        (m: Statics.Map.t, upat: UPat.t): (DHPat.t, Typ.t) => {
+        (m: Statics.Map.t, upat: UPat.t, in_container: bool)
+        : (DHPat.t, Typ.t) => {
   let (elaborated_type, ctx) = elaborated_pat_type(m, upat);
+  let elaborate_pattern = (~in_container=false, m, upat) =>
+    elaborate_pattern(m, upat, in_container);
   let cast_from = (ty, exp) => fresh_pat_cast(exp, ty, elaborated_type);
   let (term, rewrap) = UPat.unwrap(upat);
   let dpat =
@@ -115,6 +159,7 @@ let rec elaborate_pattern =
     | Bool(_) => upat |> cast_from(Bool |> Typ.temp)
     | Float(_) => upat |> cast_from(Float |> Typ.temp)
     | String(_) => upat |> cast_from(String |> Typ.temp)
+    | Label(name) => upat |> cast_from(Label(name) |> Typ.temp)
     | ListLit(ps) =>
       let (ps, tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
       let inner_type =
@@ -141,8 +186,62 @@ let rec elaborate_pattern =
       DHPat.Cons(p1'', p2'')
       |> rewrap
       |> cast_from(List(ty_inner) |> Typ.temp);
+    | TupLabel(lab, p) =>
+      let (plab, labty) = elaborate_pattern(m, lab);
+      let (p', pty) = elaborate_pattern(m, p);
+      if (in_container) {
+        DHPat.TupLabel(plab, p')
+        |> rewrap
+        |> cast_from(Typ.TupLabel(labty, pty) |> Typ.temp);
+      } else {
+        DHPat.Tuple([DHPat.TupLabel(plab, p') |> rewrap])
+        |> DHPat.fresh
+        |> cast_from(
+             Typ.Prod([Typ.TupLabel(labty, pty) |> Typ.temp]) |> Typ.temp,
+           );
+      };
     | Tuple(ps) =>
-      let (ps', tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
+      let (ps', tys) =
+        List.map(elaborate_pattern(m, ~in_container=true), ps)
+        |> ListUtil.unzip;
+      let expected_labels: list(option(string)) =
+        Typ.get_labels(ctx, elaborated_type);
+      // let elaborated_labeled: list((option(string), DHPat.t)) =
+      //   List.map(
+      //     pat => {
+      //       switch (DHPat.term_of(pat)) {
+      //       | TupLabel({term: Label(l), _}, pat) => (Some(l), pat)
+      //       | _ => (None, pat)
+      //       }
+      //     },
+      //     ps',
+      //   );
+
+      // let reordered: list((option(string), DHPat.t)) =
+      //   LabeledTuple.rearrange_base(expected_labels, elaborated_labeled);
+
+      // let ps': list(DHPat.t) =
+      //   List.map(
+      //     ((optional_label, pat: DHPat.t)) => {
+      //       switch (optional_label) {
+      //       | Some(label) =>
+      //         DHPat.TupLabel(Label(label) |> DHPat.fresh, pat) |> DHPat.fresh
+      //       | None => pat
+      //       }
+      //     },
+      //     reordered,
+      //   );
+      let (ps', tys) =
+        LabeledTuple.rearrange2(
+          expected_labels,
+          DHPat.get_label,
+          Typ.get_label,
+          ps',
+          tys,
+          (name, p) =>
+            DHPat.TupLabel(Label(name) |> DHPat.fresh, p) |> DHPat.fresh,
+          (name, t) => Typ.TupLabel(Label(name) |> Typ.temp, t) |> Typ.temp,
+        );
       DHPat.Tuple(ps') |> rewrap |> cast_from(Typ.Prod(tys) |> Typ.temp);
     | Ap(p1, p2) =>
       let (p1', ty1) = elaborate_pattern(m, p1);
@@ -207,6 +306,7 @@ let rec elaborate_pattern =
    a comment explaining why it's redundant.  */
 let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
   let (elaborated_type, ctx, co_ctx) = elaborated_type(m, uexp);
+  let elaborate = (m, uexp) => elaborate(m, uexp);
   let cast_from = (ty, exp) => fresh_cast(exp, ty, elaborated_type);
   let (term, rewrap) = UExp.unwrap(uexp);
   let dhexp =
@@ -217,7 +317,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
     | MultiHole(stuff) =>
       Any.map_term(
         ~f_exp=(_, exp) => {elaborate(m, exp) |> fst},
-        ~f_pat=(_, pat) => {elaborate_pattern(m, pat) |> fst},
+        ~f_pat=(_, pat) => {elaborate_pattern(m, pat, false) |> fst},
         _,
       )
       |> List.map(_, stuff)
@@ -242,6 +342,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
     | Bool(_) => uexp |> cast_from(Bool |> Typ.temp)
     | Float(_) => uexp |> cast_from(Float |> Typ.temp)
     | String(_) => uexp |> cast_from(String |> Typ.temp)
+    | Label(name) => uexp |> cast_from(Label(name) |> Typ.temp)
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let inner_type =
@@ -264,7 +365,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let t = t |> Typ.normalize(ctx);
       Constructor(c, t) |> rewrap |> cast_from(t);
     | Fun(p, e, env, n) =>
-      let (p', typ) = elaborate_pattern(m, p);
+      let (p', typ) = elaborate_pattern(m, p, false);
       let (e', tye) = elaborate(m, e);
       Exp.Fun(p', e', env, n)
       |> rewrap
@@ -274,9 +375,74 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       Exp.TypFun(tpat, e', name)
       |> rewrap
       |> cast_from(Typ.Forall(tpat, tye) |> Typ.temp);
+    | TupLabel(label, e) =>
+      let (label', labty) = elaborate(m, label);
+      let (e', ety) = elaborate(m, e);
+      Exp.TupLabel(label', e')
+      |> rewrap
+      |> cast_from(Typ.TupLabel(labty, ety) |> Typ.temp);
     | Tuple(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
+
+      let expected_labels: list(option(string)) =
+        Typ.get_labels(ctx, elaborated_type);
+      // let elaborated_labeled: list((option(string), DHExp.t)) =
+      //   List.map(
+      //     exp => {
+      //       switch (DHExp.term_of(exp)) {
+      //       | TupLabel({term: Label(l), _}, exp) => (Some(l), exp)
+      //       | _ => (None, exp)
+      //       }
+      //     },
+      //     ds,
+      //   );
+
+      // let reordered: list((option(string), DHExp.t)) =
+      //   LabeledTuple.rearrange_base(expected_labels, elaborated_labeled);
+
+      // let ds: list(DHExp.t) =
+      //   List.map(
+      //     ((optional_label, exp: DHExp.t)) => {
+      //       switch (optional_label) {
+      //       | Some(label) =>
+      //         Exp.TupLabel(Label(label) |> Exp.fresh, exp) |> Exp.fresh
+      //       | None => exp
+      //       }
+      //     },
+      //     reordered,
+      //   );
+      let (ds, tys) =
+        LabeledTuple.rearrange2(
+          expected_labels,
+          DHExp.get_label,
+          Typ.get_label,
+          ds,
+          tys,
+          (name, e) => {
+            DHExp.TupLabel(Label(name) |> DHExp.fresh, e) |> DHExp.fresh
+          },
+          (name, t) => Typ.TupLabel(Label(name) |> Typ.temp, t) |> Typ.temp,
+        );
       Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
+
+    | Dot(e1, e2) =>
+      let (e1, ty1) = elaborate(m, e1);
+      // I don't think we need to elaborate labels
+      // let (e2, ty2) = elaborate(m, e2);
+      let ty =
+        switch (Typ.weak_head_normalize(ctx, ty1).term, e2.term) {
+        | (Prod(tys), Var(name)) =>
+          let element = LabeledTuple.find_label(Typ.get_label, tys, name);
+          switch (element) {
+          | Some({term: TupLabel(_, ty), _}) => ty
+          | _ => Unknown(Internal) |> Typ.temp
+          };
+        | (TupLabel(_, ty), Var(name))
+            when LabeledTuple.equal(Typ.get_label(ty1), Some((name, e2))) => ty
+        | _ => Unknown(Internal) |> Typ.temp
+        };
+      // Freshcast this, if necessary?
+      Exp.Dot(e1, e2) |> rewrap |> cast_from(ty);
     | Var(v) =>
       uexp
       |> cast_from(
@@ -295,7 +461,21 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
           };
         }
       );
-      let (p, ty1) = elaborate_pattern(m, p);
+      let (p, ty1) = elaborate_pattern(m, p, false);
+      // attach labels if needed for labeled tuples
+      let (def_term, def_rewrap) = DHExp.unwrap(def);
+      let def =
+        switch (def_term, Typ.term_of(Typ.normalize(ctx, ty1))) {
+        | (Tuple(ds), Prod(tys)) =>
+          Tuple(
+            LabeledTuple.rearrange(
+              Typ.get_label, DHExp.get_label, tys, ds, (t, b) =>
+              TupLabel(Label(t) |> Exp.fresh, b) |> Exp.fresh
+            ),
+          )
+          |> def_rewrap
+        | (_, _) => def
+        };
       let is_recursive =
         Statics.is_recursive(ctx, p, def, ty1)
         && Pat.get_bindings(p)
@@ -305,7 +485,15 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         let def = add_name(Pat.get_var(p), def);
         let (def, ty2) = elaborate(m, def);
         let (body, ty) = elaborate(m, body);
-        Exp.Let(p, fresh_cast(def, ty2, ty1), body)
+        Exp.Let(
+          p,
+          fresh_cast(
+            def,
+            Typ.weak_head_normalize(ctx, ty2),
+            Typ.weak_head_normalize(ctx, ty1),
+          ), // TODO abanduk: Is it safe to normalize here?
+          body,
+        )
         |> rewrap
         |> cast_from(ty);
       } else {
@@ -314,11 +502,21 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
         let (def, ty2) = elaborate(m, def);
         let (body, ty) = elaborate(m, body);
-        let fixf = FixF(p, fresh_cast(def, ty2, ty1), None) |> DHExp.fresh;
+        let fixf =
+          FixF(
+            p,
+            fresh_cast(
+              def,
+              Typ.weak_head_normalize(ctx, ty2),
+              Typ.weak_head_normalize(ctx, ty1),
+            ),
+            None,
+          )
+          |> DHExp.fresh; // TODO abanduk: Is it safe to normalize here?
         Exp.Let(p, fixf, body) |> rewrap |> cast_from(ty);
       };
     | FixF(p, e, env) =>
-      let (p', typ) = elaborate_pattern(m, p);
+      let (p', typ) = elaborate_pattern(m, p, false);
       let (e', tye) = elaborate(m, e);
       Exp.FixF(p', fresh_cast(e', tye, typ), env)
       |> rewrap
@@ -337,7 +535,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let (f', tyf) = elaborate(m, f);
       let (args', tys) = List.map(elaborate(m), args) |> ListUtil.unzip;
       let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
-      let ty_fargs = Typ.matched_prod(ctx, List.length(args), tyf1);
+      let (args, ty_fargs) =
+        Typ.matched_prod(ctx, args, Exp.get_label, tyf1, (name, b) =>
+          TupLabel(Label(name) |> Exp.fresh, b) |> Exp.fresh
+        );
       let f'' =
         fresh_cast(
           f',
@@ -539,7 +740,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let (e', t) = elaborate(m, e);
       let (ps, es) = ListUtil.unzip(cases);
       let (ps', ptys) =
-        List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
+        List.map(p => elaborate_pattern(m, p, false), ps) |> ListUtil.unzip;
       let joined_pty =
         Typ.join_all(~empty=Typ.Unknown(Internal) |> Typ.temp, ctx, ptys)
         |> Option.value(~default=Typ.temp(Typ.Unknown(Internal)));

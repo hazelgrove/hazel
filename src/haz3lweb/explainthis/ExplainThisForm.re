@@ -34,6 +34,7 @@ type fun_examples =
   | ConsSnd
   | VarIncr
   | VarAnd
+  | TupLabel
   | Tuple2
   | Tuple3
   | Ctr
@@ -53,6 +54,7 @@ type let_examples =
   | ConsHd
   | ConsSnd
   | Var
+  | TupLabel
   | Tuple2
   | Tuple3
   | Ctr
@@ -85,6 +87,11 @@ type example_id =
   | List(list_examples)
   | TypFun(typfun_examples)
   | Fun(fun_examples)
+  | Label1
+  | Label2
+  | Dot1
+  | Dot2
+  | DotTyp
   | Fix1
   | Fix2
   | Tuple1
@@ -139,11 +146,13 @@ type pat_sub_form_id =
   | Float
   | Bool
   | String
+  | Label
   | Triv
   | ListNil
   | ListLit
   | ListCons
   | Var
+  | TupLabel
   | Tuple
   | Tuple2
   | Tuple3
@@ -168,6 +177,8 @@ type form_id =
   | ListConcatExp
   | TypFunctionExp
   | FunctionExp(pat_sub_form_id)
+  | LabeledExp
+  | DotExp
   | TupleExp
   | Tuple2Exp
   | Tuple3Exp
@@ -198,6 +209,7 @@ type form_id =
   | ListNilPat
   | ConsPat
   | Cons2Pat
+  | LabeledPat
   | TuplePat
   | Tuple2Pat
   | Tuple3Pat
@@ -215,10 +227,12 @@ type form_id =
   | RecTyp
   | ArrowTyp
   | Arrow3Typ
+  | LabeledTyp
   | TupleTyp
   | Tuple0Typ
   | Tuple2Typ
   | Tuple3Typ
+  | DotTyp
   | LabelledSumTyp
   | SumTypUnaryConstructorDef
   | SumTypNullaryConstructorDef
@@ -226,6 +240,7 @@ type form_id =
   | MultiHoleTPat
   | VarTPat
   | PipelineExp
+  | Label
   | FilterPause
   | FilterEval
   | FilterDebug
@@ -261,6 +276,8 @@ type group_id =
   | ListConcatExp
   | TypFunctionExp
   | FunctionExp(pat_sub_form_id)
+  | LabeledExp
+  | DotExp
   | TupleExp
   | Tuple2Exp
   | Tuple3Exp
@@ -292,6 +309,7 @@ type group_id =
   | ListNilPat
   | ConsPat
   | Cons2Pat
+  | LabeledPat
   | TuplePat
   | Tuple2Pat
   | Tuple3Pat
@@ -309,16 +327,19 @@ type group_id =
   | RecTyp
   | ArrowTyp
   | Arrow3Typ
+  | LabeledTyp
   | TupleTyp
   | Tuple0Typ
   | Tuple2Typ
   | Tuple3Typ
+  | DotTyp
   | LabelledSumTyp
   | SumTypUnaryConstructorDef
   | SumTypNullaryConstructorDef
   | EmptyHoleTPat
   | MultiHoleTPat
   | VarTPat
+  | Label
   | FilterPause
   | FilterEval
   | FilterDebug

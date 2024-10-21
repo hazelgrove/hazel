@@ -277,7 +277,20 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | Some(between_kids) =>
+      let tuple_children: list(TermBase.Exp.t) = [l] @ between_kids @ [r];
+      let mapping_fn: UExp.t => UExp.t = (
+        (child: UExp.t) => {
+          switch (child) {
+          | {term: Tuple([{term: TupLabel(_), _} as tl]), _} => tl
+          | _ => child
+          };
+        }
+      );
+      let tuple_children: list(UExp.t) =
+        List.map(mapping_fn, tuple_children);
+
+      ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
       | ([(_id, t)], []) =>
@@ -311,6 +324,21 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["="], []) =>
+            // TODO (Anthony): Other cases to convert to string
+            switch (l.term) {
+            | String(name)
+            | Var(name) =>
+              Tuple([
+                TupLabel(
+                  {ids: l.ids, copied: l.copied, term: Label(name)},
+                  r,
+                )
+                |> Exp.fresh,
+              ])
+            | _ => TupLabel(l, r)
+            }
+          | (["."], []) => Dot(l, r)
           | (["|>"], []) => Ap(Reverse, r, l)
           | (["@"], []) => ListConcat(l, r)
           | _ => hole(tm)
@@ -378,9 +406,32 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
     }
   | Bin(Pat(l), tiles, Pat(r)) as tm =>
     switch (is_tuple_pat(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | Some(between_kids) =>
+      let tuple_children = [l] @ between_kids @ [r];
+      let mapping_fn = (child: Pat.t) => {
+        switch (child) {
+        | {term: Tuple([{term: TupLabel(_), _} as tl]), _} => tl
+        | _ => child
+        };
+      };
+      let tuple_children = List.map(mapping_fn, tuple_children);
+      ret(Tuple(tuple_children));
+
     | None =>
       switch (tiles) {
+      | ([(_id, (["="], []))], []) =>
+        // TODO (Anthony): Other cases to convert to string
+        switch (l.term) {
+        | String(name)
+        | Var(name) =>
+          ret(
+            Tuple([
+              TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r)
+              |> Pat.fresh,
+            ]),
+          )
+        | _ => ret(TupLabel(l, r))
+        }
       | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
       | _ => ret(hole(tm))
       }
@@ -453,10 +504,33 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
-    | Some(between_kids) => ret(Prod([l] @ between_kids @ [r]))
+    | Some(between_kids) =>
+      let tuple_children = [l] @ between_kids @ [r];
+      let mapping_fn = (child: Typ.t) => {
+        switch (child) {
+        | {term: Prod([{term: TupLabel(_), _} as tl]), _} => tl
+        | _ => child
+        };
+      };
+      let tuple_children: list(Typ.t) = List.map(mapping_fn, tuple_children);
+
+      ret(Prod(tuple_children));
     | None =>
       switch (tiles) {
       | ([(_id, (["->"], []))], []) => ret(Arrow(l, r))
+      | ([(_id, (["="], []))], []) =>
+        // TODO (Anthony): Other cases to convert to string
+        switch (l.term) {
+        | Var(name) =>
+          ret(
+            Prod([
+              TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r)
+              |> Typ.fresh,
+            ]),
+          )
+        | _ => ret(TupLabel(l, r))
+        }
+      // | ([(_id, (["."], []))], []) => ret(Dot(l, r))
       | _ => ret(hole(tm))
       }
     }

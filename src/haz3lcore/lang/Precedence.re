@@ -9,32 +9,34 @@ type t = int;
 let max: t = 0;
 
 let unquote = 1;
-let ap = 2;
-let neg = 3;
-let power = 4;
-let mult = 5;
-let not_ = 5;
-let plus = 6;
-let cons = 7;
-let concat = 8;
-let eqs = 9;
-let and_ = 10;
-let or_ = 11;
-let ann = 12;
-let if_ = 13;
-let fun_ = 14;
-let semi = 16;
-let let_ = 17;
-let filter = 18;
-let rule_arr = 19;
-let rule_pre = 20;
-let rule_sep = 21;
-let case_ = 22;
+let dot = 2;
+let ap = 3;
+let neg = 4;
+let power = 5;
+let mult = 6;
+let not_ = 6;
+let plus = 7;
+let cons = 8;
+let concat = 9;
+let eqs = 10;
+let and_ = 11;
+let or_ = 12;
+let ann = 13;
+let if_ = 14;
+let fun_ = 15;
+let lab = 16;
+let semi = 17;
+let let_ = 18;
+let filter = 19;
+let rule_arr = 20;
+let rule_pre = 21;
+let rule_sep = 22;
+let case_ = 23;
 
-let comma = 15;
+let comma = 18;
 
-let type_plus = 4;
-let type_arrow = 5;
+let type_plus = 5;
+let type_arrow = 6;
 let type_prod = comma;
 
 let min = 26;
@@ -52,6 +54,7 @@ let associativity_map: IntMap.t(Direction.t) =
     (concat, Right),
     (ann, Left),
     (eqs, Left),
+    (dot, Left),
     (type_arrow, Right),
   ]
   |> List.to_seq

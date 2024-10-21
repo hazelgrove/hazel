@@ -38,7 +38,29 @@ let test_sum = () =>
     BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh) |> Exp.fresh,
   );
 
+let test_labeled_tuple_projection = () =>
+  evaluation_test(
+    "(a=1, b=2, c=?).a",
+    Int(1) |> Exp.fresh,
+    Dot(
+      Tuple([
+        TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh) |> Exp.fresh,
+        TupLabel(Label("b") |> Exp.fresh, Int(2) |> Exp.fresh) |> Exp.fresh,
+        TupLabel(Label("c") |> Exp.fresh, EmptyHole |> Exp.fresh)
+        |> Exp.fresh,
+      ])
+      |> Exp.fresh,
+      Var("a") |> Exp.fresh // This is a var now for parsing reasons
+    )
+    |> Exp.fresh,
+  );
+
 let tests = [
   test_case("Integer literal", `Quick, test_int),
   test_case("Integer sum", `Quick, test_sum),
+  test_case(
+    "Labeled tuple projection",
+    `Quick,
+    test_labeled_tuple_projection,
+  ),
 ];

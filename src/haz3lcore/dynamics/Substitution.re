@@ -64,6 +64,7 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | Int(_)
   | Float(_)
   | String(_)
+  | Label(_)
   | Constructor(_) => d2
   | ListLit(ds) => ListLit(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | Cons(d3, d4) =>
@@ -74,6 +75,11 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     let d3 = subst_var(m, d1, x, d3);
     let d4 = subst_var(m, d1, x, d4);
     ListConcat(d3, d4) |> rewrap;
+  | TupLabel(label, d) => TupLabel(label, subst_var(m, d1, x, d)) |> rewrap
+  | Dot(d3, d4) =>
+    let d3 = subst_var(m, d1, x, d3);
+    let d4 = subst_var(m, d1, x, d4);
+    Dot(d3, d4) |> rewrap;
   | Tuple(ds) => Tuple(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | UnOp(op, d3) =>
     let d3 = subst_var(m, d1, x, d3);

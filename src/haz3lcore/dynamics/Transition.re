@@ -64,6 +64,7 @@ type step_kind =
   | BinIntOp(Operators.op_bin_int)
   | BinFloatOp(Operators.op_bin_float)
   | BinStringOp(Operators.op_bin_string)
+  | Dot
   | Conditional(bool)
   | Projection
   | ListCons
@@ -161,6 +162,7 @@ module Transition = (EV: EV_MODE) => {
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t => Term({term, ids: [rep_id(d)]});
+    // print_endline(Exp.show(d));
 
     // Transition rules
     switch (term) {
@@ -345,6 +347,55 @@ module Transition = (EV: EV_MODE) => {
       switch (DHExp.term_of(d1')) {
       | Constructor(_) => Constructor
       | Fun(dp, d3, Some(env'), _) =>
+        // Wrap the arguments into labels for label rearrangement
+        // And implicitly wrap args into singleton tuples if necessary
+        // This should be done in elaborator instead
+        // let dp: DHPat.t =
+        //   switch (DHPat.term_of(dp)) {
+        //   | Tuple(args) =>
+        //     let labeled_args =
+        //       List.map(
+        //         (p): DHPat.t =>
+        //           switch (DHPat.term_of(p)) {
+        //           | DHPat.Var(name) =>
+        //             TupLabel(DHPat.Label(name) |> DHPat.fresh, p)
+        //             |> DHPat.fresh
+        //           | _ => p
+        //           },
+        //         args,
+        //       );
+        //     Tuple(labeled_args) |> DHPat.fresh;
+        //   | TupLabel(_, _) => Tuple([dp]) |> DHPat.fresh
+        //   | Var(name) =>
+        //     Tuple([
+        //       TupLabel(DHPat.Label(name) |> DHPat.fresh, dp) |> DHPat.fresh,
+        //     ])
+        //     |> DHPat.fresh
+        //   | _ => dp
+        //   };
+        // TODO: Probably not the right way to deal with casts
+        // let d2' =
+        //   switch (d2'.term, DHPat.term_of(dp)) {
+        //   | (Tuple(_), Tuple(_)) => d2'
+        //   | (Cast({term: Tuple(_), _}, _, {term: Prod(_), _}), Tuple(_)) => d2'
+        //   | (Cast(d, {term: Prod(t1), _}, {term: Prod(t2), _}), Tuple(_)) =>
+        //     Cast(
+        //       Tuple([d]) |> DHExp.fresh,
+        //       Prod(t1) |> Typ.temp,
+        //       Prod(t2) |> Typ.temp,
+        //     )
+        //     |> DHExp.fresh
+        //   | (Cast(d, t1, {term: Prod(t2), _}), Tuple(_)) =>
+        //     Cast(
+        //       Tuple([d]) |> DHExp.fresh,
+        //       Prod([t1]) |> Typ.temp,
+        //       Prod(t2) |> Typ.temp,
+        //     )
+        //     |> DHExp.fresh
+        //   | (_, Tuple([{term: TupLabel(_), _}])) =>
+        //     Tuple([d2']) |> DHExp.fresh
+        //   | (_, _) => d2'
+        //   };
         let.match env'' = (env', matches(dp, d2'));
         Step({
           expr: Closure(env'', d3) |> fresh,
@@ -446,6 +497,7 @@ module Transition = (EV: EV_MODE) => {
     | Int(_)
     | Float(_)
     | String(_)
+    | Label(_)
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
@@ -642,6 +694,71 @@ module Transition = (EV: EV_MODE) => {
         kind: BinStringOp(op),
         is_value: true,
       });
+    | Dot(d1, d2) =>
+      let. _ = otherwise(env, (d1, d2) => Dot(d1, d2) |> rewrap)
+      and. d1' =
+        req_final(req(state, env), d1 => Dot1(d1, d2) |> wrap_ctx, d1)
+      and. d2' =
+        req_final(req(state, env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
+      // TODO: Holes and other cases handled?
+      switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
+      | (Tuple(ds), Var(name)) =>
+        Step({
+          expr:
+            switch (LabeledTuple.find_label(DHExp.get_label, ds, name)) {
+            | Some({term: TupLabel(_, exp), _}) => exp
+            | _ => Undefined |> DHExp.fresh
+            },
+          state_update,
+          kind: Dot,
+          is_value: false,
+        })
+      | (_, Cast(d2', ty, ty')) =>
+        // TODO: Probably not right
+        Step({
+          expr: Cast(Dot(d1, d2') |> fresh, ty, ty') |> fresh,
+          state_update,
+          kind: CastAp,
+          is_value: false,
+        })
+      | (Cast(d3', t2, t3), Var(name)) =>
+        // TODO: doen't work because you get to a cast(1, Unknown, Int) which is Indet
+        let rec get_typs = (t2, t3) =>
+          switch (Typ.term_of(t2), Typ.term_of(t3)) {
+          | (Prod(ts), Prod(ts')) => (ts, ts')
+          | (Parens(t2), _) => get_typs(t2, t3)
+          | (_, Parens(t3)) => get_typs(t2, t3)
+          | (_, _) => ([], [])
+          };
+        let (ts, ts') = get_typs(t2, t3);
+        let ty =
+          switch (LabeledTuple.find_label(Typ.get_label, ts, name)) {
+          | Some({term: TupLabel(_, ty), _}) => ty
+          | _ => Typ.Unknown(Internal) |> Typ.temp
+          };
+        let ty' =
+          switch (LabeledTuple.find_label(Typ.get_label, ts', name)) {
+          | Some({term: TupLabel(_, ty), _}) => ty
+          | _ => Typ.Unknown(Internal) |> Typ.temp
+          };
+        Step({
+          expr: Cast(Dot(d3', d2) |> fresh, ty, ty') |> fresh,
+          state_update,
+          kind: CastAp,
+          is_value: false,
+        });
+      | _ => raise(EvaluatorError.Exception(BadPatternMatch))
+      };
+    | TupLabel(label, d1) =>
+      // TODO (Anthony): Fix this if needed
+      let. _ = otherwise(env, d1 => TupLabel(label, d1) |> rewrap)
+      and. _ =
+        req_final(
+          req(state, env),
+          d1 => TupLabel(label, d1) |> wrap_ctx,
+          d1,
+        );
+      Constructor;
     | Tuple(ds) =>
       let. _ = otherwise(env, ds => Tuple(ds) |> rewrap)
       and. _ =
@@ -790,6 +907,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | BinIntOp(_)
   | BinFloatOp(_)
   | BinStringOp(_)
+  | Dot
   | UnOp(_)
   | ListCons
   | ListConcat

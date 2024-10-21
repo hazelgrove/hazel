@@ -12,8 +12,10 @@ let precedence = (dp: Pat.t) =>
   | Float(_)
   | Bool(_)
   | String(_)
+  | Label(_)
   | ListLit(_)
   | Constructor(_) => DHDoc_common.precedence_const
+  | TupLabel(_, _) => DHDoc_common.precedence_Comma
   | Tuple(_) => DHDoc_common.precedence_Comma
   | Cons(_) => DHDoc_common.precedence_Cons
   | Ap(_) => DHDoc_common.precedence_Ap
@@ -51,6 +53,7 @@ let rec mk =
     | Float(f) => DHDoc_common.mk_FloatLit(f)
     | Bool(b) => DHDoc_common.mk_BoolLit(b)
     | String(s) => DHDoc_common.mk_StringLit(s)
+    | Label(name) => DHDoc_common.mk_Label(name)
     | ListLit(d_list) =>
       let ol = List.map(mk', d_list);
       DHDoc_common.mk_ListLit(ol);
@@ -58,6 +61,9 @@ let rec mk =
       let (doc1, doc2) =
         mk_right_associative_operands(DHDoc_common.precedence_Cons, dp1, dp2);
       DHDoc_common.mk_Cons(doc1, doc2);
+    // TODO (Anthony): What to do for Tuplabel?
+    | TupLabel(l, d) =>
+      Doc.hcats([mk'(l), DHDoc_common.Delim.mk("="), mk'(d)])
     | Tuple([]) => DHDoc_common.Delim.triv
     | Tuple(ds) => DHDoc_common.mk_Tuple(List.map(mk', ds))
     // TODO: Print type annotations
