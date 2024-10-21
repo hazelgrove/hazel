@@ -281,72 +281,8 @@ module Pervasives = {
       );
   };
 
-  open Impls;
-  let builtins =
-    VarMap.empty
-    |> const("infinity", Float, infinity)
-    |> const("neg_infinity", Float, neg_infinity)
-    |> const("nan", Float, nan)
-    |> const("epsilon_float", Float, epsilon_float)
-    |> const("pi", Float, pi)
-    |> const("max_int", Int, max_int)
-    |> const("min_int", Int, min_int)
-    |> fn("is_finite", Float, Bool, is_finite)
-    |> fn("is_infinite", Float, Bool, is_infinite)
-    |> fn("is_nan", Float, Bool, is_nan)
-    |> fn("int_of_float", Float, Int, int_of_float)
-    |> fn("float_of_int", Int, Float, float_of_int)
-    |> fn("string_of_int", Int, String, string_of_int)
-    |> fn("string_of_float", Float, String, string_of_float)
-    |> fn("string_of_bool", Bool, String, string_of_bool)
-    |> fn("int_of_string", String, Int, int_of_string("int_of_string"))
-    |> fn(
-         "float_of_string",
-         String,
-         Float,
-         float_of_string("float_of_string"),
-       )
-    |> fn("bool_of_string", String, Bool, bool_of_string("bool_of_string"))
-    |> fn("abs", Int, Int, abs)
-    |> fn("abs_float", Float, Float, abs_float)
-    |> fn("ceil", Float, Float, ceil)
-    |> fn("floor", Float, Float, floor)
-    |> fn("exp", Float, Float, exp)
-    |> fn("log", Float, Float, log)
-    |> fn("log10", Float, Float, log10)
-    |> fn("sqrt", Float, Float, sqrt)
-    |> fn("sin", Float, Float, sin)
-    |> fn("cos", Float, Float, cos)
-    |> fn("tan", Float, Float, tan)
-    |> fn("asin", Float, Float, asin)
-    |> fn("acos", Float, Float, acos)
-    |> fn("atan", Float, Float, atan)
-    |> fn(
-         "mod",
-         Prod([Int |> Typ.fresh, Int |> Typ.fresh]),
-         Int,
-         int_mod("mod"),
-       )
-    |> fn("string_length", String, Int, string_length)
-    |> fn(
-         "string_compare",
-         Prod([String |> Typ.fresh, String |> Typ.fresh]),
-         Int,
-         string_compare,
-       )
-    |> fn("string_trim", String, String, string_trim)
-    |> fn(
-         "string_concat",
-         Prod([String |> Typ.fresh, List(String |> Typ.fresh) |> Typ.fresh]),
-         String,
-         string_concat,
-       )
-    |> fn(
-         "string_sub",
-         Prod([String |> Typ.fresh, Int |> Typ.fresh, Int |> Typ.fresh]),
-         String,
-         string_sub("string_sub"),
-       );
+  // open Impls;
+  let builtins = VarMap.empty;
 };
 
 let ctx_init: Ctx.t = {

@@ -239,6 +239,21 @@ let rearrange2:
   (list('a), list('b))
  =
   (labels, get_label1, get_label2, l1, l2, constructor1, constructor2) => {
+    print_endline(
+      "rearrange2 labels" ++ [%derive.show: list(option(label))](labels),
+    );
+    print_endline(
+      "rearrange2 l1 labels"
+      ++ [%derive.show: list(option(label))](
+           List.map(x => Option.map(fst, get_label1(x)), l1),
+         ),
+    );
+    print_endline(
+      "rearrange2 l2 labels"
+      ++ [%derive.show: list(option(label))](
+           List.map(x => Option.map(fst, get_label2(x)), l2),
+         ),
+    );
     let (l1_labels, l1_vals) = separate_and_keep_labels(get_label1, l1);
     let l1' = List.combine(l1_labels, l1_vals);
     let l1_reordered = rearrange_base(labels, l1');

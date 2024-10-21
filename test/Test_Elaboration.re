@@ -537,6 +537,53 @@ let elaboration_tests = [
       dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(1)|})),
     )
   ),
+  test_case("nested different singleton labeled arguments", `Quick, () =>
+    alco_check(
+      {|let x : (b=c=?) = b=1 in x|},
+      Let(
+        Var("x") |> Pat.fresh,
+        Tuple([
+          TupLabel(
+            Label("b") |> Exp.fresh,
+            Tuple([
+              TupLabel(
+                Label("c") |> Exp.fresh,
+                Cast(
+                  Int(1) |> Exp.fresh,
+                  Int |> Typ.fresh,
+                  Unknown(Hole(EmptyHole)) |> Typ.fresh,
+                )
+                |> Exp.fresh,
+              )
+              |> Exp.fresh,
+            ])
+            |> Exp.fresh,
+          )
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+        Var("x") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      dhexp_of_uexp(parse_exp({|let x : (b=c=?) = b=1 in x|})),
+    )
+  ),
+  test_case("Singleton labeled argument let with unknown type", `Quick, () =>
+    alco_check(
+      {|let x : (a=?) = (a=1) in x|},
+      Let(
+        Var("x") |> Pat.fresh,
+        Tuple([
+          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+        Var("x") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      dhexp_of_uexp(parse_exp({|let x : (a=?) = (a=1) in x|})),
+    )
+  ),
   test_case(
     "Singleton labeled argument function application with unknown type",
     `Quick,

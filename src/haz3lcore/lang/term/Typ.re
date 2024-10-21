@@ -159,7 +159,7 @@ let join_type_provenance =
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
-let rec get_label = ty =>
+let rec get_label = ty => {
   switch (term_of(ty)) {
   | Parens(ty) => get_label(ty)
   | TupLabel(label, t') =>
@@ -169,6 +169,7 @@ let rec get_label = ty =>
     }
   | _ => None
   };
+};
 
 let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (term_of(ty)) {

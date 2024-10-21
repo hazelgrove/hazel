@@ -168,6 +168,7 @@ and multi = (~ctx, ~ancestors, m, tms) =>
   )
 and uexp_to_info_map =
     (
+      ~padding=0,
       ~ctx: Ctx.t,
       ~mode=Mode.Syn,
       ~is_in_filter=false,
@@ -176,12 +177,17 @@ and uexp_to_info_map =
       m: Map.t,
     )
     : (Info.exp, Map.t) => {
+  // let print_endline = str => print_endline(String.make(padding, ' ') ++ str);
+  let print_endline = _str => ();
   /* Maybe switch mode to syn */
   let mode =
     switch (mode) {
     | Ana({term: Unknown(SynSwitch), _}) => Mode.Syn
     | _ => mode
     };
+  print_endline(
+    "UExp: " ++ UExp.show(uexp) ++ " Mode: " ++ Mode.show(mode),
+  );
   let add' = (~self, ~co_ctx, m) => {
     let info =
       Info.derived_exp(~uexp, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx);
@@ -207,6 +213,7 @@ and uexp_to_info_map =
   let ancestors = [UExp.rep_id(uexp)] @ ancestors;
   let uexp_to_info_map =
       (
+        ~padding=padding + 2,
         ~ctx,
         ~mode=Mode.Syn,
         ~is_in_filter=is_in_filter,
@@ -214,7 +221,15 @@ and uexp_to_info_map =
         uexp: UExp.t,
         m: Map.t,
       ) => {
-    uexp_to_info_map(~ctx, ~mode, ~is_in_filter, ~ancestors, uexp, m);
+    uexp_to_info_map(
+      ~padding,
+      ~ctx,
+      ~mode,
+      ~is_in_filter,
+      ~ancestors,
+      uexp,
+      m,
+    );
   };
   let go' = uexp_to_info_map(~ancestors);
   let go = go'(~ctx);
@@ -229,7 +244,8 @@ and uexp_to_info_map =
     add(~self, ~co_ctx=CoCtx.empty, m);
   };
 
-  let default_case = () =>
+  let default_case = () => {
+    print_endline("Default case");
     switch (term) {
     | Closure(_) =>
       failwith(
@@ -543,9 +559,11 @@ and uexp_to_info_map =
     | Let(p, def, body) =>
       let (p_syn, _) =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
+      // print_endline("p_syn: " ++ Info.show_pat(p_syn));
       let (def, p_ana_ctx, m, ty_p_ana) =
         if (!is_recursive(ctx, p, def, p_syn.ty)) {
           let (def, m) = go(~mode=Ana(p_syn.ty), def, m);
+          // print_endline("def: " ++ Info.show_exp(def));
           let ty_p_ana = def.ty;
           let (p_ana', _) =
             go_pat(
@@ -810,44 +828,32 @@ and uexp_to_info_map =
         add(~self=Just(ty_body), ~co_ctx, m);
       };
     };
-
+  };
   // This is to allow lifting single values into a singleton labeled tuple when the label is not present
   // TODO Think about this real hard
 
   switch (mode) {
   | Ana(ty) =>
+    print_endline(
+      "Typ.weak_head_normalize(ctx, ty).term: "
+      ++ Typ.show_term(Typ.weak_head_normalize(ctx, ty).term),
+    );
     switch (Typ.weak_head_normalize(ctx, ty).term) {
     | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
       let (e, m) = go(~mode=Mode.Syn, uexp, m);
+      print_endline("uexp: " ++ UExp.show(uexp));
+      print_endline("ana_ty: " ++ Typ.show(ana_ty));
+      print_endline("e.ty: " ++ Typ.show(e.ty));
 
+      print_endline(
+        "Typ.weak_head_normalize(ctx, e.ty).term: "
+        ++ Typ.show_term(Typ.weak_head_normalize(ctx, e.ty).term),
+      );
       switch (Typ.weak_head_normalize(ctx, e.ty).term) {
-      | _ when Typ.is_consistent(ctx, ana_ty, e.ty) =>
-        let (e, m) =
-          uexp_to_info_map(
-            ~ctx,
-            ~mode=Mode.Ana(ana_ty),
-            ~is_in_filter,
-            ~ancestors,
-            uexp,
-            m,
-          );
-        let fake_uexp =
-          Tuple([TupLabel(Label(l1) |> Exp.fresh, uexp) |> Exp.fresh])
-          |> Exp.fresh;
-        let info =
-          Info.derived_exp(
-            ~uexp=fake_uexp,
-            ~ctx,
-            ~mode,
-            ~ancestors,
-            ~self=Common(Just(ty)),
-            ~co_ctx=e.co_ctx,
-          );
-
-        (info, add_info(fake_uexp.ids, InfoExp(info), m));
       | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
         default_case()
       | _ =>
+        print_endline("Adding an additional label to the tuple");
         // TODO Deduplicate
         let (e, m) =
           uexp_to_info_map(
@@ -874,7 +880,7 @@ and uexp_to_info_map =
         (info, add_info(fake_uexp.ids, InfoExp(info), m));
       };
     | _ => default_case()
-    }
+    };
   | _ => default_case()
   };
 }

@@ -19,10 +19,41 @@ module ElaborationResult = {
 };
 
 let rec fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
-  switch (t2.term) {
-  | Prod([{term: TupLabel({term: Label(l), _}, t), _}]) =>
-    switch (t1.term) {
-    | Prod([{term: TupLabel({term: Label(l'), _}, _), _}]) when l == l' =>
+  print_endline(
+    "fresh_cast "
+    ++ DHExp.show(d)
+    ++ ": "
+    ++ Typ.show(t1)
+    ++ " => "
+    ++ Typ.show(t2),
+  );
+  switch (t1.term) {
+  | Label(_) => d // These should be a different sort. I don't think we should be casting them.
+  | _ =>
+    switch (t2.term) {
+    | Prod([{term: TupLabel({term: Label(l), _}, t), _}]) =>
+      switch (t1.term) {
+      | Prod([{term: TupLabel({term: Label(l'), _}, _), _}]) when l == l' =>
+        Typ.eq(t1, t2)
+          ? d
+          : {
+            let d' =
+              DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
+              |> DHExp.fresh
+              |> Casts.transition_multiple;
+            DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
+            |> DHExp.fresh
+            |> Casts.transition_multiple;
+          }
+      | _ =>
+        Tuple([
+          TupLabel(Label(l) |> DHExp.fresh, fresh_cast(d, t1, t))
+          |> DHExp.fresh,
+        ])
+        |> DHExp.fresh
+      }
+    | _ =>
+      // TODO Remove duplication in cases
       Typ.eq(t1, t2)
         ? d
         : {
@@ -34,26 +65,7 @@ let rec fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
           |> DHExp.fresh
           |> Casts.transition_multiple;
         }
-    | _ =>
-      Tuple([
-        TupLabel(Label(l) |> DHExp.fresh, fresh_cast(d, t1, t))
-        |> DHExp.fresh,
-      ])
-      |> DHExp.fresh
     }
-  | _ =>
-    // TODO Remove duplication in cases
-    Typ.eq(t1, t2)
-      ? d
-      : {
-        let d' =
-          DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
-          |> DHExp.fresh
-          |> Casts.transition_multiple;
-        DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
-        |> DHExp.fresh
-        |> Casts.transition_multiple;
-      }
   };
 };
 
@@ -83,6 +95,10 @@ let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t, 'a) => {
       )
     | _ => raise(MissingTypeInfo)
     };
+
+  // print_endline("elaborated_type uexp" ++ UExp.show(uexp));
+  // print_endline("elaborated_type mode" ++ Mode.show(mode));
+  // print_endline("elaborated_type self_ty" ++ Typ.show(self_ty));
   let elab_ty =
     switch (mode) {
     | Syn => self_ty
@@ -96,6 +112,7 @@ let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t, 'a) => {
     // We need to remove the synswitches from this type.
     | Ana(ana_ty) => Typ.match_synswitch(ana_ty, self_ty)
     };
+  // print_endline("elaborated_type elab_ty" ++ Typ.show(elab_ty));
   (elab_ty |> Typ.normalize(ctx), ctx, co_ctx);
 };
 
@@ -173,6 +190,7 @@ let rec elaborate_pattern =
     | TupLabel(lab, p) =>
       let (plab, labty) = elaborate_pattern(m, lab);
       let (p', pty) = elaborate_pattern(m, p);
+
       if (in_container) {
         DHPat.TupLabel(plab, p')
         |> rewrap
@@ -229,7 +247,9 @@ let rec elaborate_pattern =
       DHPat.Tuple(ps') |> rewrap |> cast_from(Typ.Prod(tys) |> Typ.temp);
     | Ap(p1, p2) =>
       let (p1', ty1) = elaborate_pattern(m, p1);
+      print_endline("ap ty1" ++ Typ.show(ty1));
       let (p2', ty2) = elaborate_pattern(m, p2);
+      print_endline("ap ty2" ++ Typ.show(ty2));
       let (ty1l, ty1r) = Typ.matched_arrow(ctx, ty1);
       let p1'' = fresh_pat_cast(p1', ty1, Arrow(ty1l, ty1r) |> Typ.temp);
       let p2'' = fresh_pat_cast(p2', ty2, ty1l);
@@ -294,7 +314,9 @@ let rec elaborate =
   let (elaborated_type, ctx, co_ctx) = elaborated_type(m, uexp);
   let elaborate = (~in_container=false, m, uexp) =>
     elaborate(m, uexp, in_container);
-  let cast_from = (ty, exp) => fresh_cast(exp, ty, elaborated_type);
+  let cast_from = (ty, exp) => {
+    fresh_cast(exp, ty, elaborated_type);
+  };
   let (term, rewrap) = UExp.unwrap(uexp);
   let dhexp =
     switch (term) {
@@ -325,11 +347,13 @@ let rec elaborate =
       let (e', ty) = elaborate(m, e);
       e' |> cast_from(ty);
     | Deferral(_) => uexp
-    | Int(_) => uexp |> cast_from(Int |> Typ.temp)
+    | Int(_) =>
+      print_endline("int: " ++ UExp.show(uexp));
+      uexp |> cast_from(Int |> Typ.temp);
     | Bool(_) => uexp |> cast_from(Bool |> Typ.temp)
     | Float(_) => uexp |> cast_from(Float |> Typ.temp)
     | String(_) => uexp |> cast_from(String |> Typ.temp)
-    | Label(name) => uexp |> cast_from(Label(name) |> Typ.temp)
+    | Label(_) => uexp
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let inner_type =
@@ -353,7 +377,9 @@ let rec elaborate =
       Constructor(c, t) |> rewrap |> cast_from(t);
     | Fun(p, e, env, n) =>
       let (p', typ) = elaborate_pattern(m, p, false);
+      // print_endline("elaborated patternn" ++ DHPat.show(p'));
       let (e', tye) = elaborate(m, e);
+      // print_endline("elaborated body" ++ DHExp.show(e'));
       Exp.Fun(p', e', env, n)
       |> rewrap
       |> cast_from(Arrow(typ, tye) |> Typ.temp);
@@ -363,9 +389,17 @@ let rec elaborate =
       |> rewrap
       |> cast_from(Typ.Forall(tpat, tye) |> Typ.temp);
     | TupLabel(label, e) =>
+      // print_endline("tuplabel label" ++ DHExp.show(label));
+      // print_endline("tuplabel e" ++ DHExp.show(e));
       let (label', labty) = elaborate(m, label);
+      // print_endline("tuplabel labty" ++ Typ.show(labty));
+      // print_endline("tuplabel label'" ++ DHExp.show(label'));
       let (e', ety) = elaborate(m, e);
-      if (in_container) {
+      print_endline("tuplabel ety" ++ Typ.show(ety));
+      print_endline("tuplabel e'" ++ DHExp.show(e'));
+      if (true) {
+        print_endline("labty" ++ Typ.show(labty));
+        print_endline("ety" ++ Typ.show(ety));
         Exp.TupLabel(label', e')
         |> rewrap
         |> cast_from(Typ.TupLabel(labty, ety) |> Typ.temp);
@@ -378,36 +412,14 @@ let rec elaborate =
       };
 
     | Tuple(es) =>
+      print_endline("tuple es" ++ [%derive.show: list(DHExp.t)](es));
       let (ds, tys) =
         List.map(elaborate(m, ~in_container=true), es) |> ListUtil.unzip;
-
+      print_endline("tuple ds" ++ [%derive.show: list(DHExp.t)](ds));
+      print_endline("tuple tys" ++ [%derive.show: list(Typ.t)](tys));
       let expected_labels: list(option(string)) =
         Typ.get_labels(ctx, elaborated_type);
-      // let elaborated_labeled: list((option(string), DHExp.t)) =
-      //   List.map(
-      //     exp => {
-      //       switch (DHExp.term_of(exp)) {
-      //       | TupLabel({term: Label(l), _}, exp) => (Some(l), exp)
-      //       | _ => (None, exp)
-      //       }
-      //     },
-      //     ds,
-      //   );
 
-      // let reordered: list((option(string), DHExp.t)) =
-      //   LabeledTuple.rearrange_base(expected_labels, elaborated_labeled);
-
-      // let ds: list(DHExp.t) =
-      //   List.map(
-      //     ((optional_label, exp: DHExp.t)) => {
-      //       switch (optional_label) {
-      //       | Some(label) =>
-      //         Exp.TupLabel(Label(label) |> Exp.fresh, exp) |> Exp.fresh
-      //       | None => exp
-      //       }
-      //     },
-      //     reordered,
-      //   );
       let (ds, tys) =
         LabeledTuple.rearrange2(
           expected_labels,
@@ -415,10 +427,14 @@ let rec elaborate =
           Typ.get_label,
           ds,
           tys,
-          (name, e) =>
-            DHExp.TupLabel(Label(name) |> DHExp.fresh, e) |> DHExp.fresh,
+          (name, e) => {
+            print_endline("Adding label in tuple case");
+            DHExp.TupLabel(Label(name) |> DHExp.fresh, e) |> DHExp.fresh;
+          },
           (name, t) => Typ.TupLabel(Label(name) |> Typ.temp, t) |> Typ.temp,
         );
+
+      print_endline("About to do the big cast");
       Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
 
     | Dot(e1, e2) =>
@@ -522,7 +538,11 @@ let rec elaborate =
       e' |> cast_from(tye);
     | Ap(dir, f, a) =>
       let (f', tyf) = elaborate(m, f);
+      print_endline("ap tyf" ++ Typ.show(tyf));
+
       let (a', tya) = elaborate(m, a);
+      print_endline("ap a" ++ DHExp.show(a));
+      print_endline("ap tya" ++ Typ.show(tya));
       let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
       let f'' = fresh_cast(f', tyf, Arrow(tyf1, tyf2) |> Typ.temp);
       let a'' = fresh_cast(a', tya, tyf1);
