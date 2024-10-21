@@ -808,8 +808,8 @@ and Typ: {
     | (_, Parens(t2)) => eq_internal(n, t1, t2)
     | (TupLabel(label1, t1'), TupLabel(label2, t2')) =>
       eq_internal(n, label1, label2) && eq_internal(n, t1', t2')
-    | (TupLabel(_, t1), _) => eq_internal(n, t1, t2)
-    | (_, TupLabel(_, t2)) => eq_internal(n, t1, t2)
+    | (TupLabel(_, t1), _) => false // TODO Verify this
+    | (_, TupLabel(_, t2)) => false
     | (Rec(x1, t1), Rec(x2, t2))
     | (Forall(x1, t1), Forall(x2, t2)) =>
       let alpha_subst =

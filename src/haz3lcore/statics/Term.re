@@ -452,8 +452,8 @@ module Exp = {
     | Match => "Case expression"
     | Cast => "Cast expression";
 
-  let rec get_label: t => option((LabeledTuple.label, t)) =
-    e =>
+  let rec get_label: t => option((LabeledTuple.label, t)) = {
+    e => {
       switch (e.term) {
       | Parens(e) => get_label(e)
       | TupLabel(elab, e') =>
@@ -461,8 +461,13 @@ module Exp = {
         | Label(name) => Some((name, e'))
         | _ => None
         }
+      // | Cast(e2, _, {term: TupLabel({term: Label(l), _}, _), _}) =>
+      //   Some((l, e2)) // TODO I would like to remove this case and stop casting in the case that we have the same labels
+      | Cast(e, _, _) => get_label(e) // TODO I would like to remove this case and stop casting in the case that we have the same labels
       | _ => None
       };
+    };
+  };
 
   // Typfun should be treated as a function here as this is only used to
   // determine when to allow for recursive definitions in a let binding.

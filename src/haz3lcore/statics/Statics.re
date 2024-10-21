@@ -229,7 +229,7 @@ and uexp_to_info_map =
     add(~self, ~co_ctx=CoCtx.empty, m);
   };
 
-  let default_case = () =>
+  let default_case = () => {
     switch (term) {
     | Closure(_) =>
       failwith(
@@ -810,7 +810,7 @@ and uexp_to_info_map =
         add(~self=Just(ty_body), ~co_ctx, m);
       };
     };
-
+  };
   // This is to allow lifting single values into a singleton labeled tuple when the label is not present
   // TODO Think about this real hard
 
@@ -821,30 +821,6 @@ and uexp_to_info_map =
       let (e, m) = go(~mode=Mode.Syn, uexp, m);
 
       switch (Typ.weak_head_normalize(ctx, e.ty).term) {
-      | _ when Typ.is_consistent(ctx, ana_ty, e.ty) =>
-        let (e, m) =
-          uexp_to_info_map(
-            ~ctx,
-            ~mode=Mode.Ana(ana_ty),
-            ~is_in_filter,
-            ~ancestors,
-            uexp,
-            m,
-          );
-        let fake_uexp =
-          Tuple([TupLabel(Label(l1) |> Exp.fresh, uexp) |> Exp.fresh])
-          |> Exp.fresh;
-        let info =
-          Info.derived_exp(
-            ~uexp=fake_uexp,
-            ~ctx,
-            ~mode,
-            ~ancestors,
-            ~self=Common(Just(ty)),
-            ~co_ctx=e.co_ctx,
-          );
-
-        (info, add_info(fake_uexp.ids, InfoExp(info), m));
       | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
         default_case()
       | _ =>

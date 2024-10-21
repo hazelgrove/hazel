@@ -19,29 +19,8 @@ module ElaborationResult = {
 };
 
 let rec fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
-  switch (t2.term) {
-  | Prod([{term: TupLabel({term: Label(l), _}, t), _}]) =>
-    switch (t1.term) {
-    | Prod([{term: TupLabel({term: Label(l'), _}, _), _}]) when l == l' =>
-      Typ.eq(t1, t2)
-        ? d
-        : {
-          let d' =
-            DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
-            |> DHExp.fresh
-            |> Casts.transition_multiple;
-          DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
-          |> DHExp.fresh
-          |> Casts.transition_multiple;
-        }
-    | _ =>
-      Tuple([
-        TupLabel(Label(l) |> DHExp.fresh, fresh_cast(d, t1, t))
-        |> DHExp.fresh,
-      ])
-      |> DHExp.fresh
-    }
-  | _ =>
+  switch (t1.term) {
+  | Label(_) =>
     // TODO Remove duplication in cases
     Typ.eq(t1, t2)
       ? d
@@ -53,7 +32,44 @@ let rec fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
         DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
         |> DHExp.fresh
         |> Casts.transition_multiple;
+      } // These should be a different sort. I don't think we should be casting them.
+  | _ =>
+    switch (t2.term) {
+    | Prod([{term: TupLabel({term: Label(l), _}, t), _}]) =>
+      switch (t1.term) {
+      | Prod([{term: TupLabel({term: Label(l'), _}, _), _}]) when l == l' =>
+        Typ.eq(t1, t2)
+          ? d
+          : {
+            let d' =
+              DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
+              |> DHExp.fresh
+              |> Casts.transition_multiple;
+            DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
+            |> DHExp.fresh
+            |> Casts.transition_multiple;
+          }
+      | _ =>
+        Tuple([
+          TupLabel(Label(l) |> DHExp.fresh, fresh_cast(d, t1, t))
+          |> DHExp.fresh,
+        ])
+        |> DHExp.fresh
       }
+    | _ =>
+      // TODO Remove duplication in cases
+      Typ.eq(t1, t2)
+        ? d
+        : {
+          let d' =
+            DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
+            |> DHExp.fresh
+            |> Casts.transition_multiple;
+          DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
+          |> DHExp.fresh
+          |> Casts.transition_multiple;
+        }
+    }
   };
 };
 
@@ -288,12 +304,9 @@ let rec elaborate_pattern =
    [Matt] A lot of these fresh_cast calls are redundant, however if you
    want to remove one, I'd ask you instead comment it out and leave
    a comment explaining why it's redundant.  */
-let rec elaborate =
-        (m: Statics.Map.t, uexp: UExp.t, in_container: bool)
-        : (DHExp.t, Typ.t) => {
+let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
   let (elaborated_type, ctx, co_ctx) = elaborated_type(m, uexp);
-  let elaborate = (~in_container=false, m, uexp) =>
-    elaborate(m, uexp, in_container);
+  let elaborate = (m, uexp) => elaborate(m, uexp);
   let cast_from = (ty, exp) => fresh_cast(exp, ty, elaborated_type);
   let (term, rewrap) = UExp.unwrap(uexp);
   let dhexp =
@@ -365,21 +378,11 @@ let rec elaborate =
     | TupLabel(label, e) =>
       let (label', labty) = elaborate(m, label);
       let (e', ety) = elaborate(m, e);
-      if (in_container) {
-        Exp.TupLabel(label', e')
-        |> rewrap
-        |> cast_from(Typ.TupLabel(labty, ety) |> Typ.temp);
-      } else {
-        Tuple([Exp.TupLabel(label', e') |> rewrap])
-        |> Exp.fresh
-        |> cast_from(
-             Typ.Prod([Typ.TupLabel(labty, ety) |> Typ.temp]) |> Typ.temp,
-           );
-      };
-
+      Exp.TupLabel(label', e')
+      |> rewrap
+      |> cast_from(Typ.TupLabel(labty, ety) |> Typ.temp);
     | Tuple(es) =>
-      let (ds, tys) =
-        List.map(elaborate(m, ~in_container=true), es) |> ListUtil.unzip;
+      let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
 
       let expected_labels: list(option(string)) =
         Typ.get_labels(ctx, elaborated_type);
@@ -415,8 +418,9 @@ let rec elaborate =
           Typ.get_label,
           ds,
           tys,
-          (name, e) =>
-            DHExp.TupLabel(Label(name) |> DHExp.fresh, e) |> DHExp.fresh,
+          (name, e) => {
+            DHExp.TupLabel(Label(name) |> DHExp.fresh, e) |> DHExp.fresh
+          },
           (name, t) => Typ.TupLabel(Label(name) |> Typ.temp, t) |> Typ.temp,
         );
       Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
@@ -766,7 +770,7 @@ let fix_typ_ids =
   Exp.map_term(~f_typ=(cont, e) => e |> IdTagged.new_ids |> cont);
 
 let uexp_elab = (m: Statics.Map.t, uexp: UExp.t): ElaborationResult.t =>
-  switch (elaborate(m, uexp, false)) {
+  switch (elaborate(m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
   | (d, ty) => Elaborates(d, ty, Delta.empty)
   };
