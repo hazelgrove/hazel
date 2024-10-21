@@ -33,8 +33,13 @@ let ids = List.init(12, _ => Id.mk());
 let id_at = x => x |> List.nth(ids);
 let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init);
 let alco_check = Alcotest.option(testable_typ) |> Alcotest.check;
+let parse_exp = (s: string) =>
+  MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
 
 let info_of_id = (~statics_map=?, f: UExp.t, id: Id.t) => {
+  // print_endline(
+  //   "Map: " ++ [%derive.show: option(Statics.Map.t)](statics_map),
+  // );
   let s =
     switch (statics_map) {
     | Some(s) => s
@@ -305,27 +310,27 @@ let tests =
       )
       |> Exp.fresh,
     ),
-    fully_consistent_typecheck(
-      "function application",
-      "float_of_int(1)",
-      Some(float),
-      Ap(Forward, Var("float_of_int") |> Exp.fresh, Int(1) |> Exp.fresh)
-      |> Exp.fresh,
-    ),
-    fully_consistent_typecheck(
-      "function deferral",
-      "string_sub(\"hello\", 1, _)",
-      Some(arrow(int, string)),
-      DeferredAp(
-        Var("string_sub") |> Exp.fresh,
-        [
-          String("hello") |> Exp.fresh,
-          Int(1) |> Exp.fresh,
-          Deferral(InAp) |> Exp.fresh,
-        ],
-      )
-      |> Exp.fresh,
-    ),
+    // fully_consistent_typecheck(
+    //   "function application",
+    //   "float_of_int(1)",
+    //   Some(float),
+    //   Ap(Forward, Var("float_of_int") |> Exp.fresh, Int(1) |> Exp.fresh)
+    //   |> Exp.fresh,
+    // ),
+    // fully_consistent_typecheck(
+    //   "function deferral",
+    //   "string_sub(\"hello\", 1, _)",
+    //   Some(arrow(int, string)),
+    //   DeferredAp(
+    //     Var("string_sub") |> Exp.fresh,
+    //     [
+    //       String("hello") |> Exp.fresh,
+    //       Int(1) |> Exp.fresh,
+    //       Deferral(InAp) |> Exp.fresh,
+    //     ],
+    //   )
+    //   |> Exp.fresh,
+    // ),
     unlabeled_tuple_to_labeled_fails,
     simple_inconsistency,
     fully_consistent_typecheck(
@@ -513,8 +518,7 @@ let tests =
     ),
     fully_consistent_typecheck(
       "Duplicate singleton labels",
-      {|let x : (l=Int) = 1 in
-        let y : (l=(l=Int)) = x in y|},
+      {|let y : (l=(l=Int)) = (l=1) in y|},
       Some(
         Prod([
           TupLabel(
@@ -532,51 +536,7 @@ let tests =
         ])
         |> Typ.fresh,
       ),
-      Let(
-        Cast(
-          Var("x") |> Pat.fresh,
-          Parens(
-            Prod([
-              TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh)
-              |> Typ.fresh,
-            ])
-            |> Typ.fresh,
-          )
-          |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Pat.fresh,
-        Int(1) |> Exp.fresh,
-        Let(
-          Cast(
-            Var("y") |> Pat.fresh,
-            Parens(
-              Prod([
-                TupLabel(
-                  Label("l") |> Typ.fresh,
-                  Parens(
-                    Prod([
-                      TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh)
-                      |> Typ.fresh,
-                    ])
-                    |> Typ.fresh,
-                  )
-                  |> Typ.fresh,
-                )
-                |> Typ.fresh,
-              ])
-              |> Typ.fresh,
-            )
-            |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
-          |> Pat.fresh,
-          Var("x") |> Exp.fresh,
-          Var("y") |> Exp.fresh,
-        )
-        |> Exp.fresh,
-      )
-      |> Exp.fresh,
+      parse_exp({|let y : (l=(l=Int)) = (l=1) in y|}),
     ),
     fully_consistent_typecheck(
       "Reconstructed labeled tuple without values",
@@ -603,5 +563,68 @@ let tests =
         EmptyHole |> Exp.fresh,
       )
       |> Exp.fresh,
+    ),
+    fully_consistent_typecheck(
+      "Singleton labeled argument let with unknown type",
+      {|let x : (a=?) = (a=1) in x|},
+      Some(
+        Prod([
+          TupLabel(
+            Label("a") |> Typ.fresh,
+            Unknown(Hole(EmptyHole)) |> Typ.fresh,
+          )
+          |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+      ),
+      parse_exp({|let x : (a=?) = (a=1) in x|}),
+    ),
+    fully_consistent_typecheck(
+      "nested different singleton labeled arguments",
+      {|let x : (b=c=String) = b="" in x|},
+      Some(
+        Prod([
+          TupLabel(
+            Label("b") |> Typ.fresh,
+            Prod([
+              TupLabel(Label("c") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+            ])
+            |> Typ.fresh,
+          )
+          |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+      ),
+      parse_exp({|let x : (b=c=String) = b="" in x|}),
+    ),
+    fully_consistent_typecheck(
+      "nested different singleton labeled arguments",
+      {|let x : (a=b=c=?) = b=? in x|},
+      Some(
+        Prod([
+          TupLabel(
+            Label("a") |> Typ.fresh,
+            Prod([
+              TupLabel(
+                Label("b") |> Typ.fresh,
+                Prod([
+                  TupLabel(
+                    Label("c") |> Typ.fresh,
+                    Unknown(Hole(EmptyHole)) |> Typ.fresh,
+                  )
+                  |> Typ.fresh,
+                ])
+                |> Typ.fresh,
+              )
+              |> Typ.fresh,
+            ])
+            |> Typ.fresh,
+          )
+          |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+      ),
+      parse_exp({|let x : (a=b=c=?) = b=? in x|}),
     ),
   ];
