@@ -12,15 +12,25 @@ let exp_typ =
 
 let alco_check = exp_typ |> Alcotest.check;
 
-let parser_test = (name: string, exp: Term.Exp.t, menhir: string) =>
-  test_case(name, `Quick, () =>
-    alco_check(
-      name,
-      exp,
-      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-        Haz3lmenhir.Interface.parse_program(menhir),
-      ),
-    )
+// Existing recovering parser
+let make_term_parse = (s: string) =>
+  MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
+
+let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      alco_check("Does not match MakeTerm", exp, make_term_parse(actual));
+
+      alco_check(
+        name ++ " matches expected type",
+        exp,
+        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+          Haz3lmenhir.Interface.parse_program(actual),
+        ),
+      );
+    },
   );
 
 let fun_exp: Exp.t =
@@ -106,5 +116,63 @@ let tests = [
     TyAlias(Var("x") |> TPat.fresh, Int |> Typ.fresh, Int(1) |> Exp.fresh)
     |> Exp.fresh,
     "type x = Int in 1",
+  ),
+  parser_test(
+    "Test",
+    Test(
+      BinOp(Int(Equals), Int(3) |> Exp.fresh, Int(3) |> Exp.fresh)
+      |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "test 3 == 3 end",
+  ),
+  parser_test(
+    "Filter",
+    Filter(
+      Filter({act: (Eval, One), pat: Int(3) |> Exp.fresh}),
+      Int(3) |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "eval 3 in 3" // TODO Use other filter commands
+  ),
+  parser_test(
+    "List Concat",
+    ListConcat(
+      ListLit([Int(1) |> Exp.fresh, Int(2) |> Exp.fresh]) |> Exp.fresh,
+      ListLit([Int(3) |> Exp.fresh, Int(4) |> Exp.fresh]) |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "[1, 2] @ [3, 4]",
+  ),
+  parser_test(
+    "Integer Ops",
+    BinOp(
+      Int(LessThan),
+      BinOp(
+        Int(Minus),
+        BinOp(
+          Int(Plus),
+          UnOp(Int(Minus), Int(1) |> Exp.fresh) |> Exp.fresh,
+          Int(2) |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        BinOp(
+          Int(Divide),
+          Int(3) |> Exp.fresh,
+          BinOp(
+            Int(Times),
+            Int(4) |> Exp.fresh,
+            BinOp(Int(Power), Int(5) |> Exp.fresh, Int(6) |> Exp.fresh)
+            |> Exp.fresh,
+          )
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      Int(8) |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "-1 + 2 - 3 / 4 * 5 ** 6 < 8" // TODO Add the remaining operators
   ),
 ];
