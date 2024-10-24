@@ -175,4 +175,20 @@ let tests = [
     |> Exp.fresh,
     "-1 + 2 - 3 / 4 * 5 ** 6 < 8" // TODO Add the remaining operators
   ),
+  test_case("named_function", `Quick, () => {
+    alco_check(
+      "named_function matches expected type",
+      Fun(
+        Pat.Var("x") |> Pat.fresh,
+        BinOp(Int(Plus), Var("x") |> Exp.fresh, Int(5) |> Exp.fresh)
+        |> Exp.fresh,
+        None,
+        Some("f"),
+      )
+      |> Exp.fresh,
+      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+        Haz3lmenhir.Interface.parse_program("named_fun f x -> x + 5"),
+      ),
+    )
+  }),
 ];
