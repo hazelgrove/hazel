@@ -15,7 +15,7 @@ let alco_check = exp_typ |> Alcotest.check;
 // Existing recovering parser
 let make_term_parse = (s: string) =>
   MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
-  
+
 // TODO Assert against result instead of exception for parse failure for better error messages
 let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
   test_case(
