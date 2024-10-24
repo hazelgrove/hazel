@@ -15,7 +15,8 @@ let alco_check = exp_typ |> Alcotest.check;
 // Existing recovering parser
 let make_term_parse = (s: string) =>
   MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
-
+  
+// TODO Assert against result instead of exception for parse failure for better error messages
 let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
   test_case(
     name,
@@ -174,6 +175,21 @@ let tests = [
     )
     |> Exp.fresh,
     "-1 + 2 - 3 / 4 * 5 ** 6 < 8" // TODO Add the remaining operators
+  ),
+  parser_test(
+    "Let binding with type ascription",
+    Let(
+      Cast(
+        Var("x") |> Pat.fresh,
+        Int |> Typ.fresh,
+        Unknown(Internal) |> Typ.fresh,
+      )
+      |> Pat.fresh,
+      Int(5) |> Exp.fresh,
+      Var("x") |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "let (x : Int) = 5 in x",
   ),
   test_case("named_function", `Quick, () => {
     alco_check(
