@@ -93,6 +93,7 @@ let documentation_view = (~inject, ~name, ~editors, ~instructor_mode) => {
   @ instructor_toggle(~inject, ~instructor_mode)
   @ [
     prev,
+    next,
     select(
       ~attr=
         Attr.on_change((_, name) =>
@@ -100,12 +101,11 @@ let documentation_view = (~inject, ~name, ~editors, ~instructor_mode) => {
         ),
       List.map(option_view(name), editor_names),
     ),
-    next,
   ];
 };
 
-let tutorial_view = (~inject, ~name, ~editors, ~instructor_mode) => {
-  let editor_names = List.map(fst, editors);
+let tutorial_view = (~inject, ~name, ~slides, ~instructor_mode) => {
+  let editor_names = List.map(fst, slides);
   let rec find_prev_next: list(string) => (option(string), option(string)) =
     fun
     | []
@@ -147,6 +147,7 @@ let tutorial_view = (~inject, ~name, ~editors, ~instructor_mode) => {
   @ instructor_toggle(~inject, ~instructor_mode)
   @ [
     prev,
+    next,
     select(
       ~attr=
         Attr.on_change((_, name) =>
@@ -154,7 +155,6 @@ let tutorial_view = (~inject, ~name, ~editors, ~instructor_mode) => {
         ),
       List.map(option_view(name), editor_names),
     ),
-    next,
   ];
 };
 
@@ -183,8 +183,8 @@ let view =
       scratch_view(~inject, ~cur_slide, ~slides)
     | Documentation(name, editors) =>
       documentation_view(~inject, ~name, ~editors, ~instructor_mode)
-    | Tutorial(name, editors) =>
-      tutorial_view(~inject, ~name, ~editors, ~instructor_mode)
+    | Tutorial(name, slides) =>
+      tutorial_view(~inject, ~name, ~slides, ~instructor_mode)
     | Exercises(cur_slide, specs, _) =>
       exercises_view(~cur_slide, ~specs, ~inject, ~instructor_mode)
     };
