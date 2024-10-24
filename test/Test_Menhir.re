@@ -12,44 +12,88 @@ let exp_typ =
 
 let alco_check = exp_typ |> Alcotest.check;
 
-let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init);
-let dhexp_of_uexp = u => Elaborator.elaborate(mk_map(u), u) |> fst;
-
-let parser_test = (name: string, exp: Term.Exp.t, menhir: string, ()) =>
-  alco_check(
-    name,
-    exp,
-    dhexp_of_uexp(
+let parser_test = (name: string, exp: Term.Exp.t, menhir: string) =>
+  test_case(name, `Quick, () =>
+    alco_check(
+      name,
+      exp,
       Haz3lmenhir.Conversion.Exp.of_menhir_ast(
         Haz3lmenhir.Interface.parse_program(menhir),
       ),
-    ),
+    )
   );
 
 let fun_exp: Exp.t =
   Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None, None) |> Exp.fresh;
-let fun_str = "fun x -> x";
 
 let tests = [
-  test_case(
-    "Integer Literal",
-    `Quick,
-    parser_test("Same Integer", Int(8) |> Exp.fresh, "8"),
-  ),
-  test_case("Fun", `Quick, parser_test("Fun", fun_exp, fun_str)),
-  test_case(
+  parser_test("Integer Literal", Int(8) |> Exp.fresh, "8"),
+  parser_test("Fun", fun_exp, "fun x -> x"),
+  parser_test(
     "String Literal",
-    `Quick,
-    parser_test(
-      "Same String",
-      String("Hello World") |> Exp.fresh,
-      "\"Hello World\"",
-    ),
+    String("Hello World") |> Exp.fresh,
+    "\"Hello World\"",
   ),
-  //NOTE: leaving out deferrals for now due to bug
-  // test_case(
-  //   "Deferred Ap",
-  //   `Quick,
-  //   parser_test("Deferred Ap", , "x(_)"),
-  // ),
+  parser_test("Bool Literal", Bool(true) |> Exp.fresh, "true"),
+  parser_test("Empty Hole", EmptyHole |> Exp.fresh, "?"),
+  parser_test("Var", Var("x") |> Exp.fresh, "x"),
+  parser_test("Parens", Parens(Var("y") |> Exp.fresh) |> Exp.fresh, "(y)"),
+  parser_test(
+    "BinOp",
+    BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh) |> Exp.fresh,
+    "4 + 5",
+  ),
+  parser_test(
+    "Let",
+    Let(Var("x") |> Pat.fresh, Int(5) |> Exp.fresh, Var("x") |> Exp.fresh)
+    |> Exp.fresh,
+    "let x = 5 in x",
+  ),
+  parser_test(
+    "Tuple",
+    Tuple([Int(4) |> Exp.fresh, Int(5) |> Exp.fresh]) |> Exp.fresh,
+    "(4, 5)" // TODO Verify with maketerm. Should this be parens or not
+  ),
+  parser_test(
+    "Match",
+    Match(
+      Int(4) |> Exp.fresh,
+      [
+        (Int(1) |> Pat.fresh, String("hello") |> Exp.fresh),
+        (Wild |> Pat.fresh, String("world") |> Exp.fresh),
+      ],
+    )
+    |> Exp.fresh,
+    {|case 4
+       | 1 => "hello"
+       | _ => "world"
+      end|},
+  ),
+  parser_test(
+    "If",
+    If(Bool(true) |> Exp.fresh, Int(8) |> Exp.fresh, Int(6) |> Exp.fresh)
+    |> Exp.fresh,
+    "if true then 8 else 6",
+  ),
+  parser_test(
+    "Deferred Ap",
+    DeferredAp(Var("x") |> Exp.fresh, [Deferral(InAp) |> Exp.fresh])
+    |> Exp.fresh,
+    "x(_)",
+  ),
+  parser_test(
+    "Cons",
+    Cons(Int(1) |> Exp.fresh, ListLit([]) |> Exp.fresh) |> Exp.fresh,
+    "1 :: []",
+  ),
+  parser_test(
+    "ListLit",
+    ListLit([
+      Int(1) |> Exp.fresh,
+      Int(2) |> Exp.fresh,
+      Int(3) |> Exp.fresh,
+    ])
+    |> Exp.fresh,
+    "[1, 2, 3]",
+  ),
 ];
