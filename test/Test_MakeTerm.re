@@ -66,4 +66,17 @@ let tests = [
       "let    = fun x ->   in  ",
     )
   }),
+  test_case("Constructor", `Quick, () => {
+    exp_check(
+      Constructor("A", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
+      "A",
+    )
+  }),
+  test_case("Type Alias", `Quick, () => {
+    exp_check(
+      TyAlias(Var("x") |> TPat.fresh, Int |> Typ.fresh, Int(1) |> Exp.fresh)
+      |> Exp.fresh,
+      "type x = Int in 1",
+    )
+  }),
 ];
