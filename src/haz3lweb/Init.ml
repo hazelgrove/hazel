@@ -29,7 +29,12 @@ let startup : PersistentData.t =
         benchmark = false;
         mode = Tutorial;
         explainThis =
-          { show = true; show_feedback = false; highlight = NoHighlight; mode = Tutorial };
+          {
+            show = true;
+            show_feedback = false;
+            highlight = NoHighlight;
+            (* mode = Tutorial; *)
+          };
       };
     scratch =
       ( 0,
