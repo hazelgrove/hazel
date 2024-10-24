@@ -96,4 +96,15 @@ let tests = [
     |> Exp.fresh,
     "[1, 2, 3]",
   ),
+  parser_test(
+    "Constructor",
+    Constructor("A", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
+    "A",
+  ),
+  parser_test(
+    "Type Alias",
+    TyAlias(Var("x") |> TPat.fresh, Int |> Typ.fresh, Int(1) |> Exp.fresh)
+    |> Exp.fresh,
+    "type x = Int in 1",
+  ),
 ];
