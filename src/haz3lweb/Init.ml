@@ -27,10 +27,9 @@ let startup : PersistentData.t =
         context_inspector = false;
         instructor_mode = true;
         benchmark = false;
-        (* mode = Tutorial; *)
+        mode = Tutorial;
         explainThis =
-          { show = true; show_feedback = false; highlight = NoHighlight };
-        mode = Documentation;
+          { show = true; show_feedback = false; highlight = NoHighlight; mode = Tutorial };
       };
     scratch =
       ( 0,
