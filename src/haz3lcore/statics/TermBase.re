@@ -131,52 +131,60 @@ and Exp: {
     | InAp
     | OutsideAp;
 
+  //Comments represent the textual syntax of each term for use in the menhir parser
+  //e = exp, ty = typ, tp = tpat, p = pat, s = string, x = ident
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(string)
-    | EmptyHole
+    | Invalid(string) //? s
+    | EmptyHole //?
     | MultiHole(list(Any.t))
-    | DynamicErrorHole(t, InvalidOperationError.t)
-    | FailedCast(t, Typ.t, Typ.t)
-    | Deferral(deferral_position)
-    | Undefined
-    | Bool(bool)
-    | Int(int)
-    | Float(float)
-    | String(string)
-    | ListLit(list(t))
-    | Constructor(string, Typ.t) // Typ.t field is only meaningful in dynamic expressions
+    | DynamicErrorHole(t, InvalidOperationError.t) //This exp takes in the Sexp serialization of the InvalidOperationError.t as a string (s); // <<e ? s>>
+    | FailedCast(t, Typ.t, Typ.t) //e ?<ty1 => ty2>
+    | Deferral(deferral_position) /*InAp _*/ /*OutAp _*/
+    | Undefined //undef
+    | Bool(bool) //false
+    | Int(int) //1
+    | Float(float) //1.0
+    | String(string) //"hi"
+    | ListLit(list(t)) //[e1, e2, ...]
+    | Constructor(string, Typ.t) /*capitalized ident*/ //X: ty
     | Fun(
         Pat.t,
         t,
         [@show.opaque] option(ClosureEnvironment.t),
         option(Var.t),
-      )
-    | TypFun(TPat.t, t, option(Var.t))
-    | Tuple(list(t))
-    | Var(Var.t)
-    | Let(Pat.t, t, t)
-    | FixF(Pat.t, t, option(ClosureEnvironment.t))
-    | TyAlias(TPat.t, Typ.t, t)
-    | Ap(Operators.ap_direction, t, t)
-    | TypAp(t, Typ.t)
-    | DeferredAp(t, list(t))
-    | If(t, t, t)
-    | Seq(t, t)
-    | Test(t)
-    | Filter(StepperFilterKind.t, t)
-    | Closure([@show.opaque] ClosureEnvironment.t, t)
-    | Parens(t) // (
-    | Cons(t, t)
-    | ListConcat(t, t)
-    | UnOp(Operators.op_un, t)
-    | BinOp(Operators.op_bin, t, t)
-    | BuiltinFun(string)
+      ) //fun p -> e1 opt(x)
+    | TypFun(TPat.t, t, option(Var.t)) //typfun tp -> e
+    | Tuple(list(t)) //(e1, e2)
+    | Var(Var.t) //x
+    | Let(Pat.t, t, t) //let p = e1 in e2
+    | FixF(Pat.t, t, option(ClosureEnvironment.t)) //fix p -> e
+    | TyAlias(TPat.t, Typ.t, t) //type tp = ty in e
+    | Ap(Operators.ap_direction, t, t) //e1(e2)
+    | TypAp(t, Typ.t) /*e @ <ty> */
+    | DeferredAp(t, list(t)) //e1(e2, _, e3)
+    | If(t, t, t) //if e1 then e2 else e3
+    | Seq(t, t) //e1; e2
+    | Test(t) //test e end
+    | Filter(StepperFilterKind.t, t) /*let act represent filter action*/ //act e1 e2
+    | Closure([@show.opaque] ClosureEnvironment.t, t) // menhir - spoke with cyrus we don't need closures in the menhir
+    | Parens(t) // (e)
+    | Cons(t, t) //e1 :: e2
+    | ListConcat(t, t) //e1 @ e2
+    | UnOp(Operators.op_un, t) //!e    -e    $e
+    | BinOp(Operators.op_bin, t, t) //e1 + e2
+    | BuiltinFun(string) //builtin(e1)
     | Match(t, list((Pat.t, t)))
+    /*
+         case e1
+             | p1 => e2
+             | p2 => e3
+         end
+     */
     /* INVARIANT: in dynamic expressions, casts must be between
        two consistent types. Both types should be normalized in
        dynamics for the cast calculus to work right. */
-    | Cast(t, Typ.t, Typ.t) // first Typ.t field is only meaningful in dynamic expressions
+    | Cast(t, Typ.t, Typ.t) //e1 <ty1 => ty2> (first Typ.t field is only meaningful in dynamic expressions)
   and t = IdTagged.t(term);
 
   let map_term:
