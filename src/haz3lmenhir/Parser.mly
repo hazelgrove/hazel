@@ -254,7 +254,7 @@ exp:
     | FIX;  p = pat; DASH_ARROW; e = exp { FixF(p, e) }
     | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
     | QUESTION { EmptyHole }
-    | a = filterAction; cond = exp; COMMA; body = exp { Filter(a, cond, body)}
+    | a = filterAction; cond = exp; IN; body = exp { Filter(a, cond, body)}
     | TEST; e = exp; END { Test(e) }
     | e1 = exp; AT_SYMBOL; e2 = exp { ListConcat(e1, e2) }
     | e1 = exp; CONS; e2 = exp { Cons(e1, e2) }
