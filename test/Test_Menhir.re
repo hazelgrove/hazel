@@ -40,6 +40,17 @@ let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
     },
   );
 
+let menhir_maketerm_equivalent_test = (name: string, actual: string) =>
+  test_case(name, `Quick, () => {
+    alco_check(
+      "Does not match MakeTerm",
+      make_term_parse(actual),
+      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+        Haz3lmenhir.Interface.parse_program(actual),
+      ),
+    )
+  });
+
 let fun_exp: Exp.t =
   Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None, None) |> Exp.fresh;
 
@@ -82,9 +93,9 @@ let tests = [
     )
     |> Exp.fresh,
     {|case 4
-       | 1 => "hello"
-       | _ => "world"
-      end|},
+         | 1 => "hello"
+         | _ => "world"
+        end|},
   ),
   parser_test(
     "If",
@@ -209,4 +220,17 @@ let tests = [
     |> Exp.fresh,
     "named_fun f x -> x + 5",
   ),
+  {
+    let strip_comments = str => {
+      let re = Str.regexp("#[^#]*#");
+      Str.global_replace(re, "", str);
+    };
+    let basic_reference =
+      Haz3lweb.Init.startup.documentation
+      |> (((_, slides, _)) => slides)
+      |> List.assoc("Basic Reference")
+      |> (slide => strip_comments(slide.backup_text));
+
+    menhir_maketerm_equivalent_test("Basic Reference", basic_reference);
+  },
 ];
