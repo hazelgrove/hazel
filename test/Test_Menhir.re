@@ -197,20 +197,16 @@ let tests = [
     |> Exp.fresh,
     "let (x : Int) = 5 in x",
   ),
-  test_case("named_function", `Quick, () => {
-    alco_check(
-      "named_function matches expected type",
-      Fun(
-        Pat.Var("x") |> Pat.fresh,
-        BinOp(Int(Plus), Var("x") |> Exp.fresh, Int(5) |> Exp.fresh)
-        |> Exp.fresh,
-        None,
-        Some("f"),
-      )
+  menhir_only_test(
+    "named_function",
+    Fun(
+      Pat.Var("x") |> Pat.fresh,
+      BinOp(Int(Plus), Var("x") |> Exp.fresh, Int(5) |> Exp.fresh)
       |> Exp.fresh,
-      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-        Haz3lmenhir.Interface.parse_program("named_fun f x -> x + 5"),
-      ),
+      None,
+      Some("f"),
     )
-  }),
+    |> Exp.fresh,
+    "named_fun f x -> x + 5",
+  ),
 ];
