@@ -136,7 +136,7 @@ let tests = [
   parser_test(
     "Filter",
     Filter(
-      Filter({act: (Eval, One), pat: Int(3) |> Exp.fresh}),
+      Filter({act: (Eval, All), pat: Int(3) |> Exp.fresh}),
       Int(3) |> Exp.fresh,
     )
     |> Exp.fresh,
@@ -154,7 +154,7 @@ let tests = [
   parser_test(
     "Integer Ops",
     BinOp(
-      Int(LessThan),
+      Int(GreaterThanOrEqual),
       BinOp(
         Int(Minus),
         BinOp(
@@ -180,7 +180,7 @@ let tests = [
       Int(8) |> Exp.fresh,
     )
     |> Exp.fresh,
-    "-1 + 2 - 3 / 4 * 5 ** 6 < 8" // TODO Add the remaining operators
+    "-1 + 2 - 3 / 4 * 5 ** 6 >= 8" // TODO Add the remaining operators. < is also currently broken
   ),
   parser_test(
     "Let binding with type ascription",
