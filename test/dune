@@ -4,6 +4,7 @@
  (name haz3ltest)
  (libraries
   haz3lcore
+  haz3lweb
   alcotest
   sexplib
   base
