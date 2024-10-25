@@ -16,6 +16,18 @@ let alco_check = exp_typ |> Alcotest.check;
 let make_term_parse = (s: string) =>
   MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
 
+let menhir_matches = (name: string, exp: Term.Exp.t, actual: string) =>
+  alco_check(
+    name ++ " matches expected type",
+    exp,
+    Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+      Haz3lmenhir.Interface.parse_program(actual),
+    ),
+  );
+
+let menhir_only_test = (name: string, exp: Term.Exp.t, actual: string) =>
+  test_case(name, `Quick, () => {menhir_matches(name, exp, actual)});
+
 // TODO Assert against result instead of exception for parse failure for better error messages
 let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
   test_case(
@@ -24,13 +36,7 @@ let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
     () => {
       alco_check("Does not match MakeTerm", exp, make_term_parse(actual));
 
-      alco_check(
-        name ++ " matches expected type",
-        exp,
-        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-          Haz3lmenhir.Interface.parse_program(actual),
-        ),
-      );
+      menhir_matches(name, exp, actual);
     },
   );
 
@@ -107,10 +113,10 @@ let tests = [
     |> Exp.fresh,
     "[1, 2, 3]",
   ),
-  parser_test(
+  menhir_only_test(
     "Constructor",
     Constructor("A", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
-    "A",
+    "A:Unknown Internal" // This is source incompatible with make_term which does not find the type. We also don't allow expression casts.
   ),
   parser_test(
     "Type Alias",
