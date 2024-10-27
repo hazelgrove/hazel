@@ -140,6 +140,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     string,
     point_distribution,
     int,
+    string,
   );
 
   let editor_of_state: state => Editor.t =
@@ -656,12 +657,20 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       eds.prompt,
       eds.point_distribution,
       eds.your_tests.required,
+      eds.module_name,
     );
   };
 
   let unpersist_state =
       (
-        (pos, positioned_zippers, prompt, point_distribution, required): persistent_state,
+        (
+          pos,
+          positioned_zippers,
+          prompt,
+          point_distribution,
+          required,
+          module_name,
+        ): persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
         ~editing_prompt: bool,
@@ -703,7 +712,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
             id: spec.id,
             title: spec.title,
             version: spec.version,
-            module_name: spec.module_name,
+            module_name,
             prompt,
             point_distribution,
             prelude,
@@ -1118,6 +1127,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ~editing_test_val_rep,
         ~editing_mut_test_rep,
         ~editing_impl_grd_rep,
+        ~editing_module_name,
       ) => {
     data
     |> Sexplib.Sexp.of_string
@@ -1129,6 +1139,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
          ~editing_test_val_rep,
          ~editing_mut_test_rep,
          ~editing_impl_grd_rep,
+         ~editing_module_name,
        );
   };
 

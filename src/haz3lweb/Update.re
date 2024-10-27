@@ -310,7 +310,7 @@ let switch_scratch_slide =
       ~editing_test_val_rep,
       ~editing_mut_test_rep,
       ~editing_impl_grd_rep,
-      ~editing_module_name: bool,
+      ~editing_module_name,
     )
     : option(Editors.t) =>
   switch (editors) {

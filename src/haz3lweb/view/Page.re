@@ -29,6 +29,7 @@ let key_handler =
       || settings.editing_test_val_rep
       || settings.editing_mut_test_rep
       || settings.editing_impl_grd_rep
+      || settings.editing_module_name
         ? Many([inject(action)])
         : Many([Prevent_default, Stop_propagation, inject(action)]);
     }

@@ -66,6 +66,73 @@ let view =
   };
   let title_view = Cell.title_cell(eds.title);
 
+  let update_module_name = _ => {
+    let new_module_name =
+      Obj.magic(
+        Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("module-name-input")),
+      )##.value;
+    let update_events = [
+      inject(Set(EditingModuleName)),
+      inject(UpdateModuleName(new_module_name)),
+    ];
+    Virtual_dom.Vdom.Effect.Many(update_events);
+  };
+
+  let module_name_view = {
+    settings.instructor_mode
+      ? Cell.narrative_cell([
+          div(
+            ~attrs=[Attr.class_("cell-module-name")],
+            [
+              settings.editing_module_name
+                ? div(
+                    ~attrs=[Attr.class_("module-name-edit")],
+                    [
+                      label([text("Module name:")]),
+                      input(
+                        ~attrs=[
+                          Attr.type_("text"),
+                          Attr.class_("text-input"),
+                          Attr.id("module-name-input"),
+                          Attr.value(eds.module_name),
+                        ],
+                        (),
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [Widgets.button(Icons.confirm, update_module_name)],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.cancel, _ =>
+                            inject(Set(EditingModuleName))
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                : div(
+                    ~attrs=[Attr.class_("prompt-content")],
+                    [
+                      text("Module name: "),
+                      text(eds.module_name),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.pencil, _ =>
+                            inject(Set(EditingModuleName))
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+            ],
+          ),
+        ])
+      : Node.none;
+  };
+
   let update_prompt = _ => {
     let new_prompt =
       Obj.magic(
@@ -298,7 +365,7 @@ let view =
         ~settings,
       ),
     );
-  [score_view, title_view, prompt_view]
+  [score_view, title_view, module_name_view, prompt_view]
   @ render_cells(
       settings,
       [
