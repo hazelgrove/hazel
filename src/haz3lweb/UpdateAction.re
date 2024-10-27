@@ -28,6 +28,7 @@ type settings_action =
   | EditingTestValRep
   | EditingMutTestRep
   | EditingImplGrdRep
+  | EditingModuleName
   | Evaluation(evaluation_settings_action)
   | ExplainThis(ExplainThisModel.Settings.action)
   | Mode(Settings.mode);
@@ -90,7 +91,8 @@ type t =
   | UpdatePrompt(string)
   | UpdateTestValRep(int, int, int)
   | UpdateMutTestRep(int)
-  | UpdateImplGrdRep(int);
+  | UpdateImplGrdRep(int)
+  | UpdateModuleName(string);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -128,6 +130,7 @@ let is_edit: t => bool =
     | EditingTestValRep
     | EditingMutTestRep
     | EditingImplGrdRep
+    | EditingModuleName
     | Evaluation(_) => false
     }
   | SetMeta(meta_action) =>
@@ -150,6 +153,7 @@ let is_edit: t => bool =
   | UpdateTestValRep(_)
   | UpdateMutTestRep(_)
   | UpdateImplGrdRep(_)
+  | UpdateModuleName(_)
   | Reset
   | TAB => true
   | UpdateResult(_)
@@ -189,6 +193,7 @@ let reevaluate_post_update: t => bool =
     | EditingTestValRep
     | EditingMutTestRep
     | EditingImplGrdRep
+    | EditingModuleName
     | Mode(_) => true
     }
   | SetMeta(meta_action) =>
@@ -208,6 +213,7 @@ let reevaluate_post_update: t => bool =
   | UpdateTestValRep(_)
   | UpdateMutTestRep(_)
   | UpdateImplGrdRep(_)
+  | UpdateModuleName(_)
   | SwitchEditor(_)
   | DebugConsole(_)
   | Benchmark(_) => false
@@ -242,6 +248,7 @@ let should_scroll_to_caret =
     | EditingTestValRep
     | EditingMutTestRep
     | EditingImplGrdRep
+    | EditingModuleName
     | Evaluation(_) => false
     }
   | SetMeta(meta_action) =>
@@ -257,6 +264,7 @@ let should_scroll_to_caret =
   | UpdateTestValRep(_)
   | UpdateMutTestRep(_)
   | UpdateImplGrdRep(_)
+  | UpdateModuleName(_)
   | StepperAction(_, StepBackward | StepForward(_)) => false
   | FinishImportScratchpad(_)
   | FinishImportAll(_)

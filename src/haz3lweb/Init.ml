@@ -30,6 +30,7 @@ let startup : PersistentData.t =
         editing_test_val_rep = false;
         editing_mut_test_rep = false;
         editing_impl_grd_rep = false;
+        editing_module_name = false;
         benchmark = false;
         explainThis =
           { show = true; show_feedback = false; highlight = NoHighlight };

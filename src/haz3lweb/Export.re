@@ -59,6 +59,7 @@ let import_all = (data, ~specs) => {
   let editing_test_val_rep = settings.editing_test_val_rep;
   let editing_mut_test_rep = settings.editing_mut_test_rep;
   let editing_impl_grd_rep = settings.editing_impl_grd_rep;
+  let editing_module_name = settings.editing_module_name;
   Store.Scratch.import(~settings=settings.core, all.scratch);
   Store.Exercise.import(
     ~settings=settings.core,
@@ -69,6 +70,7 @@ let import_all = (data, ~specs) => {
     ~editing_test_val_rep,
     ~editing_mut_test_rep,
     ~editing_impl_grd_rep,
+    ~editing_module_name,
   );
   Log.import(all.log);
 };

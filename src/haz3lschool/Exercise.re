@@ -597,6 +597,33 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     },
   };
 
+  let set_editing_module_name = ({eds, _} as state: state, editing: bool) => {
+    ...state,
+    eds: {
+      ...eds,
+      prelude: Editor.set_read_only(eds.prelude, editing),
+      correct_impl: Editor.set_read_only(eds.correct_impl, editing),
+      your_tests: {
+        let tests = Editor.set_read_only(eds.your_tests.tests, editing);
+        {
+          tests,
+          required: eds.your_tests.required,
+          provided: eds.your_tests.provided,
+        };
+      },
+      your_impl: Editor.set_read_only(eds.your_impl, editing),
+    },
+  };
+
+  let update_module_name =
+      ({eds, _} as state: state, new_module_name: string) => {
+    ...state,
+    eds: {
+      ...eds,
+      module_name: new_module_name,
+    },
+  };
+
   let visible_in = (pos, ~instructor_mode) => {
     switch (pos) {
     | Prelude => instructor_mode
@@ -641,6 +668,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ~editing_test_val_rep: bool,
         ~editing_mut_test_rep: bool,
         ~editing_impl_grd_rep: bool,
+        ~editing_module_name: bool,
         ~settings: CoreSettings.t,
       )
       : state => {
@@ -699,6 +727,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     let state = set_editing_prompt(state, editing_prompt);
     let state = set_editing_test_val_rep(state, editing_test_val_rep);
     let state = set_editing_mut_test_rep(state, editing_mut_test_rep);
+    let state = set_editing_module_name(state, editing_module_name);
     set_editing_impl_grd_rep(state, editing_impl_grd_rep);
   };
 

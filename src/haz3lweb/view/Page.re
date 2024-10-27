@@ -74,6 +74,7 @@ let handlers =
   || model.settings.editing_test_val_rep
   || model.settings.editing_mut_test_rep
   || model.settings.editing_impl_grd_rep
+  || model.settings.editing_module_name
     ? attrs : attrs @ [Attr.on_keypress(_ => Effect.Prevent_default)];
 };
 

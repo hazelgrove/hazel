@@ -195,6 +195,26 @@ let update_impl_grd_rep = (editors: t, new_dist: int): t =>
     Exercises(n, specs, Exercise.update_impl_grd_rep(exercise, new_dist))
   };
 
+let set_editing_module_name = (editors: t, editing: bool): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.set_editing_module_name(exercise, editing))
+  };
+
+let update_module_name = (editors: t, new_module_name: string): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(
+      n,
+      specs,
+      Exercise.update_module_name(exercise, new_module_name),
+    )
+  };
+
 let reset_nth_slide = (~settings: CoreSettings.t, n, slides): list(Editor.t) => {
   let (_, init_editors, _) = Init.startup.scratch;
   let data = List.nth(init_editors, n);

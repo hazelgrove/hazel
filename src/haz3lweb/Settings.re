@@ -26,6 +26,7 @@ type t = {
   editing_test_val_rep: bool,
   editing_mut_test_rep: bool,
   editing_impl_grd_rep: bool,
+  editing_module_name: bool,
   benchmark: bool,
   explainThis: ExplainThisModel.Settings.t,
   mode,

@@ -288,6 +288,7 @@ module Exercise = {
         ~editing_test_val_rep,
         ~editing_mut_test_rep,
         ~editing_impl_grd_rep,
+        ~editing_module_name: bool,
       )
       : Exercise.state => {
     let keystring = Id.to_string(spec.id);
@@ -303,6 +304,7 @@ module Exercise = {
             ~editing_test_val_rep,
             ~editing_mut_test_rep,
             ~editing_impl_grd_rep,
+            ~editing_module_name,
             ~settings,
           )
         ) {
@@ -344,6 +346,7 @@ module Exercise = {
         ~editing_test_val_rep,
         ~editing_mut_test_rep,
         ~editing_impl_grd_rep,
+        ~editing_module_name: bool,
       )
       : (int, list(p(ZipperBase.t)), state) => {
     switch (JsUtil.get_localstore(cur_exercise_key)) {
@@ -364,6 +367,7 @@ module Exercise = {
                   ~editing_test_val_rep,
                   ~editing_mut_test_rep,
                   ~editing_impl_grd_rep,
+                  ~editing_module_name,
                   ~settings,
                 )
               ) {
@@ -390,6 +394,7 @@ module Exercise = {
               ~editing_test_val_rep,
               ~editing_mut_test_rep,
               ~editing_impl_grd_rep,
+              ~editing_module_name,
               ~settings,
             ),
           );
@@ -409,6 +414,7 @@ module Exercise = {
         ~editing_test_val_rep,
         ~editing_mut_test_rep,
         ~editing_impl_grd_rep,
+        ~editing_module_name: bool,
       )
       : exercise_export => {
     {
@@ -431,6 +437,7 @@ module Exercise = {
                  ~editing_test_val_rep,
                  ~editing_mut_test_rep,
                  ~editing_impl_grd_rep,
+                 ~editing_module_name,
                )
                |> Exercise.persistent_state_of_state(~instructor_mode);
              (key, exercise);
@@ -448,6 +455,7 @@ module Exercise = {
       ~editing_test_val_rep=false,
       ~editing_mut_test_rep=false,
       ~editing_impl_grd_rep=false,
+      ~editing_module_name=false,
     )
     |> sexp_of_exercise_export
     |> Sexplib.Sexp.to_string;
@@ -467,6 +475,7 @@ module Exercise = {
         ~editing_test_val_rep,
         ~editing_mut_test_rep,
         ~editing_impl_grd_rep,
+        ~editing_module_name: bool,
       ) => {
     let exercise_export = data |> deserialize_exercise_export;
     save_exercise_id(exercise_export.cur_exercise);
@@ -486,6 +495,7 @@ module Exercise = {
                ~editing_test_val_rep,
                ~editing_mut_test_rep,
                ~editing_impl_grd_rep,
+               ~editing_module_name,
                ~settings,
              ),
              ~instructor_mode,

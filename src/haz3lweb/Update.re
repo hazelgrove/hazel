@@ -179,6 +179,7 @@ let update_settings =
         editing_test_val_rep: false,
         editing_mut_test_rep: false,
         editing_impl_grd_rep: false,
+        editing_module_name: false,
       },
     };
   | EditingPrompt =>
@@ -219,6 +220,16 @@ let update_settings =
       settings: {
         ...settings,
         editing_impl_grd_rep: editing,
+      },
+    };
+  | EditingModuleName =>
+    let editing = !settings.editing_module_name;
+    {
+      ...model,
+      editors: Editors.set_editing_module_name(model.editors, editing),
+      settings: {
+        ...settings,
+        editing_module_name: editing,
       },
     };
   | Mode(mode) => {
@@ -299,6 +310,7 @@ let switch_scratch_slide =
       ~editing_test_val_rep,
       ~editing_mut_test_rep,
       ~editing_impl_grd_rep,
+      ~editing_module_name: bool,
     )
     : option(Editors.t) =>
   switch (editors) {
@@ -318,6 +330,7 @@ let switch_scratch_slide =
         ~editing_test_val_rep,
         ~editing_mut_test_rep,
         ~editing_impl_grd_rep,
+        ~editing_module_name,
       );
     Some(Exercises(idx, specs, exercise));
   };
@@ -520,6 +533,7 @@ let apply =
         editing_test_val_rep: false,
         editing_mut_test_rep: false,
         editing_impl_grd_rep: false,
+        editing_module_name: false,
       };
       switch (
         switch_scratch_slide(
@@ -530,6 +544,7 @@ let apply =
           ~editing_test_val_rep=false,
           ~editing_mut_test_rep=false,
           ~editing_impl_grd_rep=false,
+          ~editing_module_name=false,
           n,
         )
       ) {
@@ -637,6 +652,11 @@ let apply =
       Model.save_and_return({
         ...model,
         editors: Editors.update_impl_grd_rep(model.editors, new_dist),
+      })
+    | UpdateModuleName(new_module_name) =>
+      Model.save_and_return({
+        ...model,
+        editors: Editors.update_module_name(model.editors, new_module_name),
       })
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));

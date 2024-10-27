@@ -121,6 +121,7 @@ module Main = {
                  ~editing_test_val_rep=false,
                  ~editing_mut_test_rep=false,
                  ~editing_impl_grd_rep=false,
+                 ~editing_module_name=false,
                );
              let report = exercise |> gen_grading_report;
              {id, report};

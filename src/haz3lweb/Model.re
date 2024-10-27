@@ -62,6 +62,7 @@ let load_editors =
       ~editing_test_val_rep: bool,
       ~editing_mut_test_rep: bool,
       ~editing_impl_grd_rep: bool,
+      ~editing_module_name: bool,
     )
     : (Editors.t, ModelResults.t) =>
   switch (mode) {
@@ -81,6 +82,7 @@ let load_editors =
         ~editing_test_val_rep,
         ~editing_mut_test_rep,
         ~editing_impl_grd_rep,
+        ~editing_module_name,
       );
     (Exercises(n, specs, exercise), ModelResults.empty);
   };
@@ -108,6 +110,7 @@ let load = (init_model: t): t => {
       ~editing_test_val_rep=settings.editing_test_val_rep,
       ~editing_mut_test_rep=settings.editing_mut_test_rep,
       ~editing_impl_grd_rep=settings.editing_impl_grd_rep,
+      ~editing_module_name=settings.editing_module_name,
     );
   let ui_state = init_model.ui_state;
   {editors, settings, results, explainThisModel, ui_state};
