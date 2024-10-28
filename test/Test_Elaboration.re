@@ -231,6 +231,8 @@ module PlainTests = {
   ];
 };
 module MenhirElaborationTests = {
+  //dhexp = expected
+  //uexp = tested
   let alco_check_menhir = (name: string, dhexp: string, uexp: Term.Exp.t) =>
     alco_check(
       name,
