@@ -83,6 +83,7 @@ type typ =
 
 [@deriving (show({with_path: false}), sexp)]
 type pat =
+  | CastPat(pat, typ, typ)
   | EmptyHolePat
   | WildPat
   | IntPat(int)

@@ -15,24 +15,47 @@ let exp_typ =
 
 let alco_check = exp_typ |> Alcotest.check;
 
-let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init);
-let dhexp_of_uexp = u => Elaborator.elaborate(mk_map(u), u) |> fst;
+// Existing recovering parser
+let make_term_parse = (s: string) =>
+  MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
 
-//exp = expected, menhir = test
-let parser_test = (name: string, exp: Term.Exp.t, menhir: string, ()) =>
+let menhir_matches = (name: string, exp: Term.Exp.t, actual: string) =>
   alco_check(
-    name,
+    name ++ " matches expected type",
     exp,
-    dhexp_of_uexp(
-      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-        Haz3lmenhir.Interface.parse_program(menhir),
-      ),
+    Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+      Haz3lmenhir.Interface.parse_program(actual),
     ),
   );
 
+let menhir_only_test = (name: string, exp: Term.Exp.t, actual: string) =>
+  test_case(name, `Quick, () => {menhir_matches(name, exp, actual)});
+
+// TODO Assert against result instead of exception for parse failure for better error messages
+let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      alco_check("Does not match MakeTerm", exp, make_term_parse(actual));
+
+      menhir_matches(name, exp, actual);
+    },
+  );
+
+let menhir_maketerm_equivalent_test = (name: string, actual: string) =>
+  test_case(name, `Quick, () => {
+    alco_check(
+      "Does not match MakeTerm",
+      make_term_parse(actual),
+      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+        Haz3lmenhir.Interface.parse_program(actual),
+      ),
+    )
+  });
+
 let fun_exp: Exp.t =
   Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None, None) |> Exp.fresh;
-let fun_str = "fun x -> x";
 
 //Test for a let function
 let let_fun_uexp: Exp.t =
@@ -77,7 +100,7 @@ let free_var_uexp: Exp.t = {
 let free_var_test = () =>
   parser_test(
     "Nonempty hole with free variable (menhir)",
-    dhexp_of_uexp(free_var_uexp),
+    free_var_uexp,
     "y",
   );
 
@@ -88,11 +111,7 @@ let bin_op_uexp: Exp.t =
 let bin_op_str = "1 + 2";
 
 let bin_op_test = () =>
-  parser_test(
-    "binary integer operation (plus)",
-    dhexp_of_uexp(bin_op_uexp),
-    bin_op_str,
-  );
+  parser_test("binary integer operation (plus)", bin_op_uexp, bin_op_str);
 
 //Inconsistent branches menhir test
 let case_menhir_str = "
@@ -133,11 +152,7 @@ let ap_fun_str = "
     (fun x -> 4 + 5)(y)
 ";
 let ap_fun_test = () =>
-  parser_test(
-    "Application of a function (menhir)",
-    dhexp_of_uexp(ap_fun_uexp),
-    ap_fun_str,
-  );
+  parser_test("Application of a function (menhir)", ap_fun_uexp, ap_fun_str);
 
 //Consistent if statement menhir test
 let consistent_if_uexp: Exp.t =
@@ -150,7 +165,7 @@ let consistent_if_str = "
 let consistent_if_menhir = () =>
   parser_test(
     "Consistent case with rules (BoolLit(true), IntLit(8)) and (BoolLit(false), IntLit(6))",
-    dhexp_of_uexp(consistent_if_uexp),
+    consistent_if_uexp,
     consistent_if_str,
   );
 
@@ -168,66 +183,184 @@ let single_integer_menhir = () =>
     single_int_str,
   );
 
-// //Menhir let expression test
-// let let_exp_str = "let (a, b) = (4, 6) in a - b";
-// let let_exp_uexp: Exp.t =
-//   Let(
-//     Tuple([Var("a") |> Pat.fresh, Var("b") |> Pat.fresh]) |> Pat.fresh,
-//     Tuple([Int(4) |> Exp.fresh, Int(6) |> Exp.fresh]) |> Exp.fresh,
-//     BinOp(Int(Minus), Var("a") |> Exp.fresh, Var("b") |> Exp.fresh)
-//     |> Exp.fresh,
-//   )
-//   |> Exp.fresh;
-// let let_exp_menhir = () =>
-//   alco_check_menhir(
-//     "Let expression for tuple (a, b) (menhir)",
-//     let_exp_str,
-//     let_exp_uexp,
-//   );
-//
-// let typ_ap_str = "(typfun x -> 4) @ <Int>";
-// let typ_ap_uexp: Exp.t =
-//   TypAp(
-//     TypFun(Var("x") |> TPat.fresh, Int(4) |> Exp.fresh, None) |> Exp.fresh,
-//     Int |> Typ.fresh,
-//   )
-//   |> Exp.fresh;
-// let typ_ap_menhir = () =>
-//   alco_check_menhir("Type ap test (menhir)", typ_ap_str, typ_ap_uexp);
-//
-// let failed_cast_str = "1 ?<Int => String>";
-// let failed_cast_uexp: Exp.t =
-//   FailedCast(Int(1) |> Exp.fresh, Int |> Typ.fresh, String |> Typ.fresh)
-//   |> Exp.fresh;
-// let failed_cast_menhir = () =>
-//   alco_check_menhir(
-//     "Failed cast test (menhir)",
-//     failed_cast_str,
-//     failed_cast_uexp,
-//   );
-
 let tests = [
-  test_case(
-    "Integer Literal",
-    `Quick,
-    parser_test("Same Integer", Int(8) |> Exp.fresh, "8"),
-  ),
-  test_case("Fun", `Quick, parser_test("Fun", fun_exp, fun_str)),
-  test_case(
+  parser_test("Integer Literal", Int(8) |> Exp.fresh, "8"),
+  parser_test("Fun", fun_exp, "fun x -> x"),
+  parser_test(
     "String Literal",
-    `Quick,
-    parser_test(
-      "Same String",
-      String("Hello World") |> Exp.fresh,
-      "\"Hello World\"",
-    ),
+    String("Hello World") |> Exp.fresh,
+    "\"Hello World\"",
   ),
-  //NOTE: leaving out deferrals for now due to bug
-  // test_case(
-  //   "Deferred Ap",
-  //   `Quick,
-  //   parser_test("Deferred Ap", , "x(_)"),
+  parser_test("Bool Literal", Bool(true) |> Exp.fresh, "true"),
+  parser_test("Empty Hole", EmptyHole |> Exp.fresh, "?"),
+  parser_test("Var", Var("x") |> Exp.fresh, "x"),
+  parser_test("Parens", Parens(Var("y") |> Exp.fresh) |> Exp.fresh, "(y)"),
+  parser_test(
+    "BinOp",
+    BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh) |> Exp.fresh,
+    "4 + 5",
+  ),
+  parser_test(
+    "Let",
+    Let(Var("x") |> Pat.fresh, Int(5) |> Exp.fresh, Var("x") |> Exp.fresh)
+    |> Exp.fresh,
+    "let x = 5 in x",
+  ),
+  parser_test(
+    "Tuple",
+    Tuple([Int(4) |> Exp.fresh, Int(5) |> Exp.fresh]) |> Exp.fresh,
+    "(4, 5)" // TODO Verify with maketerm. Should this be parens or not
+  ),
+  parser_test(
+    "Match",
+    Match(
+      Int(4) |> Exp.fresh,
+      [
+        (Int(1) |> Pat.fresh, String("hello") |> Exp.fresh),
+        (Wild |> Pat.fresh, String("world") |> Exp.fresh),
+      ],
+    )
+    |> Exp.fresh,
+    {|case 4
+         | 1 => "hello"
+         | _ => "world"
+        end|},
+  ),
+  parser_test(
+    "If",
+    If(Bool(true) |> Exp.fresh, Int(8) |> Exp.fresh, Int(6) |> Exp.fresh)
+    |> Exp.fresh,
+    "if true then 8 else 6",
+  ),
+  parser_test(
+    "Deferred Ap",
+    DeferredAp(Var("x") |> Exp.fresh, [Deferral(InAp) |> Exp.fresh])
+    |> Exp.fresh,
+    "x(_)",
+  ),
+  parser_test(
+    "Cons",
+    Cons(Int(1) |> Exp.fresh, ListLit([]) |> Exp.fresh) |> Exp.fresh,
+    "1 :: []",
+  ),
+  parser_test(
+    "ListLit",
+    ListLit([
+      Int(1) |> Exp.fresh,
+      Int(2) |> Exp.fresh,
+      Int(3) |> Exp.fresh,
+    ])
+    |> Exp.fresh,
+    "[1, 2, 3]",
+  ),
+  menhir_only_test(
+    "Constructor",
+    Constructor("A", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
+    "A:Unknown Internal" // This is source incompatible with make_term which does not find the type. We also don't allow expression casts.
+  ),
+  parser_test(
+    "Type Alias",
+    TyAlias(Var("x") |> TPat.fresh, Int |> Typ.fresh, Int(1) |> Exp.fresh)
+    |> Exp.fresh,
+    "type x = Int in 1",
+  ),
+  parser_test(
+    "Test",
+    Test(
+      BinOp(Int(Equals), Int(3) |> Exp.fresh, Int(3) |> Exp.fresh)
+      |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "test 3 == 3 end",
+  ),
+  parser_test(
+    "Filter",
+    Filter(
+      Filter({act: (Eval, All), pat: Int(3) |> Exp.fresh}),
+      Int(3) |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "eval 3 in 3" // TODO Use other filter commands
+  ),
+  parser_test(
+    "List Concat",
+    ListConcat(
+      ListLit([Int(1) |> Exp.fresh, Int(2) |> Exp.fresh]) |> Exp.fresh,
+      ListLit([Int(3) |> Exp.fresh, Int(4) |> Exp.fresh]) |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "[1, 2] @ [3, 4]",
+  ),
+  // parser_test(
+  //   "Integer Ops",
+  //   BinOp(
+  //     Int(GreaterThanOrEqual),
+  //     BinOp(
+  //       Int(Minus),
+  //       BinOp(
+  //         Int(Plus),
+  //         UnOp(Int(Minus), Int(1) |> Exp.fresh) |> Exp.fresh,
+  //         Int(2) |> Exp.fresh,
+  //       )
+  //       |> Exp.fresh,
+  //       BinOp(
+  //         Int(Divide),
+  //         Int(3) |> Exp.fresh,
+  //         BinOp(
+  //           Int(Times),
+  //           Int(4) |> Exp.fresh,
+  //           BinOp(Int(Power), Int(5) |> Exp.fresh, Int(6) |> Exp.fresh)
+  //           |> Exp.fresh,
+  //         )
+  //         |> Exp.fresh,
+  //       )
+  //       |> Exp.fresh,
+  //     )
+  //     |> Exp.fresh,
+  //     Int(8) |> Exp.fresh,
+  //   )
+  //   |> Exp.fresh,
+  //   "-1 + 2 - 3 / 4 * 5 ** 6 >= 8" // TODO Add the remaining operators. < is also currently broken
   // ),
-  test_case("Ap Fun", `Quick, ap_fun_test()),
-  test_case("Single integer", `Quick, single_integer_menhir()),
+  parser_test(
+    "Let binding with type ascription",
+    Let(
+      Cast(
+        Var("x") |> Pat.fresh,
+        Int |> Typ.fresh,
+        Unknown(Internal) |> Typ.fresh,
+      )
+      |> Pat.fresh,
+      Int(5) |> Exp.fresh,
+      Var("x") |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "let (x: Int) = 5 in x",
+  ),
+  menhir_only_test(
+    "named_function",
+    Fun(
+      Pat.Var("x") |> Pat.fresh,
+      BinOp(Int(Plus), Var("x") |> Exp.fresh, Int(5) |> Exp.fresh)
+      |> Exp.fresh,
+      None,
+      Some("f"),
+    )
+    |> Exp.fresh,
+    "named_fun f x -> x + 5",
+  ),
+  // {
+  //   let strip_comments = str => {
+  //     let re = Str.regexp("#[^#]*#");
+  //     Str.global_replace(re, "", str);
+  //   };
+  //   let basic_reference =
+  //     Haz3lweb.Init.startup.documentation
+  //     |> (((_, slides, _)) => slides)
+  //     |> List.assoc("Basic Reference")
+  //     |> (slide => strip_comments(slide.backup_text));
+  //   print_endline(basic_reference);
+  //
+  //   menhir_maketerm_equivalent_test("Basic Reference", basic_reference);
+  // },
 ];

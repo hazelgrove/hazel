@@ -4,7 +4,7 @@ open AST
 
 
 
-
+%token NAMED_FUN
 %token UNDEF
 %token <string> SEXP_STRING
 %token DOLLAR_SIGN
@@ -110,15 +110,12 @@ open AST
 %left OPEN_PAREN
 %left QUESTION
 %left COLON
-%left COMMA
+(* %left COMMA *)
 %left AT_SYMBOL
 %left SEMI_COLON
 %left IN
 %left DOLLAR_SIGN
 %left L_NOT L_AND L_OR
-
-(* Might not be correct - milan *)
-%left IDENT
 
 %type <AST.exp> exp
 
@@ -181,13 +178,16 @@ typ:
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
 
 pat:
+    | p1 = pat; COLON; t1 = typ;  { CastPat(p1, t1, UnknownType(Internal)) }
+    | p1 = pat; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN { CastPat(p1, t1, t2) }
+    | OPEN_PAREN; p = pat; CLOSE_PAREN { p }
+    | OPEN_PAREN; p = pat; COMMA; pats = separated_list(COMMA, pat); CLOSE_PAREN { TuplePat(p :: pats) }
     | QUESTION; s = STRING { InvalidPat(s) }
     | WILD { WildPat }
     | QUESTION { EmptyHolePat }
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
     | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { ConstructorPat(c, t) }
     | p = IDENT { VarPat(p) }
-    | t = patTuple { t }
     | i = INT { IntPat i }
     | f = FLOAT { FloatPat f }
     | s = STRING { StringPat s}
@@ -198,9 +198,6 @@ pat:
     | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) }
 
 
-patTuple: 
-    | OPEN_PAREN; pats = separated_list(COMMA, pat); CLOSE_PAREN { TuplePat(pats) }
-
 rul:
     | TURNSTILE; p = pat; EQUAL_ARROW; e = exp; { (p, e) }
 
@@ -209,7 +206,7 @@ case:
 
 funExp: 
     | FUN; p = pat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) }
-    | FUN; p = pat; DASH_ARROW; e1 = exp; name = IDENT { Fun (p, e1, Some(name)) }
+    | NAMED_FUN; name = IDENT; p = pat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) }
 
 
 %inline ifExp:
@@ -254,7 +251,7 @@ exp:
     | FIX;  p = pat; DASH_ARROW; e = exp { FixF(p, e) }
     | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
     | QUESTION { EmptyHole }
-    | a = filterAction; cond = exp; COMMA; body = exp { Filter(a, cond, body)}
+    | a = filterAction; cond = exp; IN; body = exp { Filter(a, cond, body)}
     | TEST; e = exp; END { Test(e) }
     | e1 = exp; AT_SYMBOL; e2 = exp { ListConcat(e1, e2) }
     | e1 = exp; CONS; e2 = exp { Cons(e1, e2) }

@@ -255,6 +255,8 @@ and Pat: {
     | InvalidPat(s) => Invalid(s)
     | IntPat(i) => Int(i)
     | FloatPat(f) => Float(f)
+    | CastPat(p, t1, t2) =>
+      Cast(of_menhir_ast(p), Typ.of_menhir_ast(t1), Typ.of_menhir_ast(t2))
     | VarPat(x) => Var(x)
     | ConstructorPat(x, ty) => Constructor(x, Typ.of_menhir_ast(ty))
     | StringPat(s) => String(s)
