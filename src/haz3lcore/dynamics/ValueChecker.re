@@ -69,6 +69,7 @@ module ValueCheckerEVMode: {
     | (_, _, Constructor) => r
     | (_, Expr, Indet) => Expr
     | (_, _, Indet) => Indet
+    | (_, _, Value) => Value
     | (true, _, Step(_)) => Expr
     | (false, _, Step(_)) => r
     };
