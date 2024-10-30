@@ -134,3 +134,5 @@ module TextArea = {
     textarea##.selectionEnd := content_length;
   };
 };
+
+let span_text = (text: string) => span(~attrs=[], [Node.text(text)]);

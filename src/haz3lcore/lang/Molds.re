@@ -18,9 +18,6 @@ let forms_assoc: list((Label.t, list(Mold.t))) =
   );
 
 let get = (label: Label.t): list(Mold.t) => {
-  print_endline("Molds.get");
-  print_endline(String.concat(" ", label));
-
   switch (label, List.assoc_opt(label, forms_assoc)) {
   | ([t], Some(molds)) when Form.atomic_molds(t) != [] =>
     Form.atomic_molds(t) @ molds

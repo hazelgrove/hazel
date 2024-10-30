@@ -84,8 +84,7 @@ let view = (_, ~info, ~local as _, ~parent) => {
     [
       Node.div(
         ~attrs=[Attr.classes(["cols", "code"])],
-        [Node.text("I am a livelit projector")]
-        @ [textarea(info.id, ~parent, text)],
+        [Node.text("I am a livelit projector")],
       ),
     ],
   );

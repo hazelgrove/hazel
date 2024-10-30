@@ -12,6 +12,7 @@ let to_module = (kind: Base.kind): (module Cooked) =>
   | SliderF => (module Cook(SliderFProj.M))
   | Checkbox => (module Cook(CheckboxProj.M))
   | TextArea => (module Cook(TextAreaProj.M))
+  | Livelit => (module Cook(LivelitProj.M))
   };
 
 let shape = (p: Base.projector, info: info): shape => {

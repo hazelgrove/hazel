@@ -119,7 +119,7 @@ let is_potential_operand = match(regexp("^[\\^a-zA-Z0-9_'\\.?]+$"));
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]| */
 let potential_operator_regexp =
-  regexp("^[^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+$"); /* Multiline operators not supported */
+  regexp("^[\\^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+$"); /* Multiline operators not supported */
 let is_potential_operator = match(potential_operator_regexp);
 let is_potential_token = t =>
   is_potential_operand(t)
@@ -153,8 +153,6 @@ let is_undefined = match(regexp("^" ++ undefined ++ "$"));
 let is_livelit = str => {
   let re = regexp("^(\\^)([a-z][A-Za-z0-9_]*)$");
   let result = match(re, str);
-  print_endline("is_livelit: " ++ str ++ " " ++ string_of_bool(result));
-
   result;
 };
 let parse_livelit = str =>
@@ -360,8 +358,6 @@ let delims: list(Token.t) =
 
 let atomic_molds: Token.t => list(Mold.t) =
   s => {
-    print_endline("atomic_molds");
-    print_endline(s);
     List.fold_left(
       (acc, (_, (test, molds))) => test(s) ? molds @ acc : acc,
       [],
@@ -370,23 +366,16 @@ let atomic_molds: Token.t => list(Mold.t) =
   };
 
 let is_atomic = t => {
-  print_endline("is_atomic");
-  print_endline(t);
   atomic_molds(t) != [];
 };
 
 let is_delim = t => List.mem(t, delims);
 
 let is_valid_token = t => {
-  print_endline("is_valid_token");
-  print_endline(t);
   is_atomic(t) || is_secondary(t) || is_delim(t);
 };
 
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
-  print_endline("mk_atomic");
-  print_endline(t);
-
   assert(is_atomic(t));
   mk(ss, [t], Mold.(mk_op(sort, [])));
 };

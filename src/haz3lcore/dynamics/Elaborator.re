@@ -115,8 +115,7 @@ let rec elaborate_pattern =
     | Bool(_) => upat |> cast_from(Bool |> Typ.temp)
     | Float(_) => upat |> cast_from(Float |> Typ.temp)
     | String(_) => upat |> cast_from(String |> Typ.temp)
-    | LivelitInvocation(_) =>
-      upat |> cast_from(Unknown(Internal) |> Typ.temp)
+    | LivelitInvocation(_) => upat |> cast_from(String |> Typ.temp)
     | ListLit(ps) =>
       let (ps, tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
       let inner_type =
@@ -251,7 +250,11 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         |> Option.value(~default=Typ.temp(Typ.Unknown(Internal)));
       let ds' = List.map2((d, t) => fresh_cast(d, t, inner_type), ds, tys);
       Exp.ListLit(ds') |> rewrap |> cast_from(List(inner_type) |> Typ.temp);
-    | LivelitInvocation(_) => uexp |> cast_from(String |> Typ.temp)
+    | LivelitInvocation(livelit_name) =>
+      switch (Livelit.elaborate_livelit(livelit_name)) {
+      | Some(t) => uexp |> cast_from(t)
+      | None => uexp |> cast_from(Typ.temp(Typ.Unknown(Internal)))
+      }
     | Constructor(c, _) =>
       let mode =
         switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {

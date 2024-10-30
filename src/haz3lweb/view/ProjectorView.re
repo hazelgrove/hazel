@@ -19,6 +19,7 @@ let name = (p: kind): string =>
   | Checkbox => "check"
   | Slider => "slider"
   | SliderF => "sliderf"
+  | Livelit => "livelit"
   | TextArea => "text"
   };
 
@@ -32,6 +33,7 @@ let of_name = (p: string): kind =>
   | "check" => Checkbox
   | "slider" => Slider
   | "sliderf" => SliderF
+  | "livelit" => Livelit
   | "text" => TextArea
   | _ => failwith("Unknown projector kind")
   };
@@ -215,6 +217,8 @@ module Panel = {
       | Pat(Float) => [SliderF]
       | Exp(String)
       | Pat(String) => [TextArea]
+      | Exp(LivelitInvocation)
+      | Pat(LivelitInvocation) => [Livelit]
       | _ => []
       }
     )
