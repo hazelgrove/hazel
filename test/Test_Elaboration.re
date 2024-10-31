@@ -685,15 +685,7 @@ let elaboration_tests = [
           TupLabel(
             Label("b") |> Exp.fresh,
             Tuple([
-              TupLabel(
-                Label("c") |> Exp.fresh,
-                FailedCast(
-                  Int(1) |> Exp.fresh,
-                  Int |> Typ.fresh,
-                  String |> Typ.fresh,
-                )
-                |> Exp.fresh,
-              )
+              TupLabel(Label("c") |> Exp.fresh, String("") |> Exp.fresh)
               |> Exp.fresh,
             ])
             |> Exp.fresh,
@@ -705,22 +697,6 @@ let elaboration_tests = [
       )
       |> Exp.fresh,
       dhexp_of_uexp(parse_exp({|let x : (b=c=String) = b="" in x|})),
-    )
-  ),
-  test_case("Singleton labeled argument let with unknown type", `Quick, () =>
-    alco_check(
-      {|let x : (a=?) = (a=1) in x|},
-      Let(
-        Var("x") |> Pat.fresh,
-        Tuple([
-          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      dhexp_of_uexp(parse_exp({|let x : (a=?) = (a=1) in x|})),
     )
   ),
   test_case(
@@ -750,6 +726,22 @@ let elaboration_tests = [
       )
       |> Exp.fresh,
       dhexp_of_uexp(parse_exp({|(fun a=x->x)(a=1)|})),
+    )
+  ),
+  test_case("Singleton labeled argument let with unknown type", `Quick, () =>
+    alco_check(
+      {|let x : (a=?) = (a=1) in x|},
+      Let(
+        Var("x") |> Pat.fresh,
+        Tuple([
+          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+        Var("x") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      dhexp_of_uexp(parse_exp({|let x : (a=?) = (a=1) in x|})),
     )
   ),
   test_case(

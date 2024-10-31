@@ -825,29 +825,24 @@ and uexp_to_info_map =
         default_case()
       | _ =>
         // TODO Deduplicate
+
+        let (term, rewrap) = UExp.unwrap(uexp);
+        let og_exp = Exp.fresh(term);
         let (e, m) =
           uexp_to_info_map(
             ~ctx,
             ~mode=Mode.Ana(ana_ty),
             ~is_in_filter,
             ~ancestors,
-            uexp,
+            og_exp, // TODO Figure out how to manifest this with statics. We may need to add some ofther form of info_exp on the statics map.
             m,
           );
         let fake_uexp =
-          Tuple([TupLabel(Label(l1) |> Exp.fresh, uexp) |> Exp.fresh])
-          |> Exp.fresh;
-        let info =
-          Info.derived_exp(
-            ~uexp=fake_uexp,
-            ~ctx,
-            ~mode,
-            ~ancestors,
-            ~self=Common(Just(ty)),
-            ~co_ctx=e.co_ctx,
+          rewrap(
+            Tuple([TupLabel(Label(l1) |> Exp.fresh, og_exp) |> Exp.fresh]),
           );
 
-        (info, add_info(fake_uexp.ids, InfoExp(info), m));
+        uexp_to_info_map(~ctx, ~mode, ~ancestors, fake_uexp, m);
       };
     | _ => default_case()
     }

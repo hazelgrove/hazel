@@ -88,14 +88,16 @@ let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
     };
 };
 
-let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t, 'a) => {
-  let (mode, self_ty, ctx, co_ctx) =
+let elaborated_type =
+    (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t, 'a, UExp.t) => {
+  let (mode, self_ty, ctx, co_ctx, term) =
     switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
-    | Some(Info.InfoExp({mode, ty, ctx, co_ctx, _})) => (
+    | Some(Info.InfoExp({mode, ty, ctx, co_ctx, term, _})) => (
         mode,
         ty,
         ctx,
         co_ctx,
+        term,
       )
     | _ => raise(MissingTypeInfo)
     };
@@ -112,7 +114,7 @@ let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t, 'a) => {
     // We need to remove the synswitches from this type.
     | Ana(ana_ty) => Typ.match_synswitch(ana_ty, self_ty)
     };
-  (elab_ty |> Typ.normalize(ctx), ctx, co_ctx);
+  (elab_ty |> Typ.normalize(ctx), ctx, co_ctx, term);
 };
 
 let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
@@ -305,10 +307,16 @@ let rec elaborate_pattern =
    want to remove one, I'd ask you instead comment it out and leave
    a comment explaining why it's redundant.  */
 let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
-  let (elaborated_type, ctx, co_ctx) = elaborated_type(m, uexp);
-  let elaborate = (m, uexp) => elaborate(m, uexp);
+  // In the case of singleton labeled tuples we update the syntax in Statics.
+  // We store this syntax with the same ID as the original expression and store it on the Info.exp in the Statics.map
+  // We are then pulling this out and using it in place of the actual expression.
+  let (elaborated_type, ctx, co_ctx, statics_pseudo_elaborated) =
+    elaborated_type(m, uexp);
+
   let cast_from = (ty, exp) => fresh_cast(exp, ty, elaborated_type);
   let (term, rewrap) = UExp.unwrap(uexp);
+  let uexp = rewrap(statics_pseudo_elaborated.term);
+  let term = statics_pseudo_elaborated.term;
   let dhexp =
     switch (term) {
     | Invalid(_)
