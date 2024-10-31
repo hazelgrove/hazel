@@ -4,7 +4,10 @@ open Virtual_dom.Vdom;
 open Node;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {text: string};
+type t = {
+  [@default "⋱"]
+  text: string,
+};
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
