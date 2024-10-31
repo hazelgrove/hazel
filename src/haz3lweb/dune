@@ -8,6 +8,8 @@
 (library
  (name workerServer)
  (modules WorkerServer)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries
   bonsai
   bonsai.web
@@ -29,6 +31,8 @@
 
 (library
  (name haz3lweb)
+ (instrumentation
+  (backend bisect_ppx))
  (modules
   (:standard \ Main)
   \
