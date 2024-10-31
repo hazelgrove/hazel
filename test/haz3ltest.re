@@ -14,3 +14,4 @@ let (suite, _) =
     @ Test_Elaboration.tests,
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
+Bisect.Runtime.write_coverage_data();
