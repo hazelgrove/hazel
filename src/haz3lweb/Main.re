@@ -22,13 +22,13 @@ let apply = (model, action, ~schedule_action, ~schedule_autosave): Model.t => {
   if (UpdateAction.is_edit(action)) {
     schedule_autosave(
       BonsaiUtil.Alarm.Action.SetAlarm(
-        Core.Time_ns.add(Core.Time_ns.now(), Core.Time_ns.Span.of_sec(2.0)),
+        Core.Time_ns.add(Core.Time_ns.now(), Core.Time_ns.Span.of_sec(1.0)),
       ),
     );
   } else {
     schedule_autosave(
       BonsaiUtil.Alarm.Action.SnoozeAlarm(
-        Core.Time_ns.add(Core.Time_ns.now(), Core.Time_ns.Span.of_sec(2.0)),
+        Core.Time_ns.add(Core.Time_ns.now(), Core.Time_ns.Span.of_sec(1.0)),
       ),
     );
   };
