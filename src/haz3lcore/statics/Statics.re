@@ -828,7 +828,7 @@ and uexp_to_info_map =
 
         let (term, rewrap) = UExp.unwrap(uexp);
         let og_exp = Exp.fresh(term);
-        let (_, m) =
+        let (og_info, m) =
           uexp_to_info_map(
             ~ctx,
             ~mode=Mode.Ana(ana_ty),
@@ -841,8 +841,12 @@ and uexp_to_info_map =
           rewrap(
             Tuple([TupLabel(Label(l1) |> Exp.fresh, og_exp) |> Exp.fresh]),
           );
+        let (info, m) =
+          uexp_to_info_map(~ctx, ~mode, ~ancestors, fake_uexp, m);
 
-        uexp_to_info_map(~ctx, ~mode, ~ancestors, fake_uexp, m);
+        let info = {...info, status: og_info.status};
+
+        (info, add_info(fake_uexp.ids, InfoExp(info), m));
       };
     | _ => default_case()
     }

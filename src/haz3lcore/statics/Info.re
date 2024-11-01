@@ -533,8 +533,9 @@ let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
 /* Determines whether any term is in an error hole. */
 let is_error = (ci: t): bool => {
   switch (ci) {
-  | InfoExp({mode, self, ctx, _}) =>
-    switch (status_exp(ctx, mode, self)) {
+  | InfoExp({status, _}) =>
+    // TODO Confirm with disconcision that we can use the derived status
+    switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
