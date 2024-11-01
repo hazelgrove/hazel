@@ -828,7 +828,7 @@ and uexp_to_info_map =
 
         let (term, rewrap) = UExp.unwrap(uexp);
         let og_exp = Exp.fresh(term);
-        let (e, m) =
+        let (_, m) =
           uexp_to_info_map(
             ~ctx,
             ~mode=Mode.Ana(ana_ty),
