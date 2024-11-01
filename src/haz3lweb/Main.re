@@ -4,8 +4,6 @@ open Haz3lweb;
 open Bonsai.Let_syntax;
 
 let scroll_to_caret = ref(true);
-let edit_action_applied = ref(true);
-let last_edit_action = ref(JsUtil.timestamp());
 
 let restart_caret_animation = () =>
   // necessary to trigger reflow
@@ -19,16 +17,24 @@ let restart_caret_animation = () =>
   | _ => ()
   };
 
-let apply = (model, action, ~schedule_action): Model.t => {
+let apply = (model, action, ~schedule_action, ~schedule_autosave): Model.t => {
   restart_caret_animation();
   if (UpdateAction.is_edit(action)) {
-    last_edit_action := JsUtil.timestamp();
-    edit_action_applied := true;
+    schedule_autosave(
+      BonsaiUtil.Alarm.Action.SetAlarm(
+        Core.Time_ns.add(Core.Time_ns.now(), Core.Time_ns.Span.of_sec(1.0)),
+      ),
+    );
+  } else {
+    schedule_autosave(
+      BonsaiUtil.Alarm.Action.SnoozeAlarm(
+        Core.Time_ns.add(Core.Time_ns.now(), Core.Time_ns.Span.of_sec(1.0)),
+      ),
+    );
   };
   if (Update.should_scroll_to_caret(action)) {
     scroll_to_caret := true;
   };
-  last_edit_action := JsUtil.timestamp();
   switch (
     try({
       let new_model = Update.apply(model, action, ~schedule_action);
@@ -53,16 +59,6 @@ let apply = (model, action, ~schedule_action): Model.t => {
   };
 };
 
-let app =
-  Bonsai.state_machine0(
-    (module Model),
-    (module Update),
-    ~apply_action=
-      (~inject, ~schedule_event) =>
-        apply(~schedule_action=x => schedule_event(inject(x))),
-    ~default_model=Model.load(Model.blank),
-  );
-
 /* This subcomponent is used to run an effect once when the app starts up,
    After the first draw */
 let on_startup = effect => {
@@ -80,31 +76,44 @@ let on_startup = effect => {
 };
 
 let view = {
-  let%sub app = app;
+  let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
+  let%sub app =
+    Bonsai.state_machine1(
+      (module Model),
+      (module Update),
+      ~apply_action=
+        (~inject, ~schedule_event, input) => {
+          let schedule_action = x => schedule_event(inject(x));
+          let schedule_autosave = action =>
+            switch (input) {
+            | Active((_, alarm_inject)) =>
+              schedule_event(alarm_inject(action))
+            | Inactive => ()
+            };
+          apply(~schedule_action, ~schedule_autosave);
+        },
+      ~default_model=Model.load(Model.blank),
+      save_scheduler,
+    );
   let%sub () = {
     on_startup(
       Bonsai.Value.map(~f=((_model, inject)) => inject(Startup), app),
     );
   };
-  let%sub after_display = {
-    let%arr (_model, inject) = app;
-    if (scroll_to_caret.contents) {
-      scroll_to_caret := false;
-      JsUtil.scroll_cursor_into_view_if_needed();
-    };
-    if (edit_action_applied^
-        && JsUtil.timestamp()
-        -. last_edit_action^ > 1000.0) {
-      /* If an edit action has been applied, but no other edit action
-         has been applied for 1 second, save the model. */
-      edit_action_applied := false;
-      print_endline("Saving...");
-      inject(Update.Save);
-    } else {
-      Ui_effect.Ignore;
-    };
+  let after_display = {
+    Bonsai.Effect.of_sync_fun(
+      () =>
+        if (scroll_to_caret.contents) {
+          scroll_to_caret := false;
+          JsUtil.scroll_cursor_into_view_if_needed();
+        },
+      (),
+    );
   };
-  let%sub () = Bonsai.Edge.after_display(after_display);
+  let save_effect = Bonsai.Value.map(~f=((_, g)) => g(Update.Save), app);
+  let%sub () = BonsaiUtil.Alarm.listen(save_scheduler, ~event=save_effect);
+  let%sub () =
+    Bonsai.Edge.after_display(after_display |> Bonsai.Value.return);
   let%arr (model, inject) = app;
   Haz3lweb.Page.view(~inject, model);
 };
