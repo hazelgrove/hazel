@@ -21,6 +21,7 @@ module Action = {
 };
 
 module Model = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     // Persistent:
     settings: Settings.t,

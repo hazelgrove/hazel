@@ -99,6 +99,7 @@ module EvaluatorEVMode: {
     | (BoxedReady, Constructor) => (BoxedValue, c)
     | (IndetReady, Constructor) => (Indet, c)
     | (IndetBlocked, _) => (Indet, c)
+    | (_, Value) => (BoxedValue, c)
     | (_, Indet) => (Indet, c)
     };
 };

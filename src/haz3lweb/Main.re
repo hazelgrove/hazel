@@ -1,28 +1,9 @@
 open Util;
 open Js_of_ocaml;
-open Incr_dom;
 open Haz3lweb;
+open Bonsai.Let_syntax;
 
 let scroll_to_caret = ref(true);
-let edit_action_applied = ref(true);
-let last_edit_action = ref(JsUtil.timestamp());
-
-let observe_font_specimen = (id, update) =>
-  ResizeObserver.observe(
-    ~node=JsUtil.get_elem_by_id(id),
-    ~f=
-      (entries, _) => {
-        let specimen = Js.to_array(entries)[0];
-        let rect = specimen##.contentRect;
-        update(
-          Haz3lweb.FontMetrics.{
-            row_height: rect##.bottom -. rect##.top,
-            col_width: rect##.right -. rect##.left,
-          },
-        );
-      },
-    (),
-  );
 
 let restart_caret_animation = () =>
   // necessary to trigger reflow
@@ -40,8 +21,8 @@ let apply =
     (
       model: Page.Model.t,
       action: Page.Update.t,
-      _state: unit,
       ~schedule_action,
+      ~schedule_autosave,
     )
     : Page.Model.t => {
   restart_caret_animation();
@@ -75,8 +56,17 @@ let apply =
       : updated.model;
 
   if (updated.is_edit) {
-    last_edit_action := JsUtil.timestamp();
-    edit_action_applied := true;
+    schedule_autosave(
+      BonsaiUtil.Alarm.Action.SetAlarm(
+        Core.Time_ns.add(Core.Time_ns.now(), Core.Time_ns.Span.of_sec(1.0)),
+      ),
+    );
+  } else {
+    schedule_autosave(
+      BonsaiUtil.Alarm.Action.SnoozeAlarm(
+        Core.Time_ns.add(Core.Time_ns.now(), Core.Time_ns.Span.of_sec(1.0)),
+      ),
+    );
   };
   if (updated.scroll_active) {
     scroll_to_caret := true;
@@ -84,78 +74,109 @@ let apply =
   model';
 };
 
-module App = {
-  module Model = Page.Model;
-  module Action = Page.Update;
-  module State = {
-    type t = unit;
-    let init = () => ();
-  };
-
-  let on_startup = (~schedule_action, _: Model.t) => {
-    let _ =
-      observe_font_specimen("font-specimen", fm =>
-        schedule_action(Haz3lweb.Page.Update.Globals(SetFontMetrics(fm)))
-      );
-
-    NinjaKeys.initialize(Shortcut.options(schedule_action));
-    JsUtil.focus_clipboard_shim();
-
-    Js.Unsafe.set(
-      Js.Unsafe.global##._Error,
-      "stackTraceLimit",
-      Js.number_of_float(infinity),
+let start = {
+  let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
+  let%sub (app_model, app_inject) =
+    Bonsai.state_machine1(
+      (module Page.Model),
+      (module Page.Update),
+      ~apply_action=
+        (~inject, ~schedule_event, input) => {
+          let schedule_action = x => schedule_event(inject(x));
+          let schedule_autosave = action =>
+            switch (input) {
+            | Active((_, alarm_inject)) =>
+              schedule_event(alarm_inject(action))
+            | Inactive => ()
+            };
+          apply(~schedule_action, ~schedule_autosave);
+        },
+      ~default_model=Page.Store.load(),
+      save_scheduler,
     );
 
-    /* initialize state. */
-    let state = State.init();
+  // Autosave every second
+  let save_effect =
+    Bonsai.Value.map(~f=g => g(Page.Update.Save), app_inject);
+  let%sub () = BonsaiUtil.Alarm.listen(save_scheduler, ~event=save_effect);
 
-    schedule_action(Start);
+  // Update font metrics on resize
+  let%sub size =
+    BonsaiUtil.SizeObserver.observer(
+      () => JsUtil.get_elem_by_id("font-specimen"),
+      ~default=BonsaiUtil.SizeObserver.Size.{width: 10., height: 10.},
+    );
+  let%sub () =
+    /* Note: once Bonsai is threaded through the system, we won't need
+       on_change here */
+    Bonsai.Edge.on_change(
+      (module BonsaiUtil.SizeObserver.Size),
+      size,
+      ~callback=
+        app_inject
+        |> Bonsai.Value.map(~f=(i, rect: BonsaiUtil.SizeObserver.Size.t) =>
+             i(
+               Page.Update.Globals(
+                 SetFontMetrics({
+                   row_height: rect.height,
+                   col_width: rect.width,
+                 }),
+               ),
+             )
+           ),
+    );
 
+  // Other Initialization
+  let on_startup = (schedule_action, ()): unit => {
+    NinjaKeys.initialize(Shortcut.options(schedule_action));
+    JsUtil.focus_clipboard_shim();
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
         Js.string("MAC"),
       )
       >= 0;
-    Async_kernel.Deferred.return(state);
   };
+  let%sub () =
+    BonsaiUtil.OnStartup.on_startup(
+      {
+        let%map app_inject = app_inject;
+        Bonsai.Effect.Many([
+          // Initialize state
+          Bonsai.Effect.of_sync_fun(
+            on_startup(x => x |> app_inject |> Bonsai.Effect.Expert.handle),
+            (),
+          ),
+          // Initialize evaluation on a worker
+          app_inject(Start),
+        ]);
+      },
+    );
 
-  let create =
-      (model: Incr.t(Model.t), ~old_model as _: Incr.t(Model.t), ~inject) => {
-    open Incr.Let_syntax;
-    let%map model = model;
-    /* Note: mapping over the old_model here may
-       trigger an additional redraw */
-    Component.create(
-      ~apply_action=apply(model),
-      model,
-      Haz3lweb.Page.View.view(~get_log_and=Log.get_and, ~inject, model),
-      ~on_display=(_, ~schedule_action) => {
-        if (edit_action_applied^
-            && JsUtil.timestamp()
-            -. last_edit_action^ > 1000.0) {
-          /* If an edit action has been applied, but no other edit action
-             has been applied for 1 second, save the model. */
-          edit_action_applied := false;
-          print_endline("Saving...");
-          schedule_action(Page.Update.Save);
-        };
+  // Triggers after every update
+  let after_display = {
+    Bonsai.Effect.of_sync_fun(
+      () =>
         if (scroll_to_caret.contents) {
           scroll_to_caret := false;
           JsUtil.scroll_cursor_into_view_if_needed();
-        };
-      },
+        },
+      (),
     );
   };
+  let%sub () =
+    Bonsai.Edge.after_display(after_display |> Bonsai.Value.return);
+
+  // View function
+  let%arr app_model = app_model
+  and app_inject = app_inject;
+  Haz3lweb.Page.View.view(
+    app_model,
+    ~inject=app_inject,
+    ~get_log_and=Log.get_and,
+  );
 };
 
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()
-| _ =>
-  Incr_dom.Start_app.start(
-    (module App),
-    ~debug=false,
-    ~bind_to_element_with_id="container",
-    ~initial_model=Page.Store.load(),
-  )
+| _ => Bonsai_web.Start.start(start, ~bind_to_element_with_id="container")
 };

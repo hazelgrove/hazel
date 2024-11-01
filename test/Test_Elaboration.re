@@ -74,20 +74,18 @@ let consistent_if = () =>
     dhexp_of_uexp(u6),
   );
 
-let u7: Exp.t =
-  Ap(
-    Forward,
-    Fun(
-      Var("x") |> Pat.fresh,
-      BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
-      |> Exp.fresh,
-      None,
-      None,
-    )
-    |> Exp.fresh,
-    Var("y") |> Exp.fresh,
+// x => 4 + 5
+let f =
+  Fun(
+    Var("x") |> Pat.fresh,
+    BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh) |> Exp.fresh,
+    None,
+    None,
   )
   |> Exp.fresh;
+let unapplied_function = () => alco_check("A function", f, dhexp_of_uexp(f));
+
+let u7: Exp.t = Ap(Forward, f, Var("y") |> Exp.fresh) |> Exp.fresh;
 
 let ap_fun = () =>
   alco_check("Application of a function", u7, dhexp_of_uexp(u7));
@@ -179,6 +177,148 @@ let let_fun = () =>
     dhexp_of_uexp(u9),
   );
 
+let deferral = () =>
+  alco_check(
+    "string_sub(\"hello\", 1, _)",
+    DeferredAp(
+      Var("string_sub") |> Exp.fresh,
+      [
+        String("hello") |> Exp.fresh,
+        Int(1) |> Exp.fresh,
+        Deferral(InAp) |> Exp.fresh,
+      ],
+    )
+    |> Exp.fresh,
+    dhexp_of_uexp(
+      DeferredAp(
+        Var("string_sub") |> Exp.fresh,
+        [
+          String("hello") |> Exp.fresh,
+          Int(1) |> Exp.fresh,
+          Deferral(InAp) |> Exp.fresh,
+        ],
+      )
+      |> Exp.fresh,
+    ),
+  );
+
+let ap_deferral_single_argument = () =>
+  alco_check(
+    "string_sub(\"hello\", 1, _)(2)",
+    Ap(
+      Forward,
+      DeferredAp(
+        Var("string_sub") |> Exp.fresh,
+        [
+          String("hello") |> Exp.fresh,
+          Int(1) |> Exp.fresh,
+          Deferral(InAp) |> Exp.fresh,
+        ],
+      )
+      |> Exp.fresh,
+      Int(2) |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    dhexp_of_uexp(
+      Ap(
+        Forward,
+        DeferredAp(
+          Var("string_sub") |> Exp.fresh,
+          [
+            String("hello") |> Exp.fresh,
+            Int(1) |> Exp.fresh,
+            Deferral(InAp) |> Exp.fresh,
+          ],
+        )
+        |> Exp.fresh,
+        Int(2) |> Exp.fresh,
+      )
+      |> Exp.fresh,
+    ),
+  );
+
+let ap_of_deferral_of_hole = () =>
+  alco_check(
+    "?(_, _, 3)(1., true)",
+    Ap(
+      Forward,
+      DeferredAp(
+        Cast(
+          Cast(
+            EmptyHole |> Exp.fresh,
+            Unknown(Internal) |> Typ.fresh,
+            Arrow(
+              Unknown(Internal) |> Typ.fresh,
+              Unknown(Internal) |> Typ.fresh,
+            )
+            |> Typ.fresh,
+          )
+          |> Exp.fresh,
+          Arrow(
+            Unknown(Internal) |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Typ.fresh,
+          Arrow(
+            Prod([
+              Unknown(Internal) |> Typ.fresh,
+              Unknown(Internal) |> Typ.fresh,
+              Unknown(Internal) |> Typ.fresh,
+            ])
+            |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Typ.fresh,
+        )
+        |> Exp.fresh,
+        [
+          Deferral(InAp) |> Exp.fresh,
+          Deferral(InAp) |> Exp.fresh,
+          Cast(
+            Int(3) |> Exp.fresh,
+            Int |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Exp.fresh,
+        ],
+      )
+      |> Exp.fresh,
+      Tuple([
+        Cast(
+          Float(1.) |> Exp.fresh,
+          Float |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Exp.fresh,
+        Cast(
+          Bool(true) |> Exp.fresh,
+          Bool |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Exp.fresh,
+      ])
+      |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    dhexp_of_uexp(
+      Ap(
+        Forward,
+        DeferredAp(
+          EmptyHole |> Exp.fresh,
+          [
+            Deferral(InAp) |> Exp.fresh,
+            Deferral(InAp) |> Exp.fresh,
+            Int(3) |> Exp.fresh,
+          ],
+        )
+        |> Exp.fresh,
+        Tuple([Float(1.) |> Exp.fresh, Bool(true) |> Exp.fresh])
+        |> Exp.fresh,
+      )
+      |> Exp.fresh,
+    ),
+  );
+
 let elaboration_tests = [
   test_case("Single integer", `Quick, single_integer),
   test_case("Empty hole", `Quick, empty_hole),
@@ -186,7 +326,23 @@ let elaboration_tests = [
   test_case("Let expression", `Quick, let_exp),
   test_case("Inconsistent binary operation", `Quick, bin_op),
   test_case("Consistent if statement", `Quick, consistent_if),
+  test_case("An unapplied function", `Quick, unapplied_function),
   test_case("Application of function on free variable", `Quick, ap_fun),
   test_case("Inconsistent case statement", `Quick, inconsistent_case),
   test_case("Let expression for a function", `Quick, let_fun),
+  test_case(
+    "Function application with a deferred argument",
+    `Quick,
+    deferral,
+  ),
+  test_case(
+    "Function application with a single remaining argument after deferral",
+    `Quick,
+    ap_deferral_single_argument,
+  ),
+  test_case(
+    "Function application with a deferral of a hole",
+    `Quick,
+    ap_of_deferral_of_hole,
+  ),
 ];

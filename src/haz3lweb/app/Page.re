@@ -9,6 +9,7 @@ open Util;
 type selection = Editors.Selection.t;
 
 module Model = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     globals: Globals.Model.t,
     editors: Editors.Model.t,
@@ -16,7 +17,7 @@ module Model = {
     selection,
   };
 
-  let cutoff = (===);
+  let equal = (===);
 };
 
 module Store = {
@@ -239,6 +240,7 @@ module Update = {
       model |> Updated.return_quiet;
     | Start => model |> return // Triggers recalculation at the start
     | Save =>
+      print_endline("Saving...");
       Store.save(model);
       model |> return_quiet;
     };
@@ -498,11 +500,7 @@ module View = {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
-      [
-        FontSpecimen.view("font-specimen"),
-        DecUtil.filters,
-        JsUtil.clipboard_shim,
-      ]
+      [FontSpecimen.view, DecUtil.filters, JsUtil.clipboard_shim]
       @ main_view(~get_log_and, ~cursor, ~inject, model),
     );
   };
