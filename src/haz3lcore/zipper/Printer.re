@@ -55,7 +55,10 @@ let to_rows =
 };
 
 let measured = z =>
-  z |> Zipper.seg_without_buffer |> Measured.of_segment(_, Id.Map.empty);
+  z
+  |> ProjectorPerform.Update.remove_all
+  |> Zipper.seg_without_buffer
+  |> Measured.of_segment(_, Id.Map.empty);
 
 let pretty_print = (~holes: option(string)=Some(""), z: Zipper.t): string =>
   to_rows(
@@ -78,7 +81,7 @@ let zipper_to_string =
   )
   |> String.concat("\n");
 
-let to_string_selection = (zipper: Zipper.t): string =>
+let to_string_selection = (zipper: Zipper.t): string => {
   to_rows(
     ~measured=measured(zipper),
     ~caret=None,
@@ -87,6 +90,7 @@ let to_string_selection = (zipper: Zipper.t): string =>
     ~segment=zipper.selection.content,
   )
   |> String.concat("\n");
+};
 
 let zipper_of_string =
     (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
