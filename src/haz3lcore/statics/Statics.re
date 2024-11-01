@@ -225,6 +225,33 @@ and uexp_to_info_map =
       ([], m),
     );
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
+  let elaborate_singleton_tuple = (uexp: Exp.t, inner_ty, l, m) => {
+    let (term, rewrap) = UExp.unwrap(uexp);
+    let original_expression = Exp.fresh(term);
+    let (original_info, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~mode=Mode.Ana(inner_ty),
+        ~is_in_filter,
+        ~ancestors,
+        original_expression,
+        m,
+      );
+    let elaborated_exp =
+      rewrap(
+        Tuple([
+          TupLabel(Label(l) |> Exp.fresh, original_expression) |> Exp.fresh,
+        ]),
+      );
+    // We need to reanalyze the elaborated expression to get the statics in the map for the label and tuple
+    let (info, m) =
+      uexp_to_info_map(~ctx, ~mode, ~ancestors, elaborated_exp, m);
+
+    // We need to keep the original status of the expression to get error messages on the unelaborated expression
+    let info = {...info, status: original_info.status};
+
+    (info, add_info(elaborated_exp.ids, InfoExp(info), m));
+  };
   let atomic = self => {
     add(~self, ~co_ctx=CoCtx.empty, m);
   };
@@ -811,42 +838,20 @@ and uexp_to_info_map =
       };
     };
   };
-  // This is to allow lifting single values into a singleton labeled tuple when the label is not present
-  // TODO Think about this real hard
 
+  // This is to allow lifting single values into a singleton labeled tuple when the label is not present
   switch (mode) {
   | Ana(ty) =>
     switch (Typ.weak_head_normalize(ctx, ty).term) {
     | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
+      // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
+      // So for performance reasons we'll just do it here.
       let (e, m) = go(~mode=Mode.Syn, uexp, m);
 
       switch (Typ.weak_head_normalize(ctx, e.ty).term) {
       | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
         default_case()
-      | _ =>
-        // TODO Deduplicate
-
-        let (term, rewrap) = UExp.unwrap(uexp);
-        let og_exp = Exp.fresh(term);
-        let (og_info, m) =
-          uexp_to_info_map(
-            ~ctx,
-            ~mode=Mode.Ana(ana_ty),
-            ~is_in_filter,
-            ~ancestors,
-            og_exp, // TODO Figure out how to manifest this with statics. We may need to add some ofther form of info_exp on the statics map.
-            m,
-          );
-        let fake_uexp =
-          rewrap(
-            Tuple([TupLabel(Label(l1) |> Exp.fresh, og_exp) |> Exp.fresh]),
-          );
-        let (info, m) =
-          uexp_to_info_map(~ctx, ~mode, ~ancestors, fake_uexp, m);
-
-        let info = {...info, status: og_info.status};
-
-        (info, add_info(fake_uexp.ids, InfoExp(info), m));
+      | _ => elaborate_singleton_tuple(uexp, ana_ty, l1, m)
       };
     | _ => default_case()
     }
