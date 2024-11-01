@@ -430,7 +430,9 @@ let apply = (model: Model.t, update: t, ~schedule_action): Result.t(Model.t) => 
     | DebugConsole(key) =>
       DebugConsole.print(model, key);
       Ok(model);
-    | Save => Model.save_and_return(model)
+    | Save =>
+      print_endline("Saving...");
+      Model.save_and_return(model);
     | InitImportAll(file) =>
       JsUtil.read_file(file, data => schedule_action(FinishImportAll(data)));
       Ok(model);
