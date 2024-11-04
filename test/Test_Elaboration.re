@@ -673,7 +673,7 @@ undef
     alco_check_menhir("List exp (menhir)", list_exp_str, list_exp_uexp);
 
   let invalid_str = "
-?\"x\"
+? e \"x\"
 ";
   let invalid_uexp: Exp.t = Invalid("x") |> Exp.fresh;
   let invalid_menhir = () =>

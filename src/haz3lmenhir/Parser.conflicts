@@ -1,0 +1,33 @@
+
+** Conflict (reduce/reduce) in state 156.
+** Tokens involved: COMMA CLOSE_SQUARE_BRACKET CLOSE_PAREN
+** The following explanations concentrate on token CLOSE_SQUARE_BRACKET.
+** This state is reached from program after reading:
+
+exp LESS_THAN OPEN_SQUARE_BRACKET QUESTION STRING
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+program 
+exp EOF 
+(?)
+
+** In state 156, looking ahead at CLOSE_SQUARE_BRACKET, reducing production
+** exp -> QUESTION STRING
+** is permitted because of the following sub-derivation:
+
+binExp 
+exp LESS_THAN exp 
+              OPEN_SQUARE_BRACKET loption(separated_nonempty_list(COMMA,exp)) CLOSE_SQUARE_BRACKET // lookahead token appears
+                                  separated_nonempty_list(COMMA,exp) // lookahead token is inherited
+                                  exp // lookahead token is inherited
+                                  QUESTION STRING . 
+
+** In state 156, looking ahead at CLOSE_SQUARE_BRACKET, reducing production
+** typ -> QUESTION STRING
+** is permitted because of the following sub-derivation:
+
+exp LESS_THAN typ EQUAL_ARROW typ GREATER_THAN 
+              OPEN_SQUARE_BRACKET typ CLOSE_SQUARE_BRACKET // lookahead token appears
+                                  QUESTION STRING . 

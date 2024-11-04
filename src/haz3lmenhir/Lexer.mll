@@ -110,6 +110,10 @@ rule token =
     | "type" {TYP}
     | "$" {DOLLAR_SIGN}
     | "~" {TILDE}
+    | "t" {T_TYP}
+    | "p" {P_PAT}
+    | "tp" {TP_TPAT}
+    | "e" {E_EXP}
     | "named_fun" {NAMED_FUN}
     | identifier as i { IDENT(i) }
     | constructor_ident as i { CONSTRUCTOR_IDENT(i)}

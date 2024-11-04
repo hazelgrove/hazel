@@ -3,6 +3,12 @@ open AST
 %}
 
 
+
+
+%token T_TYP
+%token P_PAT
+%token TP_TPAT
+%token E_EXP
 %token TILDE
 %token NAMED_FUN
 %token UNDEF
@@ -105,6 +111,7 @@ open AST
 
 %left PLUS_FLOAT MINUS_FLOAT TIMES_FLOAT POWER_FLOAT DIVIDE_FLOAT DOUBLE_EQUAL_FLOAT NOT_EQUAL_FLOAT LESS_THAN_FLOAT LESS_THAN_EQUAL_FLOAT GREATER_THAN_FLOAT GREATER_THAN_EQUAL_FLOAT
 
+
 (* Other *)
 %left CONS
 %left OPEN_PAREN
@@ -135,7 +142,7 @@ program:
     | DIVIDE { IntOp(Divide) }
     | DOUBLE_EQUAL { IntOp(Equals) }
     | NOT_EQUAL { IntOp(NotEquals) }
-    (* | LESS_THAN { IntOp(LessThan) } *)
+    | LESS_THAN { IntOp(LessThan) }
     | LESS_THAN_EQUAL { IntOp(LessThanOrEqual) }
     | GREATER_THAN { IntOp(GreaterThan) }
     | GREATER_THAN_EQUAL { IntOp(GreaterThanOrEqual) }
@@ -167,7 +174,7 @@ binExp:
     | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
 
 typ:
-    | QUESTION; s = STRING { InvalidTyp(s) }
+    | QUESTION; T_TYP; s = STRING { InvalidTyp(s) }
     | INT_TYPE { IntType }
     | FLOAT_TYPE { FloatType }
     | BOOL_TYPE { BoolType }
@@ -183,7 +190,7 @@ pat:
     | p1 = pat; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN { CastPat(p1, t1, t2) }
     | OPEN_PAREN; p = pat; CLOSE_PAREN { p }
     | OPEN_PAREN; p = pat; COMMA; pats = separated_list(COMMA, pat); CLOSE_PAREN { TuplePat(p :: pats) }
-    | QUESTION; s = STRING { InvalidPat(s) }
+    | QUESTION; P_PAT; s = STRING { InvalidPat(s) }
     | WILD { WildPat }
     | QUESTION { EmptyHolePat }
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
@@ -221,7 +228,7 @@ filterAction:
     | EVAL { Eval }
 
 tpat:
-    | QUESTION; s = STRING {InvalidTPat(s)}
+    | QUESTION; TP_TPAT; s = STRING {InvalidTPat(s)}
     | QUESTION {EmptyHoleTPat}
     | v = IDENT {VarTPat v}
 
@@ -259,7 +266,7 @@ exp:
     | e1 = exp; AT_SYMBOL; e2 = exp { ListConcat(e1, e2) }
     | e1 = exp; CONS; e2 = exp { Cons(e1, e2) }
     | e1 = exp; SEMI_COLON; e2 = exp { Seq(e1, e2) }
-    | QUESTION; s = STRING; { InvalidExp(s) }
+    | QUESTION; E_EXP; s = STRING; { InvalidExp(s) }
     |  WILD {Deferral}
     | e = exp; AT_SYMBOL; LESS_THAN; ty = typ; GREATER_THAN; {TypAp(e, ty)}
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)}
