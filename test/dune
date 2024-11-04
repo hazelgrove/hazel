@@ -12,11 +12,9 @@
   incr_dom
   haz3lmenhir
   junit
-  junit_alcotest)
+  junit_alcotest
+  bisect_ppx.runtime)
  (modes js)
- (js_of_ocaml
-  (flags
-   (:include js-of-ocaml-flags-%{profile})))
  (preprocess
   (pps
    js_of_ocaml-ppx
@@ -24,17 +22,3 @@
    ppx_sexp_conv
    ppx_deriving.show
    ppx_yojson_conv)))
-
-(env
- (dev
-  (js_of_ocaml
-   (flags (:standard))))
- (release
-  (js_of_ocaml
-   (flags (:standard)))))
-
-(rule
- (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
-
-(rule
- (write-file js-of-ocaml-flags-release "(:standard)"))

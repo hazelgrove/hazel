@@ -25,7 +25,7 @@ setup-student:
 
 dev-helper:
 	dune fmt --auto-promote || true
-	dune build @src/fmt --auto-promote src --profile dev
+	dune build @ocaml-index @src/fmt --auto-promote src --profile dev
 
 dev: setup-instructor dev-helper
 
@@ -35,7 +35,7 @@ fmt:
 	dune fmt --auto-promote
 
 watch: setup-instructor
-	dune build @src/fmt --auto-promote src --profile dev --watch
+	dune build @ocaml-index @src/fmt --auto-promote src --profile dev --watch
 
 watch-release: setup-instructor
 	dune build @src/fmt --auto-promote src --profile release --watch
@@ -60,11 +60,19 @@ repl:
 
 test:
 	dune fmt --auto-promote || true
-	dune build @src/fmt @test/fmt --auto-promote src test --profile dev
+	dune build @ocaml-index @src/fmt @test/fmt --auto-promote src test --profile dev
 	node $(TEST_DIR)/haz3ltest.bc.js
 
 watch-test:
-	dune build @fmt @runtest --auto-promote --watch
+	dune build @ocaml-index @fmt @runtest --auto-promote --watch
+
+coverage:
+	dune build @src/fmt @test/fmt --auto-promote src test --profile dev
+	dune runtest --instrument-with bisect_ppx --force
+	bisect-ppx-report summary
+
+generate-coverage-html:
+	bisect-ppx-report html
 
 clean:
 	dune clean
