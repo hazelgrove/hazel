@@ -439,7 +439,6 @@ let tests = [
       |> (slide => strip_comments(slide.backup_text))
       |> replace_holes;
 
-    print_endline(basic_reference);
     test_case(
       "Basic Reference",
       `Quick,
