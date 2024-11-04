@@ -354,11 +354,18 @@ let tests = [
   //     let re = Str.regexp("#[^#]*#");
   //     Str.global_replace(re, "", str);
   //   };
+  //   let replace_holes = str => {
+  //     let re = Str.regexp("=   in");
+  //     Str.global_replace(re, "= ? in", str);
+  //   };
+  //
   //   let basic_reference =
   //     Haz3lweb.Init.startup.documentation
   //     |> (((_, slides, _)) => slides)
   //     |> List.assoc("Basic Reference")
-  //     |> (slide => strip_comments(slide.backup_text));
+  //     |> (slide => strip_comments(slide.backup_text))
+  //     |> replace_holes;
+  //
   //   print_endline(basic_reference);
   //
   //   menhir_maketerm_equivalent_test("Basic Reference", basic_reference);
