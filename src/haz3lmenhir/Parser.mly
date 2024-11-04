@@ -244,7 +244,8 @@ exp:
     | f = FLOAT { Float f }
     | v = IDENT { Var v }
     | c = CONSTRUCTOR_IDENT { Constructor(c, UnknownType(Internal))}
-    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Cast(Constructor(c, UnknownType(Internal)), UnknownType(Internal), t) }
+    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, t) }
+    | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { Cast(Constructor(c, UnknownType(Internal)), UnknownType(Internal), t) }
     | s = STRING { String s}
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
     | OPEN_PAREN; e = exp; COMMA; l = separated_list(COMMA, exp); CLOSE_PAREN { TupleExp(e :: l) }

@@ -266,6 +266,11 @@ let tests = [
       Int |> Typ.fresh,
     )
     |> Exp.fresh,
+    "A : Int",
+  ),
+  menhir_only_test(
+    "Constructor of specific sum type",
+    Constructor("A", Int |> Typ.fresh) |> Exp.fresh,
     "A ~ Int",
   ),
   parser_test(
