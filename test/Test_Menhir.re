@@ -31,6 +31,12 @@ let menhir_matches = (name: string, exp: Term.Exp.t, actual: string) =>
 let menhir_only_test = (name: string, exp: Term.Exp.t, actual: string) =>
   test_case(name, `Quick, () => {menhir_matches(name, exp, actual)});
 
+// TODO Remove these before merge. Using it to mark skipped tests until we fix them.
+let skip_parser_test = (name: string, _exp: Term.Exp.t, _actual: string) =>
+  test_case(name, `Quick, () => {Alcotest.skip()});
+let skip_menhir_only_test = (name: string, _exp: Term.Exp.t, _actual: string) =>
+  test_case(name, `Quick, () => {Alcotest.skip()});
+
 // TODO Assert against result instead of exception for parse failure for better error messages
 let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
   test_case(
@@ -274,26 +280,26 @@ let tests = [
     "A ~ Int",
   ),
   // TODO Fix for the tests below
-  // menhir_only_test(
-  //   "Constructor with Type Variable",
-  //   Constructor("A", Var("T") |> Typ.fresh) |> Exp.fresh,
-  //   "A ~ T",
-  // ),
-  // parser_test(
-  //   "Type Variable",
-  //   Let(
-  //     Cast(
-  //       Var("x") |> Pat.fresh,
-  //       Var("T") |> Typ.fresh,
-  //       Unknown(Internal) |> Typ.fresh,
-  //     )
-  //     |> Pat.fresh,
-  //     EmptyHole |> Exp.fresh,
-  //     Var("x") |> Exp.fresh,
-  //   )
-  //   |> Exp.fresh,
-  //   "let x : T = ? in x",
-  // ),
+  skip_menhir_only_test(
+    "Constructor with Type Variable",
+    Constructor("A", Var("T") |> Typ.fresh) |> Exp.fresh,
+    "A ~ T",
+  ),
+  skip_parser_test(
+    "Type Variable",
+    Let(
+      Cast(
+        Var("x") |> Pat.fresh,
+        Var("T") |> Typ.fresh,
+        Unknown(Internal) |> Typ.fresh,
+      )
+      |> Pat.fresh,
+      EmptyHole |> Exp.fresh,
+      Var("x") |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "let x : T = ? in x",
+  ),
   parser_test(
     "Type Alias",
     TyAlias(Var("x") |> TPat.fresh, Int |> Typ.fresh, Int(1) |> Exp.fresh)
@@ -327,67 +333,68 @@ let tests = [
     |> Exp.fresh,
     "[1, 2] @ [3, 4]",
   ),
-  // parser_test(
-  //   "Integer Ops",
-  //   BinOp(
-  //     Int(GreaterThanOrEqual),
-  //     BinOp(
-  //       Int(Minus),
-  //       BinOp(
-  //         Int(Plus),
-  //         UnOp(Int(Minus), Int(1) |> Exp.fresh) |> Exp.fresh,
-  //         Int(2) |> Exp.fresh,
-  //       )
-  //       |> Exp.fresh,
-  //       BinOp(
-  //         Int(Divide),
-  //         Int(3) |> Exp.fresh,
-  //         BinOp(
-  //           Int(Times),
-  //           Int(4) |> Exp.fresh,
-  //           BinOp(Int(Power), Int(5) |> Exp.fresh, Int(6) |> Exp.fresh)
-  //           |> Exp.fresh,
-  //         )
-  //         |> Exp.fresh,
-  //       )
-  //       |> Exp.fresh,
-  //     )
-  //     |> Exp.fresh,
-  //     Int(8) |> Exp.fresh,
-  //   )
-  //   |> Exp.fresh,
-  //   "-1 + 2 - 3 / 4 * 5 ** 6 >= 8" // TODO Add the remaining operators and fix precedence
+  skip_parser_test(
+    "Integer Ops",
+    BinOp(
+      Int(GreaterThanOrEqual),
+      BinOp(
+        Int(Minus),
+        BinOp(
+          Int(Plus),
+          UnOp(Int(Minus), Int(1) |> Exp.fresh) |> Exp.fresh,
+          Int(2) |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        BinOp(
+          Int(Divide),
+          Int(3) |> Exp.fresh,
+          BinOp(
+            Int(Times),
+            Int(4) |> Exp.fresh,
+            BinOp(Int(Power), Int(5) |> Exp.fresh, Int(6) |> Exp.fresh)
+            |> Exp.fresh,
+          )
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      Int(8) |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "-1 + 2 - 3 / 4 * 5 ** 6 >= 8",
+  ), // TODO Add the remaining operators and fix precedence
   parser_test("Float", Float(1.) |> Exp.fresh, "1."),
-  // parser_test(
-  //   "Float Ops",
-  //   BinOp(
-  //     Float(LessThan),
-  //     BinOp(
-  //       Float(Plus),
-  //       Float(2.) |> Exp.fresh,
-  //       BinOp(
-  //         Float(Divide),
-  //         Float(3.) |> Exp.fresh,
-  //         BinOp(
-  //           Float(Times),
-  //           Float(4.) |> Exp.fresh,
-  //           BinOp(
-  //             Float(Power),
-  //             Float(5.) |> Exp.fresh,
-  //             Float(6.) |> Exp.fresh,
-  //           )
-  //           |> Exp.fresh,
-  //         )
-  //         |> Exp.fresh,
-  //       )
-  //       |> Exp.fresh,
-  //     )
-  //     |> Exp.fresh,
-  //     Float(8.) |> Exp.fresh,
-  //   )
-  //   |> Exp.fresh,
-  //   "2. +. 3. /. 4. *. 5. **. 6. <. 8." // TODO Add the remaining operators. -. is also currently broken
-  // ),
+  skip_parser_test(
+    "Float Ops",
+    BinOp(
+      Float(LessThan),
+      BinOp(
+        Float(Plus),
+        Float(2.) |> Exp.fresh,
+        BinOp(
+          Float(Divide),
+          Float(3.) |> Exp.fresh,
+          BinOp(
+            Float(Times),
+            Float(4.) |> Exp.fresh,
+            BinOp(
+              Float(Power),
+              Float(5.) |> Exp.fresh,
+              Float(6.) |> Exp.fresh,
+            )
+            |> Exp.fresh,
+          )
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      Float(8.) |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "2. +. 3. /. 4. *. 5. **. 6. <. 8." // TODO Add the remaining operators. -. is also currently broken
+  ),
   parser_test(
     "Let binding with type ascription",
     Let(
@@ -415,25 +422,37 @@ let tests = [
     |> Exp.fresh,
     "named_fun f x -> x + 5",
   ),
-  // {
-  //   let strip_comments = str => {
-  //     let re = Str.regexp("#[^#]*#");
-  //     Str.global_replace(re, "", str);
-  //   };
-  //   let replace_holes = str => {
-  //     let re = Str.regexp("=   in");
-  //     Str.global_replace(re, "= ? in", str);
-  //   };
-  //
-  //   let basic_reference =
-  //     Haz3lweb.Init.startup.documentation
-  //     |> (((_, slides, _)) => slides)
-  //     |> List.assoc("Basic Reference")
-  //     |> (slide => strip_comments(slide.backup_text))
-  //     |> replace_holes;
-  //
-  //   print_endline(basic_reference);
-  //
-  //   menhir_maketerm_equivalent_test("Basic Reference", basic_reference);
-  // },
+  {
+    let strip_comments = str => {
+      let re = Str.regexp("#[^#]*#");
+      Str.global_replace(re, "", str);
+    };
+    let replace_holes = str => {
+      let re = Str.regexp("=   in");
+      Str.global_replace(re, "= ? in", str);
+    };
+
+    let basic_reference =
+      Haz3lweb.Init.startup.documentation
+      |> (((_, slides, _)) => slides)
+      |> List.assoc("Basic Reference")
+      |> (slide => strip_comments(slide.backup_text))
+      |> replace_holes;
+
+    print_endline(basic_reference);
+    test_case(
+      "Basic Reference",
+      `Quick,
+      () => {
+        let _ = Alcotest.skip();
+        alco_check(
+          "Does not match MakeTerm",
+          make_term_parse(basic_reference),
+          Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+            Haz3lmenhir.Interface.parse_program(basic_reference),
+          ),
+        );
+      },
+    );
+  },
 ];
