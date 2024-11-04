@@ -356,7 +356,37 @@ let tests = [
   //     Int(8) |> Exp.fresh,
   //   )
   //   |> Exp.fresh,
-  //   "-1 + 2 - 3 / 4 * 5 ** 6 >= 8" // TODO Add the remaining operators. < is also currently broken
+  //   "-1 + 2 - 3 / 4 * 5 ** 6 >= 8" // TODO Add the remaining operators and fix precedence
+  parser_test("Float", Float(1.) |> Exp.fresh, "1."),
+  // parser_test(
+  //   "Float Ops",
+  //   BinOp(
+  //     Float(LessThan),
+  //     BinOp(
+  //       Float(Plus),
+  //       Float(2.) |> Exp.fresh,
+  //       BinOp(
+  //         Float(Divide),
+  //         Float(3.) |> Exp.fresh,
+  //         BinOp(
+  //           Float(Times),
+  //           Float(4.) |> Exp.fresh,
+  //           BinOp(
+  //             Float(Power),
+  //             Float(5.) |> Exp.fresh,
+  //             Float(6.) |> Exp.fresh,
+  //           )
+  //           |> Exp.fresh,
+  //         )
+  //         |> Exp.fresh,
+  //       )
+  //       |> Exp.fresh,
+  //     )
+  //     |> Exp.fresh,
+  //     Float(8.) |> Exp.fresh,
+  //   )
+  //   |> Exp.fresh,
+  //   "2. +. 3. /. 4. *. 5. **. 6. <. 8." // TODO Add the remaining operators. -. is also currently broken
   // ),
   parser_test(
     "Let binding with type ascription",
