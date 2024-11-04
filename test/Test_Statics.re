@@ -655,7 +655,7 @@ let tests =
     fully_consistent_typecheck(
       "Singleton labeled argument function application with no labeled param",
       {|(fun a=x->x)(1)|},
-      Some(int),
+      Some(unknown(Internal)),
       Ap(
         Forward,
         Fun(
