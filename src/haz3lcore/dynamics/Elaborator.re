@@ -18,59 +18,18 @@ module ElaborationResult = {
     | DoesNotElaborate;
 };
 
-let rec fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
-  switch (t1.term) {
-  | Label(_) =>
-    // TODO Remove duplication in cases
-    Typ.eq(t1, t2)
-      ? d
-      : {
-        let d' =
-          DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
-          |> DHExp.fresh
-          |> Casts.transition_multiple;
-        DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
+let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
+  Typ.eq(t1, t2)
+    ? d
+    : {
+      let d' =
+        DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
         |> DHExp.fresh
         |> Casts.transition_multiple;
-      } // These should be a different sort. I don't think we should be casting them.
-  | _ =>
-    switch (t2.term) {
-    | Prod([{term: TupLabel({term: Label(l), _}, t), _}]) =>
-      switch (t1.term) {
-      | Prod([{term: TupLabel({term: Label(l'), _}, _), _}]) when l == l' =>
-        Typ.eq(t1, t2)
-          ? d
-          : {
-            let d' =
-              DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
-              |> DHExp.fresh
-              |> Casts.transition_multiple;
-            DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
-            |> DHExp.fresh
-            |> Casts.transition_multiple;
-          }
-      | _ =>
-        Tuple([
-          TupLabel(Label(l) |> DHExp.fresh, fresh_cast(d, t1, t))
-          |> DHExp.fresh,
-        ])
-        |> DHExp.fresh
-      }
-    | _ =>
-      // TODO Remove duplication in cases
-      Typ.eq(t1, t2)
-        ? d
-        : {
-          let d' =
-            DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
-            |> DHExp.fresh
-            |> Casts.transition_multiple;
-          DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
-          |> DHExp.fresh
-          |> Casts.transition_multiple;
-        }
-    }
-  };
+      DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
+      |> DHExp.fresh
+      |> Casts.transition_multiple;
+    };
 };
 
 let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {

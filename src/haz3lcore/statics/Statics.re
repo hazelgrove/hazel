@@ -226,6 +226,7 @@ and uexp_to_info_map =
     );
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
   let elaborate_singleton_tuple = (uexp: Exp.t, inner_ty, l, m) => {
+    print_endline("Elaborating singleton tuple");
     let (term, rewrap) = UExp.unwrap(uexp);
     let original_expression = Exp.fresh(term);
     let (original_info, m) =
@@ -484,11 +485,12 @@ and uexp_to_info_map =
             copied: arg.copied,
           };
           arg;
-        | (TupLabel(_), Prod([{term: TupLabel(_), _}])) =>
-          Tuple([arg]) |> Exp.fresh
-        | (_, Prod([{term: TupLabel({term: Label(name), _}, _), _}])) =>
-          Tuple([TupLabel(Label(name) |> Exp.fresh, arg) |> Exp.fresh])
-          |> Exp.fresh
+        // Now doing the singleton label elaboration below. I'll discuss with Anthony before removing these
+        // | (TupLabel(_), Prod([{term: TupLabel(_), _}])) =>
+        //   Tuple([arg]) |> Exp.fresh
+        // | (_, Prod([{term: TupLabel({term: Label(name), _}, _), _}])) =>
+        //   Tuple([TupLabel(Label(name) |> Exp.fresh, arg) |> Exp.fresh])
+        //   |> Exp.fresh
         | (_, _) => arg
         };
       let (arg, m) = go(~mode=Ana(ty_in), arg, m);

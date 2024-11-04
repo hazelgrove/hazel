@@ -627,4 +627,54 @@ let tests =
       ),
       parse_exp({|let x : (a=b=c=?) = b=? in x|}),
     ),
+    fully_consistent_typecheck(
+      "Singleton labeled argument function application with unknown type",
+      {|(fun a=x->x)(a=1)|},
+      Some(unknown(Internal)),
+      Ap(
+        Forward,
+        Fun(
+          Tuple([
+            TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
+            |> Pat.fresh,
+          ])
+          |> Pat.fresh,
+          Var("x") |> Exp.fresh,
+          None,
+          None,
+        )
+        |> Exp.fresh,
+        Tuple([
+          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+      )
+      |> Exp.fresh,
+    ),
+    fully_consistent_typecheck(
+      "Singleton labeled argument function application with no labeled param",
+      {|(fun a=x->x)(1)|},
+      Some(int),
+      Ap(
+        Forward,
+        Fun(
+          Tuple([
+            TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
+            |> Pat.fresh,
+          ])
+          |> Pat.fresh,
+          Var("x") |> Exp.fresh,
+          None,
+          None,
+        )
+        |> Exp.fresh,
+        Tuple([
+          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+      )
+      |> Exp.fresh,
+    ),
   ];
