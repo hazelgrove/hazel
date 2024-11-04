@@ -272,8 +272,6 @@ module Update = {
       |> Aba.last_a
       |> Calc.map_saved((u: Model.a') => u.expr)
       |> Calc.set(~eq=Exp.fast_equal, elab);
-    print_endline("=====");
-    print_endline("Settings " ++ string_of_bool(settings |> Calc.is_new));
 
     let (prev_a, history) =
       Aba.fold_right(

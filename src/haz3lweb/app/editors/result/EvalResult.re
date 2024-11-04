@@ -22,7 +22,7 @@ module Model = {
             ),
           ),
         cached_settings: Calc.saved(Haz3lcore.CoreSettings.t),
-        editor: Calc.saved(CodeSelectable.Model.t),
+        editor: Calc.saved((Haz3lcore.Exp.t, CodeSelectable.Model.t)),
       })
     | Stepper(Stepper.Model.t);
 
@@ -117,12 +117,12 @@ module Update = {
               elab,
               result,
               cached_settings,
-              editor: Calculated(editor),
+              editor: Calculated((exp, editor)),
             }),
           _,
         },
       ) =>
-      let* ed' = CodeSelectable.Update.update(~settings, a, editor);
+      let* editor = CodeSelectable.Update.update(~settings, a, editor);
       {
         ...model,
         result:
@@ -130,7 +130,7 @@ module Update = {
             elab,
             result,
             cached_settings,
-            editor: Calculated(ed'),
+            editor: Calculated((exp, editor)),
           }),
       };
     | (EvalEditorAction(_), _) => model |> Updated.return_quiet
@@ -246,17 +246,25 @@ module Update = {
                 ? (x => x) : Haz3lcore.DHExp.strip_casts
             )
             |> CodeSelectable.Model.mk_from_exp(~settings)
-            |> CodeSelectable.Update.calculate(
-                 ~settings,
-                 ~stitch=_ => exp,
-                 ~is_edited,
-               )
-            |> (x => Calc.Calculated(x))
+            |> (x => Calc.Calculated((exp, x)))
           | ResultFail(_) => Pending
           | ResultPending => Pending
           | Off(_) => Pending
           };
         };
+      let editor =
+        editor
+        |> Calc.get_value
+        |> Calc.map_saved(((exp, editor)) =>
+             CodeSelectable.Update.calculate(
+               ~settings,
+               ~stitch=_ => exp,
+               ~is_edited,
+               editor,
+             )
+             |> (x => (exp, x))
+           )
+        |> (x => Calc.OldValue(x));
       {
         ...model,
         result:
@@ -284,7 +292,8 @@ module Selection = {
     switch (selection, mr.result) {
     | (_, NoElab) => empty
     | (Evaluation(selection), Evaluation({editor: Calculated(editor), _})) =>
-      let+ ci = CodeSelectable.Selection.get_cursor_info(~selection, editor);
+      let+ ci =
+        CodeSelectable.Selection.get_cursor_info(~selection, editor |> snd);
       Update.EvalEditorAction(ci);
     | (_, Evaluation(_)) => empty
     | (_, Stepper(_)) => empty
@@ -295,7 +304,11 @@ module Selection = {
     switch (selection, mr.result) {
     | (_, NoElab) => None
     | (Evaluation(selection), Evaluation({editor: Calculated(editor), _})) =>
-      CodeSelectable.Selection.handle_key_event(~selection, editor, event)
+      CodeSelectable.Selection.handle_key_event(
+        ~selection,
+        editor |> snd,
+        event,
+      )
       |> Option.map(x => Update.EvalEditorAction(x))
     | (Stepper(selection), Stepper(s)) =>
       Stepper.Selection.handle_key_event(~selection, s, ~event)
@@ -339,11 +352,11 @@ module View = {
           Haz3lcore.ProgramResult.t(
             (Haz3lcore.Exp.t, Haz3lcore.EvaluatorState.t),
           ),
-        editor: Calc.saved(CodeSelectable.Model.t),
+        editor: Calc.saved(('a, CodeSelectable.Model.t)),
       ) => {
     let editor =
       switch (editor) {
-      | Calculated(editor) => editor
+      | Calculated(editor) => editor |> snd
       | _ =>
         elab
         |> CodeSelectable.Model.mk_from_exp(~settings=globals.settings.core)
