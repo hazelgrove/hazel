@@ -11,21 +11,18 @@ module type Model = {
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type evaluated_result = {
-    // Updated
-    exp: Haz3lcore.Exp.t,
-    state: Haz3lcore.EvaluatorState.t,
-    // Calculated
-    editor: CodeSelectable.Model.t,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type result =
     | NoElab
     | Evaluation({
         elab: Haz3lcore.Exp.t,
-        result_updated: bool,
-        result: Haz3lcore.ProgramResult.t(evaluated_result),
+        result:
+          Calc.t(
+            Haz3lcore.ProgramResult.t(
+              (Haz3lcore.Exp.t, Haz3lcore.EvaluatorState.t),
+            ),
+          ),
+        cached_settings: Calc.saved(Haz3lcore.CoreSettings.t),
+        editor: Calc.saved(CodeSelectable.Model.t),
       })
     | Stepper(Stepper.Model.t);
 
@@ -43,7 +40,8 @@ module Model = {
 
   let make_test_report = (model: t): option(Haz3lcore.TestResults.t) =>
     switch (model.result) {
-    | Evaluation({result: ResultOk({state, _}), _}) =>
+    | Evaluation({result: OldValue(ResultOk((_, state))), _})
+    | Evaluation({result: NewValue(ResultOk((_, state))), _}) =>
       Some(
         state
         |> Haz3lcore.EvaluatorState.get_tests
@@ -64,7 +62,8 @@ module Model = {
 
   let test_results = (model: t): option(Haz3lcore.TestResults.t) =>
     switch (model.result) {
-    | Evaluation({result: ResultOk({state, _}), _}) =>
+    | Evaluation({result: OldValue(ResultOk((_, state))), _})
+    | Evaluation({result: NewValue(ResultOk((_, state))), _}) =>
       Some(
         state
         |> Haz3lcore.EvaluatorState.get_tests
@@ -99,6 +98,7 @@ module Update = {
     | EvalEditorAction(CodeSelectable.Update.t)
     | UpdateResult(Haz3lcore.ProgramResult.t(Haz3lcore.ProgramResult.inner));
 
+  // Update is meant to make minimal changes to the model, and calculate will do the rest.
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) =>
     switch (action, model) {
     | (ToggleStepper, {kind: Stepper, _}) =>
@@ -115,8 +115,9 @@ module Update = {
           result:
             Evaluation({
               elab,
-              result: ResultOk({editor, state, exp}),
-              result_updated: false,
+              result,
+              cached_settings,
+              editor: Calculated(editor),
             }),
           _,
         },
@@ -127,31 +128,33 @@ module Update = {
         result:
           Evaluation({
             elab,
-            result: ResultOk({editor: ed', state, exp}),
-            result_updated: false,
+            result,
+            cached_settings,
+            editor: Calculated(ed'),
           }),
       };
     | (EvalEditorAction(_), _) => model |> Updated.return_quiet
-    | (UpdateResult(update), {result: Evaluation({elab, _}), _}) =>
+    | (
+        UpdateResult(update),
+        {result: Evaluation({elab, editor, cached_settings, _}), _},
+      ) =>
       {
         ...model,
         result:
           Evaluation({
             elab,
             result:
-              Haz3lcore.ProgramResult.map(
-                ({result: r, state: s}: Haz3lcore.ProgramResult.inner) => {
-                  let exp = Haz3lcore.ProgramResult.Result.unbox(r);
-                  let editor =
-                    CodeSelectable.Model.mk_from_exp(
-                      ~settings=settings.core,
-                      exp,
-                    );
-                  Model.{exp, state: s, editor};
-                },
-                update,
+              NewValue(
+                Haz3lcore.ProgramResult.map(
+                  ({result: r, state: s}: Haz3lcore.ProgramResult.inner) => {
+                    let exp = Haz3lcore.ProgramResult.Result.unbox(r);
+                    (exp, s);
+                  },
+                  update,
+                ),
               ),
-            result_updated: true,
+            editor,
+            cached_settings,
           }),
       }
       |> (x => {...x, previous_tests: Model.test_results(x)})
@@ -171,10 +174,13 @@ module Update = {
     let model =
       switch (model.kind, model.result) {
       // If elab hasn't changed, don't recalculate
-      | (Evaluation, Evaluation({elab: elab', result, result_updated}))
+      | (
+          Evaluation,
+          Evaluation({elab: elab', result, cached_settings, editor}),
+        )
           when Haz3lcore.Exp.fast_equal(elab, elab') => {
           ...model,
-          result: Evaluation({elab, result, result_updated}),
+          result: Evaluation({elab, result, cached_settings, editor}),
         }
       // If elab has changed, recalculate
       | (Evaluation, _) when settings.dynamics =>
@@ -188,13 +194,13 @@ module Update = {
                   switch (WorkerServer.work(elab)) {
                   | Ok((r, state)) =>
                     let exp = Haz3lcore.ProgramResult.Result.unbox(r);
-                    let editor =
-                      CodeSelectable.Model.mk_from_exp(~settings, exp);
-                    Haz3lcore.ProgramResult.ResultOk({exp, editor, state});
-                  | Error(e) => Haz3lcore.ProgramResult.ResultFail(e)
+                    NewValue(Haz3lcore.ProgramResult.ResultOk((exp, state)));
+                  | Error(e) =>
+                    NewValue(Haz3lcore.ProgramResult.ResultFail(e))
                   };
                 },
-                result_updated: false,
+                cached_settings: Pending,
+                editor: Pending,
               }),
           }
 
@@ -205,8 +211,9 @@ module Update = {
             result:
               Evaluation({
                 elab,
-                result: Haz3lcore.ProgramResult.ResultPending,
-                result_updated: false,
+                result: NewValue(Haz3lcore.ProgramResult.ResultPending),
+                cached_settings: Pending,
+                editor: Pending,
               }),
           };
         }
@@ -219,28 +226,45 @@ module Update = {
           Stepper.Model.init() |> Stepper.Update.calculate(~settings, elab);
         {...model, result: Stepper(s)};
       };
+
     // Calculate evaluation editor
     switch (model.result) {
-    | Evaluation({
-        elab,
-        result: ResultOk({state, exp, _}),
-        result_updated: true,
-      }) =>
-      let editor = CodeSelectable.Model.mk_from_exp(~settings, exp);
+    | Evaluation({elab, result, cached_settings, editor}) =>
+      open Calc.Syntax;
+      let cached_settings = Calc.set(~eq=(==), settings, cached_settings);
       let editor =
-        CodeSelectable.Update.calculate(
-          ~settings,
-          ~stitch=x => x,
-          ~is_edited,
-          editor,
-        );
+        editor
+        |> Calc.map_saved(x => Calc.Calculated(x))
+        |> {
+          let.calc settings = cached_settings
+          and.calc result = result;
+          switch (result) {
+          | ResultOk((exp, _state)) =>
+            exp
+            |> (
+              settings.evaluation.show_casts
+                ? (x => x) : Haz3lcore.DHExp.strip_casts
+            )
+            |> CodeSelectable.Model.mk_from_exp(~settings)
+            |> CodeSelectable.Update.calculate(
+                 ~settings,
+                 ~stitch=_ => exp,
+                 ~is_edited,
+               )
+            |> (x => Calc.Calculated(x))
+          | ResultFail(_) => Pending
+          | ResultPending => Pending
+          | Off(_) => Pending
+          };
+        };
       {
         ...model,
         result:
           Evaluation({
             elab,
-            result: ResultOk({editor, state, exp}),
-            result_updated: false,
+            result: Calc.make_old(result),
+            cached_settings: Calc.save(cached_settings),
+            editor: Calc.get_value(editor),
           }),
       };
     | _ => model
@@ -259,10 +283,7 @@ module Selection = {
   let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
     switch (selection, mr.result) {
     | (_, NoElab) => empty
-    | (
-        Evaluation(selection),
-        Evaluation({result: ResultOk({editor, _}), _}),
-      ) =>
+    | (Evaluation(selection), Evaluation({editor: Calculated(editor), _})) =>
       let+ ci = CodeSelectable.Selection.get_cursor_info(~selection, editor);
       Update.EvalEditorAction(ci);
     | (_, Evaluation(_)) => empty
@@ -273,10 +294,7 @@ module Selection = {
       (~selection: t, ~event, mr: Model.t): option(Update.t) =>
     switch (selection, mr.result) {
     | (_, NoElab) => None
-    | (
-        Evaluation(selection),
-        Evaluation({result: ResultOk({editor, _}), _}),
-      ) =>
+    | (Evaluation(selection), Evaluation({editor: Calculated(editor), _})) =>
       CodeSelectable.Selection.handle_key_event(~selection, editor, event)
       |> Option.map(x => Update.EvalEditorAction(x))
     | (Stepper(selection), Stepper(s)) =>
@@ -317,11 +335,15 @@ module View = {
         ~selected,
         ~locked,
         elab: Haz3lcore.Exp.t,
-        result: Haz3lcore.ProgramResult.t(Model.evaluated_result),
+        result:
+          Haz3lcore.ProgramResult.t(
+            (Haz3lcore.Exp.t, Haz3lcore.EvaluatorState.t),
+          ),
+        editor: Calc.saved(CodeSelectable.Model.t),
       ) => {
     let editor =
-      switch (result) {
-      | ResultOk({editor, _}) => editor
+      switch (editor) {
+      | Calculated(editor) => editor
       | _ =>
         elab
         |> CodeSelectable.Model.mk_from_exp(~settings=globals.settings.core)
@@ -389,7 +411,7 @@ module View = {
     switch (result.result) {
     | _ when !globals.settings.core.dynamics => []
     | NoElab => []
-    | Evaluation({elab, result, _}) => [
+    | Evaluation({elab, result, editor, _}) => [
         live_eval(
           ~globals,
           ~signal,
@@ -397,7 +419,8 @@ module View = {
           ~selected=selected == Some(Evaluation()),
           ~locked,
           elab,
-          result,
+          result |> Calc.get_value,
+          editor,
         ),
       ]
     | Stepper(s) =>

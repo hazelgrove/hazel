@@ -41,8 +41,14 @@ let apply =
         model,
       )
     ) {
+    | Haz3lcore.Action.Failure.Exception(t) =>
+      Printf.eprintf(
+        "ERROR: Action.Failure: %s\n",
+        t |> Haz3lcore.Action.Failure.show,
+      );
+      model |> Updated.return_quiet;
     | exc =>
-      Printf.printf(
+      Printf.eprintf(
         "ERROR: Exception during apply: %s\n",
         Printexc.to_string(exc),
       );

@@ -107,8 +107,9 @@ let rec strip_casts =
         | Undefined
         | If(_) => continue(exp)
         /* Remove casts*/
-        | FailedCast(d, _, _)
         | Cast(d, _, _) => strip_casts(d)
+        /* Keep failed casts*/
+        | FailedCast(_, _, _) => continue(exp)
         }
       },
     _,

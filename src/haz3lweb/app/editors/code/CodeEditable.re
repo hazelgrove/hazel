@@ -141,6 +141,13 @@ module Selection = {
     | k =>
       Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
 
+  let handle_key_event = (~selection, model: Model.t, key) => {
+    switch (ProjectorView.key_handoff(model.editor, key)) {
+    | Some(action) => Some(Update.Perform(Project(action)))
+    | None => handle_key_event(~selection, model, key)
+    };
+  };
+
   let jump_to_tile = (tile, model: Model.t) => {
     switch (TileMap.find_opt(tile, model.editor.syntax.tiles)) {
     | Some(_) => Some(Update.Perform(Jump(TileId(tile))))

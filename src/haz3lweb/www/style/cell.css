@@ -51,7 +51,7 @@
   gap: 1em;
 }
 
-.code-editor.selected{
+.cell:has(.code-editor.selected) {
   background-color: var(--cell-active);
 }
 

@@ -159,13 +159,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | String(s) =>
     text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "\"" ++ s ++ "\"")
   // TODO: Make sure types are correct
-  | Constructor(c, t) =>
-    let id = Id.mk();
-    let+ e = text_to_pretty(exp |> Exp.rep_id, Sort.Exp, c)
-    and+ t = typ_to_pretty(~settings: Settings.t, t);
-    e
-    @ [mk_form("typeasc", id, [])]
-    @ (t |> fold_if(settings.fold_cast_types));
+  | Constructor(c, _t) =>
+    // let id = Id.mk();
+    let+ e = text_to_pretty(exp |> Exp.rep_id, Sort.Exp, c);
+    // and+ t = typ_to_pretty(~settings: Settings.t, t);
+    e;
+  // @ [mk_form("typeasc", id, [])]
+  // @ (t |> fold_if(settings.fold_cast_types));
   | ListLit([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "[]")
   | Deferral(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "deferral")
   | ListLit([x, ...xs]) =>
@@ -392,9 +392,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e)
     and+ t = typ_to_pretty(~settings: Settings.t, t);
-    e
-    @ [mk_form("typeasc", id, [])]
-    @ (t |> fold_if(settings.fold_cast_types));
+    e @ [mk_form("typeasc", id, [])] @ t;
   | Match(e, rs) =>
     // TODO: Add newlines
     let+ e = go(e)
