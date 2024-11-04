@@ -273,6 +273,11 @@ let tests = [
     Constructor("A", Int |> Typ.fresh) |> Exp.fresh,
     "A ~ Int",
   ),
+  // menhir_only_test(
+  //   "Constructor with Type Variable",
+  //   Constructor("A", Var("T") |> Typ.fresh) |> Exp.fresh,
+  //   "A ~ T",
+  // ),
   parser_test(
     "Type Alias",
     TyAlias(Var("x") |> TPat.fresh, Int |> Typ.fresh, Int(1) |> Exp.fresh)
