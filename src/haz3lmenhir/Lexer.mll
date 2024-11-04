@@ -109,6 +109,7 @@ rule token =
     | "typfun" {TYP_FUN}
     | "type" {TYP}
     | "$" {DOLLAR_SIGN}
+    | "~" {TILDE}
     | "named_fun" {NAMED_FUN}
     | identifier as i { IDENT(i) }
     | constructor_ident as i { CONSTRUCTOR_IDENT(i)}

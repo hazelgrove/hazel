@@ -256,7 +256,17 @@ let tests = [
   menhir_only_test(
     "Constructor",
     Constructor("A", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
-    "A:Unknown Internal" // This is source incompatible with make_term which does not find the type. We also don't allow expression casts.
+    "A",
+  ),
+  menhir_only_test(
+    "Constructor cast",
+    Cast(
+      Constructor("A", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
+      Unknown(Internal) |> Typ.fresh,
+      Int |> Typ.fresh,
+    )
+    |> Exp.fresh,
+    "A ~ Int",
   ),
   parser_test(
     "Type Alias",

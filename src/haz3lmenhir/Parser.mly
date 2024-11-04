@@ -3,7 +3,7 @@ open AST
 %}
 
 
-
+%token TILDE
 %token NAMED_FUN
 %token UNDEF
 %token <string> SEXP_STRING
@@ -110,6 +110,7 @@ open AST
 %left OPEN_PAREN
 %left QUESTION
 %left COLON
+%left TILDE
 (* %left COMMA *)
 %left AT_SYMBOL
 %left SEMI_COLON
@@ -186,7 +187,8 @@ pat:
     | WILD { WildPat }
     | QUESTION { EmptyHolePat }
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
-    | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { ConstructorPat(c, t) }
+    | c = CONSTRUCTOR_IDENT { ConstructorPat(c, UnknownType(Internal))}
+    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { CastPat(ConstructorPat(c, UnknownType(Internal)), UnknownType(Internal), t) }
     | p = IDENT { VarPat(p) }
     | i = INT { IntPat i }
     | f = FLOAT { FloatPat f }
@@ -234,7 +236,8 @@ exp:
     | i = INT { Int i }
     | f = FLOAT { Float f }
     | v = IDENT { Var v }
-    | c = CONSTRUCTOR_IDENT; COLON; t = typ { Constructor(c, t) }
+    | c = CONSTRUCTOR_IDENT { Constructor(c, UnknownType(Internal))}
+    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Cast(Constructor(c, UnknownType(Internal)), UnknownType(Internal), t) }
     | s = STRING { String s}
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
     | OPEN_PAREN; e = exp; COMMA; l = separated_list(COMMA, exp); CLOSE_PAREN { TupleExp(e :: l) }

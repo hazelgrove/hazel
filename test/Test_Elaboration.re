@@ -555,7 +555,7 @@ let f =
       failed_cast_uexp,
     );
 
-  let constructor_str = "X: Unknown Internal";
+  let constructor_str = "X";
   let constructor_uexp: Exp.t =
     Constructor("X", Unknown(Internal) |> Typ.fresh) |> Exp.fresh;
   let constructor_menhir = () =>
