@@ -252,8 +252,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       Exp.ListLit(ds') |> rewrap |> cast_from(List(inner_type) |> Typ.temp);
     | LivelitInvocation(livelit_name) =>
       switch (Livelit.elaborate_livelit(livelit_name)) {
-      | Some((_t, uexp_f)) => uexp_f(uexp)
-      | None => uexp |> cast_from(Typ.temp(Typ.Unknown(Internal)))
+      | Some((t, uexp_f)) => uexp_f(uexp) |> cast_from(t)
+      | None =>
+        print_endline("Livelit not found");
+        uexp |> cast_from(Typ.temp(Typ.Unknown(Internal)));
       }
     | Constructor(c, _) =>
       let mode =
