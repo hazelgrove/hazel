@@ -19,6 +19,12 @@ type tvar_entry = {
   kind,
 };
 
+type livelit_entry = {
+  name: string,
+  id: Id.t,
+  typ: TermBase.Typ.t,
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry =
   | VarEntry(var_entry)

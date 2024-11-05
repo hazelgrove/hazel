@@ -733,8 +733,8 @@ and upat_to_info_map =
     )
   | String(string) =>
     atomic(Just(String |> Typ.temp), Constraint.String(string))
-  | LivelitInvocation(_) =>
-    atomic(Just(String |> Typ.temp), Constraint.Truth)
+  | LivelitInvocation(name) =>
+    atomic(Just(Livelit.get_livelit_type(name)), Constraint.Truth)
   | ListLit(ps) =>
     let ids = List.map(UPat.rep_id, ps);
     let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
