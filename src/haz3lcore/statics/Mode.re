@@ -172,6 +172,7 @@ let typap_mode: t = SynTypFun;
 let of_deferred_ap_args = (length: int, ty_ins: list(Typ.t)): list(t) =>
   (
     List.length(ty_ins) == length
-      ? ty_ins : List.init(length, _ => Typ.Unknown(Internal) |> Typ.temp)
+      ? ty_ins
+      : List.init(length, _ => (Unknown(Internal): Typ.term) |> Typ.temp)
   )
   |> List.map(ty => Ana(ty));

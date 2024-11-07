@@ -130,8 +130,7 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
         ListLit(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
       | MultiHole(ctx, (ld, rd)) =>
         let d = compose(ctx, d);
-        MultiHole(ListUtil.rev_concat(ld, [TermBase.Any.Exp(d), ...rd]))
-        |> wrap;
+        MultiHole(ListUtil.rev_concat(ld, [Exp(d), ...rd])) |> wrap;
       | Let1(dp, ctx, d2) =>
         let d = compose(ctx, d);
         Let(dp, d, d2) |> wrap;

@@ -33,7 +33,7 @@ module Pat = {
 
   let fresh: term => t = IdTagged.fresh;
 
-  let hole = (tms: list(TermBase.Any.t)) =>
+  let hole = (tms: list(TermBase.Any.t)): TermBase.Pat.term =>
     switch (tms) {
     | [] => EmptyHole
     | [_, ..._] => MultiHole(tms)
@@ -692,7 +692,7 @@ module Any = {
     | Typ(t) => Some(t)
     | _ => None;
 
-  let rec ids =
+  let rec ids: TermBase.any_t => list(Id.t) =
     fun
     | Exp(tm) => tm.ids
     | Pat(tm) => tm.ids
@@ -715,7 +715,7 @@ module Any = {
   // (This would change for n-tuples if we decided parentheses are necessary.)
   let rep_id =
     fun
-    | Exp(tm) => Exp.rep_id(tm)
+    | (Exp(tm): TermBase.any_t) => Exp.rep_id(tm)
     | Pat(tm) => Pat.rep_id(tm)
     | Typ(tm) => Typ.rep_id(tm)
     | TPat(tm) => TPat.rep_id(tm)

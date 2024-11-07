@@ -110,7 +110,7 @@ let rec dhpat_synthesize = (dhpat: DHPat.t, ctx: Ctx.t): option(Typ.t) => {
   | TupLabel(dlab, d) =>
     let* tlab = dhpat_synthesize(dlab, ctx);
     let* ty = dhpat_synthesize(d, ctx);
-    Some(Typ.TupLabel(tlab, ty) |> Typ.temp);
+    Some(TupLabel(tlab, ty) |> Typ.temp);
   | Cons(dhp1, _) =>
     let* t = dhpat_synthesize(dhp1, ctx);
     Some(List(t) |> Typ.temp);
@@ -186,16 +186,16 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
       };
     let* ctx = dhpat_extend_ctx(dhp, ty_p, ctx);
     let* ty2 = typ_of_dhexp(ctx, m, d);
-    Some(Typ.Arrow(ty_p, ty2) |> Typ.temp);
+    Some(Arrow(ty_p, ty2) |> Typ.temp);
   | TypFun({term: Var(name), _} as utpat, d, _)
       when !Ctx.shadows_typ(ctx, name) =>
     let ctx =
       Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
     let* ty = typ_of_dhexp(ctx, m, d);
-    Some(Typ.Forall(utpat, ty) |> Typ.temp);
+    Some(Forall(utpat, ty) |> Typ.temp);
   | TypFun(_, d, _) =>
     let* ty = typ_of_dhexp(ctx, m, d);
-    Some(Typ.Forall(Var("?") |> TPat.fresh, ty) |> Typ.temp);
+    Some(Forall(Var("?") |> TPat.fresh, ty) |> Typ.temp);
   | TypAp(d, ty1) =>
     let* ty = typ_of_dhexp(ctx, m, d);
     let* (name, ty2) = Typ.matched_forall_strict(ctx, ty);
@@ -234,8 +234,8 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
         |> OptUtil.sequence;
       switch (tys) {
       | [] => Some(tyr)
-      | [ty] => Some(Typ.Arrow(ty, tyr) |> Typ.temp)
-      | tys => Some(Typ.Arrow(Prod(tys) |> Typ.temp, tyr) |> Typ.temp)
+      | [ty] => Some(Arrow(ty, tyr) |> Typ.temp)
+      | tys => Some(Arrow(Prod(tys) |> Typ.temp, tyr) |> Typ.temp)
       };
     } else {
       None;
@@ -246,7 +246,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     Some(var.typ);
   | Test(dtest) =>
     let* ty = typ_of_dhexp(ctx, m, dtest);
-    Typ.eq(ty, Bool |> Typ.temp) ? Some(Typ.Prod([]) |> Typ.temp) : None;
+    Typ.eq(ty, Bool |> Typ.temp) ? Some(Prod([]) |> Typ.temp) : None;
   | Bool(_) => Some(Bool |> Typ.temp)
   | Int(_) => Some(Int |> Typ.temp)
   | Float(_) => Some(Float |> Typ.temp)
@@ -337,7 +337,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
   | TupLabel(dlab, d) =>
     let* tlab = typ_of_dhexp(ctx, m, dlab);
     let* ty = typ_of_dhexp(ctx, m, d);
-    Some(Typ.TupLabel(tlab, ty) |> Typ.temp);
+    Some(TupLabel(tlab, ty) |> Typ.temp);
   | Dot(d1, d2) =>
     switch (d1.term, d2.term) {
     | (Tuple(ds), Var(name)) =>

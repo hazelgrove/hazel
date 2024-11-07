@@ -8,7 +8,11 @@ module CachedStatics = {
   };
 
   let empty: t = {
-    term: UExp.{ids: [Id.invalid], copied: false, term: Tuple([])},
+    term: {
+      ids: [Id.invalid],
+      copied: false,
+      term: Tuple([]),
+    },
     info_map: Id.Map.empty,
     error_ids: [],
   };

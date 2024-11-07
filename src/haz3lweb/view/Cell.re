@@ -409,7 +409,7 @@ let locked =
           statics.info_map,
           statics.term,
         )
-      : DHExp.Bool(true) |> DHExp.fresh;
+      : Bool(true) |> DHExp.fresh;
   let elab: Elaborator.Elaboration.t = {d: elab};
   let result: ModelResult.t =
     settings.core.dynamics

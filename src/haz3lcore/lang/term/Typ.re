@@ -36,7 +36,7 @@ let fresh: term => t = IdTagged.fresh;
 let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
 let rep_id: t => Id.t = IdTagged.rep_id;
 
-let hole = (tms: list(TermBase.Any.t)) =>
+let hole = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
   switch (tms) {
   | [] => Unknown(Hole(EmptyHole))
   | [_, ..._] => Unknown(Hole(MultiHole(tms)))
@@ -147,7 +147,8 @@ let of_source = List.map((source: source) => source.ty);
    but right now TypeHole strictly predominates over Internal
    which strictly predominates over SynSwitch. */
 let join_type_provenance =
-    (p1: type_provenance, p2: type_provenance): type_provenance =>
+    (p1: TermBase.type_provenance, p2: TermBase.type_provenance)
+    : TermBase.type_provenance =>
   switch (p1, p2) {
   | (Hole(h1), Hole(h2)) when h1 == h2 => Hole(h1)
   | (Hole(EmptyHole), Hole(EmptyHole) | SynSwitch)

@@ -742,12 +742,12 @@ module Transition = (EV: EV_MODE) => {
         let ty =
           switch (LabeledTuple.find_label(Typ.get_label, ts, name)) {
           | Some({term: TupLabel(_, ty), _}) => ty
-          | _ => Typ.Unknown(Internal) |> Typ.temp
+          | _ => Unknown(Internal) |> Typ.temp
           };
         let ty' =
           switch (LabeledTuple.find_label(Typ.get_label, ts', name)) {
           | Some({term: TupLabel(_, ty), _}) => ty
-          | _ => Typ.Unknown(Internal) |> Typ.temp
+          | _ => Unknown(Internal) |> Typ.temp
           };
         Step({
           expr: Cast(Dot(d3', d2) |> fresh, ty, ty') |> fresh,
