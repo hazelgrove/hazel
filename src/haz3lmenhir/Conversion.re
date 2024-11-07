@@ -225,6 +225,7 @@ and Typ: {
       switch (p) {
       | Internal => Unknown(Internal)
       }
+    | Var(s) => Var(s)
     | TupleType(ts) => Prod(List.map(of_menhir_ast, ts))
     | ArrayType(t) => List(of_menhir_ast(t))
     | ArrowType(t1, t2) => Arrow(of_menhir_ast(t1), of_menhir_ast(t2))

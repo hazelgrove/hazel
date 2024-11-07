@@ -79,6 +79,7 @@ type typ =
   | TupleType(list(typ))
   | ArrayType(typ)
   | ArrowType(typ, typ)
+  | Var(string)
   | InvalidTyp(string);
 
 [@deriving (show({with_path: false}), sexp)]

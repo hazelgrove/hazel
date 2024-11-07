@@ -174,6 +174,7 @@ binExp:
     | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
 
 typ:
+    | c = CONSTRUCTOR_IDENT { Var(c) }
     | QUESTION; T_TYP; s = STRING { InvalidTyp(s) }
     | INT_TYPE { IntType }
     | FLOAT_TYPE { FloatType }

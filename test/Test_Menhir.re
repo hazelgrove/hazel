@@ -280,12 +280,12 @@ let tests = [
     "A ~ Int",
   ),
   // TODO Fix for the tests below
-  skip_menhir_only_test(
+  menhir_only_test(
     "Constructor with Type Variable",
     Constructor("A", Var("T") |> Typ.fresh) |> Exp.fresh,
     "A ~ T",
   ),
-  skip_parser_test(
+  parser_test(
     "Type Variable",
     Let(
       Cast(
