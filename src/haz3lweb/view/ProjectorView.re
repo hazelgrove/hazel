@@ -217,8 +217,8 @@ module Panel = {
       | Pat(Float) => [SliderF]
       | Exp(String)
       | Pat(String) => [TextArea]
-      | Exp(LivelitInvocation)
-      | Pat(LivelitInvocation) => [Livelit]
+      | Exp(Parens)
+      | Pat(Parens) => [Livelit]
       | _ => []
       }
     )

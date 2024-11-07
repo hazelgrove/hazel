@@ -282,16 +282,6 @@ let last_of_token = (token: string, origin: Point.t): Point.t =>
     row: origin.row + StringUtil.num_linebreaks(token),
   };
 
-let livelit_padding = (t: Base.tile): abs_indent =>
-  switch (t.label) {
-  | [possible_livelit_name] =>
-    switch (Livelit.find_livelit(possible_livelit_name)) {
-    | Some(_ll) => 10 + 1 // Add one for margin
-    | None => 0
-    }
-  | _ => 0
-  };
-
 let of_segment = (seg: Segment.t, info_map: Statics.Map.t): t => {
   let is_indented = is_indented_map(seg);
 
@@ -372,7 +362,7 @@ let of_segment = (seg: Segment.t, info_map: Statics.Map.t): t => {
           | Tile(t) =>
             let token = List.nth(t.label);
             let add_shard = (origin, shard, map) => {
-              let lp = livelit_padding(t);
+              let lp = 0;
               let last =
                 Point.{
                   ...origin,

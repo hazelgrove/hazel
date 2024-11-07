@@ -250,13 +250,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         |> Option.value(~default=Typ.temp(Typ.Unknown(Internal)));
       let ds' = List.map2((d, t) => fresh_cast(d, t, inner_type), ds, tys);
       Exp.ListLit(ds') |> rewrap |> cast_from(List(inner_type) |> Typ.temp);
-    | LivelitInvocation(livelit_name) =>
-      switch (Livelit.elaborate_livelit(livelit_name)) {
-      | Some((t, uexp_f)) => uexp_f(uexp) |> cast_from(t)
-      | None =>
-        print_endline("Livelit not found");
-        uexp |> cast_from(Typ.temp(Typ.Unknown(Internal)));
-      }
+    | LivelitInvocation(_) =>
+      // This should never happen if the Livelit is invoked!
+      uexp |> cast_from(Typ.temp(Typ.Unknown(Internal)))
     | Constructor(c, _) =>
       let mode =
         switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
@@ -335,12 +331,18 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let (e', tye) = elaborate(m, e);
       e' |> cast_from(tye);
     | Ap(dir, f, a) =>
-      let (f', tyf) = elaborate(m, f);
-      let (a', tya) = elaborate(m, a);
-      let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
-      let f'' = fresh_cast(f', tyf, Arrow(tyf1, tyf2) |> Typ.temp);
-      let a'' = fresh_cast(a', tya, tyf1);
-      Exp.Ap(dir, f'', a'') |> rewrap |> cast_from(tyf2);
+      switch (f.term) {
+      | LivelitInvocation(s) =>
+        let ll = Livelit.find_livelit(s);
+        ll.expansion_f(a) |> cast_from(ll.expansion_t);
+      | _ =>
+        let (f', tyf) = elaborate(m, f);
+        let (a', tya) = elaborate(m, a);
+        let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
+        let f'' = fresh_cast(f', tyf, Arrow(tyf1, tyf2) |> Typ.temp);
+        let a'' = fresh_cast(a', tya, tyf1);
+        Exp.Ap(dir, f'', a'') |> rewrap |> cast_from(tyf2);
+      }
     | DeferredAp(f, args) =>
       let (f', tyf) = elaborate(m, f);
       let (args', tys) = List.map(elaborate(m), args) |> ListUtil.unzip;
