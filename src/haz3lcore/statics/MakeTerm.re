@@ -235,7 +235,6 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
       | term => ret(Ctx([term]))
       }
     | (["(", ")"], [Drv(Exp(body))]) => ret(Parens(body))
-    | (["{", "}"], [Pat(var)]) => ret(Abbr(var))
     | (["case", "end"], [Drv(Exp({term: Case(_) as term, _}))]) =>
       ret(term)
     // switch (body) {
@@ -281,6 +280,7 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     }
   | Pre(([(_id, t)], []), Drv(Exp(r))) as tm =>
     switch (t) {
+    | (["$"], []) => ret(Abbr(r))
     | (["-"], []) => ret(Neg(r))
     | (["!"], []) => ret(Impl(r, Falsity |> Drv.Exp.fresh))
     | (["|-"], []) => ret(Entail(Ctx([]) |> Drv.Exp.fresh, r))
@@ -357,9 +357,9 @@ and alfa_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
     }
   | Op(([(_id, (["(", ")"], [Drv(Typ(body))]))], [])) =>
     ret(Parens(body))
-  | Op(([(_id, (["{", "}"], [Pat(var)]))], [])) => ret(Abbr(var))
   | Pre(([(_id, (["rec", "->"], [Drv(TPat(p))]))], []), Drv(Typ(t))) =>
     ret(Rec(p, t))
+  | Pre(([(_id, (["$"], []))], []), Drv(Typ(t))) => ret(Abbr(t))
   | Bin(Drv(Typ(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) as tm =>
     switch (t) {
     | "->" => ret(Arrow(l, r))

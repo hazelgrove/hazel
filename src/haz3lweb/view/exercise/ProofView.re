@@ -287,25 +287,21 @@ let proof_view =
       [text(label)],
     );
 
-  let result_btn_view = (~pos, ~res: VerifiedTree.info) => {
+  let pointer_view = (~pos: pos) =>
+    if (NinjaKeysRules.pos^ == pos && NinjaKeysRules.staged^) {
+      div(~attrs=[Attr.class_("pointer")], []);
+    } else {
+      none;
+    };
+
+  let result_btn_view = (~res: VerifiedTree.info) => {
     let status =
       switch (res.res) {
       | Correct => "Pass"
       | Incorrect(_) => "Fail"
       | Pending(_) => "Indet"
       };
-    div(
-      ~attrs=
-        [Attr.classes(["test-result", status])]
-        @ (
-          if (NinjaKeysRules.pos^ == pos && NinjaKeysRules.staged^) {
-            [Attr.class_("staged")];
-          } else {
-            [];
-          }
-        ),
-      [],
-    );
+    div(~attrs=[Attr.classes(["test-result", status])], []);
   };
 
   let label_view = (~pos, ~res, ~label, ~index) =>
@@ -348,7 +344,8 @@ let proof_view =
       ]
       @ [
         label_view(~pos, ~res, ~label, ~index=None),
-        result_btn_view(~pos, ~res),
+        pointer_view(~pos),
+        result_btn_view(~res),
       ],
     );
   };

@@ -155,7 +155,7 @@ let rec any_to_info_map =
     )
   | Drv(drv) => (
       CoCtx.empty,
-      m |> drv_to_info_map(drv, ~ancestors, ~ctx, ~ty=DrvInfo.Jdmt) |> snd,
+      m |> drv_to_info_map(drv, ~ancestors, ~ty=DrvInfo.Jdmt) |> snd,
     )
   | Rul(_)
   | Nul ()
@@ -171,7 +171,7 @@ and multi = (~ctx, ~ancestors, m, tms) =>
     tms,
   )
 and drv_to_info_map =
-    (drv: Drv.t, m: Map.t, ~ctx, ~ancestors, ~ty): (DrvInfo.t, Map.t) => {
+    (drv: Drv.t, m: Map.t, ~ancestors, ~ty): (DrvInfo.t, Map.t) => {
   let add = (drv, info, m) => (
     info,
     add_info(Drv.of_id(drv), InfoDrv(info), m),
@@ -184,18 +184,7 @@ and drv_to_info_map =
     switch (exp.term) {
     | Hole(_) => m |> add'
     | Var(_) => m |> add'
-    | Abbr(p) =>
-      m  // TODO(zhiyao): change abbr
-      |> upat_to_info_map(
-           ~is_synswitch=false,
-           ~co_ctx=CoCtx.empty,
-           ~ctx,
-           ~ancestors,
-           ~mode=Mode.Ana(Term(Drv(Exp)) |> Typ.fresh),
-           p,
-         )
-      |> snd
-      |> add'
+    | Abbr(p) => m |> go_exp'(p) |> snd |> add'
     | Parens(e) => m |> go_exp(e, ~ty) |> snd |> add'
     | Val(e) => m |> go_exp'(e) |> snd |> add'
     | Eval(e1, e2) => m |> go_exp'(e1) |> snd |> go_exp'(e2) |> snd |> add'
@@ -304,17 +293,7 @@ and drv_to_info_map =
     let m =
       switch (typ.term) {
       | Hole(_) => m
-      | Abbr(p) =>
-        m
-        |> upat_to_info_map(
-             ~is_synswitch=false,
-             ~co_ctx=CoCtx.empty,
-             ~ctx,
-             ~ancestors,
-             ~mode=Mode.Ana(Term(Drv(Typ)) |> Typ.fresh),
-             p,
-           )
-        |> snd
+      | Abbr(p) => m |> go_typ(p) |> snd
       | Num => m
       | Bool => m
       | Arrow(t1, t2) => m |> go_typ(t1) |> snd |> go_typ(t2) |> snd
@@ -419,7 +398,7 @@ and uexp_to_info_map =
       | Drv(Exp) => Exp
       | _ => Exp
       };
-    let m = drv_to_info_map(term, m, ~ancestors, ~ctx, ~ty) |> snd;
+    let m = drv_to_info_map(term, m, ~ancestors, ~ty) |> snd;
     add(~self=Just(Unknown(Internal) |> Typ.temp), ~co_ctx=CoCtx.empty, m);
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);

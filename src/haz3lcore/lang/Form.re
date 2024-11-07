@@ -465,7 +465,7 @@ let forms: list((string, t)) = [
   ("alfa_concat", mk_infix("@", Drv(Exp), P.plus)),
   ("alfa_cons", mk_infix("::", Drv(Exp), P.cons)),
   ("alfa_paren", mk(ii, ["(", ")"], mk_op(Drv(Exp), [Drv(Exp)]))),
-  ("alfa_abbr", mk(ii, ["{", "}"], mk_op(Drv(Exp), [Pat]))),
+  ("alfa_abbr", mk(ss, ["$"], mk_pre(P.unquote, Drv(Exp), []))),
   // Drv(Prop)
   ("valid", mk(ds, ["valid", "end"], mk_op(Drv(Exp), [Drv(Typ)]))),
   (
@@ -538,7 +538,7 @@ let forms: list((string, t)) = [
   ("pat_pair", mk_infix(",", Drv(Pat), P.comma)),
   ("pat_parens", mk(ii, ["(", ")"], mk_op(Drv(Pat), [Drv(Pat)]))),
   // Drv(Typ)
-  ("alfa_typ_abbr", mk(ii, ["{", "}"], mk_op(Drv(Typ), [Pat]))),
+  ("alfa_typ_abbr", mk(ss, ["$"], mk_pre(P.unquote, Drv(Typ), []))),
   ("typ_arrow", mk_infix("->", Drv(Typ), P.type_arrow)),
   ("typ_prod", mk_infix("*", Drv(Typ), P.type_plus - 1)),
   ("typ_sum", mk_infix("+", Drv(Typ), P.type_plus)),

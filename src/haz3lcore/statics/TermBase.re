@@ -95,7 +95,7 @@ module rec Any: {
       Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
     let rec_call = y =>
       switch (y) {
-      | Drv(x) => Drv(Drv.map_term(~f_hazel_pat=pat_map_term, ~f_drv, x))
+      | Drv(x) => Drv(Drv.map_term(~f_drv, x))
       | Exp(x) =>
         Exp(
           Exp.map_term(
@@ -1262,7 +1262,7 @@ and Drv: {
 
   let drv_continue: mapper;
 
-  let map_term: (~f_hazel_pat: Pat.t => Pat.t=?, ~f_drv: mapper=?, t) => t;
+  let map_term: (~f_drv: mapper=?, t) => t;
 
   let fast_equal: (t, t) => bool;
 } = {
@@ -1290,25 +1290,13 @@ and Drv: {
     f_tpat: continue,
   };
 
-  let map_term = (~f_hazel_pat=continue, ~f_drv=drv_continue, x: t) => {
+  let map_term = (~f_drv=drv_continue, x: t) => {
     let {f_exp, f_rul, f_pat, f_typ, f_tpat} = f_drv;
     switch (x) {
     | Exp(exp) =>
-      Exp(
-        ALFA_Exp.map_term(~f_hazel_pat, ~f_exp, ~f_pat, ~f_typ, ~f_tpat, exp),
-      )
+      Exp(ALFA_Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, exp))
     | Rul(rul) =>
-      Rul(
-        ALFA_Rul.map_term(
-          ~f_hazel_pat,
-          ~f_exp,
-          ~f_rul,
-          ~f_pat,
-          ~f_typ,
-          ~f_tpat,
-          rul,
-        ),
-      )
+      Rul(ALFA_Rul.map_term(~f_exp, ~f_rul, ~f_pat, ~f_typ, ~f_tpat, rul))
     | Pat(pat) => Pat(ALFA_Pat.map_term(~f_pat, ~f_typ, ~f_tpat, pat))
     | Typ(typ) => Typ(ALFA_Typ.map_term(~f_typ, ~f_tpat, typ))
     | TPat(tpat) => TPat(ALFA_TPat.map_term(~f_tpat, tpat))
@@ -1334,7 +1322,7 @@ and ALFA_Exp: {
   type term =
     | Hole(TypeHole.t)
     | Var(Var.t) // Prop / Exp
-    | Abbr(Pat.t) // Jdmt / Ctxt / Prop / Exp
+    | Abbr(t) // Jdmt / Ctxt / Prop / Exp
     | Parens(t) // Jdmt / Ctxt / Prop / Exp
     | Tuple(list(t)) // [invalid] / Exp
     // Jdmt
@@ -1388,7 +1376,6 @@ and ALFA_Exp: {
 
   let map_term:
     (
-      ~f_hazel_pat: Pat.t => Pat.t=?,
       ~f_exp: (ALFA_Exp.t => ALFA_Exp.t, ALFA_Exp.t) => ALFA_Exp.t=?,
       ~f_pat: (ALFA_Pat.t => ALFA_Pat.t, ALFA_Pat.t) => ALFA_Pat.t=?,
       ~f_typ: (ALFA_Typ.t => ALFA_Typ.t, ALFA_Typ.t) => ALFA_Typ.t=?,
@@ -1403,7 +1390,7 @@ and ALFA_Exp: {
   type term =
     | Hole(TypeHole.t)
     | Var(Var.t) // Prop / Exp
-    | Abbr(Pat.t) // Jdmt / Ctxt / Prop / Exp
+    | Abbr(t) // Jdmt / Ctxt / Prop / Exp
     | Parens(t) // Jdmt / Ctxt / Prop / Exp
     | Tuple(list(t)) // [invalid] / Exp
     // Jdmt
@@ -1456,26 +1443,17 @@ and ALFA_Exp: {
   and t = IdTagged.t(term);
 
   let map_term =
-      (
-        ~f_hazel_pat=continue,
-        ~f_exp=continue,
-        ~f_pat=continue,
-        ~f_typ=continue,
-        ~f_tpat=continue,
-        x,
-      ) => {
-    let exp_map_term =
-      ALFA_Exp.map_term(~f_hazel_pat, ~f_exp, ~f_pat, ~f_typ, ~f_tpat);
-    let pat_map_term =
-      ALFA_Pat.map_term(~f_hazel_pat, ~f_pat, ~f_typ, ~f_tpat);
-    let typ_map_term = ALFA_Typ.map_term(~f_hazel_pat, ~f_typ, ~f_tpat);
+      (~f_exp=continue, ~f_pat=continue, ~f_typ=continue, ~f_tpat=continue, x) => {
+    let exp_map_term = ALFA_Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat);
+    let pat_map_term = ALFA_Pat.map_term(~f_pat, ~f_typ, ~f_tpat);
+    let typ_map_term = ALFA_Typ.map_term(~f_typ, ~f_tpat);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
         switch (term) {
         | Hole(_) => term
         | Var(v) => Var(v)
-        | Abbr(e) => Abbr(f_hazel_pat(e))
+        | Abbr(e) => Abbr(exp_map_term(e))
         | Parens(e) => Parens(exp_map_term(e))
         | Val(e) => Val(exp_map_term(e))
         | Eval(e1, e2) => Eval(exp_map_term(e1), exp_map_term(e2))
@@ -1544,7 +1522,7 @@ and ALFA_Exp: {
     | (Hole(_), _) => false
     | (Var(v1), Var(v2)) => v1 == v2
     | (Var(_), _) => false
-    | (Abbr(p1), Abbr(p2)) => Pat.fast_equal(p1, p2)
+    | (Abbr(p1), Abbr(p2)) => ALFA_Exp.fast_equal(p1, p2)
     | (Abbr(_), _) => false
     | (Parens(e1), Parens(e2)) => ALFA_Exp.fast_equal(e1, e2)
     | (Parens(_), _) => false
@@ -1688,7 +1666,6 @@ and ALFA_Rul: {
 
   let map_term:
     (
-      ~f_hazel_pat: Pat.t => Pat.t=?,
       ~f_exp: (ALFA_Exp.t => ALFA_Exp.t, ALFA_Exp.t) => ALFA_Exp.t=?,
       ~f_rul: (ALFA_Rul.t => ALFA_Rul.t, ALFA_Rul.t) => ALFA_Rul.t=?,
       ~f_pat: (ALFA_Pat.t => ALFA_Pat.t, ALFA_Pat.t) => ALFA_Pat.t=?,
@@ -1708,7 +1685,6 @@ and ALFA_Rul: {
 
   let map_term =
       (
-        ~f_hazel_pat=continue,
         ~f_exp=continue,
         ~f_rul=continue,
         ~f_pat=continue,
@@ -1716,10 +1692,8 @@ and ALFA_Rul: {
         ~f_tpat=continue,
         x,
       ) => {
-    let exp_map_term =
-      ALFA_Exp.map_term(~f_hazel_pat, ~f_exp, ~f_pat, ~f_typ, ~f_tpat);
-    let pat_map_term =
-      ALFA_Pat.map_term(~f_hazel_pat, ~f_pat, ~f_typ, ~f_tpat);
+    let exp_map_term = ALFA_Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat);
+    let pat_map_term = ALFA_Pat.map_term(~f_pat, ~f_typ, ~f_tpat);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -1768,7 +1742,6 @@ and ALFA_Pat: {
 
   let map_term:
     (
-      ~f_hazel_pat: Pat.t => Pat.t=?,
       ~f_pat: (ALFA_Pat.t => ALFA_Pat.t, ALFA_Pat.t) => ALFA_Pat.t=?,
       ~f_typ: (ALFA_Typ.t => ALFA_Typ.t, ALFA_Typ.t) => ALFA_Typ.t=?,
       ~f_tpat: (ALFA_TPat.t => ALFA_TPat.t, ALFA_TPat.t) => ALFA_TPat.t=?,
@@ -1790,16 +1763,9 @@ and ALFA_Pat: {
     | Parens(t)
   and t = IdTagged.t(term);
 
-  let map_term =
-      (
-        ~f_hazel_pat=continue,
-        ~f_pat=continue,
-        ~f_typ=continue,
-        ~f_tpat=continue,
-        x,
-      ) => {
+  let map_term = (~f_pat=continue, ~f_typ=continue, ~f_tpat=continue, x) => {
     let pat_map_term = ALFA_Pat.map_term(~f_pat, ~f_typ, ~f_tpat);
-    let typ_map_term = ALFA_Typ.map_term(~f_hazel_pat, ~f_typ, ~f_tpat);
+    let typ_map_term = ALFA_Typ.map_term(~f_typ, ~f_tpat);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -1843,7 +1809,7 @@ and ALFA_Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Hole(TypeHole.t)
-    | Abbr(Pat.t)
+    | Abbr(t)
     | Num
     | Bool
     | Arrow(t, t)
@@ -1858,7 +1824,6 @@ and ALFA_Typ: {
 
   let map_term:
     (
-      ~f_hazel_pat: Pat.t => Pat.t=?,
       ~f_typ: (ALFA_Typ.t => ALFA_Typ.t, ALFA_Typ.t) => ALFA_Typ.t=?,
       ~f_tpat: (ALFA_TPat.t => ALFA_TPat.t, ALFA_TPat.t) => ALFA_TPat.t=?,
       t
@@ -1870,7 +1835,7 @@ and ALFA_Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Hole(TypeHole.t)
-    | Abbr(Pat.t)
+    | Abbr(t)
     | Num
     | Bool
     | Arrow(t, t)
@@ -1883,7 +1848,7 @@ and ALFA_Typ: {
     | TypHole
   and t = IdTagged.t(term);
 
-  let map_term = (~f_hazel_pat=continue, ~f_typ=continue, ~f_tpat=continue, x) => {
+  let map_term = (~f_typ=continue, ~f_tpat=continue, x) => {
     let typ_map_term = ALFA_Typ.map_term(~f_typ, ~f_tpat);
     let tpat_map_term = ALFA_TPat.map_term(~f_tpat);
     let rec_call = ({term, _} as exp: t) => {
@@ -1891,7 +1856,7 @@ and ALFA_Typ: {
       term:
         switch (term) {
         | Hole(_) => term
-        | Abbr(e) => Abbr(f_hazel_pat(e))
+        | Abbr(e) => Abbr(typ_map_term(e))
         | Num => Num
         | Bool => Bool
         | Arrow(t1, t2) => Arrow(typ_map_term(t1), typ_map_term(t2))
@@ -1910,7 +1875,7 @@ and ALFA_Typ: {
   let fast_equal = (x, y) =>
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
     | (Hole(_), _) => false
-    | (Abbr(p1), Abbr(p2)) => Pat.fast_equal(p1, p2)
+    | (Abbr(p1), Abbr(p2)) => ALFA_Typ.fast_equal(p1, p2)
     | (Abbr(_), _) => false
     | (Num, Num) => true
     | (Num, _) => false

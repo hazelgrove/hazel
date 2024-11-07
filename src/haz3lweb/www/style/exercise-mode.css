@@ -104,6 +104,11 @@
   z-index: var(--test-result-z);
 }
 
+.pointer:after {
+  content: "⬅";
+  font-size: 1.2rem;
+}
+
 .test-instance.Pass:before,
 .test-result.Pass:after {
   content: "✔";
@@ -348,11 +353,11 @@
   width: auto;
 }
 
-.add-abbr-btn .code .token{
+.add-abbr-btn .code .token {
   color: var(--BR1);
 }
 
-.add-abbr-btn:hover .code .token{
+.add-abbr-btn:hover .code .token {
   color: var(--BR2);
 }
 
@@ -370,8 +375,7 @@
 .deduction-just-wrapper:has(>div>.deduction-concl:hover)>.add-premise-btn,
 .cell-derivation:hover:has(.deduction-just~:hover)+.cell-derivation .add-abbr-btn,
 .cell-derivation:hover:not(:has(.deduction-just~:hover)):not(:has(.deduction-just:hover)) .add-abbr-btn,
-.cell-derivation:only-child .add-abbr-btn
-{
+.cell-derivation:only-child .add-abbr-btn {
   opacity: 1;
 }
 
@@ -399,8 +403,10 @@
   bottom: -0.8rem;
 }
 
-.deduction-prems-label .test-result.staged {
-  animation: 1s blink step-end infinite;
+.deduction-prems-label .pointer {
+  position: absolute;
+  right: -1.3rem;
+  bottom: -0.4rem;
 }
 
 /* Dropdown button */
