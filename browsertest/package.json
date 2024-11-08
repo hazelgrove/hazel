@@ -8,7 +8,7 @@
 		"dev:hazel": "cd .. && make serve",
 		"execute:host": "npm run dev:hazel > /dev/null 2>&1 & tsc --outDir dist && cd dist && node src/index.js; kill -9 $(lsof -t -i:8000)",
 		"execute": "tsc --outDir dist && cd dist && node src/index.js",
-    "test": "vitest",
+		"test": "vitest",
 		"style": "prettier '**/*.ts' --write ."
 	},
 	"keywords": [],
@@ -19,6 +19,7 @@
 		"jsdom": "^25.0.1",
 		"puppeteer": "^23.4.1",
 		"puppeteer-screen-recorder": "^3.0.3",
+		"typescript": "^5.6.3",
 		"vitest": "^2.1.1"
 	},
 	"devDependencies": {
