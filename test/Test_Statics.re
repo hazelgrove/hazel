@@ -677,4 +677,10 @@ let tests =
       )
       |> Exp.fresh,
     ),
+    fully_consistent_typecheck(
+      "Singleton labeled argument not labeled in pattern",
+      {|let x : (a=Int) -> Int = fun a -> a in x(2)|},
+      Some(int),
+      parse_exp("let x : (a=Int) -> Int = fun a -> a in x(2)"),
+    ),
   ];

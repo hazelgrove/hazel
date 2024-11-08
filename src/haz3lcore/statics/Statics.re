@@ -246,7 +246,6 @@ and uexp_to_info_map =
   // TODO: Confirm if duplicates should or not be default []
   let go_pat = upat_to_info_map(~ctx, ~ancestors, ~duplicates);
   let elaborate_singleton_tuple = (uexp: Exp.t, inner_ty, l, m) => {
-    print_endline("Elaborating singleton tuple");
     let (term, rewrap) = UExp.unwrap(uexp);
     let original_expression = Exp.fresh(term);
     let (original_info, m) =
@@ -769,6 +768,7 @@ and uexp_to_info_map =
                     // Mark patterns as redundant at the top level
                     // because redundancy doesn't make sense in a smaller context
                     ~constraint_=p_constraint,
+                    ~lifted_ty=None,
                   );
                 (
                   // Override the info for the single upat
@@ -900,7 +900,7 @@ and upat_to_info_map =
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
-  let add = (~self, ~ctx, ~constraint_, m) => {
+  let add = (~self, ~ctx, ~constraint_, ~lifted_ty=?, m) => {
     let prev_synswitch =
       switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
       | Some(Info.InfoPat({mode: Syn | SynFun, ty, _})) => Some(ty)
@@ -918,6 +918,7 @@ and upat_to_info_map =
         ~ancestors,
         ~self=Common(self),
         ~constraint_,
+        ~lifted_ty,
       );
     (info, add_info(ids, InfoPat(info), m));
   };
@@ -962,128 +963,192 @@ and upat_to_info_map =
       (ctx, [], [], m),
     );
   let hole = self => atomic(self, Constraint.Hole);
-  switch (term) {
-  | MultiHole(tms) =>
-    let (_, m) = multi(~ctx, ~ancestors, m, tms);
-    add(~self=IsMulti, ~ctx, ~constraint_=Constraint.Hole, m);
-  | Invalid(token) => hole(BadToken(token))
-  | EmptyHole => hole(Just(unknown))
-  | Int(int) => atomic(Just(Int |> Typ.temp), Constraint.Int(int))
-  | Float(float) =>
-    atomic(Just(Float |> Typ.temp), Constraint.Float(float))
-  | Tuple([]) => atomic(Just(Prod([]) |> Typ.temp), Constraint.Truth)
-  | Bool(bool) =>
-    atomic(
-      Just(Bool |> Typ.temp),
-      bool
-        ? Constraint.InjL(Constraint.Truth)
-        : Constraint.InjR(Constraint.Truth),
-    )
-  | String(string) =>
-    atomic(Just(String |> Typ.temp), Constraint.String(string))
-  | Label(name) =>
-    // TODO: Constraint?
-    let self = Self.Just(Label(name) |> Typ.temp);
-    List.exists(l => name == l, duplicates)
-      ? atomic(Duplicate(self), Constraint.Truth)
-      : atomic(self, Constraint.Truth);
-  | ListLit(ps) =>
-    let ids = List.map(UPat.rep_id, ps);
-    let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
-    let (ctx, tys, cons, m) = ctx_fold(ctx, m, ps, modes);
-    let rec cons_fold_list = cs =>
-      switch (cs) {
-      | [] => Constraint.InjL(Constraint.Truth) // Left = nil, Right = cons
-      | [hd, ...tl] =>
-        Constraint.InjR(Constraint.Pair(hd, cons_fold_list(tl)))
-      };
-    add(
-      ~self=Self.listlit(~empty=unknown, ctx, tys, ids),
-      ~ctx,
-      ~constraint_=cons_fold_list(cons),
-      m,
-    );
-  | Cons(hd, tl) =>
-    let (hd, m) = go(~ctx, ~mode=Mode.of_cons_hd(ctx, mode), hd, m);
-    let (tl, m) =
-      go(~ctx=hd.ctx, ~mode=Mode.of_cons_tl(ctx, mode, hd.ty), tl, m);
-    add(
-      ~self=Just(List(hd.ty) |> Typ.temp),
-      ~ctx=tl.ctx,
-      ~constraint_=
-        Constraint.InjR(Constraint.Pair(hd.constraint_, tl.constraint_)),
-      m,
-    );
-  | Wild => atomic(Just(unknown), Constraint.Truth)
-  | Var(name) =>
-    /* NOTE: The self type assigned to pattern variables (Unknown)
-       may be SynSwitch, but SynSwitch is never added to the context;
-       Unknown(Internal) is used in this case */
-    let ctx_typ =
-      Info.fixed_typ_pat(
-        ctx,
-        mode,
-        Common(Just(Unknown(Internal) |> Typ.temp)),
+
+  let elaborate_singleton_tuple = (upat: Pat.t, inner_ty, l, m) => {
+    print_endline("elaborating singleton tuple: " ++ Pat.show(upat));
+    let (term, rewrap) = UPat.unwrap(upat);
+    let original_expression = Pat.fresh(term);
+    let (original_info, m) =
+      upat_to_info_map(
+        ~ctx,
+        ~co_ctx,
+        ~is_synswitch,
+        ~ancestors,
+        ~mode=Mode.Ana(inner_ty),
+        original_expression,
+        m,
       );
-    let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
-    add(
-      ~self=Just(unknown),
-      ~ctx=Ctx.extend(ctx, entry),
-      ~constraint_=Constraint.Truth,
-      m,
-    );
-  | TupLabel(label, p) =>
-    let (labmode, mode) = Mode.of_label(ctx, mode);
-    let (lab, m) = go(~ctx, ~mode=labmode, ~duplicates, label, m);
-    let (p, m) = go(~ctx, ~mode, p, m);
-    add(
-      ~self=Just(TupLabel(lab.ty, p.ty) |> Typ.temp),
-      ~ctx=p.ctx,
-      ~constraint_=Constraint.TupLabel(lab.constraint_, p.constraint_),
-      m,
-    );
-  | Tuple(ps) =>
-    let (ps, modes) =
-      Mode.of_prod(ctx, mode, ps, UPat.get_label, (name, b) =>
-        TupLabel(Label(name) |> UPat.fresh, b) |> UPat.fresh
+    let elaborated_pat =
+      rewrap(
+        Tuple([
+          TupLabel(Label(l) |> Pat.fresh, original_expression) |> Pat.fresh,
+        ]),
       );
-    let rec cons_fold_tuple = cs =>
-      switch (cs) {
-      | [] => Constraint.Truth
-      | [elt] => elt
-      | [hd, ...tl] => Constraint.Pair(hd, cons_fold_tuple(tl))
+    let (info, m) =
+      upat_to_info_map(
+        ~ctx,
+        ~co_ctx,
+        ~is_synswitch,
+        ~ancestors,
+        ~mode,
+        elaborated_pat,
+        m,
+      );
+
+    // We need to keep the original status of the expression to get error messages on the unelaborated expression
+    let info = {
+      ...info,
+      status: original_info.status,
+      lifted_ty: Some(info.ty),
+    };
+
+    (info, add_info(elaborated_pat.ids, InfoPat(info), m));
+  };
+
+  let default_case = () =>
+    switch (term) {
+    | MultiHole(tms) =>
+      let (_, m) = multi(~ctx, ~ancestors, m, tms);
+      add(~self=IsMulti, ~ctx, ~constraint_=Constraint.Hole, m);
+    | Invalid(token) => hole(BadToken(token))
+    | EmptyHole => hole(Just(unknown))
+    | Int(int) => atomic(Just(Int |> Typ.temp), Constraint.Int(int))
+    | Float(float) =>
+      atomic(Just(Float |> Typ.temp), Constraint.Float(float))
+    | Tuple([]) => atomic(Just(Prod([]) |> Typ.temp), Constraint.Truth)
+    | Bool(bool) =>
+      atomic(
+        Just(Bool |> Typ.temp),
+        bool
+          ? Constraint.InjL(Constraint.Truth)
+          : Constraint.InjR(Constraint.Truth),
+      )
+    | String(string) =>
+      atomic(Just(String |> Typ.temp), Constraint.String(string))
+    | Label(name) =>
+      // TODO: Constraint?
+      let self = Self.Just(Label(name) |> Typ.temp);
+      List.exists(l => name == l, duplicates)
+        ? atomic(Duplicate(self), Constraint.Truth)
+        : atomic(self, Constraint.Truth);
+    | ListLit(ps) =>
+      let ids = List.map(UPat.rep_id, ps);
+      let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
+      let (ctx, tys, cons, m) = ctx_fold(ctx, m, ps, modes);
+      let rec cons_fold_list = cs =>
+        switch (cs) {
+        | [] => Constraint.InjL(Constraint.Truth) // Left = nil, Right = cons
+        | [hd, ...tl] =>
+          Constraint.InjR(Constraint.Pair(hd, cons_fold_list(tl)))
+        };
+      add(
+        ~self=Self.listlit(~empty=unknown, ctx, tys, ids),
+        ~ctx,
+        ~constraint_=cons_fold_list(cons),
+        m,
+      );
+    | Cons(hd, tl) =>
+      let (hd, m) = go(~ctx, ~mode=Mode.of_cons_hd(ctx, mode), hd, m);
+      let (tl, m) =
+        go(~ctx=hd.ctx, ~mode=Mode.of_cons_tl(ctx, mode, hd.ty), tl, m);
+      add(
+        ~self=Just(List(hd.ty) |> Typ.temp),
+        ~ctx=tl.ctx,
+        ~constraint_=
+          Constraint.InjR(Constraint.Pair(hd.constraint_, tl.constraint_)),
+        m,
+      );
+    | Wild => atomic(Just(unknown), Constraint.Truth)
+    | Var(name) =>
+      /* NOTE: The self type assigned to pattern variables (Unknown)
+         may be SynSwitch, but SynSwitch is never added to the context;
+         Unknown(Internal) is used in this case */
+      let ctx_typ =
+        Info.fixed_typ_pat(
+          ctx,
+          mode,
+          Common(Just(Unknown(Internal) |> Typ.temp)),
+        );
+      let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
+      add(
+        ~self=Just(unknown),
+        ~ctx=Ctx.extend(ctx, entry),
+        ~constraint_=Constraint.Truth,
+        m,
+      );
+    | TupLabel(label, p) =>
+      let (labmode, mode) = Mode.of_label(ctx, mode);
+      let (lab, m) = go(~ctx, ~mode=labmode, ~duplicates, label, m);
+      let (p, m) = go(~ctx, ~mode, p, m);
+      add(
+        ~self=Just(TupLabel(lab.ty, p.ty) |> Typ.temp),
+        ~ctx=p.ctx,
+        ~constraint_=Constraint.TupLabel(lab.constraint_, p.constraint_),
+        m,
+      );
+    | Tuple(ps) =>
+      let (ps, modes) =
+        Mode.of_prod(ctx, mode, ps, UPat.get_label, (name, b) =>
+          TupLabel(Label(name) |> UPat.fresh, b) |> UPat.fresh
+        );
+      let rec cons_fold_tuple = cs =>
+        switch (cs) {
+        | [] => Constraint.Truth
+        | [elt] => elt
+        | [hd, ...tl] => Constraint.Pair(hd, cons_fold_tuple(tl))
+        };
+      let (duplicate_labels, _) =
+        LabeledTuple.get_duplicate_and_unique_labels(Pat.get_label, ps);
+      let (ctx, tys, cons, m) =
+        ctx_fold(ctx, m, ~duplicates=duplicate_labels, ps, modes);
+      let self = Self.Just(Prod(tys) |> Typ.temp);
+      let self =
+        List.is_empty(duplicate_labels) ? self : Self.Duplicate_Labels(self);
+      add(~self, ~ctx, ~constraint_=cons_fold_tuple(cons), m);
+    | Parens(p) =>
+      let (p, m) = go(~ctx, ~mode, p, m);
+      add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
+    | Constructor(ctr, _) =>
+      let self = Self.of_ctr(ctx, ctr);
+      atomic(self, Constraint.of_ctr(ctx, mode, ctr, self));
+    | Ap(fn, arg) =>
+      let ctr = UPat.ctr_name(fn);
+      let fn_mode = Mode.of_ap(ctx, mode, ctr);
+      let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
+      let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+      let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
+      add(
+        ~self=Just(ty_out),
+        ~ctx=arg.ctx,
+        ~constraint_=
+          Constraint.of_ap(ctx, mode, ctr, arg.constraint_, Some(ty_out)),
+        m,
+      );
+    | Cast(p, ann, _) =>
+      let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
+      let (p, m) = go(~ctx, ~mode=Ana(ann.term), p, m);
+      add(~self=Just(ann.term), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
+    };
+  // This is to allow lifting single values into a singleton labeled tuple when the label is not present
+
+  print_endline("upat_to_info_map: " ++ UPat.show(upat));
+  print_endline("mode: " ++ Mode.show(mode));
+  switch (mode) {
+  | Ana(ty) =>
+    switch (Typ.weak_head_normalize(ctx, ty).term) {
+    | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
+      // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
+      // So for performance reasons we'll just do it here.
+      let (e, m) = go(~mode=Mode.Syn, ~ctx, upat, m);
+
+      switch (Typ.weak_head_normalize(ctx, e.ty).term) {
+      | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
+        default_case()
+      | _ => elaborate_singleton_tuple(upat, ana_ty, l1, m)
       };
-    let (duplicate_labels, _) =
-      LabeledTuple.get_duplicate_and_unique_labels(Pat.get_label, ps);
-    let (ctx, tys, cons, m) =
-      ctx_fold(ctx, m, ~duplicates=duplicate_labels, ps, modes);
-    let self = Self.Just(Prod(tys) |> Typ.temp);
-    let self =
-      List.is_empty(duplicate_labels) ? self : Self.Duplicate_Labels(self);
-    add(~self, ~ctx, ~constraint_=cons_fold_tuple(cons), m);
-  | Parens(p) =>
-    let (p, m) = go(~ctx, ~mode, p, m);
-    add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
-  | Constructor(ctr, _) =>
-    let self = Self.of_ctr(ctx, ctr);
-    atomic(self, Constraint.of_ctr(ctx, mode, ctr, self));
-  | Ap(fn, arg) =>
-    let ctr = UPat.ctr_name(fn);
-    let fn_mode = Mode.of_ap(ctx, mode, ctr);
-    let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
-    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
-    let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
-    add(
-      ~self=Just(ty_out),
-      ~ctx=arg.ctx,
-      ~constraint_=
-        Constraint.of_ap(ctx, mode, ctr, arg.constraint_, Some(ty_out)),
-      m,
-    );
-  | Cast(p, ann, _) =>
-    let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
-    let (p, m) = go(~ctx, ~mode=Ana(ann.term), p, m);
-    add(~self=Just(ann.term), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
+    | _ => default_case()
+    }
+  | _ => default_case()
   };
 }
 and utyp_to_info_map =

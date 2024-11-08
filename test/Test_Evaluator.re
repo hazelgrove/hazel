@@ -11,7 +11,11 @@ let evaluation_test = (msg, expected, unevaluated) =>
       snd(Evaluator.evaluate(Builtins.env_init, {d: unevaluated})),
     ),
   );
-
+let parse_exp = (s: string) =>
+  MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
+let dhexp_of_uexp = u =>
+  Elaborator.elaborate(Statics.mk(CoreSettings.on, Builtins.ctx_init, u), u)
+  |> fst;
 let test_int = () =>
   evaluation_test("8", Int(8) |> Exp.fresh, Int(8) |> Exp.fresh);
 
@@ -196,4 +200,24 @@ let tests = [
   test_case("Function application", `Quick, test_function_application),
   test_case("Function deferral", `Quick, test_function_deferral),
   test_case("Deferral applied to hole", `Quick, tet_ap_of_hole_deferral),
+  test_case("Elaborated Pattern for labeled tuple", `Quick, () =>
+    check(
+      dhexp_typ,
+      {|let x : (a=Int) -> Int = fun a -> a in x(2)|},
+      Int(2) |> Exp.fresh,
+      Evaluator.Result.unbox(
+        snd(
+          Evaluator.evaluate(
+            Builtins.env_init,
+            {
+              d:
+                dhexp_of_uexp(
+                  parse_exp("let x : (a=Int) -> Int = fun a -> a in x(2)"),
+                ),
+            },
+          ),
+        ),
+      ),
+    )
+  ),
 ];
