@@ -26,6 +26,7 @@ type t = {
   projector:
     (list(model_piece), Piece.tile => Ui_effect.t(unit)) =>
     Virtual_dom.Vdom.Node.t,
+  size: int,
 };
 
 let slider: t = {
@@ -55,6 +56,7 @@ let slider: t = {
       ],
     );
   },
+  size: 20,
 };
 
 let double_slider: t = {
@@ -98,6 +100,7 @@ let double_slider: t = {
       ],
     );
   },
+  size: 20,
 };
 
 let script = (s: string) => {
@@ -126,6 +129,7 @@ let js: t = {
       [script(s), Node.text("JS livelit")],
     );
   },
+  size: 20,
 };
 
 /* General function to create a popup with communication */
@@ -184,6 +188,7 @@ let timestamp: t = {
       ~attrs=[Attr.class_("livelit")],
       [Node.text("Timestamp livelit")],
     ),
+  size: 20,
 };
 
 /* Emotion livelit definition */
@@ -198,6 +203,7 @@ let not_found: t = {
       ~attrs=[Attr.class_("livelit")],
       [Node.text("No livelit found")],
     ),
+  size: 20,
 };
 
 /* Game livelit definition */
@@ -696,6 +702,7 @@ popupComm.setHandlePopupMessage(function(data) {
       ],
     );
   },
+  size: 20,
 };
 
 let emotion: t = {
@@ -890,9 +897,391 @@ popupComm.setHandlePopupMessage(function(data) {
       ],
     );
   },
+  size: 20,
 };
 
-/* Add 'game' to the list of livelits */
+let websocket: t = {
+  name: "websocket",
+  expansion_t:
+    Typ.temp(
+      Typ.Prod([
+        Typ.temp(Typ.String),
+        Typ.temp(Typ.String),
+        Typ.temp(Typ.String),
+      ]),
+    ),
+  expansion_f: (model: UExp.t) =>
+    switch (model.term) {
+    | Tuple([url, send_msg, recv_msg]) =>
+      DHExp.fresh(Tuple([url, send_msg, recv_msg]))
+    | _ => DHExp.fresh(Undefined)
+    },
+  model_t:
+    Typ.temp(
+      Typ.Prod([
+        Typ.temp(Typ.String),
+        Typ.temp(Typ.String),
+        Typ.temp(Typ.String),
+      ]),
+    ),
+  projector: (models: list(model_piece), update) => {
+    let (
+      (model_url, piece_url),
+      (model_send, piece_send),
+      (model_recv, piece_recv),
+    ) =
+      switch (models) {
+      | [
+          {model: m1, piece: p1},
+          {model: m2, piece: p2},
+          {model: m3, piece: p3},
+        ] => (
+          (m1, p1),
+          (m2, p2),
+          (m3, p3),
+        )
+      | _ => failwith("Expected exactly three model pieces")
+      };
+
+    let websocket_url =
+      switch (model_url.term) {
+      | String(s) => s
+      | _ => failwith("WebSocket livelit: not given string")
+      };
+
+    let send_msg =
+      switch (model_send.term) {
+      | String(s) => s
+      | _ => failwith("WebSocket livelit: not given string")
+      };
+
+    let recv_msg =
+      switch (model_recv.term) {
+      | String(s) => s
+      | _ => failwith("WebSocket livelit: not given string")
+      };
+
+    /* JavaScript code to open the websocket and handle communication */
+    let websocketScript =
+      {|
+      (function() {
+        const socket = new WebSocket("|}
+      ++ websocket_url
+      ++ {|");
+        socket.onopen = function() {
+          console.log("WebSocket connection opened");
+          socket.send("|}
+      ++ send_msg
+      ++ {|");
+        };
+
+        socket.onmessage = function(event) {
+          console.log("Message from server: ", event.data);
+          const hiddenInput = document.getElementById("hidden-input-|}
+      ++ Uuidm.to_string(piece_recv.id)
+      ++ {|");
+
+          // Update the hidden input value
+          hiddenInput.value = event.data;
+
+          // Explicitly dispatch an input event
+          const inputEvent = new Event('input', { bubbles: true });
+          hiddenInput.dispatchEvent(inputEvent);
+        };
+
+        socket.onerror = function(error) {
+          console.error("WebSocket error: ", error);
+        };
+
+        window.sendWebSocketMessage = function(message) {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(message);
+          } else {
+            console.warn("WebSocket is not open: message not sent");
+          }
+        };
+      })();
+    |};
+
+    let send_message_to_websocket = (message: string): unit => {
+      let js_code = "window.sendWebSocketMessage('" ++ message ++ "');";
+      Js_of_ocaml.Js.Unsafe.eval_string(js_code);
+    };
+
+    let key_handler = evt => {
+      let key = Key.mk(KeyDown, evt);
+
+      switch (key.key) {
+      | _ => Effect.Stop_propagation
+      };
+    };
+
+    /* Return the Node */
+    Node.div(
+      ~attrs=[Attr.class_("livelit")],
+      [
+        /* Hidden input for the received message */
+        Node.input(
+          ~attrs=[
+            Attr.id("hidden-input-" ++ Uuidm.to_string(piece_recv.id)),
+            Attr.type_("hidden"),
+            Attr.value(recv_msg),
+            Attr.on_input((_, v) => {
+              print_endline("Received message: " ++ v);
+              update(put("\"" ++ v ++ "\"", piece_recv.id));
+            }),
+          ],
+          (),
+        ),
+        /* Include the script for websocket setup */
+        script(websocketScript),
+        /* Input for the message to send */
+        Node.div([
+          Node.input(
+            ~attrs=[
+              Attr.type_("text"),
+              Attr.placeholder("Message to send"),
+              Attr.value(send_msg),
+              Attr.on_keydown(key_handler),
+              Attr.on_input((_, v) => {
+                update(put("\"" ++ v ++ "\"", piece_send.id))
+              }),
+              Attr.id("websocket-send-input"),
+              Attr.class_("websocket-send-input"),
+            ],
+            (),
+          ),
+          /* Send button to trigger WebSocket message send */
+          Node.button(
+            ~attrs=[
+              Attr.on_click(_ => {
+                send_message_to_websocket(send_msg);
+                update(put("\"\"", piece_send.id));
+              }),
+            ],
+            [Node.text("Send")],
+          ),
+        ]),
+      ],
+    );
+  },
+  size: 30,
+};
+
+let multiplayer_game: t = {
+  name: "multiplayer_game",
+  expansion_t:
+    Typ.temp(
+      Typ.Prod([
+        Typ.temp(Typ.String), /* Player ID */
+        Typ.temp(Typ.String), /* Game State */
+        Typ.temp(Typ.String) /* Color */
+      ]),
+    ),
+  expansion_f: (model: UExp.t) =>
+    switch (model.term) {
+    | Tuple([player_id, game_state, color, _ws]) =>
+      DHExp.fresh(Tuple([player_id, game_state, color]))
+    | _ => DHExp.fresh(Undefined)
+    },
+  model_t:
+    Typ.temp(
+      Typ.Prod([
+        Typ.temp(Typ.String),
+        Typ.temp(Typ.String),
+        Typ.temp(Typ.String),
+        Typ.temp(Typ.String),
+      ]),
+    ),
+  projector: (models: list(model_piece), update) => {
+    let (
+      (model_player_id, piece_player_id),
+      (model_game_state, piece_game_state),
+      (model_color, piece_color),
+      (model_ws, piece_ws),
+    ) =
+      switch (models) {
+      | [
+          {model: m_id, piece: p_id},
+          {model: m_state, piece: p_state},
+          {model: m_color, piece: p_color},
+          {model: m_ws, piece: p_ws},
+        ] => (
+          (m_id, p_id),
+          (m_state, p_state),
+          (m_color, p_color),
+          (m_ws, p_ws),
+        )
+      | _ => failwith("Expected exactly three model pieces")
+      };
+
+    let ws =
+      switch (model_ws.term) {
+      | String(s) => s
+      | _ => failwith("WebSocket URL is not a string")
+      };
+
+    let player_id =
+      switch (model_player_id.term) {
+      | String(s) => s
+      | _ => failwith("Player ID is not a string")
+      };
+
+    let game_state =
+      switch (model_game_state.term) {
+      | String(s) => s
+      | _ => failwith("Game state is not a string")
+      };
+
+    let color =
+      switch (model_color.term) {
+      | String(s) => s
+      | _ => failwith("Color is not a string")
+      };
+
+    let popup_content =
+      {|<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Multiplayer Game</title>
+  <style>
+    body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+    #gameCanvas { border: 1px solid black; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="400" height="400"></canvas>
+  <script>
+    var canvas = document.getElementById('gameCanvas');
+    var ctx = canvas.getContext('2d');
+
+    var player = {
+      id: "|}
+      ++ player_id
+      ++ {|",
+      x: 200,
+      y: 200,
+      color: "|}
+      ++ color
+      ++ {|"
+    };
+
+    var gameState = JSON.parse('|}
+      ++ game_state
+      ++ {|');
+
+    var socket = new WebSocket("|}
+      ++ ws
+      ++ {|");
+
+    socket.onopen = function() {
+      var joinMessage = JSON.stringify({ type: "join", player: player });
+      socket.send(joinMessage);
+    };
+
+    socket.onmessage = function(event) {
+      var data = JSON.parse(event.data);
+      if (data.type === "state") {
+        gameState = data.state;
+        drawGame();
+        window.opener.postMessage({ variable: 'game_state', value: JSON.stringify(gameState) }, '*');
+      }
+    };
+
+    function drawGame() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (var id in gameState.players) {
+        var p = gameState.players[id];
+        ctx.fillStyle = p.color || 'black';
+        ctx.fillRect(p.x, p.y, 10, 10);
+      }
+    }
+
+    document.addEventListener('keydown', function(event) {
+      var dx = 0, dy = 0;
+      if (event.key === 'ArrowUp') {
+        dy = -5;
+      } else if (event.key === 'ArrowDown') {
+        dy = 5;
+      } else if (event.key === 'ArrowLeft') {
+        dx = -5;
+      } else if (event.key === 'ArrowRight') {
+        dx = 5;
+      }
+      if (dx !== 0 || dy !== 0) {
+        player.x += dx;
+        player.y += dy;
+        var moveMessage = JSON.stringify({ type: "move", player: player });
+        socket.send(moveMessage);
+        window.opener.postMessage({ variable: 'game_state', value: JSON.stringify(gameState) }, '*');
+      }
+    });
+
+    window.addEventListener('message', function(event) {
+      if (event.data && event.data.variable && event.data.value !== undefined) {
+        if (event.data.variable === 'game_state') {
+          gameState = JSON.parse(event.data.value);
+          drawGame();
+        }
+      }
+    }, false);
+  </script>
+</body>
+</html>|};
+
+    let popupScript =
+      "var popupComm = "
+      ++ create_popup_with_communication(~popup_content)
+      ++ ";";
+
+    let hidden_input_game_state_id =
+      "hidden-input-game_state-" ++ Uuidm.to_string(piece_game_state.id);
+
+    let handlePopupMessageJs =
+      {|
+popupComm.setHandlePopupMessage(function(data) {
+  if (data.variable && data.value !== undefined) {
+    var inputIds = {
+      game_state: '|}
+      ++ hidden_input_game_state_id
+      ++ {|'
+    };
+    var inputId = inputIds[data.variable];
+    if (inputId) {
+      var input = document.getElementById(inputId);
+      if (input) {
+        input.value = data.value;
+        var event = new Event('input', { bubbles: true });
+        input.dispatchEvent(event);
+      }
+    }
+  }
+});
+|};
+
+    Node.div(
+      ~attrs=[Attr.class_("livelit")],
+      [
+        script(popupScript),
+        script(handlePopupMessageJs),
+        Node.input(
+          ~attrs=[
+            Attr.type_("hidden"),
+            Attr.id(hidden_input_game_state_id),
+            Attr.value(game_state),
+            Attr.on_input((_, v) => {
+              update(put("\"" ++ v ++ "\"", piece_game_state.id))
+            }),
+          ],
+          (),
+        ),
+        Node.div([Node.text("Player ID: " ++ player_id)]),
+      ],
+    );
+  },
+  size: 20,
+};
 let livelits: list(t) = [
   slider,
   js,
@@ -900,6 +1289,8 @@ let livelits: list(t) = [
   emotion,
   double_slider,
   game,
+  websocket,
+  multiplayer_game,
 ];
 
 let find_livelit = (livelit_name: string): t =>
@@ -911,22 +1302,20 @@ let find_livelit = (livelit_name: string): t =>
   };
 
 /*
- let emotion = (^emotion(5)) in
- case (emotion)
-   | "happy" => "Hooray! What a pleasant day!"
-   | "neutral" => "Things are medium, I suppose."
-   | "sad" => "Sorrow sorrow, today and tomorrow."
-   | _ => "You have broken my trust, and frankly, our friendship"
- end
+  let slider = (^slider(50)) in
+  case (slider)
+    | n => "Slider value: " ++ string_of_int(n)
+  end
  */
 
 /*
- let game = (^game(10, 10, 100, 1234)) in
- case (game)
-   | (x, y, energy, seed) =>
-   "Player at (" ++ string_of_int(x) ++ ", " ++ string_of_int(y) ++ ") with "
-   ++ string_of_int(energy) ++ " energy and seed " ++ string_of_int(seed)
- end
+  let emotion = (^emotion(5)) in
+  case (emotion)
+    | "happy" => "Hooray! What a pleasant day!"
+    | "neutral" => "Things are medium, I suppose."
+    | "sad" => "Sorrow sorrow, today and tomorrow."
+    | _ => "You have broken my trust, and frankly, our friendship"
+  end
  */
 
 /*
@@ -937,3 +1326,47 @@ let find_livelit = (livelit_name: string): t =>
    ++ string_of_int(energy) ++ " energy and seed " ++ string_of_int(seed)
  end
  */
+
+/*
+ let websocket = (^websocket("ws://localhost:8765", "Hello", "World")) in
+  case (websocket)
+    | (url, send, recv) =>
+    "WebSocket connection to " ++ url ++ " with send message " ++ send
+    ++ " and received message " ++ recv
+  end
+ */
+
+/*let websocket = (
+    ^websocket("ws://localhost:8765", "Send message", "Recieve message"))
+    in
+    case (websocket)
+      | (_, send, recv) => "Send: " ++ send ++ " Receive: " ++ recv
+    end
+  */
+
+/* {'players': {'player1': {'x': 100, 'y': 100, 'color': 'red'}}} */
+
+/*let multiplayer_game = (^multiplayer_game("player1", "{}", "red", "ws://localhost:8765")) in
+  case (multiplayer_game)
+    | (player_id, game_state, color, ws) =>
+      "Player " ++ player_id ++ " is playing with color " ++ color
+  end
+  */
+
+/*let multiplayer_game = (^multiplayer_game("player1", "{}", "red", "ws://localhost:8765")) in
+  case (multiplayer_game)
+    | (player_id, game_state, color) =>
+    "Player " ++ player_id ++ " is playing with color " ++ color
+  end*/
+
+/*let multiplayer_game = (^multiplayer_game("player1", "{}", "red", "ws://localhost:8765")) in
+  case (multiplayer_game)
+    | (player_id, game_state, color) =>
+    "Player " ++ player_id ++ " is playing with color " ++ color
+  end*/
+
+/*let multiplayer_game = (^multiplayer_game("player2", "{}", "blue", "ws://localhost:8765")) in
+  case (multiplayer_game)
+    | (player_id, game_state, color) =>
+    "Player " ++ player_id ++ " is playing with color " ++ color
+  end*/

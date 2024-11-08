@@ -2,6 +2,9 @@ open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 
+let of_id = (id: Id.t) =>
+  "id" ++ (id |> Id.to_string |> String.sub(_, 0, 8));
+
 /* Define a function to collect all leaf pieces from a tile */
 let rec getLeafPieces =
         (
@@ -67,7 +70,37 @@ module M: Projector = {
   let init = ();
   let can_project = p => true;
   let can_focus = false;
-  let placeholder = (_, _) => Inline(10);
+  let placeholder = (model, info) => {
+    let ll =
+      switch (info.ci) {
+      | Some(InfoExp(exp)) =>
+        let (term, _) = UExp.unwrap(exp.term);
+        switch (term) {
+        | Parens(args) =>
+          switch (args.term) {
+          | Ap(_dir, ll_uexp, args) =>
+            let (ll_term, _) = UExp.unwrap(ll_uexp);
+            switch (ll_term) {
+            | LivelitInvocation(name) => name
+            | _ =>
+              failwith(
+                "LivelitProj: Not a LivelitInvocation term -- "
+                ++ UExp.show(ll_uexp),
+              )
+            };
+          | _ =>
+            failwith("LivelitProj: Not an Ap term -- " ++ UExp.show(args))
+          }
+        | _ =>
+          failwith(
+            "LivelitProj: Not a Parens term -- " ++ UExp.show(exp.term),
+          )
+        };
+      | _ => failwith("LivelitProj: Not an InfoExp term")
+      };
+    let ll = Livelit.find_livelit(ll);
+    Inline(ll.size);
+  };
   let update = (model, _) => model;
 
   let view =
@@ -134,5 +167,10 @@ module M: Projector = {
     /* Call the projector function */
     ll.projector(model_pieces, replace);
   };
-  let focus = _ => ();
+  let focus = ((id: Id.t, d: option(Direction.t))) => {
+    JsUtil.get_elem_by_id(of_id(id))##focus;
+    switch (d) {
+    | _ => ()
+    };
+  };
 };
