@@ -66,7 +66,8 @@ let elements_noun: Cls.t => string =
   | Exp(ListConcat) => "Operands"
   | _ => failwith("elements_noun: Cls doesn't have elements");
 
-let common_err_view = (cls: Cls.t, err: Info.error_common) =>
+let common_err_view =
+    (~lifted_ty: option(Typ.t)=?, cls: Cls.t, err: Info.error_common) =>
   switch (err) {
   | NoType(BadToken(token)) =>
     switch (Form.bad_token_cls(token)) {
@@ -85,19 +86,27 @@ let common_err_view = (cls: Cls.t, err: Info.error_common) =>
       Type.view(typ),
       text("inconsistent with arrow type"),
     ]
-  | Inconsistent(Expectation({ana, syn})) => [
+  | Inconsistent(Expectation({ana, syn})) =>
+    [
       text(":"),
       Type.view(syn),
       text("inconsistent with expected type"),
       Type.view(ana),
     ]
+    @ (
+      switch (lifted_ty) {
+      | None => []
+      | Some(lifted) => [text("lifted to"), Type.view(lifted)]
+      }
+    )
   | Inconsistent(Internal(tys)) => [
       text(elements_noun(cls) ++ " have inconsistent types:"),
       ...ListUtil.join(text(","), List.map(Type.view, tys)),
     ]
   };
 
-let common_ok_view = (cls: Cls.t, ok: Info.ok_pat) => {
+let common_ok_view =
+    (~lifted_ty: option(Typ.t)=?, cls: Cls.t, ok: Info.ok_common) => {
   switch (cls, ok) {
   | (Exp(MultiHole) | Pat(MultiHole), _) => [
       text("Expecting operator or delimiter"),
@@ -122,12 +131,20 @@ let common_ok_view = (cls: Cls.t, ok: Info.ok_pat) => {
       Type.view(syn),
       text("equals expected type"),
     ]
-  | (_, Ana(Consistent({ana, syn, _}))) => [
+  | (_, Ana(Consistent({ana, syn, _}))) =>
+    // print_endline("Id: " ++)
+    [
       text(":"),
       Type.view(syn),
       text("consistent with expected type"),
       Type.view(ana),
     ]
+    @ (
+      switch (lifted_ty) {
+      | None => []
+      | Some(lifted) => [text("lifted to"), Type.view(lifted)]
+      }
+    )
   | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
     [
       text(elements_noun(cls) ++ " have inconsistent types:"),
@@ -177,7 +194,7 @@ let typ_err_view = (ok: Info.error_typ) =>
     ]
   };
 
-let rec exp_view = (cls: Cls.t, status: Info.status_exp) =>
+let rec exp_view = (cls: Cls.t, status: Info.status_exp, info: Info.exp) =>
   switch (status) {
   | InHole(FreeVariable(name)) =>
     div_err([code_err(name), text("not found")])
@@ -188,7 +205,7 @@ let rec exp_view = (cls: Cls.t, status: Info.status_exp) =>
     | Some(err) =>
       let cls_str = String.uncapitalize_ascii(cls_str);
       div_err([
-        exp_view(cls, InHole(Common(err))),
+        exp_view(cls, InHole(Common(err)), info),
         text("; " ++ cls_str ++ " is inexhaustive"),
       ]);
     };
@@ -208,10 +225,12 @@ let rec exp_view = (cls: Cls.t, status: Info.status_exp) =>
         ++ " arguments",
       ),
     ])
-  | InHole(Common(error)) => div_err(common_err_view(cls, error))
+  | InHole(Common(error)) =>
+    div_err(common_err_view(~lifted_ty=?info.lifted_ty, cls, error))
   | NotInHole(AnaDeferralConsistent(ana)) =>
     div_ok([text("Expecting type"), Type.view(ana)])
-  | NotInHole(Common(ok)) => div_ok(common_ok_view(cls, ok))
+  | NotInHole(Common(ok)) =>
+    div_ok(common_ok_view(~lifted_ty=?info.lifted_ty, cls, ok))
   };
 
 let rec pat_view = (cls: Cls.t, status: Info.status_pat) =>
@@ -266,7 +285,7 @@ let view_of_info = (~inject, ~settings, ci): list(Node.t) => {
   ];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
-  | InfoExp({cls, status, _}) => wrapper(exp_view(cls, status))
+  | InfoExp({cls, status, _} as ie) => wrapper(exp_view(cls, status, ie))
   | InfoPat({cls, status, _}) => wrapper(pat_view(cls, status))
   | InfoTyp({cls, status, _}) => wrapper(typ_view(cls, status))
   | InfoTPat({cls, status, _}) => wrapper(tpat_view(cls, status))

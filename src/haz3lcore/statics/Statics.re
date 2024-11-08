@@ -182,9 +182,17 @@ and uexp_to_info_map =
     | Ana({term: Unknown(SynSwitch), _}) => Mode.Syn
     | _ => mode
     };
-  let add' = (~self, ~co_ctx, m) => {
+  let add' = (~lifted_ty=?, ~self, ~co_ctx, m) => {
     let info =
-      Info.derived_exp(~uexp, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx);
+      Info.derived_exp(
+        ~uexp,
+        ~ctx,
+        ~mode,
+        ~ancestors,
+        ~self,
+        ~co_ctx,
+        ~lifted_ty,
+      );
 
     (info, add_info(ids, InfoExp(info), m));
   };
@@ -249,7 +257,11 @@ and uexp_to_info_map =
       uexp_to_info_map(~ctx, ~mode, ~ancestors, elaborated_exp, m);
 
     // We need to keep the original status of the expression to get error messages on the unelaborated expression
-    let info = {...info, status: original_info.status};
+    let info = {
+      ...info,
+      status: original_info.status,
+      lifted_ty: Some(info.ty),
+    };
 
     (info, add_info(elaborated_exp.ids, InfoExp(info), m));
   };
