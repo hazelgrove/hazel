@@ -73,7 +73,7 @@ let handlers =
     }),
   ];
   model.settings.editing_prompt
-  || modle.settings.editing_title
+  || model.settings.editing_title
   || model.settings.editing_test_val_rep
   || model.settings.editing_mut_test_rep
   || model.settings.editing_impl_grd_rep
