@@ -72,15 +72,12 @@ let handlers =
       inject(PerformAction(Paste(pasted_text)));
     }),
   ];
-<<<<<<< HEAD
   model.settings.editing_prompt
+  || modle.settings.editing_title
   || model.settings.editing_test_val_rep
   || model.settings.editing_mut_test_rep
   || model.settings.editing_impl_grd_rep
   || model.settings.editing_module_name
-=======
-  model.settings.editing_title
->>>>>>> title-editor
     ? attrs : attrs @ [Attr.on_keypress(_ => Effect.Prevent_default)];
 };
 
