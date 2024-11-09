@@ -12,7 +12,8 @@ let is_action_logged: UpdateAction.t => bool =
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | Benchmark(_)
-  | DebugConsole(_) => false
+  | DebugConsole(_)
+  | Startup => false
   | Reset
   | TAB
   | Set(_)
@@ -24,6 +25,9 @@ let is_action_logged: UpdateAction.t => bool =
   | Undo
   | Redo
   | UpdateResult(_)
+  | UpdateTitle(_)
+  | AddBuggyImplementation
+  | DeleteBuggyImplementation(_)
   | UpdatePrompt(_)
   | UpdateTestValRep(_)
   | UpdateMutTestRep(_)

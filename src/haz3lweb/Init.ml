@@ -26,6 +26,7 @@ let startup : PersistentData.t =
         async_evaluation = false;
         context_inspector = false;
         instructor_mode = true;
+        editing_title = false;
         editing_prompt = false;
         editing_test_val_rep = false;
         editing_mut_test_rep = false;

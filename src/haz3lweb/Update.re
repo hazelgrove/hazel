@@ -1,7 +1,25 @@
 open Util;
+open Js_of_ocaml;
 open Haz3lcore;
 
 include UpdateAction; // to prevent circularity
+
+let observe_font_specimen = (id, update) =>
+  ResizeObserver.observe(
+    ~node=JsUtil.get_elem_by_id(id),
+    ~f=
+      (entries, _) => {
+        let specimen = Js.to_array(entries)[0];
+        let rect = specimen##.contentRect;
+        update(
+          FontMetrics.{
+            row_height: rect##.bottom -. rect##.top,
+            col_width: rect##.right -. rect##.left,
+          },
+        );
+      },
+    (),
+  );
 
 let update_settings =
     (a: settings_action, {settings, _} as model: Model.t): Model.t =>
@@ -175,11 +193,22 @@ let update_settings =
       settings: {
         ...settings,
         instructor_mode: !settings.instructor_mode,
+        editing_title: false,
         editing_prompt: false,
         editing_test_val_rep: false,
         editing_mut_test_rep: false,
         editing_impl_grd_rep: false,
         editing_module_name: false,
+      },
+    };
+  | EditingTitle =>
+    let editing = !settings.editing_title;
+    {
+      ...model,
+      editors: Editors.set_editing_title(model.editors, editing),
+      settings: {
+        ...settings,
+        editing_title: editing,
       },
     };
   | EditingPrompt =>
@@ -270,6 +299,25 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
     };
   };
 
+let on_startup =
+    (~schedule_action: UpdateAction.t => unit, m: Model.t): Model.t => {
+  let _ =
+    observe_font_specimen("font-specimen", fm =>
+      schedule_action(UpdateAction.SetMeta(FontMetrics(fm)))
+    );
+  NinjaKeys.initialize(NinjaKeys.options(schedule_action));
+  JsUtil.focus_clipboard_shim();
+  /* initialize state. */
+  /* Initial evaluation on a worker */
+  schedule_evaluation(~schedule_action, m);
+  Os.is_mac :=
+    Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
+      Js.string("MAC"),
+    )
+    >= 0;
+  m;
+};
+
 let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
   let update_dynamics = reevaluate_post_update(update);
   /* If we switch editors, or change settings which require statics
@@ -305,12 +353,13 @@ let switch_scratch_slide =
       ~settings,
       editors: Editors.t,
       ~instructor_mode,
-      idx: int,
+      ~editing_title,
       ~editing_prompt,
       ~editing_test_val_rep,
       ~editing_mut_test_rep,
       ~editing_impl_grd_rep,
       ~editing_module_name,
+      idx: int,
     )
     : option(Editors.t) =>
   switch (editors) {
@@ -325,12 +374,13 @@ let switch_scratch_slide =
       Store.Exercise.load_exercise(
         spec,
         ~instructor_mode,
-        ~settings,
+        ~editing_title,
         ~editing_prompt,
         ~editing_test_val_rep,
         ~editing_mut_test_rep,
         ~editing_impl_grd_rep,
         ~editing_module_name,
+        ~settings,
       );
     Some(Exercises(idx, specs, exercise));
   };
@@ -435,9 +485,7 @@ let ui_state_update =
   };
 };
 
-let apply =
-    (model: Model.t, update: t, _state: State.t, ~schedule_action)
-    : Result.t(Model.t) => {
+let apply = (model: Model.t, update: t, ~schedule_action): Result.t(Model.t) => {
   let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
     switch (
       Editors.perform_action(~settings=model.settings.core, model.editors, a)
@@ -448,6 +496,7 @@ let apply =
   };
   let m: Result.t(Model.t) =
     switch (update) {
+    | Startup => Ok(on_startup(~schedule_action, model))
     | Reset => Ok(Model.reset(model))
     | Set(Evaluation(_) as s_action) => Ok(update_settings(s_action, model))
     | Set(s_action) =>
@@ -526,9 +575,10 @@ let apply =
       Model.save_and_return({...model, editors});
     | SwitchScratchSlide(n) =>
       let instructor_mode = model.settings.instructor_mode;
-      let editors = Editors.set_editing_prompt(model.editors, false);
+      let editors = Editors.set_editing_title(model.editors, false);
       let settings = {
         ...model.settings,
+        editing_title: false,
         editing_prompt: false,
         editing_test_val_rep: false,
         editing_mut_test_rep: false,
@@ -537,9 +587,10 @@ let apply =
       };
       switch (
         switch_scratch_slide(
-          editors,
           ~settings=model.settings.core,
+          editors,
           ~instructor_mode,
+          ~editing_title=false,
           ~editing_prompt=false,
           ~editing_test_val_rep=false,
           ~editing_mut_test_rep=false,
@@ -627,6 +678,25 @@ let apply =
       let results =
         ModelResults.union((_, _a, b) => Some(b), model.results, results);
       Ok({...model, results});
+    | UpdateTitle(new_title) =>
+      Model.save_and_return({
+        ...model,
+        editors: Editors.update_exercise_title(model.editors, new_title),
+      })
+    | AddBuggyImplementation =>
+      Model.save_and_return({
+        ...model,
+        editors:
+          Editors.add_buggy_impl(
+            ~settings=model.settings.core,
+            model.editors,
+            ~editing_title=model.settings.editing_title,
+          ),
+      })
+    | DeleteBuggyImplementation(index) =>
+      let editors = Editors.delete_buggy_impl(model.editors, index);
+      print_endline(Editors.show(editors));
+      Model.save_and_return({...model, editors});
     | UpdatePrompt(new_prompt) =>
       Model.save_and_return({
         ...model,

@@ -33,6 +33,7 @@ let ui_state_init = {
   mousedown: false,
 };
 
+[@deriving sexp]
 type t = {
   editors: Editors.t,
   settings: Settings.t,
@@ -41,7 +42,7 @@ type t = {
   ui_state,
 };
 
-let cutoff = (===);
+let equal = (===);
 
 let mk = (editors, results) => {
   editors,
@@ -58,6 +59,7 @@ let load_editors =
       ~settings,
       ~mode: Settings.mode,
       ~instructor_mode: bool,
+      ~editing_title: bool,
       ~editing_prompt: bool,
       ~editing_test_val_rep: bool,
       ~editing_mut_test_rep: bool,
@@ -78,6 +80,7 @@ let load_editors =
         ~settings,
         ~specs=ExerciseSettings.exercises,
         ~instructor_mode,
+        ~editing_title,
         ~editing_prompt,
         ~editing_test_val_rep,
         ~editing_mut_test_rep,
@@ -106,6 +109,7 @@ let load = (init_model: t): t => {
       ~settings=settings.core,
       ~mode=settings.mode,
       ~instructor_mode=settings.instructor_mode,
+      ~editing_title=settings.editing_title,
       ~editing_prompt=settings.editing_prompt,
       ~editing_test_val_rep=settings.editing_test_val_rep,
       ~editing_mut_test_rep=settings.editing_mut_test_rep,

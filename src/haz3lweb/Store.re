@@ -284,6 +284,7 @@ module Exercise = {
         ~settings: CoreSettings.t,
         spec,
         ~instructor_mode,
+        ~editing_title,
         ~editing_prompt,
         ~editing_test_val_rep,
         ~editing_mut_test_rep,
@@ -300,6 +301,7 @@ module Exercise = {
             data,
             ~spec,
             ~instructor_mode,
+            ~editing_title,
             ~editing_prompt,
             ~editing_test_val_rep,
             ~editing_mut_test_rep,
@@ -342,6 +344,7 @@ module Exercise = {
         ~settings: CoreSettings.t,
         ~specs,
         ~instructor_mode,
+        ~editing_title,
         ~editing_prompt,
         ~editing_test_val_rep,
         ~editing_mut_test_rep,
@@ -359,10 +362,11 @@ module Exercise = {
           | Some(data) =>
             let exercise =
               try(
-                Exercise.deserialize_exercise(
+                deserialize_exercise(
                   data,
                   ~spec,
                   ~instructor_mode,
+                  ~editing_title,
                   ~editing_prompt,
                   ~editing_test_val_rep,
                   ~editing_mut_test_rep,
@@ -382,7 +386,7 @@ module Exercise = {
             (n, specs, exercise);
           }
         | None =>
-          // initialize exercise from spec
+          // invalid current exercise key saved, load the first exercise
           let first_spec = List.nth(specs, 0);
           (
             0,
@@ -390,6 +394,7 @@ module Exercise = {
             load_exercise(
               first_spec,
               ~instructor_mode,
+              ~editing_title,
               ~editing_prompt,
               ~editing_test_val_rep,
               ~editing_mut_test_rep,
@@ -401,7 +406,7 @@ module Exercise = {
         }
       | None => failwith("parse error")
       }
-    | None => init(~settings, ~instructor_mode)
+    | None => init(~instructor_mode, ~settings)
     };
   };
 
@@ -410,6 +415,7 @@ module Exercise = {
         ~specs,
         ~instructor_mode: bool,
         ~settings: CoreSettings.t,
+        ~editing_title,
         ~editing_prompt,
         ~editing_test_val_rep,
         ~editing_mut_test_rep,
@@ -432,12 +438,13 @@ module Exercise = {
                load_exercise(
                  spec,
                  ~instructor_mode,
-                 ~settings,
+                 ~editing_title,
                  ~editing_prompt,
                  ~editing_test_val_rep,
                  ~editing_mut_test_rep,
                  ~editing_impl_grd_rep,
                  ~editing_module_name,
+                 ~settings,
                )
                |> Exercise.persistent_state_of_state(~instructor_mode);
              (key, exercise);
@@ -450,12 +457,13 @@ module Exercise = {
     prep_exercise_export(
       ~specs,
       ~instructor_mode,
-      ~settings,
+      ~editing_title=false,
       ~editing_prompt=false,
       ~editing_test_val_rep=false,
       ~editing_mut_test_rep=false,
       ~editing_impl_grd_rep=false,
       ~editing_module_name=false,
+      ~settings,
     )
     |> sexp_of_exercise_export
     |> Sexplib.Sexp.to_string;
@@ -470,12 +478,13 @@ module Exercise = {
         data,
         ~specs,
         ~instructor_mode: bool,
+        ~editing_title: bool,
+        ~editing_prompt: bool,
+        ~editing_test_val_rep: bool,
+        ~editing_mut_test_rep: bool,
+        ~editing_impl_grd_rep: bool,
+        ~editing_module_name: bool,
         ~settings: CoreSettings.t,
-        ~editing_prompt,
-        ~editing_test_val_rep,
-        ~editing_mut_test_rep,
-        ~editing_impl_grd_rep,
-        ~editing_module_name,
       ) => {
     let exercise_export = data |> deserialize_exercise_export;
     save_exercise_id(exercise_export.cur_exercise);
@@ -491,6 +500,7 @@ module Exercise = {
                persistent_state,
                ~spec,
                ~instructor_mode,
+               ~editing_title,
                ~editing_prompt,
                ~editing_test_val_rep,
                ~editing_mut_test_rep,

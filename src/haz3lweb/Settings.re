@@ -22,6 +22,7 @@ type t = {
   async_evaluation: bool,
   context_inspector: bool,
   instructor_mode: bool,
+  editing_title: bool,
   editing_prompt: bool,
   editing_test_val_rep: bool,
   editing_mut_test_rep: bool,

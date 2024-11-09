@@ -1,28 +1,11 @@
 open Util;
 open Js_of_ocaml;
-open Incr_dom;
 open Haz3lweb;
+open Bonsai.Let_syntax;
 
 let scroll_to_caret = ref(true);
 let edit_action_applied = ref(true);
 let last_edit_action = ref(JsUtil.timestamp());
-
-let observe_font_specimen = (id, update) =>
-  ResizeObserver.observe(
-    ~node=JsUtil.get_elem_by_id(id),
-    ~f=
-      (entries, _) => {
-        let specimen = Js.to_array(entries)[0];
-        let rect = specimen##.contentRect;
-        update(
-          Haz3lweb.FontMetrics.{
-            row_height: rect##.bottom -. rect##.top,
-            col_width: rect##.right -. rect##.left,
-          },
-        );
-      },
-    (),
-  );
 
 let restart_caret_animation = () =>
   // necessary to trigger reflow
@@ -36,7 +19,7 @@ let restart_caret_animation = () =>
   | _ => ()
   };
 
-let apply = (model, action, state, ~schedule_action): Model.t => {
+let apply = (model, action, ~schedule_action): Model.t => {
   restart_caret_animation();
   if (UpdateAction.is_edit(action)) {
     last_edit_action := JsUtil.timestamp();
@@ -48,7 +31,7 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
   last_edit_action := JsUtil.timestamp();
   switch (
     try({
-      let new_model = Update.apply(model, action, state, ~schedule_action);
+      let new_model = Update.apply(model, action, ~schedule_action);
       Log.update(action);
       new_model;
     }) {
@@ -62,9 +45,7 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
   ) {
   | Ok(model) => model
   | Error(FailedToPerform(err)) =>
-    // TODO(andrew): reinstate this history functionality
     print_endline(Update.Failure.show(FailedToPerform(err)));
-    //{...model, history: ActionHistory.failure(err, model.history)};
     model;
   | Error(err) =>
     print_endline(Update.Failure.show(err));
@@ -72,74 +53,63 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
   };
 };
 
-module App = {
-  module Model = Model;
-  module Action = Update;
-  module State = State;
+let app =
+  Bonsai.state_machine0(
+    (module Model),
+    (module Update),
+    ~apply_action=
+      (~inject, ~schedule_event) =>
+        apply(~schedule_action=x => schedule_event(inject(x))),
+    ~default_model=Model.load(Model.blank),
+  );
 
-  let on_startup = (~schedule_action, m: Model.t) => {
-    let _ =
-      observe_font_specimen("font-specimen", fm =>
-        schedule_action(Haz3lweb.Update.SetMeta(FontMetrics(fm)))
-      );
-
-    NinjaKeys.initialize(NinjaKeys.options(schedule_action));
-    JsUtil.focus_clipboard_shim();
-
-    /* initialize state. */
-    let state = State.init();
-
-    /* Initial evaluation on a worker */
-    Update.schedule_evaluation(~schedule_action, m);
-
-    Os.is_mac :=
-      Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
-        Js.string("MAC"),
-      )
-      >= 0;
-    Async_kernel.Deferred.return(state);
+/* This subcomponent is used to run an effect once when the app starts up,
+   After the first draw */
+let on_startup = effect => {
+  let%sub startup_completed = Bonsai.toggle'(~default_model=false);
+  let%sub after_display = {
+    switch%sub (startup_completed) {
+    | {state: false, set_state, _} =>
+      let%arr effect = effect
+      and set_state = set_state;
+      Bonsai.Effect.Many([set_state(true), effect]);
+    | {state: true, _} => Bonsai.Computation.return(Ui_effect.Ignore)
+    };
   };
+  Bonsai.Edge.after_display(after_display);
+};
 
-  let create =
-      (
-        model: Incr.t(Haz3lweb.Model.t),
-        ~old_model as _: Incr.t(Haz3lweb.Model.t),
-        ~inject,
-      ) => {
-    open Incr.Let_syntax;
-    let%map model = model;
-    /* Note: mapping over the old_model here may
-       trigger an additional redraw */
-    Component.create(
-      ~apply_action=apply(model),
-      model,
-      Haz3lweb.Page.view(~inject, model),
-      ~on_display=(_, ~schedule_action) => {
-        if (edit_action_applied^
-            && JsUtil.timestamp()
-            -. last_edit_action^ > 1000.0) {
-          /* If an edit action has been applied, but no other edit action
-             has been applied for 1 second, save the model. */
-          edit_action_applied := false;
-          print_endline("Saving...");
-          schedule_action(Update.Save);
-        };
-        if (scroll_to_caret.contents && !model.settings.instructor_mode) {
-          scroll_to_caret := false;
-          JsUtil.scroll_cursor_into_view_if_needed();
-        };
-      },
+let view = {
+  let%sub app = app;
+  let%sub () = {
+    on_startup(
+      Bonsai.Value.map(~f=((_model, inject)) => inject(Startup), app),
     );
   };
+  let%sub after_display = {
+    let%arr (_model, inject) = app;
+    if (scroll_to_caret.contents) {
+      scroll_to_caret := false;
+      JsUtil.scroll_cursor_into_view_if_needed();
+    };
+    if (edit_action_applied^
+        && JsUtil.timestamp()
+        -. last_edit_action^ > 1000.0) {
+      /* If an edit action has been applied, but no other edit action
+         has been applied for 1 second, save the model. */
+      edit_action_applied := false;
+      print_endline("Saving...");
+      inject(Update.Save);
+    } else {
+      Ui_effect.Ignore;
+    };
+  };
+  let%sub () = Bonsai.Edge.after_display(after_display);
+  let%arr (model, inject) = app;
+  Haz3lweb.Page.view(~inject, model);
 };
 
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()
-| _ =>
-  Incr_dom.Start_app.start(
-    (module App),
-    ~debug=false,
-    ~bind_to_element_with_id="container",
-    ~initial_model=Model.load(Model.blank),
-  )
+| _ => Bonsai_web.Start.start(view, ~bind_to_element_with_id="container")
 };

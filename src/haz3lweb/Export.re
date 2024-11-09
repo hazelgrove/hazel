@@ -55,6 +55,7 @@ let import_all = (data, ~specs) => {
   let settings = Store.Settings.import(all.settings);
   Store.ExplainThisModel.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
+  let editing_title = settings.editing_title;
   let editing_prompt = settings.editing_prompt;
   let editing_test_val_rep = settings.editing_test_val_rep;
   let editing_mut_test_rep = settings.editing_mut_test_rep;
@@ -66,6 +67,7 @@ let import_all = (data, ~specs) => {
     all.exercise,
     ~specs,
     ~instructor_mode,
+    ~editing_title,
     ~editing_prompt,
     ~editing_test_val_rep,
     ~editing_mut_test_rep,

@@ -26,6 +26,7 @@ let key_handler =
     | Some(action) =>
       let settings = get_settings(model);
       settings.editing_prompt
+      || settings.editing_title
       || settings.editing_test_val_rep
       || settings.editing_mut_test_rep
       || settings.editing_impl_grd_rep
@@ -71,11 +72,15 @@ let handlers =
       inject(PerformAction(Paste(pasted_text)));
     }),
   ];
+<<<<<<< HEAD
   model.settings.editing_prompt
   || model.settings.editing_test_val_rep
   || model.settings.editing_mut_test_rep
   || model.settings.editing_impl_grd_rep
   || model.settings.editing_module_name
+=======
+  model.settings.editing_title
+>>>>>>> title-editor
     ? attrs : attrs @ [Attr.on_keypress(_ => Effect.Prevent_default)];
 };
 
@@ -109,7 +114,9 @@ let main_view =
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       {settings, editors, explainThisModel, results, ui_state, _}: Model.t,
     ) => {
+  print_endline("here, at main view, getting editor");
   let editor = Editors.get_editor(editors);
+  print_endline("got editor!");
   let cursor_info =
     Indicated.ci_of(editor.state.zipper, editor.state.meta.statics.info_map);
   let highlights =

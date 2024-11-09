@@ -117,6 +117,7 @@ module Main = {
                  ~settings,
                  ~spec,
                  ~instructor_mode=true,
+                 ~editing_title=false,
                  ~editing_prompt=false,
                  ~editing_test_val_rep=false,
                  ~editing_mut_test_rep=false,

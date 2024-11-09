@@ -24,6 +24,7 @@ type settings_action =
   | Benchmark
   | ContextInspector
   | InstructorMode
+  | EditingTitle
   | EditingPrompt
   | EditingTestValRep
   | EditingMutTestRep
@@ -50,6 +51,12 @@ type benchmark_action =
   | Start
   | Finish;
 
+// To-do: Use this to update either title or model
+[@deriving (show({with_path: false}), sexp, yojson)]
+type edit_action =
+  | Title
+  | Model;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type export_action =
   | ExportScratchSlide
@@ -62,6 +69,7 @@ type export_action =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   /* meta */
+  | Startup
   | Reset
   | Set(settings_action)
   | SetMeta(set_meta)
@@ -88,6 +96,9 @@ type t =
   | ToggleStepper(ModelResults.Key.t)
   | StepperAction(ModelResults.Key.t, stepper_action)
   | UpdateResult(ModelResults.t)
+  | UpdateTitle(string)
+  | AddBuggyImplementation
+  | DeleteBuggyImplementation(int)
   | UpdatePrompt(string)
   | UpdateTestValRep(int, int, int)
   | UpdateMutTestRep(int)
@@ -126,6 +137,7 @@ let is_edit: t => bool =
     | Benchmark
     | ContextInspector
     | InstructorMode
+    | EditingTitle
     | EditingPrompt
     | EditingTestValRep
     | EditingMutTestRep
@@ -149,6 +161,9 @@ let is_edit: t => bool =
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | ResetCurrentEditor
+  | UpdateTitle(_)
+  | AddBuggyImplementation
+  | DeleteBuggyImplementation(_)
   | UpdatePrompt(_)
   | UpdateTestValRep(_)
   | UpdateMutTestRep(_)
@@ -164,7 +179,8 @@ let is_edit: t => bool =
   | DebugConsole(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | Benchmark(_) => false;
+  | Benchmark(_)
+  | Startup => false;
 
 let reevaluate_post_update: t => bool =
   fun
@@ -189,6 +205,7 @@ let reevaluate_post_update: t => bool =
     | Assist
     | Dynamics
     | InstructorMode
+    | EditingTitle
     | EditingPrompt
     | EditingTestValRep
     | EditingMutTestRep
@@ -203,6 +220,9 @@ let reevaluate_post_update: t => bool =
     | ShowBackpackTargets(_)
     | FontMetrics(_) => false
     }
+  | AddBuggyImplementation
+  | DeleteBuggyImplementation(_)
+  | UpdateTitle(_) => false
   | Save
   | InitImportAll(_)
   | InitImportScratchpad(_)
@@ -227,7 +247,8 @@ let reevaluate_post_update: t => bool =
   | SwitchDocumentationSlide(_)
   | Reset
   | Undo
-  | Redo => true;
+  | Redo
+  | Startup => true;
 
 let should_scroll_to_caret =
   fun
@@ -244,6 +265,7 @@ let should_scroll_to_caret =
     | Benchmark
     | ContextInspector
     | InstructorMode
+    | EditingTitle
     | EditingPrompt
     | EditingTestValRep
     | EditingMutTestRep
@@ -260,6 +282,9 @@ let should_scroll_to_caret =
     }
   | UpdateResult(_)
   | ToggleStepper(_)
+  | UpdateTitle(_)
+  | AddBuggyImplementation
+  | DeleteBuggyImplementation(_)
   | UpdatePrompt(_)
   | UpdateTestValRep(_)
   | UpdateMutTestRep(_)
@@ -275,7 +300,8 @@ let should_scroll_to_caret =
   | Reset
   | Undo
   | Redo
-  | TAB => true
+  | TAB
+  | Startup => true
   | PerformAction(a) =>
     switch (a) {
     | Move(_)

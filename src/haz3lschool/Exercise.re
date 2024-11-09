@@ -55,7 +55,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   type p('code) = {
     id: Id.t,
     title: string,
-    version: int,
     module_name: string,
     prompt: string,
     point_distribution,
@@ -67,6 +66,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     hidden_tests: hidden_tests('code),
     syntax_tests,
   };
+
+  type record = p(Zipper.t);
 
   let id_of = p => {
     p.id;
@@ -96,7 +97,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     {
       id: p.id,
       title: p.title,
-      version: p.version,
       module_name: p.module_name,
       prompt: p.prompt,
       point_distribution: p.point_distribution,
@@ -134,14 +134,32 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_state = (
-    pos,
-    list((pos, PersistentZipper.t)),
-    string,
+  type persistent_state = {
+    focus: pos,
+    editors: list((pos, PersistentZipper.t)),
+    title: string,
+    hidden_bugs: list(wrong_impl(PersistentZipper.t)),
+    prompt: string,
     point_distribution,
-    int,
-    string,
-  );
+    required: int,
+    module_name: string,
+    // NOTE: Add new fields to record here as new instructor editable features are
+    //       implemented (eg. prelude: PersistentZipper.t when adding the feature
+    //       to edit the prelude). After adding these field(s), we will need to
+    //       go into persistent_state_of_state and unpersist_state to implement
+    //       how these fields are saved and loaded to and from local memory
+    //       respectively.
+    // NOTE: It may be helpful to look at changes made in the mutant-add-delete and title-editor
+    //       branches in the Hazel repo to see and understand where changes
+    //       were made. It is likely that new implementations of editble features
+    //       will follow a similar route.
+  };
+
+  let clamp_idx = (eds: eds, idx: int) => {
+    let length = List.length(eds.hidden_bugs);
+    let idx = idx > length - 1 ? idx - 1 : idx;
+    idx >= 0 ? Some(idx) : None;
+  };
 
   let editor_of_state: state => Editor.t =
     ({pos, eds, _}) =>
@@ -151,7 +169,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       | YourTestsValidation => eds.your_tests.tests
       | YourTestsTesting => eds.your_tests.tests
       | YourImpl => eds.your_impl
-      | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
+      | HiddenBugs(i) =>
+        switch (clamp_idx(eds, i)) {
+        | Some(idx) => List.nth(eds.hidden_bugs, idx).impl
+        | None => eds.your_impl
+        }
       | HiddenTests => eds.hidden_tests.tests
       };
 
@@ -290,7 +312,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       {
         id,
         title,
-        version,
         module_name,
         prompt,
         point_distribution,
@@ -327,7 +348,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       {
         id,
         title,
-        version,
         module_name,
         prompt,
         point_distribution,
@@ -346,7 +366,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         {
           id,
           title,
-          version,
           module_name,
           prompt,
           point_distribution,
@@ -383,7 +402,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     {
       id,
       title,
-      version,
       module_name,
       prompt,
       point_distribution,
@@ -474,6 +492,84 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     },
   };
 
+  let set_editing_title = ({eds, _} as state: state, editing: bool) => {
+    ...state,
+    eds: {
+      ...eds,
+      prelude: Editor.set_read_only(eds.prelude, editing),
+      correct_impl: Editor.set_read_only(eds.correct_impl, editing),
+      your_tests: {
+        let tests = Editor.set_read_only(eds.your_tests.tests, editing);
+        {
+          tests,
+          required: eds.your_tests.required,
+          provided: eds.your_tests.provided,
+        };
+      },
+      hidden_bugs:
+        eds.hidden_bugs
+        |> List.map(({impl, hint}) => {
+             let impl = Editor.set_read_only(impl, editing);
+             {impl, hint};
+           }),
+      hidden_tests: {
+        let tests = Editor.set_read_only(eds.hidden_tests.tests, editing);
+        {tests, hints: eds.hidden_tests.hints};
+      },
+      your_impl: Editor.set_read_only(eds.your_impl, editing),
+    },
+  };
+
+  let update_exercise_title = ({eds, _} as state: state, new_title: string) => {
+    ...state,
+    eds: {
+      ...eds,
+      title: new_title,
+    },
+  };
+
+  let add_buggy_impl =
+      (~settings: CoreSettings.t, state: state, ~editing_title) => {
+    let new_buggy_impl = {
+      impl: Editor.init(Zipper.init(), ~settings),
+      hint: "no hint available",
+    };
+    let new_state = {
+      pos: HiddenBugs(List.length(state.eds.hidden_bugs)),
+      eds: {
+        ...state.eds,
+        hidden_bugs: state.eds.hidden_bugs @ [new_buggy_impl],
+      },
+    };
+    let new_state = set_editing_title(new_state, editing_title);
+    put_editor(new_state, new_buggy_impl.impl);
+  };
+
+  let delete_buggy_impl = (state: state, index: int) => {
+    let length = List.length(state.eds.hidden_bugs);
+    let editor_on =
+      length > 1
+        ? List.nth(
+            state.eds.hidden_bugs,
+            index < length - 1 ? index + 1 : index - 1,
+          ).
+            impl
+        : state.eds.your_tests.tests;
+    let pos =
+      length > 1
+        ? HiddenBugs(index < length - 1 ? index : index - 1)
+        : YourTestsValidation;
+    let new_state = {
+      pos,
+      eds: {
+        ...state.eds,
+        hidden_bugs:
+          List.filteri((i, _) => i != index, state.eds.hidden_bugs),
+      },
+    };
+    put_editor(new_state, editor_on);
+  };
+
   let set_editing_prompt = ({eds, _} as state: state, editing: bool) => {
     ...state,
     eds: {
@@ -487,6 +583,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           required: eds.your_tests.required,
           provided: eds.your_tests.provided,
         };
+      },
+      hidden_bugs:
+        eds.hidden_bugs
+        |> List.map(({impl, hint}) => {
+             let impl = Editor.set_read_only(impl, editing);
+             {impl, hint};
+           }),
+      hidden_tests: {
+        let tests = Editor.set_read_only(eds.hidden_tests.tests, editing);
+        {tests, hints: eds.hidden_tests.hints};
       },
       your_impl: Editor.set_read_only(eds.your_impl, editing),
     },
@@ -513,6 +619,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           required: eds.your_tests.required,
           provided: eds.your_tests.provided,
         };
+      },
+      hidden_bugs:
+        eds.hidden_bugs
+        |> List.map(({impl, hint}) => {
+             let impl = Editor.set_read_only(impl, editing);
+             {impl, hint};
+           }),
+      hidden_tests: {
+        let tests = Editor.set_read_only(eds.hidden_tests.tests, editing);
+        {tests, hints: eds.hidden_tests.hints};
       },
       your_impl: Editor.set_read_only(eds.your_impl, editing),
     },
@@ -554,6 +670,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           provided: eds.your_tests.provided,
         };
       },
+      hidden_bugs:
+        eds.hidden_bugs
+        |> List.map(({impl, hint}) => {
+             let impl = Editor.set_read_only(impl, editing);
+             {impl, hint};
+           }),
+      hidden_tests: {
+        let tests = Editor.set_read_only(eds.hidden_tests.tests, editing);
+        {tests, hints: eds.hidden_tests.hints};
+      },
       your_impl: Editor.set_read_only(eds.your_impl, editing),
     },
   };
@@ -583,6 +709,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           provided: eds.your_tests.provided,
         };
       },
+      hidden_bugs:
+        eds.hidden_bugs
+        |> List.map(({impl, hint}) => {
+             let impl = Editor.set_read_only(impl, editing);
+             {impl, hint};
+           }),
+      hidden_tests: {
+        let tests = Editor.set_read_only(eds.hidden_tests.tests, editing);
+        {tests, hints: eds.hidden_tests.hints};
+      },
       your_impl: Editor.set_read_only(eds.your_impl, editing),
     },
   };
@@ -611,6 +747,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           required: eds.your_tests.required,
           provided: eds.your_tests.provided,
         };
+      },
+      hidden_bugs:
+        eds.hidden_bugs
+        |> List.map(({impl, hint}) => {
+             let impl = Editor.set_read_only(impl, editing);
+             {impl, hint};
+           }),
+      hidden_tests: {
+        let tests = Editor.set_read_only(eds.hidden_tests.tests, editing);
+        {tests, hints: eds.hidden_tests.hints};
       },
       your_impl: Editor.set_read_only(eds.your_impl, editing),
     },
@@ -643,36 +789,45 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     set_instructor_mode({pos: YourImpl, eds}, instructor_mode);
   };
 
-  let persistent_state_of_state =
-      ({pos, eds} as state: state, ~instructor_mode: bool) => {
+  let persistent_state_of_state = (state: state, ~instructor_mode: bool) => {
     let zippers =
       positioned_editors(state)
       |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
       |> List.map(((pos, editor)) => {
            (pos, PersistentZipper.persist(Editor.(editor.state.zipper)))
          });
-    (
-      pos,
-      zippers,
-      eds.prompt,
-      eds.point_distribution,
-      eds.your_tests.required,
-      eds.module_name,
-    );
+    let persistent_hidden_bugs =
+      state.eds.hidden_bugs
+      |> List.map(({impl, hint}) => {
+           {impl: PersistentZipper.persist(Editor.(impl.state.zipper)), hint}
+         });
+    {
+      focus: state.pos,
+      editors: zippers,
+      title: state.eds.title,
+      hidden_bugs: persistent_hidden_bugs,
+      prompt: state.eds.prompt,
+      point_distribution: state.eds.point_distribution,
+      required: state.eds.your_tests.required,
+      module_name: state.eds.module_name,
+    };
   };
 
   let unpersist_state =
       (
-        (
-          pos,
-          positioned_zippers,
+        {
+          focus,
+          editors,
+          title,
+          hidden_bugs,
           prompt,
           point_distribution,
           required,
           module_name,
-        ): persistent_state,
+        }: persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
+        ~editing_title: bool,
         ~editing_prompt: bool,
         ~editing_test_val_rep: bool,
         ~editing_mut_test_rep: bool,
@@ -683,7 +838,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       : state => {
     let lookup = (pos, default) =>
       if (visible_in(pos, ~instructor_mode)) {
-        let persisted_zipper = List.assoc(pos, positioned_zippers);
+        let persisted_zipper = List.assoc(pos, editors);
         let zipper = PersistentZipper.unpersist(persisted_zipper);
         Editor.init(zipper, ~settings);
       } else {
@@ -693,25 +848,21 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     let correct_impl = lookup(CorrectImpl, spec.correct_impl);
     let your_tests_tests = lookup(YourTestsValidation, spec.your_tests.tests);
     let your_impl = lookup(YourImpl, spec.your_impl);
-    let (_, hidden_bugs) =
-      List.fold_left(
-        ((i, hidden_bugs: list(wrong_impl(Editor.t))), {impl, hint}) => {
-          let impl = lookup(HiddenBugs(i), impl);
-          (i + 1, hidden_bugs @ [{impl, hint}]);
-        },
-        (0, []),
-        spec.hidden_bugs,
-      );
+    let hidden_bugs =
+      hidden_bugs
+      |> List.map(({impl, hint}) => {
+           let impl =
+             Editor.init(PersistentZipper.unpersist(impl), ~settings);
+           {impl, hint};
+         });
     let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
-
     let state =
       set_instructor_mode(
         {
-          pos,
+          pos: focus,
           eds: {
             id: spec.id,
-            title: spec.title,
-            version: spec.version,
+            title,
             module_name,
             prompt,
             point_distribution,
@@ -733,6 +884,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         },
         instructor_mode,
       );
+    let state = set_editing_title(state, editing_title);
     let state = set_editing_prompt(state, editing_prompt);
     let state = set_editing_test_val_rep(state, editing_test_val_rep);
     let state = set_editing_mut_test_rep(state, editing_mut_test_rep);
@@ -909,7 +1061,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | YourTestsValidation => s.test_validation.statics
     | YourTestsTesting => s.user_tests.statics
     | YourImpl => s.user_impl.statics
-    | HiddenBugs(idx) => List.nth(s.hidden_bugs, idx).statics
+    | HiddenBugs(idx) =>
+      switch (clamp_idx(state.eds, idx)) {
+      | Some(idx) => List.nth(s.hidden_bugs, idx).statics
+      | None => s.user_impl.statics
+      }
     | HiddenTests => s.hidden_tests.statics
     };
 
@@ -1083,7 +1239,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     {
       id: Id.mk(),
       title,
-      version: 1,
       module_name,
       prompt: "",
       point_distribution,
@@ -1123,6 +1278,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         data,
         ~spec,
         ~instructor_mode,
+        ~editing_title,
         ~editing_prompt,
         ~editing_test_val_rep,
         ~editing_mut_test_rep,
@@ -1135,6 +1291,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     |> unpersist_state(
          ~spec,
          ~instructor_mode,
+         ~editing_title,
          ~editing_prompt,
          ~editing_test_val_rep,
          ~editing_mut_test_rep,
