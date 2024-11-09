@@ -180,7 +180,7 @@ let view =
                     ],
                   )
                 : div(
-                    ~attrs=[Attr.class_("prompt-content")],
+                    ~attrs=[Attr.class_("module-name-text")],
                     [
                       text("Module name: "),
                       text(eds.module_name),

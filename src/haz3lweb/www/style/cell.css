@@ -132,3 +132,43 @@
 .file-select-button {
   display: none;
 }
+
+/* EDITING */
+
+.cell-module-name {
+  padding: 1em;
+}
+
+.prompt-edit .prompt-text {
+  width: 500px;
+  height: 300px;
+  padding: 10px;
+  font-size: 16px;
+
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.cell-prompt .prompt-edit {
+  padding: 1em;
+  font-size: 1rem;
+  color: var(--light-text-color);
+}
+
+
+.edit-icon {
+  margin-left: 0.5em;
+  cursor: pointer;
+  fill: #7a6219;
+  display: inline-flex;
+  vertical-align: top;
+}
+
+.edit-icon:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+}
+
+.point-num-input {
+  width: 50px;
+  font-size: 12px;
+}
