@@ -29,7 +29,9 @@ type join_type =
 type t =
   | Just(Typ.t) /* Just a regular type */
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
-  | BadToken(Token.t) /* Invalid expression token, treated as hole */
+  | Duplicate_Labels(t) /* Duplicate labels in a labeled tuple, treated as regular type (?) */
+  | Duplicate(t) /* Duplicatee label, marked as duplicate */
+  | BadToken(Token.t) /* Invalid expression token, continues with undefined behavior */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
@@ -71,11 +73,15 @@ let join_of = (j: join_type, ty: Typ.t): Typ.t =>
 let typ_of: (Ctx.t, t) => option(Typ.t) =
   _ctx =>
     fun
-    | Just(typ) => Some(typ)
+    | Just(typ)
+    | Duplicate_Labels(Just(typ))
+    | Duplicate(Just(typ)) => Some(typ)
     | IsConstructor({syn_ty, _}) => syn_ty
     | BadToken(_)
     | BadTrivAp(_)
     | IsMulti
+    | Duplicate_Labels(_)
+    | Duplicate(_)
     | NoJoin(_) => None;
 
 let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =

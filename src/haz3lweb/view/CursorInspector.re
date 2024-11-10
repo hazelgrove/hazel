@@ -81,6 +81,8 @@ let common_err_view =
       Type.view(Prod([]) |> Typ.fresh),
     ]
   | NoType(FreeConstructor(name)) => [code_err(name), text("not found")]
+  | DuplicateLabels(_) => [text("Duplicate labels within a tuple")]
+  | Duplicate(_) => [text("Duplicated Label")]
   | Inconsistent(WithArrow(typ)) => [
       text(":"),
       Type.view(typ),
@@ -188,6 +190,9 @@ let typ_err_view = (ok: Info.error_typ) =>
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
   | WantTypeFoundAp => [text("Must be part of a sum type")]
   | WantTuple => [text("Expect a valid tuple")]
+  | WantLabel => [text("Expect a valid label")]
+  | DuplicateLabels(_) => [text("Duplicate labels within a tuple")]
+  | Duplicate(_) => [text("Duplicated Label")]
   | DuplicateConstructor(name) => [
       Type.view(Var(name) |> Typ.fresh),
       text("already used in this sum"),

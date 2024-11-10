@@ -131,7 +131,7 @@ let rec any_to_info_map =
   switch (any) {
   | Exp(e) =>
     let ({co_ctx, _}: Info.exp, m) =
-      uexp_to_info_map(~ctx, ~ancestors, e, m);
+      uexp_to_info_map(~ctx, ~ancestors, ~duplicates=[], e, m);
     (co_ctx, m);
   | Pat(p) =>
     let m =
@@ -139,6 +139,7 @@ let rec any_to_info_map =
         ~is_synswitch=false,
         ~co_ctx=CoCtx.empty,
         ~ancestors,
+        ~duplicates=[],
         ~ctx,
         p,
         m,
@@ -172,6 +173,7 @@ and uexp_to_info_map =
       ~mode=Mode.Syn,
       ~is_in_filter=false,
       ~ancestors,
+      ~duplicates: list(string),
       {ids, copied: _, term} as uexp: UExp.t,
       m: Map.t,
     )
@@ -219,20 +221,30 @@ and uexp_to_info_map =
         ~mode=Mode.Syn,
         ~is_in_filter=is_in_filter,
         ~ancestors=ancestors,
+        ~duplicates=[],
         uexp: UExp.t,
         m: Map.t,
       ) => {
-    uexp_to_info_map(~ctx, ~mode, ~is_in_filter, ~ancestors, uexp, m);
+    uexp_to_info_map(
+      ~ctx,
+      ~mode,
+      ~is_in_filter,
+      ~ancestors,
+      ~duplicates,
+      uexp,
+      m,
+    );
   };
   let go' = uexp_to_info_map(~ancestors);
   let go = go'(~ctx);
-  let map_m_go = m =>
+  let map_m_go = (m, ~duplicates=[]) =>
     List.fold_left2(
       ((es, m), mode, e) =>
-        go(~mode, e, m) |> (((e, m)) => (es @ [e], m)),
+        go(~mode, ~duplicates, e, m) |> (((e, m)) => (es @ [e], m)),
       ([], m),
     );
-  let go_pat = upat_to_info_map(~ctx, ~ancestors);
+  // TODO: Confirm if duplicates should or not be default []
+  let go_pat = upat_to_info_map(~ctx, ~ancestors, ~duplicates);
   let elaborate_singleton_tuple = (uexp: Exp.t, inner_ty, l, m) => {
     print_endline("Elaborating singleton tuple");
     let (term, rewrap) = UExp.unwrap(uexp);
@@ -291,7 +303,10 @@ and uexp_to_info_map =
     | Int(_) => atomic(Just(Int |> Typ.temp))
     | Float(_) => atomic(Just(Float |> Typ.temp))
     | String(_) => atomic(Just(String |> Typ.temp))
-    | Label(name) => atomic(Just(Label(name) |> Typ.temp))
+    | Label(name) =>
+      let self = Self.Just(Label(name) |> Typ.temp);
+      List.exists(l => name == l, duplicates)
+        ? atomic(Duplicate(self)) : atomic(self);
     | ListLit(es) =>
       let ids = List.map(UExp.rep_id, es);
       let modes = Mode.of_list_lit(ctx, List.length(es), mode);
@@ -361,7 +376,7 @@ and uexp_to_info_map =
       );
     | TupLabel(label, e) =>
       let (labmode, mode) = Mode.of_label(ctx, mode);
-      let (lab, m) = go(~mode=labmode, label, m);
+      let (lab, m) = go(~mode=labmode, ~duplicates, label, m);
       let (e, m) = go(~mode, e, m);
       add(
         ~self=Just(TupLabel(lab.ty, e.ty) |> Typ.temp),
@@ -379,12 +394,14 @@ and uexp_to_info_map =
         Mode.of_prod(ctx, mode, es, UExp.get_label, (name, b) =>
           TupLabel(Label(name) |> Exp.fresh, b) |> Exp.fresh
         );
-      let (es', m) = map_m_go(m, modes, es);
-      add(
-        ~self=Just(Prod(List.map(Info.exp_ty, es')) |> Typ.temp),
-        ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')),
-        m,
-      );
+      let (duplicate_labels, _) =
+        LabeledTuple.get_duplicate_and_unique_labels(Exp.get_label, es);
+      let (es', m) = map_m_go(~duplicates=duplicate_labels, m, modes, es);
+      let ty_list = List.map(Info.exp_ty, es');
+      let self = Self.Just(Prod(ty_list) |> Typ.temp);
+      let self =
+        List.is_empty(duplicate_labels) ? self : Self.Duplicate_Labels(self);
+      add(~self, ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')), m);
     | Dot(e1, e2) =>
       let (info_e1, m) = go(~mode=Syn, e1, m);
       let (ty, m) = {
@@ -877,6 +894,7 @@ and upat_to_info_map =
       ~ctx,
       ~co_ctx,
       ~ancestors: Info.ancestors,
+      ~duplicates: list(string),
       ~mode: Mode.t=Mode.Syn,
       {ids, term, _} as upat: UPat.t,
       m: Map.t,
@@ -909,6 +927,7 @@ and upat_to_info_map =
         ~ctx,
         ~co_ctx,
         ~ancestors,
+        ~duplicates=[],
         ~mode,
         upat: UPat.t,
         m: Map.t,
@@ -918,6 +937,7 @@ and upat_to_info_map =
       ~ctx,
       ~co_ctx,
       ~ancestors,
+      ~duplicates,
       ~mode,
       upat,
       m: Map.t,
@@ -927,10 +947,10 @@ and upat_to_info_map =
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
   let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx);
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
-  let ctx_fold = (ctx: Ctx.t, m) =>
+  let ctx_fold = (ctx: Ctx.t, m, ~duplicates=[]) =>
     List.fold_left2(
       ((ctx, tys, cons, m), e, mode) =>
-        go(~ctx, ~mode, e, m)
+        go(~ctx, ~mode, ~duplicates, e, m)
         |> (
           ((info, m)) => (
             info.ctx,
@@ -961,7 +981,12 @@ and upat_to_info_map =
     )
   | String(string) =>
     atomic(Just(String |> Typ.temp), Constraint.String(string))
-  | Label(name) => atomic(Just(Label(name) |> Typ.temp), Constraint.Truth)
+  | Label(name) =>
+    // TODO: Constraint?
+    let self = Self.Just(Label(name) |> Typ.temp);
+    List.exists(l => name == l, duplicates)
+      ? atomic(Duplicate(self), Constraint.Truth)
+      : atomic(self, Constraint.Truth);
   | ListLit(ps) =>
     let ids = List.map(UPat.rep_id, ps);
     let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
@@ -1009,7 +1034,7 @@ and upat_to_info_map =
     );
   | TupLabel(label, p) =>
     let (labmode, mode) = Mode.of_label(ctx, mode);
-    let (lab, m) = go(~ctx, ~mode=labmode, label, m);
+    let (lab, m) = go(~ctx, ~mode=labmode, ~duplicates, label, m);
     let (p, m) = go(~ctx, ~mode, p, m);
     add(
       ~self=Just(TupLabel(lab.ty, p.ty) |> Typ.temp),
@@ -1022,19 +1047,20 @@ and upat_to_info_map =
       Mode.of_prod(ctx, mode, ps, UPat.get_label, (name, b) =>
         TupLabel(Label(name) |> UPat.fresh, b) |> UPat.fresh
       );
-    let (ctx, tys, cons, m) = ctx_fold(ctx, m, ps, modes);
     let rec cons_fold_tuple = cs =>
       switch (cs) {
       | [] => Constraint.Truth
       | [elt] => elt
       | [hd, ...tl] => Constraint.Pair(hd, cons_fold_tuple(tl))
       };
-    add(
-      ~self=Just(Prod(tys) |> Typ.temp),
-      ~ctx,
-      ~constraint_=cons_fold_tuple(cons),
-      m,
-    );
+    let (duplicate_labels, _) =
+      LabeledTuple.get_duplicate_and_unique_labels(Pat.get_label, ps);
+    let (ctx, tys, cons, m) =
+      ctx_fold(ctx, m, ~duplicates=duplicate_labels, ps, modes);
+    let self = Self.Just(Prod(tys) |> Typ.temp);
+    let self =
+      List.is_empty(duplicate_labels) ? self : Self.Duplicate_Labels(self);
+    add(~self, ~ctx, ~constraint_=cons_fold_tuple(cons), m);
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
@@ -1069,10 +1095,11 @@ and utyp_to_info_map =
       m: Map.t,
     )
     : (Info.typ, Map.t) => {
-  let add = (~utyp=utyp, m) => {
+  let add' = (~expects=expects, ~utyp=utyp, m) => {
     let info = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects);
     (info, add_info(ids, InfoTyp(info), m));
   };
+  let add = (~utyp=utyp, m) => add'(~utyp, m);
   let ancestors = [UTyp.rep_id(utyp)] @ ancestors;
   let go' = utyp_to_info_map(~ctx, ~ancestors);
   let go = go'(~expects=TypeExpected);
@@ -1096,12 +1123,33 @@ and utyp_to_info_map =
     let m = go(t2, m) |> snd;
     add(m);
   | TupLabel(label, t) =>
-    let m = go(label, m) |> snd;
+    let expects =
+      switch (expects) {
+      | LabelExpected(_) => expects
+      | _ => TypeExpected
+      };
+    let m = go'(~expects, label, m) |> snd;
     let m = go(t, m) |> snd;
-    add(m);
+    add'(~expects=TypeExpected, m);
   | Prod(ts) =>
-    let m = map_m(go, ts, m) |> snd;
-    add(m);
+    // let m = map_m(go, ts, m) |> snd;
+    // add(m);
+    let (duplicate_labels, _) =
+      LabeledTuple.get_duplicate_and_unique_labels(Typ.get_label, ts);
+    let (expects, m) =
+      List.is_empty(duplicate_labels)
+        ? (expects, map_m(go, ts, m) |> snd)
+        : (
+          TupleExpected(Duplicate),
+          map_m(
+            go'(~expects=LabelExpected(Duplicate, duplicate_labels)),
+            ts,
+            m,
+          )
+          |> snd,
+        );
+    let info = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects);
+    (info, add_info(ids, InfoTyp(info), m));
   | Ap(t1, t2) =>
     let t1_mode: Info.typ_expects =
       switch (expects) {
@@ -1224,7 +1272,8 @@ and variant_to_info_map =
 
 let mk =
   Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
-    uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty) |> snd
+    uexp_to_info_map(~ctx, ~ancestors=[], ~duplicates=[], e, Id.Map.empty)
+    |> snd
   });
 
 let mk = (core: CoreSettings.t, ctx, exp) =>

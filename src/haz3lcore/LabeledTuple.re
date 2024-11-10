@@ -57,45 +57,6 @@ let separate_and_keep_labels:
     results;
   };
 
-// returns ordered list of (Some(string), TupLabel)
-// and another of (None, not-TupLabel)
-// TODO: Actually validate uniqueness in statics
-// TODO: Make more efficient
-// let validate_uniqueness:
-//   'a.
-//   ('a => option((t, 'a)), list('a)) =>
-//   (bool, list((option(t), 'a)), list('a))
-//  =
-//   (get_label, es) => {
-//     let results =
-//       List.fold_left(
-//         ((b, ls, ns), e) =>
-//           switch (get_label(e)) {
-//           | Some((s1, _))
-//               when
-//                 b
-//                 && List.fold_left(
-//                      (v, l) =>
-//                        switch (l) {
-//                        | (Some(s2), _) when v => compare(s1, s2) != 0
-//                        | _ => false
-//                        },
-//                      true,
-//                      ls,
-//                    ) => (
-//               b,
-//               ls @ [(Some(s1), e)],
-//               ns,
-//             )
-//           | None => (b, ls, ns @ [e])
-//           | _ => (false, ls, ns)
-//           },
-//         (true, [], []),
-//         es,
-//       );
-//     results;
-//   };
-
 // TODO consider adding a t = (option(label), 'a)
 
 let separate_labeled = (xs: list((option(label), 'a))) => {
@@ -113,6 +74,66 @@ let separate_labeled = (xs: list((option(label), 'a))) => {
 let intersect = (xs, ys) => {
   List.filter_map(x => List.find_opt((==)(x), ys), xs);
 };
+
+// TODO: can just use get_duplicate_labels and check if empty.
+// Takes a list of strings and returns true if there are no duplicates.
+let rec is_uniquely_labeled_base: list(label) => bool =
+  labels => {
+    let contains_duplicates =
+      switch (labels) {
+      | [] => false
+      | [hd, ...tl] =>
+        List.exists(l => hd == l, tl) || is_uniquely_labeled_base(tl)
+      };
+    !contains_duplicates;
+  };
+
+// TODO: Performance
+// Takes a list of strings and returns a list of duplicates and list of uniques.
+// Can also be modified to get unique labels.
+let get_duplicate_and_unique_labels_base:
+  list(label) => (list(label), list(label)) =
+  labels => {
+    let (duplicates, uniques) =
+      List.fold_left(
+        (acc, label) => {
+          let (dupes, uniqs) = acc;
+          List.exists(l => label == l, uniqs)
+            ? List.exists(l => label == l, dupes)
+                ? (dupes, uniqs) : (dupes @ [label], uniqs)
+            : (dupes, uniqs @ [label]);
+        },
+        ([], []),
+        labels,
+      );
+    (duplicates, uniques);
+  };
+
+// Takes in a get_label function and a list of elements and applys is_uniquely_labeled_base
+let is_uniquely_labeled: 'a. ('a => option((label, 'a)), list('a)) => bool =
+  (get_label, es) => {
+    let labels = fst(separate_and_keep_labels(get_label, es));
+    let labels =
+      labels
+      |> List.filter(x => Option.is_some(x))
+      |> OptUtil.sequence
+      |> OptUtil.get(() => []);
+    is_uniquely_labeled_base(labels);
+  };
+
+let get_duplicate_and_unique_labels:
+  'a.
+  ('a => option((label, 'a)), list('a)) => (list(label), list(label))
+ =
+  (get_label, es) => {
+    let labels = fst(separate_and_keep_labels(get_label, es));
+    let labels =
+      labels
+      |> List.filter(x => Option.is_some(x))
+      |> OptUtil.sequence
+      |> OptUtil.get(() => []);
+    get_duplicate_and_unique_labels_base(labels);
+  };
 
 // Assumes all labels are unique
 // Rearranges all the labels in l2 to match the order of the labels in l1. Labels are optional and should me reordered for all present labels first and then unlabled fields matched up pairwise. So labeled fields can be reordered and unlabeled ones can't. Also add labels to the unlabeled.
