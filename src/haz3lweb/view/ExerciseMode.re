@@ -341,7 +341,6 @@ let view =
             grading_report.test_validation_report,
             grading_report.point_distribution.test_validation,
             eds.your_tests.required,
-            eds.your_tests.provided,
             settings,
           ),
         ],
