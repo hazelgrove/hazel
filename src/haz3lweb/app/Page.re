@@ -320,7 +320,6 @@ module View = {
         }
       );
     [
-      Attr.on_keypress(_ => Effect.Prevent_default),
       Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
       Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
       /* safety handler in case mousedown overlay doesn't catch it */
