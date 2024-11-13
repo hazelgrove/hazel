@@ -214,6 +214,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
     ListUtil.flat_intersperse(Grout({id, shape: Concave}), es);
+  | Parens({term: Fun(p, e, _, _), _})
   | Fun(p, e, _, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
