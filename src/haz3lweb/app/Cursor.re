@@ -1,6 +1,6 @@
 type cursor('update) = {
   info: option(Haz3lcore.Info.t),
-  selected_text: option(string),
+  selected_text: option(unit => string),
   editor: option(Haz3lcore.Editor.t),
   editor_action: Haz3lcore.Action.t => option('update),
   undo_action: option('update),

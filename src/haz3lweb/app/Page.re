@@ -333,11 +333,15 @@ module View = {
         Effect.Ignore;
       }),
       Attr.on_copy(_ => {
-        JsUtil.copy(cursor.selected_text |> Option.value(~default=""));
+        JsUtil.copy(
+          (cursor.selected_text |> Option.value(~default=() => ""))(),
+        );
         Effect.Ignore;
       }),
       Attr.on_cut(_ => {
-        JsUtil.copy(cursor.selected_text |> Option.value(~default=""));
+        JsUtil.copy(
+          (cursor.selected_text |> Option.value(~default=() => ""))(),
+        );
         Option.map(
           inject,
           Selection.handle_key_event(

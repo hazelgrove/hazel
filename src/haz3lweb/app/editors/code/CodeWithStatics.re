@@ -31,7 +31,7 @@ module Model = {
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
     info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
     selected_text:
-      Some(Printer.to_string_selection(model.editor.state.zipper)),
+      Some(() => Printer.to_string_selection(model.editor.state.zipper)),
     editor: Some(model.editor),
     editor_action: x => Some(x),
     undo_action: None,
