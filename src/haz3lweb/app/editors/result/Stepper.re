@@ -276,18 +276,13 @@ module Update = {
     let (prev_a, history) =
       Aba.fold_right(
         (a: Model.a, b: Model.b, (prev_a: Calc.t(Model.a'), history)) => {
-          print_endline("X " ++ string_of_bool(prev_a |> Calc.is_new));
           let next_a = get_next_a(~settings, prev_a, b, a) |> Calc.to_option;
           switch (next_a) {
           | None => (prev_a, history)
-          | Some(next_a) =>
-            print_endline(
-              "naed "
-              ++ string_of_bool(
-                   (next_a |> Calc.get_value).editor |> Calc.is_new,
-                 ),
-            );
-            (next_a, Aba.cons(next_a |> Calc.save, b, history));
+          | Some(next_a) => (
+              next_a,
+              Aba.cons(next_a |> Calc.save, b, history),
+            )
           };
         },
         (old_a: Model.a) => {
@@ -296,7 +291,6 @@ module Update = {
             |> {
               let.calc elab = elab
               and.calc settings = settings;
-              print_endline("New!");
               let editor = CodeWithStatics.Model.mk_from_exp(~settings, elab);
               let next_steps =
                 calc_next_steps(settings, elab, EvaluatorState.init);
