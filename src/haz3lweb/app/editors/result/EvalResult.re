@@ -295,6 +295,9 @@ module Selection = {
       let+ ci =
         CodeSelectable.Selection.get_cursor_info(~selection, editor |> snd);
       Update.EvalEditorAction(ci);
+    | (Stepper(selection), Stepper(s)) =>
+      let+ ci = Stepper.Selection.get_cursor_info(~selection, s);
+      Update.StepperAction(ci);
     | (_, Evaluation(_)) => empty
     | (_, Stepper(_)) => empty
     };

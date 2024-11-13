@@ -328,6 +328,25 @@ module Selection = {
   type t =
     | A(int, StepperEditor.Selection.t);
 
+  let get_cursor_info = (~selection: t, mr: Model.t): Cursor.cursor(Update.t) => {
+    Cursor.(
+      switch (selection) {
+      | A(n, editor_selection) =>
+        let a: Model.a = mr.history |> Aba.get_as |> List.nth(_, n);
+        switch (a) {
+        | Calculated(a) =>
+          let+ x =
+            StepperEditor.Selection.get_cursor_info(
+              ~selection=editor_selection,
+              a.editor |> Calc.get_value,
+            );
+          Update.StepperEditor(n, x);
+        | Pending => empty
+        };
+      }
+    );
+  };
+
   let handle_key_event =
       (~selection: t, ~event, mr: Model.t): option(Update.t) => {
     let A(i, s) = selection;
