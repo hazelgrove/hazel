@@ -896,6 +896,7 @@ and upat_to_info_map =
       ~ancestors: Info.ancestors,
       ~duplicates: list(string),
       ~mode: Mode.t=Mode.Syn,
+      ~under_ascription: bool=false,
       {ids, term, _} as upat: UPat.t,
       m: Map.t,
     )
@@ -930,6 +931,7 @@ and upat_to_info_map =
         ~ancestors,
         ~duplicates=[],
         ~mode,
+        ~under_ascription=false,
         upat: UPat.t,
         m: Map.t,
       ) => {
@@ -940,13 +942,15 @@ and upat_to_info_map =
       ~ancestors,
       ~duplicates,
       ~mode,
+      ~under_ascription,
       upat,
       m: Map.t,
     );
   };
   let atomic = (self, constraint_) => add(~self, ~ctx, ~constraint_, m);
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
-  let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx);
+  let go = (~under_ascription=false) =>
+    upat_to_info_map(~under_ascription, ~is_synswitch, ~ancestors, ~co_ctx);
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
   let ctx_fold = (ctx: Ctx.t, m, ~duplicates=[]) =>
     List.fold_left2(
@@ -1126,29 +1130,37 @@ and upat_to_info_map =
       );
     | Cast(p, ann, _) =>
       let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
-      let (p, m) = go(~ctx, ~mode=Ana(ann.term), p, m);
+      let (p, m) =
+        go(~ctx, ~under_ascription=true, ~mode=Ana(ann.term), p, m);
       add(~self=Just(ann.term), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     };
   // This is to allow lifting single values into a singleton labeled tuple when the label is not present
 
-  print_endline("upat_to_info_map: " ++ UPat.show(upat));
-  print_endline("mode: " ++ Mode.show(mode));
-  switch (mode) {
-  | Ana(ty) =>
-    switch (Typ.weak_head_normalize(ctx, ty).term) {
-    | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
-      // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
-      // So for performance reasons we'll just do it here.
-      let (e, m) = go(~mode=Mode.Syn, ~ctx, upat, m);
+  // print_endline("upat_to_info_map: " ++ UPat.show(upat));
+  // print_endline("mode: " ++ Mode.show(mode));
+  print_endline("updat.term" ++ UPat.show(upat));
+  print_endline("under ascription: " ++ string_of_bool(under_ascription));
+  if (under_ascription) {
+    default_case();
+  } else {
+    switch (mode) {
+    | Ana(ty) =>
+      switch (Typ.weak_head_normalize(ctx, ty).term) {
+      | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
+        // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
+        // So for performance reasons we'll just do it here.
+        let (e, m) = go(~mode=Mode.Syn, ~ctx, upat, m);
 
-      switch (Typ.weak_head_normalize(ctx, e.ty).term) {
-      | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
-        default_case()
-      | _ => elaborate_singleton_tuple(upat, ana_ty, l1, m)
-      };
+        switch (Typ.weak_head_normalize(ctx, e.ty).term) {
+        | Prod([{term: TupLabel({term: Label(l2), _}, _), _}])
+            when l1 == l2 =>
+          default_case()
+        | _ => elaborate_singleton_tuple(upat, ana_ty, l1, m)
+        };
+      | _ => default_case()
+      }
     | _ => default_case()
-    }
-  | _ => default_case()
+    };
   };
 }
 and utyp_to_info_map =

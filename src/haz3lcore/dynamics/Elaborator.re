@@ -76,14 +76,16 @@ let elaborated_type =
   (elab_ty |> Typ.normalize(ctx), ctx, co_ctx, term);
 };
 
-let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
-  let (mode, self_ty, ctx, prev_synswitch) =
+let elaborated_pat_type =
+    (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t, Pat.t) => {
+  let (mode, self_ty, ctx, prev_synswitch, term) =
     switch (Id.Map.find_opt(UPat.rep_id(upat), m)) {
-    | Some(Info.InfoPat({mode, ty, ctx, prev_synswitch, _})) => (
+    | Some(Info.InfoPat({mode, ty, ctx, prev_synswitch, term, _})) => (
         mode,
         ty,
         ctx,
         prev_synswitch,
+        term,
       )
     | _ => raise(MissingTypeInfo)
     };
@@ -103,13 +105,14 @@ let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
       | Some(syn_ty) => Typ.match_synswitch(syn_ty, ana_ty)
       }
     };
-  (elab_ty |> Typ.normalize(ctx), ctx);
+  (elab_ty |> Typ.normalize(ctx), ctx, term);
 };
 
 let rec elaborate_pattern =
         (m: Statics.Map.t, upat: UPat.t, in_container: bool)
         : (DHPat.t, Typ.t) => {
-  let (elaborated_type, ctx) = elaborated_pat_type(m, upat);
+  // Pulling upat back out of the statics map for statics level elaboration
+  let (elaborated_type, ctx, upat) = elaborated_pat_type(m, upat);
   let elaborate_pattern = (~in_container=false, m, upat) =>
     elaborate_pattern(m, upat, in_container);
   let cast_from = (ty, exp) => fresh_pat_cast(exp, ty, elaborated_type);
