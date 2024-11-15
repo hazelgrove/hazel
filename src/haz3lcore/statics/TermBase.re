@@ -288,7 +288,8 @@ and Exp: {
         | Undefined => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | DynamicErrorHole(e, err) => DynamicErrorHole(exp_map_term(e), err)
-        | FailedCast(e, t1, t2) => FailedCast(exp_map_term(e), t1, t2)
+        | FailedCast(e, t1, t2) =>
+          FailedCast(exp_map_term(e), typ_map_term(t1), typ_map_term(t2))
         | ListLit(ts) => ListLit(List.map(exp_map_term, ts))
         | Fun(p, e, env, f) =>
           Fun(pat_map_term(p), exp_map_term(e), env, f)

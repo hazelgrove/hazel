@@ -147,7 +147,9 @@ module Update = {
               NewValue(
                 Haz3lcore.ProgramResult.map(
                   ({result: r, state: s}: Haz3lcore.ProgramResult.inner) => {
-                    let exp = Haz3lcore.ProgramResult.Result.unbox(r);
+                    let exp =
+                      Haz3lcore.ProgramResult.Result.unbox(r)
+                      |> Haz3lcore.DHExp.replace_all_ids;
                     (exp, s);
                   },
                   update,

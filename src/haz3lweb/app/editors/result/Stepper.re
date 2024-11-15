@@ -88,6 +88,7 @@ module Model = {
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
+    // int here should include hidden steps
     | StepperEditor(int, StepperEditor.Update.t)
     | StepForward(int)
     | StepBackward;
@@ -204,7 +205,8 @@ module Update = {
                }
              )
         );
-      let next_expr = EvalCtx.compose(b.step.ctx, next_expr);
+      let next_expr =
+        EvalCtx.compose(b.step.ctx, next_expr) |> Typ.replace_temp_exp;
       let editor = CodeWithStatics.Model.mk_from_exp(~settings, next_expr);
       let next_steps = calc_next_steps(settings, next_expr, next_state);
       (
@@ -291,6 +293,7 @@ module Update = {
             |> {
               let.calc elab = elab
               and.calc settings = settings;
+              let elab = elab |> Typ.replace_temp_exp;
               let editor = CodeWithStatics.Model.mk_from_exp(~settings, elab);
               let next_steps =
                 calc_next_steps(settings, elab, EvaluatorState.init);
@@ -404,11 +407,12 @@ module View = {
       stepper.history
       |> Aba.aba_triples
       |> (settings.core.evaluation.stepper_history ? x => x : (_ => []))
+      |> List.mapi((i, x) => (i, x))
       |> (
         settings.core.evaluation.show_hidden_steps
-          ? x => x : List.filter(((_, b: Model.b, _)) => !b.hidden)
+          ? x => x : List.filter(((_, (_, b: Model.b, _))) => !b.hidden)
       )
-      |> List.mapi((i, (_, b: Model.b, a: Model.a)) =>
+      |> List.map(((i, (_, b: Model.b, a: Model.a))) =>
            switch (a) {
            | Calculated(a) =>
              [
