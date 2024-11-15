@@ -1134,12 +1134,8 @@ and upat_to_info_map =
         go(~ctx, ~under_ascription=true, ~mode=Ana(ann.term), p, m);
       add(~self=Just(ann.term), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     };
-  // This is to allow lifting single values into a singleton labeled tuple when the label is not present
 
-  // print_endline("upat_to_info_map: " ++ UPat.show(upat));
-  // print_endline("mode: " ++ Mode.show(mode));
-  print_endline("updat.term" ++ UPat.show(upat));
-  print_endline("under ascription: " ++ string_of_bool(under_ascription));
+  // This is to allow lifting single values into a singleton labeled tuple when the label is not present
   if (under_ascription) {
     default_case();
   } else {
