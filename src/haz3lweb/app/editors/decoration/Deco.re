@@ -538,7 +538,7 @@ module Deco =
         };
         PieceDec.indicated(
           ~base_clss="tile-taken-step",
-          ~line_clss=["next-step-line"],
+          ~line_clss=["taken-step-line"],
           ~font_metrics,
           ~caret=(Id.invalid, 0),
           ~rows=measured.rows,
