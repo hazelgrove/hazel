@@ -599,7 +599,7 @@ let elaboration_tests = [
     `Quick,
     () =>
     alco_check(
-      {|(fun a=x->x)(a=1)|},
+      {|(fun a=(x:Int) -> x)(a=1)|},
       Ap(
         Forward,
         Fun(
@@ -620,7 +620,7 @@ let elaboration_tests = [
         |> Exp.fresh,
       )
       |> Exp.fresh,
-      dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(a=1)|})),
+      dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(a=1)|})) // Ignoring casts for now
     )
   ),
   test_case(
@@ -628,7 +628,7 @@ let elaboration_tests = [
     `Quick,
     () =>
     alco_check(
-      {|(fun a=x->x)(a=1)|},
+      {|(fun a=(x:Int) -> x)(1)|},
       Ap(
         Forward,
         Fun(
