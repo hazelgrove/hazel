@@ -224,6 +224,7 @@ let should_scroll_to_caret =
   fun
   | Set(s_action) =>
     switch (s_action) {
+    | EditingTitle => false
     | Mode(_) => true
     | Captions
     | SecondaryIcons
@@ -235,7 +236,6 @@ let should_scroll_to_caret =
     | Benchmark
     | ContextInspector
     | InstructorMode
-    | EditingTitle
     | Evaluation(_) => false
     }
   | SetMeta(meta_action) =>
@@ -248,8 +248,6 @@ let should_scroll_to_caret =
   | UpdateResult(_)
   | ToggleStepper(_)
   | UpdateTitle(_)
-  | AddBuggyImplementation
-  | DeleteBuggyImplementation(_)
   | StepperAction(_, StepBackward | StepForward(_)) => false
   | FinishImportScratchpad(_)
   | FinishImportAll(_)
@@ -261,6 +259,8 @@ let should_scroll_to_caret =
   | Undo
   | Redo
   | TAB
+  | AddBuggyImplementation
+  | DeleteBuggyImplementation(_)
   | Startup => true
   | PerformAction(a) =>
     switch (a) {
