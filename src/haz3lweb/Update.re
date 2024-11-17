@@ -617,7 +617,6 @@ let apply = (model: Model.t, update: t, ~schedule_action): Result.t(Model.t) => 
       })
     | DeleteBuggyImplementation(index) =>
       let editors = Editors.delete_buggy_impl(model.editors, index);
-      print_endline(Editors.show(editors));
       Model.save_and_return({...model, editors});
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));
