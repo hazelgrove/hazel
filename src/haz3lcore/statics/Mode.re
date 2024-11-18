@@ -60,11 +60,12 @@ let of_forall = (ctx: Ctx.t, name_opt: option(string), mode: t): t =>
     };
   };
 
+// Empty label is a placeholder for checking any label
 let of_label = (ctx: Ctx.t, mode: t): (t, t) =>
   switch (mode) {
   | Syn
   | SynFun
-  | SynTypFun => (Syn, Syn)
+  | SynTypFun => (Ana(Label("") |> Typ.temp), Syn)
   | Ana(ty) =>
     let (ty1, ty2) = Typ.matched_label(ctx, ty);
     (ana(ty1), ana(ty2));

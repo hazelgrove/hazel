@@ -13,6 +13,17 @@ let equal: (option((label, 'a)), option((label, 'b))) => bool =
     };
   };
 
+// This function should only be used for type checking labels
+let match_labels: (label, label) => bool =
+  (label1, label2) => {
+    switch (label1, label2) {
+    // Empty label is a placeholder for checking any label
+    | ("", _)
+    | (_, "") => true
+    | (_, _) => label1 == label2
+    };
+  };
+
 let length = String.length;
 
 let compare = String.compare;
