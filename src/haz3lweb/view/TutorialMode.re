@@ -48,10 +48,10 @@ let view =
     hidden_tests: _,
   }:
     Tutorial.stitched(Tutorial.DynamicsItem.t) = stitched_dynamics;
-  let grading_report =
-    TutorialGrading.GradingReport.mk(eds, ~stitched_dynamics);
-  let score_view =
-    TutorialGrading.GradingReport.view_overall_score(grading_report);
+  // let grading_report =
+  //   TutorialGrading.GradingReport.mk(eds, ~stitched_dynamics);
+  // let score_view =
+  //   TutorialGrading.GradingReport.view_overall_score(grading_report);
 
   let editor_view =
       (
@@ -144,7 +144,7 @@ let view =
       ),
     );
 
-  [score_view, title_view]
+  [title_view]
   @ render_cells(
       settings,
       [
