@@ -289,7 +289,10 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
   | (Bool, _) => None
   | (String, String) => Some(ty1)
   | (String, _) => None
-  | (Label(name1), Label(name2)) when String.equal(name1, name2) =>
+  | (Label(_), Label("")) => Some(ty1)
+  | (Label(""), Label(_)) => Some(ty2)
+  | (Label(name1), Label(name2))
+      when LabeledTuple.match_labels(name1, name2) =>
     Some(ty1)
   | (Label(_), _) => None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
@@ -457,13 +460,10 @@ let matched_label = (ctx, ty) =>
   | Prod([ty]) =>
     switch (term_of(weak_head_normalize(ctx, ty))) {
     | TupLabel(lab, ty) => (lab, ty)
-    | _ => (Unknown(Internal) |> temp, ty)
+    | _ => (Label("") |> temp, ty) // Empty label is a placeholder for checking any label
     }
-  | Unknown(SynSwitch) => (
-      Unknown(SynSwitch) |> temp,
-      Unknown(SynSwitch) |> temp,
-    )
-  | _ => (Unknown(Internal) |> temp, ty)
+  | Unknown(SynSwitch) => (Label("") |> temp, Unknown(SynSwitch) |> temp)
+  | _ => (Label("") |> temp, ty)
   };
 
 let rec get_labels = (ctx, ty): list(option(string)) => {

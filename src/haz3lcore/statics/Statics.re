@@ -1196,12 +1196,12 @@ and utyp_to_info_map =
     let m = go(t2, m) |> snd;
     add(m);
   | TupLabel(label, t) =>
-    let expects =
+    let expects_label =
       switch (expects) {
       | LabelExpected(_) => expects
-      | _ => TypeExpected
+      | _ => LabelExpected(Unique, [])
       };
-    let m = go'(~expects, label, m) |> snd;
+    let m = go'(~expects=expects_label, label, m) |> snd;
     let m = go(t, m) |> snd;
     add'(~expects=TypeExpected, m);
   | Prod(ts) =>

@@ -327,7 +327,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["="], []) =>
             // TODO (Anthony): Other cases to convert to string
             switch (l.term) {
-            | String(name)
+            // | String(name)
+            // Currently not allowing Strings to prevent empty Labels
             | Var(name) =>
               Tuple([
                 TupLabel(
@@ -422,7 +423,8 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
       | ([(_id, (["="], []))], []) =>
         // TODO (Anthony): Other cases to convert to string
         switch (l.term) {
-        | String(name)
+        // | String(name)
+        // Currently not allowing Strings to prevent empty Labels
         | Var(name) =>
           ret(
             Tuple([

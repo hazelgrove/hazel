@@ -752,7 +752,8 @@ and Typ: {
     | (Bool, _) => false
     | (String, String) => true
     | (String, _) => false
-    | (Label(name1), Label(name2)) => String.equal(name1, name2)
+    | (Label(name1), Label(name2)) =>
+      LabeledTuple.match_labels(name1, name2)
     | (Label(_), _) => false
     | (Ap(t1, t2), Ap(t1', t2')) =>
       eq_internal(n, t1, t1') && eq_internal(n, t2, t2')

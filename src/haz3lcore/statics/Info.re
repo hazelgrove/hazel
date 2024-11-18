@@ -534,7 +534,8 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
     | TupleExpected(_) => InHole(WantTuple)
-    | LabelExpected(_, dupes) =>
+    | LabelExpected(Unique, _) => NotInHole(Type(ty))
+    | LabelExpected(Duplicate, dupes) =>
       List.exists(l => name == l, dupes)
         ? InHole(Duplicate(ty)) : InHole(WantLabel)
     | ConstructorExpected(_)
