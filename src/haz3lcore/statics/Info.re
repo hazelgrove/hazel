@@ -201,6 +201,10 @@ type status_tpat =
   | InHole(error_tpat);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type sugar =
+  | AutoLabel(LabeledTuple.label);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type exp = {
   term: UExp.t, /* The term under consideration */
   ancestors, /* Ascending list of containing term ids */
@@ -211,7 +215,9 @@ type exp = {
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
   ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
-  lifted_ty: option(Typ.t) /* Type static-level elaboration */
+  lifted_ty: option(Typ.t), /* Type static-level elaboration */
+  unelaborated_info: option(exp), /* The info of the pre-sugar term */
+  sugar_info: option(sugar),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -690,6 +696,8 @@ let derived_exp =
       ~self,
       ~co_ctx,
       ~lifted_ty: option(Typ.t),
+      ~unelaborated_info: option(exp),
+      ~sugar_info: option(sugar),
     )
     : exp => {
   let cls = Cls.Exp(UExp.cls_of_term(uexp.term));
@@ -706,6 +714,8 @@ let derived_exp =
     ancestors,
     lifted_ty,
     term: uexp,
+    unelaborated_info,
+    sugar_info,
   };
 };
 
