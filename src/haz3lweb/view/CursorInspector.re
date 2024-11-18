@@ -9,7 +9,7 @@ let okc = "ok";
 let div_err = div(~attrs=[clss(["status", errc])]);
 let div_ok = div(~attrs=[clss(["status", okc])]);
 
-let code_err = (code: string): Node.t =>
+let code = (code: string): Node.t =>
   div(~attrs=[clss(["code"])], [text(code)]);
 
 let explain_this_toggle = (~inject, ~show_explain_this: bool): Node.t => {
@@ -67,7 +67,12 @@ let elements_noun: Cls.t => string =
   | _ => failwith("elements_noun: Cls doesn't have elements");
 
 let common_err_view =
-    (~lifted_ty: option(Typ.t)=?, cls: Cls.t, err: Info.error_common) =>
+    (
+      ~lifted_ty as _: option(Typ.t)=?,
+      ~sugar_info: option(Info.sugar)=?,
+      cls: Cls.t,
+      err: Info.error_common,
+    ) =>
   switch (err) {
   | NoType(BadToken(token)) =>
     switch (Form.bad_token_cls(token)) {
@@ -80,7 +85,7 @@ let common_err_view =
       text("inconsistent with"),
       Type.view(Prod([]) |> Typ.fresh),
     ]
-  | NoType(FreeConstructor(name)) => [code_err(name), text("not found")]
+  | NoType(FreeConstructor(name)) => [code(name), text("not found")]
   | DuplicateLabels(_) => [text("Duplicate labels within a tuple")]
   | Duplicate(_) => [text("Duplicated Label")]
   | Inconsistent(WithArrow(typ)) => [
@@ -96,9 +101,12 @@ let common_err_view =
       Type.view(ana),
     ]
     @ (
-      switch (lifted_ty) {
+      switch (sugar_info) {
       | None => []
-      | Some(lifted) => [text("lifted to"), Type.view(lifted)]
+      | Some(AutoLabel(label)) => [
+          text(" automatically added label "),
+          code(label),
+        ] // TODO Figure out styling as well as how to handle nested labels
       }
     )
   | Inconsistent(Internal(tys)) => [
@@ -108,7 +116,12 @@ let common_err_view =
   };
 
 let common_ok_view =
-    (~lifted_ty: option(Typ.t)=?, cls: Cls.t, ok: Info.ok_common) => {
+    (
+      ~lifted_ty: option(Typ.t)=?,
+      ~sugar_info: option(Info.sugar)=?,
+      cls: Cls.t,
+      ok: Info.ok_common,
+    ) => {
   switch (cls, ok) {
   | (Exp(MultiHole) | Pat(MultiHole), _) => [
       text("Expecting operator or delimiter"),
@@ -128,11 +141,24 @@ let common_ok_view =
       text(":"),
       Type.view(ana),
     ]
-  | (_, Ana(Consistent({ana, syn, _}))) when ana == syn => [
-      text(":"),
-      Type.view(syn),
-      text("equals expected type"),
-    ]
+  | (_, Ana(Consistent({ana, syn, _}))) when ana == syn =>
+    [text(":"), Type.view(syn), text("equals expected type")]
+    @ (
+      switch (lifted_ty) {
+      | None => []
+      | Some(lifted) => [text(" lifted to"), Type.view(lifted)]
+      }
+    )
+    @ (
+      switch (sugar_info) {
+      | None => []
+      | Some(AutoLabel(label)) => [
+          text(" automatically added label "),
+          code(label),
+        ] // TODO Figure out styling as well as how to handle nested labels
+      }
+    )
+
   | (_, Ana(Consistent({ana, syn, _}))) =>
     // print_endline("Id: " ++)
     [
@@ -145,6 +171,15 @@ let common_ok_view =
       switch (lifted_ty) {
       | None => []
       | Some(lifted) => [text("lifted to"), Type.view(lifted)]
+      }
+    )
+    @ (
+      switch (sugar_info) {
+      | None => []
+      | Some(AutoLabel(label)) => [
+          text(" automatically added label "),
+          code(label),
+        ] // TODO Figure out styling as well as how to handle nested labels
       }
     )
   | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
@@ -182,10 +217,7 @@ let typ_err_view = (ok: Info.error_typ) =>
       Type.view(Var(name) |> Typ.fresh),
       text("not found"),
     ]
-  | BadToken(token) => [
-      code_err(token),
-      text("not a type or type operator"),
-    ]
+  | BadToken(token) => [code(token), text("not a type or type operator")]
   | WantConstructorFoundAp
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
   | WantTypeFoundAp => [text("Must be part of a sum type")]
@@ -201,8 +233,7 @@ let typ_err_view = (ok: Info.error_typ) =>
 
 let rec exp_view = (cls: Cls.t, status: Info.status_exp, info: Info.exp) =>
   switch (status) {
-  | InHole(FreeVariable(name)) =>
-    div_err([code_err(name), text("not found")])
+  | InHole(FreeVariable(name)) => div_err([code(name), text("not found")])
   | InHole(InexhaustiveMatch(additional_err)) =>
     let cls_str = Cls.show(cls);
     switch (additional_err) {
@@ -231,11 +262,25 @@ let rec exp_view = (cls: Cls.t, status: Info.status_exp, info: Info.exp) =>
       ),
     ])
   | InHole(Common(error)) =>
-    div_err(common_err_view(~lifted_ty=?info.lifted_ty, cls, error))
+    div_err(
+      common_err_view(
+        ~lifted_ty=?info.lifted_ty,
+        ~sugar_info=?info.sugar_info,
+        cls,
+        error,
+      ),
+    )
   | NotInHole(AnaDeferralConsistent(ana)) =>
     div_ok([text("Expecting type"), Type.view(ana)])
   | NotInHole(Common(ok)) =>
-    div_ok(common_ok_view(~lifted_ty=?info.lifted_ty, cls, ok))
+    div_ok(
+      common_ok_view(
+        ~lifted_ty=?info.lifted_ty,
+        ~sugar_info=?info.sugar_info,
+        cls,
+        ok,
+      ),
+    )
   };
 
 let rec pat_view = (cls: Cls.t, status: Info.status_pat) =>
@@ -284,6 +329,7 @@ let tpat_view = (_: Cls.t, status: Info.status_tpat) =>
 let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
 let view_of_info = (~inject, ~settings, ci): list(Node.t) => {
+  print_endline("CI: " ++ Info.show(ci));
   let wrapper = status_view => [
     term_view(~inject, ~settings, ci),
     status_view,

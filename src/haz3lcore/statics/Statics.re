@@ -184,7 +184,8 @@ and uexp_to_info_map =
     | Ana({term: Unknown(SynSwitch), _}) => Mode.Syn
     | _ => mode
     };
-  let add' = (~lifted_ty=?, ~self, ~co_ctx, m) => {
+  let add' =
+      (~lifted_ty=?, ~unelaborated_info=?, ~sugar_info=?, ~self, ~co_ctx, m) => {
     let info =
       Info.derived_exp(
         ~uexp,
@@ -194,6 +195,8 @@ and uexp_to_info_map =
         ~self,
         ~co_ctx,
         ~lifted_ty,
+        ~unelaborated_info,
+        ~sugar_info,
       );
 
     (info, add_info(ids, InfoExp(info), m));
@@ -272,6 +275,8 @@ and uexp_to_info_map =
       ...info,
       status: original_info.status,
       lifted_ty: Some(info.ty),
+      unelaborated_info: Some(original_info),
+      sugar_info: Some(AutoLabel(l)),
     };
 
     (info, add_info(elaborated_exp.ids, InfoExp(info), m));
