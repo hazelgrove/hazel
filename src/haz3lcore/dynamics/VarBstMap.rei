@@ -174,4 +174,6 @@ module Ordered: {
     [without_keys] removes all entires with the given keys from the map
    */
   let without_keys: (list(Var.t), t_('a)) => t_('a);
+
+  let equal_t_: (('a, 'a) => bool, t_('a), t_('a)) => bool;
 };

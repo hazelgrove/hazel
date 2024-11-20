@@ -14,6 +14,8 @@ type t('a) = {
   term: 'a,
 };
 
+// TODO This fully ignores ids for equality
+let equal = (eq, a, b) => eq(a.term, b.term);
 // To be used if you want to remove the id from the debug output
 // let pp: ((Format.formatter, 'a) => unit, Format.formatter, t('a)) => unit =
 //   (fmt_a, formatter, ta) => {

@@ -58,6 +58,7 @@ let t_of_yojson: Yojson.Safe.t => Uuidm.t =
 
 type t = Uuidm.t;
 
+let equal: (t, t) => bool = (==);
 let mk: unit => t = Uuidm.v4_gen(Random.State.make_self_init());
 
 let compare: (t, t) => int = Uuidm.compare;
