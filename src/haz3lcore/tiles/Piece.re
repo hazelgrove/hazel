@@ -186,3 +186,13 @@ let is_term = (p: t) =>
   | Secondary(_) => false // debatable
   | _ => false
   };
+
+let mk_tile_id: (Id.t, Form.t, list(list(t))) => t =
+  (id, form, children) =>
+    Tile({
+      id,
+      label: form.label,
+      mold: form.mold,
+      shards: List.mapi((i, _) => i, form.label),
+      children,
+    });

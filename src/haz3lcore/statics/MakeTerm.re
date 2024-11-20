@@ -112,8 +112,9 @@ let return = (wrap, ids, tm) => {
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
-let mk_probe = (e: list(Piece.t)) =>
-  Piece.mk_tile(
+let mk_probe = (id, e: list(Piece.t)) =>
+  Piece.mk_tile_id(
+    id,
     Form.mk(Form.ii, ["@@", "@@"], Mold.mk_op(Exp, [Exp])),
     [e],
   );
@@ -124,7 +125,7 @@ let rm_and_log_projectors = (seg: Segment.t): Segment.t =>
     fun
     | Piece.Projector(pr) => {
         projectors := Id.Map.add(pr.id, pr, projectors^);
-        mk_probe([pr.syntax]);
+        mk_probe(pr.id, [pr.syntax]);
       }
     | x => x,
     seg,
@@ -198,7 +199,9 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | ([t], []) when Form.is_ctr(t) =>
         ret(Constructor(t, Unknown(Internal) |> Typ.temp))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body, Paren))
-      | (["@@", "@@"], [Exp(body)]) => ret(Parens(body, Probe))
+      | (["@@", "@@"], [Exp(body)]) =>
+        // TODO(andrew): apologize for this
+        ret(Parens(body, Probe))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
         | {ids, copied: false, term: Tuple(es)} => (ListLit(es), ids)
