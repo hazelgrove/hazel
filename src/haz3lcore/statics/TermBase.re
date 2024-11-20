@@ -2,7 +2,7 @@ open Util;
 
 let continue = x => x;
 let stop = (_, x) => x;
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type deferral_position_t =
   | InAp
   | OutsideAp;
@@ -46,7 +46,7 @@ type deferral_position_t =
      the id of the closure.
  */
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type any_t =
   | Exp(exp_t)
   | Pat(pat_t)
