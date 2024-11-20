@@ -42,6 +42,11 @@ let stop = (_, x) => x;
      the id of the closure.
  */
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type paren_tag =
+  | Paren
+  | Probe;
+
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -166,7 +171,7 @@ and Exp: {
     | Test(t)
     | Filter(StepperFilterKind.t, t)
     | Closure([@show.opaque] ClosureEnvironment.t, t)
-    | Parens(t) // (
+    | Parens(t, paren_tag) // (
     | Cons(t, t)
     | ListConcat(t, t)
     | UnOp(Operators.op_un, t)
@@ -233,7 +238,7 @@ and Exp: {
     | Test(t)
     | Filter(StepperFilterKind.t, t)
     | Closure([@show.opaque] ClosureEnvironment.t, t)
-    | Parens(t)
+    | Parens(t, paren_tag)
     | Cons(t, t)
     | ListConcat(t, t)
     | UnOp(Operators.op_un, t)
@@ -309,7 +314,7 @@ and Exp: {
         | Test(e) => Test(exp_map_term(e))
         | Filter(f, e) => Filter(flt_map_term(f), exp_map_term(e))
         | Closure(env, e) => Closure(env, exp_map_term(e))
-        | Parens(e) => Parens(exp_map_term(e))
+        | Parens(e, tag) => Parens(exp_map_term(e), tag)
         | Cons(e1, e2) => Cons(exp_map_term(e1), exp_map_term(e2))
         | ListConcat(e1, e2) =>
           ListConcat(exp_map_term(e1), exp_map_term(e2))
@@ -335,9 +340,9 @@ and Exp: {
   let rec fast_equal = (e1, e2) =>
     switch (e1 |> IdTagged.term_of, e2 |> IdTagged.term_of) {
     | (DynamicErrorHole(x, _), _)
-    | (Parens(x), _) => fast_equal(x, e2)
+    | (Parens(x, _), _) => fast_equal(x, e2)
     | (_, DynamicErrorHole(x, _))
-    | (_, Parens(x)) => fast_equal(e1, x)
+    | (_, Parens(x, _)) => fast_equal(e1, x)
     | (EmptyHole, EmptyHole) => true
     | (Undefined, Undefined) => true
     | (Invalid(s1), Invalid(s2)) => s1 == s2

@@ -411,7 +411,7 @@ let rec bypass_parens_pat = (pat: Pat.t) => {
 
 let rec bypass_parens_exp = (exp: Exp.t) => {
   switch (exp.term) {
-  | Parens(e) => bypass_parens_exp(e)
+  | Parens(e, _) => bypass_parens_exp(e)
   | _ => exp
   };
 };
@@ -1761,7 +1761,7 @@ let get_doc =
             ),
           TestExp.tests,
         );
-      | Parens(term) => get_message_exp(term.term) // No Special message?
+      | Parens(term, _) => get_message_exp(term.term) // No Special message?
       | Cons(hd, tl) =>
         let hd_id = List.nth(hd.ids, 0);
         let tl_id = List.nth(tl.ids, 0);

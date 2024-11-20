@@ -269,7 +269,7 @@ and uexp_to_info_map =
       m,
     )
   | DynamicErrorHole(e, _)
-  | Parens(e) =>
+  | Parens(e, _) =>
     let (e, m) = go(~mode, e, m);
     add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
   | UnOp(Meta(Unquote), e) when is_in_filter =>
