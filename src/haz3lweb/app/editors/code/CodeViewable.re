@@ -13,6 +13,7 @@ let view =
       ~segment,
       ~holes,
       ~info_map,
+      ~dyn_map,
     )
     : Node.t => {
   module Text =
@@ -20,6 +21,7 @@ let view =
       let map = measured;
       let settings = globals.settings;
       let info_map = info_map;
+      let dyn_map = dyn_map;
     });
   let code = Text.of_segment(buffer_ids, false, sort, segment);
   let holes = List.map(Code.of_hole(~measured, ~globals), holes);
@@ -51,21 +53,36 @@ let view =
 // };
 
 let view_segment =
-    (~globals: Globals.t, ~sort: Sort.t, ~info_map, segment: Segment.t) => {
-  let measured = Measured.of_segment(segment, info_map);
+    (
+      ~globals: Globals.t,
+      ~sort: Sort.t,
+      ~info_map,
+      ~dyn_map,
+      segment: Segment.t,
+    ) => {
+  let measured = Measured.of_segment(segment, info_map, dyn_map);
   let buffer_ids = [];
   let holes = Segment.holes(segment);
-  view(~globals, ~sort, ~measured, ~buffer_ids, ~holes, ~segment, ~info_map);
+  view(
+    ~globals,
+    ~sort,
+    ~measured,
+    ~buffer_ids,
+    ~holes,
+    ~segment,
+    ~dyn_map,
+    ~info_map,
+  );
 };
 
-let view_exp = (~globals: Globals.t, ~settings, exp: Exp.t) => {
+let view_exp = (~dyn_map, ~globals: Globals.t, ~settings, exp: Exp.t) => {
   exp
   |> ExpToSegment.exp_to_segment(~settings)
-  |> view_segment(~globals, ~sort=Exp);
+  |> view_segment(~dyn_map, ~globals, ~sort=Exp);
 };
 
 let view_typ = (~globals: Globals.t, ~settings, typ: Typ.t) => {
   typ
   |> ExpToSegment.typ_to_segment(~settings)
-  |> view_segment(~globals, ~sort=Typ);
+  |> view_segment(~dyn_map=TestMap.empty, ~globals, ~sort=Typ);
 };

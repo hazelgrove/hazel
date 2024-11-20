@@ -4,7 +4,8 @@ open Haz3lcore;
 open Util;
 
 /* Assume this doesn't contain projectors */
-let measured_of = seg => Measured.of_segment(seg, Id.Map.empty);
+let measured_of = seg =>
+  Measured.of_segment(seg, Id.Map.empty, TestMap.empty);
 
 let text_view = (seg: Segment.t): list(Node.t) => {
   module Text =
@@ -12,6 +13,7 @@ let text_view = (seg: Segment.t): list(Node.t) => {
       let map = measured_of(seg);
       let settings = Settings.Model.init;
       let info_map = Id.Map.empty; /* Assume this doesn't contain projectors */
+      let dyn_map = TestMap.empty; /* Assume this doesn't contain projectors */
     });
   Text.of_segment([], true, Any, seg);
 };

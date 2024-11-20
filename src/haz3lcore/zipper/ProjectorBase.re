@@ -33,6 +33,7 @@ type info = {
   id: Id.t,
   syntax,
   ci: option(Info.t),
+  dyn: option(list(TestMap.instance_report)),
 };
 
 /* To add a new projector:

@@ -191,7 +191,9 @@ module Update = {
        one of the editors is shown in two cells, so we arbitrarily choose which
        statics to take */
     let editors: Exercise.p('a) = {
-      let calculate = Editor.Update.calculate(~settings, ~is_edited);
+      let dynamics = TestMap.empty; //TODO(andrew): dynamics for projs in exercise mode
+      let calculate = statics =>
+        Editor.Update.calculate(~settings, statics, dynamics, ~is_edited);
       {
         title: model.editors.title,
         version: model.editors.version,

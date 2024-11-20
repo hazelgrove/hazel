@@ -242,6 +242,7 @@ module View = {
         ~selected: bool,
         ~overlays: list(Node.t)=[],
         ~sort=?,
+        ~dyn_map,
         model: Model.t,
       ) => {
     let edit_decos = {
@@ -250,6 +251,7 @@ module View = {
           let editor = model.editor;
           let globals = globals;
           let statics = model.statics;
+          let dynamics = dyn_map;
         });
       Deco.editor(model.editor.state.zipper, selected);
     };
@@ -260,10 +262,11 @@ module View = {
         ~cached_syntax=model.editor.syntax,
         ~inject=x => inject(Perform(x)),
         ~font_metrics=globals.font_metrics,
+        ~dyn_map,
       );
     let overlays = edit_decos @ overlays @ [projectors];
     let code_view =
-      CodeWithStatics.View.view(~globals, ~overlays, ~sort?, model);
+      CodeWithStatics.View.view(~globals, ~overlays, ~dyn_map, ~sort?, model);
     let mousedown_overlay =
       selected && globals.mousedown
         ? [mousedown_overlay(~globals, ~inject=x => inject(Perform(x)))]

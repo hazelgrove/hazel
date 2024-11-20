@@ -56,7 +56,13 @@ module Update = {
       )
       : Model.t => {
     let editor =
-      CodeEditable.Update.calculate(~settings, ~is_edited, ~stitch, editor);
+      CodeEditable.Update.calculate(
+        ~settings,
+        ~is_edited,
+        ~stitch,
+        ~dyn_map=TestMap.empty, //TODO(andrew): see below
+        editor,
+      );
     let result =
       EvalResult.Update.calculate(
         ~settings,
@@ -64,6 +70,20 @@ module Update = {
         ~is_edited,
         editor |> CodeEditable.Model.get_statics,
         result,
+      );
+    //TODO(andrew): double-calcing editor...
+    let dyn_map =
+      switch (EvalResult.Model.make_test_report(result)) {
+      | Some(res) => res.test_map
+      | None => TestMap.empty
+      };
+    let editor =
+      CodeEditable.Update.calculate(
+        ~settings,
+        ~is_edited,
+        ~stitch,
+        ~dyn_map,
+        editor,
       );
     {editor, result};
   };
@@ -149,6 +169,11 @@ module View = {
         ~locked,
         model.result,
       );
+    let dyn_map =
+      switch (EvalResult.Model.make_test_report(model.result)) {
+      | Some(res) => res.test_map
+      | None => TestMap.empty
+      };
     div(
       ~attrs=[Attr.classes(["cell", locked ? "locked" : "unlocked"])],
       Option.to_list(caption)
@@ -166,6 +191,7 @@ module View = {
               : (action => inject(MainEditor(action))),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
+          ~dyn_map,
           ~sort?,
           model.editor,
         ),

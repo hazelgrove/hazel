@@ -33,7 +33,7 @@ module CachedSyntax = {
   let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-  let init = (z, info_map): t => {
+  let init = (z, info_map, dyn_map): t => {
     let segment = Zipper.unselect_and_zip(z);
     let MakeTerm.{term, terms, projectors} = MakeTerm.go(segment);
     {
@@ -42,7 +42,7 @@ module CachedSyntax = {
       term_ranges: TermRanges.mk(segment),
       tiles: TileMap.mk(segment),
       holes: Segment.holes(segment),
-      measured: Measured.of_segment(segment, info_map),
+      measured: Measured.of_segment(segment, info_map, dyn_map),
       selection_ids: Selection.selection_ids(z.selection),
       term,
       terms,
@@ -52,9 +52,9 @@ module CachedSyntax = {
 
   let mark_old: t => t = old => {...old, old: true};
 
-  let calculate = (z: Zipper.t, info_map, old: t) =>
+  let calculate = (z: Zipper.t, info_map, dyn_map, old: t) =>
     old.old
-      ? init(z, info_map)
+      ? init(z, info_map, dyn_map)
       : {...old, selection_ids: Selection.selection_ids(z.selection)};
 };
 
@@ -97,7 +97,7 @@ module Model = {
       col_target: None,
     },
     history: History.empty,
-    syntax: CachedSyntax.init(zipper, Id.Map.empty),
+    syntax: CachedSyntax.init(zipper, Id.Map.empty, TestMap.empty),
   };
 
   type persistent = PersistentZipper.t;
@@ -241,6 +241,7 @@ module Update = {
         ~settings: CoreSettings.t,
         ~is_edited,
         new_statics,
+        dyn_map,
         {syntax, state, history}: Model.t,
       ) => {
     // 1. Recalculate the autocomplete buffer if necessary
@@ -264,7 +265,8 @@ module Update = {
     // 2. Recalculate syntax cache
     let syntax = is_edited ? CachedSyntax.mark_old(syntax) : syntax;
 
-    let syntax = CachedSyntax.calculate(zipper, new_statics.info_map, syntax);
+    let syntax =
+      CachedSyntax.calculate(zipper, new_statics.info_map, dyn_map, syntax);
 
     // Recombine
     Model.{

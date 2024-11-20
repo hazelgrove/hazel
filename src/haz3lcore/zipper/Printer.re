@@ -58,7 +58,7 @@ let measured = z =>
   z
   |> ProjectorPerform.Update.remove_all
   |> Zipper.seg_without_buffer
-  |> Measured.of_segment(_, Id.Map.empty);
+  |> Measured.of_segment(_, Id.Map.empty, TestMap.empty);
 
 let pretty_print = (~holes: option(string)=Some(""), z: Zipper.t): string =>
   to_rows(

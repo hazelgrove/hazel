@@ -260,6 +260,7 @@ module Update = {
                ~settings,
                ~stitch=_ => exp,
                ~is_edited,
+               ~dyn_map=Haz3lcore.TestMap.empty, //TODO(andrew)
                editor,
              )
              |> (x => (exp, x))
@@ -373,6 +374,7 @@ module View = {
         ~globals,
         ~selected,
         ~sort=Haz3lcore.Sort.root,
+        ~dyn_map=Haz3lcore.TestMap.empty, //TODO(andrew): this is just the result display, right?
         editor,
       );
     let exn_view =
@@ -528,6 +530,11 @@ module View = {
 
     // Just showing elaboration because evaluation is off:
     | EvalResults when globals.settings.core.elaborate =>
+      let dyn_map =
+        switch (Model.test_results(model)) {
+        | Some(result) => result.test_map
+        | None => Haz3lcore.TestMap.empty
+        };
       let result = [
         text("Evaluation disabled, showing elaboration:"),
         switch (Model.get_elaboration(model)) {
@@ -543,6 +550,7 @@ module View = {
                ~globals,
                ~sort=Exp,
                ~info_map=Haz3lcore.Id.Map.empty,
+               ~dyn_map,
              )
         | None => text("No elaboration found")
         },
