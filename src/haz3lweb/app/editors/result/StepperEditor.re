@@ -33,11 +33,18 @@ module Update = {
         ~settings,
         ~is_edited,
         ~stitch,
+        ~dyn_map,
         {editor, taken_steps, next_steps}: Model.t,
       )
       : Model.t => {
     let editor =
-      CodeSelectable.Update.calculate(~settings, ~is_edited, ~stitch, editor);
+      CodeSelectable.Update.calculate(
+        ~settings,
+        ~is_edited,
+        ~stitch,
+        ~dyn_map,
+        editor,
+      );
     {editor, taken_steps, next_steps};
   };
 };
@@ -62,6 +69,7 @@ module View = {
         ~signal: event => 'a,
         ~overlays=[],
         ~selected,
+        ~dyn_map,
         model: Model.t,
       ) => {
     let overlays = {
@@ -70,6 +78,7 @@ module View = {
           let editor = model.editor.editor;
           let globals = globals;
           let statics = model.editor.statics;
+          let dynamics = dyn_map;
         });
       overlays
       @ Deco.taken_steps(model.taken_steps)
@@ -82,6 +91,7 @@ module View = {
       ~selected,
       ~globals,
       ~overlays,
+      ~dyn_map,
       model.editor,
     );
   };

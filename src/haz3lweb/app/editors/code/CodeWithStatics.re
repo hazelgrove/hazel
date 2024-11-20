@@ -52,11 +52,23 @@ module Update = {
 
   /* Calculates the statics for the editor. */
   let calculate =
-      (~settings, ~is_edited, ~stitch, {editor, statics: _}: Model.t)
+      (
+        ~settings,
+        ~is_edited,
+        ~stitch,
+        ~dyn_map,
+        {editor, statics: _}: Model.t,
+      )
       : Model.t => {
     let statics = CachedStatics.init(~settings, ~stitch, editor.state.zipper);
     let editor =
-      Editor.Update.calculate(~settings, ~is_edited, statics, editor);
+      Editor.Update.calculate(
+        ~settings,
+        ~is_edited,
+        statics,
+        dyn_map,
+        editor,
+      );
     {editor, statics};
   };
 };
@@ -66,7 +78,13 @@ module View = {
   type event;
 
   let view =
-      (~globals, ~overlays: list(Node.t)=[], ~sort=Sort.root, model: Model.t) => {
+      (
+        ~globals,
+        ~overlays: list(Node.t)=[],
+        ~sort=Sort.root,
+        ~dyn_map,
+        model: Model.t,
+      ) => {
     let {
       statics: {info_map, _},
       editor:
@@ -86,6 +104,7 @@ module View = {
         ~segment,
         ~holes,
         ~info_map,
+        ~dyn_map,
       );
     let statics_decos = {
       module Deco =
@@ -93,6 +112,7 @@ module View = {
           let globals = globals;
           let editor = model.editor;
           let statics = model.statics;
+          let dynamics = dyn_map;
         });
       Deco.statics();
     };

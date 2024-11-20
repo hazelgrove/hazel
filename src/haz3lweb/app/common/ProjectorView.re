@@ -118,6 +118,7 @@ let setup_view =
       id: Id.t,
       ~cached_statics: CachedStatics.t,
       ~cached_syntax: Editor.CachedSyntax.t,
+      ~dyn_map,
       ~inject: Action.t => Ui_effect.t(unit),
       ~font_metrics,
       ~indication: option(Direction.t),
@@ -126,7 +127,8 @@ let setup_view =
   let* p = Id.Map.find_opt(id, cached_syntax.projectors);
   let* syntax = Some(p.syntax);
   let ci = Id.Map.find_opt(id, cached_statics.info_map);
-  let info = {id, ci, syntax};
+  let dyn = TestMap.lookup(id, dyn_map);
+  let info = {id, ci, dyn, syntax};
   let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
   let (module P) = to_module(p.kind);
   let parent = a => inject(Project(handle(id, a)));
@@ -156,6 +158,7 @@ let all =
       z,
       ~cached_statics: CachedStatics.t,
       ~cached_syntax: Editor.CachedSyntax.t,
+      ~dyn_map,
       ~inject,
       ~font_metrics,
     ) => {
@@ -172,6 +175,7 @@ let all =
           id,
           ~cached_statics,
           ~cached_syntax,
+          ~dyn_map,
           ~inject,
           ~font_metrics,
           ~indication,
