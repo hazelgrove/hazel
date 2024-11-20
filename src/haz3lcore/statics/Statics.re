@@ -269,9 +269,15 @@ and uexp_to_info_map =
       m,
     )
   | DynamicErrorHole(e, _)
-  | Parens(e, _) =>
+  | Parens(e, Paren) =>
     let (e, m) = go(~mode, e, m);
     add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
+  | Parens(e, Probe) =>
+    /* Currently doing this as otherwise it clobbers the statics
+     * for the contained expression as i'm just reusing the same id
+     * in order to associate it through dynamics */
+    go(~mode, e, m)
+  //TODO(andrew): ponder this
   | UnOp(Meta(Unquote), e) when is_in_filter =>
     let e: UExp.t = {
       ids: e.ids,
