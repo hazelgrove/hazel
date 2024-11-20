@@ -434,7 +434,7 @@ module Exp = {
   // determine when to allow for recursive definitions in a let binding.
   let rec is_fun = (e: t) => {
     switch (e.term) {
-    | Parens(e) => is_fun(e)
+    | Parens(e, _) => is_fun(e)
     | Cast(e, _, _) => is_fun(e)
     | TypFun(_)
     | Fun(_)
@@ -478,7 +478,7 @@ module Exp = {
     || (
       switch (e.term) {
       | Cast(e, _, _)
-      | Parens(e) => is_tuple_of_functions(e)
+      | Parens(e, _) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
       | Invalid(_)
       | EmptyHole
@@ -534,7 +534,7 @@ module Exp = {
       Some(1);
     } else {
       switch (e.term) {
-      | Parens(e) => get_num_of_functions(e)
+      | Parens(e, _) => get_num_of_functions(e)
       | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
       | Invalid(_)
       | EmptyHole
@@ -747,7 +747,7 @@ module Exp = {
     switch (e.term) {
     | Fun(_, _, _, n) => n
     | FixF(_, e, _) => get_fn_name(e)
-    | Parens(e) => get_fn_name(e)
+    | Parens(e, _) => get_fn_name(e)
     | TypFun(_, _, n) => n
     | _ => None
     };

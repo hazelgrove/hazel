@@ -214,7 +214,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
     ListUtil.flat_intersperse(Grout({id, shape: Concave}), es);
-  | Parens({term: Fun(p, e, _, _), _})
+  | Parens({term: Fun(p, e, _, _), _}, _)
   | Fun(p, e, _, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -355,8 +355,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     [mk_form("test", id, [e])];
-  | Parens(e) =>
+  | Parens(e, _) =>
     // TODO: Add optional newlines
+
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     [mk_form("parens_exp", id, [e])];
@@ -743,11 +744,11 @@ let external_precedence_typ = (tp: Typ.t) =>
 
 let paren_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
   external_precedence(exp) >= internal_precedence
-    ? Exp.fresh(Parens(exp)) : exp;
+    ? Exp.fresh(Parens(exp, Paren)) : exp;
 
 let paren_assoc_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
   external_precedence(exp) > internal_precedence
-    ? Exp.fresh(Parens(exp)) : exp;
+    ? Exp.fresh(Parens(exp, Paren)) : exp;
 
 let paren_pat_at = (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
   external_precedence_pat(pat) >= internal_precedence
@@ -894,8 +895,8 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
   //     parenthesize(e) |> paren_at(Precedence.min),
   //   )
   //   |> rewrap
-  | Parens(e) =>
-    Parens(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
+  | Parens(e, tag) =>
+    Parens(parenthesize(e) |> paren_at(Precedence.min), tag) |> rewrap
   | Cons(e1, e2) =>
     Cons(
       parenthesize(e1) |> paren_at(Precedence.cons),

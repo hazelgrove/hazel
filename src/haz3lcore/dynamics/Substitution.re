@@ -115,9 +115,9 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | TyAlias(tp, ut, d4) =>
     let d4' = subst_var(m, d1, x, d4);
     TyAlias(tp, ut, d4') |> rewrap;
-  | Parens(d4) =>
+  | Parens(d4, tag) =>
     let d4' = subst_var(m, d1, x, d4);
-    Parens(d4') |> rewrap;
+    Parens(d4', tag) |> rewrap;
   | Deferral(_) => d2
   | DeferredAp(d3, d4s) =>
     let d3 = subst_var(m, d1, x, d3);

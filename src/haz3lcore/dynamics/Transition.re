@@ -770,7 +770,24 @@ module Transition = (EV: EV_MODE) => {
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;
-    | Parens(d) =>
+    | Parens(d'', Probe) =>
+      //TODO(andrew): cleanup
+      //print_endline("Probe in Transition");
+      let. _ = otherwise(env, ((d, _)) => Parens(d, Probe) |> rewrap)
+      and. (d', _is_value) =
+        req_final_or_value(
+          req(state, env),
+          d => Parens(d, Probe) |> wrap_ctx,
+          d'',
+        );
+      Step({
+        expr: d',
+        state_update: () =>
+          update_test(state, DHExp.rep_id(d), (d', Indet)),
+        kind: RemoveParens,
+        is_value: true,
+      });
+    | Parens(d, Paren) =>
       let. _ = otherwise(env, d);
       Step({expr: d, state_update, kind: RemoveParens, is_value: false});
     | TyAlias(_, _, d) =>

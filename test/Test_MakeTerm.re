@@ -23,7 +23,7 @@ let tests = [
     exp_check(Var("x") |> Exp.fresh, "x")
   }),
   test_case("Parenthesized Expression", `Quick, () => {
-    exp_check(Parens(Int(0) |> Exp.fresh) |> Exp.fresh, "(0)")
+    exp_check(Parens(Int(0) |> Exp.fresh, Paren) |> Exp.fresh, "(0)")
   }),
   test_case("Let Expression", `Quick, () => {
     exp_check(

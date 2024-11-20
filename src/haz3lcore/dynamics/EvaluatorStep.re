@@ -140,6 +140,9 @@ let rec matches =
       | Test(ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Test(ctx) |> rewrap;
+      | Parens(ctx, tag) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Parens(ctx, tag) |> rewrap;
       | ListLit(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         ListLit(ctx, ds) |> rewrap;
