@@ -1078,7 +1078,7 @@ and parenthesize_typ = (typ: Typ.t): Typ.t => {
 }
 
 and parenthesize_tpat = (tpat: TPat.t): TPat.t => {
-  let (term, rewrap) = IdTagged.unwrap(tpat);
+  let (term, rewrap: TPat.term => TPat.t) = IdTagged.unwrap(tpat);
   switch (term) {
   // Indivisible forms dont' change
   | Var(_)
@@ -1086,24 +1086,24 @@ and parenthesize_tpat = (tpat: TPat.t): TPat.t => {
   | EmptyHole => tpat
 
   // Other forms
-  | MultiHole(xs) => TPat.MultiHole(List.map(parenthesize_any, xs)) |> rewrap
+  | MultiHole(xs) => MultiHole(List.map(parenthesize_any, xs)) |> rewrap
   };
 }
 
 and parenthesize_rul = (rul: Rul.t): Rul.t => {
-  let (term, rewrap) = IdTagged.unwrap(rul);
+  let (term, rewrap: Rul.term => Rul.t) = IdTagged.unwrap(rul);
   switch (term) {
   // Indivisible forms dont' change
   | Invalid(_) => rul
 
   // Other forms
   | Rules(e, ps) =>
-    Rul.Rules(
+    Rules(
       parenthesize(e),
       List.map(((p, e)) => (parenthesize_pat(p), parenthesize(e)), ps),
     )
     |> rewrap
-  | Hole(xs) => Rul.Hole(List.map(parenthesize_any, xs)) |> rewrap
+  | Hole(xs) => Hole(List.map(parenthesize_any, xs)) |> rewrap
   };
 }
 

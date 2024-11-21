@@ -1020,7 +1020,7 @@ and ClosureEnvironment: {
   let without_keys = keys => update(Environment.without_keys(keys));
   let with_symbolic_keys = (keys, env) =>
     List.fold_right(
-      (key, env) => extend(env, (key, Exp.Var(key) |> IdTagged.fresh)),
+      (key, env) => extend(env, (key, Var(key) |> IdTagged.fresh)),
       keys,
       env,
     );

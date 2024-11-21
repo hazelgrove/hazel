@@ -18,15 +18,15 @@ module ElaborationResult = {
     | DoesNotElaborate;
 };
 
-let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
+let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): Exp.t => {
   Typ.eq(t1, t2)
     ? d
     : {
-      let d' =
-        Exp.Cast(d, t1, Typ.temp(Unknown(Internal)))
+      let d': Exp.t =
+        (Cast(d, t1, Typ.temp(Unknown(Internal))): Exp.term)
         |> IdTagged.fresh_deterministic(DHExp.rep_id(d))
         |> Casts.transition_multiple;
-      Cast(d', Typ.temp(Unknown(Internal)), t2)
+      (Cast(d', Typ.temp(Unknown(Internal)), t2): Exp.term)
       |> IdTagged.fresh_deterministic(DHExp.rep_id(d'))
       |> Casts.transition_multiple;
     };
@@ -312,7 +312,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         let (def, ty2) = elaborate(m, def);
         let (body, ty) = elaborate(m, body);
         let fixf =
-          Exp.FixF(p, fresh_cast(def, ty2, ty1), None)
+          (FixF(p, fresh_cast(def, ty2, ty1), None): Exp.term)
           |> IdTagged.fresh_deterministic(DHExp.rep_id(uexp));
         Let(p, fixf, body) |> rewrap |> cast_from(ty);
       };
