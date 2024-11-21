@@ -35,6 +35,11 @@ let should_add_space = (s1, s2) =>
   | _ when String.starts_with(s2, ~prefix="\n") => false
   | _
       when
+        String.ends_with(s1, ~suffix="PROJECTOR")
+        && String.starts_with(s2, ~prefix="(") =>
+    false
+  | _
+      when
         String.ends_with(s1, ~suffix=")")
         && String.starts_with(s2, ~prefix="(") =>
     false
@@ -214,7 +219,22 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
     ListUtil.flat_intersperse(Grout({id, shape: Concave}), es);
-  | Parens({term: Fun(p, e, _, _), _})
+  | Parens({term: Fun(p, e, _, _), _} as inner_exp) =>
+    // TODO: Add optional newlines
+    let id = inner_exp |> Exp.rep_id;
+    let+ p = pat_to_pretty(~settings: Settings.t, p)
+    and+ e = go(e);
+    let name = Exp.get_fn_name(exp) |> Option.value(~default="anon fun");
+    let name =
+      if (settings.hide_fixpoints && String.ends_with(~suffix="+", name)) {
+        String.sub(name, 0, String.length(name) - 1);
+      } else {
+        name;
+      };
+    let name = "<" ++ name ++ ">";
+    let fun_form = [mk_form("fun_", id, [p])] @ e;
+    [mk_form("parens_exp", exp |> Exp.rep_id, [fun_form])]
+    |> fold_fun_if(settings.fold_fn_bodies, name);
   | Fun(p, e, _, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;

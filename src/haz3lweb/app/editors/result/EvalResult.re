@@ -288,7 +288,6 @@ module Selection = {
   type t =
     | Evaluation(CodeSelectable.Selection.t)
     | Stepper(Stepper.Selection.t);
-  // TODO: Selection in stepper
 
   let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
     switch (selection, mr.result) {

@@ -175,7 +175,7 @@ module Update = {
     // Only perform below if either previous a or settings have changed
     |> {
       let.calc {expr: _, state, previous_substitutions, next_steps, _} = prev_a
-      and.calc settings = settings;
+      and.calc settings: Calc.t(CoreSettings.t) = settings;
 
       // Check b is valid
       let* b =
@@ -206,7 +206,11 @@ module Update = {
              )
         );
       let next_expr =
-        EvalCtx.compose(b.step.ctx, next_expr) |> Typ.replace_temp_exp;
+        EvalCtx.compose(b.step.ctx, next_expr)
+        |> (
+          settings.evaluation.show_casts ? x => x : Haz3lcore.DHExp.strip_casts
+        )
+        |> Typ.replace_temp_exp;
       let editor = CodeWithStatics.Model.mk_from_exp(~settings, next_expr);
       let next_steps = calc_next_steps(settings, next_expr, next_state);
       (
@@ -293,7 +297,13 @@ module Update = {
             |> {
               let.calc elab = elab
               and.calc settings = settings;
-              let elab = elab |> Typ.replace_temp_exp;
+              let elab =
+                elab
+                |> (
+                  settings.evaluation.show_casts
+                    ? x => x : Haz3lcore.DHExp.strip_casts
+                )
+                |> Typ.replace_temp_exp;
               let editor = CodeWithStatics.Model.mk_from_exp(~settings, elab);
               let next_steps =
                 calc_next_steps(settings, elab, EvaluatorState.init);
