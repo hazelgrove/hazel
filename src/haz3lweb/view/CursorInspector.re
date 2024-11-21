@@ -117,6 +117,7 @@ let common_err_view =
 
 let common_ok_view =
     (
+      ~auto_labels: list(string)=[],
       ~lifted_ty: option(Typ.t)=?,
       ~sugar_info: option(Info.sugar)=?,
       cls: Cls.t,
@@ -174,12 +175,13 @@ let common_ok_view =
       }
     )
     @ (
-      switch (sugar_info) {
-      | None => []
-      | Some(AutoLabel(label)) => [
-          text(" automatically added label "),
-          code(label),
-        ] // TODO Figure out styling as well as how to handle nested labels
+      switch (auto_labels) {
+      | [] => []
+      | [a] => [text("by automatically added label "), code(a)]
+      | _ => [
+          text("by automatically added labels "),
+          ...ListUtil.join(text(","), List.map(code, auto_labels)),
+        ]
       }
     )
   | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
@@ -230,8 +232,22 @@ let typ_err_view = (ok: Info.error_typ) =>
       text("already used in this sum"),
     ]
   };
+let rec automatic_inserted_labels =
+        (~statics, info: option(Info.exp)): list(string) =>
+  switch (Option.bind(info, i => i.sugar_info)) {
+  | None => []
+  | Some(AutoLabel(label)) =>
+    [label]
+    @ automatic_inserted_labels(
+        ~statics,
+        Option.bind(info, i => i.unelaborated_info),
+      )
+  };
 
-let rec exp_view = (cls: Cls.t, status: Info.status_exp, info: Info.exp) =>
+let rec exp_view =
+        (~statics, cls: Cls.t, status: Info.status_exp, info: Info.exp) => {
+  let labels = automatic_inserted_labels(~statics, Some(info));
+
   switch (status) {
   | InHole(FreeVariable(name)) => div_err([code(name), text("not found")])
   | InHole(InexhaustiveMatch(additional_err)) =>
@@ -241,7 +257,7 @@ let rec exp_view = (cls: Cls.t, status: Info.status_exp, info: Info.exp) =>
     | Some(err) =>
       let cls_str = String.uncapitalize_ascii(cls_str);
       div_err([
-        exp_view(cls, InHole(Common(err)), info),
+        exp_view(~statics, cls, InHole(Common(err)), info),
         text("; " ++ cls_str ++ " is inexhaustive"),
       ]);
     };
@@ -275,6 +291,7 @@ let rec exp_view = (cls: Cls.t, status: Info.status_exp, info: Info.exp) =>
   | NotInHole(Common(ok)) =>
     div_ok(
       common_ok_view(
+        ~auto_labels=labels,
         ~lifted_ty=?info.lifted_ty,
         ~sugar_info=?info.sugar_info,
         cls,
@@ -282,15 +299,19 @@ let rec exp_view = (cls: Cls.t, status: Info.status_exp, info: Info.exp) =>
       ),
     )
   };
+};
 
-let rec pat_view = (cls: Cls.t, status: Info.status_pat) =>
+let rec pat_view = (~statics, cls: Cls.t, status: Info.status_pat) =>
   switch (status) {
   | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
   | InHole(Redundant(additional_err)) =>
     switch (additional_err) {
     | None => div_err([text("Pattern is redundant")])
     | Some(err) =>
-      div_err([pat_view(cls, InHole(err)), text("; pattern is redundant")])
+      div_err([
+        pat_view(~statics, cls, InHole(err)),
+        text("; pattern is redundant"),
+      ])
     }
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
   | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
@@ -328,7 +349,7 @@ let tpat_view = (_: Cls.t, status: Info.status_tpat) =>
 
 let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
-let view_of_info = (~inject, ~settings, ci): list(Node.t) => {
+let view_of_info = (~inject, ~settings, ~statics, ci): list(Node.t) => {
   print_endline("CI: " ++ Info.show(ci));
   let wrapper = status_view => [
     term_view(~inject, ~settings, ci),
@@ -336,24 +357,30 @@ let view_of_info = (~inject, ~settings, ci): list(Node.t) => {
   ];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
-  | InfoExp({cls, status, _} as ie) => wrapper(exp_view(cls, status, ie))
-  | InfoPat({cls, status, _}) => wrapper(pat_view(cls, status))
+  | InfoExp({cls, status, _} as ie) =>
+    wrapper(exp_view(~statics, cls, status, ie))
+  | InfoPat({cls, status, _}) => wrapper(pat_view(~statics, cls, status))
   | InfoTyp({cls, status, _}) => wrapper(typ_view(cls, status))
   | InfoTPat({cls, status, _}) => wrapper(tpat_view(cls, status))
   };
 };
 
-let inspector_view = (~inject, ~settings, ci): Node.t =>
+let inspector_view = (~inject, ~settings, ~statics, ci): Node.t =>
   div(
     ~attrs=[
       Attr.id("cursor-inspector"),
       clss([Info.is_error(ci) ? errc : okc]),
     ],
-    view_of_info(~inject, ~settings, ci),
+    view_of_info(~inject, ~settings, ~statics, ci),
   );
 
 let view =
-    (~inject, ~settings: Settings.t, editor, cursor_info: option(Info.t)) => {
+    (
+      ~inject,
+      ~settings: Settings.t,
+      editor: Editor.t,
+      cursor_info: option(Info.t),
+    ) => {
   let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
   let err_view = err =>
     bar_view([
@@ -367,7 +394,12 @@ let view =
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
     bar_view([
-      inspector_view(~inject, ~settings, ci),
+      inspector_view(
+        ~inject,
+        ~settings,
+        ~statics=editor.state.meta.statics,
+        ci,
+      ),
       ProjectorView.Panel.view(
         ~inject=a => inject(PerformAction(Project(a))),
         editor,
