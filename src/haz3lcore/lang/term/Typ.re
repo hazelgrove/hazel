@@ -57,7 +57,30 @@ let (replace_temp, replace_temp_exp) = {
   );
 };
 
-let hole = (tms: list(TermBase.Any.t)) =>
+let all_ids_temp = {
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, exp) => {...exp, ids: [Id.invalid]} |> continue;
+  map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
+};
+
+let (replace_temp, replace_temp_exp) = {
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, exp) =>
+      {...exp, ids: exp.ids == [Id.invalid] ? [Id.mk()] : exp.ids}
+      |> continue;
+  (
+    map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    TermBase.Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+  );
+};
+
+let hole = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
   switch (tms) {
   | [] => Unknown(Hole(EmptyHole))
   | [_, ..._] => Unknown(Hole(MultiHole(tms)))
@@ -160,7 +183,8 @@ let of_source = List.map((source: source) => source.ty);
    but right now TypeHole strictly predominates over Internal
    which strictly predominates over SynSwitch. */
 let join_type_provenance =
-    (p1: type_provenance, p2: type_provenance): type_provenance =>
+    (p1: TermBase.type_provenance, p2: TermBase.type_provenance)
+    : TermBase.type_provenance =>
   switch (p1, p2) {
   | (Hole(h1), Hole(h2)) when h1 == h2 => Hole(h1)
   | (Hole(EmptyHole), Hole(EmptyHole) | SynSwitch)

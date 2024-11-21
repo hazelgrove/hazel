@@ -9,7 +9,11 @@ type t = {
 };
 
 let empty: t = {
-  term: UExp.{ids: [Id.invalid], copied: false, term: Tuple([])},
+  term: {
+    ids: [Id.invalid],
+    copied: false,
+    term: Tuple([]),
+  },
   elaborated: UExp.{ids: [Id.invalid], copied: false, term: Tuple([])},
   info_map: Id.Map.empty,
   error_ids: [],

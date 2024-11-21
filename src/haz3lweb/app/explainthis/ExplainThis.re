@@ -541,7 +541,7 @@ let get_doc =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch ((term: Exp.term)) {
-      | Exp.Invalid(_) => simple("Not a valid expression")
+      | Invalid(_) => simple("Not a valid expression")
       | DynamicErrorHole(_)
       | FailedCast(_)
       | Closure(_)
@@ -1988,7 +1988,7 @@ let get_doc =
           doc,
         );
       switch (tl.term) {
-      | Pat.Cons(hd2, tl2) =>
+      | Cons(hd2, tl2) =>
         if (ListPat.cons2_pat.id == get_specificity_level(ListPat.cons2)) {
           let hd2_id = List.nth(hd2.ids, 0);
           let tl2_id = List.nth(tl2.ids, 0);
@@ -2209,7 +2209,7 @@ let get_doc =
           doc,
         );
       switch (result.term) {
-      | Typ.Arrow(arg2, result2) =>
+      | Arrow(arg2, result2) =>
         if (ArrowTyp.arrow3_typ.id == get_specificity_level(ArrowTyp.arrow3)) {
           let arg2_id = List.nth(arg2.ids, 0);
           let result2_id = List.nth(result2.ids, 0);

@@ -61,11 +61,11 @@ let is_grout = tiles =>
 let is_rules = ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t)) => {
   open OptUtil.Syntax;
   let+ ps =
-    ts
+    (ts: list(tile))
     |> List.map(
          fun
-         | (_, (["|", "=>"], [Any.Pat(p)])) => Some(p)
-         | _ => None,
+         | (_, (["|", "=>"], [Pat(p)])) => Some(p)
+         | _ => None: tile => option(TermBase.pat_t),
        )
     |> OptUtil.sequence
   and+ clauses =
@@ -73,7 +73,7 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t)) => {
     |> List.map(
          fun
          | Exp(clause) => Some(clause)
-         | _ => None,
+         | _ => None: TermBase.any_t => option(TermBase.exp_t),
        )
     |> OptUtil.sequence;
   Aba.mk(ps, clauses);
@@ -500,7 +500,7 @@ and tpat_term: unsorted => TPat.term = {
 //   return(r => Rul(r), ids, {ids, term});
 // }
 and rul = (unsorted: unsorted): Rul.t => {
-  let hole = Rul.Hole(kids_of_unsorted(unsorted));
+  let hole: Rul.term = Hole(kids_of_unsorted(unsorted));
   switch (exp(unsorted)) {
   | {term: MultiHole(_), _} =>
     switch (unsorted) {
