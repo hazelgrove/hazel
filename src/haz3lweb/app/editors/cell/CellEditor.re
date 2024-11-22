@@ -3,6 +3,7 @@ open Virtual_dom.Vdom;
 open Node;
 
 /* A "Cell" with user-editable text at the top, and evaluation results at the bottom. */
+// This file follows conventions in [docs/ui-architecture.md]
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]

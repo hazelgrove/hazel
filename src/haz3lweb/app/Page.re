@@ -5,6 +5,8 @@ open Util;
 
 /* The top-level UI component of Hazel */
 
+/* This file follows conventions in [docs/ui-architecture.md] */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type selection = Editors.Selection.t;
 

@@ -3,6 +3,7 @@ open Util;
 
 /* A CodeEditor that's been restricted to only performing selection with
    mouse/keyboard, no edits to the actual code. */
+// This file follows conventions in [docs/ui-architecture.md]
 
 module Model = CodeEditable.Model;
 

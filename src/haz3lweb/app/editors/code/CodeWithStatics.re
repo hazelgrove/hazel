@@ -5,6 +5,8 @@ open Haz3lcore;
    since there is no interaction, the user can see that there is an
    error but cannot select the error for more details. */
 
+/* This file follows conventions in [docs/ui-architecture.md] */
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {

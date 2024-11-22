@@ -1,13 +1,15 @@
 open Util;
 
-module type Model = {
-  type t;
-};
-
 /* The result box at the bottom of a cell. This is either the TestResutls
    kind where only a summary of test results is shown, or the EvalResults kind
    where users can choose whether they want to use a single-stepper or see the
    result of full evaluation. */
+
+/* This file follows conventions in [docs/ui-architecture.md] */
+
+module type Model = {
+  type t;
+};
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]

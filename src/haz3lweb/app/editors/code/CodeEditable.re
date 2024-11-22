@@ -4,9 +4,10 @@ open Virtual_dom.Vdom;
 type editor_id = string;
 open Util;
 
-module Model = CodeWithStatics.Model;
-
 /* A selectable editable code container component with statics and type-directed code completion. */
+// This file follows conventions in [docs/ui-architecture.md]
+
+module Model = CodeWithStatics.Model;
 
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]

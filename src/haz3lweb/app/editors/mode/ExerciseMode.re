@@ -4,6 +4,8 @@ open Node;
 
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
 
+/* This file follows conventions in [docs/ui-architecture.md] */
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {

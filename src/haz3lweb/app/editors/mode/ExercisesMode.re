@@ -3,6 +3,8 @@ open Util;
 /* This file handles the pagenation of Exercise Mode, and switching between
    exercises. ExerciseMode.re handles the actual exercise. */
 
+/* This file follows conventions in [docs/ui-architecture.md] */
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {

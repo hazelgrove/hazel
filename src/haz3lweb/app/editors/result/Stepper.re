@@ -3,6 +3,8 @@ open Haz3lcore;
 open Sexplib.Std;
 open OptUtil.Syntax;
 
+/* This file follows conventions in [docs/ui-architecture.md] */
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type b = {
