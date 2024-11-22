@@ -309,16 +309,18 @@
 }
 
 .tile-next-step .tile-path.Exp.indicated {
-  fill: #8aeda6;
+  fill: var(--G1)
 }
 
 .tile-taken-step .tile-path.Exp.indicated {
-  fill: #ddcda3;
+  fill: var(--BR1)
 }
 
 svg.tile-next-step {
   pointer-events: all;
   cursor: pointer;
+  z-index: var(--test-result-z);
+  filter: drop-shadow(1px 1px var(--G2));
 }
 
 .cell-result .code {
