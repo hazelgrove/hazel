@@ -33,6 +33,7 @@ module Model = {
     selected_text:
       Some(() => Printer.to_string_selection(model.editor.state.zipper)),
     editor: Some(model.editor),
+    editor_read_only: true,
     editor_action: x => Some(x),
     undo_action: None,
     redo_action: None,

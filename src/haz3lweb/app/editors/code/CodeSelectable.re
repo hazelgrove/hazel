@@ -60,6 +60,7 @@ module Selection = {
   type t = CodeEditable.Selection.t;
   let get_cursor_info = (~selection, model) =>
     CodeEditable.Selection.get_cursor_info(~selection, model)
+    |> (ci => Cursor.{...ci, editor_read_only: true})
     |> Cursor.map_opt(Update.convert_action);
   let handle_key_event =
       (~selection, model: Model.t, key: Key.t): option(Update.t) =>
