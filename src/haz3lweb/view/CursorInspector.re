@@ -227,6 +227,8 @@ let drv_view = (status: DrvInfo.t) => {
           ),
         ),
       ])
+    | Exp(FreeVar)
+    | Typ(FreeVar) => div_err([text("Variable binding not found")])
     }
   };
 };

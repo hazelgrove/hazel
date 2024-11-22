@@ -28,6 +28,7 @@ type ty_merged =
 type error_exp =
   | BadToken(Token.t)
   | MultiHole
+  | FreeVar
   | NoJoin(ty_merged); // expected
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -75,11 +76,22 @@ type pat = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type error_typ =
+  | BadToken(Token.t)
+  | FreeVar
+  | MultiHole;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type status_typ =
+  | NotInHole(ok_common)
+  | InHole(error_typ);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type typ = {
   term: Drv.Typ.t,
   cls: Cls.t,
   ancestors,
-  status: status_common,
+  status: status_typ,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -101,7 +113,7 @@ type t =
 type error =
   | Exp(error_exp)
   | Pat(error_pat)
-  | Typ(error_common)
+  | Typ(error_typ)
   | TPat(error_common);
 
 let sort_of: t => Sort.DrvSort.t =
@@ -214,7 +226,7 @@ let status_pat = (pat: Drv.Pat.t): status_pat =>
   | _ => NotInHole()
   };
 
-let status_typ = (typ: Drv.Typ.t): status_common =>
+let status_typ = (typ: Drv.Typ.t): status_typ =>
   switch (typ.term) {
   | Hole(Invalid(token)) => InHole(BadToken(token))
   | Hole(MultiHole(_)) => InHole(MultiHole)

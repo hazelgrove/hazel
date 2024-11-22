@@ -155,7 +155,7 @@ let rec any_to_info_map =
     )
   | Drv(drv) => (
       CoCtx.empty,
-      m |> drv_to_info_map(drv, ~ancestors, ~ty=DrvInfo.Jdmt) |> snd,
+      m |> drv_to_info_map(drv, ~ancestors, ~ctx, ~ty=DrvInfo.Jdmt) |> snd,
     )
   | Rul(_)
   | Nul ()
@@ -171,7 +171,7 @@ and multi = (~ctx, ~ancestors, m, tms) =>
     tms,
   )
 and drv_to_info_map =
-    (drv: Drv.t, m: Map.t, ~ancestors, ~ty): (DrvInfo.t, Map.t) => {
+    (drv: Drv.t, m: Map.t, ~ctx, ~ancestors, ~ty): (DrvInfo.t, Map.t) => {
   let add = (drv, info, m) => (
     info,
     add_info(Drv.of_id(drv), InfoDrv(info), m),
@@ -184,7 +184,15 @@ and drv_to_info_map =
     switch (exp.term) {
     | Hole(_) => m |> add'
     | Var(_) => m |> add'
-    | Abbr(p) => m |> go_exp'(p) |> snd |> add'
+    | Abbr(p) =>
+      switch (p.term) {
+      | Var(x) =>
+        switch (Self.of_exp_var(ctx, x)) {
+        | Common(Just({term: Term(Drv(Exp)), _})) => m |> add'
+        | _ => m |> add(Exp({...info, status: InHole(FreeVar)}))
+        }
+      | _ => m |> add(Exp({...info, status: InHole(FreeVar)}))
+      }
     | Parens(e) => m |> go_exp(e, ~ty) |> snd |> add'
     | Val(e) => m |> go_exp'(e) |> snd |> add'
     | Eval(e1, e2) => m |> go_exp'(e1) |> snd |> go_exp'(e2) |> snd |> add'
@@ -289,23 +297,31 @@ and drv_to_info_map =
     };
   }
   and go_typ = (typ: Drv.Typ.t, m) => {
-    let info: DrvInfo.t = Typ(DrvInfo.derived_typ(typ, ~ancestors));
-    let m =
-      switch (typ.term) {
-      | Hole(_) => m
-      | Abbr(p) => m |> go_typ(p) |> snd
-      | Num => m
-      | Bool => m
-      | Arrow(t1, t2) => m |> go_typ(t1) |> snd |> go_typ(t2) |> snd
-      | Prod(t1, t2) => m |> go_typ(t1) |> snd |> go_typ(t2) |> snd
-      | Unit => m
-      | Sum(t1, t2) => m |> go_typ(t1) |> snd |> go_typ(t2) |> snd
-      | Var(_) => m
-      | Rec(p, t) => m |> go_tpat(p) |> snd |> go_typ(t) |> snd
-      | Parens(t) => m |> go_typ(t) |> snd
-      | TypHole => m
-      };
-    add(Typ(typ), info, m);
+    let info = DrvInfo.derived_typ(typ, ~ancestors);
+    let add = add(Typ(typ));
+    let add' = add(Typ(info));
+    switch (typ.term) {
+    | Hole(_) => m |> add'
+    | Abbr(p) =>
+      switch (p.term) {
+      | Var(x) =>
+        switch (Self.of_exp_var(ctx, x)) {
+        | Common(Just({term: Term(Drv(Typ)), _})) => m |> add'
+        | _ => m |> add(Typ({...info, status: InHole(FreeVar)}))
+        }
+      | _ => m |> add(Typ({...info, status: InHole(FreeVar)}))
+      }
+    | Num => m |> add'
+    | Bool => m |> add'
+    | Arrow(t1, t2) => m |> go_typ(t1) |> snd |> go_typ(t2) |> snd |> add'
+    | Prod(t1, t2) => m |> go_typ(t1) |> snd |> go_typ(t2) |> snd |> add'
+    | Unit => m |> add'
+    | Sum(t1, t2) => m |> go_typ(t1) |> snd |> go_typ(t2) |> snd |> add'
+    | Var(_) => m |> add'
+    | Rec(p, t) => m |> go_tpat(p) |> snd |> go_typ(t) |> snd |> add'
+    | Parens(t) => m |> go_typ(t) |> snd |> add'
+    | TypHole => m |> add'
+    };
   }
   and go_tpat = (tpat: Drv.TPat.t, m) => {
     let info: DrvInfo.t = TPat(DrvInfo.derived_tpat(tpat, ~ancestors));
@@ -398,8 +414,16 @@ and uexp_to_info_map =
       | Drv(Exp) => Exp
       | _ => Exp
       };
-    let m = drv_to_info_map(term, m, ~ancestors, ~ty) |> snd;
-    add(~self=Just(Unknown(Internal) |> Typ.temp), ~co_ctx=CoCtx.empty, m);
+    let self: Self.t =
+      switch (term) {
+      | Exp(_) => Just(Term(Drv(Exp)) |> Typ.temp)
+      | Pat(_) => Just(Term(Drv(Pat)) |> Typ.temp)
+      | Typ(_) => Just(Term(Drv(Typ)) |> Typ.temp)
+      | TPat(_) => Just(Term(Drv(TPat)) |> Typ.temp)
+      | Rul(_) => Just(Term(Drv(Rul)) |> Typ.temp)
+      };
+    let m = drv_to_info_map(term, m, ~ctx, ~ancestors, ~ty) |> snd;
+    add(~self, ~co_ctx=CoCtx.empty, m);
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
     let modes = Mode.of_list_lit(ctx, List.length(es), mode);
