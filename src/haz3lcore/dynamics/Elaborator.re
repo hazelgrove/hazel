@@ -146,6 +146,8 @@ let rec elaborate_pattern =
       DHPat.Tuple(ps') |> rewrap |> cast_from(Typ.Prod(tys) |> Typ.temp);
     | Ap(p1, p2) =>
       let (p1', ty1) = elaborate_pattern(m, p1);
+      // print_endline("p1' = " ++ DHPat.show(p1'));
+      // print_endline("ty1 = " ++ Typ.show(ty1));
       let (p2', ty2) = elaborate_pattern(m, p2);
       let (ty1l, ty1r) = Typ.matched_arrow(ctx, ty1);
       let p1'' = fresh_pat_cast(p1', ty1, Arrow(ty1l, ty1r) |> Typ.temp);
@@ -295,6 +297,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
           };
         }
       );
+      print_endline("ELA p(1) = " ++ UPat.show(p));
+      print_endline("ELA m = " ++ Statics.Map.show(m));
       let (p, ty1) = elaborate_pattern(m, p);
       let is_recursive =
         Statics.is_recursive(ctx, p, def, ty1)
@@ -302,7 +306,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         |> Option.get
         |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
       if (!is_recursive) {
-        print_endline("ELA p = " ++ DHPat.show(p));
+        print_endline("ELA p(2) = " ++ DHPat.show(p));
         let def = add_name(Pat.get_var(p), def);
         print_endline("ELA def = " ++ DHExp.show(def));
         let (def, ty2) = elaborate(m, def);

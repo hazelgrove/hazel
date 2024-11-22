@@ -453,8 +453,8 @@ and uexp_to_info_map =
               term:
                 UPat.Cast(
                   {ids, term: UPat.Var(f_name), copied: false},
-                  Typ.temp(Unknown(Internal)),
                   f_type,
+                  Typ.temp(Unknown(Internal)),
                 ),
               copied: false,
             };
@@ -469,8 +469,8 @@ and uexp_to_info_map =
             (def, p, p_syn);
           | None => (def, p, p_syn) // Use the original code
           };
-        print_endline("STA def = " ++ UExp.show(def));
-        print_endline("STA p = " ++ UPat.show(p));
+        // print_endline("STA def = " ++ UExp.show(def));
+        // print_endline("STA p = " ++ UPat.show(p));
         // print_endline("STA p_syn = " ++ Info.show_pat(p_syn));
         let (def, m) = go(~mode=Ana(p_syn.ty), def, m);
         let ty_p_ana = def.ty;
@@ -483,6 +483,7 @@ and uexp_to_info_map =
             p,
             m,
           );
+        // print_endline("STA p_ana'.ctx = " ++ Ctx.show(p_ana'.ctx));
         (def, p_ana'.ctx, m, ty_p_ana);
       } else {
         let (def_base, _) =
