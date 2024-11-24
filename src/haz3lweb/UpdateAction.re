@@ -100,7 +100,7 @@ type t =
   | AddBuggyImplementation
   | DeleteBuggyImplementation(int)
   | UpdatePrompt(string)
-  | UpdateTestValRep(int, int, int)
+  | UpdateTestValRep(int, int)
   | UpdateMutTestRep(int)
   | UpdateImplGrdRep(int)
   | UpdateModuleName(string);

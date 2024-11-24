@@ -177,7 +177,13 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       | HiddenTests => eds.hidden_tests.tests
       };
 
-  let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
+  let put_editor =
+      (
+        {pos, eds, _} as state: state,
+        editor: Editor.t,
+        new_prov_test: int,
+        instructor_mode: bool,
+      ) =>
     switch (pos) {
     | Prelude => {
         ...state,
@@ -194,16 +200,29 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         },
       }
     | YourTestsValidation
-    | YourTestsTesting => {
-        ...state,
-        eds: {
-          ...eds,
-          your_tests: {
-            ...eds.your_tests,
-            tests: editor,
+    | YourTestsTesting =>
+      instructor_mode
+        ? {
+          ...state,
+          eds: {
+            ...eds,
+            your_tests: {
+              ...eds.your_tests,
+              tests: editor,
+              provided: new_prov_test,
+            },
+          } /* Set 'provided' to 1 if editing_test_val_rep is true */
+        }
+        : {
+          ...state,
+          eds: {
+            ...eds,
+            your_tests: {
+              ...eds.your_tests,
+              tests: editor,
+            },
           },
-        },
-      }
+        }
     | YourImpl => {
         ...state,
         eds: {
@@ -542,7 +561,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       },
     };
     let new_state = set_editing_title(new_state, editing_title);
-    put_editor(new_state, new_buggy_impl.impl);
+    put_editor(new_state, new_buggy_impl.impl, 0, false);
   };
 
   let delete_buggy_impl = (state: state, index: int) => {
@@ -567,7 +586,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           List.filteri((i, _) => i != index, state.eds.hidden_bugs),
       },
     };
-    put_editor(new_state, editor_on);
+    put_editor(new_state, editor_on, 0, false);
   };
 
   let set_editing_prompt = ({eds, _} as state: state, editing: bool) => {
@@ -635,19 +654,13 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   let update_test_val_rep =
-      (
-        {eds, _} as state: state,
-        new_test_num: int,
-        new_dist: int,
-        new_prov: int,
-      ) => {
+      ({eds, _} as state: state, new_test_num: int, new_dist: int) => {
     ...state,
     eds: {
       ...eds,
       your_tests: {
         ...eds.your_tests,
         required: new_test_num,
-        provided: new_prov,
       },
       point_distribution: {
         ...eds.point_distribution,

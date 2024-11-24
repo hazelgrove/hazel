@@ -37,7 +37,44 @@ let put_editor = (ed: Editor.t, eds: t): t =>
     assert(List.mem_assoc(name, slides));
     Documentation(name, slides |> ListUtil.update_assoc((name, ed)));
   | Exercises(n, specs, exercise) =>
-    Exercises(n, specs, Exercise.put_editor(exercise, ed))
+    Exercises(n, specs, Exercise.put_editor(exercise, ed, 0, false))
+  };
+
+let put_editor_action =
+    (
+      ed: Editor.t,
+      eds: t,
+      results: ModelResults.t,
+      ~settings: CoreSettings.t,
+      instructor_mode: bool,
+    )
+    : t =>
+  switch (eds) {
+  | Scratch(n, slides) =>
+    assert(n < List.length(slides));
+    Scratch(n, Util.ListUtil.put_nth(n, ed, slides));
+  | Documentation(name, slides) =>
+    assert(List.mem_assoc(name, slides));
+    Documentation(name, slides |> ListUtil.update_assoc((name, ed)));
+  | Exercises(n, specs, exercise) =>
+    let stitched_dynamics =
+      Exercise.stitch_dynamic(
+        settings,
+        exercise,
+        settings.dynamics ? Some(results) : None,
+      );
+    let test_results =
+      ModelResult.test_results(stitched_dynamics.test_validation.result);
+    let new_prov_test =
+      switch (test_results) {
+      | Some(test_results) => test_results.total
+      | None => 0
+      };
+    Exercises(
+      n,
+      specs,
+      Exercise.put_editor(exercise, ed, new_prov_test, instructor_mode),
+    );
   };
 
 let update = (f: Editor.t => Editor.t, editors: t): t =>
@@ -47,7 +84,13 @@ let update_opt = (editors: t, f: Editor.t => option(Editor.t)): option(t) =>
   editors |> get_editor |> f |> Option.map(put_editor(_, editors));
 
 let perform_action =
-    (~settings: CoreSettings.t, editors: t, a: Action.t)
+    (
+      ~settings: CoreSettings.t,
+      editors: t,
+      a: Action.t,
+      results: ModelResults.t,
+      instructor_mode: bool,
+    )
     : UpdateAction.Result.t(t) => {
   let settings =
     switch (editors) {
@@ -59,7 +102,8 @@ let perform_action =
     };
   switch (Perform.go(~settings, a, get_editor(editors))) {
   | Error(err) => Error(FailedToPerform(err))
-  | Ok(ed) => Ok(put_editor(ed, editors))
+  | Ok(ed) =>
+    Ok(put_editor_action(ed, editors, results, ~settings, instructor_mode))
   };
 };
 
@@ -182,8 +226,7 @@ let set_editing_test_val_rep = (editors: t, editing: bool): t =>
     Exercises(n, specs, Exercise.set_editing_test_val_rep(exercise, editing))
   };
 
-let update_test_val_rep =
-    (editors: t, new_test_num: int, new_dist: int, new_prov: int): t =>
+let update_test_val_rep = (editors: t, new_test_num: int, new_dist: int): t =>
   switch (editors) {
   | Scratch(_)
   | Documentation(_) => editors
@@ -191,12 +234,7 @@ let update_test_val_rep =
     Exercises(
       n,
       specs,
-      Exercise.update_test_val_rep(
-        exercise,
-        new_test_num,
-        new_dist,
-        new_prov,
-      ),
+      Exercise.update_test_val_rep(exercise, new_test_num, new_dist),
     )
   };
 

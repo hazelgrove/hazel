@@ -122,11 +122,6 @@ module TestValidationReport = {
                                     ),
                                   ),
                                 )##.value;
-                              let new_prov_test =
-                                switch (report.test_results) {
-                                | Some(test_results) => test_results.total
-                                | None => 0
-                                };
 
                               let update_events = [
                                 inject(Set(EditingTestValRep)),
@@ -134,7 +129,6 @@ module TestValidationReport = {
                                   UpdateTestValRep(
                                     int_of_string(new_test_num),
                                     int_of_string(new_dist),
-                                    new_prov_test,
                                   ),
                                 ),
                               ];
