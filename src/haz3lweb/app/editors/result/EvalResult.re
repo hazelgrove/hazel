@@ -38,7 +38,8 @@ module Model = {
   type t = {
     kind,
     result,
-    previous_tests: option(Haz3lcore.TestResults.t) // Stops test results from being cleared on update
+    previous_tests: option(Haz3lcore.TestResults.t), // Stops test results from being cleared on update
+    previous_probes: option(Dynamics.Probe.Map.t),
   };
 
   let make_test_report = (model: t): option(Haz3lcore.TestResults.t) =>
@@ -61,7 +62,12 @@ module Model = {
     | NoElab => None
     };
 
-  let init = {kind: Evaluation, result: NoElab, previous_tests: None};
+  let init = {
+    kind: Evaluation,
+    result: NoElab,
+    previous_tests: None,
+    previous_probes: None,
+  };
 
   let test_results = (model: t): option(Haz3lcore.TestResults.t) =>
     switch (model.result) {
@@ -83,10 +89,25 @@ module Model = {
     | NoElab => model.previous_tests
     };
 
+  let probe_results = (model: t): option(Dynamics.Probe.Map.t) =>
+    switch (model.result) {
+    | Evaluation({result: OldValue(ResultOk((_, state))), _})
+    | Evaluation({result: NewValue(ResultOk((_, state))), _}) =>
+      Some(state |> Haz3lcore.EvaluatorState.get_probes)
+    | Stepper(s) =>
+      Some(
+        s.history
+        |> StepperView.Model.get_state
+        |> Haz3lcore.EvaluatorState.get_probes,
+      )
+    | Evaluation(_)
+    | NoElab => model.previous_probes
+    };
+
   let dynamics = (model: t): Dynamics.Map.t =>
-    switch (test_results(model)) {
-    | Some(result) => Dynamics.Map.mk(result.test_map)
-    | None => Dynamics.Map.mk(TestMap.empty)
+    switch (probe_results(model)) {
+    | Some(result) => Dynamics.Map.mk(result)
+    | None => Dynamics.Map.mk(Dynamics.Probe.Map.empty)
     };
 
   let get_elaboration = (model: t): option(Haz3lcore.Exp.t) =>
@@ -168,7 +189,13 @@ module Update = {
             cached_settings,
           }),
       }
-      |> (x => {...x, previous_tests: Model.test_results(x)})
+      |> (
+        x => {
+          ...x,
+          previous_tests: Model.test_results(x),
+          previous_probes: Model.probe_results(x),
+        }
+      )
       |> Updated.return
     | (UpdateResult(_), _) => model |> Updated.return_quiet
     };
@@ -272,7 +299,7 @@ module Update = {
                ~settings,
                ~stitch=_ => exp,
                ~is_edited,
-               ~dynamics=Dynamics.Map.empty, //TODO(andrew)
+               ~dynamics=Dynamics.Map.empty, // Dynamics unneeded here
                editor,
              )
              |> (x => (exp, x))
@@ -545,6 +572,11 @@ module View = {
         text("Evaluation disabled, showing elaboration:"),
         switch (Model.get_elaboration(model)) {
         | Some(elab) =>
+          let token_of_proj =
+            Projector.token_of_proj(
+              Statics.Map.empty,
+              Model.dynamics(model),
+            );
           elab
           |> Haz3lcore.ExpToSegment.(
                exp_to_segment(
@@ -552,12 +584,7 @@ module View = {
                    Settings.of_core(~inline=false, globals.settings.core),
                )
              )
-          |> CodeViewable.view_segment(
-               ~globals,
-               ~sort=Exp,
-               ~info_map=Statics.Map.empty,
-               ~dynamics=Model.dynamics(model),
-             )
+          |> CodeViewable.view_segment(~globals, ~sort=Exp, ~token_of_proj);
         | None => text("No elaboration found")
         },
       ];

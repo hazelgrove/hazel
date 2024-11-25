@@ -41,6 +41,9 @@ module EvaluatorEVMode: {
   let update_test = (state, id, v) =>
     state := EvaluatorState.add_test(state^, id, v);
 
+  let update_probe = (state, id, v) =>
+    state := EvaluatorState.add_probe(state^, id, v);
+
   let req_value = (f, _, x) =>
     switch (f(x)) {
     | (BoxedValue, x) => (BoxedReady, x)

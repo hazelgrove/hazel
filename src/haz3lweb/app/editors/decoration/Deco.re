@@ -122,9 +122,7 @@ module HighlightSegment =
     switch (Measured.find_pr_opt(p, M.measured)) {
     | None => failwith("Deco.of_projector: missing measurement")
     | Some(_m) =>
-      let ci = Statics.Map.lookup(p.id, M.info_map);
-      let di = Dynamics.Map.lookup(p.id, M.dynamics);
-      let token = Projector.placeholder(p, ci, di);
+      let token = Projector.token_of_proj(M.info_map, M.dynamics, p);
       /* Handling this internal to ProjectorsView at the moment because the
        * commented-out strategy doesn't work well, since the inserted str8-
        * edged lines vertical edge placement doesn't account for whether
