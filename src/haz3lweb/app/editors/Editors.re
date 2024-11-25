@@ -332,7 +332,7 @@ module View = {
               ),
             ],
             List.map(
-              SlideSelect.option_view(
+              EditorModeView.option_view(
                 switch (editors) {
                 | Scratch(_) => "Scratch"
                 | Documentation(_) => "Documentation"

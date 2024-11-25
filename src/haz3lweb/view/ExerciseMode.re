@@ -413,7 +413,7 @@ module View = {
               switch (specific_ctx) {
               | None => Node.div([text("No context available")]) // TODO show exercise configuration error
               | Some(specific_ctx) =>
-                CtxInspector.ctx_view(~globals, specific_ctx)
+                ContextInspector.ctx_view(~globals, specific_ctx)
               };
             };
           };

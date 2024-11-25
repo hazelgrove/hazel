@@ -346,7 +346,7 @@ module View = {
         ~inject: Update.t => 'a,
         model: Model.t,
       ) => {
-    SlideSelect.view(
+    EditorModeView.view(
       ~signal=
         fun
         | Previous =>
@@ -363,12 +363,12 @@ module View = {
           ),
       ~indicator=
         named_slides
-          ? SlideSelect.indicator_select(
+          ? EditorModeView.indicator_select(
               ~signal=i => inject(SwitchSlide(i)),
               model.current,
               List.map(((s, _)) => s, model.scratchpads),
             )
-          : SlideSelect.indicator_n(
+          : EditorModeView.indicator_n(
               model.current,
               List.length(model.scratchpads),
             ),

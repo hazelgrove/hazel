@@ -26,7 +26,7 @@ module Model = {
         cached_settings: Calc.saved(Haz3lcore.CoreSettings.t),
         editor: Calc.saved((Haz3lcore.Exp.t, CodeSelectable.Model.t)),
       })
-    | Stepper(Stepper.Model.t);
+    | Stepper(StepperView.Model.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type kind =
@@ -52,7 +52,7 @@ module Model = {
     | Stepper(s) =>
       Some(
         s.history
-        |> Stepper.Model.get_state
+        |> StepperView.Model.get_state
         |> Haz3lcore.EvaluatorState.get_tests
         |> Haz3lcore.TestResults.mk_results,
       )
@@ -74,7 +74,7 @@ module Model = {
     | Stepper(s) =>
       Some(
         s.history
-        |> Stepper.Model.get_state
+        |> StepperView.Model.get_state
         |> Haz3lcore.EvaluatorState.get_tests
         |> Haz3lcore.TestResults.mk_results,
       )
@@ -85,7 +85,7 @@ module Model = {
   let get_elaboration = (model: t): option(Haz3lcore.Exp.t) =>
     switch (model.result) {
     | Evaluation({elab, _}) => Some(elab)
-    | Stepper(s) => Stepper.Model.get_elaboration(s)
+    | Stepper(s) => StepperView.Model.get_elaboration(s)
     | _ => None
     };
 };
@@ -96,7 +96,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | ToggleStepper
-    | StepperAction(Stepper.Update.t)
+    | StepperAction(StepperView.Update.t)
     | EvalEditorAction(CodeSelectable.Update.t)
     | UpdateResult(Haz3lcore.ProgramResult.t(Haz3lcore.ProgramResult.inner));
 
@@ -108,7 +108,7 @@ module Update = {
     | (ToggleStepper, {kind: Evaluation, _}) =>
       {...model, kind: Stepper} |> Updated.return
     | (StepperAction(a), {result: Stepper(s), _}) =>
-      let* stepper = Stepper.Update.update(~settings, a, s);
+      let* stepper = StepperView.Update.update(~settings, a, s);
       {...model, result: Stepper(stepper)};
     | (StepperAction(_), _) => model |> Updated.return_quiet
     | (
@@ -223,11 +223,12 @@ module Update = {
         }
       | (Evaluation, _) => {...model, result: NoElab}
       | (Stepper, Stepper(s)) =>
-        let s' = Stepper.Update.calculate(~settings, elab, s);
+        let s' = StepperView.Update.calculate(~settings, elab, s);
         {...model, result: Stepper(s')};
       | (Stepper, _) =>
         let s =
-          Stepper.Model.init() |> Stepper.Update.calculate(~settings, elab);
+          StepperView.Model.init()
+          |> StepperView.Update.calculate(~settings, elab);
         {...model, result: Stepper(s)};
       };
 
@@ -289,7 +290,7 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Evaluation(CodeSelectable.Selection.t)
-    | Stepper(Stepper.Selection.t);
+    | Stepper(StepperView.Selection.t);
 
   let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
     switch (selection, mr.result) {
@@ -299,7 +300,7 @@ module Selection = {
         CodeSelectable.Selection.get_cursor_info(~selection, editor |> snd);
       Update.EvalEditorAction(ci);
     | (Stepper(selection), Stepper(s)) =>
-      let+ ci = Stepper.Selection.get_cursor_info(~selection, s);
+      let+ ci = StepperView.Selection.get_cursor_info(~selection, s);
       Update.StepperAction(ci);
     | (_, Evaluation(_)) => empty
     | (_, Stepper(_)) => empty
@@ -317,7 +318,7 @@ module Selection = {
       )
       |> Option.map(x => Update.EvalEditorAction(x))
     | (Stepper(selection), Stepper(s)) =>
-      Stepper.Selection.handle_key_event(~selection, s, ~event)
+      StepperView.Selection.handle_key_event(~selection, s, ~event)
       |> Option.map(x => Update.StepperAction(x))
     | (_, Evaluation(_)) => None
     | (_, Stepper(_)) => None
@@ -443,7 +444,7 @@ module View = {
         ),
       ]
     | Stepper(s) =>
-      Stepper.View.view(
+      StepperView.View.view(
         ~globals,
         ~selection=
           switch (selected) {

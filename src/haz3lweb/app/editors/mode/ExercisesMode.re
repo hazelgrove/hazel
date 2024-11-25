@@ -468,7 +468,7 @@ module View = {
       ~inject=globals.inject_global,
       ~instructor_mode=globals.settings.instructor_mode,
     )
-    @ SlideSelect.view(
+    @ EditorModeView.view(
         ~signal=
           fun
           | Previous =>
@@ -484,7 +484,7 @@ module View = {
               ),
             ),
         ~indicator=
-          SlideSelect.indicator_n(
+          EditorModeView.indicator_n(
             model.current,
             List.length(model.exercises),
           ),

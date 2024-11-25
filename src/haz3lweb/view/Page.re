@@ -496,7 +496,7 @@ module View = {
       ),
       sidebar,
       bottom_bar,
-      CtxInspector.view(~globals, cursor.info),
+      ContextInspector.view(~globals, cursor.info),
     ];
   };
 
