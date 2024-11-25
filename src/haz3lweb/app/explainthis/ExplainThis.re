@@ -236,7 +236,7 @@ let expander_deco =
       let editor = editor;
       let globals = globals;
       let statics = CachedStatics.empty;
-      let dynamics = TestMap.empty;
+      let dynamics = Dynamics.Map.empty;
     });
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
@@ -278,8 +278,8 @@ let expander_deco =
                   CodeViewable.view_segment(
                     ~globals,
                     ~sort=Exp,
-                    ~info_map=Id.Map.empty,
-                    ~dyn_map=TestMap.empty,
+                    ~info_map=Statics.Map.empty,
+                    ~dynamics=Dynamics.Map.empty,
                     segment,
                   );
                 let classes =
@@ -498,7 +498,7 @@ let get_doc =
           editor,
         );
       let statics = CachedStatics.empty;
-      let dynamics = TestMap.empty;
+      let dynamics = Dynamics.Map.empty;
       let highlight_deco = {
         module Deco =
           Deco.Deco({
@@ -513,7 +513,7 @@ let get_doc =
         CodeWithStatics.View.view(
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
-          ~dyn_map=dynamics,
+          ~dynamics,
           ~sort,
           {editor, statics},
         );

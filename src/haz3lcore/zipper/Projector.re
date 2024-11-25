@@ -25,8 +25,14 @@ let shape = (p: Base.projector, info: info): shape => {
  * in the zipper; a tile consisting of any number of whitespaces
  * is considered a placeholder. This could be made more principled.
  * Note that a placeholder retains the UUID of the underlying. */
-let placeholder = (p: Base.projector, ci: option(Info.t), dyn): string =>
-  switch (shape(p, {id: p.id, syntax: p.syntax, ci, dyn})) {
+let placeholder =
+    (
+      p: Base.projector,
+      statics: option(Statics.Info.t),
+      dynamics: option(Dynamics.Info.t),
+    )
+    : string =>
+  switch (shape(p, {id: p.id, syntax: p.syntax, statics, dynamics})) {
   | Inline(width) => String.make(width, ' ')
   | Block({row, col}) => String.make(row - 1, '\n') ++ String.make(col, ' ')
   };

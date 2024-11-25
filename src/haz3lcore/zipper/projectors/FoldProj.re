@@ -11,10 +11,10 @@ type t = {
 
 /* Proof of concept value exposure. This isn't getting set right
    after actions, only initially */
-let get_first_val = (rs: option(list(TestMap.instance_report))) => {
-  switch (rs) {
-  | Some(rs) =>
-    List.map(((d: DHExp.t, _)) => d.term |> TermBase.Exp.show_term, rs)
+let vals = (di: option(Dynamics.Info.t)) => {
+  switch (di) {
+  | Some(di) =>
+    List.map((d: DHExp.t) => d.term |> TermBase.Exp.show_term, di.vals)
     |> String.concat(", ")
   | _ => "Nein"
   };
@@ -35,7 +35,7 @@ module M: Projector = {
     div(
       ~attrs=[
         Attr.on_double_click(_ => parent(Remove)),
-        Attr.title(get_first_val(info.dyn)),
+        Attr.title(vals(info.dynamics)),
       ],
       [text(m.text)],
     );

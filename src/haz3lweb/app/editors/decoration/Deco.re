@@ -65,7 +65,7 @@ module HighlightSegment =
          M: {
            let measured: Measured.t;
            let info_map: Statics.Map.t;
-           let dyn_map: TestMap.t;
+           let dynamics: Dynamics.Map.t;
            let font_metrics: FontMetrics.t;
          },
        ) => {
@@ -122,9 +122,9 @@ module HighlightSegment =
     switch (Measured.find_pr_opt(p, M.measured)) {
     | None => failwith("Deco.of_projector: missing measurement")
     | Some(_m) =>
-      let ci = Id.Map.find_opt(p.id, M.info_map);
-      let dyn = TestMap.lookup(p.id, M.dyn_map);
-      let token = Projector.placeholder(p, ci, dyn);
+      let ci = Statics.Map.lookup(p.id, M.info_map);
+      let di = Dynamics.Map.lookup(p.id, M.dynamics);
+      let token = Projector.placeholder(p, ci, di);
       /* Handling this internal to ProjectorsView at the moment because the
        * commented-out strategy doesn't work well, since the inserted str8-
        * edged lines vertical edge placement doesn't account for whether
@@ -184,7 +184,7 @@ module Deco =
            let globals: Globals.t;
            let editor: Editor.t;
            let statics: CachedStatics.t;
-           let dynamics: TestMap.t;
+           let dynamics: Dynamics.Map.t;
          },
        ) => {
   let font_metrics = M.globals.font_metrics;
@@ -221,7 +221,7 @@ module Deco =
     HighlightSegment({
       let measured = M.editor.syntax.measured;
       let info_map = M.statics.info_map;
-      let dyn_map = M.dynamics;
+      let dynamics = M.dynamics;
       let font_metrics = font_metrics;
     });
 

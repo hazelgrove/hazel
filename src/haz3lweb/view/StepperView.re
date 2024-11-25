@@ -263,7 +263,7 @@ module Update = {
                 CodeSelectable.Update.calculate(
                   ~settings=settings |> Calc.get_value,
                   ~is_edited=false,
-                  ~dyn_map=TestMap.empty,
+                  ~dynamics=Dynamics.Map.empty, // TODO(andrew): ?
                   ~stitch=x =>
                   x
                 ),
@@ -442,7 +442,7 @@ module View = {
                      ~globals,
                      ~overlays=[],
                      ~selected=selection == Some(A(i + 1, ())),
-                     ~dyn_map=TestMap.empty,
+                     ~dynamics=Dynamics.Map.empty,
                      ~inject=
                        (x: StepperEditor.Update.t) =>
                          inject(StepperEditor(i + 1, x)),
@@ -493,7 +493,7 @@ module View = {
                 ~inject=
                   (x: StepperEditor.Update.t) =>
                     inject(StepperEditor(current_n, x)),
-                ~dyn_map=TestMap.empty,
+                ~dynamics=Dynamics.Map.empty,
                 ~signal=
                   fun
                   | TakeStep(x) => inject(Update.StepForward(x))

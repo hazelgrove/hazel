@@ -34,6 +34,9 @@ module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(Info.t);
 
+  let empty = Id.Map.empty;
+  let lookup = Id.Map.find_opt;
+
   let error_ids = (info_map: t): list(Id.t) =>
     Id.Map.fold(
       (id, info, acc) =>

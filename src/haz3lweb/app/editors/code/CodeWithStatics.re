@@ -59,7 +59,7 @@ module Update = {
         ~settings,
         ~is_edited,
         ~stitch,
-        ~dyn_map,
+        ~dynamics: Dynamics.Map.t,
         {editor, statics: _}: Model.t,
       )
       : Model.t => {
@@ -69,7 +69,7 @@ module Update = {
         ~settings,
         ~is_edited,
         statics,
-        dyn_map,
+        dynamics,
         editor,
       );
     {editor, statics};
@@ -85,7 +85,7 @@ module View = {
         ~globals,
         ~overlays: list(Node.t)=[],
         ~sort=Sort.root,
-        ~dyn_map,
+        ~dynamics: Dynamics.Map.t,
         model: Model.t,
       ) => {
     let {
@@ -107,7 +107,7 @@ module View = {
         ~segment,
         ~holes,
         ~info_map,
-        ~dyn_map,
+        ~dynamics,
       );
     let statics_decos = {
       module Deco =
@@ -115,7 +115,7 @@ module View = {
           let globals = globals;
           let editor = model.editor;
           let statics = model.statics;
-          let dynamics = dyn_map;
+          let dynamics = dynamics;
         });
       Deco.statics();
     };

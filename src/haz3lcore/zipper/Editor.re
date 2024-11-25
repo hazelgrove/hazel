@@ -97,7 +97,7 @@ module Model = {
       col_target: None,
     },
     history: History.empty,
-    syntax: CachedSyntax.init(zipper, Id.Map.empty, TestMap.empty),
+    syntax: CachedSyntax.init(zipper, Statics.Map.empty, Dynamics.Map.empty),
   };
 
   type persistent = PersistentZipper.t;

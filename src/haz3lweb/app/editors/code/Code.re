@@ -71,13 +71,14 @@ let of_secondary =
     }
   );
 
-let of_projector = (p, expected_sort, indent, info_map, dyn_map) =>
+let of_projector =
+    (p, expected_sort, indent, info_map, dynamics: Dynamics.Map.t) =>
   of_delim'((
     [
       Projector.placeholder(
         p,
-        Id.Map.find_opt(p.id, info_map),
-        TestMap.lookup(p.id, dyn_map),
+        Statics.Map.lookup(p.id, info_map),
+        Dynamics.Map.lookup(p.id, dynamics),
       ),
     ],
     false,
@@ -94,7 +95,7 @@ module Text =
            let map: Measured.t;
            let settings: Settings.Model.t;
            let info_map: Statics.Map.t;
-           let dyn_map: TestMap.t;
+           let dynamics: Dynamics.Map.t;
          },
        ) => {
   let m = p => Measured.find_p(~msg="Text", p, M.map);
@@ -130,7 +131,7 @@ module Text =
         expected_sort,
         m(Projector(p)).origin.col,
         M.info_map,
-        M.dyn_map,
+        M.dynamics,
       )
     };
   }
@@ -173,13 +174,14 @@ let rec holes =
      );
 
 let simple_view = (~font_metrics, ~segment, ~settings: Settings.t): Node.t => {
-  let map = Measured.of_segment(segment, Id.Map.empty, TestMap.empty);
+  let map =
+    Measured.of_segment(segment, Statics.Map.empty, Dynamics.Map.empty);
   module Text =
     Text({
       let map = map;
       let settings = settings;
-      let info_map = Id.Map.empty; /* Assume this doesn't contain projectors */
-      let dyn_map = TestMap.empty; /* Assume this doesn't contain projectors */
+      let info_map = Statics.Map.empty; /* Assume this doesn't contain projectors */
+      let dynamics = Dynamics.Map.empty; /* Assume this doesn't contain projectors */
     });
   let holes = holes(~map, ~font_metrics, segment);
   div(
