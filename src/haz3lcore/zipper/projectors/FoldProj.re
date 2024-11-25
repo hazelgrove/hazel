@@ -9,12 +9,40 @@ type t = {
   text: string,
 };
 
-/* Proof of concept value exposure. This isn't getting set right
-   after actions, only initially */
+/* Proof of concept value exposure. This isn't getting set immediately
+   after folding for some reason */
 let vals = (di: option(Dynamics.Info.t)) => {
   switch (di) {
   | Some(di) =>
-    List.map((d: DHExp.t) => d.term |> TermBase.Exp.show_term, di.vals)
+    List.map(
+      (d: DHExp.t) =>
+        d |> DHExp.strip_casts |> (d => d.term) |> TermBase.Exp.show_term,
+      di.vals,
+    )
+    |> String.concat(", ")
+  | _ => "Nein"
+  };
+};
+
+let vals = (di: option(Dynamics.Info.t)) => {
+  switch (di) {
+  | Some(di) =>
+    List.map(
+      (d: DHExp.t) =>
+        d
+        |> DHExp.strip_casts
+        |> ExpToSegment.exp_to_segment(
+             ~settings={
+               inline: false,
+               fold_case_clauses: false,
+               fold_fn_bodies: false,
+               hide_fixpoints: false,
+               fold_cast_types: false,
+             },
+           )
+        |> Printer.of_segment(~holes=None),
+      di.vals,
+    )
     |> String.concat(", ")
   | _ => "Nein"
   };

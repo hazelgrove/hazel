@@ -33,7 +33,7 @@ module CachedSyntax = {
   let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-  let init = (z, info_map, dyn_map): t => {
+  let init = (~token_of_proj, z): t => {
     let segment = Zipper.unselect_and_zip(z);
     let MakeTerm.{term, terms, projectors} = MakeTerm.go(segment);
     {
@@ -42,7 +42,7 @@ module CachedSyntax = {
       term_ranges: TermRanges.mk(segment),
       tiles: TileMap.mk(segment),
       holes: Segment.holes(segment),
-      measured: Measured.of_segment(segment, info_map, dyn_map),
+      measured: Measured.of_segment(segment, token_of_proj),
       selection_ids: Selection.selection_ids(z.selection),
       term,
       terms,
@@ -54,7 +54,7 @@ module CachedSyntax = {
 
   let calculate = (z: Zipper.t, info_map, dyn_map, old: t) =>
     old.old
-      ? init(z, info_map, dyn_map)
+      ? init(z, ~token_of_proj=Projector.token_of_proj(info_map, dyn_map))
       : {...old, selection_ids: Selection.selection_ids(z.selection)};
 };
 
@@ -97,7 +97,7 @@ module Model = {
       col_target: None,
     },
     history: History.empty,
-    syntax: CachedSyntax.init(zipper, Statics.Map.empty, Dynamics.Map.empty),
+    syntax: CachedSyntax.init(zipper, ~token_of_proj=_ => ""),
   };
 
   type persistent = PersistentZipper.t;

@@ -2,13 +2,13 @@
 type t = {
   stats: EvaluatorStats.t,
   tests: TestMap.t,
-  probes: Dynamics.Map.t,
+  probes: Dynamics.Probe.Map.t,
 };
 
 let init = {
   stats: EvaluatorStats.initial,
   tests: TestMap.empty,
-  probes: Dynamics.Map.empty,
+  probes: Dynamics.Probe.Map.empty,
 };
 
 let take_step = ({stats, _} as es) => {
@@ -27,4 +27,9 @@ let add_test = ({tests, _} as es, id, report) => {
 
 let get_tests = ({tests, _}) => tests;
 
-let put_tests = (tests, es) => {...es, tests};
+let add_probe = ({probes, _} as es, id: Id.t, v: Dynamics.Probe.Info.t) => {
+  let probes = Dynamics.Probe.Map.extend(id, v, probes);
+  {...es, probes};
+};
+
+let get_probes = ({probes, _}) => probes;

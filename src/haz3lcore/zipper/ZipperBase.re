@@ -160,3 +160,11 @@ module MapPiece = {
       go(f, z);
     };
 };
+
+let remove_all_projectors = (z: t): t =>
+  MapPiece.go(
+    fun
+    | Projector(pr) => pr.syntax
+    | x => x,
+    z,
+  );

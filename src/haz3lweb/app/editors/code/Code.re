@@ -71,31 +71,15 @@ let of_secondary =
     }
   );
 
-let of_projector =
-    (p, expected_sort, indent, info_map, dynamics: Dynamics.Map.t) =>
-  of_delim'((
-    [
-      Projector.placeholder(
-        p,
-        Statics.Map.lookup(p.id, info_map),
-        Dynamics.Map.lookup(p.id, dynamics),
-      ),
-    ],
-    false,
-    expected_sort,
-    true,
-    true,
-    indent,
-    0,
-  ));
+let of_projector = (expected_sort, indent, token) =>
+  of_delim'(([token], false, expected_sort, true, true, indent, 0));
 
 module Text =
        (
          M: {
            let map: Measured.t;
            let settings: Settings.Model.t;
-           let info_map: Statics.Map.t;
-           let dynamics: Dynamics.Map.t;
+           let token_of_proj: Base.projector => string;
          },
        ) => {
   let m = p => Measured.find_p(~msg="Text", p, M.map);
@@ -127,11 +111,9 @@ module Text =
       of_secondary((content, M.settings.secondary_icons, m(p).last.col))
     | Projector(p) =>
       of_projector(
-        p,
         expected_sort,
         m(Projector(p)).origin.col,
-        M.info_map,
-        M.dynamics,
+        M.token_of_proj(p),
       )
     };
   }
@@ -174,14 +156,13 @@ let rec holes =
      );
 
 let simple_view = (~font_metrics, ~segment, ~settings: Settings.t): Node.t => {
-  let map =
-    Measured.of_segment(segment, Statics.Map.empty, Dynamics.Map.empty);
+  let token_of_proj = _ => ""; /* Assume this doesn't contain projectors */
+  let map = Measured.of_segment(segment, token_of_proj);
   module Text =
     Text({
       let map = map;
       let settings = settings;
-      let info_map = Statics.Map.empty; /* Assume this doesn't contain projectors */
-      let dynamics = Dynamics.Map.empty; /* Assume this doesn't contain projectors */
+      let token_of_proj = token_of_proj;
     });
   let holes = holes(~map, ~font_metrics, segment);
   div(

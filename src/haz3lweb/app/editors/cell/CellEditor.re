@@ -61,7 +61,7 @@ module Update = {
         ~settings,
         ~is_edited,
         ~stitch,
-        ~dynamics=Dynamics.Map.empty, //TODO(andrew): see below
+        ~dynamics=EvalResult.Model.dynamics(result),
         editor,
       );
     let result =
@@ -71,16 +71,6 @@ module Update = {
         ~is_edited,
         editor |> CodeEditable.Model.get_statics,
         result,
-      );
-    //TODO(andrew): double-calcing editor...
-    let dynamics = EvalResult.Model.dynamics(result);
-    let editor =
-      CodeEditable.Update.calculate(
-        ~settings,
-        ~is_edited,
-        ~stitch,
-        ~dynamics,
-        editor,
       );
     {editor, result};
   };

@@ -138,6 +138,8 @@ module type EV_MODE = {
   let otherwise: (ClosureEnvironment.t, 'a) => requirements(unit, 'a);
 
   let update_test: (state, Id.t, TestMap.instance_report) => unit;
+
+  let update_probe: (state, Id.t, Dynamics.Probe.Info.t) => unit;
 };
 
 module Transition = (EV: EV_MODE) => {
@@ -782,8 +784,7 @@ module Transition = (EV: EV_MODE) => {
         );
       Step({
         expr: d',
-        state_update: () =>
-          update_test(state, DHExp.rep_id(d), (d', Indet)),
+        state_update: () => update_probe(state, DHExp.rep_id(d), d'),
         kind: RemoveParens,
         is_value: true,
       });

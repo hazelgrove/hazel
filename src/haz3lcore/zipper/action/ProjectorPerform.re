@@ -10,30 +10,11 @@ module Update = {
     | x => x
     };
 
-  let init = (kind: t, syntax: syntax): syntax => {
-    /* We set the projector id equal to the Piece id for convienence
-     * including cursor-info association. We maintain this invariant
-     * when we update a projector's contained syntax */
-    let (module P) = to_module(kind);
-    switch (P.can_project(syntax) && minimum_projection_condition(syntax)) {
-    | false => syntax
-    | true => Projector({id: Piece.id(syntax), kind, model: P.init, syntax})
-    };
-  };
-
-  let init_from_str = (kind: t, syntax: syntax, model_str: string): syntax => {
-    let (module P) = to_module(kind);
-    switch (P.can_project(syntax) && minimum_projection_condition(syntax)) {
-    | false => syntax
-    | true =>
-      Projector({id: Piece.id(syntax), kind, model: model_str, syntax})
-    };
-  };
-
   let add_projector = (kind: Base.kind, id: Id.t, syntax: syntax) =>
     switch (syntax) {
-    | Projector(pr) when Piece.id(syntax) == id => init(kind, pr.syntax)
-    | syntax when Piece.id(syntax) == id => init(kind, syntax)
+    | Projector(pr) when Piece.id(syntax) == id =>
+      Projector.init(kind, pr.syntax)
+    | syntax when Piece.id(syntax) == id => Projector.init(kind, syntax)
     | x => x
     };
 
@@ -46,13 +27,7 @@ module Update = {
   let add_or_remove_projector = (kind: Base.kind, id: Id.t, syntax: syntax) =>
     switch (syntax) {
     | Projector(pr) when Piece.id(syntax) == id => pr.syntax
-    | syntax when Piece.id(syntax) == id => init(kind, syntax)
-    | x => x
-    };
-
-  let remove_any_projector = (syntax: syntax) =>
-    switch (syntax) {
-    | Projector(pr) => pr.syntax
+    | syntax when Piece.id(syntax) == id => Projector.init(kind, syntax)
     | x => x
     };
 
@@ -71,7 +46,7 @@ module Update = {
     ZipperBase.MapPiece.fast_local(remove_projector(id), id, z);
 
   let remove_all = (z: ZipperBase.t): ZipperBase.t =>
-    ZipperBase.MapPiece.go(remove_any_projector, z);
+    ZipperBase.remove_all_projectors(z);
 };
 
 /* If the caret is inside the indicated piece, move it out

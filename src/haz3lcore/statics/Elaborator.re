@@ -233,11 +233,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
     | Cast(e, _, _) // We remove these casts because they should be re-inserted in the recursive call
     | FailedCast(e, _, _)
     | Parens(e, Probe) =>
-      //TODO(andrew): am i casting/rewrapping correctly?
+      //TODO(andrew): Matthew: Am I casting/rewrapping correctly?
       let (e', ty) = elaborate(m, e);
       Parens(e' |> cast_from(ty), Probe) |> rewrap;
-    | Parens(e, _) =>
-      //TODO(andrew): dont get rid of these?
+    | Parens(e, Paren) =>
       let (e', ty) = elaborate(m, e);
       e' |> cast_from(ty);
     | Deferral(_) => uexp

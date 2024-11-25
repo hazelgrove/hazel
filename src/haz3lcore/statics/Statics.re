@@ -1,32 +1,32 @@
 /* STATICS.re
 
-   This module determines the statics semantics of a program.
-   It makes use of the following modules:
+    This module determines the statics semantics of a program.
+    It makes use of the following modules:
 
-   INFO.re: Defines the Info.t type which is used to represent the
-   static STATUS of a term. This STATUS can be either OK or ERROR,
-   and is determined by reconcilling two sources of typing information,
-   the MODE and the SELF.
+    INFO.re: Defines the Info.t type which is used to represent the
+    static STATUS of a term. This STATUS can be either OK or ERROR,
+    and is determined by reconcilling two sources of typing information,
+    the MODE and the SELF.
 
-   MODE.re: Defines the Mode.t type which is used to represent the
-   typing expectations imposed by a term's ancestors.
+    MODE.re: Defines the Mode.t type which is used to represent the
+    typing expectations imposed by a term's ancestors.
 
-   SELF.re: Define the Self.t type which is used to represent the
-   type information derivable from the term itself.
+    SELF.re: Define the Self.t type which is used to represent the
+    type information derivable from the term itself.
 
-   The point of STATICS.re itself is to derive a map between each
-   term's unique id and that term's static INFO. The below functions
-   are intended mostly as infrastructure: The point is to define a
-   traversal through the syntax tree which, for each term, passes
-   down the MODE, passes up the SELF, calculates the INFO, and adds
-   it to the map.
+    The point of STATICS.re itself is to derive a map between each
+    term's unique id and that term's static INFO. The below functions
+    are intended mostly as infrastructure: The point is to define a
+    traversal through the syntax tree which, for each term, passes
+    down the MODE, passes up the SELF, calculates the INFO, and adds
+    it to the map.
 
-   The architectural intention here is that most type-manipulation
-   logic is defined in INFO, MODE, and SELF, and the STATICS module
-   itself is dedicated to the piping necessary to (A) introduce and
+    The architectural intention here is that most type-manipulation
+    logic is defined in INFO, MODE, and SELF, and the STATICS module
+    itself is dedicated to the piping necessary to (A) introduce and
    (B) propagate the necessary information through the syntax tree.
 
-    */
+     */
 
 module Info = Info;
 
@@ -279,8 +279,8 @@ and uexp_to_info_map =
     /* Currently doing this as otherwise it clobbers the statics
      * for the contained expression as i'm just reusing the same id
      * in order to associate it through dynamics */
+    //TODO(andrew): ponder this
     go(~mode, e, m)
-  //TODO(andrew): ponder this
   | UnOp(Meta(Unquote), e) when is_in_filter =>
     let e: UExp.t = {
       ids: e.ids,
