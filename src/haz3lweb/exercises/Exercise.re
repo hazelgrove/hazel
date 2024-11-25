@@ -419,23 +419,22 @@ let put_stitched = (pos, s: stitched('a), x: 'a): stitched('a) =>
   | HiddenTests => {...s, hidden_tests: x}
   };
 
-let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t =>
-  Exp.{
-    term:
-      Exp.Filter(
-        Filter({
-          act: FilterAction.(act, One),
-          pat: {
-            term: Constructor("$e", Unknown(Internal) |> Typ.temp),
-            copied: false,
-            ids: [Id.mk()],
-          },
-        }),
-        term,
-      ),
-    copied: false,
-    ids: [Id.mk()],
-  };
+let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t => {
+  term:
+    Filter(
+      Filter({
+        act: FilterAction.(act, One),
+        pat: {
+          term: Constructor("$e", Unknown(Internal) |> Typ.temp),
+          copied: false,
+          ids: [Id.mk()],
+        },
+      }),
+      term,
+    ),
+  copied: false,
+  ids: [Id.mk()],
+};
 
 let wrap = (term, editor: Editor.t): TermItem.t => {term, editor};
 

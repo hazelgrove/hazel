@@ -88,13 +88,16 @@ let id = (editor: option(Editor.t)) => {
   |> Option.value(~default=Id.invalid);
 };
 
-let might_project: option(Editor.t) => bool =
-  fun
-  | None => false
-  | Some(editor) =>
-    switch (Indicated.piece''(editor.state.zipper)) {
+let might_project: Cursor.cursor(Editors.Update.t) => bool =
+  cursor =>
+    switch (cursor.editor) {
+    | _ when cursor.editor_read_only => false
     | None => false
-    | Some((p, _, _)) => minimum_projection_condition(p)
+    | Some(editor) =>
+      switch (Indicated.piece''(editor.state.zipper)) {
+      | None => false
+      | Some((p, _, _)) => minimum_projection_condition(p)
+      }
     };
 
 let currently_selected = editor =>
@@ -107,8 +110,7 @@ let currently_selected = editor =>
 
 let view = (~inject, cursor: Cursor.cursor(Editors.Update.t)) => {
   let applicable_projectors = applicable_projectors(cursor.info);
-  let should_show =
-    might_project(cursor.editor) && applicable_projectors != [];
+  let should_show = might_project(cursor) && applicable_projectors != [];
   let select_view =
     Node.select(
       ~attrs=[
@@ -116,7 +118,7 @@ let view = (~inject, cursor: Cursor.cursor(Editors.Update.t)) => {
           inject(Action.SetIndicated(ProjectorView.of_name(name)))
         ),
       ],
-      (might_project(cursor.editor) ? applicable_projectors : [])
+      (might_project(cursor) ? applicable_projectors : [])
       |> List.map(ProjectorView.name)
       |> List.map(currently_selected(cursor.editor)),
     );
@@ -126,7 +128,7 @@ let view = (~inject, cursor: Cursor.cursor(Editors.Update.t)) => {
       cursor.info,
       id(cursor.editor),
       kind(cursor.editor) != None,
-      might_project(cursor.editor),
+      might_project(cursor),
     );
   div(
     ~attrs=[Attr.id("projectors")],

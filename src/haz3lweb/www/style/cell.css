@@ -59,10 +59,6 @@
   padding: 0em
 }
 
-.result .code-editor.selected{
-  background-color: var(--cell-result);
-}
-
 .title-cell {
   padding-left: 1em;
 }
