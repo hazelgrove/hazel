@@ -21,35 +21,49 @@ let restart_caret_animation = () =>
 
 let apply = (model, action, ~schedule_action): Model.t => {
   restart_caret_animation();
-  if (UpdateAction.is_edit(action)) {
-    last_edit_action := JsUtil.timestamp();
-    edit_action_applied := true;
-  };
-  if (Update.should_scroll_to_caret(action)) {
-    scroll_to_caret := true;
-  };
-  last_edit_action := JsUtil.timestamp();
-  switch (
-    try({
-      let new_model = Update.apply(model, action, ~schedule_action);
-      Log.update(action);
-      new_model;
-    }) {
-    | exc =>
+
+  let get_settings = (model: Model.t): Settings.t => model.settings;
+
+  switch (action, get_settings(model).editing_title) {
+  | (UpdateAction.PerformAction(Insert(_)), true) => model
+  | (UpdateAction.PerformAction(Destruct(_)), true) => model
+  | (action, _) =>
+    if (UpdateAction.is_edit(action)) {
+      last_edit_action := JsUtil.timestamp();
+      edit_action_applied := true;
+    };
+    let old_scroll = scroll_to_caret.contents;
+    if (Update.should_scroll_to_caret(action)) {
+      scroll_to_caret := true;
       Printf.printf(
-        "ERROR: Exception during apply: %s\n",
-        Printexc.to_string(exc),
+        "DEBUG: Scroll set to true for action: %s (was: %b)\n",
+        UpdateAction.show(action),
+        old_scroll,
       );
-      Error(Exception(Printexc.to_string(exc)));
-    }
-  ) {
-  | Ok(model) => model
-  | Error(FailedToPerform(err)) =>
-    print_endline(Update.Failure.show(FailedToPerform(err)));
-    model;
-  | Error(err) =>
-    print_endline(Update.Failure.show(err));
-    model;
+    };
+    last_edit_action := JsUtil.timestamp();
+    switch (
+      try({
+        let new_model = Update.apply(model, action, ~schedule_action);
+        Log.update(action);
+        new_model;
+      }) {
+      | exc =>
+        Printf.printf(
+          "ERROR: Exception during apply: %s\n",
+          Printexc.to_string(exc),
+        );
+        Error(Exception(Printexc.to_string(exc)));
+      }
+    ) {
+    | Ok(model) => model
+    | Error(FailedToPerform(err)) =>
+      print_endline(Update.Failure.show(FailedToPerform(err)));
+      model;
+    | Error(err) =>
+      print_endline(Update.Failure.show(err));
+      model;
+    };
   };
 };
 

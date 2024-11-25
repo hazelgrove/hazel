@@ -150,7 +150,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     //       how these fields are saved and loaded to and from local memory
     //       respectively.
     // NOTE: It may be helpful to look at changes made in the mutant-add-delete and title-editor
-    //       branches in the Hazel repo to see and understand where changes
+    //       branches in the Hazel repository to see and understand where changes
     //       were made. It is likely that new implementations of editble features
     //       will follow a similar route.
   };

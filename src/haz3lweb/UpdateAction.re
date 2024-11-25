@@ -254,6 +254,12 @@ let should_scroll_to_caret =
   fun
   | Set(s_action) =>
     switch (s_action) {
+    | EditingTitle => false
+    | EditingPrompt => false
+    | EditingTestValRep => false
+    | EditingMutTestRep => false
+    | EditingImplGrdRep => false
+    | EditingModuleName => false
     | Mode(_) => true
     | Captions
     | SecondaryIcons
@@ -265,12 +271,6 @@ let should_scroll_to_caret =
     | Benchmark
     | ContextInspector
     | InstructorMode
-    | EditingTitle
-    | EditingPrompt
-    | EditingTestValRep
-    | EditingMutTestRep
-    | EditingImplGrdRep
-    | EditingModuleName
     | Evaluation(_) => false
     }
   | SetMeta(meta_action) =>
@@ -283,8 +283,6 @@ let should_scroll_to_caret =
   | UpdateResult(_)
   | ToggleStepper(_)
   | UpdateTitle(_)
-  | AddBuggyImplementation
-  | DeleteBuggyImplementation(_)
   | UpdatePrompt(_)
   | UpdateTestValRep(_)
   | UpdateMutTestRep(_)
@@ -301,6 +299,8 @@ let should_scroll_to_caret =
   | Undo
   | Redo
   | TAB
+  | AddBuggyImplementation
+  | DeleteBuggyImplementation(_)
   | Startup => true
   | PerformAction(a) =>
     switch (a) {

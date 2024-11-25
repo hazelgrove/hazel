@@ -31,7 +31,7 @@ let key_handler =
       || settings.editing_mut_test_rep
       || settings.editing_impl_grd_rep
       || settings.editing_module_name
-        ? Many([inject(action)])
+        ? Many([Stop_propagation, inject(action)])
         : Many([Prevent_default, Stop_propagation, inject(action)]);
     }
   };
@@ -111,9 +111,7 @@ let main_view =
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       {settings, editors, explainThisModel, results, ui_state, _}: Model.t,
     ) => {
-  print_endline("here, at main view, getting editor");
   let editor = Editors.get_editor(editors);
-  print_endline("got editor!");
   let cursor_info =
     Indicated.ci_of(editor.state.zipper, editor.state.meta.statics.info_map);
   let highlights =
