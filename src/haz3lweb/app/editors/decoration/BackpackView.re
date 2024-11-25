@@ -3,17 +3,17 @@ open Node;
 open Haz3lcore;
 open Util;
 
-/* Assume this doesn't contain projectors */
 let measured_of = seg =>
-  Measured.of_segment(seg, Id.Map.empty, TestMap.empty);
+  /* Assume this doesn't contain projectors */
+  Measured.of_segment(seg, Statics.Map.empty, Dynamics.Map.empty);
 
 let text_view = (seg: Segment.t): list(Node.t) => {
   module Text =
     Code.Text({
       let map = measured_of(seg);
       let settings = Settings.Model.init;
-      let info_map = Id.Map.empty; /* Assume this doesn't contain projectors */
-      let dyn_map = TestMap.empty; /* Assume this doesn't contain projectors */
+      let info_map = Statics.Map.empty; /* Assume this doesn't contain projectors */
+      let dynamics = Dynamics.Map.empty; /* Assume this doesn't contain projectors */
     });
   Text.of_segment([], true, Any, seg);
 };

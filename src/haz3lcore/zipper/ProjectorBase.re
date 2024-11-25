@@ -32,8 +32,8 @@ type external_action =
 type info = {
   id: Id.t,
   syntax,
-  ci: option(Info.t),
-  dyn: option(list(TestMap.instance_report)),
+  statics: option(Statics.Info.t),
+  dynamics: option(Dynamics.Info.t),
 };
 
 /* To add a new projector:

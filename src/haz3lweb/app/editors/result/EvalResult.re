@@ -1,4 +1,5 @@
 open Util;
+open Haz3lcore;
 
 /* The result box at the bottom of a cell. This is either the TestResutls
    kind where only a summary of test results is shown, or the EvalResults kind
@@ -80,6 +81,12 @@ module Model = {
       )
     | Evaluation(_)
     | NoElab => model.previous_tests
+    };
+
+  let dynamics = (model: t): Dynamics.Map.t =>
+    switch (test_results(model)) {
+    | Some(result) => Dynamics.Map.mk(result.test_map)
+    | None => Dynamics.Map.mk(TestMap.empty)
     };
 
   let get_elaboration = (model: t): option(Haz3lcore.Exp.t) =>
@@ -265,7 +272,7 @@ module Update = {
                ~settings,
                ~stitch=_ => exp,
                ~is_edited,
-               ~dyn_map=Haz3lcore.TestMap.empty, //TODO(andrew)
+               ~dynamics=Dynamics.Map.empty, //TODO(andrew)
                editor,
              )
              |> (x => (exp, x))
@@ -378,7 +385,7 @@ module View = {
         ~globals,
         ~selected,
         ~sort=Haz3lcore.Sort.root,
-        ~dyn_map=Haz3lcore.TestMap.empty, //TODO(andrew): this is just the result display, right?
+        ~dynamics=Dynamics.Map.empty, //This is just the result display
         editor,
       );
     let exn_view =
@@ -534,11 +541,6 @@ module View = {
 
     // Just showing elaboration because evaluation is off:
     | EvalResults when globals.settings.core.elaborate =>
-      let dyn_map =
-        switch (Model.test_results(model)) {
-        | Some(result) => result.test_map
-        | None => Haz3lcore.TestMap.empty
-        };
       let result = [
         text("Evaluation disabled, showing elaboration:"),
         switch (Model.get_elaboration(model)) {
@@ -553,8 +555,8 @@ module View = {
           |> CodeViewable.view_segment(
                ~globals,
                ~sort=Exp,
-               ~info_map=Haz3lcore.Id.Map.empty,
-               ~dyn_map,
+               ~info_map=Statics.Map.empty,
+               ~dynamics=Model.dynamics(model),
              )
         | None => text("No elaboration found")
         },

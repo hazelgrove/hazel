@@ -2,9 +2,14 @@
 type t = {
   stats: EvaluatorStats.t,
   tests: TestMap.t,
+  probes: Dynamics.Map.t,
 };
 
-let init = {stats: EvaluatorStats.initial, tests: TestMap.empty};
+let init = {
+  stats: EvaluatorStats.initial,
+  tests: TestMap.empty,
+  probes: Dynamics.Map.empty,
+};
 
 let take_step = ({stats, _} as es) => {
   ...es,

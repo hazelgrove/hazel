@@ -14,7 +14,11 @@ let empty: t = {
     copied: false,
     term: Tuple([]),
   },
-  elaborated: UExp.{ids: [Id.invalid], copied: false, term: Tuple([])},
+  elaborated: {
+    ids: [Id.invalid],
+    copied: false,
+    term: Tuple([]),
+  },
   info_map: Id.Map.empty,
   error_ids: [],
 };

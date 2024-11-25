@@ -283,7 +283,7 @@ let last_of_token = (token: string, origin: Point.t): Point.t =>
   };
 
 let of_segment =
-    (seg: Segment.t, info_map: Statics.Map.t, dyn_map: TestMap.t): t => {
+    (seg: Segment.t, statics: Statics.Map.t, dynamics: Dynamics.Map.t): t => {
   let is_indented = is_indented_map(seg);
 
   // recursive across seg's bidelimited containers
@@ -354,9 +354,9 @@ let of_segment =
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
           | Projector(p) =>
-            let ci = Id.Map.find_opt(p.id, info_map);
-            let dyn = TestMap.lookup(p.id, dyn_map);
-            let token = Projector.placeholder(p, ci, dyn);
+            let si = Id.Map.find_opt(p.id, statics);
+            let di = Dynamics.Map.lookup(p.id, dynamics);
+            let token = Projector.placeholder(p, si, di);
             let last = last_of_token(token, origin);
             let map = extra_rows(token, origin, map);
             let map = add_pr(p, {origin, last}, map);

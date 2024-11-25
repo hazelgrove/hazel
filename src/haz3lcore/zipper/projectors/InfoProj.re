@@ -68,7 +68,7 @@ module M: Projector = {
     display_ty(model, info) |> totalize_ty |> Typ.pretty_print;
 
   let placeholder = (model, info) =>
-    Inline((display(model, info.ci) |> String.length) + 5);
+    Inline((display(model, info.statics) |> String.length) + 5);
 
   let update = (model, a: action) =>
     switch (a, model) {
@@ -83,10 +83,10 @@ module M: Projector = {
         Attr.on_mousedown(_ => local(ToggleDisplay)),
       ],
       [
-        text("⋱ " ++ display_mode(model, info.ci) ++ " "),
+        text("⋱ " ++ display_mode(model, info.statics) ++ " "),
         div(
           ~attrs=[Attr.classes(["type"])],
-          [text(display(model, info.ci))],
+          [text(display(model, info.statics))],
         ),
       ],
     );

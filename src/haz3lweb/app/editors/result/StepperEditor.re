@@ -35,7 +35,7 @@ module Update = {
         ~settings,
         ~is_edited,
         ~stitch,
-        ~dyn_map,
+        ~dynamics: Dynamics.Map.t,
         {editor, taken_steps, next_steps}: Model.t,
       )
       : Model.t => {
@@ -44,7 +44,7 @@ module Update = {
         ~settings,
         ~is_edited,
         ~stitch,
-        ~dyn_map,
+        ~dynamics,
         editor,
       );
     {editor, taken_steps, next_steps};
@@ -71,7 +71,7 @@ module View = {
         ~signal: event => 'a,
         ~overlays=[],
         ~selected,
-        ~dyn_map,
+        ~dynamics: Dynamics.Map.t,
         model: Model.t,
       ) => {
     let overlays = {
@@ -80,7 +80,7 @@ module View = {
           let editor = model.editor.editor;
           let globals = globals;
           let statics = model.editor.statics;
-          let dynamics = dyn_map;
+          let dynamics = dynamics;
         });
       overlays
       @ Deco.taken_steps(model.taken_steps)
@@ -93,7 +93,7 @@ module View = {
       ~selected,
       ~globals,
       ~overlays,
-      ~dyn_map,
+      ~dynamics,
       model.editor,
     );
   };
