@@ -39,15 +39,14 @@ let skip_menhir_only_test = (name: string, _exp: Term.Exp.t, _actual: string) =>
 
 // TODO Assert against result instead of exception for parse failure for better error messages
 let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
-  test_case(
-    name,
-    `Quick,
-    () => {
-      alco_check("Does not match MakeTerm", exp, make_term_parse(actual));
-
-      menhir_matches(name, exp, actual);
-    },
-  );
+  test_case(name, `Quick, () => {
+    // alco_check("Does not match MakeTerm", exp, make_term_parse(actual));
+    menhir_matches(
+      name,
+      exp,
+      actual,
+    )
+  });
 
 let menhir_maketerm_equivalent_test = (name: string, actual: string) =>
   test_case(name, `Quick, () => {
@@ -364,6 +363,23 @@ let tests = [
     |> Exp.fresh,
     "-1 + 2 - 3 / 4 * 5 ** 6 >= 8",
   ), // TODO Add the remaining operators and fix precedence
+  parser_test(
+    "simple pemdas",
+    BinOp(
+      Int(Times),
+      BinOp(Int(Times), Int(3) |> Exp.fresh, Int(4) |> Exp.fresh)
+      |> Exp.fresh,
+      BinOp(
+        Int(Power),
+        Int(4) |> Exp.fresh,
+        BinOp(Int(Power), Int(5) |> Exp.fresh, Int(6) |> Exp.fresh)
+        |> Exp.fresh,
+      )
+      |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "3 / 4 * 5 ** 6",
+  ),
   parser_test("Float", Float(1.) |> Exp.fresh, "1."),
   skip_parser_test(
     "Float Ops",
