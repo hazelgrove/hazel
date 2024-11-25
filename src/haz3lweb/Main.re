@@ -42,14 +42,8 @@ let apply = (model, action, ~schedule_action): Model.t => {
       last_edit_action := JsUtil.timestamp();
       edit_action_applied := true;
     };
-    let old_scroll = scroll_to_caret.contents;
     if (Update.should_scroll_to_caret(action)) {
       scroll_to_caret := true;
-      Printf.printf(
-        "DEBUG: Scroll set to true for action: %s (was: %b)\n",
-        UpdateAction.show(action),
-        old_scroll,
-      );
     };
     last_edit_action := JsUtil.timestamp();
     switch (

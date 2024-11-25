@@ -211,7 +211,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
               tests: editor,
               provided: new_prov_test,
             },
-          } /* Set 'provided' to 1 if editing_test_val_rep is true */
+          },
         }
         : {
           ...state,
@@ -573,11 +573,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
             index < length - 1 ? index + 1 : index - 1,
           ).
             impl
-        : state.eds.your_tests.tests;
+        : state.eds.your_impl;
     let pos =
       length > 1
-        ? HiddenBugs(index < length - 1 ? index : index - 1)
-        : YourTestsValidation;
+        ? HiddenBugs(index < length - 1 ? index : index - 1) : YourImpl;
     let new_state = {
       pos,
       eds: {

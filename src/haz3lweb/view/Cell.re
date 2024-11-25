@@ -360,7 +360,14 @@ let wrong_impl_caption = (~inject, sub: string, n: int) => {
     [
       caption("", ~rest=sub),
       div(
-        ~attrs=[Attr.class_("instructor-edit-icon")],
+        ~attrs=[
+          Attr.class_("instructor-edit-icon"),
+          Attr.on_mousedown(_ =>
+            Virtual_dom.Vdom.Effect.(
+              Many([Prevent_default, Stop_propagation])
+            )
+          ),
+        ],
         [
           Widgets.button(
             Icons.delete,
