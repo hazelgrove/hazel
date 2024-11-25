@@ -3,6 +3,8 @@ open Util;
 /* This file handles the pagenation of Exercise Mode, and switching between
    exercises. ExerciseMode.re handles the actual exercise. */
 
+/* This file follows conventions in [docs/ui-architecture.md] */
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -466,7 +468,7 @@ module View = {
       ~inject=globals.inject_global,
       ~instructor_mode=globals.settings.instructor_mode,
     )
-    @ SlideSelect.view(
+    @ EditorModeView.view(
         ~signal=
           fun
           | Previous =>
@@ -482,7 +484,7 @@ module View = {
               ),
             ),
         ~indicator=
-          SlideSelect.indicator_n(
+          EditorModeView.indicator_n(
             model.current,
             List.length(model.exercises),
           ),

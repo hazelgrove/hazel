@@ -215,19 +215,23 @@
 
 .tile-next-step path,
 .tile-next-step path *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
-  outline: 1px var(--step-hole-color);
+  border: 1px var(--G1);
   fill: var(--G1);
   cursor: pointer;
 }
 
 .tile-taken-step path,
 .tile-taken-step path *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
-  border: 1px var(--step-hole-color);
+  border: 1px var(--BR1);
   fill: var(--BR1);
 }
 
 .child-line.Exp.next-step-line {
   stroke: var(--G2);
+}
+
+.child-line.Exp.taken-step-line {
+  stroke: var(--BR1);
 }
 
 .taken-step-line {
@@ -305,16 +309,18 @@
 }
 
 .tile-next-step .tile-path.Exp.indicated {
-  fill: #8aeda6;
+  fill: var(--G1)
 }
 
 .tile-taken-step .tile-path.Exp.indicated {
-  fill: #ddcda3;
+  fill: var(--BR1)
 }
 
 svg.tile-next-step {
   pointer-events: all;
   cursor: pointer;
+  z-index: var(--test-result-z);
+  filter: drop-shadow(1px 1px var(--G2));
 }
 
 .cell-result .code {

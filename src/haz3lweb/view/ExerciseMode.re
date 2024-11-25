@@ -4,6 +4,8 @@ open Node;
 
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
 
+/* This file follows conventions in [docs/ui-architecture.md] */
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -413,7 +415,7 @@ module View = {
               switch (specific_ctx) {
               | None => Node.div([text("No context available")]) // TODO show exercise configuration error
               | Some(specific_ctx) =>
-                CtxInspector.ctx_view(~globals, specific_ctx)
+                ContextInspector.ctx_view(~globals, specific_ctx)
               };
             };
           };

@@ -10,7 +10,7 @@ include TermBase.TPat;
 let rep_id: t => Id.t = IdTagged.rep_id;
 let fresh: term => t = IdTagged.fresh;
 
-let hole = (tms: list(TermBase.Any.t)) =>
+let hole = (tms: list(TermBase.Any.t)): TermBase.TPat.term =>
   switch (tms) {
   | [] => EmptyHole
   | [_, ..._] => MultiHole(tms)

@@ -41,13 +41,13 @@ let fn =
 module Pervasives = {
   module Impls = {
     /* constants */
-    let infinity = DHExp.Float(Float.infinity) |> fresh;
-    let neg_infinity = DHExp.Float(Float.neg_infinity) |> fresh;
-    let nan = DHExp.Float(Float.nan) |> fresh;
-    let epsilon_float = DHExp.Float(epsilon_float) |> fresh;
-    let pi = DHExp.Float(Float.pi) |> fresh;
-    let max_int = DHExp.Int(Int.max_int) |> fresh;
-    let min_int = DHExp.Int(Int.min_int) |> fresh;
+    let infinity = Float(Float.infinity) |> fresh;
+    let neg_infinity = Float(Float.neg_infinity) |> fresh;
+    let nan = Float(Float.nan) |> fresh;
+    let epsilon_float = Float(epsilon_float) |> fresh;
+    let pi = Float(Float.pi) |> fresh;
+    let max_int = Int(Int.max_int) |> fresh;
+    let min_int = Int(Int.min_int) |> fresh;
 
     let unary = (f: DHExp.t => result, d: DHExp.t) => {
       switch (f(d)) {
@@ -180,8 +180,8 @@ module Pervasives = {
           switch (convert(s)) {
           | Some(n) => Ok(wrap(n))
           | None =>
-            let d' = DHExp.BuiltinFun(name) |> DHExp.fresh;
-            let d' = DHExp.Ap(Forward, d', d) |> DHExp.fresh;
+            let d' = BuiltinFun(name) |> DHExp.fresh;
+            let d' = Ap(Forward, d', d) |> DHExp.fresh;
             let d' = DynamicErrorHole(d', InvalidOfString) |> DHExp.fresh;
             Ok(d');
           }
@@ -204,8 +204,7 @@ module Pervasives = {
             Ok(
               fresh(
                 DynamicErrorHole(
-                  DHExp.Ap(Forward, DHExp.BuiltinFun(name) |> fresh, d1)
-                  |> fresh,
+                  Ap(Forward, BuiltinFun(name) |> fresh, d1) |> fresh,
                   DivideByZero,
                 ),
               ),

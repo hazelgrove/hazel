@@ -324,7 +324,7 @@ let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
     );
   switch (status) {
   | NotInHole(Empty) => div_ok([text("Fillable with a new alias")])
-  | NotInHole(Var(name)) => div_ok([CtxInspector.alias_view(name)])
+  | NotInHole(Var(name)) => div_ok([ContextInspector.alias_view(name)])
   | InHole(NotAVar(NotCapitalized)) =>
     div_err([text("Must begin with a capital letter")])
   | InHole(NotAVar(_)) => div_err([text("Expected an alias")])
