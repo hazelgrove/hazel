@@ -21,7 +21,7 @@ let make_term_parse = (s: string) =>
 
 let menhir_matches = (name: string, exp: Term.Exp.t, actual: string) =>
   alco_check(
-    name ++ " matches expected type",
+    name ++ " menhir matches expected type",
     exp,
     Haz3lmenhir.Conversion.Exp.of_menhir_ast(
       Haz3lmenhir.Interface.parse_program(actual),
