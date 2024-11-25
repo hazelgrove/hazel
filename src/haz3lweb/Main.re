@@ -24,9 +24,19 @@ let apply = (model, action, ~schedule_action): Model.t => {
 
   let get_settings = (model: Model.t): Settings.t => model.settings;
 
-  switch (action, get_settings(model).editing_title) {
+  let settings = get_settings(model);
+  let editing_mode =
+    settings.editing_prompt
+    || settings.editing_title
+    || settings.editing_test_val_rep
+    || settings.editing_mut_test_rep
+    || settings.editing_impl_grd_rep
+    || settings.editing_module_name;
+
+  switch (action, editing_mode) {
   | (UpdateAction.PerformAction(Insert(_)), true) => model
   | (UpdateAction.PerformAction(Destruct(_)), true) => model
+  | (UpdateAction.PerformAction(Move(_)), true) => model
   | (action, _) =>
     if (UpdateAction.is_edit(action)) {
       last_edit_action := JsUtil.timestamp();
