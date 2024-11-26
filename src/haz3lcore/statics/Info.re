@@ -215,7 +215,6 @@ type exp = {
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
   ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
-  lifted_ty: option(Typ.t), /* Type static-level elaboration */
   unelaborated_info: option(exp), /* The info of the pre-sugar term */
   sugar_info: option(sugar),
 };
@@ -233,7 +232,6 @@ type pat = {
   status: status_pat,
   ty: Typ.t,
   constraint_: Constraint.t,
-  lifted_ty: option(Typ.t), /* Type static-level elaboration */
   elaboration_provenance: option((pat, sugar)),
 };
 
@@ -696,7 +694,6 @@ let derived_exp =
       ~ancestors,
       ~self,
       ~co_ctx,
-      ~lifted_ty: option(Typ.t),
       ~unelaborated_info: option(exp),
       ~sugar_info: option(sugar),
     )
@@ -713,7 +710,6 @@ let derived_exp =
     ctx,
     co_ctx,
     ancestors,
-    lifted_ty,
     term: uexp,
     unelaborated_info,
     sugar_info,
@@ -731,7 +727,6 @@ let derived_pat =
       ~ancestors,
       ~self,
       ~constraint_,
-      ~lifted_ty: option(Typ.t),
       ~elaboration_provenance: option((pat, sugar)),
     )
     : pat => {
@@ -751,7 +746,6 @@ let derived_pat =
     ancestors,
     term: upat,
     constraint_,
-    lifted_ty,
     elaboration_provenance,
   };
 };

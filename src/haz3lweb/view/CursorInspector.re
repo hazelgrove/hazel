@@ -287,7 +287,7 @@ let rec exp_view =
   | InHole(Common(error)) =>
     div_err(
       common_err_view(
-        ~lifted_ty=?info.lifted_ty,
+        ~lifted_ty=?Option.map(_ => info.ty, info.sugar_info),
         ~sugar_info=?info.sugar_info,
         cls,
         error,
@@ -299,7 +299,7 @@ let rec exp_view =
     div_ok(
       common_ok_view(
         ~auto_labels=labels,
-        ~lifted_ty=?info.lifted_ty,
+        ~lifted_ty=?Option.map(_ => info.ty, info.sugar_info),
         ~sugar_info=?info.sugar_info,
         cls,
         ok,
