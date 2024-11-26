@@ -774,6 +774,7 @@ and uexp_to_info_map =
                     // because redundancy doesn't make sense in a smaller context
                     ~constraint_=p_constraint,
                     ~lifted_ty=None,
+                    ~elaboration_provenance=None,
                   );
                 (
                   // Override the info for the single upat
@@ -906,7 +907,8 @@ and upat_to_info_map =
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
-  let add = (~self, ~ctx, ~constraint_, ~lifted_ty=?, m) => {
+  let add =
+      (~self, ~ctx, ~constraint_, ~elaboration_provenance=?, ~lifted_ty=?, m) => {
     let prev_synswitch =
       switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
       | Some(Info.InfoPat({mode: Syn | SynFun, ty, _})) => Some(ty)
@@ -925,6 +927,7 @@ and upat_to_info_map =
         ~self=Common(self),
         ~constraint_,
         ~lifted_ty,
+        ~elaboration_provenance,
       );
     (info, add_info(ids, InfoPat(info), m));
   };
@@ -1009,6 +1012,7 @@ and upat_to_info_map =
       ...info,
       status: original_info.status,
       lifted_ty: Some(info.ty),
+      elaboration_provenance: Some((original_info, AutoLabel(l))),
     };
 
     (info, add_info(elaborated_pat.ids, InfoPat(info), m));

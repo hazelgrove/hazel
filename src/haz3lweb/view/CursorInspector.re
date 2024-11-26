@@ -161,7 +161,6 @@ let common_ok_view =
     )
 
   | (_, Ana(Consistent({ana, syn, _}))) =>
-    // print_endline("Id: " ++)
     [
       text(":"),
       Type.view(syn),
@@ -232,21 +231,29 @@ let typ_err_view = (ok: Info.error_typ) =>
       text("already used in this sum"),
     ]
   };
-let rec automatic_inserted_labels =
+let rec automatic_inserted_labels_exp =
         (~statics, info: option(Info.exp)): list(string) =>
   switch (Option.bind(info, i => i.sugar_info)) {
   | None => []
   | Some(AutoLabel(label)) =>
     [label]
-    @ automatic_inserted_labels(
+    @ automatic_inserted_labels_exp(
         ~statics,
         Option.bind(info, i => i.unelaborated_info),
       )
   };
 
+let rec automatic_inserted_labels_pat =
+        (~statics, info: option(Info.pat)): list(string) =>
+  switch (Option.bind(info, i => i.elaboration_provenance)) {
+  | None => []
+  | Some((ui, AutoLabel(label))) =>
+    [label] @ automatic_inserted_labels_pat(~statics, Some(ui))
+  };
+
 let rec exp_view =
         (~statics, cls: Cls.t, status: Info.status_exp, info: Info.exp) => {
-  let labels = automatic_inserted_labels(~statics, Some(info));
+  let labels = automatic_inserted_labels_exp(~statics, Some(info));
 
   switch (status) {
   | InHole(FreeVariable(name)) => div_err([code(name), text("not found")])
@@ -301,7 +308,9 @@ let rec exp_view =
   };
 };
 
-let rec pat_view = (~statics, cls: Cls.t, status: Info.status_pat) =>
+let rec pat_view =
+        (~statics, cls: Cls.t, status: Info.status_pat, info: Info.pat) => {
+  let labels = automatic_inserted_labels_pat(~statics, Some(info));
   switch (status) {
   | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
   | InHole(Redundant(additional_err)) =>
@@ -309,14 +318,14 @@ let rec pat_view = (~statics, cls: Cls.t, status: Info.status_pat) =>
     | None => div_err([text("Pattern is redundant")])
     | Some(err) =>
       div_err([
-        pat_view(~statics, cls, InHole(err)),
+        pat_view(~statics, cls, InHole(err), info),
         text("; pattern is redundant"),
       ])
     }
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
-  | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
+  | NotInHole(ok) => div_ok(common_ok_view(~auto_labels=labels, cls, ok))
   };
-
+};
 let typ_view = (cls: Cls.t, status: Info.status_typ) =>
   switch (status) {
   | NotInHole(ok) => div_ok(typ_ok_view(cls, ok))
@@ -350,7 +359,6 @@ let tpat_view = (_: Cls.t, status: Info.status_tpat) =>
 let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
 let view_of_info = (~inject, ~settings, ~statics, ci): list(Node.t) => {
-  print_endline("CI: " ++ Info.show(ci));
   let wrapper = status_view => [
     term_view(~inject, ~settings, ci),
     status_view,
@@ -359,7 +367,8 @@ let view_of_info = (~inject, ~settings, ~statics, ci): list(Node.t) => {
   | Secondary(_) => wrapper(div([]))
   | InfoExp({cls, status, _} as ie) =>
     wrapper(exp_view(~statics, cls, status, ie))
-  | InfoPat({cls, status, _}) => wrapper(pat_view(~statics, cls, status))
+  | InfoPat({cls, status, _} as info) =>
+    wrapper(pat_view(~statics, cls, status, info))
   | InfoTyp({cls, status, _}) => wrapper(typ_view(cls, status))
   | InfoTPat({cls, status, _}) => wrapper(tpat_view(cls, status))
   };

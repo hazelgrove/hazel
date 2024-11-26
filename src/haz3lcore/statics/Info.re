@@ -233,7 +233,8 @@ type pat = {
   status: status_pat,
   ty: Typ.t,
   constraint_: Constraint.t,
-  lifted_ty: option(Typ.t) /* Type static-level elaboration */
+  lifted_ty: option(Typ.t), /* Type static-level elaboration */
+  elaboration_provenance: option((pat, sugar)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -731,6 +732,7 @@ let derived_pat =
       ~self,
       ~constraint_,
       ~lifted_ty: option(Typ.t),
+      ~elaboration_provenance: option((pat, sugar)),
     )
     : pat => {
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
@@ -750,6 +752,7 @@ let derived_pat =
     term: upat,
     constraint_,
     lifted_ty,
+    elaboration_provenance,
   };
 };
 
