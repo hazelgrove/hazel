@@ -35,11 +35,13 @@ module Model = {
     history: Aba.t(a, b),
     // Calculated:
     cached_settings: Calc.saved(CoreSettings.t),
+    cached_elab: Calc.saved(Exp.t),
   };
 
   let init = () => {
     history: Aba.singleton(Calc.Pending),
     cached_settings: Calc.Pending,
+    cached_elab: Calc.Pending,
   };
 
   let get_next_steps = (model: Aba.t(a, b)): list(b) =>
@@ -273,13 +275,13 @@ module Update = {
   };
 
   let calculate =
-      (~settings, elab: Exp.t, {history, cached_settings}: Model.t) => {
+      (
+        ~settings,
+        elab: Exp.t,
+        {history, cached_settings, cached_elab}: Model.t,
+      ) => {
     let settings = cached_settings |> Calc.set(settings);
-    let elab =
-      history
-      |> Aba.last_a
-      |> Calc.map_saved((u: Model.a') => u.expr)
-      |> Calc.set(~eq=Exp.fast_equal, elab);
+    let elab = cached_elab |> Calc.set(~eq=Exp.fast_equal, elab);
 
     let (prev_a, history) =
       Aba.fold_right(
@@ -328,6 +330,7 @@ module Update = {
         |> take_hidden_steps(~settings, prev_a)
         |> calculate_editors(~settings),
       cached_settings: settings |> Calc.save,
+      cached_elab: elab |> Calc.save,
     };
   };
 };
@@ -335,6 +338,7 @@ module Update = {
 module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
+    // int here should include hidden steps
     | A(int, StepperEditor.Selection.t);
 
   let get_cursor_info = (~selection: t, mr: Model.t): Cursor.cursor(Update.t) => {
