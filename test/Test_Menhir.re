@@ -332,7 +332,7 @@ let tests = [
     |> Exp.fresh,
     "[1, 2] @ [3, 4]",
   ),
-  skip_parser_test(
+  parser_test(
     "Integer Ops",
     BinOp(
       Int(GreaterThanOrEqual),
@@ -345,14 +345,10 @@ let tests = [
         )
         |> Exp.fresh,
         BinOp(
-          Int(Divide),
-          Int(3) |> Exp.fresh,
-          BinOp(
-            Int(Times),
-            Int(4) |> Exp.fresh,
-            BinOp(Int(Power), Int(5) |> Exp.fresh, Int(6) |> Exp.fresh)
-            |> Exp.fresh,
-          )
+          Int(Times),
+          BinOp(Int(Divide), Int(3) |> Exp.fresh, Int(4) |> Exp.fresh)
+          |> Exp.fresh,
+          BinOp(Int(Power), Int(5) |> Exp.fresh, Int(6) |> Exp.fresh)
           |> Exp.fresh,
         )
         |> Exp.fresh,
@@ -362,44 +358,27 @@ let tests = [
     )
     |> Exp.fresh,
     "-1 + 2 - 3 / 4 * 5 ** 6 >= 8",
-  ), // TODO Add the remaining operators and fix precedence
-  parser_test(
-    "simple pemdas",
-    BinOp(
-      Int(Times),
-      BinOp(Int(Times), Int(3) |> Exp.fresh, Int(4) |> Exp.fresh)
-      |> Exp.fresh,
-      BinOp(
-        Int(Power),
-        Int(4) |> Exp.fresh,
-        BinOp(Int(Power), Int(5) |> Exp.fresh, Int(6) |> Exp.fresh)
-        |> Exp.fresh,
-      )
-      |> Exp.fresh,
-    )
-    |> Exp.fresh,
-    "3 / 4 * 5 ** 6",
   ),
   parser_test("Float", Float(1.) |> Exp.fresh, "1."),
-  skip_parser_test(
+  parser_test(
     "Float Ops",
     BinOp(
       Float(LessThan),
       BinOp(
-        Float(Plus),
+        Float(Minus),
         Float(2.) |> Exp.fresh,
         BinOp(
-          Float(Divide),
-          Float(3.) |> Exp.fresh,
+          Float(Times),
           BinOp(
-            Float(Times),
+            Float(Divide),
+            Float(3.) |> Exp.fresh,
             Float(4.) |> Exp.fresh,
-            BinOp(
-              Float(Power),
-              Float(5.) |> Exp.fresh,
-              Float(6.) |> Exp.fresh,
-            )
-            |> Exp.fresh,
+          )
+          |> Exp.fresh,
+          BinOp(
+            Float(Power),
+            Float(5.) |> Exp.fresh,
+            Float(6.) |> Exp.fresh,
           )
           |> Exp.fresh,
         )
@@ -409,7 +388,7 @@ let tests = [
       Float(8.) |> Exp.fresh,
     )
     |> Exp.fresh,
-    "2. +. 3. /. 4. *. 5. **. 6. <. 8." // TODO Add the remaining operators. -. is also currently broken
+    "2. -. 3. /. 4. *. 5. **. 6. <. 8." // TODO Add the remaining operators. -. is also currently broken
   ),
   parser_test(
     "Let binding with type ascription",
