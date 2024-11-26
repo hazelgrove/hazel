@@ -573,6 +573,18 @@ module Exp = {
       };
     };
 
+  let (replace_all_ids, replace_all_ids_typ) = {
+    let f:
+      'a.
+      (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+     =
+      (continue, exp) => {...exp, ids: [Id.mk()]} |> continue;
+    (
+      map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+      Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    );
+  };
+
   let rec substitute_closures =
           (
             env: Environment.t,
@@ -588,7 +600,9 @@ module Exp = {
           | Var(x) =>
             switch (Environment.lookup(env, x)) {
             | Some(e) =>
-              e |> substitute_closures(env, old_bound_vars, new_bound_vars)
+              e
+              |> replace_all_ids
+              |> substitute_closures(env, old_bound_vars, new_bound_vars)
             | None =>
               Var(
                 List.mem(x, old_bound_vars)
