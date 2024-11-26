@@ -345,16 +345,18 @@ module Selection = {
     Cursor.(
       switch (selection) {
       | A(n, editor_selection) =>
-        let a: Model.a = mr.history |> Aba.get_as |> List.nth(_, n);
+        let a: option(Model.a) =
+          mr.history |> Aba.get_as |> List.nth_opt(_, n);
         switch (a) {
-        | Calculated(a) =>
+        | Some(Calculated(a)) =>
           let+ x =
             StepperEditor.Selection.get_cursor_info(
               ~selection=editor_selection,
               a.editor |> Calc.get_value,
             );
           Update.StepperEditor(n, x);
-        | Pending => empty
+        | None
+        | Some(Pending) => empty
         };
       }
     );
@@ -363,9 +365,9 @@ module Selection = {
   let handle_key_event =
       (~selection: t, ~event, mr: Model.t): option(Update.t) => {
     let A(i, s) = selection;
-    let a: Model.a = mr.history |> Aba.get_as |> List.nth(_, i);
+    let a: option(Model.a) = mr.history |> Aba.get_as |> List.nth_opt(_, i);
     switch (a) {
-    | Calculated(a) =>
+    | Some(Calculated(a)) =>
       let+ x =
         StepperEditor.Selection.handle_key_event(
           ~selection=s,
@@ -373,7 +375,8 @@ module Selection = {
           event,
         );
       Update.StepperEditor(i, x);
-    | Pending => None
+    | Some(Pending)
+    | None => None
     };
   };
 };
