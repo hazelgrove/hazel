@@ -280,7 +280,24 @@ module Update = {
         elab: Exp.t,
         {history, cached_settings, cached_elab}: Model.t,
       ) => {
-    let settings = cached_settings |> Calc.set(settings);
+    let settings =
+      cached_settings
+      |> Calc.set(settings, ~eq=(a, b) => {
+           CoreSettings.{
+             ...a,
+             evaluation: {
+               ...a.evaluation,
+               show_settings: true,
+             },
+           }
+           == CoreSettings.{
+                ...b,
+                evaluation: {
+                  ...b.evaluation,
+                  show_settings: true,
+                },
+              }
+         });
     let elab = cached_elab |> Calc.set(~eq=Exp.fast_equal, elab);
 
     let (prev_a, history) =
