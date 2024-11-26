@@ -184,8 +184,7 @@ and uexp_to_info_map =
     | Ana({term: Unknown(SynSwitch), _}) => Mode.Syn
     | _ => mode
     };
-  let add' =
-      (~lifted_ty=?, ~unelaborated_info=?, ~sugar_info=?, ~self, ~co_ctx, m) => {
+  let add' = (~unelaborated_info=?, ~sugar_info=?, ~self, ~co_ctx, m) => {
     let info =
       Info.derived_exp(
         ~uexp,
@@ -194,7 +193,6 @@ and uexp_to_info_map =
         ~ancestors,
         ~self,
         ~co_ctx,
-        ~lifted_ty,
         ~unelaborated_info,
         ~sugar_info,
       );
@@ -274,7 +272,6 @@ and uexp_to_info_map =
     let info = {
       ...info,
       status: original_info.status,
-      lifted_ty: Some(info.ty),
       unelaborated_info: Some(original_info),
       sugar_info: Some(AutoLabel(l)),
     };
@@ -773,7 +770,6 @@ and uexp_to_info_map =
                     // Mark patterns as redundant at the top level
                     // because redundancy doesn't make sense in a smaller context
                     ~constraint_=p_constraint,
-                    ~lifted_ty=None,
                     ~elaboration_provenance=None,
                   );
                 (
@@ -907,8 +903,7 @@ and upat_to_info_map =
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
-  let add =
-      (~self, ~ctx, ~constraint_, ~elaboration_provenance=?, ~lifted_ty=?, m) => {
+  let add = (~self, ~ctx, ~constraint_, ~elaboration_provenance=?, m) => {
     let prev_synswitch =
       switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
       | Some(Info.InfoPat({mode: Syn | SynFun, ty, _})) => Some(ty)
@@ -926,7 +921,6 @@ and upat_to_info_map =
         ~ancestors,
         ~self=Common(self),
         ~constraint_,
-        ~lifted_ty,
         ~elaboration_provenance,
       );
     (info, add_info(ids, InfoPat(info), m));
@@ -1011,7 +1005,6 @@ and upat_to_info_map =
     let info = {
       ...info,
       status: original_info.status,
-      lifted_ty: Some(info.ty),
       elaboration_provenance: Some((original_info, AutoLabel(l))),
     };
 
