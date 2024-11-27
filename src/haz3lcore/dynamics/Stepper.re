@@ -247,7 +247,6 @@ let rec evaluate_pending = (~settings, s: t) => {
         }
       )
       |> DHExp.repair_ids;
-    let _ = print_endline(d_loc' |> DHExp.show);
     let d' = EvalCtx.compose(eo.ctx, d_loc');
     let new_step = {
       d,

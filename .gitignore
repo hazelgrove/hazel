@@ -53,3 +53,9 @@ setup.log
 
 # unit tests
 *.xml
+
+# Backup of opam lock file
+hazel.opam.locked.old
+
+# Code coverage
+_coverage/

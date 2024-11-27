@@ -34,7 +34,7 @@ let fresh: term => t = IdTagged.fresh;
 let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
 let rep_id: t => Id.t = IdTagged.rep_id;
 
-let hole = (tms: list(TermBase.Any.t)) =>
+let hole = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
   switch (tms) {
   | [] => Unknown(Hole(EmptyHole))
   | [_, ..._] => Unknown(Hole(MultiHole(tms)))
@@ -166,7 +166,8 @@ let of_source = List.map((source: source) => source.ty);
    but right now TypeHole strictly predominates over Internal
    which strictly predominates over SynSwitch. */
 let join_type_provenance =
-    (p1: type_provenance, p2: type_provenance): type_provenance =>
+    (p1: TermBase.type_provenance, p2: TermBase.type_provenance)
+    : TermBase.type_provenance =>
   switch (p1, p2) {
   | (Hole(h1), Hole(h2)) when h1 == h2 => Hole(h1)
   | (Hole(EmptyHole), Hole(EmptyHole) | SynSwitch)
@@ -355,6 +356,7 @@ let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
 
 let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
   switch (term_of(ty)) {
+  | Parens(t) => weak_head_normalize(ctx, t)
   | Var(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => weak_head_normalize(ctx, ty)
@@ -535,14 +537,14 @@ let rec pretty_print = (ty: t): string =>
   | String => "String"
   | Var(tvar) => tvar
   | List(t) => "[" ++ pretty_print(t) ++ "]"
-  | Arrow(t1, t2) => paren_pretty_print(t1) ++ "->" ++ pretty_print(t2)
+  | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)
   | Sum(sm) =>
     switch (sm) {
     | [] => "+?"
     | [t0] => "+" ++ ctr_pretty_print(t0)
     | [t0, ...ts] =>
       List.fold_left(
-        (acc, t) => acc ++ "+" ++ ctr_pretty_print(t),
+        (acc, t) => acc ++ " + " ++ ctr_pretty_print(t),
         ctr_pretty_print(t0),
         ts,
       )
@@ -556,9 +558,10 @@ let rec pretty_print = (ty: t): string =>
          ts,
        )
     ++ ")"
-  | Rec(tv, t) => "rec " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
+  | Rec(tv, t) =>
+    "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | Forall(tv, t) =>
-    "forall " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
+    "forall " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   }
 and ctr_pretty_print =
   fun
