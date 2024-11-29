@@ -60,7 +60,23 @@ let apply = (model, action, ~schedule_action): Model.t => {
         Error(Exception(Printexc.to_string(exc)));
       }
     ) {
-    | Ok(model) => model
+    | Ok(model) =>
+      let ed = Editors.get_editor(model.editors);
+      let updated_model =
+        model.settings.instructor_mode
+          ? {
+            ...model,
+            editors:
+              Editors.put_editor_action(
+                ed,
+                model.editors,
+                model.results,
+                ~settings=model.settings.core,
+                model.settings.instructor_mode,
+              ),
+          }
+          : model;
+      updated_model;
     | Error(FailedToPerform(err)) =>
       print_endline(Update.Failure.show(FailedToPerform(err)));
       model;
