@@ -37,26 +37,13 @@ let put_editor = (ed: Editor.t, eds: t): t =>
     assert(List.mem_assoc(name, slides));
     Documentation(name, slides |> ListUtil.update_assoc((name, ed)));
   | Exercises(n, specs, exercise) =>
-    Exercises(n, specs, Exercise.put_editor(exercise, ed, 0, false))
+    Exercises(n, specs, Exercise.put_editor(exercise, ed))
   };
 
-let put_editor_action =
-    (
-      ed: Editor.t,
-      eds: t,
-      results: ModelResults.t,
-      ~settings: CoreSettings.t,
-      instructor_mode: bool,
-    )
-    : t =>
+let obtain_new_prov_tests =
+    (eds: t, results: ModelResults.t, ~settings: CoreSettings.t): int =>
   switch (eds) {
-  | Scratch(n, slides) =>
-    assert(n < List.length(slides));
-    Scratch(n, Util.ListUtil.put_nth(n, ed, slides));
-  | Documentation(name, slides) =>
-    assert(List.mem_assoc(name, slides));
-    Documentation(name, slides |> ListUtil.update_assoc((name, ed)));
-  | Exercises(n, specs, exercise) =>
+  | Exercises(_, _, exercise) =>
     let stitched_dynamics =
       Exercise.stitch_dynamic(
         settings,
@@ -70,11 +57,8 @@ let put_editor_action =
       | Some(test_results) => test_results.total
       | None => 0
       };
-    Exercises(
-      n,
-      specs,
-      Exercise.put_editor(exercise, ed, new_prov_test, instructor_mode),
-    );
+    new_prov_test;
+  | _ => 0
   };
 
 let update = (f: Editor.t => Editor.t, editors: t): t =>
@@ -84,13 +68,7 @@ let update_opt = (editors: t, f: Editor.t => option(Editor.t)): option(t) =>
   editors |> get_editor |> f |> Option.map(put_editor(_, editors));
 
 let perform_action =
-    (
-      ~settings: CoreSettings.t,
-      editors: t,
-      a: Action.t,
-      results: ModelResults.t,
-      instructor_mode: bool,
-    )
+    (~settings: CoreSettings.t, editors: t, a: Action.t)
     : UpdateAction.Result.t(t) => {
   let settings =
     switch (editors) {
@@ -102,8 +80,7 @@ let perform_action =
     };
   switch (Perform.go(~settings, a, get_editor(editors))) {
   | Error(err) => Error(FailedToPerform(err))
-  | Ok(ed) =>
-    Ok(put_editor_action(ed, editors, results, ~settings, instructor_mode))
+  | Ok(ed) => Ok(put_editor(ed, editors))
   };
 };
 
@@ -288,6 +265,14 @@ let update_module_name = (editors: t, new_module_name: string): t =>
       specs,
       Exercise.update_module_name(exercise, new_module_name),
     )
+  };
+
+let update_prov_tests = (editors: t, new_prov_tests: int): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.update_prov_tests(exercise, new_prov_tests))
   };
 
 let reset_nth_slide = (~settings: CoreSettings.t, n, slides): list(Editor.t) => {

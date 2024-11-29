@@ -488,13 +488,7 @@ let ui_state_update =
 let apply = (model: Model.t, update: t, ~schedule_action): Result.t(Model.t) => {
   let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
     switch (
-      Editors.perform_action(
-        ~settings=model.settings.core,
-        model.editors,
-        a,
-        model.results,
-        model.settings.instructor_mode,
-      )
+      Editors.perform_action(~settings=model.settings.core, model.editors, a)
     ) {
     | Error(err) => Error(err)
     | Ok(editors) => Ok({...model, editors})

@@ -61,19 +61,17 @@ let apply = (model, action, ~schedule_action): Model.t => {
       }
     ) {
     | Ok(model) =>
-      let ed = Editors.get_editor(model.editors);
+      let new_prov_tests =
+        Editors.obtain_new_prov_tests(
+          model.editors,
+          model.results,
+          ~settings=model.settings.core,
+        );
       let updated_model =
         model.settings.instructor_mode
           ? {
             ...model,
-            editors:
-              Editors.put_editor_action(
-                ed,
-                model.editors,
-                model.results,
-                ~settings=model.settings.core,
-                model.settings.instructor_mode,
-              ),
+            editors: Editors.update_prov_tests(model.editors, new_prov_tests),
           }
           : model;
       updated_model;

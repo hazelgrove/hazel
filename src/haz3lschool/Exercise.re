@@ -177,13 +177,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       | HiddenTests => eds.hidden_tests.tests
       };
 
-  let put_editor =
-      (
-        {pos, eds, _} as state: state,
-        editor: Editor.t,
-        new_prov_test: int,
-        instructor_mode: bool,
-      ) =>
+  let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
     switch (pos) {
     | Prelude => {
         ...state,
@@ -200,29 +194,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         },
       }
     | YourTestsValidation
-    | YourTestsTesting =>
-      instructor_mode
-        ? {
-          ...state,
-          eds: {
-            ...eds,
-            your_tests: {
-              ...eds.your_tests,
-              tests: editor,
-              provided: new_prov_test,
-            },
+    | YourTestsTesting => {
+        ...state,
+        eds: {
+          ...eds,
+          your_tests: {
+            ...eds.your_tests,
+            tests: editor,
           },
-        }
-        : {
-          ...state,
-          eds: {
-            ...eds,
-            your_tests: {
-              ...eds.your_tests,
-              tests: editor,
-            },
-          },
-        }
+        },
+      }
     | YourImpl => {
         ...state,
         eds: {
@@ -561,7 +542,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       },
     };
     let new_state = set_editing_title(new_state, editing_title);
-    put_editor(new_state, new_buggy_impl.impl, 0, false);
+    put_editor(new_state, new_buggy_impl.impl);
   };
 
   let delete_buggy_impl = (state: state, index: int) => {
@@ -585,7 +566,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           List.filteri((i, _) => i != index, state.eds.hidden_bugs),
       },
     };
-    put_editor(new_state, editor_on, 0, false);
+    put_editor(new_state, editor_on);
   };
 
   let set_editing_prompt = ({eds, _} as state: state, editing: bool) => {
@@ -780,6 +761,17 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     eds: {
       ...eds,
       module_name: new_module_name,
+    },
+  };
+
+  let update_prov_tests = ({eds, _} as state: state, new_prov_tests: int) => {
+    ...state,
+    eds: {
+      ...eds,
+      your_tests: {
+        ...eds.your_tests,
+        provided: new_prov_tests,
+      },
     },
   };
 
