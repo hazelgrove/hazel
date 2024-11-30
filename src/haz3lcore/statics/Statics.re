@@ -46,6 +46,39 @@ module Map = {
       info_map,
       [],
     );
+
+  /* If id is a closure-creating form, returns the id and the names
+   * and binding site ids for all variables bound by the closure */
+  let abstraction_at = (map: t, id: Id.t): option(Binding.site) =>
+    switch (lookup(id, map)) {
+    | Some(InfoExp({ctx, term: {term: Fun(pat, _, _, _), _}, _})) =>
+      Some({id, bound: Term.Pat.bound_var_ids(ctx, pat)})
+    | _ => None
+    };
+
+  /* Returns the ids and other binding site infor for all
+   * closure-creating forms enclosing the term with the provided id */
+  let enclosing_abstractions = (map: t, id: Id.t): list(Binding.site) =>
+    switch (lookup(id, map)) {
+    | Some(info) =>
+      Info.ancestors_of(info)
+      |> List.fold_left(
+           (abstractions, ancestor_id) =>
+             Option.to_list(abstraction_at(map, ancestor_id)) @ abstractions,
+           [],
+         )
+    | None => []
+    };
+
+  /* The ids of binding sites for for all references in term with `id` */
+  let refs_in = (m: t, id: Id.t): Binding.s =>
+    switch (lookup(id, m)) {
+    | Some(InfoExp({co_ctx, ctx, _})) =>
+      co_ctx
+      |> VarMap.to_list
+      |> List.map(((n, _)) => Ctx.binding_of(ctx, n))
+    | _ => []
+    };
 };
 
 let map_m = (f, xs, m: Map.t) =>
@@ -275,7 +308,7 @@ and uexp_to_info_map =
   | Parens(e, Paren) =>
     let (e, m) = go(~mode, e, m);
     add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
-  | Parens(e, Probe) =>
+  | Parens(e, Probe(_)) =>
     /* Currently doing this as otherwise it clobbers the statics
      * for the contained expression as i'm just reusing the same id
      * in order to associate it through dynamics */
@@ -1019,11 +1052,3 @@ let get_pat_error_at = (info_map: Map.t, id: Id.t) => {
        }
      );
 };
-
-let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>
-  Id.Map.fold(
-    (id, info: Info.t, acc) =>
-      Option.to_list(Info.error_of(info) |> Option.map(x => (id, x))) @ acc,
-    map,
-    [],
-  );

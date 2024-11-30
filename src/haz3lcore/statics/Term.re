@@ -291,6 +291,15 @@ module Pat = {
     | ListLit(dps) => List.flatten(List.map(bound_vars, dps))
     | Ap(_, dp1) => bound_vars(dp1)
     };
+
+  let bound_var_ids = (ctx, pat): list(Binding.t) =>
+    bound_vars(pat)
+    |> List.map(name =>
+         switch (Ctx.lookup_var(ctx, name)) {
+         | Some({id, _}) => Binding.{id, name}
+         | None => {id: Id.invalid, name}
+         }
+       );
 };
 
 module Exp = {

@@ -76,7 +76,7 @@ module M: Projector = {
     | (ToggleDisplay, Self) => Expected
     };
 
-  let view = (model, ~info, ~local, ~parent as _) =>
+  let view = (model, ~info, ~local, ~parent as _, ~bonus_pack as _) =>
     div(
       ~attrs=[
         Attr.classes(["info", "code"]),

@@ -16,6 +16,7 @@ let name = (p: kind): string =>
   switch (p) {
   | Fold => "fold"
   | Info => "type"
+  | Probe => "probe"
   | Checkbox => "check"
   | Slider => "slider"
   | SliderF => "sliderf"
@@ -29,6 +30,7 @@ let of_name = (p: string): kind =>
   switch (p) {
   | "fold" => Fold
   | "type" => Info
+  | "probe" => Probe
   | "check" => Checkbox
   | "slider" => Slider
   | "sliderf" => SliderF
@@ -120,10 +122,26 @@ let setup_view =
       ~cached_syntax: Editor.CachedSyntax.t,
       ~dynamics,
       ~inject: Action.t => Ui_effect.t(unit),
-      ~font_metrics,
+      ~globals: Globals.t,
       ~indication: option(Direction.t),
     )
     : option(Node.t) => {
+  let bonus_pack = {
+    view: (sort, seg) =>
+      CodeViewable.view_segment(~globals, ~sort, ~token_of_proj=_ => "", seg),
+    exp_to_seg: exp =>
+      exp
+      |> DHExp.strip_casts
+      |> ExpToSegment.exp_to_segment(
+           ~settings={
+             inline: false,
+             fold_case_clauses: false,
+             fold_fn_bodies: false,
+             hide_fixpoints: false,
+             fold_cast_types: false,
+           },
+         ),
+  };
   let* p = Id.Map.find_opt(id, cached_syntax.projectors);
   let* syntax = Some(p.syntax);
   let statics = Statics.Map.lookup(id, cached_statics.info_map);
@@ -135,13 +153,13 @@ let setup_view =
   let local = a => inject(Project(SetModel(id, P.update(p.model, a))));
   view_wrapper(
     ~inject,
-    ~font_metrics,
+    ~font_metrics=globals.font_metrics,
     ~measurement,
     ~indication,
     ~info,
     ~selected=List.mem(id, cached_syntax.selection_ids),
     p,
-    P.view(p.model, ~info, ~local, ~parent),
+    P.view(p.model, ~info, ~local, ~parent, ~bonus_pack),
   );
 };
 
@@ -156,11 +174,11 @@ let indication = (z, id) =>
 let all =
     (
       z,
+      ~globals: Globals.t,
       ~cached_statics: CachedStatics.t,
       ~cached_syntax: Editor.CachedSyntax.t,
       ~dynamics: Dynamics.Map.t,
       ~inject,
-      ~font_metrics,
     ) => {
   // print_endline(
   //   "cardinal: "
@@ -177,7 +195,7 @@ let all =
           ~cached_syntax,
           ~dynamics,
           ~inject,
-          ~font_metrics,
+          ~globals,
           ~indication,
         );
       },

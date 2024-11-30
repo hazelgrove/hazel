@@ -25,7 +25,13 @@ let put = (bool: bool): Piece.t => bool |> string_of_bool |> mk_mono(Exp);
 let toggle = (piece: Piece.t) => put(!get(piece));
 
 let view =
-    (_, ~info, ~local as _, ~parent: external_action => Ui_effect.t(unit)) =>
+    (
+      _,
+      ~info,
+      ~local as _,
+      ~parent: external_action => Ui_effect.t(unit),
+      ~bonus_pack as _,
+    ) =>
   Node.input(
     ~attrs=
       [

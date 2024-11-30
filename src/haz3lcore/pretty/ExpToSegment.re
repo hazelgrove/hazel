@@ -112,26 +112,24 @@ let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
 
 let fold_if = (condition, pieces) =>
   if (condition) {
-    pieces
-    //[Projector.init(Fold, mk_form("parens_exp", Id.mk(), [pieces]))];
+    [Projector.init(Fold, mk_form("parens_exp", Id.mk(), [pieces]))];
   } else {
-    pieces
+    pieces;
   };
-// TODO(andrew): uncomment above and below
-let fold_fun_if = (condition, _f_name: string, pieces) =>
+
+let fold_fun_if = (condition, f_name: string, pieces) =>
   if (condition) {
-    pieces
-    // [
-    //   Projector.init_from_str(
-    //     Fold,
-    //     mk_form("parens_exp", Id.mk(), [pieces]),
-    //     ({text: f_name}: FoldProj.t)
-    //     |> FoldProj.sexp_of_t
-    //     |> Sexplib.Sexp.to_string,
-    //   ),
-    // ];
+    [
+      Projector.init_from_str(
+        Fold,
+        mk_form("parens_exp", Id.mk(), [pieces]),
+        ({text: f_name}: FoldProj.t)
+        |> FoldProj.sexp_of_t
+        |> Sexplib.Sexp.to_string,
+      ),
+    ];
   } else {
-    pieces
+    pieces;
   };
 
 /* We assume that parentheses have already been added as necessary, and

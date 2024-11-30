@@ -36,6 +36,13 @@ type info = {
   dynamics: option(Dynamics.Info.t),
 };
 
+//TODO(andrew): rm or doc
+[@deriving (show({with_path: false}), sexp, yojson)]
+type bonus_pack = {
+  view: (Sort.t, Base.segment) => Node.t,
+  exp_to_seg: Exp.t => Base.segment,
+};
+
 /* To add a new projector:
  * 1. Create a new module implementing Projector (e.g. FoldCore)
  * 2. Add an entry for it in Base.projector_kind
@@ -84,7 +91,8 @@ module type Projector = {
       model,
       ~info: info,
       ~local: action => Ui_effect.t(unit),
-      ~parent: external_action => Ui_effect.t(unit)
+      ~parent: external_action => Ui_effect.t(unit),
+      ~bonus_pack: bonus_pack
     ) =>
     Node.t;
   /* How much space should be left in the code view for
@@ -124,12 +132,13 @@ module Cook = (C: Projector) : Cooked => {
   let init = C.init |> serialize_m;
   let can_project = C.can_project;
   let can_focus = C.can_focus;
-  let view = (m, ~info, ~local, ~parent) =>
+  let view = (m, ~info, ~local, ~parent, ~bonus_pack) =>
     C.view(
       deserialize_m(m),
       ~info,
       ~local=a => local(serialize_a(a)),
       ~parent,
+      ~bonus_pack,
     );
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;

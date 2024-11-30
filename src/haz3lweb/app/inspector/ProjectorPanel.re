@@ -36,7 +36,7 @@ let applicable_projectors: option(Info.t) => list(Base.kind) =
     @ (
       switch (ci) {
       | InfoExp(_)
-      | InfoPat(_) => [(Info: Base.kind)]
+      | InfoPat(_) => [Probe, Info]
       | _ => []
       }
     );

@@ -47,9 +47,15 @@ type deferral_position_t =
  */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type paren_tag =
+type probe = {
+  refs: Binding.s,
+  stem: Binding.stem,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type probe_tag =
   | Paren
-  | Probe;
+  | Probe(probe);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type any_t =
@@ -94,7 +100,7 @@ and exp_term =
   | Test(exp_t)
   | Filter(stepper_filter_kind_t, exp_t)
   | Closure([@show.opaque] closure_environment_t, exp_t)
-  | Parens(exp_t, paren_tag)
+  | Parens(exp_t, probe_tag)
   | Cons(exp_t, exp_t)
   | ListConcat(exp_t, exp_t)
   | UnOp(Operators.op_un, exp_t)

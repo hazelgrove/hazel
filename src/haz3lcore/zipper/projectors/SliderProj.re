@@ -24,7 +24,13 @@ module M: Projector = {
   let placeholder = (_, _) => Inline(10);
   let update = (model, _) => model;
   let view =
-      (_, ~info, ~local as _, ~parent: external_action => Ui_effect.t(unit)) =>
+      (
+        _,
+        ~info,
+        ~local as _,
+        ~parent: external_action => Ui_effect.t(unit),
+        ~bonus_pack as _,
+      ) =>
     Util.Web.range(
       ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(v))))],
       get(info.syntax),
