@@ -7,6 +7,7 @@ open Util;
 type kind =
   | Fold
   | Info
+  | Probe
   | Checkbox
   | Slider
   | SliderF

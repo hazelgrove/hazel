@@ -143,3 +143,34 @@ ninja-keys {
   --ninja-modal-shadow: 0px 10px 20px var(--menu-shadow);
   --ninja-overflow-background: none;
 }
+
+.live-offside {
+  display: flex;
+  flex-direction: row;
+  position: absolute;
+  left: 10em;
+  background-color: #c7e6c6;
+  border-radius: 0.3em;
+  border-top: 1px solid white;
+  filter: drop-shadow(0.7px 0.7px 0px green);
+  opacity: 60%;
+}
+
+.projector.probe.indicated .live-offside {
+  background-color: #a4d7a2;
+  opacity: 100%
+}
+
+.projector.probe > svg {
+  fill: #c7e6c6;
+  filter: drop-shadow(0.7px 0.7px 0px green);
+}
+
+.projector.probe.indicated > svg {
+  fill: #a4d7a2;
+}
+
+.projector.probe {
+  font-family: var(--code-font);
+  color: var(--STONE);
+}

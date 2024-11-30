@@ -77,7 +77,7 @@ let textarea =
     [],
   );
 
-let view = (_, ~info, ~local as _, ~parent) => {
+let view = (_, ~info, ~local as _, ~parent, ~bonus_pack as _) => {
   let text = info.syntax |> get |> Form.strip_quotes;
   Node.div(
     ~attrs=[Attr.classes(["wrapper"])],

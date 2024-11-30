@@ -260,10 +260,10 @@ module View = {
     let projectors =
       ProjectorView.all(
         model.editor.state.zipper,
+        ~globals,
         ~cached_statics=model.statics,
         ~cached_syntax=model.editor.syntax,
         ~inject=x => inject(Perform(x)),
-        ~font_metrics=globals.font_metrics,
         ~dynamics,
       );
     let overlays = edit_decos @ overlays @ [projectors];

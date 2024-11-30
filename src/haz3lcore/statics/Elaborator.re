@@ -231,14 +231,17 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       |> rewrap
       |> cast_from(Typ.temp(Unknown(Internal)));
     | Cast(e, _, _) // We remove these casts because they should be re-inserted in the recursive call
-    | FailedCast(e, _, _)
-    | Parens(e, Probe) =>
-      //TODO(andrew): Matthew: Am I casting/rewrapping correctly?
+    | FailedCast(e, _, _) =>
       let (e', ty) = elaborate(m, e);
-      Parens(e' |> cast_from(ty), Probe) |> rewrap;
+      Parens(e' |> cast_from(ty), Paren) |> rewrap;
     | Parens(e, Paren) =>
       let (e', ty) = elaborate(m, e);
       e' |> cast_from(ty);
+    | Parens(e, probe) =>
+      //TODO(andrew): Matthew: Am I casting/rewrapping correctly?
+      let (e', ty) = elaborate(m, e);
+      let probe = Dynamics.Probe.instrument(m, Exp.rep_id(uexp), probe);
+      Parens(e' |> cast_from(ty), probe) |> rewrap;
     | Deferral(_) => uexp
     | Int(_) => uexp |> cast_from(Int |> Typ.temp)
     | Bool(_) => uexp |> cast_from(Bool |> Typ.temp)

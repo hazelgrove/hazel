@@ -1,9 +1,71 @@
 open Util;
 
 module Probe = {
+  let instrument =
+      (m: Statics.Map.t, id: Id.t, probe_tag: TermBase.probe_tag)
+      : TermBase.probe_tag =>
+    switch (probe_tag) {
+    | Paren => Paren
+    | Probe(_) =>
+      Probe({
+        refs: Statics.Map.refs_in(m, id),
+        stem: Statics.Map.enclosing_abstractions(m, id),
+      })
+    };
+
+  let empty = TermBase.{refs: [], stem: []};
+
+  module Env = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type raw =
+      | Opaque
+      | Val(DHExp.t);
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type entry = {
+      name: string,
+      id: Id.t,
+      raw,
+    };
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = list(entry);
+
+    let to_raw = (d: DHExp.t) =>
+      switch (d.term) {
+      | Fun(_)
+      | FixF(_) => Opaque
+      | _ => Val(d)
+      };
+
+    let mk_entry = (env, {name, id, _}: Binding.t) =>
+      switch (ClosureEnvironment.lookup(env, name)) {
+      | Some(d) =>
+        //TODO(andrew): does this substitute make sense?
+        let raw =
+          d
+          |> DHExp.strip_casts
+          |> Exp.substitute_closures(snd(env))
+          |> to_raw;
+        {name, id, raw};
+      | None => failwith("Probe: variable not found in environment")
+      };
+
+    let mk = (env: ClosureEnvironment.t, refs: Binding.s) =>
+      List.map(mk_entry(env), refs);
+  };
+
   module Info = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = DHExp.t;
+    type t = {
+      value: DHExp.t,
+      env: Env.t,
+    };
+
+    let mk = (value: DHExp.t, env: ClosureEnvironment.t, pr: TermBase.probe) => {
+      value,
+      env: Env.mk(env, pr.refs),
+    };
   };
 
   module Map = {
