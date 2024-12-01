@@ -105,12 +105,16 @@ open AST
 
 (* Precedences *)
 
+
+
 %nonassoc IF_EXP
 %nonassoc LET_EXP
 
+%right SUM_TYP
+
+
 %left COLON
 %left DASH_ARROW
-
 
 (* Int op precedences *)
 %left DOUBLE_EQUAL NOT_EQUAL LESS_THAN_EQUAL GREATER_THAN_EQUAL 
@@ -146,6 +150,7 @@ open AST
 %left L_NOT L_AND L_OR
 
 
+
 %left STRING_CONCAT STRING_EQUAL
 
 %type <AST.exp> exp
@@ -158,8 +163,8 @@ program:
     | e = exp; EOF {e}
 
 %inline intOp:
-    | PLUS { IntOp(Plus) }
     | MINUS { IntOp(Minus) }
+    | PLUS { IntOp(Plus) }
     | TIMES { IntOp(Times) }
     | POWER { IntOp(Power) }
     | DIVIDE { IntOp(Divide) }
@@ -201,13 +206,16 @@ program:
 binExp:
     | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
 
-(* sumTerm: *)
-(*     | PLUS; i = CONSTRUCTOR_IDENT; OPEN_PAREN; types = separated_list(COMMA, typ); CLOSE_PAREN { (i, types) } *)
+%inline sumTerm:
+    | i = CONSTRUCTOR_IDENT; OPEN_PAREN; types = separated_list(COMMA, typ); CLOSE_PAREN  { SumTerm(i, types) } 
 
+sumTyp:
+    | PLUS; s = sumTerm; { SumTyp(s, None) } %prec SUM_TYP
+    | PLUS; s = sumTerm; t = sumTyp { SumTyp(s, Some(t)) } 
 
 
 typ:
-    | c = CONSTRUCTOR_IDENT { Var(c) }
+    | c = CONSTRUCTOR_IDENT { TypVar(c) }
     | QUESTION; T_TYP; s = STRING { InvalidTyp(s) }
     | INT_TYPE { IntType }
     | FLOAT_TYPE { FloatType }
@@ -218,7 +226,7 @@ typ:
     | OPEN_PAREN; types = separated_list(COMMA, typ); CLOSE_PAREN { TupleType(types) }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
-    (* | l = list(sumTerm) { SumType(l) } *)
+    | s = sumTyp; { s }
 
 pat:
     | p1 = pat; COLON; t1 = typ;  { CastPat(p1, t1, UnknownType(Internal)) }

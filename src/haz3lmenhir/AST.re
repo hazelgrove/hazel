@@ -81,12 +81,13 @@ type typ =
   | FloatType
   | BoolType
   | UnitType
-  | SumType(list((string, list(typ))))
+  | SumTyp(typ, option(typ))
+  | SumTerm(string, list(typ))
   | UnknownType(typ_provenance)
   | TupleType(list(typ))
   | ArrayType(typ)
   | ArrowType(typ, typ)
-  | Var(string)
+  | TypVar(string)
   | InvalidTyp(string);
 
 [@deriving (show({with_path: false}), sexp)]

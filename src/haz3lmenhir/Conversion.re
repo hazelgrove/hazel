@@ -234,11 +234,12 @@ and Typ: {
       switch (p) {
       | Internal => Unknown(Internal)
       }
-    | Var(s) => Var(s)
+    | TypVar(s) => Var(s)
     | TupleType(ts) => Prod(List.map(of_menhir_ast, ts))
     | ArrayType(t) => List(of_menhir_ast(t))
     | ArrowType(t1, t2) => Arrow(of_menhir_ast(t1), of_menhir_ast(t2))
-    | SumType(_l) => raise(Failure("SumType not implemented"))
+    | SumTyp(_) => raise(Failure("SumType not implemented"))
+    | SumTerm(_) => raise(Failure("SumTerm conversion not implemented"))
     };
   };
 }
