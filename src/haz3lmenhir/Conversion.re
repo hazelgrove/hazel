@@ -218,6 +218,11 @@ module rec Exp: {
 }
 and Typ: {
   let of_menhir_ast: AST.typ => Haz3lcore.Typ.t;
+  let constructormap_of_sumterm_list:
+    list(AST.typ) => Haz3lcore.ConstructorMap.t(Haz3lcore.Typ.t);
+
+  let constructormap_variant_of_sumterm:
+    AST.typ => Haz3lcore.ConstructorMap.variant(Haz3lcore.Typ.t);
 } = {
   let rec of_menhir_ast = (typ: AST.typ): Haz3lcore.Typ.t => {
     Haz3lcore.IdTagged.fresh(term_of_menhir_ast(typ));
@@ -238,8 +243,40 @@ and Typ: {
     | TupleType(ts) => Prod(List.map(of_menhir_ast, ts))
     | ArrayType(t) => List(of_menhir_ast(t))
     | ArrowType(t1, t2) => Arrow(of_menhir_ast(t1), of_menhir_ast(t2))
-    | SumTyp(_) => raise(Failure("SumType not implemented"))
-    | SumTerm(_) => raise(Failure("SumTerm conversion not implemented"))
+    | SumTyp(term, next) =>
+      let terms = ref([term]);
+      let rec go = (next: option(AST.typ)): list(AST.typ) => {
+        switch (next) {
+        | Some(t) =>
+          switch (t) {
+          | SumTyp(term, next) =>
+            terms := [term, ...terms^];
+            go(next);
+          | _ => raise(Failure("SumTyp conversion failure"))
+          }
+        | None => terms^
+        };
+      };
+      let _ = go(next);
+      let converted_terms = constructormap_of_sumterm_list(terms^);
+      Sum(converted_terms);
+    | SumTerm(_) => raise(Failure("SumTerm conversion not possible"))
+    };
+  }
+  and constructormap_of_sumterm_list =
+      (terms: list(AST.typ)): Haz3lcore.ConstructorMap.t(Haz3lcore.Typ.t) => {
+    List.map(constructormap_variant_of_sumterm, terms);
+  }
+  and constructormap_variant_of_sumterm =
+      (term: AST.typ): Haz3lcore.ConstructorMap.variant(Haz3lcore.Typ.t) => {
+    switch (term) {
+    | SumTerm(name, typs) => Variant(name, [], Some(of_menhir_ast(typs)))
+    | _ =>
+      raise(
+        Failure(
+          "SumTerm expected in constructormap_variant_of_sumterm but not found",
+        ),
+      )
     };
   };
 }

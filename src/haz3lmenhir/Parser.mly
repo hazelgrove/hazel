@@ -206,8 +206,12 @@ program:
 binExp:
     | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
 
+%inline tupleType:
+    | OPEN_PAREN; types = separated_list(COMMA, typ); CLOSE_PAREN { TupleType(types) }
+
+
 %inline sumTerm:
-    | i = CONSTRUCTOR_IDENT; OPEN_PAREN; types = separated_list(COMMA, typ); CLOSE_PAREN  { SumTerm(i, types) } 
+    | i = CONSTRUCTOR_IDENT; t = tupleType  { SumTerm(i, t) } 
 
 sumTyp:
     | PLUS; s = sumTerm; { SumTyp(s, None) } %prec SUM_TYP
@@ -223,7 +227,7 @@ typ:
     | STRING_TYPE { StringType }
     | UNKNOWN; INTERNAL { UnknownType(Internal) }
     | UNIT { UnitType }
-    | OPEN_PAREN; types = separated_list(COMMA, typ); CLOSE_PAREN { TupleType(types) }
+    | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
     | s = sumTyp; { s }

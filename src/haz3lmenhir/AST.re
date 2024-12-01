@@ -82,7 +82,7 @@ type typ =
   | BoolType
   | UnitType
   | SumTyp(typ, option(typ))
-  | SumTerm(string, list(typ))
+  | SumTerm(string, typ)
   | UnknownType(typ_provenance)
   | TupleType(list(typ))
   | ArrayType(typ)
