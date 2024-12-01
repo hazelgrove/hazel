@@ -56,6 +56,8 @@ rule token =
     | "else" { ELSE }
     | "[" { OPEN_SQUARE_BRACKET }
     | "]" { CLOSE_SQUARE_BRACKET }
+    | "{" { OPEN_CURLY }
+    | "}" { CLOSE_CURLY }
     | "(" { OPEN_PAREN }
     | ")" { CLOSE_PAREN }
     | "->" { DASH_ARROW }
@@ -84,6 +86,9 @@ rule token =
     | "<=." { LESS_THAN_EQUAL_FLOAT }
     | ">." { GREATER_THAN_FLOAT }
     | ">=." { GREATER_THAN_EQUAL_FLOAT }
+    (* String Ops *)
+    | "++" { STRING_CONCAT }
+    | "$==" { STRING_EQUAL }
     (* Bool ops *)
     | "&&" { L_AND }
     | "||" { L_OR }

@@ -388,7 +388,7 @@ let tests = [
       Float(8.) |> Exp.fresh,
     )
     |> Exp.fresh,
-    "2. -. 3. /. 4. *. 5. **. 6. <. 8." // TODO Add the remaining operators. -. is also currently broken
+    "2. -. 3. /. 4. *. 5. **. 6. <. 8.",
   ),
   parser_test(
     "Let binding with type ascription",
@@ -418,6 +418,16 @@ let tests = [
     "named_fun f x -> x + 5",
   ),
   {
+    //   parser_test(
+    //     "Partial basic_reference test",
+    //     Int(5) |> Exp.fresh,
+    //     "
+    // let y : (Int, Int, Int) -> Int =
+    // fun (m, x, b) -> m * x + b in
+    // 1
+    // ",
+    //   ),
+
     let strip_comments = str => {
       let re = Str.regexp("#[^#]*#");
       Str.global_replace(re, "", str);
@@ -434,19 +444,17 @@ let tests = [
       |> (slide => strip_comments(slide.backup_text))
       |> replace_holes;
 
-    test_case(
-      "Basic Reference",
-      `Quick,
-      () => {
-        let _ = Alcotest.skip();
-        alco_check(
-          "Does not match MakeTerm",
-          make_term_parse(basic_reference),
-          Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-            Haz3lmenhir.Interface.parse_program(basic_reference),
-          ),
-        );
-      },
-    );
+    print_endline(basic_reference);
+
+    test_case("Basic Reference", `Quick, () => {
+      // let _ = Alcotest.skip();
+      alco_check(
+        "Does not match MakeTerm",
+        make_term_parse(basic_reference),
+        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+          Haz3lmenhir.Interface.parse_program(basic_reference),
+        ),
+      )
+    });
   },
 ];

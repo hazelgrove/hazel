@@ -41,9 +41,15 @@ type op_bin_int =
   | NotEquals;
 
 [@deriving (show({with_path: false}), sexp)]
+type op_bin_string =
+  | Concat
+  | Equals;
+
+[@deriving (show({with_path: false}), sexp)]
 type binOp =
   | IntOp(op_bin_int)
   | FloatOp(op_bin_float)
+  | StringOp(op_bin_string)
   | BoolOp(op_bin_bool);
 
 [@deriving (show({with_path: false}), sexp)]
@@ -75,6 +81,7 @@ type typ =
   | FloatType
   | BoolType
   | UnitType
+  | SumType(list((string, list(typ))))
   | UnknownType(typ_provenance)
   | TupleType(list(typ))
   | ArrayType(typ)

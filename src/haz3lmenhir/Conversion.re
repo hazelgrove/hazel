@@ -58,6 +58,14 @@ module Operators = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  let string_op_of_menhir_ast = (op: AST.op_bin_string): op_bin_string => {
+    switch (op) {
+    | Concat => Concat
+    | Equals => Equals
+    };
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   let bool_op_of_menhir_ast = (op: AST.op_bin_bool): op_bin_bool => {
     switch (op) {
     | And => And
@@ -88,6 +96,7 @@ module Operators = {
     | IntOp(op_int) => Int(int_op_of_menhir_ast(op_int))
     | FloatOp(op_float) => Float(float_op_of_menhir_ast(op_float))
     | BoolOp(op_bool) => Bool(bool_op_of_menhir_ast(op_bool))
+    | StringOp(op_string) => String(string_op_of_menhir_ast(op_string))
     };
   };
 };
@@ -229,6 +238,7 @@ and Typ: {
     | TupleType(ts) => Prod(List.map(of_menhir_ast, ts))
     | ArrayType(t) => List(of_menhir_ast(t))
     | ArrowType(t1, t2) => Arrow(of_menhir_ast(t1), of_menhir_ast(t2))
+    | SumType(_l) => raise(Failure("SumType not implemented"))
     };
   };
 }

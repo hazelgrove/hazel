@@ -4,7 +4,8 @@ open AST
 
 
 
-
+%token OPEN_CURLY
+%token CLOSE_CURLY
 %token T_TYP
 %token P_PAT
 %token TP_TPAT
@@ -45,6 +46,10 @@ open AST
 %token EQUAL_ARROW
 %token SINGLE_EQUAL
 %token TURNSTILE
+
+(* String ops *)
+%token STRING_CONCAT
+%token STRING_EQUAL
 
 (* Int ops *)
 %token DOUBLE_EQUAL
@@ -103,6 +108,7 @@ open AST
 %nonassoc IF_EXP
 %nonassoc LET_EXP
 
+%left COLON
 %left DASH_ARROW
 
 
@@ -125,12 +131,12 @@ open AST
 %left TIMES_FLOAT DIVIDE_FLOAT 
 %right POWER_FLOAT
 
+%left OPEN_CURLY
 
 (* Other *)
 %left CONS
 %left OPEN_PAREN
 %left QUESTION
-%left COLON
 %left TILDE
 (* %left COMMA *)
 %left AT_SYMBOL
@@ -138,6 +144,9 @@ open AST
 %left IN
 %left DOLLAR_SIGN
 %left L_NOT L_AND L_OR
+
+
+%left STRING_CONCAT STRING_EQUAL
 
 %type <AST.exp> exp
 
@@ -179,13 +188,23 @@ program:
     | L_AND { BoolOp(And) }
     | L_OR { BoolOp(Or) }
 
+%inline stringOp:
+    | STRING_CONCAT { StringOp(Concat) }
+    | STRING_EQUAL { StringOp(Equals) }
+
 %inline binOp:
     | i = intOp { i }
     | f = floatOp { f }
     | b = boolOp { b }
+    | s = stringOp { s }
 
 binExp:
     | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
+
+(* sumTerm: *)
+(*     | PLUS; i = CONSTRUCTOR_IDENT; OPEN_PAREN; types = separated_list(COMMA, typ); CLOSE_PAREN { (i, types) } *)
+
+
 
 typ:
     | c = CONSTRUCTOR_IDENT { Var(c) }
@@ -199,10 +218,11 @@ typ:
     | OPEN_PAREN; types = separated_list(COMMA, typ); CLOSE_PAREN { TupleType(types) }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
+    (* | l = list(sumTerm) { SumType(l) } *)
 
 pat:
     | p1 = pat; COLON; t1 = typ;  { CastPat(p1, t1, UnknownType(Internal)) }
-    | p1 = pat; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN { CastPat(p1, t1, t2) }
+    | p1 = pat; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY { CastPat(p1, t1, t2) }
     | OPEN_PAREN; p = pat; CLOSE_PAREN { p }
     | OPEN_PAREN; p = pat; COMMA; pats = separated_list(COMMA, pat); CLOSE_PAREN { TuplePat(p :: pats) }
     | QUESTION; P_PAT; s = STRING { InvalidPat(s) }
@@ -246,6 +266,7 @@ tpat:
     | QUESTION; TP_TPAT; s = STRING {InvalidTPat(s)}
     | QUESTION {EmptyHoleTPat}
     | v = IDENT {VarTPat v}
+    | v = CONSTRUCTOR_IDENT {VarTPat v}
 
 unExp:
     | DOLLAR_SIGN; e = exp {UnOp(Meta(Unquote), e)}
@@ -269,8 +290,8 @@ exp:
     | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) } 
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
     | i = ifExp { i }
-    | e1 = exp; QUESTION; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN {FailedCast(e1, t1, t2)}
-    | e1 = exp; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN { Cast(e1, t1, t2) }
+    | e1 = exp; QUESTION; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY {FailedCast(e1, t1, t2)}
+    | e1 = exp; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY { Cast(e1, t1, t2) }
     | TRUE { Bool true }
     | f = funExp {f}
     | FALSE { Bool false }    
