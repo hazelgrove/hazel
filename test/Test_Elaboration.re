@@ -430,7 +430,7 @@ let f =
     BinOp(Int(Plus), Bool(false) |> Exp.fresh, Var("y") |> Exp.fresh)
     |> Exp.fresh;
 
-  let bin_op_str = "false?<Bool => Int> + y<Unknown Internal => Int>";
+  let bin_op_str = "false?{Bool => Int} + y{Unknown Internal => Int}";
 
   let bin_op_menhir = () =>
     alco_check_menhir(
@@ -442,8 +442,8 @@ let f =
   //Inconsistent branches menhir test
   let inconsistent_case_menhir_str = "
     case 4 == 3
-    | true => 24<Int => Unknown Internal>
-    | false => false<Bool => Unknown Internal>
+    | true => 24{Int => Unknown Internal}
+    | false => false{Bool => Unknown Internal}
     end
 ";
   let inconsistent_case_uexp: Exp.t =
@@ -544,7 +544,7 @@ let f =
   let typ_ap_menhir = () =>
     alco_check_menhir("Type ap test (menhir)", typ_ap_str, typ_ap_uexp);
 
-  let failed_cast_str = "1 ?<Int => String>";
+  let failed_cast_str = "1 ?{Int => String}";
   let failed_cast_uexp: Exp.t =
     FailedCast(Int(1) |> Exp.fresh, Int |> Typ.fresh, String |> Typ.fresh)
     |> Exp.fresh;
@@ -568,7 +568,7 @@ let f =
   /*
    <<1 / 2 ? `a`>>
        */
-  let dynamic_error_hole_str = "<<(1/0) ? `DivideByZero`>> <Unknown Internal => Int>";
+  let dynamic_error_hole_str = "<<(1/0) ? `DivideByZero`>> {Unknown Internal => Int}";
   let dynamic_error_hole_uexp: Exp.t = {
     ids: [id_at(0)],
     term:
@@ -604,7 +604,7 @@ let f =
   let undef_menhir = () =>
     alco_check_menhir("Undef test (menhir)", undef_str, undef_uexp);
 
-  let test_str = "test 1 ?<Int => Bool> end";
+  let test_str = "test 1 ?{Int => Bool} end";
   let test_uexp: Exp.t = {
     ids: [id_at(0)],
     term: Test(Int(1) |> Exp.fresh),
@@ -734,7 +734,7 @@ x
   let seq_menhir = () =>
     alco_check_menhir("Sequence test (menhir)", seq_str, seq_uexp);
 
-  let fixf_str = "fix x -> 1<Int => Unknown Internal>";
+  let fixf_str = "fix x -> 1{Int => Unknown Internal}";
   let fixf_uexp: Exp.t = {
     ids: [id_at(0)],
     term: FixF(Var("x") |> Pat.fresh, Int(1) |> Exp.fresh, None),
