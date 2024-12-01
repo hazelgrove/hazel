@@ -695,7 +695,6 @@ let apply = (model: Model.t, update: t, ~schedule_action): Result.t(Model.t) => 
       })
     | DeleteBuggyImplementation(index) =>
       let editors = Editors.delete_buggy_impl(model.editors, index);
-      print_endline(Editors.show(editors));
       Model.save_and_return({...model, editors});
     | UpdatePrompt(new_prompt) =>
       Model.save_and_return({
