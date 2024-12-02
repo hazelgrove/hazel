@@ -337,6 +337,28 @@ let tests = [
     "[1, 2] @ [3, 4]",
   ),
   parser_test(
+    "times and divide precendence",
+    BinOp(
+      Int(Times),
+      Int(1) |> Exp.fresh,
+      BinOp(Int(Divide), Int(2) |> Exp.fresh, Int(3) |> Exp.fresh)
+      |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "1 * 2 / 3",
+  ),
+  parser_test(
+    "plus and minus precendence",
+    BinOp(
+      Int(Plus),
+      BinOp(Int(Minus), Int(1) |> Exp.fresh, Int(2) |> Exp.fresh)
+      |> Exp.fresh,
+      Int(3) |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "1 - 2 + 3",
+  ),
+  parser_test(
     "Integer Ops",
     BinOp(
       Int(GreaterThanOrEqual),
