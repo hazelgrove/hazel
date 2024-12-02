@@ -8,6 +8,8 @@
 (library
  (name workerServer)
  (modules WorkerServer)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries
   bonsai
   bonsai.web
@@ -29,6 +31,8 @@
 
 (library
  (name haz3lweb)
+ (instrumentation
+  (backend bisect_ppx))
  (modules
   (:standard \ Main)
   \
@@ -55,7 +59,8 @@
    ppx_let
    ppx_sexp_conv
    ppx_deriving.show
-   ppx_yojson_conv)))
+   ppx_yojson_conv
+   bonsai.ppx_bonsai)))
 
 (executable
  (name main)

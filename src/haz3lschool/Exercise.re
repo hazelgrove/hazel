@@ -908,23 +908,22 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     hidden_tests: 'a,
   };
 
-  let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t =>
-    Exp.{
-      term:
-        Exp.Filter(
-          Filter({
-            act: FilterAction.(act, One),
-            pat: {
-              term: Constructor("$e", Unknown(Internal) |> Typ.temp),
-              copied: false,
-              ids: [Id.mk()],
-            },
-          }),
-          term,
-        ),
-      copied: false,
-      ids: [Id.mk()],
-    };
+  let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t => {
+    term:
+      Filter(
+        Filter({
+          act: FilterAction.(act, One),
+          pat: {
+            term: Constructor("$e", Unknown(Internal) |> Typ.temp),
+            copied: false,
+            ids: [Id.mk()],
+          },
+        }),
+        term,
+      ),
+    copied: false,
+    ids: [Id.mk()],
+  };
 
   let term_of = (editor: Editor.t): UExp.t =>
     MakeTerm.from_zip_for_sem(editor.state.zipper).term;
