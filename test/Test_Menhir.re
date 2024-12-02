@@ -336,7 +336,7 @@ let tests = [
     |> Exp.fresh,
     "[1, 2] @ [3, 4]",
   ),
-  skip_parser_test(
+  parser_test(
     "Integer Ops",
     BinOp(
       Int(GreaterThanOrEqual),
