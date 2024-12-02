@@ -39,14 +39,14 @@ let skip_menhir_only_test = (name: string, _exp: Term.Exp.t, _actual: string) =>
 
 // TODO Assert against result instead of exception for parse failure for better error messages
 let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
-  test_case(name, `Quick, () => {
-    // alco_check("Does not match MakeTerm", exp, make_term_parse(actual));
-    menhir_matches(
-      name,
-      exp,
-      actual,
-    )
-  });
+  test_case(
+    name,
+    `Quick,
+    () => {
+      alco_check("Does not match MakeTerm", exp, make_term_parse(actual));
+      menhir_matches(name, exp, actual);
+    },
+  );
 
 let menhir_maketerm_equivalent_test = (name: string, actual: string) =>
   test_case(name, `Quick, () => {
@@ -416,6 +416,31 @@ let tests = [
     )
     |> Exp.fresh,
     "named_fun f x -> x + 5",
+  ),
+  parser_test(
+    "basic sum type",
+    Let(
+      Cast(
+        Var("x") |> Pat.fresh,
+        Sum([
+          Variant("A", [], None),
+          Variant("B", [], None),
+          Variant("C", [], Some(Int |> Typ.fresh)),
+        ])
+        |> Typ.fresh,
+        Unknown(Internal) |> Typ.fresh,
+      )
+      |> Pat.fresh,
+      Ap(
+        Forward,
+        Constructor("C", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
+        Int(7) |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      Var("x") |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "let x : +A +B +C(Int) = C(7) in x",
   ),
   {
     //   parser_test(
