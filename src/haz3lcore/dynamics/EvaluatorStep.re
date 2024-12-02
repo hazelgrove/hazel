@@ -58,17 +58,6 @@ module Decompose = {
     type requirements('a, 'b) = ('b, Result.t, ClosureEnvironment.t, 'a);
     type result = Result.t;
 
-    let req_value = (cont, wr, d) => {
-      switch (cont(d)) {
-      | Result.Indet => (Result.Indet, d)
-      | Result.BoxedValue => (Result.BoxedValue, d)
-      | Result.Step(objs) => (
-          Result.Step(List.map(EvalObj.wrap(wr), objs)),
-          d,
-        )
-      };
-    };
-
     let (&&): (Result.t, Result.t) => Result.t =
       (u, v) =>
         switch (u, v) {
@@ -81,18 +70,6 @@ module Decompose = {
         | (BoxedValue, BoxedValue) => BoxedValue
         };
 
-    let rec req_all_value' = (cont, wr, ds') =>
-      fun
-      | [] => (Result.BoxedValue, [])
-      | [d, ...ds] => {
-          let (r1, v) = req_value(cont, wr(_, (ds', ds)), d);
-          let (r2, vs) = req_all_value'(cont, wr, [d, ...ds'], ds);
-          (r1 && r2, [v, ...vs]);
-        };
-    let req_all_value = (cont, wr, ds) => {
-      req_all_value'(cont, wr, [], ds);
-    };
-
     let req_final = (cont, wr, d) => {
       (
         switch (cont(d)) {
@@ -103,17 +80,6 @@ module Decompose = {
         },
         d,
       );
-    };
-
-    let req_final_or_value = (cont, wr, d) => {
-      switch (cont(d)) {
-      | Result.Indet => (Result.BoxedValue, (d, false))
-      | Result.BoxedValue => (Result.BoxedValue, (d, true))
-      | Result.Step(objs) => (
-          Result.Step(List.map(EvalObj.wrap(wr), objs)),
-          (d, false),
-        )
-      };
     };
 
     let rec req_all_final' = (cont, wr, ds') =>
@@ -175,12 +141,8 @@ module TakeStep = {
     type result = option(DHExp.t);
 
     // Assume that everything is either value or final as required.
-    let req_value = (_, _, d) => d;
-    let req_all_value = (_, _, ds) => ds;
     let req_final = (_, _, d) => d;
     let req_all_final = (_, _, ds) => ds;
-
-    let req_final_or_value = (_, _, d) => (d, true);
 
     let (let.) = (rq: requirements('a, DHExp.t), rl: 'a => rule) =>
       switch (rl(rq)) {

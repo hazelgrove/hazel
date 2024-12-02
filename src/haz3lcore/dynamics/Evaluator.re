@@ -23,8 +23,7 @@ open Result;
 
 module EvaluatorEVMode: {
   type status =
-    | BoxedValue
-    | Indet
+    | Final
     | Uneval;
 
   include
@@ -32,94 +31,45 @@ module EvaluatorEVMode: {
       type state = ref(EvaluatorState.t) and type result = (status, DHExp.t);
 } = {
   type status =
-    | BoxedValue
-    | Indet
+    | Final
     | Uneval;
 
   type result = (status, DHExp.t);
 
-  type reqstate =
-    | BoxedReady
-    | IndetReady
-    | IndetBlocked;
+  type requirement('a) = 'a;
 
-  let (&&) = (x, y) =>
-    switch (x, y) {
-    | (IndetBlocked, _) => IndetBlocked
-    | (_, IndetBlocked) => IndetBlocked
-    | (IndetReady, _) => IndetReady
-    | (_, IndetReady) => IndetReady
-    | (BoxedReady, BoxedReady) => BoxedReady
-    };
-
-  type requirement('a) = (reqstate, 'a);
-
-  type requirements('a, 'b) = (reqstate, 'a, 'b); // cumulative state, cumulative arguments, cumulative 'undo'
+  type requirements('a, 'b) = ('a, 'b); // cumulative arguments, cumulative 'undo'
 
   type state = ref(EvaluatorState.t);
   let update_test = (state, id, v) =>
     state := EvaluatorState.add_test(state^, id, v);
 
-  let req_value = (f, _, x) =>
-    switch (f(x)) {
-    | (BoxedValue, x) => (BoxedReady, x)
-    | (Indet, x) => (IndetBlocked, x)
-    | (Uneval, _) => failwith("Unexpected Uneval")
-    };
-
-  let rec req_all_value = (f, i) =>
-    fun
-    | [] => (BoxedReady, [])
-    | [x, ...xs] => {
-        let (r1, x') = req_value(f, x => x, x);
-        let (r2, xs') = req_all_value(f, i, xs);
-        (r1 && r2, [x', ...xs']);
-      };
-
-  let req_final = (f, _, x) =>
-    switch (f(x)) {
-    | (BoxedValue, x) => (BoxedReady, x)
-    | (Indet, x) => (IndetReady, x)
-    | (Uneval, _) => failwith("Unexpected Uneval")
-    };
+  let req_final = (f, _, x) => f(x) |> snd;
 
   let rec req_all_final = (f, i) =>
     fun
-    | [] => (BoxedReady, [])
+    | [] => []
     | [x, ...xs] => {
-        let (r1, x') = req_final(f, x => x, x);
-        let (r2, xs') = req_all_final(f, i, xs);
-        (r1 && r2, [x', ...xs']);
+        let x' = req_final(f, x => x, x);
+        let xs' = req_all_final(f, i, xs);
+        [x', ...xs'];
       };
 
-  let req_final_or_value = (f, _, x) =>
-    switch (f(x)) {
-    | (BoxedValue, x) => (BoxedReady, (x, true))
-    | (Indet, x) => (IndetReady, (x, false))
-    | (Uneval, _) => failwith("Unexpected Uneval")
-    };
+  let otherwise = (_, c) => ((), c);
 
-  let otherwise = (_, c) => (BoxedReady, (), c);
+  let (and.) = ((x1, c1), x2) => ((x1, x2), c1(x2));
 
-  let (and.) = ((r1, x1, c1), (r2, x2)) => (r1 && r2, (x1, x2), c1(x2));
-
-  let (let.) = ((r, x, c), s) =>
-    switch (r, s(x)) {
-    | (BoxedReady, Step({expr, state_update, is_value: true, _})) =>
+  let (let.) = ((x, c), s) =>
+    switch (s(x)) {
+    | Step({expr, state_update, is_value: true, _}) =>
       state_update();
-      (BoxedValue, expr);
-    | (IndetReady, Step({expr, state_update, is_value: true, _})) =>
-      state_update();
-      (Indet, expr);
-    | (BoxedReady, Step({expr, state_update, is_value: false, _}))
-    | (IndetReady, Step({expr, state_update, is_value: false, _})) =>
+      (Final, expr);
+    | Step({expr, state_update, is_value: false, _}) =>
       state_update();
       (Uneval, expr);
-    | (BoxedReady, Constructor) => (BoxedValue, c)
-    | (IndetReady, Constructor) => (Indet, c)
-    | (IndetBlocked, _) => (Indet, c)
-    | (_, Value) => (BoxedValue, c)
-    | (_, Indet) => (Indet, c)
+    | Constructor
+    | Value
+    | Indet => (Final, c)
     };
 };
 module Eval = Transition(EvaluatorEVMode);
@@ -127,8 +77,7 @@ module Eval = Transition(EvaluatorEVMode);
 let rec evaluate = (state, env, d) => {
   let u = Eval.transition(evaluate, state, env, d);
   switch (u) {
-  | (BoxedValue, x) => (BoxedValue, x)
-  | (Indet, x) => (Indet, x)
+  | (Final, x) => (Final, x)
   | (Uneval, x) => evaluate(state, env, x)
   };
 };
@@ -139,8 +88,7 @@ let evaluate = (env, {d}: Elaborator.Elaboration.t) => {
   let result = evaluate(state, env, d);
   let result =
     switch (result) {
-    | (BoxedValue, x) => BoxedValue(x |> DHExp.repair_ids)
-    | (Indet, x) => Indet(x |> DHExp.repair_ids)
+    | (Final, x) => BoxedValue(x |> DHExp.repair_ids)
     | (Uneval, x) => Indet(x |> DHExp.repair_ids)
     };
   (state^, result);
