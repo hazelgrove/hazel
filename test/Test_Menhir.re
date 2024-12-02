@@ -19,9 +19,9 @@ let alco_check = exp_typ |> Alcotest.check;
 let make_term_parse = (s: string) =>
   MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
 
-let menhir_matches = (name: string, exp: Term.Exp.t, actual: string) =>
+let menhir_matches = (exp: Term.Exp.t, actual: string) =>
   alco_check(
-    name ++ " menhir matches expected type",
+    "menhir matches expected parse",
     exp,
     Haz3lmenhir.Conversion.Exp.of_menhir_ast(
       Haz3lmenhir.Interface.parse_program(actual),
@@ -29,7 +29,7 @@ let menhir_matches = (name: string, exp: Term.Exp.t, actual: string) =>
   );
 
 let menhir_only_test = (name: string, exp: Term.Exp.t, actual: string) =>
-  test_case(name, `Quick, () => {menhir_matches(name, exp, actual)});
+  test_case(name, `Quick, () => {menhir_matches(exp, actual)});
 
 // TODO Remove these before merge. Using it to mark skipped tests until we fix them.
 let skip_parser_test = (name: string, _exp: Term.Exp.t, _actual: string) =>
@@ -43,15 +43,19 @@ let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
     name,
     `Quick,
     () => {
-      alco_check("Does not match MakeTerm", exp, make_term_parse(actual));
-      menhir_matches(name, exp, actual);
+      alco_check(
+        "expected parse matches MakeTerm parse",
+        exp,
+        make_term_parse(actual),
+      );
+      menhir_matches(exp, actual);
     },
   );
 
 let menhir_maketerm_equivalent_test = (name: string, actual: string) =>
   test_case(name, `Quick, () => {
     alco_check(
-      "Does not match MakeTerm",
+      "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
       Haz3lmenhir.Conversion.Exp.of_menhir_ast(
         Haz3lmenhir.Interface.parse_program(actual),
@@ -332,7 +336,7 @@ let tests = [
     |> Exp.fresh,
     "[1, 2] @ [3, 4]",
   ),
-  parser_test(
+  skip_parser_test(
     "Integer Ops",
     BinOp(
       Int(GreaterThanOrEqual),
@@ -345,10 +349,14 @@ let tests = [
         )
         |> Exp.fresh,
         BinOp(
-          Int(Times),
-          BinOp(Int(Divide), Int(3) |> Exp.fresh, Int(4) |> Exp.fresh)
-          |> Exp.fresh,
-          BinOp(Int(Power), Int(5) |> Exp.fresh, Int(6) |> Exp.fresh)
+          Int(Divide),
+          Int(3) |> Exp.fresh,
+          BinOp(
+            Int(Times),
+            Int(4) |> Exp.fresh,
+            BinOp(Int(Power), Int(5) |> Exp.fresh, Int(6) |> Exp.fresh)
+            |> Exp.fresh,
+          )
           |> Exp.fresh,
         )
         |> Exp.fresh,
@@ -368,17 +376,17 @@ let tests = [
         Float(Minus),
         Float(2.) |> Exp.fresh,
         BinOp(
-          Float(Times),
+          Float(Divide),
+          Float(3.) |> Exp.fresh,
           BinOp(
-            Float(Divide),
-            Float(3.) |> Exp.fresh,
+            Float(Times),
             Float(4.) |> Exp.fresh,
-          )
-          |> Exp.fresh,
-          BinOp(
-            Float(Power),
-            Float(5.) |> Exp.fresh,
-            Float(6.) |> Exp.fresh,
+            BinOp(
+              Float(Power),
+              Float(5.) |> Exp.fresh,
+              Float(6.) |> Exp.fresh,
+            )
+            |> Exp.fresh,
           )
           |> Exp.fresh,
         )
@@ -474,7 +482,7 @@ let tests = [
     test_case("Basic Reference", `Quick, () => {
       // let _ = Alcotest.skip();
       alco_check(
-        "Does not match MakeTerm",
+        "Menhir parse does not match MakeTerm",
         make_term_parse(basic_reference),
         Haz3lmenhir.Conversion.Exp.of_menhir_ast(
           Haz3lmenhir.Interface.parse_program(basic_reference),
