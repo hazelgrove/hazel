@@ -37,13 +37,27 @@ let apply = (model, action, ~schedule_action, ~schedule_autosave): Model.t => {
   | (UpdateAction.PerformAction(Move(_)), true) => model
   | (action, _) =>
     if (UpdateAction.is_edit(action)) {
-      last_edit_action := JsUtil.timestamp();
-      edit_action_applied := true;
+      schedule_autosave(
+        BonsaiUtil.Alarm.Action.SetAlarm(
+          Core.Time_ns.add(
+            Core.Time_ns.now(),
+            Core.Time_ns.Span.of_sec(1.0),
+          ),
+        ),
+      );
+    } else {
+      schedule_autosave(
+        BonsaiUtil.Alarm.Action.SnoozeAlarm(
+          Core.Time_ns.add(
+            Core.Time_ns.now(),
+            Core.Time_ns.Span.of_sec(1.0),
+          ),
+        ),
+      );
     };
     if (Update.should_scroll_to_caret(action)) {
       scroll_to_caret := true;
     };
-    last_edit_action := JsUtil.timestamp();
     switch (
       try({
         let new_model = Update.apply(model, action, ~schedule_action);
