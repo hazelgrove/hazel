@@ -210,7 +210,8 @@ binExp:
 
 
 %inline sumTerm:
-    | i = CONSTRUCTOR_IDENT; t = tupleType  { SumTerm(i, t) } 
+    | i = CONSTRUCTOR_IDENT; t = tupleType  { SumTerm(i, Some(t)) } 
+    | i = CONSTRUCTOR_IDENT { SumTerm(i, None) }
 
 sumTyp:
     | PLUS; s = sumTerm; { SumTyp(s, None) } %prec SUM_TYP

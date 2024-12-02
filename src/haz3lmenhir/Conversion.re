@@ -265,12 +265,29 @@ and Typ: {
   }
   and constructormap_of_sumterm_list =
       (terms: list(AST.typ)): Haz3lcore.ConstructorMap.t(Haz3lcore.Typ.t) => {
-    List.map(constructormap_variant_of_sumterm, terms);
+    List.map(constructormap_variant_of_sumterm, terms) |> List.rev;
   }
   and constructormap_variant_of_sumterm =
       (term: AST.typ): Haz3lcore.ConstructorMap.variant(Haz3lcore.Typ.t) => {
     switch (term) {
-    | SumTerm(name, typs) => Variant(name, [], Some(of_menhir_ast(typs)))
+    | SumTerm(name, typs) =>
+      switch (typs) {
+      | Some(typs) =>
+        switch (typs) {
+        | TupleType(ts) =>
+          switch (List.length(ts)) {
+          | 1 => Variant(name, [], Some(of_menhir_ast(List.hd(ts))))
+          | _ => Variant(name, [], Some(of_menhir_ast(typs)))
+          }
+        | _ =>
+          raise(
+            Failure(
+              "TupleType expected in constructormap_variant_of_sumterm but not found",
+            ),
+          )
+        }
+      | None => Variant(name, [], None)
+      }
     | _ =>
       raise(
         Failure(

@@ -1,0 +1,28 @@
+
+** Conflict (shift/reduce) in state 41.
+** Token involved: CLOSE_PAREN
+** This state is reached from program after reading:
+
+CONSTRUCTOR_IDENT TILDE PLUS CONSTRUCTOR_IDENT OPEN_PAREN typ
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+program 
+exp EOF 
+CONSTRUCTOR_IDENT TILDE typ 
+                        sumTyp 
+                        (?)
+
+** In state 41, looking ahead at CLOSE_PAREN, reducing production
+** separated_nonempty_list(COMMA,typ) -> typ
+** is permitted because of the following sub-derivation:
+
+PLUS CONSTRUCTOR_IDENT OPEN_PAREN loption(separated_nonempty_list(COMMA,typ)) CLOSE_PAREN // lookahead token appears
+                                  separated_nonempty_list(COMMA,typ) // lookahead token is inherited
+                                  typ . 
+
+** In state 41, looking ahead at CLOSE_PAREN, shifting is permitted
+** because of the following sub-derivation:
+
+PLUS CONSTRUCTOR_IDENT OPEN_PAREN typ . CLOSE_PAREN 
