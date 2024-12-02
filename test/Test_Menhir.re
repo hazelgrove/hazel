@@ -494,22 +494,25 @@ let tests =
     };
     let (_, slides: list((string, PersistentZipper.t)), _) =
       Haz3lweb.Init.startup.documentation;
-    let te =
-      List.map(
-        ((name, slide): (string, PersistentZipper.t)) => {
-          test_case("Documentation buffer: " ++ name, `Quick, () => {
+    List.map(
+      ((name, slide): (string, PersistentZipper.t)) => {
+        test_case(
+          "Documentation buffer: " ++ name,
+          `Quick,
+          () => {
+            let cleaned_source =
+              replace_holes(strip_comments(slide.backup_text));
+            print_endline(cleaned_source);
             alco_check(
               "Menhir parse does not match MakeTerm",
               make_term_parse(slide.backup_text),
               Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-                Haz3lmenhir.Interface.parse_program(
-                  replace_holes(strip_comments(slide.backup_text)),
-                ),
+                Haz3lmenhir.Interface.parse_program(cleaned_source),
               ),
-            )
-          })
-        },
-        slides,
-      );
-    te;
+            );
+          },
+        )
+      },
+      slides,
+    );
   };
