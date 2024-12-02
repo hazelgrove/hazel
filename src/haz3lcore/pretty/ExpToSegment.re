@@ -337,13 +337,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         "ap_exp",
         id,
         [
-          List.flatten(
-            List.map2(
-              (id, e) => [mk_form("comma_exp", id, [])] @ e,
-              ids,
-              es,
+          (es |> List.hd)
+          @ List.flatten(
+              List.map2(
+                (id, e) => [mk_form("comma_exp", id, [])] @ e,
+                ids |> List.tl,
+                es |> List.tl,
+              ),
             ),
-          ),
         ],
       ),
     ];
