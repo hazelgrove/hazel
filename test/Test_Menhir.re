@@ -482,6 +482,7 @@ let tests =
       |> Exp.fresh,
       "let x : +A +B +C(Int) = C(7) in x",
     ),
+    menhir_maketerm_equivalent_test("Empty Type Hole", "let g: ? = 7 in g"),
   ]
   @ {
     let strip_comments = str => {
