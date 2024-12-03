@@ -226,6 +226,7 @@ typ:
     | BOOL_TYPE { BoolType }
     | STRING_TYPE { StringType }
     | UNKNOWN; INTERNAL { UnknownType(Internal) }
+    | QUESTION { UnknownType(EmptyHole) }
     | UNIT { UnitType }
     | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }

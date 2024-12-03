@@ -72,7 +72,8 @@ type op_un =
 
 [@deriving (show({with_path: false}), sexp)]
 type typ_provenance =
-  | Internal;
+  | Internal
+  | EmptyHole;
 
 [@deriving (show({with_path: false}), sexp)]
 type typ =

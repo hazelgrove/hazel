@@ -238,6 +238,7 @@ and Typ: {
     | UnknownType(p) =>
       switch (p) {
       | Internal => Unknown(Internal)
+      | EmptyHole => Unknown(Hole(EmptyHole))
       }
     | TypVar(s) => Var(s)
     | TupleType(ts) => Prod(List.map(of_menhir_ast, ts))
