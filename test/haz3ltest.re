@@ -6,6 +6,7 @@ let (suite, _) =
     "HazelTests",
     [
       ("Elaboration", Test_Elaboration.elaboration_tests),
+      Test_StringUtil.tests,
       ("Statics", Test_Statics.tests),
       ("Evaluator", Test_Evaluator.tests),
       Test_ListUtil.tests,
