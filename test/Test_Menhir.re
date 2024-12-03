@@ -483,6 +483,10 @@ let tests =
       "let x : +A +B +C(Int) = C(7) in x",
     ),
     menhir_maketerm_equivalent_test("Empty Type Hole", "let g: ? = 7 in g"),
+    menhir_maketerm_equivalent_test(
+      "Pattern with type ascription",
+      "fun b: Bool -> b",
+    ),
   ]
   @ {
     let strip_comments = str => {
