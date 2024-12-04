@@ -2,6 +2,41 @@ open Transition;
 
 open ProgramResult.Result;
 
+// This module defines the stack machine for the evaluator.
+module Trampoline = {
+  type t('a) =
+    | Bind(t('b), 'b => t('a)): t('a)
+    | Next(unit => t('a)): t('a)
+    | Done('a): t('a);
+
+  type callstack('a, 'b) =
+    | Finished: callstack('a, 'a)
+    | Continue('a => t('b), callstack('b, 'c)): callstack('a, 'c);
+
+  let rec run: type a b. (t(b), callstack(b, a)) => a =
+    (t: t(b), callstack: callstack(b, a)) => (
+      switch (t) {
+      | Bind(t, f) => (run(t, Continue(f, callstack)): a)
+      | Next(f) => run(f(), callstack)
+      | Done(x) =>
+        switch (callstack) {
+        | Finished => x
+        | Continue(f, callstack) => run(f(x), callstack)
+        }
+      }: a
+    );
+
+  let run = run(_, Finished);
+
+  let return = x => Done(x);
+
+  let bind = (t, f) => Bind(t, f);
+
+  module Syntax = {
+    let (let.trampoline) = (x, f) => bind(x, f);
+  };
+};
+
 module EvaluatorEVMode: {
   type status =
     | Final
@@ -9,57 +44,66 @@ module EvaluatorEVMode: {
 
   include
     EV_MODE with
-      type state = ref(EvaluatorState.t) and type result = (status, DHExp.t);
+      type state = ref(EvaluatorState.t) and
+      type result = Trampoline.t((status, DHExp.t));
 } = {
+  open Trampoline.Syntax;
+
   type status =
     | Final
     | Uneval;
 
-  type result = (status, DHExp.t);
-
-  type requirement('a) = 'a;
-
-  type requirements('a, 'b) = ('a, 'b); // cumulative arguments, cumulative 'undo'
+  type result = Trampoline.t((status, DHExp.t));
+  type requirement('a) = Trampoline.t('a);
+  type requirements('a, 'b) = Trampoline.t(('a, 'b));
 
   type state = ref(EvaluatorState.t);
   let update_test = (state, id, v) =>
     state := EvaluatorState.add_test(state^, id, v);
 
-  let req_final = (f, _, x) => f(x) |> snd;
+  let req_final = (f, _, x) => {
+    let.trampoline x' = Next(() => f(x));
+    Trampoline.return(x' |> snd);
+  };
+  let rec req_all_final = (f, i, xs) =>
+    switch (xs) {
+    | [] => Trampoline.return([])
+    | [x, ...xs] =>
+      let.trampoline x' = req_final(f, x => x, x);
+      let.trampoline xs' = req_all_final(f, i, xs);
+      Trampoline.return([x', ...xs']);
+    };
 
-  let rec req_all_final = (f, i) =>
-    fun
-    | [] => []
-    | [x, ...xs] => {
-        let x' = req_final(f, x => x, x);
-        let xs' = req_all_final(f, i, xs);
-        [x', ...xs'];
-      };
-
-  let otherwise = (_, c) => ((), c);
-
-  let (and.) = ((x1, c1), x2) => ((x1, x2), c1(x2));
-
-  let (let.) = ((x, c), s) =>
+  let otherwise = (_, c) => Trampoline.return(((), c));
+  let (and.) = (t1, t2) => {
+    let.trampoline (x1, c1) = t1;
+    let.trampoline x2 = t2;
+    Trampoline.return(((x1, x2), c1(x2)));
+  };
+  let (let.) = (t1, s) => {
+    let.trampoline (x, c) = t1;
     switch (s(x)) {
     | Step({expr, state_update, is_value: true, _}) =>
       state_update();
-      (Final, expr);
+      Trampoline.return((Final, expr));
     | Step({expr, state_update, is_value: false, _}) =>
       state_update();
-      (Uneval, expr);
+      Trampoline.return((Uneval, expr));
     | Constructor
     | Value
-    | Indet => (Final, c)
+    | Indet => Trampoline.return((Final, c))
     };
+  };
 };
+
 module Eval = Transition(EvaluatorEVMode);
 
 let rec evaluate = (state, env, d) => {
-  let u = Eval.transition(evaluate, state, env, d);
+  open Trampoline.Syntax;
+  let.trampoline u = Eval.transition(evaluate, state, env, d);
   switch (u) {
-  | (Final, x) => (Final, x)
-  | (Uneval, x) => evaluate(state, env, x)
+  | (Final, x) => (EvaluatorEVMode.Final, x) |> Trampoline.return
+  | (Uneval, x) => Trampoline.Next(() => evaluate(state, env, x))
   };
 };
 
@@ -67,6 +111,7 @@ let evaluate' = (env, {d, _}: Elaborator.Elaboration.t) => {
   let state = ref(EvaluatorState.init);
   let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);
+  let result = Trampoline.run(result);
   let result =
     switch (result) {
     | (Final, x) => BoxedValue(x |> DHExp.repair_ids)
