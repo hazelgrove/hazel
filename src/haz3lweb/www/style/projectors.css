@@ -168,3 +168,63 @@
   color: var(--BLACK);
   background-color: var(--shard-selected);
 }
+
+/* Probe */
+
+.live-offside {
+  display: flex;
+  flex-direction: row;
+  position: absolute;
+  left: 10em;
+  gap: 0.15em;
+}
+
+.live-offside .code {
+  background-color: #c7e6c6;
+  border-radius: 0.3em;
+  border-top: 1px solid white;
+  filter: drop-shadow(0.7px 0.7px 0px green);
+  opacity: 60%;
+}
+
+.projector.probe.indicated .live-offside .code {
+  background-color: #a4d7a2;
+  opacity: 100%
+}
+
+.projector.probe > svg {
+  fill: #c7e6c6;
+  filter: drop-shadow(0.7px 0.7px 0px green);
+}
+
+.projector.probe.indicated > svg {
+  fill: #a4d7a2;
+}
+
+.projector.probe {
+  font-family: var(--code-font);
+  color: var(--STONE);
+}
+
+.projector.probe .live-env {
+  background-color: #e7e1cf;
+  border-radius: 0 0.2em 0.2em 0.2em;
+  padding: 0.2em;
+  display: none;
+  position: absolute;
+  top: 1.6em;
+  z-index: 5000;
+}
+
+.projector.probe .live-env .live-env-entry {
+  display: flex;
+  flex-direction: row;
+  gap: 0.3em;
+} 
+
+.projector.probe .wrap:hover .live-env {
+  display: block;
+}
+.projector.probe .wrap:hover > .code {
+  border-radius: 0.2em 0.2em 0.2em 0;
+}

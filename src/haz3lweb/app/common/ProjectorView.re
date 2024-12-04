@@ -111,6 +111,34 @@ let handle = (id, action: external_action): Action.project =>
   | SetSyntax(f) => SetSyntax(id, f)
   };
 
+let code_width = (measured: Measured.t) =>
+  IntMap.fold(
+    (_, {max_col, _}: Measured.Rows.shape, acc) => max(max_col, acc),
+    measured.rows,
+    0,
+  );
+
+let projector_start_row_width =
+    (measurement: Measured.measurement, measured: Measured.t) =>
+  switch (IntMap.find_opt(measurement.origin.row, measured.rows)) {
+  | None => 0
+  | Some(row) => row.max_col
+  };
+
+let offside =
+    (
+      font_metrics: FontMetrics.t,
+      measurement: Measured.measurement,
+      measured: Measured.t,
+    ) => {
+  font_metrics.col_width
+  *. float_of_int(
+       projector_start_row_width(measurement, measured)
+       + 4
+       - measurement.origin.col,
+     );
+};
+
 /* Extracts projector-instance-specific metadata necessary to
  * render the view, instantiates appropriate action handlers,
  * renders the view, and then wraps it so as to position it
@@ -126,6 +154,12 @@ let setup_view =
       ~indication: option(Direction.t),
     )
     : option(Node.t) => {
+  let* p = Id.Map.find_opt(id, cached_syntax.projectors);
+  let* syntax = Some(p.syntax);
+  let statics = Statics.Map.lookup(id, cached_statics.info_map);
+  let dynamics = Dynamics.Map.lookup(id, dynamics);
+  let info = {id, statics, dynamics, syntax};
+  let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
   let bonus_pack = {
     view: (sort, seg) =>
       CodeViewable.view_segment(~globals, ~sort, ~token_of_proj=_ => "", seg),
@@ -141,13 +175,9 @@ let setup_view =
              fold_cast_types: false,
            },
          ),
+    offside_offset:
+      offside(globals.font_metrics, measurement, cached_syntax.measured),
   };
-  let* p = Id.Map.find_opt(id, cached_syntax.projectors);
-  let* syntax = Some(p.syntax);
-  let statics = Statics.Map.lookup(id, cached_statics.info_map);
-  let dynamics = Dynamics.Map.lookup(id, dynamics);
-  let info = {id, statics, dynamics, syntax};
-  let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
   let (module P) = to_module(p.kind);
   let parent = a => inject(Project(handle(id, a)));
   let local = a => inject(Project(SetModel(id, P.update(p.model, a))));
@@ -180,10 +210,6 @@ let all =
       ~dynamics: Dynamics.Map.t,
       ~inject,
     ) => {
-  // print_endline(
-  //   "cardinal: "
-  //   ++ (meta.projected.projectors |> Id.Map.cardinal |> string_of_int),
-  // );
   div_c(
     "projectors",
     List.filter_map(

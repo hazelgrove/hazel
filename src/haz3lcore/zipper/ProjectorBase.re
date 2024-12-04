@@ -41,6 +41,7 @@ type info = {
 type bonus_pack = {
   view: (Sort.t, Base.segment) => Node.t,
   exp_to_seg: Exp.t => Base.segment,
+  offside_offset: float /* to position something to rhs of code */
 };
 
 /* To add a new projector:

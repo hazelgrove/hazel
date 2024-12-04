@@ -43,21 +43,83 @@ let vals = (di: option(Dynamics.Info.t), exp_to_seg) => {
   };
 };
 
+let env_val = (en: Dynamics.Probe.Env.entry, bonus_pack: bonus_pack) => {
+  Node.div(
+    ~attrs=[Attr.classes(["live-env-entry"])],
+    [
+      Node.text(en.name ++ " = "),
+      switch (en.raw) {
+      | Opaque => Node.text("Opaque")
+      | Val(d) => d |> bonus_pack.exp_to_seg |> bonus_pack.view(Exp)
+      },
+    ],
+  );
+};
+
+let rm_opaques =
+  List.filter_map((en: Dynamics.Probe.Env.entry) =>
+    switch (en.raw) {
+    | Opaque => None
+    | Val(_) => Some(en)
+    }
+  );
+
+let rm_fst = (xs: list('a)) =>
+  switch (xs) {
+  | [] => []
+  | [_, ...rest] => rest
+  };
+
+let env_div2 = (pi: Dynamics.Probe.Info.t, bonus_pack: bonus_pack) => {
+  Node.div(
+    ~attrs=[Attr.classes(["live-env"])],
+    pi.env |> rm_fst |> rm_opaques |> List.map(en => env_val(en, bonus_pack)),
+  );
+};
+
+let env_div = (di: Dynamics.Info.t, bonus_pack: bonus_pack) => {
+  Node.div(
+    ~attrs=[Attr.classes(["live-env"])],
+    List.concat_map(
+      (pi: Dynamics.Probe.Info.t) => {
+        pi.env |> List.map(en => env_val(en, bonus_pack))
+      },
+      di.vals,
+    ),
+  );
+};
+
 let vals_div = (di: option(Dynamics.Info.t), bonus_pack: bonus_pack) => {
   switch (di) {
   | Some(di) =>
     Node.div(
-      ~attrs=[Attr.classes(["live-offside"])],
+      ~attrs=[
+        Attr.classes(["live-offside"]),
+        Attr.create(
+          "style",
+          Printf.sprintf(
+            "position: absolute; left: %fpx;",
+            bonus_pack.offside_offset,
+          ),
+        ),
+      ],
       List.map(
         (pi: Dynamics.Probe.Info.t) => {
-          print_endline("pi.env:" ++ Dynamics.Probe.Env.show(pi.env));
-          pi.value
-          |> DHExp.strip_casts
-          |> bonus_pack.exp_to_seg
-          |> bonus_pack.view(Exp);
+          // print_endline("pi.env:" ++ Dynamics.Probe.Env.show(pi.env));
+          div(
+            ~attrs=[Attr.classes(["wrap"])],
+            [
+              pi.value
+              |> DHExp.strip_casts
+              |> bonus_pack.exp_to_seg
+              |> bonus_pack.view(Exp),
+              env_div2(pi, bonus_pack),
+            ],
+          )
         },
         di.vals,
       ),
+      //@ [env_div(di, bonus_pack)],
     )
   | _ =>
     Node.div(~attrs=[Attr.classes(["live-offside"])], [Node.text("?")])

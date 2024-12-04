@@ -20,9 +20,10 @@
 
 /* This is a hack to compensating for default linebreak handling
 * preventing a trailing linebreak in code editors from leaving a
-* trailing blank line, as per https://stackoverflow.com/questions/43492826/ */
+* trailing blank line, as per https://stackoverflow.com/questions/43492826/.
+* The mysterious chracter below is a zero-width space */
 .code-text:after {
-  content: " ";
+  content: "​";
 }
 
 /* TOKEN COLORS */
