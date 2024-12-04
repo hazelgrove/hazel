@@ -773,7 +773,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       Indet;
     | Parens(d'', Probe(pr)) =>
-      print_endline("Probe:" ++ TermBase.show_probe(pr));
+      // print_endline("Probe:" ++ TermBase.show_probe(pr));
       //TODO(andrew): cleanup
       let. _ = otherwise(env, ((d, _)) => Parens(d, Probe(pr)) |> rewrap)
       and. (d', _is_value) =
@@ -782,11 +782,15 @@ module Transition = (EV: EV_MODE) => {
           d => Parens(d, Probe(pr)) |> wrap_ctx,
           d'',
         );
-      //TODO(andrew): should this be inside update closure?
-      let pi = Dynamics.Probe.Info.mk(d', env, pr);
+
       Step({
         expr: d',
-        state_update: () => update_probe(state, DHExp.rep_id(d), pi),
+        state_update: () => {
+          //TODO(andrew): should I be putting the env inside update closure?
+          // are there perf / mem implications?
+          let pi = Dynamics.Probe.Info.mk(d', env, pr);
+          update_probe(state, DHExp.rep_id(d), pi);
+        },
         kind: RemoveParens,
         is_value: true,
       });
