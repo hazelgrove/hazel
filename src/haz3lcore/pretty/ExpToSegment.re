@@ -43,6 +43,12 @@ let should_add_space = (s1, s2) =>
         String.ends_with(s1, ~suffix=")")
         && String.starts_with(s2, ~prefix="(") =>
     false
+  | _
+      when
+        Form.is_potential_operand(s1)
+        && !Form.is_keyword(s1)
+        && String.starts_with(s2, ~prefix="(") =>
+    false
   | _ => true
   };
 
