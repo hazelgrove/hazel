@@ -168,10 +168,13 @@ let tet_ap_of_hole_deferral = () =>
     |> Exp.fresh,
   );
 
-let tests = [
-  test_case("Integer literal", `Quick, test_int),
-  test_case("Integer sum", `Quick, test_sum),
-  test_case("Function application", `Quick, test_function_application),
-  test_case("Function deferral", `Quick, test_function_deferral),
-  test_case("Deferral applied to hole", `Quick, tet_ap_of_hole_deferral),
-];
+let tests = (
+  "Evaluator",
+  [
+    test_case("Integer literal", `Quick, test_int),
+    test_case("Integer sum", `Quick, test_sum),
+    test_case("Function application", `Quick, test_function_application),
+    test_case("Function deferral", `Quick, test_function_deferral),
+    test_case("Deferral applied to hole", `Quick, tet_ap_of_hole_deferral),
+  ],
+);
