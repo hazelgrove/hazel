@@ -161,18 +161,13 @@ let common_ok_view =
     )
 
   | (_, Ana(Consistent({ana, syn, _}))) =>
-    [
-      text(":"),
-      Type.view(syn),
-      text("consistent with expected type"),
-      Type.view(ana),
-    ]
-    @ (
+    [text(":"), Type.view(syn), text("consistent with expected type")]
+    @ [
       switch (lifted_ty) {
-      | None => []
-      | Some(lifted) => [text("lifted to"), Type.view(lifted)]
-      }
-    )
+      | None => Type.view(ana)
+      | Some(lifted) => Type.view(lifted)
+      },
+    ]
     @ (
       switch (auto_labels) {
       | [] => []
