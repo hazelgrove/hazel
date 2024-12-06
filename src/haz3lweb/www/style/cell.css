@@ -51,6 +51,14 @@
   gap: 1em;
 }
 
+.Scratch .cell {
+  background-color: var(--cell-active);
+}
+
+.Documentation .cell {
+  background-color: var(--cell-active);
+}
+
 .cell:has(.code-editor.selected) {
   background-color: var(--cell-active);
 }
@@ -61,6 +69,8 @@
 
 .title-cell {
   padding-left: 1em;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .title-cell .title-text {

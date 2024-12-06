@@ -43,6 +43,12 @@ let should_add_space = (s1, s2) =>
         String.ends_with(s1, ~suffix=")")
         && String.starts_with(s2, ~prefix="(") =>
     false
+  | _
+      when
+        Form.is_potential_operand(s1)
+        && !Form.is_keyword(s1)
+        && String.starts_with(s2, ~prefix="(") =>
+    false
   | _ => true
   };
 
@@ -332,13 +338,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         "ap_exp",
         id,
         [
-          List.flatten(
-            List.map2(
-              (id, e) => [mk_form("comma_exp", id, [])] @ e,
-              ids,
-              es,
+          (es |> List.hd)
+          @ List.flatten(
+              List.map2(
+                (id, e) => [mk_form("comma_exp", id, [])] @ e,
+                ids |> List.tl,
+                es |> List.tl,
+              ),
             ),
-          ),
         ],
       ),
     ];
