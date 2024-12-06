@@ -47,7 +47,7 @@ let env_val = (en: Dynamics.Probe.Env.entry, bonus_pack: bonus_pack) => {
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
     [
-      Node.text(en.name ++ " = "),
+      Node.text(en.name ++ "="),
       switch (en.raw) {
       | Opaque => Node.text("Opaque")
       | Val(d) => d |> bonus_pack.exp_to_seg |> bonus_pack.view(Exp)
