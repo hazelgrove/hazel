@@ -391,20 +391,22 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
 
     | Dot(e1, e2) =>
       let (e1, ty1) = elaborate(m, e1);
-      // I don't think we need to elaborate labels
+      // Don't elaborate labels
       // let (e2, ty2) = elaborate(m, e2);
-      let ty =
-        switch (Typ.weak_head_normalize(ctx, ty1).term, e2.term) {
-        | (Prod(tys), Var(name)) =>
+      let rec elab_dot = (ty1: Typ.t, e2: DHExp.t) =>
+        switch (ty1.term, e2.term) {
+        | (Parens(ty1), _) => elab_dot(ty1, e2)
+        | (Prod(tys), Label(name)) =>
           let element = LabeledTuple.find_label(Typ.get_label, tys, name);
           switch (element) {
           | Some({term: TupLabel(_, ty), _}) => ty
           | _ => Unknown(Internal) |> Typ.temp
           };
-        | (TupLabel(_, ty), Var(name))
+        | (TupLabel(_, ty), Label(name))
             when LabeledTuple.equal(Typ.get_label(ty1), Some((name, e2))) => ty
         | _ => Unknown(Internal) |> Typ.temp
         };
+      let ty = elab_dot(ty1, e2);
       // Freshcast this, if necessary?
       Dot(e1, e2) |> rewrap |> cast_from(ty);
 

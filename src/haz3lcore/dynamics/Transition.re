@@ -709,8 +709,9 @@ module Transition = (EV: EV_MODE) => {
       and. d2' =
         req_final(req(state, env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
       // TODO: Holes and other cases handled?
+      // TODO: Get rid of all these casts
       switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
-      | (Tuple(ds), Var(name)) =>
+      | (Tuple(ds), Label(name)) =>
         Step({
           expr:
             switch (LabeledTuple.find_label(DHExp.get_label, ds, name)) {
@@ -721,41 +722,50 @@ module Transition = (EV: EV_MODE) => {
           kind: Dot,
           is_value: false,
         })
-      | (_, Cast(d2', ty, ty')) =>
-        // TODO: Probably not right
+      | (TupLabel(_, d), Label(name)) =>
         Step({
-          expr: Cast(Dot(d1, d2') |> fresh, ty, ty') |> fresh,
+          expr:
+            LabeledTuple.equal(Exp.get_label(d1'), Some((name, d)))
+              ? d : Undefined |> DHExp.fresh,
           state_update,
-          kind: CastAp,
+          kind: Dot,
           is_value: false,
         })
-      | (Cast(d3', t2, t3), Var(name)) =>
-        // TODO: doen't work because you get to a cast(1, Unknown, Int) which is Indet
-        let rec get_typs = (t2, t3) =>
-          switch (Typ.term_of(t2), Typ.term_of(t3)) {
-          | (Prod(ts), Prod(ts')) => (ts, ts')
-          | (Parens(t2), _) => get_typs(t2, t3)
-          | (_, Parens(t3)) => get_typs(t2, t3)
-          | (_, _) => ([], [])
-          };
-        let (ts, ts') = get_typs(t2, t3);
-        let ty =
-          switch (LabeledTuple.find_label(Typ.get_label, ts, name)) {
-          | Some({term: TupLabel(_, ty), _}) => ty
-          | _ => Unknown(Internal) |> Typ.temp
-          };
-        let ty' =
-          switch (LabeledTuple.find_label(Typ.get_label, ts', name)) {
-          | Some({term: TupLabel(_, ty), _}) => ty
-          | _ => Unknown(Internal) |> Typ.temp
-          };
-        Step({
-          expr: Cast(Dot(d3', d2) |> fresh, ty, ty') |> fresh,
-          state_update,
-          kind: CastAp,
-          is_value: false,
-        });
-      | _ => raise(EvaluatorError.Exception(BadPatternMatch))
+      // | (_, Cast(d2', ty, ty')) =>
+      //   // TODO: Probably not right
+      //   Step({
+      //     expr: Cast(Dot(d1, d2') |> fresh, ty, ty') |> fresh,
+      //     state_update,
+      //     kind: CastAp,
+      //     is_value: false,
+      //   })
+      // | (Cast(d3', t2, t3), Label(name)) =>
+      //   // TODO: doen't work because you get to a cast(1, Unknown, Int) which is Indet
+      //   let rec get_typs = (t2, t3) =>
+      //     switch (Typ.term_of(t2), Typ.term_of(t3)) {
+      //     | (Prod(ts), Prod(ts')) => (ts, ts')
+      //     | (Parens(t2), _) => get_typs(t2, t3)
+      //     | (_, Parens(t3)) => get_typs(t2, t3)
+      //     | (_, _) => ([], [])
+      //     };
+      //   let (ts, ts') = get_typs(t2, t3);
+      //   let ty =
+      //     switch (LabeledTuple.find_label(Typ.get_label, ts, name)) {
+      //     | Some({term: TupLabel(_, ty), _}) => ty
+      //     | _ => Unknown(Internal) |> Typ.temp
+      //     };
+      //   let ty' =
+      //     switch (LabeledTuple.find_label(Typ.get_label, ts', name)) {
+      //     | Some({term: TupLabel(_, ty), _}) => ty
+      //     | _ => Unknown(Internal) |> Typ.temp
+      //     };
+      //   Step({
+      //     expr: Cast(Dot(d3', d2) |> fresh, ty, ty') |> fresh,
+      //     state_update,
+      //     kind: CastAp,
+      //     is_value: false,
+      //   });
+      | _ => Indet
       };
     | TupLabel(label, d1) =>
       // TODO (Anthony): Fix this if needed

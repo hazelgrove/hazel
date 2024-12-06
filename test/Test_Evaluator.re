@@ -38,7 +38,7 @@ let test_labeled_tuple_projection = () =>
         |> Exp.fresh,
       ])
       |> Exp.fresh,
-      Var("a") |> Exp.fresh // This is a var now for parsing reasons
+      Label("a") |> Exp.fresh // This is a var now for parsing reasons
     )
     |> Exp.fresh,
   );

@@ -51,7 +51,10 @@ type error_no_type =
   /* Empty application of function with inconsistent type */
   | BadTrivAp(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
-  | FreeConstructor(Constructor.t);
+  | FreeConstructor(Constructor.t)
+  /* Dot Operator is ill-formed */
+  | WantTuple
+  | LabelNotFound;
 
 /* Errors which can apply to either expression or patterns */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -404,6 +407,8 @@ let rec status_common =
     };
   | (NoJoin(_, tys), Syn | SynFun | SynTypFun) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
+  | (WantTuple, _) => InHole(NoType(WantTuple))
+  | (LabelNotFound, _) => InHole(NoType(LabelNotFound))
   };
 
 let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>

@@ -405,9 +405,11 @@ and uexp_to_info_map =
       add(~self, ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')), m);
     | Dot(e1, e2) =>
       let (info_e1, m) = go(~mode=Syn, e1, m);
+      let (info_e2, m) = go(~mode=Ana(Label("") |> Typ.temp), e2, m);
       let (ty, m) = {
-        switch (e2.term, info_e1.ty.term) {
-        | (Var(name), Unknown(_)) =>
+        switch (info_e1.ty.term, info_e2.ty.term) {
+        | (Unknown(_), Label(name)) =>
+          // This is so that the statics will result in Unknown(Internal)
           let ty =
             Prod([
               TupLabel(
@@ -419,58 +421,24 @@ and uexp_to_info_map =
             |> Typ.temp;
           let (_, m) = go(~mode=Mode.Ana(ty), e1, m);
           (ty, m);
-        | (_, Var(_)) => (Typ.weak_head_normalize(ctx, info_e1.ty), m)
+        | (Var(_), _) => (Typ.weak_head_normalize(ctx, info_e1.ty), m)
         | _ => (info_e1.ty, m)
         };
       };
       switch (ty.term) {
       | Prod(ts) =>
         switch (e2.term) {
-        | Var(name) =>
+        | Label(name) =>
           let element: option(Typ.t) =
             LabeledTuple.find_label(Typ.get_label, ts, name);
-          // let m =
-          //   e2.ids
-          //   |> List.fold_left(
-          //        (m, id) =>
-          //          Id.Map.update(
-          //            id,
-          //            fun
-          //            | Some(Info.InfoExp(exp)) =>
-          //              Some(Info.InfoExp({...exp, ctx}))
-          //            | _ as info => info,
-          //            m,
-          //          ),
-          //        m,
-          //      );
           switch (element) {
           | Some({term: TupLabel(_, typ), _})
-          | Some(typ) =>
-            let (body, m) =
-              go'(
-                ~ctx=[
-                  VarEntry({
-                    name,
-                    id: List.nth(e2.ids, 0),
-                    typ: Unknown(Internal) |> Typ.temp,
-                  }),
-                ],
-                ~mode,
-                e2,
-                m,
-              );
-            add(~self=Just(typ), ~co_ctx=body.co_ctx, m);
-          | None =>
-            let (body, m) = go'(~ctx=[], ~mode, e2, m);
-            add(~self=Just(body.ty), ~co_ctx=body.co_ctx, m);
+          | Some(typ) => add(~self=Just(typ), ~co_ctx=info_e2.co_ctx, m)
+          | None => add(~self=LabelNotFound, ~co_ctx=info_e2.co_ctx, m)
           };
-        | _ =>
-          let (body, m) = go'(~ctx=[], ~mode, e2, m);
-          add(~self=Just(body.ty), ~co_ctx=body.co_ctx, m);
+        | _ => add(~self=LabelNotFound, ~co_ctx=info_e2.co_ctx, m)
         }
-      | _ =>
-        let (body, m) = go'(~ctx=[], ~mode, e2, m);
-        add(~self=Just(body.ty), ~co_ctx=body.co_ctx, m);
+      | _ => add(~self=WantTuple, ~co_ctx=info_e2.co_ctx, m)
       };
     | Test(e) =>
       let (e, m) = go(~mode=Ana(Bool |> Typ.temp), e, m);

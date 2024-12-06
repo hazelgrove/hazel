@@ -86,6 +86,12 @@ let common_err_view =
       Type.view(Prod([]) |> Typ.fresh),
     ]
   | NoType(FreeConstructor(name)) => [code(name), text("not found")]
+  | NoType(WantTuple) => [
+      text("Invalid Dot Operation: requires tuple for first argument"),
+    ]
+  | NoType(LabelNotFound) => [
+      text("Invalid Dot Operation: label not found in tuple"),
+    ]
   | DuplicateLabels(_) => [text("Duplicate labels within a tuple")]
   | Duplicate(_) => [text("Duplicated Label")]
   | Inconsistent(WithArrow(typ)) => [
