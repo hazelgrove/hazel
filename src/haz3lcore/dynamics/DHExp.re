@@ -14,18 +14,6 @@ let mk = (ids, term): t => {
   {ids, copied: true, term};
 };
 
-let (replace_all_ids, replace_all_ids_typ) = {
-  let f:
-    'a.
-    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
-   =
-    (continue, exp) => {...exp, ids: [Id.mk()]} |> continue;
-  (
-    map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
-    Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
-  );
-};
-
 // TODO: make this function emit a map of changes
 let repair_ids =
   map_term(
