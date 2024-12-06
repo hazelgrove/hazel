@@ -339,7 +339,15 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
               ])
             | _ => TupLabel(l, r)
             }
-          | (["."], []) => Dot(l, r)
+          | (["."], []) =>
+            // TODO (Anthony): Other cases to convert to string
+            switch (r.term) {
+            // | String(name)
+            // Currently not allowing Strings to prevent empty Labels
+            | Var(name) =>
+              Dot(l, {ids: r.ids, copied: r.copied, term: Label(name)})
+            | _ => Dot(l, r)
+            }
           | (["|>"], []) => Ap(Reverse, r, l)
           | (["@"], []) => ListConcat(l, r)
           | _ => hole(tm)

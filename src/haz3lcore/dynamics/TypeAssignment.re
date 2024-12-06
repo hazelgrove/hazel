@@ -340,13 +340,13 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     Some(TupLabel(tlab, ty) |> Typ.temp);
   | Dot(d1, d2) =>
     switch (d1.term, d2.term) {
-    | (Tuple(ds), Var(name)) =>
+    | (Tuple(ds), Label(name)) =>
       let element = LabeledTuple.find_label(DHExp.get_label, ds, name);
       switch (element) {
       | Some({term: TupLabel(_, exp), _}) => typ_of_dhexp(ctx, m, exp)
       | _ => None
       };
-    | (TupLabel(_, de), Var(name))
+    | (TupLabel(_, de), Label(name))
         when LabeledTuple.equal(DHExp.get_label(d1), Some((name, d2))) =>
       typ_of_dhexp(ctx, m, de)
     | _ => None

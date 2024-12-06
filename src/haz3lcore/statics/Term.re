@@ -484,7 +484,7 @@ module Exp = {
         switch (e1.term) {
         | Tuple(ts) =>
           switch (e2.term) {
-          | Var(name) => LabeledTuple.find_label(get_label, ts, name)
+          | Label(name) => LabeledTuple.find_label(get_label, ts, name)
           | _ => None
           }
         | _ => None // TODO (Anthony): other exps
@@ -541,7 +541,7 @@ module Exp = {
           switch (e1.term) {
           | Tuple(ts) =>
             switch (e2.term) {
-            | Var(name) => LabeledTuple.find_label(get_label, ts, name)
+            | Label(name) => LabeledTuple.find_label(get_label, ts, name)
             | _ => None
             }
           | _ => None // TODO (Anthony): other exps

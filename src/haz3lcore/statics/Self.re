@@ -37,7 +37,9 @@ type t =
   | IsConstructor({
       name: Constructor.t,
       syn_ty: option(Typ.t),
-    }); /* Constructors have special ana logic */
+    }) /* Constructors have special ana logic */
+  | WantTuple /* Want a Tuple, found not-tuple */
+  | LabelNotFound; /* Currently used by the dot operator for a label not found */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_partial_ap =
@@ -82,6 +84,8 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | IsMulti
     | Duplicate_Labels(_)
     | Duplicate(_)
+    | WantTuple
+    | LabelNotFound
     | NoJoin(_) => None;
 
 let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
