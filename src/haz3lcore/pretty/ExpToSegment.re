@@ -670,6 +670,9 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | EmptyHole
   | Deferral(_)
   | BuiltinFun(_)
+  | Constructor(_)
+  //matt says: Constructor is here because we currently always add a type annotation to constructors
+  //TODO(andrew) says I move this from cast section as sometimes we strip casts?
   | Undefined => Precedence.max
 
   // Same goes for forms which are already surrounded
@@ -680,7 +683,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
 
   // Other forms
   | UnOp(Meta(Unquote), _) => Precedence.unquote
-  | Constructor(_) // Constructor is here because we currently always add a type annotation to constructors
+
   | Cast(_)
   | FailedCast(_) => Precedence.cast
   | Ap(Forward, _, _)
