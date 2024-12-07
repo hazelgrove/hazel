@@ -389,10 +389,14 @@ module Tutorial = {
 
   let of_persistent = (~settings, (name, slides, results): persistent): t => {
     let state_to_editor = ((str: string, status: Tutorial.persistent_state)) => {
+      let your_tests_zipper =
+        List.assoc(Tutorial.YourTestsTesting, status.editors);
       let your_impl_zipper = List.assoc(Tutorial.YourImpl, status.editors);
       let hidden_tests_zipper =
         List.assoc(Tutorial.HiddenTests, status.editors);
 
+      let (_, your_tests_editor) =
+        unpersist((str, your_tests_zipper), ~settings);
       let (_, your_impl_editor) =
         unpersist((str, your_impl_zipper), ~settings);
       let (_, hidden_tests_editor) =
@@ -404,6 +408,11 @@ module Tutorial = {
           title: "",
           description: status.description,
           your_impl: your_impl_editor,
+          your_tests: {
+            tests: your_tests_editor,
+            required: 0,
+            provided: 0,
+          },
           hidden_tests: {
             tests: hidden_tests_editor,
             hints: [],

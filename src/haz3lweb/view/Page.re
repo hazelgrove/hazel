@@ -111,7 +111,7 @@ let main_view =
       (view, cursor_info);
 
     | Tutorial(name, slides) =>
-      print_endline("hi" ++ name);
+      print_endline(name);
       let info =
         SlideContent.get_content(editors)
         |> Option.map(i => div(~attrs=[Attr.id("slide")], [i]))
@@ -119,25 +119,38 @@ let main_view =
 
       let matching_slide =
         List.find_opt(((slide_name, _)) => slide_name == name, slides);
+      switch (matching_slide) {
+      | Some((_, tutorialState)) =>
+        let stitched_dynamics =
+          Tutorial.stitch_dynamic(
+            settings.core,
+            tutorialState, /* Use the state from the matching slide */
+            settings.core.dynamics ? Some(results) : None,
+          );
+        (); /* Use the state from the matching slide */
+        let result =
+          switch (matching_slide) {
+          | None => []
+          | Some((_, tutorial_state)) =>
+            TutorialMode.view(
+              ~inject,
+              ~ui_state,
+              ~settings,
+              ~highlights,
+              // ~results,
+              ~stitched_dynamics,
+              ~tutorial=tutorial_state,
+              // ~results,
+              // ~highlights,
+              // ~editor,
+            )
+          };
+        (info @ result, cursor_info);
+      /* Use stitched_dynamics here */
+      | _ => failwith("Invalid Slide")
+      /* Handle the case where no matching slide exists */
+      };
 
-      let result =
-        switch (matching_slide) {
-        | None => []
-        | Some((_, tutorial_state)) =>
-          TutorialMode.view(
-            ~inject,
-            ~ui_state,
-            ~settings,
-            ~highlights,
-            ~results,
-            ~tutorial=tutorial_state,
-            // ~results,
-            // ~highlights,
-            // ~editor,
-          )
-        };
-
-      (info @ result, cursor_info);
     | Documentation(name, _) =>
       let result_key = ScratchSlide.scratch_key(name);
       let view =

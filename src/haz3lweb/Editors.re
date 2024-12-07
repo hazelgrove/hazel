@@ -250,6 +250,11 @@ let reset_current =
         title: status.eds.title,
         description: status.eds.description,
         your_impl: your_impl_zipper,
+        your_tests: {
+          tests: status.eds.your_tests.tests.state.zipper,
+          required: status.eds.your_tests.required,
+          provided: status.eds.your_tests.provided,
+        },
         hidden_tests: {
           tests: hidden_tests_zipper,
           hints: status.eds.hidden_tests.hints,
