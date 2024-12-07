@@ -48,8 +48,8 @@ let view =
     hidden_tests: _,
   }:
     Tutorial.stitched(Tutorial.DynamicsItem.t) = stitched_dynamics;
-  // let grading_report =
-  //   TutorialGrading.GradingReport.mk(eds, ~stitched_dynamics);
+  let grading_report =
+    TutorialGrading.GradingReport.mk(eds, ~stitched_dynamics);
   // let score_view =
   //   TutorialGrading.GradingReport.view_overall_score(grading_report);
 
@@ -129,18 +129,10 @@ let view =
 
   let impl_validation_view =
     Always(
-      editor_view(
-        YourTestsValidation,
-        ~caption="Implementation Validation",
-        ~subcaption=": Hidden Tests vs. Your Implementation",
-        ~editor=eds.your_impl,
-        ~di=test_validation,
-        ~footer=[
-          Cell.test_report_footer_view(
-            ~inject,
-            ~test_results=ModelResult.test_results(test_validation.result),
-          ),
-        ],
+      TutorialGrading.ImplGradingReport.view(
+        ~inject,
+        ~report=grading_report.impl_grading_report,
+        ~max_points=4,
       ),
     );
 
