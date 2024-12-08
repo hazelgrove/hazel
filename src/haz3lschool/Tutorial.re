@@ -50,7 +50,6 @@ module D = (TutorialEnv: TutorialEnv) => {
     title: string,
     description: string,
     your_impl: 'code,
-    your_tests: your_tests('code),
     hidden_tests: hidden_tests('code),
   };
 
@@ -92,7 +91,6 @@ module D = (TutorialEnv: TutorialEnv) => {
   type pos =
     | YourImpl
     | YourTestsValidation
-    | YourTestsTesting
     | HiddenTests;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -106,11 +104,6 @@ module D = (TutorialEnv: TutorialEnv) => {
       title: p.title,
       description: p.description,
       your_impl: f(p.your_impl),
-      your_tests: {
-        tests: f(p.your_tests.tests),
-        required: p.your_tests.required,
-        provided: p.your_tests.provided,
-      },
       hidden_tests: {
         tests: PersistentZipper.persist(p.hidden_tests.tests),
         hints: p.hidden_tests.hints,
@@ -141,13 +134,9 @@ module D = (TutorialEnv: TutorialEnv) => {
     ({pos, eds, _}) =>
       switch (pos) {
       | YourImpl => eds.your_impl
-      | YourTestsValidation => eds.your_tests.tests
-      | YourTestsTesting => eds.your_tests.tests
+      | YourTestsValidation => eds.hidden_tests.tests
       | HiddenTests => eds.hidden_tests.tests
       };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type transitionary_spec = p(CodeString.t);
 
   let put_editor = ({pos, eds} as state: state, editor: Editor.t) =>
     switch (pos) {
@@ -159,16 +148,6 @@ module D = (TutorialEnv: TutorialEnv) => {
         },
       }
     | YourTestsValidation
-    | YourTestsTesting => {
-        ...state,
-        eds: {
-          ...eds,
-          your_tests: {
-            ...eds.your_tests,
-            tests: editor,
-          },
-        },
-      }
     | HiddenTests => {
         ...state,
         eds: {
@@ -183,7 +162,6 @@ module D = (TutorialEnv: TutorialEnv) => {
 
   let editors = ({eds, _}: state) => [
     eds.your_impl,
-    eds.your_tests.tests,
     eds.hidden_tests.tests,
   ];
 
@@ -196,8 +174,7 @@ module D = (TutorialEnv: TutorialEnv) => {
     switch (pos) {
     | YourImpl => 0
     | YourTestsValidation => 1
-    | YourTestsTesting => 2
-    | HiddenTests => 2 + List.length(p.hidden_tests.tests)
+    | HiddenTests => 1 + List.length(p.hidden_tests.tests)
     };
 
   let pos_of_idx = (p: p('code), idx: int) =>
@@ -234,24 +211,28 @@ module D = (TutorialEnv: TutorialEnv) => {
     };
   };
 
-  let transition: transitionary_spec => spec =
-    ({title, description, your_impl, your_tests, hidden_tests}) => {
-      let your_impl = zipper_of_code(your_impl);
-      let hidden_tests = {
-        let {tests, hints} = hidden_tests;
-        let tests = zipper_of_code(tests);
-        {tests, hints};
-      };
-      let your_tests = {
-        let tests = zipper_of_code(your_tests.tests);
-        {tests, required: your_tests.required, provided: your_tests.provided};
-      };
-      {title, description, your_impl, your_tests, hidden_tests};
-    };
+  // let transition: transitionary_spec => spec =
+  //   ({title, description, your_impl, hidden_tests}) => {
+  //     let your_impl = zipper_of_code(your_impl);
+  //     let hidden_tests = {
+  //       let {tests, hints} = hidden_tests;
+  //       let tests = zipper_of_code(tests);
+  //       {
+  //         tests,
+  //         hints,
+  //       };
+  //     };
+  //     {
+  //       title,
+  //       description,
+  //       your_impl,
+  //       hidden_tests,
+  //     };
+  //   };
 
   let eds_of_spec =
       (
-        {title, description, your_impl, your_tests, hidden_tests},
+        {title, description, your_impl, hidden_tests},
         ~settings: CoreSettings.t,
       )
       : eds => {
@@ -262,11 +243,7 @@ module D = (TutorialEnv: TutorialEnv) => {
       let tests = editor_of_serialization(tests);
       {tests, hints};
     };
-    let your_tests = {
-      let tests = editor_of_serialization(your_tests.tests);
-      {tests, required: your_tests.required, provided: your_tests.provided};
-    };
-    {title, description, your_impl, your_tests, hidden_tests};
+    {title, description, your_impl, hidden_tests};
   };
 
   let set_instructor_mode = ({eds, _} as state: state, new_mode: bool) => {
@@ -288,7 +265,6 @@ module D = (TutorialEnv: TutorialEnv) => {
     switch (pos) {
     | YourImpl => true
     | YourTestsValidation => true
-    | YourTestsTesting => false
     | HiddenTests => instructor_mode
     };
   };
@@ -338,7 +314,6 @@ module D = (TutorialEnv: TutorialEnv) => {
       };
     let your_impl = lookup(YourImpl, spec.your_impl);
     let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
-    let your_tests_tests = lookup(YourTestsValidation, spec.your_tests.tests);
 
     set_instructor_mode(
       {
@@ -350,11 +325,6 @@ module D = (TutorialEnv: TutorialEnv) => {
           hidden_tests: {
             tests: hidden_tests_tests,
             hints: spec.hidden_tests.hints,
-          },
-          your_tests: {
-            tests: your_tests_tests,
-            required: spec.your_tests.required,
-            provided: spec.your_tests.provided,
           },
         },
       },
@@ -379,7 +349,6 @@ module D = (TutorialEnv: TutorialEnv) => {
     test_validation: 'a, // prelude + correct_impl + your_tests
     user_impl: 'a, // prelude + your_impl
     instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
-    user_tests: 'a,
     hidden_tests: 'a,
   };
 
@@ -415,37 +384,25 @@ module D = (TutorialEnv: TutorialEnv) => {
       term_of(ed3),
     );
 
-  let stitch2 = (ed1: Editor.t, ed2: Editor.t) =>
-    EditorUtil.append_exp(
-      EditorUtil.append_exp(term_of(ed1), term_of(ed2)),
-    );
-
   let stitch1 = (ed1: Editor.t) =>
     // EditorUtil.append_exp(
     EditorUtil.append_exp(term_of(ed1));
 
   let stitch_term = ({eds, _}: state): stitched(UExp.t) => {
     let instructor = eds.hidden_tests.tests |> term_of;
-    // let user_impl_term = {
-    //   eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
-    // };
-    let user_impl_term =
+    let user_impl_term = {
       eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
-    // let test_validation_term = eds.hidden_tests.tests |> term_of;
-    let test_validation_term =
-      EditorUtil.append_exp(user_impl_term, term_of(eds.your_tests.tests));
-    let user_tests_term =
-      EditorUtil.append_exp(user_impl_term, term_of(eds.your_tests.tests));
+    };
+    let test_validation_term = eds.hidden_tests.tests |> term_of;
+
     // No combining of your_impl_term with hidden_tests
     let hidden_tests_term =
       EditorUtil.append_exp(user_impl_term, term_of(eds.hidden_tests.tests));
 
     {
-      test_validation: test_validation_term,
       user_impl: user_impl_term,
-      user_tests: user_tests_term,
       instructor,
-      // test_validation: test_validation_term,
+      test_validation: test_validation_term,
       hidden_tests: hidden_tests_term,
     };
   };
@@ -470,7 +427,6 @@ module D = (TutorialEnv: TutorialEnv) => {
     {
       test_validation: mk(t.test_validation),
       user_impl: mk(t.user_impl),
-      user_tests: mk(t.user_tests),
       instructor,
       hidden_tests: mk(t.hidden_tests),
     };
@@ -503,14 +459,13 @@ module D = (TutorialEnv: TutorialEnv) => {
     switch (state.pos) {
     | YourImpl => user_impl_key
     | YourTestsValidation => test_validation_key
-    | YourTestsTesting => user_tests_key
     | HiddenTests => hidden_tests_key
     };
 
   let spliced_elabs =
       (settings: CoreSettings.t, state: state)
       : list((ModelResults.key, Elaborator.Elaboration.t)) => {
-    let {test_validation, user_impl, user_tests, instructor, hidden_tests} =
+    let {test_validation, user_impl, instructor, hidden_tests} =
       stitch_static(settings, stitch_term(state));
     let elab = (s: Editor.CachedStatics.t): Elaborator.Elaboration.t => {
       d: Interface.elaborate(~settings, s.info_map, s.term),
@@ -518,7 +473,6 @@ module D = (TutorialEnv: TutorialEnv) => {
     [
       (test_validation_key, elab(test_validation)),
       (user_impl_key, elab(user_impl)),
-      (user_tests_key, elab(user_tests)),
       (instructor_key, elab(instructor)),
       (hidden_tests_key, elab(hidden_tests)),
     ];
@@ -547,7 +501,6 @@ module D = (TutorialEnv: TutorialEnv) => {
     switch (state.pos) {
     | YourImpl => s.user_impl.statics
     | YourTestsValidation => s.test_validation.statics
-    | YourTestsTesting => s.user_tests.statics
     | HiddenTests => s.hidden_tests.statics
     };
 
@@ -564,7 +517,7 @@ module D = (TutorialEnv: TutorialEnv) => {
     let {
       test_validation,
       user_impl,
-      user_tests,
+      // user_tests,
       // prelude,
       instructor,
       // hidden_bugs,
@@ -583,8 +536,6 @@ module D = (TutorialEnv: TutorialEnv) => {
         statics: test_validation,
         result: result_of(test_validation_key),
       };
-    let user_tests =
-      DynamicsItem.{statics: user_tests, result: result_of(user_tests_key)};
 
     let user_impl =
       DynamicsItem.{statics: user_impl, result: result_of(user_impl_key)};
@@ -600,7 +551,7 @@ module D = (TutorialEnv: TutorialEnv) => {
     {
       test_validation,
       user_impl,
-      user_tests,
+      // user_tests,
       instructor,
       // prelude,
       // hidden_bugs,
@@ -622,7 +573,7 @@ module D = (TutorialEnv: TutorialEnv) => {
       {
         test_validation: DynamicsItem.statics_only(t.test_validation),
         user_impl: DynamicsItem.statics_only(t.user_impl),
-        user_tests: DynamicsItem.statics_only(t.user_tests),
+        // user_tests: DynamicsItem.statics_only(t.user_tests),
         instructor: DynamicsItem.statics_only(t.instructor),
         // prelude: DynamicsItem.statics_only(t.prelude),
         // hidden_bugs: List.map(DynamicsItem.statics_only, t.hidden_bugs),
@@ -632,7 +583,7 @@ module D = (TutorialEnv: TutorialEnv) => {
       {
         test_validation: DynamicsItem.empty,
         user_impl: DynamicsItem.empty,
-        user_tests: DynamicsItem.empty,
+        // user_tests: DynamicsItem.empty,
         instructor: DynamicsItem.empty,
         // prelude: DynamicsItem.empty,
         // hidden_bugs:
@@ -689,17 +640,7 @@ module D = (TutorialEnv: TutorialEnv) => {
     data;
   };
 
-  let blank_spec =
-      // (~title, ~description) => {
-      (
-        ~title,
-        ~description,
-        // ~point_distribution,
-        ~required_tests,
-        ~provided_tests,
-      ) => {
-    // ~num_wrong_impls,
-
+  let blank_spec = (~title, ~description) => {
     // ~point_distribution,
     // ~required_tests,
     // ~provided_tests,
@@ -717,7 +658,6 @@ module D = (TutorialEnv: TutorialEnv) => {
     //       {impl: zipper, hint: "TODO: hint " ++ string_of_int(i)};
     //     },
     //   );
-    let your_tests_tests = Zipper.next_blank();
     let hidden_tests_tests = Zipper.next_blank();
     {
       title,
@@ -728,11 +668,11 @@ module D = (TutorialEnv: TutorialEnv) => {
       // point_distribution,
       // prelude,
       // correct_impl,
-      your_tests: {
-        tests: your_tests_tests,
-        required: required_tests,
-        provided: provided_tests,
-      },
+      // your_tests: {
+      //   tests: your_tests_tests,
+      //   required: required_tests,
+      //   provided: provided_tests,
+      // },
       your_impl,
       // hidden_bugs,
       hidden_tests: {

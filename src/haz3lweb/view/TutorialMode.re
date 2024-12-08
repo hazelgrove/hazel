@@ -7,14 +7,6 @@ type vis_marked('a) =
   | InstructorOnly(unit => 'a)
   | Always('a);
 
-// type validation_result =
-//   | ValidationSuccess(test_case)
-//   | ValidationFailure(test_case, string, string);
-
-// type validation_result =
-//   | ValidationSuccess(test_case)
-//   | ValidationFailure(test_case, string, string);
-
 let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
   List.filter_map(
     vis =>
@@ -26,111 +18,13 @@ let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
   );
 };
 
-let get_code = (z: Zipper.t): string => {
-  let segment = Zipper.unselect_and_zip(z);
-  let term = MakeTerm.go(segment).term;
-  UExp.show(term); // Convert the term into a string representation
-};
-let zipper_to_string = (zipper: Haz3lcore.Zipper.t): string => {
-  Haz3lcore.Zipper.show(
-    zipper /* Automatically derived show function */
-  );
-};
-
-let editor_to_zipper = (editor: Editor.t): ZipperBase.t => {
-  editor.state.
-    zipper; /* Access zipper field */
-};
-
-let hidden_tests_to_zipper =
-    (hidden_tests: Tutorial.hidden_tests(Editor.t)): ZipperBase.t => {
-  hidden_tests.tests.state.
-    zipper; /* Access zipper field */
-};
-
-// let validate_user_impl = (~user_impl: string, ~hidden_tests: test_case) => {
-//   let func = test_case => {
-//     let expected_output = TestCase.get_expected_output(test_case);
-//     let actual_output =
-//       if (user_impl == "fib") {
-//         expected_output;
-//       } else {
-//         "error";
-//       };
-
-//     if (actual_output == expected_output) {
-//       ValidationSuccess(test_case);
-//     } else {
-//       ValidationFailure(test_case, actual_output, expected_output);
-//     };
-//   };
-//   func(hidden_tests);
-// };
-
-let get_code = (z: Zipper.t): string => {
-  let segment = Zipper.unselect_and_zip(z);
-  let term = MakeTerm.go(segment).term;
-  UExp.show(term); // Convert the term into a string representation
-};
-let zipper_to_string = (zipper: Haz3lcore.Zipper.t): string => {
-  Haz3lcore.Zipper.show(
-    zipper /* Automatically derived show function */
-  );
-};
-
-let editor_to_zipper = (editor: Editor.t): ZipperBase.t => {
-  editor.state.
-    zipper; /* Access zipper field */
-};
-
-let hidden_tests_to_zipper =
-    (hidden_tests: Tutorial.hidden_tests(Editor.t)): ZipperBase.t => {
-  hidden_tests.tests.state.
-    zipper; /* Access zipper field */
-};
-
-// let convert_editors_to_test_cases =
-//     (editors: Tutorial.hidden_tests(Editor.t)): test_case => {
-//   let zipper = hidden_tests_to_zipper(editors);
-//   let func = editor => {
-//     let input_code = get_code(editor); /* Replace with actual extraction logic */
-//     TestCase.create(
-//       ~input=[input_code],
-//       ~expected_output="4", /* Example expected output */
-//       ~description=Some("Sample Test Case"),
-//     );
-//   };
-//   func(zipper);
-// };
-
-// let validate_user_impl = (~user_impl: string, ~hidden_tests: test_case) => {
-//   let func = test_case => {
-//     let expected_output = TestCase.get_expected_output(test_case);
-//     let actual_output =
-//       if (user_impl == "fib") {
-//         expected_output;
-//       } else {
-//         "error";
-//       };
-
-//     if (actual_output == expected_output) {
-//       ValidationSuccess(test_case);
-//     } else {
-//       ValidationFailure(test_case, actual_output, expected_output);
-//     };
-//   };
-//   func(hidden_tests);
-// };
-
 let view =
     (
       ~inject,
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
       ~tutorial,
-      // ~results,
-      ~stitched_dynamics,
-      // ~results,
+      ~results,
       // ~stitched_dynamics,
       ~highlights,
     ) => {
@@ -138,27 +32,20 @@ let view =
 
   // let result = ModelResults.lookup(results, result_key);
   let Tutorial.{eds, pos} = tutorial;
-  // let stitched_dynamics =
-  // Tutorial.stitch_dynamic(
-  //   settings.core,
-  //   tutorial,
-  //   settings.core.dynamics ? Some(results) : None,
-  // );
-  // let stitched_dynamics =
-  //   Tutorial.stitch_dynamic(
-  //     settings.core,
-  //     tutorial,
-  //     settings.core.dynamics ? Some(results) : None,
-  //   );
+  let stitched_dynamics =
+    Tutorial.stitch_dynamic(
+      settings.core,
+      tutorial,
+      settings.core.dynamics ? Some(results) : None,
+    );
   let {
     test_validation,
     user_impl,
-    user_tests,
+    // user_tests,
     // prelude,
     instructor,
     // hidden_bugs,
-    hidden_tests,
-    // hidden_tests,
+    hidden_tests: _,
   }:
     Tutorial.stitched(Tutorial.DynamicsItem.t) = stitched_dynamics;
   let grading_report =
@@ -213,22 +100,6 @@ let view =
     );
   };
 
-  let your_tests_view =
-    Always(
-      editor_view(
-        YourTestsValidation,
-        ~caption="Test Validation",
-        ~subcaption=": Your Tests vs. Correct Implementation",
-        ~editor=eds.your_tests.tests,
-        ~di=test_validation,
-        ~footer=[] // TutorialGrading.TestValidationReport.view(
-        //   ~inject,
-        //   grading_report.test_validation_report,
-        //   grading_report.point_distribution.test_validation,
-        // ),
-      ),
-    );
-
   let hidden_tests_view =
     InstructorOnly(
       () =>
@@ -240,32 +111,30 @@ let view =
         ),
     );
 
-  let impl_validation_view =
-    Always(
-      editor_view(
-        YourTestsTesting,
-        ~caption="Implementation Validation",
-        ~subcaption=
-          ": Your Tests (synchronized with Test Validation above) vs. Your Implementation",
-        ~editor=eds.your_tests.tests,
-        ~di=user_tests,
-        ~footer=[
-          Cell.test_report_footer_view(
-            ~inject,
-            ~test_results=ModelResult.test_results(user_tests.result),
-          ),
-        ],
-      ),
-    );
-
-  // let impl_validation_view =
+  // let your_tests_view =
   //   Always(
-  //     TutorialGrading.ImplGradingReport.view(
-  //       ~inject,
-  //       ~report=grading_report.impl_grading_report,
-  //       ~max_points=4,
+  //     editor_view(
+  //       YourTestsValidation,
+  //       ~caption="Test Validation",
+  //       ~subcaption=": Your Tests vs. Correct Implementation",
+  //       ~editor=eds.hidden_tests.tests,
+  //       ~di=test_validation,
+  //       ~footer=[] // TutorialGrading.TestValidationReport.view(
+  //       //   ~inject,
+  //       //   grading_report.test_validation_report,
+  //       //   grading_report.point_distribution.test_validation,
+  //       // ),
   //     ),
   //   );
+
+  let impl_validation_view =
+    Always(
+      TutorialGrading.ImplGradingReport.view(
+        ~inject,
+        ~report=grading_report.impl_grading_report,
+        ~max_points=4,
+      ),
+    );
 
   [title_view]
   @ render_cells(
@@ -273,7 +142,7 @@ let view =
       [
         your_impl_view,
         hidden_tests_view,
-        your_tests_view,
+        // your_tests_view,
         impl_validation_view,
       ],
     );
