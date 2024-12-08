@@ -59,7 +59,7 @@ module D = (TutorialEnv: Tutorial.TutorialEnv) => {
       if (total == 0.0) {
         0.0; // Avoid division by zero
       } else {
-        100.0 *. (passed /. total); // Return percentage as a float
+        passed /. total; // Return percentage as a float
       };
     };
 
@@ -131,11 +131,10 @@ module D = (TutorialEnv: Tutorial.TutorialEnv) => {
       //     MutationTestingReport.percentage(mutation_testing_report),
       //     point_distribution.mutation_testing,
       //   );
-      let max_impl_grading = 100;
       let (ig_points, ig_max) =
         score_of_percent(
           ImplGradingReport.percentage(impl_grading_report),
-          max_impl_grading,
+          1,
         );
       let total_points = ig_points;
       let max_points = ig_max;

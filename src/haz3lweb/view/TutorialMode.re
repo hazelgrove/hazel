@@ -24,22 +24,14 @@ let view =
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
       ~tutorial,
-      ~results,
-      // ~stitched_dynamics,
+      ~stitched_dynamics,
       ~highlights,
     ) => {
   // editor : Editor.t,
 
   // let result = ModelResults.lookup(results, result_key);
   let Tutorial.{eds, pos} = tutorial;
-  let stitched_dynamics =
-    Tutorial.stitch_dynamic(
-      settings.core,
-      tutorial,
-      settings.core.dynamics ? Some(results) : None,
-    );
   let {
-    test_validation,
     user_impl,
     // user_tests,
     // prelude,
@@ -132,7 +124,7 @@ let view =
       TutorialGrading.ImplGradingReport.view(
         ~inject,
         ~report=grading_report.impl_grading_report,
-        ~max_points=4,
+        ~max_points=1,
       ),
     );
 

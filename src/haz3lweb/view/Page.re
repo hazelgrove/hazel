@@ -124,17 +124,36 @@ let main_view =
         switch (matching_slide) {
         | None => []
         | Some((_, tutorial_state)) =>
+          let stitched_dynamics =
+            Tutorial.stitch_dynamic(
+              settings.core,
+              tutorial_state,
+              settings.core.dynamics ? Some(results) : None,
+            );
+          let statics =
+            Tutorial.statics_of_stiched_dynamics(
+              tutorial_state,
+              stitched_dynamics,
+            );
+          let cursor_info =
+            Indicated.ci_of(editor.state.zipper, statics.info_map);
+          let highlights =
+            ExplainThis.get_color_map(
+              ~settings,
+              ~explainThisModel,
+              cursor_info,
+            );
           TutorialMode.view(
             ~inject,
             ~ui_state,
             ~settings,
             ~highlights,
-            ~results,
+            ~stitched_dynamics,
             ~tutorial=tutorial_state,
             // ~results,
             // ~highlights,
             // ~editor,
-          )
+          );
         };
 
       (info @ result, cursor_info);
