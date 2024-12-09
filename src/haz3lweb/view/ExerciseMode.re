@@ -82,6 +82,7 @@ let view =
   };
 
   let title_view = {
+    let title_placeholder = eds.title == "" ? "Exercise Title" : eds.title;
     Cell.simple_cell_view([
       div(
         ~attrs=[Attr.class_("title-cell")],
@@ -116,7 +117,15 @@ let view =
                 : div(
                     ~attrs=[Attr.class_("title-edit")],
                     [
-                      text(eds.title),
+                      div(
+                        ~attrs=[
+                          Attr.classes([
+                            "title-text",
+                            eds.title == "" ? "title-placeholder" : "",
+                          ]),
+                        ],
+                        [text(title_placeholder)],
+                      ),
                       div(
                         ~attrs=[Attr.class_("edit-icon")],
                         [
@@ -146,6 +155,8 @@ let view =
   };
 
   let module_name_view = {
+    let module_placeholder =
+      eds.module_name == "" ? "Exercise Module Name" : eds.module_name;
     settings.instructor_mode
       ? Cell.narrative_cell([
           div(
@@ -183,7 +194,14 @@ let view =
                     ~attrs=[Attr.class_("module-name-text")],
                     [
                       text("Module name: "),
-                      text(eds.module_name),
+                      div(
+                        ~attrs=[
+                          Attr.classes([
+                            eds.module_name == "" ? "module-placeholder" : "",
+                          ]),
+                        ],
+                        [text(module_placeholder)],
+                      ),
                       div(
                         ~attrs=[Attr.class_("edit-icon")],
                         [
@@ -213,16 +231,9 @@ let view =
   };
 
   let prompt_view = {
+    let prompt_placeholder = eds.prompt == "" ? "Exercise Prompt" : eds.prompt;
     let (msg, _) =
-      ExplainThis.mk_translation(~inject=Some(inject), eds.prompt);
-    let new_msg =
-      msg
-      @ [
-        div(
-          ~attrs=[Attr.class_("edit-icon")],
-          [Widgets.button(Icons.pencil, _ => inject(Set(EditingPrompt)))],
-        ),
-      ];
+      ExplainThis.mk_translation(~inject=Some(inject), prompt_placeholder);
     Cell.narrative_cell([
       div(
         ~attrs=[Attr.class_("cell-prompt")],
@@ -253,7 +264,28 @@ let view =
                       ),
                     ],
                   )
-                : div(~attrs=[Attr.class_("prompt-content")], new_msg)
+                : div(
+                    ~attrs=[Attr.class_("prompt-edit")],
+                    [
+                      div(
+                        ~attrs=[
+                          Attr.classes([
+                            "prompt-content",
+                            eds.prompt == "" ? "prompt-placeholder" : "",
+                          ]),
+                        ],
+                        msg,
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.pencil, _ =>
+                            inject(Set(EditingPrompt))
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
             : div(~attrs=[Attr.class_("prompt-content")], msg),
         ],
       ),
