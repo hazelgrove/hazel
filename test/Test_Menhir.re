@@ -583,7 +583,7 @@ let tests =
             let cleaned_source =
               replace_holes(strip_comments(slide.backup_text));
             print_endline(cleaned_source);
-            let menhir_parsed =
+            let _menhir_parsed =
               Haz3lmenhir.Conversion.Exp.of_menhir_ast(
                 Haz3lmenhir.Interface.parse_program(cleaned_source),
               );
