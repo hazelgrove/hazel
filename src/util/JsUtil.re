@@ -190,3 +190,28 @@ module Fragment = {
     Url.Current.get() |> Option.map(fragment_of_url);
   };
 };
+
+let setPointerCapture = (e: Js.t(Dom_html.element), pointerId: int) =>
+  Js.Unsafe.meth_call(
+    e,
+    "setPointerCapture",
+    [|Js.Unsafe.inject(pointerId)|],
+  );
+
+let releasePointerCapture = (e: Js.t(Dom_html.element), pointerId: int) =>
+  Js.Unsafe.meth_call(
+    e,
+    "releasePointerCapture",
+    [|Js.Unsafe.inject(pointerId)|],
+  );
+
+// let hasPointerCapture = (e: Js.t(Dom_html.element), pointerId: int): bool =>
+//   Js.Unsafe.meth_call(
+//     e,
+//     "hasPointerCapture",
+//     [|Js.Unsafe.inject(pointerId)|],
+//   );
+
+// let on_pointermove =
+//     (handler: Js.t(Dom_html.pointerEvent) => Effect.t(unit)): Attr.t =>
+//   Virtual_dom.Vdom.Attr.property("onpointermove", Js.Unsafe.inject(handler));

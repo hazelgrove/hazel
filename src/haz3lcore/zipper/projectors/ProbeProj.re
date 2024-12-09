@@ -2,12 +2,18 @@ open Util;
 open ProjectorBase;
 open Virtual_dom.Vdom;
 open Node;
+open Js_of_ocaml;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   [@default "⋱"]
   text: string,
+  len: int,
 };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type a =
+  | ChangeLength(int);
 
 /* Proof of concept value exposure. This isn't getting set immediately
    after folding for some reason */
@@ -34,6 +40,7 @@ let vals = (di: option(Dynamics.Info.t), exp_to_seg) => {
       (pi: Dynamics.Probe.Info.t) =>
         pi.value
         |> DHExp.strip_casts
+        |> Abbreviate.abbreviate_exp
         |> exp_to_seg
         |> Printer.of_segment(~holes=None),
       di.vals,
@@ -50,7 +57,12 @@ let env_val = (en: Dynamics.Probe.Env.entry, bonus_pack: bonus_pack) => {
       Node.text(en.name ++ "="),
       switch (en.raw) {
       | Opaque => Node.text("Opaque")
-      | Val(d) => d |> bonus_pack.exp_to_seg |> bonus_pack.view(Exp)
+      | Val(d) =>
+        d
+        |> Abbreviate.abbreviate_exp
+        |> fst
+        |> bonus_pack.exp_to_seg
+        |> bonus_pack.view(Exp)
       },
     ],
   );
@@ -89,7 +101,11 @@ let env_div = (di: Dynamics.Info.t, bonus_pack: bonus_pack) => {
   );
 };
 
-let vals_div = (di: option(Dynamics.Info.t), bonus_pack: bonus_pack) => {
+let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
+
+let vals_div =
+    (di: option(Dynamics.Info.t), ~model, ~local, ~bonus_pack: bonus_pack) => {
+  //dprint_endline("available:" ++ string_of_int(model.len));
   switch (di) {
   | Some(di) =>
     Node.div(
@@ -107,10 +123,53 @@ let vals_div = (di: option(Dynamics.Info.t), bonus_pack: bonus_pack) => {
         (pi: Dynamics.Probe.Info.t) => {
           // print_endline("pi.env:" ++ Dynamics.Probe.Env.show(pi.env));
           div(
-            ~attrs=[Attr.classes(["wrap"])],
+            ~attrs=[
+              Attr.classes(["wrap"]),
+              Attr.on_pointerdown(e => {
+                // print_endline("pointerdown");
+                let target =
+                  e##.target |> Js.Opt.get(_, _ => failwith("no target"));
+                JsUtil.setPointerCapture(target, e##.pointerId) |> ignore;
+                mousedown := Some(target);
+                Effect.Ignore;
+              }),
+              Attr.on_pointerup(e => {
+                // print_endline("pointerup");
+                switch (mousedown^) {
+                | Some(target) =>
+                  JsUtil.releasePointerCapture(target, e##.pointerId)
+                  |> ignore
+                | _ => ()
+                };
+                mousedown := None;
+                Effect.Ignore;
+              }),
+              Attr.on_mousemove(e =>
+                switch (mousedown^) {
+                | Some(_elem) =>
+                  /* Ideally this would be onpointermove and we could just use hasPointerCapture... */
+                  // print_endline("mousemove:down");
+                  let goal =
+                    FontMetrics.get_goal(
+                      ~font_metrics=bonus_pack.font_metrics,
+                      e##.currentTarget
+                      |> Js.Opt.get(_, _ => failwith(""))
+                      |> JsUtil.get_child_with_class(_, "code")
+                      |> Option.get,
+                      e |> Js.Unsafe.coerce,
+                    );
+                  local(ChangeLength(goal.col));
+                | _ =>
+                  print_endline("mousemove:up");
+                  Effect.Ignore;
+                }
+              ),
+            ],
             [
               pi.value
               |> DHExp.strip_casts
+              |> Abbreviate.abbreviate_exp(~available=model.len)
+              |> fst
               |> bonus_pack.exp_to_seg
               |> bonus_pack.view(Exp),
               env_div2(pi, bonus_pack),
@@ -150,26 +209,35 @@ let _ = Zipper.base_point;
 let code_str = (info: info) =>
   [info.syntax] |> Printer.of_segment(~holes=None);
 
-let view = (_m: t, ~info, ~local as _, ~parent, ~bonus_pack: bonus_pack) =>
+let view = (model: t, ~info, ~local, ~parent as _, ~bonus_pack: bonus_pack) =>
   div(
-    ~attrs=[
-      Attr.on_double_click(_ => parent(Remove)),
-      Attr.title(vals(info.dynamics, bonus_pack.exp_to_seg)),
+    ~attrs=[], //Attr.on_double_click(_ => parent(Remove)),
+    //Attr.title(vals(info.dynamics, bonus_pack.exp_to_seg)),
+    [
+      vals_div(info.dynamics, ~model, ~local, ~bonus_pack),
+      text("🔍 " ++ code_str(info)),
     ],
-    [vals_div(info.dynamics, bonus_pack), text("🔍 " ++ code_str(info))],
   );
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = t;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = unit;
-  let init = {text: "🔍"};
+  type action = a;
+  let init = {text: "🔍", len: 12};
   let can_project = _ => true;
   let can_focus = false;
   let placeholder = (_m, info) =>
     Inline(3 + String.length(code_str(info)));
-  let update = (m, _) => m;
+  let update = (m, a) => {
+    print_endline("update: action:" ++ show_a(a));
+    let ChangeLength(len) = a;
+    if (len > (-1)) {
+      {...m, len};
+    } else {
+      m;
+    };
+  };
   let view = view;
   let focus = _ => ();
 };

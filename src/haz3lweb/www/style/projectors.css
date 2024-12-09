@@ -181,8 +181,8 @@
 
 .live-offside .code {
   background-color: #c7e6c6;
-  border-radius: 0.3em;
-  border-top: 1px solid white;
+  border-radius: 0.2em;
+  /* border-top: 1px solid white; */
   filter: drop-shadow(0.7px 0.7px 0px green);
   opacity: 60%;
 }
@@ -203,6 +203,7 @@
 
 .projector.probe {
   font-family: var(--code-font);
+  font-size: var(--base-font-size);
   color: var(--STONE);
 }
 
@@ -227,4 +228,5 @@
 }
 .projector.probe .wrap:hover > .code {
   border-radius: 0.2em 0.2em 0.2em 0;
+  cursor: col-resize;
 }

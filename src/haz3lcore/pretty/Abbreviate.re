@@ -1,27 +1,60 @@
-open Util;
-open PrettySegment;
-open Base;
+// open Util;
+// open PrettySegment;
+// open Base;
+
+/*
+ To do this with projectors, we'd need:
+
+ 1. way to collapse part of a n-ary form e.g. [1,2,<3,4,5>] => [1, 2, <...>]
+ 2. way to gather ids (from term?) to collapse
+ 3. way to apply projectors (to segment) given ids
+  */
+
+let comp_elipses = "⋱";
+let flat_ellipses = "…";
+let ellipses_term = () => IdTagged.fresh(Invalid(comp_elipses): Exp.term);
+let flat_ellipses_term = () =>
+  IdTagged.fresh(Invalid(flat_ellipses): Exp.term);
+let available = ref(0);
 
 let abbreviate_str = (min_len: int, s: string): string => {
   let len = String.length(s);
-  let ellipsis = "...";
-  if (len <= min_len) {
+  let ellipsis = "…";
+  if (len <= min_len || min_len < 1) {
+    available := available^ - len;
     s;
+  } else if (min_len < 1) {
+    let str = String.sub(s, 0, 1) ++ ellipsis;
+    available := available^ - String.length(str);
+    str;
   } else {
-    String.sub(s, 0, min_len - String.length(ellipsis)) ++ ellipsis;
+    let str = String.sub(s, 0, min_len - 1) ++ ellipsis;
+    available := available^ - String.length(str);
+    str;
   };
 };
 
-let rec abbreviate_exp = (~available=12, exp: Exp.t): Exp.t => {
+let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
+  /*
+      Maybe we can also use this to format, ie insert linebreaks?
+      Hard when it's just exp but maybe we can track them via
+      some inserted form, or as a side effect? eg emit ids
+      to insert lb after during ExpToSeg?
+   */
+  // print_endline("abbreviate_exp");
   let rewrap = (term: Exp.term): Exp.t => {
     {...exp, term};
   };
-  let abbreviate_str = abbreviate_str(available);
-  let comp_elipses = "...";
-  let ellipses_term = () => IdTagged.fresh(Invalid(comp_elipses): Exp.term);
+
+  let wrap_or = (term, str): Exp.term =>
+    if (available^ > String.length(str)) {
+      available := available^ - String.length(str);
+      term;
+    } else {
+      Invalid(abbreviate_str(available^, str));
+    };
+
   let indet_term: Exp.term = Invalid("<INDET>");
-  let go = (~available) =>
-    abbreviate_exp(~available=available - String.length(comp_elipses));
   let term: Exp.term =
     switch (exp |> Exp.term_of) {
     | Fun(_p, _e, _, Some(s)) => Invalid("<" ++ s ++ ">")
@@ -31,42 +64,94 @@ let rec abbreviate_exp = (~available=12, exp: Exp.t): Exp.t => {
     //TODO(andrew): show exp below?
     | DynamicErrorHole(_exp, err) =>
       Invalid("<" ++ InvalidOperationError.show(err) ++ ">")
-    // Atomic string cases
-    | Invalid(x) => Invalid(abbreviate_str(x))
-    | String(s) => String(abbreviate_str(s))
-    | Var(v) => Var(abbreviate_str(v))
-    | Constructor(c, t) => Constructor(abbreviate_str(c), t)
 
-    // Atomic Fixed cases
-    //TODO: length check these cases:
+    // Atomic string cases
+    | Invalid(x) => Invalid(abbreviate_str(available^, x))
+    | String(s) => String(abbreviate_str(available^, s))
+    | Var(v) => Var(abbreviate_str(available^, v))
+    | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)
+
+    // Other atomic cases
     | EmptyHole => EmptyHole
     | ListLit([]) => ListLit([])
     | Tuple([]) => Tuple([])
-    | Bool(b) => Bool(b)
-    | Undefined => Undefined
-    | Int(n) => Int(n)
-    | Float(f) => Float(f)
+    | Undefined => wrap_or(Undefined, "undefined")
+    | Bool(b) => wrap_or(Bool(b), string_of_bool(b))
+    | Int(n) =>
+      //TODO: smarter number summarization?
+      wrap_or(Int(n), string_of_int(n))
+    | Float(f) =>
+      //TODO: smarter number summarization?
+      wrap_or(Float(f), string_of_float(f))
 
     // composite literal cases
-    | ListLit([x, ..._xs]) =>
-      //TODO: return used length from call, use that to make incorporate next elems
-      ListLit([go(~available, x), ellipses_term()])
+    | ListLit(xs) =>
+      if (available^ < 6) {
+        ListLit([flat_ellipses_term()]);
+      } else {
+        available := available^ - 2;
+        let rec go = xs =>
+          switch (xs) {
+          | [] => []
+          | [x] => [abbreviate_exp(x)]
+          | [x, ...xs] =>
+            let hd = abbreviate_exp(x);
+            let tl =
+              if (available^ > 0) {
+                go(xs);
+              } else {
+                [flat_ellipses_term()];
+              };
+            [hd, ...tl];
+          };
+        ListLit(go(xs));
+      }
 
-    | Tuple([x, ..._xs]) =>
-      //TODO: return used length from call, use that to make incorporate next elems
-      Tuple([go(~available, x), ellipses_term()])
-    | Ap(Forward, {term: Constructor(_), _} as konst, _e2) =>
-      //TODO: return used length from call, use that to make incorporate next elems
-      let available = available - 5; //chars for ap delimiters, ellipses
-      Ap(Forward, abbreviate_exp(~available, konst), ellipses_term());
+    | Tuple(xs) =>
+      available := available^ - 2;
+      let rec go = xs =>
+        switch (xs) {
+        | [] => []
+        | [x] =>
+          if (available^ > 1) {
+            [abbreviate_exp(x)];
+          } else {
+            [flat_ellipses_term()];
+          }
+        | [x, ...xs] =>
+          let hd = abbreviate_exp(x);
+          let tl =
+            if (available^ > 0) {
+              available := available^ - 2;
+              go(xs);
+            } else {
+              [flat_ellipses_term()];
+            };
+          [hd, ...tl];
+        };
+      Tuple(go(xs));
+    | Ap(Forward, {term: Constructor(_str, _), _} as konst, arg) =>
+      // if (String.length(str) + 3 >= available^) {
+      //   abbreviate_exp(konst).term;
+      // } else {
+      let konst = abbreviate_exp(konst);
+      available := available^ - 2;
+      let arg =
+        if (available^ > 0) {
+          abbreviate_exp(arg);
+        } else {
+          ellipses_term();
+        };
+      Ap(Forward, konst, arg);
+    // }
     | Cons(e1, _e2) =>
       //TODO: return used length from call, use that to make incorporate next elems
-      let available = available - 2; //chars for cons op
-      Cons(abbreviate_exp(~available, e1), ellipses_term());
+      available := available^ - (2 + String.length(comp_elipses));
+      Cons(abbreviate_exp(e1), ellipses_term());
 
     | Parens(e, pt) =>
-      let available = available - 2; //chars for parens
-      Parens(abbreviate_exp(~available, e), pt);
+      available := available^ - 2;
+      Parens(abbreviate_exp(e), pt);
 
     //TODO(andrew)
     | Filter(_) => failwith("TODO(andrew): Filter")
@@ -161,4 +246,14 @@ and abbreviate_any = (any: Any.t): Any.t => {
   | Nul(_)
   | Rul(_) => failwith("TODO: abbreviate_any: Rul | Any | Nul")
   };
+};
+
+let abbreviate_exp = (~available as a=12, exp: Exp.t): (Exp.t, bool) => {
+  available := a;
+  available^ <= 1
+    ? (ellipses_term(), false)
+    : {
+      let exp = abbreviate_exp(exp);
+      (exp, available^ < 0);
+    };
 };

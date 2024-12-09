@@ -175,6 +175,7 @@ let setup_view =
              fold_cast_types: false,
            },
          ),
+    font_metrics: globals.font_metrics,
     offside_offset:
       offside(globals.font_metrics, measurement, cached_syntax.measured),
   };
