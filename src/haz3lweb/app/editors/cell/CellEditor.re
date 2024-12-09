@@ -42,7 +42,18 @@ module Update = {
         CodeEditable.Update.update(~settings, action, model.editor);
       {...model, editor};
     | ResultAction(action) =>
-      let* result = EvalResult.Update.update(~settings, action, model.result);
+      let* result =
+        EvalResult.Update.update(
+          ~settings={
+            ...settings,
+            core: {
+              ...settings.core,
+              assist: false,
+            },
+          },
+          action,
+          model.result,
+        );
       {...model, result};
     };
   };
@@ -60,7 +71,7 @@ module Update = {
       CodeEditable.Update.calculate(~settings, ~is_edited, ~stitch, editor);
     let result =
       EvalResult.Update.calculate(
-        ~settings,
+        ~settings={...settings, assist: false},
         ~queue_worker,
         ~is_edited,
         editor |> CodeEditable.Model.get_statics,
@@ -130,7 +141,16 @@ module View = {
       ) => {
     let (footer, overlays) =
       EvalResult.View.view(
-        ~globals,
+        ~globals={
+          ...globals,
+          settings: {
+            ...globals.settings,
+            core: {
+              ...globals.settings.core,
+              assist: false,
+            },
+          },
+        },
         ~signal=
           fun
           | MakeActive(a) => signal(MakeActive(Result(a)))
