@@ -162,24 +162,6 @@ module View = {
   type event =
     | MakeActive;
 
-  let get_goal =
-      (
-        ~font_metrics: FontMetrics.t,
-        text_box: Js.t(Dom_html.element),
-        e: Js.t(Dom_html.mouseEvent),
-      ) => {
-    let rect = text_box##getBoundingClientRect;
-    let goal_x = float_of_int(e##.clientX);
-    let goal_y = float_of_int(e##.clientY);
-    Point.{
-      row: Float.to_int((goal_y -. rect##.top) /. font_metrics.row_height),
-      col:
-        Float.(
-          to_int(round((goal_x -. rect##.left) /. font_metrics.col_width))
-        ),
-    };
-  };
-
   let mousedown_overlay = (~globals: Globals.t, ~inject) =>
     Node.div(
       ~attrs=
@@ -187,6 +169,7 @@ module View = {
           id("mousedown-overlay"),
           on_mouseup(_ => globals.inject_global(SetMousedown(false))),
           on_mousemove(e => {
+            let _ = ignore(e##.button);
             let mouse_handler =
               e##.target |> Js.Opt.get(_, _ => failwith("no target"));
             let text_box =
@@ -198,7 +181,11 @@ module View = {
               )
               |> Option.get;
             let goal =
-              get_goal(~font_metrics=globals.font_metrics, text_box, e);
+              FontMetrics.get_goal(
+                ~font_metrics=globals.font_metrics,
+                text_box,
+                e,
+              );
             inject(Action.Select(Resize(Goal(Point(goal)))));
           }),
         ],
@@ -207,7 +194,7 @@ module View = {
 
   let mousedown_handler = (~globals: Globals.t, ~signal, ~inject, evt) => {
     let goal =
-      get_goal(
+      FontMetrics.get_goal(
         ~font_metrics=globals.font_metrics,
         evt##.currentTarget
         |> Js.Opt.get(_, _ => failwith(""))

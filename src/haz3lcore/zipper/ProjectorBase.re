@@ -40,6 +40,7 @@ type info = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type bonus_pack = {
   view: (Sort.t, Base.segment) => Node.t,
+  font_metrics: FontMetrics.t,
   exp_to_seg: Exp.t => Base.segment,
   offside_offset: float /* to position something to rhs of code */
 };
