@@ -289,6 +289,8 @@ and Typ: {
         }
       | None => Variant(name, [], None)
       }
+    | UnknownType(EmptyHole) =>
+      BadEntry(Unknown(Hole(EmptyHole)) |> Haz3lcore.Typ.fresh) // TODO Figure out if this is correct
     | _ =>
       raise(
         Failure(

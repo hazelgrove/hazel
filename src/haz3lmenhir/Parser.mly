@@ -212,11 +212,17 @@ binExp:
 %inline sumTerm:
     | i = CONSTRUCTOR_IDENT; t = tupleType  { SumTerm(i, Some(t)) } 
     | i = CONSTRUCTOR_IDENT { SumTerm(i, None) }
+    | QUESTION { UnknownType(EmptyHole) }
+
+
+plusLeadingSumTyp:
+    | PLUS; s = sumTerm; { SumTyp(s, None) } %prec SUM_TYP
+    | PLUS; s = sumTerm; t = plusLeadingSumTyp { SumTyp(s, Some(t)) }
 
 sumTyp:
-    | PLUS; s = sumTerm; { SumTyp(s, None) } %prec SUM_TYP
-    | PLUS; s = sumTerm; t = sumTyp { SumTyp(s, Some(t)) } 
-
+    | s = plusLeadingSumTyp; { s }
+    | s = sumTerm; t = plusLeadingSumTyp { SumTyp(s, Some(t)) }
+    
 
 typ:
     | c = CONSTRUCTOR_IDENT { TypVar(c) }
@@ -233,9 +239,7 @@ typ:
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
     | s = sumTyp; { s }
 
-pat:
-    | p1 = pat; COLON; t1 = typ;  { CastPat(p1, t1, UnknownType(Internal)) }
-    | p1 = pat; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY { CastPat(p1, t1, t2) }
+nonAscriptingPat:
     | OPEN_PAREN; p = pat; CLOSE_PAREN { p }
     | OPEN_PAREN; p = pat; COMMA; pats = separated_list(COMMA, pat); CLOSE_PAREN { TuplePat(p :: pats) }
     | QUESTION; P_PAT; s = STRING { InvalidPat(s) }
@@ -250,9 +254,17 @@ pat:
     | s = STRING { StringPat s}
     | TRUE { BoolPat true}
     | FALSE {BoolPat false}
+
+funPat:
+    | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { CastPat(p1, t1, UnknownType(Internal)) } // TODO Shift/reduce conflict but I'm pretty sure the end parse state is the same either way
+    | p = nonAscriptingPat; { p }
+
+pat:
+    | p1 = pat; COLON; t1 = typ;  { CastPat(p1, t1, UnknownType(Internal)) }
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
     | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) }
+    | p = nonAscriptingPat; { p }
 
 
 rul:
@@ -262,8 +274,8 @@ case:
     | CASE; e = exp; l = list(rul); END; { CaseExp(e, l) }
 
 funExp: 
-    | FUN; p = pat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) }
-    | NAMED_FUN; name = IDENT; p = pat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) }
+    | FUN; p = funPat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) }
+    | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) }
 
 
 %inline ifExp:
@@ -301,6 +313,7 @@ exp:
     | c = case { c }
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ListExp(e) }
     | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) } 
+    | f = exp; OPEN_PAREN; a = exp; COMMA; tl = separated_nonempty_list(COMMA, exp); CLOSE_PAREN { ApExp(f, TupleExp(a :: tl)) } 
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
     | i = ifExp { i }
     | e1 = exp; QUESTION; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY {FailedCast(e1, t1, t2)}
