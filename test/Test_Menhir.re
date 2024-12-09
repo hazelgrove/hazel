@@ -485,16 +485,19 @@ let tests =
     menhir_maketerm_equivalent_test("Empty Type Hole", "let g: ? = 7 in g"),
     menhir_maketerm_equivalent_test(
       "Pattern with type ascription",
-      "fun b : Bool -> b",
+      "fun (b : Bool) -> b",
     ),
     menhir_only_test(
       "Type Hole in arrow cast",
       Fun(
         Cast(
           Var("b") |> Pat.fresh,
-          Arrow(
-            Unknown(Hole(EmptyHole)) |> Typ.fresh,
-            Unknown(Hole(EmptyHole)) |> Typ.fresh,
+          Parens(
+            Arrow(
+              Unknown(Hole(EmptyHole)) |> Typ.fresh,
+              Unknown(Hole(EmptyHole)) |> Typ.fresh,
+            )
+            |> Typ.fresh,
           )
           |> Typ.fresh,
           Unknown(Internal) |> Typ.fresh,
@@ -505,7 +508,7 @@ let tests =
         None,
       )
       |> Exp.fresh,
-      "fun b : ? -> ? -> ?",
+      "fun b : (? -> ?) -> ?",
     ),
   ]
   @ {
