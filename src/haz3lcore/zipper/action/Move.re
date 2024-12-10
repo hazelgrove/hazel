@@ -428,4 +428,30 @@ module Make = (M: Editor.Meta.S) => {
       go(Local(Left(ByToken))),
       Piece.not_comment_or_space,
     );
+
+  // TODO Move to a different file
+  let remove_if_implicit_hole = z => {
+    switch (Indicated.piece'(~no_ws=false, ~ign=_ => false, z)) {
+    | Some((Tile({label: l, _}), Left, _)) when l == ["`"] =>
+      Destruct.go(Left, z) |> Option.map(remold_regrout(Left))
+    | _ => Some(z)
+    };
+  };
+
+  let rec move_right_and_perform = (f, z) =>
+    switch (f(z)) {
+    | Some(z) =>
+      switch (primary(ByToken, Right, z)) {
+      | Some(z) => move_right_and_perform(f, z)
+      | None => Some(z)
+      }
+    | None => Some(z)
+    };
+
+  let remove_all_implicit_holes = z => {
+    print_endline("Before going left");
+    let y = go(Goal(Point(Point.zero)), z);
+    print_endline("After going left");
+    y |> Option.bind(_, move_right_and_perform(remove_if_implicit_hole));
+  };
 };

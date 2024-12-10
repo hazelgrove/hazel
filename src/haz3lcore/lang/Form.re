@@ -116,7 +116,7 @@ let is_potential_operand = match(regexp("^[a-zA-Z0-9_'\\.?]+$"));
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]| */
 let potential_operator_regexp =
-  regexp("^[^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+$"); /* Multiline operators not supported */
+  regexp("^[^a-zA-Z0-9_'`?\"#\n\\s\\[\\]\\(\\)]+$"); /* Multiline operators not supported */
 let is_potential_operator = match(potential_operator_regexp);
 let is_potential_token = t =>
   is_potential_operand(t)
@@ -202,7 +202,9 @@ let const_mono_delims =
   base_typs @ bools @ [undefined, wild, empty_list, empty_tuple, empty_string];
 
 let explicit_hole = "?";
+let implicit_hole = "`";
 let is_explicit_hole = t => t == explicit_hole;
+let is_implicit_hole = t => t == implicit_hole;
 let bad_token_cls: string => bad_token_cls =
   t =>
     switch () {
@@ -219,6 +221,13 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
     "explicit_hole",
     (
       is_explicit_hole,
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
+    ),
+  ),
+  (
+    "implicit_hole",
+    (
+      is_implicit_hole,
       [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
     ),
   ),

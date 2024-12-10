@@ -255,6 +255,7 @@ let should_scroll_to_caret =
     | Paste(_)
     | Copy
     | Cut
+    | RemoveAllImplicitHoles
     | Reparse => true
     | Project(_)
     | Unselect(_)

@@ -14,6 +14,7 @@ let of_delim' =
         | _ when !is_consistent => "sort-inconsistent"
         | _ when !is_complete => "incomplete"
         | [s] when s == Form.explicit_hole => "explicit-hole"
+        | [s] when s == Form.implicit_hole => "explicit-hole"
         | [s] when Form.is_string(s) => "string-lit"
         | _ => Sort.to_string(sort)
         };

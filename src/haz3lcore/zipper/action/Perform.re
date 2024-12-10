@@ -201,6 +201,9 @@ let go_z =
   | RotateBackpack =>
     let z = {...z, backpack: Util.ListUtil.rotate(z.backpack)};
     Ok(z);
+  | RemoveAllImplicitHoles =>
+    Move.remove_all_implicit_holes(z)
+    |> Result.of_option(~error=Action.Failure.Cant_move)
   | MoveToBackpackTarget((Left(_) | Right(_)) as d) =>
     if (Backpack.restricted(z.backpack)) {
       Move.to_backpack_target(d, z)

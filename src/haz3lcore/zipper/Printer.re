@@ -68,7 +68,7 @@ let pretty_print = (~holes: option(string)=Some(""), z: Zipper.t): string =>
   |> String.concat("\n");
 
 let zipper_to_string =
-    (~holes: option(string)=Some(""), z: Zipper.t): string =>
+    (~holes: option(string)=Some("¿"), z: Zipper.t): string =>
   to_rows(
     ~holes,
     ~measured=measured(z),
@@ -104,5 +104,9 @@ let zipper_of_string =
 /* This serializes the current editor to text, resets the current
    editor, and then deserializes. It is intended as a (tactical)
    nuclear option for weird backpack states */
-let reparse = z =>
-  zipper_of_string(~zipper_init=Zipper.init(), zipper_to_string(z));
+let reparse = z => {
+  zipper_of_string(
+    ~zipper_init=Zipper.init(),
+    zipper_to_string(~holes=Some("`"), z),
+  );
+};
