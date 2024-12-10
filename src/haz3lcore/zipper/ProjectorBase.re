@@ -36,13 +36,25 @@ type info = {
   dynamics: option(Dynamics.Info.t),
 };
 
-//TODO(andrew): rm or doc
+/* Utility functions/values for to projector views.
+ * These should be considered unstable/experimental
+ * features which have yet to be integrated into the
+ * projector API in a disciplined way */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type bonus_pack = {
-  view: (Sort.t, Base.segment) => Node.t,
+type utility = {
+  /* The current font metrics for the editor, usable
+   * to coordinate with the parent coordinate grid */
   font_metrics: FontMetrics.t,
+  /* X position in pixels of the end of the row where
+   * where the projector starts; usable to position part
+   * of the projector UI at the end of the row */
+  offside_offset: float,
+  /* Non-interactive view for segments, included here
+   * because of cyclic dependency issues*/
+  view: (Sort.t, Base.segment) => Node.t,
+  /* Convert an expression to a segment, included here
+   * because of cyclic dependency issues*/
   exp_to_seg: Exp.t => Base.segment,
-  offside_offset: float /* to position something to rhs of code */
 };
 
 /* To add a new projector:
@@ -94,7 +106,7 @@ module type Projector = {
       ~info: info,
       ~local: action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
-      ~bonus_pack: bonus_pack
+      ~utility: utility
     ) =>
     Node.t;
   /* How much space should be left in the code view for
@@ -134,13 +146,13 @@ module Cook = (C: Projector) : Cooked => {
   let init = C.init |> serialize_m;
   let can_project = C.can_project;
   let can_focus = C.can_focus;
-  let view = (m, ~info, ~local, ~parent, ~bonus_pack) =>
+  let view = (m, ~info, ~local, ~parent, ~utility) =>
     C.view(
       deserialize_m(m),
       ~info,
       ~local=a => local(serialize_a(a)),
       ~parent,
-      ~bonus_pack,
+      ~utility,
     );
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;

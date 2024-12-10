@@ -75,14 +75,14 @@ let toggle_view =
 
 let kind = (editor: option(Editor.t)) => {
   let* editor = editor;
-  let+ (_, p) = Editor.Model.indicated_projector(editor);
+  let+ (_, p) = Indicated.projector(editor.state.zipper);
   p.kind;
 };
 
 let id = (editor: option(Editor.t)) => {
   {
     let* editor = editor;
-    let+ (id, _) = Editor.Model.indicated_projector(editor);
+    let+ (id, _) = Indicated.projector(editor.state.zipper);
     id;
   }
   |> Option.value(~default=Id.invalid);

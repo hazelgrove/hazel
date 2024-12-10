@@ -129,9 +129,6 @@ module Model = {
       };
     };
   };
-
-  let indicated_projector = (editor: t) =>
-    Projector.indicated(editor.state.zipper);
 };
 
 module Update = {

@@ -20,7 +20,7 @@ module M: Projector = {
   let placeholder = (m, _) =>
     Inline(m.text == "⋱" ? 2 : m.text |> String.length);
   let update = (m, _) => m;
-  let view = (m: model, ~info as _, ~local as _, ~parent, ~bonus_pack as _) =>
+  let view = (m: model, ~info as _, ~local as _, ~parent, ~utility as _) =>
     div(
       ~attrs=[Attr.on_double_click(_ => parent(Remove))],
       [text(m.text)],

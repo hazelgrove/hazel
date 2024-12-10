@@ -101,7 +101,7 @@ let go =
         jump_to_id_indicated(z, id) |> Option.value(~default=z)
       | Some(_) => z
       };
-    switch (Projector.indicated(z)) {
+    switch (Indicated.projector(z)) {
     | Some((_, p)) =>
       let (module P) = to_module(p.kind);
       P.focus((id, d));
