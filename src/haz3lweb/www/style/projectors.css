@@ -217,14 +217,26 @@
   z-index: 5000;
 }
 
+
 .projector.probe .live-env .live-env-entry {
   display: flex;
   flex-direction: row;
   gap: 0.3em;
 } 
 
+.projector.probe .wrap.cursor {
+  outline: 1px solid var(--R1);
+  border-radius: 0.2em;
+}
+.projector.probe.indicated .wrap:not(.cursor) {
+  opacity: 60%;
+}
+
 .projector.probe .wrap:hover .live-env {
   display: block;
+}
+.projector.probe .wrap:hover .live-env:empty {
+  display: none;
 }
 .projector.probe .wrap:hover > .code {
   border-radius: 0.2em 0.2em 0.2em 0;

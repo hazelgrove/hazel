@@ -58,6 +58,29 @@ type probe_tag =
   | Probe(probe);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type probe_frame = {
+  env_id: Id.t,
+  ap_id: Id.t,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type probe_stack = list(probe_frame);
+
+//TODO(andrew): cleanup
+let rec show_probe_stack = (stack: probe_stack): string =>
+  switch (stack) {
+  | [] => ""
+  | [{env_id, ap_id: _}, ...tl] =>
+    "["
+    // ++ String.sub(Id.to_string(ap_id), 0, 4)
+    // ++ ", env:"
+    ++ String.sub(Id.to_string(env_id), 0, 4)
+    ++ "]"
+    ++ "\n"
+    ++ show_probe_stack(tl)
+  };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type any_t =
   | Exp(exp_t)
   | Pat(pat_t)
@@ -158,7 +181,11 @@ and rul_term =
   | Rules(exp_t, list((pat_t, exp_t)))
 and rul_t = IdTagged.t(rul_term)
 and environment_t = VarBstMap.Ordered.t_(exp_t)
-and closure_environment_t = (Id.t, environment_t) //TODO(andrew): option(clj_env), option(Id) //callsite
+and closure_environment_t = {
+  id: Id.t,
+  env: environment_t,
+  stack: probe_stack,
+}
 and stepper_filter_kind_t =
   | Filter(filter)
   | Residue(int, FilterAction.t)
@@ -929,6 +956,8 @@ and ClosureEnvironment: {
 
   let id_of: t => Id.t;
   let map_of: t => Environment.t;
+  let stack_of: t => list(probe_frame);
+  let update_stack: (list(probe_frame) => list(probe_frame), t) => t;
 
   let to_list: t => list((Var.t, Exp.t));
 
@@ -967,14 +996,21 @@ and ClosureEnvironment: {
 
     let id_of: t => Id.t;
     let map_of: t => Environment.t;
+    let stack_of: t => list(probe_frame);
+    let update_stack: (list(probe_frame) => list(probe_frame), t) => t;
   } = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = closure_environment_t;
 
-    let wrap = (ei, map): t => (ei, map);
+    let wrap = (ei, map): t => {id: ei, env: map, stack: []};
 
-    let id_of = ((ei, _)) => ei;
-    let map_of = ((_, map)) => map;
+    let id_of = t => t.id;
+    let map_of = t => t.env;
+    let stack_of = t => t.stack;
+
+    let update_stack = (f, t) => {
+      {...t, stack: f(t.stack)};
+    };
     let (sexp_of_t, t_of_sexp) =
       StructureShareSexp.structure_share_here(id_of, sexp_of_t, t_of_sexp);
   };
