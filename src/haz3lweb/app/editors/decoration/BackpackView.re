@@ -3,12 +3,9 @@ open Node;
 open Haz3lcore;
 open Util;
 
-/* Assume this doesn't contain projectors */
-let token_of_proj = _ => "";
+let token_of_proj = _ => ""; /* Assume this doesn't contain projectors */
 
-let measured_of = seg =>
-  /* Assume this doesn't contain projectors */
-  Measured.of_segment(seg, token_of_proj);
+let measured_of = seg => Measured.of_segment(seg, token_of_proj);
 
 let text_view = (seg: Segment.t): list(Node.t) => {
   module Text =

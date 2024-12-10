@@ -7,12 +7,10 @@ open Util;
 open Util.OptUtil.Syntax;
 open Util.Web;
 
-type kind = Base.kind;
-
 /* A friendly name for each projector. This is used
  * both for identifying a projector in the CSS and for
  * selecting projectors in the projector panel menu */
-let name = (p: kind): string =>
+let name = (p: Base.kind): string =>
   switch (p) {
   | Fold => "fold"
   | Info => "type"
@@ -26,7 +24,7 @@ let name = (p: kind): string =>
 /* This must be updated and kept 1-to-1 with the above
  * name function in order to be able to select the
  * projector in the projector panel menu */
-let of_name = (p: string): kind =>
+let of_name = (p: string): Base.kind =>
   switch (p) {
   | "fold" => Fold
   | "type" => Info
@@ -111,32 +109,56 @@ let handle = (id, action: external_action): Action.project =>
   | SetSyntax(f) => SetSyntax(id, f)
   };
 
-let code_width = (measured: Measured.t) =>
-  IntMap.fold(
-    (_, {max_col, _}: Measured.Rows.shape, acc) => max(max_col, acc),
-    measured.rows,
-    0,
-  );
-
-let projector_start_row_width =
-    (measurement: Measured.measurement, measured: Measured.t) =>
-  switch (IntMap.find_opt(measurement.origin.row, measured.rows)) {
-  | None => 0
-  | Some(row) => row.max_col
-  };
-
+/* Position in pixels for the position offset characters to the
+ * right of the end of the row at measurement.origin. */
 let offside =
     (
+      ~offset: int,
       font_metrics: FontMetrics.t,
       measurement: Measured.measurement,
       measured: Measured.t,
-    ) => {
+    )
+    : float =>
   font_metrics.col_width
   *. float_of_int(
-       projector_start_row_width(measurement, measured)
-       + 4
+       Measured.start_row_width(measurement, measured)
+       + offset
        - measurement.origin.col,
      );
+
+/* Gather utility functions/values to be passed to the projector.
+ * See ProjectorBase.utility definition for more information */
+let collate_utility =
+    (
+      globals: Globals.t,
+      measurement: Measured.measurement,
+      cached_syntax: Editor.CachedSyntax.t,
+    )
+    : ProjectorBase.utility => {
+  {
+    font_metrics: globals.font_metrics,
+    offside_offset:
+      offside(
+        ~offset=4,
+        globals.font_metrics,
+        measurement,
+        cached_syntax.measured,
+      ),
+    view: (sort, seg) =>
+      CodeViewable.view_segment(~globals, ~sort, ~token_of_proj=_ => "", seg),
+    exp_to_seg: exp =>
+      exp
+      |> DHExp.strip_casts
+      |> ExpToSegment.exp_to_segment(
+           ~settings={
+             inline: false,
+             fold_case_clauses: false,
+             fold_fn_bodies: false,
+             hide_fixpoints: false,
+             fold_cast_types: false,
+           },
+         ),
+  };
 };
 
 /* Extracts projector-instance-specific metadata necessary to
@@ -160,25 +182,7 @@ let setup_view =
   let dynamics = Dynamics.Map.lookup(id, dynamics);
   let info = {id, statics, dynamics, syntax};
   let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
-  let bonus_pack = {
-    view: (sort, seg) =>
-      CodeViewable.view_segment(~globals, ~sort, ~token_of_proj=_ => "", seg),
-    exp_to_seg: exp =>
-      exp
-      |> DHExp.strip_casts
-      |> ExpToSegment.exp_to_segment(
-           ~settings={
-             inline: false,
-             fold_case_clauses: false,
-             fold_fn_bodies: false,
-             hide_fixpoints: false,
-             fold_cast_types: false,
-           },
-         ),
-    font_metrics: globals.font_metrics,
-    offside_offset:
-      offside(globals.font_metrics, measurement, cached_syntax.measured),
-  };
+  let utility = collate_utility(globals, measurement, cached_syntax);
   let (module P) = to_module(p.kind);
   let parent = a => inject(Project(handle(id, a)));
   let local = a => inject(Project(SetModel(id, P.update(p.model, a))));
@@ -190,10 +194,11 @@ let setup_view =
     ~info,
     ~selected=List.mem(id, cached_syntax.selection_ids),
     p,
-    P.view(p.model, ~info, ~local, ~parent, ~bonus_pack),
+    P.view(p.model, ~info, ~local, ~parent, ~utility),
   );
 };
 
+/* Is the piece with id indicated? If so, where is it wrt the caret? */
 let indication = (z, id) =>
   switch (Indicated.piece(z)) {
   | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
@@ -240,7 +245,7 @@ let all =
  * For example, without the modifiers check, this would break selection
  * around a projector. */
 let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) =>
-  switch (Editor.Model.indicated_projector(editor)) {
+  switch (Indicated.projector(editor.state.zipper)) {
   | None => None
   | Some((id, p)) =>
     let* (_, d, _) = Indicated.piece(editor.state.zipper);

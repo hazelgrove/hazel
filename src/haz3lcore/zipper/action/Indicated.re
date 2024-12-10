@@ -91,6 +91,18 @@ let index = (z: ZipperBase.t): option(Id.t) =>
   | Some((p, _, _)) => Some(Piece.id(p))
   };
 
+/* Returns the projector at the caret, if any */
+let projector = (z: ZipperBase.t) => {
+  let* id = index(z);
+  let* (p, _, _) = piece(z);
+  let+ projector =
+    switch (p) {
+    | Projector(pr) => Some(pr)
+    | _ => None
+    };
+  (id, projector);
+};
+
 let piece'' = piece'(~no_ws=true, ~ign=Piece.is_secondary);
 
 let ci_of =

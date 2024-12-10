@@ -54,16 +54,3 @@ let token_of_proj =
   | Block({row, col}) => String.make(row - 1, '\n') ++ String.make(col, ' ')
   };
 };
-
-/* Returns the projector at the caret, if any */
-let indicated = (z: ZipperBase.t) => {
-  open Util.OptUtil.Syntax;
-  let* id = Indicated.index(z);
-  let* (p, _, _) = Indicated.piece(z);
-  let+ projector =
-    switch (p) {
-    | Projector(pr) => Some(pr)
-    | _ => None
-    };
-  (id, projector);
-};

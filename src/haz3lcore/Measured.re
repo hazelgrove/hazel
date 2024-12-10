@@ -402,3 +402,10 @@ let length = (seg: Segment.t, map: t): int =>
     let last = find_p(ListUtil.last(tl), map);
     last.last.col - first.origin.col;
   };
+
+/* Width in characters of row at measurement.origin */
+let start_row_width = (measurement: measurement, measured: t): int =>
+  switch (IntMap.find_opt(measurement.origin.row, measured.rows)) {
+  | None => 0
+  | Some(row) => row.max_col
+  };

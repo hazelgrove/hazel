@@ -30,7 +30,7 @@ let view =
       ~info,
       ~local as _,
       ~parent: external_action => Ui_effect.t(unit),
-      ~bonus_pack as _,
+      ~utility as _,
     ) =>
   Node.input(
     ~attrs=

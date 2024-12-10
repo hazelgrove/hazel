@@ -64,7 +64,7 @@ let vals = (di: option(Dynamics.Info.t), exp_to_seg) => {
   };
 };
 
-let env_val = (en: Dynamics.Probe.Env.entry, bonus_pack: bonus_pack) => {
+let env_val = (en: Dynamics.Probe.Env.entry, utility: utility) => {
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
     [
@@ -75,8 +75,8 @@ let env_val = (en: Dynamics.Probe.Env.entry, bonus_pack: bonus_pack) => {
         d
         |> Abbreviate.abbreviate_exp
         |> fst
-        |> bonus_pack.exp_to_seg
-        |> bonus_pack.view(Exp)
+        |> utility.exp_to_seg
+        |> utility.view(Exp)
       },
     ],
   );
@@ -96,19 +96,19 @@ let rm_fst = (xs: list('a)) =>
   | [_, ...rest] => rest
   };
 
-let env_div2 = (pi: Dynamics.Probe.Info.t, bonus_pack: bonus_pack) => {
+let env_div2 = (pi: Dynamics.Probe.Info.t, utility: utility) => {
   Node.div(
     ~attrs=[Attr.classes(["live-env"])],
-    pi.env |> rm_fst |> rm_opaques |> List.map(en => env_val(en, bonus_pack)),
+    pi.env |> rm_fst |> rm_opaques |> List.map(en => env_val(en, utility)),
   );
 };
 
-let env_div = (di: Dynamics.Info.t, bonus_pack: bonus_pack) => {
+let env_div = (di: Dynamics.Info.t, utility: utility) => {
   Node.div(
     ~attrs=[Attr.classes(["live-env"])],
     List.concat_map(
       (pi: Dynamics.Probe.Info.t) => {
-        pi.env |> List.map(en => env_val(en, bonus_pack))
+        pi.env |> List.map(en => env_val(en, utility))
       },
       di.vals,
     ),
@@ -159,7 +159,7 @@ let comparor = (a: Dynamics.Probe.Info.t, b: Dynamics.Probe.Info.t) => {
 };
 
 let vals_div =
-    (di: option(Dynamics.Info.t), ~model, ~local, ~bonus_pack: bonus_pack) => {
+    (di: option(Dynamics.Info.t), ~model, ~local, ~utility: utility) => {
   //dprint_endline("available:" ++ string_of_int(model.len));
   let filter_vals = vals => {
     switch (List.sort(comparor, vals)) {
@@ -177,7 +177,7 @@ let vals_div =
           "style",
           Printf.sprintf(
             "position: absolute; left: %fpx;",
-            bonus_pack.offside_offset,
+            utility.offside_offset,
           ),
         ),
       ],
@@ -216,7 +216,7 @@ let vals_div =
                   // print_endline("mousemove:down");
                   let goal =
                     FontMetrics.get_goal(
-                      ~font_metrics=bonus_pack.font_metrics,
+                      ~font_metrics=utility.font_metrics,
                       e##.currentTarget
                       |> Js.Opt.get(_, _ => failwith(""))
                       |> JsUtil.get_child_with_class(_, "code")
@@ -235,16 +235,16 @@ let vals_div =
               |> DHExp.strip_casts
               |> Abbreviate.abbreviate_exp(~available=model.len)
               |> fst
-              |> bonus_pack.exp_to_seg
-              |> bonus_pack.view(Exp),
+              |> utility.exp_to_seg
+              |> utility.view(Exp),
               //pi.stack |> TermBase.show_probe_stack |> Node.text,
-              env_div2(pi, bonus_pack),
+              env_div2(pi, utility),
             ],
           )
         },
         filter_vals(di.vals),
       ),
-      //@ [env_div(di, bonus_pack)],
+      //@ [env_div(di, utility)],
     )
   | _ =>
     Node.div(~attrs=[Attr.classes(["live-offside"])], [Node.text("?")])
@@ -275,14 +275,14 @@ let _ = Zipper.base_point;
 let code_str = (info: info) =>
   [info.syntax] |> Printer.of_segment(~holes=None);
 
-let view = (model: t, ~info, ~local, ~parent as _, ~bonus_pack: bonus_pack) =>
+let view = (model: t, ~info, ~local, ~parent as _, ~utility: utility) =>
   div(
     ~attrs=[
       Attr.title(stack(info.dynamics)),
       Attr.on_double_click(_ => local(ToggleShowAllVals)),
     ],
     [
-      vals_div(info.dynamics, ~model, ~local, ~bonus_pack),
+      vals_div(info.dynamics, ~model, ~local, ~utility),
       text("🔍 " ++ code_str(info)),
     ],
   );

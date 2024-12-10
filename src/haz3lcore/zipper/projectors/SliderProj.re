@@ -29,7 +29,7 @@ module M: Projector = {
         ~info,
         ~local as _,
         ~parent: external_action => Ui_effect.t(unit),
-        ~bonus_pack as _,
+        ~utility as _,
       ) =>
     Util.Web.range(
       ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(v))))],

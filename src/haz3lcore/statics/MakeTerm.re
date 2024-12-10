@@ -112,6 +112,7 @@ let return = (wrap, ids, tm) => {
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
+/* Temporary form to persist projector dynamics probe to segments */
 let mk_probe = (id, e: list(Piece.t)) =>
   Piece.mk_tile_id(
     id,
