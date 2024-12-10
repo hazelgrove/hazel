@@ -9,11 +9,13 @@ type t = {
   [@default "⋱"]
   text: string,
   len: int,
+  show_all_vals: bool,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a =
-  | ChangeLength(int);
+  | ChangeLength(int)
+  | ToggleShowAllVals;
 
 /* Proof of concept value exposure. This isn't getting set immediately
    after folding for some reason */
@@ -26,6 +28,18 @@ let _vals = (di: option(Dynamics.Info.t)) => {
         |> DHExp.strip_casts
         |> (d => d.term)
         |> TermBase.Exp.show_term,
+      di.vals,
+    )
+    |> String.concat(", ")
+  | _ => "Nein"
+  };
+};
+
+let stack = (di: option(Dynamics.Info.t)) => {
+  switch (di) {
+  | Some(di) =>
+    List.map(
+      (pi: Dynamics.Probe.Info.t) => pi.stack |> TermBase.show_probe_stack,
       di.vals,
     )
     |> String.concat(", ")
@@ -101,11 +115,59 @@ let env_div = (di: Dynamics.Info.t, bonus_pack: bonus_pack) => {
   );
 };
 
+let env_cursor: ref(list(Id.t)) = ref([]);
+
 let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
+
+let env_cursor_of_stack = List.map((en: TermBase.probe_frame) => en.env_id);
+
+/* given two env_cursors,return their maximum common suffix */
+let max_common_suffix = (a: list('a), b: list('a)) => {
+  let rec loop = (a, b, acc) =>
+    switch (a, b) {
+    | ([], _)
+    | (_, []) => acc
+    | ([ha, ...ta], [hb, ...tb]) when ha == hb =>
+      loop(ta, tb, [ha, ...acc])
+    | _ => acc
+    };
+  loop(List.rev(a), List.rev(b), []);
+};
+
+let show_indicator = stack => {
+  let local = stack |> env_cursor_of_stack;
+  if (env_cursor^ == local) {
+    true;
+  } else if (max_common_suffix(env_cursor^, local) != []) {
+    !(
+      List.length(env_cursor^) == List.length(local) && env_cursor^ != local
+    );
+  } else {
+    false;
+  };
+};
+
+let comparor = (a: Dynamics.Probe.Info.t, b: Dynamics.Probe.Info.t) => {
+  compare(
+    List.length(
+      max_common_suffix(env_cursor^, env_cursor_of_stack(b.stack)),
+    ),
+    List.length(
+      max_common_suffix(env_cursor^, env_cursor_of_stack(a.stack)),
+    ),
+  );
+};
 
 let vals_div =
     (di: option(Dynamics.Info.t), ~model, ~local, ~bonus_pack: bonus_pack) => {
   //dprint_endline("available:" ++ string_of_int(model.len));
+  let filter_vals = vals => {
+    switch (List.sort(comparor, vals)) {
+    | [] => []
+    | [hd, ..._] when !model.show_all_vals => [hd]
+    | _ => vals
+    };
+  };
   switch (di) {
   | Some(di) =>
     Node.div(
@@ -124,13 +186,16 @@ let vals_div =
           // print_endline("pi.env:" ++ Dynamics.Probe.Env.show(pi.env));
           div(
             ~attrs=[
-              Attr.classes(["wrap"]),
+              Attr.classes(
+                ["wrap"] @ (show_indicator(pi.stack) ? ["cursor"] : []),
+              ),
               Attr.on_pointerdown(e => {
                 // print_endline("pointerdown");
                 let target =
                   e##.target |> Js.Opt.get(_, _ => failwith("no target"));
                 JsUtil.setPointerCapture(target, e##.pointerId) |> ignore;
                 mousedown := Some(target);
+                env_cursor := pi.stack |> env_cursor_of_stack;
                 Effect.Ignore;
               }),
               Attr.on_pointerup(e => {
@@ -172,11 +237,12 @@ let vals_div =
               |> fst
               |> bonus_pack.exp_to_seg
               |> bonus_pack.view(Exp),
+              //pi.stack |> TermBase.show_probe_stack |> Node.text,
               env_div2(pi, bonus_pack),
             ],
           )
         },
-        di.vals,
+        filter_vals(di.vals),
       ),
       //@ [env_div(di, bonus_pack)],
     )
@@ -211,8 +277,10 @@ let code_str = (info: info) =>
 
 let view = (model: t, ~info, ~local, ~parent as _, ~bonus_pack: bonus_pack) =>
   div(
-    ~attrs=[], //Attr.on_double_click(_ => parent(Remove)),
-    //Attr.title(vals(info.dynamics, bonus_pack.exp_to_seg)),
+    ~attrs=[
+      Attr.title(stack(info.dynamics)),
+      Attr.on_double_click(_ => local(ToggleShowAllVals)),
+    ],
     [
       vals_div(info.dynamics, ~model, ~local, ~bonus_pack),
       text("🔍 " ++ code_str(info)),
@@ -224,18 +292,21 @@ module M: Projector = {
   type model = t;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
-  let init = {text: "🔍", len: 12};
+  let init = {text: "🔍", len: 12, show_all_vals: true};
   let can_project = _ => true;
   let can_focus = false;
   let placeholder = (_m, info) =>
     Inline(3 + String.length(code_str(info)));
   let update = (m, a) => {
     print_endline("update: action:" ++ show_a(a));
-    let ChangeLength(len) = a;
-    if (len > (-1)) {
-      {...m, len};
-    } else {
-      m;
+    switch (a) {
+    | ChangeLength(len) =>
+      if (len > (-1)) {
+        {...m, len};
+      } else {
+        m;
+      }
+    | ToggleShowAllVals => {...m, show_all_vals: !m.show_all_vals}
     };
   };
   let view = view;

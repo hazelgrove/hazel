@@ -45,7 +45,7 @@ module Probe = {
         let raw =
           d
           |> DHExp.strip_casts
-          |> Exp.substitute_closures(snd(env))
+          |> Exp.substitute_closures(ClosureEnvironment.map_of(env))
           |> to_raw;
         {name, id, raw};
       | None => failwith("Probe: variable not found in environment")
@@ -60,10 +60,12 @@ module Probe = {
     type t = {
       value: DHExp.t,
       env: Env.t,
+      stack: TermBase.probe_stack,
     };
 
     let mk = (value: DHExp.t, env: ClosureEnvironment.t, pr: TermBase.probe) => {
       value,
+      stack: ClosureEnvironment.stack_of(env),
       env: Env.mk(env, pr.refs),
     };
   };

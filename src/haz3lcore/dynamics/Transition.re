@@ -75,12 +75,23 @@ type step_kind =
   | RemoveTypeAlias
   | RemoveParens;
 let evaluate_extend_env =
-    (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
+    (~ap=None, new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
     : ClosureEnvironment.t => {
-  to_extend
-  |> ClosureEnvironment.map_of
-  |> Environment.union(new_bindings)
-  |> ClosureEnvironment.of_environment;
+  let ce =
+    to_extend
+    |> ClosureEnvironment.map_of
+    |> Environment.union(new_bindings)
+    |> ClosureEnvironment.of_environment;
+  ce
+  |> ClosureEnvironment.update_stack(_stack =>
+       switch (ap) {
+       | None => ClosureEnvironment.stack_of(to_extend)
+       | Some(ap) => [
+           {env_id: ce |> ClosureEnvironment.id_of, ap_id: ap},
+           ...ClosureEnvironment.stack_of(to_extend),
+         ]
+       }
+     );
 };
 
 type rule =
@@ -348,13 +359,26 @@ module Transition = (EV: EV_MODE) => {
       switch (DHExp.term_of(d1')) {
       | Constructor(_) => Constructor
       | Fun(dp, d3, Some(env'), _) =>
-        let.match env'' = (env', matches(dp, d2'));
-        Step({
-          expr: Closure(env'', d3) |> fresh,
-          state_update,
-          kind: FunAp,
-          is_value: false,
-        });
+        switch (matches(dp, d2')) {
+        | IndetMatch
+        | DoesNotMatch => Indet
+        | Matches(env'') =>
+          let env'' =
+            evaluate_extend_env(~ap=Some(Term.Exp.rep_id(d)), env'', env');
+          Step({
+            expr: Closure(env'', d3) |> fresh,
+            state_update,
+            kind: FunAp,
+            is_value: false,
+          });
+        }
+      // let.match env'' = (env', matches(dp, d2'));
+      // Step({
+      //   expr: Closure(env'', d3) |> fresh,
+      //   state_update,
+      //   kind: FunAp,
+      //   is_value: false,
+      // });
       | Cast(
           d3',
           {term: Arrow(ty1, ty2), _},
