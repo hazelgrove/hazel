@@ -23,7 +23,7 @@ type term =
   | BinOp2(Operators.op_bin, DHExp.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
   | Test(t)
-  | Parens(t, TermBase.probe_tag)
+  | Parens(t, Probe.tag)
   | ListLit(t, (list(DHExp.t), list(DHExp.t)))
   | MultiHole(t, (list(Any.t), list(Any.t)))
   | Cons1(t, DHExp.t)

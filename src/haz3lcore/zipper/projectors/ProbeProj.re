@@ -39,7 +39,7 @@ let stack = (di: option(Dynamics.Info.t)) => {
   switch (di) {
   | Some(di) =>
     List.map(
-      (pi: Dynamics.Probe.Info.t) => pi.stack |> TermBase.show_probe_stack,
+      (pi: Dynamics.Probe.Info.t) => pi.stack |> Probe.show_stack,
       di.vals,
     )
     |> String.concat(", ")
@@ -119,7 +119,7 @@ let env_cursor: ref(list(Id.t)) = ref([]);
 
 let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
 
-let env_cursor_of_stack = List.map((en: TermBase.probe_frame) => en.env_id);
+let env_cursor_of_stack = List.map((en: Probe.frame) => en.env_id);
 
 /* given two env_cursors,return their maximum common suffix */
 let max_common_suffix = (a: list('a), b: list('a)) => {
@@ -211,7 +211,7 @@ let vals_div =
               }),
               Attr.on_mousemove(e =>
                 switch (mousedown^) {
-                | Some(_elem) =>
+                | Some(_elem) when e##.shiftKey |> Js.to_bool =>
                   /* Ideally this would be onpointermove and we could just use hasPointerCapture... */
                   // print_endline("mousemove:down");
                   let goal =

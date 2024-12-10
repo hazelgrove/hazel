@@ -201,7 +201,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | (["(", ")"], [Exp(body)]) => ret(Parens(body, Paren))
       | (["@@", "@@"], [Exp(body)]) =>
         // TODO(andrew): apologize for this
-        ret(Parens(body, Probe(Dynamics.Probe.empty)))
+        ret(Parens(body, Probe(Probe.empty)))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
         | {ids, copied: false, term: Tuple(es)} => (ListLit(es), ids)

@@ -171,7 +171,7 @@
 
 /* Probe */
 
-.live-offside {
+.projector.probe .live-offside {
   display: flex;
   flex-direction: row;
   position: absolute;
@@ -179,17 +179,30 @@
   gap: 0.15em;
 }
 
-.live-offside .code {
+.projector.probe .wrap .code-text {
   background-color: #c7e6c6;
-  border-radius: 0.2em;
-  /* border-top: 1px solid white; */
+  border-radius: 0.1em;
   filter: drop-shadow(0.7px 0.7px 0px green);
-  opacity: 60%;
 }
-
-.projector.probe.indicated .live-offside .code {
-  background-color: #a4d7a2;
-  opacity: 100%
+.projector.probe .wrap:hover > .code-text {
+  border-radius: 0.2em 0.2em 0.2em 0;
+  cursor: col-resize;
+}
+.projector.probe .wrap.cursor .code-text {
+  outline: 1px solid var(--GB1);
+  outline-style: dotted;
+  filter: none;
+}
+.projector.probe .wrap .code-text {
+  opacity: 50%;
+}
+.projector.probe .wrap.cursor .code-text,
+.projector.probe.indicated .wrap .code-text {
+  opacity: 100%;
+}
+.projector.probe.indicated .wrap.cursor .code-text {
+  opacity: 100%;
+  outline: 1px solid var(--GB1);
 }
 
 .projector.probe > svg {
@@ -224,10 +237,7 @@
   gap: 0.3em;
 } 
 
-.projector.probe .wrap.cursor {
-  outline: 1px solid var(--R1);
-  border-radius: 0.2em;
-}
+
 .projector.probe.indicated .wrap:not(.cursor) {
   opacity: 60%;
 }
@@ -237,8 +247,4 @@
 }
 .projector.probe .wrap:hover .live-env:empty {
   display: none;
-}
-.projector.probe .wrap:hover > .code {
-  border-radius: 0.2em 0.2em 0.2em 0;
-  cursor: col-resize;
 }
