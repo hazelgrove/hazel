@@ -2,8 +2,7 @@ open Util;
 
 module Probe = {
   let instrument =
-      (m: Statics.Map.t, id: Id.t, probe_tag: TermBase.probe_tag)
-      : TermBase.probe_tag =>
+      (m: Statics.Map.t, id: Id.t, probe_tag: Probe.tag): Probe.tag =>
     switch (probe_tag) {
     | Paren => Paren
     | Probe(_) =>
@@ -12,8 +11,6 @@ module Probe = {
         stem: Statics.Map.enclosing_abstractions(m, id),
       })
     };
-
-  let empty = TermBase.{refs: [], stem: []};
 
   module Env = {
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -60,10 +57,10 @@ module Probe = {
     type t = {
       value: DHExp.t,
       env: Env.t,
-      stack: TermBase.probe_stack,
+      stack: Probe.stack,
     };
 
-    let mk = (value: DHExp.t, env: ClosureEnvironment.t, pr: TermBase.probe) => {
+    let mk = (value: DHExp.t, env: ClosureEnvironment.t, pr: Probe.t) => {
       value,
       stack: ClosureEnvironment.stack_of(env),
       env: Env.mk(env, pr.refs),

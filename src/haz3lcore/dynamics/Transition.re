@@ -74,25 +74,7 @@ type step_kind =
   | Cast
   | RemoveTypeAlias
   | RemoveParens;
-let evaluate_extend_env =
-    (~ap=None, new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
-    : ClosureEnvironment.t => {
-  let ce =
-    to_extend
-    |> ClosureEnvironment.map_of
-    |> Environment.union(new_bindings)
-    |> ClosureEnvironment.of_environment;
-  ce
-  |> ClosureEnvironment.update_stack(_stack =>
-       switch (ap) {
-       | None => ClosureEnvironment.stack_of(to_extend)
-       | Some(ap) => [
-           {env_id: ce |> ClosureEnvironment.id_of, ap_id: ap},
-           ...ClosureEnvironment.stack_of(to_extend),
-         ]
-       }
-     );
-};
+let evaluate_extend_env = ClosureEnvironment.extend_eval;
 
 type rule =
   | Step({
@@ -364,7 +346,11 @@ module Transition = (EV: EV_MODE) => {
         | DoesNotMatch => Indet
         | Matches(env'') =>
           let env'' =
-            evaluate_extend_env(~ap=Some(Term.Exp.rep_id(d)), env'', env');
+            evaluate_extend_env(
+              ~frame=Some(Term.Exp.rep_id(d)),
+              env'',
+              env',
+            );
           Step({
             expr: Closure(env'', d3) |> fresh,
             state_update,

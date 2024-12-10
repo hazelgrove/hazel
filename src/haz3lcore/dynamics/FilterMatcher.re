@@ -1,11 +1,4 @@
-let evaluate_extend_env =
-    (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
-    : ClosureEnvironment.t => {
-  to_extend
-  |> ClosureEnvironment.map_of
-  |> Environment.union(new_bindings)
-  |> ClosureEnvironment.of_environment;
-};
+let evaluate_extend_env = ClosureEnvironment.extend_eval;
 
 let evaluate_extend_env_with_pat =
     (
