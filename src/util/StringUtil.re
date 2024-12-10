@@ -38,13 +38,7 @@ let split = Js_of_ocaml.Regexp.split;
 
 let plain_split: (string, string) => list(string) =
   (str, sep) => {
-    Js_of_ocaml.(
-      Js.string(str)##split(Js.string(sep))
-      |> Js.str_array
-      |> Js.to_array
-      |> Array.to_list
-      |> List.map(Js.to_string)
-    );
+    split(Js_of_ocaml.Regexp.regexp_string(sep), str);
   };
 
 let to_lines = String.split_on_char('\n');

@@ -37,5 +37,13 @@ let tests = (
         StringUtil.plain_split("abbe", "b"),
       )
     }),
+    test_case("regexp special character in separator", `Quick, () => {
+      check(
+        list(string),
+        "split",
+        ["a", "c"],
+        StringUtil.plain_split("a.*c", ".*"),
+      )
+    }),
   ],
 );
