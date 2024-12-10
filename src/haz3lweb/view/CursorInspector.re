@@ -110,7 +110,7 @@ let common_err_view =
       switch (sugar_info) {
       | None => []
       | Some(AutoLabel(label)) => [
-          text(" automatically added label "),
+          text(" after automatically added label "),
           code(label),
         ] // TODO Figure out styling as well as how to handle nested labels
       }
