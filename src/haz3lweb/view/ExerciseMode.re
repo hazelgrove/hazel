@@ -82,7 +82,7 @@ let view =
   };
 
   let title_view = {
-    let title_placeholder = eds.title == "" ? "Exercise Title" : eds.title;
+    let title_placeholder = eds.title == "" ? "Untitled Exercise" : eds.title;
     Cell.simple_cell_view([
       div(
         ~attrs=[Attr.class_("title-cell")],
@@ -156,7 +156,7 @@ let view =
 
   let module_name_view = {
     let module_placeholder =
-      eds.module_name == "" ? "Exercise Module Name" : eds.module_name;
+      eds.module_name == "" ? "Unnamed Module" : eds.module_name;
     settings.instructor_mode
       ? Cell.narrative_cell([
           div(
@@ -231,7 +231,7 @@ let view =
   };
 
   let prompt_view = {
-    let prompt_placeholder = eds.prompt == "" ? "Exercise Prompt" : eds.prompt;
+    let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
     let (msg, _) =
       ExplainThis.mk_translation(~inject=Some(inject), prompt_placeholder);
     Cell.narrative_cell([
