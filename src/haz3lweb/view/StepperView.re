@@ -93,6 +93,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     // int here should include hidden steps
+    // Note this int is backwards compared to the selection (0 is the most recent step)
     | StepperEditor(int, StepperEditor.Update.t)
     | StepForward(int)
     | StepBackward;
@@ -356,6 +357,7 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     // int here should include hidden steps
+    // Note this int is backwards compared to the editors (so that 0 is the oldest step, and selections are preserved)
     | A(int, StepperEditor.Selection.t);
 
   let get_cursor_info = (~selection: t, mr: Model.t): Cursor.cursor(Update.t) => {
@@ -363,7 +365,9 @@ module Selection = {
       switch (selection) {
       | A(n, editor_selection) =>
         let a: option(Model.a) =
-          mr.history |> Aba.get_as |> List.nth_opt(_, n);
+          mr.history
+          |> Aba.get_as
+          |> List.nth_opt(_, List.length(mr.history |> Aba.get_as) - n - 1);
         switch (a) {
         | Some(Calculated(a)) =>
           let+ x =
@@ -382,7 +386,10 @@ module Selection = {
   let handle_key_event =
       (~selection: t, ~event, mr: Model.t): option(Update.t) => {
     let A(i, s) = selection;
-    let a: option(Model.a) = mr.history |> Aba.get_as |> List.nth_opt(_, i);
+    let a: option(Model.a) =
+      mr.history
+      |> Aba.get_as
+      |> List.nth_opt(_, List.length(mr.history |> Aba.get_as) - i - 1);
     switch (a) {
     | Some(Calculated(a)) =>
       let+ x =
@@ -464,14 +471,33 @@ module View = {
                    StepperEditor.View.view(
                      ~globals,
                      ~overlays=[],
-                     ~selected=selection == Some(A(i + 1, ())),
+                     ~selected=
+                       selection
+                       == Some(
+                            A(
+                              List.length(stepper.history |> Aba.get_as)
+                              - (i + 1)
+                              - 1,
+                              (),
+                            ),
+                          ),
                      ~inject=
                        (x: StepperEditor.Update.t) =>
                          inject(StepperEditor(i + 1, x)),
                      ~signal=
                        fun
                        | TakeStep(_) => Ui_effect.Ignore
-                       | MakeActive => signal(MakeActive(A(i + 1, ()))),
+                       | MakeActive =>
+                         signal(
+                           MakeActive(
+                             A(
+                               List.length(stepper.history |> Aba.get_as)
+                               - (i + 1)
+                               - 1,
+                               (),
+                             ),
+                           ),
+                         ),
                      {
                        editor: a.editor |> Calc.get_value,
                        next_steps: [],
@@ -511,14 +537,37 @@ module View = {
               div(~attrs=[Attr.class_("equiv")], [Node.text("≡")]),
               StepperEditor.View.view(
                 ~globals,
-                ~selected=selection == Some(A(current_n, ())),
+                ~selected=
+                  selection
+                  == Some(
+                       A(
+                         List.length(stepper.history |> Aba.get_as)
+                         - current_n
+                         - 1,
+                         (),
+                       ),
+                     ),
                 ~inject=
                   (x: StepperEditor.Update.t) =>
                     inject(StepperEditor(current_n, x)),
                 ~signal=
                   fun
-                  | TakeStep(x) => inject(Update.StepForward(x))
-                  | MakeActive => signal(MakeActive(A(current_n, ()))),
+                  | TakeStep(x) =>
+                    Effect.Many([
+                      inject(Update.StepForward(x)),
+                      Effect.Stop_propagation,
+                    ])
+                  | MakeActive =>
+                    signal(
+                      MakeActive(
+                        A(
+                          List.length(stepper.history |> Aba.get_as)
+                          - current_n
+                          - 1,
+                          (),
+                        ),
+                      ),
+                    ),
                 ~overlays=[],
                 {
                   editor: model.editor |> Calc.get_value,

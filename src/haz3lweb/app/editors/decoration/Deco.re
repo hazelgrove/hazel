@@ -501,16 +501,31 @@ module Deco =
             Some((l, r));
           };
         };
-        PieceDec.indicated(
-          ~base_clss="tile-next-step",
-          ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => {inject(i)})],
-          ~line_clss=["next-step-line"],
-          ~font_metrics,
-          ~caret=(Id.invalid, 0),
-          ~rows=measured.rows,
-          ~tiles=[(id, mold, shards)],
-        )
-        |> Option.map(_, range);
+        Option.map(
+          x => {
+            PieceDec.indicated(
+              ~base_clss="tile-next-step",
+              ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => {inject(i)})],
+              ~line_clss=["next-step-line"],
+              ~font_metrics,
+              ~caret=(Id.invalid, 0),
+              ~rows=measured.rows,
+              ~tiles=[(id, mold, shards)],
+              x,
+            )
+            @ PieceDec.indicated(
+                ~base_clss="tile-next-step-top",
+                ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => {inject(i)})],
+                ~line_clss=["next-step-line"],
+                ~font_metrics,
+                ~caret=(Id.invalid, 0),
+                ~rows=measured.rows,
+                ~tiles=[(id, mold, shards)],
+                x,
+              )
+          },
+          range,
+        );
       },
       tiles,
     )

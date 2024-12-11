@@ -323,6 +323,14 @@ svg.tile-next-step {
   filter: drop-shadow(1px 1px var(--G2));
 }
 
+svg.tile-next-step-top {
+  pointer-events: all;
+  cursor: pointer;
+  visibility: hidden;
+  z-index: var(--stepper-interactive-z);
+  filter: drop-shadow(1px 1px var(--G2));
+}
+
 svg.tile-taken-step {
   filter: drop-shadow(1px 1px var(--BR1));
 }
