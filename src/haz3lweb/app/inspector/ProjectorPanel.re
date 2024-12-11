@@ -6,11 +6,11 @@ open Util.OptUtil.Syntax;
 open Util.Web;
 
 /* The projector selection panel on the right of the bottom bar */
-let option_view = (name, n) =>
-  option(
-    ~attrs=n == name ? [Attr.create("selected", "selected")] : [],
-    [text(n)],
-  );
+let option_view = (_name, n) =>
+  option([
+    //~attrs=n == name ? [Attr.create("selected", "selected")] : [],
+    text(n),
+  ]);
 
 /* Decide which projectors are applicable based on the cursor info.
  * This is slightly inside-out as elsewhere it depends on the underlying
@@ -35,8 +35,8 @@ let applicable_projectors: option(Info.t) => list(Base.kind) =
     @ [Base.Fold]
     @ (
       switch (ci) {
-      | InfoExp(_)
-      | InfoPat(_) => [Probe, Info]
+      | InfoExp(_) => [Info, Probe]
+      | InfoPat(_) => [Info]
       | _ => []
       }
     );
@@ -103,24 +103,60 @@ let might_project: Cursor.cursor(Editors.Update.t) => bool =
 let currently_selected = editor =>
   option_view(
     switch (kind(editor)) {
-    | None => "Fold"
+    | None => "fold"
     | Some(k) => ProjectorView.name(k)
     },
   );
 
+let currently_selected_str = (editor, _): string =>
+  switch (kind(editor)) {
+  | None => "fold"
+  | Some(k) => ProjectorView.name(k)
+  };
+
+let currently_selected_str_opt = (editor, _): option(string) =>
+  switch (kind(editor)) {
+  | None => None
+  | Some(k) => Some(ProjectorView.name(k))
+  };
+
 let view = (~inject, cursor: Cursor.cursor(Editors.Update.t)) => {
   let applicable_projectors = applicable_projectors(cursor.info);
   let should_show = might_project(cursor) && applicable_projectors != [];
+  //TODO(andrew): cleanup
+  // print_endline("currentrly: " ++ currently_selected_str(cursor.editor, ()));
+  let applicable_projector_strings =
+    (might_project(cursor) ? applicable_projectors : [Fold])
+    |> List.map(ProjectorView.name);
+  let applicable_projector_strings =
+    switch (currently_selected_str_opt(cursor.editor, ())) {
+    | None => applicable_projector_strings
+    | Some(guy) =>
+      List.cons(
+        guy,
+        List.filter(x => x != guy, applicable_projector_strings),
+      )
+    };
+  let value =
+    switch (kind(cursor.editor)) {
+    | Some(k) => ProjectorView.name(k)
+    | None =>
+      applicable_projector_strings
+      //|> List.map(currently_selected_str(cursor.editor))
+      |> List.hd
+    };
+  // print_endline("value: " ++ value);
   let select_view =
     Node.select(
       ~attrs=[
         Attr.on_change((_, name) =>
           inject(Action.SetIndicated(ProjectorView.of_name(name)))
         ),
+        Attr.string_property("value", value),
       ],
-      (might_project(cursor) ? applicable_projectors : [])
-      |> List.map(ProjectorView.name)
-      |> List.map(currently_selected(cursor.editor)),
+      applicable_projector_strings
+      |> List.map(option_view("garbageTODO(andrew)")),
+      //|> List.map(currently_selected(cursor.editor)),
     );
   let toggle_view =
     toggle_view(
