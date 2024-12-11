@@ -193,9 +193,9 @@ module Update = {
        one of the editors is shown in two cells, so we arbitrarily choose which
        statics to take */
     let editors: Exercise.p('a) = {
-      let dynamics = Dynamics.Map.empty; //TODO(andrew): dynamics for projs in exercise mode
-      let calculate = statics =>
-        Editor.Update.calculate(~settings, statics, dynamics, ~is_edited);
+      let calculate = (statics, dynamics, ed) =>
+        Editor.Update.calculate(~settings, statics, dynamics, ~is_edited, ed);
+
       {
         title: model.editors.title,
         version: model.editors.version,
@@ -203,29 +203,44 @@ module Update = {
         prompt: model.editors.prompt,
         point_distribution: model.editors.point_distribution,
         prelude:
-          calculate(cells.prelude.editor.statics, model.editors.prelude),
+          calculate(
+            cells.prelude.editor.statics,
+            EvalResult.Model.dynamics(cells.prelude.result),
+            model.editors.prelude,
+          ),
         correct_impl:
           calculate(
             cells.test_validation.editor.statics,
+            EvalResult.Model.dynamics(cells.test_validation.result),
             model.editors.correct_impl,
           ),
         your_tests: {
           tests:
             calculate(
               cells.user_tests.editor.statics,
+              EvalResult.Model.dynamics(cells.user_tests.result),
               model.editors.your_tests.tests,
             ),
           required: model.editors.your_tests.required,
           provided: model.editors.your_tests.provided,
         },
         your_impl:
-          calculate(cells.user_impl.editor.statics, model.editors.your_impl),
+          calculate(
+            cells.user_impl.editor.statics,
+            EvalResult.Model.dynamics(cells.user_impl.result),
+            model.editors.your_impl,
+          ),
         hidden_bugs:
           List.map2(
             (cell: CellEditor.Model.t, editor: Exercise.wrong_impl('a)):
               Exercise.wrong_impl('a) =>
               {
-                impl: calculate(cell.editor.statics, editor.impl),
+                impl:
+                  calculate(
+                    cell.editor.statics,
+                    EvalResult.Model.dynamics(cell.result),
+                    editor.impl,
+                  ),
                 hint: editor.hint,
               },
             cells.hidden_bugs,
@@ -235,6 +250,7 @@ module Update = {
           tests:
             calculate(
               cells.hidden_tests.editor.statics,
+              EvalResult.Model.dynamics(cells.hidden_tests.result),
               model.editors.hidden_tests.tests,
             ),
           hints: model.editors.hidden_tests.hints,
