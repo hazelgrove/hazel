@@ -1,15 +1,3 @@
-// open Util;
-// open PrettySegment;
-// open Base;
-
-/*
- To do this with projectors, we'd need:
-
- 1. way to collapse part of a n-ary form e.g. [1,2,<3,4,5>] => [1, 2, <...>]
- 2. way to gather ids (from term?) to collapse
- 3. way to apply projectors (to segment) given ids
-  */
-
 let comp_elipses = "⋱";
 let flat_ellipses = "…";
 let ellipses_term = () => IdTagged.fresh(Invalid(comp_elipses): Exp.term);
@@ -61,7 +49,6 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
     | Fun(_p, _e, _, None) => Invalid("<FUN>")
     | BuiltinFun(_f) => Invalid("<BUILTIN>")
     | Tuple([_]) => failwith("Singleton Tuples are not allowed")
-    //TODO(andrew): show exp below?
     | DynamicErrorHole(_exp, err) =>
       Invalid("<" ++ InvalidOperationError.show(err) ++ ">")
 
@@ -86,6 +73,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
 
     // composite literal cases
     | ListLit(xs) =>
+      //TODO(andrew): improve this logic
       if (available^ < 6) {
         ListLit([flat_ellipses_term()]);
       } else {
@@ -131,9 +119,6 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         };
       Tuple(go(xs));
     | Ap(Forward, {term: Constructor(_str, _), _} as konst, arg) =>
-      // if (String.length(str) + 3 >= available^) {
-      //   abbreviate_exp(konst).term;
-      // } else {
       let konst = abbreviate_exp(konst);
       available := available^ - 2;
       let arg =
@@ -143,25 +128,20 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           ellipses_term();
         };
       Ap(Forward, konst, arg);
-    // }
-    | Cons(e1, _e2) =>
-      //TODO: return used length from call, use that to make incorporate next elems
-      available := available^ - (2 + String.length(comp_elipses));
-      Cons(abbreviate_exp(e1), ellipses_term());
-
     | Parens(e, pt) =>
       available := available^ - 2;
       Parens(abbreviate_exp(e), pt);
 
-    //TODO(andrew)
-    | Filter(_) => failwith("TODO(andrew): Filter")
-    | Closure(_) => failwith("TODO(andrew): Closure")
-    | MultiHole(_es) => failwith("TODO(andrew)")
-    | TypFun(_tp, _e, _) => failwith("TODO(andrew)")
-    | FailedCast(_e, _, _t) => failwith("TODO(andrew)")
-    | Cast(_e, _, _t) => failwith("TODO(andrew)")
+    //unhandled atm
+    | Closure(_) => indet_term
+    | MultiHole(_es) => indet_term
+    | TypFun(_tp, _e, _) => indet_term
+    | FailedCast(_e, _, _t) => indet_term
+    | Cast(_e, _, _t) => indet_term
 
     //non-value
+    | Cons(_) => indet_term
+    | Filter(_) => indet_term
     | Ap(Forward, _e1, _e2) => indet_term
     | Ap(Reverse, _e1, _e2) => indet_term
     | Deferral(_d) => indet_term

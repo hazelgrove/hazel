@@ -238,7 +238,6 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let (e', ty) = elaborate(m, e);
       e' |> cast_from(ty);
     | Parens(e, probe) =>
-      //TODO(andrew): Matthew: Am I casting/rewrapping correctly?
       let (e', ty) = elaborate(m, e);
       let probe = Dynamics.Probe.instrument(m, Exp.rep_id(uexp), probe);
       Parens(e' |> cast_from(ty), probe) |> rewrap;

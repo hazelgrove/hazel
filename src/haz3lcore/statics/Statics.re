@@ -312,7 +312,6 @@ and uexp_to_info_map =
     /* Currently doing this as otherwise it clobbers the statics
      * for the contained expression as i'm just reusing the same id
      * in order to associate it through dynamics */
-    //TODO(andrew): ponder this
     go(~mode, e, m)
   | UnOp(Meta(Unquote), e) when is_in_filter =>
     let e: UExp.t = {

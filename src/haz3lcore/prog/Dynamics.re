@@ -38,7 +38,6 @@ module Probe = {
     let mk_entry = (env, {name, id, _}: Binding.t) =>
       switch (ClosureEnvironment.lookup(env, name)) {
       | Some(d) =>
-        //TODO(andrew): does this substitute make sense?
         let raw =
           d
           |> DHExp.strip_casts

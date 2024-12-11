@@ -361,8 +361,8 @@ and Exp: {
     | (Parens(x, Paren), _) => fast_equal(x, e2)
     | (_, DynamicErrorHole(x, _))
     | (_, Parens(x, Paren)) => fast_equal(e1, x)
-    //TODO(andrew): clarify below cases (basically syntactic equality)
-    // this is necessary to make EvalResult.calculate go after adding a projector
+    /* Below is kind of a hack to make EvalResult.calculate go after adding a projector.
+     * We should clarify syntactic/semantic equality here */
     | (Parens(x1, Probe(_)), Parens(x2, Probe(_))) => fast_equal(x1, x2)
     | (Parens(_, Probe(_)), _) => false
     | (EmptyHole, EmptyHole) => true

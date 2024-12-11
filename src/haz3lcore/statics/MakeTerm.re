@@ -201,7 +201,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         ret(Constructor(t, Unknown(Internal) |> Typ.temp))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body, Paren))
       | (["@@", "@@"], [Exp(body)]) =>
-        // TODO(andrew): apologize for this
+        // Temporary wrapping form to persist projector probes
         ret(Parens(body, Probe(Probe.empty)))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
