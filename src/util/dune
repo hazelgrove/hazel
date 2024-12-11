@@ -1,6 +1,6 @@
 (library
  (name util)
- (libraries re base ptmap bonsai bonsai.web virtual_dom yojson)
+ (libraries re base ptmap bonsai bonsai.web virtual_dom yojson ezgzip)
  (js_of_ocaml)
  (instrumentation
   (backend bisect_ppx))

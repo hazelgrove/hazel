@@ -465,6 +465,16 @@ let apply = (model: Model.t, update: t, ~schedule_action): Result.t(Model.t) => 
       let editor = Editors.get_editor(model.editors);
       export_scratch_slide(editor);
       Ok(model);
+    | Export(EncodeScratchSlide) =>
+      Model.save(model);
+      let editor = Editors.get_editor(model.editors);
+      let json_data = ScratchSlide.export(editor);
+      let compressed =
+        StringUtil.compress(json_data |> Yojson.Safe.to_string);
+      JsUtil.log(json_data);
+      JsUtil.log(compressed);
+      JsUtil.QueryParams.set_param("scratch", compressed);
+      Ok(model);
     | Export(ExerciseModule) =>
       Model.save(model);
       instructor_exercise_update(model, export_exercise_module);

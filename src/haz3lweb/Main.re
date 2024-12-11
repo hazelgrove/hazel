@@ -46,6 +46,7 @@ let apply = (model, action, ~schedule_action, ~schedule_autosave): Model.t => {
         "ERROR: Exception during apply: %s\n",
         Printexc.to_string(exc),
       );
+      Printf.printf("Action: %s\n", action |> UpdateAction.show);
       Error(Exception(Printexc.to_string(exc)));
     }
   ) {

@@ -129,7 +129,11 @@ let file_group_scratch = (~inject) =>
   item_group(
     ~inject,
     "File",
-    [ScratchMode.export_button(inject), ScratchMode.import_button(inject)],
+    [
+      ScratchMode.export_button(inject),
+      ScratchMode.encode_button(inject),
+      ScratchMode.import_button(inject),
+    ],
   );
 
 let reset_group_scratch = (~inject) =>

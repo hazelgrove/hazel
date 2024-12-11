@@ -1,5 +1,6 @@
 open Haz3lcore;
 open Util;
+open StringUtil;
 
 // A generic key-value store for saving/loading data to/from local storage
 module Generic = {
@@ -160,14 +161,26 @@ module Scratch = {
     scratch;
   };
 
-  let load = (~settings: CoreSettings.t): t =>
-    switch (JsUtil.get_localstore(save_scratch_key)) {
-    | None => init(~settings)
+  let load = (~settings: CoreSettings.t): t => {
+    switch (JsUtil.QueryParams.get_param("scratch")) {
     | Some(data) =>
-      try(deserialize(~settings, data)) {
-      | _ => init(~settings)
+      switch (decompress(data)) {
+      | None => init(~settings)
+      | Some(data) =>
+        try(deserialize(data, ~settings)) {
+        | _ => init(~settings)
+        }
+      }
+    | None =>
+      switch (JsUtil.get_localstore(save_scratch_key)) {
+      | None => init(~settings)
+      | Some(data) =>
+        try(deserialize(~settings, data)) {
+        | _ => init(~settings)
+        }
       }
     };
+  };
 
   let export = (~settings: CoreSettings.t): string =>
     serialize(load(~settings));

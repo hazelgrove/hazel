@@ -50,6 +50,12 @@ let export_button = (inject: Update.t => Ui_effect.t(unit)) =>
     _ => inject(Export(ExportScratchSlide)),
     ~tooltip="Export Scratchpad",
   );
+let encode_button = (inject: Update.t => Ui_effect.t(unit)) =>
+  Widgets.button_named(
+    Icons.export,
+    _ => inject(Export(EncodeScratchSlide)),
+    ~tooltip="Encode Scratchpad",
+  );
 let import_button = inject =>
   Widgets.file_select_button_named(
     "import-scratchpad",

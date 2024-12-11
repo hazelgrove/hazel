@@ -63,3 +63,20 @@ let unescape_linebreaks: string => string =
   Re.Str.global_replace(Re.Str.regexp("\\\\n"), "\n");
 
 let trim_leading = Re.Str.global_replace(Re.Str.regexp("\n[ ]*"), "\n");
+
+let compress = (s: string): string => {
+  let result =
+    Js_of_ocaml.Js.Unsafe.eval_string("encodeURIComponent(`" ++ s ++ "`)")
+    |> Js_of_ocaml.Js.to_string;
+  JsUtil.log(result);
+  result;
+};
+
+let decompress = (s: string): option(string) => {
+  let result =
+    Js_of_ocaml.Js.Unsafe.eval_string("decodeURIComponent(`" ++ s ++ "`)")
+    |> Js_of_ocaml.Js.Optdef.to_option
+    |> Option.map(Js_of_ocaml.Js.to_string);
+  JsUtil.log(result);
+  result;
+};
