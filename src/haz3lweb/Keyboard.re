@@ -276,7 +276,7 @@ let handle_key_event = (k: Key.t): option(UpdateAction.t) => {
     | (Down, "Home") => now(Select(Resize(Extreme(Left(ByToken)))))
     | (Down, "End") => now(Select(Resize(Extreme(Right(ByToken)))))
     | (_, "Enter") => now(Insert(Form.linebreak))
-    | _ when String.length(key) == 1 =>
+    | _ when StringUtil.length(key) == 1 =>
       /* Note: length==1 prevent specials like
        * SHIFT from being captured here */
       now(Insert(key))

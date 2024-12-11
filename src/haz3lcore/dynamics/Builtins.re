@@ -1,4 +1,5 @@
 open DHExp;
+open Util;
 
 /*
    Built-in functions for Hazel.
@@ -221,7 +222,7 @@ module Pervasives = {
     let string_length =
       unary(d =>
         switch (term_of(d)) {
-        | String(s) => Ok(Int(String.length(s)) |> fresh)
+        | String(s) => Ok(Int(StringUtil.length(s)) |> fresh)
         | _ => Error(InvalidBoxedStringLit(d))
         }
       );

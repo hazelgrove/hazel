@@ -545,7 +545,9 @@ let mk =
                   when
                     !settings.show_fixpoints
                     && String.ends_with(~suffix="+", name) =>
-                "<" ++ String.sub(name, 0, String.length(name) - 1) ++ ">"
+                "<"
+                ++ String.sub(name, 0, Util.StringUtil.length(name) - 1)
+                ++ ">"
               | Some(name) => "<" ++ name ++ ">"
               },
             ),
@@ -591,7 +593,7 @@ let mk =
               when
                 !settings.show_fixpoints
                 && String.ends_with(~suffix="+", name) =>
-            String.sub(name, 0, String.length(name) - 1)
+            String.sub(name, 0, Util.StringUtil.length(name) - 1)
           | Some(name) => name
           };
         annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"));
@@ -624,7 +626,9 @@ let mk =
         if (String.ends_with(~suffix="+", x)) {
           annot(
             DHAnnot.Collapsed,
-            text("<" ++ String.sub(x, 0, String.length(x) - 1) ++ ">"),
+            text(
+              "<" ++ String.sub(x, 0, Util.StringUtil.length(x) - 1) ++ ">",
+            ),
           );
         } else {
           annot(DHAnnot.Collapsed, text("<" ++ x ++ ">"));

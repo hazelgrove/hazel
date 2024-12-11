@@ -36,7 +36,7 @@ let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
     switch (doc.doc) {
     | Text(string) =>
       // TODO: cache text length in Text?
-      let pos' = pos + String.length(string); //Unicode.length(string);
+      let pos' = pos + Util.StringUtil.length(string); //Unicode.length(string);
       let cost =
         if (pos' <= width) {
           Cost.zero;

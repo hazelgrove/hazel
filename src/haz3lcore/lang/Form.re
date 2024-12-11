@@ -83,13 +83,13 @@ let string_delim = "\"";
 let empty_string = string_delim ++ string_delim;
 let is_string_delim = (==)(string_delim);
 let strip_quotes = s =>
-  if (String.length(s) < 2) {
+  if (StringUtil.length(s) < 2) {
     s;
   } else if (String.sub(s, 0, 1) != "\""
-             || String.sub(s, String.length(s) - 1, 1) != "\"") {
+             || String.sub(s, StringUtil.length(s) - 1, 1) != "\"") {
     s;
   } else {
-    String.sub(s, 1, String.length(s) - 2);
+    String.sub(s, 1, StringUtil.length(s) - 2);
   };
 let string_quote = s => "\"" ++ s ++ "\"";
 
@@ -116,7 +116,7 @@ let is_potential_operand = match(regexp("^[a-zA-Z0-9_'\\.?]+$"));
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]| */
 let potential_operator_regexp =
-  regexp("^[^a-zA-Z0-9_'`?\"#\n\\s\\[\\]\\(\\)]+$"); /* Multiline operators not supported */
+  regexp("^[^a-zA-Z0-9_'¿?\"#\n\\s\\[\\]\\(\\)]+$"); /* Multiline operators not supported */
 let is_potential_operator = match(potential_operator_regexp);
 let is_potential_token = t =>
   is_potential_operand(t)
@@ -202,9 +202,11 @@ let const_mono_delims =
   base_typs @ bools @ [undefined, wild, empty_list, empty_tuple, empty_string];
 
 let explicit_hole = "?";
-let implicit_hole = "`";
+let implicit_hole = "¿";
 let is_explicit_hole = t => t == explicit_hole;
-let is_implicit_hole = t => t == implicit_hole;
+let is_implicit_hole = t => {
+  t == implicit_hole;
+};
 let bad_token_cls: string => bad_token_cls =
   t =>
     switch () {

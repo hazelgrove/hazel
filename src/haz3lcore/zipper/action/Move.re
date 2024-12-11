@@ -432,7 +432,7 @@ module Make = (M: Editor.Meta.S) => {
   // TODO Move to a different file
   let remove_if_implicit_hole = z => {
     switch (Indicated.piece'(~no_ws=false, ~ign=_ => false, z)) {
-    | Some((Tile({label: l, _}), Left, _)) when l == ["`"] =>
+    | Some((Tile({label: l, _}), Left, _)) when l == ["¿"] =>
       Destruct.go(Left, z) |> Option.map(remold_regrout(Left))
     | _ => Some(z)
     };

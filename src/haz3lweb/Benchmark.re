@@ -42,7 +42,7 @@ let non_empty_hole : Int = true in
 
 let str_to_inserts = (str: string): list(UpdateAction.t) =>
   List.init(
-    String.length(str),
+    StringUtil.length(str),
     i => {
       let c = String.sub(str, i, 1);
       UpdateAction.PerformAction(Insert(c));

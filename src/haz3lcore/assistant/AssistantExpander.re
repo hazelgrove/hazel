@@ -4,7 +4,7 @@
  * inserted into the syntax so will not be reflected
  * in the decoration metrics */
 
-let last = t => String.sub(t, String.length(t) - 1, 1);
+let last = t => String.sub(t, Util.StringUtil.length(t) - 1, 1);
 
 let is_expander = (label: Label.t) =>
   switch (label) {

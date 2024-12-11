@@ -45,7 +45,7 @@ let to_rows =
   switch (caret) {
   | Some({row, col}) =>
     switch (ListUtil.split_nth_opt(row, rows)) {
-    | Some((pre, caret_row, suf)) when col < String.length(caret_row) =>
+    | Some((pre, caret_row, suf)) when col < StringUtil.length(caret_row) =>
       pre @ [StringUtil.insert_nth(col, caret_str, caret_row)] @ suf
     | Some((pre, caret_row, suf)) => pre @ [caret_row ++ caret_str] @ suf
     | _ => rows

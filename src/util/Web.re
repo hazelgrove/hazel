@@ -67,7 +67,7 @@ module TextArea = {
       switch (lines) {
       | [] => {row, col}
       | [line, ...rest] =>
-        let line_length = String.length(line);
+        let line_length = StringUtil.length(line);
         if (cur_pos <= line_length) {
           {row, col: cur_pos};
         } else {
@@ -99,7 +99,7 @@ module TextArea = {
     let full_row = List.nth(lines, row);
     {
       rows: rel(row, List.length(lines) - 1),
-      cols: rel(col, String.length(full_row)),
+      cols: rel(col, StringUtil.length(full_row)),
     };
   };
 
@@ -129,7 +129,7 @@ module TextArea = {
 
   let set_caret_to_end = (textarea: t): unit => {
     textarea##focus;
-    let content_length = String.length(content(textarea));
+    let content_length = StringUtil.length(content(textarea));
     textarea##.selectionStart := content_length;
     textarea##.selectionEnd := content_length;
   };

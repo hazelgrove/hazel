@@ -1,29 +1,45 @@
 let cat = String.concat("");
-
+let length = (s: string): int => {
+  Uuseg_string.fold_utf_8(`Grapheme_cluster, (a, _) => a + 1, 0, s);
+};
 let remove_nth = (n, t) => {
-  assert(n < String.length(t));
-  String.sub(t, 0, n) ++ String.sub(t, n + 1, String.length(t) - n - 1);
+  assert(n < length(t));
+  String.sub(t, 0, n) ++ String.sub(t, n + 1, length(t) - n - 1);
 };
 
 let remove_first = remove_nth(0);
-let remove_last = t => remove_nth(String.length(t) - 1, t);
+let remove_last = t => remove_nth(length(t) - 1, t);
 
 let insert_nth = (n, s, t) => {
   assert(n < String.length(t));
-  String.sub(t, 0, n) ++ s ++ String.sub(t, n, String.length(t) - n);
+  String.sub(t, 0, n) ++ s ++ String.sub(t, n, length(t) - n);
 };
 
 let split_nth = (n, t) => {
   assert(n < String.length(t));
-  (String.sub(t, 0, n), String.sub(t, n, String.length(t) - n));
+  (String.sub(t, 0, n), String.sub(t, n, length(t) - n));
 };
 
-let to_list = s => List.init(String.length(s), i => String.make(1, s.[i]));
+let to_list = s => {
+  let ret =
+    List.rev(
+      Uuseg_string.fold_utf_8(
+        `Grapheme_cluster,
+        (tl, hd) => [hd] @ tl,
+        [],
+        s,
+      ),
+    );
+  print_endline(
+    "Splitting: " ++ s ++ " into " ++ [%derive.show: list(string)](ret),
+  );
+  ret;
+};
 
 let repeat = (n, s) => String.concat("", List.init(n, _ => s));
 
 let abbreviate = (max_len, s) =>
-  String.length(s) > max_len ? String.sub(s, 0, max_len) ++ "..." : s;
+  length(s) > max_len ? String.sub(s, 0, max_len) ++ "..." : s;
 
 type regexp = Js_of_ocaml.Regexp.regexp;
 
@@ -39,7 +55,7 @@ let split = Js_of_ocaml.Regexp.split;
 let to_lines = String.split_on_char('\n');
 
 let line_widths = (s: string): list(int) =>
-  s |> to_lines |> List.map(String.length);
+  s |> to_lines |> List.map(length);
 
 let max_line_width = (s: string): int =>
   s |> line_widths |> List.fold_left(max, 0);

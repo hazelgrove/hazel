@@ -5,7 +5,7 @@ type t = string;
 
 let eq = String.equal;
 
-let length = String.length;
+let length = StringUtil.length;
 
 let is_true = eq("true");
 
@@ -21,7 +21,7 @@ let is_wild = eq("_");
 
 let split = (pos, name) => {
   let left_var = String.sub(name, 0, pos);
-  let right_var = String.sub(name, pos, String.length(name) - pos);
+  let right_var = String.sub(name, pos, StringUtil.length(name) - pos);
   (left_var, right_var);
 };
 

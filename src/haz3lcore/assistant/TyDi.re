@@ -1,6 +1,6 @@
 open Util.OptUtil.Syntax;
 open Suggestion;
-
+open Util;
 /* Suggest the token at the top of the backpack, if we can put it down */
 let suggest_backpack = (z: Zipper.t): list(Suggestion.t) => {
   /* Note: Sort check unnecessary here as wouldn't be able to put down */
@@ -61,8 +61,8 @@ let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
   let candidate_suffix =
     String.sub(
       candidate,
-      String.length(current),
-      String.length(candidate) - String.length(current),
+      StringUtil.length(current),
+      StringUtil.length(candidate) - StringUtil.length(current),
     );
   candidate_suffix == "" ? None : Some(candidate_suffix);
 };

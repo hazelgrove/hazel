@@ -205,7 +205,7 @@ let go_z =
     Move.remove_all_implicit_holes(z)
     |> Result.of_option(~error=Action.Failure.Cant_move)
   | ReparseToExplicitGrout =>
-    switch (Printer.reparse(~holes="`", z)) {
+    switch (Printer.reparse(~holes="¿", z)) {
     | None => Error(CantReparse)
     | Some(z) => Ok(z)
     }
