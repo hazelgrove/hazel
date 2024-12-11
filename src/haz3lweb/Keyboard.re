@@ -103,6 +103,11 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
   | {key: D("ƒ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     /* Curly ƒ is what holding option turns f into on Mac */
     Some(Project(ToggleIndicated(Fold)))
+  | {key: D("v"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    Some(Project(ToggleIndicated(Probe)))
+  | {key: D("√"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    /* √ is what holding option turns f into on Mac */
+    Some(Project(ToggleIndicated(Probe)))
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (key) {
     | "ArrowLeft" => now(MoveToBackpackTarget(Left(ByToken)))
