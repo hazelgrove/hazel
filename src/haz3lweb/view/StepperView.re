@@ -289,6 +289,7 @@ module Update = {
              evaluation: {
                ...a.evaluation,
                show_settings: true,
+               stepper_history: true,
              },
            }
            == CoreSettings.{
@@ -296,6 +297,7 @@ module Update = {
                 evaluation: {
                   ...b.evaluation,
                   show_settings: true,
+                  stepper_history: true,
                 },
               }
          });
