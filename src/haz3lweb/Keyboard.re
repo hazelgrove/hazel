@@ -214,13 +214,17 @@ let shortcuts = (sys: Key.sys): list(shortcut) =>
       // ctrl+k conflicts with the command palette
       ~section="Diagnostics",
       ~mdIcon="refresh",
-      "Reify implicit holes",
+      "Reparse Current Editor",
       PerformAction(Reparse),
     ),
     mk_shortcut(
-      ~mdIcon="refresh",
       ~section="Diagnostics",
-      "Remove all implicit holes",
+      "Reparse with explicit empty grout",
+      PerformAction(ReparseToExplicitGrout),
+    ),
+    mk_shortcut(
+      ~section="Diagnostics",
+      "Restore implicit holes",
       PerformAction(RemoveAllImplicitHoles),
     ),
     mk_shortcut(

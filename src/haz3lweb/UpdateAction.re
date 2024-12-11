@@ -256,6 +256,7 @@ let should_scroll_to_caret =
     | Copy
     | Cut
     | RemoveAllImplicitHoles
+    | ReparseToExplicitGrout
     | Reparse => true
     | Project(_)
     | Unselect(_)

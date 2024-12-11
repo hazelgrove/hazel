@@ -85,7 +85,8 @@ type t =
   | MoveToBackpackTarget(planar)
   | Pick_up
   | Put_down
-  | RemoveAllImplicitHoles;
+  | RemoveAllImplicitHoles
+  | ReparseToExplicitGrout;
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -116,6 +117,7 @@ let is_edit: t => bool =
   | Pick_up
   | Put_down
   | RemoveAllImplicitHoles
+  | ReparseToExplicitGrout
   | Buffer(Accept | Clear | Set(_)) => true
   | Copy
   | Move(_)
@@ -153,6 +155,7 @@ let is_historic: t => bool =
   | Insert(_)
   | Destruct(_)
   | Pick_up
+  | ReparseToExplicitGrout
   | RemoveAllImplicitHoles
   | Put_down => true
   | Project(p) =>
@@ -183,7 +186,8 @@ let prevent_in_read_only_editor = (a: t) => {
   | Put_down
   | RotateBackpack
   | MoveToBackpackTarget(_)
-  | RemoveAllImplicitHoles => true
+  | RemoveAllImplicitHoles
+  | ReparseToExplicitGrout => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_) => true

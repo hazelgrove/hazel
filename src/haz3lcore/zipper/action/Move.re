@@ -449,9 +449,7 @@ module Make = (M: Editor.Meta.S) => {
     };
 
   let remove_all_implicit_holes = z => {
-    print_endline("Before going left");
-    let y = go(Goal(Point(Point.zero)), z);
-    print_endline("After going left");
-    y |> Option.bind(_, move_right_and_perform(remove_if_implicit_hole));
+    go(Goal(Point(Point.zero)), z)
+    |> Option.bind(_, move_right_and_perform(remove_if_implicit_hole));
   };
 };

@@ -204,6 +204,11 @@ let go_z =
   | RemoveAllImplicitHoles =>
     Move.remove_all_implicit_holes(z)
     |> Result.of_option(~error=Action.Failure.Cant_move)
+  | ReparseToExplicitGrout =>
+    switch (Printer.reparse(~holes="`", z)) {
+    | None => Error(CantReparse)
+    | Some(z) => Ok(z)
+    }
   | MoveToBackpackTarget((Left(_) | Right(_)) as d) =>
     if (Backpack.restricted(z.backpack)) {
       Move.to_backpack_target(d, z)
