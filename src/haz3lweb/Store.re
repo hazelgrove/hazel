@@ -164,13 +164,11 @@ module Scratch = {
   let load = (~settings: CoreSettings.t): t => {
     switch (JsUtil.QueryParams.get_param("scratch")) {
     | Some(data) =>
-      switch (decompress(data)) {
-      | None => init(~settings)
-      | Some(data) =>
-        try(deserialize(data, ~settings)) {
-        | _ => init(~settings)
-        }
-      }
+      let zip = decompress(data);
+      of_persistent(
+        ~settings,
+        (0, [PersistentZipper.persist_text_only(zip)], []),
+      );
     | None =>
       switch (JsUtil.get_localstore(save_scratch_key)) {
       | None => init(~settings)

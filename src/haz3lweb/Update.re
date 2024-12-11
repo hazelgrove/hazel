@@ -468,11 +468,8 @@ let apply = (model: Model.t, update: t, ~schedule_action): Result.t(Model.t) => 
     | Export(EncodeScratchSlide) =>
       Model.save(model);
       let editor = Editors.get_editor(model.editors);
-      let json_data = ScratchSlide.export(editor);
-      let compressed =
-        StringUtil.compress(json_data |> Yojson.Safe.to_string);
-      JsUtil.log(json_data);
-      JsUtil.log(compressed);
+      let printed = Printer.to_string_basic(editor.state.zipper);
+      let compressed = StringUtil.compress(printed);
       JsUtil.QueryParams.set_param("scratch", compressed);
       Ok(model);
     | Export(ExerciseModule) =>
