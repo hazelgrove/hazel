@@ -7,8 +7,8 @@ let evaluation_test = (msg, expected, unevaluated) =>
     dhexp_typ,
     msg,
     expected,
-    Evaluator.Result.unbox(
-      snd(Evaluator.evaluate(Builtins.env_init, {d: unevaluated})),
+    ProgramResult.Result.unbox(
+      snd(Evaluator.evaluate'(Builtins.env_init, {d: unevaluated})),
     ),
   );
 

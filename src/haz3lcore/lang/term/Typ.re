@@ -34,6 +34,29 @@ let fresh: term => t = IdTagged.fresh;
 let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
 let rep_id: t => Id.t = IdTagged.rep_id;
 
+let all_ids_temp = {
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, exp) => {...exp, ids: [Id.invalid]} |> continue;
+  map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
+};
+
+let (replace_temp, replace_temp_exp) = {
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, exp) =>
+      {...exp, ids: exp.ids == [Id.invalid] ? [Id.mk()] : exp.ids}
+      |> continue;
+  (
+    map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    TermBase.Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+  );
+};
+
 let hole = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
   switch (tms) {
   | [] => Unknown(Hole(EmptyHole))
