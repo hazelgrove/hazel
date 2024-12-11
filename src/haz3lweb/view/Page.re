@@ -42,7 +42,7 @@ let handlers =
       Effect.Ignore;
     }),
     Attr.on_copy(_ => {
-      JsUtil.copy(Printer.to_string_selection(editor));
+      JsUtil.copy(Printer.to_string_selection(~holes="¿", editor));
       Effect.Ignore;
     }),
     Attr.on_cut(_ => {

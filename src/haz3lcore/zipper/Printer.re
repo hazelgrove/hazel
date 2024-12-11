@@ -78,12 +78,12 @@ let zipper_to_string =
   )
   |> String.concat("\n");
 
-let to_string_selection = (editor: Editor.t): string =>
+let to_string_selection = (~holes=?, editor: Editor.t): string =>
   to_rows(
     ~measured=measured(editor.state.zipper),
     ~caret=None,
     ~indent=" ",
-    ~holes=None,
+    ~holes,
     ~segment=editor.state.zipper.selection.content,
   )
   |> String.concat("\n");
