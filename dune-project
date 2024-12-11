@@ -40,6 +40,7 @@
   unionFind
   ocamlformat
   (junit_alcotest :with-test)
-  ocaml-lsp-server)) ; After upgrading to opam 2.2 use with-dev https://opam.ocaml.org/blog/opam-2-2-0/
+  ocaml-lsp-server
+  uuseg)) ; After upgrading to opam 2.2 use with-dev https://opam.ocaml.org/blog/opam-2-2-0/
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html
