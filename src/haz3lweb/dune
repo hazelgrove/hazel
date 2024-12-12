@@ -8,14 +8,16 @@
 (library
  (name workerServer)
  (modules WorkerServer)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries
+  str
   bonsai
   bonsai.web
   virtual_dom.input_widgets
   util
   ppx_yojson_conv.expander
   haz3lcore
-  haz3lschool
   pretty
   omd)
  (js_of_ocaml)
@@ -29,8 +31,10 @@
 
 (library
  (name haz3lweb)
+ (instrumentation
+  (backend bisect_ppx))
  (modules
-  (:standard \ Main)
+  (:standard \ Main Gradescope)
   \
   Worker
   WorkerServer)
@@ -45,7 +49,6 @@
   util
   ppx_yojson_conv.expander
   haz3lcore
-  haz3lschool
   pretty
   omd)
  (js_of_ocaml)
@@ -55,7 +58,8 @@
    ppx_let
    ppx_sexp_conv
    ppx_deriving.show
-   ppx_yojson_conv)))
+   ppx_yojson_conv
+   bonsai.ppx_bonsai)))
 
 (executable
  (name main)

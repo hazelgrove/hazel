@@ -22,6 +22,9 @@ let pp: ((Format.formatter, 'a) => unit, Format.formatter, t('a)) => unit =
 let fresh = term => {
   {ids: [Id.mk()], copied: false, term};
 };
+let fresh_deterministic = (prev_id, term) => {
+  {ids: [Id.next(prev_id)], copied: false, term};
+};
 
 let term_of = x => x.term;
 let unwrap = x => (x.term, term' => {...x, term: term'});

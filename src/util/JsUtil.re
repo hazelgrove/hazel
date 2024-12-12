@@ -1,5 +1,6 @@
 open Js_of_ocaml;
 open Virtual_dom.Vdom;
+open Js_of_ocaml.Url;
 
 let get_elem_by_id = id => {
   let doc = Dom_html.document;
@@ -20,6 +21,22 @@ let get_elem_by_selector = selector => {
       print_endline(selector);
       assert(false);
     },
+  );
+};
+
+let get_child_with_class = (element: Js.t(Dom_html.element), className) => {
+  let rec loop = (sibling: Js.t(Dom_html.element)) =>
+    if (Js.to_bool(sibling##.classList##contains(Js.string(className)))) {
+      Some(sibling);
+    } else {
+      loop(
+        Js.Opt.get(sibling##.nextSibling, () => failwith("no sibling"))
+        |> Js.Unsafe.coerce,
+      );
+    };
+  loop(
+    Js.Opt.get(element##.firstChild, () => failwith("no child"))
+    |> Js.Unsafe.coerce,
   );
 };
 
@@ -173,4 +190,67 @@ module Fragment = {
       };
     Url.Current.get() |> Option.map(fragment_of_url);
   };
+};
+
+module QueryParams = {
+  let get_arguments = (url: Url.url): list((string, string)) =>
+    switch (url) {
+    | Http({hu_arguments, _}) => hu_arguments
+    | Https({hu_arguments, _}) => hu_arguments
+    | File({fu_arguments, _}) => fu_arguments
+    };
+
+  let set_arguments = (url: Url.url, args: list((string, string))): Url.url =>
+    switch (url) {
+    | Http(u) => Http({...u, hu_arguments: args})
+    | Https(u) => Https({...u, hu_arguments: args})
+    | File(u) => File({...u, fu_arguments: args})
+    };
+
+  let get_param = (name: string) => {
+    let q_opt =
+      Url.Current.get()
+      |> Option.map(url =>
+           url |> get_arguments |> List.find_opt(((k, _)) => k == name)
+         );
+    switch (q_opt) {
+    | Some(Some((_, v))) => Some(v)
+    | _ => None
+    };
+  };
+
+  let set_param = (name: string, value: string) => {
+    Url.Current.get()
+    |> Option.iter(url => {
+         let args =
+           get_arguments(url)
+           |> List.filter(((k, _)) => k != name)
+           |> List.cons((name, value));
+
+         let new_url = set_arguments(url, args);
+         let href = Url.string_of_url(new_url);
+
+         Dom_html.window##.history##pushState(
+           Js.null,
+           Js.string(""),
+           Js.some(Js.string(href)),
+         );
+       });
+  };
+
+  let remove_param = (name: string) =>
+    Url.Current.get()
+    |> Option.iter(url => {
+         let args =
+           get_arguments(url) |> List.filter(((k, _)) => k != name);
+
+         let new_url = set_arguments(url, args);
+         let href = Url.string_of_url(new_url);
+
+         Dom_html.window##.history##pushState(
+           Js.null,
+           Js.string(""),
+           Js.some(Js.string(href)),
+         );
+       });
 };

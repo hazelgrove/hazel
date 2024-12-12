@@ -18,10 +18,10 @@ change-deps:
 	sed -i'.old' '/host-/d' hazel.opam.locked  # remove host- lines which are arch-specific. Not using -i '' because of portability issues https://stackoverflow.com/questions/4247068/sed-command-with-i-option-failing-on-mac-but-works-on-linux
 
 setup-instructor:
-	cp src/haz3lweb/ExerciseSettings_instructor.re src/haz3lweb/ExerciseSettings.re
+	cp src/haz3lweb/exercises/settings/ExerciseSettings_instructor.re src/haz3lweb/exercises/settings/ExerciseSettings.re
 
 setup-student: 
-	cp src/haz3lweb/ExerciseSettings_student.re src/haz3lweb/ExerciseSettings.re
+	cp src/haz3lweb/exercises/settings/ExerciseSettings_student.re src/haz3lweb/exercises/settings/ExerciseSettings.re
 
 dev-helper:
 	dune fmt --auto-promote || true
@@ -50,7 +50,7 @@ echo-html-dir:
 	@echo $(HTML_DIR)
 
 serve:
-	cd $(HTML_DIR); python3 -m http.server 8000
+	cd $(HTML_DIR); python3 -m http.server 8000 --bind 127.0.0.1
 
 serve2:
 	cd $(HTML_DIR); python3 -m http.server 8001
@@ -65,6 +65,14 @@ test:
 
 watch-test:
 	dune build @ocaml-index @fmt @runtest --auto-promote --watch
+
+coverage:
+	dune build @src/fmt @test/fmt --auto-promote src test --profile dev
+	dune runtest --instrument-with bisect_ppx --force
+	bisect-ppx-report summary
+
+generate-coverage-html:
+	bisect-ppx-report html
 
 clean:
 	dune clean

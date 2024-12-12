@@ -209,19 +209,21 @@ and uexp_to_info_map =
       ([], m),
     );
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
+  let go_typ = utyp_to_info_map(~ctx, ~ancestors);
   let atomic = self => add(~self, ~co_ctx=CoCtx.empty, m);
   switch (term) {
-  | Closure(_) =>
-    failwith(
-      "TODO: implement closure type checking - see how dynamic type assignment does it",
-    )
+  | Closure(_, e) =>
+    // TODO: implement closure type checking properly - see how dynamic type assignment does it
+    let (e, m) = go(~mode, e, m);
+    add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
   | MultiHole(tms) =>
     let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
     add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
-  | Cast(e, t1, t2)
-  | FailedCast(e, t1, t2) =>
-    let (e, m) = go(~mode=Ana(t1), e, m);
-    add(~self=Just(t2), ~co_ctx=e.co_ctx, m);
+  | Cast(e, _, t2)
+  | FailedCast(e, _, t2) =>
+    let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, m);
+    let (e, m) = go'(~mode=Ana(t.term), ~ctx=t.ctx, e, m);
+    add(~self=Just(t.term), ~co_ctx=e.co_ctx, m);
   | Invalid(token) => atomic(BadToken(token))
   | EmptyHole => atomic(Just(Unknown(Internal) |> Typ.temp))
   | Deferral(position) =>
@@ -278,13 +280,13 @@ and uexp_to_info_map =
       copied: false,
       term:
         switch (e.term) {
-        | Var("e") => UExp.Constructor("$e", Unknown(Internal) |> Typ.temp)
-        | Var("v") => UExp.Constructor("$v", Unknown(Internal) |> Typ.temp)
+        | Var("e") => Constructor("$e", Unknown(Internal) |> Typ.temp)
+        | Var("v") => Constructor("$v", Unknown(Internal) |> Typ.temp)
         | _ => e.term
         },
     };
-    let ty_in = Typ.Var("$Meta") |> Typ.temp;
-    let ty_out = Typ.Unknown(Internal) |> Typ.temp;
+    let ty_in = Var("$Meta") |> Typ.temp;
+    let ty_out = Unknown(Internal) |> Typ.temp;
     let (e, m) = go(~mode=Ana(ty_in), e, m);
     add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
   | UnOp(op, e) =>
@@ -442,8 +444,7 @@ and uexp_to_info_map =
         let def_ctx = p_ana'.ctx;
         let (def_base2, _) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
         let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
-          Typ.term_of(ty_p) == Typ.Unknown(SynSwitch)
-          && !Typ.eq(ty_fn1, ty_fn2)
+          Typ.term_of(ty_p) == Unknown(SynSwitch) && !Typ.eq(ty_fn1, ty_fn2)
             ? ty_fn1 : ty_p;
         };
         let ana =
@@ -454,7 +455,7 @@ and uexp_to_info_map =
           | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
             let tys =
               List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
-            Typ.Prod(tys) |> Typ.temp;
+            Prod(tys) |> Typ.temp;
           | ((_, _), _) => ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
           };
         let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(ana), def, m);
@@ -632,7 +633,7 @@ and uexp_to_info_map =
              use a different name than the alias for the recursive parameter */
           //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
           let ty_rec =
-            Typ.Rec(TPat.Var(name) |> IdTagged.fresh, utyp) |> Typ.temp;
+            Rec((Var(name): TPat.term) |> IdTagged.fresh, utyp) |> Typ.temp;
           let ctx_def =
             Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
@@ -713,7 +714,7 @@ and upat_to_info_map =
   let atomic = (self, constraint_) => add(~self, ~ctx, ~constraint_, m);
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
   let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx);
-  let unknown = Typ.Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
+  let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
   let ctx_fold = (ctx: Ctx.t, m) =>
     List.fold_left2(
       ((ctx, tys, cons, m), e, mode) =>
