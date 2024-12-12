@@ -338,7 +338,6 @@ and uexp_to_info_map =
     switch (fn_uexp.term) {
     | LivelitInvocation(s) =>
       // refer to livelit context to find types
-      print_endline("Livelit invocation " ++ s);
       let ll = Livelit.find_livelit(s);
       let expansion_t = ll.expansion_t;
       let model_t = ll.model_t;

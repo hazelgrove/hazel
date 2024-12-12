@@ -16,7 +16,7 @@ export async function emulateKeyCombination(
 	page: Page,
 	elm: ElementHandle,
 	key: string,
-	modifierKey: "Control" | "Meta",
+	modifierKey?: "Control" | "Meta",
 ): Promise<void> {
 	await page.evaluate(
 		(elm, key, modifierKey) => {

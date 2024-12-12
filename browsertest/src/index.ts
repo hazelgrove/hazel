@@ -13,7 +13,7 @@ const RecorderConfig = {
 	fps: 60,
 	videoFrame: {
 		width: 1024,
-		height: 1024,
+		height: 512,
 	},
 	videoCrf: 18,
 	videoCodec: "libx264",
@@ -134,6 +134,18 @@ class Cell {
 		}
 	}
 
+	async cursorToEnd() {
+		// press right arrow key until cursor reaches end
+		const codeContainer = await this.elementHandle.$(
+			".code-container .code-text",
+		);
+		if (!codeContainer) throw new Error("Code container not found");
+
+		for (let i = 0; i < 50; i++) {
+			await codeContainer.press("ArrowRight");
+		}
+	}
+
 	async clickQuery(query: string) {
 		const codeContainer = await this.elementHandle.$(
 			".code-container .code-text",
@@ -143,7 +155,6 @@ class Cell {
 		const html = await codeContainer.evaluate((el) => el.innerHTML);
 		console.log("html:", html);
 		const span = findSpanByQuery(html, query);
-		//findSpanByQuery(await codeContainer.evaluate(el => el.children[0].innerHTML, query), query);
 
 		if (span) {
 			await span.click();
@@ -154,20 +165,18 @@ class Cell {
 }
 
 class HazelController {
-	private browser: Browser | null = null;
+	browser: Browser | null = null;
 	private recorder: PuppeteerScreenRecorder | null = null;
 	page: Page | null = null;
 
 	async launch(url: string, record = false) {
-		this.browser = await puppeteer.launch({ headless: true });
-		// set resolution
+		this.browser = await puppeteer.launch({ headless: false });
 		this.page =
 			(await this.browser.pages().then((pages) => pages[0])) ||
 			(await this.browser.newPage());
-		await this.page.setViewport({ width: 1024, height: 1024 });
+		await this.page.setViewport({ width: 1024, height: 512 });
 		await this.page.goto(url);
 
-		// wait for class "loading" to disappear
 		await this.page?.waitForFunction(() => {
 			const loading = document.querySelector(".loading");
 			return !loading;
@@ -192,7 +201,6 @@ class HazelController {
 	async selectMode(mode: string) {
 		await this.page?.select("#editor-mode select", mode);
 
-		// wait until id="main" has the class that matches the mode
 		await this.page?.waitForFunction(
 			(mode) => {
 				const main = document.getElementById("main");
@@ -201,6 +209,21 @@ class HazelController {
 			{},
 			mode,
 		);
+	}
+
+	async setProjectorMode(mode: string) {
+		console.log("Setting projector mode to", mode);
+		await this.page?.select("#projectors select", mode);
+	}
+
+	async enableProjector() {
+		console.log("Enabling projector");
+		const toggleSwitch = await this.page?.$(".toggle-knob");
+		if (toggleSwitch) {
+			await toggleSwitch.click();
+		} else {
+			throw new Error("Toggle switch not found");
+		}
 	}
 
 	async getCells(): Promise<Cell[]> {
@@ -213,7 +236,6 @@ class HazelController {
 					(el) => el.children[0].className,
 				);
 				let ids = [];
-				// if we have class cell-item, also add all of the children classes
 				if (classes.includes("cell-item")) {
 					const childrenClasses = await elementHandle.evaluate((el) =>
 						Array.from(el.children[0].children)
@@ -222,7 +244,6 @@ class HazelController {
 					);
 					classes += " " + childrenClasses;
 				}
-				// retrieve all ids from deep descendants
 				ids = await elementHandle.evaluate((el) =>
 					Array.from(el.querySelectorAll("[id]")).map(
 						(el: Element) => el.id,
@@ -243,8 +264,16 @@ class HazelController {
 	}
 }
 
-const livelit = `llslider`;
-
+//const livelit = `(^popup("<marquee>the haters are ill-prepared</marquee>"))`;
+const livelit = `
+	let emotion = (^emotion(50)) in
+	case (emotion) 
+	| "happy" => "Hooray! What a pleasant day!"
+	| "neutral" => "Things are medium, I suppose."
+	| "sad" => "Sorrow sorrow, today and tomorrow."
+	| _ => "You have broken my trust, and frankly, our friendship"
+	end
+`;
 // Usage example
 (async () => {
 	const controller = new HazelController();
@@ -260,12 +289,29 @@ const livelit = `llslider`;
 	const scratchCell = cells[0];
 
 	await scratchCell.clearContent();
-	await scratchCell.typeString(livelit);
-	await wait(1000);
+	await scratchCell.typeString(livelit, 25);
+	await wait(250);
+	// go to the end line
+	await scratchCell.cursorToEnd();
+	await wait(250);
+
+	// projector "livelit"
+	await controller.setProjectorMode("livelit");
+	await wait(500);
+	// await controller.enableProjector();
+	// await wait(1000);
 
 	// save screenshot
 	await controller.page?.screenshot({ path: `screenshot-${new Date().getTime()}.png` });
 
+	// go to popup
+	const pages = await controller.browser!.pages(); // get all open pages by the browser
+	const popup = pages[pages.length - 1];
+	await popup.bringToFront();
+
+	const zoomCommand = `document.body.style.fontSize = "72px";`;
+	await popup.evaluate(zoomCommand);
+	await wait(5000);
 	// Close browser
 	await controller.close();
 })();

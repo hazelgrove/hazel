@@ -71,7 +71,7 @@ module M: Projector = {
   let can_project = p => true;
   let can_focus = false;
   let placeholder = (model, info) => {
-    let ll =
+    let llname =
       switch (info.ci) {
       | Some(InfoExp(exp)) =>
         let (term, _) = UExp.unwrap(exp.term);
@@ -98,7 +98,7 @@ module M: Projector = {
         };
       | _ => failwith("LivelitProj: Not an InfoExp term")
       };
-    let ll = Livelit.find_livelit(ll);
+    let ll = Livelit.find_livelit(llname);
     Inline(ll.size);
   };
   let update = (model, _) => model;
