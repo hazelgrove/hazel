@@ -2,11 +2,10 @@ import puppeteer, { Page, ElementHandle, Browser } from "puppeteer";
 import { PuppeteerScreenRecorder } from "puppeteer-screen-recorder";
 import {
 	emulateKeyCombination,
-	findSpanByQuery,
-	findSpanByRowCol,
+    extractTextAndMapping
 } from "./utils";
 
-process.chdir('../out');
+process.chdir('./out');
 
 const RecorderConfig = {
 	followNewTab: true,
@@ -22,7 +21,7 @@ const RecorderConfig = {
 	autopad: {
 		color: "black",
 	},
-	aspectRatio: "1:1",
+	aspectRatio: "2:1",
 };
 
 function wait(time: number) {
@@ -97,8 +96,7 @@ class Cell {
 		}
 	}
 
-	async typeString(string: string, delay = 0, waitForCompletion = false) {
-		// select the code container
+	async typeString(string: string, delay = 0) {
 		const codeContainer = await this.elementHandle.$(
 			".code-container .code-text",
 		);
@@ -117,50 +115,47 @@ class Cell {
 		}
 	}
 
-	async clickRowCol(row: number, col: number) {
-		const codeContainer = await this.elementHandle.$(
-			".code-container .code-text",
-		);
-		if (!codeContainer) throw new Error("Code container not found");
-
-		const html = await codeContainer.evaluate((el) => el.innerHTML);
-		console.log("html:", html);
-		const span = findSpanByRowCol(html, row, col);
-
-		if (span) {
-			await span.click();
-		} else {
-			throw new Error(`Span not found at row ${row} and col ${col}`);
-		}
-	}
-
 	async cursorToEnd() {
-		// press right arrow key until cursor reaches end
 		const codeContainer = await this.elementHandle.$(
 			".code-container .code-text",
 		);
 		if (!codeContainer) throw new Error("Code container not found");
 
+		// Press the right arrow key multiple times to move cursor to end.
 		for (let i = 0; i < 50; i++) {
 			await codeContainer.press("ArrowRight");
 		}
 	}
 
-	async clickQuery(query: string) {
-		const codeContainer = await this.elementHandle.$(
-			".code-container .code-text",
-		);
-		if (!codeContainer) throw new Error("Code container not found");
+	/**
+	 * Searches the cell's code container text for a given substring and clicks on the position
+	 * at the start or end of that substring. Uses extractTextAndMapping to map from text indices
+	 * to elements, then clicks the corresponding element. This won't necessarily guarantee cursor
+	 * placement at a precise character boundary, but it should get you close.
+	 */
+	async clickAtSubstring(substring: string, position: "start" | "end" = "end") {
+		const containerSelector = ".code-container .code-text";
+		const { text, mapping } = await extractTextAndMapping(this.page, containerSelector);
 
-		const html = await codeContainer.evaluate((el) => el.innerHTML);
-		console.log("html:", html);
-		const span = findSpanByQuery(html, query);
-
-		if (span) {
-			await span.click();
-		} else {
-			throw new Error(`Span not found for query "${query}"`);
+		const index = text.indexOf(substring);
+		if (index === -1) {
+			throw new Error(`Substring "${substring}" not found`);
 		}
+		const charIndex = position === "start" ? index : index + substring.length - 1;
+		const target = mapping.find((m) => m.index === charIndex);
+		if (!target) {
+			throw new Error(`Mapping not found for character index ${charIndex}`);
+		}
+
+		const elementHandle = await this.page.$(target.selectorPath);
+		if (!elementHandle) {
+			throw new Error(`Element at selector path ${target.selectorPath} not found`);
+		}
+
+        console.log(`Clicking at character ${charIndex} in substring "${substring}"`);
+
+		// Click the element that represents that character position
+		await elementHandle.click();
 	}
 }
 
@@ -220,6 +215,7 @@ class HazelController {
 		console.log("Enabling projector");
 		const toggleSwitch = await this.page?.$(".toggle-knob");
 		if (toggleSwitch) {
+            console.log("Clicking toggle switch", toggleSwitch);
 			await toggleSwitch.click();
 		} else {
 			throw new Error("Toggle switch not found");
@@ -264,54 +260,73 @@ class HazelController {
 	}
 }
 
-//const livelit = `(^popup("<marquee>the haters are ill-prepared</marquee>"))`;
+// const livelit = `
+// 	let emotion = (^emotion(50)) in
+// 	case (emotion) 
+// 	| "happy" => "Hooray! What a pleasant day!"
+// 	| "neutral" => "Things are medium, I suppose."
+// 	| "sad" => "Sorrow sorrow, today and tomorrow."
+// 	| _ => "You have broken my trust, and frankly, our friendship"
+// 	end
+// `;
+
+const invocation = `(^slider(50))`;
+
 const livelit = `
-	let emotion = (^emotion(50)) in
-	case (emotion) 
-	| "happy" => "Hooray! What a pleasant day!"
-	| "neutral" => "Things are medium, I suppose."
-	| "sad" => "Sorrow sorrow, today and tomorrow."
-	| _ => "You have broken my trust, and frankly, our friendship"
-	end
+  let slider = ${invocation} in
+  case (slider)
+    | n => "Slider value: " ++ string_of_int(n)
+  end
 `;
-// Usage example
+
 (async () => {
 	const controller = new HazelController();
-	await controller.launch("http://localhost:8000", true);
+	try {
+		await controller.launch("http://localhost:8000", true);
 
-	// Select "Exercises" mode
-	await controller.selectMode("Scratch");
+		// Select "Exercises" mode
+		await controller.selectMode("Scratch");
 
-	// Get all cells
-	const cells = await controller.getCells();
+		// Get all cells
+		const cells = await controller.getCells();
 
-	// edit the first cell with id "YourImpl"
-	const scratchCell = cells[0];
+		const scratchCell = cells[0];
+		await scratchCell.clearContent();
+		await scratchCell.typeString(livelit, 25);
+		await wait(250);
+		await scratchCell.cursorToEnd();
+		await wait(250);
 
-	await scratchCell.clearContent();
-	await scratchCell.typeString(livelit, 25);
-	await wait(250);
-	// go to the end line
-	await scratchCell.cursorToEnd();
-	await wait(250);
+		// Click at the end of (^emotion(50))
+		await scratchCell.clickAtSubstring(invocation, "end");
+		await wait(250);
 
-	// projector "livelit"
-	await controller.setProjectorMode("livelit");
-	await wait(500);
-	// await controller.enableProjector();
-	// await wait(1000);
+		// projector "livelit"
+		await controller.setProjectorMode("livelit");
+		await wait(500);
 
-	// save screenshot
-	await controller.page?.screenshot({ path: `screenshot-${new Date().getTime()}.png` });
+		// save screenshot
+		await controller.page?.screenshot({ path: `screenshot-${Date.now()}.png` });
 
-	// go to popup
-	const pages = await controller.browser!.pages(); // get all open pages by the browser
-	const popup = pages[pages.length - 1];
-	await popup.bringToFront();
+		// // Go to popup
+		// const pages = await controller.browser!.pages(); 
+		// const popup = pages[pages.length - 1];
+		// await popup.bringToFront();
 
-	const zoomCommand = `document.body.style.fontSize = "72px";`;
-	await popup.evaluate(zoomCommand);
-	await wait(5000);
-	// Close browser
-	await controller.close();
+		// const zoomCommand = `document.body.style.fontSize = "72px";`;
+		// await popup.evaluate(zoomCommand);
+		await wait(1000);
+
+        // refresh page
+        await controller.page?.reload();
+
+        // wait for page to load
+        await wait(5000);
+
+		// Close browser normally if all is successful
+		await controller.close();
+	} catch (error) {
+		console.error('An error occurred:', error);
+		// Do not close the browser here, so it remains open for debugging.
+	}
 })();

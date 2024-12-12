@@ -4,6 +4,7 @@
 		"noImplicitAny": true,
 		"removeComments": false,
 		"preserveConstEnums": true,
+        "esModuleInterop": true,
 		"sourceMap": true,
 		"outDir": "./dist",
 		"rootDir": "./",

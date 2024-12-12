@@ -1,4 +1,5 @@
 import { Page, ElementHandle } from "puppeteer";
+import extractInBrowser from "./extract";
 
 /**
  * Emulates a key combination (e.g., Ctrl+A, Ctrl+C) by dispatching custom keyboard
@@ -82,123 +83,7 @@ export async function emulateKeyCombination(
 	);
 }
 
-import { JSDOM } from "jsdom";
-
-interface SpanInfo {
-	element: HTMLElement;
-	startOffset: number;
-	endOffset: number;
-}
-
-export function parseCodeString(codeString: string): {
-	text: string;
-	spans: SpanInfo[];
-} {
-	const dom = new JSDOM(codeString, { url: "http://localhost" });
-	const body = dom.window.document.body;
-
-	const spans: SpanInfo[] = [];
-	let text = "";
-	let offset = 0;
-
-	function processNode(node: Node) {
-		if (node.nodeType === dom.window.Node.TEXT_NODE) {
-			const nodeText = node.textContent || "";
-			if (!/^\s*$/.test(nodeText)) {
-				// Only add text nodes that are not pure whitespace
-				text += nodeText;
-				offset += nodeText.length;
-			}
-		} else if (node.nodeType === dom.window.Node.ELEMENT_NODE) {
-			const element = node as HTMLElement;
-			if (element.classList.contains("linebreak")) {
-				text += "\n";
-				offset += 1;
-			} else if (element.classList.contains("whitespace")) {
-				// Add the whitespace character(s)
-				const whitespaceText = element.textContent || " ";
-				text += whitespaceText;
-				offset += whitespaceText.length;
-				// Optionally, do not add whitespace elements to the spans
-				// If you prefer to track them, you can include the following lines:
-				// const startOffset = offset - whitespaceText.length;
-				// const endOffset = offset;
-				// spans.push({ element: element, startOffset, endOffset });
-			} else {
-				const startOffset = offset;
-				for (let i = 0; i < element.childNodes.length; i++) {
-					processNode(element.childNodes[i]);
-				}
-				const endOffset = offset;
-				spans.push({ element: element, startOffset, endOffset });
-			}
-		}
-	}
-
-	for (let i = 0; i < body.childNodes.length; i++) {
-		processNode(body.childNodes[i]);
-	}
-
-	return { text, spans };
-}
-
-export function findSpanByRowCol(
-	codeString: string,
-	row: number,
-	col: number,
-): HTMLElement | null {
-	const { text, spans } = parseCodeString(codeString);
-
-	// Convert row and col to character offset
-	const lines = text.split("\n");
-	if (row < 1 || row > lines.length) {
-		return null; // Row out of range
-	}
-	const line = lines[row - 1];
-	if (col < 1 || col > line.length + 1) {
-		return null; // Column out of range
-	}
-
-	let charOffset = 0;
-	for (let i = 0; i < row - 1; i++) {
-		charOffset += lines[i].length + 1; // +1 for the newline character
-	}
-	charOffset += col - 1;
-
-	// Find the span that covers this offset
-	for (const spanInfo of spans) {
-		if (
-			charOffset >= spanInfo.startOffset &&
-			charOffset < spanInfo.endOffset
-		) {
-			return spanInfo.element;
-		}
-	}
-
-	return null;
-}
-
-export function findSpanByQuery(
-	codeString: string,
-	query: string,
-): HTMLElement | null {
-	const { text, spans } = parseCodeString(codeString);
-
-	const index = text.indexOf(query);
-	if (index === -1) {
-		return null; // Query not found
-	}
-
-	// Find the first span that covers any character in the query
-	for (const spanInfo of spans) {
-		if (
-			(index >= spanInfo.startOffset && index < spanInfo.endOffset) ||
-			(spanInfo.startOffset > index &&
-				spanInfo.startOffset < index + query.length)
-		) {
-			return spanInfo.element;
-		}
-	}
-
-	return null;
+export async function extractTextAndMapping(page: Page, parentSelector: string) {
+	const { text, mapping } = await page.evaluate(extractInBrowser, parentSelector);
+	return { text, mapping };
 }

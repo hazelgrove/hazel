@@ -6,8 +6,8 @@
 	"scripts": {
 		"build:hazel": "cd .. && make deps && make release",
 		"dev:hazel": "cd .. && make serve",
-		"execute:host": "npm run dev:hazel > /dev/null 2>&1 & tsc --outDir dist && cd dist && node src/index.js; kill -9 $(lsof -t -i:8000)",
-		"execute": "tsc --outDir dist && cd dist && node src/index.js",
+		"execute:host": "npm run dev:hazel > /dev/null 2>&1 & tsx src/index.ts; kill -9 $(lsof -t -i:8000)",
+		"execute": "tsx src/index.ts",
 		"test": "vitest",
 		"style": "prettier '**/*.ts' --write ."
 	},
@@ -24,6 +24,8 @@
 	},
 	"devDependencies": {
 		"prettier": "^3.3.3",
-		"ts-node": "^10.9.2"
-	}
+		"ts-node": "^10.9.2",
+		"tsx": "^4.19.2"
+	},
+	"packageManager": "pnpm@9.14.4+sha512.c8180b3fbe4e4bca02c94234717896b5529740a6cbadf19fa78254270403ea2f27d4e1d46a08a0f56c89b63dc8ebfd3ee53326da720273794e6200fcf0d184ab"
 }
