@@ -110,6 +110,7 @@ open AST
 
 %nonassoc IF_EXP
 %nonassoc LET_EXP
+%right SEMI_COLON
 
 %right SUM_TYP
 
@@ -144,7 +145,6 @@ open AST
 %left TILDE
 (* %left COMMA *)
 %left AT_SYMBOL
-%left SEMI_COLON
 %left IN
 %left DOLLAR_SIGN
 %left L_NOT L_AND L_OR
