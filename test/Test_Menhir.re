@@ -18,22 +18,22 @@ let alco_check = exp_typ |> Alcotest.check;
 let strip_parens =
   Exp.map_term(
     ~f_exp=
-      (cont: TermBase.exp_t => TermBase.exp_t, e2: TermBase.exp_t) =>
-        switch (e2.term) {
+      (cont: TermBase.exp_t => TermBase.exp_t, e: TermBase.exp_t) =>
+        switch (e.term) {
         | Parens(e) => cont(e)
-        | _ => cont(e2)
+        | _ => cont(e)
         },
     ~f_pat=
-      (cont, e2) =>
-        switch (e2.term) {
+      (cont, e) =>
+        switch (e.term) {
         | Parens(e) => cont(e)
-        | _ => cont(e2)
+        | _ => cont(e)
         },
     ~f_typ=
-      (cont, e2) =>
-        switch (e2.term) {
+      (cont, e) =>
+        switch (e.term) {
         | Parens(e) => cont(e)
-        | _ => cont(e2)
+        | _ => cont(e)
         },
     _,
   );
@@ -563,7 +563,7 @@ let tests = [
     "-num*1",
   ),
   menhir_maketerm_equivalent_test("Concatenation association", "1::2::3::[]"),
-  menhir_doesnt_crash_test(
+  menhir_maketerm_equivalent_test(
     "Altered Documentation Buffer: Basic Reference",
     {|
 let empty_hole = ? in
@@ -646,7 +646,7 @@ let poly_id: (forall a -> (a -> a)) =
   (typfun a -> (fun (x : a) -> x))
 in
 let apply_both:
-forall a -> forall b -> (forall c -> (c -> c)) -> ((a, b) -> (a, b)) =
+forall a -> forall b -> (forall c -> c -> c) -> ((a, b) -> (a, b)) =
   typfun a -> typfun b ->
     fun (f : forall c -> (c -> c)) ->
       fun ((x, y) : (a, b)) -> (f@<a>(x), f@<b>(y))

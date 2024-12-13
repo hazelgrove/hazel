@@ -116,7 +116,7 @@ open AST
 
 
 %left COLON
-%left DASH_ARROW
+%right DASH_ARROW
 
 (* Int op precedences *)
 %left DOUBLE_EQUAL NOT_EQUAL LESS_THAN_EQUAL GREATER_THAN_EQUAL 
