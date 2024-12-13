@@ -138,16 +138,17 @@ open AST
 
 %left OPEN_CURLY
 
-(* Other *)
-%left CONS
-%left OPEN_PAREN
-%left QUESTION
-%left TILDE
 (* %left COMMA *)
 %left AT_SYMBOL
 %left IN
 %left DOLLAR_SIGN
 %left L_NOT L_AND L_OR
+
+(* Other *)
+%left CONS
+%left OPEN_PAREN
+%left QUESTION
+%left TILDE
 
 
 
