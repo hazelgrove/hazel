@@ -145,7 +145,7 @@ open AST
 %left L_NOT L_AND L_OR
 
 (* Other *)
-%left CONS
+%right CONS
 %left OPEN_PAREN
 %left QUESTION
 %left TILDE
@@ -208,6 +208,7 @@ program:
 binExp:
     | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
 
+// Currently singleton tuples are still TupleTypes and we then convert to singleton in Conversion
 %inline tupleType:
     | OPEN_PAREN; types = separated_list(COMMA, typ); CLOSE_PAREN { TupleType(types) }
 

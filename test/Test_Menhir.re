@@ -23,6 +23,18 @@ let strip_parens =
         | Parens(e) => cont(e)
         | _ => cont(e2)
         },
+    ~f_pat=
+      (cont, e2) =>
+        switch (e2.term) {
+        | Parens(e) => cont(e)
+        | _ => cont(e2)
+        },
+    ~f_typ=
+      (cont, e2) =>
+        switch (e2.term) {
+        | Parens(e) => cont(e)
+        | _ => cont(e2)
+        },
     _,
   );
 
@@ -550,6 +562,7 @@ let tests = [
     "Negation precedence with multiplication",
     "-num*1",
   ),
+  menhir_maketerm_equivalent_test("Concatenation association", "1::2::3::[]"),
   menhir_doesnt_crash_test(
     "Altered Documentation Buffer: Basic Reference",
     {|
@@ -629,16 +642,16 @@ let exp_equal: (Exp, Exp) -> Bool =
     end
 in
 
-let poly_id: (forall a -> a -> a) =
+let poly_id: (forall a -> (a -> a)) =
   (typfun a -> (fun (x : a) -> x))
 in
 let apply_both:
-forall a -> forall b -> (forall c -> c -> c) -> ((a, b) -> (a, b)) =
+forall a -> forall b -> (forall c -> (c -> c)) -> ((a, b) -> (a, b)) =
   typfun a -> typfun b ->
     fun (f : forall c -> (c -> c)) ->
       fun ((x, y) : (a, b)) -> (f@<a>(x), f@<b>(y))
 in
-let list_length: forall a -> [a] -> Int =
+let list_length: forall a -> ([a] -> Int) =
   typfun a -> fun (l : [a]) ->
     case l
       | [] => 0
