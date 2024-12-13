@@ -149,6 +149,7 @@ open AST
 %left OPEN_PAREN
 %left QUESTION
 %left TILDE
+%nonassoc UMINUS   /* Unary minus (prefix) */
 
 
 
@@ -294,7 +295,7 @@ tpat:
 
 unExp:
     | DOLLAR_SIGN; e = exp {UnOp(Meta(Unquote), e)}
-    | MINUS; e = exp {UnOp(Int(Minus), e)}
+    | MINUS; e = exp {UnOp(Int(Minus), e)} %prec UMINUS
     | L_NOT; e = exp {UnOp(Bool(Not), e)}
 
 
