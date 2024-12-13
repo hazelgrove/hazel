@@ -27,7 +27,7 @@
   position: relative;
 }
 
-#main .code-container {
+#main .code-editor {
   /* Only code in primary editor is selectable atm */
   cursor: text;
 }
@@ -39,31 +39,44 @@
   min-width: 100%;
 }
 
-.cell-item {
-  display: flex;
-  flex-direction: column;
-  gap: 1em;
+.cell > * {
   padding-left: 1em;
   padding: 1em;
   padding-left: 1.2em;
 }
 
-.cell.selected .cell-item:first-child {
+.cell-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+}
+
+.Scratch .cell {
   background-color: var(--cell-active);
+}
+
+.Documentation .cell {
+  background-color: var(--cell-active);
+}
+
+.cell:has(.code-editor.selected) {
+  background-color: var(--cell-active);
+}
+
+.result .cell-item {
+  padding: 0em
 }
 
 .title-cell {
   padding-left: 1em;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .title-cell .title-text {
   font-size: 1.5rem;
   font-weight: bold;
   color: var(--BR4);
-}
-
-.cell-prompt {
-  padding: 1em;
 }
 
 /* DOCUMENTATION SLIDES */

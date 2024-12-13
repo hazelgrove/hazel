@@ -264,14 +264,25 @@ module Pervasives = {
         }
       );
 
-    let string_sub = _ =>
+    let string_sub = name =>
       ternary((d1, d2, d3) =>
         switch (term_of(d1), term_of(d2), term_of(d3)) {
         | (String(s), Int(idx), Int(len)) =>
           try(Ok(String(String.sub(s, idx, len)) |> fresh)) {
           | _ =>
             // TODO: make it clear that the problem could be with d3 too
-            Ok(DynamicErrorHole(d2, IndexOutOfBounds) |> fresh)
+            Ok(
+              DynamicErrorHole(
+                Ap(
+                  Forward,
+                  BuiltinFun(name) |> fresh,
+                  Tuple([d1, d2, d3]) |> fresh,
+                )
+                |> fresh,
+                IndexOutOfBounds,
+              )
+              |> fresh,
+            )
           }
         | (String(_), Int(_), _) => Error(InvalidBoxedIntLit(d3))
         | (String(_), _, _) => Error(InvalidBoxedIntLit(d2))

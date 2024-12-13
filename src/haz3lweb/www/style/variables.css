@@ -209,6 +209,7 @@
 
   /* ABOVE CODE LEVEL */
   --backpack-targets-z: 11;
+  --stepper-interactive-z: 15;
   --caret-z: 20;
 
   /* TOP LEVEL UI */
