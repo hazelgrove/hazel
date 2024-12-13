@@ -15,12 +15,15 @@ type t('a) = {
 };
 
 // To be used if you want to remove the id from the debug output
-// let pp: ((Format.formatter, 'a) => unit, Format.formatter, t('a)) => unit =
-//   (fmt_a, formatter, ta) => {
-//     fmt_a(formatter, ta.term);
-//   };
+let pp: ((Format.formatter, 'a) => unit, Format.formatter, t('a)) => unit =
+  (fmt_a, formatter, ta) => {
+    fmt_a(formatter, ta.term);
+  };
 let fresh = term => {
   {ids: [Id.mk()], copied: false, term};
+};
+let fresh_deterministic = (prev_id, term) => {
+  {ids: [Id.next(prev_id)], copied: false, term};
 };
 
 let term_of = x => x.term;

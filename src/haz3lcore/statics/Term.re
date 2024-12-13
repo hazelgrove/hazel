@@ -31,7 +31,7 @@ module Pat = {
 
   let fresh: term => t = IdTagged.fresh;
 
-  let hole = (tms: list(TermBase.Any.t)) =>
+  let hole = (tms: list(TermBase.Any.t)): TermBase.Pat.term =>
     switch (tms) {
     | [] => EmptyHole
     | [_, ..._] => MultiHole(tms)
@@ -271,11 +271,29 @@ module Pat = {
     | Constructor(name, _) => Some(name)
     | _ => None
     };
+
+  let rec bound_vars = (dp: t): list(Var.t) =>
+    switch (dp |> term_of) {
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Invalid(_)
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | Constructor(_) => []
+    | Cast(y, _, _)
+    | Parens(y) => bound_vars(y)
+    | Var(y) => [y]
+    | Tuple(dps) => List.flatten(List.map(bound_vars, dps))
+    | Cons(dp1, dp2) => bound_vars(dp1) @ bound_vars(dp2)
+    | ListLit(dps) => List.flatten(List.map(bound_vars, dps))
+    | Ap(_, dp1) => bound_vars(dp1)
+    };
 };
 
 module Exp = {
-  include TermBase.Exp;
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
@@ -318,6 +336,8 @@ module Exp = {
     | Cast
     | ListConcat;
 
+  include TermBase.Exp;
+
   let hole = (tms: list(TermBase.Any.t)): term =>
     switch (tms) {
     | [] => EmptyHole
@@ -326,6 +346,7 @@ module Exp = {
 
   let rep_id: t => Id.t = IdTagged.rep_id;
   let fresh: term => t = IdTagged.fresh;
+  let term_of: t => term = IdTagged.term_of;
   let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
   let cls_of_term: term => cls =
@@ -551,6 +572,200 @@ module Exp = {
       | Constructor(_) => None
       };
     };
+
+  let (replace_all_ids, replace_all_ids_typ) = {
+    let f:
+      'a.
+      (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+     =
+      (continue, exp) => {...exp, ids: [Id.mk()]} |> continue;
+    (
+      map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+      Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    );
+  };
+
+  let rec substitute_closures =
+          (
+            env: Environment.t,
+            old_bound_vars: list(string),
+            new_bound_vars: list(string),
+          ) =>
+    map_term(
+      ~f_exp=
+        (cont, e) => {
+          let (term, rewrap) = unwrap(e);
+          switch (term) {
+          // Variables: lookup if bound
+          | Var(x) =>
+            switch (Environment.lookup(env, x)) {
+            | Some(e) =>
+              e
+              |> replace_all_ids
+              |> substitute_closures(env, old_bound_vars, new_bound_vars)
+            | None =>
+              Var(
+                List.mem(x, old_bound_vars)
+                  ? x : Var.free_name(x, new_bound_vars),
+              )
+              |> rewrap
+            }
+          // Forms with environments: look up in new environment
+          | Closure(env, e) =>
+            substitute_closures(
+              env |> ClosureEnvironment.map_of,
+              [],
+              new_bound_vars,
+              e,
+            )
+          | Fun(p, e, Some(env), n) =>
+            let pat_bound_vars = Pat.bound_vars(p);
+            Fun(
+              p,
+              substitute_closures(
+                env
+                |> ClosureEnvironment.map_of
+                |> Environment.without_keys(pat_bound_vars),
+                pat_bound_vars,
+                pat_bound_vars @ new_bound_vars,
+                e,
+              ),
+              None,
+              n,
+            )
+            |> rewrap;
+          | FixF(p, e, Some(env)) =>
+            let pat_bound_vars = Pat.bound_vars(p);
+            FixF(
+              p,
+              substitute_closures(
+                env
+                |> ClosureEnvironment.map_of
+                |> Environment.without_keys(pat_bound_vars),
+                pat_bound_vars,
+                pat_bound_vars @ new_bound_vars,
+                e,
+              ),
+              None,
+            )
+            |> rewrap;
+          // Cases with binders: remove binder from env
+          | Let(p, e1, e2) =>
+            let pat_bound_vars = Pat.bound_vars(p);
+            Let(
+              p,
+              substitute_closures(env, old_bound_vars, new_bound_vars, e1),
+              substitute_closures(
+                env |> Environment.without_keys(pat_bound_vars),
+                pat_bound_vars @ old_bound_vars,
+                pat_bound_vars @ new_bound_vars,
+                e2,
+              ),
+            )
+            |> rewrap;
+          | Match(e, cases) =>
+            Match(
+              substitute_closures(env, old_bound_vars, new_bound_vars, e),
+              cases
+              |> List.map(((p, e)) => {
+                   let pat_bound_vars = Pat.bound_vars(p);
+                   (
+                     p,
+                     substitute_closures(
+                       env |> Environment.without_keys(pat_bound_vars),
+                       pat_bound_vars @ old_bound_vars,
+                       pat_bound_vars @ new_bound_vars,
+                       e,
+                     ),
+                   );
+                 }),
+            )
+            |> rewrap
+          | Fun(p, e, None, n) =>
+            let pat_bound_vars = Pat.bound_vars(p);
+            Fun(
+              p,
+              substitute_closures(
+                env |> Environment.without_keys(pat_bound_vars),
+                pat_bound_vars @ old_bound_vars,
+                pat_bound_vars @ new_bound_vars,
+                e,
+              ),
+              None,
+              n,
+            )
+            |> rewrap;
+          | FixF(p, e, None) =>
+            let pat_bound_vars = Pat.bound_vars(p);
+            FixF(
+              p,
+              substitute_closures(
+                env |> Environment.without_keys(pat_bound_vars),
+                pat_bound_vars @ old_bound_vars,
+                pat_bound_vars @ new_bound_vars,
+                e,
+              ),
+              None,
+            )
+            |> rewrap;
+          // Other cases: recurse
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_)
+          | DynamicErrorHole(_)
+          | FailedCast(_)
+          | Deferral(_)
+          | Bool(_)
+          | Int(_)
+          | Float(_)
+          | String(_)
+          | ListLit(_)
+          | Constructor(_)
+          | TypFun(_)
+          | Tuple(_)
+          | TyAlias(_)
+          | Ap(_)
+          | TypAp(_)
+          | DeferredAp(_)
+          | If(_)
+          | Seq(_)
+          | Test(_)
+          | Filter(_)
+          | Parens(_)
+          | Cons(_)
+          | ListConcat(_)
+          | UnOp(_)
+          | BinOp(_)
+          | BuiltinFun(_)
+          | Cast(_)
+          | Undefined => cont(e)
+          };
+        },
+      _,
+    );
+  let substitute_closures = substitute_closures(_, [], []);
+
+  let unfix = (e: t, p: Pat.t) => {
+    switch (e.term) {
+    | FixF(p1, e1, _) =>
+      if (Pat.fast_equal(p, p1)) {
+        e1;
+      } else {
+        e;
+      }
+    | _ => e
+    };
+  };
+
+  let rec get_fn_name = (e: t) => {
+    switch (e.term) {
+    | Fun(_, _, _, n) => n
+    | FixF(_, e, _) => get_fn_name(e)
+    | Parens(e) => get_fn_name(e)
+    | TypFun(_, _, n) => n
+    | _ => None
+    };
+  };
 };
 
 module Rul = {
@@ -597,7 +812,7 @@ module Any = {
     | Typ(t) => Some(t)
     | _ => None;
 
-  let rec ids =
+  let rec ids: TermBase.any_t => list(Id.t) =
     fun
     | Exp(tm) => tm.ids
     | Pat(tm) => tm.ids
@@ -620,7 +835,7 @@ module Any = {
   // (This would change for n-tuples if we decided parentheses are necessary.)
   let rep_id =
     fun
-    | Exp(tm) => Exp.rep_id(tm)
+    | (Exp(tm): TermBase.any_t) => Exp.rep_id(tm)
     | Pat(tm) => Pat.rep_id(tm)
     | Typ(tm) => Typ.rep_id(tm)
     | TPat(tm) => TPat.rep_id(tm)

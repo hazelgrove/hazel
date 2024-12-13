@@ -198,10 +198,7 @@ module rec Exp: {
       let dcond = of_menhir_ast(cond);
       let dbody = of_menhir_ast(body);
       let act = FilterAction.of_menhir_ast(a);
-      Filter(
-        Haz3lcore.TermBase.StepperFilterKind.Filter({pat: dcond, act}),
-        dbody,
-      );
+      Filter(Filter({pat: dcond, act}), dbody);
     | TypAp(e, ty) => TypAp(of_menhir_ast(e), Typ.of_menhir_ast(ty))
     | UnOp(op, e) =>
       UnOp(Operators.op_un_of_menhir_ast(op), of_menhir_ast(e))

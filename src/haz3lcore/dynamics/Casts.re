@@ -39,7 +39,7 @@ let grounded_Forall =
   );
 let grounded_Prod = length =>
   NotGroundOrHole(
-    Prod(ListUtil.replicate(length, Typ.Unknown(Internal) |> Typ.temp))
+    Prod(ListUtil.replicate(length, Unknown(Internal) |> Typ.temp))
     |> Typ.temp,
   );
 let grounded_Sum: unit => Typ.sum_map =
@@ -50,7 +50,7 @@ let grounded_List =
 let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   let is_hole: Typ.t => bool =
     fun
-    | {term: Typ.Unknown(_), _} => true
+    | {term: Unknown(_), _} => true
     | _ => false;
   switch (Typ.term_of(ty)) {
   | Unknown(_) => Hole
@@ -67,7 +67,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Prod(tys) =>
     if (List.for_all(
           fun
-          | ({term: Typ.Unknown(_), _}: Typ.t) => true
+          | ({term: Unknown(_), _}: Typ.t) => true
           | _ => false,
           tys,
         )) {
@@ -125,19 +125,28 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
 
     | (Hole, NotGroundOrHole(t2_grounded)) =>
       /* ITExpand rule */
-      let inner_cast = Cast(d1, t1, t2_grounded) |> DHExp.fresh;
+      let inner_cast =
+        Cast(d1, t1, t2_grounded |> DHExp.replace_all_ids_typ) |> DHExp.fresh;
       // HACK: we need to check the inner cast here
       let inner_cast =
         switch (transition(~recursive, inner_cast)) {
         | Some(d1) => d1
         | None => inner_cast
         };
-      Some(DHExp.Cast(inner_cast, t2_grounded, t2) |> DHExp.fresh);
+      Some(
+        Cast(inner_cast, t2_grounded |> DHExp.replace_all_ids_typ, t2)
+        |> DHExp.fresh,
+      );
 
     | (NotGroundOrHole(t1_grounded), Hole) =>
       /* ITGround rule */
       Some(
-        DHExp.Cast(Cast(d1, t1, t1_grounded) |> DHExp.fresh, t1_grounded, t2)
+        Cast(
+          Cast(d1, t1, t1_grounded |> DHExp.replace_all_ids_typ)
+          |> DHExp.fresh,
+          t1_grounded |> DHExp.replace_all_ids_typ,
+          t2,
+        )
         |> DHExp.fresh,
       )
 
@@ -187,7 +196,7 @@ let pattern_fixup = (p: DHPat.t): DHPat.t => {
       let (p1, d1) = unwrap_casts(p1);
       (
         p1,
-        {term: DHExp.Cast(d1, t1, t2), copied: p.copied, ids: p.ids}
+        {term: Cast(d1, t1, t2), copied: p.copied, ids: p.ids}
         |> transition_multiple,
       );
     | _ => (p, hole)
@@ -198,13 +207,13 @@ let pattern_fixup = (p: DHPat.t): DHPat.t => {
     | EmptyHole => p
     | Cast(d1, t1, t2) =>
       let p1 = rewrap_casts((p, d1));
-      {term: DHPat.Cast(p1, t1, t2), copied: d.copied, ids: d.ids};
+      {term: Cast(p1, t1, t2), copied: d.copied, ids: d.ids};
     | FailedCast(d1, t1, t2) =>
       let p1 = rewrap_casts((p, d1));
       {
         term:
-          DHPat.Cast(
-            DHPat.Cast(p1, t1, Typ.fresh(Unknown(Internal))) |> DHPat.fresh,
+          Cast(
+            Cast(p1, t1, Typ.fresh(Unknown(Internal))) |> DHPat.fresh,
             Typ.fresh(Unknown(Internal)),
             t2,
           ),

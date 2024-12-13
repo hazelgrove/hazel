@@ -353,10 +353,10 @@ let tests = [
   parser_test(
     "times and divide precendence",
     BinOp(
-      Int(Times),
-      Int(1) |> Exp.fresh,
-      BinOp(Int(Divide), Int(2) |> Exp.fresh, Int(3) |> Exp.fresh)
+      Int(Divide),
+      BinOp(Int(Times), Int(1) |> Exp.fresh, Int(2) |> Exp.fresh)
       |> Exp.fresh,
+      Int(3) |> Exp.fresh,
     )
     |> Exp.fresh,
     "1 * 2 / 3",
@@ -385,14 +385,10 @@ let tests = [
         )
         |> Exp.fresh,
         BinOp(
-          Int(Divide),
-          Int(3) |> Exp.fresh,
-          BinOp(
-            Int(Times),
-            Int(4) |> Exp.fresh,
-            BinOp(Int(Power), Int(5) |> Exp.fresh, Int(6) |> Exp.fresh)
-            |> Exp.fresh,
-          )
+          Int(Times),
+          BinOp(Int(Divide), Int(3) |> Exp.fresh, Int(4) |> Exp.fresh)
+          |> Exp.fresh,
+          BinOp(Int(Power), Int(5) |> Exp.fresh, Int(6) |> Exp.fresh)
           |> Exp.fresh,
         )
         |> Exp.fresh,
@@ -412,17 +408,17 @@ let tests = [
         Float(Minus),
         Float(2.) |> Exp.fresh,
         BinOp(
-          Float(Divide),
-          Float(3.) |> Exp.fresh,
+          Float(Times),
           BinOp(
-            Float(Times),
+            Float(Divide),
+            Float(3.) |> Exp.fresh,
             Float(4.) |> Exp.fresh,
-            BinOp(
-              Float(Power),
-              Float(5.) |> Exp.fresh,
-              Float(6.) |> Exp.fresh,
-            )
-            |> Exp.fresh,
+          )
+          |> Exp.fresh,
+          BinOp(
+            Float(Power),
+            Float(5.) |> Exp.fresh,
+            Float(6.) |> Exp.fresh,
           )
           |> Exp.fresh,
         )
@@ -452,7 +448,7 @@ let tests = [
   menhir_only_test(
     "named_function",
     Fun(
-      Pat.Var("x") |> Pat.fresh,
+      (Var("x"): Pat.term) |> Pat.fresh,
       BinOp(Int(Plus), Var("x") |> Exp.fresh, Int(5) |> Exp.fresh)
       |> Exp.fresh,
       None,

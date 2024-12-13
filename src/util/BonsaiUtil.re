@@ -1,6 +1,7 @@
 open Core;
 open Bonsai;
 open Bonsai.Let_syntax;
+open Js_of_ocaml;
 
 module Alarm = {
   module Action = {
@@ -38,5 +39,66 @@ module Alarm = {
         | Before => Effect.Ignore;
       },
     );
+  };
+};
+
+module OnStartup = {
+  let on_startup = (effect: Value.t(Effect.t(unit))) => {
+    let%sub startup_completed = Bonsai.toggle'(~default_model=false);
+    let%sub after_display = {
+      switch%sub (startup_completed) {
+      | {state: false, set_state, _} =>
+        let%arr effect = effect
+        and set_state = set_state;
+        Bonsai.Effect.Many([set_state(true), effect]);
+      | {state: true, _} => Bonsai.Computation.return(Ui_effect.Ignore)
+      };
+    };
+    Edge.after_display(after_display);
+  };
+};
+
+module SizeObserver = {
+  module Size = {
+    [@deriving sexp]
+    type t = {
+      width: float,
+      height: float,
+    };
+
+    let equal = phys_equal;
+  };
+
+  let observer =
+      (node: unit => Js.t(Dom_html.element), ~default: Size.t)
+      : Computation.t(Size.t) => {
+    let%sub (size, update) = state((module Size), ~default_model=default);
+    let startup = {
+      let%map update = update;
+      Effect.of_sync_fun(
+        () => {
+          let _ =
+            ResizeObserver.observe(
+              ~node=node(),
+              ~f=
+                (entries, _) => {
+                  let rect = Js.to_array(entries)[0]##.contentRect;
+                  Size.{
+                    width: rect##.right -. rect##.left,
+                    height: rect##.bottom -. rect##.top,
+                  }
+                  |> update
+                  |> Effect.Expert.handle;
+                },
+              (),
+            );
+          ();
+        },
+        (),
+      );
+    };
+    let%sub () = OnStartup.on_startup(startup);
+    let%arr size = size;
+    size;
   };
 };
