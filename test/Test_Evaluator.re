@@ -56,53 +56,45 @@ let tet_ap_of_hole_deferral = () =>
     Ap(
       Forward,
       Cast(
-        Cast(
-          EmptyHole |> Exp.fresh,
-          Unknown(Internal) |> Typ.fresh,
-          Arrow(
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
-          |> Typ.fresh,
-        )
-        |> Exp.fresh,
+        EmptyHole |> Exp.fresh,
+        Unknown(Internal) |> Typ.fresh,
         Arrow(
           Unknown(Internal) |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Typ.fresh,
-        Arrow(
-          Prod([
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          ])
-          |> Typ.fresh,
           Unknown(Internal) |> Typ.fresh,
         )
         |> Typ.fresh,
       )
       |> Exp.fresh,
-      Tuple([
-        Cast(
-          Float(1.) |> Exp.fresh,
-          Float |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
+      Cast(
+        Tuple([
+          Cast(
+            Float(1.) |> Exp.fresh,
+            Float |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Exp.fresh,
+          Cast(
+            Bool(true) |> Exp.fresh,
+            Bool |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Exp.fresh,
+          Cast(
+            Int(3) |> Exp.fresh,
+            Int |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Exp.fresh,
+        ])
         |> Exp.fresh,
-        Cast(
-          Bool(true) |> Exp.fresh,
-          Bool |> Typ.fresh,
+        Prod([
           Unknown(Internal) |> Typ.fresh,
-        )
-        |> Exp.fresh,
-        Cast(
-          Int(3) |> Exp.fresh,
-          Int |> Typ.fresh,
           Unknown(Internal) |> Typ.fresh,
-        )
-        |> Exp.fresh,
-      ])
+          Unknown(Internal) |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+        Unknown(Internal) |> Typ.fresh,
+      )
       |> Exp.fresh,
     )
     |> Exp.fresh,
