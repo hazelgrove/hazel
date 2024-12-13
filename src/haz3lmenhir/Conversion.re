@@ -238,6 +238,7 @@ and Typ: {
       | EmptyHole => Unknown(Hole(EmptyHole))
       }
     | TypVar(s) => Var(s)
+    | TupleType([t]) => Parens(of_menhir_ast(t))
     | TupleType(ts) => Prod(List.map(of_menhir_ast, ts))
     | ArrayType(t) => List(of_menhir_ast(t))
     | ArrowType(t1, t2) => Arrow(of_menhir_ast(t1), of_menhir_ast(t2))
