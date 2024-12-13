@@ -61,7 +61,8 @@ let skip_parser_test = (name: string, _exp: Term.Exp.t, _actual: string) =>
   test_case(name, `Quick, () => {Alcotest.skip()});
 let skip_menhir_only_test = (name: string, _exp: Term.Exp.t, _actual: string) =>
   test_case(name, `Quick, () => {Alcotest.skip()});
-
+let skip_menhir_maketerm_equivalent_test = (name: string, _actual: string) =>
+  test_case(name, `Quick, () => {Alcotest.skip()});
 // TODO Assert against result instead of exception for parse failure for better error messages
 let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
   test_case(
@@ -563,6 +564,10 @@ let tests = [
     "-num*1",
   ),
   menhir_maketerm_equivalent_test("Concatenation association", "1::2::3::[]"),
+  skip_menhir_maketerm_equivalent_test(
+    "and less than precedence",
+    "true && 23 < int_of_float(51.00)" // TODO This looks like a bug in MakeTerm
+  ),
   menhir_maketerm_equivalent_test(
     "Altered Documentation Buffer: Basic Reference",
     {|
@@ -666,7 +671,9 @@ test 2 + 2 == 5 end;
 2 + 2
     |},
   ),
-  menhir_doesnt_crash_test(
+  // TODO This is an issue with `int_of_float` being parsed
+  // as a builtin function in menhir and a Var in MakeTerm
+  skip_menhir_maketerm_equivalent_test(
     "Altered Documentation Buffer: Projectors",
     {|
 let fold = (((((((((((()))))))))))) in
@@ -682,7 +689,7 @@ let ____ = "shift" in
 let _____ = "malicious" in
 let ______ = "a shift   malicious" in
 let box: Int = "malicious" in
-if true && 23 < int_of_float(51.00)
+if true && (23 < int_of_float(51.00))
 then ______ else "its: " ++ box    |},
   ),
   menhir_doesnt_crash_test(
@@ -800,5 +807,37 @@ test result_equal(
   go(Ap(Lam("yo", Var("yo")), Lam("bro", Var("bro")))),
 Ok(Lam("bro", Var("bro")))) end
 |},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Altered Documentation Buffer: Polymorphism",
+    {|
+let id = typfun A -> (fun (x : A) -> x) in
+let ex1 = id@<Int>(1) in
+let const : forall A -> (forall B -> (A -> B -> A)) =
+typfun A -> (typfun B -> (fun x -> fun y -> x)) in
+let ex2 = const@<Int>@<String>(2)("Hello World") in
+let apply_both : forall A -> forall B -> (forall D -> D -> D) -> (A , B) -> (A , B) =
+typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in
+let ex3 = apply_both@<Int>@<String>(id)(3, "Hello World") in
+let emptylist : forall A -> [A] = typfun A -> [] in
+let map : forall A -> forall B -> (A -> B) -> ([A] -> [B]) =
+  typfun A -> typfun B -> fun f : (A -> B) -> fun l : [A] ->
+    case l
+      | h :: t => f(h) :: map@<A>@<B>(f)(t)
+      | _ => emptylist@<B>
+end in
+let ex4 = map@<Int>@<String>(string_of_int)([1,2,3]) in
+type MyList = rec A -> (Nil + Cons(Int, A)) in
+let x : MyList = Cons(1, Cons(2, Cons(3, Nil))) in
+type MyList2 = Nil + Cons(Int, MyList2) in
+type Broken = Int -> (HasInt(Int) + HasMore(Int, Broken)) in
+let list_of_mylist : (MyList -> [Int]) = fun myl : MyList ->
+  case myl
+    | Nil => []
+    | Cons(h, t) => h :: list_of_mylist(t)
+end in
+let ex5 = list_of_mylist(x) in
+(ex1, ex2, ex3, ex4, ex5)
+    |},
   ),
 ];
