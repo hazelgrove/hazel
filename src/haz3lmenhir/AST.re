@@ -76,6 +76,12 @@ type typ_provenance =
   | EmptyHole;
 
 [@deriving (show({with_path: false}), sexp)]
+type tpat =
+  | InvalidTPat(string)
+  | EmptyHoleTPat
+  | VarTPat(string);
+
+[@deriving (show({with_path: false}), sexp)]
 type typ =
   | IntType
   | StringType
@@ -89,7 +95,8 @@ type typ =
   | ArrayType(typ)
   | ArrowType(typ, typ)
   | TypVar(string)
-  | InvalidTyp(string);
+  | InvalidTyp(string)
+  | ForallType(tpat, typ);
 
 [@deriving (show({with_path: false}), sexp)]
 type pat =
@@ -117,12 +124,6 @@ type if_consistency =
 type deferral_pos =
   | InAp
   | OutsideAp;
-
-[@deriving (show({with_path: false}), sexp)]
-type tpat =
-  | InvalidTPat(string)
-  | EmptyHoleTPat
-  | VarTPat(string);
 
 [@deriving (show({with_path: false}), sexp)]
 type exp =
