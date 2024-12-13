@@ -8,21 +8,18 @@ open Node;
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    editor: CodeEditable.Model.t,
+    editor: EditorManager.Model.t,
     result: EvalResult.Model.t,
   };
 
   let mk = editor => {
-    editor: {
-      editor,
-      statics: CachedStatics.empty,
-    },
+    editor: EditorManager.Model.mk(editor),
     result: EvalResult.Model.init,
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = CodeEditable.Model.persistent;
 
-  let persist = model => model.editor |> CodeEditable.Model.persist;
+  let persist = model => model.editor |> EditorManager.Model.persist;
   let unpersist = (~settings as _, pz) =>
     pz |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
 };
