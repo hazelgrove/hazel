@@ -524,7 +524,10 @@ let tests = [
     "partial sum type",
     "type Partial = +Ok(?) + ? in ?",
   ),
-  menhir_doesnt_crash_test("Function with type variable", "fun (x : a) -> x"),
+  menhir_maketerm_equivalent_test(
+    "Function with type variable",
+    "fun (x : a) -> x",
+  ),
   menhir_doesnt_crash_test(
     "Altered Documentation Buffer: Basic Reference",
     {|
