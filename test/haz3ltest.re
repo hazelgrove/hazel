@@ -5,6 +5,7 @@ let (suite, _) =
     ~and_exit=false,
     "HazelTests",
     [
+      Test_StringUtil.tests,
       ("Elaboration", Test_Elaboration.elaboration_tests),
       ("Statics", Test_Statics.tests),
       ("Evaluator", Test_Evaluator.tests),
