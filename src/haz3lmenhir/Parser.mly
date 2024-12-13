@@ -12,6 +12,7 @@ open AST
 %token E_EXP
 %token TILDE
 %token NAMED_FUN
+%token FORALL
 %token UNDEF
 %token <string> SEXP_STRING
 %token DOLLAR_SIGN
@@ -214,18 +215,14 @@ binExp:
     | i = CONSTRUCTOR_IDENT { SumTerm(i, None) }
     | QUESTION { UnknownType(EmptyHole) }
 
-
-plusLeadingSumTyp:
-    | PLUS; s = sumTerm; { SumTyp(s, None) } %prec SUM_TYP
-    | PLUS; s = sumTerm; t = plusLeadingSumTyp { SumTyp(s, Some(t)) }
-
+// We don't support sum types without the leading plus in the parser syntax
 sumTyp:
-    | s = plusLeadingSumTyp; { s }
-    | s = sumTerm; t = plusLeadingSumTyp { SumTyp(s, Some(t)) }
+    | PLUS; s = sumTerm; { SumTyp(s, None) } %prec SUM_TYP
+    | PLUS; s = sumTerm; t = sumTyp { SumTyp(s, Some(t)) } 
     
-
 typ:
     | c = CONSTRUCTOR_IDENT { TypVar(c) }
+    | c = IDENT { TypVar(c) }
     | QUESTION; T_TYP; s = STRING { InvalidTyp(s) }
     | INT_TYPE { IntType }
     | FLOAT_TYPE { FloatType }
@@ -234,6 +231,7 @@ typ:
     | UNKNOWN; INTERNAL { UnknownType(Internal) }
     | QUESTION { UnknownType(EmptyHole) }
     | UNIT { UnitType }
+    | FORALL; a = tpat; DASH_ARROW; t = typ { ForallType(a, t) }
     | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
@@ -263,7 +261,7 @@ pat:
     | p1 = pat; COLON; t1 = typ;  { CastPat(p1, t1, UnknownType(Internal)) }
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
-    | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) }
+    | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) } // TODO See if we can do multi arg pat ap without extra parens
     | p = nonAscriptingPat; { p }
 
 
@@ -310,6 +308,7 @@ exp:
     | s = STRING { String s}
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
     | OPEN_PAREN; e = exp; COMMA; l = separated_list(COMMA, exp); CLOSE_PAREN { TupleExp(e :: l) }
+    | UNIT { TupleExp([]) }
     | c = case { c }
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ListExp(e) }
     | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) } 
