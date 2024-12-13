@@ -15,9 +15,22 @@ let exp_typ =
 
 let alco_check = exp_typ |> Alcotest.check;
 
+let strip_parens =
+  Exp.map_term(
+    ~f_exp=
+      (cont: TermBase.exp_t => TermBase.exp_t, e2: TermBase.exp_t) =>
+        switch (e2.term) {
+        | Parens(e) => cont(e)
+        | _ => cont(e2)
+        },
+    _,
+  );
+
 // Existing recovering parser
 let make_term_parse = (s: string) =>
-  MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
+  strip_parens(
+    MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term,
+  );
 
 let menhir_matches = (exp: Term.Exp.t, actual: string) =>
   alco_check(
@@ -527,6 +540,15 @@ let tests = [
   menhir_maketerm_equivalent_test(
     "Function with type variable",
     "fun (x : a) -> x",
+  ),
+  menhir_maketerm_equivalent_test("Sequence addition precedence", "1+2;3"),
+  menhir_maketerm_equivalent_test(
+    "And app precedence",
+    "exp_equal(e1, e3) && exp_equal(e2, e4)",
+  ),
+  menhir_maketerm_equivalent_test(
+    "Negation precedence with multiplication",
+    "-num*1",
   ),
   menhir_doesnt_crash_test(
     "Altered Documentation Buffer: Basic Reference",
