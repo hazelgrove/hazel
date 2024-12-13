@@ -21,3 +21,5 @@ type frame = {
 type stack = list(frame);
 
 let empty = {refs: [], stem: []};
+
+let env_stack = List.map((en: frame) => en.env_id);

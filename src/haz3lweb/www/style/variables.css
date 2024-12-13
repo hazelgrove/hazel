@@ -209,7 +209,9 @@
 
   /* ABOVE CODE LEVEL */
   --backpack-targets-z: 11;
+  --code-hovers-z: 11;
   --caret-z: 20;
+  --code-emblems-z: 21;
 
   /* TOP LEVEL UI */
   --context-inspector-z: 29; /* keep below bottom bar */

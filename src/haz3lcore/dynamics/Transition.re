@@ -790,7 +790,6 @@ module Transition = (EV: EV_MODE) => {
           d => Parens(d, Probe(pr)) |> wrap_ctx,
           d'',
         );
-
       Step({
         expr: d',
         state_update: () => {

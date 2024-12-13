@@ -591,3 +591,16 @@ let minimum = (f: 'a => int, xs: list('a)): option('a) =>
       };
     loop(x, f(x), xs);
   };
+
+/* Given two lists, return their maximum common suffix */
+let max_common_suffix = (a: list('a), b: list('a)) => {
+  let rec loop = (a, b, acc) =>
+    switch (a, b) {
+    | ([], _)
+    | (_, []) => acc
+    | ([ha, ...ta], [hb, ...tb]) when ha == hb =>
+      loop(ta, tb, [ha, ...acc])
+    | _ => acc
+    };
+  loop(List.rev(a), List.rev(b), []);
+};
