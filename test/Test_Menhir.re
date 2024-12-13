@@ -21,6 +21,16 @@ let strip_parens =
       (cont: TermBase.exp_t => TermBase.exp_t, e: TermBase.exp_t) =>
         switch (e.term) {
         | Parens(e) => cont(e)
+        | Var(x) =>
+          let builtin =
+            VarMap.lookup(Haz3lcore.Builtins.Pervasives.builtins, x);
+          cont(
+            switch (builtin) {
+            | Some(Fn(_, _, _)) => cont(BuiltinFun(x) |> Exp.fresh) // TODO Decide whether these should be builtins in the parser or vars
+            | Some(Const(_, _))
+            | None => cont(e)
+            },
+          );
         | _ => cont(e)
         },
     ~f_pat=
@@ -564,9 +574,9 @@ let tests = [
     "-num*1",
   ),
   menhir_maketerm_equivalent_test("Concatenation association", "1::2::3::[]"),
-  skip_menhir_maketerm_equivalent_test(
+  menhir_maketerm_equivalent_test(
     "and less than precedence",
-    "true && 23 < int_of_float(51.00)" // TODO This looks like a bug in MakeTerm
+    "true && (23 < int_of_float(51.00))" // TODO This looks like a bug in MakeTerm
   ),
   menhir_maketerm_equivalent_test(
     "Altered Documentation Buffer: Basic Reference",
@@ -673,7 +683,7 @@ test 2 + 2 == 5 end;
   ),
   // TODO This is an issue with `int_of_float` being parsed
   // as a builtin function in menhir and a Var in MakeTerm
-  skip_menhir_maketerm_equivalent_test(
+  menhir_maketerm_equivalent_test(
     "Altered Documentation Buffer: Projectors",
     {|
 let fold = (((((((((((()))))))))))) in
@@ -808,7 +818,7 @@ test result_equal(
 Ok(Lam("bro", Var("bro")))) end
 |},
   ),
-  menhir_maketerm_equivalent_test(
+  skip_menhir_maketerm_equivalent_test(
     "Altered Documentation Buffer: Polymorphism",
     {|
 let id = typfun A -> (fun (x : A) -> x) in
