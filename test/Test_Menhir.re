@@ -576,7 +576,7 @@ let tests = [
   menhir_maketerm_equivalent_test("Concatenation association", "1::2::3::[]"),
   menhir_maketerm_equivalent_test(
     "and less than precedence",
-    "true && (23 < int_of_float(51.00))" // TODO This looks like a bug in MakeTerm
+    "true && 23 < int_of_float(51.00)" // TODO This looks like a bug in MakeTerm
   ),
   menhir_maketerm_equivalent_test(
     "Altered Documentation Buffer: Basic Reference",

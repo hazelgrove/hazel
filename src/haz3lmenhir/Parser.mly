@@ -118,6 +118,7 @@ open AST
 
 %left COLON
 %right DASH_ARROW
+%left L_NOT L_AND L_OR // TODO Check with Milan. I moved this to make tests pass.
 
 (* Int op precedences *)
 %left DOUBLE_EQUAL NOT_EQUAL LESS_THAN_EQUAL GREATER_THAN_EQUAL 
@@ -141,7 +142,6 @@ open AST
 
 %left IN
 %left DOLLAR_SIGN
-%left L_NOT L_AND L_OR
 
 %right CONS
 %left AT_SYMBOL
