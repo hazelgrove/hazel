@@ -818,10 +818,10 @@ test result_equal(
 Ok(Lam("bro", Var("bro")))) end
 |},
   ),
-  skip_menhir_maketerm_equivalent_test(
+  menhir_maketerm_equivalent_test(
+    // Variable names are renamed due to lexing overtaking e, t, p, and tp
     "Altered Documentation Buffer: Polymorphism",
-    {|
-let id = typfun A -> (fun (x : A) -> x) in
+    {|let id = typfun A -> (fun (x : A) -> x) in
 let ex1 = id@<Int>(1) in
 let const : forall A -> (forall B -> (A -> B -> A)) =
 typfun A -> (typfun B -> (fun x -> fun y -> x)) in
@@ -831,20 +831,20 @@ typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in
 let ex3 = apply_both@<Int>@<String>(id)(3, "Hello World") in
 let emptylist : forall A -> [A] = typfun A -> [] in
 let map : forall A -> forall B -> (A -> B) -> ([A] -> [B]) =
-  typfun A -> typfun B -> fun f : (A -> B) -> fun l : [A] ->
+  typfun A -> typfun B -> fun (f : (A -> B)) -> fun (l : [A]) ->
     case l
-      | h :: t => f(h) :: map@<A>@<B>(f)(t)
+      | (h :: a) => f(h) :: map@<A>@<B>(f)(a)
       | _ => emptylist@<B>
 end in
 let ex4 = map@<Int>@<String>(string_of_int)([1,2,3]) in
-type MyList = rec A -> (Nil + Cons(Int, A)) in
+type MyList = rec A -> (+Nil + Cons(Int, A)) in
 let x : MyList = Cons(1, Cons(2, Cons(3, Nil))) in
-type MyList2 = Nil + Cons(Int, MyList2) in
-type Broken = Int -> (HasInt(Int) + HasMore(Int, Broken)) in
-let list_of_mylist : (MyList -> [Int]) = fun myl : MyList ->
+type MyList2 = +Nil + Cons(Int, MyList2) in
+type Broken = Int -> (+HasInt(Int) + HasMore(Int, Broken)) in
+let list_of_mylist : (MyList -> [Int]) = fun (myl : MyList) ->
   case myl
     | Nil => []
-    | Cons(h, t) => h :: list_of_mylist(t)
+    | Cons((h, a)) => h :: list_of_mylist(a)
 end in
 let ex5 = list_of_mylist(x) in
 (ex1, ex2, ex3, ex4, ex5)
