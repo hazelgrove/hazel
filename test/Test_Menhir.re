@@ -702,7 +702,7 @@ let box: Int = "malicious" in
 if true && (23 < int_of_float(51.00))
 then ______ else "its: " ++ box    |},
   ),
-  menhir_doesnt_crash_test(
+  menhir_maketerm_equivalent_test(
     "Altered Documentation Buffer: Types & Static Errors",
     {|
 let _ = unbound in
@@ -750,7 +750,7 @@ let _: [Int] = 1::[2.0] in
 "BYE"
 |},
   ),
-  menhir_doesnt_crash_test(
+  menhir_maketerm_equivalent_test(
     "Altered Documentation Buffer: adt dynamics",
     {|
 type Exp =
