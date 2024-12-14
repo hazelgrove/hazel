@@ -122,7 +122,7 @@ rule token =
     | "type" {TYP}
     | "$" {DOLLAR_SIGN}
     | "~" {TILDE}
-    | "t" {T_TYP}
+    | "t" {T_TYP} (* TODO These make it very easy to get an unparseable program *)
     | "p" {P_PAT}
     | "tp" {TP_TPAT}
     | "e" {E_EXP}
