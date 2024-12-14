@@ -96,7 +96,8 @@ type typ =
   | ArrowType(typ, typ)
   | TypVar(string)
   | InvalidTyp(string)
-  | ForallType(tpat, typ);
+  | ForallType(tpat, typ)
+  | RecType(tpat, typ);
 
 [@deriving (show({with_path: false}), sexp)]
 type pat =

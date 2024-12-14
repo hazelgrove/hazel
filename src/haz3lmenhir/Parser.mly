@@ -13,6 +13,7 @@ open AST
 %token TILDE
 %token NAMED_FUN
 %token FORALL
+%token REC
 %token UNDEF
 %token <string> SEXP_STRING
 %token DOLLAR_SIGN
@@ -138,14 +139,13 @@ open AST
 
 %left OPEN_CURLY
 
-(* %left COMMA *)
-%left AT_SYMBOL
 %left IN
 %left DOLLAR_SIGN
 %left L_NOT L_AND L_OR
 
-(* Other *)
 %right CONS
+%left AT_SYMBOL
+
 %left OPEN_PAREN
 %left QUESTION
 %left TILDE
@@ -239,6 +239,7 @@ typ:
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
     | s = sumTyp; { s }
+    | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, t) }
 
 nonAscriptingPat:
     | OPEN_PAREN; p = pat; CLOSE_PAREN { p }

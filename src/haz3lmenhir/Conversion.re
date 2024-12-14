@@ -261,6 +261,7 @@ and Typ: {
       Sum(converted_terms);
     | SumTerm(_) => raise(Failure("SumTerm conversion not possible"))
     | ForallType(tp, t) => Forall(TPat.of_menhir_ast(tp), of_menhir_ast(t))
+    | RecType(tp, t) => Rec(TPat.of_menhir_ast(tp), of_menhir_ast(t))
     };
   }
   and constructormap_of_sumterm_list =
