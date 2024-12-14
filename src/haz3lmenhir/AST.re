@@ -45,6 +45,7 @@ type op_bin_string =
   | Concat
   | Equals;
 
+// TODO Rename to match others
 [@deriving (show({with_path: false}), sexp)]
 type binOp =
   | IntOp(op_bin_int)

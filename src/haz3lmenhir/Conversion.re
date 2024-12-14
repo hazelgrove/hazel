@@ -9,6 +9,15 @@ module FilterAction = {
     | Hide => (Eval, One)
     };
   };
+
+  let of_core = (a: t): AST.filter_action => {
+    switch (a) {
+    | (Eval, All) => Eval
+    | (Step, One) => Pause
+    | (Step, All) => Debug
+    | (Eval, One) => Hide
+    };
+  };
 };
 
 module Operators = {
@@ -37,6 +46,80 @@ module Operators = {
     | Meta(meta) => Meta(op_un_meta_of_menhir_ast(meta))
     | Int(i) => Int(op_un_int_of_menhir_ast(i))
     | Bool(b) => Bool(op_un_bool_of_menhir_ast(b))
+    };
+  };
+
+  let of_core_op_bin = (op: op_bin): AST.binOp => {
+    switch (op) {
+    | Int(op_int) =>
+      IntOp(
+        switch (op_int) {
+        | Plus => Plus
+        | Minus => Minus
+        | Times => Times
+        | Power => Power
+        | Divide => Divide
+        | LessThan => LessThan
+        | LessThanOrEqual => LessThanOrEqual
+        | GreaterThan => GreaterThan
+        | GreaterThanOrEqual => GreaterThanOrEqual
+        | Equals => Equals
+        | NotEquals => NotEquals
+        },
+      )
+    | Float(op_float) =>
+      FloatOp(
+        switch (op_float) {
+        | Plus => Plus
+        | Minus => Minus
+        | Times => Times
+        | Power => Power
+        | Divide => Divide
+        | LessThan => LessThan
+        | LessThanOrEqual => LessThanOrEqual
+        | GreaterThan => GreaterThan
+        | GreaterThanOrEqual => GreaterThanOrEqual
+        | Equals => Equals
+        | NotEquals => NotEquals
+        },
+      )
+    | Bool(op_bool) =>
+      BoolOp(
+        switch (op_bool) {
+        | And => And
+        | Or => Or
+        },
+      )
+    | String(op_string) =>
+      StringOp(
+        switch (op_string) {
+        | Concat => Concat
+        | Equals => Equals
+        },
+      )
+    };
+  };
+
+  let of_core_op_un = (op: op_un): AST.op_un => {
+    switch (op) {
+    | Meta(meta) =>
+      Meta(
+        switch (meta) {
+        | Unquote => Unquote
+        },
+      )
+    | Int(i) =>
+      Int(
+        switch (i) {
+        | Minus => Minus
+        },
+      )
+    | Bool(b) =>
+      Bool(
+        switch (b) {
+        | Not => Not
+        },
+      )
     };
   };
 
@@ -104,6 +187,7 @@ module Operators = {
 module rec Exp: {
   let term_of_menhir_ast: AST.exp => Haz3lcore.Exp.term;
   let of_menhir_ast: AST.exp => Haz3lcore.Exp.t;
+  let of_core: Haz3lcore.Exp.t => AST.exp;
 } = {
   let rec term_of_menhir_ast = (exp: AST.exp): Haz3lcore.Exp.term => {
     switch (exp) {
@@ -212,6 +296,64 @@ module rec Exp: {
   and of_menhir_ast = (exp: AST.exp): Haz3lcore.Exp.t => {
     Haz3lcore.IdTagged.fresh(term_of_menhir_ast(exp));
   };
+
+  let rec of_core = (exp: Haz3lcore.Exp.t): AST.exp => {
+    switch (exp.term) {
+    | Invalid(_) => InvalidExp("Invalid")
+    | Int(i) => Int(i)
+    | Float(f) => Float(f)
+    | String(s) => String(s)
+    | Bool(b) => Bool(b)
+    | Var(x) => Var(x)
+    | Deferral(InAp) => Deferral
+    | ListLit(l) => ListExp(List.map(of_core, l))
+    | Tuple(l) => TupleExp(List.map(of_core, l))
+    | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
+    | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
+    | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))
+    | Undefined => Undefined
+    | TyAlias(tp, ty, e) =>
+      TyAlias(TPat.of_core(tp), Typ.of_core(ty), of_core(e))
+    | BuiltinFun(s) => BuiltinFun(s)
+    | Ap(Forward, e1, e2) => ApExp(of_core(e1), TupleExp([of_core(e2)]))
+    | BinOp(op, e1, e2) =>
+      BinExp(of_core(e1), Operators.of_core_op_bin(op), of_core(e2))
+    | If(e1, e2, e3) => If(of_core(e1), of_core(e2), of_core(e3))
+    | Match(e, l) =>
+      CaseExp(
+        of_core(e),
+        List.map(((p, e)) => (Pat.of_core(p), of_core(e)), l),
+      )
+    | Cast(e, t1, t2) =>
+      Cast(of_core(e), Typ.of_core(t1), Typ.of_core(t2))
+    | FailedCast(e, t1, t2) =>
+      FailedCast(of_core(e), Typ.of_core(t1), Typ.of_core(t2))
+    | EmptyHole => EmptyHole
+    | Seq(e1, e2) => Seq(of_core(e1), of_core(e2))
+    | Test(e) => Test(of_core(e))
+    | Cons(e1, e2) => Cons(of_core(e1), of_core(e2))
+    | ListConcat(e1, e2) => ListConcat(of_core(e1), of_core(e2))
+    | Filter(Filter({pat, act}), body) =>
+      Filter(FilterAction.of_core(act), of_core(pat), of_core(body))
+    | TypAp(e, ty) => TypAp(of_core(e), Typ.of_core(ty))
+    | UnOp(op, e) => UnOp(Operators.of_core_op_un(op), of_core(e))
+    | DynamicErrorHole(e, s) =>
+      DynamicErrorHole(
+        of_core(e),
+        Sexplib.Sexp.to_string(Haz3lcore.InvalidOperationError.sexp_of_t(s)),
+      )
+    | Deferral(_) => Deferral
+    | Filter(_) => raise(Failure("Filter not supported")) // TODO
+    | MultiHole(_) => raise(Failure("MultiHole not supported")) // TODO
+    | Closure(_) => raise(Failure("Closure not supported")) // TODO
+    | Parens(e) => of_core(e)
+    | Constructor(s, typ) => Constructor(s, Typ.of_core(typ))
+    | DeferredAp(e, es) =>
+      ApExp(of_core(e), TupleExp(List.map(of_core, es)))
+    | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
+    | Ap(Reverse, _, _) => raise(Failure("Reverse not supported")) // TODO
+    };
+  };
 }
 and Typ: {
   let of_menhir_ast: AST.typ => Haz3lcore.Typ.t;
@@ -220,6 +362,7 @@ and Typ: {
 
   let constructormap_variant_of_sumterm:
     AST.typ => Haz3lcore.ConstructorMap.variant(Haz3lcore.Typ.t);
+  let of_core: Haz3lcore.Typ.t => AST.typ;
 } = {
   let rec of_menhir_ast = (typ: AST.typ): Haz3lcore.Typ.t => {
     Haz3lcore.IdTagged.fresh(term_of_menhir_ast(typ));
@@ -299,10 +442,38 @@ and Typ: {
       )
     };
   };
+  let of_core_type_provenance =
+      (p: Haz3lcore.TermBase.type_provenance): AST.typ_provenance => {
+    switch (p) {
+    | Internal => Internal
+    | Hole(EmptyHole) => EmptyHole
+    | _ => raise(Failure("Unknown type_provenance"))
+    };
+  };
+  let rec of_core = (typ: Haz3lcore.Typ.t): AST.typ => {
+    switch (typ.term) {
+    | Int => IntType
+    | Float => FloatType
+    | String => StringType
+    | Bool => BoolType
+    | Var(x) => TypVar(x)
+    | Prod([]) => UnitType
+    | Prod(ts) => TupleType(List.map(of_core, ts))
+    | List(t) => ArrayType(of_core(t))
+    | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
+    | Unknown(p) => UnknownType(of_core_type_provenance(p))
+    | Forall(tp, t) => ForallType(TPat.of_core(tp), of_core(t))
+    | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
+    | Parens(t) => of_core(t)
+    | Ap(_) => raise(Failure("Ap not supported")) // TODO
+    | Sum(_) => raise(Failure("Sum not supported")) // TODO
+    };
+  };
 }
 and TPat: {
   let of_menhir_ast: AST.tpat => Haz3lcore.TPat.t;
   let term_of_menhir_ast: AST.tpat => Haz3lcore.TPat.term;
+  let of_core: Haz3lcore.TPat.t => AST.tpat;
 } = {
   let rec term_of_menhir_ast = (tpat: AST.tpat): Haz3lcore.TPat.term => {
     switch (tpat) {
@@ -314,10 +485,20 @@ and TPat: {
   and of_menhir_ast = (tpat: AST.tpat) => {
     Haz3lcore.IdTagged.fresh(term_of_menhir_ast(tpat));
   };
+
+  let of_core = (tpat: Haz3lcore.TPat.t): AST.tpat => {
+    switch (tpat.term) {
+    | EmptyHole => EmptyHoleTPat
+    | Var(x) => VarTPat(x)
+    | Invalid(i) => InvalidTPat(i)
+    | MultiHole(_) => raise(Failure("MultiHole not supported")) // TODO
+    };
+  };
 }
 and Pat: {
   let term_of_menhir_ast: AST.pat => Haz3lcore.Pat.term;
   let of_menhir_ast: AST.pat => Haz3lcore.Pat.t;
+  let of_core: Haz3lcore.Pat.t => AST.pat;
 } = {
   let rec term_of_menhir_ast = (pat: AST.pat): Haz3lcore.Pat.term => {
     switch (pat) {
@@ -340,5 +521,26 @@ and Pat: {
   }
   and of_menhir_ast = (pat: AST.pat): Haz3lcore.Pat.t => {
     Haz3lcore.IdTagged.fresh(term_of_menhir_ast(pat));
+  };
+  let rec of_core = (pat: Haz3lcore.Pat.t): AST.pat => {
+    switch (pat.term) {
+    | Invalid(_) => InvalidPat("Invalid")
+    | Int(i) => IntPat(i)
+    | Float(f) => FloatPat(f)
+    | Var(x) => VarPat(x)
+    | Constructor(x, ty) => ConstructorPat(x, Typ.of_core(ty))
+    | String(s) => StringPat(s)
+    | Tuple(l) => TuplePat(List.map(of_core, l))
+    | Bool(b) => BoolPat(b)
+    | Cons(p1, p2) => ConsPat(of_core(p1), of_core(p2))
+    | ListLit(l) => ListPat(List.map(of_core, l))
+    | Ap(p1, p2) => ApPat(of_core(p1), of_core(p2))
+    | EmptyHole => EmptyHolePat
+    | Wild => WildPat
+    | MultiHole(_) => raise(Failure("MultiHole not supported")) // TODO
+    | Cast(p, t1, t2) =>
+      CastPat(of_core(p), Typ.of_core(t1), Typ.of_core(t2))
+    | Parens(p) => of_core(p)
+    };
   };
 };
