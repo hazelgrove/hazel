@@ -186,7 +186,7 @@ let arb_exp_sized: QCheck.arbitrary(exp) =
 
     let gen: Gen.t(exp) =
       QCheck.Gen.sized_size(
-        QCheck.Gen.int_range(0, 10), // Currently only size 10
+        QCheck.Gen.int_range(0, 5), // Currently only size 10
         QCheck.Gen.fix((self, n) => {
           switch (n) {
           | 0 => leaf.gen
@@ -218,19 +218,19 @@ let arb_exp_sized: QCheck.arbitrary(exp) =
                 ),
               ),
               // Need to make ExpToSegment add parens for tuples for menhir
-              // Gen.join(
-              //   Gen.map(
-              //     (sizes: array(int)) => {
-              //       let exps = Array.map((size: int) => self(size), sizes);
-              //       let flattened = Gen.flatten_a(exps);
-              //       Gen.map(
-              //         (exps: array(exp)) => TupleExp(Array.to_list(exps)),
-              //         flattened,
-              //       );
-              //     },
-              //     list_sizes,
-              //   ),
-              // ),
+              Gen.join(
+                Gen.map(
+                  (sizes: array(int)) => {
+                    let exps = Array.map((size: int) => self(size), sizes);
+                    let flattened = Gen.flatten_a(exps);
+                    Gen.map(
+                      (exps: array(exp)) => TupleExp(Array.to_list(exps)),
+                      flattened,
+                    );
+                  },
+                  list_sizes,
+                ),
+              ),
             ]);
           }
         }),

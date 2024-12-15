@@ -253,6 +253,22 @@ let qcheck_menhir_maketerm_equivalent_test =
     exp => {
       let core_exp = Conversion.Exp.of_menhir_ast(exp);
 
+      // TODO Maybe only do this when necessary.
+      // TODO Check with Matthew if I'm using this correctly
+      // Add parens around tuples
+      let core_exp =
+        Exp.map_term(
+          ~f_exp=
+            (cont, e) =>
+              switch (e.term) {
+              | Tuple(es) =>
+                Parens(Tuple(es |> List.map(cont)) |> Exp.fresh)
+                |> Exp.fresh
+              | _ => cont(e)
+              },
+          core_exp,
+        );
+
       let segment =
         ExpToSegment.exp_to_segment(
           ~settings=
@@ -264,6 +280,7 @@ let qcheck_menhir_maketerm_equivalent_test =
         );
 
       let serialized = Printer.of_segment(~holes=Some("?"), segment);
+      print_endline("Serialized: " ++ serialized);
       let make_term_parsed = make_term_parse(serialized);
       let menhir_parsed =
         Haz3lmenhir.Conversion.Exp.of_menhir_ast(
