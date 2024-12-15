@@ -241,6 +241,37 @@ let menhir_doesnt_crash_test = (name, src) =>
     },
   );
 
+let i = ref(0);
+
+let qcheck_menhir_maketerm_equivalent_test =
+  QCheck.Test.make(
+    ~name="Menhir and maketerm are equivalent",
+    ~count=1000,
+    AST.arb_exp_sized(1),
+    exp => {
+      let core_exp = Conversion.Exp.of_menhir_ast(exp);
+
+      let segment =
+        ExpToSegment.exp_to_segment(
+          ~settings=
+            ExpToSegment.Settings.of_core(
+              ~inline=true, // TODO What does inline do?
+              CoreSettings.off,
+            ),
+          core_exp,
+        );
+
+      let serialized = Printer.of_segment(~holes=Some("?"), segment);
+      let make_term_parsed = make_term_parse(serialized);
+      let menhir_parsed =
+        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+          Haz3lmenhir.Interface.parse_program(serialized),
+        );
+
+      Haz3lcore.DHExp.fast_equal(make_term_parsed, menhir_parsed);
+    },
+  );
+
 let tests = [
   parser_test("Integer Literal", Int(8) |> Exp.fresh, "8"),
   parser_test("Fun", fun_exp, "fun x -> x"),
@@ -850,4 +881,5 @@ let ex5 = list_of_mylist(x) in
 (ex1, ex2, ex3, ex4, ex5)
     |},
   ),
+  QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
 ];

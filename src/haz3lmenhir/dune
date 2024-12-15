@@ -1,11 +1,16 @@
 (library
  (name haz3lmenhir)
- (libraries util re sexplib unionFind haz3lcore)
+ (libraries util re sexplib unionFind haz3lcore qcheck-alcotest)
  (modules AST Conversion Interface Lexer Parser)
  (instrumentation
   (backend bisect_ppx))
  (preprocess
-  (pps ppx_let ppx_sexp_conv ppx_deriving.show ppx_yojson_conv)))
+  (pps
+   ppx_let
+   ppx_sexp_conv
+   ppx_deriving.show
+   ppx_yojson_conv
+   ppx_deriving_qcheck)))
 
 (ocamllex Lexer)
 
