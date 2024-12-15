@@ -88,8 +88,9 @@ let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
     },
   );
 
-let menhir_maketerm_equivalent_test = (name: string, actual: string) =>
-  test_case(name, `Quick, () => {
+let menhir_maketerm_equivalent_test =
+    (~speed_level=`Quick, name: string, actual: string) =>
+  test_case(name, speed_level, () => {
     alco_check(
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
@@ -246,8 +247,8 @@ let i = ref(0);
 let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir and maketerm are equivalent",
-    ~count=1000,
-    AST.arb_exp_sized(1),
+    ~count=100,
+    AST.arb_exp_sized,
     exp => {
       let core_exp = Conversion.Exp.of_menhir_ast(exp);
 
@@ -610,6 +611,7 @@ let tests = [
     "true && 23 < int_of_float(51.00)" // TODO This looks like a bug in MakeTerm
   ),
   menhir_maketerm_equivalent_test(
+    ~speed_level=`Slow,
     "Altered Documentation Buffer: Basic Reference",
     {|
 let empty_hole = ? in
@@ -715,6 +717,7 @@ test 2 + 2 == 5 end;
   // TODO This is an issue with `int_of_float` being parsed
   // as a builtin function in menhir and a Var in MakeTerm
   menhir_maketerm_equivalent_test(
+    ~speed_level=`Slow,
     "Altered Documentation Buffer: Projectors",
     {|
 let fold = (((((((((((()))))))))))) in
@@ -734,6 +737,7 @@ if true && (23 < int_of_float(51.00))
 then ______ else "its: " ++ box    |},
   ),
   menhir_maketerm_equivalent_test(
+    ~speed_level=`Slow,
     "Altered Documentation Buffer: Types & Static Errors",
     {|
 let _ = unbound in
@@ -782,6 +786,7 @@ let _: [Int] = 1::[2.0] in
 |},
   ),
   menhir_maketerm_equivalent_test(
+    ~speed_level=`Slow,
     "Altered Documentation Buffer: adt dynamics",
     {|
 type Exp =
@@ -851,6 +856,7 @@ Ok(Lam("bro", Var("bro")))) end
   ),
   menhir_maketerm_equivalent_test(
     // Variable names are renamed due to lexing overtaking e, t, p, and tp
+    ~speed_level=`Slow,
     "Altered Documentation Buffer: Polymorphism",
     {|let id = typfun A -> (fun (x : A) -> x) in
 let ex1 = id@<Int>(1) in

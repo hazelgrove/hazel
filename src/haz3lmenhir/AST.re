@@ -180,9 +180,46 @@ let arb_ident =
 
 let arb_var = QCheck.(map(x => Var(x), arb_ident));
 
-let arb_exp_sized = (size: int): QCheck.arbitrary(exp) => {
-  open QCheck;
-  let i = QCheck.small_int;
-  let foo = arb_typ_sized;
-  oneof([arb_int, arb_str, arb_float, arb_var]);
-};
+let arb_exp_sized: QCheck.arbitrary(exp) =
+  QCheck.(
+    let leaf = oneof([arb_int, arb_str, arb_float, arb_var]);
+
+    let gen: Gen.t(exp) =
+      QCheck.Gen.sized_size(
+        QCheck.Gen.int_range(0, 10), // Currently only size 10
+        QCheck.Gen.fix((self, n) => {
+          switch (n) {
+          | 0 => leaf.gen
+          | _ =>
+            print_endline("Size: " ++ string_of_int(n));
+            let list_sizes =
+              if (n <= 1) {
+                // Bug in nat_split for size=0
+                Gen.pure([|0, 0, 0, 0, 0|]);
+              } else {
+                QCheck.Gen.nat_split(
+                  ~size=n - 1,
+                  5 // Make different size lists
+                );
+              };
+            let lists_gen =
+              Gen.map(
+                (sizes: array(int)) => {
+                  let sizes = Array.to_list(sizes);
+                  let exps = List.map((size: int) => self(size), sizes);
+                  let flattened = Gen.flatten_l(exps);
+                  let foo =
+                    Gen.map((exps: list(exp)) => ListExp(exps), flattened);
+                  foo;
+                },
+                list_sizes,
+              );
+            let foo = Gen.join(lists_gen);
+
+            Gen.oneof([leaf.gen, foo]);
+          }
+        }),
+      );
+
+    QCheck.make(gen)
+  ); // TODO Printers, shrinkers stuff
