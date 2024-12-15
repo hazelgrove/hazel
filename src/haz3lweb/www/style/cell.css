@@ -217,6 +217,14 @@
   align-items: center;
 }
 
+.cell-prompt .prompt-edit .edit-pencil {
+  align-self: top;
+}
+
+.cell-prompt .prompt-edit .edit-icon {
+  align-self: flex-start;
+}
+
 .cell-prompt .prompt-placeholder {
   font-style: italic;
   color: var(--BR4);
@@ -227,15 +235,17 @@
   font-size: 1rem;
 }
 
-.edit-icon {
+.edit-icon,
+.edit-pencil {
   margin-left: 0.5em;
   cursor: pointer;
   fill: #7a6219;
-  display: inline-flex;
+  display: inline;
   vertical-align: top;
 }
 
-.edit-icon:hover {
+.edit-icon:hover,
+.edit-pencil:hover {
   animation: wobble 0.6s ease 0s 1 normal forwards;
 }
 
