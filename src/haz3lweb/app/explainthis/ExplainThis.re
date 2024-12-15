@@ -171,7 +171,9 @@ let mk_translation = (~globals, text: string): (list(Node.t), ColorSteps.t) => {
     List.fold_left(
       ((msg, mapping), elem) => {
         switch (elem) {
-        | Omd.Paragraph(_, d) => translate_inline(d, msg, mapping)
+        | Omd.Paragraph(_, d) =>
+          let (n, _) = translate_inline(d, [], mapping);
+          (List.append(msg, [Node.p(n)]), mapping);
         | Omd.List(_, _, _, items) =>
           let (bullets, mapping) =
             List.fold_left(
