@@ -191,7 +191,6 @@ let arb_exp_sized: QCheck.arbitrary(exp) =
           switch (n) {
           | 0 => leaf.gen
           | _ =>
-            print_endline("Size: " ++ string_of_int(n));
             let list_sizes =
               if (n <= 1) {
                 // Bug in nat_split for size=0
@@ -202,24 +201,40 @@ let arb_exp_sized: QCheck.arbitrary(exp) =
                   5 // Make different size lists
                 );
               };
-            let lists_gen =
-              Gen.map(
-                (sizes: array(int)) => {
-                  let sizes = Array.to_list(sizes);
-                  let exps = List.map((size: int) => self(size), sizes);
-                  let flattened = Gen.flatten_l(exps);
-                  let foo =
-                    Gen.map((exps: list(exp)) => ListExp(exps), flattened);
-                  foo;
-                },
-                list_sizes,
-              );
-            let foo = Gen.join(lists_gen);
 
-            Gen.oneof([leaf.gen, foo]);
+            Gen.oneof([
+              leaf.gen,
+              Gen.join(
+                Gen.map(
+                  (sizes: array(int)) => {
+                    let exps = Array.map((size: int) => self(size), sizes);
+                    let flattened = Gen.flatten_a(exps);
+                    Gen.map(
+                      (exps: array(exp)) => ListExp(Array.to_list(exps)),
+                      flattened,
+                    );
+                  },
+                  list_sizes,
+                ),
+              ),
+              // Need to make ExpToSegment add parens for tuples for menhir
+              // Gen.join(
+              //   Gen.map(
+              //     (sizes: array(int)) => {
+              //       let exps = Array.map((size: int) => self(size), sizes);
+              //       let flattened = Gen.flatten_a(exps);
+              //       Gen.map(
+              //         (exps: array(exp)) => TupleExp(Array.to_list(exps)),
+              //         flattened,
+              //       );
+              //     },
+              //     list_sizes,
+              //   ),
+              // ),
+            ]);
           }
         }),
       );
 
-    QCheck.make(gen)
+    QCheck.make(~print=show_exp, gen)
   ); // TODO Printers, shrinkers stuff

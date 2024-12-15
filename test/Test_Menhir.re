@@ -71,8 +71,9 @@ let skip_parser_test = (name: string, _exp: Term.Exp.t, _actual: string) =>
   test_case(name, `Quick, () => {Alcotest.skip()});
 let skip_menhir_only_test = (name: string, _exp: Term.Exp.t, _actual: string) =>
   test_case(name, `Quick, () => {Alcotest.skip()});
-let skip_menhir_maketerm_equivalent_test = (name: string, _actual: string) =>
-  test_case(name, `Quick, () => {Alcotest.skip()});
+let skip_menhir_maketerm_equivalent_test =
+    (~speed_level=`Quick, name: string, _actual: string) =>
+  test_case(name, speed_level, () => {Alcotest.skip()});
 // TODO Assert against result instead of exception for parse failure for better error messages
 let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
   test_case(
