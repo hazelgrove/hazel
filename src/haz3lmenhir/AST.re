@@ -218,19 +218,19 @@ let arb_exp_sized: QCheck.arbitrary(exp) =
                 ),
               ),
               // Need to make ExpToSegment add parens for tuples for menhir
-              // Gen.join(
-              //   Gen.map(
-              //     (sizes: array(int)) => {
-              //       let exps = Array.map((size: int) => self(size), sizes);
-              //       let flattened = Gen.flatten_a(exps);
-              //       Gen.map(
-              //         (exps: array(exp)) => TupleExp(Array.to_list(exps)),
-              //         flattened,
-              //       );
-              //     },
-              //     list_sizes,
-              //   ),
-              // ),
+              Gen.join(
+                Gen.map(
+                  (sizes: array(int)) => {
+                    let exps = Array.map((size: int) => self(size), sizes);
+                    let flattened = Gen.flatten_a(exps);
+                    Gen.map(
+                      (exps: array(exp)) => TupleExp(Array.to_list(exps)),
+                      flattened,
+                    );
+                  },
+                  list_sizes,
+                ),
+              ),
             ]);
           }
         }),
