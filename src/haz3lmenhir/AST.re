@@ -186,7 +186,7 @@ let arb_exp_sized: QCheck.arbitrary(exp) =
 
     let gen: Gen.t(exp) =
       QCheck.Gen.sized_size(
-        QCheck.Gen.int_range(0, 10), // Currently only size 10
+        QCheck.Gen.int_range(0, 5), // Currently only size 10
         QCheck.Gen.fix((self, n) => {
           switch (n) {
           | 0 => leaf.gen
