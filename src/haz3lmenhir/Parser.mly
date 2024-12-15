@@ -226,7 +226,7 @@ sumTyp:
 typ:
     | c = CONSTRUCTOR_IDENT { TypVar(c) }
     | c = IDENT { TypVar(c) }
-    | QUESTION; T_TYP; s = STRING { InvalidTyp(s) }
+    |  T_TYP; s = STRING { InvalidTyp(s) }
     | INT_TYPE { IntType }
     | FLOAT_TYPE { FloatType }
     | BOOL_TYPE { BoolType }
@@ -244,7 +244,7 @@ typ:
 nonAscriptingPat:
     | OPEN_PAREN; p = pat; CLOSE_PAREN { p }
     | OPEN_PAREN; p = pat; COMMA; pats = separated_list(COMMA, pat); CLOSE_PAREN { TuplePat(p :: pats) }
-    | QUESTION; P_PAT; s = STRING { InvalidPat(s) }
+    |  P_PAT; s = STRING { InvalidPat(s) }
     | WILD { WildPat }
     | QUESTION { EmptyHolePat }
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
@@ -290,7 +290,7 @@ filterAction:
     | EVAL { Eval }
 
 tpat:
-    | QUESTION; TP_TPAT; s = STRING {InvalidTPat(s)}
+    | TP_TPAT; s = STRING {InvalidTPat(s)}
     | QUESTION {EmptyHoleTPat}
     | v = IDENT {VarTPat v}
     | v = CONSTRUCTOR_IDENT {VarTPat v}
@@ -332,7 +332,7 @@ exp:
     | e1 = exp; AT_SYMBOL; e2 = exp { ListConcat(e1, e2) }
     | e1 = exp; CONS; e2 = exp { Cons(e1, e2) }
     | e1 = exp; SEMI_COLON; e2 = exp { Seq(e1, e2) }
-    | QUESTION; E_EXP; s = STRING; { InvalidExp(s) }
+    |  E_EXP; s = STRING; { InvalidExp(s) }
     |  WILD {Deferral}
     | e = exp; AT_SYMBOL; LESS_THAN; ty = typ; GREATER_THAN; {TypAp(e, ty)}
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)}

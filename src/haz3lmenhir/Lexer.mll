@@ -123,10 +123,10 @@ rule token =
     | "type" {TYP}
     | "$" {DOLLAR_SIGN}
     | "~" {TILDE}
-    | "t" {T_TYP} (* TODO These make it very easy to get an unparseable program *)
-    | "p" {P_PAT}
-    | "tp" {TP_TPAT}
-    | "e" {E_EXP}
+    | "?t" {T_TYP} (* TODO These make it very easy to get an unparseable program *)
+    | "?p" {P_PAT}
+    | "?tp" {TP_TPAT}
+    | "?e" {E_EXP}
     | "named_fun" {NAMED_FUN}
     | "forall" {FORALL}
     | "rec" {REC}
