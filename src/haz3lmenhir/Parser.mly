@@ -146,7 +146,7 @@ open AST
 %right CONS
 %left AT_SYMBOL
 
-%left OPEN_PAREN
+%left OPEN_PAREN CLOSE_PAREN
 %left QUESTION
 %left TILDE
 %nonassoc UMINUS   /* Unary minus (prefix) */
