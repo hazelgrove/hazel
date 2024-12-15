@@ -166,7 +166,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Int(n) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Int.to_string(n))
   // TODO: do floats print right?
   | Float(f) =>
-    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Float.to_string(f))
+    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Printf.sprintf("%f", f))
   | String(s) =>
     text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "\"" ++ s ++ "\"")
   // TODO: Make sure types are correct
@@ -475,7 +475,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Var(v) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, v)
   | Int(n) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Int.to_string(n))
   | Float(f) =>
-    text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Float.to_string(f))
+    text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Printf.sprintf("%f", f))
   | Bool(b) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Bool.to_string(b))
   | String(s) =>
     text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "\"" ++ s ++ "\"")
