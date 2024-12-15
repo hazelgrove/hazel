@@ -18,9 +18,10 @@ let parse_float_string s =
     | Failure _ -> print_endline ("Parse Float String Lexing Error On: " ^ s); 0.0
 
 }
-
-let float = '-'? ['0'-'9']* '.' ['0'-'9']*
-let int = '-'? ['0'-'9'] ['0'-'9']*
+(* TODO We don't yet support negative floats in MakeTerm *)
+let float = ['0'-'9']* '.' ['0'-'9']*
+(* negative ints are done through unop *)
+let int = ['0'-'9'] ['0'-'9']*
 
 let string = '"' ([^ '"' '\\'] | '\\' ['"' '\\'])* '"'
 
