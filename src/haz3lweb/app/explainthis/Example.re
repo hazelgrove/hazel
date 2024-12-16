@@ -22,8 +22,6 @@ let int = n => mk_monotile(Form.mk_atomic(Exp, n));
 let exp = v => mk_monotile(Form.mk_atomic(Exp, v));
 let pat = v => mk_monotile(Form.mk_atomic(Pat, v));
 let mk_parens_exp = mk_tile(Form.get("parens_exp"));
-let mk_probe = (e: list(Piece.t)) =>
-  mk_tile(Form.mk(Form.ii, ["@@", "@@"], Mold.mk_op(Exp, [Exp])), [e]);
 let mk_fun = mk_tile(Form.get("fun_"));
 let mk_fun_ancestor = mk_ancestor(Form.get("fun_"));
 let mk_parens_ancestor = mk_ancestor(Form.get("parens_exp"));

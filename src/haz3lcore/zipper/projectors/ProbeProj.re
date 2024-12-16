@@ -4,25 +4,6 @@ open Virtual_dom.Vdom;
 open Node;
 open Js_of_ocaml;
 
-//let _ = Zipper.base_point; //not cyclical
-//let _ = Editor.show; //cyclical
-
-/* Plan for extended dynamics:
-   in principle we could track:
-   - prev 'stack frame': id of prev expr that began execution?
-   - env (or just the part of the env that's relevant to the current expr)
-     aka the co-ctx
-
-    */
-
-/* Plan for selectable (editable as well maybe):
-
-   selectable:
-   create own mini version of editor, use it as model
-   update fn updates model after applying mini editor action
-   hopefully can use same actions
-    */
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   [@default "⋱"]
@@ -96,22 +77,15 @@ let get_goal = (utility: utility, e: Js.t(Dom_html.mouseEvent)) =>
 let resizable_val =
     (~resizable=false, model, utility, local, pi: Dynamics.Probe.Info.t) => {
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
-    // print_endline("pointerdown");
     let target = e##.target |> Js.Opt.get(_, _ => failwith("no target"));
     JsUtil.setPointerCapture(target, e##.pointerId) |> ignore;
     mousedown := Some(target);
-    // if (last_target^ == [target] && !Js.to_bool(e##.shiftKey)) {
-    //   env_cursor := [];
-    //   last_target := [];
-    // } else {
     env_cursor := Probe.env_stack(pi.stack);
     last_target := [target];
-    // };
     Effect.Ignore;
   };
 
   let val_pointerup = (e: Js.t(Dom_html.pointerEvent)) => {
-    // print_endline("pointerup");
     switch (mousedown^) {
     | Some(target) =>
       JsUtil.releasePointerCapture(target, e##.pointerId) |> ignore
@@ -128,10 +102,7 @@ let resizable_val =
       /* Ideally we could just use hasPointerCapture... */
       let goal = get_goal(utility, e);
       local(ChangeLength(goal.col));
-    // print_endline("mousemove: resizing");
-    | _ =>
-      // print_endline("mousemove: not resizing");
-      Effect.Ignore
+    | _ => Effect.Ignore
     };
 
   div(
@@ -145,10 +116,7 @@ let resizable_val =
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
     ],
-    [
-      seg_view(utility, model.len, pi.value),
-      //, text(stack(pi.stack))
-    ],
+    [seg_view(utility, model.len, pi.value)],
   );
 };
 

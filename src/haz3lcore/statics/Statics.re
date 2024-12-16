@@ -26,7 +26,7 @@
    itself is dedicated to the piping necessary to (A) introduce and
    (B) propagate the necessary information through the syntax tree.
 
-     */
+    */
 
 module Info = Info;
 
