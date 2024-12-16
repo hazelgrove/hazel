@@ -20,10 +20,8 @@ type a =
 let stack = stack =>
   stack
   |> List.rev
-  |> List.map(({env_id, ap_id, closure_id}: Probe.frame) =>
+  |> List.map(({env_id, ap_id}: Probe.frame) =>
        ""
-       ++ String.sub(Id.to_string(closure_id), 0, 2)
-       ++ "\n"
        ++ String.sub(Id.to_string(env_id), 0, 2)
        ++ "\n"
        ++ String.sub(Id.to_string(ap_id), 0, 2)
@@ -41,7 +39,7 @@ let one_is_suffix_of_other = (s1, s2) =>
   common_suffix_length(s1, s2) == List.length(s1)
   || common_suffix_length(s1, s2) == List.length(s2);
 
-let comparor = (a: Dynamics.Probe.Info.t, b: Dynamics.Probe.Info.t) => {
+let comparor = (a: Dynamics.Probe.Closure.t, b: Dynamics.Probe.Closure.t) => {
   compare(
     common_suffix_length(env_cursor^, Probe.env_stack(b.stack)),
     common_suffix_length(env_cursor^, Probe.env_stack(a.stack)),
@@ -75,12 +73,18 @@ let get_goal = (utility: utility, e: Js.t(Dom_html.mouseEvent)) =>
   );
 
 let resizable_val =
-    (~resizable=false, model, utility, local, pi: Dynamics.Probe.Info.t) => {
+    (
+      ~resizable=false,
+      model,
+      utility,
+      local,
+      closure: Dynamics.Probe.Closure.t,
+    ) => {
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
     let target = e##.target |> Js.Opt.get(_, _ => failwith("no target"));
     JsUtil.setPointerCapture(target, e##.pointerId) |> ignore;
     mousedown := Some(target);
-    env_cursor := Probe.env_stack(pi.stack);
+    env_cursor := Probe.env_stack(closure.stack);
     last_target := [target];
     Effect.Ignore;
   };
@@ -107,16 +111,16 @@ let resizable_val =
 
   div(
     ~attrs=[
-      Attr.title(stack(pi.stack)),
+      Attr.title(stack(closure.stack)),
       Attr.classes(
-        ["val-resize"] @ (show_indicator(pi.stack) ? ["cursor"] : []),
+        ["val-resize"] @ (show_indicator(closure.stack) ? ["cursor"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleShowAllVals)),
       Attr.on_pointerdown(val_pointerdown),
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
     ],
-    [seg_view(utility, model.len, pi.value)],
+    [seg_view(utility, model.len, closure.value)],
   );
 };
 
@@ -124,8 +128,8 @@ let env_val = (en: Dynamics.Probe.Env.entry, utility: utility) => {
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
     [
-      Node.text(en.name ++ "="),
-      switch (en.raw) {
+      Node.text(en.binding.name ++ "="),
+      switch (en.value) {
       | Opaque => Node.text("Opaque")
       | Val(d) => seg_view(utility, 12, d)
       },
@@ -137,7 +141,7 @@ let env_val = (en: Dynamics.Probe.Env.entry, utility: utility) => {
 let rm_opaques:
   list(Dynamics.Probe.Env.entry) => list(Dynamics.Probe.Env.entry) =
   List.filter_map((en: Dynamics.Probe.Env.entry) =>
-    switch (en.raw) {
+    switch (en.value) {
     | Opaque => None
     | Val(_) => Some(en)
     }
@@ -150,10 +154,10 @@ let is_var_ref = (info: info): bool =>
   | _ => false
   };
 
-let env_view = (pi: Dynamics.Probe.Info.t, utility: utility): Node.t =>
+let env_view = (closure: Dynamics.Probe.Closure.t, utility: utility): Node.t =>
   Node.div(
     ~attrs=[Attr.classes(["live-env"])],
-    pi.env |> rm_opaques |> List.map(en => env_val(en, utility)),
+    closure.env |> rm_opaques |> List.map(en => env_val(en, utility)),
   );
 
 let closure_view =
@@ -163,16 +167,16 @@ let closure_view =
       model: t,
       local,
       index,
-      pi: Dynamics.Probe.Info.t,
+      closure: Dynamics.Probe.Closure.t,
     ) =>
   div(
     ~attrs=[
       Attr.classes(
-        ["closure"] @ (show_indicator(pi.stack) ? ["cursor"] : []),
+        ["closure"] @ (show_indicator(closure.stack) ? ["cursor"] : []),
       ),
     ],
-    [resizable_val(~resizable=index == 0, model, utility, local, pi)]
-    @ (is_var_ref(info) ? [] : [env_view(pi, utility)]),
+    [resizable_val(~resizable=index == 0, model, utility, local, closure)]
+    @ (is_var_ref(info) ? [] : [env_view(closure, utility)]),
   );
 
 let select_vals = (model: t, vals) => {
@@ -196,7 +200,7 @@ let offside_view = (info, ~model, ~local, ~utility: utility) => {
     | Some(di) =>
       List.mapi(
         closure_view(info, utility, model, local),
-        select_vals(model, di.vals),
+        select_vals(model, di),
       )
     | _ => []
     },
@@ -205,7 +209,7 @@ let offside_view = (info, ~model, ~local, ~utility: utility) => {
 
 let num_closures = (info: info) =>
   switch (info.dynamics) {
-  | Some(di) => List.length(di.vals)
+  | Some(di) => List.length(di)
   | _ => 0
   };
 

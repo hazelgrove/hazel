@@ -1,3 +1,9 @@
+/* Abbreviate a term for display, specifically for the live
+ * value probe projector. This is currently specialized for
+ * expressions which are (at least partially) values. This
+ * is a bit rough right now, and should be redone when we
+ * projectors (in particular, fold) within value displays */
+
 let comp_elipses = "⋱";
 let flat_ellipses = "…";
 let ellipses_term = () => IdTagged.fresh(Invalid(comp_elipses): Exp.term);
@@ -23,13 +29,6 @@ let abbreviate_str = (min_len: int, s: string): string => {
 };
 
 let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
-  /*
-      Maybe we can also use this to format, ie insert linebreaks?
-      Hard when it's just exp but maybe we can track them via
-      some inserted form, or as a side effect? eg emit ids
-      to insert lb after during ExpToSeg?
-   */
-  // print_endline("abbreviate_exp");
   let rewrap = (term: Exp.term): Exp.t => {
     {...exp, term};
   };
@@ -73,7 +72,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
 
     // composite literal cases
     | ListLit(xs) =>
-      //TODO(andrew): improve this logic
+      //TODO: improve this logic
       if (available^ < 6) {
         ListLit([flat_ellipses_term()]);
       } else {
@@ -161,71 +160,6 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
     | Match(_e, _rs) => indet_term
     };
   rewrap(term);
-}
-and abbreviate_pat = (pat: Pat.t): Pat.t => {
-  switch (pat |> Pat.term_of) {
-  | Invalid(_t) => failwith("abbreviate_pat")
-  | EmptyHole => failwith("abbreviate_pat")
-  | Wild => failwith("abbreviate_pat")
-  | Var(_v) => failwith("abbreviate_pat")
-  | Int(_n) => failwith("abbreviate_pat")
-  | Float(_f) => failwith("abbreviate_pat")
-  | Bool(_b) => failwith("abbreviate_pat")
-  | String(_s) => failwith("abbreviate_pat")
-  | Constructor(_c, _) => failwith("abbreviate_pat")
-  | ListLit([]) => failwith("abbreviate_pat")
-  | ListLit([_x, ..._xs]) => failwith("abbreviate_pat")
-  | Cons(_p1, _p2) => failwith("abbreviate_pat")
-  | Tuple([]) => failwith("abbreviate_pat")
-  | Tuple([_]) => failwith("Singleton Tuples are not allowed")
-  | Tuple([_x, ..._xs]) => failwith("abbreviate_pat")
-  | Parens(_p) => failwith("abbreviate_pat")
-  | MultiHole(_es) => failwith("abbreviate_pat")
-  | Ap(_p1, _p2) => failwith("abbreviate_pat")
-  | Cast(_p, _t, _) => failwith("abbreviate_pat")
-  };
-}
-and abbreviate_typ = (typ: Typ.t): Typ.t => {
-  switch (typ |> Typ.term_of) {
-  | Unknown(Hole(Invalid(_s))) => failwith("abbreviate_typ")
-  | Unknown(_) => failwith("abbreviate_typ")
-  | Var(_) => failwith("abbreviate_typ")
-  | Int => failwith("abbreviate_typ")
-  | Float => failwith("abbreviate_typ")
-  | Bool => failwith("abbreviate_typ")
-  | String => failwith("abbreviate_typ")
-  | List(_t) => failwith("abbreviate_typ")
-  | Prod([]) => failwith("abbreviate_typ")
-  | Prod([_]) => failwith("Singleton Prods are not allowed")
-  | Prod([_t, ..._ts]) => failwith("abbreviate_typ")
-  | Parens(_t) => failwith("abbreviate_typ")
-  | Ap(_t1, _t2) => failwith("abbreviate_typ")
-  | Rec(_tp, _t) => failwith("abbreviate_typ")
-  | Forall(_tp, _t) => failwith("abbreviate_typ")
-  | Arrow(_t1, _t2) => failwith("abbreviate_typ")
-  | Sum([]) => failwith("abbreviate_typ")
-  | Sum([_t]) => failwith("abbreviate_typ")
-  | Sum([_t, ..._ts]) => failwith("abbreviate_typ")
-  };
-}
-and abbreviate_tpat = (tpat: TPat.t): TPat.t => {
-  switch (tpat |> IdTagged.term_of) {
-  | Invalid(_t) => failwith("abbreviate_tpat")
-  | EmptyHole => failwith("abbreviate_tpat")
-  | MultiHole(_xs) => failwith("abbreviate_tpat")
-  | Var(_v) => failwith("abbreviate_tpat")
-  };
-}
-and abbreviate_any = (any: Any.t): Any.t => {
-  switch (any) {
-  | Exp(e) => Exp(abbreviate_exp(e))
-  | Pat(p) => Pat(abbreviate_pat(p))
-  | Typ(t) => Typ(abbreviate_typ(t))
-  | TPat(tp) => TPat(abbreviate_tpat(tp))
-  | Any(_)
-  | Nul(_)
-  | Rul(_) => failwith("TODO: abbreviate_any: Rul | Any | Nul")
-  };
 };
 
 let abbreviate_exp = (~available as a=12, exp: Exp.t): (Exp.t, bool) => {

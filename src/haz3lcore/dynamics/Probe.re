@@ -22,7 +22,6 @@ type tag =
 /* Information about the evaluation of an ap */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type frame = {
-  closure_id: Id.t, /* Primary ID (Unique) */
   ap_id: Id.t, /* Syntax ID of the ap */
   env_id: Id.t /* ID of ClosureEnv created by ap  */
 };
@@ -36,8 +35,4 @@ let empty: t = {refs: [], stem: []};
 let env_stack: list(frame) => list(Id.t) =
   List.map((en: frame) => en.env_id);
 
-let mk_frame = (~env_id: Id.t, ~ap_id: Id.t): frame => {
-  closure_id: Id.mk(),
-  env_id,
-  ap_id,
-};
+let mk_frame = (~env_id: Id.t, ~ap_id: Id.t): frame => {env_id, ap_id};
