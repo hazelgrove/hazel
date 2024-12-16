@@ -358,13 +358,6 @@ module Transition = (EV: EV_MODE) => {
             is_value: false,
           });
         }
-      // let.match env'' = (env', matches(dp, d2'));
-      // Step({
-      //   expr: Closure(env'', d3) |> fresh,
-      //   state_update,
-      //   kind: FunAp,
-      //   is_value: false,
-      // });
       | Cast(
           d3',
           {term: Arrow(ty1, ty2), _},
@@ -783,6 +776,8 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       Indet;
     | Parens(d'', Probe(pr)) =>
+      /* When evaluated, a probe adds a dynamics info entry
+       * reflecting the evaluation of the contained expression */
       let. _ = otherwise(env, ((d, _)) => Parens(d, Probe(pr)) |> rewrap)
       and. (d', _) =
         req_final_or_value(

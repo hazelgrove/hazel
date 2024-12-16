@@ -49,7 +49,9 @@ let should_add_space = (s1, s2) =>
         && !Form.is_keyword(s1)
         && String.starts_with(s2, ~prefix="(") =>
     false
-  | _ when String.ends_with(s1, ~suffix="…") => false
+  | _ when String.ends_with(s1, ~suffix="…") =>
+    /* Hack case for probe projector abbreviations */
+    false
   | _ => true
   };
 

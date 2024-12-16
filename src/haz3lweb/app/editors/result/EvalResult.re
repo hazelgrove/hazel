@@ -93,7 +93,7 @@ module Model = {
     switch (model.result) {
     | Evaluation({result: OldValue(ResultOk((_, state))), _})
     | Evaluation({result: NewValue(ResultOk((_, state))), _}) =>
-      Some(state |> Haz3lcore.EvaluatorState.get_probes)
+      Some(Haz3lcore.EvaluatorState.get_probes(state))
     | Stepper(s) =>
       Some(
         s.history

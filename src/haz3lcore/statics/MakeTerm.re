@@ -15,7 +15,7 @@ open Any;
 
 /* Hack: Temporary construct internal to maketerm
  * to handle probe parsing; see `tokens` below */
-let probe_wrap = ["@@@@@", "@@@@@"];
+let probe_wrap = ["PROBE_WRAP", "PROBE_WRAP"];
 let is_probe_wrap = (==)(probe_wrap);
 
 // TODO make less hacky
@@ -545,10 +545,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     | Grout(_) => []
     | Projector({syntax, id: _, _}) =>
       let sort = Piece.sort(syntax) |> fst;
-      let seg = [syntax];
-      //let seg = [mk_probe(id, seg)];
-      //print_endline("unsorted projector case");
-      [go_s(sort, Segment.skel(seg), seg)];
+      [go_s(sort, Segment.skel([syntax]), [syntax])];
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
