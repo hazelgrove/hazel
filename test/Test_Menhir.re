@@ -286,7 +286,51 @@ let qcheck_menhir_maketerm_equivalent_test =
         Haz3lmenhir.Conversion.Exp.of_menhir_ast(menhir_parsed);
 
       Haz3lcore.DHExp.fast_equal(make_term_parsed, menhir_parsed_converted);
-      // && menhir_parsed == exp; // TODO Add this as separate property
+    },
+  );
+
+// TODO This fails due to types not being serialized on constructors
+// We should do a pass before the equality check that removes the types on the constructors and check equality after
+let qcheck_menhir_serialized_equivalent_test =
+  QCheck.Test.make(
+    ~name="Menhir through ExpToSegment and back",
+    ~count=100,
+    QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(3)),
+    exp => {
+      let core_exp = Conversion.Exp.of_menhir_ast(exp);
+
+      // TODO Maybe only do this when necessary.
+      // TODO Check with Matthew if I'm using this correctly
+      // Add parens around tuples
+      let core_exp =
+        Exp.map_term(
+          ~f_exp=
+            (cont, e) =>
+              switch (e.term) {
+              | Tuple(es) =>
+                Parens(Tuple(es |> List.map(cont)) |> Exp.fresh)
+                |> Exp.fresh
+              | _ => cont(e)
+              },
+          core_exp,
+        );
+
+      let segment =
+        ExpToSegment.exp_to_segment(
+          ~settings=
+            ExpToSegment.Settings.of_core(
+              ~inline=true, // TODO What does inline do?
+              CoreSettings.off,
+            ),
+          core_exp,
+        );
+
+      let serialized = Printer.of_segment(~holes=Some("?"), segment);
+      let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
+      print_endline("Serialized: " ++ serialized);
+      print_endline("Menhir parsed: " ++ AST.show_exp(menhir_parsed));
+      print_endline("Original" ++ AST.show_exp(exp));
+      menhir_parsed == exp;
     },
   );
 
@@ -905,4 +949,5 @@ let ex5 = list_of_mylist(x) in
     |},
   ),
   QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
+  // QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
 ];

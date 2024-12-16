@@ -270,11 +270,8 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
               ),
               Gen.map(exp => Test(exp), self(n - 1)),
               Gen.map2(
-                (name, typ) => {
-                  print_endline("Generating constructor");
-                  Constructor(name, typ);
-                },
-                arb_ident.gen, // Replace with constructor type
+                (name, typ) => {Constructor(name, typ)},
+                arb_constructor_ident.gen,
                 gen_typ_sized(n - 1),
               ),
             ]);
