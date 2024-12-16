@@ -192,7 +192,7 @@ let arb_exp_sized: QCheck.arbitrary(exp) =
         arb_float,
         arb_var,
         always(~print=show_exp, EmptyHole),
-        // always(~print=show_exp, TupleExp([])), // TODO Seems to be broken
+        always(~print=show_exp, TupleExp([])),
         always(~print=show_exp, ListExp([])),
       ]);
 
