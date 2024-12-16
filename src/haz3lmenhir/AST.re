@@ -172,18 +172,45 @@ let arb_str =
 
 // Floats are positive because we use UnOp minus
 let arb_float = QCheck.(map(x => Float(x), pos_float));
+let arb_lower_alpha = QCheck.Gen.char_range('a', 'z');
+
+let arb_constructor_ident =
+  QCheck.
+    // TODO handle full constructor ident including nums
+    (
+      let leading = Gen.char_range('A', 'Z');
+      let tail = string_gen_of_size(Gen.int_range(1, 4), arb_lower_alpha);
+      make(
+        ~print=t => t,
+        Gen.map2((l, t) => String.make(1, l) ++ t, leading, tail.gen),
+      )
+    );
 
 // ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
-// Can't be t, e, tp, or p because of the lexer
 let arb_ident =
   QCheck.(
-    let arb_alpha = Gen.char_range('a', 'z'); // TODO make this support full indent instead of just lower alpha
-    string_gen_of_size(Gen.int_range(1, 5), arb_alpha)
+    // TODO make this support full indent instead of just lower alpha
+    QCheck.map(
+      ident =>
+        // if ident is a keyword add a suffix
+        switch (ident) {
+        | "let"
+        | "if"
+        | "pause"
+        | "debug"
+        | "hide"
+        | "eval"
+        | "rec"
+        | "in" => ident ++ "2"
+        | _ => ident
+        },
+      string_gen_of_size(Gen.int_range(1, 5), arb_lower_alpha),
+    )
   );
 
 let arb_var = QCheck.(map(x => Var(x), arb_ident));
 
-let arb_exp_sized: QCheck.arbitrary(exp) =
+let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
   QCheck.(
     let leaf =
       oneof([
@@ -197,9 +224,8 @@ let arb_exp_sized: QCheck.arbitrary(exp) =
       ]);
 
     let gen: Gen.t(exp) =
-      QCheck.Gen.sized_size(
-        QCheck.Gen.int_range(0, 5), // Currently only size 10
-        QCheck.Gen.fix((self, n) => {
+      QCheck.Gen.fix(
+        (self: int => Gen.t(exp), n) => {
           switch (n) {
           | 0 => leaf.gen
           | _ =>
@@ -243,10 +269,26 @@ let arb_exp_sized: QCheck.arbitrary(exp) =
                 ),
               ),
               Gen.map(exp => Test(exp), self(n - 1)),
+              Gen.map2(
+                (name, typ) => {
+                  print_endline("Generating constructor");
+                  Constructor(name, typ);
+                },
+                arb_ident.gen, // Replace with constructor type
+                gen_typ_sized(n - 1),
+              ),
             ]);
           }
-        }),
+        },
+        n,
       );
 
-    QCheck.make(~print=show_exp, gen)
-  ); // TODO Printers, shrinkers stuff
+    gen
+  )
+and gen_typ_sized = (n: int): QCheck.Gen.t(typ) => QCheck.Gen.pure(IntType);
+// TODO Printers, shrinkers stuff
+
+let gen_exp = QCheck.Gen.sized(gen_exp_sized);
+let gen_typ = QCheck.Gen.sized(gen_typ_sized);
+
+let arb_exp = QCheck.make(~print=show_exp, gen_exp);
