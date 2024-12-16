@@ -123,16 +123,9 @@ let return = (wrap, ids, tm) => {
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
 /* Strip a projector from a segment and log it in the map */
-let log_projectors = (seg: Segment.t): Segment.t =>
-  List.map(
-    fun
-    | Piece.Projector(pr) => {
-        projectors := Id.Map.add(pr.id, pr, projectors^);
-        Piece.Projector(pr);
-      }
-    | x => x,
-    seg,
-  );
+let log_projector = (pr: Base.projector): unit => {
+  projectors := Id.Map.add(pr.id, pr, projectors^);
+};
 
 let parse_sum_term: UTyp.t => ConstructorMap.variant(UTyp.t) =
   fun
@@ -367,7 +360,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
-        | (label, [Pat(body)]) when is_probe_wrap(label) => Parens(body)
+        | (label, [Pat(body)]) when is_probe_wrap(label) => body.term
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
           | {term: Tuple(ps), _} => ListLit(ps)
@@ -428,7 +421,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         | (["String"], []) => String
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
-        | (label, [Typ(body)]) when is_probe_wrap(label) => Parens(body)
+        | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Unknown(Hole(Invalid(t)))
@@ -538,12 +531,12 @@ and rul = (unsorted: unsorted): Rul.t => {
 and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
-  let _ = log_projectors(seg);
   let tile_kids = (p: Piece.t): list(Term.Any.t) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector({syntax, id: _, _}) =>
+    | Projector({syntax, id: _, _} as pr) =>
+      let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
       [go_s(sort, Segment.skel([syntax]), [syntax])];
     | Tile({mold, shards, children, _}) =>

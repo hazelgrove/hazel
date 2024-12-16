@@ -205,13 +205,7 @@ let releasePointerCapture = (e: Js.t(Dom_html.element), pointerId: int) =>
     [|Js.Unsafe.inject(pointerId)|],
   );
 
-// let hasPointerCapture = (e: Js.t(Dom_html.element), pointerId: int): bool =>
-//   Js.Unsafe.meth_call(
-//     e,
-//     "hasPointerCapture",
-//     [|Js.Unsafe.inject(pointerId)|],
-//   );
-
+// TODO: Figure out why this doesn't work
 // let on_pointermove =
 //     (handler: Js.t(Dom_html.pointerEvent) => Effect.t(unit)): Attr.t =>
 //   Virtual_dom.Vdom.Attr.property("onpointermove", Js.Unsafe.inject(handler));
