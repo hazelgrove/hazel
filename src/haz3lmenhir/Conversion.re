@@ -347,8 +347,7 @@ module rec Exp: {
     | MultiHole(_) => raise(Failure("MultiHole not supported")) // TODO
     | Closure(_) => raise(Failure("Closure not supported")) // TODO
     | Parens(e) => of_core(e)
-    | Constructor(s, typ) =>
-      Constructor(s, Typ.of_core(typ));
+    | Constructor(s, typ) => Constructor(s, Typ.of_core(typ))
     | DeferredAp(e, es) =>
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
