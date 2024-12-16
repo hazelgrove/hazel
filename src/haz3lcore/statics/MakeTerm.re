@@ -13,13 +13,23 @@
 open Util;
 open Any;
 
+/* Hack: Temporary construct internal to maketerm
+ * to handle probe parsing; see `tokens` below */
+let probe_wrap = ["@@@@@", "@@@@@"];
+let is_probe_wrap = (==)(probe_wrap);
+
 // TODO make less hacky
 let tokens =
   Piece.get(
     _ => [],
     _ => [" "],
     (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
-    _ => [],
+    _ =>
+      /* Hack: These act as temporary wrappers for projectors,
+       * which are retained through maketerm so as to be used in
+       * dynamics. These are inserted and removed entirely internal
+       * to maketerm. */
+      probe_wrap,
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -112,21 +122,13 @@ let return = (wrap, ids, tm) => {
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
-/* Temporary form to persist projector dynamics probe to segments */
-let mk_probe = (id, e: list(Piece.t)) =>
-  Piece.mk_tile_id(
-    id,
-    Form.mk(Form.ii, ["@@", "@@"], Mold.mk_op(Exp, [Exp])),
-    [e],
-  );
-
 /* Strip a projector from a segment and log it in the map */
-let rm_and_log_projectors = (seg: Segment.t): Segment.t =>
+let log_projectors = (seg: Segment.t): Segment.t =>
   List.map(
     fun
     | Piece.Projector(pr) => {
         projectors := Id.Map.add(pr.id, pr, projectors^);
-        mk_probe(pr.id, [pr.syntax]);
+        Piece.Projector(pr);
       }
     | x => x,
     seg,
@@ -200,7 +202,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | ([t], []) when Form.is_ctr(t) =>
         ret(Constructor(t, Unknown(Internal) |> Typ.temp))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body, Paren))
-      | (["@@", "@@"], [Exp(body)]) =>
+      | (label, [Exp(body)]) when is_probe_wrap(label) =>
         // Temporary wrapping form to persist projector probes
         ret(Parens(body, Probe(Probe.empty)))
       | (["[", "]"], [Exp(body)]) =>
@@ -365,6 +367,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
+        | (label, [Pat(body)]) when is_probe_wrap(label) => Parens(body)
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
           | {term: Tuple(ps), _} => ListLit(ps)
@@ -425,6 +428,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         | (["String"], []) => String
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
+        | (label, [Typ(body)]) when is_probe_wrap(label) => Parens(body)
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Unknown(Hole(Invalid(t)))
@@ -534,12 +538,17 @@ and rul = (unsorted: unsorted): Rul.t => {
 and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
-  let seg = rm_and_log_projectors(seg);
+  let _ = log_projectors(seg);
   let tile_kids = (p: Piece.t): list(Term.Any.t) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector(_) => []
+    | Projector({syntax, id: _, _}) =>
+      let sort = Piece.sort(syntax) |> fst;
+      let seg = [syntax];
+      //let seg = [mk_probe(id, seg)];
+      //print_endline("unsorted projector case");
+      [go_s(sort, Segment.skel(seg), seg)];
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {

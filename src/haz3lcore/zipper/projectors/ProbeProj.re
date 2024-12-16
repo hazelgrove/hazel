@@ -39,11 +39,13 @@ type a =
 let stack = stack =>
   stack
   |> List.rev
-  |> List.map(({env_id, frame_id}: Probe.frame) =>
+  |> List.map(({env_id, ap_id, closure_id}: Probe.frame) =>
        ""
+       ++ String.sub(Id.to_string(closure_id), 0, 2)
+       ++ "\n"
        ++ String.sub(Id.to_string(env_id), 0, 2)
        ++ "\n"
-       ++ String.sub(Id.to_string(frame_id), 0, 2)
+       ++ String.sub(Id.to_string(ap_id), 0, 2)
      )
   |> String.concat("\n");
 
