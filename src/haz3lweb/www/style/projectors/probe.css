@@ -1,0 +1,136 @@
+/* Probe Projector */
+
+.projector.probe {
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+  color: var(--STONE);
+}
+
+.projector.probe > svg {
+  fill: #c7e6c6;
+  filter: drop-shadow(0.7px 0.7px 0px green);
+}
+
+.projector.probe .main {
+  display: flex;
+  flex-direction: row;
+  gap: 0.4em;
+  cursor: pointer;
+  align-items: center;
+}
+
+@keyframes rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.projector.probe .live-offside:empty + * .icon {
+  animation: rotate 5s linear infinite;
+}
+
+.projector.probe .num-closures {
+  position: absolute;
+  right: -0.5em;
+  top: -0.3em;
+  transform-origin: top right;
+  scale: 0.6;
+  color: oklch(1 0 0);
+  font-family: var(--ui-font);
+  display: flex;
+  justify-content: center;
+  background-color: var(--G0);
+  border-radius: 2em;
+  font-size: 0.7em;
+  padding: 0.3em;
+  min-width: 1em;
+  z-index: var(--code-emblems-z);
+}
+.projector.probe.selected .num-closures {
+  background-color: var(--Y1);
+}
+
+.projector.probe .live-offside {
+  display: flex;
+  flex-direction: row;
+  position: absolute;
+  left: 10em;
+  gap: 0.15em;
+}
+
+.projector.probe .live-offside:empty {
+  display: none;
+}
+
+.projector.probe .closure:hover .live-env:empty {
+  display: none;
+}
+
+.projector.probe .val-resize {
+  cursor: pointer;
+}
+
+.projector.probe .val-resize .code-text {
+  background-color: #c7e6c6; /* TODO(andrew) */
+  border-radius: 0.4em 0.1em 0.1em 0.1em;
+  filter: drop-shadow(0.7px 0.7px 0px green);
+}
+.projector.probe .closure:first-child .val-resize:hover .code-text {
+  cursor: col-resize;
+}
+.projector.probe .val-resize.cursor .code-text {
+  outline: 1.6px solid var(--G0);
+  outline-style: dotted;
+  filter: none;
+  opacity: 100%;
+}
+
+.projector.probe .val-resize .code-text {
+  opacity: 40%;
+}
+.projector.probe .val-resize:not(.cursor) .code-text .token {
+  filter: saturate(0);
+}
+
+.projector.probe .live-env {
+  background-color: var(--T3);
+  border-radius: 0 0.2em 0.2em 0.2em;
+  padding: 0.2em;
+  display: none;
+  position: absolute;
+  top: 1.5em;
+  z-index: var(--code-hovers-z);
+}
+
+.projector.probe .live-env .live-env-entry {
+  display: flex;
+  flex-direction: row;
+  gap: 0.3em;
+  align-items: baseline;
+  color: var(--GB0);
+}
+
+.projector.probe.indicated > svg {
+  fill: var(--G0);
+}
+
+.projector.probe.indicated .val-resize .code-text {
+  opacity: 60%;
+}
+
+.projector.probe.indicated .main {
+  color: white;
+}
+
+.projector.probe.indicated .val-resize.cursor .code-text {
+  opacity: 100%;
+  /* outline: 1px solid var(--GB1); */
+  outline: 2.8px solid oklch(0.7 0.15 150.31);
+}
+
+.projector.probe.indicated .closure:hover .live-env {
+  display: block;
+}
+
+.projector.probe.indicated .closure.cursor .live-env:empty {
+  display: none;
+}
