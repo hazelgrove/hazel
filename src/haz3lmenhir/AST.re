@@ -177,7 +177,7 @@ let arb_float = QCheck.(map(x => Float(x), pos_float));
 // Can't be t, e, tp, or p because of the lexer
 let arb_ident =
   QCheck.(
-    let arb_alpha = Gen.char_range('a', 'd'); // TODO make this support full indent instead of just lower alpha
+    let arb_alpha = Gen.char_range('a', 'z'); // TODO make this support full indent instead of just lower alpha
     string_gen_of_size(Gen.int_range(1, 5), arb_alpha)
   );
 
