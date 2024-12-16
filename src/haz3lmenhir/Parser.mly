@@ -156,6 +156,7 @@ open AST
 %left STRING_CONCAT STRING_EQUAL
 
 %type <AST.exp> exp
+%type <AST.sumtype> sumTyp
 
 %start <AST.exp> program
 
@@ -214,14 +215,15 @@ binExp:
 
 
 %inline sumTerm:
-    | i = CONSTRUCTOR_IDENT; t = tupleType  { SumTerm(i, Some(t)) } 
-    | i = CONSTRUCTOR_IDENT { SumTerm(i, None) }
-    | QUESTION { UnknownType(EmptyHole) }
+    | i = CONSTRUCTOR_IDENT; t = tupleType  { Variant(i, Some(t)) } 
+    | i = CONSTRUCTOR_IDENT { Variant(i, None) }
+    | QUESTION { BadEntry(UnknownType(EmptyHole)) }
+
 
 // We don't support sum types without the leading plus in the parser syntax
 sumTyp:
-    | PLUS; s = sumTerm; { SumTyp(s, None) } %prec SUM_TYP
-    | PLUS; s = sumTerm; t = sumTyp { SumTyp(s, Some(t)) } 
+    | PLUS; s = sumTerm; { [s] } %prec SUM_TYP
+    | PLUS; s = sumTerm; t = sumTyp { [s] @ t } 
     
 typ:
     | c = CONSTRUCTOR_IDENT { TypVar(c) }
@@ -238,7 +240,7 @@ typ:
     | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
-    | s = sumTyp; { s }
+    | s = sumTyp; { SumTyp(s) }
     | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, t) }
 
 nonAscriptingPat:
