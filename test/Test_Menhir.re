@@ -280,10 +280,16 @@ let qcheck_menhir_maketerm_equivalent_test =
         );
 
       let serialized = Printer.of_segment(~holes=Some("?"), segment);
+      print_endline("Serialized: " ++ serialized);
       let make_term_parsed = make_term_parse(serialized);
       let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
       let menhir_parsed_converted =
         Haz3lmenhir.Conversion.Exp.of_menhir_ast(menhir_parsed);
+
+      print_endline("MakeTerm: " ++ DHExp.show(make_term_parsed));
+      print_endline(
+        "Menhir parsed: " ++ DHExp.show(menhir_parsed_converted),
+      );
 
       Haz3lcore.DHExp.fast_equal(make_term_parsed, menhir_parsed_converted);
     },

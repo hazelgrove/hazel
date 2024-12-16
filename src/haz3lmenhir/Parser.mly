@@ -118,21 +118,17 @@ open AST
 
 %left COLON
 %right DASH_ARROW
-%left L_NOT L_AND L_OR // TODO Check with Milan. I moved this to make tests pass.
+%right L_OR // TODO Check with Milan. I moved this to make tests pass.
+%right L_AND
+%right L_NOT
 
-(* Int op precedences *)
-%left DOUBLE_EQUAL NOT_EQUAL LESS_THAN_EQUAL GREATER_THAN_EQUAL 
+
+%left GREATER_THAN LESS_THAN DOUBLE_EQUAL NOT_EQUAL LESS_THAN_EQUAL GREATER_THAN_EQUAL NOT_EQUAL_FLOAT LESS_THAN_FLOAT LESS_THAN_EQUAL_FLOAT GREATER_THAN_FLOAT GREATER_THAN_EQUAL_FLOAT DOUBLE_EQUAL_FLOAT STRING_EQUAL
+%right  STRING_CONCAT
 %left PLUS MINUS 
 %left DIVIDE TIMES 
 %right POWER
 
-%left GREATER_THAN LESS_THAN
-
-(* End of int op precedences *)
-
-(* Float op precedences *)
-
-%left DOUBLE_EQUAL_FLOAT NOT_EQUAL_FLOAT LESS_THAN_FLOAT LESS_THAN_EQUAL_FLOAT GREATER_THAN_FLOAT GREATER_THAN_EQUAL_FLOAT
 
 %left PLUS_FLOAT MINUS_FLOAT
 %left TIMES_FLOAT DIVIDE_FLOAT 
@@ -153,7 +149,6 @@ open AST
 
 
 
-%left STRING_CONCAT STRING_EQUAL
 
 %type <AST.exp> exp
 %type <AST.sumtype> sumTyp

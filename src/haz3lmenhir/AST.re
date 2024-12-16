@@ -274,6 +274,12 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                 arb_constructor_ident.gen,
                 gen_typ_sized(n - 1),
               ),
+              Gen.map3(
+                (op, e1, e2) => BinExp(e1, op, e2),
+                gen_binOp,
+                self((n - 1) / 2),
+                self((n - 1) / 2),
+              ),
             ]);
           }
         },
