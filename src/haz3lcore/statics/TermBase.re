@@ -976,12 +976,12 @@ and ClosureEnvironment: {
 
   let without_keys = keys => update_env(Environment.without_keys(keys));
 
-  let update_stack = (frame: option(Id.t), env) => {
+  let update_stack = (ap_id: option(Id.t), env) => {
     let stack =
-      switch (frame) {
+      switch (ap_id) {
       | None => stack_of(env)
-      | Some(frame) => [
-          {env_id: id_of(env), frame_id: frame},
+      | Some(ap_id) => [
+          Probe.mk_frame(~env_id=id_of(env), ~ap_id),
           ...stack_of(env),
         ]
       };
