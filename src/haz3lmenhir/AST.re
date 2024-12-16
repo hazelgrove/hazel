@@ -89,8 +89,7 @@ type typ =
   | FloatType
   | BoolType
   | UnitType
-  | SumTyp(typ, option(typ))
-  | SumTerm(string, option(typ))
+  | SumTyp(sumtype)
   | UnknownType(typ_provenance)
   | TupleType(list(typ))
   | ArrayType(typ)
@@ -98,7 +97,11 @@ type typ =
   | TypVar(string)
   | InvalidTyp(string)
   | ForallType(tpat, typ)
-  | RecType(tpat, typ);
+  | RecType(tpat, typ)
+and sumterm =
+  | Variant(string, option(typ))
+  | BadEntry(typ)
+and sumtype = list(sumterm);
 
 [@deriving (show({with_path: false}), sexp, qcheck)]
 type pat =
