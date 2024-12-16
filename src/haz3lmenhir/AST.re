@@ -185,7 +185,16 @@ let arb_var = QCheck.(map(x => Var(x), arb_ident));
 
 let arb_exp_sized: QCheck.arbitrary(exp) =
   QCheck.(
-    let leaf = oneof([arb_int, arb_str, arb_float, arb_var]);
+    let leaf =
+      oneof([
+        arb_int,
+        arb_str,
+        arb_float,
+        arb_var,
+        always(~print=show_exp, EmptyHole),
+        // always(~print=show_exp, TupleExp([])), // TODO Seems to be broken
+        always(~print=show_exp, ListExp([])),
+      ]);
 
     let gen: Gen.t(exp) =
       QCheck.Gen.sized_size(
@@ -220,20 +229,20 @@ let arb_exp_sized: QCheck.arbitrary(exp) =
                   list_sizes,
                 ),
               ),
-              // Need to make ExpToSegment add parens for tuples for menhir
               Gen.join(
                 Gen.map(
                   (sizes: array(int)) => {
                     let exps = Array.map((size: int) => self(size), sizes);
                     let flattened = Gen.flatten_a(exps);
                     Gen.map(
-                      (exps: array(exp)) => TupleExp(Array.to_list(exps)),
+                      (exps: array(exp)) => TupleExp(Array.to_list(exps)), // TODO See if there's a way to do unit and various sizes here
                       flattened,
                     );
                   },
                   list_sizes,
                 ),
               ),
+              Gen.map(exp => Test(exp), self(n - 1)),
             ]);
           }
         }),
