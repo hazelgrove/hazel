@@ -132,7 +132,7 @@ module type EV_MODE = {
 
   let update_test: (state, Id.t, TestMap.instance_report) => unit;
 
-  let update_probe: (state, Id.t, Dynamics.Probe.Info.t) => unit;
+  let update_probe: (state, Id.t, Dynamics.Probe.Closure.t) => unit;
 };
 
 module Transition = (EV: EV_MODE) => {
@@ -788,8 +788,8 @@ module Transition = (EV: EV_MODE) => {
       Step({
         expr: d',
         state_update: () => {
-          let pi = Dynamics.Probe.Info.mk(d', env, pr);
-          update_probe(state, DHExp.rep_id(d), pi);
+          let closure = Dynamics.Probe.Closure.mk(d', env, pr);
+          update_probe(state, DHExp.rep_id(d), closure);
         },
         kind: RemoveParens,
         is_value: true,

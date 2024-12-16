@@ -336,7 +336,7 @@ module Decompose = {
     let update_test = (state, id, v) =>
       state := EvaluatorState.add_test(state^, id, v);
     let update_probe = (state, id, info) =>
-      state := EvaluatorState.add_probe(state^, id, info);
+      state := EvaluatorState.add_closure(state^, id, info);
   };
 
   module Decomp = Transition(DecomposeEVMode);
@@ -384,7 +384,7 @@ module TakeStep = {
       state := EvaluatorState.add_test(state^, id, v);
 
     let update_probe = (state, id, info) =>
-      state := EvaluatorState.add_probe(state^, id, info);
+      state := EvaluatorState.add_closure(state^, id, info);
   };
 
   module TakeStepEV = Transition(TakeStepEVMode);
