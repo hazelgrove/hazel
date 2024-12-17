@@ -17,11 +17,10 @@ module Model = {
     result: EvalResult.Model.init,
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = CodeEditable.Model.persistent;
+  type persistent = EditorManager.Model.persistent;
 
   let persist = model => model.editor |> EditorManager.Model.persist;
-  let unpersist = (~settings as _, pz) =>
-    pz |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
+  let unpersist = pz => EditorManager.Model.unpersist(pz);
 };
 
 module Update = {
@@ -29,14 +28,18 @@ module Update = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | MainEditor(CodeEditable.Update.t)
+    | MainEditor(EditorManager.Update.t)
     | ResultAction(EvalResult.Update.t);
 
-  let update = (~settings, action, model: Model.t) => {
+  let update = (~settings: Settings.t, action, model: Model.t) => {
     switch (action) {
     | MainEditor(action) =>
       let* editor =
-        CodeEditable.Update.update(~settings, action, model.editor);
+        EditorManager.Update.update(
+          ~settings=settings.core,
+          action,
+          model.editor,
+        );
       {...model, editor};
     | ResultAction(action) =>
       let* result =
@@ -65,13 +68,13 @@ module Update = {
       )
       : Model.t => {
     let editor =
-      CodeEditable.Update.calculate(~settings, ~is_edited, ~stitch, editor);
+      EditorManager.Update.calculate(~settings, ~is_edited, ~stitch, editor);
     let result =
       EvalResult.Update.calculate(
         ~settings={...settings, assist: false},
         ~queue_worker,
         ~is_edited,
-        editor |> CodeEditable.Model.get_statics,
+        editor.statics,
         result,
       );
     {editor, result};
@@ -82,14 +85,14 @@ module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | MainEditor
+    | MainEditor(EditorManager.Focus.t)
     | Result(EvalResult.Selection.t);
 
   let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
     switch (selection) {
-    | MainEditor =>
+    | MainEditor(focus) =>
       let+ ci =
-        CodeEditable.Selection.get_cursor_info(~selection=(), model.editor);
+        EditorManager.Focus.get_cursor_info(~selection=focus, model.editor);
       Update.MainEditor(ci);
     | Result(selection) =>
       let+ ci =
@@ -101,11 +104,11 @@ module Selection = {
   let handle_key_event =
       (~selection, ~event, model: Model.t): option(Update.t) => {
     switch (selection) {
-    | MainEditor =>
-      CodeEditable.Selection.handle_key_event(
-        ~selection=(),
+    | MainEditor(focus) =>
+      EditorManager.Focus.handle_key_event(
+        ~selection=focus,
+        ~event,
         model.editor,
-        event,
       )
       |> Option.map(x => Update.MainEditor(x))
     | Result(selection) =>
@@ -115,8 +118,8 @@ module Selection = {
   };
 
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
-    CodeEditable.Selection.jump_to_tile(tile, model.editor)
-    |> Option.map(x => (Update.MainEditor(x), MainEditor));
+    EditorManager.Focus.jump_to_tile(tile, model.editor)
+    |> Option.map(((x, y)) => (Update.MainEditor(x), MainEditor(y)));
   };
 };
 
@@ -131,7 +134,6 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Selection.t),
         ~caption: option(Node.t)=?,
-        ~sort=?,
         ~result_kind=?,
         ~locked=false,
         model: Model.t,
@@ -151,11 +153,7 @@ module View = {
         ~signal=
           fun
           | MakeActive(a) => signal(MakeActive(Result(a)))
-          | JumpTo(id) =>
-            Effect.Many([
-              signal(MakeActive(MainEditor)),
-              inject(MainEditor(Perform(Jump(TileId(id))))),
-            ]),
+          | JumpTo(id) => globals.inject_global(JumpToTile(id)),
         ~inject=a => inject(ResultAction(a)),
         ~selected={
           switch (selected) {
@@ -171,20 +169,22 @@ module View = {
       ~attrs=[Attr.classes(["cell", locked ? "locked" : "unlocked"])],
       Option.to_list(caption)
       @ [
-        CodeEditable.View.view(
+        EditorManager.View.view(
           ~globals,
           ~signal=
             locked
               ? _ => Ui_effect.Ignore
               : fun
-                | MakeActive => signal(MakeActive(MainEditor)),
+                | Focus(s) => signal(MakeActive(MainEditor(s))),
           ~inject=
             locked
               ? _ => Ui_effect.Ignore
               : (action => inject(MainEditor(action))),
-          ~selected=selected == Some(MainEditor),
-          ~overlays=overlays(model.editor.editor),
-          ~sort?,
+          ~selected=
+            switch (selected) {
+            | Some(MainEditor(s)) => Some(s)
+            | _ => None
+            },
           model.editor,
         ),
       ]

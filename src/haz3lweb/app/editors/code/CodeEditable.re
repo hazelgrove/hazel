@@ -105,7 +105,7 @@ module Selection = {
     {
       ...
         CodeWithStatics.Model.get_cursor_info(model)
-        |> map(x => Update.Perform(x)),
+        |> map((x: Action.t) => Update.Perform(x)),
       editor_read_only: false,
       undo_action: Some(Update.Undo),
       redo_action: Some(Update.Redo),

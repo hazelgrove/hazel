@@ -100,6 +100,7 @@ module Model = {
     syntax: CachedSyntax.init(zipper, Id.Map.empty),
   };
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = PersistentZipper.t;
   let persist = (model: t) => model.state.zipper |> PersistentZipper.persist;
   let unpersist = p => p |> PersistentZipper.unpersist |> mk;
@@ -132,6 +133,8 @@ module Model = {
 
   let indicated_projector = (editor: t) =>
     Projector.indicated(editor.state.zipper);
+
+  let has_tile_id = (ed: t, id: Id.t) => TileMap.mem(id, ed.syntax.tiles);
 };
 
 module Update = {

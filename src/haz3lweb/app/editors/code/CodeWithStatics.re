@@ -37,6 +37,8 @@ module Model = {
     editor: Some(model.editor),
     editor_read_only: true,
     editor_action: x => Some(x),
+    remove_projector: None,
+    add_projector: _ => None,
     undo_action: None,
     redo_action: None,
   };

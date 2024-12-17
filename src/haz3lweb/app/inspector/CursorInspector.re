@@ -389,11 +389,8 @@ let view =
     bar_view([
       inspector_view(~globals, ci),
       ProjectorPanel.view(
-        ~inject=
-          a =>
-            cursor.editor_action(Project(a))
-            |> Option.map(inject)
-            |> Option.value(~default=Ui_effect.Ignore),
+        ~add_projector=cursor.add_projector,
+        ~remove_projector=cursor.remove_projector,
         cursor,
       ),
     ])

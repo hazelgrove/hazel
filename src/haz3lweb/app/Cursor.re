@@ -4,6 +4,8 @@ type cursor('update) = {
   editor: option(Haz3lcore.Editor.t),
   editor_read_only: bool,
   editor_action: Haz3lcore.Action.t => option('update),
+  remove_projector: option('update),
+  add_projector: Haz3lcore.Base.kind => option('update),
   undo_action: option('update),
   redo_action: option('update),
 };
@@ -11,6 +13,8 @@ type cursor('update) = {
 let map = (f: 'a => 'b, cursor) => {
   ...cursor,
   editor_action: x => x |> cursor.editor_action |> Option.map(f),
+  remove_projector: cursor.remove_projector |> Option.map(f),
+  add_projector: x => x |> cursor.add_projector |> Option.map(f),
   undo_action: cursor.undo_action |> Option.map(f),
   redo_action: cursor.redo_action |> Option.map(f),
 };
@@ -18,6 +22,8 @@ let map = (f: 'a => 'b, cursor) => {
 let map_opt = (f: 'a => option('b), cursor) => {
   ...cursor,
   editor_action: x => x |> cursor.editor_action |> Option.bind(_, f),
+  remove_projector: cursor.remove_projector |> Option.bind(_, f),
+  add_projector: x => x |> cursor.add_projector |> Option.bind(_, f),
   undo_action: cursor.undo_action |> Option.bind(_, f),
   redo_action: cursor.redo_action |> Option.bind(_, f),
 };
@@ -28,6 +34,8 @@ let empty = {
   editor: None,
   editor_read_only: false,
   editor_action: _ => None,
+  remove_projector: None,
+  add_projector: _ => None,
   undo_action: None,
   redo_action: None,
 };

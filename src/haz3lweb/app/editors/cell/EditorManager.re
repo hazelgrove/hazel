@@ -40,6 +40,53 @@ module Model = {
   let add_component = (component, model) => {
     {...model, components: [component, ...model.components]};
   };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent_component = {
+    id: Id.t,
+    parent: option(Id.t),
+    editor: Editor.Model.persistent,
+    kind: option(Base.kind),
+    model: string,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = {
+    components: list(persistent_component),
+    root_id: Id.t,
+  };
+
+  let persist = (model: t) => {
+    let components =
+      List.map(
+        (c: component) =>
+          {
+            id: c.id,
+            parent: c.parent,
+            editor: Editor.Model.persist(c.editor),
+            kind: c.kind,
+            model: c.model,
+          },
+        model.components,
+      );
+    {components, root_id: model.root_id};
+  };
+
+  let unpersist = (data: persistent): t => {
+    let components =
+      List.map(
+        (c: persistent_component): component =>
+          {
+            id: c.id,
+            parent: c.parent,
+            editor: Editor.Model.unpersist(c.editor),
+            kind: c.kind,
+            model: c.model,
+          },
+        data.components,
+      );
+    {components, root_id: data.root_id, statics: CachedStatics.empty};
+  };
 };
 
 module Update = {
@@ -64,6 +111,8 @@ module Update = {
     | Perform(Id.t, Action.t)
     | SetSyntax(Id.t, Piece.t)
     | SetModel(Id.t, string)
+    | Undo(Id.t)
+    | Redo(Id.t)
     | Manage(management);
 
   let perform = (~settings, action, model: Model.t, editor: Editor.t) =>
@@ -139,11 +188,150 @@ module Update = {
     | _ => model |> Updated.return_quiet
     };
   };
+
+  let segment_to_piece = (seg: Segment.t): Piece.t =>
+    //TODO(andrew):............
+    switch (seg) {
+    | [] => failwith("EditorManager.Update.of_segment: empty segment")
+    | [p] => p
+    | [p, ..._] =>
+      let sort = p |> Piece.sort |> fst;
+      Piece.mk_tile(
+        Form.mk(Form.ii, ["(", ")"], Mold.mk_op(sort, [sort])),
+        [seg],
+      );
+    };
+
+  let component_to_piece = (component: Model.component): Piece.t => {
+    let editor = component.editor;
+    let seg =
+      Zipper.smart_seg(
+        ~dump_backpack=true,
+        ~erase_buffer=true,
+        editor.state.zipper,
+      );
+    segment_to_piece(seg);
+  };
+
+  let assemble = (model: Model.t): Segment.t => {
+    let swap_out = (go, piece: Piece.t): Piece.t => {
+      switch (piece) {
+      | Projector(pr) => go(pr.id)
+      | _ => piece
+      };
+    };
+    let rec go = (id: Id.t): Piece.t => {
+      let seg = Model.get_component(id, model) |> component_to_piece;
+      ZipperBase.MapPiece.of_piece(swap_out(go), seg);
+    };
+    [go(model.root_id)];
+  };
+
+  let calculate = (~settings, ~is_edited, ~stitch, model: Model.t) => {
+    let segment = assemble(model);
+    let statics =
+      CachedStatics.init_from_segment(~settings, ~stitch, segment);
+    {
+      ...model,
+      components:
+        List.map(
+          (c: Model.component): Model.component =>
+            {
+              ...c,
+              editor:
+                Editor.Update.calculate(
+                  ~settings,
+                  ~is_edited,
+                  statics,
+                  c.editor,
+                ),
+            },
+          model.components,
+        ),
+    };
+  };
 };
 
 module Focus = {
+  open Cursor;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {component: Id.t};
+
+  let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
+    let info =
+      Indicated.ci_of(
+        Model.get_component(selection.component, model).editor.state.zipper,
+        model.statics.info_map,
+      );
+    {
+      info,
+      selected_text:
+        Some(
+          () =>
+            Printer.to_string_selection(
+              Model.get_component(selection.component, model).editor.state.
+                zipper,
+            ),
+        ),
+      editor: Some(Model.get_component(selection.component, model).editor),
+      editor_read_only: true,
+      editor_action: x => Some(Update.Perform(selection.component, x)),
+      remove_projector:
+        Option.map(
+          x => Update.Manage(Remove({child: Info.id_of(x)})),
+          info,
+        ),
+      add_projector: kind =>
+        Some(Update.Manage(Project({parent: selection.component, kind}))),
+      undo_action: Some(Undo(selection.component)),
+      redo_action: Some(Redo(selection.component)),
+    };
+  };
+
+  let handle_key_event =
+      (~selection: t, ~event: Key.t, _: Model.t): option(Update.t) =>
+    switch (event) {
+    | {
+        key: D("Z" | "z"),
+        sys: Mac,
+        shift: Down,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+      }
+    | {
+        key: D("Z" | "z"),
+        sys: PC,
+        shift: Down,
+        meta: Up,
+        ctrl: Down,
+        alt: Up,
+      } =>
+      Some(Update.Redo(selection.component))
+    | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
+    | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+      Some(Update.Undo(selection.component))
+    | k =>
+      Keyboard.handle_key_event(k)
+      |> Option.map(x => Update.Perform(selection.component, x))
+    };
+
+  let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
+    switch (
+      List.find_opt(
+        (c: Model.component) => Editor.Model.has_tile_id(c.editor, tile),
+        model.components,
+      )
+    ) {
+    | Some(component) =>
+      Some((
+        Update.Perform(component.id, Jump(TileId(tile))),
+        {component: component.id},
+      ))
+    | None => None
+    };
+  };
 };
 
 module View = {

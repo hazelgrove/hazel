@@ -23,12 +23,12 @@ module Model = {
     List.map(((_, m)) => CellEditor.Model.persist(m), model.scratchpads),
   );
 
-  let unpersist = (~settings, (current, slides)) => {
+  let unpersist =
+      (~settings, (current, slides: list(CellEditor.Model.persistent))) => {
     current,
     scratchpads:
       List.mapi(
-        (i, m) =>
-          (string_of_int(i), CellEditor.Model.unpersist(~settings, m)),
+        (i, m) => (string_of_int(i), CellEditor.Model.unpersist(m)),
         slides,
       ),
   };

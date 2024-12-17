@@ -46,7 +46,14 @@ let toggle_projector = (active, id, ci: option(Info.t)): Action.project =>
     ? Remove(id) : SetIndicated(List.hd(applicable_projectors(ci)));
 
 let toggle_view =
-    (~inject, ci: option(Info.t), id, active: bool, might_project) =>
+    (
+      ~add_projector,
+      ~remove_projector,
+      ci: option(Info.t),
+      id,
+      active: bool,
+      might_project,
+    ) =>
   div(
     ~attrs=[
       clss(
@@ -56,7 +63,10 @@ let toggle_view =
       ),
       Attr.on_mousedown(_ =>
         might_project
-          ? inject(toggle_projector(active, id, ci)) : Effect.Ignore
+          ? active || applicable_projectors(ci) == []
+              ? remove_projector
+              : add_projector(List.hd(applicable_projectors(ci)))
+          : Effect.Ignore
       ),
     ],
     [
@@ -108,14 +118,19 @@ let currently_selected = editor =>
     },
   );
 
-let view = (~inject, cursor: Cursor.cursor(Editors.Update.t)) => {
+let view =
+    (
+      ~add_projector,
+      ~remove_projector,
+      cursor: Cursor.cursor(Editors.Update.t),
+    ) => {
   let applicable_projectors = applicable_projectors(cursor.info);
   let should_show = might_project(cursor) && applicable_projectors != [];
   let select_view =
     Node.select(
       ~attrs=[
         Attr.on_change((_, name) =>
-          inject(Action.SetIndicated(ProjectorView.of_name(name)))
+          add_projector(ProjectorView.of_name(name))
         ),
       ],
       (might_project(cursor) ? applicable_projectors : [])
@@ -124,7 +139,8 @@ let view = (~inject, cursor: Cursor.cursor(Editors.Update.t)) => {
     );
   let toggle_view =
     toggle_view(
-      ~inject,
+      ~add_projector,
+      ~remove_projector,
       cursor.info,
       id(cursor.editor),
       kind(cursor.editor) != None,
