@@ -293,6 +293,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                 self((n - 1) / 2),
                 self((n - 1) / 2),
               ),
+              // Gen.map2((op, e) => UnOp(op, e), gen_op_un, self(n - 1)), // TODO ExpToSegment broken for UnOp
               Gen.map3(
                 (e1, e2, e3) => If(e1, e2, e3),
                 self((n - 1) / 3),
@@ -313,8 +314,17 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
 
     gen
   )
-and gen_typ_sized = (_n: int): QCheck.Gen.t(typ) => QCheck.Gen.pure(IntType)
-and gen_pat_sized = (_n: int): QCheck.Gen.t(pat) => QCheck.Gen.pure(WildPat);
+and gen_typ_sized = (_n: int): QCheck.Gen.t(typ) =>
+  QCheck.Gen.(
+    oneof([
+      return(StringType),
+      return(FloatType),
+      return(BoolType),
+      return(UnitType),
+    ])
+  )
+and gen_pat_sized = (_n: int): QCheck.Gen.t(pat) =>
+  QCheck.Gen.pure(WildPat);
 // TODO Printers, shrinkers stuff
 
 let gen_exp = QCheck.Gen.sized(gen_exp_sized);
