@@ -256,7 +256,7 @@ let forms: list((string, t)) = [
   ("divide", mk_infix("/", Exp, P.mult)),
   ("equals", mk_infix("==", Exp, P.eqs)),
   ("string_equals", mk_infix("$==", Exp, P.eqs)),
-  ("string_concat", mk_infix("++", Exp, P.plus)),
+  ("string_concat", mk_infix("++", Exp, P.concat)),
   ("lt", mk_infix("<", Exp, P.eqs)),
   ("gt", mk_infix(">", Exp, P.eqs)),
   ("not_equals", mk_infix("!=", Exp, P.eqs)),
