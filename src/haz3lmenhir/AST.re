@@ -180,9 +180,22 @@ let arb_constructor_ident =
     (
       let leading = Gen.char_range('A', 'Z');
       let tail = string_gen_of_size(Gen.int_range(1, 4), arb_lower_alpha);
-      make(
-        ~print=t => t,
-        Gen.map2((l, t) => String.make(1, l) ++ t, leading, tail.gen),
+      QCheck.map(
+        ident =>
+          // if ident is a keyword add a suffix
+          switch (ident) {
+          | "Int"
+          | "Float"
+          | "String"
+          | "Unknown"
+          | "Internal"
+          | "Bool" => ident ++ "2"
+          | _ => ident
+          },
+        make(
+          ~print=t => t,
+          Gen.map2((l, t) => String.make(1, l) ++ t, leading, tail.gen),
+        ),
       )
     );
 
@@ -279,6 +292,12 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                 gen_binOp,
                 self((n - 1) / 2),
                 self((n - 1) / 2),
+              ),
+              Gen.map3(
+                (e1, e2, e3) => If(e1, e2, e3),
+                self((n - 1) / 3),
+                self((n - 1) / 3),
+                self((n - 1) / 3),
               ),
             ]);
           }
