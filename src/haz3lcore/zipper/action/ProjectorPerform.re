@@ -21,6 +21,15 @@ module Update = {
     };
   };
 
+  let init_from_str = (kind: t, syntax: syntax, model_str: string): syntax => {
+    let (module P) = to_module(kind);
+    switch (P.can_project(syntax) && minimum_projection_condition(syntax)) {
+    | false => syntax
+    | true =>
+      Projector({id: Piece.id(syntax), kind, model: model_str, syntax})
+    };
+  };
+
   let add_projector = (kind: Base.kind, id: Id.t, syntax: syntax) =>
     switch (syntax) {
     | Projector(pr) when Piece.id(syntax) == id => init(kind, pr.syntax)

@@ -19,26 +19,21 @@ type all_f22 = {
   log: string,
 };
 
-let mk_all = (~instructor_mode, ~log) => {
-  let settings = Store.Settings.export();
-  let explainThisModel = Store.ExplainThisModel.export();
-  let settings_obj = Store.Settings.load();
-  let scratch = Store.Scratch.export(~settings=settings_obj.core);
-  let documentation = Store.Documentation.export(~settings=settings_obj.core);
+let mk_all = (~core_settings, ~instructor_mode, ~log) => {
+  let settings = Settings.Store.export();
+  let explainThisModel = ExplainThisModel.Store.export();
+  let scratch = ScratchMode.Store.export();
+  let documentation = ScratchMode.StoreDocumentation.export();
   let exercise =
-    Store.Exercise.export(
-      ~settings=settings_obj.core,
-      ~specs=ExerciseSettings.exercises,
-      ~instructor_mode,
-    );
+    ExercisesMode.Store.export(~settings=core_settings, ~instructor_mode);
   {settings, explainThisModel, scratch, documentation, exercise, log};
 };
 
-let export_all = (~instructor_mode, ~log) => {
-  mk_all(~instructor_mode, ~log) |> yojson_of_all;
+let export_all = (~settings, ~instructor_mode, ~log) => {
+  mk_all(~core_settings=settings, ~instructor_mode, ~log) |> yojson_of_all;
 };
 
-let import_all = (data, ~specs) => {
+let import_all = (~import_log: string => unit, data, ~specs) => {
   let all =
     try(data |> Yojson.Safe.from_string |> all_of_yojson) {
     | _ =>
@@ -52,27 +47,26 @@ let import_all = (data, ~specs) => {
         explainThisModel: "",
       };
     };
-  let settings = Store.Settings.import(all.settings);
-  Store.ExplainThisModel.import(all.explainThisModel);
+  Settings.Store.import(all.settings);
+  let settings = Settings.Store.load();
+  ExplainThisModel.Store.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
-  let editing_title = settings.editing_title;
-  let editing_prompt = settings.editing_prompt;
-  let editing_test_val_rep = settings.editing_test_val_rep;
-  let editing_mut_test_rep = settings.editing_mut_test_rep;
-  let editing_impl_grd_rep = settings.editing_impl_grd_rep;
-  let editing_module_name = settings.editing_module_name;
-  Store.Scratch.import(~settings=settings.core, all.scratch);
-  Store.Exercise.import(
-    ~settings=settings.core,
-    all.exercise,
-    ~specs,
-    ~instructor_mode,
-    ~editing_title,
-    ~editing_prompt,
-    ~editing_test_val_rep,
-    ~editing_mut_test_rep,
-    ~editing_impl_grd_rep,
-    ~editing_module_name,
+  ScratchMode.Store.import(all.scratch);
+  ExercisesMode.Store.import(all.exercise, ~specs, ~instructor_mode);
+  import_log(all.log);
+};
+
+let export_persistent = () => {
+  let data: PersistentData.t = {
+    documentation: ScratchMode.StoreDocumentation.load(),
+    scratch: ScratchMode.Store.load(),
+  };
+  let contents =
+    "let startup : PersistentData.t = " ++ PersistentData.show(data);
+  JsUtil.download_string_file(
+    ~filename="Init.ml",
+    ~content_type="text/plain",
+    ~contents,
   );
-  Log.import(all.log);
+  print_endline("INFO: Persistent data exported to Init.ml");
 };
