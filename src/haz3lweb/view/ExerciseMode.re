@@ -160,11 +160,22 @@ module Update = {
       Updated.return({
         ...model,
         editors: Exercise.add_buggy_impl({eds: model.editors}).eds,
+        cells: {
+          ...model.cells,
+          hidden_bugs:
+            model.cells.hidden_bugs
+            @ [CellEditor.Model.mk(Editor.Model.mk(Zipper.init()))],
+        },
       })
     | DeleteBuggyImplementation(i) =>
       Updated.return({
         ...model,
         editors: Exercise.delete_buggy_impl({eds: model.editors}, i).eds,
+        cells: {
+          ...model.cells,
+          hidden_bugs:
+            List.filteri((j, _) => j != i, model.cells.hidden_bugs),
+        },
       })
     | UpdatePrompt(prompt) =>
       Updated.return({
