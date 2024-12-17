@@ -286,7 +286,7 @@ module Selection = {
     Update.Exercise(ci);
   };
 
-  let handle_key_event = (~selection, ~event, model: Model.t) =>
+  let handle_key_event = (~selection: t, ~event, model: Model.t) =>
     ExerciseMode.Selection.handle_key_event(
       ~selection,
       ~event,
