@@ -104,7 +104,7 @@ module Update = {
         ...model,
         editing_flags: {
           ...model.editing_flags,
-          editing_title: true,
+          editing_title: !model.editing_flags.editing_title,
         },
       })
     | EditingPrompt =>
@@ -112,7 +112,7 @@ module Update = {
         ...model,
         editing_flags: {
           ...model.editing_flags,
-          editing_prompt: true,
+          editing_prompt: !model.editing_flags.editing_prompt,
         },
       })
     | EditingTestValRep =>
@@ -120,7 +120,7 @@ module Update = {
         ...model,
         editing_flags: {
           ...model.editing_flags,
-          editing_test_val_rep: true,
+          editing_test_val_rep: !model.editing_flags.editing_test_val_rep,
         },
       })
     | EditingMutTestRep =>
@@ -128,7 +128,7 @@ module Update = {
         ...model,
         editing_flags: {
           ...model.editing_flags,
-          editing_mut_test_rep: true,
+          editing_mut_test_rep: !model.editing_flags.editing_mut_test_rep,
         },
       })
     | EditingImplGrdRep =>
@@ -136,7 +136,7 @@ module Update = {
         ...model,
         editing_flags: {
           ...model.editing_flags,
-          editing_impl_grd_rep: true,
+          editing_impl_grd_rep: !model.editing_flags.editing_impl_grd_rep,
         },
       })
     | EditingModuleName =>
@@ -144,15 +144,18 @@ module Update = {
         ...model,
         editing_flags: {
           ...model.editing_flags,
-          editing_module_name: true,
+          editing_module_name: !model.editing_flags.editing_module_name,
         },
       })
     | UpdateTitle(title) =>
-      Updated.return({
-        ...model,
-        editors:
-          Exercise.update_exercise_title({eds: model.editors}, title).eds,
-      })
+      Updated.return_quiet(
+        {
+          ...model,
+          editors:
+            Exercise.update_exercise_title({eds: model.editors}, title).eds,
+        },
+        ~is_edit=true,
+      )
     | AddBuggyImplementation =>
       Updated.return({
         ...model,
@@ -397,20 +400,29 @@ module Update = {
 module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (Exercise.pos, CellEditor.Selection.t);
+  type t =
+    | Cell(Exercise.pos, CellEditor.Selection.t)
+    | TextBox;
 
   let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
-    let (pos, s) = selection;
-    let cell_editor = Exercise.get_stitched(pos, model.cells);
-    let+ a = CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
-    Update.Editor(pos, a);
+    switch (selection) {
+    | Cell(pos, s) =>
+      let cell_editor = Exercise.get_stitched(pos, model.cells);
+      let+ a =
+        CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
+      Update.Editor(pos, a);
+    | TextBox => empty
+    };
   };
 
-  let handle_key_event = (~selection, ~event, model: Model.t) => {
-    let (pos, s) = selection;
-    let cell_editor = Exercise.get_stitched(pos, model.cells);
-    CellEditor.Selection.handle_key_event(~selection=s, ~event, cell_editor)
-    |> Option.map(a => Update.Editor(pos, a));
+  let handle_key_event = (~selection: t, ~event, model: Model.t) => {
+    switch (selection) {
+    | Cell(pos, s) =>
+      let cell_editor = Exercise.get_stitched(pos, model.cells);
+      CellEditor.Selection.handle_key_event(~selection=s, ~event, cell_editor)
+      |> Option.map(a => Update.Editor(pos, a));
+    | TextBox => None
+    };
   };
 
   let jump_to_tile =
@@ -423,7 +435,7 @@ module Selection = {
     |> Option.map(((pos, _)) =>
          (
            Update.Editor(pos, MainEditor(Perform(Jump(TileId(tile))))),
-           (pos, CellEditor.Selection.MainEditor),
+           Cell(pos, CellEditor.Selection.MainEditor),
          )
        );
   };
@@ -498,10 +510,10 @@ module View = {
         ~globals,
         ~signal=
           fun
-          | MakeActive(a) => signal(MakeActive((this_pos, a))),
+          | MakeActive(a) => signal(MakeActive(Cell(this_pos, a))),
         ~selected=
           switch (selection) {
-          | Some((pos, s)) when pos == this_pos => Some(s)
+          | Some(Cell(pos, s)) when pos == this_pos => Some(s)
           | _ => None
           },
         ~inject=a => inject(Editor(this_pos, a)),
@@ -527,8 +539,8 @@ module View = {
           Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("title-input-box")),
         )##.value;
       let update_events = [
-        inject(Instructor(EditingTitle)),
         inject(Instructor(UpdateTitle(new_title))),
+        inject(Instructor(EditingTitle)),
       ];
       Virtual_dom.Vdom.Effect.Many(update_events);
     };
@@ -550,6 +562,7 @@ module View = {
                             Attr.class_("title-text"),
                             Attr.id("title-input-box"),
                             Attr.value(eds.title),
+                            Attr.on_focus(_ => signal(MakeActive(TextBox))),
                           ],
                           (),
                         ),
@@ -626,6 +639,7 @@ module View = {
                             Attr.class_("text-input"),
                             Attr.id("module-name-input"),
                             Attr.value(eds.module_name),
+                            Attr.on_focus(_ => signal(MakeActive(TextBox))),
                           ],
                           (),
                         ),
@@ -838,6 +852,7 @@ module View = {
                   inject(Instructor(EditingTestValRep)),
                 ~signal_update_test_val=
                   (x, y) => inject(Instructor(UpdateTestValRep(x, y))),
+                ~signal_textbox_active=signal(MakeActive(TextBox)),
                 ~editing_test_val_rep=editing_flags.editing_test_val_rep,
                 grading_report.test_validation_report,
                 grading_report.point_distribution.test_validation,
@@ -877,10 +892,12 @@ module View = {
                       Ui_effect.Many([
                         inject(Instructor(AddBuggyImplementation)),
                         signal(
-                          MakeActive((
-                            HiddenBugs(List.length(hidden_bugs)),
-                            MainEditor,
-                          )),
+                          MakeActive(
+                            Cell(
+                              HiddenBugs(List.length(hidden_bugs)),
+                              MainEditor,
+                            ),
+                          ),
                         ),
                       ]),
                     ~tooltip="Add Buggy Implementation",
