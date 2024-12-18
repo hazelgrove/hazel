@@ -63,3 +63,8 @@ let unescape_linebreaks: string => string =
   Re.Str.global_replace(Re.Str.regexp("\\\\n"), "\n");
 
 let trim_leading = Re.Str.global_replace(Re.Str.regexp("\n[ ]*"), "\n");
+
+let isEmptyOrWhitespace = str => {
+  let trimmed = String.trim(str);
+  String.length(trimmed) == 0;
+};
