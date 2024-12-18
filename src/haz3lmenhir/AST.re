@@ -314,14 +314,49 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
 
     gen
   )
-and gen_typ_sized = (_n: int): QCheck.Gen.t(typ) =>
+and gen_typ_sized =
   QCheck.Gen.(
-    oneof([
-      return(StringType),
-      return(FloatType),
-      return(BoolType),
-      return(UnitType),
-    ])
+    let leaf_nodes =
+      oneof([
+        return(StringType),
+        return(FloatType),
+        return(BoolType),
+        return(UnitType),
+      ]);
+    fix((self, n) =>
+      switch (n) {
+      | 0 => leaf_nodes
+      | _ =>
+        let list_sizes =
+          if (n <= 1) {
+            // Bug in nat_split for size=0
+            pure([|0, 0, 0, 0, 0|]);
+          } else {
+            QCheck.Gen.nat_split(
+              ~size=n - 1,
+              5 // Make different size lists
+            );
+          };
+
+        oneof([
+          leaf_nodes,
+          join(
+            map(
+              (sizes: array(int)) => {
+                let typs = Array.map((size: int) => self(size), sizes);
+
+                let flattened = flatten_a(typs);
+                map(
+                  (typs: array(typ)) => TupleType(Array.to_list(typs)),
+                  flattened,
+                );
+              },
+              list_sizes,
+            ),
+          ),
+        ]);
+      }
+    )
   )
 and gen_pat_sized = (_n: int): QCheck.Gen.t(pat) =>
   QCheck.Gen.pure(WildPat);
