@@ -635,66 +635,61 @@ module View = {
       let module_placeholder =
         eds.module_name == "" ? "Unnamed Module" : eds.module_name;
       globals.settings.instructor_mode
-        ? CellCommon.narrative_cell(
-            div(
-              ~attrs=[Attr.class_("cell-module-name")],
-              [
-                editing_flags.editing_module_name
-                  ? div(
-                      ~attrs=[Attr.class_("module-name-edit")],
-                      [
-                        label([text("Module name:")]),
-                        input(
-                          ~attrs=[
-                            Attr.type_("text"),
-                            Attr.class_("text-input"),
-                            Attr.id("module-name-input"),
-                            Attr.value(eds.module_name),
-                            Attr.on_focus(_ => signal(MakeActive(TextBox))),
-                          ],
-                          (),
-                        ),
-                        div(
-                          ~attrs=[Attr.class_("edit-icon")],
-                          [
-                            Widgets.button(Icons.confirm, update_module_name),
-                          ],
-                        ),
-                        div(
-                          ~attrs=[Attr.class_("edit-icon")],
-                          [
-                            Widgets.button(Icons.cancel, _ =>
-                              inject(Instructor(EditingModuleName))
-                            ),
-                          ],
-                        ),
-                      ],
-                    )
-                  : div(
-                      ~attrs=[Attr.class_("module-name-text")],
-                      [
-                        text("Module name: "),
-                        div(
-                          ~attrs=[
-                            Attr.classes([
-                              eds.module_name == ""
-                                ? "module-placeholder" : "",
-                            ]),
-                          ],
-                          [text(module_placeholder)],
-                        ),
-                        div(
-                          ~attrs=[Attr.class_("edit-icon")],
-                          [
-                            Widgets.button(Icons.pencil, _ =>
-                              inject(Instructor(EditingModuleName))
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-              ],
-            ),
+        ? div(
+            ~attrs=[Attr.class_("cell-module-name")],
+            [
+              editing_flags.editing_module_name
+                ? div(
+                    ~attrs=[Attr.class_("module-name-edit")],
+                    [
+                      label([text("Module name:")]),
+                      input(
+                        ~attrs=[
+                          Attr.type_("text"),
+                          Attr.class_("text-input"),
+                          Attr.id("module-name-input"),
+                          Attr.value(eds.module_name),
+                          Attr.on_focus(_ => signal(MakeActive(TextBox))),
+                        ],
+                        (),
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [Widgets.button(Icons.confirm, update_module_name)],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.cancel, _ =>
+                            inject(Instructor(EditingModuleName))
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                : div(
+                    ~attrs=[Attr.class_("module-name-text")],
+                    [
+                      text("Module name: "),
+                      div(
+                        ~attrs=[
+                          Attr.classes([
+                            eds.module_name == "" ? "module-placeholder" : "",
+                          ]),
+                        ],
+                        [text(module_placeholder)],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.pencil, _ =>
+                            inject(Instructor(EditingModuleName))
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+            ],
           )
         : Node.none;
     };
@@ -715,61 +710,59 @@ module View = {
       let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
       let (msg, _) =
         ExplainThis.mk_translation(~globals, prompt_placeholder);
-      CellCommon.narrative_cell(
-        div(
-          ~attrs=[Attr.class_("cell-prompt")],
-          [
-            globals.settings.instructor_mode
-              ? editing_flags.editing_prompt
-                  ? div(
-                      ~attrs=[Attr.class_("prompt-edit")],
-                      [
-                        textarea(
-                          ~attrs=[
-                            Attr.class_("prompt-text"),
-                            Attr.id("prompt-input-box"),
-                          ],
-                          [text(eds.prompt)],
-                        ),
-                        div(
-                          ~attrs=[Attr.class_("edit-icon")],
-                          [Widgets.button(Icons.confirm, update_prompt)],
-                        ),
-                        div(
-                          ~attrs=[Attr.class_("edit-icon")],
-                          [
-                            Widgets.button(Icons.cancel, _ =>
-                              inject(Instructor(EditingPrompt))
-                            ),
-                          ],
-                        ),
-                      ],
-                    )
-                  : div(
-                      ~attrs=[Attr.class_("prompt-edit")],
-                      [
-                        div(
-                          ~attrs=[
-                            Attr.classes([
-                              "prompt-content",
-                              eds.prompt == "" ? "prompt-placeholder" : "",
-                            ]),
-                          ],
-                          msg,
-                        ),
-                        div(
-                          ~attrs=[Attr.class_("edit-pencil")],
-                          [
-                            Widgets.button(Icons.pencil, _ =>
-                              inject(Instructor(EditingPrompt))
-                            ),
-                          ],
-                        ),
-                      ],
-                    )
-              : div(~attrs=[Attr.class_("prompt-content")], msg),
-          ],
-        ),
+      div(
+        ~attrs=[Attr.class_("cell-prompt")],
+        [
+          globals.settings.instructor_mode
+            ? editing_flags.editing_prompt
+                ? div(
+                    ~attrs=[Attr.class_("prompt-edit")],
+                    [
+                      textarea(
+                        ~attrs=[
+                          Attr.class_("prompt-text"),
+                          Attr.id("prompt-input-box"),
+                        ],
+                        [text(eds.prompt)],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [Widgets.button(Icons.confirm, update_prompt)],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.cancel, _ =>
+                            inject(Instructor(EditingPrompt))
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                : div(
+                    ~attrs=[Attr.class_("prompt-edit")],
+                    [
+                      div(
+                        ~attrs=[
+                          Attr.classes([
+                            "prompt-content",
+                            eds.prompt == "" ? "prompt-placeholder" : "",
+                          ]),
+                        ],
+                        msg,
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-pencil")],
+                        [
+                          Widgets.button(Icons.pencil, _ =>
+                            inject(Instructor(EditingPrompt))
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+            : div(~attrs=[Attr.class_("prompt-content")], msg),
+        ],
       );
     };
 
