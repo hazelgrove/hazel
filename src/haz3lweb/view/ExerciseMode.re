@@ -926,7 +926,12 @@ module View = {
     let mutation_testing_view =
       Always(
         Grading.MutationTestingReport.view(
-          ~inject,
+          ~globals,
+          ~editing_mut_test_rep=editing_flags.editing_mut_test_rep,
+          ~inject_editing_mut_test_rep=inject(Instructor(EditingMutTestRep)),
+          ~inject_update_mut_test_rep=
+            x => inject(Instructor(UpdateMutTestRep(x))),
+          ~select_textbox=signal(MakeActive(TextBox)),
           grading_report.mutation_testing_report,
           grading_report.point_distribution.mutation_testing,
         ),
@@ -966,6 +971,7 @@ module View = {
     let impl_grading_view =
       Always(
         Grading.ImplGradingReport.view(
+          ~globals,
           ~signal_jump=
             id =>
               inject(
@@ -974,6 +980,12 @@ module View = {
                   MainEditor(Perform(Jump(TileId(id)))),
                 ),
               ),
+          ~inject_set_editing_impl_grd_rep=
+            inject(Instructor(EditingImplGrdRep)),
+          ~inject_update_impl_grd_rep=
+            x => inject(Instructor(UpdateImplGrdRep(x))),
+          ~select_textbox=signal(MakeActive(TextBox)),
+          ~editing_impl_grd_rep=editing_flags.editing_impl_grd_rep,
           ~report=grading_report.impl_grading_report,
           ~syntax_report=grading_report.syntax_report,
           ~max_points=grading_report.point_distribution.impl_grading,
