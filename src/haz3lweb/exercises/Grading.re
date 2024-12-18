@@ -343,10 +343,84 @@ module MutationTestingReport = {
     );
   };
 
-  let summary_message = (~score, ~total, ~found): Node.t =>
+  let summary_message =
+      (
+        ~globals: Globals.t,
+        ~editing_mut_test_rep,
+        ~select_textbox,
+        ~inject_editing_mut_test_rep,
+        ~inject_update_mut_test_rep,
+        ~score,
+        ~total,
+        ~found,
+        ~max_points,
+      )
+      : Node.t =>
     div(
-      ~attrs=[Attr.classes(["test-text"])],
-      [score_view(score), text(summary_str(~total, ~found))],
+      ~attrs=[Attr.class_("test-text")],
+      globals.settings.instructor_mode
+        ? editing_mut_test_rep
+            ? [
+              div(
+                ~attrs=[Attr.class_("input-field")],
+                [
+                  label([text("New point max:")]),
+                  input(
+                    ~attrs=[
+                      Attr.type_("number"),
+                      Attr.class_("point-num-input"),
+                      Attr.id("point-max-input"),
+                      Attr.value(string_of_int(max_points)),
+                      Attr.on_focus(_ => select_textbox),
+                    ],
+                    (),
+                  ),
+                ],
+              ),
+              div(
+                ~attrs=[Attr.class_("edit-icon")],
+                [
+                  Widgets.button(
+                    Icons.confirm,
+                    _ => {
+                      let new_dist =
+                        Obj.magic(
+                          Js_of_ocaml.Js.some(
+                            JsUtil.get_elem_by_id("point-max-input"),
+                          ),
+                        )##.value;
+
+                      let update_events = [
+                        inject_editing_mut_test_rep,
+                        inject_update_mut_test_rep(int_of_string(new_dist)),
+                      ];
+                      Virtual_dom.Vdom.Effect.Many(update_events);
+                    },
+                  ),
+                ],
+              ),
+              div(
+                ~attrs=[Attr.class_("edit-icon")],
+                [
+                  Widgets.button(Icons.cancel, _ =>
+                    inject_editing_mut_test_rep
+                  ),
+                ],
+              ),
+            ]
+            : [
+              score_view(score),
+              text(summary_str(~total, ~found)),
+              div(
+                ~attrs=[Attr.class_("edit-icon")],
+                [
+                  Widgets.button(Icons.pencil, _ =>
+                    inject_editing_mut_test_rep
+                  ),
+                ],
+              ),
+            ]
+        : [score_view(score), text(summary_str(~total, ~found))],
     );
 
   let bar = (~inject as _, instances) =>
@@ -365,7 +439,16 @@ module MutationTestingReport = {
       ),
     );
 
-  let summary = (~inject, ~report, ~max_points) => {
+  let summary =
+      (
+        ~globals: Globals.t,
+        ~editing_mut_test_rep,
+        ~inject_editing_mut_test_rep,
+        ~inject_update_mut_test_rep,
+        ~select_textbox,
+        ~report,
+        ~max_points,
+      ) => {
     let total = List.length(report.results);
     let found =
       List.length(
@@ -383,17 +466,22 @@ module MutationTestingReport = {
       ],
       [
         summary_message(
+          ~globals,
+          ~editing_mut_test_rep,
+          ~inject_editing_mut_test_rep,
+          ~inject_update_mut_test_rep,
+          ~select_textbox,
           ~score=score_of_percent(percentage(report), max_points),
           ~total,
           ~found,
+          ~max_points,
         ),
-        bar(~inject, report.results),
+        bar(~inject=(), report.results),
       ],
     );
   };
 
-  let individual_report =
-      (id, ~inject as _, ~hint: string, ~status: TestStatus.t) =>
+  let individual_report = (id, ~hint: string, ~status: TestStatus.t) =>
     div(
       ~attrs=[
         Attr.classes(["test-report"]),
@@ -426,11 +514,11 @@ module MutationTestingReport = {
       ],
     );
 
-  let individual_reports = (~inject, coverage_results) =>
+  let individual_reports = coverage_results =>
     div(
       coverage_results
       |> List.mapi((i, (status, hint)) =>
-           individual_report(i, ~inject, ~hint, ~status)
+           individual_report(i, ~hint, ~status)
          ),
     );
 
@@ -491,7 +579,16 @@ module MutationTestingReport = {
   //   };
   // };
 
-  let view = (~inject, report: t, max_points: int) =>
+  let view =
+      (
+        ~globals,
+        ~editing_mut_test_rep,
+        ~inject_editing_mut_test_rep,
+        ~inject_update_mut_test_rep,
+        ~select_textbox,
+        report: t,
+        max_points: int,
+      ) =>
     if (max_points == 0) {
       Node.div([]);
     } else {
@@ -502,9 +599,20 @@ module MutationTestingReport = {
             "Mutation Testing",
             ~rest=": Your Tests vs. Buggy Implementations (hidden)",
           ),
-          individual_reports(~inject, report.results),
+          individual_reports(report.results),
         ],
-        ~footer=Some(summary(~inject, ~report, ~max_points)),
+        ~footer=
+          Some(
+            summary(
+              ~globals,
+              ~editing_mut_test_rep,
+              ~inject_editing_mut_test_rep,
+              ~inject_update_mut_test_rep,
+              ~select_textbox,
+              ~report,
+              ~max_points,
+            ),
+          ),
       );
     };
 };
@@ -746,7 +854,12 @@ module ImplGradingReport = {
   // HiddenTests
   let view =
       (
+        ~globals: Globals.t,
+        ~editing_impl_grd_rep,
         ~signal_jump,
+        ~inject_set_editing_impl_grd_rep,
+        ~inject_update_impl_grd_rep,
+        ~select_textbox,
         ~report: t,
         ~syntax_report: SyntaxReport.t,
         ~max_points: int,
@@ -766,18 +879,98 @@ module ImplGradingReport = {
             div(
               ~attrs=[Attr.classes(["test-summary"])],
               [
-                div(
-                  ~attrs=[Attr.class_("test-text")],
-                  [
-                    score_view(
-                      score_of_percent(
-                        percentage(report, syntax_report),
-                        max_points,
+                globals.settings.instructor_mode
+                  ? editing_impl_grd_rep
+                      ? Node.div([
+                          div(
+                            ~attrs=[Attr.class_("input-field")],
+                            [
+                              label([text("New point max:")]),
+                              input(
+                                ~attrs=[
+                                  Attr.type_("number"),
+                                  Attr.class_("point-num-input"),
+                                  Attr.id("point-max-input"),
+                                  Attr.value(string_of_int(max_points)),
+                                  Attr.on_focus(_ => select_textbox),
+                                ],
+                                (),
+                              ),
+                            ],
+                          ),
+                          div(
+                            ~attrs=[Attr.class_("edit-icon")],
+                            [
+                              Widgets.button(
+                                Icons.confirm,
+                                _ => {
+                                  let new_dist =
+                                    Obj.magic(
+                                      Js_of_ocaml.Js.some(
+                                        JsUtil.get_elem_by_id(
+                                          "point-max-input",
+                                        ),
+                                      ),
+                                    )##.value;
+
+                                  let update_events = [
+                                    inject_set_editing_impl_grd_rep,
+                                    inject_update_impl_grd_rep(
+                                      int_of_string(new_dist),
+                                    ),
+                                  ];
+                                  Virtual_dom.Vdom.Effect.Many(update_events);
+                                },
+                              ),
+                            ],
+                          ),
+                          div(
+                            ~attrs=[Attr.class_("edit-icon")],
+                            [
+                              Widgets.button(Icons.cancel, _ =>
+                                inject_set_editing_impl_grd_rep
+                              ),
+                            ],
+                          ),
+                        ])
+                      : Node.div([
+                          div(
+                            ~attrs=[Attr.class_("test-text")],
+                            [
+                              score_view(
+                                score_of_percent(
+                                  percentage(report, syntax_report),
+                                  max_points,
+                                ),
+                              ),
+                            ]
+                            @ textual_summary(report)
+                            @ [
+                              div(
+                                ~attrs=[Attr.class_("edit-icon")],
+                                [
+                                  Widgets.button(Icons.pencil, _ =>
+                                    inject_set_editing_impl_grd_rep
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ])
+                  : Node.div([
+                      div(
+                        ~attrs=[Attr.class_("test-text")],
+                        [
+                          score_view(
+                            score_of_percent(
+                              percentage(report, syntax_report),
+                              max_points,
+                            ),
+                          ),
+                        ]
+                        @ textual_summary(report),
                       ),
-                    ),
-                  ]
-                  @ textual_summary(report),
-                ),
+                    ]),
               ]
               @ Option.to_list(
                   report.test_results
