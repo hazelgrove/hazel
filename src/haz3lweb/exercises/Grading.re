@@ -47,7 +47,7 @@ module TestValidationReport = {
     provided: int,
   };
 
-  let mk = (eds: eds, test_results: option(TestResults.t)) => {
+  let mk = (eds: p('a), test_results: option(TestResults.t)) => {
     {
       test_results,
       required: eds.your_tests.required,
@@ -187,14 +187,14 @@ module MutationTestingReport = {
   let mk =
       (
         ~test_validation,
-        ~hidden_bugs_state: list(wrong_impl(Editor.t)),
+        ~hidden_bugs_state: list(wrong_impl('a)),
         ~hidden_bugs,
       )
       : t => {
     let results = List.map(hidden_bug_status(test_validation), hidden_bugs);
     let hints =
       List.map(
-        (wrong_impl: wrong_impl(Editor.t)) => wrong_impl.hint,
+        (wrong_impl: wrong_impl('a)) => wrong_impl.hint,
         hidden_bugs_state,
       );
     let results = List.combine(results, hints);
@@ -401,9 +401,9 @@ module SyntaxReport = {
     percentage,
   };
 
-  let mk = (~your_impl: Editor.t, ~tests: syntax_tests): t => {
+  let mk = (~your_impl: EditorManager.Model.t, ~tests: syntax_tests): t => {
     let user_impl_term =
-      MakeTerm.from_zip_for_sem(your_impl.state.zipper).term;
+      (your_impl |> EditorManager.Update.assemble |> MakeTerm.go).term;
     let predicates =
       List.map(((_, p)) => SyntaxTest.predicate_fn(p), tests);
     let hints = List.map(((h, _)) => h, tests);
@@ -690,7 +690,7 @@ module GradingReport = {
     impl_grading_report: ImplGradingReport.t,
   };
 
-  let mk = (eds: eds, ~stitched_tests: stitched(option(TestResults.t))) => {
+  let mk = (eds: p('a), ~stitched_tests: stitched(option(TestResults.t))) => {
     point_distribution: eds.point_distribution,
     test_validation_report:
       TestValidationReport.mk(eds, stitched_tests.test_validation),

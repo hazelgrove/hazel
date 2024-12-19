@@ -2,92 +2,7 @@ open Util;
 open Haz3lcore;
 open Web;
 
-module Model = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type component = {
-    id: Id.t,
-    parent: option(Id.t),
-    editor: Editor.t,
-    kind: option(Base.kind),
-    model: string,
-  };
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    components: list(component),
-    root_id: Id.t,
-    statics: CachedStatics.t,
-  };
-
-  let mk = editor => {
-    let id = Id.mk();
-    {
-      components: [{id, parent: None, editor, kind: None, model: ""}],
-      root_id: id,
-      statics: CachedStatics.empty,
-    };
-  };
-
-  let get_component = (id, model) =>
-    List.find(c => c.id == id, model.components);
-
-  let set_component = (id, component, model) => {
-    {
-      ...model,
-      components: List.map(c => c.id == id ? component : c, model.components),
-    };
-  };
-
-  let add_component = (component, model) => {
-    {...model, components: [component, ...model.components]};
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_component = {
-    id: Id.t,
-    parent: option(Id.t),
-    editor: Editor.Model.persistent,
-    kind: option(Base.kind),
-    model: string,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = {
-    components: list(persistent_component),
-    root_id: Id.t,
-  };
-
-  let persist = (model: t) => {
-    let components =
-      List.map(
-        (c: component) =>
-          {
-            id: c.id,
-            parent: c.parent,
-            editor: Editor.Model.persist(c.editor),
-            kind: c.kind,
-            model: c.model,
-          },
-        model.components,
-      );
-    {components, root_id: model.root_id};
-  };
-
-  let unpersist = (data: persistent): t => {
-    let components =
-      List.map(
-        (c: persistent_component): component =>
-          {
-            id: c.id,
-            parent: c.parent,
-            editor: Editor.Model.unpersist(c.editor),
-            kind: c.kind,
-            model: c.model,
-          },
-        data.components,
-      );
-    {components, root_id: data.root_id, statics: CachedStatics.empty};
-  };
-};
+module Model = EditorManagerModel;
 
 module Update = {
   open Updated;
@@ -113,6 +28,7 @@ module Update = {
     | SetModel(Id.t, string)
     | Undo(Id.t)
     | Redo(Id.t)
+    | TAB(Id.t)
     | Manage(management);
 
   let perform = (~settings, action, model: Model.t, editor: Editor.t) =>
@@ -189,48 +105,11 @@ module Update = {
     };
   };
 
-  let segment_to_piece = (seg: Segment.t): Piece.t =>
-    //TODO(andrew):............
-    switch (seg) {
-    | [] => failwith("EditorManager.Update.of_segment: empty segment")
-    | [p] => p
-    | [p, ..._] =>
-      let sort = p |> Piece.sort |> fst;
-      Piece.mk_tile(
-        Form.mk(Form.ii, ["(", ")"], Mold.mk_op(sort, [sort])),
-        [seg],
-      );
-    };
+  let assemble = Model.assemble;
 
-  let component_to_piece = (component: Model.component): Piece.t => {
-    let editor = component.editor;
-    let seg =
-      Zipper.smart_seg(
-        ~dump_backpack=true,
-        ~erase_buffer=true,
-        editor.state.zipper,
-      );
-    segment_to_piece(seg);
-  };
-
-  let assemble = (model: Model.t): Segment.t => {
-    let swap_out = (go, piece: Piece.t): Piece.t => {
-      switch (piece) {
-      | Projector(pr) => go(pr.id)
-      | _ => piece
-      };
-    };
-    let rec go = (id: Id.t): Piece.t => {
-      let seg = Model.get_component(id, model) |> component_to_piece;
-      ZipperBase.MapPiece.of_piece(swap_out(go), seg);
-    };
-    [go(model.root_id)];
-  };
-
-  let calculate = (~settings, ~is_edited, ~stitch, model: Model.t) => {
-    let segment = assemble(model);
-    let statics =
-      CachedStatics.init_from_segment(~settings, ~stitch, segment);
+  let calculate_syntax_cache =
+      (~settings, ~is_edited, statics: CachedStatics.t, model: Model.t)
+      : Model.t => {
     {
       ...model,
       components:
@@ -249,6 +128,13 @@ module Update = {
           model.components,
         ),
     };
+  };
+
+  let calculate = (~settings, ~is_edited, ~stitch, model: Model.t) => {
+    let segment = assemble(model);
+    let statics =
+      CachedStatics.init_from_segment(~settings, ~stitch, segment);
+    calculate_syntax_cache(~settings, ~is_edited, statics, model);
   };
 };
 
@@ -332,6 +218,10 @@ module Focus = {
     | None => None
     };
   };
+
+  let default_selection = (model: Model.t): t => {
+    {component: model.root_id};
+  };
 };
 
 module View = {
@@ -345,6 +235,7 @@ module View = {
             ~signal: event => Ui_effect.t(unit),
             ~inject: Update.t => Ui_effect.t(unit),
             ~selected: option(Focus.t),
+            ~overlays,
             model: Model.t,
             component: Model.component,
           )
@@ -356,6 +247,7 @@ module View = {
           ~signal,
           ~inject,
           ~selected,
+          ~overlays=[],
           model,
           Model.get_component(id, model),
         );
@@ -482,7 +374,7 @@ module View = {
           ~cached_syntax=component.editor.syntax,
           ~font_metrics=globals.font_metrics,
         );
-      let overlays = edit_decos @ [projectors];
+      let overlays = overlays @ edit_decos @ [projectors];
       let code_view =
         CodeWithStatics.View.view(
           ~globals,
@@ -529,6 +421,7 @@ module View = {
         ~signal: event => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Focus.t),
+        ~overlays,
         model: Model.t,
       ) =>
     view_component(
@@ -536,6 +429,7 @@ module View = {
       ~signal: event => Ui_effect.t(unit),
       ~inject: Update.t => Ui_effect.t(unit),
       ~selected: option(Focus.t),
+      ~overlays,
       model,
       Model.get_component(model.root_id, model),
     );

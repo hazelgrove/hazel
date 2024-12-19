@@ -250,7 +250,9 @@ module Update = {
               settings.evaluation.show_casts
                 ? (x => x) : Haz3lcore.DHExp.strip_casts
             )
-            |> CodeSelectable.Model.mk_from_exp(~settings)
+            |> CodeWithStatics.Model.mk_from_exp(~settings)
+            |> (x => x.editor)
+            |> EditorManager.Model.mk
             |> (x => Calc.Calculated((exp, x)))
           | ResultFail(_) => Pending
           | ResultPending => Pending
@@ -366,17 +368,19 @@ module View = {
       | Calculated(editor) => editor |> snd
       | _ =>
         elab
-        |> CodeSelectable.Model.mk_from_exp(~settings=globals.settings.core)
+        |> CodeWithStatics.Model.mk_from_exp(~settings=globals.settings.core)
+        |> (m => m.editor)
+        |> EditorManager.Model.mk
       };
     let code_view =
       CodeSelectable.View.view(
         ~signal=
           fun
-          | MakeActive => signal(MakeActive(Evaluation())),
+          | Focus(s) => signal(MakeActive(Evaluation(s))),
         ~inject=a => inject(EvalEditorAction(a)),
         ~globals,
         ~selected,
-        ~sort=Haz3lcore.Sort.root,
+        ~overlays=[],
         editor,
       );
     let exn_view =
@@ -436,7 +440,11 @@ module View = {
           ~globals,
           ~signal,
           ~inject,
-          ~selected=selected == Some(Evaluation()),
+          ~selected=
+            switch (selected) {
+            | Some(Evaluation(s)) => Some(s)
+            | _ => None
+            },
           ~locked,
           elab,
           result |> Calc.get_value,

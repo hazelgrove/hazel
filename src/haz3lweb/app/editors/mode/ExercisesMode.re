@@ -34,10 +34,10 @@ module Model = {
       ),
   };
 
-  let unpersist = (~settings, ~instructor_mode, persistent: persistent) => {
+  let unpersist = (~settings as _, ~instructor_mode, persistent: persistent) => {
     let exercises =
       List.map2(
-        ExerciseMode.Model.unpersist(~settings, ~instructor_mode),
+        ExerciseMode.Model.unpersist(~instructor_mode),
         persistent.exercise_data |> List.map(snd),
         ExerciseSettings.exercises,
       );
@@ -81,24 +81,24 @@ module Store = {
     S.save(value);
   };
 
-  let init_exercise = (~settings, spec, ~instructor_mode) => {
+  let init_exercise = (~settings as _, spec, ~instructor_mode) => {
     let key = Exercise.key_of(spec);
-    let exercise =
-      ExerciseMode.Model.of_spec(spec, ~settings, ~instructor_mode);
+    let exercise = ExerciseMode.Model.of_spec(spec, ~instructor_mode);
     save_exercise(exercise, ~instructor_mode);
     StoreExerciseKey.save(key);
     exercise;
   };
 
   let load_exercise =
-      (~settings, key, spec, ~instructor_mode): ExerciseMode.Model.persistent => {
+      (~settings as _, key, spec, ~instructor_mode)
+      : ExerciseMode.Model.persistent => {
     module S =
       Store.F({
         [@deriving (show({with_path: false}), sexp, yojson)]
         type t = ExerciseMode.Model.persistent;
         let default = () =>
           spec
-          |> ExerciseMode.Model.of_spec(~settings, ~instructor_mode)
+          |> ExerciseMode.Model.of_spec(~instructor_mode)
           |> ExerciseMode.Model.persist(~instructor_mode);
         let key = Store.Exercise(key);
       });
@@ -155,13 +155,7 @@ module Store = {
           |> fst;
         let spec = List.nth(specs, n);
         save_exercise(
-          value
-          |> ExerciseMode.Model.unpersist(
-               ~settings,
-               ~instructor_mode,
-               _,
-               spec,
-             ),
+          value |> ExerciseMode.Model.unpersist(~instructor_mode, _, spec),
           ~instructor_mode,
         );
       },
@@ -311,6 +305,11 @@ module Selection = {
       List.nth(model.exercises, model.current),
     )
     |> Option.map(((x, y)) => (Update.Exercise(x), y));
+
+  let default_selection = (model: Model.t): t =>
+    ExerciseMode.Selection.default_selection(
+      List.nth(model.exercises, model.current),
+    );
 };
 
 module View = {

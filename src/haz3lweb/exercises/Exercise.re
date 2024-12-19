@@ -84,7 +84,7 @@ type pos =
   | HiddenTests;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type spec = p(Zipper.t);
+type spec = p(EditorManagerModel.persistent);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type transitionary_spec = p(CodeString.t);
@@ -118,7 +118,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type eds = p(Editor.t);
+type eds = p(EditorManagerModel.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type state = {eds};
@@ -231,7 +231,7 @@ let zipper_of_code = code => {
   };
 };
 
-let transition: transitionary_spec => spec =
+let transition: transitionary_spec => p(Zipper.t) =
   (
     {
       title,
@@ -358,9 +358,9 @@ let visible_in = (pos, ~instructor_mode) => {
 // # Stitching
 
 module TermItem = {
-  type t = {
+  type t('a) = {
     term: Exp.t,
-    editor: Editor.t,
+    editor: 'a,
   };
 };
 
@@ -436,50 +436,57 @@ let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t => {
   ids: [Id.mk()],
 };
 
-let wrap = (term, editor: Editor.t): TermItem.t => {term, editor};
+let wrap = (term, editor: 'a): TermItem.t('a) => {term, editor};
 
-let term_of = (editor: Editor.t): UExp.t =>
-  MakeTerm.from_zip_for_sem(editor.state.zipper).term;
-
-let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
+let stitch3 = (term_of, ed1, ed2, ed3) =>
   EditorUtil.append_exp(
     EditorUtil.append_exp(term_of(ed1), term_of(ed2)),
     term_of(ed3),
   );
 
-let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
-  let instructor =
-    stitch3(eds.prelude, eds.correct_impl, eds.hidden_tests.tests);
-  let user_impl_term = {
-    let your_impl_term =
-      eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
-    let prelude_term =
-      eds.prelude |> term_of |> wrap_filter(FilterAction.Eval);
-    EditorUtil.append_exp(prelude_term, your_impl_term);
-  };
-  let test_validation_term =
-    stitch3(eds.prelude, eds.correct_impl, eds.your_tests.tests);
-  let user_tests_term =
-    EditorUtil.append_exp(user_impl_term, term_of(eds.your_tests.tests));
-  let hidden_tests_term =
-    EditorUtil.append_exp(user_impl_term, term_of(eds.hidden_tests.tests));
-  {
-    test_validation: wrap(test_validation_term, eds.your_tests.tests),
-    user_impl: wrap(user_impl_term, eds.your_impl),
-    user_tests: wrap(user_tests_term, eds.your_tests.tests),
+let stitch_term: ('a => 'b, p('a)) => stitched(TermItem.t('a)) =
+  (term_of, eds) => (
+    {
+      let stitch3 = stitch3(term_of);
+      let instructor =
+        stitch3(eds.prelude, eds.correct_impl, eds.hidden_tests.tests);
+      let user_impl_term = {
+        let your_impl_term =
+          eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
+        let prelude_term =
+          eds.prelude |> term_of |> wrap_filter(FilterAction.Eval);
+        EditorUtil.append_exp(prelude_term, your_impl_term);
+      };
+      let test_validation_term =
+        stitch3(eds.prelude, eds.correct_impl, eds.your_tests.tests);
+      let user_tests_term =
+        EditorUtil.append_exp(user_impl_term, term_of(eds.your_tests.tests));
+      let hidden_tests_term =
+        EditorUtil.append_exp(
+          user_impl_term,
+          term_of(eds.hidden_tests.tests),
+        );
+      {
+        test_validation: wrap(test_validation_term, eds.your_tests.tests),
+        user_impl: wrap(user_impl_term, eds.your_impl),
+        user_tests: wrap(user_tests_term, eds.your_tests.tests),
+        prelude: wrap(instructor, eds.prelude),
+        instructor: wrap(instructor, eds.correct_impl),
+        hidden_bugs:
+          List.map(
+            (t): TermItem.t('a) =>
+              wrap(
+                stitch3(eds.prelude, t.impl, eds.your_tests.tests),
+                t.impl,
+              ),
+            eds.hidden_bugs,
+          ),
+        hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
+      };
+    }:
+      stitched(TermItem.t('a))
     // instructor works here as long as you don't shadow anything in the prelude
-    prelude: wrap(instructor, eds.prelude),
-    instructor: wrap(instructor, eds.correct_impl),
-    hidden_bugs:
-      List.map(
-        (t): TermItem.t =>
-          wrap(stitch3(eds.prelude, t.impl, eds.your_tests.tests), t.impl),
-        eds.hidden_bugs,
-      ),
-    hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
-  };
-};
-let stitch_term = Core.Memo.general(stitch_term);
+  );
 
 let prelude_key = "prelude";
 let test_validation_key = "test_validation";
@@ -521,9 +528,9 @@ let pos_of_key = (key: string): pos =>
 
 // // Module Export
 
-let editor_pp = (fmt, editor: Editor.t) => {
-  let zipper = editor.state.zipper;
-  let serialization = Zipper.show(zipper);
+let editor_pp = (fmt, editor: EditorManagerModel.t) => {
+  let persistent = EditorManagerModel.persist(editor);
+  let serialization = EditorManagerModel.show_persistent(persistent);
   // let string_literal = "\"" ++ String.escaped(serialization) ++ "\"";
   Format.pp_print_string(fmt, serialization);
 };
@@ -539,9 +546,9 @@ let export_module = (module_name, {eds, _}: state) => {
   data;
 };
 
-let transitionary_editor_pp = (fmt, editor: Editor.t) => {
-  let zipper = editor.state.zipper;
-  let code = Printer.to_string_basic(zipper);
+let transitionary_editor_pp = (fmt, editor: EditorManagerModel.t) => {
+  let zipper = EditorManagerModel.assemble(editor);
+  let code = Printer.to_string_basic(zipper |> Zipper.unzip);
   Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
 };
 
@@ -606,55 +613,5 @@ let blank_spec =
       hints: [],
     },
     syntax_tests: [],
-  };
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_exercise_mode = list((pos, PersistentZipper.t));
-
-let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
-  let lookup = (pos, default) =>
-    if (visible_in(pos, ~instructor_mode)) {
-      positioned_zippers
-      |> List.assoc_opt(pos)
-      |> Option.map(PersistentZipper.unpersist)
-      |> Option.value(~default);
-    } else {
-      default;
-    };
-  let prelude = lookup(Prelude, spec.prelude);
-  let correct_impl = lookup(CorrectImpl, spec.correct_impl);
-  let your_tests_tests = lookup(YourTestsValidation, spec.your_tests.tests);
-  let your_impl = lookup(YourImpl, spec.your_impl);
-  let (_, hidden_bugs) =
-    List.fold_left(
-      ((i, hidden_bugs: list(wrong_impl('a))), {impl, hint}) => {
-        let impl = lookup(HiddenBugs(i), impl);
-        (i + 1, hidden_bugs @ [{impl, hint}]);
-      },
-      (0, []),
-      spec.hidden_bugs,
-    );
-  let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
-  {
-    title: spec.title,
-    version: spec.version,
-    module_name: spec.module_name,
-    prompt: spec.prompt,
-    point_distribution: spec.point_distribution,
-    prelude,
-    correct_impl,
-    your_tests: {
-      tests: your_tests_tests,
-      required: spec.your_tests.required,
-      provided: spec.your_tests.provided,
-    },
-    your_impl,
-    hidden_bugs,
-    hidden_tests: {
-      tests: hidden_tests_tests,
-      hints: spec.hidden_tests.hints,
-    },
-    syntax_tests: spec.syntax_tests,
   };
 };

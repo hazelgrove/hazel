@@ -41,13 +41,10 @@ module Model = {
     ),
   );
 
-  let unpersist_documentation = (~settings, (current, slides)) => {
+  let unpersist_documentation = (~settings as _, (current, slides)) => {
     current,
     scratchpads:
-      List.map(
-        ((s, m)) => (s, CellEditor.Model.unpersist(~settings, m)),
-        slides,
-      ),
+      List.map(((s, m)) => (s, CellEditor.Model.unpersist(m)), slides),
   };
 };
 
@@ -115,9 +112,8 @@ module Update = {
         };
       let* data =
         List.nth(source, model.current)
-        |> PersistentZipper.unpersist
-        |> Editor.Model.mk
-        |> CellEditor.Model.mk
+        |> EditorManager.Model.unpersist
+        |> CellEditor.Model.mk_from_manager
         |> Updated.return;
       {
         ...model,
@@ -136,7 +132,7 @@ module Update = {
         data
         |> Sexplib.Sexp.of_string
         |> CellEditor.Model.persistent_of_sexp
-        |> CellEditor.Model.unpersist(~settings=settings.core);
+        |> CellEditor.Model.unpersist;
 
       let scratchpads =
         ListUtil.put_nth(model.current, (key, new_data), model.scratchpads);
@@ -230,6 +226,11 @@ module Selection = {
       List.nth(model.scratchpads, model.current) |> snd,
     )
     |> Option.map(((x, y)) => (Update.CellAction(x), y));
+
+  let default_selection = (model: Model.t): t =>
+    CellEditor.Selection.default_selection(
+      List.nth(model.scratchpads, model.current) |> snd,
+    );
 };
 
 module View = {

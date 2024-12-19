@@ -233,13 +233,13 @@ module Update = {
       {...model, explain_this};
     | MakeActive(selection) => {...model, selection} |> Updated.return
     | Benchmark(Start) =>
-      List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
-      schedule_action(Benchmark(Finish));
-      Benchmark.start();
-      model |> Updated.return_quiet;
+      // List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
+      // schedule_action(Benchmark(Finish));
+      // Benchmark.start();
+      model |> Updated.return_quiet
     | Benchmark(Finish) =>
-      Benchmark.finish();
-      model |> Updated.return_quiet;
+      // Benchmark.finish();
+      model |> Updated.return_quiet
     | Start => model |> return // Triggers recalculation at the start
     | Save =>
       print_endline("Saving...");

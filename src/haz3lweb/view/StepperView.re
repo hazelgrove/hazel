@@ -216,7 +216,9 @@ module Update = {
           settings.evaluation.show_casts ? x => x : Haz3lcore.DHExp.strip_casts
         )
         |> Typ.replace_temp_exp;
-      let editor = CodeWithStatics.Model.mk_from_exp(~settings, next_expr);
+      let editor =
+        (next_expr |> CodeWithStatics.Model.mk_from_exp(~settings)).editor
+        |> EditorManager.Model.mk;
       let next_steps = calc_next_steps(settings, next_expr, next_state);
       (
         {
@@ -328,7 +330,9 @@ module Update = {
                     ? x => x : Haz3lcore.DHExp.strip_casts
                 )
                 |> Typ.replace_temp_exp;
-              let editor = CodeWithStatics.Model.mk_from_exp(~settings, elab);
+              let editor =
+                CodeWithStatics.Model.mk_from_exp(~settings, elab).editor
+                |> EditorManager.Model.mk;
               let next_steps =
                 calc_next_steps(settings, elab, EvaluatorState.init);
               Model.{
@@ -474,29 +478,29 @@ module View = {
                      ~globals,
                      ~overlays=[],
                      ~selected=
-                       selection
-                       == Some(
-                            A(
-                              List.length(stepper.history |> Aba.get_as)
-                              - (i + 1)
-                              - 1,
-                              (),
-                            ),
-                          ),
+                       switch (selection) {
+                       | Some(A(j, sel))
+                           when
+                             j == List.length(stepper.history |> Aba.get_as)
+                             - (i + 1)
+                             - 1 =>
+                         Some(sel)
+                       | _ => None
+                       },
                      ~inject=
                        (x: StepperEditor.Update.t) =>
                          inject(StepperEditor(i + 1, x)),
                      ~signal=
                        fun
                        | TakeStep(_) => Ui_effect.Ignore
-                       | MakeActive =>
+                       | MakeActive(s) =>
                          signal(
                            MakeActive(
                              A(
                                List.length(stepper.history |> Aba.get_as)
                                - (i + 1)
                                - 1,
-                               (),
+                               s,
                              ),
                            ),
                          ),
@@ -540,15 +544,15 @@ module View = {
               StepperEditor.View.view(
                 ~globals,
                 ~selected=
-                  selection
-                  == Some(
-                       A(
-                         List.length(stepper.history |> Aba.get_as)
-                         - current_n
-                         - 1,
-                         (),
-                       ),
-                     ),
+                  switch (selection) {
+                  | Some(A(n, sel))
+                      when
+                        n == List.length(stepper.history |> Aba.get_as)
+                        - current_n
+                        - 1 =>
+                    Some(sel)
+                  | _ => None
+                  },
                 ~inject=
                   (x: StepperEditor.Update.t) =>
                     inject(StepperEditor(current_n, x)),
@@ -559,14 +563,14 @@ module View = {
                       inject(Update.StepForward(x)),
                       Effect.Stop_propagation,
                     ])
-                  | MakeActive =>
+                  | MakeActive(s) =>
                     signal(
                       MakeActive(
                         A(
                           List.length(stepper.history |> Aba.get_as)
                           - current_n
                           - 1,
-                          (),
+                          s,
                         ),
                       ),
                     ),

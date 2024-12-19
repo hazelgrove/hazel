@@ -1,6 +1,7 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
+open Util;
 
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
 
@@ -9,42 +10,104 @@ open Node;
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    spec: Exercise.spec, // The spec that the model will be reset to on ResetExercise
+    spec: Exercise.p(EditorManager.Model.persistent), // The spec that the model will be reset to on ResetExercise
     /* We keep a separate editors field below (even though each cell technically also has its own editor)
        for two reasons:
           1. There are two synced cells that have the same internal `editor` model
           2. The editors need to be `stitched` together before any cell calculations can be done */
-    editors: Exercise.p(Editor.t),
+    editors: Exercise.p(EditorManager.Model.t),
     cells: Exercise.stitched(CellEditor.Model.t),
   };
 
-  let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
-    let editors = Exercise.map(spec, Editor.Model.mk, Editor.Model.mk);
-    let term_item_to_cell = (item: Exercise.TermItem.t): CellEditor.Model.t => {
-      CellEditor.Model.mk(item.editor);
+  let of_spec =
+      (
+        ~instructor_mode as _: bool,
+        spec: Exercise.p(EditorManager.Model.persistent),
+      ) => {
+    let editors =
+      Exercise.map(
+        spec,
+        EditorManager.Model.unpersist,
+        EditorManager.Model.unpersist,
+      );
+    let term_item_to_cell =
+        (item: Exercise.TermItem.t(EditorManager.Model.t))
+        : CellEditor.Model.t => {
+      CellEditor.Model.mk_from_manager(item.editor);
     };
+    let term_of = (editor: EditorManager.Model.t): UExp.t =>
+      (EditorManager.Update.assemble(editor) |> MakeTerm.go).term;
     let cells =
-      Exercise.stitch_term(editors)
+      Exercise.stitch_term(term_of, editors)
       |> Exercise.map_stitched(_ => term_item_to_cell);
     {spec, editors, cells};
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = Exercise.persistent_exercise_mode;
+  type persistent = list((Exercise.pos, EditorManager.Model.persistent));
 
   let persist = (exercise: t, ~instructor_mode: bool) => {
     Exercise.positioned_editors(exercise.editors)
     |> List.filter(((pos, _)) =>
          Exercise.visible_in(pos, ~instructor_mode)
        )
-    |> List.map(((pos, editor: Editor.t)) =>
-         (pos, editor.state.zipper |> PersistentZipper.persist)
+    |> List.map(((pos, editor)) =>
+         (pos, EditorManager.Model.persist(editor))
        );
   };
 
-  let unpersist = (~instructor_mode, positioned_zippers, spec) => {
-    let spec = Exercise.unpersist(~instructor_mode, positioned_zippers, spec);
-    of_spec(~instructor_mode, spec);
+  let unpersist =
+      (
+        ~instructor_mode,
+        positioned_zippers: persistent,
+        spec: Exercise.p(EditorManager.Model.persistent),
+      )
+      : t => {
+    let lookup = (pos, default) =>
+      if (Exercise.visible_in(pos, ~instructor_mode)) {
+        positioned_zippers |> List.assoc_opt(pos) |> Option.value(~default);
+      } else {
+        default;
+      };
+    let prelude = lookup(Prelude, spec.prelude);
+    let correct_impl = lookup(CorrectImpl, spec.correct_impl);
+    let your_tests_tests = lookup(YourTestsValidation, spec.your_tests.tests);
+    let your_impl = lookup(YourImpl, spec.your_impl);
+    let (_, hidden_bugs) =
+      List.fold_left(
+        (
+          (i, hidden_bugs: list(Exercise.wrong_impl('a))),
+          Exercise.{impl, hint},
+        ) => {
+          let impl = lookup(HiddenBugs(i), impl);
+          (i + 1, hidden_bugs @ [{impl, hint}]);
+        },
+        (0, []),
+        spec.hidden_bugs,
+      );
+    let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
+    Exercise.{
+      title: spec.title,
+      version: spec.version,
+      module_name: spec.module_name,
+      prompt: spec.prompt,
+      point_distribution: spec.point_distribution,
+      prelude,
+      correct_impl,
+      your_tests: {
+        tests: your_tests_tests,
+        required: spec.your_tests.required,
+        provided: spec.your_tests.provided,
+      },
+      your_impl,
+      hidden_bugs,
+      hidden_tests: {
+        tests: hidden_tests_tests,
+        hints: spec.hidden_tests.hints,
+      },
+      syntax_tests: spec.syntax_tests,
+    }
+    |> of_spec(~instructor_mode);
   };
 };
 
@@ -67,18 +130,11 @@ module Update = {
       let editor =
         Exercise.main_editor_of_state(~selection=pos, model.editors);
       let* new_editor =
-        // Hack[Matt]: put Editor.t into a CodeEditor.t to use its update function
-        editor
-        |> CodeEditable.Model.mk
-        |> CodeEditable.Update.update(~settings, action);
+        editor |> EditorManager.Update.update(~settings=settings.core, action);
       {
         ...model,
         editors:
-          Exercise.put_main_editor(
-            ~selection=pos,
-            model.editors,
-            new_editor.editor,
-          ),
+          Exercise.put_main_editor(~selection=pos, model.editors, new_editor),
       };
     | Editor(pos, MainEditor(action)) =>
       switch (CodeSelectable.Update.convert_action(action)) {
@@ -86,17 +142,15 @@ module Update = {
         let editor =
           Exercise.main_editor_of_state(~selection=pos, model.editors);
         let* new_editor =
-          // Hack[Matt]: put Editor.t into a CodeSelectable.t to use its update function
           editor
-          |> CodeSelectable.Model.mk
-          |> CodeSelectable.Update.update(~settings, action);
+          |> CodeSelectable.Update.update(~settings=settings.core, action);
         {
           ...model,
           editors:
             Exercise.put_main_editor(
               ~selection=pos,
               model.editors,
-              new_editor.editor,
+              new_editor,
             ),
         };
       | None => Updated.return_quiet(model)
@@ -116,7 +170,7 @@ module Update = {
     | Editor(_, ResultAction(_)) => Updated.return_quiet(model) // TODO: I think this case should never happen
     | ResetEditor(pos) =>
       let spec = Exercise.main_editor_of_state(~selection=pos, model.spec);
-      let new_editor = Editor.Model.mk(spec);
+      let new_editor = spec |> EditorManager.Model.unpersist;
       {
         ...model,
         editors:
@@ -125,14 +179,20 @@ module Update = {
       |> Updated.return;
     | ResetExercise =>
       let new_editors =
-        Exercise.map(model.spec, Editor.Model.mk, Editor.Model.mk);
+        Exercise.map(
+          model.spec,
+          EditorManager.Model.unpersist,
+          EditorManager.Model.unpersist,
+        );
       {...model, editors: new_editors} |> Updated.return;
     };
   };
 
   let calculate =
       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
-    let stitched_elabs = Exercise.stitch_term(model.editors);
+    let term_of = (editor: EditorManager.Model.t): UExp.t =>
+      (EditorManager.Update.assemble(editor) |> MakeTerm.go).term;
+    let stitched_elabs = Exercise.stitch_term(term_of, model.editors);
     let worker_request = ref([]);
     let queue_worker = (pos, expr) => {
       worker_request :=
@@ -140,14 +200,12 @@ module Update = {
     };
     let cells =
       Exercise.map2_stitched(
-        (pos, {term, editor}: Exercise.TermItem.t, cell: CellEditor.Model.t) =>
-          {
-            editor: {
-              editor,
-              statics: cell.editor.statics,
-            },
-            result: cell.result,
-          }
+        (
+          pos,
+          {term, editor}: Exercise.TermItem.t(EditorManager.Model.t),
+          cell: CellEditor.Model.t,
+        ) =>
+          {editor, result: cell.result}
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
@@ -193,7 +251,8 @@ module Update = {
        one of the editors is shown in two cells, so we arbitrarily choose which
        statics to take */
     let editors: Exercise.p('a) = {
-      let calculate = Editor.Update.calculate(~settings, ~is_edited);
+      let calculate =
+        EditorManager.Update.calculate_syntax_cache(~settings, ~is_edited);
       {
         title: model.editors.title,
         version: model.editors.version,
@@ -264,18 +323,25 @@ module Selection = {
   };
 
   let jump_to_tile =
-      (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
+      (~settings as _: Settings.t, tile, model: Model.t)
+      : option((Update.t, t)) => {
     Exercise.positioned_editors(model.editors)
-    |> List.find_opt(((p, e: Editor.t)) =>
-         TileMap.find_opt(tile, e.syntax.tiles) != None
-         && Exercise.visible_in(p, ~instructor_mode=settings.instructor_mode)
+    |> List.find_map(((pos, em)) =>
+         EditorManager.Focus.jump_to_tile(tile, em)
+         |> Option.map(x => (pos, x))
        )
-    |> Option.map(((pos, _)) =>
+    |> Option.map(((pos, (action, focus))) =>
          (
-           Update.Editor(pos, MainEditor(Perform(Jump(TileId(tile))))),
-           (pos, CellEditor.Selection.MainEditor),
+           Update.Editor(pos, MainEditor(action)),
+           (pos, CellEditor.Selection.MainEditor(focus)),
          )
        );
+  };
+
+  let default_selection = (model: Model.t): t => {
+    let pos = Exercise.Prelude;
+    let cell_editor = Exercise.get_stitched(pos, model.cells);
+    (pos, CellEditor.Selection.default_selection(cell_editor));
   };
 };
 
@@ -390,12 +456,12 @@ module View = {
           let exp_ctx_view = {
             let correct_impl_trailing_hole_ctx =
               Haz3lcore.Editor.Model.trailing_hole_ctx(
-                eds.correct_impl,
+                eds.correct_impl |> EditorManager.Model.get_root_editor,
                 instructor.editor.statics.info_map,
               );
             let prelude_trailing_hole_ctx =
               Haz3lcore.Editor.Model.trailing_hole_ctx(
-                eds.prelude,
+                eds.prelude |> EditorManager.Model.get_root_editor,
                 prelude.editor.statics.info_map,
               );
             switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
@@ -439,14 +505,7 @@ module View = {
           ~result_kind=
             Custom(
               Grading.TestValidationReport.view(
-                ~signal_jump=
-                  id =>
-                    inject(
-                      Editor(
-                        YourTestsValidation,
-                        MainEditor(Perform(Jump(TileId(id)))),
-                      ),
-                    ),
+                ~signal_jump=id => globals.inject_global(JumpToTile(id)),
                 grading_report.test_validation_report,
                 grading_report.point_distribution.test_validation,
               ),
@@ -512,14 +571,7 @@ module View = {
     let impl_grading_view =
       Always(
         Grading.ImplGradingReport.view(
-          ~signal_jump=
-            id =>
-              inject(
-                Editor(
-                  YourTestsTesting,
-                  MainEditor(Perform(Jump(TileId(id)))),
-                ),
-              ),
+          ~signal_jump=id => globals.inject_global(JumpToTile(id)),
           ~report=grading_report.impl_grading_report,
           ~syntax_report=grading_report.syntax_report,
           ~max_points=grading_report.point_distribution.impl_grading,

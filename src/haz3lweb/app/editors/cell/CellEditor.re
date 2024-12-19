@@ -1,4 +1,3 @@
-open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
@@ -16,11 +15,14 @@ module Model = {
     editor: EditorManager.Model.mk(editor),
     result: EvalResult.Model.init,
   };
+
+  let mk_from_manager = editor => {editor, result: EvalResult.Model.init};
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = EditorManager.Model.persistent;
 
   let persist = model => model.editor |> EditorManager.Model.persist;
-  let unpersist = pz => EditorManager.Model.unpersist(pz);
+  let unpersist = pz => EditorManager.Model.unpersist(pz) |> mk_from_manager;
 };
 
 module Update = {
@@ -44,13 +46,7 @@ module Update = {
     | ResultAction(action) =>
       let* result =
         EvalResult.Update.update(
-          ~settings={
-            ...settings,
-            core: {
-              ...settings.core,
-              assist: false,
-            },
-          },
+          ~settings={...settings.core, assist: false},
           action,
           model.result,
         );
@@ -121,6 +117,9 @@ module Selection = {
     EditorManager.Focus.jump_to_tile(tile, model.editor)
     |> Option.map(((x, y)) => (Update.MainEditor(x), MainEditor(y)));
   };
+
+  let default_selection = (model: Model.t) =>
+    MainEditor(EditorManager.Focus.default_selection(model.editor));
 };
 
 module View = {
@@ -185,6 +184,8 @@ module View = {
             | Some(MainEditor(s)) => Some(s)
             | _ => None
             },
+          ~overlays=
+            overlays(model.editor |> EditorManager.Model.get_root_editor),
           model.editor,
         ),
       ]

@@ -55,6 +55,6 @@ let init = (~settings: CoreSettings.t, ~stitch, z: Zipper.t) =>
   settings.statics ? init(~settings, ~stitch, z) : empty;
 
 let init_from_segment = (~settings, ~stitch, seg: Segment.t): t => {
-  let term = MakeTerm.go(seg) |> stitch;
+  let term = MakeTerm.go(seg).term |> stitch;
   init_from_term(~settings, term);
 };

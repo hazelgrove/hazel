@@ -55,7 +55,7 @@ module Selection = {
 
 module View = {
   type event =
-    | MakeActive
+    | MakeActive(EditorManager.Focus.t)
     | TakeStep(int);
 
   let view =
@@ -69,7 +69,7 @@ module View = {
     let overlays = {
       module Deco =
         Deco.Deco({
-          let editor = model.editor.editor;
+          let editor = EditorManager.Model.get_root_editor(model.editor);
           let globals = globals;
           let statics = model.editor.statics;
         });
@@ -80,7 +80,7 @@ module View = {
     CodeSelectable.View.view(
       ~signal=
         fun
-        | MakeActive => signal(MakeActive),
+        | Focus(e) => signal(MakeActive(e)),
       ~selected,
       ~globals,
       ~overlays,

@@ -233,9 +233,12 @@ module Selection = {
 
   let default_selection =
     fun
-    | Model.Scratch(_) => Scratch(MainEditor)
-    | Model.Documentation(_) => Scratch(MainEditor)
-    | Model.Exercises(_) => Exercises((Exercise.Prelude, MainEditor));
+    | Model.Scratch(model) =>
+      Scratch(ScratchMode.Selection.default_selection(model))
+    | Model.Documentation(model) =>
+      Scratch(ScratchMode.Selection.default_selection(model))
+    | Model.Exercises(model) =>
+      Exercises(ExercisesMode.Selection.default_selection(model));
 };
 
 module View = {

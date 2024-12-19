@@ -5,40 +5,42 @@ open Util;
    mouse/keyboard, no edits to the actual code. */
 // This file follows conventions in [docs/ui-architecture.md]
 
-module Model = CodeEditable.Model;
+module Model = EditorManager.Model;
 
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Move(Action.move)
-    | Jump(Action.jump_target)
-    | Select(Action.select)
-    | Unselect(option(Util.Direction.t))
-    | Copy;
+    // Ids refer to component IDs
+    | Move(Id.t, Action.move)
+    | Jump(Id.t, Action.jump_target)
+    | Select(Id.t, Action.select)
+    | Unselect(Id.t, option(Util.Direction.t))
+    | Copy(Id.t);
 
   let update = (~settings, action: t, model: Model.t): Updated.t(Model.t) => {
-    let action': CodeEditable.Update.t =
+    let action': EditorManager.Update.t =
       switch (action) {
-      | Move(move) => Perform(Move(move))
-      | Jump(target) => Perform(Jump(target))
-      | Select(select) => Perform(Select(select))
-      | Unselect(dir) => Perform(Unselect(dir))
-      | Copy => Perform(Copy)
+      | Move(id, move) => Perform(id, Move(move))
+      | Jump(id, target) => Perform(id, Jump(target))
+      | Select(id, select) => Perform(id, Select(select))
+      | Unselect(id, dir) => Perform(id, Unselect(dir))
+      | Copy(id) => Perform(id, Copy)
       };
-    CodeEditable.Update.update(~settings, action', model);
+    EditorManager.Update.update(~settings, action', model);
   };
 
-  let convert_action: CodeEditable.Update.t => option(t) =
+  let convert_action: EditorManager.Update.t => option(t) =
     fun
     // These actions are allowed in a CodeSelectable
-    | Perform(Move(move)) => Some(Move(move))
-    | Perform(Jump(target)) => Some(Jump(target))
-    | Perform(Select(select)) => Some(Select(select))
-    | Perform(Unselect(dir)) => Some(Unselect(dir))
-    | Perform(Copy) => Some(Copy)
+    | Perform(id, Move(move)) => Some(Move(id, move))
+    | Perform(id, Jump(target)) => Some(Jump(id, target))
+    | Perform(id, Select(select)) => Some(Select(id, select))
+    | Perform(id, Unselect(dir)) => Some(Unselect(id, dir))
+    | Perform(id, Copy) => Some(Copy(id))
 
     // These actions are not allowed in a CodeSelectable
     | Perform(
+        _,
         Destruct(_) | Insert(_) | RotateBackpack | MoveToBackpackTarget(_) |
         Pick_up |
         Put_down |
@@ -48,24 +50,26 @@ module Update = {
         Buffer(_) |
         Project(_),
       )
-    | Undo
-    | Redo
-    | DebugConsole(_)
-    | TAB => None;
+    | Undo(_)
+    | Redo(_)
+    | SetModel(_)
+    | SetSyntax(_)
+    | Manage(_)
+    | TAB(_) => None;
 
-  let calculate = CodeEditable.Update.calculate;
+  let calculate = EditorManager.Update.calculate;
 };
 
 module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = CodeEditable.Selection.t;
+  type t = EditorManager.Focus.t;
   let get_cursor_info = (~selection, model) =>
-    CodeEditable.Selection.get_cursor_info(~selection, model)
+    EditorManager.Focus.get_cursor_info(~selection, model)
     |> (ci => Cursor.{...ci, editor_read_only: true})
     |> Cursor.map_opt(Update.convert_action);
   let handle_key_event =
       (~selection, model: Model.t, key: Key.t): option(Update.t) =>
-    CodeEditable.Selection.handle_key_event(~selection, model, key)
+    EditorManager.Focus.handle_key_event(~selection, model, ~event=key)
     |> Option.bind(_, Update.convert_action);
 };
 
@@ -73,7 +77,7 @@ module View = {
   type event = CodeEditable.View.event;
 
   let view = (~inject: Update.t => 'a) =>
-    CodeEditable.View.view(~inject=a =>
+    EditorManager.View.view(~inject=a =>
       switch (Update.convert_action(a)) {
       | Some(action) => inject(action)
       | None => Ui_effect.Ignore
