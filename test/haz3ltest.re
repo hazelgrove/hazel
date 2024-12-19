@@ -5,11 +5,12 @@ let (suite, _) =
     ~and_exit=false,
     "HazelTests",
     [
-      ("Parser", Test_Menhir.tests),
-      ("Statics", Test_Statics.tests),
-      ("Evaluator", Test_Evaluator.tests),
+      Test_Menhir.tests,
+      Test_StringUtil.tests,
+      Test_Statics.tests,
+      Test_Evaluator.tests,
       Test_ListUtil.tests,
-      ("MakeTerm", Test_MakeTerm.tests),
+      Test_MakeTerm.tests,
     ]
     @ Test_Elaboration.tests,
   );
