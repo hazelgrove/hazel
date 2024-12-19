@@ -258,6 +258,7 @@ pat:
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
     | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) } // TODO See if we can do multi arg pat ap without extra parens
+    | UNIT { TuplePat([]) }
     | p = nonAscriptingPat; { p }
 
 
