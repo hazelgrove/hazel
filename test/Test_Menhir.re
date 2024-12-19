@@ -341,7 +341,7 @@ let qcheck_menhir_serialized_equivalent_test =
   );
 
 let tests = (
-  "Menhir Parser",
+  "MenhirParser",
   [
     parser_test("Integer Literal", Int(8) |> Exp.fresh, "8"),
     parser_test("Fun", fun_exp, "fun x -> x"),
