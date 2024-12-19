@@ -328,112 +328,116 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
 
     gen
   )
-and gen_typ_sized =
-  QCheck.Gen.(
-    let leaf_nodes =
-      oneof([
-        return(StringType),
-        return(FloatType),
-        return(BoolType),
-        return(UnitType),
-      ]);
-    fix((self, n) =>
-      switch (n) {
-      | 0 => leaf_nodes
-      | _ =>
-        oneof([
-          leaf_nodes,
-          join(
-            map(
-              (sizes: array(int)) => {
-                let typs = Array.map((size: int) => self(size), sizes);
-
-                let flattened = flatten_a(typs);
-                map(
-                  (typs: array(typ)) => TupleType(Array.to_list(typs)),
-                  flattened,
-                );
-              },
-              list_sizes(n),
-            ),
-          ),
-        ])
-      }
-    )
-  )
-and gen_pat_sized: int => QCheck.Gen.t(pat) =
-  /*
-     | CastPat(pat, typ, typ)
-     | EmptyHolePat
-     | WildPat
-     | IntPat(int)
-     | FloatPat(float)
-     | VarPat(string)
-     | StringPat(string)
-     | BoolPat(bool)
-     | ConstructorPat(string, typ)
-     | TuplePat(list(pat))
-     | ConsPat(pat, pat)
-     | ListPat(list(pat))
-     | ApPat(pat, pat)
-     | InvalidPat(string);
-
-   */
-  QCheck.Gen.(
-    fix((self, n) => {
+and gen_typ_sized: int => QCheck.Gen.t(typ) =
+  n =>
+    QCheck.Gen.(
       let leaf_nodes =
         oneof([
-          return(WildPat),
-          return(EmptyHolePat),
-          map(x => IntPat(x), small_int),
-          map(x => FloatPat(x), QCheck.pos_float.gen),
-          map(x => VarPat(x), arb_ident.gen),
-          map(x => StringPat(x), arb_str.gen),
-          map(x => BoolPat(x), bool),
-          // map(x => InvalidPat(x), arb_str.gen),
-          map(
-            x => ConstructorPat(x, UnknownType(Internal)),
-            arb_constructor_ident.gen,
-          ),
+          return(StringType),
+          return(FloatType),
+          return(BoolType),
+          return(UnitType),
         ]);
+      fix(
+        (self, n) =>
+          switch (n) {
+          | 0 => leaf_nodes
+          | _ =>
+            oneof([
+              leaf_nodes,
+              join(
+                map(
+                  (sizes: array(int)) => {
+                    let typs = Array.map((size: int) => self(size), sizes);
 
-      switch (n) {
-      | 0 => leaf_nodes
-      | _ =>
-        oneof([
-          leaf_nodes,
-          map2(
-            (p1, p2) => ConsPat(p1, p2),
-            self((n - 1) / 2),
-            self((n - 1) / 2),
-          ),
-          join(
-            map(
-              sizes => {
-                let pats = Array.map((size: int) => self(size), sizes);
+                    let flattened = flatten_a(typs);
+                    map(
+                      (typs: array(typ)) => TupleType(Array.to_list(typs)),
+                      flattened,
+                    );
+                  },
+                  list_sizes(n),
+                ),
+              ),
+            ])
+          },
+        n,
+      )
+    )
+and gen_pat_sized: int => QCheck.Gen.t(pat) =
+  n =>
+    QCheck.Gen.(
+      fix(
+        (self, n) => {
+          let leaf_nodes =
+            oneof([
+              return(WildPat),
+              return(EmptyHolePat),
+              map(x => IntPat(x), small_int),
+              map(x => FloatPat(x), QCheck.pos_float.gen),
+              map(x => VarPat(x), arb_ident.gen),
+              map(x => StringPat(x), arb_str.gen),
+              map(x => BoolPat(x), bool),
+              map(
+                x => ConstructorPat(x, UnknownType(Internal)),
+                arb_constructor_ident.gen,
+              ),
+              return(TuplePat([])),
+              return(ListPat([])),
+            ]);
 
-                let flattened = flatten_a(pats);
+          switch (n) {
+          | 0 => leaf_nodes
+          | _ =>
+            oneof([
+              leaf_nodes,
+              map2(
+                (p1, p2) => ConsPat(p1, p2),
+                self((n - 1) / 2),
+                self((n - 1) / 2),
+              ),
+              join(
+                map(
+                  sizes => {
+                    let pats = Array.map((size: int) => self(size), sizes);
 
-                map(x => TuplePat(Array.to_list(x)), flattened);
-              },
-              list_sizes(n - 1),
-            ),
-          ),
-          // map(
-          //   pats => ListPat(pats),
-          //   list_of_size(Gen.int_range(1, 5), self(n - 1)),
-          // ),
-          // map2((p1, p2) => ApPat(p1, p2), self(n - 1), self(n - 1)),
-          // map3(
-          //   (p, t1, t2) => CastPat(p, t1, t2),
-          //   self(n - 1),
-          //   gen_typ_sized(n - 1),
-          //   gen_typ_sized(n - 1),
-          // ),
-        ])
-      };
-    })
-  );
+                    let flattened = flatten_a(pats);
+
+                    map(x => TuplePat(Array.to_list(x)), flattened);
+                  },
+                  list_sizes(n - 1),
+                ),
+              ),
+              join(
+                map(
+                  sizes => {
+                    let pats = Array.map((size: int) => self(size), sizes);
+
+                    let flattened = flatten_a(pats);
+
+                    map(x => ListPat(Array.to_list(x)), flattened);
+                  },
+                  list_sizes(n - 1),
+                ),
+              ),
+              map2(
+                (p1, p2) => ApPat(p1, p2),
+                self((n - 1) / 2),
+                self((n - 1) / 2),
+              ),
+              map3(
+                (p, t1, t2) => CastPat(p, t1, t2),
+                self((n - 1) / 3),
+                gen_typ_sized((n - 1) / 3),
+                gen_typ_sized((n - 1) / 3),
+              ),
+            ])
+          };
+        },
+        n,
+      )
+    );
+// map(x => InvalidPat(x), arb_str.gen),
 // TODO Printers, shrinkers stuff
 
 let gen_exp = QCheck.Gen.sized(gen_exp_sized);
