@@ -218,21 +218,20 @@ let all =
     ) => {
   div_c(
     "projectors",
-    List.filter_map(
-      ((id, _)) => {
-        let indication = indication(z, id);
-        setup_view(
-          id,
-          ~cached_statics,
-          ~cached_syntax,
-          ~dynamics,
-          ~inject,
-          ~globals,
-          ~indication,
-        );
-      },
-      Id.Map.bindings(cached_syntax.projectors) |> List.rev,
-    ),
+    Id.Map.bindings(cached_syntax.projectors)
+    |> List.filter_map(((id, _)) => {
+         let indication = indication(z, id);
+         setup_view(
+           id,
+           ~cached_statics,
+           ~cached_syntax,
+           ~dynamics,
+           ~inject,
+           ~globals,
+           ~indication,
+         );
+       })
+    |> List.rev,
   );
 };
 

@@ -604,3 +604,31 @@ let max_common_suffix = (a: list('a), b: list('a)): list('a) => {
     };
   loop(List.rev(a), List.rev(b), []);
 };
+
+/* list truncated after at most n elementsnts */
+let truncate = (n: int, xs: list('a)): list('a) => {
+  let rec loop = (n, xs, acc) =>
+    switch (n, xs) {
+    | (0, _) => acc
+    | (_, []) => acc
+    | (n, [x, ...xs]) => loop(n - 1, xs, [x, ...acc])
+    };
+  loop(n, xs, []);
+};
+
+/* list without the first n elements, recurse into list until 0 then return rest */
+let rec remove_first_n = (n: int, xs: list('a)): list('a) => {
+  switch (n, xs) {
+  | (0, _) => xs
+  | (_, []) => []
+  | (n, [_x, ...xs]) => remove_first_n(n - 1, xs)
+  };
+};
+
+let rec rotate_n = (n: int, xs: list('a)): list('a) => {
+  let n = IntUtil.modulo(n, List.length(xs));
+  switch (n) {
+  | 0 => xs
+  | _ => rotate_n(n - 1, rotate(xs))
+  };
+};

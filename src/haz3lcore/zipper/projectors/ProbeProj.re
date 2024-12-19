@@ -5,28 +5,45 @@ open Node;
 open Js_of_ocaml;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
+type model' = {
   [@default "⋱"]
   text: string,
   len: int,
   show_all_vals: bool,
+  max_closures: int,
+  index_offset: int,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type a =
+type action' =
   | ChangeLength(int)
+  | Offset(int)
   | ToggleShowAllVals;
 
-let stack = stack =>
-  stack
-  |> List.rev
-  |> List.map(({env_id, ap_id}: Probe.frame) =>
-       ""
-       ++ String.sub(Id.to_string(env_id), 0, 2)
-       ++ "\n"
-       ++ String.sub(Id.to_string(ap_id), 0, 2)
-     )
-  |> String.concat("\n");
+let init = {
+  text: "🔍",
+  len: 12,
+  show_all_vals: true,
+  max_closures: 30,
+  index_offset: 0,
+};
+
+let model'_of_sexp = (sexp): model' =>
+  switch (model'_of_sexp(sexp)) {
+  | exception _ => init
+  | x => x
+  };
+
+// let stack = stack =>
+//   stack
+//   |> List.rev
+//   |> List.map(({env_id, ap_id}: Probe.frame) =>
+//        ""
+//        ++ String.sub(Id.to_string(env_id), 0, 2)
+//        ++ "\n"
+//        ++ String.sub(Id.to_string(ap_id), 0, 2)
+//      )
+//   |> String.concat("\n");
 
 let env_cursor: ref(list(Id.t)) = ref([]);
 let last_target: ref(list('a)) = ref([]);
@@ -111,7 +128,7 @@ let resizable_val =
 
   div(
     ~attrs=[
-      Attr.title(stack(closure.stack)),
+      //Attr.title(stack(closure.stack)),
       Attr.classes(
         ["val-resize"] @ (show_indicator(closure.stack) ? ["cursor"] : []),
       ),
@@ -164,7 +181,7 @@ let closure_view =
     (
       info,
       utility: utility,
-      model: t,
+      model: model',
       local,
       index,
       closure: Dynamics.Probe.Closure.t,
@@ -179,11 +196,17 @@ let closure_view =
     @ (is_var_ref(info) ? [] : [env_view(closure, utility)]),
   );
 
-let select_vals = (model: t, vals) => {
+let select_vals = (model: model', vals) => {
   switch (List.sort(comparor, vals)) {
   | [] => []
-  | [hd, ..._] when !model.show_all_vals => [hd]
-  | _ => vals
+  //| [hd, ..._] when !model.show_all_vals => [hd]
+  | _ =>
+    // print_endline(
+    //   "Select vals: rotateing by: " ++ string_of_int(model.index_offset),
+    // );
+    vals
+    |> ListUtil.remove_first_n(model.index_offset)
+    |> ListUtil.truncate(model.max_closures)
   };
 };
 
@@ -193,15 +216,48 @@ let offside_pos = utility =>
     Printf.sprintf("position: absolute; left: %fpx;", utility.offside_offset),
   );
 
-let offside_view = (info, ~model, ~local, ~utility: utility) => {
+let offside_view = (info, ~model: model', ~local, ~utility: utility) => {
   Node.div(
     ~attrs=[Attr.classes(["live-offside"]), offside_pos(utility)],
     switch (info.dynamics) {
     | Some(di) =>
-      List.mapi(
-        closure_view(info, utility, model, local),
-        select_vals(model, di),
-      )
+      let vals = select_vals(model, di);
+      let left_cond =
+        model.index_offset >= List.length(di) - model.max_closures;
+      let hd =
+        List.length(di) > model.max_closures
+          ? [
+            Node.div(
+              ~attrs=[
+                Attr.classes(
+                  ["closures-header"] @ (left_cond ? ["disabled"] : []),
+                ),
+                Attr.on_click(_ =>
+                  left_cond ? Effect.Ignore : local(Offset(1))
+                ),
+              ],
+              [Node.text("<")],
+            ),
+          ]
+          : [];
+      let right_cond = model.index_offset <= 0;
+      let tl =
+        List.length(di) > model.max_closures
+          ? [
+            Node.div(
+              ~attrs=[
+                Attr.classes(
+                  ["closures-tail"] @ (right_cond ? ["disabled"] : []),
+                ),
+                Attr.on_click(_ =>
+                  right_cond ? Effect.Ignore : local(Offset(-1))
+                ),
+              ],
+              [Node.text(">")],
+            ),
+          ]
+          : [];
+      hd @ tl @ List.mapi(closure_view(info, utility, model, local), vals);
     | _ => []
     },
   );
@@ -238,19 +294,9 @@ let placeholder = (_m, info) =>
   Inline(3 + String.length(syntax_str(info)));
 
 let icon = div(~attrs=[Attr.classes(["icon"])], [text("🔍")]);
-// let icon =
-//   img(
-//     ~attrs=[
-//       Attr.classes(["icon"]),
-//       Attr.create("height", "18px"),
-//       Attr.create("width", "18px"),
-//       Attr.src("img/noun-search-5661270.svg"),
-//       Attr.alt("probe"),
-//     ],
-//     (),
-//   );
+let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-let view = (model: t, ~info, ~local, ~parent as _, ~utility: utility) =>
+let view = (model: model', ~info, ~local, ~parent as _, ~utility: utility) =>
   div([
     offside_view(info, ~model, ~local, ~utility),
     div(
@@ -261,12 +307,12 @@ let view = (model: t, ~info, ~local, ~parent as _, ~utility: utility) =>
           Effect.Ignore;
         }),
       ],
-      [icon, syntax_view(info), num_closures_view(info)],
+      [syntax_view(info), icon, num_closures_view(info)],
     ),
   ]);
 
-let update = (m: t, a: a) => {
-  print_endline("update: action:" ++ show_a(a));
+let update = (m: model', a: action') => {
+  print_endline("update: action:" ++ show_action'(a));
   switch (a) {
   | ChangeLength(len) =>
     if (len > (-1)) {
@@ -274,16 +320,22 @@ let update = (m: t, a: a) => {
     } else {
       m;
     }
-  | ToggleShowAllVals => {...m, show_all_vals: !m.show_all_vals}
+  | ToggleShowAllVals =>
+    //{...m, show_all_vals: !m.show_all_vals}
+    {...m, max_closures: m.max_closures == 1 ? 30 : 1}
+  | Offset(offset) =>
+    let index_offset = m.index_offset + offset;
+    let index_offset = index_offset < 0 ? 0 : index_offset;
+    {...m, index_offset};
   };
 };
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = t;
+  type model = model';
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = a;
-  let init = {text: "🔍", len: 12, show_all_vals: true};
+  type action = action';
+  let init = init;
   let can_project = _ => true;
   let can_focus = false;
   let placeholder = placeholder;
