@@ -18,6 +18,10 @@
   color: var(--BR2);
 }
 
+.projector.indicated {
+  z-index: var(--code-hovers-z);
+}
+
 .projector > *:not(svg) {
   z-index: var(--projector-z);
 }

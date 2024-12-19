@@ -27,6 +27,13 @@
 .projector.probe .live-offside:empty + * .icon {
   animation: rotate 5s linear infinite;
 }
+.projector.probe .main .icon {
+  width: 16px;
+  height: 16px;
+  background-image: url(../../img/noun-search-5661270.svg);
+  background-size: cover;
+  filter: invert(1) brightness(0.4) sepia(1) saturate(1.8) hue-rotate(75deg);
+}
 
 .projector.probe .num-closures {
   position: absolute;
@@ -48,13 +55,18 @@
 .projector.probe.selected .num-closures {
   background-color: var(--Y1);
 }
+.projector.probe.indicated.Right .num-closures {
+  background-color: var(--R1);
+  top: -0.8em;
+}
 
 .projector.probe .live-offside {
   display: flex;
   flex-direction: row;
   position: absolute;
   left: 10em;
-  gap: 0.15em;
+  gap: 2px;
+  align-items: center;
 }
 
 .projector.probe .live-offside:empty {
@@ -70,16 +82,18 @@
 }
 
 .projector.probe .val-resize .code-text {
-  background-color: #c7e6c6; /* TODO(andrew) */
-  border-radius: 0.4em 0.1em 0.1em 0.1em;
-  filter: drop-shadow(0.7px 0.7px 0px green);
+  background-color: #9eca9b;
+  /* background-color: #c7e6c6; */
+  border-bottom: 1px solid oklch(0.56 0.16 149.14);
+  border-radius: 0.3em 0.1em 0.1em 0.1em;
+  /* filter: drop-shadow(0.7px 0.7px 0px green); */
 }
 .projector.probe .closure:first-child .val-resize:hover .code-text {
   cursor: col-resize;
 }
 .projector.probe .val-resize.cursor .code-text {
-  outline: 1.6px solid var(--G0);
-  outline-style: dotted;
+  /* outline: 1.6px solid var(--G0);
+  outline-style: dotted; */
   filter: none;
   opacity: 100%;
 }
@@ -87,8 +101,13 @@
 .projector.probe .val-resize .code-text {
   opacity: 40%;
 }
+.projector.probe .val-resize .code-text:hover {
+  filter: brightness(1.05) saturate(1.05);
+}
 .projector.probe .val-resize:not(.cursor) .code-text .token {
-  filter: saturate(0);
+  /* filter: saturate(0); */
+  /* filter: sepia(1) hue-rotate(61deg) saturate(2); */
+  filter: invert(1) brightness(10);
 }
 
 .projector.probe .live-env {
@@ -97,8 +116,8 @@
   padding: 0.2em;
   display: none;
   position: absolute;
-  top: 1.5em;
-  z-index: var(--code-hovers-z);
+  top: 1.35em;
+  /* z-index: var(--code-hovers-z); */
 }
 
 .projector.probe .live-env .live-env-entry {
@@ -123,6 +142,7 @@
 
 .projector.probe.indicated .val-resize.cursor .code-text {
   opacity: 100%;
+  background: none;
   /* outline: 1px solid var(--GB1); */
   outline: 2.8px solid oklch(0.7 0.15 150.31);
 }
@@ -133,4 +153,35 @@
 
 .projector.probe.indicated .closure.cursor .live-env:empty {
   display: none;
+}
+
+.projector.probe .closures-header,
+.projector.probe .closures-tail {
+  width: 10px;
+  height: 13px;
+  cursor: pointer;
+  color: var(--G0);
+  background: url(../../img/noun-arrow-3130579.svg);
+  background-size: cover;
+  color: #0000;
+  filter: invert(1) brightness(0.5) sepia(1) hue-rotate(61deg);
+}
+.projector.probe .closures-tail {
+  transform: rotate(180deg);
+}
+
+.projector.probe:not(.indicated) .closures-header,
+.projector.probe:not(.indicated) .closures-tail {
+  pointer-events: none;
+  opacity: 0% !important;
+}
+
+.projector.probe .closures-header.disabled,
+.projector.probe .closures-tail.disabled {
+  opacity: 15%;
+}
+
+.projector.probe .closures-header:hover,
+.projector.probe .closures-tail:hover {
+  filter: brightness(1.05) saturate(1.05);
 }
