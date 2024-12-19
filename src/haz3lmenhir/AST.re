@@ -359,6 +359,7 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
                   list_sizes(n),
                 ),
               ),
+              map(t => ArrayType(t), self(n - 1)),
             ])
           },
         n,
@@ -437,7 +438,6 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
         n,
       )
     );
-// map(x => InvalidPat(x), arb_str.gen),
 // TODO Printers, shrinkers stuff
 
 let gen_exp = QCheck.Gen.sized(gen_exp_sized);
