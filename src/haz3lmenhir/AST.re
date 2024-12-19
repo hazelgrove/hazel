@@ -1,13 +1,13 @@
 open Sexplib.Std;
 
-[@deriving (show({with_path: false}), sexp, qcheck)]
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type filter_action =
   | Pause
   | Debug
   | Hide
   | Eval;
 
-[@deriving (show({with_path: false}), sexp, qcheck)]
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_float =
   | Plus
   | Minus
@@ -21,12 +21,12 @@ type op_bin_float =
   | Equals
   | NotEquals;
 
-[@deriving (show({with_path: false}), sexp, qcheck)]
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_bool =
   | And
   | Or;
 
-[@deriving (show({with_path: false}), sexp, qcheck)]
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_int =
   | Plus
   | Minus
@@ -40,49 +40,49 @@ type op_bin_int =
   | Equals
   | NotEquals;
 
-[@deriving (show({with_path: false}), sexp, qcheck)]
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_string =
   | Concat
   | Equals;
 
 // TODO Rename to match others
-[@deriving (show({with_path: false}), sexp, qcheck)]
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type binOp =
   | IntOp(op_bin_int)
   | FloatOp(op_bin_float)
   | StringOp(op_bin_string)
   | BoolOp(op_bin_bool);
 
-[@deriving (show({with_path: false}), sexp, qcheck)]
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_un_meta =
   | Unquote;
 
-[@deriving (show({with_path: false}), sexp, qcheck)]
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_un_int =
   | Minus;
 
-[@deriving (show({with_path: false}), sexp, qcheck)]
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_un_bool =
   | Not;
 
-[@deriving (show({with_path: false}), sexp, qcheck)]
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_un =
   | Meta(op_un_meta)
   | Int(op_un_int)
   | Bool(op_un_bool);
 
-[@deriving (show({with_path: false}), sexp, qcheck)]
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type typ_provenance =
   | Internal
   | EmptyHole;
 
-[@deriving (show({with_path: false}), sexp, qcheck)]
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type tpat =
   | InvalidTPat([@arb small_printable_gen] string)
   | EmptyHoleTPat
   | VarTPat(string);
 
-[@deriving (show({with_path: false}), sexp, qcheck)]
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type typ =
   | IntType
   | StringType
@@ -103,7 +103,7 @@ and sumterm =
   | BadEntry(typ)
 and sumtype = list(sumterm);
 
-[@deriving (show({with_path: false}), sexp, qcheck)]
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type pat =
   | CastPat(pat, typ, typ)
   | EmptyHolePat
@@ -120,20 +120,26 @@ type pat =
   | ApPat(pat, pat)
   | InvalidPat(string);
 
-[@deriving (show({with_path: false}), sexp, qcheck)]
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type if_consistency =
   | Consistent
   | Inconsistent;
 
-[@deriving (show({with_path: false}), sexp, qcheck)]
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type deferral_pos =
   | InAp
   | OutsideAp;
 
-[@deriving (show({with_path: false}), sexp)]
+[@deriving (show({with_path: false}), sexp, eq)]
 type exp =
   | Int(int)
-  | Float(float)
+  | Float
+      // This equality condition is used to say that two floats are equal if they are equal in the ExpToSegment serialization
+      (
+        [@equal
+          (a, b) => Printf.(sprintf("%.12f", a) == sprintf("%.12f", b))
+        ] float,
+      )
   | Var(string)
   | Constructor(string, typ)
   | String(string)
@@ -271,6 +277,11 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
               Gen.join(
                 Gen.map(
                   (sizes: array(int)) => {
+                    let sizes =
+                      switch (sizes) {
+                      | [|single|] => [|(single - 1) / 2, (single - 1) / 2|] // Can't have singleton tuples. Replace this with a minimum parameter on list sizes
+                      | _ => sizes
+                      };
                     let exps = Array.map((size: int) => self(size), sizes);
                     let flattened = Gen.flatten_a(exps);
                     Gen.map(
@@ -282,11 +293,16 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                 ),
               ),
               Gen.map(exp => Test(exp), self(n - 1)),
-              Gen.map2(
-                (name, typ) => {Constructor(name, typ)},
+              Gen.map(
+                name => Constructor(name, UnknownType(Internal)),
                 arb_constructor_ident.gen,
-                gen_typ_sized(n - 1),
               ),
+              // TODO Ignoring typ because we don't serialize those
+              // Gen.map2(
+              //   (name, typ) => {Constructor(name, typ)},
+              //   arb_constructor_ident.gen,
+              //   gen_typ_sized(n - 1),
+              // ),
               Gen.map3(
                 (op, e1, e2) => BinExp(e1, op, e2),
                 gen_binOp,
