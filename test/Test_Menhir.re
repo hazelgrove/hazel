@@ -969,6 +969,8 @@ let ex5 = list_of_mylist(x) in
     |},
     ),
     QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
+    // Disabled due to bugs in ExpToSegment
+    // e.g. https://github.com/hazelgrove/hazel/issues/1445
     // QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
   ],
 );
