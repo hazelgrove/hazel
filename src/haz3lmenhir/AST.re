@@ -118,7 +118,7 @@ type pat =
   | ConsPat(pat, pat)
   | ListPat(list(pat))
   | ApPat(pat, pat)
-  | InvalidPat(string);
+  | InvalidPat(string); // TODO Menhir parser doesn't actually support invalid pats
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type if_consistency =
@@ -172,9 +172,8 @@ type exp =
   | TyAlias(tpat, typ, exp);
 
 let arb_int = QCheck.(map(x => Int(x), small_int));
-
-let arb_str =
-  QCheck.(map(x => String(x), string_small_of(Gen.char_range('a', 'z')))); // Make strings anything other than `"`"
+let arb_str = QCheck.(string_small_of(Gen.char_range('a', 'z')));
+let arb_str_exp = QCheck.map(x => String(x), arb_str); // Make strings anything other than `"`"
 
 // Floats are positive because we use UnOp minus
 let arb_float = QCheck.(map(x => Float(x), pos_float));
@@ -227,6 +226,15 @@ let arb_ident =
     )
   );
 
+let list_sizes = n =>
+  QCheck.Gen.(
+    switch (n) {
+    | 0 => pure([||])
+    | 1 => pure([|0|])
+    | _ => nat_split(~size=n, 5) // TODO Make different sized lists
+    }
+  );
+
 let arb_var = QCheck.(map(x => Var(x), arb_ident));
 
 let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
@@ -234,7 +242,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
     let leaf =
       oneof([
         arb_int,
-        arb_str,
+        arb_str_exp,
         arb_float,
         arb_var,
         always(~print=show_exp, EmptyHole),
@@ -246,19 +254,9 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
       QCheck.Gen.fix(
         (self: int => Gen.t(exp), n) => {
           switch (n) {
-          | 0 => leaf.gen
+          | 0
+          | 1 => leaf.gen
           | _ =>
-            let list_sizes =
-              if (n <= 1) {
-                // Bug in nat_split for size=0
-                Gen.pure([|0, 0, 0, 0, 0|]);
-              } else {
-                QCheck.Gen.nat_split(
-                  ~size=n - 1,
-                  5 // Make different size lists
-                );
-              };
-
             Gen.oneof([
               leaf.gen,
               Gen.join(
@@ -271,7 +269,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                       flattened,
                     );
                   },
-                  list_sizes,
+                  list_sizes(n),
                 ),
               ),
               Gen.join(
@@ -289,7 +287,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                       flattened,
                     );
                   },
-                  list_sizes,
+                  list_sizes(n),
                 ),
               ),
               Gen.map(exp => Test(exp), self(n - 1)),
@@ -322,7 +320,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                 self((n - 1) / 3),
                 self((n - 1) / 3),
               ),
-            ]);
+            ])
           }
         },
         n,
@@ -343,17 +341,6 @@ and gen_typ_sized =
       switch (n) {
       | 0 => leaf_nodes
       | _ =>
-        let list_sizes =
-          if (n <= 1) {
-            // Bug in nat_split for size=0
-            pure([|0, 0, 0, 0, 0|]);
-          } else {
-            QCheck.Gen.nat_split(
-              ~size=n - 1,
-              5 // Make different size lists
-            );
-          };
-
         oneof([
           leaf_nodes,
           join(
@@ -367,15 +354,86 @@ and gen_typ_sized =
                   flattened,
                 );
               },
-              list_sizes,
+              list_sizes(n),
             ),
           ),
-        ]);
+        ])
       }
     )
   )
-and gen_pat_sized = (_n: int): QCheck.Gen.t(pat) =>
-  QCheck.Gen.pure(WildPat);
+and gen_pat_sized: int => QCheck.Gen.t(pat) =
+  /*
+     | CastPat(pat, typ, typ)
+     | EmptyHolePat
+     | WildPat
+     | IntPat(int)
+     | FloatPat(float)
+     | VarPat(string)
+     | StringPat(string)
+     | BoolPat(bool)
+     | ConstructorPat(string, typ)
+     | TuplePat(list(pat))
+     | ConsPat(pat, pat)
+     | ListPat(list(pat))
+     | ApPat(pat, pat)
+     | InvalidPat(string);
+
+   */
+  QCheck.Gen.(
+    fix((self, n) => {
+      let leaf_nodes =
+        oneof([
+          return(WildPat),
+          return(EmptyHolePat),
+          map(x => IntPat(x), small_int),
+          map(x => FloatPat(x), QCheck.pos_float.gen),
+          map(x => VarPat(x), arb_ident.gen),
+          map(x => StringPat(x), arb_str.gen),
+          map(x => BoolPat(x), bool),
+          // map(x => InvalidPat(x), arb_str.gen),
+          map(
+            x => ConstructorPat(x, UnknownType(Internal)),
+            arb_constructor_ident.gen,
+          ),
+        ]);
+
+      switch (n) {
+      | 0 => leaf_nodes
+      | _ =>
+        oneof([
+          leaf_nodes,
+          map2(
+            (p1, p2) => ConsPat(p1, p2),
+            self((n - 1) / 2),
+            self((n - 1) / 2),
+          ),
+          join(
+            map(
+              sizes => {
+                let pats = Array.map((size: int) => self(size), sizes);
+
+                let flattened = flatten_a(pats);
+
+                map(x => TuplePat(Array.to_list(x)), flattened);
+              },
+              list_sizes(n - 1),
+            ),
+          ),
+          // map(
+          //   pats => ListPat(pats),
+          //   list_of_size(Gen.int_range(1, 5), self(n - 1)),
+          // ),
+          // map2((p1, p2) => ApPat(p1, p2), self(n - 1), self(n - 1)),
+          // map3(
+          //   (p, t1, t2) => CastPat(p, t1, t2),
+          //   self(n - 1),
+          //   gen_typ_sized(n - 1),
+          //   gen_typ_sized(n - 1),
+          // ),
+        ])
+      };
+    })
+  );
 // TODO Printers, shrinkers stuff
 
 let gen_exp = QCheck.Gen.sized(gen_exp_sized);
