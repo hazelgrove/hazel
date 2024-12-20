@@ -389,11 +389,11 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                 let+ e2 = self((n - 1) / 2);
                 Cons(e1, e2)
               ),
-              // Gen.(
-              //   let* e1 = self((n - 1) / 2);
-              //   let+ e2 = self((n - 1) / 2);
-              //   ListConcat(e1, e2)
-              // ),
+              Gen.(
+                let* e1 = self((n - 1) / 2);
+                let+ e2 = self((n - 1) / 2);
+                ListConcat(e1, e2)
+              ),
               /*
                | TypFun(tpat, exp)
                | TypAp(exp, typ)
