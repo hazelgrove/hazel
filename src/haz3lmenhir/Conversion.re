@@ -343,15 +343,15 @@ module rec Exp: {
         Sexplib.Sexp.to_string(Haz3lcore.InvalidOperationError.sexp_of_t(s)),
       )
     | Deferral(_) => Deferral
-    | Filter(_) => raise(Failure("Filter not supported")) // TODO
-    | MultiHole(_) => raise(Failure("MultiHole not supported")) // TODO
-    | Closure(_) => raise(Failure("Closure not supported")) // TODO
+    | Filter(Residue(_), _) => raise(Failure("Residue not supported"))
+    | MultiHole(_) => raise(Failure("MultiHole not supported"))
+    | Closure(_) => raise(Failure("Closure not supported"))
     | Parens(e) => of_core(e)
     | Constructor(s, typ) => Constructor(s, Typ.of_core(typ))
     | DeferredAp(e, es) =>
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
-    | Ap(Reverse, _, _) => raise(Failure("Reverse not supported")) // TODO
+    | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
     };
   };
 }
@@ -429,8 +429,20 @@ and Typ: {
     | Forall(tp, t) => ForallType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
     | Parens(t) => of_core(t)
-    | Ap(_) => raise(Failure("Ap not supported")) // TODO
-    | Sum(_) => raise(Failure("Sum not supported")) // TODO
+    | Ap(_) => raise(Failure("Ap not supported"))
+    | Sum(constructors) =>
+      let sumterms =
+        List.map(
+          (variant: Haz3lcore.ConstructorMap.variant(Haz3lcore.Typ.t)): AST.sumterm => {
+            switch (variant) {
+            | Variant(name, _, None) => Variant(name, None)
+            | Variant(name, _, Some(t)) => Variant(name, Some(of_core(t)))
+            | BadEntry(t) => BadEntry(of_core(t))
+            }
+          },
+          constructors,
+        );
+      SumTyp(sumterms);
     };
   };
 }
