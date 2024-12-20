@@ -135,7 +135,7 @@ module TestValidationReport = {
           globals.settings.instructor_mode
             ? editing_test_val_rep
                 ? div(
-                    ~attrs=[Attr.class_("test-val-rep-edit")],
+                    ~attrs=[Attr.class_("test-text")],
                     [
                       div(
                         ~attrs=[Attr.class_("input-field")],
@@ -146,6 +146,7 @@ module TestValidationReport = {
                               Attr.type_("number"),
                               Attr.class_("point-num-input"),
                               Attr.id("point-max-input"),
+                              Attr.create("min", "0"),
                               Attr.value(string_of_int(max_points)),
                               Attr.on_focus(_ => signal_textbox_active),
                             ],
@@ -1115,7 +1116,7 @@ module ImplGradingReport = {
         ~max_points: int,
       ) => {
     CellCommon.panel(
-      ~classes=["cell-item", "panel", "test-panel"],
+      ~classes=["test-panel"],
       [
         CellCommon.caption(
           "Implementation Grading",
@@ -1137,112 +1138,112 @@ module ImplGradingReport = {
               [
                 globals.settings.instructor_mode
                   ? editing_impl_grd_rep
-                      ? Node.div([
-                          div(
-                            ~attrs=[Attr.class_("input-field")],
-                            [
-                              label([text("New point max:")]),
-                              input(
-                                ~attrs=[
-                                  Attr.type_("number"),
-                                  Attr.class_("point-num-input"),
-                                  Attr.id("point-max-input"),
-                                  Attr.value(string_of_int(max_points)),
-                                  Attr.create("min", "0"),
-                                  Attr.on_focus(_ => select_textbox),
-                                ],
-                                (),
-                              ),
-                            ],
-                          ),
-                          div(
-                            ~attrs=[Attr.class_("edit-icon")],
-                            [
-                              Widgets.button(
-                                Icons.confirm,
-                                _ => {
-                                  let new_dist =
-                                    Obj.magic(
-                                      Js_of_ocaml.Js.some(
-                                        JsUtil.get_elem_by_id(
-                                          "point-max-input",
-                                        ),
-                                      ),
-                                    )##.value;
-
-                                  let new_hints =
-                                    List.init(
-                                      List.length(report.hinted_results), i =>
+                      ? div(
+                          ~attrs=[Attr.class_("test-text")],
+                          [
+                            div(
+                              ~attrs=[Attr.class_("input-field")],
+                              [
+                                label([text("New point max:")]),
+                                input(
+                                  ~attrs=[
+                                    Attr.type_("number"),
+                                    Attr.class_("point-num-input"),
+                                    Attr.id("point-max-input"),
+                                    Attr.value(string_of_int(max_points)),
+                                    Attr.create("min", "0"),
+                                    Attr.on_focus(_ => select_textbox),
+                                  ],
+                                  (),
+                                ),
+                              ],
+                            ),
+                            div(
+                              ~attrs=[Attr.class_("edit-icon")],
+                              [
+                                Widgets.button(
+                                  Icons.confirm,
+                                  _ => {
+                                    let new_dist =
                                       Obj.magic(
                                         Js_of_ocaml.Js.some(
                                           JsUtil.get_elem_by_id(
-                                            "impl-hint-input-"
-                                            ++ string_of_int(i),
+                                            "point-max-input",
                                           ),
                                         ),
-                                      )##.value
+                                      )##.value;
+
+                                    let new_hints =
+                                      List.init(
+                                        List.length(report.hinted_results), i =>
+                                        Obj.magic(
+                                          Js_of_ocaml.Js.some(
+                                            JsUtil.get_elem_by_id(
+                                              "impl-hint-input-"
+                                              ++ string_of_int(i),
+                                            ),
+                                          ),
+                                        )##.value
+                                      );
+
+                                    let update_events = [
+                                      inject_set_editing_impl_grd_rep,
+                                      inject_update_impl_grd_rep(
+                                        int_of_string(new_dist),
+                                        new_hints,
+                                      ),
+                                    ];
+                                    Virtual_dom.Vdom.Effect.Many(
+                                      update_events,
                                     );
-
-                                  let update_events = [
-                                    inject_set_editing_impl_grd_rep,
-                                    inject_update_impl_grd_rep(
-                                      int_of_string(new_dist),
-                                      new_hints,
-                                    ),
-                                  ];
-
-                                  Virtual_dom.Vdom.Effect.Many(update_events);
-                                },
-                              ),
-                            ],
-                          ),
-                          div(
-                            ~attrs=[Attr.class_("edit-icon")],
-                            [
-                              Widgets.button(Icons.cancel, _ =>
-                                inject_set_editing_impl_grd_rep
-                              ),
-                            ],
-                          ),
-                        ])
-                      : Node.div([
-                          div(
-                            ~attrs=[Attr.class_("test-text")],
-                            [
-                              score_view(
-                                score_of_percent(
-                                  percentage(report, syntax_report),
-                                  max_points,
+                                  },
                                 ),
-                              ),
-                            ]
-                            @ textual_summary(report)
-                            @ [
-                              div(
-                                ~attrs=[Attr.class_("edit-icon")],
-                                [
-                                  Widgets.button(Icons.pencil, _ =>
-                                    inject_set_editing_impl_grd_rep
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ])
-                  : Node.div([
-                      div(
-                        ~attrs=[Attr.class_("test-text")],
-                        [
-                          score_view(
-                            score_of_percent(
-                              percentage(report, syntax_report),
-                              max_points,
+                              ],
                             ),
+                            div(
+                              ~attrs=[Attr.class_("edit-icon")],
+                              [
+                                Widgets.button(Icons.cancel, _ =>
+                                  inject_set_editing_impl_grd_rep
+                                ),
+                              ],
+                            ),
+                          ],
+                        )
+                      : div(
+                          ~attrs=[Attr.class_("test-text")],
+                          [
+                            score_view(
+                              score_of_percent(
+                                percentage(report, syntax_report),
+                                max_points,
+                              ),
+                            ),
+                          ]
+                          @ textual_summary(report)
+                          @ [
+                            div(
+                              ~attrs=[Attr.class_("edit-icon")],
+                              [
+                                Widgets.button(Icons.pencil, _ =>
+                                  inject_set_editing_impl_grd_rep
+                                ),
+                              ],
+                            ),
+                          ],
+                        )
+                  : div(
+                      ~attrs=[Attr.class_("test-text")],
+                      [
+                        score_view(
+                          score_of_percent(
+                            percentage(report, syntax_report),
+                            max_points,
                           ),
-                        ]
-                        @ textual_summary(report),
-                      ),
-                    ]),
+                        ),
+                      ]
+                      @ textual_summary(report),
+                    ),
               ]
               @ Option.to_list(
                   report.test_results

@@ -425,7 +425,7 @@ let update_test_val_rep = ({eds}: state, new_test_num: int, new_dist: int) => {
     ...eds,
     your_tests: {
       ...eds.your_tests,
-      required: new_test_num,
+      required: new_test_num < 0 ? 0 : new_test_num,
     },
     point_distribution: {
       ...eds.point_distribution,
