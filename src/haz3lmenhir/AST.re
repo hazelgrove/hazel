@@ -363,21 +363,32 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
               Gen.map2(
                 (e1, e2) => ApExp(e1, e2),
                 self((n - 1) / 2),
-                self((n - 1) / 2),
+                Gen.frequency([
+                  (5, self((n - 1) / 2)),
+                  (1, Gen.return(Deferral)),
+                ]),
               ),
               Gen.map2(
                 (p, e) => FixF(p, e),
                 gen_pat_sized((n - 1) / 2),
                 self((n - 1) / 2),
               ),
+              Gen.(
+                let* fa = gen_filter_action;
+                let* e1 = self(n - 1);
+                let+ e2 = self(n - 1);
+                Filter(fa, e1, e2)
+              ),
+              // Gen.(
+              //   let* e1 = self((n - 1) / 2);
+              //   let+ e2 = self((n - 1) / 2);
+              //   Seq(e1, e2)
+              // ),
+              // Cast expressions not supported by menhir grammar yet
               /*
-               | Cast(exp, typ, typ)
-               | FailedCast(exp, typ, typ)
-               | EmptyHole
                | Filter(filter_action, exp, exp)
                | BuiltinFun(string)
                | Undefined
-               | Seq(exp, exp)
                | Test(exp)
                | Deferral
                | TypFun(tpat, exp)
