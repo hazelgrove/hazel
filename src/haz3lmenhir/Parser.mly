@@ -248,6 +248,7 @@ nonAscriptingPat:
     | s = STRING { StringPat s}
     | TRUE { BoolPat true}
     | FALSE {BoolPat false}
+    | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) } // TODO See if we can do multi arg pat ap without extra parens
 
 funPat:
     | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { CastPat(p1, t1, UnknownType(Internal)) } // TODO Shift/reduce conflict but I'm pretty sure the end parse state is the same either way
@@ -257,7 +258,6 @@ pat:
     | p1 = pat; COLON; t1 = typ;  { CastPat(p1, t1, UnknownType(Internal)) }
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
-    | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) } // TODO See if we can do multi arg pat ap without extra parens
     | UNIT { TuplePat([]) }
     | p = nonAscriptingPat; { p }
 
