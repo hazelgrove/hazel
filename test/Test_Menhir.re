@@ -248,7 +248,7 @@ let i = ref(0);
 let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir and maketerm are equivalent",
-    ~count=100,
+    ~count=1000,
     QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
     exp => {
       let core_exp = Conversion.Exp.of_menhir_ast(exp);
@@ -301,16 +301,11 @@ let qcheck_menhir_maketerm_equivalent_test =
         );
 
       let serialized = Printer.of_segment(~holes=Some("?"), segment);
-      print_endline("Serialized: " ++ serialized);
       let make_term_parsed = make_term_parse(serialized);
       let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
       let menhir_parsed_converted =
         Haz3lmenhir.Conversion.Exp.of_menhir_ast(menhir_parsed);
 
-      print_endline("MakeTerm: " ++ DHExp.show(make_term_parsed));
-      print_endline(
-        "Menhir parsed: " ++ DHExp.show(menhir_parsed_converted),
-      );
       switch (
         Haz3lcore.DHExp.fast_equal(make_term_parsed, menhir_parsed_converted)
       ) {
@@ -361,9 +356,6 @@ let qcheck_menhir_serialized_equivalent_test =
 
       let serialized = Printer.of_segment(~holes=Some("?"), segment);
       let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
-      print_endline("Serialized: " ++ serialized);
-      print_endline("Menhir parsed: " ++ AST.show_exp(menhir_parsed));
-      print_endline("Original" ++ AST.show_exp(exp));
       menhir_parsed == exp;
     },
   );
