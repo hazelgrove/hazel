@@ -116,7 +116,6 @@ open AST
 %right SUM_TYP
 
 
-%left COLON
 %right DASH_ARROW
 %nonassoc IF_EXP
 
@@ -133,6 +132,7 @@ open AST
 %left DIVIDE TIMES TIMES_FLOAT DIVIDE_FLOAT
 
 %right POWER POWER_FLOAT
+%left COLON
 
 %left OPEN_CURLY
 
@@ -321,7 +321,7 @@ exp:
     | TRUE { Bool true }
     | f = funExp {f}
     | FALSE { Bool false }    
-    | FIX;  p = pat; DASH_ARROW; e = exp { FixF(p, e) }
+    | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
     | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
     | QUESTION { EmptyHole }
     | a = filterAction; cond = exp; IN; body = exp { Filter(a, cond, body)}
