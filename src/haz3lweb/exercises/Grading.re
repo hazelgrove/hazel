@@ -1020,7 +1020,7 @@ module ImplGradingReport = {
           // TestView.test_instance_view(~font_metrics, instance),
         ]
         @ [
-          label([text("New point max:")]),
+          label([text("Hint: ")]),
           input(
             ~attrs=[
               //Attr.type_("string"),
