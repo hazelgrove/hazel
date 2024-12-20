@@ -913,7 +913,7 @@ module ImplGradingReport = {
           statuses,
           hints,
           Haz3lcore.TestStatus.Indet,
-          "No hint available.",
+          "No Hint Available",
         );
 
       | None =>
