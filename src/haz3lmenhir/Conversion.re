@@ -467,7 +467,7 @@ and TPat: {
     | EmptyHole => EmptyHoleTPat
     | Var(x) => VarTPat(x)
     | Invalid(i) => InvalidTPat(i)
-    | MultiHole(_) => raise(Failure("MultiHole not supported")) // TODO
+    | MultiHole(_) => raise(Failure("MultiHole not supported"))
     };
   };
 }
@@ -514,7 +514,7 @@ and Pat: {
     | Ap(p1, p2) => ApPat(of_core(p1), of_core(p2))
     | EmptyHole => EmptyHolePat
     | Wild => WildPat
-    | MultiHole(_) => raise(Failure("MultiHole not supported")) // TODO
+    | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Cast(p, t1, t2) =>
       CastPat(of_core(p), Typ.of_core(t1), Typ.of_core(t2))
     | Parens(p) => of_core(p)
