@@ -9,7 +9,7 @@ let alco_check =
   )
   |> Alcotest.check;
 
-let strip_parens =
+let strip_parens_and_add_builtins =
   Exp.map_term(
     ~f_exp=
       (cont: TermBase.exp_t => TermBase.exp_t, e: TermBase.exp_t) =>
@@ -44,7 +44,7 @@ let strip_parens =
 
 // Existing recovering parser
 let make_term_parse = (s: string) =>
-  strip_parens(
+  strip_parens_and_add_builtins(
     MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term,
   );
 
@@ -60,7 +60,6 @@ let menhir_matches = (exp: Term.Exp.t, actual: string) =>
 let menhir_only_test = (name: string, exp: Term.Exp.t, actual: string) =>
   test_case(name, `Quick, () => {menhir_matches(exp, actual)});
 
-// TODO Remove these before merge. Using it to mark skipped tests until we fix them.
 let skip_parser_test = (name: string, _exp: Term.Exp.t, _actual: string) =>
   test_case(name, `Quick, () => {Alcotest.skip()});
 let skip_menhir_only_test = (name: string, _exp: Term.Exp.t, _actual: string) =>
@@ -69,7 +68,6 @@ let skip_menhir_maketerm_equivalent_test =
     (~speed_level=`Quick, name: string, _actual: string) =>
   test_case(name, speed_level, () => {Alcotest.skip()});
 
-// TODO Assert against result instead of exception for parse failure for better error messages
 let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
   test_case(
     name,
@@ -95,106 +93,6 @@ let menhir_maketerm_equivalent_test =
       ),
     )
   });
-
-let let_fun_test = () =>
-  parser_test(
-    "Let expression for a function which is not recursive (menhir)",
-    Let(
-      Var("f") |> Pat.fresh,
-      Fun(Var("x") |> Pat.fresh, Int(1) |> Exp.fresh, None, None)
-      |> Exp.fresh,
-      Int(55) |> Exp.fresh,
-    )
-    |> Exp.fresh,
-    "
-let f =
-    fun x ->
-        1
-    f
-    in
-55",
-  );
-
-let empty_hole_test = () =>
-  parser_test("Empty hole (menhir)", EmptyHole |> Exp.fresh, "?");
-
-let free_var_test = () =>
-  parser_test(
-    "Nonempty hole with free variable (menhir)",
-    Parens(Var("y") |> Exp.fresh) |> Exp.fresh,
-    "y",
-  );
-
-let bin_op_test = () =>
-  parser_test(
-    "binary integer operation (plus)",
-    BinOp(Int(Plus), Int(1) |> Exp.fresh, Int(2) |> Exp.fresh) |> Exp.fresh,
-    "1 + 2",
-  );
-
-//Inconsistent branches menhir test
-let case_menhir_str = "
-    case 4 == 3
-    | true => 24
-    | false => 32
-end
-";
-let case_uexp: Exp.t =
-  Match(
-    BinOp(Int(Equals), Int(4) |> Exp.fresh, Int(3) |> Exp.fresh)
-    |> Exp.fresh,
-    [
-      (Bool(true) |> Pat.fresh, Int(24) |> Exp.fresh),
-      (Bool(false) |> Pat.fresh, Int(32) |> Exp.fresh),
-    ],
-  )
-  |> Exp.fresh;
-let inconsistent_case_test = () =>
-  parser_test("Case test", case_uexp, case_menhir_str);
-
-//Function free var application menhir test
-let ap_fun_uexp: Exp.t =
-  Ap(
-    Forward,
-    Fun(
-      Var("x") |> Pat.fresh,
-      BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
-      |> Exp.fresh,
-      None,
-      None,
-    )
-    |> Exp.fresh,
-    Var("y") |> Exp.fresh,
-  )
-  |> Exp.fresh;
-let ap_fun_str = "
-    (fun x -> 4 + 5)(y)
-";
-let ap_fun_test = () =>
-  parser_test("Application of a function (menhir)", ap_fun_uexp, ap_fun_str);
-
-//Single integer menhir test
-let single_int_str = "8";
-let single_int_uexp: Exp.t = Int(8) |> Exp.fresh;
-let single_integer_menhir = () =>
-  parser_test(
-    "Single integer test (menhir)",
-    single_int_uexp,
-    single_int_str,
-  );
-
-let menhir_doesnt_crash_test = (name, src) =>
-  test_case(
-    name,
-    `Quick,
-    () => {
-      let _menhir_parsed =
-        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-          Haz3lmenhir.Interface.parse_program(src),
-        );
-      ();
-    },
-  );
 
 let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
@@ -324,7 +222,7 @@ let tests = (
     parser_test(
       "String Literal",
       String("Hello World") |> Exp.fresh,
-      "\"Hello World\"",
+      {|"Hello World"|},
     ),
     parser_test("Bool Literal", Bool(true) |> Exp.fresh, "true"),
     parser_test("Empty Hole", EmptyHole |> Exp.fresh, "?"),
@@ -353,7 +251,7 @@ let tests = (
     parser_test(
       "Tuple",
       Tuple([Int(4) |> Exp.fresh, Int(5) |> Exp.fresh]) |> Exp.fresh,
-      "(4, 5)" // TODO Verify with maketerm. Should this be parens or not
+      "(4, 5)",
     ),
     parser_test(
       "Match",
@@ -609,7 +507,7 @@ let tests = (
       "Pattern with type ascription",
       "fun (b : Bool) -> b",
     ),
-    menhir_only_test(
+    parser_test(
       "Type Hole in arrow cast",
       Fun(
         Cast(
@@ -632,7 +530,7 @@ let tests = (
       |> Exp.fresh,
       "fun (b : ? -> ?) -> ?",
     ),
-    menhir_only_test(
+    parser_test(
       "multiargument function",
       Ap(
         Forward,
@@ -945,6 +843,7 @@ let ex5 = list_of_mylist(x) in
     |},
     ),
     // This fails because MakeTerm can't handle left to right keyword prefixes.
+    // Skipped tests are commented out because of junit alcotest bug https://github.com/Khady/ocaml-junit/issues/9
     // skip_menhir_maketerm_equivalent_test(
     //   "Prefixed keyword parses",
     //   {|let ? = ina in ?|},
