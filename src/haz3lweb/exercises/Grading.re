@@ -390,9 +390,23 @@ module MutationTestingReport = {
                           ),
                         )##.value;
 
+                      let new_hints =
+                        List.init(total, i =>
+                          Obj.magic(
+                            Js_of_ocaml.Js.some(
+                              JsUtil.get_elem_by_id(
+                                "hint-input-" ++ string_of_int(i),
+                              ),
+                            ),
+                          )##.value
+                        );
+
                       let update_events = [
                         inject_editing_mut_test_rep,
-                        inject_update_mut_test_rep(int_of_string(new_dist)),
+                        inject_update_mut_test_rep(
+                          int_of_string(new_dist),
+                          new_hints,
+                        ),
                       ];
                       Virtual_dom.Vdom.Effect.Many(update_events);
                     },
@@ -481,44 +495,100 @@ module MutationTestingReport = {
     );
   };
 
-  let individual_report = (id, ~hint: string, ~status: TestStatus.t) =>
-    div(
-      ~attrs=[
-        Attr.classes(["test-report"]),
-        //TODO: wire up test ids
-      ],
-      [
-        div(
-          ~attrs=[
-            Attr.classes([
-              "test-id",
-              "Test" ++ TestStatus.to_string(status),
-            ]),
-          ],
-          /* NOTE: prints lexical index, not unique id */
-          [text(string_of_int(id + 1))],
-        ),
-        // TestView.test_instance_view(~font_metrics, instance),
-      ]
-      @ [
-        div(
-          ~attrs=[
-            Attr.classes([
-              "test-hint",
-              "test-instance",
-              TestStatus.to_string(status),
-            ]),
-          ],
-          [text(hint)],
-        ),
-      ],
-    );
+  let individual_report =
+      (
+        ~i: int,
+        ~hint: string,
+        ~status,
+        ~editing_mut_test_rep,
+        ~globals: Globals.t,
+        ~select_textbox,
+      ) =>
+    if (globals.settings.instructor_mode && editing_mut_test_rep) {
+      div(
+        ~attrs=[
+          Attr.classes(["test-report"]),
+          //TODO: wire up test ids
+        ],
+        [
+          div(
+            ~attrs=[
+              Attr.classes([
+                "test-id",
+                "Test" ++ TestStatus.to_string(status),
+              ]),
+            ],
+            /* NOTE: prints lexical index, not unique id */
+            [text(string_of_int(i + 1))],
+          ),
+          // TestView.test_instance_view(~font_metrics, instance),
+        ]
+        @ [
+          label([text("Hint: ")]),
+          input(
+            ~attrs=[
+              //Attr.type_("string"),
+              Attr.classes(["test-hint", "test-instance"]),
+              Attr.id("hint-input-" ++ string_of_int(i)),
+              Attr.value(hint),
+              Attr.on_focus(_ => select_textbox),
+            ],
+            (),
+          ),
+        ],
+      );
+    } else {
+      div(
+        ~attrs=[
+          Attr.classes(["test-report"]),
+          //TODO: wire up test ids
+        ],
+        [
+          div(
+            ~attrs=[
+              Attr.classes([
+                "test-id",
+                "Test" ++ TestStatus.to_string(status),
+              ]),
+            ],
+            /* NOTE: prints lexical index, not unique id */
+            [text(string_of_int(i + 1))],
+          ),
+          // TestView.test_instance_view(~font_metrics, instance),
+        ]
+        @ [
+          div(
+            ~attrs=[
+              Attr.classes([
+                "test-hint",
+                "test-instance",
+                TestStatus.to_string(status),
+              ]),
+            ],
+            [text(hint)],
+          ),
+        ],
+      );
+    };
 
-  let individual_reports = coverage_results =>
+  let individual_reports =
+      (
+        coverage_results,
+        ~editing_mut_test_rep,
+        ~globals: Globals.t,
+        ~select_textbox,
+      ) =>
     div(
       coverage_results
       |> List.mapi((i, (status, hint)) =>
-           individual_report(i, ~hint, ~status)
+           individual_report(
+             ~i,
+             ~hint,
+             ~status,
+             ~editing_mut_test_rep,
+             ~globals,
+             ~select_textbox,
+           )
          ),
     );
 
@@ -589,7 +659,7 @@ module MutationTestingReport = {
         report: t,
         max_points: int,
       ) =>
-    if (max_points == 0) {
+    if (max_points < 0) {
       Node.div([]);
     } else {
       CellCommon.panel(
@@ -599,7 +669,12 @@ module MutationTestingReport = {
             "Mutation Testing",
             ~rest=": Your Tests vs. Buggy Implementations (hidden)",
           ),
-          individual_reports(report.results),
+          individual_reports(
+            report.results,
+            ~editing_mut_test_rep,
+            ~globals,
+            ~select_textbox,
+          ),
         ],
         ~footer=
           Some(
@@ -794,40 +869,92 @@ module ImplGradingReport = {
   //   );
   // };
 
-  let individual_report = (i, ~signal_jump, ~hint: string, ~status, (id, _)) =>
-    div(
-      ~attrs=[
-        Attr.classes(["test-report"]),
-        Attr.on_click(_ => signal_jump(id)),
-      ],
-      [
-        div(
-          ~attrs=[
-            Attr.classes([
-              "test-id",
-              "Test" ++ TestStatus.to_string(status),
-            ]),
-          ],
-          /* NOTE: prints lexical index, not unique id */
-          [text(string_of_int(i + 1))],
-        ),
-        // TestView.test_instance_view(~font_metrics, instance),
-      ]
-      @ [
-        div(
-          ~attrs=[
-            Attr.classes([
-              "test-hint",
-              "test-instance",
-              TestStatus.to_string(status),
-            ]),
-          ],
-          [text(hint)],
-        ),
-      ],
-    );
+  let individual_report =
+      (
+        i,
+        ~signal_jump,
+        ~hint: string,
+        ~status,
+        (id, _),
+        ~editing_impl_grd_rep,
+        ~globals: Globals.t,
+        ~select_textbox,
+      ) =>
+    if (globals.settings.instructor_mode && editing_impl_grd_rep) {
+      print_endline("We are here, trying to edit");
+      div(
+        ~attrs=[
+          Attr.classes(["test-report"]),
+          Attr.on_click(_ => signal_jump(id)),
+        ],
+        [
+          div(
+            ~attrs=[
+              Attr.classes([
+                "test-id",
+                "Test" ++ TestStatus.to_string(status),
+              ]),
+            ],
+            /* NOTE: prints lexical index, not unique id */
+            [text(string_of_int(i + 1))],
+          ),
+          // TestView.test_instance_view(~font_metrics, instance),
+        ]
+        @ [
+          label([text("New point max:")]),
+          input(
+            ~attrs=[
+              //Attr.type_("string"),
+              Attr.classes(["test-hint", "test-instance"]),
+              Attr.value(hint),
+              Attr.on_focus(_ => select_textbox),
+            ],
+            (),
+          ),
+        ],
+      );
+    } else {
+      div(
+        ~attrs=[
+          Attr.classes(["test-report"]),
+          Attr.on_click(_ => signal_jump(id)),
+        ],
+        [
+          div(
+            ~attrs=[
+              Attr.classes([
+                "test-id",
+                "Test" ++ TestStatus.to_string(status),
+              ]),
+            ],
+            /* NOTE: prints lexical index, not unique id */
+            [text(string_of_int(i + 1))],
+          ),
+          // TestView.test_instance_view(~font_metrics, instance),
+        ]
+        @ [
+          div(
+            ~attrs=[
+              Attr.classes([
+                "test-hint",
+                "test-instance",
+                TestStatus.to_string(status),
+              ]),
+            ],
+            [text(hint)],
+          ),
+        ],
+      );
+    };
 
-  let individual_reports = (~signal_jump, ~report) => {
+  let individual_reports =
+      (
+        ~signal_jump,
+        ~report,
+        ~editing_impl_grd_rep,
+        ~globals,
+        ~select_textbox,
+      ) => {
     switch (report.test_results) {
     | Some(test_results)
         when
@@ -844,6 +971,9 @@ module ImplGradingReport = {
                ~hint,
                ~status,
                List.nth(test_results.test_map, i),
+               ~editing_impl_grd_rep,
+               ~globals,
+               ~select_textbox,
              )
            ),
       )
@@ -864,6 +994,8 @@ module ImplGradingReport = {
         ~syntax_report: SyntaxReport.t,
         ~max_points: int,
       ) => {
+    print_endline("Editing?? : ");
+    print_endline(string_of_bool(editing_impl_grd_rep));
     CellCommon.panel(
       ~classes=["cell-item", "panel", "test-panel"],
       [
@@ -871,7 +1003,13 @@ module ImplGradingReport = {
           "Implementation Grading",
           ~rest=": Hidden Tests vs. Your Implementation",
         ),
-        individual_reports(~signal_jump, ~report),
+        individual_reports(
+          ~signal_jump,
+          ~report,
+          ~editing_impl_grd_rep,
+          ~globals,
+          ~select_textbox,
+        ),
       ],
       ~footer=
         Some(

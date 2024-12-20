@@ -84,7 +84,7 @@ module Update = {
     | DeleteBuggyImplementation(int)
     | UpdatePrompt(string)
     | UpdateTestValRep(int, int)
-    | UpdateMutTestRep(int)
+    | UpdateMutTestRep(int, list(string))
     | UpdateImplGrdRep(int)
     | UpdateModuleName(string);
 
@@ -190,11 +190,16 @@ module Update = {
           Exercise.update_test_val_rep({eds: model.editors}, test_num, dist).
             eds,
       })
-    | UpdateMutTestRep(test_num) =>
+    | UpdateMutTestRep(test_num, new_hints) =>
       Updated.return({
         ...model,
         editors:
-          Exercise.update_mut_test_rep({eds: model.editors}, test_num).eds,
+          Exercise.update_mut_test_rep(
+            {eds: model.editors},
+            test_num,
+            new_hints,
+          ).
+            eds,
       })
     | UpdateImplGrdRep(test_num) =>
       Updated.return({
@@ -930,7 +935,7 @@ module View = {
           ~editing_mut_test_rep=editing_flags.editing_mut_test_rep,
           ~inject_editing_mut_test_rep=inject(Instructor(EditingMutTestRep)),
           ~inject_update_mut_test_rep=
-            x => inject(Instructor(UpdateMutTestRep(x))),
+            (x, y) => inject(Instructor(UpdateMutTestRep(x, y))),
           ~select_textbox=signal(MakeActive(TextBox)),
           grading_report.mutation_testing_report,
           grading_report.point_distribution.mutation_testing,

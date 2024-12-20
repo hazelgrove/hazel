@@ -383,7 +383,7 @@ let update_exercise_title = ({eds, _}: state, new_title: string) => {
 let add_buggy_impl = (state: state) => {
   let new_buggy_impl = {
     impl: Editor.Model.mk(Zipper.init()),
-    hint: "no hint available",
+    hint: "no hint provided",
   };
   {
     eds: {
@@ -398,6 +398,17 @@ let delete_buggy_impl = (state: state, index: int) => {
     eds: {
       ...state.eds,
       hidden_bugs: List.filteri((i, _) => i != index, state.eds.hidden_bugs),
+    },
+  };
+};
+
+let edit_buggy_impl = (state: state, idx: int, impl: Editor.t, new_hint: hint) => {
+  let buggy_impl = {impl, hint: new_hint};
+  {
+    eds: {
+      ...state.eds,
+      hidden_bugs:
+        Util.ListUtil.put_nth(idx, buggy_impl, state.eds.hidden_bugs),
     },
   };
 };
@@ -423,14 +434,30 @@ let update_test_val_rep = ({eds}: state, new_test_num: int, new_dist: int) => {
   },
 };
 
-let update_mut_test_rep = ({eds}: state, new_dist: int) => {
-  eds: {
-    ...eds,
-    point_distribution: {
-      ...eds.point_distribution,
-      mutation_testing: new_dist,
+let update_mut_test_rep =
+    ({eds}: state, new_dist: int, new_hints: list(string)) => {
+  let updated_bugs =
+    List.mapi(
+      (i, bug) => {
+        let new_hint = List.nth_opt(new_hints, i);
+        switch (new_hint) {
+        | Some(hint) => {...bug, hint}
+        | None => bug
+        };
+      },
+      eds.hidden_bugs,
+    );
+
+  {
+    eds: {
+      ...eds,
+      hidden_bugs: updated_bugs,
+      point_distribution: {
+        ...eds.point_distribution,
+        mutation_testing: new_dist,
+      },
     },
-  },
+  };
 };
 
 let update_impl_grd_rep = ({eds}: state, new_dist: int) => {
