@@ -395,7 +395,11 @@ and Typ: {
           sumterms,
         );
       Parens(Sum(converted_terms) |> Typ.fresh); // Adds parens due to MakeTerm
-    | ForallType(tp, t) => Forall(TPat.of_menhir_ast(tp), of_menhir_ast(t))
+    | ForallType(tp, t) =>
+      Parens(
+        Forall(TPat.of_menhir_ast(tp), of_menhir_ast(t))
+        |> Haz3lcore.Typ.fresh,
+      )
     | RecType(tp, t) =>
       Parens(
         Rec(TPat.of_menhir_ast(tp), of_menhir_ast(t)) |> Haz3lcore.Typ.fresh,
