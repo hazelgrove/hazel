@@ -47,9 +47,8 @@ type op_bin_string =
   | Concat
   | Equals;
 
-// TODO Rename to match others
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
-type binOp =
+type bin_op =
   | IntOp(op_bin_int)
   | FloatOp(op_bin_float)
   | StringOp(op_bin_string)
@@ -147,7 +146,7 @@ type exp =
   | String(string)
   | ListExp(list(exp))
   | TupleExp(list(exp))
-  | BinExp(exp, binOp, exp)
+  | BinExp(exp, bin_op, exp)
   | UnOp(op_un, exp)
   | Let(pat, exp, exp)
   | Fun(pat, exp, option(string))
@@ -338,7 +337,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
               ),
               Gen.map3(
                 (op, e1, e2) => BinExp(e1, op, e2),
-                gen_binOp,
+                gen_bin_op,
                 self((n - 1) / 2),
                 self((n - 1) / 2),
               ),

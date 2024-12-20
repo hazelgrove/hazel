@@ -49,7 +49,7 @@ module Operators = {
     };
   };
 
-  let of_core_op_bin = (op: op_bin): AST.binOp => {
+  let of_core_op_bin = (op: op_bin): AST.bin_op => {
     switch (op) {
     | Int(op_int) =>
       IntOp(
@@ -174,7 +174,7 @@ module Operators = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let of_menhir_ast = (op: AST.binOp): op_bin => {
+  let of_menhir_ast = (op: AST.bin_op): op_bin => {
     switch (op) {
     | IntOp(op_int) => Int(int_op_of_menhir_ast(op_int))
     | FloatOp(op_float) => Float(float_op_of_menhir_ast(op_float))
