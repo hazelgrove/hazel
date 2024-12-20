@@ -379,11 +379,11 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                 let+ e2 = self(n - 1);
                 Filter(fa, e1, e2)
               ),
-              // Gen.(
-              //   let* e1 = self((n - 1) / 2);
-              //   let+ e2 = self((n - 1) / 2);
-              //   Seq(e1, e2)
-              // ),
+              Gen.(
+                let* e1 = self((n - 1) / 2);
+                let+ e2 = self((n - 1) / 2);
+                Seq(e1, e2)
+              ),
               // Cast expressions not supported by menhir grammar yet
               /*
                | Filter(filter_action, exp, exp)
