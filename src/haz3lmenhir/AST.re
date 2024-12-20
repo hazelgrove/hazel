@@ -228,15 +228,34 @@ let arb_ident =
     )
   );
 
-let list_sizes = n =>
+let sized_arr = (n: int) =>
   QCheck.Gen.(
-    switch (n) {
-    | 0 => pure([||])
-    | 1 => pure([|0|])
-    | _ => nat_split(~size=n, 5) // TODO Make different sized lists
-    }
+    let list_size = n <= 1 ? pure(0) : int_range(2, n);
+
+    list_size
+    >>= (
+      x =>
+        switch (x) {
+        | 0 => pure([||])
+        | _ => nat_split(~size=x, n - x)
+        }
+    )
   );
 
+let non_single_element_arr = (n: int) =>
+  QCheck.Gen.(
+    let list_size =
+      frequency([(1, pure(0)), (n, n <= 1 ? pure(0) : int_range(2, n))]);
+
+    list_size
+    >>= (
+      x =>
+        switch (x) {
+        | 0 => pure([||])
+        | _ => nat_split(~size=x, n - x)
+        }
+    )
+  );
 let arb_var = QCheck.(map(x => Var(x), arb_ident));
 
 let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
@@ -271,17 +290,12 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                       flattened,
                     );
                   },
-                  list_sizes(n),
+                  sized_arr(n),
                 ),
               ),
               Gen.join(
                 Gen.map(
                   (sizes: array(int)) => {
-                    let sizes =
-                      switch (sizes) {
-                      | [|single|] => [|(single - 1) / 2, (single - 1) / 2|] // Can't have singleton tuples. Replace this with a minimum parameter on list sizes
-                      | _ => sizes
-                      };
                     let exps = Array.map((size: int) => self(size), sizes);
                     let flattened = Gen.flatten_a(exps);
                     Gen.map(
@@ -289,7 +303,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                       flattened,
                     );
                   },
-                  list_sizes(n),
+                  non_single_element_arr(n),
                 ),
               ),
               Gen.map(exp => Test(exp), self(n - 1)),
@@ -363,12 +377,6 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
               join(
                 map(
                   (sizes: array(int)) => {
-                    let sizes =
-                      switch (sizes) {
-                      | [|single|] => [|(single - 1) / 2, (single - 1) / 2|] // Can't have singleton tuples. Replace this with a minimum parameter on list sizes
-                      | _ => sizes
-                      };
-
                     let typs = Array.map((size: int) => self(size), sizes);
 
                     let flattened = flatten_a(typs);
@@ -377,7 +385,7 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
                       flattened,
                     );
                   },
-                  list_sizes(n),
+                  non_single_element_arr(n),
                 ),
               ),
               map(t => ArrayType(t), self(n - 1)),
@@ -421,19 +429,13 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
               join(
                 map(
                   sizes => {
-                    let sizes =
-                      switch (sizes) {
-                      | [|single|] => [|(single - 1) / 2, (single - 1) / 2|] // Can't have singleton tuples. Replace this with a minimum parameter on list sizes
-                      | _ => sizes
-                      };
-
                     let pats = Array.map((size: int) => self(size), sizes);
 
                     let flattened = flatten_a(pats);
 
                     map(x => TuplePat(Array.to_list(x)), flattened);
                   },
-                  list_sizes(n - 1),
+                  non_single_element_arr(n - 1),
                 ),
               ),
               join(
@@ -445,7 +447,7 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
 
                     map(x => ListPat(Array.to_list(x)), flattened);
                   },
-                  list_sizes(n - 1),
+                  sized_arr(n - 1),
                 ),
               ),
               map2(
