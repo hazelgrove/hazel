@@ -467,13 +467,13 @@ module View = {
           | Previous =>
             inject(
               Update.SwitchExercise(
-                model.current - 1 mod List.length(model.exercises),
+                abs((model.current - 1) mod List.length(model.exercises)),
               ),
             )
           | Next =>
             inject(
               Update.SwitchExercise(
-                model.current + 1 mod List.length(model.exercises),
+                (model.current + 1) mod List.length(model.exercises),
               ),
             ),
         ~indicator=
