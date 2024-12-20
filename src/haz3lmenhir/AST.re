@@ -308,15 +308,9 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
               ),
               Gen.map(exp => Test(exp), self(n - 1)),
               Gen.map(
-                name => Constructor(name, UnknownType(Internal)),
+                name => Constructor(name, UnknownType(Internal)), // TODO Ignoring typ because we don't serialize those in ExpToSegment
                 arb_constructor_ident.gen,
               ),
-              // TODO Ignoring typ because we don't serialize those
-              // Gen.map2(
-              //   (name, typ) => {Constructor(name, typ)},
-              //   arb_constructor_ident.gen,
-              //   gen_typ_sized(n - 1),
-              // ),
               Gen.map3(
                 (op, e1, e2) => BinExp(e1, op, e2),
                 gen_binOp,
@@ -336,6 +330,11 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                 self((n - 1) / 3),
                 self((n - 1) / 3),
               ),
+              Gen.map2(
+                (p, e): exp => Fun(p, e, None),
+                gen_pat_sized((n - 1) / 2),
+                self((n - 1) / 2),
+              ),
             ])
           }
         },
@@ -346,12 +345,6 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
   )
 and gen_typ_sized: int => QCheck.Gen.t(typ) =
   n =>
-    /*
-       | InvalidTyp(string)
-     and sumterm =
-       | Variant(string, option(typ))
-       | BadEntry(typ)
-       */
     QCheck.Gen.(
       let leaf_nodes =
         oneof([
@@ -491,9 +484,10 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
                 ),
               ),
               map2(
-                (p1, p2) => ApPat(p1, p2),
-                self((n - 1) / 2),
-                self((n - 1) / 2),
+                (i, p) =>
+                  ApPat(ConstructorPat(i, UnknownType(Internal)), p), // The parser only handles ApPat with a constructor
+                arb_constructor_ident.gen,
+                self(n - 1),
               ),
               map3(
                 (p, t1, t2) => CastPat(p, t1, t2),
