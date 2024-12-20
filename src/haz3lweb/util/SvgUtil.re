@@ -285,18 +285,10 @@ module OrthogonalPolygon = {
            let min_max = Point.{x: min.x, y: max_y};
            let max_min = Point.{x: max_x, y: min.y};
            [
-             {
-               // left sides point in negative direction
-               src: min_max,
-               dst: min,
-               next: None,
-             },
-             {
-               // right sides point in positive direction
-               src: max_min,
-               dst: max,
-               next: None,
-             },
+             // left sides point in negative direction
+             {src: min_max, dst: min, next: None},
+             // right sides point in positive direction
+             {src: max_min, dst: max, next: None},
            ];
          })
       |> List.flatten
