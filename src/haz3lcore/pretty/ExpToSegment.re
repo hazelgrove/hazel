@@ -553,14 +553,18 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     | Variant(c, ids, Some(x)) => {
         let+ constructor =
           text_to_pretty(
-            Option.value(
-              ~default=Id.invalid,
-              ListUtil.hd_opt(List.tl(ids)),
-            ),
+            Option.value(~default=Id.invalid, ListUtil.nth_opt(1, ids)),
             Sort.Typ,
             c,
           );
-        constructor @ [mk_form("ap_typ", List.hd(ids), [go(x)])];
+        constructor
+        @ [
+          mk_form(
+            "ap_typ",
+            Option.value(~default=Id.invalid, ListUtil.hd_opt(ids)),
+            [go(x)],
+          ),
+        ];
       }
     | BadEntry(x) => go(x);
   switch (typ |> Typ.term_of) {
