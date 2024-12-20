@@ -78,13 +78,13 @@ type typ_provenance =
   | Internal
   | EmptyHole;
 
-[@deriving (show({with_path: false}), sexp, qcheck, eq)]
+[@deriving (show({with_path: false}), sexp, eq)]
 type tpat =
-  | InvalidTPat([@arb arb_string] string)
+  | InvalidTPat(string)
   | EmptyHoleTPat
-  | VarTPat([@arb arb_string] string);
+  | VarTPat(string);
 
-[@deriving (show({with_path: false}), sexp, qcheck, eq)]
+[@deriving (show({with_path: false}), sexp, eq)]
 type typ =
   | IntType
   | StringType
@@ -105,7 +105,7 @@ and sumterm =
   | BadEntry(typ)
 and sumtype = list(sumterm);
 
-[@deriving (show({with_path: false}), sexp, qcheck, eq)]
+[@deriving (show({with_path: false}), sexp, eq)]
 type pat =
   | CastPat(pat, typ, typ)
   | EmptyHolePat
@@ -259,6 +259,14 @@ let non_single_element_arr = (n: int) =>
   );
 let arb_var = QCheck.(map(x => Var(x), arb_ident));
 
+let gen_tpat =
+  QCheck.Gen.(
+    let gen_var = map(x => VarTPat(x), arb_ident.gen);
+    let gen_empty = pure(EmptyHoleTPat);
+    let gen_invalid = map(x => InvalidTPat(x), arb_str.gen);
+    oneof([gen_var, gen_empty, gen_invalid])
+  );
+
 let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
   QCheck.(
     let leaf =
@@ -395,18 +403,14 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                 let+ e2 = self((n - 1) / 2);
                 ListConcat(e1, e2)
               ),
-              Gen.(
-                let* tp = arb_tpat.gen;
-                let+ e = self(n - 1);
-                TypFun(tp, e)
-              ),
+              Gen.(let* tp = gen_tpat; let+ e = self(n - 1); TypFun(tp, e)),
               Gen.(
                 let* t = gen_typ_sized((n - 1) / 2);
                 let+ e = self((n - 1) / 2);
                 TypAp(e, t)
               ),
               Gen.(
-                let* tp = arb_tpat.gen;
+                let* tp = gen_tpat;
                 let* t = gen_typ_sized((n - 1) / 2);
                 let+ e = self((n - 1) / 2);
                 TyAlias(tp, t, e)
@@ -461,14 +465,10 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
               map(x => TypVar(x), arb_ident.gen),
               map2(
                 (tpat, t) => ForallType(tpat, t),
-                arb_tpat.gen,
+                gen_tpat,
                 self(n - 1),
               ),
-              map2(
-                (tpat, t) => RecType(tpat, t),
-                arb_tpat.gen,
-                self(n - 1),
-              ),
+              map2((tpat, t) => RecType(tpat, t), gen_tpat, self(n - 1)),
               join(
                 map(
                   sizes => {
