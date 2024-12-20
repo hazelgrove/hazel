@@ -23,6 +23,7 @@ open AST
 %token WILD
 %token QUESTION
 %token AT_SYMBOL
+%token TYP_AP_SYMBOL
 %token CONS
 %token TEST
 %token PAUSE
@@ -137,6 +138,7 @@ open AST
 %left DOLLAR_SIGN
 
 %left AT_SYMBOL
+%nonassoc TYP_AP_SYMBOL
 
 %left OPEN_PAREN CLOSE_PAREN
 %left QUESTION
@@ -328,7 +330,7 @@ exp:
     | e1 = exp; SEMI_COLON; e2 = exp { Seq(e1, e2) }
     |  E_EXP; s = STRING; { InvalidExp(s) }
     |  WILD {Deferral}
-    | e = exp; AT_SYMBOL; LESS_THAN; ty = typ; GREATER_THAN; {TypAp(e, ty)}
+    | e = exp; TYP_AP_SYMBOL; ty = typ; GREATER_THAN; {TypAp(e, ty)}
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)}
     | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = SEXP_STRING; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
     | b = BUILTIN; {BuiltinFun(b)}

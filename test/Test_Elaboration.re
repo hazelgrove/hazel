@@ -534,7 +534,7 @@ let f =
       let_exp_uexp,
     );
 
-  let typ_ap_str = "(typfun x -> 4) @ <Int>";
+  let typ_ap_str = "(typfun x -> 4)@<Int>";
   let typ_ap_uexp: Exp.t =
     TypAp(
       TypFun(Var("x") |> TPat.fresh, Int(4) |> Exp.fresh, None) |> Exp.fresh,

@@ -115,6 +115,7 @@ rule token =
     | ";" {SEMI_COLON}
     | "test" {TEST}
     | "::" { CONS }
+    | "@<" {TYP_AP_SYMBOL}
     | "@" {AT_SYMBOL}
     | "?" {QUESTION}
     | "_" {WILD}
