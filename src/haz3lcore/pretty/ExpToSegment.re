@@ -543,10 +543,26 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   let go = typ_to_pretty(~settings: Settings.t);
   let go_constructor: ConstructorMap.variant(Typ.t) => pretty =
     fun
-    | Variant(c, ids, None) => text_to_pretty(List.hd(ids), Sort.Typ, c)
+    | Variant(c, ids, None) => {
+        print_endline("Here3");
+        text_to_pretty(
+          Option.value(~default=Id.invalid, ListUtil.hd_opt(ids)),
+          Sort.Typ,
+          c,
+        );
+      }
     | Variant(c, ids, Some(x)) => {
+        print_endline("Here");
         let+ constructor =
-          text_to_pretty(List.hd(List.tl(ids)), Sort.Typ, c);
+          text_to_pretty(
+            Option.value(
+              ~default=Id.invalid,
+              ListUtil.hd_opt(List.tl(ids)),
+            ),
+            Sort.Typ,
+            c,
+          );
+        print_endline("here2");
         constructor @ [mk_form("ap_typ", List.hd(ids), [go(x)])];
       }
     | BadEntry(x) => go(x);
