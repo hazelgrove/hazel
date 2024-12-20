@@ -384,18 +384,18 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                 let+ e2 = self((n - 1) / 2);
                 Seq(e1, e2)
               ),
-              // Cast expressions not supported by menhir grammar yet
+              Gen.(
+                let* e1 = self((n - 1) / 2);
+                let+ e2 = self((n - 1) / 2);
+                Cons(e1, e2)
+              ),
+              // Gen.(
+              //   let* e1 = self((n - 1) / 2);
+              //   let+ e2 = self((n - 1) / 2);
+              //   ListConcat(e1, e2)
+              // ),
               /*
-               | Filter(filter_action, exp, exp)
-               | BuiltinFun(string)
-               | Undefined
-               | Test(exp)
-               | Deferral
                | TypFun(tpat, exp)
-               | Cons(exp, exp)
-               | ListConcat(exp, exp)
-               | If(exp, exp, exp)
-               | InvalidExp(string)
                | TypAp(exp, typ)
                | DynamicErrorHole(exp, string)
                | TyAlias(tpat, typ, exp);
