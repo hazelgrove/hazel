@@ -119,7 +119,7 @@ type pat =
   | ConsPat(pat, pat)
   | ListPat(list(pat))
   | ApPat(pat, pat)
-  | InvalidPat(string); // TODO Menhir parser doesn't actually support invalid pats
+  | InvalidPat(string); // Menhir parser doesn't actually support invalid pats
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type if_consistency =
