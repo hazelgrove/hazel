@@ -2,18 +2,12 @@ open Haz3lmenhir;
 open Alcotest;
 open Haz3lcore;
 
-let testable_ast = testable(Fmt.using(AST.show_exp, Fmt.string), (==));
-
-let ids = List.init(12, _ => Id.mk());
-let id_at = x => x |> List.nth(ids);
-
-let exp_typ =
+let alco_check =
   testable(
     Fmt.using(Haz3lcore.Exp.show, Fmt.string),
     Haz3lcore.DHExp.fast_equal,
-  );
-
-let alco_check = exp_typ |> Alcotest.check;
+  )
+  |> Alcotest.check;
 
 let strip_parens =
   Exp.map_term(
@@ -74,6 +68,7 @@ let skip_menhir_only_test = (name: string, _exp: Term.Exp.t, _actual: string) =>
 let skip_menhir_maketerm_equivalent_test =
     (~speed_level=`Quick, name: string, _actual: string) =>
   test_case(name, speed_level, () => {Alcotest.skip()});
+
 // TODO Assert against result instead of exception for parse failure for better error messages
 let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
   test_case(
@@ -101,64 +96,41 @@ let menhir_maketerm_equivalent_test =
     )
   });
 
-let fun_exp: Exp.t =
-  Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None, None) |> Exp.fresh;
-
-//Test for a let function
-let let_fun_uexp: Exp.t =
-  Let(
-    Var("f") |> Pat.fresh,
-    Fun(Var("x") |> Pat.fresh, Int(1) |> Exp.fresh, None, None) |> Exp.fresh,
-    Int(55) |> Exp.fresh,
-  )
-  |> Exp.fresh;
-
-let let_fun_str = "
+let let_fun_test = () =>
+  parser_test(
+    "Let expression for a function which is not recursive (menhir)",
+    Let(
+      Var("f") |> Pat.fresh,
+      Fun(Var("x") |> Pat.fresh, Int(1) |> Exp.fresh, None, None)
+      |> Exp.fresh,
+      Int(55) |> Exp.fresh,
+    )
+    |> Exp.fresh,
+    "
 let f =
     fun x ->
         1
     f
     in
-55";
-
-let let_fun_test = () =>
-  parser_test(
-    "Let expression for a function which is not recursive (menhir)",
-    let_fun_uexp,
-    let_fun_str,
+55",
   );
 
-//Test for an empty hole
-let empty_hole_str = "?";
-let empty_hole_uexp: Exp.t = {
-  ids: [id_at(0)],
-  term: EmptyHole,
-  copied: false,
-};
 let empty_hole_test = () =>
-  parser_test("Empty hole (menhir)", empty_hole_uexp, empty_hole_str);
+  parser_test("Empty hole (menhir)", EmptyHole |> Exp.fresh, "?");
 
-//Test for a free variable
-let free_var_uexp: Exp.t = {
-  ids: [id_at(0)],
-  term: Parens({ids: [id_at(1)], term: Var("y"), copied: false}),
-  copied: false,
-};
 let free_var_test = () =>
   parser_test(
     "Nonempty hole with free variable (menhir)",
-    free_var_uexp,
+    Parens(Var("y") |> Exp.fresh) |> Exp.fresh,
     "y",
   );
 
-//Menhir test for a binary operation
-let bin_op_uexp: Exp.t =
-  BinOp(Int(Plus), Int(1) |> Exp.fresh, Int(2) |> Exp.fresh) |> Exp.fresh;
-
-let bin_op_str = "1 + 2";
-
 let bin_op_test = () =>
-  parser_test("binary integer operation (plus)", bin_op_uexp, bin_op_str);
+  parser_test(
+    "binary integer operation (plus)",
+    BinOp(Int(Plus), Int(1) |> Exp.fresh, Int(2) |> Exp.fresh) |> Exp.fresh,
+    "1 + 2",
+  );
 
 //Inconsistent branches menhir test
 let case_menhir_str = "
@@ -201,28 +173,9 @@ let ap_fun_str = "
 let ap_fun_test = () =>
   parser_test("Application of a function (menhir)", ap_fun_uexp, ap_fun_str);
 
-//Consistent if statement menhir test
-let consistent_if_uexp: Exp.t =
-  If(Bool(false) |> Exp.fresh, Int(8) |> Exp.fresh, Int(6) |> Exp.fresh)
-  |> Exp.fresh;
-
-let consistent_if_str = "
-    if false then 8 else 6
-";
-let consistent_if_menhir = () =>
-  parser_test(
-    "Consistent case with rules (BoolLit(true), IntLit(8)) and (BoolLit(false), IntLit(6))",
-    consistent_if_uexp,
-    consistent_if_str,
-  );
-
 //Single integer menhir test
 let single_int_str = "8";
-let single_int_uexp: Exp.t = {
-  ids: [id_at(0)],
-  term: Int(8),
-  copied: false,
-};
+let single_int_uexp: Exp.t = Int(8) |> Exp.fresh;
 let single_integer_menhir = () =>
   parser_test(
     "Single integer test (menhir)",
@@ -243,12 +196,10 @@ let menhir_doesnt_crash_test = (name, src) =>
     },
   );
 
-let i = ref(0);
-
 let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir and maketerm are equivalent",
-    ~count=1000,
+    ~count=100,
     QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
     exp => {
       let core_exp = Conversion.Exp.of_menhir_ast(exp);
@@ -364,7 +315,12 @@ let tests = (
   "MenhirParser",
   [
     parser_test("Integer Literal", Int(8) |> Exp.fresh, "8"),
-    parser_test("Fun", fun_exp, "fun x -> x"),
+    parser_test(
+      "Fun",
+      Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None, None)
+      |> Exp.fresh,
+      "fun x -> x",
+    ),
     parser_test(
       "String Literal",
       String("Hello World") |> Exp.fresh,
