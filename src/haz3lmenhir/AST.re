@@ -266,6 +266,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
         arb_str_exp,
         arb_float,
         arb_var,
+        map(x => Bool(x), bool),
         always(~print=show_exp, EmptyHole),
         always(~print=show_exp, TupleExp([])),
         always(~print=show_exp, ListExp([])),
@@ -338,7 +339,6 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
               Gen.(
                 let e = self(n - 1 / 2);
                 let case = n => {
-                  print_endline("Case size" ++ string_of_int(n));
                   let p = gen_pat_sized(n / 2);
                   let e = self(n / 2);
                   tup2(p, e);
@@ -348,9 +348,6 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                   sized_arr(n - 1 / 2)
                   >>= (
                     sizes => {
-                      print_endline(
-                        "Case sizes" ++ [%derive.show: array(int)](sizes),
-                      );
                       let cases: QCheck.Gen.t(array((pat, exp))) =
                         flatten_a(Array.map(case, sizes));
                       cases;
@@ -359,18 +356,21 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                 tup2(e, cases)
                 >|= (
                   ((e, cases)) => {
-                    print_endline(
-                      "Cases: " ++ [%derive.show: array((pat, exp))](cases),
-                    );
                     CaseExp(e, Array.to_list(cases));
                   }
                 )
               ),
+              Gen.map2(
+                (e1, e2) => ApExp(e1, e2),
+                self((n - 1) / 2),
+                self((n - 1) / 2),
+              ),
+              Gen.map2(
+                (p, e) => FixF(p, e),
+                gen_pat_sized((n - 1) / 2),
+                self((n - 1) / 2),
+              ),
               /*
-                             | CaseExp(exp, list((pat, exp)))
-               | ApExp(exp, exp)
-               | FixF(pat, exp)
-               | Bool(bool)
                | Cast(exp, typ, typ)
                | FailedCast(exp, typ, typ)
                | EmptyHole
