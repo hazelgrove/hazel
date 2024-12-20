@@ -378,7 +378,8 @@ and Typ: {
       }
     | TypVar(s) => Var(s)
     | TupleType([t]) => Parens(of_menhir_ast(t))
-    | TupleType(ts) => Prod(List.map(of_menhir_ast, ts))
+    | TupleType(ts) =>
+      Parens(Prod(List.map(of_menhir_ast, ts)) |> Haz3lcore.Typ.fresh)
     | ArrayType(t) => List(of_menhir_ast(t))
     | ArrowType(t1, t2) => Arrow(of_menhir_ast(t1), of_menhir_ast(t2))
     | SumTyp(sumterms) =>
@@ -393,9 +394,12 @@ and Typ: {
             },
           sumterms,
         );
-      Sum(converted_terms);
+      Parens(Sum(converted_terms) |> Typ.fresh); // Adds parens due to MakeTerm
     | ForallType(tp, t) => Forall(TPat.of_menhir_ast(tp), of_menhir_ast(t))
-    | RecType(tp, t) => Rec(TPat.of_menhir_ast(tp), of_menhir_ast(t))
+    | RecType(tp, t) =>
+      Parens(
+        Rec(TPat.of_menhir_ast(tp), of_menhir_ast(t)) |> Haz3lcore.Typ.fresh,
+      ) // Parens because of (rec ? -> Bool, ())
     };
   };
   let of_core_type_provenance =
@@ -466,7 +470,8 @@ and Pat: {
     | VarPat(x) => Var(x)
     | ConstructorPat(x, ty) => Constructor(x, Typ.of_menhir_ast(ty))
     | StringPat(s) => String(s)
-    | TuplePat(pats) => Tuple(List.map(of_menhir_ast, pats))
+    | TuplePat(pats) =>
+      Parens(Tuple(List.map(of_menhir_ast, pats)) |> Haz3lcore.Pat.fresh)
     | ApPat(pat1, pat2) => Ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
     | ConsPat(p1, p2) => Cons(of_menhir_ast(p1), of_menhir_ast(p2))
     | BoolPat(b) => Bool(b)
