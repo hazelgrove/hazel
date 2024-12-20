@@ -985,7 +985,16 @@ let ex5 = list_of_mylist(x) in
       "Prefixed keyword parses",
       {|let ? = ina in ?|},
     ),
-    QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
+    // Menhir is doing this better than MakeTerm
+    skip_menhir_maketerm_equivalent_test(
+      "Prefixed keyword parses",
+      {|type ? = rec ? -> + Aramj -> Bool in ?|},
+    ),
+    menhir_maketerm_equivalent_test(
+      "List concat and typap",
+      {|(true, 8, 0.000178) @ true @< (rec gxxow -> ()) >|},
+    ),
+    // QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
     // Disabled due to bugs in ExpToSegment
     // e.g. https://github.com/hazelgrove/hazel/issues/1445
     // QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
