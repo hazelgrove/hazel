@@ -85,7 +85,7 @@ module Update = {
     | UpdatePrompt(string)
     | UpdateTestValRep(int, int)
     | UpdateMutTestRep(int, list(string))
-    | UpdateImplGrdRep(int)
+    | UpdateImplGrdRep(int, list(string))
     | UpdateModuleName(string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -201,11 +201,16 @@ module Update = {
           ).
             eds,
       })
-    | UpdateImplGrdRep(test_num) =>
+    | UpdateImplGrdRep(test_num, new_hints) =>
       Updated.return({
         ...model,
         editors:
-          Exercise.update_impl_grd_rep({eds: model.editors}, test_num).eds,
+          Exercise.update_impl_grd_rep(
+            {eds: model.editors},
+            test_num,
+            new_hints,
+          ).
+            eds,
       })
     | UpdateModuleName(module_name) =>
       Updated.return({
@@ -988,7 +993,7 @@ module View = {
           ~inject_set_editing_impl_grd_rep=
             inject(Instructor(EditingImplGrdRep)),
           ~inject_update_impl_grd_rep=
-            x => inject(Instructor(UpdateImplGrdRep(x))),
+            (x, y) => inject(Instructor(UpdateImplGrdRep(x, y))),
           ~select_textbox=signal(MakeActive(TextBox)),
           ~editing_impl_grd_rep=editing_flags.editing_impl_grd_rep,
           ~report=grading_report.impl_grading_report,
