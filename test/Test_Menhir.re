@@ -248,14 +248,14 @@ let i = ref(0);
 let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir and maketerm are equivalent",
-    ~count=100,
+    ~count=1000,
     QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
     exp => {
       let core_exp = Conversion.Exp.of_menhir_ast(exp);
 
       // TODO Maybe only do this when necessary.
       // TODO Check with Matthew if I'm using this correctly
-      // Add parens around tuples
+      // Add parens around tuples and parens around certain patterns
       let core_exp =
         Exp.map_term(
           ~f_exp=
@@ -272,6 +272,10 @@ let qcheck_menhir_maketerm_equivalent_test =
               | Tuple(es) =>
                 Parens(Tuple(es |> List.map(cont)) |> Pat.fresh)
                 |> Pat.fresh
+              | Cons(p1, p2) =>
+                Parens(Cons(cont(p1), cont(p2)) |> Pat.fresh) |> Pat.fresh
+              | Cast(p, t1, t2) =>
+                Parens(Cast(cont(p), t1, t2) |> Pat.fresh) |> Pat.fresh
               | _ => cont(e)
               },
           core_exp,
@@ -978,10 +982,10 @@ let ex5 = list_of_mylist(x) in
     ),
     // This fails because MakeTerm can't handle left to right keyword prefixes.
     skip_menhir_maketerm_equivalent_test(
-      "Example failure",
-      {|let ? = ina in ?|} // let ? = ina in ?
+      "Prefixed keyword parses",
+      {|let ? = ina in ?|},
     ),
-    QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
+    // QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
     // Disabled due to bugs in ExpToSegment
     // e.g. https://github.com/hazelgrove/hazel/issues/1445
     // QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),

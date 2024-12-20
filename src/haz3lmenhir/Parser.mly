@@ -115,6 +115,7 @@ open AST
 
 %right SUM_TYP
 
+%right CONS
 
 %left COLON
 %right DASH_ARROW
@@ -134,7 +135,6 @@ open AST
 %left IN
 %left DOLLAR_SIGN
 
-%right CONS
 %left AT_SYMBOL
 
 %left OPEN_PAREN CLOSE_PAREN
