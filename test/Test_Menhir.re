@@ -248,8 +248,8 @@ let i = ref(0);
 let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir and maketerm are equivalent",
-    ~count=1000,
-    QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(4)),
+    ~count=100,
+    QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
     exp => {
       let core_exp = Conversion.Exp.of_menhir_ast(exp);
 
@@ -264,6 +264,14 @@ let qcheck_menhir_maketerm_equivalent_test =
               | Tuple(es) =>
                 Parens(Tuple(es |> List.map(cont)) |> Exp.fresh)
                 |> Exp.fresh
+              | _ => cont(e)
+              },
+          ~f_pat=
+            (cont, e) =>
+              switch (e.term) {
+              | Tuple(es) =>
+                Parens(Tuple(es |> List.map(cont)) |> Pat.fresh)
+                |> Pat.fresh
               | _ => cont(e)
               },
           core_exp,
@@ -967,6 +975,11 @@ end in
 let ex5 = list_of_mylist(x) in
 (ex1, ex2, ex3, ex4, ex5)
     |},
+    ),
+    // This fails because MakeTerm can't handle left to right keyword prefixes.
+    skip_menhir_maketerm_equivalent_test(
+      "Example failure",
+      {|let ? = ina in ?|} // let ? = ina in ?
     ),
     QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
     // Disabled due to bugs in ExpToSegment

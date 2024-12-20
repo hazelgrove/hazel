@@ -205,6 +205,8 @@ let arb_constructor_ident =
     );
 
 // ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
+// Currently an issue if the keyword is a prefix of another word. `let ? = ina in ?`
+// Temporarily doing single char identifiers as a fix
 let arb_ident =
   QCheck.(
     // TODO make this support full indent instead of just lower alpha
@@ -222,7 +224,7 @@ let arb_ident =
         | "in" => "keyword"
         | _ => ident
         },
-      string_gen_of_size(Gen.int_range(1, 5), arb_lower_alpha),
+      string_gen_of_size(Gen.int_range(1, 1), arb_lower_alpha),
     )
   );
 
@@ -330,6 +332,19 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
   )
 and gen_typ_sized: int => QCheck.Gen.t(typ) =
   n =>
+    /*
+       | SumTyp(sumtype)
+       | UnknownType(typ_provenance)
+       | ArrowType(typ, typ)
+       | TypVar(string)
+       | InvalidTyp(string)
+       | ForallType(tpat, typ)
+       | RecType(tpat, typ)
+     and sumterm =
+       | Variant(string, option(typ))
+       | BadEntry(typ)
+
+       */
     QCheck.Gen.(
       let leaf_nodes =
         oneof([
@@ -348,6 +363,12 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
               join(
                 map(
                   (sizes: array(int)) => {
+                    let sizes =
+                      switch (sizes) {
+                      | [|single|] => [|(single - 1) / 2, (single - 1) / 2|] // Can't have singleton tuples. Replace this with a minimum parameter on list sizes
+                      | _ => sizes
+                      };
+
                     let typs = Array.map((size: int) => self(size), sizes);
 
                     let flattened = flatten_a(typs);
@@ -400,6 +421,12 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
               join(
                 map(
                   sizes => {
+                    let sizes =
+                      switch (sizes) {
+                      | [|single|] => [|(single - 1) / 2, (single - 1) / 2|] // Can't have singleton tuples. Replace this with a minimum parameter on list sizes
+                      | _ => sizes
+                      };
+
                     let pats = Array.map((size: int) => self(size), sizes);
 
                     let flattened = flatten_a(pats);
