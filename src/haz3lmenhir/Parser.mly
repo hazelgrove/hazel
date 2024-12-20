@@ -109,7 +109,6 @@ open AST
 
 
 
-%nonassoc IF_EXP
 %nonassoc LET_EXP
 %right SEMI_COLON
 
@@ -119,6 +118,8 @@ open AST
 
 %left COLON
 %right DASH_ARROW
+%nonassoc IF_EXP
+
 %right L_OR // TODO Check with Milan. I moved this to make tests pass.
 %right L_AND
 %right L_NOT
