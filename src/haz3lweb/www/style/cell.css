@@ -235,6 +235,29 @@
   font-size: 1rem;
 }
 
+.syntax-tests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.syntax-test-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.test-checkbox {
+  display: flex;
+  align-items: center;
+}
+
+.test-checkbox input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+}
+
 .edit-icon,
 .edit-pencil {
   margin-left: 0.5em;

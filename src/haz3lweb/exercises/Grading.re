@@ -162,6 +162,7 @@ module TestValidationReport = {
                               Attr.type_("number"),
                               Attr.class_("point-num-input"),
                               Attr.id("test-required-input"),
+                              Attr.create("min", "0"),
                               Attr.value(string_of_int(max_tests)),
                               Attr.on_focus(_ => signal_textbox_active),
                             ],
@@ -371,6 +372,7 @@ module MutationTestingReport = {
                       Attr.class_("point-num-input"),
                       Attr.id("point-max-input"),
                       Attr.value(string_of_int(max_points)),
+                      Attr.create("min", "0"),
                       Attr.on_focus(_ => select_textbox),
                     ],
                     (),
@@ -531,6 +533,7 @@ module MutationTestingReport = {
               Attr.classes(["test-hint", "test-instance"]),
               Attr.id("hint-input-" ++ string_of_int(i)),
               Attr.value(hint),
+              Attr.create("min", "0"),
               Attr.on_focus(_ => select_textbox),
             ],
             (),
@@ -713,38 +716,91 @@ module SyntaxReport = {
     };
   };
 
-  let individual_report = (i: int, hint: string, status: bool) => {
+  let individual_report =
+      (
+        i: int,
+        hint: string,
+        status: bool,
+        ~editing_syntax_rep,
+        ~globals: Globals.t,
+        ~select_textbox,
+      ) => {
     let result_string = status ? "Pass" : "Indet";
 
-    div(
-      ~attrs=[Attr.classes(["test-report"])],
-      [
-        div(
-          ~attrs=[Attr.classes(["test-id", "Test" ++ result_string])],
-          [text(string_of_int(i + 1))],
-        ),
-      ]
-      @ [
-        div(
-          ~attrs=[
-            Attr.classes(["test-hint", "test-instance", result_string]),
-          ],
-          [text(hint)],
-        ),
-      ],
-    );
+    if (globals.settings.instructor_mode && editing_syntax_rep) {
+      div(
+        ~attrs=[Attr.classes(["test-report"])],
+        [
+          div(
+            ~attrs=[Attr.classes(["test-id", "Test" ++ result_string])],
+            [text(string_of_int(i + 1))],
+          ),
+        ]
+        @ [
+          input(
+            ~attrs=[
+              Attr.classes(["test-hint", "test-instance"]),
+              Attr.id("syntax-hint-input-" ++ string_of_int(i)),
+              Attr.value(hint),
+              Attr.create("min", "0"),
+              Attr.on_focus(_ => select_textbox),
+            ],
+            (),
+          ),
+        ],
+      );
+    } else {
+      div(
+        ~attrs=[Attr.classes(["test-report"])],
+        [
+          div(
+            ~attrs=[Attr.classes(["test-id", "Test" ++ result_string])],
+            [text(string_of_int(i + 1))],
+          ),
+        ]
+        @ [
+          div(
+            ~attrs=[
+              Attr.classes(["test-hint", "test-instance", result_string]),
+            ],
+            [text(hint)],
+          ),
+        ],
+      );
+    };
   };
 
-  let individual_reports = (hinted_results: list((bool, string))) => {
+  let individual_reports =
+      (
+        hinted_results: list((bool, string)),
+        ~editing_syntax_rep,
+        ~globals,
+        ~select_textbox,
+      ) => {
     div(
       hinted_results
       |> List.mapi((i, (status, hint)) =>
-           individual_report(i, hint, status)
+           individual_report(
+             i,
+             hint,
+             status,
+             ~editing_syntax_rep,
+             ~globals,
+             ~select_textbox,
+           )
          ),
     );
   };
 
-  let view = (syntax_report: t) => {
+  let view =
+      (
+        ~globals: Globals.t,
+        ~editing_syntax_rep,
+        ~inject_set_editing_syntax_rep,
+        ~inject_update_syntax_rep,
+        ~select_textbox,
+        syntax_report: t,
+      ) => {
     CellCommon.panel(
       ~classes=["test-panel"],
       [
@@ -753,7 +809,12 @@ module SyntaxReport = {
           ~rest=
             ": Does your implementation satisfy the syntactic requirements?",
         ),
-        individual_reports(syntax_report.hinted_results),
+        individual_reports(
+          syntax_report.hinted_results,
+          ~editing_syntax_rep,
+          ~globals,
+          ~select_textbox,
+        ),
       ],
       ~footer=
         Some(
@@ -763,12 +824,69 @@ module SyntaxReport = {
               [
                 div(
                   ~attrs=[Attr.class_("test-text")],
-                  [
-                    percentage_view(syntax_report.percentage),
-                    text(
-                      " of the Implementation Validation points will be earned",
-                    ),
-                  ],
+                  globals.settings.instructor_mode
+                    ? editing_syntax_rep
+                        ? [
+                          div(
+                            ~attrs=[Attr.class_("edit-icon")],
+                            [
+                              Widgets.button(
+                                Icons.confirm,
+                                _ => {
+                                  let new_hints =
+                                    List.init(
+                                      List.length(
+                                        syntax_report.hinted_results,
+                                      ),
+                                      i =>
+                                      Obj.magic(
+                                        Js_of_ocaml.Js.some(
+                                          JsUtil.get_elem_by_id(
+                                            "syntax-hint-input-"
+                                            ++ string_of_int(i),
+                                          ),
+                                        ),
+                                      )##.value
+                                    );
+
+                                  let update_events = [
+                                    inject_set_editing_syntax_rep,
+                                    inject_update_syntax_rep(new_hints),
+                                  ];
+                                  Virtual_dom.Vdom.Effect.Many(update_events);
+                                },
+                              ),
+                            ],
+                          ),
+                          div(
+                            ~attrs=[Attr.class_("edit-icon")],
+                            [
+                              Widgets.button(Icons.cancel, _ =>
+                                inject_set_editing_syntax_rep
+                              ),
+                            ],
+                          ),
+                        ]
+                        : [
+                          percentage_view(syntax_report.percentage),
+                          text(
+                            " of the Implementation Validation points will be earned",
+                          ),
+                          div(
+                            ~attrs=[Attr.class_("edit-icon")],
+                            [
+                              Widgets.button(Icons.pencil, _ =>
+                                inject_set_editing_syntax_rep
+                              ),
+                            ],
+                          ),
+                        ]
+                    : [
+                      percentage_view(syntax_report.percentage),
+                      text(
+                        " of the Implementation Validation points will be earned",
+                      ),
+                    ],
                 ),
               ],
             ),
@@ -908,6 +1026,7 @@ module ImplGradingReport = {
               Attr.classes(["test-hint", "test-instance"]),
               Attr.id("impl-hint-input-" ++ string_of_int(i)),
               Attr.value(hint),
+              Attr.create("min", "0"),
               Attr.on_focus(_ => select_textbox),
             ],
             (),
@@ -1031,6 +1150,7 @@ module ImplGradingReport = {
                                   Attr.class_("point-num-input"),
                                   Attr.id("point-max-input"),
                                   Attr.value(string_of_int(max_points)),
+                                  Attr.create("min", "0"),
                                   Attr.on_focus(_ => select_textbox),
                                 ],
                                 (),

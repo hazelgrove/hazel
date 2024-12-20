@@ -429,13 +429,15 @@ let update_test_val_rep = ({eds}: state, new_test_num: int, new_dist: int) => {
     },
     point_distribution: {
       ...eds.point_distribution,
-      test_validation: new_dist,
+      test_validation: new_dist < 0 ? 0 : new_dist,
     },
   },
 };
 
 let update_mut_test_rep =
     ({eds}: state, new_dist: int, new_hints: list(string)) => {
+  print_endline("New Point Dist for Mut Grading is: ");
+  print_endline(string_of_int(new_dist));
   let updated_bugs =
     List.mapi(
       (i, bug) => {
@@ -447,14 +449,15 @@ let update_mut_test_rep =
       },
       eds.hidden_bugs,
     );
-
+  print_endline("New Point Dist for Mut Grading is: ");
+  print_endline(string_of_int(new_dist));
   {
     eds: {
       ...eds,
       hidden_bugs: updated_bugs,
       point_distribution: {
         ...eds.point_distribution,
-        mutation_testing: new_dist,
+        mutation_testing: new_dist < 0 ? 0 : new_dist,
       },
     },
   };
@@ -471,10 +474,27 @@ let update_impl_grd_rep =
       },
       point_distribution: {
         ...eds.point_distribution,
-        impl_grading: new_dist,
+        impl_grading: new_dist < 0 ? 0 : new_dist,
       },
     },
   };
+};
+
+let update_syntax_rep = ({eds}: state, new_hints: list(string)) => {
+  eds: {
+    ...eds,
+    syntax_tests:
+      List.mapi(
+        (i, (_, predicate)) => {
+          let new_hint = List.nth_opt(new_hints, i);
+          switch (new_hint) {
+          | Some(hint) => (hint, predicate)
+          | None => ("No hint provided", predicate)
+          };
+        },
+        eds.syntax_tests,
+      ),
+  },
 };
 
 let update_module_name = ({eds}: state, new_module_name: string) => {

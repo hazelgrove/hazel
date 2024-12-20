@@ -16,6 +16,7 @@ module Model = {
     editing_mut_test_rep: bool,
     editing_impl_grd_rep: bool,
     editing_module_name: bool,
+    editing_syntax_rep: bool,
   };
 
   let editing_flags_false = {
@@ -25,6 +26,7 @@ module Model = {
     editing_mut_test_rep: false,
     editing_impl_grd_rep: false,
     editing_module_name: false,
+    editing_syntax_rep: false,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -79,6 +81,7 @@ module Update = {
     | EditingMutTestRep
     | EditingImplGrdRep
     | EditingModuleName
+    | EditingSyntaxRep
     | UpdateTitle(string)
     | AddBuggyImplementation
     | DeleteBuggyImplementation(int)
@@ -86,6 +89,7 @@ module Update = {
     | UpdateTestValRep(int, int)
     | UpdateMutTestRep(int, list(string))
     | UpdateImplGrdRep(int, list(string))
+    | UpdateSyntaxRep(list(string))
     | UpdateModuleName(string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -147,6 +151,14 @@ module Update = {
           editing_module_name: !model.editing_flags.editing_module_name,
         },
       })
+    | EditingSyntaxRep =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_syntax_rep: !model.editing_flags.editing_syntax_rep,
+        },
+      })
     | UpdateTitle(title) =>
       Updated.return_quiet(
         {
@@ -200,6 +212,12 @@ module Update = {
             new_hints,
           ).
             eds,
+      })
+    | UpdateSyntaxRep(new_hints) =>
+      Updated.return({
+        ...model,
+        editors:
+          Exercise.update_syntax_rep({eds: model.editors}, new_hints).eds,
       })
     | UpdateImplGrdRep(test_num, new_hints) =>
       Updated.return({
@@ -959,7 +977,18 @@ module View = {
     };
 
     let syntax_grading_view =
-      Always(Grading.SyntaxReport.view(grading_report.syntax_report));
+      Always(
+        Grading.SyntaxReport.view(
+          ~globals,
+          ~editing_syntax_rep=editing_flags.editing_syntax_rep,
+          ~inject_set_editing_syntax_rep=
+            inject(Instructor(EditingSyntaxRep)),
+          ~inject_update_syntax_rep=
+            hints => inject(Instructor(UpdateSyntaxRep(hints))),
+          ~select_textbox=signal(MakeActive(TextBox)),
+          grading_report.syntax_report,
+        ),
+      );
 
     let impl_validation_view =
       Always(
