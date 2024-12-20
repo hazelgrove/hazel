@@ -218,7 +218,7 @@ sumTyp:
 typ:
     | c = CONSTRUCTOR_IDENT { TypVar(c) }
     | c = IDENT { TypVar(c) }
-    |  T_TYP; s = STRING { InvalidTyp(s) }
+    | T_TYP; s = STRING { InvalidTyp(s) }
     | INT_TYPE { IntType }
     | FLOAT_TYPE { FloatType }
     | BOOL_TYPE { BoolType }
