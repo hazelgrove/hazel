@@ -383,7 +383,7 @@ let update_exercise_title = ({eds, _}: state, new_title: string) => {
 let add_buggy_impl = (state: state) => {
   let new_buggy_impl = {
     impl: Editor.Model.mk(Zipper.init()),
-    hint: "no hint provided",
+    hint: "No Hint Available",
   };
   {
     eds: {
@@ -485,7 +485,7 @@ let update_syntax_rep = ({eds}: state, new_hints: list(string)) => {
           let new_hint = List.nth_opt(new_hints, i);
           switch (new_hint) {
           | Some(hint) => (hint, predicate)
-          | None => ("No hint provided", predicate)
+          | None => ("No Hint Provided", predicate)
           };
         },
         eds.syntax_tests,
