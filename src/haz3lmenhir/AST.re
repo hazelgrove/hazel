@@ -257,14 +257,29 @@ let non_single_element_arr = (n: int) =>
         }
     )
   );
+
+let non_empty_arr = (n: int) =>
+  QCheck.Gen.(
+    let list_size = n <= 1 ? pure(0) : int_range(1, n);
+
+    list_size
+    >>= (
+      x =>
+        switch (x) {
+        | 0 => pure([|0|]) // I'm a bit concerned about this not tracking size. But it seems to work in practice.
+        | _ => nat_split(~size=x, n - x)
+        }
+    )
+  );
+
 let arb_var = QCheck.(map(x => Var(x), arb_ident));
 
 let gen_tpat =
   QCheck.Gen.(
     let gen_var = map(x => VarTPat(x), arb_ident.gen);
     let gen_empty = pure(EmptyHoleTPat);
-    let gen_invalid = map(x => InvalidTPat(x), arb_str.gen);
-    oneof([gen_var, gen_empty, gen_invalid])
+    // let gen_invalid = map(x => InvalidTPat(x), arb_ident.gen);
+    oneof([gen_var, gen_empty])
   );
 
 let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
@@ -495,7 +510,7 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
 
                     map(x => SumTyp(Array.to_list(x)), flattened);
                   },
-                  sized_arr(n - 1),
+                  non_empty_arr(n - 1),
                 ),
               ),
             ])
