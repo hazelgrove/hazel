@@ -127,9 +127,11 @@ open AST
 
 %left GREATER_THAN LESS_THAN DOUBLE_EQUAL NOT_EQUAL LESS_THAN_EQUAL GREATER_THAN_EQUAL NOT_EQUAL_FLOAT LESS_THAN_FLOAT LESS_THAN_EQUAL_FLOAT GREATER_THAN_FLOAT GREATER_THAN_EQUAL_FLOAT DOUBLE_EQUAL_FLOAT STRING_EQUAL
 %right STRING_CONCAT
-%right CONS
-%left PLUS MINUS PLUS_FLOAT MINUS_FLOAT
-%left DIVIDE TIMES TIMES_FLOAT DIVIDE_FLOAT 
+%right  CONS
+
+%left AT_SYMBOL PLUS MINUS PLUS_FLOAT MINUS_FLOAT
+%left DIVIDE TIMES TIMES_FLOAT DIVIDE_FLOAT
+
 %right POWER POWER_FLOAT
 
 %left OPEN_CURLY
@@ -137,7 +139,6 @@ open AST
 %left IN
 %left DOLLAR_SIGN
 
-%left AT_SYMBOL
 %nonassoc TYP_AP_SYMBOL
 
 %left OPEN_PAREN CLOSE_PAREN
@@ -331,7 +332,7 @@ exp:
     |  E_EXP; s = STRING; { InvalidExp(s) }
     |  WILD {Deferral}
     | e = exp; TYP_AP_SYMBOL; ty = typ; GREATER_THAN; {TypAp(e, ty)}
-    | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)}
+    | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)} %prec LET_EXP
     | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = SEXP_STRING; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
     | b = BUILTIN; {BuiltinFun(b)}
     | UNDEF; {Undefined}
