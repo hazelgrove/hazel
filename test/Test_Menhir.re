@@ -60,15 +60,11 @@ let menhir_matches = (exp: Term.Exp.t, actual: string) =>
 let menhir_only_test = (name: string, exp: Term.Exp.t, actual: string) =>
   test_case(name, `Quick, () => {menhir_matches(exp, actual)});
 
-let skip_parser_test = (name: string, _exp: Term.Exp.t, _actual: string) =>
-  test_case(name, `Quick, () => {Alcotest.skip()});
-let skip_menhir_only_test = (name: string, _exp: Term.Exp.t, _actual: string) =>
-  test_case(name, `Quick, () => {Alcotest.skip()});
 let skip_menhir_maketerm_equivalent_test =
     (~speed_level=`Quick, name: string, _actual: string) =>
   test_case(name, speed_level, () => {Alcotest.skip()});
 
-let parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
+let full_parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
   test_case(
     name,
     `Quick,
@@ -94,6 +90,11 @@ let menhir_maketerm_equivalent_test =
     )
   });
 
+/**
+ * QCheck Test to check the equivalence of the Menhir and MakeTerm parsing.
+ * We generate an expression, convert it to the core representation, convert it to a segment,
+ * serialize it, parse it with MakeTerm, and parse it with Menhir.
+ */
 let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir and maketerm are equivalent",
@@ -167,8 +168,14 @@ let qcheck_menhir_maketerm_equivalent_test =
     },
   );
 
-// TODO This fails due to types not being serialized on constructors
-// We should do a pass before the equality check that removes the types on the constructors and check equality after
+/**
+ * QCheck Test to check that menhir parses out what ExpToSegment serializes.
+ * We generate an expression, convert it to the core representation, convert it to a segment,
+ * serialize it, parse it with Menhir, and compare to the original.
+ *
+ * TODO This fails due to types not being serialized on constructors
+ *  and some other ExpToSegment inconsistencies
+ */
 let qcheck_menhir_serialized_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir through ExpToSegment and back",
@@ -176,22 +183,6 @@ let qcheck_menhir_serialized_equivalent_test =
     QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(4)),
     exp => {
       let core_exp = Conversion.Exp.of_menhir_ast(exp);
-
-      // TODO Maybe only do this when necessary.
-      // TODO Check with Matthew if I'm using this correctly
-      // Add parens around tuples
-      let core_exp =
-        Exp.map_term(
-          ~f_exp=
-            (cont, e) =>
-              switch (e.term) {
-              | Tuple(es) =>
-                Parens(Tuple(es |> List.map(cont)) |> Exp.fresh)
-                |> Exp.fresh
-              | _ => cont(e)
-              },
-          core_exp,
-        );
 
       let segment =
         ExpToSegment.exp_to_segment(
@@ -212,33 +203,33 @@ let qcheck_menhir_serialized_equivalent_test =
 let tests = (
   "MenhirParser",
   [
-    parser_test("Integer Literal", Int(8) |> Exp.fresh, "8"),
-    parser_test(
+    full_parser_test("Integer Literal", Int(8) |> Exp.fresh, "8"),
+    full_parser_test(
       "Fun",
       Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None, None)
       |> Exp.fresh,
       "fun x -> x",
     ),
-    parser_test(
+    full_parser_test(
       "String Literal",
       String("Hello World") |> Exp.fresh,
       {|"Hello World"|},
     ),
-    parser_test("Bool Literal", Bool(true) |> Exp.fresh, "true"),
-    parser_test("Empty Hole", EmptyHole |> Exp.fresh, "?"),
-    parser_test("Var", Var("x") |> Exp.fresh, "x"),
-    parser_test(
+    full_parser_test("Bool Literal", Bool(true) |> Exp.fresh, "true"),
+    full_parser_test("Empty Hole", EmptyHole |> Exp.fresh, "?"),
+    full_parser_test("Var", Var("x") |> Exp.fresh, "x"),
+    full_parser_test(
       "Parens",
       Parens(Var("y") |> Exp.fresh) |> Exp.fresh,
       "(y)",
     ),
-    parser_test(
+    full_parser_test(
       "BinOp",
       BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
       |> Exp.fresh,
       "4 + 5",
     ),
-    parser_test(
+    full_parser_test(
       "Let",
       Let(
         Var("x") |> Pat.fresh,
@@ -248,12 +239,12 @@ let tests = (
       |> Exp.fresh,
       "let x = 5 in x",
     ),
-    parser_test(
+    full_parser_test(
       "Tuple",
       Tuple([Int(4) |> Exp.fresh, Int(5) |> Exp.fresh]) |> Exp.fresh,
       "(4, 5)",
     ),
-    parser_test(
+    full_parser_test(
       "Match",
       Match(
         Int(4) |> Exp.fresh,
@@ -268,24 +259,24 @@ let tests = (
          | _ => "world"
         end|},
     ),
-    parser_test(
+    full_parser_test(
       "If",
       If(Bool(true) |> Exp.fresh, Int(8) |> Exp.fresh, Int(6) |> Exp.fresh)
       |> Exp.fresh,
       "if true then 8 else 6",
     ),
-    parser_test(
+    full_parser_test(
       "Deferred Ap",
       DeferredAp(Var("x") |> Exp.fresh, [Deferral(InAp) |> Exp.fresh])
       |> Exp.fresh,
       "x(_)",
     ),
-    parser_test(
+    full_parser_test(
       "Cons",
       Cons(Int(1) |> Exp.fresh, ListLit([]) |> Exp.fresh) |> Exp.fresh,
       "1 :: []",
     ),
-    parser_test(
+    full_parser_test(
       "ListLit",
       ListLit([
         Int(1) |> Exp.fresh,
@@ -322,7 +313,7 @@ let tests = (
       Constructor("A", Var("T") |> Typ.fresh) |> Exp.fresh,
       "A ~ T",
     ),
-    parser_test(
+    full_parser_test(
       "Type Variable",
       Let(
         Cast(
@@ -337,13 +328,13 @@ let tests = (
       |> Exp.fresh,
       "let x : T = ? in x",
     ),
-    parser_test(
+    full_parser_test(
       "Type Alias",
       TyAlias(Var("x") |> TPat.fresh, Int |> Typ.fresh, Int(1) |> Exp.fresh)
       |> Exp.fresh,
       "type x = Int in 1",
     ),
-    parser_test(
+    full_parser_test(
       "Test",
       Test(
         BinOp(Int(Equals), Int(3) |> Exp.fresh, Int(3) |> Exp.fresh)
@@ -352,7 +343,7 @@ let tests = (
       |> Exp.fresh,
       "test 3 == 3 end",
     ),
-    parser_test(
+    full_parser_test(
       "Filter",
       Filter(
         Filter({act: (Eval, All), pat: Int(3) |> Exp.fresh}),
@@ -361,7 +352,7 @@ let tests = (
       |> Exp.fresh,
       "eval 3 in 3" // TODO Use other filter commands
     ),
-    parser_test(
+    full_parser_test(
       "List Concat",
       ListConcat(
         ListLit([Int(1) |> Exp.fresh, Int(2) |> Exp.fresh]) |> Exp.fresh,
@@ -370,7 +361,7 @@ let tests = (
       |> Exp.fresh,
       "[1, 2] @ [3, 4]",
     ),
-    parser_test(
+    full_parser_test(
       "times and divide precendence",
       BinOp(
         Int(Divide),
@@ -381,7 +372,7 @@ let tests = (
       |> Exp.fresh,
       "1 * 2 / 3",
     ),
-    parser_test(
+    full_parser_test(
       "plus and minus precendence",
       BinOp(
         Int(Plus),
@@ -392,7 +383,7 @@ let tests = (
       |> Exp.fresh,
       "1 - 2 + 3",
     ),
-    parser_test(
+    full_parser_test(
       "Integer Ops",
       BinOp(
         Int(GreaterThanOrEqual),
@@ -419,8 +410,8 @@ let tests = (
       |> Exp.fresh,
       "-1 + 2 - 3 / 4 * 5 ** 6 >= 8",
     ),
-    parser_test("Float", Float(1.) |> Exp.fresh, "1."),
-    parser_test(
+    full_parser_test("Float", Float(1.) |> Exp.fresh, "1."),
+    full_parser_test(
       "Float Ops",
       BinOp(
         Float(LessThan),
@@ -450,7 +441,7 @@ let tests = (
       |> Exp.fresh,
       "2. -. 3. /. 4. *. 5. **. 6. <. 8.",
     ),
-    parser_test(
+    full_parser_test(
       "Let binding with type ascription",
       Let(
         Cast(
@@ -477,7 +468,7 @@ let tests = (
       |> Exp.fresh,
       "named_fun f x -> x + 5",
     ),
-    parser_test(
+    full_parser_test(
       "basic sum type",
       Let(
         Cast(
@@ -507,7 +498,7 @@ let tests = (
       "Pattern with type ascription",
       "fun (b : Bool) -> b",
     ),
-    parser_test(
+    full_parser_test(
       "Type Hole in arrow cast",
       Fun(
         Cast(
@@ -530,7 +521,7 @@ let tests = (
       |> Exp.fresh,
       "fun (b : ? -> ?) -> ?",
     ),
-    parser_test(
+    full_parser_test(
       "multiargument function",
       Ap(
         Forward,
@@ -669,8 +660,6 @@ test 2 + 2 == 5 end;
 2 + 2
     |},
     ),
-    // TODO This is an issue with `int_of_float` being parsed
-    // as a builtin function in menhir and a Var in MakeTerm
     menhir_maketerm_equivalent_test(
       ~speed_level=`Slow,
       "Altered Documentation Buffer: Projectors",
