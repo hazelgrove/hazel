@@ -335,6 +335,61 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                 gen_pat_sized((n - 1) / 2),
                 self((n - 1) / 2),
               ),
+              Gen.(
+                let e = self(n - 1 / 2);
+                let case = n => {
+                  print_endline("Case size" ++ string_of_int(n));
+                  let p = gen_pat_sized(n / 2);
+                  let e = self(n / 2);
+                  tup2(p, e);
+                };
+
+                let cases =
+                  sized_arr(n - 1 / 2)
+                  >>= (
+                    sizes => {
+                      print_endline(
+                        "Case sizes" ++ [%derive.show: array(int)](sizes),
+                      );
+                      let cases: QCheck.Gen.t(array((pat, exp))) =
+                        flatten_a(Array.map(case, sizes));
+                      cases;
+                    }
+                  );
+                tup2(e, cases)
+                >|= (
+                  ((e, cases)) => {
+                    print_endline(
+                      "Cases: " ++ [%derive.show: array((pat, exp))](cases),
+                    );
+                    CaseExp(e, Array.to_list(cases));
+                  }
+                )
+              ),
+              /*
+                             | CaseExp(exp, list((pat, exp)))
+               | ApExp(exp, exp)
+               | FixF(pat, exp)
+               | Bool(bool)
+               | Cast(exp, typ, typ)
+               | FailedCast(exp, typ, typ)
+               | EmptyHole
+               | Filter(filter_action, exp, exp)
+               | BuiltinFun(string)
+               | Undefined
+               | Seq(exp, exp)
+               | Test(exp)
+               | Deferral
+               | TypFun(tpat, exp)
+               | Cons(exp, exp)
+               | ListConcat(exp, exp)
+               | If(exp, exp, exp)
+               | InvalidExp(string)
+               | TypAp(exp, typ)
+               | DynamicErrorHole(exp, string)
+               | TyAlias(tpat, typ, exp);
+
+                           */
             ])
           }
         },
