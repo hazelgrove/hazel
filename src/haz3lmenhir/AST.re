@@ -347,17 +347,10 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
 and gen_typ_sized: int => QCheck.Gen.t(typ) =
   n =>
     /*
-       | SumTyp(sumtype)
-       | UnknownType(typ_provenance)
-       | ArrowType(typ, typ)
-       | TypVar(string)
        | InvalidTyp(string)
-       | ForallType(tpat, typ)
-       | RecType(tpat, typ)
      and sumterm =
        | Variant(string, option(typ))
        | BadEntry(typ)
-
        */
     QCheck.Gen.(
       let leaf_nodes =
@@ -366,6 +359,8 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
           return(FloatType),
           return(BoolType),
           return(UnitType),
+          map(x => UnknownType(x), arb_typ_provenance.gen),
+          map(x => SumTyp([Variant(x, None)]), arb_constructor_ident.gen),
         ]);
       fix(
         (self, n) =>
@@ -389,6 +384,51 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
                 ),
               ),
               map(t => ArrayType(t), self(n - 1)),
+              map2(
+                (t1, t2) => ArrowType(t1, t2),
+                self((n - 1) / 2),
+                self((n - 1) / 2),
+              ),
+              map(x => TypVar(x), arb_ident.gen),
+              map2(
+                (tpat, t) => ForallType(tpat, t),
+                arb_tpat.gen,
+                self(n - 1),
+              ),
+              map2(
+                (tpat, t) => RecType(tpat, t),
+                arb_tpat.gen,
+                self(n - 1),
+              ),
+              join(
+                map(
+                  sizes => {
+                    let sumterms =
+                      Array.map(
+                        (size: int) => {
+                          let optional_typ = option(self(size));
+                          let constructor = arb_constructor_ident.gen;
+                          let variant =
+                            map2(
+                              (name, typ) => Variant(name, typ),
+                              constructor,
+                              optional_typ,
+                            );
+                          frequency([
+                            (5, variant),
+                            (1, return(BadEntry(UnknownType(EmptyHole)))),
+                          ]);
+                        },
+                        sizes,
+                      );
+
+                    let flattened: t(array(sumterm)) = flatten_a(sumterms);
+
+                    map(x => SumTyp(Array.to_list(x)), flattened);
+                  },
+                  sized_arr(n - 1),
+                ),
+              ),
             ])
           },
         n,
