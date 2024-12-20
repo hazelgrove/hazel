@@ -1,5 +1,7 @@
 open Sexplib.Std;
 
+let arb_str = QCheck.(string_small_of(Gen.char_range('a', 'z')));
+
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type filter_action =
   | Pause
@@ -78,9 +80,9 @@ type typ_provenance =
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type tpat =
-  | InvalidTPat([@arb small_printable_gen] string)
+  | InvalidTPat([@arb arb_string] string)
   | EmptyHoleTPat
-  | VarTPat(string);
+  | VarTPat([@arb arb_string] string);
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type typ =
@@ -172,7 +174,6 @@ type exp =
   | TyAlias(tpat, typ, exp);
 
 let arb_int = QCheck.(map(x => Int(x), small_int));
-let arb_str = QCheck.(string_small_of(Gen.char_range('a', 'z')));
 let arb_str_exp = QCheck.map(x => String(x), arb_str); // Make strings anything other than `"`"
 
 // Floats are positive because we use UnOp minus
@@ -394,13 +395,22 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                 let+ e2 = self((n - 1) / 2);
                 ListConcat(e1, e2)
               ),
-              /*
-               | TypFun(tpat, exp)
-               | TypAp(exp, typ)
-               | DynamicErrorHole(exp, string)
-               | TyAlias(tpat, typ, exp);
-
-                           */
+              Gen.(
+                let* tp = arb_tpat.gen;
+                let+ e = self(n - 1);
+                TypFun(tp, e)
+              ),
+              Gen.(
+                let* t = gen_typ_sized((n - 1) / 2);
+                let+ e = self((n - 1) / 2);
+                TypAp(e, t)
+              ),
+              Gen.(
+                let* tp = arb_tpat.gen;
+                let* t = gen_typ_sized((n - 1) / 2);
+                let+ e = self((n - 1) / 2);
+                TyAlias(tp, t, e)
+              ),
             ])
           }
         },
