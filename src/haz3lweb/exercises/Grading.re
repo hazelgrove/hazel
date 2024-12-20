@@ -1114,8 +1114,6 @@ module ImplGradingReport = {
         ~syntax_report: SyntaxReport.t,
         ~max_points: int,
       ) => {
-    print_endline("Editing?? : ");
-    print_endline(string_of_bool(editing_impl_grd_rep));
     CellCommon.panel(
       ~classes=["cell-item", "panel", "test-panel"],
       [

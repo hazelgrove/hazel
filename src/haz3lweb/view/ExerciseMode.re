@@ -760,6 +760,7 @@ module View = {
                         ~attrs=[
                           Attr.class_("prompt-text"),
                           Attr.id("prompt-input-box"),
+                          Attr.on_focus(_ => signal(MakeActive(TextBox))),
                         ],
                         [text(eds.prompt)],
                       ),

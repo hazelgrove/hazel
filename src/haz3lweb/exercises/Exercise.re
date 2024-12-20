@@ -436,8 +436,6 @@ let update_test_val_rep = ({eds}: state, new_test_num: int, new_dist: int) => {
 
 let update_mut_test_rep =
     ({eds}: state, new_dist: int, new_hints: list(string)) => {
-  print_endline("New Point Dist for Mut Grading is: ");
-  print_endline(string_of_int(new_dist));
   let updated_bugs =
     List.mapi(
       (i, bug) => {
@@ -449,8 +447,6 @@ let update_mut_test_rep =
       },
       eds.hidden_bugs,
     );
-  print_endline("New Point Dist for Mut Grading is: ");
-  print_endline(string_of_int(new_dist));
   {
     eds: {
       ...eds,
