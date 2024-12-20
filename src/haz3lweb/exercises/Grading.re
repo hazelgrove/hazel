@@ -906,6 +906,7 @@ module ImplGradingReport = {
             ~attrs=[
               //Attr.type_("string"),
               Attr.classes(["test-hint", "test-instance"]),
+              Attr.id("impl-hint-input-" ++ string_of_int(i)),
               Attr.value(hint),
               Attr.on_focus(_ => select_textbox),
             ],
@@ -1051,12 +1052,27 @@ module ImplGradingReport = {
                                       ),
                                     )##.value;
 
+                                  let new_hints =
+                                    List.init(
+                                      List.length(report.hinted_results), i =>
+                                      Obj.magic(
+                                        Js_of_ocaml.Js.some(
+                                          JsUtil.get_elem_by_id(
+                                            "impl-hint-input-"
+                                            ++ string_of_int(i),
+                                          ),
+                                        ),
+                                      )##.value
+                                    );
+
                                   let update_events = [
                                     inject_set_editing_impl_grd_rep,
                                     inject_update_impl_grd_rep(
                                       int_of_string(new_dist),
+                                      new_hints,
                                     ),
                                   ];
+
                                   Virtual_dom.Vdom.Effect.Many(update_events);
                                 },
                               ),

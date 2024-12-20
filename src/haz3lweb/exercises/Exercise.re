@@ -460,14 +460,21 @@ let update_mut_test_rep =
   };
 };
 
-let update_impl_grd_rep = ({eds}: state, new_dist: int) => {
-  eds: {
-    ...eds,
-    point_distribution: {
-      ...eds.point_distribution,
-      impl_grading: new_dist,
+let update_impl_grd_rep =
+    ({eds}: state, new_dist: int, new_hints: list(string)) => {
+  {
+    eds: {
+      ...eds,
+      hidden_tests: {
+        ...eds.hidden_tests,
+        hints: new_hints,
+      },
+      point_distribution: {
+        ...eds.point_distribution,
+        impl_grading: new_dist,
+      },
     },
-  },
+  };
 };
 
 let update_module_name = ({eds}: state, new_module_name: string) => {
