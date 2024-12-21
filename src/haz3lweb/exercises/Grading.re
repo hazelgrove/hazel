@@ -655,24 +655,25 @@ module MutationTestingReport = {
 
   let view =
       (
-        ~globals,
+        ~globals: Globals.t,
         ~editing_mut_test_rep,
         ~inject_editing_mut_test_rep,
         ~inject_update_mut_test_rep,
         ~select_textbox,
         report: t,
         max_points: int,
-      ) =>
+      ) => {
+    let subcaption =
+      globals.settings.instructor_mode
+        ? ": Student Tests vs. Mutant Implementations"
+        : ": Your Tests vs. Mutant Implementations (hidden)";
     if (max_points < 0) {
       Node.div([]);
     } else {
       CellCommon.panel(
         ~classes=["test-panel"],
         [
-          CellCommon.caption(
-            "Mutation Testing",
-            ~rest=": Your Tests vs. Buggy Implementations (hidden)",
-          ),
+          CellCommon.caption("Mutation Testing", ~rest=subcaption),
           individual_reports(
             report.results,
             ~editing_mut_test_rep,
@@ -694,6 +695,7 @@ module MutationTestingReport = {
           ),
       );
     };
+  };
 };
 
 module SyntaxReport = {
@@ -802,14 +804,14 @@ module SyntaxReport = {
         ~select_textbox,
         syntax_report: t,
       ) => {
+    let subcaption =
+      globals.settings.instructor_mode
+        ? ": Does student's implementation satisfy the syntactic requirements?"
+        : ": Does your implementation satisfy the syntactic requirements?";
     CellCommon.panel(
       ~classes=["test-panel"],
       [
-        CellCommon.caption(
-          "Syntax Validation",
-          ~rest=
-            ": Does your implementation satisfy the syntactic requirements?",
-        ),
+        CellCommon.caption("Syntax Validation", ~rest=subcaption),
         individual_reports(
           syntax_report.hinted_results,
           ~editing_syntax_rep,
@@ -1115,13 +1117,14 @@ module ImplGradingReport = {
         ~syntax_report: SyntaxReport.t,
         ~max_points: int,
       ) => {
+    let subcaption =
+      globals.settings.instructor_mode
+        ? ": Hidden Tests vs. Student's Implementation"
+        : ": Hidden Tests vs. Your Implementation";
     CellCommon.panel(
       ~classes=["test-panel"],
       [
-        CellCommon.caption(
-          "Implementation Grading",
-          ~rest=": Hidden Tests vs. Your Implementation",
-        ),
+        CellCommon.caption("Implementation Grading", ~rest=subcaption),
         individual_reports(
           ~signal_jump,
           ~report,

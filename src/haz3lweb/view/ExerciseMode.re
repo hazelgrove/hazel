@@ -872,13 +872,17 @@ module View = {
         },
       );
 
-    let your_tests_view =
+    let your_tests_view = {
+      let subcaption =
+        globals.settings.instructor_mode
+          ? ": Student Tests vs. Correct Implementation"
+          : ": Your Tests vs. Correct Implementation";
       Always(
         editor_view(
           YourTestsValidation,
           test_validation,
           ~caption="Test Validation",
-          ~subcaption=": Your Tests vs. Correct Implementation",
+          ~subcaption,
           ~result_kind=
             Custom(
               Grading.TestValidationReport.view(
@@ -904,6 +908,7 @@ module View = {
             ),
         ),
       );
+    };
 
     let wrong_impl_views =
       List.mapi(
@@ -967,13 +972,11 @@ module View = {
       );
 
     let your_impl_view = {
+      let caption =
+        globals.settings.instructor_mode
+          ? "Student's Implementation" : "Your Implementation";
       Always(
-        editor_view(
-          YourImpl,
-          user_impl,
-          ~caption="Your Implementation",
-          ~result_kind=EvalResults,
-        ),
+        editor_view(YourImpl, user_impl, ~caption, ~result_kind=EvalResults),
       );
     };
 
@@ -991,17 +994,21 @@ module View = {
         ),
       );
 
-    let impl_validation_view =
+    let impl_validation_view = {
+      let subcaption =
+        globals.settings.instructor_mode
+          ? ": Student's Tests vs. Student's Implementation"
+          : ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation";
       Always(
         editor_view(
           YourTestsTesting,
           user_tests,
           ~caption="Implementation Validation",
-          ~subcaption=
-            ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
+          ~subcaption,
           ~result_kind=TestResults,
         ),
       );
+    };
 
     let hidden_tests_view =
       InstructorOnly(
