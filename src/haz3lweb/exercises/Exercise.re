@@ -686,11 +686,7 @@ let editor_pp = (fmt, editor: Editor.t) => {
 };
 
 let export_module = (module_name, {eds, _}: state) => {
-  let prefix =
-    "let prompt = "
-    ++ module_name
-    ++ "_prompt.prompt\n"
-    ++ "let exercise: Exercise.spec = ";
+  let prefix = "open Haz3lcore\n\n" ++ "let exercise: Exercise.spec = \n";
   let record = show_p(editor_pp, eds);
   let data = prefix ++ record ++ "\n";
   data;
