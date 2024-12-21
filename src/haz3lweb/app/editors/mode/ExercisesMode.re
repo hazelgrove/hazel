@@ -19,16 +19,18 @@ module Model = {
   };
 
   let persist = (~instructor_mode, model): persistent => {
-    cur_exercise: List.nth(model.exercises, model.current).editors.id,
-    exercise_data:
-      List.map(
-        (exercise: ExerciseMode.Model.t) =>
-          (
-            exercise.editors.id,
-            ExerciseMode.Model.persist(~instructor_mode, exercise),
-          ),
-        model.exercises,
-      ),
+    {
+      cur_exercise: List.nth(model.exercises, model.current).editors.id,
+      exercise_data:
+        List.map(
+          (exercise: ExerciseMode.Model.t) =>
+            (
+              exercise.editors.id,
+              ExerciseMode.Model.persist(~instructor_mode, exercise),
+            ),
+          model.exercises,
+        ),
+    };
   };
 
   let unpersist = (~instructor_mode, persistent: persistent) => {
@@ -464,18 +466,25 @@ module View = {
     @ EditorModeView.view(
         ~signal=
           fun
-          | Previous =>
-            inject(
-              Update.SwitchExercise(
-                abs((model.current - 1) mod List.length(model.exercises)),
-              ),
-            )
-          | Next =>
-            inject(
-              Update.SwitchExercise(
-                (model.current + 1) mod List.length(model.exercises),
-              ),
-            ),
+          | Previous => {
+              let next = model.current - 1;
+              let len = List.length(model.exercises);
+              print_endline("Length is: ");
+              print_endline(string_of_int((next mod len + len) mod len));
+              inject(
+                Update.SwitchExercise(
+                  // Ensures positive index
+                  (next mod len + len) mod len,
+                ),
+              );
+            }
+          | Next => {
+              inject(
+                Update.SwitchExercise(
+                  (model.current + 1) mod List.length(model.exercises),
+                ),
+              );
+            },
         ~indicator=
           EditorModeView.indicator_n(
             model.current,

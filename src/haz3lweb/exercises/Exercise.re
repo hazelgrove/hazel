@@ -129,6 +129,8 @@ type persistent_state = {
   point_distribution,
   required: int,
   module_name: string,
+  syntax_tests: list(syntax_test),
+  hidden_test_hints: list(string),
   // NOTE: Add new fields to record here as new instructor editable features are
   //       implemented (eg. prelude: PersistentZipper.t when adding the feature
   //       to edit the prelude). After adding these field(s), we will need to
@@ -784,6 +786,8 @@ let persist = (state: state, ~instructor_mode: bool) => {
     point_distribution: state.eds.point_distribution,
     required: state.eds.your_tests.required,
     module_name: state.eds.module_name,
+    syntax_tests: state.eds.syntax_tests,
+    hidden_test_hints: state.eds.hidden_tests.hints,
   };
 };
 
@@ -797,6 +801,8 @@ let unpersist =
         point_distribution,
         required,
         module_name,
+        syntax_tests,
+        hidden_test_hints,
       }: persistent_state,
       ~spec: spec,
       ~instructor_mode: bool,
@@ -839,9 +845,9 @@ let unpersist =
       hidden_bugs,
       hidden_tests: {
         tests: hidden_tests_tests,
-        hints: spec.hidden_tests.hints,
+        hints: hidden_test_hints,
       },
-      syntax_tests: spec.syntax_tests,
+      syntax_tests,
     },
   };
 };
