@@ -20,7 +20,7 @@ let strip_parens_and_add_builtins =
             VarMap.lookup(Haz3lcore.Builtins.Pervasives.builtins, x);
           cont(
             switch (builtin) {
-            | Some(Fn(_, _, _)) => cont(BuiltinFun(x) |> Exp.fresh) // TODO Decide whether these should be builtins in the parser or vars
+            | Some(Fn(_, _, _)) => cont(BuiltinFun(x) |> Exp.fresh)
             | Some(Const(_, _))
             | None => cont(e)
             },
