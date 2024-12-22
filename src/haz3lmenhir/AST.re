@@ -294,135 +294,131 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
         pure(TupleExp([])),
         pure(ListExp([])),
       ]);
+    fix(
+      (self: int => t(exp), n) => {
+        switch (n) {
+        | 0
+        | 1 => leaf
+        | _ =>
+          oneof([
+            leaf,
+            {
+              let* sizes = sized_arr(n);
+              let+ exps =
+                flatten_a(Array.map((size: int) => self(size), sizes));
+              ListExp(Array.to_list(exps));
+            },
+            {
+              let* sizes = non_single_element_arr(n);
+              let+ exps =
+                flatten_a(Array.map((size: int) => self(size), sizes));
+              TupleExp(Array.to_list(exps));
+            },
+            {
+              let+ inner = self(n - 1);
+              Test(inner);
+            },
+            {
+              let+ name = arb_constructor_ident.gen;
+              Constructor(name, UnknownType(Internal));
+            },
+            {
+              let* op = gen_bin_op;
+              let* e1 = self((n - 1) / 2);
+              let+ e2 = self((n - 1) / 2);
+              BinExp(e1, op, e2);
+            },
+            {
+              // TODO ExpToSegment broken for UnOp
+              // {
+              //   let* op = gen_op_un;
+              //   let+ e = self((n - 1) / 2);
+              //   UnOp(op, e);
+              // },
 
-    let gen: t(exp) =
-      QCheck.Gen.fix(
-        (self: int => t(exp), n) => {
-          switch (n) {
-          | 0
-          | 1 => leaf
-          | _ =>
-            oneof([
-              leaf,
-              {
-                let* sizes = sized_arr(n);
-                let+ exps =
-                  flatten_a(Array.map((size: int) => self(size), sizes));
-                ListExp(Array.to_list(exps));
-              },
-              {
-                let* sizes = non_single_element_arr(n);
-                let+ exps =
-                  flatten_a(Array.map((size: int) => self(size), sizes));
-                TupleExp(Array.to_list(exps));
-              },
-              {
-                let+ inner = self(n - 1);
-                Test(inner);
-              },
-              {
-                let+ name = arb_constructor_ident.gen;
-                Constructor(name, UnknownType(Internal));
-              },
-              {
-                let* op = gen_bin_op;
-                let* e1 = self((n - 1) / 2);
-                let+ e2 = self((n - 1) / 2);
-                BinExp(e1, op, e2);
-              },
-              {
-                // TODO ExpToSegment broken for UnOp
-                // {
-                //   let* op = gen_op_un;
-                //   let+ e = self((n - 1) / 2);
-                //   UnOp(op, e);
-                // },
-
-                let* e1 = self((n - 1) / 3);
-                let* e2 = self((n - 1) / 3);
-                let+ e3 = self((n - 1) / 3);
-                If(e1, e2, e3);
-              },
-              {
-                let* p = gen_pat_sized((n - 1) / 3);
-                let* e1 = self((n - 1) / 3);
-                let+ e2 = self((n - 1) / 3);
-                Let(p, e1, e2);
-              },
-              {
-                let* p = gen_pat_sized((n - 1) / 2);
-                let+ e = self((n - 1) / 2);
-                Fun(p, e, None);
-              },
-              {
-                let case = n => {
-                  let p = gen_pat_sized(n / 2);
-                  let e = self(n / 2);
-                  tup2(p, e);
-                };
-                let* e = self(n - 1 / 2);
-                let* sizes = sized_arr(n - 1 / 2);
-                let+ cases = flatten_a(Array.map(case, sizes));
-                CaseExp(e, Array.to_list(cases));
-              },
-              {
-                let* e1 = self((n - 1) / 2);
-                let+ e2 =
-                  frequency([
-                    (5, self((n - 1) / 2)),
-                    (1, return(Deferral)),
-                  ]);
-                ApExp(e1, e2);
-              },
-              {
-                let* p = gen_pat_sized((n - 1) / 2);
-                let+ e = self((n - 1) / 2);
-                FixF(p, e);
-              },
-              {
-                let* fa = gen_filter_action;
-                let* e1 = self(n - 1);
-                let+ e2 = self(n - 1);
-                Filter(fa, e1, e2);
-              },
-              {
-                let* e1 = self((n - 1) / 2);
-                let+ e2 = self((n - 1) / 2);
-                Seq(e1, e2);
-              },
-              {
-                let* e1 = self((n - 1) / 2);
-                let+ e2 = self((n - 1) / 2);
-                Cons(e1, e2);
-              },
-              {
-                let* e1 = self((n - 1) / 2);
-                let+ e2 = self((n - 1) / 2);
-                ListConcat(e1, e2);
-              },
-              {
-                let* tp = gen_tpat;
-                let+ e = self(n - 1);
-                TypFun(tp, e);
-              },
-              {
-                let* t = gen_typ_sized((n - 1) / 2);
-                let+ e = self((n - 1) / 2);
-                TypAp(e, t);
-              },
-              {
-                let* tp = gen_tpat;
-                let* t = gen_typ_sized((n - 1) / 2);
-                let+ e = self((n - 1) / 2);
-                TyAlias(tp, t, e);
-              },
-            ])
-          }
-        },
-        n,
-      );
-
-    gen
+              let* e1 = self((n - 1) / 3);
+              let* e2 = self((n - 1) / 3);
+              let+ e3 = self((n - 1) / 3);
+              If(e1, e2, e3);
+            },
+            {
+              let* p = gen_pat_sized((n - 1) / 3);
+              let* e1 = self((n - 1) / 3);
+              let+ e2 = self((n - 1) / 3);
+              Let(p, e1, e2);
+            },
+            {
+              let* p = gen_pat_sized((n - 1) / 2);
+              let+ e = self((n - 1) / 2);
+              Fun(p, e, None);
+            },
+            {
+              let case = n => {
+                let p = gen_pat_sized(n / 2);
+                let e = self(n / 2);
+                tup2(p, e);
+              };
+              let* e = self(n - 1 / 2);
+              let* sizes = sized_arr(n - 1 / 2);
+              let+ cases = flatten_a(Array.map(case, sizes));
+              CaseExp(e, Array.to_list(cases));
+            },
+            {
+              let* e1 = self((n - 1) / 2);
+              let+ e2 =
+                frequency([
+                  (5, self((n - 1) / 2)),
+                  (1, return(Deferral)),
+                ]);
+              ApExp(e1, e2);
+            },
+            {
+              let* p = gen_pat_sized((n - 1) / 2);
+              let+ e = self((n - 1) / 2);
+              FixF(p, e);
+            },
+            {
+              let* fa = gen_filter_action;
+              let* e1 = self(n - 1);
+              let+ e2 = self(n - 1);
+              Filter(fa, e1, e2);
+            },
+            {
+              let* e1 = self((n - 1) / 2);
+              let+ e2 = self((n - 1) / 2);
+              Seq(e1, e2);
+            },
+            {
+              let* e1 = self((n - 1) / 2);
+              let+ e2 = self((n - 1) / 2);
+              Cons(e1, e2);
+            },
+            {
+              let* e1 = self((n - 1) / 2);
+              let+ e2 = self((n - 1) / 2);
+              ListConcat(e1, e2);
+            },
+            {
+              let* tp = gen_tpat;
+              let+ e = self(n - 1);
+              TypFun(tp, e);
+            },
+            {
+              let* t = gen_typ_sized((n - 1) / 2);
+              let+ e = self((n - 1) / 2);
+              TypAp(e, t);
+            },
+            {
+              let* tp = gen_tpat;
+              let* t = gen_typ_sized((n - 1) / 2);
+              let+ e = self((n - 1) / 2);
+              TyAlias(tp, t, e);
+            },
+          ])
+        }
+      },
+      n,
+    )
   )
 and gen_typ_sized: int => QCheck.Gen.t(typ) =
   n =>
