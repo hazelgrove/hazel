@@ -439,33 +439,35 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
           | _ =>
             oneof([
               leaf_nodes,
-              join(
-                map(
-                  (sizes: array(int)) => {
-                    let typs = Array.map((size: int) => self(size), sizes);
-
-                    let flattened = flatten_a(typs);
-                    map(
-                      (typs: array(typ)) => TupleType(Array.to_list(typs)),
-                      flattened,
-                    );
-                  },
-                  non_single_element_arr(n),
-                ),
-              ),
-              map(t => ArrayType(t), self(n - 1)),
-              map2(
-                (t1, t2) => ArrowType(t1, t2),
-                self((n - 1) / 2),
-                self((n - 1) / 2),
-              ),
-              map(x => TypVar(x), arb_ident.gen),
-              map2(
-                (tpat, t) => ForallType(tpat, t),
-                gen_tpat,
-                self(n - 1),
-              ),
-              map2((tpat, t) => RecType(tpat, t), gen_tpat, self(n - 1)),
+              {
+                let* sizes = non_single_element_arr(n);
+                let+ typs =
+                  flatten_a(Array.map((size: int) => self(size), sizes));
+                TupleType(Array.to_list(typs));
+              },
+              {
+                let+ t = self(n - 1);
+                ArrayType(t);
+              },
+              {
+                let* t1 = self((n - 1) / 2);
+                let+ t2 = self((n - 1) / 2);
+                ArrowType(t1, t2);
+              },
+              {
+                let+ ident = arb_ident.gen;
+                TypVar(ident);
+              },
+              {
+                let* gen_tpat = gen_tpat;
+                let+ t = self(n - 1);
+                ForallType(gen_tpat, t);
+              },
+              {
+                let* gen_tpat = gen_tpat;
+                let+ t = self(n - 1);
+                RecType(gen_tpat, t);
+              },
               join(
                 map(
                   sizes => {
