@@ -468,35 +468,30 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
                 let+ t = self(n - 1);
                 RecType(gen_tpat, t);
               },
-              join(
-                map(
-                  sizes => {
-                    let sumterms =
-                      Array.map(
-                        (size: int) => {
-                          let optional_typ = option(self(size));
-                          let constructor = arb_constructor_ident.gen;
-                          let variant =
-                            map2(
-                              (name, typ) => Variant(name, typ),
-                              constructor,
-                              optional_typ,
-                            );
-                          frequency([
-                            (5, variant),
-                            (1, return(BadEntry(UnknownType(EmptyHole)))),
-                          ]);
-                        },
-                        sizes,
-                      );
+              {
+                let* sizes = non_empty_arr(n - 1);
+                let+ sumterms =
+                  flatten_a(
+                    Array.map(
+                      (size: int) => {
+                        frequency([
+                          (1, return(BadEntry(UnknownType(EmptyHole)))),
+                          (
+                            5,
+                            {
+                              let* optional_typ = option(self(size));
+                              let+ constructor = arb_constructor_ident.gen;
+                              Variant(constructor, optional_typ);
+                            },
+                          ),
+                        ])
+                      },
+                      sizes,
+                    ),
+                  );
 
-                    let flattened: t(array(sumterm)) = flatten_a(sumterms);
-
-                    map(x => SumTyp(Array.to_list(x)), flattened);
-                  },
-                  non_empty_arr(n - 1),
-                ),
-              ),
+                SumTyp(Array.to_list(sumterms));
+              },
             ])
           },
         n,
