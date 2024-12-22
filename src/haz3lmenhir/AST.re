@@ -524,47 +524,37 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
           | _ =>
             oneof([
               leaf_nodes,
-              map2(
-                (p1, p2) => ConsPat(p1, p2),
-                self((n - 1) / 2),
-                self((n - 1) / 2),
-              ),
-              join(
-                map(
-                  sizes => {
-                    let pats = Array.map((size: int) => self(size), sizes);
-
-                    let flattened = flatten_a(pats);
-
-                    map(x => TuplePat(Array.to_list(x)), flattened);
-                  },
-                  non_single_element_arr(n - 1),
-                ),
-              ),
-              join(
-                map(
-                  sizes => {
-                    let pats = Array.map((size: int) => self(size), sizes);
-
-                    let flattened = flatten_a(pats);
-
-                    map(x => ListPat(Array.to_list(x)), flattened);
-                  },
-                  sized_arr(n - 1),
-                ),
-              ),
-              map2(
-                (i, p) =>
-                  ApPat(ConstructorPat(i, UnknownType(Internal)), p), // The parser only handles ApPat with a constructor
-                arb_constructor_ident.gen,
-                self(n - 1),
-              ),
-              map3(
-                (p, t1, t2) => CastPat(p, t1, t2),
-                self((n - 1) / 3),
-                gen_typ_sized((n - 1) / 3),
-                gen_typ_sized((n - 1) / 3),
-              ),
+              {
+                let* p1 = self((n - 1) / 2);
+                let+ p2 = self((n - 1) / 2);
+                ConsPat(p1, p2);
+              },
+              {
+                let* sizes = non_single_element_arr(n - 1);
+                let+ pats =
+                  flatten_a(Array.map((size: int) => self(size), sizes));
+                TuplePat(Array.to_list(pats));
+              },
+              {
+                let* sizes = sized_arr(n - 1);
+                let+ pats =
+                  flatten_a(Array.map((size: int) => self(size), sizes));
+                ListPat(Array.to_list(pats));
+              },
+              {
+                let* constructor = arb_constructor_ident.gen;
+                let+ p = self(n - 1);
+                ApPat(
+                  ConstructorPat(constructor, UnknownType(Internal)),
+                  p,
+                );
+              }, // The parser only handles ApPat with a constructor
+              {
+                let* p = self((n - 1) / 3);
+                let* t1 = gen_typ_sized((n - 1) / 3);
+                let+ t2 = gen_typ_sized((n - 1) / 3);
+                CastPat(p, t1, t2);
+              },
             ])
           };
         },
