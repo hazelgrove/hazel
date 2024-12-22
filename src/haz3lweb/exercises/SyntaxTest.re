@@ -30,7 +30,7 @@ let rec find_var_upat = (name: string, upat: Pat.t): bool => {
   | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l)
-  | Parens(up) => find_var_upat(name, up)
+  | Parens(up, _) => find_var_upat(name, up)
   | Ap(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
   | Cast(up, _, _) => find_var_upat(name, up)
   };
@@ -47,8 +47,8 @@ let rec find_in_let =
         (name: string, upat: UPat.t, def: UExp.t, l: list(UExp.t))
         : list(UExp.t) => {
   switch (upat.term, def.term) {
-  | (Parens(up), Parens(ue, _)) => find_in_let(name, up, ue, l)
-  | (Parens(up), _) => find_in_let(name, up, def, l)
+  | (Parens(up, _), Parens(ue, _)) => find_in_let(name, up, ue, l)
+  | (Parens(up, _), _) => find_in_let(name, up, def, l)
   | (_, Parens(ue, _)) => find_in_let(name, upat, ue, l)
   | (Cast(up, _, _), _) => find_in_let(name, up, def, l)
   | (Var(x), Fun(_)) => x == name ? [def, ...l] : l
@@ -157,7 +157,7 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
       false,
       l,
     )
-  | Parens(up) => var_mention_upat(name, up)
+  | Parens(up, _) => var_mention_upat(name, up)
   | Ap(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
   | Cast(up, _, _) => var_mention_upat(name, up)

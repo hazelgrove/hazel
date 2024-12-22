@@ -115,7 +115,7 @@ and pat_term =
   | Cons(pat_t, pat_t)
   | Var(Var.t)
   | Tuple(list(pat_t))
-  | Parens(pat_t)
+  | Parens(pat_t, Probe.tag)
   | Ap(pat_t, pat_t)
   | Cast(pat_t, typ_t, typ_t)
 and pat_t = IdTagged.t(pat_term)
@@ -533,7 +533,7 @@ and Pat: {
         | Ap(e1, e2) => Ap(pat_map_term(e1), pat_map_term(e2))
         | Cons(e1, e2) => Cons(pat_map_term(e1), pat_map_term(e2))
         | Tuple(xs) => Tuple(List.map(pat_map_term, xs))
-        | Parens(e) => Parens(pat_map_term(e))
+        | Parens(e, tag) => Parens(pat_map_term(e), tag)
         | Cast(e, t1, t2) =>
           Cast(pat_map_term(e), typ_map_term(t1), typ_map_term(t2))
         },
@@ -543,8 +543,12 @@ and Pat: {
 
   let rec fast_equal = (p1: t, p2: t) =>
     switch (p1 |> IdTagged.term_of, p2 |> IdTagged.term_of) {
-    | (Parens(x), _) => fast_equal(x, p2)
-    | (_, Parens(x)) => fast_equal(p1, x)
+    /* Below is kind of a hack to make EvalResult.calculate go after adding a projector.
+     * We should clarify syntactic/semantic equality here */
+    | (Parens(x1, Probe(_)), Parens(x2, Probe(_))) => fast_equal(x1, x2)
+    | (Parens(_, Probe(_)), _) => false
+    | (Parens(x, _tag), _) => fast_equal(x, p2)
+    | (_, Parens(x, _tag)) => fast_equal(p1, x)
     | (EmptyHole, EmptyHole) => true
     | (MultiHole(xs), MultiHole(ys)) =>
       List.length(xs) == List.length(ys)

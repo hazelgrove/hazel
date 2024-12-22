@@ -11,6 +11,23 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
     Matches(Environment.union(env1, env2))
   };
 
+let closure_closures:
+  ref(list(Probe.stack => (Id.t, Dynamics.Probe.Closure.t))) =
+  ref([]);
+
+let capture_closure = (pr, id: Id.t, d, inner_match: match_result): unit =>
+  switch (inner_match) {
+  | DoesNotMatch => ()
+  | IndetMatch => ()
+  | Matches(env) =>
+    print_endline("Pattern Match: capturing a closure");
+    closure_closures :=
+      List.cons(
+        stack => (id, Dynamics.Probe.Closure.mk(d, {env, stack, id}, pr)),
+        closure_closures^,
+      );
+  };
+
 let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
@@ -49,12 +66,36 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
     let* d2 = Unboxing.unbox(SumWithArg(ctr), d);
     matches(p2, d2);
   | Ap(_, _) => IndetMatch // TODO: should this fail?
-  | Var(x) => Matches(Environment.singleton((x, d)))
+  | Var(x) =>
+    print_endline(
+      "id of pat var "
+      ++ x
+      ++ " being bound to d:"
+      ++ Id.to_string(IdTagged.rep_id(dp)),
+    );
+    Matches(Environment.singleton((x, d)));
   | Tuple(ps) =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
     List.map2(matches, ps, ds)
     |> List.fold_left(combine_result, Matches(Environment.empty));
-  | Parens(p) => matches(p, d)
+  | Parens(p, Paren) => matches(p, d)
+  | Parens(p, Probe(pr)) =>
+    print_endline("Pattern Match: found pattern probe");
+    let inner_match = matches(p, d);
+    capture_closure(pr, Term.Pat.rep_id(dp), d, inner_match);
+    inner_match;
   | Cast(p, t1, t2) =>
     matches(p, Cast(d, t2, t1) |> DHExp.fresh |> Casts.transition_multiple)
   };
+
+type matches_and_closures = {
+  matches: match_result,
+  closures: list(Probe.stack => (Id.t, Dynamics.Probe.Closure.t)),
+};
+
+// wrap matches but do stateful thing (closure capture)
+let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
+  closure_closures := [];
+  let res = matches(dp, d);
+  {matches: res, closures: closure_closures^};
+};

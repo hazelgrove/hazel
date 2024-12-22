@@ -160,11 +160,15 @@ let rec elaborate_pattern =
               )
            |> Option.value(~default=Typ.temp(Unknown(Internal))),
          )
-    // Type annotations should already appear
-    | Parens(p)
+    // Type annotations should already appeard
+    | Parens(p, Paren)
     | Cast(p, _, _) =>
       let (p', ty) = elaborate_pattern(m, p);
       p' |> cast_from(ty |> Typ.normalize(ctx) |> Typ.all_ids_temp);
+    | Parens(p, probe) =>
+      let (e', ty) = elaborate_pattern(m, p);
+      let probe = Dynamics.Probe.instrument_pat(m, Pat.rep_id(upat), probe);
+      Parens(e' |> cast_from(ty), probe) |> rewrap;
     | Constructor(c, _) =>
       let mode =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {

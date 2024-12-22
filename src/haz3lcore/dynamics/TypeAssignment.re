@@ -64,7 +64,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Wild
     | Invalid(_)
     | MultiHole(_) => Some([])
-    | Parens(dhp) => dhpat_var_entry(dhp, ty)
+    | Parens(dhp, _) => dhpat_var_entry(dhp, ty)
     | Int(_) => Typ.eq(ty, Int |> Typ.temp) ? Some([]) : None
     | Float(_) => Typ.eq(ty, Float |> Typ.temp) ? Some([]) : None
     | Bool(_) => Typ.eq(ty, Bool |> Typ.temp) ? Some([]) : None
@@ -98,7 +98,7 @@ let rec dhpat_synthesize = (dhpat: DHPat.t, ctx: Ctx.t): option(Typ.t) => {
   | Wild => Some(Unknown(Internal) |> Typ.temp)
   | Invalid(_)
   | MultiHole(_) => Some(Unknown(Internal) |> Typ.temp)
-  | Parens(dhp) => dhpat_synthesize(dhp, ctx)
+  | Parens(dhp, _) => dhpat_synthesize(dhp, ctx)
   | Int(_) => Some(Int |> Typ.temp)
   | Float(_) => Some(Float |> Typ.temp)
   | Bool(_) => Some(Bool |> Typ.temp)

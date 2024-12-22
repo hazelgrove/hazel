@@ -57,7 +57,8 @@
 }
 .projector.probe.indicated.Right .num-closures {
   background-color: var(--R1);
-  top: -0.8em;
+  right: -0.8em;
+  top: -0.5em;
 }
 
 .projector.probe .live-offside {

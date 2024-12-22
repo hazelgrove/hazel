@@ -77,7 +77,7 @@ module Pat = {
 
   let rec is_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat)
+    | Parens(pat, _)
     | Cast(pat, _, _) => is_var(pat)
     | Var(_) => true
     | Invalid(_)
@@ -98,7 +98,7 @@ module Pat = {
 
   let rec is_fun_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => is_fun_var(pat)
+    | Parens(pat, _) => is_fun_var(pat)
     | Cast(pat, typ, _) =>
       is_var(pat) && (UTyp.is_arrow(typ) || Typ.is_forall(typ))
     | Invalid(_)
@@ -122,7 +122,7 @@ module Pat = {
     is_fun_var(pat)
     || (
       switch (pat.term) {
-      | Parens(pat) => is_tuple_of_arrows(pat)
+      | Parens(pat, _) => is_tuple_of_arrows(pat)
       | Tuple(pats) => pats |> List.for_all(is_fun_var)
       | Invalid(_)
       | EmptyHole
@@ -145,7 +145,7 @@ module Pat = {
     is_var(pat)
     || (
       switch (pat.term) {
-      | Parens(pat)
+      | Parens(pat, _)
       | Cast(pat, _, _) => is_tuple_of_vars(pat)
       | Tuple(pats) => pats |> List.for_all(is_var)
       | Invalid(_)
@@ -166,7 +166,7 @@ module Pat = {
 
   let rec get_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => get_var(pat)
+    | Parens(pat, _) => get_var(pat)
     | Var(x) => Some(x)
     | Cast(x, _, _) => get_var(x)
     | Invalid(_)
@@ -187,7 +187,7 @@ module Pat = {
 
   let rec get_fun_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => get_fun_var(pat)
+    | Parens(pat, _) => get_fun_var(pat)
     | Cast(pat, t1, _) =>
       if (Typ.is_arrow(t1) || UTyp.is_forall(t1)) {
         get_var(pat) |> Option.map(var => var);
@@ -216,7 +216,7 @@ module Pat = {
     | Some(x) => Some([x])
     | None =>
       switch (pat.term) {
-      | Parens(pat)
+      | Parens(pat, _)
       | Cast(pat, _, _) => get_bindings(pat)
       | Tuple(pats) =>
         let vars = pats |> List.map(get_var);
@@ -246,7 +246,7 @@ module Pat = {
       Some(1);
     } else {
       switch (pat.term) {
-      | Parens(pat)
+      | Parens(pat, _)
       | Cast(pat, _, _) => get_num_of_vars(pat)
       | Tuple(pats) =>
         is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
@@ -272,7 +272,7 @@ module Pat = {
     | _ => None
     };
 
-  let rec bound_vars = (dp: t): list(Var.t) =>
+  let rec bindings = (dp: t): Binding.s =>
     switch (dp |> term_of) {
     | EmptyHole
     | MultiHole(_)
@@ -284,13 +284,16 @@ module Pat = {
     | String(_)
     | Constructor(_) => []
     | Cast(y, _, _)
-    | Parens(y) => bound_vars(y)
-    | Var(y) => [y]
-    | Tuple(dps) => List.flatten(List.map(bound_vars, dps))
-    | Cons(dp1, dp2) => bound_vars(dp1) @ bound_vars(dp2)
-    | ListLit(dps) => List.flatten(List.map(bound_vars, dps))
-    | Ap(_, dp1) => bound_vars(dp1)
+    | Parens(y, _) => bindings(y)
+    | Var(name) => [{name, id: rep_id(dp)}]
+    | Tuple(dps) => List.flatten(List.map(bindings, dps))
+    | Cons(dp1, dp2) => bindings(dp1) @ bindings(dp2)
+    | ListLit(dps) => List.flatten(List.map(bindings, dps))
+    | Ap(_, dp1) => bindings(dp1)
     };
+
+  let bound_vars = (dp: t): list(Var.t) =>
+    dp |> bindings |> List.map((b: Binding.t) => b.name);
 
   let bound_var_ids = (ctx, pat): list(Binding.t) =>
     bound_vars(pat)
