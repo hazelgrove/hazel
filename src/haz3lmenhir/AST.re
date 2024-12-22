@@ -562,8 +562,3 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
       )
     );
 // TODO Printers, shrinkers stuff
-
-let gen_exp = QCheck.Gen.sized(gen_exp_sized);
-let gen_typ = QCheck.Gen.sized(gen_typ_sized);
-
-let arb_exp = QCheck.make(~print=show_exp, gen_exp);
