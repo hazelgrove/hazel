@@ -366,7 +366,7 @@ module Transition = (EV: EV_MODE) => {
             );
           Step({
             expr: Closure(env'', d3) |> fresh,
-            state_update: capture_closures(env, state, matches.closures),
+            state_update: capture_closures(env'', state, matches.closures),
             kind: FunAp,
             is_value: false,
           });
