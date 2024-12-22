@@ -282,34 +282,34 @@ let gen_tpat =
   );
 
 let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
-  QCheck.(
+  QCheck.Gen.(
     let leaf =
       oneof([
-        arb_int,
-        arb_str_exp,
-        arb_float,
-        arb_var,
+        arb_int.gen,
+        arb_str_exp.gen,
+        arb_float.gen,
+        arb_var.gen,
         map(x => Bool(x), bool),
-        always(~print=show_exp, EmptyHole),
-        always(~print=show_exp, TupleExp([])),
-        always(~print=show_exp, ListExp([])),
+        pure(EmptyHole),
+        pure(TupleExp([])),
+        pure(ListExp([])),
       ]);
 
-    let gen: Gen.t(exp) =
+    let gen: t(exp) =
       QCheck.Gen.fix(
-        (self: int => Gen.t(exp), n) => {
+        (self: int => t(exp), n) => {
           switch (n) {
           | 0
-          | 1 => leaf.gen
+          | 1 => leaf
           | _ =>
-            Gen.oneof([
-              leaf.gen,
-              Gen.join(
-                Gen.map(
+            oneof([
+              leaf,
+              join(
+                map(
                   (sizes: array(int)) => {
                     let exps = Array.map((size: int) => self(size), sizes);
-                    let flattened = Gen.flatten_a(exps);
-                    Gen.map(
+                    let flattened = flatten_a(exps);
+                    map(
                       (exps: array(exp)) => ListExp(Array.to_list(exps)),
                       flattened,
                     );
@@ -317,12 +317,12 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                   sized_arr(n),
                 ),
               ),
-              Gen.join(
-                Gen.map(
+              join(
+                map(
                   (sizes: array(int)) => {
                     let exps = Array.map((size: int) => self(size), sizes);
-                    let flattened = Gen.flatten_a(exps);
-                    Gen.map(
+                    let flattened = flatten_a(exps);
+                    map(
                       (exps: array(exp)) => TupleExp(Array.to_list(exps)), // TODO See if there's a way to do unit and various sizes here
                       flattened,
                     );
@@ -330,36 +330,36 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                   non_single_element_arr(n),
                 ),
               ),
-              Gen.map(exp => Test(exp), self(n - 1)),
-              Gen.map(
+              map(exp => Test(exp), self(n - 1)),
+              map(
                 name => Constructor(name, UnknownType(Internal)), // TODO Ignoring typ because we don't serialize those in ExpToSegment
                 arb_constructor_ident.gen,
               ),
-              Gen.map3(
+              map3(
                 (op, e1, e2) => BinExp(e1, op, e2),
                 gen_bin_op,
                 self((n - 1) / 2),
                 self((n - 1) / 2),
               ),
-              // Gen.map2((op, e) => UnOp(op, e), gen_op_un, self(n - 1)), // TODO ExpToSegment broken for UnOp
-              Gen.map3(
+              // map2((op, e) => UnOp(op, e), gen_op_un, self(n - 1)), // TODO ExpToSegment broken for UnOp
+              map3(
                 (e1, e2, e3) => If(e1, e2, e3),
                 self((n - 1) / 3),
                 self((n - 1) / 3),
                 self((n - 1) / 3),
               ),
-              Gen.map3(
+              map3(
                 (p, e1, e2) => Let(p, e1, e2),
                 gen_pat_sized((n - 1) / 3),
                 self((n - 1) / 3),
                 self((n - 1) / 3),
               ),
-              Gen.map2(
+              map2(
                 (p, e): exp => Fun(p, e, None),
                 gen_pat_sized((n - 1) / 2),
                 self((n - 1) / 2),
               ),
-              Gen.(
+              {
                 let e = self(n - 1 / 2);
                 let case = n => {
                   let p = gen_pat_sized(n / 2);
@@ -371,7 +371,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                   sized_arr(n - 1 / 2)
                   >>= (
                     sizes => {
-                      let cases: QCheck.Gen.t(array((pat, exp))) =
+                      let cases: t(array((pat, exp))) =
                         flatten_a(Array.map(case, sizes));
                       cases;
                     }
@@ -381,54 +381,58 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                   ((e, cases)) => {
                     CaseExp(e, Array.to_list(cases));
                   }
-                )
-              ),
-              Gen.map2(
+                );
+              },
+              map2(
                 (e1, e2) => ApExp(e1, e2),
                 self((n - 1) / 2),
-                Gen.frequency([
+                frequency([
                   (5, self((n - 1) / 2)),
-                  (1, Gen.return(Deferral)),
+                  (1, return(Deferral)),
                 ]),
               ),
-              Gen.map2(
+              map2(
                 (p, e) => FixF(p, e),
                 gen_pat_sized((n - 1) / 2),
                 self((n - 1) / 2),
               ),
-              Gen.(
+              {
                 let* fa = gen_filter_action;
                 let* e1 = self(n - 1);
                 let+ e2 = self(n - 1);
-                Filter(fa, e1, e2)
-              ),
-              Gen.(
+                Filter(fa, e1, e2);
+              },
+              {
                 let* e1 = self((n - 1) / 2);
                 let+ e2 = self((n - 1) / 2);
-                Seq(e1, e2)
-              ),
-              Gen.(
+                Seq(e1, e2);
+              },
+              {
                 let* e1 = self((n - 1) / 2);
                 let+ e2 = self((n - 1) / 2);
-                Cons(e1, e2)
-              ),
-              Gen.(
+                Cons(e1, e2);
+              },
+              {
                 let* e1 = self((n - 1) / 2);
                 let+ e2 = self((n - 1) / 2);
-                ListConcat(e1, e2)
-              ),
-              Gen.(let* tp = gen_tpat; let+ e = self(n - 1); TypFun(tp, e)),
-              Gen.(
+                ListConcat(e1, e2);
+              },
+              {
+                let* tp = gen_tpat;
+                let+ e = self(n - 1);
+                TypFun(tp, e);
+              },
+              {
                 let* t = gen_typ_sized((n - 1) / 2);
                 let+ e = self((n - 1) / 2);
-                TypAp(e, t)
-              ),
-              Gen.(
+                TypAp(e, t);
+              },
+              {
                 let* tp = gen_tpat;
                 let* t = gen_typ_sized((n - 1) / 2);
                 let+ e = self((n - 1) / 2);
-                TyAlias(tp, t, e)
-              ),
+                TyAlias(tp, t, e);
+              },
             ])
           }
         },
