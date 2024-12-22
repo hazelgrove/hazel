@@ -366,42 +366,19 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                 CaseExp(e, Array.to_list(cases));
               },
               {
-                let e = self(n - 1 / 2);
-                let case = n => {
-                  let p = gen_pat_sized(n / 2);
-                  let e = self(n / 2);
-                  tup2(p, e);
-                };
-
-                let cases =
-                  sized_arr(n - 1 / 2)
-                  >>= (
-                    sizes => {
-                      let cases: t(array((pat, exp))) =
-                        flatten_a(Array.map(case, sizes));
-                      cases;
-                    }
-                  );
-                tup2(e, cases)
-                >|= (
-                  ((e, cases)) => {
-                    CaseExp(e, Array.to_list(cases));
-                  }
-                );
+                let* e1 = self((n - 1) / 2);
+                let+ e2 =
+                  frequency([
+                    (5, self((n - 1) / 2)),
+                    (1, return(Deferral)),
+                  ]);
+                ApExp(e1, e2);
               },
-              map2(
-                (e1, e2) => ApExp(e1, e2),
-                self((n - 1) / 2),
-                frequency([
-                  (5, self((n - 1) / 2)),
-                  (1, return(Deferral)),
-                ]),
-              ),
-              map2(
-                (p, e) => FixF(p, e),
-                gen_pat_sized((n - 1) / 2),
-                self((n - 1) / 2),
-              ),
+              {
+                let* p = gen_pat_sized((n - 1) / 2);
+                let+ e = self((n - 1) / 2);
+                FixF(p, e);
+              },
               {
                 let* fa = gen_filter_action;
                 let* e1 = self(n - 1);
