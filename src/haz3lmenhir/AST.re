@@ -265,7 +265,8 @@ let gen_tpat: QCheck.Gen.t(tpat) =
   );
 
 // TODO This should be anything printable other than `"`
-let gen_literal_string: QCheck.Gen.t(string) = QCheck.Gen.(string_small_of(char_range('a', 'z')));
+let gen_literal_string: QCheck.Gen.t(string) =
+  QCheck.Gen.(string_small_of(char_range('a', 'z')));
 
 let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
   QCheck.Gen.(
