@@ -170,40 +170,37 @@ type exp =
   | DynamicErrorHole(exp, string)
   | TyAlias(tpat, typ, exp);
 
-let gen_constructor_ident =
+let gen_constructor_ident: QCheck.Gen.t(string) =
   // TODO handle full constructor ident including nums
   QCheck.Gen.(
-    let leading = char_range('A', 'Z');
-    let tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
-    map(
-      ident =>
-        // if ident is a keyword remap
-        switch (ident) {
-        | "Int"
-        | "Float"
-        | "String"
-        | "Unknown"
-        | "Internal"
-        | "Bool" => "keyword"
-        | _ => ident
-        },
-      map2((l, t) => String.make(1, l) ++ t, leading, tail),
-    )
+    let* leading = char_range('A', 'Z');
+    let+ tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
+    let ident = String.make(1, leading) ++ tail;
+    // if ident is a keyword remap
+    switch (ident) {
+    | "Int"
+    | "Float"
+    | "String"
+    | "Unknown"
+    | "Internal"
+    | "Bool" => "keyword"
+    | _ => ident
+    }
   );
 
 // ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 // Currently an issue if the keyword is a prefix of another word. `let ? = ina in ?`
 // Temporarily doing single char identifiers as a fix
-let arb_ident =
-  QCheck.(
+let gen_ident =
+  QCheck.Gen.(
     // TODO make this support full indent instead of just lower alpha
-    string_gen_of_size(
-      Gen.int_range(1, 1),
-      QCheck.Gen.char_range('a', 'z'),
+    string_size(
+      ~gen=char_range('a', 'z'),
+      int_range(1, 1),
     )
   );
 
-let sized_arr = (n: int): QCheck.Gen.t(array(int)) =>
+let gen_sized_array = (n: int): QCheck.Gen.t(array(int)) =>
   QCheck.Gen.(
     let* list_size = n <= 1 ? pure(0) : int_range(2, n);
     switch (list_size) {
@@ -212,7 +209,7 @@ let sized_arr = (n: int): QCheck.Gen.t(array(int)) =>
     }
   );
 
-let non_single_element_arr = (n: int): QCheck.Gen.t(array(int)) =>
+let gen_non_singleton_array = (n: int): QCheck.Gen.t(array(int)) =>
   QCheck.Gen.(
     let* list_size =
       frequency([(1, pure(0)), (n, n <= 1 ? pure(0) : int_range(2, n))]);
@@ -223,7 +220,7 @@ let non_single_element_arr = (n: int): QCheck.Gen.t(array(int)) =>
     }
   );
 
-let non_empty_arr = (n: int): QCheck.Gen.t(array(int)) =>
+let gen_non_empty_array = (n: int): QCheck.Gen.t(array(int)) =>
   QCheck.Gen.(
     let* list_size = n <= 1 ? pure(0) : int_range(1, n);
 
@@ -235,14 +232,14 @@ let non_empty_arr = (n: int): QCheck.Gen.t(array(int)) =>
 
 let gen_tpat: QCheck.Gen.t(tpat) =
   QCheck.Gen.(
-    let gen_var = map(x => VarTPat(x), arb_ident.gen);
+    let gen_var = map(x => VarTPat(x), gen_ident);
     let gen_empty = pure(EmptyHoleTPat);
-    // let gen_invalid = map(x => InvalidTPat(x), arb_ident.gen); // Menhir parser doesn't actually support invalid tpat
+    // let gen_invalid = map(x => InvalidTPat(x), gen_ident); // Menhir parser doesn't actually support invalid tpat
     oneof([gen_var, gen_empty])
   );
 
 // TODO This should be anything printable other than `"`
-let gen_literal_string: QCheck.Gen.t(string) =
+let gen_string_literal: QCheck.Gen.t(string) =
   QCheck.Gen.(string_small_of(char_range('a', 'z')));
 
 let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
@@ -250,9 +247,9 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
     let leaf =
       oneof([
         map(x => Int(x), small_int),
-        map(x => String(x), gen_literal_string),
+        map(x => String(x), gen_string_literal),
         map(x => Float(x), QCheck.pos_float.gen), // Floats are positive because we use UnOp minus
-        map(x => Var(x), arb_ident.gen),
+        map(x => Var(x), gen_ident),
         map(x => Bool(x), bool),
         pure(EmptyHole),
         pure(TupleExp([])),
@@ -267,13 +264,13 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
           oneof([
             leaf,
             {
-              let* sizes = sized_arr(n);
+              let* sizes = gen_sized_array(n);
               let+ exps =
                 flatten_a(Array.map((size: int) => self(size), sizes));
               ListExp(Array.to_list(exps));
             },
             {
-              let* sizes = non_single_element_arr(n);
+              let* sizes = gen_non_singleton_array(n);
               let+ exps =
                 flatten_a(Array.map((size: int) => self(size), sizes));
               TupleExp(Array.to_list(exps));
@@ -323,7 +320,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
                 tup2(p, e);
               };
               let* e = self(n - 1 / 2);
-              let* sizes = sized_arr(n - 1 / 2);
+              let* sizes = gen_sized_array(n - 1 / 2);
               let+ cases = flatten_a(Array.map(case, sizes));
               CaseExp(e, Array.to_list(cases));
             },
@@ -404,7 +401,7 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
             oneof([
               leaf_nodes,
               {
-                let* sizes = non_single_element_arr(n);
+                let* sizes = gen_non_singleton_array(n);
                 let+ typs =
                   flatten_a(Array.map((size: int) => self(size), sizes));
                 TupleType(Array.to_list(typs));
@@ -419,7 +416,7 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
                 ArrowType(t1, t2);
               },
               {
-                let+ ident = arb_ident.gen;
+                let+ ident = gen_ident;
                 TypVar(ident);
               },
               {
@@ -433,7 +430,7 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
                 RecType(gen_tpat, t);
               },
               {
-                let* sizes = non_empty_arr(n - 1);
+                let* sizes = gen_non_empty_array(n - 1);
                 let+ sumterms =
                   flatten_a(
                     Array.map(
@@ -472,8 +469,8 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
               return(EmptyHolePat),
               map(x => IntPat(x), small_int),
               map(x => FloatPat(x), QCheck.pos_float.gen),
-              map(x => VarPat(x), arb_ident.gen),
-              map(x => StringPat(x), gen_literal_string),
+              map(x => VarPat(x), gen_ident),
+              map(x => StringPat(x), gen_string_literal),
               map(x => BoolPat(x), bool),
               map(
                 x => ConstructorPat(x, UnknownType(Internal)),
@@ -494,13 +491,13 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
                 ConsPat(p1, p2);
               },
               {
-                let* sizes = non_single_element_arr(n - 1);
+                let* sizes = gen_non_singleton_array(n - 1);
                 let+ pats =
                   flatten_a(Array.map((size: int) => self(size), sizes));
                 TuplePat(Array.to_list(pats));
               },
               {
-                let* sizes = sized_arr(n - 1);
+                let* sizes = gen_sized_array(n - 1);
                 let+ pats =
                   flatten_a(Array.map((size: int) => self(size), sizes));
                 ListPat(Array.to_list(pats));
