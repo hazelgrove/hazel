@@ -170,6 +170,13 @@ type exp =
   | DynamicErrorHole(exp, string)
   | TyAlias(tpat, typ, exp);
 
+/**
+ * Generates a random CONSTRUCTOR_IDENT string. Used for CONSTRUCTOR_IDENT in the lexer.
+ *
+ * @return A QCheck generator for Constructor Identifier.
+ *
+ * ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
+ */
 let gen_constructor_ident: QCheck.Gen.t(string) =
   // TODO handle full constructor ident including nums
   QCheck.Gen.(
@@ -188,10 +195,17 @@ let gen_constructor_ident: QCheck.Gen.t(string) =
     }
   );
 
-// ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
-// Currently an issue if the keyword is a prefix of another word. `let ? = ina in ?`
-// Temporarily doing single char identifiers as a fix
-let gen_ident =
+/**
+ * Generates a random IDENT string. Used for IDENT in the lexer.
+ *
+ * @return A QCheck generator for Identifier.
+ *
+ * ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
+ */
+let gen_ident: QCheck.Gen.t(string) =
+  // TODO Currently there is an issue if the keyword is a prefix of another word.
+  // `let ? = ina in ?`
+  // Temporarily doing single char identifiers as a fix
   QCheck.Gen.(
     // TODO make this support full indent instead of just lower alpha
     string_size(
@@ -200,6 +214,15 @@ let gen_ident =
     )
   );
 
+/**
+ * Generates an array of natural numbers of a given size.
+ * Useful for generating recursive structures with arrays/lists.
+ *
+ * @param size - The size of the array, which also represents the number of elements in the array.
+ * @return A QCheck generator that produces arrays of integers that have a size (sum of elements + num of elements) of n
+
+ * This function is useful for size tracking purposes.
+ */
 let gen_sized_array = (n: int): QCheck.Gen.t(array(int)) =>
   QCheck.Gen.(
     let* list_size = n <= 1 ? pure(0) : int_range(2, n);
@@ -209,6 +232,15 @@ let gen_sized_array = (n: int): QCheck.Gen.t(array(int)) =>
     }
   );
 
+/**
+ * Generates an array of natural numbers that is either empty or has a length of at least 2.
+ * Useful for generating recursive structures with arrays/lists.
+ *
+ * @param n The size parameter used for generating the array.
+ * @return A QCheck generator that produces arrays of integers that have a size (sum of elements + num of elements) of n
+ *
+ * This function is useful for size tracking purposes, similar to `gen_sized_array`.
+ */
 let gen_non_singleton_array = (n: int): QCheck.Gen.t(array(int)) =>
   QCheck.Gen.(
     let* list_size =
@@ -220,6 +252,15 @@ let gen_non_singleton_array = (n: int): QCheck.Gen.t(array(int)) =>
     }
   );
 
+/**
+ * Generates an array of natural numbers has a length of at least 1.
+ * Useful for generating recursive structures with arrays/lists.
+ *
+ * @param n The size parameter used for generating the array.
+ * @return A QCheck generator that produces arrays of integers that have a size (sum of elements + num of elements) of n
+ *
+ * This function is useful for size tracking purposes, similar to `gen_sized_array`.
+ */
 let gen_non_empty_array = (n: int): QCheck.Gen.t(array(int)) =>
   QCheck.Gen.(
     let* list_size = n <= 1 ? pure(0) : int_range(1, n);
@@ -230,6 +271,11 @@ let gen_non_empty_array = (n: int): QCheck.Gen.t(array(int)) =>
     }
   );
 
+/**
+ * Generates a random `tpat` value using QCheck.
+ *
+ * @return A generator for `tpat` values.
+ */
 let gen_tpat: QCheck.Gen.t(tpat) =
   QCheck.Gen.(
     let gen_var = map(x => VarTPat(x), gen_ident);
@@ -238,10 +284,23 @@ let gen_tpat: QCheck.Gen.t(tpat) =
     oneof([gen_var, gen_empty])
   );
 
-// TODO This should be anything printable other than `"`
+/**
+ * Generates a string literal for use in the program.
+ * This generator produces strings that match the `string` pattern in the lexer.
+ */
 let gen_string_literal: QCheck.Gen.t(string) =
+  // TODO This should be anything printable other than `"`
   QCheck.Gen.(string_small_of(char_range('a', 'z')));
 
+/**
+ * Generates an expression of a given size.
+ *
+ * @param n The size of the expression to generate.
+ * @return A generator for expressions of the specified size.
+ *
+ * This function is currently used for property tests between MakeTerm and the Menhir parser,
+ * so it's not currently set up to generate every possible expression.
+ */
 let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
   QCheck.Gen.(
     let leaf =
@@ -381,6 +440,15 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
       n,
     )
   )
+/**
+ * Generates a type of a given size.
+ *
+ * @param n The size of the type to generate.
+ * @return A generator for types of the specified size.
+ *
+ * This function is currently used for property tests between MakeTerm and the Menhir parser,
+ * so it's not currently set up to generate every possible type.
+ */
 and gen_typ_sized: int => QCheck.Gen.t(typ) =
   n =>
     QCheck.Gen.(
@@ -458,6 +526,16 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
         n,
       )
     )
+
+/**
+ * Generates an pattern of a given size.
+ *
+ * @param n The size of the pattern to generate.
+ * @return A generator for expressions of the specified size.
+ *
+ * This function is currently used for property tests between MakeTerm and the Menhir parser,
+ * so it's not currently set up to generate every possible pattern.
+ */
 and gen_pat_sized: int => QCheck.Gen.t(pat) =
   n =>
     QCheck.Gen.(
