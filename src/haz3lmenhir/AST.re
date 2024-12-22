@@ -304,61 +304,67 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
           | _ =>
             oneof([
               leaf,
-              join(
-                map(
-                  (sizes: array(int)) => {
-                    let exps = Array.map((size: int) => self(size), sizes);
-                    let flattened = flatten_a(exps);
-                    map(
-                      (exps: array(exp)) => ListExp(Array.to_list(exps)),
-                      flattened,
-                    );
-                  },
-                  sized_arr(n),
-                ),
-              ),
-              join(
-                map(
-                  (sizes: array(int)) => {
-                    let exps = Array.map((size: int) => self(size), sizes);
-                    let flattened = flatten_a(exps);
-                    map(
-                      (exps: array(exp)) => TupleExp(Array.to_list(exps)), // TODO See if there's a way to do unit and various sizes here
-                      flattened,
-                    );
-                  },
-                  non_single_element_arr(n),
-                ),
-              ),
-              map(exp => Test(exp), self(n - 1)),
-              map(
-                name => Constructor(name, UnknownType(Internal)), // TODO Ignoring typ because we don't serialize those in ExpToSegment
-                arb_constructor_ident.gen,
-              ),
-              map3(
-                (op, e1, e2) => BinExp(e1, op, e2),
-                gen_bin_op,
-                self((n - 1) / 2),
-                self((n - 1) / 2),
-              ),
-              // map2((op, e) => UnOp(op, e), gen_op_un, self(n - 1)), // TODO ExpToSegment broken for UnOp
-              map3(
-                (e1, e2, e3) => If(e1, e2, e3),
-                self((n - 1) / 3),
-                self((n - 1) / 3),
-                self((n - 1) / 3),
-              ),
-              map3(
-                (p, e1, e2) => Let(p, e1, e2),
-                gen_pat_sized((n - 1) / 3),
-                self((n - 1) / 3),
-                self((n - 1) / 3),
-              ),
-              map2(
-                (p, e): exp => Fun(p, e, None),
-                gen_pat_sized((n - 1) / 2),
-                self((n - 1) / 2),
-              ),
+              {
+                let* sizes = sized_arr(n);
+                let+ exps =
+                  flatten_a(Array.map((size: int) => self(size), sizes));
+                ListExp(Array.to_list(exps));
+              },
+              {
+                let* sizes = non_single_element_arr(n);
+                let+ exps =
+                  flatten_a(Array.map((size: int) => self(size), sizes));
+                TupleExp(Array.to_list(exps));
+              },
+              {
+                let+ inner = self(n - 1);
+                Test(inner);
+              },
+              {
+                let+ name = arb_constructor_ident.gen;
+                Constructor(name, UnknownType(Internal));
+              },
+              {
+                let* op = gen_bin_op;
+                let* e1 = self((n - 1) / 2);
+                let+ e2 = self((n - 1) / 2);
+                BinExp(e1, op, e2);
+              },
+              {
+                // TODO ExpToSegment broken for UnOp
+                // {
+                //   let* op = gen_op_un;
+                //   let+ e = self((n - 1) / 2);
+                //   UnOp(op, e);
+                // },
+
+                let* e1 = self((n - 1) / 3);
+                let* e2 = self((n - 1) / 3);
+                let+ e3 = self((n - 1) / 3);
+                If(e1, e2, e3);
+              },
+              {
+                let* p = gen_pat_sized((n - 1) / 3);
+                let* e1 = self((n - 1) / 3);
+                let+ e2 = self((n - 1) / 3);
+                Let(p, e1, e2);
+              },
+              {
+                let* p = gen_pat_sized((n - 1) / 2);
+                let+ e = self((n - 1) / 2);
+                Fun(p, e, None);
+              },
+              {
+                let case = n => {
+                  let p = gen_pat_sized(n / 2);
+                  let e = self(n / 2);
+                  tup2(p, e);
+                };
+                let* e = self(n - 1 / 2);
+                let* sizes = sized_arr(n - 1 / 2);
+                let+ cases = flatten_a(Array.map(case, sizes));
+                CaseExp(e, Array.to_list(cases));
+              },
               {
                 let e = self(n - 1 / 2);
                 let case = n => {
