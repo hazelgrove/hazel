@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-let arb_str = QCheck.(string_small_of(Gen.char_range('a', 'z')));
+let arb_alpha_str = QCheck.(string_small_of(Gen.char_range('a', 'z')));
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type filter_action =
@@ -173,7 +173,7 @@ type exp =
   | TyAlias(tpat, typ, exp);
 
 let arb_int = QCheck.(map(x => Int(x), small_int));
-let arb_str_exp = QCheck.map(x => String(x), arb_str); // Make strings anything other than `"`"
+let arb_str_exp = QCheck.map(x => String(x), arb_alpha_str); // Make strings anything other than `"`"
 
 // Floats are positive because we use UnOp minus
 let arb_float = QCheck.(map(x => Float(x), pos_float));
@@ -509,7 +509,7 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
               map(x => IntPat(x), small_int),
               map(x => FloatPat(x), QCheck.pos_float.gen),
               map(x => VarPat(x), arb_ident.gen),
-              map(x => StringPat(x), arb_str.gen),
+              map(x => StringPat(x), arb_alpha_str.gen),
               map(x => BoolPat(x), bool),
               map(
                 x => ConstructorPat(x, UnknownType(Internal)),
