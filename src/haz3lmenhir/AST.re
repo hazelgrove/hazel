@@ -182,7 +182,7 @@ let arb_constructor_ident =
         );
       QCheck.map(
         ident =>
-          // if ident is a keyword add a suffix
+          // if ident is a keyword remap
           switch (ident) {
           | "Int"
           | "Float"
@@ -205,24 +205,9 @@ let arb_constructor_ident =
 let arb_ident =
   QCheck.(
     // TODO make this support full indent instead of just lower alpha
-    QCheck.map(
-      ident =>
-        // if ident is a keyword add a suffix
-        switch (ident) {
-        | "let"
-        | "if"
-        | "pause"
-        | "debug"
-        | "hide"
-        | "eval"
-        | "rec"
-        | "in" => "keyword"
-        | _ => ident
-        },
-      string_gen_of_size(
-        Gen.int_range(1, 1),
-        QCheck.Gen.char_range('a', 'z'),
-      ),
+    string_gen_of_size(
+      Gen.int_range(1, 1),
+      QCheck.Gen.char_range('a', 'z'),
     )
   );
 
@@ -260,7 +245,7 @@ let gen_tpat: QCheck.Gen.t(tpat) =
   QCheck.Gen.(
     let gen_var = map(x => VarTPat(x), arb_ident.gen);
     let gen_empty = pure(EmptyHoleTPat);
-    // let gen_invalid = map(x => InvalidTPat(x), arb_ident.gen);
+    // let gen_invalid = map(x => InvalidTPat(x), arb_ident.gen); // Menhir parser doesn't actually support invalid tpat
     oneof([gen_var, gen_empty])
   );
 
