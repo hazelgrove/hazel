@@ -57,8 +57,10 @@ let backing_deco =
 
 /* Adds attributes to a projector UI to support
  * custom styling when selected or indicated */
-let status = (indicated: option(Direction.t), selected: bool, shape: shape) =>
-  (selected ? ["selected"] : [])
+let status =
+    (indicated: option(Direction.t), selected: bool, shape: shape, sort) =>
+  [Sort.show(sort)]
+  @ (selected ? ["selected"] : [])
   @ (
     switch (shape) {
     | Inline(_) => ["inline"]
@@ -86,13 +88,16 @@ let view_wrapper =
       p: Base.projector,
       view: Node.t,
     ) => {
+  let sort =
+    Option.map(Info.sort_of, info.statics) |> Option.value(~default=Sort.Exp);
   let shape = Projector.shape(p, info);
   let focus = (id, _) =>
     Effect.(Many([Stop_propagation, inject(Project(Focus(id, None)))]));
   div(
     ~attrs=[
       Attr.classes(
-        ["projector", name(p.kind)] @ status(indication, selected, shape),
+        ["projector", name(p.kind)]
+        @ status(indication, selected, shape, sort),
       ),
       Attr.on_mousedown(focus(info.id)),
       DecUtil.abs_style(measurement, ~font_metrics),

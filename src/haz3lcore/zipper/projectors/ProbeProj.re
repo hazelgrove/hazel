@@ -296,7 +296,7 @@ let placeholder = (_m, info) =>
 let icon = div(~attrs=[Attr.classes(["icon"])], [text("🔍")]);
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-let view = (model: model', ~info, ~local, ~parent as _, ~utility: utility) =>
+let view = (model: model', ~info, ~local, ~parent as _, ~utility: utility) => {
   div([
     offside_view(info, ~model, ~local, ~utility),
     div(
@@ -310,6 +310,7 @@ let view = (model: model', ~info, ~local, ~parent as _, ~utility: utility) =>
       [syntax_view(info), icon, num_closures_view(info)],
     ),
   ]);
+};
 
 let update = (m: model', a: action') => {
   print_endline("update: action:" ++ show_action'(a));
