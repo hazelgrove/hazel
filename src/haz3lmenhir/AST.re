@@ -226,50 +226,37 @@ let arb_ident =
     )
   );
 
-let sized_arr = (n: int) =>
+let sized_arr = (n: int): QCheck.Gen.t(array(int)) =>
   QCheck.Gen.(
-    let list_size = n <= 1 ? pure(0) : int_range(2, n);
-
-    list_size
-    >>= (
-      x =>
-        switch (x) {
-        | 0 => pure([||])
-        | _ => nat_split(~size=x, n - x)
-        }
-    )
+    let* list_size = n <= 1 ? pure(0) : int_range(2, n);
+    switch (list_size) {
+    | 0 => pure([||])
+    | _ => nat_split(~size=list_size, n - list_size)
+    }
   );
 
-let non_single_element_arr = (n: int) =>
+let non_single_element_arr = (n: int): QCheck.Gen.t(array(int)) =>
   QCheck.Gen.(
-    let list_size =
+    let* list_size =
       frequency([(1, pure(0)), (n, n <= 1 ? pure(0) : int_range(2, n))]);
 
-    list_size
-    >>= (
-      x =>
-        switch (x) {
-        | 0 => pure([||])
-        | _ => nat_split(~size=x, n - x)
-        }
-    )
+    switch (list_size) {
+    | 0 => pure([||])
+    | _ => nat_split(~size=list_size, n - list_size)
+    }
   );
 
-let non_empty_arr = (n: int) =>
+let non_empty_arr = (n: int): QCheck.Gen.t(array(int)) =>
   QCheck.Gen.(
-    let list_size = n <= 1 ? pure(0) : int_range(1, n);
+    let* list_size = n <= 1 ? pure(0) : int_range(1, n);
 
-    list_size
-    >>= (
-      x =>
-        switch (x) {
-        | 0 => pure([|0|]) // I'm a bit concerned about this not tracking size. But it seems to work in practice.
-        | _ => nat_split(~size=x, n - x)
-        }
-    )
+    switch (list_size) {
+    | 0 => pure([|0|]) // I'm a bit concerned about this not tracking size. But it seems to work in practice.
+    | _ => nat_split(~size=list_size, n - list_size)
+    }
   );
 
-let gen_tpat =
+let gen_tpat: QCheck.Gen.t(tpat) =
   QCheck.Gen.(
     let gen_var = map(x => VarTPat(x), arb_ident.gen);
     let gen_empty = pure(EmptyHoleTPat);
@@ -278,7 +265,7 @@ let gen_tpat =
   );
 
 // TODO This should be anything printable other than `"`
-let gen_literal_string = QCheck.Gen.(string_small_of(char_range('a', 'z')));
+let gen_literal_string: QCheck.Gen.t(string) = QCheck.Gen.(string_small_of(char_range('a', 'z')));
 
 let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
   QCheck.Gen.(
