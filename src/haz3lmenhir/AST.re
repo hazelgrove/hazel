@@ -172,11 +172,6 @@ type exp =
   | DynamicErrorHole(exp, string)
   | TyAlias(tpat, typ, exp);
 
-let arb_int = QCheck.(map(x => Int(x), small_int));
-let arb_str_exp = QCheck.map(x => String(x), arb_alpha_str); // Make strings anything other than `"`"
-
-// Floats are positive because we use UnOp minus
-let arb_float = QCheck.(map(x => Float(x), pos_float));
 let arb_lower_alpha = QCheck.Gen.char_range('a', 'z');
 
 let arb_constructor_ident =
@@ -271,8 +266,6 @@ let non_empty_arr = (n: int) =>
     )
   );
 
-let arb_var = QCheck.(map(x => Var(x), arb_ident));
-
 let gen_tpat =
   QCheck.Gen.(
     let gen_var = map(x => VarTPat(x), arb_ident.gen);
@@ -285,10 +278,10 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
   QCheck.Gen.(
     let leaf =
       oneof([
-        arb_int.gen,
-        arb_str_exp.gen,
-        arb_float.gen,
-        arb_var.gen,
+        map(x => Int(x), small_int),
+        map(x => String(x), arb_alpha_str.gen), // TODO This should be anything printable other than `"`
+        map(x => Float(x), QCheck.pos_float.gen), // Floats are positive because we use UnOp minus
+        map(x => Var(x), arb_ident.gen),
         map(x => Bool(x), bool),
         pure(EmptyHole),
         pure(TupleExp([])),
