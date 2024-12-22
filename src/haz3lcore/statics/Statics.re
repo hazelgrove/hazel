@@ -79,6 +79,12 @@ module Map = {
       |> List.map(((n, _)) => Ctx.binding_of(ctx, n))
     | _ => []
     };
+
+  let bound_in = (m: t, id: Id.t): Binding.s =>
+    switch (lookup(id, m)) {
+    | Some(InfoPat({term, _})) => Term.Pat.bindings(term)
+    | _ => []
+    };
 };
 
 let map_m = (f, xs, m: Map.t) =>
@@ -834,7 +840,12 @@ and upat_to_info_map =
       ~constraint_=cons_fold_tuple(cons),
       m,
     );
-  | Parens(p) =>
+  | Parens(p, Probe(_)) =>
+    /* Currently doing this as otherwise it clobbers the statics
+     * for the contained expression as i'm just reusing the same id
+     * in order to associate it through dynamics */
+    go(~ctx, ~mode, p, m)
+  | Parens(p, Paren) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
   | Constructor(ctr, _) =>

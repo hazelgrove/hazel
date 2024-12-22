@@ -32,20 +32,15 @@ module Probe = {
     /* Selectively elide dynamic information not currently
      * being used in the live probe UI, for (putative, unbenchmarked)
      * performance purposes for worker de/serialization */
-    let elide = (env: ClosureEnvironment.t, d: DHExp.t) =>
+    let elide = (env: Environment.t, d: DHExp.t) =>
       switch (d.term) {
       | Fun(_)
       | FixF(_) => Opaque
-      | _ =>
-        Val(
-          d
-          |> DHExp.strip_casts
-          |> Exp.substitute_closures(ClosureEnvironment.map_of(env)),
-        )
+      | _ => Val(d |> DHExp.strip_casts |> Exp.substitute_closures(env))
       };
 
-    let mk_entry = (env: ClosureEnvironment.t, {name, id, _}: Binding.t) =>
-      switch (ClosureEnvironment.lookup(env, name)) {
+    let mk_entry = (env: Environment.t, {name, id, _}: Binding.t) =>
+      switch (Environment.lookup(env, name)) {
       | Some(d) => {
           binding: {
             name,
@@ -53,11 +48,13 @@ module Probe = {
           },
           value: elide(env, d),
         }
-      | None => failwith("Probe: variable not found in environment")
+      | None =>
+        print_endline("binding:" ++ name);
+        failwith("Probe: variable not found in environment");
       };
 
-    let mk = (env: ClosureEnvironment.t, refs: Binding.s) =>
-      List.map(mk_entry(env), refs);
+    let mk = (env: Environment.t, bound_in: Binding.s) =>
+      List.map(mk_entry(env), bound_in);
   };
 
   /* A probe closure records an elided value and environment,
@@ -77,7 +74,7 @@ module Probe = {
       closure_id: Id.mk(),
       value,
       stack: ClosureEnvironment.stack_of(env),
-      env: Env.mk(env, pr.refs),
+      env: Env.mk(ClosureEnvironment.map_of(env), pr.refs),
     };
   };
 
@@ -111,6 +108,17 @@ module Probe = {
     | Probe(_) =>
       Probe({
         refs: Statics.Map.refs_in(m, id),
+        stem: Statics.Map.enclosing_abstractions(m, id),
+      })
+    };
+
+  let instrument_pat =
+      (m: Statics.Map.t, id: Id.t, probe_tag: Probe.tag): Probe.tag =>
+    switch (probe_tag) {
+    | Paren => Paren
+    | Probe(_) =>
+      Probe({
+        refs: Statics.Map.bound_in(m, id),
         stem: Statics.Map.enclosing_abstractions(m, id),
       })
     };

@@ -359,8 +359,9 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
           Constructor(t, Unknown(Internal) |> Typ.fresh)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Invalid(t)
-        | (["(", ")"], [Pat(body)]) => Parens(body)
-        | (label, [Pat(body)]) when is_probe_wrap(label) => body.term
+        | (["(", ")"], [Pat(body)]) => Parens(body, Paren)
+        | (label, [Pat(body)]) when is_probe_wrap(label) =>
+          Parens(body, Probe(Probe.empty))
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
           | {term: Tuple(ps), _} => ListLit(ps)

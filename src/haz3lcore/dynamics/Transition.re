@@ -149,6 +149,16 @@ module Transition = (EV: EV_MODE) => {
     | Matches(env') => r(evaluate_extend_env(env', env))
     };
 
+  let capture_closures =
+      (env: ClosureEnvironment.t, state: state, closures, ()): unit =>
+    List.iter(
+      closure => {
+        let (id, closure: Dynamics.Probe.Closure.t) = closure(env.stack);
+        update_probe(state, id, closure);
+      },
+      closures,
+    );
+
   /* Note[Matt]: For IDs, I'm currently using a fresh id
      if anything about the current node changes, if only its
      children change, we use rewrap */
@@ -181,10 +191,11 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d1 => Let(dp, d1, d2) |> rewrap)
       and. d1' =
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
-      let.match env' = (env, matches(dp, d1'));
+      let {matches, closures} = matches(dp, d1');
+      let.match env' = (env, matches);
       Step({
         expr: Closure(env', d2) |> fresh,
-        state_update,
+        state_update: capture_closures(env, state, closures),
         kind: LetBind,
         is_value: false,
       });
@@ -341,7 +352,9 @@ module Transition = (EV: EV_MODE) => {
       switch (DHExp.term_of(d1')) {
       | Constructor(_) => Constructor
       | Fun(dp, d3, Some(env'), _) =>
-        switch (matches(dp, d2')) {
+        let matches = matches(dp, d2');
+
+        switch (matches.matches) {
         | IndetMatch
         | DoesNotMatch => Indet
         | Matches(env'') =>
@@ -353,11 +366,11 @@ module Transition = (EV: EV_MODE) => {
             );
           Step({
             expr: Closure(env'', d3) |> fresh,
-            state_update,
+            state_update: capture_closures(env, state, matches.closures),
             kind: FunAp,
             is_value: false,
           });
-        }
+        };
       | Cast(
           d3',
           {term: Arrow(ty1, ty2), _},
@@ -719,18 +732,20 @@ module Transition = (EV: EV_MODE) => {
       let rec next_rule = (
         fun
         | [] => None
-        | [(dp, d2), ...rules] =>
-          switch (matches(dp, d1)) {
-          | Matches(env') => Some((env', d2))
-          | DoesNotMatch => next_rule(rules)
-          | IndetMatch => None
+        | [(dp, d2), ...rules] => {
+            let matches = matches(dp, d1);
+            switch (matches.matches) {
+            | Matches(env') => Some((env', d2, matches.closures))
+            | DoesNotMatch => next_rule(rules)
+            | IndetMatch => None
+            };
           }
       );
       switch (next_rule(rules)) {
-      | Some((env', d2)) =>
+      | Some((env', d2, closures)) =>
         Step({
           expr: Closure(evaluate_extend_env(env', env), d2) |> fresh,
-          state_update,
+          state_update: capture_closures(env, state, closures),
           kind: CaseApply,
           is_value: false,
         })

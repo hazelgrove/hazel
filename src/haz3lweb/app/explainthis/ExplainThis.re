@@ -397,7 +397,7 @@ let example_view =
 
 let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
-  | Parens(p)
+  | Parens(p, _)
   | Cast(p, _, _) => bypass_parens_and_annot_pat(p)
   | _ => pat
   };
@@ -405,7 +405,7 @@ let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
 
 let rec bypass_parens_pat = (pat: Pat.t) => {
   switch (pat.term) {
-  | Parens(p) => bypass_parens_pat(p)
+  | Parens(p, _) => bypass_parens_pat(p)
   | _ => pat
   };
 };

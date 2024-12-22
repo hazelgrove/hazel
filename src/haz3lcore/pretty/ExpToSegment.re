@@ -518,7 +518,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     @ List.flatten(
         List.map2((id, x) => [mk_form("comma_pat", id, [])] @ x, ids, xs),
       );
-  | Parens(p) =>
+  | Parens(p, _) =>
     let id = pat |> Pat.rep_id;
     let+ p = go(p);
     [mk_form("parens_pat", id, [p])];
@@ -778,12 +778,12 @@ let paren_assoc_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
 
 let paren_pat_at = (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
   external_precedence_pat(pat) >= internal_precedence
-    ? Pat.fresh(Parens(pat)) : pat;
+    ? Pat.fresh(Parens(pat, Paren)) : pat;
 
 let paren_pat_assoc_at =
     (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
   external_precedence_pat(pat) > internal_precedence
-    ? Pat.fresh(Parens(pat)) : pat;
+    ? Pat.fresh(Parens(pat, Paren)) : pat;
 
 let paren_typ_at = (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
   external_precedence_typ(typ) >= internal_precedence
@@ -979,8 +979,9 @@ and parenthesize_pat = (pat: Pat.t): Pat.t => {
 
   // Other forms
   | Wild => pat
-  | Parens(p) =>
-    Parens(parenthesize_pat(p) |> paren_pat_at(Precedence.min)) |> rewrap
+  | Parens(p, tag) =>
+    Parens(parenthesize_pat(p) |> paren_pat_at(Precedence.min), tag)
+    |> rewrap
   | Cons(p1, p2) =>
     Cons(
       parenthesize_pat(p1) |> paren_pat_at(Precedence.cons),
