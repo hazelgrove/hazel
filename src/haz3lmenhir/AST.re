@@ -1,7 +1,5 @@
 open Sexplib.Std;
 
-let arb_alpha_str = QCheck.(string_small_of(Gen.char_range('a', 'z')));
-
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type filter_action =
   | Pause
@@ -172,14 +170,16 @@ type exp =
   | DynamicErrorHole(exp, string)
   | TyAlias(tpat, typ, exp);
 
-let arb_lower_alpha = QCheck.Gen.char_range('a', 'z');
-
 let arb_constructor_ident =
   QCheck.
     // TODO handle full constructor ident including nums
     (
       let leading = Gen.char_range('A', 'Z');
-      let tail = string_gen_of_size(Gen.int_range(1, 4), arb_lower_alpha);
+      let tail =
+        string_gen_of_size(
+          Gen.int_range(1, 4),
+          QCheck.Gen.char_range('a', 'z'),
+        );
       QCheck.map(
         ident =>
           // if ident is a keyword add a suffix
@@ -219,7 +219,10 @@ let arb_ident =
         | "in" => "keyword"
         | _ => ident
         },
-      string_gen_of_size(Gen.int_range(1, 1), arb_lower_alpha),
+      string_gen_of_size(
+        Gen.int_range(1, 1),
+        QCheck.Gen.char_range('a', 'z'),
+      ),
     )
   );
 
@@ -274,12 +277,15 @@ let gen_tpat =
     oneof([gen_var, gen_empty])
   );
 
+// TODO This should be anything printable other than `"`
+let gen_literal_string = QCheck.Gen.(string_small_of(char_range('a', 'z')));
+
 let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
   QCheck.Gen.(
     let leaf =
       oneof([
         map(x => Int(x), small_int),
-        map(x => String(x), arb_alpha_str.gen), // TODO This should be anything printable other than `"`
+        map(x => String(x), gen_literal_string),
         map(x => Float(x), QCheck.pos_float.gen), // Floats are positive because we use UnOp minus
         map(x => Var(x), arb_ident.gen),
         map(x => Bool(x), bool),
@@ -502,7 +508,7 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
               map(x => IntPat(x), small_int),
               map(x => FloatPat(x), QCheck.pos_float.gen),
               map(x => VarPat(x), arb_ident.gen),
-              map(x => StringPat(x), arb_alpha_str.gen),
+              map(x => StringPat(x), gen_literal_string),
               map(x => BoolPat(x), bool),
               map(
                 x => ConstructorPat(x, UnknownType(Internal)),
