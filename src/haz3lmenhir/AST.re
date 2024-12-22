@@ -170,34 +170,26 @@ type exp =
   | DynamicErrorHole(exp, string)
   | TyAlias(tpat, typ, exp);
 
-let arb_constructor_ident =
-  QCheck.
-    // TODO handle full constructor ident including nums
-    (
-      let leading = Gen.char_range('A', 'Z');
-      let tail =
-        string_gen_of_size(
-          Gen.int_range(1, 4),
-          QCheck.Gen.char_range('a', 'z'),
-        );
-      QCheck.map(
-        ident =>
-          // if ident is a keyword remap
-          switch (ident) {
-          | "Int"
-          | "Float"
-          | "String"
-          | "Unknown"
-          | "Internal"
-          | "Bool" => "keyword"
-          | _ => ident
-          },
-        make(
-          ~print=t => t,
-          Gen.map2((l, t) => String.make(1, l) ++ t, leading, tail.gen),
-        ),
-      )
-    );
+let gen_constructor_ident =
+  // TODO handle full constructor ident including nums
+  QCheck.Gen.(
+    let leading = char_range('A', 'Z');
+    let tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
+    map(
+      ident =>
+        // if ident is a keyword remap
+        switch (ident) {
+        | "Int"
+        | "Float"
+        | "String"
+        | "Unknown"
+        | "Internal"
+        | "Bool" => "keyword"
+        | _ => ident
+        },
+      map2((l, t) => String.make(1, l) ++ t, leading, tail),
+    )
+  );
 
 // ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 // Currently an issue if the keyword is a prefix of another word. `let ? = ina in ?`
@@ -291,7 +283,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
               Test(inner);
             },
             {
-              let+ name = arb_constructor_ident.gen;
+              let+ name = gen_constructor_ident;
               Constructor(name, UnknownType(Internal));
             },
             {
@@ -402,7 +394,7 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
           return(BoolType),
           return(UnitType),
           map(x => UnknownType(x), arb_typ_provenance.gen),
-          map(x => SumTyp([Variant(x, None)]), arb_constructor_ident.gen),
+          map(x => SumTyp([Variant(x, None)]), gen_constructor_ident),
         ]);
       fix(
         (self, n) =>
@@ -452,7 +444,7 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
                             5,
                             {
                               let* optional_typ = option(self(size));
-                              let+ constructor = arb_constructor_ident.gen;
+                              let+ constructor = gen_constructor_ident;
                               Variant(constructor, optional_typ);
                             },
                           ),
@@ -485,7 +477,7 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
               map(x => BoolPat(x), bool),
               map(
                 x => ConstructorPat(x, UnknownType(Internal)),
-                arb_constructor_ident.gen,
+                gen_constructor_ident,
               ),
               return(TuplePat([])),
               return(ListPat([])),
@@ -514,7 +506,7 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
                 ListPat(Array.to_list(pats));
               },
               {
-                let* constructor = arb_constructor_ident.gen;
+                let* constructor = gen_constructor_ident;
                 let+ p = self(n - 1);
                 ApPat(
                   ConstructorPat(constructor, UnknownType(Internal)),
