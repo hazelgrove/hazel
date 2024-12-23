@@ -1,6 +1,5 @@
-include Term.Drv;
-module Exp = Term.ALFA_Exp;
-module Rul = Term.ALFA_Rul;
-module Pat = Term.ALFA_Pat;
-module Typ = Term.ALFA_Typ;
-module TPat = Term.ALFA_TPat;
+module Exp = DrvTerm.Exp;
+module Rul = DrvTerm.Rul;
+module Pat = DrvTerm.Pat;
+module Typ = DrvTerm.Typ;
+module TPat = DrvTerm.TPat;

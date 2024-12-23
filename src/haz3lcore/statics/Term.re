@@ -33,7 +33,7 @@ module Pat = {
 
   let fresh: term => t = IdTagged.fresh;
 
-  let hole = (tms: list(TermBase.Any.t)) =>
+  let hole = (tms: list(TermBase.Any.t)): TermBase.Pat.term =>
     switch (tms) {
     | [] => EmptyHole
     | [_, ..._] => MultiHole(tms)
@@ -621,8 +621,7 @@ module Any = {
     | Rul(_) => Rul
     | Drv(drv) => Drv(DrvTerm.Drv.sort_of(drv))
     | Nul(_) => Nul;
-
-  let rec ids =
+  let rec ids: TermBase.any_t => list(Id.t) =
     fun
     | Drv(Exp(tm)) => tm.ids
     | Drv(Rul(tm)) => tm.ids
@@ -655,7 +654,7 @@ module Any = {
     | Drv(Pat(tm)) => ALFA_Pat.rep_id(tm)
     | Drv(Typ(tm)) => ALFA_Typ.rep_id(tm)
     | Drv(TPat(tm)) => ALFA_TPat.rep_id(tm)
-    | Exp(tm) => Exp.rep_id(tm)
+    | (Exp(tm): TermBase.any_t) => Exp.rep_id(tm)
     | Pat(tm) => Pat.rep_id(tm)
     | Typ(tm) => Typ.rep_id(tm)
     | TPat(tm) => TPat.rep_id(tm)

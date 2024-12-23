@@ -1,4 +1,4 @@
-module ALFA_Exp = {
+module Exp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Hole
@@ -50,10 +50,10 @@ module ALFA_Exp = {
     | Unroll
     | ExpHole;
 
-  include TermBase.ALFA_Exp;
+  include DrvTermBase.Exp;
 
-  let hole = (tms: list(TermBase.Any.t)): term =>
-    Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
+  // let hole = (tms: list(TermBase.Any.t)): term =>
+  //   Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
 
   let rep_id = ({ids, _}: t) => {
     assert(ids != []);
@@ -118,16 +118,16 @@ module ALFA_Exp = {
     | ExpHole => ExpHole;
 };
 
-module ALFA_Rul = {
+module Rul = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Hole
     | Rules;
 
-  include TermBase.ALFA_Rul;
+  include DrvTermBase.Rul;
 
-  let hole = (tms: list(TermBase.Any.t)): term =>
-    Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
+  // let hole = (tms: list(TermBase.Any.t)): term =>
+  //   Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
 
   let rep_id = ({ids, _}: t) => {
     assert(ids != []);
@@ -146,7 +146,7 @@ module ALFA_Rul = {
     | Rules(_, _) => Rules;
 };
 
-module ALFA_Pat = {
+module Pat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Hole
@@ -158,10 +158,10 @@ module ALFA_Pat = {
     | Pair
     | Parens;
 
-  include TermBase.ALFA_Pat;
+  include DrvTermBase.Pat;
 
-  let hole = (tms: list(TermBase.Any.t)): term =>
-    Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
+  // let hole = (tms: list(TermBase.Any.t)): term =>
+  //   Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
 
   let rep_id = ({ids, _}: t) => {
     assert(ids != []);
@@ -186,7 +186,7 @@ module ALFA_Pat = {
     | Parens(_) => Parens;
 };
 
-module ALFA_Typ = {
+module Typ = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Hole
@@ -202,10 +202,10 @@ module ALFA_Typ = {
     | Parens
     | TypHole;
 
-  include TermBase.ALFA_Typ;
+  include DrvTermBase.Typ;
 
-  let hole = (tms: list(TermBase.Any.t)): term =>
-    Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
+  // let hole = (tms: list(TermBase.Any.t)): term =>
+  //   Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
 
   let rep_id = ({ids, _}: t) => {
     assert(ids != []);
@@ -234,16 +234,16 @@ module ALFA_Typ = {
     | TypHole => TypHole;
 };
 
-module ALFA_TPat = {
+module TPat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Hole
     | Var;
 
-  include TermBase.ALFA_TPat;
+  include DrvTermBase.TPat;
 
-  let hole = (tms: list(TermBase.Any.t)): term =>
-    Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
+  // let hole = (tms: list(TermBase.Any.t)): term =>
+  //   Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
 
   let rep_id = ({ids, _}: t) => {
     assert(ids != []);
@@ -262,32 +262,34 @@ module ALFA_TPat = {
     | Var(_) => Var;
 };
 
-module Drv = {
+module Any = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
-    | Exp(ALFA_Exp.cls)
-    | Rul(ALFA_Rul.cls)
-    | Pat(ALFA_Pat.cls)
-    | Typ(ALFA_Typ.cls)
-    | TPat(ALFA_TPat.cls);
+    | Exp(Exp.cls)
+    | Rul(Rul.cls)
+    | Pat(Pat.cls)
+    | Typ(Typ.cls)
+    | TPat(TPat.cls);
 
-  include TermBase.Drv;
+  include DrvTermBase.Any;
 
-  let sort_of: t => Sort.DrvSort.t =
+  let sort_of: t => DrvSort.t =
     fun
     | Exp(_) => Exp
     | Rul(_) => Rul
     | Pat(_) => Pat
     | Typ(_) => Typ
-    | TPat(_) => TPat;
+    | TPat(_) => TPat
+    | Any(_) => Any;
 
   let rep_id: t => Id.t =
     fun
-    | Exp(exp) => ALFA_Exp.rep_id(exp)
-    | Rul(rul) => ALFA_Rul.rep_id(rul)
-    | Pat(pat) => ALFA_Pat.rep_id(pat)
-    | Typ(typ) => ALFA_Typ.rep_id(typ)
-    | TPat(tpat) => ALFA_TPat.rep_id(tpat);
+    | Exp(exp) => Exp.rep_id(exp)
+    | Rul(rul) => Rul.rep_id(rul)
+    | Pat(pat) => Pat.rep_id(pat)
+    | Typ(typ) => Typ.rep_id(typ)
+    | TPat(tpat) => TPat.rep_id(tpat)
+    | Any(_) => raise(Invalid_argument("Any.rep_id")); // TODO
 
   let of_id: t => list(Id.t) =
     fun
@@ -295,13 +297,15 @@ module Drv = {
     | Rul(rul) => rul.ids
     | Pat(pat) => pat.ids
     | Typ(typ) => typ.ids
-    | TPat(tpat) => tpat.ids;
+    | TPat(tpat) => tpat.ids
+    | Any(_) => [];
 
   let cls_of: t => cls =
     fun
-    | Exp(exp) => Exp(ALFA_Exp.cls_of_term(exp.term))
-    | Rul(rul) => Rul(ALFA_Rul.cls_of_term(rul.term))
-    | Pat(pat) => Pat(ALFA_Pat.cls_of_term(pat.term))
-    | Typ(typ) => Typ(ALFA_Typ.cls_of_term(typ.term))
-    | TPat(tpat) => TPat(ALFA_TPat.cls_of_term(tpat.term));
+    | Exp(exp) => Exp(Exp.cls_of_term(exp.term))
+    | Rul(rul) => Rul(Rul.cls_of_term(rul.term))
+    | Pat(pat) => Pat(Pat.cls_of_term(pat.term))
+    | Typ(typ) => Typ(Typ.cls_of_term(typ.term))
+    | TPat(tpat) => TPat(TPat.cls_of_term(tpat.term))
+    | Any(_) => raise(Invalid_argument("Any.cls_of")); // TODO
 };
