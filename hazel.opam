@@ -24,7 +24,7 @@ depends: [
   "uuidm" {= "0.9.8"}
   "unionFind"
   "ocamlformat"
-  "junit_alcotest" {with-test}
+  "junit_alcotest" {>= "2.1.0" & with-test}
   "ocaml-lsp-server"
   "qcheck"
   "qcheck-alcotest"

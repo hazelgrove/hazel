@@ -832,28 +832,26 @@ let ex5 = list_of_mylist(x) in
     |},
     ),
     // This fails because MakeTerm can't handle left to right keyword prefixes.
-    // Skipped tests are commented out because of junit alcotest bug https://github.com/Khady/ocaml-junit/issues/9
-    // skip_menhir_maketerm_equivalent_test(
-    //   "Prefixed keyword parses",
-    //   {|let ? = ina in ?|},
-    // ),
-    // // Menhir is doing the skipped better than MakeTerm
-    // skip_menhir_maketerm_equivalent_test(
-    //   "Prefixed keyword parses",
-    //   {|type ? = rec ? -> + Aramj -> Bool in ?|},
-    // ),
-    // skip_menhir_maketerm_equivalent_test(
-    //   "List concat and typap",
-    //   {|type ? = (+ Ulog, () -> Float) in let (()) = (()) in 0.001536|},
-    // ),
-    // skip_menhir_maketerm_equivalent_test(
-    //   "Sum in product in typeap",
-    //   {|((fun _ -> b)) @< [(+ Kfgii, Float)] >|},
-    // ),
-    // skip_menhir_maketerm_equivalent_test(
-    //   "Non-unique constructors currently throws in equality",
-    //   {|type ? = ((+ ? + ?)) in []|},
-    // ),
+    skip_menhir_maketerm_equivalent_test(
+      "Prefixed keyword parses",
+      {|let ? = ina in ?|},
+    ),
+    skip_menhir_maketerm_equivalent_test(
+      "Sum type messed up in make term",
+      {|type ? = rec ? -> + Aramj -> Bool in ?|},
+    ),
+    skip_menhir_maketerm_equivalent_test(
+      "List concat and typap",
+      {|type ? = (+ Ulog, () -> Float) in let (()) = (()) in 0.001536|},
+    ),
+    skip_menhir_maketerm_equivalent_test(
+      "Sum in product in typeap",
+      {|((fun _ -> b)) @< [(+ Kfgii, Float)] >|},
+    ),
+    skip_menhir_maketerm_equivalent_test(
+      "Non-unique constructors currently throws in equality",
+      {|type ? = ((+ ? + ?)) in []|},
+    ),
     QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
     // Disabled due to bugs in ExpToSegment
     // e.g. https://github.com/hazelgrove/hazel/issues/1445

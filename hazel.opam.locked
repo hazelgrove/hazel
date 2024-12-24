@@ -102,8 +102,8 @@ depends: [
   "jsonm" {= "1.0.2"}
   "jsonrpc" {= "1.19.0"}
   "jst-config" {= "v0.16.0"}
-  "junit" {= "2.0.2" & with-test}
-  "junit_alcotest" {= "2.0.2" & with-test}
+  "junit" {= "2.1.0" & with-test}
+  "junit_alcotest" {= "2.1.0" & with-test}
   "lambdasoup" {= "1.1.1"}
   "logs" {= "0.7.0"}
   "lsp" {= "1.19.0"}
