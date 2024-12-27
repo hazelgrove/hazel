@@ -324,7 +324,16 @@ let rec pat_view =
       ])
     }
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
-  | NotInHole(ok) => div_ok(common_ok_view(~auto_labels=labels, cls, ok))
+  | NotInHole(ok) =>
+    div_ok(
+      common_ok_view(
+        ~auto_labels=labels,
+        ~lifted_ty=?Option.map(_ => info.ty, info.elaboration_provenance),
+        ~sugar_info=?Option.map(snd, info.elaboration_provenance),
+        cls,
+        ok,
+      ),
+    )
   };
 };
 let typ_view = (cls: Cls.t, status: Info.status_typ) =>
