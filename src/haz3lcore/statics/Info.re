@@ -797,3 +797,13 @@ let typ_is_constructor_expected = t =>
   | {expects: ConstructorExpected(_) | VariantExpected(_), _} => true
   | _ => false
   };
+
+let rec unelaborated_info = (info: t): t =>
+  switch (info) {
+  | InfoExp({unelaborated_info: ui, _}) =>
+    switch (ui) {
+    | Some(info) => unelaborated_info(InfoExp(info))
+    | None => info
+    }
+  | _ => info
+  };
