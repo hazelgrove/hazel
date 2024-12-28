@@ -1,33 +1,41 @@
 /* Probe Projector */
 :root {
-  --exp_base: #c7e6c6;
-  --pat_base: #c6e6e1;
+  --code-text: var(--token-exp);
+  --live-env-bkg: var(--T3);
 
-  --exp_shadow: oklch(0.56 0.16 149.14);
-  --pat_shadow: oklch(0.49 0.09 244.3);
+  --num-closures: var(--Y1);
+  --num-closures-indicated: var(--R1);
 
-  --exp_indicated: var(--G0);
-  --pat_indicated: var(--PAT);
+  --exp-ap: hsl(265, 75%, 80%);
+  --pat-ap: hsl(220, 75%, 80%);
 
-  --exp_cell: #9eca9b;
-  --pat_cell: #9bcabe;
+  --exp-indicated: var(--G0);
+  --pat-indicated: var(--PAT);
 
-  --ap-highlight: #c9aaf3;
+  --exp-base: hsl(120, 40%, 85%);
+  --pat-base: hsl(170, 40%, 85%);
+
+  --exp-shadow: oklch(0.55 0.15 150);
+  --pat-shadow: oklch(0.50 0.10 245);
+
+  --exp-cell: hsl(115, 30%, 70%);
+  --pat-cell: hsl(165, 30%, 70%);
+
 }
 
 .projector.probe {
   font-family: var(--code-font);
   font-size: var(--base-font-size);
-  color: var(--STONE);
+  color: var(--code-text);
 }
 
 .projector.probe > svg {
-  fill: var(--exp_base);
-  filter: drop-shadow(0.7px 0.7px 0px var(--exp_shadow));
+  fill: var(--exp-base);
+  filter: drop-shadow(0.7px 0.7px 0px var(--exp-shadow));
 }
 .projector.probe.Pat > svg {
-  fill: var(--pat_base);
-  filter: drop-shadow(0.7px 0.7px 0px var(--pat_shadow));
+  fill: var(--pat-base);
+  filter: drop-shadow(0.7px 0.7px 0px var(--pat-shadow));
 }
 
 .projector.probe .main {
@@ -67,7 +75,7 @@
   font-family: var(--ui-font);
   display: flex;
   justify-content: center;
-  background-color: var(--exp_indicated);
+  background-color: var(--exp-indicated);
   border-radius: 2em;
   font-size: 0.7em;
   padding: 0.3em;
@@ -75,13 +83,13 @@
   z-index: var(--code-emblems-z);
 }
 .projector.probe.Pat .num-closures {
-  background-color: var(--pat_indicated);
+  background-color: var(--pat-indicated);
 }
 .projector.probe.selected .num-closures {
-  background-color: var(--Y1);
+  background-color: var(--num-closures);
 }
 .projector.probe.indicated.Right .num-closures {
-  background-color: var(--R1);
+  background-color: var(--num-closures-indicated);
   right: -0.8em;
   top: -0.5em;
 }
@@ -108,31 +116,30 @@
 }
 
 .projector.probe .val-resize .code-text {
-  background-color: var(--exp_cell);
-  border-bottom: 1px solid var(--exp_shadow);
+  background-color: var(--exp-cell);
+  border-bottom: 1px solid var(--exp-shadow);
   border-radius: 0.3em 0.1em 0.1em 0.1em;
 }
 .projector.probe.Pat .val-resize .code-text {
-  border-color: var(--pat_shadow);
+  border-color: var(--pat-shadow);
 }
 .projector.probe.Pat .val-resize .code-text {
-  background-color: var(--pat_cell);
+  background-color: var(--pat-cell);
 }
 .projector.probe .closure:first-child .val-resize:hover .code-text {
   cursor: col-resize;
 }
 .projector.probe .val-resize.cursor .code-text {
-  /* outline: 1.6px solid var(--G0);
-  outline-style: dotted; */
   filter: none;
   opacity: 100%;
 }
 .projector.probe .val-resize.dyn-cursor .code-text {
-  /* outline: 1.6px solid var(--G0);
-  outline-style: dotted; */
   filter: none;
   opacity: 100%;
-  background-color: var(--ap-highlight);
+  background-color: var(--exp-ap);
+}
+.projector.probe.Pat .val-resize.dyn-cursor .code-text {
+  background-color: var(--pat-ap);
 }
 
 .projector.probe .val-resize .code-text {
@@ -142,19 +149,16 @@
   filter: brightness(1.05) saturate(1.05);
 }
 .projector.probe .val-resize:not(.cursor) .code-text .token {
-  /* filter: saturate(0); */
-  /* filter: sepia(1) hue-rotate(61deg) saturate(2); */
   filter: invert(1) brightness(10);
 }
 
 .projector.probe .live-env {
-  background-color: var(--T3);
+  background-color: var(--live-env-bkg);
   border-radius: 0 0.2em 0.2em 0.2em;
   padding: 0.2em;
   display: none;
   position: absolute;
   top: 1.35em;
-  /* z-index: var(--code-hovers-z); */
 }
 
 .projector.probe .live-env .live-env-entry {
@@ -166,10 +170,10 @@
 }
 
 .projector.probe.indicated > svg {
-  fill: var(--exp_indicated);
+  fill: var(--exp-indicated);
 }
 .projector.probe.indicated.Pat > svg {
-  fill: var(--pat_indicated);
+  fill: var(--pat-indicated);
 }
 
 .projector.probe.indicated .val-resize .code-text {
@@ -183,13 +187,13 @@
 .projector.probe.indicated .val-resize.cursor .code-text {
   opacity: 100%;
   background: none;
-  outline: 2.8px solid var(--exp_indicated);
+  outline: 2.8px solid var(--exp-indicated);
 }
 .projector.probe.indicated .val-resize.cursor.ap .code-text {
-  outline-color: var(--ap-highlight);
+  outline-color: var(--exp-ap);
 }
 .projector.probe.indicated.Pat .val-resize.cursor .code-text {
-  outline-color: var(--pat_indicated);
+  outline-color: var(--pat-indicated);
 }
 
 .projector.probe.indicated .closure:hover .live-env {
@@ -205,7 +209,7 @@
   width: 10px;
   height: 13px;
   cursor: pointer;
-  color: var(--exp_indicated);
+  color: var(--exp-indicated);
   background: url(../../img/noun-arrow-3130579.svg);
   background-size: cover;
   color: var(--NONE);
