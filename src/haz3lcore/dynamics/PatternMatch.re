@@ -11,26 +11,24 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
     Matches(Environment.union(env1, env2))
   };
 
-let closure_closures:
-  ref(list(Probe.stack => (Id.t, Dynamics.Probe.Closure.t))) =
-  ref([]);
+type closure_closures =
+  list((Probe.stack, Probe.stack) => (Id.t, Dynamics.Probe.Closure.t));
+let closure_closures: ref(closure_closures) = ref([]);
 
 let capture_closure = (pr, id: Id.t, d, inner_match: match_result): unit =>
   switch (inner_match) {
   | DoesNotMatch => ()
   | IndetMatch => ()
   | Matches(env) =>
-    print_endline("Pattern Match: capturing a closure");
-    let dyn_stack = []; //TODO(andrew)
     closure_closures :=
       List.cons(
-        stack =>
+        (stack, dyn_stack) =>
           (
             id,
             Dynamics.Probe.Closure.mk(d, {env, stack, dyn_stack, id}, pr),
           ),
         closure_closures^,
-      );
+      )
   };
 
 let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
@@ -95,7 +93,7 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
 
 type matches_and_closures = {
   matches: match_result,
-  closures: list(Probe.stack => (Id.t, Dynamics.Probe.Closure.t)),
+  closures: closure_closures,
 };
 
 // wrap matches but do stateful thing (closure capture)
