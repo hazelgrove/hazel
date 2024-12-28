@@ -361,6 +361,7 @@ module Transition = (EV: EV_MODE) => {
           let env'' =
             evaluate_extend_env(
               ~frame=Some(Term.Exp.rep_id(d)),
+              ~dyn_env=env,
               env'',
               env',
             );

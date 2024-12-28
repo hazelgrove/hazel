@@ -151,6 +151,7 @@ and closure_environment_t = {
   id: Id.t,
   env: environment_t,
   stack: Probe.stack,
+  dyn_stack: Probe.stack,
 }
 and stepper_filter_kind_t =
   | Filter(filter)
@@ -929,12 +930,14 @@ and ClosureEnvironment: {
   let id_of: t => Id.t;
   let map_of: t => Environment.t;
   let stack_of: t => list(Probe.frame);
+  let dyn_stack_of: t => list(Probe.frame);
 
   let id_equal: (closure_environment_t, closure_environment_t) => bool;
 
   let lookup: (t, Var.t) => option(Exp.t);
   let update_env: (Environment.t => Environment.t, t) => t;
-  let extend_eval: (~frame: option(Id.t)=?, Environment.t, t) => t;
+  let extend_eval:
+    (~frame: option(Id.t)=?, ~dyn_env: t=?, Environment.t, t) => t;
 
   let to_list: t => list((Var.t, Exp.t));
   let without_keys: (list(Var.t), t) => t;
@@ -943,20 +946,22 @@ and ClosureEnvironment: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = closure_environment_t;
 
-    let wrap: (Id.t, Environment.t, Probe.stack) => t;
+    let wrap: (Id.t, Environment.t, Probe.stack, Probe.stack) => t;
 
     let id_of: t => Id.t;
     let map_of: t => Environment.t;
     let stack_of: t => list(Probe.frame);
+    let dyn_stack_of: t => list(Probe.frame);
   } = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = closure_environment_t;
 
-    let wrap = (id, env, stack): t => {id, env, stack};
+    let wrap = (id, env, stack, dyn_stack): t => {id, env, stack, dyn_stack};
 
     let id_of = t => t.id;
     let map_of = t => t.env;
     let stack_of = t => t.stack;
+    let dyn_stack_of = t => t.dyn_stack;
 
     let (sexp_of_t, t_of_sexp) =
       StructureShareSexp.structure_share_here(id_of, sexp_of_t, t_of_sexp);
@@ -965,7 +970,7 @@ and ClosureEnvironment: {
 
   let to_list = env => env |> map_of |> Environment.to_listo;
 
-  let of_environment = env => wrap(Id.mk(), env, []);
+  let of_environment = env => wrap(Id.mk(), env, [], []);
 
   /* Equals only needs to check environment id's (faster than structural equality
    * checking.) */
@@ -981,15 +986,14 @@ and ClosureEnvironment: {
   let without_keys = keys => update_env(Environment.without_keys(keys));
 
   let update_stack = (ap_id: option(Id.t), env) => {
-    let stack =
+    let (stack, dyn_stack) =
       switch (ap_id) {
-      | None => stack_of(env)
-      | Some(ap_id) => [
-          Probe.mk_frame(~env_id=id_of(env), ~ap_id),
-          ...stack_of(env),
-        ]
+      | None => (stack_of(env), dyn_stack_of(env))
+      | Some(ap_id) =>
+        let frame = Probe.mk_frame(~env_id=id_of(env), ~ap_id);
+        ([frame, ...stack_of(env)], [frame, ...dyn_stack_of(env)]);
       };
-    {...env, stack};
+    {...env, stack, dyn_stack};
   };
 
   /* Extend the environment with new bindings. ~frame is an optional argument which
@@ -998,12 +1002,19 @@ and ClosureEnvironment: {
    * frames for each environment created by a function application, and the
    * syntax ids of those applications are used as the Id for the frame */
   let extend_eval =
-      (~frame: option(Id.t)=None, new_bindings: Environment.t, to_extend: t)
+      (
+        ~frame: option(Id.t)=None,
+        ~dyn_env: t=empty,
+        new_bindings: Environment.t,
+        to_extend: t,
+      )
       : t =>
     {
       id: Id.mk(),
       env: Environment.union(new_bindings, map_of(to_extend)),
       stack: stack_of(to_extend),
+      dyn_stack:
+        dyn_stack_of(dyn_env.env == Environment.empty ? to_extend : dyn_env) //TODO(andrew): cleanup
     }
     |> update_stack(frame);
 }

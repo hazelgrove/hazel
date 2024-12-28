@@ -34,19 +34,20 @@ let model'_of_sexp = (sexp): model' =>
   | x => x
   };
 
-// let stack = stack =>
-//   stack
-//   |> List.rev
-//   |> List.map(({env_id, ap_id}: Probe.frame) =>
-//        ""
-//        ++ String.sub(Id.to_string(env_id), 0, 2)
-//        ++ "\n"
-//        ++ String.sub(Id.to_string(ap_id), 0, 2)
-//      )
-//   |> String.concat("\n");
+let stack = stack =>
+  stack
+  |> List.rev
+  |> List.map(({env_id, ap_id}: Probe.frame) =>
+       ""
+       ++ String.sub(Id.to_string(env_id), 0, 2)
+       ++ " : "
+       ++ String.sub(Id.to_string(ap_id), 0, 2)
+     )
+  |> String.concat("\n");
 
 let env_cursor: ref(list(Id.t)) = ref([]);
 let last_target: ref(list('a)) = ref([]);
+let cur_ap: ref(option(Id.t)) = ref(Option.None);
 let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
 
 let common_suffix_length = (s1, s2) =>
@@ -89,9 +90,19 @@ let get_goal = (utility: utility, e: Js.t(Dom_html.mouseEvent)) =>
     e |> Js.Unsafe.coerce,
   );
 
+let cur_ap_id = (info: info) =>
+  switch (info.statics) {
+  | Some(InfoExp({term: {term: Ap(_), _} as ap, _})) =>
+    Some(Term.Exp.rep_id(ap))
+  | Some(InfoExp({term: {term: Parens({term: Ap(_), _} as ap, _), _}, _})) =>
+    Some(Term.Exp.rep_id(ap))
+  | _ => None
+  };
+
 let resizable_val =
     (
       ~resizable=false,
+      info: info,
       model,
       utility,
       local,
@@ -103,6 +114,7 @@ let resizable_val =
     mousedown := Some(target);
     env_cursor := Probe.env_stack(closure.stack);
     last_target := [target];
+    cur_ap := cur_ap_id(info);
     Effect.Ignore;
   };
 
@@ -126,11 +138,30 @@ let resizable_val =
     | _ => Effect.Ignore
     };
 
+  //TODO(andrew): cleanup
+  let dyn_ind =
+    switch (info.statics) {
+    | _
+        when
+          Option.is_some(
+            List.find_opt(
+              ({ap_id, _}: Probe.frame) => Some(ap_id) == cur_ap^,
+              closure.dyn_stack,
+            ),
+          ) => [
+        "dyn-cursor",
+      ]
+    | _ => []
+    };
+
   div(
     ~attrs=[
-      //Attr.title(stack(closure.stack)),
+      Attr.title(stack(closure.dyn_stack)),
       Attr.classes(
-        ["val-resize"] @ (show_indicator(closure.stack) ? ["cursor"] : []),
+        ["val-resize"]
+        @ dyn_ind
+        @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : [])
+        @ (show_indicator(closure.stack) ? ["cursor"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleShowAllVals)),
       Attr.on_pointerdown(val_pointerdown),
@@ -192,7 +223,16 @@ let closure_view =
         ["closure"] @ (show_indicator(closure.stack) ? ["cursor"] : []),
       ),
     ],
-    [resizable_val(~resizable=index == 0, model, utility, local, closure)]
+    [
+      resizable_val(
+        ~resizable=index == 0,
+        info,
+        model,
+        utility,
+        local,
+        closure,
+      ),
+    ]
     @ (is_var_ref(info) ? [] : [env_view(closure, utility)]),
   );
 
@@ -293,7 +333,7 @@ let syntax_view = (info: info) => info |> syntax_str |> text;
 let placeholder = (_m, info) =>
   Inline(3 + String.length(syntax_str(info)));
 
-let icon = div(~attrs=[Attr.classes(["icon"])], [text("🔍")]);
+// let icon = div(~attrs=[Attr.classes(["icon"])], [text("🔍")]);
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
 let view = (model: model', ~info, ~local, ~parent as _, ~utility: utility) => {
@@ -304,6 +344,7 @@ let view = (model: model', ~info, ~local, ~parent as _, ~utility: utility) => {
         Attr.classes(["main"]),
         Attr.on_click(_ => {
           env_cursor := [];
+          cur_ap := None;
           Effect.Ignore;
         }),
       ],
