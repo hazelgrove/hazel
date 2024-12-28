@@ -21,9 +21,14 @@ let capture_closure = (pr, id: Id.t, d, inner_match: match_result): unit =>
   | IndetMatch => ()
   | Matches(env) =>
     print_endline("Pattern Match: capturing a closure");
+    let dyn_stack = []; //TODO(andrew)
     closure_closures :=
       List.cons(
-        stack => (id, Dynamics.Probe.Closure.mk(d, {env, stack, id}, pr)),
+        stack =>
+          (
+            id,
+            Dynamics.Probe.Closure.mk(d, {env, stack, dyn_stack, id}, pr),
+          ),
         closure_closures^,
       );
   };

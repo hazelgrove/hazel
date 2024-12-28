@@ -1,5 +1,5 @@
 /* Probe Projector */
-:root{
+:root {
   --exp_base: #c7e6c6;
   --pat_base: #c6e6e1;
 
@@ -11,6 +11,8 @@
 
   --exp_cell: #9eca9b;
   --pat_cell: #9bcabe;
+
+  --ap-highlight: #c9aaf3;
 }
 
 .projector.probe {
@@ -73,7 +75,7 @@
   z-index: var(--code-emblems-z);
 }
 .projector.probe.Pat .num-closures {
-  background-color: var(--pat_indicated); 
+  background-color: var(--pat_indicated);
 }
 .projector.probe.selected .num-closures {
   background-color: var(--Y1);
@@ -124,6 +126,13 @@
   outline-style: dotted; */
   filter: none;
   opacity: 100%;
+}
+.projector.probe .val-resize.dyn-cursor .code-text {
+  /* outline: 1.6px solid var(--G0);
+  outline-style: dotted; */
+  filter: none;
+  opacity: 100%;
+  background-color: var(--ap-highlight);
 }
 
 .projector.probe .val-resize .code-text {
@@ -176,9 +185,12 @@
   background: none;
   outline: 2.8px solid var(--exp_indicated);
 }
+.projector.probe.indicated .val-resize.cursor.ap .code-text {
+  outline-color: var(--ap-highlight);
+}
 .projector.probe.indicated.Pat .val-resize.cursor .code-text {
   outline-color: var(--pat_indicated);
-} 
+}
 
 .projector.probe.indicated .closure:hover .live-env {
   display: block;
