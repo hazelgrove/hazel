@@ -126,9 +126,9 @@
 .projector.probe.Pat .val-resize .code-text {
   background-color: var(--pat-cell);
 }
-.projector.probe .closure:first-child .val-resize:hover .code-text {
+/* .projector.probe .closure:first-child .val-resize:hover .code-text {
   cursor: col-resize;
-}
+} */
 .projector.probe .val-resize.cursor .code-text {
   filter: none;
   opacity: 100%;
