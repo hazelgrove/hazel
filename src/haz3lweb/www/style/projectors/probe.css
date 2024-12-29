@@ -138,6 +138,9 @@
   opacity: 100%;
   background-color: var(--exp-ap);
 }
+.projector.probe .val-resize.dyn-cursor.light .code-text {
+  opacity: 60%;
+}
 .projector.probe.Pat .val-resize.dyn-cursor .code-text {
   background-color: var(--pat-ap);
 }
