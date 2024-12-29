@@ -99,7 +99,13 @@ let cur_ap_id = (info: info) =>
   | _ => None
   };
 
-let resizable_val =
+let depth_in_stack = (dyn_stack): option(int) =>
+  List.find_index(
+    ({ap_id, _}: Probe.frame) => Some(ap_id) == cur_ap^,
+    dyn_stack,
+  );
+
+let value_view =
     (
       ~resizable=false,
       info: info,
@@ -138,28 +144,23 @@ let resizable_val =
     | _ => Effect.Ignore
     };
 
-  //TODO(andrew): cleanup
-  let dyn_ind =
-    switch (info.statics) {
-    | _
-        when
-          Option.is_some(
-            List.find_opt(
-              ({ap_id, _}: Probe.frame) => Some(ap_id) == cur_ap^,
-              closure.dyn_stack,
-            ),
-          ) => [
-        "dyn-cursor",
-      ]
-    | _ => []
-    };
-
   div(
     ~attrs=[
-      Attr.title(stack(closure.dyn_stack)),
+      Attr.title(
+        "dyn_stack:\n"
+        ++ stack(closure.dyn_stack)
+        ++ "\nstack:\n"
+        ++ stack(closure.stack),
+      ),
       Attr.classes(
         ["val-resize"]
-        @ dyn_ind
+        @ (
+          switch (depth_in_stack(closure.dyn_stack)) {
+          | Some(0) => ["dyn-cursor"]
+          | Some(_) => ["dyn-cursor", "light"]
+          | None => []
+          }
+        )
         @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : [])
         @ (show_indicator(closure.stack) ? ["cursor"] : []),
       ),
@@ -223,16 +224,7 @@ let closure_view =
         ["closure"] @ (show_indicator(closure.stack) ? ["cursor"] : []),
       ),
     ],
-    [
-      resizable_val(
-        ~resizable=index == 0,
-        info,
-        model,
-        utility,
-        local,
-        closure,
-      ),
-    ]
+    [value_view(~resizable=index == 0, info, model, utility, local, closure)]
     @ (is_var_ref(info) ? [] : [env_view(closure, utility)]),
   );
 
