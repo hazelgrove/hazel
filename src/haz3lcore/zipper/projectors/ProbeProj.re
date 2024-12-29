@@ -5,34 +5,31 @@ open Node;
 open Js_of_ocaml;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model' = {
-  [@default "⋱"]
-  text: string,
-  len: int,
-  show_all_vals: bool,
+type model = {
+  /* Max col length for value display, indexed by closure id */
+  display_lengths: Id.Map.t(int),
+  /* Max number of closures to display */
   max_closures: int,
+  /* Index offset for closure display if over max */
   index_offset: int,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type action' =
-  | ChangeLength(int)
+type action =
+  | ChangeLength(Id.t, int)
   | Offset(int)
   | ToggleShowAllVals;
 
-let init = {
-  text: "🔍",
-  len: 12,
-  show_all_vals: true,
-  max_closures: 30,
-  index_offset: 0,
-};
+let init = {display_lengths: Id.Map.empty, max_closures: 30, index_offset: 0};
 
-let model'_of_sexp = (sexp): model' =>
-  switch (model'_of_sexp(sexp)) {
+let model_of_sexp = (sexp): model =>
+  switch (model_of_sexp(sexp)) {
   | exception _ => init
   | x => x
   };
+
+let display_length = (model: model, id: Id.t): int =>
+  Id.Map.find_opt(id, model.display_lengths) |> Option.value(~default=12);
 
 let stack = stack =>
   stack
@@ -50,17 +47,10 @@ let last_target: ref(list('a)) = ref([]);
 let cur_ap: ref(option(Id.t)) = ref(Option.None);
 let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
 
-let common_suffix_length = (s1, s2) =>
-  List.length(ListUtil.max_common_suffix(s1, s2));
-
-let one_is_suffix_of_other = (s1, s2) =>
-  common_suffix_length(s1, s2) == List.length(s1)
-  || common_suffix_length(s1, s2) == List.length(s2);
-
 let comparor = (a: Dynamics.Probe.Closure.t, b: Dynamics.Probe.Closure.t) => {
   compare(
-    common_suffix_length(env_cursor^, Probe.env_stack(b.stack)),
-    common_suffix_length(env_cursor^, Probe.env_stack(a.stack)),
+    ListUtil.common_suffix_length(env_cursor^, Probe.env_stack(b.stack)),
+    ListUtil.common_suffix_length(env_cursor^, Probe.env_stack(a.stack)),
   );
 };
 
@@ -69,7 +59,7 @@ let show_indicator = stack => {
   env_cursor^ == []
   && local == []
   || env_cursor^ != []
-  && one_is_suffix_of_other(env_cursor^, local);
+  && ListUtil.one_is_suffix_of_other(env_cursor^, local);
 };
 
 let seg_view = (utility, available, seg) =>
@@ -106,14 +96,7 @@ let depth_in_stack = (dyn_stack): option(int) =>
   );
 
 let value_view =
-    (
-      ~resizable=false,
-      info: info,
-      model,
-      utility,
-      local,
-      closure: Dynamics.Probe.Closure.t,
-    ) => {
+    (info: info, model, utility, local, closure: Dynamics.Probe.Closure.t) => {
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
     let target = e##.target |> Js.Opt.get(_, _ => failwith("no target"));
     JsUtil.setPointerCapture(target, e##.pointerId) |> ignore;
@@ -137,10 +120,10 @@ let value_view =
   //TODO: refactor to pointermove when supported
   let val_mousemove = (e: Js.t(Dom_html.mouseEvent)) =>
     switch (mousedown^) {
-    | Some(_elem) when Js.to_bool(e##.shiftKey) && resizable =>
+    | Some(_elem) when Js.to_bool(e##.shiftKey) =>
       /* Ideally we could just use hasPointerCapture... */
       let goal = get_goal(utility, e);
-      local(ChangeLength(goal.col));
+      local(ChangeLength(closure.closure_id, goal.col));
     | _ => Effect.Ignore
     };
 
@@ -169,7 +152,13 @@ let value_view =
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
     ],
-    [seg_view(utility, model.len, closure.value)],
+    [
+      seg_view(
+        utility,
+        display_length(model, closure.closure_id),
+        closure.value,
+      ),
+    ],
   );
 };
 
@@ -213,9 +202,8 @@ let closure_view =
     (
       info,
       utility: utility,
-      model: model',
+      model: model,
       local,
-      index,
       closure: Dynamics.Probe.Closure.t,
     ) =>
   div(
@@ -224,18 +212,14 @@ let closure_view =
         ["closure"] @ (show_indicator(closure.stack) ? ["cursor"] : []),
       ),
     ],
-    [value_view(~resizable=index == 0, info, model, utility, local, closure)]
+    [value_view(info, model, utility, local, closure)]
     @ (is_var_ref(info) ? [] : [env_view(closure, utility)]),
   );
 
-let select_vals = (model: model', vals) => {
+let select_vals = (model: model, vals) => {
   switch (List.sort(comparor, vals)) {
   | [] => []
-  //| [hd, ..._] when !model.show_all_vals => [hd]
   | _ =>
-    // print_endline(
-    //   "Select vals: rotateing by: " ++ string_of_int(model.index_offset),
-    // );
     vals
     |> ListUtil.remove_first_n(model.index_offset)
     |> ListUtil.truncate(model.max_closures)
@@ -248,7 +232,7 @@ let offside_pos = utility =>
     Printf.sprintf("position: absolute; left: %fpx;", utility.offside_offset),
   );
 
-let offside_view = (info, ~model: model', ~local, ~utility: utility) => {
+let offside_view = (info, ~model: model, ~local, ~utility: utility) => {
   Node.div(
     ~attrs=[Attr.classes(["live-offside"]), offside_pos(utility)],
     switch (info.dynamics) {
@@ -289,7 +273,7 @@ let offside_view = (info, ~model: model', ~local, ~utility: utility) => {
             ),
           ]
           : [];
-      hd @ tl @ List.mapi(closure_view(info, utility, model, local), vals);
+      hd @ tl @ List.map(closure_view(info, utility, model, local), vals);
     | _ => []
     },
   );
@@ -328,7 +312,7 @@ let placeholder = (_m, info) =>
 // let icon = div(~attrs=[Attr.classes(["icon"])], [text("🔍")]);
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-let view = (model: model', ~info, ~local, ~parent as _, ~utility: utility) => {
+let view = (model: model, ~info, ~local, ~parent as _, ~utility: utility) => {
   div([
     offside_view(info, ~model, ~local, ~utility),
     div(
@@ -345,18 +329,19 @@ let view = (model: model', ~info, ~local, ~parent as _, ~utility: utility) => {
   ]);
 };
 
-let update = (m: model', a: action') => {
-  print_endline("update: action:" ++ show_action'(a));
+let update = (m: model, a: action) => {
+  print_endline("update: action:" ++ show_action(a));
   switch (a) {
-  | ChangeLength(len) =>
+  | ChangeLength(id, len) =>
     if (len > (-1)) {
-      {...m, len};
+      {...m, display_lengths: Id.Map.add(id, len, m.display_lengths)};
     } else {
       m;
     }
-  | ToggleShowAllVals =>
-    //{...m, show_all_vals: !m.show_all_vals}
-    {...m, max_closures: m.max_closures == 1 ? 30 : 1}
+  | ToggleShowAllVals => {
+      ...m,
+      max_closures: m.max_closures == 1 ? init.max_closures : 1,
+    }
   | Offset(offset) =>
     let index_offset = m.index_offset + offset;
     let index_offset = index_offset < 0 ? 0 : index_offset;
@@ -364,11 +349,16 @@ let update = (m: model', a: action') => {
   };
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type m = model;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type a = action;
+
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = model';
+  type model = m;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = action';
+  type action = a;
   let init = init;
   let can_project = _ => true;
   let can_focus = false;
