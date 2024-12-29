@@ -17,6 +17,7 @@ module M: Projector = {
   let init = {text: "⋱"};
   let can_project = _ => true;
   let can_focus = false;
+  let dynamics = false;
   let placeholder = (m, _) =>
     Inline(m.text == "⋱" ? 2 : m.text |> String.length);
   let update = (m, _) => m;

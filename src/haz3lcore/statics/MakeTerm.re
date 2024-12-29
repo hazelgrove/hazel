@@ -127,6 +127,17 @@ let log_projector = (pr: Base.projector): unit => {
   projectors := Id.Map.add(pr.id, pr, projectors^);
 };
 
+/* Check if a term should be instrumented with a probe.
+ * Precondition: The relevant projector must have been
+ * logged before this is called */
+let should_instrument = (id: Id.t): bool =>
+  switch (Id.Map.find_opt(id, projectors^)) {
+  | Some(pr) =>
+    let (module P) = Projector.to_module(pr.kind);
+    P.dynamics;
+  | None => failwith("MakeTerm.exp: projector not found")
+  };
+
 let parse_sum_term: UTyp.t => ConstructorMap.variant(UTyp.t) =
   fun
   | {term: Var(ctr), ids, _} => Variant(ctr, ids, None)
@@ -197,7 +208,10 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | (["(", ")"], [Exp(body)]) => ret(Parens(body, Paren))
       | (label, [Exp(body)]) when is_probe_wrap(label) =>
         // Temporary wrapping form to persist projector probes
-        ret(Parens(body, Probe(Probe.empty)))
+        ret(
+          should_instrument(Exp.rep_id(body))
+            ? Parens(body, Probe(Probe.empty)) : body.term,
+        )
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
         | {ids, copied: false, term: Tuple(es)} => (ListLit(es), ids)
@@ -361,7 +375,8 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
           Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body, Paren)
         | (label, [Pat(body)]) when is_probe_wrap(label) =>
-          Parens(body, Probe(Probe.empty))
+          should_instrument(Pat.rep_id(body))
+            ? Parens(body, Probe(Probe.empty)) : body.term
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
           | {term: Tuple(ps), _} => ListLit(ps)
@@ -536,7 +551,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector({syntax, id: _, _} as pr) =>
+    | Projector({syntax, _} as pr) =>
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
       [go_s(sort, Segment.skel([syntax]), [syntax])];

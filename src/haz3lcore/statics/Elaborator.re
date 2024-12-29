@@ -243,7 +243,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       e' |> cast_from(ty);
     | Parens(e, probe) =>
       let (e', ty) = elaborate(m, e);
-      let probe = Dynamics.Probe.instrument(m, Exp.rep_id(uexp), probe);
+      let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
       Parens(e' |> cast_from(ty), probe) |> rewrap;
     | Deferral(_) => uexp
     | Int(_) => uexp |> cast_from(Int |> Typ.temp)

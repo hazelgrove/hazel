@@ -98,6 +98,7 @@ module M: Projector = {
   let init = ();
   let can_project = _ => true; //TODO(andrew): restrict somehow
   let can_focus = true;
+  let dynamics = false;
   let placeholder = (_, info) => {
     let str = Form.strip_quotes(get(info.syntax));
     Block({

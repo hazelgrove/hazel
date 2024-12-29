@@ -198,8 +198,8 @@ let rm_opaques:
 
 /* Is the underlying syntax a variable reference? */
 let is_var_ref = (info: info): bool =>
-  switch (MakeTerm.go([info.syntax]).term.term) {
-  | Var(_) => true
+  switch (info.statics) {
+  | Some(InfoExp({term: {term: Var(_), _}, _})) => true
   | _ => false
   };
 
@@ -372,6 +372,7 @@ module M: Projector = {
   let init = init;
   let can_project = _ => true;
   let can_focus = false;
+  let dynamics = true;
   let placeholder = placeholder;
   let update = update;
   let view = view;

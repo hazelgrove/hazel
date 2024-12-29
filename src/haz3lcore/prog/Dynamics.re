@@ -103,7 +103,7 @@ module Probe = {
 
   /* Intercepts a probe form and adds in static semantic information
    * to guide dynamic information gathering  */
-  let instrument =
+  let instrument_exp =
       (m: Statics.Map.t, id: Id.t, probe_tag: Probe.tag): Probe.tag =>
     switch (probe_tag) {
     | Paren => Paren
