@@ -49,6 +49,7 @@ module M: Projector = {
   };
 
   let can_focus = false;
+  let dynamics = false;
 
   let display_ty = (model, info) =>
     switch (model) {

@@ -100,6 +100,10 @@ module type Projector = {
    * and has two callbacks: ~parent for parent editor
    * actions(see external_action type above), and ~local
    * for this projector's local update function. */
+  let dynamics: bool;
+  /* If dynamics is true, this projector will be
+   * instrumented with a probe to collect dynamic
+   * information during evaluation */
   let view:
     (
       model,
@@ -146,6 +150,7 @@ module Cook = (C: Projector) : Cooked => {
   let init = C.init |> serialize_m;
   let can_project = C.can_project;
   let can_focus = C.can_focus;
+  let dynamics = C.dynamics;
   let view = (m, ~info, ~local, ~parent, ~utility) =>
     C.view(
       deserialize_m(m),
