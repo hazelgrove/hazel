@@ -19,6 +19,7 @@ let name = (p: Base.kind): string =>
   | Slider => "slider"
   | SliderF => "sliderf"
   | TextArea => "text"
+  | Card => "card"
   };
 
 /* This must be updated and kept 1-to-1 with the above
@@ -33,6 +34,7 @@ let of_name = (p: string): Base.kind =>
   | "slider" => Slider
   | "sliderf" => SliderF
   | "text" => TextArea
+  | "card" => Card
   | _ => failwith("Unknown projector kind")
   };
 

@@ -13,6 +13,9 @@ let to_module = (kind: Base.kind): (module Cooked) =>
   | SliderF => (module Cook(SliderFProj.M))
   | Checkbox => (module Cook(CheckboxProj.M))
   | TextArea => (module Cook(TextAreaProj.M))
+  | Card =>
+    print_endline("Baking Card projector");
+    (module Cook(CardProj.M));
   };
 
 /* Currently projection is limited to convex pieces */

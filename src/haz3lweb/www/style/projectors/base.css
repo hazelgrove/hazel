@@ -183,3 +183,41 @@
   background-color: var(--shard-selected);
 }
 
+
+/* CARD SPRITE */
+
+/* Turn off caret when a block projector is focused */
+#caret:has(~ .projectors .projector.card.indicated),
+.indication:has(~ .projectors .projector.card.indicated) {
+  display: none;
+}
+
+.projector.card .card-sprite {
+  cursor: pointer;
+  translate: 0px 13px;
+  width: 35px;
+  height: 47px;
+  background-image: url('../../img/cards-pixel.png');
+  /* background-size: calc(2136px* 0.3) calc(752px* 0.3); */
+  /* scale: 0.3; */
+  filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black) drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
+}
+
+.projector.card.indicated.Left .card-sprite {
+  filter: drop-shadow(-1.5px 0px 0px red) drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
+}
+
+.projector.card.indicated.Right .card-sprite {
+  filter: drop-shadow(1.5px 0px 0px red) drop-shadow(-1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
+}
+
+.projector.card.selected {
+  filter: brightness(0.72) sepia(1) hue-rotate(14deg) saturate(1.7);
+}
+
+.projector.card > svg,
+.projector.card.indicated > svg {
+  display: none;
+}
+
+

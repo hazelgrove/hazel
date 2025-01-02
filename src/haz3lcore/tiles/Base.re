@@ -11,6 +11,7 @@ type kind =
   | Checkbox
   | Slider
   | SliderF
+  | Card
   | TextArea;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
