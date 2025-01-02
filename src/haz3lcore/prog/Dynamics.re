@@ -41,20 +41,18 @@ module Probe = {
 
     let mk_entry = (env: Environment.t, {name, id, _}: Binding.t) =>
       switch (Environment.lookup(env, name)) {
-      | Some(d) => {
-          binding: {
-            name,
-            id,
-          },
-          value: elide(env, d),
-        }
-      | None =>
-        print_endline("binding:" ++ name);
-        failwith("Probe: variable not found in environment");
+      | Some(d) => Some({
+                     binding: {
+                       name,
+                       id,
+                     },
+                     value: elide(env, d),
+                   })
+      | None => None
       };
 
     let mk = (env: Environment.t, bound_in: Binding.s) =>
-      List.map(mk_entry(env), bound_in);
+      List.filter_map(mk_entry(env), bound_in);
   };
 
   /* A probe closure records an elided value and environment,
