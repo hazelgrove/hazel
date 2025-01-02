@@ -31,9 +31,12 @@ type rank =
 type card = (suit, rank);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type hand = list(card);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type syntax =
   | Card(card)
-  | Hand(list(card));
+  | Hand(hand);
 
 module Syntax = {
   let suit_of_piece = (p: Piece.t): suit =>
@@ -56,6 +59,46 @@ module Syntax = {
     | _ => Unknown(p)
     };
 
+  let rm_secondary = (segment: Segment.t): Segment.t =>
+    List.filter(p => !Piece.is_secondary(p), segment);
+
+  let piece_to_card = (piece: Piece.t): option(card) =>
+    switch (piece) {
+    | Tile({label: ["(", ")"], children: [segment], _}) =>
+      switch (rm_secondary(segment)) {
+      | [left_child, Tile({label: [","], _}), right_child] =>
+        Some((suit_of_piece(left_child), rank_of_piece(right_child)))
+      | _ => None
+      }
+    | _ => None
+    };
+
+  let piece_to_hand = (piece: Piece.t): option(hand) => {
+    switch (piece) {
+    | Tile({label: ["[", "]"], children: [segment], _}) =>
+      segment |> rm_secondary |> List.filter_map(piece_to_card) |> Option.some
+    | _ => None
+    };
+  };
+
+  let piece_to_syntax = (piece: Piece.t): option(syntax) =>
+    switch (piece_to_hand(piece)) {
+    | Some(hand) => Some(Hand(hand))
+    | None =>
+      open OptUtil.Syntax;
+      let+ card = piece_to_card(piece);
+      Card(card);
+    };
+
+  let mk_tuple = (children): Piece.t =>
+    Tile({
+      id: Id.mk(),
+      label: ["(", ")"],
+      mold: Mold.mk_op(Sort.Exp, [Exp]),
+      shards: [0],
+      children: [children],
+    });
+
   let mk_text = (str): Piece.t =>
     Tile({
       id: Id.mk(),
@@ -77,36 +120,6 @@ module Syntax = {
     | _ => rank |> sexp_of_rank |> Sexplib.Sexp.to_string |> mk_text
     };
 
-  let mk_tuple = (children): Piece.t =>
-    Tile({
-      id: Id.mk(),
-      label: ["(", ")"],
-      mold: Mold.mk_op(Sort.Exp, [Exp]),
-      shards: [0],
-      children: [children],
-    });
-
-  let piece_to_card = (piece: Piece.t): option(card) => {
-    //TODO: generalize this or use Term
-    switch (piece) {
-    | Tile({
-        label: ["(", ")"],
-        children: [[left_child, Tile({label: [","], _}), right_child]],
-        _,
-      })
-    | Tile({
-        label: ["(", ")"],
-        children:
-          [
-            [left_child, Tile({label: [","], _}), Secondary(_), right_child],
-          ],
-        _,
-      }) =>
-      Some((suit_of_piece(left_child), rank_of_piece(right_child)))
-    | _ => None
-    };
-  };
-
   let card_to_piece = ((suit, rank): card): Piece.t =>
     mk_tuple([
       piece_of_suit(suit),
@@ -114,14 +127,36 @@ module Syntax = {
       piece_of_rank(rank),
     ]);
 
-  let put = card_to_piece;
+  let hand_to_piece = (hand: hand): Piece.t =>
+    mk_tuple(List.map(card_to_piece, hand));
 
-  let get_opt = piece_to_card;
+  let syntax_to_piece = (syntax: syntax): Piece.t =>
+    switch (syntax) {
+    | Card(card) => card_to_piece(card)
+    | Hand(hand) => hand_to_piece(hand)
+    };
 
-  let get = (piece: Piece.t): card =>
+  let put = syntax_to_piece;
+
+  let get_opt = piece_to_syntax;
+
+  let get = (piece: Piece.t): syntax =>
     switch (get_opt(piece)) {
-    | None => failwith("ERROR: Card: not integer literal")
-    | Some(card) => card
+    | None => failwith("ERROR: Card: Not card or hand")
+    | Some(syntax) => syntax
+    };
+
+  let width_of_syntax = (syntax: syntax): int =>
+    switch (syntax) {
+    | Card(_) => 1
+    | Hand(hand) => List.length(hand)
+    };
+
+  let width_of_piece = (piece: Piece.t): int =>
+    switch (piece_to_syntax(piece)) {
+    | None => 0
+    | Some(Card(_)) => 4
+    | Some(Hand(hand)) => 4 + List.length(hand) / 2
     };
 };
 
@@ -173,8 +208,7 @@ module Card = {
     );
   };
 
-  let view = (info: info): Node.t => {
-    let card = Syntax.get(info.syntax);
+  let view = (card: card): Node.t =>
     Node.div(
       ~attrs=[
         Attr.class_("card-sprite"),
@@ -182,6 +216,28 @@ module Card = {
       ],
       [],
     );
+};
+
+module Hand = {
+  // a card, but each subsequent card should be absoluted positioned 20px to the right of the last and higher in z-index:
+  let card_wrapper = (index: int, card: card): Node.t =>
+    Node.div(
+      ~attrs=[
+        Attr.class_("card-wrapper"),
+        Attr.create(
+          "style",
+          Printf.sprintf(
+            "position: absolute; left: %dpx; z-index: %d;",
+            index * 8,
+            100 + index,
+          ),
+        ),
+      ],
+      [Card.view(card)],
+    );
+
+  let view = (hand: hand): Node.t => {
+    Node.div(~attrs=[Attr.class_("hand")], List.mapi(card_wrapper, hand));
   };
 };
 
@@ -194,7 +250,7 @@ module M: Projector = {
   let can_project = p => Syntax.get_opt(p) != None;
   let can_focus = false;
   let dynamics = false;
-  let placeholder = (_, _) => Inline(4);
+  let placeholder = (_, info) => Inline(Syntax.width_of_piece(info.syntax));
   let update = (model, _) => model;
   let view =
       (
@@ -203,7 +259,11 @@ module M: Projector = {
         ~local as _,
         ~parent as _: external_action => Ui_effect.t(unit),
         ~utility as _,
-      ) =>
-    Card.view(info);
+      ) => {
+    switch (Syntax.get(info.syntax)) {
+    | Card(card) => Card.view(card)
+    | Hand(hand) => Hand.view(hand)
+    };
+  };
   let focus = _ => ();
 };
