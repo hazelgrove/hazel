@@ -1,0 +1,48 @@
+/* CARD SPRITE */
+
+/* Turn off caret when a block projector is focused */
+#caret:has(~ .projectors .projector.card.indicated),
+.indication:has(~ .projectors .projector.card.indicated) {
+  display: none;
+}
+
+.projector.card .card-sprite {
+  cursor: pointer;
+  translate: 0px 13px;
+  width: 35px;
+  height: 47px;
+  image-rendering: pixelated;
+  background-image: url('../../img/cards-pixel.png');
+  filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black) drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
+}
+
+@keyframes blink-shadow {
+  0% { filter: drop-shadow(-2px 0px 0px red) drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black); }
+  50% { filter: drop-shadow(-2px 0px 0px red) drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black); }
+  51% { filter: drop-shadow(-1px 0px 0px black) drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black); }
+  100% { filter: drop-shadow(-1px 0px 0px black) drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black); }
+}
+
+@keyframes blink-shadow-right {
+  0% { filter: drop-shadow(2px 0px 0px red) drop-shadow(-1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black); }
+  50% { filter: drop-shadow(2px 0px 0px red) drop-shadow(-1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black); }
+  51% { filter: drop-shadow(1px 0px 0px black) drop-shadow(-1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black); }
+  100% { filter: drop-shadow(1px 0px 0px black) drop-shadow(-1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black); }
+}
+
+.projector.card.indicated.Left .card-sprite {
+  animation: blink-shadow 1s infinite;
+}
+
+.projector.card.indicated.Right .card-sprite {
+  animation: blink-shadow-right 1s infinite;
+}
+
+.projector.card.selected {
+  filter: brightness(0.72) sepia(1) hue-rotate(12deg) saturate(1.5);
+}
+
+.projector.card > svg,
+.projector.card.indicated > svg {
+  display: none;
+}
