@@ -67,12 +67,11 @@ let go =
     : result(ZipperBase.t, Action.Failure.t) => {
   switch (a) {
   | SetIndicated(p) =>
-    print_endline("SetIndicated: kind: " ++ (p |> Base.show_kind));
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)
     | Some((piece, d, rel)) =>
       Ok(move_out_of_piece(d, rel, z) |> Update.add(p, Piece.id(piece)))
-    };
+    }
   | ToggleIndicated(p) =>
     print_endline("ToggleIndicated: kind: " ++ (p |> Base.show_kind));
     switch (Indicated.for_index(z)) {

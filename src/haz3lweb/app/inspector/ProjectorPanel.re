@@ -24,9 +24,9 @@ let applicable_projectors: option(Info.t) => list(Base.kind) =
       | Pat(Float) => [SliderF]
       | Exp(String)
       | Pat(String) => [TextArea]
-      //TODP(andrew): more specific
-      | Exp(Parens)
-      | Pat(Parens) => [Card]
+      //TODO(andrew): more specific
+      | Exp(Parens | ListLit)
+      | Pat(Parens | ListLit) => [Card]
       | _ => []
       }
     )
