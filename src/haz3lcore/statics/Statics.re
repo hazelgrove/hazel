@@ -379,11 +379,12 @@ and uexp_to_info_map =
       let (labmode, mode) = Mode.of_label(ctx, mode);
       let (lab, m) = go(~mode=labmode, ~duplicates, label, m);
       let (e, m) = go(~mode, e, m);
-      add(
-        ~self=Just(TupLabel(lab.ty, e.ty) |> Typ.temp),
-        ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
-        m,
-      );
+      let self =
+        switch (lab.status) {
+        | NotInHole(_) => Self.Just(TupLabel(lab.ty, e.ty) |> Typ.temp)
+        | InHole(_) => Self.BadLabel(TupLabel(lab.ty, e.ty) |> Typ.temp)
+        };
+      add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
     | BuiltinFun(string) =>
       add'(
         ~self=Self.of_exp_var(Builtins.ctx_init, string),
@@ -399,7 +400,17 @@ and uexp_to_info_map =
         LabeledTuple.get_duplicate_and_unique_labels(Exp.get_label, es);
       let (es', m) = map_m_go(~duplicates=duplicate_labels, m, modes, es);
       let ty_list = List.map(Info.exp_ty, es');
-      let self = Self.Just(Prod(ty_list) |> Typ.temp);
+      let is_static_error = (e: Info.exp) =>
+        switch (e.status) {
+        | InHole(Common(NoType(BadLabel(_)))) => true
+        | _ => false
+        };
+      let is_bad_label =
+        List.exists((e: Info.exp) => e |> is_static_error, es');
+      let self =
+        is_bad_label
+          ? Self.BadLabel(Prod(ty_list) |> Typ.temp)
+          : Self.Just(Prod(ty_list) |> Typ.temp);
       let self =
         List.is_empty(duplicate_labels) ? self : Self.Duplicate_Labels(self);
       add(~self, ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')), m);
@@ -924,7 +935,7 @@ and upat_to_info_map =
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
   let ctx_fold = (ctx: Ctx.t, m, ~duplicates=[]) =>
     List.fold_left2(
-      ((ctx, tys, cons, m), e, mode) =>
+      ((ctx, tys, cons, m, info_all), e, mode) =>
         go(~ctx, ~mode, ~duplicates, e, m)
         |> (
           ((info, m)) => (
@@ -932,9 +943,10 @@ and upat_to_info_map =
             tys @ [info.ty],
             cons @ [info.constraint_],
             m,
+            info_all @ [info],
           )
         ),
-      (ctx, [], [], m),
+      (ctx, [], [], m, []),
     );
   let hole = self => atomic(self, Constraint.Hole);
 
@@ -1008,7 +1020,7 @@ and upat_to_info_map =
     | ListLit(ps) =>
       let ids = List.map(UPat.rep_id, ps);
       let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
-      let (ctx, tys, cons, m) = ctx_fold(ctx, m, ps, modes);
+      let (ctx, tys, cons, m, _) = ctx_fold(ctx, m, ps, modes);
       let rec cons_fold_list = cs =>
         switch (cs) {
         | [] => Constraint.InjL(Constraint.Truth) // Left = nil, Right = cons
@@ -1054,8 +1066,13 @@ and upat_to_info_map =
       let (labmode, mode) = Mode.of_label(ctx, mode);
       let (lab, m) = go(~ctx, ~mode=labmode, ~duplicates, label, m);
       let (p, m) = go(~ctx, ~mode, p, m);
+      let self =
+        switch (lab.status) {
+        | NotInHole(_) => Self.Just(TupLabel(lab.ty, p.ty) |> Typ.temp)
+        | InHole(_) => Self.BadLabel(TupLabel(lab.ty, p.ty) |> Typ.temp)
+        };
       add(
-        ~self=Just(TupLabel(lab.ty, p.ty) |> Typ.temp),
+        ~self,
         ~ctx=p.ctx,
         ~constraint_=Constraint.TupLabel(lab.constraint_, p.constraint_),
         m,
@@ -1073,9 +1090,19 @@ and upat_to_info_map =
         };
       let (duplicate_labels, _) =
         LabeledTuple.get_duplicate_and_unique_labels(Pat.get_label, ps);
-      let (ctx, tys, cons, m) =
+      let (ctx, tys, cons, m, info_pats) =
         ctx_fold(ctx, m, ~duplicates=duplicate_labels, ps, modes);
-      let self = Self.Just(Prod(tys) |> Typ.temp);
+      let is_static_error = (p: Info.pat) =>
+        switch (p.status) {
+        | InHole(Common(NoType(BadLabel(_)))) => true
+        | _ => false
+        };
+      let is_bad_label =
+        List.exists((p: Info.pat) => p |> is_static_error, info_pats);
+      let self =
+        is_bad_label
+          ? Self.BadLabel(Prod(tys) |> Typ.temp)
+          : Self.Just(Prod(tys) |> Typ.temp);
       let self =
         List.is_empty(duplicate_labels) ? self : Self.Duplicate_Labels(self);
       add(~self, ~ctx, ~constraint_=cons_fold_tuple(cons), m);

@@ -246,15 +246,6 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     let+ ty_join = join'(ty_name, ty1);
     !resolve && eq(ty_name, ty_join) ? ty2 : ty_join;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
-  /* Labels have special rules. TODO (Anthony): Fix them */
-  | (TupLabel(_, ty1'), TupLabel(lab2, ty2')) =>
-    if (LabeledTuple.equal(get_label(ty1), get_label(ty2))) {
-      let+ ty = join'(ty1', ty2');
-      TupLabel(lab2, ty) |> temp;
-    } else {
-      None;
-    }
-  | (TupLabel(_), _) => None
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =
@@ -300,6 +291,14 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     let+ ty2 = join'(ty2, ty2');
     Arrow(ty1, ty2) |> temp;
   | (Arrow(_), _) => None
+  | (TupLabel(_, ty1'), TupLabel(lab2, ty2')) =>
+    if (LabeledTuple.equal(get_label(ty1), get_label(ty2))) {
+      let+ ty = join'(ty1', ty2');
+      TupLabel(lab2, ty) |> temp;
+    } else {
+      None;
+    }
+  | (TupLabel(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
     //TODO (Anthony): Clean up the repetition and check for validity. Maybe in statics though
     // let (l1_valid, _, _) = LabeledTuple.validate_uniqueness(get_label, tys1);

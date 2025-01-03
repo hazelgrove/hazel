@@ -29,7 +29,8 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
   | Int => ty_view("Int", "Int")
   | Float => ty_view("Float", "Float")
   | String => ty_view("String", "String")
-  | Label(l) => ty_view("Label", "Label " ++ l)
+  | Label(l) when l != "" => ty_view("Label", "Label " ++ l)
+  | Label(_) => ty_view("Label", "Label")
   | Bool => ty_view("Bool", "Bool")
   | Var(name) => ty_view("Var", name)
   | TupLabel({term: Label(l), _}, ty) =>

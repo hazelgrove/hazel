@@ -33,6 +33,7 @@ type t =
   | Duplicate(t) /* Duplicate label, marked as duplicate */
   | BadToken(Token.t) /* Invalid expression token, continues with undefined behavior */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
+  | BadLabel(Typ.t) /* Tuple or TupLabel contains an invalid Label*/
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
       name: Constructor.t,
@@ -86,6 +87,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | Duplicate(_)
     | WantTuple
     | LabelNotFound
+    | BadLabel(_)
     | NoJoin(_) => None;
 
 let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =

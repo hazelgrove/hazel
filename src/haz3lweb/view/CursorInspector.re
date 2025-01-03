@@ -85,6 +85,9 @@ let common_err_view =
       text("inconsistent with"),
       Type.view(Prod([]) |> Typ.fresh),
     ]
+  | NoType(BadLabel(_)) => [
+      text("Contains an invalid or inconsistent Label."),
+    ]
   | NoType(FreeConstructor(name)) => [code(name), text("not found")]
   | NoType(WantTuple) => [
       text("Invalid Dot Operation: requires tuple for first argument"),
