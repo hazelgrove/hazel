@@ -262,8 +262,14 @@ module Card = {
     suit_to_int(suit) * height,
   );
 
-  let background_offset = (sort: Sort.t, card: card): Css_gen.t => {
-    let (offset_x, offset_y) = card_to_offset(sort, card);
+  let background_offset = (~flipped, sort: Sort.t, card: card): Css_gen.t => {
+    let (offset_x, offset_y) =
+      flipped
+        ? switch (sort_of(sort)) {
+          | Exp => (0, 0)
+          | Pat => (0, height)
+          }
+        : card_to_offset(sort, card);
     Css_gen.create(
       ~field="background-position",
       ~value=Printf.sprintf("%dpx %dpx", - offset_x, - offset_y),
@@ -272,11 +278,23 @@ module Card = {
 
   let view = (sort: Sort.t, card: card): Node.t =>
     Node.div(
-      ~attrs=[
-        Attr.classes(["card-sprite", Sort.show(sort)]),
-        Attr.style(background_offset(sort, card)),
+      ~attrs=[Attr.classes(["card-scene", Sort.show(sort)])],
+      [
+        Node.div(
+          ~attrs=[
+            Attr.classes(["card-sprite", "front", Sort.show(sort)]),
+            Attr.style(background_offset(~flipped=false, sort, card)),
+          ],
+          [],
+        ),
+        Node.div(
+          ~attrs=[
+            Attr.classes(["card-sprite", "back", Sort.show(sort)]),
+            Attr.style(background_offset(~flipped=true, sort, card)),
+          ],
+          [],
+        ),
       ],
-      [],
     );
 };
 
@@ -415,17 +433,29 @@ module M: Projector = {
       Node.div(
         ~attrs=[
           Attr.classes(
-            switch (model.mode) {
-            | Show => []
-            | Choose => ["choose"]
-            | Flipped => ["flipped"]
-            },
+            ["outer"]
+            @ (
+              switch (model.mode) {
+              | Show => []
+              | Choose => ["choose"]
+              | Flipped => ["flipped"]
+              }
+            ),
           ),
-          Attr.on_click(_ =>
-            switch (model.mode) {
-            | Show => local(SetMode(Choose))
-            | Choose => local(SetMode(Show))
-            | Flipped => local(SetMode(Show))
+          Attr.on_click(evt =>
+            switch (JsUtil.is_double_click(evt)) {
+            | false =>
+              switch (model.mode) {
+              | Show => local(SetMode(Flipped))
+              | Flipped => local(SetMode(Choose))
+              | Choose => local(SetMode(Show))
+              }
+            | true =>
+              switch (model.mode) {
+              | Show => local(SetMode(Choose))
+              | Choose => local(SetMode(Show))
+              | Flipped => local(SetMode(Flipped))
+              }
             }
           ),
         ],
@@ -433,7 +463,7 @@ module M: Projector = {
           switch (model.mode) {
           | Show => Card.view(to_sort(sort), card)
           | Choose => Chooser.view(parent, to_sort(sort), card)
-          | Flipped => Node.div([Node.text("Flipped")])
+          | Flipped => Card.view(to_sort(sort), card)
           },
         ],
       )
