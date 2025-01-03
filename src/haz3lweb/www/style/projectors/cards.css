@@ -6,28 +6,81 @@
   display: none;
 }
 
+.projector.card > div:has(> .card-sprite) {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 100%;
+}
+
 .projector.card .card-sprite {
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
   cursor: pointer;
-  translate: 0px 13px;
   width: 35px;
   height: 47px;
   image-rendering: pixelated;
-  background-image: url('../../img/cards-pixel.png');
-  filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black) drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
+  background-image: url("../../img/cards-pixel-pattern.png");
+  filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
+    drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
+}
+
+@keyframes rock-back-and-forth {
+  0% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+
+.projector.card .card-sprite:hover {
+  animation: rock-back-and-forth 0.25s infinite;
+}
+
+.projector.card.Pat .card-sprite {
+  filter: drop-shadow(-1px 0px 0px var(--PAT))
+    drop-shadow(0px -1px 0px var(--PAT)) drop-shadow(1px 0px 0px var(--PAT))
+    drop-shadow(0px 1px 0px var(--PAT));
 }
 
 @keyframes blink-shadow {
-  0% { filter: drop-shadow(-2px 0px 0px red) drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black); }
-  50% { filter: drop-shadow(-2px 0px 0px red) drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black); }
-  51% { filter: drop-shadow(-1px 0px 0px black) drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black); }
-  100% { filter: drop-shadow(-1px 0px 0px black) drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black); }
+  0% {
+    filter: drop-shadow(-2px 0px 0px red) drop-shadow(1px 0px 0px black)
+      drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
+  }
+  50% {
+    filter: drop-shadow(-2px 0px 0px red) drop-shadow(1px 0px 0px black)
+      drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
+  }
+  51% {
+    filter: drop-shadow(-1px 0px 0px black) drop-shadow(1px 0px 0px black)
+      drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
+  }
+  100% {
+    filter: drop-shadow(-1px 0px 0px black) drop-shadow(1px 0px 0px black)
+      drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
+  }
 }
 
 @keyframes blink-shadow-right {
-  0% { filter: drop-shadow(2px 0px 0px red) drop-shadow(-1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black); }
-  50% { filter: drop-shadow(2px 0px 0px red) drop-shadow(-1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black); }
-  51% { filter: drop-shadow(1px 0px 0px black) drop-shadow(-1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black); }
-  100% { filter: drop-shadow(1px 0px 0px black) drop-shadow(-1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black); }
+  0% {
+    filter: drop-shadow(2px 0px 0px red) drop-shadow(-1px 0px 0px black)
+      drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
+  }
+  50% {
+    filter: drop-shadow(2px 0px 0px red) drop-shadow(-1px 0px 0px black)
+      drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
+  }
+  51% {
+    filter: drop-shadow(1px 0px 0px black) drop-shadow(-1px 0px 0px black)
+      drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
+  }
+  100% {
+    filter: drop-shadow(1px 0px 0px black) drop-shadow(-1px 0px 0px black)
+      drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
+  }
 }
 
 .projector.card.indicated.Left > .card-sprite,
@@ -54,13 +107,34 @@
   gap: 2px;
   width: 100%;
   height: 100%;
-  translate: 0px -10px;
 }
 
 .projector.card .hand .card-sprite {
-  transition: translate 0.1s ease-in-out;
+  transition: all 0.1s ease-in-out;
 }
 
 .projector.card .hand .card-sprite:hover {
-  translate: 0px 9px;
+  translate: 0px -9px;
+  filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
+  drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(2px 2px 0px #6666);
+}
+
+.projector.card .chooser {
+  display: grid;
+  grid-template-columns: repeat(13, 1fr);
+}
+.projector.card:has(.chooser) {
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.projector.card .chooser .card-wrapper:hover {
+  animation: rock-back-and-forth 0.25s infinite;
+}
+
+.projector.card .chooser .card-wrapper.indicated {
+  filter: invert(1);
+}
+.projector.card .chooser .card-wrapper:hover {
+  filter: invert(1);
 }
