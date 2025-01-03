@@ -50,6 +50,8 @@ type error_no_type =
   | BadToken(Token.t)
   /* Empty application of function with inconsistent type */
   | BadTrivAp(Typ.t)
+  /* Tuple or TupLabel contains an inconsistent or invalid Label*/
+  | BadLabel(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t)
   /* Dot Operator is ill-formed */
@@ -390,6 +392,7 @@ let rec status_common =
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
+  | (BadLabel(ty), _) => InHole(NoType(BadLabel(ty)))
   | (Duplicate_Labels(Just(ty)), _) => InHole(DuplicateLabels(ty))
   | (Duplicate(Just(ty)), _) => InHole(Duplicate(ty))
   | (Duplicate_Labels(_), _) =>
