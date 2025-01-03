@@ -13,7 +13,35 @@
   height: 100%;
 }
 
+.projector.card {
+  perspective: 300px;
+}
+
+.outer {
+  width: 100%;
+  height: 100%;
+}
+
+.projector.card .card-scene {
+  width: 100%;
+  height: 100%;
+  transition: transform 0.3s;
+  transform-style: preserve-3d;
+  position: relative;
+  cursor: pointer;
+}
+
+.projector.card .flipped .card-scene {
+  transform: rotateY(180deg);
+}
+
+.card-sprite.back {
+  transform: rotateY(180deg) rotateX(9deg);
+}
+
 .projector.card .card-sprite {
+  position: absolute;
+  backface-visibility: hidden;
   display: flex;
   justify-content: flex-start;
   align-items: flex-start;
@@ -35,7 +63,7 @@
   }
 }
 
-.projector.card .card-sprite:hover {
+.projector.card.indicated .hand .card-scene:hover {
   animation: rock-back-and-forth 0.25s infinite;
 }
 
@@ -113,10 +141,11 @@
   transition: all 0.1s ease-in-out;
 }
 
-.projector.card .hand .card-sprite:hover {
+.projector.card.indicated .hand .card-sprite:hover {
   translate: 0px -9px;
   filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
-  drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black) drop-shadow(2px 2px 0px #6666);
+    drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black)
+    drop-shadow(2px 2px 0px #6666);
 }
 
 .projector.card .chooser {
@@ -126,6 +155,11 @@
 .projector.card:has(.chooser) {
   justify-content: flex-start;
   align-items: flex-start;
+}
+
+.projector.card .card-wrapper {
+  width: 100%;
+  height: 100%;
 }
 
 .projector.card .chooser .card-wrapper:hover {
