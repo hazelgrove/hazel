@@ -101,16 +101,21 @@ module Syntax = {
   let rm_secondary = (segment: Segment.t): Segment.t =>
     List.filter(p => !Piece.is_secondary(p), segment);
 
-  let piece_to_card = (piece: Piece.t): option(card) =>
-    switch (piece) {
-    | Tile({label: ["(", ")"], children: [segment], _}) =>
-      switch (rm_secondary(segment)) {
-      | [left_child, Tile({label: [","], _}), right_child] =>
-        Some((suit_of_piece(left_child), rank_of_piece(right_child)))
-      | _ => None
-      }
-    | _ => None
-    };
+  let piece_to_card =
+    Core.Memo.general(~cache_size_bound=1000, (piece: Piece.t) =>
+      (
+        switch (piece) {
+        | Tile({label: ["(", ")"], children: [segment], _}) =>
+          switch (rm_secondary(segment)) {
+          | [left_child, Tile({label: [","], _}), right_child] =>
+            Some((suit_of_piece(left_child), rank_of_piece(right_child)))
+          | _ => None
+          }
+        | _ => None
+        }:
+          option(card)
+      )
+    );
 
   let piece_to_hand = (piece: Piece.t): option(hand) => {
     switch (piece) {
@@ -343,9 +348,15 @@ module Chooser = {
     Node.div(
       ~attrs=[
         Attr.classes(["card-wrapper"] @ (indicated ? ["indicated"] : [])),
-        Attr.on_click(_ =>
-          parent(SetSyntax(Syntax.put((sort_of(sort), Card(card)))))
-        ),
+        Attr.on_mousedown(_ => {
+          print_endline("setting syntax");
+          //TODO: make this work for hands
+          Effect.Many([
+            parent(SetSyntax(Syntax.put((sort_of(sort), Card(card))))),
+            // Effect.Prevent_default,
+            // Effect.Stop_propagation,
+          ]);
+        }),
         Attr.create(
           "style",
           Printf.sprintf(
@@ -375,9 +386,115 @@ module Chooser = {
     );
 };
 
+module Singleton = {
+  let view =
+      (
+        mode,
+        parent,
+        local: action => Ui_effect.t(unit),
+        sort: Sort.t,
+        card: card,
+      )
+      : Node.t => {
+    let on_mousedown = evt =>
+      switch (JsUtil.is_double_click(evt)) {
+      | _ when JsUtil.shift_held(evt) =>
+        switch (mode) {
+        | Choose
+        | Flipped => local(SetMode(Show))
+        | Show => local(SetMode(Choose))
+        }
+      | _ =>
+        switch (mode) {
+        | Flipped
+        | Choose => local(SetMode(Show))
+        | _ => local(SetMode(Flipped))
+        }
+      };
+
+    Node.div(
+      ~attrs=[
+        Attr.classes(
+          ["card-outer"]
+          @ (
+            switch (mode) {
+            | Show => ["show"]
+            | Flipped => ["flipped"]
+            | Choose => ["choose"]
+            }
+          ),
+        ),
+        Attr.on_mousedown(on_mousedown),
+      ],
+      [
+        switch (mode) {
+        | Show => Card.view(sort, card)
+        | Choose => Chooser.view(parent, sort, card)
+        | Flipped => Card.view(sort, card)
+        },
+      ],
+    );
+  };
+};
+
+module CardInHand = {
+  let view =
+      (
+        mode,
+        parent,
+        local: action => Ui_effect.t(unit),
+        sort: Sort.t,
+        card: card,
+      )
+      : Node.t => {
+    let on_mousedown = evt =>
+      switch (JsUtil.is_double_click(evt)) {
+      | _ when JsUtil.shift_held(evt) =>
+        switch (mode) {
+        | Choose
+        | Flipped => local(SetMode(Show))
+        | Show => local(SetMode(Choose))
+        }
+      | _ => Effect.Ignore
+      };
+
+    Node.div(
+      ~attrs=[
+        Attr.classes(
+          ["card-outer"]
+          @ (
+            switch (mode) {
+            | Show => ["show"]
+            | Flipped => ["flipped"]
+            | Choose => ["choose"]
+            }
+          ),
+        ),
+        Attr.on_mousedown(on_mousedown),
+      ],
+      [
+        switch (mode) {
+        | Show => Card.view(sort, card)
+        | Choose => Chooser.view(parent, sort, card)
+        | Flipped => Card.view(sort, card)
+        },
+      ],
+    );
+  };
+};
+
 module Hand = {
   // a card, but each subsequent card should be absoluted positioned 20px to the right of the last and higher in z-index:
-  let card_wrapper = (sort: Sort.t, index: int, card: card): Node.t =>
+  let card_wrapper =
+      (
+        mode,
+        parent: external_action => Ui_effect.t(unit),
+        local: action => Ui_effect.t(unit),
+        sort: Sort.t,
+        index: int,
+        card: card,
+      )
+      : Node.t =>
     Node.div(
       ~attrs=[
         Attr.class_("card-wrapper"),
@@ -390,13 +507,13 @@ module Hand = {
           ),
         ),
       ],
-      [Card.view(sort, card)],
+      [CardInHand.view(mode, parent, local, sort, card)],
     );
 
-  let view = (sort: Sort.t, hand: hand): Node.t => {
+  let view = (mode, parent, local, sort: Sort.t, hand: hand): Node.t => {
     Node.div(
       ~attrs=[Attr.classes(["hand", Sort.show(sort)])],
-      List.mapi(card_wrapper(sort), hand),
+      List.mapi(card_wrapper(mode, parent, local, sort), hand),
     );
   };
 };
@@ -415,7 +532,8 @@ module M: Projector = {
   let can_project = p => Syntax.get_opt(p) != None;
   let can_focus = false;
   let dynamics = false;
-  let placeholder = (_, info) => Inline(Syntax.width_of_piece(info.syntax));
+  let placeholder = (_, info) =>
+    Base.NewInline({row: 2, col: Syntax.width_of_piece(info.syntax)});
   let update = (_model, action) =>
     switch (action) {
     | SetMode(mode) => {mode: mode}
@@ -430,44 +548,9 @@ module M: Projector = {
       ) => {
     switch (Syntax.get(info.syntax)) {
     | (sort, Card(card)) =>
-      Node.div(
-        ~attrs=[
-          Attr.classes(
-            ["outer"]
-            @ (
-              switch (model.mode) {
-              | Show => []
-              | Choose => ["choose"]
-              | Flipped => ["flipped"]
-              }
-            ),
-          ),
-          Attr.on_click(evt =>
-            switch (JsUtil.is_double_click(evt)) {
-            | false =>
-              switch (model.mode) {
-              | Show => local(SetMode(Flipped))
-              | Flipped => local(SetMode(Choose))
-              | Choose => local(SetMode(Show))
-              }
-            | true =>
-              switch (model.mode) {
-              | Show => local(SetMode(Choose))
-              | Choose => local(SetMode(Show))
-              | Flipped => local(SetMode(Flipped))
-              }
-            }
-          ),
-        ],
-        [
-          switch (model.mode) {
-          | Show => Card.view(to_sort(sort), card)
-          | Choose => Chooser.view(parent, to_sort(sort), card)
-          | Flipped => Card.view(to_sort(sort), card)
-          },
-        ],
-      )
-    | (sort, Hand(hand)) => Hand.view(to_sort(sort), hand)
+      Singleton.view(model.mode, parent, local, to_sort(sort), card)
+    | (sort, Hand(hand)) =>
+      Hand.view(model.mode, parent, local, to_sort(sort), hand)
     };
   };
   let focus = _ => ();

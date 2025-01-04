@@ -12,14 +12,14 @@ let view =
       ~buffer_ids,
       ~segment,
       ~holes,
-      ~token_of_proj,
+      ~shape_of_proj,
     )
     : Node.t => {
   module Text =
     Code.Text({
       let map = measured;
       let settings = globals.settings;
-      let token_of_proj = token_of_proj;
+      let shape_of_proj = shape_of_proj;
     });
   let code = Text.of_segment(buffer_ids, false, sort, segment);
   let holes = List.map(Code.of_hole(~measured, ~globals), holes);
@@ -51,8 +51,8 @@ let view =
 // };
 
 let view_segment =
-    (~globals: Globals.t, ~sort: Sort.t, ~token_of_proj, segment: Segment.t) => {
-  let measured = Measured.of_segment(segment, token_of_proj);
+    (~globals: Globals.t, ~sort: Sort.t, ~shape_of_proj, segment: Segment.t) => {
+  let measured = Measured.of_segment(segment, shape_of_proj);
   let buffer_ids = [];
   let holes = Segment.holes(segment);
   view(
@@ -62,21 +62,21 @@ let view_segment =
     ~buffer_ids,
     ~holes,
     ~segment,
-    ~token_of_proj,
+    ~shape_of_proj,
   );
 };
 
 let view_exp =
     (~dynamics, ~globals: Globals.t, ~settings, ~info_map, exp: Exp.t) => {
-  let token_of_proj = Projector.token_of_proj(info_map, dynamics);
+  let shape_of_proj = Projector.shape_of_proj(info_map, dynamics);
   exp
   |> ExpToSegment.exp_to_segment(~settings)
-  |> view_segment(~token_of_proj, ~globals, ~sort=Exp);
+  |> view_segment(~shape_of_proj, ~globals, ~sort=Exp);
 };
 
 let view_typ = (~globals: Globals.t, ~settings, ~info_map, typ: Typ.t) => {
-  let token_of_proj = Projector.token_of_proj(info_map, Dynamics.Map.empty);
+  let shape_of_proj = Projector.shape_of_proj(info_map, Dynamics.Map.empty);
   typ
   |> ExpToSegment.typ_to_segment(~settings)
-  |> view_segment(~token_of_proj, ~globals, ~sort=Typ);
+  |> view_segment(~shape_of_proj, ~globals, ~sort=Typ);
 };

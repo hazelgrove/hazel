@@ -1,4 +1,4 @@
-/* CARD SPRITE */
+/* CARD SPRITES */
 
 /* Turn off caret when a block projector is focused */
 #caret:has(~ .projectors .projector.card.indicated),
@@ -6,37 +6,65 @@
   display: none;
 }
 
-.projector.card > div:has(> .card-sprite) {
-  display: flex;
-  flex-direction: row;
-  width: 100%;
-  height: 100%;
-}
-
 .projector.card {
   perspective: 300px;
 }
 
-.outer {
+.projector.card.selected {
+  filter: brightness(0.72) sepia(1) hue-rotate(12deg) saturate(1.5);
+}
+.projector.card {
+  z-index: var(--projector-z); /* hack? to get above selection shard */
+}
+
+.projector.card > svg,
+.projector.card.indicated > svg {
+  display: none;
+}
+
+/* Singleton */
+.projector.card > .card-outer {
   width: 100%;
   height: 100%;
+  display: flex;
+  flex-direction: row;
 }
 
 .projector.card .card-scene {
   width: 100%;
   height: 100%;
-  transition: transform 0.3s;
+  transition: transform 0.25s;
   transform-style: preserve-3d;
   position: relative;
   cursor: pointer;
 }
 
+@keyframes flip-card {
+  0% {
+    /* transform: none; */
+    transform: rotateY(180deg) translateX(6px);
+  }
+  50% {
+    transform: rotateY(160deg);
+  }
+  75% {
+    transform: rotateY(70deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+
 .projector.card .flipped .card-scene {
-  transform: rotateY(180deg);
+  /* transform: rotateY(180deg) translateX(6px); */
+  /* play once: */
+  transform: rotateY(180deg) translateX(6px);
+  /* animation: flip-card 0.35s;
+  animation-direction: alternate-reverse; */
 }
 
 .card-sprite.back {
-  transform: rotateY(180deg) rotateX(9deg);
+  transform: rotateY(180deg);
 }
 
 .projector.card .card-sprite {
@@ -50,21 +78,8 @@
   height: 47px;
   image-rendering: pixelated;
   background-image: url("../../img/cards-pixel-pattern.png");
-  filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
+  filter: drop-shadow(-0.5px 0px 0px black) drop-shadow(0px -0.5px 0px black)
     drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
-}
-
-@keyframes rock-back-and-forth {
-  0% {
-    transform: rotate(0deg);
-  }
-  50% {
-    transform: rotate(4deg);
-  }
-}
-
-.projector.card.indicated .hand .card-scene:hover {
-  animation: rock-back-and-forth 0.25s infinite;
 }
 
 .projector.card.Pat .card-sprite {
@@ -111,30 +126,36 @@
   }
 }
 
-.projector.card.indicated.Left > .card-sprite,
-.projector.card.indicated.Left .hand > *:first-child > .card-sprite {
-  animation: blink-shadow 1s infinite;
+.projector.card.indicated.Left > .card-outer > .card-scene > .card-sprite,
+.projector.card.indicated.Left .hand > *:first-child .card-sprite {
+  animation: blink-shadow 1s infinite !important;
 }
 
 .projector.card.indicated.Right .card-sprite {
-  animation: blink-shadow-right 1s infinite;
+  animation: blink-shadow-right 1s infinite !important;
 }
 
-.projector.card.selected {
-  filter: brightness(0.72) sepia(1) hue-rotate(12deg) saturate(1.5);
-}
+/* HAND */
 
-.projector.card > svg,
-.projector.card.indicated > svg {
-  display: none;
-}
-
-.projector.card .hand {
+.card .hand {
   display: flex;
   flex-direction: row;
   gap: 2px;
   width: 100%;
   height: 100%;
+}
+
+@keyframes rock-back-and-forth {
+  0% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+
+.projector.card.indicated .hand .card-scene:hover {
+  animation: rock-back-and-forth 0.25s infinite;
 }
 
 .projector.card .hand .card-sprite {
@@ -144,9 +165,11 @@
 .projector.card.indicated .hand .card-sprite:hover {
   translate: 0px -9px;
   filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
-    drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black)
+    drop-shadow(1.5px 0px 0px black) drop-shadow(0px 1.5px 0px black)
     drop-shadow(2px 2px 0px #6666);
 }
+
+/* CHOOSER */
 
 .projector.card .chooser {
   display: grid;
@@ -155,11 +178,6 @@
 .projector.card:has(.chooser) {
   justify-content: flex-start;
   align-items: flex-start;
-}
-
-.projector.card .card-wrapper {
-  width: 100%;
-  height: 100%;
 }
 
 .projector.card .chooser .card-wrapper:hover {
@@ -171,4 +189,5 @@
 }
 .projector.card .chooser .card-wrapper:hover {
   filter: invert(1);
+  translate: 0px -5px;
 }
