@@ -344,33 +344,27 @@ let of_segment =
             (contained_indent, last, map);
           | Projector(p) =>
             let extra_rows_of_shape = (shape: Base.shape, origin, map) =>
-              switch (shape) {
-              | Inline(_) => map
-              | NewInline({row: height, _}) =>
-                let num_lb = height - 1;
-                if (num_lb > 0) {
-                  deferred_linebreaks := [num_lb, ...deferred_linebreaks^];
-                };
+              switch (shape.vertical) {
+              | Inline
+              | Tab(0)
+              | Block(0) => map
+              | Tab(num_lb) =>
+                deferred_linebreaks := [num_lb, ...deferred_linebreaks^];
                 map;
-              | Block({row: height, _}) =>
-                let num_lb = height - 1;
+              | Block(num_lb) =>
                 let row_indent = container_indent + contained_indent;
-                let num_extra_rows =
-                  num_lb + num_lb == 0 ? 0 : consume_deferred_linebreaks();
+                let num_extra_rows = num_lb + consume_deferred_linebreaks();
                 add_n_rows(origin, row_indent, num_extra_rows, map);
               };
-            let last_of_shape = (shape: Base.shape, origin: Point.t): Point.t =>
-              switch (shape) {
-              | Inline(width) => {col: origin.col + width, row: origin.row}
-              | NewInline({col: width, _}) => {
-                  col: origin.col + width,
-                  row: origin.row,
-                }
-              | Block({col: width, row: height}) => {
-                  col: origin.col + width,
-                  row: origin.row + height - 1,
-                }
-              };
+            let last_of_shape = (shape: Base.shape, origin: Point.t): Point.t => {
+              col: origin.col + shape.horizontal,
+              row:
+                switch (shape.vertical) {
+                | Inline => origin.row
+                | Tab(_num_lb) => origin.row
+                | Block(num_lb) => origin.row + num_lb
+                },
+            };
             let shape = shape_of_proj(p);
             let last = last_of_shape(shape, origin);
             let map = extra_rows_of_shape(shape, origin, map);

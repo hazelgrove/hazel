@@ -82,20 +82,16 @@ let of_secondary =
 
 let of_projector = (expected_sort, indent, shape: Base.shape) => {
   let token =
-    switch (shape) {
-    | Inline(_) => Projector.token_of_shape(shape)
-    | NewInline({row: height, _}) =>
-      let num_lb = height - 1;
-      if (num_lb > 0) {
-        deferred_linebreaks := [num_lb, ...deferred_linebreaks^];
-      };
+    switch (shape.vertical) {
+    | Inline
+    | Tab(0)
+    | Block(0) => Projector.token_of_shape(shape)
+    | Tab(num_lb) =>
+      deferred_linebreaks := [num_lb, ...deferred_linebreaks^];
       Projector.token_of_shape(shape);
-    | Block({row: height, _}) =>
-      let num_lb = height - 1;
-      num_lb == 0
-        ? ""
-        : String.make(consume_deferred_linebreaks(), '\n')
-          ++ Projector.token_of_shape(shape);
+    | Block(_) =>
+      String.make(consume_deferred_linebreaks(), '\n')
+      ++ Projector.token_of_shape(shape)
     };
   of_delim'(([token], false, expected_sort, true, true, indent, 0));
 };
@@ -184,7 +180,7 @@ let rec holes =
      );
 
 let simple_view = (~font_metrics, ~segment, ~settings: Settings.t): Node.t => {
-  let shape_of_proj = _ => Base.Inline(0); /* Assume this doesn't contain projectors */
+  let shape_of_proj = _ => ProjectorShape.default; /* Assume this doesn't contain projectors */
   let map = Measured.of_segment(segment, shape_of_proj);
   module Text =
     Text({

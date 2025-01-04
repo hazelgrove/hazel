@@ -22,7 +22,7 @@ module M: Projector = {
   let can_project = p => get_opt(p) != None;
   let can_focus = false;
   let dynamics = false;
-  let placeholder = (_, _) => Base.Inline(10);
+  let placeholder = (_, _) => ProjectorShape.inline(10);
   let update = (model, _) => model;
   let view =
       (

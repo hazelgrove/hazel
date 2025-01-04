@@ -19,7 +19,7 @@ module M: Projector = {
   let can_focus = false;
   let dynamics = false;
   let placeholder = (m, _) =>
-    Base.Inline(m.text == "⋱" ? 2 : m.text |> String.length);
+    ProjectorShape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
   let update = (m, _) => m;
   let view = (m: model, ~info as _, ~local as _, ~parent, ~utility as _) =>
     div(
