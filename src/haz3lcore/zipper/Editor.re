@@ -97,7 +97,8 @@ module Model = {
       col_target: None,
     },
     history: History.empty,
-    syntax: CachedSyntax.init(zipper, ~shape_of_proj=_ => Base.Inline(0)),
+    syntax:
+      CachedSyntax.init(zipper, ~shape_of_proj=_ => ProjectorShape.default),
   };
 
   type persistent = PersistentZipper.t;

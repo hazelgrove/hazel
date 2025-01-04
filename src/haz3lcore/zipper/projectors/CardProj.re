@@ -415,7 +415,7 @@ module Singleton = {
     Node.div(
       ~attrs=[
         Attr.classes(
-          ["card-outer"]
+          ["card-wrapper"]
           @ (
             switch (mode) {
             | Show => ["show"]
@@ -461,7 +461,7 @@ module CardInHand = {
     Node.div(
       ~attrs=[
         Attr.classes(
-          ["card-outer"]
+          ["card-wrapper"]
           @ (
             switch (mode) {
             | Show => ["show"]
@@ -533,7 +533,10 @@ module M: Projector = {
   let can_focus = false;
   let dynamics = false;
   let placeholder = (_, info) =>
-    Base.NewInline({row: 2, col: Syntax.width_of_piece(info.syntax)});
+    ProjectorShape.{
+      horizontal: Syntax.width_of_piece(info.syntax),
+      vertical: Tab(1),
+    };
   let update = (_model, action) =>
     switch (action) {
     | SetMode(mode) => {mode: mode}

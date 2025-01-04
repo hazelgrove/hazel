@@ -101,11 +101,11 @@ module M: Projector = {
   let dynamics = false;
   let placeholder = (_, info) => {
     let str = Form.strip_quotes(get(info.syntax));
-    Base.Block({
-      row: StringUtil.num_lines(str),
+    ProjectorShape.{
+      vertical: Block(StringUtil.num_linebreaks(str)),
       /* +2 for left and right padding */
-      col: 2 + StringUtil.max_line_width(str),
-    });
+      horizontal: 2 + StringUtil.max_line_width(str),
+    };
   };
   let update = (model, _) => model;
   let view = view;

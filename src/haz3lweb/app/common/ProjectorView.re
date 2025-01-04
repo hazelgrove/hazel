@@ -42,21 +42,12 @@ let of_name = (p: string): Base.kind =>
  * to token decorations. This can be made transparent
  * in the CSS if no backing is wanted */
 let backing_deco =
-    (
-      ~font_metrics: FontMetrics.t,
-      ~measurement: Measured.measurement,
-      ~shape: shape,
-    ) =>
-  switch (shape) {
-  | Inline(_)
-  | NewInline(_)
-  | Block(_) =>
-    PieceDec.relative_shard({
-      font_metrics,
-      measurement,
-      tips: (Some(Convex), Some(Convex)),
-    })
-  };
+    (~font_metrics: FontMetrics.t, ~measurement: Measured.measurement) =>
+  PieceDec.relative_shard({
+    font_metrics,
+    measurement,
+    tips: (Some(Convex), Some(Convex)),
+  });
 
 /* Adds attributes to a projector UI to support
  * custom styling when selected or indicated */
@@ -86,7 +77,6 @@ let view_wrapper =
     ) => {
   let sort =
     Option.map(Info.sort_of, info.statics) |> Option.value(~default=Sort.Exp);
-  let shape = Projector.shape(p, info);
   let focus = (id, _) =>
     Effect.(Many([Stop_propagation, inject(Project(Focus(id, None)))]));
   div(
@@ -97,7 +87,7 @@ let view_wrapper =
       Attr.on_mousedown(focus(info.id)),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
-    [view, backing_deco(~font_metrics, ~measurement, ~shape)],
+    [view, backing_deco(~font_metrics, ~measurement)],
   );
 };
 
@@ -149,7 +139,7 @@ let collate_utility =
       CodeViewable.view_segment(
         ~globals,
         ~sort,
-        ~shape_of_proj=_ => Base.Inline(0),
+        ~shape_of_proj=_ => ProjectorShape.default,
         seg,
       ),
     exp_to_seg: exp =>

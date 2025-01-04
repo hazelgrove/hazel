@@ -53,10 +53,11 @@ let shape_of_proj =
 };
 
 let token_of_shape = (shape: shape): string =>
-  switch (shape) {
-  | Inline(width) => String.make(width, ' ')
-  | NewInline({row: _, col: width}) => String.make(width, ' ')
-  | Block({row, col}) => String.make(row - 1, '\n') ++ String.make(col, ' ')
+  switch (shape.vertical) {
+  | Inline
+  | Tab(_) => String.make(shape.horizontal, ' ')
+  | Block(num_lb) =>
+    String.make(num_lb, '\n') ++ String.make(shape.horizontal, ' ')
   };
 
 /* Returns a token consisting of whitespace (possibly including linebreaks)

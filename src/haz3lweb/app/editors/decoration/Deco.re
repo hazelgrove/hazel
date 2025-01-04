@@ -134,11 +134,10 @@ module HighlightSegment =
       //   (Some(Convex), Some(Convex)),
       // );
       let num_lb =
-        //TODO: Better NewInline handling
-        switch (shape) {
-        | Base.Inline(_) => 0
-        | Base.NewInline({col: height, _}) => height - 1
-        | Base.Block({col: height, _}) => height - 1
+        switch (shape.vertical) {
+        | Inline => 0
+        | Tab(num_lbs) => num_lbs
+        | Block(num_lbs) => num_lbs
         };
       if (num_lb == 0) {
         [

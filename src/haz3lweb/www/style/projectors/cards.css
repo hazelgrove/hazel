@@ -1,5 +1,10 @@
 /* CARD SPRITES */
 
+:root {
+  --card-width: 35px;
+  --card-height: 47px;
+}
+
 /* Turn off caret when a block projector is focused */
 #caret:has(~ .projectors .projector.card.indicated),
 .indication:has(~ .projectors .projector.card.indicated) {
@@ -23,16 +28,17 @@
 }
 
 /* Singleton */
-.projector.card > .card-outer {
+.projector.card > .card-wrapper {
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: row;
+  justify-content: center;
 }
 
 .projector.card .card-scene {
-  width: 100%;
-  height: 100%;
+  width: var(--card-width);
+  height: var(--card-height);
   transition: transform 0.25s;
   transform-style: preserve-3d;
   position: relative;
@@ -41,8 +47,7 @@
 
 @keyframes flip-card {
   0% {
-    /* transform: none; */
-    transform: rotateY(180deg) translateX(6px);
+    transform: rotateY(180deg);
   }
   50% {
     transform: rotateY(160deg);
@@ -56,9 +61,7 @@
 }
 
 .projector.card .flipped .card-scene {
-  /* transform: rotateY(180deg) translateX(6px); */
-  /* play once: */
-  transform: rotateY(180deg) translateX(6px);
+  transform: rotateY(180deg);
   /* animation: flip-card 0.35s;
   animation-direction: alternate-reverse; */
 }
@@ -74,8 +77,8 @@
   justify-content: flex-start;
   align-items: flex-start;
   cursor: pointer;
-  width: 35px;
-  height: 47px;
+  width: var(--card-width);
+  height: var(--card-height);
   image-rendering: pixelated;
   background-image: url("../../img/cards-pixel-pattern.png");
   filter: drop-shadow(-0.5px 0px 0px black) drop-shadow(0px -0.5px 0px black)
@@ -89,49 +92,38 @@
 }
 
 @keyframes blink-shadow {
-  0% {
-    filter: drop-shadow(-2px 0px 0px red) drop-shadow(1px 0px 0px black)
-      drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
-  }
+  0%,
   50% {
-    filter: drop-shadow(-2px 0px 0px red) drop-shadow(1px 0px 0px black)
-      drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
+    filter: drop-shadow(0px -0.5px 0px black) drop-shadow(1px 0px 0px black)
+      drop-shadow(0px 1px 0px black) drop-shadow(-2px 0px 0px red);
   }
-  51% {
-    filter: drop-shadow(-1px 0px 0px black) drop-shadow(1px 0px 0px black)
-      drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
-  }
+  51%,
   100% {
-    filter: drop-shadow(-1px 0px 0px black) drop-shadow(1px 0px 0px black)
-      drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
+    filter: drop-shadow(-0.5px 0px 0px black) drop-shadow(0px -0.5px 0px black)
+      drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
   }
 }
 
 @keyframes blink-shadow-right {
-  0% {
-    filter: drop-shadow(2px 0px 0px red) drop-shadow(-1px 0px 0px black)
-      drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
-  }
+  0%,
   50% {
-    filter: drop-shadow(2px 0px 0px red) drop-shadow(-1px 0px 0px black)
-      drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
+    filter: drop-shadow(-0.5px 0px 0px black) drop-shadow(0px -0.5px 0px black)
+      drop-shadow(0px 1px 0px black) drop-shadow(2px 0px 0px red);
   }
-  51% {
-    filter: drop-shadow(1px 0px 0px black) drop-shadow(-1px 0px 0px black)
-      drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
-  }
+  51%,
   100% {
-    filter: drop-shadow(1px 0px 0px black) drop-shadow(-1px 0px 0px black)
-      drop-shadow(0px 1px 0px black) drop-shadow(0px -1px 0px black);
+    filter: drop-shadow(-0.5px 0px 0px black) drop-shadow(0px -0.5px 0px black)
+      drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
   }
 }
 
-.projector.card.indicated.Left > .card-outer > .card-scene > .card-sprite,
+.projector.card.indicated.Left > .card-wrapper > .card-scene > .card-sprite,
 .projector.card.indicated.Left .hand > *:first-child .card-sprite {
   animation: blink-shadow 1s infinite !important;
 }
 
-.projector.card.indicated.Right .card-sprite {
+.projector.card.indicated.Right > .card-wrapper > .card-scene > .card-sprite,
+.projector.card.indicated.Right .hand > *:last-child .card-sprite {
   animation: blink-shadow-right 1s infinite !important;
 }
 
