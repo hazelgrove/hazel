@@ -49,6 +49,7 @@ let backing_deco =
     ) =>
   switch (shape) {
   | Inline(_)
+  | NewInline(_)
   | Block(_) =>
     PieceDec.relative_shard({
       font_metrics,
@@ -59,16 +60,9 @@ let backing_deco =
 
 /* Adds attributes to a projector UI to support
  * custom styling when selected or indicated */
-let status =
-    (indicated: option(Direction.t), selected: bool, shape: shape, sort) =>
+let status = (indicated: option(Direction.t), selected: bool, sort) =>
   [Sort.show(sort)]
   @ (selected ? ["selected"] : [])
-  @ (
-    switch (shape) {
-    | Inline(_) => ["inline"]
-    | Block(_) => ["block"]
-    }
-  )
   @ (
     switch (indicated) {
     | Some(d) => ["indicated", Direction.show(d)]
@@ -98,8 +92,7 @@ let view_wrapper =
   div(
     ~attrs=[
       Attr.classes(
-        ["projector", name(p.kind)]
-        @ status(indication, selected, shape, sort),
+        ["projector", name(p.kind)] @ status(indication, selected, sort),
       ),
       Attr.on_mousedown(focus(info.id)),
       DecUtil.abs_style(measurement, ~font_metrics),
@@ -152,7 +145,13 @@ let collate_utility =
         cached_syntax.measured,
       ),
     view: (sort, seg) =>
-      CodeViewable.view_segment(~globals, ~sort, ~token_of_proj=_ => "", seg),
+      /* Assume this doesn't contain projectors */
+      CodeViewable.view_segment(
+        ~globals,
+        ~sort,
+        ~shape_of_proj=_ => Base.Inline(0),
+        seg,
+      ),
     exp_to_seg: exp =>
       exp
       |> DHExp.strip_casts

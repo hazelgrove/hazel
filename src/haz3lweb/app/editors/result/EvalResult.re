@@ -572,8 +572,8 @@ module View = {
         text("Evaluation disabled, showing elaboration:"),
         switch (Model.get_elaboration(model)) {
         | Some(elab) =>
-          let token_of_proj =
-            Projector.token_of_proj(
+          let shape_of_proj =
+            Projector.shape_of_proj(
               Statics.Map.empty,
               Model.dynamics(model),
             );
@@ -584,7 +584,7 @@ module View = {
                    Settings.of_core(~inline=false, globals.settings.core),
                )
              )
-          |> CodeViewable.view_segment(~globals, ~sort=Exp, ~token_of_proj);
+          |> CodeViewable.view_segment(~globals, ~sort=Exp, ~shape_of_proj);
         | None => text("No elaboration found")
         },
       ];

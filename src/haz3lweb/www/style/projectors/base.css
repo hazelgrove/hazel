@@ -4,8 +4,8 @@
 @import "probe.css";
 @import "cards.css";
 
-/* Turn off caret when a block projector is focused */
-#caret:has(~ .projectors .projector.block *:focus) {
+/* Turn off caret when a projector is focused */
+#caret:has(~ .projectors .projector *:focus) {
   display: none;
 }
 
@@ -32,11 +32,6 @@
   fill: var(--shard_projector);
 }
 
-.projector.block > svg {
-  stroke-width: 0.5px;
-  stroke: var(--BR2);
-}
-
 .projector.indicated > svg {
   fill: var(--shard-caret-exp);
 }
@@ -45,14 +40,8 @@
   vector-effect: non-scaling-stroke;
 }
 
-.projector.block.selected > svg > path {
-  vector-effect: non-scaling-stroke;
-  stroke: var(--Y3);
-}
-
 .projector.selected > svg,
-.projector.selected.indicated > svg,
-.projector.block.selected.indicated > svg {
+.projector.selected.indicated > svg {
   fill: var(--shard-selected);
 }
 
@@ -117,6 +106,11 @@
 
 .projector.text {
   cursor: default;
+}
+
+.projector.text > svg {
+  stroke-width: 0.5px;
+  stroke: var(--BR2);
 }
 
 .projector.text .wrapper {

@@ -101,7 +101,7 @@ module M: Projector = {
   let dynamics = false;
   let placeholder = (_, info) => {
     let str = Form.strip_quotes(get(info.syntax));
-    Block({
+    Base.Block({
       row: StringUtil.num_lines(str),
       /* +2 for left and right padding */
       col: 2 + StringUtil.max_line_width(str),

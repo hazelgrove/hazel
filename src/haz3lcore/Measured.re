@@ -56,7 +56,6 @@ type t = {
   secondary: Id.Map.t(measurement),
   projectors: Id.Map.t(measurement),
   rows: Rows.t,
-  linebreaks: Id.Map.t(rel_indent),
 };
 
 let empty = {
@@ -65,7 +64,6 @@ let empty = {
   secondary: Id.Map.empty,
   projectors: Id.Map.empty,
   rows: Rows.empty,
-  linebreaks: Id.Map.empty,
 };
 
 let add_s = (id: Id.t, i: int, m, map) => {
@@ -131,11 +129,6 @@ let rec add_n_rows = (origin: Point.t, row_indent, n: abs_indent, map: t): t =>
     |> add_row(origin.row + n - 1, {indent: row_indent, max_col: origin.col})
   };
 
-let add_lb = (id, indent, map) => {
-  ...map,
-  linebreaks: Id.Map.add(id, indent, map.linebreaks),
-};
-
 let singleton_w = (w, m) => empty |> add_w(w, m);
 let singleton_g = (g, m) => empty |> add_g(g, m);
 let singleton_s = (id, shard, m) => empty |> add_s(id, shard, m);
@@ -146,8 +139,6 @@ let find_shards = (~msg="", t: Tile.t, map) =>
   try(Id.Map.find(t.id, map.tiles)) {
   | _ => failwith("find_shards: " ++ msg)
   };
-
-let find_opt_lb = (id, map) => Id.Map.find_opt(id, map.linebreaks);
 
 let find_shards' = (id: Id.t, map) =>
   switch (Id.Map.find_opt(id, map.tiles)) {
@@ -275,14 +266,18 @@ let is_indented_map = (seg: Segment.t) => {
   go(seg);
 };
 
-let last_of_token = (token: string, origin: Point.t): Point.t =>
-  /* Supports multi-line tokens e.g. projector placeholders */
-  Point.{
-    col: origin.col + StringUtil.max_line_width(token),
-    row: origin.row + StringUtil.num_linebreaks(token),
-  };
+/* Tab projectors add linebreaks after the end of their line */
+let deferred_linebreaks: ref(list(int)) = ref([]);
 
-let of_segment = (seg: Segment.t, token_of_proj: Base.projector => string): t => {
+let consume_deferred_linebreaks = () => {
+  let max_deferred_linebreaks = List.fold_left(max, 0, deferred_linebreaks^);
+  deferred_linebreaks := [];
+  max_deferred_linebreaks;
+};
+
+let of_segment =
+    (seg: Segment.t, shape_of_proj: Base.projector => Base.shape): t => {
+  deferred_linebreaks := [];
   let is_indented = is_indented_map(seg);
 
   // recursive across seg's bidelimited containers
@@ -316,11 +311,6 @@ let of_segment = (seg: Segment.t, token_of_proj: Base.projector => string): t =>
              );
         (origin, map);
       | [hd, ...tl] =>
-        let extra_rows = (token, origin, map) => {
-          let row_indent = container_indent + contained_indent;
-          let num_extra_rows = StringUtil.num_linebreaks(token);
-          add_n_rows(origin, row_indent, num_extra_rows, map);
-        };
         let (contained_indent, origin, map) =
           switch (hd) {
           | Secondary(w) when Secondary.is_linebreak(w) =>
@@ -331,16 +321,16 @@ let of_segment = (seg: Segment.t, token_of_proj: Base.projector => string): t =>
               } else {
                 contained_indent + (Id.Map.find(w.id, is_indented) ? 2 : 0);
               };
+            let num_extra_rows = 1 + consume_deferred_linebreaks();
             let last =
-              Point.{row: origin.row + 1, col: container_indent + indent};
+              Point.{
+                row: origin.row + num_extra_rows,
+                col: container_indent + indent,
+              };
             let map =
               map
               |> add_w(w, {origin, last})
-              |> add_row(
-                   origin.row,
-                   {indent: row_indent, max_col: origin.col},
-                 )
-              |> add_lb(w.id, indent);
+              |> add_n_rows(origin, row_indent, num_extra_rows);
             (indent, last, map);
           | Secondary(w) =>
             let wspace_length =
@@ -353,12 +343,52 @@ let of_segment = (seg: Segment.t, token_of_proj: Base.projector => string): t =>
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
           | Projector(p) =>
-            let token = token_of_proj(p);
-            let last = last_of_token(token, origin);
-            let map = extra_rows(token, origin, map);
+            let extra_rows_of_shape = (shape: Base.shape, origin, map) =>
+              switch (shape) {
+              | Inline(_) => map
+              | NewInline({row: height, _}) =>
+                let num_lb = height - 1;
+                if (num_lb > 0) {
+                  deferred_linebreaks := [num_lb, ...deferred_linebreaks^];
+                };
+                map;
+              | Block({row: height, _}) =>
+                let num_lb = height - 1;
+                let row_indent = container_indent + contained_indent;
+                let num_extra_rows =
+                  num_lb + num_lb == 0 ? 0 : consume_deferred_linebreaks();
+                add_n_rows(origin, row_indent, num_extra_rows, map);
+              };
+            let last_of_shape = (shape: Base.shape, origin: Point.t): Point.t =>
+              switch (shape) {
+              | Inline(width) => {col: origin.col + width, row: origin.row}
+              | NewInline({col: width, _}) => {
+                  col: origin.col + width,
+                  row: origin.row,
+                }
+              | Block({col: width, row: height}) => {
+                  col: origin.col + width,
+                  row: origin.row + height - 1,
+                }
+              };
+            let shape = shape_of_proj(p);
+            let last = last_of_shape(shape, origin);
+            let map = extra_rows_of_shape(shape, origin, map);
             let map = add_pr(p, {origin, last}, map);
             (contained_indent, last, map);
           | Tile(t) =>
+            let extra_rows = (token, origin, map) => {
+              let row_indent = container_indent + contained_indent;
+              let num_lb = StringUtil.num_linebreaks(token);
+              let num_extra_rows =
+                StringUtil.num_linebreaks(token) + num_lb == 0
+                  ? 0 : consume_deferred_linebreaks();
+              add_n_rows(origin, row_indent, num_extra_rows, map);
+            };
+            let last_of_token = (token: string, origin: Point.t): Point.t => {
+              col: origin.col + StringUtil.max_line_width(token),
+              row: origin.row + StringUtil.num_linebreaks(token),
+            };
             let add_shard = (origin, shard, map) => {
               let token = List.nth(t.label, shard);
               let map = extra_rows(token, origin, map);

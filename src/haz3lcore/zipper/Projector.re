@@ -44,14 +44,23 @@ let shape = (p: Base.projector, info: info): shape => {
   P.placeholder(p.model, info);
 };
 
-/* Returns a token consisting of whitespace (possibly including linebreaks)
- * representing the space to leave for the projector in the underlying code view */
-let token_of_proj =
-    (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector) => {
+let shape_of_proj =
+    (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector)
+    : shape => {
   let statics = Statics.Map.lookup(p.id, statics);
   let dynamics = Dynamics.Map.lookup(p.id, dynamics);
-  switch (shape(p, {id: p.id, syntax: p.syntax, statics, dynamics})) {
+  shape(p, {id: p.id, syntax: p.syntax, statics, dynamics});
+};
+
+let token_of_shape = (shape: shape): string =>
+  switch (shape) {
   | Inline(width) => String.make(width, ' ')
+  | NewInline({row: _, col: width}) => String.make(width, ' ')
   | Block({row, col}) => String.make(row - 1, '\n') ++ String.make(col, ' ')
   };
-};
+
+/* Returns a token consisting of whitespace (possibly including linebreaks)
+ * representing the space to leave for the projector in the underlying code view */
+let _token_of_proj =
+    (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector) =>
+  token_of_shape(shape_of_proj(statics, dynamics, p));
