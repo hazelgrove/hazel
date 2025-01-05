@@ -440,6 +440,7 @@ module Singleton = {
 module CardInHand = {
   let view =
       (
+        _elem_ids,
         mode,
         parent,
         local: action => Ui_effect.t(unit),
@@ -455,7 +456,10 @@ module CardInHand = {
         | Flipped => local(SetMode(Show))
         | Show => local(SetMode(Choose))
         }
-      | _ => Effect.Ignore
+      | _ =>
+        // Animate.setup(elem_ids);
+        // local(SetMode(Flipped));
+        Effect.Ignore
       };
 
     Node.div(
@@ -483,10 +487,21 @@ module CardInHand = {
   };
 };
 
+let of_id = (id: Id.t) =>
+  "id" ++ (id |> Id.to_string |> String.sub(_, 0, 8));
+// return a list of strings "card-index-<index>" for cards in hand
+let hand_elem_ids = (id, hand: hand): list(string) =>
+  List.mapi(
+    (i, _) => of_id(id) ++ "card-index-" ++ string_of_int(i),
+    hand,
+  );
+
 module Hand = {
   // a card, but each subsequent card should be absoluted positioned 20px to the right of the last and higher in z-index:
   let card_wrapper =
       (
+        id,
+        elem_ids,
         mode,
         parent: external_action => Ui_effect.t(unit),
         local: action => Ui_effect.t(unit),
@@ -497,23 +512,27 @@ module Hand = {
       : Node.t =>
     Node.div(
       ~attrs=[
+        Attr.id(of_id(id) ++ "card-index-" ++ string_of_int(index)),
         Attr.class_("card-wrapper"),
         Attr.create(
           "style",
           Printf.sprintf(
             "position: absolute; left: %dpx; z-index: %d;",
-            index * 8,
+            mode == Flipped ? 0 : index * 8,
             100 + index,
           ),
         ),
       ],
-      [CardInHand.view(mode, parent, local, sort, card)],
+      [CardInHand.view(elem_ids, mode, parent, local, sort, card)],
     );
 
-  let view = (mode, parent, local, sort: Sort.t, hand: hand): Node.t => {
+  let view = (id, mode, parent, local, sort: Sort.t, hand: hand): Node.t => {
     Node.div(
       ~attrs=[Attr.classes(["hand", Sort.show(sort)])],
-      List.mapi(card_wrapper(mode, parent, local, sort), hand),
+      List.mapi(
+        card_wrapper(id, hand_elem_ids(id, hand), mode, parent, local, sort),
+        hand,
+      ),
     );
   };
 };
@@ -553,7 +572,7 @@ module M: Projector = {
     | (sort, Card(card)) =>
       Singleton.view(model.mode, parent, local, to_sort(sort), card)
     | (sort, Hand(hand)) =>
-      Hand.view(model.mode, parent, local, to_sort(sort), hand)
+      Hand.view(info.id, model.mode, parent, local, to_sort(sort), hand)
     };
   };
   let focus = _ => ();

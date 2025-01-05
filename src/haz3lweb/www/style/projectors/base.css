@@ -5,8 +5,8 @@
 @import "cards.css";
 
 /* Turn off caret when a projector is focused */
-#caret:has(~ .projectors .projector *:focus) {
-  display: none;
+#caret:has(~ .projectors .projector *:focus) .caret-path {
+  fill: #0000;
 }
 
 /* Default projector styles */

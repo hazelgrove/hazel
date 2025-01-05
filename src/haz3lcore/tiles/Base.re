@@ -1,5 +1,4 @@
 open Util;
-open ProjectorShape;
 
 /* The different kinds of projector. New projectors
  * types need to be registered here in order to be
