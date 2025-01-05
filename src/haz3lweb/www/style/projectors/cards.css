@@ -6,7 +6,9 @@
 }
 
 /* Turn off caret when a block projector is focused */
-#caret:has(~ .projectors .projector.card.indicated),
+#caret:has(~ .projectors .projector.card.indicated) .caret-path {
+  fill: #0000;
+}
 .indication:has(~ .projectors .projector.card.indicated) {
   display: none;
 }
