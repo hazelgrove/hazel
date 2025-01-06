@@ -63,6 +63,7 @@ module Probe = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = {
       closure_id: Id.t, /* Primary ID (Unique) */
+      env_id: Id.t, /* To track across callstack */
       value: DHExp.t,
       env: Env.t,
       stack: Probe.stack,
@@ -71,10 +72,11 @@ module Probe = {
 
     let mk = (value: DHExp.t, env: ClosureEnvironment.t, pr: Probe.t) => {
       closure_id: Id.mk(),
+      env_id: ClosureEnvironment.id_of(env),
       value,
+      env: Env.mk(ClosureEnvironment.map_of(env), pr.refs),
       stack: ClosureEnvironment.stack_of(env),
       dyn_stack: ClosureEnvironment.dyn_stack_of(env),
-      env: Env.mk(ClosureEnvironment.map_of(env), pr.refs),
     };
   };
 
