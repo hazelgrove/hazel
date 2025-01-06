@@ -5,6 +5,7 @@ let (suite, _) =
     ~and_exit=false,
     "HazelTests",
     [
+      Test_ExpToSegment.tests,
       ("LabeledTuple", Test_LabeledTuple.tests),
       Test_Elaboration.elaboration_tests,
       Test_StringUtil.tests,
