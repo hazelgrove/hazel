@@ -45,6 +45,7 @@ let stack = stack =>
 let env_cursor: ref(list(Id.t)) = ref([]);
 let last_target: ref(list('a)) = ref([]);
 let cur_ap: ref(option(Id.t)) = ref(Option.None);
+let cur_ap_depth: ref(option(int)) = ref(Option.None);
 let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
 
 let comparor = (a: Dynamics.Probe.Closure.t, b: Dynamics.Probe.Closure.t) => {
@@ -104,6 +105,7 @@ let value_view =
     env_cursor := Probe.env_stack(closure.stack);
     last_target := [target];
     cur_ap := cur_ap_id(info);
+    cur_ap_depth := Some(List.length(closure.dyn_stack));
     Effect.Ignore;
   };
 
@@ -145,6 +147,12 @@ let value_view =
           }
         )
         @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : [])
+        @ (
+          switch (cur_ap_depth^) {
+          | Some(0) => ["top-ap"]
+          | _ => []
+          }
+        )
         @ (show_indicator(closure.stack) ? ["cursor"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleShowAllVals)),
@@ -162,7 +170,7 @@ let value_view =
   );
 };
 
-let env_val = (en: Dynamics.Probe.Env.entry, utility: utility) => {
+let env_val = (utility: utility, en: Dynamics.Probe.Env.entry) => {
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
     [
@@ -188,14 +196,15 @@ let rm_opaques:
 /* Is the underlying syntax a variable reference? */
 let is_var_ref = (info: info): bool =>
   switch (info.statics) {
-  | Some(InfoExp({term: {term: Var(_), _}, _})) => true
+  | Some(InfoExp({term: {term: Var(_), _}, _}))
+  | Some(InfoPat({term: {term: Var(_), _}, _})) => true
   | _ => false
   };
 
 let env_view = (closure: Dynamics.Probe.Closure.t, utility: utility): Node.t =>
   Node.div(
     ~attrs=[Attr.classes(["live-env"])],
-    closure.env |> rm_opaques |> List.map(en => env_val(en, utility)),
+    closure.env |> ListUtil.dedup |> rm_opaques |> List.map(env_val(utility)),
   );
 
 let closure_view =
@@ -232,6 +241,36 @@ let offside_pos = utility =>
     Printf.sprintf("position: absolute; left: %fpx;", utility.offside_offset),
   );
 
+let nav_back = (di, model, local, left_cond) =>
+  List.length(di) > model.max_closures
+    ? [
+      Node.div(
+        ~attrs=[
+          Attr.classes(
+            ["closures-header"] @ (left_cond ? ["disabled"] : []),
+          ),
+          Attr.on_click(_ => left_cond ? Effect.Ignore : local(Offset(1))),
+        ],
+        [Node.text("<")],
+      ),
+    ]
+    : [];
+
+let nav_forward = (di, model, local, right_cond) =>
+  List.length(di) > model.max_closures
+    ? [
+      Node.div(
+        ~attrs=[
+          Attr.classes(
+            ["closures-tail"] @ (right_cond ? ["disabled"] : []),
+          ),
+          Attr.on_click(_ => right_cond ? Effect.Ignore : local(Offset(-1))),
+        ],
+        [Node.text(">")],
+      ),
+    ]
+    : [];
+
 let offside_view = (info, ~model: model, ~local, ~utility: utility) => {
   Node.div(
     ~attrs=[Attr.classes(["live-offside"]), offside_pos(utility)],
@@ -240,40 +279,10 @@ let offside_view = (info, ~model: model, ~local, ~utility: utility) => {
       let vals = select_vals(model, di);
       let left_cond =
         model.index_offset >= List.length(di) - model.max_closures;
-      let hd =
-        List.length(di) > model.max_closures
-          ? [
-            Node.div(
-              ~attrs=[
-                Attr.classes(
-                  ["closures-header"] @ (left_cond ? ["disabled"] : []),
-                ),
-                Attr.on_click(_ =>
-                  left_cond ? Effect.Ignore : local(Offset(1))
-                ),
-              ],
-              [Node.text("<")],
-            ),
-          ]
-          : [];
       let right_cond = model.index_offset <= 0;
-      let tl =
-        List.length(di) > model.max_closures
-          ? [
-            Node.div(
-              ~attrs=[
-                Attr.classes(
-                  ["closures-tail"] @ (right_cond ? ["disabled"] : []),
-                ),
-                Attr.on_click(_ =>
-                  right_cond ? Effect.Ignore : local(Offset(-1))
-                ),
-              ],
-              [Node.text(">")],
-            ),
-          ]
-          : [];
-      hd @ tl @ List.map(closure_view(info, utility, model, local), vals);
+      nav_back(di, model, local, left_cond)
+      @ nav_forward(di, model, local, right_cond)
+      @ List.map(closure_view(info, utility, model, local), vals);
     | _ => []
     },
   );
@@ -317,7 +326,9 @@ let view = (model: model, ~info, ~local, ~parent as _, ~utility: utility) => {
     offside_view(info, ~model, ~local, ~utility),
     div(
       ~attrs=[
-        Attr.classes(["main"]),
+        Attr.classes(
+          ["main"] @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : []),
+        ),
         Attr.on_click(_ => {
           env_cursor := [];
           cur_ap := None;
