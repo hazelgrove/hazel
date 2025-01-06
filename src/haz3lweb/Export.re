@@ -19,26 +19,21 @@ type all_f22 = {
   log: string,
 };
 
-let mk_all = (~instructor_mode, ~log) => {
-  let settings = Store.Settings.export();
-  let explainThisModel = Store.ExplainThisModel.export();
-  let settings_obj = Store.Settings.load();
-  let scratch = Store.Scratch.export(~settings=settings_obj.core);
-  let documentation = Store.Documentation.export(~settings=settings_obj.core);
+let mk_all = (~core_settings, ~instructor_mode, ~log) => {
+  let settings = Settings.Store.export();
+  let explainThisModel = ExplainThisModel.Store.export();
+  let scratch = ScratchMode.Store.export();
+  let documentation = ScratchMode.StoreDocumentation.export();
   let exercise =
-    Store.Exercise.export(
-      ~settings=settings_obj.core,
-      ~specs=ExerciseSettings.exercises,
-      ~instructor_mode,
-    );
+    ExercisesMode.Store.export(~settings=core_settings, ~instructor_mode);
   {settings, explainThisModel, scratch, documentation, exercise, log};
 };
 
-let export_all = (~instructor_mode, ~log) => {
-  mk_all(~instructor_mode, ~log) |> yojson_of_all;
+let export_all = (~settings, ~instructor_mode, ~log) => {
+  mk_all(~core_settings=settings, ~instructor_mode, ~log) |> yojson_of_all;
 };
 
-let import_all = (data, ~specs) => {
+let import_all = (~import_log: string => unit, data, ~specs) => {
   let all =
     try(data |> Yojson.Safe.from_string |> all_of_yojson) {
     | _ =>
@@ -52,15 +47,31 @@ let import_all = (data, ~specs) => {
         explainThisModel: "",
       };
     };
-  let settings = Store.Settings.import(all.settings);
-  Store.ExplainThisModel.import(all.explainThisModel);
+  Settings.Store.import(all.settings);
+  let settings = Settings.Store.load();
+  ExplainThisModel.Store.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
-  Store.Scratch.import(~settings=settings.core, all.scratch);
-  Store.Exercise.import(
+  ScratchMode.Store.import(all.scratch);
+  ExercisesMode.Store.import(
     ~settings=settings.core,
     all.exercise,
     ~specs,
     ~instructor_mode,
   );
-  Log.import(all.log);
+  import_log(all.log);
+};
+
+let export_persistent = () => {
+  let data: PersistentData.t = {
+    documentation: ScratchMode.StoreDocumentation.load(),
+    scratch: ScratchMode.Store.load(),
+  };
+  let contents =
+    "let startup : PersistentData.t = " ++ PersistentData.show(data);
+  JsUtil.download_string_file(
+    ~filename="Init.ml",
+    ~content_type="text/plain",
+    ~contents,
+  );
+  print_endline("INFO: Persistent data exported to Init.ml");
 };

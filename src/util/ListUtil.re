@@ -540,3 +540,54 @@ let rec unzip = (lst: list(('a, 'b))): (list('a), list('b)) => {
     ([a, ..._as], [b, ...bs]);
   };
 };
+
+let cross = (xs, ys) =>
+  List.concat(List.map(x => List.map(y => (x, y), ys), xs));
+
+let rec intersperse = (sep, xs) =>
+  switch (xs) {
+  | [] => []
+  | [x] => [x]
+  | [x, ...xs] => [x, sep, ...intersperse(sep, xs)]
+  };
+
+let rec flat_intersperse = (sep, xss) =>
+  switch (xss) {
+  | [] => []
+  | [xs] => xs
+  | [xs, ...xss] => xs @ [sep, ...flat_intersperse(sep, xss)]
+  };
+
+let rec map_last_only = (f, xs) =>
+  switch (xs) {
+  | [] => []
+  | [x] => [f(x)]
+  | [x, ...xs] => [x, ...map_last_only(f, xs)]
+  };
+
+let rec split_last = (xs: list('x)): (list('x), 'x) =>
+  switch (xs) {
+  | [] => failwith("ListUtil.split_last")
+  | [x] => ([], x)
+  | [x, ...xs] =>
+    let (prefix, last) = split_last(xs);
+    ([x, ...prefix], last);
+  };
+
+let minimum = (f: 'a => int, xs: list('a)): option('a) =>
+  switch (xs) {
+  | [] => None
+  | [x, ...xs] =>
+    let rec loop = (best: 'a, best_f: int, xs: list('a)): option('a) =>
+      switch (xs) {
+      | [] => Some(best)
+      | [x, ...xs] =>
+        let f_x = f(x);
+        if (f_x < best_f) {
+          loop(x, f_x, xs);
+        } else {
+          loop(best, best_f, xs);
+        };
+      };
+    loop(x, f(x), xs);
+  };

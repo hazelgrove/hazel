@@ -7,8 +7,8 @@ let evaluation_test = (msg, expected, unevaluated) =>
     dhexp_typ,
     msg,
     expected,
-    Evaluator.Result.unbox(
-      snd(Evaluator.evaluate(Builtins.env_init, {d: unevaluated})),
+    ProgramResult.Result.unbox(
+      snd(Evaluator.evaluate'(Builtins.env_init, {d: unevaluated})),
     ),
   );
 let parse_exp = (s: string) =>
@@ -189,35 +189,33 @@ let tet_ap_of_hole_deferral = () =>
     |> Exp.fresh,
   );
 
-let tests = [
-  test_case("Integer literal", `Quick, test_int),
-  test_case("Integer sum", `Quick, test_sum),
-  test_case(
-    "Labeled tuple projection",
-    `Quick,
-    test_labeled_tuple_projection,
-  ),
-  test_case("Function application", `Quick, test_function_application),
-  test_case("Function deferral", `Quick, test_function_deferral),
-  test_case("Deferral applied to hole", `Quick, tet_ap_of_hole_deferral),
-  test_case("Elaborated Pattern for labeled tuple", `Quick, () =>
-    check(
-      dhexp_typ,
-      {|let x : (a=Int) -> Int = fun a -> a in x(2)|},
-      Int(2) |> Exp.fresh,
-      Evaluator.Result.unbox(
-        snd(
-          Evaluator.evaluate(
-            Builtins.env_init,
-            {
-              d:
-                dhexp_of_uexp(
-                  parse_exp("let x : (a=Int) -> Int = fun a -> a in x(2)"),
-                ),
-            },
+let tests = (
+  "Evaluator",
+  [
+    test_case("Integer literal", `Quick, test_int),
+    test_case("Integer sum", `Quick, test_sum),
+    test_case("Function application", `Quick, test_function_application),
+    test_case("Function deferral", `Quick, test_function_deferral),
+    test_case("Deferral applied to hole", `Quick, tet_ap_of_hole_deferral),
+    test_case("Elaborated Pattern for labeled tuple", `Quick, () =>
+      check(
+        dhexp_typ,
+        {|let x : (a=Int) -> Int = fun a -> a in x(2)|},
+        Int(2) |> Exp.fresh,
+        ProgramResult.Result.unbox(
+          snd(
+            Evaluator.evaluate'(
+              Builtins.env_init,
+              {
+                d:
+                  dhexp_of_uexp(
+                    parse_exp("let x : (a=Int) -> Int = fun a -> a in x(2)"),
+                  ),
+              },
+            ),
           ),
         ),
-      ),
-    )
-  ),
-];
+      )
+    ),
+  ],
+);

@@ -229,7 +229,8 @@ let unapplied_function = () =>
     ),
   );
 
-let tests =
+let tests = (
+  "Statics",
   FreshId.[
     fully_consistent_typecheck(
       "Function with unknown param",
@@ -683,4 +684,5 @@ let tests =
       Some(int),
       parse_exp("let x : (a=Int) -> Int = fun a -> a in x(2)"),
     ),
-  ];
+  ],
+);

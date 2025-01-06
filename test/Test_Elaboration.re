@@ -548,264 +548,279 @@ let rearranged_labeled_tuple = () =>
     dhexp_of_uexp(rearranged_labeled_tuple_program),
   );
 
-let elaboration_tests = [
-  test_case("Single integer", `Quick, single_integer),
-  test_case("Empty hole", `Quick, empty_hole),
-  test_case("Free variable", `Quick, free_var),
-  test_case("Let expression", `Quick, let_exp),
-  test_case("Inconsistent binary operation", `Quick, bin_op),
-  test_case("Consistent if statement", `Quick, consistent_if),
-  test_case("An unapplied function", `Quick, unapplied_function),
-  test_case("Application of function on free variable", `Quick, ap_fun),
-  test_case("Inconsistent case statement", `Quick, inconsistent_case),
-  test_case("Let expression for a function", `Quick, let_fun),
-  test_case(
-    "Function application with a deferred argument",
-    `Quick,
-    deferral,
-  ),
-  test_case("Labeled tuple elaboration", `Quick, elaborated_labeled_tuple),
-  test_case("Rearranged labeled tuple", `Quick, rearranged_labeled_tuple),
-  test_case(
-    // TODO Not sure if we want this case
-    "Singleton labeled tuple adds labels",
-    `Quick,
-    singleton_labeled_tuple_elaborates_labels,
-  ),
-  test_case("Singleton labeled tuple", `Quick, singleton_labeled_tuple), // TODO Make consistent with make term
-  // TODO Add singleton labeled function application
-  test_case("Singleton labeld tuple analysis adds label", `Quick, () =>
-    alco_check(
-      "Singleton labeld tuple analysis adds label",
-      Let(
-        Var("x") |> Pat.fresh,
-        Tuple([
-          TupLabel(Label("l") |> Exp.fresh, String("a") |> Exp.fresh)
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      dhexp_of_uexp(
+let elaboration_tests = (
+  "Elaboration",
+  [
+    test_case("Single integer", `Quick, single_integer),
+    test_case("Empty hole", `Quick, empty_hole),
+    test_case("Free variable", `Quick, free_var),
+    test_case("Let expression", `Quick, let_exp),
+    test_case("Inconsistent binary operation", `Quick, bin_op),
+    test_case("Consistent if statement", `Quick, consistent_if),
+    test_case("An unapplied function", `Quick, unapplied_function),
+    test_case("Application of function on free variable", `Quick, ap_fun),
+    test_case("Inconsistent case statement", `Quick, inconsistent_case),
+    test_case("Let expression for a function", `Quick, let_fun),
+    test_case(
+      "Function application with a deferred argument",
+      `Quick,
+      deferral,
+    ),
+    test_case(
+      "Function application with a single remaining argument after deferral",
+      `Quick,
+      ap_deferral_single_argument,
+    ),
+    test_case(
+      "Function application with a deferral of a hole",
+      `Quick,
+      ap_of_deferral_of_hole,
+    ),
+    test_case("Labeled tuple elaboration", `Quick, elaborated_labeled_tuple),
+    test_case("Rearranged labeled tuple", `Quick, rearranged_labeled_tuple),
+    test_case(
+      // TODO Not sure if we want this case
+      "Singleton labeled tuple adds labels",
+      `Quick,
+      singleton_labeled_tuple_elaborates_labels,
+    ),
+    test_case("Singleton labeled tuple", `Quick, singleton_labeled_tuple), // TODO Make consistent with make term
+    // TODO Add singleton labeled function application
+    test_case("Singleton labeld tuple analysis adds label", `Quick, () =>
+      alco_check(
+        "Singleton labeld tuple analysis adds label",
         Let(
-          Cast(
-            Var("x") |> Pat.fresh,
-            Parens(
-              Prod([
-                TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
+          Var("x") |> Pat.fresh,
+          Tuple([
+            TupLabel(Label("l") |> Exp.fresh, String("a") |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+          Var("x") |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        dhexp_of_uexp(
+          Let(
+            Cast(
+              Var("x") |> Pat.fresh,
+              Parens(
+                Prod([
+                  TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
+                  |> Typ.fresh,
+                ])
                 |> Typ.fresh,
-              ])
+              )
               |> Typ.fresh,
+              Unknown(Internal) |> Typ.fresh,
             )
-            |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
+            |> Pat.fresh,
+            Parens(String("a") |> Exp.fresh) |> Exp.fresh,
+            Var("x") |> Exp.fresh,
           )
-          |> Pat.fresh,
-          Parens(String("a") |> Exp.fresh) |> Exp.fresh,
-          Var("x") |> Exp.fresh,
-        )
-        |> Exp.fresh,
-      ),
-    )
-  ),
-  test_case(
-    "Singleton labeld tuple analysis adds label with type alias", `Quick, () =>
-    alco_check(
-      {|type T = (a=String) in
+          |> Exp.fresh,
+        ),
+      )
+    ),
+    test_case(
+      "Singleton labeld tuple analysis adds label with type alias", `Quick, () =>
+      alco_check(
+        {|type T = (a=String) in
         let x : T = "hello" in x|},
-      Let(
-        Var("x") |> Pat.fresh,
-        Tuple([
-          TupLabel(Label("a") |> Exp.fresh, String("hello") |> Exp.fresh)
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      dhexp_of_uexp(
-        parse_exp({|type T = (a=String) in let x : T = "hello" in x|}),
-      ),
-    )
-  ),
-  test_case(
-    "Singleton labeld tuple analysis adds label with type alias", `Quick, () =>
-    alco_check(
-      {|let zip_only : (zip=Int) = (zip=12345) in zip_only|},
-      Let(
-        Var("zip_only") |> Pat.fresh,
-        Tuple([
-          TupLabel(Label("zip") |> Exp.fresh, Int(12345) |> Exp.fresh)
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-        Var("zip_only") |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      dhexp_of_uexp(
-        parse_exp({|let zip_only : (zip=Int) = (zip=12345) in zip_only|}),
-      ),
-    )
-  ),
-  test_case(
-    "Singleton labeled argument function application with known type",
-    `Quick,
-    () =>
-    alco_check(
-      {|(fun a=(x:Int) -> x)(a=1)|},
-      Ap(
-        Forward,
-        Fun(
+        Let(
+          Var("x") |> Pat.fresh,
           Tuple([
-            TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
-            |> Pat.fresh,
+            TupLabel(Label("a") |> Exp.fresh, String("hello") |> Exp.fresh)
+            |> Exp.fresh,
           ])
-          |> Pat.fresh,
+          |> Exp.fresh,
           Var("x") |> Exp.fresh,
-          None,
-          None,
         )
         |> Exp.fresh,
-        Tuple([
-          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
+        dhexp_of_uexp(
+          parse_exp({|type T = (a=String) in let x : T = "hello" in x|}),
+        ),
       )
-      |> Exp.fresh,
-      dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(a=1)|})) // Ignoring casts for now
-    )
-  ),
-  test_case(
-    "Singleton labeled argument function application with no label in ap",
-    `Quick,
-    () =>
-    alco_check(
-      {|(fun a=(x:Int) -> x)(1)|},
-      Ap(
-        Forward,
-        Fun(
+    ),
+    test_case(
+      "Singleton labeld tuple analysis adds label with type alias", `Quick, () =>
+      alco_check(
+        {|let zip_only : (zip=Int) = (zip=12345) in zip_only|},
+        Let(
+          Var("zip_only") |> Pat.fresh,
           Tuple([
-            TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
-            |> Pat.fresh,
+            TupLabel(Label("zip") |> Exp.fresh, Int(12345) |> Exp.fresh)
+            |> Exp.fresh,
           ])
-          |> Pat.fresh,
-          Var("x") |> Exp.fresh,
-          None,
-          None,
+          |> Exp.fresh,
+          Var("zip_only") |> Exp.fresh,
         )
         |> Exp.fresh,
-        Tuple([
-          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
+        dhexp_of_uexp(
+          parse_exp({|let zip_only : (zip=Int) = (zip=12345) in zip_only|}),
+        ),
       )
-      |> Exp.fresh,
-      dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(1)|})),
-    )
-  ),
-  test_case("Failed cast inside labeled tuple", `Quick, () =>
-    alco_check(
-      {|let x : (c=String) = c=1 in x|}, // TODO Things go wrong if this is unknown rather than String
-      Let(
-        Var("x") |> Pat.fresh,
-        Tuple([
-          TupLabel(
-            Label("c") |> Exp.fresh,
-            FailedCast(
-              Int(1) |> Exp.fresh,
-              Int |> Typ.fresh,
-              String |> Typ.fresh,
+    ),
+    test_case(
+      "Singleton labeled argument function application with known type",
+      `Quick,
+      () =>
+      alco_check(
+        {|(fun a=(x:Int) -> x)(a=1)|},
+        Ap(
+          Forward,
+          Fun(
+            Tuple([
+              TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
+              |> Pat.fresh,
+            ])
+            |> Pat.fresh,
+            Var("x") |> Exp.fresh,
+            None,
+            None,
+          )
+          |> Exp.fresh,
+          Tuple([
+            TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(a=1)|})) // Ignoring casts for now
+      )
+    ),
+    test_case(
+      "Singleton labeled argument function application with no label in ap",
+      `Quick,
+      () =>
+      alco_check(
+        {|(fun a=(x:Int) -> x)(1)|},
+        Ap(
+          Forward,
+          Fun(
+            Tuple([
+              TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
+              |> Pat.fresh,
+            ])
+            |> Pat.fresh,
+            Var("x") |> Exp.fresh,
+            None,
+            None,
+          )
+          |> Exp.fresh,
+          Tuple([
+            TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(1)|})),
+      )
+    ),
+    test_case("Failed cast inside labeled tuple", `Quick, () =>
+      alco_check(
+        {|let x : (c=String) = c=1 in x|}, // TODO Things go wrong if this is unknown rather than String
+        Let(
+          Var("x") |> Pat.fresh,
+          Tuple([
+            TupLabel(
+              Label("c") |> Exp.fresh,
+              FailedCast(
+                Int(1) |> Exp.fresh,
+                Int |> Typ.fresh,
+                String |> Typ.fresh,
+              )
+              |> Exp.fresh,
             )
             |> Exp.fresh,
-          )
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      dhexp_of_uexp(parse_exp({|let x : (c=String) = c=1 in x|})),
-    )
-  ),
-  test_case("nested different singleton labeled arguments", `Quick, () =>
-    alco_check(
-      {|let x : (b=c=String) = b="" in x|},
-      Let(
-        Var("x") |> Pat.fresh,
-        Tuple([
-          TupLabel(
-            Label("b") |> Exp.fresh,
-            Tuple([
-              TupLabel(Label("c") |> Exp.fresh, String("") |> Exp.fresh)
-              |> Exp.fresh,
-            ])
-            |> Exp.fresh,
-          )
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      dhexp_of_uexp(parse_exp({|let x : (b=c=String) = b="" in x|})),
-    )
-  ),
-  test_case(
-    "Singleton labeled argument function application with unknown type",
-    `Quick,
-    () =>
-    alco_check(
-      {|(fun a=x->x)(a=1)|},
-      Ap(
-        Forward,
-        Fun(
-          Tuple([
-            TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
-            |> Pat.fresh,
           ])
-          |> Pat.fresh,
+          |> Exp.fresh,
           Var("x") |> Exp.fresh,
-          None,
-          None,
         )
         |> Exp.fresh,
-        Tuple([
-          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
+        dhexp_of_uexp(parse_exp({|let x : (c=String) = c=1 in x|})),
       )
-      |> Exp.fresh,
-      strip_casts(dhexp_of_uexp(parse_exp({|(fun a=x->x)(a=1)|}))),
-    )
-  ),
-  test_case("Singleton labeled argument let with unknown type", `Quick, () =>
-    alco_check(
-      {|let x : (a=?) = (a=1) in x|},
-      Let(
-        Var("x") |> Pat.fresh,
-        Tuple([
-          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+    ),
+    test_case("nested different singleton labeled arguments", `Quick, () =>
+      alco_check(
+        {|let x : (b=c=String) = b="" in x|},
+        Let(
+          Var("x") |> Pat.fresh,
+          Tuple([
+            TupLabel(
+              Label("b") |> Exp.fresh,
+              Tuple([
+                TupLabel(Label("c") |> Exp.fresh, String("") |> Exp.fresh)
+                |> Exp.fresh,
+              ])
+              |> Exp.fresh,
+            )
+            |> Exp.fresh,
+          ])
           |> Exp.fresh,
-        ])
+          Var("x") |> Exp.fresh,
+        )
         |> Exp.fresh,
-        Var("x") |> Exp.fresh,
+        dhexp_of_uexp(parse_exp({|let x : (b=c=String) = b="" in x|})),
       )
-      |> Exp.fresh,
-      strip_casts(dhexp_of_uexp(parse_exp({|let x : (a=?) = (a=1) in x|}))) // Ignoring casts for now
-    )
-  ),
-  test_case(
-    "Function application with a single remaining argument after deferral",
-    `Quick,
-    ap_deferral_single_argument,
-  ),
-  test_case(
-    "Function application with a deferral of a hole",
-    `Quick,
-    ap_of_deferral_of_hole,
-  ),
-];
+    ),
+    test_case(
+      "Singleton labeled argument function application with unknown type",
+      `Quick,
+      () =>
+      alco_check(
+        {|(fun a=x->x)(a=1)|},
+        Ap(
+          Forward,
+          Fun(
+            Tuple([
+              TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
+              |> Pat.fresh,
+            ])
+            |> Pat.fresh,
+            Var("x") |> Exp.fresh,
+            None,
+            None,
+          )
+          |> Exp.fresh,
+          Tuple([
+            TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        strip_casts(dhexp_of_uexp(parse_exp({|(fun a=x->x)(a=1)|}))),
+      )
+    ),
+    test_case("Singleton labeled argument let with unknown type", `Quick, () =>
+      alco_check(
+        {|let x : (a=?) = (a=1) in x|},
+        Let(
+          Var("x") |> Pat.fresh,
+          Tuple([
+            TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+          Var("x") |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        strip_casts(
+          dhexp_of_uexp(parse_exp({|let x : (a=?) = (a=1) in x|})),
+        ) // Ignoring casts for now
+      )
+    ),
+    test_case(
+      "Function application with a single remaining argument after deferral",
+      `Quick,
+      ap_deferral_single_argument,
+    ),
+    test_case(
+      "Function application with a deferral of a hole",
+      `Quick,
+      ap_of_deferral_of_hole,
+    ),
+  ],
+);
