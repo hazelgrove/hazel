@@ -291,7 +291,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Dot(e, l) =>
     let* e = go(e)
     and* l = go(l);
-    e @ [mk_form("dot_exp", exp |> Exp.rep_id, [l])];
+    e @ [mk_form("dot_exp", exp |> Exp.rep_id, [])] @ l;
   | Tuple([{term: TupLabel(_), _} as le]) => go(le)
   | Tuple([_]) => failwith("Singleton Tuples are not allowed")
   | Tuple([x, ...xs]) =>
