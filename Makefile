@@ -18,10 +18,10 @@ change-deps:
 	sed -i'.old' '/host-/d' hazel.opam.locked  # remove host- lines which are arch-specific. Not using -i '' because of portability issues https://stackoverflow.com/questions/4247068/sed-command-with-i-option-failing-on-mac-but-works-on-linux
 
 setup-instructor:
-	cp src/haz3lweb/ExerciseSettings_instructor.re src/haz3lweb/ExerciseSettings.re
+	cp src/haz3lweb/exercises/settings/ExerciseSettings_instructor.re src/haz3lweb/exercises/settings/ExerciseSettings.re
 
 setup-student: 
-	cp src/haz3lweb/ExerciseSettings_student.re src/haz3lweb/ExerciseSettings.re
+	cp src/haz3lweb/exercises/settings/ExerciseSettings_student.re src/haz3lweb/exercises/settings/ExerciseSettings.re
 
 dev-helper:
 	dune fmt --auto-promote || true

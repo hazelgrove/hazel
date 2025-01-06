@@ -35,28 +35,6 @@ let rec binds_var = (m: Statics.Map.t, x: Var.t, dp: t): bool =>
     }
   };
 
-let rec bound_vars = (dp: t): list(Var.t) =>
-  switch (dp |> term_of) {
-  | EmptyHole
-  | MultiHole(_)
-  | Wild
-  | Invalid(_)
-  | Int(_)
-  | Float(_)
-  | Bool(_)
-  | String(_)
-  | Label(_)
-  | Constructor(_) => []
-  | Cast(y, _, _)
-  | Parens(y) => bound_vars(y)
-  | Var(y) => [y]
-  | TupLabel(_, dp) => bound_vars(dp)
-  | Tuple(dps) => List.flatten(List.map(bound_vars, dps))
-  | Cons(dp1, dp2) => bound_vars(dp1) @ bound_vars(dp2)
-  | ListLit(dps) => List.flatten(List.map(bound_vars, dps))
-  | Ap(_, dp1) => bound_vars(dp1)
-  };
-
 let rec get_label: t => option((LabeledTuple.label, t)) =
   dp =>
     switch (dp |> term_of) {
