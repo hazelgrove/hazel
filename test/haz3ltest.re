@@ -11,6 +11,7 @@ let (suite, _) =
       Test_Evaluator.tests,
       Test_ListUtil.tests,
       Test_MakeTerm.tests,
+      Test_ExpToSegment.tests,
     ],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
