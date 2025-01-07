@@ -296,7 +296,7 @@ let forms: list((string, t)) = [
   // N-ARY OPS (on the semantics level)
   ("comma_exp", mk_infix(",", Exp, P.comma)),
   ("comma_pat", mk_infix(",", Pat, P.comma)),
-  ("comma_typ", mk_infix(",", Typ, P.type_prod)),
+  ("comma_typ", mk_infix(",", Typ, P.comma)),
   // PAIRED DELIMITERS:
   ("list_lit_exp", mk(ii, ["[", "]"], mk_op(Exp, [Exp]))),
   ("list_lit_pat", mk(ii, ["[", "]"], mk_op(Pat, [Pat]))),

@@ -821,7 +821,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | List(_) => Precedence.max
 
   // Other forms
-  | Prod(_) => Precedence.type_prod
+  | Prod(_) => Precedence.comma
   | Ap(_) => Precedence.type_sum_ap
   | Arrow(_, _) => Precedence.type_arrow
   | Sum(_) => Precedence.type_plus
@@ -1114,7 +1114,7 @@ and parenthesize_typ = (typ: Typ.t): Typ.t => {
     Prod(
       ts
       |> List.map(parenthesize_typ)
-      |> List.map(paren_typ_at(Precedence.type_prod)),
+      |> List.map(paren_typ_at(Precedence.comma)),
     )
     |> rewrap
   | Label(_) => typ
