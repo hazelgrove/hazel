@@ -119,9 +119,8 @@ open AST
 %right DASH_ARROW
 %nonassoc IF_EXP
 
-%right L_OR // TODO Check with Milan. I moved this to make tests pass.
+%right L_OR
 %right L_AND
-%right L_NOT
 
 
 %left GREATER_THAN LESS_THAN DOUBLE_EQUAL NOT_EQUAL LESS_THAN_EQUAL GREATER_THAN_EQUAL NOT_EQUAL_FLOAT LESS_THAN_FLOAT LESS_THAN_EQUAL_FLOAT GREATER_THAN_FLOAT GREATER_THAN_EQUAL_FLOAT DOUBLE_EQUAL_FLOAT STRING_EQUAL
@@ -129,22 +128,23 @@ open AST
 %right  CONS
 
 %left AT_SYMBOL PLUS MINUS PLUS_FLOAT MINUS_FLOAT
-%left DIVIDE TIMES TIMES_FLOAT DIVIDE_FLOAT
+%left DIVIDE TIMES TIMES_FLOAT DIVIDE_FLOAT L_NOT
 
 %right POWER POWER_FLOAT
+%nonassoc UMINUS   /* Unary minus (prefix) */
 %left COLON
 
 %left OPEN_CURLY
 
 %left IN
-%left DOLLAR_SIGN
 
 %nonassoc TYP_AP_SYMBOL
 
 %left OPEN_PAREN CLOSE_PAREN
+%left DOLLAR_SIGN
+
 %left QUESTION
 %left TILDE
-%nonassoc UMINUS   /* Unary minus (prefix) */
 
 
 
@@ -253,10 +253,10 @@ nonAscriptingPat:
     | s = STRING { StringPat s}
     | TRUE { BoolPat true}
     | FALSE {BoolPat false}
-    | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) } // TODO See if we can do multi arg pat ap without extra parens
+    | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) }
 
 funPat:
-    | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { CastPat(p1, t1, UnknownType(Internal)) } // TODO Shift/reduce conflict but I'm pretty sure the end parse state is the same either way
+    | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { CastPat(p1, t1, UnknownType(Internal)) }
     | p = nonAscriptingPat; { p }
 
 pat:
