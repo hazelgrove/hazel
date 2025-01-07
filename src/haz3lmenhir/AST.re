@@ -337,13 +337,11 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
               BinExp(e1, op, e2);
             },
             {
-              // TODO ExpToSegment broken for UnOp
-              // {
-              //   let* op = gen_op_un;
-              //   let+ e = self((n - 1) / 2);
-              //   UnOp(op, e);
-              // },
-
+              let* op = gen_op_un;
+              let+ e = self((n - 1) / 2);
+              UnOp(op, e);
+            },
+            {
               let* e1 = self((n - 1) / 3);
               let* e2 = self((n - 1) / 3);
               let+ e3 = self((n - 1) / 3);
