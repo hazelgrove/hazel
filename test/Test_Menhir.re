@@ -135,6 +135,13 @@ let qcheck_menhir_maketerm_equivalent_test =
  *
  * TODO This fails due to types not being serialized on constructors
  *  and some other ExpToSegment inconsistencies
+ *
+ * Filter and Test not implemented
+ * Deferral serializing as "deferral"
+ * Right associated operator
+ * https://github.com/hazelgrove/hazel/issues/1452
+ * https://github.com/hazelgrove/hazel/issues/1451
+ * https://github.com/hazelgrove/hazel/issues/1445
  */
 let qcheck_menhir_serialized_equivalent_test =
   QCheck.Test.make(
