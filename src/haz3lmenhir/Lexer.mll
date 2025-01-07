@@ -37,7 +37,7 @@ let ints = ['0'-'9']+
 rule token = 
     parse 
     | "undef" { UNDEF}
-    | "infinity" | "neg_infinity" | "nan" | "epsilon_float" | "pi" | "max_int" | "min_int" | "is_finite" | "is_infinite" | "int_of_float" | "float_of_int" | "string_of_int" | "string_of_float" | "string_of_bool" | "int_of_string" | "float_of_string" | "bool_of_string" | "abs" | "abs_float" | "ceil" | "floor" | "exp" | "log" | "log10" | "sqrt" | "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "mod" | "string_length" | "string_compare" | "string_trim" | "string_concat" | "string_sub" { BUILTIN(Lexing.lexeme lexbuf)}
+    | "infinity" | "neg_infinity" | "nan" | "epsilon_float" | "pi" | "max_int" | "min_int" | "is_finite" | "is_infinite" | "int_of_float" | "float_of_int" | "string_of_int" | "string_of_float" | "string_of_bool" | "int_of_string" | "float_of_string" | "bool_of_string" | "abs" | "abs_float" | "ceil" | "floor" | "exp" | "log" | "log10" | "sqrt" | "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "mod" | "string_length" | "string_compare" | "string_trim" | "string_concat" | "string_sub" | "string_split" { BUILTIN(Lexing.lexeme lexbuf)}
     | "-." { MINUS_FLOAT }
     | whitespace {token lexbuf }
     | newline { advance_line lexbuf; token lexbuf}
