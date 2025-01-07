@@ -456,10 +456,7 @@ module CardInHand = {
         | Flipped => local(SetMode(Show))
         | Show => local(SetMode(Choose))
         }
-      | _ =>
-        // Animate.setup(elem_ids);
-        // local(SetMode(Flipped));
-        Effect.Ignore
+      | _ => Effect.Ignore
       };
 
     Node.div(

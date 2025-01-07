@@ -48,6 +48,12 @@ let of_delim' =
 let of_delim =
     (is_in_buffer, is_consistent, indent, t: Piece.tile, i: int)
     : list(Node.t) =>
+  // [
+  // div(
+  //   ~attrs=[
+  //     Attr.create("style", "display: inline-block; position: relative;"),
+  //     Attr.id("token-" ++ (t.id |> Id.to_string |> String.sub(_, 0, 8))),
+  //   ],
   of_delim'((
     t.label,
     is_in_buffer,
@@ -57,6 +63,8 @@ let of_delim =
     indent,
     i,
   ));
+// ),
+// ];
 
 let space = " "; //Unicode.nbsp;
 

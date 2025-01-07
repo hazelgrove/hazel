@@ -113,16 +113,7 @@ let go_z =
       z,
     )
   | Move(d) =>
-    Animate.setup([
-      {
-        id: "caret",
-        animation: Animate.Keyframes.translate,
-        options: {
-          duration: 125,
-          easing: "cubic-bezier(0.16, 1, 0.3, 1)",
-        },
-      },
-    ]);
+    Animation.request([Animation.Actions.move("caret")]);
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move);
   | Jump(jump_target) =>
     (

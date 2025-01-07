@@ -166,8 +166,7 @@ let start = {
           scroll_to_caret := false;
           JsUtil.scroll_cursor_into_view_if_needed();
         };
-        Haz3lcore.Animate.go();
-        ();
+        Haz3lcore.Animation.go();
       },
       (),
     );
