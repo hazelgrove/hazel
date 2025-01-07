@@ -98,55 +98,15 @@ let menhir_maketerm_equivalent_test =
 let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir and maketerm are equivalent",
-    ~count=100,
+    ~count=10000,
     QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
     exp => {
       let core_exp = Conversion.Exp.of_menhir_ast(exp);
-      // TODO Maybe only do this when necessary.
-      // TODO Check with Matthew if I'm using this correctly
-      // Add parens around tuples and parens around certain patterns
-      // Move this to conversion
-      let core_exp =
-        Exp.map_term(
-          ~f_exp=
-            (cont, e) =>
-              switch (e.term) {
-              | Tuple(es) =>
-                Parens(Tuple(es |> List.map(cont)) |> Exp.fresh)
-                |> Exp.fresh
-              | _ => cont(e)
-              },
-          ~f_pat=
-            (cont, e) =>
-              switch (e.term) {
-              | Tuple(es) =>
-                Parens(Tuple(es |> List.map(cont)) |> Pat.fresh)
-                |> Pat.fresh
-              | Cons(p1, p2) =>
-                Parens(Cons(cont(p1), cont(p2)) |> Pat.fresh) |> Pat.fresh
-              | Cast(p, t1, t2) =>
-                Parens(Cast(cont(p), t1, t2) |> Pat.fresh) |> Pat.fresh
-              | _ => cont(e)
-              },
-          ~f_typ=
-            (cont, e) =>
-              switch (e.term) {
-              | Rec(x, t) =>
-                Parens(Rec(x, cont(t)) |> Typ.fresh) |> Typ.fresh
-              | Sum(cs) => Parens(Sum(cs) |> Typ.fresh) |> Typ.fresh
-              | Prod(ts) => Parens(Prod(ts) |> Typ.fresh) |> Typ.fresh
-              | _ => cont(e)
-              },
-          core_exp,
-        );
 
       let segment =
         ExpToSegment.exp_to_segment(
           ~settings=
-            ExpToSegment.Settings.of_core(
-              ~inline=true, // TODO What does inline do?
-              CoreSettings.off,
-            ),
+            ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
           core_exp,
         );
 

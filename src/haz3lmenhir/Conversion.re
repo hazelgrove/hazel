@@ -208,7 +208,7 @@ module rec Exp: {
       if (List.length(t) == 1) {
         Parens(of_menhir_ast(List.hd(t)));
       } else {
-        Tuple(List.map(of_menhir_ast, t));
+        Parens(Tuple(List.map(of_menhir_ast, t)) |> Haz3lcore.Exp.fresh);
       }
     | Let(p, e1, e2) =>
       Let(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
@@ -482,14 +482,24 @@ and Pat: {
     | IntPat(i) => Int(i)
     | FloatPat(f) => Float(f)
     | CastPat(p, t1, t2) =>
-      Cast(of_menhir_ast(p), Typ.of_menhir_ast(t1), Typ.of_menhir_ast(t2))
+      Parens(
+        Cast(
+          of_menhir_ast(p),
+          Typ.of_menhir_ast(t1),
+          Typ.of_menhir_ast(t2),
+        )
+        |> Haz3lcore.Pat.fresh,
+      )
     | VarPat(x) => Var(x)
     | ConstructorPat(x, ty) => Constructor(x, Typ.of_menhir_ast(ty))
     | StringPat(s) => String(s)
     | TuplePat(pats) =>
       Parens(Tuple(List.map(of_menhir_ast, pats)) |> Haz3lcore.Pat.fresh)
     | ApPat(pat1, pat2) => Ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
-    | ConsPat(p1, p2) => Cons(of_menhir_ast(p1), of_menhir_ast(p2))
+    | ConsPat(p1, p2) =>
+      Parens(
+        Cons(of_menhir_ast(p1), of_menhir_ast(p2)) |> Haz3lcore.Pat.fresh,
+      )
     | BoolPat(b) => Bool(b)
     | EmptyHolePat => EmptyHole
     | WildPat => Wild
