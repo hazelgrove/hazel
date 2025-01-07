@@ -445,11 +445,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           @ (
             List.map2(
               (id, (p, e)) =>
-                settings.inline
-                  ? []
-                  : [Secondary(Secondary.mk_newline(Id.mk()))]
-                    @ [mk_form("rule", id, [p])]
-                    @ (e |> fold_if(settings.fold_case_clauses)),
+                (
+                  settings.inline
+                    ? [] : [Secondary(Secondary.mk_newline(Id.mk()))]
+                )
+                @ [mk_form("rule", id, [p])]
+                @ (e |> fold_if(settings.fold_case_clauses)),
               ids,
               rs,
             )

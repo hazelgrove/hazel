@@ -67,7 +67,7 @@ let tests = (
           string,
           "Match statement",
           serialized,
-          "case x end" // TODO Why is this not serializing the cases
+          "case x | A => 1| B => 2 end",
         );
       },
     ),
