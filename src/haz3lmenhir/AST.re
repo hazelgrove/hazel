@@ -107,7 +107,13 @@ type pat =
   | EmptyHolePat
   | WildPat
   | IntPat(int)
-  | FloatPat(float)
+  | FloatPat(
+      [@equal
+        (a, b) => 
+          Printf.(sprintf("%f", a) == sprintf("%f", b));
+        
+      ] float,
+    )
   | VarPat(string)
   | ConstructorPat(string, typ)
   | StringPat(string)
@@ -135,7 +141,9 @@ type exp =
       // This equality condition is used to say that two floats are equal if they are equal in the ExpToSegment serialization
       (
         [@equal
-          (a, b) => Printf.(sprintf("%.12f", a) == sprintf("%.12f", b))
+          (a, b) => {
+            Printf.(sprintf("%f", a) == sprintf("%f", b));
+          }
         ] float,
       )
   | Var(string)
@@ -446,7 +454,7 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
           return(FloatType),
           return(BoolType),
           return(TupleType([])),
-          map(x => UnknownType(x), arb_typ_provenance.gen),
+          return(UnknownType(EmptyHole)), // Only doing emptyhole because internal doesn't have a distinct representation in ExpToSegment
           map(x => SumTyp([Variant(x, None)]), gen_constructor_ident),
         ]);
       fix(
