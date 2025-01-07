@@ -189,6 +189,16 @@ let tet_ap_of_hole_deferral = () =>
     |> Exp.fresh,
   );
 
+let parse_and_evaluate = (s: string) =>
+  ProgramResult.Result.unbox(
+    snd(
+      Evaluator.evaluate'(
+        Builtins.env_init,
+        {d: dhexp_of_uexp(parse_exp(s))},
+      ),
+    ),
+  );
+
 let tests = (
   "Evaluator",
   [
@@ -202,19 +212,7 @@ let tests = (
         dhexp_typ,
         {|let x : (a=Int) -> Int = fun a -> a in x(2)|},
         Int(2) |> Exp.fresh,
-        ProgramResult.Result.unbox(
-          snd(
-            Evaluator.evaluate'(
-              Builtins.env_init,
-              {
-                d:
-                  dhexp_of_uexp(
-                    parse_exp("let x : (a=Int) -> Int = fun a -> a in x(2)"),
-                  ),
-              },
-            ),
-          ),
-        ),
+        parse_and_evaluate("let x : (a=Int) -> Int = fun a -> a in x(2)"),
       )
     ),
   ],
