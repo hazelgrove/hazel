@@ -108,11 +108,7 @@ type pat =
   | WildPat
   | IntPat(int)
   | FloatPat(
-      [@equal
-        (a, b) => 
-          Printf.(sprintf("%f", a) == sprintf("%f", b));
-        
-      ] float,
+      [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
     )
   | VarPat(string)
   | ConstructorPat(string, typ)
@@ -140,11 +136,7 @@ type exp =
   | Float
       // This equality condition is used to say that two floats are equal if they are equal in the ExpToSegment serialization
       (
-        [@equal
-          (a, b) => {
-            Printf.(sprintf("%f", a) == sprintf("%f", b));
-          }
-        ] float,
+        [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
       )
   | Var(string)
   | Constructor(string, typ)
