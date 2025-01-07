@@ -215,5 +215,13 @@ let tests = (
         parse_and_evaluate("let x : (a=Int) -> Int = fun a -> a in x(2)"),
       )
     ),
+    test_case("Labeled tuple field access", `Quick, () =>
+      check(
+        dhexp_typ,
+        {|(a=1,b=2).a|},
+        Int(1) |> Exp.fresh,
+        parse_and_evaluate("(a=1,b=2).a"),
+      )
+    ),
   ],
 );
