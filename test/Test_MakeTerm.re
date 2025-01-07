@@ -146,7 +146,22 @@ let tests = (
        let y : (l=Int) = x in y",
       )
     }),
-    test_case("Multiple labels in tuple", `Quick, () =>
+    test_case("Multiple labels tuple", `Quick, () =>
+      exp_check(
+        Parens(
+          Tuple([
+            TupLabel(Label("l") |> Exp.fresh, Int(32) |> Exp.fresh)
+            |> Exp.fresh,
+            TupLabel(Label("l2") |> Exp.fresh, String("") |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        {|(l=32, l2="")|},
+      )
+    ),
+    test_case("Multiple labels in let tuple", `Quick, () =>
       exp_check(
         Let(
           Cast(
