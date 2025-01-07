@@ -183,15 +183,10 @@ let gen_constructor_ident: QCheck.Gen.t(string) =
     let* leading = char_range('A', 'Z');
     let+ tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
     let ident = String.make(1, leading) ++ tail;
-    // if ident is a keyword remap
-    switch (ident) {
-    | "Int"
-    | "Float"
-    | "String"
-    | "Unknown"
-    | "Internal"
-    | "Bool" => "keyword"
-    | _ => ident
+    if (List.exists(a => a == ident, Haz3lcore.Form.base_typs)) {
+      "Keyword";
+    } else {
+      ident;
     }
   );
 
@@ -203,16 +198,10 @@ let gen_constructor_ident: QCheck.Gen.t(string) =
  * ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
  */
 let gen_ident: QCheck.Gen.t(string) =
-  // TODO Currently there is an issue if the keyword is a prefix of another word.
+  // Currently there is an issue if the keyword is a prefix of another word.
   // `let ? = ina in ?`
   // Temporarily doing single char identifiers as a fix
-  QCheck.Gen.(
-    // TODO make this support full indent instead of just lower alpha
-    string_size(
-      ~gen=char_range('a', 'z'),
-      int_range(1, 1),
-    )
-  );
+  QCheck.Gen.(string_size(~gen=char_range('a', 'z'), int_range(1, 1)));
 
 /**
  * Generates an array of natural numbers of a given size.
