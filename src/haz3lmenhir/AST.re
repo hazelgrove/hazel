@@ -577,11 +577,10 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
                 );
               }, // The parser only handles ApPat with a constructor
               {
-                let* p = self((n - 1) / 3);
-                let* t1 = gen_typ_sized((n - 1) / 3);
-                let+ t2 = gen_typ_sized((n - 1) / 3);
-                CastPat(p, t1, t2);
-              },
+                let* p = self((n - 1) / 2);
+                let+ t1 = gen_typ_sized((n - 1) / 2);
+                CastPat(p, t1, UnknownType(Internal));
+              } // The second cast pat isn't present in syntax
             ])
           };
         },
