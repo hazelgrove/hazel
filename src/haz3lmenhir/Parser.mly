@@ -203,13 +203,13 @@ program:
 binExp:
     | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
 
-// Currently singleton tuples are still TupleTypes and we then convert to singleton in Conversion
 %inline tupleType:
-    | OPEN_PAREN; types = separated_list(COMMA, typ); CLOSE_PAREN { TupleType(types) }
+    | OPEN_PAREN; hd = typ; COMMA; types = separated_list(COMMA, typ); CLOSE_PAREN { TupleType(hd :: types) }
 
 
 %inline sumTerm:
-    | i = CONSTRUCTOR_IDENT; t = tupleType  { Variant(i, Some(t)) } 
+    | i = CONSTRUCTOR_IDENT; OPEN_PAREN; hd = typ; COMMA; types = separated_list(COMMA, typ); CLOSE_PAREN  { Variant(i, Some(TupleType(hd :: types))) }
+    | i = CONSTRUCTOR_IDENT; OPEN_PAREN; t = typ; CLOSE_PAREN;  { Variant(i, Some(t)) }
     | i = CONSTRUCTOR_IDENT { Variant(i, None) }
     | QUESTION { BadEntry(UnknownType(EmptyHole)) }
 
@@ -229,13 +229,14 @@ typ:
     | STRING_TYPE { StringType }
     | UNKNOWN; INTERNAL { UnknownType(Internal) }
     | QUESTION { UnknownType(EmptyHole) }
-    | UNIT { UnitType }
+    | UNIT { TupleType([]) }
     | FORALL; a = tpat; DASH_ARROW; t = typ { ForallType(a, t) }
     | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
     | s = sumTyp; { SumTyp(s) }
     | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, t) }
+    | OPEN_PAREN; t = typ; CLOSE_PAREN { t }
 
 nonAscriptingPat:
     | OPEN_PAREN; p = pat; CLOSE_PAREN { p }

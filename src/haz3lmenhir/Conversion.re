@@ -370,7 +370,6 @@ and Typ: {
     | FloatType => Float
     | BoolType => Bool
     | StringType => String
-    | UnitType => Prod([])
     | UnknownType(p) =>
       switch (p) {
       | Internal => Unknown(Internal)
@@ -421,7 +420,6 @@ and Typ: {
     | String => StringType
     | Bool => BoolType
     | Var(x) => TypVar(x)
-    | Prod([]) => UnitType
     | Prod(ts) => TupleType(List.map(of_core, ts))
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
