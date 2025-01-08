@@ -223,5 +223,33 @@ let tests = (
         parse_and_evaluate("(a=1,b=2).a"),
       )
     ),
+    test_case("Anonymous function with explicit label", `Quick, () => {
+      check(
+        dhexp_typ,
+        {|let fn : (a=String) -> Int =
+  fun (a=a : String) -> string_length(a)
+in fn("hello")|},
+        parse_exp("5"),
+        parse_and_evaluate(
+          {|let fn : (a=String) -> Int =
+  fun (a=a : String) -> string_length(a)
+in fn("hello")|},
+        ),
+      )
+    }),
+    test_case("Anonymous function without explicit label", `Quick, () => {
+      check(
+        dhexp_typ,
+        {|let fn : (a=String) -> Int =
+            fun (a : String) -> string_length(a)
+          in fn("hello")|},
+        parse_exp("5"),
+        parse_and_evaluate(
+          {|let fn : (a=String) -> Int =
+            fun (a : String) -> string_length(a)
+          in fn("hello")|},
+        ),
+      )
+    }),
   ],
 );

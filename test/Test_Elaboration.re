@@ -812,6 +812,25 @@ let elaboration_tests = (
         ) // Ignoring casts for now
       )
     ),
+    test_case("", `Quick, () => {
+      alco_check(
+        "",
+        dhexp_of_uexp(
+          parse_exp(
+            {|let fn : (a=String) -> Int =
+  fun (a=a : String) -> 1
+in 1|},
+          ),
+        ),
+        dhexp_of_uexp(
+          parse_exp(
+            {|let fn : (a=String) -> Int =
+  fun (a : String) -> 1
+in 1|},
+          ),
+        ),
+      )
+    }),
     test_case(
       "Function application with a single remaining argument after deferral",
       `Quick,

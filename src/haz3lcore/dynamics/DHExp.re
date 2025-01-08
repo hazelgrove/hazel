@@ -56,6 +56,12 @@ let repair_ids_typ =
 // Also strips static error holes - kinda like unelaboration
 let rec strip_casts =
   map_term(
+    ~f_pat=
+      (fn, t) =>
+        switch (t.term) {
+        | Cast(p, _, _) => p
+        | _ => fn(t)
+        },
     ~f_exp=
       (continue, exp) => {
         switch (term_of(exp)) {
