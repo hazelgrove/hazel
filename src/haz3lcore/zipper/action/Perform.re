@@ -17,7 +17,8 @@ let go_z =
     (
       ~settings as _: CoreSettings.t,
       statics: CachedStatics.t,
-      tiles: TileMap.t,
+      tiles,
+      projectors,
       a: Action.t,
       module M: Move.S,
       z: Zipper.t,
@@ -114,7 +115,10 @@ let go_z =
       z,
     )
   | Move(d) =>
-    Animation.request([Animation.Actions.move("caret")]);
+    Animation.request(
+      [Animation.Actions.move("caret")]
+      @ List.map(Animation.Actions.move, Animation.indicated_ids),
+    );
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move);
   | Jump(jump_target) =>
     (
@@ -176,7 +180,10 @@ let go_z =
     Select.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_select);
   | Destruct(d) =>
     Animation.request(
-      List.map(Animation.Actions.move_slowly, Animation.token_ids(tiles)),
+      List.map(
+        Animation.Actions.move_slowly,
+        Animation.projector_ids(projectors) @ Animation.token_ids(tiles),
+      ),
     );
     z
     |> Destruct.go(d)
@@ -184,7 +191,10 @@ let go_z =
     |> Result.of_option(~error=Action.Failure.Cant_destruct);
   | Insert(char) =>
     Animation.request(
-      List.map(Animation.Actions.move_slowly, Animation.token_ids(tiles)),
+      List.map(
+        Animation.Actions.move_slowly,
+        Animation.projector_ids(projectors) @ Animation.token_ids(tiles),
+      ),
     );
     z
     |> Insert.go(char)

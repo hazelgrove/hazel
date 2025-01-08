@@ -15,6 +15,7 @@ type shard_dims = {
 let simple_shard =
     (
       {font_metrics, tips: (l, r), measurement}: shard_dims,
+      ~id: option(string)=None,
       ~absolute=true,
       ~attr=[],
       classes,
@@ -26,6 +27,7 @@ let simple_shard =
     ~base_cls=["shard"] @ classes,
     ~path_cls=[],
     ~absolute,
+    ~id,
     ~attr,
     DecUtil.shard_path(
       (
@@ -48,6 +50,7 @@ let tips_of_shapes = ((l, r): (Nib.Shape.t, Nib.Shape.t)): (tip, tip) => (
 let simple_shard_indicated =
     (
       ~attr=?,
+      ~id: option(string)=None,
       ~base_cls="indicated",
       shard_dims,
       ~sort: Sort.t,
@@ -55,6 +58,7 @@ let simple_shard_indicated =
     )
     : t =>
   simple_shard(
+    ~id,
     ~attr?,
     shard_dims,
     [base_cls, Sort.to_string(sort)] @ (at_caret ? ["caret"] : []),
@@ -73,6 +77,11 @@ let simple_shards_indicated =
     ((index, measurement)) => {
       simple_shard_indicated(
         ~attr?,
+        ~id=
+          Some(
+            "indicated-"
+            ++ (caret == (id, index) ? "prime" : index |> string_of_int),
+          ),
         ~base_cls?,
         {
           font_metrics,

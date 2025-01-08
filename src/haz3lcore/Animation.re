@@ -230,6 +230,22 @@ module Keyframes = {
     transform_scale_uniform(0.0),
     transform_scale_uniform(1.0),
   ];
+
+  let scale_and_translate = (init: box, final: box): list(keyframe) => {
+    [
+      (
+        "transform",
+        Printf.sprintf(
+          "scale(%f, %f) translate(%dpx, %dpx)",
+          init.width /. final.width,
+          init.height /. final.height,
+          init.left - final.left,
+          init.top - final.top,
+        ),
+      ),
+      ("transform", "scale(1, 1) translate(0px, 0px)"),
+    ];
+  };
 };
 
 module Actions = {
@@ -252,7 +268,7 @@ module Actions = {
     id,
     animate: change => {
       options: {
-        duration: 450,
+        duration: 125,
         easing: "cubic-bezier(0.16, 1, 0.3, 1)",
       },
       keyframes:
@@ -270,6 +286,9 @@ let token_id = (id: Uuidm.t, i: int): string =>
   ++ "-"
   ++ string_of_int(i);
 
+let projector_id = (id: Id.t): string =>
+  "projector-" ++ (id |> Id.to_string |> String.sub(_, 0, 8));
+
 let token_ids = (tiles: TileMap.t): list(string) => {
   let n = Id.Map.cardinal(tiles);
   if (false) {
@@ -283,4 +302,12 @@ let token_ids = (tiles: TileMap.t): list(string) => {
          List.map(token_id(t.id), t.shards)
        );
   };
+};
+
+let projector_ids = (prs: Id.Map.t(Base.projector)) => {
+  prs |> Id.Map.to_list |> List.map(((id, _)) => projector_id(id));
+};
+
+let indicated_ids: list(string) = {
+  ["prime", "0", "1", "2", "3"] |> List.map(i => "indicated-" ++ i);
 };

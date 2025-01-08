@@ -81,6 +81,7 @@ let view_wrapper =
     Effect.(Many([Stop_propagation, inject(Project(Focus(id, None)))]));
   div(
     ~attrs=[
+      Attr.id(Animation.projector_id(info.id)),
       Attr.classes(
         ["projector", name(p.kind)] @ status(indication, selected, sort),
       ),

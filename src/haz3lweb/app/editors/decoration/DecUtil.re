@@ -130,6 +130,7 @@ let code_svg_sized =
       ~path_cls=[],
       ~attr=[],
       ~fudge: fdims=fzero,
+      ~id: option(string)=None,
       paths: list(SvgUtil.Path.cmd),
     ) => {
   let d = abs_dims(measurement);
@@ -137,7 +138,13 @@ let code_svg_sized =
   create_svg(
     "svg",
     ~attrs=
-      [
+      (
+        switch (id) {
+        | None => []
+        | Some(id) => [Attr.id(id)]
+        }
+      )
+      @ [
         Attr.classes(base_cls),
         Attr.create("style", pos_str(~d, ~fudge, font_metrics)),
         Attr.create(
