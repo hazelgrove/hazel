@@ -630,19 +630,16 @@ module Exp = {
               new_bound_vars,
               e,
             )
-          | Fun(p, e, Some(env), n) =>
+          | Fun(p, e, n) =>
             let pat_bound_vars = Pat.bound_vars(p);
             Fun(
               p,
               substitute_closures(
-                env
-                |> ClosureEnvironment.map_of
-                |> Environment.without_keys(pat_bound_vars),
+                env |> Environment.without_keys(pat_bound_vars),
                 pat_bound_vars,
                 pat_bound_vars @ new_bound_vars,
                 e,
               ),
-              None,
               n,
             )
             |> rewrap;
@@ -693,20 +690,6 @@ module Exp = {
                  }),
             )
             |> rewrap
-          | Fun(p, e, None, n) =>
-            let pat_bound_vars = Pat.bound_vars(p);
-            Fun(
-              p,
-              substitute_closures(
-                env |> Environment.without_keys(pat_bound_vars),
-                pat_bound_vars @ old_bound_vars,
-                pat_bound_vars @ new_bound_vars,
-                e,
-              ),
-              None,
-              n,
-            )
-            |> rewrap;
           | FixF(p, e, None) =>
             let pat_bound_vars = Pat.bound_vars(p);
             FixF(
@@ -771,7 +754,7 @@ module Exp = {
 
   let rec get_fn_name = (e: t) => {
     switch (e.term) {
-    | Fun(_, _, _, n) => n
+    | Fun(_, _, n) => n
     | FixF(_, e, _) => get_fn_name(e)
     | Wrap(e, _) => get_fn_name(e)
     | TypFun(_, _, n) => n
