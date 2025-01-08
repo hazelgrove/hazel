@@ -49,7 +49,7 @@ let tests = (
       exp_check(
         Let(
           Var("f") |> Pat.fresh,
-          Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None)  // It seems as though the function naming happens during elaboration and not during parsing
+          Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None, None)  // It seems as though the function naming happens during elaboration and not during parsing
           |> Exp.fresh,
           Int(1) |> Exp.fresh,
         )
@@ -61,7 +61,7 @@ let tests = (
       exp_check(
         Let(
           EmptyHole |> Pat.fresh,
-          Fun(Var("x") |> Pat.fresh, EmptyHole |> Exp.fresh, None)
+          Fun(Var("x") |> Pat.fresh, EmptyHole |> Exp.fresh, None, None)
           |> Exp.fresh,
           EmptyHole |> Exp.fresh,
         )

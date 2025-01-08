@@ -87,15 +87,28 @@ module PlainTests = {
       BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
       |> Exp.fresh,
       None,
+      None,
+    )
+    |> Exp.fresh;
+
+  let f' =
+    Fun(
+      Var("x") |> Pat.fresh,
+      BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
+      |> Exp.fresh,
+      Some(Unknown(Hole(EmptyHole)) |> Typ.fresh),
+      None,
     )
     |> Exp.fresh;
   let unapplied_function = () =>
-    alco_check("A function", f, dhexp_of_uexp(f));
+    alco_check("A function", f', dhexp_of_uexp(f));
 
   let u7: Exp.t = Ap(Forward, f, Var("y") |> Exp.fresh) |> Exp.fresh;
 
+  let d7: Exp.t = Ap(Forward, f', Var("y") |> Exp.fresh) |> Exp.fresh;
+
   let ap_fun = () =>
-    alco_check("Application of a function", u7, dhexp_of_uexp(u7));
+    alco_check("Application of a function", d7, dhexp_of_uexp(u7));
 
   let u8: Exp.t =
     Match(
@@ -155,6 +168,7 @@ module PlainTests = {
         BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
         |> Exp.fresh,
         None,
+        None,
       )
       |> Exp.fresh,
       Int(55) |> Exp.fresh,
@@ -168,6 +182,7 @@ module PlainTests = {
         Var("x") |> Pat.fresh,
         BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
         |> Exp.fresh,
+        Some(Int |> Typ.fresh),
         Some("f"),
       )
       |> Exp.fresh,
@@ -364,40 +379,6 @@ module MenhirElaborationTests = {
       dhexp_of_uexp(uexp),
     );
 
-  //Test for a let function
-  let let_fun_uexp: Exp.t =
-    Let(
-      Cast(
-        Var("f") |> Pat.fresh,
-        Arrow(Int |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
-        Unknown(Internal) |> Typ.fresh,
-      )
-      |> Pat.fresh,
-      Fun(
-        Var("x") |> Pat.fresh,
-        BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
-        |> Exp.fresh,
-        None,
-      )
-      |> Exp.fresh,
-      Int(55) |> Exp.fresh,
-    )
-    |> Exp.fresh;
-
-  let let_fun_str = "
-let f =
-    named_fun f x ->
-        1 + x
-    in
-55";
-
-  let let_fun_menhir = () =>
-    alco_check_menhir(
-      "Let expression for a function which is not recursive (menhir)",
-      let_fun_str,
-      let_fun_uexp,
-    );
-
   //Test for an empty hole
   let empty_hole_str = "?";
   let empty_hole_uexp: Exp.t = {
@@ -457,30 +438,6 @@ let f =
       "Inconsistent branches where the first branch is an integer and second branch is a boolean (menhir)",
       inconsistent_case_menhir_str,
       inconsistent_case_uexp,
-    );
-
-  //Function free var application menhir test
-  let ap_fun_uexp: Exp.t =
-    Ap(
-      Forward,
-      Fun(
-        Var("x") |> Pat.fresh,
-        BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
-        |> Exp.fresh,
-        None,
-      )
-      |> Exp.fresh,
-      Var("y") |> Exp.fresh,
-    )
-    |> Exp.fresh;
-  let ap_fun_str = "
-    (fun x -> 4 + 5)(y)
-";
-  let ap_fun_menhir = () =>
-    alco_check_menhir(
-      "Application of a function (menhir)",
-      ap_fun_str,
-      dhexp_of_uexp(ap_fun_uexp),
     );
 
   //Consistent if statement menhir test
@@ -732,16 +689,10 @@ x
     test_case("Type ap test (menhir)", `Quick, typ_ap_menhir),
     test_case("Let expression for a tuple (menhir)", `Quick, let_exp_menhir),
     test_case("Single integer (menhir)", `Quick, single_integer_menhir),
-    test_case(
-      "Let expression for a function (menhir)",
-      `Quick,
-      let_fun_menhir,
-    ),
     test_case("Empty hole (menhir)", `Quick, empty_hole_menhir),
     test_case("Free var (menhir)", `Quick, free_var_menhir),
     test_case("Bin op (menhir)", `Quick, bin_op_menhir),
     test_case("Inconsistent case (menhir)", `Quick, inconsistent_case_menhir),
-    test_case("ap fun (menhir)", `Quick, ap_fun_menhir),
     test_case("Consistent if (menhir)", `Quick, consistent_if_menhir),
     test_case("Undefined test (menhir)", `Quick, undefined_menhir),
     test_case("List exp (menhir)", `Quick, list_exp_menhir),

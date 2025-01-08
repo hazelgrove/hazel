@@ -150,7 +150,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
 
     /* Function-like things can look like the following when values */
     | (Fun, Constructor(name, _)) => Matches(Constructor(name)) // Perhaps we should check if the constructor actually is a function?
-    | (Fun, Closure(env', {term: Fun(dp, d3, _), _})) =>
+    | (Fun, Closure(env', {term: Fun(dp, d3, _, _), _})) =>
       Matches(FunEnv(dp, d3, env'))
     | (
         Fun,
@@ -221,7 +221,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Invalid(_) | Undefined | EmptyHole | MultiHole(_) | DynamicErrorHole(_) |
         Var(_) |
         Let(_) |
-        Fun(_, _, _) |
+        Fun(_, _, _, _) |
         FixF(_) |
         TyAlias(_) |
         Ap(_) |

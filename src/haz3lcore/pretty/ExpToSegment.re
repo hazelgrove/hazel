@@ -236,7 +236,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
     ListUtil.flat_intersperse(Grout({id, shape: Concave}), es);
-  | Wrap({term: Fun(p, e, _), _} as inner_exp, _) =>
+  | Wrap({term: Fun(p, e, _, _), _} as inner_exp, _) =>
     // TODO: Add optional newlines
     let id = inner_exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
@@ -252,7 +252,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let fun_form = [mk_form("fun_", id, [p])] @ e;
     [mk_form("parens_exp", exp |> Exp.rep_id, [fun_form])]
     |> fold_fun_if(settings.fold_fn_bodies, name);
-  | Fun(p, e, _) =>
+  | Fun(p, e, _, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
@@ -859,10 +859,11 @@ let rec parenthesize = (~show_filters: bool, exp: Exp.t): Exp.t => {
   // Other forms
   | Constructor(c, t) =>
     Constructor(c, paren_typ_at(Precedence.cast, t)) |> rewrap
-  | Fun(p, e, n) =>
+  | Fun(p, e, typ, n) =>
     Fun(
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),
       parenthesize(e) |> paren_assoc_at(Precedence.fun_),
+      typ, // this typ is currently never output
       n,
     )
     |> rewrap

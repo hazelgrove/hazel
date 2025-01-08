@@ -34,6 +34,7 @@ let unapplied_function = () =>
         BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
         |> Exp.fresh,
         None,
+        None,
       )
       |> Exp.fresh,
     ),
@@ -52,6 +53,7 @@ let tests = (
             BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
             |> Exp.fresh,
             None,
+            None,
           )
           |> Exp.fresh,
         ),
@@ -66,6 +68,7 @@ let tests = (
             Cast(Var("x") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
             BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
             |> Exp.fresh,
+            None,
             None,
           )
           |> Exp.fresh,
@@ -87,6 +90,7 @@ let tests = (
             |> Pat.fresh,
             BinOp(Int(Plus), Var("x") |> Exp.fresh, Var("y") |> Exp.fresh)
             |> Exp.fresh,
+            None,
             None,
           )
           |> Exp.fresh,

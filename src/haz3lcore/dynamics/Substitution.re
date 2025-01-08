@@ -65,12 +65,12 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
         subst_var(m, d1, x, d3);
       };
     FixF(y, d3, env') |> rewrap;
-  | Fun(dp, d3, s) =>
+  | Fun(dp, d3, ty, s) =>
     if (binds_var(m, x, dp)) {
-      Fun(dp, d3, s) |> rewrap;
+      Fun(dp, d3, ty, s) |> rewrap;
     } else {
       let d3 = subst_var(m, d1, x, d3);
-      Fun(dp, d3, s) |> rewrap;
+      Fun(dp, d3, ty, s) |> rewrap;
     }
   | TypFun(tpat, d3, s) =>
     TypFun(tpat, subst_var(m, d1, x, d3), s) |> rewrap
