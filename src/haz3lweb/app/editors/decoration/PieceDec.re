@@ -70,18 +70,21 @@ let simple_shards_indicated =
       ~base_cls=?,
       ~font_metrics: FontMetrics.t,
       ~caret: (Id.t, int),
+      ~multi: bool,
       (id, mold, shards),
     )
     : list(t) =>
   List.map(
     ((index, measurement)) => {
+      let dom_id =
+        "indicated-"
+        ++ (
+          caret == (id, index)
+            ? "prime" : multi ? "multi" : string_of_int(index)
+        );
       simple_shard_indicated(
         ~attr?,
-        ~id=
-          Some(
-            "indicated-"
-            ++ (caret == (id, index) ? "prime" : index |> string_of_int),
-          ),
+        ~id=Some(dom_id),
         ~base_cls?,
         {
           font_metrics,
@@ -90,7 +93,7 @@ let simple_shards_indicated =
         },
         ~sort=mold.out,
         ~at_caret=caret == (id, index),
-      )
+      );
     },
     shards,
   );
@@ -372,6 +375,7 @@ let indicated =
       ~font_metrics,
       ~caret,
       ~base_cls=?base_clss,
+      ~multi=List.length(tiles) > 1,
     ),
     tiles,
   )

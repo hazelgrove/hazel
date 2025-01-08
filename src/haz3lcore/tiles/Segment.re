@@ -673,15 +673,30 @@ let expected_sorts = (sort: Sort.t, seg: t): list((int, Sort.t)) => {
   |> List.concat_map(((ns, s)) => List.map(n => (n, s), ns));
 };
 
-let rec holes = (segment: t): list(Grout.t) =>
-  List.concat_map(
-    fun
-    | Piece.Secondary(_)
-    | Projector(_) => []
-    | Tile(t) => List.concat_map(holes, t.children)
-    | Grout(g) => [g],
-    segment,
-  );
+type piece_maps = {
+  holes: list(Grout.t),
+  comments: list(Secondary.t),
+};
+
+let pieces = (segment: t): piece_maps => {
+  let holes = ref([]);
+  let comments = ref([]);
+  let rec go = (seg): unit =>
+    List.iter(
+      x =>
+        switch (x) {
+        | Piece.Secondary(w) when Secondary.is_comment(w) =>
+          comments := [w, ...comments^]
+        | Piece.Secondary(_) => ()
+        | Projector(_) => ()
+        | Tile(t) => List.iter(go, t.children)
+        | Grout(g) => holes := [g, ...holes^]
+        },
+      seg,
+    );
+  go(segment);
+  {holes: holes^, comments: comments^};
+};
 
 let get_childrens: t => list(t) =
   List.concat_map(

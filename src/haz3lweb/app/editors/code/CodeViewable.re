@@ -54,7 +54,7 @@ let view_segment =
     (~globals: Globals.t, ~sort: Sort.t, ~shape_of_proj, segment: Segment.t) => {
   let measured = Measured.of_segment(segment, shape_of_proj);
   let buffer_ids = [];
-  let holes = Segment.holes(segment);
+  let holes = Segment.pieces(segment).holes;
   view(
     ~globals,
     ~sort,

@@ -150,6 +150,10 @@ svg.shard.error {
   z-index: var(--err-hole-z);
 }
 
+.indication > svg {
+  transform-origin: top left;
+}
+
 svg.shard.selected > path {
   fill: var(--shard-selected);
   stroke-width: 0.5px;

@@ -48,11 +48,12 @@ let of_delim' =
 let of_delim =
     (is_in_buffer, is_consistent, indent, t: Piece.tile, i: int)
     : list(Node.t) => [
+  //TODO(andrew): cleanup
   div(
     ~attrs=[
       Attr.create(
         "style",
-        "display: inline-block; position: relative; width: fit-content; height: fit-content;",
+        "line-height: 1em; display: inline-block; position: relative; width: fit-content; height: fit-content;",
       ),
       Attr.id(Animation.token_id(t.id, i)),
     ],
@@ -72,21 +73,31 @@ let space = " "; //Unicode.nbsp;
 
 let of_grout = [Node.text(space)];
 
+//TODO(andrew): cleanup
 let of_secondary =
     //Core.Memo.general(  ~cache_size_bound=10000,
-    ((content, secondary_icons, indent)) =>
-  if (String.equal(Secondary.get_string(content), Form.linebreak)) {
+    ((s: Secondary.t, secondary_icons, indent)) =>
+  if (String.equal(Secondary.get_string(s.content), Form.linebreak)) {
     let str = secondary_icons ? ">" : "";
     [span_c("linebreak", [text(str)])]
     @ List.init(1 + consume_deferred_linebreaks(), _ => Node.text("\n"))
     @ [Node.text(StringUtil.repeat(indent, space))];
-  } else if (String.equal(Secondary.get_string(content), Form.space)) {
+  } else if (String.equal(Secondary.get_string(s.content), Form.space)) {
     let str = secondary_icons ? "·" : space;
     [span_c("whitespace", [text(str)])];
-  } else if (Secondary.content_is_comment(content)) {
-    [span_c("comment", [Node.text(Secondary.get_string(content))])];
+  } else if (Secondary.content_is_comment(s.content)) {
+    [
+      span(
+        ~attrs=[
+          Attr.create("style", "display: inline-block;"),
+          Attr.id(Animation.comment_id(s)),
+          Attr.class_("comment"),
+        ],
+        [Node.text(Secondary.get_string(s.content))],
+      ),
+    ];
   } else {
-    [span_c("secondary", [Node.text(Secondary.get_string(content))])];
+    [span_c("secondary", [Node.text(Secondary.get_string(s.content))])];
   };
 //);
 
@@ -141,8 +152,8 @@ module Text =
     switch (p) {
     | Tile(t) => of_tile(buffer_ids, expected_sort, t)
     | Grout(_) => of_grout
-    | Secondary({content, _}) =>
-      of_secondary((content, M.settings.secondary_icons, m(p).last.col))
+    | Secondary(s) =>
+      of_secondary((s, M.settings.secondary_icons, m(p).last.col))
     | Projector(p) =>
       of_projector(
         expected_sort,

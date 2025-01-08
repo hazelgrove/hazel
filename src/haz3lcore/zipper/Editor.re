@@ -7,6 +7,7 @@ module CachedSyntax = {
     measured: Measured.t,
     tiles: TileMap.t,
     holes: list(Grout.t),
+    comments: list(Secondary.t),
     selection_ids: list(Id.t),
     term: UExp.t,
     /* This term, and the term-derived data structured below, may differ
@@ -36,12 +37,14 @@ module CachedSyntax = {
   let init = (~shape_of_proj, z): t => {
     let segment = Zipper.unselect_and_zip(z);
     let MakeTerm.{term, terms, projectors} = MakeTerm.go(segment);
+    let pieces = Segment.pieces(segment);
     {
       old: false,
       segment,
       term_ranges: TermRanges.mk(segment),
       tiles: TileMap.mk(segment),
-      holes: Segment.holes(segment),
+      holes: pieces.holes,
+      comments: pieces.comments,
       measured: Measured.of_segment(segment, shape_of_proj),
       selection_ids: Selection.selection_ids(z.selection),
       term,
@@ -155,6 +158,7 @@ module Update = {
               old_statics,
               syntax.tiles,
               syntax.projectors,
+              syntax.comments,
               Buffer(Clear),
               Model.to_move_s({state, history, syntax}),
               state.zipper,
@@ -194,6 +198,7 @@ module Update = {
         old_statics,
         syntax.tiles,
         syntax.projectors,
+        syntax.comments,
         a,
         Model.to_move_s({state, history, syntax}),
         state.zipper,
@@ -255,6 +260,7 @@ module Update = {
             new_statics,
             syntax.tiles,
             syntax.projectors,
+            syntax.comments,
             Buffer(Set(TyDi)),
             Model.to_move_s({syntax, state, history}),
             state.zipper,

@@ -30,8 +30,8 @@ module Js = {
 
   /* Position & dimensions for a DOM element */
   type box = {
-    top: int,
-    left: int,
+    top: float,
+    left: float,
     height: float,
     width: float,
   };
@@ -39,22 +39,12 @@ module Js = {
   let box_of = (elem: Js.t(Dom_html.element)): box => {
     let container_rect = elem##getBoundingClientRect;
     {
-      top: int_of_float(container_rect##.top),
-      left: int_of_float(container_rect##.left),
+      top: container_rect##.top,
+      left: container_rect##.left,
       height: Js.Optdef.get(container_rect##.height, _ => (-1.0)),
       width: Js.Optdef.get(container_rect##.width, _ => (-1.0)),
     };
   };
-
-  let get_elem_box = (id: string): option(box) =>
-    Option.map(box_of, JsUtil.get_elem_by_id_opt(id));
-
-  /*
-   function checkVisible(elm) {
-     var rect = elm.getBoundingClientRect();
-     var viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight);
-     return !(rect.bottom < 0 || rect.top - viewHeight >= 0);
-   }*/
 
   let client_height = (): float =>
     Js.Optdef.get(
@@ -67,12 +57,7 @@ module Js = {
 
   let check_visible = (client_height, inner_height, box: box): bool => {
     let viewHeight = max(client_height, inner_height);
-    !(
-      float_of_int(box.top)
-      +. box.height < 0.0
-      || float_of_int(box.top)
-      -. viewHeight >= 0.0
-    );
+    !(box.top +. box.height < 0.0 || box.top -. viewHeight >= 0.0);
   };
 
   let keyframes_unsafe = (keyframes: list(keyframe)): Js.t(Js.js_array('a)) =>
@@ -202,22 +187,37 @@ let go = (): unit =>
 let request = (transitions: list(transition)): unit => {
   tracked_elems :=
     List.map(
-      ({id, animate}: transition) => {id, box: get_elem_box(id), animate},
+      ({id, animate}: transition) =>
+        {
+          id,
+          box: Option.map(box_of, JsUtil.get_elem_by_id_opt(id)),
+          animate,
+        },
       transitions,
     )
     @ tracked_elems^;
 };
 
 module Keyframes = {
-  let transform_translate = (top: int, left: int): keyframe => (
+  let transform_translate = (top: float, left: float): keyframe => (
     "transform",
-    Printf.sprintf("translate(%dpx, %dpx)", left, top),
+    Printf.sprintf("translate(%fpx, %fpx)", left, top),
   );
 
   let translate = (init: box, final: box): list(keyframe) => {
     [
-      transform_translate(init.top - final.top, init.left - final.left),
-      transform_translate(0, 0),
+      transform_translate(init.top -. final.top, init.left -. final.left),
+      transform_translate(0., 0.),
+    ];
+  };
+
+  let translate_taxi = (init: box, final: box): list(keyframe) => {
+    [
+      transform_translate(init.top -. final.top, init.left -. final.left),
+      init.top < final.top
+        ? transform_translate(0., init.left -. final.left)
+        : transform_translate(init.top -. final.top, 0.),
+      transform_translate(0., 0.),
     ];
   };
 
@@ -231,19 +231,19 @@ module Keyframes = {
     transform_scale_uniform(1.0),
   ];
 
-  let scale_and_translate = (init: box, final: box): list(keyframe) => {
+  let scale_width_and_translate = (init: box, final: box): list(keyframe) => {
     [
       (
         "transform",
         Printf.sprintf(
-          "scale(%f, %f) translate(%dpx, %dpx)",
+          "translate(%fpx, %fpx) scale(%f, 1)",
+          init.left -. final.left,
+          init.top -. final.top,
           init.width /. final.width,
-          init.height /. final.height,
-          init.left - final.left,
-          init.top - final.top,
+          //init.height /. final.height,
         ),
       ),
-      ("transform", "scale(1, 1) translate(0px, 0px)"),
+      ("transform", "translate(0, 0) scale(1, 1) "),
     ];
   };
 };
@@ -259,12 +259,28 @@ module Actions = {
       keyframes:
         switch (change) {
         | New(_) => Keyframes.scale_from_zero
-        | Existing(init, final) => Keyframes.translate(init, final)
+        | Existing(init, final) =>
+          Keyframes.scale_width_and_translate(init, final)
         },
     },
   };
 
   let move_slowly = id => {
+    id,
+    animate: change => {
+      options: {
+        duration: 400,
+        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+      },
+      keyframes:
+        switch (change) {
+        | New(_) => Keyframes.scale_from_zero
+        | Existing(init, final) => Keyframes.translate_taxi(init, final)
+        },
+    },
+  };
+
+  let move_scale = id => {
     id,
     animate: change => {
       options: {
@@ -274,7 +290,8 @@ module Actions = {
       keyframes:
         switch (change) {
         | New(_) => Keyframes.scale_from_zero
-        | Existing(init, final) => Keyframes.translate(init, final)
+        | Existing(init, final) =>
+          Keyframes.scale_width_and_translate(init, final)
         },
     },
   };
@@ -285,6 +302,9 @@ let token_id = (id: Uuidm.t, i: int): string =>
   ++ (id |> Id.to_string |> String.sub(_, 0, 8))
   ++ "-"
   ++ string_of_int(i);
+
+let comment_id = ({id, _}: Secondary.t): string =>
+  "comment-" ++ (id |> Id.to_string |> String.sub(_, 0, 8));
 
 let projector_id = (id: Id.t): string =>
   "projector-" ++ (id |> Id.to_string |> String.sub(_, 0, 8));
@@ -303,6 +323,9 @@ let token_ids = (tiles: TileMap.t): list(string) => {
        );
   };
 };
+
+let comment_ids = (comments: list(Secondary.t)): list(string) =>
+  List.map(comment_id, comments);
 
 let projector_ids = (prs: Id.Map.t(Base.projector)) => {
   prs |> Id.Map.to_list |> List.map(((id, _)) => projector_id(id));
