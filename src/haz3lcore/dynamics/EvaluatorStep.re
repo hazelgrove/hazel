@@ -93,10 +93,10 @@ let rec matches =
       | Let2(d1, d2, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Let2(d1, d2, ctx) |> rewrap;
-      | Fun(dp, ctx, name) =>
+      | Fun(dp, ctx, ty, name) =>
         // TODO: Should this env include the bound variables?
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Fun(dp, ctx, name) |> rewrap;
+        Fun(dp, ctx, ty, name) |> rewrap;
       | FixF(name, ctx, env') =>
         let+ ctx =
           matches(Option.value(~default=env, env'), flt, ctx, exp, act, idx);

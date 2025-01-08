@@ -618,7 +618,7 @@ module Exp = {
               new_bound_vars,
               e,
             )
-          | Fun(p, e, n) =>
+          | Fun(p, e, t, n) =>
             let pat_bound_vars = Pat.bound_vars(p);
             Fun(
               p,
@@ -628,6 +628,7 @@ module Exp = {
                 pat_bound_vars @ new_bound_vars,
                 e,
               ),
+              t,
               n,
             )
             |> rewrap;
@@ -742,7 +743,7 @@ module Exp = {
 
   let rec get_fn_name = (e: t) => {
     switch (e.term) {
-    | Fun(_, _, n) => n
+    | Fun(_, _, _, n) => n
     | FixF(_, e, _) => get_fn_name(e)
     | Parens(e) => get_fn_name(e)
     | TypFun(_, _, n) => n

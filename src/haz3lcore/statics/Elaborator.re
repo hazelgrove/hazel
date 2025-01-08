@@ -255,10 +255,12 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         };
       let t = t |> Typ.normalize(ctx) |> Typ.all_ids_temp;
       Constructor(c, t) |> rewrap |> cast_from(t);
-    | Fun(p, e, n) =>
+    | Fun(p, e, _, n) =>
       let (p', typ) = elaborate_pattern(m, p);
       let (e', tye) = elaborate(m, e);
-      Fun(p', e', n) |> rewrap |> cast_from(Arrow(typ, tye) |> Typ.temp);
+      Fun(p', e', Some(typ), n)
+      |> rewrap
+      |> cast_from(Arrow(typ, tye) |> Typ.temp);
     | TypFun(tpat, e, name) =>
       let (e', tye) = elaborate(m, e);
       TypFun(tpat, e', name)
@@ -281,7 +283,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         (name, exp) => {
           let (term, rewrap) = DHExp.unwrap(exp);
           switch (term) {
-          | Fun(p, e, _) => Fun(p, e, name) |> rewrap
+          | Fun(p, e, t, _) => Fun(p, e, t, name) |> rewrap
           | TypFun(tpat, e, _) => TypFun(tpat, e, name) |> rewrap
           | _ => exp
           };

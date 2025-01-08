@@ -229,7 +229,7 @@ module Transition = (EV: EV_MODE) => {
         is_value: false,
       });
     | TypFun(_)
-    | Fun(_, _, _) =>
+    | Fun(_, _, _, _) =>
       let. _ = otherwise(env, d);
       let.wrap_closure _ = env;
       Value;

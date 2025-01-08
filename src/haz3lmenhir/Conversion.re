@@ -225,8 +225,8 @@ module rec Exp: {
     | Fun(p, e, name_opt) =>
       switch (name_opt) {
       | Some(name_str) =>
-        Fun(Pat.of_menhir_ast(p), of_menhir_ast(e), Some(name_str))
-      | None => Fun(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
+        Fun(Pat.of_menhir_ast(p), of_menhir_ast(e), None, Some(name_str))
+      | None => Fun(Pat.of_menhir_ast(p), of_menhir_ast(e), None, None)
       }
     | ApExp(e1, args) =>
       switch (args) {
@@ -350,7 +350,7 @@ module rec Exp: {
     | Constructor(s, typ) => Constructor(s, Typ.of_core(typ))
     | DeferredAp(e, es) =>
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
-    | Fun(p, e, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
+    | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
     };
   };

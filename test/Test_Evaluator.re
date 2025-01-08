@@ -206,7 +206,7 @@ let test_variable_capture = () =>
       Int(5) |> Exp.fresh,
       Let(
         Var("f") |> Pat.fresh,
-        Fun(Tuple([]) |> Pat.fresh, Var("u") |> Exp.fresh, None)
+        Fun(Tuple([]) |> Pat.fresh, Var("u") |> Exp.fresh, None, None)
         |> Exp.fresh,
         Let(
           Var("u") |> Pat.fresh,
@@ -227,7 +227,8 @@ let test_unbound_lookup = () =>
     Var("x") |> Exp.fresh,
     Ap(
       Forward,
-      Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None) |> Exp.fresh,
+      Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None, None)
+      |> Exp.fresh,
       Var("x") |> Exp.fresh,
     )
     |> Exp.fresh,

@@ -608,7 +608,7 @@ let get_doc =
         };
         /* TODO: More could be done here probably for different patterns. */
         basic(TypFunctionExp.type_functions_basic);
-      | Fun(pat, body, _) =>
+      | Fun(pat, body, _, _) =>
         let basic = group_id => {
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);

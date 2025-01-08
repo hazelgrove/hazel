@@ -68,7 +68,7 @@ and exp_term =
   | String(string)
   | ListLit(list(exp_t))
   | Constructor(string, typ_t) // Typ.t field is only meaningful in dynamic expressions
-  | Fun(pat_t, exp_t, option(Var.t))
+  | Fun(pat_t, exp_t, option(typ_t), option(Var.t)) // typ_t field is only used to display types in results
   | TypFun(tpat_t, exp_t, option(Var.t))
   | Tuple(list(exp_t))
   | Var(Var.t)
@@ -300,7 +300,13 @@ and Exp: {
         | FailedCast(e, t1, t2) =>
           FailedCast(exp_map_term(e), typ_map_term(t1), typ_map_term(t2))
         | ListLit(ts) => ListLit(List.map(exp_map_term, ts))
-        | Fun(p, e, f) => Fun(pat_map_term(p), exp_map_term(e), f)
+        | Fun(p, e, t, f) =>
+          Fun(
+            pat_map_term(p),
+            exp_map_term(e),
+            Option.map(typ_map_term, t),
+            f,
+          )
         | TypFun(tp, e, f) => TypFun(tpat_map_term(tp), exp_map_term(e), f)
         | Tuple(xs) => Tuple(List.map(exp_map_term, xs))
         | Let(p, e1, e2) =>
@@ -365,8 +371,10 @@ and Exp: {
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Constructor(c1, ty1), Constructor(c2, ty2)) =>
       c1 == c2 && Typ.fast_equal(ty1, ty2)
-    | (Fun(p1, e1, _), Fun(p2, e2, _)) =>
-      Pat.fast_equal(p1, p2) && fast_equal(e1, e2)
+    | (Fun(p1, e1, t1, _), Fun(p2, e2, t2, _)) =>
+      Pat.fast_equal(p1, p2)
+      && fast_equal(e1, e2)
+      && Option.equal(Typ.fast_equal, t1, t2)
     | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
       TPat.fast_equal(tp1, tp2) && fast_equal(e1, e2)
     | (Tuple(xs), Tuple(ys)) =>
