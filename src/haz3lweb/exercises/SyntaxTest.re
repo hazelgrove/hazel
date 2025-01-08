@@ -88,7 +88,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
   | TypFun(_, body, _)
   | FixF(_, body, _)
-  | Fun(_, body, _, _) => l |> find_fn(name, body)
+  | Fun(_, body, _) => l |> find_fn(name, body)
   | TypAp(u1, _)
   | Parens(u1)
   | Cast(u1, _, _)
@@ -178,7 +178,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Constructor(_)
   | Undefined
   | Deferral(_) => false
-  | Fun(args, body, _, _) =>
+  | Fun(args, body, _) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
   | ListLit(l)
   | Tuple(l) =>
@@ -239,7 +239,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Constructor(_)
   | Undefined
   | Deferral(_) => false
-  | Fun(args, body, _, _)
+  | Fun(args, body, _)
   | FixF(args, body, _) =>
     var_mention_upat(name, args) ? false : var_applied(name, body)
   | ListLit(l)
@@ -332,7 +332,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Var(_)
   | BuiltinFun(_) => true
   | FixF(args, body, _)
-  | Fun(args, body, _, _) =>
+  | Fun(args, body, _) =>
     var_mention_upat(name, args) ? false : tail_check(name, body)
   | Let(p, def, body) =>
     var_mention_upat(name, p) || var_mention(name, def)

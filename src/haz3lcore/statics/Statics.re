@@ -359,7 +359,7 @@ and uexp_to_info_map =
     let (args, m) = map_m_go(m, modes, args);
     let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
     add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]), m);
-  | Fun(p, e, _, _) =>
+  | Fun(p, e, _) =>
     let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
     let (p', _) =
       go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=mode_pat, p, m);

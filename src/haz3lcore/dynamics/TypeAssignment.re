@@ -152,13 +152,8 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
       };
     let* ctx = dhpat_extend_ctx(dhp, ty_p, ctx);
     typ_of_dhexp(ctx, m, d);
-  | Fun(dhp, d, env, _) =>
+  | Fun(dhp, d, _) =>
     let* ty_p = dhpat_synthesize(dhp, ctx);
-    let* ctx =
-      switch (env) {
-      | None => Some(ctx)
-      | Some(env) => env_extend_ctx(env, m, ctx)
-      };
     let* ctx = dhpat_extend_ctx(dhp, ty_p, ctx);
     let* ty2 = typ_of_dhexp(ctx, m, d);
     Some(Arrow(ty_p, ty2) |> Typ.temp);

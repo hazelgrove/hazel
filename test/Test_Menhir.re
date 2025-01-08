@@ -175,7 +175,7 @@ let tests = (
     full_parser_test("Integer Literal", Int(8) |> Exp.fresh, "8"),
     full_parser_test(
       "Fun",
-      Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None, None)
+      Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None)
       |> Exp.fresh,
       "fun x -> x",
     ),
@@ -431,7 +431,6 @@ let tests = (
         (Var("x"): Pat.term) |> Pat.fresh,
         BinOp(Int(Plus), Var("x") |> Exp.fresh, Int(5) |> Exp.fresh)
         |> Exp.fresh,
-        None,
         Some("f"),
       )
       |> Exp.fresh,
@@ -484,7 +483,6 @@ let tests = (
         )
         |> Pat.fresh,
         EmptyHole |> Exp.fresh,
-        None,
         None,
       )
       |> Exp.fresh,

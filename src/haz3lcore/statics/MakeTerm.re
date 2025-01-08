@@ -215,7 +215,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["$"], []) => UnOp(Meta(Unquote), r)
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["!"], []) => UnOp(Bool(Not), r)
-        | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
+        | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None)
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)

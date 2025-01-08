@@ -65,16 +65,13 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
         subst_var(m, d1, x, d3);
       };
     FixF(y, d3, env') |> rewrap;
-  | Fun(dp, d3, env, s) =>
-    /* Function closure shouldn't appear during substitution
-       (which only is called from elaboration currently) */
-    let env' = Option.map(subst_var_env(m, d1, x), env);
+  | Fun(dp, d3, s) =>
     if (binds_var(m, x, dp)) {
-      Fun(dp, d3, env', s) |> rewrap;
+      Fun(dp, d3, s) |> rewrap;
     } else {
       let d3 = subst_var(m, d1, x, d3);
-      Fun(dp, d3, env', s) |> rewrap;
-    };
+      Fun(dp, d3, s) |> rewrap;
+    }
   | TypFun(tpat, d3, s) =>
     TypFun(tpat, subst_var(m, d1, x, d3), s) |> rewrap
   | Closure(env, d3) =>
