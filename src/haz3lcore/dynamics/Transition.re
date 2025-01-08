@@ -155,12 +155,18 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, Var(x) |> rewrap);
       switch (ClosureEnvironment.lookup(env, x)) {
       | Some(d) =>
+        let is_value =
+          switch (d |> Exp.term_of) {
+          | FixF(_, _, _) => false // fixpoints aren't final
+          | Let(_, _, _) => false // could be mutually-recursive fixpoint
+          | _ => true // all other closure entries should be final
+          };
         Step({
           expr: d |> fast_copy(Id.mk()),
           state_update,
           kind: VarLookup,
-          is_value: false,
-        })
+          is_value,
+        });
       | None => Indet
       };
     | Seq(d1, d2) =>
