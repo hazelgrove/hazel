@@ -78,14 +78,25 @@ let elaborated_type =
 
 let elaborated_pat_type =
     (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t, Pat.t) => {
-  let (mode, self_ty, ctx, prev_synswitch, term) =
+  let (mode, self_ty, ctx, prev_synswitch, term, elaboration_provenance) =
     switch (Id.Map.find_opt(UPat.rep_id(upat), m)) {
-    | Some(Info.InfoPat({mode, ty, ctx, prev_synswitch, term, _})) => (
+    | Some(
+        Info.InfoPat({
+          mode,
+          ty,
+          ctx,
+          prev_synswitch,
+          term,
+          elaboration_provenance,
+          _,
+        }),
+      ) => (
         mode,
         ty,
         ctx,
         prev_synswitch,
         term,
+        elaboration_provenance,
       )
     | _ => raise(MissingTypeInfo)
     };
@@ -102,7 +113,17 @@ let elaborated_pat_type =
     | Ana(ana_ty) =>
       switch (prev_synswitch) {
       | None => ana_ty
-      | Some(syn_ty) => Typ.match_synswitch(syn_ty, ana_ty)
+      | Some(syn_ty) =>
+        // Hack for singleton labeled tuples
+        switch (elaboration_provenance) {
+        | Some((_, AutoLabel(l))) =>
+          Typ.match_synswitch(
+            Prod([TupLabel(Label(l) |> Typ.temp, syn_ty) |> Typ.temp])
+            |> Typ.temp,
+            ana_ty,
+          )
+        | None => Typ.match_synswitch(syn_ty, ana_ty)
+        }
       }
     };
   (elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp, ctx, term);
