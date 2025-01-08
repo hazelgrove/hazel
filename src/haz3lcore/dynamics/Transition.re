@@ -800,10 +800,13 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = env;
       Indet;
     | EmptyHole
-    | Invalid(_)
-    | DynamicErrorHole(_) =>
+    | Invalid(_) =>
       let. _ = otherwise(env, d);
       // let.wrap_closure _ = env;  // uncomment for hole closures
+      Indet;
+    | DynamicErrorHole(_) =>
+      let. _ = otherwise(env, d);
+      let.wrap_closure _ = env;
       Indet;
     | Cast(d, t1, t2) =>
       let. _ = otherwise(env, d => Cast(d, t1, t2) |> rewrap)
