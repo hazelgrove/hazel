@@ -87,7 +87,7 @@ module PlainTests = {
       BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
       |> Exp.fresh,
       None,
-      )
+    )
     |> Exp.fresh;
   let unapplied_function = () =>
     alco_check("A function", f, dhexp_of_uexp(f));
@@ -155,7 +155,7 @@ module PlainTests = {
         BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
         |> Exp.fresh,
         None,
-        )
+      )
       |> Exp.fresh,
       Int(55) |> Exp.fresh,
     )
@@ -168,7 +168,7 @@ module PlainTests = {
         Var("x") |> Pat.fresh,
         BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
         |> Exp.fresh,
-          Some("f"),
+        Some("f"),
       )
       |> Exp.fresh,
       Int(55) |> Exp.fresh,
