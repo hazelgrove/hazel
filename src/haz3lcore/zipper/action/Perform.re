@@ -17,6 +17,7 @@ let go_z =
     (
       ~settings as _: CoreSettings.t,
       statics: CachedStatics.t,
+      tiles: TileMap.t,
       a: Action.t,
       module M: Move.S,
       z: Zipper.t,
@@ -171,18 +172,25 @@ let go_z =
     | None => Error(Action.Failure.Cant_select)
     }
   | Select(Resize(d)) =>
-    Select.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_select)
+    Animation.request([Animation.Actions.move("caret")]);
+    Select.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_select);
   | Destruct(d) =>
+    Animation.request(
+      List.map(Animation.Actions.move_slowly, Animation.token_ids(tiles)),
+    );
     z
     |> Destruct.go(d)
     |> Option.map(remold_regrout(d))
-    |> Result.of_option(~error=Action.Failure.Cant_destruct)
+    |> Result.of_option(~error=Action.Failure.Cant_destruct);
   | Insert(char) =>
+    Animation.request(
+      List.map(Animation.Actions.move_slowly, Animation.token_ids(tiles)),
+    );
     z
     |> Insert.go(char)
     /* note: remolding here is done case-by-case */
     //|> Option.map((z) => remold_regrout(Right, z))
-    |> Result.of_option(~error=Action.Failure.Cant_insert)
+    |> Result.of_option(~error=Action.Failure.Cant_insert);
   | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
   | Put_down =>
     let z =

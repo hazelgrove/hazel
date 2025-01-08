@@ -47,24 +47,26 @@ let of_delim' =
   );
 let of_delim =
     (is_in_buffer, is_consistent, indent, t: Piece.tile, i: int)
-    : list(Node.t) =>
-  // [
-  // div(
-  //   ~attrs=[
-  //     Attr.create("style", "display: inline-block; position: relative;"),
-  //     Attr.id("token-" ++ (t.id |> Id.to_string |> String.sub(_, 0, 8))),
-  //   ],
-  of_delim'((
-    t.label,
-    is_in_buffer,
-    t.mold.out,
-    is_consistent,
-    Tile.is_complete(t),
-    indent,
-    i,
-  ));
-// ),
-// ];
+    : list(Node.t) => [
+  div(
+    ~attrs=[
+      Attr.create(
+        "style",
+        "display: inline-block; position: relative; width: fit-content; height: fit-content;",
+      ),
+      Attr.id(Animation.token_id(t.id, i)),
+    ],
+    of_delim'((
+      t.label,
+      is_in_buffer,
+      t.mold.out,
+      is_consistent,
+      Tile.is_complete(t),
+      indent,
+      i,
+    )),
+  ),
+];
 
 let space = " "; //Unicode.nbsp;
 

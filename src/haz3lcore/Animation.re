@@ -49,6 +49,32 @@ module Js = {
   let get_elem_box = (id: string): option(box) =>
     Option.map(box_of, JsUtil.get_elem_by_id_opt(id));
 
+  /*
+   function checkVisible(elm) {
+     var rect = elm.getBoundingClientRect();
+     var viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight);
+     return !(rect.bottom < 0 || rect.top - viewHeight >= 0);
+   }*/
+
+  let client_height = (): float =>
+    Js.Optdef.get(
+      Js.Unsafe.get(Dom_html.document, "documentElement")##.clientHeight, _ =>
+      0.0
+    );
+
+  let inner_height = (): float =>
+    Js.Optdef.get(Js.Unsafe.get(Dom_html.window, "innerHeight"), _ => 0.0);
+
+  let check_visible = (client_height, inner_height, box: box): bool => {
+    let viewHeight = max(client_height, inner_height);
+    !(
+      float_of_int(box.top)
+      +. box.height < 0.0
+      || float_of_int(box.top)
+      -. viewHeight >= 0.0
+    );
+  };
+
   let keyframes_unsafe = (keyframes: list(keyframe)): Js.t(Js.js_array('a)) =>
     keyframes
     |> List.map(((prop: string, value: string)) =>
@@ -124,8 +150,8 @@ type transition_internal = {
  * when the animation is executed (`go`) */
 let tracked_elems: ref(list(transition_internal)) = ref([]);
 
-let animate_elem = ({id, box, animate}, elem): unit =>
-  switch (box, get_elem_box(id)) {
+let animate_elem = ({box, animate, _}, elem, new_box): unit =>
+  switch (box, new_box) {
   | (Some(init), Some(final)) =>
     Js.animate(animate(Existing(init, final)), elem)
   | (None, Some(final)) => Js.animate(animate(New(final)), elem)
@@ -135,15 +161,40 @@ let animate_elem = ({id, box, animate}, elem): unit =>
   | (None, None) => ()
   };
 
+let get_elements_to_animate = () => {
+  print_endline(
+    "go: tracked_elems count: " ++ string_of_int(List.length(tracked_elems^)),
+  );
+  let client_height = client_height();
+  let inner_height = inner_height();
+  let blah =
+    tracked_elems^
+    |> List.filter_map((tr: transition_internal) => {
+         switch (JsUtil.get_elem_by_id_opt(tr.id)) {
+         | None => None
+         | Some(elem) =>
+           let new_box = box_of(elem);
+           check_visible(client_height, inner_height, new_box)
+             ? Some((tr, elem, Some(new_box))) : None;
+         }
+       });
+  print_endline(
+    "go: filtered elems count: " ++ string_of_int(List.length(blah)),
+  );
+  blah;
+};
+
+let actually_animate_elements = elements =>
+  List.iter(
+    ((animation, elem, new_box)) => animate_elem(animation, elem, new_box),
+    elements,
+  );
+
 /* Execute animations. This is called during the
  * render phase, after recalc but before repaint */
 let go = (): unit =>
   if (tracked_elems^ != []) {
-    tracked_elems^
-    |> List.iter(animation =>
-         JsUtil.get_elem_by_id_opt(animation.id)
-         |> Option.iter(animate_elem(animation))
-       );
+    get_elements_to_animate() |> actually_animate_elements;
     tracked_elems := [];
   };
 
@@ -153,7 +204,8 @@ let request = (transitions: list(transition)): unit => {
     List.map(
       ({id, animate}: transition) => {id, box: get_elem_box(id), animate},
       transitions,
-    );
+    )
+    @ tracked_elems^;
 };
 
 module Keyframes = {
@@ -194,5 +246,41 @@ module Actions = {
         | Existing(init, final) => Keyframes.translate(init, final)
         },
     },
+  };
+
+  let move_slowly = id => {
+    id,
+    animate: change => {
+      options: {
+        duration: 450,
+        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+      },
+      keyframes:
+        switch (change) {
+        | New(_) => Keyframes.scale_from_zero
+        | Existing(init, final) => Keyframes.translate(init, final)
+        },
+    },
+  };
+};
+
+let token_id = (id: Uuidm.t, i: int): string =>
+  "token-"
+  ++ (id |> Id.to_string |> String.sub(_, 0, 8))
+  ++ "-"
+  ++ string_of_int(i);
+
+let token_ids = (tiles: TileMap.t): list(string) => {
+  let n = Id.Map.cardinal(tiles);
+  if (false) {
+    print_endline("token_ids: n=" ++ string_of_int(n));
+    print_endline("token_ids: too many ids to animate; bailing out");
+    [];
+  } else {
+    tiles
+    |> Id.Map.to_list
+    |> List.concat_map(((_, t: Piece.tile)) =>
+         List.map(token_id(t.id), t.shards)
+       );
   };
 };

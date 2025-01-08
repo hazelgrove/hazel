@@ -153,6 +153,7 @@ module Update = {
             Perform.go_z(
               ~settings,
               old_statics,
+              syntax.tiles,
               Buffer(Clear),
               Model.to_move_s({state, history, syntax}),
               state.zipper,
@@ -190,6 +191,7 @@ module Update = {
       Perform.go_z(
         ~settings,
         old_statics,
+        syntax.tiles,
         a,
         Model.to_move_s({state, history, syntax}),
         state.zipper,
@@ -249,6 +251,7 @@ module Update = {
           Perform.go_z(
             ~settings,
             new_statics,
+            syntax.tiles,
             Buffer(Set(TyDi)),
             Model.to_move_s({syntax, state, history}),
             state.zipper,
