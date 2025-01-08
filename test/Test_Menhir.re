@@ -175,8 +175,7 @@ let tests = (
     full_parser_test("Integer Literal", Int(8) |> Exp.fresh, "8"),
     full_parser_test(
       "Fun",
-      Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None)
-      |> Exp.fresh,
+      Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None) |> Exp.fresh,
       "fun x -> x",
     ),
     full_parser_test(
