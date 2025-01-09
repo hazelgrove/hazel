@@ -181,7 +181,7 @@ let go_z =
     Select.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_select);
   | Destruct(d) =>
     Animation.request(
-      [Animation.Actions.move_slowly("caret")]
+      [Animation.Actions.move("caret")]
       @ List.map(Animation.Actions.move_slowly, Animation.indicated_ids)
       @ List.map(
           Animation.Actions.move_slowly,
@@ -196,7 +196,7 @@ let go_z =
     |> Result.of_option(~error=Action.Failure.Cant_destruct);
   | Insert(char) =>
     Animation.request(
-      [Animation.Actions.move_slowly("caret")]
+      [Animation.Actions.move("caret")]
       @ List.map(Animation.Actions.move_slowly, Animation.indicated_ids)
       @ List.map(
           Animation.Actions.move_slowly,

@@ -248,13 +248,17 @@ module Keyframes = {
   };
 };
 
+let easeOutExpo = "cubic-bezier(0.16, 1, 0.3, 1)";
+let easeInOutBack = "cubic-bezier(0.68, -0.6, 0.32, 1.6)";
+let easeInOutExpo = "cubic-bezier(0.87, 0, 0.13, 1)";
+
 module Actions = {
   let move = id => {
     id,
     animate: change => {
       options: {
         duration: 125,
-        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+        easing: easeOutExpo,
       },
       keyframes:
         switch (change) {
@@ -269,8 +273,8 @@ module Actions = {
     id,
     animate: change => {
       options: {
-        duration: 400,
-        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+        duration: 200,
+        easing: easeInOutExpo,
       },
       keyframes:
         switch (change) {
@@ -285,7 +289,7 @@ module Actions = {
     animate: change => {
       options: {
         duration: 125,
-        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+        easing: easeOutExpo,
       },
       keyframes:
         switch (change) {
@@ -303,7 +307,7 @@ let token_id = (id: Uuidm.t, i: int): string =>
   ++ "-"
   ++ string_of_int(i);
 
-let comment_id = ({id, _}: Secondary.t): string =>
+let comment_id = (id: Id.t): string =>
   "comment-" ++ (id |> Id.to_string |> String.sub(_, 0, 8));
 
 let projector_id = (id: Id.t): string =>
@@ -325,7 +329,7 @@ let token_ids = (tiles: TileMap.t): list(string) => {
 };
 
 let comment_ids = (comments: list(Secondary.t)): list(string) =>
-  List.map(comment_id, comments);
+  List.map(({id, _}: Secondary.t) => comment_id(id), comments);
 
 let projector_ids = (prs: Id.Map.t(Base.projector)) => {
   prs |> Id.Map.to_list |> List.map(((id, _)) => projector_id(id));

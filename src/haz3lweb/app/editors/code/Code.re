@@ -18,7 +18,7 @@ let consume_deferred_linebreaks = () => {
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
-    ((label, is_in_buffer, sort, is_consistent, is_complete, indent, i)) => {
+    ((id, label, is_in_buffer, sort, is_consistent, is_complete, indent, i)) => {
       let cls =
         switch (label) {
         | _ when is_in_buffer => "in-buffer"
@@ -39,7 +39,14 @@ let of_delim' =
       //TODO: deffered linebreaks
       [
         span(
-          ~attrs=[Attr.classes(["token", cls, plurality])],
+          ~attrs=[
+            Attr.create(
+              "style",
+              "line-height: 1em; display: inline-block; position: relative; width: fit-content; height: fit-content;",
+            ),
+            Attr.id(Animation.token_id(id, i)),
+            Attr.classes(["token", cls, plurality]),
+          ],
           [Node.text(token)],
         ),
       ];
@@ -47,59 +54,63 @@ let of_delim' =
   );
 let of_delim =
     (is_in_buffer, is_consistent, indent, t: Piece.tile, i: int)
-    : list(Node.t) => [
+    : list(Node.t) =>
   //TODO(andrew): cleanup
-  div(
-    ~attrs=[
-      Attr.create(
-        "style",
-        "line-height: 1em; display: inline-block; position: relative; width: fit-content; height: fit-content;",
-      ),
-      Attr.id(Animation.token_id(t.id, i)),
-    ],
-    of_delim'((
-      t.label,
-      is_in_buffer,
-      t.mold.out,
-      is_consistent,
-      Tile.is_complete(t),
-      indent,
-      i,
-    )),
-  ),
-];
+  of_delim'((
+    t.id,
+    t.label,
+    is_in_buffer,
+    t.mold.out,
+    is_consistent,
+    Tile.is_complete(t),
+    indent,
+    i,
+  ));
 
 let space = " "; //Unicode.nbsp;
 
 let of_grout = [Node.text(space)];
 
+let linebreak_span = [span_c("linebreak", [text("")])];
+let linebreak_icon_span = [span_c("linebreak", [text(">")])];
+let whitespace_span = [span_c("whitespace", [text(space)])];
+let whitespace_icon_span = [span_c("whitespace", [text("·")])];
+
+let spacing =
+  Core.Memo.general(~cache_size_bound=100, (indent: int) =>
+    Node.text(StringUtil.repeat(indent, space))
+  );
+
+let linebreak_text = Node.text("\n");
+let linebreak_and_indent =
+  Core.Memo.general(~cache_size_bound=1000, ((num_lbs: int, indent)) =>
+    List.init(num_lbs, _ => linebreak_text) @ [spacing(indent)]
+  );
+
+let node_text = Core.Memo.general(~cache_size_bound=1000, Node.text);
+
+let comment = (id, str) => [
+  span(
+    ~attrs=[
+      Attr.create("style", "display: inline-block;"),
+      Attr.id(Animation.comment_id(id)),
+      Attr.class_("comment"),
+    ],
+    [node_text(str)],
+  ),
+];
+
 //TODO(andrew): cleanup
-let of_secondary =
-    //Core.Memo.general(  ~cache_size_bound=10000,
-    ((s: Secondary.t, secondary_icons, indent)) =>
-  if (String.equal(Secondary.get_string(s.content), Form.linebreak)) {
-    let str = secondary_icons ? ">" : "";
-    [span_c("linebreak", [text(str)])]
-    @ List.init(1 + consume_deferred_linebreaks(), _ => Node.text("\n"))
-    @ [Node.text(StringUtil.repeat(indent, space))];
-  } else if (String.equal(Secondary.get_string(s.content), Form.space)) {
-    let str = secondary_icons ? "·" : space;
-    [span_c("whitespace", [text(str)])];
-  } else if (Secondary.content_is_comment(s.content)) {
-    [
-      span(
-        ~attrs=[
-          Attr.create("style", "display: inline-block;"),
-          Attr.id(Animation.comment_id(s)),
-          Attr.class_("comment"),
-        ],
-        [Node.text(Secondary.get_string(s.content))],
-      ),
-    ];
-  } else {
-    [span_c("secondary", [Node.text(Secondary.get_string(s.content))])];
+let of_secondary = (s: Secondary.t, secondary_icons, indent) =>
+  switch (s.content) {
+  | Whitespace(str) when str == Form.linebreak =>
+    let num_lbs = 1 + consume_deferred_linebreaks();
+    linebreak_and_indent((num_lbs, indent)) @ [spacing(indent)];
+  | Whitespace(str) when str == Form.space =>
+    secondary_icons ? whitespace_icon_span : whitespace_span
+  | Whitespace(_) => failwith("Invalid whitespace")
+  | Comment(str) => comment(s.id, str)
   };
-//);
 
 let of_projector = (expected_sort, indent, shape: Base.shape) => {
   let token =
@@ -114,7 +125,16 @@ let of_projector = (expected_sort, indent, shape: Base.shape) => {
       String.make(consume_deferred_linebreaks(), '\n')
       ++ Projector.token_of_shape(shape)
     };
-  of_delim'(([token], false, expected_sort, true, true, indent, 0));
+  of_delim'((
+    Id.invalid,
+    [token],
+    false,
+    expected_sort,
+    true,
+    true,
+    indent,
+    0,
+  ));
 };
 
 module Text =
@@ -153,7 +173,7 @@ module Text =
     | Tile(t) => of_tile(buffer_ids, expected_sort, t)
     | Grout(_) => of_grout
     | Secondary(s) =>
-      of_secondary((s, M.settings.secondary_icons, m(p).last.col))
+      of_secondary(s, M.settings.secondary_icons, m(p).last.col)
     | Projector(p) =>
       of_projector(
         expected_sort,
