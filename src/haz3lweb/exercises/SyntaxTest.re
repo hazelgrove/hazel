@@ -44,8 +44,7 @@ let rec find_var_upat = (name: string, upat: Pat.t): bool => {
   if name="a", then l=[fun x -> x+1]
  */
 let rec find_in_let =
-        (name: string, upat: UPat.t, def: UExp.t, l: list(UExp.t))
-        : list(UExp.t) => {
+        (name: string, upat: Pat.t, def: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   switch (upat.term, def.term) {
   | (Parens(up), Parens(ue)) => find_in_let(name, up, ue, l)
   | (Parens(up), _) => find_in_let(name, up, def, l)
@@ -80,8 +79,7 @@ let rec find_in_let =
 /*
  Find any function expressions in uexp that are bound to variable name
  */
-let rec find_fn =
-        (name: string, uexp: UExp.t, l: list(UExp.t)): list(UExp.t) => {
+let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   switch (uexp.term) {
   | Let(up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
@@ -378,7 +376,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
 /*
  Check whether all functions bound to variable name are tail recursive.
  */
-let is_tail_recursive = (name: string, uexp: UExp.t): bool => {
+let is_tail_recursive = (name: string, uexp: Exp.t): bool => {
   let fn_bodies = [] |> find_fn(name, uexp);
   if (List.length(fn_bodies) == 0) {
     false;
@@ -391,7 +389,7 @@ let is_tail_recursive = (name: string, uexp: UExp.t): bool => {
   };
 };
 
-let check = (uexp: UExp.t, predicates: list(UExp.t => bool)): syntax_result => {
+let check = (uexp: Exp.t, predicates: list(Exp.t => bool)): syntax_result => {
   let results = List.map(pred => {uexp |> pred}, predicates);
   let length = List.length(predicates);
   let passing = Util.ListUtil.count_pred(res => res, results);

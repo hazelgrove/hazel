@@ -8,7 +8,7 @@ let evaluation_test = (msg, expected, unevaluated) =>
     msg,
     expected,
     ProgramResult.Result.unbox(
-      snd(Evaluator.evaluate'(Builtins.env_init, {d: unevaluated})),
+      snd(Evaluator.evaluate'(Builtins.env_init, unevaluated)),
     ),
   );
 

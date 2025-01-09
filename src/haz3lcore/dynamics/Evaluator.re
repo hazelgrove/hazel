@@ -114,7 +114,7 @@ let rec evaluate = (state, env, d) => {
   };
 };
 
-let evaluate' = (env, {d, _}: Elaborator.Elaboration.t) => {
+let evaluate' = (env, d: DHExp.t) => {
   let state = ref(EvaluatorState.init);
   let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);
@@ -131,9 +131,9 @@ let evaluate =
     (~settings: CoreSettings.t, ~env=Builtins.env_init, elab: DHExp.t)
     : ProgramResult.t(ProgramResult.inner) =>
   switch () {
-  | _ when !settings.dynamics => Off({d: elab})
+  | _ when !settings.dynamics => Off(elab)
   | _ =>
-    switch (evaluate'(env, {d: elab})) {
+    switch (evaluate'(env, elab)) {
     | exception (EvaluatorError.Exception(reason)) =>
       print_endline("EvaluatorError:" ++ EvaluatorError.show(reason));
       ResultFail(EvaulatorError(reason));

@@ -6,11 +6,6 @@ open Util;
 
 exception MissingTypeInfo;
 
-module Elaboration = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {d: DHExp.t};
-};
-
 module ElaborationResult = {
   [@deriving sexp]
   type t =
@@ -47,7 +42,7 @@ let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
     };
 };
 
-let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t, 'a) => {
+let elaborated_type = (m: Statics.Map.t, uexp: Exp.t): (Typ.t, Ctx.t, 'a) => {
   let (mode, self_ty, ctx, co_ctx) =
     switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
     | Some(Info.InfoExp({mode, ty, ctx, co_ctx, _})) => (
@@ -74,9 +69,9 @@ let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t, 'a) => {
   (elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp, ctx, co_ctx);
 };
 
-let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
+let elaborated_pat_type = (m: Statics.Map.t, upat: Pat.t): (Typ.t, Ctx.t) => {
   let (mode, self_ty, ctx, prev_synswitch) =
-    switch (Id.Map.find_opt(UPat.rep_id(upat), m)) {
+    switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
     | Some(Info.InfoPat({mode, ty, ctx, prev_synswitch, _})) => (
         mode,
         ty,
@@ -104,11 +99,10 @@ let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
   (elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp, ctx);
 };
 
-let rec elaborate_pattern =
-        (m: Statics.Map.t, upat: UPat.t): (DHPat.t, Typ.t) => {
+let rec elaborate_pattern = (m: Statics.Map.t, upat: Pat.t): (DHPat.t, Typ.t) => {
   let (elaborated_type, ctx) = elaborated_pat_type(m, upat);
   let cast_from = (ty, exp) => fresh_pat_cast(exp, ty, elaborated_type);
-  let (term, rewrap) = UPat.unwrap(upat);
+  let (term, rewrap) = Pat.unwrap(upat);
   let dpat =
     switch (term) {
     | Int(_) => upat |> cast_from(Int |> Typ.temp)
@@ -203,10 +197,10 @@ let rec elaborate_pattern =
    [Matt] A lot of these fresh_cast calls are redundant, however if you
    want to remove one, I'd ask you instead comment it out and leave
    a comment explaining why it's redundant.  */
-let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
+let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
   let (elaborated_type, ctx, co_ctx) = elaborated_type(m, uexp);
   let cast_from = (ty, exp) => fresh_cast(exp, ty, elaborated_type);
-  let (term, rewrap) = UExp.unwrap(uexp);
+  let (term, rewrap) = Exp.unwrap(uexp);
   let dhexp =
     switch (term) {
     | Invalid(_)
@@ -565,7 +559,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
 let fix_typ_ids =
   Exp.map_term(~f_typ=(cont, e) => e |> IdTagged.new_ids |> cont);
 
-let uexp_elab = (m: Statics.Map.t, uexp: UExp.t): ElaborationResult.t =>
+let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t =>
   switch (elaborate(m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
   | (d, ty) => Elaborates(d |> fix_typ_ids, ty, Delta.empty)
