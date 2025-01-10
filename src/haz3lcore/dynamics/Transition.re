@@ -272,7 +272,7 @@ module Transition = (EV: EV_MODE) => {
             };
           let+ e =
             switch (DHExp.term_of(DHExp.strip_casts(d))) {
-            | Term(Drv(Exp(e)), _) => Ok(e)
+            | DrvExp(Exp(e)) => Ok(e)
             | _ => Error("Pat Not Jdmt/Prop/Ctx/ALFA_Exp type")
             };
           e |> IdTagged.unwrap |> fst;
@@ -361,7 +361,7 @@ module Transition = (EV: EV_MODE) => {
             };
           let+ e =
             switch (DHExp.term_of(DHExp.strip_casts(d))) {
-            | Term(Drv(Typ(e)), _) => Ok(e)
+            | DrvExp(Typ(e)) => Ok(e)
             | _ => Error("Pat Not Jdmt/Prop/Ctx/ALFA_Exp type")
             };
           e |> IdTagged.unwrap |> fst;
@@ -396,10 +396,10 @@ module Transition = (EV: EV_MODE) => {
     let (term, rewrap) = IdTagged.unwrap(d);
     let term: term =
       switch (term) {
-      | Term(Drv(Exp(exp)), s) => Term(Drv(Exp(go_exp(exp))), s)
-      | Term(Drv(Rul(rul)), s) => Term(Drv(Rul(go_rul(rul))), s)
-      | Term(Drv(Typ(typ)), s) => Term(Drv(Typ(go_typ(typ))), s)
-      | Term(Drv(Pat(pat)), s) => Term(Drv(Pat(go_pat(pat))), s)
+      | DrvExp(Exp(exp)) => DrvExp(Exp(go_exp(exp)))
+      | DrvExp(Rul(rul)) => DrvExp(Rul(go_rul(rul)))
+      | DrvExp(Typ(typ)) => DrvExp(Typ(go_typ(typ)))
+      | DrvExp(Pat(pat)) => DrvExp(Pat(go_pat(pat)))
       | _ => term
       };
     term |> rewrap;
@@ -705,7 +705,7 @@ module Transition = (EV: EV_MODE) => {
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
-    | Term(_) =>
+    | DrvExp(_) =>
       let. _ = otherwise(env, d);
       let d' = replace_drv_abbrs(env, d);
       if (DHExp.fast_equal(d, d')) {
@@ -1072,3 +1072,43 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | FunClosure
   | FixClosure
   | RemoveParens => true;
+
+let stepper_justification: step_kind => string =
+  fun
+  | LetBind => "substitution"
+  | Seq => "sequence"
+  | FixUnwrap => "unroll fixpoint"
+  | UpdateTest => "update test"
+  | TypFunAp => "apply type function"
+  | FunAp => "apply function"
+  | DeferredAp => "deferred application"
+  | BuiltinWrap => "wrap builtin"
+  | BuiltinAp(s) => "evaluate " ++ s
+  | UnOp(Int(Minus))
+  | BinIntOp(Plus | Minus | Times | Power | Divide)
+  | BinFloatOp(Plus | Minus | Times | Power | Divide) => "arithmetic"
+  | BinIntOp(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual)
+  | BinFloatOp(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual) => "comparison"
+  | BinIntOp(Equals | NotEquals)
+  | BinFloatOp(Equals | NotEquals)
+  | BinStringOp(Equals) => "check equality"
+  | BinStringOp(Concat) => "string manipulation"
+  | UnOp(Bool(Not))
+  | BinBoolOp(_) => "boolean logic"
+  | Conditional(_) => "conditional"
+  | ListCons => "list manipulation"
+  | ListConcat => "list manipulation"
+  | CaseApply => "case selection"
+  | Projection => "projection" // TODO(Matt): We don't want to show projection to the user
+  | InvalidStep => "error"
+  | VarLookup => "variable lookup"
+  | CastTypAp
+  | CastAp
+  | Cast => "cast calculus"
+  | FixClosure => "fixpoint closure"
+  | CompleteFilter => "complete filter"
+  | CompleteClosure => "complete closure"
+  | FunClosure => "function closure"
+  | RemoveTypeAlias => "define type"
+  | RemoveParens => "remove parentheses"
+  | UnOp(Meta(Unquote)) => failwith("INVALID STEP");

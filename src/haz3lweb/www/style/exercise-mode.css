@@ -31,11 +31,11 @@
   text-transform: uppercase;
 }
 
-#main.Exercises .cell.deselected {
+#main.Exercises .cell.unlocked {
   border-left: 1px solid var(--cell-exercises-border);
 }
 
-#main.Exercises .cell.selected {
+#main.Exercises .cell.unlocked:has(.code-editor.selected) {
   border-left: 1px solid var(--cell-selected-accent);
   background-color: var(--cell-active);
 }
@@ -284,16 +284,11 @@
 }
 
 .deduction-concl .cell-item {
-  background-color: var(--ui-bkg);
   padding: 0.3em 0.5em;
 }
 
 .deduction-concl .code.fakecode {
   height: 2.2rem;
-}
-
-.deduction-concl .cell-item:hover {
-  background-color: var(--cell-active)
 }
 
 .deduction-prems-label {
@@ -399,13 +394,13 @@
 
 .deduction-prems-label .test-result {
   position: absolute;
-  right: -0.6rem;
-  bottom: -0.8rem;
+  right: -0.5rem;
+  bottom: -1.0rem;
 }
 
 .deduction-prems-label .pointer {
   position: absolute;
-  right: -1.3rem;
+  right: -1.4rem;
   bottom: -0.4rem;
 }
 

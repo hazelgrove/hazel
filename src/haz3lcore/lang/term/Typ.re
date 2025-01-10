@@ -12,7 +12,7 @@ type cls =
   | Float
   | Bool
   | String
-  | Term
+  | DrvTyp
   | Arrow
   | Prod
   | Sum
@@ -35,6 +35,29 @@ let fresh: term => t = IdTagged.fresh;
 let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
 let rep_id: t => Id.t = IdTagged.rep_id;
 
+let all_ids_temp = {
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, exp) => {...exp, ids: [Id.invalid]} |> continue;
+  map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
+};
+
+let (replace_temp, replace_temp_exp) = {
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, exp) =>
+      {...exp, ids: exp.ids == [Id.invalid] ? [Id.mk()] : exp.ids}
+      |> continue;
+  (
+    map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    TermBase.Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+  );
+};
+
 let hole = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
   switch (tms) {
   | [] => Unknown(Hole(EmptyHole))
@@ -52,7 +75,7 @@ let cls_of_term: term => cls =
   | Float => Float
   | Bool => Bool
   | String => String
-  | Term(_) => Term
+  | DrvTyp(_) => DrvTyp
   | List(_) => List
   | Arrow(_) => Arrow
   | Var(_) => Var
@@ -74,7 +97,7 @@ let show_cls: cls => string =
   | Float
   | String
   | Bool => "Base type"
-  | Term => "Term type"
+  | DrvTyp => "DrvTyp type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
   | List => "List type"
@@ -95,7 +118,7 @@ let rec is_arrow = (typ: t) => {
   | Float
   | Bool
   | String
-  | Term(_)
+  | DrvTyp(_)
   | List(_)
   | Prod(_)
   | Var(_)
@@ -115,7 +138,7 @@ let rec is_forall = (typ: t) => {
   | Float
   | Bool
   | String
-  | Term(_)
+  | DrvTyp(_)
   | Arrow(_)
   | List(_)
   | Prod(_)
@@ -161,7 +184,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Int
   | Float
   | Bool
-  | Term(_)
+  | DrvTyp(_)
   | String => []
   | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Var(v) => List.mem(v, bound) ? [] : [v]
@@ -263,8 +286,8 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
   | (Bool, _) => None
   | (String, String) => Some(ty1)
   | (String, _) => None
-  | (Term(d1), Term(d2)) when d1 == d2 => Some(ty1)
-  | (Term(_), _) => None
+  | (DrvTyp(d1), DrvTyp(d2)) when d1 == d2 => Some(ty1)
+  | (DrvTyp(_), _) => None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     let* ty1 = join'(ty1, ty1');
     let+ ty2 = join'(ty2, ty2');
@@ -300,7 +323,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Float, _)
   | (Bool, _)
   | (String, _)
-  | (Term(_), _)
+  | (DrvTyp(_), _)
   | (Var(_), _)
   | (Ap(_), _)
   | (Rec(_), _)
@@ -357,7 +380,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Int
   | Float
   | Bool
-  | Term(_)
+  | DrvTyp(_)
   | String => ty
   | Parens(t) => Parens(normalize(ctx, t)) |> rewrap
   | List(t) => List(normalize(ctx, t)) |> rewrap
@@ -488,7 +511,7 @@ let rec needs_parens = (ty: t): bool =>
   | Int
   | Float
   | String
-  | Term(_)
+  | DrvTyp(_)
   | Bool
   | Var(_) => false
   | Rec(_, _)
@@ -517,7 +540,7 @@ let rec pretty_print = (ty: t): string =>
   | Float => "Float"
   | Bool => "Bool"
   | String => "String"
-  | Term(d) => Sort.to_string(d)
+  | DrvTyp(d) => DrvSort.to_string(d)
   | Var(tvar) => tvar
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)

@@ -16,7 +16,7 @@ and elab_jdmt: Drv.Exp.t => t =
   jdmt => {
     let term: term =
       switch (exp_term_of(jdmt)) {
-      | Hole(s) => Hole(TermBase.TypeHole.show(s))
+      | Hole(s) => Hole(DrvTermBase.show_type_hole(s))
       | Val(e) => Val(elab_exp(e))
       | Eval(e1, e2) => Eval(elab_exp(e1), elab_exp(e2))
       | Entail(ctx, p) => Entail(elab_ctxt(ctx), elab_prop(p))
@@ -33,7 +33,7 @@ and elab_ctxt: Drv.Exp.t => t =
     let hole: term = Hole(Drv.Exp.show(ctx));
     let term: term =
       switch (exp_term_of(ctx)) {
-      | Hole(s) => Hole(TermBase.TypeHole.show(s))
+      | Hole(s) => Hole(DrvTermBase.show_type_hole(s))
       | Ctx(ps) =>
         Ctx(
           ps
@@ -63,7 +63,7 @@ and elab_prop: Drv.Exp.t => t =
   prop => {
     let term: term =
       switch (exp_term_of(prop)) {
-      | Hole(s) => Hole(TermBase.TypeHole.show(s))
+      | Hole(s) => Hole(DrvTermBase.show_type_hole(s))
       | Type(t) => Type(elab_typ(t))
       | HasType(e, t) => HasType(elab_exp(e), elab_typ(t))
       | Syn(e, t) => Syn(elab_exp(e), elab_typ(t))
@@ -95,7 +95,7 @@ and elab_exp: Drv.Exp.t => t =
     let hole: term = Hole(Drv.Exp.show(exp));
     let term: term =
       switch (exp_term_of(exp)) {
-      | Hole(s) => Hole(TermBase.TypeHole.show(s))
+      | Hole(s) => Hole(DrvTermBase.show_type_hole(s))
       | NumLit(i) => NumLit(i)
       | Neg(e) => Neg(elab_exp(e))
       | Plus(e1, e2) => Plus(elab_exp(e1), elab_exp(e2))
@@ -149,7 +149,7 @@ and elab_pat: Drv.Pat.t => t =
   pat => {
     let term: term =
       switch (pat.term) {
-      | Hole(s) => Hole(TermBase.TypeHole.show(s))
+      | Hole(s) => Hole(DrvTermBase.show_type_hole(s))
       | Var(x) => Pat(x)
       | Cast(x, t) => Cast(elab_pat(x), elab_typ(t))
       | Pair(x, y) => PatPair(elab_pat(x), elab_pat(y))
@@ -164,7 +164,7 @@ and elab_typ: Drv.Typ.t => t =
   typ => {
     let term: term =
       switch (typ.term) {
-      | Hole(s) => Hole(TermBase.TypeHole.show(s))
+      | Hole(s) => Hole(DrvTermBase.show_type_hole(s))
       | Abbr(_) => Hole(Drv.Typ.show(typ))
       | Num => Num
       | Bool => Bool
@@ -183,7 +183,7 @@ and elab_tpat: Drv.TPat.t => t =
   tpat => {
     let term: term =
       switch (tpat.term) {
-      | Hole(s) => Hole(TermBase.TypeHole.show(s))
+      | Hole(s) => Hole(DrvTermBase.show_type_hole(s))
       | Var(x) => TPat(x)
       };
     {...tpat, term};

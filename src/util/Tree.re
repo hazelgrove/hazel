@@ -116,6 +116,8 @@ let rec combine = (Node(v1, c1), Node(v2, c2)) =>
 
 let rec map = (f, Node(v, c)) => Node(f(v), c |> List.map(map(f)));
 
+let map2 = (f, n1, n2) => map(((v1, v2)) => f(v1, v2), combine(n1, n2));
+
 let mapi = f => {
   let rec aux = (f, acc_pos, Node(v, c)) =>
     Node(

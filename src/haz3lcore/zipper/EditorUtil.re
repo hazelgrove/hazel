@@ -31,7 +31,7 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | BinOp(_)
   | BuiltinFun(_)
   | Cast(_)
-  | Term(_)
+  | DrvExp(_)
   | Match(_) => {ids: [Id.mk()], copied: false, term: Seq(e1, e2)}
   | Seq(e11, e12) =>
     let e12' = append_exp(e12, e2);
@@ -46,4 +46,21 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
     let ebody' = append_exp(ebody, e2);
     {ids: e1.ids, copied: false, term: TyAlias(tp, tdef, ebody')};
   };
+};
+
+let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t => {
+  term:
+    Filter(
+      Filter({
+        act: FilterAction.(act, One),
+        pat: {
+          term: Constructor("$e", Unknown(Internal) |> Typ.fresh),
+          copied: false,
+          ids: [Id.mk()],
+        },
+      }),
+      term,
+    ),
+  copied: false,
+  ids: [Id.mk()],
 };

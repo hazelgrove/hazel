@@ -293,7 +293,6 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
 
 let forms: list((string, t)) = [
   // INFIX OPERATORS
-  ("typ_plus", mk_infix("+", Typ, P.type_plus)),
   ("type-arrow", mk_infix("->", Typ, P.type_arrow)),
   ("cell-join", mk_infix(";", Exp, P.semi)),
   ("plus", mk_infix("+", Exp, P.plus)),
@@ -326,7 +325,9 @@ let forms: list((string, t)) = [
   ("list_concat", mk_infix("@", Exp, P.plus)),
   ("cons_exp", mk_infix("::", Exp, P.cons)),
   ("cons_pat", mk_infix("::", Pat, P.cons)),
-  ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
+  ("typeann", mk(ss, [":"], mk_bin'(P.cast, Pat, Pat, [], Typ))),
+  ("typeasc", mk(ss, [":"], mk_bin'(P.cast, Exp, Exp, [], Typ))),
+  ("typ_plus", mk_infix("+", Typ, P.type_plus)),
   // UNARY PREFIX OPERATORS
   ("not", mk(ii, ["!"], mk_pre(P.not_, Exp, []))),
   ("typ_sum_single", mk(ss, ["+"], mk_pre(P.or_, Typ, []))),
@@ -347,7 +348,7 @@ let forms: list((string, t)) = [
   ("ap_exp_empty", mk(ii, ["()"], mk_post(P.ap, Exp, []))),
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
-  ("ap_typ", mk(ii, ["(", ")"], mk_post(P.ap, Typ, [Typ]))),
+  ("ap_typ", mk(ii, ["(", ")"], mk_post(P.type_sum_ap, Typ, [Typ]))),
   (
     "ap_exp_typ",
     mk((Instant, Static), ["@<", ">"], mk_post(P.ap, Exp, [Typ])),
@@ -470,19 +471,19 @@ let forms: list((string, t)) = [
   ("valid", mk(ds, ["valid", "end"], mk_op(Drv(Exp), [Drv(Typ)]))),
   (
     "hastype",
-    mk(ss, [":"], mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ))),
+    mk(ss, [":"], mk_bin'(P.cast, Drv(Exp), Drv(Exp), [], Drv(Typ))),
   ),
   (
     "syn",
-    mk(ss, ["=>"], mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ))),
+    mk(ss, ["=>"], mk_bin'(P.cast, Drv(Exp), Drv(Exp), [], Drv(Typ))),
   ),
   (
     "ana",
-    mk(ss, ["<="], mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ))),
+    mk(ss, ["<="], mk_bin'(P.cast, Drv(Exp), Drv(Exp), [], Drv(Typ))),
   ),
   ("and", mk_infix("/\\", Drv(Exp), P.and_)),
   ("or", mk_infix("\\/", Drv(Exp), P.or_)),
-  ("impl", mk_infix("==>", Drv(Exp), P.ann)),
+  ("impl", mk_infix("==>", Drv(Exp), P.cast)),
   ("prop_neg", mk(ds, ["!"], mk_pre(P.neg, Drv(Exp), []))),
   // Drv(Exp)
   ("exp_neg", mk(ds, ["-"], mk_pre(P.neg, Drv(Exp), []))),
@@ -532,7 +533,7 @@ let forms: list((string, t)) = [
   // Drv(Pat)
   (
     "pat_cast",
-    mk(ss, [":"], mk_bin'(P.ann, Drv(Pat), Drv(Pat), [], Drv(Typ))),
+    mk(ss, [":"], mk_bin'(P.cast, Drv(Pat), Drv(Pat), [], Drv(Typ))),
   ),
   ("pat_ap", mk(ii, ["(", ")"], mk_post(P.ap, Drv(Pat), [Drv(Pat)]))),
   ("pat_pair", mk_infix(",", Drv(Pat), P.comma)),
@@ -576,7 +577,7 @@ let forms: list((string, t)) = [
 // let forms = List.map(((name, _)) => (name, get(redirect(name))), forms);
 
 let get: String.t => t =
-  name => Util.ListUtil.assoc_err(name, forms, "Forms.get");
+  name => Util.ListUtil.assoc_err(name, forms, "Forms.get : " ++ name);
 
 let delims: list(Token.t) =
   forms

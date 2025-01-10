@@ -86,7 +86,7 @@ let is_alfa_rules =
     ts
     |> List.map(
          fun
-         | (_, (["|", "=>"], [Any.Drv(Pat(p))])) => Some(p)
+         | (_, (["|", "=>"], [TermBase.Drv(Pat(p))])) => Some(p)
          | _ => None,
        )
     |> OptUtil.sequence
@@ -94,7 +94,7 @@ let is_alfa_rules =
     kids
     |> List.map(
          fun
-         | Drv(Exp(clause)) => Some(clause)
+         | TermBase.Drv(Exp(clause)) => Some(clause)
          | _ => None,
        )
     |> OptUtil.sequence;
@@ -174,6 +174,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
       | Pat => Pat(alfa_pat(unsorted(skel, seg)))
       | Typ => Typ(alfa_typ(unsorted(skel, seg)))
       | TPat => TPat(alfa_tpat(unsorted(skel, seg)))
+      | Any => Exp(alfa_exp(unsorted(skel, seg))) // TODO(zhiyao): check this
       },
     )
   | Pat => Pat(pat(unsorted(skel, seg)))
@@ -206,7 +207,8 @@ and alfa_exp = unsorted => {
 }
 and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
   let ret = (tm: Drv.Exp.term) => (tm, []);
-  let hole = unsorted => Drv.Exp.hole(kids_of_unsorted(unsorted));
+  let hole: unsorted => DrvTermBase.exp_term =
+    unsorted => Hole(Any.drv_hole(kids_of_unsorted(unsorted)));
   fun
   | Op(([(_id, t)], [])) as tm =>
     switch (t) {
@@ -316,7 +318,8 @@ and alfa_pat = unsorted => {
 }
 and alfa_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
   let ret = (tm: Drv.Pat.term) => (tm, []);
-  let hole = unsorted => Drv.Pat.hole(kids_of_unsorted(unsorted));
+  let hole: unsorted => DrvTermBase.pat_term =
+    unsorted => Hole(Any.drv_hole(kids_of_unsorted(unsorted)));
   fun
   | Op(([(_id, ([t], []))], [])) as tm =>
     switch (t) {
@@ -343,7 +346,8 @@ and alfa_typ = unsorted => {
 }
 and alfa_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
   let ret = (tm: Drv.Typ.term) => (tm, []);
-  let hole = unsorted => Drv.Typ.hole(kids_of_unsorted(unsorted));
+  let hole: unsorted => DrvTermBase.typ_term =
+    unsorted => Hole(Any.drv_hole(kids_of_unsorted(unsorted)));
   fun
   | Op(([(_id, ([t], []))], [])) as tm =>
     switch (t) {
@@ -377,7 +381,8 @@ and alfa_tpat = unsorted => {
 }
 and alfa_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
   let ret = (tm: Drv.TPat.term) => (tm, []);
-  let hole = unsorted => Drv.TPat.hole(kids_of_unsorted(unsorted));
+  let hole: unsorted => DrvTermBase.tpat_term =
+    unsorted => Hole(Any.drv_hole(kids_of_unsorted(unsorted)));
   fun
   | Op(([(_id, ([t], []))], [])) when Form.is_typ_var(t) => ret(Var(t))
   | _ as tm => ret(hole(tm));
@@ -390,7 +395,7 @@ and exp = unsorted => {
     let (term, inner_ids) = alfa_exp_term(unsorted);
     let ids = ids(unsorted) @ inner_ids;
     let exp = return(e => Drv(Exp(e)), ids, {ids, copied: false, term});
-    TermBase.Exp.Term(Drv(Exp(exp)), Drv(Jdmt)) |> IdTagged.fresh;
+    TermBase.DrvExp(Exp(exp)) |> IdTagged.fresh;
   | _ =>
     let ids = ids(unsorted) @ inner_ids;
     return(e => Exp(e), ids, {ids, copied: false, term});
@@ -434,16 +439,11 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       //   ret(Term(Drv(TPat(tp))))
       // | (["of_ctxt", "end"], [Drv(Exp(ctx))]) =>
       //   ret(Term(Drv(Exp(ctx))))
-      | (["of_jdmt", "end"], [Drv(Exp(j))]) =>
-        ret(Term(Drv(Exp(j)), Drv(Jdmt)))
-      | (["of_ctx", "end"], [Drv(Exp(c))]) =>
-        ret(Term(Drv(Exp(c)), Drv(Ctx)))
-      | (["of_prop", "end"], [Drv(Exp(p))]) =>
-        ret(Term(Drv(Exp(p)), Drv(Prop)))
-      | (["of_alfa_exp", "end"], [Drv(Exp(e))]) =>
-        ret(Term(Drv(Exp(e)), Drv(Exp)))
-      | (["of_alfa_typ", "end"], [Drv(Typ(t))]) =>
-        ret(Term(Drv(Typ(t)), Drv(Typ)))
+      | (["of_jdmt", "end"], [Drv(Exp(j))]) => ret(DrvExp(Exp(j)))
+      | (["of_ctx", "end"], [Drv(Exp(c))]) => ret(DrvExp(Exp(c)))
+      | (["of_prop", "end"], [Drv(Exp(p))]) => ret(DrvExp(Exp(p)))
+      | (["of_alfa_exp", "end"], [Drv(Exp(e))]) => ret(DrvExp(Exp(e)))
+      | (["of_alfa_typ", "end"], [Drv(Typ(t))]) => ret(DrvExp(Typ(t))) // TODO(zhiyao): differentiate.
       | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))
@@ -515,6 +515,12 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | (["@<", ">"], [Typ(ty)]) => ret(TypAp(l, ty))
       | _ => ret(hole(tm))
       }
+    | _ => ret(hole(tm))
+    }
+  | Bin(Exp(l), tiles, Typ(r)) as tm =>
+    switch (tiles) {
+    | ([(_id, ([":"], []))], []) =>
+      ret(Cast(l, Unknown(Internal) |> Typ.fresh, r))
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>

@@ -171,11 +171,13 @@ and multi = (~ctx, ~ancestors, m, tms) =>
     tms,
   )
 and drv_to_info_map =
-    (drv: Drv.t, m: Map.t, ~ctx, ~ancestors, ~ty): (DrvInfo.t, Map.t) => {
+    (drv: Drv.Any.t, m: Map.t, ~ctx, ~ancestors, ~ty): (DrvInfo.t, Map.t) => {
   let add = (drv, info, m) => (
     info,
-    add_info(Drv.of_id(drv), InfoDrv(info), m),
+    add_info(Drv.Any.of_id(drv), InfoDrv(info), m),
   );
+  let go_any = (any: Drv.Any.t, m) =>
+    drv_to_info_map(any, m, ~ctx, ~ancestors, ~ty);
   let rec go_exp = (exp: Drv.Exp.t, m, ~ty: DrvInfo.ty_merged) => {
     let info = DrvInfo.derived_exp(exp, ~ancestors, ~ty);
     let info': DrvInfo.t = Exp(info);
@@ -188,7 +190,7 @@ and drv_to_info_map =
       switch (p.term) {
       | Var(x) =>
         switch (Self.of_exp_var(ctx, x)) {
-        | Common(Just({term: Term(Drv(Exp)), _})) => m |> add'
+        | Common(Just({term: DrvTyp(Exp), _})) => m |> add'
         | _ => m |> add(Exp({...info, status: InHole(FreeVar)}))
         }
       | _ => m |> add(Exp({...info, status: InHole(FreeVar)}))
@@ -306,7 +308,7 @@ and drv_to_info_map =
       switch (p.term) {
       | Var(x) =>
         switch (Self.of_exp_var(ctx, x)) {
-        | Common(Just({term: Term(Drv(Typ)), _})) => m |> add'
+        | Common(Just({term: DrvTyp(Typ), _})) => m |> add'
         | _ => m |> add(Typ({...info, status: InHole(FreeVar)}))
         }
       | _ => m |> add(Typ({...info, status: InHole(FreeVar)}))
@@ -333,6 +335,7 @@ and drv_to_info_map =
   | Pat(pat) => go_pat(pat, m, ~expect=Var)
   | Typ(ty) => go_typ(ty, m)
   | TPat(tp) => go_tpat(tp, m)
+  | Any(_) => go_any(drv, m)
   };
 }
 and uexp_to_info_map =
@@ -378,19 +381,21 @@ and uexp_to_info_map =
       ([], m),
     );
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
+  let go_typ = utyp_to_info_map(~ctx, ~ancestors);
   let atomic = self => add(~self, ~co_ctx=CoCtx.empty, m);
   switch (term) {
-  | Closure(_) =>
-    failwith(
-      "TODO: implement closure type checking - see how dynamic type assignment does it",
-    )
+  | Closure(_, e) =>
+    // TODO: implement closure type checking properly - see how dynamic type assignment does it
+    let (e, m) = go(~mode, e, m);
+    add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
   | MultiHole(tms) =>
     let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
     add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
-  | Cast(e, t1, t2)
-  | FailedCast(e, t1, t2) =>
-    let (e, m) = go(~mode=Ana(t1), e, m);
-    add(~self=Just(t2), ~co_ctx=e.co_ctx, m);
+  | Cast(e, _, t2)
+  | FailedCast(e, _, t2) =>
+    let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, m);
+    let (e, m) = go'(~mode=Ana(t.term), ~ctx=t.ctx, e, m);
+    add(~self=Just(t.term), ~co_ctx=e.co_ctx, m);
   | Invalid(token) => atomic(BadToken(token))
   | EmptyHole => atomic(Just(Unknown(Internal) |> Typ.temp))
   | Deferral(position) =>
@@ -400,29 +405,27 @@ and uexp_to_info_map =
   | Int(_) => atomic(Just(Int |> Typ.temp))
   | Float(_) => atomic(Just(Float |> Typ.temp))
   | String(_) => atomic(Just(String |> Typ.temp))
-  | Term(term, s) =>
-    let term =
-      switch (term) {
-      | Drv(drv) => drv
-      | _ => failwith("Statics.uexp_to_info_map: impossible term")
-      };
-    let ty: DrvInfo.ty_merged =
-      switch (s) {
-      | Drv(Jdmt) => Jdmt
-      | Drv(Ctx) => Ctx
-      | Drv(Prop) => Prop
-      | Drv(Exp) => Exp
-      | _ => Exp
-      };
+  | DrvExp(term) =>
+    // TODO(zhiyao): implement ty_merged
+    // let ty: DrvInfo.ty_merged =
+    //   switch (s) {
+    //   | Drv(Jdmt) => Jdmt
+    //   | Drv(Ctx) => Ctx
+    //   | Drv(Prop) => Prop
+    //   | Drv(Exp) => Exp
+    //   | _ => Exp
+    //   };
+
     let self: Self.t =
       switch (term) {
-      | Exp(_) => Just(Term(Drv(Exp)) |> Typ.temp)
-      | Pat(_) => Just(Term(Drv(Pat)) |> Typ.temp)
-      | Typ(_) => Just(Term(Drv(Typ)) |> Typ.temp)
-      | TPat(_) => Just(Term(Drv(TPat)) |> Typ.temp)
-      | Rul(_) => Just(Term(Drv(Rul)) |> Typ.temp)
+      | Exp(_) => Just(DrvTyp(Exp) |> Typ.temp)
+      | Pat(_) => Just(DrvTyp(Pat) |> Typ.temp)
+      | Typ(_) => Just(DrvTyp(Typ) |> Typ.temp)
+      | TPat(_) => Just(DrvTyp(TPat) |> Typ.temp)
+      | Rul(_) => Just(DrvTyp(Rul) |> Typ.temp)
+      | Any(_) => Just(DrvTyp(Exp) |> Typ.temp)
       };
-    let m = drv_to_info_map(term, m, ~ctx, ~ancestors, ~ty) |> snd;
+    let m = drv_to_info_map(term, m, ~ctx, ~ancestors, ~ty=Exp) |> snd;
     add(~self, ~co_ctx=CoCtx.empty, m);
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
@@ -1033,7 +1036,7 @@ and utyp_to_info_map =
   | Int
   | Float
   | Bool
-  | Term(_)
+  | DrvTyp(_)
   | String => add(m)
   | Var(_) =>
     /* Names are resolved in Info.status_typ */
@@ -1163,7 +1166,29 @@ and variant_to_info_map =
 
 let mk =
   Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
-    uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty) |> snd
+    uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty)
+    |> snd
+    // |> (
+    //   m => {
+    //     print_endline(
+    //       "info_map"
+    //       ++ (
+    //         Id.Map.to_list(m)
+    //         |> List.filter_map(((id, info)) =>
+    //              switch (info) {
+    //              | Info.InfoDrv(_) => Some((id, info))
+    //              | _ => None
+    //              }
+    //            )
+    //         |> List.map(((id, info)) =>
+    //              Uuidm.to_string(id) ++ ": " ++ Info.show(info)
+    //            )
+    //         |> String.concat(", ")
+    //       ),
+    //     );
+    //     m;
+    //   }
+    // )
   });
 
 let mk = (core: CoreSettings.t, ctx, exp) =>

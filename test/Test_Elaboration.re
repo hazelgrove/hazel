@@ -319,35 +319,38 @@ let ap_of_deferral_of_hole = () =>
     ),
   );
 
-let elaboration_tests = [
-  test_case("Single integer", `Quick, single_integer),
-  test_case("Empty hole", `Quick, empty_hole),
-  test_case("Free variable", `Quick, free_var),
-  test_case("Let expression", `Quick, let_exp),
-  test_case("Inconsistent binary operation", `Quick, bin_op),
-  test_case("Consistent if statement", `Quick, consistent_if),
-  test_case("An unapplied function", `Quick, unapplied_function),
-  test_case("Application of function on free variable", `Quick, ap_fun),
-  test_case("Inconsistent case statement", `Quick, inconsistent_case),
-  test_case("Let expression for a function", `Quick, let_fun),
-  test_case(
-    "Function application with a deferred argument",
-    `Quick,
-    deferral,
-  ),
-  test_case(
-    "Function application with a single remaining argument after deferral",
-    `Quick,
-    ap_deferral_single_argument,
-  ),
-  test_case(
-    "Function application with a deferral of a hole",
-    `Quick,
-    ap_of_deferral_of_hole,
-  ),
-  test_case(
-    "Rules print all",
-    `Quick,
-    RuleVerify.__print_all_specs_and_tests,
-  ),
-];
+let elaboration_tests = (
+  "Elaboration",
+  [
+    test_case("Single integer", `Quick, single_integer),
+    test_case("Empty hole", `Quick, empty_hole),
+    test_case("Free variable", `Quick, free_var),
+    test_case("Let expression", `Quick, let_exp),
+    test_case("Inconsistent binary operation", `Quick, bin_op),
+    test_case("Consistent if statement", `Quick, consistent_if),
+    test_case("An unapplied function", `Quick, unapplied_function),
+    test_case("Application of function on free variable", `Quick, ap_fun),
+    test_case("Inconsistent case statement", `Quick, inconsistent_case),
+    test_case("Let expression for a function", `Quick, let_fun),
+    test_case(
+      "Function application with a deferred argument",
+      `Quick,
+      deferral,
+    ),
+    test_case(
+      "Function application with a single remaining argument after deferral",
+      `Quick,
+      ap_deferral_single_argument,
+    ),
+    test_case(
+      "Function application with a deferral of a hole",
+      `Quick,
+      ap_of_deferral_of_hole,
+    ),
+    test_case(
+      "Rules print all",
+      `Quick,
+      RuleVerify.__print_all_specs_and_tests,
+    ),
+  ],
+);

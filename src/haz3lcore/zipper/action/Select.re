@@ -1,7 +1,7 @@
 open Util;
 open OptUtil.Syntax;
 
-module Make = (M: Editor.Meta.S) => {
+module Make = (M: Move.S) => {
   module Move = Move.Make(M);
 
   let primary = (d: Direction.t, z: Zipper.t): option(Zipper.t) =>

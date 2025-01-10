@@ -101,7 +101,7 @@ and exp_term =
      two consistent types. Both types should be normalized in
      dynamics for the cast calculus to work right. */
   | Cast(exp_t, typ_t, typ_t)
-  | AnyTerm(DrvTermBase.any_t)
+  | DrvExp(DrvTermBase.any_t)
 and exp_t = IdTagged.t(exp_term)
 and pat_term =
   | Invalid(string)
@@ -136,6 +136,7 @@ and typ_term =
   | Ap(typ_t, typ_t)
   | Rec(tpat_t, typ_t)
   | Forall(tpat_t, typ_t)
+  | DrvTyp(DrvSort.t)
 and typ_t = IdTagged.t(typ_term)
 and tpat_term =
   | Invalid(string)
@@ -178,7 +179,6 @@ module rec Any: {
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      ~f_drv: Drv.mapper=?,
       t
     ) =>
     t;
@@ -196,67 +196,24 @@ module rec Any: {
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
-        ~f_drv=Drv.drv_continue,
         x,
       ) => {
     let pat_map_term =
-      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = y =>
       switch (y) {
-      | Drv(x) => Drv(Drv.map_term(~f_drv, x))
+      | Drv(x) => Drv(x)
       | Exp(x) =>
-        Exp(
-          Exp.map_term(
-            ~f_exp,
-            ~f_pat,
-            ~f_typ,
-            ~f_tpat,
-            ~f_rul,
-            ~f_any,
-            ~f_drv,
-            x,
-          ),
-        )
+        Exp(Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
       | Pat(x) => Pat(pat_map_term(x))
       | Typ(x) =>
-        Typ(
-          Typ.map_term(
-            ~f_exp,
-            ~f_pat,
-            ~f_typ,
-            ~f_tpat,
-            ~f_rul,
-            ~f_any,
-            ~f_drv,
-            x,
-          ),
-        )
+        Typ(Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
       | TPat(x) =>
         TPat(
-          TPat.map_term(
-            ~f_exp,
-            ~f_pat,
-            ~f_typ,
-            ~f_tpat,
-            ~f_rul,
-            ~f_any,
-            ~f_drv,
-            x,
-          ),
+          TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x),
         )
       | Rul(x) =>
-        Rul(
-          Rul.map_term(
-            ~f_exp,
-            ~f_pat,
-            ~f_typ,
-            ~f_tpat,
-            ~f_rul,
-            ~f_any,
-            ~f_drv,
-            x,
-          ),
-        )
+        Rul(Rul.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
       | Nul () => Nul()
       | Any () => Any()
       };
@@ -265,7 +222,7 @@ module rec Any: {
 
   let fast_equal = (x, y) =>
     switch (x, y) {
-    | (Drv(x), Drv(y)) => Drv.fast_equal(x, y)
+    | (Drv(x), Drv(y)) => DrvTermBase.Any.fast_equal(x, y)
     | (Exp(x), Exp(y)) => Exp.fast_equal(x, y)
     | (Pat(x), Pat(y)) => Pat.fast_equal(x, y)
     | (Typ(x), Typ(y)) => Typ.fast_equal(x, y)
@@ -311,7 +268,6 @@ and Exp: {
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      ~f_drv: Drv.mapper=?,
       t
     ) =>
     t;
@@ -333,19 +289,18 @@ and Exp: {
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
-        ~f_drv=Drv.drv_continue,
         x,
       ) => {
     let exp_map_term =
-      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let pat_map_term =
-      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let typ_map_term =
-      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
+      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let tpat_map_term =
-      TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
+      TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let any_map_term =
-      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let flt_map_term =
       StepperFilterKind.map_term(
         ~f_exp,
@@ -371,7 +326,8 @@ and Exp: {
         | Undefined => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | DynamicErrorHole(e, err) => DynamicErrorHole(exp_map_term(e), err)
-        | FailedCast(e, t1, t2) => FailedCast(exp_map_term(e), t1, t2)
+        | FailedCast(e, t1, t2) =>
+          FailedCast(exp_map_term(e), typ_map_term(t1), typ_map_term(t2))
         | ListLit(ts) => ListLit(List.map(exp_map_term, ts))
         | Fun(p, e, env, f) =>
           Fun(pat_map_term(p), exp_map_term(e), env, f)
@@ -408,8 +364,9 @@ and Exp: {
               rls,
             ),
           )
-        | Cast(e, t1, t2) => Cast(exp_map_term(e), t1, t2)
-        | AnyTerm(e) => AnyTerm(any_map_term(e), s)
+        | Cast(e, t1, t2) =>
+          Cast(exp_map_term(e), typ_map_term(t1), typ_map_term(t2))
+        | DrvExp(e) => DrvExp(e)
         },
     };
     x |> f_exp(rec_call);
@@ -494,7 +451,7 @@ and Exp: {
          )
     | (Cast(e1, t1, t2), Cast(e2, t3, t4)) =>
       fast_equal(e1, e2) && Typ.fast_equal(t1, t3) && Typ.fast_equal(t2, t4)
-    | (Term(t1, s1), Term(t2, s2)) => Any.fast_equal(t1, t2) && s1 == s2
+    | (DrvExp(t1), DrvExp(t2)) => DrvTermBase.Any.fast_equal(t1, t2)
     | (Invalid(_), _)
     | (FailedCast(_), _)
     | (Deferral(_), _)
@@ -526,7 +483,7 @@ and Exp: {
     | (BuiltinFun(_), _)
     | (Match(_), _)
     | (Cast(_), _)
-    | (Term(_), _)
+    | (DrvExp(_), _)
     | (MultiHole(_), _)
     | (EmptyHole, _)
     | (Undefined, _) => false
@@ -546,7 +503,6 @@ and Pat: {
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      ~f_drv: Drv.mapper=?,
       t
     ) =>
     t;
@@ -566,15 +522,14 @@ and Pat: {
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
-        ~f_drv=Drv.drv_continue,
         x,
       ) => {
     let pat_map_term =
-      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let typ_map_term =
-      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
+      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let any_map_term =
-      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -660,7 +615,6 @@ and Typ: {
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      ~f_drv: Drv.mapper=?,
       t
     ) =>
     t;
@@ -684,15 +638,14 @@ and Typ: {
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
-        ~f_drv=Drv.drv_continue,
         x,
       ) => {
     let typ_map_term =
-      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
+      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let any_map_term =
-      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let tpat_map_term =
-      TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
+      TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -705,7 +658,7 @@ and Typ: {
         | Int
         | Float
         | String
-        | Term(_)
+        | DrvTyp(_)
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>
@@ -741,7 +694,7 @@ and Typ: {
       | Float => Float |> rewrap
       | Bool => Bool |> rewrap
       | String => String |> rewrap
-      | Term(sort) => Term(sort) |> rewrap
+      | DrvTyp(sort) => DrvTyp(sort) |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
@@ -790,8 +743,8 @@ and Typ: {
     | (Bool, _) => false
     | (String, String) => true
     | (String, _) => false
-    | (Term(s1), Term(s2)) => s1 == s2
-    | (Term(_), _) => false
+    | (DrvTyp(s1), DrvTyp(s2)) => s1 == s2
+    | (DrvTyp(_), _) => false
     | (Ap(t1, t2), Ap(t1', t2')) =>
       eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
     | (Ap(_), _) => false
@@ -829,7 +782,6 @@ and TPat: {
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      ~f_drv: Drv.mapper=?,
       t
     ) =>
     t;
@@ -851,11 +803,10 @@ and TPat: {
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
-        ~f_drv=Drv.drv_continue,
         x,
       ) => {
     let any_map_term =
-      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -903,7 +854,6 @@ and Rul: {
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      ~f_drv: Drv.mapper=?,
       t
     ) =>
     t;
@@ -923,15 +873,14 @@ and Rul: {
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
-        ~f_drv=Drv.drv_continue,
         x,
       ) => {
     let exp_map_term =
-      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let pat_map_term =
-      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let any_map_term =
-      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_drv);
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -1018,6 +967,7 @@ and ClosureEnvironment: {
   let fold: (((Var.t, Exp.t), 'b) => 'b, 'b, t) => 'b;
 
   let without_keys: (list(Var.t), t) => t;
+  let with_symbolic_keys: (list(Var.t), t) => t;
 
   let placeholder: t;
 } = {
@@ -1095,6 +1045,12 @@ and ClosureEnvironment: {
   let placeholder = wrap(Id.invalid, Environment.empty);
 
   let without_keys = keys => update(Environment.without_keys(keys));
+  let with_symbolic_keys = (keys, env) =>
+    List.fold_right(
+      (key, env) => extend(env, (key, Var(key) |> IdTagged.fresh)),
+      keys,
+      env,
+    );
 }
 and StepperFilterKind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -1108,7 +1064,6 @@ and StepperFilterKind: {
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      ~f_drv: Drv.mapper=?,
       t
     ) =>
     t;
@@ -1135,7 +1090,6 @@ and StepperFilterKind: {
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
-        ~f_drv=Drv.drv_continue,
       ) => {
     let exp_map_term =
       Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);

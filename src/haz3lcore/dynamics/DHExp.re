@@ -15,16 +15,6 @@ let mk = (ids, term): t => {
 };
 
 // TODO: make this function emit a map of changes
-let replace_all_ids =
-  map_term(
-    ~f_exp=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-    ~f_pat=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-    ~f_typ=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-    ~f_tpat=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-    ~f_rul=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-  );
-
-// TODO: make this function emit a map of changes
 let repair_ids =
   map_term(
     ~f_exp=
@@ -33,6 +23,32 @@ let repair_ids =
           replace_all_ids(exp);
         } else {
           continue(exp);
+        },
+    ~f_typ=
+      (continue, typ) =>
+        if (Typ.rep_id(typ) == Id.invalid) {
+          replace_all_ids_typ(typ);
+        } else {
+          continue(typ);
+        },
+    _,
+  );
+
+let repair_ids_typ =
+  Typ.map_term(
+    ~f_exp=
+      (continue, exp) =>
+        if (Exp.rep_id(exp) == Id.invalid) {
+          replace_all_ids(exp);
+        } else {
+          continue(exp);
+        },
+    ~f_typ=
+      (continue, typ) =>
+        if (typ.copied) {
+          replace_all_ids_typ(typ);
+        } else {
+          continue(typ);
         },
     _,
   );
@@ -78,10 +94,11 @@ let rec strip_casts =
         | TypAp(_)
         | Undefined
         | If(_)
-        | Term(_) => continue(exp)
+        | DrvExp(_) => continue(exp)
         /* Remove casts*/
-        | FailedCast(d, _, _)
         | Cast(d, _, _) => strip_casts(d)
+        /* Keep failed casts*/
+        | FailedCast(_, _, _) => continue(exp)
         }
       },
     _,
@@ -113,7 +130,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
             /* Note that we do not have to worry about capture avoidance, since s will always be closed. */
             }
           | Cast(_)
-          | Term(_)
+          | DrvExp(_)
           | FixF(_)
           | Fun(_)
           | TypAp(_)

@@ -116,7 +116,7 @@ type error =
   | Typ(error_typ)
   | TPat(error_common);
 
-let sort_of: t => Sort.DrvSort.t =
+let sort_of: t => DrvSort.t =
   fun
   | Exp({ty: Jdmt, _}) => Jdmt
   | Exp({ty: Ctx, _}) => Ctx
@@ -172,10 +172,10 @@ let types_of_exp = (exp: Drv.Exp.t): list(ty_merged) =>
   | Consistent(_)
   | MatchedArrow(_)
   | MatchedProd(_)
-  | MatchedSum(_) => [Jdmt]
+  | MatchedSum(_) => [Jdmt, Exp]
   | Ctx(_)
   | Cons(_)
-  | Concat(_) => [Ctx]
+  | Concat(_) => [Ctx, Exp]
   | Type(_)
   | HasType(_)
   | Syn(_)
@@ -184,7 +184,7 @@ let types_of_exp = (exp: Drv.Exp.t): list(ty_merged) =>
   | Or(_)
   | Impl(_)
   | Truth
-  | Falsity => [Prop]
+  | Falsity => [Prop, Exp]
   | NumLit(_)
   | Neg(_)
   | Plus(_)
@@ -208,7 +208,7 @@ let types_of_exp = (exp: Drv.Exp.t): list(ty_merged) =>
   | InjL
   | InjR
   | Roll
-  | Unroll => [Arrow]
+  | Unroll => [Arrow, Exp]
   };
 
 let status_exp = (exp: Drv.Exp.t, ty: ty_merged): status_exp =>
