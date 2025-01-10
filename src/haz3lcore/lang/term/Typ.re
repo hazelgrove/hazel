@@ -487,7 +487,15 @@ let matched_label = (ctx, ty) =>
   | Unknown(SynSwitch) => (Label("") |> temp, Unknown(SynSwitch) |> temp)
   | _ => (Label("") |> temp, ty)
   };
-
+let unwrap_tuplabel = (e: t): option((LabeledTuple.label, t)) =>
+  switch (e.term) {
+  | TupLabel(label, e') =>
+    switch (label.term) {
+    | Label(name) => Some((name, e'))
+    | _ => raise(Failure("unwrap_tuplabel: not a label")) // Custom error?
+    }
+  | _ => None
+  };
 let rec get_labels = (ctx, ty): list(option(string)) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
