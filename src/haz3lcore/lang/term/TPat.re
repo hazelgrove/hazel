@@ -30,5 +30,5 @@ let show_cls: cls => string =
   | Invalid => "Invalid type alias"
   | MultiHole => "Broken type alias"
   | EmptyHole => "Empty type alias hole"
-  | Ap => "Type Substitution"
+  | Ap => "Type substitution"
   | Var => "Type alias";
