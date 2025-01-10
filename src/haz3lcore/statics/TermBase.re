@@ -139,7 +139,7 @@ and tpat_term =
   | EmptyHole
   | MultiHole(list(any_t))
   | Var(string)
-  | Ap(tpat_term, string)
+  | Ap(tpat_term, tpat_term)
 and tpat_t = IdTagged.t(tpat_term)
 and rul_term =
   | Invalid(string)
