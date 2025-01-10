@@ -59,7 +59,7 @@ let type_of = (~statics_map=?, f) => {
   );
 };
 
-let inconsistent_typecheck = (name, _serialized, exp) => {
+let inconsistent_typecheck = (name, exp) => {
   test_case(
     name,
     `Quick,
@@ -311,27 +311,27 @@ let tests = (
       )
       |> Exp.fresh,
     ),
-    // fully_consistent_typecheck(
-    //   "function application",
-    //   "float_of_int(1)",
-    //   Some(float),
-    //   Ap(Forward, Var("float_of_int") |> Exp.fresh, Int(1) |> Exp.fresh)
-    //   |> Exp.fresh,
-    // ),
-    // fully_consistent_typecheck(
-    //   "function deferral",
-    //   "string_sub(\"hello\", 1, _)",
-    //   Some(arrow(int, string)),
-    //   DeferredAp(
-    //     Var("string_sub") |> Exp.fresh,
-    //     [
-    //       String("hello") |> Exp.fresh,
-    //       Int(1) |> Exp.fresh,
-    //       Deferral(InAp) |> Exp.fresh,
-    //     ],
-    //   )
-    //   |> Exp.fresh,
-    // ),
+    fully_consistent_typecheck(
+      "function application",
+      "float_of_int(1)",
+      Some(float),
+      Ap(Forward, Var("float_of_int") |> Exp.fresh, Int(1) |> Exp.fresh)
+      |> Exp.fresh,
+    ),
+    fully_consistent_typecheck(
+      "function deferral",
+      "string_sub(\"hello\", 1, _)",
+      Some(arrow(int, string)),
+      DeferredAp(
+        Var("string_sub") |> Exp.fresh,
+        [
+          String("hello") |> Exp.fresh,
+          Int(1) |> Exp.fresh,
+          Deferral(InAp) |> Exp.fresh,
+        ],
+      )
+      |> Exp.fresh,
+    ),
     unlabeled_tuple_to_labeled_fails,
     simple_inconsistency,
     fully_consistent_typecheck(
@@ -404,7 +404,6 @@ let tests = (
     ),
     inconsistent_typecheck(
       "Singleton Labled Tuple ascription in let with wrong type should fail",
-      "let x : (l=String) = 1 in x",
       Let(
         Cast(
           Var("x") |> Pat.fresh,
@@ -683,6 +682,12 @@ let tests = (
       {|let x : (a=Int) -> Int = fun a -> a in x(2)|},
       Some(int),
       parse_exp("let x : (a=Int) -> Int = fun a -> a in x(2)"),
+    ),
+    inconsistent_typecheck(
+      "Unknown label in last postition for expression",
+      parse_exp(
+        {|let x : (a=Int, b=Float, String) = (1, 1.2, z="hello") in |},
+      ),
     ),
   ],
 );
