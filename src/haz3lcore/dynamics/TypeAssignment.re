@@ -343,7 +343,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     } else {
       None;
     };
-  | TyAlias(_, _, d) => typ_of_dhexp(ctx, m, d)
+  | TyDef(_, _, d) => typ_of_dhexp(ctx, m, d)
   | Parens(d) => typ_of_dhexp(ctx, m, d)
   };
 };

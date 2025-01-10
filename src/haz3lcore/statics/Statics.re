@@ -598,7 +598,7 @@ and uexp_to_info_map =
         (unwrapped_self, m);
       };
     add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
-  | TyAlias(typat, utyp, body) =>
+  | TyDef(typat, utyp, body) =>
     let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
     switch (typat.term) {
     | Var(name) when !Ctx.shadows_typ(ctx, name) =>

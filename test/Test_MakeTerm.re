@@ -77,11 +77,7 @@ let tests = (
     }),
     test_case("Type Alias", `Quick, () => {
       exp_check(
-        TyAlias(
-          Var("x") |> TPat.fresh,
-          Int |> Typ.fresh,
-          Int(1) |> Exp.fresh,
-        )
+        TyDef(Var("x") |> TPat.fresh, Int |> Typ.fresh, Int(1) |> Exp.fresh)
         |> Exp.fresh,
         "type x = Int in 1",
       )

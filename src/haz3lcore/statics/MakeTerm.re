@@ -228,7 +228,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["debug", "in"], [Exp(filter)]) =>
           Filter(Filter({act: (Step, All), pat: filter}), r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
-          TyAlias(tpat, def, r)
+          TyDef(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
         | _ => hole(tm)

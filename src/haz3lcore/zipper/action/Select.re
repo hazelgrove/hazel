@@ -151,14 +151,14 @@ module Make = (M: Move.S) => {
       };
     let* ci_parent = statics_of(id);
     switch (Info.cls_of(ci_parent)) {
-    | Exp(Let | TyAlias) =>
+    | Exp(Let | TyDef) =>
       /* For definition-type forms, don't select the body,
        * unless the body is precisely what we're clicking on */
       switch (ci_parent) {
       | InfoExp({term: t, _}) =>
         switch (IdTagged.term_of(t)) {
         | Let(_, _, body)
-        | TyAlias(_, _, body) =>
+        | TyDef(_, _, body) =>
           let body_id = IdTagged.rep_id(body);
           base_id == body_id ? term(id, z) : tile(id, z);
         | _ => tile(id, z)

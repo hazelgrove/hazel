@@ -3,6 +3,7 @@ type cls =
   | Invalid
   | EmptyHole
   | MultiHole
+  | Ap
   | Var;
 
 include TermBase.TPat;
@@ -21,11 +22,13 @@ let cls_of_term: term => cls =
   | Invalid(_) => Invalid
   | EmptyHole => EmptyHole
   | MultiHole(_) => MultiHole
-  | Var(_) => Var;
+  | Var(_) => Var
+  | Ap(_, _) => Ap;
 
 let show_cls: cls => string =
   fun
   | Invalid => "Invalid type alias"
   | MultiHole => "Broken type alias"
   | EmptyHole => "Empty type alias hole"
+  | Ap => "Type Substitution"
   | Var => "Type alias";

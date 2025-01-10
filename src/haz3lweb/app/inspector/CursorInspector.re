@@ -339,7 +339,7 @@ let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
       text("Can't shadow base type"),
       view_type(Var(name) |> Typ.fresh) |> code_box_container,
     ])
-  | InHole(ShadowsType(name, TyAlias)) =>
+  | InHole(ShadowsType(name, TyDef)) =>
     div_err([
       text("Can't shadow existing alias"),
       view_type(Var(name) |> Typ.fresh) |> code_box_container,

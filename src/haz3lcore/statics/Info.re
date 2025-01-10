@@ -170,7 +170,7 @@ type type_var_err =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type shadow_src =
   | BaseTyp
-  | TyAlias
+  | TyDef
   | TyVar;
 
 /* Type pattern term errors */
@@ -502,7 +502,7 @@ let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
     if (Form.is_base_typ(name)) {
       f(BaseTyp);
     } else if (Ctx.is_alias(ctx, name)) {
-      f(TyAlias);
+      f(TyDef);
     } else {
       f(TyVar);
     };

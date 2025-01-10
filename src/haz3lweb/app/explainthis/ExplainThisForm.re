@@ -183,7 +183,7 @@ type form_id =
   | UnOpExp(Operators.op_un)
   | BinOpExp(Operators.op_bin)
   | CaseExp
-  | TyAliasExp
+  | TyDefExp
   | EmptyHolePat
   | MultiHolePat
   | WildPat
@@ -276,7 +276,7 @@ type group_id =
   | UnOpExp(Operators.op_un)
   | BinOpExp(Operators.op_bin)
   | CaseExp
-  | TyAliasExp
+  | TyDefExp
   | PipelineExp
   | EmptyHolePat
   | MultiHolePat
