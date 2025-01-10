@@ -140,7 +140,7 @@ and tpat_term =
   | EmptyHole
   | MultiHole(list(any_t))
   | Var(string)
-  | Ap(tpat_term,tpat_term)
+  | Ap(tpat_term, string)
 and tpat_t = IdTagged.t(tpat_term)
 and rul_term =
   | Invalid(string)
@@ -787,7 +787,7 @@ and TPat: {
         switch (term) {
         | EmptyHole
         | Invalid(_)
-        | Ap(_,_)
+        | Ap(_, _)
         | Var(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         },
@@ -809,8 +809,8 @@ and TPat: {
       List.length(xs) == List.length(ys)
       && List.equal(Any.fast_equal, xs, ys)
     | (Var(x), Var(y)) => x == y
-    | (Ap(t1,t2),Ap(t3,t4)) => t1 == t3 && t2 == t2
-    | (Ap(_,_),_) 
+    | (Ap(t1, t2), Ap(t3, t4)) => t1 == t3 && t2 == t4
+    | (Ap(_, _), _)
     | (EmptyHole, _)
     | (Invalid(_), _)
     | (MultiHole(_), _)

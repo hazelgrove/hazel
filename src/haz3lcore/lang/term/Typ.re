@@ -514,6 +514,7 @@ let rec needs_parens = (ty: t): bool =>
 let pretty_print_tvar = (tv: TPat.t): string =>
   switch (IdTagged.term_of(tv)) {
   | Var(x) => x
+  | Ap(_, x) => x
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => "?"

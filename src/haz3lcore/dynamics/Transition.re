@@ -773,7 +773,7 @@ module Transition = (EV: EV_MODE) => {
     | Parens(d) =>
       let. _ = otherwise(env, d);
       Step({expr: d, state_update, kind: RemoveParens, is_value: false});
-    | TyAlias(_, _, d) =>
+    | TyDef(_, _, d) =>
       let. _ = otherwise(env, d);
       Step({expr: d, state_update, kind: RemoveTypeAlias, is_value: false});
     | Filter(f1, d1) =>

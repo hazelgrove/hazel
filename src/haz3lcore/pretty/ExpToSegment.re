@@ -302,7 +302,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     [mk_form("fix", id, [p])]
     @ e
     |> fold_fun_if(settings.fold_fn_bodies, name);
-  | TyAlias(tp, t, e) =>
+  | TyDef(tp, t, e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
@@ -704,7 +704,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
 
   // Top-level things
   | Filter(_)
-  | TyAlias(_)
+  | TyDef(_)
   | Let(_) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
@@ -854,8 +854,8 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
       c // TODO: Parenthesize through closure
     )
     |> rewrap
-  | TyAlias(tp, t, e) =>
-    TyAlias(
+  | TyDef(tp, t, e) =>
+    TyDef(
       tp,
       t, // TODO: Types
       parenthesize(e) |> paren_assoc_at(Precedence.let_),
