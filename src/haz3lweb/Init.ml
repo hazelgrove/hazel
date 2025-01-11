@@ -18395,6 +18395,7 @@ let startup : PersistentData.t =
           ( "Programming Expressively",
             {
               focus = YourImpl;
+              wrapper = false;
               title = "Programming Expressively";
               description = "";
               editors =
@@ -18426,6 +18427,7 @@ let startup : PersistentData.t =
           ( "Composing Arithmetic Expressions",
             {
               focus = YourImpl;
+              wrapper = false;
               title = "Composing Arithmetic Expressions";
               description = "";
               editors =
@@ -18457,6 +18459,7 @@ let startup : PersistentData.t =
           ( "Computing Equationally",
             {
               focus = YourImpl;
+              wrapper = true;
               title = "Computing Equationally";
               description = "";
               editors =
@@ -18488,6 +18491,7 @@ let startup : PersistentData.t =
           ( "Variables",
             {
               focus = YourImpl;
+              wrapper = true;
               title = "Variables";
               description = "";
               editors =
@@ -18519,6 +18523,7 @@ let startup : PersistentData.t =
           ( "Compositionality",
             {
               focus = YourImpl;
+              wrapper = true;
               title = "Compositionality";
               description = "";
               editors =
@@ -18550,6 +18555,7 @@ let startup : PersistentData.t =
           ( "Scope",
             {
               focus = YourImpl;
+              wrapper = true;
               title = "Scope";
               description = "";
               editors =
@@ -18581,6 +18587,7 @@ let startup : PersistentData.t =
           ( "Shadowing",
             {
               focus = YourImpl;
+              wrapper = true;
               title = "Shadowing";
               description = "";
               editors =
@@ -18612,6 +18619,7 @@ let startup : PersistentData.t =
           ( "Booleans and Types",
             {
               focus = YourImpl;
+              wrapper = true;
               title = "Booleans and Types";
               description = "";
               editors =
@@ -18643,6 +18651,7 @@ let startup : PersistentData.t =
           ( "Conditional Expressions",
             {
               focus = YourImpl;
+              wrapper = true;
               title = "Conditional Expressions";
               description = "";
               editors =
@@ -18674,6 +18683,7 @@ let startup : PersistentData.t =
           ( "Functions",
             {
               focus = YourImpl;
+              wrapper = true;
               title = "Functions";
               description = "";
               editors =

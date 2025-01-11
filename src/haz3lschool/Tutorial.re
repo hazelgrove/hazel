@@ -51,6 +51,7 @@ module D = (TutorialEnv: TutorialEnv) => {
     description: string,
     your_impl: 'code,
     hidden_tests: hidden_tests('code),
+    wrapper: bool,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -107,6 +108,7 @@ module D = (TutorialEnv: TutorialEnv) => {
         tests: PersistentZipper.persist(p.hidden_tests.tests),
         hints: p.hidden_tests.hints,
       },
+      wrapper: p.wrapper,
     };
   };
 
@@ -127,6 +129,7 @@ module D = (TutorialEnv: TutorialEnv) => {
     title: string,
     description: string,
     editors: list((pos, PersistentZipper.t)),
+    wrapper: bool,
   };
 
   let editor_of_state: state => Editor.t =
@@ -228,7 +231,7 @@ module D = (TutorialEnv: TutorialEnv) => {
 
   let eds_of_spec =
       (
-        {title, description, your_impl, hidden_tests},
+        {title, description, your_impl, hidden_tests, wrapper},
         ~settings: CoreSettings.t,
       )
       : eds => {
@@ -239,7 +242,7 @@ module D = (TutorialEnv: TutorialEnv) => {
       let tests = editor_of_serialization(tests);
       {tests, hints};
     };
-    {title, description, your_impl, hidden_tests};
+    {title, description, your_impl, hidden_tests, wrapper};
   };
 
   let set_instructor_mode = ({eds, _} as state: state, new_mode: bool) => {
@@ -282,6 +285,7 @@ module D = (TutorialEnv: TutorialEnv) => {
       editors: zippers,
       title: state.eds.title,
       description: state.eds.description,
+      wrapper: state.eds.wrapper,
     };
   };
 
@@ -321,6 +325,7 @@ module D = (TutorialEnv: TutorialEnv) => {
             tests: hidden_tests_tests,
             hints: spec.hidden_tests.hints,
           },
+          wrapper: spec.wrapper,
         },
       },
       instructor_mode,
@@ -383,18 +388,43 @@ module D = (TutorialEnv: TutorialEnv) => {
     EditorUtil.append_exp(term_of(ed1));
 
   let stitch_term = ({eds, _}: state): stitched(UExp.t) => {
-    let instructor =
-      EditorUtil.append_exp(
-        term_of(eds.your_impl),
-        term_of(eds.hidden_tests.tests),
-      );
     let user_impl_term = {
       eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
     };
 
-    // No combining of your_impl_term with hidden_tests
+    let wrapper =
+      Let(
+        Var("answer") |> Pat.fresh,
+        EmptyHole |> Exp.fresh,
+        EmptyHole |> Exp.fresh,
+      )
+      |> Exp.fresh;
+    let wrapped_user_impl = EditorUtil.append_exp2(wrapper, user_impl_term);
+
     let hidden_tests_term =
-      EditorUtil.append_exp(user_impl_term, term_of(eds.hidden_tests.tests));
+      eds.wrapper
+        ? EditorUtil.append_exp(
+            wrapped_user_impl,
+            term_of(eds.hidden_tests.tests),
+          )
+        : EditorUtil.append_exp(
+            user_impl_term,
+            term_of(eds.hidden_tests.tests),
+          );
+
+    let instructor =
+      eds.wrapper
+        ? EditorUtil.append_exp(
+            wrapped_user_impl,
+            term_of(eds.hidden_tests.tests),
+          )
+        : EditorUtil.append_exp(
+            user_impl_term,
+            term_of(eds.hidden_tests.tests),
+          );
+
+    let x = eds.wrapper ? "true" : "false";
+    print_endline(x);
 
     {user_impl: user_impl_term, instructor, hidden_tests: hidden_tests_term};
   };
@@ -638,6 +668,7 @@ module D = (TutorialEnv: TutorialEnv) => {
     //     },
     //   );
     let hidden_tests_tests = Zipper.next_blank();
+    let wrapper = false;
     {
       title,
       description,
@@ -659,6 +690,7 @@ module D = (TutorialEnv: TutorialEnv) => {
         hints: [],
       },
       // syntax_tests: [],
+      wrapper,
     };
   };
 

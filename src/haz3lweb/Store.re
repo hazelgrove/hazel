@@ -322,11 +322,13 @@ module Tutorial = {
     title: "",
     description: "",
     editors: [(HiddenTests, slide)],
+    wrapper: false,
   };
 
   let state_to_persistent = (state: Tutorial.state): Tutorial.persistent_state => {
     {
       focus: YourImpl,
+      wrapper: state.eds.wrapper,
       title: state.eds.title,
       description: state.eds.description,
       editors: [
@@ -408,6 +410,7 @@ module Tutorial = {
             tests: hidden_tests_editor,
             hints: [],
           },
+          wrapper: status.wrapper,
         },
       };
 

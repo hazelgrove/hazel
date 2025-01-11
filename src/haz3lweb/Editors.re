@@ -254,6 +254,7 @@ let reset_current =
           tests: hidden_tests_zipper,
           hints: status.eds.hidden_tests.hints,
         },
+        wrapper: status.eds.wrapper,
       };
 
       let new_state =
