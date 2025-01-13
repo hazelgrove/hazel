@@ -150,7 +150,12 @@ let collate_utility =
         cached_syntax.measured,
       ),
     view: (sort, seg) =>
-      CodeViewable.view_segment(~globals, ~sort, ~token_of_proj=_ => "", seg),
+      CodeViewable.view_segment(
+        ~globals,
+        ~sort,
+        ~token_of_proj=Projector.token_of_proj_default,
+        seg,
+      ),
     exp_to_seg: exp =>
       exp
       |> DHExp.strip_casts
