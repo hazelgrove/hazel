@@ -54,3 +54,5 @@ let token_of_proj =
   | Block({row, col}) => String.make(row - 1, '\n') ++ String.make(col, ' ')
   };
 };
+
+let token_of_proj_default = token_of_proj(Id.Map.empty, Id.Map.empty);

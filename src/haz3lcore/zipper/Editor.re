@@ -97,7 +97,11 @@ module Model = {
       col_target: None,
     },
     history: History.empty,
-    syntax: CachedSyntax.init(zipper, ~token_of_proj=_ => ""),
+    syntax:
+      CachedSyntax.init(
+        zipper,
+        ~token_of_proj=Projector.token_of_proj_default,
+      ),
   };
 
   type persistent = PersistentZipper.t;
