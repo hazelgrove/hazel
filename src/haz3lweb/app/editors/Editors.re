@@ -71,6 +71,7 @@ module Store = {
       ExercisesMode.Store.save(~instructor_mode, m);
     | Model.Derivations(m) =>
       StoreMode.save(Derivations);
+      print_endline("Saving derivations");
       DerivationsMode.Store.save(~instructor_mode, m);
     };
   };
@@ -235,7 +236,9 @@ module Selection = {
     | Exercises(ExerciseMode.Selection.t)
     | Derivations(DerivationsMode.Selection.t);
 
-  let get_cursor_info = (~selection: t, editors: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~globals as _: Globals.t, ~selection: t, editors: Model.t)
+      : cursor(Update.t) => {
     switch (selection, editors) {
     | (Scratch(selection), Scratch(m)) =>
       let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);

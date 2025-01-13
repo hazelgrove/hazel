@@ -387,27 +387,9 @@ let forms: list((string, t)) = [
     mk(ds, ["of_alfa_exp", "end"], mk_op(Exp, [Drv(Exp)])),
   ),
   (
-    "to_alfa_typ",
+    "of_alfa_typ",
     mk(ds, ["of_alfa_typ", "end"], mk_op(Exp, [Drv(Typ)])),
   ),
-  // ("of_alfa_typ", mk(ds, ["of_Typ", "end"], mk_op(Exp, [Drv(Typ)]))),
-  // (
-  //   // TODO(zhiyao): fix this
-  //   "of_alfa_exp",
-  //   mk(ds, ["of_alfa_exp", "end"], mk_op(Exp, [Drv(Exp)])),
-  // ),
-  // ("of_alfa_pat", mk(ds, ["of_Pat", "end"], mk_op(Exp, [Drv(Pat)]))),
-  // ("of_alfa_tpat", mk(ds, ["of_TPat", "end"], mk_op(Exp, [Drv(TPat)]))),
-  // (
-  //   "prop_alias",
-  //   mk(ds, ["prop", "=", "in"], mk_pre(P.let_, Exp, [Pat, Drv(Exp)])),
-  // ),
-  // (
-  //   "alfa_alias",
-  //   mk(ds, ["alfa", "=", "in"], mk_pre(P.let_, Exp, [Pat, Drv(Exp)])),
-  // ),
-  // Drv(Jdmt)
-  // ("fake_val", mk(ds, ["val", "end"], mk_op(Exp, [Exp]))),
   ("val", mk(ds, ["val", "end"], mk_op(Drv(Exp), [Drv(Exp)]))),
   ("eval", mk_infix("\\=/", Drv(Exp), P.min)),
   ("entail", mk_infix("|-", Drv(Exp), P.min)),

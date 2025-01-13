@@ -30,7 +30,9 @@ module Model = {
   type persistent = DerivationTree.persistent_exercise_mode;
 
   let persist = (exercise: t, ~instructor_mode as _: bool): persistent => {
-    DerivationTree.map(exercise.spec, PersistentZipper.persist);
+    DerivationTree.map(exercise.editors, editor =>
+      editor.state.zipper |> PersistentZipper.persist
+    );
   };
 
   let unpersist = (~instructor_mode, persistent: persistent, spec) => {
@@ -83,47 +85,73 @@ module Update = {
     | Editor(_, ResultAction(_)) => Updated.return_quiet(model) // TODO: I think this case should never happen
     | MapEditor(f) =>
       let x = {...model, editors: f(model.editors)};
-      print_endline(
-        "Spec: "
-        ++ (
-          x.spec
-          |> DerivationTree.editor_positions
-          |> List.map(DerivationTree.show_pos)
-          |> String.concat(", ")
-        )
-        ++ "\n Editors: "
-        ++ (
-          x.editors
-          |> DerivationTree.editor_positions
-          |> List.map(DerivationTree.show_pos)
-          |> String.concat(", ")
-        )
-        ++ "\n Editors sort: "
-        ++ (
-          x.editors
-          |> DerivationTree.editors
-          |> List.map((ed: Editor.t) => Sort.show(ed.root))
-          |> String.concat(", ")
-        )
-        ++ "\n Stitched: "
-        ++ (
-          x.cells.trees
-          |> List.map(
-               Tree.mapi((pos, content) =>
-                 Tree.show_pos(pos)
-                 ++ (
-                   switch (content) {
-                   | Some(_) => ""
-                   | None => " (empty)"
-                   }
-                 )
-               ),
-             )
-          |> List.map(Tree.flatten)
-          |> List.map(String.concat(", "))
-          |> String.concat("\n")
-        ),
-      ); // TODO(zhiyao): facilitate recalculation
+      // print_endline(
+      //   "Spec: "
+      //   ++ (
+      //     x.spec
+      //     |> DerivationTree.editor_positions
+      //     |> List.map(DerivationTree.show_pos)
+      //     |> String.concat(", ")
+      //   )
+      //   ++ "\n Editors: "
+      //   ++ (
+      //     x.editors
+      //     |> DerivationTree.editor_positions
+      //     |> List.map(DerivationTree.show_pos)
+      //     |> String.concat(", ")
+      //   )
+      //   ++ "\n Editors sort: "
+      //   ++ (
+      //     x.editors
+      //     |> DerivationTree.editors
+      //     |> List.map((ed: Editor.t) => Sort.show(ed.root))
+      //     |> String.concat(", ")
+      //   )
+      // ++ "\n Stitched: "
+      // ++ (
+      //   x.cells.trees
+      //   |> List.map(
+      //        Tree.mapi((pos, content) =>
+      //          Tree.show_pos(pos)
+      //          ++ (
+      //            switch (content) {
+      //            | Some(_) => ""
+      //            | None => " (empty)"
+      //            }
+      //          )
+      //        ),
+      //      )
+      //   |> List.map(Tree.flatten)
+      //   |> List.map(String.concat(", "))
+      //   |> String.concat("\n")
+      // )
+      // ++ "\n Stitched: "
+      // ++ (
+      //   x.editors.trees
+      //   |> List.map(
+      //        Tree.mapi((pos, content) =>
+      //          Tree.show_pos(pos)
+      //          ++ (
+      //            switch (content) {
+      //            | DerivationTree.Abbr.Just(_) => "(x)"
+      //            | DerivationTree.Abbr.Abbr(i) =>
+      //              "("
+      //              ++ (
+      //                switch (i) {
+      //                | Some(i) => string_of_int(i)
+      //                | None => "?"
+      //                }
+      //              )
+      //              ++ ")"
+      //            }
+      //          )
+      //        ),
+      //      )
+      //   |> List.map(Tree.flatten)
+      //   |> List.map(String.concat(", "))
+      //   |> String.concat("\n")
+      // ),
+      // ); // TODO(zhiyao): facilitate recalculation
       {
         ...x,
         cells:
@@ -150,30 +178,38 @@ module Update = {
       worker_request :=
         worker_request^ @ [(pos |> DerivationTree.key_for_statics, expr)];
     };
-    let cells =
-      DerivationTree.map2_stitched(
-        (
-          pos,
-          {term, editor}: DerivationTree.TermItem.t,
-          cell: CellEditor.Model.t,
-        ) =>
-          {
-            editor: {
-              editor,
-              statics: cell.editor.statics,
-            },
-            result: cell.result,
-          }
+    let cells: DerivationTree.stitched(CellEditor.Model.t) =
+      DerivationTree.map_stitched(
+        (pos, {term, editor}: DerivationTree.TermItem.t) => {
+          (
+            try({
+              let cell = DerivationTree.get_stitched(pos, model.cells);
+              {
+                editor: {
+                  editor,
+                  statics: cell.editor.statics,
+                },
+                result: cell.result,
+              };
+            }) {
+            | Not_found =>
+              ""
+              |> DerivationTree.zipper_of_code(~root=Drv(Exp))
+              |> Editor.Model.mk(~root=Drv(Exp))
+              |> CellEditor.Model.mk
+            }
+          )
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
                ~queue_worker=Some(queue_worker(pos)),
                ~stitch=_ =>
                term
-             ),
+             )
+        },
         stitched_elabs,
-        model.cells,
       );
+
     WorkerClient.request(
       worker_request^,
       ~handler=
@@ -231,8 +267,10 @@ module Update = {
                        },
                      );
                    }
-                 // TODO(zhiyao): handle other cases
-                 | _ => DerivationTree.Abbr.Abbr(None),
+                 | (None, DerivationTree.Abbr.Abbr(d)) =>
+                   DerivationTree.Abbr.Abbr(d)
+                 | (None, _) => failwith("derivation inconsistency1")
+                 | (Some(_), _) => failwith("derivation inconsistency2"),
                ),
              );
         },
@@ -245,10 +283,7 @@ module Update = {
 module NinjaKeysRule = {
   open Js_of_ocaml;
   open Util;
-
   let pos = ref(DerivationTree.Trees(0, Value));
-
-  let staged = ref(false);
 
   let init = () =>
     ""
@@ -313,6 +348,7 @@ module Selection = {
 
   let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
     let (pos, s) = selection;
+    let pos = DerivationTree.farthest_pos(pos, model.editors);
     let cell_editor = DerivationTree.get_stitched(pos, model.cells);
     let+ a = CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
     Update.Editor(pos, a);
@@ -320,6 +356,7 @@ module Selection = {
 
   let handle_key_event = (~selection, ~event, model: Model.t) => {
     let (pos, s) = selection;
+    let pos = DerivationTree.farthest_pos(pos, model.editors);
     let cell_editor = DerivationTree.get_stitched(pos, model.cells);
     CellEditor.Selection.handle_key_event(~selection=s, ~event, cell_editor)
     |> Option.map(a => Update.Editor(pos, a));
@@ -501,16 +538,6 @@ module View = {
         Icons.command_palette_sparkle,
         _ => {
           NinjaKeysRule.pos := pos;
-          // let nj = JsUtil.get_elem_by_id("ninja-keys-rules");
-          // let em =
-          //   nj##getElementsByTagName(Js_of_ocaml.Js.string("ninja-action"));
-          // Js_of_ocaml.Dom.list_of_nodeList(em)
-          // |> List.iter(e =>
-          //      e##setAttribute(
-          //        Js_of_ocaml.Js.string("style"),
-          //        Js_of_ocaml.Js.string("display: none;"),
-          //      )
-          //    );
           NinjaKeysRule.open_command_palette();
           Effect.Ignore;
         },
@@ -586,35 +613,14 @@ module View = {
         @ [dropdown_switch_rule_view(~pos)],
       );
 
-    let label_view = (~pos, ~res, ~label) =>
+    let label_view = (~res, ~label) =>
       div(
         ~attrs=[
           Attr.class_("deduction-label"),
           Attr.class_(class_of_result(res)),
-          Attr.on_click(_ => {
-            if (NinjaKeysRule.pos^ == pos) {
-              NinjaKeysRule.staged := ! NinjaKeysRule.staged^;
-            } else {
-              NinjaKeysRule.staged := true;
-              NinjaKeysRule.pos := pos;
-            };
-            if (!globals.settings.explainThis.show) {
-              Ui_effect.Ignore; // TODO(zhiyao): cannot call inject here
-                        // inject(Set(ExplainThis(ToggleShow)));
-            } else {
-              Ui_effect.Ignore;
-            };
-          }),
         ],
         [text(label)],
       );
-
-    let pointer_view = (~pos: DerivationTree.pos) =>
-      if (NinjaKeysRule.pos^ == pos && NinjaKeysRule.staged^) {
-        div(~attrs=[Attr.class_("pointer")], []);
-      } else {
-        none;
-      };
 
     let result_btn_view = (~res: DrvGrading.VerifiedTree.info) => {
       let status =
@@ -629,7 +635,7 @@ module View = {
     let label_view = (~pos, ~res, ~label, ~index) =>
       div(
         ~attrs=[Attr.class_("deduction-label-wrapper")],
-        [label_view(~pos, ~res, ~label), dropdown_view(~pos, ~res, ~index)],
+        [label_view(~res, ~label), dropdown_view(~pos, ~res, ~index)],
       );
 
     let premises_view = (~children_node, ~pos, ~res, ~rule) => {
@@ -662,14 +668,10 @@ module View = {
                 ],
               ),
             ],
-            // List.init(n + 1, add_premise_btn_view(~pos, ~index=_))
-            // |> Aba.mk(_, children_node)
-            // |> Aba.join(Fun.id, Fun.id),
           ),
         ]
         @ [
           label_view(~pos, ~res, ~label, ~index=None),
-          pointer_view(~pos),
           result_btn_view(~res),
         ],
       );
@@ -750,7 +752,14 @@ module View = {
 
     let deduction_view = (~children_node, ~pos, ~res, ~rule, ~editor) =>
       div(
-        ~attrs=[Attr.class_("deduction-just")],
+        ~attrs=
+          [Attr.class_("deduction-just")]
+          @ (
+            switch (selection) {
+            | Some((pos', _)) when pos == pos' => [Attr.class_("staged")]
+            | _ => []
+            }
+          ),
         [
           premises_view(~children_node, ~pos, ~res, ~rule),
           conclusion_view(~pos, ~editor),
@@ -847,7 +856,20 @@ module View = {
                ) => (
                  Just(rule, di): ed
                )
-             | (Abbr(i), _) => Abbr(i)
+             | (Abbr(i), _) =>
+               //  {
+               //      print_endline(
+               //        "Abbr("
+               //        ++ (
+               //          switch (i) {
+               //          | Some(i) => string_of_int(i)
+               //          | None => "?"
+               //          }
+               //        )
+               //        ++ ")",
+               //      );
+               //  }
+               Abbr(i)
              | _ => raise(Failure("DerivationTree.mk: ed<>di inconsistent")),
            ),
          )

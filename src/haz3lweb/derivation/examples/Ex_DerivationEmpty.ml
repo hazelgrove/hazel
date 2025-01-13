@@ -1,12 +1,10 @@
-let prompt = Ex_DerivationEmpty_prompt.prompt
-
-let exercise : DerivationTree.spec =
+let exercise version : DerivationTree.spec =
   DerivationTree.transition
     {
-      title = "Derivation Playground";
-      version = 1;
+      title = "Derivation Playground " ^ version;
+      version = 0;
       module_name = "Ex_DerivationPlayground";
-      prompt;
+      prompt = "Try proving anything you want.";
       ruleset = Haz3lcore.RuleImage.GradualALFA;
       prelude = "";
       setup = "";

@@ -222,6 +222,16 @@ type spec = p(Zipper.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type transitionary_spec = p(CodeString.t);
 
+let farthest_pos = (pos: pos, editors: p('a)): pos =>
+  switch (pos) {
+  | Prelude => Prelude
+  | Setup => Setup
+  | Trees(i, pos) =>
+    let tree = List.nth(editors.trees, i);
+    let farthest = Tree.farthest(tree, pos);
+    Trees(i, farthest);
+  };
+
 let map = (p: p('a), f: 'a => 'b): p('b) => {
   {
     title: p.title,
@@ -379,15 +389,8 @@ let get_stitched = (pos, s: stitched('a)): 'a =>
   | Prelude => s.prelude
   | Setup => s.setup
   | Trees(i, pos) =>
-    try(s.trees |> List.nth(_, i) |> Tree.nth(_, pos) |> Option.get) {
-    | _ => s.prelude
-    } // TODO(zhiyao): try refactor this from selection
+    s.trees |> List.nth(_, i) |> Tree.nth(_, pos) |> Option.get
   };
-
-let map2_stitched =
-    (f: (pos, 'a, 'b) => 'c, s1: stitched('a), s2: stitched('b))
-    : stitched('c) =>
-  map_stitched((pos, a) => f(pos, a, get_stitched(pos, s2)), s1);
 
 let put_stitched = (pos, s: stitched('a), x: 'a): stitched('a) =>
   switch (pos) {
@@ -517,12 +520,8 @@ let editor_pp = (fmt, editor: Editor.t) => {
   Format.pp_print_string(fmt, serialization);
 };
 
-let export_module = (module_name, {eds, _}: state) => {
-  let prefix =
-    "let prompt = "
-    ++ module_name
-    ++ "_prompt.prompt\n"
-    ++ "let exercise: Exercise.spec = ";
+let export_module = ({eds, _}: state) => {
+  let prefix = "let exercise: DerivationTree.spec = ";
   let record = show_p(editor_pp, eds);
   let data = prefix ++ record ++ "\n";
   data;

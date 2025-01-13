@@ -148,6 +148,7 @@ module Update = {
     | ActiveEditor(action) =>
       let cursor_info =
         Editors.Selection.get_cursor_info(
+          ~globals=model.globals,
           ~selection=model.selection,
           model.editors,
         );
@@ -166,6 +167,7 @@ module Update = {
     | Undo =>
       let cursor_info =
         Editors.Selection.get_cursor_info(
+          ~globals=model.globals,
           ~selection=model.selection,
           model.editors,
         );
@@ -184,6 +186,7 @@ module Update = {
     | Redo =>
       let cursor_info =
         Editors.Selection.get_cursor_info(
+          ~globals=model.globals,
           ~selection=model.selection,
           model.editors,
         );
@@ -242,7 +245,6 @@ module Update = {
       model |> Updated.return_quiet;
     | Start => model |> return // Triggers recalculation at the start
     | Save =>
-      print_endline("Saving...");
       Store.save(model);
       model |> return_quiet;
     };
@@ -258,6 +260,7 @@ module Update = {
       );
     let cursor_info =
       Editors.Selection.get_cursor_info(
+        ~globals=model.globals,
         ~selection=model.selection,
         model.editors,
       );
@@ -265,7 +268,8 @@ module Update = {
       ExplainThis.get_color_map(
         ~globals=model.globals,
         ~explainThisModel=model.explain_this,
-        ExplainThis.Code(cursor_info.info),
+        cursor_info.info,
+        // TODO(zhiyao): derivation mode coloring is temporarily disabled
       );
     let globals = Globals.Update.calculate(color_highlights, model.globals);
     {...model, globals, editors};
@@ -294,7 +298,11 @@ module Selection = {
 
   let get_cursor_info =
       (~selection: t, model: Model.t): cursor(Editors.Update.t) => {
-    Editors.Selection.get_cursor_info(~selection, model.editors);
+    Editors.Selection.get_cursor_info(
+      ~globals=model.globals,
+      ~selection,
+      model.editors,
+    );
   };
 };
 
@@ -466,64 +474,48 @@ module View = {
         ~inject=a => inject(Editors(a)),
         cursor,
       );
-    // TODO(zhiyao): refactor this
-    let cursor_info = ExplainThis.Code(cursor.info);
 
     let cursor_info' =
-      switch (editors) {
-      | Derivations(eds) =>
+      switch (editors, selection) {
+      | (Derivations(eds), Derivations((Trees(i, pos), _))) =>
         let model = DerivationsMode.Model.get_current(eds);
         let trees =
           DerivationMode.grading_report(model).proof_report.verified_tree;
         let eds = model.editors;
-        let info =
-          switch (
-            DerivationMode.NinjaKeysRule.staged^,
-            DerivationMode.NinjaKeysRule.pos^,
-          ) {
-          | (true, Trees(i, pos)) =>
-            ExplainThis.Deduction(
-              try({
-                let tree = List.nth(trees, i);
-                let res = Tree.nth(tree, pos);
-                let tree = List.nth(eds.trees, i);
-                let ed = Tree.nth(tree, pos);
-                switch (ed, res) {
-                | (Just({rule: Some(rule), _}), {rule: None, _}) =>
-                  Haz3lcore.(
-                    switch (RuleImage.image(eds.ruleset, rule)) {
-                    | Some(rule) =>
-                      Some({
-                        ...res,
-                        rule:
-                          Some(
-                            {
-                              print_endline(
-                                "Uncaught Rule: " ++ Rule.show(rule),
-                              );
-                              let spec = RuleSpec.of_spec(rule);
-                              let tests = RuleTest.of_tests(rule);
-                              let (spec, tests) =
-                                RuleVerify.fill_eq_tests(spec, tests);
-                              let tests =
-                                RuleVerify.test_remove_eq_test(tests);
-                              {rule, spec, tests};
-                            },
-                          ),
-                      })
-                    | _ => Some(res)
-                    }
-                  )
-                | _ => Some(res)
-                };
-              }) {
-              | _ => None
-              },
+        try({
+          let tree = List.nth(trees, i);
+          let res = Tree.nth(tree, pos);
+          let tree = List.nth(eds.trees, i);
+          let ed = Tree.nth(tree, pos);
+          switch (ed, res) {
+          | (Just({rule: Some(rule), _}), {rule: None, _}) =>
+            Haz3lcore.(
+              switch (RuleImage.image(eds.ruleset, rule)) {
+              | Some(rule) =>
+                Some({
+                  ...res,
+                  rule:
+                    Some(
+                      {
+                        print_endline("Uncaught Rule: " ++ Rule.show(rule));
+                        let spec = RuleSpec.of_spec(rule);
+                        let tests = RuleTest.of_tests(rule);
+                        let (spec, tests) =
+                          RuleVerify.fill_eq_tests(spec, tests);
+                        let tests = RuleVerify.test_remove_eq_test(tests);
+                        {rule, spec, tests};
+                      },
+                    ),
+                })
+              | _ => Some(res)
+              }
             )
-          | _ => cursor_info
+          | _ => Some(res)
           };
-        info;
-      | _ => cursor_info
+        }) {
+        | _ => None
+        };
+      | _ => None
       };
 
     let sidebar =
@@ -532,6 +524,7 @@ module View = {
             ~globals,
             ~inject=a => inject(ExplainThis(a)),
             ~explainThisModel,
+            cursor.info,
             cursor_info',
           )
         : div([]);

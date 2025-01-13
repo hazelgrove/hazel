@@ -9,6 +9,7 @@ type key =
   | Documentation
   | CurrentExercise
   | Exercise(Exercise.key)
+  | CurrentDerivation
   | Derivation(DerivationTree.key);
 
 let key_to_string =
@@ -20,8 +21,10 @@ let key_to_string =
   | Documentation => "SAVE_DOCUMENTATION"
   | CurrentExercise => "CUR_EXERCISE"
   | Exercise(key) => key |> Exercise.sexp_of_key |> Sexplib.Sexp.to_string
+  | CurrentDerivation => "CUR_DERIVATION"
   | Derivation(key) =>
-    key |> DerivationTree.sexp_of_key |> Sexplib.Sexp.to_string;
+    "DERIVATIONS"
+    ++ (key |> DerivationTree.sexp_of_key |> Sexplib.Sexp.to_string);
 
 module F =
        (
@@ -38,11 +41,11 @@ module F =
     data |> sexp_of_t |> Sexplib.Sexp.to_string;
   };
 
-  let deserialize = (data: string, default: t) =>
+  let deserialize = (data: string, default: unit => t) =>
     try(data |> Sexplib.Sexp.of_string |> t_of_sexp) {
     | _ =>
       print_endline("Could not deserialize " ++ key_to_string(key) ++ ".");
-      default;
+      default();
     };
 
   let save = (data: t): unit =>
@@ -56,7 +59,7 @@ module F =
   let load = (): t =>
     switch (JsUtil.get_localstore(key_to_string(key))) {
     | None => init()
-    | Some(data) => deserialize(data, default())
+    | Some(data) => deserialize(data, default)
     };
 
   let rec export = () =>
@@ -68,7 +71,7 @@ module F =
     };
 
   let import = data => {
-    let data = deserialize(data, default());
+    let data = deserialize(data, default);
     save(data);
   };
 };

@@ -7,6 +7,7 @@ type all = {
   scratch: string,
   exercise: string,
   documentation: string,
+  derivation: string,
   log: string,
 };
 
@@ -16,6 +17,7 @@ type all_f22 = {
   settings: string,
   scratch: string,
   exercise: string,
+  derivation: string,
   log: string,
 };
 
@@ -26,7 +28,17 @@ let mk_all = (~core_settings, ~instructor_mode, ~log) => {
   let documentation = ScratchMode.StoreDocumentation.export();
   let exercise =
     ExercisesMode.Store.export(~settings=core_settings, ~instructor_mode);
-  {settings, explainThisModel, scratch, documentation, exercise, log};
+  let derivation =
+    DerivationsMode.Store.export(~settings=core_settings, ~instructor_mode);
+  {
+    settings,
+    explainThisModel,
+    scratch,
+    documentation,
+    exercise,
+    derivation,
+    log,
+  };
 };
 
 let export_all = (~settings, ~instructor_mode, ~log) => {
@@ -43,6 +55,7 @@ let import_all = (~import_log: string => unit, data, ~specs) => {
         scratch: all_f22.scratch,
         documentation: "",
         exercise: all_f22.exercise,
+        derivation: all_f22.derivation,
         log: all_f22.log,
         explainThisModel: "",
       };

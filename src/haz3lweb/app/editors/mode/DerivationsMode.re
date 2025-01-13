@@ -45,7 +45,7 @@ module Model = {
     let current =
       ListUtil.findi_opt(
         spec => DerivationTree.key_of(spec) == persistent.cur_exercise,
-        [] // TODO(zhiyao): add blank spec
+        DerivationSettings.exercises,
       )
       |> Option.map(fst)
       |> Option.value(~default=0);
@@ -61,7 +61,7 @@ module StoreExerciseKey =
     type t = DerivationTree.key;
     let default = () =>
       List.nth(DerivationSettings.exercises, 0) |> DerivationTree.key_of;
-    let key = Store.CurrentExercise;
+    let key = Store.CurrentDerivation;
   });
 
 module Store = {
@@ -189,11 +189,9 @@ module Update = {
 
   let export_exercise_module = (exercises: Model.t): unit => {
     let exercise = Model.get_current(exercises);
-    let module_name = exercise.editors.module_name;
     let filename = exercise.editors.module_name ++ ".ml";
     let content_type = "text/plain";
-    let contents =
-      DerivationTree.export_module(module_name, {eds: exercise.editors});
+    let contents = DerivationTree.export_module({eds: exercise.editors});
     JsUtil.download_string_file(~filename, ~content_type, ~contents);
   };
 

@@ -104,11 +104,6 @@
   z-index: var(--test-result-z);
 }
 
-.pointer:after {
-  content: "⬅";
-  font-size: 1.2rem;
-}
-
 .test-instance.Pass:before,
 .test-result.Pass:after {
   content: "✔";
@@ -398,16 +393,9 @@
   bottom: -1.0rem;
 }
 
-.deduction-prems-label .pointer {
-  position: absolute;
-  right: -1.4rem;
-  bottom: -0.4rem;
-}
-
 /* Dropdown button */
 .deduction-label {
   color: var(--ui-bkg);
-  cursor: pointer;
   padding: 0 0.3rem;
   font-size: 0.8rem;
   height: 1.2rem;
