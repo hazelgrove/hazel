@@ -985,13 +985,14 @@ and ClosureEnvironment: {
 
   let without_keys = keys => update_env(Environment.without_keys(keys));
 
-  let update_stack = (ap_id: option(Id.t), env) => {
+  let update_stack = (dyn_env, ap_id: option(Id.t), env) => {
     let (stack, dyn_stack) =
       switch (ap_id) {
       | None => (stack_of(env), dyn_stack_of(env))
       | Some(ap_id) =>
         let frame = Probe.mk_frame(~env_id=id_of(env), ~ap_id);
-        ([frame, ...stack_of(env)], [frame, ...dyn_stack_of(env)]);
+        let dyn_frame = Probe.mk_frame(~env_id=id_of(dyn_env), ~ap_id);
+        ([frame, ...stack_of(env)], [dyn_frame, ...dyn_stack_of(env)]);
       };
     {...env, stack, dyn_stack};
   };
@@ -1016,7 +1017,7 @@ and ClosureEnvironment: {
       dyn_stack:
         dyn_stack_of(dyn_env.env == Environment.empty ? to_extend : dyn_env) //TODO(andrew): cleanup
     }
-    |> update_stack(frame);
+    |> update_stack(dyn_env, frame);
 }
 and StepperFilterKind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
