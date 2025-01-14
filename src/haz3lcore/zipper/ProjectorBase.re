@@ -36,10 +36,6 @@ type utility = {
   /* The current font metrics for the editor, usable
    * to coordinate with the parent coordinate grid */
   font_metrics: FontMetrics.t,
-  /* X position in pixels of the end of the row where
-   * where the projector starts; usable to position part
-   * of the projector UI at the end of the row */
-  offside_offset: float,
   /* Non-interactive view for segments, included here
    * because of cyclic dependency issues*/
   view: (Sort.t, Base.segment) => Node.t,
@@ -86,15 +82,15 @@ module type Projector = {
    * is pressed when the caret is to the immediate
    * right/left of the projector */
   let can_focus: bool;
+  /* If dynamics is true, this projector will be
+   * instrumented with a probe to collect dynamic
+   * information during evaluation */
+  let dynamics: bool;
   /* Renders a DOM view for the projector, given the
    * model, an info packet (see info type for details),
    * and has two callbacks: ~parent for parent editor
    * actions(see external_action type above), and ~local
    * for this projector's local update function. */
-  let dynamics: bool;
-  /* If dynamics is true, this projector will be
-   * instrumented with a probe to collect dynamic
-   * information during evaluation */
   let view:
     (
       model,
@@ -104,6 +100,19 @@ module type Projector = {
       ~utility: utility
     ) =>
     Node.t;
+  /* An optional additional view to be rendered at the
+   * end of the row which includes the projector */
+  let offside_view:
+    option(
+      (
+        model,
+        ~info: info,
+        ~local: action => Ui_effect.t(unit),
+        ~parent: external_action => Ui_effect.t(unit),
+        ~utility: utility
+      ) =>
+      Node.t,
+    );
   /* How much space should be left in the code view for
    * this projector? This determines how the base code
    * view is laid out, including how movement around the
@@ -149,6 +158,18 @@ module Cook = (C: Projector) : Cooked => {
       ~local=a => local(serialize_a(a)),
       ~parent,
       ~utility,
+    );
+  let offside_view =
+    Option.map(
+      (f, m, ~info, ~local, ~parent, ~utility) =>
+        f(
+          deserialize_m(m),
+          ~info,
+          ~local=a => local(serialize_a(a)),
+          ~parent,
+          ~utility,
+        ),
+      C.offside_view,
     );
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;

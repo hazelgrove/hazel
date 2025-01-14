@@ -26,5 +26,6 @@ module M: Projector = {
       ~attrs=[Attr.on_double_click(_ => parent(Remove))],
       [text(m.text)],
     );
+  let offside_view = Option.None;
   let focus = _ => ();
 };

@@ -109,6 +109,7 @@ module M: Projector = {
   };
   let update = (model, _) => model;
   let view = view;
+  let offside_view = Option.None;
   let focus = ((id: Id.t, d: option(Direction.t))) => {
     JsUtil.get_elem_by_id(of_id(id))##focus;
     switch (d) {

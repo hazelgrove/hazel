@@ -101,8 +101,8 @@
 .projector.probe .live-offside {
   display: flex;
   flex-direction: row;
-  position: absolute;
-  left: 10em;
+  /* position: absolute;
+  left: 10em; */
   gap: 2px;
   align-items: center;
 }

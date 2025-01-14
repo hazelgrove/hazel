@@ -101,13 +101,19 @@ let lift = (str, strs) => List.cons(str, List.filter((!=)(str), strs));
  * indicated syntax, with the currently applied projection (if any)
  * lifted to the top of the list */
 let applicable_projector_strings = (cursor: Cursor.cursor(Editors.Update.t)) => {
-  let strs =
-    applicable_projectors(cursor.info) |> List.map(ProjectorView.name);
+  let strs = applicable_projectors(cursor.info);
   switch (kind(cursor.editor)) {
   | None => strs
-  | Some(k) => lift(ProjectorView.name(k), strs)
+  | Some(k) => lift(k, strs)
   };
 };
+
+let keyboard_shortcut_of = (kind: Base.kind): string =>
+  switch (kind) {
+  | Fold => "Option-f"
+  | Probe => "Option-v"
+  | _ => ""
+  };
 
 /* A selection input for contetually applicable projectors */
 let select_view =
@@ -115,15 +121,23 @@ let select_view =
       ~inject: Action.project => Ui_effect.t(unit),
       cursor: Cursor.cursor(Editors.Update.t),
     ) => {
-  let applicable_projector_strings =
+  let applicable_projectors =
     might_project(cursor) ? applicable_projector_strings(cursor) : [];
+  let applicable_projector_strings =
+    List.map(ProjectorView.name, applicable_projectors);
   let value =
     switch (applicable_projector_strings) {
     | [] => ""
     | [hd, ..._] => hd
     };
+  let title =
+    switch (applicable_projectors) {
+    | [] => ""
+    | [hd, ..._] => keyboard_shortcut_of(hd)
+    };
   Node.select(
     ~attrs=[
+      Attr.title(title),
       Attr.on_change((_, name) =>
         inject(SetIndicated(ProjectorView.of_name(name)))
       ),

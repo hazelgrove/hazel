@@ -56,5 +56,6 @@ module M: Projector = {
   let placeholder = (_, _) => ProjectorShape.inline(2);
   let update = (model, _) => model;
   let view = view;
+  let offside_view = Option.None;
   let focus = _ => ();
 };
