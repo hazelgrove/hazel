@@ -40,33 +40,18 @@ let of_name = (p: string): Base.kind =>
  * to token decorations. This can be made transparent
  * in the CSS if no backing is wanted */
 let backing_deco =
-    (
-      ~font_metrics: FontMetrics.t,
-      ~measurement: Measured.measurement,
-      ~shape: shape,
-    ) =>
-  switch (shape) {
-  | Inline(_)
-  | Block(_) =>
-    PieceDec.relative_shard({
-      font_metrics,
-      measurement,
-      tips: (Some(Convex), Some(Convex)),
-    })
-  };
+    (~font_metrics: FontMetrics.t, ~measurement: Measured.measurement) =>
+  PieceDec.relative_shard({
+    font_metrics,
+    measurement,
+    tips: (Some(Convex), Some(Convex)),
+  });
 
 /* Adds attributes to a projector UI to support
  * custom styling when selected or indicated */
-let status =
-    (indicated: option(Direction.t), selected: bool, shape: shape, sort) =>
+let status = (indicated: option(Direction.t), selected: bool, sort) =>
   [Sort.show(sort)]
   @ (selected ? ["selected"] : [])
-  @ (
-    switch (shape) {
-    | Inline(_) => ["inline"]
-    | Block(_) => ["block"]
-    }
-  )
   @ (
     switch (indicated) {
     | Some(d) => ["indicated", Direction.show(d)]
@@ -90,19 +75,17 @@ let view_wrapper =
     ) => {
   let sort =
     Option.map(Info.sort_of, info.statics) |> Option.value(~default=Sort.Exp);
-  let shape = Projector.shape(p, info);
   let focus = (id, _) =>
     Effect.(Many([Stop_propagation, inject(Project(Focus(id, None)))]));
   div(
     ~attrs=[
       Attr.classes(
-        ["projector", name(p.kind)]
-        @ status(indication, selected, shape, sort),
+        ["projector", name(p.kind)] @ status(indication, selected, sort),
       ),
       Attr.on_mousedown(focus(info.id)),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
-    [view, backing_deco(~font_metrics, ~measurement, ~shape)],
+    [view, backing_deco(~font_metrics, ~measurement)],
   );
 };
 
@@ -153,7 +136,7 @@ let collate_utility =
       CodeViewable.view_segment(
         ~globals,
         ~sort,
-        ~token_of_proj=Projector.token_of_proj_default,
+        ~shape_of_proj=Projector.Shape.of_map_default,
         seg,
       ),
     exp_to_seg: exp =>

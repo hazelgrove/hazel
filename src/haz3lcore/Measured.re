@@ -56,7 +56,6 @@ type t = {
   secondary: Id.Map.t(measurement),
   projectors: Id.Map.t(measurement),
   rows: Rows.t,
-  linebreaks: Id.Map.t(rel_indent),
 };
 
 let empty = {
@@ -65,7 +64,6 @@ let empty = {
   secondary: Id.Map.empty,
   projectors: Id.Map.empty,
   rows: Rows.empty,
-  linebreaks: Id.Map.empty,
 };
 
 let add_s = (id: Id.t, i: int, m, map) => {
@@ -131,11 +129,6 @@ let rec add_n_rows = (origin: Point.t, row_indent, n: abs_indent, map: t): t =>
     |> add_row(origin.row + n - 1, {indent: row_indent, max_col: origin.col})
   };
 
-let add_lb = (id, indent, map) => {
-  ...map,
-  linebreaks: Id.Map.add(id, indent, map.linebreaks),
-};
-
 let singleton_w = (w, m) => empty |> add_w(w, m);
 let singleton_g = (g, m) => empty |> add_g(g, m);
 let singleton_s = (id, shard, m) => empty |> add_s(id, shard, m);
@@ -146,8 +139,6 @@ let find_shards = (~msg="", t: Tile.t, map) =>
   try(Id.Map.find(t.id, map.tiles)) {
   | _ => failwith("find_shards: " ++ msg)
   };
-
-let find_opt_lb = (id, map) => Id.Map.find_opt(id, map.linebreaks);
 
 let find_shards' = (id: Id.t, map) =>
   switch (Id.Map.find_opt(id, map.tiles)) {
@@ -282,7 +273,8 @@ let last_of_token = (token: string, origin: Point.t): Point.t =>
     row: origin.row + StringUtil.num_linebreaks(token),
   };
 
-let of_segment = (seg: Segment.t, token_of_proj: Base.projector => string): t => {
+let of_segment =
+    (seg: Segment.t, shape_of_proj: Base.projector => ProjectorShape.t): t => {
   let is_indented = is_indented_map(seg);
 
   // recursive across seg's bidelimited containers
@@ -340,7 +332,7 @@ let of_segment = (seg: Segment.t, token_of_proj: Base.projector => string): t =>
                    origin.row,
                    {indent: row_indent, max_col: origin.col},
                  )
-              |> add_lb(w.id, indent);
+              |> add_n_rows(origin, row_indent, 1);
             (indent, last, map);
           | Secondary(w) =>
             let wspace_length =
@@ -353,10 +345,21 @@ let of_segment = (seg: Segment.t, token_of_proj: Base.projector => string): t =>
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
           | Projector(p) =>
-            let token = token_of_proj(p);
-            let last = last_of_token(token, origin);
-            let map = extra_rows(token, origin, map);
-            let map = add_pr(p, {origin, last}, map);
+            let shape = shape_of_proj(p);
+            let row_indent = container_indent + contained_indent;
+            let last = {
+              col: origin.col + shape.horizontal,
+              row:
+                switch (shape.vertical) {
+                | Inline => origin.row
+                | Block(num_lb) => origin.row + num_lb
+                },
+            };
+            let num_extra_rows = ProjectorShape.num_lb(shape);
+            let map =
+              map
+              |> add_n_rows(origin, row_indent, num_extra_rows)
+              |> add_pr(p, {origin, last});
             (contained_indent, last, map);
           | Tile(t) =>
             let add_shard = (origin, shard, map) => {

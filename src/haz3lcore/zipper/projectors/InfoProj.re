@@ -69,7 +69,9 @@ module M: Projector = {
     display_ty(model, info) |> totalize_ty |> Typ.pretty_print;
 
   let placeholder = (model, info) =>
-    Inline((display(model, info.statics) |> String.length) + 5);
+    ProjectorShape.inline(
+      (display(model, info.statics) |> String.length) + 5,
+    );
 
   let update = (model, a: action) =>
     switch (a, model) {

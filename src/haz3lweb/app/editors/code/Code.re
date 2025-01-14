@@ -79,7 +79,7 @@ module Text =
          M: {
            let map: Measured.t;
            let settings: Settings.Model.t;
-           let token_of_proj: Base.projector => string;
+           let shape_of_proj: Base.projector => ProjectorShape.t;
          },
        ) => {
   let m = p => Measured.find_p(~msg="Text", p, M.map);
@@ -113,7 +113,7 @@ module Text =
       of_projector(
         expected_sort,
         m(Projector(p)).origin.col,
-        M.token_of_proj(p),
+        p |> M.shape_of_proj |> Projector.Shape.token,
       )
     };
   }
@@ -156,13 +156,13 @@ let rec holes =
      );
 
 let simple_view = (~font_metrics, ~segment, ~settings: Settings.t): Node.t => {
-  let token_of_proj = _ => ""; /* Assume this doesn't contain projectors */
-  let map = Measured.of_segment(segment, token_of_proj);
+  let shape_of_proj = Projector.Shape.of_map_default; /* Assume this doesn't contain projectors */
+  let map = Measured.of_segment(segment, shape_of_proj);
   module Text =
     Text({
       let map = map;
       let settings = settings;
-      let token_of_proj = token_of_proj;
+      let shape_of_proj = shape_of_proj;
     });
   let holes = holes(~map, ~font_metrics, segment);
   div(

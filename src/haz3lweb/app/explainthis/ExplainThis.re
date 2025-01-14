@@ -278,7 +278,7 @@ let expander_deco =
                   CodeViewable.view_segment(
                     ~globals,
                     ~sort=Exp,
-                    ~token_of_proj=Projector.token_of_proj_default, // Assume no projectors
+                    ~shape_of_proj=Projector.Shape.of_map_default, // Assume no projectors
                     segment,
                   );
                 let classes =

@@ -3,16 +3,16 @@ open Node;
 open Haz3lcore;
 open Util;
 
-let token_of_proj = _ => ""; /* Assume this doesn't contain projectors */
+let shape_of_proj = Projector.Shape.of_map_default; /* Assume this doesn't contain projectors */
 
-let measured_of = seg => Measured.of_segment(seg, token_of_proj);
+let measured_of = seg => Measured.of_segment(seg, shape_of_proj);
 
 let text_view = (seg: Segment.t): list(Node.t) => {
   module Text =
     Code.Text({
       let map = measured_of(seg);
       let settings = Settings.Model.init;
-      let token_of_proj = token_of_proj;
+      let shape_of_proj = shape_of_proj;
     });
   Text.of_segment([], true, Any, seg);
 };

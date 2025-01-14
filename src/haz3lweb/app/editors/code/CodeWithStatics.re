@@ -98,7 +98,7 @@ module View = {
         },
       _,
     }: Model.t = model;
-    let token_of_proj = Projector.token_of_proj(info_map, dynamics);
+    let shape_of_proj = Projector.Shape.of_map(info_map, dynamics);
     let code_text_view =
       CodeViewable.view(
         ~globals,
@@ -107,7 +107,7 @@ module View = {
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~segment,
         ~holes,
-        ~token_of_proj,
+        ~shape_of_proj,
       );
     let statics_decos = {
       module Deco =
