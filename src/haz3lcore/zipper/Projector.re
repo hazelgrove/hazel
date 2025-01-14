@@ -39,14 +39,15 @@ let init_from_str = (kind: t, syntax: syntax, model_str: string): syntax => {
 };
 
 module Shape = {
-  let of_info = (p: Base.projector, info: info): shape => {
+  type t = ProjectorShape.t;
+
+  let of_info = (p: Base.projector, info: info): t => {
     let (module P) = to_module(p.kind);
     P.placeholder(p.model, info);
   };
 
   let of_map =
-      (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector)
-      : shape => {
+      (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector): t => {
     let statics = Statics.Map.lookup(p.id, statics);
     let dynamics = Dynamics.Map.lookup(p.id, dynamics);
     of_info(p, {id: p.id, syntax: p.syntax, statics, dynamics});
@@ -54,7 +55,7 @@ module Shape = {
 
   let of_map_default = of_map(Id.Map.empty, Id.Map.empty);
 
-  let token = (shape: shape): string =>
+  let token = (shape: t): string =>
     switch (shape.vertical) {
     | Inline => String.make(shape.horizontal, ' ')
     | Block(num_lb) =>
