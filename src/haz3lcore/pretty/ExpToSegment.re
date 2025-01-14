@@ -974,10 +974,22 @@ let rec parenthesize = (~preserve_filters: bool, exp: Exp.t): Exp.t => {
   | UnOp(Int(Minus), e) =>
     UnOp(Int(Minus), parenthesize(e) |> paren_at(Precedence.neg)) |> rewrap
   | BinOp(op, e1, e2) =>
-    BinOp(
-      op,
-      parenthesize(e1) |> paren_assoc_at(Precedence.of_bin_op(op)),
-      parenthesize(e2) |> paren_at(Precedence.of_bin_op(op)),
+    (
+      switch (Precedence.of_bin_op(op) |> Precedence.associativity) {
+      | Some(Left)
+      | None =>
+        BinOp(
+          op,
+          parenthesize(e1) |> paren_assoc_at(Precedence.of_bin_op(op)),
+          parenthesize(e2) |> paren_at(Precedence.of_bin_op(op)),
+        )
+      | Some(Right) =>
+        BinOp(
+          op,
+          parenthesize(e1) |> paren_at(Precedence.of_bin_op(op)),
+          parenthesize(e2) |> paren_assoc_at(Precedence.of_bin_op(op)),
+        )
+      }
     )
     |> rewrap
   | Match(e, rs) =>
