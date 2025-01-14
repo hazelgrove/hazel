@@ -608,9 +608,8 @@ let max_common_suffix = (a: list('a), b: list('a)): list('a) => {
 let common_suffix_length = (s1, s2) =>
   List.length(max_common_suffix(s1, s2));
 
-let one_is_suffix_of_other = (s1, s2) =>
-  common_suffix_length(s1, s2) == List.length(s1)
-  || common_suffix_length(s1, s2) == List.length(s2);
+let is_suffix_of = (s1, s2) =>
+  common_suffix_length(s1, s2) == List.length(s1);
 
 /* list truncated after at most n elementsnts */
 let truncate = (n: int, xs: list('a)): list('a) => {

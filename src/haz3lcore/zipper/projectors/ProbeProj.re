@@ -42,26 +42,77 @@ let stack = stack =>
      )
   |> String.concat("\n");
 
-let env_cursor: ref(list(Id.t)) = ref([]);
-let last_target: ref(list('a)) = ref([]);
-let cur_ap: ref(option(Id.t)) = ref(Option.None);
-let cur_ap_depth: ref(option(int)) = ref(Option.None);
-let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
+let cur_ap_id = (info: info) =>
+  switch (info.statics) {
+  | Some(InfoExp({term: {term: Ap(_), _} as ap, _})) =>
+    Some(Term.Exp.rep_id(ap))
+  | Some(InfoExp({term: {term: Wrap({term: Ap(_), _} as ap, _), _}, _})) =>
+    Some(Term.Exp.rep_id(ap))
+  | _ => None
+  };
+
+let cur_outer_ap_id = (_info: info, dyn_stack: Probe.stack) =>
+  switch (dyn_stack) {
+  | [{ap_id, _}, ..._] => Some(ap_id)
+  | _ => None
+  };
+
+module State = {
+  let env_cursor: ref(list(Id.t)) = ref([]);
+  let cur_ap: ref(option(Id.t)) = ref(Option.None);
+  let outer_ap_id: ref(option(Id.t)) = ref(Option.None);
+
+  let reset = () => {
+    env_cursor := [];
+    cur_ap := None;
+    outer_ap_id := None;
+  };
+
+  let capture = (info: info, closure: Dynamics.Probe.Closure.t) => {
+    env_cursor := Probe.env_stack(closure.stack);
+    cur_ap := cur_ap_id(info);
+    outer_ap_id := cur_outer_ap_id(info, closure.dyn_stack);
+  };
+};
 
 let comparor = (a: Dynamics.Probe.Closure.t, b: Dynamics.Probe.Closure.t) => {
   compare(
-    ListUtil.common_suffix_length(env_cursor^, Probe.env_stack(b.stack)),
-    ListUtil.common_suffix_length(env_cursor^, Probe.env_stack(a.stack)),
+    ListUtil.common_suffix_length(
+      State.env_cursor^,
+      Probe.env_stack(b.stack),
+    ),
+    ListUtil.common_suffix_length(
+      State.env_cursor^,
+      Probe.env_stack(a.stack),
+    ),
   );
 };
 
 let show_indicator = stack => {
   let local = Probe.env_stack(stack);
-  env_cursor^ == []
+  State.env_cursor^ == []
   && local == []
-  || env_cursor^ != []
-  && ListUtil.one_is_suffix_of_other(env_cursor^, local);
+  || State.env_cursor^ != []
+  && ListUtil.is_suffix_of(local, State.env_cursor^);
 };
+
+let depth_in_cur_ap_stack = (dyn_stack): option(int) =>
+  List.find_index(
+    ({ap_id, _}: Probe.frame) => Some(ap_id) == State.cur_ap^,
+    dyn_stack,
+  );
+
+let is_in_cur_ap_stack = (dyn_stack): bool =>
+  switch (depth_in_cur_ap_stack(dyn_stack)) {
+  | Some(_) => true
+  | None => false
+  };
+
+let on_outer_ap = (info: info): bool =>
+  switch (cur_ap_id(info), State.outer_ap_id^) {
+  | (Some(ap_id), Some(outer_ap_id)) => ap_id == outer_ap_id
+  | _ => false
+  };
 
 let seg_view = (utility, available, seg) =>
   seg
@@ -81,20 +132,22 @@ let get_goal = (utility: utility, e: Js.t(Dom_html.mouseEvent)) =>
     e |> Js.Unsafe.coerce,
   );
 
-let cur_ap_id = (info: info) =>
-  switch (info.statics) {
-  | Some(InfoExp({term: {term: Ap(_), _} as ap, _})) =>
-    Some(Term.Exp.rep_id(ap))
-  | Some(InfoExp({term: {term: Wrap({term: Ap(_), _} as ap, _), _}, _})) =>
-    Some(Term.Exp.rep_id(ap))
-  | _ => None
-  };
+let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
 
-let depth_in_stack = (dyn_stack): option(int) =>
-  List.find_index(
-    ({ap_id, _}: Probe.frame) => Some(ap_id) == cur_ap^,
-    dyn_stack,
-  );
+let dynamic_cursor_cls = (closure: Dynamics.Probe.Closure.t) =>
+  switch (is_in_cur_ap_stack(closure.dyn_stack)) {
+  | true
+      when
+        ListUtil.is_suffix_of(
+          State.env_cursor^,
+          Probe.env_stack(closure.stack),
+        ) => [
+      "cursor-ap-lex",
+    ]
+  | true => ["cursor-ap"]
+  | _ when show_indicator(closure.stack) => ["cursor-lex"]
+  | false => ["cursor-none"]
+  };
 
 let value_view =
     (info: info, model, utility, local, closure: Dynamics.Probe.Closure.t) => {
@@ -102,10 +155,7 @@ let value_view =
     let target = e##.target |> Js.Opt.get(_, _ => failwith("no target"));
     JsUtil.setPointerCapture(target, e##.pointerId) |> ignore;
     mousedown := Some(target);
-    env_cursor := Probe.env_stack(closure.stack);
-    last_target := [target];
-    cur_ap := cur_ap_id(info);
-    cur_ap_depth := Some(List.length(closure.dyn_stack));
+    State.capture(info, closure);
     Effect.Ignore;
   };
 
@@ -139,21 +189,16 @@ let value_view =
       ),
       Attr.classes(
         ["val-resize"]
+        @ dynamic_cursor_cls(closure)
+        @ (on_outer_ap(info) ? ["outer-ap"] : [])
         @ (
-          switch (depth_in_stack(closure.dyn_stack)) {
-          | Some(0) => ["dyn-cursor"]
-          | Some(_) => ["dyn-cursor", "light"]
+          switch (depth_in_cur_ap_stack(closure.dyn_stack)) {
+          | Some(0)
           | None => []
+          | Some(_) => ["light"]
           }
         )
-        @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : [])
-        @ (
-          switch (cur_ap_depth^) {
-          | Some(0) => ["top-ap"]
-          | _ => []
-          }
-        )
-        @ (show_indicator(closure.stack) ? ["cursor"] : []),
+        @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleShowAllVals)),
       Attr.on_pointerdown(val_pointerdown),
@@ -323,8 +368,7 @@ let view =
         ["main"] @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : []),
       ),
       Attr.on_click(_ => {
-        env_cursor := [];
-        cur_ap := None;
+        State.reset();
         Effect.Ignore;
       }),
     ],
