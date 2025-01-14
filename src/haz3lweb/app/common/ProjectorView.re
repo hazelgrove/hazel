@@ -71,6 +71,7 @@ let view_wrapper =
       ~indication: option(Direction.t),
       ~selected: bool,
       p: Base.projector,
+      offside_view: option(Node.t),
       view: Node.t,
     ) => {
   let sort =
@@ -85,7 +86,8 @@ let view_wrapper =
       Attr.on_mousedown(focus(info.id)),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
-    [view, backing_deco(~font_metrics, ~measurement)],
+    [view, backing_deco(~font_metrics, ~measurement)]
+    @ Option.to_list(offside_view),
   );
 };
 
@@ -114,24 +116,17 @@ let offside =
        - measurement.origin.col,
      );
 
+let offside_pos = offside_offset =>
+  Attr.create(
+    "style",
+    Printf.sprintf("position: absolute; left: %fpx;", offside_offset),
+  );
+
 /* Gather utility functions/values to be passed to the projector.
  * See ProjectorBase.utility definition for more information */
-let collate_utility =
-    (
-      globals: Globals.t,
-      measurement: Measured.measurement,
-      cached_syntax: Editor.CachedSyntax.t,
-    )
-    : ProjectorBase.utility => {
+let collate_utility = (globals: Globals.t): ProjectorBase.utility => {
   {
     font_metrics: globals.font_metrics,
-    offside_offset:
-      offside(
-        ~offset=4,
-        globals.font_metrics,
-        measurement,
-        cached_syntax.measured,
-      ),
     view: (sort, seg) =>
       CodeViewable.view_segment(
         ~globals,
@@ -175,10 +170,28 @@ let setup_view =
   let dynamics = Dynamics.Map.lookup(id, dynamics);
   let info = {id, statics, dynamics, syntax};
   let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
-  let utility = collate_utility(globals, measurement, cached_syntax);
+  let utility = collate_utility(globals);
   let (module P) = to_module(p.kind);
   let parent = a => inject(Project(handle(id, a)));
   let local = a => inject(Project(SetModel(id, P.update(p.model, a))));
+  let offside_pos =
+    offside_pos(
+      offside(
+        ~offset=4,
+        globals.font_metrics,
+        measurement,
+        cached_syntax.measured,
+      ),
+    );
+  let offside_view =
+    Option.map(
+      v =>
+        div(
+          ~attrs=[offside_pos],
+          [v(p.model, ~info, ~local, ~parent, ~utility)],
+        ),
+      P.offside_view,
+    );
   view_wrapper(
     ~inject,
     ~font_metrics=globals.font_metrics,
@@ -187,6 +200,7 @@ let setup_view =
     ~info,
     ~selected=List.mem(id, cached_syntax.selection_ids),
     p,
+    offside_view,
     P.view(p.model, ~info, ~local, ~parent, ~utility),
   );
 };

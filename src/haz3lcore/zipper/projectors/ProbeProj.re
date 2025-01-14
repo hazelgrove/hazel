@@ -235,12 +235,6 @@ let select_vals = (model: model, vals) => {
   };
 };
 
-let offside_pos = utility =>
-  Attr.create(
-    "style",
-    Printf.sprintf("position: absolute; left: %fpx;", utility.offside_offset),
-  );
-
 let nav_back = (di, model, local, left_cond) =>
   List.length(di) > model.max_closures
     ? [
@@ -271,9 +265,10 @@ let nav_forward = (di, model, local, right_cond) =>
     ]
     : [];
 
-let offside_view = (info, ~model: model, ~local, ~utility: utility) => {
+let offside_view =
+    (model: model, ~info, ~local, ~parent as _, ~utility: utility) => {
   Node.div(
-    ~attrs=[Attr.classes(["live-offside"]), offside_pos(utility)],
+    ~attrs=[Attr.classes(["live-offside"])],
     switch (info.dynamics) {
     | Some(di) =>
       let vals = select_vals(model, di);
@@ -321,9 +316,10 @@ let placeholder = (_m, info) =>
 // let icon = div(~attrs=[Attr.classes(["icon"])], [text("🔍")]);
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-let view = (model: model, ~info, ~local, ~parent as _, ~utility: utility) => {
+let view =
+    (_: model, ~info, ~local as _, ~parent as _, ~utility as _: utility) => {
   div([
-    offside_view(info, ~model, ~local, ~utility),
+    //offside_view(info, ~model, ~local, ~utility),
     div(
       ~attrs=[
         Attr.classes(
@@ -341,7 +337,7 @@ let view = (model: model, ~info, ~local, ~parent as _, ~utility: utility) => {
 };
 
 let update = (m: model, a: action) => {
-  print_endline("update: action:" ++ show_action(a));
+  //print_endline("update: action:" ++ show_action(a));
   switch (a) {
   | ChangeLength(id, len) =>
     if (len > (-1)) {
@@ -377,5 +373,6 @@ module M: Projector = {
   let placeholder = placeholder;
   let update = update;
   let view = view;
+  let offside_view = Some(offside_view);
   let focus = _ => ();
 };

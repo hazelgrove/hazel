@@ -36,5 +36,6 @@ module M: Projector = {
       ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(v))))],
       get(info.syntax),
     );
+  let offside_view = Option.None;
   let focus = _ => ();
 };

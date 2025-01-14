@@ -93,5 +93,6 @@ module M: Projector = {
         ),
       ],
     );
+  let offside_view = Option.None;
   let focus = _ => ();
 };
