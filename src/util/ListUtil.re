@@ -591,3 +591,11 @@ let minimum = (f: 'a => int, xs: list('a)): option('a) =>
       };
     loop(x, f(x), xs);
   };
+
+let rec remove_nth = (n: int, xs: list('a)): option(list('a)) =>
+  switch (n, xs) {
+  | (_, []) => None
+  | (0, [_hd, ...tl]) => Some(tl)
+  | (n, [hd, ...tl]) =>
+    remove_nth(n - 1, tl) |> Option.map(tl' => [hd, ...tl'])
+  };

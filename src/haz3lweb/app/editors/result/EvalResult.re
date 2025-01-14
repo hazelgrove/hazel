@@ -51,7 +51,7 @@ module Model = {
       )
     | Stepper(s) =>
       Some(
-        s.history
+        s
         |> StepperView.Model.get_state
         |> Haz3lcore.EvaluatorState.get_tests
         |> Haz3lcore.TestResults.mk_results,
@@ -73,7 +73,7 @@ module Model = {
       )
     | Stepper(s) =>
       Some(
-        s.history
+        s
         |> StepperView.Model.get_state
         |> Haz3lcore.EvaluatorState.get_tests
         |> Haz3lcore.TestResults.mk_results,
@@ -227,7 +227,7 @@ module Update = {
         {...model, result: Stepper(s')};
       | (Stepper, _) =>
         let s =
-          StepperView.Model.init()
+          StepperView.Model.init
           |> StepperView.Update.calculate(~settings, elab);
         {...model, result: Stepper(s)};
       };
@@ -446,7 +446,7 @@ module View = {
     | Stepper(s) =>
       StepperView.View.view(
         ~globals,
-        ~selection=
+        ~selected=
           switch (selected) {
           | Some(Stepper(s)) => Some(s)
           | _ => None
@@ -454,10 +454,8 @@ module View = {
         ~signal=
           fun
           | HideStepper => inject(ToggleStepper)
-          | JumpTo(id) => signal(JumpTo(id))
           | MakeActive(s) => signal(MakeActive(Stepper(s))),
         ~inject=x => inject(StepperAction(x)),
-        ~read_only=locked,
         s,
       )
     };
