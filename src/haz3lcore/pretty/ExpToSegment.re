@@ -820,10 +820,10 @@ let paren_typ_assoc_at =
   external_precedence_typ(typ) > internal_precedence
     ? Typ.fresh(Parens(typ)) : typ;
 
-let rec parenthesize = (~preserve_filters: bool, exp: Exp.t): Exp.t => {
-  let parenthesize = parenthesize(~preserve_filters);
-  let parenthesize_pat = parenthesize_pat(~preserve_filters);
-  let parenthesize_typ = parenthesize_typ(~preserve_filters);
+let rec parenthesize = (~show_filters: bool, exp: Exp.t): Exp.t => {
+  let parenthesize = parenthesize(~show_filters);
+  let parenthesize_pat = parenthesize_pat(~show_filters);
+  let parenthesize_typ = parenthesize_typ(~show_filters);
   let (term, rewrap) = Exp.unwrap(exp);
   switch (term) {
   // Indivisible forms dont' change
@@ -1005,12 +1005,12 @@ let rec parenthesize = (~preserve_filters: bool, exp: Exp.t): Exp.t => {
     )
     |> rewrap
   | MultiHole(xs) =>
-    MultiHole(List.map(parenthesize_any(~preserve_filters), xs)) |> rewrap
+    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
   };
 }
-and parenthesize_pat = (~preserve_filters: bool, pat: Pat.t): Pat.t => {
-  let parenthesize_pat = parenthesize_pat(~preserve_filters);
-  let parenthesize_typ = parenthesize_typ(~preserve_filters);
+and parenthesize_pat = (~show_filters: bool, pat: Pat.t): Pat.t => {
+  let parenthesize_pat = parenthesize_pat(~show_filters);
+  let parenthesize_typ = parenthesize_typ(~show_filters);
   let (term, rewrap) = Pat.unwrap(pat);
   switch (term) {
   // Indivisible forms dont' change
@@ -1054,7 +1054,7 @@ and parenthesize_pat = (~preserve_filters: bool, pat: Pat.t): Pat.t => {
     )
     |> rewrap
   | MultiHole(xs) =>
-    MultiHole(List.map(parenthesize_any(~preserve_filters), xs)) |> rewrap
+    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
   | Cast(p, t1, t2) =>
     Cast(
       parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.cast),
@@ -1065,8 +1065,8 @@ and parenthesize_pat = (~preserve_filters: bool, pat: Pat.t): Pat.t => {
   };
 }
 
-and parenthesize_typ = (~preserve_filters: bool, typ: Typ.t): Typ.t => {
-  let parenthesize_typ = parenthesize_typ(~preserve_filters);
+and parenthesize_typ = (~show_filters: bool, typ: Typ.t): Typ.t => {
+  let parenthesize_typ = parenthesize_typ(~show_filters);
   let (term, rewrap) = Typ.unwrap(typ);
   switch (term) {
   // Indivisible forms dont' change
@@ -1129,13 +1129,13 @@ and parenthesize_typ = (~preserve_filters: bool, typ: Typ.t): Typ.t => {
     |> rewrap
   | Unknown(Hole(MultiHole(xs))) =>
     Unknown(
-      Hole(MultiHole(List.map(parenthesize_any(~preserve_filters), xs))),
+      Hole(MultiHole(List.map(parenthesize_any(~show_filters), xs))),
     )
     |> rewrap
   };
 }
 
-and parenthesize_tpat = (~preserve_filters: bool, tpat: TPat.t): TPat.t => {
+and parenthesize_tpat = (~show_filters: bool, tpat: TPat.t): TPat.t => {
   let (term, rewrap: TPat.term => TPat.t) = IdTagged.unwrap(tpat);
   switch (term) {
   // Indivisible forms dont' change
@@ -1145,11 +1145,11 @@ and parenthesize_tpat = (~preserve_filters: bool, tpat: TPat.t): TPat.t => {
 
   // Other forms
   | MultiHole(xs) =>
-    MultiHole(List.map(parenthesize_any(~preserve_filters), xs)) |> rewrap
+    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
   };
 }
 
-and parenthesize_rul = (~preserve_filters: bool, rul: Rul.t): Rul.t => {
+and parenthesize_rul = (~show_filters: bool, rul: Rul.t): Rul.t => {
   let (term, rewrap: Rul.term => Rul.t) = IdTagged.unwrap(rul);
   switch (term) {
   // Indivisible forms dont' change
@@ -1158,29 +1158,29 @@ and parenthesize_rul = (~preserve_filters: bool, rul: Rul.t): Rul.t => {
   // Other forms
   | Rules(e, ps) =>
     Rules(
-      parenthesize(~preserve_filters, e),
+      parenthesize(~show_filters, e),
       List.map(
         ((p, e)) =>
           (
-            parenthesize_pat(~preserve_filters, p),
-            parenthesize(~preserve_filters, e),
+            parenthesize_pat(~show_filters, p),
+            parenthesize(~show_filters, e),
           ),
         ps,
       ),
     )
     |> rewrap
   | Hole(xs) =>
-    Hole(List.map(parenthesize_any(~preserve_filters), xs)) |> rewrap
+    Hole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
   };
 }
 
-and parenthesize_any = (~preserve_filters: bool, any: Any.t): Any.t =>
+and parenthesize_any = (~show_filters: bool, any: Any.t): Any.t =>
   switch (any) {
-  | Exp(e) => Exp(parenthesize(~preserve_filters, e))
-  | Pat(p) => Pat(parenthesize_pat(~preserve_filters, p))
-  | Typ(t) => Typ(parenthesize_typ(~preserve_filters, t))
-  | TPat(tp) => TPat(parenthesize_tpat(~preserve_filters, tp))
-  | Rul(r) => Rul(parenthesize_rul(~preserve_filters, r))
+  | Exp(e) => Exp(parenthesize(~show_filters, e))
+  | Pat(p) => Pat(parenthesize_pat(~show_filters, p))
+  | Typ(t) => Typ(parenthesize_typ(~show_filters, t))
+  | TPat(tp) => TPat(parenthesize_tpat(~show_filters, tp))
+  | Rul(r) => Rul(parenthesize_rul(~show_filters, r))
   | Any(_) => any
   | Nul(_) => any
   };
@@ -1189,14 +1189,13 @@ let exp_to_segment = (~settings: Settings.t, exp: Exp.t): Segment.t => {
   let exp =
     exp
     |> Exp.substitute_closures(Builtins.env_init)
-    |> parenthesize(~preserve_filters=settings.show_filters);
+    |> parenthesize(~show_filters=settings.show_filters);
   let p = exp_to_pretty(~settings, exp);
   p |> PrettySegment.select;
 };
 
 let typ_to_segment = (~settings, typ: Typ.t): Segment.t => {
   let typ = parenthesize_typ(typ);
-  let p =
-    typ_to_pretty(~settings, typ(~preserve_filters=settings.show_filters));
+  let p = typ_to_pretty(~settings, typ(~show_filters=settings.show_filters));
   p |> PrettySegment.select;
 };
