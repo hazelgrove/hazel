@@ -58,31 +58,43 @@ let cur_outer_ap_id = (_info: info, dyn_stack: Probe.stack) =>
   };
 
 module State = {
-  let env_cursor: ref(list(Id.t)) = ref([]);
-  let cur_ap: ref(option(Id.t)) = ref(Option.None);
-  let outer_ap_id: ref(option(Id.t)) = ref(Option.None);
+  type t = {
+    mutable env_cursor: list(Id.t),
+    mutable dyn_env_cursor: list(Id.t),
+    mutable cur_ap: option(Id.t),
+    mutable outer_ap_id: option(Id.t),
+  };
+
+  let s: t = {
+    env_cursor: [],
+    dyn_env_cursor: [],
+    cur_ap: None,
+    outer_ap_id: None,
+  };
 
   let reset = () => {
-    env_cursor := [];
-    cur_ap := None;
-    outer_ap_id := None;
+    s.env_cursor = [];
+    s.dyn_env_cursor = [];
+    s.cur_ap = None;
+    s.outer_ap_id = None;
   };
 
   let capture = (info: info, closure: Dynamics.Probe.Closure.t) => {
-    env_cursor := Probe.env_stack(closure.stack);
-    cur_ap := cur_ap_id(info);
-    outer_ap_id := cur_outer_ap_id(info, closure.dyn_stack);
+    s.env_cursor = Probe.env_stack(closure.stack);
+    s.dyn_env_cursor = Probe.env_stack(closure.dyn_stack);
+    s.cur_ap = cur_ap_id(info);
+    s.outer_ap_id = cur_outer_ap_id(info, closure.dyn_stack);
   };
 };
 
 let comparor = (a: Dynamics.Probe.Closure.t, b: Dynamics.Probe.Closure.t) => {
   compare(
     ListUtil.common_suffix_length(
-      State.env_cursor^,
+      State.s.env_cursor,
       Probe.env_stack(b.stack),
     ),
     ListUtil.common_suffix_length(
-      State.env_cursor^,
+      State.s.env_cursor,
       Probe.env_stack(a.stack),
     ),
   );
@@ -90,15 +102,15 @@ let comparor = (a: Dynamics.Probe.Closure.t, b: Dynamics.Probe.Closure.t) => {
 
 let show_indicator = stack => {
   let local = Probe.env_stack(stack);
-  State.env_cursor^ == []
+  State.s.env_cursor == []
   && local == []
-  || State.env_cursor^ != []
-  && ListUtil.is_suffix_of(local, State.env_cursor^);
+  || State.s.env_cursor != []
+  && ListUtil.is_suffix_of(local, State.s.env_cursor);
 };
 
 let depth_in_cur_ap_stack = (dyn_stack): option(int) =>
   List.find_index(
-    ({ap_id, _}: Probe.frame) => Some(ap_id) == State.cur_ap^,
+    ({ap_id, _}: Probe.frame) => Some(ap_id) == State.s.cur_ap,
     dyn_stack,
   );
 
@@ -106,12 +118,6 @@ let is_in_cur_ap_stack = (dyn_stack): bool =>
   switch (depth_in_cur_ap_stack(dyn_stack)) {
   | Some(_) => true
   | None => false
-  };
-
-let on_outer_ap = (info: info): bool =>
-  switch (cur_ap_id(info), State.outer_ap_id^) {
-  | (Some(ap_id), Some(outer_ap_id)) => ap_id == outer_ap_id
-  | _ => false
   };
 
 let seg_view = (utility, available, seg) =>
@@ -134,12 +140,18 @@ let get_goal = (utility: utility, e: Js.t(Dom_html.mouseEvent)) =>
 
 let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
 
+let on_outer_ap = (info: info, _closure): bool =>
+  switch (cur_ap_id(info), State.s.outer_ap_id) {
+  | (Some(ap_id), Some(outer_ap_id)) => ap_id == outer_ap_id
+  | _ => false
+  };
+
 let dynamic_cursor_cls = (closure: Dynamics.Probe.Closure.t) =>
   switch (is_in_cur_ap_stack(closure.dyn_stack)) {
   | true
       when
         ListUtil.is_suffix_of(
-          State.env_cursor^,
+          State.s.env_cursor,
           Probe.env_stack(closure.stack),
         ) => [
       "cursor-ap-lex",
@@ -190,7 +202,7 @@ let value_view =
       Attr.classes(
         ["val-resize"]
         @ dynamic_cursor_cls(closure)
-        @ (on_outer_ap(info) ? ["outer-ap"] : [])
+        @ (on_outer_ap(info, closure) ? ["outer-ap"] : [])
         @ (
           switch (depth_in_cur_ap_stack(closure.dyn_stack)) {
           | Some(0)

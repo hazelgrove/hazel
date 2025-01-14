@@ -153,10 +153,14 @@
 .projector.probe.indicated .val-resize .code-text {
   opacity: 60%;
 }
-.projector.probe.indicated .val-resize.cursor-lex .code-text {
+.projector.probe.indicated .closure.cursor .val-resize .code-text {
   opacity: 100%;
   background: none;
-  outline: 2.8px solid var(--exp-indicated);
+  outline-width: 2.8px;
+  outline-style: solid;
+}
+.projector.probe.indicated .val-resize.cursor-lex .code-text {
+  outline-color: var(--exp-indicated);
 }
 .projector.probe.indicated .val-resize.cursor-lex.ap .code-text {
   outline-color: var(--TYP);
