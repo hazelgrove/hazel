@@ -71,5 +71,31 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "Deferred application",
+      `Quick,
+      () => {
+        let segment =
+          segmentize(
+            DeferredAp(
+              Var("string_sub") |> Exp.fresh,
+              [
+                String("hello") |> Exp.fresh,
+                Int(1) |> Exp.fresh,
+                Deferral(InAp) |> Exp.fresh,
+              ],
+            )
+            |> Exp.fresh,
+          );
+        let serialized = Printer.of_segment(~holes=Some("?"), segment);
+
+        check(
+          string,
+          "deferral in application",
+          serialized,
+          {|string_sub("hello", 1, _)|},
+        );
+      },
+    ),
   ],
 );
