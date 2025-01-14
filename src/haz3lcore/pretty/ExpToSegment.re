@@ -178,7 +178,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   // @ [mk_form("typeasc", id, [])]
   // @ (t |> fold_if(settings.fold_cast_types));
   | ListLit([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "[]")
-  | Deferral(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "deferral")
+  | Deferral(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_")
   | ListLit([x, ...xs]) =>
     // TODO: Add optional newlines
     let* x = go(x)
