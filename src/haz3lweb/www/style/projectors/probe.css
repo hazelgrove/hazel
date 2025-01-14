@@ -135,7 +135,8 @@
   opacity: 100%;
   outline: 1px solid var(--TYP);
 }
-.projector.probe .val-resize.cursor-lex.outer-ap .code-text {
+.projector.probe .val-resize.cursor-outer-ap .code-text {
+  opacity: 100% !important;
   outline: 1px solid var(--TYP);
   background-color: var(--TYP);
 }
@@ -179,7 +180,7 @@
 .projector.probe .val-resize.cursor-ap-lex .code-text .token {
   color: var(--TYP);
 }
-.projector.probe .val-resize.cursor-lex.outer-ap .code-text .token {
+.projector.probe .val-resize.cursor-outer-ap .code-text .token {
   /* color: var(--TYP); */
   color: white;
 }
@@ -210,8 +211,6 @@
 }
 .projector.probe.indicated.Pat > svg {
   fill: var(--pat-indicated);
-}
-.projector.probe.indicated:has(.main.ap) > svg {
 }
 
 .projector.probe.indicated .main {

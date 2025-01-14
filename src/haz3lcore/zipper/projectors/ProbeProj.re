@@ -31,16 +31,27 @@ let model_of_sexp = (sexp): model =>
 let display_length = (model: model, id: Id.t): int =>
   Id.Map.find_opt(id, model.display_lengths) |> Option.value(~default=12);
 
-let stack = stack =>
-  stack
-  |> List.rev
-  |> List.map(({env_id, ap_id}: Probe.frame) =>
-       ""
-       ++ String.sub(Id.to_string(env_id), 0, 2)
-       ++ " : "
-       ++ String.sub(Id.to_string(ap_id), 0, 2)
-     )
-  |> String.concat("\n");
+module Debug = {
+  let of_id = (id: Id.t) => String.sub(Id.to_string(id), 0, 3);
+
+  let stack = stack =>
+    stack
+    |> List.rev
+    |> List.map(({env_id, ap_id}: Probe.frame) =>
+         "" ++ of_id(env_id) ++ " : " ++ of_id(ap_id)
+       )
+    |> String.concat("\n");
+
+  let str = (closure: Dynamics.Probe.Closure.t) =>
+    "closure_id: "
+    ++ of_id(closure.closure_id)
+    ++ "\nenv_id: "
+    ++ of_id(closure.env_id)
+    ++ "\ndyn_stack:\n"
+    ++ stack(closure.dyn_stack)
+    ++ "\nstack:\n"
+    ++ stack(closure.stack);
+};
 
 let cur_ap_id = (info: info) =>
   switch (info.statics) {
@@ -53,14 +64,14 @@ let cur_ap_id = (info: info) =>
 
 let cur_outer_ap_id = (_info: info, dyn_stack: Probe.stack) =>
   switch (dyn_stack) {
-  | [{ap_id, _}, ..._] => Some(ap_id)
+  | [frame, ..._] => Some(frame.ap_id)
   | _ => None
   };
 
 module State = {
   type t = {
     mutable env_cursor: list(Id.t),
-    mutable dyn_env_cursor: list(Id.t),
+    mutable dyn_env_cursor: list(Probe.frame),
     mutable cur_ap: option(Id.t),
     mutable outer_ap_id: option(Id.t),
   };
@@ -81,7 +92,7 @@ module State = {
 
   let capture = (info: info, closure: Dynamics.Probe.Closure.t) => {
     s.env_cursor = Probe.env_stack(closure.stack);
-    s.dyn_env_cursor = Probe.env_stack(closure.dyn_stack);
+    s.dyn_env_cursor = closure.dyn_stack;
     s.cur_ap = cur_ap_id(info);
     s.outer_ap_id = cur_outer_ap_id(info, closure.dyn_stack);
   };
@@ -100,25 +111,11 @@ let comparor = (a: Dynamics.Probe.Closure.t, b: Dynamics.Probe.Closure.t) => {
   );
 };
 
-let show_indicator = stack => {
-  let local = Probe.env_stack(stack);
-  State.s.env_cursor == []
-  && local == []
-  || State.s.env_cursor != []
-  && ListUtil.is_suffix_of(local, State.s.env_cursor);
-};
-
 let depth_in_cur_ap_stack = (dyn_stack): option(int) =>
   List.find_index(
     ({ap_id, _}: Probe.frame) => Some(ap_id) == State.s.cur_ap,
     dyn_stack,
   );
-
-let is_in_cur_ap_stack = (dyn_stack): bool =>
-  switch (depth_in_cur_ap_stack(dyn_stack)) {
-  | Some(_) => true
-  | None => false
-  };
 
 let seg_view = (utility, available, seg) =>
   seg
@@ -140,25 +137,36 @@ let get_goal = (utility: utility, e: Js.t(Dom_html.mouseEvent)) =>
 
 let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
 
-let on_outer_ap = (info: info, _closure): bool =>
+let on_outer_ap = (info: info, closure: Dynamics.Probe.Closure.t): bool =>
   switch (cur_ap_id(info), State.s.outer_ap_id) {
-  | (Some(ap_id), Some(outer_ap_id)) => ap_id == outer_ap_id
+  | (Some(ap_id), Some(outer_ap_id)) =>
+    ap_id == outer_ap_id
+    && closure.env_id
+    == Option.value(
+         ~default={ap_id: Id.invalid, env_id: Id.invalid},
+         ListUtil.hd_opt(State.s.dyn_env_cursor),
+       ).
+         env_id
   | _ => false
   };
 
-let dynamic_cursor_cls = (closure: Dynamics.Probe.Closure.t) =>
-  switch (is_in_cur_ap_stack(closure.dyn_stack)) {
-  | true
-      when
-        ListUtil.is_suffix_of(
-          State.s.env_cursor,
-          Probe.env_stack(closure.stack),
-        ) => [
-      "cursor-ap-lex",
-    ]
-  | true => ["cursor-ap"]
+let show_indicator = stack => {
+  let local = Probe.env_stack(stack);
+  State.s.env_cursor == []
+  && local == []
+  || State.s.env_cursor != []
+  && ListUtil.is_suffix_of(local, State.s.env_cursor);
+};
+
+let dynamic_cursor_cls = (info: info, closure: Dynamics.Probe.Closure.t) =>
+  switch (depth_in_cur_ap_stack(closure.dyn_stack)) {
+  | _ when on_outer_ap(info, closure) => ["cursor-outer-ap"]
+  | Some(depth)
+      when ListUtil.is_suffix_of(State.s.dyn_env_cursor, closure.dyn_stack) =>
+    ["cursor-ap-lex"] @ (depth == 0 ? [] : ["light"])
+  | Some(depth) => ["cursor-ap"] @ (depth == 0 ? [] : ["light"])
   | _ when show_indicator(closure.stack) => ["cursor-lex"]
-  | false => ["cursor-none"]
+  | None => ["cursor-none"]
   };
 
 let value_view =
@@ -193,23 +201,10 @@ let value_view =
 
   div(
     ~attrs=[
-      Attr.title(
-        "dyn_stack:\n"
-        ++ stack(closure.dyn_stack)
-        ++ "\nstack:\n"
-        ++ stack(closure.stack),
-      ),
+      Attr.title(Debug.str(closure)),
       Attr.classes(
         ["val-resize"]
-        @ dynamic_cursor_cls(closure)
-        @ (on_outer_ap(info, closure) ? ["outer-ap"] : [])
-        @ (
-          switch (depth_in_cur_ap_stack(closure.dyn_stack)) {
-          | Some(0)
-          | None => []
-          | Some(_) => ["light"]
-          }
-        )
+        @ dynamic_cursor_cls(info, closure)
         @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleShowAllVals)),
