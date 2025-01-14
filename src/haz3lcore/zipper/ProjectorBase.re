@@ -1,6 +1,5 @@
 open Util;
 open Virtual_dom.Vdom;
-include Base;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Base.kind;
