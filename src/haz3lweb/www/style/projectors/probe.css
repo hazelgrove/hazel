@@ -128,50 +128,56 @@
   background-color: var(--pat-base);
 }
 /* TOKEN OPACITY */
-.projector.probe .val-resize.cursor .code-text {
+.projector.probe .val-resize.cursor-lex .code-text {
   opacity: 100%;
 }
-.projector.probe .val-resize.dyn-cursor.cursor .code-text,
-.projector.probe .val-resize.dyn-cursor.top-ap .code-text {
+.projector.probe .val-resize.cursor-ap-lex .code-text {
   opacity: 100%;
   outline: 1px solid var(--TYP);
 }
-.projector.probe .val-resize.dyn-cursor:not(.cursor):not(.top-ap) .code-text {
-  opacity: 100%;
-  /* outline: 1px solid var(--TYP); */
-  outline: 1px dotted var(--TYP);
+.projector.probe .val-resize.cursor-lex.outer-ap .code-text {
+  outline: 1px solid var(--TYP);
+  background-color: var(--TYP);
 }
+/* .projector.probe .val-resize.cursor-ap .code-text {
+  opacity: 100%;
+  outline: 1px dotted var(--TYP);
+} */
 .projector.probe .val-resize .code-text {
   opacity: 51%;
 }
-.projector.probe .val-resize.dyn-cursor.light .code-text {
+.projector.probe .val-resize.cursor-ap.light .code-text,
+.projector.probe .val-resize.cursor-ap-lex.light .code-text {
   opacity: 45%;
 }
 .projector.probe.indicated .val-resize .code-text {
   opacity: 60%;
 }
-.projector.probe.indicated .val-resize.cursor .code-text {
+.projector.probe.indicated .val-resize.cursor-lex .code-text {
   opacity: 100%;
   background: none;
   outline: 2.8px solid var(--exp-indicated);
 }
-.projector.probe.indicated .val-resize.cursor.ap .code-text {
+.projector.probe.indicated .val-resize.cursor-lex.ap .code-text {
   outline-color: var(--TYP);
 }
+.projector.probe.indicated.Pat .val-resize.cursor-lex .code-text {
+  outline-color: var(--pat-indicated);
+}
 /* TOKENS */
-.projector.probe
-  .val-resize.dyn-cursor:not(.cursor):not(.top-ap)
-  .code-text
-  .token {
+.projector.probe .val-resize.cursor-ap .code-text .token {
   filter: invert(1) brightness(10);
   /* color: var(--TYP); */
 }
-.projector.probe .val-resize:not(.dyn-cursor):not(.cursor) .code-text .token {
+.projector.probe .val-resize.cursor-none .code-text .token {
   filter: invert(1) brightness(10);
 }
-.projector.probe .val-resize.dyn-cursor.cursor .code-text .token,
-.projector.probe .val-resize.dyn-cursor.top-ap .code-text .token {
+.projector.probe .val-resize.cursor-ap-lex .code-text .token {
   color: var(--TYP);
+}
+.projector.probe .val-resize.cursor-lex.outer-ap .code-text .token {
+  /* color: var(--TYP); */
+  color: white;
 }
 
 .projector.probe .val-resize .code-text:hover {
@@ -206,10 +212,6 @@
 
 .projector.probe.indicated .main {
   color: white;
-}
-
-.projector.probe.indicated.Pat .val-resize.cursor .code-text {
-  outline-color: var(--pat-indicated);
 }
 
 .projector.probe.indicated .closure:hover .live-env {
