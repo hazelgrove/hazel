@@ -23,11 +23,6 @@ let get_elem_by_selector = selector => {
   );
 };
 
-let request_frame = kont => {
-  let _ = Dom_html.window##requestAnimationFrame(Js.wrap_callback(kont));
-  ();
-};
-
 let get_child_with_class = (element: Js.t(Dom_html.element), className) => {
   let rec loop = (sibling: Js.t(Dom_html.element)) =>
     if (Js.to_bool(sibling##.classList##contains(Js.string(className)))) {
