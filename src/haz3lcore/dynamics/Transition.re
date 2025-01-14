@@ -792,14 +792,14 @@ module Transition = (EV: EV_MODE) => {
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;
-    | Parens(d'', Probe(pr)) =>
+    | Wrap(d'', Probe(pr)) =>
       /* When evaluated, a probe adds a dynamics info entry
        * reflecting the evaluation of the contained expression */
-      let. _ = otherwise(env, ((d, _)) => Parens(d, Probe(pr)) |> rewrap)
+      let. _ = otherwise(env, ((d, _)) => Wrap(d, Probe(pr)) |> rewrap)
       and. (d', _) =
         req_final_or_value(
           req(state, env),
-          d => Parens(d, Probe(pr)) |> wrap_ctx,
+          d => Wrap(d, Probe(pr)) |> wrap_ctx,
           d'',
         );
       Step({
@@ -811,7 +811,7 @@ module Transition = (EV: EV_MODE) => {
         kind: RemoveParens,
         is_value: true,
       });
-    | Parens(d, Paren) =>
+    | Wrap(d, Paren) =>
       let. _ = otherwise(env, d);
       Step({expr: d, state_update, kind: RemoveParens, is_value: false});
     | TyAlias(_, _, d) =>

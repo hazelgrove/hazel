@@ -78,7 +78,7 @@ let cls_of_term: term => cls =
   | Arrow(_) => Arrow
   | Var(_) => Var
   | Prod(_) => Prod
-  | Parens(_) => Parens
+  | Wrap(_) => Parens
   | Ap(_) => Ap
   | Sum(_) => Sum
   | Rec(_) => Rec
@@ -108,7 +108,7 @@ let show_cls: cls => string =
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
-  | Parens(typ) => is_arrow(typ)
+  | Wrap(typ) => is_arrow(typ)
   | Arrow(_) => true
   | Unknown(_)
   | Int
@@ -127,7 +127,7 @@ let rec is_arrow = (typ: t) => {
 
 let rec is_forall = (typ: t) => {
   switch (typ.term) {
-  | Parens(typ) => is_forall(typ)
+  | Wrap(typ) => is_forall(typ)
   | Forall(_) => true
   | Unknown(_)
   | Int
@@ -182,7 +182,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | String => []
   | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Var(v) => List.mem(v, bound) ? [] : [v]
-  | Parens(ty) => free_vars(~bound, ty)
+  | Wrap(ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
@@ -217,8 +217,8 @@ let eq = (t1: t, t2: t): bool => fast_equal(t1, t2);
 let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let join' = join(~resolve, ~fix, ctx);
   switch (term_of(ty1), term_of(ty2)) {
-  | (_, Parens(ty2)) => join'(ty1, ty2)
-  | (Parens(ty1), _) => join'(ty1, ty2)
+  | (_, Wrap(ty2)) => join'(ty1, ty2)
+  | (Wrap(ty1), _) => join'(ty1, ty2)
   | (_, Unknown(Hole(_))) when fix =>
     /* NOTE(andrew): This is load bearing
        for ensuring that function literals get appropriate
@@ -307,7 +307,7 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
 let rec match_synswitch = (t1: t, t2: t) => {
   let (term1, rewrap1) = unwrap(t1);
   switch (term1, term_of(t2)) {
-  | (Parens(t1), _) => Parens(match_synswitch(t1, t2)) |> rewrap1
+  | (Wrap(t1), _) => Wrap(match_synswitch(t1, t2)) |> rewrap1
   | (Unknown(SynSwitch), _) => t2
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
@@ -350,7 +350,7 @@ let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
 
 let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
   switch (term_of(ty)) {
-  | Parens(t) => weak_head_normalize(ctx, t)
+  | Wrap(t) => weak_head_normalize(ctx, t)
   | Var(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => weak_head_normalize(ctx, ty)
@@ -372,7 +372,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Float
   | Bool
   | String => ty
-  | Parens(t) => Parens(normalize(ctx, t)) |> rewrap
+  | Wrap(t) => Wrap(normalize(ctx, t)) |> rewrap
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Arrow(t1, t2) =>
@@ -392,7 +392,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
 
 let rec matched_arrow_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_arrow_strict(ctx, ty)
+  | Wrap(ty) => matched_arrow_strict(ctx, ty)
   | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
   | Unknown(SynSwitch) =>
     Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
@@ -407,7 +407,7 @@ let matched_arrow = (ctx, ty) =>
 
 let rec matched_forall_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_forall_strict(ctx, ty)
+  | Wrap(ty) => matched_forall_strict(ctx, ty)
   | Forall(t, ty) => Some((Some(t), ty))
   | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
   | _ => None // (None, Unknown(Internal) |> temp)
@@ -419,7 +419,7 @@ let matched_forall = (ctx, ty) =>
 
 let rec matched_prod_strict = (ctx, length, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_prod_strict(ctx, length, ty)
+  | Wrap(ty) => matched_prod_strict(ctx, length, ty)
   | Prod(tys) when List.length(tys) == length => Some(tys)
   | Unknown(SynSwitch) =>
     Some(List.init(length, _ => Unknown(SynSwitch) |> temp))
@@ -432,7 +432,7 @@ let matched_prod = (ctx, length, ty) =>
 
 let rec matched_list_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_list_strict(ctx, ty)
+  | Wrap(ty) => matched_list_strict(ctx, ty)
   | List(ty) => Some(ty)
   | Unknown(SynSwitch) => Some(Unknown(SynSwitch) |> temp)
   | _ => None
@@ -445,7 +445,7 @@ let matched_list = (ctx, ty) =>
 let rec matched_args = (ctx, default_arity, ty) => {
   let ty' = weak_head_normalize(ctx, ty);
   switch (term_of(ty')) {
-  | Parens(ty) => matched_args(ctx, default_arity, ty)
+  | Wrap(ty) => matched_args(ctx, default_arity, ty)
   | Prod([_, ..._] as tys) => tys
   | Unknown(_) => List.init(default_arity, _ => ty')
   | _ => [ty']
@@ -455,7 +455,7 @@ let rec matched_args = (ctx, default_arity, ty) => {
 let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
-  | Parens(ty) => get_sum_constructors(ctx, ty)
+  | Wrap(ty) => get_sum_constructors(ctx, ty)
   | Sum(sm) => Some(sm)
   | Rec(_) =>
     /* Note: We must unroll here to get right ctr types;
@@ -487,7 +487,7 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
 
 let rec is_unknown = (ty: t): bool =>
   switch (ty |> term_of) {
-  | Parens(x) => is_unknown(x)
+  | Wrap(x) => is_unknown(x)
   | Unknown(_) => true
   | _ => false
   };
@@ -495,7 +495,7 @@ let rec is_unknown = (ty: t): bool =>
 /* Does the type require parentheses when on the left of an arrow for printing? */
 let rec needs_parens = (ty: t): bool =>
   switch (term_of(ty)) {
-  | Parens(ty) => needs_parens(ty)
+  | Wrap(ty) => needs_parens(ty)
   | Ap(_)
   | Unknown(_)
   | Int
@@ -522,7 +522,7 @@ let pretty_print_tvar = (tv: TPat.t): string =>
 /* Essentially recreates haz3lweb/view/Type.re's view_ty but with string output */
 let rec pretty_print = (ty: t): string =>
   switch (term_of(ty)) {
-  | Parens(ty) => pretty_print(ty)
+  | Wrap(ty) => pretty_print(ty)
   | Ap(_)
   | Unknown(_) => "?"
   | Int => "Int"

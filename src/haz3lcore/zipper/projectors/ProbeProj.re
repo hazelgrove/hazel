@@ -85,7 +85,7 @@ let cur_ap_id = (info: info) =>
   switch (info.statics) {
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _})) =>
     Some(Term.Exp.rep_id(ap))
-  | Some(InfoExp({term: {term: Parens({term: Ap(_), _} as ap, _), _}, _})) =>
+  | Some(InfoExp({term: {term: Wrap({term: Ap(_), _} as ap, _), _}, _})) =>
     Some(Term.Exp.rep_id(ap))
   | _ => None
   };

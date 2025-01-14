@@ -136,11 +136,10 @@ let collate_utility =
         cached_syntax.measured,
       ),
     view: (sort, seg) =>
-      /* Assume this doesn't contain projectors */
       CodeViewable.view_segment(
         ~globals,
         ~sort,
-        ~shape_of_proj=_ => ProjectorShape.default,
+        ~shape_of_proj=Projector.Shape.of_map_default,
         seg,
       ),
     exp_to_seg: exp =>

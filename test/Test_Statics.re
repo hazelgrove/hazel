@@ -40,7 +40,8 @@ let unapplied_function = () =>
     ),
   );
 
-let tests =
+let tests = (
+  "Statics",
   FreshId.[
     test_case("Function with unknown param", `Quick, () =>
       alco_check(
@@ -123,4 +124,5 @@ let tests =
         ),
       )
     ),
-  ];
+  ],
+);

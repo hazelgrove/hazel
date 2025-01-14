@@ -276,7 +276,7 @@ let consume_deferred_linebreaks = () => {
 };
 
 let of_segment =
-    (seg: Segment.t, shape_of_proj: Base.projector => Base.shape): t => {
+    (seg: Segment.t, shape_of_proj: Base.projector => ProjectorShape.t): t => {
   deferred_linebreaks := [];
   let is_indented = is_indented_map(seg);
 
@@ -343,32 +343,31 @@ let of_segment =
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
           | Projector(p) =>
-            let extra_rows_of_shape = (shape: Base.shape, origin, map) =>
+            let row_indent = container_indent + contained_indent;
+            let shape = shape_of_proj(p);
+            let num_extra_rows =
               switch (shape.vertical) {
               | Inline
               | Tab(0)
-              | Block(0) => map
+              | Block(0) => 0
               | Tab(num_lb) =>
                 deferred_linebreaks := [num_lb, ...deferred_linebreaks^];
-                map;
-              | Block(num_lb) =>
-                let row_indent = container_indent + contained_indent;
-                let num_extra_rows = num_lb + consume_deferred_linebreaks();
-                add_n_rows(origin, row_indent, num_extra_rows, map);
+                num_lb;
+              | Block(num_lb) => num_lb + consume_deferred_linebreaks()
               };
-            let last_of_shape = (shape: Base.shape, origin: Point.t): Point.t => {
+            let last = {
               col: origin.col + shape.horizontal,
               row:
                 switch (shape.vertical) {
                 | Inline => origin.row
-                | Tab(_num_lb) => origin.row
+                | Tab(_) => origin.row
                 | Block(num_lb) => origin.row + num_lb
                 },
             };
-            let shape = shape_of_proj(p);
-            let last = last_of_shape(shape, origin);
-            let map = extra_rows_of_shape(shape, origin, map);
-            let map = add_pr(p, {origin, last}, map);
+            let map =
+              map
+              |> add_n_rows(origin, row_indent, num_extra_rows)
+              |> add_pr(p, {origin, last});
             (contained_indent, last, map);
           | Tile(t) =>
             let extra_rows = (token, origin, map) => {

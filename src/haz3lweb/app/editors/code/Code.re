@@ -117,13 +117,13 @@ let of_projector = (expected_sort, indent, shape: Base.shape) => {
     switch (shape.vertical) {
     | Inline
     | Tab(0)
-    | Block(0) => Projector.token_of_shape(shape)
+    | Block(0) => Projector.Shape.token(shape)
     | Tab(num_lb) =>
       deferred_linebreaks := [num_lb, ...deferred_linebreaks^];
-      Projector.token_of_shape(shape);
+      Projector.Shape.token(shape);
     | Block(_) =>
       String.make(consume_deferred_linebreaks(), '\n')
-      ++ Projector.token_of_shape(shape)
+      ++ Projector.Shape.token(shape)
     };
   of_delim'((
     Id.invalid,
@@ -142,7 +142,7 @@ module Text =
          M: {
            let map: Measured.t;
            let settings: Settings.Model.t;
-           let shape_of_proj: Base.projector => Base.shape;
+           let shape_of_proj: Base.projector => ProjectorShape.t;
          },
        ) => {
   deferred_linebreaks := [];
@@ -221,7 +221,7 @@ let rec holes =
      );
 
 let simple_view = (~font_metrics, ~segment, ~settings: Settings.t): Node.t => {
-  let shape_of_proj = _ => ProjectorShape.default; /* Assume this doesn't contain projectors */
+  let shape_of_proj = Projector.Shape.of_map_default; /* Assume this doesn't contain projectors */
   let map = Measured.of_segment(segment, shape_of_proj);
   module Text =
     Text({

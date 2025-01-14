@@ -127,9 +127,9 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           ellipses_term();
         };
       Ap(Forward, konst, arg);
-    | Parens(e, pt) =>
+    | Wrap(e, pt) =>
       available := available^ - 2;
-      Parens(abbreviate_exp(e), pt);
+      Wrap(abbreviate_exp(e), pt);
 
     //unhandled atm
     | Closure(_) => indet_term
