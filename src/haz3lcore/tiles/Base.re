@@ -15,9 +15,6 @@ type kind =
   | TextArea;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type shape = ProjectorShape.t;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type segment = list(piece)
 and piece =
   | Tile(tile)
