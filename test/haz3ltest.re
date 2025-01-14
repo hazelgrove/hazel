@@ -5,13 +5,13 @@ let (suite, _) =
     ~and_exit=false,
     "HazelTests",
     [
+      Test_ExpToSegment.tests,
       Test_Menhir.tests,
       Test_StringUtil.tests,
       Test_Statics.tests,
       Test_Evaluator.tests,
       Test_ListUtil.tests,
       Test_MakeTerm.tests,
-      Test_ExpToSegment.tests,
     ]
     @ Test_Elaboration.tests,
   );

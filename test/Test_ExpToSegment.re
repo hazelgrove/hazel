@@ -132,5 +132,65 @@ let tests = (
         check(string, "Pause", serialized, {|pause 1 in 2|});
       },
     ),
+    test_case(
+      "Right associativity",
+      `Quick,
+      () => {
+        check(
+          string,
+          "No parens",
+          Printer.of_segment(
+            ~holes=Some("?"),
+            segmentize(
+              BinOp(
+                Int(Power),
+                Int(2) |> Exp.fresh,
+                BinOp(Int(Power), Int(3) |> Exp.fresh, Int(4) |> Exp.fresh)
+                |> Exp.fresh,
+              )
+              |> Exp.fresh,
+            ),
+          ),
+          {|2 ** 3 ** 4|},
+        );
+        check(
+          string,
+          "Parens",
+          Printer.of_segment(
+            ~holes=Some("?"),
+            segmentize(
+              BinOp(
+                Int(Power),
+                BinOp(Int(Power), Int(2) |> Exp.fresh, Int(3) |> Exp.fresh)
+                |> Exp.fresh,
+                Int(4) |> Exp.fresh,
+              )
+              |> Exp.fresh,
+            ),
+          ),
+          {|(2 ** 3) ** 4|},
+        );
+        check(
+          string,
+          "Arrow types",
+          Printer.of_segment(
+            ~holes=Some("?"),
+            segmentize(
+              TyAlias(
+                Var("x") |> TPat.fresh,
+                Arrow(
+                  Arrow(Int |> Typ.fresh, Bool |> Typ.fresh) |> Typ.fresh,
+                  Var("x") |> Typ.fresh,
+                )
+                |> Typ.fresh,
+                Int(1) |> Exp.fresh,
+              )
+              |> Exp.fresh,
+            ),
+          ),
+          {|type x = (Int -> Bool) -> x in 1|},
+        );
+      },
+    ),
   ],
 );
