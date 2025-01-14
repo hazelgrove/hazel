@@ -440,11 +440,11 @@ let refresh_step =
   let eos =
     decompose(exp, state)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
-  let* (_, x) =
+  let* (h, x) =
     List.find_opt(
       ((_, step': step)) =>
         IdTagged.ids(step'.d_loc) == IdTagged.ids(step.d_loc),
       eos,
     );
-  Some(x);
+  Some((h, x));
 };
