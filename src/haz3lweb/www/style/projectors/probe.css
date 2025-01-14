@@ -90,7 +90,7 @@
 .projector.probe.selected .num-closures {
   background-color: var(--num-closures);
 }
-.projector.probe.indicated .num-closures {
+.projector.probe.indicated.Right .num-closures {
   background-color: var(--num-closures-indicated);
 }
 .projector.probe.indicated.Right .num-closures {

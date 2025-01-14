@@ -5,13 +5,6 @@ include Base;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Base.kind;
 
-/* Projectors currently have two options for placeholder
- * shapes: A inline display of a given length, or a block
- * display with given length & height. Both of these can
- * depend on the projector model and info package */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type shape = Base.shape;
-
 /* The type of syntax which a projector can replace.
  * Right now projectors can replace a single piece */
 [@deriving (show({with_path: false}), sexp, yojson)]

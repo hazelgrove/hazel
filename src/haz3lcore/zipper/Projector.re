@@ -39,29 +39,27 @@ let init_from_str = (kind: t, syntax: syntax, model_str: string): syntax => {
   };
 };
 
-let shape = (p: Base.projector, info: info): shape => {
-  let (module P) = to_module(p.kind);
-  P.placeholder(p.model, info);
-};
-
-let shape_of_proj =
-    (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector)
-    : shape => {
-  let statics = Statics.Map.lookup(p.id, statics);
-  let dynamics = Dynamics.Map.lookup(p.id, dynamics);
-  shape(p, {id: p.id, syntax: p.syntax, statics, dynamics});
-};
-
-let token_of_shape = (shape: shape): string =>
-  switch (shape.vertical) {
-  | Inline
-  | Tab(_) => String.make(shape.horizontal, ' ')
-  | Block(num_lb) =>
-    String.make(num_lb, '\n') ++ String.make(shape.horizontal, ' ')
+module Shape = {
+  let of_info = (p: Base.projector, info: info): shape => {
+    let (module P) = to_module(p.kind);
+    P.placeholder(p.model, info);
   };
 
-/* Returns a token consisting of whitespace (possibly including linebreaks)
- * representing the space to leave for the projector in the underlying code view */
-let _token_of_proj =
-    (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector) =>
-  token_of_shape(shape_of_proj(statics, dynamics, p));
+  let of_map =
+      (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector)
+      : shape => {
+    let statics = Statics.Map.lookup(p.id, statics);
+    let dynamics = Dynamics.Map.lookup(p.id, dynamics);
+    of_info(p, {id: p.id, syntax: p.syntax, statics, dynamics});
+  };
+
+  let of_map_default = of_map(Id.Map.empty, Id.Map.empty);
+
+  let token = (shape: shape): string =>
+    switch (shape.vertical) {
+    | Inline
+    | Tab(_) => String.make(shape.horizontal, ' ')
+    | Block(num_lb) =>
+      String.make(num_lb, '\n') ++ String.make(shape.horizontal, ' ')
+    };
+};

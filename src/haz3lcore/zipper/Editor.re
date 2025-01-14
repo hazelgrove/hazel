@@ -54,7 +54,7 @@ module CachedSyntax = {
 
   let calculate = (z: Zipper.t, info_map, dyn_map, old: t) =>
     old.old
-      ? init(z, ~shape_of_proj=Projector.shape_of_proj(info_map, dyn_map))
+      ? init(z, ~shape_of_proj=Projector.Shape.of_map(info_map, dyn_map))
       : {...old, selection_ids: Selection.selection_ids(z.selection)};
 };
 
@@ -98,7 +98,10 @@ module Model = {
     },
     history: History.empty,
     syntax:
-      CachedSyntax.init(zipper, ~shape_of_proj=_ => ProjectorShape.default),
+      CachedSyntax.init(
+        zipper,
+        ~shape_of_proj=Projector.Shape.of_map_default,
+      ),
   };
 
   type persistent = PersistentZipper.t;

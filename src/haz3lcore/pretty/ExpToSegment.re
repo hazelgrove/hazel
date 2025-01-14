@@ -223,7 +223,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
     ListUtil.flat_intersperse(Grout({id, shape: Concave}), es);
-  | Parens({term: Fun(p, e, _, _), _} as inner_exp, _) =>
+  | Wrap({term: Fun(p, e, _, _), _} as inner_exp, _) =>
     // TODO: Add optional newlines
     let id = inner_exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
@@ -380,7 +380,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     [mk_form("test", id, [e])];
-  | Parens(e, _) =>
+  | Wrap(e, _) =>
     // TODO: Add optional newlines
 
     let id = exp |> Exp.rep_id;
@@ -518,7 +518,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     @ List.flatten(
         List.map2((id, x) => [mk_form("comma_pat", id, [])] @ x, ids, xs),
       );
-  | Parens(p, _) =>
+  | Wrap(p, _) =>
     let id = pat |> Pat.rep_id;
     let+ p = go(p);
     [mk_form("parens_pat", id, [p])];
@@ -583,7 +583,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           ts,
         ),
       );
-  | Parens(t) =>
+  | Wrap(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);
     [mk_form("parens_typ", id, [t])];
@@ -677,7 +677,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Undefined => Precedence.max
 
   // Same goes for forms which are already surrounded
-  | Parens(_)
+  | Wrap(_)
   | ListLit(_)
   | Test(_)
   | Match(_) => Precedence.max
@@ -727,7 +727,7 @@ let external_precedence_pat = (dp: Pat.t) =>
 
   // Same goes for forms which are already surrounded
   | ListLit(_)
-  | Parens(_) => Precedence.max
+  | Wrap(_) => Precedence.max
 
   // Other forms
   | Cons(_) => Precedence.cons
@@ -753,7 +753,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | String => Precedence.max
 
   // Same goes for forms which are already surrounded
-  | Parens(_)
+  | Wrap(_)
   | List(_) => Precedence.max
 
   // Other forms
@@ -770,29 +770,29 @@ let external_precedence_typ = (tp: Typ.t) =>
 
 let paren_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
   external_precedence(exp) >= internal_precedence
-    ? Exp.fresh(Parens(exp, Paren)) : exp;
+    ? Exp.fresh(Wrap(exp, Paren)) : exp;
 
 let paren_assoc_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
   external_precedence(exp) > internal_precedence
-    ? Exp.fresh(Parens(exp, Paren)) : exp;
+    ? Exp.fresh(Wrap(exp, Paren)) : exp;
 
 let paren_pat_at = (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
   external_precedence_pat(pat) >= internal_precedence
-    ? Pat.fresh(Parens(pat, Paren)) : pat;
+    ? Pat.fresh(Wrap(pat, Paren)) : pat;
 
 let paren_pat_assoc_at =
     (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
   external_precedence_pat(pat) > internal_precedence
-    ? Pat.fresh(Parens(pat, Paren)) : pat;
+    ? Pat.fresh(Wrap(pat, Paren)) : pat;
 
 let paren_typ_at = (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
   external_precedence_typ(typ) >= internal_precedence
-    ? Typ.fresh(Parens(typ)) : typ;
+    ? Typ.fresh(Wrap(typ)) : typ;
 
 let paren_typ_assoc_at =
     (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
   external_precedence_typ(typ) > internal_precedence
-    ? Typ.fresh(Parens(typ)) : typ;
+    ? Typ.fresh(Wrap(typ)) : typ;
 
 let rec parenthesize = (exp: Exp.t): Exp.t => {
   let (term, rewrap) = Exp.unwrap(exp);
@@ -921,8 +921,8 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
   //     parenthesize(e) |> paren_at(Precedence.min),
   //   )
   //   |> rewrap
-  | Parens(e, tag) =>
-    Parens(parenthesize(e) |> paren_at(Precedence.min), tag) |> rewrap
+  | Wrap(e, tag) =>
+    Wrap(parenthesize(e) |> paren_at(Precedence.min), tag) |> rewrap
   | Cons(e1, e2) =>
     Cons(
       parenthesize(e1) |> paren_at(Precedence.cons),
@@ -979,9 +979,8 @@ and parenthesize_pat = (pat: Pat.t): Pat.t => {
 
   // Other forms
   | Wild => pat
-  | Parens(p, tag) =>
-    Parens(parenthesize_pat(p) |> paren_pat_at(Precedence.min), tag)
-    |> rewrap
+  | Wrap(p, tag) =>
+    Wrap(parenthesize_pat(p) |> paren_pat_at(Precedence.min), tag) |> rewrap
   | Cons(p1, p2) =>
     Cons(
       parenthesize_pat(p1) |> paren_pat_at(Precedence.cons),
@@ -1034,8 +1033,8 @@ and parenthesize_typ = (typ: Typ.t): Typ.t => {
   | String => typ
 
   // Other forms
-  | Parens(t) =>
-    Parens(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
+  | Wrap(t) =>
+    Wrap(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
   | List(t) =>
     List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
   | Prod(ts) =>
