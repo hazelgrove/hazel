@@ -167,7 +167,6 @@ let start = {
           JsUtil.scroll_cursor_into_view_if_needed();
         };
         Haz3lcore.Animation.go();
-        ();
       },
       (),
     );
@@ -177,9 +176,7 @@ let start = {
 
   // View function
   let%arr app_model = app_model
-
   and app_inject = app_inject;
-
   Haz3lweb.Page.View.view(
     app_model,
     ~inject=app_inject,
