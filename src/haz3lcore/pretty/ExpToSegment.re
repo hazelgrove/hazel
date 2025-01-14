@@ -875,7 +875,7 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
   | TyAlias(tp, t, e) =>
     TyAlias(
       tp,
-      t, // TODO: Types
+      t |> paren_typ_at(Precedence.min),
       parenthesize(e) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
