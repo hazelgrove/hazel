@@ -3,7 +3,14 @@ open Haz3lcore;
 
 let segmentize =
   ExpToSegment.exp_to_segment(
-    ~settings=ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+    ~settings={
+      inline: true,
+      fold_case_clauses: false,
+      fold_fn_bodies: true,
+      hide_fixpoints: true,
+      fold_cast_types: true,
+      show_filters: true,
+    },
     _,
   );
 
@@ -33,8 +40,8 @@ let tests = (
         check(
           string,
           "ascribed sum type constructor in pattern",
-          serialized,
           "let []: (+ Jg) = ? in ?",
+          serialized,
         );
       },
     ),
@@ -66,8 +73,8 @@ let tests = (
         check(
           string,
           "Match statement",
-          serialized,
           "case x | A => 1| B => 2 end",
+          serialized,
         );
       },
     ),
@@ -92,9 +99,37 @@ let tests = (
         check(
           string,
           "deferral in application",
-          serialized,
           {|string_sub("hello", 1, _)|},
+          serialized,
         );
+      },
+    ),
+    test_case(
+      "Test",
+      `Quick,
+      () => {
+        let segment =
+          segmentize(Test(Bool(true) |> Exp.fresh) |> Exp.fresh);
+        let serialized = Printer.of_segment(~holes=Some("?"), segment);
+
+        check(string, "Test of true", {|test true end|}, serialized);
+      },
+    ),
+    test_case(
+      "Filter",
+      `Quick,
+      () => {
+        let segment =
+          segmentize(
+            Filter(
+              Filter({pat: Int(1) |> Exp.fresh, act: (Step, One)}),
+              Int(2) |> Exp.fresh,
+            )
+            |> Exp.fresh,
+          );
+        let serialized = Printer.of_segment(~holes=Some("?"), segment);
+
+        check(string, "Pause", serialized, {|pause 1 in 2|});
       },
     ),
   ],
