@@ -161,14 +161,14 @@ let rec elaborate_pattern =
            |> Option.value(~default=Typ.temp(Unknown(Internal))),
          )
     // Type annotations should already appeard
-    | Parens(p, Paren)
+    | Wrap(p, Paren)
     | Cast(p, _, _) =>
       let (p', ty) = elaborate_pattern(m, p);
       p' |> cast_from(ty |> Typ.normalize(ctx) |> Typ.all_ids_temp);
-    | Parens(p, probe) =>
+    | Wrap(p, probe) =>
       let (e', ty) = elaborate_pattern(m, p);
       let probe = Dynamics.Probe.instrument_pat(m, Pat.rep_id(upat), probe);
-      Parens(e' |> cast_from(ty), probe) |> rewrap;
+      Wrap(e' |> cast_from(ty), probe) |> rewrap;
     | Constructor(c, _) =>
       let mode =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
@@ -237,14 +237,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
     | Cast(e, _, _) // We remove these casts because they should be re-inserted in the recursive call
     | FailedCast(e, _, _) =>
       let (e', ty) = elaborate(m, e);
-      Parens(e' |> cast_from(ty), Paren) |> rewrap;
-    | Parens(e, Paren) =>
+      Wrap(e' |> cast_from(ty), Paren) |> rewrap;
+    | Wrap(e, Paren) =>
       let (e', ty) = elaborate(m, e);
       e' |> cast_from(ty);
-    | Parens(e, probe) =>
+    | Wrap(e, probe) =>
       let (e', ty) = elaborate(m, e);
       let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
-      Parens(e' |> cast_from(ty), probe) |> rewrap;
+      Wrap(e' |> cast_from(ty), probe) |> rewrap;
     | Deferral(_) => uexp
     | Int(_) => uexp |> cast_from(Int |> Typ.temp)
     | Bool(_) => uexp |> cast_from(Bool |> Typ.temp)

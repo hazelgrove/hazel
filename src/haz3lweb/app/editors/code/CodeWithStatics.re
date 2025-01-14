@@ -98,7 +98,7 @@ module View = {
         },
       _,
     }: Model.t = model;
-    let shape_of_proj = Projector.shape_of_proj(info_map, dynamics);
+    let shape_of_proj = Projector.Shape.of_map(info_map, dynamics);
     let code_text_view =
       CodeViewable.view(
         ~globals,

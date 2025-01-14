@@ -3,7 +3,7 @@ open Node;
 open Haz3lcore;
 open Util;
 
-let shape_of_proj = _ => ProjectorShape.default; /* Assume this doesn't contain projectors */
+let shape_of_proj = Projector.Shape.of_map_default; /* Assume this doesn't contain projectors */
 
 let measured_of = seg => Measured.of_segment(seg, shape_of_proj);
 

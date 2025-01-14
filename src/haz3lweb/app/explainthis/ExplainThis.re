@@ -278,7 +278,7 @@ let expander_deco =
                   CodeViewable.view_segment(
                     ~globals,
                     ~sort=Exp,
-                    ~shape_of_proj=_ => ProjectorShape.default, // Assume no projectors
+                    ~shape_of_proj=Projector.Shape.of_map_default, // Assume no projectors
                     segment,
                   );
                 let classes =
@@ -397,7 +397,7 @@ let example_view =
 
 let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
-  | Parens(p, _)
+  | Wrap(p, _)
   | Cast(p, _, _) => bypass_parens_and_annot_pat(p)
   | _ => pat
   };
@@ -405,21 +405,21 @@ let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
 
 let rec bypass_parens_pat = (pat: Pat.t) => {
   switch (pat.term) {
-  | Parens(p, _) => bypass_parens_pat(p)
+  | Wrap(p, _) => bypass_parens_pat(p)
   | _ => pat
   };
 };
 
 let rec bypass_parens_exp = (exp: Exp.t) => {
   switch (exp.term) {
-  | Parens(e, _) => bypass_parens_exp(e)
+  | Wrap(e, _) => bypass_parens_exp(e)
   | _ => exp
   };
 };
 
 let rec bypass_parens_typ = (typ: Typ.t) => {
   switch (typ.term) {
-  | Parens(t) => bypass_parens_typ(t)
+  | Wrap(t) => bypass_parens_typ(t)
   | _ => typ
   };
 };
@@ -1068,7 +1068,7 @@ let get_doc =
             basic(FunctionExp.functions_ctr);
           }
         | Invalid(_) => default // Shouldn't get hit
-        | Parens(_) => default // Shouldn't get hit?
+        | Wrap(_) => default // Shouldn't get hit?
         | Cast(_) => default // Shouldn't get hit?
         };
       | Tuple(terms) =>
@@ -1574,7 +1574,7 @@ let get_doc =
             basic(LetExp.lets_ctr);
           }
         | Invalid(_) => default // Shouldn't get hit
-        | Parens(_) => default // Shouldn't get hit?
+        | Wrap(_) => default // Shouldn't get hit?
         | Cast(_) => default // Shouldn't get hit?
         };
       | FixF(pat, body, _) =>
@@ -1765,7 +1765,7 @@ let get_doc =
             ),
           TestExp.tests,
         );
-      | Parens(term, _) => get_message_exp(term.term) // No Special message?
+      | Wrap(term, _) => get_message_exp(term.term) // No Special message?
       | Cons(hd, tl) =>
         let hd_id = List.nth(hd.ids, 0);
         let tl_id = List.nth(tl.ids, 0);
@@ -2135,7 +2135,7 @@ let get_doc =
         TypAnnPat.typann,
       );
     | Invalid(_) => simple("Not a valid pattern")
-    | Parens(_) =>
+    | Wrap(_) =>
       // Shouldn't be hit?
       default
     }
@@ -2329,7 +2329,7 @@ let get_doc =
       get_message(SumTyp.sum_typ_unary_constructor_defs(c))
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
     | Ap(_)
-    | Parens(_) => default // Shouldn't be hit?
+    | Wrap(_) => default // Shouldn't be hit?
     }
   | Some(InfoTPat(info)) =>
     switch (info.term.term) {

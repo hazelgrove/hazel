@@ -311,10 +311,10 @@ and uexp_to_info_map =
       m,
     )
   | DynamicErrorHole(e, _)
-  | Parens(e, Paren) =>
+  | Wrap(e, Paren) =>
     let (e, m) = go(~mode, e, m);
     add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
-  | Parens(e, Probe(_)) =>
+  | Wrap(e, Probe(_)) =>
     /* Currently doing this as otherwise it clobbers the statics
      * for the contained expression as i'm just reusing the same id
      * in order to associate it through dynamics */
@@ -840,12 +840,12 @@ and upat_to_info_map =
       ~constraint_=cons_fold_tuple(cons),
       m,
     );
-  | Parens(p, Probe(_)) =>
+  | Wrap(p, Probe(_)) =>
     /* Currently doing this as otherwise it clobbers the statics
      * for the contained expression as i'm just reusing the same id
      * in order to associate it through dynamics */
     go(~ctx, ~mode, p, m)
-  | Parens(p, Paren) =>
+  | Wrap(p, Paren) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
   | Constructor(ctr, _) =>
@@ -899,7 +899,7 @@ and utyp_to_info_map =
     /* Names are resolved in Info.status_typ */
     add(m)
   | List(t)
-  | Parens(t) => add(go(t, m) |> snd)
+  | Wrap(t) => add(go(t, m) |> snd)
   | Arrow(t1, t2) =>
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
