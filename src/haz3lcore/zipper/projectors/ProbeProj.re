@@ -313,28 +313,23 @@ let syntax_view = (info: info) => info |> syntax_str |> text;
 let placeholder = (_m, info) =>
   ProjectorShape.inline(3 + String.length(syntax_str(info)));
 
-// let icon = div(~attrs=[Attr.classes(["icon"])], [text("🔍")]);
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
 let view =
-    (_: model, ~info, ~local as _, ~parent as _, ~utility as _: utility) => {
-  div([
-    //offside_view(info, ~model, ~local, ~utility),
-    div(
-      ~attrs=[
-        Attr.classes(
-          ["main"] @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : []),
-        ),
-        Attr.on_click(_ => {
-          env_cursor := [];
-          cur_ap := None;
-          Effect.Ignore;
-        }),
-      ],
-      [syntax_view(info), icon, num_closures_view(info)],
-    ),
-  ]);
-};
+    (_: model, ~info, ~local as _, ~parent as _, ~utility as _: utility) =>
+  div(
+    ~attrs=[
+      Attr.classes(
+        ["main"] @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : []),
+      ),
+      Attr.on_click(_ => {
+        env_cursor := [];
+        cur_ap := None;
+        Effect.Ignore;
+      }),
+    ],
+    [syntax_view(info), icon, num_closures_view(info)],
+  );
 
 let update = (m: model, a: action) => {
   //print_endline("update: action:" ++ show_action(a));

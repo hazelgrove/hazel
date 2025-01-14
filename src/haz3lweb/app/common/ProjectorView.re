@@ -146,6 +146,7 @@ let collate_utility = (globals: Globals.t): ProjectorBase.utility => {
              fold_cast_types: false,
            },
          ),
+    seg_to_exp: seg => MakeTerm.go(seg).term,
   };
 };
 
