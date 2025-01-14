@@ -88,7 +88,7 @@ let of_secondary =
   };
 //);
 
-let of_projector = (expected_sort, indent, shape: Base.shape) => {
+let of_projector = (expected_sort, indent, shape: ProjectorShape.t) => {
   let token =
     switch (shape.vertical) {
     | Inline
