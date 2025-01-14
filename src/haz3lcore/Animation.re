@@ -30,8 +30,8 @@ module Js = {
 
   /* Position & dimensions for a DOM element */
   type box = {
-    top: int,
-    left: int,
+    top: float,
+    left: float,
     height: float,
     width: float,
   };
@@ -39,15 +39,26 @@ module Js = {
   let box_of = (elem: Js.t(Dom_html.element)): box => {
     let container_rect = elem##getBoundingClientRect;
     {
-      top: int_of_float(container_rect##.top),
-      left: int_of_float(container_rect##.left),
+      top: container_rect##.top,
+      left: container_rect##.left,
       height: Js.Optdef.get(container_rect##.height, _ => (-1.0)),
       width: Js.Optdef.get(container_rect##.width, _ => (-1.0)),
     };
   };
 
-  let get_elem_box = (id: string): option(box) =>
-    Option.map(box_of, JsUtil.get_elem_by_id_opt(id));
+  let client_height = (): float =>
+    Js.Optdef.get(
+      Js.Unsafe.get(Dom_html.document, "documentElement")##.clientHeight, _ =>
+      0.0
+    );
+
+  let inner_height = (): float =>
+    Js.Optdef.get(Js.Unsafe.get(Dom_html.window, "innerHeight"), _ => 0.0);
+
+  let check_visible = (client_height, inner_height, box: box): bool => {
+    let viewHeight = max(client_height, inner_height);
+    !(box.top +. box.height < 0.0 || box.top -. viewHeight >= 0.0);
+  };
 
   let keyframes_unsafe = (keyframes: list(keyframe)): Js.t(Js.js_array('a)) =>
     keyframes
@@ -124,8 +135,8 @@ type transition_internal = {
  * when the animation is executed (`go`) */
 let tracked_elems: ref(list(transition_internal)) = ref([]);
 
-let animate_elem = ({id, box, animate}, elem): unit =>
-  switch (box, get_elem_box(id)) {
+let animate_elem = (({box, animate, _}, elem, new_box)): unit =>
+  switch (box, new_box) {
   | (Some(init), Some(final)) =>
     Js.animate(animate(Existing(init, final)), elem)
   | (None, Some(final)) => Js.animate(animate(New(final)), elem)
@@ -135,15 +146,28 @@ let animate_elem = ({id, box, animate}, elem): unit =>
   | (None, None) => ()
   };
 
+let filter_visible_elements = (tracked_elems: list(transition_internal)) => {
+  let client_height = client_height();
+  let inner_height = inner_height();
+  List.filter_map(
+    (tr: transition_internal) => {
+      switch (JsUtil.get_elem_by_id_opt(tr.id)) {
+      | None => None
+      | Some(elem) =>
+        let new_box = box_of(elem);
+        check_visible(client_height, inner_height, new_box)
+          ? Some((tr, elem, Some(new_box))) : None;
+      }
+    },
+    tracked_elems,
+  );
+};
+
 /* Execute animations. This is called during the
  * render phase, after recalc but before repaint */
 let go = (): unit =>
   if (tracked_elems^ != []) {
-    tracked_elems^
-    |> List.iter(animation =>
-         JsUtil.get_elem_by_id_opt(animation.id)
-         |> Option.iter(animate_elem(animation))
-       );
+    tracked_elems^ |> filter_visible_elements |> List.iter(animate_elem);
     tracked_elems := [];
   };
 
@@ -151,21 +175,27 @@ let go = (): unit =>
 let request = (transitions: list(transition)): unit => {
   tracked_elems :=
     List.map(
-      ({id, animate}: transition) => {id, box: get_elem_box(id), animate},
+      ({id, animate}: transition) =>
+        {
+          id,
+          box: Option.map(box_of, JsUtil.get_elem_by_id_opt(id)),
+          animate,
+        },
       transitions,
-    );
+    )
+    @ tracked_elems^;
 };
 
 module Keyframes = {
-  let transform_translate = (top: int, left: int): keyframe => (
+  let transform_translate = (top: float, left: float): keyframe => (
     "transform",
-    Printf.sprintf("translate(%dpx, %dpx)", left, top),
+    Printf.sprintf("translate(%fpx, %fpx)", left, top),
   );
 
   let translate = (init: box, final: box): list(keyframe) => {
     [
-      transform_translate(init.top - final.top, init.left - final.left),
-      transform_translate(0, 0),
+      transform_translate(init.top -. final.top, init.left -. final.left),
+      transform_translate(0., 0.),
     ];
   };
 
@@ -180,13 +210,17 @@ module Keyframes = {
   ];
 };
 
+let easeOutExpo = "cubic-bezier(0.16, 1, 0.3, 1)";
+let easeInOutBack = "cubic-bezier(0.68, -0.6, 0.32, 1.6)";
+let easeInOutExpo = "cubic-bezier(0.87, 0, 0.13, 1)";
+
 module Actions = {
   let move = id => {
     id,
     animate: change => {
       options: {
         duration: 125,
-        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+        easing: easeOutExpo,
       },
       keyframes:
         switch (change) {
