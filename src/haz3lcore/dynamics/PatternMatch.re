@@ -81,8 +81,8 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
     List.map2(matches, ps, ds)
     |> List.fold_left(combine_result, Matches(Environment.empty));
-  | Parens(p, Paren) => matches(p, d)
-  | Parens(p, Probe(pr)) =>
+  | Wrap(p, Paren) => matches(p, d)
+  | Wrap(p, Probe(pr)) =>
     print_endline("Pattern Match: found pattern probe");
     let inner_match = matches(p, d);
     capture_closure(pr, Term.Pat.rep_id(dp), d, inner_match);

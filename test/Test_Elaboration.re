@@ -20,7 +20,7 @@ let empty_hole = () => alco_check("Empty hole", u2, dhexp_of_uexp(u2));
 
 let u3: Exp.t = {
   ids: [id_at(0)],
-  term: Parens({ids: [id_at(1)], term: Var("y"), copied: false}, Paren),
+  term: Wrap({ids: [id_at(1)], term: Var("y"), copied: false}, Paren),
   copied: false,
 };
 
