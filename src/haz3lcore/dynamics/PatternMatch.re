@@ -69,14 +69,7 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
     let* d2 = Unboxing.unbox(SumWithArg(ctr), d);
     matches(p2, d2);
   | Ap(_, _) => IndetMatch // TODO: should this fail?
-  | Var(x) =>
-    print_endline(
-      "id of pat var "
-      ++ x
-      ++ " being bound to d:"
-      ++ Id.to_string(IdTagged.rep_id(dp)),
-    );
-    Matches(Environment.singleton((x, d)));
+  | Var(x) => Matches(Environment.singleton((x, d)))
   | Tuple(ps) =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
     List.map2(matches, ps, ds)

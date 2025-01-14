@@ -17,11 +17,5 @@ type t = {
   vertical,
 };
 
-let num_lb = (shape: t): int =>
-  switch (shape.vertical) {
-  | Inline => 0
-  | Block(num_lbs) => num_lbs
-  };
-
 let inline = (width: int): t => {horizontal: width, vertical: Inline};
 let default: t = inline(0);

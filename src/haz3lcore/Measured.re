@@ -345,8 +345,13 @@ let of_segment =
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
           | Projector(p) =>
-            let shape = shape_of_proj(p);
             let row_indent = container_indent + contained_indent;
+            let shape = shape_of_proj(p);
+            let num_extra_rows =
+              switch (shape.vertical) {
+              | Inline => 0
+              | Block(num_lbs) => num_lbs
+              };
             let last = {
               col: origin.col + shape.horizontal,
               row:
@@ -355,7 +360,6 @@ let of_segment =
                 | Block(num_lb) => origin.row + num_lb
                 },
             };
-            let num_extra_rows = ProjectorShape.num_lb(shape);
             let map =
               map
               |> add_n_rows(origin, row_indent, num_extra_rows)

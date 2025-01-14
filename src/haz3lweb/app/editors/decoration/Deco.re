@@ -133,7 +133,11 @@ module HighlightSegment =
       //   m,
       //   (Some(Convex), Some(Convex)),
       // );
-      let num_lb = ProjectorShape.num_lb(shape);
+      let num_lb =
+        switch (shape.vertical) {
+        | Inline => 0
+        | Block(num_lbs) => num_lbs
+        };
       if (num_lb == 0) {
         [
           Some(
