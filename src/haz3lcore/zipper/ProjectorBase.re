@@ -1,6 +1,5 @@
 open Util;
 open Virtual_dom.Vdom;
-include Base;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Base.kind;
@@ -112,7 +111,7 @@ module type Projector = {
    * from the view, but this is awkward to do so for now
    * projector writers are responsible for keeping these
    * in sync with each other. */
-  let placeholder: (model, info) => shape;
+  let placeholder: (model, info) => ProjectorShape.t;
   /* Update the local projector model given an action */
   let update: (model, action) => model;
   /* Does whatever needs to be done to give a projector

@@ -55,7 +55,6 @@ let of_delim' =
 let of_delim =
     (is_in_buffer, is_consistent, indent, t: Piece.tile, i: int)
     : list(Node.t) =>
-  //TODO(andrew): cleanup
   of_delim'((
     t.id,
     t.label,
@@ -112,7 +111,7 @@ let of_secondary = (s: Secondary.t, secondary_icons, indent) =>
   | Comment(str) => comment(s.id, str)
   };
 
-let of_projector = (expected_sort, indent, shape: Base.shape) => {
+let of_projector = (expected_sort, indent, shape: ProjectorShape.t) => {
   let token =
     switch (shape.vertical) {
     | Inline
