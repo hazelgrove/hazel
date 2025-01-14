@@ -275,7 +275,7 @@ let forms: list((string, t)) = [
   ("logical_and", mk_infix("&&", Exp, P.and_)),
   ("logical_or_legacy", mk_infix("\\/", Exp, P.or_)),
   ("logical_or", mk_infix("||", Exp, P.or_)),
-  ("list_concat", mk_infix("@", Exp, P.plus)),
+  ("list_concat", mk_infix("@", Exp, P.concat)),
   ("cons_exp", mk_infix("::", Exp, P.cons)),
   ("cons_pat", mk_infix("::", Pat, P.cons)),
   ("typeann", mk(ss, [":"], mk_bin'(P.cast, Pat, Pat, [], Typ))),
