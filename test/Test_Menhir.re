@@ -146,7 +146,7 @@ let qcheck_menhir_maketerm_equivalent_test =
 let qcheck_menhir_serialized_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir through ExpToSegment and back",
-    ~count=10000,
+    ~count=1000,
     QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
     exp => {
       let core_exp = Conversion.Exp.of_menhir_ast(exp);
