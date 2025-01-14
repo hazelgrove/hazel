@@ -135,7 +135,7 @@ type transition_internal = {
  * when the animation is executed (`go`) */
 let tracked_elems: ref(list(transition_internal)) = ref([]);
 
-let animate_elem = ({box, animate, _}, elem, new_box): unit =>
+let animate_elem = (({box, animate, _}, elem, new_box)): unit =>
   switch (box, new_box) {
   | (Some(init), Some(final)) =>
     Js.animate(animate(Existing(init, final)), elem)
@@ -146,40 +146,28 @@ let animate_elem = ({box, animate, _}, elem, new_box): unit =>
   | (None, None) => ()
   };
 
-let get_elements_to_animate = () => {
-  print_endline(
-    "go: tracked_elems count: " ++ string_of_int(List.length(tracked_elems^)),
-  );
+let filter_visible_elements = (tracked_elems: list(transition_internal)) => {
   let client_height = client_height();
   let inner_height = inner_height();
-  let blah =
-    tracked_elems^
-    |> List.filter_map((tr: transition_internal) => {
-         switch (JsUtil.get_elem_by_id_opt(tr.id)) {
-         | None => None
-         | Some(elem) =>
-           let new_box = box_of(elem);
-           check_visible(client_height, inner_height, new_box)
-             ? Some((tr, elem, Some(new_box))) : None;
-         }
-       });
-  print_endline(
-    "go: filtered elems count: " ++ string_of_int(List.length(blah)),
+  List.filter_map(
+    (tr: transition_internal) => {
+      switch (JsUtil.get_elem_by_id_opt(tr.id)) {
+      | None => None
+      | Some(elem) =>
+        let new_box = box_of(elem);
+        check_visible(client_height, inner_height, new_box)
+          ? Some((tr, elem, Some(new_box))) : None;
+      }
+    },
+    tracked_elems,
   );
-  blah;
 };
-
-let actually_animate_elements = elements =>
-  List.iter(
-    ((animation, elem, new_box)) => animate_elem(animation, elem, new_box),
-    elements,
-  );
 
 /* Execute animations. This is called during the
  * render phase, after recalc but before repaint */
 let go = (): unit =>
   if (tracked_elems^ != []) {
-    get_elements_to_animate() |> actually_animate_elements;
+    tracked_elems^ |> filter_visible_elements |> List.iter(animate_elem);
     tracked_elems := [];
   };
 
