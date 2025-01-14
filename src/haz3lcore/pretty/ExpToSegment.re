@@ -154,8 +154,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     exp_to_pretty(~settings={...settings, inline});
   switch (exp |> Exp.term_of) {
   // Assume these have been removed by the parenthesizer
-  | DynamicErrorHole(_) => failwith("printing these not implemented yet")
-  | Filter(Residue(_), e) => go(e)
+  | DynamicErrorHole(_)
+  | Filter(Residue(_), _) => failwith("printing these not implemented yet")
   | Filter(Filter({pat, act}), e) =>
     let label = FilterAction.string_of_t(act);
     let id = exp |> Exp.rep_id;
@@ -846,7 +846,7 @@ let rec parenthesize = (~show_filters: bool, exp: Exp.t): Exp.t => {
   | Filter(Filter({pat, act}), x) =>
     Filter(Filter({pat: parenthesize(pat), act}), parenthesize(x))
     |> rewrap
-  | Filter(Residue(_), x) => x |> parenthesize // TODO
+  | Filter(Residue(_), x) => x |> parenthesize
   // Other forms
   | Constructor(c, t) =>
     Constructor(c, paren_typ_at(Precedence.cast, t)) |> rewrap
