@@ -392,14 +392,9 @@ module D = (TutorialEnv: TutorialEnv) => {
       eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
     };
 
-    let wrapper =
-      Let(
-        Var("answer") |> Pat.fresh,
-        EmptyHole |> Exp.fresh,
-        EmptyHole |> Exp.fresh,
-      )
+    let wrapped_user_impl =
+      Let(Var("answer") |> Pat.fresh, user_impl_term, EmptyHole |> Exp.fresh)
       |> Exp.fresh;
-    let wrapped_user_impl = EditorUtil.append_exp2(wrapper, user_impl_term);
 
     let hidden_tests_term =
       eds.wrapper
