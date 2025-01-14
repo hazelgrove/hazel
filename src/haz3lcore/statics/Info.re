@@ -183,7 +183,8 @@ type error_tpat =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_tpat =
   | Empty
-  | Var(string);
+  | Var(string)
+  | Ap(string, string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_tpat =
@@ -509,20 +510,21 @@ let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
   | Var(name) => NotInHole(Var(name))
   | Invalid(_) => InHole(NotAVar(NotCapitalized))
   | MultiHole(_) => InHole(NotAVar(Other))
-  | Ap({term: Var(name), _}, {term: Var(_), _})
-      when Form.is_base_typ(name) || Ctx.lookup_alias(ctx, name) != None =>
-    let f = src => InHole(ShadowsType(name, src));
-    if (Form.is_base_typ(name)) {
-      f(BaseTyp);
-    } else if (Ctx.is_alias(ctx, name)) {
-      f(TyAlias);
-    } else {
-      f(TyVar);
-    };
-  | Ap({term: Var(name1), _}, {term: Var(name2), _}) =>
-    NotInHole(Ap(name1, name2))
-
-  | Ap(_) => InHole(NotAVar(Other))
+  | Ap(arg1, arg2) =>
+    switch (arg1, arg2) {
+    | (Var(name), _)
+        when Form.is_base_typ(name) || Ctx.lookup_alias(ctx, name) != None =>
+      let f = src => InHole(ShadowsType(name, src));
+      if (Form.is_base_typ(name)) {
+        f(BaseTyp);
+      } else if (Ctx.is_alias(ctx, name)) {
+        f(TyDef);
+      } else {
+        f(TyVar);
+      };
+    | (Var(x), Var(y)) => NotInHole(Ap(x, y))
+    | _ => InHole(NotAVar(Other))
+    }
   };
 
 /* Determines whether any term is in an error hole. */
