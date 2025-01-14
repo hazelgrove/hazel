@@ -671,6 +671,7 @@ let take = (n, xs) => {
 /* Move the first element equal to x to the front of the list */
 let lift = (x: 'a, xs: list('a)): list('a) =>
   List.cons(x, List.filter((!=)(x), xs));
+
 // for performance, doesn't check the whole list if already above length
 let rec is_length = (n: int, xs: list('a)): bool =>
   switch (xs) {
@@ -678,4 +679,12 @@ let rec is_length = (n: int, xs: list('a)): bool =>
   | _ when n <= 0 => false
   | [] => false
   | [_, ...xs] => is_length(n - 1, xs)
+  };
+
+let rec remove_nth = (n: int, xs: list('a)): option(list('a)) =>
+  switch (n, xs) {
+  | (_, []) => None
+  | (0, [_hd, ...tl]) => Some(tl)
+  | (n, [hd, ...tl]) =>
+    remove_nth(n - 1, tl) |> Option.map(tl' => [hd, ...tl'])
   };
