@@ -166,7 +166,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Int(n) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Int.to_string(n))
   // TODO: do floats print right?
   | Float(f) =>
-    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Float.to_string(f))
+    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Printf.sprintf("%f", f))
   | String(s) =>
     text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "\"" ++ s ++ "\"")
   // TODO: Make sure types are correct
@@ -445,11 +445,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           @ (
             List.map2(
               (id, (p, e)) =>
-                settings.inline
-                  ? []
-                  : [Secondary(Secondary.mk_newline(Id.mk()))]
-                    @ [mk_form("rule", id, [p])]
-                    @ (e |> fold_if(settings.fold_case_clauses)),
+                (
+                  settings.inline
+                    ? [] : [Secondary(Secondary.mk_newline(Id.mk()))]
+                )
+                @ [mk_form("rule", id, [p])]
+                @ (e |> fold_if(settings.fold_case_clauses)),
               ids,
               rs,
             )
@@ -475,7 +476,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Var(v) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, v)
   | Int(n) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Int.to_string(n))
   | Float(f) =>
-    text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Float.to_string(f))
+    text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Printf.sprintf("%f", f))
   | Bool(b) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Bool.to_string(b))
   | String(s) =>
     text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "\"" ++ s ++ "\"")
@@ -543,11 +544,28 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   let go = typ_to_pretty(~settings: Settings.t);
   let go_constructor: ConstructorMap.variant(Typ.t) => pretty =
     fun
-    | Variant(c, ids, None) => text_to_pretty(List.hd(ids), Sort.Typ, c)
+    | Variant(c, ids, None) => {
+        text_to_pretty(
+          Option.value(~default=Id.invalid, ListUtil.hd_opt(ids)),
+          Sort.Typ,
+          c,
+        );
+      }
     | Variant(c, ids, Some(x)) => {
         let+ constructor =
-          text_to_pretty(List.hd(List.tl(ids)), Sort.Typ, c);
-        constructor @ [mk_form("ap_typ", List.hd(ids), [go(x)])];
+          text_to_pretty(
+            Option.value(~default=Id.invalid, ListUtil.nth_opt(1, ids)),
+            Sort.Typ,
+            c,
+          );
+        constructor
+        @ [
+          mk_form(
+            "ap_typ",
+            Option.value(~default=Id.invalid, ListUtil.hd_opt(ids)),
+            [go(x)],
+          ),
+        ];
       }
     | BadEntry(x) => go(x);
   switch (typ |> Typ.term_of) {
