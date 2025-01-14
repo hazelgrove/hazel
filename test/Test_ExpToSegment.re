@@ -6,9 +6,9 @@ let segmentize =
     ~settings={
       inline: true,
       fold_case_clauses: false,
-      fold_fn_bodies: true,
-      hide_fixpoints: true,
-      fold_cast_types: true,
+      fold_fn_bodies: false,
+      hide_fixpoints: false,
+      fold_cast_types: false,
       show_filters: true,
     },
     _,

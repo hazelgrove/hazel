@@ -153,11 +153,14 @@ let qcheck_menhir_serialized_equivalent_test =
 
       let segment =
         ExpToSegment.exp_to_segment(
-          ~settings=
-            ExpToSegment.Settings.of_core(
-              ~inline=true, // TODO What does inline do?
-              CoreSettings.off,
-            ),
+          ~settings={
+            inline: true,
+            fold_case_clauses: false,
+            fold_fn_bodies: false,
+            hide_fixpoints: false,
+            fold_cast_types: false,
+            show_filters: true,
+          },
           core_exp,
         );
       let serialized = Printer.of_segment(~holes=Some("?"), segment);
