@@ -9,9 +9,7 @@ type t = Base.kind;
  * display with given length & height. Both of these can
  * depend on the projector model and info package */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type shape =
-  | Inline(int)
-  | Block(Point.t);
+type shape = ProjectorShape.t;
 
 /* The type of syntax which a projector can replace.
  * Right now projectors can replace a single piece */

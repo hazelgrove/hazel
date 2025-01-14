@@ -316,7 +316,7 @@ let syntax_str = (info: info) => {
 let syntax_view = (info: info) => info |> syntax_str |> text;
 
 let placeholder = (_m, info) =>
-  Inline(3 + String.length(syntax_str(info)));
+  ProjectorShape.inline(3 + String.length(syntax_str(info)));
 
 // let icon = div(~attrs=[Attr.classes(["icon"])], [text("🔍")]);
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
