@@ -11,6 +11,7 @@
 
   --exp-indicated: var(--G0);
   --pat-indicated: var(--PAT);
+  --exp-ap-indicated: var(--TYP);
 
   --exp-base: hsl(120, 40%, 85%);
   --pat-base: hsl(170, 40%, 85%);
@@ -28,7 +29,7 @@
   color: var(--code-text);
 }
 
-.projector.probe > svg {
+.projector.probe.Exp > svg {
   fill: var(--exp-base);
   filter: drop-shadow(0.7px 0.7px 0px var(--exp-shadow));
 }
@@ -77,12 +78,14 @@
   font-family: var(--ui-font);
   display: flex;
   justify-content: center;
-  background-color: var(--exp-indicated);
   border-radius: 2em;
   font-size: 0.7em;
   padding: 0.3em;
   min-width: 1em;
   z-index: var(--code-emblems-z);
+}
+.projector.probe.Exp .num-closures {
+  background-color: var(--exp-indicated);
 }
 .projector.probe.Pat .num-closures {
   background-color: var(--pat-indicated);
@@ -92,8 +95,6 @@
 }
 .projector.probe.indicated.Right .num-closures {
   background-color: var(--num-closures-indicated);
-}
-.projector.probe.indicated.Right .num-closures {
   right: -0.8em;
   top: -0.5em;
 }
@@ -101,10 +102,9 @@
 .projector.probe .live-offside {
   display: flex;
   flex-direction: row;
-  gap: 2px;
   align-items: center;
+  gap: 2px;
 }
-
 .projector.probe .live-offside:empty {
   display: none;
 }
@@ -131,38 +131,35 @@
 
 /* TOKEN BKG */
 .projector.probe .val-resize .code-text {
+  border-radius: 0.05em 0.05em 0.05em 0.2em;
+}
+.projector.probe.Exp .val-resize .code-text {
   background-color: var(--exp-base);
   border-bottom: 1px solid var(--exp-shadow);
-  border-radius: 0.05em 0.05em 0.05em 0.2em;
 }
 .projector.probe.Pat .val-resize .code-text {
   border-color: var(--pat-shadow);
   background-color: var(--pat-base);
 }
-/* TOKEN OPACITY */
 .projector.probe .val-resize.cursor-lex .code-text {
   opacity: 100%;
 }
 .projector.probe .val-resize.cursor-ap-lex .code-text {
   opacity: 100%;
-  outline: 1px solid var(--TYP);
+  outline: 1px solid var(--exp-ap-indicated);
 }
 .projector.probe .val-resize.cursor-outer-ap .code-text {
   opacity: 100% !important;
-  outline: 1px solid var(--TYP);
-  background-color: var(--TYP);
+  outline: 1px solid var(--exp-ap-indicated);
+  background-color: var(--exp-ap-indicated);
 }
-/* .projector.probe .val-resize.cursor-ap .code-text {
-  opacity: 100%;
-  outline: 1px dotted var(--TYP);
-} */
-.projector.probe .val-resize .code-text {
-  opacity: 51%;
-}
+.projector.probe .val-resize .code-text,
 .projector.probe .val-resize.cursor-ap.light .code-text,
 .projector.probe .val-resize.cursor-ap-lex.light .code-text {
-  opacity: 45%;
+  opacity: 50%;
 }
+
+/* TOKEN BKG INDICATED */
 .projector.probe.indicated .val-resize .code-text {
   opacity: 60%;
 }
@@ -172,29 +169,24 @@
   outline-width: 2.8px;
   outline-style: solid;
 }
-.projector.probe.indicated .val-resize.cursor-lex .code-text {
+.projector.probe.indicated.Exp .val-resize.cursor-lex .code-text {
   outline-color: var(--exp-indicated);
-}
-.projector.probe.indicated .val-resize.cursor-lex.ap .code-text {
-  outline-color: var(--TYP);
 }
 .projector.probe.indicated.Pat .val-resize.cursor-lex .code-text {
   outline-color: var(--pat-indicated);
 }
-/* TOKENS */
-.projector.probe .val-resize.cursor-ap .code-text .token {
-  filter: invert(1) brightness(10);
-  /* color: var(--TYP); */
+.projector.probe.indicated .val-resize.cursor-lex.ap .code-text {
+  outline-color: var(--exp-ap-indicated);
 }
-.projector.probe .val-resize.cursor-none .code-text .token {
+
+/* TOKENS */
+.projector.probe .val-resize.cursor-ap .code-text .token,
+.projector.probe .val-resize.cursor-none .code-text .token,
+.projector.probe .val-resize.cursor-outer-ap .code-text .token {
   filter: invert(1) brightness(10);
 }
 .projector.probe .val-resize.cursor-ap-lex .code-text .token {
-  color: var(--TYP);
-}
-.projector.probe .val-resize.cursor-outer-ap .code-text .token {
-  /* color: var(--TYP); */
-  color: white;
+  color: var(--exp-ap-indicated);
 }
 
 .projector.probe .val-resize .code-text:hover {
