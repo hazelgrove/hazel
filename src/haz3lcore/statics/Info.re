@@ -51,12 +51,12 @@ type error_no_type =
   /* Empty application of function with inconsistent type */
   | BadTrivAp(Typ.t)
   /* Tuple or TupLabel contains an inconsistent or invalid Label*/
-  | BadLabel(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t)
   /* Dot Operator is ill-formed */
   | WantTuple
-  | LabelNotFound;
+  | LabelNotFound
+  | BadLabel(Any.t);
 
 /* Errors which can apply to either expression or patterns */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -66,9 +66,11 @@ type error_common =
   /* Overdetermined: Conflicting type expectations */
   | Inconsistent(error_inconsistent)
   /* Duplicate labels in labeled tuple */
-  | DuplicateLabels(Typ.t)
+  | DuplicateLabels(list(LabeledTuple.label), Typ.t)
   /* Duplicate item, used for duplicated labels*/
-  | Duplicate(Typ.t);
+  | Duplicate(LabeledTuple.label, Typ.t)
+  | DuplicateLabel(LabeledTuple.label)
+  | BadLabelContained(list(Any.t), Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
@@ -377,7 +379,13 @@ let rec status_common =
         syn /* Note: the ordering of ana, syn matters */
       )
     ) {
-    | None => InHole(Inconsistent(Expectation({syn, ana})))
+    | None =>
+      switch (ana.term, syn.term) {
+      | (Label(_), Label(_)) =>
+        InHole(Inconsistent(Expectation({ana, syn})))
+      | (Label(_), _) => InHole(NoType(BadLabel(Typ(syn))))
+      | _ => InHole(Inconsistent(Expectation({ana, syn})))
+      }
     | Some(join) => NotInHole(Ana(Consistent({ana, syn, join})))
     }
   | (IsConstructor({name, syn_ty}), _) =>
@@ -393,16 +401,25 @@ let rec status_common =
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (BadLabel(ty), _) => InHole(NoType(BadLabel(ty)))
-  | (Duplicate_Labels(Just(ty)), _) => InHole(DuplicateLabels(ty))
-  | (Duplicate(Just(ty)), _) => InHole(Duplicate(ty))
-  | (Duplicate_Labels(_), _) =>
-    InHole(DuplicateLabels(Unknown(Internal) |> Typ.temp))
-  | (Duplicate(_), _) => InHole(Duplicate(Unknown(Internal) |> Typ.temp))
+  | (BadLabelContained(bad_labels, typ), _) =>
+    InHole(BadLabelContained(bad_labels, typ))
+  | (Duplicate_Labels(labels, ty), _) =>
+    InHole(DuplicateLabels(labels, ty))
+  | (Duplicate(lab, Just(ty)), _) => InHole(Duplicate(lab, ty))
+  | (Duplicate(lab, _), _) =>
+    InHole(Duplicate(lab, Unknown(Internal) |> Typ.temp))
+  | (DuplicateLabel(l), _) => InHole(DuplicateLabel(l))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
   | (NoJoin(wrap, tys), Ana(ana)) =>
     let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.temp);
     switch (Typ.join_fix(ctx, ana, syn)) {
-    | None => InHole(Inconsistent(Expectation({ana, syn})))
+    | None =>
+      switch (ana.term, syn.term) {
+      | (Label(_), Label(_)) =>
+        InHole(Inconsistent(Expectation({ana, syn})))
+      | (Label(_), _) => InHole(NoType(BadLabel(Typ(syn))))
+      | _ => InHole(Inconsistent(Expectation({ana, syn})))
+      }
     | Some(_) =>
       NotInHole(
         Ana(InternallyInconsistent({ana, nojoin: Typ.of_source(tys)})),
@@ -423,7 +440,9 @@ let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
       | InHole(Common(NoType(_)) as err) => Some(err)
       | NotInHole(_) => None
       | InHole(Common(DuplicateLabels(_))) // Is this right?
+      | InHole(Common(DuplicateLabel(_))) // Is this right?
       | InHole(Common(Duplicate(_)))
+      | InHole(Common(BadLabelContained(_)))
       | InHole(Common(Inconsistent(WithArrow(_))))
       | InHole(ExpectedConstructor | Redundant(_)) =>
         // ExpectedConstructor cannot be a reason to hole-wrap the entire pattern
@@ -462,6 +481,8 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
       | InHole(Common(NoType(_)))
       | InHole(Common(DuplicateLabels(_))) // Is this right?
       | InHole(Common(Duplicate(_)))
+      | InHole(Common(DuplicateLabel(_)))
+      | InHole(Common(BadLabelContained(_)))
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
           BadPartialAp(_),
@@ -472,10 +493,10 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   | (IsDeferral(InAp), Ana(ana)) => NotInHole(AnaDeferralConsistent(ana))
   | (IsDeferral(_), _) => InHole(UnusedDeferral)
   | (IsBadPartialAp(_ as info), _) => InHole(BadPartialAp(info))
-  | (Common(self_pat), _) =>
-    switch (status_common(ctx, mode, self_pat)) {
+  | (Common(self_exp), _) =>
+    switch (status_common(ctx, mode, self_exp)) {
     | NotInHole(ok_exp) => NotInHole(Common(ok_exp))
-    | InHole(err_pat) => InHole(Common(err_pat))
+    | InHole(err_exp) => InHole(Common(err_exp))
     }
   };
 
@@ -633,8 +654,10 @@ let fixed_typ_ok: ok_pat => Typ.t =
 let fixed_typ_err_common: error_common => Typ.t =
   fun
   | NoType(_) => Unknown(Internal) |> Typ.temp
-  | DuplicateLabels(typ) => typ
-  | Duplicate(typ) => typ
+  | DuplicateLabels(_, typ) => typ
+  | Duplicate(_, typ) => typ
+  | DuplicateLabel(l) => Label(l) |> Typ.temp
+  | BadLabelContained(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana
   | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
   | Inconsistent(WithArrow(_)) =>

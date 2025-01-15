@@ -487,15 +487,6 @@ let matched_label = (ctx, ty) =>
   | Unknown(SynSwitch) => (Label("") |> temp, Unknown(SynSwitch) |> temp)
   | _ => (Label("") |> temp, ty)
   };
-let unwrap_tuplabel = (e: t): option((LabeledTuple.label, t)) =>
-  switch (e.term) {
-  | TupLabel(label, e') =>
-    switch (label.term) {
-    | Label(name) => Some((name, e'))
-    | _ => raise(Failure("unwrap_tuplabel: not a label")) // Custom error?
-    }
-  | _ => None
-  };
 let rec get_labels = (ctx, ty): list(option(string)) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
@@ -699,3 +690,33 @@ and paren_pretty_print = typ =>
   } else {
     pretty_print(typ);
   };
+
+let remove_duplicate_labels =
+    (~duplicate_labels: list(LabeledTuple.label), tys: list(t)): list(t) => {
+  snd(
+    List.fold_left(
+      ((seen_duplicates, deduplicated_types), ty) => {
+        let label = get_label(ty);
+        switch (label) {
+        | Some((l, _))
+            when
+              List.mem(l, duplicate_labels) && List.mem(l, seen_duplicates) => (
+            seen_duplicates,
+            deduplicated_types,
+          )
+        | Some((l, _)) when List.mem(l, duplicate_labels) => (
+            [l] @ seen_duplicates,
+            deduplicated_types
+            @ [
+              TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
+            ],
+          )
+        | Some(_) => (seen_duplicates, deduplicated_types @ [ty])
+        | None => (seen_duplicates, deduplicated_types @ [ty])
+        };
+      },
+      ([], []),
+      tys,
+    ),
+  );
+};

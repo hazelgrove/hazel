@@ -108,9 +108,16 @@ let common_err_view =
       text("inconsistent with"),
       view_type(Prod([]) |> Typ.fresh),
     ]
-  | NoType(BadLabel(_)) => [
-      text("Contains an invalid or inconsistent Label."),
+  | NoType(BadLabel(label)) => [
+      text("An invalid Label: "),
+      text(Any.show(label)) // TODO
     ]
+  | BadLabelContained(bad_labels, typ) =>
+    [
+      text("Contains invalid labels: "),
+      ...List.map(l => code(Any.show(l)), bad_labels) // TODO
+    ]
+    @ [text("in type"), view_type(typ)]
   | NoType(FreeConstructor(name)) => [code(name), text("not found")]
   | NoType(WantTuple) => [
       text("Invalid Dot Operation: requires tuple for first argument"),
@@ -118,8 +125,15 @@ let common_err_view =
   | NoType(LabelNotFound) => [
       text("Invalid Dot Operation: label not found in tuple"),
     ]
-  | DuplicateLabels(_) => [text("Duplicate labels within a tuple")]
+  | DuplicateLabels(labels, _) => [
+      text("The following labels are duplicated: "),
+      ...List.map(code, labels),
+    ]
   | Duplicate(_) => [text("Duplicated Label")]
+  | DuplicateLabel(label) => [
+      text("Label appears multiple time within tuple: "),
+      code(label),
+    ]
   | Inconsistent(WithArrow(typ)) => [
       text(":"),
       view_type(typ) |> code_box_container,

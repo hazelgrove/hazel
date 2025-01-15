@@ -313,7 +313,7 @@ and uexp_to_info_map =
     | Label(name) =>
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)
-        ? atomic(Duplicate(self)) : atomic(self);
+        ? atomic(Duplicate(name, self)) : atomic(self);
     | ListLit(es) =>
       let ids = List.map(UExp.rep_id, es);
       let modes = Mode.of_list_lit(ctx, List.length(es), mode);
@@ -386,20 +386,49 @@ and uexp_to_info_map =
       | Syn
       | SynFun
       | SynTypFun =>
-        let (lab, m) = go(~mode, ~duplicates, label, m);
+        let (labmode, mode) = Mode.of_label(ctx, mode);
+
+        let (lab, m) =
+          go(
+            ~mode=labmode,
+            ~override_self=?
+              switch (label.term) {
+              | Label(_) => None
+              | _ => Some(Common(BadLabel(Exp(label))))
+              },
+            ~duplicates,
+            label,
+            m,
+          );
+
         let (e, m) = go(~mode, e, m);
         let self =
           switch (lab.status) {
           | NotInHole(_) => Self.Just(TupLabel(lab.ty, e.ty) |> Typ.temp)
-          | InHole(_) => Self.BadLabel(TupLabel(lab.ty, e.ty) |> Typ.temp)
+          | InHole(Common(Duplicate(name, _))) =>
+            Self.Duplicate_Labels(
+              [name],
+              TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
+            )
+          | InHole(_) =>
+            Self.BadLabelContained(
+              [Exp(label)],
+              TupLabel(Unknown(Internal) |> Typ.temp, e.ty) |> Typ.temp,
+            )
           };
+
         add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
       | Ana(ty) =>
-        switch (Typ.unwrap_tuplabel(ty)) {
-        | Some((mode_label, mode)) =>
+        switch (ty.term) {
+        | TupLabel({term: Label(mode_label), _}, mode) =>
           let (lab, m) =
             go(
               ~mode=Ana(Label(mode_label) |> Typ.temp),
+              ~override_self=?
+                switch (label.term) {
+                | Label(_) => None
+                | _ => Some(Common(BadLabel(Exp(label))))
+                },
               ~duplicates,
               label,
               m,
@@ -408,22 +437,25 @@ and uexp_to_info_map =
           let self =
             switch (lab.status) {
             | NotInHole(_) => Self.Just(TupLabel(lab.ty, e.ty) |> Typ.temp)
-            | InHole(_) => Self.BadLabel(TupLabel(lab.ty, e.ty) |> Typ.temp)
+            | InHole(Common(Duplicate(name, _))) =>
+              Self.Duplicate_Labels(
+                [name],
+                TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
+              )
+            | InHole(_) =>
+              Self.BadLabelContained(
+                [Exp(label)],
+                TupLabel(Unknown(Internal) |> Typ.temp, e.ty) |> Typ.temp,
+              )
             };
           add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
-        | None =>
+        | _ =>
           let (e, m) = go(~mode=Ana(Unknown(Internal) |> Typ.temp), e, m);
           let (lab, m) =
-            go(
-              ~override_self=
-                Common(BadLabel(Unknown(Internal) |> Typ.temp)),
-              ~mode=Ana(Unknown(Internal) |> Typ.temp),
-              label,
-              m,
-            );
+            go(~mode=Ana(Unknown(Internal) |> Typ.temp), label, m);
 
           add(
-            ~self=Self.BadLabel(ty),
+            ~self=Self.Just(TupLabel(lab.ty, e.ty) |> Typ.temp), // TODO Confirm this gives inconsistent
             ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
             m,
           );
@@ -444,19 +476,27 @@ and uexp_to_info_map =
         LabeledTuple.get_duplicate_and_unique_labels(Exp.get_label, es);
       let (es', m) = map_m_go(~duplicates=duplicate_labels, m, modes, es);
       let ty_list = List.map(Info.exp_ty, es');
-      let is_static_error = (e: Info.exp) =>
+      let get_bad_labels = (e: Info.exp) =>
         switch (e.status) {
-        | InHole(Common(NoType(BadLabel(_)))) => true
-        | _ => false
+        | InHole(Common(BadLabelContained(bad_labels, _))) => bad_labels
+        | _ => []
         };
-      let is_bad_label =
-        List.exists((e: Info.exp) => e |> is_static_error, es');
+      let bad_labels =
+        List.concat_map((e: Info.exp) => e |> get_bad_labels, es');
+
+      let ty_list = Typ.remove_duplicate_labels(~duplicate_labels, ty_list);
+
       let self =
-        is_bad_label
-          ? Self.BadLabel(Prod(ty_list) |> Typ.temp)
+        bad_labels != []
+          ? Self.BadLabelContained(bad_labels, Prod(ty_list) |> Typ.temp)
           : Self.Just(Prod(ty_list) |> Typ.temp);
       let self =
-        List.is_empty(duplicate_labels) ? self : Self.Duplicate_Labels(self);
+        List.is_empty(duplicate_labels)
+          ? self
+          : Self.Duplicate_Labels(
+              duplicate_labels,
+              Prod(ty_list) |> Typ.temp,
+            );
       add(~self, ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')), m);
     | Dot(e1, e2) =>
       let (info_e1, m) = go(~mode=Syn, e1, m);
@@ -1059,7 +1099,7 @@ and upat_to_info_map =
       // TODO: Constraint?
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)
-        ? atomic(Duplicate(self), Constraint.Truth)
+        ? atomic(Duplicate(name, self), Constraint.Truth)
         : atomic(self, Constraint.Truth);
     | ListLit(ps) =>
       let ids = List.map(UPat.rep_id, ps);
@@ -1113,7 +1153,16 @@ and upat_to_info_map =
       let self =
         switch (lab.status) {
         | NotInHole(_) => Self.Just(TupLabel(lab.ty, p.ty) |> Typ.temp)
-        | InHole(_) => Self.BadLabel(TupLabel(lab.ty, p.ty) |> Typ.temp)
+        | InHole(Common(Duplicate(name, _))) =>
+          Self.Duplicate_Labels(
+            [name],
+            TupLabel(Label(name) |> Typ.temp, p.ty) |> Typ.temp,
+          )
+        | InHole(_) =>
+          Self.BadLabelContained(
+            [Pat(label)],
+            TupLabel(Unknown(Internal) |> Typ.temp, p.ty) |> Typ.temp,
+          )
         };
       add(
         ~self,
@@ -1136,19 +1185,20 @@ and upat_to_info_map =
         LabeledTuple.get_duplicate_and_unique_labels(Pat.get_label, ps);
       let (ctx, tys, cons, m, info_pats) =
         ctx_fold(ctx, m, ~duplicates=duplicate_labels, ps, modes);
-      let is_static_error = (p: Info.pat) =>
+      let get_bad_labels = (p: Info.pat) =>
         switch (p.status) {
-        | InHole(Common(NoType(BadLabel(_)))) => true
-        | _ => false
+        | InHole(Common(BadLabelContained(bad_labels, _))) => bad_labels
+        | _ => []
         };
-      let is_bad_label =
-        List.exists((p: Info.pat) => p |> is_static_error, info_pats);
+      let bad_labels = List.concat_map(get_bad_labels, info_pats);
       let self =
-        is_bad_label
-          ? Self.BadLabel(Prod(tys) |> Typ.temp)
+        bad_labels != []
+          ? Self.BadLabelContained(bad_labels, Prod(tys) |> Typ.temp)
           : Self.Just(Prod(tys) |> Typ.temp);
       let self =
-        List.is_empty(duplicate_labels) ? self : Self.Duplicate_Labels(self);
+        List.is_empty(duplicate_labels)
+          ? self
+          : Self.Duplicate_Labels(duplicate_labels, Prod(tys) |> Typ.temp);
       add(~self, ~ctx, ~constraint_=cons_fold_tuple(cons), m);
     | Parens(p) =>
       let (p, m) = go(~ctx, ~mode, p, m);

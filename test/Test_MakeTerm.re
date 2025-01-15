@@ -195,5 +195,17 @@ let tests = (
         {|let x : (l=Int, l2=String) = (l=32, l2="") in x|},
       )
     ),
+    test_case("Invalid label in singleton tuple", `Quick, () =>
+      exp_check(
+        Parens(
+          Tuple([
+            TupLabel(Int(1) |> Exp.fresh, Int(3) |> Exp.fresh) |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        "(1=3)",
+      )
+    ),
   ],
 );
