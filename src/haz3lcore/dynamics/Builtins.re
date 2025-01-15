@@ -308,6 +308,8 @@ module Pervasives = {
   };
 
   open Impls;
+
+  // Update src/haz3lmenhir/Lexer.mll when any new builtin is added
   let builtins =
     VarMap.empty
     |> const("infinity", Float, infinity)
