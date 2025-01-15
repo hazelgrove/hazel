@@ -109,6 +109,18 @@
   display: none;
 }
 
+.projector.probe .closure-group {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.projector.probe .closure-group:not(:last-child)::after {
+  content: "•";
+  font-size: 0.4em;
+  color: var(--exp-indicated);
+}
+
 .projector.probe .val-resize {
   cursor: pointer;
 }
