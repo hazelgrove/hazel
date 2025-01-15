@@ -23,7 +23,7 @@ type tag =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type frame = {
   ap_id: Id.t, /* Syntax ID of the ap */
-  env_id: Id.t /* ID of ClosureEnv created by ap  */
+  env_id: Id.t /* ID of env in which ap was applied */
 };
 
 /* List of applications prior to some evaluation */

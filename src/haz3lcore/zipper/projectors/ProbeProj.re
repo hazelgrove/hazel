@@ -16,6 +16,7 @@ type model = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
+  | PinAp(Id.t)
   | ChangeLength(Id.t, int)
   | Offset(int)
   | ToggleShowAllVals;
@@ -70,6 +71,7 @@ let cur_outer_ap_id = (_info: info, dyn_stack: Probe.stack) =>
 
 module State = {
   type t = {
+    mutable pinned_ap: option(Id.t),
     mutable env_cursor: list(Id.t),
     mutable dyn_env_cursor: list(Probe.frame),
     mutable cur_ap: option(Id.t),
@@ -77,6 +79,7 @@ module State = {
   };
 
   let s: t = {
+    pinned_ap: None,
     env_cursor: [],
     dyn_env_cursor: [],
     cur_ap: None,
@@ -84,6 +87,7 @@ module State = {
   };
 
   let reset = () => {
+    s.pinned_ap = None;
     s.env_cursor = [];
     s.dyn_env_cursor = [];
     s.cur_ap = None;
@@ -155,7 +159,10 @@ let show_indicator = stack => {
   State.s.env_cursor == []
   && local == []
   || State.s.env_cursor != []
-  && ListUtil.is_suffix_of(local, State.s.env_cursor);
+  && (
+    ListUtil.is_suffix_of(local, State.s.env_cursor)
+    || ListUtil.is_suffix_of(State.s.env_cursor, local)
+  );
 };
 
 let dynamic_cursor_cls = (info: info, closure: Dynamics.Probe.Closure.t) =>
@@ -338,7 +345,7 @@ let offside_view =
 let num_closures = (info: info) =>
   switch (info.dynamics) {
   | Some(di) => List.length(di)
-  | _ => 0
+  | None => 0
   };
 
 let num_closures_view = (info: info) => {
@@ -375,7 +382,11 @@ let view =
         ["main"] @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : []),
       ),
       Attr.on_click(_ => {
-        State.reset();
+        //State.reset();
+        switch (State.s.pinned_ap) {
+        | Some(_) => State.s.pinned_ap = None
+        | None => State.s.pinned_ap = cur_ap_id(info)
+        };
         Effect.Ignore;
       }),
     ],
@@ -399,6 +410,12 @@ let update = (m: model, a: action) => {
     let index_offset = m.index_offset + offset;
     let index_offset = index_offset < 0 ? 0 : index_offset;
     {...m, index_offset};
+  | PinAp(id) =>
+    switch (State.s.pinned_ap) {
+    | Some(_) => State.s.pinned_ap = None
+    | None => State.s.pinned_ap = Some(id)
+    };
+    m;
   };
 };
 
