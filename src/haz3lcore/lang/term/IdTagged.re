@@ -5,7 +5,7 @@ type t('a) = {
   [@show.opaque]
   ids: list(Id.t),
   [@show.opaque]
-  /* UExp invariant: copied should always be false, and the id should be unique
+  /* Exp invariant: copied should always be false, and the id should be unique
      DHExp invariant: if copied is true, then this term and its children may not
      have unique ids. The flag is used to avoid deep-copying expressions during
      evaluation, while keeping track of where we will need to replace the ids

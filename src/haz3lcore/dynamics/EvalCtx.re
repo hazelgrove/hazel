@@ -32,12 +32,12 @@ type term =
   | Cast(t, Typ.t, Typ.t)
   | FailedCast(t, Typ.t, Typ.t)
   | DynamicErrorHole(t, InvalidOperationError.t)
-  | MatchScrut(t, list((UPat.t, DHExp.t)))
+  | MatchScrut(t, list((Pat.t, DHExp.t)))
   | MatchRule(
       DHExp.t,
-      UPat.t,
+      Pat.t,
       t,
-      (list((UPat.t, DHExp.t)), list((UPat.t, DHExp.t))),
+      (list((Pat.t, DHExp.t)), list((Pat.t, DHExp.t))),
     )
 and t =
   | Mark

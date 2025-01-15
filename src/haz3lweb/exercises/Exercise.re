@@ -419,7 +419,7 @@ let put_stitched = (pos, s: stitched('a), x: 'a): stitched('a) =>
   | HiddenTests => {...s, hidden_tests: x}
   };
 
-let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t => {
+let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
   term:
     Filter(
       Filter({
@@ -438,7 +438,7 @@ let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t => {
 
 let wrap = (term, editor: Editor.t): TermItem.t => {term, editor};
 
-let term_of = (editor: Editor.t): UExp.t =>
+let term_of = (editor: Editor.t): Exp.t =>
   MakeTerm.from_zip_for_sem(editor.state.zipper).term;
 
 let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>

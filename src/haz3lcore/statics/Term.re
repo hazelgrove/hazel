@@ -100,7 +100,7 @@ module Pat = {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
     | Cast(pat, typ, _) =>
-      is_var(pat) && (UTyp.is_arrow(typ) || Typ.is_forall(typ))
+      is_var(pat) && (Typ.is_arrow(typ) || Typ.is_forall(typ))
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -189,7 +189,7 @@ module Pat = {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
     | Cast(pat, t1, _) =>
-      if (Typ.is_arrow(t1) || UTyp.is_forall(t1)) {
+      if (Typ.is_arrow(t1) || Typ.is_forall(t1)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
@@ -791,7 +791,7 @@ module Rul = {
 
   let rep_id = (~any_ids, tm) =>
     switch (ids(~any_ids, tm)) {
-    | [] => raise(Invalid_argument("UExp.rep_id"))
+    | [] => raise(Invalid_argument("Exp.rep_id"))
     | [id, ..._] => id
     };
 };

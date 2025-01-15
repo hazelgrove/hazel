@@ -36,7 +36,7 @@ type unsorted =
   | Bin(t, tiles, t);
 
 type t = {
-  term: UExp.t,
+  term: Exp.t,
   terms: TermMap.t,
   projectors: Id.Map.t(Piece.projector),
 };
@@ -58,7 +58,7 @@ let is_typ_bsum = is_nary(Any.is_typ, "+");
 let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
 
-let is_rules = ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t)) => {
+let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
   open OptUtil.Syntax;
   let+ ps =
     (ts: list(tile))
@@ -124,7 +124,7 @@ let rm_and_log_projectors = (seg: Segment.t): Segment.t =>
     seg,
   );
 
-let parse_sum_term: UTyp.t => ConstructorMap.variant(UTyp.t) =
+let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
   | {term: Var(ctr), ids, _} => Variant(ctr, ids, None)
   | {term: Ap({term: Var(ctr), ids: ids_ctr, _}, u), ids: ids_ap, _} =>
@@ -170,9 +170,9 @@ and exp = unsorted => {
   let ids = ids(unsorted) @ inner_ids;
   return(e => Exp(e), ids, {ids, copied: false, term});
 }
-and exp_term: unsorted => (UExp.term, list(Id.t)) = {
-  let ret = (tm: UExp.term) => (tm, []);
-  let hole = unsorted => UExp.hole(kids_of_unsorted(unsorted));
+and exp_term: unsorted => (Exp.term, list(Id.t)) = {
+  let ret = (tm: Exp.term) => (tm, []);
+  let hole = unsorted => Exp.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -250,19 +250,19 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           ),
         )
       | (["(", ")"], [Exp(arg)]) =>
-        let use_deferral = (arg: UExp.t): UExp.t => {
+        let use_deferral = (arg: Exp.t): Exp.t => {
           ids: arg.ids,
           copied: false,
           term: Deferral(InAp),
         };
         switch (arg.term) {
-        | _ when UExp.is_deferral(arg) =>
+        | _ when Exp.is_deferral(arg) =>
           ret(DeferredAp(l, [use_deferral(arg)]))
-        | Tuple(es) when List.exists(UExp.is_deferral, es) => (
+        | Tuple(es) when List.exists(Exp.is_deferral, es) => (
             DeferredAp(
               l,
               List.map(
-                arg => UExp.is_deferral(arg) ? use_deferral(arg) : arg,
+                arg => Exp.is_deferral(arg) ? use_deferral(arg) : arg,
                 es,
               ),
             ),
@@ -332,9 +332,9 @@ and pat = unsorted => {
   let ids = ids(unsorted) @ inner_ids;
   return(p => Pat(p), ids, {ids, term, copied: false});
 }
-and pat_term: unsorted => (UPat.term, list(Id.t)) = {
-  let ret = (term: UPat.term) => (term, []);
-  let hole = unsorted => UPat.hole(kids_of_unsorted(unsorted));
+and pat_term: unsorted => (Pat.term, list(Id.t)) = {
+  let ret = (term: Pat.term) => (term, []);
+  let hole = unsorted => Pat.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -398,9 +398,9 @@ and typ = unsorted => {
   let ids = ids(unsorted) @ inner_ids;
   return(ty => Typ(ty), ids, {ids, term, copied: false});
 }
-and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
-  let ret = (term: UTyp.term) => (term, []);
-  let hole = unsorted => UTyp.hole(kids_of_unsorted(unsorted));
+and typ_term: unsorted => (Typ.term, list(Id.t)) = {
+  let ret = (term: Typ.term) => (term, []);
+  let hole = unsorted => Typ.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
