@@ -19,7 +19,7 @@ type action =
   | PinAp(Id.t)
   | ChangeLength(Id.t, int)
   | Offset(int)
-  | ToggleShowAllVals;
+  | ToggleShowAllVals(int);
 
 let init = {display_lengths: Id.Map.empty, max_closures: 30, index_offset: 0};
 
@@ -177,7 +177,14 @@ let dynamic_cursor_cls = (info: info, closure: Dynamics.Probe.Closure.t) =>
   };
 
 let value_view =
-    (info: info, model, utility, local, closure: Dynamics.Probe.Closure.t) => {
+    (
+      info: info,
+      model,
+      utility,
+      local,
+      closure: Dynamics.Probe.Closure.t,
+      index: int,
+    ) => {
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
     let target = e##.target |> Js.Opt.get(_, _ => failwith("no target"));
     JsUtil.setPointerCapture(target, e##.pointerId) |> ignore;
@@ -214,7 +221,7 @@ let value_view =
         @ dynamic_cursor_cls(info, closure)
         @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : []),
       ),
-      Attr.on_double_click(_ => local(ToggleShowAllVals)),
+      Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
       Attr.on_pointerdown(val_pointerdown),
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
@@ -273,6 +280,7 @@ let closure_view =
       model: model,
       local,
       closure: Dynamics.Probe.Closure.t,
+      index: int,
     ) =>
   div(
     ~attrs=[
@@ -280,7 +288,7 @@ let closure_view =
         ["closure"] @ (show_indicator(closure.stack) ? ["cursor"] : []),
       ),
     ],
-    [value_view(info, model, utility, local, closure)]
+    [value_view(info, model, utility, local, closure, index)]
     @ (is_var_ref(info) ? [] : [env_view(closure, utility)]),
   );
 
@@ -302,7 +310,7 @@ let nav_back = (di, model, local, left_cond) =>
           Attr.classes(
             ["closures-header"] @ (left_cond ? ["disabled"] : []),
           ),
-          Attr.on_click(_ => left_cond ? Effect.Ignore : local(Offset(1))),
+          Attr.on_click(_ => left_cond ? Effect.Ignore : local(Offset(-1))),
         ],
         [Node.text("<")],
       ),
@@ -317,7 +325,7 @@ let nav_forward = (di, model, local, right_cond) =>
           Attr.classes(
             ["closures-tail"] @ (right_cond ? ["disabled"] : []),
           ),
-          Attr.on_click(_ => right_cond ? Effect.Ignore : local(Offset(-1))),
+          Attr.on_click(_ => right_cond ? Effect.Ignore : local(Offset(1))),
         ],
         [Node.text(">")],
       ),
@@ -362,14 +370,35 @@ let group_closures =
 };
 
 let closure_group_view =
-    (info, utility, model, local, closures: list(Dynamics.Probe.Closure.t)) =>
-  group_closures(closures)
-  |> List.map(closures =>
+    (info, utility, model, local, closures: list(Dynamics.Probe.Closure.t)) => {
+  let groups = group_closures(closures);
+  groups
+  |> List.mapi((i, closures) =>
        Node.div(
          ~attrs=[Attr.classes(["closure-group"])],
-         List.map(closure_view(info, utility, model, local), closures),
+         {
+           let previous_lengths =
+             List.fold_left(
+               (acc, l) => acc + List.length(l),
+               0,
+               List.filteri((idx, _) => idx < i, groups),
+             );
+           List.mapi(
+             (j, closure) =>
+               closure_view(
+                 info,
+                 utility,
+                 model,
+                 local,
+                 closure,
+                 previous_lengths + j,
+               ),
+             closures,
+           );
+         },
        )
      );
+};
 
 let offside_view =
     (model: model, ~info, ~local, ~parent as _, ~utility: utility) => {
@@ -378,12 +407,34 @@ let offside_view =
     switch (info.dynamics) {
     | Some(di) =>
       let frames = select_frames(model, di);
+      /* Filter pinned frames */
+      let frames =
+        switch (State.s.pinned_ap) {
+        | Some(pinned_ap) =>
+          frames
+          |> List.filter((closure: Dynamics.Probe.Closure.t) =>
+               switch (closure.dyn_stack |> List.rev) {
+               | _ when Some(pinned_ap) == cur_ap_id(info) => true
+               | [frame, ..._] => frame.ap_id == pinned_ap
+               | [] => false
+               }
+             )
+        | None => frames
+        };
       let left_cond =
         model.index_offset >= List.length(di) - model.max_closures;
       let right_cond = model.index_offset <= 0;
-      nav_back(di, model, local, left_cond)
-      @ nav_forward(di, model, local, right_cond)
-      @ closure_group_view(info, utility, model, local, frames);
+      [
+        div(
+          ~attrs=[Attr.classes(["nav-bar"])],
+          [
+            div(nav_back(di, model, local, left_cond)),
+            div(nav_forward(di, model, local, right_cond)),
+          ],
+        ),
+      ]
+      @ closure_group_view(info, utility, model, local, frames)
+      @ (List.length(di) > model.max_closures ? [text("⋯")] : []);
     | _ => []
     },
   );
@@ -407,6 +458,10 @@ let num_closures_view = (info: info) => {
   );
 };
 
+let pin_view = (info: info) =>
+  State.s.pinned_ap != None && State.s.pinned_ap == cur_ap_id(info)
+    ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
+
 let syntax_str = (info: info) => {
   let max_len = 30;
   let str = Printer.of_segment(~holes=None, [info.syntax]);
@@ -426,18 +481,22 @@ let view =
   div(
     ~attrs=[
       Attr.classes(
-        ["main"] @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : []),
+        ["main"]
+        @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : [])
+        @ (State.s.pinned_ap == cur_ap_id(info) ? ["pinned"] : []),
       ),
-      Attr.on_click(_ => {
+      Attr.on_double_click(_ => {
         //State.reset();
         switch (State.s.pinned_ap) {
-        | Some(_) => State.s.pinned_ap = None
+        | Some(pinned_ap) when Some(pinned_ap) == cur_ap_id(info) =>
+          State.s.pinned_ap = None
+        | Some(_)
         | None => State.s.pinned_ap = cur_ap_id(info)
         };
         Effect.Ignore;
       }),
     ],
-    [syntax_view(info), icon, num_closures_view(info)],
+    [syntax_view(info), icon, num_closures_view(info)] @ pin_view(info),
   );
 
 let update = (m: model, a: action) => {
@@ -449,8 +508,9 @@ let update = (m: model, a: action) => {
     } else {
       m;
     }
-  | ToggleShowAllVals => {
+  | ToggleShowAllVals(offset) => {
       ...m,
+      index_offset: offset,
       max_closures: m.max_closures == 1 ? init.max_closures : 1,
     }
   | Offset(offset) =>
