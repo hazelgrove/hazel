@@ -2,115 +2,108 @@ open Transition;
 
 open ProgramResult.Result;
 
+// This module defines the stack machine for the evaluator.
+module Trampoline = {
+  type t('a) =
+    | Bind(t('b), 'b => t('a)): t('a)
+    | Next(unit => t('a)): t('a)
+    | Done('a): t('a);
+
+  type callstack('a, 'b) =
+    | Finished: callstack('a, 'a)
+    | Continue('a => t('b), callstack('b, 'c)): callstack('a, 'c);
+
+  let rec run: type a b. (t(b), callstack(b, a)) => a =
+    (t: t(b), callstack: callstack(b, a)) => (
+      switch (t) {
+      | Bind(t, f) => (run(t, Continue(f, callstack)): a)
+      | Next(f) => run(f(), callstack)
+      | Done(x) =>
+        switch (callstack) {
+        | Finished => x
+        | Continue(f, callstack) => run(f(x), callstack)
+        }
+      }: a
+    );
+
+  let run = run(_, Finished);
+
+  let return = x => Done(x);
+
+  let bind = (t, f) => Bind(t, f);
+
+  module Syntax = {
+    let (let.trampoline) = (x, f) => bind(x, f);
+  };
+};
+
 module EvaluatorEVMode: {
   type status =
-    | BoxedValue
-    | Indet
+    | Final
     | Uneval;
 
   include
     EV_MODE with
-      type state = ref(EvaluatorState.t) and type result = (status, DHExp.t);
+      type state = ref(EvaluatorState.t) and
+      type result = Trampoline.t((status, DHExp.t));
 } = {
+  open Trampoline.Syntax;
+
   type status =
-    | BoxedValue
-    | Indet
+    | Final
     | Uneval;
 
-  type result = (status, DHExp.t);
-
-  type reqstate =
-    | BoxedReady
-    | IndetReady
-    | IndetBlocked;
-
-  let (&&) = (x, y) =>
-    switch (x, y) {
-    | (IndetBlocked, _) => IndetBlocked
-    | (_, IndetBlocked) => IndetBlocked
-    | (IndetReady, _) => IndetReady
-    | (_, IndetReady) => IndetReady
-    | (BoxedReady, BoxedReady) => BoxedReady
-    };
-
-  type requirement('a) = (reqstate, 'a);
-
-  type requirements('a, 'b) = (reqstate, 'a, 'b); // cumulative state, cumulative arguments, cumulative 'undo'
+  type result = Trampoline.t((status, DHExp.t));
+  type requirement('a) = Trampoline.t('a);
+  type requirements('a, 'b) = Trampoline.t(('a, 'b));
 
   type state = ref(EvaluatorState.t);
   let update_test = (state, id, v) =>
     state := EvaluatorState.add_test(state^, id, v);
 
-  let req_value = (f, _, x) =>
-    switch (f(x)) {
-    | (BoxedValue, x) => (BoxedReady, x)
-    | (Indet, x) => (IndetBlocked, x)
-    | (Uneval, _) => failwith("Unexpected Uneval")
+  let req_final = (f, _, x) => {
+    let.trampoline x' = Next(() => f(x));
+    Trampoline.return(x' |> snd);
+  };
+  let rec req_all_final = (f, i, xs) =>
+    switch (xs) {
+    | [] => Trampoline.return([])
+    | [x, ...xs] =>
+      let.trampoline x' = req_final(f, x => x, x);
+      let.trampoline xs' = req_all_final(f, i, xs);
+      Trampoline.return([x', ...xs']);
     };
 
-  let rec req_all_value = (f, i) =>
-    fun
-    | [] => (BoxedReady, [])
-    | [x, ...xs] => {
-        let (r1, x') = req_value(f, x => x, x);
-        let (r2, xs') = req_all_value(f, i, xs);
-        (r1 && r2, [x', ...xs']);
-      };
-
-  let req_final = (f, _, x) =>
-    switch (f(x)) {
-    | (BoxedValue, x) => (BoxedReady, x)
-    | (Indet, x) => (IndetReady, x)
-    | (Uneval, _) => failwith("Unexpected Uneval")
-    };
-
-  let rec req_all_final = (f, i) =>
-    fun
-    | [] => (BoxedReady, [])
-    | [x, ...xs] => {
-        let (r1, x') = req_final(f, x => x, x);
-        let (r2, xs') = req_all_final(f, i, xs);
-        (r1 && r2, [x', ...xs']);
-      };
-
-  let req_final_or_value = (f, _, x) =>
-    switch (f(x)) {
-    | (BoxedValue, x) => (BoxedReady, (x, true))
-    | (Indet, x) => (IndetReady, (x, false))
-    | (Uneval, _) => failwith("Unexpected Uneval")
-    };
-
-  let otherwise = (_, c) => (BoxedReady, (), c);
-
-  let (and.) = ((r1, x1, c1), (r2, x2)) => (r1 && r2, (x1, x2), c1(x2));
-
-  let (let.) = ((r, x, c), s) =>
-    switch (r, s(x)) {
-    | (BoxedReady, Step({expr, state_update, is_value: true, _})) =>
+  let otherwise = (_, c) => Trampoline.return(((), c));
+  let (and.) = (t1, t2) => {
+    let.trampoline (x1, c1) = t1;
+    let.trampoline x2 = t2;
+    Trampoline.return(((x1, x2), c1(x2)));
+  };
+  let (let.) = (t1, s) => {
+    let.trampoline (x, c) = t1;
+    switch (s(x)) {
+    | Step({expr, state_update, is_value: true, _}) =>
       state_update();
-      (BoxedValue, expr);
-    | (IndetReady, Step({expr, state_update, is_value: true, _})) =>
+      Trampoline.return((Final, expr));
+    | Step({expr, state_update, is_value: false, _}) =>
       state_update();
-      (Indet, expr);
-    | (BoxedReady, Step({expr, state_update, is_value: false, _}))
-    | (IndetReady, Step({expr, state_update, is_value: false, _})) =>
-      state_update();
-      (Uneval, expr);
-    | (BoxedReady, Constructor) => (BoxedValue, c)
-    | (IndetReady, Constructor) => (Indet, c)
-    | (IndetBlocked, _) => (Indet, c)
-    | (_, Value) => (BoxedValue, c)
-    | (_, Indet) => (Indet, c)
+      Trampoline.return((Uneval, expr));
+    | Constructor
+    | Value
+    | Indet => Trampoline.return((Final, c))
     };
+  };
 };
+
 module Eval = Transition(EvaluatorEVMode);
 
 let rec evaluate = (state, env, d) => {
-  let u = Eval.transition(evaluate, state, env, d);
+  open Trampoline.Syntax;
+  let.trampoline u = Eval.transition(evaluate, state, env, d);
   switch (u) {
-  | (BoxedValue, x) => (BoxedValue, x)
-  | (Indet, x) => (Indet, x)
-  | (Uneval, x) => evaluate(state, env, x)
+  | (Final, x) => (EvaluatorEVMode.Final, x) |> Trampoline.return
+  | (Uneval, x) => Trampoline.Next(() => evaluate(state, env, x))
   };
 };
 
@@ -118,10 +111,10 @@ let evaluate' = (env, d: DHExp.t) => {
   let state = ref(EvaluatorState.init);
   let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);
+  let result = Trampoline.run(result);
   let result =
     switch (result) {
-    | (BoxedValue, x) => BoxedValue(x |> DHExp.repair_ids)
-    | (Indet, x) => Indet(x |> DHExp.repair_ids)
+    | (Final, x) => BoxedValue(x |> DHExp.repair_ids)
     | (Uneval, x) => Indet(x |> DHExp.repair_ids)
     };
   (state^, result);
