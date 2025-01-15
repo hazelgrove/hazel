@@ -325,16 +325,17 @@ let nav_forward = (di, model, local, right_cond) =>
     : [];
 
 let group_by_predicate =
-    (should_join_group: ('a, 'a) => bool, xs: list('a)): list(list('a)) => {
+    /* Precondition: Items to be grouped are contigious in list */
+    (should_group: ('a, 'a) => bool, xs: list('a)): list(list('a)) => {
   List.fold_left(
-    (acc: list(list('a)), x: 'a) => {
+    (acc: list(list('a)), item: 'a) => {
       switch (acc) {
-      | [] => [[x]]
-      | [[rep, ..._] as first, ...init] when should_join_group(rep, x) => [
-          first @ [x],
+      | [] => [[item]]
+      | [[rep, ..._] as first, ...init] when should_group(rep, item) => [
+          first @ [item],
           ...init,
         ]
-      | _ => [[x]] @ acc
+      | _ => [[item]] @ acc
       }
     },
     [],
@@ -345,37 +346,30 @@ let group_by_predicate =
 let group_closures =
     (closures: list(Dynamics.Probe.Closure.t))
     : list(list(Dynamics.Probe.Closure.t)) => {
-  let should_join_group =
-      (first: Dynamics.Probe.Closure.t, curr: Dynamics.Probe.Closure.t) => {
-    switch (List.rev(curr.dyn_stack), List.rev(first.dyn_stack)) {
-    | ([], _) => false
+  let is_same_call =
+      (c1: Dynamics.Probe.Closure.t, c2: Dynamics.Probe.Closure.t) => {
+    switch (List.rev(c2.dyn_stack), List.rev(c1.dyn_stack)) {
+    | ([], _)
     | (_, []) => false
     | ([f1, ..._], [f2, ..._]) => f1 == f2
     };
   };
-  let grouped = group_by_predicate(should_join_group, closures);
-  let grouped = List.map(List.rev, grouped);
+  let grouped =
+    closures |> group_by_predicate(is_same_call) |> List.map(List.rev);
   /* Flatten if all groups are singletons */
-  List.for_all(
-    (group: list(Dynamics.Probe.Closure.t)) => List.length(group) == 1,
-    grouped,
-  )
+  List.for_all(group => List.length(group) == 1, grouped)
     ? [List.concat(grouped)] : grouped;
 };
 
 let closure_group_view =
-    (info, utility, model, local, closures: list(Dynamics.Probe.Closure.t)) => {
-  let groups: list(list(Dynamics.Probe.Closure.t)) =
-    group_closures(closures);
-  List.map(
-    closures =>
-      Node.div(
-        ~attrs=[Attr.classes(["closure-group"])],
-        List.map(closure_view(info, utility, model, local), closures),
-      ),
-    groups,
-  );
-};
+    (info, utility, model, local, closures: list(Dynamics.Probe.Closure.t)) =>
+  group_closures(closures)
+  |> List.map(closures =>
+       Node.div(
+         ~attrs=[Attr.classes(["closure-group"])],
+         List.map(closure_view(info, utility, model, local), closures),
+       )
+     );
 
 let offside_view =
     (model: model, ~info, ~local, ~parent as _, ~utility: utility) => {
