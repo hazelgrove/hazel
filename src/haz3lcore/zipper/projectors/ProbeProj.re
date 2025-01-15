@@ -284,7 +284,7 @@ let closure_view =
     @ (is_var_ref(info) ? [] : [env_view(closure, utility)]),
   );
 
-let select_vals = (model: model, vals) => {
+let select_frames = (model: model, vals) => {
   switch (List.sort(comparor, vals)) {
   | [] => []
   | _ =>
@@ -324,19 +324,72 @@ let nav_forward = (di, model, local, right_cond) =>
     ]
     : [];
 
+let group_by_predicate =
+    (should_join_group: ('a, 'a) => bool, xs: list('a)): list(list('a)) => {
+  List.fold_left(
+    (acc: list(list('a)), x: 'a) => {
+      switch (acc) {
+      | [] => [[x]]
+      | [[rep, ..._] as first, ...init] when should_join_group(rep, x) => [
+          first @ [x],
+          ...init,
+        ]
+      | _ => [[x]] @ acc
+      }
+    },
+    [],
+    xs,
+  );
+};
+
+let group_closures =
+    (closures: list(Dynamics.Probe.Closure.t))
+    : list(list(Dynamics.Probe.Closure.t)) => {
+  let should_join_group =
+      (first: Dynamics.Probe.Closure.t, curr: Dynamics.Probe.Closure.t) => {
+    switch (List.rev(curr.dyn_stack), List.rev(first.dyn_stack)) {
+    | ([], _) => false
+    | (_, []) => false
+    | ([f1, ..._], [f2, ..._]) => f1 == f2
+    };
+  };
+  let grouped = group_by_predicate(should_join_group, closures);
+  let grouped = List.map(List.rev, grouped);
+  /* Flatten if all groups are singletons */
+  List.for_all(
+    (group: list(Dynamics.Probe.Closure.t)) => List.length(group) == 1,
+    grouped,
+  )
+    ? [List.concat(grouped)] : grouped;
+};
+
+let closure_group_view =
+    (info, utility, model, local, closures: list(Dynamics.Probe.Closure.t)) => {
+  let groups: list(list(Dynamics.Probe.Closure.t)) =
+    group_closures(closures);
+  List.map(
+    closures =>
+      Node.div(
+        ~attrs=[Attr.classes(["closure-group"])],
+        List.map(closure_view(info, utility, model, local), closures),
+      ),
+    groups,
+  );
+};
+
 let offside_view =
     (model: model, ~info, ~local, ~parent as _, ~utility: utility) => {
   Node.div(
     ~attrs=[Attr.classes(["live-offside"])],
     switch (info.dynamics) {
     | Some(di) =>
-      let vals = select_vals(model, di);
+      let frames = select_frames(model, di);
       let left_cond =
         model.index_offset >= List.length(di) - model.max_closures;
       let right_cond = model.index_offset <= 0;
       nav_back(di, model, local, left_cond)
       @ nav_forward(di, model, local, right_cond)
-      @ List.map(closure_view(info, utility, model, local), vals);
+      @ closure_group_view(info, utility, model, local, frames);
     | _ => []
     },
   );

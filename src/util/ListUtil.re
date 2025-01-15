@@ -638,3 +638,13 @@ let rec rotate_n = (n: int, xs: list('a)): list('a) => {
   | _ => rotate_n(n - 1, rotate(xs))
   };
 };
+
+let take = (n, xs) => {
+  let rec loop = (n, xs, acc) =>
+    switch (n, xs) {
+    | (0, _) => acc
+    | (_, []) => acc
+    | (n, [x, ...xs]) => loop(n - 1, xs, [x, ...acc])
+    };
+  loop(n, xs, []);
+};
