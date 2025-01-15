@@ -2,6 +2,8 @@ open Alcotest;
 open Haz3lcore;
 
 let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
+let testable_info_error_exp =
+  testable(Fmt.using(Info.show_error_exp, Fmt.string), (==));
 let testable_status_exp =
   testable(
     Fmt.using(Info.show_status_exp, Fmt.string),
@@ -37,9 +39,6 @@ let parse_exp = (s: string) =>
   MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
 
 let info_of_id = (~statics_map=?, f: UExp.t, id: Id.t) => {
-  // print_endline(
-  //   "Map: " ++ [%derive.show: option(Statics.Map.t)](statics_map),
-  // );
   let s =
     switch (statics_map) {
     | Some(s) => s
@@ -689,5 +688,288 @@ let tests = (
         {|let x : (a=Int, b=Float, String) = (1, 1.2, z="hello") in |},
       ),
     ),
+    test_case(
+      "Duplicate label synthesis",
+      `Quick,
+      () => {
+        let exp = parse_exp({|(a="hello", a=3)|});
+
+        let (l1, l2, tl1, tl2, tuple) =
+          switch (exp.term) {
+          | Parens(
+              {
+                term:
+                  Tuple([
+                    {term: TupLabel({term: Label(_), _} as l1, _), _} as tl1,
+                    {term: TupLabel({term: Label(_), _} as l2, _), _} as tl2,
+                  ]),
+                _,
+              } as tuple,
+            ) => (
+              l1,
+              l2,
+              tl1,
+              tl2,
+              tuple,
+            )
+          | _ => Alcotest.fail("Unexpected form")
+          };
+
+        let s = statics(exp);
+
+        check(
+          option(testable_info_error_exp),
+          "Duplicate labels Tuple Error",
+          Some(
+            Common(
+              DuplicateLabels(
+                ["a"],
+                Prod([
+                  TupLabel(
+                    Label("a") |> Typ.temp,
+                    Unknown(Internal) |> Typ.temp,
+                  )
+                  |> Typ.temp,
+                ])
+                |> Typ.temp,
+              ),
+            ),
+          ),
+          Statics.get_error_at(s, IdTagged.rep_id(tuple)),
+        );
+
+        check(
+          option(testable_info_error_exp),
+          "TupLabel1 error free",
+          Some(
+            Common(
+              DuplicateLabels(
+                ["a"],
+                TupLabel(Label("a") |> Typ.temp, String |> Typ.temp)
+                |> Typ.temp,
+              ),
+            ),
+          ),
+          Statics.get_error_at(s, IdTagged.rep_id(tl1)),
+        );
+        check(
+          option(testable_info_error_exp),
+          "TupLabel2 error free",
+          Some(
+            Common(
+              DuplicateLabels(
+                ["a"],
+                TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp) |> Typ.temp,
+              ),
+            ),
+          ),
+          Statics.get_error_at(s, IdTagged.rep_id(tl2)),
+        );
+
+        check(
+          option(testable_info_error_exp),
+          "Duplicate Label Error 1",
+          Some(Common(Duplicate("a", Label("a") |> Typ.temp))),
+          Statics.get_error_at(s, IdTagged.rep_id(l1)),
+        );
+        check(
+          option(testable_info_error_exp),
+          "Duplicate Label Error 2",
+          Some(Common(Duplicate("a", Label("a") |> Typ.temp))),
+          Statics.get_error_at(s, IdTagged.rep_id(l2)),
+        );
+      },
+    ),
+    test_case(
+      "Singleton Bad label synthesis",
+      `Quick,
+      () => {
+        let exp = parse_exp({|(1="hello")|});
+        print_endline("Exp: " ++ [%derive.show: Exp.t](exp));
+
+        let (l1, tl1, tuple) =
+          switch (exp.term) {
+          | Parens(
+              {
+                term:
+                  Tuple([
+                    {term: TupLabel({term: Int(1), _} as l1, _), _} as tl1,
+                  ]),
+                _,
+              } as tuple,
+            ) => (
+              l1,
+              tl1,
+              tuple,
+            )
+          | _ => Alcotest.fail("Unexpected form")
+          };
+
+        let s = statics(exp);
+
+        check(
+          option(testable_info_error_exp),
+          "Tuple",
+          Some(
+            Common(
+              BadLabelContained(
+                [Exp(l1)],
+                Prod([
+                  TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
+                  |> Typ.temp,
+                ])
+                |> Typ.temp,
+              ),
+            ),
+          ),
+          Statics.get_error_at(s, IdTagged.rep_id(tuple)),
+        );
+
+        check(
+          option(testable_info_error_exp),
+          "TupLabel1",
+          Some(
+            Common(
+              BadLabelContained(
+                [Exp(l1)],
+                TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
+                |> Typ.temp,
+              ),
+            ),
+          ),
+          Statics.get_error_at(s, IdTagged.rep_id(tl1)),
+        );
+
+        check(
+          option(testable_info_error_exp),
+          "Label",
+          Some(Common(NoType(BadLabel(Exp(l1))))),
+          Statics.get_error_at(s, IdTagged.rep_id(l1)),
+        );
+      },
+    ),
+    test_case(
+      "Bad label synthesis",
+      `Quick,
+      () => {
+        let exp = parse_exp({|(1="hello", a=3)|});
+
+        let (l1, l2, tl1, tl2, tuple) =
+          switch (exp.term) {
+          | Parens(
+              {
+                term:
+                  Tuple([
+                    {term: TupLabel({term: Int(1), _} as l1, _), _} as tl1,
+                    {term: TupLabel({term: Label(_), _} as l2, _), _} as tl2,
+                  ]),
+                _,
+              } as tuple,
+            ) => (
+              l1,
+              l2,
+              tl1,
+              tl2,
+              tuple,
+            )
+          | _ => Alcotest.fail("Unexpected form")
+          };
+
+        let s = statics(exp);
+
+        check(
+          option(testable_info_error_exp),
+          "Tuple Error Free",
+          Some(
+            Common(
+              BadLabelContained(
+                [Exp(l1)],
+                Prod([
+                  TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
+                  |> Typ.temp,
+                  TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
+                  |> Typ.temp,
+                ])
+                |> Typ.temp,
+              ),
+            ),
+          ),
+          Statics.get_error_at(s, IdTagged.rep_id(tuple)),
+        );
+
+        check(
+          option(testable_info_error_exp),
+          "TupLabel1 ",
+          Some(
+            Common(
+              BadLabelContained(
+                [Exp(l1)],
+                TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
+                |> Typ.temp,
+              ),
+            ),
+          ),
+          Statics.get_error_at(s, IdTagged.rep_id(tl1)),
+        );
+        check(
+          option(testable_info_error_exp),
+          "TupLabel2 Error Free",
+          None,
+          Statics.get_error_at(s, IdTagged.rep_id(tl2)),
+        );
+
+        check(
+          option(testable_info_error_exp),
+          "Label Error invalid label",
+          Some(Common(NoType(BadLabel(Exp(l1))))),
+          Statics.get_error_at(s, IdTagged.rep_id(l1)),
+        );
+        check(
+          option(testable_info_error_exp),
+          "Label 2 Error Free",
+          None,
+          Statics.get_error_at(s, IdTagged.rep_id(l2)),
+        );
+      },
+    ),
+    test_case(
+      "extra label",
+      `Quick,
+      () => {
+        let _ = Alcotest.skip();
+
+        let exp =
+          parse_exp(
+            {|let extra_label : (Int, a=String, b=Bool, Float) = (c=1, a="hello", b=true, 2.) in 1|},
+          );
+
+        let (_typ, tuple) =
+          switch (exp.term) {
+          | Let({term: Cast(_, typ, _), _}, {term: Parens(tuple), _}, _) => (
+              typ,
+              tuple,
+            )
+          | _ => Alcotest.fail("Unexpected form")
+          };
+
+        let s = statics(exp);
+
+        check(
+          option(testable_info_error_exp),
+          "Inconsistent Tuple Error",
+          Some(
+            Common(
+              Inconsistent(
+                Expectation({
+                  ana: Float |> Typ.fresh,
+                  syn: Float |> Typ.fresh,
+                }),
+              ),
+            ),
+          ),
+          Statics.get_error_at(s, IdTagged.rep_id(tuple)),
+        );
+      },
+    ),
   ],
-);
+) /* type Person = (1=String, Int = String,  =Float, () = 3) i*/;

@@ -343,7 +343,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
                 )
                 |> Exp.fresh,
               ])
-            | _ => TupLabel(l, r)
+            | _ => Tuple([TupLabel(l, r) |> Exp.fresh])
             }
           | (["."], []) =>
             // TODO (Anthony): Other cases to convert to string
@@ -544,7 +544,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
               |> Typ.fresh,
             ]),
           )
-        | _ => ret(TupLabel(l, r))
+        | _ => ret(Prod([TupLabel(l, r) |> Typ.fresh]))
         }
       // | ([(_id, (["."], []))], []) => ret(Dot(l, r))
       | _ => ret(hole(tm))
