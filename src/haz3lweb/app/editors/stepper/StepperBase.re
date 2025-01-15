@@ -37,17 +37,29 @@ module Model = {
   and induction_valid =
     | Valid
 
+  and case = {
+    // Updated
+    pattern: CodeEditable.Model.t,
+    // Calculated
+    elab_pattern: Calc.saved(Exp.t),
+    inner_exp: Calc.saved(Exp.t),
+    stepper,
+    last_exp: Calc.saved(Exp.t),
+  }
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   and induction_step = {
     common: step_common,
     // Updated
     scrut: CodeEditable.Model.t,
-    cases: list((CodeEditable.Model.t, stepper)),
+    cases: list(case),
     next_step: step,
     // Calculated
+    elab_scrut: Calc.saved(Exp.t),
     result: Calc.saved(Exp.t),
     result_state: Calc.saved(EvaluatorState.t),
     induction_valid: Calc.saved(induction_valid),
+    join_exp: Calc.saved(Exp.t),
   }
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -75,9 +87,11 @@ module Model = {
     scrut: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
     cases: [],
     next_step: init_step,
+    elab_scrut: Calc.Pending,
     result: Calc.Pending,
     result_state: Calc.Pending,
     induction_valid: Calc.Pending,
+    join_exp: Calc.Pending,
   };
 
   let init_stepper = {
@@ -225,7 +239,6 @@ module Update = {
     | (AddInduction, _) => model |> return_quiet
     };
   }
-
   and update_missing_step =
       (~settings, action: missing_step, model: Model.missing_step)
       : Updated.t(Model.missing_step) => {
@@ -247,7 +260,6 @@ module Update = {
       }
     };
   }
-
   and update_single_step =
       (~settings, action: single_step, model: Model.single_step)
       : Updated.t(Model.single_step) => {
@@ -277,7 +289,6 @@ module Update = {
       );
     };
   }
-
   and update_induction_step =
       (~settings, action: induction_step, model: Model.induction_step)
       : Updated.t(Model.induction_step) => {
@@ -307,33 +318,54 @@ module Update = {
       );
     | CasePatternUpdate(i, a) =>
       switch (List.nth_opt(model.cases, i)) {
-      | Some((pattern, stepper)) =>
-        let* new_pattern = CodeEditable.Update.update(~settings, a, pattern);
+      | Some(case) =>
+        let* new_pattern =
+          CodeEditable.Update.update(~settings, a, case.pattern);
         (
           {
             ...model,
-            cases: ListUtil.put_nth(i, (new_pattern, stepper), model.cases),
+            cases:
+              ListUtil.put_nth(
+                i,
+                {
+                  ...case,
+                  pattern: new_pattern,
+                },
+                model.cases,
+              ),
           }: Model.induction_step
         );
       | None => model |> return_quiet
       }
     | CaseStepperUpdate(i, a) =>
       switch (List.nth_opt(model.cases, i)) {
-      | Some((pattern, stepper)) =>
-        let* new_stepper = update_stepper(~settings, a, stepper);
+      | Some(case) =>
+        let* new_stepper = update_stepper(~settings, a, case.stepper);
         (
           {
             ...model,
-            cases: ListUtil.put_nth(i, (pattern, new_stepper), model.cases),
+            cases:
+              ListUtil.put_nth(
+                i,
+                {
+                  ...case,
+                  stepper: new_stepper,
+                },
+                model.cases,
+              ),
           }: Model.induction_step
         );
       | None => model |> return_quiet
       }
     | AddCase =>
-      let new_case = (
-        CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
-        Model.init_stepper,
-      );
+      let new_case =
+        Model.{
+          pattern: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
+          elab_pattern: Calc.Pending,
+          inner_exp: Calc.Pending,
+          stepper: Model.init_stepper,
+          last_exp: Calc.Pending,
+        };
       (
         {
           ...model,
@@ -371,7 +403,6 @@ module Update = {
             {cached_settings, cached_elab, root}: Model.stepper,
           )
           : Model.stepper => {
-    let _ = print_endline("Calculating Stepper");
     let settings =
       cached_settings
       |> Calc.set(settings, ~eq=(a, b) => {
@@ -401,7 +432,8 @@ module Update = {
         cached_elab,
         root,
       },
-    );
+    )
+    |> fst;
   }
   and calculate_stepper' =
       (
@@ -409,18 +441,21 @@ module Update = {
         elab: Calc.t(Exp.t),
         {cached_settings: _, cached_elab: _, root}: Model.stepper,
       ) => {
-    let root =
+    let (root, last_expr) =
       calculate_step(
         ~settings,
         elab,
         Calc.OldValue(EvaluatorState.init),
         root,
       );
-    Model.{
-      cached_settings: settings |> Calc.save,
-      cached_elab: elab |> Calc.save,
-      root,
-    };
+    (
+      Model.{
+        cached_settings: settings |> Calc.save,
+        cached_elab: elab |> Calc.save,
+        root,
+      },
+      last_expr,
+    );
   }
   and calculate_step =
       (
@@ -429,12 +464,14 @@ module Update = {
         state: Calc.t(EvaluatorState.t),
         step: Model.step,
       )
-      : Model.step => {
+      : (Model.step, Calc.t(Exp.t)) => {
     switch (step) {
     | Model.MissingStep(m) => calculate_missing_step(~settings, exp, state, m)
     | Model.SingleStep(m) => calculate_single_step(~settings, exp, state, m)
     | Model.InductionStep(m) =>
-      Model.InductionStep(calculate_induction_step(~settings, exp, state, m))
+      let (new_step, last_expr) =
+        calculate_induction_step(~settings, exp, state, m);
+      (Model.InductionStep(new_step), last_expr);
     };
   }
   and calculate_step_common =
@@ -464,8 +501,7 @@ module Update = {
         exp,
         state: Calc.t(EvaluatorState.t),
         {common, next_steps}: Model.missing_step,
-      )
-      : Model.step => {
+      ) => {
     let next_steps =
       next_steps
       |> {
@@ -501,10 +537,13 @@ module Update = {
          )
     | None =>
       let common = calculate_step_common(~settings, exp, state, common);
-      Model.MissingStep({
-        common,
-        next_steps: next_steps |> Calc.save,
-      });
+      (
+        Model.MissingStep({
+          common,
+          next_steps: next_steps |> Calc.save,
+        }),
+        exp,
+      );
     };
   }
   and calculate_single_step =
@@ -513,8 +552,7 @@ module Update = {
         exp,
         state,
         {common, evalobj, hidden, next_exp, next_state, next_step},
-      )
-      : Model.step =>
+      ) =>
     {
       open OptUtil.Syntax;
       let* hidden_and_eo =
@@ -545,16 +583,19 @@ module Update = {
         }
         |> Calc.to_option;
       let (next_exp, next_state) = Calc.to_pair(next_exp_and_state);
-      let next_step =
+      let (next_step, last_expr) =
         next_step |> calculate_step(~settings, next_exp, next_state);
-      Model.SingleStep({
-        common,
-        evalobj: evalobj |> Calc.get_value,
-        hidden: hidden |> Calc.save,
-        next_exp: next_exp |> Calc.save,
-        next_state: next_state |> Calc.save,
-        next_step,
-      });
+      (
+        Model.SingleStep({
+          common,
+          evalobj: evalobj |> Calc.get_value,
+          hidden: hidden |> Calc.save,
+          next_exp: next_exp |> Calc.save,
+          next_state: next_state |> Calc.save,
+          next_step,
+        }),
+        last_expr,
+      );
     }
     |> OptUtil.get(() =>
          Model.init_step |> calculate_step(~settings, exp, state)
@@ -566,9 +607,11 @@ module Update = {
       scrut,
       cases,
       next_step,
+      elab_scrut,
       result: _,
       result_state: _,
       induction_valid: _,
+      join_exp,
     }: Model.induction_step = m;
     let common = calculate_step_common(~settings, exp, state, common);
     let scrut =
@@ -580,11 +623,16 @@ module Update = {
         ~stitch=x => x,
         scrut,
       );
-    // TODO: complete
+    let elab_scrut =
+      Calc.set(
+        ~eq=Exp.fast_equal,
+        CodeEditable.Model.get_statics(scrut).elaborated,
+        elab_scrut,
+      );
     let cases =
       List.map(
-        ((pattern, stepper)) =>
-          (
+        (Model.{pattern, elab_pattern, inner_exp, stepper, last_exp}) => {
+          let pattern =
             CodeEditable.Update.calculate(
               ~is_dynamic_term=true,
               ~settings=Calc.get_value(settings),
@@ -592,30 +640,82 @@ module Update = {
               ~is_edited=true,
               ~stitch=x => x,
               pattern,
-            ),
+            );
+          let elab_pattern =
+            Calc.set(
+              ~eq=Exp.fast_equal,
+              CodeEditable.Model.get_statics(pattern).elaborated,
+              elab_pattern,
+            );
+          let inner_exp =
+            inner_exp
+            |> {
+              open Calc.Syntax;
+              let.calc elab_pattern = elab_pattern
+              and.calc elab_scrut = elab_scrut
+              and.calc exp = exp;
+              DHExp.replace_exp(elab_scrut, elab_pattern, exp);
+            };
+          let (stepper, last_exp) =
             calculate_stepper'(
               ~settings, // TODO: this is a little ugly
-              exp,
+              inner_exp,
               stepper,
-            ),
-          ),
+            );
+          Model.{
+            pattern,
+            elab_pattern: elab_pattern |> Calc.save,
+            inner_exp: inner_exp |> Calc.save,
+            stepper,
+            last_exp: last_exp |> Calc.save,
+          };
+        },
         cases,
+      );
+
+    let new_join_exp =
+      List.fold_left(
+        (acc, case: Model.case) =>
+          switch (acc, case.last_exp) {
+          | (None, Calc.Pending) => None
+          | (None, Calc.Calculated(last_exp)) => Some(last_exp)
+          | (Some(acc), Calc.Pending) => Some(acc)
+          | (Some(acc), Calc.Calculated(last_exp))
+              when Exp.fast_equal(acc, last_exp) =>
+            Some(acc)
+          | (Some(acc), Calc.Calculated(last_exp)) =>
+            Some(Exp.fresh(EmptyHole))
+          },
+        None,
+        cases,
+      );
+    let join_exp =
+      Calc.set(
+        ~eq=Exp.fast_equal,
+        new_join_exp |> Option.value(~default=Exp.fresh(EmptyHole)),
+        join_exp,
       );
 
     let result = exp |> Calc.save;
     let result_state = state |> Calc.save;
     let induction_valid = Calc.Pending;
 
-    let next_step = calculate_step(~settings, exp, state, next_step);
-    Model.{
-      common,
-      scrut,
-      cases,
-      next_step,
-      result,
-      result_state,
-      induction_valid,
-    };
+    let (next_step, last_exp) =
+      calculate_step(~settings, join_exp, state, next_step);
+    (
+      Model.{
+        common,
+        scrut,
+        cases,
+        next_step,
+        elab_scrut: elab_scrut |> Calc.save,
+        result,
+        result_state,
+        induction_valid,
+        join_exp: join_exp |> Calc.save,
+      },
+      last_exp,
+    );
   };
 };
 
@@ -643,7 +743,8 @@ module Selection = {
   and induction_step =
     | Scrut(CodeSelectable.Selection.t)
     | CasePattern(int, CodeSelectable.Selection.t)
-    | CaseStepper(int, stepper);
+    | CaseStepper(int, stepper)
+    | Next(step);
 
   let rec get_cursor_info_stepper =
           (~selection: stepper, model: Model.stepper): cursor(Update.stepper) => {
@@ -690,19 +791,22 @@ module Selection = {
       Update.InductionStep(ScrutUpdate(ci));
     | CasePattern(i, a) =>
       switch (List.nth_opt(model.cases, i)) {
-      | Some((pattern, _)) =>
+      | Some(case) =>
         let+ ci =
-          CodeEditable.Selection.get_cursor_info(~selection=a, pattern);
+          CodeEditable.Selection.get_cursor_info(~selection=a, case.pattern);
         Update.InductionStep(CasePatternUpdate(i, ci));
       | None => empty
       }
     | CaseStepper(i, a) =>
       switch (List.nth_opt(model.cases, i)) {
-      | Some((_, stepper)) =>
-        let+ ci = get_cursor_info_stepper(~selection=a, stepper);
+      | Some(case) =>
+        let+ ci = get_cursor_info_stepper(~selection=a, case.stepper);
         Update.InductionStep(CaseStepperUpdate(i, ci));
       | None => empty
       }
+    | Next(a) =>
+      let+ ci = get_cursor_info_step(~selection=a, model.next_step);
+      Update.InductionStep(NextStepUpdate(ci));
     };
 
   open OptUtil.Syntax;
@@ -752,8 +856,12 @@ module Selection = {
       |> Option.map((x): Update.induction_step => Update.ScrutUpdate(x));
     | CasePattern(i, a) =>
       switch (List.nth_opt(model.cases, i)) {
-      | Some((pattern, _)) =>
-        CodeEditable.Selection.handle_key_event(~selection=a, pattern, event)
+      | Some(case) =>
+        CodeEditable.Selection.handle_key_event(
+          ~selection=a,
+          case.pattern,
+          event,
+        )
         |> Option.map((x): Update.induction_step =>
              Update.CasePatternUpdate(i, x)
            )
@@ -761,13 +869,16 @@ module Selection = {
       }
     | CaseStepper(i, a) =>
       switch (List.nth_opt(model.cases, i)) {
-      | Some((_, stepper)) =>
-        handle_key_event_stepper(~selection=a, ~event, stepper)
+      | Some(case) =>
+        handle_key_event_stepper(~selection=a, ~event, case.stepper)
         |> Option.map((x): Update.induction_step =>
              Update.CaseStepperUpdate(i, x)
            )
       | None => None
       }
+    | Next(a) =>
+      handle_key_event_step(~selection=a, ~event, model.next_step)
+      |> Option.map((x): Update.induction_step => Update.NextStepUpdate(x))
     };
 };
 
@@ -1011,8 +1122,104 @@ module View = {
         ~inject as _: Update.step => Ui_effect.t(unit),
         ~selected as _: option(Selection.induction_step),
         ~top_bar as _: list(Node.t),
-        _model: Model.induction_step,
+        model: Model.induction_step,
       ) => {
-    [Node.text("Induction Step")];
+    let scrut_editor =
+      Web.div_c(
+        "induction-scrut",
+        [
+          Node.text("Cases on: "),
+          CodeEditable.View.view(
+            ~globals,
+            ~signal=
+              fun
+              | MakeActive => signal(MakeActive(InductionStep(Scrut()))),
+            ~inject=x => inject(InductionStep(ScrutUpdate(x))),
+            ~selected=
+              switch (selected) {
+              | Some(Scrut(_)) => true
+              | Some(_)
+              | None => false
+              },
+            model.scrut,
+          ),
+        ],
+      );
+
+    let add_case_button =
+      Widgets.button(Icons.star, _ => inject(InductionStep(AddCase)));
+
+    let cases =
+      List.mapi(
+        (i, Model.{pattern, stepper, _}) => {
+          let remove_case_button =
+            Widgets.button(Icons.star, _ =>
+              inject(InductionStep(RemoveCase(i)))
+            );
+          let pattern_editor =
+            CodeEditable.View.view(
+              ~globals,
+              ~signal=
+                fun
+                | MakeActive =>
+                  signal(MakeActive(InductionStep(CasePattern(i, ())))),
+              ~inject=x => inject(InductionStep(CasePatternUpdate(i, x))),
+              ~selected=
+                switch (selected) {
+                | Some(CasePattern(j, _)) when i == j => true
+                | Some(_)
+                | None => false
+                },
+              pattern,
+            );
+          let stepper_view =
+            view_stepper(
+              ~globals,
+              ~signal=
+                fun
+                | MakeActive(s) =>
+                  signal(MakeActive(InductionStep(CaseStepper(i, s))))
+                | HideStepper => Ui_effect.Ignore, // TODO: prevent hiding inner steppers
+              ~inject=x => inject(InductionStep(CaseStepperUpdate(i, x))),
+              ~selected=
+                switch (selected) {
+                | Some(CaseStepper(j, s)) when i == j => Some(s)
+                | Some(_)
+                | None => None
+                },
+              stepper,
+            );
+          div_c(
+            "induction-case",
+            [remove_case_button, Node.text("Case "), pattern_editor]
+            @ stepper_view,
+          );
+        },
+        model.cases,
+      );
+
+    let next_step =
+      view_step(
+        ~globals,
+        ~signal=
+          fun
+          | MakeActive(s) => signal(MakeActive(InductionStep(Next(s)))),
+        ~inject=x => inject(InductionStep(NextStepUpdate(x))),
+        ~selected=
+          switch (selected) {
+          | Some(Next(s)) => Some(s)
+          | Some(_)
+          | None => None
+          },
+        ~top_bar,
+        model.next_step,
+      );
+    [
+      Node.div(
+        ~attrs=[Attr.classes(["cell-item", "cell-result"])],
+        [scrut_editor] @ cases @ [add_case_button],
+      ),
+    ]
+    @ next_step;
   };
 };
