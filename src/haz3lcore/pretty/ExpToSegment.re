@@ -9,6 +9,7 @@ module Settings = {
     fold_fn_bodies: bool,
     hide_fixpoints: bool,
     fold_cast_types: bool,
+    show_filters: bool,
   };
 
   let of_core = (~inline, settings: CoreSettings.t) => {
@@ -17,6 +18,7 @@ module Settings = {
     fold_fn_bodies: !settings.evaluation.show_fn_bodies,
     hide_fixpoints: !settings.evaluation.show_fixpoints,
     fold_cast_types: !settings.evaluation.show_casts,
+    show_filters: false,
   };
 };
 
@@ -153,7 +155,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   switch (exp |> Exp.term_of) {
   // Assume these have been removed by the parenthesizer
   | DynamicErrorHole(_)
-  | Filter(_) => failwith("printing these not implemented yet")
+  | Filter(Residue(_), _) => failwith("printing these not implemented yet")
+  | Filter(Filter({pat, act}), e) =>
+    let label = FilterAction.string_of_t(act);
+    let id = exp |> Exp.rep_id;
+    let* p = go(pat);
+    let+ e = go(e);
+    [mk_form("filter_" ++ label, id, [p])] @ e;
   // Forms which should be removed by substitute_closures
   | Closure(_) => failwith("closure not removed before printing")
   // Other cases
@@ -178,7 +186,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   // @ [mk_form("typeasc", id, [])]
   // @ (t |> fold_if(settings.fold_cast_types));
   | ListLit([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "[]")
-  | Deferral(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "deferral")
+  | Deferral(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_")
   | ListLit([x, ...xs]) =>
     // TODO: Add optional newlines
     let* x = go(x)
@@ -812,7 +820,10 @@ let paren_typ_assoc_at =
   external_precedence_typ(typ) > internal_precedence
     ? Typ.fresh(Parens(typ)) : typ;
 
-let rec parenthesize = (exp: Exp.t): Exp.t => {
+let rec parenthesize = (~show_filters: bool, exp: Exp.t): Exp.t => {
+  let parenthesize = parenthesize(~show_filters);
+  let parenthesize_pat = parenthesize_pat(~show_filters);
+  let parenthesize_typ = parenthesize_typ(~show_filters);
   let (term, rewrap) = Exp.unwrap(exp);
   switch (term) {
   // Indivisible forms dont' change
@@ -831,9 +842,11 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
   // Forms that currently need to stripped before outputting
   | Closure(_, x)
   | DynamicErrorHole(x, _)
-  | Tuple([x])
-  | Filter(_, x) => x |> parenthesize
-
+  | Tuple([x]) => parenthesize(x)
+  | Filter(Filter({pat, act}), x) =>
+    Filter(Filter({pat: parenthesize(pat), act}), parenthesize(x))
+    |> rewrap
+  | Filter(Residue(_), x) => x |> parenthesize
   // Other forms
   | Constructor(c, t) =>
     Constructor(c, paren_typ_at(Precedence.cast, t)) |> rewrap
@@ -875,7 +888,7 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
   | TyAlias(tp, t, e) =>
     TyAlias(
       tp,
-      t, // TODO: Types
+      parenthesize_typ(t) |> paren_typ_at(Precedence.min),
       parenthesize(e) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
@@ -961,10 +974,22 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
   | UnOp(Int(Minus), e) =>
     UnOp(Int(Minus), parenthesize(e) |> paren_at(Precedence.neg)) |> rewrap
   | BinOp(op, e1, e2) =>
-    BinOp(
-      op,
-      parenthesize(e1) |> paren_assoc_at(Precedence.of_bin_op(op)),
-      parenthesize(e2) |> paren_at(Precedence.of_bin_op(op)),
+    (
+      switch (Precedence.of_bin_op(op) |> Precedence.associativity) {
+      | Some(Left)
+      | None =>
+        BinOp(
+          op,
+          parenthesize(e1) |> paren_assoc_at(Precedence.of_bin_op(op)),
+          parenthesize(e2) |> paren_at(Precedence.of_bin_op(op)),
+        )
+      | Some(Right) =>
+        BinOp(
+          op,
+          parenthesize(e1) |> paren_at(Precedence.of_bin_op(op)),
+          parenthesize(e2) |> paren_assoc_at(Precedence.of_bin_op(op)),
+        )
+      }
     )
     |> rewrap
   | Match(e, rs) =>
@@ -979,10 +1004,13 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
          ),
     )
     |> rewrap
-  | MultiHole(xs) => MultiHole(List.map(parenthesize_any, xs)) |> rewrap
+  | MultiHole(xs) =>
+    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
   };
 }
-and parenthesize_pat = (pat: Pat.t): Pat.t => {
+and parenthesize_pat = (~show_filters: bool, pat: Pat.t): Pat.t => {
+  let parenthesize_pat = parenthesize_pat(~show_filters);
+  let parenthesize_typ = parenthesize_typ(~show_filters);
   let (term, rewrap) = Pat.unwrap(pat);
   switch (term) {
   // Indivisible forms dont' change
@@ -1025,7 +1053,8 @@ and parenthesize_pat = (pat: Pat.t): Pat.t => {
       parenthesize_pat(p2) |> paren_pat_at(Precedence.min),
     )
     |> rewrap
-  | MultiHole(xs) => MultiHole(List.map(parenthesize_any, xs)) |> rewrap
+  | MultiHole(xs) =>
+    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
   | Cast(p, t1, t2) =>
     Cast(
       parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.cast),
@@ -1036,7 +1065,8 @@ and parenthesize_pat = (pat: Pat.t): Pat.t => {
   };
 }
 
-and parenthesize_typ = (typ: Typ.t): Typ.t => {
+and parenthesize_typ = (~show_filters: bool, typ: Typ.t): Typ.t => {
+  let parenthesize_typ = parenthesize_typ(~show_filters);
   let (term, rewrap) = Typ.unwrap(typ);
   switch (term) {
   // Indivisible forms dont' change
@@ -1098,11 +1128,14 @@ and parenthesize_typ = (typ: Typ.t): Typ.t => {
     )
     |> rewrap
   | Unknown(Hole(MultiHole(xs))) =>
-    Unknown(Hole(MultiHole(List.map(parenthesize_any, xs)))) |> rewrap
+    Unknown(
+      Hole(MultiHole(List.map(parenthesize_any(~show_filters), xs))),
+    )
+    |> rewrap
   };
 }
 
-and parenthesize_tpat = (tpat: TPat.t): TPat.t => {
+and parenthesize_tpat = (~show_filters: bool, tpat: TPat.t): TPat.t => {
   let (term, rewrap: TPat.term => TPat.t) = IdTagged.unwrap(tpat);
   switch (term) {
   // Indivisible forms dont' change
@@ -1111,11 +1144,12 @@ and parenthesize_tpat = (tpat: TPat.t): TPat.t => {
   | EmptyHole => tpat
 
   // Other forms
-  | MultiHole(xs) => MultiHole(List.map(parenthesize_any, xs)) |> rewrap
+  | MultiHole(xs) =>
+    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
   };
 }
 
-and parenthesize_rul = (rul: Rul.t): Rul.t => {
+and parenthesize_rul = (~show_filters: bool, rul: Rul.t): Rul.t => {
   let (term, rewrap: Rul.term => Rul.t) = IdTagged.unwrap(rul);
   switch (term) {
   // Indivisible forms dont' change
@@ -1124,33 +1158,44 @@ and parenthesize_rul = (rul: Rul.t): Rul.t => {
   // Other forms
   | Rules(e, ps) =>
     Rules(
-      parenthesize(e),
-      List.map(((p, e)) => (parenthesize_pat(p), parenthesize(e)), ps),
+      parenthesize(~show_filters, e),
+      List.map(
+        ((p, e)) =>
+          (
+            parenthesize_pat(~show_filters, p),
+            parenthesize(~show_filters, e),
+          ),
+        ps,
+      ),
     )
     |> rewrap
-  | Hole(xs) => Hole(List.map(parenthesize_any, xs)) |> rewrap
+  | Hole(xs) =>
+    Hole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
   };
 }
 
-and parenthesize_any = (any: Any.t): Any.t =>
+and parenthesize_any = (~show_filters: bool, any: Any.t): Any.t =>
   switch (any) {
-  | Exp(e) => Exp(parenthesize(e))
-  | Pat(p) => Pat(parenthesize_pat(p))
-  | Typ(t) => Typ(parenthesize_typ(t))
-  | TPat(tp) => TPat(parenthesize_tpat(tp))
-  | Rul(r) => Rul(parenthesize_rul(r))
+  | Exp(e) => Exp(parenthesize(~show_filters, e))
+  | Pat(p) => Pat(parenthesize_pat(~show_filters, p))
+  | Typ(t) => Typ(parenthesize_typ(~show_filters, t))
+  | TPat(tp) => TPat(parenthesize_tpat(~show_filters, tp))
+  | Rul(r) => Rul(parenthesize_rul(~show_filters, r))
   | Any(_) => any
   | Nul(_) => any
   };
 
-let exp_to_segment = (~settings, exp: Exp.t): Segment.t => {
-  let exp = exp |> Exp.substitute_closures(Builtins.env_init) |> parenthesize;
+let exp_to_segment = (~settings: Settings.t, exp: Exp.t): Segment.t => {
+  let exp =
+    exp
+    |> Exp.substitute_closures(Builtins.env_init)
+    |> parenthesize(~show_filters=settings.show_filters);
   let p = exp_to_pretty(~settings, exp);
   p |> PrettySegment.select;
 };
 
 let typ_to_segment = (~settings, typ: Typ.t): Segment.t => {
   let typ = parenthesize_typ(typ);
-  let p = typ_to_pretty(~settings, typ);
+  let p = typ_to_pretty(~settings, typ(~show_filters=settings.show_filters));
   p |> PrettySegment.select;
 };

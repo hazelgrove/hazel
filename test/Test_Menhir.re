@@ -147,20 +147,22 @@ let qcheck_menhir_serialized_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir through ExpToSegment and back",
     ~count=1000,
-    QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(4)),
+    QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
     exp => {
       let core_exp = Conversion.Exp.of_menhir_ast(exp);
 
       let segment =
         ExpToSegment.exp_to_segment(
-          ~settings=
-            ExpToSegment.Settings.of_core(
-              ~inline=true, // TODO What does inline do?
-              CoreSettings.off,
-            ),
+          ~settings={
+            inline: true,
+            fold_case_clauses: false,
+            fold_fn_bodies: false,
+            hide_fixpoints: false,
+            fold_cast_types: false,
+            show_filters: true,
+          },
           core_exp,
         );
-
       let serialized = Printer.of_segment(~holes=Some("?"), segment);
       let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
       AST.equal_exp(menhir_parsed, exp);
@@ -821,6 +823,6 @@ let ex5 = list_of_mylist(x) in
     ),
     QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
     // Disabled due to bugs in ExpToSegment
-    // QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
+    QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
   ],
 );
