@@ -127,7 +127,7 @@ let seg_view = (utility, available, seg) =>
   |> Abbreviate.abbreviate_exp(~available)
   |> fst
   |> utility.exp_to_seg
-  |> utility.view(Exp);
+  |> utility.view_seg(Exp);
 
 let get_goal = (utility: utility, e: Js.t(Dom_html.mouseEvent)) =>
   FontMetrics.get_goal(
@@ -409,7 +409,7 @@ let nav_bar_view = (model, di, local) => {
 };
 
 let offside_view =
-    (model: model, ~info, ~local, ~parent as _, ~utility: utility) =>
+    (model: model, info, ~local, ~parent as _, ~utility: utility) =>
   Node.div(
     ~attrs=[Attr.classes(["live-offside"])],
     switch (info.dynamics) {
@@ -460,8 +460,7 @@ let placeholder = (_m, info) =>
 
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-let view =
-    (_: model, ~info, ~local as _, ~parent as _, ~utility as _: utility) => {
+let view = (_: model, info, ~local as _, ~parent as _, ~utility as _: utility) => {
   let on_double_click = _ => {
     //State.reset();
     switch (State.s.pinned_ap) {
@@ -499,7 +498,7 @@ let view =
   );
 };
 
-let update = (m: model, a: action) => {
+let update = (m: model, _info: info, a: action) => {
   //print_endline("update: action:" ++ show_action(a));
   switch (a) {
   | ChangeLength(id, len) =>

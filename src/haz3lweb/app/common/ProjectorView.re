@@ -127,7 +127,7 @@ let offside_pos = offside_offset =>
 let collate_utility = (globals: Globals.t): ProjectorBase.utility => {
   {
     font_metrics: globals.font_metrics,
-    view: (sort, seg) =>
+    view_seg: (sort, seg) =>
       CodeViewable.view_segment(
         ~globals,
         ~sort,
@@ -175,7 +175,8 @@ let setup_view =
   let utility = collate_utility(globals);
   let (module P) = to_module(p.kind);
   let parent = a => inject(Project(handle(id, a)));
-  let local = a => inject(Project(SetModel(id, P.update(p.model, a))));
+  let local = a =>
+    inject(Project(SetModel(id, P.update(p.model, info, a))));
   let offside_pos =
     offside_pos(
       offside(
@@ -190,7 +191,7 @@ let setup_view =
       v =>
         div(
           ~attrs=[offside_pos],
-          [v(p.model, ~info, ~local, ~parent, ~utility)],
+          [v(p.model, info, ~local, ~parent, ~utility)],
         ),
       P.offside_view,
     );
@@ -203,7 +204,7 @@ let setup_view =
     ~selected=List.mem(id, cached_syntax.selection_ids),
     p,
     offside_view,
-    P.view(p.model, ~info, ~local, ~parent, ~utility),
+    P.view(p.model, info, ~local, ~parent, ~utility),
   );
 };
 

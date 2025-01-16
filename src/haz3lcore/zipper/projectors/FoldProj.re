@@ -20,8 +20,8 @@ module M: Projector = {
   let dynamics = false;
   let placeholder = (m, _) =>
     ProjectorShape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
-  let update = (m, _) => m;
-  let view = (m: model, ~info as _, ~local as _, ~parent, ~utility as _) =>
+  let update = (m, _, _) => m;
+  let view = (m: model, _, ~local as _, ~parent, ~utility as _) =>
     div(
       ~attrs=[Attr.on_double_click(_ => parent(Remove))],
       [text(m.text)],

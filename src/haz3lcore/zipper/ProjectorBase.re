@@ -38,7 +38,7 @@ type utility = {
   font_metrics: FontMetrics.t,
   /* Non-interactive view for segments, included here
    * because of cyclic dependency issues*/
-  view: (Sort.t, Base.segment) => Node.t,
+  view_seg: (Sort.t, Base.segment) => Node.t,
   /* Convert an expression to a segment, included here
    * because of cyclic dependency issues*/
   exp_to_seg: Exp.t => Base.segment,
@@ -97,7 +97,7 @@ module type Projector = {
   let view:
     (
       model,
-      ~info: info,
+      info,
       ~local: action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       ~utility: utility
@@ -109,7 +109,7 @@ module type Projector = {
     option(
       (
         model,
-        ~info: info,
+        info,
         ~local: action => Ui_effect.t(unit),
         ~parent: external_action => Ui_effect.t(unit),
         ~utility: utility
@@ -125,7 +125,7 @@ module type Projector = {
    * in sync with each other. */
   let placeholder: (model, info) => ProjectorShape.t;
   /* Update the local projector model given an action */
-  let update: (model, action) => model;
+  let update: (model, info, action) => model;
   /* Does whatever needs to be done to give a projector
    * keyboard focus. Right now this is only for side
    * effects but could be extended in the future to
@@ -154,20 +154,20 @@ module Cook = (C: Projector) : Cooked => {
   let can_project = C.can_project;
   let can_focus = C.can_focus;
   let dynamics = C.dynamics;
-  let view = (m, ~info, ~local, ~parent, ~utility) =>
+  let view = (m, info, ~local, ~parent, ~utility) =>
     C.view(
       deserialize_m(m),
-      ~info,
+      info,
       ~local=a => local(serialize_a(a)),
       ~parent,
       ~utility,
     );
   let offside_view =
     Option.map(
-      (f, m, ~info, ~local, ~parent, ~utility) =>
+      (f, m, info, ~local, ~parent, ~utility) =>
         f(
           deserialize_m(m),
-          ~info,
+          info,
           ~local=a => local(serialize_a(a)),
           ~parent,
           ~utility,
@@ -176,8 +176,8 @@ module Cook = (C: Projector) : Cooked => {
     );
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
-  let update = (m, a) =>
-    C.update(m |> deserialize_m, a |> deserialize_a) |> serialize_m;
+  let update = (m, i, a) =>
+    C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
   let focus = C.focus;
 };
 
