@@ -73,13 +73,13 @@ module M: Projector = {
       (display(model, info.statics) |> String.length) + 5,
     );
 
-  let update = (model, a: action) =>
+  let update = (model, _, a: action) =>
     switch (a, model) {
     | (ToggleDisplay, Expected) => Self
     | (ToggleDisplay, Self) => Expected
     };
 
-  let view = (model, ~info, ~local, ~parent as _, ~utility as _) =>
+  let view = (model, info, ~local, ~parent as _, ~utility as _) =>
     div(
       ~attrs=[
         Attr.classes(["info", "code"]),

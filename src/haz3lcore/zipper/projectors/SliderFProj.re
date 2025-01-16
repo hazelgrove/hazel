@@ -26,11 +26,11 @@ module M: Projector = {
   let can_focus = false;
   let dynamics = false;
   let placeholder = (_, _) => ProjectorShape.inline(10);
-  let update = (model, _) => model;
+  let update = (model, _, _) => model;
   let view =
       (
         _,
-        ~info,
+        info,
         ~local as _,
         ~parent: external_action => Ui_effect.t(unit),
         ~utility as _,

@@ -27,7 +27,7 @@ let toggle = (piece: Piece.t) => put(!get(piece));
 let view =
     (
       _,
-      ~info,
+      info,
       ~local as _,
       ~parent: external_action => Ui_effect.t(unit),
       ~utility as _,
@@ -54,7 +54,7 @@ module M: Projector = {
   let can_focus = false;
   let dynamics = false;
   let placeholder = (_, _) => ProjectorShape.inline(2);
-  let update = (model, _) => model;
+  let update = (model, _, _) => model;
   let view = view;
   let offside_view = Option.None;
   let focus = _ => ();
