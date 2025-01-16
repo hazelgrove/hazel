@@ -292,45 +292,32 @@ let closure_view =
     @ (is_var_ref(info) ? [] : [env_view(closure, utility)]),
   );
 
-let select_frames = (model: model, vals) => {
+let filter_frames_by_pin =
+    (info: info, frames: list(Dynamics.Probe.Closure.t)) =>
+  //TODO(andrew): make this logic work more generally...
+  switch (State.s.pinned_ap) {
+  | Some(pinned_ap) =>
+    frames
+    |> List.filter((closure: Dynamics.Probe.Closure.t) =>
+         switch (closure.dyn_stack |> List.rev) {
+         | _ when Some(pinned_ap) == cur_ap_id(info) => true
+         | [frame, ..._] => frame.ap_id == pinned_ap
+         | [] => false
+         }
+       )
+  | None => frames
+  };
+
+let select_frames = (info: info, model: model, vals) => {
   switch (List.sort(comparor, vals)) {
   | [] => []
   | _ =>
     vals
     |> ListUtil.remove_first_n(model.index_offset)
     |> ListUtil.truncate(model.max_closures)
+    |> filter_frames_by_pin(info)
   };
 };
-
-let nav_back = (di, model, local, left_cond) =>
-  List.length(di) > model.max_closures
-    ? [
-      Node.div(
-        ~attrs=[
-          Attr.classes(
-            ["closures-header"] @ (left_cond ? ["disabled"] : []),
-          ),
-          Attr.on_click(_ => left_cond ? Effect.Ignore : local(Offset(-1))),
-        ],
-        [Node.text("<")],
-      ),
-    ]
-    : [];
-
-let nav_forward = (di, model, local, right_cond) =>
-  List.length(di) > model.max_closures
-    ? [
-      Node.div(
-        ~attrs=[
-          Attr.classes(
-            ["closures-tail"] @ (right_cond ? ["disabled"] : []),
-          ),
-          Attr.on_click(_ => right_cond ? Effect.Ignore : local(Offset(1))),
-        ],
-        [Node.text(">")],
-      ),
-    ]
-    : [];
 
 let group_by_predicate =
     /* Precondition: Items to be grouped are contigious in list */
@@ -372,27 +359,20 @@ let group_closures =
 let closure_group_view =
     (info, utility, model, local, closures: list(Dynamics.Probe.Closure.t)) => {
   let groups = group_closures(closures);
+  let closure_view = closure_view(info, utility, model, local);
   groups
   |> List.mapi((i, closures) =>
        Node.div(
          ~attrs=[Attr.classes(["closure-group"])],
          {
-           let previous_lengths =
+           let lengths =
              List.fold_left(
                (acc, l) => acc + List.length(l),
                0,
                List.filteri((idx, _) => idx < i, groups),
              );
            List.mapi(
-             (j, closure) =>
-               closure_view(
-                 info,
-                 utility,
-                 model,
-                 local,
-                 closure,
-                 previous_lengths + j,
-               ),
+             (j, closure) => closure_view(closure, lengths + j),
              closures,
            );
          },
@@ -400,45 +380,49 @@ let closure_group_view =
      );
 };
 
+let ellipsis_view = local =>
+  div(
+    ~attrs=[
+      Attr.classes(["ellipsis"]),
+      Attr.on_double_click(_ => {local(ToggleShowAllVals(0))}),
+    ],
+    [text("⋯")],
+  );
+
+let nav_bar_view = (model, di, local) => {
+  let nav_arrow = (cond: bool, offset: int): Node.t =>
+    Node.div(
+      ~attrs=[
+        Attr.classes(["nav-arrow"] @ (cond ? ["disabled"] : [])),
+        Attr.on_click(_ => cond ? Effect.Ignore : local(Offset(offset))),
+      ],
+      [],
+    );
+  let show_left = model.index_offset >= List.length(di) - model.max_closures;
+  let show_right = model.index_offset <= 0;
+  let view =
+    div(
+      ~attrs=[Attr.classes(["nav-bar"])],
+      [nav_arrow(show_left, 1), nav_arrow(show_right, -1)],
+    );
+  List.length(di) > model.max_closures ? [view] : [];
+};
+
 let offside_view =
-    (model: model, ~info, ~local, ~parent as _, ~utility: utility) => {
+    (model: model, ~info, ~local, ~parent as _, ~utility: utility) =>
   Node.div(
     ~attrs=[Attr.classes(["live-offside"])],
     switch (info.dynamics) {
     | Some(di) =>
-      let frames = select_frames(model, di);
-      /* Filter pinned frames */
-      let frames =
-        switch (State.s.pinned_ap) {
-        | Some(pinned_ap) =>
-          frames
-          |> List.filter((closure: Dynamics.Probe.Closure.t) =>
-               switch (closure.dyn_stack |> List.rev) {
-               | _ when Some(pinned_ap) == cur_ap_id(info) => true
-               | [frame, ..._] => frame.ap_id == pinned_ap
-               | [] => false
-               }
-             )
-        | None => frames
-        };
-      let left_cond =
-        model.index_offset >= List.length(di) - model.max_closures;
-      let right_cond = model.index_offset <= 0;
-      [
-        div(
-          ~attrs=[Attr.classes(["nav-bar"])],
-          [
-            div(nav_back(di, model, local, left_cond)),
-            div(nav_forward(di, model, local, right_cond)),
-          ],
-        ),
-      ]
+      let frames = select_frames(info, model, di);
+      let ellipsis =
+        List.length(di) > model.max_closures ? [ellipsis_view(local)] : [];
+      nav_bar_view(model, di, local)
       @ closure_group_view(info, utility, model, local, frames)
-      @ (List.length(di) > model.max_closures ? [text("⋯")] : []);
+      @ ellipsis;
     | _ => []
     },
   );
-};
 
 let num_closures = (info: info) =>
   switch (info.dynamics) {
@@ -477,7 +461,30 @@ let placeholder = (_m, info) =>
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
 let view =
-    (_: model, ~info, ~local as _, ~parent as _, ~utility as _: utility) =>
+    (_: model, ~info, ~local as _, ~parent as _, ~utility as _: utility) => {
+  let on_double_click = _ => {
+    //State.reset();
+    switch (State.s.pinned_ap) {
+    | Some(pinned_ap) when Some(pinned_ap) == cur_ap_id(info) =>
+      State.s.pinned_ap = None
+    | Some(_)
+    | None => State.s.pinned_ap = cur_ap_id(info)
+    };
+    Effect.Ignore;
+  };
+
+  let on_pointerdown = _ => {
+    switch (info.dynamics) {
+    | Some(di) =>
+      switch (di) {
+      | [first_closure, ..._] => State.capture(info, first_closure)
+      | [] => ()
+      }
+    | None => ()
+    };
+    Effect.Ignore;
+  };
+
   div(
     ~attrs=[
       Attr.classes(
@@ -485,19 +492,12 @@ let view =
         @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : [])
         @ (State.s.pinned_ap == cur_ap_id(info) ? ["pinned"] : []),
       ),
-      Attr.on_double_click(_ => {
-        //State.reset();
-        switch (State.s.pinned_ap) {
-        | Some(pinned_ap) when Some(pinned_ap) == cur_ap_id(info) =>
-          State.s.pinned_ap = None
-        | Some(_)
-        | None => State.s.pinned_ap = cur_ap_id(info)
-        };
-        Effect.Ignore;
-      }),
+      Attr.on_double_click(on_double_click),
+      Attr.on_pointerdown(on_pointerdown),
     ],
     [syntax_view(info), icon, num_closures_view(info)] @ pin_view(info),
   );
+};
 
 let update = (m: model, a: action) => {
   //print_endline("update: action:" ++ show_action(a));
