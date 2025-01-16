@@ -152,6 +152,12 @@
   color: var(--pat-base);
 }
 
+.projector.probe .live-offside .closure-groups {
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+}
+
 .projector.probe .closure-group {
   display: flex;
   gap: 2px;

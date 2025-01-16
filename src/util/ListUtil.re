@@ -631,6 +631,10 @@ let rec remove_first_n = (n: int, xs: list('a)): list('a) => {
   };
 };
 
+/* Return at most k elements starting from index i */
+let slice = (i: int, k: int, xs: list('x)): list('x) =>
+  xs |> remove_first_n(i) |> truncate(k);
+
 let rec rotate_n = (n: int, xs: list('a)): list('a) => {
   let n = IntUtil.modulo(n, List.length(xs));
   switch (n) {

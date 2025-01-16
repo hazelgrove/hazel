@@ -5,6 +5,9 @@ open Node;
 open Js_of_ocaml;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type closure = Dynamics.Probe.Closure.t;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type model = {
   /* Max col length for value display, indexed by closure id */
   display_lengths: Id.Map.t(int),
@@ -29,32 +32,25 @@ let model_of_sexp = (sexp): model =>
   | x => x
   };
 
-let display_length = (model: model, id: Id.t): int =>
-  Id.Map.find_opt(id, model.display_lengths) |> Option.value(~default=12);
+/* Remove opaque values like function literals */
+let rm_opaques:
+  list(Dynamics.Probe.Env.entry) => list(Dynamics.Probe.Env.entry) =
+  List.filter_map((en: Dynamics.Probe.Env.entry) =>
+    switch (en.value) {
+    | Opaque => None
+    | Val(_) => Some(en)
+    }
+  );
 
-module Debug = {
-  let of_id = (id: Id.t) => String.sub(Id.to_string(id), 0, 3);
+/* Is the underlying syntax a variable reference? */
+let is_var_ref = (info: info): bool =>
+  switch (info.statics) {
+  | Some(InfoExp({term: {term: Var(_), _}, _}))
+  | Some(InfoPat({term: {term: Var(_), _}, _})) => true
+  | _ => false
+  };
 
-  let stack = stack =>
-    stack
-    |> List.rev
-    |> List.map(({env_id, ap_id}: Probe.frame) =>
-         "" ++ of_id(env_id) ++ " : " ++ of_id(ap_id)
-       )
-    |> String.concat("\n");
-
-  let str = (closure: Dynamics.Probe.Closure.t) =>
-    "closure_id: "
-    ++ of_id(closure.closure_id)
-    ++ "\nenv_id: "
-    ++ of_id(closure.env_id)
-    ++ "\ndyn_stack:\n"
-    ++ stack(closure.dyn_stack)
-    ++ "\nstack:\n"
-    ++ stack(closure.stack);
-};
-
-let cur_ap_id = (info: info) =>
+let cur_ap_id = (info: info): option(Id.t) =>
   switch (info.statics) {
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _})) =>
     Some(Term.Exp.rep_id(ap))
@@ -63,13 +59,15 @@ let cur_ap_id = (info: info) =>
   | _ => None
   };
 
-let cur_outer_ap_id = (_info: info, dyn_stack: Probe.stack) =>
+let cur_outer_ap_id = (_info: info, dyn_stack: Probe.stack): option(Id.t) =>
   switch (dyn_stack) {
   | [frame, ..._] => Some(frame.ap_id)
   | _ => None
   };
 
 module State = {
+  /* Manages shared state between probes */
+
   type t = {
     mutable pinned_ap: option(Id.t),
     mutable env_cursor: list(Id.t),
@@ -94,7 +92,7 @@ module State = {
     s.outer_ap_id = None;
   };
 
-  let capture = (info: info, closure: Dynamics.Probe.Closure.t) => {
+  let capture = (info: info, closure: closure) => {
     s.env_cursor = Probe.env_stack(closure.stack);
     s.dyn_env_cursor = closure.dyn_stack;
     s.cur_ap = cur_ap_id(info);
@@ -102,26 +100,128 @@ module State = {
   };
 };
 
-let comparor = (a: Dynamics.Probe.Closure.t, b: Dynamics.Probe.Closure.t) => {
-  compare(
-    ListUtil.common_suffix_length(
-      State.s.env_cursor,
-      Probe.env_stack(b.stack),
-    ),
-    ListUtil.common_suffix_length(
-      State.s.env_cursor,
-      Probe.env_stack(a.stack),
-    ),
-  );
+module Closures = {
+  let num = (info: info): int =>
+    switch (info.dynamics) {
+    | Some(di) => List.length(di)
+    | None => 0
+    };
+
+  let filter_frames_by_pin =
+      (info: info, frames: list(closure)): list(closure) =>
+    //TODO(andrew): make this logic work more generally...
+    switch (State.s.pinned_ap) {
+    | Some(pinned_ap) =>
+      frames
+      |> List.filter((closure: closure) =>
+           switch (closure.dyn_stack |> List.rev) {
+           | _ when Some(pinned_ap) == cur_ap_id(info) => true
+           | [frame, ..._] => frame.ap_id == pinned_ap
+           | [] => false
+           }
+         )
+    | None => frames
+    };
+
+  let comparor = (a: closure, b: closure): int => {
+    compare(
+      ListUtil.common_suffix_length(
+        State.s.env_cursor,
+        Probe.env_stack(b.stack),
+      ),
+      ListUtil.common_suffix_length(
+        State.s.env_cursor,
+        Probe.env_stack(a.stack),
+      ),
+    );
+  };
+
+  let select_frames =
+      (info: info, model: model, closures: list(closure)): list(closure) => {
+    switch (List.sort(comparor, closures)) {
+    | [] => []
+    | _ =>
+      closures
+      |> filter_frames_by_pin(info)
+      |> ListUtil.slice(model.index_offset, model.max_closures)
+    };
+  };
+
+  let group_by_predicate =
+      /* Precondition: Items to be grouped are contigious in list */
+      (should_group: ('a, 'a) => bool, xs: list('a)): list(list('a)) => {
+    List.fold_left(
+      (acc: list(list('a)), item: 'a) => {
+        switch (acc) {
+        | [] => [[item]]
+        | [[rep, ..._] as first, ...init] when should_group(rep, item) => [
+            first @ [item],
+            ...init,
+          ]
+        | _ => [[item]] @ acc
+        }
+      },
+      [],
+      xs,
+    );
+  };
+
+  let is_same_call = ((_, c1: closure), (_, c2: closure)): bool => {
+    switch (List.rev(c2.dyn_stack), List.rev(c1.dyn_stack)) {
+    | ([], _)
+    | (_, []) => false
+    | ([f1, ..._], [f2, ..._]) => f1 == f2
+    };
+  };
+
+  let group =
+      (closures: list((int, closure))): list(list((int, closure))) => {
+    let grouped =
+      closures |> group_by_predicate(is_same_call) |> List.map(List.rev);
+    /* Flatten if all groups are singletons */
+    List.for_all(group => List.length(group) == 1, grouped)
+      ? [List.concat(grouped)] : grouped;
+  };
+
+  let collate =
+      (info: info, model: model, di: list(closure))
+      : list(list((int, closure))) => {
+    let closures = select_frames(info, model, di);
+    let numbered_closures =
+      List.mapi((i, c) => (List.length(closures) - i - 1, c), closures);
+    group(numbered_closures);
+  };
 };
 
-let depth_in_cur_ap_stack = (dyn_stack): option(int) =>
+module Debug = {
+  let of_id = (id: Id.t): string => String.sub(Id.to_string(id), 0, 3);
+
+  let stack = (stack: Probe.stack): string =>
+    stack
+    |> List.rev
+    |> List.map(({env_id, ap_id}: Probe.frame) =>
+         "" ++ of_id(env_id) ++ " : " ++ of_id(ap_id)
+       )
+    |> String.concat("\n");
+
+  let str = (closure: closure): string =>
+    "closure_id: "
+    ++ of_id(closure.closure_id)
+    ++ "\nenv_id: "
+    ++ of_id(closure.env_id)
+    ++ "\ndyn_stack:\n"
+    ++ stack(closure.dyn_stack)
+    ++ "\nstack:\n"
+    ++ stack(closure.stack);
+};
+
+let depth_in_cur_ap_stack = (dyn_stack: list(Probe.frame)): option(int) =>
   List.find_index(
     ({ap_id, _}: Probe.frame) => Some(ap_id) == State.s.cur_ap,
     dyn_stack,
   );
 
-let seg_view = (utility, available, seg) =>
+let seg_view = (utility: utility, available: int, seg: Exp.t): Node.t =>
   seg
   |> DHExp.strip_casts
   |> Abbreviate.abbreviate_exp(~available)
@@ -129,7 +229,7 @@ let seg_view = (utility, available, seg) =>
   |> utility.exp_to_seg
   |> utility.view_seg(Exp);
 
-let get_goal = (utility: utility, e: Js.t(Dom_html.mouseEvent)) =>
+let get_goal = (utility: utility, e: Js.t(Dom_html.mouseEvent)): Point.t =>
   FontMetrics.get_goal(
     ~font_metrics=utility.font_metrics,
     e##.currentTarget
@@ -139,9 +239,7 @@ let get_goal = (utility: utility, e: Js.t(Dom_html.mouseEvent)) =>
     e |> Js.Unsafe.coerce,
   );
 
-let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
-
-let on_outer_ap = (info: info, closure: Dynamics.Probe.Closure.t): bool =>
+let on_outer_ap = (info: info, closure: closure): bool =>
   switch (cur_ap_id(info), State.s.outer_ap_id) {
   | (Some(ap_id), Some(outer_ap_id)) =>
     ap_id == outer_ap_id
@@ -154,7 +252,7 @@ let on_outer_ap = (info: info, closure: Dynamics.Probe.Closure.t): bool =>
   | _ => false
   };
 
-let show_indicator = stack => {
+let show_indicator = (stack: Probe.stack): bool => {
   let local = Probe.env_stack(stack);
   State.s.env_cursor == []
   && local == []
@@ -165,7 +263,7 @@ let show_indicator = stack => {
   );
 };
 
-let dynamic_cursor_cls = (info: info, closure: Dynamics.Probe.Closure.t) =>
+let dynamic_cursor_cls = (info: info, closure: closure): list(string) =>
   switch (depth_in_cur_ap_stack(closure.dyn_stack)) {
   | _ when on_outer_ap(info, closure) => ["cursor-outer-ap"]
   | Some(depth)
@@ -176,13 +274,18 @@ let dynamic_cursor_cls = (info: info, closure: Dynamics.Probe.Closure.t) =>
   | None => ["cursor-none"]
   };
 
+let display_length = (model: model, id: Id.t): int =>
+  Id.Map.find_opt(id, model.display_lengths) |> Option.value(~default=12);
+
+let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
+
 let value_view =
     (
       info: info,
-      model,
-      utility,
+      model: model,
+      utility: utility,
       local,
-      closure: Dynamics.Probe.Closure.t,
+      closure: closure,
       index: int,
     ) => {
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
@@ -236,7 +339,7 @@ let value_view =
   );
 };
 
-let env_val = (utility: utility, en: Dynamics.Probe.Env.entry) => {
+let env_val = (utility: utility, en: Dynamics.Probe.Env.entry): Node.t => {
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
     [
@@ -249,25 +352,7 @@ let env_val = (utility: utility, en: Dynamics.Probe.Env.entry) => {
   );
 };
 
-/* Remove opaque values like function literals */
-let rm_opaques:
-  list(Dynamics.Probe.Env.entry) => list(Dynamics.Probe.Env.entry) =
-  List.filter_map((en: Dynamics.Probe.Env.entry) =>
-    switch (en.value) {
-    | Opaque => None
-    | Val(_) => Some(en)
-    }
-  );
-
-/* Is the underlying syntax a variable reference? */
-let is_var_ref = (info: info): bool =>
-  switch (info.statics) {
-  | Some(InfoExp({term: {term: Var(_), _}, _}))
-  | Some(InfoPat({term: {term: Var(_), _}, _})) => true
-  | _ => false
-  };
-
-let env_view = (closure: Dynamics.Probe.Closure.t, utility: utility): Node.t =>
+let env_view = (closure: closure, utility: utility): Node.t =>
   Node.div(
     ~attrs=[Attr.classes(["live-env"])],
     closure.env |> ListUtil.dedup |> rm_opaques |> List.map(env_val(utility)),
@@ -275,12 +360,11 @@ let env_view = (closure: Dynamics.Probe.Closure.t, utility: utility): Node.t =>
 
 let closure_view =
     (
-      info,
+      info: info,
       utility: utility,
       model: model,
       local,
-      closure: Dynamics.Probe.Closure.t,
-      index: int,
+      (index: int, closure: closure),
     ) =>
   div(
     ~attrs=[
@@ -292,95 +376,22 @@ let closure_view =
     @ (is_var_ref(info) ? [] : [env_view(closure, utility)]),
   );
 
-let filter_frames_by_pin =
-    (info: info, frames: list(Dynamics.Probe.Closure.t)) =>
-  //TODO(andrew): make this logic work more generally...
-  switch (State.s.pinned_ap) {
-  | Some(pinned_ap) =>
-    frames
-    |> List.filter((closure: Dynamics.Probe.Closure.t) =>
-         switch (closure.dyn_stack |> List.rev) {
-         | _ when Some(pinned_ap) == cur_ap_id(info) => true
-         | [frame, ..._] => frame.ap_id == pinned_ap
-         | [] => false
-         }
-       )
-  | None => frames
-  };
-
-let select_frames = (info: info, model: model, vals) => {
-  switch (List.sort(comparor, vals)) {
-  | [] => []
-  | _ =>
-    vals
-    |> ListUtil.remove_first_n(model.index_offset)
-    |> ListUtil.truncate(model.max_closures)
-    |> filter_frames_by_pin(info)
-  };
-};
-
-let group_by_predicate =
-    /* Precondition: Items to be grouped are contigious in list */
-    (should_group: ('a, 'a) => bool, xs: list('a)): list(list('a)) => {
-  List.fold_left(
-    (acc: list(list('a)), item: 'a) => {
-      switch (acc) {
-      | [] => [[item]]
-      | [[rep, ..._] as first, ...init] when should_group(rep, item) => [
-          first @ [item],
-          ...init,
-        ]
-      | _ => [[item]] @ acc
-      }
-    },
-    [],
-    xs,
-  );
-};
-
-let group_closures =
-    (closures: list(Dynamics.Probe.Closure.t))
-    : list(list(Dynamics.Probe.Closure.t)) => {
-  let is_same_call =
-      (c1: Dynamics.Probe.Closure.t, c2: Dynamics.Probe.Closure.t) => {
-    switch (List.rev(c2.dyn_stack), List.rev(c1.dyn_stack)) {
-    | ([], _)
-    | (_, []) => false
-    | ([f1, ..._], [f2, ..._]) => f1 == f2
-    };
-  };
-  let grouped =
-    closures |> group_by_predicate(is_same_call) |> List.map(List.rev);
-  /* Flatten if all groups are singletons */
-  List.for_all(group => List.length(group) == 1, grouped)
-    ? [List.concat(grouped)] : grouped;
-};
-
 let closure_group_view =
-    (info, utility, model, local, closures: list(Dynamics.Probe.Closure.t)) => {
-  let groups = group_closures(closures);
-  let closure_view = closure_view(info, utility, model, local);
-  groups
-  |> List.mapi((i, closures) =>
-       Node.div(
-         ~attrs=[Attr.classes(["closure-group"])],
-         {
-           let lengths =
-             List.fold_left(
-               (acc, l) => acc + List.length(l),
-               0,
-               List.filteri((idx, _) => idx < i, groups),
-             );
-           List.mapi(
-             (j, closure) => closure_view(closure, lengths + j),
-             closures,
-           );
-         },
-       )
-     );
+    (info, utility, model, local, groups: list(list((int, closure)))) => {
+  let group_views =
+    List.map(
+      closures =>
+        Node.div(
+          ~attrs=[Attr.classes(["closure-group"])],
+          List.map(closure_view(info, utility, model, local), closures),
+        ),
+      groups,
+    );
+  group_views == []
+    ? [] : [div(~attrs=[Attr.classes(["closure-groups"])], group_views)];
 };
 
-let ellipsis_view = local =>
+let ellipsis_view = (local): Node.t =>
   div(
     ~attrs=[
       Attr.classes(["ellipsis"]),
@@ -389,7 +400,7 @@ let ellipsis_view = local =>
     [text("⋯")],
   );
 
-let nav_bar_view = (model, di, local) => {
+let nav_bar_view = (model: model, di: list(closure), local) => {
   let nav_arrow = (cond: bool, offset: int): Node.t =>
     Node.div(
       ~attrs=[
@@ -408,30 +419,23 @@ let nav_bar_view = (model, di, local) => {
   List.length(di) > model.max_closures ? [view] : [];
 };
 
-let offside_view =
-    (model: model, info, ~local, ~parent as _, ~utility: utility) =>
+let offside_view = (model: model, info: info, local, utility: utility) =>
   Node.div(
     ~attrs=[Attr.classes(["live-offside"])],
     switch (info.dynamics) {
     | Some(di) =>
-      let frames = select_frames(info, model, di);
+      let groups = Closures.collate(info, model, di);
       let ellipsis =
         List.length(di) > model.max_closures ? [ellipsis_view(local)] : [];
       nav_bar_view(model, di, local)
-      @ closure_group_view(info, utility, model, local, frames)
+      @ closure_group_view(info, utility, model, local, groups)
       @ ellipsis;
     | _ => []
     },
   );
 
-let num_closures = (info: info) =>
-  switch (info.dynamics) {
-  | Some(di) => List.length(di)
-  | None => 0
-  };
-
 let num_closures_view = (info: info) => {
-  let num_closures = num_closures(info);
+  let num_closures = Closures.num(info);
   let description = num_closures < 1000 ? string_of_int(num_closures) : "1k+";
   div(
     ~attrs=[
@@ -460,7 +464,7 @@ let placeholder = (_m, info) =>
 
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-let view = (_: model, info, ~local as _, ~parent as _, ~utility as _: utility) => {
+let view = (info: info): Node.t => {
   let on_double_click = _ => {
     //State.reset();
     switch (State.s.pinned_ap) {
@@ -541,7 +545,12 @@ module M: Projector = {
   let dynamics = true;
   let placeholder = placeholder;
   let update = update;
-  let view = view;
-  let offside_view = Some(offside_view);
+  let view = (_model, info, ~local as _, ~parent as _, ~utility as _) =>
+    view(info);
+  let offside_view =
+    Some(
+      (model, info, ~local, ~parent as _, ~utility) =>
+        offside_view(model, info, local, utility),
+    );
   let focus = _ => ();
 };

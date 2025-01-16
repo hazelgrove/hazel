@@ -1,8 +1,14 @@
 open Util;
 open Virtual_dom.Vdom;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = Base.kind;
+/* This determines the API for projectors, GUIs which
+ * can replace part of the program syntax, and perform
+ * actions which changes that underlying syntax, as well
+ * as mainting their own custom state. The comments below
+ * detail the procedure of defining a new projector.
+ *
+ * See the zipper/projectors/ folder for the implementations
+ * of currently available projectors */
 
 /* The type of syntax which a projector can replace.
  * Right now projectors can replace a single piece */
@@ -15,22 +21,32 @@ type external_action =
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
   | SetSyntax(syntax); /* Set underlying syntax */
 
-/* External info fed to all projectors. Eventually
- * dynamic information will be added here. Projector
- * position and dimensions in base editor could be
- * added here if needed */
+/* External info proivded to all projectors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info = {
+  /* The id of the projector, equal to the id of the root
+   * term of the syntax, provided directly here for convenience.
+   * This is mostly intended to be used as a persistent unique
+   * identifier to allow individual projectors to distiguish
+   * their DOM nodes. */
   id: Id.t,
+  /* The syntax underlying the projector. Currently this
+   * is a single piece representing a complete term, but
+   * this may be relaxed in the future. */
   syntax,
+  /* Static information about the syntax including type
+   * information. Statics may be disabled by the user;
+   * this case (None) must be handled by projector authors */
   statics: option(Statics.Info.t),
+  /* Dynamic information about the syntax including
+   * live values of the syntax. Dynamics may be
+   * disabled by the user; this case (None) must be
+   * handled by projector authors */
   dynamics: option(Dynamics.Info.t),
 };
 
 /* Utility functions/values for to projector views.
- * These should be considered unstable/experimental
- * features which have yet to be integrated into the
- * projector API in a disciplined way */
+ * These should be considered unstable/experimental */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type utility = {
   /* The current font metrics for the editor, usable
@@ -184,7 +200,7 @@ module Cook = (C: Projector) : Cooked => {
 /* Projectors currently are all convex */
 let shapes = (_: Base.projector) => Nib.Shape.(Convex, Convex);
 
-/* Projectors currently have a unique molding */
+/* Projectors currently have a fixed molding */
 let mold_of = (p, sort: Sort.t): Mold.t => {
   let (l, r) = shapes(p);
   {
