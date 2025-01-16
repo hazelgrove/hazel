@@ -602,6 +602,8 @@ and Pat: {
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
     | TuplePat(pats) => parens(tuple(List.map(of_menhir_ast, pats)))
     | ApPat(pat1, pat2) => ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
+    | AddPat(mode, p1, p2) =>
+      add(mode, of_menhir_ast(p1), of_menhir_ast(p2))
     | ConsPat(p1, p2) =>
       parens(cons(of_menhir_ast(p1), of_menhir_ast(p2)))
     | EmptyHolePat => empty_hole()
@@ -626,6 +628,7 @@ and Pat: {
       ConstructorPat(x, Option.map(Option.map(Typ.of_core), ty))
     | Tuple(l) => TuplePat(List.map(of_core, l))
     | Cons(p1, p2) => ConsPat(of_core(p1), of_core(p2))
+    | Add(mode, p1, p2) => AddPat(mode, of_core(p1), of_core(p2))
     | ListLit(l) => ListPat(List.map(of_core, l))
     | Ap(p1, p2) => ApPat(of_core(p1), of_core(p2))
     | EmptyHole => EmptyHolePat

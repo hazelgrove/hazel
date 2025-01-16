@@ -326,6 +326,11 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
     let* alphas2 = match_pat(x2, y2);
     Some(alphas1 @ alphas2);
   | (Ap(_, _), _) => None
+  | (Add(m1, x1, x2), Add(m2, y1, y2)) when m1 == m2 =>
+    let* alphas1 = match_pat(x1, y1);
+    let* alphas2 = match_pat(x2, y2);
+    Some(alphas1 @ alphas2);
+  | (Add(_, _, _), _) => None
   | (Label(l1), Label(l2)) when l1 == l2 => Some([])
   | (Label(_), _) => None
   | (TupLabel({term: ExplicitNonlabel, _}, pat_r), _) =>

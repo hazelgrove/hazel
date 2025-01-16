@@ -140,6 +140,15 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Label(l) => rewrap(Label(l))
   | ExplicitNonlabel => rewrap(ExplicitNonlabel)
   | TupLabel(l, e) => rewrap(TupLabel(pat_to_exp(l), pat_to_exp(e)))
+  | Add(mode, p1, p2) =>
+    let op: Operators.op_bin =
+      switch (mode) {
+      | Int => Int(Plus)
+      | Nat => Nat(Plus)
+      | SInt => SInt(Plus)
+      | Float => Float(Plus)
+      };
+    rewrap(BinOp(op, pat_to_exp(p1), pat_to_exp(p2)));
   };
 };
 
@@ -221,6 +230,11 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       let* typ' = typ;
       dhpat_var_entry(dhp, typ');
     | Ap(_) => None
+    | Add(mode, p1, p2) =>
+      let num_ty = Atom(Operators.mode_to_cls(mode)) |> Typ.temp;
+      let* l1 = dhpat_var_entry(p1, num_ty);
+      let* l2 = dhpat_var_entry(p2, num_ty);
+      Some(l1 @ l2);
     | EmptyHole
     | Wild
     | Invalid(_)
@@ -262,6 +276,9 @@ let rec get_inductive_hypotheses = (m, t, pat) => {
   | Parens(e)
   | Projector(_, e) => get_inductive_hypotheses_inner(m, t, e)
   | Ap(e1, e2) =>
+    get_inductive_hypotheses_inner(m, t, e1)
+    @ get_inductive_hypotheses_inner(m, t, e2)
+  | Add(_, e1, e2) =>
     get_inductive_hypotheses_inner(m, t, e1)
     @ get_inductive_hypotheses_inner(m, t, e2)
   | Asc(e, _) => get_inductive_hypotheses_inner(m, t, e)

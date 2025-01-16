@@ -44,6 +44,11 @@ type t =
       typ: Typ.t,
     }) /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | IsMulti /* Multihole, treated as hole */
+  | IsPatternAdd({
+      mode: Operators.mode,
+      left_const: bool,
+      right_const: bool,
+    }) /* Pattern add, to mark `let x + y = ?` as an error */
   | FreeConstructor(Constructor.t) /* Constructor not bound in context or ana type */
   | ExplicitNonlabel; /* _ used as label in labeled tuple */
 
@@ -125,6 +130,8 @@ let typ_of: t => option(Typ.t) =
       ])
       |> Typ.temp,
     )
+  | IsPatternAdd({mode, _}) =>
+    Some(Atom(Operators.mode_to_cls(mode)) |> Typ.temp)
   | BadToken(_)
   | IsMulti
   | DuplicateLabel(_)

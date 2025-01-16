@@ -341,6 +341,8 @@ and Pat: {
         | ListLit(ts) => ListLit(List.map(pat_map_term, ts))
         | Ap(e1, e2) => Ap(pat_map_term(e1), pat_map_term(e2))
         | Cons(e1, e2) => Cons(pat_map_term(e1), pat_map_term(e2))
+        | Add(mode, e1, e2) =>
+          Add(mode, pat_map_term(e1), pat_map_term(e2))
         | Tuple(xs) => Tuple(List.map(pat_map_term, xs))
         | TupLabel(label, e) =>
           TupLabel(pat_map_term(label), pat_map_term(e))

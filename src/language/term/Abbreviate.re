@@ -1192,6 +1192,19 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
         available := available^ - 3; // "()"
         Parens(abbreviate_pat(p));
       }
+    | Add(mode, p1, p2) =>
+      if (available^ <= 1) {
+        indet_term_pat;
+      } else {
+        available := available^ - 1; // "+"
+        let p1' = abbreviate_pat(p1);
+        if (available^ > 0) {
+          let p2' = abbreviate_pat(p2);
+          Add(mode, p1', p2');
+        } else {
+          p1'.term;
+        };
+      }
     | Projector(data, p) => Projector(data, abbreviate_pat(p))
     };
   rewrap(term);

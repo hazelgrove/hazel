@@ -120,6 +120,7 @@ and pat_term('a) =
   | ListLit(list(pat_t('a)))
   | Constructor(string, option(option(typ_t('a)))) // see comment on constructor expressions
   | Cons(pat_t('a), pat_t('a))
+  | Add(Operators.mode, pat_t('a), pat_t('a))
   | Var(Var.t)
   | Tuple(list(pat_t('a)))
   | Label(string)
@@ -376,6 +377,8 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | Projector(data, p) => Projector(data, map_pat_annotation(f, p))
         | Ap(p1, p2) =>
           Ap(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
+        | Add(mode, p1, p2) =>
+          Add(mode, map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Asc(p, t) =>
           Asc(map_pat_annotation(f, p), map_typ_annotation(f, t))
         },
@@ -880,6 +883,11 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let ap = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
       term: Ap(p1, p2),
+      annotation: default_annotation(ann),
+    };
+
+    let add = (~ann=?, mode, p1, p2): pat_t(DefaultAnnotation.t) => {
+      term: Add(mode, p1, p2),
       annotation: default_annotation(ann),
     };
 

@@ -39,7 +39,8 @@ type fun_examples =
   | Tuple2
   | Tuple3
   | Ctr
-  | Ap;
+  | Ap
+  | Add;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type let_examples =
@@ -59,7 +60,8 @@ type let_examples =
   | Tuple2
   | Tuple3
   | Ctr
-  | Ap;
+  | Ap
+  | Add;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type numeric_bin_op_examples =
@@ -145,7 +147,9 @@ type example_id =
   | FilterEval
   | FilterHide
   | FilterDebug
-  | FilterSelector
+  | FilterSelecto
+  | PatternAdd1
+  | PatternAdd2
   | Undefined1
   | Undefined2
   | Asc1
@@ -188,7 +192,8 @@ type pat_sub_form_id =
   | Tuple2
   | Tuple3
   | Ctr
-  | Ap;
+  | Ap
+  | Add;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form_id =
@@ -284,6 +289,7 @@ type form_id =
   | MultiHoleTPat
   | VarTPat
   | PipelineExp
+  | PatternAdd
   | FilterPause
   | FilterEval
   | FilterDebug
@@ -358,6 +364,7 @@ type group_id =
   | PipelineExp
   | TupleExtensionExp
   | UseExp
+  | PatternAdd
   | EmptyHolePat
   | MultiHolePat
   | WildPat

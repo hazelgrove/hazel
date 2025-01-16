@@ -2313,6 +2313,50 @@ and upat_to_info_map =
       let ann_ty = Typ.desugar_sig(ctx, ann.term);
       let (p, m) = go(~ctx, ~under_ascription=true, ~ana=ann_ty, p, m);
       add(~self=Just(ann_ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
+    | Add(default_mode, p1, p2) =>
+      let mode =
+        switch (
+          Typ.is_ana_atom(ana) |> Option.bind(_, Operators.cls_to_mode)
+        ) {
+        | Some(mode) => mode
+        | None =>
+          switch (ctx.use_mode) {
+          | Some(mode) => mode
+          | None => default_mode
+          }
+        };
+      open Operators;
+      let.mode MG(mg) = mode;
+      let ak = mode_gadt_to_atom_kind(mg);
+      let left_const = Pat.is_const_num(mg, p1);
+      let right_const = Pat.is_const_num(mg, p2);
+      let num_ty = Atom(mode_to_cls(mode)) |> Typ.temp;
+      let (p1, m) = go(~ctx, ~ana=num_ty, p1, m);
+      let (p2, m) = go(~ctx=p1.ctx, ~ana=num_ty, p2, m);
+      add(
+        ~self=
+          IsPatternAdd({
+            mode,
+            left_const: Option.is_some(left_const),
+            right_const: Option.is_some(right_const),
+          }),
+        ~ctx=p2.ctx,
+        ~constraint_=
+          switch (left_const, right_const) {
+          | (Some(l), Some(r)) =>
+            let sum = num_add(mg, l, r);
+            switch (Atom.repack(ak, sum)) {
+            | Int(n)
+            | Nat(n) => BigInt(n)
+            | SInt(n) => SInt(n)
+            | Float(f) => Float(f)
+            | Bool(_)
+            | String(_) => Truth
+            };
+          | _ => Truth
+          },
+        m,
+      );
     };
 
   // This is to allow lifting single values into a singleton labeled tuple when the label is not present

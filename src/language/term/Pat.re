@@ -16,6 +16,7 @@ type cls =
   | Parens
   | Projector
   | Ap
+  | Add
   | Asc;
 
 include TermBase.Pat;
@@ -58,6 +59,7 @@ let cls_of_term: Grammar.pat_term('a) => cls =
   | Parens(_) => Parens
   | Projector(_) => Projector
   | Ap(_) => Ap
+  | Add(_, _, _) => Add
   | Asc(_) => Asc;
 
 let show_cls: cls => string =
@@ -83,6 +85,7 @@ let show_cls: cls => string =
   | Parens => "Parenthesized pattern"
   | Projector => "Projector"
   | Ap => "Constructor application"
+  | Add => "Addition pattern"
   | Asc => "Annotation";
 
 let rec is_var = (pat: t): option(Var.t) => {
@@ -103,7 +106,8 @@ let rec is_var = (pat: t): option(Var.t) => {
   | Label(_)
   | ExplicitNonlabel
   | Constructor(_)
-  | Ap(_) => None
+  | Ap(_)
+  | Add(_, _, _) => None
   };
 };
 
@@ -127,7 +131,8 @@ let rec is_tuple_of_vars = (pat: t) =>
     | Cons(_, _)
     | Var(_)
     | Constructor(_)
-    | Ap(_) => false
+    | Ap(_)
+    | Add(_, _, _) => false
     }
   );
 
@@ -149,7 +154,8 @@ let rec get_var = (pat: t) => {
   | ExplicitNonlabel
   | Tuple(_)
   | Constructor(_)
-  | Ap(_) => None
+  | Ap(_)
+  | Add(_, _, _) => None
   };
 };
 
@@ -176,7 +182,8 @@ let rec get_fun_var = (pat: t) => {
   | ExplicitNonlabel
   | Tuple(_)
   | Constructor(_)
-  | Ap(_) => None
+  | Ap(_)
+  | Add(_, _, _) => None
   };
 };
 
@@ -201,7 +208,8 @@ let rec get_num_of_vars = (pat: t) =>
     | Cons(_, _)
     | Var(_)
     | Constructor(_)
-    | Ap(_) => None
+    | Ap(_)
+    | Add(_, _, _) => None
     }
   };
 
@@ -249,6 +257,7 @@ let rec bindings = (dp: t): Binding.s =>
     ]
   | Tuple(dps) => List.flatten(List.map(bindings, dps))
   | Cons(dp1, dp2) => bindings(dp1) @ bindings(dp2)
+  | Add(_, dp1, dp2) => bindings(dp1) @ bindings(dp2)
   | ListLit(dps) => List.flatten(List.map(bindings, dps))
   | Ap(_, dp1) => bindings(dp1)
   };
@@ -271,6 +280,33 @@ let bound_var_ids = (ctx, pat): list(Binding.t) =>
          }
        }
      );
+
+let rec is_const_num: type a. (Operators.mode_gadt(a), t) => option(a) =
+  (mode, dp) =>
+    switch (dp.term) {
+    | Atom(a) => Atom.unbox(Operators.mode_gadt_to_atom_kind(mode), a)
+    | Parens(dp) => is_const_num(mode, dp)
+    | Asc(dp, _) => is_const_num(mode, dp)
+    | Add(_, dp1, dp2) =>
+      switch (is_const_num(mode, dp1), is_const_num(mode, dp2)) {
+      | (Some(n1), Some(n2)) => Some(Operators.num_add(mode, n1, n2))
+      | _ => None
+      }
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Invalid(_)
+    | ListLit(_)
+    | Constructor(_)
+    | Cons(_, _)
+    | Var(_)
+    | Tuple(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | TupLabel(_, _)
+    | Projector(_, _)
+    | Ap(_) => None
+    };
 
 let get_duplicate_bindings = (pat: t) => {
   let bindings = bound_vars(pat);

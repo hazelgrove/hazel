@@ -7,6 +7,11 @@ let basic_fun_ex = {
   term: mk_example("fun x -> x"),
   message: "The identity function. When given an argument, the function evaluates to that argument.",
 };
+let add_fun_ex = {
+  sub_id: Fun(Add),
+  term: mk_example("fun x + 1 -> x"),
+  message: "This function subtracts 1 from the argument.",
+};
 let wild_fun_ex = {
   sub_id: Fun(Wild),
   term: mk_example("fun _ -> 3"),
@@ -333,6 +338,33 @@ let function_cons_exp: form = {
     examples: [cons_hd_fun_ex, cons_snd_fun_ex],
   };
 };
+let _pat_1 = pat("p1");
+let _pat_2 = pat("p2");
+let _exp = exp("e");
+let function_add_exp_coloring_ids =
+    (~pat1_id: Id.t, ~pat2_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => {
+  [
+    (Piece.id(_pat_1), pat1_id),
+    (Piece.id(_pat_2), pat2_id),
+    (Piece.id(_exp), body_id),
+  ];
+};
+let function_add_exp: form = {
+  let explanation = "This pattern matches [*integers*](%s) by implicitly subtracting one of [*the*](%s) [*sides*](%s) of the addition. One side of the addition must be a constant.";
+  let form = [
+    mk_fun([[space(), _pat_1, space(), plus(), space(), _pat_2, space()]]),
+    space(),
+    _exp,
+  ];
+  {
+    id: FunctionExp(Add),
+    syntactic_form: form,
+    expandable_id:
+      Some((Piece.id(_pat_1), [pat("p1"), plus(), pat("p2")])),
+    explanation,
+    examples: [add_fun_ex],
+  };
+};
 let _pat = pat("x");
 let _exp = exp("e");
 let function_var_exp_coloring_ids =
@@ -603,4 +635,9 @@ let functions_ctr = {
 let functions_ap = {
   id: FunctionExp(Ap),
   forms: [function_ap_exp, function_exp],
+};
+
+let functions_add = {
+  id: FunctionExp(Add),
+  forms: [function_add_exp, function_exp],
 };
