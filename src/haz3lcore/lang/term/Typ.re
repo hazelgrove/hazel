@@ -514,6 +514,11 @@ let rec needs_parens = (ty: t): bool =>
 let pretty_print_tvar = (tv: TPat.t): string =>
   switch (IdTagged.term_of(tv)) {
   | Var(x) => x
+  | Ap(_, x) =>
+    switch (x) {
+    | Var(y) => y
+    | _ => "?" //double check for doubly recursive types? maybe?
+    }
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => "?"

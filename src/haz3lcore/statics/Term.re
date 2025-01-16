@@ -317,7 +317,7 @@ module Exp = {
     | MetaVar
     | Let
     | FixF
-    | TyAlias
+    | TyDef
     | Ap
     | TypAp
     | DeferredAp
@@ -370,7 +370,7 @@ module Exp = {
     | Var(_) => Var
     | Let(_) => Let
     | FixF(_) => FixF
-    | TyAlias(_) => TyAlias
+    | TyDef(_) => TyDef
     | Ap(_) => Ap
     | TypAp(_) => TypAp
     | DeferredAp(_) => DeferredAp
@@ -411,7 +411,7 @@ module Exp = {
     | MetaVar => "Meta variable reference"
     | Let => "Let expression"
     | FixF => "Fixpoint operator"
-    | TyAlias => "Type Alias definition"
+    | TyDef => "Type Alias definition"
     | Ap => "Application"
     | TypAp => "Type application"
     | DeferredAp => "Partial Application"
@@ -455,7 +455,7 @@ module Exp = {
     | Var(_)
     | Let(_)
     | FixF(_)
-    | TyAlias(_)
+    | TyDef(_)
     | Ap(_)
     | TypAp(_)
     | DeferredAp(_)
@@ -499,7 +499,7 @@ module Exp = {
       | Var(_)
       | Let(_)
       | FixF(_)
-      | TyAlias(_)
+      | TyDef(_)
       | Ap(_)
       | TypAp(_)
       | DeferredAp(_)
@@ -557,7 +557,7 @@ module Exp = {
       | Var(_)
       | Let(_)
       | Filter(_)
-      | TyAlias(_)
+      | TyDef(_)
       | Ap(_)
       | TypAp(_)
       | DeferredAp(_)
@@ -723,7 +723,7 @@ module Exp = {
           | Constructor(_)
           | TypFun(_)
           | Tuple(_)
-          | TyAlias(_)
+          | TyDef(_)
           | Ap(_)
           | TypAp(_)
           | DeferredAp(_)

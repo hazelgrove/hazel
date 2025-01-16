@@ -328,9 +328,9 @@ let rec matches_exp =
 
     | (Undefined, _) => false
 
-    | (TyAlias(dtp, dut, dd), TyAlias(ftp, fut, fd)) =>
+    | (TyDef(dtp, dut, dd), TyDef(ftp, fut, fd)) =>
       dtp == ftp && dut == fut && matches_exp(dd, fd)
-    | (TyAlias(_), _) => false
+    | (TyDef(_), _) => false
     };
   };
 }

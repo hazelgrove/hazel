@@ -599,7 +599,7 @@ and uexp_to_info_map =
         (unwrapped_self, m);
       };
     add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
-  | TyAlias(typat, utyp, body) =>
+  | TyDef(typat, utyp, body) =>
     let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
     switch (typat.term) {
     | Var(name) when !Ctx.shadows_typ(ctx, name) =>
@@ -660,6 +660,139 @@ and uexp_to_info_map =
         go'(~ctx, ~mode, body, m);
       let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
       add(~self=Just(ty_body), ~co_ctx, m);
+    | Ap(t1, t2) =>
+      let name =
+        switch (t1) {
+        | Var(s) => s
+        | _ => ""
+        };
+      let arg =
+        switch (t2) {
+        | Var(s) => s
+        | _ => ""
+        };
+      let utyp_without_ap = UTyp.remove_ap_in_def(name, arg, utyp);
+      let (ty_def, ctx_def, ctx_body) = {
+        let ty_pre =
+          UTyp.to_typ(
+            Ctx.extend_dummy_tvar(Ctx.extend_dummy_tvar(ctx, name), arg),
+            utyp,
+          );
+        switch (utyp.term) {
+        | Sum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
+          let ty_pre =
+            UTyp.to_typ(
+              Ctx.extend_dummy_tvar(Ctx.extend_dummy_tvar(ctx, name), arg),
+              utyp_without_ap,
+            );
+          let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+          let ctx_def =
+            Ctx.extend_higher_kind(
+              ctx,
+              name,
+              arg,
+              UTPat.rep_id(typat),
+              ty_rec,
+            );
+          (ty_rec, ctx_def, ctx_def);
+        | _ => (
+            ty_pre,
+            Ctx.extend_higher_kind(
+              ctx,
+              name,
+              arg,
+              UTPat.rep_id(typat),
+              ty_pre,
+            ),
+            Ctx.extend_higher_kind(
+              ctx,
+              name,
+              arg,
+              UTPat.rep_id(typat),
+              ty_pre,
+            ),
+          )
+        };
+      };
+      let ctx_body = {
+        let ty_pre =
+          UTyp.to_typ(
+            Ctx.extend_dummy_tvar(Ctx.extend_dummy_tvar(ctx, name), arg),
+            utyp,
+          );
+
+        switch (ty_pre) {
+        | Sum(sm_map) =>
+          Ctx.add_ctr_with_typ_parameter(
+            ctx_body,
+            name,
+            UTyp.rep_id(utyp),
+            sm_map,
+            arg,
+          )
+        | _ => ctx_body
+        };
+      };
+      let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
+        go'(~ctx=ctx_body, ~mode, body, m);
+      /* Make sure types don't escape their scope */
+      let ty_escape = Typ.subst(ty_def, name, ty_body);
+      let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
+      add(~self=Just(ty_escape), ~co_ctx, m);
+
+      //  let (ty_def, ctx_def, ctx_body) = {
+      //         switch (utyp.term) {
+      //         | Sum(_) when List.mem(name, Typ.free_vars(utyp)) =>
+      //           /* NOTE: When debugging type system issues it may be beneficial to
+      //              use a different name than the alias for the recursive parameter */
+      //           //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+      //           let ty_rec =
+      //             Rec((Var(name): TPat.term) |> IdTagged.fresh, utyp) |> Typ.temp;
+      //           let ctx_def =
+      //             Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
+      //           (ty_rec, ctx_def, ctx_def);
+      //         | _ => (
+      //             utyp,
+      //             ctx,
+      //             Ctx.extend_alias(ctx, name, TPat.rep_id(typat), utyp),
+      //           )
+
+      let (ty_def, ctx_def, ctx_body) = {
+        switch (utyp.term) {
+        | Sum(_) when List.mem(constructor, Typ.free_vars(utyp)) =>
+          let ty_rec =
+            Rec((Var("α"): TPat.term) |> IdTagged.fresh, utyp) |> Typ.temp; //worried because
+          let ctx_def =
+            Ctx.extend_alias(ctx, constructor, TPat.rep_id(typat), ty_rec);
+          (ty_rec, ctx_def, ctx_def);
+
+        | _ =>
+          let ty = Typ.to_typ(ctx, utyp);
+          (
+            utyp, //not sure about the usage of utyp here
+            ctx,
+            Ctx.extend_alias(ctx, constructor, TPat.rep_id(typat), ty),
+          );
+        };
+      };
+      //Printf.printf(
+      //  "ty_def: %s, ctx_def: %s, ctx_body: %s \n",
+      //  Typ.show(ty_def),
+      //  Ctx.show(ctx_def),
+      //  Ctx.show(ctx_body),
+      //);
+      let ctx_body =
+        switch (Typ.get_sum_constructors(ctx, ty_def)) {
+        | Some(sm) =>
+          Ctx.add_ctrs(ctx_body, constructor, UTyp.rep_id(utyp), sm)
+        | None => ctx_body
+        };
+      let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
+        go'(~ctx=ctx_body, ~mode, body, m);
+      /* Make sure types don't escape their scope */
+      let ty_escape = Typ.subst(ty_def, constructor, ty_body);
+      let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
+      add(~self=Just(ty_escape), ~co_ctx, m);
     };
   };
 }

@@ -80,7 +80,7 @@ and exp_term =
   | Var(Var.t)
   | Let(pat_t, exp_t, exp_t)
   | FixF(pat_t, exp_t, option(closure_environment_t))
-  | TyAlias(tpat_t, typ_t, exp_t)
+  | TyDef(tpat_t, typ_t, exp_t)
   | Ap(Operators.ap_direction, exp_t, exp_t)
   | TypAp(exp_t, typ_t)
   | DeferredAp(exp_t, list(exp_t))
@@ -140,6 +140,7 @@ and tpat_term =
   | EmptyHole
   | MultiHole(list(any_t))
   | Var(string)
+  | Ap(tpat_term, tpat_term)
 and tpat_t = IdTagged.t(tpat_term)
 and rul_term =
   | Invalid(string)
@@ -316,8 +317,8 @@ and Exp: {
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
         | FixF(p, e, env) => FixF(pat_map_term(p), exp_map_term(e), env)
-        | TyAlias(tp, t, e) =>
-          TyAlias(tpat_map_term(tp), typ_map_term(t), exp_map_term(e))
+        | TyDef(tp, t, e) =>
+          TyDef(tpat_map_term(tp), typ_map_term(t), exp_map_term(e))
         | Ap(op, e1, e2) => Ap(op, exp_map_term(e1), exp_map_term(e2))
         | TypAp(e, t) => TypAp(exp_map_term(e), typ_map_term(t))
         | DeferredAp(e, es) =>
@@ -390,7 +391,7 @@ and Exp: {
       Pat.fast_equal(p1, p2)
       && fast_equal(e1, e2)
       && Option.equal(ClosureEnvironment.id_equal, c1, c2)
-    | (TyAlias(tp1, t1, e1), TyAlias(tp2, t2, e2)) =>
+    | (TyDef(tp1, t1, e1), TyDef(tp2, t2, e2)) =>
       TPat.fast_equal(tp1, tp2)
       && Typ.fast_equal(t1, t2)
       && fast_equal(e1, e2)
@@ -445,7 +446,7 @@ and Exp: {
     | (Var(_), _)
     | (Let(_), _)
     | (FixF(_), _)
-    | (TyAlias(_), _)
+    | (TyDef(_), _)
     | (Ap(_), _)
     | (TypAp(_), _)
     | (DeferredAp(_), _)
@@ -786,6 +787,7 @@ and TPat: {
         switch (term) {
         | EmptyHole
         | Invalid(_)
+        | Ap(_, _)
         | Var(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         },
@@ -807,6 +809,8 @@ and TPat: {
       List.length(xs) == List.length(ys)
       && List.equal(Any.fast_equal, xs, ys)
     | (Var(x), Var(y)) => x == y
+    | (Ap(t1, t2), Ap(t3, t4)) => t1 == t3 && t2 == t4
+    | (Ap(_, _), _)
     | (EmptyHole, _)
     | (Invalid(_), _)
     | (MultiHole(_), _)

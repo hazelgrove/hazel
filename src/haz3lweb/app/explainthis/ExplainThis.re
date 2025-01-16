@@ -549,12 +549,12 @@ let get_doc =
       | BuiltinFun(_) => simple("Internal expression")
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
-      | TyAlias(ty_pat, ty_def, _body) =>
+      | TyDef(ty_pat, ty_def, _body) =>
         let tpat_id = List.nth(ty_pat.ids, 0);
         let def_id = List.nth(ty_def.ids, 0);
         get_message(
           ~colorings=
-            TyAliasExp.tyalias_base_exp_coloring_ids(~tpat_id, ~def_id),
+            TyDefExp.TyDef_base_exp_coloring_ids(~tpat_id, ~def_id),
           ~format=
             Some(
               msg =>
@@ -564,7 +564,7 @@ let get_doc =
                   Id.to_string(tpat_id),
                 ),
             ),
-          TyAliasExp.tyalias_exps,
+          TyDefExp.TyDef_exps,
         );
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
