@@ -124,10 +124,10 @@ open AST
 
 
 %left GREATER_THAN LESS_THAN DOUBLE_EQUAL NOT_EQUAL LESS_THAN_EQUAL GREATER_THAN_EQUAL NOT_EQUAL_FLOAT LESS_THAN_FLOAT LESS_THAN_EQUAL_FLOAT GREATER_THAN_FLOAT GREATER_THAN_EQUAL_FLOAT DOUBLE_EQUAL_FLOAT STRING_EQUAL
-%right STRING_CONCAT
+%right STRING_CONCAT AT_SYMBOL
 %right  CONS
 
-%left AT_SYMBOL PLUS MINUS PLUS_FLOAT MINUS_FLOAT
+%left  PLUS MINUS PLUS_FLOAT MINUS_FLOAT
 %left DIVIDE TIMES TIMES_FLOAT DIVIDE_FLOAT L_NOT
 
 %right POWER POWER_FLOAT
@@ -136,7 +136,6 @@ open AST
 
 %left OPEN_CURLY
 
-%left IN
 
 %nonassoc TYP_AP_SYMBOL
 
@@ -325,7 +324,7 @@ exp:
     | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
     | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
     | QUESTION { EmptyHole }
-    | a = filterAction; cond = exp; IN; body = exp { Filter(a, cond, body)}
+    | a = filterAction; cond = exp; IN; body = exp { Filter(a, cond, body)} %prec LET_EXP
     | TEST; e = exp; END { Test(e) }
     | e1 = exp; AT_SYMBOL; e2 = exp { ListConcat(e1, e2) }
     | e1 = exp; CONS; e2 = exp { Cons(e1, e2) }
