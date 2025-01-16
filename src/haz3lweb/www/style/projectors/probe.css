@@ -129,12 +129,6 @@
   align-items: center;
   gap: 2px;
 }
-.projector.probe.Exp .live-offside {
-  color: var(--exp-base);
-}
-.projector.probe.Pat .live-offside {
-  color: var(--pat-base);
-}
 .projector.probe .live-offside:empty {
   display: none;
 }
@@ -146,6 +140,16 @@
   gap: 2px;
   position: absolute;
   left: -1.35em;
+}
+
+.projector.probe .live-offside .ellipsis {
+  cursor: pointer;
+}
+.projector.probe.Exp .live-offside .ellipsis {
+  color: var(--exp-base);
+}
+.projector.probe.Pat .live-offside .ellipsis {
+  color: var(--pat-base);
 }
 
 .projector.probe .closure-group {
@@ -274,8 +278,7 @@
   display: none;
 }
 
-.projector.probe .closures-header,
-.projector.probe .closures-tail {
+.projector.probe .nav-arrow {
   width: 10px;
   height: 13px;
   cursor: pointer;
@@ -285,22 +288,19 @@
   color: var(--NONE);
   filter: invert(1) brightness(0.5) sepia(1) hue-rotate(61deg);
 }
-.projector.probe .closures-tail {
+.projector.probe .nav-arrow:last-child {
   transform: rotate(180deg);
 }
 
-.projector.probe:not(.indicated) .closures-header,
-.projector.probe:not(.indicated) .closures-tail {
+.projector.probe:not(.indicated) .nav-arrow {
   pointer-events: none;
   opacity: 0% !important;
 }
 
-.projector.probe .closures-header.disabled,
-.projector.probe .closures-tail.disabled {
+.projector.probe .nav-arrow.disabled {
   opacity: 15%;
 }
 
-.projector.probe .closures-header:hover,
-.projector.probe .closures-tail:hover {
+.projector.probe .nav-arrow:hover {
   filter: brightness(1.05) saturate(1.05);
 }
