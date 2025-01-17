@@ -106,9 +106,11 @@ let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
 
 let rec elaborate_pattern =
         (m: Statics.Map.t, upat: UPat.t): (DHPat.t, Typ.t) => {
+  print_endline("ELA_PAT upat = " ++ UPat.show(upat));
   let (elaborated_type, ctx) = elaborated_pat_type(m, upat);
   let cast_from = (ty, exp) => fresh_pat_cast(exp, ty, elaborated_type);
   let (term, rewrap) = UPat.unwrap(upat);
+  print_endline("ELA_PAT term = " ++ UPat.show_term(term));
   let dpat =
     switch (term) {
     | Int(_) => upat |> cast_from(Int |> Typ.temp)
@@ -146,9 +148,9 @@ let rec elaborate_pattern =
       DHPat.Tuple(ps') |> rewrap |> cast_from(Typ.Prod(tys) |> Typ.temp);
     | Ap(p1, p2) =>
       let (p1', ty1) = elaborate_pattern(m, p1);
-      // print_endline("p1' = " ++ DHPat.show(p1'));
-      // print_endline("ty1 = " ++ Typ.show(ty1));
+      print_endline("ELA_PAT p1' = " ++ DHPat.show(p1'));
       let (p2', ty2) = elaborate_pattern(m, p2);
+      print_endline("ELA_PAT p2' = " ++ DHPat.show(p2'));
       let (ty1l, ty1r) = Typ.matched_arrow(ctx, ty1);
       let p1'' = fresh_pat_cast(p1', ty1, Arrow(ty1l, ty1r) |> Typ.temp);
       let p2'' = fresh_pat_cast(p2', ty2, ty1l);
@@ -298,15 +300,19 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         }
       );
       print_endline("ELA p(1) = " ++ UPat.show(p));
-      print_endline("ELA m = " ++ Statics.Map.show(m));
+      // print_endline("ELA m = " ++ Statics.Map.show(m));
+      // check if it is new syntax
+      // switch (p) {
+      // | Ap(f_name, args) =>
+      // }
       let (p, ty1) = elaborate_pattern(m, p);
+      print_endline("ELA p(2) = " ++ DHPat.show(p));
       let is_recursive =
         Statics.is_recursive(ctx, p, def, ty1)
         && Pat.get_bindings(p)
         |> Option.get
         |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
       if (!is_recursive) {
-        print_endline("ELA p(2) = " ++ DHPat.show(p));
         let def = add_name(Pat.get_var(p), def);
         print_endline("ELA def = " ++ DHExp.show(def));
         let (def, ty2) = elaborate(m, def);
