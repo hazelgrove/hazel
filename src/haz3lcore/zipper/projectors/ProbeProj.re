@@ -567,5 +567,6 @@ module M: Projector = {
       (_model, info, ~local as _, ~parent as _, ~utility as _) =>
         overlay_view(info),
     );
+  let underlay_view = Option.None; //TODO
   let focus = _ => ();
 };

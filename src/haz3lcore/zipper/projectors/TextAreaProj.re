@@ -111,6 +111,7 @@ module M: Projector = {
   let view = view;
   let offside_view = Option.None;
   let overlay_view = Option.None;
+  let underlay_view = Option.None; //TODO
   let focus = ((id: Id.t, d: option(Direction.t))) => {
     JsUtil.get_elem_by_id(of_id(id))##focus;
     switch (d) {

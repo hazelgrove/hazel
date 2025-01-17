@@ -132,7 +132,7 @@ module type Projector = {
       ) =>
       Node.t,
     );
-  /* An optional additional view to be rendered above
+  /* An optional view to be rendered above
    * the code / regular projector layer */
   let overlay_view:
     option(
@@ -145,6 +145,15 @@ module type Projector = {
       ) =>
       Node.t,
     );
+  /* An optional view to be rendered below the code and
+   * regular projector layer. If this is provided,
+   * regular underlays like indication and selection
+   * decorations will not be drawn; projector clients
+   * should use the classes placed on the wrapping
+   * element to trigger their own custom indication and
+   * selection decorations. Pointer handlers should not
+   * be placed on this layer. */
+  let underlay_view: option((model, info, ~utility: utility) => Node.t);
   /* How much space should be left in the code view for
    * this projector? This determines how the base code
    * view is laid out, including how movement around the
@@ -214,6 +223,11 @@ module Cook = (C: Projector) : Cooked => {
           ~utility,
         ),
       C.overlay_view,
+    );
+  let underlay_view =
+    Option.map(
+      (f, m, info, ~utility) => f(deserialize_m(m), info, ~utility),
+      C.underlay_view,
     );
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
