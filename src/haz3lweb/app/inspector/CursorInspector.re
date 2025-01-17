@@ -34,6 +34,26 @@ let explain_this_toggle = (~globals: Globals.t): Node.t => {
   );
 };
 
+let assistant_toggle = (~globals: Globals.t): Node.t => {
+  let tooltip = "Toggle LLM-assistant coder";
+  let toggle_assistant = _ =>
+    Virtual_dom.Vdom.Effect.Many([
+      globals.inject_global(Set(Assistant(ToggleShow))),
+      Virtual_dom.Vdom.Effect.Stop_propagation,
+    ]);
+  div(
+    ~attrs=[clss(["assisstant-button"])],
+    [
+      Widgets.toggle(
+        ~tooltip,
+        "?",
+        globals.settings.assistant.show,
+        toggle_assistant,
+      ),
+    ],
+  );
+};
+
 let cls_view = (ci: Info.t): Node.t =>
   div(
     ~attrs=[clss(["syntax-class"])],
@@ -61,6 +81,7 @@ let term_view = (~globals: Globals.t, ci) => {
       ctx_toggle(~globals),
       div(~attrs=[clss(["term-tag"])], [text(sort)]),
       explain_this_toggle(~globals),
+      assistant_toggle(~globals),
       cls_view(ci),
     ],
   );

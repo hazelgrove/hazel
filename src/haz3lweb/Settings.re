@@ -11,6 +11,7 @@ module Model = {
     instructor_mode: bool,
     benchmark: bool,
     explainThis: ExplainThisModel.Settings.t,
+    assistant: AssistantModel.Settings.t,
   };
 
   let init = {
@@ -41,6 +42,10 @@ module Model = {
       show: true,
       show_feedback: false,
       highlight: NoHighlight,
+    },
+    assistant: {
+      show: false,
+      human: false,
     },
   };
 
@@ -91,7 +96,8 @@ module Update = {
     | ContextInspector
     | InstructorMode
     | Evaluation(evaluation)
-    | ExplainThis(ExplainThisModel.Settings.action);
+    | ExplainThis(ExplainThisModel.Settings.action)
+    | Assistant(AssistantModel.Settings.action);
 
   let update = (action, settings: Model.t): Updated.t(Model.t) => {
     (
@@ -200,6 +206,20 @@ module Update = {
           };
         let explainThis = {...settings.explainThis, highlight};
         {...settings, explainThis};
+      | Assistant(ToggleShow) => {
+          ...settings,
+          assistant: {
+            ...settings.assistant,
+            show: !settings.assistant.show,
+          },
+        }
+      | Assistant(ToggleHuman) => {
+          ...settings,
+          assistant: {
+            ...settings.assistant,
+            show: !settings.assistant.human,
+          },
+        }
       | Benchmark => {...settings, benchmark: !settings.benchmark}
       | Captions => {...settings, captions: !settings.captions}
       | SecondaryIcons => {
