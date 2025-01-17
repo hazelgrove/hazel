@@ -38,10 +38,6 @@
   fill: var(--pat-base);
   filter: drop-shadow(0.7px 0.7px 0px var(--pat-shadow));
 }
-.projector.probe:has(.ap.pinned) > svg {
-  fill: var(--exp-ap-indicated);
-  filter: drop-shadow(0.7px 0.7px 0px var(--typ-shadow));
-}
 
 .projector.probe .main {
   display: flex;
@@ -69,8 +65,7 @@
 .projector.probe .main.ap .icon {
   background-image: url(../../img/noun-telescope-7245201.svg);
 }
-.projector.probe.indicated:not(.selected) .main .icon,
-.projector.probe .main.ap.pinned .icon {
+.projector.probe.indicated:not(.selected) .main .icon {
   filter: invert(1);
 }
 
@@ -102,9 +97,7 @@
 .overlays .projector.probe.selected .num-closures {
   --original-bg: var(--num-closures);
 }
-.overlays .projector.probe:has(.ap.pinned) .num-closures {
-  --original-bg: var(--exp-ap-indicated);
-}
+
 @keyframes blink-probe-caret {
   from,
   to {
@@ -133,7 +126,7 @@
   width: 0.8em;
   border-radius: 2em;
   filter: invert(1);
-  background: url(../../img/noun-pinned-1560993.svg) oklch(0.65 0.18 137.67);
+  background: url(../../img/noun-pinned-1560993.svg) #33ffff;
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;
@@ -154,6 +147,16 @@
   display: none;
 }
 
+.projector.probe .live-equals {
+  font-weight: 800;
+  color: var(--exp-base);
+  opacity: 80%;
+}
+.projector.probe.indicated .live-equals {
+  opacity: 100%;
+  color: var(--exp-indicated);
+}
+
 .projector.probe .live-offside .nav-bar {
   display: flex;
   flex-direction: row;
@@ -167,9 +170,15 @@
   cursor: pointer;
 }
 .projector.probe.Exp .live-offside .ellipsis {
-  color: var(--exp-indicated);
+  color: var(--exp-base);
 }
 .projector.probe.Pat .live-offside .ellipsis {
+  color: var(--pat-base);
+}
+.projector.probe.indicated.Exp .live-offside .ellipsis {
+  color: var(--exp-indicated);
+}
+.projector.probe.indicated.Pat .live-offside .ellipsis {
   color: var(--pat-indicated);
 }
 .projector.probe .live-offside .ellipsis:hover {
@@ -328,9 +337,6 @@
   fill: var(--exp-ap-indicated);
 }
 
-.projector.probe .main.ap.pinned {
-  color: white;
-}
 .projector.probe.indicated:not(.selected) .main {
   color: white;
 }
