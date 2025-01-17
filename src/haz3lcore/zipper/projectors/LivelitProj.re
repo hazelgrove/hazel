@@ -96,7 +96,11 @@ module M: Projector = {
             "LivelitProj: Not a Parens term -- " ++ UExp.show(exp.term),
           )
         };
-      | _ => failwith("LivelitProj: Not an InfoExp term")
+      | _ =>
+        print_endline(
+          "Warning - LivelitProj.placeholder: Not an InfoExp term",
+        );
+        "syntax_error";
       };
     let ll = Livelit.find_livelit(llname);
     Inline(ll.size);
@@ -136,36 +140,39 @@ module M: Projector = {
             "LivelitProj: Not a Parens term -- " ++ UExp.show(exp.term),
           )
         };
-      | _ => failwith("LivelitProj: Not an InfoExp term")
+      | _ =>
+        print_endline("Warning - LivelitProj.view: Not an InfoExp term");
+        ("syntax_error", []);
       };
 
-    /* Ignore the first piece, which is the livelit invocation */
-    let pieces =
-      List.tl(getLeafPieces(info.syntax, ~ignored_labels=[[","]]));
     let ll = Livelit.find_livelit(ll);
 
-    // print_endline("size of args: " ++ string_of_int(List.length(args)));
-    // print_endline("size of pieces: " ++ string_of_int(List.length(pieces)));
-    // print_endline(
-    //   "types of pieces: "
-    //   ++ (List.map(Tile.show, pieces) |> String.concat(", ")),
-    // );
-
-    /* Combine args and pieces into model_piece records */
-    let model_pieces =
-      List.map2(
-        (arg, piece): Livelit.model_piece => {{model: arg, piece}},
-        args,
-        pieces,
+    if (ll.name == "syntax_error") {
+      Node.div(
+        ~attrs=[Attr.class_("livelit")],
+        [Node.text("Syntax error -- are statics enabled?")],
       );
+    } else {
+      /* Ignore the first piece, which is the livelit invocation */
+      let pieces =
+        List.tl(getLeafPieces(info.syntax, ~ignored_labels=[[","]]));
 
-    let replace = (piece: Piece.tile) => {
-      let newSyntax = replacePieceInSyntax(info.syntax, piece);
-      parent(SetSyntax(newSyntax));
+      /* Combine args and pieces into model_piece records */
+      let model_pieces =
+        List.map2(
+          (arg, piece): Livelit.model_piece => {{model: arg, piece}},
+          args,
+          pieces,
+        );
+
+      let replace = (piece: Piece.tile) => {
+        let newSyntax = replacePieceInSyntax(info.syntax, piece);
+        parent(SetSyntax(newSyntax));
+      };
+
+      /* Call the projector function */
+      ll.projector(model_pieces, replace);
     };
-
-    /* Call the projector function */
-    ll.projector(model_pieces, replace);
   };
   let focus = ((id: Id.t, d: option(Direction.t))) => {
     JsUtil.get_elem_by_id(of_id(id))##focus;
