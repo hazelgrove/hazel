@@ -71,8 +71,7 @@ let view_wrapper =
       ~indication: option(Direction.t),
       ~selected: bool,
       p: Base.projector,
-      offside_view: option(Node.t),
-      view: Node.t,
+      views: list(Node.t),
     ) => {
   let sort =
     Option.map(Info.sort_of, info.statics) |> Option.value(~default=Sort.Exp);
@@ -86,8 +85,7 @@ let view_wrapper =
       Attr.on_mousedown(focus(info.id)),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
-    [view, backing_deco(~font_metrics, ~measurement)]
-    @ Option.to_list(offside_view),
+    views,
   );
 };
 
@@ -124,7 +122,7 @@ let offside_pos = offside_offset =>
 
 /* Gather utility functions/values to be passed to the projector.
  * See ProjectorBase.utility definition for more information */
-let collate_utility = (globals: Globals.t): ProjectorBase.utility => {
+let mk_utility = (globals: Globals.t): ProjectorBase.utility => {
   {
     font_metrics: globals.font_metrics,
     view_seg: (sort, seg) =>
@@ -151,6 +149,20 @@ let collate_utility = (globals: Globals.t): ProjectorBase.utility => {
   };
 };
 
+let mk_info =
+    (
+      id: Id.t,
+      p: Piece.projector,
+      ~cached_statics: CachedStatics.t,
+      ~dynamics: Dynamics.Map.t,
+    )
+    : ProjectorBase.info => {
+  id,
+  syntax: p.syntax,
+  statics: Statics.Map.lookup(id, cached_statics.info_map),
+  dynamics: Dynamics.Map.lookup(id, dynamics),
+};
+
 /* Extracts projector-instance-specific metadata necessary to
  * render the view, instantiates appropriate action handlers,
  * renders the view, and then wraps it so as to position it
@@ -165,15 +177,12 @@ let setup_view =
       ~globals: Globals.t,
       ~indication: option(Direction.t),
     )
-    : option(Node.t) => {
+    : option((Node.t, option(Node.t))) => {
   let* p = Id.Map.find_opt(id, cached_syntax.projectors);
-  let* syntax = Some(p.syntax);
-  let statics = Statics.Map.lookup(id, cached_statics.info_map);
-  let dynamics = Dynamics.Map.lookup(id, dynamics);
-  let info = {id, statics, dynamics, syntax};
   let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
-  let utility = collate_utility(globals);
   let (module P) = to_module(p.kind);
+  let info = mk_info(id, p, ~cached_statics, ~dynamics);
+  let utility = mk_utility(globals);
   let parent = a => inject(Project(handle(id, a)));
   let local = a =>
     inject(Project(SetModel(id, P.update(p.model, info, a))));
@@ -186,6 +195,7 @@ let setup_view =
         cached_syntax.measured,
       ),
     );
+  let base_view = P.view(p.model, info, ~local, ~parent, ~utility);
   let offside_view =
     Option.map(
       v =>
@@ -195,17 +205,36 @@ let setup_view =
         ),
       P.offside_view,
     );
-  view_wrapper(
-    ~inject,
-    ~font_metrics=globals.font_metrics,
-    ~measurement,
-    ~indication,
-    ~info,
-    ~selected=List.mem(id, cached_syntax.selection_ids),
-    p,
-    offside_view,
-    P.view(p.model, info, ~local, ~parent, ~utility),
-  );
+  let overlay_view =
+    Option.map(
+      v =>
+        view_wrapper(
+          ~inject,
+          ~font_metrics=globals.font_metrics,
+          ~measurement,
+          ~indication,
+          ~info,
+          ~selected=List.mem(id, cached_syntax.selection_ids),
+          p,
+          [v(p.model, info, ~local, ~parent, ~utility)],
+        ),
+      P.overlay_view,
+    );
+  let underlay_view =
+    backing_deco(~font_metrics=globals.font_metrics, ~measurement);
+  let views = [base_view, underlay_view] @ Option.to_list(offside_view);
+  let combined_view =
+    view_wrapper(
+      ~inject,
+      ~font_metrics=globals.font_metrics,
+      ~measurement,
+      ~indication,
+      ~info,
+      ~selected=List.mem(id, cached_syntax.selection_ids),
+      p,
+      views,
+    );
+  (combined_view, overlay_view);
 };
 
 /* Is the piece with id indicated? If so, where is it wrt the caret? */
@@ -226,23 +255,28 @@ let all =
       ~dynamics: Dynamics.Map.t,
       ~inject,
     ) => {
-  div_c(
-    "projectors",
-    Id.Map.bindings(cached_syntax.projectors)
-    |> List.filter_map(((id, _)) => {
-         let indication = indication(z, id);
-         setup_view(
-           id,
-           ~cached_statics,
-           ~cached_syntax,
-           ~dynamics,
-           ~inject,
-           ~globals,
-           ~indication,
-         );
-       })
-    |> List.rev,
-  );
+  let mk_base_view = ((id: Id.t, _)) => {
+    let indication = indication(z, id);
+    setup_view(
+      id,
+      ~cached_statics,
+      ~cached_syntax,
+      ~dynamics,
+      ~inject,
+      ~globals,
+      ~indication,
+    );
+  };
+  let projector_ids = cached_syntax.projectors |> Id.Map.bindings |> List.rev;
+  let (base_views, overlay_views) =
+    projector_ids |> List.filter_map(mk_base_view) |> List.split;
+  let overlay_views = overlay_views |> List.filter_map(Fun.id);
+  [
+    div_c(
+      "projectors",
+      [div_c("base", base_views), div_c("overlays", overlay_views)],
+    ),
+  ];
 };
 
 /* When the caret is directly adjacent to a projector, keyboard commands

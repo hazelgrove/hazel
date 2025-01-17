@@ -185,11 +185,11 @@ module Closures = {
 
   let collate =
       (info: info, model: model, di: list(closure))
-      : list(list((int, closure))) => {
+      : (int, list(list((int, closure)))) => {
     let closures = select_frames(info, model, di);
     let numbered_closures =
       List.mapi((i, c) => (List.length(closures) - i - 1, c), closures);
-    group(numbered_closures);
+    (List.length(closures), group(numbered_closures));
   };
 };
 
@@ -411,12 +411,10 @@ let nav_bar_view = (model: model, di: list(closure), local) => {
     );
   let show_left = model.index_offset >= List.length(di) - model.max_closures;
   let show_right = model.index_offset <= 0;
-  let view =
-    div(
-      ~attrs=[Attr.classes(["nav-bar"])],
-      [nav_arrow(show_left, 1), nav_arrow(show_right, -1)],
-    );
-  List.length(di) > model.max_closures ? [view] : [];
+  div(
+    ~attrs=[Attr.classes(["nav-bar"])],
+    [nav_arrow(show_left, 1), nav_arrow(show_right, -1)],
+  );
 };
 
 let offside_view = (model: model, info: info, local, utility: utility) =>
@@ -424,12 +422,11 @@ let offside_view = (model: model, info: info, local, utility: utility) =>
     ~attrs=[Attr.classes(["live-offside"])],
     switch (info.dynamics) {
     | Some(di) =>
-      let groups = Closures.collate(info, model, di);
-      let ellipsis =
-        List.length(di) > model.max_closures ? [ellipsis_view(local)] : [];
-      nav_bar_view(model, di, local)
-      @ closure_group_view(info, utility, model, local, groups)
-      @ ellipsis;
+      let (num_shown, groups) = Closures.collate(info, model, di);
+      let is_cut_off = num_shown != Closures.num(info) && num_shown > 0;
+      let extras = [nav_bar_view(model, di, local), ellipsis_view(local)];
+      closure_group_view(info, utility, model, local, groups)
+      @ (is_cut_off ? extras : []);
     | _ => []
     },
   );
@@ -498,7 +495,20 @@ let view = (info: info): Node.t => {
       Attr.on_double_click(on_double_click),
       Attr.on_pointerdown(on_pointerdown),
     ],
-    [syntax_view(info), icon, num_closures_view(info)] @ pin_view(info),
+    [syntax_view(info), icon],
+  );
+};
+
+let overlay_view = (info: info): Node.t => {
+  div(
+    ~attrs=[
+      Attr.classes(
+        ["overlay"]
+        @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : [])
+        @ (State.s.pinned_ap == cur_ap_id(info) ? ["pinned"] : []),
+      ),
+    ],
+    [num_closures_view(info)] @ pin_view(info),
   );
 };
 
@@ -551,6 +561,11 @@ module M: Projector = {
     Some(
       (model, info, ~local, ~parent as _, ~utility) =>
         offside_view(model, info, local, utility),
+    );
+  let overlay_view =
+    Some(
+      (_model, info, ~local as _, ~parent as _, ~utility as _) =>
+        overlay_view(info),
     );
   let focus = _ => ();
 };

@@ -132,6 +132,19 @@ module type Projector = {
       ) =>
       Node.t,
     );
+  /* An optional additional view to be rendered above
+   * the code / regular projector layer */
+  let overlay_view:
+    option(
+      (
+        model,
+        info,
+        ~local: action => Ui_effect.t(unit),
+        ~parent: external_action => Ui_effect.t(unit),
+        ~utility: utility
+      ) =>
+      Node.t,
+    );
   /* How much space should be left in the code view for
    * this projector? This determines how the base code
    * view is laid out, including how movement around the
@@ -189,6 +202,18 @@ module Cook = (C: Projector) : Cooked => {
           ~utility,
         ),
       C.offside_view,
+    );
+  let overlay_view =
+    Option.map(
+      (f, m, info, ~local, ~parent, ~utility) =>
+        f(
+          deserialize_m(m),
+          info,
+          ~local=a => local(serialize_a(a)),
+          ~parent,
+          ~utility,
+        ),
+      C.overlay_view,
     );
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;

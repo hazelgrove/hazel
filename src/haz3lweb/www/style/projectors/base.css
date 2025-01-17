@@ -26,6 +26,11 @@
   z-index: var(--projector-z);
 }
 
+.projectors .overlays .projector {
+  pointer-events: none;
+  z-index: var(--code-emblems-z);
+}
+
 .projector > svg {
   z-index: var(--projector-backing-z);
   fill: var(--shard_projector);

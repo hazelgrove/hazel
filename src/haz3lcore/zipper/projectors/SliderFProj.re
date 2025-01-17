@@ -40,5 +40,6 @@ module M: Projector = {
       get(info.syntax) |> Printf.sprintf("%.2f"),
     );
   let offside_view = Option.None;
+  let overlay_view = Option.None;
   let focus = _ => ();
 };
