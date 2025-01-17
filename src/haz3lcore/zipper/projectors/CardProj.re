@@ -553,14 +553,14 @@ module M: Projector = {
       horizontal: Syntax.width_of_piece(info.syntax),
       vertical: Tab(1),
     };
-  let update = (_model, action) =>
+  let update = (_model, _, action) =>
     switch (action) {
     | SetMode(mode) => {mode: mode}
     };
   let view =
       (
         model,
-        ~info,
+        info,
         ~local,
         ~parent: external_action => Ui_effect.t(unit),
         ~utility as _,
@@ -572,5 +572,8 @@ module M: Projector = {
       Hand.view(info.id, model.mode, parent, local, to_sort(sort), hand)
     };
   };
+  let offside_view = None;
+  let overlay_view = None;
+  let underlay_view = None;
   let focus = _ => ();
 };
