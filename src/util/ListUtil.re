@@ -608,9 +608,8 @@ let max_common_suffix = (a: list('a), b: list('a)): list('a) => {
 let common_suffix_length = (s1, s2) =>
   List.length(max_common_suffix(s1, s2));
 
-let one_is_suffix_of_other = (s1, s2) =>
-  common_suffix_length(s1, s2) == List.length(s1)
-  || common_suffix_length(s1, s2) == List.length(s2);
+let is_suffix_of = (s1, s2) =>
+  common_suffix_length(s1, s2) == List.length(s1);
 
 /* list truncated after at most n elementsnts */
 let truncate = (n: int, xs: list('a)): list('a) => {
@@ -632,10 +631,41 @@ let rec remove_first_n = (n: int, xs: list('a)): list('a) => {
   };
 };
 
+/* Return at most k elements starting from index i */
+let slice = (i: int, k: int, xs: list('x)): list('x) =>
+  xs |> remove_first_n(i) |> truncate(k);
+
 let rec rotate_n = (n: int, xs: list('a)): list('a) => {
   let n = IntUtil.modulo(n, List.length(xs));
   switch (n) {
   | 0 => xs
   | _ => rotate_n(n - 1, rotate(xs))
   };
+};
+
+let take = (n, xs) => {
+  let rec loop = (n, xs, acc) =>
+    switch (n, xs) {
+    | (0, _) => acc
+    | (_, []) => acc
+    | (n, [x, ...xs]) => loop(n - 1, xs, [x, ...acc])
+    };
+  loop(n, xs, []);
+};
+
+let split3 = (xs: list(('a, 'b, 'c))): (list('a), list('b), list('c)) => {
+  let rec aux =
+          (
+            xs: list(('a, 'b, 'c)),
+            acc1: list('a),
+            acc2: list('b),
+            acc3: list('c),
+          ) => {
+    switch (xs) {
+    | [] => (List.rev(acc1), List.rev(acc2), List.rev(acc3))
+    | [(x, y, z), ...rest] =>
+      aux(rest, [x, ...acc1], [y, ...acc2], [z, ...acc3])
+    };
+  };
+  aux(xs, [], [], []);
 };

@@ -121,7 +121,6 @@ select:hover {
   grid-column: 1 / span 2;
   display: flex;
   align-items: center;
-  gap: 1em;
   justify-content: space-between;
   align-items: stretch;
   background-color: var(--ui-bkg);

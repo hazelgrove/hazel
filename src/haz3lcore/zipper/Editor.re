@@ -9,7 +9,7 @@ module CachedSyntax = {
     holes: list(Grout.t),
     comments: list(Secondary.t),
     selection_ids: list(Id.t),
-    term: UExp.t,
+    term: Exp.t,
     /* This term, and the term-derived data structured below, may differ
      * from the term used for semantics. These terms are identical when
      * the backpack is empty. If the backpack is non-empty, then when we

@@ -5,7 +5,7 @@
 @import "cards.css";
 
 /* Turn off caret when a projector is focused */
-#caret:has(~ .projectors .projector *:focus) .caret-path {
+.code-deco:has(~ .projectors .projector *:focus) #caret .caret-path {
   fill: #0000;
 }
 
@@ -20,15 +20,24 @@
 }
 
 .projector.indicated {
-  z-index: var(--code-hovers-z);
+  z-index: var(--projector-indicated-z);
 }
 
 .projector > *:not(svg) {
   z-index: var(--projector-z);
 }
 
+.projectors .overlays .projector {
+  pointer-events: none;
+  z-index: var(--projector-overlay-z);
+}
+
+.projectors .underlays .projector {
+  pointer-events: none;
+  z-index: var(--projector-underlay-z);
+}
+
 .projector > svg {
-  z-index: var(--projector-backing-z);
   fill: var(--shard_projector);
 }
 

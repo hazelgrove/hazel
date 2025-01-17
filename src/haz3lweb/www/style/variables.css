@@ -197,10 +197,9 @@
   /* BELOW CODE LEVEL */
   --err-hole-arms-z: 0;
   --tile-z: 1;
-  --projector-backing-z: 1;
   --err-hole-z: 2;
   --select-z: 4;
-  --test-result-z: 5;
+  --projector-underlay-z: 9;
 
   /* AT CODE LEVEL */
   --code-text-z: 10;
@@ -209,16 +208,16 @@
 
   /* ABOVE CODE LEVEL */
   --backpack-targets-z: 11;
-  --code-hovers-z: 11;
+  --projector-indicated-z: 11;
   --stepper-interactive-z: 15;
   --caret-z: 20;
-  --code-emblems-z: 21;
+  --projector-overlay-z: 29;
 
   /* TOP LEVEL UI */
-  --context-inspector-z: 29; /* keep below bottom bar */
-  --bottom-bar-z: 30;
-  --top-bar-z: 30;
-  --explainthis-expander-z: 30;
+  --context-inspector-z: 30; /* keep below bottom bar */
+  --bottom-bar-z: 31;
+  --top-bar-z: 31;
+  --explainthis-expander-z: 31;
 
   /* HACKS */
   --overlay-z: 100;

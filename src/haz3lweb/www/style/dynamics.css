@@ -309,17 +309,17 @@
 }
 
 .tile-next-step .tile-path.Exp.indicated {
-  fill: var(--G1)
+  fill: var(--G1);
 }
 
 .tile-taken-step .tile-path.Exp.indicated {
-  fill: var(--BR1)
+  fill: var(--BR1);
 }
 
 svg.tile-next-step {
   pointer-events: all;
   cursor: pointer;
-  z-index: var(--test-result-z);
+  z-index: var(--projector-overlay-z);
   filter: drop-shadow(1px 1px var(--G2));
 }
 
