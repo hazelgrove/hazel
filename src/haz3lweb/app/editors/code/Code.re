@@ -179,24 +179,24 @@ let rec holes =
          ],
      );
 
-let simple_view = (~font_metrics, ~segment, ~settings: Settings.t): Node.t => {
-  let shape_of_proj = Projector.Shape.of_map_default; /* Assume this doesn't contain projectors */
+let simple_view = (font_metrics, sort, segment): Node.t => {
+  let shape_of_proj = Projector.Shape.of_map_default;
   let map = Measured.of_segment(segment, shape_of_proj);
   module Text =
     Text({
       let map = map;
-      let settings = settings;
+      let settings = Settings.Model.init;
       let shape_of_proj = shape_of_proj;
     });
   let holes = holes(~map, ~font_metrics, segment);
   div(
     ~attrs=[Attr.class_("code")],
     [
-      span_c("code-text", Text.of_segment([], false, Sort.Any, segment)),
+      span_c("code-text", Text.of_segment([], false, sort, segment)),
       ...holes,
     ],
   );
-};
+}; /* Assume this doesn't contain projectors */
 
 let of_hole = (~globals: Globals.t, ~measured, g: Grout.t) =>
   // TODO(d) fix sort

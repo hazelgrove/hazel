@@ -246,14 +246,20 @@ module View = {
     };
     let projectors =
       ProjectorView.all(
-        model.editor.state.zipper,
-        ~globals,
-        ~cached_statics=model.statics,
-        ~cached_syntax=model.editor.syntax,
-        ~inject=x => inject(Perform(x)),
-        ~dynamics,
+        x => inject(Perform(x)),
+        ProjectorView.mk_utility(globals.font_metrics),
+        globals.font_metrics,
+        ProjectorView.collect_data(
+          model.editor.syntax,
+          model.editor.state.zipper,
+          model.statics,
+          dynamics,
+        ),
       );
-    let overlays = edit_decos @ overlays @ [projectors];
+    let overlays =
+      [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
+      @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
+      @ projectors;
     let code_view =
       CodeWithStatics.View.view(
         ~globals,

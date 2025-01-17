@@ -77,7 +77,7 @@ let textarea =
     [],
   );
 
-let view = (_, ~info, ~local as _, ~parent, ~utility as _) => {
+let view = (_, info, ~local as _, ~parent, ~utility as _) => {
   let text = info.syntax |> get |> Form.strip_quotes;
   Node.div(
     ~attrs=[Attr.classes(["wrapper"])],
@@ -107,8 +107,11 @@ module M: Projector = {
       horizontal: 2 + StringUtil.max_line_width(str),
     };
   };
-  let update = (model, _) => model;
+  let update = (model, _, _) => model;
   let view = view;
+  let offside_view = Option.None;
+  let overlay_view = Option.None;
+  let underlay_view = Option.None; //TODO
   let focus = ((id: Id.t, d: option(Direction.t))) => {
     JsUtil.get_elem_by_id(of_id(id))##focus;
     switch (d) {
