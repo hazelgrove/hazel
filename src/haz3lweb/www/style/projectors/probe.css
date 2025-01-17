@@ -11,12 +11,14 @@
 
   --exp-indicated: var(--G0);
   --pat-indicated: var(--PAT);
+  --exp-ap-indicated: var(--TYP);
 
   --exp-base: hsl(120, 40%, 85%);
   --pat-base: hsl(170, 40%, 85%);
 
   --exp-shadow: oklch(0.55 0.15 150);
   --pat-shadow: oklch(0.5 0.1 245);
+  --typ-shadow: oklch(0.5 0.1 300);
 
   --exp-cell: hsl(115, 30%, 70%);
   --pat-cell: hsl(165, 30%, 70%);
@@ -28,7 +30,7 @@
   color: var(--code-text);
 }
 
-.projector.probe > svg {
+.projector.probe.Exp > svg {
   fill: var(--exp-base);
   filter: drop-shadow(0.7px 0.7px 0px var(--exp-shadow));
 }
@@ -63,11 +65,13 @@
 .projector.probe .main.ap .icon {
   background-image: url(../../img/noun-telescope-7245201.svg);
 }
-.projector.probe.indicated .main .icon {
+.projector.probe.indicated:not(.selected) .main .icon {
   filter: invert(1);
 }
 
-.projector.probe .num-closures {
+/* OVERLAY VIEW */
+
+.overlays .projector.probe .num-closures {
   position: absolute;
   right: -0.5em;
   top: -0.3em;
@@ -77,38 +81,133 @@
   font-family: var(--ui-font);
   display: flex;
   justify-content: center;
-  background-color: var(--exp-indicated);
   border-radius: 2em;
   font-size: 0.7em;
   padding: 0.3em;
   min-width: 1em;
-  z-index: var(--code-emblems-z);
+  --original-bg: inherit;
+  background-color: var(--original-bg);
 }
-.projector.probe.Pat .num-closures {
-  background-color: var(--pat-indicated);
+.overlays .projector.probe.Exp .num-closures {
+  --original-bg: var(--exp-indicated);
 }
-.projector.probe.selected .num-closures {
-  background-color: var(--num-closures);
+.overlays .projector.probe.Pat .num-closures {
+  --original-bg: var(--pat-indicated);
 }
-.projector.probe.indicated.Right .num-closures {
-  background-color: var(--num-closures-indicated);
+.overlays .projector.probe.selected .num-closures {
+  --original-bg: var(--num-closures);
 }
-.projector.probe.indicated.Right .num-closures {
-  right: -0.8em;
-  top: -0.5em;
+
+@keyframes blink-probe-caret {
+  from,
+  to {
+    background-color: var(--R1);
+  }
+
+  50% {
+    background-color: var(--original-bg);
+  }
 }
+.overlays .projector.probe.indicated.Right .num-closures {
+  animation: 1s blink-probe-caret step-end infinite;
+
+  /* background-color: var(--num-closures-indicated) !important; */
+}
+
+.overlays .projector.probe.selected:not(.indicated) .num-closures {
+  color: var(--STONE);
+}
+
+.overlays .projector.probe .pin {
+  position: absolute;
+  left: -0.5em;
+  top: -0.3em;
+  height: 0.8em;
+  width: 0.8em;
+  border-radius: 2em;
+  filter: invert(1);
+  background: url(../../img/noun-pinned-1560993.svg) #33ffff;
+  background-size: 70%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.overlays .projector.probe.indicated.Left .pin {
+  background-color: oklch(0.8 0.18 201.83);
+}
+
+/* OFFSIDE VIEW */
 
 .projector.probe .live-offside {
   display: flex;
   flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.projector.probe .live-offside:empty {
+  display: none;
+}
+
+.projector.probe .live-equals {
+  font-weight: 800;
+  color: var(--exp-base);
+  opacity: 80%;
+}
+.projector.probe.indicated .live-equals {
+  opacity: 100%;
+  color: var(--exp-indicated);
+}
+
+.projector.probe .live-offside .nav-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
   position: absolute;
-  left: 10em;
+  left: -1.75em;
+}
+
+.projector.probe .live-offside .ellipsis {
+  cursor: pointer;
+}
+.projector.probe.Exp .live-offside .ellipsis {
+  color: var(--exp-base);
+}
+.projector.probe.Pat .live-offside .ellipsis {
+  color: var(--pat-base);
+}
+.projector.probe.indicated.Exp .live-offside .ellipsis {
+  color: var(--exp-indicated);
+}
+.projector.probe.indicated.Pat .live-offside .ellipsis {
+  color: var(--pat-indicated);
+}
+.projector.probe .live-offside .ellipsis:hover {
+  /* filter: brightness(1.2) saturate(2); */
+  scale: 1.4;
+}
+
+.projector.probe .live-offside .closure-groups {
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+}
+
+.projector.probe .closure-group {
+  display: flex;
   gap: 2px;
   align-items: center;
 }
 
-.projector.probe .live-offside:empty {
-  display: none;
+.projector.probe .closure-group:not(:last-child)::after {
+  content: "•";
+  font-size: 0.4em;
+  margin: -1px;
+}
+.projector.probe.Exp .closure-group:not(:last-child)::after {
+  color: var(--exp-indicated);
+}
+.projector.probe.Pat .closure-group:not(:last-child)::after {
+  color: var(--pat-indicated);
 }
 
 .projector.probe .val-resize {
@@ -121,63 +220,93 @@
 
 /* TOKEN BKG */
 .projector.probe .val-resize .code-text {
-  background-color: var(--exp-base);
-  border-bottom: 1px solid var(--exp-shadow);
   border-radius: 0.05em 0.05em 0.05em 0.2em;
 }
+.projector.probe.Exp .val-resize .code-text {
+  background-color: var(--exp-base);
+  border-bottom: 1px solid var(--exp-shadow);
+}
 .projector.probe.Pat .val-resize .code-text {
-  border-color: var(--pat-shadow);
   background-color: var(--pat-base);
+  border-bottom: 1px solid var(--pat-shadow);
 }
-/* TOKEN OPACITY */
-.projector.probe .val-resize.cursor .code-text {
+.projector.probe .val-resize.cursor-lex .code-text {
   opacity: 100%;
 }
-.projector.probe .val-resize.dyn-cursor.cursor .code-text,
-.projector.probe .val-resize.dyn-cursor.top-ap .code-text {
+.projector.probe .val-resize.cursor-ap-lex .code-text {
   opacity: 100%;
-  outline: 1px solid var(--TYP);
+  outline: 1px solid var(--exp-ap-indicated);
+  border-color: var(--exp-ap-indicated);
 }
-.projector.probe .val-resize.dyn-cursor:not(.cursor):not(.top-ap) .code-text {
-  opacity: 100%;
-  /* outline: 1px solid var(--TYP); */
-  outline: 1px dotted var(--TYP);
+.projector.probe .val-resize.cursor-outer-ap .code-text {
+  opacity: 100% !important;
+  outline: 1px solid var(--exp-ap-indicated);
+  border-color: var(--exp-ap-indicated);
+  background-color: var(--exp-ap-indicated);
 }
-.projector.probe .val-resize .code-text {
-  opacity: 51%;
+.projector.probe .val-resize .code-text,
+.projector.probe .val-resize.cursor-ap.light .code-text,
+.projector.probe .val-resize.cursor-ap-lex.light .code-text {
+  opacity: 50%;
 }
-.projector.probe .val-resize.dyn-cursor.light .code-text {
-  opacity: 45%;
-}
+
+/* TOKEN BKG INDICATED */
 .projector.probe.indicated .val-resize .code-text {
   opacity: 60%;
 }
-.projector.probe.indicated .val-resize.cursor .code-text {
+.projector.probe.indicated .closure.cursor .val-resize .code-text {
   opacity: 100%;
-  background: none;
-  outline: 2.8px solid var(--exp-indicated);
+  background: white;
+  outline-width: 2.8px;
+  outline-style: solid;
 }
-.projector.probe.indicated .val-resize.cursor.ap .code-text {
-  outline-color: var(--TYP);
+.projector.probe.indicated.Exp .val-resize.cursor-lex .code-text {
+  outline-color: var(--exp-indicated);
 }
+.projector.probe.indicated.Pat .val-resize.cursor-lex .code-text {
+  outline-color: var(--pat-indicated);
+}
+.projector.probe.indicated .val-resize.cursor-lex.ap .code-text {
+  outline-color: var(--exp-ap-indicated);
+  border-color: var(--exp-ap-indicated);
+}
+
 /* TOKENS */
-.projector.probe
-  .val-resize.dyn-cursor:not(.cursor):not(.top-ap)
-  .code-text
-  .token {
-  filter: invert(1) brightness(10);
-  /* color: var(--TYP); */
-}
-.projector.probe .val-resize:not(.dyn-cursor):not(.cursor) .code-text .token {
+.projector.probe .val-resize.cursor-ap .code-text .token,
+.projector.probe .val-resize.cursor-none .code-text .token,
+.projector.probe .val-resize.cursor-outer-ap .code-text .token {
   filter: invert(1) brightness(10);
 }
-.projector.probe .val-resize.dyn-cursor.cursor .code-text .token,
-.projector.probe .val-resize.dyn-cursor.top-ap .code-text .token {
-  color: var(--TYP);
+.projector.probe .val-resize.cursor-ap-lex .code-text .token {
+  color: var(--exp-ap-indicated);
 }
 
 .projector.probe .val-resize .code-text:hover {
-  filter: brightness(1.05) saturate(1.05);
+  opacity: 100% !important;
+  outline-width: 1px;
+  outline-style: solid;
+  outline-offset: -0.1px;
+  border-width: 1.5px;
+  top: 0.5px;
+  filter: drop-shadow(1.5px 3px 0 #95876452);
+}
+.projector.probe.Exp .val-resize .code-text:hover {
+  outline-color: var(--exp-indicated);
+  border-color: var(--exp-indicated);
+}
+.projector.probe.Pat .val-resize .code-text:hover {
+  outline-color: var(--pat-indicated);
+  border-color: var(--pat-indicated);
+}
+.projector.probe.Exp .val-resize.ap .code-text:hover {
+  outline-color: var(--exp-ap-indicated);
+  border-color: var(--exp-ap-indicated);
+}
+.projector.probe .val-resize > .code:hover {
+  transform-origin: center left;
+  scale: 1.125;
+  z-index: var(--projector-indicated-z);
+  position: relative;
 }
 
 .projector.probe .live-env {
@@ -197,21 +326,21 @@
   color: var(--GB0);
 }
 
+.projector.probe.selected > svg {
+  display: none;
+}
 .projector.probe.indicated > svg {
   fill: var(--exp-indicated);
 }
 .projector.probe.indicated.Pat > svg {
   fill: var(--pat-indicated);
 }
-.projector.probe.indicated:has(.main.ap) > svg {
+.projector.probe:has(.ap.pinned) > svg {
+  fill: var(--exp-ap-indicated);
 }
 
-.projector.probe.indicated .main {
+.projector.probe.indicated:not(.selected) .main {
   color: white;
-}
-
-.projector.probe.indicated.Pat .val-resize.cursor .code-text {
-  outline-color: var(--pat-indicated);
 }
 
 .projector.probe.indicated .closure:hover .live-env {
@@ -221,33 +350,37 @@
   display: none;
 }
 
-.projector.probe .closures-header,
-.projector.probe .closures-tail {
+.projector.probe .nav-arrow {
   width: 10px;
   height: 13px;
-  cursor: pointer;
+
   color: var(--exp-indicated);
   background: url(../../img/noun-arrow-3130579.svg);
   background-size: cover;
   color: var(--NONE);
-  filter: invert(1) brightness(0.5) sepia(1) hue-rotate(61deg);
 }
-.projector.probe .closures-tail {
+.projector.probe .nav-arrow:not(.disabled) {
+  cursor: pointer;
+}
+.projector.probe .nav-arrow:last-child {
   transform: rotate(180deg);
 }
+.projector.probe.Exp .nav-arrow {
+  filter: invert(1) brightness(0.7) sepia(1) hue-rotate(61deg) saturate(0.6);
+}
+.projector.probe.Pat .nav-arrow {
+  filter: invert(1) brightness(0.7) sepia(1) hue-rotate(141deg) saturate(0.6);
+}
 
-.projector.probe:not(.indicated) .closures-header,
-.projector.probe:not(.indicated) .closures-tail {
+.projector.probe:not(.indicated) .nav-arrow {
   pointer-events: none;
   opacity: 0% !important;
 }
 
-.projector.probe .closures-header.disabled,
-.projector.probe .closures-tail.disabled {
+.projector.probe .nav-arrow.disabled {
   opacity: 15%;
 }
 
-.projector.probe .closures-header:hover,
-.projector.probe .closures-tail:hover {
+.projector.probe .nav-arrow:not(.disabled):hover {
   filter: brightness(1.05) saturate(1.05);
 }

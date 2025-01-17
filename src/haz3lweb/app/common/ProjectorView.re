@@ -73,7 +73,7 @@ let view_wrapper =
       ~indication: option(Direction.t),
       ~selected: bool,
       p: Base.projector,
-      view: Node.t,
+      views: list(Node.t),
     ) => {
   let sort =
     Option.map(Info.sort_of, info.statics) |> Option.value(~default=Sort.Exp);
@@ -87,7 +87,7 @@ let view_wrapper =
       Attr.on_mousedown(focus(info.id)),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
-    [view, backing_deco(~font_metrics, ~measurement)],
+    views,
   );
 };
 
@@ -99,61 +99,94 @@ let handle = (id, action: external_action): Action.project =>
   | SetSyntax(f) => SetSyntax(id, f)
   };
 
-/* Position in pixels for the position offset characters to the
- * right of the end of the row at measurement.origin. */
-let offside =
-    (
-      ~offset: int,
-      font_metrics: FontMetrics.t,
-      measurement: Measured.measurement,
-      measured: Measured.t,
-    )
-    : float =>
-  font_metrics.col_width
-  *. float_of_int(
-       Measured.start_row_width(measurement, measured)
-       + offset
-       - measurement.origin.col,
-     );
+let offside_wrapper =
+    (font_metrics: FontMetrics.t, offside_base: int, v: Node.t) =>
+  div(
+    ~attrs=[
+      Attr.create(
+        "style",
+        Printf.sprintf(
+          "position: absolute; left: %fpx;",
+          font_metrics.col_width *. float_of_int(offside_base),
+        ),
+      ),
+    ],
+    [v],
+  );
 
 /* Gather utility functions/values to be passed to the projector.
  * See ProjectorBase.utility definition for more information */
-let collate_utility =
-    (
-      globals: Globals.t,
-      measurement: Measured.measurement,
-      cached_syntax: Editor.CachedSyntax.t,
-    )
-    : ProjectorBase.utility => {
+let mk_utility = (font_metrics: FontMetrics.t): ProjectorBase.utility => {
   {
-    font_metrics: globals.font_metrics,
-    offside_offset:
-      offside(
-        ~offset=4,
-        globals.font_metrics,
-        measurement,
-        cached_syntax.measured,
-      ),
-    view: (sort, seg) =>
-      CodeViewable.view_segment(
-        ~globals,
-        ~sort,
-        ~shape_of_proj=Projector.Shape.of_map_default,
-        seg,
-      ),
+    font_metrics,
+    view_seg: Code.simple_view(font_metrics),
     exp_to_seg: exp =>
       exp
       |> DHExp.strip_casts
       |> ExpToSegment.exp_to_segment(
-           ~settings={
-             inline: false,
-             fold_case_clauses: false,
-             fold_fn_bodies: false,
-             hide_fixpoints: false,
-             fold_cast_types: false,
-           },
+           ~settings=
+             ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
          ),
+    seg_to_exp: seg => MakeTerm.go(seg).term,
   };
+};
+
+let indication = (z, id) =>
+  switch (Indicated.piece(z)) {
+  | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
+  | _ => None
+  };
+
+/* Find end of row offset position in grid units */
+let offside_base =
+    (~offset: int, measurement: Measured.measurement, measured: Measured.t)
+    : int =>
+  Measured.start_row_width(measurement, measured)
+  + offset
+  - measurement.origin.col;
+
+type projector_data = {
+  p: Piece.projector,
+  indication: option(Direction.t),
+  selected: bool,
+  info: ProjectorBase.info,
+  measurement: Measured.measurement,
+  offside_base: int,
+};
+
+let mk_info =
+    (
+      id: Id.t,
+      p: Piece.projector,
+      ~cached_statics: CachedStatics.t,
+      ~dynamics: Dynamics.Map.t,
+    )
+    : ProjectorBase.info => {
+  id,
+  syntax: p.syntax,
+  statics: Statics.Map.lookup(id, cached_statics.info_map),
+  dynamics: Dynamics.Map.lookup(id, dynamics),
+};
+
+let collect_data =
+    (cached_syntax: Editor.CachedSyntax.t, zipper, cached_statics, dynamics) => {
+  let projector_ids = cached_syntax.projectors |> Id.Map.bindings |> List.rev;
+  List.filter_map(
+    ((id, _)) => {
+      let* p = Id.Map.find_opt(id, cached_syntax.projectors);
+      let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
+      {
+        p,
+        indication: indication(zipper, id),
+        selected: List.mem(id, cached_syntax.selection_ids),
+        measurement,
+        info: mk_info(id, p, ~cached_statics, ~dynamics),
+        offside_base:
+          offside_base(~offset=4, measurement, cached_syntax.measured),
+      };
+    },
+    projector_ids,
+  );
 };
 
 /* Extracts projector-instance-specific metadata necessary to
@@ -162,35 +195,49 @@ let collate_utility =
  * correctly with respect to the underyling editor */
 let setup_view =
     (
-      id: Id.t,
-      ~cached_statics: CachedStatics.t,
-      ~cached_syntax: Editor.CachedSyntax.t,
-      ~dynamics,
-      ~inject: Action.t => Ui_effect.t(unit),
-      ~globals: Globals.t,
-      ~indication: option(Direction.t),
+      inject: Action.t => Ui_effect.t(unit),
+      utility: ProjectorBase.utility,
+      font_metrics: FontMetrics.t,
+      {p, info, offside_base, indication, measurement, selected}: projector_data,
     )
-    : option(Node.t) => {
-  let* p = Id.Map.find_opt(id, cached_syntax.projectors);
-  let* syntax = Some(p.syntax);
-  let statics = Statics.Map.lookup(id, cached_statics.info_map);
-  let dynamics = Dynamics.Map.lookup(id, dynamics);
-  let info = {id, statics, dynamics, syntax};
-  let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
-  let utility = collate_utility(globals, measurement, cached_syntax);
+    : (Node.t, Node.t, option(Node.t)) => {
   let (module P) = to_module(p.kind);
-  let parent = a => inject(Project(handle(id, a)));
-  let local = a => inject(Project(SetModel(id, P.update(p.model, a))));
-  view_wrapper(
-    ~inject,
-    ~font_metrics=globals.font_metrics,
-    ~measurement,
-    ~indication,
-    ~info,
-    ~selected=List.mem(id, cached_syntax.selection_ids),
-    p,
-    P.view(p.model, ~info, ~local, ~parent, ~utility),
-  );
+  let parent = a => inject(Project(handle(p.id, a)));
+  let local = a =>
+    inject(Project(SetModel(p.id, P.update(p.model, info, a))));
+  let wrapper =
+    view_wrapper(
+      ~inject,
+      ~font_metrics,
+      ~measurement,
+      ~indication,
+      ~info,
+      ~selected,
+      p,
+    );
+  let inline_view = P.view(p.model, info, ~local, ~parent, ~utility);
+  let offside_view =
+    Option.map(
+      v =>
+        offside_wrapper(
+          font_metrics,
+          offside_base,
+          v(p.model, info, ~local, ~parent, ~utility),
+        ),
+      P.offside_view,
+    );
+  let overlay_view =
+    Option.map(
+      v => wrapper([v(p.model, info, ~local, ~parent, ~utility)]),
+      P.overlay_view,
+    );
+  let underlay_view =
+    switch (P.underlay_view) {
+    | Some(v) => wrapper([v(p.model, info, ~utility)])
+    | None => wrapper([backing_deco(~font_metrics, ~measurement)])
+    };
+  let combined_view = wrapper([inline_view] @ Option.to_list(offside_view));
+  (underlay_view, combined_view, overlay_view);
 };
 
 /* Is the piece with id indicated? If so, where is it wrt the caret? */
@@ -204,30 +251,26 @@ let indication = (z, id) =>
  * be absolutely positioned atop a rendered editor UI */
 let all =
     (
-      z,
-      ~globals: Globals.t,
-      ~cached_statics: CachedStatics.t,
-      ~cached_syntax: Editor.CachedSyntax.t,
-      ~dynamics: Dynamics.Map.t,
-      ~inject,
+      inject: Action.t => Ui_effect.t(unit),
+      utility: ProjectorBase.utility,
+      font_metrics: FontMetrics.t,
+      projector_data: list(projector_data),
     ) => {
-  div_c(
-    "projectors",
-    Id.Map.bindings(cached_syntax.projectors)
-    |> List.filter_map(((id, _)) => {
-         let indication = indication(z, id);
-         setup_view(
-           id,
-           ~cached_statics,
-           ~cached_syntax,
-           ~dynamics,
-           ~inject,
-           ~globals,
-           ~indication,
-         );
-       })
-    |> List.rev,
-  );
+  let (underlay_views, base_views, overlay_views) =
+    projector_data
+    |> List.map(setup_view(inject, utility, font_metrics))
+    |> ListUtil.split3;
+  let overlay_views = overlay_views |> List.filter_map(Fun.id);
+  [
+    div_c(
+      "projectors",
+      [
+        div_c("base", base_views),
+        div_c("underlays", underlay_views),
+        div_c("overlays", overlay_views),
+      ],
+    ),
+  ];
 };
 
 /* When the caret is directly adjacent to a projector, keyboard commands
