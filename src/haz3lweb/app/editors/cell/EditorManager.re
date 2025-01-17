@@ -82,16 +82,17 @@ module Update = {
       | None => raise(Action.Failure.Exception(Cant_project))
       | Some((piece, _d, _rel)) =>
         let (module P) = Projector.to_module(kind);
+        let new_id = Id.mk();
         let* parent_editor =
           perform(
             ~settings,
-            Action.Project(SetIndicated(kind)),
+            Action.Project(SetIndicated(kind, new_id)),
             model,
             parent_component.editor,
           );
         let parent_component = {...parent_component, editor: parent_editor};
         let new_component: Model.component = {
-          id: Piece.id(piece),
+          id: new_id,
           parent: Some(parent),
           editor: [piece] |> Zipper.unzip |> Editor.Model.mk,
           kind: Some(kind),
@@ -101,6 +102,25 @@ module Update = {
         |> Model.add_component(new_component)
         |> Model.set_component(parent, parent_component);
       };
+    | SetSyntax(id, syntax) =>
+      let new_editor = Zipper.unzip([syntax]) |> Editor.Model.mk;
+      let _ = print_endline("SETTING SYNTAX");
+      let _ = print_endline("SETTING ID > " ++ Id.to_string(id));
+      let _ =
+        print_endline(
+          "AVAILABLE IDs > "
+          ++ (
+            model.components
+            |> List.map((c: Model.component) => Id.to_string(c.id))
+            |> String.concat(", ")
+          ),
+        );
+      model
+      |> Model.set_component(
+           id,
+           {...Model.get_component(id, model), editor: new_editor},
+         )
+      |> Updated.return;
     | _ => model |> Updated.return_quiet // TODO: Delete
     };
   };
@@ -198,6 +218,12 @@ module Focus = {
     | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
     | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
       Some(Update.Undo(selection.component))
+    // TODO: Fix toggle
+    // | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    //   Some(Project(ToggleIndicated(Fold, id)))
+    // | {key: D("ƒ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    //   /* Curly ƒ is what holding option turns f into on Mac */
+    // Some(Project(ToggleIndicated(Fold, id)));
     | k =>
       Keyboard.handle_key_event(k)
       |> Option.map(x => Update.Perform(selection.component, x))

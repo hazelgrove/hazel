@@ -91,20 +91,17 @@ let go =
     (jump_to_id_indicated, jump_to_side_of_id, a: Action.project, z: Zipper.t)
     : result(ZipperBase.t, Action.Failure.t) => {
   switch (a) {
-  | SetIndicated(p) =>
+  | SetIndicated(p, id) =>
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)
-    | Some((piece, d, rel)) =>
-      Ok(move_out_of_piece(d, rel, z) |> Update.add(p, Piece.id(piece)))
+    | Some((_, d, rel)) =>
+      Ok(move_out_of_piece(d, rel, z) |> Update.add(p, id))
     }
-  | ToggleIndicated(p) =>
+  | ToggleIndicated(p, id) =>
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)
-    | Some((piece, d, rel)) =>
-      Ok(
-        move_out_of_piece(d, rel, z)
-        |> Update.add_or_remove(p, Piece.id(piece)),
-      )
+    | Some((_, d, rel)) =>
+      Ok(move_out_of_piece(d, rel, z) |> Update.add_or_remove(p, id))
     }
   | Remove(id) => Ok(Update.remove(id, z))
   | SetSyntax(id, syntax) =>
