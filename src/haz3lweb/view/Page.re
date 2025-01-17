@@ -37,6 +37,15 @@ module Store = {
       explain_this,
       selection: Editors.Selection.default_selection(editors),
     };
+    /* Russ todo:
+       let assistant = Assist.Store.load();
+       {
+         editors,
+         globals,
+         explain_this,
+         selection: Editors.Selection.default_selection(editors),
+       };
+       */
   };
 
   let save = (m: Model.t): unit => {
@@ -46,6 +55,7 @@ module Store = {
     );
     Globals.Model.save(m.globals);
     ExplainThisModel.Store.save(m.explain_this);
+    /* Russ todo: Assistant.Store.save(); */
   };
 };
 
@@ -466,15 +476,32 @@ module View = {
         ~inject=a => inject(Editors(a)),
         cursor,
       );
-    let sidebar =
+    let explainThisSidebar =
       globals.settings.explainThis.show && globals.settings.core.statics
-        ? ExplainThis.view(
+        ? {
+          ExplainThis.view(
             ~globals,
-            ~inject=a => inject(ExplainThis(a)),
+            ~inject=action => inject(ExplainThis(action)),
             ~explainThisModel,
             cursor.info,
-          )
-        : div([]);
+          );
+        }
+        : {
+          div([]);
+        };
+    let assistantSidebar =
+      globals.settings.assistant.show && globals.settings.core.statics
+        ? {
+          Assistant.view(~globals, ~inject=_ => Ui_effect.Ignore);
+        }
+        : {
+          div([]);
+        };
+    let sidebars =
+      div(
+        ~attrs=[Attr.id("sidebars")],
+        [explainThisSidebar, assistantSidebar],
+      );
     let editors_view =
       Editors.View.view(
         ~globals,
@@ -494,7 +521,7 @@ module View = {
         ],
         editors_view,
       ),
-      sidebar,
+      sidebars,
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
     ];
