@@ -57,5 +57,6 @@ module M: Projector = {
   let update = (model, _, _) => model;
   let view = view;
   let offside_view = Option.None;
+  let overlay_view = Option.None;
   let focus = _ => ();
 };

@@ -27,5 +27,6 @@ module M: Projector = {
       [text(m.text)],
     );
   let offside_view = Option.None;
+  let overlay_view = Option.None;
   let focus = _ => ();
 };

@@ -37,5 +37,6 @@ module M: Projector = {
       get(info.syntax),
     );
   let offside_view = Option.None;
+  let overlay_view = Option.None;
   let focus = _ => ();
 };

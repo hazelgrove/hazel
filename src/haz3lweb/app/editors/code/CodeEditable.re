@@ -253,7 +253,10 @@ module View = {
         ~inject=x => inject(Perform(x)),
         ~dynamics,
       );
-    let overlays = edit_decos @ overlays @ [projectors];
+    let overlays =
+      [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
+      @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
+      @ projectors;
     let code_view =
       CodeWithStatics.View.view(
         ~globals,
