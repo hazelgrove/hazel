@@ -164,10 +164,11 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
 
 let abbreviate_exp = (~available as a=12, exp: Exp.t): (Exp.t, bool) => {
   available := a;
-  available^ <= 1
+  let exp = abbreviate_exp(exp);
+  let length_exp = a - available^;
+  a < 0 || a <= 1 && length_exp > 1
     ? (ellipses_term(), false)
     : {
-      let exp = abbreviate_exp(exp);
       (exp, available^ < 0);
     };
 };

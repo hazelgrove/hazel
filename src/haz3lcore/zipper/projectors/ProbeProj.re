@@ -417,6 +417,9 @@ let nav_bar_view = (model: model, di: list(closure), local) => {
   );
 };
 
+let equals_view =
+  div(~attrs=[Attr.classes(["live-equals"])], [text("=")]);
+
 let offside_view = (model: model, info: info, local, utility: utility) =>
   Node.div(
     ~attrs=[Attr.classes(["live-offside"])],
@@ -425,7 +428,8 @@ let offside_view = (model: model, info: info, local, utility: utility) =>
       let (num_shown, groups) = Closures.collate(info, model, di);
       let is_cut_off = num_shown != Closures.num(info) && num_shown > 0;
       let extras = [nav_bar_view(model, di, local), ellipsis_view(local)];
-      closure_group_view(info, utility, model, local, groups)
+      (num_shown > 0 ? [equals_view] : [])
+      @ closure_group_view(info, utility, model, local, groups)
       @ (is_cut_off ? extras : []);
     | _ => []
     },
