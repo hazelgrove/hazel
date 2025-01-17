@@ -288,6 +288,7 @@
   outline-offset: -0.1px;
   border-width: 1.5px;
   top: 0.5px;
+  filter: drop-shadow(1.5px 3px 0 #95876452);
 }
 .projector.probe.Exp .val-resize .code-text:hover {
   outline-color: var(--exp-indicated);
@@ -302,6 +303,7 @@
   border-color: var(--exp-ap-indicated);
 }
 .projector.probe .val-resize > .code:hover {
+  transform-origin: center left;
   scale: 1.125;
   z-index: var(--projector-indicated-z);
   position: relative;
