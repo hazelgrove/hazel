@@ -97,53 +97,33 @@ let handle = (id, action: external_action): Action.project =>
   | SetSyntax(f) => SetSyntax(id, f)
   };
 
-/* Position in pixels for the position offset characters to the
- * right of the end of the row at measurement.origin. */
-let offside =
-    (
-      ~offset: int,
-      font_metrics: FontMetrics.t,
-      measurement: Measured.measurement,
-      measured: Measured.t,
-    )
-    : float =>
-  font_metrics.col_width
-  *. float_of_int(
-       Measured.start_row_width(measurement, measured)
-       + offset
-       - measurement.origin.col,
-     );
-
-let offside_pos = offside_offset =>
-  Attr.create(
-    "style",
-    Printf.sprintf("position: absolute; left: %fpx;", offside_offset),
+let offside_wrapper =
+    (font_metrics: FontMetrics.t, offside_base: int, v: Node.t) =>
+  div(
+    ~attrs=[
+      Attr.create(
+        "style",
+        Printf.sprintf(
+          "position: absolute; left: %fpx;",
+          font_metrics.col_width *. float_of_int(offside_base),
+        ),
+      ),
+    ],
+    [v],
   );
 
 /* Gather utility functions/values to be passed to the projector.
  * See ProjectorBase.utility definition for more information */
-let mk_utility = (globals: Globals.t): ProjectorBase.utility => {
+let mk_utility = (font_metrics: FontMetrics.t): ProjectorBase.utility => {
   {
-    font_metrics: globals.font_metrics,
-    view_seg: (sort, seg) =>
-      CodeViewable.view_segment(
-        ~globals,
-        ~sort,
-        ~shape_of_proj=Projector.Shape.of_map_default,
-        seg,
-      ),
+    font_metrics,
+    view_seg: Code.simple_view(font_metrics),
     exp_to_seg: exp =>
       exp
       |> DHExp.strip_casts
       |> ExpToSegment.exp_to_segment(
-           ~settings={
-             inline: false,
-             fold_case_clauses: false,
-             fold_fn_bodies: false,
-             hide_fixpoints: false,
-             fold_cast_types: false,
-             show_filters: false,
-           },
+           ~settings=
+             ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
          ),
     seg_to_exp: seg => MakeTerm.go(seg).term,
   };
@@ -163,33 +143,74 @@ let mk_info =
   dynamics: Dynamics.Map.lookup(id, dynamics),
 };
 
+let indication = (z, id) =>
+  switch (Indicated.piece(z)) {
+  | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
+  | _ => None
+  };
+
+let offside_base =
+    (~offset: int, measurement: Measured.measurement, measured: Measured.t)
+    : int =>
+  Measured.start_row_width(measurement, measured)
+  + offset
+  - measurement.origin.col;
+
+type projector_data = {
+  p: Piece.projector,
+  indication: option(Direction.t),
+  selected: bool,
+  info: ProjectorBase.info,
+  measurement: Measured.measurement,
+  offside_base: int,
+};
+
+let get_data =
+    (
+      id,
+      cached_syntax: Editor.CachedSyntax.t,
+      cached_statics: CachedStatics.t,
+      dynamics: Dynamics.Map.t,
+      zipper: Zipper.t,
+    )
+    : option(projector_data) => {
+  let* p = Id.Map.find_opt(id, cached_syntax.projectors);
+  let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
+  {
+    p,
+    indication: indication(zipper, id),
+    selected: List.mem(id, cached_syntax.selection_ids),
+    measurement,
+    info: mk_info(id, p, ~cached_statics, ~dynamics),
+    offside_base:
+      offside_base(~offset=4, measurement, cached_syntax.measured),
+  };
+};
+
+let collect_data = (syntax: Editor.CachedSyntax.t, zipper, statics, dynamics) => {
+  let projector_ids = syntax.projectors |> Id.Map.bindings |> List.rev;
+  List.filter_map(
+    ((id, _)) => get_data(id, syntax, statics, dynamics, zipper),
+    projector_ids,
+  );
+};
+
 /* Extracts projector-instance-specific metadata necessary to
  * render the view, instantiates appropriate action handlers,
  * renders the view, and then wraps it so as to position it
  * correctly with respect to the underyling editor */
 let setup_view =
     (
-      id: Id.t,
-      ~cached_statics: CachedStatics.t,
-      ~cached_syntax: Editor.CachedSyntax.t,
-      ~dynamics,
-      ~inject: Action.t => Ui_effect.t(unit),
-      ~globals as {font_metrics, _} as globals: Globals.t,
-      ~indication: option(Direction.t),
+      inject: Action.t => Ui_effect.t(unit),
+      utility: ProjectorBase.utility,
+      font_metrics: FontMetrics.t,
+      {p, info, offside_base, indication, measurement, selected}: projector_data,
     )
-    : option((Node.t, Node.t, option(Node.t))) => {
-  let* p = Id.Map.find_opt(id, cached_syntax.projectors);
-  let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
+    : (Node.t, Node.t, option(Node.t)) => {
   let (module P) = to_module(p.kind);
-  let info = mk_info(id, p, ~cached_statics, ~dynamics);
-  let utility = mk_utility(globals);
-  let parent = a => inject(Project(handle(id, a)));
+  let parent = a => inject(Project(handle(p.id, a)));
   let local = a =>
-    inject(Project(SetModel(id, P.update(p.model, info, a))));
-  let offside_pos =
-    offside_pos(
-      offside(~offset=4, font_metrics, measurement, cached_syntax.measured),
-    );
+    inject(Project(SetModel(p.id, P.update(p.model, info, a))));
   let wrapper =
     view_wrapper(
       ~inject,
@@ -197,16 +218,17 @@ let setup_view =
       ~measurement,
       ~indication,
       ~info,
-      ~selected=List.mem(id, cached_syntax.selection_ids),
+      ~selected,
       p,
     );
   let inline_view = P.view(p.model, info, ~local, ~parent, ~utility);
   let offside_view =
     Option.map(
       v =>
-        div(
-          ~attrs=[offside_pos],
-          [v(p.model, info, ~local, ~parent, ~utility)],
+        offside_wrapper(
+          font_metrics,
+          offside_base,
+          v(p.model, info, ~local, ~parent, ~utility),
         ),
       P.offside_view,
     );
@@ -235,29 +257,17 @@ let indication = (z, id) =>
  * be absolutely positioned atop a rendered editor UI */
 let all =
     (
-      z,
-      ~globals: Globals.t,
-      ~cached_statics: CachedStatics.t,
-      ~cached_syntax: Editor.CachedSyntax.t,
-      ~dynamics: Dynamics.Map.t,
-      ~inject,
+      inject: Action.t => Ui_effect.t(unit),
+      utility: ProjectorBase.utility,
+      font_metrics: FontMetrics.t,
+      pairs: list(projector_data),
     ) => {
-  let mk_views = ((id: Id.t, _)) => {
-    let indication = indication(z, id);
-    setup_view(
-      id,
-      ~cached_statics,
-      ~cached_syntax,
-      ~dynamics,
-      ~inject,
-      ~globals,
-      ~indication,
-    );
+  let mk_views = (bleh: projector_data) => {
+    setup_view(inject, utility, font_metrics, bleh);
   };
-  let projector_ids = cached_syntax.projectors |> Id.Map.bindings |> List.rev;
 
   let (underlay_views, base_views, overlay_views) =
-    projector_ids |> List.filter_map(mk_views) |> ListUtil.split3;
+    pairs |> List.map(mk_views) |> ListUtil.split3;
   let overlay_views = overlay_views |> List.filter_map(Fun.id);
   [
     div_c(

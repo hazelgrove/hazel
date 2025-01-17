@@ -244,14 +244,19 @@ module View = {
         });
       Deco.editor(model.editor.state.zipper, selected);
     };
+    let projectors_data =
+      ProjectorView.collect_data(
+        model.editor.syntax,
+        model.editor.state.zipper,
+        model.statics,
+        dynamics,
+      );
     let projectors =
       ProjectorView.all(
-        model.editor.state.zipper,
-        ~globals,
-        ~cached_statics=model.statics,
-        ~cached_syntax=model.editor.syntax,
-        ~inject=x => inject(Perform(x)),
-        ~dynamics,
+        x => inject(Perform(x)),
+        ProjectorView.mk_utility(globals.font_metrics),
+        globals.font_metrics,
+        projectors_data,
       );
     let overlays =
       [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
