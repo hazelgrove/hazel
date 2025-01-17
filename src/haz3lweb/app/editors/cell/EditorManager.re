@@ -101,40 +101,40 @@ module Update = {
         |> Model.add_component(new_component)
         |> Model.set_component(parent, parent_component);
       };
-    | _ => model |> Updated.return_quiet
+    | _ => model |> Updated.return_quiet // TODO: Delete
     };
   };
 
   let assemble = Model.assemble;
 
   let calculate_syntax_cache =
-      (~settings, ~is_edited, statics: CachedStatics.t, model: Model.t)
-      : Model.t => {
-    {
-      ...model,
-      components:
-        List.map(
-          (c: Model.component): Model.component =>
-            {
-              ...c,
-              editor:
-                Editor.Update.calculate(
-                  ~settings,
-                  ~is_edited,
-                  statics,
-                  c.editor,
-                ),
-            },
-          model.components,
-        ),
-    };
+      (~settings, ~is_edited, statics: CachedStatics.t, model: Model.t) => {
+    ...model,
+    components:
+      List.map(
+        (c: Model.component): Model.component =>
+          {
+            ...c,
+            editor:
+              Editor.Update.calculate(
+                ~settings,
+                ~is_edited,
+                statics,
+                c.editor,
+              ),
+          },
+        model.components,
+      ),
   };
 
   let calculate = (~settings, ~is_edited, ~stitch, model: Model.t) => {
     let segment = assemble(model);
     let statics =
       CachedStatics.init_from_segment(~settings, ~stitch, segment);
-    calculate_syntax_cache(~settings, ~is_edited, statics, model);
+    let components =
+      calculate_syntax_cache(~settings, ~is_edited, statics, model).
+        components;
+    Model.{statics, components, root_id: model.root_id};
   };
 };
 
@@ -161,7 +161,7 @@ module Focus = {
             ),
         ),
       editor: Some(Model.get_component(selection.component, model).editor),
-      editor_read_only: true,
+      editor_read_only: false,
       editor_action: x => Some(Update.Perform(selection.component, x)),
       remove_projector:
         Option.map(
