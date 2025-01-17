@@ -103,7 +103,7 @@ module M: Projector = {
         "syntax_error";
       };
     let ll = Livelit.find_livelit(llname);
-    Inline(ll.size);
+    ll.size;
   };
   let update = (model, _) => model;
 
