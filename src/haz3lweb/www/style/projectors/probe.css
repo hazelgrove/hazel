@@ -69,7 +69,7 @@
 .projector.probe .main.ap .icon {
   background-image: url(../../img/noun-telescope-7245201.svg);
 }
-.projector.probe.indicated .main .icon,
+.projector.probe.indicated:not(.selected) .main .icon,
 .projector.probe .main.ap.pinned .icon {
   filter: invert(1);
 }
@@ -90,21 +90,39 @@
   font-size: 0.7em;
   padding: 0.3em;
   min-width: 1em;
+  --original-bg: inherit;
+  background-color: var(--original-bg);
 }
 .overlays .projector.probe.Exp .num-closures {
-  background-color: var(--exp-indicated);
+  --original-bg: var(--exp-indicated);
 }
 .overlays .projector.probe.Pat .num-closures {
-  background-color: var(--pat-indicated);
+  --original-bg: var(--pat-indicated);
 }
 .overlays .projector.probe.selected .num-closures {
-  background-color: var(--num-closures);
-}
-.overlays .projector.probe.indicated.Right .num-closures {
-  background-color: var(--num-closures-indicated) !important;
+  --original-bg: var(--num-closures);
 }
 .overlays .projector.probe:has(.ap.pinned) .num-closures {
-  background-color: var(--exp-ap-indicated);
+  --original-bg: var(--exp-ap-indicated);
+}
+@keyframes blink-probe-caret {
+  from,
+  to {
+    background-color: var(--R1);
+  }
+
+  50% {
+    background-color: var(--original-bg);
+  }
+}
+.overlays .projector.probe.indicated.Right .num-closures {
+  animation: 1s blink-probe-caret step-end infinite;
+
+  /* background-color: var(--num-closures-indicated) !important; */
+}
+
+.overlays .projector.probe.selected:not(.indicated) .num-closures {
+  color: var(--STONE);
 }
 
 .overlays .projector.probe .pin {
@@ -114,7 +132,6 @@
   height: 0.8em;
   width: 0.8em;
   border-radius: 2em;
-  z-index: var(--code-emblems-z);
   filter: invert(1);
   background: url(../../img/noun-pinned-1560993.svg) oklch(0.65 0.18 137.67);
   background-size: 70%;
@@ -277,7 +294,7 @@
 }
 .projector.probe .val-resize > .code:hover {
   scale: 1.125;
-  z-index: 5000;
+  z-index: var(--projector-indicated-z);
   position: relative;
 }
 
@@ -298,6 +315,9 @@
   color: var(--GB0);
 }
 
+.projector.probe.selected > svg {
+  display: none;
+}
 .projector.probe.indicated > svg {
   fill: var(--exp-indicated);
 }
@@ -311,7 +331,7 @@
 .projector.probe .main.ap.pinned {
   color: white;
 }
-.projector.probe.indicated .main {
+.projector.probe.indicated:not(.selected) .main {
   color: white;
 }
 

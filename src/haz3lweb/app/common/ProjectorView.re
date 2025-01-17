@@ -174,10 +174,10 @@ let setup_view =
       ~cached_syntax: Editor.CachedSyntax.t,
       ~dynamics,
       ~inject: Action.t => Ui_effect.t(unit),
-      ~globals: Globals.t,
+      ~globals as {font_metrics, _} as globals: Globals.t,
       ~indication: option(Direction.t),
     )
-    : option((Node.t, option(Node.t))) => {
+    : option((Node.t, Node.t, option(Node.t))) => {
   let* p = Id.Map.find_opt(id, cached_syntax.projectors);
   let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
   let (module P) = to_module(p.kind);
@@ -188,14 +188,19 @@ let setup_view =
     inject(Project(SetModel(id, P.update(p.model, info, a))));
   let offside_pos =
     offside_pos(
-      offside(
-        ~offset=4,
-        globals.font_metrics,
-        measurement,
-        cached_syntax.measured,
-      ),
+      offside(~offset=4, font_metrics, measurement, cached_syntax.measured),
     );
-  let base_view = P.view(p.model, info, ~local, ~parent, ~utility);
+  let wrapper =
+    view_wrapper(
+      ~inject,
+      ~font_metrics,
+      ~measurement,
+      ~indication,
+      ~info,
+      ~selected=List.mem(id, cached_syntax.selection_ids),
+      p,
+    );
+  let inline_view = P.view(p.model, info, ~local, ~parent, ~utility);
   let offside_view =
     Option.map(
       v =>
@@ -207,34 +212,16 @@ let setup_view =
     );
   let overlay_view =
     Option.map(
-      v =>
-        view_wrapper(
-          ~inject,
-          ~font_metrics=globals.font_metrics,
-          ~measurement,
-          ~indication,
-          ~info,
-          ~selected=List.mem(id, cached_syntax.selection_ids),
-          p,
-          [v(p.model, info, ~local, ~parent, ~utility)],
-        ),
+      v => wrapper([v(p.model, info, ~local, ~parent, ~utility)]),
       P.overlay_view,
     );
   let underlay_view =
-    backing_deco(~font_metrics=globals.font_metrics, ~measurement);
-  let views = [base_view, underlay_view] @ Option.to_list(offside_view);
-  let combined_view =
-    view_wrapper(
-      ~inject,
-      ~font_metrics=globals.font_metrics,
-      ~measurement,
-      ~indication,
-      ~info,
-      ~selected=List.mem(id, cached_syntax.selection_ids),
-      p,
-      views,
-    );
-  (combined_view, overlay_view);
+    switch (P.underlay_view) {
+    | Some(v) => wrapper([v(p.model, info, ~utility)])
+    | None => wrapper([backing_deco(~font_metrics, ~measurement)])
+    };
+  let combined_view = wrapper([inline_view] @ Option.to_list(offside_view));
+  (underlay_view, combined_view, overlay_view);
 };
 
 /* Is the piece with id indicated? If so, where is it wrt the caret? */
@@ -255,7 +242,7 @@ let all =
       ~dynamics: Dynamics.Map.t,
       ~inject,
     ) => {
-  let mk_base_view = ((id: Id.t, _)) => {
+  let mk_views = ((id: Id.t, _)) => {
     let indication = indication(z, id);
     setup_view(
       id,
@@ -268,13 +255,18 @@ let all =
     );
   };
   let projector_ids = cached_syntax.projectors |> Id.Map.bindings |> List.rev;
-  let (base_views, overlay_views) =
-    projector_ids |> List.filter_map(mk_base_view) |> List.split;
+
+  let (underlay_views, base_views, overlay_views) =
+    projector_ids |> List.filter_map(mk_views) |> ListUtil.split3;
   let overlay_views = overlay_views |> List.filter_map(Fun.id);
   [
     div_c(
       "projectors",
-      [div_c("base", base_views), div_c("overlays", overlay_views)],
+      [
+        div_c("base", base_views),
+        div_c("underlays", underlay_views),
+        div_c("overlays", overlay_views),
+      ],
     ),
   ];
 };
