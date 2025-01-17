@@ -129,26 +129,13 @@ let mk_utility = (font_metrics: FontMetrics.t): ProjectorBase.utility => {
   };
 };
 
-let mk_info =
-    (
-      id: Id.t,
-      p: Piece.projector,
-      ~cached_statics: CachedStatics.t,
-      ~dynamics: Dynamics.Map.t,
-    )
-    : ProjectorBase.info => {
-  id,
-  syntax: p.syntax,
-  statics: Statics.Map.lookup(id, cached_statics.info_map),
-  dynamics: Dynamics.Map.lookup(id, dynamics),
-};
-
 let indication = (z, id) =>
   switch (Indicated.piece(z)) {
   | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
   | _ => None
   };
 
+/* Find end of row offset position in grid units */
 let offside_base =
     (~offset: int, measurement: Measured.measurement, measured: Measured.t)
     : int =>
@@ -165,32 +152,37 @@ type projector_data = {
   offside_base: int,
 };
 
-let get_data =
+let mk_info =
     (
-      id,
-      cached_syntax: Editor.CachedSyntax.t,
-      cached_statics: CachedStatics.t,
-      dynamics: Dynamics.Map.t,
-      zipper: Zipper.t,
+      id: Id.t,
+      p: Piece.projector,
+      ~cached_statics: CachedStatics.t,
+      ~dynamics: Dynamics.Map.t,
     )
-    : option(projector_data) => {
-  let* p = Id.Map.find_opt(id, cached_syntax.projectors);
-  let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
-  {
-    p,
-    indication: indication(zipper, id),
-    selected: List.mem(id, cached_syntax.selection_ids),
-    measurement,
-    info: mk_info(id, p, ~cached_statics, ~dynamics),
-    offside_base:
-      offside_base(~offset=4, measurement, cached_syntax.measured),
-  };
+    : ProjectorBase.info => {
+  id,
+  syntax: p.syntax,
+  statics: Statics.Map.lookup(id, cached_statics.info_map),
+  dynamics: Dynamics.Map.lookup(id, dynamics),
 };
 
-let collect_data = (syntax: Editor.CachedSyntax.t, zipper, statics, dynamics) => {
-  let projector_ids = syntax.projectors |> Id.Map.bindings |> List.rev;
+let collect_data =
+    (cached_syntax: Editor.CachedSyntax.t, zipper, cached_statics, dynamics) => {
+  let projector_ids = cached_syntax.projectors |> Id.Map.bindings |> List.rev;
   List.filter_map(
-    ((id, _)) => get_data(id, syntax, statics, dynamics, zipper),
+    ((id, _)) => {
+      let* p = Id.Map.find_opt(id, cached_syntax.projectors);
+      let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
+      {
+        p,
+        indication: indication(zipper, id),
+        selected: List.mem(id, cached_syntax.selection_ids),
+        measurement,
+        info: mk_info(id, p, ~cached_statics, ~dynamics),
+        offside_base:
+          offside_base(~offset=4, measurement, cached_syntax.measured),
+      };
+    },
     projector_ids,
   );
 };
@@ -260,14 +252,12 @@ let all =
       inject: Action.t => Ui_effect.t(unit),
       utility: ProjectorBase.utility,
       font_metrics: FontMetrics.t,
-      pairs: list(projector_data),
+      projector_data: list(projector_data),
     ) => {
-  let mk_views = (bleh: projector_data) => {
-    setup_view(inject, utility, font_metrics, bleh);
-  };
-
   let (underlay_views, base_views, overlay_views) =
-    pairs |> List.map(mk_views) |> ListUtil.split3;
+    projector_data
+    |> List.map(setup_view(inject, utility, font_metrics))
+    |> ListUtil.split3;
   let overlay_views = overlay_views |> List.filter_map(Fun.id);
   [
     div_c(
