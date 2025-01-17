@@ -9,6 +9,7 @@
 @import "style/type-display.css";
 @import "style/projectors-panel.css";
 @import "style/explainthis.css";
+@import "style/assistant.css";
 @import "style/exercise-mode.css";
 @import "style/cell.css";
 @import "style/dynamics.css";
@@ -104,6 +105,12 @@ select:hover {
   width: max-content;
   background-color: var(--ui-bkg);
   scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+}
+
+#sidebars {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
 }
 
 #top-bar {

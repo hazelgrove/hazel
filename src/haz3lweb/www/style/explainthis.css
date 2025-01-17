@@ -1,9 +1,12 @@
 #explain-this {
   display: flex;
+  flex: 1;
   width: 20em;
-  padding: 0.4em;
+  padding: 1em;
   flex-direction: column;
+  overflow-y: auto;
   gap: 1em;
+  margin-right: 1em;
 }
 
 #explain-this #examples {

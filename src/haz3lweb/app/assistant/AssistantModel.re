@@ -1,7 +1,8 @@
 module Sexp = Sexplib.Sexp;
 open Haz3lcore;
-open ExplainThisForm;
 open Util;
+
+type t = {none: bool};
 
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
