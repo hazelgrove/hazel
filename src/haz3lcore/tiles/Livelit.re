@@ -204,6 +204,20 @@ let not_found: t = {
   size: 20,
 };
 
+let syntax_error: t = {
+  name: "syntax_error",
+  expansion_t: Typ.temp(Unknown(Internal)),
+  expansion_f: (_model: UExp.t) =>
+    DHExp.fresh(String("Syntax error -- are statics enabled?")),
+  model_t: Typ.temp(Unknown(Internal)),
+  projector: (_model: list(model_piece), _) =>
+    Node.div(
+      ~attrs=[Attr.class_("livelit")],
+      [Node.text("Syntax error -- are statics enabled?")],
+    ),
+  size: 20,
+};
+
 /* Game livelit definition */
 let game: t = {
   name: "game",
@@ -1273,7 +1287,6 @@ popupComm.setHandlePopupMessage(function(data) {
   size: 20,
 };
 let livelits: list(t) = [
-  not_found,
   slider,
   js,
   timestamp,
@@ -1282,16 +1295,18 @@ let livelits: list(t) = [
   game,
   websocket,
   multiplayer_game,
+  syntax_error,
 ];
 
-let find_livelit = (livelit_name: string): t => {
+let find_livelit = (livelit_name: string): t =>
   switch (List.find_opt(l => l.name == livelit_name, livelits)) {
   | Some(l) => l
   | None =>
-    print_endline("Livelit " ++ livelit_name ++ " not found");
+    print_endline("Livelit " ++ livelit_name ++ " not found; options:");
+    // print options
+    List.iter(l => print_endline(l.name), livelits);
     not_found;
   };
-};
 
 /*
   let slider = (^slider(50)) in
