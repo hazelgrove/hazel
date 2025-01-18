@@ -151,7 +151,7 @@ and closure_environment_t = {
   id: Id.t,
   env: environment_t,
   stack: Probe.stack,
-  dyn_stack: Probe.stack,
+  call_stack: Probe.call_stack,
 }
 and stepper_filter_kind_t =
   | Filter(filter)
@@ -930,7 +930,7 @@ and ClosureEnvironment: {
   let id_of: t => Id.t;
   let map_of: t => Environment.t;
   let stack_of: t => list(Probe.frame);
-  let dyn_stack_of: t => list(Probe.frame);
+  let call_stack_of: t => list(Probe.call_frame);
 
   let id_equal: (closure_environment_t, closure_environment_t) => bool;
 
@@ -946,22 +946,27 @@ and ClosureEnvironment: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = closure_environment_t;
 
-    let wrap: (Id.t, Environment.t, Probe.stack, Probe.stack) => t;
+    let wrap: (Id.t, Environment.t, Probe.stack, Probe.call_stack) => t;
 
     let id_of: t => Id.t;
     let map_of: t => Environment.t;
     let stack_of: t => list(Probe.frame);
-    let dyn_stack_of: t => list(Probe.frame);
+    let call_stack_of: t => list(Probe.call_frame);
   } = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = closure_environment_t;
 
-    let wrap = (id, env, stack, dyn_stack): t => {id, env, stack, dyn_stack};
+    let wrap = (id, env, stack, call_stack): t => {
+      id,
+      env,
+      stack,
+      call_stack,
+    };
 
     let id_of = t => t.id;
     let map_of = t => t.env;
     let stack_of = t => t.stack;
-    let dyn_stack_of = t => t.dyn_stack;
+    let call_stack_of = t => t.call_stack;
 
     let (sexp_of_t, t_of_sexp) =
       StructureShareSexp.structure_share_here(id_of, sexp_of_t, t_of_sexp);
@@ -985,16 +990,15 @@ and ClosureEnvironment: {
 
   let without_keys = keys => update_env(Environment.without_keys(keys));
 
-  let update_stack = (dyn_env, ap_id: option(Id.t), env) => {
-    let (stack, dyn_stack) =
+  let update_stack = (ap_id: option(Id.t), env) => {
+    let (stack, call_stack) =
       switch (ap_id) {
-      | None => (stack_of(env), dyn_stack_of(env))
+      | None => (stack_of(env), call_stack_of(env))
       | Some(ap_id) =>
         let frame = Probe.mk_frame(~env_id=id_of(env), ~ap_id);
-        let dyn_frame = Probe.mk_frame(~env_id=id_of(dyn_env), ~ap_id);
-        ([frame, ...stack_of(env)], [dyn_frame, ...dyn_stack_of(env)]);
+        ([frame, ...stack_of(env)], [ap_id, ...call_stack_of(env)]);
       };
-    {...env, stack, dyn_stack};
+    {...env, stack, call_stack};
   };
 
   /* Extend the environment with new bindings. ~frame is an optional argument which
@@ -1014,10 +1018,10 @@ and ClosureEnvironment: {
       id: Id.mk(),
       env: Environment.union(new_bindings, map_of(to_extend)),
       stack: stack_of(to_extend),
-      dyn_stack:
-        dyn_stack_of(dyn_env.env == Environment.empty ? to_extend : dyn_env) //TODO(andrew): cleanup
+      call_stack:
+        call_stack_of(dyn_env.env == Environment.empty ? to_extend : dyn_env) //TODO(andrew): cleanup
     }
-    |> update_stack(dyn_env, frame);
+    |> update_stack(frame);
 }
 and StepperFilterKind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
