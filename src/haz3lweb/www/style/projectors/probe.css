@@ -218,71 +218,88 @@
   cursor: pointer;
 }
 
+.projector.probe .closure .code {
+  line-height: initial;
+}
+
 /* .projector.probe .closure:first-child .value:hover .code-text {
   cursor: col-resize;
 } */
 
 /* TOKEN BKG */
-.projector.probe .value .code-text {
+.projector.probe .closure {
   border-radius: 0.05em 0.05em 0.05em 0.2em;
   transition: filter 0.14s ease-in-out;
+  transition: scale 0.07s ease-in-out;
 }
-.projector.probe.Exp .value .code-text {
+.projector.probe.Exp .closure {
   background-color: var(--exp-base);
   border-bottom: 1px solid var(--exp-shadow);
 }
-.projector.probe.Pat .value .code-text {
+.projector.probe.Pat .closure {
   background-color: var(--pat-base);
   border-bottom: 1px solid var(--pat-shadow);
 }
-.projector.probe .value.cursor-callee.direct .code-text {
+.projector.probe .closure:has(.value.cursor-callee.direct) {
   outline: 1px solid var(--exp-ap-indicated);
   border-color: var(--exp-ap-indicated);
 }
-.projector.probe .value.cursor-caller .code-text {
+.projector.probe .closure:has(.value.cursor-caller) {
   outline: 1px solid var(--exp-ap-indicated);
   border-color: var(--exp-ap-indicated);
   background-color: var(--exp-ap-indicated);
   box-shadow: inset 4px 4px 0 #551da0;
 }
-.projector.probe .value.cursor-unrelated .code-text,
-.projector.probe .value.cursor-callee.indirect .code-text {
-  opacity: 40%;
+.projector.probe .closure:has(.value.cursor-unrelated),
+.projector.probe .closure:has(.value.cursor-callee.indirect) {
+  filter: contrast(0.32) brightness(1.51) saturate(0.7);
+  /* opacity: 40%; */
 }
 
 /* TOKEN BKG INDICATED + HOVER */
-.projector.probe.indicated .value.cursor-unrelated .code-text {
-  opacity: 60%;
+.projector.probe.indicated .closure:has(.value.cursor-unrelated) {
+  filter: contrast(0.5) brightness(1.32) saturate(0.7);
+  /* opacity: 60%; */
 }
-.projector.probe.indicated .value.cursor .code-text {
+.projector.probe.indicated .closure:has(.value.cursor) {
   background: white;
   outline-width: 2.1px;
   outline-style: solid;
   border-bottom-width: 1.5px;
 }
-.projector.probe.indicated.Exp .value.cursor .code-text,
-.projector.probe.Exp .value .code-text:hover {
+.projector.probe.indicated.Exp .closure:has(.value.cursor),
+.projector.probe.Exp .closure:hover {
   outline-color: var(--exp-indicated);
   border-color: var(--exp-indicated);
 }
-.projector.probe.indicated.Pat .value.cursor .code-text,
-.projector.probe.Pat .value .code-text:hover {
+.projector.probe.indicated.Pat .closure:has(.value.cursor),
+.projector.probe.Pat .closure:hover {
   outline-color: var(--pat-indicated);
   border-color: var(--pat-indicated);
 }
-.projector.probe.indicated .value.cursor.ap .code-text,
-.projector.probe.Exp .value.ap .code-text:hover {
+.projector.probe.indicated .closure:has(.value.cursor.ap),
+.projector.probe.Exp .closure:has(.value.ap):hover {
   outline-color: var(--exp-ap-indicated);
   border-color: var(--exp-ap-indicated);
 }
-.projector.probe .value .code-text:hover {
-  opacity: 100% !important;
+.projector.probe .closure:hover {
+  transform-origin: bottom left;
+  scale: 1.18;
+  z-index: var(--projector-indicated-z);
+  position: relative;
+  /* opacity: 100% !important; */
   outline-width: 1px;
   outline-style: solid;
   outline-offset: -0.1px;
   border-width: 1.5px;
   top: 0.5px;
-  filter: drop-shadow(1.5px 3px 0 #95876452);
+  position: relative;
+  filter: drop-shadow(1.5px 3px 0 #95876452) !important;
+}
+.closure:hover + .closure .value > .closure,
+.closure:has(+ .closure:hover) .value > .closure {
+  transform-origin: center left;
+  scale: 1.12;
 }
 
 /* TOKENS */
@@ -293,20 +310,6 @@
 }
 .projector.probe .value.cursor-callee .code-text .token {
   color: var(--exp-ap-indicated);
-}
-.projector.probe .value > .code:hover {
-  transform-origin: bottom left;
-  scale: 1.18;
-  z-index: var(--projector-indicated-z);
-  position: relative;
-}
-.projector.probe .value > .code {
-  transition: scale 0.07s ease-in-out;
-}
-.closure:has(.value > .code:hover) + .closure .value > .code,
-.closure:has(+ .closure .value > .code:hover) .value > .code {
-  transform-origin: center left;
-  scale: 1.12;
 }
 
 /* LIVE ENV */

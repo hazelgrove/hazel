@@ -103,11 +103,22 @@ module DynCursor = {
     is_below_indicated_call: option(int),
   };
 
+  //use ListUtil.is_suffix_of
+  let is_strictly_above = (xs: list(Id.t), ys: list(Id.t)): bool =>
+    ListUtil.is_suffix_of(xs, ys) && xs != ys;
+
   let relation = (info: info, closure: closure): relation => {
     let this = closure.call_stack;
     let cursor = s.call_cursor;
+    //ListUtil.suffix_at_depth(cursor, this, 0) != None
+    let cond =
+      if (List.mem(ListUtil.hd_opt(this), cursor |> List.map(Option.some))) {
+        cursor == this;
+      } else {
+        is_strictly_above(this, cursor);
+      };
     {
-      is_call_cursor: cursor == this,
+      is_call_cursor: cursor == this || cond,
       is_call_directly_above_call_cursor:
         cur_call(info, closure) == Some(cursor),
       is_below_indicated_call: depth_in_indicated_calls_stack(this),
@@ -180,10 +191,20 @@ module Closures = {
     };
   };
 
+  // let sort_by_call_stack_size =
+  //     (closures: list((int, closure))): list((int, closure)) => {
+  //   List.stable_sort(
+  //     ((_, c1: closure), (_, c2: closure)) =>
+  //       compare(List.length(c1.call_stack), List.length(c2.call_stack)),
+  //     closures,
+  //   );
+  // };
+
   let group =
       (closures: list((int, closure))): list(list((int, closure))) => {
     let grouped =
       closures |> group_by_predicate(is_same_call) |> List.map(List.rev);
+    // |> List.map(sort_by_call_stack_size);
     /* Flatten if all groups are singletons */
     List.for_all(group => List.length(group) == 1, grouped)
       ? [List.concat(grouped)] : grouped;
