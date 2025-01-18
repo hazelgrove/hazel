@@ -214,78 +214,68 @@
   color: var(--pat-indicated);
 }
 
-.projector.probe .val-resize {
+.projector.probe .value {
   cursor: pointer;
 }
 
-/* .projector.probe .closure:first-child .val-resize:hover .code-text {
+/* .projector.probe .closure:first-child .value:hover .code-text {
   cursor: col-resize;
 } */
 
 /* TOKEN BKG */
-.projector.probe .val-resize .code-text {
+.projector.probe .value .code-text {
   border-radius: 0.05em 0.05em 0.05em 0.2em;
   transition: filter 0.14s ease-in-out;
 }
-.projector.probe.Exp .val-resize .code-text {
+.projector.probe.Exp .value .code-text {
   background-color: var(--exp-base);
   border-bottom: 1px solid var(--exp-shadow);
 }
-.projector.probe.Pat .val-resize .code-text {
+.projector.probe.Pat .value .code-text {
   background-color: var(--pat-base);
   border-bottom: 1px solid var(--pat-shadow);
 }
-.projector.probe .val-resize.cursor .code-text {
-  opacity: 100%;
-}
-.projector.probe .val-resize.cursor-call-desc:not(.indirect) .code-text {
-  opacity: 100%;
+.projector.probe .value.cursor-callee.direct .code-text {
   outline: 1px solid var(--exp-ap-indicated);
   border-color: var(--exp-ap-indicated);
 }
-.projector.probe .val-resize.cursor-call-desc .code-text {
-  opacity: 100%;
-  border-color: var(--exp-ap-indicated);
-}
-.projector.probe .val-resize.cursor-caller .code-text {
-  opacity: 100% !important;
+.projector.probe .value.cursor-caller .code-text {
   outline: 1px solid var(--exp-ap-indicated);
   border-color: var(--exp-ap-indicated);
   background-color: var(--exp-ap-indicated);
   box-shadow: inset 4px 4px 0 #551da0;
 }
-.projector.probe .val-resize .code-text,
-.projector.probe .val-resize.cursor-call-desc.indirect .code-text {
+.projector.probe .value.cursor-unrelated .code-text,
+.projector.probe .value.cursor-callee.indirect .code-text {
   opacity: 40%;
 }
 
-/* TOKEN BKG INDICATED */
-.projector.probe.indicated .val-resize .code-text {
+/* TOKEN BKG INDICATED + HOVER */
+.projector.probe.indicated .value.cursor-unrelated .code-text {
   opacity: 60%;
 }
-.projector.probe.indicated .val-resize.cursor .code-text {
-  opacity: 100%;
+.projector.probe.indicated .value.cursor .code-text {
   background: white;
   outline-width: 2.1px;
   outline-style: solid;
   border-bottom-width: 1.5px;
 }
-.projector.probe.indicated.Exp .val-resize.cursor .code-text,
-.projector.probe.Exp .val-resize .code-text:hover {
+.projector.probe.indicated.Exp .value.cursor .code-text,
+.projector.probe.Exp .value .code-text:hover {
   outline-color: var(--exp-indicated);
   border-color: var(--exp-indicated);
 }
-.projector.probe.indicated.Pat .val-resize.cursor .code-text,
-.projector.probe.Pat .val-resize .code-text:hover {
+.projector.probe.indicated.Pat .value.cursor .code-text,
+.projector.probe.Pat .value .code-text:hover {
   outline-color: var(--pat-indicated);
   border-color: var(--pat-indicated);
 }
-.projector.probe.indicated .val-resize.cursor.ap .code-text,
-.projector.probe.Exp .val-resize.ap .code-text:hover {
+.projector.probe.indicated .value.cursor.ap .code-text,
+.projector.probe.Exp .value.ap .code-text:hover {
   outline-color: var(--exp-ap-indicated);
   border-color: var(--exp-ap-indicated);
 }
-.projector.probe .val-resize .code-text:hover {
+.projector.probe .value .code-text:hover {
   opacity: 100% !important;
   outline-width: 1px;
   outline-style: solid;
@@ -296,27 +286,30 @@
 }
 
 /* TOKENS */
-.projector.probe .val-resize.cursor-unrelated .code-text .token,
-.projector.probe .val-resize.cursor-caller .code-text .token {
+
+.projector.probe .value.cursor-unrelated .code-text .token,
+.projector.probe .value.cursor-caller .code-text .token {
   filter: invert(1) brightness(10);
 }
-.projector.probe .val-resize.cursor-call-desc .code-text .token {
+.projector.probe .value.cursor-callee .code-text .token {
   color: var(--exp-ap-indicated);
 }
-.projector.probe .val-resize > .code:hover {
+.projector.probe .value > .code:hover {
   transform-origin: bottom left;
   scale: 1.18;
   z-index: var(--projector-indicated-z);
   position: relative;
 }
-.projector.probe .val-resize > .code {
+.projector.probe .value > .code {
   transition: scale 0.07s ease-in-out;
 }
-.closure:has(.val-resize > .code:hover) + .closure .val-resize > .code,
-.closure:has(+ .closure .val-resize > .code:hover) .val-resize > .code {
+.closure:has(.value > .code:hover) + .closure .value > .code,
+.closure:has(+ .closure .value > .code:hover) .value > .code {
   transform-origin: center left;
   scale: 1.12;
 }
+
+/* LIVE ENV */
 
 .projector.probe .live-env {
   background-color: var(--live-env-bkg);

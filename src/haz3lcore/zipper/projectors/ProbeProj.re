@@ -65,7 +65,7 @@ let cur_call = (info: info, closure: closure) => {
   Some([lex, ...dyn]);
 };
 
-module State = {
+module DynCursor = {
   /* Manages shared state between probes */
 
   type t = {
@@ -82,6 +82,52 @@ module State = {
     s.call_cursor = closure.call_stack;
     s.indicated_call = cur_ap(info);
   };
+
+  /* If the closure cursor is on a call, and the provided
+   * call stack is downstream of that call, return how many
+   * aps downstream it is */
+  let depth_in_indicated_calls_stack =
+      (call_stack: Probe.call_stack): option(int) => {
+    open OptUtil.Syntax;
+    let* cur_ap = s.indicated_call;
+    ListUtil.suffix_at_depth([cur_ap] @ s.call_cursor, call_stack, 0);
+  };
+
+  /* How is the current closure related to the closure cursor? */
+  type relation = {
+    /* Is the current closure the call cursor? */
+    is_call_cursor: bool,
+    /* Is the current closure a call directly above the call cursor? */
+    is_call_directly_above_call_cursor: bool,
+    /* Is the current closure below the call cursor, and if so, by how much? */
+    is_below_indicated_call: option(int),
+  };
+
+  let relation = (info: info, closure: closure): relation => {
+    let this = closure.call_stack;
+    let cursor = s.call_cursor;
+    {
+      is_call_cursor: cursor == this,
+      is_call_directly_above_call_cursor:
+        cur_call(info, closure) == Some(cursor),
+      is_below_indicated_call: depth_in_indicated_calls_stack(this),
+    };
+  };
+
+  let clss = (info: info, closure: closure): list(string) => {
+    let relation = relation(info, closure);
+    switch (
+      relation.is_call_cursor,
+      relation.is_call_directly_above_call_cursor,
+      relation.is_below_indicated_call,
+    ) {
+    | (true, _, _) => ["cursor"]
+    | (_, true, _) => ["cursor-caller"]
+    | (_, _, Some(0)) => ["cursor-callee", "direct"]
+    | (_, _, Some(_)) => ["cursor-callee", "indirect"]
+    | (_, _, None) => ["cursor-unrelated"]
+    };
+  };
 };
 
 module Closures = {
@@ -92,7 +138,7 @@ module Closures = {
     };
 
   let filter_frames_by_pin = (frames: list(closure)): list(closure) =>
-    switch (State.s.pinned_call) {
+    switch (DynCursor.s.pinned_call) {
     | Some(pinned_ap) =>
       List.filter(
         (closure: closure) =>
@@ -102,22 +148,10 @@ module Closures = {
     | None => frames
     };
 
-  // let comparor = (a: closure, b: closure): int => {
-  //   compare(
-  //     ListUtil.common_suffix_length(State.s.call_cursor, b.call_stack),
-  //     ListUtil.common_suffix_length(State.s.call_cursor, a.call_stack),
-  //   );
-  // };
-
-  let select_frames = (model: model, closures: list(closure)): list(closure) => {
-    // switch (List.sort(comparor, closures)) {
-    // | [] => []
-    // | _ =>
+  let select_frames = (model: model, closures: list(closure)): list(closure) =>
     closures
     |> filter_frames_by_pin
     |> ListUtil.slice(model.index_offset, model.max_closures);
-                                                              // };
-  };
 
   let group_by_predicate =
       /* Precondition: Items to be grouped are contigious in list */
@@ -208,37 +242,6 @@ let get_goal = (utility: utility, e: Js.t(Dom_html.mouseEvent)): Point.t =>
     e |> Js.Unsafe.coerce,
   );
 
-/* Returns Some(depth) if call_stack is a suffix of the current call path
-   (indicated_call :: call_cursor) at depth, None otherwise */
-let depth_in_indicated_calls_stack =
-    (call_stack: Probe.call_stack): option(int) => {
-  open OptUtil.Syntax;
-  let* cur_ap = State.s.indicated_call;
-  let cur_ap = [cur_ap] @ State.s.call_cursor;
-  ListUtil.suffix_at_depth(cur_ap, call_stack, 0);
-};
-
-let dynamic_cursor_cls = (info: info, closure: closure): list(string) => {
-  let this = closure.call_stack;
-  let is_call_cursor = State.s.call_cursor == this;
-  let is_call_directly_above_call_cursor =
-    cur_call(info, closure) == Some(State.s.call_cursor);
-  // let is_desc_of_call_cursor =
-  //   ListUtil.is_suffix_of(State.s.call_cursor, this);
-  let is_downstream_of_indicated_call = depth_in_indicated_calls_stack(this);
-  is_call_cursor
-    ? ["cursor"]
-    : is_call_directly_above_call_cursor
-        ? ["cursor-caller"]
-        : (
-          switch (is_downstream_of_indicated_call) {
-          | Some(depth) =>
-            ["cursor-call-desc"] @ (depth == 0 ? [] : ["indirect"])
-          | None => ["cursor-unrelated"]
-          }
-        );
-};
-
 let display_length = (model: model, id: Id.t): int =>
   Id.Map.find_opt(id, model.display_lengths) |> Option.value(~default=12);
 
@@ -257,7 +260,7 @@ let value_view =
     let target = e##.target |> Js.Opt.get(_, _ => failwith("no target"));
     JsUtil.setPointerCapture(target, e##.pointerId) |> ignore;
     mousedown := Some(target);
-    State.capture(info, closure);
+    DynCursor.capture(info, closure);
     Effect.Ignore;
   };
 
@@ -285,8 +288,8 @@ let value_view =
     ~attrs=[
       Attr.title(Debug.str(info, closure)),
       Attr.classes(
-        ["val-resize"]
-        @ dynamic_cursor_cls(info, closure)
+        ["value"]
+        @ DynCursor.clss(info, closure)
         @ (Option.is_some(cur_ap(info)) ? ["ap"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
@@ -409,8 +412,8 @@ let num_closures_view = (info: info) => {
 };
 
 let pin_view = (info: info, closure: closure) =>
-  State.s.pinned_call != None
-  && State.s.pinned_call == cur_call(info, closure)
+  DynCursor.s.pinned_call != None
+  && DynCursor.s.pinned_call == cur_call(info, closure)
     ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
 let syntax_str = (info: info) => {
@@ -436,20 +439,20 @@ let view = (info: info): Node.t => {
   let is_pinned =
     switch (first_closure) {
     | Some(first_closure) =>
-      State.s.pinned_call == cur_call(info, first_closure)
+      DynCursor.s.pinned_call == cur_call(info, first_closure)
     | _ => false
     };
   let on_double_click = _ => {
-    //State.reset();
-    switch (State.s.pinned_call) {
+    //DynCursor.reset();
+    switch (DynCursor.s.pinned_call) {
     | Some(pinned_ap) when ListUtil.hd_opt(pinned_ap) == cur_ap(info) =>
-      State.s.pinned_call = None
+      DynCursor.s.pinned_call = None
     | Some(_)
     | None =>
       //TODO(andrew): this should be on the cell not on the ap...
       switch (first_closure) {
       | Some(first_closure) =>
-        State.s.pinned_call = cur_call(info, first_closure)
+        DynCursor.s.pinned_call = cur_call(info, first_closure)
       | _ => ()
       }
     };
@@ -460,7 +463,7 @@ let view = (info: info): Node.t => {
     switch (info.dynamics) {
     | Some(di) =>
       switch (di) {
-      | [first_closure, ..._] => State.capture(info, first_closure)
+      | [first_closure, ..._] => DynCursor.capture(info, first_closure)
       | [] => ()
       }
     | None => ()
@@ -491,7 +494,7 @@ let overlay_view = (info: info): Node.t => {
   let is_pinned =
     switch (first_closure) {
     | Some(first_closure) =>
-      State.s.pinned_call == cur_call(info, first_closure)
+      DynCursor.s.pinned_call == cur_call(info, first_closure)
     | _ => false
     };
   div(
@@ -531,9 +534,9 @@ let update = (m: model, _info: info, a: action) => {
     let index_offset = index_offset < 0 ? 0 : index_offset;
     {...m, index_offset};
   | PinAp(id) =>
-    switch (State.s.pinned_call) {
-    | Some(_) => State.s.pinned_call = None
-    | None => State.s.pinned_call = Some(id)
+    switch (DynCursor.s.pinned_call) {
+    | Some(_) => DynCursor.s.pinned_call = None
+    | None => DynCursor.s.pinned_call = Some(id)
     };
     m;
   };
