@@ -56,26 +56,6 @@ let code_err = (code: string): Node.t =>
  };
  */
 
-let sidebar_toggle = (~globals: Globals.t): Node.t => {
-  let tooltip = "Toggle Sidebar";
-  let toggle_sidebar = _ =>
-    Virtual_dom.Vdom.Effect.Many([
-      globals.inject_global(Set(Sidebar(ToggleShow))),
-      Virtual_dom.Vdom.Effect.Stop_propagation,
-    ]);
-  div(
-    ~attrs=[clss(["assisstant-button"])],
-    [
-      Widgets.toggle(
-        ~tooltip,
-        "?",
-        globals.settings.sidebar.show,
-        toggle_sidebar,
-      ),
-    ],
-  );
-};
-
 let cls_view = (ci: Info.t): Node.t =>
   div(
     ~attrs=[clss(["syntax-class"])],
@@ -101,8 +81,9 @@ let term_view = (~globals: Globals.t, ci) => {
     ],
     [
       ctx_toggle(~globals),
-      div(~attrs=[clss(["term-tag"])], [text("Sidebar")]),
-      sidebar_toggle(~globals), // Russ Todo: Remove toggle, add VSCode-like sliding sidebar
+      // russ todo: this bottom-bar needs to be cleaned up now with
+      //            toggle replaced in favor of persisten sidebar
+      div(~attrs=[clss(["term-tag"])], [text(sort)]),
       cls_view(ci),
     ],
   );
