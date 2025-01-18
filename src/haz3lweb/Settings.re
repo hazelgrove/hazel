@@ -12,6 +12,7 @@ module Model = {
     benchmark: bool,
     explainThis: ExplainThisModel.Settings.t,
     assistant: AssistantModel.Settings.t,
+    sidebar: SidebarModel.Settings.t,
   };
 
   let init = {
@@ -39,13 +40,16 @@ module Model = {
     instructor_mode: true,
     benchmark: false,
     explainThis: {
-      show: true,
       show_feedback: false,
       highlight: NoHighlight,
     },
     assistant: {
-      show: false,
-      human: false,
+      llm: Human,
+      lsp: Human,
+    },
+    sidebar: {
+      window: LanguageDocumentation,
+      show: true,
     },
   };
 
@@ -96,6 +100,7 @@ module Update = {
     | ContextInspector
     | InstructorMode
     | Evaluation(evaluation)
+    | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
     | Assistant(AssistantModel.Settings.action);
 
@@ -180,11 +185,18 @@ module Update = {
             evaluation,
           },
         };
-      | ExplainThis(ToggleShow) => {
+      | Sidebar(ToggleShow) => {
           ...settings,
-          explainThis: {
-            ...settings.explainThis,
-            show: !settings.explainThis.show,
+          sidebar: {
+            ...settings.sidebar,
+            show: !settings.sidebar.show,
+          },
+        }
+      | Sidebar(SwitchWindow(windowToSwitchTo)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            window: windowToSwitchTo,
           },
         }
       | ExplainThis(ToggleShowFeedback) => {
@@ -206,18 +218,26 @@ module Update = {
           };
         let explainThis = {...settings.explainThis, highlight};
         {...settings, explainThis};
-      | Assistant(ToggleShow) => {
+      | Assistant(ToggleLLM) => {
           ...settings,
           assistant: {
             ...settings.assistant,
-            show: !settings.assistant.show,
+            llm:
+              switch (settings.assistant.llm) {
+              | Agent => Human
+              | Human => Agent
+              },
           },
         }
-      | Assistant(ToggleHuman) => {
+      | Assistant(ToggleLSP) => {
           ...settings,
           assistant: {
             ...settings.assistant,
-            show: !settings.assistant.human,
+            lsp:
+              switch (settings.assistant.lsp) {
+              | LanguageServer => Human
+              | Human => LanguageServer
+              },
           },
         }
       | Benchmark => {...settings, benchmark: !settings.benchmark}

@@ -14,31 +14,53 @@ let code_box_container = x =>
 let code_err = (code: string): Node.t =>
   div(~attrs=[clss(["code"])], [text(code)]);
 
-let explain_this_toggle = (~globals: Globals.t): Node.t => {
-  let tooltip = "Toggle language documentation";
-  let toggle_explain_this = _ =>
-    Virtual_dom.Vdom.Effect.Many([
-      globals.inject_global(Set(ExplainThis(ToggleShow))),
-      Virtual_dom.Vdom.Effect.Stop_propagation,
-    ]);
-  div(
-    ~attrs=[clss(["explain-this-button"])],
-    [
-      Widgets.toggle(
-        ~tooltip,
-        "?",
-        globals.settings.explainThis.show,
-        toggle_explain_this,
-      ),
-    ],
-  );
-};
+/*
+ let explain_this_toggle = (~globals: Globals.t): Node.t => {
+   let tooltip = "Switch Language ocumentation";
+   let toggle_explain_this = _ =>
+     Virtual_dom.Vdom.Effect.Many([
+       globals.inject_global(Set(ExplainThis(ToggleShow))),
+       Virtual_dom.Vdom.Effect.Stop_propagation,
+     ]);
+   div(
+     ~attrs=[clss(["explain-this-button"])],
+     [
+       Widgets.toggle(
+         ~tooltip,
+         "?",
+         globals.settings.explainThis.show,
+         toggle_explain_this,
+       ),
+     ],
+   );
+ };
 
-let assistant_toggle = (~globals: Globals.t): Node.t => {
-  let tooltip = "Toggle LLM-assistant coder";
-  let toggle_assistant = _ =>
+ let assistant_toggle = (~globals: Globals.t): Node.t => {
+   let tooltip = "Switch LLM-assistant coder";
+   let toggle_assistant = _ =>
+     Virtual_dom.Vdom.Effect.Many([
+       globals.inject_global(Set(Assistant(ToggleShow))),
+       Virtual_dom.Vdom.Effect.Stop_propagation,
+     ]);
+   div(
+     ~attrs=[clss(["assisstant-button"])],
+     [
+       Widgets.toggle(
+         ~tooltip,
+         "?",
+         globals.settings.assistant.show,
+         toggle_assistant,
+       ),
+     ],
+   );
+ };
+ */
+
+let sidebar_toggle = (~globals: Globals.t): Node.t => {
+  let tooltip = "Toggle Sidebar";
+  let toggle_sidebar = _ =>
     Virtual_dom.Vdom.Effect.Many([
-      globals.inject_global(Set(Assistant(ToggleShow))),
+      globals.inject_global(Set(Sidebar(ToggleShow))),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
@@ -47,8 +69,8 @@ let assistant_toggle = (~globals: Globals.t): Node.t => {
       Widgets.toggle(
         ~tooltip,
         "?",
-        globals.settings.assistant.show,
-        toggle_assistant,
+        globals.settings.sidebar.show,
+        toggle_sidebar,
       ),
     ],
   );
@@ -79,9 +101,8 @@ let term_view = (~globals: Globals.t, ci) => {
     ],
     [
       ctx_toggle(~globals),
-      div(~attrs=[clss(["term-tag"])], [text(sort)]),
-      explain_this_toggle(~globals),
-      assistant_toggle(~globals),
+      div(~attrs=[clss(["term-tag"])], [text("Sidebar")]),
+      sidebar_toggle(~globals), // Russ Todo: Remove toggle, add VSCode-like sliding sidebar
       cls_view(ci),
     ],
   );

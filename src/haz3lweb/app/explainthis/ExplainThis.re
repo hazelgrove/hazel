@@ -2361,11 +2361,11 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
 let get_color_map =
     (~globals: Globals.t, ~explainThisModel: ExplainThisModel.t, info) =>
   switch (globals.settings.explainThis.highlight) {
-  | All when globals.settings.explainThis.show =>
+  | All when globals.settings.sidebar.show =>
     let (_, (_, (color_map, _)), _) =
       get_doc(~globals, ~docs=explainThisModel, info, Colorings);
     Some(color_map);
-  | One(id) when globals.settings.explainThis.show =>
+  | One(id) when globals.settings.sidebar.show =>
     let (_, (_, (color_map, _)), _) =
       get_doc(~globals, ~docs=explainThisModel, info, Colorings);
     Some(Id.Map.filter((id', _) => id == id', color_map));
@@ -2403,15 +2403,6 @@ let view =
                 globals.inject_global(
                   Set(ExplainThis(SetHighlight(Toggle))),
                 )
-              ),
-              div(
-                ~attrs=[
-                  clss(["close"]),
-                  Attr.on_click(_ =>
-                    globals.inject_global(Set(ExplainThis(ToggleShow)))
-                  ),
-                ],
-                [Icons.thin_x],
               ),
             ],
           ),

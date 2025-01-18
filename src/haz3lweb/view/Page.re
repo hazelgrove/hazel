@@ -476,32 +476,28 @@ module View = {
         ~inject=a => inject(Editors(a)),
         cursor,
       );
-    let explainThisSidebar =
-      globals.settings.explainThis.show && globals.settings.core.statics
-        ? {
-          ExplainThis.view(
-            ~globals,
-            ~inject=action => inject(ExplainThis(action)),
-            ~explainThisModel,
-            cursor.info,
-          );
-        }
-        : {
-          div([]);
-        };
-    let assistantSidebar =
-      globals.settings.assistant.show && globals.settings.core.statics
-        ? {
-          Assistant.view(~globals, ~inject=_ => Ui_effect.Ignore);
-        }
-        : {
-          div([]);
-        };
-    let sidebars =
+    let sidebar = {
+      let sub =
+        globals.settings.sidebar.show
+          ? switch (globals.settings.sidebar.window) {
+            | LanguageDocumentation =>
+              ExplainThis.view(
+                ~globals,
+                ~inject=action => inject(ExplainThis(action)),
+                ~explainThisModel,
+                cursor.info,
+              )
+            | HelpfulAssistant =>
+              Assistant.view(~globals, ~inject=_ => Ui_effect.Ignore)
+            }
+          : {
+            div([]);
+          };
       div(
         ~attrs=[Attr.id("sidebars")],
-        [explainThisSidebar, assistantSidebar],
+        [sub, Sidebar.persistent_view(~globals, ~inject)],
       );
+    };
     let editors_view =
       Editors.View.view(
         ~globals,
@@ -521,7 +517,7 @@ module View = {
         ],
         editors_view,
       ),
-      sidebars,
+      sidebar,
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
     ];

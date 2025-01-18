@@ -4,23 +4,18 @@ open Util;
 
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type llm_input =
-    | Agent
-    | Human;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type lsp_input =
-    | LanguageServer
-    | Human;
+  type window =
+    | LanguageDocumentation
+    | HelpfulAssistant;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    llm: llm_input,
-    lsp: lsp_input,
+    show: bool,
+    window,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
-    | ToggleLLM
-    | ToggleLSP;
+    | ToggleShow
+    | SwitchWindow(window);
 };
