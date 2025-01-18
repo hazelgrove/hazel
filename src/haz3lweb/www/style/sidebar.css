@@ -1,0 +1,57 @@
+/* Persistent Sidebar 
+#sidebar {
+    display: flex;
+    flex: 1;
+    width: 20em;
+    padding: 1em;
+    flex-direction: column;
+    overflow-y: auto;
+    gap: 1em;
+    margin-right: 1em;
+} */
+
+#sidebar-button {
+    text-transform: none;
+}
+
+/* Persistent Sidebar */
+
+#persistent {
+    grid-row: 2 / span 1;
+    grid-column: 2 / span 1;
+    border-left: 0.6px solid var(--BR2);
+    overflow-y: scroll;
+    overflow-x: hidden;
+    display: flex;
+    flex: 1;
+    width: 5em;
+    flex-direction: column;
+    gap: 1em;
+    background-color: var(--ui-bkg);
+    scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+}
+
+#persistent .tabs {
+    text-transform: none;
+}
+
+#persistent .tab {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 5em;
+    height: 5em;
+    cursor: pointer; 
+    transition: background-color 0.2s ease; 
+}
+
+#persistent .tab:hover {
+    background-color: var(--T2); /* Darken tab background on hover */
+}
+
+/* Optional: Add focus or active state to enhance interaction */
+#persistent .tab:focus,
+#persistent .tab:active {
+    background-color: var(--T2); /* Darken a little more when tab is active */
+}
+
