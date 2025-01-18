@@ -38,13 +38,32 @@ let assistant_tab = (~globals: Globals.t): Node.t => {
   );
 };
 
+let collapse_tab = (~globals: Globals.t): Node.t => {
+  let tooltip =
+    globals.settings.sidebar.show ? "Collapse Sidebar" : "Expand Sidebar";
+  let icon = globals.settings.sidebar.show ? Icons.collapse : Icons.expand;
+  let switch_assistant = _ =>
+    Virtual_dom.Vdom.Effect.Many([
+      globals.inject_global(Set(Sidebar(ToggleShow))),
+      Virtual_dom.Vdom.Effect.Stop_propagation,
+    ]);
+  div(
+    ~attrs=[clss(["collapse-button"])],
+    [tab(icon, ~tooltip, switch_assistant)],
+  );
+};
+
 let persistent_view = (~globals: Globals.t, ~inject: 'a => Effect.t(unit)) => {
   div(
     ~attrs=[Attr.id("persistent")],
     [
       div(
         ~attrs=[clss(["tabs"])],
-        [explain_this_tab(~globals), assistant_tab(~globals)],
+        [
+          explain_this_tab(~globals),
+          assistant_tab(~globals),
+          collapse_tab(~globals),
+        ],
       ),
     ],
   );
