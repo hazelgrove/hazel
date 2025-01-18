@@ -19,7 +19,7 @@ type model = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
-  | PinAp(Id.t)
+  | PinAp(list(Id.t))
   | ChangeLength(Id.t, int)
   | Offset(int)
   | ToggleShowAllVals(int);
@@ -50,35 +50,43 @@ let is_var_ref = (info: info): bool =>
   | _ => false
   };
 
-let cur_ap_id = (info: info): option(Id.t) =>
+let cur_ap_id_lex = (info: info) =>
   switch (info.statics) {
-  | Some(InfoExp({term: {term: Ap(_), _} as ap, _})) =>
-    Some(Term.Exp.rep_id(ap))
+  | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
   | Some(InfoExp({term: {term: Wrap({term: Ap(_), _} as ap, _), _}, _})) =>
     Some(Term.Exp.rep_id(ap))
   | _ => None
   };
 
-let cur_outer_ap_id = (_info: info, dyn_stack: Probe.stack): option(Id.t) =>
-  switch (dyn_stack) {
-  | [frame, ..._] => Some(frame.ap_id)
-  | _ => None
-  };
+let cur_ap_id = (info: info, closure: closure) => {
+  open OptUtil.Syntax;
+  let* lex = cur_ap_id_lex(info);
+  let dyn = Probe.ap_stack(closure.dyn_stack);
+  Some([lex, ...dyn]);
+};
+
+let cur_outer_ap_id =
+    (_info: info, dyn_stack: Probe.stack): option(list(Id.t)) =>
+  Some(Probe.ap_stack(dyn_stack));
+// switch (dyn_stack) {
+// | [frame, ..._] => Some(frame.ap_id)
+// | _ => None
+// };
 
 module State = {
   /* Manages shared state between probes */
 
   type t = {
-    mutable pinned_ap: option(Id.t),
-    mutable env_cursor: list(Id.t),
+    mutable pinned_ap: option(list(Id.t)),
+    // mutable env_cursor: list(Id.t),
     mutable dyn_env_cursor: list(Probe.frame),
-    mutable cur_ap: option(Id.t),
-    mutable outer_ap_id: option(Id.t),
+    mutable cur_ap: option(list(Id.t)),
+    mutable outer_ap_id: option(list(Id.t)),
   };
 
   let s: t = {
     pinned_ap: None,
-    env_cursor: [],
+    // env_cursor: [],
     dyn_env_cursor: [],
     cur_ap: None,
     outer_ap_id: None,
@@ -86,16 +94,16 @@ module State = {
 
   let reset = () => {
     s.pinned_ap = None;
-    s.env_cursor = [];
+    // s.env_cursor = [];
     s.dyn_env_cursor = [];
     s.cur_ap = None;
     s.outer_ap_id = None;
   };
 
   let capture = (info: info, closure: closure) => {
-    s.env_cursor = Probe.env_stack(closure.stack);
+    // s.env_cursor = Probe.env_stack(closure.stack);
     s.dyn_env_cursor = closure.dyn_stack;
-    s.cur_ap = cur_ap_id(info);
+    s.cur_ap = cur_ap_id(info, closure);
     s.outer_ap_id = cur_outer_ap_id(info, closure.dyn_stack);
   };
 };
@@ -108,30 +116,35 @@ module Closures = {
     };
 
   let filter_frames_by_pin =
-      (info: info, frames: list(closure)): list(closure) =>
+      (_info: info, frames: list(closure)): list(closure) =>
     //TODO(andrew): make this logic work more generally...
     switch (State.s.pinned_ap) {
     | Some(pinned_ap) =>
       frames
       |> List.filter((closure: closure) =>
-           switch (closure.dyn_stack |> List.rev) {
-           | _ when Some(pinned_ap) == cur_ap_id(info) => true
-           | [frame, ..._] => frame.ap_id == pinned_ap
-           | [] => false
-           }
+           ListUtil.is_suffix_of(
+             pinned_ap,
+             Probe.ap_stack(closure.dyn_stack),
+           )
          )
+    //  switch (closure.dyn_stack |> List.rev) {
+    //  | _ when Some(pinned_ap) == cur_ap_id(info, closure) => true
+    //  | [frame, ..._] =>
+    //  frame.ap_id == pinned_ap
+    //  | [] => false
+    //  }
     | None => frames
     };
 
   let comparor = (a: closure, b: closure): int => {
     compare(
       ListUtil.common_suffix_length(
-        State.s.env_cursor,
-        Probe.env_stack(b.stack),
+        Probe.ap_stack(State.s.dyn_env_cursor),
+        Probe.ap_stack(b.dyn_stack),
       ),
       ListUtil.common_suffix_length(
-        State.s.env_cursor,
-        Probe.env_stack(a.stack),
+        Probe.ap_stack(State.s.dyn_env_cursor),
+        Probe.ap_stack(a.dyn_stack),
       ),
     );
   };
@@ -209,9 +222,9 @@ module Debug = {
     //++
     "ap:"
     ++ (
-      switch (cur_ap_id(info)) {
-      | Some(ap_id) => of_id(ap_id)
-      | None => "None"
+      switch (cur_ap_id(info, closure)) {
+      | Some([ap_id, ..._]) => of_id(ap_id)
+      | _ => "None"
       }
     )
     ++ "\nstack:\n"
@@ -220,11 +233,22 @@ module Debug = {
   // ++ stack(closure.stack);
 };
 
-let depth_in_cur_ap_stack = (dyn_stack: list(Probe.frame)): option(int) =>
-  List.find_index(
-    ({ap_id, _}: Probe.frame) => Some(ap_id) == State.s.cur_ap,
-    dyn_stack,
-  );
+// descent in dyn stack until rest of list is equal to State.s.cur_ap
+
+let depth_in_cur_ap_stack = (dyn_stack: list(Probe.frame)): option(int) => {
+  open OptUtil.Syntax;
+  let* cur_ap = State.s.cur_ap;
+  let rec go = (depth: int, stack: list(Id.t)): option(int) =>
+    if (stack == cur_ap) {
+      Some(depth);
+    } else {
+      switch (stack) {
+      | [] => None
+      | [_, ...rest] => go(depth + 1, rest)
+      };
+    };
+  go(0, Probe.ap_stack(dyn_stack));
+};
 
 let seg_view = (utility: utility, available: int, seg: Exp.t): Node.t =>
   seg
@@ -245,28 +269,24 @@ let get_goal = (utility: utility, e: Js.t(Dom_html.mouseEvent)): Point.t =>
   );
 
 let on_outer_ap = (info: info, closure: closure): bool =>
-  switch (cur_ap_id(info), State.s.outer_ap_id) {
-  | (Some(ap_id), Some(outer_ap_id)) =>
-    ap_id == outer_ap_id
-    && closure.env_id
+  switch (cur_ap_id(info, closure), State.s.outer_ap_id) {
+  | (Some(ap_id), Some(outer_ap_id)) => ap_id == outer_ap_id
+  /*&& closure.env_id
     == Option.value(
          ~default={ap_id: Id.invalid, env_id: Id.invalid},
          ListUtil.hd_opt(State.s.dyn_env_cursor),
        ).
-         env_id
+         env_id*/
   | _ => false
   };
 
-let show_indicator = (stack: Probe.stack): bool => {
-  let local = Probe.env_stack(stack);
-  State.s.env_cursor == []
-  && local == []
-  || State.s.env_cursor != []
-  && (
-    ListUtil.is_suffix_of(local, State.s.env_cursor)
-    || ListUtil.is_suffix_of(State.s.env_cursor, local)
-  );
-};
+// let show_indicator = (dyn_stack: Probe.stack): bool => {
+//   let local = Probe.ap_stack(dyn_stack);
+//   State.s.dyn_env_cursor == []
+//   && local == []
+//   || State.s.dyn_env_cursor != []
+//   && ListUtil.is_suffix_of(local, Probe.ap_stack(State.s.dyn_env_cursor));
+// };
 
 let dynamic_cursor_cls = (info: info, closure: closure): list(string) =>
   switch (depth_in_cur_ap_stack(closure.dyn_stack)) {
@@ -275,7 +295,12 @@ let dynamic_cursor_cls = (info: info, closure: closure): list(string) =>
       when ListUtil.is_suffix_of(State.s.dyn_env_cursor, closure.dyn_stack) =>
     ["cursor-ap-lex"] @ (depth == 0 ? [] : ["light"])
   | Some(depth) => ["cursor-ap"] @ (depth == 0 ? [] : ["light"])
-  | _ when show_indicator(closure.stack) => ["cursor-lex"]
+  | _
+      when
+        Probe.ap_stack(closure.dyn_stack)
+        == Probe.ap_stack(State.s.dyn_env_cursor) => [
+      "cursor-lex",
+    ]
   | None => ["cursor-none"]
   };
 
@@ -327,7 +352,7 @@ let value_view =
       Attr.classes(
         ["val-resize"]
         @ dynamic_cursor_cls(info, closure)
-        @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : []),
+        @ (Option.is_some(cur_ap_id(info, closure)) ? ["ap"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
       Attr.on_pointerdown(val_pointerdown),
@@ -374,7 +399,12 @@ let closure_view =
   div(
     ~attrs=[
       Attr.classes(
-        ["closure"] @ (show_indicator(closure.stack) ? ["cursor"] : []),
+        ["closure"]
+        @ (
+          Probe.ap_stack(closure.dyn_stack)
+          == Probe.ap_stack(State.s.dyn_env_cursor)
+            ? ["cursor"] : []
+        ),
       ),
     ],
     [value_view(info, model, utility, local, closure, index)]
@@ -452,8 +482,8 @@ let num_closures_view = (info: info) => {
   );
 };
 
-let pin_view = (info: info) =>
-  State.s.pinned_ap != None && State.s.pinned_ap == cur_ap_id(info)
+let pin_view = (info: info, closure: closure) =>
+  State.s.pinned_ap != None && State.s.pinned_ap == cur_ap_id(info, closure)
     ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
 let syntax_str = (info: info) => {
@@ -471,13 +501,24 @@ let placeholder = (_m, info) =>
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
 let view = (info: info): Node.t => {
+  let first_closure =
+    switch (info.dynamics) {
+    | Some([first_closure, ..._]) => Some(first_closure)
+    | _ => None
+    };
   let on_double_click = _ => {
     //State.reset();
     switch (State.s.pinned_ap) {
-    | Some(pinned_ap) when Some(pinned_ap) == cur_ap_id(info) =>
+    | Some(pinned_ap) when ListUtil.hd_opt(pinned_ap) == cur_ap_id_lex(info) =>
       State.s.pinned_ap = None
     | Some(_)
-    | None => State.s.pinned_ap = cur_ap_id(info)
+    | None =>
+      //TODO(andrew): this should be on the cell not on the ap...
+      switch (first_closure) {
+      | Some(first_closure) =>
+        State.s.pinned_ap = cur_ap_id(info, first_closure)
+      | _ => ()
+      }
     };
     Effect.Ignore;
   };
@@ -498,8 +539,17 @@ let view = (info: info): Node.t => {
     ~attrs=[
       Attr.classes(
         ["main"]
-        @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : [])
-        @ (State.s.pinned_ap == cur_ap_id(info) ? ["pinned"] : []),
+        @ (Option.is_some(cur_ap_id_lex(info)) ? ["ap"] : [])
+        @ (
+          (
+            switch (first_closure) {
+            | Some(first_closure) =>
+              State.s.pinned_ap == cur_ap_id(info, first_closure)
+            | _ => false
+            }
+          )
+            ? ["pinned"] : []
+        ),
       ),
       Attr.on_double_click(on_double_click),
       Attr.on_pointerdown(on_pointerdown),
@@ -509,15 +559,35 @@ let view = (info: info): Node.t => {
 };
 
 let overlay_view = (info: info): Node.t => {
+  let first_closure =
+    switch (info.dynamics) {
+    | Some([first_closure, ..._]) => Some(first_closure)
+    | _ => None
+    };
   div(
     ~attrs=[
       Attr.classes(
         ["overlay"]
-        @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : [])
-        @ (State.s.pinned_ap == cur_ap_id(info) ? ["pinned"] : []),
+        @ (Option.is_some(cur_ap_id_lex(info)) ? ["ap"] : [])
+        @ (
+          (
+            switch (first_closure) {
+            | Some(first_closure) =>
+              State.s.pinned_ap == cur_ap_id(info, first_closure)
+            | _ => false
+            }
+          )
+            ? ["pinned"] : []
+        ),
       ),
     ],
-    [num_closures_view(info)] @ pin_view(info),
+    [num_closures_view(info)]
+    @ (
+      switch (first_closure) {
+      | Some(first_closure) => pin_view(info, first_closure)
+      | _ => []
+      }
+    ),
   );
 };
 
