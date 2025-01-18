@@ -233,8 +233,7 @@ let dynamic_cursor_cls = (info: info, closure: closure): list(string) => {
         : (
           switch (is_downstream_of_indicated_call) {
           | Some(depth) =>
-            // (is_desc_of_call_cursor ? ["cursor-call-desc"] : [])@
-            depth == 0 ? [] : ["indirect"]
+            ["cursor-call-desc"] @ (depth == 0 ? [] : ["indirect"])
           | None => ["cursor-unrelated"]
           }
         );
