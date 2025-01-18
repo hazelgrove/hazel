@@ -35,4 +35,6 @@ let empty: t = {refs: [], stem: []};
 let env_stack: list(frame) => list(Id.t) =
   List.map((en: frame) => en.env_id);
 
+let ap_stack: list(frame) => list(Id.t) = List.map((en: frame) => en.ap_id);
+
 let mk_frame = (~env_id: Id.t, ~ap_id: Id.t): frame => {env_id, ap_id};
