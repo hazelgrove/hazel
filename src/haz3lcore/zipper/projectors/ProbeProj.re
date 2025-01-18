@@ -102,21 +102,21 @@ module Closures = {
     | None => frames
     };
 
-  let comparor = (a: closure, b: closure): int => {
-    compare(
-      ListUtil.common_suffix_length(State.s.call_cursor, b.call_stack),
-      ListUtil.common_suffix_length(State.s.call_cursor, a.call_stack),
-    );
-  };
+  // let comparor = (a: closure, b: closure): int => {
+  //   compare(
+  //     ListUtil.common_suffix_length(State.s.call_cursor, b.call_stack),
+  //     ListUtil.common_suffix_length(State.s.call_cursor, a.call_stack),
+  //   );
+  // };
 
   let select_frames = (model: model, closures: list(closure)): list(closure) => {
-    switch (List.sort(comparor, closures)) {
-    | [] => []
-    | _ =>
-      closures
-      |> filter_frames_by_pin
-      |> ListUtil.slice(model.index_offset, model.max_closures)
-    };
+    // switch (List.sort(comparor, closures)) {
+    // | [] => []
+    // | _ =>
+    closures
+    |> filter_frames_by_pin
+    |> ListUtil.slice(model.index_offset, model.max_closures);
+                                                              // };
   };
 
   let group_by_predicate =
@@ -208,40 +208,36 @@ let get_goal = (utility: utility, e: Js.t(Dom_html.mouseEvent)): Point.t =>
     e |> Js.Unsafe.coerce,
   );
 
-let depth_in_cur_call_stack = (call_stack: Probe.call_stack): option(int) => {
+/* Returns Some(depth) if call_stack is a suffix of the current call path
+   (indicated_call :: call_cursor) at depth, None otherwise */
+let depth_in_indicated_calls_stack =
+    (call_stack: Probe.call_stack): option(int) => {
   open OptUtil.Syntax;
   let* cur_ap = State.s.indicated_call;
   let cur_ap = [cur_ap] @ State.s.call_cursor;
-  let rec go = (depth: int, stack: list(Id.t)): option(int) =>
-    if (stack == cur_ap) {
-      Some(depth);
-    } else {
-      switch (stack) {
-      | [] => None
-      | [_, ...rest] => go(depth + 1, rest)
-      };
-    };
-  go(0, call_stack);
+  ListUtil.suffix_at_depth(cur_ap, call_stack, 0);
 };
 
 let dynamic_cursor_cls = (info: info, closure: closure): list(string) => {
   let this = closure.call_stack;
   let is_call_cursor = State.s.call_cursor == this;
-  let is_desc_of_call_cursor =
-    ListUtil.is_suffix_of(State.s.call_cursor, this);
-  let is_call_directly_creating_call_cursor =
+  let is_call_directly_above_call_cursor =
     cur_call(info, closure) == Some(State.s.call_cursor);
-  let is_downstream_of_indicated_call = depth_in_cur_call_stack(this);
-  is_call_directly_creating_call_cursor
-    ? ["cursor-outer-ap"]
-    : (
-      switch (is_downstream_of_indicated_call) {
-      | Some(depth) =>
-        (is_desc_of_call_cursor ? ["cursor-ap-lex"] : ["cursor-ap"])
-        @ (depth == 0 ? [] : ["light"])
-      | None => is_call_cursor ? ["cursor-lex"] : ["cursor-none"]
-      }
-    );
+  // let is_desc_of_call_cursor =
+  //   ListUtil.is_suffix_of(State.s.call_cursor, this);
+  let is_downstream_of_indicated_call = depth_in_indicated_calls_stack(this);
+  is_call_cursor
+    ? ["cursor"]
+    : is_call_directly_above_call_cursor
+        ? ["cursor-caller"]
+        : (
+          switch (is_downstream_of_indicated_call) {
+          | Some(depth) =>
+            // (is_desc_of_call_cursor ? ["cursor-call-desc"] : [])@
+            depth == 0 ? [] : ["indirect"]
+          | None => ["cursor-unrelated"]
+          }
+        );
 };
 
 let display_length = (model: model, id: Id.t): int =>
@@ -337,12 +333,7 @@ let closure_view =
       (index: int, closure: closure),
     ) =>
   div(
-    ~attrs=[
-      Attr.classes(
-        ["closure"]
-        @ (closure.call_stack == State.s.call_cursor ? ["cursor"] : []),
-      ),
-    ],
+    ~attrs=[Attr.classes(["closure"])],
     [value_view(info, model, utility, local, closure, index)]
     @ (is_var_ref(info) ? [] : [env_view(closure, utility)]),
   );
