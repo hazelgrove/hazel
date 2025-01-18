@@ -22,6 +22,10 @@
   z-index: var(--projector-indicated-z);
 }
 
+.projector:hover {
+  z-index: var(--projector-hover-z);
+}
+
 .projector > *:not(svg) {
   z-index: var(--projector-z);
 }

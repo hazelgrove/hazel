@@ -72,8 +72,9 @@
 /* OVERLAY VIEW */
 
 .overlays .projector.probe .num-closures {
+  pointer-events: auto;
   position: absolute;
-  right: -0.5em;
+  right: -0.55em;
   top: -0.3em;
   transform-origin: top right;
   scale: 0.6;
@@ -84,7 +85,7 @@
   border-radius: 2em;
   font-size: 0.7em;
   padding: 0.3em;
-  min-width: 1em;
+  min-width: 1.2em;
   --original-bg: inherit;
   background-color: var(--original-bg);
 }
@@ -119,17 +120,20 @@
 }
 
 .overlays .projector.probe .pin {
+  pointer-events: auto;
   position: absolute;
-  left: -0.5em;
-  top: -0.3em;
-  height: 0.8em;
-  width: 0.8em;
-  border-radius: 2em;
+  left: -0.9em;
+  top: -0.2em;
+  height: 1.3em;
+  width: 1.3em;
+  border-radius: 1em;
   filter: invert(1);
   background: url(../../img/noun-pinned-1560993.svg) #33ffff;
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;
+  transform-origin: top right;
+  scale: 0.6;
 }
 .overlays .projector.probe.indicated.Left .pin {
   background-color: oklch(0.8 0.18 201.83);
@@ -221,6 +225,7 @@
 /* TOKEN BKG */
 .projector.probe .val-resize .code-text {
   border-radius: 0.05em 0.05em 0.05em 0.2em;
+  transition: filter 0.14s ease-in-out;
 }
 .projector.probe.Exp .val-resize .code-text {
   background-color: var(--exp-base);
@@ -233,9 +238,13 @@
 .projector.probe .val-resize.cursor-lex .code-text {
   opacity: 100%;
 }
-.projector.probe .val-resize.cursor-ap-lex .code-text {
+.projector.probe .val-resize.cursor-ap-lex:not(.light) .code-text {
   opacity: 100%;
   outline: 1px solid var(--exp-ap-indicated);
+  border-color: var(--exp-ap-indicated);
+}
+.projector.probe .val-resize.cursor-ap-lex .code-text {
+  opacity: 100%;
   border-color: var(--exp-ap-indicated);
 }
 .projector.probe .val-resize.cursor-outer-ap .code-text {
@@ -243,11 +252,12 @@
   outline: 1px solid var(--exp-ap-indicated);
   border-color: var(--exp-ap-indicated);
   background-color: var(--exp-ap-indicated);
+  box-shadow: inset 4px 4px 0 #551da0;
 }
 .projector.probe .val-resize .code-text,
 .projector.probe .val-resize.cursor-ap.light .code-text,
 .projector.probe .val-resize.cursor-ap-lex.light .code-text {
-  opacity: 50%;
+  opacity: 40%;
 }
 
 /* TOKEN BKG INDICATED */
@@ -257,7 +267,7 @@
 .projector.probe.indicated .closure.cursor .val-resize .code-text {
   opacity: 100%;
   background: white;
-  outline-width: 2.8px;
+  outline-width: 2.1px;
   outline-style: solid;
 }
 .projector.probe.indicated.Exp .val-resize.cursor-lex .code-text {
@@ -303,10 +313,18 @@
   border-color: var(--exp-ap-indicated);
 }
 .projector.probe .val-resize > .code:hover {
-  transform-origin: center left;
-  scale: 1.125;
+  transform-origin: bottom left;
+  scale: 1.18;
   z-index: var(--projector-indicated-z);
   position: relative;
+}
+.projector.probe .val-resize > .code {
+  transition: scale 0.07s ease-in-out;
+}
+.closure:has(.val-resize > .code:hover) + .closure .val-resize > .code,
+.closure:has(+ .closure .val-resize > .code:hover) .val-resize > .code {
+  transform-origin: center left;
+  scale: 1.12;
 }
 
 .projector.probe .live-env {

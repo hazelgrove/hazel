@@ -198,21 +198,26 @@ module Debug = {
 
   let stack = (stack: Probe.stack): string =>
     stack
-    |> List.rev
-    |> List.map(({env_id, ap_id}: Probe.frame) =>
-         "" ++ of_id(env_id) ++ " : " ++ of_id(ap_id)
-       )
+    |> List.map(({ap_id, env_id: _}: Probe.frame) => of_id(ap_id))
     |> String.concat("\n");
 
-  let str = (closure: closure): string =>
-    "closure_id: "
-    ++ of_id(closure.closure_id)
-    ++ "\nenv_id: "
-    ++ of_id(closure.env_id)
-    ++ "\ndyn_stack:\n"
-    ++ stack(closure.dyn_stack)
+  let str = (info, closure: closure): string =>
+    //"closure_id: "
+    //++ of_id(closure.closure_id)
+    // ++ "\nenv_id: "
+    // ++ of_id(closure.env_id)
+    //++
+    "ap:"
+    ++ (
+      switch (cur_ap_id(info)) {
+      | Some(ap_id) => of_id(ap_id)
+      | None => "None"
+      }
+    )
     ++ "\nstack:\n"
-    ++ stack(closure.stack);
+    ++ stack(closure.dyn_stack);
+  // ++ "\nstack:\n"
+  // ++ stack(closure.stack);
 };
 
 let depth_in_cur_ap_stack = (dyn_stack: list(Probe.frame)): option(int) =>
@@ -318,7 +323,7 @@ let value_view =
 
   div(
     ~attrs=[
-      Attr.title(Debug.str(closure)),
+      Attr.title(Debug.str(info, closure)),
       Attr.classes(
         ["val-resize"]
         @ dynamic_cursor_cls(info, closure)
