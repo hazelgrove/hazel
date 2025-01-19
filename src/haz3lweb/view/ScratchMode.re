@@ -54,6 +54,14 @@ module StoreDocumentation =
     let default = () => Init.startup.documentation;
   });
 
+module StoreTutorial =
+  Store.F({
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = Model.persistent;
+    let key = Store.Tutorial;
+    let default = () => Init.startup.tutorial;
+  });
+
 module Store =
   Store.F({
     [@deriving (show({with_path: false}), sexp, yojson)]

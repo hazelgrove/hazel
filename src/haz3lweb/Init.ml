@@ -17525,6 +17525,120 @@ let startup : PersistentData.t =
                  # All output from examples: #\n\
                  (ex1, ex2, ex3, ex4, ex5)";
             } );
+          (* ( "Expressive Programming", *)
+          (* {
+                 zipper =
+                   "((selection((focus Left)(content())(mode \
+                    Normal)))(backpack())(relatives((siblings(()((Grout((id \
+                    527b01da-5acd-4de7-99a0-02510f2fbe0f)(shape \
+                    Convex))))))(ancestors())))(caret Outer))";
+                 backup_text = " ";
+               } );
+             ( "Composing Expressions",
+               {
+                 zipper =
+                   "((selection((focus Left)(content())(mode \
+                    Normal)))(backpack())(relatives((siblings(()((Grout((id \
+                    3767c92f-8a0e-4b82-8407-7e33c55a07be)(shape \
+                    Convex))))))(ancestors())))(caret Outer))";
+                 backup_text = " ";
+               } );
+             ( "Computing Equationally",
+               {
+                 zipper =
+                   "((selection((focus Left)(content())(mode \
+                    Normal)))(backpack())(relatives((siblings(()((Grout((id \
+                    293ef06a-03d2-4770-8282-f6bbc4aeea08)(shape \
+                    Convex))))))(ancestors())))(caret Outer))";
+                 backup_text = " ";
+               } );
+             ( "Variables",
+               {
+                 zipper =
+                   "((selection((focus Left)(content())(mode \
+                    Normal)))(backpack())(relatives((siblings(()((Grout((id \
+                    878e0a53-88e7-489c-8f30-b60405bb8eb7)(shape \
+                    Convex))))))(ancestors())))(caret Outer))";
+                 backup_text = " ";
+               } );
+             ( "Compositionality",
+               {
+                 zipper =
+                   "((selection((focus Left)(content())(mode \
+                    Normal)))(backpack())(relatives((siblings(()((Grout((id \
+                    67f58c5b-14f7-4b5d-9478-1e66a9bb97ba)(shape \
+                    Convex))))))(ancestors())))(caret Outer))";
+                 backup_text = " ";
+               } );
+             ( "Scope",
+               {
+                 zipper =
+                   "((selection((focus Left)(content())(mode \
+                    Normal)))(backpack())(relatives((siblings(()((Grout((id \
+                    a48ecbfe-f027-4482-b40c-d59c7a79b52e)(shape \
+                    Convex))))))(ancestors())))(caret Outer))";
+                 backup_text = " ";
+               } );
+             ( "Shadowing",
+               {
+                 zipper =
+                   "((selection((focus Left)(content())(mode \
+                    Normal)))(backpack())(relatives((siblings(()((Grout((id \
+                    fa020b7e-8025-47eb-b6ce-5b5797358e67)(shape \
+                    Convex))))))(ancestors())))(caret Outer))";
+                 backup_text = " ";
+               } );
+             ( "Booleans and Types",
+               {
+                 zipper =
+                   "((selection((focus Left)(content())(mode \
+                    Normal)))(backpack())(relatives((siblings(()((Grout((id \
+                    c19d2704-759a-401a-af23-b6c5263f7c7b)(shape \
+                    Convex))))))(ancestors())))(caret Outer))";
+                 backup_text = " ";
+               } );
+             ( "Conditional Expressions",
+               {
+                 zipper =
+                   "((selection((focus Left)(content())(mode \
+                    Normal)))(backpack())(relatives((siblings(()((Grout((id \
+                    5eb4e750-954c-46e7-a785-d8af9e1b8e40)(shape \
+                    Convex))))))(ancestors())))(caret Outer))";
+                 backup_text = " ";
+               } );
+             ( "Functions",
+               {
+                 zipper =
+                   "((selection((focus Left)(content())(mode \
+                    Normal)))(backpack())(relatives((siblings(()((Grout((id \
+                    a1407558-57b7-45ea-b4d6-83771ae62b46)(shape \
+                    Convex))))))(ancestors())))(caret Outer))";
+                 backup_text = " ";
+               } ); *)
+        ]
+        (* ,
+           [
+             ("scratch_ADT Dynamics", Evaluation);
+             ("scratch_ADT Statics", Evaluation);
+             ("scratch_Basic Reference", Evaluation);
+             ("scratch_Booleans and Types", Evaluation);
+             ("scratch_Casting", Evaluation);
+             ("scratch_Composing Arithmetic Expressions", Evaluation);
+             ("scratch_Compositionality", Evaluation);
+             ("scratch_Computing Equationally", Evaluation);
+             ("scratch_Conditional Expressions", Evaluation);
+             ("scratch_Functions", Evaluation);
+             ("scratch_Polymorphism", Evaluation);
+             ("scratch_Programming Expressively", Evaluation);
+             ("scratch_Projectors", Evaluation);
+             ("scratch_Scope", Evaluation);
+             ("scratch_Shadowing", Evaluation);
+             ("scratch_Types & static errors", Evaluation);
+             ("scratch_Variables", Evaluation);
+           ] *) );
+    tutorial =
+      ( 3,
+        [
           ( "Expressive Programming",
             {
               zipper =
@@ -17615,25 +17729,5 @@ let startup : PersistentData.t =
                  Convex))))))(ancestors())))(caret Outer))";
               backup_text = " ";
             } );
-        ]
-        (* ,
-           [
-             ("scratch_ADT Dynamics", Evaluation);
-             ("scratch_ADT Statics", Evaluation);
-             ("scratch_Basic Reference", Evaluation);
-             ("scratch_Booleans and Types", Evaluation);
-             ("scratch_Casting", Evaluation);
-             ("scratch_Composing Arithmetic Expressions", Evaluation);
-             ("scratch_Compositionality", Evaluation);
-             ("scratch_Computing Equationally", Evaluation);
-             ("scratch_Conditional Expressions", Evaluation);
-             ("scratch_Functions", Evaluation);
-             ("scratch_Polymorphism", Evaluation);
-             ("scratch_Programming Expressively", Evaluation);
-             ("scratch_Projectors", Evaluation);
-             ("scratch_Scope", Evaluation);
-             ("scratch_Shadowing", Evaluation);
-             ("scratch_Types & static errors", Evaluation);
-             ("scratch_Variables", Evaluation);
-           ] *) );
+        ] );
   }

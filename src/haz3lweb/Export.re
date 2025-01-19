@@ -7,6 +7,7 @@ type all = {
   scratch: string,
   exercise: string,
   documentation: string,
+  tutorial: string,
   log: string,
 };
 
@@ -16,6 +17,7 @@ type all_f22 = {
   settings: string,
   scratch: string,
   exercise: string,
+  tutorial: string,
   log: string,
 };
 
@@ -24,9 +26,18 @@ let mk_all = (~core_settings, ~instructor_mode, ~log) => {
   let explainThisModel = ExplainThisModel.Store.export();
   let scratch = ScratchMode.Store.export();
   let documentation = ScratchMode.StoreDocumentation.export();
+  let tutorial = ScratchMode.StoreTutorial.export();
   let exercise =
     ExercisesMode.Store.export(~settings=core_settings, ~instructor_mode);
-  {settings, explainThisModel, scratch, documentation, exercise, log};
+  {
+    settings,
+    explainThisModel,
+    scratch,
+    documentation,
+    tutorial,
+    exercise,
+    log,
+  };
 };
 
 let export_all = (~settings, ~instructor_mode, ~log) => {
@@ -42,22 +53,24 @@ let import_all = (~import_log: string => unit, data, ~specs) => {
         settings: all_f22.settings,
         scratch: all_f22.scratch,
         documentation: "",
+        tutorial: all_f22.tutorial,
         exercise: all_f22.exercise,
         log: all_f22.log,
         explainThisModel: "",
       };
     };
   Settings.Store.import(all.settings);
-  let settings = Settings.Store.load();
+  // let settings = Settings.Store.load();
   ExplainThisModel.Store.import(all.explainThisModel);
-  let instructor_mode = settings.instructor_mode;
+  // let instructor_mode = settings.instructor_mode;
   ScratchMode.Store.import(all.scratch);
-  ExercisesMode.Store.import(
-    ~settings=settings.core,
-    all.exercise,
-    ~specs,
-    ~instructor_mode,
-  );
+  ScratchMode.Store.import(all.tutorial);
+  // ScratchMode.Store.import(
+  //   ~settings=settings.core,
+  //   all.tutorial,
+  //   ~specs,
+  //   ~instructor_mode,
+  // );
   import_log(all.log);
 };
 
@@ -65,6 +78,7 @@ let export_persistent = () => {
   let data: PersistentData.t = {
     documentation: ScratchMode.StoreDocumentation.load(),
     scratch: ScratchMode.Store.load(),
+    tutorial: ScratchMode.StoreTutorial.load(),
   };
   let contents =
     "let startup : PersistentData.t = " ++ PersistentData.show(data);
