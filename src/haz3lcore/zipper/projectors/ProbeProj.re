@@ -252,15 +252,21 @@ let seg_view = (utility: utility, available: int, seg: Exp.t) =>
   |> PairUtil.map_fst(utility.exp_to_seg)
   |> PairUtil.map_fst(utility.view_seg(Exp));
 
-let get_goal = (_utility: utility, e: Js.t(Dom_html.mouseEvent)): Point.t =>
-  FontMetrics.get_goal(
-    ~font_metrics={row_height: 10., col_width: 10.},
+let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
+  open Float;
+  let row_height = 10.0;
+  let col_width = 10.0;
+  let text_box =
     e##.currentTarget
     |> Js.Opt.get(_, _ => failwith(""))
     |> JsUtil.get_child_with_class(_, "code")
-    |> Option.get,
-    e |> Js.Unsafe.coerce,
-  );
+    |> Option.get;
+  let x_rel = of_int(e##.clientX) -. text_box##getBoundingClientRect##.left;
+  let y_rel = of_int(e##.clientY) -. text_box##getBoundingClientRect##.top;
+  let row = to_int(y_rel /. row_height);
+  let col = to_int(round(x_rel /. col_width));
+  {row, col};
+};
 
 let display_length = (model: model, id: Id.t): int =>
   Id.Map.find_opt(id, model.display_lengths) |> Option.value(~default=12);
@@ -302,7 +308,7 @@ let value_view =
     switch (mousedown^) {
     | Some(_elem) when Js.to_bool(e##.shiftKey) =>
       /* Ideally we could just use hasPointerCapture... */
-      let goal = get_goal(utility, e);
+      let goal = pos_rel_to_target(e);
       local(ChangeLength(closure.closure_id, goal.col));
     | _ => Effect.Ignore
     };

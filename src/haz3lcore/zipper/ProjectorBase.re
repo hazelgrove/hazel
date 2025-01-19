@@ -49,9 +49,6 @@ type info = {
  * These should be considered unstable/experimental */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type utility = {
-  /* The current font metrics for the editor, usable
-   * to coordinate with the parent coordinate grid */
-  font_metrics: FontMetrics.t,
   /* Non-interactive view for segments, included here
    * because of cyclic dependency issues*/
   view_seg: (Sort.t, Base.segment) => Node.t,
