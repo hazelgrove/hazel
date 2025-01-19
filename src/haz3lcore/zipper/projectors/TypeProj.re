@@ -45,7 +45,7 @@ module M: Projector = {
   let underlay_view = Option.None;
   let focus = _ => ();
 
-  let can_project = (p: Piece.t): bool => {
+  let can_project = (p: Piece.t, _): bool => {
     switch (Piece.sort(p)) {
     | (Exp | Pat, _) => true
     | _ when Piece.is_grout(p) => true /* Grout don't have sorts rn */
