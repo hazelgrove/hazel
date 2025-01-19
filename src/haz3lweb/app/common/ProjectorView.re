@@ -116,7 +116,6 @@ let offside_wrapper =
  * See ProjectorBase.utility definition for more information */
 let mk_utility = (font_metrics: FontMetrics.t): ProjectorBase.utility => {
   {
-    font_metrics,
     view_seg: Code.simple_view(font_metrics),
     exp_to_seg: exp =>
       exp
