@@ -44,8 +44,9 @@ module Model = {
       highlight: NoHighlight,
     },
     assistant: {
-      llm: Human,
-      lsp: Human,
+      llm: false,
+      lsp: false,
+      ongoing_chat: false,
     },
     sidebar: {
       window: LanguageDocumentation,
@@ -195,8 +196,8 @@ module Update = {
       | Sidebar(SwitchWindow(windowToSwitchTo)) => {
           ...settings,
           sidebar: {
-            ...settings.sidebar,
             window: windowToSwitchTo,
+            show: true,
           },
         }
       | ExplainThis(ToggleShowFeedback) => {
@@ -222,22 +223,21 @@ module Update = {
           ...settings,
           assistant: {
             ...settings.assistant,
-            llm:
-              switch (settings.assistant.llm) {
-              | Agent => Human
-              | Human => Agent
-              },
+            llm: !settings.assistant.llm,
           },
         }
       | Assistant(ToggleLSP) => {
           ...settings,
           assistant: {
             ...settings.assistant,
-            lsp:
-              switch (settings.assistant.lsp) {
-              | LanguageServer => Human
-              | Human => LanguageServer
-              },
+            lsp: !settings.assistant.lsp,
+          },
+        }
+      | Assistant(UpdateChatStatus) => {
+          ...settings,
+          assistant: {
+            ...settings.assistant,
+            ongoing_chat: !settings.assistant.ongoing_chat,
           },
         }
       | Benchmark => {...settings, benchmark: !settings.benchmark}

@@ -12,9 +12,48 @@
     text-transform: none;
 }
 
-#assistant .assistant-title {
+#assistant .header {
+    display: flex;
     text-transform: none;
+    font-size: 1em;
     font-weight: bold;
     color: var(--ui-header-text);
-    font-size: 1.2em;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1em;
 }
+
+#assistant .settings-box {
+    padding: 1em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2.25em;
+    margin-top: 1em;
+}
+
+#assistant .chat-button {
+    background-color: var(--SAND);
+    color: var(--STONE);
+    font-size: .75em;
+    padding: 0.5em 1em;
+    border-radius: 4px;
+    font-weight: bold;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: auto;
+    height: 1.25em;  
+    cursor: pointer;  
+    transition: all 0.3s ease;
+}
+
+#assistant .chat-button:hover {
+    background-color: var(--T1);  
+    box-shadow: 0px 4px 6px var(--SHADOW);  
+}
+
+#assistant .chat-button:active {
+    background-color: var(--T3);
+}
+  
