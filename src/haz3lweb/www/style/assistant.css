@@ -12,12 +12,19 @@
     text-transform: none;
 }
 
-#assistant .header {
-    display: flex;
+#assistant .title {
     text-transform: none;
     font-size: 1em;
     font-weight: bold;
+    padding-top: .5em;
+    padding-bottom: .5em;
     color: var(--ui-header-text);
+}
+
+#assistant .header {
+    display: flex;
+    text-transform: none;
+    font-weight: bold;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1em;
@@ -56,4 +63,46 @@
 #assistant .chat-button:active {
     background-color: var(--T3);
 }
-  
+
+#assistant .input-container {
+    align-items: center;
+    padding: 1em 0em;
+    width: 100%;
+    display: flex;
+    gap: 10px;
+}
+
+#assistant .message-input {
+    flex: 1;
+    background-color: var(--SAND);
+    padding: 8px;
+    outline: none;
+    border-radius: 3.5px;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+#assistant .message-input:focus {
+    box-shadow: 0px 0px 1px var(--SHADOW), 0 0 0 1px var(--SHADOW);
+}
+
+#assistant .send-button {
+    background-color: var(--SAND);
+    color: var(--STONE);
+    padding: .65em .75em;
+    border: 0 solid var(--SAND);
+    border-radius: .5em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#assistant .send-button:hover {
+    background-color: var(--T1);  
+    box-shadow: 0px 4px 6px var(--SHADOW);  
+}
+
+#assistant .send-button:active {
+    background-color: var(--T3);
+}
+

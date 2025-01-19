@@ -3,6 +3,7 @@ open Node;
 open Util.Web;
 open Util;
 open Haz3lcore;
+open Js_of_ocaml;
 
 let llm_toggle = (~globals: Globals.t): Node.t => {
   let tooltip = "Toggle Manual LLM";
@@ -83,7 +84,51 @@ let settings_box = (~globals: Globals.t): Node.t => {
   );
 };
 
-let view = (~globals: Globals.t, ~inject: 'a => Effect.t(unit)) => {
+let message_input = (~inject, ~globals: Globals.t): Node.t => {
+  let handle_send = (message: string) => {
+    JsUtil.log("Message sent: " ++ message);
+    Virtual_dom.Vdom.Effect.Many([
+      inject(AssistantModel.Update.SendMessage(message)),
+      Virtual_dom.Vdom.Effect.Stop_propagation,
+    ]);
+  };
+
+  let send_message = _ => {
+    let message =
+      Js.Opt.case(
+        Dom_html.document##getElementById(Js.string("message-input")),
+        () => "",
+        el =>
+          switch (Js.Unsafe.coerce(el)) {
+          | input => Js.to_string(input##.value)
+          },
+      );
+    handle_send(message);
+  };
+
+  div(
+    ~attrs=[clss(["input-container"])],
+    [
+      input(
+        ~attrs=[
+          Attr.id("message-input"),
+          Attr.placeholder("Type a message..."),
+          Attr.type_("text"),
+          clss(["message-input"]),
+        ],
+        (),
+      ),
+      div(
+        ~attrs=[clss(["send-button"])],
+        [
+          Widgets.button(~tooltip="Submit Message", Icons.send, send_message),
+        ],
+      ),
+    ],
+  );
+};
+
+let view = (~globals: Globals.t, ~inject, ~assistantModel) => {
   div(
     ~attrs=[Attr.id("side-bar")],
     [
@@ -93,13 +138,18 @@ let view = (~globals: Globals.t, ~inject: 'a => Effect.t(unit)) => {
           div(
             ~attrs=[clss(["header"])],
             [
-              text("Agentic Assistant Chat"),
+              div(
+                ~attrs=[clss(["title"])],
+                [text("Agentic Assistant Chat")],
+              ),
               globals.settings.assistant.ongoing_chat
                 ? end_chat_button(~globals) : None,
             ],
           ),
           globals.settings.assistant.ongoing_chat
             ? None : settings_box(~globals),
+          globals.settings.assistant.ongoing_chat
+            ? message_input(~inject, ~globals) : None,
         ],
       ),
     ],

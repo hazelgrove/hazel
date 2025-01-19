@@ -26,3 +26,34 @@ module Settings = {
     | ToggleLSP
     | UpdateChatStatus;
 };
+
+module Model = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {chat: list(string)};
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  let init: t = {chat: []};
+};
+
+module Update = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | SendMessage(string);
+
+  let update =
+      (~settings: Settings.t, action, model: Model.t): Updated.t(Model.t) => {
+    switch (action) {
+    | SendMessage(message) =>
+      print_endline(message);
+      Model.{chat: ["updated", "and testing"]} |> Updated.return_quiet;
+    };
+  };
+};
+
+module Store =
+  Store.F({
+    [@deriving (show({with_path: false}), yojson, sexp)]
+    type t = Model.t;
+    let default = () => Model.init;
+    let key = Store.Assistant;
+  });
