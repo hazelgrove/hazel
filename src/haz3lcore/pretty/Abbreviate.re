@@ -4,17 +4,27 @@
  * is a bit rough right now, and should be redone when we
  * projectors (in particular, fold) within value displays */
 
-let comp_elipses = "⋱";
+let comp_elipses = "…"; //"⋱"; // "┄"
 let flat_ellipses = "…";
 let ellipses_term = () => IdTagged.fresh(Invalid(comp_elipses): Exp.term);
 let flat_ellipses_term = () =>
   IdTagged.fresh(Invalid(flat_ellipses): Exp.term);
+let is_flat_ellipses = (term: IdTagged.t(Exp.term)): bool =>
+  switch (term.term) {
+  | Invalid(s) => s == flat_ellipses
+  | String(s) => s == flat_ellipses
+  | Constructor(s, _) => s == flat_ellipses
+  | Var(s) => s == flat_ellipses
+  | _ => false
+  };
 let available = ref(0);
 
 let abbreviate_str = (min_len: int, s: string): string => {
   let len = String.length(s);
-  let ellipsis = "…";
-  if (len <= min_len || min_len < 1) {
+  let ellipsis = flat_ellipses;
+  if (len < 2) {
+    s;
+  } else if (len <= min_len || min_len < 1) {
     available := available^ - len;
     s;
   } else if (min_len < 1) {
@@ -53,7 +63,20 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
 
     // Atomic string cases
     | Invalid(x) => Invalid(abbreviate_str(available^, x))
-    | String(s) => String(abbreviate_str(available^, s))
+    | String(s) =>
+      let str = abbreviate_str(available^, s);
+      // let str =
+      //   if (String.length(str) >= 2) {
+      //     let start_idx = str.[0] == '"' ? 1 : 0;
+      //     let end_idx =
+      //       str.[String.length(str) - 1] == '"'
+      //         ? String.length(str) - 1 : String.length(str);
+      //     String.sub(str, start_idx, end_idx - start_idx);
+      //   } else {
+      //     str;
+      //   };
+      available := available^ - 2; // for quotes in printed representation
+      String(str);
     | Var(v) => Var(abbreviate_str(available^, v))
     | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)
 
@@ -73,48 +96,45 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
     // composite literal cases
     | ListLit(xs) =>
       //TODO: improve this logic
-      if (available^ < 6) {
+      if (available^ <= 3) {
+        // minimum case: […]
+        available := available^ - 3;
         ListLit([flat_ellipses_term()]);
       } else {
-        available := available^ - 2;
+        available := available^ - 2; // square brackets
         let rec go = xs =>
           switch (xs) {
           | [] => []
-          | [x] => [abbreviate_exp(x)]
           | [x, ...xs] =>
             let hd = abbreviate_exp(x);
-            let tl =
-              if (available^ > 0) {
-                go(xs);
-              } else {
-                [flat_ellipses_term()];
-              };
-            [hd, ...tl];
+            if (available^ > 3) {
+              available := available^ - 2; // comma space
+              [hd, ...go(xs)];
+            } else if (xs == []) {
+              [hd];
+            } else {
+              available := available^ - 3;
+              [hd, flat_ellipses_term()];
+            };
           };
         ListLit(go(xs));
       }
-
-    | Tuple(xs) =>
-      available := available^ - 2;
+    | Tuple([_, _, ..._] as xs) =>
+      //TODO: improve this logic
       let rec go = xs =>
         switch (xs) {
         | [] => []
-        | [x] =>
-          if (available^ > 1) {
-            [abbreviate_exp(x)];
-          } else {
-            [flat_ellipses_term()];
-          }
         | [x, ...xs] =>
           let hd = abbreviate_exp(x);
-          let tl =
-            if (available^ > 0) {
-              available := available^ - 2;
-              go(xs);
-            } else {
-              [flat_ellipses_term()];
-            };
-          [hd, ...tl];
+          if (available^ > 3) {
+            available := available^ - 2; // comma space
+            [hd, ...go(xs)];
+          } else if (xs == []) {
+            [hd];
+          } else {
+            available := available^ - 3;
+            [hd, flat_ellipses_term()];
+          };
         };
       Tuple(go(xs));
     | Ap(Forward, {term: Constructor(_str, _), _} as konst, arg) =>
@@ -162,13 +182,13 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
   rewrap(term);
 };
 
-let abbreviate_exp = (~available as a=12, exp: Exp.t): (Exp.t, bool) => {
+let abbreviate_exp = (~available as a=12, exp: Exp.t): (Exp.t, int) => {
   available := a;
   let exp = abbreviate_exp(exp);
   let length_exp = a - available^;
   a < 0 || a <= 1 && length_exp > 1
-    ? (ellipses_term(), false)
+    ? (ellipses_term(), length_exp)
     : {
-      (exp, available^ < 0);
+      (exp, length_exp);
     };
 };

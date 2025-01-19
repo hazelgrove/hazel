@@ -245,17 +245,16 @@ module Debug = {
   // ++ stack(closure.stack);
 };
 
-let seg_view = (utility: utility, available: int, seg: Exp.t): Node.t =>
+let seg_view = (utility: utility, available: int, seg: Exp.t) =>
   seg
   |> DHExp.strip_casts
   |> Abbreviate.abbreviate_exp(~available)
-  |> fst
-  |> utility.exp_to_seg
-  |> utility.view_seg(Exp);
+  |> PairUtil.map_fst(utility.exp_to_seg)
+  |> PairUtil.map_fst(utility.view_seg(Exp));
 
-let get_goal = (utility: utility, e: Js.t(Dom_html.mouseEvent)): Point.t =>
+let get_goal = (_utility: utility, e: Js.t(Dom_html.mouseEvent)): Point.t =>
   FontMetrics.get_goal(
-    ~font_metrics=utility.font_metrics,
+    ~font_metrics={row_height: 10., col_width: 10.},
     e##.currentTarget
     |> Js.Opt.get(_, _ => failwith(""))
     |> JsUtil.get_child_with_class(_, "code")
@@ -267,6 +266,8 @@ let display_length = (model: model, id: Id.t): int =>
   Id.Map.find_opt(id, model.display_lengths) |> Option.value(~default=12);
 
 let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
+
+let click_coords: ref(option(Point.t)) = ref(Option.None);
 
 let value_view =
     (
@@ -281,6 +282,7 @@ let value_view =
     let target = e##.target |> Js.Opt.get(_, _ => failwith("no target"));
     JsUtil.setPointerCapture(target, e##.pointerId) |> ignore;
     mousedown := Some(target);
+    click_coords := Some({row: e##.clientY, col: e##.clientX});
     DynCursor.capture(info, closure);
     Effect.Ignore;
   };
@@ -305,12 +307,20 @@ let value_view =
     | _ => Effect.Ignore
     };
 
+  let (view, length) =
+    seg_view(
+      utility,
+      display_length(model, closure.closure_id),
+      closure.value,
+    );
+
   div(
     ~attrs=[
       Attr.title(Debug.str(info, closure)),
       Attr.classes(
         ["value"]
         @ DynCursor.clss(info, closure)
+        @ (length > 5 ? ["long"] : [])
         @ (Option.is_some(cur_ap(info)) ? ["ap"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
@@ -318,13 +328,7 @@ let value_view =
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
     ],
-    [
-      seg_view(
-        utility,
-        display_length(model, closure.closure_id),
-        closure.value,
-      ),
-    ],
+    [view],
   );
 };
 
@@ -335,7 +339,7 @@ let env_val = (utility: utility, en: Dynamics.Probe.Env.entry): Node.t => {
       Node.text(en.binding.name ++ "="),
       switch (en.value) {
       | Opaque => Node.text("Opaque")
-      | Val(d) => seg_view(utility, 12, d)
+      | Val(d) => seg_view(utility, 12, d) |> fst
       },
     ],
   );
