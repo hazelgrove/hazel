@@ -608,6 +608,28 @@ let go =
     },
   );
 
+let any =
+  Core.Memo.general(~cache_size_bound=1000, (seg: Segment.t) =>
+    switch (
+      {
+        let skel = Segment.skel(seg);
+        (unsorted(skel, seg), Segment.sort_of(skel, seg));
+      }
+    ) {
+    | exception _ => TermBase.Nul()
+    | (unsorted, sort) =>
+      switch (sort) {
+      | Pat => Pat(pat(unsorted))
+      | TPat => TPat(tpat(unsorted))
+      | Typ => Typ(typ(unsorted))
+      | Exp => Exp(exp(unsorted))
+      | Rul => Rul(rul(unsorted))
+      | Nul => Nul()
+      | Any => Any()
+      }
+    }
+  );
+
 let from_zip_for_sem =
     (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
   let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);

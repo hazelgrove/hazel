@@ -19,21 +19,22 @@ let to_module = (kind: Base.kind): (module Cooked) =>
 let minimum_projection_condition = (syntax: syntax): bool =>
   Piece.is_convex(syntax);
 
-let init = (kind: Base.kind, syntax: syntax): syntax => {
+let init = (kind: Base.kind, syntax: syntax, any: Term.Any.t): syntax => {
   /* We set the projector id equal to the Piece id for convienence
    * including cursor-info association. We maintain this invariant
    * when we update a projector's contained syntax */
   let (module P) = to_module(kind);
-  switch (P.can_project(syntax) && minimum_projection_condition(syntax)) {
+  switch (P.can_project(syntax, any) && minimum_projection_condition(syntax)) {
   | false => syntax
   | true => Projector({id: Piece.id(syntax), kind, model: P.init, syntax})
   };
 };
 
 let init_from_str =
-    (kind: Base.kind, syntax: syntax, model_str: string): syntax => {
+    (kind: Base.kind, syntax: syntax, any: Term.Any.t, model_str: string)
+    : syntax => {
   let (module P) = to_module(kind);
-  switch (P.can_project(syntax) && minimum_projection_condition(syntax)) {
+  switch (P.can_project(syntax, any) && minimum_projection_condition(syntax)) {
   | false => syntax
   | true => Projector({id: Piece.id(syntax), kind, model: model_str, syntax})
   };

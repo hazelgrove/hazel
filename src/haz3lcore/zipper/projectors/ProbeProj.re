@@ -585,7 +585,7 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
   let init = init;
-  let can_project = _ => true;
+  let can_project = (_, _) => true;
   let can_focus = false;
   let dynamics = true;
   let placeholder = placeholder;

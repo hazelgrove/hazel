@@ -5,6 +5,12 @@ open ProjectorBase;
 let of_id = (id: Id.t) =>
   "id" ++ (id |> Id.to_string |> String.sub(_, 0, 8));
 
+let string_of = (any: Any.t): option(string) =>
+  switch (any) {
+  | Exp({term: String(s), _}) => Some(StringUtil.unescape_linebreaks(s))
+  | _ => None
+  };
+
 let of_mono = (syntax: Piece.t): option(string) =>
   switch (syntax) {
   | Tile({label: [l], _}) => Some(StringUtil.unescape_linebreaks(l))
@@ -96,7 +102,7 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
   let init = ();
-  let can_project = _ => true; //TODO(andrew): restrict somehow
+  let can_project = (_, any) => string_of(any) != None;
   let can_focus = true;
   let dynamics = false;
   let placeholder = (_, info) => {

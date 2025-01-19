@@ -57,7 +57,13 @@ type utility = {
   term_to_seg: Any.t => Base.segment,
   /* Convert a segment to an expression, included here
    * because of cyclic dependency issues*/
-  seg_to_exp: Base.segment => Exp.t,
+  seg_to_term: Base.segment => Term.Any.t,
+  /* Utility function to take term->term functions syntax->syntax.
+   * Note: As syntax is currently limited to single pieces, this
+   * will proactively attempt to parenthesize resulting non-single
+   * piece terms. As such, sorts that do not have parentheses
+   * will throw an error */
+  lift_syntax: (Any.t => Any.t, syntax) => syntax,
 };
 
 /* To add a new projector:
@@ -90,7 +96,7 @@ module type Projector = {
    * syntax (currently limited to convex pieces) is
    * supported by this projector. This is used to gate
    * adding the projector */
-  let can_project: Base.piece => bool;
+  let can_project: (Base.piece, Term.Any.t) => bool;
   /* Does this projector have internal position states,
    * overriding the editor caret & keyboard handlers?
    * If yes, the focus method will be called when this

@@ -2,43 +2,53 @@ open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 
-/* Some decimal places necessary to avoid becoming an int */
-let float_of_float = s => s |> float_of_string |> Printf.sprintf("%.2f");
-
-let put = (s: string): Piece.t => s |> float_of_float |> Piece.mk_mono(Exp);
-
-let get_opt = (piece: Piece.t): option(float) =>
-  piece |> Piece.of_mono |> Util.OptUtil.and_then(float_of_string_opt);
-
-let get = (piece: Piece.t): float =>
-  switch (get_opt(piece)) {
-  | None => failwith("ERROR: Slider: not float literal")
-  | Some(s) => s
-  };
-
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
+
   let init = ();
-  let can_project = p => get_opt(p) != None;
+
+  let float_of = (any: Any.t): option(float) =>
+    switch (any) {
+    | Exp({term: Float(f), _}) => Some(f)
+    | _ => None
+    };
+
+  let get = (utility: utility, syntax: syntax): float =>
+    switch ([syntax] |> utility.seg_to_term |> float_of) {
+    | Some(f) => f
+    | None => failwith("SliderF: not float literal")
+    };
+
+  let can_project = (_, any) => float_of(any) != None;
   let can_focus = false;
   let dynamics = false;
   let placeholder = (_, _) => ProjectorShape.inline(10);
   let update = (model, _, _) => model;
+
   let view =
       (
         _,
         info,
         ~local as _,
         ~parent: external_action => Ui_effect.t(unit),
-        ~utility as _,
-      ) =>
+        ~utility,
+      ) => {
+    let put_syntax = (v: string): syntax =>
+      utility.lift_syntax(
+        fun
+        | Exp(any) => Exp({...any, term: Float(float_of_string(v))})
+        | any => any,
+        info.syntax,
+      );
     Util.Web.range(
-      ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(v))))],
-      get(info.syntax) |> Printf.sprintf("%.2f"),
+      ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put_syntax(v))))],
+      get(utility, info.syntax) |> Printf.sprintf("%.2f"),
     );
+  };
+
   let offside_view = Option.None;
   let overlay_view = Option.None;
   let underlay_view = Option.None;

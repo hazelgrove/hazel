@@ -2,27 +2,23 @@ open Util;
 open ProjectorBase;
 open Virtual_dom.Vdom;
 
-let of_mono = (syntax: Piece.t): option(string) =>
-  switch (syntax) {
-  | Tile({label: [l], _}) => Some(l)
+let bool_of = (any: Any.t): option(bool) =>
+  switch (any) {
+  | Exp({term: Bool(b), _}) => Some(b)
   | _ => None
   };
 
-let mk_mono = (sort: Sort.t, string: string): Piece.t =>
-  string |> Form.mk_atomic(sort) |> Piece.mk_tile(_, []);
-
-let state_of = (piece: Piece.t): option(bool) =>
-  piece |> of_mono |> Option.map(bool_of_string);
-
-let get = (piece: Piece.t): bool =>
-  switch (piece |> of_mono |> Util.OptUtil.and_then(bool_of_string_opt)) {
+let get = (utility: utility, syntax: syntax): bool =>
+  switch (bool_of(utility.seg_to_term([syntax]))) {
+  | Some(b) => b
   | None => failwith("Checkbox: not boolean literal")
-  | Some(s) => s
   };
 
-let put = (bool: bool): Piece.t => bool |> string_of_bool |> mk_mono(Exp);
-
-let toggle = (piece: Piece.t) => put(!get(piece));
+let toggle = (any: Any.t): Any.t =>
+  switch (any) {
+  | Exp({term: Bool(b), _} as t) => Exp({...t, term: Bool(!b)})
+  | e => e
+  };
 
 let view =
     (
@@ -30,19 +26,20 @@ let view =
       info,
       ~local as _,
       ~parent: external_action => Ui_effect.t(unit),
-      ~utility as _,
-    ) =>
+      ~utility,
+    ) => {
   Node.input(
     ~attrs=
       [
         Attr.create("type", "checkbox"),
         Attr.on_input((_, _) =>
-          parent(SetSyntax(put(!get(info.syntax))))
+          parent(SetSyntax(utility.lift_syntax(toggle, info.syntax)))
         ),
       ]
-      @ (get(info.syntax) ? [Attr.checked] : []),
+      @ (get(utility, info.syntax) ? [Attr.checked] : []),
     (),
   );
+};
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -50,7 +47,7 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
   let init = ();
-  let can_project = p => state_of(p) != None;
+  let can_project = (_, any: Term.Any.t) => bool_of(any) != None;
   let can_focus = false;
   let dynamics = false;
   let placeholder = (_, _) => ProjectorShape.inline(2);

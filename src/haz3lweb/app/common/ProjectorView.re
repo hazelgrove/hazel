@@ -115,16 +115,34 @@ let offside_wrapper =
 /* Gather utility functions/values to be passed to the projector.
  * See ProjectorBase.utility definition for more information */
 let mk_utility = (font_metrics: FontMetrics.t): ProjectorBase.utility => {
+  let term_to_seg =
+    ExpToSegment.any_to_pretty(
+      ~settings={
+        ...ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
+        show_unknown_as_hole: false,
+      },
+    );
+  let seg_to_term = MakeTerm.any;
+  let lift_syntax = (fn: Any.t => Any.t, piece: syntax): syntax =>
+    switch ([piece] |> seg_to_term |> fn |> term_to_seg) {
+    | [e] => e
+    | seg =>
+      let sort = Segment.sort_of(Segment.skel(seg), seg);
+      switch (sort) {
+      | Exp => Piece.mk_tile(Form.get("parens_exp"), [seg])
+      | Pat => Piece.mk_tile(Form.get("parens_pat"), [seg])
+      | Typ => Piece.mk_tile(Form.get("parens_typ"), [seg])
+      | TPat
+      | Rul
+      | Any
+      | Nul => failwith("Projector: lift_syntax")
+      };
+    };
   {
     view_seg: Code.simple_view(font_metrics),
-    term_to_seg:
-      ExpToSegment.any_to_pretty(
-        ~settings={
-          ...ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
-          show_unknown_as_hole: false,
-        },
-      ),
-    seg_to_exp: seg => MakeTerm.go(seg).term,
+    term_to_seg,
+    seg_to_term,
+    lift_syntax,
   };
 };
 
