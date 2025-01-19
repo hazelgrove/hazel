@@ -16,6 +16,7 @@ module Model = {
     globals: Globals.Model.t,
     editors: Editors.Model.t,
     explain_this: ExplainThisModel.t,
+    assistant: AssistantModel.Model.t,
     selection,
   };
 
@@ -31,21 +32,14 @@ module Store = {
         ~instructor_mode=globals.settings.instructor_mode,
       );
     let explain_this = ExplainThisModel.Store.load();
+    let assistant = AssistantModel.Store.load();
     {
       editors,
       globals,
       explain_this,
+      assistant,
       selection: Editors.Selection.default_selection(editors),
     };
-    /* Russ todo:
-       let assistant = Assist.Store.load();
-       {
-         editors,
-         globals,
-         explain_this,
-         selection: Editors.Selection.default_selection(editors),
-       };
-       */
   };
 
   let save = (m: Model.t): unit => {
@@ -55,7 +49,7 @@ module Store = {
     );
     Globals.Model.save(m.globals);
     ExplainThisModel.Store.save(m.explain_this);
-    /* Russ todo: Assistant.Store.save(); */
+    AssistantModel.Store.save(m.assistant);
   };
 };
 
@@ -72,6 +66,7 @@ module Update = {
     | Globals(Globals.Update.t)
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
+    | Assistant(AssistantModel.Update.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Start
@@ -241,6 +236,11 @@ module Update = {
       let* explain_this =
         ExplainThisUpdate.set_update(model.explain_this, action);
       {...model, explain_this};
+    | Assistant(action) =>
+      let settings = globals.settings.assistant;
+      let* assistant =
+        AssistantModel.Update.update(~settings, action, model.assistant);
+      {...model, assistant};
     | MakeActive(selection) => {...model, selection} |> Updated.return
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
@@ -462,7 +462,13 @@ module View = {
         ~get_log_and: (string => unit) => unit,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
-        {globals, editors, explain_this: explainThisModel, selection} as model: Model.t,
+        {
+          globals,
+          editors,
+          explain_this: explainThisModel,
+          assistant: assistantModel,
+          selection,
+        } as model: Model.t,
       ) => {
     let globals = {
       ...globals,
@@ -488,7 +494,11 @@ module View = {
                 cursor.info,
               )
             | HelpfulAssistant =>
-              Assistant.view(~globals, ~inject=_ => Ui_effect.Ignore)
+              Assistant.view(
+                ~globals,
+                ~inject=action => inject(Assistant(action)),
+                ~assistantModel,
+              )
             }
           : {
             div([]);
