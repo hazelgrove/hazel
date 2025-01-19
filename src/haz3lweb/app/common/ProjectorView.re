@@ -117,13 +117,13 @@ let offside_wrapper =
 let mk_utility = (font_metrics: FontMetrics.t): ProjectorBase.utility => {
   {
     view_seg: Code.simple_view(font_metrics),
-    exp_to_seg: exp =>
-      exp
-      |> DHExp.strip_casts
-      |> ExpToSegment.exp_to_segment(
-           ~settings=
-             ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
-         ),
+    term_to_seg:
+      ExpToSegment.any_to_pretty(
+        ~settings={
+          ...ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
+          show_unknown_as_hole: false,
+        },
+      ),
     seg_to_exp: seg => MakeTerm.go(seg).term,
   };
 };

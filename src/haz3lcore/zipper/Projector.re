@@ -7,7 +7,7 @@ open ProjectorBase;
 let to_module = (kind: Base.kind): (module Cooked) =>
   switch (kind) {
   | Fold => (module Cook(FoldProj.M))
-  | Info => (module Cook(InfoProj.M))
+  | Info => (module Cook(TypeProj.M))
   | Probe => (module Cook(ProbeProj.M))
   | Slider => (module Cook(SliderProj.M))
   | SliderF => (module Cook(SliderFProj.M))

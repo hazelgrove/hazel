@@ -249,7 +249,8 @@ let seg_view = (utility: utility, available: int, seg: Exp.t) =>
   seg
   |> DHExp.strip_casts
   |> Abbreviate.abbreviate_exp(~available)
-  |> PairUtil.map_fst(utility.exp_to_seg)
+  |> PairUtil.map_fst(e => TermBase.Exp(e))
+  |> PairUtil.map_fst(utility.term_to_seg)
   |> PairUtil.map_fst(utility.view_seg(Exp));
 
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
@@ -449,7 +450,7 @@ let pin_view = (info: info, closure: closure) =>
 
 let syntax_str = (info: info) => {
   let max_len = 30;
-  let str = Printer.of_segment(~holes=None, [info.syntax]);
+  let str = Printer.of_segment(~holes=Some("?"), [info.syntax]);
   let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
   String.length(str) > max_len ? String.sub(str, 0, max_len) ++ "..." : str;
 };
