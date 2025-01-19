@@ -296,8 +296,8 @@
   position: relative;
   filter: drop-shadow(1.5px 3px 0 #95876452) !important;
 }
-.closure:hover + .closure .value > .closure,
-.closure:has(+ .closure:hover) .value > .closure {
+.closure:hover + .closure,
+.closure:has(+ .closure:hover) {
   transform-origin: center left;
   scale: 1.12;
 }
@@ -320,7 +320,9 @@
   padding: 0.2em;
   display: none;
   position: absolute;
-  top: 1.35em;
+  top: 1.4em;
+  scale: 0.8;
+  transform-origin: top left;
 }
 
 .projector.probe .live-env .live-env-entry {
