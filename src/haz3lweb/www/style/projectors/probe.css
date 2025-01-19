@@ -110,9 +110,9 @@
   }
 }
 .overlays .projector.probe.indicated.Right .num-closures {
-  animation: 1s blink-probe-caret step-end infinite;
-
-  /* background-color: var(--num-closures-indicated) !important; */
+  /* Commented out for now due to desync problem */
+  /* animation: 1s blink-probe-caret step-end infinite; */
+  background-color: var(--num-closures-indicated) !important;
 }
 
 .overlays .projector.probe.selected:not(.indicated) .num-closures {
@@ -283,8 +283,8 @@
   border-color: var(--exp-ap-indicated);
 }
 .projector.probe .closure:hover {
-  transform-origin: bottom left;
-  scale: 1.18;
+  /* transform-origin: bottom left; */
+  /* scale: 1.18; */
   z-index: var(--projector-indicated-z);
   position: relative;
   /* opacity: 100% !important; */
@@ -292,13 +292,16 @@
   outline-style: solid;
   outline-offset: -0.1px;
   border-width: 1.5px;
-  top: 0.5px;
+  /* top: 0.5px; */
   position: relative;
   filter: drop-shadow(1.5px 3px 0 #95876452) !important;
 }
-.closure:hover + .closure,
-.closure:has(+ .closure:hover) {
-  transform-origin: center left;
+.projector.probe .closure:hover:not(:has(.long)) {
+  scale: 1.18;
+}
+.closure:hover:not(:has(.long)) + .closure,
+.closure:has(+ .closure:hover:not(:has(.long))) {
+  /* transform-origin: center left; */
   scale: 1.12;
 }
 
@@ -321,7 +324,7 @@
   display: none;
   position: absolute;
   top: 1.4em;
-  scale: 0.8;
+  scale: 0.86;
   transform-origin: top left;
 }
 
