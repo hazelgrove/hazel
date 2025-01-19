@@ -54,7 +54,7 @@ type utility = {
   view_seg: (Sort.t, Base.segment) => Node.t,
   /* Convert an expression to a segment, included here
    * because of cyclic dependency issues*/
-  exp_to_seg: Exp.t => Base.segment,
+  term_to_seg: Any.t => Base.segment,
   /* Convert a segment to an expression, included here
    * because of cyclic dependency issues*/
   seg_to_exp: Base.segment => Exp.t,

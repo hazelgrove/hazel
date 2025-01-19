@@ -74,22 +74,24 @@ let elements_noun: Cls.t => string =
   | Exp(ListConcat) => "Operands"
   | _ => failwith("elements_noun: Cls doesn't have elements");
 
+let view_type = (~globals, typ: Typ.t) =>
+  CodeViewable.view_typ(
+    ~globals,
+    ~settings={
+      inline: true,
+      fold_case_clauses: false,
+      fold_fn_bodies: false,
+      hide_fixpoints: false,
+      fold_cast_types: false,
+      show_filters: false,
+      show_unknown_as_hole: true,
+    },
+    ~info_map=Id.Map.empty,
+    typ,
+  )
+  |> code_box_container;
+
 let common_err_view = (~globals, cls: Cls.t, err: Info.error_common) => {
-  let view_type = x =>
-    x
-    |> CodeViewable.view_typ(
-         ~globals,
-         ~settings={
-           inline: true,
-           fold_case_clauses: false,
-           fold_fn_bodies: false,
-           hide_fixpoints: false,
-           fold_cast_types: false,
-           show_filters: false,
-         },
-         ~info_map=Id.Map.empty,
-       )
-    |> code_box_container;
   switch (err) {
   | NoType(BadToken(token)) =>
     switch (Form.bad_token_cls(token)) {
@@ -98,43 +100,31 @@ let common_err_view = (~globals, cls: Cls.t, err: Info.error_common) => {
     }
   | NoType(BadTrivAp(ty)) => [
       text("Function argument type"),
-      view_type(ty),
+      view_type(~globals, ty),
       text("inconsistent with"),
-      view_type(Prod([]) |> Typ.fresh),
+      view_type(~globals, Prod([]) |> Typ.fresh),
     ]
   | NoType(FreeConstructor(name)) => [code_err(name), text("not found")]
   | Inconsistent(WithArrow(typ)) => [
       text(":"),
-      view_type(typ) |> code_box_container,
+      view_type(~globals, typ),
       text("inconsistent with arrow type"),
     ]
   | Inconsistent(Expectation({ana, syn})) => [
       text(":"),
-      view_type(syn) |> code_box_container,
+      view_type(~globals, syn),
       text("inconsistent with expected type"),
-      view_type(ana) |> code_box_container,
+      view_type(~globals, ana),
     ]
   | Inconsistent(Internal(tys)) => [
       text(elements_noun(cls) ++ " have inconsistent types:"),
-      ...ListUtil.join(text(","), List.map(view_type, tys)),
+      ...ListUtil.join(text(","), List.map(view_type(~globals), tys)),
     ]
   };
 };
 
 let common_ok_view = (~globals, cls: Cls.t, ok: Info.ok_pat) => {
-  let view_type =
-    CodeViewable.view_typ(
-      ~globals,
-      ~info_map=Id.Map.empty,
-      ~settings={
-        inline: true,
-        fold_case_clauses: false,
-        fold_fn_bodies: false,
-        hide_fixpoints: false,
-        fold_cast_types: false,
-        show_filters: false,
-      },
-    );
+  let view_type = view_type(~globals);
   switch (cls, ok) {
   | (Exp(MultiHole) | Pat(MultiHole), _) => [
       text("Expecting operator or delimiter"),
@@ -175,19 +165,7 @@ let common_ok_view = (~globals, cls: Cls.t, ok: Info.ok_pat) => {
 };
 
 let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
-  let view_type =
-    CodeViewable.view_typ(
-      ~globals,
-      ~settings={
-        inline: true,
-        fold_case_clauses: false,
-        fold_fn_bodies: false,
-        hide_fixpoints: false,
-        fold_cast_types: false,
-        show_filters: false,
-      },
-      ~info_map=Id.Map.empty,
-    );
+  let view_type = view_type(~globals);
   switch (ok) {
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
   | Type(ty) => [view_type(ty), text("is a type")]
@@ -209,22 +187,10 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
 };
 
 let typ_err_view = (~globals, ok: Info.error_typ) => {
-  let view_type =
-    CodeViewable.view_typ(
-      ~globals,
-      ~settings={
-        inline: true,
-        fold_case_clauses: false,
-        fold_fn_bodies: false,
-        hide_fixpoints: false,
-        fold_cast_types: false,
-        show_filters: false,
-      },
-      ~info_map=Id.Map.empty,
-    );
+  let view_type = view_type(~globals);
   switch (ok) {
   | FreeTypeVariable(name) => [
-      view_type(Var(name) |> Typ.fresh) |> code_box_container,
+      view_type(Var(name) |> Typ.fresh),
       text("not found"),
     ]
   | BadToken(token) => [
@@ -235,26 +201,14 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
   | WantTypeFoundAp => [text("Must be part of a sum type")]
   | DuplicateConstructor(name) => [
-      view_type(Var(name) |> Typ.fresh) |> code_box_container,
+      view_type(Var(name) |> Typ.fresh),
       text("already used in this sum"),
     ]
   };
 };
 
 let rec exp_view = (~globals, cls: Cls.t, status: Info.status_exp) => {
-  let view_type =
-    CodeViewable.view_typ(
-      ~globals,
-      ~settings={
-        inline: true,
-        fold_case_clauses: false,
-        fold_fn_bodies: false,
-        hide_fixpoints: false,
-        fold_cast_types: false,
-        show_filters: false,
-      },
-      ~info_map=Id.Map.empty,
-    );
+  let view_type = view_type(~globals);
   switch (status) {
   | InHole(FreeVariable(name)) =>
     div_err([code_err(name), text("not found")])
@@ -315,19 +269,7 @@ let typ_view = (~globals, cls: Cls.t, status: Info.status_typ) =>
   };
 
 let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
-  let view_type =
-    CodeViewable.view_typ(
-      ~globals,
-      ~settings={
-        inline: true,
-        fold_case_clauses: false,
-        fold_fn_bodies: false,
-        hide_fixpoints: false,
-        fold_cast_types: false,
-        show_filters: false,
-      },
-      ~info_map=Id.Map.empty,
-    );
+  let view_type = view_type(~globals);
   switch (status) {
   | NotInHole(Empty) => div_ok([text("Fillable with a new alias")])
   | NotInHole(Var(name)) => div_ok([ContextInspector.alias_view(name)])
@@ -337,17 +279,17 @@ let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
   | InHole(ShadowsType(name, BaseTyp)) =>
     div_err([
       text("Can't shadow base type"),
-      view_type(Var(name) |> Typ.fresh) |> code_box_container,
+      view_type(Var(name) |> Typ.fresh),
     ])
   | InHole(ShadowsType(name, TyAlias)) =>
     div_err([
       text("Can't shadow existing alias"),
-      view_type(Var(name) |> Typ.fresh) |> code_box_container,
+      view_type(Var(name) |> Typ.fresh),
     ])
   | InHole(ShadowsType(name, TyVar)) =>
     div_err([
       text("Can't shadow existing type variable"),
-      view_type(Var(name) |> Typ.fresh) |> code_box_container,
+      view_type(Var(name) |> Typ.fresh),
     ])
   };
 };

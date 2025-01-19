@@ -1,7 +1,8 @@
 /* PROJECTORS */
 
 @import "panel.css";
-@import "probe.css";
+@import "proj-probe.css";
+@import "proj-type.css";
 
 /* Turn off caret when a projector is focused */
 .code-deco:has(~ .projectors .projector *:focus) #caret .caret-path {
@@ -70,21 +71,6 @@
 
 .result .projector.fold {
   cursor: default;
-}
-
-/* PROJECTOR: INFO */
-
-.projector.type .type {
-  color: var(--token-typ);
-}
-.projector.type {
-  cursor: pointer;
-}
-.projector.type .info {
-  display: flex;
-}
-.projector.type:hover {
-  color: var(--BLACK);
 }
 
 /* PROJECTOR: CHECKBOX */

@@ -160,6 +160,7 @@ let qcheck_menhir_serialized_equivalent_test =
             hide_fixpoints: false,
             fold_cast_types: false,
             show_filters: true,
+            show_unknown_as_hole: true,
           },
           core_exp,
         );

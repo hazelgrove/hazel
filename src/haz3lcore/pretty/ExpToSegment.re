@@ -10,6 +10,7 @@ module Settings = {
     hide_fixpoints: bool,
     fold_cast_types: bool,
     show_filters: bool,
+    show_unknown_as_hole: bool,
   };
 
   let of_core = (~inline, settings: CoreSettings.t) => {
@@ -19,6 +20,7 @@ module Settings = {
     hide_fixpoints: !settings.evaluation.show_fixpoints,
     fold_cast_types: !settings.evaluation.show_casts,
     show_filters: false,
+    show_unknown_as_hole: true,
   };
 };
 
@@ -581,12 +583,17 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Unknown(Internal)
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole)) =>
-    let id = typ |> Typ.rep_id;
-    p_just([Grout({id, shape: Convex})]);
+    if (settings.show_unknown_as_hole) {
+      let id = typ |> Typ.rep_id;
+      p_just([Grout({id, shape: Convex})]);
+    } else {
+      text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "?");
+    }
   | Unknown(Hole(MultiHole(es))) =>
     let id = typ |> Typ.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
     ListUtil.flat_intersperse(Grout({id, shape: Concave}), es);
+
   | Var(v) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v)
   | Int => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
   | Float => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float")

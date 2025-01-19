@@ -1,0 +1,100 @@
+/* PROJECTOR: INFO */
+
+:root {
+  --code-text: var(--token-exp);
+  --main-base: hsl(281, 80%, 95%);
+  --main-shadow: hsl(281, 40%, 25%);
+  --main-indicated: var(--TYP);
+}
+
+/* BACKING */
+
+.projector.type > svg {
+  /* fill: var(--main-base);
+  filter: drop-shadow(0.7px 0.7px 0px var(--main-shadow)); */
+  filter: drop-shadow(0.7px 0.7px 0px var(--BR3));
+}
+
+.projector.type.indicated > svg {
+  fill: var(--main-indicated);
+  filter: drop-shadow(0.7px 0.7px 0px var(--main-shadow));
+}
+
+.projector.type.selected > svg {
+  display: none;
+}
+
+/* INLINE VIEW */
+
+.projector.type:hover {
+  color: var(--BLACK);
+}
+
+.projector.type .main {
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+  color: var(--code-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.projector.type.indicated .main {
+  color: white;
+}
+
+.projector.type .icon {
+  width: 16px;
+  height: 16px;
+  background-image: url(../../img/noun-microscope-7023456.svg);
+  background-size: cover;
+  filter: invert(1) brightness(0.4) sepia(1) saturate(1.8) hue-rotate(245deg);
+}
+.projector.type.indicated:not(.selected) .main .icon {
+  filter: invert(1);
+}
+
+/* OFFSIDE VIEW */
+
+.projector.type .offside {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+}
+
+.projector.type .offside .mode {
+  font-weight: 800;
+  color: var(--main-base);
+  filter: brightness(0.9);
+}
+
+.projector.type.indicated .offside .mode {
+  opacity: 100%;
+  color: var(--main-indicated);
+}
+
+.projector.type .offside .type-cell {
+  border-radius: 0.05em 0.05em 0.05em 0.2em;
+  background-color: var(--main-base);
+  border-bottom: 1px solid var(--main-shadow);
+}
+
+.projector.type.indicated .offside .type-cell {
+  /* background: white; */
+  outline-width: 1px;
+  outline-style: solid;
+  outline-color: var(--main-indicated);
+  border-color: var(--main-indicated);
+  /* border-bottom-width: 1.5px; */
+}
+
+.projector.type .offside .code {
+  position: relative;
+  line-height: initial;
+}
+
+.projector.type .offside .code .token.explicit-hole {
+  color: white;
+}

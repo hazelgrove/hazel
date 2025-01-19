@@ -24,11 +24,7 @@
   --pat-cell: hsl(165, 30%, 70%);
 }
 
-.projector.probe {
-  font-family: var(--code-font);
-  font-size: var(--base-font-size);
-  color: var(--code-text);
-}
+/* BACKING */
 
 .projector.probe.Exp > svg {
   fill: var(--exp-base);
@@ -39,12 +35,33 @@
   filter: drop-shadow(0.7px 0.7px 0px var(--pat-shadow));
 }
 
+.projector.probe.selected > svg {
+  display: none;
+}
+.projector.probe.indicated.Exp > svg {
+  fill: var(--exp-indicated);
+}
+.projector.probe.indicated.Pat > svg {
+  fill: var(--pat-indicated);
+}
+.projector.probe:has(.ap.pinned) > svg {
+  fill: var(--exp-ap-indicated);
+}
+
+/* INLINE VIEW */
+
 .projector.probe .main {
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+  color: var(--code-text);
   display: flex;
   flex-direction: row;
   gap: 0.4em;
   cursor: pointer;
   align-items: center;
+}
+.projector.probe.indicated:not(.selected) .main {
+  color: white;
 }
 
 @keyframes rotate {
@@ -334,23 +351,6 @@
   gap: 0.3em;
   align-items: baseline;
   color: var(--GB0);
-}
-
-.projector.probe.selected > svg {
-  display: none;
-}
-.projector.probe.indicated > svg {
-  fill: var(--exp-indicated);
-}
-.projector.probe.indicated.Pat > svg {
-  fill: var(--pat-indicated);
-}
-.projector.probe:has(.ap.pinned) > svg {
-  fill: var(--exp-ap-indicated);
-}
-
-.projector.probe.indicated:not(.selected) .main {
-  color: white;
 }
 
 .projector.probe.indicated .closure:hover .live-env {
