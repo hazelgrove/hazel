@@ -32,17 +32,29 @@
 }
 
 #persistent .tabs {
-    text-transform: none;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
 }
 
 #persistent .tab {
+    box-sizing: border-box;
     display: flex;
     justify-content: center;
     align-items: center;
     width: 5em;
     height: 5em;
-    cursor: pointer; 
+    cursor: pointer;
     transition: background-color 0.2s ease; 
+}
+
+.collapse-button {
+    margin-top: auto;
+}
+  
+#persistent .tab.active {
+    border-right: .2em solid var(--BR3);
+    padding-left: .2em;
 }
 
 #persistent .tab:hover {

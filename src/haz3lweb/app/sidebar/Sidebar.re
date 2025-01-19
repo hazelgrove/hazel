@@ -4,11 +4,13 @@ open Util.Web;
 open Util;
 open Haz3lcore;
 
-let tab = (~tooltip="", icon, action) =>
+let tab = (~tooltip="", icon, action, isActive) => {
+  let classes = ["tab"] @ (isActive ? ["active"] : []);
   div(
-    ~attrs=[clss(["tab"]), Attr.on_mousedown(action), Attr.title(tooltip)],
+    ~attrs=[clss(classes), Attr.on_mousedown(action), Attr.title(tooltip)],
     [icon],
   );
+};
 
 let explain_this_tab = (~globals: Globals.t): Node.t => {
   let tooltip = "Switch to Language Documentation";
@@ -21,7 +23,14 @@ let explain_this_tab = (~globals: Globals.t): Node.t => {
     ]);
   div(
     ~attrs=[clss(["explain-this-button"])],
-    [tab(Icons.explain_this, ~tooltip, switch_explain_this)],
+    [
+      tab(
+        Icons.explain_this,
+        ~tooltip,
+        switch_explain_this,
+        globals.settings.sidebar.window == LanguageDocumentation,
+      ),
+    ],
   );
 };
 
@@ -34,7 +43,14 @@ let assistant_tab = (~globals: Globals.t): Node.t => {
     ]);
   div(
     ~attrs=[clss(["assistant-button"])],
-    [tab(Icons.assistant, ~tooltip, switch_assistant)],
+    [
+      tab(
+        Icons.assistant,
+        ~tooltip,
+        switch_assistant,
+        globals.settings.sidebar.window == HelpfulAssistant,
+      ),
+    ],
   );
 };
 
@@ -49,7 +65,7 @@ let collapse_tab = (~globals: Globals.t): Node.t => {
     ]);
   div(
     ~attrs=[clss(["collapse-button"])],
-    [tab(icon, ~tooltip, switch_assistant)],
+    [tab(icon, ~tooltip, switch_assistant, false)],
   );
 };
 

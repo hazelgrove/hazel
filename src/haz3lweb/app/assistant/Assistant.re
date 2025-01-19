@@ -13,7 +13,7 @@ let view = (~globals: Globals.t, ~inject: 'a => Effect.t(unit)) => {
         [
           div(
             ~attrs=[clss(["assistant-title"])],
-            [text("Assistant Chat")],
+            [text("Agentic Assistant Chat")],
           ),
         ],
       ),
