@@ -4,23 +4,25 @@ open Util;
 
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type llm_input =
+  type manual_llm =
     | Agent
     | Human;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type lsp_input =
+  type manual_lsp =
     | LanguageServer
     | Human;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    llm: llm_input,
-    lsp: lsp_input,
+    llm: bool,
+    lsp: bool,
+    ongoing_chat: bool,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | ToggleLLM
-    | ToggleLSP;
+    | ToggleLSP
+    | UpdateChatStatus;
 };

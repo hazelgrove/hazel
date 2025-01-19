@@ -84,7 +84,3 @@ let persistent_view = (~globals: Globals.t, ~inject: 'a => Effect.t(unit)) => {
     ],
   );
 };
-
-let view = (~globals: Globals.t, ~inject: 'a => Effect.t(unit)) => {
-  div(~attrs=[Attr.id("persistent-sidebar")], []);
-};
