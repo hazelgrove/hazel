@@ -44,8 +44,7 @@ module Update = {
       (~settings: Settings.t, action, model: Model.t): Updated.t(Model.t) => {
     switch (action) {
     | SendMessage(message) =>
-      print_endline(message);
-      Model.{chat: ["updated", "and testing"]} |> Updated.return_quiet;
+      Model.{chat: ["updated", "and testing"]} |> Updated.return_quiet
     };
   };
 };

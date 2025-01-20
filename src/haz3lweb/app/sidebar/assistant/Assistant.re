@@ -109,6 +109,11 @@ let message_input = (~signal, ~inject, ~globals: Globals.t): Node.t => {
           | input => Js.to_string(input##.value)
           },
       );
+    Js.Opt.case(
+      Dom_html.document##getElementById(Js.string("message-input")),
+      () => (),
+      el => Js.Unsafe.coerce(el)##.value := Js.string(""),
+    );
     handle_send(message);
   };
 
@@ -128,7 +133,7 @@ let message_input = (~signal, ~inject, ~globals: Globals.t): Node.t => {
         (),
       ),
       div(
-        ~attrs=[clss(["send-button"])],
+        ~attrs=[clss(["send-button"]), Attr.on_click(send_message)],
         [
           Widgets.button(~tooltip="Submit Message", Icons.send, send_message),
         ],
