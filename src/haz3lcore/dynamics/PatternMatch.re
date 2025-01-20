@@ -12,7 +12,7 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
   };
 
 type closure_closures =
-  list((Probe.stack, Probe.stack) => (Id.t, Dynamics.Probe.Closure.t));
+  list((Probe.stack, Probe.call_stack) => (Id.t, Dynamics.Probe.Closure.t));
 let closure_closures: ref(closure_closures) = ref([]);
 
 let capture_closure = (pr, id: Id.t, d, inner_match: match_result): unit =>
@@ -22,10 +22,10 @@ let capture_closure = (pr, id: Id.t, d, inner_match: match_result): unit =>
   | Matches(env) =>
     closure_closures :=
       List.cons(
-        (stack, dyn_stack) =>
+        (stack, call_stack) =>
           (
             id,
-            Dynamics.Probe.Closure.mk(d, {env, stack, dyn_stack, id}, pr),
+            Dynamics.Probe.Closure.mk(d, {env, stack, call_stack, id}, pr),
           ),
         closure_closures^,
       )

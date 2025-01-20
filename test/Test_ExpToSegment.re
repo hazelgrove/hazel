@@ -10,6 +10,7 @@ let segmentize =
       hide_fixpoints: false,
       fold_cast_types: false,
       show_filters: true,
+      show_unknown_as_hole: true,
     },
     _,
   );

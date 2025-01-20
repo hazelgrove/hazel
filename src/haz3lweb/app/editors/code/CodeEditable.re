@@ -247,7 +247,6 @@ module View = {
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),
-        ProjectorView.mk_utility(globals.font_metrics),
         globals.font_metrics,
         ProjectorView.collect_data(
           model.editor.syntax,

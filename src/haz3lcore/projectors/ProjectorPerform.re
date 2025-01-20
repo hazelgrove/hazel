@@ -1,4 +1,3 @@
-open Projector;
 open ProjectorBase;
 
 /* Updates the underlying piece of syntax for a projector */
@@ -10,11 +9,13 @@ module Update = {
     | x => x
     };
 
-  let add_projector = (kind: Base.kind, id: Id.t, syntax: syntax) =>
+  let init = (kind: ProjectorCore.kind, syntax: syntax): syntax =>
+    ProjectorInit.init(kind, syntax, MakeTerm.any([syntax]));
+
+  let add_projector = (kind: ProjectorCore.kind, id: Id.t, syntax: syntax) =>
     switch (syntax) {
-    | Projector(pr) when Piece.id(syntax) == id =>
-      Projector.init(kind, pr.syntax)
-    | syntax when Piece.id(syntax) == id => Projector.init(kind, syntax)
+    | Projector(pr) when Piece.id(syntax) == id => init(kind, pr.syntax)
+    | syntax when Piece.id(syntax) == id => init(kind, syntax)
     | x => x
     };
 
@@ -24,10 +25,11 @@ module Update = {
     | x => x
     };
 
-  let add_or_remove_projector = (kind: Base.kind, id: Id.t, syntax: syntax) =>
+  let add_or_remove_projector =
+      (kind: ProjectorCore.kind, id: Id.t, syntax: syntax) =>
     switch (syntax) {
     | Projector(pr) when Piece.id(syntax) == id => pr.syntax
-    | syntax when Piece.id(syntax) == id => Projector.init(kind, syntax)
+    | syntax when Piece.id(syntax) == id => init(kind, syntax)
     | x => x
     };
 
@@ -36,10 +38,11 @@ module Update = {
       : ZipperBase.t =>
     ZipperBase.MapPiece.fast_local(update_piece(f, id), id, z);
 
-  let add = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
+  let add = (k: ProjectorCore.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
     ZipperBase.MapPiece.fast_local(add_projector(k, id), id, z);
 
-  let add_or_remove = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
+  let add_or_remove =
+      (k: ProjectorCore.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
     ZipperBase.MapPiece.fast_local(add_or_remove_projector(k, id), id, z);
 
   let remove = (id: Id.t, z: ZipperBase.t): ZipperBase.t =>
@@ -103,7 +106,7 @@ let go =
       };
     switch (Indicated.projector(z)) {
     | Some((_, p)) =>
-      let (module P) = to_module(p.kind);
+      let (module P) = ProjectorInit.to_module(p.kind);
       P.focus((id, d));
       Ok(z);
     | None => Error(Cant_project)

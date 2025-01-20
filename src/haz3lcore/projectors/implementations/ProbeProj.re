@@ -19,7 +19,7 @@ type model = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
-  | PinAp(Id.t)
+  | PinAp(list(Id.t))
   | ChangeLength(Id.t, int)
   | Offset(int)
   | ToggleShowAllVals(int);
@@ -50,53 +50,94 @@ let is_var_ref = (info: info): bool =>
   | _ => false
   };
 
-let cur_ap_id = (info: info): option(Id.t) =>
+let cur_ap = (info: info) =>
   switch (info.statics) {
-  | Some(InfoExp({term: {term: Ap(_), _} as ap, _})) =>
-    Some(Term.Exp.rep_id(ap))
+  | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
   | Some(InfoExp({term: {term: Wrap({term: Ap(_), _} as ap, _), _}, _})) =>
     Some(Term.Exp.rep_id(ap))
   | _ => None
   };
 
-let cur_outer_ap_id = (_info: info, dyn_stack: Probe.stack): option(Id.t) =>
-  switch (dyn_stack) {
-  | [frame, ..._] => Some(frame.ap_id)
-  | _ => None
-  };
+let cur_call = (info: info, closure: closure) => {
+  open OptUtil.Syntax;
+  let* lex = cur_ap(info);
+  let dyn = closure.call_stack;
+  Some([lex, ...dyn]);
+};
 
-module State = {
+module DynCursor = {
   /* Manages shared state between probes */
 
   type t = {
-    mutable pinned_ap: option(Id.t),
-    mutable env_cursor: list(Id.t),
-    mutable dyn_env_cursor: list(Probe.frame),
-    mutable cur_ap: option(Id.t),
-    mutable outer_ap_id: option(Id.t),
+    mutable call_cursor: list(Id.t),
+    mutable indicated_call: option(Id.t),
+    mutable pinned_call: option(list(Id.t)),
   };
 
-  let s: t = {
-    pinned_ap: None,
-    env_cursor: [],
-    dyn_env_cursor: [],
-    cur_ap: None,
-    outer_ap_id: None,
-  };
+  let s: t = {call_cursor: [], indicated_call: None, pinned_call: None};
 
-  let reset = () => {
-    s.pinned_ap = None;
-    s.env_cursor = [];
-    s.dyn_env_cursor = [];
-    s.cur_ap = None;
-    s.outer_ap_id = None;
-  };
+  let reset = () => s;
 
   let capture = (info: info, closure: closure) => {
-    s.env_cursor = Probe.env_stack(closure.stack);
-    s.dyn_env_cursor = closure.dyn_stack;
-    s.cur_ap = cur_ap_id(info);
-    s.outer_ap_id = cur_outer_ap_id(info, closure.dyn_stack);
+    s.call_cursor = closure.call_stack;
+    s.indicated_call = cur_ap(info);
+  };
+
+  /* If the closure cursor is on a call, and the provided
+   * call stack is downstream of that call, return how many
+   * aps downstream it is */
+  let depth_in_indicated_calls_stack =
+      (call_stack: Probe.call_stack): option(int) => {
+    open OptUtil.Syntax;
+    let* cur_ap = s.indicated_call;
+    ListUtil.suffix_at_depth([cur_ap] @ s.call_cursor, call_stack, 0);
+  };
+
+  /* How is the current closure related to the closure cursor? */
+  type relation = {
+    /* Is the current closure the call cursor? */
+    is_call_cursor: bool,
+    /* Is the current closure a call directly above the call cursor? */
+    is_call_directly_above_call_cursor: bool,
+    /* Is the current closure below the call cursor, and if so, by how much? */
+    is_below_indicated_call: option(int),
+  };
+
+  //use ListUtil.is_suffix_of
+  let is_strictly_above = (xs: list(Id.t), ys: list(Id.t)): bool =>
+    ListUtil.is_suffix_of(xs, ys) && xs != ys;
+
+  let relation = (info: info, closure: closure): relation => {
+    let this = closure.call_stack;
+    let cursor = s.call_cursor;
+    //ListUtil.suffix_at_depth(cursor, this, 0) != None
+    let cond =
+      if (List.mem(ListUtil.hd_opt(this), cursor |> List.map(Option.some))) {
+        cursor == this;
+      } else {
+        is_strictly_above(this, cursor);
+      };
+    {
+      is_call_cursor: cursor == this || cond,
+      is_call_directly_above_call_cursor:
+        cur_call(info, closure) == Some(cursor),
+      is_below_indicated_call: depth_in_indicated_calls_stack(this),
+    };
+  };
+
+  let clss = (info: info, closure: closure): list(string) => {
+    let relation = relation(info, closure);
+    switch (
+      relation.is_call_cursor,
+      relation.is_call_directly_above_call_cursor,
+      relation.is_below_indicated_call,
+    ) {
+    | (true, _, _) => ["cursor"]
+    | (_, true, _) => ["cursor-caller"]
+    | (_, _, Some(0)) => ["cursor-callee", "direct"]
+    | (_, _, Some(_)) => ["cursor-callee", "indirect"]
+    | (_, _, None) => ["cursor-unrelated"]
+    };
   };
 };
 
@@ -107,45 +148,21 @@ module Closures = {
     | None => 0
     };
 
-  let filter_frames_by_pin =
-      (info: info, frames: list(closure)): list(closure) =>
-    //TODO(andrew): make this logic work more generally...
-    switch (State.s.pinned_ap) {
+  let filter_frames_by_pin = (frames: list(closure)): list(closure) =>
+    switch (DynCursor.s.pinned_call) {
     | Some(pinned_ap) =>
-      frames
-      |> List.filter((closure: closure) =>
-           switch (closure.dyn_stack |> List.rev) {
-           | _ when Some(pinned_ap) == cur_ap_id(info) => true
-           | [frame, ..._] => frame.ap_id == pinned_ap
-           | [] => false
-           }
-         )
+      List.filter(
+        (closure: closure) =>
+          ListUtil.is_suffix_of(pinned_ap, closure.call_stack),
+        frames,
+      )
     | None => frames
     };
 
-  let comparor = (a: closure, b: closure): int => {
-    compare(
-      ListUtil.common_suffix_length(
-        State.s.env_cursor,
-        Probe.env_stack(b.stack),
-      ),
-      ListUtil.common_suffix_length(
-        State.s.env_cursor,
-        Probe.env_stack(a.stack),
-      ),
-    );
-  };
-
-  let select_frames =
-      (info: info, model: model, closures: list(closure)): list(closure) => {
-    switch (List.sort(comparor, closures)) {
-    | [] => []
-    | _ =>
-      closures
-      |> filter_frames_by_pin(info)
-      |> ListUtil.slice(model.index_offset, model.max_closures)
-    };
-  };
+  let select_frames = (model: model, closures: list(closure)): list(closure) =>
+    closures
+    |> filter_frames_by_pin
+    |> ListUtil.slice(model.index_offset, model.max_closures);
 
   let group_by_predicate =
       /* Precondition: Items to be grouped are contigious in list */
@@ -167,26 +184,36 @@ module Closures = {
   };
 
   let is_same_call = ((_, c1: closure), (_, c2: closure)): bool => {
-    switch (List.rev(c2.dyn_stack), List.rev(c1.dyn_stack)) {
+    switch (List.rev(c2.call_stack), List.rev(c1.call_stack)) {
     | ([], _)
     | (_, []) => false
     | ([f1, ..._], [f2, ..._]) => f1 == f2
     };
   };
 
+  // let sort_by_call_stack_size =
+  //     (closures: list((int, closure))): list((int, closure)) => {
+  //   List.stable_sort(
+  //     ((_, c1: closure), (_, c2: closure)) =>
+  //       compare(List.length(c1.call_stack), List.length(c2.call_stack)),
+  //     closures,
+  //   );
+  // };
+
   let group =
       (closures: list((int, closure))): list(list((int, closure))) => {
     let grouped =
       closures |> group_by_predicate(is_same_call) |> List.map(List.rev);
+    // |> List.map(sort_by_call_stack_size);
     /* Flatten if all groups are singletons */
     List.for_all(group => List.length(group) == 1, grouped)
       ? [List.concat(grouped)] : grouped;
   };
 
   let collate =
-      (info: info, model: model, di: list(closure))
+      (model: model, di: list(closure))
       : (int, list(list((int, closure)))) => {
-    let closures = select_frames(info, model, di);
+    let closures = select_frames(model, di);
     let numbered_closures =
       List.mapi((i, c) => (List.length(closures) - i - 1, c), closures);
     (List.length(closures), group(numbered_closures));
@@ -194,96 +221,65 @@ module Closures = {
 };
 
 module Debug = {
-  let of_id = (id: Id.t): string => String.sub(Id.to_string(id), 0, 3);
+  let stack = (stack: Probe.call_stack): string =>
+    stack |> List.map(Id.str3) |> String.concat("\n");
 
-  let stack = (stack: Probe.stack): string =>
-    stack
-    |> List.rev
-    |> List.map(({env_id, ap_id}: Probe.frame) =>
-         "" ++ of_id(env_id) ++ " : " ++ of_id(ap_id)
-       )
-    |> String.concat("\n");
-
-  let str = (closure: closure): string =>
-    "closure_id: "
-    ++ of_id(closure.closure_id)
-    ++ "\nenv_id: "
-    ++ of_id(closure.env_id)
-    ++ "\ndyn_stack:\n"
-    ++ stack(closure.dyn_stack)
+  let str = (info, closure: closure): string =>
+    //"closure_id: "
+    //++ of_id(closure.closure_id)
+    // ++ "\nenv_id: "
+    // ++ of_id(closure.env_id)
+    //++
+    "ap:"
+    ++ (
+      switch (cur_call(info, closure)) {
+      | Some([ap_id, ..._]) => Id.str3(ap_id)
+      | _ => "None"
+      }
+    )
     ++ "\nstack:\n"
-    ++ stack(closure.stack);
+    ++ stack(closure.call_stack);
+  // ++ "\nstack:\n"
+  // ++ stack(closure.stack);
 };
 
-let depth_in_cur_ap_stack = (dyn_stack: list(Probe.frame)): option(int) =>
-  List.find_index(
-    ({ap_id, _}: Probe.frame) => Some(ap_id) == State.s.cur_ap,
-    dyn_stack,
-  );
-
-let seg_view = (utility: utility, available: int, seg: Exp.t): Node.t =>
+let seg_view = (view_seg, utility: utility, available: int, seg: Exp.t) =>
   seg
   |> DHExp.strip_casts
   |> Abbreviate.abbreviate_exp(~available)
-  |> fst
-  |> utility.exp_to_seg
-  |> utility.view_seg(Exp);
+  |> PairUtil.map_fst(e => TermBase.Exp(e))
+  |> PairUtil.map_fst(utility.term_to_seg)
+  |> PairUtil.map_fst(view_seg(Sort.Exp));
 
-let get_goal = (utility: utility, e: Js.t(Dom_html.mouseEvent)): Point.t =>
-  FontMetrics.get_goal(
-    ~font_metrics=utility.font_metrics,
+let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
+  open Float;
+  let row_height = 10.0;
+  let col_width = 10.0;
+  let text_box =
     e##.currentTarget
     |> Js.Opt.get(_, _ => failwith(""))
     |> JsUtil.get_child_with_class(_, "code")
-    |> Option.get,
-    e |> Js.Unsafe.coerce,
-  );
-
-let on_outer_ap = (info: info, closure: closure): bool =>
-  switch (cur_ap_id(info), State.s.outer_ap_id) {
-  | (Some(ap_id), Some(outer_ap_id)) =>
-    ap_id == outer_ap_id
-    && closure.env_id
-    == Option.value(
-         ~default={ap_id: Id.invalid, env_id: Id.invalid},
-         ListUtil.hd_opt(State.s.dyn_env_cursor),
-       ).
-         env_id
-  | _ => false
-  };
-
-let show_indicator = (stack: Probe.stack): bool => {
-  let local = Probe.env_stack(stack);
-  State.s.env_cursor == []
-  && local == []
-  || State.s.env_cursor != []
-  && (
-    ListUtil.is_suffix_of(local, State.s.env_cursor)
-    || ListUtil.is_suffix_of(State.s.env_cursor, local)
-  );
+    |> Option.get;
+  let x_rel = of_int(e##.clientX) -. text_box##getBoundingClientRect##.left;
+  let y_rel = of_int(e##.clientY) -. text_box##getBoundingClientRect##.top;
+  let row = to_int(y_rel /. row_height);
+  let col = to_int(round(x_rel /. col_width));
+  {row, col};
 };
-
-let dynamic_cursor_cls = (info: info, closure: closure): list(string) =>
-  switch (depth_in_cur_ap_stack(closure.dyn_stack)) {
-  | _ when on_outer_ap(info, closure) => ["cursor-outer-ap"]
-  | Some(depth)
-      when ListUtil.is_suffix_of(State.s.dyn_env_cursor, closure.dyn_stack) =>
-    ["cursor-ap-lex"] @ (depth == 0 ? [] : ["light"])
-  | Some(depth) => ["cursor-ap"] @ (depth == 0 ? [] : ["light"])
-  | _ when show_indicator(closure.stack) => ["cursor-lex"]
-  | None => ["cursor-none"]
-  };
 
 let display_length = (model: model, id: Id.t): int =>
   Id.Map.find_opt(id, model.display_lengths) |> Option.value(~default=12);
 
 let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
 
+let click_coords: ref(option(Point.t)) = ref(Option.None);
+
 let value_view =
     (
       info: info,
       model: model,
       utility: utility,
+      view_seg,
       local,
       closure: closure,
       index: int,
@@ -292,7 +288,8 @@ let value_view =
     let target = e##.target |> Js.Opt.get(_, _ => failwith("no target"));
     JsUtil.setPointerCapture(target, e##.pointerId) |> ignore;
     mousedown := Some(target);
-    State.capture(info, closure);
+    click_coords := Some({row: e##.clientY, col: e##.clientX});
+    DynCursor.capture(info, closure);
     Effect.Ignore;
   };
 
@@ -311,79 +308,93 @@ let value_view =
     switch (mousedown^) {
     | Some(_elem) when Js.to_bool(e##.shiftKey) =>
       /* Ideally we could just use hasPointerCapture... */
-      let goal = get_goal(utility, e);
+      let goal = pos_rel_to_target(e);
       local(ChangeLength(closure.closure_id, goal.col));
     | _ => Effect.Ignore
     };
 
+  let (view, length) =
+    seg_view(
+      view_seg,
+      utility,
+      display_length(model, closure.closure_id),
+      closure.value,
+    );
+
   div(
     ~attrs=[
-      Attr.title(Debug.str(closure)),
+      Attr.title(Debug.str(info, closure)),
       Attr.classes(
-        ["val-resize"]
-        @ dynamic_cursor_cls(info, closure)
-        @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : []),
+        ["value"]
+        @ DynCursor.clss(info, closure)
+        @ (length > 5 ? ["long"] : [])
+        @ (Option.is_some(cur_ap(info)) ? ["ap"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
       Attr.on_pointerdown(val_pointerdown),
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
     ],
-    [
-      seg_view(
-        utility,
-        display_length(model, closure.closure_id),
-        closure.value,
-      ),
-    ],
+    [view],
   );
 };
 
-let env_val = (utility: utility, en: Dynamics.Probe.Env.entry): Node.t => {
+let env_val =
+    (view_seg, utility: utility, en: Dynamics.Probe.Env.entry): Node.t => {
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
     [
       Node.text(en.binding.name ++ "="),
       switch (en.value) {
       | Opaque => Node.text("Opaque")
-      | Val(d) => seg_view(utility, 12, d)
+      | Val(d) => seg_view(view_seg, utility, 12, d) |> fst
       },
     ],
   );
 };
 
-let env_view = (closure: closure, utility: utility): Node.t =>
+let env_view = (closure: closure, view_seg, utility: utility): Node.t =>
   Node.div(
     ~attrs=[Attr.classes(["live-env"])],
-    closure.env |> ListUtil.dedup |> rm_opaques |> List.map(env_val(utility)),
+    closure.env
+    |> ListUtil.dedup
+    |> rm_opaques
+    |> List.map(env_val(view_seg, utility)),
   );
 
 let closure_view =
     (
       info: info,
       utility: utility,
+      view_seg,
       model: model,
       local,
       (index: int, closure: closure),
     ) =>
   div(
-    ~attrs=[
-      Attr.classes(
-        ["closure"] @ (show_indicator(closure.stack) ? ["cursor"] : []),
-      ),
-    ],
-    [value_view(info, model, utility, local, closure, index)]
-    @ (is_var_ref(info) ? [] : [env_view(closure, utility)]),
+    ~attrs=[Attr.classes(["closure"])],
+    [value_view(info, model, utility, view_seg, local, closure, index)]
+    @ (is_var_ref(info) ? [] : [env_view(closure, view_seg, utility)]),
   );
 
 let closure_group_view =
-    (info, utility, model, local, groups: list(list((int, closure)))) => {
+    (
+      info,
+      utility,
+      view_seg,
+      model,
+      local,
+      groups: list(list((int, closure))),
+    ) => {
   let group_views =
     List.map(
       closures =>
         Node.div(
           ~attrs=[Attr.classes(["closure-group"])],
-          List.map(closure_view(info, utility, model, local), closures),
+          List.map(
+            closure_view(info, utility, view_seg, model, local),
+            closures,
+          ),
         ),
       groups,
     );
@@ -420,16 +431,17 @@ let nav_bar_view = (model: model, di: list(closure), local) => {
 let equals_view =
   div(~attrs=[Attr.classes(["live-equals"])], [text("=")]);
 
-let offside_view = (model: model, info: info, local, utility: utility) =>
+let offside_view =
+    (model: model, info: info, local, view_seg, utility: utility) =>
   Node.div(
     ~attrs=[Attr.classes(["live-offside"])],
     switch (info.dynamics) {
     | Some(di) =>
-      let (num_shown, groups) = Closures.collate(info, model, di);
+      let (num_shown, groups) = Closures.collate(model, di);
       let is_cut_off = num_shown != Closures.num(info) && num_shown > 0;
       let extras = [nav_bar_view(model, di, local), ellipsis_view(local)];
       (num_shown > 0 ? [equals_view] : [])
-      @ closure_group_view(info, utility, model, local, groups)
+      @ closure_group_view(info, utility, view_seg, model, local, groups)
       @ (is_cut_off ? extras : []);
     | _ => []
     },
@@ -447,13 +459,14 @@ let num_closures_view = (info: info) => {
   );
 };
 
-let pin_view = (info: info) =>
-  State.s.pinned_ap != None && State.s.pinned_ap == cur_ap_id(info)
+let pin_view = (info: info, closure: closure) =>
+  DynCursor.s.pinned_call != None
+  && DynCursor.s.pinned_call == cur_call(info, closure)
     ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
 let syntax_str = (info: info) => {
   let max_len = 30;
-  let str = Printer.of_segment(~holes=None, [info.syntax]);
+  let str = Printer.of_segment(~holes=Some("?"), [info.syntax]);
   let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
   String.length(str) > max_len ? String.sub(str, 0, max_len) ++ "..." : str;
 };
@@ -461,18 +474,35 @@ let syntax_str = (info: info) => {
 let syntax_view = (info: info) => info |> syntax_str |> text;
 
 let placeholder = (_m, info) =>
-  ProjectorShape.inline(3 + String.length(syntax_str(info)));
+  ProjectorCore.inline(3 + String.length(syntax_str(info)));
 
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
 let view = (info: info): Node.t => {
+  let first_closure =
+    switch (info.dynamics) {
+    | Some([first_closure, ..._]) => Some(first_closure)
+    | _ => None
+    };
+  let is_pinned =
+    switch (first_closure) {
+    | Some(first_closure) =>
+      DynCursor.s.pinned_call == cur_call(info, first_closure)
+    | _ => false
+    };
   let on_double_click = _ => {
-    //State.reset();
-    switch (State.s.pinned_ap) {
-    | Some(pinned_ap) when Some(pinned_ap) == cur_ap_id(info) =>
-      State.s.pinned_ap = None
+    //DynCursor.reset();
+    switch (DynCursor.s.pinned_call) {
+    | Some(pinned_ap) when ListUtil.hd_opt(pinned_ap) == cur_ap(info) =>
+      DynCursor.s.pinned_call = None
     | Some(_)
-    | None => State.s.pinned_ap = cur_ap_id(info)
+    | None =>
+      //TODO(andrew): this should be on the cell not on the ap...
+      switch (first_closure) {
+      | Some(first_closure) =>
+        DynCursor.s.pinned_call = cur_call(info, first_closure)
+      | _ => ()
+      }
     };
     Effect.Ignore;
   };
@@ -481,7 +511,7 @@ let view = (info: info): Node.t => {
     switch (info.dynamics) {
     | Some(di) =>
       switch (di) {
-      | [first_closure, ..._] => State.capture(info, first_closure)
+      | [first_closure, ..._] => DynCursor.capture(info, first_closure)
       | [] => ()
       }
     | None => ()
@@ -493,8 +523,8 @@ let view = (info: info): Node.t => {
     ~attrs=[
       Attr.classes(
         ["main"]
-        @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : [])
-        @ (State.s.pinned_ap == cur_ap_id(info) ? ["pinned"] : []),
+        @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
+        @ (is_pinned ? ["pinned"] : []),
       ),
       Attr.on_double_click(on_double_click),
       Attr.on_pointerdown(on_pointerdown),
@@ -504,15 +534,32 @@ let view = (info: info): Node.t => {
 };
 
 let overlay_view = (info: info): Node.t => {
+  let first_closure =
+    switch (info.dynamics) {
+    | Some([first_closure, ..._]) => Some(first_closure)
+    | _ => None
+    };
+  let is_pinned =
+    switch (first_closure) {
+    | Some(first_closure) =>
+      DynCursor.s.pinned_call == cur_call(info, first_closure)
+    | _ => false
+    };
   div(
     ~attrs=[
       Attr.classes(
         ["overlay"]
-        @ (Option.is_some(cur_ap_id(info)) ? ["ap"] : [])
-        @ (State.s.pinned_ap == cur_ap_id(info) ? ["pinned"] : []),
+        @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
+        @ (is_pinned ? ["pinned"] : []),
       ),
     ],
-    [num_closures_view(info)] @ pin_view(info),
+    [num_closures_view(info)]
+    @ (
+      switch (first_closure) {
+      | Some(first_closure) => pin_view(info, first_closure)
+      | _ => []
+      }
+    ),
   );
 };
 
@@ -535,9 +582,9 @@ let update = (m: model, _info: info, a: action) => {
     let index_offset = index_offset < 0 ? 0 : index_offset;
     {...m, index_offset};
   | PinAp(id) =>
-    switch (State.s.pinned_ap) {
-    | Some(_) => State.s.pinned_ap = None
-    | None => State.s.pinned_ap = Some(id)
+    switch (DynCursor.s.pinned_call) {
+    | Some(_) => DynCursor.s.pinned_call = None
+    | None => DynCursor.s.pinned_call = Some(id)
     };
     m;
   };
@@ -554,21 +601,21 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
   let init = init;
-  let can_project = _ => true;
+  let can_project = (_, _) => true;
   let can_focus = false;
   let dynamics = true;
   let placeholder = placeholder;
   let update = update;
-  let view = (_model, info, ~local as _, ~parent as _, ~utility as _) =>
+  let view = (_model, info, ~local as _, ~parent as _, ~view_seg as _) =>
     view(info);
   let offside_view =
     Some(
-      (model, info, ~local, ~parent as _, ~utility) =>
-        offside_view(model, info, local, utility),
+      (model, info, ~local, ~parent as _, ~view_seg) =>
+        offside_view(model, info, local, view_seg, info.utility),
     );
   let overlay_view =
     Some(
-      (_model, info, ~local as _, ~parent as _, ~utility as _) =>
+      (_model, info, ~local as _, ~parent as _, ~view_seg as _) =>
         overlay_view(info),
     );
   let underlay_view = Option.None; //TODO

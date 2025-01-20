@@ -140,7 +140,7 @@ module Transition = (EV: EV_MODE) => {
     List.iter(
       closure => {
         let (id, closure: Dynamics.Probe.Closure.t) =
-          closure(env.stack, env.dyn_stack);
+          closure(env.stack, env.call_stack);
         update_probe(state, id, closure);
       },
       closures,

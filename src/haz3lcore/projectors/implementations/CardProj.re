@@ -545,14 +545,13 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
   let init: model = {mode: Show};
-  let can_project = p => Syntax.get_opt(p) != None;
+  let can_project = (p, _) => Syntax.get_opt(p) != None;
   let can_focus = false;
   let dynamics = false;
-  let placeholder = (_, info) =>
-    ProjectorShape.{
-      horizontal: Syntax.width_of_piece(info.syntax),
-      vertical: Tab(1),
-    };
+  let placeholder = (_, info): ProjectorCore.shape => {
+    horizontal: Syntax.width_of_piece(info.syntax),
+    vertical: Tab(1),
+  };
   let update = (_model, _, action) =>
     switch (action) {
     | SetMode(mode) => {mode: mode}
@@ -563,7 +562,7 @@ module M: Projector = {
         info,
         ~local,
         ~parent: external_action => Ui_effect.t(unit),
-        ~utility as _,
+        ~view_seg as _,
       ) => {
     switch (Syntax.get(info.syntax)) {
     | (sort, Card(card)) =>
