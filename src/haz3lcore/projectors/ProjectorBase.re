@@ -25,13 +25,12 @@ type external_action =
  * provided here to resolve cyclic dependency issues */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type utility = {
-  /* Convert a term to a segment */
-  term_to_seg: Any.t => list(syntax),
   /* Convert a segment to a term */
   seg_to_term: list(syntax) => Term.Any.t,
-  /* Lifts term->term functions to syntax->syntax.
-   * NOTE: As syntax is currently limited to single pieces, this
-   * will proactively attempt to parenthesize resulting non-single
+  /* Convert a term to a segment */
+  term_to_seg: Any.t => list(syntax),
+  /* Lifts term->term functions to syntax->syntax. This will
+   * proactively attempt to parenthesize resulting non-single
    * piece terms. As such, sorts that do not have parentheses
    * (currently all degenerate cases) will throw an error */
   lift_syntax: (Any.t => Any.t, syntax) => syntax,

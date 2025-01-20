@@ -221,10 +221,8 @@ module Closures = {
 };
 
 module Debug = {
-  let of_id = (id: Id.t): string => String.sub(Id.to_string(id), 0, 3);
-
   let stack = (stack: Probe.call_stack): string =>
-    stack |> List.map(of_id) |> String.concat("\n");
+    stack |> List.map(Id.str3) |> String.concat("\n");
 
   let str = (info, closure: closure): string =>
     //"closure_id: "
@@ -235,7 +233,7 @@ module Debug = {
     "ap:"
     ++ (
       switch (cur_call(info, closure)) {
-      | Some([ap_id, ..._]) => of_id(ap_id)
+      | Some([ap_id, ..._]) => Id.str3(ap_id)
       | _ => "None"
       }
     )

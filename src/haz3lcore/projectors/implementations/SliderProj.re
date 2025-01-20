@@ -16,11 +16,19 @@ module M: Projector = {
     | _ => None
     };
 
-  let get = (utility: utility, syntax: syntax): int =>
-    switch ([syntax] |> utility.seg_to_term |> int_of) {
+  let get = (info: info): int =>
+    switch ([info.syntax] |> info.utility.seg_to_term |> int_of) {
     | Some(i) => i
-    | None => failwith("Slider: not integer literal")
+    | None => failwith("Slider: Get: not integer literal")
     };
+
+  let put = (info: info, v: string): syntax =>
+    info.utility.lift_syntax(
+      fun
+      | Exp(any) => Exp({...any, term: Int(int_of_string(v))})
+      | _ => failwith("Slider: Put: not integer literal"),
+      info.syntax,
+    );
 
   let can_project = (_, any) => int_of(any) != None;
   let can_focus = false;
@@ -35,19 +43,11 @@ module M: Projector = {
         ~local as _,
         ~parent: external_action => Ui_effect.t(unit),
         ~view_seg as _,
-      ) => {
-    let put_syntax = (v: string): syntax =>
-      info.utility.lift_syntax(
-        fun
-        | Exp(any) => Exp({...any, term: Int(int_of_string(v))})
-        | any => any,
-        info.syntax,
-      );
+      ) =>
     Util.Web.range(
-      ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put_syntax(v))))],
-      get(info.utility, info.syntax) |> string_of_int,
+      ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(info, v))))],
+      info |> get |> string_of_int,
     );
-  };
 
   let offside_view = Option.None;
   let overlay_view = Option.None;

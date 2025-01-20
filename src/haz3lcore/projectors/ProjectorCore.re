@@ -7,10 +7,10 @@ open Util;
  * ProjectorBase then depends on this and on Base.piece,
  * and also on Vdom, necessitating its inclusion in Core.
  * The individual projector implementations depend on ProjectorBase.
- * Projector then depends on the projector implementations.
+ * ProjectorInit then depends on the projector implementations.
  *
- * ProjectorInfo depends on ProjectorBase but not on Projectors
- * (to avoid cyclical dependencies due to MakeTern and ExpToSegment) */
+ * ProjectorInfo depends on ProjectorBase but not on ProjectorInit
+ * (to avoid cyclical dependencies due to MakeTerm and ExpToSegment) */
 
 /* The different kinds of projector. New projectors
  * types need to be registered here in order to be
