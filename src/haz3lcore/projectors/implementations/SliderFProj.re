@@ -16,11 +16,19 @@ module M: Projector = {
     | _ => None
     };
 
-  let get = (utility: utility, syntax: syntax): float =>
-    switch ([syntax] |> utility.seg_to_term |> float_of) {
+  let get = (info: info): float =>
+    switch ([info.syntax] |> info.utility.seg_to_term |> float_of) {
     | Some(f) => f
-    | None => failwith("SliderF: not float literal")
+    | None => failwith("SliderF: Get: not float literal")
     };
+
+  let put = (info: info, v: string): syntax =>
+    info.utility.lift_syntax(
+      fun
+      | Exp(any) => Exp({...any, term: Float(float_of_string(v))})
+      | _ => failwith("SliderF: Put: not float literal"),
+      info.syntax,
+    );
 
   let can_project = (_, any) => float_of(any) != None;
   let can_focus = false;
@@ -35,19 +43,11 @@ module M: Projector = {
         ~local as _,
         ~parent: external_action => Ui_effect.t(unit),
         ~view_seg as _,
-      ) => {
-    let put_syntax = (v: string): syntax =>
-      info.utility.lift_syntax(
-        fun
-        | Exp(any) => Exp({...any, term: Float(float_of_string(v))})
-        | any => any,
-        info.syntax,
-      );
+      ) =>
     Util.Web.range(
-      ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put_syntax(v))))],
-      get(info.utility, info.syntax) |> Printf.sprintf("%.2f"),
+      ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(info, v))))],
+      info |> get |> Printf.sprintf("%.2f"),
     );
-  };
 
   let offside_view = Option.None;
   let overlay_view = Option.None;

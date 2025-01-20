@@ -1,6 +1,7 @@
 /* Gather utility functions/values to be passed to the projector.
  * See ProjectorBase.utility definition for more information */
 let utility: ProjectorBase.utility = {
+  let seg_to_term = MakeTerm.any;
   let term_to_seg =
     ExpToSegment.any_to_pretty(
       ~settings={
@@ -8,9 +9,8 @@ let utility: ProjectorBase.utility = {
         show_unknown_as_hole: false,
       },
     );
-  let seg_to_term = MakeTerm.any;
-  let lift_syntax = (fn: Any.t => Any.t, piece: Base.piece): Base.piece =>
-    switch ([piece] |> seg_to_term |> fn |> term_to_seg) {
+  let term_to_syntax = (any: Any.t): Base.piece =>
+    switch (term_to_seg(any)) {
     | [e] => e
     | seg =>
       let sort = Segment.sort_of(Segment.skel(seg), seg);
@@ -21,9 +21,11 @@ let utility: ProjectorBase.utility = {
       | TPat
       | Rul
       | Any
-      | Nul => failwith("Projector: lift_syntax")
+      | Nul => failwith("Projector: term_to_syntax")
       };
     };
+  let lift_syntax = (fn: Any.t => Any.t, piece: Base.piece): Base.piece =>
+    [piece] |> seg_to_term |> fn |> term_to_syntax;
   {term_to_seg, seg_to_term, lift_syntax};
 };
 
@@ -43,15 +45,15 @@ let mk_info =
 };
 
 module Shape = {
-  type t = ProjectorCore.shape;
-
-  let of_info = (p: Base.projector, info: ProjectorBase.info): t => {
+  let of_info =
+      (p: Base.projector, info: ProjectorBase.info): ProjectorCore.shape => {
     let (module P) = ProjectorInit.to_module(p.kind);
     P.placeholder(p.model, info);
   };
 
   let of_map =
-      (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector): t => {
+      (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector)
+      : ProjectorCore.shape => {
     let statics = Statics.Map.lookup(p.id, statics);
     let dynamics = Dynamics.Map.lookup(p.id, dynamics);
     of_info(p, {id: p.id, syntax: p.syntax, statics, dynamics, utility});
@@ -59,7 +61,7 @@ module Shape = {
 
   let of_map_default = of_map(Id.Map.empty, Id.Map.empty);
 
-  let token = (shape: t): string =>
+  let token = (shape: ProjectorCore.shape): string =>
     switch (shape.vertical) {
     | Inline => String.make(shape.horizontal, ' ')
     | Block(num_lb) =>

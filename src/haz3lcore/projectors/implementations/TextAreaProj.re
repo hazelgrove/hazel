@@ -2,53 +2,36 @@ open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 
-let of_id = (id: Id.t) =>
-  "id" ++ (id |> Id.to_string |> String.sub(_, 0, 8));
-
 let string_of = (any: Any.t): option(string) =>
   switch (any) {
   | Exp({term: String(s), _}) => Some(StringUtil.unescape_linebreaks(s))
   | _ => None
   };
 
-let of_mono = (syntax: Piece.t): option(string) =>
-  switch (syntax) {
-  | Tile({label: [l], _}) => Some(StringUtil.unescape_linebreaks(l))
-  | _ => None
-  };
-
-let mk_mono = (sort: Sort.t, string: string): Piece.t =>
-  string
-  |> StringUtil.escape_linebreaks
-  |> Form.mk_atomic(sort)
-  |> Piece.mk_tile(_, []);
-
-let get = (piece: Piece.t): string =>
-  switch (piece |> of_mono) {
-  | None => failwith("TextArea: not string literal")
+let get = (info: info): string =>
+  switch ([info.syntax] |> info.utility.seg_to_term |> string_of) {
   | Some(s) => s
+  | None => failwith("TextArea: not string literal")
   };
 
-let put = (s: string): Piece.t => s |> mk_mono(Exp);
-
-let put = (str: string): external_action =>
-  SetSyntax(str |> Form.string_quote |> put);
-
-let is_last_pos = id =>
-  Web.TextArea.caret_at_end(Web.TextArea.get(of_id(id)));
-let is_first_pos = id =>
-  Web.TextArea.caret_at_start(Web.TextArea.get(of_id(id)));
+let put = (info, s: string): syntax =>
+  info.utility.lift_syntax(
+    fun
+    | Exp(any) => Exp({...any, term: String(s)})
+    | any => any,
+    info.syntax,
+  );
 
 let key_handler = (id, ~parent, evt) => {
   open Effect;
   let key = Key.mk(KeyDown, evt);
 
   switch (key.key) {
-  | D("ArrowRight" | "ArrowDown") when is_last_pos(id) =>
-    JsUtil.get_elem_by_id(of_id(id))##blur;
+  | D("ArrowRight" | "ArrowDown") when Web.TextArea.is_last_pos(Id.cls(id)) =>
+    JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([parent(Escape(Right)), Stop_propagation]);
-  | D("ArrowLeft" | "ArrowUp") when is_first_pos(id) =>
-    JsUtil.get_elem_by_id(of_id(id))##blur;
+  | D("ArrowLeft" | "ArrowUp") when Web.TextArea.is_first_pos(Id.cls(id)) =>
+    JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([parent(Escape(Left)), Stop_propagation]);
   /* Defer to parent editor undo for now */
   | D("z" | "Z" | "y" | "Y") when Key.ctrl_held(evt) || Key.meta_held(evt) =>
@@ -64,13 +47,15 @@ let key_handler = (id, ~parent, evt) => {
 };
 
 let textarea =
-    (id, ~parent: external_action => Ui_effect.t(unit), text: string) =>
+    (info, ~parent: external_action => Ui_effect.t(unit), text: string) =>
   Node.textarea(
     ~attrs=[
-      Attr.id(of_id(id)),
-      Attr.on_keydown(key_handler(id, ~parent)),
-      Attr.on_input((_, new_text) =>
-        Effect.(Many([parent(put(new_text))]))
+      Attr.id(Id.cls(info.id)),
+      Attr.on_keydown(key_handler(info.id, ~parent)),
+      Attr.on_input((_, str) =>
+        Effect.(
+          Many([parent(SetSyntax(str |> Form.string_quote |> put(info)))])
+        )
       ),
       /* Note: adding these handlers below because
        * currently these are handled on page level.
@@ -83,19 +68,6 @@ let textarea =
     [],
   );
 
-let view = (_, info, ~local as _, ~parent, ~view_seg as _) => {
-  let text = info.syntax |> get |> Form.strip_quotes;
-  Node.div(
-    ~attrs=[Attr.classes(["wrapper"])],
-    [
-      Node.div(
-        ~attrs=[Attr.classes(["cols", "code"])],
-        [Node.text("·")] @ [textarea(info.id, ~parent, text)],
-      ),
-    ],
-  );
-};
-
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
@@ -106,7 +78,7 @@ module M: Projector = {
   let can_focus = true;
   let dynamics = false;
   let placeholder = (_, info) => {
-    let str = Form.strip_quotes(get(info.syntax));
+    let str = info |> get |> Form.strip_quotes;
     ProjectorCore.{
       vertical: Block(StringUtil.num_linebreaks(str)),
       /* +2 for left and right padding */
@@ -114,18 +86,31 @@ module M: Projector = {
     };
   };
   let update = (model, _, _) => model;
-  let view = view;
+
+  let view = (_, info, ~local as _, ~parent, ~view_seg as _) =>
+    Node.div(
+      ~attrs=[Attr.classes(["wrapper"])],
+      [
+        Node.div(
+          ~attrs=[Attr.classes(["cols", "code"])],
+          [Node.text("·")]
+          @ [textarea(info, ~parent, info |> get |> Form.strip_quotes)],
+        ),
+      ],
+    );
+
   let offside_view = Option.None;
   let overlay_view = Option.None;
   let underlay_view = Option.None; //TODO
+
   let focus = ((id: Id.t, d: option(Direction.t))) => {
-    JsUtil.get_elem_by_id(of_id(id))##focus;
+    JsUtil.get_elem_by_id(Id.cls(id))##focus;
     switch (d) {
     | None => ()
     | Some(Left) =>
-      Web.TextArea.set_caret_to_start(Web.TextArea.get(of_id(id)))
+      Web.TextArea.set_caret_to_start(Web.TextArea.get(Id.cls(id)))
     | Some(Right) =>
-      Web.TextArea.set_caret_to_end(Web.TextArea.get(of_id(id)))
+      Web.TextArea.set_caret_to_end(Web.TextArea.get(Id.cls(id)))
     };
   };
 };
