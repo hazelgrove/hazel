@@ -10,7 +10,8 @@ type kind =
   | Checkbox
   | Slider
   | SliderF
-  | TextArea;
+  | TextArea
+  | Statics;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type segment = list(piece)

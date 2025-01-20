@@ -32,7 +32,7 @@ let applicable_projectors: option(Info.t) => list(Base.kind) =
       | _ => []
       }
     )
-    @ [Base.Fold]
+    @ [Base.Statics]
     @ (
       switch (ci) {
       | InfoExp(_)

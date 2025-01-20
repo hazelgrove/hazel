@@ -20,6 +20,7 @@ let name = (p: kind): string =>
   | Slider => "slider"
   | SliderF => "sliderf"
   | TextArea => "text"
+  | Statics => "statics"
   };
 
 /* This must be updated and kept 1-to-1 with the above
