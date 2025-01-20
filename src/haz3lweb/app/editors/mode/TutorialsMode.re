@@ -46,7 +46,7 @@ module Model = {
   };
   let get_current = (m: t) => List.nth(m.exercises, m.current);
 };
-module StoreExerciseKey =
+module StoreTutorialKey =
   Store.F({
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Exercise.key;

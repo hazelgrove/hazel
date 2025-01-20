@@ -7,7 +7,7 @@ type key =
   | Mode
   | Scratch
   | Documentation
-  | Tutorial
+  | Tutorial(Tutorial.key)
   | CurrentExercise
   | Exercise(Exercise.key);
 
@@ -17,7 +17,7 @@ let key_to_string =
   | ExplainThis => "ExplainThisModel"
   | Mode => "MODE"
   | Scratch => "SAVE_SCRATCH"
-  | Tutorial => "TUTORIAL"
+  | Tutorial(key) => key |> Tutorial.sexp_of_key |> Sexplib.Sexp.to_string
   | Documentation => "SAVE_DOCUMENTATION"
   | CurrentExercise => "CUR_EXERCISE"
   | Exercise(key) => key |> Exercise.sexp_of_key |> Sexplib.Sexp.to_string;
