@@ -193,30 +193,40 @@ module Selection = {
   open Cursor;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = CellEditor.Selection.t;
+  type t =
+    | Cell(CellEditor.Selection.t)
+    | TextBox;
 
   let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
-    let+ ci =
-      CellEditor.Selection.get_cursor_info(
-        ~selection,
-        List.nth(model.scratchpads, model.current) |> snd,
-      );
-    Update.CellAction(ci);
+    switch (selection) {
+    | Cell(s) =>
+      let+ a =
+        CellEditor.Selection.get_cursor_info(
+          ~selection=s,
+          List.nth(model.scratchpads, model.current) |> snd,
+        );
+      Update.CellAction(a);
+    | TextBox => empty
+    };
   };
 
   let handle_key_event =
       (~selection, ~event: Key.t, model: Model.t): option(Update.t) =>
-    switch (event) {
-    | {key: D(key), sys: Mac | PC, shift: Up, meta: Down, ctrl: Up, alt: Up}
-        when Keyboard.is_digit(key) =>
-      Some(Update.SwitchSlide(int_of_string(key)))
-    | _ =>
-      CellEditor.Selection.handle_key_event(
-        ~selection,
-        ~event,
-        List.nth(model.scratchpads, model.current) |> snd,
-      )
-      |> Option.map(x => Update.CellAction(x))
+    switch (selection) {
+    | Cell(s) =>
+      switch (event) {
+      | {key: D(key), sys: Mac | PC, shift: Up, meta: Down, ctrl: Up, alt: Up}
+          when Keyboard.is_digit(key) =>
+        Some(Update.SwitchSlide(int_of_string(key)))
+      | _ =>
+        CellEditor.Selection.handle_key_event(
+          ~selection=s,
+          ~event,
+          List.nth(model.scratchpads, model.current) |> snd,
+        )
+        |> Option.map(x => Update.CellAction(x))
+      }
+    | TextBox => None
     };
 
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) =>
@@ -224,19 +234,19 @@ module Selection = {
       tile,
       List.nth(model.scratchpads, model.current) |> snd,
     )
-    |> Option.map(((x, y)) => (Update.CellAction(x), y));
+    |> Option.map(((x, y)) => (Update.CellAction(x), Cell(y)));
 };
 
 module View = {
   type event =
-    | MakeActive(CellEditor.Selection.t);
+    | MakeActive(Selection.t);
 
   let view =
       (
         ~globals,
         ~signal: event => 'a,
         ~inject: Update.t => 'a,
-        ~selected: option(Selection.t),
+        ~selection: option(Selection.t),
         model: Model.t,
       ) => {
     (
@@ -250,9 +260,13 @@ module View = {
         ~globals,
         ~signal=
           fun
-          | MakeActive(selection) => signal(MakeActive(selection)),
+          | MakeActive(selection) => signal(MakeActive(Cell(selection))),
         ~inject=a => inject(CellAction(a)),
-        ~selected,
+        ~selected=
+          switch (selection) {
+          | Some(Selection.Cell(s)) => Some(s)
+          | _ => None
+          },
         ~locked=false,
         List.nth(model.scratchpads, model.current) |> snd,
       ),
