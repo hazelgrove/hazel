@@ -470,21 +470,13 @@ let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
   );
 
 let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
-  //   let instructor =
-  //     stitch3(eds.prelude, eds.correct_impl, eds.hidden_tests.tests);
   let user_impl_term = {
-    // let your_impl_term =
     eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
-                                                               // EditorUtil.append_exp(prelude_term, your_impl_term);
   };
   let wrapped_user_impl =
     Let(Var("answer") |> Pat.fresh, user_impl_term, EmptyHole |> Exp.fresh)
     |> Exp.fresh;
 
-  //   let test_validation_term =
-  //     stitch3(eds.prelude, eds.correct_impl, eds.your_tests.tests);
-  //   let user_tests_term =
-  //     EditorUtil.append_exp(user_impl_term, term_of(eds.your_tests.tests));
   let hidden_tests_term =
     eds.wrapper
       ? EditorUtil.append_exp(
@@ -506,8 +498,6 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
           user_impl_term,
           term_of(eds.hidden_tests.tests),
         );
-  let x = eds.wrapper ? "true" : "false";
-  print_endline(x);
 
   {
     user_impl: wrap(user_impl_term, eds.your_impl),
