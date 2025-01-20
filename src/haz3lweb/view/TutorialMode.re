@@ -189,7 +189,7 @@ module Update = {
         title: model.editors.title,
         description: model.editors.description,
         version: model.editors.version,
-        // module_name: model.editors.module_name,
+        module_name: model.editors.module_name,
         // prompt: model.editors.prompt,
         // point_distribution: model.editors.point_distribution,
         // prelude:

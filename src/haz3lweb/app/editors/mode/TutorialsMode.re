@@ -152,294 +152,294 @@ module Store = {
     );
   };
 };
-// module Update = {
-//   open Updated;
-//   [@deriving (show({with_path: false}), sexp, yojson)]
-//   type t =
-//     | SwitchExercise(int)
-//     | Exercise(ExerciseMode.Update.t)
-//     | ExportModule
-//     | ExportSubmission
-//     | ExportTransitionary
-//     | ExportGrading;
-//   let export_exercise_module = (exercises: Model.t): unit => {
-//     let exercise = Model.get_current(exercises);
-//     let module_name = exercise.editors.module_name;
-//     let filename = exercise.editors.module_name ++ ".ml";
-//     let content_type = "text/plain";
-//     let contents =
-//       Exercise.export_module(module_name, {eds: exercise.editors});
-//     JsUtil.download_string_file(~filename, ~content_type, ~contents);
-//   };
-//   let export_submission = (~globals: Globals.t) =>
-//     globals.get_log_and(log => {
-//       let data =
-//         globals.export_all(
-//           ~settings=globals.settings.core,
-//           ~instructor_mode=globals.settings.instructor_mode,
-//           ~log,
-//         );
-//       JsUtil.download_json(ExerciseSettings.filename, data);
-//     });
-//   let export_transitionary = (exercises: Model.t) => {
-//     let exercise = Model.get_current(exercises);
-//     // .ml files because show uses OCaml syntax (dune handles seamlessly)
-//     let module_name = exercise.editors.module_name;
-//     let filename = exercise.editors.module_name ++ ".ml";
-//     let content_type = "text/plain";
-//     let contents =
-//       Exercise.export_transitionary_module(
-//         module_name,
-//         {eds: exercise.editors},
-//       );
-//     JsUtil.download_string_file(~filename, ~content_type, ~contents);
-//   };
-//   let export_instructor_grading_report = (exercises: Model.t) => {
-//     let exercise = Model.get_current(exercises);
-//     // .ml files because show uses OCaml syntax (dune handles seamlessly)
-//     let module_name = exercise.editors.module_name;
-//     let filename = exercise.editors.module_name ++ "_grading.ml";
-//     let content_type = "text/plain";
-//     let contents =
-//       Exercise.export_grading_module(module_name, {eds: exercise.editors});
-//     JsUtil.download_string_file(~filename, ~content_type, ~contents);
-//   };
-//   let update =
-//       (~globals: Globals.t, ~schedule_action, action: t, model: Model.t) => {
-//     switch (action) {
-//     | Tutorial(action) =>
-//       let current = List.nth(model.exercises, model.current);
-//       let* new_current =
-//         TutorialMode.Update.update(
-//           ~settings=globals.settings,
-//           ~schedule_action,
-//           action,
-//           current,
-//         );
-//       let new_exercises =
-//         ListUtil.put_nth(model.current, new_current, model.exercises);
-//       Model.{current: model.current, exercises: new_exercises};
-//     | SwitchExercise(n) =>
-//       Model.{current: n, exercises: model.exercises} |> return
-//     | ExportModule =>
-//       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
-//       export_exercise_module(model);
-//       model |> return_quiet;
-//     | ExportSubmission =>
-//       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
-//       export_submission(~globals);
-//       model |> return_quiet;
-//     | ExportTransitionary =>
-//       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
-//       export_transitionary(model);
-//       model |> return_quiet;
-//     | ExportGrading =>
-//       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
-//       export_instructor_grading_report(model);
-//       model |> return_quiet;
-//     };
-//   };
-//   let calculate =
-//       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
-//     let exercise =
-//       TutorialMode.Update.calculate(
-//         ~settings,
-//         ~is_edited,
-//         ~schedule_action=a => schedule_action(Exercise(a)),
-//         List.nth(model.exercises, model.current),
-//       );
-//     Model.{
-//       current: model.current,
-//       exercises: ListUtil.put_nth(model.current, exercise, model.exercises),
-//     };
-//   };
-// };
-// module Selection = {
-//   open Cursor;
-//   [@deriving (show({with_path: false}), sexp, yojson)]
-//   type t = TutorialMode.Selection.t;
-//   let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
-//     let+ ci =
-//       TutorialMode.Selection.get_cursor_info(
-//         ~selection,
-//         List.nth(model.exercises, model.current),
-//       );
-//     Update.Exercise(ci);
-//   };
-//   let handle_key_event = (~selection, ~event, model: Model.t) =>
-//     TutorialMode.Selection.handle_key_event(
-//       ~selection,
-//       ~event,
-//       List.nth(model.exercises, model.current),
-//     )
-//     |> Option.map(a => Update.Tutorial(a));
-//   let jump_to_tile =
-//       (~settings, tile, model: Model.t): option((Update.t, t)) =>
-//     TutorialMode.Selection.jump_to_tile(
-//       ~settings,
-//       tile,
-//       List.nth(model.exercises, model.current),
-//     )
-//     |> Option.map(((x, y)) => (Update.Tutorial(x), y));
-// };
-// module View = {
-//   open Widgets;
-//   open Js_of_ocaml;
-//   let view = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) => {
-//     let current = List.nth(model.exercises, model.current);
-//     ExerciseMode.View.view(
-//       ~globals,
-//       ~inject=a => inject(Update.Exercise(a)),
-//       current,
-//     );
-//   };
-//   let file_menu = (~globals: Globals.t, ~inject: Update.t => 'a, _: Model.t) => {
-//     let reset_button =
-//       Widgets.button_named(
-//         Icons.trash,
-//         _ => {
-//           let confirmed =
-//             JsUtil.confirm(
-//               "Are you SURE you want to reset this exercise? You will lose any existing code that you have written, and course staff have no way to restore it!",
-//             );
-//           if (confirmed) {
-//             inject(Exercise(ResetExercise));
-//           } else {
-//             Virtual_dom.Vdom.Effect.Ignore;
-//           };
-//         },
-//         ~tooltip="Reset Exercise",
-//       );
-//     let instructor_export =
-//       Widgets.button_named(
-//         Icons.export,
-//         _ => inject(ExportModule),
-//         ~tooltip="Export Exercise Module",
-//       );
-//     let instructor_transitionary_export =
-//       Widgets.button_named(
-//         Icons.export,
-//         _ => {inject(ExportTransitionary)},
-//         ~tooltip="Export Transitionary Exercise Module",
-//       );
-//     let instructor_grading_export =
-//       Widgets.button_named(
-//         Icons.export,
-//         _ => {inject(ExportGrading)},
-//         ~tooltip="Export Grading Exercise Module",
-//       );
-//     let export_submission =
-//       Widgets.button_named(
-//         Icons.star,
-//         _ => inject(ExportSubmission),
-//         ~tooltip="Export Submission",
-//       );
-//     let import_submission =
-//       Widgets.file_select_button_named(
-//         "import-submission",
-//         Icons.import,
-//         file => {
-//           switch (file) {
-//           | None => Virtual_dom.Vdom.Effect.Ignore
-//           | Some(file) => globals.inject_global(InitImportAll(file))
-//           }
-//         },
-//         ~tooltip="Import Submission",
-//       );
-//     let export_persistent_data =
-//       button_named(
-//         Icons.export,
-//         _ => globals.inject_global(ExportPersistentData),
-//         ~tooltip="Export All Persistent Data",
-//       );
-//     let reset_hazel =
-//       button_named(
-//         Icons.bomb,
-//         _ => {
-//           let confirmed =
-//             JsUtil.confirm(
-//               "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
-//             );
-//           if (confirmed) {
-//             JsUtil.clear_localstore();
-//             Dom_html.window##.location##reload;
-//           };
-//           Virtual_dom.Vdom.Effect.Ignore;
-//         },
-//         ~tooltip="Reset Hazel (LOSE ALL DATA)",
-//       );
-//     let reparse =
-//       button_named(
-//         Icons.backpack,
-//         _ => globals.inject_global(ActiveEditor(Reparse)),
-//         ~tooltip="Reparse Editor",
-//       );
-//     let file_group_exercises = () =>
-//       NutMenu.item_group(
-//         ~inject,
-//         "File",
-//         [export_submission, import_submission],
-//       );
-//     let reset_group_exercises = () =>
-//       NutMenu.item_group(
-//         ~inject,
-//         "Reset",
-//         [reset_button, reparse, reset_hazel],
-//       );
-//     let dev_group_exercises = () =>
-//       NutMenu.item_group(
-//         ~inject,
-//         "Developer Export",
-//         [
-//           export_persistent_data,
-//           instructor_export,
-//           instructor_transitionary_export,
-//           instructor_grading_export,
-//         ],
-//       );
-//     if (globals.settings.instructor_mode) {
-//       [
-//         file_group_exercises(),
-//         reset_group_exercises(),
-//         dev_group_exercises(),
-//       ];
-//     } else {
-//       [file_group_exercises(), reset_group_exercises()];
-//     };
-//   };
-//   let instructor_toggle = (~inject, ~instructor_mode) =>
-//     ExerciseSettings.show_instructor
-//       ? [
-//         Widgets.toggle(
-//           "🎓", ~tooltip="Toggle Instructor Mode", instructor_mode, _ =>
-//           inject(Globals.Update.Set(InstructorMode))
-//         ),
-//       ]
-//       : [];
-//   let top_bar = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) =>
-//     instructor_toggle(
-//       ~inject=globals.inject_global,
-//       ~instructor_mode=globals.settings.instructor_mode,
-//     )
-//     @ TutorialModeView.view(
-//         ~signal=
-//           fun
-//           | Previous =>
-//             inject(
-//               Update.SwitchExercise(
-//                 model.current - 1 mod List.length(model.exercises),
-//               ),
-//             )
-//           | Next =>
-//             inject(
-//               Update.SwitchExercise(
-//                 model.current + 1 mod List.length(model.exercises),
-//               ),
-//             ),
-//         ~indicator=
-//           EditorModeView.indicator_n(
-//             model.current,
-//             List.length(model.exercises),
-//           ),
-//       );
-// };
+module Update = {
+  open Updated;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | SwitchExercise(int)
+    | Tutorial(TutorialMode.Update.t)
+    | ExportModule
+    | ExportSubmission
+    | ExportTransitionary
+    | ExportGrading;
+  let export_exercise_module = (exercises: Model.t): unit => {
+    let exercise = Model.get_current(exercises);
+    let module_name = exercise.editors.module_name;
+    let filename = exercise.editors.module_name ++ ".ml";
+    let content_type = "text/plain";
+    let contents =
+      Tutorial.export_module(module_name, {eds: exercise.editors});
+    JsUtil.download_string_file(~filename, ~content_type, ~contents);
+  };
+  let export_submission = (~globals: Globals.t) =>
+    globals.get_log_and(log => {
+      let data =
+        globals.export_all(
+          ~settings=globals.settings.core,
+          ~instructor_mode=globals.settings.instructor_mode,
+          ~log,
+        );
+      JsUtil.download_json(ExerciseSettings.filename, data);
+    });
+  let export_transitionary = (exercises: Model.t) => {
+    let exercise = Model.get_current(exercises);
+    // .ml files because show uses OCaml syntax (dune handles seamlessly)
+    let module_name = exercise.editors.module_name;
+    let filename = exercise.editors.module_name ++ ".ml";
+    let content_type = "text/plain";
+    let contents =
+      Tutorial.export_transitionary_module(
+        module_name,
+        {eds: exercise.editors},
+      );
+    JsUtil.download_string_file(~filename, ~content_type, ~contents);
+  };
+  let export_instructor_grading_report = (exercises: Model.t) => {
+    let exercise = Model.get_current(exercises);
+    // .ml files because show uses OCaml syntax (dune handles seamlessly)
+    let module_name = exercise.editors.module_name;
+    let filename = exercise.editors.module_name ++ "_grading.ml";
+    let content_type = "text/plain";
+    let contents =
+      Tutorial.export_grading_module(module_name, {eds: exercise.editors});
+    JsUtil.download_string_file(~filename, ~content_type, ~contents);
+  };
+  let update =
+      (~globals: Globals.t, ~schedule_action, action: t, model: Model.t) => {
+    switch (action) {
+    | Tutorial(action) =>
+      let current = List.nth(model.exercises, model.current);
+      let* new_current =
+        TutorialMode.Update.update(
+          ~settings=globals.settings,
+          ~schedule_action,
+          action,
+          current,
+        );
+      let new_exercises =
+        ListUtil.put_nth(model.current, new_current, model.exercises);
+      Model.{current: model.current, exercises: new_exercises};
+    | SwitchExercise(n) =>
+      Model.{current: n, exercises: model.exercises} |> return
+    | ExportModule =>
+      Store.save(~instructor_mode=globals.settings.instructor_mode, model);
+      export_exercise_module(model);
+      model |> return_quiet;
+    | ExportSubmission =>
+      Store.save(~instructor_mode=globals.settings.instructor_mode, model);
+      export_submission(~globals);
+      model |> return_quiet;
+    | ExportTransitionary =>
+      Store.save(~instructor_mode=globals.settings.instructor_mode, model);
+      export_transitionary(model);
+      model |> return_quiet;
+    | ExportGrading =>
+      Store.save(~instructor_mode=globals.settings.instructor_mode, model);
+      export_instructor_grading_report(model);
+      model |> return_quiet;
+    };
+  };
+  let calculate =
+      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+    let exercise =
+      TutorialMode.Update.calculate(
+        ~settings,
+        ~is_edited,
+        ~schedule_action=a => schedule_action(Tutorial(a)),
+        List.nth(model.exercises, model.current),
+      );
+    Model.{
+      current: model.current,
+      exercises: ListUtil.put_nth(model.current, exercise, model.exercises),
+    };
+  };
+};
+module Selection = {
+  open Cursor;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = TutorialMode.Selection.t;
+  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+    let+ ci =
+      TutorialMode.Selection.get_cursor_info(
+        ~selection,
+        List.nth(model.exercises, model.current),
+      );
+    Update.Tutorial(ci);
+  };
+  let handle_key_event = (~selection, ~event, model: Model.t) =>
+    TutorialMode.Selection.handle_key_event(
+      ~selection,
+      ~event,
+      List.nth(model.exercises, model.current),
+    )
+    |> Option.map(a => Update.Tutorial(a));
+  let jump_to_tile =
+      (~settings, tile, model: Model.t): option((Update.t, t)) =>
+    TutorialMode.Selection.jump_to_tile(
+      ~settings,
+      tile,
+      List.nth(model.exercises, model.current),
+    )
+    |> Option.map(((x, y)) => (Update.Tutorial(x), y));
+};
+module View = {
+  open Widgets;
+  open Js_of_ocaml;
+  let view = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) => {
+    let current = List.nth(model.exercises, model.current);
+    TutorialMode.View.view(
+      ~globals,
+      ~inject=a => inject(Update.Tutorial(a)),
+      current,
+    );
+  };
+  let file_menu = (~globals: Globals.t, ~inject: Update.t => 'a, _: Model.t) => {
+    let reset_button =
+      Widgets.button_named(
+        Icons.trash,
+        _ => {
+          let confirmed =
+            JsUtil.confirm(
+              "Are you SURE you want to reset this exercise? You will lose any existing code that you have written, and course staff have no way to restore it!",
+            );
+          if (confirmed) {
+            inject(Tutorial(ResetTutorial));
+          } else {
+            Virtual_dom.Vdom.Effect.Ignore;
+          };
+        },
+        ~tooltip="Reset Exercise",
+      );
+    let instructor_export =
+      Widgets.button_named(
+        Icons.export,
+        _ => inject(ExportModule),
+        ~tooltip="Export Exercise Module",
+      );
+    let instructor_transitionary_export =
+      Widgets.button_named(
+        Icons.export,
+        _ => {inject(ExportTransitionary)},
+        ~tooltip="Export Transitionary Exercise Module",
+      );
+    let instructor_grading_export =
+      Widgets.button_named(
+        Icons.export,
+        _ => {inject(ExportGrading)},
+        ~tooltip="Export Grading Exercise Module",
+      );
+    let export_submission =
+      Widgets.button_named(
+        Icons.star,
+        _ => inject(ExportSubmission),
+        ~tooltip="Export Submission",
+      );
+    let import_submission =
+      Widgets.file_select_button_named(
+        "import-submission",
+        Icons.import,
+        file => {
+          switch (file) {
+          | None => Virtual_dom.Vdom.Effect.Ignore
+          | Some(file) => globals.inject_global(InitImportAll(file))
+          }
+        },
+        ~tooltip="Import Submission",
+      );
+    let export_persistent_data =
+      button_named(
+        Icons.export,
+        _ => globals.inject_global(ExportPersistentData),
+        ~tooltip="Export All Persistent Data",
+      );
+    let reset_hazel =
+      button_named(
+        Icons.bomb,
+        _ => {
+          let confirmed =
+            JsUtil.confirm(
+              "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
+            );
+          if (confirmed) {
+            JsUtil.clear_localstore();
+            Dom_html.window##.location##reload;
+          };
+          Virtual_dom.Vdom.Effect.Ignore;
+        },
+        ~tooltip="Reset Hazel (LOSE ALL DATA)",
+      );
+    let reparse =
+      button_named(
+        Icons.backpack,
+        _ => globals.inject_global(ActiveEditor(Reparse)),
+        ~tooltip="Reparse Editor",
+      );
+    let file_group_exercises = () =>
+      NutMenu.item_group(
+        ~inject,
+        "File",
+        [export_submission, import_submission],
+      );
+    let reset_group_exercises = () =>
+      NutMenu.item_group(
+        ~inject,
+        "Reset",
+        [reset_button, reparse, reset_hazel],
+      );
+    let dev_group_exercises = () =>
+      NutMenu.item_group(
+        ~inject,
+        "Developer Export",
+        [
+          export_persistent_data,
+          instructor_export,
+          instructor_transitionary_export,
+          instructor_grading_export,
+        ],
+      );
+    if (globals.settings.instructor_mode) {
+      [
+        file_group_exercises(),
+        reset_group_exercises(),
+        dev_group_exercises(),
+      ];
+    } else {
+      [file_group_exercises(), reset_group_exercises()];
+    };
+  };
+  let instructor_toggle = (~inject, ~instructor_mode) =>
+    ExerciseSettings.show_instructor
+      ? [
+        Widgets.toggle(
+          "🎓", ~tooltip="Toggle Instructor Mode", instructor_mode, _ =>
+          inject(Globals.Update.Set(InstructorMode))
+        ),
+      ]
+      : [];
+  let top_bar = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) =>
+    instructor_toggle(
+      ~inject=globals.inject_global,
+      ~instructor_mode=globals.settings.instructor_mode,
+    )
+    @ EditorModeView.view(
+        ~signal=
+          fun
+          | Previous =>
+            inject(
+              Update.SwitchExercise(
+                model.current - 1 mod List.length(model.exercises),
+              ),
+            )
+          | Next =>
+            inject(
+              Update.SwitchExercise(
+                model.current + 1 mod List.length(model.exercises),
+              ),
+            ),
+        ~indicator=
+          EditorModeView.indicator_n(
+            model.current,
+            List.length(model.exercises),
+          ),
+      );
+};

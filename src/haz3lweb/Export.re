@@ -26,7 +26,8 @@ let mk_all = (~core_settings, ~instructor_mode, ~log) => {
   let explainThisModel = ExplainThisModel.Store.export();
   let scratch = ScratchMode.Store.export();
   let documentation = ScratchMode.StoreDocumentation.export();
-  let tutorial = ScratchMode.StoreTutorial.export();
+  let tutorial =
+    TutorialsMode.Store.export(~settings=core_settings, ~instructor_mode);
   let exercise =
     ExercisesMode.Store.export(~settings=core_settings, ~instructor_mode);
   {
@@ -64,7 +65,6 @@ let import_all = (~import_log: string => unit, data, ~specs) => {
   ExplainThisModel.Store.import(all.explainThisModel);
   // let instructor_mode = settings.instructor_mode;
   ScratchMode.Store.import(all.scratch);
-  ScratchMode.Store.import(all.tutorial);
   // ScratchMode.Store.import(
   //   ~settings=settings.core,
   //   all.tutorial,
@@ -78,7 +78,6 @@ let export_persistent = () => {
   let data: PersistentData.t = {
     documentation: ScratchMode.StoreDocumentation.load(),
     scratch: ScratchMode.Store.load(),
-    tutorial: ScratchMode.StoreTutorial.load(),
   };
   let contents =
     "let startup : PersistentData.t = " ++ PersistentData.show(data);
