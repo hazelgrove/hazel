@@ -241,16 +241,5 @@ module Cook = (C: Projector) : Cooked => {
 };
 
 /* Projectors currently are all convex */
-let shapes = (_: ProjectorCore.t(syntax)) => Nib.Shape.(Convex, Convex);
-
-/* Projectors currently have a fixed molding */
-let mold_of = (p: ProjectorCore.t(syntax), sort: Sort.t): Mold.t => {
-  let (l, r) = shapes(p);
-  {
-    nibs: {
-      ({shape: l, sort}, {shape: r, sort});
-    },
-    out: sort,
-    in_: [],
-  };
-};
+let shapes = (_: ProjectorCore.t(syntax)): Nibs.shapes =>
+  Nib.Shape.(Convex, Convex);
