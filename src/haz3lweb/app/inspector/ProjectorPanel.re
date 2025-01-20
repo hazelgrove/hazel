@@ -1,7 +1,6 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
-open Projector;
 open Util.OptUtil.Syntax;
 open Util.Web;
 
@@ -10,14 +9,14 @@ open Util.Web;
 /* Decide which projectors are applicable based on the cursor info.
  * This is slightly inside-out as elsewhere it depends on the underlying
  * syntax, which is not easily available here */
-let applicable_projectors: option(Info.t) => list(Base.kind) =
+let applicable_projectors: option(Info.t) => list(ProjectorCore.kind) =
   fun
   | None => []
   | Some(ci) =>
     (
       switch (Info.cls_of(ci)) {
       | Exp(Bool)
-      | Pat(Bool) => [Base.Checkbox]
+      | Pat(Bool) => [ProjectorCore.Checkbox]
       | Exp(Int)
       | Pat(Int) => [Slider]
       | Exp(Float)
@@ -27,7 +26,7 @@ let applicable_projectors: option(Info.t) => list(Base.kind) =
       | _ => []
       }
     )
-    @ [Base.Fold]
+    @ [ProjectorCore.Fold]
     @ (
       switch (ci) {
       | InfoExp(_) => [Info, Probe]
@@ -91,7 +90,7 @@ let might_project: Cursor.cursor(Editors.Update.t) => bool =
     | Some(editor) =>
       switch (Indicated.piece''(editor.state.zipper)) {
       | None => false
-      | Some((p, _, _)) => minimum_projection_condition(p)
+      | Some((p, _, _)) => ProjectorInit.minimum_projection_condition(p)
       }
     };
 
@@ -108,7 +107,7 @@ let applicable_projector_strings = (cursor: Cursor.cursor(Editors.Update.t)) => 
   };
 };
 
-let keyboard_shortcut_of = (kind: Base.kind): string =>
+let keyboard_shortcut_of = (kind: ProjectorCore.kind): string =>
   switch (kind) {
   | Fold => "Option-f"
   | Probe => "Option-v"

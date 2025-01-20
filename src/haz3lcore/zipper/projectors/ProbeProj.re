@@ -245,13 +245,13 @@ module Debug = {
   // ++ stack(closure.stack);
 };
 
-let seg_view = (utility: utility, available: int, seg: Exp.t) =>
+let seg_view = (view_seg, utility: utility, available: int, seg: Exp.t) =>
   seg
   |> DHExp.strip_casts
   |> Abbreviate.abbreviate_exp(~available)
   |> PairUtil.map_fst(e => TermBase.Exp(e))
   |> PairUtil.map_fst(utility.term_to_seg)
-  |> PairUtil.map_fst(utility.view_seg(Exp));
+  |> PairUtil.map_fst(view_seg(Sort.Exp));
 
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   open Float;
@@ -281,6 +281,7 @@ let value_view =
       info: info,
       model: model,
       utility: utility,
+      view_seg,
       local,
       closure: closure,
       index: int,
@@ -316,6 +317,7 @@ let value_view =
 
   let (view, length) =
     seg_view(
+      view_seg,
       utility,
       display_length(model, closure.closure_id),
       closure.value,
@@ -339,47 +341,62 @@ let value_view =
   );
 };
 
-let env_val = (utility: utility, en: Dynamics.Probe.Env.entry): Node.t => {
+let env_val =
+    (view_seg, utility: utility, en: Dynamics.Probe.Env.entry): Node.t => {
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
     [
       Node.text(en.binding.name ++ "="),
       switch (en.value) {
       | Opaque => Node.text("Opaque")
-      | Val(d) => seg_view(utility, 12, d) |> fst
+      | Val(d) => seg_view(view_seg, utility, 12, d) |> fst
       },
     ],
   );
 };
 
-let env_view = (closure: closure, utility: utility): Node.t =>
+let env_view = (closure: closure, view_seg, utility: utility): Node.t =>
   Node.div(
     ~attrs=[Attr.classes(["live-env"])],
-    closure.env |> ListUtil.dedup |> rm_opaques |> List.map(env_val(utility)),
+    closure.env
+    |> ListUtil.dedup
+    |> rm_opaques
+    |> List.map(env_val(view_seg, utility)),
   );
 
 let closure_view =
     (
       info: info,
       utility: utility,
+      view_seg,
       model: model,
       local,
       (index: int, closure: closure),
     ) =>
   div(
     ~attrs=[Attr.classes(["closure"])],
-    [value_view(info, model, utility, local, closure, index)]
-    @ (is_var_ref(info) ? [] : [env_view(closure, utility)]),
+    [value_view(info, model, utility, view_seg, local, closure, index)]
+    @ (is_var_ref(info) ? [] : [env_view(closure, view_seg, utility)]),
   );
 
 let closure_group_view =
-    (info, utility, model, local, groups: list(list((int, closure)))) => {
+    (
+      info,
+      utility,
+      view_seg,
+      model,
+      local,
+      groups: list(list((int, closure))),
+    ) => {
   let group_views =
     List.map(
       closures =>
         Node.div(
           ~attrs=[Attr.classes(["closure-group"])],
-          List.map(closure_view(info, utility, model, local), closures),
+          List.map(
+            closure_view(info, utility, view_seg, model, local),
+            closures,
+          ),
         ),
       groups,
     );
@@ -416,7 +433,8 @@ let nav_bar_view = (model: model, di: list(closure), local) => {
 let equals_view =
   div(~attrs=[Attr.classes(["live-equals"])], [text("=")]);
 
-let offside_view = (model: model, info: info, local, utility: utility) =>
+let offside_view =
+    (model: model, info: info, local, view_seg, utility: utility) =>
   Node.div(
     ~attrs=[Attr.classes(["live-offside"])],
     switch (info.dynamics) {
@@ -425,7 +443,7 @@ let offside_view = (model: model, info: info, local, utility: utility) =>
       let is_cut_off = num_shown != Closures.num(info) && num_shown > 0;
       let extras = [nav_bar_view(model, di, local), ellipsis_view(local)];
       (num_shown > 0 ? [equals_view] : [])
-      @ closure_group_view(info, utility, model, local, groups)
+      @ closure_group_view(info, utility, view_seg, model, local, groups)
       @ (is_cut_off ? extras : []);
     | _ => []
     },
@@ -458,7 +476,7 @@ let syntax_str = (info: info) => {
 let syntax_view = (info: info) => info |> syntax_str |> text;
 
 let placeholder = (_m, info) =>
-  ProjectorShape.inline(3 + String.length(syntax_str(info)));
+  ProjectorCore.inline(3 + String.length(syntax_str(info)));
 
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
@@ -590,16 +608,16 @@ module M: Projector = {
   let dynamics = true;
   let placeholder = placeholder;
   let update = update;
-  let view = (_model, info, ~local as _, ~parent as _, ~utility as _) =>
+  let view = (_model, info, ~local as _, ~parent as _, ~view_seg as _) =>
     view(info);
   let offside_view =
     Some(
-      (model, info, ~local, ~parent as _, ~utility) =>
-        offside_view(model, info, local, utility),
+      (model, info, ~local, ~parent as _, ~view_seg) =>
+        offside_view(model, info, local, view_seg, info.utility),
     );
   let overlay_view =
     Some(
-      (_model, info, ~local as _, ~parent as _, ~utility as _) =>
+      (_model, info, ~local as _, ~parent as _, ~view_seg as _) =>
         overlay_view(info),
     );
   let underlay_view = Option.None; //TODO

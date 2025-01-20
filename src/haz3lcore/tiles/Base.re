@@ -1,18 +1,5 @@
 open Util;
 
-/* The different kinds of projector. New projectors
- * types need to be registered here in order to be
- * able to create and update their instances */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type kind =
-  | Fold
-  | Info
-  | Probe
-  | Checkbox
-  | Slider
-  | SliderF
-  | TextArea;
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type segment = list(piece)
 and piece =
@@ -32,12 +19,7 @@ and tile = {
   shards: list(int),
   children: list(segment),
 }
-and projector = {
-  id: Id.t,
-  kind,
-  syntax: piece,
-  model: string,
-};
+and projector = ProjectorCore.t(piece);
 
 // This is for comment insertion
 let mk_secondary = (id, content) => [Secondary({id, content})];

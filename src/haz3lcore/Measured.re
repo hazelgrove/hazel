@@ -274,7 +274,7 @@ let last_of_token = (token: string, origin: Point.t): Point.t =>
   };
 
 let of_segment =
-    (seg: Segment.t, shape_of_proj: Base.projector => ProjectorShape.t): t => {
+    (seg: Segment.t, shape_of_proj: Base.projector => ProjectorCore.shape): t => {
   let is_indented = is_indented_map(seg);
 
   // recursive across seg's bidelimited containers

@@ -26,17 +26,17 @@ let view =
       info,
       ~local as _,
       ~parent: external_action => Ui_effect.t(unit),
-      ~utility,
+      ~view_seg as _,
     ) => {
   Node.input(
     ~attrs=
       [
         Attr.create("type", "checkbox"),
         Attr.on_input((_, _) =>
-          parent(SetSyntax(utility.lift_syntax(toggle, info.syntax)))
+          parent(SetSyntax(info.utility.lift_syntax(toggle, info.syntax)))
         ),
       ]
-      @ (get(utility, info.syntax) ? [Attr.checked] : []),
+      @ (get(info.utility, info.syntax) ? [Attr.checked] : []),
     (),
   );
 };
@@ -50,7 +50,7 @@ module M: Projector = {
   let can_project = (_, any: Term.Any.t) => bool_of(any) != None;
   let can_focus = false;
   let dynamics = false;
-  let placeholder = (_, _) => ProjectorShape.inline(2);
+  let placeholder = (_, _) => ProjectorCore.inline(2);
   let update = (model, _, _) => model;
   let view = view;
   let offside_view = Option.None;

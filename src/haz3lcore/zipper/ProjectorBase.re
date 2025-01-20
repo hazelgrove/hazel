@@ -1,13 +1,13 @@
 open Util;
 open Virtual_dom.Vdom;
 
-/* This determines the API for projectors, GUIs which
- * can replace part of the program syntax, and perform
- * actions which changes that underlying syntax, as well
- * as mainting their own custom state. The comments below
+/* This descibes the API for projectors: GUIs which
+ * can replace part of the program syntax and perform
+ * actions on that underlying syntax, as well as
+ * mainting their own custom state. The comments below
  * detail the procedure of defining a new projector.
  *
- * See the zipper/projectors/ folder for the implementations
+ * See zipper/projectors/ for examples
  * of currently available projectors */
 
 /* The type of syntax which a projector can replace.
@@ -20,6 +20,22 @@ type external_action =
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
   | SetSyntax(syntax); /* Set underlying syntax */
+
+/* Syntax utility functions/values for projector use,
+ * provided here to resolve cyclic dependency issues */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type utility = {
+  /* Convert a term to a segment */
+  term_to_seg: Any.t => list(syntax),
+  /* Convert a segment to a term */
+  seg_to_term: list(syntax) => Term.Any.t,
+  /* Lifts term->term functions to syntax->syntax.
+   * NOTE: As syntax is currently limited to single pieces, this
+   * will proactively attempt to parenthesize resulting non-single
+   * piece terms. As such, sorts that do not have parentheses
+   * (currently all degenerate cases) will throw an error */
+  lift_syntax: (Any.t => Any.t, syntax) => syntax,
+};
 
 /* External info proivded to all projectors */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -43,33 +59,15 @@ type info = {
    * disabled by the user; this case (None) must be
    * handled by projector authors */
   dynamics: option(Dynamics.Info.t),
-};
-
-/* Utility functions/values for to projector views.
- * These should be considered unstable/experimental */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type utility = {
-  /* Non-interactive view for segments, included here
-   * because of cyclic dependency issues*/
-  view_seg: (Sort.t, Base.segment) => Node.t,
-  /* Convert an expression to a segment, included here
-   * because of cyclic dependency issues*/
-  term_to_seg: Any.t => Base.segment,
-  /* Convert a segment to an expression, included here
-   * because of cyclic dependency issues*/
-  seg_to_term: Base.segment => Term.Any.t,
-  /* Utility function to take term->term functions syntax->syntax.
-   * Note: As syntax is currently limited to single pieces, this
-   * will proactively attempt to parenthesize resulting non-single
-   * piece terms. As such, sorts that do not have parentheses
-   * will throw an error */
-  lift_syntax: (Any.t => Any.t, syntax) => syntax,
+  /* Syntax utility functions/values for projector use,
+   * provided here to resolve cyclic dependency issues */
+  utility,
 };
 
 /* To add a new projector:
- * 1. Create a new module implementing Projector (e.g. FoldCore)
- * 2. Add an entry for it in Base.projector_kind
- * 3. Register the module in Projector.to_module
+ * 1. Create a new module implementing Projector (e.g. FoldProj)
+ * 2. Add an entry for it in ProjectorCore.kind
+ * 3. Register the module in ProjectorInit.to_module
  * 4. If you want to expose the projector via a keyboard
  *    shortcut, see the existing entry for Fold in Keyboard
  * 5. If you want to expose the projector in the projector
@@ -96,7 +94,7 @@ module type Projector = {
    * syntax (currently limited to convex pieces) is
    * supported by this projector. This is used to gate
    * adding the projector */
-  let can_project: (Base.piece, Term.Any.t) => bool;
+  let can_project: (syntax, Term.Any.t) => bool;
   /* Does this projector have internal position states,
    * overriding the editor caret & keyboard handlers?
    * If yes, the focus method will be called when this
@@ -108,18 +106,19 @@ module type Projector = {
    * instrumented with a probe to collect dynamic
    * information during evaluation */
   let dynamics: bool;
-  /* Renders a DOM view for the projector, given the
-   * model, an info packet (see info type for details),
-   * and has two callbacks: ~parent for parent editor
-   * actions(see external_action type above), and ~local
-   * for this projector's local update function. */
+  /* Renders the main DOM view for the projector,
+   * which will replace the syntax in-line. */
   let view:
     (
       model,
       info,
+      /* A callback for the projector's own actions */
       ~local: action => Ui_effect.t(unit),
+      /* A callback for parent editor actions */
       ~parent: external_action => Ui_effect.t(unit),
-      ~utility: utility
+      /* Creates a non-interactive embedded syntax view,
+       * provided here to address a dependency cycle */
+      ~view_seg: (Sort.t, list(syntax)) => Node.t
     ) =>
     Node.t;
   /* An optional additional view to be rendered at the
@@ -131,7 +130,7 @@ module type Projector = {
         info,
         ~local: action => Ui_effect.t(unit),
         ~parent: external_action => Ui_effect.t(unit),
-        ~utility: utility
+        ~view_seg: (Sort.t, list(syntax)) => Node.t
       ) =>
       Node.t,
     );
@@ -144,7 +143,7 @@ module type Projector = {
         info,
         ~local: action => Ui_effect.t(unit),
         ~parent: external_action => Ui_effect.t(unit),
-        ~utility: utility
+        ~view_seg: (Sort.t, list(syntax)) => Node.t
       ) =>
       Node.t,
     );
@@ -156,7 +155,10 @@ module type Projector = {
    * element to trigger their own custom indication and
    * selection decorations. Pointer handlers should not
    * be placed on this layer. */
-  let underlay_view: option((model, info, ~utility: utility) => Node.t);
+  let underlay_view:
+    option(
+      (model, info, ~view_seg: (Sort.t, list(syntax)) => Node.t) => Node.t,
+    );
   /* How much space should be left in the code view for
    * this projector? This determines how the base code
    * view is laid out, including how movement around the
@@ -164,7 +166,7 @@ module type Projector = {
    * from the view, but this is awkward to do so for now
    * projector writers are responsible for keeping these
    * in sync with each other. */
-  let placeholder: (model, info) => ProjectorShape.t;
+  let placeholder: (model, info) => ProjectorCore.shape;
   /* Update the local projector model given an action */
   let update: (model, info, action) => model;
   /* Does whatever needs to be done to give a projector
@@ -195,41 +197,41 @@ module Cook = (C: Projector) : Cooked => {
   let can_project = C.can_project;
   let can_focus = C.can_focus;
   let dynamics = C.dynamics;
-  let view = (m, info, ~local, ~parent, ~utility) =>
+  let view = (m, info, ~local, ~parent, ~view_seg) =>
     C.view(
       deserialize_m(m),
       info,
       ~local=a => local(serialize_a(a)),
       ~parent,
-      ~utility,
+      ~view_seg,
     );
   let offside_view =
     Option.map(
-      (f, m, info, ~local, ~parent, ~utility) =>
+      (f, m, info, ~local, ~parent, ~view_seg) =>
         f(
           deserialize_m(m),
           info,
           ~local=a => local(serialize_a(a)),
           ~parent,
-          ~utility,
+          ~view_seg,
         ),
       C.offside_view,
     );
   let overlay_view =
     Option.map(
-      (f, m, info, ~local, ~parent, ~utility) =>
+      (f, m, info, ~local, ~parent, ~view_seg) =>
         f(
           deserialize_m(m),
           info,
           ~local=a => local(serialize_a(a)),
           ~parent,
-          ~utility,
+          ~view_seg,
         ),
       C.overlay_view,
     );
   let underlay_view =
     Option.map(
-      (f, m, info, ~utility) => f(deserialize_m(m), info, ~utility),
+      (f, m, info, ~view_seg) => f(deserialize_m(m), info, ~view_seg),
       C.underlay_view,
     );
   let placeholder = m =>
@@ -240,10 +242,10 @@ module Cook = (C: Projector) : Cooked => {
 };
 
 /* Projectors currently are all convex */
-let shapes = (_: Base.projector) => Nib.Shape.(Convex, Convex);
+let shapes = (_: ProjectorCore.t(syntax)) => Nib.Shape.(Convex, Convex);
 
 /* Projectors currently have a fixed molding */
-let mold_of = (p, sort: Sort.t): Mold.t => {
+let mold_of = (p: ProjectorCore.t(syntax), sort: Sort.t): Mold.t => {
   let (l, r) = shapes(p);
   {
     nibs: {
