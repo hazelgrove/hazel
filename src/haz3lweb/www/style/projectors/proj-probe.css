@@ -24,11 +24,7 @@
   --pat-cell: hsl(165, 30%, 70%);
 }
 
-.projector.probe {
-  font-family: var(--code-font);
-  font-size: var(--base-font-size);
-  color: var(--code-text);
-}
+/* BACKING */
 
 .projector.probe.Exp > svg {
   fill: var(--exp-base);
@@ -39,12 +35,33 @@
   filter: drop-shadow(0.7px 0.7px 0px var(--pat-shadow));
 }
 
+.projector.probe.selected > svg {
+  display: none;
+}
+.projector.probe.indicated.Exp > svg {
+  fill: var(--exp-indicated);
+}
+.projector.probe.indicated.Pat > svg {
+  fill: var(--pat-indicated);
+}
+.projector.probe:has(.ap.pinned) > svg {
+  fill: var(--exp-ap-indicated);
+}
+
+/* INLINE VIEW */
+
 .projector.probe .main {
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+  color: var(--code-text);
   display: flex;
   flex-direction: row;
   gap: 0.4em;
   cursor: pointer;
   align-items: center;
+}
+.projector.probe.indicated:not(.selected) .main {
+  color: white;
 }
 
 @keyframes rotate {
@@ -72,8 +89,9 @@
 /* OVERLAY VIEW */
 
 .overlays .projector.probe .num-closures {
+  pointer-events: auto;
   position: absolute;
-  right: -0.5em;
+  right: -0.55em;
   top: -0.3em;
   transform-origin: top right;
   scale: 0.6;
@@ -84,7 +102,7 @@
   border-radius: 2em;
   font-size: 0.7em;
   padding: 0.3em;
-  min-width: 1em;
+  min-width: 1.2em;
   --original-bg: inherit;
   background-color: var(--original-bg);
 }
@@ -109,9 +127,9 @@
   }
 }
 .overlays .projector.probe.indicated.Right .num-closures {
-  animation: 1s blink-probe-caret step-end infinite;
-
-  /* background-color: var(--num-closures-indicated) !important; */
+  /* Commented out for now due to desync problem */
+  /* animation: 1s blink-probe-caret step-end infinite; */
+  background-color: var(--num-closures-indicated) !important;
 }
 
 .overlays .projector.probe.selected:not(.indicated) .num-closures {
@@ -119,17 +137,20 @@
 }
 
 .overlays .projector.probe .pin {
+  pointer-events: auto;
   position: absolute;
-  left: -0.5em;
-  top: -0.3em;
-  height: 0.8em;
-  width: 0.8em;
-  border-radius: 2em;
+  left: -0.9em;
+  top: -0.2em;
+  height: 1.3em;
+  width: 1.3em;
+  border-radius: 1em;
   filter: invert(1);
   background: url(../../img/noun-pinned-1560993.svg) #33ffff;
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;
+  transform-origin: top right;
+  scale: 0.6;
 }
 .overlays .projector.probe.indicated.Left .pin {
   background-color: oklch(0.8 0.18 201.83);
@@ -210,104 +231,108 @@
   color: var(--pat-indicated);
 }
 
-.projector.probe .val-resize {
+.projector.probe .value {
   cursor: pointer;
 }
 
-/* .projector.probe .closure:first-child .val-resize:hover .code-text {
+.projector.probe .closure .code {
+  line-height: initial;
+}
+
+/* .projector.probe .closure:first-child .value:hover .code-text {
   cursor: col-resize;
 } */
 
 /* TOKEN BKG */
-.projector.probe .val-resize .code-text {
+.projector.probe .closure {
   border-radius: 0.05em 0.05em 0.05em 0.2em;
+  transition: filter 0.14s ease-in-out;
+  transition: scale 0.07s ease-in-out;
 }
-.projector.probe.Exp .val-resize .code-text {
+.projector.probe.Exp .closure {
   background-color: var(--exp-base);
   border-bottom: 1px solid var(--exp-shadow);
 }
-.projector.probe.Pat .val-resize .code-text {
+.projector.probe.Pat .closure {
   background-color: var(--pat-base);
   border-bottom: 1px solid var(--pat-shadow);
 }
-.projector.probe .val-resize.cursor-lex .code-text {
-  opacity: 100%;
-}
-.projector.probe .val-resize.cursor-ap-lex .code-text {
-  opacity: 100%;
+.projector.probe .closure:has(.value.cursor-callee.direct) {
   outline: 1px solid var(--exp-ap-indicated);
   border-color: var(--exp-ap-indicated);
 }
-.projector.probe .val-resize.cursor-outer-ap .code-text {
-  opacity: 100% !important;
+.projector.probe .closure:has(.value.cursor-caller) {
   outline: 1px solid var(--exp-ap-indicated);
   border-color: var(--exp-ap-indicated);
   background-color: var(--exp-ap-indicated);
+  box-shadow: inset 4px 4px 0 #551da0;
 }
-.projector.probe .val-resize .code-text,
-.projector.probe .val-resize.cursor-ap.light .code-text,
-.projector.probe .val-resize.cursor-ap-lex.light .code-text {
-  opacity: 50%;
+.projector.probe .closure:has(.value.cursor-unrelated),
+.projector.probe .closure:has(.value.cursor-callee.indirect) {
+  filter: contrast(0.32) brightness(1.51) saturate(0.7);
+  /* opacity: 40%; */
 }
 
-/* TOKEN BKG INDICATED */
-.projector.probe.indicated .val-resize .code-text {
-  opacity: 60%;
+/* TOKEN BKG INDICATED + HOVER */
+.projector.probe.indicated .closure:has(.value.cursor-unrelated) {
+  filter: contrast(0.5) brightness(1.32) saturate(0.7);
+  /* opacity: 60%; */
 }
-.projector.probe.indicated .closure.cursor .val-resize .code-text {
-  opacity: 100%;
+.projector.probe.indicated .closure:has(.value.cursor) {
   background: white;
-  outline-width: 2.8px;
+  outline-width: 2.1px;
   outline-style: solid;
+  border-bottom-width: 1.5px;
 }
-.projector.probe.indicated.Exp .val-resize.cursor-lex .code-text {
+.projector.probe.indicated.Exp .closure:has(.value.cursor),
+.projector.probe.Exp .closure:hover {
   outline-color: var(--exp-indicated);
+  border-color: var(--exp-indicated);
 }
-.projector.probe.indicated.Pat .val-resize.cursor-lex .code-text {
+.projector.probe.indicated.Pat .closure:has(.value.cursor),
+.projector.probe.Pat .closure:hover {
   outline-color: var(--pat-indicated);
+  border-color: var(--pat-indicated);
 }
-.projector.probe.indicated .val-resize.cursor-lex.ap .code-text {
+.projector.probe.indicated .closure:has(.value.cursor.ap),
+.projector.probe.Exp .closure:has(.value.ap):hover {
   outline-color: var(--exp-ap-indicated);
   border-color: var(--exp-ap-indicated);
 }
-
-/* TOKENS */
-.projector.probe .val-resize.cursor-ap .code-text .token,
-.projector.probe .val-resize.cursor-none .code-text .token,
-.projector.probe .val-resize.cursor-outer-ap .code-text .token {
-  filter: invert(1) brightness(10);
-}
-.projector.probe .val-resize.cursor-ap-lex .code-text .token {
-  color: var(--exp-ap-indicated);
-}
-
-.projector.probe .val-resize .code-text:hover {
-  opacity: 100% !important;
+.projector.probe .closure:hover {
+  /* transform-origin: bottom left; */
+  /* scale: 1.18; */
+  z-index: var(--projector-indicated-z);
+  position: relative;
+  /* opacity: 100% !important; */
   outline-width: 1px;
   outline-style: solid;
   outline-offset: -0.1px;
   border-width: 1.5px;
-  top: 0.5px;
-  filter: drop-shadow(1.5px 3px 0 #95876452);
-}
-.projector.probe.Exp .val-resize .code-text:hover {
-  outline-color: var(--exp-indicated);
-  border-color: var(--exp-indicated);
-}
-.projector.probe.Pat .val-resize .code-text:hover {
-  outline-color: var(--pat-indicated);
-  border-color: var(--pat-indicated);
-}
-.projector.probe.Exp .val-resize.ap .code-text:hover {
-  outline-color: var(--exp-ap-indicated);
-  border-color: var(--exp-ap-indicated);
-}
-.projector.probe .val-resize > .code:hover {
-  transform-origin: center left;
-  scale: 1.125;
-  z-index: var(--projector-indicated-z);
+  /* top: 0.5px; */
   position: relative;
+  filter: drop-shadow(1.5px 3px 0 #95876452) !important;
 }
+.projector.probe .closure:hover:not(:has(.long)) {
+  scale: 1.18;
+}
+.closure:hover:not(:has(.long)) + .closure,
+.closure:has(+ .closure:hover:not(:has(.long))) {
+  /* transform-origin: center left; */
+  scale: 1.12;
+}
+
+/* TOKENS */
+
+.projector.probe .value.cursor-unrelated .code-text .token,
+.projector.probe .value.cursor-caller .code-text .token {
+  filter: invert(1) brightness(10);
+}
+.projector.probe .value.cursor-callee .code-text .token {
+  color: var(--exp-ap-indicated);
+}
+
+/* LIVE ENV */
 
 .projector.probe .live-env {
   background-color: var(--live-env-bkg);
@@ -315,7 +340,9 @@
   padding: 0.2em;
   display: none;
   position: absolute;
-  top: 1.35em;
+  top: 1.4em;
+  scale: 0.86;
+  transform-origin: top left;
 }
 
 .projector.probe .live-env .live-env-entry {
@@ -324,23 +351,6 @@
   gap: 0.3em;
   align-items: baseline;
   color: var(--GB0);
-}
-
-.projector.probe.selected > svg {
-  display: none;
-}
-.projector.probe.indicated > svg {
-  fill: var(--exp-indicated);
-}
-.projector.probe.indicated.Pat > svg {
-  fill: var(--pat-indicated);
-}
-.projector.probe:has(.ap.pinned) > svg {
-  fill: var(--exp-ap-indicated);
-}
-
-.projector.probe.indicated:not(.selected) .main {
-  color: white;
 }
 
 .projector.probe.indicated .closure:hover .live-env {

@@ -2,7 +2,6 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
-open Projector;
 open Util;
 open Util.OptUtil.Syntax;
 open Util.Web;
@@ -10,7 +9,7 @@ open Util.Web;
 /* A friendly name for each projector. This is used
  * both for identifying a projector in the CSS and for
  * selecting projectors in the projector panel menu */
-let name = (p: Base.kind): string =>
+let name = (p: ProjectorCore.kind): string =>
   switch (p) {
   | Fold => "fold"
   | Info => "type"
@@ -25,7 +24,7 @@ let name = (p: Base.kind): string =>
 /* This must be updated and kept 1-to-1 with the above
  * name function in order to be able to select the
  * projector in the projector panel menu */
-let of_name = (p: string): Base.kind =>
+let of_name = (p: string): ProjectorCore.kind =>
   switch (p) {
   | "fold" => Fold
   | "type" => Info
@@ -115,23 +114,6 @@ let offside_wrapper =
     [v],
   );
 
-/* Gather utility functions/values to be passed to the projector.
- * See ProjectorBase.utility definition for more information */
-let mk_utility = (font_metrics: FontMetrics.t): ProjectorBase.utility => {
-  {
-    font_metrics,
-    view_seg: Code.simple_view(font_metrics),
-    exp_to_seg: exp =>
-      exp
-      |> DHExp.strip_casts
-      |> ExpToSegment.exp_to_segment(
-           ~settings=
-             ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
-         ),
-    seg_to_exp: seg => MakeTerm.go(seg).term,
-  };
-};
-
 let indication = (z, id) =>
   switch (Indicated.piece(z)) {
   | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
@@ -155,20 +137,6 @@ type projector_data = {
   offside_base: int,
 };
 
-let mk_info =
-    (
-      id: Id.t,
-      p: Piece.projector,
-      ~cached_statics: CachedStatics.t,
-      ~dynamics: Dynamics.Map.t,
-    )
-    : ProjectorBase.info => {
-  id,
-  syntax: p.syntax,
-  statics: Statics.Map.lookup(id, cached_statics.info_map),
-  dynamics: Dynamics.Map.lookup(id, dynamics),
-};
-
 let collect_data =
     (cached_syntax: Editor.CachedSyntax.t, zipper, cached_statics, dynamics) => {
   let projector_ids = cached_syntax.projectors |> Id.Map.bindings |> List.rev;
@@ -181,7 +149,7 @@ let collect_data =
         indication: indication(zipper, id),
         selected: List.mem(id, cached_syntax.selection_ids),
         measurement,
-        info: mk_info(id, p, ~cached_statics, ~dynamics),
+        info: ProjectorInfo.mk_info(id, p, ~cached_statics, ~dynamics),
         offside_base:
           offside_base(~offset=4, measurement, cached_syntax.measured),
       };
@@ -197,15 +165,15 @@ let collect_data =
 let setup_view =
     (
       inject: Action.t => Ui_effect.t(unit),
-      utility: ProjectorBase.utility,
       font_metrics: FontMetrics.t,
       {p, info, offside_base, indication, measurement, selected}: projector_data,
     )
     : (Node.t, Node.t, option(Node.t)) => {
-  let (module P) = to_module(p.kind);
+  let (module P) = ProjectorInit.to_module(p.kind);
   let parent = a => inject(Project(handle(p.id, a)));
   let local = a =>
     inject(Project(SetModel(p.id, P.update(p.model, info, a))));
+  let view_seg = Code.simple_view(font_metrics);
   let wrapper =
     view_wrapper(
       ~inject,
@@ -216,25 +184,25 @@ let setup_view =
       ~selected,
       p,
     );
-  let inline_view = P.view(p.model, info, ~local, ~parent, ~utility);
+  let inline_view = P.view(p.model, info, ~local, ~parent, ~view_seg);
   let offside_view =
     Option.map(
       v =>
         offside_wrapper(
           font_metrics,
           offside_base,
-          v(p.model, info, ~local, ~parent, ~utility),
+          v(p.model, info, ~local, ~parent, ~view_seg),
         ),
       P.offside_view,
     );
   let overlay_view =
     Option.map(
-      v => wrapper([v(p.model, info, ~local, ~parent, ~utility)]),
+      v => wrapper([v(p.model, info, ~local, ~parent, ~view_seg)]),
       P.overlay_view,
     );
   let underlay_view =
     switch (P.underlay_view) {
-    | Some(v) => wrapper([v(p.model, info, ~utility)])
+    | Some(v) => wrapper([v(p.model, info, ~view_seg)])
     | None => wrapper([backing_deco(~font_metrics, ~measurement)])
     };
   let combined_view = wrapper([inline_view] @ Option.to_list(offside_view));
@@ -253,13 +221,12 @@ let indication = (z, id) =>
 let all =
     (
       inject: Action.t => Ui_effect.t(unit),
-      utility: ProjectorBase.utility,
       font_metrics: FontMetrics.t,
       projector_data: list(projector_data),
     ) => {
   let (underlay_views, base_views, overlay_views) =
     projector_data
-    |> List.map(setup_view(inject, utility, font_metrics))
+    |> List.map(setup_view(inject, font_metrics))
     |> ListUtil.split3;
   let overlay_views = overlay_views |> List.filter_map(Fun.id);
   [
@@ -287,7 +254,7 @@ let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) =>
   | None => None
   | Some((id, p)) =>
     let* (_, d, _) = Indicated.piece(editor.state.zipper);
-    let (module P) = to_module(p.kind);
+    let (module P) = ProjectorInit.to_module(p.kind);
     switch (key) {
     | {key, sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} when P.can_focus =>
       switch (key, d) {

@@ -746,3 +746,6 @@ let last_string =
     | Piece.Projector(_) => "PROJECTOR"
     | Piece.Tile(t) => t.label |> ListUtil.last
     };
+
+let sort_of = (skel: Skel.t, seg: t): Sort.t =>
+  Skel.root(skel) |> Aba.first_a |> List.nth(seg) |> Piece.sort |> fst;

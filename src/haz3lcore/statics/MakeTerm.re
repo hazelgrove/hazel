@@ -133,7 +133,7 @@ let log_projector = (pr: Base.projector): unit => {
 let should_instrument = (id: Id.t): bool =>
   switch (Id.Map.find_opt(id, projectors^)) {
   | Some(pr) =>
-    let (module P) = Projector.to_module(pr.kind);
+    let (module P) = ProjectorInit.to_module(pr.kind);
     P.dynamics;
   | None => failwith("MakeTerm.exp: projector not found")
   };
@@ -606,6 +606,28 @@ let go =
       let term = exp(unsorted(Segment.skel(seg), seg));
       {term, terms: map^, projectors: projectors^};
     },
+  );
+
+let any =
+  Core.Memo.general(~cache_size_bound=1000, (seg: Segment.t) =>
+    switch (
+      {
+        let skel = Segment.skel(seg);
+        (unsorted(skel, seg), Segment.sort_of(skel, seg));
+      }
+    ) {
+    | exception _ => TermBase.Nul()
+    | (unsorted, sort) =>
+      switch (sort) {
+      | Pat => Pat(pat(unsorted))
+      | TPat => TPat(tpat(unsorted))
+      | Typ => Typ(typ(unsorted))
+      | Exp => Exp(exp(unsorted))
+      | Rul => Rul(rul(unsorted))
+      | Nul => Nul()
+      | Any => Any()
+      }
+    }
   );
 
 let from_zip_for_sem =
