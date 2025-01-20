@@ -1,7 +1,7 @@
 open Util;
 
 /* Semantic information gathered during evaluation. This aspirationally
-  * unifies all evaluator output, in the same sense as Statics does for
+ * unifies all evaluator output, in the same sense as Statics does for
  * static information gathering, but right now it specifically handles
  * closure gathering for probe projectors */
 
@@ -41,13 +41,9 @@ module Probe = {
 
     let mk_entry = (env: Environment.t, {name, id, _}: Binding.t) =>
       switch (Environment.lookup(env, name)) {
-      | Some(d) => Some({
-                     binding: {
-                       name,
-                       id,
-                     },
-                     value: elide(env, d),
-                   })
+      | Some(d) =>
+        let binding = Binding.{name, id};
+        Some({binding, value: elide(env, d)});
       | None => None
       };
 
@@ -62,12 +58,12 @@ module Probe = {
   module Closure = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = {
-      closure_id: Id.t, /* Primary ID (Unique) */
-      env_id: Id.t, /* To track across callstack */
-      value: DHExp.t,
-      env: Env.t,
-      stack: Probe.stack,
+      closure_id: Id.t, /* Primary ID (unique) */
+      env_id: Id.t, /* Parent Closure Environment */
+      value: DHExp.t, /* Value of expression */
+      env: Env.t, /* (Filtered) Environment Values  */
       call_stack: Probe.call_stack,
+      closure_stack: Probe.closure_stack,
     };
 
     let mk = (value: DHExp.t, env: ClosureEnvironment.t, pr: Probe.t) => {
@@ -75,7 +71,7 @@ module Probe = {
       env_id: ClosureEnvironment.id_of(env),
       value,
       env: Env.mk(ClosureEnvironment.map_of(env), pr.refs),
-      stack: ClosureEnvironment.stack_of(env),
+      closure_stack: ClosureEnvironment.stack_of(env),
       call_stack: ClosureEnvironment.call_stack_of(env),
     };
   };
@@ -107,22 +103,14 @@ module Probe = {
       (m: Statics.Map.t, id: Id.t, probe_tag: Probe.tag): Probe.tag =>
     switch (probe_tag) {
     | Paren => Paren
-    | Probe(_) =>
-      Probe({
-        refs: Statics.Map.refs_in(m, id),
-        stem: Statics.Map.enclosing_abstractions(m, id),
-      })
+    | Probe(_) => Probe({refs: Statics.Map.refs_in(m, id)})
     };
 
   let instrument_pat =
       (m: Statics.Map.t, id: Id.t, probe_tag: Probe.tag): Probe.tag =>
     switch (probe_tag) {
     | Paren => Paren
-    | Probe(_) =>
-      Probe({
-        refs: Statics.Map.bound_in(m, id),
-        stem: Statics.Map.enclosing_abstractions(m, id),
-      })
+    | Probe(_) => Probe({refs: Statics.Map.bound_in(m, id)})
     };
 };
 
