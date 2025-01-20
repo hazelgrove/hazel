@@ -68,14 +68,15 @@ let view_segment =
 
 let view_exp =
     (~dynamics, ~globals: Globals.t, ~settings, ~info_map, exp: Exp.t) => {
-  let shape_of_proj = Projector.Shape.of_map(info_map, dynamics);
+  let shape_of_proj = ProjectorInfo.Shape.of_map(info_map, dynamics);
   exp
   |> ExpToSegment.exp_to_segment(~settings)
   |> view_segment(~shape_of_proj, ~globals, ~sort=Exp);
 };
 
 let view_typ = (~globals: Globals.t, ~settings, ~info_map, typ: Typ.t) => {
-  let shape_of_proj = Projector.Shape.of_map(info_map, Dynamics.Map.empty);
+  let shape_of_proj =
+    ProjectorInfo.Shape.of_map(info_map, Dynamics.Map.empty);
   typ
   |> ExpToSegment.typ_to_segment(~settings)
   |> view_segment(~shape_of_proj, ~globals, ~sort=Typ);

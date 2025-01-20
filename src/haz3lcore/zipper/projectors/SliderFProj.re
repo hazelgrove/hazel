@@ -25,7 +25,7 @@ module M: Projector = {
   let can_project = (_, any) => float_of(any) != None;
   let can_focus = false;
   let dynamics = false;
-  let placeholder = (_, _) => ProjectorShape.inline(10);
+  let placeholder = (_, _) => ProjectorCore.inline(10);
   let update = (model, _, _) => model;
 
   let view =
@@ -34,10 +34,10 @@ module M: Projector = {
         info,
         ~local as _,
         ~parent: external_action => Ui_effect.t(unit),
-        ~utility,
+        ~view_seg as _,
       ) => {
     let put_syntax = (v: string): syntax =>
-      utility.lift_syntax(
+      info.utility.lift_syntax(
         fun
         | Exp(any) => Exp({...any, term: Float(float_of_string(v))})
         | any => any,
@@ -45,7 +45,7 @@ module M: Projector = {
       );
     Util.Web.range(
       ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put_syntax(v))))],
-      get(utility, info.syntax) |> Printf.sprintf("%.2f"),
+      get(info.utility, info.syntax) |> Printf.sprintf("%.2f"),
     );
   };
 

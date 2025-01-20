@@ -573,7 +573,10 @@ module View = {
         switch (Model.get_elaboration(model)) {
         | Some(elab) =>
           let shape_of_proj =
-            Projector.Shape.of_map(Statics.Map.empty, Model.dynamics(model));
+            ProjectorInfo.Shape.of_map(
+              Statics.Map.empty,
+              Model.dynamics(model),
+            );
           elab
           |> Haz3lcore.ExpToSegment.(
                exp_to_segment(

@@ -126,7 +126,7 @@ let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
 let fold_if = (condition, pieces) =>
   if (condition) {
     let syntax = mk_form("parens_exp", Id.mk(), [pieces]);
-    [Projector.init(Fold, syntax, MakeTerm.any([syntax]))];
+    [ProjectorInit.init(Fold, syntax, MakeTerm.any([syntax]))];
   } else {
     pieces;
   };
@@ -135,7 +135,7 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
   if (condition) {
     let syntax = mk_form("parens_exp", Id.mk(), [pieces]);
     [
-      Projector.init_from_str(
+      ProjectorInit.init_from_str(
         Fold,
         syntax,
         MakeTerm.any([syntax]),

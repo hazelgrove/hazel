@@ -74,11 +74,11 @@ module M: Projector = {
       [text(display_mode(model, info))],
     );
 
-  let typ_view = (model, info: info, utility) => {
+  let typ_view = (model, info: info, utility, view_seg) => {
     let typ = display_ty(model, info.statics) |> totalize_ty;
     div(
       ~attrs=[Attr.classes(["type-cell"])],
-      [TermBase.Typ(typ) |> utility.term_to_seg |> utility.view_seg(Typ)],
+      [TermBase.Typ(typ) |> utility.term_to_seg |> view_seg(Sort.Typ)],
     );
   };
 
@@ -97,13 +97,13 @@ module M: Projector = {
   };
 
   let placeholder = (_m, info) =>
-    ProjectorShape.inline(3 + String.length(syntax_str(info)));
+    ProjectorCore.inline(3 + String.length(syntax_str(info)));
 
   let syntax_view = (info: info) => info |> syntax_str |> text;
 
   let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-  let view = (_model, info, ~local, ~parent as _, ~utility as _) =>
+  let view = (_model, info, ~local, ~parent as _, ~view_seg as _) =>
     div(
       ~attrs=[
         Attr.classes(["main"]),
@@ -114,10 +114,13 @@ module M: Projector = {
 
   let offside_view =
     Some(
-      (model, info, ~local as _, ~parent as _, ~utility) =>
+      (model, info, ~local as _, ~parent as _, ~view_seg) =>
         div(
           ~attrs=[Attr.classes(["offside"])],
-          [mode_view(model, info.statics), typ_view(model, info, utility)],
+          [
+            mode_view(model, info.statics),
+            typ_view(model, info, info.utility, view_seg),
+          ],
         ),
     );
 };

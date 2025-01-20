@@ -83,7 +83,7 @@ let textarea =
     [],
   );
 
-let view = (_, info, ~local as _, ~parent, ~utility as _) => {
+let view = (_, info, ~local as _, ~parent, ~view_seg as _) => {
   let text = info.syntax |> get |> Form.strip_quotes;
   Node.div(
     ~attrs=[Attr.classes(["wrapper"])],
@@ -107,7 +107,7 @@ module M: Projector = {
   let dynamics = false;
   let placeholder = (_, info) => {
     let str = Form.strip_quotes(get(info.syntax));
-    ProjectorShape.{
+    ProjectorCore.{
       vertical: Block(StringUtil.num_linebreaks(str)),
       /* +2 for left and right padding */
       horizontal: 2 + StringUtil.max_line_width(str),
