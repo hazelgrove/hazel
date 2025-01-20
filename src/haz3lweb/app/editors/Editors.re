@@ -233,8 +233,9 @@ module Selection = {
 
   let default_selection =
     fun
-    | Model.Scratch(_) => Scratch(MainEditor)
-    | Model.Documentation(_) => Scratch(MainEditor)
+    | Model.Scratch(_) => Scratch(ScratchMode.Selection.Cell(MainEditor))
+    | Model.Documentation(_) =>
+      Scratch(ScratchMode.Selection.Cell(MainEditor))
     | Model.Exercises(_) => Exercises((Exercise.Prelude, MainEditor));
 };
 
@@ -260,7 +261,7 @@ module View = {
           fun
           | MakeActive(s) => signal(MakeActive(Scratch(s))),
         ~globals,
-        ~selected=
+        ~selection=
           switch (selection) {
           | Some(Scratch(s)) => Some(s)
           | _ => None
@@ -274,7 +275,7 @@ module View = {
           fun
           | MakeActive(s) => signal(MakeActive(Scratch(s))),
         ~globals,
-        ~selected=
+        ~selection=
           switch (selection) {
           | Some(Scratch(s)) => Some(s)
           | _ => None

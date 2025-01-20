@@ -494,11 +494,19 @@ module View = {
                 cursor.info,
               )
             | HelpfulAssistant =>
+              open Editors.View;
+              let signal = (
+                fun
+                | MakeActive(selection) => inject(MakeActive(selection))
+              );
               Assistant.view(
                 ~globals,
+                ~signal=
+                  fun
+                  | MakeActive(s) => signal(MakeActive(Scratch(s))),
                 ~inject=action => inject(Assistant(action)),
                 ~assistantModel,
-              )
+              );
             }
           : {
             div([]);

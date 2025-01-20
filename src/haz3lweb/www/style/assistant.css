@@ -66,16 +66,18 @@
 
 #assistant .input-container {
     align-items: center;
-    padding: 1em 0em;
+    margin-top: auto;
+    padding: 2em 0em;
     width: 100%;
     display: flex;
     gap: 10px;
+    transition: all 0.3s ease;
 }
 
 #assistant .message-input {
     flex: 1;
     background-color: var(--SAND);
-    padding: 8px;
+    padding: 14px;
     outline: none;
     border-radius: 3.5px;
     border: none;

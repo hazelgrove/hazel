@@ -5,6 +5,12 @@ open Util;
 open Haz3lcore;
 open Js_of_ocaml;
 
+type selection =
+  | MakeActive(Selection.t);
+
+type event =
+  | MakeActive(ScratchMode.Selection.t);
+
 let llm_toggle = (~globals: Globals.t): Node.t => {
   let tooltip = "Toggle Manual LLM";
   let toggle_llm = _ =>
@@ -84,7 +90,7 @@ let settings_box = (~globals: Globals.t): Node.t => {
   );
 };
 
-let message_input = (~inject, ~globals: Globals.t): Node.t => {
+let message_input = (~signal, ~inject, ~globals: Globals.t): Node.t => {
   let handle_send = (message: string) => {
     JsUtil.log("Message sent: " ++ message);
     Virtual_dom.Vdom.Effect.Many([
@@ -114,6 +120,9 @@ let message_input = (~inject, ~globals: Globals.t): Node.t => {
           Attr.id("message-input"),
           Attr.placeholder("Type a message..."),
           Attr.type_("text"),
+          Attr.on_focus(_ =>
+            signal(MakeActive(ScratchMode.Selection.TextBox))
+          ),
           clss(["message-input"]),
         ],
         (),
@@ -128,7 +137,7 @@ let message_input = (~inject, ~globals: Globals.t): Node.t => {
   );
 };
 
-let view = (~globals: Globals.t, ~inject, ~assistantModel) => {
+let view = (~globals: Globals.t, ~signal, ~inject, ~assistantModel) => {
   div(
     ~attrs=[Attr.id("side-bar")],
     [
@@ -149,7 +158,7 @@ let view = (~globals: Globals.t, ~inject, ~assistantModel) => {
           globals.settings.assistant.ongoing_chat
             ? None : settings_box(~globals),
           globals.settings.assistant.ongoing_chat
-            ? message_input(~inject, ~globals) : None,
+            ? message_input(~signal, ~inject, ~globals) : None,
         ],
       ),
     ],
