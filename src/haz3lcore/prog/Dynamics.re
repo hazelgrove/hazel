@@ -67,7 +67,7 @@ module Probe = {
       value: DHExp.t,
       env: Env.t,
       stack: Probe.stack,
-      dyn_stack: Probe.stack,
+      call_stack: Probe.call_stack,
     };
 
     let mk = (value: DHExp.t, env: ClosureEnvironment.t, pr: Probe.t) => {
@@ -76,7 +76,7 @@ module Probe = {
       value,
       env: Env.mk(ClosureEnvironment.map_of(env), pr.refs),
       stack: ClosureEnvironment.stack_of(env),
-      dyn_stack: ClosureEnvironment.dyn_stack_of(env),
+      call_stack: ClosureEnvironment.call_stack_of(env),
     };
   };
 

@@ -123,6 +123,9 @@ module TextArea = {
     };
   };
 
+  let is_last_pos = id => caret_at_end(get(id));
+  let is_first_pos = id => caret_at_start(get(id));
+
   let set_caret_to_start = (textarea: t): unit => {
     textarea##focus;
     textarea##.selectionStart := 0;

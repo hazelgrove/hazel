@@ -276,7 +276,7 @@ let consume_deferred_linebreaks = () => {
 };
 
 let of_segment =
-    (seg: Segment.t, shape_of_proj: Base.projector => ProjectorShape.t): t => {
+    (seg: Segment.t, shape_of_proj: Base.projector => ProjectorCore.shape): t => {
   deferred_linebreaks := [];
   let is_indented = is_indented_map(seg);
 

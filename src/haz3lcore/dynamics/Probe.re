@@ -19,6 +19,12 @@ type tag =
   | Paren
   | Probe(t);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type call_frame = Id.t;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type call_stack = list(call_frame);
+
 /* Information about the evaluation of an ap */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type frame = {
@@ -34,5 +40,8 @@ let empty: t = {refs: [], stem: []};
 
 let env_stack: list(frame) => list(Id.t) =
   List.map((en: frame) => en.env_id);
+
+let call_stack: list(frame) => list(Id.t) =
+  List.map((en: frame) => en.ap_id);
 
 let mk_frame = (~env_id: Id.t, ~ap_id: Id.t): frame => {env_id, ap_id};

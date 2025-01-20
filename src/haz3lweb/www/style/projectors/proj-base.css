@@ -1,8 +1,9 @@
 /* PROJECTORS */
 
 @import "panel.css";
-@import "probe.css";
-@import "cards.css";
+@import "proj-probe.css";
+@import "proj-type.css";
+@import "proj-cards.css";
 
 /* Turn off caret when a projector is focused */
 .code-deco:has(~ .projectors .projector *:focus) #caret .caret-path {
@@ -21,6 +22,10 @@
 
 .projector.indicated {
   z-index: var(--projector-indicated-z);
+}
+
+.projector:hover {
+  z-index: var(--projector-hover-z);
 }
 
 .projector > *:not(svg) {
@@ -67,21 +72,6 @@
 
 .result .projector.fold {
   cursor: default;
-}
-
-/* PROJECTOR: INFO */
-
-.projector.type .type {
-  color: var(--token-typ);
-}
-.projector.type {
-  cursor: pointer;
-}
-.projector.type .info {
-  display: flex;
-}
-.projector.type:hover {
-  color: var(--BLACK);
 }
 
 /* PROJECTOR: CHECKBOX */

@@ -122,7 +122,7 @@ module HighlightSegment =
     switch (Measured.find_pr_opt(p, M.measured)) {
     | None => failwith("Deco.of_projector: missing measurement")
     | Some(_m) =>
-      let shape = Projector.Shape.of_map(M.info_map, M.dynamics, p);
+      let shape = ProjectorInfo.Shape.of_map(M.info_map, M.dynamics, p);
       /* Handling this internal to ProjectorsView at the moment because the
        * commented-out strategy doesn't work well, since the inserted str8-
        * edged lines vertical edge placement doesn't account for whether
