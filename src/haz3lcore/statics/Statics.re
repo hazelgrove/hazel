@@ -136,12 +136,12 @@ let rec caf_input_type = (args: UPat.t): UTyp.t => {
 };
 
 let check_annotated_function_helper =
-    (pat: UPat.t, ret_type: UTyp.t): option((Var.t, UPat.t, UTyp.t)) => {
+    (pat: UPat.t, ret_type: UTyp.t): option((UPat.t, UPat.t, UTyp.t)) => {
   let (pat_term, pat_rule) = IdTagged.unwrap(pat);
   switch (pat_term) {
-  | Ap(func_name_group, args) =>
-    switch (IdTagged.term_of(func_name_group)) {
-    | Var(func_name) =>
+  | Ap(func_name, args) =>
+    switch (IdTagged.term_of(func_name)) {
+    | Var(_) =>
       let func_type = UTyp.Arrow(caf_input_type(args), ret_type) |> pat_rule;
       Some((func_name, args, func_type));
     | _ => None
@@ -156,7 +156,7 @@ let check_annotated_function_helper =
  * I am not sure what is the top-level pattern; the only thing similar seems to be UPat.Ap.
  */
 let check_annotated_function =
-    (pat: UPat.t): option((Var.t, UPat.t, UTyp.t)) => {
+    (pat: UPat.t): option((UPat.t, UPat.t, UTyp.t)) => {
   let (pat_term, pat_rule) = IdTagged.unwrap(pat);
   switch (pat_term) {
   | Cast(inner_pat, _, ret_type) =>
@@ -439,20 +439,13 @@ and uexp_to_info_map =
     switch (check_annotated_function(p)) {
     | Some((f_name, f_args, f_type)) =>
       let def: UExp.t = {
-        ids,
+        ids: p.ids, // the ID of the original application statement
         term: UExp.Fun(f_args, def, None, None),
         copied: false,
       };
-      let p: UPat.t = {
-        ids,
-        term:
-          UPat.Cast(
-            {ids, term: UPat.Var(f_name), copied: false},
-            f_type,
-            Typ.temp(Unknown(Internal)),
-          ),
-        copied: false,
-      };
+      let p: UPat.t =
+        UPat.Cast(f_name, f_type, Typ.temp(Unknown(Internal)))
+        |> IdTagged.fresh;
       let new_binding: UExp.t = {
         ids,
         copied: false,

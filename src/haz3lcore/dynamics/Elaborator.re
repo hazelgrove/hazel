@@ -75,6 +75,8 @@ let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t, 'a) => {
 };
 
 let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
+  print_endline("ELA_PT m = " ++ Statics.Map.show(m));
+  print_endline("ELA_PT upat = " ++ UPat.show(upat));
   let (mode, self_ty, ctx, prev_synswitch) =
     switch (Id.Map.find_opt(UPat.rep_id(upat), m)) {
     | Some(Info.InfoPat({mode, ty, ctx, prev_synswitch, _})) => (
@@ -106,11 +108,11 @@ let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
 
 let rec elaborate_pattern =
         (m: Statics.Map.t, upat: UPat.t): (DHPat.t, Typ.t) => {
-  print_endline("ELA_PAT upat = " ++ UPat.show(upat));
+  print_endline("ELA_P upat = " ++ UPat.show(upat));
   let (elaborated_type, ctx) = elaborated_pat_type(m, upat);
   let cast_from = (ty, exp) => fresh_pat_cast(exp, ty, elaborated_type);
   let (term, rewrap) = UPat.unwrap(upat);
-  print_endline("ELA_PAT term = " ++ UPat.show_term(term));
+  print_endline("ELA_P term = " ++ UPat.show_term(term));
   let dpat =
     switch (term) {
     | Int(_) => upat |> cast_from(Int |> Typ.temp)
