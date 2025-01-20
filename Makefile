@@ -18,14 +18,14 @@ change-deps:
 	sed -i'.old' '/host-/d' hazel.opam.locked  # remove host- lines which are arch-specific. Not using -i '' because of portability issues https://stackoverflow.com/questions/4247068/sed-command-with-i-option-failing-on-mac-but-works-on-linux
 
 setup-instructor:
-	cp src/haz3lweb/ExerciseSettings_instructor.re src/haz3lweb/ExerciseSettings.re
+	cp src/haz3lweb/exercises/settings/ExerciseSettings_instructor.re src/haz3lweb/exercises/settings/ExerciseSettings.re
 
 setup-student: 
-	cp src/haz3lweb/ExerciseSettings_student.re src/haz3lweb/ExerciseSettings.re
+	cp src/haz3lweb/exercises/settings/ExerciseSettings_student.re src/haz3lweb/exercises/settings/ExerciseSettings.re
 
 dev-helper:
 	dune fmt --auto-promote || true
-	dune build @src/fmt --auto-promote src --profile dev
+	dune build @ocaml-index @src/fmt --auto-promote src --profile dev
 
 dev: setup-instructor dev-helper
 
@@ -35,7 +35,7 @@ fmt:
 	dune fmt --auto-promote
 
 watch: setup-instructor
-	dune build @src/fmt --auto-promote src --profile dev --watch
+	dune build @ocaml-index @src/fmt --auto-promote src --profile dev --watch
 
 watch-release: setup-instructor
 	dune build @src/fmt --auto-promote src --profile release --watch
@@ -60,11 +60,19 @@ repl:
 
 test:
 	dune fmt --auto-promote || true
-	dune build @src/fmt @test/fmt --auto-promote src test --profile dev
+	dune build @ocaml-index @src/fmt @test/fmt --auto-promote src test --profile dev
 	node $(TEST_DIR)/haz3ltest.bc.js
 
 watch-test:
-	dune build @fmt @runtest --auto-promote --watch
+	dune build @ocaml-index @fmt @runtest --auto-promote --watch
+
+coverage:
+	dune build @src/fmt @test/fmt --auto-promote src test --profile dev
+	dune runtest --instrument-with bisect_ppx --force
+	bisect-ppx-report summary
+
+generate-coverage-html:
+	bisect-ppx-report html
 
 clean:
 	dune clean

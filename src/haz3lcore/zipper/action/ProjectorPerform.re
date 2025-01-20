@@ -15,6 +15,13 @@ module Update = {
       Some({id, kind, model: P.init, syntax})
     };
   };
+  let init_from_str = (id, kind: t, syntax: syntax, model_str: string): syntax => {
+    let (module P) = to_module(kind);
+    switch (P.can_project(syntax) && minimum_projection_condition(syntax)) {
+    | false => syntax
+    | true => [Projector({id, kind, model: model_str, syntax})]
+    };
+  };
 
   let rem_p_if = (id: Id.t, piece: Piece.t): Segment.t =>
     switch (piece) {

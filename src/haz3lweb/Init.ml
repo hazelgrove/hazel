@@ -1,36 +1,5 @@
 let startup : PersistentData.t =
   {
-    settings =
-      {
-        captions = true;
-        secondary_icons = false;
-        core =
-          {
-            statics = true;
-            elaborate = false;
-            assist = true;
-            dynamics = true;
-            evaluation =
-              {
-                show_case_clauses = true;
-                show_fn_bodies = false;
-                show_fixpoints = false;
-                show_casts = false;
-                show_lookup_steps = false;
-                show_stepper_filters = false;
-                stepper_history = false;
-                show_settings = false;
-                show_hidden_steps = false;
-              };
-          };
-        async_evaluation = false;
-        context_inspector = false;
-        instructor_mode = true;
-        benchmark = false;
-        explainThis =
-          { show = true; show_feedback = false; highlight = NoHighlight };
-        mode = Documentation;
-      };
     scratch =
       ( 0,
         [
@@ -98,10 +67,11 @@ let startup : PersistentData.t =
                Convex))))))(ancestors())))(caret Outer))";
             backup_text = "";
           };
-        ],
-        [ ("scratch_0", Evaluation); ("scratch_1", Evaluation) ] );
+        ]
+        (* ,
+           [ ("scratch_0", Evaluation); ("scratch_1", Evaluation) ] *) );
     documentation =
-      ( "Basic Reference",
+      ( 2,
         [
           ( "Casting",
             {
@@ -17645,24 +17615,25 @@ let startup : PersistentData.t =
                  Convex))))))(ancestors())))(caret Outer))";
               backup_text = " ";
             } );
-        ],
-        [
-          ("scratch_ADT Dynamics", Evaluation);
-          ("scratch_ADT Statics", Evaluation);
-          ("scratch_Basic Reference", Evaluation);
-          ("scratch_Booleans and Types", Evaluation);
-          ("scratch_Casting", Evaluation);
-          ("scratch_Composing Arithmetic Expressions", Evaluation);
-          ("scratch_Compositionality", Evaluation);
-          ("scratch_Computing Equationally", Evaluation);
-          ("scratch_Conditional Expressions", Evaluation);
-          ("scratch_Functions", Evaluation);
-          ("scratch_Polymorphism", Evaluation);
-          ("scratch_Programming Expressively", Evaluation);
-          ("scratch_Projectors", Evaluation);
-          ("scratch_Scope", Evaluation);
-          ("scratch_Shadowing", Evaluation);
-          ("scratch_Types & static errors", Evaluation);
-          ("scratch_Variables", Evaluation);
-        ] );
+        ]
+        (* ,
+           [
+             ("scratch_ADT Dynamics", Evaluation);
+             ("scratch_ADT Statics", Evaluation);
+             ("scratch_Basic Reference", Evaluation);
+             ("scratch_Booleans and Types", Evaluation);
+             ("scratch_Casting", Evaluation);
+             ("scratch_Composing Arithmetic Expressions", Evaluation);
+             ("scratch_Compositionality", Evaluation);
+             ("scratch_Computing Equationally", Evaluation);
+             ("scratch_Conditional Expressions", Evaluation);
+             ("scratch_Functions", Evaluation);
+             ("scratch_Polymorphism", Evaluation);
+             ("scratch_Programming Expressively", Evaluation);
+             ("scratch_Projectors", Evaluation);
+             ("scratch_Scope", Evaluation);
+             ("scratch_Shadowing", Evaluation);
+             ("scratch_Types & static errors", Evaluation);
+             ("scratch_Variables", Evaluation);
+           ] *) );
   }

@@ -1,3 +1,4 @@
+open Util;
 open DHExp;
 
 /*
@@ -12,13 +13,13 @@ open DHExp;
 [@deriving (show({with_path: false}), sexp)]
 type builtin =
   | Const(Typ.t, DHExp.t)
-  | Fn(Typ.t, Typ.t, DHExp.t => DHExp.t);
+  | Fn(Typ.t, Typ.t, DHExp.t => option(DHExp.t));
 
 [@deriving (show({with_path: false}), sexp)]
 type t = VarMap.t_(builtin);
 
 [@deriving (show({with_path: false}), sexp)]
-type forms = VarMap.t_(DHExp.t => DHExp.t);
+type forms = VarMap.t_(DHExp.t => option(DHExp.t));
 
 type result = Result.t(DHExp.t, EvaluatorError.t);
 
@@ -29,7 +30,7 @@ let fn =
       name: Var.t,
       t1: Typ.term,
       t2: Typ.term,
-      impl: DHExp.t => DHExp.t,
+      impl: DHExp.t => option(DHExp.t), // None if indet
       builtins: t,
     )
     : t =>
@@ -41,18 +42,18 @@ let fn =
 module Pervasives = {
   module Impls = {
     /* constants */
-    let infinity = DHExp.Float(Float.infinity) |> fresh;
-    let neg_infinity = DHExp.Float(Float.neg_infinity) |> fresh;
-    let nan = DHExp.Float(Float.nan) |> fresh;
-    let epsilon_float = DHExp.Float(epsilon_float) |> fresh;
-    let pi = DHExp.Float(Float.pi) |> fresh;
-    let max_int = DHExp.Int(Int.max_int) |> fresh;
-    let min_int = DHExp.Int(Int.min_int) |> fresh;
+    let infinity = Float(Float.infinity) |> fresh;
+    let neg_infinity = Float(Float.neg_infinity) |> fresh;
+    let nan = Float(Float.nan) |> fresh;
+    let epsilon_float = Float(epsilon_float) |> fresh;
+    let pi = Float(Float.pi) |> fresh;
+    let max_int = Int(Int.max_int) |> fresh;
+    let min_int = Int(Int.min_int) |> fresh;
 
     let unary = (f: DHExp.t => result, d: DHExp.t) => {
       switch (f(d)) {
-      | Ok(r') => r'
-      | Error(e) => EvaluatorError.Exception(e) |> raise
+      | Ok(r') => Some(r')
+      | Error(_) => None
       };
     };
 
@@ -60,8 +61,8 @@ module Pervasives = {
       switch (term_of(d)) {
       | Tuple([d1, d2]) =>
         switch (f(d1, d2)) {
-        | Ok(r) => r
-        | Error(e) => EvaluatorError.Exception(e) |> raise
+        | Ok(r) => Some(r)
+        | Error(_) => None
         }
       | _ => raise(EvaluatorError.Exception(InvalidBoxedTuple(d)))
       };
@@ -71,8 +72,8 @@ module Pervasives = {
       switch (term_of(d)) {
       | Tuple([d1, d2, d3]) =>
         switch (f(d1, d2, d3)) {
-        | Ok(r) => r
-        | Error(e) => EvaluatorError.Exception(e) |> raise
+        | Ok(r) => Some(r)
+        | Error(_) => None
         }
       | _ => raise(EvaluatorError.Exception(InvalidBoxedTuple(d)))
       };
@@ -180,8 +181,8 @@ module Pervasives = {
           switch (convert(s)) {
           | Some(n) => Ok(wrap(n))
           | None =>
-            let d' = DHExp.BuiltinFun(name) |> DHExp.fresh;
-            let d' = DHExp.Ap(Forward, d', d) |> DHExp.fresh;
+            let d' = BuiltinFun(name) |> DHExp.fresh;
+            let d' = Ap(Forward, d', d) |> DHExp.fresh;
             let d' = DynamicErrorHole(d', InvalidOfString) |> DHExp.fresh;
             Ok(d');
           }
@@ -204,8 +205,7 @@ module Pervasives = {
             Ok(
               fresh(
                 DynamicErrorHole(
-                  DHExp.Ap(Forward, DHExp.BuiltinFun(name) |> fresh, d1)
-                  |> fresh,
+                  Ap(Forward, BuiltinFun(name) |> fresh, d1) |> fresh,
                   DivideByZero,
                 ),
               ),
@@ -265,23 +265,52 @@ module Pervasives = {
         }
       );
 
-    let string_sub = _ =>
+    let string_sub = name =>
       ternary((d1, d2, d3) =>
         switch (term_of(d1), term_of(d2), term_of(d3)) {
         | (String(s), Int(idx), Int(len)) =>
           try(Ok(String(String.sub(s, idx, len)) |> fresh)) {
           | _ =>
             // TODO: make it clear that the problem could be with d3 too
-            Ok(DynamicErrorHole(d2, IndexOutOfBounds) |> fresh)
+            Ok(
+              DynamicErrorHole(
+                Ap(
+                  Forward,
+                  BuiltinFun(name) |> fresh,
+                  Tuple([d1, d2, d3]) |> fresh,
+                )
+                |> fresh,
+                IndexOutOfBounds,
+              )
+              |> fresh,
+            )
           }
         | (String(_), Int(_), _) => Error(InvalidBoxedIntLit(d3))
         | (String(_), _, _) => Error(InvalidBoxedIntLit(d2))
         | (_, _, _) => Error(InvalidBoxedIntLit(d1))
         }
       );
+
+    let string_split = _ =>
+      binary((d1, d2) =>
+        switch (term_of(d1), term_of(d2)) {
+        | (String(s), String(sep)) =>
+          Ok(
+            ListLit(
+              Util.StringUtil.plain_split(sep, s)
+              |> List.map(s => DHExp.fresh(String(s))),
+            )
+            |> fresh,
+          )
+        | (String(_), _) => Error(InvalidBoxedStringLit(d2))
+        | (_, _) => Error(InvalidBoxedStringLit(d1))
+        }
+      );
   };
 
   open Impls;
+
+  // Update src/haz3lmenhir/Lexer.mll when any new builtin is added
   let builtins =
     VarMap.empty
     |> const("infinity", Float, infinity)
@@ -346,6 +375,12 @@ module Pervasives = {
          Prod([String |> Typ.fresh, Int |> Typ.fresh, Int |> Typ.fresh]),
          String,
          string_sub("string_sub"),
+       )
+    |> fn(
+         "string_split",
+         Prod([String |> Typ.fresh, String |> Typ.fresh]),
+         List(String |> Typ.fresh),
+         string_split("string_split"),
        );
 };
 
