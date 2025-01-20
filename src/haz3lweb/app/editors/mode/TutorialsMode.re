@@ -33,12 +33,12 @@ module Model = {
       List.map2(
         TutorialMode.Model.unpersist(~settings, ~instructor_mode),
         persistent.exercise_data |> List.map(snd),
-        // TutorialSettings.exercises,
+        TutorialSettings.exercises,
       );
     let current =
       ListUtil.findi_opt(
         spec => Tutorial.key_of(spec) == persistent.cur_exercise,
-        persistent.exercise_data,
+        TutorialSettings.exercises,
       )
       |> Option.map(fst)
       |> Option.value(~default=0);
@@ -75,19 +75,19 @@ module Store = {
     let exercise =
       TutorialMode.Model.of_spec(spec, ~settings, ~instructor_mode);
     save_exercise(exercise, ~instructor_mode);
-    StoreExerciseKey.save(key);
+    StoreTutorialKey.save(key);
     exercise;
   };
   let load_exercise =
-      (~settings, key, spec, ~instructor_mode): ExerciseMode.Model.persistent => {
+      (~settings, key, spec, ~instructor_mode): TutorialMode.Model.persistent => {
     module S =
       Store.F({
         [@deriving (show({with_path: false}), sexp, yojson)]
-        type t = ExerciseMode.Model.persistent;
+        type t = TutorialMode.Model.persistent;
         let default = () =>
           spec
-          |> ExerciseMode.Model.of_spec(~settings, ~instructor_mode)
-          |> ExerciseMode.Model.persist(~instructor_mode);
+          |> TutorialMode.Model.of_spec(~settings, ~instructor_mode)
+          |> TutorialMode.Model.persist(~instructor_mode);
         let key = Store.Exercise(key);
       });
     S.load();
@@ -105,10 +105,10 @@ module Store = {
     let exercise_data =
       List.map(
         spec => {
-          let key = Exercise.key_of(spec);
+          let key = Tutorial.key_of(spec);
           (key, load_exercise(~settings, key, spec, ~instructor_mode));
         },
-        ExerciseSettings.exercises,
+        TutorialSettings.exercises,
       );
     {cur_exercise, exercise_data};
   };
@@ -133,7 +133,7 @@ module Store = {
     List.iter(
       ((key, value)) => {
         let n =
-          ListUtil.findi_opt(spec => Exercise.key_of(spec) == key, specs)
+          ListUtil.findi_opt(spec => Tutorial.key_of(spec) == key, specs)
           |> Option.get
           |> fst;
         let spec = List.nth(specs, n);

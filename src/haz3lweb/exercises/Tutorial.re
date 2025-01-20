@@ -65,10 +65,10 @@ type p('code) = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type key = (string, string);
+type key = (string, int);
 
 let key_of = p => {
-  (p.title, p.description);
+  (p.title, p.version);
 };
 
 let find_key_opt = (key, specs: list(p('code))) => {
