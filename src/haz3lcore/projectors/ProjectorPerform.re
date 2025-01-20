@@ -15,37 +15,18 @@ module Update = {
     | any => Some(ProjectorInit.init(kind, syntax, any))
     };
 
-  let add_projector = (kind: ProjectorCore.kind, id: Id.t, syntax: syntax) =>
+  let add_or_replace =
+      (kind: ProjectorCore.kind, syntax: syntax): option(syntax) =>
     switch (syntax) {
-    | Projector(pr) when Piece.id(syntax) == id =>
-      switch (init(kind, pr.syntax)) {
-      | Some(syntax) => syntax
-      | None => syntax
-      }
-    | syntax when Piece.id(syntax) == id =>
-      switch (init(kind, syntax)) {
-      | Some(syntax) => syntax
-      | None => syntax
-      }
-    | syntax => syntax
+    | Projector(pr) => init(kind, pr.syntax)
+    | syntax => init(kind, syntax)
     };
 
-  let remove_projector = (id: Id.t, syntax: syntax) =>
+  let add_or_remove =
+      (kind: ProjectorCore.kind, syntax: syntax): option(syntax) =>
     switch (syntax) {
-    | Projector(pr) when pr.id == id => pr.syntax
-    | x => x
-    };
-
-  let add_or_remove_projector =
-      (kind: ProjectorCore.kind, id: Id.t, syntax: syntax) =>
-    switch (syntax) {
-    | Projector(pr) when Piece.id(syntax) == id => pr.syntax
-    | syntax when Piece.id(syntax) == id =>
-      switch (init(kind, syntax)) {
-      | Some(syntax) => syntax
-      | None => syntax
-      }
-    | syntax => syntax
+    | Projector(pr) => Some(pr.syntax)
+    | syntax => init(kind, syntax)
     };
 
   let update =
@@ -53,18 +34,14 @@ module Update = {
       : ZipperBase.t =>
     ZipperBase.MapPiece.fast_local(update_piece(f, id), id, z);
 
-  let add = (k: ProjectorCore.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
-    ZipperBase.MapPiece.fast_local(add_projector(k, id), id, z);
-
-  let add_or_remove =
-      (k: ProjectorCore.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
-    ZipperBase.MapPiece.fast_local(add_or_remove_projector(k, id), id, z);
+  let remove_projector = (id: Id.t, syntax: syntax) =>
+    switch (syntax) {
+    | Projector(pr) when pr.id == id => pr.syntax
+    | x => x
+    };
 
   let remove = (id: Id.t, z: ZipperBase.t): ZipperBase.t =>
     ZipperBase.MapPiece.fast_local(remove_projector(id), id, z);
-
-  let remove_all = (z: ZipperBase.t): ZipperBase.t =>
-    ZipperBase.remove_all_projectors(z);
 };
 
 /* If the caret is inside the indicated piece, move it out
@@ -81,23 +58,60 @@ let move_out_of_piece =
   };
 
 let go =
-    (jump_to_id_indicated, jump_to_side_of_id, a: Action.project, z: Zipper.t)
+    (
+      jump_to_id_indicated,
+      jump_to_side_of_id,
+      select_term: Zipper.t => option(Zipper.t),
+      a: Action.project,
+      z: Zipper.t,
+    )
     : result(ZipperBase.t, Action.Failure.t) => {
+  let get_direction = (z: Zipper.t): option(Util.Direction.t) =>
+    Selection.is_empty(z.selection)
+      ? Indicated.direction(z)
+      : Some(Util.Direction.toggle(z.selection.focus));
+
+  let setup_selection = (z: Zipper.t): option(Zipper.t) =>
+    Selection.is_empty(z.selection) ? select_term(z) : Some(z);
+
+  let replace_selection = (z, focus, segment): Zipper.t =>
+    //TODO(andrew): remold/regrout? prob necessary for non-convex-mono case
+    {...z, selection: Selection.mk(~focus, segment)} |> Zipper.unselect;
+
+  let set_indicated = (z, p): option(Zipper.t) => {
+    open Util.OptUtil.Syntax;
+    let* focus = get_direction(z);
+    let* z = setup_selection(z);
+    switch (z.selection.content) {
+    | [piece] =>
+      let+ syntax = Update.add_or_replace(p, piece);
+      replace_selection(z, focus, [syntax]);
+    | _ => None
+    };
+  };
+
+  let toggle_indicated = (z, p): option(Zipper.t) => {
+    open Util.OptUtil.Syntax;
+    let* focus = get_direction(z);
+    let* z = setup_selection(z);
+    switch (z.selection.content) {
+    | [piece] =>
+      let+ syntax = Update.add_or_remove(p, piece);
+      replace_selection(z, focus, [syntax]);
+    | _ => None
+    };
+  };
+
   switch (a) {
   | SetIndicated(p) =>
-    switch (Indicated.for_index(z)) {
+    switch (set_indicated(z, p)) {
+    | Some(z) => Ok(z)
     | None => Error(Cant_project)
-    | Some((piece, d, rel)) =>
-      Ok(move_out_of_piece(d, rel, z) |> Update.add(p, Piece.id(piece)))
     }
   | ToggleIndicated(p) =>
-    switch (Indicated.for_index(z)) {
+    switch (toggle_indicated(z, p)) {
+    | Some(z) => Ok(z)
     | None => Error(Cant_project)
-    | Some((piece, d, rel)) =>
-      Ok(
-        move_out_of_piece(d, rel, z)
-        |> Update.add_or_remove(p, Piece.id(piece)),
-      )
     }
   | Remove(id) => Ok(Update.remove(id, z))
   | SetSyntax(id, syntax) =>
