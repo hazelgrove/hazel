@@ -616,16 +616,18 @@ let any =
         (unsorted(skel, seg), Segment.sort_of(skel, seg));
       }
     ) {
+    /* Returns Nul if not a complete term */
     | exception _ => TermBase.Nul()
     | (unsorted, sort) =>
       switch (sort) {
-      | Pat => Pat(pat(unsorted))
-      | TPat => TPat(tpat(unsorted))
-      | Typ => Typ(typ(unsorted))
       | Exp => Exp(exp(unsorted))
+      | Pat => Pat(pat(unsorted))
+      | Typ => Typ(typ(unsorted))
+      | TPat => TPat(tpat(unsorted))
       | Rul => Rul(rul(unsorted))
+      | Any => Any() /* grout */
+      /* Currently unsupported: */
       | Nul => Nul()
-      | Any => Any()
       }
     }
   );

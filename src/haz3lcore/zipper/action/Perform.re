@@ -72,7 +72,7 @@ let go_z =
       let* (p, _, _) = Indicated.piece''(z);
       Piece.is_term(p)
         ? Select.parent_of_indicated(z, statics.info_map)
-        : Select.nice_term(z);
+        : Select.current_term_fancy(z);
     | _ => None
     };
   };

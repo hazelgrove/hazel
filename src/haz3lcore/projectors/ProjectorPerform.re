@@ -9,14 +9,25 @@ module Update = {
     | x => x
     };
 
-  let init = (kind: ProjectorCore.kind, syntax: syntax): syntax =>
-    ProjectorInit.init(kind, syntax, MakeTerm.any([syntax]));
+  let init = (kind: ProjectorCore.kind, syntax: syntax): option(syntax) =>
+    switch (MakeTerm.any([syntax])) {
+    | Nul () => None
+    | any => Some(ProjectorInit.init(kind, syntax, any))
+    };
 
   let add_projector = (kind: ProjectorCore.kind, id: Id.t, syntax: syntax) =>
     switch (syntax) {
-    | Projector(pr) when Piece.id(syntax) == id => init(kind, pr.syntax)
-    | syntax when Piece.id(syntax) == id => init(kind, syntax)
-    | x => x
+    | Projector(pr) when Piece.id(syntax) == id =>
+      switch (init(kind, pr.syntax)) {
+      | Some(syntax) => syntax
+      | None => syntax
+      }
+    | syntax when Piece.id(syntax) == id =>
+      switch (init(kind, syntax)) {
+      | Some(syntax) => syntax
+      | None => syntax
+      }
+    | syntax => syntax
     };
 
   let remove_projector = (id: Id.t, syntax: syntax) =>
@@ -29,8 +40,12 @@ module Update = {
       (kind: ProjectorCore.kind, id: Id.t, syntax: syntax) =>
     switch (syntax) {
     | Projector(pr) when Piece.id(syntax) == id => pr.syntax
-    | syntax when Piece.id(syntax) == id => init(kind, syntax)
-    | x => x
+    | syntax when Piece.id(syntax) == id =>
+      switch (init(kind, syntax)) {
+      | Some(syntax) => syntax
+      | None => syntax
+      }
+    | syntax => syntax
     };
 
   let update =
