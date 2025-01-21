@@ -408,7 +408,6 @@ let rec status_common =
   | (Duplicate(lab, Just(ty)), _) => InHole(Duplicate(lab, ty))
   | (Duplicate(lab, _), _) =>
     InHole(Duplicate(lab, Unknown(Internal) |> Typ.temp))
-  | (DuplicateLabel(l), _) => InHole(DuplicateLabel(l))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
   | (NoJoin(wrap, tys), Ana(ana)) =>
     let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.temp);

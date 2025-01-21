@@ -30,8 +30,7 @@ type t =
   | Just(Typ.t) /* Just a regular type */
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | Duplicate_Labels(list(LabeledTuple.label), Typ.t) /* Duplicate labels in a labeled tuple, treated as regular type (?) */
-  | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */ // TODO Remove
-  | DuplicateLabel(LabeledTuple.label) /* Duplicate label, marked as duplicate */
+  | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
   | BadToken(Token.t) /* Invalid expression token, continues with undefined behavior */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
   | BadLabel(Any.t) /* Tuple or TupLabel contains an invalid Label*/
@@ -82,7 +81,6 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | Duplicate_Labels(_, typ)
     | BadLabelContained(_, typ)
     | Duplicate(_, Just(typ)) => Some(typ)
-    | DuplicateLabel(l) => Some(Label(l) |> Typ.fresh)
     | IsConstructor({syn_ty, _}) => syn_ty
     | BadToken(_)
     | BadTrivAp(_)
