@@ -78,7 +78,7 @@
 .projector.type .offside .type-cell {
   border-radius: 0.05em 0.05em 0.05em 0.2em;
   background-color: var(--main-base);
-  border-bottom: 1px solid var(--main-shadow);
+  border-bottom: 1px solid var(--main-indicated);
 }
 
 .projector.type.indicated .offside .type-cell {

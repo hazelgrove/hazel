@@ -73,10 +73,15 @@ type buffer =
   | Accept;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type paste =
+  | String(string)
+  | Segment(Segment.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Reparse
   | Buffer(buffer)
-  | Paste(string)
+  | Paste(paste)
   | Copy
   | Cut
   | Project(project)
