@@ -382,16 +382,10 @@ and uexp_to_info_map =
         m,
       );
     | TupLabel(label, e) =>
-      let (_, val_mode) = Mode.of_label(ctx, mode);
+      let (labmode, val_mode) = Mode.of_label(ctx, mode);
       let (lab, m) =
         go(
-          ~mode=
-            switch (mode) {
-            | Ana({term: TupLabel({term: Label(mode_label), _}, _), _}) =>
-              Ana(Label(mode_label) |> Typ.temp)
-            | Ana(_) => Ana(Unknown(Internal) |> Typ.temp)
-            | _ => Syn
-            },
+          ~mode=labmode,
           ~override_self=?
             switch (label.term) {
             | Label(_) => None
@@ -915,6 +909,7 @@ and upat_to_info_map =
       ~duplicates: list(string),
       ~mode: Mode.t=Mode.Syn,
       ~under_ascription: bool=false,
+      ~override_self: option(Self.t)=?,
       {ids, term, _} as upat: UPat.t,
       m: Map.t,
     )
@@ -935,7 +930,7 @@ and upat_to_info_map =
         ~co_ctx,
         ~mode,
         ~ancestors,
-        ~self=Common(self),
+        ~self=Common(Option.value(~default=self, override_self)),
         ~constraint_,
         ~elaboration_provenance,
       );
@@ -950,6 +945,7 @@ and upat_to_info_map =
         ~duplicates=[],
         ~mode,
         ~under_ascription=false,
+        ~override_self=?,
         upat: UPat.t,
         m: Map.t,
       ) => {
@@ -961,6 +957,7 @@ and upat_to_info_map =
       ~duplicates,
       ~mode,
       ~under_ascription,
+      ~override_self?,
       upat,
       m: Map.t,
     );
@@ -1101,7 +1098,19 @@ and upat_to_info_map =
       );
     | TupLabel(label, p) =>
       let (labmode, mode) = Mode.of_label(ctx, mode);
-      let (lab, m) = go(~ctx, ~mode=labmode, ~duplicates, label, m);
+      let (lab, m) =
+        go(
+          ~ctx,
+          ~mode=labmode,
+          ~override_self=?
+            switch (label.term) {
+            | Label(_) => None
+            | _ => Some(BadLabel(Pat(label)))
+            },
+          ~duplicates,
+          label,
+          m,
+        );
       let (p, m) = go(~ctx, ~mode, p, m);
       let self =
         switch (lab.status) {
