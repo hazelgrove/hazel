@@ -113,7 +113,7 @@ module Text =
       of_projector(
         expected_sort,
         m(Projector(p)).origin.col,
-        p |> M.shape_of_proj |> ProjectorInfo.Shape.token,
+        p |> M.shape_of_proj |> ProjectorCore.token,
       )
     };
   }

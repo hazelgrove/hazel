@@ -749,3 +749,30 @@ let last_string =
 
 let sort_of = (skel: Skel.t, seg: t): Sort.t =>
   Skel.root(skel) |> Aba.first_a |> List.nth(seg) |> Piece.sort |> fst;
+
+let rec deep_tile_complete = (seg: t): bool =>
+  List.for_all(
+    t => Tile.is_complete(t) && List.for_all(deep_tile_complete, t.children),
+    tiles(seg),
+  );
+let mk_duo = (sort: Sort.t, seg: t): Piece.t =>
+  Piece.mk_tile(Form.mk_parens(sort), [seg]);
+
+let parenthesize = (~sort: option(Sort.t)=?, seg: t): Piece.t => {
+  /* If piece is anything other than a Tile, and override sort is not
+   * specified, sort will be Any (see Piece.Sort) */
+  let sort = Option.value(sort, ~default=sort_of(skel(seg), seg));
+  mk_duo(sort, seg);
+};
+
+let unparenthesize = (piece: Piece.t): option(t) =>
+  switch (piece) {
+  | Tile({
+      label: ["(", ")"],
+      mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
+      children: [seg],
+      _,
+    }) =>
+    Some(seg)
+  | _ => None
+  };

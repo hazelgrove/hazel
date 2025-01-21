@@ -53,3 +53,10 @@ type t('syntax) = {
 
 let inline = (width: int): shape => {horizontal: width, vertical: Inline};
 let default: shape = inline(0);
+
+let token = (shape: shape): string =>
+  switch (shape.vertical) {
+  | Inline => String.make(shape.horizontal, ' ')
+  | Block(num_lb) =>
+    String.make(num_lb, '\n') ++ String.make(shape.horizontal, ' ')
+  };

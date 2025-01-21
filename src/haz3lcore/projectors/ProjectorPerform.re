@@ -10,7 +10,16 @@ module Update = {
     };
 
   let init = (kind: ProjectorCore.kind, syntax: syntax): option(syntax) =>
-    switch (MakeTerm.any([syntax])) {
+    /* Note that we always unparenthesize the syntax before passing it to maketerm.
+     * By convention, the stored syntax for a projector is always parenthesized
+     * on projection (and de-parenthesized on unprojection), regardless of its
+     * initial form. Thus this change makes the term passed to the projector's
+     * can_project method more reflective of the initial syntax. However, the
+     * segment passed to it will be the parenthesized one, so if a projector
+     * bases its can_project logic on the segment, it must take this into account.
+     * This distinction is mostly an artifact of current syntax implementation
+     * decisions and will likely be eliminated in the future. */
+    switch (syntax |> ProjectorInfo.unparenthesize |> MakeTerm.any) {
     | Nul () => None
     | any => Some(ProjectorInit.init(kind, syntax, any))
     };
@@ -44,19 +53,6 @@ module Update = {
     ZipperBase.MapPiece.fast_local(remove_projector(id), id, z);
 };
 
-/* If the caret is inside the indicated piece, move it out
- * NOTE: Might need to be updated to support pieces with more than 2 delims */
-let move_out_of_piece =
-    (d: Util.Direction.t, rel: Indicated.relation, z: Zipper.t): Zipper.t =>
-  switch (rel) {
-  | Sibling => {...z, caret: Outer}
-  | Parent =>
-    switch (Zipper.move(d, {...z, caret: Outer})) {
-    | Some(z) => z
-    | None => z
-    }
-  };
-
 let go =
     (
       jump_to_id_indicated,
@@ -75,45 +71,90 @@ let go =
     Selection.is_empty(z.selection) ? select_term(z) : Some(z);
 
   let replace_selection = (z, focus, segment): Zipper.t =>
-    //TODO(andrew): remold/regrout? prob necessary for non-convex-mono case
-    {...z, selection: Selection.mk(~focus, segment)} |> Zipper.unselect;
+    {...z, selection: Selection.mk(~focus, segment)}
+    |> Zipper.unselect
+    |> Zipper.remold_regrout(Util.Direction.Right)
+    |> Zipper.remold_regrout(Util.Direction.Left);
 
-  let set_indicated = (z, p): option(Zipper.t) => {
+  /* TODO: On undo project space-padded type anno from right:
+     Skel.push_output: split_kids: index out of bounds */
+
+  //TODO: maybe also reject secondary-padded stuff?
+
+  //TODO: maybe if unprojecting non-operand, leave it selected? need to be careful with remolding..
+
+  let do_indicated = (~remove: bool, kind, z): option(Zipper.t) => {
     open Util.OptUtil.Syntax;
     let* focus = get_direction(z);
     let* z = setup_selection(z);
     switch (z.selection.content) {
-    | [piece] =>
-      let+ syntax = Update.add_or_replace(p, piece);
+    | [Projector(pr)] when remove =>
+      let seg = ProjectorInfo.unparenthesize(pr.syntax);
+      Some(replace_selection(z, focus, seg));
+    | [Projector(pr)] when !remove =>
+      let+ syntax = Update.init(kind, pr.syntax);
       replace_selection(z, focus, [syntax]);
-    | _ => None
+    | seg =>
+      switch (MakeTerm.any(seg)) {
+      /* Incomplete or Invalid term */
+      | Nul () => None
+      | _ =>
+        //TODO: specify override sort below in hole case
+        let piece = Segment.parenthesize(seg);
+        let+ syntax = Update.init(kind, piece);
+        replace_selection(z, focus, [syntax]);
+      }
     };
   };
 
-  let toggle_indicated = (z, p): option(Zipper.t) => {
+  let remove_indicated = (z): option(Zipper.t) => {
     open Util.OptUtil.Syntax;
     let* focus = get_direction(z);
     let* z = setup_selection(z);
     switch (z.selection.content) {
-    | [piece] =>
-      let+ syntax = Update.add_or_remove(p, piece);
-      replace_selection(z, focus, [syntax]);
+    | [Projector(pr)] =>
+      let seg = ProjectorInfo.unparenthesize(pr.syntax);
+      Some(replace_selection(z, focus, seg));
     | _ => None
     };
   };
 
   switch (a) {
-  | SetIndicated(p) =>
-    switch (set_indicated(z, p)) {
+  /* Projection logic is based on selection and parenthezation.
+   * If there is no current selection, we select the currently indicated
+   * term. In this case, it is assured that the syntax to be projected
+   * is both a term in isolation and a subterm of the containing term.
+   * However, if there is already a selection, it could be that the
+   * selection is a term in isolation, but NOT a subterm of the containing
+   * term. An example of this is `1+2`, where the full synatx is `1+2*3`.
+   * In these cases, we project anyway, under the logic that projection is
+   * (a kind of) parenthesization. That is, it changes the semantics of the
+   * program precisely when parenthesization would. Note that is some cases
+   * this can result in not static but syntactic errors; for example, if we
+   * project `x:Int` within `x:Int->Bool`. Again, this is done under the
+   * logic of doing the same thing parenthesis-wrapping would do, for the
+   * purposes of predictability. Similarly, when we unproject something, the
+   * surrounding lexical context may have changed, so even if the projected
+   * syntax was a subterm of the surrounding term when projected, it will
+   * not necessarily be when it it unprojected; for example, if the projected
+   * syntax is rooted at an infix expression, and after projection a
+   * neighboring infix operation was added which binds tighter. Again,
+   * this is the same as would happen if unparenthesizing a subterm. */
+  | SetIndicated(kind) =>
+    switch (do_indicated(~remove=false, kind, z)) {
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
-  | ToggleIndicated(p) =>
-    switch (toggle_indicated(z, p)) {
+  | ToggleIndicated(kind) =>
+    switch (do_indicated(~remove=true, kind, z)) {
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
-  | Remove(id) => Ok(Update.remove(id, z))
+  | RemoveIndicated =>
+    switch (remove_indicated(z)) {
+    | Some(z) => Ok(z)
+    | None => Error(Cant_project)
+    }
   | SetSyntax(id, syntax) =>
     /* Note we update piece id to keep in sync with projector id;
      * See intial id setting in Update.init */
