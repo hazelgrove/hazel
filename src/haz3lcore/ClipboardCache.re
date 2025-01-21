@@ -14,18 +14,19 @@ let set = (seg: option(Segment.t), str: string): unit =>
   | _ => ()
   };
 
+let intersection = (ids1: list(Id.t), ids2: list(Id.t)): list(Id.t) =>
+  List.filter(id => List.mem(id, ids2), ids1);
+
 let get = (pasted: string): Action.t =>
   switch (cache^) {
   | None => Paste(String(pasted))
   | Some((cached, segment)) =>
-    /* Note that we reset the cache here. If we want to allow mulitple
-     * pastes using the same cache, we would need to replace the unique ids
-     * in the segment. Note that this would also have to replace the ids
-     * in the projector data structure as well */
-    cache := None;
     let trim = Util.StringUtil.trim_leading;
     /* Note the trim */
     let trimmed_pasted = trim(pasted);
+    /* Note that we must replace unique ids here if we want to
+     * support copying and/or multiples pastes for a copy */
     trim(cached) == trimmed_pasted
-      ? Paste(Segment(segment)) : Paste(String(trimmed_pasted));
+      ? Paste(Segment(Segment.IDs.replace(segment)))
+      : Paste(String(trimmed_pasted));
   };

@@ -338,6 +338,7 @@ module View = {
         let str = (cursor.selected_text |> Option.value(~default=() => ""))();
         /* Note that we cannot use the ClipboardCache system here unless
          * we refine it further to replace unique ids on paste */
+        Haz3lcore.ClipboardCache.set(cursor.selection, str);
         JsUtil.copy(str);
         Effect.Ignore;
       }),
