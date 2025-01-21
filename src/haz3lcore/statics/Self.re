@@ -33,8 +33,8 @@ type t =
   | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
   | BadToken(Token.t) /* Invalid expression token, continues with undefined behavior */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
-  | BadLabel(Any.t) /* Tuple or TupLabel contains an invalid Label*/
-  | BadLabelContained(list(Any.t), Typ.t)
+  | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
+  | BadLabelsContained(list(Any.t), Typ.t) /* Tuple/TupLabel contains invalid labels */
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
       name: Constructor.t,
@@ -79,7 +79,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     fun
     | Just(typ)
     | DuplicateLabels(_, typ)
-    | BadLabelContained(_, typ)
+    | BadLabelsContained(_, typ)
     | Duplicate(_, Just(typ)) => Some(typ)
     | IsConstructor({syn_ty, _}) => syn_ty
     | BadToken(_)

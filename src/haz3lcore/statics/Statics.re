@@ -411,7 +411,7 @@ and uexp_to_info_map =
               TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
             )
           | InHole(_) =>
-            Self.BadLabelContained(
+            Self.BadLabelsContained(
               [Exp(label)],
               TupLabel(Unknown(Internal) |> Typ.temp, e.ty) |> Typ.temp,
             )
@@ -443,7 +443,7 @@ and uexp_to_info_map =
                 TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
               )
             | InHole(_) =>
-              Self.BadLabelContained(
+              Self.BadLabelsContained(
                 [Exp(label)],
                 TupLabel(Unknown(Internal) |> Typ.temp, e.ty) |> Typ.temp,
               )
@@ -478,7 +478,7 @@ and uexp_to_info_map =
       let ty_list = List.map(Info.exp_ty, es');
       let get_bad_labels = (e: Info.exp) =>
         switch (e.status) {
-        | InHole(Common(BadLabelContained(bad_labels, _))) => bad_labels
+        | InHole(Common(BadLabelsContained(bad_labels, _))) => bad_labels
         | _ => []
         };
       let bad_labels =
@@ -488,7 +488,7 @@ and uexp_to_info_map =
 
       let self =
         bad_labels != []
-          ? Self.BadLabelContained(bad_labels, Prod(ty_list) |> Typ.temp)
+          ? Self.BadLabelsContained(bad_labels, Prod(ty_list) |> Typ.temp)
           : Self.Just(Prod(ty_list) |> Typ.temp);
       let self =
         List.is_empty(duplicate_labels)
@@ -1156,7 +1156,7 @@ and upat_to_info_map =
             TupLabel(Label(name) |> Typ.temp, p.ty) |> Typ.temp,
           )
         | InHole(_) =>
-          Self.BadLabelContained(
+          Self.BadLabelsContained(
             [Pat(label)],
             TupLabel(Unknown(Internal) |> Typ.temp, p.ty) |> Typ.temp,
           )
@@ -1184,13 +1184,13 @@ and upat_to_info_map =
         ctx_fold(ctx, m, ~duplicates=duplicate_labels, ps, modes);
       let get_bad_labels = (p: Info.pat) =>
         switch (p.status) {
-        | InHole(Common(BadLabelContained(bad_labels, _))) => bad_labels
+        | InHole(Common(BadLabelsContained(bad_labels, _))) => bad_labels
         | _ => []
         };
       let bad_labels = List.concat_map(get_bad_labels, info_pats);
       let self =
         bad_labels != []
-          ? Self.BadLabelContained(bad_labels, Prod(tys) |> Typ.temp)
+          ? Self.BadLabelsContained(bad_labels, Prod(tys) |> Typ.temp)
           : Self.Just(Prod(tys) |> Typ.temp);
       let self =
         List.is_empty(duplicate_labels)

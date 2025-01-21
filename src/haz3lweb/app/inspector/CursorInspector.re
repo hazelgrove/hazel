@@ -112,7 +112,7 @@ let common_err_view =
       text("An invalid Label: "),
       text(Any.show(label)) // TODO
     ]
-  | BadLabelContained(bad_labels, typ) =>
+  | BadLabelsContained(bad_labels, typ) =>
     [
       text("Contains invalid labels: "),
       ...List.map(l => code(Any.show(l)), bad_labels) // TODO

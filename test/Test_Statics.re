@@ -812,7 +812,7 @@ let tests = (
           "Tuple",
           Some(
             Common(
-              BadLabelContained(
+              BadLabelsContained(
                 [Exp(l1)],
                 Prod([
                   TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
@@ -830,7 +830,7 @@ let tests = (
           "TupLabel1",
           Some(
             Common(
-              BadLabelContained(
+              BadLabelsContained(
                 [Exp(l1)],
                 TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
                 |> Typ.temp,
@@ -882,7 +882,7 @@ let tests = (
           "Tuple Error Free",
           Some(
             Common(
-              BadLabelContained(
+              BadLabelsContained(
                 [Exp(l1)],
                 Prod([
                   TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
@@ -902,7 +902,7 @@ let tests = (
           "TupLabel1 ",
           Some(
             Common(
-              BadLabelContained(
+              BadLabelsContained(
                 [Exp(l1)],
                 TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
                 |> Typ.temp,

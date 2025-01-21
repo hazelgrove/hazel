@@ -70,7 +70,7 @@ type error_common =
   /* Duplicate item, used for duplicated labels*/
   | Duplicate(LabeledTuple.label, Typ.t)
   | DuplicateLabel(LabeledTuple.label)
-  | BadLabelContained(list(Any.t), Typ.t);
+  | BadLabelsContained(list(Any.t), Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
@@ -401,8 +401,8 @@ let rec status_common =
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (BadLabel(ty), _) => InHole(NoType(BadLabel(ty)))
-  | (BadLabelContained(bad_labels, typ), _) =>
-    InHole(BadLabelContained(bad_labels, typ))
+  | (BadLabelsContained(bad_labels, typ), _) =>
+    InHole(BadLabelsContained(bad_labels, typ))
   | (DuplicateLabels(labels, ty), _) => InHole(DuplicateLabels(labels, ty))
   | (Duplicate(lab, Just(ty)), _) => InHole(Duplicate(lab, ty))
   | (Duplicate(lab, _), _) =>
@@ -440,7 +440,7 @@ let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
       | InHole(Common(DuplicateLabels(_))) // Is this right?
       | InHole(Common(DuplicateLabel(_))) // Is this right?
       | InHole(Common(Duplicate(_)))
-      | InHole(Common(BadLabelContained(_)))
+      | InHole(Common(BadLabelsContained(_)))
       | InHole(Common(Inconsistent(WithArrow(_))))
       | InHole(ExpectedConstructor | Redundant(_)) =>
         // ExpectedConstructor cannot be a reason to hole-wrap the entire pattern
@@ -480,7 +480,7 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
       | InHole(Common(DuplicateLabels(_))) // Is this right?
       | InHole(Common(Duplicate(_)))
       | InHole(Common(DuplicateLabel(_)))
-      | InHole(Common(BadLabelContained(_)))
+      | InHole(Common(BadLabelsContained(_)))
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
           BadPartialAp(_),
@@ -655,7 +655,7 @@ let fixed_typ_err_common: error_common => Typ.t =
   | DuplicateLabels(_, typ) => typ
   | Duplicate(_, typ) => typ
   | DuplicateLabel(l) => Label(l) |> Typ.temp
-  | BadLabelContained(_, typ) => typ
+  | BadLabelsContained(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana
   | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
   | Inconsistent(WithArrow(_)) =>
