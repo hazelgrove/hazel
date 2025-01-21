@@ -665,7 +665,7 @@ x
   let ty_alias_uexp: Exp.t = {
     ids: [id_at(0)],
     term:
-      TyAlias(
+      TyDef(
         Var("x") |> TPat.fresh,
         Int |> Typ.fresh,
         Var("x") |> Exp.fresh,

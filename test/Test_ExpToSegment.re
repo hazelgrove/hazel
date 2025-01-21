@@ -176,7 +176,7 @@ let tests = (
           Printer.of_segment(
             ~holes=Some("?"),
             segmentize(
-              TyAlias(
+              TyDef(
                 Var("x") |> TPat.fresh,
                 Arrow(
                   Arrow(Int |> Typ.fresh, Bool |> Typ.fresh) |> Typ.fresh,

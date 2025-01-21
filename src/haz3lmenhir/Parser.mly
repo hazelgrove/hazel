@@ -332,7 +332,7 @@ exp:
     |  E_EXP; s = STRING; { InvalidExp(s) }
     |  WILD {Deferral}
     | e = exp; TYP_AP_SYMBOL; ty = typ; GREATER_THAN; {TypAp(e, ty)}
-    | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)} %prec LET_EXP
+    | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyDef(tp, ty, e)} %prec LET_EXP
     | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = SEXP_STRING; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
     | b = BUILTIN; {BuiltinFun(b)}
     | UNDEF; {Undefined}

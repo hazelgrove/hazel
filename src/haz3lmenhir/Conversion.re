@@ -215,8 +215,8 @@ module rec Exp: {
     | FixF(p, e) => FixF(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
     | TypFun(t, e) => TypFun(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
     | Undefined => Undefined
-    | TyAlias(tp, ty, e) =>
-      TyAlias(
+    | TyDef(tp, ty, e) =>
+      TyDef(
         TPat.of_menhir_ast(tp),
         Typ.of_menhir_ast(ty),
         of_menhir_ast(e),
@@ -312,8 +312,8 @@ module rec Exp: {
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
     | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))
     | Undefined => Undefined
-    | TyAlias(tp, ty, e) =>
-      TyAlias(TPat.of_core(tp), Typ.of_core(ty), of_core(e))
+    | TyDef(tp, ty, e) =>
+      TyDef(TPat.of_core(tp), Typ.of_core(ty), of_core(e))
     | BuiltinFun(s) => BuiltinFun(s)
     | Ap(Forward, e1, e2) => ApExp(of_core(e1), TupleExp([of_core(e2)]))
     | BinOp(op, e1, e2) =>

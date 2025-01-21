@@ -167,7 +167,7 @@ type exp =
   | InvalidExp(string)
   | TypAp(exp, typ)
   | DynamicErrorHole(exp, string)
-  | TyAlias(tpat, typ, exp);
+  | TyDef(tpat, typ, exp);
 
 /**
  * Generates a random CONSTRUCTOR_IDENT string. Used for CONSTRUCTOR_IDENT in the lexer.
@@ -418,7 +418,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
               let* tp = gen_tpat;
               let* t = gen_typ_sized((n - 1) / 2);
               let+ e = self((n - 1) / 2);
-              TyAlias(tp, t, e);
+              TyDef(tp, t, e);
             },
           ])
         }
