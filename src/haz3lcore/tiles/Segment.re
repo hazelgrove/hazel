@@ -776,3 +776,33 @@ let unparenthesize = (piece: Piece.t): option(t) =>
     Some(seg)
   | _ => None
   };
+
+module IDs = {
+  /* Assign new ids for every piece in segment */
+  let rec replace = (seg: t): t => List.map(replace_piece, seg)
+  and replace_piece = (~id=?, p: Piece.t): Piece.t => {
+    let id = Option.value(~default=Id.mk(), id);
+    switch (p) {
+    | Tile(t) => Tile({...t, children: List.map(replace, t.children), id})
+    | Grout(grout) => Grout({...grout, id})
+    | Secondary(w) => Secondary({...w, id})
+    | Projector(p) =>
+      /* Need to keep projector and contained piece id in-sync */
+      let id = Id.mk();
+      let syntax = replace_piece(~id, p.syntax);
+      Projector({...p, syntax, id});
+    };
+  };
+
+  /* Get all piece ids in the segment */
+  let rec all = (seg: t): list(Id.t) => List.concat_map(all_piece, seg)
+  and all_piece = (p: Piece.t): list(Id.t) => {
+    let id = Piece.id(p);
+    switch (p) {
+    | Tile(t) => [id, ...List.concat_map(all, t.children)]
+    | Grout(_)
+    | Secondary(_) => [id]
+    | Projector(p) => [id, ...all_piece(p.syntax)]
+    };
+  };
+};
