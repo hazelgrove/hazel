@@ -476,17 +476,6 @@ let matched_forall = (ctx, ty) =>
   matched_forall_strict(ctx, ty)
   |> Option.value(~default=(None, Unknown(Internal) |> temp));
 
-let matched_label = (ctx, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | TupLabel(lab, ty) => (lab, ty)
-  | Prod([ty]) =>
-    switch (term_of(weak_head_normalize(ctx, ty))) {
-    | TupLabel(lab, ty) => (lab, ty)
-    | _ => (Label("") |> temp, ty) // Empty label is a placeholder for checking any label
-    }
-  | Unknown(SynSwitch) => (Label("") |> temp, Unknown(SynSwitch) |> temp)
-  | _ => (Label("") |> temp, ty)
-  };
 let rec get_labels = (ctx, ty): list(option(string)) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
