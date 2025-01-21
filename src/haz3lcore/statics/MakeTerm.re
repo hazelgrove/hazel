@@ -168,7 +168,12 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(e => Exp(e), ids, {ids, copied: false, term});
+  let e: TermBase.exp_t =
+    return(e => Exp(e), ids, {ids, copied: false, term});
+  switch (term) {
+  | TupLabel(_) => Tuple([e]) |> Exp.fresh
+  | _ => e
+  };
 }
 and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   let ret = (tm: UExp.term) => (tm, []);
@@ -336,14 +341,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
             // | String(name)
             // Currently not allowing Strings to prevent empty Labels
             | Var(name) =>
-              Tuple([
-                TupLabel(
-                  {ids: l.ids, copied: l.copied, term: Label(name)},
-                  r,
-                )
-                |> Exp.fresh,
-              ])
-            | _ => Tuple([TupLabel(l, r) |> Exp.fresh])
+              TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r)
+            | _ => TupLabel(l, r)
             }
           | (["."], []) =>
             // TODO (Anthony): Other cases to convert to string
@@ -367,7 +366,11 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(p => Pat(p), ids, {ids, term, copied: false});
+  let p = return(p => Pat(p), ids, {ids, term, copied: false});
+  switch (term) {
+  | TupLabel(_) => Tuple([p]) |> Pat.fresh
+  | _ => p
+  };
 }
 and pat_term: unsorted => (UPat.term, list(Id.t)) = {
   let ret = (term: UPat.term) => (term, []);
@@ -441,10 +444,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         // Currently not allowing Strings to prevent empty Labels
         | Var(name) =>
           ret(
-            Tuple([
-              TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r)
-              |> Pat.fresh,
-            ]),
+            TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r),
           )
         | _ => ret(TupLabel(l, r))
         }
@@ -457,7 +457,11 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
 and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(ty => Typ(ty), ids, {ids, term, copied: false});
+  let t = return(ty => Typ(ty), ids, {ids, term, copied: false});
+  switch (term) {
+  | TupLabel(_) => Prod([t]) |> Typ.fresh
+  | _ => t
+  };
 }
 and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
   let ret = (term: UTyp.term) => (term, []);
@@ -539,12 +543,9 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         switch (l.term) {
         | Var(name) =>
           ret(
-            Prod([
-              TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r)
-              |> Typ.fresh,
-            ]),
+            TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r),
           )
-        | _ => ret(Prod([TupLabel(l, r) |> Typ.fresh]))
+        | _ => ret(TupLabel(l, r))
         }
       // | ([(_id, (["."], []))], []) => ret(Dot(l, r))
       | _ => ret(hole(tm))
