@@ -68,14 +68,14 @@ type info = {
  * 2. Add an entry for it in ProjectorCore.kind
  * 3. Register the module in ProjectorInit.to_module
  * 4. If you want to expose the projector via a keyboard
- *    shortcut, see the existing entry for Fold in Keyboard
+ *    shortcut, add a Project(...) entry in Keyboard.re
  * 5. If you want to expose the projector in the projector
  *    panel bottom bar UI, update ProjectorView.name,
- *    ProjectorView.of_name, and ProjectorView.applicable_projectors
+ *    ProjectorView.of_name, and ProjectorCore.projectors
  * 6. If you want to manually manage the projector as part of
- *    the update cycle, see the implementations of the SetIndicated
- *    and Remove actions in ProjectorPerform for how to manually
- *    add/remove projectors from an editor */
+ *    the update cycle, use the implementations of the SetIndicated
+ *    and RemoveIndicated actions in ProjectorPerform as a guide
+ *    for how to add/remove projectors from an editor */
 module type Projector = {
   /* The internal model type of the projector which will
    * be serialized and persisted. Use `unit` if you don't

@@ -21,7 +21,7 @@ module Update = {
      * decisions and will likely be eliminated in the future. */
     switch (syntax |> ProjectorInfo.unparenthesize |> MakeTerm.any) {
     | Nul () => None
-    | any => Some(ProjectorInit.init(kind, syntax, any))
+    | any => ProjectorInit.init(kind, syntax, any)
     };
 
   let add_or_replace =
@@ -145,11 +145,21 @@ let go =
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
-  | ToggleIndicated(kind) =>
+  | ToggleIndicated(Specific(kind)) =>
     switch (do_indicated(~remove=true, kind, z)) {
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
+  | ToggleIndicated(ChooseLivelit) =>
+    let guys =
+      List.filter_map(
+        kind => do_indicated(~remove=true, kind, z),
+        ProjectorCore.livelit_projectors,
+      );
+    switch (guys) {
+    | [hd, ..._] => Ok(hd)
+    | [] => Error(Cant_project)
+    };
   | RemoveIndicated =>
     switch (remove_indicated(z)) {
     | Some(z) => Ok(z)

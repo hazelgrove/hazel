@@ -6,69 +6,89 @@ open Util.Web;
 
 // The projector selection panel on the right of the bottom bar
 
-/* Decide which projectors are applicable based on the cursor info.
- * This is slightly inside-out as elsewhere it depends on the underlying
- * syntax, which is not easily available here */
-let applicable_projectors: option(Info.t) => list(ProjectorCore.kind) =
-  fun
-  | None => []
-  | Some(ci) =>
-    (
-      switch (Info.cls_of(ci)) {
-      | Exp(Bool)
-      | Pat(Bool) => [ProjectorCore.Checkbox]
-      | Exp(Int)
-      | Pat(Int) => [Slider]
-      | Exp(Float)
-      | Pat(Float) => [SliderF]
-      | Exp(String)
-      | Pat(String) => [TextArea]
-      | _ => []
-      }
-    )
-    @ [ProjectorCore.Fold]
-    @ (
-      switch (ci) {
-      | InfoExp(_) => [Info, Probe]
-      | InfoPat(_) => [Info, Probe]
-      | _ => []
-      }
-    );
+let is_indicated_piece_rule = (indicated_piece: option(Piece.t)) =>
+  switch (indicated_piece) {
+  | Some(Piece.Tile({label: ["|", "=>"], _})) => true
+  | _ => false
+  };
+let indicated_term = (cursor: Cursor.cursor(Editors.Update.t)) =>
+  /* The condition on rule pieces here addresses an edge case where the
+   * term selection logic considers rules to be terms but they are
+   * nonconvex and currently cannot be projected */
+  is_indicated_piece_rule(cursor.indicated_piece)
+    ? Option.None : Util.OptUtil.and_then(Info.any_of, cursor.info);
 
-let toggle_projector = (active, ci: option(Info.t)): Action.project =>
-  active || applicable_projectors(ci) == []
-    ? RemoveIndicated : SetIndicated(List.hd(applicable_projectors(ci)));
+/* Determines what term to target for projection. If there is a
+ * selection, try to use that, otherwise, see what term is indicated,
+ * according to the term selection logic  */
+let target_term = (cursor: Cursor.cursor(Editors.Update.t)) =>
+  switch (cursor.selection) {
+  | None => indicated_term(cursor)
+  | Some(selection) =>
+    switch (selection.content) {
+    | [] => indicated_term(cursor)
+    | seg =>
+      switch (MakeTerm.any(seg)) {
+      | Nul () => None
+      | term => Some(term)
+      }
+    }
+  };
 
-let toggle_view = (~inject, ci: option(Info.t), active: bool, might_project) =>
-  div(
-    ~attrs=[
-      clss(
-        ["toggle-switch"]
-        @ (active ? ["active"] : [])
-        @ (might_project ? [] : ["inactive"]),
-      ),
-      Attr.on_mousedown(_ =>
-        might_project ? inject(toggle_projector(active, ci)) : Effect.Ignore
-      ),
-    ],
-    [
-      div(
-        ~attrs=[clss(["toggle-knob"])],
-        [
-          Node.create(
-            "img",
-            ~attrs=[Attr.src("img/noun-fold-1593402.svg")],
-            [],
-          ),
-        ],
-      ),
-    ],
-  );
+/* Is a projector of `kind` applicable to the
+ * currently selected or indicated term? */
+let is_applicable =
+    (cursor: Cursor.cursor(Editors.Update.t), kind: ProjectorCore.kind)
+    : option(ProjectorCore.kind) => {
+  let (module P) = ProjectorInit.to_module(kind);
+  let* piece = cursor.indicated_piece;
+  let* term = target_term(cursor);
+  P.can_project(piece, term) ? Some(kind) : None;
+};
+
+let applicable_projectors = (cursor: Cursor.cursor(Editors.Update.t)) =>
+  ProjectorCore.projectors |> List.filter_map(is_applicable(cursor));
 
 let kind = (editor: option(Editor.t)) => {
   let* editor = editor;
   let+ (_, p) = Indicated.projector(editor.state.zipper);
   p.kind;
+};
+
+let toggle_projector = (active, applicable_projectors): Action.project =>
+  active || applicable_projectors == []
+    ? RemoveIndicated : SetIndicated(List.hd(applicable_projectors));
+
+let knob =
+  div(
+    ~attrs=[clss(["toggle-knob"])],
+    [
+      Node.create("img", ~attrs=[Attr.src("img/noun-fold-1593402.svg")], []),
+    ],
+  );
+let toggle_view =
+    (
+      ~inject,
+      applicable_projectors,
+      cursor: Cursor.cursor(Editors.Update.t),
+      might_project,
+    ) => {
+  let active = kind(cursor.editor) != None;
+  div(
+    ~attrs=[
+      clss(
+        ["toggle-switch"]
+        @ (active ? ["active"] : [])
+        @ (might_project && applicable_projectors != [] ? [] : ["inactive"]),
+      ),
+      Attr.on_mousedown(_ =>
+        might_project
+          ? inject(toggle_projector(active, applicable_projectors))
+          : Effect.Ignore
+      ),
+    ],
+    [knob],
+  );
 };
 
 let id = (editor: option(Editor.t)) => {
@@ -85,11 +105,7 @@ let might_project: Cursor.cursor(Editors.Update.t) => bool =
     switch (cursor.editor) {
     | _ when cursor.editor_read_only => false
     | None => false
-    | Some(editor) =>
-      switch (Indicated.piece''(editor.state.zipper)) {
-      | None => false
-      | Some((p, _, _)) => ProjectorInit.minimum_projection_condition(p)
-      }
+    | Some(_) => true
     };
 
 let lift = (str, strs) => List.cons(str, List.filter((!=)(str), strs));
@@ -97,11 +113,11 @@ let lift = (str, strs) => List.cons(str, List.filter((!=)(str), strs));
 /* The string names of all projectors applicable to the currently
  * indicated syntax, with the currently applied projection (if any)
  * lifted to the top of the list */
-let applicable_projector_strings = (cursor: Cursor.cursor(Editors.Update.t)) => {
-  let strs = applicable_projectors(cursor.info);
+let applicable_projector_strings =
+    (cursor: Cursor.cursor(Editors.Update.t), applicable_projectors) => {
   switch (kind(cursor.editor)) {
-  | None => strs
-  | Some(k) => lift(k, strs)
+  | None => applicable_projectors
+  | Some(k) => lift(k, applicable_projectors)
   };
 };
 
@@ -109,17 +125,20 @@ let keyboard_shortcut_of = (kind: ProjectorCore.kind): string =>
   switch (kind) {
   | Fold => "Option-f"
   | Probe => "Option-v"
-  | _ => ""
+  | Info => "Option-t"
+  | _ => "Option-l"
   };
 
 /* A selection input for contetually applicable projectors */
 let select_view =
     (
       ~inject: Action.project => Ui_effect.t(unit),
+      applicable_projectors: list(ProjectorCore.kind),
       cursor: Cursor.cursor(Editors.Update.t),
     ) => {
   let applicable_projectors =
-    might_project(cursor) ? applicable_projector_strings(cursor) : [];
+    might_project(cursor)
+      ? applicable_projector_strings(cursor, applicable_projectors) : [];
   let applicable_projector_strings =
     List.map(ProjectorView.name, applicable_projectors);
   let value =
@@ -144,17 +163,15 @@ let select_view =
   );
 };
 
-let toggle_view = (~inject, cursor: Cursor.cursor(Editors.Update.t)) =>
-  toggle_view(
-    ~inject,
-    cursor.info,
-    kind(cursor.editor) != None,
-    might_project(cursor),
-  );
+let toggle_view =
+    (~inject, applicable_projectors, cursor: Cursor.cursor(Editors.Update.t)) =>
+  toggle_view(~inject, applicable_projectors, cursor, might_project(cursor));
 
 let view = (~inject, cursor: Cursor.cursor(Editors.Update.t)) => {
+  let applicable_projectors = applicable_projectors(cursor);
   div(
     ~attrs=[Attr.id("projectors")],
-    [select_view(~inject, cursor)] @ [toggle_view(~inject, cursor)],
+    [select_view(~inject, applicable_projectors, cursor)]
+    @ [toggle_view(~inject, applicable_projectors, cursor)],
   );
 };

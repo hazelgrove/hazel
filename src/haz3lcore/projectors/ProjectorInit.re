@@ -15,22 +15,28 @@ let to_module = (kind: ProjectorCore.kind): (module Cooked) =>
   | TextArea => (module Cook(TextAreaProj.M))
   };
 
-/* Currently projection is limited to convex pieces */
-let minimum_projection_condition = (syntax: syntax): bool =>
-  Piece.is_convex(syntax);
-
-let init = (kind: ProjectorCore.kind, syntax: syntax, any: Term.Any.t): syntax => {
+let init =
+    (kind: ProjectorCore.kind, syntax: syntax, any: Term.Any.t)
+    : option(syntax) => {
   /* We set the projector id equal to the Piece id for convienence
    * including cursor-info association. We maintain this invariant
    * when we update a projector's contained syntax */
   let (module P) = to_module(kind);
-  switch (P.can_project(syntax, any) && minimum_projection_condition(syntax)) {
-  | false => syntax
-  | true => Projector({id: Piece.id(syntax), kind, model: P.init, syntax})
+  switch (P.can_project(syntax, any)) {
+  | false => None
+  | true =>
+    Some(Projector({id: Piece.id(syntax), kind, model: P.init, syntax}))
   };
 };
 
-let init_from_str =
+let init_or_noop =
+    (kind: ProjectorCore.kind, syntax: syntax, any: Term.Any.t): syntax =>
+  switch (init(kind, syntax, any)) {
+  | Some(pr) => pr
+  | None => syntax
+  };
+
+let init_or_noop_from_str =
     (
       kind: ProjectorCore.kind,
       syntax: syntax,
@@ -39,7 +45,7 @@ let init_from_str =
     )
     : syntax => {
   let (module P) = to_module(kind);
-  switch (P.can_project(syntax, any) && minimum_projection_condition(syntax)) {
+  switch (P.can_project(syntax, any)) {
   | false => syntax
   | true => Projector({id: Piece.id(syntax), kind, model: model_str, syntax})
   };

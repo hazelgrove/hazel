@@ -43,6 +43,11 @@ type select =
   | Tile(rel)
   | Term(rel);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type livelit_toggle =
+  | Specific(ProjectorCore.kind)
+  | ChooseLivelit;
+
 /* This type defines the top-level actions used to manage
  * projectors,as distinguished from external_action,
  * which defines the actions available internally to all projectors,
@@ -50,7 +55,7 @@ type select =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type project =
   | SetIndicated(ProjectorCore.kind) /* Project syntax at caret */
-  | ToggleIndicated(ProjectorCore.kind) /* Un/Project syntax at caret */
+  | ToggleIndicated(livelit_toggle) /* Un/Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(Id.t, Piece.t) /* Set underlying syntax */
   | SetModel(Id.t, string) /* Set serialized projector model */
