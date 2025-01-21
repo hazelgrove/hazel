@@ -65,12 +65,16 @@ let of_label = (ctx: Ctx.t, mode: t): (t, t) =>
   switch (mode) {
   | Syn
   | SynFun
-  | SynTypFun => (Ana(Label("") |> Typ.temp), Syn)
-  | Ana(ty) =>
-    let (ty1, ty2) = Typ.matched_label(ctx, ty);
-    (ana(ty1), ana(ty2));
+  | SynTypFun => (Syn, Syn)
+  | Ana({term: TupLabel({term: Label(mode_label), _}, val_ty), _}) => (
+      Ana(Label(mode_label) |> Typ.temp),
+      Ana(val_ty),
+    )
+  | Ana(_) => (
+      Ana(Unknown(Internal) |> Typ.temp),
+      Ana(Unknown(Internal) |> Typ.temp),
+    )
   };
-
 let of_prod =
     (
       ctx: Ctx.t,
