@@ -382,85 +382,41 @@ and uexp_to_info_map =
         m,
       );
     | TupLabel(label, e) =>
-      switch (mode) {
-      | Syn
-      | SynFun
-      | SynTypFun =>
-        let (labmode, mode) = Mode.of_label(ctx, mode);
-
-        let (lab, m) =
-          go(
-            ~mode=labmode,
-            ~override_self=?
-              switch (label.term) {
-              | Label(_) => None
-              | _ => Some(Common(BadLabel(Exp(label))))
-              },
-            ~duplicates,
-            label,
-            m,
-          );
-
-        let (e, m) = go(~mode, e, m);
-        let self =
-          switch (lab.status) {
-          | NotInHole(_) => Self.Just(TupLabel(lab.ty, e.ty) |> Typ.temp)
-          | InHole(Common(Duplicate(name, _))) =>
-            Self.DuplicateLabels(
-              [name],
-              TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
-            )
-          | InHole(_) =>
-            Self.BadLabelsContained(
-              [Exp(label)],
-              TupLabel(Unknown(Internal) |> Typ.temp, e.ty) |> Typ.temp,
-            )
-          };
-
-        add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
-      | Ana(ty) =>
-        switch (ty.term) {
-        | TupLabel({term: Label(mode_label), _}, mode) =>
-          let (lab, m) =
-            go(
-              ~mode=Ana(Label(mode_label) |> Typ.temp),
-              ~override_self=?
-                switch (label.term) {
-                | Label(_) => None
-                | _ => Some(Common(BadLabel(Exp(label))))
-                },
-              ~duplicates,
-              label,
-              m,
-            );
-          let (e, m) = go(~mode=Ana(mode), e, m);
-          let self =
-            switch (lab.status) {
-            | NotInHole(_) => Self.Just(TupLabel(lab.ty, e.ty) |> Typ.temp)
-            | InHole(Common(Duplicate(name, _))) =>
-              Self.DuplicateLabels(
-                [name],
-                TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
-              )
-            | InHole(_) =>
-              Self.BadLabelsContained(
-                [Exp(label)],
-                TupLabel(Unknown(Internal) |> Typ.temp, e.ty) |> Typ.temp,
-              )
-            };
-          add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
-        | _ =>
-          let (e, m) = go(~mode=Ana(Unknown(Internal) |> Typ.temp), e, m);
-          let (lab, m) =
-            go(~mode=Ana(Unknown(Internal) |> Typ.temp), label, m);
-
-          add(
-            ~self=Self.Just(TupLabel(lab.ty, e.ty) |> Typ.temp), // TODO Confirm this gives inconsistent
-            ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
-            m,
-          );
-        }
-      }
+      let (_, val_mode) = Mode.of_label(ctx, mode);
+      let (lab, m) =
+        go(
+          ~mode=
+            switch (mode) {
+            | Ana({term: TupLabel({term: Label(mode_label), _}, _), _}) =>
+              Ana(Label(mode_label) |> Typ.temp)
+            | Ana(_) => Ana(Unknown(Internal) |> Typ.temp)
+            | _ => Syn
+            },
+          ~override_self=?
+            switch (label.term) {
+            | Label(_) => None
+            | _ => Some(Common(BadLabel(Exp(label))))
+            },
+          ~duplicates,
+          label,
+          m,
+        );
+      let (e, m) = go(~mode=val_mode, e, m);
+      let self =
+        switch (lab.status) {
+        | NotInHole(_) => Self.Just(TupLabel(lab.ty, e.ty) |> Typ.temp)
+        | InHole(Common(Duplicate(name, _))) =>
+          Self.DuplicateLabels(
+            [name],
+            TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
+          )
+        | InHole(_) =>
+          Self.BadLabelsContained(
+            [Exp(label)],
+            TupLabel(Unknown(Internal) |> Typ.temp, e.ty) |> Typ.temp,
+          )
+        };
+      add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
     | BuiltinFun(string) =>
       add'(
         ~self=Self.of_exp_var(Builtins.ctx_init, string),
