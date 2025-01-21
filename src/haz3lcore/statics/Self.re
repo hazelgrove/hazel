@@ -29,7 +29,7 @@ type join_type =
 type t =
   | Just(Typ.t) /* Just a regular type */
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
-  | Duplicate_Labels(list(LabeledTuple.label), Typ.t) /* Duplicate labels in a labeled tuple, treated as regular type (?) */
+  | DuplicateLabels(list(LabeledTuple.label), Typ.t) /* Duplicate labels in a labeled tuple, treated as regular type (?) */
   | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
   | BadToken(Token.t) /* Invalid expression token, continues with undefined behavior */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
@@ -78,7 +78,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
   _ctx =>
     fun
     | Just(typ)
-    | Duplicate_Labels(_, typ)
+    | DuplicateLabels(_, typ)
     | BadLabelContained(_, typ)
     | Duplicate(_, Just(typ)) => Some(typ)
     | IsConstructor({syn_ty, _}) => syn_ty

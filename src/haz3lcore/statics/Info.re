@@ -403,8 +403,7 @@ let rec status_common =
   | (BadLabel(ty), _) => InHole(NoType(BadLabel(ty)))
   | (BadLabelContained(bad_labels, typ), _) =>
     InHole(BadLabelContained(bad_labels, typ))
-  | (Duplicate_Labels(labels, ty), _) =>
-    InHole(DuplicateLabels(labels, ty))
+  | (DuplicateLabels(labels, ty), _) => InHole(DuplicateLabels(labels, ty))
   | (Duplicate(lab, Just(ty)), _) => InHole(Duplicate(lab, ty))
   | (Duplicate(lab, _), _) =>
     InHole(Duplicate(lab, Unknown(Internal) |> Typ.temp))
