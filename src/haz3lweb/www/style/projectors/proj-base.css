@@ -48,8 +48,8 @@
   vector-effect: non-scaling-stroke;
 }
 
-.projector.selected > svg,
-.projector.selected.indicated > svg {
+.cell-item.selected .projector.selected > svg,
+.cell-item.selected .projector.selected.indicated > svg {
   fill: var(--shard-selected);
 }
 

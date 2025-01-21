@@ -21,7 +21,7 @@
 }
 
 .projector.type.selected > svg {
-  display: none;
+  filter: none;
 }
 
 /* INLINE VIEW */
