@@ -2,22 +2,36 @@ open Alcotest;
 open Haz3lcore;
 
 let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
+
+let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
+  switch (a, b) {
+  | (Common(DuplicateLabels(a, ty)), Common(DuplicateLabels(b, ty2))) =>
+    a == b && Typ.fast_equal(ty, ty2)
+  | (Common(Duplicate(l, ty)), Common(Duplicate(r, ty2))) =>
+    l == r && Typ.fast_equal(ty, ty2)
+  | (
+      Common(BadLabelsContained(a, ty)),
+      Common(BadLabelsContained(b, ty2)),
+    ) =>
+    a == b && Typ.fast_equal(ty, ty2)
+  | (Common(NoType(BadLabel(a))), Common(NoType(BadLabel(b)))) =>
+    Any.fast_equal(a, b)
+  | (
+      Common(Inconsistent(Expectation({ana: a1, syn: a2}))),
+      Common(Inconsistent(Expectation({ana: b1, syn: b2}))),
+    ) =>
+    Typ.fast_equal(a1, b1) && Typ.fast_equal(a2, b2)
+  | _ =>
+    Alcotest.fail(
+      "Not implemented for "
+      ++ Info.show_error_exp(a)
+      ++ " and "
+      ++ Info.show_error_exp(b),
+    )
+  };
+};
 let testable_info_error_exp =
-  testable(Fmt.using(Info.show_error_exp, Fmt.string), (==));
-let testable_status_exp =
-  testable(
-    Fmt.using(Info.show_status_exp, Fmt.string),
-    // TODO: Fix this
-    (a, b) => {
-    switch (a, b) {
-    | (
-        InHole(Common(Inconsistent(Expectation({ana: a1, syn: a2})))),
-        InHole(Common(Inconsistent(Expectation({ana: b1, syn: b2})))),
-      ) =>
-      Typ.fast_equal(a1, b1) && Typ.fast_equal(a2, b2)
-    | _ => false
-    }
-  });
+  testable(Fmt.using(Info.show_error_exp, Fmt.string), eq_info_error_exp);
 
 let status_exp: testable(Info.status_exp) =
   testable(Fmt.using(Info.show_status_exp, Fmt.string), (==));
@@ -38,24 +52,21 @@ let alco_check = Alcotest.option(testable_typ) |> Alcotest.check;
 let parse_exp = (s: string) =>
   MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
 
-let info_of_id = (~statics_map=?, f: UExp.t, id: Id.t) => {
-  let s =
-    switch (statics_map) {
-    | Some(s) => s
-    | None => statics(f)
-    };
-  switch (Id.Map.find(id, s)) {
-  | InfoExp(ie) => Some(ie)
-  | _ => None
-  };
+let info_error_of_id = (f: UExp.t, id: Id.t) => {
+  let s = statics(f);
+  Statics.get_error_at(s, id);
 };
 
 // Get the type from the statics
-let type_of = (~statics_map=?, f) => {
-  Option.map(
-    (ie: Info.exp) => ie.ty,
-    info_of_id(~statics_map?, f, IdTagged.rep_id(f)),
-  );
+let type_of = f => {
+  IdTagged.rep_id(f)
+  |> Id.Map.find_opt(_, statics(f))
+  |> Option.bind(
+       _,
+       fun
+       | InfoExp(e) => Some(e.ty)
+       | _ => None,
+     );
 };
 
 let inconsistent_typecheck = (name, exp) => {
@@ -102,7 +113,7 @@ let fully_consistent_typecheck = (name, serialized, expected, exp) => {
           Statics.Map.error_ids(s),
         );
       Alcotest.check(list(status_exp), "Static Errors", [], errors);
-      alco_check(serialized, expected, type_of(~statics_map=s, exp));
+      alco_check(serialized, expected, type_of(exp));
     },
   );
 };
@@ -114,42 +125,13 @@ let unlabeled_tuple_to_labeled_fails =
     `Quick,
     () =>
     Alcotest.check(
-      Alcotest.option(testable_status_exp),
+      Alcotest.option(testable_info_error_exp),
       "let x = (1, 2) in  let y : (a=Int, b=Int) = x in y",
       Some(
-        InHole(
-          Common(
-            Inconsistent(
-              Expectation({
-                ana:
-                  Parens(
-                    Prod([
-                      TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
-                      |> Typ.fresh,
-                      TupLabel(Label("b") |> Typ.fresh, Int |> Typ.fresh)
-                      |> Typ.fresh,
-                    ])
-                    |> Typ.fresh,
-                  )
-                  |> Typ.fresh,
-                syn: Prod([Int |> Typ.fresh, Int |> Typ.fresh]) |> Typ.fresh,
-              }),
-            ),
-          ),
-        ),
-      ),
-      Option.map(
-        (ie: Info.exp) => ie.status,
-        info_of_id(
-          Let(
-            Var("x") |> Pat.fresh,
-            Parens(
-              Tuple([Int(1) |> Exp.fresh, Int(2) |> Exp.fresh]) |> Exp.fresh,
-            )
-            |> Exp.fresh,
-            Let(
-              Cast(
-                Var("y") |> Pat.fresh,
+        Common(
+          Inconsistent(
+            Expectation({
+              ana:
                 Parens(
                   Prod([
                     TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
@@ -160,17 +142,41 @@ let unlabeled_tuple_to_labeled_fails =
                   |> Typ.fresh,
                 )
                 |> Typ.fresh,
-                Unknown(Internal) |> Typ.fresh,
-              )
-              |> Pat.fresh,
-              {ids: [reusable_id], term: Var("x"), copied: false},
-              Var("y") |> Exp.fresh,
-            )
-            |> Exp.fresh,
+              syn: Prod([Int |> Typ.fresh, Int |> Typ.fresh]) |> Typ.fresh,
+            }),
+          ),
+        ),
+      ),
+      info_error_of_id(
+        Let(
+          Var("x") |> Pat.fresh,
+          Parens(
+            Tuple([Int(1) |> Exp.fresh, Int(2) |> Exp.fresh]) |> Exp.fresh,
           )
           |> Exp.fresh,
-          reusable_id,
-        ),
+          Let(
+            Cast(
+              Var("y") |> Pat.fresh,
+              Parens(
+                Prod([
+                  TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
+                  |> Typ.fresh,
+                  TupLabel(Label("b") |> Typ.fresh, Int |> Typ.fresh)
+                  |> Typ.fresh,
+                ])
+                |> Typ.fresh,
+              )
+              |> Typ.fresh,
+              Unknown(Internal) |> Typ.fresh,
+            )
+            |> Pat.fresh,
+            {ids: [reusable_id], term: Var("x"), copied: false},
+            Var("y") |> Exp.fresh,
+          )
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        reusable_id,
       ),
     )
   );
@@ -181,33 +187,28 @@ let simple_inconsistency =
     `Quick,
     () =>
     Alcotest.check(
-      Alcotest.option(testable_status_exp),
+      Alcotest.option(testable_info_error_exp),
       "let y : String = true",
       Some(
-        InHole(
-          Common(
-            Inconsistent(
-              Expectation({ana: String |> Typ.fresh, syn: Bool |> Typ.fresh}),
-            ),
+        Common(
+          Inconsistent(
+            Expectation({ana: String |> Typ.fresh, syn: Bool |> Typ.fresh}),
           ),
         ),
       ),
-      Option.map(
-        (ie: Info.exp) => ie.status,
-        info_of_id(
-          Let(
-            Cast(
-              Var("y") |> Pat.fresh,
-              String |> Typ.fresh,
-              Unknown(Internal) |> Typ.fresh,
-            )
-            |> Pat.fresh,
-            {ids: [reusable_id], term: Bool(true), copied: false},
-            Var("y") |> Exp.fresh,
+      info_error_of_id(
+        Let(
+          Cast(
+            Var("y") |> Pat.fresh,
+            String |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
           )
-          |> Exp.fresh,
-          reusable_id,
-        ),
+          |> Pat.fresh,
+          {ids: [reusable_id], term: Bool(true), copied: false},
+          Var("y") |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        reusable_id,
       ),
     )
   );
@@ -936,37 +937,63 @@ let tests = (
       "extra label",
       `Quick,
       () => {
-        let _ = Alcotest.skip();
-
         let exp =
           parse_exp(
-            {|let extra_label : (Int, a=String, b=Bool, Float) = (c=1, a="hello", b=true, 2.) in 1|},
+            {|let extra_label : (Int, a=String) = (c=1, a="hello") in true|},
           );
 
-        let (_typ, tuple) =
+        let (_typ, tuple, tl1, tl2, int_ty) =
           switch (exp.term) {
-          | Let({term: Cast(_, typ, _), _}, {term: Parens(tuple), _}, _) => (
+          | Let(
+              {
+                term:
+                  Cast(
+                    _,
+                    {term: Parens({term: Prod([int_ty, _]), _}), _} as typ,
+                    _,
+                  ),
+                _,
+              },
+              {term: Parens({term: Tuple([tl1, tl2]), _} as tuple), _},
+              _,
+            ) => (
               typ,
               tuple,
+              tl1,
+              tl2,
+              int_ty,
             )
-          | _ => Alcotest.fail("Unexpected form")
+          | _ =>
+            Alcotest.fail("Unexpected form: " ++ [%derive.show: Exp.t](exp))
           };
 
         let s = statics(exp);
 
         check(
           option(testable_info_error_exp),
-          "Inconsistent Tuple Error",
+          "Tuple Label1 Error",
           Some(
             Common(
               Inconsistent(
                 Expectation({
-                  ana: Float |> Typ.fresh,
-                  syn: Float |> Typ.fresh,
+                  ana: int_ty,
+                  syn: TupLabel(Label("c") |> Typ.temp, int_ty) |> Typ.temp,
                 }),
               ),
             ),
           ),
+          Statics.get_error_at(s, IdTagged.rep_id(tl1)),
+        );
+        check(
+          option(testable_info_error_exp),
+          "Tuple Label2 Error",
+          None,
+          Statics.get_error_at(s, IdTagged.rep_id(tl2)),
+        );
+        check(
+          option(testable_info_error_exp),
+          "Tuple Error",
+          None,
           Statics.get_error_at(s, IdTagged.rep_id(tuple)),
         );
       },
