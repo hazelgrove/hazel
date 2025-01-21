@@ -691,6 +691,16 @@ and paren_pretty_print = typ =>
     pretty_print(typ);
   };
 
+/**
+ * Removes duplicate labels from a given list of types inside a tuple.
+ *
+ * This function takes a list of types and returns a new list with all
+ * duplicate labels replaced with their first occurence and the unknown type.
+ *
+ * @param duplicate_labels - The list of duplicate labels.
+ * @param tys - The list of types to remove duplicates from.
+ * @return A new list of types with duplicates removed.
+ */
 let remove_duplicate_labels =
     (~duplicate_labels: list(LabeledTuple.label), tys: list(t)): list(t) => {
   snd(
