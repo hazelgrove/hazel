@@ -1,7 +1,7 @@
 type cursor('update) = {
   info: option(Haz3lcore.Info.t),
   selected_text: option(unit => string),
-  selection: option(Haz3lcore.Selection.t),
+  selection: option(Haz3lcore.Segment.t),
   indicated_piece: option(Haz3lcore.Piece.t),
   editor: option(Haz3lcore.Editor.t),
   editor_read_only: bool,

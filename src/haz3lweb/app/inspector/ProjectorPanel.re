@@ -25,7 +25,7 @@ let target_term = (cursor: Cursor.cursor(Editors.Update.t)) =>
   switch (cursor.selection) {
   | None => indicated_term(cursor)
   | Some(selection) =>
-    switch (selection.content) {
+    switch (selection) {
     | [] => indicated_term(cursor)
     | seg =>
       switch (MakeTerm.any(seg)) {

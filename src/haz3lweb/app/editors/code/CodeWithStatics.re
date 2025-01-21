@@ -37,7 +37,7 @@ module Model = {
       |> Option.map(((p, _, _)) => p),
     selected_text:
       Some(() => Printer.to_string_selection(model.editor.state.zipper)),
-    selection: Some(model.editor.state.zipper.selection),
+    selection: Some(model.editor.state.zipper.selection.content),
     editor: Some(model.editor),
     editor_read_only: true,
     editor_action: x => Some(x),
