@@ -37,6 +37,7 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
   | TupLabel(_, x) =>
     let* x' = Unboxing.unbox(TupLabel(dp), d);
     matches(x, x');
+  | Cast({term: ListLit([] as xs), _}, _, _) // Shortcut for empty list pattern match perf
   | ListLit(xs) =>
     let* s' = Unboxing.unbox(List, d);
     if (List.length(xs) == List.length(s')) {

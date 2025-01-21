@@ -8,7 +8,7 @@ let evaluation_test = (msg, expected, unevaluated) =>
     msg,
     expected,
     ProgramResult.Result.unbox(
-      snd(Evaluator.evaluate'(Builtins.env_init, {d: unevaluated})),
+      snd(Evaluator.evaluate'(Builtins.env_init, unevaluated)),
     ),
   );
 let parse_exp = (s: string) =>
@@ -77,53 +77,45 @@ let tet_ap_of_hole_deferral = () =>
     Ap(
       Forward,
       Cast(
-        Cast(
-          EmptyHole |> Exp.fresh,
-          Unknown(Internal) |> Typ.fresh,
-          Arrow(
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
-          |> Typ.fresh,
-        )
-        |> Exp.fresh,
+        EmptyHole |> Exp.fresh,
+        Unknown(Internal) |> Typ.fresh,
         Arrow(
           Unknown(Internal) |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Typ.fresh,
-        Arrow(
-          Prod([
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          ])
-          |> Typ.fresh,
           Unknown(Internal) |> Typ.fresh,
         )
         |> Typ.fresh,
       )
       |> Exp.fresh,
-      Tuple([
-        Cast(
-          Float(1.) |> Exp.fresh,
-          Float |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
+      Cast(
+        Tuple([
+          Cast(
+            Float(1.) |> Exp.fresh,
+            Float |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Exp.fresh,
+          Cast(
+            Bool(true) |> Exp.fresh,
+            Bool |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Exp.fresh,
+          Cast(
+            Int(3) |> Exp.fresh,
+            Int |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Exp.fresh,
+        ])
         |> Exp.fresh,
-        Cast(
-          Bool(true) |> Exp.fresh,
-          Bool |> Typ.fresh,
+        Prod([
           Unknown(Internal) |> Typ.fresh,
-        )
-        |> Exp.fresh,
-        Cast(
-          Int(3) |> Exp.fresh,
-          Int |> Typ.fresh,
           Unknown(Internal) |> Typ.fresh,
-        )
-        |> Exp.fresh,
-      ])
+          Unknown(Internal) |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+        Unknown(Internal) |> Typ.fresh,
+      )
       |> Exp.fresh,
     )
     |> Exp.fresh,
@@ -192,10 +184,7 @@ let tet_ap_of_hole_deferral = () =>
 let parse_and_evaluate = (s: string) =>
   ProgramResult.Result.unbox(
     snd(
-      Evaluator.evaluate'(
-        Builtins.env_init,
-        {d: dhexp_of_uexp(parse_exp(s))},
-      ),
+      Evaluator.evaluate'(Builtins.env_init, dhexp_of_uexp(parse_exp(s))),
     ),
   );
 
