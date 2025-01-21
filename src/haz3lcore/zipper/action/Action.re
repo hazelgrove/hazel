@@ -51,7 +51,7 @@ type select =
 type project =
   | SetIndicated(ProjectorCore.kind) /* Project syntax at caret */
   | ToggleIndicated(ProjectorCore.kind) /* Un/Project syntax at caret */
-  | Remove(Id.t) /* Remove projector at Id */
+  | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(Id.t, Piece.t) /* Set underlying syntax */
   | SetModel(Id.t, string) /* Set serialized projector model */
   | Focus(Id.t, option(Util.Direction.t)) /* Pass control to projector */
@@ -132,7 +132,7 @@ let is_edit: t => bool =
     | SetModel(_)
     | SetIndicated(_)
     | ToggleIndicated(_)
-    | Remove(_) => true
+    | RemoveIndicated => true
     | Focus(_)
     | Escape(_) => false
     };
@@ -162,7 +162,7 @@ let is_historic: t => bool =
     | SetModel(_)
     | SetIndicated(_)
     | ToggleIndicated(_)
-    | Remove(_) => true
+    | RemoveIndicated => true
     | Focus(_)
     | Escape(_) => false
     };
@@ -190,7 +190,7 @@ let prevent_in_read_only_editor = (a: t) => {
     | SetModel(_)
     | SetIndicated(_)
     | ToggleIndicated(_)
-    | Remove(_)
+    | RemoveIndicated
     | Focus(_)
     | Escape(_) => false
     }

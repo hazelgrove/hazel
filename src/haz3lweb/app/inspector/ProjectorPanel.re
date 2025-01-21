@@ -35,12 +35,11 @@ let applicable_projectors: option(Info.t) => list(ProjectorCore.kind) =
       }
     );
 
-let toggle_projector = (active, id, ci: option(Info.t)): Action.project =>
+let toggle_projector = (active, ci: option(Info.t)): Action.project =>
   active || applicable_projectors(ci) == []
-    ? Remove(id) : SetIndicated(List.hd(applicable_projectors(ci)));
+    ? RemoveIndicated : SetIndicated(List.hd(applicable_projectors(ci)));
 
-let toggle_view =
-    (~inject, ci: option(Info.t), id, active: bool, might_project) =>
+let toggle_view = (~inject, ci: option(Info.t), active: bool, might_project) =>
   div(
     ~attrs=[
       clss(
@@ -49,8 +48,7 @@ let toggle_view =
         @ (might_project ? [] : ["inactive"]),
       ),
       Attr.on_mousedown(_ =>
-        might_project
-          ? inject(toggle_projector(active, id, ci)) : Effect.Ignore
+        might_project ? inject(toggle_projector(active, ci)) : Effect.Ignore
       ),
     ],
     [
@@ -150,7 +148,6 @@ let toggle_view = (~inject, cursor: Cursor.cursor(Editors.Update.t)) =>
   toggle_view(
     ~inject,
     cursor.info,
-    id(cursor.editor),
     kind(cursor.editor) != None,
     might_project(cursor),
   );

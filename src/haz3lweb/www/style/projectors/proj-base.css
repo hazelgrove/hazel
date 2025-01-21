@@ -4,11 +4,6 @@
 @import "proj-probe.css";
 @import "proj-type.css";
 
-/* Turn off caret when a projector is focused */
-.code-deco:has(~ .projectors .projector *:focus) #caret .caret-path {
-  fill: #0000;
-}
-
 /* Default projector styles */
 
 .projector {
@@ -101,6 +96,12 @@
 }
 
 /* PROJECTOR: TEXTAREA */
+
+/* Turn off caret when text projector is focused */
+/* TODO: Figure out how to generalize this logic to other projectors */
+.code-deco:has(~ .projectors .projector.text *:focus) #caret .caret-path {
+  fill: #0000;
+}
 
 .projector.text {
   cursor: default;
