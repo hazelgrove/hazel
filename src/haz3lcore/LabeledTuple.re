@@ -24,30 +24,24 @@ let match_labels: (label, label) => bool =
     };
   };
 
-let length = String.length;
-
-let compare = String.compare;
-
-let find_opt: ('a => bool, list('a)) => option('a) = List.find_opt;
-
 // returns a pair containing a list of option(t) and a list of 'a
-// if 'a is a tuplabel, separates the label from the element held by it.
-let separate_labels:
-  ('a => option((label, 'a)), list('a)) =>
-  (list(option(label)), list('a)) =
-  (get_label, es) => {
-    let results =
-      List.fold_left(
-        ((ls, ns), e) =>
-          switch (get_label(e)) {
-          | Some((s1, e)) => (ls @ [Some(s1)], ns @ [e])
-          | None => (ls @ [None], ns @ [e])
-          },
-        ([], []),
-        es,
-      );
-    results;
-  };
+// // if 'a is a tuplabel, separates the label from the element held by it.
+// let separate_labels:
+//   ('a => option((label, 'a)), list('a)) =>
+//   (list(option(label)), list('a)) =
+//   (get_label, es) => {
+//     let results =
+//       List.fold_left(
+//         ((ls, ns), e) =>
+//           switch (get_label(e)) {
+//           | Some((s1, e)) => (ls @ [Some(s1)], ns @ [e])
+//           | None => (ls @ [None], ns @ [e])
+//           },
+//         ([], []),
+//         es,
+//       );
+//     results;
+//   };
 
 // returns a pair containing a list of option(t) and a list of 'a
 // if 'a is a tuplabel, extracts the label but keeps the tuplabel together
@@ -70,16 +64,16 @@ let separate_and_keep_labels:
 
 // TODO consider adding a t = (option(label), 'a)
 
-let separate_labeled = (xs: list((option(label), 'a))) => {
-  List.partition_map(
-    ((l, a)) =>
-      switch (l) {
-      | None => Right(a)
-      | Some(l) => Left((l, a))
-      },
-    xs,
-  );
-};
+// let separate_labeled = (xs: list((option(label), 'a))) => {
+//   List.partition_map(
+//     ((l, a)) =>
+//       switch (l) {
+//       | None => Right(a)
+//       | Some(l) => Left((l, a))
+//       },
+//     xs,
+//   );
+// };
 
 // TODO Performance
 let intersect = (xs, ys) => {
@@ -88,16 +82,16 @@ let intersect = (xs, ys) => {
 
 // TODO: can just use get_duplicate_labels and check if empty.
 // Takes a list of strings and returns true if there are no duplicates.
-let rec is_uniquely_labeled_base: list(label) => bool =
-  labels => {
-    let contains_duplicates =
-      switch (labels) {
-      | [] => false
-      | [hd, ...tl] =>
-        List.exists(l => hd == l, tl) || is_uniquely_labeled_base(tl)
-      };
-    !contains_duplicates;
-  };
+// let rec is_uniquely_labeled_base: list(label) => bool =
+//   labels => {
+//     let contains_duplicates =
+//       switch (labels) {
+//       | [] => false
+//       | [hd, ...tl] =>
+//         List.exists(l => hd == l, tl) || is_uniquely_labeled_base(tl)
+//       };
+//     !contains_duplicates;
+//   };
 
 // TODO: Performance
 // Takes a list of strings and returns a list of duplicates and list of uniques.
@@ -121,16 +115,16 @@ let get_duplicate_and_unique_labels_base:
   };
 
 // Takes in a get_label function and a list of elements and applys is_uniquely_labeled_base
-let is_uniquely_labeled: 'a. ('a => option((label, 'a)), list('a)) => bool =
-  (get_label, es) => {
-    let labels = fst(separate_and_keep_labels(get_label, es));
-    let labels =
-      labels
-      |> List.filter(x => Option.is_some(x))
-      |> OptUtil.sequence
-      |> OptUtil.get(() => []);
-    is_uniquely_labeled_base(labels);
-  };
+// let is_uniquely_labeled: 'a. ('a => option((label, 'a)), list('a)) => bool =
+//   (get_label, es) => {
+//     let labels = fst(separate_and_keep_labels(get_label, es));
+//     let labels =
+//       labels
+//       |> List.filter(x => Option.is_some(x))
+//       |> OptUtil.sequence
+//       |> OptUtil.get(() => []);
+//     is_uniquely_labeled_base(labels);
+//   };
 
 let get_duplicate_and_unique_labels:
   'a.
@@ -310,10 +304,10 @@ let rearrange2:
 
 let find_label: ('a => option((label, 'a)), list('a), label) => option('a) =
   (filt, es, label) => {
-    find_opt(
+    List.find_opt(
       e => {
         switch (filt(e)) {
-        | Some((s, _)) => compare(s, label) == 0
+        | Some((s, _)) => s == label
         | None => false
         }
       },
