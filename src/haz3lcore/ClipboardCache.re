@@ -18,6 +18,11 @@ let get = (pasted: string): Action.t =>
   switch (cache^) {
   | None => Paste(String(pasted))
   | Some((cached, segment)) =>
+    /* Note that we reset the cache here. If we want to allow mulitple
+     * pastes using the same cache, we would need to replace the unique ids
+     * in the segment. Note that this would also have to replace the ids
+     * in the projector data structure as well */
+    cache := None;
     let trim = Util.StringUtil.trim_leading;
     /* Note the trim */
     let trimmed_pasted = trim(pasted);

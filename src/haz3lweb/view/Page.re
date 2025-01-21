@@ -336,7 +336,8 @@ module View = {
       }),
       Attr.on_copy(_ => {
         let str = (cursor.selected_text |> Option.value(~default=() => ""))();
-        Haz3lcore.ClipboardCache.set(cursor.selection, str);
+        /* Note that we cannot use the ClipboardCache system here unless
+         * we refine it further to replace unique ids on paste */
         JsUtil.copy(str);
         Effect.Ignore;
       }),
