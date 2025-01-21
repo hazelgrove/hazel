@@ -82,17 +82,26 @@ let common_err_view =
       cls: Cls.t,
       err: Info.error_common,
     ) => {
+  let code_view_settings: ExpToSegment.Settings.t = {
+    inline: true,
+    fold_case_clauses: false,
+    fold_fn_bodies: false,
+    hide_fixpoints: false,
+    fold_cast_types: false,
+  };
   let view_type = x =>
     x
     |> CodeViewable.view_typ(
          ~globals,
-         ~settings={
-           inline: true,
-           fold_case_clauses: false,
-           fold_fn_bodies: false,
-           hide_fixpoints: false,
-           fold_cast_types: false,
-         },
+         ~settings=code_view_settings,
+         ~info_map=Id.Map.empty,
+       )
+    |> code_box_container;
+  let view_any = x =>
+    x
+    |> CodeViewable.view_any(
+         ~globals,
+         ~settings=code_view_settings,
          ~info_map=Id.Map.empty,
        )
     |> code_box_container;
@@ -110,14 +119,14 @@ let common_err_view =
     ]
   | NoType(BadLabel(label)) => [
       text("An invalid Label: "),
-      text(Any.show(label)) // TODO
+      view_any(label),
     ]
   | BadLabelsContained(bad_labels, typ) =>
     [
       text("Contains invalid labels: "),
-      ...List.map(l => code(Any.show(l)), bad_labels) // TODO
+      ...List.map(l => view_any(l), bad_labels),
     ]
-    @ [text("in type"), view_type(typ)]
+    @ [text("synthesizing type"), view_type(typ)]
   | NoType(FreeConstructor(name)) => [code(name), text("not found")]
   | NoType(WantTuple) => [
       text("Invalid Dot Operation: requires tuple for first argument"),
