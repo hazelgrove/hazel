@@ -138,7 +138,7 @@ let common_err_view =
       text("The following labels are duplicated: "),
       ...List.map(code, labels),
     ]
-  | Duplicate(_) => [text("Duplicated Label")]
+  | Duplicate(name, _) => [text("Duplicated Label:"), code(name)]
   | DuplicateLabel(label) => [
       text("Label appears multiple time within tuple: "),
       code(label),
