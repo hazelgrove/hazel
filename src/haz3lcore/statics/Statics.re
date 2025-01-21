@@ -406,7 +406,7 @@ and uexp_to_info_map =
           switch (lab.status) {
           | NotInHole(_) => Self.Just(TupLabel(lab.ty, e.ty) |> Typ.temp)
           | InHole(Common(Duplicate(name, _))) =>
-            Self.Duplicate_Labels(
+            Self.DuplicateLabels(
               [name],
               TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
             )
@@ -438,7 +438,7 @@ and uexp_to_info_map =
             switch (lab.status) {
             | NotInHole(_) => Self.Just(TupLabel(lab.ty, e.ty) |> Typ.temp)
             | InHole(Common(Duplicate(name, _))) =>
-              Self.Duplicate_Labels(
+              Self.DuplicateLabels(
                 [name],
                 TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
               )
@@ -493,10 +493,7 @@ and uexp_to_info_map =
       let self =
         List.is_empty(duplicate_labels)
           ? self
-          : Self.Duplicate_Labels(
-              duplicate_labels,
-              Prod(ty_list) |> Typ.temp,
-            );
+          : Self.DuplicateLabels(duplicate_labels, Prod(ty_list) |> Typ.temp);
       add(~self, ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')), m);
     | Dot(e1, e2) =>
       let (info_e1, m) = go(~mode=Syn, e1, m);
@@ -1154,7 +1151,7 @@ and upat_to_info_map =
         switch (lab.status) {
         | NotInHole(_) => Self.Just(TupLabel(lab.ty, p.ty) |> Typ.temp)
         | InHole(Common(Duplicate(name, _))) =>
-          Self.Duplicate_Labels(
+          Self.DuplicateLabels(
             [name],
             TupLabel(Label(name) |> Typ.temp, p.ty) |> Typ.temp,
           )
@@ -1198,7 +1195,7 @@ and upat_to_info_map =
       let self =
         List.is_empty(duplicate_labels)
           ? self
-          : Self.Duplicate_Labels(duplicate_labels, Prod(tys) |> Typ.temp);
+          : Self.DuplicateLabels(duplicate_labels, Prod(tys) |> Typ.temp);
       add(~self, ~ctx, ~constraint_=cons_fold_tuple(cons), m);
     | Parens(p) =>
       let (p, m) = go(~ctx, ~mode, p, m);
