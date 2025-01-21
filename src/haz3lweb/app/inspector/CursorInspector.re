@@ -139,10 +139,6 @@ let common_err_view =
       ...List.map(code, labels),
     ]
   | Duplicate(name, _) => [text("Duplicated Label:"), code(name)]
-  | DuplicateLabel(label) => [
-      text("Label appears multiple time within tuple: "),
-      code(label),
-    ]
   | Inconsistent(WithArrow(typ)) => [
       text(":"),
       view_type(typ) |> code_box_container,
@@ -317,8 +313,11 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   | WantTypeFoundAp => [text("Must be part of a sum type")]
   | WantTuple => [text("Expect a valid tuple")]
   | WantLabel => [text("Expect a valid label")]
-  | DuplicateLabels(_) => [text("Duplicate labels within a tuple")]
-  | Duplicate(_) => [text("Duplicated Label")]
+  | DuplicateLabels(labels, _) => [
+      text("Duplicate labels within a tuple: "),
+      ...List.map(code, labels),
+    ]
+  | Duplicate(name, _) => [text("Duplicated Label: "), code(name)]
   | DuplicateConstructor(name) => [
       view_type(Var(name) |> Typ.fresh) |> code_box_container,
       text("already used in this sum"),

@@ -1258,22 +1258,17 @@ and utyp_to_info_map =
     let m = go(t, m) |> snd;
     add'(~expects=TypeExpected, m);
   | Prod(ts) =>
-    // let m = map_m(go, ts, m) |> snd;
-    // add(m);
     let (duplicate_labels, _) =
       LabeledTuple.get_duplicate_and_unique_labels(Typ.get_label, ts);
-    let (expects, m) =
+    let m =
       List.is_empty(duplicate_labels)
-        ? (expects, map_m(go, ts, m) |> snd)
-        : (
-          TupleExpected(Duplicate),
-          map_m(
+        ? map_m(go, ts, m) |> snd
+        : map_m(
             go'(~expects=LabelExpected(Duplicate, duplicate_labels)),
             ts,
             m,
           )
-          |> snd,
-        );
+          |> snd;
     let info = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects);
     (info, add_info(ids, InfoTyp(info), m));
   | Ap(t1, t2) =>

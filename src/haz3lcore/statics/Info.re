@@ -69,7 +69,6 @@ type error_common =
   | DuplicateLabels(list(LabeledTuple.label), Typ.t)
   /* Duplicate item, used for duplicated labels*/
   | Duplicate(LabeledTuple.label, Typ.t)
-  | DuplicateLabel(LabeledTuple.label)
   | BadLabelsContained(list(Any.t), Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -143,7 +142,7 @@ type status_variant =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ_expects =
   | TypeExpected
-  | TupleExpected(status_variant)
+  | TupleExpected
   | LabelExpected(status_variant, list(string)) // list of duplicate labels expected to NOT be
   | ConstructorExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
@@ -157,8 +156,8 @@ type error_typ =
   | BadToken(Token.t) /* Invalid token, treated as type hole */
   | FreeTypeVariable(string) /* Free type variable */
   | DuplicateConstructor(Constructor.t) /* Duplicate ctr in same sum */
-  | DuplicateLabels(Typ.t)
-  | Duplicate(Typ.t)
+  | DuplicateLabels(list(LabeledTuple.label), Typ.t)
+  | Duplicate(LabeledTuple.label, Typ.t)
   | WantTypeFoundAp
   | WantTuple
   | WantLabel
@@ -438,7 +437,6 @@ let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
       | InHole(Common(NoType(_)) as err) => Some(err)
       | NotInHole(_) => None
       | InHole(Common(DuplicateLabels(_))) // Is this right?
-      | InHole(Common(DuplicateLabel(_))) // Is this right?
       | InHole(Common(Duplicate(_)))
       | InHole(Common(BadLabelsContained(_)))
       | InHole(Common(Inconsistent(WithArrow(_))))
@@ -479,7 +477,6 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
       | InHole(Common(NoType(_)))
       | InHole(Common(DuplicateLabels(_))) // Is this right?
       | InHole(Common(Duplicate(_)))
-      | InHole(Common(DuplicateLabel(_)))
       | InHole(Common(BadLabelsContained(_)))
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
@@ -505,7 +502,7 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
    separate sort. It also determines semantic properties
    such as whether or not a type variable reference is
    free, and whether a ctr name is a dupe. */
-let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
+let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
   switch (ty.term) {
   | Unknown(Hole(Invalid(token))) => InHole(BadToken(token))
   | Unknown(Hole(EmptyHole)) => NotInHole(Type(ty))
@@ -517,7 +514,7 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     | VariantExpected(Duplicate, _)
     | ConstructorExpected(Duplicate, _) =>
       InHole(DuplicateConstructor(name))
-    | TupleExpected(_) =>
+    | TupleExpected =>
       switch (Ctx.lookup_alias(ctx, name)) {
       | Some({term: Prod(_), _}) =>
         NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
@@ -549,38 +546,33 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
         NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant) |> Typ.temp))
       }
     | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
-    | TupleExpected(_) => InHole(WantTuple)
+    | TupleExpected => InHole(WantTuple)
     | LabelExpected(_) => InHole(WantLabel)
     | TypeExpected => InHole(WantTypeFoundAp)
     }
-  // | Dot(t1, _) =>
-  //   switch (expects, ty) {
-  //   | (TupleExpected, _) =>
-  //     switch (t1.term) {
-  //     | Tuple(_) => NotInHole(Type(ty))
-  //     | _ => InHole(WantTuple)
-  //     }
-  //   | _ => NotInHole(Type(ty))
-  //   }
   | Label(name) =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
-    | TupleExpected(_) => InHole(WantTuple)
+    | TupleExpected => InHole(WantTuple)
     | LabelExpected(Unique, _) => NotInHole(Type(ty))
     | LabelExpected(Duplicate, dupes) =>
       List.exists(l => name == l, dupes)
-        ? InHole(Duplicate(ty)) : InHole(WantLabel)
+        ? InHole(Duplicate(name, ty)) : InHole(WantLabel)
     | ConstructorExpected(_)
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
     }
-  | Prod(_) =>
+  | Prod(ts) =>
     switch (expects) {
-    | TypeExpected => NotInHole(Type(ty))
-    | TupleExpected(status) =>
-      switch (status) {
-      | Duplicate => InHole(DuplicateLabels(ty))
-      | _ => InHole(WantTuple) // shouldn't happen
-      }
+    | TypeExpected
+    | TupleExpected =>
+      let (duplicate_labels, _) =
+        LabeledTuple.get_duplicate_and_unique_labels(Typ.get_label, ts);
+
+      if (duplicate_labels == []) {
+        NotInHole(Type(ty));
+      } else {
+        InHole(DuplicateLabels(duplicate_labels, ty));
+      }; // Check for duplicates
     | LabelExpected(_) => InHole(WantLabel)
     | ConstructorExpected(_)
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
@@ -588,12 +580,13 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
   | _ =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
-    | TupleExpected(_) => InHole(WantTuple)
+    | TupleExpected => InHole(WantTuple)
     | LabelExpected(_) => InHole(WantLabel)
     | ConstructorExpected(_)
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
     }
   };
+};
 
 let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
   switch (utpat.term) {
@@ -654,7 +647,6 @@ let fixed_typ_err_common: error_common => Typ.t =
   | NoType(_) => Unknown(Internal) |> Typ.temp
   | DuplicateLabels(_, typ) => typ
   | Duplicate(_, typ) => typ
-  | DuplicateLabel(l) => Label(l) |> Typ.temp
   | BadLabelsContained(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana
   | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
