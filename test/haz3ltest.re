@@ -7,13 +7,14 @@ let (suite, _) =
     [
       Test_ExpToSegment.tests,
       ("LabeledTuple", Test_LabeledTuple.tests),
-      Test_Elaboration.elaboration_tests,
+      Test_MakeTerm.tests,
+      Test_Menhir.tests,
       Test_StringUtil.tests,
       Test_Statics.tests,
       Test_Evaluator.tests,
       Test_ListUtil.tests,
-      Test_MakeTerm.tests,
-    ],
+    ]
+    @ Test_Elaboration.tests,
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();

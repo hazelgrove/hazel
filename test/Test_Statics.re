@@ -52,7 +52,7 @@ let alco_check = Alcotest.option(testable_typ) |> Alcotest.check;
 let parse_exp = (s: string) =>
   MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
 
-let info_error_of_id = (f: UExp.t, id: Id.t) => {
+let info_error_of_id = (f: Exp.t, id: Id.t) => {
   let s = statics(f);
   Statics.get_error_at(s, id);
 };

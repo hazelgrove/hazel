@@ -212,7 +212,7 @@ type sugar =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp = {
-  term: UExp.t, /* The term under consideration */
+  term: Exp.t, /* The term under consideration */
   ancestors, /* Ascending list of containing term ids */
   ctx: Ctx.t, /* Typing context for the term */
   mode: Mode.t, /* Parental type expectations  */
@@ -227,7 +227,7 @@ type exp = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat = {
-  term: UPat.t,
+  term: Pat.t,
   ancestors,
   ctx: Ctx.t,
   co_ctx: CoCtx.t,
@@ -683,7 +683,7 @@ let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t => {
 
 let fixed_constraint_pat =
     (
-      upat: UPat.t,
+      upat: Pat.t,
       ctx,
       mode: Mode.t,
       self: Self.pat,
@@ -709,7 +709,7 @@ let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
 /* Add derivable attributes for expression terms */
 let derived_exp =
     (
-      ~uexp: UExp.t,
+      ~uexp: Exp.t,
       ~ctx,
       ~mode,
       ~ancestors,
@@ -719,7 +719,7 @@ let derived_exp =
       ~sugar_info: option(sugar),
     )
     : exp => {
-  let cls = Cls.Exp(UExp.cls_of_term(uexp.term));
+  let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
   let status = status_exp(ctx, mode, self);
   let ty = fixed_typ_exp(ctx, mode, self);
   {
@@ -740,7 +740,7 @@ let derived_exp =
 /* Add derivable attributes for pattern terms */
 let derived_pat =
     (
-      ~upat: UPat.t,
+      ~upat: Pat.t,
       ~ctx,
       ~co_ctx,
       ~prev_synswitch,
@@ -751,7 +751,7 @@ let derived_pat =
       ~elaboration_provenance: option((pat, sugar)),
     )
     : pat => {
-  let cls = Cls.Pat(UPat.cls_of_term(upat.term));
+  let cls = Cls.Pat(Pat.cls_of_term(upat.term));
   let status = status_pat(ctx, mode, self);
   let ty = fixed_typ_pat(ctx, mode, self);
   let constraint_ = fixed_constraint_pat(upat, ctx, mode, self, constraint_);
@@ -772,10 +772,10 @@ let derived_pat =
 };
 
 /* Add derivable attributes for types */
-let derived_typ = (~utyp: UTyp.t, ~ctx, ~ancestors, ~expects): typ => {
+let derived_typ = (~utyp: Typ.t, ~ctx, ~ancestors, ~expects): typ => {
   let cls: Cls.t =
     /* Hack to improve CI display */
-    switch (expects, UTyp.cls_of_term(utyp.term)) {
+    switch (expects, Typ.cls_of_term(utyp.term)) {
     | (VariantExpected(_) | ConstructorExpected(_), Var) =>
       Cls.Typ(Constructor)
     | (_, cls) => Cls.Typ(cls)

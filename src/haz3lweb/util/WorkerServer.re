@@ -28,9 +28,7 @@ module Response = {
 };
 
 let work = (res: Request.value): Response.value =>
-  switch (
-    Haz3lcore.Evaluator.evaluate'(Haz3lcore.Builtins.env_init, {d: res})
-  ) {
+  switch (Haz3lcore.Evaluator.evaluate'(Haz3lcore.Builtins.env_init, res)) {
   | exception (Haz3lcore.EvaluatorError.Exception(reason)) =>
     print_endline(
       "EvaluatorError:" ++ Haz3lcore.EvaluatorError.show(reason),
