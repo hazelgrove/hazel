@@ -1213,3 +1213,9 @@ let typ_to_segment = (~settings, typ: Typ.t): Segment.t => {
   let p = typ_to_pretty(~settings, typ);
   p |> PrettySegment.select;
 };
+
+let any_to_segment = (~settings, any: Any.t): Segment.t => {
+  let any = any |> parenthesize_any;
+  let p = any_to_pretty(~settings, any);
+  p |> PrettySegment.select;
+};
