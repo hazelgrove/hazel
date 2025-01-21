@@ -85,13 +85,13 @@ let of_projector = (expected_sort, indent, shape: ProjectorCore.shape) => {
     switch (shape.vertical) {
     | Inline
     | Tab(0)
-    | Block(0) => ProjectorInfo.Shape.token(shape)
+    | Block(0) => ProjectorCore.token(shape)
     | Tab(num_lb) =>
       deferred_linebreaks := [num_lb, ...deferred_linebreaks^];
-      ProjectorInfo.Shape.token(shape);
+      ProjectorCore.token(shape);
     | Block(_) =>
       String.make(consume_deferred_linebreaks(), '\n')
-      ++ ProjectorInfo.Shape.token(shape)
+      ++ ProjectorCore.token(shape)
     };
   of_delim'(([token], false, expected_sort, true, true, indent, 0));
 };

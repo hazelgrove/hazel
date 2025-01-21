@@ -85,6 +85,12 @@ let shard_index = (z: ZipperBase.t): option(int) =>
 
 let for_index = piece'(~no_ws=false, ~ign=Piece.is_secondary);
 
+let direction = (z: ZipperBase.t): option(Direction.t) =>
+  switch (piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
+  | None => None
+  | Some((_, d, _)) => Some(d)
+  };
+
 let index = (z: ZipperBase.t): option(Id.t) =>
   switch (for_index(z)) {
   | None => None

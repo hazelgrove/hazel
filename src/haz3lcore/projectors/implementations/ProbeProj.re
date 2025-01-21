@@ -601,7 +601,13 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
   let init = init;
-  let can_project = (_, _) => true;
+  let can_project = (_, any: Term.Any.t) =>
+    switch (any) {
+    | Exp(_) => true
+    | Pat(_) => true
+    | _ => false
+    };
+
   let can_focus = false;
   let dynamics = true;
   let placeholder = placeholder;
