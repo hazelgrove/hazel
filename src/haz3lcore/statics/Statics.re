@@ -382,7 +382,7 @@ and uexp_to_info_map =
         m,
       );
     | TupLabel(label, e) =>
-      let (labmode, val_mode) = Mode.of_label(ctx, mode);
+      let (labmode, val_mode) = Mode.of_label(mode);
       let (lab, m) =
         go(
           ~mode=labmode,
@@ -1097,7 +1097,7 @@ and upat_to_info_map =
         m,
       );
     | TupLabel(label, p) =>
-      let (labmode, mode) = Mode.of_label(ctx, mode);
+      let (labmode, mode) = Mode.of_label(mode);
       let (lab, m) =
         go(
           ~ctx,
