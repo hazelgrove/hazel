@@ -58,12 +58,10 @@
 }
 
 #persistent .tab:hover {
-    background-color: var(--T2); /* Darken tab background on hover */
+    background-color: var(--T2); 
 }
 
-/* Optional: Add focus or active state to enhance interaction */
 #persistent .tab:focus,
 #persistent .tab:active {
-    background-color: var(--T2); /* Darken a little more when tab is active */
+    background-color: var(--T2); 
 }
-

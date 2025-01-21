@@ -24,7 +24,7 @@ let llm_toggle = (~globals: Globals.t): Node.t => {
       text("Manual LLM: "),
       Widgets.toggle(
         ~tooltip,
-        "🕵️‍♀️",
+        "🔎",
         globals.settings.assistant.llm,
         toggle_llm,
       ),
@@ -45,7 +45,7 @@ let lsp_toggle = (~globals: Globals.t): Node.t => {
       text("Manual LSP: "),
       Widgets.toggle(
         ~tooltip,
-        "🧑‍🔧",
+        "💬",
         globals.settings.assistant.lsp,
         toggle_lsp,
       ),

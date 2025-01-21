@@ -67,7 +67,7 @@
 #assistant .input-container {
     align-items: center;
     margin-top: auto;
-    padding: 2em 0em;
+    padding: .2em 0em;
     width: 100%;
     display: flex;
     gap: 10px;
