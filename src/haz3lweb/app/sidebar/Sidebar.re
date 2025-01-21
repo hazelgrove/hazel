@@ -28,7 +28,8 @@ let explain_this_tab = (~globals: Globals.t): Node.t => {
         Icons.explain_this,
         ~tooltip,
         switch_explain_this,
-        globals.settings.sidebar.window == LanguageDocumentation,
+        globals.settings.sidebar.window == LanguageDocumentation
+        && globals.settings.sidebar.show,
       ),
     ],
   );
@@ -48,7 +49,8 @@ let assistant_tab = (~globals: Globals.t): Node.t => {
         Icons.assistant,
         ~tooltip,
         switch_assistant,
-        globals.settings.sidebar.window == HelpfulAssistant,
+        globals.settings.sidebar.window == HelpfulAssistant
+        && globals.settings.sidebar.show,
       ),
     ],
   );

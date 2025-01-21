@@ -196,8 +196,11 @@ module Update = {
       | Sidebar(SwitchWindow(windowToSwitchTo)) => {
           ...settings,
           sidebar: {
+            show:
+              !settings.sidebar.show
+                ? true
+                : settings.sidebar.window == windowToSwitchTo ? false : true,
             window: windowToSwitchTo,
-            show: true,
           },
         }
       | ExplainThis(ToggleShowFeedback) => {
