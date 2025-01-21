@@ -11,14 +11,15 @@ let string_of = (any: Any.t): option(string) =>
 let get = (info: info): string =>
   switch ([info.syntax] |> info.utility.seg_to_term |> string_of) {
   | Some(s) => s
-  | None => failwith("TextArea: not string literal")
+  | None => failwith("TextArea: get: Not string literal")
   };
 
 let put = (info, s: string): syntax =>
   info.utility.lift_syntax(
     fun
-    | Exp(any) => Exp({...any, term: String(s)})
-    | any => any,
+    | Exp(any) =>
+      Exp({...any, term: String(StringUtil.escape_linebreaks(s))})
+    | _any => failwith("TextArea: put: not string literal"),
     info.syntax,
   );
 
@@ -53,9 +54,7 @@ let textarea =
       Attr.id(Id.cls(info.id)),
       Attr.on_keydown(key_handler(info.id, ~parent)),
       Attr.on_input((_, str) =>
-        Effect.(
-          Many([parent(SetSyntax(str |> Form.string_quote |> put(info)))])
-        )
+        Effect.(Many([parent(SetSyntax(str |> put(info)))]))
       ),
       /* Note: adding these handlers below because
        * currently these are handled on page level.
@@ -78,7 +77,7 @@ module M: Projector = {
   let can_focus = true;
   let dynamics = false;
   let placeholder = (_, info) => {
-    let str = info |> get |> Form.strip_quotes;
+    let str = info |> get;
     ProjectorCore.{
       vertical: Block(StringUtil.num_linebreaks(str)),
       /* +2 for left and right padding */
@@ -93,8 +92,7 @@ module M: Projector = {
       [
         Node.div(
           ~attrs=[Attr.classes(["cols", "code"])],
-          [Node.text("·")]
-          @ [textarea(info, ~parent, info |> get |> Form.strip_quotes)],
+          [Node.text("·")] @ [textarea(info, ~parent, info |> get)],
         ),
       ],
     );

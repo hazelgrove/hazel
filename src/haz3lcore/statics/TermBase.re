@@ -150,7 +150,7 @@ and environment_t = VarBstMap.Ordered.t_(exp_t)
 and closure_environment_t = {
   id: Id.t,
   env: environment_t,
-  stack: Probe.stack,
+  stack: Probe.closure_stack,
   call_stack: Probe.call_stack,
 }
 and stepper_filter_kind_t =
@@ -929,7 +929,7 @@ and ClosureEnvironment: {
 
   let id_of: t => Id.t;
   let map_of: t => Environment.t;
-  let stack_of: t => list(Probe.frame);
+  let stack_of: t => list(Probe.closure_frame);
   let call_stack_of: t => list(Probe.call_frame);
 
   let id_equal: (closure_environment_t, closure_environment_t) => bool;
@@ -946,11 +946,12 @@ and ClosureEnvironment: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = closure_environment_t;
 
-    let wrap: (Id.t, Environment.t, Probe.stack, Probe.call_stack) => t;
+    let wrap:
+      (Id.t, Environment.t, Probe.closure_stack, Probe.call_stack) => t;
 
     let id_of: t => Id.t;
     let map_of: t => Environment.t;
-    let stack_of: t => list(Probe.frame);
+    let stack_of: t => list(Probe.closure_frame);
     let call_stack_of: t => list(Probe.call_frame);
   } = {
     [@deriving (show({with_path: false}), sexp, yojson)]

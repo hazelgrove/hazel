@@ -68,7 +68,9 @@ let sort_of = (sort: Sort.t): sort =>
   switch (sort) {
   | Sort.Exp => Exp
   | Sort.Pat => Pat
-  | _ => failwith("ERROR: Card: Invalid sort")
+  | _ =>
+    print_endline("WARNING:Card: Invalid sort: " ++ Sort.show(sort));
+    Exp;
   };
 
 let to_sort = (sort: sort): Sort.t =>

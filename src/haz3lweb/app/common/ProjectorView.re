@@ -93,7 +93,7 @@ let view_wrapper =
 /* Dispatches projector external actions to editor-level actions */
 let handle = (id, action: external_action): Action.project =>
   switch (action) {
-  | Remove => Remove(id)
+  | Remove => RemoveIndicated
   | Escape(d) => Escape(id, d)
   | SetSyntax(f) => SetSyntax(id, f)
   };
@@ -137,7 +137,12 @@ type projector_data = {
 };
 
 let collect_data =
-    (cached_syntax: Editor.CachedSyntax.t, zipper, cached_statics, dynamics) => {
+    (
+      cached_syntax: Editor.CachedSyntax.t,
+      zipper,
+      cached_statics: CachedStatics.t,
+      dynamics,
+    ) => {
   let projector_ids = cached_syntax.projectors |> Id.Map.bindings |> List.rev;
   List.filter_map(
     ((id, _)) => {
@@ -148,7 +153,12 @@ let collect_data =
         indication: indication(zipper, id),
         selected: List.mem(id, cached_syntax.selection_ids),
         measurement,
-        info: ProjectorInfo.mk_info(id, p, ~cached_statics, ~dynamics),
+        info:
+          ProjectorInfo.mk_info(
+            p,
+            ~statics=cached_statics.info_map,
+            ~dynamics,
+          ),
         offside_base:
           offside_base(~offset=4, measurement, cached_syntax.measured),
       };

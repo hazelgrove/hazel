@@ -609,24 +609,59 @@ let go =
   );
 
 let any =
+  /* Returns Nul() unless segment represents a well-structured term in isolation.
+   * This means that the term is complete, modulo non-empty holes and sort errors.
+   * Specifically, it ensures there are no incomplete tiles in the segment, and
+   * that no contained sub-segment is non-convex. However, there can still be convex
+   * holes, singleton multiholes representing sort errors, non-singleton multiholes
+   * representing missing infix operators, and invalid tokens. */
   Core.Memo.general(~cache_size_bound=1000, (seg: Segment.t) =>
-    switch (
-      {
-        let skel = Segment.skel(seg);
-        (unsorted(skel, seg), Segment.sort_of(skel, seg));
-      }
-    ) {
-    | exception _ => TermBase.Nul()
-    | (unsorted, sort) =>
-      switch (sort) {
-      | Pat => Pat(pat(unsorted))
-      | TPat => TPat(tpat(unsorted))
-      | Typ => Typ(typ(unsorted))
-      | Exp => Exp(exp(unsorted))
-      | Rul => Rul(rul(unsorted))
-      | Nul => Nul()
-      | Any => Any()
-      }
+    if (!Segment.deep_tile_complete(seg)) {
+      /* Returns Nul if any subsegment contains incomplete tiles */
+      TermBase.Nul();
+    } else {
+      switch (Segment.skel(seg)) {
+      /* Returns Nul if any subsegment is non-convex */
+      | exception _ => TermBase.Nul()
+      | skel =>
+        let (unsorted, sort) = (
+          unsorted(skel, seg),
+          Segment.sort_of(skel, seg),
+        );
+        /* Tuple / Prod cases prevents projection of pseudo-terms
+         * consisting of partial tuples / list listerals. This is
+         * overly restrictive as it rejects unparenthesized
+         * tuples; for that to work the logic would be need
+         * to check the surrounding syntactic context, so would
+         * need to do it at the callsite rather than here */
+        switch (sort) {
+        | Exp =>
+          switch (exp(unsorted)) {
+          | {term: Tuple(_), _} => TermBase.Nul()
+          | _ => Exp(exp(unsorted))
+          }
+        | Pat =>
+          switch (pat(unsorted)) {
+          | {term: Tuple(_), _} => TermBase.Nul()
+          | _ => Pat(pat(unsorted))
+          }
+        | Typ =>
+          switch (typ(unsorted)) {
+          | {term: Prod(_), _} => TermBase.Nul()
+          | _ => Typ(typ(unsorted))
+          }
+        | TPat =>
+          switch (tpat(unsorted)) {
+          | _ => TPat(tpat(unsorted))
+          }
+        /* Rul case below prevents returning pseudo-terms
+         * consisting of case scrutinee + rule(s) */
+        | Rul => Nul()
+        | Any => Any() /* grout */
+        //TODO: Consider term rootted at concave grout
+        | Nul => Nul()
+        };
+      };
     }
   );
 

@@ -47,29 +47,6 @@ module Map = {
       [],
     );
 
-  /* If id is a closure-creating form, returns the id and the names
-   * and binding site ids for all variables bound by the closure */
-  let abstraction_at = (map: t, id: Id.t): option(Binding.site) =>
-    switch (lookup(id, map)) {
-    | Some(InfoExp({ctx, term: {term: Fun(pat, _, _, _), _}, _})) =>
-      Some({id, bound: Term.Pat.bound_var_ids(ctx, pat)})
-    | _ => None
-    };
-
-  /* Returns the ids and other binding site infor for all
-   * closure-creating forms enclosing the term with the provided id */
-  let enclosing_abstractions = (map: t, id: Id.t): list(Binding.site) =>
-    switch (lookup(id, map)) {
-    | Some(info) =>
-      Info.ancestors_of(info)
-      |> List.fold_left(
-           (abstractions, ancestor_id) =>
-             Option.to_list(abstraction_at(map, ancestor_id)) @ abstractions,
-           [],
-         )
-    | None => []
-    };
-
   /* The ids of binding sites for for all references in term with `id` */
   let refs_in = (m: t, id: Id.t): Binding.s =>
     switch (lookup(id, m)) {

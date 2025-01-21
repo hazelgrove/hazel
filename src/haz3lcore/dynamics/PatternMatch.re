@@ -12,9 +12,13 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
   };
 
 type closure_closures =
-  list((Probe.stack, Probe.call_stack) => (Id.t, Dynamics.Probe.Closure.t));
+  list(
+    (Probe.closure_stack, Probe.call_stack) =>
+    (Id.t, Dynamics.Probe.Closure.t),
+  );
 let closure_closures: ref(closure_closures) = ref([]);
 
+/* Closure capture for Probe instrumentation */
 let capture_closure = (pr, id: Id.t, d, inner_match: match_result): unit =>
   switch (inner_match) {
   | DoesNotMatch => ()

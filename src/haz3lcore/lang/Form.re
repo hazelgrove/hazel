@@ -211,6 +211,8 @@ let bad_token_cls: string => bad_token_cls =
     | _ => Other
     };
 
+let mk_parens = (sort: Sort.t) => mk(ii, tuple_lbl, mk_op(sort, [sort]));
+
 /* B. Operands:
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
@@ -296,9 +298,9 @@ let forms: list((string, t)) = [
   ("list_lit_pat", mk(ii, ["[", "]"], mk_op(Pat, [Pat]))),
   ("list_typ", mk(ii, ["[", "]"], mk_op(Typ, [Typ]))),
   //NOTE(andrew): parens being below aps is load-bearing, unfortunately
-  ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))),
-  ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
-  ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
+  ("parens_exp", mk_parens(Exp)),
+  ("parens_pat", mk_parens(Pat)),
+  ("parens_typ", mk_parens(Typ)),
   ("ap_exp_empty", mk(ii, ["()"], mk_post(P.ap, Exp, []))),
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),

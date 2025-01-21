@@ -36,7 +36,7 @@
 }
 
 .projector.probe.selected > svg {
-  display: none;
+  filter: none;
 }
 .projector.probe.indicated.Exp > svg {
   fill: var(--exp-indicated);
@@ -60,7 +60,8 @@
   cursor: pointer;
   align-items: center;
 }
-.projector.probe.indicated:not(.selected) .main {
+.projector.probe.indicated:not(.selected) .main,
+.cell-item:not(.selected) .projector.probe.indicated .main {
   color: white;
 }
 
