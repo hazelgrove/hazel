@@ -51,6 +51,10 @@ type t('syntax) = {
   model: string,
 };
 
+let livelit_projectors: list(kind) = [Checkbox, Slider, SliderF, TextArea];
+
+let projectors: list(kind) = livelit_projectors @ [Fold, Info, Probe];
+
 let inline = (width: int): shape => {horizontal: width, vertical: Inline};
 let default: shape = inline(0);
 
