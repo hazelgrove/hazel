@@ -156,28 +156,13 @@ let tests = (
           exp_to_segment(Exp.temp(Tuple([]))),
         );
         check(
-          segment,
+          option(segment),
           "2-ary",
-          [
-            Tile({
-              id: Id.invalid,
-              label: ["1"],
-              mold: Mold.mk_op(Exp, []),
-              shards: [0],
-              children: [],
-            }),
-            mk_form("comma_exp"),
-            Secondary(Secondary.mk_space(Id.invalid)),
-            Tile({
-              id: Id.invalid,
-              label: ["2"],
-              mold: Mold.mk_op(Exp, []),
-              shards: [0],
-              children: [],
-            }),
-          ],
-          exp_to_segment(
-            Exp.temp(Tuple([Exp.temp(Int(1)), Exp.temp(Int(2))])),
+          make_term_parse("(1, 2)"),
+          Some(
+            exp_to_segment(
+              Exp.temp(Tuple([Exp.temp(Int(1)), Exp.temp(Int(2))])),
+            ),
           ),
         );
       },
@@ -187,38 +172,21 @@ let tests = (
       `Quick,
       () => {
         check(
-          segment,
+          option(segment),
           "Singleton Labeled",
-          [
-            Tile({
-              id: Id.invalid,
-              label: ["x"],
-              mold: Mold.mk_op(Exp, []),
-              shards: [0],
-              children: [],
-            }),
-            Secondary(Secondary.mk_space(Id.invalid)),
-            mk_form("tuple_labeled_exp"),
-            Secondary(Secondary.mk_space(Id.invalid)),
-            Tile({
-              id: Id.invalid,
-              label: ["1"],
-              mold: Mold.mk_op(Exp, []),
-              shards: [0],
-              children: [],
-            }),
-          ],
-          exp_to_segment(
-            Exp.temp(
-              Tuple([
-                Exp.temp(
-                  TupLabel(Exp.temp(Label("x")), Exp.temp(Int(1))),
-                ),
-              ]),
+          make_term_parse("(x = 1)"),
+          Some(
+            exp_to_segment(
+              Exp.temp(
+                Tuple([
+                  Exp.temp(
+                    TupLabel(Exp.temp(Label("x")), Exp.temp(Int(1))),
+                  ),
+                ]),
+              ),
             ),
           ),
         );
-        equivalent_to_make_term({|x = 1, y = 2|});
         equivalent_to_make_term({|(x = 1, y = 2)|});
       },
     ),

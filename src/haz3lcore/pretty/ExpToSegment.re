@@ -884,7 +884,8 @@ let paren_typ_assoc_at =
   external_precedence_typ(typ) > internal_precedence
     ? Typ.fresh(Parens(typ)) : typ;
 
-let rec parenthesize = (~show_filters: bool, exp: Exp.t): Exp.t => {
+let rec parenthesize =
+        (~show_filters: bool, ~already_paren=false, exp: Exp.t): Exp.t => {
   let parenthesize = parenthesize(~show_filters);
   let parenthesize_pat = parenthesize_pat(~show_filters);
   let parenthesize_typ = parenthesize_typ(~show_filters);
@@ -901,12 +902,12 @@ let rec parenthesize = (~show_filters: bool, exp: Exp.t): Exp.t => {
   //| Constructor(_) // Not indivisible because of the type annotation!
   | Deferral(_)
   | BuiltinFun(_)
+  | Tuple([])
   | Undefined => exp
 
   // Forms that currently need to stripped before outputting
   | Closure(_, x)
-  | DynamicErrorHole(x, _)
-  | Tuple([x]) => parenthesize(x)
+  | DynamicErrorHole(x, _) => parenthesize(x)
   | Filter(Filter({pat, act}), x) =>
     Filter(Filter({pat: parenthesize(pat), act}), parenthesize(x))
     |> rewrap
@@ -926,10 +927,17 @@ let rec parenthesize = (~show_filters: bool, exp: Exp.t): Exp.t => {
     TypFun(tp, parenthesize(e) |> paren_assoc_at(Precedence.fun_), n)
     |> rewrap
   | Tuple(es) =>
-    Tuple(
-      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
-    )
-    |> rewrap
+    let inner =
+      Tuple(
+        es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
+      )
+      |> rewrap;
+
+    if (already_paren) {
+      inner;
+    } else {
+      Parens(inner) |> Exp.fresh;
+    };
   | Label(_) => exp
   | TupLabel(l, e) =>
     TupLabel(l, parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
@@ -1022,7 +1030,8 @@ let rec parenthesize = (~show_filters: bool, exp: Exp.t): Exp.t => {
   //   )
   //   |> rewrap
   | Parens(e) =>
-    Parens(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
+    Parens(parenthesize(~already_paren=true, e) |> paren_at(Precedence.min))
+    |> rewrap
   | Cons(e1, e2) =>
     Cons(
       parenthesize(e1) |> paren_at(Precedence.cons),
