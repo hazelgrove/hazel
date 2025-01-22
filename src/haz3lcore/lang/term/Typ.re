@@ -373,11 +373,6 @@ let rec match_synswitch = (t1: t, t2: t) => {
     Arrow(match_synswitch(ty1, ty1'), match_synswitch(ty2, ty2')) |> rewrap1
   | (Arrow(_), _) => t1
   | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
-    // TODO: Rearrange this prod?
-    let tys1 =
-      LabeledTuple.rearrange(get_label, get_label, tys1, tys2, (t, x) =>
-        TupLabel(Label(t) |> temp, x) |> temp
-      );
     let tys = List.map2(match_synswitch, tys1, tys2);
     Prod(tys) |> rewrap1;
   | (Prod(_), _) => t1
