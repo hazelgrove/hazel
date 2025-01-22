@@ -31,34 +31,45 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type party =
     | Prompt
-    | Human
+    | Task
     | LLM
-    | LSP;
+    | LS;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type message = {
     party,
-    msg: string,
-    // This id is to help group LLM/LSP chats together... helpful for knowing what to send to LLM
+    content: string,
+    // This id is to help group LLM/LS chats together... helpful for knowing what to send to LLM
     pass_id: int,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {chat: list(message)};
+  type t = {
+    chat: list(message) /*To-do: Add chat ids for saving past chats*/,
+    currSender: party,
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let init: t = {chat: []};
+  let init: t = {chat: [], currSender: Task};
 };
 
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | SendMessage(string);
+    | SendMessage(Model.message)
+    | EndChat;
 
   let update =
-      (~settings: Settings.t, action, model: Model.t): Updated.t(Model.t) => {
+      (~settings: Settings.t, ~action, ~model: Model.t): Updated.t(Model.t) => {
     switch (action) {
-    | SendMessage(message) => Model.{chat: []} |> Updated.return_quiet
+    | SendMessage(message) =>
+      Model.{
+        chat: model.chat @ [message],
+        currSender:
+          model.currSender == LLM || model.currSender == Task ? LS : LLM,
+      }
+      |> Updated.return_quiet
+    | EndChat => Model.{chat: [], currSender: Task} |> Updated.return_quiet
     };
   };
 };

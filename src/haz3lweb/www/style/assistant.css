@@ -108,3 +108,39 @@
     background-color: var(--T3);
 }
 
+/* Message Display Container */
+#assistant .message-display-container {
+    display: flex;
+    flex-direction: column;
+    margin-top: auto;
+    overflow-y: auto;
+    padding: 10px;
+    background-color: var(--UI-Background);
+    gap: 10px;
+}
+
+/* Individual message container */
+#assistant .message-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+#assistant .llm {
+    justify-content: none;
+}
+
+#assistant .ls {
+    justify-content: flex-end;
+}
+
+/* Content of the message */
+#assistant .message-content {
+    padding: 8px 12px;
+    background-color: var(--SAND);
+    border-radius: 12px;
+    font-size: 1em;
+    max-width: 80%;
+    word-wrap: break-word;
+}
+
