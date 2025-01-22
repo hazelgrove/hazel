@@ -239,7 +239,11 @@ module Update = {
     | Assistant(action) =>
       let settings = globals.settings.assistant;
       let* assistant =
-        AssistantModel.Update.update(~settings, action, model.assistant);
+        AssistantModel.Update.update(
+          ~settings,
+          ~action,
+          ~model=model.assistant,
+        );
       {...model, assistant};
     | MakeActive(selection) => {...model, selection} |> Updated.return
     | Benchmark(Start) =>

@@ -66,11 +66,12 @@ let begin_chat_button = (~globals: Globals.t): Node.t => {
   );
 };
 
-let end_chat_button = (~globals: Globals.t): Node.t => {
+let end_chat_button = (~globals: Globals.t, ~inject): Node.t => {
   let tooltip = "End Chat";
   let end_chat = _ =>
     Virtual_dom.Vdom.Effect.Many([
       globals.inject_global(Set(Assistant(UpdateChatStatus))),
+      inject(AssistantModel.Update.EndChat),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
@@ -90,9 +91,21 @@ let settings_box = (~globals: Globals.t): Node.t => {
   );
 };
 
-let message_input = (~signal, ~inject, ~globals: Globals.t): Node.t => {
+let message_input =
+    (
+      ~signal,
+      ~inject,
+      ~globals: Globals.t,
+      ~assistantModel: AssistantModel.Model.t,
+    )
+    : Node.t => {
   let handle_send = (message: string) => {
-    JsUtil.log("Message sent: " ++ message);
+    let message: AssistantModel.Model.message = {
+      party: assistantModel.currSender,
+      content: message,
+      pass_id: (-1) // russ todo: implement pass ID properly
+    };
+    JsUtil.log("Message sent: " ++ message.content);
     Virtual_dom.Vdom.Effect.Many([
       inject(AssistantModel.Update.SendMessage(message)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
@@ -142,7 +155,45 @@ let message_input = (~signal, ~inject, ~globals: Globals.t): Node.t => {
   );
 };
 
-let view = (~globals: Globals.t, ~signal, ~inject, ~assistantModel) => {
+let message_display =
+    (
+      ~signal,
+      ~inject,
+      ~globals: Globals.t,
+      ~assistantModel: AssistantModel.Model.t,
+    )
+    : Node.t => {
+  let message_nodes =
+    List.map(
+      (message: AssistantModel.Model.message) => {
+        div(
+          ~attrs=[
+            clss(["message-container", message.party == LLM ? "llm" : "ls"]),
+          ],
+          [
+            div(
+              ~attrs=[clss(["message-content"])],
+              [text(message.content)],
+            ),
+          ],
+        )
+      },
+      assistantModel.chat,
+    );
+  div(
+    ~attrs=[clss(["message-display-container"])],
+    message_nodes
+    @ [message_input(~signal, ~inject, ~globals, ~assistantModel)],
+  );
+};
+
+let view =
+    (
+      ~globals: Globals.t,
+      ~signal,
+      ~inject,
+      ~assistantModel: AssistantModel.Model.t,
+    ) => {
   div(
     ~attrs=[Attr.id("side-bar")],
     [
@@ -157,13 +208,14 @@ let view = (~globals: Globals.t, ~signal, ~inject, ~assistantModel) => {
                 [text("Agentic Assistant Chat")],
               ),
               globals.settings.assistant.ongoing_chat
-                ? end_chat_button(~globals) : None,
+                ? end_chat_button(~globals, ~inject) : None,
             ],
           ),
           globals.settings.assistant.ongoing_chat
             ? None : settings_box(~globals),
           globals.settings.assistant.ongoing_chat
-            ? message_input(~signal, ~inject, ~globals) : None,
+            ? message_display(~signal, ~inject, ~globals, ~assistantModel)
+            : None,
         ],
       ),
     ],
