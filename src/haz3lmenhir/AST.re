@@ -96,8 +96,8 @@ type typ =
   | InvalidTyp(string)
   | ForallType(tpat, typ)
   | RecType(tpat, typ)
-  | Label(string)
-  | TupLabel(typ, typ)
+  | LabelType(string)
+  | TupLabelType(typ, typ)
 and sumterm =
   | Variant(string, option(typ))
   | BadEntry(typ)
@@ -120,9 +120,9 @@ type pat =
   | ConsPat(pat, pat)
   | ListPat(list(pat))
   | ApPat(pat, pat)
-  | InvalidPat(string)
-  | TupLabel(pat, pat)
-  | Label(string); // Menhir parser doesn't actually support invalid pats
+  | InvalidPat(string) // Menhir parser doesn't actually support invalid pats
+  | TupLabelPat(pat, pat)
+  | LabelPat(string);
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type if_consistency =
@@ -287,6 +287,8 @@ let gen_string_literal: QCheck.Gen.t(string) =
   // TODO This should be anything printable other than `"`
   QCheck.Gen.(string_small_of(char_range('a', 'z')));
 
+let gen_label: QCheck.Gen.t(string) = gen_ident;
+
 /**
  * Generates an expression of a given size.
  *
@@ -312,8 +314,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
     fix(
       (self: int => t(exp), n) => {
         switch (n) {
-        | 0
-        | 1 => leaf
+        | n when n <= 1 => leaf
         | _ =>
           oneof([
             leaf,
@@ -326,7 +327,20 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
             {
               let* sizes = gen_non_singleton_array(n);
               let+ exps =
-                flatten_a(Array.map((size: int) => self(size), sizes));
+                flatten_a(
+                  Array.map(
+                    (size: int) =>
+                      oneof([
+                        {
+                          let* l = gen_label;
+                          let+ e = self(n - 1);
+                          TupLabel(Label(l), e);
+                        },
+                        self(size),
+                      ]),
+                    sizes,
+                  ),
+                );
               TupleExp(Array.to_list(exps));
             },
             {
@@ -464,7 +478,20 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
               {
                 let* sizes = gen_non_singleton_array(n);
                 let+ typs =
-                  flatten_a(Array.map((size: int) => self(size), sizes));
+                  flatten_a(
+                    Array.map(
+                      (size: int) =>
+                        oneof([
+                          self(size),
+                          {
+                            let* l = gen_label;
+                            let+ t = self(size - 1);
+                            TupLabelType(LabelType(l), t);
+                          },
+                        ]),
+                      sizes,
+                    ),
+                  );
                 TupleType(Array.to_list(typs));
               },
               {
@@ -564,7 +591,20 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
               {
                 let* sizes = gen_non_singleton_array(n - 1);
                 let+ pats =
-                  flatten_a(Array.map((size: int) => self(size), sizes));
+                  flatten_a(
+                    Array.map(
+                      (size: int) =>
+                        oneof([
+                          self(size),
+                          {
+                            let* l = gen_label;
+                            let+ p = self(n - 1);
+                            TupLabelPat(LabelPat(l), p);
+                          },
+                        ]),
+                      sizes,
+                    ),
+                  );
                 TuplePat(Array.to_list(pats));
               },
               {

@@ -106,11 +106,12 @@ let qcheck_menhir_maketerm_equivalent_test =
       let segment =
         ExpToSegment.exp_to_segment(
           ~settings=
-            ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+            ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
           core_exp,
         );
 
       let serialized = Printer.of_segment(~holes=Some("?"), segment);
+      print_endline("Serialized: " ++ serialized);
       let make_term_parsed = make_term_parse(serialized);
       let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
       let menhir_parsed_converted =
@@ -164,6 +165,7 @@ let qcheck_menhir_serialized_equivalent_test =
           core_exp,
         );
       let serialized = Printer.of_segment(~holes=Some("?"), segment);
+      print_endline("Serialized: " ++ serialized);
       let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
       AST.equal_exp(menhir_parsed, exp);
     },
@@ -501,6 +503,10 @@ let tests = (
       "f(1, 2)",
     ),
     menhir_maketerm_equivalent_test(
+      "example qcheck",
+      {|fun ((c = [])) -> 1|},
+    ),
+    menhir_maketerm_equivalent_test(
       "partial sum type",
       "type Partial = +Ok(?) + ? in ?",
     ),
@@ -822,7 +828,6 @@ let ex5 = list_of_mylist(x) in
       {|type ? = ((+ ? + ?)) in []|},
     ),
     QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
-    // Disabled due to bugs in ExpToSegment
     QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
   ],
 );
