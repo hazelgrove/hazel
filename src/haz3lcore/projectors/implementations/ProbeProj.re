@@ -19,7 +19,7 @@ type model = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
-  | PinAp(list(Id.t))
+  | PinAp(Probe.call_stack)
   | ChangeLength(Id.t, int)
   | Offset(int)
   | ToggleShowAllVals(int);
@@ -69,9 +69,9 @@ module DynCursor = {
   /* Manages shared state between probes */
 
   type t = {
-    mutable call_cursor: list(Id.t),
+    mutable call_cursor: Probe.call_stack,
     mutable indicated_call: option(Id.t),
-    mutable pinned_call: option(list(Id.t)),
+    mutable pinned_call: option(Probe.call_stack),
   };
 
   let s: t = {call_cursor: [], indicated_call: None, pinned_call: None};
@@ -104,7 +104,7 @@ module DynCursor = {
   };
 
   //use ListUtil.is_suffix_of
-  let is_strictly_above = (xs: list(Id.t), ys: list(Id.t)): bool =>
+  let is_strictly_above = (xs: Probe.call_stack, ys: Probe.call_stack): bool =>
     ListUtil.is_suffix_of(xs, ys) && xs != ys;
 
   let relation = (info: info, closure: closure): relation => {
@@ -466,7 +466,12 @@ let pin_view = (info: info, closure: closure) =>
 
 let syntax_str = (info: info) => {
   let max_len = 30;
-  let str = Printer.of_segment(~holes=Some("?"), [info.syntax]);
+  let seg =
+    switch (Segment.unparenthesize(info.syntax)) {
+    | Some(seg) => seg
+    | None => [info.syntax]
+    };
+  let str = Printer.of_segment(~holes=Some("?"), seg);
   let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
   String.length(str) > max_len ? String.sub(str, 0, max_len) ++ "..." : str;
 };
@@ -507,8 +512,16 @@ let view = (info: info): Node.t => {
     Effect.Ignore;
   };
 
+  let check_if_already = (closures: list(closure)): bool => {
+    List.exists(
+      (closure: closure) => DynCursor.s.call_cursor == closure.call_stack,
+      closures,
+    );
+  };
+
   let on_pointerdown = _ => {
     switch (info.dynamics) {
+    | Some(di) when check_if_already(di) => ()
     | Some(di) =>
       switch (di) {
       | [first_closure, ..._] => DynCursor.capture(info, first_closure)

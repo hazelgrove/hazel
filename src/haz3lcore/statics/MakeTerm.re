@@ -619,6 +619,9 @@ let any =
     if (!Segment.deep_tile_complete(seg)) {
       /* Returns Nul if any subsegment contains incomplete tiles */
       TermBase.Nul();
+    } else if (Segment.is_padded(seg)) {
+      /* Returns Nul the segment has secondary around it */
+      TermBase.Nul();
     } else {
       switch (Segment.skel(seg)) {
       /* Returns Nul if any subsegment is non-convex */

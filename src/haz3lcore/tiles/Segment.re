@@ -777,6 +777,27 @@ let unparenthesize = (piece: Piece.t): option(t) =>
   | _ => None
   };
 
+let rec take_while_secondary = (seg: t): (t, t) =>
+  switch (seg) {
+  | [] => ([], [])
+  | [Piece.Secondary(_) as p, ...rest] =>
+    let (taken, remaining) = take_while_secondary(rest);
+    ([p, ...taken], remaining);
+  | rest => ([], rest)
+  };
+
+let padding_of = (seg: t): (t, t) => {
+  let (left, rest) = take_while_secondary(seg);
+  let (right, _) = take_while_secondary(List.rev(rest));
+  (left, List.rev(right));
+};
+
+let is_padded = (seg: t): bool =>
+  switch (padding_of(seg)) {
+  | ([], []) => false
+  | _ => true
+  };
+
 module IDs = {
   /* Assign new ids for every piece in segment */
   let rec replace = (seg: t): t => List.map(replace_piece, seg)

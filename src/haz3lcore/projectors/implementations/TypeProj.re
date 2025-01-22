@@ -45,10 +45,11 @@ module M: Projector = {
   let underlay_view = Option.None;
   let focus = _ => ();
 
-  let can_project = (p: Piece.t, _): bool => {
-    switch (Piece.sort(p)) {
-    | (Exp | Pat, _) => true
-    | _ when Piece.is_grout(p) => true /* Grout don't have sorts rn */
+  let can_project = (_: Piece.t, any: Term.Any.t): bool => {
+    switch (any) {
+    | Exp(_)
+    | Pat(_) => true
+    | Any () => true /* Grout don't have sorts rn */
     | _ => false
     };
   };
@@ -90,7 +91,12 @@ module M: Projector = {
 
   let syntax_str = (info: info) => {
     let max_len = 30;
-    let str = Printer.of_segment(~holes=Some("?"), [info.syntax]);
+    let seg =
+      switch (Segment.unparenthesize(info.syntax)) {
+      | Some(seg) => seg
+      | None => [info.syntax]
+      };
+    let str = Printer.of_segment(~holes=Some("?"), seg);
     let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
     String.length(str) > max_len
       ? String.sub(str, 0, max_len) ++ "..." : str;
