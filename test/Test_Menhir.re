@@ -408,7 +408,7 @@ let tests = (
         Float(8.) |> Exp.fresh,
       )
       |> Exp.fresh,
-      "2. -. 3. /. 4. *. 5. **. 6. <. 8.",
+      "2.000000 -. 3.000000 /. 4.000000 *. 5.000000 **. 6.000000 <. 8.000000",
     ),
     full_parser_test(
       "Let binding with type ascription",

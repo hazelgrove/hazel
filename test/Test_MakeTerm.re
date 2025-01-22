@@ -28,6 +28,17 @@ let tests = (
     test_case("Parenthesized Expression", `Quick, () => {
       exp_check(Parens(Int(0) |> Exp.fresh) |> Exp.fresh, "(0)")
     }),
+    test_case("Floating operation", `Quick, () => {
+      exp_check(
+        BinOp(
+          Float(Plus),
+          Float(1.0) |> Exp.fresh,
+          Float(2.0) |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        "1. +. 2.",
+      )
+    }),
     test_case("Let Expression", `Quick, () => {
       exp_check(
         Let(

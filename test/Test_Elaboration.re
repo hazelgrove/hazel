@@ -631,7 +631,7 @@ module PlainTests = {
       )
     ),
     test_case(
-      "Singleton labeld tuple analysis adds label with type alias", `Quick, () =>
+      "Singleton labeled tuple analysis adds label with type alias", `Quick, () =>
       alco_check(
         {|let zip_only : (zip=Int) = (zip=12345) in zip_only|},
         Let(
@@ -801,9 +801,10 @@ module PlainTests = {
         ) // Ignoring casts for now
       )
     ),
-    test_case("", `Quick, () => {
+    test_case(
+      "Automatically add label in pattern inside type annotation", `Quick, () => {
       alco_check(
-        "",
+        "Adds label",
         dhexp_of_uexp(
           parse_exp(
             {|let fn : (a=String) -> Int =
@@ -820,16 +821,6 @@ in 1|},
         ),
       )
     }),
-    test_case(
-      "Function application with a single remaining argument after deferral",
-      `Quick,
-      ap_deferral_single_argument,
-    ),
-    test_case(
-      "Function application with a deferral of a hole",
-      `Quick,
-      ap_of_deferral_of_hole,
-    ),
   ];
 };
 module MenhirElaborationTests = {

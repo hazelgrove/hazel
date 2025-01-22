@@ -224,7 +224,7 @@ let tests = (
     ),
     test_case("Doc page labeled tuple example", `Quick, () => {
       equivalent_to_make_term(
-        {|let labeled_tuple = (a = 1, b = 2., c = true) in let prj_a = labeled_tuple . a in prj_a|},
+        {|let labeled_tuple = (a = 1, b = 2.000000, c = true) in let prj_a = labeled_tuple . a in prj_a|},
       )
     }),
     test_case(
