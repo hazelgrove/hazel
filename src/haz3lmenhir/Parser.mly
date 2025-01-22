@@ -202,12 +202,16 @@ program:
 binExp:
     | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
 
+tupTypeEntry:
+    | t = typ {t}
+    | label = IDENT; SINGLE_EQUAL; t = typ { TupLabelType(LabelType(label), t) }
+
 %inline tupleType:
-    | OPEN_PAREN; hd = typ; COMMA; types = separated_list(COMMA, typ); CLOSE_PAREN { TupleType(hd :: types) }
+    | OPEN_PAREN; hd = tupTypeEntry; COMMA; types = separated_list(COMMA, tupTypeEntry); CLOSE_PAREN { TupleType(hd :: types) }
 
 
 %inline sumTerm:
-    | i = CONSTRUCTOR_IDENT; OPEN_PAREN; hd = typ; COMMA; types = separated_list(COMMA, typ); CLOSE_PAREN  { Variant(i, Some(TupleType(hd :: types))) }
+    | i = CONSTRUCTOR_IDENT; OPEN_PAREN; hd = tupTypeEntry; COMMA; types = separated_list(COMMA, tupTypeEntry); CLOSE_PAREN  { Variant(i, Some(TupleType(hd :: types))) }
     | i = CONSTRUCTOR_IDENT; OPEN_PAREN; t = typ; CLOSE_PAREN;  { Variant(i, Some(t)) }
     | i = CONSTRUCTOR_IDENT { Variant(i, None) }
     | QUESTION { BadEntry(UnknownType(EmptyHole)) }
@@ -237,9 +241,14 @@ typ:
     | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, t) }
     | OPEN_PAREN; t = typ; CLOSE_PAREN { t }
 
+tupPatEntry:
+    | p = pat {p}
+    | label = IDENT; SINGLE_EQUAL; p = pat { TupLabelPat(LabelPat(label), p) }
+
 nonAscriptingPat:
     | OPEN_PAREN; p = pat; CLOSE_PAREN { p }
-    | OPEN_PAREN; p = pat; COMMA; pats = separated_list(COMMA, pat); CLOSE_PAREN { TuplePat(p :: pats) }
+    | OPEN_PAREN; label = IDENT; SINGLE_EQUAL; p = pat; CLOSE_PAREN { TuplePat([TupLabelPat(LabelPat(label), p)]) }
+    | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_list(COMMA, tupPatEntry); CLOSE_PAREN { TuplePat(p :: pats) }
     |  P_PAT; s = STRING { InvalidPat(s) }
     | WILD { WildPat }
     | QUESTION { EmptyHolePat }
@@ -297,6 +306,9 @@ unExp:
     | MINUS; e = exp {UnOp(Int(Minus), e)} %prec UMINUS
     | L_NOT; e = exp {UnOp(Bool(Not), e)}
 
+tupExpEntry:
+    | e = exp {e}
+    | label = IDENT; SINGLE_EQUAL; e = exp {TupLabel(Label(label), e)}
 
 exp:
     | b = binExp { b }
@@ -308,7 +320,7 @@ exp:
     | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { Cast(Constructor(c, UnknownType(Internal)), UnknownType(Internal), t) }
     | s = STRING { String s}
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
-    | OPEN_PAREN; e = exp; COMMA; l = separated_list(COMMA, exp); CLOSE_PAREN { TupleExp(e :: l) }
+    | OPEN_PAREN; e = tupExpEntry; COMMA; l = separated_list(COMMA, tupExpEntry); CLOSE_PAREN { TupleExp(e :: l) }
     | UNIT { TupleExp([]) }
     | c = case { c }
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ListExp(e) }
