@@ -385,8 +385,9 @@ and Typ: {
     | TupleType([t]) => Parens(of_menhir_ast(t))
     | TupleType(ts) =>
       Parens(Prod(List.map(of_menhir_ast, ts)) |> Haz3lcore.Typ.fresh)
-    | Label(s) => Label(s)
-    | TupLabel(t1, t2) => TupLabel(of_menhir_ast(t1), of_menhir_ast(t2))
+    | LabelType(s) => Label(s)
+    | TupLabelType(t1, t2) =>
+      TupLabel(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => List(of_menhir_ast(t))
     | ArrowType(t1, t2) => Arrow(of_menhir_ast(t1), of_menhir_ast(t2))
     | SumTyp(sumterms) =>
@@ -435,8 +436,8 @@ and Typ: {
     | Forall(tp, t) => ForallType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
     | Parens(t) => of_core(t)
-    | Label(s) => Label(s)
-    | TupLabel(t1, t2) => TupLabel(of_core(t1), of_core(t2))
+    | Label(s) => LabelType(s)
+    | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
     | Ap(_) => raise(Failure("Ap not supported"))
     | Sum(constructors) =>
       let sumterms =
@@ -511,8 +512,8 @@ and Pat: {
     | BoolPat(b) => Bool(b)
     | EmptyHolePat => EmptyHole
     | WildPat => Wild
-    | Label(s) => Label(s)
-    | TupLabel(p1, p2) =>
+    | LabelPat(s) => Label(s)
+    | TupLabelPat(p1, p2) =>
       Parens(
         TupLabel(of_menhir_ast(p1), of_menhir_ast(p2))
         |> Haz3lcore.Pat.fresh,
@@ -542,8 +543,8 @@ and Pat: {
     | Cast(p, t1, t2) =>
       CastPat(of_core(p), Typ.of_core(t1), Typ.of_core(t2))
     | Parens(p) => of_core(p)
-    | Label(s) => Label(s)
-    | TupLabel(p1, p2) => TupLabel(of_core(p1), of_core(p2))
+    | Label(s) => LabelPat(s)
+    | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))
     };
   };
 };
