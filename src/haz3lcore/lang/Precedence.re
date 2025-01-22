@@ -78,13 +78,15 @@ let or_ = 33 |> right_associative;
 // false || _____
 let if_ = 35;
 let fun_ = 36;
-let lab = 37; // TODO
 // fun x -> _____
-let prod = 38;
+let prod = 37;
 // a , _____ , x
 // _____ ; ()
-let semi = 39 |> right_associative;
+let semi = 38 |> right_associative;
 // () ; _____
+
+let lab = 39; // TODO
+
 let let_ = 40;
 // let x = 3 in _____
 let rule_arr = 41;
