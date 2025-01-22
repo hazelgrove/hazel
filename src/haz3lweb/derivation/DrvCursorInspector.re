@@ -18,6 +18,7 @@ let drv_view = (~globals, status: DrvInfo.t) => {
         fold_fn_bodies: false,
         hide_fixpoints: false,
         fold_cast_types: false,
+        show_filters: false,
       },
       ~info_map=Id.Map.empty,
     );
