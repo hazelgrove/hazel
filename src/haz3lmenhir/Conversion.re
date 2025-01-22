@@ -513,11 +513,7 @@ and Pat: {
     | EmptyHolePat => EmptyHole
     | WildPat => Wild
     | LabelPat(s) => Label(s)
-    | TupLabelPat(p1, p2) =>
-      Parens(
-        TupLabel(of_menhir_ast(p1), of_menhir_ast(p2))
-        |> Haz3lcore.Pat.fresh,
-      )
+    | TupLabelPat(p1, p2) => TupLabel(of_menhir_ast(p1), of_menhir_ast(p2))
     | ListPat(l) => ListLit(List.map(of_menhir_ast, l))
     };
   }
