@@ -36,7 +36,7 @@
 }
 
 .projector.probe.selected > svg {
-  display: none;
+  filter: none;
 }
 .projector.probe.indicated.Exp > svg {
   fill: var(--exp-indicated);
@@ -60,7 +60,8 @@
   cursor: pointer;
   align-items: center;
 }
-.projector.probe.indicated:not(.selected) .main {
+.projector.probe.indicated:not(.selected) .main,
+.cell-item:not(.selected) .projector.probe.indicated .main {
   color: white;
 }
 
@@ -316,10 +317,13 @@
 .projector.probe .closure:hover:not(:has(.long)) {
   scale: 1.18;
 }
-.closure:hover:not(:has(.long)) + .closure,
-.closure:has(+ .closure:hover:not(:has(.long))) {
-  /* transform-origin: center left; */
+.projector.probe .closure:hover + .closure:not(:has(.long)),
+.projector.probe .closure:has(+ .closure:hover):not(:has(.long)) {
   scale: 1.12;
+}
+.projector.probe .closure:hover + * + .closure:not(:has(.long)),
+.projector.probe .closure:has(+ * + .closure:hover):not(:has(.long)) {
+  scale: 1.04;
 }
 
 /* TOKENS */
@@ -351,6 +355,8 @@
   gap: 0.3em;
   align-items: baseline;
   color: var(--GB0);
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
 }
 
 .projector.probe.indicated .closure:hover .live-env {

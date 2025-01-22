@@ -19,7 +19,7 @@ type model = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
-  | PinAp(list(Id.t))
+  | PinAp(Probe.call_stack)
   | ChangeLength(Id.t, int)
   | Offset(int)
   | ToggleShowAllVals(int);
@@ -55,6 +55,14 @@ let cur_ap = (info: info) =>
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
   | Some(InfoExp({term: {term: Wrap({term: Ap(_), _} as ap, _), _}, _})) =>
     Some(Term.Exp.rep_id(ap))
+  | Some(
+      InfoExp({
+        term:
+          {term: Wrap({term: Wrap({term: Ap(_), _} as ap, _), _}, _), _},
+        _,
+      }),
+    ) =>
+    Some(Term.Exp.rep_id(ap))
   | _ => None
   };
 
@@ -69,9 +77,9 @@ module DynCursor = {
   /* Manages shared state between probes */
 
   type t = {
-    mutable call_cursor: list(Id.t),
+    mutable call_cursor: Probe.call_stack,
     mutable indicated_call: option(Id.t),
-    mutable pinned_call: option(list(Id.t)),
+    mutable pinned_call: option(Probe.call_stack),
   };
 
   let s: t = {call_cursor: [], indicated_call: None, pinned_call: None};
@@ -104,21 +112,21 @@ module DynCursor = {
   };
 
   //use ListUtil.is_suffix_of
-  let is_strictly_above = (xs: list(Id.t), ys: list(Id.t)): bool =>
+  let is_strictly_above = (xs: Probe.call_stack, ys: Probe.call_stack): bool =>
     ListUtil.is_suffix_of(xs, ys) && xs != ys;
 
   let relation = (info: info, closure: closure): relation => {
     let this = closure.call_stack;
     let cursor = s.call_cursor;
     //ListUtil.suffix_at_depth(cursor, this, 0) != None
-    let cond =
+    let _cond =
       if (List.mem(ListUtil.hd_opt(this), cursor |> List.map(Option.some))) {
         cursor == this;
       } else {
         is_strictly_above(this, cursor);
       };
     {
-      is_call_cursor: cursor == this || cond,
+      is_call_cursor: cursor == this,
       is_call_directly_above_call_cursor:
         cur_call(info, closure) == Some(cursor),
       is_below_indicated_call: depth_in_indicated_calls_stack(this),
@@ -239,6 +247,8 @@ module Debug = {
     )
     ++ "\nstack:\n"
     ++ stack(closure.call_stack);
+  // ++ "DynCursor:\n"
+  // ++ String.concat("\n", DynCursor.clss(info, closure));
   // ++ "\nstack:\n"
   // ++ stack(closure.stack);
 };
@@ -466,7 +476,12 @@ let pin_view = (info: info, closure: closure) =>
 
 let syntax_str = (info: info) => {
   let max_len = 30;
-  let str = Printer.of_segment(~holes=Some("?"), [info.syntax]);
+  let seg =
+    switch (Segment.unparenthesize(info.syntax)) {
+    | Some(seg) => seg
+    | None => [info.syntax]
+    };
+  let str = Printer.of_segment(~holes=Some("?"), seg);
   let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
   String.length(str) > max_len ? String.sub(str, 0, max_len) ++ "..." : str;
 };
@@ -507,8 +522,15 @@ let view = (info: info): Node.t => {
     Effect.Ignore;
   };
 
+  let check_if_already = (closures: list(closure)): bool =>
+    List.exists(
+      (closure: closure) => DynCursor.s.call_cursor == closure.call_stack,
+      closures,
+    );
+
   let on_pointerdown = _ => {
     switch (info.dynamics) {
+    | Some(di) when check_if_already(di) => ()
     | Some(di) =>
       switch (di) {
       | [first_closure, ..._] => DynCursor.capture(info, first_closure)
@@ -601,7 +623,13 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
   let init = init;
-  let can_project = (_, _) => true;
+  let can_project = (_, any: Term.Any.t) =>
+    switch (any) {
+    | Exp(_) => true
+    | Pat(_) => true
+    | _ => false
+    };
+
   let can_focus = false;
   let dynamics = true;
   let placeholder = placeholder;

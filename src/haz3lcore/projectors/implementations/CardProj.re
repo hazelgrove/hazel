@@ -68,7 +68,9 @@ let sort_of = (sort: Sort.t): sort =>
   switch (sort) {
   | Sort.Exp => Exp
   | Sort.Pat => Pat
-  | _ => failwith("ERROR: Card: Invalid sort")
+  | _ =>
+    print_endline("WARNING:Card: Invalid sort: " ++ Sort.show(sort));
+    Exp;
   };
 
 let to_sort = (sort: sort): Sort.t =>
@@ -105,6 +107,13 @@ module Syntax = {
     Core.Memo.general(~cache_size_bound=1000, (piece: Piece.t) =>
       (
         switch (piece) {
+        | Tile({
+            label: ["(", ")"],
+            children:
+              [[Tile({label: ["(", ")"], children: [segment], _})]],
+            _,
+          })
+        //TODO: better unwrapping
         | Tile({label: ["(", ")"], children: [segment], _}) =>
           switch (rm_secondary(segment)) {
           | [left_child, Tile({label: [","], _}), right_child] =>
@@ -119,6 +128,11 @@ module Syntax = {
 
   let piece_to_hand = (piece: Piece.t): option(hand) => {
     switch (piece) {
+    | Tile({
+        label: ["(", ")"],
+        children: [[Tile({label: ["[", "]"], children: [segment], _})]],
+        _,
+      })
     | Tile({label: ["[", "]"], children: [segment], _}) =>
       segment |> rm_secondary |> List.filter_map(piece_to_card) |> Option.some
     | _ => None
@@ -167,24 +181,24 @@ module Syntax = {
     };
 
   let card_to_piece_exp = ((suit, rank): card): Piece.t =>
-    mk_tuple(
-      Sort.Exp,
-      [
-        piece_of_suit(suit),
-        Piece.mk_tile(Form.get("comma_exp"), []),
-        piece_of_rank(rank),
-      ],
-    );
+    [
+      piece_of_suit(suit),
+      Piece.mk_tile(Form.get("comma_exp"), []),
+      piece_of_rank(rank),
+    ]
+    |> mk_tuple(Sort.Exp)
+    |> (x => [x])
+    |> mk_tuple(Sort.Exp);
 
   let card_to_piece_pat = ((suit, rank): card): Piece.t =>
-    mk_tuple(
-      Sort.Pat,
-      [
-        piece_of_suit(suit),
-        Piece.mk_tile(Form.get("comma_pat"), []),
-        piece_of_rank(rank),
-      ],
-    );
+    [
+      piece_of_suit(suit),
+      Piece.mk_tile(Form.get("comma_pat"), []),
+      piece_of_rank(rank),
+    ]
+    |> mk_tuple(Sort.Pat)
+    |> (x => [x])
+    |> mk_tuple(Sort.Pat);
 
   let hand_to_piece_exp = (hand: hand): Piece.t =>
     mk_tuple(Sort.Exp, List.map(card_to_piece_exp, hand));
@@ -484,12 +498,9 @@ module CardInHand = {
   };
 };
 
-let of_id = (id: Id.t) =>
-  "id" ++ (id |> Id.to_string |> String.sub(_, 0, 8));
-// return a list of strings "card-index-<index>" for cards in hand
 let hand_elem_ids = (id, hand: hand): list(string) =>
   List.mapi(
-    (i, _) => of_id(id) ++ "card-index-" ++ string_of_int(i),
+    (i, _) => Id.cls(id) ++ "card-index-" ++ string_of_int(i),
     hand,
   );
 
@@ -509,7 +520,7 @@ module Hand = {
       : Node.t =>
     Node.div(
       ~attrs=[
-        Attr.id(of_id(id) ++ "card-index-" ++ string_of_int(index)),
+        Attr.id(Id.cls(id) ++ "card-index-" ++ string_of_int(index)),
         Attr.class_("card-wrapper"),
         Attr.create(
           "style",

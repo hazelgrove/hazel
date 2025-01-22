@@ -43,6 +43,11 @@ type select =
   | Tile(rel)
   | Term(rel);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type livelit_toggle =
+  | Specific(ProjectorCore.kind)
+  | ChooseLivelit;
+
 /* This type defines the top-level actions used to manage
  * projectors,as distinguished from external_action,
  * which defines the actions available internally to all projectors,
@@ -50,8 +55,8 @@ type select =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type project =
   | SetIndicated(ProjectorCore.kind) /* Project syntax at caret */
-  | ToggleIndicated(ProjectorCore.kind) /* Un/Project syntax at caret */
-  | Remove(Id.t) /* Remove projector at Id */
+  | ToggleIndicated(livelit_toggle) /* Un/Project syntax at caret */
+  | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(Id.t, Piece.t) /* Set underlying syntax */
   | SetModel(Id.t, string) /* Set serialized projector model */
   | Focus(Id.t, option(Util.Direction.t)) /* Pass control to projector */
@@ -68,10 +73,15 @@ type buffer =
   | Accept;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type paste =
+  | String(string)
+  | Segment(Segment.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Reparse
   | Buffer(buffer)
-  | Paste(string)
+  | Paste(paste)
   | Copy
   | Cut
   | Project(project)
@@ -132,7 +142,7 @@ let is_edit: t => bool =
     | SetModel(_)
     | SetIndicated(_)
     | ToggleIndicated(_)
-    | Remove(_) => true
+    | RemoveIndicated => true
     | Focus(_)
     | Escape(_) => false
     };
@@ -162,7 +172,7 @@ let is_historic: t => bool =
     | SetModel(_)
     | SetIndicated(_)
     | ToggleIndicated(_)
-    | Remove(_) => true
+    | RemoveIndicated => true
     | Focus(_)
     | Escape(_) => false
     };
@@ -190,7 +200,7 @@ let prevent_in_read_only_editor = (a: t) => {
     | SetModel(_)
     | SetIndicated(_)
     | ToggleIndicated(_)
-    | Remove(_)
+    | RemoveIndicated
     | Focus(_)
     | Escape(_) => false
     }

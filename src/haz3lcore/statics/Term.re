@@ -778,6 +778,19 @@ module Exp = {
     | _ => None
     };
   };
+
+  /* Strips outer parentheses, unless the
+   * innermost outer parenthesis is on a tuple */
+  let rec strip_wrap = (e: t): t => {
+    switch (e.term) {
+    | Wrap(inner, _) =>
+      switch (inner.term) {
+      | Tuple(_) => e
+      | _ => strip_wrap(inner)
+      }
+    | _ => e
+    };
+  };
 };
 
 module Rul = {

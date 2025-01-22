@@ -28,10 +28,7 @@ let sel_shard_svg =
       ),
       None,
     )
-  | Projector(p) =>
-    ProjectorBase.mold_of(p, Any)
-    |> Mold.nib_shapes
-    |> PieceDec.tips_of_shapes
+  | Projector(p) => p |> ProjectorBase.shapes |> PieceDec.tips_of_shapes
   },
 );
 
@@ -269,7 +266,7 @@ module Deco =
               measurement,
               tips: p |> ProjectorBase.shapes |> PieceDec.tips_of_shapes,
             },
-            ~sort=ProjectorBase.mold_of(p, Exp).out,
+            ~sort=p.syntax |> Piece.sort |> fst,
             ~at_caret=true,
           ),
         ]

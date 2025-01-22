@@ -51,6 +51,7 @@ let chonky_shard_path_base =
       chevron(r, Right),
       [H_({dx: -. length}), v(~y=1)],
       chevron(l, Left),
+      [Z],
     ],
   );
 };

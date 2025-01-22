@@ -9,39 +9,35 @@ open Util;
  * the `frame` type. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  refs: Binding.s,
-  stem: Binding.stem,
-};
+type t = {refs: Binding.s};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tag =
   | Paren
   | Probe(t);
 
+/* A function call at function ap of id */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type call_frame = Id.t;
 
+/* A call at stack represented by function ap ids */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type call_stack = list(call_frame);
 
-/* Information about the evaluation of an ap */
+/* Lexical stack frame */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type frame = {
-  ap_id: Id.t, /* Syntax ID of the ap */
-  env_id: Id.t /* ID of env in which ap was applied */
+type closure_frame = {
+  ap_id: Id.t, /* Syntax id of the ap */
+  env_id: Id.t /* id of parent closure environment */
 };
 
-/* List of applications prior to some evaluation */
+/* Fixed-depth stack of closures from nested function literals */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type stack = list(frame);
+type closure_stack = list(closure_frame);
 
-let empty: t = {refs: [], stem: []};
+let empty: t = {refs: []};
 
-let env_stack: list(frame) => list(Id.t) =
-  List.map((en: frame) => en.env_id);
-
-let call_stack: list(frame) => list(Id.t) =
-  List.map((en: frame) => en.ap_id);
-
-let mk_frame = (~env_id: Id.t, ~ap_id: Id.t): frame => {env_id, ap_id};
+let mk_frame = (~env_id: Id.t, ~ap_id: Id.t): closure_frame => {
+  env_id,
+  ap_id,
+};

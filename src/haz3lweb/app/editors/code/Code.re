@@ -116,13 +116,13 @@ let of_projector = (expected_sort, indent, shape: ProjectorCore.shape) => {
     switch (shape.vertical) {
     | Inline
     | Tab(0)
-    | Block(0) => ProjectorInfo.Shape.token(shape)
+    | Block(0) => ProjectorCore.token(shape)
     | Tab(num_lb) =>
       deferred_linebreaks := [num_lb, ...deferred_linebreaks^];
-      ProjectorInfo.Shape.token(shape);
+      ProjectorCore.token(shape);
     | Block(_) =>
       String.make(consume_deferred_linebreaks(), '\n')
-      ++ ProjectorInfo.Shape.token(shape)
+      ++ ProjectorCore.token(shape)
     };
   of_delim'((
     Id.invalid,
@@ -142,6 +142,7 @@ module Text =
            let map: Measured.t;
            let settings: Settings.Model.t;
            let shape_of_proj: Base.projector => ProjectorCore.shape;
+           let font_metrics: FontMetrics.t;
          },
        ) => {
   deferred_linebreaks := [];
@@ -170,7 +171,7 @@ module Text =
       (buffer_ids, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
     switch (p) {
     | Tile(t) => of_tile(buffer_ids, expected_sort, t)
-    | Grout(_) => of_grout
+    | Grout(g) => [EmptyHoleDec.view(M.font_metrics, g.shape)]
     | Secondary(s) =>
       of_secondary(s, M.settings.secondary_icons, m(p).last.col)
     | Projector(p) =>
@@ -200,26 +201,8 @@ module Text =
   };
 };
 
-let rec holes =
-        (~font_metrics, ~map: Measured.t, seg: Segment.t): list(Node.t) =>
-  seg
-  |> List.concat_map(
-       fun
-       | Piece.Secondary(_) => []
-       | Projector(_) => []
-       | Tile(t) => List.concat_map(holes(~map, ~font_metrics), t.children)
-       | Grout(g) => [
-           EmptyHoleDec.view(
-             ~font_metrics, // TODO(d) fix sort
-             {
-               measurement: Measured.find_g(~msg="Code.holes", g, map),
-               mold: Mold.of_grout(g, Any),
-             },
-           ),
-         ],
-     );
-
 let simple_view = (font_metrics, sort, segment): Node.t => {
+  /* Assume this doesn't contain projectors */
   let shape_of_proj = ProjectorInfo.Shape.of_map_default;
   let map = Measured.of_segment(segment, shape_of_proj);
   module Text =
@@ -227,23 +210,10 @@ let simple_view = (font_metrics, sort, segment): Node.t => {
       let map = map;
       let settings = Settings.Model.init;
       let shape_of_proj = shape_of_proj;
+      let font_metrics = font_metrics;
     });
-  let holes = holes(~map, ~font_metrics, segment);
   div(
     ~attrs=[Attr.class_("code")],
-    [
-      span_c("code-text", Text.of_segment([], false, sort, segment)),
-      ...holes,
-    ],
+    [span_c("code-text", Text.of_segment([], false, sort, segment))],
   );
-}; /* Assume this doesn't contain projectors */
-
-let of_hole = (~globals: Globals.t, ~measured, g: Grout.t) =>
-  // TODO(d) fix sort
-  EmptyHoleDec.view(
-    ~font_metrics=globals.font_metrics,
-    {
-      measurement: Measured.find_g(~msg="Code.of_hole", g, measured),
-      mold: Mold.of_grout(g, Any),
-    },
-  );
+};

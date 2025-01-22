@@ -1,4 +1,4 @@
-/* Gather utility functions/values to be passed to the projector.
+/* Gather utility functions/values to be sspaed to the projector.
  * See ProjectorBase.utility definition for more information */
 let utility: ProjectorBase.utility = {
   let seg_to_term = MakeTerm.any;
@@ -12,60 +12,51 @@ let utility: ProjectorBase.utility = {
   let term_to_syntax = (any: Any.t): Base.piece =>
     switch (term_to_seg(any)) {
     | [e] => e
-    | seg =>
-      let sort = Segment.sort_of(Segment.skel(seg), seg);
-      switch (sort) {
-      | Exp => Piece.mk_tile(Form.get("parens_exp"), [seg])
-      | Pat => Piece.mk_tile(Form.get("parens_pat"), [seg])
-      | Typ => Piece.mk_tile(Form.get("parens_typ"), [seg])
-      | TPat
-      | Rul
-      | Any
-      | Nul => failwith("Projector: term_to_syntax")
-      };
+    | seg => Segment.parenthesize(seg)
     };
   let lift_syntax = (fn: Any.t => Any.t, piece: Base.piece): Base.piece =>
     [piece] |> seg_to_term |> fn |> term_to_syntax;
   {term_to_seg, seg_to_term, lift_syntax};
 };
 
+let adjust_syntax = (syntax: Base.piece): Base.piece =>
+  /* Given that syntax is unconditionally parenthesize on projection,
+   * (for technical reasons), and we don't want to make individual
+   * projectors have to deal with this extra wrapping level, we
+   * unparenthesize when possible (this may be ill-advised) */
+  switch (Segment.unparenthesize(syntax)) {
+  | Some([e]) => e
+  | Some(_) => syntax
+  | None =>
+    //prerr_endline("WARNING: asjust_syntax: not parenthesized");
+    syntax
+  };
+
+let unparenthesize = (piece: Piece.t): Segment.t =>
+  switch (Segment.unparenthesize(piece)) {
+  | Some(seg) => seg
+  | _ =>
+    //prerr_endline("WARNING: Unparenthesize: not parenthesized");
+    [piece]
+  };
+
 let mk_info =
-    (
-      id: Id.t,
-      p: Piece.projector,
-      ~cached_statics: CachedStatics.t,
-      ~dynamics: Dynamics.Map.t,
-    )
+    (p: Piece.projector, ~statics: Statics.Map.t, ~dynamics: Dynamics.Map.t)
     : ProjectorBase.info => {
-  id,
-  syntax: p.syntax,
-  statics: Statics.Map.lookup(id, cached_statics.info_map),
-  dynamics: Dynamics.Map.lookup(id, dynamics),
+  id: p.id,
+  syntax: adjust_syntax(p.syntax),
+  statics: Statics.Map.lookup(p.id, statics),
+  dynamics: Dynamics.Map.lookup(p.id, dynamics),
   utility,
 };
 
 module Shape = {
-  let of_info =
-      (p: Base.projector, info: ProjectorBase.info): ProjectorCore.shape => {
-    let (module P) = ProjectorInit.to_module(p.kind);
-    P.placeholder(p.model, info);
-  };
-
   let of_map =
       (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector)
       : ProjectorCore.shape => {
-    let statics = Statics.Map.lookup(p.id, statics);
-    let dynamics = Dynamics.Map.lookup(p.id, dynamics);
-    of_info(p, {id: p.id, syntax: p.syntax, statics, dynamics, utility});
+    let (module P) = ProjectorInit.to_module(p.kind);
+    P.placeholder(p.model, mk_info(p, ~statics, ~dynamics));
   };
 
   let of_map_default = of_map(Id.Map.empty, Id.Map.empty);
-
-  let token = (shape: ProjectorCore.shape): string =>
-    switch (shape.vertical) {
-    | Inline
-    | Tab(_) => String.make(shape.horizontal, ' ')
-    | Block(num_lb) =>
-      String.make(num_lb, '\n') ++ String.make(shape.horizontal, ' ')
-    };
 };
