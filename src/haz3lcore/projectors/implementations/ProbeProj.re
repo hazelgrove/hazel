@@ -55,6 +55,14 @@ let cur_ap = (info: info) =>
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
   | Some(InfoExp({term: {term: Wrap({term: Ap(_), _} as ap, _), _}, _})) =>
     Some(Term.Exp.rep_id(ap))
+  | Some(
+      InfoExp({
+        term:
+          {term: Wrap({term: Wrap({term: Ap(_), _} as ap, _), _}, _), _},
+        _,
+      }),
+    ) =>
+    Some(Term.Exp.rep_id(ap))
   | _ => None
   };
 
@@ -111,14 +119,14 @@ module DynCursor = {
     let this = closure.call_stack;
     let cursor = s.call_cursor;
     //ListUtil.suffix_at_depth(cursor, this, 0) != None
-    let cond =
+    let _cond =
       if (List.mem(ListUtil.hd_opt(this), cursor |> List.map(Option.some))) {
         cursor == this;
       } else {
         is_strictly_above(this, cursor);
       };
     {
-      is_call_cursor: cursor == this || cond,
+      is_call_cursor: cursor == this,
       is_call_directly_above_call_cursor:
         cur_call(info, closure) == Some(cursor),
       is_below_indicated_call: depth_in_indicated_calls_stack(this),
@@ -239,6 +247,8 @@ module Debug = {
     )
     ++ "\nstack:\n"
     ++ stack(closure.call_stack);
+  // ++ "DynCursor:\n"
+  // ++ String.concat("\n", DynCursor.clss(info, closure));
   // ++ "\nstack:\n"
   // ++ stack(closure.stack);
 };
@@ -512,12 +522,11 @@ let view = (info: info): Node.t => {
     Effect.Ignore;
   };
 
-  let check_if_already = (closures: list(closure)): bool => {
+  let check_if_already = (closures: list(closure)): bool =>
     List.exists(
       (closure: closure) => DynCursor.s.call_cursor == closure.call_stack,
       closures,
     );
-  };
 
   let on_pointerdown = _ => {
     switch (info.dynamics) {
