@@ -303,6 +303,17 @@ module Pat = {
          | None => {id: Id.invalid, name}
          }
        );
+
+  let rec strip_wraps = (p: t): t => {
+    switch (p.term) {
+    | Wrap(inner, _) =>
+      switch (inner.term) {
+      | Tuple(_) => p
+      | _ => strip_wraps(inner)
+      }
+    | _ => p
+    };
+  };
 };
 
 module Exp = {
@@ -781,12 +792,12 @@ module Exp = {
 
   /* Strips outer parentheses, unless the
    * innermost outer parenthesis is on a tuple */
-  let rec strip_wrap = (e: t): t => {
+  let rec strip_wraps = (e: t): t => {
     switch (e.term) {
     | Wrap(inner, _) =>
       switch (inner.term) {
       | Tuple(_) => e
-      | _ => strip_wrap(inner)
+      | _ => strip_wraps(inner)
       }
     | _ => e
     };

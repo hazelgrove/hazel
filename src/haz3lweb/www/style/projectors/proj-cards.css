@@ -153,7 +153,7 @@
 }
 
 .projector.card .hand .card-sprite {
-  transition: all 0.1s ease-in-out;
+  transition: transform 0.1s ease-in-out;
 }
 
 .projector.card.indicated .hand .card-sprite:hover {
