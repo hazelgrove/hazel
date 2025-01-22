@@ -54,6 +54,7 @@ let rec mk' = (seg: Segment.t) => {
          );
     (range, map);
   };
+  print_endline("TODO(andrew): remove. Termranges.go Skel call");
   Segment.children(seg)
   |> List.fold_left(
        (map, kid) => union(map, mk(kid)),
