@@ -471,7 +471,7 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
       fix(
         (self, n) =>
           switch (n) {
-          | 0 => leaf_nodes
+          | n when n <= 1 => leaf_nodes
           | _ =>
             oneof([
               leaf_nodes,
@@ -579,7 +579,7 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
             ]);
 
           switch (n) {
-          | 0 => leaf_nodes
+          | n when n <= 1 => leaf_nodes
           | _ =>
             oneof([
               leaf_nodes,
