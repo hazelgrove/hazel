@@ -173,6 +173,8 @@ module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
 
+  let sort: t => Sort.t;
+
   let map_term:
     (
       ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
@@ -189,6 +191,17 @@ module rec Any: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
+
+  let sort = (any: t): Sort.t =>
+    switch (any) {
+    | Exp(_) => Exp
+    | Pat(_) => Pat
+    | Typ(_) => Typ
+    | TPat(_) => TPat
+    | Rul(_) => Rul
+    | Nul(_) => Nul
+    | Any(_) => Any
+    };
 
   let map_term =
       (
