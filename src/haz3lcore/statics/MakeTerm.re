@@ -603,6 +603,7 @@ let go =
     seg => {
       map := TermMap.empty;
       projectors := Id.Map.empty;
+      print_endline("TODO(andrew): remove. Maketerm.go Skel call");
       let term = exp(unsorted(Segment.skel(seg), seg));
       {term, terms: map^, projectors: projectors^};
     },
@@ -618,6 +619,9 @@ let any =
   Core.Memo.general(~cache_size_bound=1000, (seg: Segment.t) =>
     if (!Segment.deep_tile_complete(seg)) {
       /* Returns Nul if any subsegment contains incomplete tiles */
+      TermBase.Nul();
+    } else if (Segment.is_padded(seg)) {
+      /* Returns Nul the segment has secondary around it */
       TermBase.Nul();
     } else {
       switch (Segment.skel(seg)) {

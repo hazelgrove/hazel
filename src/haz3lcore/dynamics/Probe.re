@@ -37,12 +37,6 @@ type closure_stack = list(closure_frame);
 
 let empty: t = {refs: []};
 
-let env_stack: list(closure_frame) => list(Id.t) =
-  List.map((en: closure_frame) => en.env_id);
-
-let call_stack: list(closure_frame) => list(Id.t) =
-  List.map((en: closure_frame) => en.ap_id);
-
 let mk_frame = (~env_id: Id.t, ~ap_id: Id.t): closure_frame => {
   env_id,
   ap_id,

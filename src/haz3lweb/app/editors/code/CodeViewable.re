@@ -11,7 +11,7 @@ let view =
       ~measured,
       ~buffer_ids,
       ~segment,
-      ~holes,
+      ~holes as _,
       ~shape_of_proj,
     )
     : Node.t => {
@@ -20,35 +20,11 @@ let view =
       let map = measured;
       let settings = globals.settings;
       let shape_of_proj = shape_of_proj;
+      let font_metrics = globals.font_metrics;
     });
   let code = Text.of_segment(buffer_ids, false, sort, segment);
-  let holes = List.map(Code.of_hole(~measured, ~globals), holes);
-  div_c("code", [span_c("code-text", code), ...holes]);
+  div_c("code", [span_c("code-text", code)]);
 };
-
-// let view_editor =
-//     (
-//       ~globals: Globals.t,
-//       ~sort: Sort.t,
-//       {
-//         state:
-//           {
-//             meta: {syntax: {measured, selection_ids, segment, holes, _}, _},
-//             _,
-//           },
-//         _,
-//       }: Editor.t,
-//     )
-//     : Node.t => {
-//   view(
-//     ~globals,
-//     ~sort,
-//     ~measured,
-//     ~buffer_ids=selection_ids,
-//     ~segment,
-//     ~holes,
-//   );
-// };
 
 let view_segment =
     (~globals: Globals.t, ~sort: Sort.t, ~shape_of_proj, segment: Segment.t) => {
