@@ -7,12 +7,13 @@ let shape_of_proj = ProjectorInfo.Shape.of_map_default; /* Assume this doesn't c
 
 let measured_of = seg => Measured.of_segment(seg, shape_of_proj);
 
-let text_view = (seg: Segment.t): list(Node.t) => {
+let text_view = (font_metrics, seg: Segment.t): list(Node.t) => {
   module Text =
     Code.Text({
       let map = measured_of(seg);
       let settings = Settings.Model.init;
       let shape_of_proj = shape_of_proj;
+      let font_metrics = font_metrics;
     });
   Text.of_segment([], true, Any, seg);
 };
@@ -48,6 +49,7 @@ let backpack_sel_view =
       y_off: float,
       scale: float,
       opacity: float,
+      font_metrics,
       {focus: _, content, _}: Selection.t,
     ) => {
   // Maybe use init sort at caret to prime this
@@ -66,7 +68,7 @@ let backpack_sel_view =
       ),
     ],
     // zwsp necessary for containing box to stretch to contain trailing newline
-    text_view(content) @ [text(Unicode.zwsp)],
+    text_view(font_metrics, content) @ [text(Unicode.zwsp)],
   );
 };
 
@@ -129,7 +131,15 @@ let view =
         let scale = scale_fn(idx);
         let x_offset = x_fn(idx);
         let new_y_offset = y_offset -. dy_fn(idx, base_height);
-        let v = backpack_sel_view(x_offset, new_y_offset, scale, opacity, s);
+        let v =
+          backpack_sel_view(
+            x_offset,
+            new_y_offset,
+            scale,
+            opacity,
+            font_metrics,
+            s,
+          );
         let new_idx = idx + 1;
         let new_opacity = opacity -. opacity_reduction;
         // Am i making this difficult by going backwards?

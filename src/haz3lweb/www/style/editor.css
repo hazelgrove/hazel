@@ -205,10 +205,10 @@ svg.shard.error > path {
 /* EMPTY HOLE DECO */
 
 .empty-hole {
-  z-index: var(--empty-hole-z);
+  vertical-align: bottom;
 }
 
-.empty-hole-path {
+.empty-hole > path {
   fill: var(--empty-hole-fill);
   stroke: var(--empty-hole-stroke);
   stroke-width: 0.75px;
