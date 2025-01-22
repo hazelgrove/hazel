@@ -2,12 +2,10 @@ open Util;
 
 exception Unreachable;
 
-/*
-
- Prop.t is used as the internal representation of a judgement expression. It is
- converted from the evaluation result of an editor. An editor that is requested
- to be evaluated to Prop should have its result be Prop type Constructor.
-
+/**
+  DrvSyntax.t is used as the internal representation of a judgement expression. It is
+  converted from the evaluation result of an editor. An editor that is requested
+  to be evaluated to Prop should have its result be Prop type Constructor.
  */
 
 [@deriving (show({with_path: false}), sexp, yojson)]

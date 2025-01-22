@@ -271,6 +271,25 @@ module Update = {
         cursor_info.info,
         // TODO(zhiyao): derivation mode coloring is temporarily disabled
       );
+    // Note(Zhiyao): derivation highlight override ExplainThis highlights if exists
+    let derivation_info =
+      Editors.Selection.get_derivation_info(
+        ~selection=model.selection,
+        model.editors,
+      );
+    let color_highlights =
+      switch (derivation_info) {
+      | Some(_) =>
+        let (_, (_, (color_map, _)), _) =
+          ExplainThis.get_doc_deduction(
+            ~globals=model.globals,
+            ~docs=model.explain_this,
+            derivation_info,
+            Colorings,
+          );
+        Some(color_map);
+      | None => color_highlights
+      };
     let globals = Globals.Update.calculate(color_highlights, model.globals);
     {...model, globals, editors};
   };
@@ -475,48 +494,8 @@ module View = {
         cursor,
       );
 
-    let cursor_info' =
-      switch (editors, selection) {
-      | (Derivations(eds), Derivations((Trees(i, pos), _))) =>
-        let model = DerivationsMode.Model.get_current(eds);
-        let trees =
-          DerivationMode.grading_report(model).proof_report.verified_tree;
-        let eds = model.editors;
-        try({
-          let tree = List.nth(trees, i);
-          let res = Tree.nth(tree, pos);
-          let tree = List.nth(eds.trees, i);
-          let ed = Tree.nth(tree, pos);
-          switch (ed, res) {
-          | (Just({rule: Some(rule), _}), {rule: None, _}) =>
-            Haz3lcore.(
-              switch (RuleImage.image(eds.ruleset, rule)) {
-              | Some(rule) =>
-                Some({
-                  ...res,
-                  rule:
-                    Some(
-                      {
-                        print_endline("Uncaught Rule: " ++ Rule.show(rule));
-                        let spec = RuleSpec.of_spec(rule);
-                        let tests = RuleTest.of_tests(rule);
-                        let (spec, tests) =
-                          RuleVerify.fill_eq_tests(spec, tests);
-                        let tests = RuleVerify.test_remove_eq_test(tests);
-                        {rule, spec, tests};
-                      },
-                    ),
-                })
-              | _ => Some(res)
-              }
-            )
-          | _ => Some(res)
-          };
-        }) {
-        | _ => None
-        };
-      | _ => None
-      };
+    let derivation_info =
+      Editors.Selection.get_derivation_info(~selection, model.editors);
 
     let sidebar =
       globals.settings.explainThis.show && globals.settings.core.statics
@@ -525,7 +504,7 @@ module View = {
             ~inject=a => inject(ExplainThis(a)),
             ~explainThisModel,
             cursor.info,
-            cursor_info',
+            derivation_info,
           )
         : div([]);
     let editors_view =

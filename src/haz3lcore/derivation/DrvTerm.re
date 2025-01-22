@@ -160,9 +160,6 @@ module Pat = {
 
   include DrvTermBase.Pat;
 
-  // let hole = (tms: list(TermBase.Any.t)): term =>
-  //   Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
-
   let rep_id = ({ids, _}: t) => {
     assert(ids != []);
     List.hd(ids);
@@ -289,7 +286,7 @@ module Any = {
     | Pat(pat) => Pat.rep_id(pat)
     | Typ(typ) => Typ.rep_id(typ)
     | TPat(tpat) => TPat.rep_id(tpat)
-    | Any(_) => raise(Invalid_argument("Any.rep_id")); // TODO
+    | Any(_) => raise(Invalid_argument("Any.rep_id"));
 
   let of_id: t => list(Id.t) =
     fun
@@ -307,5 +304,5 @@ module Any = {
     | Pat(pat) => Pat(Pat.cls_of_term(pat.term))
     | Typ(typ) => Typ(Typ.cls_of_term(typ.term))
     | TPat(tpat) => TPat(TPat.cls_of_term(tpat.term))
-    | Any(_) => raise(Invalid_argument("Any.cls_of")); // TODO
+    | Any(_) => raise(Invalid_argument("Any.cls_of"));
 };

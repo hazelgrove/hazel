@@ -1,3 +1,20 @@
+/**
+  This module describles the speculation of rules for:
+  1) Unboxing
+    e.g. Unboxing `let x = 1 in x` results in: `x`(pat), `1`(exp), `x`(exp)
+    - An error occurs if unboxing is not possible.
+  2) Unifying
+    e.g. If unboxing reveals that `f` is unified with `fun x -> x`, any
+    subsequent attempt to unify `f` with a value not equal to `fun x -> x`
+    will result in an error.
+  This module does not include `checking` functionalities, such as:
+  e.g. Calculations like verifying NumLit(1) + NumLit(2) = NumLit(3) and
+  subst(3, x, let y = 1 in x) = (let y = 1 in 3).
+  Refer to `RuleTest.re` for checking functionalities.
+ */
+// The introduction of `Wrapper` is to simplify the spec of rules.
+// (We don't need ID when we specify rules, but we need ID when we
+// actually use the rules to check the derivation tree.)
 module type Wrapper = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t('a);
@@ -6,7 +23,6 @@ module type Wrapper = {
 module M = (W: Wrapper) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    // Top-level
     // - Reg(string)
     // If the name exists in the map, it will compare the terms
     // Otherwise, it will register the term in the map
@@ -232,13 +248,20 @@ let rec of_syntax = (spec: t): DrvSyntax.t => {
 
 let show = spec => spec |> of_syntax |> DrvSyntax.show;
 
+// No repr for `t` because we will use `of_syntax` to convert `t` to `DrvSyntax.t`
+// and use `DrvSyntax.repr`.
+
 module Map = Map.Make(String);
 
+// A `specced` is a pair of a rule spec the real derivation
+// syntax that is checked against.
 [@deriving (show({with_path: false}), sexp, yojson)]
 type specced = (t, DrvSyntax.t);
 
+// A `map` maps a name in Reg to a `specced`.
 type map = Map.t(specced);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type failure =
   | FailUnbox(specced)
   | NotEqual(specced, specced);
@@ -277,7 +300,6 @@ let rec go: ((map, list(failure)), specced) => (map, list(failure)) =
     let failunbox = ((map, res)) => (map, [FailUnbox(specced), ...res]);
     let go = (spec, syntax) => go(_, (spec, syntax));
     switch (IdTagged.term_of(spec), DrvSyntax.term_of(syntax)) {
-    // Top-level
     | (Reg(s), _) => info |> register(s)
     // Judgments
     | (Val(ra), Val(a)) => info |> go(ra, a)

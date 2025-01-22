@@ -227,6 +227,7 @@ let farthest_pos = (pos: pos, editors: p('a)): pos =>
   | Prelude => Prelude
   | Setup => Setup
   | Trees(i, pos) =>
+    let i = min(i, List.length(editors.trees) - 1);
     let tree = List.nth(editors.trees, i);
     let farthest = Tree.farthest(tree, pos);
     Trees(i, farthest);

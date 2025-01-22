@@ -3,37 +3,55 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ancestors = list(Id.t);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type ok_common = unit;
+// EXP
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type error_common =
-  | BadToken(Token.t)
-  | MultiHole;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type status_common =
-  | NotInHole(ok_common)
-  | InHole(error_common);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type ty_merged =
+type ana_exp =
   | Jdmt
   | Ctx
   | Prop
   | Exp
-  | Arrow;
+  | ExpApLeft;
+
+let repr_ana_exp = (ana: ana_exp) =>
+  switch (ana) {
+  | Jdmt => ["Jdmt"]
+  | Ctx => ["Ctx"]
+  | Prop => ["Prop"]
+  | Exp => ["Exp"]
+  | ExpApLeft => ["Exp", "(L)", "(R)", "(roll)", "(unroll)"]
+  };
+
+let repr_list_ana_exp = (anas: list(ana_exp)): string =>
+  anas
+  |> List.map(repr_ana_exp)
+  |> List.concat
+  |> ListUtil.remove_duplicate_neighbors
+  |> String.concat(", ");
+
+let ana_exp_match_sort = (ana: ana_exp, sort: DrvSort.t): bool =>
+  switch (ana, sort) {
+  | (Jdmt, Jdmt)
+  | (Ctx, Ctx)
+  | (Prop, Prop)
+  | (Exp, Exp) => true
+  | _ => false
+  };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
   | BadToken(Token.t)
   | MultiHole
+  | NoJoin(ana_exp, list(ana_exp)) // expected, actuals
   | FreeVar
-  | NoJoin(ty_merged); // expected
+  | NotVar
+  | VarNoJoin(ana_exp, Typ.t) // expected, actual
+  | TupleNotStandard
+  | CaseNotStandard;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_exp =
-  | NotInHole(ok_common)
+  | NotInHole
   | InHole(error_exp);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -42,12 +60,12 @@ type exp = {
   cls: Cls.t,
   ancestors,
   status: status_exp,
-  ty: ty_merged,
 };
 
+// PAT
+
 [@deriving (show({with_path: false}), sexp, yojson)]
-type pat_expect =
-  | Any
+type ana_pat =
   | Var
   | Cast_Var
   | Pair_Or_Case_Var
@@ -60,11 +78,11 @@ type pat_expect =
 type error_pat =
   | BadToken(Token.t)
   | MultiHole
-  | Expect(pat_expect);
+  | NoJoin(ana_pat, list(ana_pat)); // expected, actuals
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_pat =
-  | NotInHole(ok_common)
+  | NotInHole
   | InHole(error_pat);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -75,15 +93,19 @@ type pat = {
   status: status_pat,
 };
 
+// TYP
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_typ =
   | BadToken(Token.t)
+  | MultiHole
   | FreeVar
-  | MultiHole;
+  | NotVar
+  | VarNoJoin(Typ.t); // actual
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_typ =
-  | NotInHole(ok_common)
+  | NotInHole
   | InHole(error_typ);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -94,13 +116,27 @@ type typ = {
   status: status_typ,
 };
 
+// TPAT
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error_tpat =
+  | BadToken(Token.t)
+  | MultiHole;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type status_tpat =
+  | NotInHole
+  | InHole(error_tpat);
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tpat = {
   term: Drv.TPat.t,
   cls: Cls.t,
   ancestors,
-  status: status_common,
+  status: status_tpat,
 };
+
+// DRV
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -114,13 +150,10 @@ type error =
   | Exp(error_exp)
   | Pat(error_pat)
   | Typ(error_typ)
-  | TPat(error_common);
+  | TPat(error_tpat);
 
 let sort_of: t => DrvSort.t =
   fun
-  | Exp({ty: Jdmt, _}) => Jdmt
-  | Exp({ty: Ctx, _}) => Ctx
-  | Exp({ty: Prop, _}) => Prop
   | Exp(_) => Exp
   | Pat(_) => Pat
   | Typ(_) => Typ
@@ -142,10 +175,10 @@ let id_of: t => Id.t =
 
 let error_of: t => option(error) =
   fun
-  | Exp({status: NotInHole(_), _})
-  | Pat({status: NotInHole(_), _})
-  | Typ({status: NotInHole(_), _})
-  | TPat({status: NotInHole(_), _}) => None
+  | Exp({status: NotInHole, _})
+  | Pat({status: NotInHole, _})
+  | Typ({status: NotInHole, _})
+  | TPat({status: NotInHole, _}) => None
   | Exp({status: InHole(err), _}) => Some(Exp(err))
   | Pat({status: InHole(err), _}) => Some(Pat(err))
   | Typ({status: InHole(err), _}) => Some(Typ(err))
@@ -155,27 +188,25 @@ let error_of: t => option(error) =
 type status_drv =
   | Exp(status_exp)
   | Pat(status_pat)
-  | Typ(status_common)
-  | TPat(status_common);
+  | Typ(status_typ)
+  | TPat(status_tpat);
 
-let types_of_exp = (exp: Drv.Exp.t): list(ty_merged) =>
+let anas_of_exp = (exp: Drv.Exp.t) =>
   switch (exp.term) {
   | Hole(_)
   | Abbr(_)
-  | Parens(_) => [Jdmt, Ctx, Prop, Exp, Arrow]
-  | Var(_) => [Prop, Exp, Arrow]
-  | Tuple(es) when List.length(es) == 2 => [Exp]
-  | Tuple(_) => []
+  | Parens(_) => [Jdmt, Ctx, Prop, Exp, ExpApLeft]
+  | Var(_) => [Prop, Exp, ExpApLeft]
   | Val(_)
   | Eval(_)
   | Entail(_)
   | Consistent(_)
   | MatchedArrow(_)
   | MatchedProd(_)
-  | MatchedSum(_) => [Jdmt, Exp]
+  | MatchedSum(_) => [Jdmt]
   | Ctx(_)
   | Cons(_)
-  | Concat(_) => [Ctx, Exp]
+  | Concat(_) => [Ctx]
   | Type(_)
   | HasType(_)
   | Syn(_)
@@ -184,7 +215,7 @@ let types_of_exp = (exp: Drv.Exp.t): list(ty_merged) =>
   | Or(_)
   | Impl(_)
   | Truth
-  | Falsity => [Prop, Exp]
+  | Falsity => [Prop]
   | NumLit(_)
   | Neg(_)
   | Plus(_)
@@ -201,43 +232,73 @@ let types_of_exp = (exp: Drv.Exp.t): list(ty_merged) =>
   | Fun(_)
   | Ap(_)
   | Triv
+  | Tuple(_)
   | PrjL(_)
   | PrjR(_)
   | Case(_)
-  | ExpHole => [Exp, Arrow]
+  | ExpHole => [Exp, ExpApLeft]
   | InjL
   | InjR
   | Roll
-  | Unroll => [Arrow, Exp]
+  | Unroll => [ExpApLeft]
   };
 
-let status_exp = (exp: Drv.Exp.t, ty: ty_merged): status_exp =>
+let status_exp = (exp: Drv.Exp.t, ~ana: ana_exp, ~is_var: bool): status_exp =>
   switch (exp.term) {
   | Hole(Invalid(token)) => InHole(BadToken(token))
   | Hole(MultiHole(_)) => InHole(MultiHole)
-  | _ when !List.mem(ty, types_of_exp(exp)) => InHole(NoJoin(ty))
-  | _ => NotInHole()
+  | Hole(EmptyHole) => NotInHole
+  | Tuple(es) when List.length(es) != 2 => InHole(TupleNotStandard)
+  | Case(_, rs) when List.length(rs) != 2 => InHole(CaseNotStandard)
+  | Var(_) when is_var => NotInHole
+  | _ when is_var => InHole(NotVar)
+  | _ when List.mem(ana, anas_of_exp(exp)) => NotInHole
+  | _ => InHole(NoJoin(ana, anas_of_exp(exp)))
   };
 
-let status_pat = (pat: Drv.Pat.t): status_pat =>
+let anas_of_pat = (pat: Drv.Pat.t) =>
+  switch (pat.term) {
+  | Hole(_)
+  | Parens(_) => [
+      Var,
+      Cast_Var,
+      Pair_Or_Case_Var,
+      Ap_InjL,
+      Ap_InjR,
+      InjL,
+      InjR,
+    ]
+  | Var(_) => [Var, Cast_Var, Pair_Or_Case_Var]
+  | Cast(_) => [Cast_Var, Pair_Or_Case_Var]
+  | Pair(_) => [Pair_Or_Case_Var]
+  | Ap(_) => [Ap_InjL, Ap_InjR]
+  | InjL => [InjL]
+  | InjR => [InjR]
+  };
+
+let status_pat = (pat: Drv.Pat.t, ~ana: ana_pat): status_pat =>
   switch (pat.term) {
   | Hole(Invalid(token)) => InHole(BadToken(token))
   | Hole(MultiHole(_)) => InHole(MultiHole)
-  | _ => NotInHole()
+  | Hole(EmptyHole) => NotInHole
+  | _ when List.mem(ana, anas_of_pat(pat)) => NotInHole
+  | _ => InHole(NoJoin(ana, anas_of_pat(pat)))
   };
 
-let status_typ = (typ: Drv.Typ.t): status_typ =>
+let status_typ = (typ: Drv.Typ.t, ~is_var: bool): status_typ =>
   switch (typ.term) {
   | Hole(Invalid(token)) => InHole(BadToken(token))
   | Hole(MultiHole(_)) => InHole(MultiHole)
-  | _ => NotInHole()
+  | Var(_) when is_var => NotInHole
+  | _ when is_var => InHole(NotVar)
+  | _ => NotInHole
   };
 
-let status_tpat = (tpat: Drv.TPat.t): status_common =>
+let status_tpat = (tpat: Drv.TPat.t): status_tpat =>
   switch (tpat.term) {
   | Hole(Invalid(token)) => InHole(BadToken(token))
   | Hole(MultiHole(_)) => InHole(MultiHole)
-  | _ => NotInHole()
+  | _ => NotInHole
   };
 
 let is_error = (ci: t): bool => {
@@ -246,10 +307,10 @@ let is_error = (ci: t): bool => {
   | Pat({status: InHole(_), _})
   | Typ({status: InHole(_), _})
   | TPat({status: InHole(_), _}) => true
-  | Exp({status: NotInHole(_), _})
-  | Pat({status: NotInHole(_), _})
-  | Typ({status: NotInHole(_), _})
-  | TPat({status: NotInHole(_), _}) => false
+  | Exp({status: NotInHole, _})
+  | Pat({status: NotInHole, _})
+  | Typ({status: NotInHole, _})
+  | TPat({status: NotInHole, _}) => false
   };
 };
 
@@ -260,21 +321,21 @@ let ancestors_of: t => ancestors =
   | Typ({ancestors, _})
   | TPat({ancestors, _}) => ancestors;
 
-let derived_exp = (exp: Drv.Exp.t, ~ancestors, ~ty): exp => {
+let derived_exp = (exp: Drv.Exp.t, ~ancestors, ~ana, ~is_var): exp => {
   let cls = Cls.Drv(Exp(Drv.Exp.cls_of_term(exp.term)));
-  let status = status_exp(exp, ty);
-  {term: exp, cls, status, ancestors, ty};
+  let status = status_exp(exp, ~ana, ~is_var);
+  {term: exp, cls, status, ancestors};
 };
 
-let derived_pat = (pat: Drv.Pat.t, ~ancestors): pat => {
+let derived_pat = (pat: Drv.Pat.t, ~ancestors, ~ana): pat => {
   let cls = Cls.Drv(Pat(Drv.Pat.cls_of_term(pat.term)));
-  let status = status_pat(pat);
+  let status = status_pat(pat, ~ana);
   {term: pat, cls, status, ancestors};
 };
 
-let derived_typ = (typ: Drv.Typ.t, ~ancestors): typ => {
+let derived_typ = (typ: Drv.Typ.t, ~ancestors, ~is_var): typ => {
   let cls = Cls.Drv(Typ(Drv.Typ.cls_of_term(typ.term)));
-  let status = status_typ(typ);
+  let status = status_typ(typ, ~is_var);
   {term: typ, cls, status, ancestors};
 };
 

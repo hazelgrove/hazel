@@ -462,8 +462,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         ],
       ),
     ];
-  | DrvExp(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "drv()")
-  // TODO(zhiyao): Implement this
+  | DrvExp(drv, s) =>
+    text_to_pretty(
+      exp |> Exp.rep_id,
+      Sort.Exp,
+      DrvElab.elab_any(drv, s) |> DrvSyntax.show,
+    )
   };
 }
 and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {

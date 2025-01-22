@@ -1,3 +1,10 @@
+/**
+  The sort of derivation terms.
+
+  (future) for the moment, we are not actually using `Jdmt`, `Ctx`, and `Ctx`
+  because of a remolding issue. We are using `Exp` for the above sorts.
+ */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Any
@@ -59,15 +66,3 @@ let to_string_verbose =
   | Pat => "ALFA pattern"
   | Typ => "ALFA type"
   | TPat => "ALFA type pattern";
-
-let detail_sort: list(string) => t =
-  fun
-  | ["val", "end"] => Jdmt
-  | ["|-"] => Jdmt
-  | ["\\=/"] => Jdmt
-  | ["[]"] => Ctx
-  | ["[", _] => Ctx
-  | [",", ",", _] => Ctx //TODO(zhiyao): not sufficient
-  | ["@"] => Ctx
-  | ["::"] => Ctx
-  | _ => Exp;

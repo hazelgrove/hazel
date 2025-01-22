@@ -51,9 +51,12 @@ let rec is_children = p =>
 // Output: Children(0, Value)
 let rec farthest = (Node(_, c)) =>
   fun
-  | Children(i, pos) when i < List.length(c) =>
-    Children(i, pos |> farthest(List.nth(c, i)))
-  | _ => Value;
+  | _ when c == [] => Value
+  | Value => Value
+  | Children(i, pos) => {
+      let i = min(i, List.length(c) - 1);
+      Children(i, pos |> farthest(List.nth(c, i)));
+    };
 
 let value = (Node(v, _)) => v;
 

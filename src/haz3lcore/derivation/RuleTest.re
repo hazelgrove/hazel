@@ -1,5 +1,11 @@
 open Util;
 
+/**
+  This module describles the speculation of rules for checking
+  involving calculations. Refer to `RuleSpec.re` For speculations
+  on unboxing and unification,
+ */
+
 let rec string_of_pat = syntax =>
   switch (DrvSyntax.term_of(syntax)) {
   | Pat(s) => s
@@ -333,7 +339,7 @@ let of_tests: Rule.t => list(t) = {
     | TV_Prod
     | TV_Sum => []
     | TV_Rec => [Eq(delta', Cons(Type(TVarOfTPat(tpat)), delta))]
-    | TV_TVar => [Mem(Type(t), delta)] // TODO
+    | TV_TVar => [Mem(Type(t), delta)]
     // Typing
     | A_Subsumption
     | A_Subsumption_GT => []
@@ -346,8 +352,8 @@ let of_tests: Rule.t => list(t) = {
     | S_If
     | A_If => []
     | S_If_GT => [Eq(t, Glb(t1, t2))]
-    | T_Num // TODO
-    | S_Num => [] // TODO
+    | T_Num
+    | S_Num => []
     | T_Neg
     | S_Neg => []
     | T_Plus
@@ -362,8 +368,8 @@ let of_tests: Rule.t => list(t) = {
     | S_Gt => []
     | T_Eq
     | S_Eq => []
-    | T_Var // TODO
-    | S_Var => [Mem(HasType(x, t), gamma)] // TODO
+    | T_Var
+    | S_Var => [Mem(HasType(x, t), gamma)]
     | T_LetAnn_TV => [
         Eq(gamma', Cons(HasType(VarOfPat(x), t_def), gamma)),
         Subset(delta, gamma),
@@ -474,7 +480,7 @@ let of_tests: Rule.t => list(t) = {
     // Values
     | V_True
     | V_False
-    | V_Num // TODO
+    | V_Num
     | V_Fun
     | V_Triv
     | V_Pair
@@ -495,102 +501,3 @@ let of_tests: Rule.t => list(t) = {
     | Falsity_E => []
   );
 };
-
-// module Unbox = {
-//   // Note (Zhiyao): This module is responsible for unboxing syntax elements with
-//   // primitive types, such as NumLit(int) and Var(string). We handle unboxing in
-//   // this separate module to avoid using GADTs in the main module.
-//   //
-//   // However, in RuleSpec, we have already checked the syntax cls, so (suppose
-//   // our implementation is correct) we should not raise any exception here. We
-//   // are simply unboxing the syntax to its primitive type.
-
-//   type t(_) =
-//     | Ctx: t(list(DrvSyntax.t))
-//     | NumLit: t(int)
-//     | Var: t(string)
-//     | TVar: t(string)
-//     | Pat: t(string)
-//     | TPat: t(string)
-//     | Atom: t(string);
-
-//   let rec go: type a. (DrvSyntax.t, t(a)) => result(a, RuleSpec.failure) =
-//     (syntax, op) => {
-//       switch ((op, DrvSyntax.term_of(syntax))) {
-//       | (Ctx, Ctx(ctx)) => Ok(ctx)
-//       | (NumLit, NumLit(n)) => Ok(n)
-//       | (Var, Var(s)) => Ok(s)
-//       | (TVar, TVar(s)) => Ok(s)
-//       | (Pat, Pat(s)) => Ok(s)
-//       | (TPat, TPat(s)) => Ok(s)
-//       | (Atom, Atom(s)) => Ok(s)
-//       | (Ctx, _)
-//       | (NumLit, _)
-//       | (Var, _)
-//       | (TVar, _)
-//       | (Pat, _)
-//       | (TPat, _)
-//       | (Atom, _) => failwith("RuleTest.Unbox.go: cannot unbox")
-//       };
-//     };
-// };
-
-// module Operation = {
-//   // [@deriving (show({with_path: false}), sexp, yojson)]
-
-//   type specced = RuleSpec.specced;
-
-//   type t(_) =
-//     // Get what has been registered
-//     | Unbox(Unbox.t('a), SymbolMap.key): t('a)
-//     | Get(string): t(syntax)
-//     // Reconstructing
-//     | Type(t(syntax)): t(syntax)
-//     | HasType(t(syntax), t(syntax)): t(syntax)
-//     | Fix(t(syntax), t(syntax)): t(syntax)
-//     | Rec(t(syntax), t(syntax)): t(syntax)
-//     | Var(t(string)): t(syntax)
-//     | TVar(t(string)): t(syntax)
-//     | NumLit(t(int)): t(syntax)
-//     // Operations
-//     | Subst((t(syntax), t(string)), t(syntax)): t(syntax)
-//     | SubstTy((t(syntax), t(string)), t(syntax)): t(syntax)
-//     | Cons(t(syntax), t(list(syntax))): t(syntax)
-//     | Neg(t(int)): t(int)
-//     | Plus(t(int), t(int)): t(int)
-//     | Minus(t(int), t(int)): t(int)
-//     | Times(t(int), t(int)): t(int);
-
-//   type failure =
-//     | FailUnbox(RuleSpec.specced)
-//     | NotReg; // No chance to show in frontend
-
-//   let rec go: type a. (RuleSpec.map, t(a)) => result(a, failure) =
-//     (map, op) => {
-//       let (let$) = (x, f) =>
-//         switch (x) {
-//         | Ok(x) => f(x)
-//         | Error(e) => Error(e)
-//         };
-//       let go = go(map);
-//       switch (op) {
-//       | Get(s) =>
-//         switch (RuleSpec.Map.find_opt(s, map)) {
-//         | Some((_, syntax)) => Ok(syntax)
-//         | None => Error(NotReg)
-//         }
-//       | D_Ctx(a) =>
-//         let$ syntax = go(a);
-//         switch (DrvSyntax.term_of(syntax)) {
-//         | Ctx(ctx) => Ok(ctx)
-//         | _ => Error("RuleTest.go: not a context")
-//         };
-//       | D_NumLit(a) =>
-//         let$ syntax = go(a);
-//         switch (DrvSyntax.term_of(syntax)) {
-//         | NumLit(n) => Ok(n)
-//         | _ => Error("RuleTest.go: not a number")
-//         };
-//       | _ => failwith("RuleTest.go: not implemented")
-//       };
-//     };

@@ -1,3 +1,11 @@
+/**
+  This module defines the mapping between `RuleImage.t` and `Rule.t`.
+
+  Because certain rules can vary based on context, this mapping ensures proper
+  interpretation. For example, `T_LetAnn` in Recursive ALFA requires an extra
+  premise for type validation, while in ALFA it does not.
+ */
+
 [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type t =
   // Type consistency
@@ -197,7 +205,7 @@ let version_of_string = str =>
   | _ => failwith("Unknown version: " ++ str)
   };
 
-let rec image: (version, t) => option(Rule.t) =
+let rec to_rule: (version, t) => option(Rule.t) =
   // Note(zhiyao): we extensively use `_` in this function,
   // plz don't rely on the compiler checking the correctness.
   fun
@@ -240,7 +248,7 @@ let rec image: (version, t) => option(Rule.t) =
       | E_Eq_F => Some(E_Eq_F)
       | E_If_T => Some(E_If_T)
       | E_If_F => Some(E_If_F)
-      | rule => image(AL, rule)
+      | rule => to_rule(AL, rule)
     )
   | ALF => (
       fun
@@ -266,7 +274,7 @@ let rec image: (version, t) => option(Rule.t) =
       | T_FunAnn => Some(T_FunAnn)
       | T_Fun => Some(T_Fun)
       | T_Ap => Some(T_Ap)
-      | rule => image(ALB, rule)
+      | rule => to_rule(ALB, rule)
     )
   | ALFp => (
       fun
@@ -312,7 +320,7 @@ let rec image: (version, t) => option(Rule.t) =
       | S_Triv => Some(S_Triv)
       | A_If => Some(A_If)
       | S_If => Some(S_If)
-      | rule => image(ALF, rule)
+      | rule => to_rule(ALF, rule)
     )
   | ALFA => (
       fun
@@ -329,7 +337,7 @@ let rec image: (version, t) => option(Rule.t) =
       | T_Case => Some(T_Case) // Note(zhiyao): not in HW
       | E_Case_L => Some(E_Case_L)
       | E_Case_R => Some(E_Case_R)
-      | rule => image(ALFp, rule)
+      | rule => to_rule(ALFp, rule)
     )
   | RecursiveALFA => (
       fun
@@ -350,7 +358,7 @@ let rec image: (version, t) => option(Rule.t) =
       | T_LetAnn => Some(T_LetAnn_TV) // Note(zhiyao): replace
       | T_FunAnn => Some(T_FunAnn_TV) // Note(zhiyao): replace
       | T_FixAnn => Some(T_FixAnn_TV) // Note(zhiyao): replace
-      | rule => image(ALFA, rule)
+      | rule => to_rule(ALFA, rule)
     )
   | GradualALFA => (
       fun
@@ -382,7 +390,7 @@ let rec image: (version, t) => option(Rule.t) =
       | A_FunAnn => Some(A_FunAnn_GT)
       | A_Fun => Some(A_Fun_GT)
       | S_Ap => Some(S_Ap_GT)
-      | rule => image(RecursiveALFA, rule)
+      | rule => to_rule(RecursiveALFA, rule)
     );
 
 [@deriving (show({with_path: false}), sexp, yojson)]

@@ -101,7 +101,7 @@ and exp_term =
      two consistent types. Both types should be normalized in
      dynamics for the cast calculus to work right. */
   | Cast(exp_t, typ_t, typ_t)
-  | DrvExp(DrvTermBase.any_t)
+  | DrvExp(DrvTermBase.any_t, DrvSort.t)
 and exp_t = IdTagged.t(exp_term)
 and pat_term =
   | Invalid(string)
@@ -366,7 +366,7 @@ and Exp: {
           )
         | Cast(e, t1, t2) =>
           Cast(exp_map_term(e), typ_map_term(t1), typ_map_term(t2))
-        | DrvExp(e) => DrvExp(e)
+        | DrvExp(e, s) => DrvExp(e, s)
         },
     };
     x |> f_exp(rec_call);
@@ -451,7 +451,8 @@ and Exp: {
          )
     | (Cast(e1, t1, t2), Cast(e2, t3, t4)) =>
       fast_equal(e1, e2) && Typ.fast_equal(t1, t3) && Typ.fast_equal(t2, t4)
-    | (DrvExp(t1), DrvExp(t2)) => DrvTermBase.Any.fast_equal(t1, t2)
+    | (DrvExp(t1, s1), DrvExp(t2, s2)) =>
+      DrvTermBase.Any.fast_equal(t1, t2) && s1 == s2
     | (Invalid(_), _)
     | (FailedCast(_), _)
     | (Deferral(_), _)
@@ -743,7 +744,7 @@ and Typ: {
     | (Bool, _) => false
     | (String, String) => true
     | (String, _) => false
-    | (DrvTyp(s1), DrvTyp(s2)) => s1 == s2
+    | (DrvTyp(_), DrvTyp(_)) => true // TODO(zhiyao): compare the sort
     | (DrvTyp(_), _) => false
     | (Ap(t1, t2), Ap(t1', t2')) =>
       eq_internal(n, t1, t1') && eq_internal(n, t2, t2')

@@ -616,3 +616,11 @@ let rec map_last = f =>
   | [] => []
   | [x] => [f(x)]
   | [x, ...xs] => [x, ...map_last(f, xs)];
+
+let rec remove_duplicate_neighbors = (xs: list('x)): list('x) =>
+  switch (xs) {
+  | [] => []
+  | [x] => [x]
+  | [x1, x2, ...xs] when x1 == x2 => remove_duplicate_neighbors([x1, ...xs])
+  | [x, ...xs] => [x, ...remove_duplicate_neighbors(xs)]
+  };

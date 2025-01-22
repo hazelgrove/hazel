@@ -272,7 +272,7 @@ module Transition = (EV: EV_MODE) => {
             };
           let+ e =
             switch (DHExp.term_of(DHExp.strip_casts(d))) {
-            | DrvExp(Exp(e)) => Ok(e)
+            | DrvExp(Exp(e), _) => Ok(e)
             | _ => Error("Pat Not Jdmt/Prop/Ctx/ALFA_Exp type")
             };
           e |> IdTagged.unwrap |> fst;
@@ -361,7 +361,7 @@ module Transition = (EV: EV_MODE) => {
             };
           let+ e =
             switch (DHExp.term_of(DHExp.strip_casts(d))) {
-            | DrvExp(Typ(e)) => Ok(e)
+            | DrvExp(Typ(e), _) => Ok(e)
             | _ => Error("Pat Not Jdmt/Prop/Ctx/ALFA_Exp type")
             };
           e |> IdTagged.unwrap |> fst;
@@ -396,10 +396,10 @@ module Transition = (EV: EV_MODE) => {
     let (term, rewrap) = IdTagged.unwrap(d);
     let term: term =
       switch (term) {
-      | DrvExp(Exp(exp)) => DrvExp(Exp(go_exp(exp)))
-      | DrvExp(Rul(rul)) => DrvExp(Rul(go_rul(rul)))
-      | DrvExp(Typ(typ)) => DrvExp(Typ(go_typ(typ)))
-      | DrvExp(Pat(pat)) => DrvExp(Pat(go_pat(pat)))
+      | DrvExp(Exp(exp), s) => DrvExp(Exp(go_exp(exp)), s)
+      | DrvExp(Rul(rul), s) => DrvExp(Rul(go_rul(rul)), s)
+      | DrvExp(Typ(typ), s) => DrvExp(Typ(go_typ(typ)), s)
+      | DrvExp(Pat(pat), s) => DrvExp(Pat(go_pat(pat)), s)
       | _ => term
       };
     term |> rewrap;

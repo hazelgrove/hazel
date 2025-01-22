@@ -856,20 +856,7 @@ module View = {
                ) => (
                  Just(rule, di): ed
                )
-             | (Abbr(i), _) =>
-               //  {
-               //      print_endline(
-               //        "Abbr("
-               //        ++ (
-               //          switch (i) {
-               //          | Some(i) => string_of_int(i)
-               //          | None => "?"
-               //          }
-               //        )
-               //        ++ ")",
-               //      );
-               //  }
-               Abbr(i)
+             | (Abbr(i), _) => Abbr(i)
              | _ => raise(Failure("DerivationTree.mk: ed<>di inconsistent")),
            ),
          )

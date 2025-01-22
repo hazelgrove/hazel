@@ -1,5 +1,14 @@
 open DrvSyntax;
 
+/**
+  This module is responsible for elaborating Drv.Exp.t to DrvSyntax.t.
+
+  It is a shame that I have to duplicate the code though DHExp.t has consolidated
+  with Exp.t. But I have to do this because
+  1) strict equality is required in `RuleSpec.re` (have to strip casts and parens)
+  2) sort separation (not implemented in Drv.Exp.t but needed in DrvSyntax.t)
+ */
+
 let to_list = d =>
   switch (DrvSyntax.term_of(d)) {
   | Ctx(ps) => ps
@@ -14,9 +23,15 @@ let rec exp_term_of: Drv.Exp.t => Drv.Exp.term =
     }
 and elab_jdmt: Drv.Exp.t => t =
   jdmt => {
+    let hole: term = Hole(Drv.Exp.show(jdmt));
     let term: term =
       switch (exp_term_of(jdmt)) {
       | Hole(s) => Hole(DrvTermBase.show_type_hole(s))
+      | Var(_)
+      | Abbr(_)
+      | Parens(_)
+      | Tuple(_) => hole
+      // Jdmt
       | Val(e) => Val(elab_exp(e))
       | Eval(e1, e2) => Eval(elab_exp(e1), elab_exp(e2))
       | Entail(ctx, p) => Entail(elab_ctxt(ctx), elab_prop(p))
@@ -24,7 +39,45 @@ and elab_jdmt: Drv.Exp.t => t =
       | MatchedArrow(t1, t2) => MatchedArrow(elab_typ(t1), elab_typ(t2))
       | MatchedProd(t1, t2) => MatchedProd(elab_typ(t1), elab_typ(t2))
       | MatchedSum(t1, t2) => MatchedSum(elab_typ(t1), elab_typ(t2))
-      | _ => Hole(Drv.Exp.show(jdmt))
+      // Ctx
+      | Ctx(_)
+      | Cons(_)
+      | Concat(_)
+      // Prop
+      | Type(_)
+      | HasType(_)
+      | Syn(_)
+      | Ana(_)
+      | And(_)
+      | Or(_)
+      | Impl(_)
+      | Truth
+      | Falsity
+      // Exp
+      | NumLit(_)
+      | Neg(_)
+      | Plus(_)
+      | Minus(_)
+      | Times(_)
+      | Gt(_)
+      | Lt(_)
+      | Eq(_)
+      | True
+      | False
+      | If(_)
+      | Let(_)
+      | Fix(_)
+      | Fun(_)
+      | Ap(_)
+      | Triv
+      | PrjL(_)
+      | PrjR(_)
+      | InjL
+      | InjR
+      | Case(_)
+      | Roll
+      | Unroll
+      | ExpHole => hole
       };
     {...jdmt, term};
   }
@@ -34,6 +87,19 @@ and elab_ctxt: Drv.Exp.t => t =
     let term: term =
       switch (exp_term_of(ctx)) {
       | Hole(s) => Hole(DrvTermBase.show_type_hole(s))
+      | Var(_)
+      | Abbr(_)
+      | Parens(_)
+      | Tuple(_)
+      // Jdmt
+      | Val(_)
+      | Eval(_)
+      | Entail(_)
+      | Consistent(_)
+      | MatchedArrow(_)
+      | MatchedProd(_)
+      | MatchedSum(_) => hole
+      // Ctx
       | Ctx(ps) =>
         Ctx(
           ps
@@ -55,15 +121,66 @@ and elab_ctxt: Drv.Exp.t => t =
         | (Ctx(ps1), Ctx(ps2)) => Ctx(List.fold_left(cons_ctx, ps2, ps1))
         | _ => hole
         }
-      | _ => hole
+      // Prop
+      | Type(_)
+      | HasType(_)
+      | Syn(_)
+      | Ana(_)
+      | And(_)
+      | Or(_)
+      | Impl(_)
+      | Truth
+      | Falsity
+      // Exp
+      | NumLit(_)
+      | Neg(_)
+      | Plus(_)
+      | Minus(_)
+      | Times(_)
+      | Gt(_)
+      | Lt(_)
+      | Eq(_)
+      | True
+      | False
+      | If(_)
+      | Let(_)
+      | Fix(_)
+      | Fun(_)
+      | Ap(_)
+      | Triv
+      | PrjL(_)
+      | PrjR(_)
+      | InjL
+      | InjR
+      | Case(_)
+      | Roll
+      | Unroll
+      | ExpHole => hole
       };
     {...ctx, term};
   }
 and elab_prop: Drv.Exp.t => t =
   prop => {
+    let hole: term = Hole(Drv.Exp.show(prop));
     let term: term =
       switch (exp_term_of(prop)) {
       | Hole(s) => Hole(DrvTermBase.show_type_hole(s))
+      | Abbr(_)
+      | Parens(_)
+      | Tuple(_)
+      // Jdmt
+      | Val(_)
+      | Eval(_)
+      | Entail(_)
+      | Consistent(_)
+      | MatchedArrow(_)
+      | MatchedProd(_)
+      | MatchedSum(_)
+      // Ctx
+      | Ctx(_)
+      | Cons(_)
+      | Concat(_) => hole
+      // Prop
       | Type(t) => Type(elab_typ(t))
       | HasType(e, t) => HasType(elab_exp(e), elab_typ(t))
       | Syn(e, t) => Syn(elab_exp(e), elab_typ(t))
@@ -74,7 +191,31 @@ and elab_prop: Drv.Exp.t => t =
       | Impl(p1, p2) => Impl(elab_prop(p1), elab_prop(p2))
       | Truth => Truth
       | Falsity => Falsity
-      | _ => Hole(Drv.Exp.show(prop))
+      // Exp
+      | NumLit(_)
+      | Neg(_)
+      | Plus(_)
+      | Minus(_)
+      | Times(_)
+      | Gt(_)
+      | Lt(_)
+      | Eq(_)
+      | True
+      | False
+      | If(_)
+      | Let(_)
+      | Fix(_)
+      | Fun(_)
+      | Ap(_)
+      | Triv
+      | PrjL(_)
+      | PrjR(_)
+      | InjL
+      | InjR
+      | Case(_)
+      | Roll
+      | Unroll
+      | ExpHole => hole
       };
     {...prop, term};
   }
@@ -96,6 +237,30 @@ and elab_exp: Drv.Exp.t => t =
     let term: term =
       switch (exp_term_of(exp)) {
       | Hole(s) => Hole(DrvTermBase.show_type_hole(s))
+      | Abbr(_)
+      | Parens(_)
+      // Jdmt
+      | Val(_)
+      | Eval(_)
+      | Entail(_)
+      | Consistent(_)
+      | MatchedArrow(_)
+      | MatchedProd(_)
+      | MatchedSum(_)
+      // Ctx
+      | Ctx(_)
+      | Cons(_)
+      | Concat(_)
+      // Prop
+      | Type(_)
+      | HasType(_)
+      | Syn(_)
+      | Ana(_)
+      | And(_)
+      | Or(_)
+      | Impl(_)
+      | Truth
+      | Falsity => hole
       | NumLit(i) => NumLit(i)
       | Neg(e) => Neg(elab_exp(e))
       | Plus(e1, e2) => Plus(elab_exp(e1), elab_exp(e2))
@@ -121,6 +286,7 @@ and elab_exp: Drv.Exp.t => t =
         | _ => Ap(elab_exp(e1), e2)
         };
       | Tuple([e1, e2]) => Pair(elab_exp(e1), elab_exp(e2))
+      | Tuple(_) => hole
       | Triv => Triv
       | PrjL(e) => PrjL(elab_exp(e))
       | PrjR(e) => PrjR(elab_exp(e))
@@ -138,10 +304,10 @@ and elab_exp: Drv.Exp.t => t =
           }
         | _ => hole
         };
+      | Case(_) => hole
       | Roll => hole
       | Unroll => hole
       | ExpHole => ExpHole
-      | _ => hole
       };
     {...exp, term};
   }
@@ -187,4 +353,16 @@ and elab_tpat: Drv.TPat.t => t =
       | Var(x) => TPat(x)
       };
     {...tpat, term};
+  };
+
+let elab_any = (d: Drv.Any.t, s: DrvSort.t) =>
+  switch (d, s) {
+  | (Exp(e), Jdmt) => elab_jdmt(e)
+  | (Exp(e), Ctx) => elab_ctxt(e)
+  | (Exp(e), Prop) => elab_prop(e)
+  | (Exp(e), Exp) => elab_exp(e)
+  | (Pat(p), Pat) => elab_pat(p)
+  | (Typ(t), Typ) => elab_typ(t)
+  | (TPat(t), TPat) => elab_tpat(t)
+  | _ => DrvSyntax.Hole(Drv.Any.show(d)) |> DrvSyntax.fresh
   };

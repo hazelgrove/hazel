@@ -54,8 +54,8 @@ module ProofTree = {
       switch (result) {
       | Some(e) =>
         switch (IdTagged.term_of(DHExp.strip_casts(e))) {
-        | DrvExp(Exp(d)) => DrvElab.elab_jdmt(d)
-        | _ => Hole("Not a Drv Exp") |> DrvSyntax.fresh
+        | DrvExp(Exp(d), _) => DrvElab.elab_jdmt(d)
+        | _ => Hole("Not a Drv Exp" ++ DHExp.show(e)) |> DrvSyntax.fresh
         }
       | None => Hole("No Result") |> DrvSyntax.fresh
       };
@@ -107,7 +107,7 @@ module VerifiedTree = {
       | Just(Error(exn)) => {res: Pending(exn), rule: None}
       | Just(Ok({rule: None, _})) => {res: Pending(NoRule), rule: None}
       | Just(Ok({rule: Some(rule), jdmt: concl})) =>
-        switch (RuleImage.image(version, rule)) {
+        switch (RuleImage.to_rule(version, rule)) {
         | None => {res: Pending(NotAvailable), rule: None}
         | Some(rule) =>
           let spec = RuleSpec.of_spec(rule);

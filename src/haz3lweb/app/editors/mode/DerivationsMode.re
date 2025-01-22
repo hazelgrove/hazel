@@ -317,6 +317,50 @@ module Selection = {
       List.nth(model.exercises, model.current),
     )
     |> Option.map(((x, y)) => (Update.DerivationTree(x), y));
+
+  let get_derivation_info = (eds: Model.t, pos: t) => {
+    let model = Model.get_current(eds);
+    let trees =
+      DerivationMode.grading_report(model).proof_report.verified_tree;
+    let eds = model.editors;
+    switch (pos) {
+    | (Trees(i, pos), _) =>
+      try({
+        let tree = List.nth(trees, i);
+        let res = Tree.nth(tree, pos);
+        let tree = List.nth(eds.trees, i);
+        let ed = Tree.nth(tree, pos);
+        switch (ed, res) {
+        | (Just({rule: Some(rule), _}), {rule: None, _}) =>
+          Haz3lcore.(
+            switch (RuleImage.to_rule(eds.ruleset, rule)) {
+            | Some(rule) =>
+              Some({
+                ...res,
+                rule:
+                  Some(
+                    {
+                      print_endline("Uncaught Rule: " ++ Rule.show(rule));
+                      let spec = RuleSpec.of_spec(rule);
+                      let tests = RuleTest.of_tests(rule);
+                      let (spec, tests) =
+                        RuleVerify.fill_eq_tests(spec, tests);
+                      let tests = RuleVerify.test_remove_eq_test(tests);
+                      {rule, spec, tests};
+                    },
+                  ),
+              })
+            | _ => Some(res)
+            }
+          )
+        | _ => Some(res)
+        };
+      }) {
+      | _ => None
+      }
+    | _ => None
+    };
+  };
 };
 
 module View = {

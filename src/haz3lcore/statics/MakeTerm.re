@@ -395,7 +395,7 @@ and exp = unsorted => {
     let (term, inner_ids) = alfa_exp_term(unsorted);
     let ids = ids(unsorted) @ inner_ids;
     let exp = return(e => Drv(Exp(e)), ids, {ids, copied: false, term});
-    TermBase.DrvExp(Exp(exp)) |> IdTagged.fresh;
+    TermBase.DrvExp(Exp(exp), Jdmt) |> IdTagged.fresh;
   | _ =>
     let ids = ids(unsorted) @ inner_ids;
     return(e => Exp(e), ids, {ids, copied: false, term});
@@ -439,11 +439,13 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       //   ret(Term(Drv(TPat(tp))))
       // | (["of_ctxt", "end"], [Drv(Exp(ctx))]) =>
       //   ret(Term(Drv(Exp(ctx))))
-      | (["of_jdmt", "end"], [Drv(Exp(j))]) => ret(DrvExp(Exp(j)))
-      | (["of_ctx", "end"], [Drv(Exp(c))]) => ret(DrvExp(Exp(c)))
-      | (["of_prop", "end"], [Drv(Exp(p))]) => ret(DrvExp(Exp(p)))
-      | (["of_alfa_exp", "end"], [Drv(Exp(e))]) => ret(DrvExp(Exp(e)))
-      | (["of_alfa_typ", "end"], [Drv(Typ(t))]) => ret(DrvExp(Typ(t))) // TODO(zhiyao): differentiate.
+      | (["of_jdmt", "end"], [Drv(Exp(j))]) => ret(DrvExp(Exp(j), Jdmt))
+      | (["of_ctx", "end"], [Drv(Exp(c))]) => ret(DrvExp(Exp(c), Ctx))
+      | (["of_prop", "end"], [Drv(Exp(p))]) => ret(DrvExp(Exp(p), Prop))
+      | (["of_alfa_exp", "end"], [Drv(Exp(e))]) =>
+        ret(DrvExp(Exp(e), Exp))
+      | (["of_alfa_typ", "end"], [Drv(Typ(t))]) =>
+        ret(DrvExp(Typ(t), Typ)) // TODO(zhiyao): differentiate.
       | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))

@@ -496,12 +496,39 @@ let get_doc_deduction =
   };
 };
 
+let get_color_map_deduction =
+    (
+      ~globals: Globals.t,
+      ~explainThisModel: ExplainThisModel.t,
+      info_deduction: info_deduction,
+    ) =>
+  switch (globals.settings.explainThis.highlight) {
+  | All when globals.settings.explainThis.show =>
+    let (_, (_, (color_map, _)), _) =
+      get_doc_deduction(
+        ~globals,
+        ~docs=explainThisModel,
+        info_deduction,
+        Colorings,
+      );
+    Some(color_map);
+  | One(id) when globals.settings.explainThis.show =>
+    let (_, (_, (color_map, _)), _) =
+      get_doc_deduction(
+        ~globals,
+        ~docs=explainThisModel,
+        info_deduction,
+        Colorings,
+      );
+    Some(Id.Map.filter((id', _) => id == id', color_map));
+  | _ => None
+  };
+
 let get_doc =
     (
       ~globals: Globals.t,
       ~docs: ExplainThisModel.t,
       info: option(Statics.Info.t),
-      // {info: option(Statics.Info.t), result: result(unit, RuleVerify.failure)}
       mode: message_mode,
     )
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {

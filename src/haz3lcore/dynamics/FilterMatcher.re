@@ -214,7 +214,7 @@ let rec matches_exp =
     | (String(dv), String(fv)) => dv == fv
     | (String(_), _) => false
 
-    | (DrvExp(d), DrvExp(f)) => d == f
+    | (DrvExp(d, _), DrvExp(f, _)) => d == f
     | (DrvExp(_), _) => false
 
     | (

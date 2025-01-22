@@ -71,7 +71,6 @@ module Store = {
       ExercisesMode.Store.save(~instructor_mode, m);
     | Model.Derivations(m) =>
       StoreMode.save(Derivations);
-      print_endline("Saving derivations");
       DerivationsMode.Store.save(~instructor_mode, m);
     };
   };
@@ -314,6 +313,14 @@ module Selection = {
     | Model.Exercises(_) => Exercises((Exercise.Prelude, MainEditor))
     | Model.Derivations(_) =>
       Derivations((DerivationTree.Prelude, MainEditor));
+
+  let get_derivation_info = (~selection: t, model: Model.t) => {
+    switch (model, selection) {
+    | (Derivations(eds), Derivations(pos)) =>
+      DerivationsMode.Selection.get_derivation_info(eds, pos)
+    | _ => None
+    };
+  };
 };
 
 module View = {

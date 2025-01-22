@@ -8,7 +8,24 @@ let okc = "ok";
 let div_err = div(~attrs=[clss(["status", errc])]);
 let div_ok = div(~attrs=[clss(["status", okc])]);
 
-let drv_view = (status: DrvInfo.t) => {
+let drv_view = (~globals, status: DrvInfo.t) => {
+  let view_type =
+    CodeViewable.view_typ(
+      ~globals,
+      ~settings={
+        inline: true,
+        fold_case_clauses: false,
+        fold_fn_bodies: false,
+        hide_fixpoints: false,
+        fold_cast_types: false,
+      },
+      ~info_map=Id.Map.empty,
+    );
+  let view_type = (typ: Typ.t) =>
+    switch (typ.term) {
+    | DrvTyp(t) => text(DrvSort.show(t))
+    | _ => view_type(typ)
+    };
   switch (DrvInfo.error_of(status)) {
   | None => div_ok([text("Fillable by any derivation element")])
   | Some(err) =>
@@ -22,10 +39,18 @@ let drv_view = (status: DrvInfo.t) => {
     | Pat(MultiHole)
     | Typ(MultiHole)
     | TPat(MultiHole) => div_err([text("Expecting operator or delimiter")])
-    | Pat(Expect(expect)) =>
+    | Exp(NoJoin(expect, actuals)) =>
+      div_err([
+        text(
+          "Expected "
+          ++ (DrvInfo.repr_ana_exp(expect) |> String.concat(", "))
+          ++ ", got "
+          ++ DrvInfo.repr_list_ana_exp(actuals),
+        ),
+      ])
+    | Pat(NoJoin(expect, _)) =>
       let expect =
         switch (expect) {
-        | Any => "Any pattern"
         | Var => "A variable pattern"
         | Cast_Var => "A variable pattern with optional type annotation"
         | Pair_Or_Case_Var => "A pair or a variable pattern with optional type annotation"
@@ -35,29 +60,28 @@ let drv_view = (status: DrvInfo.t) => {
         | InjR => "A Right Injection pattern"
         };
       div_err([text("Expected " ++ expect)]);
-    | Exp(NoJoin(ty)) when ty == Arrow =>
-      // TODO(zhiyao): not sufficient
-      div_err([text("Function argument type inconsistent with arrow type")])
-    | Exp(NoJoin(ty)) =>
-      // TODO(zhiyao): not sufficient
+    | Exp(FreeVar)
+    | Typ(FreeVar) => div_err([text("Unbound variable")])
+    | Exp(NotVar)
+    | Typ(NotVar) => div_err([text("Expected a variable")])
+    | Exp(VarNoJoin(expect, actual)) =>
       div_err([
         text(
-          "Expect sort "
-          ++ (
-            ty
-            |> (
-              fun
-              | Jdmt => "Jdmt"
-              | Ctx => "Ctx"
-              | Prop => "Prop"
-              | Exp => "ALFA_Exp"
-              | Arrow => "???"
-            )
-          ),
+          "Expected a variable of type "
+          ++ (DrvInfo.repr_ana_exp(expect) |> String.concat(", "))
+          ++ ", got ",
         ),
+        view_type(actual),
       ])
-    | Exp(FreeVar) => div_err([text("Expected a variable")])
-    | Typ(FreeVar) => div_err([text("Expected a type variable")])
+    | Typ(VarNoJoin(actual)) =>
+      div_err([
+        text("Expected a variable of type Drv Typ, got "),
+        view_type(actual),
+      ])
+    | Exp(TupleNotStandard) =>
+      div_err([text("Expected a standard tuple expression")])
+    | Exp(CaseNotStandard) =>
+      div_err([text("Expected a standard case expression")])
     }
   };
 };
