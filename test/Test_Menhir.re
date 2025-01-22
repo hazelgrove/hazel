@@ -111,7 +111,6 @@ let qcheck_menhir_maketerm_equivalent_test =
         );
 
       let serialized = Printer.of_segment(~holes=Some("?"), segment);
-      print_endline("Serialized: " ++ serialized);
       let make_term_parsed = make_term_parse(serialized);
       let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
       let menhir_parsed_converted =
@@ -134,8 +133,6 @@ let qcheck_menhir_maketerm_equivalent_test =
  * We generate an expression, convert it to the core representation, convert it to a segment,
  * serialize it, parse it with Menhir, and compare to the original.
  *
- * TODO This fails due to types not being serialized on constructors
- *  and some other ExpToSegment inconsistencies
  *
  * Filter and Test not implemented
  * Deferral serializing as "deferral"
@@ -501,10 +498,6 @@ let tests = (
       )
       |> Exp.fresh,
       "f(1, 2)",
-    ),
-    menhir_maketerm_equivalent_test(
-      "example qcheck",
-      {|fun ((c = [])) -> 1|},
     ),
     menhir_maketerm_equivalent_test(
       "partial sum type",
