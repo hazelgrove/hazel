@@ -1086,7 +1086,8 @@ let rec parenthesize =
     MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
   };
 }
-and parenthesize_pat = (~show_filters: bool, pat: Pat.t): Pat.t => {
+and parenthesize_pat =
+    (~show_filters: bool, ~already_paren=false, pat: Pat.t): Pat.t => {
   let parenthesize_pat = parenthesize_pat(~show_filters);
   let parenthesize_typ = parenthesize_typ(~show_filters);
   let (term, rewrap) = Pat.unwrap(pat);
@@ -1104,7 +1105,11 @@ and parenthesize_pat = (~show_filters: bool, pat: Pat.t): Pat.t => {
   // Other forms
   | Wild => pat
   | Parens(p) =>
-    Parens(parenthesize_pat(p) |> paren_pat_at(Precedence.min)) |> rewrap
+    Parens(
+      parenthesize_pat(~already_paren=true, p)
+      |> paren_pat_at(Precedence.min),
+    )
+    |> rewrap
   | Cons(p1, p2) =>
     Cons(
       parenthesize_pat(p1) |> paren_pat_at(Precedence.cons),
@@ -1112,12 +1117,14 @@ and parenthesize_pat = (~show_filters: bool, pat: Pat.t): Pat.t => {
     )
     |> rewrap
   | Tuple(ps) =>
-    Tuple(
-      ps
-      |> List.map(parenthesize_pat)
-      |> List.map(paren_pat_at(Precedence.prod)),
-    )
-    |> rewrap
+    let inner =
+      Tuple(
+        ps
+        |> List.map(parenthesize_pat)
+        |> List.map(paren_pat_at(Precedence.prod)),
+      )
+      |> rewrap;
+    already_paren ? inner : Parens(inner) |> Pat.fresh;
   | Label(_) => pat
   | TupLabel(l, p) =>
     TupLabel(l, parenthesize_pat(p) |> paren_pat_at(Precedence.min))
@@ -1147,7 +1154,8 @@ and parenthesize_pat = (~show_filters: bool, pat: Pat.t): Pat.t => {
   };
 }
 
-and parenthesize_typ = (~show_filters: bool, typ: Typ.t): Typ.t => {
+and parenthesize_typ =
+    (~show_filters: bool, ~already_paren=false, typ: Typ.t): Typ.t => {
   let parenthesize_typ = parenthesize_typ(~show_filters);
   let (term, rewrap) = Typ.unwrap(typ);
   switch (term) {
@@ -1164,16 +1172,22 @@ and parenthesize_typ = (~show_filters: bool, typ: Typ.t): Typ.t => {
 
   // Other forms
   | Parens(t) =>
-    Parens(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
+    Parens(
+      parenthesize_typ(~already_paren=true, t)
+      |> paren_typ_at(Precedence.min),
+    )
+    |> rewrap
   | List(t) =>
     List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
   | Prod(ts) =>
-    Prod(
-      ts
-      |> List.map(parenthesize_typ)
-      |> List.map(paren_typ_at(Precedence.comma)),
-    )
-    |> rewrap
+    let inner =
+      Prod(
+        ts
+        |> List.map(parenthesize_typ)
+        |> List.map(paren_typ_at(Precedence.comma)),
+      )
+      |> rewrap;
+    already_paren ? inner : Parens(inner) |> Typ.fresh;
   | Label(_) => typ
   | TupLabel(l, t) =>
     TupLabel(l, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
