@@ -11,8 +11,12 @@ let evaluation_test = (msg, expected, unevaluated) =>
       snd(Evaluator.evaluate'(Builtins.env_init, unevaluated)),
     ),
   );
-let parse_exp = (s: string) =>
-  MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
+let parse_exp = (s: string) => {
+  switch (MakeTerm.parse_exp(s)) {
+  | Some(e) => e
+  | None => Alcotest.fail("Failed to parse expression: " ++ s)
+  };
+};
 let dhexp_of_uexp = u =>
   Elaborator.elaborate(Statics.mk(CoreSettings.on, Builtins.ctx_init, u), u)
   |> fst;
