@@ -18,10 +18,6 @@ let parse_exp = (s: string) => {
   };
 };
 
-let rec strip_casts = (e: Exp.t): Exp.t => {
-  DHExp.strip_casts(e);
-};
-
 module PlainTests = {
   let u1: Exp.t = {ids: [id_at(0)], term: Int(8), copied: false};
   let single_integer = () =>
@@ -338,50 +334,56 @@ module PlainTests = {
     );
 
   /*
-    Label Elaboration test
-    ```hazel
-   let add : (street=String, city=String, state=String, zipcode=Int)= ("123 Maple St",
-     "Ann Arbor",
-     "MI",
-   48103) in add ```
-    elaborates to
-    (street="123 Maple St", city="Ann Arbor", state="MI", zipcode=48103)
-    */
-  let full_labeled_tuple_program: Exp.t =
-    Let(
-      Cast(
-        Var("add") |> Pat.fresh,
-        Parens(
-          Prod([
-            TupLabel(Label("street") |> Typ.fresh, String |> Typ.fresh)
+     Labeled Tuple Elaboration Test
+     ```hazel
+     let add : (street=String, city=String, state=String, zipcode=Int) = (
+       "123 Maple St",
+       "Ann Arbor",
+       "MI",
+       48103
+     ) in add
+     ```
+     elaborates to
+     ```hazel
+     let add : (street=String, city=String, state=String, zipcode=Int) =
+     (street="123 Maple St", city="Ann Arbor", state="MI", zipcode=48103) in add
+     ```
+   */
+  let elaborated_labeled_tuple = () => {
+    let full_labeled_tuple_program: Exp.t =
+      Let(
+        Cast(
+          Var("add") |> Pat.fresh,
+          Parens(
+            Prod([
+              TupLabel(Label("street") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+              TupLabel(Label("city") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+              TupLabel(Label("state") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+              TupLabel(Label("zipcode") |> Typ.fresh, Int |> Typ.fresh)
+              |> Typ.fresh,
+            ])
             |> Typ.fresh,
-            TupLabel(Label("city") |> Typ.fresh, String |> Typ.fresh)
-            |> Typ.fresh,
-            TupLabel(Label("state") |> Typ.fresh, String |> Typ.fresh)
-            |> Typ.fresh,
-            TupLabel(Label("zipcode") |> Typ.fresh, Int |> Typ.fresh)
-            |> Typ.fresh,
-          ])
+          )
           |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
         )
-        |> Typ.fresh,
-        Unknown(Internal) |> Typ.fresh,
-      )
-      |> Pat.fresh,
-      Parens(
-        Tuple([
-          String("123 Maple St") |> Exp.fresh,
-          String("Ann Arbor") |> Exp.fresh,
-          String("MI") |> Exp.fresh,
-          Int(48103) |> Exp.fresh,
-        ])
+        |> Pat.fresh,
+        Parens(
+          Tuple([
+            String("123 Maple St") |> Exp.fresh,
+            String("Ann Arbor") |> Exp.fresh,
+            String("MI") |> Exp.fresh,
+            Int(48103) |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+        )
         |> Exp.fresh,
+        Var("add") |> Exp.fresh,
       )
-      |> Exp.fresh,
-      Var("add") |> Exp.fresh,
-    )
-    |> Exp.fresh;
-  let elaborated_labeled_tuple = () =>
+      |> Exp.fresh;
     alco_check(
       "Labeled Tuple label introduction",
       Let(
@@ -408,6 +410,7 @@ module PlainTests = {
       |> Exp.fresh,
       dhexp_of_uexp(full_labeled_tuple_program),
     );
+  };
 
   let singleton_labeled_tuple = () =>
     alco_check(
@@ -457,40 +460,42 @@ module PlainTests = {
        elaborates to
        (a=1, b="a", 1.0, c=true)
      */
-  let rearranged_labeled_tuple_program: Exp.t =
-    Let(
-      Cast(
-        Var("val") |> Pat.fresh,
-        Parens(
-          Prod([
-            TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
-            TupLabel(Label("b") |> Typ.fresh, String |> Typ.fresh)
+  let rearranged_labeled_tuple = () => {
+    let rearranged_labeled_tuple_program: Exp.t =
+      Let(
+        Cast(
+          Var("val") |> Pat.fresh,
+          Parens(
+            Prod([
+              TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
+              |> Typ.fresh,
+              TupLabel(Label("b") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+              Float |> Typ.fresh,
+              TupLabel(Label("c") |> Typ.fresh, Bool |> Typ.fresh)
+              |> Typ.fresh,
+            ])
             |> Typ.fresh,
-            Float |> Typ.fresh,
-            TupLabel(Label("c") |> Typ.fresh, Bool |> Typ.fresh) |> Typ.fresh,
-          ])
+          )
           |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
         )
-        |> Typ.fresh,
-        Unknown(Internal) |> Typ.fresh,
-      )
-      |> Pat.fresh,
-      Parens(
-        Tuple([
-          Int(1) |> Exp.fresh,
-          Float(1.0) |> Exp.fresh,
-          TupLabel(Label("c") |> Exp.fresh, Bool(true) |> Exp.fresh)
+        |> Pat.fresh,
+        Parens(
+          Tuple([
+            Int(1) |> Exp.fresh,
+            Float(1.0) |> Exp.fresh,
+            TupLabel(Label("c") |> Exp.fresh, Bool(true) |> Exp.fresh)
+            |> Exp.fresh,
+            TupLabel(Label("b") |> Exp.fresh, String("a") |> Exp.fresh)
+            |> Exp.fresh,
+          ])
           |> Exp.fresh,
-          TupLabel(Label("b") |> Exp.fresh, String("a") |> Exp.fresh)
-          |> Exp.fresh,
-        ])
+        )
         |> Exp.fresh,
+        Var("val") |> Exp.fresh,
       )
-      |> Exp.fresh,
-      Var("val") |> Exp.fresh,
-    )
-    |> Exp.fresh;
-  let rearranged_labeled_tuple = () =>
+      |> Exp.fresh;
     alco_check(
       "Labeled Tuple rearrangement",
       Let(
@@ -510,6 +515,7 @@ module PlainTests = {
       |> Exp.fresh,
       dhexp_of_uexp(rearranged_labeled_tuple_program),
     );
+  };
 
   let tests = [
     test_case("Single integer", `Quick, single_integer),
@@ -540,13 +546,11 @@ module PlainTests = {
     test_case("Labeled tuple elaboration", `Quick, elaborated_labeled_tuple),
     test_case("Rearranged labeled tuple", `Quick, rearranged_labeled_tuple),
     test_case(
-      // TODO Not sure if we want this case
       "Singleton labeled tuple adds labels",
       `Quick,
       singleton_labeled_tuple_elaborates_labels,
     ),
-    test_case("Singleton labeled tuple", `Quick, singleton_labeled_tuple), // TODO Make consistent with make term
-    // TODO Add singleton labeled function application
+    test_case("Singleton labeled tuple", `Quick, singleton_labeled_tuple),
     test_case("Singleton labeld tuple analysis adds label", `Quick, () =>
       alco_check(
         "Singleton labeld tuple analysis adds label",
@@ -681,7 +685,7 @@ module PlainTests = {
     ),
     test_case("Failed cast inside labeled tuple", `Quick, () =>
       alco_check(
-        {|let x : (c=String) = c=1 in x|}, // TODO Things go wrong if this is unknown rather than String
+        {|let x : (c=String) = c=1 in x|},
         Let(
           Var("x") |> Pat.fresh,
           Tuple([
@@ -752,7 +756,7 @@ module PlainTests = {
           |> Exp.fresh,
         )
         |> Exp.fresh,
-        strip_casts(dhexp_of_uexp(parse_exp({|(fun a=x->x)(a=1)|}))),
+        DHExp.strip_casts(dhexp_of_uexp(parse_exp({|(fun a=x->x)(a=1)|}))),
       )
     ),
     test_case("Singleton labeled argument let with unknown type", `Quick, () =>
@@ -768,7 +772,7 @@ module PlainTests = {
           Var("x") |> Exp.fresh,
         )
         |> Exp.fresh,
-        strip_casts(
+        DHExp.strip_casts(
           dhexp_of_uexp(parse_exp({|let x : (a=?) = (a=1) in x|})),
         ) // Ignoring casts for now
       )
