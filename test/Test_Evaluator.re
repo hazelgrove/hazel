@@ -240,5 +240,13 @@ in fn("hello")|},
         ),
       )
     }),
+    test_case("Dot operation for missing label", `Quick, () =>
+      check(
+        dhexp_typ,
+        {|(a=1,b=2).c|},
+        parse_exp("(a=1,b=2).c"),
+        parse_and_evaluate("(a=1,b=2).c"),
+      )
+    ),
   ],
 );
