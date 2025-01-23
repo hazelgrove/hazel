@@ -23,15 +23,15 @@ and equal_piece = (a: piece, b: piece) => {
   };
 };
 
-let settings = ExpToSegment.Settings.of_core(~inline=true, CoreSettings.on);
-let segment =
-  testable(Fmt.using(Segment.show, Fmt.string), (x, y) =>
-    equal_segment(x, y)
+let segment = testable(Fmt.using(Segment.show, Fmt.string), equal_segment);
+let exp_to_segment =
+  ExpToSegment.(
+    exp_to_segment(~settings=Settings.of_core(~inline=true, CoreSettings.on))
   );
-let exp_to_segment = ExpToSegment.exp_to_segment(~settings);
 
-let make_term_parse = (s: string) =>
+let zipper_parse = (s: string) =>
   Option.map(Printer.seg_of_zip, Printer.zipper_of_string(s));
+
 let equivalent_to_make_term = (serialized: string) => {
   switch (Printer.zipper_of_string(serialized)) {
   | None => Alcotest.fail("Failed to parse term")
@@ -158,7 +158,7 @@ let tests = (
         check(
           option(segment),
           "2-ary",
-          make_term_parse("(1, 2)"),
+          zipper_parse("(1, 2)"),
           Some(
             exp_to_segment(
               Exp.temp(Tuple([Exp.temp(Int(1)), Exp.temp(Int(2))])),
@@ -168,13 +168,13 @@ let tests = (
       },
     ),
     test_case(
-      "Labeled Tuple",
+      "Basic Labeled Tuples",
       `Quick,
       () => {
         check(
           option(segment),
           "Singleton Labeled",
-          make_term_parse("(x = 1)"),
+          zipper_parse("(x = 1)"),
           Some(
             exp_to_segment(
               Exp.temp(
