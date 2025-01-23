@@ -575,7 +575,7 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
         NotInHole(Type(ty));
       } else {
         InHole(DuplicateLabels(duplicate_labels, ty));
-      }; // Check for duplicates
+      };
     | LabelExpected(_) => InHole(WantLabel)
     | ConstructorExpected(_)
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
@@ -612,7 +612,6 @@ let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
 let is_error = (ci: t): bool => {
   switch (ci) {
   | InfoExp({status, _}) =>
-    // TODO Confirm with disconcision that we can use the derived status
     switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
@@ -718,7 +717,7 @@ let derived_exp =
       ~ancestors,
       ~self,
       ~co_ctx,
-      ~singleton_autolabelling: option(singleton_autolabelling(exp)),
+      ~singleton_autolabelling,
     )
     : exp => {
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
@@ -749,7 +748,7 @@ let derived_pat =
       ~ancestors,
       ~self,
       ~constraint_,
-      ~singleton_autolabelling: option(singleton_autolabelling(pat)),
+      ~singleton_autolabelling,
     )
     : pat => {
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
