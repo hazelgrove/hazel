@@ -280,7 +280,6 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Tuple([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()")
   | Label(l) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, l)
   | TupLabel(l, e) =>
-    // TODO abanduk: I can't tell if this works
     let* l = go(l)
     and* e = go(e);
 
