@@ -301,7 +301,6 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and* l = go(l);
     e @ [mk_form("dot_exp", exp |> Exp.rep_id, [])] @ l;
   | Tuple([{term: TupLabel(_), _} as le]) => go(le)
-  | Tuple([_]) => failwith("Singleton Tuples are not allowed")
   | Tuple([x, ...xs]) =>
     // TODO: Add optional newlines
     let+ x = go(x)
@@ -542,8 +541,6 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     and+ p2 = go(p2);
     p1 @ [mk_form("cons_pat", id, [])] @ p2;
   | Tuple([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "()")
-  | Tuple([{term: TupLabel(_), _} as le]) => go(le)
-  | Tuple([_]) => failwith("Singleton Tuples are not allowed")
   | Tuple([x, ...xs]) =>
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
@@ -637,8 +634,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t = go(t);
     [mk_form("list_typ", id, [t])];
   | Prod([]) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "()")
-  // | Prod([_]) => failwith("Singleton Prods are not allowed")
-  | Prod([{term: TupLabel(_), _} as tl]) => go(tl)
   | Prod([t, ...ts]) =>
     let+ t = go(t)
     and+ ts = ts |> List.map(go) |> all;
