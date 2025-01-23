@@ -17,9 +17,22 @@ let parse_exp = (s: string) => {
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };
 };
-let dhexp_of_uexp = u =>
+let elaborate = u =>
   Elaborator.elaborate(Statics.mk(CoreSettings.on, Builtins.ctx_init, u), u)
   |> fst;
+let parse_and_evaluate = (s: string) =>
+  ProgramResult.Result.unbox(
+    snd(Evaluator.evaluate'(Builtins.env_init, elaborate(parse_exp(s)))),
+  );
+
+let parse_and_evaluate_test =
+    (~msg: option(string)=?, expected: string, actual: string) =>
+  evaluation_test(
+    Option.value(~default=expected ++ " == " ++ actual, msg),
+    parse_exp(expected),
+    elaborate(parse_exp(actual)),
+  );
+
 let test_int = () =>
   evaluation_test("8", Int(8) |> Exp.fresh, Int(8) |> Exp.fresh);
 
@@ -185,13 +198,6 @@ let tet_ap_of_hole_deferral = () =>
     |> Exp.fresh,
   );
 
-let parse_and_evaluate = (s: string) =>
-  ProgramResult.Result.unbox(
-    snd(
-      Evaluator.evaluate'(Builtins.env_init, dhexp_of_uexp(parse_exp(s))),
-    ),
-  );
-
 let tests = (
   "Evaluator",
   [
@@ -201,56 +207,32 @@ let tests = (
     test_case("Function deferral", `Quick, test_function_deferral),
     test_case("Deferral applied to hole", `Quick, tet_ap_of_hole_deferral),
     test_case("Elaborated Pattern for labeled tuple", `Quick, () =>
-      check(
-        dhexp_typ,
+      parse_and_evaluate_test(
+        "2",
         {|let x : (a=Int) -> Int = fun a -> a in x(2)|},
-        Int(2) |> Exp.fresh,
-        parse_and_evaluate("let x : (a=Int) -> Int = fun a -> a in x(2)"),
       )
     ),
     test_case("Labeled tuple field access", `Quick, () =>
-      check(
-        dhexp_typ,
-        {|(a=1,b=2).a|},
-        Int(1) |> Exp.fresh,
-        parse_and_evaluate("(a=1,b=2).a"),
-      )
+      parse_and_evaluate_test("1", {|(a=1,b=2).a|})
     ),
     test_case("Anonymous function with explicit label", `Quick, () => {
-      check(
-        dhexp_typ,
+      parse_and_evaluate_test(
+        "5",
         {|let fn : (a=String) -> Int =
   fun (a=a : String) -> string_length(a)
 in fn("hello")|},
-        parse_exp("5"),
-        parse_and_evaluate(
-          {|let fn : (a=String) -> Int =
-  fun (a=a : String) -> string_length(a)
-in fn("hello")|},
-        ),
       )
     }),
     test_case("Anonymous function without explicit label", `Quick, () => {
-      check(
-        dhexp_typ,
+      parse_and_evaluate_test(
+        "5",
         {|let fn : (a=String) -> Int =
             fun (a : String) -> string_length(a)
           in fn("hello")|},
-        parse_exp("5"),
-        parse_and_evaluate(
-          {|let fn : (a=String) -> Int =
-            fun (a : String) -> string_length(a)
-          in fn("hello")|},
-        ),
       )
     }),
     test_case("Dot operation for missing label", `Quick, () =>
-      check(
-        dhexp_typ,
-        {|(a=1,b=2).c|},
-        parse_exp("(a=1,b=2).c"),
-        parse_and_evaluate("(a=1,b=2).c"),
-      )
+      parse_and_evaluate_test("(a=1,b=2).c", "(a=1,b=2).c")
     ),
   ],
 );
