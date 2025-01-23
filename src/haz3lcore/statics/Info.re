@@ -145,7 +145,7 @@ type status_variant =
 type typ_expects =
   | TypeExpected
   | TupleExpected
-  | LabelExpected(status_variant, list(string)) // list of duplicate labels expected to NOT be
+  | LabelExpected(status_variant, list(LabeledTuple.label)) // list of duplicate labels
   | ConstructorExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
 
