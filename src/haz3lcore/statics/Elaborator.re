@@ -473,34 +473,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         let def = add_name(Pat.get_var(p), def);
         let (def, ty2) = elaborate(m, def);
         let (body, ty) = elaborate(m, body);
-        Let(
-          p,
-          fresh_cast(
-            def,
-            Typ.weak_head_normalize(ctx, ty2),
-            Typ.weak_head_normalize(ctx, ty1),
-          ), // TODO abanduk: Is it safe to normalize here?
-          body,
-        )
-        |> rewrap
-        |> cast_from(ty);
+        Let(p, fresh_cast(def, ty2, ty1), body) |> rewrap |> cast_from(ty);
       } else {
         // TODO: Add names to mutually recursive functions
         let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
         let (def, ty2) = elaborate(m, def);
         let (body, ty) = elaborate(m, body);
         let fixf =
-          (
-            FixF(
-              p,
-              fresh_cast(
-                def,
-                Typ.weak_head_normalize(ctx, ty2),
-                Typ.weak_head_normalize(ctx, ty1),
-              ),
-              None,
-            ): Exp.term
-          )  // TODO abanduk: Is it safe to normalize here?
+          (FixF(p, fresh_cast(def, ty2, ty1), None): Exp.term)
           |> IdTagged.fresh_deterministic(DHExp.rep_id(uexp));
         Let(p, fixf, body) |> rewrap |> cast_from(ty);
       };
