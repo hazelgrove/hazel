@@ -21,7 +21,7 @@ let test_rearrange = (name, analyzed_types, actual_values, expected_values) =>
       ();
     },
   );
-// Create a property test
+
 let tests: list(test_case(return)) = [
   test_rearrange(
     "Singleton unlabeled",
