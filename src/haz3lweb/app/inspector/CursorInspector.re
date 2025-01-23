@@ -77,8 +77,8 @@ let elements_noun: Cls.t => string =
 let common_err_view =
     (
       ~globals,
-      ~lifted_ty as _: option(Typ.t)=?,
-      ~sugar_info: option(Info.sugar)=?,
+      ~auto_labels: list(LabeledTuple.label)=[],
+      ~lifted_ty: option(Typ.t)=?,
       cls: Cls.t,
       err: Info.error_common,
     ) => {
@@ -153,12 +153,19 @@ let common_err_view =
       view_type(ana) |> code_box_container,
     ]
     @ (
-      switch (sugar_info) {
+      switch (lifted_ty) {
       | None => []
-      | Some(AutoLabel(label)) => [
-          text(" after automatically added label "),
-          code(label),
-        ] // TODO Figure out styling as well as how to handle nested labels
+      | Some(lifted) => [text(" lifted to"), view_type(lifted)]
+      }
+    )
+    @ (
+      switch (auto_labels) {
+      | [] => []
+      | [a] => [text("by automatically added label "), code(a)]
+      | _ => [
+          text("by automatically added labels "),
+          ...ListUtil.join(text(","), List.map(code, auto_labels)),
+        ]
       }
     )
   | Inconsistent(Internal(tys)) => [
@@ -171,9 +178,8 @@ let common_err_view =
 let common_ok_view =
     (
       ~globals,
-      ~auto_labels: list(string)=[],
+      ~auto_labels: list(LabeledTuple.label)=[],
       ~lifted_ty: option(Typ.t)=?,
-      ~sugar_info: option(Info.sugar)=?,
       cls: Cls.t,
       ok: Info.ok_pat,
     ) => {
@@ -218,12 +224,13 @@ let common_ok_view =
       }
     )
     @ (
-      switch (sugar_info) {
-      | None => []
-      | Some(AutoLabel(label)) => [
-          text(" automatically added label "),
-          code(label),
-        ] // TODO Figure out styling as well as how to handle nested labels
+      switch (auto_labels) {
+      | [] => []
+      | [a] => [text("by automatically added label "), code(a)]
+      | _ => [
+          text("by automatically added labels "),
+          ...ListUtil.join(text(","), List.map(code, auto_labels)),
+        ]
       }
     )
 
@@ -331,21 +338,18 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
 
 let rec automatic_inserted_labels_exp =
         (info: option(Info.exp)): list(string) =>
-  switch (Option.bind(info, i => i.sugar_info)) {
+  switch (Option.bind(info, i => i.singleton_autolabelling)) {
   | None => []
-  | Some(AutoLabel(label)) =>
-    [label]
-    @ automatic_inserted_labels_exp(
-        Option.bind(info, i => i.unelaborated_info),
-      )
+  | Some({label, pre_labeled_info}) =>
+    [label] @ automatic_inserted_labels_exp(Some(pre_labeled_info))
   };
 
 let rec automatic_inserted_labels_pat =
         (info: option(Info.pat)): list(string) =>
-  switch (Option.bind(info, i => i.elaboration_provenance)) {
+  switch (Option.bind(info, i => i.singleton_autolabelling)) {
   | None => []
-  | Some((ui, AutoLabel(label))) =>
-    [label] @ automatic_inserted_labels_pat(Some(ui))
+  | Some({label, pre_labeled_info}) =>
+    [label] @ automatic_inserted_labels_pat(Some(pre_labeled_info))
   };
 
 let rec exp_view =
@@ -399,8 +403,8 @@ let rec exp_view =
     div_err(
       common_err_view(
         ~globals,
-        ~lifted_ty=?Option.map(_ => info.ty, info.sugar_info),
-        ~sugar_info=?info.sugar_info,
+        ~auto_labels=labels,
+        ~lifted_ty=?Option.map(_ => info.ty, info.singleton_autolabelling),
         cls,
         error,
       ),
@@ -412,8 +416,7 @@ let rec exp_view =
       common_ok_view(
         ~globals,
         ~auto_labels=labels,
-        ~lifted_ty=?Option.map(_ => info.ty, info.sugar_info),
-        ~sugar_info=?info.sugar_info,
+        ~lifted_ty=?Option.map(_ => info.ty, info.singleton_autolabelling),
         cls,
         ok,
       ),
@@ -441,8 +444,7 @@ let rec pat_view =
       common_ok_view(
         ~globals,
         ~auto_labels=labels,
-        ~lifted_ty=?Option.map(_ => info.ty, info.elaboration_provenance),
-        ~sugar_info=?Option.map(snd, info.elaboration_provenance),
+        ~lifted_ty=?Option.map(_ => info.ty, info.singleton_autolabelling),
         cls,
         ok,
       ),
