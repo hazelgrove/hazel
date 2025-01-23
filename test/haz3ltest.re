@@ -6,7 +6,7 @@ let (suite, _) =
     "HazelTests",
     [
       Test_ExpToSegment.tests,
-      ("LabeledTuple", Test_LabeledTuple.tests),
+      Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_StringUtil.tests,
