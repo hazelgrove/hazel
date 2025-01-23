@@ -56,9 +56,10 @@
   color: var(--code-text);
   display: flex;
   flex-direction: row;
-  gap: 0.4em;
   cursor: pointer;
   align-items: center;
+  justify-content: space-evenly;
+  width: 100%;
 }
 .projector.probe.indicated:not(.selected) .main,
 .cell-item:not(.selected) .projector.probe.indicated .main {

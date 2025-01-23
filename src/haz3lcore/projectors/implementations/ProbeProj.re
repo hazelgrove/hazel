@@ -86,9 +86,34 @@ module DynCursor = {
 
   let reset = () => s;
 
-  let capture = (info: info, closure: closure) => {
+  let capture_cursor = (closure: closure): unit => {
     s.call_cursor = closure.call_stack;
+  };
+
+  let capture_ap = (info: info): unit => {
     s.indicated_call = cur_ap(info);
+  };
+
+  let has = (closures: list(closure)): option(closure) =>
+    List.find_opt(
+      (closure: closure) => s.call_cursor == closure.call_stack,
+      closures,
+    );
+
+  let is_pinned = (info: info): bool =>
+    switch (OptUtil.and_then(has, info.dynamics)) {
+    | Some(closure_cursor) => s.pinned_call == cur_call(info, closure_cursor)
+    | _ => false
+    };
+
+  let pin_call = (info: info): unit =>
+    switch (OptUtil.and_then(has, info.dynamics)) {
+    | Some(closure_cursor) => s.pinned_call = cur_call(info, closure_cursor)
+    | _ => ()
+    };
+
+  let unpin_call = (): unit => {
+    s.pinned_call = None;
   };
 
   /* If the closure cursor is on a call, and the provided
@@ -156,20 +181,24 @@ module Closures = {
     | None => 0
     };
 
-  let filter_frames_by_pin = (frames: list(closure)): list(closure) =>
+  let filter_frames_by_pin = (info, frames: list(closure)): list(closure) =>
     switch (DynCursor.s.pinned_call) {
     | Some(pinned_ap) =>
       List.filter(
         (closure: closure) =>
-          ListUtil.is_suffix_of(pinned_ap, closure.call_stack),
+          /* Which do we want to show here? */
+          //DynCursor.s.pinned_call == cur_call(info, closure)
+          ListUtil.hd_opt(pinned_ap) == cur_ap(info)
+          || ListUtil.is_suffix_of(pinned_ap, closure.call_stack),
         frames,
       )
     | None => frames
     };
 
-  let select_frames = (model: model, closures: list(closure)): list(closure) =>
+  let select_frames =
+      (model: model, info: info, closures: list(closure)): list(closure) =>
     closures
-    |> filter_frames_by_pin
+    |> filter_frames_by_pin(info)
     |> ListUtil.slice(model.index_offset, model.max_closures);
 
   let group_by_predicate =
@@ -219,9 +248,9 @@ module Closures = {
   };
 
   let collate =
-      (model: model, di: list(closure))
+      (model: model, info: info, di: list(closure))
       : (int, list(list((int, closure)))) => {
-    let closures = select_frames(model, di);
+    let closures = select_frames(model, info, di);
     let numbered_closures =
       List.mapi((i, c) => (List.length(closures) - i - 1, c), closures);
     (List.length(closures), group(numbered_closures));
@@ -299,7 +328,8 @@ let value_view =
     JsUtil.setPointerCapture(target, e##.pointerId) |> ignore;
     mousedown := Some(target);
     click_coords := Some({row: e##.clientY, col: e##.clientX});
-    DynCursor.capture(info, closure);
+    DynCursor.capture_cursor(closure);
+    DynCursor.capture_ap(info);
     Effect.Ignore;
   };
 
@@ -447,7 +477,7 @@ let offside_view =
     ~attrs=[Attr.classes(["live-offside"])],
     switch (info.dynamics) {
     | Some(di) =>
-      let (num_shown, groups) = Closures.collate(model, di);
+      let (num_shown, groups) = Closures.collate(model, info, di);
       let is_cut_off = num_shown != Closures.num(info) && num_shown > 0;
       let extras = [nav_bar_view(model, di, local), ellipsis_view(local)];
       (num_shown > 0 ? [equals_view] : [])
@@ -494,47 +524,29 @@ let placeholder = (_m, info) =>
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
 let view = (info: info): Node.t => {
-  let first_closure =
-    switch (info.dynamics) {
-    | Some([first_closure, ..._]) => Some(first_closure)
-    | _ => None
-    };
-  let is_pinned =
-    switch (first_closure) {
-    | Some(first_closure) =>
-      DynCursor.s.pinned_call == cur_call(info, first_closure)
-    | _ => false
-    };
   let on_double_click = _ => {
     //DynCursor.reset();
     switch (DynCursor.s.pinned_call) {
     | Some(pinned_ap) when ListUtil.hd_opt(pinned_ap) == cur_ap(info) =>
+      /* already pinned case */
       DynCursor.s.pinned_call = None
     | Some(_)
-    | None =>
-      //TODO(andrew): this should be on the cell not on the ap...
-      switch (first_closure) {
-      | Some(first_closure) =>
-        DynCursor.s.pinned_call = cur_call(info, first_closure)
-      | _ => ()
-      }
+    | None => DynCursor.pin_call(info)
     };
     Effect.Ignore;
   };
 
-  let check_if_already = (closures: list(closure)): bool =>
-    List.exists(
-      (closure: closure) => DynCursor.s.call_cursor == closure.call_stack,
-      closures,
-    );
-
   let on_pointerdown = _ => {
     switch (info.dynamics) {
-    | Some(di) when check_if_already(di) => ()
+    | Some(di) when DynCursor.has(di) != None =>
+      /* If the cursor is already on one of this probe's closures */
+      DynCursor.capture_ap(info)
     | Some(di) =>
       switch (di) {
-      | [first_closure, ..._] => DynCursor.capture(info, first_closure)
-      | [] => ()
+      | [first_closure, ..._] =>
+        DynCursor.capture_cursor(first_closure);
+        DynCursor.capture_ap(info);
+      | [] => DynCursor.capture_ap(info)
       }
     | None => ()
     };
@@ -546,7 +558,7 @@ let view = (info: info): Node.t => {
       Attr.classes(
         ["main"]
         @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
-        @ (is_pinned ? ["pinned"] : []),
+        @ (DynCursor.is_pinned(info) ? ["pinned"] : []),
       ),
       Attr.on_double_click(on_double_click),
       Attr.on_pointerdown(on_pointerdown),
@@ -556,29 +568,19 @@ let view = (info: info): Node.t => {
 };
 
 let overlay_view = (info: info): Node.t => {
-  let first_closure =
-    switch (info.dynamics) {
-    | Some([first_closure, ..._]) => Some(first_closure)
-    | _ => None
-    };
-  let is_pinned =
-    switch (first_closure) {
-    | Some(first_closure) =>
-      DynCursor.s.pinned_call == cur_call(info, first_closure)
-    | _ => false
-    };
+  let cursored_closure = OptUtil.and_then(DynCursor.has, info.dynamics);
   div(
     ~attrs=[
       Attr.classes(
         ["overlay"]
         @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
-        @ (is_pinned ? ["pinned"] : []),
+        @ (DynCursor.is_pinned(info) ? ["pinned"] : []),
       ),
     ],
     [num_closures_view(info)]
     @ (
-      switch (first_closure) {
-      | Some(first_closure) => pin_view(info, first_closure)
+      switch (cursored_closure) {
+      | Some(cursored_closure) => pin_view(info, cursored_closure)
       | _ => []
       }
     ),
