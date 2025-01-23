@@ -50,12 +50,13 @@ type error_no_type =
   | BadToken(Token.t)
   /* Empty application of function with inconsistent type */
   | BadTrivAp(Typ.t)
-  /* Tuple or TupLabel contains an inconsistent or invalid Label*/
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t)
   /* Dot Operator is ill-formed */
   | WantTuple
+  /* Label not found in tuple for dot operator */
   | LabelNotFound
+  /* Sort error used as label in tuple */
   | BadLabel(Any.t);
 
 /* Errors which can apply to either expression or patterns */
@@ -65,10 +66,11 @@ type error_common =
   | NoType(error_no_type)
   /* Overdetermined: Conflicting type expectations */
   | Inconsistent(error_inconsistent)
-  /* Duplicate labels in labeled tuple */
+  /* Collected duplicate labels for a labeled tuple */
   | DuplicateLabels(list(LabeledTuple.label), Typ.t)
-  /* Duplicate item, used for duplicated labels*/
-  | Duplicate(LabeledTuple.label, Typ.t)
+  /* The error on a specific duplicate label */
+  | DuplicateLabel(LabeledTuple.label, Typ.t)
+  /* Sort errors used as label in tuple */
   | BadLabelsContained(list(Any.t), Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -403,9 +405,9 @@ let rec status_common =
   | (BadLabelsContained(bad_labels, typ), _) =>
     InHole(BadLabelsContained(bad_labels, typ))
   | (DuplicateLabels(labels, ty), _) => InHole(DuplicateLabels(labels, ty))
-  | (Duplicate(lab, Just(ty)), _) => InHole(Duplicate(lab, ty))
+  | (Duplicate(lab, Just(ty)), _) => InHole(DuplicateLabel(lab, ty))
   | (Duplicate(lab, _), _) =>
-    InHole(Duplicate(lab, Unknown(Internal) |> Typ.temp))
+    InHole(DuplicateLabel(lab, Unknown(Internal) |> Typ.temp))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
   | (NoJoin(wrap, tys), Ana(ana)) =>
     let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.temp);
@@ -436,8 +438,8 @@ let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
       | InHole(Common(Inconsistent(Internal(_) | Expectation(_))) as err)
       | InHole(Common(NoType(_)) as err) => Some(err)
       | NotInHole(_) => None
-      | InHole(Common(DuplicateLabels(_))) // Is this right?
-      | InHole(Common(Duplicate(_)))
+      | InHole(Common(DuplicateLabels(_)))
+      | InHole(Common(DuplicateLabel(_)))
       | InHole(Common(BadLabelsContained(_)))
       | InHole(Common(Inconsistent(WithArrow(_))))
       | InHole(ExpectedConstructor | Redundant(_)) =>
@@ -476,7 +478,7 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
       | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
       | InHole(Common(NoType(_)))
       | InHole(Common(DuplicateLabels(_))) // Is this right?
-      | InHole(Common(Duplicate(_)))
+      | InHole(Common(DuplicateLabel(_)))
       | InHole(Common(BadLabelsContained(_)))
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
@@ -646,7 +648,7 @@ let fixed_typ_err_common: error_common => Typ.t =
   fun
   | NoType(_) => Unknown(Internal) |> Typ.temp
   | DuplicateLabels(_, typ) => typ
-  | Duplicate(_, typ) => typ
+  | DuplicateLabel(_, typ) => typ
   | BadLabelsContained(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana
   | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?

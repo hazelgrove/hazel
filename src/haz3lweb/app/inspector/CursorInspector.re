@@ -139,7 +139,7 @@ let common_err_view =
       text("The following labels are duplicated: "),
       ...List.map(code, labels),
     ]
-  | Duplicate(name, _) => [text("Duplicated Label:"), code(name)]
+  | DuplicateLabel(name, _) => [text("Duplicated Label:"), code(name)]
   | Inconsistent(WithArrow(typ)) => [
       text(":"),
       view_type(typ) |> code_box_container,

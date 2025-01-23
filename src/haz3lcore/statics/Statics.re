@@ -399,7 +399,7 @@ and uexp_to_info_map =
       let self =
         switch (lab.status) {
         | NotInHole(_) => Self.Just(TupLabel(lab.ty, e.ty) |> Typ.temp)
-        | InHole(Common(Duplicate(name, _))) =>
+        | InHole(Common(DuplicateLabel(name, _))) =>
           Self.DuplicateLabels(
             [name],
             TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
@@ -1115,7 +1115,7 @@ and upat_to_info_map =
       let self =
         switch (lab.status) {
         | NotInHole(_) => Self.Just(TupLabel(lab.ty, p.ty) |> Typ.temp)
-        | InHole(Common(Duplicate(name, _))) =>
+        | InHole(Common(DuplicateLabel(name, _))) =>
           Self.DuplicateLabels(
             [name],
             TupLabel(Label(name) |> Typ.temp, p.ty) |> Typ.temp,
