@@ -45,12 +45,15 @@ module FreshId = {
   let tup_label = (a, b) => TupLabel(a, b) |> Typ.fresh;
   let string = Typ.fresh(String);
 };
-let ids = List.init(12, _ => Id.mk());
-let id_at = x => x |> List.nth(ids);
 let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init);
 let alco_check = Alcotest.option(testable_typ) |> Alcotest.check;
-let parse_exp = (s: string) =>
-  MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
+
+let parse_exp = (s: string) => {
+  switch (MakeTerm.parse_exp(s)) {
+  | Some(e) => e
+  | None => Alcotest.fail("Failed to parse expression: " ++ s)
+  };
+};
 
 let info_error_of_id = (f: Exp.t, id: Id.t) => {
   let s = statics(f);
@@ -397,7 +400,7 @@ let tests = (
           Unknown(Internal) |> Typ.fresh,
         )
         |> Pat.fresh,
-        Parens(String("a") |> Exp.fresh) |> Exp.fresh, // TODO Need to assert there's no inconsistency in this branch
+        Parens(String("a") |> Exp.fresh) |> Exp.fresh,
         Var("x") |> Exp.fresh,
       )
       |> Exp.fresh,
@@ -418,7 +421,7 @@ let tests = (
           Unknown(Internal) |> Typ.fresh,
         )
         |> Pat.fresh,
-        Int(1) |> Exp.fresh, // TODO Need to assert there's no inconsistency in this branch
+        Int(1) |> Exp.fresh,
         Var("x") |> Exp.fresh,
       )
       |> Exp.fresh,
@@ -453,7 +456,7 @@ let tests = (
           ])
           |> Exp.fresh,
         )
-        |> Exp.fresh, // TODO Need to assert there's no inconsistency in this branch
+        |> Exp.fresh,
         Var("x") |> Exp.fresh,
       )
       |> Exp.fresh,
@@ -999,4 +1002,4 @@ let tests = (
       },
     ),
   ],
-) /* type Person = (1=String, Int = String,  =Float, () = 3) i*/;
+);
