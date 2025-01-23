@@ -551,9 +551,9 @@ module PlainTests = {
       singleton_labeled_tuple_elaborates_labels,
     ),
     test_case("Singleton labeled tuple", `Quick, singleton_labeled_tuple),
-    test_case("Singleton labeld tuple analysis adds label", `Quick, () =>
+    test_case("Singleton labeled tuple analysis adds label", `Quick, () =>
       alco_check(
-        "Singleton labeld tuple analysis adds label",
+        "Singleton labeled tuple analysis adds label",
         Let(
           Var("x") |> Pat.fresh,
           Tuple([
@@ -587,7 +587,7 @@ module PlainTests = {
       )
     ),
     test_case(
-      "Singleton labeld tuple analysis adds label with type alias", `Quick, () =>
+      "Singleton labeled tuple analysis adds label with type alias", `Quick, () =>
       alco_check(
         {|type T = (a=String) in
         let x : T = "hello" in x|},
