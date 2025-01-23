@@ -53,11 +53,12 @@ let lsp_toggle = (~globals: Globals.t): Node.t => {
   );
 };
 
-let begin_chat_button = (~globals: Globals.t): Node.t => {
-  let tooltip = "Begin Chat";
+let begin_chat_button = (~globals: Globals.t, ~inject): Node.t => {
+  let tooltip = "Begin New Chat";
   let begin_chat = _ =>
     Virtual_dom.Vdom.Effect.Many([
       globals.inject_global(Set(Assistant(UpdateChatStatus))),
+      inject(AssistantModel.Update.NewChat),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
@@ -66,12 +67,24 @@ let begin_chat_button = (~globals: Globals.t): Node.t => {
   );
 };
 
+let resume_chat_button = (~globals: Globals.t, ~inject): Node.t => {
+  let tooltip = "Resume Previous Chat";
+  let resume_chat = _ =>
+    Virtual_dom.Vdom.Effect.Many([
+      globals.inject_global(Set(Assistant(UpdateChatStatus))),
+      Virtual_dom.Vdom.Effect.Stop_propagation,
+    ]);
+  div(
+    ~attrs=[clss(["chat-button"]), Attr.on_click(resume_chat)],
+    [Widgets.button_named(~tooltip, None, resume_chat)],
+  );
+};
+
 let end_chat_button = (~globals: Globals.t, ~inject): Node.t => {
   let tooltip = "End Chat";
   let end_chat = _ =>
     Virtual_dom.Vdom.Effect.Many([
       globals.inject_global(Set(Assistant(UpdateChatStatus))),
-      inject(AssistantModel.Update.EndChat),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
@@ -80,13 +93,14 @@ let end_chat_button = (~globals: Globals.t, ~inject): Node.t => {
   );
 };
 
-let settings_box = (~globals: Globals.t): Node.t => {
+let settings_box = (~globals: Globals.t, ~inject): Node.t => {
   div(
     ~attrs=[clss(["settings-box"])],
     [
       llm_toggle(~globals),
       lsp_toggle(~globals),
-      begin_chat_button(~globals),
+      begin_chat_button(~globals, ~inject),
+      resume_chat_button(~globals, ~inject),
     ],
   );
 };
@@ -112,6 +126,10 @@ let message_input =
     ]);
   };
 
+  let nothing = () => {
+    Virtual_dom.Vdom.Effect.Many([Virtual_dom.Vdom.Effect.Stop_propagation]);
+  };
+
   let send_message = _ => {
     let message =
       Js.Opt.case(
@@ -129,7 +147,13 @@ let message_input =
     );
     handle_send(message);
   };
-
+  let handle_keydown = event => {
+    let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
+    switch (key) {
+    | Some("Enter") => send_message()
+    | _ => Virtual_dom.Vdom.Effect.Ignore
+    };
+  };
   div(
     ~attrs=[clss(["input-container"])],
     [
@@ -141,15 +165,18 @@ let message_input =
           Attr.on_focus(_ =>
             signal(MakeActive(ScratchMode.Selection.TextBox))
           ),
+          Attr.on_keydown(handle_keydown),
           clss(["message-input"]),
         ],
         (),
       ),
       div(
-        ~attrs=[clss(["send-button"]), Attr.on_click(send_message)],
-        [
-          Widgets.button(~tooltip="Submit Message", Icons.send, send_message),
+        ~attrs=[
+          clss(["send-button", "icon"]),
+          Attr.on_click(send_message),
+          Attr.title("Submit Message"),
         ],
+        [Icons.send],
       ),
     ],
   );
@@ -180,11 +207,7 @@ let message_display =
       },
       assistantModel.chat,
     );
-  div(
-    ~attrs=[clss(["message-display-container"])],
-    message_nodes
-    @ [message_input(~signal, ~inject, ~globals, ~assistantModel)],
-  );
+  div(~attrs=[clss(["message-display-container"])], message_nodes);
 };
 
 let view =
@@ -212,9 +235,12 @@ let view =
             ],
           ),
           globals.settings.assistant.ongoing_chat
-            ? None : settings_box(~globals),
+            ? None : settings_box(~globals, ~inject),
           globals.settings.assistant.ongoing_chat
             ? message_display(~signal, ~inject, ~globals, ~assistantModel)
+            : None,
+          globals.settings.assistant.ongoing_chat
+            ? message_input(~signal, ~inject, ~globals, ~assistantModel)
             : None,
         ],
       ),
