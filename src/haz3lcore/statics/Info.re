@@ -209,10 +209,6 @@ type status_tpat =
   | InHole(error_tpat);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type sugar =
-  | AutoLabel(LabeledTuple.label);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type singleton_autolabelling('a) = {
   label: LabeledTuple.label,
   pre_labeled_info: 'a,
