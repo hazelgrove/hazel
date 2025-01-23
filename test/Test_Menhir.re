@@ -162,7 +162,6 @@ let qcheck_menhir_serialized_equivalent_test =
           core_exp,
         );
       let serialized = Printer.of_segment(~holes=Some("?"), segment);
-      print_endline("Serialized: " ++ serialized);
       let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
       AST.equal_exp(menhir_parsed, exp);
     },
