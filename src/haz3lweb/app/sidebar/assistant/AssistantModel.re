@@ -50,26 +50,27 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let init: t = {chat: [], currSender: Task};
+  let init: t = {chat: [], currSender: LS};
 };
 
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | SendMessage(Model.message)
-    | EndChat;
+    | NewChat;
 
   let update =
       (~settings: Settings.t, ~action, ~model: Model.t): Updated.t(Model.t) => {
     switch (action) {
     | SendMessage(message) =>
-      Model.{
-        chat: model.chat @ [message],
-        currSender:
-          model.currSender == LLM || model.currSender == Task ? LS : LLM,
+      {
+        Model.{
+          chat: model.chat @ [message],
+          currSender: model.currSender == LLM ? LS : LLM,
+        };
       }
       |> Updated.return_quiet
-    | EndChat => Model.{chat: [], currSender: Task} |> Updated.return_quiet
+    | NewChat => Model.{chat: [], currSender: LS} |> Updated.return_quiet
     };
   };
 };
