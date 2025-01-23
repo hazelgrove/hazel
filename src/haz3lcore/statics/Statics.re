@@ -185,7 +185,7 @@ and uexp_to_info_map =
     | Ana({term: Unknown(SynSwitch), _}) => Mode.Syn
     | _ => mode
     };
-  let add' = (~unelaborated_info=?, ~sugar_info=?, ~self, ~co_ctx, m) => {
+  let add' = (~singleton_autolabelling=?, ~self, ~co_ctx, m) => {
     let info =
       Info.derived_exp(
         ~uexp,
@@ -194,8 +194,7 @@ and uexp_to_info_map =
         ~ancestors,
         ~self=Option.value(~default=self, override_self),
         ~co_ctx,
-        ~unelaborated_info,
-        ~sugar_info,
+        ~singleton_autolabelling,
       );
 
     (info, add_info(ids, InfoExp(info), m));
@@ -277,8 +276,8 @@ and uexp_to_info_map =
     let info = {
       ...info,
       status: original_info.status,
-      unelaborated_info: Some(original_info),
-      sugar_info: Some(AutoLabel(l)),
+      singleton_autolabelling:
+        Some({label: l, pre_labeled_info: original_info}),
     };
 
     (info, add_info(elaborated_exp.ids, InfoExp(info), m));
@@ -780,7 +779,7 @@ and uexp_to_info_map =
                     // Mark patterns as redundant at the top level
                     // because redundancy doesn't make sense in a smaller context
                     ~constraint_=p_constraint,
-                    ~elaboration_provenance=None,
+                    ~singleton_autolabelling=None,
                   );
                 (
                   // Override the info for the single upat
@@ -914,7 +913,7 @@ and upat_to_info_map =
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
-  let add = (~self, ~ctx, ~constraint_, ~elaboration_provenance=?, m) => {
+  let add = (~self, ~ctx, ~constraint_, ~singleton_autolabelling=?, m) => {
     let prev_synswitch =
       switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
       | Some(Info.InfoPat({mode: Syn | SynFun, ty, _})) => Some(ty)
@@ -932,7 +931,7 @@ and upat_to_info_map =
         ~ancestors,
         ~self=Common(Option.value(~default=self, override_self)),
         ~constraint_,
-        ~elaboration_provenance,
+        ~singleton_autolabelling,
       );
     (info, add_info(ids, InfoPat(info), m));
   };
@@ -1019,7 +1018,8 @@ and upat_to_info_map =
     let info = {
       ...info,
       status: original_info.status,
-      elaboration_provenance: Some((original_info, AutoLabel(l))),
+      singleton_autolabelling:
+        Some({label: l, pre_labeled_info: original_info}),
     };
 
     (info, add_info(elaborated_pat.ids, InfoPat(info), m));

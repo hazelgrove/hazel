@@ -213,6 +213,12 @@ type sugar =
   | AutoLabel(LabeledTuple.label);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type singleton_autolabelling('a) = {
+  label: LabeledTuple.label,
+  pre_labeled_info: 'a,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type exp = {
   term: Exp.t, /* The term under consideration */
   ancestors, /* Ascending list of containing term ids */
@@ -223,8 +229,7 @@ type exp = {
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
   ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
-  unelaborated_info: option(exp), /* The info of the pre-sugar term */
-  sugar_info: option(sugar),
+  singleton_autolabelling: option(singleton_autolabelling(exp)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -240,7 +245,7 @@ type pat = {
   status: status_pat,
   ty: Typ.t,
   constraint_: Constraint.t,
-  elaboration_provenance: option((pat, sugar)),
+  singleton_autolabelling: option(singleton_autolabelling(pat)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -717,8 +722,7 @@ let derived_exp =
       ~ancestors,
       ~self,
       ~co_ctx,
-      ~unelaborated_info: option(exp),
-      ~sugar_info: option(sugar),
+      ~singleton_autolabelling: option(singleton_autolabelling(exp)),
     )
     : exp => {
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
@@ -734,8 +738,7 @@ let derived_exp =
     co_ctx,
     ancestors,
     term: uexp,
-    unelaborated_info,
-    sugar_info,
+    singleton_autolabelling,
   };
 };
 
@@ -750,7 +753,7 @@ let derived_pat =
       ~ancestors,
       ~self,
       ~constraint_,
-      ~elaboration_provenance: option((pat, sugar)),
+      ~singleton_autolabelling: option(singleton_autolabelling(pat)),
     )
     : pat => {
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
@@ -769,7 +772,7 @@ let derived_pat =
     ancestors,
     term: upat,
     constraint_,
-    elaboration_provenance,
+    singleton_autolabelling,
   };
 };
 
@@ -816,12 +819,11 @@ let typ_is_constructor_expected = t =>
   | _ => false
   };
 
-let rec unelaborated_info = (info: t): t =>
+let rec pre_labeled_info = (info: t): t =>
   switch (info) {
-  | InfoExp({unelaborated_info: ui, _}) =>
-    switch (ui) {
-    | Some(info) => unelaborated_info(InfoExp(info))
-    | None => info
-    }
+  | InfoExp({singleton_autolabelling: Some({pre_labeled_info: pli, _}), _}) =>
+    pre_labeled_info(InfoExp(pli))
+  | InfoPat({singleton_autolabelling: Some({pre_labeled_info: pli, _}), _}) =>
+    pre_labeled_info(InfoPat(pli))
   | _ => info
   };

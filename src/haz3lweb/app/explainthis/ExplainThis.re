@@ -2503,7 +2503,7 @@ let view =
       ~explainThisModel: ExplainThisModel.t,
       info: option(Info.t),
     ) => {
-  let info = Option.map(Info.unelaborated_info, info);
+  let info = Option.map(Info.pre_labeled_info, info);
   let (syn_form, (explanation, _), example) =
     get_doc(
       ~globals,
