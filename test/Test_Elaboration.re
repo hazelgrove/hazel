@@ -11,43 +11,15 @@ let id_at = x => x |> List.nth(ids);
 let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init);
 let dhexp_of_uexp = u => Elaborator.elaborate(mk_map(u), u) |> fst;
 let alco_check = dhexp_typ |> Alcotest.check;
-let parse_exp = (s: string) =>
-  MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term;
+let parse_exp = (s: string) => {
+  switch (MakeTerm.parse_exp(s)) {
+  | Some(e) => e
+  | None => Alcotest.fail("Failed to parse expression: " ++ s)
+  };
+};
+
 let rec strip_casts = (e: Exp.t): Exp.t => {
-  print_endline("Stripping casts: " ++ Exp.show(e));
-  Exp.map_term(
-    ~f_pat=
-      (fn, t) =>
-        switch (t.term) {
-        | Cast(e, _, _) => strip_casts_pat(e)
-        | _ => fn(t)
-        },
-    ~f_exp=
-      (fn: Exp.t => Exp.t, t: Exp.t) =>
-        switch (t.term) {
-        | Cast(e, _, _) => strip_casts(e)
-        | _ => fn(t)
-        },
-    e,
-  );
-}
-and strip_casts_pat = (p: Pat.t): Pat.t => {
-  print_endline("Stripping casts: " ++ Pat.show(p));
-  Pat.map_term(
-    ~f_pat=
-      (fn, t) =>
-        switch (t.term) {
-        | Cast(e, _, _) => fn(e)
-        | _ => fn(t)
-        },
-    ~f_exp=
-      (fn: Exp.t => Exp.t, t: Exp.t) =>
-        switch (t.term) {
-        | Cast(e, _, _) => strip_casts(e)
-        | _ => fn(t)
-        },
-    p,
-  );
+  DHExp.strip_casts(e);
 };
 
 module PlainTests = {
