@@ -7,7 +7,7 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
   switch (a, b) {
   | (Common(DuplicateLabels(a, ty)), Common(DuplicateLabels(b, ty2))) =>
     a == b && Typ.fast_equal(ty, ty2)
-  | (Common(Duplicate(l, ty)), Common(Duplicate(r, ty2))) =>
+  | (Common(DuplicateLabel(l, ty)), Common(DuplicateLabel(r, ty2))) =>
     l == r && Typ.fast_equal(ty, ty2)
   | (
       Common(BadLabelsContained(a, ty)),
@@ -770,13 +770,13 @@ let tests = (
         check(
           option(testable_info_error_exp),
           "Duplicate Label Error 1",
-          Some(Common(Duplicate("a", Label("a") |> Typ.temp))),
+          Some(Common(DuplicateLabel("a", Label("a") |> Typ.temp))),
           Statics.get_error_at(s, IdTagged.rep_id(l1)),
         );
         check(
           option(testable_info_error_exp),
           "Duplicate Label Error 2",
-          Some(Common(Duplicate("a", Label("a") |> Typ.temp))),
+          Some(Common(DuplicateLabel("a", Label("a") |> Typ.temp))),
           Statics.get_error_at(s, IdTagged.rep_id(l2)),
         );
       },
