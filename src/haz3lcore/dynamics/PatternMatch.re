@@ -17,7 +17,6 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
   | EmptyHole
   | MultiHole(_)
   | Wild => Matches(Environment.empty)
-  /* Labels are a special case */
   | Int(n) =>
     let* n' = Unboxing.unbox(Int, d);
     n == n' ? Matches(Environment.empty) : DoesNotMatch;
@@ -30,6 +29,7 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
   | String(s) =>
     let* s' = Unboxing.unbox(String, d);
     s == s' ? Matches(Environment.empty) : DoesNotMatch;
+  /* Labels are a special case */
   | Label(name) =>
     let* name' = Unboxing.unbox(Label, d);
     LabeledTuple.match_labels(name, name')
@@ -61,10 +61,6 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
   | Var(x) => Matches(Environment.singleton((x, d)))
   | Tuple(ps) =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
-    // let ds =
-    //   LabeledTuple.rearrange(DHPat.get_label, DHExp.get_label, ps, ds, (t, e) =>
-    //     TupLabel(Label(t) |> DHExp.fresh, e) |> DHExp.fresh
-    //   );
     List.map2(matches, ps, ds)
     |> List.fold_left(combine_result, Matches(Environment.empty));
   | Parens(p) => matches(p, d)
