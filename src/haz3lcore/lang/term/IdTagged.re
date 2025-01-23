@@ -19,9 +19,7 @@ type t('a) = {
 //   (fmt_a, formatter, ta) => {
 //     fmt_a(formatter, ta.term);
 //   };
-
 let fresh = term => {
-  let _x: ((Format.formatter, 'a) => unit, t('a)) => string = show;
   {ids: [Id.mk()], copied: false, term};
 };
 let fresh_deterministic = (prev_id, term) => {
