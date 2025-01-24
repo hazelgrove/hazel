@@ -1,4 +1,4 @@
-let evaluate_extend_env = ClosureEnvironment.extend_eval;
+let evaluate_extend_env = ClosureEnvironment.extend_eval(~call_stack=[]);
 
 let evaluate_extend_env_with_pat =
     (

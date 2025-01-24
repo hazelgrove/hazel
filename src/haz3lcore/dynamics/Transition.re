@@ -128,11 +128,12 @@ module Transition = (EV: EV_MODE) => {
   // Default state update
   let state_update = () => ();
 
-  let (let.match) = ((env, match_result: PatternMatch.match_result), r) =>
+  let (let.match) =
+      ((env, match_result: PatternMatch.match_result, call_stack), r) =>
     switch (match_result) {
     | IndetMatch
     | DoesNotMatch => Indet
-    | Matches(env') => r(evaluate_extend_env(env', env))
+    | Matches(env') => r(evaluate_extend_env(env', env, ~call_stack))
     };
 
   let capture_closures =
@@ -181,7 +182,7 @@ module Transition = (EV: EV_MODE) => {
       and. d1' =
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let {matches, closures} = matches(dp, d1');
-      let.match env' = (env, matches);
+      let.match env' = (env, matches, env.call_stack);
       Step({
         expr: Closure(env', d2) |> fresh,
         state_update: capture_closures(env, state, closures),
@@ -215,6 +216,7 @@ module Transition = (EV: EV_MODE) => {
         let. _ = otherwise(env, d);
         let env'' =
           evaluate_extend_env(
+            ~call_stack=env.call_stack,
             Environment.singleton((f, FixF(dp, d1, Some(env)) |> rewrap)),
             env,
           );
@@ -243,7 +245,11 @@ module Transition = (EV: EV_MODE) => {
             bindings,
           );
         let env'' =
-          evaluate_extend_env(Environment.of_list(substitutions), env);
+          evaluate_extend_env(
+            ~call_stack=env.call_stack,
+            Environment.of_list(substitutions),
+            env,
+          );
         Step({
           expr: Closure(env'', d1) |> fresh,
           state_update,
@@ -694,7 +700,12 @@ module Transition = (EV: EV_MODE) => {
       switch (next_rule(rules)) {
       | Some((env', d2, closures)) =>
         Step({
-          expr: Closure(evaluate_extend_env(env', env), d2) |> fresh,
+          expr:
+            Closure(
+              evaluate_extend_env(env', env, ~call_stack=env.call_stack),
+              d2,
+            )
+            |> fresh,
           state_update: capture_closures(env, state, closures),
           kind: CaseApply,
           is_value: false,

@@ -935,7 +935,7 @@ and ClosureEnvironment: {
   let lookup: (t, Var.t) => option(Exp.t);
   let update_env: (Environment.t => Environment.t, t) => t;
   let extend_eval:
-    (~ap_id: Id.t=?, ~call_stack: Probe.call_stack=?, Environment.t, t) => t;
+    (~ap_id: Id.t=?, ~call_stack: Probe.call_stack, Environment.t, t) => t;
 
   let to_list: t => list((Var.t, Exp.t));
   let without_keys: (list(Var.t), t) => t;
@@ -983,40 +983,19 @@ and ClosureEnvironment: {
 
   /* Extend the environment with new bindings. ~ap_id is an optional argument which
    * will add an entry in a stack of function application syntax ids, used to
-   * represent and track the call stack for use by live value probes */
+   * represent and track the call stack for use by live value probes. */
   let extend_eval =
       (
         ~ap_id: option(Id.t)=?,
-        ~call_stack: option(Probe.call_stack)=?,
+        ~call_stack: Probe.call_stack,
         new_bindings: Environment.t,
         env_to_extend: t,
       )
       : t => {
-    let prev_call_stack =
-      switch (call_stack) {
-      | None => call_stack_of(env_to_extend)
-      | Some(call_stack) => call_stack
-      };
-    print_endline("extend eval");
-    print_endline(
-      "env_to_extend callstack: "
-      ++ Probe.show_call_stack(call_stack_of(env_to_extend)),
-    );
-    let () =
-      switch (call_stack) {
-      | None => print_endline("No dyn callstack paseed in")
-      | Some(call_stack) =>
-        print_endline(
-          "Dyn callstack passed in:" ++ Probe.show_call_stack(call_stack),
-        )
-      };
-    print_endline(
-      "prev call stack: " ++ Probe.show_call_stack(prev_call_stack),
-    );
     {
       id: Id.mk(),
       env: Environment.union(new_bindings, map_of(env_to_extend)),
-      call_stack: Option.to_list(ap_id) @ prev_call_stack,
+      call_stack: Option.to_list(ap_id) @ call_stack,
     };
   };
 }
