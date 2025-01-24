@@ -46,7 +46,7 @@ module M: Projector = {
   let init = ();
   let can_project = p => state_of(p) != None;
   let can_focus = false;
-  let placeholder = (_, _) => Inline(2);
+  let placeholder = (_, _) => ProjectorCore.Inline(2);
   let update = (model, _) => model;
   let view = view;
   let focus = _ => ();

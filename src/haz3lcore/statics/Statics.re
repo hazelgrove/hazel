@@ -233,8 +233,8 @@ and uexp_to_info_map =
   | Int(_) => atomic(Just(Int |> Typ.temp))
   | Float(_) => atomic(Just(Float |> Typ.temp))
   | String(_) => atomic(Just(String |> Typ.temp))
-  | LivelitInvocation(name) =>
-    atomic(Just(Livelit.find_livelit(name).expansion_t))
+  | LivelitName(name) =>
+    atomic(Just(Livelit.find_livelit(name, ctx).expansion_t))
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
     let modes = Mode.of_list_lit(ctx, List.length(es), mode);
@@ -332,20 +332,20 @@ and uexp_to_info_map =
     add(~self=Just(e2.ty), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
   | Constructor(ctr, _) => atomic(Self.of_ctr(ctx, ctr))
   | Ap(_, fn_uexp, arg_uexp) =>
-    let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn_uexp));
-    let (fn, m) = go(~mode=fn_mode, fn_uexp, m);
-
     switch (fn_uexp.term) {
-    | LivelitInvocation(s) =>
+    | LivelitName(s) =>
       // refer to livelit context to find types
-      let ll = Livelit.find_livelit(s);
+      let ll = Livelit.find_livelit(s, ctx);
       let expansion_t = ll.expansion_t;
       let model_t = ll.model_t;
+      let (_, m) = go(~mode=Syn, fn_uexp, m);
       let (arg, m) = go(~mode=Ana(model_t), arg_uexp, m);
       let self: Self.t = Just(expansion_t);
       add(~self, ~co_ctx=CoCtx.union([arg.co_ctx]), m);
     | _ =>
       // default for non-livelit applications
+      let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn_uexp));
+      let (fn, m) = go(~mode=fn_mode, fn_uexp, m);
       let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
       let (arg, m) = go(~mode=Ana(ty_in), arg_uexp, m);
       let self: Self.t =
@@ -353,7 +353,7 @@ and uexp_to_info_map =
         && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
           ? BadTrivAp(ty_in) : Just(ty_out);
       add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
-    };
+    }
   | TypAp(fn, utyp) =>
     let typfn_mode = Mode.typap_mode;
     let (fn, m) = go(~mode=typfn_mode, fn, m);
@@ -748,8 +748,11 @@ and upat_to_info_map =
     )
   | String(string) =>
     atomic(Just(String |> Typ.temp), Constraint.String(string))
-  | LivelitInvocation(name) =>
-    atomic(Just(Livelit.find_livelit(name).expansion_t), Constraint.Truth)
+  | LivelitName(name) =>
+    atomic(
+      Just(Livelit.find_livelit(name, ctx).expansion_t),
+      Constraint.Truth,
+    )
   | ListLit(ps) =>
     let ids = List.map(UPat.rep_id, ps);
     let modes = Mode.of_list_lit(ctx, List.length(ps), mode);

@@ -191,7 +191,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         ListConcat(_) |
         UnOp(_) |
         BinOp(_) |
-        LivelitInvocation(_) |
+        LivelitName(_) |
         Match(_),
       ) =>
       IndetMatch

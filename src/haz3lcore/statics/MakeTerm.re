@@ -189,7 +189,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         ret(String(Form.strip_quotes(t)))
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_livelit(t) =>
-        ret(LivelitInvocation(Form.parse_livelit(t)))
+        ret(LivelitName(Form.parse_livelit(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_ctr(t) =>
         ret(Constructor(t, Unknown(Internal) |> Typ.temp))
@@ -259,7 +259,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         };
         switch (arg.term) {
         | Var(l) when Form.is_livelit(l) =>
-          ret(LivelitInvocation(Form.parse_livelit(l)))
+          ret(LivelitName(Form.parse_livelit(l)))
         | _ when UExp.is_deferral(arg) =>
           ret(DeferredAp(l, [use_deferral(arg)]))
         | Tuple(es) when List.exists(UExp.is_deferral, es) => (
@@ -351,7 +351,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
         | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
         | ([t], []) when Form.is_string(t) => String(Form.strip_quotes(t))
-        | ([t], []) when Form.is_livelit(t) => LivelitInvocation(t)
+        | ([t], []) when Form.is_livelit(t) => LivelitName(t)
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) =>

@@ -11,7 +11,7 @@ let rec getLeafPieces =
           syntaxNode: ProjectorBase.syntax,
           ~ignored_labels: list(list(string)),
         )
-        : list(Piece.tile) =>
+        : list(Piece.t) =>
   switch (syntaxNode) {
   | Tile(tile) =>
     /* Check if this tile's label is in the ignored labels */
@@ -23,7 +23,7 @@ let rec getLeafPieces =
     } else if (tile.children == []) {
       [
         /* It's a leaf piece */
-        tile,
+        Tile(tile),
       ];
     } else {
       /* Recurse into the children */
@@ -36,13 +36,13 @@ let rec getLeafPieces =
   };
 
 let rec replacePieceInSyntax =
-        (syntaxNode: ProjectorBase.syntax, pieceToReplace: Piece.tile)
+        (syntaxNode: ProjectorBase.syntax, pieceToReplace: Piece.t)
         : ProjectorBase.syntax =>
   switch (syntaxNode) {
   | Tile(tile) =>
-    if (tile.id == pieceToReplace.id) {
+    if (tile.id == Piece.id(pieceToReplace)) {
       /* Replace this tile with the input piece */
-      Tile(pieceToReplace);
+      pieceToReplace;
     } else if (tile.children == []) {
       /* Leaf tile, return as is */
       Tile(tile);
@@ -81,10 +81,10 @@ module M: Projector = {
           | Ap(_dir, ll_uexp, args) =>
             let (ll_term, _) = UExp.unwrap(ll_uexp);
             switch (ll_term) {
-            | LivelitInvocation(name) => name
+            | LivelitName(name) => name
             | _ =>
               failwith(
-                "LivelitProj: Not a LivelitInvocation term -- "
+                "LivelitProj: Not a LivelitName term -- "
                 ++ UExp.show(ll_uexp),
               )
             };
@@ -102,7 +102,13 @@ module M: Projector = {
         );
         "syntax_error";
       };
-    let ll = Livelit.find_livelit(llname);
+
+    let ctx =
+      switch (info.ci) {
+      | Some(InfoExp(exp)) => exp.ctx
+      | _ => []
+      };
+    let ll = Livelit.find_livelit(llname, ctx);
     ll.size;
   };
   let update = (model, _) => model;
@@ -120,10 +126,10 @@ module M: Projector = {
             let (ll_term, _) = UExp.unwrap(ll_uexp);
             let ll =
               switch (ll_term) {
-              | LivelitInvocation(name) => name
+              | LivelitName(name) => name
               | _ =>
                 failwith(
-                  "LivelitProj: Not a LivelitInvocation term -- "
+                  "LivelitProj: Not a LivelitName term -- "
                   ++ UExp.show(ll_uexp),
                 )
               };
@@ -145,7 +151,12 @@ module M: Projector = {
         ("syntax_error", []);
       };
 
-    let ll = Livelit.find_livelit(ll);
+    let ctx =
+      switch (info.ci) {
+      | Some(InfoExp(exp)) => exp.ctx
+      | _ => []
+      };
+    let ll = Livelit.find_livelit(ll, ctx);
 
     if (ll.name == "syntax_error") {
       Node.div(
@@ -160,12 +171,12 @@ module M: Projector = {
       /* Combine args and pieces into model_piece records */
       let model_pieces =
         List.map2(
-          (arg, piece): Livelit.model_piece => {{model: arg, piece}},
+          (arg, piece): Ctx.model_piece => {{model: arg, piece}},
           args,
           pieces,
         );
 
-      let replace = (piece: Piece.tile) => {
+      let replace = (piece: Base.piece) => {
         let newSyntax = replacePieceInSyntax(info.syntax, piece);
         parent(SetSyntax(newSyntax));
       };

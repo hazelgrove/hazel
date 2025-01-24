@@ -1,17 +1,11 @@
 open Util;
 open Virtual_dom.Vdom;
 
+// [@deriving (show({with_path: false}), sexp, yojson)]
+// type shape = ProjectorCore.shape;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Base.kind;
-
-/* Projectors currently have two options for placeholder
- * shapes: A inline display of a given length, or a block
- * display with given length & height. Both of these can
- * depend on the projector model and info package */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type shape =
-  | Inline(int)
-  | Block(Point.t);
 
 /* The type of syntax which a projector can replace.
  * Right now projectors can replace a single piece */
@@ -93,7 +87,7 @@ module type Projector = {
    * from the view, but this is awkward to do so for now
    * projector writers are responsible for keeping these
    * in sync with each other. */
-  let placeholder: (model, info) => shape;
+  let placeholder: (model, info) => ProjectorCore.shape;
   /* Update the local projector model given an action */
   let update: (model, action) => model;
   /* Does whatever needs to be done to give a projector

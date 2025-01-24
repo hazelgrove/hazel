@@ -187,8 +187,13 @@ let closing_stringlit_or_comment = (char, t) =>
   || Form.is_comment(t)
   && Form.is_comment_delim(char);
 
-let go =
-    (char: string, {caret, relatives: {siblings, _}, _} as z: t): option(t) => {
+let rec go =
+        (
+          ~ctx: option(Ctx.t)=?,
+          char: string,
+          {caret, relatives: {siblings, _}, _} as z: t,
+        )
+        : option(t) => {
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destruct(z) : z;
   switch (caret, neighbor_monotiles(siblings)) {
@@ -200,6 +205,42 @@ let go =
     z |> Zipper.set_caret(Outer) |> Zipper.move(Right)
   | (Outer, (Some(t), _)) when closing_stringlit_or_comment(char, t) =>
     Some(z)
+  | (Outer, (Some(t), _)) when Form.is_livelit(t) && char == " " =>
+    let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
+      let* z = z;
+      try(c == "\r" ? Some(z) : go(c, z)) {
+      | exn =>
+        print_endline("WARN: zipper_of_string: " ++ Printexc.to_string(exn));
+        None;
+      };
+    };
+    switch (ctx) {
+    | Some(ctx) =>
+      let name = Form.parse_livelit(t);
+      let ll = Livelit.find_livelit(name, ctx);
+
+      if (ll.name == "syntax_error") {
+        insert_outer(char, z);
+      } else {
+        print_endline("Livelit: " ++ ll.name);
+        // Move to the left
+        let left_z = z |> Zipper.move(Left) |> Option.get;
+        // insert (
+        let leftpar_z = insert(Some(left_z), "(") |> Option.get;
+        // move to the right
+        let right_z = leftpar_z |> Zipper.move(Right) |> Option.get;
+
+        let formatted_z =
+          "("
+          ++ ll.model_default
+          ++ "))"
+          |> StringUtil.to_list
+          |> List.fold_left(insert, Some(right_z));
+
+        formatted_z;
+      };
+    | None => insert(Some(z), char)
+    };
   | (Inner(d_idx, n), (_, Some(t))) =>
     let idx = n + 1;
     let new_t = Token.insert_nth(idx, char, t);

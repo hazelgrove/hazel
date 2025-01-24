@@ -241,7 +241,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let fun_form = [mk_form("fun_", id, [p])] @ e;
     [mk_form("parens_exp", exp |> Exp.rep_id, [fun_form])]
     |> fold_fun_if(settings.fold_fn_bodies, name);
-  | LivelitInvocation(l) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, l)
+  | LivelitName(l) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, l)
   | Fun(p, e, _, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -480,7 +480,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Bool(b) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Bool.to_string(b))
   | String(s) =>
     text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "\"" ++ s ++ "\"")
-  | LivelitInvocation(l) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, l)
+  | LivelitName(l) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, l)
   | Constructor(c, _) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, c)
   | ListLit([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "[]")
   | ListLit([x, ...xs]) =>
@@ -691,7 +691,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | FailedCast(_) => Precedence.cast
   | Ap(Forward, _, _)
   | DeferredAp(_)
-  | LivelitInvocation(_)
+  | LivelitName(_)
   | TypAp(_) => Precedence.ap
   | UnOp(Bool(Not), _) => Precedence.not_
   | UnOp(Int(Minus), _) => Precedence.neg
@@ -726,7 +726,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   | Float(_)
   | Bool(_)
   | String(_)
-  | LivelitInvocation(_)
+  | LivelitName(_)
   | Constructor(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
@@ -812,7 +812,7 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
   //| Constructor(_) // Not indivisible because of the type annotation!
   | Deferral(_)
   | BuiltinFun(_)
-  | LivelitInvocation(_)
+  | LivelitName(_)
   | Undefined => exp
 
   // Forms that currently need to stripped before outputting
@@ -980,7 +980,7 @@ and parenthesize_pat = (pat: Pat.t): Pat.t => {
   | Float(_)
   | String(_)
   | EmptyHole
-  | LivelitInvocation(_)
+  | LivelitName(_)
   | Constructor(_) => pat
 
   // Other forms

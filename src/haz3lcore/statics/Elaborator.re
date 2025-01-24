@@ -165,7 +165,7 @@ let rec elaborate_pattern =
     | Cast(p, _, _) =>
       let (p', ty) = elaborate_pattern(m, p);
       p' |> cast_from(ty |> Typ.normalize(ctx) |> Typ.all_ids_temp);
-    | LivelitInvocation(_) => upat |> cast_from(String |> Typ.temp)
+    | LivelitName(_) => upat |> cast_from(String |> Typ.temp)
     | Constructor(c, _) =>
       let mode =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
@@ -248,7 +248,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         |> Option.value(~default=Typ.temp(Unknown(Internal)));
       let ds' = List.map2((d, t) => fresh_cast(d, t, inner_type), ds, tys);
       ListLit(ds') |> rewrap |> cast_from(List(inner_type) |> Typ.temp);
-    | LivelitInvocation(_) =>
+    | LivelitName(_) =>
       // This should never happen if the Livelit is invoked!
       uexp |> cast_from(Typ.temp(Unknown(Internal)))
     | Constructor(c, _) =>
@@ -329,8 +329,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       e' |> cast_from(tye);
     | Ap(dir, f, a) =>
       switch (f.term) {
-      | LivelitInvocation(s) =>
-        let ll = Livelit.find_livelit(s);
+      | LivelitName(s) =>
+        let ll = Livelit.find_livelit(s, ctx);
         ll.expansion_f(a) |> cast_from(ll.expansion_t);
       | _ =>
         let (f', tyf) = elaborate(m, f);
