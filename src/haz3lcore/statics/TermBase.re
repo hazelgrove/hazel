@@ -557,11 +557,6 @@ and Pat: {
 
   let rec fast_equal = (p1: t, p2: t) =>
     switch (p1 |> IdTagged.term_of, p2 |> IdTagged.term_of) {
-    /* TODO: Labels are a special case, but should they be?*/
-    | (TupLabel(label1, d1'), TupLabel(label2, d2')) =>
-      fast_equal(label1, label2) && fast_equal(d1', d2')
-    | (TupLabel(_, d1), _) => fast_equal(d1, p2)
-    | (_, TupLabel(_, d2)) => fast_equal(p1, d2)
     | (Parens(x), _) => fast_equal(x, p2)
     | (_, Parens(x)) => fast_equal(p1, x)
     | (EmptyHole, EmptyHole) => true
@@ -582,6 +577,8 @@ and Pat: {
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Cons(x1, y1), Cons(x2, y2)) =>
       fast_equal(x1, x2) && fast_equal(y1, y2)
+    | (TupLabel(label1, d1'), TupLabel(label2, d2')) =>
+      fast_equal(label1, label2) && fast_equal(d1', d2')
     | (Tuple(xs), Tuple(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Ap(x1, y1), Ap(x2, y2)) => fast_equal(x1, x2) && fast_equal(y1, y2)
@@ -600,6 +597,7 @@ and Pat: {
     | (Constructor(_), _)
     | (Cons(_), _)
     | (Var(_), _)
+    | (TupLabel(_), _)
     | (Tuple(_), _)
     | (Ap(_), _)
     | (Cast(_), _) => false
@@ -735,8 +733,9 @@ and Typ: {
     | (_, Parens(t2)) => eq_internal(n, t1, t2)
     | (TupLabel(label1, t1'), TupLabel(label2, t2')) =>
       eq_internal(n, label1, label2) && eq_internal(n, t1', t2')
-    | (TupLabel(_, _), _) => false // TODO Verify this
-    | (_, TupLabel(_, _)) => false
+    // | (TupLabel(_, _), _) => false // TODO Verify this
+    // | (_, TupLabel(_, _)) => false
+    | (TupLabel(_), _) => false
     | (Rec(x1, t1), Rec(x2, t2))
     | (Forall(x1, t1), Forall(x2, t2)) =>
       let alpha_subst =

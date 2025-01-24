@@ -1293,12 +1293,6 @@ and utyp_to_info_map =
         variants,
       );
     add(m);
-  // | Dot(ty1, ty2) =>
-  //   // TODO: Fix this
-  //   let (_, m) =
-  //     utyp_to_info_map(~ctx, ~expects=TupleExpected, ~ancestors, ty1, m);
-  //   let m = go(ty2, m) |> snd;
-  //   add(m);
   | Forall({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});

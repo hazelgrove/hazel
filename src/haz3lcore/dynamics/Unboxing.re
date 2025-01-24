@@ -69,7 +69,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       unbox(request, Cast(d, x, y) |> DHExp.fresh)
 
     /* TupLabels can be anything except for tuplabels with unmatching labels */
-    // TODO: Fix this
     | (TupLabel(tuplabel), TupLabel(_, e)) =>
       if (LabeledTuple.equal(
             DHPat.get_label(tuplabel),
@@ -79,22 +78,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       } else {
         DoesNotMatch;
       }
-    // | (
-    //     TupLabel(tuplabel),
-    //     Cast(e, {term: TupLabel(name1, _), _}, {term: TupLabel(name2, _), _}),
-    //   ) when String.equal(name1, name2) =>
-    //   switch (DHExp.term_of(e)) {
-    //   | TupLabel(_, e) => unbox(request, e)
-    //   | _ => unbox(request, e)
-    //   }
-    // | (
-    //     TupLabel(_),
-    //     Cast(e, {term: TupLabel(_, _), _}, {term: Unknown(_), _}),
-    //   ) =>
-    //   switch (DHExp.term_of(e)) {
-    //   | TupLabel(_, e) => unbox(request, e)
-    //   | _ => unbox(request, e)
-    //   }
     | (
         TupLabel(tl),
         Cast(t, {term: TupLabel(_, ty1), _}, {term: TupLabel(_, ty2), _}),
@@ -102,10 +85,10 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       let* t = unbox(TupLabel(tl), t);
       let t = fixup_cast(Cast(t, ty1, ty2) |> DHExp.fresh);
       Matches(t);
-    | (TupLabel(tl), Cast(t, ty1, ty2)) =>
-      let* t = unbox(TupLabel(tl), t);
-      let t = fixup_cast(Cast(t, ty1, ty2) |> DHExp.fresh);
-      Matches(t);
+    // | (TupLabel(tl), Cast(t, ty1, ty2)) =>
+    //   let* t = unbox(TupLabel(tl), t);
+    //   let t = fixup_cast(Cast(t, ty1, ty2) |> DHExp.fresh);
+    //   Matches(t);
     | (TupLabel(_), _) => Matches(expr)
 
     /* Remove Tuplabels from casts otherwise */
@@ -114,11 +97,11 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | TupLabel(_, e) => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
       | _ => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
       }
-    | (_, Cast(e, e1, {term: TupLabel(_, e2), _})) =>
-      switch (DHExp.term_of(e)) {
-      | TupLabel(_, e) => unbox(request, Cast(e, e1, e2) |> DHExp.fresh) // shouldn't happen?
-      | _ => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
-      }
+    // | (_, Cast(e, e1, {term: TupLabel(_, e2), _})) =>
+    //   switch (DHExp.term_of(e)) {
+    //   | TupLabel(_, e) => unbox(request, Cast(e, e1, e2) |> DHExp.fresh) // shouldn't happen?
+    //   | _ => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
+    //   }
 
     /* Base types are always already unboxed because of the ITCastID rule*/
     | (Bool, Bool(b)) => Matches(b)
@@ -262,16 +245,13 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       ) =>
       switch (request) {
       | TupLabel(_) =>
-        // TODO: TupLabel error or remove tuplabel and try again?
-        raise(EvaluatorError.Exception(InvalidBoxedStringLit(expr)))
+        raise(EvaluatorError.Exception(InvalidBoxedTupLabel(expr)))
       | Bool => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(expr)))
       | Int => raise(EvaluatorError.Exception(InvalidBoxedIntLit(expr)))
       | Float => raise(EvaluatorError.Exception(InvalidBoxedFloatLit(expr)))
       | String =>
         raise(EvaluatorError.Exception(InvalidBoxedStringLit(expr)))
-      | Label =>
-        // TODO: Label error
-        raise(EvaluatorError.Exception(InvalidBoxedStringLit(expr)))
+      | Label => raise(EvaluatorError.Exception(InvalidBoxedLabel(expr)))
       | Tuple(_) => raise(EvaluatorError.Exception(InvalidBoxedTuple(expr)))
       | List
       | Cons => raise(EvaluatorError.Exception(InvalidBoxedListLit(expr)))
