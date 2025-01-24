@@ -672,7 +672,6 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Typ(t) => typ_to_pretty(~settings: Settings.t, t)
   | TPat(tp) => tpat_to_pretty(~settings: Settings.t, tp)
   | Any(_)
-  | Nul(_)
   | Rul(_) =>
     //TODO: print out invalid rules properly
     let id = any |> Any.rep_id;
@@ -1182,7 +1181,6 @@ and parenthesize_any = (~show_filters: bool, any: Any.t): Any.t =>
   | TPat(tp) => TPat(parenthesize_tpat(~show_filters, tp))
   | Rul(r) => Rul(parenthesize_rul(~show_filters, r))
   | Any(_) => any
-  | Nul(_) => any
   };
 
 let exp_to_segment = (~settings: Settings.t, exp: Exp.t): Segment.t => {
