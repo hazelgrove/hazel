@@ -568,8 +568,8 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
     switch (expects) {
     | TypeExpected
     | TupleExpected =>
-      let (duplicate_labels, _) =
-        LabeledTuple.get_duplicate_and_unique_labels(Typ.match_tup_label, ts);
+      let duplicate_labels =
+        LabeledTuple.get_duplicate_labels(Typ.match_tup_label, ts);
 
       if (duplicate_labels == []) {
         NotInHole(Type(ty));
