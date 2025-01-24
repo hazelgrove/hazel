@@ -29,8 +29,8 @@ let match_labels: (label, label) => bool =
 // returns a pair containing a list of option(label) and a list of 'a
 // if 'a is a tuplabel, extracts the label but keeps the tuplabel together
 let separate_and_keep_labels:
-  'a.
-  ('a => option((label, 'a)), list('a)) =>
+  'a 'b.
+  ('a => option((label, 'b)), list('a)) =>
   (list(option(label)), list('a))
  =
   (get_label, es) => {
@@ -53,12 +53,11 @@ let intersect = (xs: list(label), ys: list(label)) => {
 };
 
 // TODO: Performance
-// Takes a list of strings and returns a list of duplicates and list of uniques.
+// Takes a list of strings and returns a list of duplicates
 // Can also be modified to get unique labels.
-let get_duplicate_and_unique_labels_base:
-  list(label) => (list(label), list(label)) =
+let get_duplicate_labels_base: list(label) => list(label) =
   labels => {
-    let (duplicates, uniques) =
+    let (duplicates, _uniques) =
       List.fold_left(
         (acc, label) => {
           let (dupes, uniqs) = acc;
@@ -70,21 +69,18 @@ let get_duplicate_and_unique_labels_base:
         ([], []),
         labels,
       );
-    (duplicates, uniques);
+    duplicates;
   };
 
-let get_duplicate_and_unique_labels:
-  'a.
-  ('a => option((label, 'a)), list('a)) => (list(label), list(label))
+let get_duplicate_labels:
+  'a 'b.
+  ('a => option((label, 'b)), list('a)) => list(label)
  =
   (get_label, es) => {
-    let labels = fst(separate_and_keep_labels(get_label, es));
-    let labels =
-      labels
-      |> List.filter(x => Option.is_some(x))
-      |> OptUtil.sequence
-      |> OptUtil.get(() => []);
-    get_duplicate_and_unique_labels_base(labels);
+    separate_and_keep_labels(get_label, es)
+    |> fst
+    |> List.filter_map(Fun.id)
+    |> get_duplicate_labels_base;
   };
 
 // Assumes all labels are unique

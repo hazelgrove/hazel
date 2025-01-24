@@ -107,5 +107,15 @@ let tests = (
         (None, 2),
       ],
     ),
+    test_case(
+      "LabeledTuple get_duplicate_and_unique_labels",
+      `Quick,
+      () => {
+        let duplicates =
+          LabeledTuple.get_duplicate_labels_base(["a", "b", "a", "c", "b"]);
+
+        check(list(string), "duplicates", ["a", "b"], duplicates);
+      },
+    ),
   ],
 );
