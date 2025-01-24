@@ -26,11 +26,13 @@ let match_labels: (label, label) => bool =
     };
   };
 
-// returns a pair containing a list of option(t) and a list of 'a
+// returns a pair containing a list of option(label) and a list of 'a
 // if 'a is a tuplabel, extracts the label but keeps the tuplabel together
 let separate_and_keep_labels:
+  'a.
   ('a => option((label, 'a)), list('a)) =>
-  (list(option(label)), list('a)) =
+  (list(option(label)), list('a))
+ =
   (get_label, es) => {
     let results =
       List.fold_left(
@@ -45,9 +47,9 @@ let separate_and_keep_labels:
     results;
   };
 
-// TODO Performance
-let intersect = (xs, ys) => {
-  List.filter_map(x => List.find_opt((==)(x), ys), xs);
+// Keeps the labels in x that exist in y. Maintains the order from x.
+let intersect = (xs: list(label), ys: list(label)) => {
+  List.filter_map(x => List.find_opt(equal_label(x), ys), xs);
 };
 
 // TODO: Performance
@@ -71,7 +73,6 @@ let get_duplicate_and_unique_labels_base:
     (duplicates, uniques);
   };
 
-// Investigate the type here
 let get_duplicate_and_unique_labels:
   'a.
   ('a => option((label, 'a)), list('a)) => (list(label), list(label))
