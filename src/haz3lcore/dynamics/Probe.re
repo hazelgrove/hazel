@@ -16,28 +16,8 @@ type tag =
   | Paren
   | Probe(t);
 
-/* A function call at function ap of id */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type call_frame = Id.t;
-
 /* A call at stack represented by function ap ids */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type call_stack = list(call_frame);
-
-/* Lexical stack frame */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type closure_frame = {
-  ap_id: Id.t, /* Syntax id of the ap */
-  env_id: Id.t /* id of parent closure environment */
-};
-
-/* Fixed-depth stack of closures from nested function literals */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type closure_stack = list(closure_frame);
+type call_stack = list(Id.t);
 
 let empty: t = {refs: []};
-
-let mk_frame = (~env_id: Id.t, ~ap_id: Id.t): closure_frame => {
-  env_id,
-  ap_id,
-};
