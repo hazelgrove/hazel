@@ -172,12 +172,22 @@
 
 .projector.probe .live-equals {
   font-weight: 800;
-  color: var(--exp-base);
   opacity: 80%;
+}
+.projector.probe.Exp .live-equals {
+  color: var(--exp-base);
+}
+.projector.probe.Pat .live-equals {
+  color: var(--pat-base);
 }
 .projector.probe.indicated .live-equals {
   opacity: 100%;
+}
+.projector.probe.Exp.indicated .live-equals {
   color: var(--exp-indicated);
+}
+.projector.probe.Pat.indicated .live-equals {
+  color: var(--pat-indicated);
 }
 
 .projector.probe .live-offside .nav-bar {
@@ -377,7 +387,8 @@
 .projector.probe.indicated .closure:hover .live-env {
   display: block;
 }
-.projector.probe.indicated .closure:hover .live-env:empty {
+.projector.probe.indicated .closure:hover .live-env:empty,
+.projector.probe.Pat.indicated .closure:hover .live-env {
   display: none;
 }
 
