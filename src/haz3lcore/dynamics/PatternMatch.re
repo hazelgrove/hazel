@@ -11,11 +11,7 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
     Matches(Environment.union(env1, env2))
   };
 
-type closure_closures =
-  list(
-    (Probe.closure_stack, Probe.call_stack) =>
-    (Id.t, Dynamics.Probe.Closure.t),
-  );
+type closure_closures = list(Probe.call_stack => Dynamics.Probe.Closure.t);
 let closure_closures: ref(closure_closures) = ref([]);
 
 /* Closure capture for Probe instrumentation */
@@ -26,11 +22,7 @@ let capture_closure = (pr, id: Id.t, d, inner_match: match_result): unit =>
   | Matches(env) =>
     closure_closures :=
       List.cons(
-        (stack, call_stack) =>
-          (
-            id,
-            Dynamics.Probe.Closure.mk(d, {env, stack, call_stack, id}, pr),
-          ),
+        Dynamics.Probe.Closure.mk(id, d, env, _, pr),
         closure_closures^,
       )
   };

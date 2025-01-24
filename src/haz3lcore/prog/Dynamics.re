@@ -59,20 +59,25 @@ module Probe = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = {
       closure_id: Id.t, /* Primary ID (unique) */
-      env_id: Id.t, /* Parent Closure Environment */
+      syntax_id: Id.t, /* Syntax ID of probed expression */
       value: DHExp.t, /* Value of expression */
       env: Env.t, /* (Filtered) Environment Values  */
-      call_stack: Probe.call_stack,
-      closure_stack: Probe.closure_stack,
+      call_stack: Probe.call_stack /* Call stacks as ap ids */
     };
 
-    let mk = (value: DHExp.t, env: ClosureEnvironment.t, pr: Probe.t) => {
+    let mk =
+        (
+          syntax_id: Id.t,
+          value: DHExp.t,
+          env: Environment.t,
+          call_stack: Probe.call_stack,
+          pr: Probe.t,
+        ) => {
       closure_id: Id.mk(),
-      env_id: ClosureEnvironment.id_of(env),
+      syntax_id,
       value,
-      env: Env.mk(ClosureEnvironment.map_of(env), pr.refs),
-      closure_stack: ClosureEnvironment.stack_of(env),
-      call_stack: ClosureEnvironment.call_stack_of(env),
+      env: Env.mk(env, pr.refs),
+      call_stack,
     };
   };
 

@@ -118,7 +118,7 @@ module type EV_MODE = {
 
   let update_test: (state, Id.t, TestMap.instance_report) => unit;
 
-  let update_probe: (state, Id.t, Dynamics.Probe.Closure.t) => unit;
+  let update_probe: (state, Dynamics.Probe.Closure.t) => unit;
 };
 
 module Transition = (EV: EV_MODE) => {
@@ -138,11 +138,7 @@ module Transition = (EV: EV_MODE) => {
   let capture_closures =
       (env: ClosureEnvironment.t, state: state, closures, ()): unit =>
     List.iter(
-      closure => {
-        let (id, closure: Dynamics.Probe.Closure.t) =
-          closure(env.stack, env.call_stack);
-        update_probe(state, id, closure);
-      },
+      closure => update_probe(state, closure(env.call_stack)),
       closures,
     );
 
@@ -757,8 +753,12 @@ module Transition = (EV: EV_MODE) => {
       Step({
         expr: d',
         state_update: () => {
-          let closure = Dynamics.Probe.Closure.mk(d', env, pr);
-          update_probe(state, DHExp.rep_id(d), closure);
+          let call_stack = ClosureEnvironment.call_stack_of(env);
+          let map = ClosureEnvironment.map_of(env);
+          let id = DHExp.rep_id(d);
+          let closure =
+            Dynamics.Probe.Closure.mk(id, d', map, call_stack, pr);
+          update_probe(state, closure);
         },
         kind: RemoveParens,
         is_value: true,
