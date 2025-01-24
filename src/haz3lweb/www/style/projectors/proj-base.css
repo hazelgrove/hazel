@@ -63,6 +63,19 @@
   cursor: pointer;
   font-family: var(--code-font);
 }
+.projector.fold .hover-view {
+  display: none;
+  position: absolute;
+}
+.projector.fold:hover .hover-view {
+  display: block;
+  background-color: var(--T2);
+  outline: 1px solid var(--BR1);
+  border-radius: 0 0.2em 0.2em 0.2em;
+  /* padding: 0em 1em; */
+  top: 1px;
+  left: 20px;
+}
 
 .result .projector.fold {
   cursor: default;
