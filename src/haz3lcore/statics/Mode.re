@@ -60,7 +60,6 @@ let of_forall = (ctx: Ctx.t, name_opt: option(string), mode: t): t =>
     };
   };
 
-// Empty label is a placeholder for checking any label
 let of_label = (mode: t): (t, t) =>
   switch (mode) {
   | Syn
