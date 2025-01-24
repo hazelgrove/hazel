@@ -45,7 +45,7 @@ let backing_deco =
     (
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
-      ~shape: shape,
+      ~shape: ProjectorCore.shape,
     ) =>
   switch (shape) {
   | Inline(_)
@@ -59,7 +59,12 @@ let backing_deco =
 
 /* Adds attributes to a projector UI to support
  * custom styling when selected or indicated */
-let status = (indicated: option(Direction.t), selected: bool, shape: shape) =>
+let status =
+    (
+      indicated: option(Direction.t),
+      selected: bool,
+      shape: ProjectorCore.shape,
+    ) =>
   (selected ? ["selected"] : [])
   @ (
     switch (shape) {

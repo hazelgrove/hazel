@@ -67,7 +67,7 @@ and exp_term =
   | Int(int)
   | Float(float)
   | String(string)
-  | LivelitInvocation(string)
+  | LivelitName(string)
   | ListLit(list(exp_t))
   | Constructor(string, typ_t) // Typ.t field is only meaningful in dynamic expressions
   | Fun(
@@ -111,7 +111,7 @@ and pat_term =
   | Float(float)
   | Bool(bool)
   | String(string)
-  | LivelitInvocation(string)
+  | LivelitName(string)
   | ListLit(list(pat_t))
   | Constructor(string, typ_t) // Typ.t field is only meaningful in dynamic patterns
   | Cons(pat_t, pat_t)
@@ -305,7 +305,7 @@ and Exp: {
         | String(_)
         | Deferral(_)
         | Var(_)
-        | LivelitInvocation(_)
+        | LivelitName(_)
         | Undefined => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | DynamicErrorHole(e, err) => DynamicErrorHole(exp_map_term(e), err)
@@ -416,7 +416,7 @@ and Exp: {
       ClosureEnvironment.id_equal(c1, c2) && fast_equal(e1, e2)
     | (Cons(e1, e2), Cons(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
-    | (LivelitInvocation(s1), LivelitInvocation(s2)) => s1 == s2
+    | (LivelitName(s1), LivelitName(s2)) => s1 == s2
     | (ListConcat(e1, e2), ListConcat(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (UnOp(o1, e1), UnOp(o2, e2)) => o1 == o2 && fast_equal(e1, e2)
@@ -441,7 +441,7 @@ and Exp: {
     | (Int(_), _)
     | (Float(_), _)
     | (String(_), _)
-    | (LivelitInvocation(_), _)
+    | (LivelitName(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
     | (Fun(_), _)
@@ -524,7 +524,7 @@ and Pat: {
         | Float(_)
         | Constructor(_)
         | String(_)
-        | LivelitInvocation(_)
+        | LivelitName(_)
         | Var(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | ListLit(ts) => ListLit(List.map(pat_map_term, ts))
@@ -573,7 +573,7 @@ and Pat: {
     | (Int(_), _)
     | (Float(_), _)
     | (String(_), _)
-    | (LivelitInvocation(_), _)
+    | (LivelitName(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
     | (Cons(_), _)

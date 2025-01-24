@@ -18,7 +18,7 @@ module M: Projector = {
   let can_project = _ => true;
   let can_focus = false;
   let placeholder = (m, _) =>
-    Inline(m.text == "⋱" ? 2 : m.text |> String.length);
+    ProjectorCore.Inline(m.text == "⋱" ? 2 : m.text |> String.length);
   let update = (m, _) => m;
   let view = (m: model, ~info as _, ~local as _, ~parent) =>
     div(

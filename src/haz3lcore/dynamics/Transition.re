@@ -453,7 +453,7 @@ module Transition = (EV: EV_MODE) => {
     | Bool(_)
     | Int(_)
     | Float(_)
-    | LivelitInvocation(_)
+    | LivelitName(_)
     | String(_)
     | Constructor(_)
     | BuiltinFun(_) =>

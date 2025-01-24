@@ -359,6 +359,13 @@ module Pervasives = {
        );
 };
 
+let livelits_init: Ctx.t = [
+  LivelitEntry(Livelit.slider),
+  LivelitEntry(Livelit.emotion),
+  LivelitEntry(Livelit.timestamp),
+  LivelitEntry(Livelit.js),
+];
+
 let ctx_init: Ctx.t = {
   let meta_cons_map: ConstructorMap.t(Typ.t) = [
     Variant("$e", [Id.mk()], None),
@@ -377,6 +384,7 @@ let ctx_init: Ctx.t = {
       Ctx.VarEntry({name, typ: Arrow(t1, t2) |> Typ.fresh, id: Id.invalid}),
     Pervasives.builtins,
   )
+  |> List.append(livelits_init)
   |> Ctx.extend(_, meta)
   |> Ctx.add_ctrs(_, "$Meta", Id.invalid, meta_cons_map);
 };

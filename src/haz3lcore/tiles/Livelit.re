@@ -1,33 +1,16 @@
 open Util;
 open Virtual_dom.Vdom;
+open ProjectorCore;
+open Ctx;
 
-/* A utility function for putting a string into a tile. */
-type model_piece = {
-  model: UExp.t,
-  piece: Piece.tile,
-};
-
-let put: (string, Uuidm.t) => Piece.tile =
+let put: (string, Uuidm.t) => Piece.t =
   (s, id) => {
-    let piece = Piece.replace_id(id, Piece.mk_mono(Exp, s));
-    switch (piece) {
-    | Tile(t) => t
-    | _ => failwith("put: not a tile")
-    };
+    Piece.replace_id(id, Piece.mk_mono(Exp, s));
   };
 
 /* Type for a livelit */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  name: string,
-  model_t: Typ.t,
-  expansion_t: Typ.t,
-  expansion_f: UExp.t => UExp.t,
-  projector:
-    (list(model_piece), Piece.tile => Ui_effect.t(unit)) =>
-    Virtual_dom.Vdom.Node.t,
-  size: ProjectorBase.shape,
-};
+type t = Ctx.livelit_entry;
 
 /* Slider livelit */
 let slider: t = {
@@ -39,8 +22,9 @@ let slider: t = {
     | _ => DHExp.fresh(Undefined)
     },
   model_t: Typ.temp(Int),
-  projector: (model: list(model_piece), update) => {
-    let {model, piece} = List.nth(model, 0);
+  model_default: "50",
+  projector: (model: list(Ctx.model_piece), update) => {
+    let Ctx.{model, piece} = List.nth(model, 0);
     let n =
       switch (model.term) {
       | Int(n) => n
@@ -51,13 +35,16 @@ let slider: t = {
       ~attrs=[Attr.class_("livelit")],
       [
         Util.Web.range(
-          ~attrs=[Attr.on_input((_, v) => update(put(v, piece.id)))],
+          ~attrs=[
+            Attr.on_input((_, v) => update(put(v, Piece.id(piece)))),
+          ],
           string_of_int(n),
         ),
       ],
     );
   },
   size: Inline(20),
+  id: Id.invalid,
 };
 
 /* JS livelit */
@@ -70,6 +57,7 @@ let js: t = {
     | _ => DHExp.fresh(Undefined)
     },
   model_t: Typ.temp(Prod([Typ.temp(String), Typ.temp(String)])),
+  model_default: "\"1 + 1\", \"\"",
   projector: (models: list(model_piece), update) => {
     /* We expect exactly two model pieces: (code, result). */
     let ((code_model, _code_piece), (_result_model, result_piece)) =
@@ -89,7 +77,7 @@ let js: t = {
       };
 
     /* We'll store the updated result here when code is run. */
-    let hidden_result_id = "hidden-result-test"; // ++ Uuidm.to_string(result_piece.id);
+    let hidden_result_id = Uuidm.to_string(Piece.id(result_piece));
 
     /* This script:
           - Reads `code`
@@ -103,14 +91,11 @@ let js: t = {
       Node.input(
         ~attrs=[
           Attr.id(hidden_result_id),
-          Attr.type_("hidden"),
+          //   Attr.type_("hidden"),
           Attr.value(""),
-          /* When the script is done, it sets this to the new result. */
-          Attr.on_input((_, newVal) => {
-            /* Update the second piece’s model with the new result. */
-            update(
-              put(newVal, result_piece.id),
-            )
+          Attr.on_input((_, new_text) => {
+            print_endline("Updating result: " ++ new_text);
+            update(put(new_text, Piece.id(result_piece)));
           }),
         ],
         (),
@@ -125,15 +110,16 @@ let js: t = {
           /* compute button */
           Node.button(
             ~attrs=[
-              Attr.on_click(_ =>
-                Js_of_ocaml.Js.Unsafe.eval_string(
+              Attr.on_click(_ => {
+                let unsafe_code =
                   "document.getElementById('"
                   ++ hidden_result_id
                   ++ "').value = String("
                   ++ result
-                  ++ ")",
-                )
-              ),
+                  ++ ")";
+                print_endline("Running code: " ++ unsafe_code);
+                Js_of_ocaml.Js.Unsafe.eval_string(unsafe_code);
+              }),
             ],
             [Node.text("Compute")],
           ),
@@ -146,6 +132,7 @@ let js: t = {
     out;
   },
   size: Inline(20),
+  id: Id.invalid,
 };
 
 /* Timestamp livelit */
@@ -154,6 +141,7 @@ let timestamp: t = {
   expansion_t: Typ.temp(Int),
   expansion_f: (_model: UExp.t) =>
     DHExp.fresh(Int(Float.to_int(JsUtil.timestamp()))),
+  model_default: "\"\"",
   model_t: Typ.temp(Prod([])),
   projector: (_model: list(model_piece), _parent) =>
     Node.div(
@@ -161,6 +149,7 @@ let timestamp: t = {
       [Node.text("Timestamp livelit")],
     ),
   size: Inline(20),
+  id: Id.invalid,
 };
 
 /* Syntax error livelit */
@@ -170,18 +159,20 @@ let syntax_error: t = {
   expansion_f: (_model: UExp.t) =>
     DHExp.fresh(String("Syntax error -- are statics enabled?")),
   model_t: Typ.temp(Unknown(Internal)),
+  model_default: "I SHOULD NEVER APPEAR",
   projector: (_model: list(model_piece), _) =>
     Node.div(
       ~attrs=[Attr.class_("livelit")],
       [Node.text("Syntax error -- are statics enabled?")],
     ),
   size: Inline(20),
+  id: Id.invalid,
 };
 
 /* Inline Emotion livelit
-           - Draws a face with eyes and a mouth
-           - Shows a slider below the face
-           - The mouth shape changes based on the slider’s value.
+       - Draws a face with eyes and a mouth
+       - Shows a slider below the face
+       - The mouth shape changes based on the slider’s value.
    */
 let emotion: t = {
   name: "emotion",
@@ -202,6 +193,7 @@ let emotion: t = {
       )
     | _ => DHExp.fresh(Undefined)
     },
+  model_default: "50",
   model_t: Typ.temp(Int),
   projector: (model: list(model_piece), update) => {
     let {model, piece} = List.nth(model, 0);
@@ -214,7 +206,7 @@ let emotion: t = {
     /* Calculate mouth curvature based on n */
     let smile = (100.0 -. float_of_int(n)) /. 100.0 *. 50.0 -. 25.0;
     let pathData =
-      "M60 130 Q100 " ++ string_of_float(130.0 -. smile) ++ " 140 130";
+      "M60 130 Q100 " ++ Printf.sprintf("%.1f", 130.0 -. smile) ++ " 140 130";
 
     Node.div(
       ~attrs=[Attr.class_("livelit")],
@@ -272,7 +264,7 @@ let emotion: t = {
         Util.Web.range(
           ~attrs=[
             Attr.value(string_of_int(n)),
-            Attr.on_input((_, v) => update(put(v, piece.id))),
+            Attr.on_input((_, v) => update(put(v, Piece.id(piece)))),
           ],
           ~min="0",
           ~max="100",
@@ -282,90 +274,26 @@ let emotion: t = {
     );
   },
   size: Block({row: 10, col: 20}),
-};
-
-let fetch_url: t = {
-  name: "fetch_url",
-  expansion_t: Typ.temp(String),
-  expansion_f: (model: UExp.t) =>
-    switch (model.term) {
-    | String(s) => DHExp.fresh(String(s))
-    | _ => DHExp.fresh(Undefined)
-    },
-  model_t: Typ.temp(String),
-  projector: (model: list(model_piece), update) => {
-    let {model, piece} = List.nth(model, 0);
-    let url =
-      switch (model.term) {
-      | String(s) => s
-      | _ => failwith("fetch_url: not given a string URL")
-      };
-
-    /* We'll stash fetched text into this hidden input when it arrives. */
-    let hidden_input_id = "hidden-input-" ++ Uuidm.to_string(piece.id);
-
-    let script_code =
-      {|
-    (function() {
-      fetch("|}
-      ++ url
-      ++ {|")
-        .then(resp => resp.text())
-        .then(text => {
-          const input = document.getElementById("|}
-      ++ hidden_input_id
-      ++ {|\");
-          if (input) {
-            input.value = text;
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-        })
-        .catch(err => console.error("Fetch error: ", err));
-    })();
-    |};
-    // let script_code = "console.log('fetching from: " ++ url ++ "');";
-
-    Node.div(
-      ~attrs=[Attr.class_("livelit")],
-      [
-        /* Hidden input to store the fetched text once available. */
-        Node.input(
-          ~attrs=[
-            Attr.id(hidden_input_id),
-            Attr.type_("hidden"),
-            Attr.value(url),
-            Attr.on_input((_, v) => {
-              /* Once the fetch completes, update the tile with the new text */
-              update(
-                put("\"" ++ v ++ "\"", piece.id),
-              )
-            }),
-          ],
-          (),
-        ),
-        /* The script that performs the fetch and populates the hidden input. */
-        Node.create("script", [Node.text(script_code)]),
-        /* Visible text for debugging or user feedback. */
-        Node.text("Fetching from: " ++ url),
-      ],
-    );
-  },
-  size: Inline(20),
+  id: Id.invalid,
 };
 
 /* Export the final set of livelits we want to keep. */
-let livelits: list(t) = [
-  slider,
-  js,
-  timestamp,
-  emotion,
-  syntax_error,
-  fetch_url,
-];
+let livelits: list(t) = [slider, js, timestamp, emotion, syntax_error];
 
-/* A helper to find a livelit by name. Returns syntax_error if not found. */
-let find_livelit = (name: string): t =>
-  switch (List.find_opt(l => l.name == name, livelits)) {
-  | Some(l) => l
-  | None => syntax_error
+/* A helper to find a livelit by name. Returns syntax_error if not found, or if ctx not given. */
+let find_livelit = (name: string, ctx: Ctx.t) => {
+  let entry =
+    List.find_opt(
+      entry =>
+        switch (entry) {
+        | LivelitEntry({name: n, _}) when n == name => true
+        | _ => false
+        },
+      ctx,
+    );
+
+  switch (entry) {
+  | Some(LivelitEntry(l)) => l
+  | _ => syntax_error
   };
+};

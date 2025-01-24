@@ -19,17 +19,31 @@ type tvar_entry = {
   kind,
 };
 
+type model_piece = {
+  model: TermBase.Exp.t,
+  piece: Base.piece,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type livelit_entry = {
   name: string,
+  model_t: TermBase.Typ.t,
+  model_default: string,
+  expansion_t: TermBase.Typ.t,
+  expansion_f: TermBase.Exp.t => TermBase.Exp.t,
+  projector:
+    (list(model_piece), Base.piece => Ui_effect.t(unit)) =>
+    Virtual_dom.Vdom.Node.t,
+  size: ProjectorCore.shape,
   id: Id.t,
-  typ: TermBase.Typ.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry =
   | VarEntry(var_entry)
   | ConstructorEntry(var_entry)
-  | TVarEntry(tvar_entry);
+  | TVarEntry(tvar_entry)
+  | LivelitEntry(livelit_entry);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = list(entry);
@@ -68,12 +82,21 @@ let get_id: entry => Id.t =
   fun
   | VarEntry({id, _})
   | ConstructorEntry({id, _})
-  | TVarEntry({id, _}) => id;
+  | TVarEntry({id, _})
+  | LivelitEntry({id, _}) => id;
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
     fun
     | VarEntry(v) when v.name == name => Some(v)
+    | _ => None,
+    ctx,
+  );
+
+let lookup_livelit = (ctx: t, name: string): option(livelit_entry) =>
+  List.find_map(
+    fun
+    | LivelitEntry(v) when v.name == name => Some(v)
     | _ => None,
     ctx,
   );
@@ -175,6 +198,10 @@ let filter_duplicates = (ctx: t): t =>
            VarSet.mem(name, typ_set)
              ? (ctx, term_set, typ_set)
              : ([entry, ...ctx], term_set, VarSet.add(name, typ_set))
+         | LivelitEntry({name, _}) =>
+           VarSet.mem(name, term_set)
+             ? (ctx, term_set, typ_set)
+             : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
          }
        },
        ([], VarSet.empty, VarSet.empty),

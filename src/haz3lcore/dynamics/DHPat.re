@@ -20,7 +20,7 @@ let rec binds_var = (m: Statics.Map.t, x: Var.t, dp: t): bool =>
     | Float(_)
     | Bool(_)
     | String(_)
-    | LivelitInvocation(_)
+    | LivelitName(_)
     | Constructor(_) => false
     | Cast(y, _, _)
     | Parens(y) => binds_var(m, x, y)

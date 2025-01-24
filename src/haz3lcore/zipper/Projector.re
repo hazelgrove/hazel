@@ -15,7 +15,7 @@ let to_module = (kind: Base.kind): (module Cooked) =>
   | Livelit => (module Cook(LivelitProj.M))
   };
 
-let shape = (p: Base.projector, info: info): shape => {
+let shape = (p: Base.projector, info: info): ProjectorCore.shape => {
   let (module P) = to_module(p.kind);
   P.placeholder(p.model, info);
 };
