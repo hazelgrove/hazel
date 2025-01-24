@@ -183,9 +183,9 @@ let join_type_provenance =
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
-let rec get_label = ty =>
+let rec match_tup_label = ty =>
   switch (term_of(ty)) {
-  | Parens(ty) => get_label(ty)
+  | Parens(ty) => match_tup_label(ty)
   | TupLabel(label, t') =>
     switch (term_of(label)) {
     | Label(name) => Some((name, t'))
@@ -315,7 +315,10 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     Arrow(ty1, ty2) |> temp;
   | (Arrow(_), _) => None
   | (TupLabel(_, ty1'), TupLabel(lab2, ty2')) =>
-    if (LabeledTuple.equal(get_label(ty1), get_label(ty2))) {
+    if (LabeledTuple.has_same_labels(
+          match_tup_label(ty1),
+          match_tup_label(ty2),
+        )) {
       let+ ty = join'(ty1', ty2');
       TupLabel(lab2, ty) |> temp;
     } else {
@@ -470,7 +473,7 @@ let rec get_labels = (ctx, ty): list(option(string)) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
   | Parens(ty) => get_labels(ctx, ty)
-  | Prod(tys) => List.map(x => Option.map(fst, get_label(x)), tys)
+  | Prod(tys) => List.map(x => Option.map(fst, match_tup_label(x)), tys)
   | _ => []
   };
 };
@@ -496,7 +499,7 @@ let rec matched_prod_strict:
       } else {
         (
           LabeledTuple.rearrange(
-            get_label,
+            match_tup_label,
             get_label_es,
             tys,
             es,
@@ -685,8 +688,8 @@ let remove_duplicate_labels =
   snd(
     List.fold_left(
       ((seen_duplicates, deduplicated_types), ty) => {
-        let label = get_label(ty);
-        switch (label) {
+        let tup_label = match_tup_label(ty);
+        switch (tup_label) {
         | Some((l, _))
             when
               List.mem(l, duplicate_labels) && List.mem(l, seen_duplicates) => (

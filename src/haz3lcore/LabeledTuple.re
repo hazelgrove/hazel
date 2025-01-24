@@ -5,10 +5,12 @@ exception Exception;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type label = string;
 
-let equal: (option((label, 'a)), option((label, 'b))) => bool =
+let equal_label = String.equal;
+
+let has_same_labels: (option((label, 'a)), option((label, 'b))) => bool =
   (left, right) => {
     switch (left, right) {
-    | (Some((s1, _)), Some((s2, _))) => String.equal(s1, s2)
+    | (Some((s1, _)), Some((s2, _))) => equal_label(s1, s2)
     | (_, _) => false
     };
   };
@@ -69,6 +71,7 @@ let get_duplicate_and_unique_labels_base:
     (duplicates, uniques);
   };
 
+// Investigate the type here
 let get_duplicate_and_unique_labels:
   'a.
   ('a => option((label, 'a)), list('a)) => (list(label), list(label))

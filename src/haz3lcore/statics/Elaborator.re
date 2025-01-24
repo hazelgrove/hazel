@@ -207,8 +207,8 @@ let rec elaborate_pattern =
       let (ps', tys) =
         LabeledTuple.rearrange2(
           expected_labels,
-          DHPat.get_label,
-          Typ.get_label,
+          Pat.match_tup_label,
+          Typ.match_tup_label,
           ps',
           tys,
           (name, p) =>
@@ -397,8 +397,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (ds, tys) =
         LabeledTuple.rearrange2(
           expected_labels,
-          DHExp.get_label,
-          Typ.get_label,
+          Exp.match_tup_label,
+          Typ.match_tup_label,
           ds,
           tys,
           (name, e) => {
@@ -416,13 +416,18 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         switch (ty1.term, e2.term) {
         | (Parens(ty1), _) => elab_dot(ty1, e2)
         | (Prod(tys), Label(name)) =>
-          let element = LabeledTuple.find_label(Typ.get_label, tys, name);
+          let element =
+            LabeledTuple.find_label(Typ.match_tup_label, tys, name);
           switch (element) {
           | Some({term: TupLabel(_, ty), _}) => ty
           | _ => Unknown(Internal) |> Typ.temp
           };
         | (TupLabel(_, ty), Label(name))
-            when LabeledTuple.equal(Typ.get_label(ty1), Some((name, e2))) => ty
+            when
+              LabeledTuple.has_same_labels(
+                Typ.match_tup_label(ty1),
+                Some((name, e2)),
+              ) => ty
         | _ => Unknown(Internal) |> Typ.temp
         };
       let ty = elab_dot(ty1, e2);
@@ -457,7 +462,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         | (Tuple(ds), Prod(tys)) =>
           Tuple(
             LabeledTuple.rearrange(
-              Typ.get_label, DHExp.get_label, tys, ds, (t, b) =>
+              Typ.match_tup_label, DHExp.match_tup_label, tys, ds, (t, b) =>
               TupLabel(Label(t) |> Exp.fresh, b) |> Exp.fresh
             ),
           )
@@ -503,7 +508,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (args', tys) = List.map(elaborate(m), args) |> ListUtil.unzip;
       let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
       let (args, ty_fargs) =
-        Typ.matched_prod(ctx, args, Exp.get_label, tyf1, (name, b) =>
+        Typ.matched_prod(ctx, args, Exp.match_tup_label, tyf1, (name, b) =>
           TupLabel(Label(name) |> Exp.fresh, b) |> Exp.fresh
         );
       let f'' =
