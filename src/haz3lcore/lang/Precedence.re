@@ -85,7 +85,7 @@ let prod = 37;
 let semi = 38 |> right_associative;
 // () ; _____
 
-let lab = 39; // TODO
+let lab = 39;
 
 let let_ = 40;
 // let x = 3 in _____

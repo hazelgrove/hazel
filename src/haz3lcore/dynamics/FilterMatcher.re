@@ -110,13 +110,6 @@ let rec matches_exp =
     | (Constructor("$e", _), _) => failwith("$e in matched expression")
     | (Constructor("$v", _), _) => failwith("$v in matched expression")
 
-    // TODO (Anthony): Is this right?
-    /* Labels are a special case*/
-    | (TupLabel(dl, dv), TupLabel(fl, fv)) =>
-      matches_exp(dl, fl) && matches_exp(dv, fv)
-    | (TupLabel(_, dv), _) => matches_exp(dv, f)
-    | (_, TupLabel(_, fv)) => matches_exp(d, fv)
-
     // HACK[Matt]: ignore fixpoints in comparison, to allow pausing on fixpoint steps
     | (FixF(dp, dc, None), FixF(fp, fc, None)) =>
       switch (tangle(dp, denv, fp, fenv)) {
@@ -223,6 +216,10 @@ let rec matches_exp =
 
     | (Label(dv), Label(fv)) => dv == fv
     | (Label(_), _) => false
+
+    | (TupLabel(dl, dv), TupLabel(fl, fv)) =>
+      matches_exp(dl, fl) && matches_exp(dv, fv)
+    | (TupLabel(_), _) => false
 
     | (
         Constructor(_),

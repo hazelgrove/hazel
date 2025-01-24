@@ -502,15 +502,17 @@ module Exp = {
     | Fun(_) => true
     | BuiltinFun(_) => true
     | Dot(e1, e2) =>
-      let element: option(t) =
+      let rec check_tuple = (e1: t, e2: t) =>
         switch (e1.term) {
+        | Parens(e) => check_tuple(e, e2)
         | Tuple(ts) =>
           switch (e2.term) {
           | Label(name) => LabeledTuple.find_label(get_label, ts, name)
           | _ => None
           }
-        | _ => None // TODO (Anthony): other exps
+        | _ => None
         };
+      let element: option(t) = check_tuple(e1, e2);
       switch (element) {
       | Some(exp) => is_fun(exp)
       | None => false
@@ -559,15 +561,17 @@ module Exp = {
       | TupLabel(_, e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
       | Dot(e1, e2) =>
-        let element: option(t) =
+        let rec check_tuple = (e1: t, e2: t) =>
           switch (e1.term) {
+          | Parens(e) => check_tuple(e, e2)
           | Tuple(ts) =>
             switch (e2.term) {
             | Label(name) => LabeledTuple.find_label(get_label, ts, name)
             | _ => None
             }
-          | _ => None // TODO (Anthony): other exps
+          | _ => None
           };
+        let element: option(t) = check_tuple(e1, e2);
         switch (element) {
         | Some(exp) => is_tuple_of_functions(exp)
         | None => false

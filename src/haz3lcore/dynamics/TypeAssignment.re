@@ -41,7 +41,6 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       };
     switch (dhpat |> Pat.term_of) {
     | TupLabel(_, dp1) =>
-      // TODO: use matched_label
       switch (ty'.term) {
       | TupLabel(_, ty2)
           when

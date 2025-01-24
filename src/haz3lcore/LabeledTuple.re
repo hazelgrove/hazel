@@ -25,25 +25,6 @@ let match_labels: (label, label) => bool =
   };
 
 // returns a pair containing a list of option(t) and a list of 'a
-// // if 'a is a tuplabel, separates the label from the element held by it.
-// let separate_labels:
-//   ('a => option((label, 'a)), list('a)) =>
-//   (list(option(label)), list('a)) =
-//   (get_label, es) => {
-//     let results =
-//       List.fold_left(
-//         ((ls, ns), e) =>
-//           switch (get_label(e)) {
-//           | Some((s1, e)) => (ls @ [Some(s1)], ns @ [e])
-//           | None => (ls @ [None], ns @ [e])
-//           },
-//         ([], []),
-//         es,
-//       );
-//     results;
-//   };
-
-// returns a pair containing a list of option(t) and a list of 'a
 // if 'a is a tuplabel, extracts the label but keeps the tuplabel together
 let separate_and_keep_labels:
   ('a => option((label, 'a)), list('a)) =>
@@ -62,36 +43,10 @@ let separate_and_keep_labels:
     results;
   };
 
-// TODO consider adding a t = (option(label), 'a)
-
-// let separate_labeled = (xs: list((option(label), 'a))) => {
-//   List.partition_map(
-//     ((l, a)) =>
-//       switch (l) {
-//       | None => Right(a)
-//       | Some(l) => Left((l, a))
-//       },
-//     xs,
-//   );
-// };
-
 // TODO Performance
 let intersect = (xs, ys) => {
   List.filter_map(x => List.find_opt((==)(x), ys), xs);
 };
-
-// TODO: can just use get_duplicate_labels and check if empty.
-// Takes a list of strings and returns true if there are no duplicates.
-// let rec is_uniquely_labeled_base: list(label) => bool =
-//   labels => {
-//     let contains_duplicates =
-//       switch (labels) {
-//       | [] => false
-//       | [hd, ...tl] =>
-//         List.exists(l => hd == l, tl) || is_uniquely_labeled_base(tl)
-//       };
-//     !contains_duplicates;
-//   };
 
 // TODO: Performance
 // Takes a list of strings and returns a list of duplicates and list of uniques.
@@ -113,18 +68,6 @@ let get_duplicate_and_unique_labels_base:
       );
     (duplicates, uniques);
   };
-
-// Takes in a get_label function and a list of elements and applys is_uniquely_labeled_base
-// let is_uniquely_labeled: 'a. ('a => option((label, 'a)), list('a)) => bool =
-//   (get_label, es) => {
-//     let labels = fst(separate_and_keep_labels(get_label, es));
-//     let labels =
-//       labels
-//       |> List.filter(x => Option.is_some(x))
-//       |> OptUtil.sequence
-//       |> OptUtil.get(() => []);
-//     is_uniquely_labeled_base(labels);
-//   };
 
 let get_duplicate_and_unique_labels:
   'a.
@@ -215,7 +158,6 @@ let rec rearrange_base:
 
 // Basically another way to call rearrange_base using the raw lists, functions to extract labels from TupLabels, and constructor for new TupLabels.
 // Maintains the same ids if possible
-// TODO: clean up more
 let rearrange:
   'a 'b.
   (
@@ -237,7 +179,6 @@ let rearrange:
       ((optional_label, b)) =>
         switch (optional_label) {
         | Some(label) =>
-          // TODO: probably can keep the same ids in a cleaner way
           switch (get_label2(b)) {
           | Some(_) => b
           | None => constructor(label, b)
@@ -250,7 +191,7 @@ let rearrange:
 
 // rearrange two other lists to match the first list of labels.
 // TODO: Ensure that the two lists match up with each other
-// TODO: This function currently exists only to make the elaborator code cleaner. Probably can make more efficient
+// TODO: Efficiency
 let rearrange2:
   'a 'b.
   (
@@ -273,7 +214,6 @@ let rearrange2:
         ((optional_label, b)) =>
           switch (optional_label) {
           | Some(label) =>
-            // TODO: probably can keep the same ids in a cleaner way
             switch (get_label1(b)) {
             | Some(_) => b
             | None => constructor1(label, b)
@@ -290,7 +230,6 @@ let rearrange2:
         ((optional_label, b)) =>
           switch (optional_label) {
           | Some(label) =>
-            // TODO: probably can keep the same ids in a cleaner way
             switch (get_label2(b)) {
             | Some(_) => b
             | None => constructor2(label, b)

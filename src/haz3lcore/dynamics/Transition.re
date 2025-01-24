@@ -327,55 +327,6 @@ module Transition = (EV: EV_MODE) => {
       let-unbox unboxed_fun = (Fun, d1');
       switch (unboxed_fun) {
       | Constructor(_) => Constructor
-      // Wrap the arguments into labels for label rearrangement
-      // And implicitly wrap args into singleton tuples if necessary
-      // This should be done in elaborator instead
-      // let dp: DHPat.t =
-      //   switch (DHPat.term_of(dp)) {
-      //   | Tuple(args) =>
-      //     let labeled_args =
-      //       List.map(
-      //         (p): DHPat.t =>
-      //           switch (DHPat.term_of(p)) {
-      //           | DHPat.Var(name) =>
-      //             TupLabel(DHPat.Label(name) |> DHPat.fresh, p)
-      //             |> DHPat.fresh
-      //           | _ => p
-      //           },
-      //         args,
-      //       );
-      //     Tuple(labeled_args) |> DHPat.fresh;
-      //   | TupLabel(_, _) => Tuple([dp]) |> DHPat.fresh
-      //   | Var(name) =>
-      //     Tuple([
-      //       TupLabel(DHPat.Label(name) |> DHPat.fresh, dp) |> DHPat.fresh,
-      //     ])
-      //     |> DHPat.fresh
-      //   | _ => dp
-      //   };
-      // TODO: Probably not the right way to deal with casts
-      // let d2' =
-      //   switch (d2'.term, DHPat.term_of(dp)) {
-      //   | (Tuple(_), Tuple(_)) => d2'
-      //   | (Cast({term: Tuple(_), _}, _, {term: Prod(_), _}), Tuple(_)) => d2'
-      //   | (Cast(d, {term: Prod(t1), _}, {term: Prod(t2), _}), Tuple(_)) =>
-      //     Cast(
-      //       Tuple([d]) |> DHExp.fresh,
-      //       Prod(t1) |> Typ.temp,
-      //       Prod(t2) |> Typ.temp,
-      //     )
-      //     |> DHExp.fresh
-      //   | (Cast(d, t1, {term: Prod(t2), _}), Tuple(_)) =>
-      //     Cast(
-      //       Tuple([d]) |> DHExp.fresh,
-      //       Prod([t1]) |> Typ.temp,
-      //       Prod(t2) |> Typ.temp,
-      //     )
-      //     |> DHExp.fresh
-      //   | (_, Tuple([{term: TupLabel(_), _}])) =>
-      //     Tuple([d2']) |> DHExp.fresh
-      //   | (_, _) => d2'
-      //   };
       | FunEnv(dp, d3, env') =>
         let.match env'' = (env', matches(dp, d2'));
         Step({
@@ -661,8 +612,6 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d1 => Dot1(d1, d2) |> wrap_ctx, d1)
       and. d2' =
         req_final(req(state, env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
-      // TODO: Holes and other cases handled?
-      // TODO: Get rid of all these casts
       switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
       | (Tuple(ds), Label(name)) =>
         switch (LabeledTuple.find_label(DHExp.get_label, ds, name)) {
@@ -676,7 +625,6 @@ module Transition = (EV: EV_MODE) => {
       | _ => Indet
       };
     | TupLabel(label, d1) =>
-      // TODO (Anthony): Fix this if needed
       let. _ = otherwise(env, d1 => TupLabel(label, d1) |> rewrap)
       and. _ =
         req_final(

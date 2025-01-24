@@ -335,7 +335,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
           | (["="], []) =>
-            // TODO (Anthony): Other cases to convert to string
+            // TODO: Other cases to convert to labels
             switch (l.term) {
             // | String(name)
             // Currently not allowing Strings to prevent empty Labels
@@ -344,7 +344,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             | _ => TupLabel(l, r)
             }
           | (["."], []) =>
-            // TODO (Anthony): Other cases to convert to string
+            // TODO: Other cases to convert to labels
             switch (r.term) {
             // | String(name)
             // Currently not allowing Strings to prevent empty Labels
@@ -437,7 +437,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     | None =>
       switch (tiles) {
       | ([(_id, (["="], []))], []) =>
-        // TODO (Anthony): Other cases to convert to string
+        // TODO: Other cases to convert to labels
         switch (l.term) {
         // | String(name)
         // Currently not allowing Strings to prevent empty Labels
@@ -538,7 +538,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       switch (tiles) {
       | ([(_id, (["->"], []))], []) => ret(Arrow(l, r))
       | ([(_id, (["="], []))], []) =>
-        // TODO (Anthony): Other cases to convert to string
+        // TODO: Other cases to convert to labels
         switch (l.term) {
         | Var(name) =>
           ret(
