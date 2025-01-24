@@ -234,5 +234,11 @@ in fn("hello")|},
     test_case("Dot operation for missing label", `Quick, () =>
       parse_and_evaluate_test("(a=1,b=2).c", "(a=1,b=2).c")
     ),
+    test_case("Desructuring labeled tuple", `Quick, () =>
+      parse_and_evaluate_test(
+        "(1, 2, 3.0)",
+        {|let (a=a', b=b', c) = (a=1, b=2, 3.0) in (a',b',c)|},
+      )
+    ),
   ],
 );
