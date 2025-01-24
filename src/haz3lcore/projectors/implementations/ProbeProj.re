@@ -370,21 +370,25 @@ let value_view =
       index: int,
     ) => {
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
-    let target = e##.target |> Js.Opt.get(_, _ => failwith("no target"));
-    JsUtil.setPointerCapture(target, e##.pointerId) |> ignore;
-    mousedown := Some(target);
-    click_coords := Some({row: e##.clientY, col: e##.clientX});
-    DynCursor.capture(info, closure);
+    if (Js.to_bool(e##.shiftKey)) {
+      let target =
+        e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
+      JsUtil.setPointerCapture(target, e##.pointerId) |> ignore;
+      mousedown := Some(target);
+      click_coords := Some({row: e##.clientY, col: e##.clientX});
+      DynCursor.capture(info, closure);
+    };
     Effect.Ignore;
   };
 
   let val_pointerup = (e: Js.t(Dom_html.pointerEvent)) => {
-    switch (mousedown^) {
-    | Some(target) =>
-      JsUtil.releasePointerCapture(target, e##.pointerId) |> ignore
-    | None => ()
+    let target =
+      e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
+    if (JsUtil.hasPointerCapture(target, e##.pointerId)) {
+      JsUtil.releasePointerCapture(target, e##.pointerId) |> ignore;
     };
     mousedown := None;
+    click_coords := None;
     Effect.Ignore;
   };
 
