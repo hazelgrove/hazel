@@ -27,9 +27,9 @@ let add_test = ({tests, _} as es, id, report) => {
 
 let get_tests = ({tests, _}) => tests;
 
-let add_closure = ({probes, _} as es, id: Id.t, v: Dynamics.Probe.Closure.t) => {
+let add_closure = ({probes, _} as es, closure: Dynamics.Probe.Closure.t) => {
   ...es,
-  probes: Dynamics.Probe.Map.extend(id, v, probes),
+  probes: Dynamics.Probe.Map.extend(closure.syntax_id, closure, probes),
 };
 
 let get_probes = ({probes, _}) => probes;

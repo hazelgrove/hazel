@@ -241,7 +241,6 @@ module Closures = {
       (closures: list((int, closure))): list(list((int, closure))) => {
     let grouped =
       closures |> group_by_predicate(is_same_call) |> List.map(List.rev);
-    // |> List.map(sort_by_call_stack_size);
     /* Flatten if all groups are singletons */
     List.for_all(group => List.length(group) == 1, grouped)
       ? [List.concat(grouped)] : grouped;
@@ -264,8 +263,6 @@ module Debug = {
   let str = (info, closure: closure): string =>
     //"closure_id: "
     //++ of_id(closure.closure_id)
-    // ++ "\nenv_id: "
-    // ++ of_id(closure.env_id)
     //++
     "ap:"
     ++ (
@@ -278,8 +275,6 @@ module Debug = {
     ++ stack(closure.call_stack);
   // ++ "DynCursor:\n"
   // ++ String.concat("\n", DynCursor.clss(info, closure));
-  // ++ "\nstack:\n"
-  // ++ stack(closure.stack);
 };
 
 let seg_view = (view_seg, utility: utility, available: int, seg: Exp.t) =>
