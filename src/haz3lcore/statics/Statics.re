@@ -202,19 +202,6 @@ and uexp_to_info_map =
   let add = (~self, ~co_ctx, m) => {
     add'(~self=Common(self), ~co_ctx, m);
   };
-  // add if uexp changed
-  // let add_exp = (~self, ~co_ctx, ~uexp, m) => {
-  //   let info =
-  //     Info.derived_exp(
-  //       ~uexp,
-  //       ~ctx,
-  //       ~mode,
-  //       ~ancestors,
-  //       ~self=Common(self),
-  //       ~co_ctx,
-  //     );
-  //   (info, add_info(ids, InfoExp(info), m));
-  // };
   let ancestors = [Exp.rep_id(uexp)] @ ancestors;
   let uexp_to_info_map =
       (
@@ -246,11 +233,11 @@ and uexp_to_info_map =
         go(~mode, ~duplicates, e, m) |> (((e, m)) => (es @ [e], m)),
       ([], m),
     );
-  // TODO: Confirm if duplicates should or not be default []
   let go_pat = upat_to_info_map(~ctx, ~ancestors, ~duplicates);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors);
 
-  let elaborate_singleton_tuple = (uexp: Exp.t, inner_ty, l, m) => {
+  // This lifts an expression into a singleton labeled tuple by rewriting the syntax in the Statics Map
+  let autolabel_singleton_tuple = (uexp: Exp.t, inner_ty, l, m) => {
     let (term, rewrap) = Exp.unwrap(uexp);
     let original_expression = Exp.fresh(term);
     let (original_info, m) =
@@ -286,6 +273,7 @@ and uexp_to_info_map =
     add(~self, ~co_ctx=CoCtx.empty, m);
   };
 
+  // This is the case where we aren't a singleton labeled tuple
   let default_case = () => {
     switch (term) {
     | Closure(_, e) =>
@@ -508,8 +496,6 @@ and uexp_to_info_map =
       let fn_mode = Mode.of_ap(ctx, mode, Exp.ctr_name(fn));
       let (fn, m) = go(~mode=fn_mode, fn, m);
       let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
-      // In case of singleton tuple for fun ty_in, implicitly convert arg if necessary
-      // TODO: Is needed for TypAp or Deferred Ap?
       let arg =
         switch (arg.term, Typ.weak_head_normalize(ctx, ty_in).term) {
         | (Tuple(es), Prod(ts)) =>
@@ -524,12 +510,7 @@ and uexp_to_info_map =
             copied: arg.copied,
           };
           arg;
-        // Now doing the singleton label elaboration below. I'll discuss with Anthony before removing these
-        // | (TupLabel(_), Prod([{term: TupLabel(_), _}])) =>
-        //   Tuple([arg]) |> Exp.fresh
-        // | (_, Prod([{term: TupLabel({term: Label(name), _}, _), _}])) =>
-        //   Tuple([TupLabel(Label(name) |> Exp.fresh, arg) |> Exp.fresh])
-        //   |> Exp.fresh
+
         | (_, _) => arg
         };
       let (arg, m) = go(~mode=Ana(ty_in), arg, m);
@@ -880,7 +861,7 @@ and uexp_to_info_map =
     };
   };
 
-  // This is to allow lifting single values into a singleton labeled tuple when the label is not present
+  // This is for lifting single values into a singleton labeled tuple when the label is not present
   switch (mode) {
   | Ana(ty) =>
     switch (Typ.weak_head_normalize(ctx, ty).term) {
@@ -892,7 +873,7 @@ and uexp_to_info_map =
       switch (Typ.weak_head_normalize(ctx, e.ty).term) {
       | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
         default_case()
-      | _ => elaborate_singleton_tuple(uexp, ana_ty, l1, m)
+      | _ => autolabel_singleton_tuple(uexp, ana_ty, l1, m)
       };
     | _ => default_case()
     }
@@ -1046,7 +1027,6 @@ and upat_to_info_map =
     | String(string) =>
       atomic(Just(String |> Typ.temp), Constraint.String(string))
     | Label(name) =>
-      // TODO: Constraint?
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)
         ? atomic(Duplicate(name, self), Constraint.Truth)
