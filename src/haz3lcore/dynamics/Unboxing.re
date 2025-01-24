@@ -70,9 +70,10 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
 
     /* TupLabels can be anything except for tuplabels with unmatching labels */
     | (TupLabel(tuplabel), TupLabel(_, e)) =>
-      if (LabeledTuple.equal(
-            DHPat.get_label(tuplabel),
-            DHExp.get_label(expr),
+      if (Option.equal(
+            LabeledTuple.equal_label,
+            Pat.get_label(tuplabel),
+            Exp.get_label(expr),
           )) {
         Matches(e);
       } else {

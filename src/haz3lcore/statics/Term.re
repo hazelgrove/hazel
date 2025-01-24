@@ -294,10 +294,10 @@ module Pat = {
     | _ => None
     };
 
-  let rec get_label: t => option((LabeledTuple.label, t)) =
+  let rec match_tup_label: t => option((LabeledTuple.label, t)) =
     p =>
       switch (p.term) {
-      | Parens(p) => get_label(p)
+      | Parens(p) => match_tup_label(p)
       | TupLabel(plab, p') =>
         switch (plab.term) {
         | Label(name) => Some((name, p'))
@@ -305,6 +305,10 @@ module Pat = {
         }
       | _ => None
       };
+
+  let get_label: t => option(LabeledTuple.label) =
+    p => match_tup_label(p) |> Option.map(fst);
+
   let rec bound_vars = (dp: t): list(Var.t) =>
     switch (dp |> term_of) {
     | EmptyHole
@@ -474,21 +478,23 @@ module Exp = {
     | Match => "Case expression"
     | Cast => "Cast expression";
 
-  let rec get_label: t => option((LabeledTuple.label, t)) = {
+  let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
     e => {
       switch (e.term) {
-      | Parens(e) => get_label(e)
+      | Parens(e) => match_tup_label(e)
       | TupLabel(elab, e') =>
         switch (elab.term) {
         | Label(name) => Some((name, e'))
         | _ => None
         }
-      // | Cast(e2, _, {term: TupLabel({term: Label(l), _}, _), _}) =>
-      //   Some((l, e2)) // TODO I would like to remove this case and stop casting in the case that we have the same labels
-      | Cast(e, _, _) => get_label(e) // TODO I would like to remove this case and stop casting in the case that we have the same labels
+      | Cast(e, _, _) => match_tup_label(e)
       | _ => None
       };
     };
+  };
+
+  let get_label: t => option(LabeledTuple.label) = {
+    e => match_tup_label(e) |> Option.map(fst);
   };
 
   // Typfun should be treated as a function here as this is only used to
@@ -507,7 +513,7 @@ module Exp = {
         | Parens(e) => check_tuple(e, e2)
         | Tuple(ts) =>
           switch (e2.term) {
-          | Label(name) => LabeledTuple.find_label(get_label, ts, name)
+          | Label(name) => LabeledTuple.find_label(match_tup_label, ts, name)
           | _ => None
           }
         | _ => None
@@ -566,7 +572,8 @@ module Exp = {
           | Parens(e) => check_tuple(e, e2)
           | Tuple(ts) =>
             switch (e2.term) {
-            | Label(name) => LabeledTuple.find_label(get_label, ts, name)
+            | Label(name) =>
+              LabeledTuple.find_label(match_tup_label, ts, name)
             | _ => None
             }
           | _ => None

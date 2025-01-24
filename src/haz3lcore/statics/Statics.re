@@ -418,11 +418,11 @@ and uexp_to_info_map =
       )
     | Tuple(es) =>
       let (es, modes) =
-        Mode.of_prod(ctx, mode, es, Exp.get_label, (name, b) =>
+        Mode.of_prod(ctx, mode, es, Exp.match_tup_label, (name, b) =>
           TupLabel(Label(name) |> Exp.fresh, b) |> Exp.fresh
         );
       let (duplicate_labels, _) =
-        LabeledTuple.get_duplicate_and_unique_labels(Exp.get_label, es);
+        LabeledTuple.get_duplicate_and_unique_labels(Exp.match_tup_label, es);
       let (es', m) = map_m_go(~duplicates=duplicate_labels, m, modes, es);
       let ty_list = List.map(Info.exp_ty, es');
       let get_bad_labels = (e: Info.exp) =>
@@ -471,7 +471,7 @@ and uexp_to_info_map =
         switch (e2.term) {
         | Label(name) =>
           let element: option(Typ.t) =
-            LabeledTuple.find_label(Typ.get_label, ts, name);
+            LabeledTuple.find_label(Typ.match_tup_label, ts, name);
           switch (element) {
           | Some({term: TupLabel(_, typ), _})
           | Some(typ) => add(~self=Just(typ), ~co_ctx=info_e2.co_ctx, m)
@@ -515,7 +515,7 @@ and uexp_to_info_map =
         | (Tuple(es), Prod(ts)) =>
           let es' =
             LabeledTuple.rearrange(
-              Typ.get_label, Exp.get_label, ts, es, (name, e) =>
+              Typ.match_tup_label, Exp.match_tup_label, ts, es, (name, e) =>
               TupLabel(Label(name) |> Exp.fresh, e) |> Exp.fresh
             );
           let arg: Exp.t = {
@@ -1134,7 +1134,7 @@ and upat_to_info_map =
       );
     | Tuple(ps) =>
       let (ps, modes) =
-        Mode.of_prod(ctx, mode, ps, Pat.get_label, (name, b) =>
+        Mode.of_prod(ctx, mode, ps, Pat.match_tup_label, (name, b) =>
           TupLabel(Label(name) |> Pat.fresh, b) |> Pat.fresh
         );
       let rec cons_fold_tuple = cs =>
@@ -1144,7 +1144,7 @@ and upat_to_info_map =
         | [hd, ...tl] => Constraint.Pair(hd, cons_fold_tuple(tl))
         };
       let (duplicate_labels, _) =
-        LabeledTuple.get_duplicate_and_unique_labels(Pat.get_label, ps);
+        LabeledTuple.get_duplicate_and_unique_labels(Pat.match_tup_label, ps);
       let (ctx, tys, cons, m, info_pats) =
         ctx_fold(ctx, m, ~duplicates=duplicate_labels, ps, modes);
       let get_bad_labels = (p: Info.pat) =>
@@ -1259,7 +1259,7 @@ and utyp_to_info_map =
     add'(~expects=TypeExpected, m);
   | Prod(ts) =>
     let (duplicate_labels, _) =
-      LabeledTuple.get_duplicate_and_unique_labels(Typ.get_label, ts);
+      LabeledTuple.get_duplicate_and_unique_labels(Typ.match_tup_label, ts);
     let m =
       List.is_empty(duplicate_labels)
         ? map_m(go, ts, m) |> snd

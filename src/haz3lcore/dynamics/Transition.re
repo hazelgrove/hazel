@@ -614,13 +614,16 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
       switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
       | (Tuple(ds), Label(name)) =>
-        switch (LabeledTuple.find_label(DHExp.get_label, ds, name)) {
+        switch (LabeledTuple.find_label(Exp.match_tup_label, ds, name)) {
         | Some({term: TupLabel(_, exp), _}) =>
           Step({expr: exp, state_update, kind: Dot, is_value: false})
         | _ => Indet
         }
       | (TupLabel(_, d), Label(name)) =>
-        LabeledTuple.equal(Exp.get_label(d1'), Some((name, d)))
+        LabeledTuple.has_same_labels(
+          Exp.match_tup_label(d1'),
+          Some((name, d)),
+        )
           ? Step({expr: d, state_update, kind: Dot, is_value: false}) : Indet
       | _ => Indet
       };

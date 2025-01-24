@@ -44,7 +44,10 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       switch (ty'.term) {
       | TupLabel(_, ty2)
           when
-            LabeledTuple.equal(DHPat.get_label(dhpat), Typ.get_label(ty')) =>
+            LabeledTuple.has_same_labels(
+              DHPat.match_tup_label(dhpat),
+              Typ.match_tup_label(ty'),
+            ) =>
         dhpat_var_entry(dp1, ty2)
       | TupLabel(_, _) => None
       | _ => dhpat_var_entry(dp1, ty)
@@ -54,7 +57,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       Some([entry]);
     | Tuple(l1) =>
       let (l1, ts) =
-        Typ.matched_prod(ctx, l1, Pat.get_label, ty, (name, b) =>
+        Typ.matched_prod(ctx, l1, Pat.match_tup_label, ty, (name, b) =>
           TupLabel(Label(name) |> Pat.fresh, b) |> Pat.fresh
         );
       let* l =
@@ -340,13 +343,17 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
   | Dot(d1, d2) =>
     switch (d1.term, d2.term) {
     | (Tuple(ds), Label(name)) =>
-      let element = LabeledTuple.find_label(DHExp.get_label, ds, name);
+      let element = LabeledTuple.find_label(Exp.match_tup_label, ds, name);
       switch (element) {
       | Some({term: TupLabel(_, exp), _}) => typ_of_dhexp(ctx, m, exp)
       | _ => None
       };
     | (TupLabel(_, de), Label(name))
-        when LabeledTuple.equal(DHExp.get_label(d1), Some((name, d2))) =>
+        when
+          LabeledTuple.has_same_labels(
+            Exp.match_tup_label(d1),
+            Some((name, d2)),
+          ) =>
       typ_of_dhexp(ctx, m, de)
     | _ => None
     }
