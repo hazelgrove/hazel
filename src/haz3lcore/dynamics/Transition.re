@@ -328,18 +328,18 @@ module Transition = (EV: EV_MODE) => {
       let-unbox unboxed_fun = (Fun, d1');
       switch (unboxed_fun) {
       | Constructor(_) => Constructor
-      | FunEnv(dp, d3, env') =>
+      | FunEnv(dp, d3, function_lexical_env) =>
         let matches = matches(dp, d2');
         switch (matches.matches) {
         | IndetMatch
         | DoesNotMatch => Indet
-        | Matches(env'') =>
+        | Matches(function_arg_env) =>
           let env'' =
             evaluate_extend_env(
-              ~frame=Some(Term.Exp.rep_id(d)),
-              ~dyn_env=env,
-              env'',
-              env',
+              ~ap_id=Term.Exp.rep_id(d),
+              ~call_stack=env.call_stack,
+              function_arg_env,
+              function_lexical_env,
             );
           Step({
             expr: Closure(env'', d3) |> fresh,

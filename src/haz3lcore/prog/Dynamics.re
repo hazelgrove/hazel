@@ -47,7 +47,7 @@ module Probe = {
       | None => None
       };
 
-    let mk = (env: Environment.t, bound_in: Binding.s) =>
+    let filter = (env: Environment.t, bound_in: Binding.s) =>
       List.filter_map(mk_entry(env), bound_in);
   };
 
@@ -76,7 +76,7 @@ module Probe = {
       closure_id: Id.mk(),
       syntax_id,
       value,
-      env: Env.mk(env, pr.refs),
+      env: Env.filter(env, pr.refs),
       call_stack,
     };
   };
