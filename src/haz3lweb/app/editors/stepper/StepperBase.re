@@ -155,7 +155,7 @@ module Update = {
   let stepper_undo = (model: Model.stepper): option(stepper) => {
     let rec step_undo = (step: Model.step): option(step) => {
       switch (step) {
-      | MissingStep(m) => None
+      | MissingStep(_) => None
       | SingleStep(m) when m.hidden == Calc.Calculated(true) => None
       | SingleStep(m) =>
         switch (step_undo(m.next_step)) {
@@ -177,7 +177,7 @@ module Update = {
   let stepper_add_induction = (model: Model.stepper): stepper => {
     let rec step_add_induction = (step: Model.step): step => {
       switch (step) {
-      | MissingStep(m) => AddInduction
+      | MissingStep(_) => AddInduction
       | SingleStep(m) =>
         SingleStep(NextStepUpdate(step_add_induction(m.next_step)))
       | InductionStep(m) =>
@@ -437,7 +437,7 @@ module Update = {
       (
         ~settings: Calc.t(CoreSettings.t),
         elab: Calc.t(Exp.t),
-        {cached_settings, cached_elab, root}: Model.stepper,
+        {cached_settings: _, cached_elab: _, root}: Model.stepper,
       ) => {
     let (root, last_expr) =
       calculate_step(
@@ -594,8 +594,7 @@ module Update = {
         |> Calc.map_saved(Option.some)
         |> {
           let.calc evalobj = evalobj
-          and.calc state = state
-          and.calc exp = exp;
+          and.calc state = state;
           let state = ref(state);
           let+ next_expr =
             EvaluatorStep.take_step(state, evalobj.env, evalobj.d_loc);
@@ -631,9 +630,9 @@ module Update = {
       cases,
       next_step,
       elab_scrut,
-      result,
-      result_state,
-      induction_valid,
+      result: _,
+      result_state: _,
+      induction_valid: _,
       join_exp,
     }: Model.induction_step = m;
     let common = calculate_step_common(~settings, exp, state, common);
@@ -653,7 +652,7 @@ module Update = {
       );
     let cases =
       List.map(
-        (Model.{pattern, elab_pattern, inner_exp, stepper, last_exp}) => {
+        (Model.{pattern, elab_pattern, inner_exp, stepper, last_exp: _}) => {
           let pattern =
             CodeEditable.Update.calculate(
               ~settings=Calc.get_value(settings),
@@ -704,8 +703,7 @@ module Update = {
           | (Some(acc), Calc.Calculated(last_exp))
               when Exp.fast_equal(acc, last_exp) =>
             Some(acc)
-          | (Some(acc), Calc.Calculated(last_exp)) =>
-            Some(Exp.fresh(EmptyHole))
+          | (Some(_), Calc.Calculated(_)) => Some(Exp.fresh(EmptyHole))
           },
         None,
         cases,
@@ -762,7 +760,8 @@ module Selection = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   and induction_step =
-    | Scrut(CodeSelectable.Selection.t)
+    | Here(CodeSelectable.Selection.t)
+    | Scrut(CodeEditable.Selection.t)
     | CasePattern(int, CodeSelectable.Selection.t)
     | CaseStepper(int, stepper)
     | Next(step);
@@ -806,6 +805,14 @@ module Selection = {
   and get_cursor_info_induction_step =
       (~selection: induction_step, ~model: Model.induction_step) =>
     switch (selection) {
+    | Here(a) =>
+      switch (model.common.editor) {
+      | Calc.Pending => empty
+      | Calc.Calculated(editor) =>
+        let+ ci =
+          CodeSelectable.Selection.get_cursor_info(~selection=a, editor);
+        Update.InductionStep(EditorAction(ci));
+      }
     | Scrut(a) =>
       let+ ci =
         CodeEditable.Selection.get_cursor_info(~selection=a, model.scrut);
@@ -871,8 +878,12 @@ module Selection = {
   and handle_key_event_induction_step =
       (~selection: induction_step, ~event, ~model: Model.induction_step) =>
     switch (selection) {
-    | Scrut(a) =>
+    | Here(a) =>
       let* editor = model.common.editor |> Calc.saved_to_option;
+      CodeSelectable.Selection.handle_key_event(~selection=a, editor, event)
+      |> Option.map((x): Update.induction_step => Update.EditorAction(x));
+    | Scrut(a) =>
+      let editor = model.scrut;
       CodeEditable.Selection.handle_key_event(~selection=a, editor, event)
       |> Option.map((x): Update.induction_step => Update.ScrutUpdate(x));
     | CasePattern(i, a) =>
@@ -954,13 +965,17 @@ module View = {
       Widgets.button(Icons.gear, _ =>
         globals.inject_global(Set(Evaluation(ShowSettings)))
       );
-    let top_bar = [
-      button_back,
-      button_induction,
-      eval_settings,
-      toggle_show_history,
-      button_hide_stepper,
-    ];
+    let top_bar =
+      Web.Node.div(
+        ~attrs=[Attr.classes(["stepper-controls"])],
+        [
+          button_back,
+          button_induction,
+          eval_settings,
+          toggle_show_history,
+          button_hide_stepper,
+        ],
+      );
 
     let root_step =
       view_step(
@@ -981,8 +996,13 @@ module View = {
             globals.settings.core.evaluation,
           )
         : [];
-
-    root_step @ settings_modal;
+    [
+      Web.Node.div(
+        ~attrs=[Attr.classes(["stepper", "cell-result"])],
+        root_step,
+      ),
+    ]
+    @ settings_modal;
   }
 
   and view_step =
@@ -991,7 +1011,7 @@ module View = {
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
         ~selected: option(Selection.step),
-        ~top_bar: list(Node.t)=[],
+        ~top_bar: Node.t,
         model: Model.step,
       ) =>
     switch (model) {
@@ -1042,7 +1062,7 @@ module View = {
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
         ~selected: option(Selection.missing_step),
-        ~top_bar: list(Node.t),
+        ~top_bar: Node.t,
         model: Model.missing_step,
       ) => {
     let editor =
@@ -1072,9 +1092,18 @@ module View = {
         },
       );
     [
-      Node.div(
-        ~attrs=[Attr.classes(["cell-item", "cell-result"])],
-        [div_c("equiv", [Node.text("≡")]), editor] @ top_bar,
+      Web.div_c(
+        "step-border",
+        [
+          Web.div_c(
+            "step-display",
+            [
+              div_c("equiv", [Node.text("≡")]),
+              div_c("step-output", [editor]),
+              top_bar,
+            ],
+          ),
+        ],
       ),
     ];
   }
@@ -1085,7 +1114,7 @@ module View = {
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
         ~selected: option(Selection.single_step),
-        ~top_bar: list(Node.t),
+        ~top_bar: Node.t,
         model: Model.single_step,
       ) => {
     let editor =
@@ -1125,9 +1154,25 @@ module View = {
         model.next_step,
       );
     [
-      Node.div(
-        ~attrs=[Attr.classes(["cell-item", "cell-result"])],
-        [div_c("equiv", [Node.text("≡")]), editor],
+      Web.div_c(
+        "step-border",
+        [
+          Web.div_c(
+            "step-display",
+            [
+              div_c("equiv", [Node.text("≡")]),
+              div_c("step-output", [editor]),
+              div_c(
+                "step-justification",
+                [
+                  Node.text(
+                    model.evalobj.knd |> Transition.stepper_justification,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
     ]
     @ next_step;
@@ -1139,29 +1184,43 @@ module View = {
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
         ~selected: option(Selection.induction_step),
-        ~top_bar: list(Node.t),
+        ~top_bar: Node.t,
         model: Model.induction_step,
       ) => {
+    let output_editor =
+      StepperEditor.View.view(
+        ~globals,
+        ~signal=
+          fun
+          | MakeActive => signal(MakeActive(SingleStep(Here())))
+          | TakeStep(int) => inject(Update.StepForward(int)),
+        ~inject=x => inject(SingleStep(EditorAction(x))),
+        ~selected=
+          switch (selected) {
+          | Some(Here(_)) => true
+          | _ => false
+          },
+        StepperEditor.Model.{
+          editor: model.common.editor |> Calc.get_saved_exc(~print="Editor"),
+          taken_steps: [],
+          next_steps: [],
+        },
+      );
+
     let scrut_editor =
-      Web.div_c(
-        "induction-scrut",
-        [
-          Node.text("Cases on: "),
-          CodeEditable.View.view(
-            ~globals,
-            ~signal=
-              fun
-              | MakeActive => signal(MakeActive(InductionStep(Scrut()))),
-            ~inject=x => inject(InductionStep(ScrutUpdate(x))),
-            ~selected=
-              switch (selected) {
-              | Some(Scrut(_)) => true
-              | Some(_)
-              | None => false
-              },
-            model.scrut,
-          ),
-        ],
+      CodeEditable.View.view(
+        ~globals,
+        ~signal=
+          fun
+          | MakeActive => signal(MakeActive(InductionStep(Scrut()))),
+        ~inject=x => inject(InductionStep(ScrutUpdate(x))),
+        ~selected=
+          switch (selected) {
+          | Some(Scrut(_)) => true
+          | Some(_)
+          | None => false
+          },
+        model.scrut,
       );
 
     let add_case_button =
@@ -1190,6 +1249,8 @@ module View = {
                 },
               pattern,
             );
+          let pattern_editor =
+            div_c("inline-editor-wrapper", [pattern_editor]);
           let stepper_view =
             view_stepper(
               ~globals,
@@ -1209,7 +1270,12 @@ module View = {
             );
           div_c(
             "induction-case",
-            [remove_case_button, Node.text("Case "), pattern_editor]
+            [
+              div_c(
+                "induction-case-header",
+                [remove_case_button, Node.text("Case "), pattern_editor],
+              ),
+            ]
             @ stepper_view,
           );
         },
@@ -1233,9 +1299,29 @@ module View = {
         model.next_step,
       );
     [
-      Node.div(
-        ~attrs=[Attr.classes(["cell-item", "cell-result"])],
-        [scrut_editor] @ cases @ [add_case_button],
+      Web.div_c(
+        "step-border",
+        [
+          Web.div_c(
+            "step-display",
+            [
+              div_c("equiv", [Node.text("≡")]),
+              div_c("step-output", [output_editor]),
+              div_c("step-justification", [Node.text("by cases")]),
+            ],
+          ),
+        ]
+        @ [
+          Web.div_c(
+            "induction-scrut",
+            [
+              Node.text("Cases on: "),
+              Web.div_c("inline-editor-wrapper", [scrut_editor]),
+            ],
+          ),
+        ]
+        @ cases
+        @ [add_case_button],
       ),
     ]
     @ next_step;
