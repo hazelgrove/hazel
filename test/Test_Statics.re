@@ -56,8 +56,7 @@ let parse_exp = (s: string) => {
 };
 
 let info_error_of_id = (f: Exp.t, id: Id.t) => {
-  let s = statics(f);
-  Statics.get_error_at(s, id);
+  Statics.get_error_at(statics(f), id);
 };
 
 // Get the type from the statics
@@ -78,7 +77,7 @@ let inconsistent_typecheck = (name, exp) => {
     `Quick,
     () => {
       let s = statics(exp);
-      let errors =
+      let errors: list(Info.status_exp) =
         List.map(
           (id: Id.t) => {
             let info = Id.Map.find(id, s);
@@ -89,11 +88,12 @@ let inconsistent_typecheck = (name, exp) => {
           },
           Statics.Map.error_ids(s),
         );
-      if (errors == []) {
-        fail("Expected errors");
-      };
-      print_endline(
-        "Errors: " ++ [%derive.show: list(Info.status_exp)](errors),
+
+      Alcotest.check(
+        neg(list(status_exp)),
+        "Missing Static Errors",
+        [],
+        errors,
       );
     },
   );
