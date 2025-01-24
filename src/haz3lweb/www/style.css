@@ -11,6 +11,7 @@
 @import "style/exercise-mode.css";
 @import "style/cell.css";
 @import "style/dynamics.css";
+@import "style/stepper.css";
 @import "style/toggle.css";
 
 /* BASE ELEMENTS */
