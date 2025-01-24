@@ -51,7 +51,26 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       Invalid(abbreviate_str(available^, str));
     };
 
-  let indet_term: Exp.term = Invalid("<INDET>");
+  let indet_term: Exp.term = Invalid("?");
+
+  let abbreviate_seq = xs => {
+    let rec go = xs =>
+      switch (xs) {
+      | [] => []
+      | [x, ...xs] =>
+        let hd = abbreviate_exp(x);
+        if (available^ > 3) {
+          available := available^ - 2; // comma space
+          [hd, ...go(xs)];
+        } else if (xs == []) {
+          [hd];
+        } else {
+          available := available^ - 3;
+          [hd, flat_ellipses_term()];
+        };
+      };
+    go(xs);
+  };
   let term: Exp.term =
     switch (exp |> Exp.term_of) {
     | Fun(_p, _e, _, Some(s)) => Invalid("<" ++ s ++ ">")
@@ -65,16 +84,6 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
     | Invalid(x) => Invalid(abbreviate_str(available^, x))
     | String(s) =>
       let str = abbreviate_str(available^, s);
-      // let str =
-      //   if (String.length(str) >= 2) {
-      //     let start_idx = str.[0] == '"' ? 1 : 0;
-      //     let end_idx =
-      //       str.[String.length(str) - 1] == '"'
-      //         ? String.length(str) - 1 : String.length(str);
-      //     String.sub(str, start_idx, end_idx - start_idx);
-      //   } else {
-      //     str;
-      //   };
       available := available^ - 2; // for quotes in printed representation
       String(str);
     | Var(v) => Var(abbreviate_str(available^, v))
@@ -95,48 +104,15 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
 
     // composite literal cases
     | ListLit(xs) =>
-      //TODO: improve this logic
       if (available^ <= 3) {
         // minimum case: […]
         available := available^ - 3;
         ListLit([flat_ellipses_term()]);
       } else {
         available := available^ - 2; // square brackets
-        let rec go = xs =>
-          switch (xs) {
-          | [] => []
-          | [x, ...xs] =>
-            let hd = abbreviate_exp(x);
-            if (available^ > 3) {
-              available := available^ - 2; // comma space
-              [hd, ...go(xs)];
-            } else if (xs == []) {
-              [hd];
-            } else {
-              available := available^ - 3;
-              [hd, flat_ellipses_term()];
-            };
-          };
-        ListLit(go(xs));
+        ListLit(abbreviate_seq(xs));
       }
-    | Tuple([_, _, ..._] as xs) =>
-      //TODO: improve this logic
-      let rec go = xs =>
-        switch (xs) {
-        | [] => []
-        | [x, ...xs] =>
-          let hd = abbreviate_exp(x);
-          if (available^ > 3) {
-            available := available^ - 2; // comma space
-            [hd, ...go(xs)];
-          } else if (xs == []) {
-            [hd];
-          } else {
-            available := available^ - 3;
-            [hd, flat_ellipses_term()];
-          };
-        };
-      Tuple(go(xs));
+    | Tuple([_, _, ..._] as xs) => Tuple(abbreviate_seq(xs))
     | Ap(Forward, {term: Constructor(_str, _), _} as konst, arg) =>
       let konst = abbreviate_exp(konst);
       available := available^ - 2;

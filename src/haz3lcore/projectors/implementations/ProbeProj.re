@@ -19,7 +19,6 @@ type model = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
-  | PinAp(Probe.call_stack)
   | ChangeLength(Id.t, int)
   | Offset(int)
   | ToggleShowAllVals(int);
@@ -66,13 +65,6 @@ let cur_ap = (info: info) =>
   | _ => None
   };
 
-let cur_call = (info: info, closure: closure) => {
-  open OptUtil.Syntax;
-  let* lex = cur_ap(info);
-  let dyn = closure.call_stack;
-  Some([lex, ...dyn]);
-};
-
 module DynCursor = {
   /* Manages shared state between probes */
 
@@ -94,27 +86,30 @@ module DynCursor = {
     s.indicated_call = cur_ap(info);
   };
 
-  let has = (closures: list(closure)): option(closure) =>
+  let capture = (info: info, closure: closure): unit => {
+    capture_cursor(closure);
+    capture_ap(info);
+  };
+
+  let is_in = (closures: list(closure)): option(closure) =>
     List.find_opt(
       (closure: closure) => s.call_cursor == closure.call_stack,
       closures,
     );
 
-  let is_pinned = (info: info): bool =>
-    switch (OptUtil.and_then(has, info.dynamics)) {
-    | Some(closure_cursor) => s.pinned_call == cur_call(info, closure_cursor)
-    | _ => false
+  /* If one of the current probe's cells is not already selected,
+   * select the first one */
+  let probe_default = (info: info): unit =>
+    switch (info.dynamics) {
+    | Some(closures) when is_in(closures) != None => capture_ap(info)
+    | Some(closures) =>
+      capture_ap(info);
+      switch (closures) {
+      | [fst, ..._] => capture_cursor(fst)
+      | [] => ()
+      };
+    | None => ()
     };
-
-  let pin_call = (info: info): unit =>
-    switch (OptUtil.and_then(has, info.dynamics)) {
-    | Some(closure_cursor) => s.pinned_call = cur_call(info, closure_cursor)
-    | _ => ()
-    };
-
-  let unpin_call = (): unit => {
-    s.pinned_call = None;
-  };
 
   /* If the closure cursor is on a call, and the provided
    * call stack is downstream of that call, return how many
@@ -123,54 +118,131 @@ module DynCursor = {
       (call_stack: Probe.call_stack): option(int) => {
     open OptUtil.Syntax;
     let* cur_ap = s.indicated_call;
-    ListUtil.suffix_at_depth([cur_ap] @ s.call_cursor, call_stack, 0);
+    ListUtil.suffix_at_depth([cur_ap] @ s.call_cursor, call_stack);
   };
+
+  type relative_level =
+    | Above(int)
+    | Below(int)
+    | Same;
 
   /* How is the current closure related to the closure cursor? */
   type relation = {
     /* Is the current closure the call cursor? */
     is_call_cursor: bool,
+    relative_level_to_cursor: relative_level,
     /* Is the current closure a call directly above the call cursor? */
-    is_call_directly_above_call_cursor: bool,
+    is_call_above_call_cursor: option(int),
     /* Is the current closure below the call cursor, and if so, by how much? */
     is_below_indicated_call: option(int),
   };
 
-  //use ListUtil.is_suffix_of
-  let is_strictly_above = (xs: Probe.call_stack, ys: Probe.call_stack): bool =>
-    ListUtil.is_suffix_of(xs, ys) && xs != ys;
+  let is_below = ListUtil.suffix_at_depth;
+
+  let relative_level = (cs1, cs2): relative_level =>
+    switch (is_below(cs1, cs2), is_below(cs2, cs1)) {
+    | (Some(0), Some(0)) => Same
+    | (Some(n), None) => Below(n)
+    | (None, Some(n)) => Above(n)
+    | (_, _) => Same
+    };
+  let cur_call = (info: info, closure: closure) => {
+    open OptUtil.Syntax;
+    let* lex = cur_ap(info);
+    let dyn = closure.call_stack;
+    Some([lex, ...dyn]);
+  };
 
   let relation = (info: info, closure: closure): relation => {
+    open OptUtil.Syntax;
     let this = closure.call_stack;
     let cursor = s.call_cursor;
-    //ListUtil.suffix_at_depth(cursor, this, 0) != None
-    let _cond =
-      if (List.mem(ListUtil.hd_opt(this), cursor |> List.map(Option.some))) {
-        cursor == this;
-      } else {
-        is_strictly_above(this, cursor);
-      };
     {
       is_call_cursor: cursor == this,
-      is_call_directly_above_call_cursor:
-        cur_call(info, closure) == Some(cursor),
-      is_below_indicated_call: depth_in_indicated_calls_stack(this),
+      relative_level_to_cursor: relative_level(cursor, this),
+      is_call_above_call_cursor: {
+        let* cur_call = cur_call(info, closure);
+        is_below(cur_call, cursor);
+      },
+      is_below_indicated_call: {
+        let* cur_ap = s.indicated_call;
+        is_below([cur_ap] @ cursor, this);
+      },
     };
   };
 
   let clss = (info: info, closure: closure): list(string) => {
     let relation = relation(info, closure);
-    switch (
-      relation.is_call_cursor,
-      relation.is_call_directly_above_call_cursor,
-      relation.is_below_indicated_call,
-    ) {
-    | (true, _, _) => ["cursor"]
-    | (_, true, _) => ["cursor-caller"]
-    | (_, _, Some(0)) => ["cursor-callee", "direct"]
-    | (_, _, Some(_)) => ["cursor-callee", "indirect"]
-    | (_, _, None) => ["cursor-unrelated"]
+    (
+      switch (
+        relation.is_call_cursor,
+        relation.is_call_above_call_cursor,
+        relation.is_below_indicated_call,
+      ) {
+      | (true, _, _) => ["cursor"]
+      | (_, Some(0), _) => ["cursor-caller", "direct"]
+      | (_, Some(_), _) => ["cursor-caller", "indirect"]
+      | (_, _, Some(0)) => ["cursor-callee", "direct"]
+      | (_, _, Some(_)) => ["cursor-callee", "indirect"]
+      | (_, _, None) => ["cursor-unrelated"]
+      }
+    )
+    @ (
+      switch (relation.relative_level_to_cursor) {
+      | Same => ["same"]
+      | Below(n) => ["below", string_of_int(n)]
+      | Above(n) => ["above", string_of_int(n)]
+      }
+    );
+  };
+
+  let show_pin = (info, closure) =>
+    s.pinned_call != None && s.pinned_call == cur_call(info, closure);
+
+  let is_pinned = (info: info): bool =>
+    switch (OptUtil.and_then(is_in, info.dynamics)) {
+    | Some(closure_cursor) => s.pinned_call == cur_call(info, closure_cursor)
+    | _ => false
     };
+
+  let pin_call = (info: info): unit =>
+    switch (OptUtil.and_then(is_in, info.dynamics)) {
+    | Some(closure_cursor) => s.pinned_call = cur_call(info, closure_cursor)
+    | _ => ()
+    };
+
+  let unpin_call = (): unit => {
+    s.pinned_call = None;
+  };
+
+  let toggle_pinned_call = (info: info) =>
+    switch (s.pinned_call) {
+    | Some(pinned_ap) when ListUtil.hd_opt(pinned_ap) == cur_ap(info) =>
+      /* already pinned case */
+      unpin_call()
+    | Some(_)
+    | None => pin_call(info)
+    };
+
+  module Debug = {
+    let stack = (stack: Probe.call_stack): string =>
+      stack |> List.map(Id.str3) |> String.concat("\n");
+
+    let str = (info, closure: closure): string =>
+      //"closure_id: "
+      //++ of_id(closure.closure_id)
+      //++
+      "ap:"
+      ++ (
+        switch (cur_call(info, closure)) {
+        | Some([ap_id, ..._]) => Id.str3(ap_id)
+        | _ => "None"
+        }
+      )
+      ++ "\nstack:\n"
+      ++ stack(closure.call_stack);
+    // ++ "DynCursor:\n"
+    // ++ String.concat("\n", DynCursor.clss(info, closure));
   };
 };
 
@@ -256,27 +328,6 @@ module Closures = {
   };
 };
 
-module Debug = {
-  let stack = (stack: Probe.call_stack): string =>
-    stack |> List.map(Id.str3) |> String.concat("\n");
-
-  let str = (info, closure: closure): string =>
-    //"closure_id: "
-    //++ of_id(closure.closure_id)
-    //++
-    "ap:"
-    ++ (
-      switch (cur_call(info, closure)) {
-      | Some([ap_id, ..._]) => Id.str3(ap_id)
-      | _ => "None"
-      }
-    )
-    ++ "\nstack:\n"
-    ++ stack(closure.call_stack);
-  // ++ "DynCursor:\n"
-  // ++ String.concat("\n", DynCursor.clss(info, closure));
-};
-
 let seg_view = (view_seg, utility: utility, available: int, seg: Exp.t) =>
   seg
   |> DHExp.strip_casts
@@ -323,8 +374,7 @@ let value_view =
     JsUtil.setPointerCapture(target, e##.pointerId) |> ignore;
     mousedown := Some(target);
     click_coords := Some({row: e##.clientY, col: e##.clientX});
-    DynCursor.capture_cursor(closure);
-    DynCursor.capture_ap(info);
+    DynCursor.capture(info, closure);
     Effect.Ignore;
   };
 
@@ -358,7 +408,7 @@ let value_view =
 
   div(
     ~attrs=[
-      Attr.title(Debug.str(info, closure)),
+      Attr.title(DynCursor.Debug.str(info, closure)),
       Attr.classes(
         ["value"]
         @ DynCursor.clss(info, closure)
@@ -495,8 +545,7 @@ let num_closures_view = (info: info) => {
 };
 
 let pin_view = (info: info, closure: closure) =>
-  DynCursor.s.pinned_call != None
-  && DynCursor.s.pinned_call == cur_call(info, closure)
+  DynCursor.show_pin(info, closure)
     ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
 let syntax_str = (info: info) => {
@@ -520,34 +569,15 @@ let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
 let view = (info: info): Node.t => {
   let on_double_click = _ => {
-    //DynCursor.reset();
-    switch (DynCursor.s.pinned_call) {
-    | Some(pinned_ap) when ListUtil.hd_opt(pinned_ap) == cur_ap(info) =>
-      /* already pinned case */
-      DynCursor.s.pinned_call = None
-    | Some(_)
-    | None => DynCursor.pin_call(info)
-    };
+    /* Pin a function call, filtering the cells in other probes */
+    DynCursor.toggle_pinned_call(info);
     Effect.Ignore;
   };
-
   let on_pointerdown = _ => {
-    switch (info.dynamics) {
-    | Some(di) when DynCursor.has(di) != None =>
-      /* If the cursor is already on one of this probe's closures */
-      DynCursor.capture_ap(info)
-    | Some(di) =>
-      switch (di) {
-      | [first_closure, ..._] =>
-        DynCursor.capture_cursor(first_closure);
-        DynCursor.capture_ap(info);
-      | [] => DynCursor.capture_ap(info)
-      }
-    | None => ()
-    };
+    /* Select a default cell if one is not already selected */
+    DynCursor.probe_default(info);
     Effect.Ignore;
   };
-
   div(
     ~attrs=[
       Attr.classes(
@@ -563,7 +593,7 @@ let view = (info: info): Node.t => {
 };
 
 let overlay_view = (info: info): Node.t => {
-  let cursored_closure = OptUtil.and_then(DynCursor.has, info.dynamics);
+  let cursored_closure = OptUtil.and_then(DynCursor.is_in, info.dynamics);
   div(
     ~attrs=[
       Attr.classes(
@@ -600,12 +630,6 @@ let update = (m: model, _info: info, a: action) => {
     let index_offset = m.index_offset + offset;
     let index_offset = index_offset < 0 ? 0 : index_offset;
     {...m, index_offset};
-  | PinAp(id) =>
-    switch (DynCursor.s.pinned_call) {
-    | Some(_) => DynCursor.s.pinned_call = None
-    | None => DynCursor.s.pinned_call = Some(id)
-    };
-    m;
   };
 };
 

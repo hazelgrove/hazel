@@ -263,11 +263,18 @@
   outline: 1px solid var(--exp-ap-indicated);
   border-color: var(--exp-ap-indicated);
 }
-.projector.probe .closure:has(.value.cursor-caller) {
+.projector.probe .closure:has(.value.cursor-caller.direct) {
   outline: 1px solid var(--exp-ap-indicated);
   border-color: var(--exp-ap-indicated);
   background-color: var(--exp-ap-indicated);
   box-shadow: inset 4px 4px 0 #551da0;
+}
+.projector.probe .closure:has(.value.cursor-caller.indirect) {
+  outline: 1px solid var(--exp-ap-indicated);
+  border-color: var(--exp-ap-indicated);
+  background-color: var(--exp-ap-indicated);
+  box-shadow: inset 4px 4px 0 #551da0;
+  opacity: 50%;
 }
 .projector.probe .closure:has(.value.cursor-unrelated),
 .projector.probe .closure:has(.value.cursor-callee.indirect) {
@@ -328,6 +335,13 @@
 }
 
 /* TOKENS */
+
+.projector.probe.Exp .value.cursor .code-text .token {
+  color: var(--exp-indicated);
+}
+.projector.probe.Pat .value.cursor .code-text .token {
+  color: var(--pat-indicated);
+}
 
 .projector.probe .value.cursor-unrelated .code-text .token,
 .projector.probe .value.cursor-caller .code-text .token {
