@@ -86,10 +86,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       let* t = unbox(TupLabel(tl), t);
       let t = fixup_cast(Cast(t, ty1, ty2) |> DHExp.fresh);
       Matches(t);
-    // | (TupLabel(tl), Cast(t, ty1, ty2)) =>
-    //   let* t = unbox(TupLabel(tl), t);
-    //   let t = fixup_cast(Cast(t, ty1, ty2) |> DHExp.fresh);
-    //   Matches(t);
     | (TupLabel(_), _) => Matches(expr)
 
     /* Remove Tuplabels from casts otherwise */
@@ -98,11 +94,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | TupLabel(_, e) => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
       | _ => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
       }
-    // | (_, Cast(e, e1, {term: TupLabel(_, e2), _})) =>
-    //   switch (DHExp.term_of(e)) {
-    //   | TupLabel(_, e) => unbox(request, Cast(e, e1, e2) |> DHExp.fresh) // shouldn't happen?
-    //   | _ => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
-    //   }
 
     /* Base types are always already unboxed because of the ITCastID rule*/
     | (Bool, Bool(b)) => Matches(b)
@@ -141,11 +132,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Tuple(n), Cast(t, {term: Prod(t1s), _}, {term: Prod(t2s), _}))
         when n == List.length(t1s) && n == List.length(t2s) =>
       let* t = unbox(Tuple(n), t);
-      // let t1s =
-      //   LabeledTuple.rearrange(
-      //     Typ.get_label, Typ.get_label, t2s, t1s, (name, t) =>
-      //     Typ.TupLabel(Typ.Label(name) |> Typ.temp, t) |> Typ.temp
-      //   );
       let t =
         ListUtil.map3(
           (d, t1, t2) => Cast(d, t1, t2) |> DHExp.fresh,
