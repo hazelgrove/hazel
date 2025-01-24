@@ -505,7 +505,7 @@ module Exp = {
     | TupLabel(_, e) => is_fun(e)
     | Cast(e, _, _) => is_fun(e)
     | TypFun(_)
-    | Fun(_) => true
+    | Fun(_)
     | BuiltinFun(_) => true
     | Dot(e1, e2) =>
       let rec check_tuple = (e1: t, e2: t) =>
