@@ -174,125 +174,18 @@ module View = {
      * browser window. This is necessary to (for example) be able to select
      * upwards while auto-scrolling the editor by flinging your mouse to the
      * top of your screen; otherwise, the selection action stops as the
-     * mouse exits the editor element's bounding box.
-     *
-     * The state required here is a only boolean flag to represent drag
-     * state, but we also need to additionally smuggle a pointer_id to
-     * on_click (via `release` method below) (on_click takes mouse not
-     * pointer events so can't get a pointer_id). Ideally we'd use a
-     * pointer method there, but someone still needs to figure out how to
-     * state-machine multi-clicks through pointer events. */
-    let pointer: ref(option(int)) = ref(None);
+     * mouse exits the editor element's bounding box. */
 
-    let set = evt => {
-      pointer := Some(evt##.pointerId);
+    let set = evt =>
       JsUtil.setPointerCapture(container_target(evt), evt##.pointerId);
-    };
 
     let release = evt =>
-      switch (pointer^) {
-      | Some(pid) =>
-        pointer := None;
-        let target = container_target(evt);
-        if (JsUtil.hasPointerCapture(target, pid)) {
-          JsUtil.releasePointerCapture(target, pid);
-        };
-      | None => ()
+      if (JsUtil.hasPointerCapture(container_target(evt), evt##.pointerId)) {
+        JsUtil.releasePointerCapture(container_target(evt), evt##.pointerId);
       };
   };
 
-  module StateMachine = {
-    /* State Machine Diagram:
-     *
-     *        down=>Move      up=>SetTimer     down=>SelectToken    up=>SetTimer
-     * Up(One) ------> Down(One) --------> Up(Two) -------> Down(Two) -----> Up(Three)
-     *   ^                                                                       |
-     *   |                           down=>SelectTerm                            |
-     *   +-----------------------------------------------------------------------+
-     *
-     * BASICS:
-     * - We start in Up(One)
-     * - Pointerdown transitions emit actions: Move, SelectToken, or SelectTerm
-     * - Pointerup transitions start timers that auto-reset to Up(One) after delay
-     * - Being in Down(_) states enables drag selection
-     *
-     * DETAILS:
-     *   This models the click state of an editor. It models a pointer as
-     *   being in an alternating sequence of up and down states, beginning
-     *   on (and returning to) Up(One). A pointerdown event transitions from
-     *   an up state to a down state, and vice versa for pointerup. Furthermore,
-     *   a pointerdown transition produces an action to execute, and a pointerup
-     *   transition introduces a state transition timer, which is used to decide
-     *   whether consecutive up/down cycles (clicks) constitute individual clicks
-     *   or double/triple-clicks. The former induces caret-to-cursor movement;
-     *   the latter moves and then also selects token (double) or term (triple). */
-
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type iter =
-      | One
-      | Two
-      | Three;
-
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type state =
-      | Up(iter)
-      | Down(iter);
-
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type action =
-      | Move
-      | SelectToken
-      | SelectTerm;
-
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type timer = option((state, state));
-
-    let state: ref(state) = ref(Up(One));
-
-    let should_drag_select = (): bool => {
-      switch (state^) {
-      | Up(_) => false
-      | Down(_) => true
-      };
-    };
-
-    let down = (old_state): (state, action) =>
-      switch (old_state) {
-      | Up(One) => (Down(One), Move)
-      | Up(Two) => (Down(Two), SelectToken)
-      | Up(Three) => (Down(Three), SelectTerm)
-      | Down(_) => failwith("THEN PERISH")
-      };
-
-    let up = (old_state): (state, timer) =>
-      switch (old_state) {
-      | Down(One) => (Up(Two), Some((Up(Two), Up(One))))
-      | Down(Two) => (Up(Three), Some((Up(Three), Up(One))))
-      | Down(Three) => (Up(One), None)
-      | Up(_) => failwith("YOU SHOULD NOT BE")
-      };
-
-    let down_transition = (): action => {
-      let (new_state, action) = down(state^);
-      state := new_state;
-      action;
-    };
-
-    let up_transition = () => {
-      let (new_state, timer) = up(state^);
-      state := new_state;
-      switch (timer) {
-      | None => ()
-      | Some((old, next)) =>
-        let delay_ms = 310.0;
-        JsUtil.delay(delay_ms, () =>
-          if (old == state^) {
-            state := next;
-          }
-        );
-      };
-    };
-  };
+  module MouseState = Mouse.MkState();
 
   let view =
       (
@@ -364,25 +257,28 @@ module View = {
         /* Otherwise, either move or select token/term, depending on
          * previous clicks, and prepare to drag if the mouse moves */
         PointerCapture.set(evt);
-        switch (StateMachine.down_transition()) {
-        | Move =>
+        let count = MouseState.down_transition();
+        /* Cycle between options on-click */
+        switch (count mod 3 + 1) {
+        | 1 =>
           Effect.Many([
             signal(MakeActive),
             inject(Perform(Move(Goal(Point(goal(evt)))))),
           ])
-        | SelectToken => inject(Perform(Select(Smart(2))))
-        | SelectTerm => inject(Perform(Select(Smart(3))))
+        | 2 => inject(Perform(Select(Smart(2))))
+        | 3 => inject(Perform(Select(Smart(3))))
+        | _ => failwith("THEN PERISH")
         };
       };
 
     let toggle_mode = evt => {
       PointerCapture.release(evt);
-      StateMachine.up_transition();
+      MouseState.up_transition();
       Effect.Ignore;
     };
 
     let drag_select = evt => {
-      StateMachine.should_drag_select() && JsUtil.mouse_button(evt) == 0
+      MouseState.is_button_down() && JsUtil.mouse_button(evt) == 0
         ? inject(Perform(Select(Resize(Goal(Point(goal(evt)))))))
         : Effect.Ignore;
     };
