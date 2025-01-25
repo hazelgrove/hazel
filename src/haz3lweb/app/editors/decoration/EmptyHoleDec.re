@@ -1,10 +1,11 @@
 open Virtual_dom.Vdom;
 open Haz3lcore;
-open DecUtil;
 open SvgUtil.Path;
 
 let s_y = 0.28;
 let s_x = s_y *. 1.5;
+
+let tip_width = ShardDec.tip_width;
 
 let tr_bl_north = [H_({dx: 0.}), L_({dx: -. tip_width, dy: 0.5})];
 let tl_br_north = [H_({dx: 0.}), L_({dx: tip_width, dy: 0.5})];

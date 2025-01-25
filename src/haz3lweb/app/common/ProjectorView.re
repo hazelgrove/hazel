@@ -39,11 +39,11 @@ let of_name = (p: string): ProjectorCore.kind =>
  * to token decorations. This can be made transparent
  * in the CSS if no backing is wanted */
 let backing_deco =
-    (~font_metrics: FontMetrics.t, ~measurement: Measured.measurement) =>
-  PieceDec.relative_shard({
+    (~font_metrics: FontMetrics.t, ~measurement: Measured.measurement, p) =>
+  ShardDec.relative({
     font_metrics,
     measurement,
-    tips: (Some(Convex), Some(Convex)),
+    tips: p |> ProjectorBase.shapes |> ShardDec.tips_of_shapes,
   });
 
 /* Adds attributes to a projector UI to support
@@ -210,7 +210,7 @@ let setup_view =
   let underlay_view =
     switch (P.underlay_view) {
     | Some(v) => wrapper([v(p.model, info, ~view_seg)])
-    | None => wrapper([backing_deco(~font_metrics, ~measurement)])
+    | None => wrapper([backing_deco(~font_metrics, ~measurement, p)])
     };
   let combined_view = wrapper([inline_view] @ Option.to_list(offside_view));
   (underlay_view, combined_view, overlay_view);

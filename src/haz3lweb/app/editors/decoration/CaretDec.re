@@ -8,6 +8,16 @@ module Profile = {
   };
 };
 
+let caret_width = 0.2; /* Width of editor caret */
+
+let caret_base_path = (side, shape): list(SvgUtil.Path.cmd) =>
+  ShardDec.chonky_path_base(
+    (shape, shape),
+    ShardDec.shape_adjust(side, shape) +. 0.5 *. caret_width,
+    caret_width,
+    float_of_int(0),
+  );
+
 let view =
     (
       ~font_metrics: FontMetrics.t,
@@ -20,7 +30,7 @@ let view =
     ~base_cls=["blink"],
     ~path_cls=["caret-path"],
     /* Make caret as tall as shard + shard's shadow */
-    ~height_fudge=DecUtil.shadow_dy *. font_metrics.row_height,
-    DecUtil.caret_base_path(side, shape),
+    ~height_fudge=ShardDec.shadow_dy *. font_metrics.row_height,
+    caret_base_path(side, shape),
   );
 };

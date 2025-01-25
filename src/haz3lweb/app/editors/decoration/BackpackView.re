@@ -99,7 +99,7 @@ let view =
       | Some((_, side, _)) => side
       | _ => Right
       };
-    DecUtil.shape_adjust(side, shape);
+    ShardDec.shape_adjust(side, shape);
   };
   let caret_adj_px =
     // Figure out why we need this mystery pixel below
