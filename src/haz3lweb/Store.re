@@ -8,6 +8,7 @@ type key =
   | Scratch
   | Documentation
   | Tutorial(Tutorial.key)
+  | CurrentTutorial
   | CurrentExercise
   | Exercise(Exercise.key);
 
@@ -18,6 +19,7 @@ let key_to_string =
   | Mode => "MODE"
   | Scratch => "SAVE_SCRATCH"
   | Tutorial(key) => key |> Tutorial.sexp_of_key |> Sexplib.Sexp.to_string
+  | CurrentTutorial => "CUR_TUTORIAL"
   | Documentation => "SAVE_DOCUMENTATION"
   | CurrentExercise => "CUR_EXERCISE"
   | Exercise(key) => key |> Exercise.sexp_of_key |> Sexplib.Sexp.to_string;

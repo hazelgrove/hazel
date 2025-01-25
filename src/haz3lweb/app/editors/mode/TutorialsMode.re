@@ -49,10 +49,10 @@ module Model = {
 module StoreTutorialKey =
   Store.F({
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Exercise.key;
+    type t = Tutorial.key;
     let default = () =>
-      List.nth(ExerciseSettings.exercises, 0) |> Exercise.key_of;
-    let key = Store.CurrentExercise;
+      List.nth(TutorialSettings.exercises, 0) |> Tutorial.key_of;
+    let key = Store.CurrentTutorial;
   });
 module Store = {
   let keystring_of_key = key => {
@@ -88,7 +88,7 @@ module Store = {
           spec
           |> TutorialMode.Model.of_spec(~settings, ~instructor_mode)
           |> TutorialMode.Model.persist(~instructor_mode);
-        let key = Store.Exercise(key);
+        let key = Store.Tutorial(key);
       });
     S.load();
   };
@@ -179,7 +179,7 @@ module Update = {
           ~instructor_mode=globals.settings.instructor_mode,
           ~log,
         );
-      JsUtil.download_json(ExerciseSettings.filename, data);
+      JsUtil.download_json(TutorialSettings.filename, data);
     });
   let export_transitionary = (exercises: Model.t) => {
     let exercise = Model.get_current(exercises);
@@ -408,7 +408,7 @@ module View = {
     };
   };
   let instructor_toggle = (~inject, ~instructor_mode) =>
-    ExerciseSettings.show_instructor
+    TutorialSettings.show_instructor
       ? [
         Widgets.toggle(
           "🎓", ~tooltip="Toggle Instructor Mode", instructor_mode, _ =>
