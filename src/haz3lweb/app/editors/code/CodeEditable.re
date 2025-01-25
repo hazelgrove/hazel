@@ -162,8 +162,8 @@ module View = {
   type event =
     | MakeActive;
 
-  let container_target = evt =>
-    evt##.currentTarget
+  let container_target = (current_target: Js.opt(Js.t(Dom_html.element))) =>
+    current_target
     |> Js.Opt.get(_, _ => failwith(""))
     |> JsUtil.get_child_with_class(_, "code-container")
     |> Option.get;
@@ -176,16 +176,16 @@ module View = {
      * top of your screen; otherwise, the selection action stops as the
      * mouse exits the editor element's bounding box. */
 
-    let set = evt =>
-      JsUtil.setPointerCapture(container_target(evt), evt##.pointerId);
+    let set = (target, pointer_id) =>
+      JsUtil.setPointerCapture(container_target(target), pointer_id);
 
-    let release = evt =>
-      if (JsUtil.hasPointerCapture(container_target(evt), evt##.pointerId)) {
-        JsUtil.releasePointerCapture(container_target(evt), evt##.pointerId);
+    let release = (target, pointer_id) =>
+      if (JsUtil.hasPointerCapture(container_target(target), pointer_id)) {
+        JsUtil.releasePointerCapture(container_target(target), pointer_id);
       };
   };
 
-  module MouseState = Mouse.MkState();
+  module MouseState = Pointer.MkState();
 
   let view =
       (
@@ -232,65 +232,72 @@ module View = {
         model,
       );
 
-    let goal = evt =>
+    let goal = (e: Pointer.event) =>
       FontMetrics.get_goal(
         ~font_metrics=globals.font_metrics,
-        container_target(evt),
-        evt,
+        container_target(e.current_target),
+        e.loc,
       );
 
-    let move_or_select = evt =>
-      if (JsUtil.shift_held(evt)) {
-        /* If we're holding shift, range select from current to indicated */
+    let move_or_select = (mouse: Pointer.event, pointer_id: int) => {
+      let click_count = MouseState.down_transition();
+      switch (mouse) {
+      | {shift: Down, _} =>
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Select(Resize(Goal(Point(goal(evt))))))),
-        ]);
-      } else if (JsUtil.ctrl_held(evt) || Os.is_mac^ && JsUtil.meta_held(evt)) {
-        /* If we're holding ctrl/cmd, jump to indicated variable's binding */
+          inject(Perform(Select(Resize(Goal(Point(goal(mouse))))))),
+        ])
+      | {sys: PC, ctrl: Down, _}
+      | {sys: Mac, meta: Down, _} =>
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Move(Goal(Point(goal(evt)))))),
+          inject(Perform(Move(Goal(Point(goal(mouse)))))),
           inject(Perform(Jump(BindingSiteOfIndicatedVar))),
-        ]);
-      } else {
-        /* Otherwise, either move or select token/term, depending on
-         * previous clicks, and prepare to drag if the mouse moves */
-        PointerCapture.set(evt);
-        let count = MouseState.down_transition();
-        /* Cycle between options on-click */
-        switch (count mod 3 + 1) {
+        ])
+      | {button: Left, _} =>
+        /* Check how many clicks have happened recently
+         * and cycle between options on-click */
+        switch (click_count mod 3 + 1) {
         | 1 =>
+          /* prepare to drag if the mouse moves */
+          PointerCapture.set(mouse.current_target, pointer_id);
           Effect.Many([
             signal(MakeActive),
-            inject(Perform(Move(Goal(Point(goal(evt)))))),
-          ])
+            inject(Perform(Move(Goal(Point(goal(mouse)))))),
+          ]);
         | 2 => inject(Perform(Select(Smart(2))))
         | 3 => inject(Perform(Select(Smart(3))))
         | _ => failwith("THEN PERISH")
-        };
+        }
+      | _ => Effect.Ignore
       };
+    };
 
-    let toggle_button = evt => {
-      PointerCapture.release(evt);
+    let toggle_button = (e: Pointer.event, pointer_id: int) => {
+      PointerCapture.release(e.current_target, pointer_id);
       MouseState.up_transition();
       Effect.Ignore;
     };
 
-    let drag_select = evt => {
-      JsUtil.mouse_button(evt) == 0 && MouseState.is_button_down()
-        ? inject(Perform(Select(Resize(Goal(Point(goal(evt)))))))
-        : Effect.Ignore;
-    };
+    let drag_select = (pointer: Pointer.event) =>
+      switch (pointer) {
+      | {button: Left, _} when MouseState.is_button_down() =>
+        inject(Perform(Select(Resize(Goal(Point(goal(pointer)))))))
+      | _ => Effect.Ignore
+      };
 
     Node.div(
       ~attrs=[
         Attr.classes(
           ["cell-item", "code-editor"] @ (selected ? ["selected"] : []),
         ),
-        Attr.on_pointerdown(move_or_select),
-        Attr.on_pointerup(toggle_button),
-        Attr.on_mousemove(drag_select),
+        Attr.on_pointerdown(evt =>
+          move_or_select(Pointer.mk(evt), Pointer.id_of(evt))
+        ),
+        Attr.on_pointerup(evt =>
+          toggle_button(Pointer.mk(evt), Pointer.id_of(evt))
+        ),
+        Attr.on_mousemove(evt => drag_select(Pointer.mk(evt))),
       ],
       [code_view],
     );
