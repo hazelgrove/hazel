@@ -168,6 +168,39 @@ module View = {
     |> JsUtil.get_child_with_class(_, "code-container")
     |> Option.get;
 
+  module PointerCapture = {
+    /* This uses the Pointer Capture API to keep mouse movement data flowing
+     * to an editor even when the mouse exits the editor element or even
+     * browser window. This is necessary to (for example) be able to select
+     * upwards while auto-scrolling the editor by flinging your mouse to the
+     * top of your screen; otherwise, the selection action stops as the
+     * mouse exits the editor element's bounding box.
+     *
+     * The state required here is a only boolean flag to represent drag
+     * state, but we also need to additionally smuggle a pointer_id to
+     * on_click (via `release` method below) (on_click takes mouse not
+     * pointer events so can't get a pointer_id). Ideally we'd use a
+     * pointer method there, but someone still needs to figure out how to
+     * state-machine multi-clicks through pointer events. */
+    let pointer: ref(option(int)) = ref(None);
+
+    let set = evt => {
+      pointer := Some(evt##.pointerId);
+      JsUtil.setPointerCapture(container_target(evt), evt##.pointerId);
+    };
+
+    let release = evt =>
+      switch (pointer^) {
+      | Some(pid) =>
+        pointer := None;
+        let target = container_target(evt);
+        if (JsUtil.hasPointerCapture(target, pid)) {
+          JsUtil.releasePointerCapture(target, pid);
+        };
+      | None => ()
+      };
+  };
+
   module StateMachine = {
     /* State Machine Diagram:
      *
@@ -192,9 +225,7 @@ module View = {
      *   transition introduces a state transition timer, which is used to decide
      *   whether consecutive up/down cycles (clicks) constitute individual clicks
      *   or double/triple-clicks. The former induces caret-to-cursor movement;
-     *   the latter moves and then also selects token (double) or term (triple).
-     *   This is manually implemented as a state machine as the
-     *   multi-click detection intersect awkwardly. */
+     *   the latter moves and then also selects token (double) or term (triple). */
 
     [@deriving (show({with_path: false}), sexp, yojson)]
     type iter =
@@ -330,7 +361,9 @@ module View = {
           inject(Perform(Jump(BindingSiteOfIndicatedVar))),
         ]);
       } else {
-        /* Otherwise, either move or select token/term, depending on state */
+        /* Otherwise, either move or select token/term, depending on
+         * previous clicks, and prepare to drag if the mouse moves */
+        PointerCapture.set(evt);
         switch (StateMachine.down_transition()) {
         | Move =>
           Effect.Many([
@@ -342,7 +375,8 @@ module View = {
         };
       };
 
-    let toggle_mode = _evt => {
+    let toggle_mode = evt => {
+      PointerCapture.release(evt);
       StateMachine.up_transition();
       Effect.Ignore;
     };
