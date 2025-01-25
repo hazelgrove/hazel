@@ -74,14 +74,21 @@ let view_wrapper =
     ) => {
   let sort =
     Option.map(Info.sort_of, info.statics) |> Option.value(~default=Sort.Exp);
-  let focus = (id, _) =>
-    Effect.(Many([Stop_propagation, inject(Project(Focus(id, None)))]));
   div(
     ~attrs=[
       Attr.classes(
         ["projector", name(p.kind)] @ status(indication, selected, sort),
       ),
-      Attr.on_mousedown(focus(info.id)),
+      /* Stopping propagation on these events is necessary to prevent
+       * the base editor's drag-select interaction from being triggered */
+      Attr.on_pointerdown(_ =>
+        Effect.Many([
+          Effect.Stop_propagation,
+          inject(Project(Focus(info.id, None))),
+        ])
+      ),
+      Attr.on_mousemove(_ => Effect.Stop_propagation),
+      Attr.on_pointerup(_ => Effect.Stop_propagation),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
     views,
