@@ -194,7 +194,7 @@ module Update = {
         // point_distribution: model.editors.point_distribution,
         // prelude:
         //   calculate(cells.prelude.editor.statics, model.editors.prelude),
-        correct_impl: model.editors.correct_impl,
+        // correct_impl: model.editors.correct_impl,
         // calculate(
         //   // cells.editor.statics,
         //   model.editors.correct_impl,
@@ -351,15 +351,15 @@ module View = {
     //       ~caption="Prelude",
     //     ),
     //   );
-    let correct_impl_view =
-      InstructorOnly(
-        () =>
-          editor_view(
-            CorrectImpl,
-            instructor,
-            ~caption="Correct Implementation",
-          ),
-      );
+    // let correct_impl_view =
+    //   InstructorOnly(
+    //     () =>
+    //       editor_view(
+    //         CorrectImpl,
+    //         instructor,
+    //         ~caption="Correct Implementation",
+    //       ),
+    //   );
     // determine trailing hole
     // TODO: module
     // let correct_impl_ctx_view =
@@ -498,12 +498,11 @@ module View = {
     [score_view, title_view, description_view]
     @ render_cells(
         globals.settings,
-        [
-          // prelude_view,
-          correct_impl_view,
-          // correct_impl_ctx_view,
-          // your_tests_view,
-        ]
+        // prelude_view,
+        // correct_impl_view,
+        // correct_impl_ctx_view,
+        // your_tests_view,
+        []
         // @ wrong_impl_views
         @ [
           // mutation_testing_view,

@@ -125,7 +125,7 @@ module Update = {
       let* exercises =
         TutorialsMode.Update.update(
           ~globals,
-          ~schedule_action=a => schedule_action(Exercises(a)),
+          ~schedule_action=a => schedule_action(Tutorial(a)),
           action,
           m,
         );
@@ -149,7 +149,7 @@ module Update = {
     | (Exercises(_), Tutorial(_)) => model |> return_quiet
     | (SwitchMode(Scratch), Scratch(_))
     | (SwitchMode(Documentation), Documentation(_))
-    | (SwitchMode(Tutorial), Tutorial(_))
+    | (SwitchMode(Tutorial), Tutorial(_)) => model |> return_quiet
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
       Model.Scratch(

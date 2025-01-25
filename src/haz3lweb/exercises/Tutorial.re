@@ -55,7 +55,7 @@ type p('code) = {
   //     [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] Node.t,
   //   point_distribution,
   //   prelude: 'code,
-  correct_impl: 'code,
+  // correct_impl: 'code,
   //   your_tests: your_tests('code),
   your_impl: 'code,
   //   hidden_bugs: list(wrong_impl('code)),
@@ -78,7 +78,7 @@ let find_key_opt = (key, specs: list(p('code))) => {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =
   //   | Prelude
-  | CorrectImpl
+  // | CorrectImpl
   //   | YourTestsValidation
   //   | YourTestsTesting
   | YourImpl
@@ -100,7 +100,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
     // prompt: p.prompt,
     // point_distribution: p.point_distribution,
     // prelude: f_hidden(p.prelude),
-    correct_impl: f_hidden(p.correct_impl),
+    // correct_impl: f_hidden(p.correct_impl),
     // your_tests: {
     //   tests: f(p.your_tests.tests),
     //   required: p.your_tests.required,
@@ -143,7 +143,7 @@ type persistent_state = {
 let main_editor_of_state = (~selection: pos, eds) =>
   switch (selection) {
   //   | Prelude => eds.prelude
-  | CorrectImpl => eds.correct_impl
+  // | CorrectImpl => eds.correct_impl
   //   | YourTestsValidation => eds.your_tests.tests
   //   | YourTestsTesting => eds.your_tests.tests
   | YourImpl => eds.your_impl
@@ -154,7 +154,7 @@ let main_editor_of_state = (~selection: pos, eds) =>
 let put_main_editor = (~selection: pos, eds: p('a), editor: 'a): p('a) =>
   switch (selection) {
   //   | Prelude => {...eds, prelude: editor}
-  | CorrectImpl => {...eds, correct_impl: editor}
+  // | CorrectImpl => {...eds, correct_impl: editor}
   //   | YourTestsValidation
   //   | YourTestsTesting => {
   //       ...eds,
@@ -186,17 +186,16 @@ let editors = eds => [
   // eds.prelude,
   // eds.correct_impl,
   // eds.your_tests.tests,
-  eds.hidden_tests.tests,
   eds.your_impl,
+  eds.hidden_tests.tests,
 ];
 //   @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
-//   @ [eds.hidden_tests.tests];
 
-let editor_positions =
-  //   [Prelude, CorrectImpl, YourTestsTesting, YourTestsValidation, YourImpl]
-  //   @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
-  //   @
-  [CorrectImpl, YourImpl, HiddenTests];
+let editor_positions = [YourImpl, HiddenTests];
+//   [Prelude, CorrectImpl, YourTestsTesting, YourTestsValidation, YourImpl]
+//   @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
+//   @
+[YourImpl, HiddenTests];
 
 let positioned_editors = state =>
   List.combine(editor_positions, editors(state));
@@ -204,27 +203,27 @@ let positioned_editors = state =>
 let idx_of_pos = pos =>
   switch (pos) {
   //   | Prelude => 0
-  | CorrectImpl => 0
+  // | CorrectImpl => 0
   //   | YourTestsTesting => 2
   //   | YourTestsValidation => 3
-  | YourImpl => 1
+  | YourImpl => 0
   //   | HiddenBugs(i) =>
   //     if (i < List.length(p.hidden_bugs)) {
   //       5 + i;
   //     } else {
   //       failwith("invalid hidden bug index");
   //     }
-  | HiddenTests => 2
+  | HiddenTests => 1
   //   5 + List.length(p.hidden_bugs)
   };
 
 let pos_of_idx = (idx: int) =>
   switch (idx) {
   //   | 0 => Prelude
-  | 0 => CorrectImpl
+  // | 0 => CorrectImpl
   //   | 2 => YourTestsTesting
   //   | 3 => YourTestsValidation
-  | 1 => YourImpl
+  | 0 => YourImpl
   | _ =>
     if (idx < 0) {
       failwith(
@@ -233,7 +232,7 @@ let pos_of_idx = (idx: int) =>
         //   HiddenBugs(idx - 5);
         // } else if (idx == 0 + (+ List.length(p.hidden_tests.tests))) {
       );
-    } else if (idx == 2) {
+    } else if (idx == 1) {
       HiddenTests;
     } else {
       failwith("element idx");
@@ -313,7 +312,7 @@ let eds_of_spec =
         // prompt,
         // point_distribution,
         // prelude,
-        correct_impl,
+        // correct_impl,
         // your_tests,
         your_impl,
         // hidden_bugs,
@@ -325,7 +324,7 @@ let eds_of_spec =
     ) => {
   let editor_of_serialization = Editor.Model.mk;
   //   let prelude = editor_of_serialization(prelude);
-  let correct_impl = editor_of_serialization(correct_impl);
+  // let correct_impl = editor_of_serialization(correct_impl);
   //   let your_tests = {
   //     let tests = editor_of_serialization(your_tests.tests);
   //     {tests, required: your_tests.required, provided: your_tests.provided};
@@ -350,7 +349,7 @@ let eds_of_spec =
     // prompt,
     // point_distribution,
     // prelude,
-    correct_impl,
+    // correct_impl,
     // your_tests,
     your_impl,
     // hidden_bugs,
@@ -368,7 +367,7 @@ let eds_of_spec =
 let visible_in = (pos, ~instructor_mode) => {
   switch (pos) {
   //   | Prelude => instructor_mode
-  | CorrectImpl => instructor_mode
+  // | CorrectImpl => instructor_mode
   //   | YourTestsValidation => true
   //   | YourTestsTesting => true
   | YourImpl => true
@@ -406,7 +405,7 @@ let map_stitched = (f: (pos, 'a) => 'b, s: stitched('a)): stitched('b) => {
   user_impl: f(YourImpl, s.user_impl),
   //   user_tests: f(YourTestsTesting, s.user_tests),
   //   prelude: f(Prelude, s.prelude),
-  instructor: f(CorrectImpl, s.instructor),
+  instructor: f(YourImpl, s.instructor),
   //   hidden_bugs: List.mapi((i, p) => f(HiddenBugs(i), p), s.hidden_bugs),
   hidden_tests: f(HiddenTests, s.hidden_tests),
 };
@@ -417,7 +416,7 @@ let get_stitched = (pos, s: stitched('a)): 'a =>
   | YourImpl => s.user_impl
   //   | YourTestsTesting => s.user_tests
   //   | Prelude => s.prelude
-  | CorrectImpl => s.instructor
+  // | CorrectImpl => s.instructor
   //   | HiddenBugs(i) => List.nth(s.hidden_bugs, i)
   | HiddenTests => s.hidden_tests
   };
@@ -433,7 +432,7 @@ let put_stitched = (pos, s: stitched('a), x: 'a): stitched('a) =>
   | YourImpl => {...s, user_impl: x}
   //   | YourTestsTesting => {...s, user_tests: x}
   //   | Prelude => {...s, prelude: x}
-  | CorrectImpl => {...s, instructor: x}
+  // | CorrectImpl => {...s, instructor: x}
   //   | HiddenBugs(i) => {
   //       ...s,
   //       hidden_bugs: Util.ListUtil.put_nth(i, x, s.hidden_bugs),
@@ -501,7 +500,7 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
 
   {
     user_impl: wrap(user_impl_term, eds.your_impl),
-    instructor: wrap(instructor, eds.hidden_tests.tests),
+    instructor: wrap(instructor, eds.your_impl),
     hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
   };
 };
@@ -518,7 +517,7 @@ let hidden_tests_key = "hidden_tests";
 let key_for_statics = (pos: pos): string =>
   switch (pos) {
   //   | Prelude => prelude_key
-  | CorrectImpl => instructor_key
+  // | CorrectImpl => instructor_key
   //   | YourTestsValidation => test_validation_key
   //   | YourTestsTesting => user_tests_key
   | YourImpl => user_impl_key
@@ -532,7 +531,7 @@ let pos_of_key = (key: string): pos =>
   //   | _ when key == test_validation_key => YourTestsValidation
   | _ when key == user_impl_key => YourImpl
   //   | _ when key == user_tests_key => YourTestsTesting
-  | _ when key == instructor_key => CorrectImpl
+  // | _ when key == instructor_key => CorrectImpl
   //   | _ when String.starts_with(key, ~prefix="hidden_bugs_") =>
   //     let n =
   //       String.sub(
@@ -598,7 +597,7 @@ let blank_spec = (~title, ~description) => {
   //   ~num_wrong_impls,
 
   //   let prelude = Zipper.next_blank();
-  let correct_impl = Zipper.next_blank();
+  // let correct_impl = Zipper.next_blank();
   //   let your_tests_tests = Zipper.next_blank();
   let your_impl = Zipper.next_blank();
   //   let hidden_bugs =
@@ -619,7 +618,7 @@ let blank_spec = (~title, ~description) => {
     // prompt: Node.text("TODO: prompt"),
     // point_distribution,
     // prelude,
-    correct_impl,
+    // correct_impl,
     // your_tests: {
     //   tests: your_tests_tests,
     //   required: required_tests,
@@ -650,7 +649,7 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
       default;
     };
   //   let prelude = lookup(Prelude, spec.prelude);
-  let correct_impl = lookup(CorrectImpl, spec.correct_impl);
+  // let correct_impl = lookup(CorrectImpl, spec.correct_impl);
   //   let your_tests_tests = lookup(YourTestsValidation, spec.your_tests.tests);
   let your_impl = lookup(YourImpl, spec.your_impl);
   //   let (_, hidden_bugs) =
@@ -671,7 +670,7 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
     // prompt: spec.prompt,
     // point_distribution: spec.point_distribution,
     // prelude,
-    correct_impl,
+    // correct_impl,
     // your_tests: {
     //   tests: your_tests_tests,
     //   required: spec.your_tests.required,
