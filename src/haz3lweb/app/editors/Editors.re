@@ -110,6 +110,17 @@ module Update = {
           m,
         );
       Model.Documentation(scratch);
+
+    // | (Scratch(action), Tutorial(m)) =>
+    //   let* m =
+    //     ScratchMode.Update.update(
+    //       ~settings=globals.settings,
+    //       ~schedule_action=a => schedule_action(Scratch(a)),
+    //       ~is_documentation=false,
+    //       action,
+    //       scratch,
+    //     );
+    //   Model.Tutorial(m);
     | (Tutorial(action), Tutorial(m)) =>
       let* exercises =
         TutorialsMode.Update.update(
@@ -128,8 +139,11 @@ module Update = {
           m,
         );
       Model.Exercises(exercises);
+    | (Tutorial(_), Exercises(_))
+    | (Tutorial(_), Scratch(_))
+    | (Tutorial(_), Documentation(_))
     | (Scratch(_), Exercises(_))
-    // | (Scratch(_), Tutorial(_))
+    | (Scratch(_), Tutorial(_))
     | (Exercises(_), Scratch(_))
     | (Exercises(_), Documentation(_)) => model |> return_quiet
     | (Exercises(_), Tutorial(_)) => model |> return_quiet
@@ -236,13 +250,18 @@ module Selection = {
     | (Scratch(selection), Documentation(m)) =>
       let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
       Update.Scratch(ci);
-    | (Scratch(selection), Tutorial(m)) =>
-      let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
-      Update.Scratch(ci);
+    | (Tutorial(selection), Tutorial(m)) =>
+      let+ ci = TutorialsMode.Selection.get_cursor_info(~selection, m);
+      Update.Tutorial(ci);
     | (Exercises(selection), Exercises(m)) =>
       let+ ci = ExercisesMode.Selection.get_cursor_info(~selection, m);
       Update.Exercises(ci);
+    | (Scratch(_), Tutorial(_))
     | (Exercises(_), Tutorial(_))
+    | (Tutorial(_), Scratch(_))
+    | (Tutorial(_), Exercises(_))
+    | (Tutorial(_), Documentation(_))
+    // | (Tutorial(_), Tutorial(_))
     | (Scratch(_), Exercises(_))
     | (Exercises(_), Scratch(_))
     | (Exercises(_), Documentation(_)) => empty
@@ -258,16 +277,20 @@ module Selection = {
     | (Some(Scratch(selection)), Documentation(m)) =>
       ScratchMode.Selection.handle_key_event(~selection, ~event, m)
       |> Option.map(x => Update.Scratch(x))
-    | (Some(Scratch(selection)), Tutorial(m)) =>
-      ScratchMode.Selection.handle_key_event(~selection, ~event, m)
-      |> Option.map(x => Update.Scratch(x))
+    | (Some(Tutorial(selection)), Tutorial(m)) =>
+      TutorialsMode.Selection.handle_key_event(~selection, ~event, m)
+      |> Option.map(x => Update.Tutorial(x))
     | (Some(Exercises(selection)), Exercises(m)) =>
       ExercisesMode.Selection.handle_key_event(~selection, ~event, m)
       |> Option.map(x => Update.Exercises(x))
     | (Some(Scratch(_)), Exercises(_))
+    | (Some(Scratch(_)), Tutorial(_))
     | (Some(Exercises(_)), Tutorial(_))
     | (Some(Exercises(_)), Scratch(_))
     | (Some(Exercises(_)), Documentation(_))
+    | (Some(Tutorial(_)), Scratch(_))
+    | (Some(Tutorial(_)), Documentation(_))
+    | (Some(Tutorial(_)), Exercises(_))
     | (None, _) => None
     };
   };
@@ -293,7 +316,7 @@ module Selection = {
     fun
     | Model.Scratch(_) => Scratch(MainEditor)
     | Model.Documentation(_) => Scratch(MainEditor)
-    | Model.Tutorial(_) => Scratch(MainEditor)
+    | Model.Tutorial(_) => Tutorial((Tutorial.YourImpl, MainEditor))
     | Model.Exercises(_) => Exercises((Exercise.Prelude, MainEditor));
 };
 
