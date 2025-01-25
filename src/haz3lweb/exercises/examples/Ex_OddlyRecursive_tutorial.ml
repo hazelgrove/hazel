@@ -6,7 +6,7 @@ let exercise : Tutorial.spec =
   {
     title = "Oddly Recursive";
     description = "test";
-    module_name = "test";
+    module_name = "Ex_OddlyRecursive_tutorial";
     wrapper = false;
     version = 1;
     correct_impl =

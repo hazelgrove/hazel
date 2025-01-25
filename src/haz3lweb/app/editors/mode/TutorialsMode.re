@@ -164,8 +164,8 @@ module Update = {
     | ExportGrading;
   let export_exercise_module = (exercises: Model.t): unit => {
     let exercise = Model.get_current(exercises);
-    let module_name = exercise.editors.title;
-    let filename = exercise.editors.title ++ ".ml";
+    let module_name = exercise.editors.module_name;
+    let filename = exercise.editors.module_name ++ ".ml";
     let content_type = "text/plain";
     let contents =
       Tutorial.export_module(module_name, {eds: exercise.editors});
