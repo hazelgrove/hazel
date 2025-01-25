@@ -168,59 +168,98 @@ module View = {
     |> JsUtil.get_child_with_class(_, "code-container")
     |> Option.get;
 
-  module Drag = {
-    /* This uses the Pointer Capture API to keep mouse movement data flowing
-     * to an editor even when the mouse exits the editor element or even
-     * browser window. This is necessary to (for example) be able to select
-     * upwards while auto-scrolling the editor by flinging your mouse to the
-     * top of your screen; otherwise, the selection action stops as the
-     * mouse exits the editor element's bounding box.
+  module StateMachine = {
+    /* State Machine Diagram:
      *
-     * The state required here is a only boolean flag to represent drag
-     * state, but we also need to additionally smuggle a pointer_id to
-     * on_click (via `release` method below) (on_click takes mouse not
-     * pointer events so can't get a pointer_id). Ideally we'd use a
-     * pointer method there, but someone still needs to figure out how to
-     * state-machine multi-clicks through pointer events. */
-    let pointer: ref(option(int)) = ref(None);
+     *        down=>Move      up=>SetTimer     down=>SelectToken    up=>SetTimer
+     * Up(One) ------> Down(One) --------> Up(Two) -------> Down(Two) -----> Up(Three)
+     *   ^                                                                       |
+     *   |                           down=>SelectTerm                            |
+     *   +-----------------------------------------------------------------------+
+     *
+     * BASICS:
+     * - We start in Up(One)
+     * - Pointerdown transitions emit actions: Move, SelectToken, or SelectTerm
+     * - Pointerup transitions start timers that auto-reset to Up(One) after delay
+     * - Being in Down(_) states enables drag selection
+     *
+     * DETAILS:
+     *   This models the click state of an editor. It models a pointer as
+     *   being in an alternating sequence of up and down states, beginning
+     *   on (and returning to) Up(One). A pointerdown event transitions from
+     *   an up state to a down state, and vice versa for pointerup. Furthermore,
+     *   a pointerdown transition produces an action to execute, and a pointerup
+     *   transition introduces a state transition timer, which is used to decide
+     *   whether consecutive up/down cycles (clicks) constitute individual clicks
+     *   or double/triple-clicks. The former induces caret-to-cursor movement;
+     *   the latter moves and then also selects token (double) or term (triple).
+     *   This is manually implemented as a state machine as the
+     *   multi-click detection intersect awkwardly. */
 
-    let set = evt => {
-      pointer := Some(evt##.pointerId);
-      JsUtil.setPointerCapture(container_target(evt), evt##.pointerId);
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type iter =
+      | One
+      | Two
+      | Three;
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type state =
+      | Up(iter)
+      | Down(iter);
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type action =
+      | Move
+      | SelectToken
+      | SelectTerm;
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type timer = option((state, state));
+
+    let state: ref(state) = ref(Up(One));
+
+    let should_drag_select = (): bool => {
+      switch (state^) {
+      | Up(_) => false
+      | Down(_) => true
+      };
     };
 
-    let release = evt =>
-      switch (pointer^) {
-      | Some(pid) =>
-        pointer := None;
-        let target = container_target(evt);
-        if (JsUtil.hasPointerCapture(target, pid)) {
-          JsUtil.releasePointerCapture(target, pid);
-        };
-      | None => ()
+    let down = (old_state): (state, action) =>
+      switch (old_state) {
+      | Up(One) => (Down(One), Move)
+      | Up(Two) => (Down(Two), SelectToken)
+      | Up(Three) => (Down(Three), SelectTerm)
+      | Down(_) => failwith("THEN PERISH")
       };
-  };
 
-  module MultiClick = {
-    /* This manages a timer which gates the execution of
-     * pointerdown actions. This grace period exists to dejank the
-     * on_click events below (token and term selection). on_click fires
-     * every time this fires, so without the timeout, this would move to
-     * position, then on the second click, on_click will select a token,
-     * then on the third click, this would again move to position, breaking
-     * the token selection before on_click selects the term. This creates
-     * a distracting tween frame between the token and term selection states.
-     * The timeout supresses this if the clicks are made within the timeout
-     * period. The timeout needs to be balanced carefully to leave enough
-     * time for multi-clicks, but not be long enough that it's likely the
-     * user might instead click elsewhere to move/select before the timeout
-     * elapses, in which case that action won't register. I'm sure there
-     * are bettter ways to mitigate or avoid this issue. */
-    let flag: ref(bool) = ref(false);
+    let up = (old_state): (state, timer) =>
+      switch (old_state) {
+      | Down(One) => (Up(Two), Some((Up(Two), Up(One))))
+      | Down(Two) => (Up(Three), Some((Up(Three), Up(One))))
+      | Down(Three) => (Up(One), None)
+      | Up(_) => failwith("YOU SHOULD NOT BE")
+      };
 
-    let set_flag = (~delay) => {
-      flag := true;
-      JsUtil.delay(delay, () => {flag := false});
+    let down_transition = (): action => {
+      let (new_state, action) = down(state^);
+      state := new_state;
+      action;
+    };
+
+    let up_transition = () => {
+      let (new_state, timer) = up(state^);
+      state := new_state;
+      switch (timer) {
+      | None => ()
+      | Some((old, next)) =>
+        let delay_ms = 310.0;
+        JsUtil.delay(delay_ms, () =>
+          if (old == state^) {
+            state := next;
+          }
+        );
+      };
     };
   };
 
@@ -269,65 +308,58 @@ module View = {
         model,
       );
 
-    let get_goal = evt =>
+    let goal = evt =>
       FontMetrics.get_goal(
         ~font_metrics=globals.font_metrics,
         container_target(evt),
         evt,
       );
 
-    let point_to_move = evt =>
+    let move_or_select = evt =>
       if (JsUtil.shift_held(evt)) {
         /* If we're holding shift, range select from current to indicated */
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Select(Resize(Goal(Point(get_goal(evt))))))),
+          inject(Perform(Select(Resize(Goal(Point(goal(evt))))))),
         ]);
       } else if (JsUtil.ctrl_held(evt) || Os.is_mac^ && JsUtil.meta_held(evt)) {
         /* If we're holding ctrl/cmd, jump to indicated variable's binding */
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Move(Goal(Point(get_goal(evt)))))),
+          inject(Perform(Move(Goal(Point(goal(evt)))))),
           inject(Perform(Jump(BindingSiteOfIndicatedVar))),
         ]);
       } else {
-        /* Move to cursor position and prepare to drag, unless there's
-         * been a recent pointerdown. Set `MultiClick` for details. */
-        Drag.set(evt);
-        if (MultiClick.flag^) {
-          Effect.Ignore;
-        } else {
-          MultiClick.set_flag(~delay=610.0);
+        /* Otherwise, either move or select token/term, depending on state */
+        switch (StateMachine.down_transition()) {
+        | Move =>
           Effect.Many([
             signal(MakeActive),
-            inject(Perform(Move(Goal(Point(get_goal(evt)))))),
-          ]);
+            inject(Perform(Move(Goal(Point(goal(evt)))))),
+          ])
+        | SelectToken => inject(Perform(Select(Smart(2))))
+        | SelectTerm => inject(Perform(Select(Smart(3))))
         };
       };
 
-    let smart_select = evt => {
-      Drag.release(evt);
-      /* On double-click select token, on triple-click select term,
-       * unless token and term are the same, in which case, select
-       * parent term. See `MultiClick` for worrying details */
-      inject(Perform(Select(Smart(JsUtil.num_clicks(evt)))));
+    let toggle_mode = _evt => {
+      StateMachine.up_transition();
+      Effect.Ignore;
     };
 
-    let drag_select = evt =>
-      /* Drag-select if the left mouse button (=0) is pressed */
-      switch (Drag.pointer^) {
-      | Some(_) when JsUtil.mouse_button(evt) == 0 =>
-        inject(Perform(Select(Resize(Goal(Point(get_goal(evt)))))))
-      | _ => Effect.Ignore
-      };
+    let drag_select = evt => {
+      StateMachine.should_drag_select() && JsUtil.mouse_button(evt) == 0
+        ? inject(Perform(Select(Resize(Goal(Point(goal(evt)))))))
+        : Effect.Ignore;
+    };
 
     Node.div(
       ~attrs=[
         Attr.classes(
           ["cell-item", "code-editor"] @ (selected ? ["selected"] : []),
         ),
-        Attr.on_pointerdown(point_to_move),
-        Attr.on_click(smart_select),
+        Attr.on_pointerdown(move_or_select),
+        Attr.on_pointerup(toggle_mode),
         Attr.on_mousemove(drag_select),
       ],
       [code_view],
