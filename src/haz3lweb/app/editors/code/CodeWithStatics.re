@@ -96,7 +96,7 @@ module View = {
       statics: {info_map, _},
       editor:
         {
-          syntax: {measured, selection_ids, segment, holes, _},
+          syntax: {measured, selection_ids, segment, _},
           state: {zipper: z, _},
           _,
         },
@@ -110,7 +110,6 @@ module View = {
         ~measured,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~segment,
-        ~holes,
         ~shape_of_proj,
       );
     let statics_decos = {

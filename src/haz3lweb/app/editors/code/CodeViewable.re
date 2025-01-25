@@ -11,7 +11,6 @@ let view =
       ~measured,
       ~buffer_ids,
       ~segment,
-      ~holes as _,
       ~shape_of_proj,
     )
     : Node.t => {
@@ -30,16 +29,7 @@ let view_segment =
     (~globals: Globals.t, ~sort: Sort.t, ~shape_of_proj, segment: Segment.t) => {
   let measured = Measured.of_segment(segment, shape_of_proj);
   let buffer_ids = [];
-  let holes = Segment.holes(segment);
-  view(
-    ~globals,
-    ~sort,
-    ~measured,
-    ~buffer_ids,
-    ~holes,
-    ~segment,
-    ~shape_of_proj,
-  );
+  view(~globals, ~sort, ~measured, ~buffer_ids, ~segment, ~shape_of_proj);
 };
 
 let view_exp =
