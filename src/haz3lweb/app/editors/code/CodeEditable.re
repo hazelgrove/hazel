@@ -162,30 +162,67 @@ module View = {
   type event =
     | MakeActive;
 
-  /* A sidechannel for the id of the pointer when capturing pointer events for
-   * drag-based selection. This is necessary to sidechannel the pointer id
-   * as our libraries currently don't support the on_pointer_move handler.
-   * We also use on_click (another mouse-only handler) to track multiple
-   * clicks for token/term selection, but this logic could be moved in-house;
-   * it's already half in-house as can be seen in the double_click_flag below */
-  let drag_pointer: ref(option(int)) = ref(None);
-  /* This flag supports double/triple click to select token/term
-   * behavior. Without this flag, there will be a moment between the
-   * second and third click where the selection disappears; the behavior
-   * is still essentially the same, but it is visually distracting.
-   *
-   * The pointerdown and on_click events fire alternatingly in that order.
-   * i.e. a singleclick is pointerdown => on_click and a tripleclick is
-   * pointerdown => on_click => pointerdown => on_click => pointerdown => on_click
-   *
-   * We want pointerdown to do caret movement (waiting for pointerup feels laggy).
-   * However we don't want to (re)do caret movement if we've already made a token
-   * selection by double-clicking as this would break the selection. So we set
-   * a flag on click, and if this flag is true on the subsequent pointerdown,
-   * we no-op. However, we need to make sure this flag ultimately gets reset;
-   * we can't rely on their necessarily being any following pointerdowns/clicks,
-   * so we set a timer to reset it */
-  let multi_click_flag: ref(bool) = ref(false);
+  let container_target = evt =>
+    evt##.currentTarget
+    |> Js.Opt.get(_, _ => failwith(""))
+    |> JsUtil.get_child_with_class(_, "code-container")
+    |> Option.get;
+
+  module Drag = {
+    /* This uses the Pointer Capture API to keep mouse movement data flowing
+     * to an editor even when the mouse exits the editor element or even
+     * browser window. This is necessary to (for example) be able to select
+     * upwards while auto-scrolling the editor by flinging your mouse to the
+     * top of your screen; otherwise, the selection action stops as the
+     * mouse exits the editor element's bounding box.
+     *
+     * The state required here is a only boolean flag to represent drag
+     * state, but we also need to additionally smuggle a pointer_id to
+     * on_click (via `release` method below) (on_click takes mouse not
+     * pointer events so can't get a pointer_id). Ideally we'd use a
+     * pointer method there, but someone still needs to figure out how to
+     * state-machine multi-clicks through pointer events. */
+    let pointer: ref(option(int)) = ref(None);
+
+    let set = evt => {
+      pointer := Some(evt##.pointerId);
+      JsUtil.setPointerCapture(container_target(evt), evt##.pointerId);
+    };
+
+    let release = evt =>
+      switch (pointer^) {
+      | Some(pid) =>
+        pointer := None;
+        let target = container_target(evt);
+        if (JsUtil.hasPointerCapture(target, pid)) {
+          JsUtil.releasePointerCapture(target, pid);
+        };
+      | None => ()
+      };
+  };
+
+  module MultiClick = {
+    /* This manages a timer which gates the execution of
+     * pointerdown actions. This grace period exists to dejank the
+     * on_click events below (token and term selection). on_click fires
+     * every time this fires, so without the timeout, this would move to
+     * position, then on the second click, on_click will select a token,
+     * then on the third click, this would again move to position, breaking
+     * the token selection before on_click selects the term. This creates
+     * a distracting tween frame between the token and term selection states.
+     * The timeout supresses this if the clicks are made within the timeout
+     * period. The timeout needs to be balanced carefully to leave enough
+     * time for multi-clicks, but not be long enough that it's likely the
+     * user might instead click elsewhere to move/select before the timeout
+     * elapses, in which case that action won't register. I'm sure there
+     * are bettter ways to mitigate or avoid this issue. */
+    let flag: ref(bool) = ref(false);
+
+    let set_flag = (~delay) => {
+      flag := true;
+      JsUtil.delay(delay, () => {flag := false});
+    };
+  };
 
   let view =
       (
@@ -232,12 +269,6 @@ module View = {
         model,
       );
 
-    let container_target = evt =>
-      evt##.currentTarget
-      |> Js.Opt.get(_, _ => failwith(""))
-      |> JsUtil.get_child_with_class(_, "code-container")
-      |> Option.get;
-
     let get_goal = evt =>
       FontMetrics.get_goal(
         ~font_metrics=globals.font_metrics,
@@ -245,20 +276,49 @@ module View = {
         evt,
       );
 
-    let set_drag = evt => {
-      drag_pointer := Some(evt##.pointerId);
-      JsUtil.setPointerCapture(container_target(evt), evt##.pointerId);
+    let point_to_move = evt =>
+      if (JsUtil.shift_held(evt)) {
+        /* If we're holding shift, range select from current to indicated */
+        Effect.Many([
+          signal(MakeActive),
+          inject(Perform(Select(Resize(Goal(Point(get_goal(evt))))))),
+        ]);
+      } else if (JsUtil.ctrl_held(evt) || Os.is_mac^ && JsUtil.meta_held(evt)) {
+        /* If we're holding ctrl/cmd, jump to indicated variable's binding */
+        Effect.Many([
+          signal(MakeActive),
+          inject(Perform(Move(Goal(Point(get_goal(evt)))))),
+          inject(Perform(Jump(BindingSiteOfIndicatedVar))),
+        ]);
+      } else {
+        /* Move to cursor position and prepare to drag, unless there's
+         * been a recent pointerdown. Set `MultiClick` for details. */
+        Drag.set(evt);
+        if (MultiClick.flag^) {
+          Effect.Ignore;
+        } else {
+          MultiClick.set_flag(~delay=610.0);
+          Effect.Many([
+            signal(MakeActive),
+            inject(Perform(Move(Goal(Point(get_goal(evt)))))),
+          ]);
+        };
+      };
+
+    let smart_select = evt => {
+      Drag.release(evt);
+      /* On double-click select token, on triple-click select term,
+       * unless token and term are the same, in which case, select
+       * parent term. See `MultiClick` for worrying details */
+      inject(Perform(Select(Smart(JsUtil.num_clicks(evt)))));
     };
 
-    let release_drag = evt =>
-      switch (drag_pointer^) {
-      | Some(pid) =>
-        drag_pointer := None;
-        let target = container_target(evt);
-        if (JsUtil.hasPointerCapture(target, pid)) {
-          JsUtil.releasePointerCapture(target, pid);
-        };
-      | None => ()
+    let drag_select = evt =>
+      /* Drag-select if the left mouse button (=0) is pressed */
+      switch (Drag.pointer^) {
+      | Some(_) when JsUtil.mouse_button(evt) == 0 =>
+        inject(Perform(Select(Resize(Goal(Point(get_goal(evt)))))))
+      | _ => Effect.Ignore
       };
 
     Node.div(
@@ -266,50 +326,9 @@ module View = {
         Attr.classes(
           ["cell-item", "code-editor"] @ (selected ? ["selected"] : []),
         ),
-        Attr.on_pointerdown(evt =>
-          if (JsUtil.shift_held(evt)) {
-            Effect.Many([
-              signal(MakeActive),
-              inject(
-                Perform(Select(Resize(Goal(Point(get_goal(evt)))))),
-              ),
-            ]);
-          } else if (JsUtil.ctrl_held(evt)
-                     || Os.is_mac^
-                     && JsUtil.meta_held(evt)) {
-            Effect.Many([
-              signal(MakeActive),
-              inject(Perform(Move(Goal(Point(get_goal(evt)))))),
-              inject(Perform(Jump(BindingSiteOfIndicatedVar))),
-            ]);
-          } else if (multi_click_flag^) {
-            set_drag(evt);
-            Effect.Ignore;
-          } else {
-            set_drag(evt);
-            Effect.Many([
-              signal(MakeActive),
-              inject(Perform(Move(Goal(Point(get_goal(evt)))))),
-            ]);
-          }
-        ),
-        Attr.on_click(evt => {
-          multi_click_flag := true;
-          JsUtil.delay(400.0, () => {multi_click_flag := false});
-          release_drag(evt);
-          switch (JsUtil.num_clicks(evt)) {
-          | 1 => Effect.Ignore
-          | n => inject(Perform(Select(Smart(n))))
-          };
-        }),
-        Attr.on_mousemove(evt =>
-          switch (drag_pointer^) {
-          | Some(_) when JsUtil.mouse_button(evt) == 0 =>
-            /* Only drag for button 0 (left mouse button) */
-            inject(Perform(Select(Resize(Goal(Point(get_goal(evt)))))))
-          | _ => Effect.Ignore
-          }
-        ),
+        Attr.on_pointerdown(point_to_move),
+        Attr.on_click(smart_select),
+        Attr.on_mousemove(drag_select),
       ],
       [code_view],
     );
