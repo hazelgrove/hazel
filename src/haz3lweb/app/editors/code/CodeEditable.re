@@ -162,66 +162,30 @@ module View = {
   type event =
     | MakeActive;
 
-  let mousedown_overlay = (~globals: Globals.t, ~inject) =>
-    Node.div(
-      ~attrs=
-        Attr.[
-          id("mousedown-overlay"),
-          on_mouseup(_ => globals.inject_global(SetMousedown(false))),
-          on_mousemove(e => {
-            let _ = ignore(e##.button);
-            let mouse_handler =
-              e##.target |> Js.Opt.get(_, _ => failwith("no target"));
-            let text_box =
-              JsUtil.get_child_with_class(
-                mouse_handler##.parentNode
-                |> Js.Opt.get(_, _ => failwith(""))
-                |> Js.Unsafe.coerce,
-                "code-container",
-              )
-              |> Option.get;
-            let goal =
-              FontMetrics.get_goal(
-                ~font_metrics=globals.font_metrics,
-                text_box,
-                e,
-              );
-            inject(Action.Select(Resize(Goal(Point(goal)))));
-          }),
-        ],
-      [],
-    );
-
-  let mousedown_handler = (~globals: Globals.t, ~signal, ~inject, evt) => {
-    let goal =
-      FontMetrics.get_goal(
-        ~font_metrics=globals.font_metrics,
-        evt##.currentTarget
-        |> Js.Opt.get(_, _ => failwith(""))
-        |> JsUtil.get_child_with_class(_, "code-container")
-        |> Option.get,
-        evt,
-      );
-    switch (JsUtil.ctrl_held(evt), JsUtil.num_clicks(evt)) {
-    | (true, _) =>
-      Effect.Many([
-        signal(MakeActive),
-        inject(Action.Move(Goal(Point(goal)))),
-        inject(Action.Jump(BindingSiteOfIndicatedVar)),
-      ])
-    | (false, 1) =>
-      /* Note that we only trigger drag mode (set mousedown)
-       * when the left mouse button (aka button 0) is pressed */
-      Effect.Many(
-        (
-          JsUtil.mouse_button(evt) == 0
-            ? [globals.inject_global(SetMousedown(true))] : []
-        )
-        @ [signal(MakeActive), inject(Action.Move(Goal(Point(goal))))],
-      )
-    | (false, n) => inject(Action.Select(Smart(n)))
-    };
-  };
+  /* A sidechannel for the id of the pointer when capturing pointer events for
+   * drag-based selection. This is necessary to sidechannel the pointer id
+   * as our libraries currently don't support the on_pointer_move handler.
+   * We also use on_click (another mouse-only handler) to track multiple
+   * clicks for token/term selection, but this logic could be moved in-house;
+   * it's already half in-house as can be seen in the double_click_flag below */
+  let drag_pointer: ref(option(int)) = ref(None);
+  /* This flag supports double/triple click to select token/term
+   * behavior. Without this flag, there will be a moment between the
+   * second and third click where the selection disappears; the behavior
+   * is still essentially the same, but it is visually distracting.
+   *
+   * The pointerdown and on_click events fire alternatingly in that order.
+   * i.e. a singleclick is pointerdown => on_click and a tripleclick is
+   * pointerdown => on_click => pointerdown => on_click => pointerdown => on_click
+   *
+   * We want pointerdown to do caret movement (waiting for pointerup feels laggy).
+   * However we don't want to (re)do caret movement if we've already made a token
+   * selection by double-clicking as this would break the selection. So we set
+   * a flag on click, and if this flag is true on the subsequent pointerdown,
+   * we no-op. However, we need to make sure this flag ultimately gets reset;
+   * we can't rely on their necessarily being any following pointerdowns/clicks,
+   * so we set a timer to reset it */
+  let multi_click_flag: ref(bool) = ref(false);
 
   let view =
       (
@@ -267,20 +231,87 @@ module View = {
         ~sort?,
         model,
       );
-    let mousedown_overlay =
-      selected && globals.mousedown
-        ? [mousedown_overlay(~globals, ~inject=x => inject(Perform(x)))]
-        : [];
-    let on_mousedown =
-      mousedown_handler(~globals, ~signal, ~inject=x => inject(Perform(x)));
+
+    let container_target = evt =>
+      evt##.currentTarget
+      |> Js.Opt.get(_, _ => failwith(""))
+      |> JsUtil.get_child_with_class(_, "code-container")
+      |> Option.get;
+
+    let get_goal = evt =>
+      FontMetrics.get_goal(
+        ~font_metrics=globals.font_metrics,
+        container_target(evt),
+        evt,
+      );
+
+    let set_drag = evt => {
+      drag_pointer := Some(evt##.pointerId);
+      JsUtil.setPointerCapture(container_target(evt), evt##.pointerId);
+    };
+
+    let release_drag = evt =>
+      switch (drag_pointer^) {
+      | Some(pid) =>
+        drag_pointer := None;
+        let target = container_target(evt);
+        if (JsUtil.hasPointerCapture(target, pid)) {
+          JsUtil.releasePointerCapture(target, pid);
+        };
+      | None => ()
+      };
+
     Node.div(
       ~attrs=[
         Attr.classes(
           ["cell-item", "code-editor"] @ (selected ? ["selected"] : []),
         ),
-        Attr.on_mousedown(on_mousedown),
+        Attr.on_pointerdown(evt =>
+          if (JsUtil.shift_held(evt)) {
+            Effect.Many([
+              signal(MakeActive),
+              inject(
+                Perform(Select(Resize(Goal(Point(get_goal(evt)))))),
+              ),
+            ]);
+          } else if (JsUtil.ctrl_held(evt)
+                     || Os.is_mac^
+                     && JsUtil.meta_held(evt)) {
+            Effect.Many([
+              signal(MakeActive),
+              inject(Perform(Move(Goal(Point(get_goal(evt)))))),
+              inject(Perform(Jump(BindingSiteOfIndicatedVar))),
+            ]);
+          } else if (multi_click_flag^) {
+            set_drag(evt);
+            Effect.Ignore;
+          } else {
+            set_drag(evt);
+            Effect.Many([
+              signal(MakeActive),
+              inject(Perform(Move(Goal(Point(get_goal(evt)))))),
+            ]);
+          }
+        ),
+        Attr.on_click(evt => {
+          multi_click_flag := true;
+          JsUtil.delay(400.0, () => {multi_click_flag := false});
+          release_drag(evt);
+          switch (JsUtil.num_clicks(evt)) {
+          | 1 => Effect.Ignore
+          | n => inject(Perform(Select(Smart(n))))
+          };
+        }),
+        Attr.on_mousemove(evt =>
+          switch (drag_pointer^) {
+          | Some(_) when JsUtil.mouse_button(evt) == 0 =>
+            /* Only drag for button 0 (left mouse button) */
+            inject(Perform(Select(Resize(Goal(Point(get_goal(evt)))))))
+          | _ => Effect.Ignore
+          }
+        ),
       ],
-      mousedown_overlay @ [code_view],
+      [code_view],
     );
   };
 };

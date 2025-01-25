@@ -144,14 +144,15 @@ let go_z =
     let z = Zipper.directional_unselect(z.selection.focus, z);
     Ok(z);
   | Select(All) =>
-    switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
-    | Some(z) =>
-      switch (Select.go(Extreme(Down), z)) {
-      | Some(z) => Ok(z)
-      | None => Error(Action.Failure.Cant_select)
-      }
+    let z =
+      switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
+      | Some(z) => z
+      | None => z
+      };
+    switch (Select.go(Extreme(Down), z)) {
+    | Some(z) => Ok(z)
     | None => Error(Action.Failure.Cant_select)
-    }
+    };
   | Select(Term(Current)) =>
     switch (Select.current_term(z)) {
     | None => Error(Cant_select)
