@@ -271,14 +271,14 @@ module View = {
         };
       };
 
-    let toggle_mode = evt => {
+    let toggle_button = evt => {
       PointerCapture.release(evt);
       MouseState.up_transition();
       Effect.Ignore;
     };
 
     let drag_select = evt => {
-      MouseState.is_button_down() && JsUtil.mouse_button(evt) == 0
+      JsUtil.mouse_button(evt) == 0 && MouseState.is_button_down()
         ? inject(Perform(Select(Resize(Goal(Point(goal(evt)))))))
         : Effect.Ignore;
     };
@@ -289,7 +289,7 @@ module View = {
           ["cell-item", "code-editor"] @ (selected ? ["selected"] : []),
         ),
         Attr.on_pointerdown(move_or_select),
-        Attr.on_pointerup(toggle_mode),
+        Attr.on_pointerup(toggle_button),
         Attr.on_mousemove(drag_select),
       ],
       [code_view],
