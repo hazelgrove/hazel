@@ -6,7 +6,6 @@ module CachedSyntax = {
     segment: Segment.t,
     measured: Measured.t,
     tiles: TileMap.t,
-    holes: list(Grout.t),
     selection_ids: list(Id.t),
     term: Exp.t,
     /* This term, and the term-derived data structured below, may differ
@@ -41,7 +40,6 @@ module CachedSyntax = {
       segment,
       term_ranges: TermRanges.mk(segment),
       tiles: TileMap.mk(segment),
-      holes: Segment.holes(segment),
       measured: Measured.of_segment(segment, shape_of_proj),
       selection_ids: Selection.selection_ids(z.selection),
       term,
