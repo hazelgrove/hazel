@@ -602,7 +602,6 @@ let go =
     seg => {
       map := TermMap.empty;
       projectors := Id.Map.empty;
-      print_endline("TODO(andrew): remove. Maketerm.go Skel call");
       let term = exp(unsorted(Segment.skel(seg), seg));
       {term, terms: map^, projectors: projectors^};
     },
