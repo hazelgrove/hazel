@@ -54,7 +54,7 @@ let lsp_toggle = (~globals: Globals.t): Node.t => {
 };
 
 let begin_chat_button = (~globals: Globals.t, ~inject): Node.t => {
-  let tooltip = "Begin New Chat";
+  let tooltip = "New Chat";
   let begin_chat = _ =>
     Virtual_dom.Vdom.Effect.Many([
       globals.inject_global(Set(Assistant(UpdateChatStatus))),
@@ -68,7 +68,7 @@ let begin_chat_button = (~globals: Globals.t, ~inject): Node.t => {
 };
 
 let resume_chat_button = (~globals: Globals.t, ~inject): Node.t => {
-  let tooltip = "Resume Previous Chat";
+  let tooltip = "Previous Chat";
   let resume_chat = _ =>
     Virtual_dom.Vdom.Effect.Many([
       globals.inject_global(Set(Assistant(UpdateChatStatus))),
@@ -157,6 +157,7 @@ let message_input =
           Attr.id("message-input"),
           Attr.placeholder("Type a message..."),
           Attr.type_("text"),
+          Attr.property("autocomplete", Js.Unsafe.inject("off")),
           Attr.on_focus(_ =>
             signal(MakeActive(ScratchMode.Selection.TextBox))
           ),
@@ -200,7 +201,7 @@ let message_display =
     List.map(
       (message: AssistantModel.Model.message) => {
         print_endline(message.content);
-        message.content == "..."
+        message.content == "..." && message.party == LLM
           ? loading_dots()
           : div(
               ~attrs=[
