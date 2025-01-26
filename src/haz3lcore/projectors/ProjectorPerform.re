@@ -20,8 +20,8 @@ module Update = {
      * This distinction is mostly an artifact of current syntax implementation
      * decisions and will likely be eliminated in the future. */
     switch (syntax |> ProjectorInfo.unparenthesize |> MakeTerm.any) {
-    | Nul () => None
-    | any => ProjectorInit.init(kind, syntax, any)
+    | None => None
+    | Some(any) => ProjectorInit.init(kind, syntax, any)
     };
 
   let add_or_replace =
@@ -97,7 +97,7 @@ let go =
     | seg =>
       switch (MakeTerm.any(seg)) {
       /* Incomplete or Invalid term */
-      | Nul () => None
+      | None => None
       | _ =>
         //TODO: specify override sort below in hole case
         let piece = Segment.parenthesize(seg);

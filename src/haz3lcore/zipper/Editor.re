@@ -7,8 +7,7 @@ module CachedSyntax = {
     measured: Measured.t,
     tiles: TileMap.t,
     selection_ids: list(Id.t),
-    term: Exp.t,
-    /* This term, and the term-derived data structured below, may differ
+    /* The term-derived data structured below, may differ
      * from the term used for semantics. These terms are identical when
      * the backpack is empty. If the backpack is non-empty, then when we
      * make the term for semantics, we attempt to empty the backpack
@@ -34,7 +33,7 @@ module CachedSyntax = {
 
   let init = (~shape_of_proj, z): t => {
     let segment = Zipper.unselect_and_zip(z);
-    let MakeTerm.{term, terms, projectors} = MakeTerm.go(segment);
+    let MakeTerm.{term: _, terms, projectors} = MakeTerm.go(segment);
     {
       old: false,
       segment,
@@ -42,7 +41,6 @@ module CachedSyntax = {
       tiles: TileMap.mk(segment),
       measured: Measured.of_segment(segment, shape_of_proj),
       selection_ids: Selection.selection_ids(z.selection),
-      term,
       terms,
       projectors,
     };

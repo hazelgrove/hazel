@@ -9,19 +9,28 @@ let string_of = (any: Any.t): option(string) =>
   };
 
 let get = (info: info): string =>
-  switch ([info.syntax] |> info.utility.seg_to_term |> string_of) {
-  | Some(s) => s
+  switch ([info.syntax] |> info.utility.seg_to_term) {
+  | Some(s) =>
+    switch (string_of(s)) {
+    | Some(s) => s
+    | None => failwith("TextArea: get: Not string literal")
+    }
   | None => failwith("TextArea: get: Not string literal")
   };
 
 let put = (info, s: string): syntax =>
-  info.utility.lift_syntax(
-    fun
-    | Exp(any) =>
-      Exp({...any, term: String(StringUtil.escape_linebreaks(s))})
-    | _any => failwith("TextArea: put: not string literal"),
-    info.syntax,
-  );
+  switch (
+    info.utility.lift_syntax(
+      fun
+      | Exp(any) =>
+        Exp({...any, term: String(StringUtil.escape_linebreaks(s))})
+      | _any => failwith("TextArea: put: not string literal"),
+      info.syntax,
+    )
+  ) {
+  | Some(s) => s
+  | None => failwith("TextArea: put: lift failed")
+  };
 
 let key_handler = (id, ~parent, evt) => {
   open Effect;

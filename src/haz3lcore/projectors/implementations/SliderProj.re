@@ -17,18 +17,27 @@ module M: Projector = {
     };
 
   let get = (info: info): int =>
-    switch ([info.syntax] |> info.utility.seg_to_term |> int_of) {
-    | Some(i) => i
+    switch ([info.syntax] |> info.utility.seg_to_term) {
+    | Some(i) =>
+      switch (int_of(i)) {
+      | Some(i) => i
+      | None => failwith("Slider: Get: not integer literal")
+      }
     | None => failwith("Slider: Get: not integer literal")
     };
 
   let put = (info: info, v: string): syntax =>
-    info.utility.lift_syntax(
-      fun
-      | Exp(any) => Exp({...any, term: Int(int_of_string(v))})
-      | _ => failwith("Slider: Put: not integer literal"),
-      info.syntax,
-    );
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp(any) => Exp({...any, term: Int(int_of_string(v))})
+        | _ => failwith("Slider: Put: not integer literal"),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("Slider: Put: lift failed")
+    };
 
   let can_project = (_, any) => int_of(any) != None;
   let can_focus = false;

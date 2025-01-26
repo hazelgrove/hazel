@@ -26,14 +26,14 @@ type external_action =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type utility = {
   /* Convert a segment to a term */
-  seg_to_term: list(syntax) => Term.Any.t,
+  seg_to_term: list(syntax) => option(Term.Any.t),
   /* Convert a term to a segment */
   term_to_seg: Any.t => list(syntax),
   /* Lifts term->term functions to syntax->syntax. This will
    * proactively attempt to parenthesize resulting non-single
    * piece terms. As such, sorts that do not have parentheses
    * (currently all degenerate cases) will throw an error */
-  lift_syntax: (Any.t => Any.t, syntax) => syntax,
+  lift_syntax: (Any.t => Any.t, syntax) => option(syntax),
 };
 
 /* External info proivded to all projectors */

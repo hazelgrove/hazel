@@ -17,8 +17,12 @@ module M: Projector = {
     };
 
   let get = (info: info): bool =>
-    switch ([info.syntax] |> info.utility.seg_to_term |> bool_of) {
-    | Some(b) => b
+    switch ([info.syntax] |> info.utility.seg_to_term) {
+    | Some(b) =>
+      switch (bool_of(b)) {
+      | Some(b) => b
+      | None => failwith("Checkbox: Get: not boolean literal")
+      }
     | None => failwith("Checkbox: Get: not boolean literal")
     };
 
@@ -28,7 +32,10 @@ module M: Projector = {
     | _ => failwith("Checkbox: Toggle: not boolean literal");
 
   let toggle = (info): syntax =>
-    info.utility.lift_syntax(toggle_bool_lit, info.syntax);
+    switch (info.utility.lift_syntax(toggle_bool_lit, info.syntax)) {
+    | Some(s) => s
+    | None => failwith("Checkbox: Toggle: lift failed")
+    };
 
   let can_project = (_, any: Term.Any.t) => bool_of(any) != None;
 
