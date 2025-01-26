@@ -87,14 +87,14 @@ let rec strip_casts =
         | Int(_)
         | Float(_)
         | String(_)
+        | DrvExp(_)
         | Constructor(_)
         | DynamicErrorHole(_)
         | Closure(_)
         | TypFun(_)
         | TypAp(_)
         | Undefined
-        | If(_)
-        | DrvExp(_) => continue(exp)
+        | If(_) => continue(exp)
         /* Remove casts*/
         | Cast(d, _, _) => strip_casts(d)
         /* Keep failed casts*/
@@ -130,7 +130,6 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
             /* Note that we do not have to worry about capture avoidance, since s will always be closed. */
             }
           | Cast(_)
-          | DrvExp(_)
           | FixF(_)
           | Fun(_)
           | TypAp(_)
@@ -158,6 +157,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Int(_)
           | Float(_)
           | String(_)
+          | DrvExp(_)
           | FailedCast(_, _, _)
           | MultiHole(_)
           | Deferral(_)

@@ -96,8 +96,8 @@ let show_cls: cls => string =
   | Int
   | Float
   | String
+  | DrvTyp
   | Bool => "Base type"
-  | DrvTyp => "DrvTyp type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
   | List => "List type"
@@ -184,8 +184,8 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Int
   | Float
   | Bool
-  | DrvTyp(_)
-  | String => []
+  | String
+  | DrvTyp(_) => []
   | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | Parens(ty) => free_vars(~bound, ty)
@@ -380,8 +380,8 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Int
   | Float
   | Bool
-  | DrvTyp(_)
-  | String => ty
+  | String
+  | DrvTyp(_) => ty
   | Parens(t) => Parens(normalize(ctx, t)) |> rewrap
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap

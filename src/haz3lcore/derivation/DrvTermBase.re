@@ -97,6 +97,9 @@ and tpat_term =
   | Var(Var.t)
 and tpat_t = IdTagged.t(tpat_term)
 and type_hole =
+  | AbbrNotVar
+  | AbbrNotFound
+  | AbbrNotDrvTerm
   | Invalid(string)
   | EmptyHole
   | MultiHole(list(any_t));

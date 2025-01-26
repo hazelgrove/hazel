@@ -103,10 +103,6 @@ let keywords = [
   "if",
   "then",
   "else",
-  "from",
-  "to",
-  "by",
-  "eval",
 ];
 let reserved_keywords = ["of", "when", "with", "switch", "match"];
 let keyword_regexp = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
@@ -242,7 +238,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
         mk_op(Exp, []),
         mk_op(Pat, []),
         mk_op(Drv(Exp), []),
-        mk_op(Drv(Typ), []),
+        mk_op(Drv(Typ), []) // ALFA: () : 1
       ],
     ),
   ),
@@ -253,7 +249,11 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
     "empty_list",
     (
       is_empty_list,
-      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Drv(Exp), [])],
+      [
+        mk_op(Exp, []),
+        mk_op(Pat, []),
+        mk_op(Drv(Exp), []) // Drv Ctx
+      ],
     ),
   ),
   (
@@ -264,7 +264,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
         mk_op(Exp, []),
         mk_op(Pat, []),
         mk_op(Typ, []),
-        mk_op(Drv(Exp), []),
+        mk_op(Drv(Exp), []) // ALFA ()
       ],
     ),
   ),
@@ -276,7 +276,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   (
     "drv_var",
     (
-      is_typ_var,
+      is_typ_var, // forall x s.t. is_typ_var(x) is drv variable
       [
         mk_op(Drv(Exp), []),
         mk_op(Drv(Pat), []),
@@ -320,7 +320,6 @@ let forms: list((string, t)) = [
   ("fgte", mk_infix(">=.", Exp, P.eqs)),
   ("flte", mk_infix("<=.", Exp, P.eqs)),
   ("logical_and", mk_infix("&&", Exp, P.and_)),
-  // ("logical_or_legacy", mk_infix("\\/", Exp, P.or_)),
   ("logical_or", mk_infix("||", Exp, P.or_)),
   ("list_concat", mk_infix("@", Exp, P.concat)),
   ("cons_exp", mk_infix("::", Exp, P.cons)),
@@ -378,7 +377,7 @@ let forms: list((string, t)) = [
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
-  // Drv
+  // Drv: Drv to Exp
   ("of_prop", mk(ds, ["of_prop", "end"], mk_op(Exp, [Drv(Exp)]))),
   ("of_ctx", mk(ds, ["of_ctx", "end"], mk_op(Exp, [Drv(Exp)]))),
   ("of_jdmt", mk(ds, ["of_jdmt", "end"], mk_op(Exp, [Drv(Exp)]))),
@@ -390,10 +389,14 @@ let forms: list((string, t)) = [
     "of_alfa_typ",
     mk(ds, ["of_alfa_typ", "end"], mk_op(Exp, [Drv(Typ)])),
   ),
+  // Drv(Jdmt)
   ("val", mk(ds, ["val", "end"], mk_op(Drv(Exp), [Drv(Exp)]))),
   ("eval", mk_infix("\\=/", Drv(Exp), P.min)),
   ("entail", mk_infix("|-", Drv(Exp), P.min)),
   ("unary_entail", mk(ss, ["|-"], mk_pre(P.min, Drv(Exp), []))),
+  // Note(zhiyao):
+  // Auto complete is only available for sort Exp, that's why
+  // we need a fake_consistent to make it work for Drv(Exp)
   (
     "fake_consistent",
     mk(ds, ["consistent", "~"], mk_pre(P.fun_, Exp, [Drv(Typ)])),
@@ -531,32 +534,6 @@ let forms: list((string, t)) = [
   ),
   ("typ_parens", mk(ii, ["(", ")"], mk_op(Drv(Typ), [Drv(Typ)]))),
 ];
-
-// let get: String.t => t =
-//   name => Util.ListUtil.assoc_err(name, forms, "Forms.get");
-
-// let redirect: string => string =
-//   s =>
-//     switch (s) {
-//     | "plus" => "exp_plus"
-//     | "minus" => "exp_minus"
-//     | "times" => "exp_times"
-//     | "equals" => "exp_eq"
-//     | "lt" => "exp_lt"
-//     | "gt" => "exp_gt"
-//     | "unary_minus" => "exp_neg"
-//     | "comma_exp" => "exp_pair"
-//     | "parens_exp" => "exp_parens"
-//     | "ap_exp" => "exp_ap"
-//     | "fun_" => "exp_fun"
-//     | "fix" => "exp_fix"
-//     | "rec" => "typ_rec"
-//     | "let_" => "exp_let"
-//     | "if_" => "exp_if"
-//     | _ => s
-//     };
-
-// let forms = List.map(((name, _)) => (name, get(redirect(name))), forms);
 
 let get: String.t => t =
   name => Util.ListUtil.assoc_err(name, forms, "Forms.get : " ++ name);

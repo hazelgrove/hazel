@@ -188,6 +188,7 @@ and drv_to_info_map =
       | Common(Just({term: DrvTyp(s), _}))
           when DrvInfo.ana_exp_match_sort(ana, s) =>
         m |> add'
+      | Common(Just({term: Unknown(_), _})) => m |> add'
       | Common(Just(typ)) => m |> add_err(VarNoJoin(ana, typ))
       | _ => m |> add_err(FreeVar)
       }
@@ -298,6 +299,7 @@ and drv_to_info_map =
     | Var(x) when is_var =>
       switch (Self.of_exp_var(ctx, x)) {
       | Common(Just({term: DrvTyp(Typ), _})) => m |> add'
+      | Common(Just({term: Unknown(_), _})) => m |> add'
       | Common(Just(typ)) => m |> add_err(VarNoJoin(typ))
       | _ => m |> add_err(FreeVar)
       }

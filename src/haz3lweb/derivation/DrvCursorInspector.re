@@ -76,7 +76,7 @@ let drv_view = (~globals, status: DrvInfo.t) => {
       ])
     | Typ(VarNoJoin(actual)) =>
       div_err([
-        text("Expected a variable of type Drv Typ, got "),
+        text("Expected a variable of type ALFA Typ, got "),
         view_type(actual),
       ])
     | Exp(TupleNotStandard) =>

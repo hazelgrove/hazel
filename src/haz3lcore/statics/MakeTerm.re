@@ -169,12 +169,12 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
       | Jdmt
       | Ctx
       | Rul
-      | Prop => failwith("unexpected drv sort")
+      | Prop => failwith("unexpected drv sort (not used)")
       | Exp => Exp(alfa_exp(unsorted(skel, seg)))
       | Pat => Pat(alfa_pat(unsorted(skel, seg)))
       | Typ => Typ(alfa_typ(unsorted(skel, seg)))
       | TPat => TPat(alfa_tpat(unsorted(skel, seg)))
-      | Any => Exp(alfa_exp(unsorted(skel, seg))) // TODO(zhiyao): check this
+      | Any => Exp(alfa_exp(unsorted(skel, seg)))
       },
     )
   | Pat => Pat(pat(unsorted(skel, seg)))
@@ -239,10 +239,6 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     | (["(", ")"], [Drv(Exp(body))]) => ret(Parens(body))
     | (["case", "end"], [Drv(Exp({term: Case(_) as term, _}))]) =>
       ret(term)
-    // switch (body) {
-    // | {ids, copied: false, term: Case(_)} => ret(body.term)
-    // | term => ret(Ctx([term]))
-    // }
     | _ => ret(hole(tm))
     }
   | Bin(Drv(Exp(l)), ([(_id, ([t], []))], []), Drv(Exp(r))) as tm =>

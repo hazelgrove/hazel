@@ -706,6 +706,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Int(_)
   | Float(_)
   | String(_)
+  | DrvExp(_)
   | EmptyHole
   | Deferral(_)
   | BuiltinFun(_)
@@ -741,7 +742,6 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Filter(_)
   | TyAlias(_)
   | Let(_) => Precedence.let_
-  | DrvExp(_) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
@@ -786,7 +786,8 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Int
   | Float
   | Bool
-  | String => Precedence.max
+  | String
+  | DrvTyp(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
   | Parens(_)
@@ -799,7 +800,6 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Sum(_) => Precedence.type_plus
   | Rec(_, _) => Precedence.let_
   | Forall(_, _) => Precedence.let_
-  | DrvTyp(_) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown(Hole(MultiHole(_))) => Precedence.min

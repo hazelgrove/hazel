@@ -14,8 +14,6 @@ type t =
   | InvalidBoxedListLit(DHExp.t)
   | InvalidBoxedStringLit(DHExp.t)
   | InvalidBoxedSumConstructor(DHExp.t)
-  | InvalidBoxedPropLit(DHExp.t)
-  | InvalidBoxedJudgementLit(DHExp.t)
   | InvalidBoxedTuple(DHExp.t)
   | InvalidBuiltin(string)
   | BadBuiltinAp(string, list(DHExp.t))
