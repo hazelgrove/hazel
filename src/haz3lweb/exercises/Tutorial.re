@@ -521,25 +521,12 @@ let key_for_statics = (pos: pos): string =>
   //   | YourTestsValidation => test_validation_key
   //   | YourTestsTesting => user_tests_key
   | YourImpl => user_impl_key
-  //   | HiddenBugs(idx) => hidden_bugs_key(idx)
   | HiddenTests => hidden_tests_key
   };
 
 let pos_of_key = (key: string): pos =>
   switch () {
-  //   | _ when key == prelude_key => Prelude
-  //   | _ when key == test_validation_key => YourTestsValidation
   | _ when key == user_impl_key => YourImpl
-  //   | _ when key == user_tests_key => YourTestsTesting
-  // | _ when key == instructor_key => CorrectImpl
-  //   | _ when String.starts_with(key, ~prefix="hidden_bugs_") =>
-  //     let n =
-  //       String.sub(
-  //         key,
-  //         String.length("hidden_bugs_"),
-  //         String.length(key) - String.length("hidden_bugs_"),
-  //       );
-  //     HiddenBugs(int_of_string(n));
   | _ when key == hidden_tests_key => HiddenTests
   | _ => failwith("invalid key")
   };
@@ -590,48 +577,20 @@ let export_grading_module = (module_name, {eds, _}: state) => {
 };
 
 let blank_spec = (~title, ~description) => {
-  //   ~module_name,
-  //   ~point_distribution,
-  //   ~required_tests,
-  //   ~provided_tests,
-  //   ~num_wrong_impls,
-
-  //   let prelude = Zipper.next_blank();
-  // let correct_impl = Zipper.next_blank();
-  //   let your_tests_tests = Zipper.next_blank();
   let your_impl = Zipper.next_blank();
-  //   let hidden_bugs =
-  //     List.init(
-  //       num_wrong_impls,
-  //       i => {
-  //         let zipper = Zipper.next_blank();
-  //         {impl: zipper, hint: "TODO: hint " ++ string_of_int(i)};
-  //       },
-  //     );
   let hidden_tests_tests = Zipper.next_blank();
-  let wrapper = false;
+  let wrapper = true;
   {
     title,
     description,
     version: 1,
     module_name: "Blank",
-    // prompt: Node.text("TODO: prompt"),
-    // point_distribution,
-    // prelude,
-    // correct_impl,
-    // your_tests: {
-    //   tests: your_tests_tests,
-    //   required: required_tests,
-    //   provided: provided_tests,
-    // },
     your_impl,
-    // hidden_bugs,
     hidden_tests: {
       tests: hidden_tests_tests,
       hints: [],
     },
     wrapper,
-    // syntax_tests: [],
   };
 };
 
@@ -648,41 +607,18 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
     } else {
       default;
     };
-  //   let prelude = lookup(Prelude, spec.prelude);
-  // let correct_impl = lookup(CorrectImpl, spec.correct_impl);
-  //   let your_tests_tests = lookup(YourTestsValidation, spec.your_tests.tests);
   let your_impl = lookup(YourImpl, spec.your_impl);
-  //   let (_, hidden_bugs) =
-  //     List.fold_left(
-  //       ((i, hidden_bugs: list(wrong_impl('a))), {impl, hint}) => {
-  //         let impl = lookup(HiddenBugs(i), impl);
-  //         (i + 1, hidden_bugs @ [{impl, hint}]);
-  //       },
-  //       (0, []),
-  //       spec.hidden_bugs,
-  //     );
   let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
   {
     title: spec.title,
     description: spec.description,
     version: spec.version,
     module_name: spec.module_name,
-    // prompt: spec.prompt,
-    // point_distribution: spec.point_distribution,
-    // prelude,
-    // correct_impl,
-    // your_tests: {
-    //   tests: your_tests_tests,
-    //   required: spec.your_tests.required,
-    //   provided: spec.your_tests.provided,
-    // },
     your_impl,
-    // hidden_bugs,
     hidden_tests: {
       tests: hidden_tests_tests,
       hints: spec.hidden_tests.hints,
     },
     wrapper: spec.wrapper,
-    // syntax_tests: spec.syntax_tests,
   };
 };

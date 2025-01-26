@@ -45,7 +45,7 @@ let export_all = (~settings, ~instructor_mode, ~log) => {
   mk_all(~core_settings=settings, ~instructor_mode, ~log) |> yojson_of_all;
 };
 
-let import_all = (~import_log: string => unit, data, ~specs) => {
+let import_all = (~import_log: string => unit, data, ~specs, ~tutorial_specs) => {
   let all =
     try(data |> Yojson.Safe.from_string |> all_of_yojson) {
     | _ =>
@@ -61,16 +61,22 @@ let import_all = (~import_log: string => unit, data, ~specs) => {
       };
     };
   Settings.Store.import(all.settings);
-  // let settings = Settings.Store.load();
+  let settings = Settings.Store.load();
   ExplainThisModel.Store.import(all.explainThisModel);
-  // let instructor_mode = settings.instructor_mode;
+  let instructor_mode = settings.instructor_mode;
   ScratchMode.Store.import(all.scratch);
-  // ScratchMode.Store.import(
-  //   ~settings=settings.core,
-  //   all.tutorial,
-  //   ~specs,
-  //   ~instructor_mode,
-  // );
+  ExercisesMode.Store.import(
+    ~settings=settings.core,
+    all.exercise,
+    ~specs,
+    ~instructor_mode,
+  );
+  TutorialsMode.Store.import(
+    ~settings=settings.core,
+    all.tutorial,
+    ~tutorial_specs,
+    ~instructor_mode,
+  );
   import_log(all.log);
 };
 

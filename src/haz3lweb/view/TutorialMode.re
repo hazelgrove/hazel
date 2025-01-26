@@ -292,16 +292,7 @@ module View = {
         model: Model.t,
       ) => {
     let eds = model.editors;
-    let {
-      // test_validation,
-      user_impl,
-      // user_tests,
-      // prelude,
-      instructor,
-      // hidden_bugs,
-      hidden_tests,
-    }:
-      Tutorial.stitched('a) =
+    let {user_impl, instructor, hidden_tests}: Tutorial.stitched('a) =
       model.cells;
     let stitched_tests =
       Tutorial.map_stitched(
@@ -342,116 +333,6 @@ module View = {
       CellCommon.narrative_cell(
         div(~attrs=[Attr.class_("cell-prompt")], [text(eds.description)]),
       );
-    // let prelude_view =
-    //   Always(
-    //     editor_view(
-    //       Prelude,
-    //       prelude,
-    //       ~subcaption=globals.settings.instructor_mode ? "" : " (Read-Only)",
-    //       ~caption="Prelude",
-    //     ),
-    //   );
-    // let correct_impl_view =
-    //   InstructorOnly(
-    //     () =>
-    //       editor_view(
-    //         CorrectImpl,
-    //         instructor,
-    //         ~caption="Correct Implementation",
-    //       ),
-    //   );
-    // determine trailing hole
-    // TODO: module
-    // let correct_impl_ctx_view =
-    //   Always(
-    // {
-    //   let exp_ctx_view = {
-    //     let correct_impl_trailing_hole_ctx =
-    //       Haz3lcore.Editor.Model.trailing_hole_ctx(
-    //         eds.correct_impl,
-    //         instructor.editor.statics.info_map,
-    //       );
-    // let prelude_trailing_hole_ctx =
-    //   Haz3lcore.Editor.Model.trailing_hole_ctx(
-    //     eds.prelude,
-    //     prelude.editor.statics.info_map,
-    //   );
-    // switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
-    // | (None, _) => Node.div([text("No context available (1)")])
-    // | (_, None) => Node.div([text("No context available (2)")]) // TODO show exercise configuration error
-    // | (
-    //     Some(correct_impl_trailing_hole_ctx),
-    //     Some(prelude_trailing_hole_ctx),
-    //   ) =>
-    // let specific_ctx =
-    //   Haz3lcore.Ctx.subtract_prefix(
-    //     correct_impl_trailing_hole_ctx,
-    //     prelude_trailing_hole_ctx,
-    //   );
-    // switch (specific_ctx) {
-    // | None => Node.div([text("No context available")]) // TODO show exercise configuration error
-    // | Some(specific_ctx) =>
-    //   ContextInspector.ctx_view(~globals, specific_ctx)
-    // };
-    // };
-    // };
-    //     CellCommon.simple_cell_view([
-    //       CellCommon.simple_cell_item([
-    //         CellCommon.caption(
-    //           "Correct Implementation",
-    //           ~rest=" (Type Signatures Only)",
-    //         ),
-    //         exp_ctx_view,
-    //       ]),
-    //     ]);
-    //   },
-    // );
-    // let your_tests_view =
-    //   Always(
-    //     editor_view(
-    //       YourTestsValidation,
-    //       test_validation,
-    //       ~caption="Test Validation",
-    //       ~subcaption=": Your Tests vs. Correct Implementation",
-    //       ~result_kind=
-    //         Custom(
-    //           Grading.TestValidationReport.view(
-    //             ~signal_jump=
-    //               id =>
-    //                 inject(
-    //                   Editor(
-    //                     YourTestsValidation,
-    //                     MainEditor(Perform(Jump(TileId(id)))),
-    //                   ),
-    //                 ),
-    //             grading_report.test_validation_report,
-    //             grading_report.point_distribution.test_validation,
-    //           ),
-    //         ),
-    //     ),
-    //   );
-    // let wrong_impl_views =
-    //   List.mapi(
-    //     (i, cell) => {
-    //       InstructorOnly(
-    //         () =>
-    //           editor_view(
-    //             HiddenBugs(i),
-    //             cell,
-    //             ~caption="Wrong Implementation " ++ string_of_int(i + 1),
-    //           ),
-    //       )
-    //     },
-    //     hidden_bugs,
-    //   );
-    // let mutation_testing_view =
-    //   Always(
-    //     Grading.MutationTestingReport.view(
-    //       ~inject,
-    //       grading_report.mutation_testing_report,
-    //       grading_report.point_distribution.mutation_testing,
-    //     ),
-    //   );
     let your_impl_view = {
       Always(
         editor_view(
@@ -462,19 +343,6 @@ module View = {
         ),
       );
     };
-    // let syntax_grading_view =
-    //   Always(Grading.SyntaxReport.view(grading_report.syntax_report));
-    // let impl_validation_view =
-    //   Always(
-    //     editor_view(
-    //       YourTestsTesting,
-    //       user_tests,
-    //       ~caption="Implementation Validation",
-    //       ~subcaption=
-    //         ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
-    //       ~result_kind=TestResults,
-    //     ),
-    //   );
     let hidden_tests_view =
       InstructorOnly(
         () => editor_view(HiddenTests, hidden_tests, ~caption="Hidden Tests"),
@@ -491,27 +359,13 @@ module View = {
                 ),
               ),
           ~report=grading_report.impl_grading_report,
-          // ~syntax_report=grading_report.syntax_report,
           ~max_points=1,
         ),
       );
     [score_view, title_view, description_view]
     @ render_cells(
         globals.settings,
-        // prelude_view,
-        // correct_impl_view,
-        // correct_impl_ctx_view,
-        // your_tests_view,
-        []
-        // @ wrong_impl_views
-        @ [
-          // mutation_testing_view,
-          your_impl_view,
-          // syntax_grading_view,
-          // impl_validation_view,
-          hidden_tests_view,
-          impl_grading_view,
-        ],
+        [] @ [your_impl_view, hidden_tests_view, impl_grading_view],
       );
   };
 };

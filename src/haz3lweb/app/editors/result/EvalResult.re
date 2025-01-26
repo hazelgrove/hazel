@@ -430,7 +430,7 @@ module View = {
       ) =>
     switch (result.result) {
     | _ when !globals.settings.core.dynamics => []
-    | NoElab => []
+    // | NoElab => []
     | Evaluation({elab, result, editor, _}) => [
         live_eval(
           ~globals,
@@ -460,6 +460,7 @@ module View = {
         ~read_only=locked,
         s,
       )
+    | NoElab => []
     };
 
   let test_status_icon_view =
