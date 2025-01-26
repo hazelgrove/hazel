@@ -125,10 +125,6 @@ let message_input =
     ]);
   };
 
-  let nothing = () => {
-    Virtual_dom.Vdom.Effect.Many([Virtual_dom.Vdom.Effect.Stop_propagation]);
-  };
-
   let send_message = _ => {
     let message =
       Js.Opt.case(
