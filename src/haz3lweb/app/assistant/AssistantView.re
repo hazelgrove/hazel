@@ -144,8 +144,9 @@ let message_input =
   };
   let handle_keydown = event => {
     let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
-    switch (key) {
-    | Some("Enter") => send_message()
+    switch (key, ListUtil.last_opt(assistantModel.chat)) {
+    | (_, Some({party: LLM, content: "..."})) => Virtual_dom.Vdom.Effect.Ignore
+    | (Some("Enter"), _) => send_message()
     | _ => Virtual_dom.Vdom.Effect.Ignore
     };
   };
@@ -166,14 +167,25 @@ let message_input =
         ],
         (),
       ),
-      div(
-        ~attrs=[
-          clss(["send-button", "icon"]),
-          Attr.on_click(send_message),
-          Attr.title("Submit Message"),
-        ],
-        [Icons.send],
-      ),
+      switch (ListUtil.last_opt(assistantModel.chat)) {
+      | Some({party: LLM, content: "..."}) =>
+        div(
+          ~attrs=[
+            clss(["disabled-send-button", "icon"]),
+            Attr.title("Submitting Message Disabled"),
+          ],
+          [Icons.thin_x],
+        )
+      | _ =>
+        div(
+          ~attrs=[
+            clss(["send-button", "icon"]),
+            Attr.on_click(send_message),
+            Attr.title("Submit Message"),
+          ],
+          [Icons.send],
+        )
+      },
     ],
   );
 };
