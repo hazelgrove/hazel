@@ -117,7 +117,6 @@ let message_input =
     let message: AssistantModel.Model.message = {
       party: assistantModel.currSender,
       content: message,
-      pass_id: (-1) // russ todo: implement pass ID properly
     };
     JsUtil.log("Message sent: " ++ message.content);
     Virtual_dom.Vdom.Effect.Many([

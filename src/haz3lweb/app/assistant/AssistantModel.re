@@ -39,8 +39,6 @@ module Model = {
   type message = {
     party,
     content: string,
-    // This id is to help group LLM/LS chats together... helpful for knowing what to send to LLM
-    pass_id: int,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -57,20 +55,56 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | SendMessage(Model.message)
-    | NewChat;
+    | NewChat
+    | Respond(Model.message);
+
+  let react = (response: string): t => {
+    // let response = response |> sanitize_response |> quote;
+    let response: Model.message = {party: LLM, content: response};
+    Respond(response);
+  };
 
   let update =
-      (~settings: Settings.t, ~action, ~model: Model.t): Updated.t(Model.t) => {
+      (~settings: Settings.t, ~action, ~model: Model.t, ~schedule_action)
+      : Updated.t(Model.t) => {
     switch (action) {
     | SendMessage(message) =>
-      {
-        Model.{
-          chat: model.chat @ [message],
-          currSender: model.currSender == LLM ? LS : LLM,
+      // todo: send API Call here
+      switch (message.party) {
+      | LS =>
+        switch (Oracle.ask(message.content)) {
+        | None => print_endline("Oracle: prompt generation failed")
+        | Some(prompt) =>
+          let llm = OpenAI.Azure_GPT4_0613;
+          let key = OpenAI.lookup_key(llm);
+          let params: OpenAI.params = {llm, temperature: 1.0, top_p: 1.0};
+          OpenAI.start_chat(~params, ~key, prompt, req =>
+            switch (OpenAI.handle_chat(req)) {
+            | Some({content, _}) => schedule_action(react(content))
+            | None => print_endline("Assistant: response parse failed")
+            }
+          );
         };
+        Model.{chat: model.chat @ [message], currSender: LLM}
+        |> Updated.return_quiet;
+      | _ =>
+        Model.{
+          chat:
+            model.chat
+            @ [
+              {
+                party: LS,
+                content: "Message Not Sent: Waiting for LLM Response",
+              },
+            ],
+          currSender: LLM,
+        }
+        |> Updated.return_quiet
       }
-      |> Updated.return_quiet
     | NewChat => Model.{chat: [], currSender: LS} |> Updated.return_quiet
+    | Respond(message) =>
+      Model.{chat: model.chat @ [message], currSender: LS}
+      |> Updated.return_quiet
     };
   };
 };
