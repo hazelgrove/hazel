@@ -110,11 +110,11 @@ module Exp = {
     | Triv => Triv
     | PrjL(_) => PrjL
     | PrjR(_) => PrjR
-    | InjL => InjL
-    | InjR => InjR
+    | InjL(_) => InjL
+    | InjR(_) => InjR
     | Case(_) => Case
-    | Roll => Roll
-    | Unroll => Unroll
+    | Roll(_) => Roll
+    | Unroll(_) => Unroll
     | ExpHole => ExpHole;
 };
 
@@ -176,9 +176,8 @@ module Pat = {
     | Hole(_) => Hole
     | Var(_) => Var
     | Cast(_) => Cast
-    | InjL => InjL
-    | InjR => InjR
-    | Ap(_) => Ap
+    | InjL(_) => InjL
+    | InjR(_) => InjR
     | Pair(_) => Pair
     | Parens(_) => Parens;
 };

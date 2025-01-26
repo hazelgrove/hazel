@@ -44,7 +44,7 @@ let drv_view = (~globals, status: DrvInfo.t) => {
       div_err([
         text(
           "Expected "
-          ++ (DrvInfo.repr_ana_exp(expect) |> String.concat(", "))
+          ++ DrvInfo.show_ana_exp(expect)
           ++ ", got "
           ++ DrvInfo.repr_list_ana_exp(actuals),
         ),
@@ -55,8 +55,6 @@ let drv_view = (~globals, status: DrvInfo.t) => {
         | Var => "A variable pattern"
         | Cast_Var => "A variable pattern with optional type annotation"
         | Pair_Or_Case_Var => "A pair or a variable pattern with optional type annotation"
-        | Ap_InjL => "A Application of Left Injection pattern"
-        | Ap_InjR => "A Application of Right Injection pattern"
         | InjL => "A Left Injection pattern"
         | InjR => "A Right Injection pattern"
         };
@@ -69,7 +67,7 @@ let drv_view = (~globals, status: DrvInfo.t) => {
       div_err([
         text(
           "Expected a variable of type "
-          ++ (DrvInfo.repr_ana_exp(expect) |> String.concat(", "))
+          ++ DrvInfo.show_ana_exp(expect)
           ++ ", got ",
         ),
         view_type(actual),

@@ -72,11 +72,11 @@ and elab_jdmt: Drv.Exp.t => t =
       | Triv
       | PrjL(_)
       | PrjR(_)
-      | InjL
-      | InjR
+      | InjL(_)
+      | InjR(_)
       | Case(_)
-      | Roll
-      | Unroll
+      | Roll(_)
+      | Unroll(_)
       | ExpHole => hole
       };
     {...jdmt, term};
@@ -150,11 +150,11 @@ and elab_ctxt: Drv.Exp.t => t =
       | Triv
       | PrjL(_)
       | PrjR(_)
-      | InjL
-      | InjR
+      | InjL(_)
+      | InjR(_)
       | Case(_)
-      | Roll
-      | Unroll
+      | Roll(_)
+      | Unroll(_)
       | ExpHole => hole
       };
     {...ctx, term};
@@ -210,11 +210,11 @@ and elab_prop: Drv.Exp.t => t =
       | Triv
       | PrjL(_)
       | PrjR(_)
-      | InjL
-      | InjR
+      | InjL(_)
+      | InjR(_)
       | Case(_)
-      | Roll
-      | Unroll
+      | Roll(_)
+      | Unroll(_)
       | ExpHole => hole
       };
     {...prop, term};
@@ -276,37 +276,25 @@ and elab_exp: Drv.Exp.t => t =
       | Let(p, e1, e2) => Let(elab_pat(p), elab_exp(e1), elab_exp(e2))
       | Fix(p, e) => Fix(elab_pat(p), elab_exp(e))
       | Fun(x, e) => Fun(elab_pat(x), elab_exp(e))
-      | Ap(e1, e2) =>
-        let e2 = elab_exp(e2);
-        switch (exp_term_of(e1)) {
-        | InjL => InjL(e2)
-        | InjR => InjR(e2)
-        | Roll => Roll(e2)
-        | Unroll => Unroll(e2)
-        | _ => Ap(elab_exp(e1), e2)
-        };
+      | Ap(e1, e2) => Ap(elab_exp(e1), elab_exp(e2))
       | Tuple([e1, e2]) => Pair(elab_exp(e1), elab_exp(e2))
       | Tuple(_) => hole
       | Triv => Triv
       | PrjL(e) => PrjL(elab_exp(e))
       | PrjR(e) => PrjR(elab_exp(e))
-      | InjL => hole
-      | InjR => hole
+      | InjL(e) => InjL(elab_exp(e))
+      | InjR(e) => InjR(elab_exp(e))
       | Case(e, [(x, e1), (y, e2)]) =>
         let e = elab_exp(e);
         let e1 = elab_exp(e1);
         let e2 = elab_exp(e2);
         switch (pat_term_of(x), pat_term_of(y)) {
-        | (Ap(l, x), Ap(r, y)) =>
-          switch (pat_term_of(l), pat_term_of(r)) {
-          | (InjL, InjR) => Case(e, elab_pat(x), e1, elab_pat(y), e2)
-          | _ => hole
-          }
+        | (InjL(x), InjR(y)) => Case(e, elab_pat(x), e1, elab_pat(y), e2)
         | _ => hole
         };
       | Case(_) => hole
-      | Roll => hole
-      | Unroll => hole
+      | Roll(e) => Roll(elab_exp(e))
+      | Unroll(e) => Unroll(elab_exp(e))
       | ExpHole => ExpHole
       };
     {...exp, term};
@@ -319,9 +307,8 @@ and elab_pat: Drv.Pat.t => t =
       | Var(x) => Pat(x)
       | Cast(x, t) => Cast(elab_pat(x), elab_typ(t))
       | Pair(x, y) => PatPair(elab_pat(x), elab_pat(y))
-      | InjL
-      | InjR
-      | Ap(_) => Hole(Drv.Pat.show(pat))
+      | InjL(x) => InjL(elab_pat(x))
+      | InjR(x) => InjR(elab_pat(x))
       | Parens(p) => IdTagged.term_of(elab_pat(p))
       };
     {...pat, term};

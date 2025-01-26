@@ -57,20 +57,19 @@ and exp_term =
   | Triv
   | PrjL(exp_t)
   | PrjR(exp_t)
-  | InjL
-  | InjR
+  | InjL(exp_t)
+  | InjR(exp_t)
   | Case(exp_t, list((pat_t, exp_t)))
-  | Roll
-  | Unroll
+  | Roll(exp_t)
+  | Unroll(exp_t)
   | ExpHole
 and exp_t = IdTagged.t(exp_term)
 and pat_term =
   | Hole(type_hole)
   | Var(Var.t)
   | Cast(pat_t, typ_t)
-  | InjL
-  | InjR
-  | Ap(pat_t, pat_t)
+  | InjL(pat_t)
+  | InjR(pat_t)
   | Pair(pat_t, pat_t)
   | Parens(pat_t)
 and pat_t = IdTagged.t(pat_term)
@@ -250,8 +249,8 @@ and Exp: {
         | Triv => Triv
         | PrjL(e) => PrjL(exp_map_term(e))
         | PrjR(e) => PrjR(exp_map_term(e))
-        | InjL => InjL
-        | InjR => InjR
+        | InjL(e) => InjL(exp_map_term(e))
+        | InjR(e) => InjR(exp_map_term(e))
         | Case(e, rls) =>
           Case(
             exp_map_term(e),
@@ -260,8 +259,8 @@ and Exp: {
               rls,
             ),
           )
-        | Roll => Roll
-        | Unroll => Unroll
+        | Roll(e) => Roll(exp_map_term(e))
+        | Unroll(e) => Unroll(exp_map_term(e))
         | ExpHole => ExpHole
         },
     };
@@ -386,10 +385,10 @@ and Exp: {
     | (PrjL(_), _) => false
     | (PrjR(e1), PrjR(e2)) => Exp.fast_equal(e1, e2)
     | (PrjR(_), _) => false
-    | (InjL, InjL) => true
-    | (InjL, _) => false
-    | (InjR, InjR) => true
-    | (InjR, _) => false
+    | (InjL(e1), InjL(e2)) => Exp.fast_equal(e1, e2)
+    | (InjL(_), _) => false
+    | (InjR(e1), InjR(e2)) => Exp.fast_equal(e1, e2)
+    | (InjR(_), _) => false
     | (Case(e1, rls1), Case(e2, rls2)) =>
       Exp.fast_equal(e1, e2)
       && List.length(rls1) == List.length(rls2)
@@ -400,10 +399,10 @@ and Exp: {
            rls2,
          )
     | (Case(_), _) => false
-    | (Roll, Roll) => true
-    | (Roll, _) => false
-    | (Unroll, Unroll) => true
-    | (Unroll, _) => false
+    | (Roll(e1), Roll(e2)) => Exp.fast_equal(e1, e2)
+    | (Roll(_), _) => false
+    | (Unroll(e1), Unroll(e2)) => Exp.fast_equal(e1, e2)
+    | (Unroll(_), _) => false
     | (ExpHole, ExpHole) => true
     | (ExpHole, _) => false
     };
@@ -507,9 +506,8 @@ and Pat: {
         | Hole(_) => term
         | Var(v) => Var(v)
         | Cast(p, t) => Cast(pat_map_term(p), typ_map_term(t))
-        | InjL => InjL
-        | InjR => InjR
-        | Ap(p1, p2) => Ap(pat_map_term(p1), pat_map_term(p2))
+        | InjL(p) => InjL(pat_map_term(p))
+        | InjR(p) => InjR(pat_map_term(p))
         | Pair(p1, p2) => Pair(pat_map_term(p1), pat_map_term(p2))
         | Parens(p) => Parens(pat_map_term(p))
         },
@@ -525,13 +523,10 @@ and Pat: {
     | (Cast(p1, t1), Cast(p2, t2)) =>
       Pat.fast_equal(p1, p2) && Typ.fast_equal(t1, t2)
     | (Cast(_), _) => false
-    | (InjL, InjL) => true
-    | (InjL, _) => false
-    | (InjR, InjR) => true
-    | (InjR, _) => false
-    | (Ap(p1, p2), Ap(p1', p2')) =>
-      Pat.fast_equal(p1, p1') && Pat.fast_equal(p2, p2')
-    | (Ap(_), _) => false
+    | (InjL(p1), InjL(p2)) => Pat.fast_equal(p1, p2)
+    | (InjL(_), _) => false
+    | (InjR(p1), InjR(p2)) => Pat.fast_equal(p1, p2)
+    | (InjR(_), _) => false
     | (Pair(p1, p2), Pair(p1', p2')) =>
       Pat.fast_equal(p1, p1') && Pat.fast_equal(p2, p2')
     | (Pair(_), _) => false

@@ -10,24 +10,10 @@ type ana_exp =
   | Jdmt
   | Ctx
   | Prop
-  | Exp
-  | ExpApLeft;
-
-let repr_ana_exp = (ana: ana_exp) =>
-  switch (ana) {
-  | Jdmt => ["Jdmt"]
-  | Ctx => ["Ctx"]
-  | Prop => ["Prop"]
-  | Exp => ["Exp"]
-  | ExpApLeft => ["Exp", "(L)", "(R)", "(roll)", "(unroll)"]
-  };
+  | Exp;
 
 let repr_list_ana_exp = (anas: list(ana_exp)): string =>
-  anas
-  |> List.map(repr_ana_exp)
-  |> List.concat
-  |> ListUtil.remove_duplicate_neighbors
-  |> String.concat(", ");
+  anas |> List.map(show_ana_exp) |> String.concat(", ");
 
 let ana_exp_match_sort = (ana: ana_exp, sort: DrvSort.t): bool =>
   switch (ana, sort) {
@@ -69,8 +55,6 @@ type ana_pat =
   | Var
   | Cast_Var
   | Pair_Or_Case_Var
-  | Ap_InjL
-  | Ap_InjR
   | InjL
   | InjR;
 
@@ -195,8 +179,8 @@ let anas_of_exp = (exp: Drv.Exp.t) =>
   switch (exp.term) {
   | Hole(_)
   | Abbr(_)
-  | Parens(_) => [Jdmt, Ctx, Prop, Exp, ExpApLeft]
-  | Var(_) => [Prop, Exp, ExpApLeft]
+  | Parens(_) => [Jdmt, Ctx, Prop, Exp]
+  | Var(_) => [Prop, Exp]
   | Val(_)
   | Eval(_)
   | Entail(_)
@@ -236,11 +220,11 @@ let anas_of_exp = (exp: Drv.Exp.t) =>
   | PrjL(_)
   | PrjR(_)
   | Case(_)
-  | ExpHole => [Exp, ExpApLeft]
-  | InjL
-  | InjR
-  | Roll
-  | Unroll => [ExpApLeft]
+  | ExpHole
+  | InjL(_)
+  | InjR(_)
+  | Roll(_)
+  | Unroll(_) => [Exp]
   };
 
 let status_exp = (exp: Drv.Exp.t, ~ana: ana_exp, ~is_var: bool): status_exp =>
@@ -259,21 +243,12 @@ let status_exp = (exp: Drv.Exp.t, ~ana: ana_exp, ~is_var: bool): status_exp =>
 let anas_of_pat = (pat: Drv.Pat.t) =>
   switch (pat.term) {
   | Hole(_)
-  | Parens(_) => [
-      Var,
-      Cast_Var,
-      Pair_Or_Case_Var,
-      Ap_InjL,
-      Ap_InjR,
-      InjL,
-      InjR,
-    ]
+  | Parens(_) => [Var, Cast_Var, Pair_Or_Case_Var, InjL, InjR]
   | Var(_) => [Var, Cast_Var, Pair_Or_Case_Var]
   | Cast(_) => [Cast_Var, Pair_Or_Case_Var]
   | Pair(_) => [Pair_Or_Case_Var]
-  | Ap(_) => [Ap_InjL, Ap_InjR]
-  | InjL => [InjL]
-  | InjR => [InjR]
+  | InjL(_) => [InjL]
+  | InjR(_) => [InjR]
   };
 
 let status_pat = (pat: Drv.Pat.t, ~ana: ana_pat): status_pat =>

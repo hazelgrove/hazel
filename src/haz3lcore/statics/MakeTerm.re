@@ -218,10 +218,6 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
       | "Falsity" => ret(Falsity)
       | "True" => ret(True)
       | "False" => ret(False)
-      | "L" => ret(InjL)
-      | "R" => ret(InjR)
-      | "roll" => ret(Roll)
-      | "unroll" => ret(Unroll)
       | _ when Form.is_wild(t) => ret(ExpHole)
       | _ when Form.is_empty_list(t) => ret(Ctx([]))
       | _ when Form.is_empty_tuple(t) => ret(Triv)
@@ -302,7 +298,14 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     switch (t) {
     | ([".fst"], []) => ret(PrjL(l))
     | ([".snd"], []) => ret(PrjR(l))
-    | (["(", ")"], [Drv(Exp(r))]) => ret(Ap(l, r))
+    | (["(", ")"], [Drv(Exp(r))]) =>
+      switch (l.term) {
+      | Var("L") => ret(InjL(r))
+      | Var("R") => ret(InjR(r))
+      | Var("roll") => ret(Roll(r))
+      | Var("unroll") => ret(Unroll(r))
+      | _ => ret(Ap(l, r))
+      }
     | _ => ret(hole(tm))
     }
   | _ as tm => ret(hole(tm));
@@ -319,15 +322,17 @@ and alfa_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
   fun
   | Op(([(_id, ([t], []))], [])) as tm =>
     switch (t) {
-    | "L" => ret(InjL)
-    | "R" => ret(InjR)
     | _ when Form.is_typ_var(t) => ret(Var(t))
     | _ => ret(hole(tm))
     }
   | Op(([(_id, (["(", ")"], [Drv(Pat(body))]))], [])) =>
     ret(Parens(body))
-  | Post(Drv(Pat(l)), ([(_id, (["(", ")"], [Drv(Pat(r))]))], [])) =>
-    ret(Ap(l, r))
+  | Post(Drv(Pat(l)), ([(_id, (["(", ")"], [Drv(Pat(r))]))], [])) as tm =>
+    switch (l.term) {
+    | Var("L") => ret(InjL(r))
+    | Var("R") => ret(InjR(r))
+    | _ => ret(hole(tm))
+    }
   | Bin(Drv(Pat(l)), ([(_id, ([":"], []))], []), Drv(Typ(r))) =>
     ret(Cast(l, r))
   | Bin(Drv(Pat(l)), ([(_id, ([","], []))], []), Drv(Pat(r))) =>
@@ -386,6 +391,9 @@ and alfa_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
 
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
+  // Note(zhiyao): the root of Editor.t can change, however the term is
+  // still Exp, so the easiest way to get drv terms is to catch a
+  // multi-hole error here.
   switch (term) {
   | MultiHole([Drv(_), ..._]) =>
     let (term, inner_ids) = alfa_exp_term(unsorted);
@@ -429,19 +437,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           Match(scrut, rules),
           ids,
         )
-      // | (["of_typ", "end"], [Drv(Typ(ty))]) => ret(Term(Drv(Typ(ty))))
-      // | (["of_pat", "end"], [Drv(Pat(p))]) => ret(Term(Drv(Pat(p))))
-      // | (["of_tpat", "end"], [Drv(TPat(tp))]) =>
-      //   ret(Term(Drv(TPat(tp))))
-      // | (["of_ctxt", "end"], [Drv(Exp(ctx))]) =>
-      //   ret(Term(Drv(Exp(ctx))))
+      // Note(zhiyao): convert Drv to Exp
       | (["of_jdmt", "end"], [Drv(Exp(j))]) => ret(DrvExp(Exp(j), Jdmt))
       | (["of_ctx", "end"], [Drv(Exp(c))]) => ret(DrvExp(Exp(c), Ctx))
       | (["of_prop", "end"], [Drv(Exp(p))]) => ret(DrvExp(Exp(p), Prop))
       | (["of_alfa_exp", "end"], [Drv(Exp(e))]) =>
         ret(DrvExp(Exp(e), Exp))
       | (["of_alfa_typ", "end"], [Drv(Typ(t))]) =>
-        ret(DrvExp(Typ(t), Typ)) // TODO(zhiyao): differentiate.
+        ret(DrvExp(Typ(t), Typ))
       | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))

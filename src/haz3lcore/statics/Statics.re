@@ -234,23 +234,22 @@ and drv_to_info_map =
       |> add'
     | Fix(p, e)
     | Fun(p, e) => m |> go_pat(p, ~ana=Cast_Var) |> go_exp'(e) |> add'
-    | Ap(e1, e2) =>
-      m |> go_exp(e1, ~ana=ExpApLeft, ~is_var=false) |> go_exp'(e2) |> add'
+    | Ap(e1, e2) => m |> go_exp'(e1) |> go_exp'(e2) |> add'
     | Tuple(es) => List.fold_left((m, e) => m |> go_exp'(e), m, es) |> add'
     | Triv => m |> add'
     | PrjL(e)
     | PrjR(e) => m |> go_exp'(e) |> add'
-    | InjL
-    | InjR
-    | Roll
-    | Unroll
+    | InjL(e)
+    | InjR(e) => m |> go_exp'(e) |> add'
+    | Roll(e) => m |> go_exp'(e) |> add'
+    | Unroll(e) => m |> go_exp'(e) |> add'
     | ExpHole => m |> add'
     | Case(e, [(p1, e1), (p2, e2)]) =>
       m
       |> go_exp'(e)
-      |> go_pat(p1, ~ana=Ap_InjL)
+      |> go_pat(p1, ~ana=InjL)
       |> go_exp'(e1)
-      |> go_pat(p2, ~ana=Ap_InjR)
+      |> go_pat(p2, ~ana=InjR)
       |> go_exp'(e2)
       |> add'
     | Case(_) => m |> add'
@@ -269,16 +268,8 @@ and drv_to_info_map =
     | Cast(p, t) => m |> go_pat(p, ~ana=Var) |> go_typ'(t) |> add'
     | Pair(p1, p2) =>
       m |> go_pat(p1, ~ana=Var) |> go_pat(p2, ~ana=Var) |> add'
-    | Ap(p1, p2) =>
-      let ana: DrvInfo.ana_pat =
-        switch (ana) {
-        | Ap_InjL => InjL
-        | Ap_InjR => InjR
-        | _ => failwith("Statics.go_pat: impossible Ap")
-        };
-      m |> go_pat(p1, ~ana) |> go_pat(p2, ~ana=Var) |> add';
-    | InjL
-    | InjR => m |> add'
+    | InjL(p)
+    | InjR(p) => m |> go_pat(p, ~ana=Var) |> add'
     | Parens(p) => m |> go_pat(p, ~ana) |> add'
     };
   }

@@ -203,12 +203,12 @@ module Transition = (EV: EV_MODE) => {
         | Triv => Triv
         | PrjL(e) => PrjL(go_exp(e))
         | PrjR(e) => PrjR(go_exp(e))
-        | InjL => InjL
-        | InjR => InjR
+        | InjL(e) => InjL(go_exp(e))
+        | InjR(e) => InjR(go_exp(e))
         | Case(e1, rls) =>
           Case(go_exp(e1), List.map(((p, e)) => (p, go_exp(e)), rls))
-        | Roll => Roll
-        | Unroll => Unroll
+        | Roll(e) => Roll(go_exp(e))
+        | Unroll(e) => Unroll(go_exp(e))
         | ExpHole => ExpHole
         };
       term |> rewrap;
@@ -263,9 +263,8 @@ module Transition = (EV: EV_MODE) => {
         | Hole(s) => Hole(s)
         | Var(x) => Var(x)
         | Cast(p, t) => Cast(go_pat(p), go_typ(t))
-        | InjL => InjL
-        | InjR => InjR
-        | Ap(p1, p2) => Ap(go_pat(p1), go_pat(p2))
+        | InjL(p) => InjL(go_pat(p))
+        | InjR(p) => InjR(go_pat(p))
         | Pair(p1, p2) => Pair(go_pat(p1), go_pat(p2))
         | Parens(p) => Parens(go_pat(p))
         };
