@@ -17,7 +17,20 @@ module M: Projector = {
 
   let init = {text: "⋱"};
 
-  let can_project = (_, _) => true;
+  let can_project = (_, any: Any.t) =>
+    switch (any) {
+    | TPat(_) =>
+      /* Because TPat has no parentheses, the current parenthesis-based approach
+       * causes them to break when unwrapped in MakeTerm. In the absence of a more
+       * robust approach, we currently prohibit folding them */
+      false
+    | Typ(_) =>
+      /* While types do have parentheses, sum type constructor definitions are
+       * implemented in a bespoke way which breaks if they are parenthesized.
+       * Easier to just prohibit folding types for now. */
+      false
+    | _ => true
+    };
   let focus = _ => ();
   let can_focus = false;
   let dynamics = false;

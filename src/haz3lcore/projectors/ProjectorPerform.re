@@ -76,11 +76,6 @@ let go =
     |> Zipper.remold_regrout(Util.Direction.Right)
     |> Zipper.remold_regrout(Util.Direction.Left);
 
-  /* TODO: On undo project space-padded type anno from right:
-     Skel.push_output: split_kids: index out of bounds */
-
-  //TODO: maybe also reject secondary-padded stuff?
-
   //TODO: maybe if unprojecting non-operand, leave it selected? need to be careful with remolding..
 
   let do_indicated = (~remove: bool, kind, z): option(Zipper.t) => {
