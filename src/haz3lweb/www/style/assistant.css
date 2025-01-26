@@ -88,6 +88,18 @@
     box-shadow: 0px 0px 1px var(--SHADOW), 0 0 0 1px var(--SHADOW);
 }
 
+#assistant .send-button-disabled {
+    background-color: var(--SAND);
+    color: var(--STONE);
+    padding: .65em .75em;
+    border: 0 solid var(--SAND);
+    border-radius: .5em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    pointer-events: none;
+}
+
 #assistant .send-button {
     background-color: var(--SAND);
     color: var(--STONE);
