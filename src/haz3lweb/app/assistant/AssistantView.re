@@ -177,6 +177,17 @@ let message_input =
   );
 };
 
+let loading_dots = () => {
+  div(
+    ~attrs=[clss(["loading-dots"])],
+    [
+      div(~attrs=[clss(["dot", "dot1"])], []),
+      div(~attrs=[clss(["dot", "dot2"])], []),
+      div(~attrs=[clss(["dot", "dot3"])], []),
+    ],
+  );
+};
+
 let message_display =
     (
       ~signal,
@@ -188,17 +199,23 @@ let message_display =
   let message_nodes =
     List.map(
       (message: AssistantModel.Model.message) => {
-        div(
-          ~attrs=[
-            clss(["message-container", message.party == LLM ? "llm" : "ls"]),
-          ],
-          [
-            div(
-              ~attrs=[clss(["message-content"])],
-              [text(message.content)],
-            ),
-          ],
-        )
+        print_endline(message.content);
+        message.content == "..."
+          ? loading_dots()
+          : div(
+              ~attrs=[
+                clss([
+                  "message-container",
+                  message.party == LLM ? "llm" : "ls",
+                ]),
+              ],
+              [
+                div(
+                  ~attrs=[clss(["message-content"])],
+                  [text(message.content)],
+                ),
+              ],
+            );
       },
       assistantModel.chat,
     );
