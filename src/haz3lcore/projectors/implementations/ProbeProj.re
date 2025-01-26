@@ -41,11 +41,14 @@ let rm_opaques:
     }
   );
 
-/* Is the underlying syntax a variable reference? */
-let is_var_ref = (info: info): bool =>
+/* Don't redundantly show an env for variable references, patterns */
+let hide_env = (info: info): bool =>
   switch (info.statics) {
-  | Some(InfoExp({term: {term: Var(_), _}, _}))
-  | Some(InfoPat({term: {term: Var(_), _}, _})) => true
+  | Some(
+      InfoExp({term: {term: Var(_) | Wrap({term: Var(_), _}, _), _}, _}),
+    ) =>
+    true
+  | Some(InfoPat(_)) => true
   | _ => false
   };
 
@@ -93,6 +96,12 @@ module DynCursor = {
 
   let is_in = (closures: list(closure)): option(closure) =>
     List.find_opt(
+      (closure: closure) => s.call_cursor == closure.call_stack,
+      closures,
+    );
+
+  let index_in = (closures: list(closure)): option(int) =>
+    List.find_index(
       (closure: closure) => s.call_cursor == closure.call_stack,
       closures,
     );
@@ -146,6 +155,7 @@ module DynCursor = {
     | (None, Some(n)) => Above(n)
     | (_, _) => Same
     };
+
   let cur_call = (info: info, closure: closure) => {
     open OptUtil.Syntax;
     let* lex = cur_ap(info);
@@ -247,20 +257,21 @@ module DynCursor = {
 };
 
 module Closures = {
-  let num = (info: info): int =>
+  let total = (info: info): int =>
     switch (info.dynamics) {
     | Some(di) => List.length(di)
     | None => 0
     };
 
-  let filter_frames_by_pin = (info, frames: list(closure)): list(closure) =>
+  let filter_frames_by_pin =
+      (cur_ap: option(Id.t), frames: list(closure)): list(closure) =>
     switch (DynCursor.s.pinned_call) {
     | Some(pinned_ap) =>
       List.filter(
         (closure: closure) =>
           /* Which do we want to show here? */
           //DynCursor.s.pinned_call == cur_call(info, closure)
-          ListUtil.hd_opt(pinned_ap) == cur_ap(info)
+          ListUtil.hd_opt(pinned_ap) == cur_ap
           || ListUtil.is_suffix_of(pinned_ap, closure.call_stack),
         frames,
       )
@@ -268,10 +279,16 @@ module Closures = {
     };
 
   let select_frames =
-      (model: model, info: info, closures: list(closure)): list(closure) =>
-    closures
-    |> filter_frames_by_pin(info)
-    |> ListUtil.slice(model.index_offset, model.max_closures);
+      (model: model, cur_ap: option(Id.t), closures: list(closure))
+      : list(closure) => {
+    let filtered = closures |> filter_frames_by_pin(cur_ap);
+    //TODO: Improve below in long filtered case
+    if (List.length(filtered) < List.length(closures)) {
+      ListUtil.slice(0, model.max_closures, filtered);
+    } else {
+      ListUtil.slice(model.index_offset, model.max_closures, filtered);
+    };
+  };
 
   let group_by_predicate =
       /* Precondition: Items to be grouped are contigious in list */
@@ -319,9 +336,7 @@ module Closures = {
   };
 
   let collate =
-      (model: model, info: info, di: list(closure))
-      : (int, list(list((int, closure)))) => {
-    let closures = select_frames(model, info, di);
+      (closures: list(closure)): (int, list(list((int, closure)))) => {
     let numbered_closures =
       List.mapi((i, c) => (List.length(closures) - i - 1, c), closures);
     (List.length(closures), group(numbered_closures));
@@ -352,8 +367,8 @@ let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   {row, col};
 };
 
-let display_length = (model: model, id: Id.t): int =>
-  Id.Map.find_opt(id, model.display_lengths) |> Option.value(~default=12);
+let display_length = (display_lengths, id: Id.t): int =>
+  Id.Map.find_opt(id, display_lengths) |> Option.value(~default=12);
 
 let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
 
@@ -392,11 +407,9 @@ let value_view =
     Effect.Ignore;
   };
 
-  //TODO: refactor to pointermove when supported
   let val_mousemove = (e: Js.t(Dom_html.mouseEvent)) =>
     switch (mousedown^) {
     | Some(_elem) when Js.to_bool(e##.shiftKey) =>
-      /* Ideally we could just use hasPointerCapture... */
       let goal = pos_rel_to_target(e);
       local(ChangeLength(closure.closure_id, goal.col));
     | _ => Effect.Ignore
@@ -406,7 +419,7 @@ let value_view =
     seg_view(
       view_seg,
       utility,
-      display_length(model, closure.closure_id),
+      display_length(model.display_lengths, closure.closure_id),
       closure.value,
     );
 
@@ -429,26 +442,43 @@ let value_view =
 };
 
 let env_val =
-    (view_seg, utility: utility, en: Dynamics.Probe.Env.entry): Node.t => {
+    (
+      display_lengths,
+      closure_id,
+      view_seg,
+      utility: utility,
+      en: Dynamics.Probe.Env.entry,
+    )
+    : Node.t => {
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
     [
       Node.text(en.binding.name ++ "="),
       switch (en.value) {
       | Opaque => Node.text("Opaque")
-      | Val(d) => seg_view(view_seg, utility, 12, d) |> fst
+      | Val(d) =>
+        seg_view(
+          view_seg,
+          utility,
+          display_length(display_lengths, closure_id),
+          d,
+        )
+        |> fst
       },
     ],
   );
 };
 
-let env_view = (closure: closure, view_seg, utility: utility): Node.t =>
+let env_view =
+    (display_lengths, closure: closure, view_seg, utility: utility): Node.t =>
   Node.div(
     ~attrs=[Attr.classes(["live-env"])],
     closure.env
     |> ListUtil.dedup
     |> rm_opaques
-    |> List.map(env_val(view_seg, utility)),
+    |> List.map(
+         env_val(display_lengths, closure.closure_id, view_seg, utility),
+       ),
   );
 
 let closure_view =
@@ -463,7 +493,10 @@ let closure_view =
   div(
     ~attrs=[Attr.classes(["closure"])],
     [value_view(info, model, utility, view_seg, local, closure, index)]
-    @ (is_var_ref(info) ? [] : [env_view(closure, view_seg, utility)]),
+    @ (
+      hide_env(info)
+        ? [] : [env_view(model.display_lengths, closure, view_seg, utility)]
+    ),
   );
 
 let closure_group_view =
@@ -500,7 +533,7 @@ let ellipsis_view = (local): Node.t =>
     [text("⋯")],
   );
 
-let nav_bar_view = (model: model, di: list(closure), local) => {
+let nav_bar_view = (model: model, num_total: int, local) => {
   let nav_arrow = (cond: bool, offset: int): Node.t =>
     Node.div(
       ~attrs=[
@@ -509,7 +542,7 @@ let nav_bar_view = (model: model, di: list(closure), local) => {
       ],
       [],
     );
-  let show_left = model.index_offset >= List.length(di) - model.max_closures;
+  let show_left = model.index_offset >= num_total - model.max_closures;
   let show_right = model.index_offset <= 0;
   div(
     ~attrs=[Attr.classes(["nav-bar"])],
@@ -525,10 +558,15 @@ let offside_view =
   Node.div(
     ~attrs=[Attr.classes(["live-offside"])],
     switch (info.dynamics) {
-    | Some(di) =>
-      let (num_shown, groups) = Closures.collate(model, info, di);
-      let is_cut_off = num_shown != Closures.num(info) && num_shown > 0;
-      let extras = [nav_bar_view(model, di, local), ellipsis_view(local)];
+    | Some(closures) =>
+      let num_total = Closures.total(info);
+      let closures = Closures.select_frames(model, cur_ap(info), closures);
+      let (num_shown, groups) = Closures.collate(closures);
+      let is_cut_off = num_shown != num_total && num_shown > 0;
+      let extras = [
+        nav_bar_view(model, num_total, local),
+        ellipsis_view(local),
+      ];
       (num_shown > 0 ? [equals_view] : [])
       @ closure_group_view(info, utility, view_seg, model, local, groups)
       @ (is_cut_off ? extras : []);
@@ -537,7 +575,7 @@ let offside_view =
   );
 
 let num_closures_view = (info: info) => {
-  let num_closures = Closures.num(info);
+  let num_closures = Closures.total(info);
   let description = num_closures < 1000 ? string_of_int(num_closures) : "1k+";
   div(
     ~attrs=[
@@ -616,7 +654,7 @@ let overlay_view = (info: info): Node.t => {
   );
 };
 
-let update = (m: model, _info: info, a: action) => {
+let update = (m: model, info: info, a: action) => {
   //print_endline("update: action:" ++ show_action(a));
   switch (a) {
   | ChangeLength(id, len) =>
@@ -631,6 +669,30 @@ let update = (m: model, _info: info, a: action) => {
       max_closures: m.max_closures == 1 ? init.max_closures : 1,
     }
   | Offset(offset) =>
+    let abs_offset = m.index_offset + offset;
+    let abs_offset = abs_offset < 0 ? 0 : abs_offset;
+    switch (info.dynamics) {
+    | Some(closures) =>
+      let cursor_idx = DynCursor.index_in(closures);
+      switch (cursor_idx) {
+      /* Cursor would be outside window, reset to next visible closure */
+      | Some(idx) when idx >= abs_offset + m.max_closures =>
+        switch (ListUtil.slice(abs_offset, m.max_closures, closures)) {
+        | [first, ..._] => DynCursor.capture_cursor(first)
+        | [] => ()
+        }
+      | Some(idx) when idx < abs_offset =>
+        /* Cursor would be outside window, reset to first visible closure */
+        switch (
+          List.rev(ListUtil.slice(abs_offset, m.max_closures, closures))
+        ) {
+        | [first, ..._] => DynCursor.capture_cursor(first)
+        | [] => ()
+        }
+      | _ => ()
+      };
+    | None => ()
+    };
     let index_offset = m.index_offset + offset;
     let index_offset = index_offset < 0 ? 0 : index_offset;
     {...m, index_offset};

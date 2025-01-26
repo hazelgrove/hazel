@@ -86,10 +86,12 @@ module Text =
           (buffer_ids, no_sorts, sort, seg: Segment.t): list(Node.t) => {
     /* note: no_sorts flag is used for backpack view;
        otherwise Segment.expected_sorts call crashes for some reason */
+    print_endline("AAAAA");
     let expected_sorts =
       no_sorts
         ? List.init(List.length(seg), i => (i, Sort.Any))
         : Segment.expected_sorts(sort, seg);
+    print_endline("BBBBB");
     let sort_of_p_idx = idx =>
       switch (List.assoc_opt(idx, expected_sorts)) {
       | None => Sort.Any
