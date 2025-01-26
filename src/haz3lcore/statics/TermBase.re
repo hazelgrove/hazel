@@ -68,6 +68,7 @@ and exp_term =
   | Int(int)
   | Float(float)
   | String(string)
+  | DrvExp(DrvTermBase.any_t, DrvSort.t)
   | ListLit(list(exp_t))
   | Constructor(string, typ_t) // Typ.t field is only meaningful in dynamic expressions
   | Fun(
@@ -101,7 +102,6 @@ and exp_term =
      two consistent types. Both types should be normalized in
      dynamics for the cast calculus to work right. */
   | Cast(exp_t, typ_t, typ_t)
-  | DrvExp(DrvTermBase.any_t, DrvSort.t)
 and exp_t = IdTagged.t(exp_term)
 and pat_term =
   | Invalid(string)
@@ -198,14 +198,15 @@ module rec Any: {
         ~f_any=continue,
         x,
       ) => {
-    let pat_map_term =
-      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = y =>
       switch (y) {
       | Drv(x) => Drv(x)
+      // Note(zhiyao): I didn't see the necessity to implement the map_term for
+      // DrvTermBase.Any. I leave it blank here.
       | Exp(x) =>
         Exp(Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
-      | Pat(x) => Pat(pat_map_term(x))
+      | Pat(x) =>
+        Pat(Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
       | Typ(x) =>
         Typ(Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
       | TPat(x) =>
@@ -239,19 +240,6 @@ module rec Any: {
     | (Nul (), _)
     | (Any (), _) => false
     };
-}
-and TypeHole: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Invalid(string)
-    | EmptyHole
-    | MultiHole(list(Any.t));
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Invalid(string)
-    | EmptyHole
-    | MultiHole(list(Any.t));
 }
 and Exp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -321,6 +309,7 @@ and Exp: {
         | Float(_)
         | Constructor(_)
         | String(_)
+        | DrvExp(_)
         | Deferral(_)
         | Var(_)
         | Undefined => term
@@ -366,7 +355,6 @@ and Exp: {
           )
         | Cast(e, t1, t2) =>
           Cast(exp_map_term(e), typ_map_term(t1), typ_map_term(t2))
-        | DrvExp(e, s) => DrvExp(e, s)
         },
     };
     x |> f_exp(rec_call);
@@ -392,6 +380,8 @@ and Exp: {
     | (Int(i1), Int(i2)) => i1 == i2
     | (Float(f1), Float(f2)) => f1 == f2
     | (String(s1), String(s2)) => s1 == s2
+    | (DrvExp(t1, s1), DrvExp(t2, s2)) =>
+      DrvTermBase.Any.fast_equal(t1, t2) && s1 == s2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Constructor(c1, ty1), Constructor(c2, ty2)) =>
@@ -451,8 +441,6 @@ and Exp: {
          )
     | (Cast(e1, t1, t2), Cast(e2, t3, t4)) =>
       fast_equal(e1, e2) && Typ.fast_equal(t1, t3) && Typ.fast_equal(t2, t4)
-    | (DrvExp(t1, s1), DrvExp(t2, s2)) =>
-      DrvTermBase.Any.fast_equal(t1, t2) && s1 == s2
     | (Invalid(_), _)
     | (FailedCast(_), _)
     | (Deferral(_), _)
@@ -460,6 +448,7 @@ and Exp: {
     | (Int(_), _)
     | (Float(_), _)
     | (String(_), _)
+    | (DrvExp(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
     | (Fun(_), _)
@@ -484,7 +473,6 @@ and Exp: {
     | (BuiltinFun(_), _)
     | (Match(_), _)
     | (Cast(_), _)
-    | (DrvExp(_), _)
     | (MultiHole(_), _)
     | (EmptyHole, _)
     | (Undefined, _) => false
@@ -744,7 +732,7 @@ and Typ: {
     | (Bool, _) => false
     | (String, String) => true
     | (String, _) => false
-    | (DrvTyp(_), DrvTyp(_)) => true // TODO(zhiyao): compare the sort
+    | (DrvTyp(s1), DrvTyp(s2)) => s1 == s2
     | (DrvTyp(_), _) => false
     | (Ap(t1, t2), Ap(t1', t2')) =>
       eq_internal(n, t1, t1') && eq_internal(n, t2, t2')

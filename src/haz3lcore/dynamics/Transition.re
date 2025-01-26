@@ -273,12 +273,14 @@ module Transition = (EV: EV_MODE) => {
     let (term, rewrap) = IdTagged.unwrap(d);
     let term: term =
       switch (term) {
-      | DrvExp(Exp(exp), s) => DrvExp(Exp(go_exp(exp)), s)
-      | DrvExp(Rul(rul), s) => DrvExp(Rul(go_rul(rul)), s)
-      | DrvExp(Typ(typ), s) => DrvExp(Typ(go_typ(typ)), s)
-      | DrvExp(Pat(pat), s) => DrvExp(Pat(go_pat(pat)), s)
-      | DrvExp(TPat(tpat), s) => DrvExp(TPat(tpat), s)
-      | DrvExp(Any(a), s) => DrvExp(Any(a), s)
+      | DrvExp(drv, s) =>
+        switch (drv) {
+        | Exp(e) => DrvExp(Exp(go_exp(e)), s)
+        | Typ(t) => DrvExp(Typ(go_typ(t)), s)
+        | Pat(p) => DrvExp(Pat(go_pat(p)), s)
+        | Rul(r) => DrvExp(Rul(go_rul(r)), s)
+        | TPat(t) => DrvExp(TPat(t), s)
+        }
       | _ => term
       };
     term |> rewrap;

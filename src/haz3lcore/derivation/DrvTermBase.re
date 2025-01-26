@@ -9,7 +9,6 @@ type any_t =
   | Typ(typ_t)
   | TPat(tpat_t)
   | Rul(rul_t)
-  | Any(unit)
 and exp_term =
   | Hole(type_hole)
   | Var(Var.t) // Prop / Exp
@@ -149,7 +148,6 @@ module rec Any: {
     | Pat(pat) => Pat(Pat.map_term(~f_pat, ~f_typ, ~f_tpat, pat))
     | Typ(typ) => Typ(Typ.map_term(~f_typ, ~f_tpat, typ))
     | TPat(tpat) => TPat(TPat.map_term(~f_tpat, tpat))
-    | Any(_) => Any()
     };
   };
 
@@ -165,8 +163,6 @@ module rec Any: {
     | (Typ(_), _) => false
     | (TPat(tp1), TPat(tp2)) => TPat.fast_equal(tp1, tp2)
     | (TPat(_), _) => false
-    | (Any(_), Any(_)) => true
-    | (Any(_), _) => false
     };
 }
 and Exp: {

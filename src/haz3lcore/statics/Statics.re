@@ -155,7 +155,7 @@ let rec any_to_info_map =
     )
   | Drv(drv) => (
       CoCtx.empty,
-      m |> drv_to_info_map(drv, ~ancestors, ~ctx, ~ana_exp=DrvInfo.Jdmt),
+      m |> drv_to_info_map(drv, ~ancestors, ~ctx, ~sort=Jdmt),
     )
   | Rul(_)
   | Nul ()
@@ -171,11 +171,9 @@ and multi = (~ctx, ~ancestors, m, tms) =>
     tms,
   )
 and drv_to_info_map =
-    (drv: Drv.Any.t, m: Map.t, ~ctx, ~ancestors, ~ana_exp): Map.t => {
+    (drv: Drv.Any.t, m: Map.t, ~ctx, ~ancestors, ~sort: DrvSort.t): Map.t => {
   let add = (drv, info, m) =>
     add_info(Drv.Any.of_id(drv), InfoDrv(info), m);
-  let go_any = (any: Drv.Any.t, m) =>
-    drv_to_info_map(any, m, ~ctx, ~ancestors, ~ana_exp);
   let rec go_exp = (exp: Drv.Exp.t, m, ~ana: DrvInfo.ana_exp, ~is_var) => {
     let info = DrvInfo.derived_exp(exp, ~ancestors, ~ana, ~is_var);
     let add = add(Exp(exp));
@@ -186,7 +184,7 @@ and drv_to_info_map =
     | Var(x) when is_var =>
       switch (Self.of_exp_var(ctx, x)) {
       | Common(Just({term: DrvTyp(s), _}))
-          when DrvInfo.ana_exp_match_sort(ana, s) =>
+          when ana == DrvInfo.ana_exp_of_sort(s) =>
         m |> add'
       | Common(Just({term: Unknown(_), _})) => m |> add'
       | Common(Just(typ)) => m |> add_err(VarNoJoin(ana, typ))
@@ -304,8 +302,8 @@ and drv_to_info_map =
   and go_tpat = (tpat: Drv.TPat.t) =>
     add(TPat(tpat), TPat(DrvInfo.derived_tpat(tpat, ~ancestors)));
   switch (drv) {
-  | Any(_) => go_any(drv, m)
-  | Exp(exp) => go_exp(exp, m, ~ana=ana_exp, ~is_var=false)
+  | Exp(exp) =>
+    go_exp(exp, m, ~ana=DrvInfo.ana_exp_of_sort(sort), ~is_var=false)
   | Pat(pat) => go_pat(pat, m, ~ana=Var)
   | Typ(ty) => go_typ'(ty, m)
   | TPat(tp) => go_tpat(tp, m)
@@ -379,21 +377,9 @@ and uexp_to_info_map =
   | Int(_) => atomic(Just(Int |> Typ.temp))
   | Float(_) => atomic(Just(Float |> Typ.temp))
   | String(_) => atomic(Just(String |> Typ.temp))
-  | DrvExp(term, s) =>
-    let ana_exp: DrvInfo.ana_exp =
-      switch (s) {
-      | Jdmt => Jdmt
-      | Ctx => Ctx
-      | Prop => Prop
-      | Exp => Exp
-      | Typ
-      | Pat
-      | Rul
-      | TPat
-      | Any => Exp
-      };
-    let self: Self.t = Just(DrvTyp(s) |> Typ.temp);
-    let m = drv_to_info_map(term, m, ~ctx, ~ancestors, ~ana_exp);
+  | DrvExp(term, sort) =>
+    let self: Self.t = Just(DrvTyp(sort) |> Typ.temp);
+    let m = drv_to_info_map(term, m, ~ctx, ~ancestors, ~sort);
     add(~self, ~co_ctx=CoCtx.empty, m);
   | ListLit(es) =>
     let ids = List.map(Exp.rep_id, es);
@@ -1004,8 +990,8 @@ and utyp_to_info_map =
   | Int
   | Float
   | Bool
-  | DrvTyp(_)
-  | String => add(m)
+  | String
+  | DrvTyp(_) => add(m)
   | Var(_) =>
     /* Names are resolved in Info.status_typ */
     add(m)
@@ -1134,29 +1120,7 @@ and variant_to_info_map =
 
 let mk =
   Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
-    uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty)
-    |> snd
-    // |> (
-    //   m => {
-    //     print_endline(
-    //       "info_map"
-    //       ++ (
-    //         Id.Map.to_list(m)
-    //         |> List.filter_map(((id, info)) =>
-    //              switch (info) {
-    //              | Info.InfoDrv(_) => Some((id, info))
-    //              | _ => None
-    //              }
-    //            )
-    //         |> List.map(((id, info)) =>
-    //              Uuidm.to_string(id) ++ ": " ++ Info.show(info)
-    //            )
-    //         |> String.concat(", ")
-    //       ),
-    //     );
-    //     m;
-    //   }
-    // )
+    uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty) |> snd
   });
 
 let mk = (core: CoreSettings.t, ctx, exp) =>

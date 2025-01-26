@@ -4,8 +4,6 @@ open Util.Web;
 open Util;
 open Haz3lcore;
 
-open DrvCursorInspector;
-
 let errc = "error";
 let okc = "ok";
 let div_err = div(~attrs=[clss(["status", errc])]);
@@ -364,7 +362,7 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   | InfoPat({cls, status, _}) => wrapper(pat_view(~globals, cls, status))
   | InfoTyp({cls, status, _}) => wrapper(typ_view(~globals, cls, status))
   | InfoTPat({cls, status, _}) => wrapper(tpat_view(~globals, cls, status))
-  | InfoDrv(ci) => wrapper(drv_view(~globals, ci)) // TODO(zhiyao): to be updated
+  | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci)) // TODO(zhiyao): to be updated
   };
 };
 

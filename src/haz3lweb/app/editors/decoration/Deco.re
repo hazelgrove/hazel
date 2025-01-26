@@ -481,7 +481,7 @@ module Deco =
 
   let selection = (z: Zipper.t) => div_c("selects", segment_selected(z));
 
-  let always = () => [errors(), color_highlights()];
+  let always = () => [errors()];
 
   let next_steps = (next_steps, ~inject) => {
     let tiles = List.filter_map(TileMap.find_opt(_, tiles), next_steps);

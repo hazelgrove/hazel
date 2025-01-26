@@ -235,9 +235,7 @@ module Selection = {
     | Exercises(ExerciseMode.Selection.t)
     | Derivations(DerivationsMode.Selection.t);
 
-  let get_cursor_info =
-      (~globals as _: Globals.t, ~selection: t, editors: Model.t)
-      : cursor(Update.t) => {
+  let get_cursor_info = (~selection: t, editors: Model.t): cursor(Update.t) => {
     switch (selection, editors) {
     | (Scratch(selection), Scratch(m)) =>
       let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);

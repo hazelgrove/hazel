@@ -352,7 +352,7 @@ module rec Exp: {
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
-    | DrvExp(_) => raise(Failure("DrvExp not supported")) // TODO(zhiyao):?
+    | DrvExp(_) => raise(Failure("DrvExp not supported")) // TODO(zhiyao)
     };
   };
 }
@@ -442,7 +442,7 @@ and Typ: {
           constructors,
         );
       SumTyp(sumterms);
-    | DrvTyp(_) => raise(Failure("DrvTyp not supported")) // TODO(Zhiyao):?
+    | DrvTyp(_) => raise(Failure("DrvTyp not supported")) // TODO(Zhiyao)
     };
   };
 }

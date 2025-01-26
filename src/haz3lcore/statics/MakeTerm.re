@@ -174,7 +174,6 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
       | Pat => Pat(alfa_pat(unsorted(skel, seg)))
       | Typ => Typ(alfa_typ(unsorted(skel, seg)))
       | TPat => TPat(alfa_tpat(unsorted(skel, seg)))
-      | Any => Exp(alfa_exp(unsorted(skel, seg)))
       },
     )
   | Pat => Pat(pat(unsorted(skel, seg)))

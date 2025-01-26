@@ -234,8 +234,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Bool(_) => uexp |> cast_from(Bool |> Typ.temp)
     | Float(_) => uexp |> cast_from(Float |> Typ.temp)
     | String(_) => uexp |> cast_from(String |> Typ.temp)
-    | DrvExp(term, _) =>
-      uexp |> cast_from(DrvTyp(Drv.Any.sort_of(term)) |> Typ.temp)
+    | DrvExp(_) => uexp // Note(zhiyao): we don't need to cast drv term
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let inner_type =

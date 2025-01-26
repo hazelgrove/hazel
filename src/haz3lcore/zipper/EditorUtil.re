@@ -11,6 +11,7 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | Int(_)
   | Float(_)
   | String(_)
+  | DrvExp(_)
   | ListLit(_)
   | Constructor(_)
   | Closure(_)
@@ -31,7 +32,6 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | BinOp(_)
   | BuiltinFun(_)
   | Cast(_)
-  | DrvExp(_)
   | Match(_) => {ids: [Id.mk()], copied: false, term: Seq(e1, e2)}
   | Seq(e11, e12) =>
     let e12' = append_exp(e12, e2);

@@ -35,7 +35,6 @@ select {
   color: var(--select-text);
   /* text-transform: capitalize; */
 }
-
 select:hover {
   border-radius: 1em;
   background-color: var(--SAND);

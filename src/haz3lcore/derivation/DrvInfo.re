@@ -24,6 +24,18 @@ let ana_exp_match_sort = (ana: ana_exp, sort: DrvSort.t): bool =>
   | _ => false
   };
 
+let ana_exp_of_sort = (sort: DrvSort.t): ana_exp =>
+  switch (sort) {
+  | Jdmt => Jdmt
+  | Ctx => Ctx
+  | Prop => Prop
+  | Exp => Exp
+  | Typ
+  | Pat
+  | Rul
+  | TPat => Exp
+  };
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
   | BadToken(Token.t)

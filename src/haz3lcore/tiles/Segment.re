@@ -130,9 +130,7 @@ and subsort_of = (sort: Sort.t): list(Sort.t) =>
     | Pat => [Drv(Typ)]
     | Typ => [Pat]
     | TPat => [Drv(Typ)]
-    | Any => [Drv(Exp), Drv(Rul), Drv(Pat), Drv(Typ), Drv(TPat)]
     }
-  // |> List.append([Any, Exp, Pat, Typ, TPat, Rul]: list(Sort.t))
   | _ => []
   }
 
@@ -147,16 +145,6 @@ and remold_template = (sort: Sort.t, shape, seg: t): t => {
     | Grout(_)
     | Projector(_) => [hd, ...remold(shape, tl)]
     | Tile(t) =>
-      // let remold_tile =
-      //   List.fold_left(
-      //     (acc, sort) =>
-      //       switch (acc) {
-      //       | Some(_) => acc
-      //       | None => remold_tile(sort, shape, t)
-      //       },
-      //     None,
-      //     [sort] @ subsort,
-      //   );
       switch (remold_tile(sort, shape, t)) {
       | None => [Tile(t), ...remold(snd(Tile.shapes(t)), tl)]
       | Some(t) =>
@@ -183,16 +171,6 @@ and remold_template_uni = (sort: Sort.t, shape, seg: t): (t, Nib.Shape.t, t) => 
       let (remolded, shape, rest) = remold_uni(shape, tl);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
-      // let remold_tile =
-      //   List.fold_left(
-      //     (acc, sort) =>
-      //       switch (acc) {
-      //       | Some(_) => acc
-      //       | None => remold_tile(sort, shape, t)
-      //       },
-      //     None,
-      //     [sort] @ subsort,
-      //   );
       switch (remold_tile(sort, shape, t)) {
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
@@ -426,7 +404,7 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
         | (_, {shape, sort: Drv(_) as sort}) =>
           let (remolded_drv, shape, rest) =
             remold_template_uni(sort, shape, tl);
-          let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest, []); // TODO(zhiyao): Check this
+          let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest, []);
           ([Piece.Tile(t), ...remolded_drv] @ remolded_exp, shape, rest);
         | _ =>
           let (remolded, shape, rest) =

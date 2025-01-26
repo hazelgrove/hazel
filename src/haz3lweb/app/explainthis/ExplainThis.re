@@ -543,7 +543,6 @@ let get_doc =
         ~explanation: option(string)=?,
         group: ExplainThisForm.group,
       )
-      // Examples can be leaved blank.
       : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
     let (doc, options) = ExplainThisModel.get_form_and_options(group, docs);
 
@@ -565,7 +564,6 @@ let get_doc =
           explanation_msg,
           docs,
         );
-
       let sort =
         switch (info) {
         | None => Sort.Any
@@ -619,7 +617,6 @@ let get_doc =
           ~model=docs,
         );
       ([syntactic_form_view], ([explanation], color_map), example_view);
-
     | Colorings =>
       let (_, color_map) =
         mk_translation(~globals, ~inject=_ => (), explanation_msg);
@@ -2546,8 +2543,8 @@ let view =
             ~section_clss="syntactic-form",
             ~title=
               switch (info) {
-              | Some(info) => Info.cls_of(info) |> Cls.show
               | None => "Whitespace or Comment"
+              | Some(info) => Info.cls_of(info) |> Cls.show
               },
             syn_form @ explanation,
           ),

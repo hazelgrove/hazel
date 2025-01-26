@@ -308,7 +308,7 @@ module Exp = {
     | Int
     | Float
     | String
-    | Prop
+    | DrvExp
     | ListLit
     | Constructor
     | Fun
@@ -335,7 +335,6 @@ module Exp = {
     | BuiltinFun
     | Match
     | Cast
-    | DrvExp
     | ListConcat;
 
   include TermBase.Exp;
@@ -364,6 +363,7 @@ module Exp = {
     | Int(_) => Int
     | Float(_) => Float
     | String(_) => String
+    | DrvExp(_) => DrvExp
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
@@ -388,8 +388,7 @@ module Exp = {
     | BinOp(op, _, _) => BinOp(op)
     | BuiltinFun(_) => BuiltinFun
     | Match(_) => Match
-    | Cast(_) => Cast
-    | DrvExp(_) => DrvExp;
+    | Cast(_) => Cast;
 
   let show_cls: cls => string =
     fun
@@ -405,7 +404,7 @@ module Exp = {
     | Int => "Integer literal"
     | Float => "Float literal"
     | String => "String literal"
-    | Prop => "Proposition"
+    | DrvExp => "Derivation expression"
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Fun => "Function literal"
@@ -432,8 +431,7 @@ module Exp = {
     | UnOp(op) => Operators.show_unop(op)
     | BuiltinFun => "Built-in Function"
     | Match => "Case expression"
-    | Cast => "Cast expression"
-    | DrvExp => "DrvExp expression";
+    | Cast => "Cast expression";
 
   // Typfun should be treated as a function here as this is only used to
   // determine when to allow for recursive definitions in a let binding.
@@ -455,6 +453,7 @@ module Exp = {
     | Int(_)
     | Float(_)
     | String(_)
+    | DrvExp(_)
     | ListLit(_)
     | Tuple(_)
     | Var(_)
@@ -474,8 +473,7 @@ module Exp = {
     | UnOp(_)
     | BinOp(_)
     | Match(_)
-    | Constructor(_)
-    | DrvExp(_) => false
+    | Constructor(_) => false
     };
   };
 
@@ -497,6 +495,7 @@ module Exp = {
       | Int(_)
       | Float(_)
       | String(_)
+      | DrvExp(_)
       | ListLit(_)
       | Fun(_)
       | TypFun(_)
@@ -518,8 +517,7 @@ module Exp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
-      | Constructor(_)
-      | DrvExp(_) => false
+      | Constructor(_) => false
       }
     );
 
@@ -558,6 +556,7 @@ module Exp = {
       | Int(_)
       | Float(_)
       | String(_)
+      | DrvExp(_)
       | ListLit(_)
       | Fun(_)
       | TypFun(_)
@@ -576,8 +575,7 @@ module Exp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
-      | Constructor(_)
-      | DrvExp(_) => None
+      | Constructor(_) => None
       };
     };
 
@@ -727,6 +725,7 @@ module Exp = {
           | Int(_)
           | Float(_)
           | String(_)
+          | DrvExp(_)
           | ListLit(_)
           | Constructor(_)
           | TypFun(_)
@@ -746,7 +745,6 @@ module Exp = {
           | BinOp(_)
           | BuiltinFun(_)
           | Cast(_)
-          | DrvExp(_)
           | Undefined => cont(e)
           };
         },
@@ -838,16 +836,6 @@ module Any = {
       | tms => DrvTermBase.MultiHole(tms)
     );
 
-  let sort_of: t => Sort.t =
-    fun
-    | Any(_) => Any
-    | Exp(_) => Exp
-    | Pat(_) => Pat
-    | Typ(_) => Typ
-    | TPat(_) => TPat
-    | Rul(_) => Rul
-    | Drv(drv) => Drv(DrvTerm.Any.sort_of(drv))
-    | Nul(_) => Nul;
   let rec ids: TermBase.any_t => list(Id.t) =
     fun
     | Drv(Exp(tm)) => tm.ids
@@ -855,7 +843,6 @@ module Any = {
     | Drv(Pat(tm)) => tm.ids
     | Drv(Typ(tm)) => tm.ids
     | Drv(TPat(tm)) => tm.ids
-    | Drv(Any(_)) => []
     | Exp(tm) => tm.ids
     | Pat(tm) => tm.ids
     | Typ(tm) => tm.ids
@@ -882,7 +869,6 @@ module Any = {
     | Drv(Pat(tm)) => Drv.Pat.rep_id(tm)
     | Drv(Typ(tm)) => Drv.Typ.rep_id(tm)
     | Drv(TPat(tm)) => Drv.TPat.rep_id(tm)
-    | Drv(Any(_)) => raise(Invalid_argument("Any.rep_id"))
     | (Exp(tm): TermBase.any_t) => Exp.rep_id(tm)
     | Pat(tm) => Pat.rep_id(tm)
     | Typ(tm) => Typ.rep_id(tm)

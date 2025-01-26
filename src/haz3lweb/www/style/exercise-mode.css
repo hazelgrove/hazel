@@ -6,11 +6,10 @@
   padding: 1em;
   display: flex;
   flex-direction: column;
+  /* Note(zhiyao): cannot do that because derivation exercise might be shorter than a page */
   /* justify-content: space-between; */
   gap: 1.2em;
   background-color: var(--ui-bkg);
-  /* Note(zhiyao): User may perfer to be able to scroll more than the page content */
-  padding-bottom: 100%;
 }
 
 #main.Exercises {
@@ -79,7 +78,7 @@
   cursor: pointer;
 }
 
-#main.Exercises .test-report+.test-report {
+#main.Exercises .test-report + .test-report {
   border-top: 1px dotted var(--BR2);
 }
 
@@ -174,7 +173,7 @@
   align-items: center;
 }
 
-#main.Exercises>.test-percent {
+#main.Exercises > .test-percent {
   position: absolute;
   top: 0;
   right: 0;

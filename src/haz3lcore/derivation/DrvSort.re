@@ -7,7 +7,6 @@
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | Any
   | Jdmt
   | Ctx
   | Prop
@@ -19,7 +18,6 @@ type t =
 
 let show =
   fun
-  | Any => "Any"
   | Jdmt => "Jdmt"
   | Prop => "Prop"
   | Ctx => "Ctx"
@@ -31,7 +29,6 @@ let show =
 
 let class_of =
   fun
-  | Any => "Any"
   | Jdmt => "Drv"
   | Ctx => "Drv"
   | Prop => "Exp"
@@ -41,11 +38,10 @@ let class_of =
   | Typ => "Typ"
   | TPat => "TPat";
 
-let all = [Any, Jdmt, Ctx, Prop, Exp, Pat, Typ, TPat];
+let all = [Jdmt, Ctx, Prop, Exp, Pat, Typ, TPat];
 
 let to_string =
   fun
-  | Any => "Any"
   | Jdmt => "Jdmt"
   | Ctx => "Ctx"
   | Prop => "Prop"
@@ -57,7 +53,6 @@ let to_string =
 
 let to_string_verbose =
   fun
-  | Any => "any"
   | Jdmt => "judgement"
   | Ctx => "context"
   | Prop => "proposition"

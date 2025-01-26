@@ -269,23 +269,13 @@ module Any = {
 
   include DrvTermBase.Any;
 
-  let sort_of: t => DrvSort.t =
-    fun
-    | Exp(_) => Exp
-    | Rul(_) => Rul
-    | Pat(_) => Pat
-    | Typ(_) => Typ
-    | TPat(_) => TPat
-    | Any(_) => Any;
-
   let rep_id: t => Id.t =
     fun
     | Exp(exp) => Exp.rep_id(exp)
     | Rul(rul) => Rul.rep_id(rul)
     | Pat(pat) => Pat.rep_id(pat)
     | Typ(typ) => Typ.rep_id(typ)
-    | TPat(tpat) => TPat.rep_id(tpat)
-    | Any(_) => raise(Invalid_argument("Any.rep_id"));
+    | TPat(tpat) => TPat.rep_id(tpat);
 
   let of_id: t => list(Id.t) =
     fun
@@ -293,8 +283,7 @@ module Any = {
     | Rul(rul) => rul.ids
     | Pat(pat) => pat.ids
     | Typ(typ) => typ.ids
-    | TPat(tpat) => tpat.ids
-    | Any(_) => [];
+    | TPat(tpat) => tpat.ids;
 
   let cls_of: t => cls =
     fun
@@ -302,6 +291,5 @@ module Any = {
     | Rul(rul) => Rul(Rul.cls_of_term(rul.term))
     | Pat(pat) => Pat(Pat.cls_of_term(pat.term))
     | Typ(typ) => Typ(Typ.cls_of_term(typ.term))
-    | TPat(tpat) => TPat(TPat.cls_of_term(tpat.term))
-    | Any(_) => raise(Invalid_argument("Any.cls_of"));
+    | TPat(tpat) => TPat(TPat.cls_of_term(tpat.term));
 };

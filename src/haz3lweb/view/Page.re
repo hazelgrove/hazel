@@ -148,7 +148,6 @@ module Update = {
     | ActiveEditor(action) =>
       let cursor_info =
         Editors.Selection.get_cursor_info(
-          ~globals=model.globals,
           ~selection=model.selection,
           model.editors,
         );
@@ -167,7 +166,6 @@ module Update = {
     | Undo =>
       let cursor_info =
         Editors.Selection.get_cursor_info(
-          ~globals=model.globals,
           ~selection=model.selection,
           model.editors,
         );
@@ -186,7 +184,6 @@ module Update = {
     | Redo =>
       let cursor_info =
         Editors.Selection.get_cursor_info(
-          ~globals=model.globals,
           ~selection=model.selection,
           model.editors,
         );
@@ -245,6 +242,7 @@ module Update = {
       model |> Updated.return_quiet;
     | Start => model |> return // Triggers recalculation at the start
     | Save =>
+      print_endline("Saving...");
       Store.save(model);
       model |> return_quiet;
     };
@@ -260,7 +258,6 @@ module Update = {
       );
     let cursor_info =
       Editors.Selection.get_cursor_info(
-        ~globals=model.globals,
         ~selection=model.selection,
         model.editors,
       );
@@ -269,7 +266,6 @@ module Update = {
         ~globals=model.globals,
         ~explainThisModel=model.explain_this,
         cursor_info.info,
-        // TODO(zhiyao): derivation mode coloring is temporarily disabled
       );
     // Note(Zhiyao): derivation highlight override ExplainThis highlights if exists
     let derivation_info =
@@ -317,11 +313,7 @@ module Selection = {
 
   let get_cursor_info =
       (~selection: t, model: Model.t): cursor(Editors.Update.t) => {
-    Editors.Selection.get_cursor_info(
-      ~globals=model.globals,
-      ~selection,
-      model.editors,
-    );
+    Editors.Selection.get_cursor_info(~selection, model.editors);
   };
 };
 
@@ -493,10 +485,8 @@ module View = {
         ~inject=a => inject(Editors(a)),
         cursor,
       );
-
     let derivation_info =
       Editors.Selection.get_derivation_info(~selection, model.editors);
-
     let sidebar =
       globals.settings.explainThis.show && globals.settings.core.statics
         ? ExplainThis.view(
