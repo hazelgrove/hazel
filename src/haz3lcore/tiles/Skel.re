@@ -137,7 +137,7 @@ module Stacks = {
       let split_kids = n =>
         try(ListUtil.split_n(n, stacks.output) |> PairUtil.map_fst(List.rev)) {
         | _ =>
-          print_endline(show(stacks));
+          prerr_endline(show(stacks));
           failwith("Skel.push_output: split_kids: index out of bounds");
         };
       let output =

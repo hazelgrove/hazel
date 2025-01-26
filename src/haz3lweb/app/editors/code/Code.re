@@ -9,10 +9,9 @@ open Util.Web;
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
-    ((label, is_in_buffer, sort, is_consistent, is_complete, indent, i)) => {
+    ((label, sort, is_consistent, is_complete, indent, i)) => {
       let cls =
         switch (label) {
-        | _ when is_in_buffer => "in-buffer"
         | _ when !is_consistent => "sort-inconsistent"
         | _ when !is_complete => "incomplete"
         | [s] when s == Form.explicit_hole => "explicit-hole"
@@ -20,7 +19,6 @@ let of_delim' =
         | _ => Sort.to_string(sort)
         };
       let plurality = List.length(label) == 1 ? "mono" : "poly";
-      //let label = is_in_buffer ? AssistantExpander.mark(label) : label;
       let token = List.nth(label, i);
       /* Add indent to multiline tokens: */
       let token =
@@ -34,12 +32,9 @@ let of_delim' =
       ];
     },
   );
-let of_delim =
-    (is_in_buffer, is_consistent, indent, t: Piece.tile, i: int)
-    : list(Node.t) =>
+let of_delim = (is_consistent, indent, t: Piece.tile, i: int): list(Node.t) =>
   of_delim'((
     t.label,
-    is_in_buffer,
     t.mold.out,
     is_consistent,
     Tile.is_complete(t),
@@ -51,8 +46,11 @@ let space = " "; //Unicode.nbsp;
 
 let of_secondary =
   Core.Memo.general(
-    ~cache_size_bound=10000, ((content, secondary_icons, indent)) =>
-    if (String.equal(Secondary.get_string(content), Form.linebreak)) {
+    ~cache_size_bound=10000,
+    ((content, secondary_icons, indent, is_in_buffer: bool)) =>
+    if (is_in_buffer) {
+      [span_c("in-buffer", [Node.text(Secondary.get_string(content))])];
+    } else if (String.equal(Secondary.get_string(content), Form.linebreak)) {
       let str = secondary_icons ? ">" : "";
       [
         span_c("linebreak", [text(str)]),
@@ -70,7 +68,7 @@ let of_secondary =
   );
 
 let of_projector = (expected_sort, indent, token) =>
-  of_delim'(([token], false, expected_sort, true, true, indent, 0));
+  of_delim'(([token], expected_sort, true, true, indent, 0));
 
 module Text =
        (
@@ -86,12 +84,10 @@ module Text =
           (buffer_ids, no_sorts, sort, seg: Segment.t): list(Node.t) => {
     /* note: no_sorts flag is used for backpack view;
        otherwise Segment.expected_sorts call crashes for some reason */
-    print_endline("AAAAA");
     let expected_sorts =
       no_sorts
         ? List.init(List.length(seg), i => (i, Sort.Any))
         : Segment.expected_sorts(sort, seg);
-    print_endline("BBBBB");
     let sort_of_p_idx = idx =>
       switch (List.assoc_opt(idx, expected_sorts)) {
       | None => Sort.Any
@@ -108,8 +104,14 @@ module Text =
     switch (p) {
     | Tile(t) => of_tile(buffer_ids, expected_sort, t)
     | Grout(g) => [EmptyHoleDec.view(M.font_metrics, g.shape)]
-    | Secondary({content, _}) =>
-      of_secondary((content, M.settings.secondary_icons, m(p).last.col))
+    | Secondary({content, id}) =>
+      let is_in_buffer = List.mem(id, buffer_ids);
+      of_secondary((
+        content,
+        M.settings.secondary_icons,
+        m(p).last.col,
+        is_in_buffer,
+      ));
     | Projector(p) =>
       of_projector(
         expected_sort,
@@ -126,11 +128,9 @@ module Text =
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
-    let is_in_buffer = List.mem(t.id, buffer_ids);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(
-         of_delim(is_in_buffer, is_consistent, m(Tile(t)).origin.col, t),
-         ((seg, sort)) =>
+         of_delim(is_consistent, m(Tile(t)).origin.col, t), ((seg, sort)) =>
          of_segment(buffer_ids, false, sort, seg)
        )
     |> List.concat;

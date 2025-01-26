@@ -60,7 +60,8 @@
   color: var(--token-string-lit);
 }
 
-.code .token.in-buffer {
+/* code completion tokens */
+.code .in-buffer {
   color: var(--token-buffer);
 }
 
@@ -181,11 +182,6 @@ svg.shard.selected > path {
   stroke-width: 0.5px;
   stroke: var(--shard-selected);
 }
-svg.shard.selected.buffer > path {
-  fill: var(--shard-buffer);
-  stroke-width: 0;
-  filter: none;
-}
 svg.shard.error > path,
 .errors .errors-piece svg .child-line {
   stroke: var(--error-hole-stroke);
@@ -195,6 +191,16 @@ svg.shard.error > path,
 }
 svg.shard.error > path {
   fill: var(--error-hole-fill);
+}
+
+/* Code completion decoration */
+
+svg.shard.selected.buffer {
+  filter: none;
+}
+svg.shard.selected.buffer > path {
+  fill: #0000;
+  stroke-width: 0;
 }
 
 /* EMPTY HOLE DECO */
