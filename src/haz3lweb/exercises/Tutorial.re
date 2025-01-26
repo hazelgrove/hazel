@@ -398,6 +398,7 @@ type stitched('a) = {
   instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
   //   hidden_bugs: list('a), // prelude + hidden_bugs[i].impl + your_tests,
   hidden_tests: 'a,
+  // raw_result: 'a,
 };
 
 let map_stitched = (f: (pos, 'a) => 'b, s: stitched('a)): stitched('b) => {
@@ -408,6 +409,7 @@ let map_stitched = (f: (pos, 'a) => 'b, s: stitched('a)): stitched('b) => {
   instructor: f(YourImpl, s.instructor),
   //   hidden_bugs: List.mapi((i, p) => f(HiddenBugs(i), p), s.hidden_bugs),
   hidden_tests: f(HiddenTests, s.hidden_tests),
+  // raw_result: f(YourImpl, s.raw_result),
 };
 
 let get_stitched = (pos, s: stitched('a)): 'a =>
@@ -469,8 +471,8 @@ let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
   );
 
 let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
-  Printf.printf("Wrapper: %b\n", eds.wrapper);
-  Printf.printf("Name: %s\n", eds.module_name);
+  // Printf.printf("Wrapper: %b\n", eds.wrapper);
+  // Printf.printf("Name: %s\n", eds.module_name);
   eds.wrapper = (
     switch (eds.module_name) {
     | "Ex_OddlyRecursive_tutorial" => true
@@ -481,7 +483,15 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
 
   let user_impl_term = {
     eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
+                                                               // eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
   };
+
+  // let user_impl_term =
+  //   MakeTerm.from_zip_for_sem(eds.your_impl.state.zipper).term;
+  // Printf.printf(
+  //   "User Implementation Term: %s\n",
+  //   TermBase.Exp.show(user_impl_term),
+  // );
   let wrapped_user_impl =
     Let(Var("answer") |> Pat.fresh, user_impl_term, EmptyHole |> Exp.fresh)
     |> Exp.fresh;
@@ -512,6 +522,7 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
     user_impl: wrap(user_impl_term, eds.your_impl),
     instructor: wrap(instructor, eds.your_impl),
     hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
+    // raw_result: wrap((user_impl_term), eds.your_impl),
   };
 };
 let stitch_term = Core.Memo.general(stitch_term);

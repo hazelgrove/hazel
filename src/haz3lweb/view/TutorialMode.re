@@ -209,6 +209,7 @@ module Update = {
         //   provided: model.editors.your_tests.provided,
         // },
         your_impl: model.editors.your_impl,
+        // raw_result: model.editors.raw_result,
         // calculate(cells.user_impl.editor.statics, model.editors.your_impl),
         // hidden_bugs:
         //   List.map2(
@@ -294,6 +295,14 @@ module View = {
     let eds = model.editors;
     let {user_impl, instructor, hidden_tests}: Tutorial.stitched('a) =
       model.cells;
+
+    Printf.printf(
+      "User Impl Before View: %s\n",
+      CellEditor.Model.show(user_impl),
+    );
+
+    // let answer_value = raw_result.result;
+
     let stitched_tests =
       Tutorial.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
@@ -343,6 +352,10 @@ module View = {
         ),
       );
     };
+    Printf.printf(
+      "User Impl After View: %s\n",
+      CellEditor.Model.show(user_impl),
+    );
     let hidden_tests_view =
       InstructorOnly(
         () => editor_view(HiddenTests, hidden_tests, ~caption="Hidden Tests"),
@@ -365,7 +378,13 @@ module View = {
     [score_view, title_view, description_view]
     @ render_cells(
         globals.settings,
-        [] @ [your_impl_view, hidden_tests_view, impl_grading_view],
+        []
+        @ [
+          your_impl_view,
+          // raw_result_view,
+          hidden_tests_view,
+          impl_grading_view,
+        ],
       );
   };
 };
