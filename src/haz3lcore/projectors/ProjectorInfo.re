@@ -14,8 +14,12 @@ let utility: ProjectorBase.utility = {
     | [e] => e
     | seg => Segment.parenthesize(seg)
     };
-  let lift_syntax = (fn: Any.t => Any.t, piece: Base.piece): Base.piece =>
-    [piece] |> seg_to_term |> fn |> term_to_syntax;
+  let lift_syntax =
+      (fn: Any.t => Any.t, piece: Base.piece): option(Base.piece) =>
+    switch ([piece] |> seg_to_term) {
+    | None => None
+    | Some(s) => Some(s |> fn |> term_to_syntax)
+    };
   {term_to_seg, seg_to_term, lift_syntax};
 };
 

@@ -127,8 +127,8 @@ let fold_if = (condition, pieces) =>
   if (condition) {
     let syntax = mk_form("parens_exp", Id.mk(), [pieces]);
     switch (MakeTerm.any([syntax])) {
-    | Nul () => failwith("ExpToSegment.fold_if")
-    | any => [ProjectorInit.init_or_noop(Fold, syntax, any)]
+    | None => failwith("ExpToSegment.fold_if")
+    | Some(any) => [ProjectorInit.init_or_noop(Fold, syntax, any)]
     };
   } else {
     pieces;
@@ -139,8 +139,10 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
     let syntax = mk_form("parens_exp", Id.mk(), [pieces]);
     let str = FoldProj.sexp_of_t({text: f_name}) |> Sexplib.Sexp.to_string;
     switch (MakeTerm.any([syntax])) {
-    | Nul () => failwith("ExpToSegment.fold_fun_if")
-    | any => [ProjectorInit.init_or_noop_from_str(Fold, syntax, any, str)]
+    | None => failwith("ExpToSegment.fold_fun_if")
+    | Some(any) => [
+        ProjectorInit.init_or_noop_from_str(Fold, syntax, any, str),
+      ]
     };
   } else {
     pieces;
@@ -679,7 +681,6 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Typ(t) => typ_to_pretty(~settings: Settings.t, t)
   | TPat(tp) => tpat_to_pretty(~settings: Settings.t, tp)
   | Any(_)
-  | Nul(_)
   | Rul(_) =>
     //TODO: print out invalid rules properly
     let id = any |> Any.rep_id;
@@ -1190,7 +1191,6 @@ and parenthesize_any = (~show_filters: bool, any: Any.t): Any.t =>
   | TPat(tp) => TPat(parenthesize_tpat(~show_filters, tp))
   | Rul(r) => Rul(parenthesize_rul(~show_filters, r))
   | Any(_) => any
-  | Nul(_) => any
   };
 
 let exp_to_segment = (~settings: Settings.t, exp: Exp.t): Segment.t => {

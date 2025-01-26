@@ -160,7 +160,6 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   | Typ => Typ(typ(unsorted(skel, seg)))
   | Exp => Exp(exp(unsorted(skel, seg)))
   | Rul => Rul(rul(unsorted(skel, seg)))
-  | Nul => Nul() //TODO
   | Any =>
     let tm = unsorted(skel, seg);
     let ids = ids(tm);
@@ -618,15 +617,15 @@ let any =
    * representing missing infix operators, and invalid tokens. */
   Core.Memo.general(~cache_size_bound=1000, (seg: Segment.t) =>
     if (!Segment.deep_tile_complete(seg)) {
-      /* Returns Nul if any subsegment contains incomplete tiles */
-      TermBase.Nul();
+      None;
+          /* Returns Rul if any subsegment contains incomplete tiles */
     } else if (Segment.is_padded(seg)) {
-      /* Returns Nul the segment has secondary around it */
-      TermBase.Nul();
+      None;
+          /* Returns Nul the segment has secondary around it */
     } else {
       switch (Segment.skel(seg)) {
       /* Returns Nul if any subsegment is non-convex */
-      | exception _ => TermBase.Nul()
+      | exception _ => None
       | skel =>
         let (unsorted, sort) = (
           unsorted(skel, seg),
@@ -641,29 +640,28 @@ let any =
         switch (sort) {
         | Exp =>
           switch (exp(unsorted)) {
-          | {term: Tuple(_), _} => TermBase.Nul()
-          | _ => Exp(exp(unsorted))
+          | {term: Tuple(_), _} => None
+          | _ => Some(TermBase.Exp(exp(unsorted)))
           }
         | Pat =>
           switch (pat(unsorted)) {
-          | {term: Tuple(_), _} => TermBase.Nul()
-          | _ => Pat(pat(unsorted))
+          | {term: Tuple(_), _} => None
+          | _ => Some(Pat(pat(unsorted)))
           }
         | Typ =>
           switch (typ(unsorted)) {
-          | {term: Prod(_), _} => TermBase.Nul()
-          | _ => Typ(typ(unsorted))
+          | {term: Prod(_), _} => None
+          | _ => Some(Typ(typ(unsorted)))
           }
         | TPat =>
           switch (tpat(unsorted)) {
-          | _ => TPat(tpat(unsorted))
+          | _ => Some(TPat(tpat(unsorted)))
           }
         /* Rul case below prevents returning pseudo-terms
          * consisting of case scrutinee + rule(s) */
-        | Rul => Nul()
-        | Any => Any() /* grout */
-        //TODO: Consider term rootted at concave grout
-        | Nul => Nul()
+        | Rul => None
+        | Any => Some(Any()) /* grout */
+        //TODO: Consider term rooted at concave grout
         };
       };
     }

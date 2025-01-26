@@ -17,18 +17,27 @@ module M: Projector = {
     };
 
   let get = (info: info): float =>
-    switch ([info.syntax] |> info.utility.seg_to_term |> float_of) {
-    | Some(f) => f
+    switch ([info.syntax] |> info.utility.seg_to_term) {
+    | Some(f) =>
+      switch (float_of(f)) {
+      | Some(f) => f
+      | None => failwith("SliderF: Get: not float literal")
+      }
     | None => failwith("SliderF: Get: not float literal")
     };
 
   let put = (info: info, v: string): syntax =>
-    info.utility.lift_syntax(
-      fun
-      | Exp(any) => Exp({...any, term: Float(float_of_string(v))})
-      | _ => failwith("SliderF: Put: not float literal"),
-      info.syntax,
-    );
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp(any) => Exp({...any, term: Float(float_of_string(v))})
+        | _ => failwith("SliderF: Put: not float literal"),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("SliderF: Put: lift failed")
+    };
 
   let can_project = (_, any) => float_of(any) != None;
   let can_focus = false;
