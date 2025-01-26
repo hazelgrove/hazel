@@ -60,7 +60,7 @@ type p('code) = {
   your_impl: 'code,
   //   hidden_bugs: list(wrong_impl('code)),
   hidden_tests: hidden_tests('code),
-  wrapper: bool,
+  mutable wrapper: bool,
   //   syntax_tests,
 };
 
@@ -469,6 +469,16 @@ let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
   );
 
 let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
+  Printf.printf("Wrapper: %b\n", eds.wrapper);
+  Printf.printf("Name: %s\n", eds.module_name);
+  eds.wrapper = (
+    switch (eds.module_name) {
+    | "Ex_OddlyRecursive_tutorial" => true
+    | _ => false
+    }
+  );
+  Printf.printf("Wrapper: %b\n", eds.wrapper);
+
   let user_impl_term = {
     eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
   };
@@ -579,7 +589,7 @@ let export_grading_module = (module_name, {eds, _}: state) => {
 let blank_spec = (~title, ~description) => {
   let your_impl = Zipper.next_blank();
   let hidden_tests_tests = Zipper.next_blank();
-  let wrapper = true;
+  let wrapper = false;
   {
     title,
     description,
@@ -598,6 +608,8 @@ let blank_spec = (~title, ~description) => {
 type persistent_exercise_mode = list((pos, PersistentZipper.t));
 
 let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
+  // Js.Console.log2("Wrapper:", spec.wrapper);
+  // Printf.printf("Wrapper: %b\n", spec.wrapper);
   let lookup = (pos, default) =>
     if (visible_in(pos, ~instructor_mode)) {
       positioned_zippers
