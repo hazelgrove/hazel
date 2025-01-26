@@ -240,9 +240,8 @@ module Update = {
       let settings = globals.settings.assistant;
       let* assistant =
         AssistantModel.Update.update(
-          ~settings,
-          ~action,
-          ~model=model.assistant,
+          ~settings, ~action, ~model=model.assistant, ~schedule_action=a =>
+          schedule_action(Assistant(a))
         );
       {...model, assistant};
     | MakeActive(selection) => {...model, selection} |> Updated.return
@@ -503,7 +502,7 @@ module View = {
                 fun
                 | MakeActive(selection) => inject(MakeActive(selection))
               );
-              Assistant.view(
+              AssistantView.view(
                 ~globals,
                 ~signal=
                   fun
