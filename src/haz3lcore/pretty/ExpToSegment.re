@@ -681,7 +681,6 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | TPat(tp) => tpat_to_pretty(~settings: Settings.t, tp)
   | Drv(_) // => drv_to_pretty(~settings: Settings.t, drv) TODO(zhiyao)
   | Any(_)
-  | Nul(_)
   | Rul(_) =>
     //TODO: print out invalid rules properly
     let id = any |> Any.rep_id;
@@ -1196,7 +1195,6 @@ and parenthesize_any = (~show_filters: bool, any: Any.t): Any.t =>
   | Rul(r) => Rul(parenthesize_rul(~show_filters, r))
   | Drv(d) => Drv(d) // TODO(zhiyao): implement this
   | Any(_) => any
-  | Nul(_) => any
   };
 
 let exp_to_segment = (~settings: Settings.t, exp: Exp.t): Segment.t => {

@@ -158,7 +158,6 @@ let rec any_to_info_map =
       m |> drv_to_info_map(drv, ~ancestors, ~ctx, ~sort=Jdmt),
     )
   | Rul(_)
-  | Nul ()
   | Any () => (CoCtx.empty, m)
   }
 and multi = (~ctx, ~ancestors, m, tms) =>

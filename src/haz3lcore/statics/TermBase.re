@@ -54,7 +54,6 @@ type any_t =
   | Typ(typ_t)
   | TPat(tpat_t)
   | Rul(rul_t)
-  | Nul(unit)
   | Any(unit)
 and exp_term =
   | Invalid(string)
@@ -215,7 +214,6 @@ module rec Any: {
         )
       | Rul(x) =>
         Rul(Rul.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
-      | Nul () => Nul()
       | Any () => Any()
       };
     x |> f_any(rec_call);
@@ -229,7 +227,6 @@ module rec Any: {
     | (Typ(x), Typ(y)) => Typ.fast_equal(x, y)
     | (TPat(x), TPat(y)) => TPat.fast_equal(x, y)
     | (Rul(x), Rul(y)) => Rul.fast_equal(x, y)
-    | (Nul (), Nul ()) => true
     | (Any (), Any ()) => true
     | (Drv(_), _)
     | (Exp(_), _)
@@ -237,7 +234,6 @@ module rec Any: {
     | (Typ(_), _)
     | (TPat(_), _)
     | (Rul(_), _)
-    | (Nul (), _)
     | (Any (), _) => false
     };
 }

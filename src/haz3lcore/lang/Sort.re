@@ -2,7 +2,6 @@
 type t =
   | Drv(DrvSort.t)
   | Any
-  | Nul
   | Pat
   | Typ
   | TPat
@@ -19,18 +18,24 @@ let class_of =
   | Drv(s) => DrvSort.class_of(s)
   | _ as s => show(s);
 
+type gadt('a) =
+  | DrvSort: gadt(DrvTermBase.Any.t)
+  | AnySort: gadt(TermBase.Any.t)
+  | PatSort: gadt(TermBase.Pat.t)
+  | TypSort: gadt(TermBase.Typ.t)
+  | TPatSort: gadt(TermBase.TPat.t)
+  | RulSort: gadt(TermBase.Rul.t)
+  | ExpSort: gadt(TermBase.Exp.t);
+
 let root = Exp;
 
 let all =
-  (DrvSort.all |> List.map(s => Drv(s)))
-  @ [Any, Nul, Pat, Typ, Rul, Exp, TPat];
+  (DrvSort.all |> List.map(s => Drv(s))) @ [Any, Pat, Typ, Rul, Exp, TPat];
 
 let consistent = (s, s') =>
   switch (s, s') {
   | (Any, _)
   | (_, Any) => true
-  | (Nul, _)
-  | (_, Nul) => false
   | _ => s == s'
   };
 
@@ -38,7 +43,6 @@ let to_string =
   fun
   | Drv(s) => DrvSort.class_of(s)
   | Any => "Any"
-  | Nul => "Nul"
   | Pat => "Pat"
   | TPat => "TPat"
   | Typ => "Typ"
@@ -49,7 +53,6 @@ let to_string_verbose =
   fun
   | Drv(s) => DrvSort.to_string_verbose(s)
   | Any => "any"
-  | Nul => "null"
   | Pat => "pattern"
   | TPat => "type pattern"
   | Typ => "type"
