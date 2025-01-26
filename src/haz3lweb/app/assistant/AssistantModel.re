@@ -85,25 +85,17 @@ module Update = {
             }
           );
         };
-        Model.{chat: model.chat @ [message], currSender: LLM}
-        |> Updated.return_quiet;
-      | _ =>
+        let await_llm_response: Model.message = {party: LLM, content: "..."};
         Model.{
-          chat:
-            model.chat
-            @ [
-              {
-                party: LS,
-                content: "Message Not Sent: Waiting for LLM Response",
-              },
-            ],
+          chat: model.chat @ [message, await_llm_response],
           currSender: LLM,
         }
-        |> Updated.return_quiet
+        |> Updated.return_quiet;
+      | _ => Model.{chat: model.chat, currSender: LLM} |> Updated.return_quiet
       }
     | NewChat => Model.{chat: [], currSender: LS} |> Updated.return_quiet
     | Respond(message) =>
-      Model.{chat: model.chat @ [message], currSender: LS}
+      Model.{chat: ListUtil.leading(model.chat) @ [message], currSender: LS}
       |> Updated.return_quiet
     };
   };
