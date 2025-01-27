@@ -819,7 +819,6 @@ module Any = {
     | Typ(tm) => tm.ids
     | TPat(tm) => tm.ids
     | Rul(tm) => Rul.ids(~any_ids=ids, tm)
-    | Nul ()
     | Any () => [];
 
   // Terms may consist of multiple tiles, eg the commas in an n-tuple,
@@ -840,6 +839,5 @@ module Any = {
     | Typ(tm) => Typ.rep_id(tm)
     | TPat(tm) => TPat.rep_id(tm)
     | Rul(tm) => Rul.rep_id(~any_ids=ids, tm)
-    | Nul ()
     | Any () => raise(Invalid_argument("Term.rep_id"));
 };

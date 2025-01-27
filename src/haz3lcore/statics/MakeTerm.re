@@ -146,7 +146,6 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   | Typ => Typ(typ(unsorted(skel, seg)))
   | Exp => Exp(exp(unsorted(skel, seg)))
   | Rul => Rul(rul(unsorted(skel, seg)))
-  | Nul => Nul() //TODO
   | Any =>
     let tm = unsorted(skel, seg);
     let ids = ids(tm);

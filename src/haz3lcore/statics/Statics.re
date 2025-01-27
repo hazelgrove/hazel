@@ -154,7 +154,6 @@ let rec any_to_info_map =
       utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd,
     )
   | Rul(_)
-  | Nul ()
   | Any () => (CoCtx.empty, m)
   }
 and multi = (~ctx, ~ancestors, m, tms) =>
