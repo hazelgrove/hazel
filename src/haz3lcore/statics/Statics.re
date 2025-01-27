@@ -681,11 +681,46 @@ and uexp_to_info_map =
               let new_ctx  = Ctx.extend_dummy_tvar(temp_ctx,(Var(arg):TPat.term) |> IdTagged.fresh);
               
               
+              switch(utyp.term){
+                | Sum(_)  => ()
+                | _ => ()
 
+                //need to use Ctx.extend_alias in order to add the new created type
+                // 
+              };
 
               ((),(),())
           }
+  //old behavior of extend_higher_kind
+    
+  // let extend_higher_kind =
+  //     (ctx: t, name: TypVar.t, arg: TypVar.t, id: Id.t, ty: Typ.t): t => {
+  //   let ctx =
+  //     extend_tvar(
+  //       ctx,
+  //       {name, id, kind: Arrow(Singleton(Var(arg)), Singleton(ty))},
+  //     );
+  //   extend_tvar(ctx, {name: arg, id, kind: Abstract});
 
+        // | Ap(t1, t2) =>
+        // let name =
+        //   switch (t1.term) {
+        //   | Var(s) => s
+        //   | _ => ""
+        //   };
+
+        // this is used for the ap case in Typ.to_typ
+        // switch (Ctx.lookup_tvar(ctx, name)) {
+        // | Some(ty) =>
+        //   switch (ty.kind) {
+        //   | Arrow(Singleton(Var(arg)), Singleton(ty_out)) =>
+        //     Typ.subst(to_typ(ctx, t2), arg, ty_out)
+        //   | Abstract => Ap(Var(name), to_typ(ctx, t2))
+        //   | _ => Unknown(Internal)
+        //   }
+        // | None => Unknown(Free(name))
+        // };
+  // };
 
          ty_pre //takes the blame
     }; 
