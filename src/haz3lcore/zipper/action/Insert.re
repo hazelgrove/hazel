@@ -168,6 +168,18 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
 
 let opt_regrold = d => Option.map(remold_regrout(d));
 
+let init_projector =
+    (kind: Base.kind, syntax: ProjectorBase.syntax): ProjectorBase.syntax => {
+  /* We set the projector id equal to the Piece id for convienence
+   * including cursor-info association. We maintain this invariant
+   * when we update a projector's contained syntax */
+  let (module P) = Projector.to_module(kind);
+  switch (P.can_project(syntax)) {
+  | false => syntax
+  | true => Projector({id: Piece.id(syntax), kind, model: P.init, syntax})
+  };
+};
+
 let move_into_if_stringlit_or_comment = (char, z) =>
   /* This is special-case logic for advancing the caret to position between the quotes
      in newly-created stringlits. The main stringlit special-case is in Zipper.constuct
@@ -222,7 +234,6 @@ let rec go =
       if (ll.name == "syntax_error") {
         insert_outer(char, z);
       } else {
-        print_endline("Livelit: " ++ ll.name);
         // Move to the left
         let left_z = z |> Zipper.move(Left) |> Option.get;
         // insert (
@@ -237,7 +248,26 @@ let rec go =
           |> StringUtil.to_list
           |> List.fold_left(insert, Some(right_z));
 
-        formatted_z;
+        let left_neighbor =
+          switch (formatted_z) {
+          | Some(z) => z.relatives.siblings |> Siblings.left_neighbor
+          | None => None
+          };
+
+        let updated_syntax =
+          init_projector(Livelit, Option.get(left_neighbor));
+
+        let new_left_siblings =
+          switch (List.rev(fst(z.relatives.siblings))) {
+          | [_hd, ...tl] => List.rev([updated_syntax, ...tl])
+          | [] => []
+          };
+
+        Some(
+          Option.get(formatted_z)
+          |> Zipper.update_siblings(((_, r)) => (new_left_siblings, r)),
+        );
+        // formatted_z;
       };
     | None => insert(Some(z), char)
     };
