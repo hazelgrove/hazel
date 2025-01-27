@@ -239,8 +239,7 @@ module View = {
         e.loc,
       );
 
-    let move_or_select = (mouse: Pointer.event, pointer_id: int) => {
-      let click_count = MouseState.down_transition();
+    let move_or_select = (mouse: Pointer.event, pointer_id: int) =>
       switch (mouse) {
       | {shift: Down, _} =>
         Effect.Many([
@@ -255,6 +254,8 @@ module View = {
           inject(Perform(Jump(BindingSiteOfIndicatedVar))),
         ])
       | {button: Left, _} =>
+        let click_count = MouseState.count();
+        MouseState.down_transition();
         /* Check how many clicks have happened recently
          * and cycle between options on-click */
         switch (click_count mod 3 + 1) {
@@ -268,14 +269,13 @@ module View = {
         | 2 => inject(Perform(Select(Smart(2))))
         | 3 => inject(Perform(Select(Smart(3))))
         | _ => failwith("THEN PERISH")
-        }
+        };
       | _ => Effect.Ignore
       };
-    };
 
     let toggle_button = (e: Pointer.event, pointer_id: int) => {
-      PointerCapture.release(e.current_target, pointer_id);
       MouseState.up_transition();
+      PointerCapture.release(e.current_target, pointer_id);
       Effect.Ignore;
     };
 
