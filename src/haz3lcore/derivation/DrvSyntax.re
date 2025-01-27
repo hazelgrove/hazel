@@ -30,7 +30,6 @@ type term =
   | HasType(t, t)
   | Syn(t, t)
   | Ana(t, t)
-  | Atom(string)
   | And(t, t)
   | Or(t, t)
   | Impl(t, t)
@@ -87,6 +86,8 @@ let fresh: term => t = IdTagged.fresh;
 
 let term_of: t => term = IdTagged.term_of;
 
+let rep_id: t => Id.t = IdTagged.rep_id;
+
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
 let temp = (term: term) =>
@@ -113,7 +114,6 @@ let precedence: t => int =
     | HasType(_) => P.cast
     | Syn(_) => P.cast
     | Ana(_) => P.cast
-    | Atom(_) => P.max
     | And(_) => P.and_
     | Or(_) => P.or_
     | Impl(_) => P.cast
@@ -176,7 +176,6 @@ let children = (syntax: t): list(t) =>
   | HasType(a, b) => [a, b]
   | Syn(a, b) => [a, b]
   | Ana(a, b) => [a, b]
-  | Atom(_) => []
   | And(a, b) => [a, b]
   | Or(a, b) => [a, b]
   | Impl(a, {term: Falsity, _}) => [a]
@@ -257,7 +256,6 @@ let repr = (~sp: string=" ", p: int, syntax: t): Aba.t(string, t) => {
   let lebals =
     switch (IdTagged.term_of(syntax)) {
     | Hole(s) => "[" ++ s ++ "]" |> op_sg
-    | Atom(s) => s |> op_sg
     | And(_) => "∧" |> bin_sg
     | Or(_) => "∨" |> bin_sg
     | Impl(_, {term: Falsity, _}) => "¬" |> pre_sg
@@ -393,7 +391,6 @@ let rec subst: (t, string, t) => t =
     | Syn(_)
     | Ana(_) => e
     // Logic
-    | Atom(_)
     | And(_)
     | Or(_)
     | Impl(_)
@@ -474,7 +471,6 @@ let rec subst_ty: (t, string, t) => t =
     | Syn(_)
     | Ana(_) => e
     // Logic
-    | Atom(_)
     | And(_)
     | Or(_)
     | Impl(_)
@@ -589,8 +585,6 @@ let rec eq: (t, t) => bool =
     | (Syn(_), _) => false
     | (Ana(a1, a2), Ana(b1, b2)) => eq(a1, b1) && eq(a2, b2)
     | (Ana(_), _) => false
-    | (Atom(a), Atom(b)) => String.equal(a, b)
-    | (Atom(_), _) => false
     | (And(a1, a2), And(b1, b2)) => eq(a1, b1) && eq(a2, b2)
     | (And(_), _) => false
     | (Or(a1, a2), Or(b1, b2)) => eq(a1, b1) && eq(a2, b2)

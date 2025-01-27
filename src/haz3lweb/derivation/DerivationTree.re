@@ -135,7 +135,7 @@ let del_abbr = (m: p('a), ~index): p('a) => {
   {...m, trees};
 };
 
-// TODO(zhiyao): might need to separate two
+// Note(zhiyao): might need to separate two
 let del_premise = (m: p('a), ~pos): p('a) =>
   switch (get_trees_pos(pos)) {
   | (index, Value) => del_abbr(m, ~index)
@@ -491,7 +491,6 @@ let pos_of_key = (key: string): pos =>
   | _ when String.starts_with(key, ~prefix="derivation_") =>
     let i = String.index(key, '_');
     let key = String.sub(key, i + 1, String.length(key) - i - 1);
-    // TODO(zhiyao): refactor this
     try({
       let i = String.index(key, '_');
       let n = String.sub(key, 0, i) |> int_of_string;
@@ -571,6 +570,5 @@ let blank_spec = (~title, ~module_name) => {
   };
 };
 
-// TODO(zhiyao): persistent state is different from Exercise.re
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_exercise_mode = p(PersistentZipper.t);

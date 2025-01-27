@@ -85,7 +85,6 @@ module M = (W: Wrapper) => {
     | PatPair(t, t)
     | TPat(t) // Copy self
     // Logical Proposition
-    | Atom(t) // Copy self
     | And(t, t)
     | Or(t, t)
     | Impl(t, t)
@@ -161,7 +160,6 @@ let rec map_reg = (f: string => string, spec: t): t => {
     | PatStrip(a) => PatStrip(map_reg(a))
     | PatPair(a, b) => PatPair(map_reg(a), map_reg(b))
     | TPat(a) => TPat(map_reg(a))
-    | Atom(a) => Atom(map_reg(a))
     | And(a, b) => And(map_reg(a), map_reg(b))
     | Or(a, b) => Or(map_reg(a), map_reg(b))
     | Impl(a, b) => Impl(map_reg(a), map_reg(b))
@@ -174,7 +172,7 @@ let rec map_reg = (f: string => string, spec: t): t => {
 let rec of_syntax = (spec: t): DrvSyntax.t => {
   let (term, rewrap: DrvSyntax.term => DrvSyntax.t) = IdTagged.unwrap(spec);
   switch (term) {
-  | Reg(s) => Atom(s) |> rewrap
+  | Reg(s) => Var(s) |> rewrap
   | Val(a) => Val(of_syntax(a)) |> rewrap
   | Eval(a, b) => Eval(of_syntax(a), of_syntax(b)) |> rewrap
   | Entail(a, b) => Entail(of_syntax(a), of_syntax(b)) |> rewrap
@@ -236,7 +234,6 @@ let rec of_syntax = (spec: t): DrvSyntax.t => {
   | PatStrip(r) => of_syntax(r)
   | PatPair(a, b) => PatPair(of_syntax(a), of_syntax(b)) |> rewrap
   | TPat(r) => of_syntax(r)
-  | Atom(r) => of_syntax(r)
   | And(a, b) => And(of_syntax(a), of_syntax(b)) |> rewrap
   | Or(a, b) => Or(of_syntax(a), of_syntax(b)) |> rewrap
   | Impl(a, b) => Impl(of_syntax(a), of_syntax(b)) |> rewrap
@@ -374,7 +371,6 @@ let rec go: ((map, list(failure)), specced) => (map, list(failure)) =
     // ALFA TPat
     | (TPat(r), TPat(_)) => info |> go(r, syntax)
     // Logical Proposition
-    | (Atom(r), Atom(_)) => info |> go(r, syntax)
     | (And(ra, rb), And(a, b)) => info |> go(ra, a) |> go(rb, b)
     | (Or(ra, rb), Or(a, b)) => info |> go(ra, a) |> go(rb, b)
     | (Impl(ra, rb), Impl(a, b)) => info |> go(ra, a) |> go(rb, b)
@@ -432,7 +428,6 @@ let rec go: ((map, list(failure)), specced) => (map, list(failure)) =
     | (PatStrip(_), _)
     | (PatPair(_), _)
     | (TPat(_), _)
-    | (Atom(_), _)
     | (And(_), _)
     | (Or(_), _)
     | (Impl(_), _)
@@ -963,7 +958,6 @@ let of_spec = (rule: Rule.t): (t, list(t)) => {
     | PatStrip(a) => PatStrip(fresh(a))
     | PatPair(a, b) => PatPair(fresh(a), fresh(b))
     | TPat(a) => TPat(fresh(a))
-    | Atom(a) => Atom(fresh(a))
     | And(a, b) => And(fresh(a), fresh(b))
     | Or(a, b) => Or(fresh(a), fresh(b))
     | Impl(a, b) => Impl(fresh(a), fresh(b))

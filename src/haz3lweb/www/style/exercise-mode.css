@@ -78,7 +78,7 @@
   cursor: pointer;
 }
 
-#main.Exercises .test-report + .test-report {
+#main.Exercises .test-report+.test-report {
   border-top: 1px dotted var(--BR2);
 }
 
@@ -173,7 +173,7 @@
   align-items: center;
 }
 
-#main.Exercises > .test-percent {
+#main.Exercises>.test-percent {
   position: absolute;
   top: 0;
   right: 0;
@@ -306,12 +306,32 @@
   font-family: math;
   display: flex;
   flex-wrap: wrap;
-  /* flex-direction: column;
-  align-items: center; */
+  flex-direction: column;
+  align-items: center;
 }
 
 .drv-explainthis .deduction-test {
   background-color: lightgrey;
+}
+
+#explain-this .drv-explainthis-section.section {
+  gap: 0;
+}
+
+.hline {
+  border: none;
+  border-top: var(--BR2) 0.1em solid;
+  width: 100%;
+}
+
+.drv-explainthis .code .token,
+.drv-explainthis .code .whitespace {
+  /* font-size: small; */
+  color: var(--token-exp);
+}
+
+#explain-this:has(.drv-explainthis) {
+  width: 30em;
 }
 
 .add-abbr-btn,

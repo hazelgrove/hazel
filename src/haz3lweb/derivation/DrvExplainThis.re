@@ -1,6 +1,5 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
-open Util;
 open ExplainThisForm;
 
 open DrvSyntax;
@@ -12,28 +11,91 @@ let highlight = (msg: list(Node.t), id: Id.t, mapping: ColorSteps.t): Node.t => 
   Node.span(~attrs, msg);
 };
 
-let rec show = (p: int, prop: t, ~color_map: ColorSteps.t): list(Node.t) =>
-  prop
-  |> repr(~sp=Unicode.nbsp, p)
-  |> Aba.join(x => [Node.text(x)], show(~color_map, precedence(prop)))
-  |> List.concat
-  // |> (
-  //   switch (IdTagged.term_of(prop)) {
-  //   // TODO(zhiyao): not good to use the string representation of the
-  //   | Atom(s) when s.[0] == 'n' => (x => [Node.u(x)])
-  //   | _ => Fun.id
-  //   }
-  // )
-  |> (
-    switch (
-      Haz3lcore.Id.Map.find_opt(IdTagged.rep_id(prop), fst(color_map))
-    ) {
-    | None => Fun.id
-    | Some(_) => (x => [highlight(x, IdTagged.rep_id(prop), color_map)])
-    }
-  );
+// let highlights =
+//   colorings
+//   |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
+//        let (color, _) = ColorSteps.get_color(code_id, color_map);
+//        (syntactic_form_id, color);
+//      })
+//   |> List.to_seq
+//   |> Id.Map.of_seq
+//   |> Option.some;
+// let editor = Editor.Model.mk(doc.syntactic_form |> Zipper.unzip, ~root=Exp);
+// let expander_deco =
+//   expander_deco(~globals, ~docs, ~inject, ~options, ~group, ~doc, editor);
+// let statics = CachedStatics.empty;
+// let highlight_deco = {
+//   module Deco =
+//     Deco.Deco({
+//       let editor = editor;
+//       let globals = {...globals, color_highlights: highlights};
+//       let statics = statics;
+//     });
+//   [Deco.color_highlights()];
+// };
+// let syntactic_form_view =
+//   CodeWithStatics.View.view(
+//     ~globals,
+//     ~overlays=highlight_deco @ [expander_deco],
+//     ~sort,
+//     {editor, statics},
+//   );
 
-let show = show(P.min);
+// let rec show = (p: int, prop: t, ~color_map: ColorSteps.t): list(Node.t) =>
+//   prop
+//   |> repr(~sp=Unicode.nbsp, p)
+//   |> Aba.join(x => [Node.text(x)], show(~color_map, precedence(prop)))
+//   |> List.concat
+//   // |> (
+//   //   switch (IdTagged.term_of(prop)) {
+//   //   // Note(zhiyao): not good to use the string representation of the
+//   //   | Atom(s) when s.[0] == 'n' => (x => [Node.u(x)])
+//   //   | _ => Fun.id
+//   //   }
+//   // )
+//   |> (
+//     switch (
+//       Haz3lcore.Id.Map.find_opt(IdTagged.rep_id(prop), fst(color_map))
+//     ) {
+//     | None => Fun.id
+//     | Some(_) => (x => [highlight(x, IdTagged.rep_id(prop), color_map)])
+//     }
+//   );
+
+let show = (syntax: t, ~color_map: ColorSteps.t, ~globals: Globals.t): Node.t => {
+  let editor =
+    Editor.Model.mk(
+      syntax
+      |> ExpToSegment.drv_to_pretty(
+           ~settings={
+             inline: true,
+             fold_case_clauses: false,
+             fold_fn_bodies: false,
+             hide_fixpoints: false,
+             fold_cast_types: false,
+             show_filters: false,
+           },
+         )
+      |> Zipper.unzip,
+      ~root=Drv(Jdmt),
+    );
+  let statics = CachedStatics.empty;
+  let highlight_deco = {
+    module Deco =
+      Deco.Deco({
+        let editor = editor;
+        let globals = {...globals, color_highlights: Some(fst(color_map))};
+        let statics = statics;
+      });
+    [Deco.color_highlights()];
+  };
+  CodeWithStatics.View.view(
+    ~globals,
+    ~overlays=highlight_deco,
+    ~sort=Drv(Jdmt),
+    {editor, statics},
+  );
+};
 
 let copy_color_map =
     (terms: list(RuleSpec.specced), (map, idx): ColorSteps.t): ColorSteps.t => {
@@ -68,10 +130,11 @@ let copy_color_map =
   copy_color_map(terms, color_map);
 };
 
-let conclusion_view = (~spec: RuleSpec.t, ~color_map: ColorSteps.t) =>
+let conclusion_view =
+    (~spec: RuleSpec.t, ~color_map: ColorSteps.t, ~globals: Globals.t) =>
   Node.div(
     ~attrs=[Attr.class_("deduction-concl"), Attr.class_("drv-explainthis")],
-    [Node.span(show(RuleSpec.of_syntax(spec), ~color_map))],
+    [show(RuleSpec.of_syntax(spec), ~color_map, ~globals)],
   );
 
 let rule_to_label =
@@ -88,6 +151,7 @@ let premises_view =
       ~tests: list(RuleTest.t),
       ~rule,
       ~color_map: ColorSteps.t,
+      ~globals,
     ) => {
   let label = rule_to_label(rule);
   Node.div(
@@ -102,12 +166,7 @@ let premises_view =
           spec =>
             Node.div(
               ~attrs=[Attr.class_("drv-explainthis")],
-              [
-                Node.span(show(RuleSpec.of_syntax(spec), ~color_map)),
-                Node.text(
-                  String.concat("", List.init(3, _ => Unicode.nbsp)),
-                ),
-              ],
+              [show(RuleSpec.of_syntax(spec), ~color_map, ~globals)],
             ),
           specs,
         )
@@ -134,7 +193,8 @@ let premises_view =
 };
 
 let rule_example_view =
-    (~info: DrvGrading.VerifiedTree.info, ~color_map: ColorSteps.t): Node.t => {
+    (~info: DrvGrading.VerifiedTree.info, ~color_map: ColorSteps.t, ~globals)
+    : Node.t => {
   let (rule, res) = (info.rule, info);
   let color_map =
     switch (res.res) {
@@ -143,7 +203,11 @@ let rule_example_view =
     | Pending(_) => color_map
     };
   Node.div(
-    ~attrs=[Attr.class_("section"), Attr.class_("syntactic-form")],
+    ~attrs=[
+      Attr.class_("section"),
+      Attr.class_("syntactic-form"),
+      Attr.class_("drv-explainthis-section"),
+    ],
     switch (rule) {
     | Some({spec: (concl, prems), tests, rule}) => [
         premises_view(
@@ -151,8 +215,9 @@ let rule_example_view =
           ~tests,
           ~rule=Some(RuleImage.to_image(rule)),
           ~color_map,
+          ~globals,
         ),
-        conclusion_view(~spec=concl, ~color_map),
+        conclusion_view(~spec=concl, ~color_map, ~globals),
       ]
     | None => []
     },
@@ -160,9 +225,13 @@ let rule_example_view =
 };
 
 let rule_example_view =
-    (~info: option(DrvGrading.VerifiedTree.info), ~color_map: ColorSteps.t) =>
+    (
+      ~info: option(DrvGrading.VerifiedTree.info),
+      ~color_map: ColorSteps.t,
+      ~globals,
+    ) =>
   switch (info) {
-  | Some(info) => rule_example_view(~info, ~color_map)
+  | Some(info) => rule_example_view(~info, ~color_map, ~globals)
   | None => Node.div([])
   };
 

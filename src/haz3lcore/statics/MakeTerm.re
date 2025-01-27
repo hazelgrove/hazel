@@ -53,7 +53,7 @@ let is_nary =
 let is_tuple_exp = is_nary(Any.is_exp, ",");
 let is_tuple_pat = is_nary(Any.is_pat, ",");
 let is_tuple_typ = is_nary(Any.is_typ, ",");
-let is_tuple_prop = is_nary(Any.is_alfa_exp, ",");
+let is_tuple_alfa_exp = is_nary(Any.is_alfa_exp, ",");
 let is_typ_bsum = is_nary(Any.is_typ, "+");
 
 let is_grout = tiles =>
@@ -230,9 +230,17 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
       | {ids, copied: false, term: Tuple(es)} => (Ctx(es), ids)
       | term => ret(Ctx([term]))
       }
-    | (["(", ")"], [Drv(Exp(body))]) => ret(Parens(body))
-    | (["case", "end"], [Drv(Exp({term: Case(_) as term, _}))]) =>
-      ret(term)
+    | (["(", ")"], [Drv(Exp(body))]) =>
+      switch (body) {
+      // Note(zhiyao): a standard tuple includes a parens
+      | {ids, term: Tuple(_) as term, _} => (term, ids)
+      | _ => ret(Parens(body))
+      }
+    | (["case", "end"], [Drv(Exp(body))]) =>
+      switch (body) {
+      | {ids, term: Case(_) as term, _} => (term, ids)
+      | _ => ret(hole(tm))
+      }
     | _ => ret(hole(tm))
     }
   | Bin(Drv(Exp(l)), ([(_id, ([t], []))], []), Drv(Exp(r))) as tm =>
@@ -254,7 +262,7 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     | _ => ret(hole(tm))
     }
   | Bin(Drv(Exp(l)), tiles, Drv(Exp(r))) as tm =>
-    switch (is_tuple_prop(tiles)) {
+    switch (is_tuple_alfa_exp(tiles)) {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
     | None =>
       switch (is_alfa_rules(tiles)) {
@@ -298,10 +306,10 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     | ([".snd"], []) => ret(PrjR(l))
     | (["(", ")"], [Drv(Exp(r))]) =>
       switch (l.term) {
-      | Var("L") => ret(InjL(r))
-      | Var("R") => ret(InjR(r))
-      | Var("roll") => ret(Roll(r))
-      | Var("unroll") => ret(Unroll(r))
+      | Var("L") => (InjL(r), l.ids)
+      | Var("R") => (InjR(r), l.ids)
+      | Var("roll") => (Roll(r), l.ids)
+      | Var("unroll") => (Unroll(r), l.ids)
       | _ => ret(Ap(l, r))
       }
     | _ => ret(hole(tm))
@@ -327,8 +335,8 @@ and alfa_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
     ret(Parens(body))
   | Post(Drv(Pat(l)), ([(_id, (["(", ")"], [Drv(Pat(r))]))], [])) as tm =>
     switch (l.term) {
-    | Var("L") => ret(InjL(r))
-    | Var("R") => ret(InjR(r))
+    | Var("L") => (InjL(r), l.ids)
+    | Var("R") => (InjR(r), l.ids)
     | _ => ret(hole(tm))
     }
   | Bin(Drv(Pat(l)), ([(_id, ([":"], []))], []), Drv(Typ(r))) =>

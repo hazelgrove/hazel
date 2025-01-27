@@ -54,7 +54,7 @@ module ProofTree = {
       switch (result) {
       | Some(e) =>
         switch (IdTagged.term_of(DHExp.strip_casts(e))) {
-        | DrvExp(Exp(d), _) => DrvElab.elab_jdmt(d)
+        | DrvExp(Exp(d), _) => DrvElab.elab_exp(d)
         | _ => Hole("Not a Drv Exp" ++ DHExp.show(e)) |> DrvSyntax.fresh
         }
       | None => Hole("No Result") |> DrvSyntax.fresh

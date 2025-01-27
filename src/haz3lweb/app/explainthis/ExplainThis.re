@@ -469,7 +469,11 @@ let get_doc_deduction =
           docs,
         );
       let rule_example_view =
-        DrvExplainThis.rule_example_view(~info=info_deduction, ~color_map);
+        DrvExplainThis.rule_example_view(
+          ~info=info_deduction,
+          ~color_map,
+          ~globals,
+        );
       let explanation_title = DrvExplainThis.mk_explanation_title();
       (
         [rule_example_view],
@@ -484,7 +488,7 @@ let get_doc_deduction =
   };
 
   let fake_get_message = msg =>
-    get_message(~format=Some(_msg => msg), DrvExplainThis.premise_mismatch);
+    get_message(~format=Some(_ => msg), DrvExplainThis.premise_mismatch);
 
   switch (info_deduction) {
   | None => fake_get_message("Deduction Not Available")
@@ -636,6 +640,15 @@ let get_doc =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch ((term: Exp.term)) {
+      | DrvExp(_) => (
+          [],
+          mk_translation(
+            ~globals,
+            ~inject=_ => (),
+            "A converting expression from a derivation term. There is a total of 5 valid converting expressions:\n1) `of_jdmt`\n2) `of_ctx`\n3) `of_prop`\n4) `of_alfa_exp`\n5) `of_alfa_typ`",
+          ),
+          [],
+        )
       | Invalid(_) => simple("Not a valid expression")
       | DynamicErrorHole(_)
       | FailedCast(_)
@@ -2005,7 +2018,6 @@ let get_doc =
             ),
           TerminalExp.ctr(v),
         )
-      | DrvExp(_) => simple("Driver") // TODO(zhiyao): Add more specific message
       };
     get_message_exp(term.term);
   | Some(InfoPat({term, _})) =>
@@ -2422,7 +2434,8 @@ let get_doc =
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
     | Ap(_)
     | Parens(_) => default // Shouldn't be hit?
-    | DrvTyp(_) => simple("Driver") // TODO(zhiyao): Add more info
+    // Note(zhiyao): Derivation term expression is not allowed to be explicitly written
+    | DrvTyp(_) => simple("Derivations Types")
     }
   | Some(InfoTPat(info)) =>
     switch (info.term.term) {
@@ -2438,7 +2451,47 @@ let get_doc =
         VarTPat.var_typ_pats(v),
       )
     }
-  | Some(InfoDrv(_)) => simple("Driver") // TODO(zhiyao): Add more info
+  | Some(InfoDrv(drv)) =>
+    let (syntax, msg) =
+      switch ((drv: Haz3lcore.DrvInfo.t)) {
+      | Exp(exp) => DrvDoc.exp_form(exp.term.term)
+      | Typ(typ) => DrvDoc.typ_form(typ.term.term)
+      | Pat(pat) => DrvDoc.pat_form(pat.term.term)
+      | TPat(tpat) => DrvDoc.tpat_form(tpat.term.term)
+      };
+    (
+      [
+        syntax
+        |> ExpToSegment.drv_to_pretty(
+             ~settings=
+               ExpToSegment.Settings.of_core(
+                 ~inline=false,
+                 globals.settings.core,
+               ),
+           )
+        |> CodeViewable.view_segment(
+             ~globals,
+             ~sort=
+               switch (drv) {
+               | Exp(_) => Drv(Exp)
+               | Typ(_) => Drv(Typ)
+               | Pat(_) => Drv(Pat)
+               | TPat(_) => Drv(TPat)
+               },
+             ~info_map=Id.Map.empty,
+           ),
+      ],
+      (
+        [
+          div(
+            ~attrs=[clss(["explanation-contents"])],
+            msg |> mk_translation(~globals, ~inject=_ => ()) |> fst,
+          ),
+        ],
+        (Id.Map.empty, 0),
+      ),
+      [],
+    );
   | Some(Secondary(s)) =>
     switch (s.cls) {
     | Secondary(Whitespace) => simple("A semantic void, pervading but inert")
@@ -2534,6 +2587,7 @@ let view =
                   },
                 syn_form_Drv @ explanation_Drv,
               ),
+              div(~attrs=[clss(["hline"])], []),
             ]
           | None => []
           }

@@ -241,15 +241,22 @@ and drv_to_info_map =
     | Roll(e) => m |> go_exp'(e) |> add'
     | Unroll(e) => m |> go_exp'(e) |> add'
     | ExpHole => m |> add'
-    | Case(e, [(p1, e1), (p2, e2)]) =>
+    // Note(zhiyao): for "extra_rules" and "fewer_rules", we may still want to
+    // go through the expression part (but leave the pat alone)
+    | Case(e, [(p1, e1), (p2, e2), ...extra_rules]) =>
       m
       |> go_exp'(e)
       |> go_pat(p1, ~ana=InjL)
       |> go_exp'(e1)
       |> go_pat(p2, ~ana=InjR)
       |> go_exp'(e2)
+      |> List.fold_left((m, (_, e)) => m |> go_exp'(e), _, extra_rules)
       |> add'
-    | Case(_) => m |> add'
+    | Case(e, fewer_rules) =>
+      m
+      |> go_exp'(e)
+      |> List.fold_left((m, (_, e)) => m |> go_exp'(e), _, fewer_rules)
+      |> add'
     };
   }
   and go_exp' = go_exp(~ana=Exp, ~is_var=false)

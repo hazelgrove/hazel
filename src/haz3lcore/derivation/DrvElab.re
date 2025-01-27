@@ -21,204 +21,6 @@ let rec exp_term_of: Drv.Exp.t => Drv.Exp.term =
     | Parens(p) => exp_term_of(p)
     | p => p
     }
-and elab_jdmt: Drv.Exp.t => t =
-  jdmt => {
-    let hole: term = Hole(Drv.Exp.show(jdmt));
-    let term: term =
-      switch (exp_term_of(jdmt)) {
-      | Hole(s) => Hole(DrvTermBase.show_type_hole(s))
-      | Var(_)
-      | Abbr(_)
-      | Parens(_)
-      | Tuple(_) => hole
-      // Jdmt
-      | Val(e) => Val(elab_exp(e))
-      | Eval(e1, e2) => Eval(elab_exp(e1), elab_exp(e2))
-      | Entail(ctx, p) => Entail(elab_ctxt(ctx), elab_prop(p))
-      | Consistent(t1, t2) => Consistent(elab_typ(t1), elab_typ(t2))
-      | MatchedArrow(t1, t2) => MatchedArrow(elab_typ(t1), elab_typ(t2))
-      | MatchedProd(t1, t2) => MatchedProd(elab_typ(t1), elab_typ(t2))
-      | MatchedSum(t1, t2) => MatchedSum(elab_typ(t1), elab_typ(t2))
-      // Ctx
-      | Ctx(_)
-      | Cons(_)
-      | Concat(_)
-      // Prop
-      | Type(_)
-      | HasType(_)
-      | Syn(_)
-      | Ana(_)
-      | And(_)
-      | Or(_)
-      | Impl(_)
-      | Truth
-      | Falsity
-      // Exp
-      | NumLit(_)
-      | Neg(_)
-      | Plus(_)
-      | Minus(_)
-      | Times(_)
-      | Gt(_)
-      | Lt(_)
-      | Eq(_)
-      | True
-      | False
-      | If(_)
-      | Let(_)
-      | Fix(_)
-      | Fun(_)
-      | Ap(_)
-      | Triv
-      | PrjL(_)
-      | PrjR(_)
-      | InjL(_)
-      | InjR(_)
-      | Case(_)
-      | Roll(_)
-      | Unroll(_)
-      | ExpHole => hole
-      };
-    {...jdmt, term};
-  }
-and elab_ctxt: Drv.Exp.t => t =
-  ctx => {
-    let hole: term = Hole(Drv.Exp.show(ctx));
-    let term: term =
-      switch (exp_term_of(ctx)) {
-      | Hole(s) => Hole(DrvTermBase.show_type_hole(s))
-      | Var(_)
-      | Abbr(_)
-      | Parens(_)
-      | Tuple(_)
-      // Jdmt
-      | Val(_)
-      | Eval(_)
-      | Entail(_)
-      | Consistent(_)
-      | MatchedArrow(_)
-      | MatchedProd(_)
-      | MatchedSum(_) => hole
-      // Ctx
-      | Ctx(ps) =>
-        Ctx(
-          ps
-          |> List.map(elab_prop)
-          |> List.map(to_list)
-          |> List.concat
-          |> List.fold_left(cons_ctx, []),
-        )
-      | Cons(p, ctx) =>
-        switch (IdTagged.term_of(elab_ctxt(ctx))) {
-        | Ctx(ps) => Ctx(cons_ctx(ps, elab_prop(p)))
-        | _ => hole
-        }
-      | Concat(ctx1, ctx2) =>
-        switch (
-          IdTagged.term_of(elab_ctxt(ctx1)),
-          IdTagged.term_of(elab_ctxt(ctx2)),
-        ) {
-        | (Ctx(ps1), Ctx(ps2)) => Ctx(List.fold_left(cons_ctx, ps2, ps1))
-        | _ => hole
-        }
-      // Prop
-      | Type(_)
-      | HasType(_)
-      | Syn(_)
-      | Ana(_)
-      | And(_)
-      | Or(_)
-      | Impl(_)
-      | Truth
-      | Falsity
-      // Exp
-      | NumLit(_)
-      | Neg(_)
-      | Plus(_)
-      | Minus(_)
-      | Times(_)
-      | Gt(_)
-      | Lt(_)
-      | Eq(_)
-      | True
-      | False
-      | If(_)
-      | Let(_)
-      | Fix(_)
-      | Fun(_)
-      | Ap(_)
-      | Triv
-      | PrjL(_)
-      | PrjR(_)
-      | InjL(_)
-      | InjR(_)
-      | Case(_)
-      | Roll(_)
-      | Unroll(_)
-      | ExpHole => hole
-      };
-    {...ctx, term};
-  }
-and elab_prop: Drv.Exp.t => t =
-  prop => {
-    let hole: term = Hole(Drv.Exp.show(prop));
-    let term: term =
-      switch (exp_term_of(prop)) {
-      | Hole(s) => Hole(DrvTermBase.show_type_hole(s))
-      | Abbr(_)
-      | Parens(_)
-      | Tuple(_)
-      // Jdmt
-      | Val(_)
-      | Eval(_)
-      | Entail(_)
-      | Consistent(_)
-      | MatchedArrow(_)
-      | MatchedProd(_)
-      | MatchedSum(_)
-      // Ctx
-      | Ctx(_)
-      | Cons(_)
-      | Concat(_) => hole
-      // Prop
-      | Type(t) => Type(elab_typ(t))
-      | HasType(e, t) => HasType(elab_exp(e), elab_typ(t))
-      | Syn(e, t) => Syn(elab_exp(e), elab_typ(t))
-      | Ana(e, t) => Ana(elab_exp(e), elab_typ(t))
-      | Var(x) => Atom(x)
-      | And(p1, p2) => And(elab_prop(p1), elab_prop(p2))
-      | Or(p1, p2) => Or(elab_prop(p1), elab_prop(p2))
-      | Impl(p1, p2) => Impl(elab_prop(p1), elab_prop(p2))
-      | Truth => Truth
-      | Falsity => Falsity
-      // Exp
-      | NumLit(_)
-      | Neg(_)
-      | Plus(_)
-      | Minus(_)
-      | Times(_)
-      | Gt(_)
-      | Lt(_)
-      | Eq(_)
-      | True
-      | False
-      | If(_)
-      | Let(_)
-      | Fix(_)
-      | Fun(_)
-      | Ap(_)
-      | Triv
-      | PrjL(_)
-      | PrjR(_)
-      | InjL(_)
-      | InjR(_)
-      | Case(_)
-      | Roll(_)
-      | Unroll(_)
-      | ExpHole => hole
-      };
-    {...prop, term};
-  }
 and elab_exp: Drv.Exp.t => t =
   exp => {
     let rec pat_term_of: Drv.Pat.t => Drv.Pat.term =
@@ -238,29 +40,47 @@ and elab_exp: Drv.Exp.t => t =
       switch (exp_term_of(exp)) {
       | Hole(s) => Hole(DrvTermBase.show_type_hole(s))
       | Abbr(_)
-      | Parens(_)
+      | Parens(_) => hole
       // Jdmt
-      | Val(_)
-      | Eval(_)
-      | Entail(_)
-      | Consistent(_)
-      | MatchedArrow(_)
-      | MatchedProd(_)
-      | MatchedSum(_)
+      | Val(e) => Val(elab_exp(e))
+      | Eval(e1, e2) => Eval(elab_exp(e1), elab_exp(e2))
+      | Entail(ctx, p) => Entail(elab_exp(ctx), elab_exp(p))
+      | Consistent(t1, t2) => Consistent(elab_typ(t1), elab_typ(t2))
+      | MatchedArrow(t1, t2) => MatchedArrow(elab_typ(t1), elab_typ(t2))
+      | MatchedProd(t1, t2) => MatchedProd(elab_typ(t1), elab_typ(t2))
+      | MatchedSum(t1, t2) => MatchedSum(elab_typ(t1), elab_typ(t2))
       // Ctx
-      | Ctx(_)
-      | Cons(_)
-      | Concat(_)
+      | Ctx(ps) =>
+        Ctx(
+          ps
+          |> List.map(elab_exp)
+          |> List.map(to_list)
+          |> List.concat
+          |> List.fold_left(cons_ctx, []),
+        )
+      | Cons(p, ctx) =>
+        switch (IdTagged.term_of(elab_exp(ctx))) {
+        | Ctx(ps) => Ctx(cons_ctx(ps, elab_exp(p)))
+        | _ => hole
+        }
+      | Concat(ctx1, ctx2) =>
+        switch (
+          IdTagged.term_of(elab_exp(ctx1)),
+          IdTagged.term_of(elab_exp(ctx2)),
+        ) {
+        | (Ctx(ps1), Ctx(ps2)) => Ctx(List.fold_left(cons_ctx, ps2, ps1))
+        | _ => hole
+        }
       // Prop
-      | Type(_)
-      | HasType(_)
-      | Syn(_)
-      | Ana(_)
-      | And(_)
-      | Or(_)
-      | Impl(_)
-      | Truth
-      | Falsity => hole
+      | Type(t) => Type(elab_typ(t))
+      | HasType(e, t) => HasType(elab_exp(e), elab_typ(t))
+      | Syn(e, t) => Syn(elab_exp(e), elab_typ(t))
+      | Ana(e, t) => Ana(elab_exp(e), elab_typ(t))
+      | And(p1, p2) => And(elab_exp(p1), elab_exp(p2))
+      | Or(p1, p2) => Or(elab_exp(p1), elab_exp(p2))
+      | Impl(p1, p2) => Impl(elab_exp(p1), elab_exp(p2))
+      | Truth => Truth
+      | Falsity => Falsity
       | NumLit(i) => NumLit(i)
       | Neg(e) => Neg(elab_exp(e))
       | Plus(e1, e2) => Plus(elab_exp(e1), elab_exp(e2))
@@ -342,14 +162,11 @@ and elab_tpat: Drv.TPat.t => t =
     {...tpat, term};
   };
 
-let elab_any = (d: Drv.Any.t, s: DrvSort.t) =>
-  switch (d, s) {
-  | (Exp(e), Jdmt) => elab_jdmt(e)
-  | (Exp(e), Ctx) => elab_ctxt(e)
-  | (Exp(e), Prop) => elab_prop(e)
-  | (Exp(e), Exp) => elab_exp(e)
-  | (Pat(p), Pat) => elab_pat(p)
-  | (Typ(t), Typ) => elab_typ(t)
-  | (TPat(t), TPat) => elab_tpat(t)
-  | _ => DrvSyntax.Hole(Drv.Any.show(d)) |> DrvSyntax.fresh
+let elab_any = (d: Drv.Any.t) =>
+  switch (d) {
+  | Exp(e) => elab_exp(e)
+  | Pat(p) => elab_pat(p)
+  | Typ(t) => elab_typ(t)
+  | TPat(t) => elab_tpat(t)
+  | Rul(_) => failwith("DrvSyntax.elab_any: cannot elaborate rul")
   };

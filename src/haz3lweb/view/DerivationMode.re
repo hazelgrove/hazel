@@ -82,76 +82,9 @@ module Update = {
         ...model,
         cells: DerivationTree.put_stitched(pos, model.cells, new_cell),
       };
-    | Editor(_, ResultAction(_)) => Updated.return_quiet(model) // TODO: I think this case should never happen
+    | Editor(_, ResultAction(_)) => Updated.return_quiet(model)
     | MapEditor(f) =>
       let x = {...model, editors: f(model.editors)};
-      // print_endline(
-      //   "Spec: "
-      //   ++ (
-      //     x.spec
-      //     |> DerivationTree.editor_positions
-      //     |> List.map(DerivationTree.show_pos)
-      //     |> String.concat(", ")
-      //   )
-      //   ++ "\n Editors: "
-      //   ++ (
-      //     x.editors
-      //     |> DerivationTree.editor_positions
-      //     |> List.map(DerivationTree.show_pos)
-      //     |> String.concat(", ")
-      //   )
-      //   ++ "\n Editors sort: "
-      //   ++ (
-      //     x.editors
-      //     |> DerivationTree.editors
-      //     |> List.map((ed: Editor.t) => Sort.show(ed.root))
-      //     |> String.concat(", ")
-      //   )
-      // ++ "\n Stitched: "
-      // ++ (
-      //   x.cells.trees
-      //   |> List.map(
-      //        Tree.mapi((pos, content) =>
-      //          Tree.show_pos(pos)
-      //          ++ (
-      //            switch (content) {
-      //            | Some(_) => ""
-      //            | None => " (empty)"
-      //            }
-      //          )
-      //        ),
-      //      )
-      //   |> List.map(Tree.flatten)
-      //   |> List.map(String.concat(", "))
-      //   |> String.concat("\n")
-      // )
-      // ++ "\n Stitched: "
-      // ++ (
-      //   x.editors.trees
-      //   |> List.map(
-      //        Tree.mapi((pos, content) =>
-      //          Tree.show_pos(pos)
-      //          ++ (
-      //            switch (content) {
-      //            | DerivationTree.Abbr.Just(_) => "(x)"
-      //            | DerivationTree.Abbr.Abbr(i) =>
-      //              "("
-      //              ++ (
-      //                switch (i) {
-      //                | Some(i) => string_of_int(i)
-      //                | None => "?"
-      //                }
-      //              )
-      //              ++ ")"
-      //            }
-      //          )
-      //        ),
-      //      )
-      //   |> List.map(Tree.flatten)
-      //   |> List.map(String.concat(", "))
-      //   |> String.concat("\n")
-      // ),
-      // ); // TODO(zhiyao): facilitate recalculation
       {
         ...x,
         cells:
@@ -384,7 +317,7 @@ let stitched_results =
     | Evaluation({result: OldValue(ResultOk((exp, _))), _})
     | Evaluation({result: NewValue(ResultOk((exp, _))), _}) => Some(exp)
     | Stepper(s) => StepperView.Model.get_elaboration(s)
-    | _ => None // TODO(zhiyao): handle other cases
+    | _ => None // Note(zhiyao): other cases are not relevant
     }
   );
 
@@ -396,22 +329,22 @@ let grading_report = (model: Model.t) =>
 
 // ====== Exercise ======
 
-module View = {
-  module FakeCode = {
-    let token_wrapper = (cls, s) =>
-      span(~attrs=[Attr.class_(cls)], [text(s)]);
-    let span_exp = token_wrapper("token default Exp poly");
-    let span_var = token_wrapper("token default Exp mono");
-    let span_pat = token_wrapper("token default Pat mono");
-    let span_secondary = token_wrapper("secondary");
-    let span_explicit_hole = token_wrapper("token explicit-hole Exp mono");
-    let code_wrapper = code =>
-      div(
-        ~attrs=[Attr.class_("code fakecode")],
-        [span(~attrs=[Attr.class_("code-text")], code)],
-      );
-  };
+module FakeCode = {
+  let token_wrapper = (cls, s) =>
+    span(~attrs=[Attr.class_(cls)], [text(s)]);
+  let span_exp = token_wrapper("token default Exp poly");
+  let span_var = token_wrapper("token default Exp mono");
+  let span_pat = token_wrapper("token default Pat mono");
+  let span_secondary = token_wrapper("secondary");
+  let span_explicit_hole = token_wrapper("token explicit-hole Exp mono");
+  let code_wrapper = code =>
+    div(
+      ~attrs=[Attr.class_("code fakecode")],
+      [span(~attrs=[Attr.class_("code-text")], code)],
+    );
+};
 
+module View = {
   type view_info = (DerivationTree.pos, DrvGrading.VerifiedTree.info, ed)
   and ed =
     | Just(option(RuleImage.t), CellEditor.Model.t)
@@ -702,7 +635,7 @@ module View = {
           switch (caption) {
           | Some(c) => CellCommon.caption(c, ~rest=?subcaption)
           | None => None
-          }, // TODO(zhiyao): refactor caption
+          },
         ~sort,
         cell,
       );

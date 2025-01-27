@@ -378,31 +378,31 @@ let forms: list((string, t)) = [
   ),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
   // Drv: Drv to Exp
-  ("of_prop", mk(ds, ["of_prop", "end"], mk_op(Exp, [Drv(Exp)]))),
-  ("of_ctx", mk(ds, ["of_ctx", "end"], mk_op(Exp, [Drv(Exp)]))),
-  ("of_jdmt", mk(ds, ["of_jdmt", "end"], mk_op(Exp, [Drv(Exp)]))),
+  ("drv_of_prop", mk(ds, ["of_prop", "end"], mk_op(Exp, [Drv(Exp)]))),
+  ("drv_of_ctx", mk(ds, ["of_ctx", "end"], mk_op(Exp, [Drv(Exp)]))),
+  ("drv_of_jdmt", mk(ds, ["of_jdmt", "end"], mk_op(Exp, [Drv(Exp)]))),
   (
-    "of_alfa_exp",
+    "drv_of_alfa_exp",
     mk(ds, ["of_alfa_exp", "end"], mk_op(Exp, [Drv(Exp)])),
   ),
   (
-    "of_alfa_typ",
+    "drv_of_alfa_typ",
     mk(ds, ["of_alfa_typ", "end"], mk_op(Exp, [Drv(Typ)])),
   ),
   // Drv(Jdmt)
-  ("val", mk(ds, ["val", "end"], mk_op(Drv(Exp), [Drv(Exp)]))),
-  ("eval", mk_infix("\\=/", Drv(Exp), P.min)),
-  ("entail", mk_infix("|-", Drv(Exp), P.min)),
-  ("unary_entail", mk(ss, ["|-"], mk_pre(P.min, Drv(Exp), []))),
+  ("drv_jdmt_val", mk(ds, ["val", "end"], mk_op(Drv(Exp), [Drv(Exp)]))),
+  ("drv_jdmt_eval", mk_infix("\\=/", Drv(Exp), P.min)),
+  ("drv_jdmt_entail", mk_infix("|-", Drv(Exp), P.min)),
+  ("drv_jdmt_unary_entail", mk(ss, ["|-"], mk_pre(P.min, Drv(Exp), []))),
   // Note(zhiyao):
   // Auto complete is only available for sort Exp, that's why
   // we need a fake_consistent to make it work for Drv(Exp)
   (
-    "fake_consistent",
+    "drv_jdmt_fake_consistent",
     mk(ds, ["consistent", "~"], mk_pre(P.fun_, Exp, [Drv(Typ)])),
   ),
   (
-    "consistent",
+    "drv_jdmt_consistent",
     mk(
       ds,
       ["consistent", "~"],
@@ -410,11 +410,11 @@ let forms: list((string, t)) = [
     ),
   ),
   (
-    "fake_matched_arrow",
+    "drv_jdmt_fake_matched_arrow",
     mk(ds, ["matched_arrow", "with"], mk_pre(P.fun_, Exp, [Drv(Typ)])),
   ),
   (
-    "matched_arrow",
+    "drv_jdmt_matched_arrow",
     mk(
       ds,
       ["matched_arrow", "with"],
@@ -422,11 +422,11 @@ let forms: list((string, t)) = [
     ),
   ),
   (
-    "fake_matched_prod",
+    "drv_jdmt_fake_matched_prod",
     mk(ds, ["matched_prod", "with"], mk_pre(P.fun_, Exp, [Drv(Typ)])),
   ),
   (
-    "matched_prod",
+    "drv_jdmt_matched_prod",
     mk(
       ds,
       ["matched_prod", "with"],
@@ -434,11 +434,11 @@ let forms: list((string, t)) = [
     ),
   ),
   (
-    "fake_matched_sum",
+    "drv_jdmt_fake_matched_sum",
     mk(ds, ["matched_sum", "with"], mk_pre(P.fun_, Exp, [Drv(Typ)])),
   ),
   (
-    "matched_sum",
+    "drv_jdmt_matched_sum",
     mk(
       ds,
       ["matched_sum", "with"],
@@ -446,40 +446,40 @@ let forms: list((string, t)) = [
     ),
   ),
   // Drv(Ctx)
-  ("alfa_exp_list", mk(ii, ["[", "]"], mk_op(Drv(Exp), [Drv(Exp)]))),
-  ("alfa_cons", mk_infix(",", Drv(Exp), P.comma)),
-  ("alfa_concat", mk_infix("@", Drv(Exp), P.plus)),
-  ("alfa_cons", mk_infix("::", Drv(Exp), P.cons)),
-  ("alfa_paren", mk(ii, ["(", ")"], mk_op(Drv(Exp), [Drv(Exp)]))),
-  ("alfa_abbr", mk(ii, ["$"], mk_pre(P.unquote, Drv(Exp), []))),
+  ("drv_ctx_list", mk(ii, ["[", "]"], mk_op(Drv(Exp), [Drv(Exp)]))),
+  ("drv_exp_comma", mk_infix(",", Drv(Exp), P.comma)),
+  ("drv_ctx_concat", mk_infix("@", Drv(Exp), P.plus)),
+  ("drv_ctx_cons", mk_infix("::", Drv(Exp), P.cons)),
+  ("drv_exp_paren", mk(ii, ["(", ")"], mk_op(Drv(Exp), [Drv(Exp)]))),
+  ("drv_exp_abbr", mk(ii, ["$"], mk_pre(P.unquote, Drv(Exp), []))),
   // Drv(Prop)
-  ("valid", mk(ds, ["valid", "end"], mk_op(Drv(Exp), [Drv(Typ)]))),
+  ("drv_valid", mk(ds, ["valid", "end"], mk_op(Drv(Exp), [Drv(Typ)]))),
   (
-    "hastype",
+    "drv_prop_hastype",
     mk(ss, [":"], mk_bin'(P.cast, Drv(Exp), Drv(Exp), [], Drv(Typ))),
   ),
   (
-    "syn",
+    "drv_prop_syn",
     mk(ss, ["=>"], mk_bin'(P.cast, Drv(Exp), Drv(Exp), [], Drv(Typ))),
   ),
   (
-    "ana",
+    "drv_prop_ana",
     mk(ss, ["<="], mk_bin'(P.cast, Drv(Exp), Drv(Exp), [], Drv(Typ))),
   ),
-  ("and", mk_infix("/\\", Drv(Exp), P.and_)),
-  ("or", mk_infix("\\/", Drv(Exp), P.or_)),
-  ("impl", mk_infix("==>", Drv(Exp), P.cast)),
-  ("prop_neg", mk(ds, ["!"], mk_pre(P.neg, Drv(Exp), []))),
+  ("drv_prop_and", mk_infix("/\\", Drv(Exp), P.and_)),
+  ("drv_prop_or", mk_infix("\\/", Drv(Exp), P.or_)),
+  ("drv_prop_impl", mk_infix("==>", Drv(Exp), P.cast)),
+  ("drv_prop_not", mk(ds, ["!"], mk_pre(P.neg, Drv(Exp), []))),
   // Drv(Exp)
-  ("exp_neg", mk(ds, ["-"], mk_pre(P.neg, Drv(Exp), []))),
-  ("exp_plus", mk_infix("+", Drv(Exp), P.plus)),
-  ("exp_minus", mk_infix("-", Drv(Exp), P.plus)),
-  ("exp_times", mk_infix("*", Drv(Exp), P.mult)),
-  ("exp_eq", mk_infix("==", Drv(Exp), P.eqs)),
-  ("exp_lt", mk_infix("<", Drv(Exp), P.eqs)),
-  ("exp_gt", mk_infix(">", Drv(Exp), P.eqs)),
+  ("drv_exp_neg", mk(ds, ["-"], mk_pre(P.neg, Drv(Exp), []))),
+  ("drv_exp_plus", mk_infix("+", Drv(Exp), P.plus)),
+  ("drv_exp_minus", mk_infix("-", Drv(Exp), P.plus)),
+  ("drv_exp_times", mk_infix("*", Drv(Exp), P.mult)),
+  ("drv_exp_eq", mk_infix("==", Drv(Exp), P.eqs)),
+  ("drv_exp_lt", mk_infix("<", Drv(Exp), P.eqs)),
+  ("drv_exp_gt", mk_infix(">", Drv(Exp), P.eqs)),
   (
-    "exp_if",
+    "drv_exp_if",
     mk(
       ds,
       ["if", "then", "else"],
@@ -487,7 +487,7 @@ let forms: list((string, t)) = [
     ),
   ),
   (
-    "exp_let",
+    "drv_exp_let",
     mk(
       ds,
       ["let", "=", "in"],
@@ -495,20 +495,25 @@ let forms: list((string, t)) = [
     ),
   ),
   (
-    "exp_fix",
+    "drv_exp_fix",
     mk(ds, ["fix", "->"], mk_pre(P.fun_, Drv(Exp), [Drv(Pat)])),
   ),
   (
-    "exp_fun",
+    "drv_exp_fun",
     mk(ds, ["fun", "->"], mk_pre(P.fun_, Drv(Exp), [Drv(Pat)])),
   ),
-  ("exp_ap", mk(ii, ["(", ")"], mk_post(P.ap, Drv(Exp), [Drv(Exp)]))),
-  ("exp_pair", mk_infix(",", Drv(Exp), P.comma)),
-  ("exp_prjl", mk(ii, [".fst"], mk_post(P.ap, Drv(Exp), []))),
-  ("exp_prjr", mk(ii, [".snd"], mk_post(P.ap, Drv(Exp), []))),
-  ("alfa_case", mk(ds, ["case", "end"], mk_op(Drv(Exp), [Drv(Exp)]))),
   (
-    "alfa_rule",
+    "drv_exp_ap",
+    mk(ii, ["(", ")"], mk_post(P.ap, Drv(Exp), [Drv(Exp)])),
+  ),
+  ("drv_exp_prjl", mk(ii, [".fst"], mk_post(P.ap, Drv(Exp), []))),
+  ("drv_exp_prjr", mk(ii, [".snd"], mk_post(P.ap, Drv(Exp), []))),
+  (
+    "drv_exp_case",
+    mk(ds, ["case", "end"], mk_op(Drv(Exp), [Drv(Exp)])),
+  ),
+  (
+    "drv_exp_rule",
     mk(
       ds,
       ["|", "=>"],
@@ -517,22 +522,25 @@ let forms: list((string, t)) = [
   ),
   // Drv(Pat)
   (
-    "pat_cast",
+    "drv_pat_cast",
     mk(ss, [":"], mk_bin'(P.cast, Drv(Pat), Drv(Pat), [], Drv(Typ))),
   ),
-  ("pat_ap", mk(ii, ["(", ")"], mk_post(P.ap, Drv(Pat), [Drv(Pat)]))),
-  ("pat_pair", mk_infix(",", Drv(Pat), P.comma)),
-  ("pat_parens", mk(ii, ["(", ")"], mk_op(Drv(Pat), [Drv(Pat)]))),
-  // Drv(Typ)
-  ("alfa_typ_abbr", mk(ii, ["$"], mk_pre(P.unquote, Drv(Typ), []))),
-  ("typ_arrow", mk_infix("->", Drv(Typ), P.type_arrow)),
-  ("typ_prod", mk_infix("*", Drv(Typ), P.type_plus - 1)),
-  ("typ_sum", mk_infix("+", Drv(Typ), P.type_plus)),
   (
-    "typ_rec",
+    "drv_pat_ap",
+    mk(ii, ["(", ")"], mk_post(P.ap, Drv(Pat), [Drv(Pat)])),
+  ),
+  ("drv_pat_comma", mk_infix(",", Drv(Pat), P.comma)),
+  ("drv_pat_paren", mk(ii, ["(", ")"], mk_op(Drv(Pat), [Drv(Pat)]))),
+  // Drv(Typ)
+  ("drv_typ_abbr", mk(ii, ["$"], mk_pre(P.unquote, Drv(Typ), []))),
+  ("drv_typ_arrow", mk_infix("->", Drv(Typ), P.type_arrow)),
+  ("drv_typ_prod", mk_infix("*", Drv(Typ), P.type_plus - 1)),
+  ("drv_typ_sum", mk_infix("+", Drv(Typ), P.type_plus)),
+  (
+    "drv_typ_rec",
     mk(ds, ["rec", "->"], mk_pre(P.fun_, Drv(Typ), [Drv(TPat)])),
   ),
-  ("typ_parens", mk(ii, ["(", ")"], mk_op(Drv(Typ), [Drv(Typ)]))),
+  ("drv_typ_parens", mk(ii, ["(", ")"], mk_op(Drv(Typ), [Drv(Typ)]))),
 ];
 
 let get: String.t => t =

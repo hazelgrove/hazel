@@ -50,6 +50,57 @@ module Exp = {
     | Unroll
     | ExpHole;
 
+  let show_cls =
+    fun
+    | Hole => "Expression hole"
+    | Var => "Variable reference"
+    | Abbr => "Abbreviation"
+    | Parens => "Parenthesized expression"
+    | Tuple => "Pair literal"
+    | Val => "Value judgement"
+    | Eval => "Evaluation judgement"
+    | Entail => "Entailment judgement"
+    | Consistent => "Type consistency judgement"
+    | MatchedArrow => "Type matching arrow judgement"
+    | MatchedProd => "Type matching product judgement"
+    | MatchedSum => "Type matching sum judgement"
+    | Ctx => "Proposition context"
+    | Cons => "Context Cons"
+    | Concat => "Context Concatenation"
+    | Type => "Type validation proposition"
+    | HasType => "Expression has type proposition"
+    | Syn => "Expression synthesis type proposition"
+    | Ana => "Expression analysis type proposition"
+    | And => "Conjunction proposition"
+    | Or => "Disjunction proposition"
+    | Impl => "Implication proposition"
+    | Truth => "Tautology proposition"
+    | Falsity => "Absurdity proposition"
+    | NumLit => "Number literal"
+    | Neg => "Negation expression"
+    | Plus => "Addition expression"
+    | Minus => "Subtraction expression"
+    | Times => "Multiplication expression"
+    | Lt => "Less than expression"
+    | Gt => "Greater than expression"
+    | Eq => "Equality expression"
+    | True => "Boolean literal true"
+    | False => "Boolean literal false"
+    | If => "If expression"
+    | Let => "Let expression"
+    | Fix => "Fixpoint operator"
+    | Fun => "Function literal"
+    | Ap => "Application"
+    | Triv => "Unit literal"
+    | PrjL => "Left projection expression"
+    | PrjR => "Right projection expression"
+    | InjL => "Left injection expression"
+    | InjR => "Right injection expression"
+    | Case => "Pattern matching expression"
+    | Roll => "Roll expression"
+    | Unroll => "Unroll expression"
+    | ExpHole => "Expression hole";
+
   include DrvTermBase.Exp;
 
   // let hole = (tms: list(TermBase.Any.t)): term =>
@@ -124,6 +175,11 @@ module Rul = {
     | Hole
     | Rules;
 
+  let show_cls =
+    fun
+    | Hole => "Rule hole"
+    | Rules => "Rules";
+
   include DrvTermBase.Rul;
 
   // let hole = (tms: list(TermBase.Any.t)): term =>
@@ -157,6 +213,17 @@ module Pat = {
     | Ap
     | Pair
     | Parens;
+
+  let show_cls =
+    fun
+    | Hole => "Pattern hole"
+    | Var => "Variable pattern"
+    | Cast => "Type cast pattern"
+    | InjL => "Left injection pattern"
+    | InjR => "Right injection pattern"
+    | Ap => "Application pattern"
+    | Pair => "Pair pattern"
+    | Parens => "Parenthesized pattern";
 
   include DrvTermBase.Pat;
 
@@ -198,6 +265,21 @@ module Typ = {
     | Parens
     | TypHole;
 
+  let show_cls =
+    fun
+    | Hole => "Type hole"
+    | Abbr => "Type abbreviation"
+    | Num => "Number type"
+    | Bool => "Boolean type"
+    | Arrow => "Arrow type"
+    | Prod => "Product type"
+    | Unit => "Unit type"
+    | Sum => "Sum type"
+    | Var => "Type variable"
+    | Rec => "Recursive type"
+    | Parens => "Parenthesized type"
+    | TypHole => "Type hole";
+
   include DrvTermBase.Typ;
 
   // let hole = (tms: list(TermBase.Any.t)): term =>
@@ -236,6 +318,11 @@ module TPat = {
     | Hole
     | Var;
 
+  let show_cls =
+    fun
+    | Hole => "Type pattern hole"
+    | Var => "Type pattern variable";
+
   include DrvTermBase.TPat;
 
   // let hole = (tms: list(TermBase.Any.t)): term =>
@@ -266,6 +353,14 @@ module Any = {
     | Pat(Pat.cls)
     | Typ(Typ.cls)
     | TPat(TPat.cls);
+
+  let show_cls =
+    fun
+    | Exp(cls) => Exp.show_cls(cls)
+    | Rul(cls) => Rul.show_cls(cls)
+    | Pat(cls) => Pat.show_cls(cls)
+    | Typ(cls) => Typ.show_cls(cls)
+    | TPat(cls) => TPat.show_cls(cls);
 
   include DrvTermBase.Any;
 
