@@ -57,14 +57,14 @@ let intersect = (xs: list(label), ys: list(label)) => {
 // Can also be modified to get unique labels.
 let get_duplicate_labels_base: list(label) => list(label) =
   labels => {
-    let (duplicates, _uniques) =
+    let (duplicates, _seen) =
       List.fold_left(
         (acc, label) => {
-          let (dupes, uniqs) = acc;
-          List.exists(l => label == l, uniqs)
+          let (dupes, seen) = acc;
+          List.exists(l => label == l, seen)
             ? List.exists(l => label == l, dupes)
-                ? (dupes, uniqs) : (dupes @ [label], uniqs)
-            : (dupes, uniqs @ [label]);
+                ? (dupes, seen) : (dupes @ [label], seen)
+            : (dupes, seen @ [label]);
         },
         ([], []),
         labels,
