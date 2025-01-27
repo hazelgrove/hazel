@@ -52,20 +52,19 @@ let intersect = (xs: list(label), ys: list(label)) => {
   List.filter_map(x => List.find_opt(equal_label(x), ys), xs);
 };
 
-// TODO: Performance
 // Takes a list of strings and returns a list of duplicates
 // Can also be modified to get unique labels.
 let get_duplicate_labels_base: list(label) => list(label) =
   labels => {
     let (duplicates, _seen) =
       List.fold_left(
-        (acc, label) => {
-          let (dupes, seen) = acc;
-          List.exists(l => label == l, seen)
-            ? List.exists(l => label == l, dupes)
-                ? (dupes, seen) : (dupes @ [label], seen)
-            : (dupes, seen @ [label]);
-        },
+        ((dupes, seen), label) =>
+          if (List.exists(l => label == l, seen)) {
+            List.exists(l => label == l, dupes)
+              ? (dupes, seen) : (dupes @ [label], seen);
+          } else {
+            (dupes, seen @ [label]);
+          },
         ([], []),
         labels,
       );
