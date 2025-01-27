@@ -35,6 +35,7 @@ type livelit_entry = {
     (list(model_piece), Base.piece => Ui_effect.t(unit)) =>
     Virtual_dom.Vdom.Node.t,
   size: ProjectorCore.shape,
+  explain_this: string,
   id: Id.t,
 };
 

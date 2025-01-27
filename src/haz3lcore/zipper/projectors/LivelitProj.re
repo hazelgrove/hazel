@@ -168,6 +168,8 @@ module M: Projector = {
       let pieces =
         List.tl(getLeafPieces(info.syntax, ~ignored_labels=[[","]]));
 
+      print_endline(info.syntax |> ProjectorBase.show_syntax);
+
       /* Combine args and pieces into model_piece records */
       let model_pieces =
         List.map2(
