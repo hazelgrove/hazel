@@ -14,7 +14,10 @@ type t = Ctx.livelit_entry;
 
 /* Slider livelit */
 let slider: t = {
-  explain_this: "A slider livelit",
+  explain_this: [
+    "A slider livelit -- a simple integer input from 0 to 100.",
+    "Usage: ^slider(n: Int) -> Int",
+  ],
   name: "slider",
   expansion_t: Typ.temp(Int),
   expansion_f: (model: UExp.t) =>
@@ -50,7 +53,10 @@ let slider: t = {
 
 /* JS livelit */
 let js: t = {
-  explain_this: "A JavaScript livelit",
+  explain_this: [
+    "JavaScript execution livelit",
+    "Usage: ^js(code: String, result: String) -> String",
+  ],
   name: "js",
   expansion_t: Typ.temp(String),
   expansion_f: (model: UExp.t) =>
@@ -93,7 +99,6 @@ let js: t = {
       Node.input(
         ~attrs=[
           Attr.id(hidden_result_id),
-          //   Attr.type_("hidden"),
           Attr.value(""),
           Attr.on_input((_, new_text) => {
             print_endline("Updating result: " ++ new_text);
@@ -139,25 +144,54 @@ let js: t = {
 
 /* Timestamp livelit */
 let timestamp: t = {
-  explain_this: "A timestamp livelit",
+  explain_this: [
+    "Timestamp livelit",
+    "Usage: ^timestamp(time: Int, update_freq: Int) -> Int",
+  ],
   name: "timestamp",
   expansion_t: Typ.temp(Int),
-  expansion_f: (_model: UExp.t) =>
+  expansion_f: (model: UExp.t) =>
     DHExp.fresh(Int(Float.to_int(JsUtil.timestamp()))),
-  model_default: "\"\"",
-  model_t: Typ.temp(Prod([])),
-  projector: (_model: list(model_piece), _parent) =>
+  model_default: "0, 1000",
+  model_t: Typ.temp(Prod([Typ.temp(Int), Typ.temp(Int)])),
+  projector: (model: list(model_piece), _parent) => {
+    let ((m_time, time_piece), (m_update_freq, update_freq_piece)) =
+      switch (model) {
+      | [{model: m_time, piece: p_time}, {model: m_freq, piece: p_freq}] => (
+          (m_time, p_time),
+          (m_freq, p_freq),
+        )
+      | _ =>
+        failwith(
+          "Timestamp livelit: expected two model pieces (time, update_freq)",
+        )
+      };
+
+    let (time, update_freq) =
+      switch (m_time.term, m_update_freq.term) {
+      | (Int(t), Int(f)) => (t, f)
+      | _ => failwith("Timestamp livelit: not given two ints")
+      };
+
     Node.div(
       ~attrs=[Attr.class_("livelit")],
-      [Node.text("Timestamp livelit")],
-    ),
+      [
+        Node.text(
+          "Timestamp livelit -- time: "
+          ++ string_of_int(time)
+          ++ ", update_freq: "
+          ++ string_of_int(update_freq),
+        ),
+      ],
+    );
+  },
   size: Inline(20),
   id: Id.invalid,
 };
 
 /* Syntax error livelit */
 let syntax_error: t = {
-  explain_this: "A syntax error livelit",
+  explain_this: ["A syntax error livelit"],
   name: "syntax_error",
   expansion_t: Typ.temp(Unknown(Internal)),
   expansion_f: (_model: UExp.t) =>
@@ -179,7 +213,7 @@ let syntax_error: t = {
        - The mouth shape changes based on the slider’s value.
    */
 let emotion: t = {
-  explain_this: "An emotion livelit",
+  explain_this: ["An emotion livelit"],
   name: "emotion",
   expansion_t: Typ.temp(String),
   expansion_f: (model: UExp.t) =>
