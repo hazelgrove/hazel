@@ -121,15 +121,15 @@ module MkState = () => {
     };
   };
 
-  let down_transition = (): count => {
+  let down_transition = (): unit => {
     let (old_button, old_count) = state^;
     state := (toggle(old_button), old_count);
-    old_count;
   };
 
-  let up_transition = (): unit => {
-    let (old_button, old_count) = state^;
-    state := (toggle(old_button), old_count + 1);
-    count_reset_timer(old_count);
-  };
+  let up_transition = (): unit =>
+    if (state^ != init) {
+      let (old_button, old_count) = state^;
+      state := (toggle(old_button), old_count + 1);
+      count_reset_timer(old_count);
+    };
 };
