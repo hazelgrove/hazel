@@ -109,7 +109,7 @@ let elaborated_pat_type =
       switch (prev_synswitch) {
       | None => ana_ty
       | Some(syn_ty) =>
-        // Hack for singleton labeled tuples
+        // Autolabelling for singleton labeled tuples
         switch (singleton_autolabelling) {
         | Some({label: l, _}) =>
           Typ.match_synswitch(
@@ -179,31 +179,7 @@ let rec elaborate_pattern =
         |> ListUtil.unzip;
       let expected_labels: list(option(string)) =
         Typ.get_labels(ctx, elaborated_type);
-      // let elaborated_labeled: list((option(string), DHPat.t)) =
-      //   List.map(
-      //     pat => {
-      //       switch (DHPat.term_of(pat)) {
-      //       | TupLabel({term: Label(l), _}, pat) => (Some(l), pat)
-      //       | _ => (None, pat)
-      //       }
-      //     },
-      //     ps',
-      //   );
 
-      // let reordered: list((option(string), DHPat.t)) =
-      //   LabeledTuple.rearrange_base(expected_labels, elaborated_labeled);
-
-      // let ps': list(DHPat.t) =
-      //   List.map(
-      //     ((optional_label, pat: DHPat.t)) => {
-      //       switch (optional_label) {
-      //       | Some(label) =>
-      //         DHPat.TupLabel(Label(label) |> DHPat.fresh, pat) |> DHPat.fresh
-      //       | None => pat
-      //       }
-      //     },
-      //     reordered,
-      //   );
       let (ps', tys) =
         LabeledTuple.rearrange2(
           expected_labels,

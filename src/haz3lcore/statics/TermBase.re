@@ -733,8 +733,6 @@ and Typ: {
     | (_, Parens(t2)) => eq_internal(n, t1, t2)
     | (TupLabel(label1, t1'), TupLabel(label2, t2')) =>
       eq_internal(n, label1, label2) && eq_internal(n, t1', t2')
-    // | (TupLabel(_, _), _) => false // TODO Verify this
-    // | (_, TupLabel(_, _)) => false
     | (TupLabel(_), _) => false
     | (Rec(x1, t1), Rec(x2, t2))
     | (Forall(x1, t1), Forall(x2, t2)) =>
