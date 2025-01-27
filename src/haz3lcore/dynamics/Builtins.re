@@ -359,12 +359,8 @@ module Pervasives = {
        );
 };
 
-let livelits_init: Ctx.t = [
-  LivelitEntry(Livelit.slider),
-  LivelitEntry(Livelit.emotion),
-  LivelitEntry(Livelit.timestamp),
-  LivelitEntry(Livelit.js),
-];
+let livelits_init: Ctx.t =
+  Livelit.livelits |> List.map(entry => Ctx.LivelitEntry(entry));
 
 let ctx_init: Ctx.t = {
   let meta_cons_map: ConstructorMap.t(Typ.t) = [

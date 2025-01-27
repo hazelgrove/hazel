@@ -547,7 +547,11 @@ let get_doc =
       | Closure(_)
       | Cast(_)
       | BuiltinFun(_) => simple("Internal expression")
-      | LivelitName(_) => simple("Livelit invocation")
+      | LivelitName(s) =>
+        simple(
+          Livelit.find_livelit(s, Info.ctx_of(Option.get(info))).
+            explain_this,
+        )
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>

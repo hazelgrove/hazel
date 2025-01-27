@@ -14,6 +14,7 @@ type t = Ctx.livelit_entry;
 
 /* Slider livelit */
 let slider: t = {
+  explain_this: "A slider livelit",
   name: "slider",
   expansion_t: Typ.temp(Int),
   expansion_f: (model: UExp.t) =>
@@ -49,6 +50,7 @@ let slider: t = {
 
 /* JS livelit */
 let js: t = {
+  explain_this: "A JavaScript livelit",
   name: "js",
   expansion_t: Typ.temp(String),
   expansion_f: (model: UExp.t) =>
@@ -137,6 +139,7 @@ let js: t = {
 
 /* Timestamp livelit */
 let timestamp: t = {
+  explain_this: "A timestamp livelit",
   name: "timestamp",
   expansion_t: Typ.temp(Int),
   expansion_f: (_model: UExp.t) =>
@@ -154,6 +157,7 @@ let timestamp: t = {
 
 /* Syntax error livelit */
 let syntax_error: t = {
+  explain_this: "A syntax error livelit",
   name: "syntax_error",
   expansion_t: Typ.temp(Unknown(Internal)),
   expansion_f: (_model: UExp.t) =>
@@ -175,6 +179,7 @@ let syntax_error: t = {
        - The mouth shape changes based on the slider’s value.
    */
 let emotion: t = {
+  explain_this: "An emotion livelit",
   name: "emotion",
   expansion_t: Typ.temp(String),
   expansion_f: (model: UExp.t) =>
