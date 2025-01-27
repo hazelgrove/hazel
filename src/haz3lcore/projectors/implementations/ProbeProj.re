@@ -100,7 +100,7 @@ module DynCursor = {
       closures,
     );
 
-  let index_in = (closures: list(closure)): option(int) =>
+  let first_index_of = (closures: list(closure)): option(int) =>
     List.find_index(
       (closure: closure) => s.call_cursor == closure.call_stack,
       closures,
@@ -199,15 +199,18 @@ module DynCursor = {
     )
     @ (
       switch (relation.relative_level_to_cursor) {
-      | Same => ["same"]
-      | Below(n) => ["below", string_of_int(n)]
-      | Above(n) => ["above", string_of_int(n)]
+      | Same => ["level0"]
+      | Below(n) => ["below", "L" ++ string_of_int(n)]
+      | Above(n) => ["above", "L" ++ string_of_int(n)]
       }
     );
   };
 
-  let show_pin = (info, closure) =>
-    s.pinned_call != None && s.pinned_call == cur_call(info, closure);
+  let show_pin = info => {
+    s.pinned_call != None
+    && s.pinned_call
+    |> OptUtil.and_then(ListUtil.hd_opt) == cur_ap(info);
+  };
 
   let is_pinned = (info: info): bool =>
     switch (OptUtil.and_then(is_in, info.dynamics)) {
@@ -278,15 +281,49 @@ module Closures = {
     | None => frames
     };
 
+  let first_cursored_is_oustide_window =
+      (m: model, closures: list(closure)): option(int) => {
+    let cursor_idx = DynCursor.first_index_of(closures);
+    let abs_offset = m.index_offset;
+    switch (cursor_idx) {
+    /* Cursor would be outside window, reset to next visible closure */
+    | Some(idx) when idx >= abs_offset + m.max_closures => Some(idx)
+    | Some(idx) when idx < abs_offset => Some(idx)
+    | _ => None
+    };
+  };
+
   let select_frames =
       (model: model, cur_ap: option(Id.t), closures: list(closure))
       : list(closure) => {
-    let filtered = closures |> filter_frames_by_pin(cur_ap);
+    let total_closures = List.length(closures);
+    let pin_filtered = closures |> filter_frames_by_pin(cur_ap);
     //TODO: Improve below in long filtered case
-    if (List.length(filtered) < List.length(closures)) {
-      ListUtil.slice(0, model.max_closures, filtered);
+    if (List.length(pin_filtered) < total_closures) {
+      ListUtil.slice(0, model.max_closures, pin_filtered);
     } else {
-      ListUtil.slice(model.index_offset, model.max_closures, filtered);
+      /* If the cursor is not visible, advance to the cursor. This
+       * is intended to effect probes other than the indicated one,
+       * in response to the indicated one changing offset. it's not
+       * very robust is that it doesn't actually change the offset
+       * of the non-indicated probes, so changing their offset in kind
+       * may have hard to understand effects. Ideally too this logic
+       * should be extended to the pinned case. */
+      switch (first_cursored_is_oustide_window(model, closures)) {
+      | None =>
+        ListUtil.slice(model.index_offset, model.max_closures, closures)
+      | Some(idx) =>
+        let num_would_be_shown = total_closures - idx - 1;
+        if (num_would_be_shown < model.max_closures) {
+          ListUtil.slice(
+            total_closures - 1 - model.max_closures,
+            total_closures - 1,
+            closures,
+          );
+        } else {
+          ListUtil.slice(idx, model.max_closures, closures);
+        };
+      };
     };
   };
 
@@ -586,8 +623,8 @@ let num_closures_view = (info: info) => {
   );
 };
 
-let pin_view = (info: info, closure: closure) =>
-  DynCursor.show_pin(info, closure)
+let pin_view = (info: info) =>
+  DynCursor.show_pin(info)
     ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
 let syntax_str = (info: info) => {
@@ -634,8 +671,7 @@ let view = (info: info): Node.t => {
   );
 };
 
-let overlay_view = (info: info): Node.t => {
-  let cursored_closure = OptUtil.and_then(DynCursor.is_in, info.dynamics);
+let overlay_view = (info: info): Node.t =>
   div(
     ~attrs=[
       Attr.classes(
@@ -644,15 +680,8 @@ let overlay_view = (info: info): Node.t => {
         @ (DynCursor.is_pinned(info) ? ["pinned"] : []),
       ),
     ],
-    [num_closures_view(info)]
-    @ (
-      switch (cursored_closure) {
-      | Some(cursored_closure) => pin_view(info, cursored_closure)
-      | _ => []
-      }
-    ),
+    [num_closures_view(info)] @ pin_view(info),
   );
-};
 
 let update = (m: model, info: info, a: action) => {
   //print_endline("update: action:" ++ show_action(a));
@@ -673,7 +702,7 @@ let update = (m: model, info: info, a: action) => {
     let abs_offset = abs_offset < 0 ? 0 : abs_offset;
     switch (info.dynamics) {
     | Some(closures) =>
-      let cursor_idx = DynCursor.index_in(closures);
+      let cursor_idx = DynCursor.first_index_of(closures);
       switch (cursor_idx) {
       /* Cursor would be outside window, reset to next visible closure */
       | Some(idx) when idx >= abs_offset + m.max_closures =>
