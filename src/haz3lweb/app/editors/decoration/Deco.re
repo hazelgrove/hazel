@@ -62,8 +62,7 @@ module HighlightSegment =
        (
          M: {
            let measured: Measured.t;
-           let info_map: Statics.Map.t;
-           let dynamics: Dynamics.Map.t;
+           let shape_of_proj: Haz3lcore.Base.projector => ProjectorCore.shape;
            let font_metrics: FontMetrics.t;
          },
        ) => {
@@ -120,7 +119,7 @@ module HighlightSegment =
     switch (Measured.find_pr_opt(p, M.measured)) {
     | None => failwith("Deco.of_projector: missing measurement")
     | Some(_m) =>
-      let shape = ProjectorInfo.Shape.of_map(M.info_map, M.dynamics, p);
+      let shape = M.shape_of_proj(p);
       /* Handling this internal to ProjectorsView at the moment because the
        * commented-out strategy doesn't work well, since the inserted str8-
        * edged lines vertical edge placement doesn't account for whether
@@ -178,6 +177,18 @@ module HighlightSegment =
        );
 };
 
+let quick_select_deco = (segment: Segment.t): Node.t => {
+  let shape_of_proj = ProjectorInfo.Shape.of_map_default;
+  module Highlight =
+    HighlightSegment({
+      let measured = Measured.of_segment(segment, shape_of_proj);
+      let shape_of_proj = shape_of_proj;
+      let font_metrics =
+        FontMetrics.{row_height: 25.125, col_width: 10.390625};
+    });
+  div_c("quick-select-deco", Highlight.go(segment, Some(Convex), []));
+};
+
 module Deco =
        (
          M: {
@@ -220,8 +231,8 @@ module Deco =
   module Highlight =
     HighlightSegment({
       let measured = M.editor.syntax.measured;
-      let info_map = M.statics.info_map;
-      let dynamics = M.dynamics;
+      let shape_of_proj =
+        ProjectorInfo.Shape.of_map(M.statics.info_map, M.dynamics);
       let font_metrics = font_metrics;
     });
 

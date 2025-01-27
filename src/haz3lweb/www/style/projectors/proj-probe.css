@@ -277,19 +277,119 @@
   outline: 1px solid var(--exp-ap-indicated);
   border-color: var(--exp-ap-indicated);
   background-color: var(--exp-ap-indicated);
-  box-shadow: inset 4px 4px 0 #551da0;
+  /* 
+  box-shadow: inset 3px 3px 0 #551da0; */
 }
 .projector.probe .closure:has(.value.cursor-caller.indirect) {
   outline: 1px solid var(--exp-ap-indicated);
   border-color: var(--exp-ap-indicated);
   background-color: var(--exp-ap-indicated);
-  box-shadow: inset 4px 4px 0 #551da0;
-  opacity: 50%;
+  /* background-color: var(--exp-ap-indicated);
+  box-shadow: inset 6px 6px 0 #551da0; */
+  /* opacity: 70%; */
 }
 .projector.probe .closure:has(.value.cursor-unrelated),
 .projector.probe .closure:has(.value.cursor-callee.indirect) {
   filter: contrast(0.32) brightness(1.51) saturate(0.7);
   /* opacity: 40%; */
+}
+.projector.probe.Pat .closure:has(.value.cursor-unrelated.level0) {
+  border-bottom-color: #73c1e1;
+}
+.projector.probe.Exp .closure:has(.value.cursor-unrelated.level0) {
+  border-bottom-color: #73e1a3;
+}
+
+/* .projector.probe.indicated .closure:has(.value.cursor-caller.below),
+.projector.probe.indicated .closure:has(.value.cursor-caller.above),
+.projector.probe.indicated .closure:has(.value.cursor-callee.below),
+.projector.probe.indicated .closure:has(.value.cursor-callee.above) {
+  scale: 0.83;
+}
+.projector.probe.indicated .closure:has(.value.cursor-caller.L1),
+.projector.probe.indicated .closure:has(.value.cursor-callee.L1) {
+  scale: 0.93;
+}
+.projector.probe.indicated .closure:has(.value.cursor-caller.L2),
+.projector.probe.indicated .closure:has(.value.cursor-callee.L2) {
+  scale: 0.89;
+} */
+/* .projector.probe.indicated .closure:has(.value.cursor-callee.above),
+.projector.probe.indicated .closure:has(.value.cursor-caller.above) {
+  top: -3px;
+  position: relative;
+}
+.projector.probe.indicated .closure:has(.value.cursor-callee.below),
+.projector.probe.indicated .closure:has(.value.cursor-caller.below) {
+  top: 3px;
+  position: relative;
+}
+.projector.probe.indicated .closure:has(.value.cursor-caller.above.L1),
+.projector.probe.indicated .closure:has(.value.cursor-callee.above.L1) {
+  top: -2px;
+}
+.projector.probe.indicated .closure:has(.value.cursor-caller.below.L1),
+.projector.probe.indicated .closure:has(.value.cursor-callee.below.L1) {
+  top: 2px;
+} */
+
+.projector.probe .closure:has(.value.above.indirect) {
+  background-color: oklch(0.4 0.18 300);
+  box-shadow: inset 24px 25px 0 #551da0;
+}
+.projector.probe .closure:has(.value.above.direct.L1) {
+  background-color: oklch(0.7 0.18 300);
+  box-shadow: inset 1.5px 1.5px 0 #551da0;
+}
+.projector.probe .closure:has(.value.above.indirect.L2) {
+  background-color: oklch(0.66 0.18 300);
+  box-shadow: inset 3px 3px 0 #551da0;
+}
+.projector.probe .closure:has(.value.above.indirect.L3) {
+  background-color: oklch(0.62 0.18 300);
+  box-shadow: inset 6px 6px 0 #551da0;
+}
+.projector.probe .closure:has(.value.above.indirect.L4) {
+  background-color: oklch(0.58 0.18 300);
+  box-shadow: inset 9px 9px 0 #551da0;
+}
+.projector.probe .closure:has(.value.above.indirect.L5) {
+  background-color: oklch(0.54 0.18 300);
+  box-shadow: inset 14px 14px 0 #551da0;
+}
+.projector.probe .closure:has(.value.above.indirect.L6) {
+  background-color: oklch(0.5 0.18 300);
+  box-shadow: inset 18px 18px 0 #551da0;
+}
+
+.projector.probe .closure:has(.value.above) {
+  top: -3.5px;
+  box-shadow: 0 3.5px 0 #d0cab7bb;
+  position: relative;
+}
+.projector.probe .closure:has(.value.below) {
+  top: 3.5px;
+  box-shadow: 0 -3.5px 0 #e6d8a9;
+  position: relative;
+  border-top: 1px solid var(--pat-shadow);
+  border-bottom: none;
+  border-radius: 0.05em 0.2em 0.05em 0.2em;
+}
+.projector.probe .closure:has(.value.above.L1) {
+  top: -1.5px;
+  box-shadow: 0 1.5px 0 #d0cab7bb;
+}
+.projector.probe .closure:has(.value.below.L1) {
+  top: 1.5px;
+  box-shadow: 0 -1.5px 0 #e6d8a9;
+}
+.projector.probe .closure:has(.value.above.L2) {
+  top: -2.5px;
+  box-shadow: 0 2.5px 0 #d0cab7bb;
+}
+.projector.probe .closure:has(.value.below.L2) {
+  top: 2.5px;
+  box-shadow: 0 -2.5px 0 #e6d8a9;
 }
 
 /* TOKEN BKG INDICATED + HOVER */
@@ -302,6 +402,11 @@
   outline-width: 2.1px;
   outline-style: solid;
   border-bottom-width: 1.5px;
+}
+.todo {
+  /*TODO(andrew)*/
+  color: oklch(0.82 0.13 150.57);
+  filter: none;
 }
 .projector.probe.indicated.Exp .closure:has(.value.cursor),
 .projector.probe.Exp .closure:hover {

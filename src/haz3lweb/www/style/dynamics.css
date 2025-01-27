@@ -79,6 +79,7 @@
   font-family: var(--code-font);
   display: flex;
   align-items: center;
+  height: 26px;
 }
 
 .result {

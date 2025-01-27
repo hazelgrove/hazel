@@ -84,11 +84,16 @@ let view_wrapper =
       Attr.on_pointerdown(_ =>
         Effect.Many([
           Effect.Stop_propagation,
+          Effect.Prevent_default,
           inject(Project(Focus(info.id, None))),
         ])
       ),
-      Attr.on_mousemove(_ => Effect.Stop_propagation),
-      Attr.on_pointerup(_ => Effect.Stop_propagation),
+      Attr.on_mousemove(_ =>
+        Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
+      ),
+      Attr.on_pointerup(_ =>
+        Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
+      ),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
     views,
