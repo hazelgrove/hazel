@@ -369,7 +369,7 @@
 }
 .projector.probe .closure:has(.value.below) {
   top: 3.5px;
-  box-shadow: 0 -3.5px 0 #e6d8a9;
+  box-shadow: -2px -3.5px 0 #e6d8a9;
   position: relative;
   border-top: 1px solid var(--pat-shadow);
   border-bottom: none;
@@ -381,7 +381,7 @@
 }
 .projector.probe .closure:has(.value.below.L1) {
   top: 1.5px;
-  box-shadow: 0 -1.5px 0 #e6d8a9;
+  box-shadow: -0.75px -1.5px 0 #e6d8a9;
 }
 .projector.probe .closure:has(.value.above.L2) {
   top: -2.5px;
@@ -389,7 +389,7 @@
 }
 .projector.probe .closure:has(.value.below.L2) {
   top: 2.5px;
-  box-shadow: 0 -2.5px 0 #e6d8a9;
+  box-shadow: -1.25px -2.5px 0 #e6d8a9;
 }
 
 /* TOKEN BKG INDICATED + HOVER */
