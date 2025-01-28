@@ -414,15 +414,6 @@ let let_var_exp: form = {
     // TODO Does this example being slightly different actually add anything?
   };
 };
-let _labeled_pat = labeled_pat();
-let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
-let let_labeled_exp_coloring_ids =
-  _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_labeled_pat),
-    Piece.id(_exp_def),
-    Piece.id(_exp_body),
-  );
 
 let _comma = comma_pat();
 let _exp_def = exp("e_def");
