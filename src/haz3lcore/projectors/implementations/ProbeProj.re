@@ -21,7 +21,8 @@ type model = {
 type action =
   | ChangeLength(Id.t, int)
   | Offset(int)
-  | ToggleShowAllVals(int);
+  | ToggleShowAllVals(int)
+  | PinAp;
 
 let init = {display_lengths: Id.Map.empty, max_closures: 30, index_offset: 0};
 
@@ -641,17 +642,22 @@ let syntax_str = (info: info) => {
 
 let syntax_view = (info: info) => info |> syntax_str |> text;
 
-let placeholder = (_m, info) =>
-  ProjectorCore.inline(3 + String.length(syntax_str(info)));
+//TODO(andrew): rm
+let _syntax_view = (view_seg, utility, info: info) => {
+  let display_length = 12;
+  switch (utility.seg_to_term([info.syntax])) {
+  | Some(TermBase.Exp(e)) =>
+    let (view: Node.t, _length) =
+      seg_view(view_seg, utility, display_length, e);
+    view;
+  | _ => Node.div([])
+  };
+};
 
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-let view = (info: info): Node.t => {
-  let on_double_click = _ => {
-    /* Pin a function call, filtering the cells in other probes */
-    DynCursor.toggle_pinned_call(info);
-    Effect.Ignore;
-  };
+let view = (_view_seg, local, info: info): Node.t => {
+  let on_double_click = _ => local(PinAp);
   let on_pointerdown = _ => {
     /* Select a default cell if one is not already selected */
     DynCursor.probe_default(info);
@@ -725,6 +731,10 @@ let update = (m: model, info: info, a: action) => {
     let index_offset = m.index_offset + offset;
     let index_offset = index_offset < 0 ? 0 : index_offset;
     {...m, index_offset};
+  | PinAp =>
+    /* Pin a function call, filtering the cells in other probes */
+    DynCursor.toggle_pinned_call(info);
+    m;
   };
 };
 
@@ -738,7 +748,12 @@ module M: Projector = {
   type model = m;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
+
   let init = init;
+  let dynamics = true;
+  let can_focus = false;
+  let focus = _ => ();
+
   let can_project = (_, any: Term.Any.t) =>
     switch (any) {
     | Exp(_) => true
@@ -746,12 +761,13 @@ module M: Projector = {
     | _ => false
     };
 
-  let can_focus = false;
-  let dynamics = true;
-  let placeholder = placeholder;
+  let placeholder = (_, info: info) =>
+    ProjectorCore.inline(2 + String.length(syntax_str(info)));
+
   let update = update;
-  let view = (_model, info, ~local as _, ~parent as _, ~view_seg as _) =>
-    view(info);
+
+  let view = (_model, info, ~local, ~parent as _, ~view_seg) =>
+    view(view_seg, local, info);
   let offside_view =
     Some(
       (model, info, ~local, ~parent as _, ~view_seg) =>
@@ -762,6 +778,5 @@ module M: Projector = {
       (_model, info, ~local as _, ~parent as _, ~view_seg as _) =>
         overlay_view(info),
     );
-  let underlay_view = Option.None; //TODO
-  let focus = _ => ();
+  let underlay_view = Option.None;
 };
