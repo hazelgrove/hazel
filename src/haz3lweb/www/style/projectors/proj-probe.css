@@ -75,6 +75,7 @@
   animation: rotate 5s linear infinite;
 }
 .projector.probe .main .icon {
+  scale: 0.95;
   width: 16px;
   height: 16px;
   background-image: url(../../img/noun-search-5661270.svg);
@@ -83,6 +84,8 @@
 }
 .projector.probe .main.ap .icon {
   background-image: url(../../img/noun-telescope-7245201.svg);
+  rotate: -6deg;
+  translate: -2px;
 }
 .projector.probe.indicated:not(.selected) .main .icon {
   filter: invert(1);
@@ -340,26 +343,39 @@
 .projector.probe .closure:has(.value.above.direct.L1) {
   background-color: oklch(0.7 0.18 300);
   box-shadow: inset 1.5px 1.5px 0 #551da0;
+  filter: drop-shadow(0 1.5px 0 #d0cab7bb);
 }
 .projector.probe .closure:has(.value.above.indirect.L2) {
   background-color: oklch(0.66 0.18 300);
   box-shadow: inset 3px 3px 0 #551da0;
+  filter: drop-shadow(0 2.25px 0 #d0cab7bb);
 }
 .projector.probe .closure:has(.value.above.indirect.L3) {
   background-color: oklch(0.62 0.18 300);
   box-shadow: inset 6px 6px 0 #551da0;
+  filter: drop-shadow(0 3px 0 #d0cab7bb);
 }
 .projector.probe .closure:has(.value.above.indirect.L4) {
   background-color: oklch(0.58 0.18 300);
   box-shadow: inset 9px 9px 0 #551da0;
+  filter: drop-shadow(0 3.75px 0 #d0cab7bb);
 }
 .projector.probe .closure:has(.value.above.indirect.L5) {
   background-color: oklch(0.54 0.18 300);
   box-shadow: inset 14px 14px 0 #551da0;
+  filter: drop-shadow(0 4.5px 0 #d0cab7bb);
 }
 .projector.probe .closure:has(.value.above.indirect.L6) {
   background-color: oklch(0.5 0.18 300);
   box-shadow: inset 18px 18px 0 #551da0;
+  filter: drop-shadow(0 5.25px 0 #d0cab7bb);
+}
+
+.projector.probe.Exp .closure {
+  --below-shadow: #00c17d;
+}
+.projector.probe.Pat .closure {
+  --below-shadow: #00aec1;
 }
 
 .projector.probe .closure:has(.value.above) {
@@ -367,29 +383,54 @@
   box-shadow: 0 3.5px 0 #d0cab7bb;
   position: relative;
 }
-.projector.probe .closure:has(.value.below) {
-  top: 3.5px;
-  box-shadow: -2px -3.5px 0 #e6d8a9;
-  position: relative;
-  border-top: 1px solid var(--pat-shadow);
-  border-bottom: none;
-  border-radius: 0.05em 0.2em 0.05em 0.2em;
-}
 .projector.probe .closure:has(.value.above.L1) {
   top: -1.5px;
   box-shadow: 0 1.5px 0 #d0cab7bb;
 }
-.projector.probe .closure:has(.value.below.L1) {
-  top: 1.5px;
-  box-shadow: -0.75px -1.5px 0 #e6d8a9;
+.projector.probe .closure:has(.value.below) {
+  position: relative;
+  border-top: 1px solid var(--pat-shadow);
+  border-bottom: none;
+  border-radius: 0.05em 0.2em 0.05em 0.2em;
+  border: none;
+
+  translate: 0 3px;
+  box-shadow: 0px -0.75px 0 var(--below-shadow),
+    0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow),
+    0px -3px 0 var(--below-shadow);
 }
+
 .projector.probe .closure:has(.value.above.L2) {
   top: -2.5px;
   box-shadow: 0 2.5px 0 #d0cab7bb;
 }
+.projector.probe .closure:has(.value.below.L1) {
+  border: none;
+  translate: 0 0.75px;
+  box-shadow: 0px -0.75px 0 var(--below-shadow);
+  border: none;
+}
+
 .projector.probe .closure:has(.value.below.L2) {
-  top: 2.5px;
-  box-shadow: -1.25px -2.5px 0 #e6d8a9;
+  border: none;
+  translate: 0 1.5px;
+  box-shadow: 0px -0.75px 0 var(--below-shadow),
+    0px -1.5px 0 var(--below-shadow);
+}
+
+.projector.probe .closure:has(.value.below.L3) {
+  border: none;
+  translate: 0 2.25px;
+  box-shadow: 0px -0.75px 0 var(--below-shadow),
+    0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow);
+}
+
+.projector.probe .closure:has(.value.below.L4) {
+  border: none;
+  translate: 0 3px;
+  box-shadow: 0px -0.75px 0 var(--below-shadow),
+    0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow),
+    0px -3px 0 var(--below-shadow);
 }
 
 /* TOKEN BKG INDICATED + HOVER */
@@ -401,7 +442,8 @@
   background: white;
   outline-width: 2.1px;
   outline-style: solid;
-  border-bottom-width: 1.5px;
+  /* border-bottom-width: 1.5px; */
+  border: none;
 }
 .todo {
   /*TODO(andrew)*/
@@ -412,6 +454,7 @@
 .projector.probe.Exp .closure:hover {
   outline-color: var(--exp-indicated);
   border-color: var(--exp-indicated);
+  border: none;
 }
 .projector.probe.indicated.Pat .closure:has(.value.cursor),
 .projector.probe.Pat .closure:hover {
