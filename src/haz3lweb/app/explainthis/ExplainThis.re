@@ -937,23 +937,23 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_var);
           }
-        | TupLabel(_, p) =>
+        | Tuple([{term: TupLabel(l, p), _}]) =>
           if (FunctionExp.function_labeled_exp.id
               == get_specificity_level(FunctionExp.functions_tuplabel)) {
-            let p_id = List.nth(p.ids, 0);
             get_message(
               ~colorings=
                 FunctionExp.function_labeled_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
+                  ~label_id=Pat.rep_id(l),
+                  ~pat_id=Pat.rep_id(p),
+                  ~body_id=Exp.rep_id(body),
                 ),
               ~format=
                 Some(
                   msg =>
                     Printf.sprintf(
                       Scanf.format_from_string(msg, "%s%s%s"),
-                      Id.to_string(pat_id),
-                      Id.to_string(p_id),
+                      Id.to_string(Pat.rep_id(l)),
+                      Id.to_string(Pat.rep_id(p)),
                       Id.to_string(body_id),
                     ),
                 ),
@@ -1108,8 +1108,9 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_ctr);
           }
-        | Invalid(_) => default // Shouldn't get hit
-        | Parens(_) => default // Shouldn't get hit?
+        | TupLabel(_)
+        | Invalid(_)
+        | Parens(_)
         | Cast(_) => default // Shouldn't get hit?
         };
       | Label(name) =>
