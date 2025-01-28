@@ -150,6 +150,7 @@ and closure_environment_t = {
   id: Id.t,
   env: environment_t,
   call_stack: Probe.call_stack,
+  assumptions: list(exp_t),
 }
 and stepper_filter_kind_t =
   | Filter(filter)
@@ -932,6 +933,7 @@ and ClosureEnvironment: {
   let update_env: (Environment.t => Environment.t, t) => t;
   let extend_eval:
     (~ap_id: Id.t=?, ~call_stack: Probe.call_stack, Environment.t, t) => t;
+  let add_assumption: (t, Exp.t) => t;
 
   let to_list: t => list((Var.t, Exp.t));
   let without_keys: (list(Var.t), t) => t;
@@ -940,7 +942,7 @@ and ClosureEnvironment: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = closure_environment_t;
 
-    let wrap: (Id.t, Environment.t, Probe.call_stack) => t;
+    let wrap: (Id.t, Environment.t, Probe.call_stack, list(Exp.t)) => t;
 
     let id_of: t => Id.t;
     let map_of: t => Environment.t;
@@ -949,7 +951,12 @@ and ClosureEnvironment: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = closure_environment_t;
 
-    let wrap = (id, env, call_stack): t => {id, env, call_stack};
+    let wrap = (id, env, call_stack, assumptions): t => {
+      id,
+      env,
+      call_stack,
+      assumptions,
+    };
 
     let id_of = t => t.id;
     let map_of = t => t.env;
@@ -962,7 +969,7 @@ and ClosureEnvironment: {
 
   let to_list = env => env |> map_of |> Environment.to_listo;
 
-  let of_environment = env => wrap(Id.mk(), env, []);
+  let of_environment = env => wrap(Id.mk(), env, [], []);
 
   /* Equals only needs to check environment id's (faster than structural equality
    * checking.) */
@@ -992,7 +999,13 @@ and ClosureEnvironment: {
       id: Id.mk(),
       env: Environment.union(new_bindings, map_of(env_to_extend)),
       call_stack: Option.to_list(ap_id) @ call_stack,
+      assumptions: env_to_extend.assumptions,
     };
+  };
+
+  let add_assumption = (env, e) => {
+    let assumptions = env.assumptions;
+    wrap(env.id, env.env, env.call_stack, [e, ...assumptions]);
   };
 }
 and StepperFilterKind: {

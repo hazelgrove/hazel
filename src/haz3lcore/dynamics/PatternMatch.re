@@ -22,7 +22,7 @@ let capture_closure = (pr, id: Id.t, d, inner_match: match_result): unit =>
   | Matches(env) =>
     closure_closures :=
       List.cons(
-        Dynamics.Probe.Closure.mk(id, d, env, _, pr),
+        Dynamics.Probe.Closure.mk(id, d, env, _, pr, []),
         closure_closures^,
       )
   };

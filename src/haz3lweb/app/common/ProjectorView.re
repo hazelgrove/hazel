@@ -14,6 +14,7 @@ let name = (p: ProjectorCore.kind): string =>
   | Fold => "fold"
   | Info => "type"
   | Probe => "probe"
+  | ProofProbe => "proofprobe"
   | Checkbox => "check"
   | Slider => "slider"
   | SliderF => "sliderf"
@@ -28,6 +29,7 @@ let of_name = (p: string): ProjectorCore.kind =>
   | "fold" => Fold
   | "type" => Info
   | "probe" => Probe
+  | "proofprobe" => ProofProbe
   | "check" => Checkbox
   | "slider" => Slider
   | "sliderf" => SliderF

@@ -9,6 +9,7 @@ let to_module = (kind: ProjectorCore.kind): (module Cooked) =>
   | Fold => (module Cook(FoldProj.M))
   | Info => (module Cook(TypeProj.M))
   | Probe => (module Cook(ProbeProj.M))
+  | ProofProbe => (module Cook(ProofProbeProj.M))
   | Slider => (module Cook(SliderProj.M))
   | SliderF => (module Cook(SliderFProj.M))
   | Checkbox => (module Cook(CheckboxProj.M))

@@ -62,7 +62,8 @@ module Probe = {
       syntax_id: Id.t, /* Syntax ID of probed expression */
       value: DHExp.t, /* Value of expression */
       env: Env.t, /* (Filtered) Environment Values  */
-      call_stack: Probe.call_stack /* Call stacks as ap ids */
+      call_stack: Probe.call_stack, /* Call stacks as ap ids */
+      assumptions: list(Exp.t) /* Proof assumptions at expression */
     };
 
     let mk =
@@ -72,12 +73,14 @@ module Probe = {
           env: Environment.t,
           call_stack: Probe.call_stack,
           pr: Probe.t,
+          assumptions: list(Exp.t),
         ) => {
       closure_id: Id.mk(),
       syntax_id,
       value,
       env: Env.filter(env, pr.refs),
       call_stack,
+      assumptions,
     };
   };
 

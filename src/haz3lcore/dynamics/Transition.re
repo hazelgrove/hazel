@@ -768,7 +768,14 @@ module Transition = (EV: EV_MODE) => {
           let map = ClosureEnvironment.map_of(env);
           let id = DHExp.rep_id(d);
           let closure =
-            Dynamics.Probe.Closure.mk(id, d', map, call_stack, pr);
+            Dynamics.Probe.Closure.mk(
+              id,
+              d',
+              map,
+              call_stack,
+              pr,
+              env.assumptions,
+            );
           update_probe(state, closure);
         },
         kind: RemoveParens,

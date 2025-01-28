@@ -1,0 +1,101 @@
+/* PROJECTOR: INFO */
+
+/* :root {
+--code-text: var(--token-exp);
+--main-base: hsl(281, 80%, 95%);
+--main-shadow: hsl(281, 40%, 25%);
+--main-indicated: var(--TYP);
+} */
+
+/* BACKING */
+
+.projector.proofprobe>svg {
+    /* fill: var(--main-base);
+filter: drop-shadow(0.7px 0.7px 0px var(--main-shadow)); */
+    filter: drop-shadow(0.7px 0.7px 0px var(--BR3));
+}
+
+.projector.proofprobe.indicated>svg {
+    fill: var(--main-indicated);
+    filter: drop-shadow(0.7px 0.7px 0px var(--main-shadow));
+}
+
+.projector.proofprobe.selected>svg {
+    filter: none;
+}
+
+/* INLINE VIEW */
+
+.projector.proofprobe:hover {
+    color: var(--BLACK);
+}
+
+.projector.proofprobe .main {
+    font-family: var(--code-font);
+    font-size: var(--base-font-size);
+    color: var(--code-text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+}
+
+.projector.proofprobe.indicated .main {
+    color: white;
+}
+
+.projector.proofprobe .icon {
+    width: 16px;
+    height: 16px;
+    background-image: url(../../img/noun-microscope-7023456.svg);
+    background-size: cover;
+    filter: invert(1) brightness(0.4) sepia(1) saturate(1.8) hue-rotate(245deg);
+}
+
+.projector.proofprobe.indicated:not(.selected) .main .icon {
+    filter: invert(1);
+}
+
+/* OFFSIDE VIEW */
+
+.projector.proofprobe .offside {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6em;
+}
+
+.projector.proofprobe .offside .mode {
+    font-weight: 800;
+    color: var(--main-base);
+    filter: brightness(0.9);
+}
+
+.projector.proofprobe.indicated .offside .mode {
+    opacity: 100%;
+    color: var(--main-indicated);
+}
+
+.projector.proofprobe .offside .proofprobe-cell {
+    border-radius: 0.05em 0.05em 0.05em 0.2em;
+    background-color: var(--main-base);
+    border-bottom: 1px solid var(--main-indicated);
+}
+
+.projector.proofprobe.indicated .offside .proofprobe-cell {
+    /* background: white; */
+    outline-width: 1px;
+    outline-style: solid;
+    outline-color: var(--main-indicated);
+    border-color: var(--main-indicated);
+    /* border-bottom-width: 1.5px; */
+}
+
+.projector.proofprobe .offside .code {
+    position: relative;
+    line-height: initial;
+}
+
+.projector.proofprobe .offside .code .token.explicit-hole {
+    color: white;
+}

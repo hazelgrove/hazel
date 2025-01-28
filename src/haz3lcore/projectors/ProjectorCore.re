@@ -20,6 +20,7 @@ type kind =
   | Fold
   | Info
   | Probe
+  | ProofProbe
   | Checkbox
   | Slider
   | SliderF
@@ -53,7 +54,8 @@ type t('syntax) = {
 
 let livelit_projectors: list(kind) = [Checkbox, Slider, SliderF, TextArea];
 
-let projectors: list(kind) = livelit_projectors @ [Fold, Info, Probe];
+let projectors: list(kind) =
+  livelit_projectors @ [Fold, Info, Probe, ProofProbe];
 
 let inline = (width: int): shape => {horizontal: width, vertical: Inline};
 let default: shape = inline(0);
