@@ -186,7 +186,10 @@ let quick_select_deco = (segment: Segment.t): Node.t => {
       let font_metrics =
         FontMetrics.{row_height: 25.125, col_width: 10.390625};
     });
-  div_c("quick-select-deco", Highlight.go(segment, Some(Convex), []));
+  switch (Highlight.go(segment, Some(Convex), [])) {
+  | exception _ => Node.div([])
+  | ya => div_c("quick-select-deco", ya)
+  };
 };
 
 module Deco =

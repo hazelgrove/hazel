@@ -75,7 +75,7 @@ module M: Projector = {
       [text(display_mode(model, info))],
     );
 
-  let typ_view = (model, info: info, utility, view_seg) => {
+  let typ_view = (model, info: info, utility, view_seg: view_seg) => {
     let typ = display_ty(model, info.statics) |> totalize_ty;
     div(
       ~attrs=[Attr.classes(["type-cell"])],

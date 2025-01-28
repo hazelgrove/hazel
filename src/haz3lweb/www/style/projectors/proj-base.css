@@ -69,12 +69,24 @@
 }
 .projector.fold:hover .hover-view {
   display: block;
-  background-color: var(--T2);
-  outline: 1px solid var(--BR1);
-  border-radius: 0 0.2em 0.2em 0.2em;
+  /* background-color: var(--T2); */
+  /* outline: 1px solid var(--BR1); */
+  /* border-radius: 0 0.2em 0.2em 0.2em; */
   /* padding: 0em 1em; */
-  top: 1px;
-  left: 20px;
+  /* top: 1px; */
+  left: 0;
+  top: 0;
+}
+
+.projector.fold .quick-select-deco svg {
+  filter: drop-shadow(1px 1px 0px var(--BR2)) drop-shadow(3px 3px 1px #00000012);
+}
+
+.projector.fold .quick-select-deco path {
+  fill: #e7e1cf;
+  /* stroke: #ac9b6a; */
+  /* stroke-width: 1px; */
+  /* filter: drop-shadow(0.2px px 0px black); */
 }
 
 .result .projector.fold {

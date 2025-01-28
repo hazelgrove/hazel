@@ -592,7 +592,13 @@ let equals_view =
   div(~attrs=[Attr.classes(["live-equals"])], [text("=")]);
 
 let offside_view =
-    (model: model, info: info, local, view_seg, utility: utility) =>
+    (
+      model: model,
+      info: info,
+      local,
+      view_seg: (~background: bool=?, Sort.t, list(syntax)) => Node.t,
+      utility: utility,
+    ) =>
   Node.div(
     ~attrs=[Attr.classes(["live-offside"])],
     switch (info.dynamics) {
@@ -656,7 +662,7 @@ let _syntax_view = (view_seg, utility, info: info) => {
 
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-let view = (_view_seg, local, info: info): Node.t => {
+let view = (local, info: info): Node.t => {
   let on_double_click = _ => local(PinAp);
   let on_pointerdown = _ => {
     /* Select a default cell if one is not already selected */
@@ -766,8 +772,8 @@ module M: Projector = {
 
   let update = update;
 
-  let view = (_model, info, ~local, ~parent as _, ~view_seg) =>
-    view(view_seg, local, info);
+  let view = (_model, info, ~local, ~parent as _, ~view_seg as _) =>
+    view(local, info);
   let offside_view =
     Some(
       (model, info, ~local, ~parent as _, ~view_seg) =>
