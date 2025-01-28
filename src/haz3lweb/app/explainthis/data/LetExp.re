@@ -62,11 +62,6 @@ let let_var_ex = {
   term: mk_example("let x = 1 in \nx + 2"),
   message: "The variable x is bound to 1, so the expression evaluates to 1 + 2, which is 3.",
 };
-let let_labeled_ex = {
-  sub_id: Let(TupLabel),
-  term: mk_example("let (a=x, b=y) = (1, a=2) in \nx + 2"),
-  message: "The variable x is bound to 2 and the y is bound to 2, so the expression evaluates to 2 + 2, which is 4.",
-};
 let let_tuple2_ex = {
   sub_id: Let(Tuple2),
   term: mk_example("let (x, y) = (1, 2) in \nx + y"),
@@ -282,15 +277,6 @@ let let_str_exp: form = {
     examples: [let_str_ex],
   };
 };
-let _pat = pat("Label");
-let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
-let let_label_coloring_ids =
-  _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_pat),
-    Piece.id(_exp_def),
-    Piece.id(_exp_body),
-  );
 
 let _pat = pat("()");
 let _exp_def = exp("e_def");
