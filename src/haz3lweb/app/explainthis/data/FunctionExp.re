@@ -224,8 +224,6 @@ let function_strlit_exp: form = {
     examples: [strlit_fun_ex],
   };
 };
-let _pat = pat("Label");
-let _exp = exp("e");
 let _pat = pat("()");
 let _exp = exp("e");
 let function_triv_exp_coloring_ids =

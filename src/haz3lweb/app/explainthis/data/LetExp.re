@@ -277,7 +277,6 @@ let let_str_exp: form = {
     examples: [let_str_ex],
   };
 };
-
 let _pat = pat("()");
 let _exp_def = exp("e_def");
 let _exp_body = exp("e_body");
@@ -400,7 +399,6 @@ let let_var_exp: form = {
     // TODO Does this example being slightly different actually add anything?
   };
 };
-
 let _comma = comma_pat();
 let _exp_def = exp("e_def");
 let let_tuple_exp_coloring_ids =
