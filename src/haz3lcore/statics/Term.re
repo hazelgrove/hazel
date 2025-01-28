@@ -303,6 +303,34 @@ module Pat = {
          | None => {id: Id.invalid, name}
          }
        );
+
+  let rec to_exp = (pat: t): TermBase.Exp.t =>
+    switch (pat |> term_of) {
+    | EmptyHole => (EmptyHole: TermBase.Exp.term) |> IdTagged.fresh
+    | MultiHole(tms) => (MultiHole(tms): TermBase.Exp.term) |> IdTagged.fresh
+    | Wild => (EmptyHole: TermBase.Exp.term) |> IdTagged.fresh
+    | Invalid(ivd) => (Invalid(ivd): TermBase.Exp.term) |> IdTagged.fresh
+    | Int(i) => (Int(i): TermBase.Exp.term) |> IdTagged.fresh
+    | Float(f) => (Float(f): TermBase.Exp.term) |> IdTagged.fresh
+    | Bool(b) => (Bool(b): TermBase.Exp.term) |> IdTagged.fresh
+    | String(s) => (String(s): TermBase.Exp.term) |> IdTagged.fresh
+    | Constructor(name, t) =>
+      (Constructor(name, t): TermBase.Exp.term) |> IdTagged.fresh
+    | Cast(p, t1, t2) =>
+      (Cast(to_exp(p), t1, t2): TermBase.Exp.term) |> IdTagged.fresh
+    | Wrap(p, pr) =>
+      (Wrap(to_exp(p), pr): TermBase.Exp.term) |> IdTagged.fresh
+    | Var(x) => (Var(x): TermBase.Exp.term) |> IdTagged.fresh
+    | Tuple(ps) =>
+      (Tuple(List.map(to_exp, ps)): TermBase.Exp.term) |> IdTagged.fresh
+    | Cons(p1, p2) =>
+      (Cons(to_exp(p1), to_exp(p2)): TermBase.Exp.term) |> IdTagged.fresh
+    | ListLit(ps) =>
+      (ListLit(List.map(to_exp, ps)): TermBase.Exp.term) |> IdTagged.fresh
+    | Ap(p1, p2) =>
+      (Ap(Forward, to_exp(p1), to_exp(p2)): TermBase.Exp.term)
+      |> IdTagged.fresh
+    };
 };
 
 module Exp = {

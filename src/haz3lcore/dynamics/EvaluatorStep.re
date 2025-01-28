@@ -264,6 +264,8 @@ module Decompose = {
       );
     };
 
+    let (let.noreq) = (_, x) => x();
+
     let rec req_all_final' = (cont, wr, ds') =>
       fun
       | [] => (Result.BoxedValue, [])
@@ -339,6 +341,8 @@ module TakeStep = {
       };
 
     let (and.) = (x1, x2) => (x1, x2);
+
+    let (let.noreq) = (_, x) => x();
 
     let otherwise = (_, _) => ();
 

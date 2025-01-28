@@ -120,6 +120,8 @@ module type EV_MODE = {
     requirements(('a, 'c), 'b);
   let otherwise: (ClosureEnvironment.t, 'a) => requirements(unit, 'a);
 
+  let (let.noreq): (result, unit => rule) => rule;
+
   let update_test: (state, Id.t, TestMap.instance_report) => unit;
 
   let update_probe: (state, Dynamics.Probe.Closure.t) => unit;
@@ -147,47 +149,6 @@ module Transition = (EV: EV_MODE) => {
       closures,
     );
 
-  /* Helper function to wrap a closure around an expression. Required for functions, but also for
-     things like if-then-else expressions where the scrutinee is indet, and for hole closures */
-  let wrap_closure_when_done = (~in_closure, expr, env, r: rule) =>
-    switch (in_closure, r) {
-    | (_, Step(_)) => r
-    | (None, Constructor | Indet | Value) =>
-      Step({
-        expr: Closure(env, expr) |> fresh,
-        state_update,
-        kind: WrapClosure,
-        is_value: false,
-      })
-    | (Some(f), Constructor | Indet | Value) =>
-      f();
-      r;
-    };
-
-  let capture_closures =
-      (env: ClosureEnvironment.t, state: state, closures, ()): unit =>
-    List.iter(
-      closure => update_probe(state, closure(env.call_stack)),
-      closures,
-    );
-
-  /* Helper function to wrap a closure around an expression. Required for functions, but also for
-     things like if-then-else expressions where the scrutinee is indet, and for hole closures */
-  let wrap_closure_when_done = (~in_closure, expr, env, r: rule) =>
-    switch (in_closure, r) {
-    | (_, Step(_)) => r
-    | (None, Constructor | Indet | Value) =>
-      Step({
-        expr: Closure(env, expr) |> fresh,
-        state_update,
-        kind: WrapClosure,
-        is_value: false,
-      })
-    | (Some(f), Constructor | Indet | Value) =>
-      f();
-      r;
-    };
-
   /* Note[Matt]: For IDs, I'm currently using a fresh id
      if anything about the current node changes, if only its
      children change, we use rewrap */
@@ -212,8 +173,28 @@ module Transition = (EV: EV_MODE) => {
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t => Term({term, ids: [rep_id(d)]});
 
-    let (let.wrap_closure) = (env, f: unit => rule) => {
-      wrap_closure_when_done(~in_closure, d, env, f());
+    /* Helper function to wrap a closure around an expression. Required for functions, but also for
+       things like if-then-else expressions where the scrutinee is indet, and for hole closures */
+    let rec wrap_closure_when_done = (~in_closure, ~fs, expr, env, r: rule) =>
+      switch (in_closure, fs, r) {
+      | (_, _, Step(_)) => r
+      | (None, [f, ...fs], Constructor | Indet | Value) =>
+        let.noreq () = f();
+        wrap_closure_when_done(~in_closure, ~fs, expr, env, r);
+      | (None, [], Constructor | Indet | Value) =>
+        Step({
+          expr: Closure(env, expr) |> fresh,
+          state_update,
+          kind: WrapClosure,
+          is_value: false,
+        })
+      | (Some(f), _, Constructor | Indet | Value) =>
+        f();
+        r;
+      };
+
+    let (let.wrap_closure) = ((env, fs), g: unit => rule) => {
+      wrap_closure_when_done(~in_closure, ~fs, d, env, g());
     };
 
     // Transition rules
@@ -235,7 +216,7 @@ module Transition = (EV: EV_MODE) => {
           is_value,
         });
       | None =>
-        let.wrap_closure _ = env;
+        let.wrap_closure _ = (env, []);
         Indet;
       };
     | Seq(d1, d2) =>
@@ -247,7 +228,22 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d1 => Let(dp, d1, d2) |> rewrap)
       and. d1' =
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
-      let.wrap_closure _ = env;
+      let.wrap_closure _ = (
+        env,
+        [
+          (
+            () => {
+              let assumption =
+                BinOp(Int(Equals), Pat.to_exp(dp), d1') |> Exp.fresh;
+              req(
+                state,
+                env |> ClosureEnvironment.add_assumption(_, assumption),
+                d2,
+              );
+            }
+          ),
+        ],
+      );
       let {matches, closures} = matches(dp, d1');
       let.match env' = (env, matches, env.call_stack);
       Step({
@@ -256,13 +252,27 @@ module Transition = (EV: EV_MODE) => {
         kind: LetBind,
         is_value: false,
       });
-    | TypFun(_)
-    | Fun(_, _, _, _) =>
+    | TypFun(_) =>
       let. _ = otherwise(env, d);
-      let.wrap_closure _ = env;
+      let.wrap_closure _ = (env, []);
+      Value;
+    | Fun(_, d1, _, _) =>
+      let. _ = otherwise(env, d);
+      let.wrap_closure _ = (
+        env,
+        [
+          (
+            () => {
+              print_endline("HERE");
+              req(state, env, d1);
+            }
+          ),
+        ],
+      );
       Value;
     | FixF(dp, d1, None) =>
       let. _ = otherwise(env, FixF(dp, d1, None) |> rewrap);
+      let.noreq () = req(state, env, d1);
       Step({
         expr: FixF(dp, d1, Some(env)) |> rewrap,
         state_update,
@@ -496,7 +506,31 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, c => If(c, d1, d2) |> rewrap)
       and. c' =
         req_final(req(state, env), c => If1(c, d1, d2) |> wrap_ctx, c);
-      let.wrap_closure _ = env;
+      let.wrap_closure _ = (
+        env,
+        [
+          (
+            () => {
+              let assumption = c;
+              req(
+                state,
+                env |> ClosureEnvironment.add_assumption(_, assumption),
+                d1,
+              );
+            }
+          ),
+          (
+            () => {
+              let assumption = UnOp(Bool(Not), c) |> Exp.fresh;
+              req(
+                state,
+                env |> ClosureEnvironment.add_assumption(_, assumption),
+                d2,
+              );
+            }
+          ),
+        ],
+      );
       let-unbox b = (Bool, c');
       Step({
         expr: {
@@ -548,7 +582,21 @@ module Transition = (EV: EV_MODE) => {
           d1 => BinOp1(Bool(And), d1, d2) |> wrap_ctx,
           d1,
         );
-      let.wrap_closure _ = env;
+      let.wrap_closure _ = (
+        env,
+        [
+          (
+            () => {
+              let assumption = UnOp(Bool(Not), d1') |> Exp.fresh;
+              req(
+                state,
+                env |> ClosureEnvironment.add_assumption(_, assumption),
+                d2,
+              );
+            }
+          ),
+        ],
+      );
       let-unbox b1 = (Bool, d1');
       Step({
         expr: b1 ? d2 : Bool(false) |> fresh,
@@ -564,7 +612,21 @@ module Transition = (EV: EV_MODE) => {
           d1 => BinOp1(Bool(Or), d1, d2) |> wrap_ctx,
           d1,
         );
-      let.wrap_closure _ = env;
+      let.wrap_closure _ = (
+        env,
+        [
+          (
+            () => {
+              let assumption = d1';
+              req(
+                state,
+                env |> ClosureEnvironment.add_assumption(_, assumption),
+                d2,
+              );
+            }
+          ),
+        ],
+      );
       let-unbox b1 = (Bool, d1');
       Step({
         expr: b1 ? Bool(true) |> fresh : d2,
@@ -774,7 +836,21 @@ module Transition = (EV: EV_MODE) => {
           is_value: false,
         })
       | None =>
-        let.wrap_closure _ = env;
+        let.wrap_closure _ = (
+          env,
+          List.map(
+            ((dp, d2), ()) => {
+              let assumption =
+                BinOp(Int(Equals), Pat.to_exp(dp), d1) |> Exp.fresh;
+              req(
+                state,
+                env |> ClosureEnvironment.add_assumption(_, assumption),
+                d2,
+              );
+            },
+            rules,
+          ),
+        );
         Indet;
       };
     | Closure(env', d) =>
@@ -797,7 +873,7 @@ module Transition = (EV: EV_MODE) => {
       };
     | MultiHole(_) =>
       let. _ = otherwise(env, d);
-      let.wrap_closure _ = env;
+      let.wrap_closure _ = (env, []);
       Indet;
     | EmptyHole
     | Invalid(_) =>
@@ -806,7 +882,7 @@ module Transition = (EV: EV_MODE) => {
       Indet;
     | DynamicErrorHole(_) =>
       let. _ = otherwise(env, d);
-      let.wrap_closure _ = env;
+      let.wrap_closure _ = (env, []);
       Indet;
     | Cast(d, t1, t2) =>
       let. _ = otherwise(env, d => Cast(d, t1, t2) |> rewrap)
@@ -838,9 +914,11 @@ module Transition = (EV: EV_MODE) => {
           d => Wrap(d, Probe(pr)) |> wrap_ctx,
           d'',
         );
+      print_endline("This is evaluated...");
       Step({
         expr: d',
         state_update: () => {
+          print_endline("State update...");
           let call_stack = ClosureEnvironment.call_stack_of(env);
           let map = ClosureEnvironment.map_of(env);
           let id = DHExp.rep_id(d);

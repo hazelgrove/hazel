@@ -64,6 +64,11 @@ module EvaluatorEVMode: {
   let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
     state := EvaluatorState.add_closure(state^, closure);
 
+  let (let.noreq) = (f: result, x: unit => rule): rule => {
+    let _ = Trampoline.run(f);
+    x();
+  };
+
   let req_final = (f, _, x) => {
     let.trampoline x' = Next(() => f(x));
     Trampoline.return(x' |> snd);
@@ -85,7 +90,10 @@ module EvaluatorEVMode: {
   };
   let (let.) = (t1, s) => {
     let.trampoline (x, c) = t1;
-    switch (s(x)) {
+    print_endline("Here in evaluator");
+    let sx = s(x);
+    print_endline("Back here in evaluator");
+    switch (sx) {
     | Step({expr, state_update, is_value: true, _}) =>
       state_update();
       Trampoline.return((Final, expr));

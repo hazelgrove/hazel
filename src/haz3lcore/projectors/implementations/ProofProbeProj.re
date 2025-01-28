@@ -24,8 +24,9 @@ let goal_view = (goal: Exp.t, ~utility, ~view_seg) =>
 let offside_view = (offside_info: offside_info, ~utility, ~view_seg) =>
   div(
     ~attrs=[Attr.classes(["offside"])],
-    [goal_view(offside_info.goal, ~utility, ~view_seg)]
-    @ [text("where: ")]
+    [text("prove: ")]
+    @ [goal_view(offside_info.goal, ~utility, ~view_seg)]
+    @ [text("assuming: ")]
     @ List.map(
         assumption => goal_view(assumption, ~utility, ~view_seg),
         offside_info.assumptions,
@@ -60,7 +61,7 @@ module M: Projector = {
   let view = (_model, info, ~local as _, ~parent as _, ~view_seg as _): Node.t => {
     div(
       ~attrs=[Attr.classes(["main"])],
-      [info |> ProbeProj.syntax_str |> text, ProbeProj.icon],
+      [info |> ProbeProj.syntax_str |> text],
     );
   };
 

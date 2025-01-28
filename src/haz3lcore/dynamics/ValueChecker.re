@@ -31,6 +31,8 @@ module ValueCheckerEVMode: {
       ([], Value),
     );
 
+  let (let.noreq) = (_, x) => x();
+
   let otherwise = (_, _) => ((), Value);
 
   let (let.) = ((v, r), rule) =>
