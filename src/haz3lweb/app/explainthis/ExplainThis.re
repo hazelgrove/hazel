@@ -1116,11 +1116,11 @@ let get_doc =
                 ),
             ),
           ~colorings=
-            LabeledExp.labeled_exps_coloring_ids(
+            TupLabelExp.labeled_exps_coloring_ids(
               ~label_id=Exp.rep_id(l),
               ~exp_id=Exp.rep_id(e),
             ),
-          LabeledExp.labeled_exps,
+          TupLabelExp.labeled_exps,
         )
       | Dot(tup, lab) =>
         get_message(
@@ -2107,7 +2107,24 @@ let get_doc =
           ),
         LabelTerm.labels(name),
       )
-    | TupLabel(_, _) => get_message(LabeledPat.labeled_pats)
+    | TupLabel(l, p) =>
+      get_message(
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(Pat.rep_id(l)),
+                Id.to_string(Pat.rep_id(p)),
+              ),
+          ),
+        ~colorings=
+          TupLabelPat.labeled_exps_coloring_ids(
+            ~label_id=Pat.rep_id(l),
+            ~pat_id=Pat.rep_id(p),
+          ),
+        TupLabelPat.labeled_pats,
+      )
     | Tuple(elements) =>
       let basic = group =>
         get_message(
