@@ -463,12 +463,13 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         Typ.matched_prod(ctx, args, Exp.match_tup_label, tyf1, (name, b) =>
           TupLabel(Label(name) |> Exp.fresh, b) |> Exp.fresh
         );
-      let f'' =
-        fresh_cast(
-          f',
-          tyf,
-          Arrow(Prod(ty_fargs) |> Typ.temp, tyf2) |> Typ.temp,
-        );
+      let prod_args =
+        switch (ty_fargs) {
+        | [ty] => ty
+        | _ => Prod(ty_fargs) |> Typ.temp
+        };
+      let f'' = fresh_cast(f', tyf, Arrow(prod_args, tyf2) |> Typ.temp);
+
       let args'' = ListUtil.map3(fresh_cast, args', tys, ty_fargs);
       let remaining_args =
         List.filter(

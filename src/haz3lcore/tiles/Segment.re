@@ -84,7 +84,6 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   | Exp => remold_exp(shape, seg)
   | Rul => remold_rul(shape, seg)
   | TPat => remold_tpat(shape, seg)
-  | _ => failwith("remold unexpected")
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
