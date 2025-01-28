@@ -79,7 +79,7 @@ let tuple3_fun_ex = {
 };
 let tuplabel_fun_ex = {
   sub_id: Fun(TupLabel),
-  term: mk_example("fun x=y, y=z ->\ny"),
+  term: mk_example("(fun x=y, y=z -> y)\n(1, 2)"),
   message: "When given a 2-tuple of elements, the function evaluates to the first element (not the second).",
 };
 let ctr_fun_ex = {
@@ -333,25 +333,31 @@ let function_var_exp: form = {
   };
 };
 
-let _labeled_pat = labeled_pat();
-let _exp = exp("e");
+let lp' = labeled_pat();
+let exp' = exp("e");
+let label = pat("x");
+let pat' = pat("y");
 let function_labeled_exp_coloring_ids =
-  _pat_body_function_exp_coloring_ids(
-    Piece.id(_labeled_pat),
-    Piece.id(_exp),
-  );
+    (~label_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => {
+  [
+    (Piece.id(label), label_id),
+    (Piece.id(pat'), pat_id),
+    (Piece.id(exp'), body_id),
+  ];
+};
+
 let function_labeled_exp: form = {
-  let explanation = "Any unlabeled value matches with the [*argument*]. Only labeled elements that match the [*name*](%s) 'x' are accepted, and evaluate using the [*value*](%s) 'y' to the function [*body*](%s).";
+  let explanation = "A function with one [*labeled argument*]. Only labeled arguments that match the [*label*](%s) 'x' are accepted, and are bound to the [*parameter*](%s) 'y' in the function [*body*](%s).";
   let form = [
-    mk_fun([[space(), pat("x"), _labeled_pat, pat("y"), space()]]),
+    mk_fun([[space(), label, lp', pat', space()]]),
     space(),
-    _exp,
+    exp',
   ];
   {
     id: FunctionExp(TupLabel),
     syntactic_form: form,
     expandable_id:
-      Some((Piece.id(_labeled_pat), [pat("x"), labeled_pat(), pat("y")])),
+      Some((Piece.id(lp'), [pat("x"), labeled_pat(), pat("y")])),
     explanation,
     examples: [tuplabel_fun_ex],
   };
