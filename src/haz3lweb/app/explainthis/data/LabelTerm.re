@@ -2,10 +2,10 @@ open ExplainThisForm;
 open Example;
 
 let label = (n: string): form => {
-  let explanation = "`%s` is a label (or name) for an item within a tuple.";
+  let explanation = "`%s` is a label for an element within a tuple.";
   {
     id: Label,
-    syntactic_form: [n |> abbreviate |> tpat], // TODO: Fix this
+    syntactic_form: [n |> abbreviate |> exp],
     expandable_id: None,
     explanation,
     examples: [],
