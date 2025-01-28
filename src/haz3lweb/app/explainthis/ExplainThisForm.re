@@ -90,7 +90,6 @@ type example_id =
   | Label1
   | Label2
   | Dot1
-  | Dot2
   | DotTyp
   | Fix1
   | Fix2
