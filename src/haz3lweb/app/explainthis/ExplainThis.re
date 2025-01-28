@@ -798,25 +798,6 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_str);
           }
-        | Label(name) =>
-          if (FunctionExp.function_label.id
-              == get_specificity_level(FunctionExp.functions_label)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_label_coloring_ids(~pat_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s"),
-                      name,
-                    ),
-                ),
-              FunctionExp.functions_label,
-            );
-          } else {
-            basic(FunctionExp.functions_label);
-          }
         | Tuple([]) =>
           if (FunctionExp.function_triv_exp.id
               == get_specificity_level(FunctionExp.functions_triv)) {
@@ -1111,6 +1092,7 @@ let get_doc =
         | TupLabel(_)
         | Invalid(_)
         | Parens(_)
+        | Label(_)
         | Cast(_) => default // Shouldn't get hit?
         };
       | Label(name) =>
@@ -1394,27 +1376,6 @@ let get_doc =
               LetExp.lets_str,
             );
           }
-        | Label(name) =>
-          if (LetExp.let_label.id == get_specificity_level(LetExp.lets_label)) {
-            get_message(
-              ~colorings=
-                LetExp.let_label_coloring_ids(~pat_id, ~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s"),
-                      name,
-                    ),
-                ),
-              LetExp.lets_label,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here... */
-            basic(
-              LetExp.lets_label,
-            );
-          }
         | Tuple([]) =>
           if (LetExp.let_triv_exp.id
               == get_specificity_level(LetExp.lets_triv)) {
@@ -1530,34 +1491,6 @@ let get_doc =
             );
           } else {
             basic(LetExp.lets_var);
-          }
-        | TupLabel(_, p) =>
-          if (LetExp.let_labeled_exp.id
-              == get_specificity_level(LetExp.lets_tuplabel)) {
-            let p_id = List.nth(p.ids, 0);
-            get_message(
-              ~colorings=
-                LetExp.let_labeled_exp_coloring_ids(
-                  ~pat_id,
-                  ~def_id,
-                  ~body_id,
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s%s%s"),
-                      Id.to_string(def_id),
-                      Id.to_string(pat_id),
-                      "[label placeholder]",
-                      Id.to_string(body_id),
-                      Id.to_string(p_id),
-                    ),
-                ),
-              LetExp.lets_tuplabel,
-            );
-          } else {
-            basic(LetExp.lets_tuplabel);
           }
         | Tuple(elements) =>
           let basic_tuple = group_id => {
@@ -1692,6 +1625,8 @@ let get_doc =
           } else {
             basic(LetExp.lets_ctr);
           }
+        | TupLabel(_)
+        | Label(_)
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
         | Cast(_) => default // Shouldn't get hit?
