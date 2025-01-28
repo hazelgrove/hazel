@@ -226,20 +226,6 @@ let function_strlit_exp: form = {
 };
 let _pat = pat("Label");
 let _exp = exp("e");
-let function_label_coloring_ids =
-  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
-let function_label: form = {
-  let explanation = "[TODO: Label docs] %s";
-
-  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
-  {
-    id: FunctionExp(Label),
-    syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("Label")])),
-    explanation,
-    examples: [],
-  };
-};
 let _pat = pat("()");
 let _exp = exp("e");
 let function_triv_exp_coloring_ids =
@@ -525,11 +511,6 @@ let functions_bool = {
 let functions_str = {
   id: FunctionExp(String),
   forms: [function_strlit_exp, function_exp],
-};
-
-let functions_label = {
-  id: FunctionExp(Label),
-  forms: [function_label, function_exp],
 };
 
 let functions_triv = {

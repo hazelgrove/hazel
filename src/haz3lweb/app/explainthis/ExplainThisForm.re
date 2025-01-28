@@ -146,7 +146,6 @@ type pat_sub_form_id =
   | Float
   | Bool
   | String
-  | Label
   | Triv
   | ListNil
   | ListLit
