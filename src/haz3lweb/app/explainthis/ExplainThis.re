@@ -1122,7 +1122,24 @@ let get_doc =
           LabelTerm.labels(name),
         )
       | TupLabel(_, _) => get_message(LabeledExp.labeled_exps)
-      | Dot(_, _) => get_message(DotExp.dot_exp)
+      | Dot(tup, lab) =>
+        get_message(
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(Exp.rep_id(lab)),
+                  Id.to_string(Exp.rep_id(tup)),
+                ),
+            ),
+          ~colorings=
+            DotExp.dot_coloring_ids(
+              ~tup_id=Exp.rep_id(tup),
+              ~lab_id=Exp.rep_id(lab),
+            ),
+          DotExp.dot_exp,
+        )
       | Tuple(terms) =>
         let basic = group_id =>
           get_message(
