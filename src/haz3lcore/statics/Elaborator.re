@@ -345,31 +345,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
 
       let expected_labels: list(option(string)) =
         Typ.get_labels(ctx, elaborated_type);
-      // let elaborated_labeled: list((option(string), DHExp.t)) =
-      //   List.map(
-      //     exp => {
-      //       switch (DHExp.term_of(exp)) {
-      //       | TupLabel({term: Label(l), _}, exp) => (Some(l), exp)
-      //       | _ => (None, exp)
-      //       }
-      //     },
-      //     ds,
-      //   );
 
-      // let reordered: list((option(string), DHExp.t)) =
-      //   LabeledTuple.rearrange_base(expected_labels, elaborated_labeled);
-
-      // let ds: list(DHExp.t) =
-      //   List.map(
-      //     ((optional_label, exp: DHExp.t)) => {
-      //       switch (optional_label) {
-      //       | Some(label) =>
-      //         Exp.TupLabel(Label(label) |> Exp.fresh, exp) |> Exp.fresh
-      //       | None => exp
-      //       }
-      //     },
-      //     reordered,
-      //   );
       let (ds, tys) =
         LabeledTuple.rearrange2(
           expected_labels,
