@@ -2346,8 +2346,24 @@ let get_doc =
           ),
         LabelTerm.labels(name),
       )
-    | TupLabel(_, _) => get_message(LabeledTyp.labeled_typs)
-    // | Dot(_, _) => get_message(DotTyp.dot_typ)
+    | TupLabel(l, t) =>
+      get_message(
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(Typ.rep_id(l)),
+                Id.to_string(Typ.rep_id(t)),
+              ),
+          ),
+        ~colorings=
+          TupLabelTyp.labeled_exps_coloring_ids(
+            ~label_id=Typ.rep_id(l),
+            ~typ_id=Typ.rep_id(t),
+          ),
+        TupLabelTyp.labeled_typs,
+      )
     | Prod(elements) =>
       let basic = group =>
         get_message(
