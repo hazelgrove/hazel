@@ -22,7 +22,7 @@ let labeled_exps_coloring_ids =
   (Piece.id(p), pat_id),
 ];
 let labeled_pat: form = {
-  let explanation = "Assigns a [*label*](%s) to an [*pattern*](%s) within a tuple pattern. Labeled expressions cannot exist outside of a tuple. Labeled expressions that are not contained within a tuple are autmatically converted into a singleton tuple.";
+  let explanation = "Assigns a [*label*](%s) to an [*pattern*](%s) within a tuple pattern. Labeled patterns cannot exist outside of a tuple. Labeled patterns that are not contained within a tuple are autmatically converted into a singleton tuple.";
   {
     id: LabeledPat,
     syntactic_form: [lab, labeled_pat(), p],
@@ -31,4 +31,4 @@ let labeled_pat: form = {
     examples: [labeled_example_1, labeled_example_2],
   };
 };
-let labeled_pats: group = {id: LabeledExp, forms: [labeled_pat]};
+let labeled_pats: group = {id: LabeledPat, forms: [labeled_pat]};
