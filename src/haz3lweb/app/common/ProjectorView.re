@@ -192,7 +192,11 @@ let setup_view =
   let parent = a => inject(Project(handle(p.id, a)));
   let local = a =>
     inject(Project(SetModel(p.id, P.update(p.model, info, a))));
-  let view_seg = Code.simple_view(font_metrics);
+  let view_seg = (~background=false, sort, seg) =>
+    div(
+      [Code.simple_view(font_metrics, sort, seg)]
+      @ (background ? [Deco.quick_select_deco(seg)] : []),
+    );
   let wrapper =
     view_wrapper(
       ~inject,

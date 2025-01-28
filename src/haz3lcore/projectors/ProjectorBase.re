@@ -63,6 +63,8 @@ type info = {
   utility,
 };
 
+type view_seg = (~background: bool=?, Sort.t, list(syntax)) => Node.t;
+
 /* To add a new projector:
  * 1. Create a new module implementing Projector (e.g. FoldProj)
  * 2. Add an entry for it in ProjectorCore.kind
@@ -117,7 +119,7 @@ module type Projector = {
       ~parent: external_action => Ui_effect.t(unit),
       /* Creates a non-interactive embedded syntax view,
        * provided here to address a dependency cycle */
-      ~view_seg: (Sort.t, list(syntax)) => Node.t
+      ~view_seg: view_seg
     ) =>
     Node.t;
   /* An optional additional view to be rendered at the
@@ -129,7 +131,7 @@ module type Projector = {
         info,
         ~local: action => Ui_effect.t(unit),
         ~parent: external_action => Ui_effect.t(unit),
-        ~view_seg: (Sort.t, list(syntax)) => Node.t
+        ~view_seg: view_seg
       ) =>
       Node.t,
     );
@@ -142,7 +144,7 @@ module type Projector = {
         info,
         ~local: action => Ui_effect.t(unit),
         ~parent: external_action => Ui_effect.t(unit),
-        ~view_seg: (Sort.t, list(syntax)) => Node.t
+        ~view_seg: view_seg
       ) =>
       Node.t,
     );
@@ -154,10 +156,7 @@ module type Projector = {
    * element to trigger their own custom indication and
    * selection decorations. Pointer handlers should not
    * be placed on this layer. */
-  let underlay_view:
-    option(
-      (model, info, ~view_seg: (Sort.t, list(syntax)) => Node.t) => Node.t,
-    );
+  let underlay_view: option((model, info, ~view_seg: view_seg) => Node.t);
   /* How much space should be left in the code view for
    * this projector? This determines how the base code
    * view is laid out, including how movement around the

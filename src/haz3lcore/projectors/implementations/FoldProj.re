@@ -39,10 +39,10 @@ module M: Projector = {
     ProjectorCore.inline(m.text == "⋱" ? 2 : m.text |> String.length);
   let update = (m, _, _) => m;
 
-  let hover_view = (view_seg: (Sort.t, Segment.t) => Node.t, info: info) =>
+  let hover_view = (view_seg: view_seg, info: info) =>
     div(
       ~attrs=[Attr.class_("hover-view")],
-      [view_seg(Exp, [info.syntax])],
+      [view_seg(~background=true, Exp, [info.syntax])],
     );
 
   let view = (m: model, info, ~local as _, ~parent, ~view_seg) =>
