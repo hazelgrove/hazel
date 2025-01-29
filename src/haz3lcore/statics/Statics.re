@@ -327,7 +327,7 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
-  | Constructor(ctr, _) => atomic(Self.of_ctr(ctx, ctr))
+  | Constructor(ctr, ty) => atomic(Self.of_ctr(ctx, ctr, ty))
   | Ap(_, fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, Exp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
@@ -795,8 +795,8 @@ and upat_to_info_map =
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
-  | Constructor(ctr, _) =>
-    let self = Self.of_ctr(ctx, ctr);
+  | Constructor(ctr, ty) =>
+    let self = Self.of_ctr(ctx, ctr, ty);
     atomic(self, Constraint.of_ctr(ctx, mode, ctr, self));
   | Ap(fn, arg) =>
     let ctr = Pat.ctr_name(fn);
