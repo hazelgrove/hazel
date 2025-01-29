@@ -95,6 +95,9 @@ type example_id =
   | Fix2
   | Tuple1
   | Tuple2
+  | TupleLabeled1
+  | TupleLabeled2
+  | TupleLabeled3
   | Let(let_examples)
   | TypFunAp
   | FunAp

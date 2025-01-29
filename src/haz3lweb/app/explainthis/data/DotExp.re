@@ -4,7 +4,7 @@ open Example;
 
 let dot_example_1 = {
   sub_id: Dot1,
-  term: mk_example("(x=1, y=2).x"),
+  term: mk_example("(x=1, 4, y=2).x"),
   message: "Retrieves the element in the tuple associated with the label 'x', which in this example is 1.",
 };
 
