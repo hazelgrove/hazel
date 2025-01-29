@@ -41,7 +41,7 @@ type t =
       syn_ty: option(Typ.t),
     }) /* Constructors have special ana logic */
   | WantTuple /* Want a Tuple, found not-tuple */
-  | LabelNotFound; /* Currently used by the dot operator for a label not found */
+  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label)); /* Currently used by the dot operator for a label not found */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_partial_ap =
@@ -87,7 +87,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | IsMulti
     | Duplicate(_)
     | WantTuple
-    | LabelNotFound
+    | LabelNotFound(_)
     | BadLabel(_)
     | NoJoin(_) => None;
 
