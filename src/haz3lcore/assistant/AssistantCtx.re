@@ -143,30 +143,25 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
     let exp_aps = ty =>
       bound_aps(ty, ctx)
       @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
-    let res =
-      switch (Mode.ty_of(mode) |> Typ.term_of) {
-      | List(ty) =>
-        List.map(restrategize(" )::"), exp_aps(ty))
-        @ List.map(restrategize("::"), exp_refs(ty))
-      | Prod([ty, ...tys]) =>
-        let commas =
-          List.init(List.length(tys), _ => ",") |> String.concat(" ");
-        List.map(restrategize(" )" ++ commas), exp_aps(ty))
-        @ List.map(restrategize(commas), exp_refs(ty));
-      | Bool =>
-        /* TODO: Find a UI to make these less confusing */
-        exp_refs(Int |> Typ.fresh)
-        @ exp_refs(Float |> Typ.fresh)
-        @ exp_refs(String |> Typ.fresh)
-        @ exp_aps(Int |> Typ.fresh)
-        @ exp_aps(Float |> Typ.fresh)
-        @ exp_aps(String |> Typ.fresh)
-      | _ => []
-      };
-    print_endline("suggest_lookahead_variable exp: ");
-    List.iter(sug => print_endline("\t" ++ Suggestion.show(sug)), res);
-
-    res;
+    switch (Mode.ty_of(mode) |> Typ.term_of) {
+    | List(ty) =>
+      List.map(restrategize(" )::"), exp_aps(ty))
+      @ List.map(restrategize("::"), exp_refs(ty))
+    | Prod([ty, ...tys]) =>
+      let commas =
+        List.init(List.length(tys), _ => ",") |> String.concat(" ");
+      List.map(restrategize(" )" ++ commas), exp_aps(ty))
+      @ List.map(restrategize(commas), exp_refs(ty));
+    | Bool =>
+      /* TODO: Find a UI to make these less confusing */
+      exp_refs(Int |> Typ.fresh)
+      @ exp_refs(Float |> Typ.fresh)
+      @ exp_refs(String |> Typ.fresh)
+      @ exp_aps(Int |> Typ.fresh)
+      @ exp_aps(Float |> Typ.fresh)
+      @ exp_aps(String |> Typ.fresh)
+    | _ => []
+    };
   | InfoPat({mode, co_ctx, _}) =>
     let pat_refs = ty =>
       free_variables(ty, ctx, co_ctx)
