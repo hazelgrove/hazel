@@ -174,7 +174,7 @@ let tests = (
         check(
           option(segment),
           "Singleton Labeled",
-          zipper_parse("(x = 1)"),
+          zipper_parse("(x= 1)"),
           Some(
             exp_to_segment(
               Exp.temp(
@@ -187,12 +187,12 @@ let tests = (
             ),
           ),
         );
-        equivalent_to_make_term({|(x = 1, y = 2)|});
+        equivalent_to_make_term({|(x= 1, y= 2)|});
       },
     ),
     test_case("Doc page labeled tuple example", `Quick, () => {
       equivalent_to_make_term(
-        {|let labeled_tuple = (a = 1, b = 2.000000, c = true) in let prj_a = labeled_tuple . a in prj_a|},
+        {|let labeled_tuple = (a= 1, b= 2.000000, c= true) in let prj_a = labeled_tuple.a in prj_a|},
       )
     }),
     test_case(
