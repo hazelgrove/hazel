@@ -55,7 +55,7 @@ type error_no_type =
   /* Dot Operator is ill-formed */
   | WantTuple
   /* Label not found in tuple for dot operator */
-  | LabelNotFound
+  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   /* Sort error used as label in tuple */
   | BadLabel(Any.t);
 
@@ -428,7 +428,8 @@ let rec status_common =
   | (NoJoin(_, tys), Syn | SynFun | SynTypFun) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   | (WantTuple, _) => InHole(NoType(WantTuple))
-  | (LabelNotFound, _) => InHole(NoType(LabelNotFound))
+  | (LabelNotFound(name, labels), _) =>
+    InHole(NoType(LabelNotFound(name, labels)))
   };
 
 let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>

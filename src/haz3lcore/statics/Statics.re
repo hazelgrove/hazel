@@ -455,6 +455,9 @@ and uexp_to_info_map =
       };
       switch (ty.term) {
       | Prod(ts) =>
+        let labels =
+          List.filter_map(Typ.match_tup_label, ts) |> List.map(fst);
+
         switch (e2.term) {
         | Label(name) =>
           let element: option(Typ.t) =
@@ -462,10 +465,11 @@ and uexp_to_info_map =
           switch (element) {
           | Some({term: TupLabel(_, typ), _})
           | Some(typ) => add(~self=Just(typ), ~co_ctx=info_e2.co_ctx, m)
-          | None => add(~self=LabelNotFound, ~co_ctx=info_e2.co_ctx, m)
+          | None =>
+            add(~self=LabelNotFound(name, labels), ~co_ctx=info_e2.co_ctx, m)
           };
-        | _ => add(~self=LabelNotFound, ~co_ctx=info_e2.co_ctx, m)
-        }
+        | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
+        };
       | _ => add(~self=WantTuple, ~co_ctx=info_e2.co_ctx, m)
       };
     | Test(e) =>

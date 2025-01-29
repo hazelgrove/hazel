@@ -132,8 +132,11 @@ let common_err_view =
   | NoType(WantTuple) => [
       text("Invalid Dot Operation: requires tuple for first argument"),
     ]
-  | NoType(LabelNotFound) => [
-      text("Invalid Dot Operation: label not found in tuple"),
+  | NoType(LabelNotFound(name, labels)) => [
+      text("Invalid Dot Operation: label "),
+      code(name),
+      text(" not found in tuple's labels: "),
+      ...List.map(code, labels),
     ]
   | DuplicateLabels(labels, _) => [
       text("The following labels are duplicated: "),
