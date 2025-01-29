@@ -90,6 +90,9 @@ let typ_context_entries = (ctx: Ctx.t): list(Suggestion.t) =>
 let suggest_variable = (ci: Info.t): list(Suggestion.t) => {
   let ctx = Info.ctx_of(ci);
   switch (ci) {
+  | InfoExp({cls: Exp(Label), _})
+  | InfoPat({cls: Pat(Label), _})
+  | InfoTyp({cls: Typ(Label), _}) => [] // TODO: Autocomplete for labels
   | InfoExp({mode, _}) =>
     bound_variables(Mode.ty_of(mode), ctx)
     @ bound_aps(Mode.ty_of(mode), ctx)
@@ -140,25 +143,30 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
     let exp_aps = ty =>
       bound_aps(ty, ctx)
       @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
-    switch (Mode.ty_of(mode) |> Typ.term_of) {
-    | List(ty) =>
-      List.map(restrategize(" )::"), exp_aps(ty))
-      @ List.map(restrategize("::"), exp_refs(ty))
-    | Prod([ty, ...tys]) =>
-      let commas =
-        List.init(List.length(tys), _ => ",") |> String.concat(" ");
-      List.map(restrategize(" )" ++ commas), exp_aps(ty))
-      @ List.map(restrategize(commas), exp_refs(ty));
-    | Bool =>
-      /* TODO: Find a UI to make these less confusing */
-      exp_refs(Int |> Typ.fresh)
-      @ exp_refs(Float |> Typ.fresh)
-      @ exp_refs(String |> Typ.fresh)
-      @ exp_aps(Int |> Typ.fresh)
-      @ exp_aps(Float |> Typ.fresh)
-      @ exp_aps(String |> Typ.fresh)
-    | _ => []
-    };
+    let res =
+      switch (Mode.ty_of(mode) |> Typ.term_of) {
+      | List(ty) =>
+        List.map(restrategize(" )::"), exp_aps(ty))
+        @ List.map(restrategize("::"), exp_refs(ty))
+      | Prod([ty, ...tys]) =>
+        let commas =
+          List.init(List.length(tys), _ => ",") |> String.concat(" ");
+        List.map(restrategize(" )" ++ commas), exp_aps(ty))
+        @ List.map(restrategize(commas), exp_refs(ty));
+      | Bool =>
+        /* TODO: Find a UI to make these less confusing */
+        exp_refs(Int |> Typ.fresh)
+        @ exp_refs(Float |> Typ.fresh)
+        @ exp_refs(String |> Typ.fresh)
+        @ exp_aps(Int |> Typ.fresh)
+        @ exp_aps(Float |> Typ.fresh)
+        @ exp_aps(String |> Typ.fresh)
+      | _ => []
+      };
+    print_endline("suggest_lookahead_variable exp: ");
+    List.iter(sug => print_endline("\t" ++ Suggestion.show(sug)), res);
+
+    res;
   | InfoPat({mode, co_ctx, _}) =>
     let pat_refs = ty =>
       free_variables(ty, ctx, co_ctx)
