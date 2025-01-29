@@ -121,17 +121,19 @@ let return = (wrap, ids, tm) => {
 
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
+let projector_pieces: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
 /* Strip a projector from a segment and log it in the map */
 let log_projector = (pr: Base.projector): unit => {
   projectors := Id.Map.add(pr.id, pr, projectors^);
+  projector_pieces := Id.Map.add(Piece.id(pr.syntax), pr, projector_pieces^);
 };
 
 /* Check if a term should be instrumented with a probe.
  * Precondition: The relevant projector must have been
  * logged before this is called */
 let should_instrument = (id: Id.t): bool =>
-  switch (Id.Map.find_opt(id, projectors^)) {
+  switch (Id.Map.find_opt(id, projector_pieces^)) {
   | Some(pr) =>
     let (module P) = ProjectorInit.to_module(pr.kind);
     P.dynamics;
@@ -602,6 +604,7 @@ let go =
     seg => {
       map := TermMap.empty;
       projectors := Id.Map.empty;
+      projector_pieces := Id.Map.empty;
       let term = exp(unsorted(Segment.skel(seg), seg));
       {term, terms: map^, projectors: projectors^};
     },

@@ -423,7 +423,9 @@ let value_view =
       index: int,
     ) => {
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
+    print_endline("val_pointerdown");
     if (Js.to_bool(e##.shiftKey)) {
+      print_endline("pointerdown: shift key");
       let target =
         e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
       JsUtil.setPointerCapture(target, e##.pointerId);
@@ -435,6 +437,7 @@ let value_view =
   };
 
   let val_pointerup = (e: Js.t(Dom_html.pointerEvent)) => {
+    print_endline("val_pointerup");
     let target =
       e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
     if (JsUtil.hasPointerCapture(target, e##.pointerId)) {
@@ -445,13 +448,18 @@ let value_view =
     Effect.Ignore;
   };
 
-  let val_mousemove = (e: Js.t(Dom_html.mouseEvent)) =>
+  let val_mousemove = (e: Js.t(Dom_html.mouseEvent)) => {
+    print_endline("val_mousemove");
     switch (mousedown^) {
     | Some(_elem) when Js.to_bool(e##.shiftKey) =>
+      print_endline("mousemove: shift key");
       let goal = pos_rel_to_target(e);
       local(ChangeLength(closure.closure_id, goal.col));
-    | _ => Effect.Ignore
+    | _ =>
+      print_endline("mousemove:ignore");
+      Effect.Ignore;
     };
+  };
 
   let (view, length) =
     seg_view(

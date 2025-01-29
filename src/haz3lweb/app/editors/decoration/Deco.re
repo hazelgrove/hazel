@@ -113,6 +113,16 @@ module HighlightSegment =
     let shape_at = index => Some(snd(Mold.nibs(~index, t.mold)).shape);
     let children_shards =
       t.children |> List.mapi(index => of_segment(shape_at(index)));
+    if (List.length(tile_shards) != List.length(children_shards) + 1) {
+      print_endline(
+        "Deco.of_tile: shard mismatch: tile_Shards:"
+        ++ string_of_int(List.length(tile_shards))
+        ++ ", children_Shards:"
+        ++ string_of_int(List.length(children_shards)),
+      );
+      print_endline("tile: " ++ Tile.show(t));
+      failwith("Deco.of_tile: shard mismatch");
+    };
     ListUtil.interleave(tile_shards, children_shards) |> List.flatten;
   }
   and of_projector = (~start_shape, p: Base.projector): list(option(_)) =>
@@ -187,7 +197,9 @@ let quick_select_deco = (segment: Segment.t): Node.t => {
         FontMetrics.{row_height: 25.125, col_width: 10.390625};
     });
   switch (Highlight.go(segment, Some(Convex), [])) {
-  | exception _ => Node.div([])
+  | exception exn =>
+    prerr_endline(Printexc.to_string(exn));
+    Node.div([]);
   | ya => div_c("quick-select-deco", ya)
   };
 };
