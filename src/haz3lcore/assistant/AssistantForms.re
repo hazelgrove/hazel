@@ -197,10 +197,22 @@ let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
 };
 
 let suggest_operator: Info.t => list(Suggestion.t) =
-  suggest_form(
-    List.map(((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
-    Delims.infix,
-  );
+  info => {
+    switch (info) {
+    | InfoExp({
+        term:
+          {term: Tuple([{term: TupLabel({term: Label(_), _}, _), _}]), _},
+        _,
+      }) =>
+      [] // Override the completion of (a= to (a==
+    | _ =>
+      suggest_form(
+        List.map(((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
+        Delims.infix,
+        info,
+      )
+    };
+  };
 
 let suggest_operand: Info.t => list(Suggestion.t) =
   suggest_form(Typ.of_const_mono_delim, Delims.const_mono);
