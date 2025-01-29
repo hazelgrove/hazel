@@ -204,12 +204,11 @@ module rec Exp: {
     // | OutsideAp => Deferral(OutsideAp)
     // }
     | ListExp(l) => ListLit(List.map(of_menhir_ast, l))
-    | TupleExp(t) =>
-      if (List.length(t) == 1) {
-        Parens(of_menhir_ast(List.hd(t)));
-      } else {
-        Parens(Tuple(List.map(of_menhir_ast, t)) |> Haz3lcore.Exp.fresh);
-      }
+    | TupleExp([TupLabel(_) as tl]) =>
+      Parens(Tuple([of_menhir_ast(tl)]) |> Haz3lcore.Exp.fresh)
+    | TupleExp([e]) => Parens(of_menhir_ast(e))
+    | TupleExp(e) =>
+      Parens(Tuple(List.map(of_menhir_ast, e)) |> Haz3lcore.Exp.fresh)
     | Label(s) => Label(s)
     | TupLabel(e1, e2) => TupLabel(of_menhir_ast(e1), of_menhir_ast(e2))
     | Dot(e1, e2) => Dot(of_menhir_ast(e1), of_menhir_ast(e2))

@@ -106,7 +106,7 @@ let qcheck_menhir_maketerm_equivalent_test =
       let segment =
         ExpToSegment.exp_to_segment(
           ~settings=
-            ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
+            ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
           core_exp,
         );
 
@@ -523,6 +523,7 @@ let tests = (
       "and less than precedence",
       "true && 23 < int_of_float(51.00)" // TODO This looks like a bug in MakeTerm
     ),
+    menhir_maketerm_equivalent_test("Singleton labeled tuple", {|(h = 1)|}),
     menhir_maketerm_equivalent_test(
       ~speed_level=`Slow,
       "Altered Documentation Buffer: Basic Reference",

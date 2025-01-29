@@ -283,22 +283,24 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let* l = go(l)
     and* e = go(e);
 
-    l
-    @ [
-      Tile({
-        id: exp |> Exp.rep_id,
-        label: ["="],
-        mold: Mold.mk_bin(Precedence.lab, Sort.Exp, []),
-        shards: [0],
-        children: [],
-      }),
-    ]
-    @ e;
-
+    List.flatten([
+      l,
+      [
+        Tile({
+          id: exp |> Exp.rep_id,
+          label: ["="],
+          mold: Mold.mk_bin(Precedence.lab, Sort.Exp, []),
+          shards: [0],
+          children: [],
+        }),
+        Secondary(Secondary.mk_space(Id.mk())),
+      ],
+      e,
+    ]);
   | Dot(e, l) =>
     let* e = go(e)
     and* l = go(l);
-    e @ [mk_form("dot_exp", exp |> Exp.rep_id, [])] @ l;
+    List.flatten([e, [mk_form("dot_exp", exp |> Exp.rep_id, [])], l]);
   | Tuple([{term: TupLabel(_), _} as le]) => go(le)
   | Tuple([x, ...xs]) =>
     // TODO: Add optional newlines
@@ -551,17 +553,20 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | TupLabel(l, p) =>
     let* l = go(l)
     and* p = go(p);
-    l
-    @ [
-      Tile({
-        id: pat |> Pat.rep_id,
-        label: ["="],
-        mold: Mold.mk_bin(Precedence.lab, Sort.Pat, []),
-        shards: [0],
-        children: [],
-      }),
-    ]
-    @ p;
+    List.flatten([
+      l,
+      [
+        Tile({
+          id: pat |> Pat.rep_id,
+          label: ["="],
+          mold: Mold.mk_bin(Precedence.lab, Sort.Pat, []),
+          shards: [0],
+          children: [],
+        }),
+        Secondary(Secondary.mk_space(Id.mk())),
+      ],
+      p,
+    ]);
   | Label(l) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, l)
   | Parens(p) =>
     let id = pat |> Pat.rep_id;
@@ -649,18 +654,20 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ l = go(l)
     and+ t = go(t);
 
-    l
-    @ [
-      Tile({
-        id: typ |> Typ.rep_id,
-        label: ["="],
-        mold: Mold.mk_bin(Precedence.lab, Sort.Typ, []),
-        shards: [0],
-        children: [],
-      }),
-    ]
-    @ t;
-
+    List.flatten([
+      l,
+      [
+        Tile({
+          id: typ |> Typ.rep_id,
+          label: ["="],
+          mold: Mold.mk_bin(Precedence.lab, Sort.Typ, []),
+          shards: [0],
+          children: [],
+        }),
+        Secondary(Secondary.mk_space(Id.mk())),
+      ],
+      t,
+    ]);
   | Parens(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);

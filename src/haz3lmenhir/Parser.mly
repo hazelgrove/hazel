@@ -321,6 +321,7 @@ exp:
     | s = STRING { String s}
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
     | OPEN_PAREN; e = tupExpEntry; COMMA; l = separated_list(COMMA, tupExpEntry); CLOSE_PAREN { TupleExp(e :: l) }
+    | OPEN_PAREN; label = IDENT; SINGLE_EQUAL; e = exp; CLOSE_PAREN { TupleExp([TupLabel(Label(label), e)]) }
     | UNIT { TupleExp([]) }
     | c = case { c }
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ListExp(e) }
