@@ -136,20 +136,3 @@ module Text =
     |> List.concat;
   };
 };
-
-let simple_view = (font_metrics, sort, segment): Node.t => {
-  /* Assume this doesn't contain projectors */
-  let shape_of_proj = ProjectorInfo.Shape.of_map_default;
-  let map = Measured.of_segment(segment, shape_of_proj);
-  module Text =
-    Text({
-      let map = map;
-      let settings = Settings.Model.init;
-      let shape_of_proj = shape_of_proj;
-      let font_metrics = font_metrics;
-    });
-  div(
-    ~attrs=[Attr.class_("code")],
-    [span_c("code-text", Text.of_segment([], false, sort, segment))],
-  );
-};

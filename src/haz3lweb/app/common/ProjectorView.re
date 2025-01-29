@@ -84,16 +84,11 @@ let view_wrapper =
       Attr.on_pointerdown(_ =>
         Effect.Many([
           Effect.Stop_propagation,
-          Effect.Prevent_default,
           inject(Project(Focus(info.id, None))),
         ])
       ),
-      Attr.on_mousemove(_ =>
-        Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
-      ),
-      Attr.on_pointerup(_ =>
-        Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
-      ),
+      Attr.on_mousemove(_ => Effect.Stop_propagation),
+      Attr.on_pointerup(_ => Effect.Stop_propagation),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
     views,
@@ -177,6 +172,34 @@ let collect_data =
   );
 };
 
+let simple_code_view =
+    (~background=false, font_metrics, sort, segment): Node.t => {
+  /* Assume this doesn't contain projectors */
+  let shape_of_proj = ProjectorInfo.Shape.of_map_default;
+  let map = Measured.of_segment(segment, shape_of_proj);
+  module Text =
+    Code.Text({
+      let map = map;
+      let settings = Settings.Model.init;
+      let shape_of_proj = shape_of_proj;
+      let font_metrics = font_metrics;
+    });
+  let backing =
+    if (background) {
+      switch (Deco.quick_select_deco(segment)) {
+      | exception _ => []
+      | view => [view]
+      };
+    } else {
+      [];
+    };
+  div(
+    ~attrs=[Attr.class_("code")],
+    [span_c("code-text", Text.of_segment([], false, sort, segment))]
+    @ backing,
+  );
+};
+
 /* Extracts projector-instance-specific metadata necessary to
  * render the view, instantiates appropriate action handlers,
  * renders the view, and then wraps it so as to position it
@@ -193,10 +216,7 @@ let setup_view =
   let local = a =>
     inject(Project(SetModel(p.id, P.update(p.model, info, a))));
   let view_seg = (~background=false, sort, seg) =>
-    div(
-      [Code.simple_view(font_metrics, sort, seg)]
-      @ (background ? [Deco.quick_select_deco(seg)] : []),
-    );
+    simple_code_view(~background, font_metrics, sort, seg);
   let wrapper =
     view_wrapper(
       ~inject,

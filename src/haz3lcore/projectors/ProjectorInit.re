@@ -25,7 +25,14 @@ let init =
   switch (P.can_project(syntax, any)) {
   | false => None
   | true =>
-    Some(Projector({id: Piece.id(syntax), kind, model: P.init, syntax}))
+    Some(
+      Projector({
+        id: Id.mk() /*Piece.id(syntax)*/,
+        kind,
+        model: P.init,
+        syntax,
+      }),
+    )
   };
 };
 

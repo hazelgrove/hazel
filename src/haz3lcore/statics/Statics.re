@@ -294,7 +294,9 @@ and uexp_to_info_map =
     /* Currently doing this as otherwise it clobbers the statics
      * for the contained expression as i'm just reusing the same id
      * in order to associate it through dynamics */
-    go(~mode, e, m)
+    let (ci, map) = go(~mode, e, m);
+    let map = add_info(ids, InfoExp(ci), map);
+    (ci, map);
   | UnOp(Meta(Unquote), e) when is_in_filter =>
     let e: Exp.t = {
       ids: e.ids,
@@ -820,7 +822,9 @@ and upat_to_info_map =
     /* Currently doing this as otherwise it clobbers the statics
      * for the contained expression as i'm just reusing the same id
      * in order to associate it through dynamics */
-    go(~ctx, ~mode, p, m)
+    let (ci, map) = go(~ctx, ~mode, p, m);
+    let map = add_info(ids, InfoPat(ci), map);
+    (ci, map);
   | Wrap(p, Paren) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
