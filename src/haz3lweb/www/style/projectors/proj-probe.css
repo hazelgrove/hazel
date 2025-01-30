@@ -265,16 +265,21 @@
   transition: scale 0.07s ease-in-out;
 }
 .projector.probe.Exp .closure {
+  --bottom-border-clr: var(--exp-shadow);
   background-color: var(--exp-base);
-  border-bottom: 1px solid var(--exp-shadow);
+  border-bottom: 1px solid var(--bottom-border-clr);
 }
 .projector.probe.Pat .closure {
+  --bottom-border-clr: var(--pat-shadow);
   background-color: var(--pat-base);
-  border-bottom: 1px solid var(--pat-shadow);
+  border-bottom: 1px solid var(--bottom-border-clr);
+}
+.projector.probe .closure:has(.value.cursor-callee) {
+  --below-shadow: var(--exp-ap-indicated);
+}
+.projector.probe .closure:has(.value.cursor-callee.indirect) {
 }
 .projector.probe .closure:has(.value.cursor-callee.direct) {
-  outline: 1px solid var(--exp-ap-indicated);
-  border-color: var(--exp-ap-indicated);
 }
 .projector.probe .closure:has(.value.cursor-caller.direct) {
   outline: 1px solid var(--exp-ap-indicated);
@@ -505,7 +510,10 @@
 .projector.probe .value.cursor-caller .code-text .token {
   filter: invert(1) brightness(10);
 }
-.projector.probe .value.cursor-callee .code-text .token {
+.projector.probe .value.cursor-callee.indirect .code-text .token {
+  color: white;
+}
+.projector.probe .value.cursor-callee.direct .code-text .token {
   color: var(--exp-ap-indicated);
 }
 
