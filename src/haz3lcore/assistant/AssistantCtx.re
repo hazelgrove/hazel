@@ -90,9 +90,6 @@ let typ_context_entries = (ctx: Ctx.t): list(Suggestion.t) =>
 let suggest_variable = (ci: Info.t): list(Suggestion.t) => {
   let ctx = Info.ctx_of(ci);
   switch (ci) {
-  | InfoExp({cls: Exp(Label), _})
-  | InfoPat({cls: Pat(Label), _})
-  | InfoTyp({cls: Typ(Label), _}) => [] // TODO: Autocomplete for labels
   | InfoExp({mode, _}) =>
     bound_variables(Mode.ty_of(mode), ctx)
     @ bound_aps(Mode.ty_of(mode), ctx)
