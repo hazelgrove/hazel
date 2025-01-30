@@ -77,6 +77,14 @@ let get_buffer = (z: Zipper.t): option(Token.t) =>
 
 /* Populates the suggestion buffer with a type-directed suggestion */
 let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
+  let* _ =
+    switch (z.selection.mode) {
+    /* Make sure not to populate the completion buffer if there is a non-empty
+     * selection, otherwise it will get clobbered by the buffer */
+    | Buffer(Unparsed) => Some()
+    | Normal when Selection.is_empty(z.selection) => Some()
+    | Normal => None
+    };
   let* tok_to_left = token_to_left(z);
   let* index = Indicated.index(z);
   let* ci = Id.Map.find_opt(index, info_map);
