@@ -71,12 +71,12 @@ type error_common =
   /* The error on a specific duplicate label */
   | DuplicateLabel(LabeledTuple.label, Typ.t)
   /* Tuple/TupLabel contains invalid labels, duplicate labels, and/or unexpected labels */
-  | TupleLabelError(
-      list(Any.t),
-      list(LabeledTuple.label),
-      list(LabeledTuple.label),
-      Typ.t,
-    );
+  | TupleLabelError({
+      invalid_labels: list(Any.t),
+      duplicate_labels: list(LabeledTuple.label),
+      unexpected_labels: list(LabeledTuple.label),
+      typ: Typ.t,
+    });
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
@@ -408,11 +408,21 @@ let rec status_common =
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
   | (UnexpectedLabel(label), _) => InHole(NoType(UnexpectedLabel(label)))
   | (
-      TupleLabelError(invalid_labels, duplicate_labes, unexpected_labes, ty),
+      TupleLabelError({
+        invalid_labels,
+        duplicate_labels,
+        unexpected_labels,
+        typ,
+      }),
       _,
     ) =>
     InHole(
-      TupleLabelError(invalid_labels, duplicate_labes, unexpected_labes, ty),
+      TupleLabelError({
+        invalid_labels,
+        duplicate_labels,
+        unexpected_labels,
+        typ,
+      }),
     )
   | (Duplicate(lab, Just(ty)), _) => InHole(DuplicateLabel(lab, ty))
   | (Duplicate(lab, _), _) =>
@@ -654,7 +664,7 @@ let fixed_typ_ok: ok_pat => Typ.t =
 let fixed_typ_err_common: error_common => Typ.t =
   fun
   | NoType(_) => Unknown(Internal) |> Typ.temp
-  | TupleLabelError(_, _, _, typ)
+  | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana
   | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
