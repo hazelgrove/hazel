@@ -284,6 +284,15 @@ let all =
   ];
 };
 
+let move_dir = (key: Key.t): option(Direction.t) =>
+  switch (key) {
+  | {key: D("ArrowLeft"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
+    Some(Left)
+  | {key: D("ArrowRight"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
+    Some(Right)
+  | _ => None
+  };
+
 /* When the caret is directly adjacent to a projector, keyboard commands
  * can be overidden here. Right now, trying to move into the projector,
  * that is, pressing left when it's to the right or vice-versa, without
@@ -293,31 +302,18 @@ let all =
  * For example, without the modifiers check, this would break selection
  * around a projector. */
 let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) => {
-  print_endline("key_handoff");
-  switch (Indicated.projector(editor.state.zipper)) {
-  | None =>
-    print_endline("None");
-    None;
-  | Some((id, p)) =>
-    print_endline("Some");
-    let* (_, d, _) = Indicated.piece(editor.state.zipper);
-    let (module P) = ProjectorInit.to_module(p.kind);
-    switch (key) {
-    | {key, sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} when P.can_focus =>
-      switch (key, d) {
-      | (D("ArrowRight"), Right) =>
-        print_endline("ArrowRight");
-        Some(Action.Focus(id, Some(Left)));
-      | (D("ArrowLeft"), Left) =>
-        print_endline("ArrowLeft");
-        Some(Action.Focus(id, Some(Right)));
-      | _ =>
-        print_endline("Other1");
-        None;
-      }
-    | _ =>
-      print_endline("Other2");
-      None;
-    };
+  let z = editor.state.zipper;
+  switch (
+    move_dir(key),
+    Siblings.neighbors(editor.state.zipper.relatives.siblings),
+  ) {
+  | _ when z.caret != Outer => None
+  | (Some(Left), (Some(Projector({id, kind, _})), _)) =>
+    let (module P) = ProjectorInit.to_module(kind);
+    P.can_focus ? Some(Focus(id, Some(Right))) : None;
+  | (Some(Right), (_, Some(Projector({id, kind, _})))) =>
+    let (module P) = ProjectorInit.to_module(kind);
+    P.can_focus ? Some(Focus(id, Some(Left))) : None;
+  | _ => None
   };
 };

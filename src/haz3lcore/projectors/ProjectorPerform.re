@@ -128,12 +128,17 @@ let go =
         jump_to_id_indicated(z, id) |> Option.value(~default=z)
       | Some(_) => z
       };
-    switch (Indicated.projector(z)) {
-    | Some((_, p)) =>
-      let (module P) = ProjectorInit.to_module(p.kind);
-      P.focus((id, d));
+    switch (Siblings.neighbors(z.relatives.siblings), d) {
+    | _ when z.caret != Outer => Error(Cant_project)
+    | ((Some(Projector({id, kind, _})), _), Some(Right)) =>
+      let (module P) = ProjectorInit.to_module(kind);
+      P.focus((id, Some(Right)));
       Ok(z);
-    | None => Error(Cant_project)
+    | ((_, Some(Projector({id, kind, _}))), Some(Left)) =>
+      let (module P) = ProjectorInit.to_module(kind);
+      P.focus((id, Some(Left)));
+      Ok(z);
+    | _ => Error(Cant_project)
     };
   | Escape(id, d) => Ok(jump_to_side_of_id(d, z, id))
   };
