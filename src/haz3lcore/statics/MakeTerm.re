@@ -164,19 +164,22 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
     };
   }
 
-and exp = unsorted => {
+and exp = (unsorted: unsorted) => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   let e: TermBase.exp_t =
     return(e => Exp(e), ids, {ids, copied: false, term});
   switch (term) {
-  | TupLabel(_) => Tuple([e]) |> Exp.fresh
+  | TupLabel(_) =>
+    // The tile id is the id of the tuple not the tuplabel
+    let (e_term, rewrap) = IdTagged.unwrap(e);
+    rewrap(Tuple([e_term |> Exp.fresh]): Exp.term);
   | _ => e
   };
 }
 and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   let ret = (tm: Exp.term) => (tm, []);
-  let hole = unsorted => Exp.hole(kids_of_unsorted(unsorted));
+  let hole = (unsorted: unsorted) => Exp.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -292,7 +295,10 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       let mapping_fn: Exp.t => Exp.t = (
         (child: Exp.t) => {
           switch (child) {
-          | {term: Tuple([{term: TupLabel(_), _} as tl]), _} => tl
+          | {term: Tuple([{term: TupLabel(_) as tl, _}]), _} as tup =>
+            // We use the Id for the tuple as the ids for the tuplabels
+            let (_, rewrap) = IdTagged.unwrap(tup);
+            rewrap(tl);
           | _ => child
           };
         }
