@@ -16,6 +16,7 @@ module Model = {
     | MissingStep(missing_step)
     | SingleStep(single_step)
     | InductionStep(induction_step)
+    | ForallStep(forall_step)
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   and missing_step = {
@@ -63,6 +64,14 @@ module Model = {
   }
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  and forall_step = {
+    common: step_common,
+    // Calculated
+    bindings: Calc.saved(list((string, Typ.t))),
+    next_step: step,
+  }
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   and step_common = {
     // Calculated
     expr: Calc.saved(Exp.t),
@@ -94,6 +103,12 @@ module Model = {
     join_exp: Calc.Pending,
   };
 
+  let init_forall_step = {
+    common: init_step_common,
+    bindings: Calc.Pending,
+    next_step: init_step,
+  };
+
   let init_stepper = {
     cached_settings: Calc.Pending,
     cached_elab: Calc.Pending,
@@ -107,6 +122,7 @@ module Model = {
         m.common.state |> Calc.get_saved_exc(~print="Evaluator State")
       | SingleStep(m) => get_state_step(m.next_step)
       | InductionStep(m) => get_state_step(m.next_step)
+      | ForallStep(m) => get_state_step(m.next_step)
       };
     };
     get_state_step(model.root);
@@ -129,8 +145,10 @@ module Update = {
     | MissingStep(missing_step)
     | SingleStep(single_step)
     | InductionStep(induction_step)
+    | ForallStep(forall_step)
     | StepForward(int)
     | AddInduction
+    | AddForall
     | RemoveStep
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -150,6 +168,10 @@ module Update = {
     | CaseStepperUpdate(int, stepper)
     | AddCase
     | RemoveCase(int)
+    | NextStepUpdate(step)
+
+  and forall_step =
+    | EditorAction(StepperEditor.Update.t)
     | NextStepUpdate(step);
 
   let stepper_undo = (model: Model.stepper): option(stepper) => {
@@ -167,6 +189,11 @@ module Update = {
         | Some(nsu) => Some(InductionStep(NextStepUpdate(nsu)))
         | None => Some(RemoveStep)
         }
+      | ForallStep(m) =>
+        switch (step_undo(m.next_step)) {
+        | Some(nsu) => Some(ForallStep(NextStepUpdate(nsu)))
+        | None => Some(RemoveStep)
+        }
       };
     };
     step_undo(model.root) |> Option.map(x => RootAction(x));
@@ -182,9 +209,26 @@ module Update = {
         SingleStep(NextStepUpdate(step_add_induction(m.next_step)))
       | InductionStep(m) =>
         InductionStep(NextStepUpdate(step_add_induction(m.next_step)))
+      | ForallStep(m) =>
+        ForallStep(NextStepUpdate(step_add_induction(m.next_step)))
       };
     };
     RootAction(step_add_induction(model.root));
+  };
+
+  let stepper_add_forall = (model: Model.stepper): stepper => {
+    let rec step_add_forall = (step: Model.step): step => {
+      switch (step) {
+      | MissingStep(_) => AddForall
+      | SingleStep(m) =>
+        SingleStep(NextStepUpdate(step_add_forall(m.next_step)))
+      | InductionStep(m) =>
+        InductionStep(NextStepUpdate(step_add_forall(m.next_step)))
+      | ForallStep(m) =>
+        ForallStep(NextStepUpdate(step_add_forall(m.next_step)))
+      };
+    };
+    RootAction(step_add_forall(model.root));
   };
 
   let rec update_stepper =
@@ -211,6 +255,11 @@ module Update = {
     | (InductionStep(a), Model.InductionStep(m)) =>
       let* new_a = update_induction_step(~settings, a, m);
       Model.InductionStep(new_a);
+    | (ForallStep(a), Model.ForallStep(m)) =>
+      let* new_a = update_forall_step(~settings, a, m);
+      Model.ForallStep(new_a);
+    | (AddForall, Model.MissingStep(_)) =>
+      Model.ForallStep(Model.init_forall_step) |> return
     | (StepForward(i), Model.MissingStep(m)) =>
       switch (
         m.next_steps |> Calc.get_saved(EvaluatorStep.AvailableSteps([]))
@@ -235,8 +284,10 @@ module Update = {
     | (MissingStep(_), _)
     | (SingleStep(_), _)
     | (InductionStep(_), _)
+    | (ForallStep(_), _)
     | (StepForward(_), _)
-    | (AddInduction, _) => model |> return_quiet
+    | (AddInduction, _)
+    | (AddForall, _) => model |> return_quiet
     };
   }
   and update_missing_step =
@@ -394,6 +445,31 @@ module Update = {
         }: Model.induction_step
       );
     };
+  }
+
+  and update_forall_step =
+      (~settings, action: forall_step, model: Model.forall_step)
+      : Updated.t(Model.forall_step) => {
+    switch (action) {
+    | EditorAction(a) =>
+      switch (model.common.editor) {
+      | Calc.Pending => model |> return_quiet
+      | Calc.Calculated(editor) =>
+        let* new_editor = CodeSelectable.Update.update(~settings, a, editor);
+        (
+          {
+            ...model,
+            common: {
+              ...model.common,
+              editor: Calc.Calculated(new_editor),
+            },
+          }: Model.forall_step
+        );
+      }
+    | NextStepUpdate(a) =>
+      let* new_next_step = update_step(~settings, a, model.next_step);
+      ({...model, next_step: new_next_step}: Model.forall_step);
+    };
   };
 
   let rec calculate_stepper =
@@ -468,6 +544,7 @@ module Update = {
     switch (step) {
     | Model.MissingStep(m) => calculate_missing_step(~settings, exp, state, m)
     | Model.SingleStep(m) => calculate_single_step(~settings, exp, state, m)
+    | Model.ForallStep(m) => calculate_forall_step(~settings, exp, state, m)
     | Model.InductionStep(m) =>
       let (new_step, last_expr) =
         calculate_induction_step(~settings, exp, state, m);
@@ -715,6 +792,20 @@ module Update = {
       },
       last_exp,
     );
+  }
+
+  and calculate_forall_step =
+      (~settings, exp, state, m: Model.forall_step)
+      : (Model.step, Calc.t(Exp.t)) => {
+    switch (exp |> Calc.get_value |> Exp.term_of) {
+    | Fun(_, d1, _, _) =>
+      let {common, bindings, next_step}: Model.forall_step = m;
+      let common = calculate_step_common(~settings, exp, state, common);
+      let (next_step, last_exp) =
+        calculate_step(~settings, Calc.NewValue(d1), state, next_step);
+      (ForallStep({common, bindings, next_step}), last_exp);
+    | _ => Model.init_step |> calculate_step(~settings, exp, state)
+    };
   };
 };
 
@@ -729,12 +820,18 @@ module Selection = {
     | MissingStep(missing_step)
     | SingleStep(single_step)
     | InductionStep(induction_step)
+    | ForallStep(forall_step)
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   and missing_step = StepperEditor.Selection.t
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   and single_step =
+    | Here(CodeSelectable.Selection.t)
+    | Next(step)
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  and forall_step =
     | Here(CodeSelectable.Selection.t)
     | Next(step)
 
@@ -760,9 +857,12 @@ module Selection = {
       get_cursor_info_single_step(~selection=a, ~model=m)
     | (InductionStep(a), Model.InductionStep(m)) =>
       get_cursor_info_induction_step(~selection=a, ~model=m)
+    | (ForallStep(a), Model.ForallStep(m)) =>
+      get_cursor_info_forall_step(~selection=a, ~model=m)
     | (MissingStep(_), _)
     | (SingleStep(_), _)
-    | (InductionStep(_), _) => empty
+    | (InductionStep(_), _)
+    | (ForallStep(_), _) => empty
     }
   and get_cursor_info_missing_step =
       (~selection: missing_step, ~model: Model.missing_step) =>
@@ -779,6 +879,16 @@ module Selection = {
       let+ ci =
         CodeSelectable.Selection.get_cursor_info(~selection=a, editor);
       Update.SingleStep(Update.EditorAction(ci));
+    | (Next(a), _) => get_cursor_info_step(~selection=a, model.next_step)
+    | (Here(_), Calc.Pending) => empty
+    }
+  and get_cursor_info_forall_step =
+      (~selection: forall_step, ~model: Model.forall_step) =>
+    switch (selection, model.common.editor) {
+    | (Here(a), Calc.Calculated(editor)) =>
+      let+ ci =
+        CodeSelectable.Selection.get_cursor_info(~selection=a, editor);
+      Update.ForallStep(EditorAction(ci));
     | (Next(a), _) => get_cursor_info_step(~selection=a, model.next_step)
     | (Here(_), Calc.Pending) => empty
     }
@@ -831,11 +941,15 @@ module Selection = {
     | (SingleStep(a), Model.SingleStep(m)) =>
       handle_key_event_single_step(~selection=a, ~event, ~model=m)
       |> Option.map(x => Update.SingleStep(x))
+    | (ForallStep(a), Model.ForallStep(m)) =>
+      handle_key_event_forall_step(~selection=a, ~event, ~model=m)
+      |> Option.map(x => Update.ForallStep(x))
     | (InductionStep(a), Model.InductionStep(m)) =>
       handle_key_event_induction_step(~selection=a, ~event, ~model=m)
       |> Option.map(x => Update.InductionStep(x))
     | (MissingStep(_), _)
     | (SingleStep(_), _)
+    | (ForallStep(_), _)
     | (InductionStep(_), _) => None
     }
   and handle_key_event_missing_step =
@@ -854,6 +968,17 @@ module Selection = {
     | Next(a) =>
       handle_key_event_step(~selection=a, ~event, model.next_step)
       |> Option.map((x): Update.single_step => Update.NextStepUpdate(x))
+    }
+  and handle_key_event_forall_step =
+      (~selection: forall_step, ~event, ~model: Model.forall_step) =>
+    switch (selection) {
+    | Here(a) =>
+      let* editor = model.common.editor |> Calc.saved_to_option;
+      CodeSelectable.Selection.handle_key_event(~selection=a, editor, event)
+      |> Option.map((x) => (Update.EditorAction(x): Update.forall_step));
+    | Next(a) =>
+      handle_key_event_step(~selection=a, ~event, model.next_step)
+      |> Option.map((x) => (Update.NextStepUpdate(x): Update.forall_step))
     }
   and handle_key_event_induction_step =
       (~selection: induction_step, ~event, ~model: Model.induction_step) =>
@@ -929,6 +1054,13 @@ module View = {
         ~disabled=false,
         ~tooltip="Begin a proof by induction",
       );
+    let button_forall =
+      Widgets.button_d(
+        Icons.star,
+        inject(Update.stepper_add_forall(model)),
+        ~disabled=false,
+        ~tooltip="Prove a forall",
+      );
     let button_hide_stepper =
       Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
         signal(HideStepper)
@@ -951,6 +1083,7 @@ module View = {
         [
           button_back,
           button_induction,
+          button_forall,
           eval_settings,
           toggle_show_history,
           button_hide_stepper,
@@ -1029,6 +1162,19 @@ module View = {
         ~selected=
           switch (selected) {
           | Some(InductionStep(s)) => Some(s)
+          | _ => None
+          },
+        ~top_bar,
+        m,
+      )
+    | Model.ForallStep(m) =>
+      view_forall_step(
+        ~globals,
+        ~signal,
+        ~inject,
+        ~selected=
+          switch (selected) {
+          | Some(ForallStep(s)) => Some(s)
           | _ => None
           },
         ~top_bar,
@@ -1153,6 +1299,73 @@ module View = {
                   ),
                 ],
               ),
+            ],
+          ),
+        ],
+      ),
+    ]
+    @ next_step;
+  }
+
+  and view_forall_step =
+      (
+        ~globals: Globals.t,
+        ~signal: event_step => Ui_effect.t(unit),
+        ~inject: Update.step => Ui_effect.t(unit),
+        ~selected: option(Selection.forall_step),
+        ~top_bar: Node.t,
+        model: Model.forall_step,
+      ) => {
+    let editor =
+      StepperEditor.View.view(
+        ~globals,
+        ~signal=
+          fun
+          | MakeActive => signal(MakeActive(SingleStep(Here())))
+          | TakeStep(int) => inject(Update.StepForward(int)),
+        ~inject=x => inject(SingleStep(EditorAction(x))),
+        ~selected=
+          switch (selected) {
+          | Some(Here(_)) => true
+          | Some(Next(_))
+          | None => false
+          },
+        StepperEditor.Model.{
+          editor: model.common.editor |> Calc.get_saved_exc(~print="Editor"),
+          taken_steps: [
+            model.common.expr
+            |> Calc.get_saved_exc(~print="Exp")
+            |> Exp.rep_id,
+          ],
+          next_steps: [],
+        },
+      );
+    let next_step =
+      view_step(
+        ~globals,
+        ~signal=
+          fun
+          | MakeActive(s) => signal(MakeActive(SingleStep(Next(s)))),
+        ~inject=x => inject(SingleStep(NextStepUpdate(x))),
+        ~selected=
+          switch (selected) {
+          | Some(Next(s)) => Some(s)
+          | Some(Here(_))
+          | None => None
+          },
+        ~top_bar,
+        model.next_step,
+      );
+    [
+      Web.div_c(
+        "step-border",
+        [
+          Web.div_c(
+            "step-display",
+            [
+              div_c("equiv", [Node.text("≡")]),
+              div_c("step-output", [editor]),
+              div_c("step-justification", [Node.text("Forall Step")]),
             ],
           ),
         ],
