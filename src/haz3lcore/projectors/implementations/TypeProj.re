@@ -94,7 +94,7 @@ module M: Projector = {
     let seg =
       switch (Segment.unparenthesize(info.syntax)) {
       | Some(seg) => seg
-      | None => [info.syntax]
+      | None => info.syntax
       };
     let str = Printer.of_segment(~holes=Some("?"), seg);
     let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);

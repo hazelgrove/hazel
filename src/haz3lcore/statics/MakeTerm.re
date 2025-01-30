@@ -133,7 +133,7 @@ let log_projector = (pr: Base.projector): unit => {
  * Precondition: The relevant projector must have been
  * logged before this is called */
 let should_instrument = (id: Id.t): bool =>
-  switch (Id.Map.find_opt(id, projector_pieces^)) {
+  switch (Id.Map.find_opt(id, projectors^)) {
   | Some(pr) =>
     let (module P) = ProjectorInit.to_module(pr.kind);
     P.dynamics;
@@ -192,7 +192,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     // single-tile case
-    | ([(_id, t)], []) =>
+    | ([(id, t)], []) =>
       switch (t) {
       | ([t], []) when Form.is_empty_tuple(t) => ret(Tuple([]))
       | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
@@ -210,7 +210,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (label, [Exp(body)]) when is_probe_wrap(label) =>
         // Temporary wrapping form to persist projector probes
         ret(
-          should_instrument(Exp.rep_id(body))
+          should_instrument(id)
             ? Wrap(body, Probe(Probe.empty)) : body.term,
         )
       | (["[", "]"], [Exp(body)]) =>
@@ -359,7 +359,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
-    | ([(_id, tile)], []) =>
+    | ([(id, tile)], []) =>
       ret(
         switch (tile) {
         | ([t], []) when Form.is_empty_tuple(t) => Tuple([])
@@ -376,8 +376,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           Invalid(t)
         | (["(", ")"], [Pat(body)]) => Wrap(body, Paren)
         | (label, [Pat(body)]) when is_probe_wrap(label) =>
-          should_instrument(Pat.rep_id(body))
-            ? Wrap(body, Probe(Probe.empty)) : body.term
+          should_instrument(id) ? Wrap(body, Probe(Probe.empty)) : body.term
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
           | {term: Tuple(ps), _} => ListLit(ps)
@@ -555,7 +554,9 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     | Projector({syntax, _} as pr) =>
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
-      [go_s(sort, Segment.skel([syntax]), [syntax])];
+      //TODO(andrew): be more selective about unparening
+      let seg = Segment.unparenthesize_or_wrap(syntax);
+      [go_s(sort, Segment.skel(seg), seg)];
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {

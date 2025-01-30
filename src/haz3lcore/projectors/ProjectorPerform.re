@@ -11,7 +11,7 @@ module Update = {
     | x => x
     };
 
-  let init = (kind: ProjectorCore.kind, syntax: syntax): option(syntax) =>
+  let init = (kind: ProjectorCore.kind, seg: Base.segment): option(syntax) =>
     /* Note that we always unparenthesize the syntax before passing it to maketerm.
      * By convention, the stored syntax for a projector is always parenthesized
      * on projection (and de-parenthesized on unprojection), regardless of its
@@ -21,9 +21,9 @@ module Update = {
      * bases its can_project logic on the segment, it must take this into account.
      * This distinction is mostly an artifact of current syntax implementation
      * decisions and will likely be eliminated in the future. */
-    switch (syntax |> ProjectorInfo.unparenthesize |> MakeTerm.any) {
+    switch (MakeTerm.any(seg)) {
     | None => None
-    | Some(any) => ProjectorInit.init(kind, syntax, any)
+    | Some(any) => ProjectorInit.init(kind, Segment.parenthesize(seg), any)
     };
 
   /* Projection logic is based on selection and parenthesization.
@@ -54,7 +54,7 @@ module Update = {
 
   let remove = (pr: ProjectorCore.t(Base.piece), focus, z): Zipper.t => {
     /* Always unparenthesize */
-    let seg = ProjectorInfo.unparenthesize(pr.syntax);
+    let seg = Segment.unparenthesize_or_wrap(pr.syntax);
     /* If it's a convex tile, unselect; otherwise, leave selection to guarantee you can toggle */
     switch (seg) {
     | [piece] => replace_and_unselect(Direction.Right, piece, z)
@@ -69,21 +69,8 @@ module Update = {
         seg: Segment.t,
         z: Zipper.t,
       ) => {
-    /* Always parenthesize */
-    let piece = Segment.parenthesize(seg);
-    let+ syntax = init(kind, piece);
+    let+ syntax = init(kind, seg);
     replace_and_unselect(focus, syntax, z);
-  };
-
-  let replace =
-      (
-        kind: ProjectorCore.kind,
-        focus: Direction.t,
-        syntax: Base.piece,
-        z: Zipper.t,
-      ) => {
-    let+ syntax = init(kind, syntax);
-    Zipper.replace_selection(focus, [syntax], z);
   };
 
   let update =
@@ -120,7 +107,12 @@ let go =
   let add_or_replace_indicated = (kind, z): option(Zipper.t) => {
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
-    | [Projector(pr)] => Update.replace(kind, focus, pr.syntax, z)
+    | [Projector(pr)] when pr.kind == kind =>
+      Some(Update.remove(pr, focus, z))
+    | [Projector(pr)] =>
+      let+ syntax =
+        Update.init(kind, Segment.unparenthesize_or_wrap(pr.syntax));
+      Zipper.replace_selection(focus, [syntax], z);
     | seg => Update.add(kind, focus, seg, z)
     };
   };
@@ -134,10 +126,20 @@ let go =
   };
 
   switch (a) {
-  | SetIndicated(kind) =>
+  | SetIndicated(Specific(kind)) =>
     switch (add_or_replace_indicated(kind, z)) {
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
+    }
+  | SetIndicated(ChooseLivelit) =>
+    switch (
+      List.filter_map(
+        kind => add_or_replace_indicated(kind, z),
+        ProjectorCore.livelit_projectors,
+      )
+    ) {
+    | [hd, ..._] => Ok(hd)
+    | [] => Error(Cant_project)
     }
   | ToggleIndicated(Specific(kind)) =>
     switch (add_or_remove_indicated(kind, z)) {
@@ -159,12 +161,14 @@ let go =
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
-  | SetSyntax(id, syntax) =>
+  | SetSyntax(id, seg) =>
     /* Note we update piece id to keep in sync with projector id;
      * See intial id setting in Update.init */
+    //TODO(andrew): should need to replace anymore
     Ok(
       Update.update(
-        p => {...p, syntax: Piece.replace_id(id, syntax)},
+        p =>
+          {...p, syntax: Piece.replace_id(id, Segment.parenthesize(seg))},
         id,
         z,
       ),
