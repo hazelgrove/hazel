@@ -14,14 +14,15 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
       Common(Inconsistent(Expectation({ana: b1, syn: b2}))),
     ) =>
     Typ.fast_equal(a1, b1) && Typ.fast_equal(a2, b2)
-  | (
-      Common(TupleLabelError(a, b, c, d)),
-      Common(TupleLabelError(a', b', c', d')),
-    ) =>
-    List.equal(Any.fast_equal, a, a')
-    && List.equal(String.equal, b, b')
-    && List.equal(String.equal, c, c')
-    && Typ.fast_equal(d, d')
+  | (Common(TupleLabelError(err)), Common(TupleLabelError(err'))) =>
+    List.equal(Any.fast_equal, err.invalid_labels, err'.invalid_labels)
+    && List.equal(String.equal, err.duplicate_labels, err'.duplicate_labels)
+    && List.equal(
+         String.equal,
+         err.unexpected_labels,
+         err'.unexpected_labels,
+       )
+    && Typ.fast_equal(err.typ, err'.typ)
   | _ =>
     Alcotest.fail(
       "Not implemented for "
@@ -727,19 +728,20 @@ let tests = (
           "Tuple Error",
           Some(
             Common(
-              TupleLabelError(
-                [],
-                ["a", "a"],
-                [],
-                Prod([
-                  TupLabel(
-                    Label("a") |> Typ.temp,
-                    Unknown(Internal) |> Typ.temp,
-                  )
+              TupleLabelError({
+                invalid_labels: [],
+                duplicate_labels: ["a", "a"],
+                unexpected_labels: [],
+                typ:
+                  Prod([
+                    TupLabel(
+                      Label("a") |> Typ.temp,
+                      Unknown(Internal) |> Typ.temp,
+                    )
+                    |> Typ.temp,
+                  ])
                   |> Typ.temp,
-                ])
-                |> Typ.temp,
-              ),
+              }),
             ),
           ),
           Statics.get_error_at(s, IdTagged.rep_id(tuple)),
@@ -750,13 +752,14 @@ let tests = (
           "TupLabel1 Error",
           Some(
             Common(
-              TupleLabelError(
-                [],
-                ["a"],
-                [],
-                TupLabel(Label("a") |> Typ.temp, String |> Typ.temp)
-                |> Typ.temp,
-              ),
+              TupleLabelError({
+                invalid_labels: [],
+                duplicate_labels: ["a"],
+                unexpected_labels: [],
+                typ:
+                  TupLabel(Label("a") |> Typ.temp, String |> Typ.temp)
+                  |> Typ.temp,
+              }),
             ),
           ),
           Statics.get_error_at(s, IdTagged.rep_id(tl1)),
@@ -766,12 +769,14 @@ let tests = (
           "TupLabel2 Error",
           Some(
             Common(
-              TupleLabelError(
-                [],
-                ["a"],
-                [],
-                TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp) |> Typ.temp,
-              ),
+              TupleLabelError({
+                invalid_labels: [],
+                duplicate_labels: ["a"],
+                unexpected_labels: [],
+                typ:
+                  TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
+                  |> Typ.temp,
+              }),
             ),
           ),
           Statics.get_error_at(s, IdTagged.rep_id(tl2)),
@@ -823,16 +828,20 @@ let tests = (
           "Tuple",
           Some(
             Common(
-              TupleLabelError(
-                [Exp(l1)],
-                [],
-                [],
-                Prod([
-                  TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
+              TupleLabelError({
+                invalid_labels: [Exp(l1)],
+                duplicate_labels: [],
+                unexpected_labels: [],
+                typ:
+                  Prod([
+                    TupLabel(
+                      Unknown(Internal) |> Typ.temp,
+                      String |> Typ.temp,
+                    )
+                    |> Typ.temp,
+                  ])
                   |> Typ.temp,
-                ])
-                |> Typ.temp,
-              ),
+              }),
             ),
           ),
           Statics.get_error_at(s, IdTagged.rep_id(tuple)),
@@ -843,13 +852,14 @@ let tests = (
           "TupLabel1",
           Some(
             Common(
-              TupleLabelError(
-                [Exp(l1)],
-                [],
-                [],
-                TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
-                |> Typ.temp,
-              ),
+              TupleLabelError({
+                invalid_labels: [Exp(l1)],
+                unexpected_labels: [],
+                duplicate_labels: [],
+                typ:
+                  TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
+                  |> Typ.temp,
+              }),
             ),
           ),
           Statics.get_error_at(s, IdTagged.rep_id(tl1)),
@@ -897,18 +907,22 @@ let tests = (
           "Tuple Error Free",
           Some(
             Common(
-              TupleLabelError(
-                [Exp(l1)],
-                [],
-                [],
-                Prod([
-                  TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
+              TupleLabelError({
+                invalid_labels: [Exp(l1)],
+                unexpected_labels: [],
+                duplicate_labels: [],
+                typ:
+                  Prod([
+                    TupLabel(
+                      Unknown(Internal) |> Typ.temp,
+                      String |> Typ.temp,
+                    )
+                    |> Typ.temp,
+                    TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
+                    |> Typ.temp,
+                  ])
                   |> Typ.temp,
-                  TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
-                  |> Typ.temp,
-                ])
-                |> Typ.temp,
-              ),
+              }),
             ),
           ),
           Statics.get_error_at(s, IdTagged.rep_id(tuple)),
@@ -919,13 +933,14 @@ let tests = (
           "TupLabel1 ",
           Some(
             Common(
-              TupleLabelError(
-                [Exp(l1)],
-                [],
-                [],
-                TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
-                |> Typ.temp,
-              ),
+              TupleLabelError({
+                invalid_labels: [Exp(l1)],
+                unexpected_labels: [],
+                duplicate_labels: [],
+                typ:
+                  TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
+                  |> Typ.temp,
+              }),
             ),
           ),
           Statics.get_error_at(s, IdTagged.rep_id(tl1)),
@@ -992,12 +1007,12 @@ let tests = (
           "Tuple Label1 Error",
           Some(
             Common(
-              TupleLabelError(
-                [],
-                [],
-                ["c"],
-                TupLabel(Label("c") |> Typ.temp, int_ty) |> Typ.temp,
-              ),
+              TupleLabelError({
+                invalid_labels: [],
+                duplicate_labels: [],
+                unexpected_labels: ["c"],
+                typ: TupLabel(Label("c") |> Typ.temp, int_ty) |> Typ.temp,
+              }),
             ),
           ),
           Statics.get_error_at(s, IdTagged.rep_id(tl1)),
@@ -1013,17 +1028,18 @@ let tests = (
           "Tuple Error",
           Some(
             Common(
-              TupleLabelError(
-                [],
-                [],
-                ["c"],
-                Prod([
-                  TupLabel(Label("c") |> Typ.temp, int_ty) |> Typ.temp,
-                  TupLabel(Label("a") |> Typ.temp, String |> Typ.temp)
+              TupleLabelError({
+                invalid_labels: [],
+                duplicate_labels: [],
+                unexpected_labels: ["c"],
+                typ:
+                  Prod([
+                    TupLabel(Label("c") |> Typ.temp, int_ty) |> Typ.temp,
+                    TupLabel(Label("a") |> Typ.temp, String |> Typ.temp)
+                    |> Typ.temp,
+                  ])
                   |> Typ.temp,
-                ])
-                |> Typ.temp,
-              ),
+              }),
             ),
           ),
           Statics.get_error_at(s, IdTagged.rep_id(tuple)),

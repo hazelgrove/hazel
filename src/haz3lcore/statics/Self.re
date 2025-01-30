@@ -34,12 +34,12 @@ type t =
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
   | UnexpectedLabel(LabeledTuple.label) /* Unexpected label in a labeled tuple */
-  | TupleLabelError(
-      list(Any.t),
-      list(LabeledTuple.label),
-      list(LabeledTuple.label),
-      Typ.t,
-    ) /* Tuple/TupLabel contains invalid labels, duplicate labels, and/or unexpected labels */
+  | TupleLabelError({
+      invalid_labels: list(Any.t),
+      duplicate_labels: list(LabeledTuple.label),
+      unexpected_labels: list(LabeledTuple.label),
+      typ: Typ.t,
+    }) /* Tuple/TupLabel contains invalid labels, duplicate labels, and/or unexpected labels */
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
       name: Constructor.t,
@@ -84,7 +84,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     fun
     | Just(typ)
     | Duplicate(_, Just(typ))
-    | TupleLabelError(_, _, _, typ) => Some(typ)
+    | TupleLabelError({typ, _}) => Some(typ)
     | IsConstructor({syn_ty, _}) => syn_ty
     | BadToken(_)
     | BadTrivAp(_)

@@ -136,18 +136,24 @@ let common_err_view =
       text("Unexpected Label:"),
       code(name),
     ]
-  | TupleLabelError(invalid, duplicates, unexpected, _) =>
+  | TupleLabelError({invalid_labels, duplicate_labels, unexpected_labels, _}) =>
     (
-      List.is_empty(invalid)
-        ? [] : [text("Invalid labels: "), ...List.map(view_any, invalid)]
+      List.is_empty(invalid_labels)
+        ? []
+        : [text("Invalid labels: "), ...List.map(view_any, invalid_labels)]
     )
     @ (
-      List.is_empty(duplicates)
-        ? [] : [text("Duplicate labels: "), ...List.map(code, duplicates)]
+      List.is_empty(duplicate_labels)
+        ? []
+        : [text("Duplicate labels: "), ...List.map(code, duplicate_labels)]
     )
     @ (
-      List.is_empty(unexpected)
-        ? [] : [text("Unexpected labels: "), ...List.map(code, unexpected)]
+      List.is_empty(unexpected_labels)
+        ? []
+        : [
+          text("Unexpected labels: "),
+          ...List.map(code, unexpected_labels),
+        ]
     )
   | DuplicateLabel(name, _) => [text("Duplicated Label:"), code(name)]
   | Inconsistent(WithArrow(typ)) => [
