@@ -1,7 +1,7 @@
 /* Gather utility functions/values to be sspaed to the projector.
  * See ProjectorBase.utility definition for more information */
 let utility: ProjectorBase.utility = {
-  let seg_to_term = MakeTerm.any;
+  let seg_to_term = MakeTerm.for_projection;
   let term_to_seg =
     ExpToSegment.any_to_pretty(
       ~settings={

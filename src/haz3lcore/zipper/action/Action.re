@@ -55,7 +55,6 @@ type chooser =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type project =
   | SetIndicated(chooser) /* Project syntax at caret */
-  | ToggleIndicated(chooser) /* Un/Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(Id.t, Base.segment) /* Set underlying syntax */
   | SetModel(Id.t, string) /* Set serialized projector model */
@@ -141,7 +140,6 @@ let is_edit: t => bool =
     | SetSyntax(_)
     | SetModel(_)
     | SetIndicated(_)
-    | ToggleIndicated(_)
     | RemoveIndicated => true
     | Focus(_)
     | Escape(_) => false
@@ -171,7 +169,6 @@ let is_historic: t => bool =
     | SetSyntax(_)
     | SetModel(_)
     | SetIndicated(_)
-    | ToggleIndicated(_)
     | RemoveIndicated => true
     | Focus(_)
     | Escape(_) => false
@@ -199,7 +196,6 @@ let prevent_in_read_only_editor = (a: t) => {
     | SetSyntax(_) => true
     | SetModel(_)
     | SetIndicated(_)
-    | ToggleIndicated(_)
     | RemoveIndicated
     | Focus(_)
     | Escape(_) => false

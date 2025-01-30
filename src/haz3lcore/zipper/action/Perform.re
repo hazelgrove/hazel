@@ -82,7 +82,7 @@ let go_z =
       let* (p, _, _) = Indicated.piece''(z);
       Piece.is_term(p)
         ? Select.parent_of_indicated(z, statics.info_map)
-        : Select.current_term_fancy(z);
+        : Select.current_term_psuedo(z);
     | _ => None
     };
   };
@@ -120,7 +120,7 @@ let go_z =
     ProjectorPerform.go(
       Move.jump_to_id_indicated,
       Move.jump_to_side_of_id,
-      Select.current_term_fancy,
+      Select.current_term,
       a,
       z,
     )
