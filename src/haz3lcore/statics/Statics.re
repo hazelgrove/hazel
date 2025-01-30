@@ -468,6 +468,12 @@ and uexp_to_info_map =
           | None =>
             add(~self=LabelNotFound(name, labels), ~co_ctx=info_e2.co_ctx, m)
           };
+        | EmptyHole =>
+          add(
+            ~self=Just(Unknown(Internal) |> Typ.temp),
+            ~co_ctx=info_e2.co_ctx,
+            m,
+          )
         | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
         };
       | _ => add(~self=WantTuple, ~co_ctx=info_e2.co_ctx, m)
