@@ -9,8 +9,11 @@ open Web;
 
 let indicated_kind = (editor: option(Editor.t)) => {
   let* editor = editor;
-  let+ (_, p) = Indicated.projector(editor.state.zipper);
-  p.kind;
+  let* (piece, _, _) = Indicated.for_index(editor.state.zipper);
+  switch (piece) {
+  | Projector({kind, _}) => Some(kind)
+  | _ => None
+  };
 };
 
 module Applicable = {
