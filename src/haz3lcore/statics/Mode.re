@@ -60,20 +60,16 @@ let of_forall = (ctx: Ctx.t, name_opt: option(string), mode: t): t =>
     };
   };
 
-let of_label = (mode: t): (t, t) =>
+let of_label = (mode: t): option((t, t)) =>
   switch (mode) {
   | Syn
   | SynFun
-  | SynTypFun => (Syn, Syn)
-  | Ana({term: TupLabel({term: Label(mode_label), _}, val_ty), _}) => (
-      Ana(Label(mode_label) |> Typ.temp),
-      Ana(val_ty),
-    )
-  | Ana(_) => (
-      Ana(Unknown(Internal) |> Typ.temp),
-      Ana(Unknown(Internal) |> Typ.temp),
-    )
+  | SynTypFun => Some((Syn, Syn))
+  | Ana({term: TupLabel({term: Label(mode_label), _}, val_ty), _}) =>
+    Some((Ana(Label(mode_label) |> Typ.temp), Ana(val_ty)))
+  | Ana(_) => None
   };
+
 let of_prod =
     (
       ctx: Ctx.t,

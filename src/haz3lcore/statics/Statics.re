@@ -368,32 +368,72 @@ and uexp_to_info_map =
         m,
       );
     | TupLabel(label, e) =>
-      let (labmode, val_mode) = Mode.of_label(mode);
-      let (lab, m) =
-        go(
-          ~mode=labmode,
-          ~override_self=?
+      let (lab, e, m) =
+        switch (Mode.of_label(mode)) {
+        | Some((labmode, val_mode)) =>
+          let label_self: option(Self.exp) =
             switch (label.term) {
             | Label(_)
             | EmptyHole => None
             | _ => Some(Common(BadLabel(Exp(label))))
-            },
-          ~duplicates,
-          label,
-          m,
-        );
-      let (e, m) = go(~mode=val_mode, e, m);
+            };
+
+          let (lab, m) =
+            go(
+              ~mode=labmode,
+              ~override_self=?label_self,
+              ~duplicates,
+              label,
+              m,
+            );
+          let (e, m) = go(~mode=val_mode, e, m);
+          (lab, e, m);
+        | _ =>
+          let (lab, m) =
+            go(
+              ~mode=Ana(Unknown(Internal) |> Typ.temp),
+              ~override_self=?
+                switch (label.term) {
+                | Label(name) => Some(Common(UnexpectedLabel(name)))
+                | EmptyHole => None
+                | _ => Some(Common(BadLabel(Exp(label))))
+                },
+              ~duplicates,
+              label,
+              m,
+            );
+
+          let (e, m) = go(~mode=Ana(Unknown(Internal) |> Typ.temp), e, m);
+          (lab, e, m);
+        };
+
       let self =
         switch (lab.status) {
         | NotInHole(_) => Self.Just(TupLabel(lab.ty, e.ty) |> Typ.temp)
-        | InHole(Common(DuplicateLabel(name, _))) =>
-          Self.DuplicateLabels(
+        | InHole(
+            Common(
+              Inconsistent(Expectation({syn: {term: Label(name), _}, _})),
+            ),
+          )
+        | InHole(Common(NoType(UnexpectedLabel(name)))) =>
+          Self.TupleLabelError(
+            [],
+            [],
             [name],
             TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
           )
+        | InHole(Common(DuplicateLabel(name, _))) =>
+          Self.TupleLabelError(
+            [],
+            [name],
+            [],
+            TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
+          )
         | InHole(_) =>
-          Self.BadLabelsContained(
+          Self.TupleLabelError(
             [Exp(label)],
+            [],
+            [],
             TupLabel(Unknown(Internal) |> Typ.temp, e.ty) |> Typ.temp,
           )
         };
@@ -413,24 +453,37 @@ and uexp_to_info_map =
         LabeledTuple.get_duplicate_labels(Exp.match_tup_label, es);
       let (es', m) = map_m_go(~duplicates=duplicate_labels, m, modes, es);
       let ty_list = List.map(Info.exp_ty, es');
-      let get_bad_labels = (e: Info.exp) =>
-        switch (e.status) {
-        | InHole(Common(BadLabelsContained(bad_labels, _))) => bad_labels
-        | _ => []
-        };
-      let bad_labels =
-        List.concat_map((e: Info.exp) => e |> get_bad_labels, es');
+
+      let (bad_labels, duplicate_labels, unexpected_labels) =
+        List.fold_left(
+          ((a, b, c), e: Info.exp) => {
+            switch (e.status) {
+            | InHole(Common(TupleLabelError(a', b', c', _))) => (
+                a @ a',
+                b @ b',
+                c @ c',
+              )
+            | _ => (a, b, c)
+            }
+          },
+          ([], [], []),
+          es',
+        );
 
       let ty_list = Typ.remove_duplicate_labels(~duplicate_labels, ty_list);
 
       let self =
-        bad_labels != []
-          ? Self.BadLabelsContained(bad_labels, Prod(ty_list) |> Typ.temp)
-          : Self.Just(Prod(ty_list) |> Typ.temp);
-      let self =
-        List.is_empty(duplicate_labels)
-          ? self
-          : Self.DuplicateLabels(duplicate_labels, Prod(ty_list) |> Typ.temp);
+        List.is_empty(bad_labels)
+        && List.is_empty(duplicate_labels)
+        && List.is_empty(unexpected_labels)
+          ? Self.Just(Prod(ty_list) |> Typ.temp)
+          : Self.TupleLabelError(
+              bad_labels,
+              duplicate_labels,
+              unexpected_labels,
+              Prod(ty_list) |> Typ.temp,
+            );
+
       add(~self, ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')), m);
     | Dot(e1, e2) =>
       let (info_e1, m) = go(~mode=Syn, e1, m);
@@ -1087,7 +1140,7 @@ and upat_to_info_map =
         m,
       );
     | TupLabel(label, p) =>
-      let (labmode, mode) = Mode.of_label(mode);
+      let (labmode, mode) = Option.get(Mode.of_label(mode));
       let (lab, m) =
         go(
           ~ctx,
@@ -1107,13 +1160,17 @@ and upat_to_info_map =
         switch (lab.status) {
         | NotInHole(_) => Self.Just(TupLabel(lab.ty, p.ty) |> Typ.temp)
         | InHole(Common(DuplicateLabel(name, _))) =>
-          Self.DuplicateLabels(
+          Self.TupleLabelError(
+            [],
             [name],
+            [],
             TupLabel(Label(name) |> Typ.temp, p.ty) |> Typ.temp,
           )
         | InHole(_) =>
-          Self.BadLabelsContained(
+          Self.TupleLabelError(
             [Pat(label)],
+            [],
+            [],
             TupLabel(Unknown(Internal) |> Typ.temp, p.ty) |> Typ.temp,
           )
         };
@@ -1140,18 +1197,23 @@ and upat_to_info_map =
         ctx_fold(ctx, m, ~duplicates=duplicate_labels, ps, modes);
       let get_bad_labels = (p: Info.pat) =>
         switch (p.status) {
-        | InHole(Common(BadLabelsContained(bad_labels, _))) => bad_labels
+        | InHole(Common(TupleLabelError(bad_labels, _, _, _))) => bad_labels
         | _ => []
         };
       let bad_labels = List.concat_map(get_bad_labels, info_pats);
       let self =
         bad_labels != []
-          ? Self.BadLabelsContained(bad_labels, Prod(tys) |> Typ.temp)
+          ? Self.TupleLabelError(bad_labels, [], [], Prod(tys) |> Typ.temp)
           : Self.Just(Prod(tys) |> Typ.temp);
       let self =
         List.is_empty(duplicate_labels)
           ? self
-          : Self.DuplicateLabels(duplicate_labels, Prod(tys) |> Typ.temp);
+          : Self.TupleLabelError(
+              [],
+              duplicate_labels,
+              [],
+              Prod(tys) |> Typ.temp,
+            );
       add(~self, ~ctx, ~constraint_=cons_fold_tuple(cons), m);
     | Parens(p) =>
       let (p, m) = go(~ctx, ~mode, p, m);

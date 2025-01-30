@@ -57,7 +57,9 @@ type error_no_type =
   /* Label not found in tuple for dot operator */
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   /* Sort error used as label in tuple */
-  | BadLabel(Any.t);
+  | BadLabel(Any.t)
+  /* Unexpected label in tuple */
+  | UnexpectedLabel(LabeledTuple.label);
 
 /* Errors which can apply to either expression or patterns */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -66,12 +68,15 @@ type error_common =
   | NoType(error_no_type)
   /* Overdetermined: Conflicting type expectations */
   | Inconsistent(error_inconsistent)
-  /* Collected duplicate labels for a labeled tuple */
-  | DuplicateLabels(list(LabeledTuple.label), Typ.t)
   /* The error on a specific duplicate label */
   | DuplicateLabel(LabeledTuple.label, Typ.t)
-  /* Sort errors used as label in tuple */
-  | BadLabelsContained(list(Any.t), Typ.t);
+  /* Tuple/TupLabel contains invalid labels, duplicate labels, and/or unexpected labels */
+  | TupleLabelError(
+      list(Any.t),
+      list(LabeledTuple.label),
+      list(LabeledTuple.label),
+      Typ.t,
+    );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
@@ -383,9 +388,7 @@ let rec status_common =
     ) {
     | None =>
       switch (ana.term, syn.term) {
-      | (Label(_), Label(_)) =>
-        InHole(Inconsistent(Expectation({ana, syn})))
-      | (Label(_), _) => InHole(NoType(BadLabel(Typ(syn))))
+      | (Label(_), _) => InHole(Inconsistent(Expectation({ana, syn})))
       | _ => InHole(Inconsistent(Expectation({ana, syn})))
       }
     | Some(join) => NotInHole(Ana(Consistent({ana, syn, join})))
@@ -402,10 +405,15 @@ let rec status_common =
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
-  | (BadLabel(ty), _) => InHole(NoType(BadLabel(ty)))
-  | (BadLabelsContained(bad_labels, typ), _) =>
-    InHole(BadLabelsContained(bad_labels, typ))
-  | (DuplicateLabels(labels, ty), _) => InHole(DuplicateLabels(labels, ty))
+  | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
+  | (UnexpectedLabel(label), _) => InHole(NoType(UnexpectedLabel(label)))
+  | (
+      TupleLabelError(invalid_labels, duplicate_labes, unexpected_labes, ty),
+      _,
+    ) =>
+    InHole(
+      TupleLabelError(invalid_labels, duplicate_labes, unexpected_labes, ty),
+    )
   | (Duplicate(lab, Just(ty)), _) => InHole(DuplicateLabel(lab, ty))
   | (Duplicate(lab, _), _) =>
     InHole(DuplicateLabel(lab, Unknown(Internal) |> Typ.temp))
@@ -440,9 +448,8 @@ let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
       | InHole(Common(Inconsistent(Internal(_) | Expectation(_))) as err)
       | InHole(Common(NoType(_)) as err) => Some(err)
       | NotInHole(_) => None
-      | InHole(Common(DuplicateLabels(_)))
       | InHole(Common(DuplicateLabel(_)))
-      | InHole(Common(BadLabelsContained(_)))
+      | InHole(Common(TupleLabelError(_)))
       | InHole(Common(Inconsistent(WithArrow(_))))
       | InHole(ExpectedConstructor | Redundant(_)) =>
         // ExpectedConstructor cannot be a reason to hole-wrap the entire pattern
@@ -479,9 +486,8 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
       | NotInHole(_)
       | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
       | InHole(Common(NoType(_)))
-      | InHole(Common(DuplicateLabels(_))) // Is this right?
+      | InHole(Common(TupleLabelError(_)))
       | InHole(Common(DuplicateLabel(_)))
-      | InHole(Common(BadLabelsContained(_)))
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
           BadPartialAp(_),
@@ -648,9 +654,8 @@ let fixed_typ_ok: ok_pat => Typ.t =
 let fixed_typ_err_common: error_common => Typ.t =
   fun
   | NoType(_) => Unknown(Internal) |> Typ.temp
-  | DuplicateLabels(_, typ) => typ
+  | TupleLabelError(_, _, _, typ)
   | DuplicateLabel(_, typ) => typ
-  | BadLabelsContained(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana
   | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
   | Inconsistent(WithArrow(_)) =>

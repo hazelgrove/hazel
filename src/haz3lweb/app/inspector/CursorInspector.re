@@ -122,12 +122,6 @@ let common_err_view =
       text("An invalid Label: "),
       view_any(label),
     ]
-  | BadLabelsContained(bad_labels, typ) =>
-    [
-      text("Contains invalid labels: "),
-      ...List.map(l => view_any(l), bad_labels),
-    ]
-    @ [text("synthesizing type"), view_type(typ)]
   | NoType(FreeConstructor(name)) => [code(name), text("not found")]
   | NoType(WantTuple) => [
       text("Invalid Dot Operation: requires tuple for first argument"),
@@ -138,10 +132,23 @@ let common_err_view =
       text(" not found in tuple's labels: "),
       ...List.map(code, labels),
     ]
-  | DuplicateLabels(labels, _) => [
-      text("The following labels are duplicated: "),
-      ...List.map(code, labels),
+  | NoType(UnexpectedLabel(name)) => [
+      text("Unexpected Label:"),
+      code(name),
     ]
+  | TupleLabelError(invalid, duplicates, unexpected, _) =>
+    (
+      List.is_empty(invalid)
+        ? [] : [text("Invalid labels: "), ...List.map(view_any, invalid)]
+    )
+    @ (
+      List.is_empty(duplicates)
+        ? [] : [text("Duplicate labels: "), ...List.map(code, duplicates)]
+    )
+    @ (
+      List.is_empty(unexpected)
+        ? [] : [text("Unexpected labels: "), ...List.map(code, unexpected)]
+    )
   | DuplicateLabel(name, _) => [text("Duplicated Label:"), code(name)]
   | Inconsistent(WithArrow(typ)) => [
       text(":"),
