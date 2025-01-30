@@ -374,7 +374,8 @@ and uexp_to_info_map =
           ~mode=labmode,
           ~override_self=?
             switch (label.term) {
-            | Label(_) => None
+            | Label(_)
+            | EmptyHole => None
             | _ => Some(Common(BadLabel(Exp(label))))
             },
           ~duplicates,
@@ -1093,7 +1094,8 @@ and upat_to_info_map =
           ~mode=labmode,
           ~override_self=?
             switch (label.term) {
-            | Label(_) => None
+            | Label(_)
+            | EmptyHole => None
             | _ => Some(BadLabel(Pat(label)))
             },
           ~duplicates,
