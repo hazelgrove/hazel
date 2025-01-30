@@ -51,6 +51,8 @@ type t('syntax) = {
   model: string,
 };
 
+let mk = (kind, syntax, model) => {id: Id.mk(), kind, syntax, model};
+
 let livelit_projectors: list(kind) = [Checkbox, Slider, SliderF, TextArea];
 
 let projectors: list(kind) = livelit_projectors @ [Fold, Info, Probe];

@@ -74,9 +74,9 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
   let term: Exp.term =
     switch (exp |> Exp.term_of) {
     | Fun(_p, _e, _, Some(s)) => Invalid("<" ++ s ++ ">")
-    | Fun(_p, _e, _, None) => Invalid("<FUN>")
-    | BuiltinFun(_f) => Invalid("<BUILTIN>")
-    | Tuple([_]) => failwith("Singleton Tuples are not allowed")
+    | Fun(_p, _e, _, None) => Invalid("<>")
+    | BuiltinFun(_f) => Invalid("<>")
+    | Tuple([e]) => Tuple([abbreviate_exp(e)])
     | DynamicErrorHole(_exp, err) =>
       Invalid("<" ++ InvalidOperationError.show(err) ++ ">")
 

@@ -15,8 +15,8 @@ let get = (f_w, f_g, f_t: tile => _, f_p: projector => _, p: t) =>
   | Projector(p) => f_p(p)
   };
 
-let proj_id = (projector: ProjectorCore.t(t)) => projector.id;
-let id = get(Secondary.id, Grout.id, tile => tile.id, proj_id);
+let id =
+  get(Secondary.id, Grout.id, tile => tile.id, projector => projector.id);
 
 let sort =
   get(
