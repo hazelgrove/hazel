@@ -2,82 +2,61 @@ open ProjectorBase;
 open Util;
 open OptUtil.Syntax;
 
-/* Updates the underlying piece of syntax for a projector */
-module Update = {
-  let update_piece =
-      (f: Base.projector => Base.projector, id: Id.t, syntax: syntax) =>
-    switch (syntax) {
-    | Projector(pr) when pr.id == id => Base.Projector(f(pr))
-    | x => x
-    };
+/* Projection logic is based on selection and parenthesization.
+ * If there is no current selection, we select the currently indicated
+ * term. In this case, it is assured that the syntax to be projected
+ * is both a term in isolation and a subterm of the containing term.
+ * However, if there is already a selection, it could be that the
+ * selection is a term in isolation, but NOT a subterm of the containing
+ * term. An example of this is `1+2`, where the full syntax is `1+2*3`.
+ * In these cases, we project anyway, under the logic that projection is
+ * (a kind of) parenthesization. That is, it changes the semantics of the
+ * program precisely when parenthesization would. Note that in some cases
+ * this can result in not static but syntactic errors; for example, if we
+ * project `x:Int` within `x:Int->Bool`. Again, this is done under the
+ * logic of doing the same thing parenthesis-wrapping would do, for the
+ * purposes of predictability. Similarly, when we unproject something, the
+ * surrounding lexical context may have changed, so even if the projected
+ * syntax was a subterm of the surrounding term when projected, it will
+ * not necessarily be when it is unprojected; for example, if the projected
+ * syntax is rooted at an infix expression, and after projection a
+ * neighboring infix operation was added which binds tighter. Again,
+ * this is the same as would happen if unparenthesizing a subterm. */
 
-  let init = (kind: ProjectorCore.kind, seg: Base.segment): option(syntax) =>
-    /* Note that we always unparenthesize the syntax before passing it to maketerm.
-     * By convention, the stored syntax for a projector is always parenthesized
-     * on projection (and de-parenthesized on unprojection), regardless of its
-     * initial form. Thus this change makes the term passed to the projector's
-     * can_project method more reflective of the initial syntax. However, the
-     * segment passed to it will be the parenthesized one, so if a projector
-     * bases its can_project logic on the segment, it must take this into account.
-     * This distinction is mostly an artifact of current syntax implementation
-     * decisions and will likely be eliminated in the future. */
-    switch (MakeTerm.any(seg)) {
-    | None => None
-    | Some(any) => ProjectorInit.init(kind, Segment.parenthesize(seg), any)
-    };
-
-  /* Projection logic is based on selection and parenthesization.
-   * If there is no current selection, we select the currently indicated
-   * term. In this case, it is assured that the syntax to be projected
-   * is both a term in isolation and a subterm of the containing term.
-   * However, if there is already a selection, it could be that the
-   * selection is a term in isolation, but NOT a subterm of the containing
-   * term. An example of this is `1+2`, where the full syntax is `1+2*3`.
-   * In these cases, we project anyway, under the logic that projection is
-   * (a kind of) parenthesization. That is, it changes the semantics of the
-   * program precisely when parenthesization would. Note that in some cases
-   * this can result in not static but syntactic errors; for example, if we
-   * project `x:Int` within `x:Int->Bool`. Again, this is done under the
-   * logic of doing the same thing parenthesis-wrapping would do, for the
-   * purposes of predictability. Similarly, when we unproject something, the
-   * surrounding lexical context may have changed, so even if the projected
-   * syntax was a subterm of the surrounding term when projected, it will
-   * not necessarily be when it is unprojected; for example, if the projected
-   * syntax is rooted at an infix expression, and after projection a
-   * neighboring infix operation was added which binds tighter. Again,
-   * this is the same as would happen if unparenthesizing a subterm. */
-
-  let replace_and_unselect = (focus, piece: Base.piece, z): Zipper.t =>
-    z
-    |> Zipper.replace_selection(focus, [piece])
-    |> Zipper.directional_unselect(focus);
-
-  let remove = (pr: ProjectorCore.t(Base.piece), focus, z): Zipper.t => {
-    /* Always unparenthesize */
-    let seg = Segment.unparenthesize_or_wrap(pr.syntax);
-    /* If it's a convex tile, unselect; otherwise, leave selection to guarantee you can toggle */
-    switch (seg) {
-    | [piece] => replace_and_unselect(Direction.Right, piece, z)
-    | _ => Zipper.replace_selection(focus, seg, z)
-    };
+let init = (kind: ProjectorCore.kind, seg: Base.segment): option(syntax) =>
+  /* Projected syntax always gets parenthesized, but only the contents
+   * of those parentheses are passed to the projector implementations  */
+  switch (MakeTerm.for_projection(seg)) {
+  | None => None
+  | Some(any) => ProjectorInit.init(kind, Segment.parenthesize(seg), any)
   };
 
-  let add =
-      (
-        kind: ProjectorCore.kind,
-        focus: Direction.t,
-        seg: Segment.t,
-        z: Zipper.t,
-      ) => {
-    let+ syntax = init(kind, seg);
-    replace_and_unselect(focus, syntax, z);
-  };
+let replace_selection_and_unselect =
+    (piece: Base.piece, focus: Direction.t, z: Zipper.t): Zipper.t =>
+  z
+  |> Zipper.replace_selection(focus, [piece])
+  |> Zipper.directional_unselect(focus);
 
-  let update =
-      (f: Base.projector => Base.projector, id: Id.t, z: ZipperBase.t)
-      : ZipperBase.t =>
-    ZipperBase.MapPiece.fast_local(update_piece(f, id), id, z);
+let remove = (piece: Base.piece, focus: Direction.t, z: Zipper.t): Zipper.t => {
+  let seg = Segment.unparenthesize_or_wrap(piece);
+  /* If it's a convex tile, unselect; otherwise, leave selection to guarantee you can toggle */
+  switch (seg) {
+  | [piece] => replace_selection_and_unselect(piece, Right, z)
+  | _ => Zipper.replace_selection(focus, seg, z)
+  };
 };
+
+let update_piece =
+    (f: Base.projector => Base.projector, id: Id.t, piece: Base.piece) =>
+  switch (piece) {
+  | Projector(pr) when pr.id == id => Base.Projector(f(pr))
+  | x => x
+  };
+
+let update =
+    (f: Base.projector => Base.projector, id: Id.t, z: ZipperBase.t)
+    : ZipperBase.t =>
+  ZipperBase.MapPiece.fast_local(update_piece(f, id), id, z);
 
 let go =
     (
@@ -96,62 +75,39 @@ let go =
         }
       : Some((z.selection.focus, z));
 
-  let add_or_remove_indicated = (kind, z): option(Zipper.t) => {
-    let* (focus, z) = setup_selection(z);
-    switch (z.selection.content) {
-    | [Projector(pr)] => Some(Update.remove(pr, focus, z))
-    | seg => Update.add(kind, focus, seg, z)
-    };
-  };
-
-  let add_or_replace_indicated = (kind, z): option(Zipper.t) => {
+  let set_indicated =
+      (z: Zipper.t, kind: ProjectorCore.kind): option(Zipper.t) => {
+    /* If not projected, project. If already kind, remove. If other projector, change */
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
     | [Projector(pr)] when pr.kind == kind =>
-      Some(Update.remove(pr, focus, z))
+      Some(remove(pr.syntax, focus, z))
     | [Projector(pr)] =>
-      let+ syntax =
-        Update.init(kind, Segment.unparenthesize_or_wrap(pr.syntax));
-      Zipper.replace_selection(focus, [syntax], z);
-    | seg => Update.add(kind, focus, seg, z)
+      let+ piece = init(kind, Segment.unparenthesize_or_wrap(pr.syntax));
+      replace_selection_and_unselect(piece, focus, z);
+    | seg =>
+      let+ piece = init(kind, seg);
+      replace_selection_and_unselect(piece, focus, z);
     };
   };
 
-  let remove_indicated = (z): option(Zipper.t) => {
+  let remove_indicated = (z: Zipper.t): option(Zipper.t) => {
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
-    | [Projector(pr)] => Some(Update.remove(pr, focus, z))
+    | [Projector(pr)] => Some(remove(pr.syntax, focus, z))
     | _ => None
     };
   };
 
   switch (a) {
   | SetIndicated(Specific(kind)) =>
-    switch (add_or_replace_indicated(kind, z)) {
+    switch (set_indicated(z, kind)) {
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
   | SetIndicated(ChooseLivelit) =>
     switch (
-      List.filter_map(
-        kind => add_or_replace_indicated(kind, z),
-        ProjectorCore.livelit_projectors,
-      )
-    ) {
-    | [hd, ..._] => Ok(hd)
-    | [] => Error(Cant_project)
-    }
-  | ToggleIndicated(Specific(kind)) =>
-    switch (add_or_remove_indicated(kind, z)) {
-    | Some(z) => Ok(z)
-    | None => Error(Cant_project)
-    }
-  | ToggleIndicated(ChooseLivelit) =>
-    switch (
-      List.filter_map(
-        kind => add_or_remove_indicated(kind, z),
-        ProjectorCore.livelit_projectors,
-      )
+      List.filter_map(set_indicated(z), ProjectorCore.livelit_projectors)
     ) {
     | [hd, ..._] => Ok(hd)
     | [] => Error(Cant_project)
@@ -162,18 +118,8 @@ let go =
     | None => Error(Cant_project)
     }
   | SetSyntax(id, seg) =>
-    /* Note we update piece id to keep in sync with projector id;
-     * See intial id setting in Update.init */
-    //TODO(andrew): should need to replace anymore
-    Ok(
-      Update.update(
-        p =>
-          {...p, syntax: Piece.replace_id(id, Segment.parenthesize(seg))},
-        id,
-        z,
-      ),
-    )
-  | SetModel(id, model) => Ok(Update.update(pr => {...pr, model}, id, z))
+    Ok(update(p => {...p, syntax: Segment.parenthesize(seg)}, id, z))
+  | SetModel(id, model) => Ok(update(pr => {...pr, model}, id, z))
   | Focus(id, d) =>
     let z =
       switch (d) {

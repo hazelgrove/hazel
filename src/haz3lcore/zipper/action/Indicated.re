@@ -1,6 +1,7 @@
 open Util;
 open OptUtil.Syntax;
 
+[@deriving show]
 type relation =
   | Parent
   | Sibling;
@@ -99,14 +100,11 @@ let index = (z: ZipperBase.t): option(Id.t) =>
 
 /* Returns the projector at the caret, if any */
 let projector = (z: ZipperBase.t) => {
-  let* id = index(z);
-  let* (p, _, _) = piece(z);
-  let+ projector =
-    switch (p) {
-    | Projector(pr) => Some(pr)
-    | _ => None
-    };
-  (id, projector);
+  let* (p, _, _) = for_index(z);
+  switch (p) {
+  | Projector(pr) => Some((Piece.id(p), pr))
+  | _ => None
+  };
 };
 
 let piece'' = piece'(~no_ws=true, ~ign=Piece.is_secondary);

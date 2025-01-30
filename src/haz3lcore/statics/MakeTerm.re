@@ -121,12 +121,10 @@ let return = (wrap, ids, tm) => {
 
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
-let projector_pieces: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
 /* Strip a projector from a segment and log it in the map */
 let log_projector = (pr: Base.projector): unit => {
   projectors := Id.Map.add(pr.id, pr, projectors^);
-  projector_pieces := Id.Map.add(Piece.id(pr.syntax), pr, projector_pieces^);
 };
 
 /* Check if a term should be instrumented with a probe.
@@ -605,13 +603,12 @@ let go =
     seg => {
       map := TermMap.empty;
       projectors := Id.Map.empty;
-      projector_pieces := Id.Map.empty;
       let term = exp(unsorted(Segment.skel(seg), seg));
       {term, terms: map^, projectors: projectors^};
     },
   );
 
-let any =
+let for_projection =
   /* Returns Nul() unless segment represents a well-structured term in isolation.
    * This means that the term is complete, modulo non-empty holes and sort errors.
    * Specifically, it ensures there are no incomplete tiles in the segment, and
@@ -620,26 +617,17 @@ let any =
    * representing missing infix operators, and invalid tokens. */
   Core.Memo.general(~cache_size_bound=1000, (seg: Segment.t) =>
     if (!Segment.deep_tile_complete(seg)) {
-      None;
-          /* Returns Rul if any subsegment contains incomplete tiles */
+      None; /* Returns None if any subsegment contains incomplete tiles */
     } else if (Segment.is_padded(seg)) {
-      None;
-          /* Returns Nul the segment has secondary around it */
+      None; /* Returns None if the segment has secondary around it */
     } else {
       switch (Segment.skel(seg)) {
-      /* Returns Nul if any subsegment is non-convex */
-      | exception _ => None
+      | exception _ => None /* Returns None if any subsegment is non-convex */
       | skel =>
         let (unsorted, sort) = (
           unsorted(skel, seg),
           Segment.sort_of(skel, seg),
         );
-        /* Tuple / Prod cases prevents projection of pseudo-terms
-         * consisting of partial tuples / list listerals. This is
-         * overly restrictive as it rejects unparenthesized
-         * tuples; for that to work the logic would be need
-         * to check the surrounding syntactic context, so would
-         * need to do it at the callsite rather than here */
         switch (sort) {
         | Exp =>
           switch (exp(unsorted)) {
@@ -664,7 +652,6 @@ let any =
          * consisting of case scrutinee + rule(s) */
         | Rul => None
         | Any => Some(Any()) /* grout */
-        //TODO: Consider term rooted at concave grout
         };
       };
     }

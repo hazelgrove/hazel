@@ -126,7 +126,7 @@ let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
 let fold_if = (condition, pieces) =>
   if (condition) {
     let syntax = mk_form("parens_exp", Id.mk(), [pieces]);
-    switch (MakeTerm.any([syntax])) {
+    switch (MakeTerm.for_projection([syntax])) {
     | None => failwith("ExpToSegment.fold_if")
     | Some(any) => [ProjectorInit.init_or_noop(Fold, syntax, any)]
     };
@@ -138,7 +138,7 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
   if (condition) {
     let syntax = mk_form("parens_exp", Id.mk(), [pieces]);
     let str = FoldProj.sexp_of_t({text: f_name}) |> Sexplib.Sexp.to_string;
-    switch (MakeTerm.any([syntax])) {
+    switch (MakeTerm.for_projection([syntax])) {
     | None => failwith("ExpToSegment.fold_fun_if")
     | Some(any) => [
         ProjectorInit.init_or_noop_from_str(Fold, syntax, any, str),
