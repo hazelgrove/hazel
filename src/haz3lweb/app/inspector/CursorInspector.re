@@ -149,28 +149,37 @@ let common_err_view =
       text("inconsistent with arrow type"),
     ]
   | Inconsistent(Expectation({ana, syn})) =>
-    [
-      text(":"),
-      view_type(syn) |> code_box_container,
-      text("inconsistent with expected type"),
-      view_type(ana) |> code_box_container,
-    ]
-    @ (
-      switch (lifted_ty) {
-      | None => []
-      | Some(lifted) => [text(" lifted to"), view_type(lifted)]
-      }
-    )
-    @ (
-      switch (auto_labels) {
-      | [] => []
-      | [a] => [text("by automatically added label "), code(a)]
-      | _ => [
-          text("by automatically added labels "),
-          ...ListUtil.join(text(","), List.map(code, auto_labels)),
-        ]
-      }
-    )
+    switch (syn.term, ana.term) {
+    | (Label(syn_l), Label(an_label)) => [
+        text(":"),
+        code(syn_l),
+        text("but expected label"),
+        code(an_label),
+      ]
+    | _ =>
+      [
+        text(":"),
+        view_type(syn) |> code_box_container,
+        text("inconsistent with expected type"),
+        view_type(ana) |> code_box_container,
+      ]
+      @ (
+        switch (lifted_ty) {
+        | None => []
+        | Some(lifted) => [text(" lifted to"), view_type(lifted)]
+        }
+      )
+      @ (
+        switch (auto_labels) {
+        | [] => []
+        | [a] => [text("by automatically added label "), code(a)]
+        | _ => [
+            text("by automatically added labels "),
+            ...ListUtil.join(text(","), List.map(code, auto_labels)),
+          ]
+        }
+      )
+    }
   | Inconsistent(Internal(tys)) => [
       text(elements_noun(cls) ++ " have inconsistent types:"),
       ...ListUtil.join(text(","), List.map(view_type, tys)),
@@ -184,7 +193,7 @@ let common_ok_view =
       ~auto_labels: list(LabeledTuple.label)=[],
       ~lifted_ty: option(Typ.t)=?,
       cls: Cls.t,
-      ok: Info.ok_pat,
+      ok: Info.ok_common,
     ) => {
   let view_type =
     CodeViewable.view_typ(
@@ -219,29 +228,27 @@ let common_ok_view =
       view_type(ana),
     ]
   | (_, Ana(Consistent({ana, syn, _}))) when ana == syn =>
-    [text(":"), view_type(syn), text("equals expected type")]
-    @ (
-      switch (lifted_ty) {
-      | None => []
-      | Some(lifted) => [text(" lifted to"), view_type(lifted)]
-      }
-    )
-    @ (
-      switch (auto_labels) {
-      | [] => []
-      | [a] => [text("by automatically added label "), code(a)]
-      | _ => [
-          text("by automatically added labels "),
-          ...ListUtil.join(text(","), List.map(code, auto_labels)),
-        ]
-      }
-    )
-
-  | (_, Ana(Consistent({ana, syn, _}))) when ana == syn => [
-      text(":"),
-      view_type(syn),
-      text("equals expected type"),
-    ]
+    switch (syn.term) {
+    | Label(l) => [text(":"), code(l), text(" is a an expected label")]
+    | _ =>
+      [text(":"), view_type(syn), text("equals expected type")]
+      @ (
+        switch (lifted_ty) {
+        | None => []
+        | Some(lifted) => [text(" lifted to"), view_type(lifted)]
+        }
+      )
+      @ (
+        switch (auto_labels) {
+        | [] => []
+        | [a] => [text("by automatically added label "), code(a)]
+        | _ => [
+            text("by automatically added labels "),
+            ...ListUtil.join(text(","), List.map(code, auto_labels)),
+          ]
+        }
+      )
+    }
   | (_, Ana(Consistent({ana, syn, _}))) =>
     [
       text(":"),
