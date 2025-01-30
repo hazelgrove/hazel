@@ -314,16 +314,10 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     let+ ty2 = join'(ty2, ty2');
     Arrow(ty1, ty2) |> temp;
   | (Arrow(_), _) => None
-  | (TupLabel(_, ty1'), TupLabel(lab2, ty2')) =>
-    if (LabeledTuple.has_same_labels(
-          match_tup_label(ty1),
-          match_tup_label(ty2),
-        )) {
-      let+ ty = join'(ty1', ty2');
-      TupLabel(lab2, ty) |> temp;
-    } else {
-      None;
-    }
+  | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
+    let* lab = join'(lab1, lab2);
+    let+ ty = join'(ty1', ty2');
+    TupLabel(lab, ty) |> temp;
   | (TupLabel(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
     if (List.length(tys1) != List.length(tys2)) {

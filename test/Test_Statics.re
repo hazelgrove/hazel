@@ -5,15 +5,8 @@ let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
 let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
   switch (a, b) {
-  | (Common(DuplicateLabels(a, ty)), Common(DuplicateLabels(b, ty2))) =>
-    a == b && Typ.fast_equal(ty, ty2)
   | (Common(DuplicateLabel(l, ty)), Common(DuplicateLabel(r, ty2))) =>
     l == r && Typ.fast_equal(ty, ty2)
-  | (
-      Common(BadLabelsContained(a, ty)),
-      Common(BadLabelsContained(b, ty2)),
-    ) =>
-    a == b && Typ.fast_equal(ty, ty2)
   | (Common(NoType(BadLabel(a))), Common(NoType(BadLabel(b)))) =>
     Any.fast_equal(a, b)
   | (
@@ -21,6 +14,14 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
       Common(Inconsistent(Expectation({ana: b1, syn: b2}))),
     ) =>
     Typ.fast_equal(a1, b1) && Typ.fast_equal(a2, b2)
+  | (
+      Common(TupleLabelError(a, b, c, d)),
+      Common(TupleLabelError(a', b', c', d')),
+    ) =>
+    List.equal(Any.fast_equal, a, a')
+    && List.equal(String.equal, b, b')
+    && List.equal(String.equal, c, c')
+    && Typ.fast_equal(d, d')
   | _ =>
     Alcotest.fail(
       "Not implemented for "
@@ -723,11 +724,13 @@ let tests = (
 
         check(
           option(testable_info_error_exp),
-          "Duplicate labels Tuple Error",
+          "Tuple Error",
           Some(
             Common(
-              DuplicateLabels(
-                ["a"],
+              TupleLabelError(
+                [],
+                ["a", "a"],
+                [],
                 Prod([
                   TupLabel(
                     Label("a") |> Typ.temp,
@@ -744,11 +747,13 @@ let tests = (
 
         check(
           option(testable_info_error_exp),
-          "TupLabel1 error free",
+          "TupLabel1 Error",
           Some(
             Common(
-              DuplicateLabels(
+              TupleLabelError(
+                [],
                 ["a"],
+                [],
                 TupLabel(Label("a") |> Typ.temp, String |> Typ.temp)
                 |> Typ.temp,
               ),
@@ -758,11 +763,13 @@ let tests = (
         );
         check(
           option(testable_info_error_exp),
-          "TupLabel2 error free",
+          "TupLabel2 Error",
           Some(
             Common(
-              DuplicateLabels(
+              TupleLabelError(
+                [],
                 ["a"],
+                [],
                 TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp) |> Typ.temp,
               ),
             ),
@@ -816,8 +823,10 @@ let tests = (
           "Tuple",
           Some(
             Common(
-              BadLabelsContained(
+              TupleLabelError(
                 [Exp(l1)],
+                [],
+                [],
                 Prod([
                   TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
                   |> Typ.temp,
@@ -834,8 +843,10 @@ let tests = (
           "TupLabel1",
           Some(
             Common(
-              BadLabelsContained(
+              TupleLabelError(
                 [Exp(l1)],
+                [],
+                [],
                 TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
                 |> Typ.temp,
               ),
@@ -886,8 +897,10 @@ let tests = (
           "Tuple Error Free",
           Some(
             Common(
-              BadLabelsContained(
+              TupleLabelError(
                 [Exp(l1)],
+                [],
+                [],
                 Prod([
                   TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
                   |> Typ.temp,
@@ -906,8 +919,10 @@ let tests = (
           "TupLabel1 ",
           Some(
             Common(
-              BadLabelsContained(
+              TupleLabelError(
                 [Exp(l1)],
+                [],
+                [],
                 TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
                 |> Typ.temp,
               ),
@@ -977,11 +992,11 @@ let tests = (
           "Tuple Label1 Error",
           Some(
             Common(
-              Inconsistent(
-                Expectation({
-                  ana: int_ty,
-                  syn: TupLabel(Label("c") |> Typ.temp, int_ty) |> Typ.temp,
-                }),
+              TupleLabelError(
+                [],
+                [],
+                ["c"],
+                TupLabel(Label("c") |> Typ.temp, int_ty) |> Typ.temp,
               ),
             ),
           ),
@@ -996,7 +1011,21 @@ let tests = (
         check(
           option(testable_info_error_exp),
           "Tuple Error",
-          None,
+          Some(
+            Common(
+              TupleLabelError(
+                [],
+                [],
+                ["c"],
+                Prod([
+                  TupLabel(Label("c") |> Typ.temp, int_ty) |> Typ.temp,
+                  TupLabel(Label("a") |> Typ.temp, String |> Typ.temp)
+                  |> Typ.temp,
+                ])
+                |> Typ.temp,
+              ),
+            ),
+          ),
           Statics.get_error_at(s, IdTagged.rep_id(tuple)),
         );
       },

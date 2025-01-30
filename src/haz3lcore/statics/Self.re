@@ -29,12 +29,17 @@ type join_type =
 type t =
   | Just(Typ.t) /* Just a regular type */
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
-  | DuplicateLabels(list(LabeledTuple.label), Typ.t) /* Duplicate labels in a labeled tuple, treated as regular type (?) */
   | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
   | BadToken(Token.t) /* Invalid expression token, continues with undefined behavior */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
-  | BadLabelsContained(list(Any.t), Typ.t) /* Tuple/TupLabel contains invalid labels */
+  | UnexpectedLabel(LabeledTuple.label) /* Unexpected label in a labeled tuple */
+  | TupleLabelError(
+      list(Any.t),
+      list(LabeledTuple.label),
+      list(LabeledTuple.label),
+      Typ.t,
+    ) /* Tuple/TupLabel contains invalid labels, duplicate labels, and/or unexpected labels */
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
       name: Constructor.t,
@@ -78,9 +83,8 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
   _ctx =>
     fun
     | Just(typ)
-    | DuplicateLabels(_, typ)
-    | BadLabelsContained(_, typ)
-    | Duplicate(_, Just(typ)) => Some(typ)
+    | Duplicate(_, Just(typ))
+    | TupleLabelError(_, _, _, typ) => Some(typ)
     | IsConstructor({syn_ty, _}) => syn_ty
     | BadToken(_)
     | BadTrivAp(_)
@@ -89,6 +93,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | WantTuple
     | LabelNotFound(_)
     | BadLabel(_)
+    | UnexpectedLabel(_)
     | NoJoin(_) => None;
 
 let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
