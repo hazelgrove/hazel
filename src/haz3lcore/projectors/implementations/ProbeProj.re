@@ -647,7 +647,7 @@ let syntax_str = (info: info) => {
   let seg =
     switch (Segment.unparenthesize(info.syntax)) {
     | Some(seg) => seg
-    | None => [info.syntax]
+    | None => info.syntax
     };
   let str = Printer.of_segment(~holes=Some("?"), seg);
   let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
@@ -659,7 +659,7 @@ let syntax_view = (info: info) => info |> syntax_str |> text;
 //TODO(andrew): rm
 let _syntax_view = (view_seg, utility, info: info) => {
   let display_length = 12;
-  switch (utility.seg_to_term([info.syntax])) {
+  switch (utility.seg_to_term(info.syntax)) {
   | Some(TermBase.Exp(e)) =>
     let (view: Node.t, _length) =
       seg_view(view_seg, utility, display_length, e);

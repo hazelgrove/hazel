@@ -57,7 +57,8 @@ let kind = (editor: option(Editor.t)) => {
 
 let toggle_projector = (active, applicable_projectors): Action.project =>
   active || applicable_projectors == []
-    ? RemoveIndicated : SetIndicated(List.hd(applicable_projectors));
+    ? RemoveIndicated
+    : SetIndicated(Specific(List.hd(applicable_projectors)));
 
 let knob =
   div(
@@ -155,7 +156,7 @@ let select_view =
     ~attrs=[
       Attr.title(title),
       Attr.on_change((_, name) =>
-        inject(SetIndicated(ProjectorView.of_name(name)))
+        inject(SetIndicated(Specific(ProjectorView.of_name(name))))
       ),
       Attr.string_property("value", value),
     ],

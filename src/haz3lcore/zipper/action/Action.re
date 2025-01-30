@@ -44,7 +44,7 @@ type select =
   | Term(rel);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type livelit_toggle =
+type chooser =
   | Specific(ProjectorCore.kind)
   | ChooseLivelit;
 
@@ -54,10 +54,10 @@ type livelit_toggle =
  * and from each projector's own internal action type */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type project =
-  | SetIndicated(ProjectorCore.kind) /* Project syntax at caret */
-  | ToggleIndicated(livelit_toggle) /* Un/Project syntax at caret */
+  | SetIndicated(chooser) /* Project syntax at caret */
+  | ToggleIndicated(chooser) /* Un/Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
-  | SetSyntax(Id.t, Piece.t) /* Set underlying syntax */
+  | SetSyntax(Id.t, Base.segment) /* Set underlying syntax */
   | SetModel(Id.t, string) /* Set serialized projector model */
   | Focus(Id.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(Id.t, Direction.t); /* Pass control to parent editor */

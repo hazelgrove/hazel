@@ -9,7 +9,7 @@ let string_of = (any: Any.t): option(string) =>
   };
 
 let get = (info: info): string =>
-  switch ([info.syntax] |> info.utility.seg_to_term) {
+  switch (info.syntax |> info.utility.seg_to_term) {
   | Some(s) =>
     switch (string_of(s)) {
     | Some(s) => s
@@ -18,7 +18,7 @@ let get = (info: info): string =>
   | None => failwith("TextArea: get: Not string literal")
   };
 
-let put = (info, s: string): syntax =>
+let put = (info, s: string): Base.segment =>
   switch (
     info.utility.lift_syntax(
       fun

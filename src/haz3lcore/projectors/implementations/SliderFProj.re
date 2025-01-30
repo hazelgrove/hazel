@@ -17,7 +17,7 @@ module M: Projector = {
     };
 
   let get = (info: info): float =>
-    switch ([info.syntax] |> info.utility.seg_to_term) {
+    switch (info.syntax |> info.utility.seg_to_term) {
     | Some(f) =>
       switch (float_of(f)) {
       | Some(f) => f
@@ -26,7 +26,7 @@ module M: Projector = {
     | None => failwith("SliderF: Get: not float literal")
     };
 
-  let put = (info: info, v: string): syntax =>
+  let put = (info: info, v: string): Base.segment =>
     switch (
       info.utility.lift_syntax(
         fun

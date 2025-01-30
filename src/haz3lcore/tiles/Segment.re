@@ -764,7 +764,7 @@ let parenthesize = (~sort: option(Sort.t)=?, seg: t): Piece.t => {
   mk_duo(sort, seg);
 };
 
-let unparenthesize = (piece: Piece.t): option(t) =>
+let unparenthesize' = (piece: Piece.t): option(t) =>
   switch (piece) {
   | Tile({
       label: ["(", ")"],
@@ -774,6 +774,18 @@ let unparenthesize = (piece: Piece.t): option(t) =>
     }) =>
     Some(seg)
   | _ => None
+  };
+
+let unparenthesize = (seg: t): option(t) =>
+  switch (seg) {
+  | [piece] => unparenthesize'(piece)
+  | _ => None
+  };
+
+let unparenthesize_or_wrap = (piece: Base.piece): Base.segment =>
+  switch (unparenthesize'(piece)) {
+  | Some(seg) => seg
+  | None => [piece]
   };
 
 let rec take_while_secondary = (seg: t): (t, t) =>

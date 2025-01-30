@@ -19,21 +19,21 @@ type syntax = Base.piece;
 type external_action =
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
-  | SetSyntax(syntax); /* Set underlying syntax */
+  | SetSyntax(Base.segment); /* Set underlying syntax */
 
 /* Syntax utility functions/values for projector use,
  * provided here to resolve cyclic dependency issues */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type utility = {
   /* Convert a segment to a term */
-  seg_to_term: list(syntax) => option(Term.Any.t),
+  seg_to_term: Base.segment => option(Term.Any.t),
   /* Convert a term to a segment */
-  term_to_seg: Any.t => list(syntax),
+  term_to_seg: Any.t => Base.segment,
   /* Lifts term->term functions to syntax->syntax. This will
    * proactively attempt to parenthesize resulting non-single
    * piece terms. As such, sorts that do not have parentheses
    * (currently all degenerate cases) will throw an error */
-  lift_syntax: (Any.t => Any.t, syntax) => option(syntax),
+  lift_syntax: (Any.t => Any.t, Base.segment) => option(Base.segment),
 };
 
 /* External info proivded to all projectors */
@@ -48,7 +48,7 @@ type info = {
   /* The syntax underlying the projector. Currently this
    * is a single piece representing a complete term, but
    * this may be relaxed in the future. */
-  syntax,
+  syntax: Base.segment,
   /* Static information about the syntax including type
    * information. Statics may be disabled by the user;
    * this case (None) must be handled by projector authors */

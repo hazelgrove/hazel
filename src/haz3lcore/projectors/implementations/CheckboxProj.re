@@ -17,7 +17,7 @@ module M: Projector = {
     };
 
   let get = (info: info): bool =>
-    switch ([info.syntax] |> info.utility.seg_to_term) {
+    switch (info.syntax |> info.utility.seg_to_term) {
     | Some(b) =>
       switch (bool_of(b)) {
       | Some(b) => b
@@ -31,7 +31,7 @@ module M: Projector = {
     | Exp({term: Bool(b), _} as t) => Exp({...t, term: Bool(!b)})
     | _ => failwith("Checkbox: Toggle: not boolean literal");
 
-  let toggle = (info): syntax =>
+  let toggle = (info): Base.segment =>
     switch (info.utility.lift_syntax(toggle_bool_lit, info.syntax)) {
     | Some(s) => s
     | None => failwith("Checkbox: Toggle: lift failed")

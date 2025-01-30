@@ -17,7 +17,7 @@ module M: Projector = {
     };
 
   let get = (info: info): int =>
-    switch ([info.syntax] |> info.utility.seg_to_term) {
+    switch (info.syntax |> info.utility.seg_to_term) {
     | Some(i) =>
       switch (int_of(i)) {
       | Some(i) => i
@@ -26,7 +26,7 @@ module M: Projector = {
     | None => failwith("Slider: Get: not integer literal")
     };
 
-  let put = (info: info, v: string): syntax =>
+  let put = (info: info, v: string): Base.segment =>
     switch (
       info.utility.lift_syntax(
         fun
