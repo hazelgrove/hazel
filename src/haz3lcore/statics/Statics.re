@@ -184,7 +184,8 @@ and uexp_to_info_map =
     | Ana({term: Unknown(SynSwitch), _}) => Mode.Syn
     | _ => mode
     };
-  let add' = (~singleton_autolabelling=?, ~self, ~co_ctx, m) => {
+  let add' =
+      (~singleton_autolabelling=?, ~label_inference=?, ~self, ~co_ctx, m) => {
     let info =
       Info.derived_exp(
         ~uexp,
@@ -194,6 +195,7 @@ and uexp_to_info_map =
         ~self=Option.value(~default=self, override_self),
         ~co_ctx,
         ~singleton_autolabelling,
+        ~label_inference,
       );
 
     (info, add_info(ids, InfoExp(info), m));
@@ -445,10 +447,17 @@ and uexp_to_info_map =
         m,
       )
     | Tuple(es) =>
+      let original_labels =
+        List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
+
       let (es, modes) =
         Mode.of_prod(ctx, mode, es, Exp.match_tup_label, (name, b) =>
           TupLabel(Label(name) |> Exp.fresh, b) |> Exp.fresh
         );
+
+      let new_labels =
+        List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
+
       let duplicate_labels =
         LabeledTuple.get_duplicate_labels(Exp.match_tup_label, es);
       let (es', m) = map_m_go(~duplicates=duplicate_labels, m, modes, es);
@@ -493,7 +502,13 @@ and uexp_to_info_map =
               typ: Prod(ty_list) |> Typ.temp,
             });
 
-      add(~self, ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')), m);
+      add'(
+        ~self=Common(self),
+        ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')),
+        ~label_inference=
+          Info.derive_label_inference_info(original_labels, new_labels),
+        m,
+      );
     | Dot(e1, e2) =>
       let (info_e1, m) = go(~mode=Syn, e1, m);
       let (info_e2, m) = go(~mode=Ana(Label("") |> Typ.temp), e2, m);
@@ -833,6 +848,10 @@ and uexp_to_info_map =
                     // because redundancy doesn't make sense in a smaller context
                     ~constraint_=p_constraint,
                     ~singleton_autolabelling=None,
+                    ~label_inference={
+                      reordered: false,
+                      introduced_labels: [],
+                    },
                   );
                 (
                   // Override the info for the single upat
@@ -966,7 +985,15 @@ and upat_to_info_map =
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
-  let add = (~self, ~ctx, ~constraint_, ~singleton_autolabelling=?, m) => {
+  let add =
+      (
+        ~self,
+        ~ctx,
+        ~constraint_,
+        ~label_inference=?,
+        ~singleton_autolabelling=?,
+        m,
+      ) => {
     let prev_synswitch =
       switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
       | Some(Info.InfoPat({mode: Syn | SynFun, ty, _})) => Some(ty)
@@ -985,6 +1012,11 @@ and upat_to_info_map =
         ~self=Common(Option.value(~default=self, override_self)),
         ~constraint_,
         ~singleton_autolabelling,
+        ~label_inference=
+          Option.value(
+            ~default={reordered: false, introduced_labels: []}: Info.label_inference,
+            label_inference,
+          ),
       );
     (info, add_info(ids, InfoPat(info), m));
   };
@@ -1228,10 +1260,14 @@ and upat_to_info_map =
         m,
       );
     | Tuple(ps) =>
+      let original_labels =
+        List.map(p => Pat.match_tup_label(p) |> Option.map(fst), ps);
       let (ps, modes) =
         Mode.of_prod(ctx, mode, ps, Pat.match_tup_label, (name, b) =>
           TupLabel(Label(name) |> Pat.fresh, b) |> Pat.fresh
         );
+      let new_labels =
+        List.map(p => Pat.match_tup_label(p) |> Option.map(fst), ps);
       let rec cons_fold_tuple = cs =>
         switch (cs) {
         | [] => Constraint.Truth
@@ -1278,7 +1314,14 @@ and upat_to_info_map =
               typ: Prod(tys) |> Typ.temp,
             });
 
-      add(~self, ~ctx, ~constraint_=cons_fold_tuple(cons), m);
+      add(
+        ~self,
+        ~ctx,
+        ~constraint_=cons_fold_tuple(cons),
+        ~label_inference=
+          Info.derive_label_inference_info(original_labels, new_labels),
+        m,
+      );
     | Parens(p) =>
       let (p, m) = go(~ctx, ~mode, p, m);
       add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
