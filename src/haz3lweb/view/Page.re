@@ -347,44 +347,74 @@ module View = {
         JsUtil.focus_clipboard_shim();
         Effect.Ignore;
       }),
-      Attr.on_copy(_ => {
-        JsUtil.copy(
-          (cursor.selected_text |> Option.value(~default=() => ""))(),
-        );
+      Attr.on_copy(evt => {
+        let target = Js.Opt.to_option(evt##.target);
+        switch (target) {
+        | Some(el) =>
+          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
+          switch (elId) {
+          | Some("message-input") => ()
+          | _ =>
+            JsUtil.copy(
+              (cursor.selected_text |> Option.value(~default=() => ""))(),
+            )
+          };
+        | None => ()
+        };
         Effect.Ignore;
       }),
-      Attr.on_cut(_ => {
-        JsUtil.copy(
-          (cursor.selected_text |> Option.value(~default=() => ""))(),
-        );
-        Option.map(
-          inject,
-          Selection.handle_key_event(
-            ~selection=Some(model.selection),
-            ~event=
-              Key.{
-                key: D("Delete"),
-                sys: Os.is_mac^ ? Mac : PC,
-                shift: Up,
-                meta: Up,
-                ctrl: Up,
-                alt: Up,
-              },
-            model,
-          ),
-        )
-        |> Option.value(~default=Effect.Ignore);
+      Attr.on_cut(evt => {
+        let target = Js.Opt.to_option(evt##.target);
+        switch (target) {
+        | Some(el) =>
+          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
+          switch (elId) {
+          | Some("message-input") => Effect.Ignore
+          | _ =>
+            JsUtil.copy(
+              (cursor.selected_text |> Option.value(~default=() => ""))(),
+            );
+            Option.map(
+              inject,
+              Selection.handle_key_event(
+                ~selection=Some(model.selection),
+                ~event=
+                  Key.{
+                    key: D("Delete"),
+                    sys: Os.is_mac^ ? Mac : PC,
+                    shift: Up,
+                    meta: Up,
+                    ctrl: Up,
+                    alt: Up,
+                  },
+                model,
+              ),
+            )
+            |> Option.value(~default=Effect.Ignore);
+          };
+        | None => Effect.Ignore
+        };
       }),
     ]
     @ [
       Attr.on_paste(evt => {
-        let pasted_text =
-          Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-          |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
-        Dom.preventDefault(evt);
-        switch (cursor.editor_action(Paste(pasted_text))) {
+        let target = Js.Opt.to_option(evt##.target);
+        switch (target) {
+        | Some(el) =>
+          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
+          switch (elId) {
+          | Some("message-input") => Effect.Ignore
+          | _ =>
+            let pasted_text =
+              Js.to_string(evt##.clipboardData##getData(Js.string("text")))
+              |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
+            Dom.preventDefault(evt);
+            switch (cursor.editor_action(Paste(pasted_text))) {
+            | None => Effect.Ignore
+            | Some(action) => inject(Editors(action))
+            };
+          };
         | None => Effect.Ignore
-        | Some(action) => inject(Editors(action))
         };
       }),
     ];
