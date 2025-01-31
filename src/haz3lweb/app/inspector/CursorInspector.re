@@ -79,6 +79,7 @@ let common_err_view =
       ~globals,
       ~auto_labels: list(LabeledTuple.label)=[],
       ~lifted_ty: option(Typ.t)=?,
+      ~inferred_label: option(LabeledTuple.label)=?,
       cls: Cls.t,
       err: Info.error_common,
     ) => {
@@ -106,98 +107,117 @@ let common_err_view =
          ~info_map=Id.Map.empty,
        )
     |> code_box_container;
-  switch (err) {
-  | NoType(BadToken(token)) =>
-    switch (Form.bad_token_cls(token)) {
-    | BadInt => [text("Integer is too large or too small")]
-    | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
-    }
-  | NoType(BadTrivAp(ty)) => [
-      text("Function argument type"),
-      view_type(ty),
-      text("inconsistent with"),
-      view_type(Prod([]) |> Typ.fresh),
-    ]
-  | NoType(BadLabel(label)) => [
-      text("An invalid Label: "),
-      view_any(label),
-    ]
-  | NoType(FreeConstructor(name)) => [code(name), text("not found")]
-  | NoType(WantTuple) => [
-      text("Invalid Dot Operation: requires tuple for first argument"),
-    ]
-  | NoType(LabelNotFound(name, labels)) => [
-      text("Invalid Dot Operation: label "),
-      code(name),
-      text(" not found in tuple's labels: "),
-      ...List.map(code, labels),
-    ]
-  | NoType(UnexpectedLabel(name)) => [
-      text("Unexpected Label:"),
-      code(name),
-    ]
-  | TupleLabelError({invalid_labels, duplicate_labels, unexpected_labels, _}) =>
-    (
-      List.is_empty(invalid_labels)
-        ? []
-        : [text("Invalid labels: "), ...List.map(view_any, invalid_labels)]
-    )
-    @ (
-      List.is_empty(duplicate_labels)
-        ? []
-        : [text("Duplicate labels: "), ...List.map(code, duplicate_labels)]
-    )
-    @ (
-      List.is_empty(unexpected_labels)
-        ? []
-        : [
-          text("Unexpected labels: "),
-          ...List.map(code, unexpected_labels),
-        ]
-    )
-  | DuplicateLabel(name, _) => [text("Duplicated Label:"), code(name)]
-  | Inconsistent(WithArrow(typ)) => [
-      text(":"),
-      view_type(typ) |> code_box_container,
-      text("inconsistent with arrow type"),
-    ]
-  | Inconsistent(Expectation({ana, syn})) =>
-    switch (syn.term, ana.term) {
-    | (Label(syn_l), Label(an_label)) => [
-        text(":"),
-        code(syn_l),
-        text("but expected label"),
-        code(an_label),
+  (
+    switch (err) {
+    | NoType(BadToken(token)) =>
+      switch (Form.bad_token_cls(token)) {
+      | BadInt => [text("Integer is too large or too small")]
+      | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
+      }
+    | NoType(BadTrivAp(ty)) => [
+        text("Function argument type"),
+        view_type(ty),
+        text("inconsistent with"),
+        view_type(Prod([]) |> Typ.fresh),
       ]
-    | _ =>
-      [
-        text(":"),
-        view_type(syn) |> code_box_container,
-        text("inconsistent with expected type"),
-        view_type(ana) |> code_box_container,
+    | NoType(BadLabel(label)) => [
+        text("An invalid Label: "),
+        view_any(label),
       ]
-      @ (
-        switch (lifted_ty) {
-        | None => []
-        | Some(lifted) => [text(" lifted to"), view_type(lifted)]
-        }
-      )
-      @ (
-        switch (auto_labels) {
-        | [] => []
-        | [a] => [text("after automatically added label "), code(a)]
-        | _ => [
-            text("after automatically added labels "),
-            ...ListUtil.join(text(","), List.map(code, auto_labels)),
+    | NoType(FreeConstructor(name)) => [code(name), text("not found")]
+    | NoType(WantTuple) => [
+        text("Invalid Dot Operation: requires tuple for first argument"),
+      ]
+    | NoType(LabelNotFound(name, labels)) => [
+        text("Invalid Dot Operation: label "),
+        code(name),
+        text(" not found in tuple's labels: "),
+        ...List.map(code, labels),
+      ]
+    | NoType(UnexpectedLabel(name)) => [
+        text("Unexpected Label:"),
+        code(name),
+      ]
+    | TupleLabelError({
+        invalid_labels,
+        duplicate_labels,
+        unexpected_labels,
+        _,
+      }) =>
+      (
+        List.is_empty(invalid_labels)
+          ? []
+          : [
+            text("Invalid labels: "),
+            ...List.map(view_any, invalid_labels),
           ]
-        }
       )
+      @ (
+        List.is_empty(duplicate_labels)
+          ? []
+          : [
+            text("Duplicate labels: "),
+            ...List.map(code, duplicate_labels),
+          ]
+      )
+      @ (
+        List.is_empty(unexpected_labels)
+          ? []
+          : [
+            text("Unexpected labels: "),
+            ...List.map(code, unexpected_labels),
+          ]
+      )
+    | DuplicateLabel(name, _) => [text("Duplicated Label:"), code(name)]
+    | Inconsistent(WithArrow(typ)) => [
+        text(":"),
+        view_type(typ) |> code_box_container,
+        text("inconsistent with arrow type"),
+      ]
+    | Inconsistent(Expectation({ana, syn})) =>
+      switch (syn.term, ana.term) {
+      | (Label(syn_l), Label(an_label)) => [
+          text(":"),
+          code(syn_l),
+          text("but expected label"),
+          code(an_label),
+        ]
+      | _ =>
+        [
+          text(":"),
+          view_type(syn) |> code_box_container,
+          text("inconsistent with expected type"),
+          view_type(ana) |> code_box_container,
+        ]
+        @ (
+          switch (lifted_ty) {
+          | None => []
+          | Some(lifted) => [text(" lifted to"), view_type(lifted)]
+          }
+        )
+        @ (
+          switch (auto_labels) {
+          | [] => []
+          | [a] => [text("after automatically added label "), code(a)]
+          | _ => [
+              text("after automatically added labels "),
+              ...ListUtil.join(text(","), List.map(code, auto_labels)),
+            ]
+          }
+        )
+      }
+    | Inconsistent(Internal(tys)) => [
+        text(elements_noun(cls) ++ " have inconsistent types:"),
+        ...ListUtil.join(text(","), List.map(view_type, tys)),
+      ]
     }
-  | Inconsistent(Internal(tys)) => [
-      text(elements_noun(cls) ++ " have inconsistent types:"),
-      ...ListUtil.join(text(","), List.map(view_type, tys)),
-    ]
-  };
+  )
+  @ (
+    switch (inferred_label) {
+    | None => []
+    | Some(l) => [text(" for label "), code(l)]
+    }
+  );
 };
 
 let common_ok_view =
@@ -206,6 +226,7 @@ let common_ok_view =
       ~reordered: bool,
       ~introduced_labels: list(LabeledTuple.label)=[],
       ~lifted_ty: option(Typ.t)=?,
+      ~inferred_label: option(LabeledTuple.label)=?,
       cls: Cls.t,
       ok: Info.ok_common,
     ) => {
@@ -222,29 +243,59 @@ let common_ok_view =
         show_filters: false,
       },
     );
-  switch (cls, ok) {
-  | (Exp(MultiHole) | Pat(MultiHole), _) => [
-      text("Expecting operator or delimiter"),
-    ]
-  | (Exp(EmptyHole), Syn(_)) => [text("Fillable by any expression")]
-  | (Pat(EmptyHole), Syn(_)) => [text("Fillable by any pattern")]
-  | (Exp(EmptyHole), Ana(Consistent({ana, _}))) => [
-      text("Fillable by any expression of type"),
-      view_type(ana),
-    ]
-  | (Pat(EmptyHole), Ana(Consistent({ana, _}))) => [
-      text("Fillable by any pattern of type"),
-      view_type(ana),
-    ]
-  | (_, Syn(syn)) => [text(":"), view_type(syn)]
-  | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) => [
-      text(":"),
-      view_type(ana),
-    ]
-  | (_, Ana(Consistent({ana, syn, _}))) when ana == syn =>
-    switch (syn.term) {
-    | Label(l) => [text(":"), code(l), text(" is an expected label")]
-    | _ =>
+  (
+    switch (cls, ok) {
+    | (Exp(MultiHole) | Pat(MultiHole), _) => [
+        text("Expecting operator or delimiter"),
+      ]
+    | (Exp(EmptyHole), Syn(_)) => [text("Fillable by any expression")]
+    | (Pat(EmptyHole), Syn(_)) => [text("Fillable by any pattern")]
+    | (Exp(EmptyHole), Ana(Consistent({ana, _}))) => [
+        text("Fillable by any expression of type"),
+        view_type(ana),
+      ]
+    | (Pat(EmptyHole), Ana(Consistent({ana, _}))) => [
+        text("Fillable by any pattern of type"),
+        view_type(ana),
+      ]
+    | (_, Syn(syn)) => [text(":"), view_type(syn)]
+    | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) => [
+        text(":"),
+        view_type(ana),
+      ]
+    | (_, Ana(Consistent({ana, syn, _}))) when ana == syn =>
+      switch (syn.term) {
+      | Label(l) => [text(":"), code(l), text(" is an expected label")]
+      | _ =>
+        [text(":"), view_type(syn)]
+        @ (
+          switch (reordered) {
+          | false => []
+          | true => [text(" after reordering labels ")]
+          }
+        )
+        @ [text("equals expected type")]
+        @ (
+          switch (lifted_ty) {
+          | None => []
+          | Some(lifted) => [text(" lifted to"), view_type(lifted)]
+          }
+        )
+        @ (
+          switch (introduced_labels) {
+          | [] => []
+          | [a] => [text("by automatically added label "), code(a)]
+          | _ => [
+              text("by automatically added labels "),
+              ...ListUtil.join(
+                   text(","),
+                   List.map(code, introduced_labels),
+                 ),
+            ]
+          }
+        )
+      }
+    | (_, Ana(Consistent({ana, syn, _}))) =>
       [text(":"), view_type(syn)]
       @ (
         switch (reordered) {
@@ -252,7 +303,7 @@ let common_ok_view =
         | true => [text(" after reordering labels ")]
         }
       )
-      @ [text("equals expected type")]
+      @ [text("consistent with expected type"), view_type(ana)]
       @ (
         switch (lifted_ty) {
         | None => []
@@ -269,39 +320,20 @@ let common_ok_view =
           ]
         }
       )
+    | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
+      [
+        text(elements_noun(cls) ++ " have inconsistent types:"),
+        ...ListUtil.join(text(","), List.map(view_type, tys)),
+      ]
+      @ [text("but consistent with expected"), view_type(ana)]
     }
-  | (_, Ana(Consistent({ana, syn, _}))) =>
-    [text(":"), view_type(syn)]
-    @ (
-      switch (reordered) {
-      | false => []
-      | true => [text(" after reordering labels ")]
-      }
-    )
-    @ [text("consistent with expected type"), view_type(ana)]
-    @ (
-      switch (lifted_ty) {
-      | None => []
-      | Some(lifted) => [text(" lifted to"), view_type(lifted)]
-      }
-    )
-    @ (
-      switch (introduced_labels) {
-      | [] => []
-      | [a] => [text("by automatically added label "), code(a)]
-      | _ => [
-          text("by automatically added labels "),
-          ...ListUtil.join(text(","), List.map(code, introduced_labels)),
-        ]
-      }
-    )
-  | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
-    [
-      text(elements_noun(cls) ++ " have inconsistent types:"),
-      ...ListUtil.join(text(","), List.map(view_type, tys)),
-    ]
-    @ [text("but consistent with expected"), view_type(ana)]
-  };
+  )
+  @ (
+    switch (inferred_label) {
+    | None => []
+    | Some(l) => [text(" for label "), code(l)]
+    }
+  );
 };
 
 let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
@@ -412,7 +444,7 @@ let rec exp_view =
     | Some(SingletonLabelInference(_)) => Some(info.ty)
     | _ => None
     };
-
+  let inferred_label = info.inferred_label;
   let view_type =
     CodeViewable.view_typ(
       ~globals,
@@ -462,6 +494,7 @@ let rec exp_view =
         ~globals,
         ~auto_labels=introduced_labels,
         ~lifted_ty?,
+        ~inferred_label?,
         cls,
         error,
       ),
@@ -475,6 +508,7 @@ let rec exp_view =
         ~lifted_ty?,
         ~reordered,
         ~introduced_labels,
+        ~inferred_label?,
         cls,
         ok,
       ),

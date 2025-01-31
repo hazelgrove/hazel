@@ -174,6 +174,7 @@ and uexp_to_info_map =
       ~ancestors,
       ~duplicates: list(string),
       ~override_self: option(Self.exp)=?,
+      ~inferred_label: option(LabeledTuple.label)=?,
       {ids, copied: _, term} as uexp: Exp.t,
       m: Map.t,
     )
@@ -194,6 +195,7 @@ and uexp_to_info_map =
         ~self=Option.value(~default=self, override_self),
         ~co_ctx,
         ~label_inference,
+        ~inferred_label,
       );
 
     (info, add_info(ids, InfoExp(info), m));
@@ -209,6 +211,7 @@ and uexp_to_info_map =
         ~is_in_filter=is_in_filter,
         ~ancestors=ancestors,
         ~duplicates=[],
+        ~inferred_label: option(string)=?,
         ~override_self=?,
         uexp: Exp.t,
         m: Map.t,
@@ -220,6 +223,7 @@ and uexp_to_info_map =
       ~ancestors,
       ~duplicates,
       ~override_self?,
+      ~inferred_label?,
       uexp,
       m,
     );
@@ -391,7 +395,7 @@ and uexp_to_info_map =
               label,
               m,
             );
-          let (e, m) = go(~mode=val_mode, e, m);
+          let (e, m) = go(~mode=val_mode, ~inferred_label?, e, m);
           (lab, e, m);
         | _ =>
           let (lab, m) =
@@ -408,7 +412,13 @@ and uexp_to_info_map =
               m,
             );
 
-          let (e, m) = go(~mode=Ana(Unknown(Internal) |> Typ.temp), e, m);
+          let (e, m) =
+            go(
+              ~mode=Ana(Unknown(Internal) |> Typ.temp),
+              ~inferred_label?,
+              e,
+              m,
+            );
           (lab, e, m);
         };
 
@@ -453,17 +463,40 @@ and uexp_to_info_map =
       let original_labels =
         List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
 
-      let (es, modes) =
-        Mode.of_prod(ctx, mode, es, Exp.match_tup_label, (name, b) =>
-          TupLabel(Label(name) |> Exp.fresh, b) |> Exp.fresh
+      let (inferred_es, modes) =
+        Mode.of_prod(
+          ctx,
+          mode,
+          List.map(e => (None: option(string), e), es),
+          ((inferred, e)) => {
+            Exp.match_tup_label(e)
+            |> Option.map(((label, value)) => (label, (inferred, value)))
+          },
+          (name, (_, e)) =>
+            (
+              Some(name),
+              TupLabel(Label(name) |> Exp.fresh, e) |> Exp.fresh,
+            ),
         );
+      let es = List.map(snd, inferred_es);
+      let inferred = List.map(fst, inferred_es);
 
       let new_labels =
         List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
 
       let duplicate_labels =
         LabeledTuple.get_duplicate_labels(Exp.match_tup_label, es);
-      let (es', m) = map_m_go(~duplicates=duplicate_labels, m, modes, es);
+
+      let (es', m) =
+        List.fold_left2(
+          ((es, m), mode, (inferred_label, e)) => {
+            go(~mode, ~inferred_label?, ~duplicates=duplicate_labels, e, m)
+            |> (((e, m)) => (es @ [e], m))
+          },
+          ([], m),
+          modes,
+          List.combine(inferred, es),
+        );
       let ty_list = List.map(Info.exp_ty, es');
 
       let (invalid_labels, duplicate_labels, unexpected_labels) =

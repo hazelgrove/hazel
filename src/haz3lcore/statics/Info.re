@@ -235,7 +235,8 @@ type exp = {
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
   ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
-  label_inference: option(label_inference(exp)),
+  label_inference: option(label_inference(exp)), /* Label inference information for the tuple */
+  inferred_label: option(LabeledTuple.label) /* Inferred label for an expression within the tuple */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -739,6 +740,7 @@ let derived_exp =
       ~self,
       ~co_ctx,
       ~label_inference: option(label_inference(exp)),
+      ~inferred_label: option(LabeledTuple.label),
     )
     : exp => {
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
@@ -755,6 +757,7 @@ let derived_exp =
     ancestors,
     term: uexp,
     label_inference,
+    inferred_label,
   };
 };
 
