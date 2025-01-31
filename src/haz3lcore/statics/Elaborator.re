@@ -73,7 +73,7 @@ let elaborated_type =
 
 let elaborated_pat_type =
     (m: Statics.Map.t, upat: Pat.t): (Typ.t, Ctx.t, Pat.t) => {
-  let (mode, self_ty, ctx, prev_synswitch, term, singleton_autolabelling) =
+  let (mode, self_ty, ctx, prev_synswitch, term, label_inference) =
     switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
     | Some(
         Info.InfoPat({
@@ -82,7 +82,7 @@ let elaborated_pat_type =
           ctx,
           prev_synswitch,
           term,
-          singleton_autolabelling,
+          label_inference,
           _,
         }),
       ) => (
@@ -91,7 +91,7 @@ let elaborated_pat_type =
         ctx,
         prev_synswitch,
         term,
-        singleton_autolabelling,
+        label_inference,
       )
     | _ => raise(MissingTypeInfo)
     };
@@ -110,14 +110,14 @@ let elaborated_pat_type =
       | None => ana_ty
       | Some(syn_ty) =>
         // Autolabelling for singleton labeled tuples
-        switch (singleton_autolabelling) {
-        | Some({label: l, _}) =>
+        switch (label_inference) {
+        | Some(SingletonLabelInference({label: l, _})) =>
           Typ.match_synswitch(
             Prod([TupLabel(Label(l) |> Typ.temp, syn_ty) |> Typ.temp])
             |> Typ.temp,
             ana_ty,
           )
-        | None => Typ.match_synswitch(syn_ty, ana_ty)
+        | _ => Typ.match_synswitch(syn_ty, ana_ty)
         }
       }
     };
