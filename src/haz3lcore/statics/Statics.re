@@ -884,6 +884,7 @@ and uexp_to_info_map =
                     // because redundancy doesn't make sense in a smaller context
                     ~constraint_=p_constraint,
                     ~label_inference=None,
+                    ~inferred_label,
                   );
                 (
                   // Override the info for the single upat
@@ -1013,6 +1014,7 @@ and upat_to_info_map =
       ~mode: Mode.t=Mode.Syn,
       ~under_ascription: bool=false,
       ~override_self: option(Self.t)=?,
+      ~inferred_label=?,
       {ids, term, _} as upat: Pat.t,
       m: Map.t,
     )
@@ -1036,6 +1038,7 @@ and upat_to_info_map =
         ~self=Common(Option.value(~default=self, override_self)),
         ~constraint_,
         ~label_inference,
+        ~inferred_label,
       );
     (info, add_info(ids, InfoPat(info), m));
   };
@@ -1049,6 +1052,7 @@ and upat_to_info_map =
         ~mode,
         ~under_ascription=false,
         ~override_self=?,
+        ~inferred_label=?,
         upat: Pat.t,
         m: Map.t,
       ) => {
@@ -1061,6 +1065,7 @@ and upat_to_info_map =
       ~mode,
       ~under_ascription,
       ~override_self?,
+      ~inferred_label?,
       upat,
       m: Map.t,
     );
@@ -1073,7 +1078,7 @@ and upat_to_info_map =
   let ctx_fold = (ctx: Ctx.t, m, ~duplicates=[]) =>
     List.fold_left2(
       ((ctx, tys, cons, m, info_all), e, mode) =>
-        go(~ctx, ~mode, ~duplicates, e, m)
+        go(~ctx, ~mode, ~duplicates, ~inferred_label?, e, m)
         |> (
           ((info, m)) => (
             info.ctx,
@@ -1223,7 +1228,7 @@ and upat_to_info_map =
               label,
               m,
             );
-          let (p, m) = go(~ctx, ~mode=val_mode, p, m);
+          let (p, m) = go(~ctx, ~mode=val_mode, ~inferred_label?, p, m);
           (lab, p, m);
         | _ =>
           let (lab, m) =
@@ -1242,7 +1247,13 @@ and upat_to_info_map =
             );
 
           let (p, m) =
-            go(~ctx, ~mode=Ana(Unknown(Internal) |> Typ.temp), p, m);
+            go(
+              ~ctx,
+              ~mode=Ana(Unknown(Internal) |> Typ.temp),
+              ~inferred_label?,
+              p,
+              m,
+            );
           (lab, p, m);
         };
 
@@ -1285,10 +1296,25 @@ and upat_to_info_map =
     | Tuple(ps) =>
       let original_labels =
         List.map(p => Pat.match_tup_label(p) |> Option.map(fst), ps);
-      let (ps, modes) =
-        Mode.of_prod(ctx, mode, ps, Pat.match_tup_label, (name, b) =>
-          TupLabel(Label(name) |> Pat.fresh, b) |> Pat.fresh
+
+      let (inferred_ps, modes) =
+        Mode.of_prod(
+          ctx,
+          mode,
+          List.map(p => (None: option(string), p), ps),
+          ((inferred, p)) => {
+            Pat.match_tup_label(p)
+            |> Option.map(((label, value)) => (label, (inferred, value)))
+          },
+          (name, (_, p)) =>
+            (
+              Some(name),
+              TupLabel(Label(name) |> Pat.fresh, p) |> Pat.fresh,
+            ),
         );
+      let ps = List.map(snd, inferred_ps);
+      let inferred = List.map(fst, inferred_ps);
+
       let new_labels =
         List.map(p => Pat.match_tup_label(p) |> Option.map(fst), ps);
       let rec cons_fold_tuple = cs =>
@@ -1300,7 +1326,30 @@ and upat_to_info_map =
       let duplicate_labels =
         LabeledTuple.get_duplicate_labels(Pat.match_tup_label, ps);
       let (ctx, tys, cons, m, info_pats) =
-        ctx_fold(ctx, m, ~duplicates=duplicate_labels, ps, modes);
+        List.fold_left2(
+          ((ctx, tys, cons, m, info_all), (inferred_label, e), mode) =>
+            go(
+              ~ctx,
+              ~mode,
+              ~inferred_label?,
+              ~duplicates=duplicate_labels,
+              e,
+              m,
+            )
+            |> (
+              ((info, m)) => (
+                info.ctx,
+                tys @ [info.ty],
+                cons @ [info.constraint_],
+                m,
+                info_all @ [info],
+              )
+            ),
+          (ctx, [], [], m, []),
+          List.combine(inferred, ps),
+          modes,
+        );
+
       let (invalid_labels, duplicate_labels, unexpected_labels) =
         List.fold_left(
           ((a, b, c), e: Info.pat) => {

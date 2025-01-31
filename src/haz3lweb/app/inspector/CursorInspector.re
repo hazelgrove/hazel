@@ -77,9 +77,9 @@ let elements_noun: Cls.t => string =
 let common_err_view =
     (
       ~globals,
-      ~auto_labels: list(LabeledTuple.label)=[],
-      ~lifted_ty: option(Typ.t)=?,
-      ~inferred_label: option(LabeledTuple.label)=?,
+      ~introduced_labels: list(LabeledTuple.label),
+      ~lifted_ty: option(Typ.t),
+      ~inferred_label: option(LabeledTuple.label),
       cls: Cls.t,
       err: Info.error_common,
     ) => {
@@ -196,12 +196,15 @@ let common_err_view =
           }
         )
         @ (
-          switch (auto_labels) {
+          switch (introduced_labels) {
           | [] => []
           | [a] => [text("after automatically added label "), code(a)]
           | _ => [
               text("after automatically added labels "),
-              ...ListUtil.join(text(","), List.map(code, auto_labels)),
+              ...ListUtil.join(
+                   text(","),
+                   List.map(code, introduced_labels),
+                 ),
             ]
           }
         )
@@ -224,9 +227,9 @@ let common_ok_view =
     (
       ~globals,
       ~reordered: bool,
-      ~introduced_labels: list(LabeledTuple.label)=[],
-      ~lifted_ty: option(Typ.t)=?,
-      ~inferred_label: option(LabeledTuple.label)=?,
+      ~introduced_labels: list(LabeledTuple.label),
+      ~lifted_ty: option(Typ.t),
+      ~inferred_label: option(LabeledTuple.label),
       cls: Cls.t,
       ok: Info.ok_common,
     ) => {
@@ -492,9 +495,9 @@ let rec exp_view =
     div_err(
       common_err_view(
         ~globals,
-        ~auto_labels=introduced_labels,
-        ~lifted_ty?,
-        ~inferred_label?,
+        ~introduced_labels,
+        ~lifted_ty,
+        ~inferred_label,
         cls,
         error,
       ),
@@ -505,10 +508,10 @@ let rec exp_view =
     div_ok(
       common_ok_view(
         ~globals,
-        ~lifted_ty?,
+        ~lifted_ty,
         ~reordered,
         ~introduced_labels,
-        ~inferred_label?,
+        ~inferred_label,
         cls,
         ok,
       ),
@@ -523,6 +526,14 @@ let rec pat_view =
     | Some(SingletonLabelInference(_)) => Some(info.ty)
     | _ => None
     };
+  let inferred_label = info.inferred_label;
+  let introduced_labels =
+    switch (info.label_inference) {
+    | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
+    | Some(SingletonLabelInference({label, pre_labeled_info})) =>
+      [label] @ automatic_inserted_labels_pat(Some(pre_labeled_info))
+    | _ => []
+    };
 
   switch (status) {
   | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
@@ -535,24 +546,29 @@ let rec pat_view =
         text("; pattern is redundant"),
       ])
     }
-  | InHole(Common(error)) => div_err(common_err_view(~globals, cls, error))
+  | InHole(Common(error)) =>
+    div_err(
+      common_err_view(
+        ~globals,
+        ~inferred_label,
+        ~introduced_labels,
+        ~lifted_ty,
+        cls,
+        error,
+      ),
+    )
   | NotInHole(ok) =>
     div_ok(
       common_ok_view(
         ~globals,
-        ~lifted_ty?,
+        ~lifted_ty,
         ~reordered=
           switch (info.label_inference) {
           | Some(MultiLabelInference({reordered, _})) => reordered
           | _ => false
           },
-        ~introduced_labels=
-          switch (info.label_inference) {
-          | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
-          | Some(SingletonLabelInference({label, pre_labeled_info})) =>
-            [label] @ automatic_inserted_labels_pat(Some(pre_labeled_info))
-          | _ => []
-          },
+        ~introduced_labels,
+        ~inferred_label,
         cls,
         ok,
       ),
