@@ -39,7 +39,7 @@ module M: Projector = {
     | None => failwith("SliderF: Put: lift failed")
     };
 
-  let can_project = (_, any) => float_of(any) != None;
+  let can_project = any => float_of(any) != None;
   let can_focus = false;
   let dynamics = false;
   let placeholder = (_, _) => ProjectorCore.inline(10);

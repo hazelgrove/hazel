@@ -204,7 +204,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_ctr(t) =>
         ret(Constructor(t, Unknown(Internal) |> Typ.temp))
-      | (["(", ")"], [Exp(body)]) => ret(Wrap(body, Paren))
+      | (["(", ")"], [Exp(body)]) => ret(Wrap(body, Parens))
       | (label, [Exp(body)]) when is_probe_wrap(label) =>
         // Temporary wrapping form to persist projector probes
         ret(
@@ -372,7 +372,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           Constructor(t, Unknown(Internal) |> Typ.fresh)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Invalid(t)
-        | (["(", ")"], [Pat(body)]) => Wrap(body, Paren)
+        | (["(", ")"], [Pat(body)]) => Wrap(body, Parens)
         | (label, [Pat(body)]) when is_probe_wrap(label) =>
           should_instrument(id) ? Wrap(body, Probe(Probe.empty)) : body.term
         | (["[", "]"], [Pat(body)]) =>

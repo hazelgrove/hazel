@@ -287,7 +287,7 @@ and uexp_to_info_map =
       m,
     )
   | DynamicErrorHole(e, _)
-  | Wrap(e, Paren) =>
+  | Wrap(e, Parens) =>
     let (e, m) = go(~mode, e, m);
     add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
   | Wrap(e, Probe(_)) =>
@@ -825,7 +825,7 @@ and upat_to_info_map =
     let (ci, map) = go(~ctx, ~mode, p, m);
     let map = add_info(ids, InfoPat(ci), map);
     (ci, map);
-  | Wrap(p, Paren) =>
+  | Wrap(p, Parens) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
   | Constructor(ctr, _) =>

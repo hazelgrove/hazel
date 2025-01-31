@@ -774,7 +774,7 @@ module Transition = (EV: EV_MODE) => {
         kind: RemoveParens,
         is_value: true,
       });
-    | Wrap(d, Paren) =>
+    | Wrap(d, Parens) =>
       let. _ = otherwise(env, d);
       Step({expr: d, state_update, kind: RemoveParens, is_value: false});
     | TyAlias(_, _, d) =>

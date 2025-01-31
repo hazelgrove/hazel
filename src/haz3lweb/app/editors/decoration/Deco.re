@@ -459,6 +459,7 @@ module Deco =
     try(
       switch (Id.Map.find_opt(id, projectors)) {
       | Some(p) =>
+        print_endline("error_view: Some");
         /* Special case for projectors as they are not in tile map */
         let shapes = ProjectorBase.shapes(p);
         let measurement = Id.Map.find(id, measured.projectors);

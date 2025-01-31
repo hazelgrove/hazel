@@ -45,7 +45,7 @@ module M: Projector = {
   let underlay_view = Option.None;
   let focus = _ => ();
 
-  let can_project = (_: Piece.t, any: Term.Any.t): bool => {
+  let can_project = (any: Term.Any.t): bool => {
     switch (any) {
     | Exp(_)
     | Pat(_) => true

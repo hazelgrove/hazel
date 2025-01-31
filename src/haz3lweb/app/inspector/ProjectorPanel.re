@@ -17,48 +17,26 @@ let indicated_kind = (editor: option(Editor.t)) => {
 };
 
 module Applicable = {
-  /* Determines projectors applicable to indicated term */
-
-  let is_indicated_piece_rule = (indicated_piece: option(Piece.t)) =>
-    switch (indicated_piece) {
-    | Some(Piece.Tile({label: ["|", "=>"], _})) => true
-    | _ => false
-    };
-  let indicated_term =
-      (cursor: Cursor.cursor(Editors.Update.t)): option(Term.Any.t) =>
-    /* The condition on rule pieces here addresses an edge case where the
-     * term selection logic considers rules to be terms but they are
-     * nonconvex and currently cannot be projected. */
-    is_indicated_piece_rule(cursor.indicated_piece)
-      ? {
-        let* info = cursor.info;
-        let+ term = Info.any_of(info);
-        term;
-      }
-      : {
-        let* info = cursor.info;
-        let+ term = Info.any_of(info);
-        term;
-      };
-
   /* Determines what term to target for projection. Ideally this would
    * use exactly the same logic as ProjectorPerform, which, in the event
    * there is no selection, tries to form one with Select.current_term,
    * and then proceeds in the same way as if there was an existing selection.
    * However, I haven't found a good way to call Select.current_term here
-   * due to dependencies, so for now we individually handle an edge case */
+   * due to dependencies, so for now we duplicate the logic here */
   let target_term = (cursor: Cursor.cursor(Editors.Update.t)) =>
     switch (cursor.selection) {
-    | None => indicated_term(cursor)
-    | Some(selection) =>
-      switch (selection) {
-      | [] => indicated_term(cursor)
-      | seg =>
-        switch (MakeTerm.for_projection(seg)) {
-        | None => None
-        | Some(term) => Some(term)
-        }
+    | None
+    | Some([]) =>
+      switch (cursor.indicated_piece) {
+      | Some(Projector({syntax, _})) =>
+        MakeTerm.for_projection(Segment.unparenthesize_or_wrap(syntax))
+      | _ =>
+        let* info = cursor.info;
+        Info.any_of(info);
       }
+    | Some([Projector({syntax, _})]) =>
+      MakeTerm.for_projection(Segment.unparenthesize_or_wrap(syntax))
+    | Some(seg) => MakeTerm.for_projection(seg)
     };
 
   /* Is a projector of `kind` applicable to the
@@ -67,9 +45,8 @@ module Applicable = {
       (cursor: Cursor.cursor(Editors.Update.t), kind: ProjectorCore.kind)
       : option(ProjectorCore.kind) => {
     let (module P) = ProjectorInit.to_module(kind);
-    let* piece = cursor.indicated_piece;
     let* term = target_term(cursor);
-    P.can_project(piece, term) ? Some(kind) : None;
+    P.can_project(term) ? Some(kind) : None;
   };
 
   let lift = (str, strs) => List.cons(str, List.filter((!=)(str), strs));
@@ -147,12 +124,15 @@ let select_view =
     | [] => ""
     | [hd, ..._] => keyboard_shortcut_of(hd)
     };
+  print_endline("select_view: " ++ value);
   Node.select(
     ~attrs=[
+      Attr.id("projector-select"),
       Attr.title(title),
-      Attr.on_change((_, name) =>
-        inject(SetIndicated(Specific(ProjectorView.of_name(name))))
-      ),
+      Attr.on_change((_, name) => {
+        JsUtil.set_select_value("projector-select", name);
+        inject(SetIndicated(Specific(ProjectorView.of_name(name))));
+      }),
       Attr.string_property("value", value),
     ],
     applicable_projector_strings |> List.map(n => option([text(n)])),

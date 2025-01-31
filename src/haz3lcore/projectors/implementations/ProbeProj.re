@@ -243,9 +243,6 @@ module DynCursor = {
       stack |> List.map(Id.str3) |> String.concat("\n");
 
     let str = (info, closure: closure): string =>
-      //"closure_id: "
-      //++ of_id(closure.closure_id)
-      //++
       "ap:"
       ++ (
         switch (cur_call(info, closure)) {
@@ -255,8 +252,6 @@ module DynCursor = {
       )
       ++ "\nstack:\n"
       ++ stack(closure.call_stack);
-    // ++ "DynCursor:\n"
-    // ++ String.concat("\n", DynCursor.clss(info, closure));
   };
 };
 
@@ -471,7 +466,7 @@ let value_view =
 
   div(
     ~attrs=[
-      Attr.title(DynCursor.Debug.str(info, closure)),
+      //Attr.title(DynCursor.Debug.str(info, closure)),
       Attr.classes(
         ["value"]
         @ DynCursor.clss(info, closure)
@@ -768,7 +763,7 @@ module M: Projector = {
   let can_focus = false;
   let focus = _ => ();
 
-  let can_project = (_, any: Term.Any.t) =>
+  let can_project = (any: Term.Any.t) =>
     switch (any) {
     | Exp(_) => true
     | Pat(_) => true

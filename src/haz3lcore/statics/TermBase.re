@@ -47,6 +47,11 @@ type deferral_position_t =
  */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type wrap =
+  | Parens
+  | Probe(Probe.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type any_t =
   | Exp(exp_t)
   | Pat(pat_t)
@@ -88,7 +93,7 @@ and exp_term =
   | Test(exp_t)
   | Filter(stepper_filter_kind_t, exp_t)
   | Closure([@show.opaque] closure_environment_t, exp_t)
-  | Wrap(exp_t, Probe.tag)
+  | Wrap(exp_t, wrap)
   | Cons(exp_t, exp_t)
   | ListConcat(exp_t, exp_t)
   | UnOp(Operators.op_un, exp_t)
@@ -114,7 +119,7 @@ and pat_term =
   | Cons(pat_t, pat_t)
   | Var(Var.t)
   | Tuple(list(pat_t))
-  | Wrap(pat_t, Probe.tag)
+  | Wrap(pat_t, wrap)
   | Ap(pat_t, pat_t)
   | Cast(pat_t, typ_t, typ_t)
 and pat_t = IdTagged.t(pat_term)
@@ -354,9 +359,9 @@ and Exp: {
   let rec fast_equal = (e1, e2) =>
     switch (e1 |> IdTagged.term_of, e2 |> IdTagged.term_of) {
     | (DynamicErrorHole(x, _), _)
-    | (Wrap(x, Paren), _) => fast_equal(x, e2)
+    | (Wrap(x, Parens), _) => fast_equal(x, e2)
     | (_, DynamicErrorHole(x, _))
-    | (_, Wrap(x, Paren)) => fast_equal(e1, x)
+    | (_, Wrap(x, Parens)) => fast_equal(e1, x)
     /* Below is kind of a hack to make EvalResult.calculate go after adding a projector.
      * We should clarify syntactic/semantic equality here */
     | (Wrap(x1, Probe(_)), Wrap(x2, Probe(_))) => fast_equal(x1, x2)

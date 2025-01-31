@@ -121,25 +121,29 @@ let go =
     Ok(update(p => {...p, syntax: Segment.parenthesize(seg)}, id, z))
   | SetModel(id, model) => Ok(update(pr => {...pr, model}, id, z))
   | Focus(id, d) =>
-    let z =
-      switch (d) {
-      | None =>
-        /* d == None means focus by mouse click */
-        jump_to_id_indicated(z, id) |> Option.value(~default=z)
-      | Some(_) => z
+    switch (d) {
+    | None =>
+      /* Focus by mouse click */
+      Ok(Option.value(~default=z, jump_to_id_indicated(z, id)))
+    | Some(Right) =>
+      /* Focus by keyboard handoff */
+      switch (Siblings.left_neighbor(z.relatives.siblings)) {
+      | Some(Projector({id, kind, _})) =>
+        let (module P) = ProjectorInit.to_module(kind);
+        P.focus((id, Some(Right)));
+      | _ => ()
       };
-    switch (Siblings.neighbors(z.relatives.siblings), d) {
-    | _ when z.caret != Outer => Error(Cant_project)
-    | ((Some(Projector({id, kind, _})), _), Some(Right)) =>
-      let (module P) = ProjectorInit.to_module(kind);
-      P.focus((id, Some(Right)));
       Ok(z);
-    | ((_, Some(Projector({id, kind, _}))), Some(Left)) =>
-      let (module P) = ProjectorInit.to_module(kind);
-      P.focus((id, Some(Left)));
+    | Some(Left) =>
+      /* Focus by keyboard handoff */
+      switch (Siblings.right_neighbor(z.relatives.siblings)) {
+      | Some(Projector({id, kind, _})) =>
+        let (module P) = ProjectorInit.to_module(kind);
+        P.focus((id, Some(Left)));
+      | _ => ()
+      };
       Ok(z);
-    | _ => Error(Cant_project)
-    };
+    }
   | Escape(id, d) => Ok(jump_to_side_of_id(d, z, id))
   };
 };

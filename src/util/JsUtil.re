@@ -203,3 +203,11 @@ let delay = (delay: float, callback: unit => unit) => {
     );
   ();
 };
+
+let set_select_value = (select_id, value) => {
+  Js_of_ocaml.Js.Unsafe.set(
+    get_elem_by_id(select_id),
+    "value",
+    Js_of_ocaml.Js.string(value),
+  );
+};
