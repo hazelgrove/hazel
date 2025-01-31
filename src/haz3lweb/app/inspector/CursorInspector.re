@@ -185,9 +185,9 @@ let common_err_view =
       @ (
         switch (auto_labels) {
         | [] => []
-        | [a] => [text("by automatically added label "), code(a)]
+        | [a] => [text("after automatically added label "), code(a)]
         | _ => [
-            text("by automatically added labels "),
+            text("after automatically added labels "),
             ...ListUtil.join(text(","), List.map(code, auto_labels)),
           ]
         }
@@ -204,6 +204,7 @@ let common_ok_view =
     (
       ~globals,
       ~auto_labels: list(LabeledTuple.label)=[],
+      ~label_inference: Info.label_inference,
       ~lifted_ty: option(Typ.t)=?,
       cls: Cls.t,
       ok: Info.ok_common,
@@ -244,7 +245,14 @@ let common_ok_view =
     switch (syn.term) {
     | Label(l) => [text(":"), code(l), text(" is a an expected label")]
     | _ =>
-      [text(":"), view_type(syn), text("equals expected type")]
+      [text(":"), view_type(syn)]
+      @ (
+        switch (label_inference.reordered) {
+        | false => []
+        | true => [text(" after reordering labels ")]
+        }
+      )
+      @ [text("equals expected type")]
       @ (
         switch (lifted_ty) {
         | None => []
@@ -254,21 +262,42 @@ let common_ok_view =
       @ (
         switch (auto_labels) {
         | [] => []
-        | [a] => [text("by automatically added label "), code(a)]
+        | [a] => [text("after automatically added label "), code(a)]
         | _ => [
-            text("by automatically added labels "),
+            text("after automatically added labels "),
             ...ListUtil.join(text(","), List.map(code, auto_labels)),
           ]
         }
       )
     }
   | (_, Ana(Consistent({ana, syn, _}))) =>
-    [
-      text(":"),
-      view_type(syn),
-      text("consistent with expected type"),
-      view_type(ana),
-    ]
+    [text(":"), view_type(syn)]
+    @ (
+      switch (label_inference.introduced_labels) {
+      | [] => []
+      | [a] => [text("by automatically added label "), code(a)]
+      | _ => [
+          text("by automatically added labels "),
+          ...ListUtil.join(
+               text(","),
+               List.map(code, label_inference.introduced_labels),
+             ),
+        ]
+      }
+    )
+    @ (
+      switch (label_inference.reordered) {
+      | false => []
+      | true => [text(" after reordering labels ")]
+      }
+    )
+    @ [text("consistent with expected type"), view_type(ana)]
+    @ (
+      switch (lifted_ty) {
+      | None => []
+      | Some(lifted) => [text(" lifted to"), view_type(lifted)]
+      }
+    )
     @ (
       switch (auto_labels) {
       | [] => []
@@ -379,6 +408,15 @@ let rec exp_view =
         (~globals, cls: Cls.t, status: Info.status_exp, info: Info.exp) => {
   let labels = automatic_inserted_labels_exp(Some(info));
 
+  Ppx_deriving_runtime.Option.(
+    print_endline(
+      "Singleton autolabelling: "
+      ++ [%derive.show: option(Info.singleton_autolabelling(Info.exp))](
+           info.singleton_autolabelling,
+         ),
+    )
+  );
+
   let view_type =
     CodeViewable.view_typ(
       ~globals,
@@ -440,6 +478,7 @@ let rec exp_view =
         ~globals,
         ~auto_labels=labels,
         ~lifted_ty=?Option.map(_ => info.ty, info.singleton_autolabelling),
+        ~label_inference=info.label_inference,
         cls,
         ok,
       ),
@@ -468,6 +507,7 @@ let rec pat_view =
         ~globals,
         ~auto_labels=labels,
         ~lifted_ty=?Option.map(_ => info.ty, info.singleton_autolabelling),
+        ~label_inference=info.label_inference,
         cls,
         ok,
       ),

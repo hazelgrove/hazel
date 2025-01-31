@@ -220,6 +220,12 @@ type singleton_autolabelling('a) = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type label_inference = {
+  reordered: bool,
+  introduced_labels: list(LabeledTuple.label),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type exp = {
   term: Exp.t, /* The term under consideration */
   ancestors, /* Ascending list of containing term ids */
@@ -231,6 +237,7 @@ type exp = {
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
   ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
   singleton_autolabelling: option(singleton_autolabelling(exp)),
+  label_inference,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -247,6 +254,7 @@ type pat = {
   ty: Typ.t,
   constraint_: Constraint.t,
   singleton_autolabelling: option(singleton_autolabelling(pat)),
+  label_inference,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -734,6 +742,7 @@ let derived_exp =
       ~self,
       ~co_ctx,
       ~singleton_autolabelling,
+      ~label_inference: option(label_inference),
     )
     : exp => {
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
@@ -750,6 +759,11 @@ let derived_exp =
     ancestors,
     term: uexp,
     singleton_autolabelling,
+    label_inference:
+      Option.value(
+        ~default={reordered: false, introduced_labels: []},
+        label_inference,
+      ),
   };
 };
 
@@ -765,6 +779,7 @@ let derived_pat =
       ~self,
       ~constraint_,
       ~singleton_autolabelling,
+      ~label_inference,
     )
     : pat => {
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
@@ -784,6 +799,7 @@ let derived_pat =
     term: upat,
     constraint_,
     singleton_autolabelling,
+    label_inference,
   };
 };
 
@@ -838,3 +854,25 @@ let rec pre_labeled_info = (info: t): t =>
     pre_labeled_info(InfoPat(pli))
   | _ => info
   };
+
+// We should just carry this through the rearranging in statics rather than recomputing it
+let derive_label_inference_info = (original_labels, new_labels) => {
+  let introduced_labels =
+    List.filter(
+      l => !List.mem(l, List.filter_map(Fun.id, original_labels)),
+      List.filter_map(Fun.id, new_labels),
+    );
+  let reordered =
+    !
+      List.equal(
+        (a, b) => {
+          switch (a, b) {
+          | (Some(a), Some(b)) => a == b
+          | _ => true
+          }
+        },
+        new_labels,
+        original_labels,
+      );
+  {reordered, introduced_labels};
+};
