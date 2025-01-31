@@ -865,11 +865,14 @@ let derive_label_inference_info = (original_labels, new_labels) => {
         (a, b) => {
           switch (a, b) {
           | (Some(a), Some(b)) => a == b
-          | _ => true
+          | (Some(a), None) => List.mem(a, introduced_labels) // If we introduce a label, we don't consider it reordered
+          | (None, Some(_)) => false
+          | (None, None) => true
           }
         },
         new_labels,
         original_labels,
       );
+
   MultiLabelInference({reordered, introduced_labels});
 };
