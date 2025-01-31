@@ -95,7 +95,7 @@ module type Projector = {
    * syntax (currently limited to convex pieces) is
    * supported by this projector. This is used to gate
    * adding the projector */
-  let can_project: (syntax, Term.Any.t) => bool;
+  let can_project: Term.Any.t => bool;
   /* Does this projector have internal position states,
    * overriding the editor caret & keyboard handlers?
    * If yes, the focus method will be called when this

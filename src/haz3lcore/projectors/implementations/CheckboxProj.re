@@ -37,7 +37,7 @@ module M: Projector = {
     | None => failwith("Checkbox: Toggle: lift failed")
     };
 
-  let can_project = (_, any: Term.Any.t) => bool_of(any) != None;
+  let can_project = (any: Term.Any.t) => bool_of(any) != None;
 
   let can_focus = false;
   let dynamics = false;

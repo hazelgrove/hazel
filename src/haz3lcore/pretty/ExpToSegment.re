@@ -805,20 +805,20 @@ let external_precedence_typ = (tp: Typ.t) =>
 
 let paren_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
   external_precedence(exp) >= internal_precedence
-    ? Exp.fresh(Wrap(exp, Paren)) : exp;
+    ? Exp.fresh(Wrap(exp, Parens)) : exp;
 
 let paren_assoc_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
   external_precedence(exp) > internal_precedence
-    ? Exp.fresh(Wrap(exp, Paren)) : exp;
+    ? Exp.fresh(Wrap(exp, Parens)) : exp;
 
 let paren_pat_at = (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
   external_precedence_pat(pat) >= internal_precedence
-    ? Pat.fresh(Wrap(pat, Paren)) : pat;
+    ? Pat.fresh(Wrap(pat, Parens)) : pat;
 
 let paren_pat_assoc_at =
     (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
   external_precedence_pat(pat) > internal_precedence
-    ? Pat.fresh(Wrap(pat, Paren)) : pat;
+    ? Pat.fresh(Wrap(pat, Parens)) : pat;
 
 let paren_typ_at = (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
   external_precedence_typ(typ) >= internal_precedence

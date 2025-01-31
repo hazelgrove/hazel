@@ -206,11 +206,11 @@ module rec Exp: {
     | ListExp(l) => ListLit(List.map(of_menhir_ast, l))
     | TupleExp(t) =>
       if (List.length(t) == 1) {
-        Wrap(of_menhir_ast(List.hd(t)), Paren);
+        Wrap(of_menhir_ast(List.hd(t)), Parens);
       } else {
         Wrap(
           Tuple(List.map(of_menhir_ast, t)) |> Haz3lcore.Exp.fresh,
-          Paren,
+          Parens,
         );
       }
     | Let(p, e1, e2) =>
@@ -490,7 +490,7 @@ and Pat: {
           Typ.of_menhir_ast(t2),
         )
         |> Haz3lcore.Pat.fresh,
-        Paren,
+        Parens,
       )
     | VarPat(x) => Var(x)
     | ConstructorPat(x, ty) => Constructor(x, Typ.of_menhir_ast(ty))
@@ -498,13 +498,13 @@ and Pat: {
     | TuplePat(pats) =>
       Wrap(
         Tuple(List.map(of_menhir_ast, pats)) |> Haz3lcore.Pat.fresh,
-        Paren,
+        Parens,
       )
     | ApPat(pat1, pat2) => Ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
     | ConsPat(p1, p2) =>
       Wrap(
         Cons(of_menhir_ast(p1), of_menhir_ast(p2)) |> Haz3lcore.Pat.fresh,
-        Paren,
+        Parens,
       )
     | BoolPat(b) => Bool(b)
     | EmptyHolePat => EmptyHole

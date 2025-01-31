@@ -19,7 +19,7 @@ let init =
     (kind: ProjectorCore.kind, syntax: syntax, any: Term.Any.t)
     : option(syntax) => {
   let (module P) = to_module(kind);
-  switch (P.can_project(syntax, any)) {
+  switch (P.can_project(any)) {
   | false => None
   | true => Some(Projector(ProjectorCore.mk(kind, syntax, P.init)))
   };
@@ -41,7 +41,7 @@ let init_or_noop_from_str =
     )
     : syntax => {
   let (module P) = to_module(kind);
-  switch (P.can_project(syntax, any)) {
+  switch (P.can_project(any)) {
   | false => syntax
   | true => Projector(ProjectorCore.mk(kind, syntax, model_str))
   };

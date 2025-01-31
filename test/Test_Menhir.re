@@ -190,7 +190,7 @@ let tests = (
     full_parser_test("Var", Var("x") |> Exp.fresh, "x"),
     full_parser_test(
       "Wrap",
-      Wrap(Var("y") |> Exp.fresh, Paren) |> Exp.fresh,
+      Wrap(Var("y") |> Exp.fresh, Parens) |> Exp.fresh,
       "(y)",
     ),
     full_parser_test(

@@ -22,7 +22,7 @@ module PlainTests = {
 
   let u3: Exp.t = {
     ids: [id_at(0)],
-    term: Wrap({ids: [id_at(1)], term: Var("y"), copied: false}, Paren),
+    term: Wrap({ids: [id_at(1)], term: Var("y"), copied: false}, Parens),
     copied: false,
   };
 
@@ -415,7 +415,7 @@ let f =
   //Test for a free variable
   let free_var_uexp: Exp.t = {
     ids: [id_at(0)],
-    term: Wrap({ids: [id_at(1)], term: Var("y"), copied: false}, Paren),
+    term: Wrap({ids: [id_at(1)], term: Var("y"), copied: false}, Parens),
     copied: false,
   };
   let free_var_menhir = () =>

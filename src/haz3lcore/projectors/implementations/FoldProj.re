@@ -17,7 +17,7 @@ module M: Projector = {
 
   let init = {text: "⋱"};
 
-  let can_project = (_, any: Any.t) =>
+  let can_project = (any: Any.t) =>
     switch (any) {
     | TPat(_) =>
       /* Because TPat has no parentheses, the current parenthesis-based approach
