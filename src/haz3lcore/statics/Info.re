@@ -253,6 +253,7 @@ type pat = {
   ty: Typ.t,
   constraint_: Constraint.t,
   label_inference: option(label_inference(pat)),
+  inferred_label: option(LabeledTuple.label),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -773,6 +774,7 @@ let derived_pat =
       ~self,
       ~constraint_,
       ~label_inference,
+      ~inferred_label,
     )
     : pat => {
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
@@ -792,6 +794,7 @@ let derived_pat =
     term: upat,
     constraint_,
     label_inference,
+    inferred_label,
   };
 };
 
