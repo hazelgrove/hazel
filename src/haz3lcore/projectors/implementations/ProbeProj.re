@@ -466,7 +466,7 @@ let value_view =
 
   div(
     ~attrs=[
-      //Attr.title(DynCursor.Debug.str(info, closure)),
+      Attr.title(DynCursor.Debug.str(info, closure)),
       Attr.classes(
         ["value"]
         @ DynCursor.clss(info, closure)
