@@ -132,4 +132,8 @@ module MkState = () => {
       state := (toggle(old_button), old_count + 1);
       count_reset_timer(old_count);
     };
+
+  let reset = (): unit => {
+    state := init;
+  };
 };
