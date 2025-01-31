@@ -184,8 +184,7 @@ and uexp_to_info_map =
     | Ana({term: Unknown(SynSwitch), _}) => Mode.Syn
     | _ => mode
     };
-  let add' =
-      (~singleton_autolabelling=?, ~label_inference=?, ~self, ~co_ctx, m) => {
+  let add' = (~label_inference=?, ~self, ~co_ctx, m) => {
     let info =
       Info.derived_exp(
         ~uexp,
@@ -194,7 +193,6 @@ and uexp_to_info_map =
         ~ancestors,
         ~self=Option.value(~default=self, override_self),
         ~co_ctx,
-        ~singleton_autolabelling,
         ~label_inference,
       );
 
@@ -264,8 +262,13 @@ and uexp_to_info_map =
     let info = {
       ...info,
       status: original_info.status,
-      singleton_autolabelling:
-        Some({label: l, pre_labeled_info: original_info}),
+      label_inference:
+        Some(
+          SingletonLabelInference({
+            label: l,
+            pre_labeled_info: original_info,
+          }),
+        ),
     };
 
     (info, add_info(elaborated_exp.ids, InfoExp(info), m));
@@ -847,11 +850,7 @@ and uexp_to_info_map =
                     // Mark patterns as redundant at the top level
                     // because redundancy doesn't make sense in a smaller context
                     ~constraint_=p_constraint,
-                    ~singleton_autolabelling=None,
-                    ~label_inference={
-                      reordered: false,
-                      introduced_labels: [],
-                    },
+                    ~label_inference=None,
                   );
                 (
                   // Override the info for the single upat
@@ -985,15 +984,7 @@ and upat_to_info_map =
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
-  let add =
-      (
-        ~self,
-        ~ctx,
-        ~constraint_,
-        ~label_inference=?,
-        ~singleton_autolabelling=?,
-        m,
-      ) => {
+  let add = (~self, ~ctx, ~constraint_, ~label_inference=?, m) => {
     let prev_synswitch =
       switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
       | Some(Info.InfoPat({mode: Syn | SynFun, ty, _})) => Some(ty)
@@ -1011,12 +1002,7 @@ and upat_to_info_map =
         ~ancestors,
         ~self=Common(Option.value(~default=self, override_self)),
         ~constraint_,
-        ~singleton_autolabelling,
-        ~label_inference=
-          Option.value(
-            ~default={reordered: false, introduced_labels: []}: Info.label_inference,
-            label_inference,
-          ),
+        ~label_inference,
       );
     (info, add_info(ids, InfoPat(info), m));
   };
@@ -1069,7 +1055,6 @@ and upat_to_info_map =
   let hole = self => atomic(self, Constraint.Hole);
 
   let elaborate_singleton_tuple = (upat: Pat.t, inner_ty, l, m) => {
-    print_endline("elaborating singleton tuple: " ++ Pat.show(upat));
     let (term, rewrap) = Pat.unwrap(upat);
     let original_expression = Pat.fresh(term);
     let (original_info, m) =
@@ -1103,8 +1088,13 @@ and upat_to_info_map =
     let info = {
       ...info,
       status: original_info.status,
-      singleton_autolabelling:
-        Some({label: l, pre_labeled_info: original_info}),
+      label_inference:
+        Some(
+          SingletonLabelInference({
+            label: l,
+            pre_labeled_info: original_info,
+          }),
+        ),
     };
 
     (info, add_info(elaborated_pat.ids, InfoPat(info), m));

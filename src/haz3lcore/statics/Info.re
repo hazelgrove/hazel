@@ -214,16 +214,15 @@ type status_tpat =
   | InHole(error_tpat);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type singleton_autolabelling('a) = {
-  label: LabeledTuple.label,
-  pre_labeled_info: 'a,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type label_inference = {
-  reordered: bool,
-  introduced_labels: list(LabeledTuple.label),
-};
+type label_inference('a) =
+  | SingletonLabelInference({
+      label: LabeledTuple.label,
+      pre_labeled_info: 'a,
+    })
+  | MultiLabelInference({
+      reordered: bool,
+      introduced_labels: list(LabeledTuple.label),
+    });
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp = {
@@ -236,8 +235,7 @@ type exp = {
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
   ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
-  singleton_autolabelling: option(singleton_autolabelling(exp)),
-  label_inference,
+  label_inference: option(label_inference(exp)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -253,8 +251,7 @@ type pat = {
   status: status_pat,
   ty: Typ.t,
   constraint_: Constraint.t,
-  singleton_autolabelling: option(singleton_autolabelling(pat)),
-  label_inference,
+  label_inference: option(label_inference(pat)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -741,8 +738,7 @@ let derived_exp =
       ~ancestors,
       ~self,
       ~co_ctx,
-      ~singleton_autolabelling,
-      ~label_inference: option(label_inference),
+      ~label_inference: option(label_inference(exp)),
     )
     : exp => {
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
@@ -758,12 +754,7 @@ let derived_exp =
     co_ctx,
     ancestors,
     term: uexp,
-    singleton_autolabelling,
-    label_inference:
-      Option.value(
-        ~default={reordered: false, introduced_labels: []},
-        label_inference,
-      ),
+    label_inference,
   };
 };
 
@@ -778,7 +769,6 @@ let derived_pat =
       ~ancestors,
       ~self,
       ~constraint_,
-      ~singleton_autolabelling,
       ~label_inference,
     )
     : pat => {
@@ -798,7 +788,6 @@ let derived_pat =
     ancestors,
     term: upat,
     constraint_,
-    singleton_autolabelling,
     label_inference,
   };
 };
@@ -848,9 +837,17 @@ let typ_is_constructor_expected = t =>
 
 let rec pre_labeled_info = (info: t): t =>
   switch (info) {
-  | InfoExp({singleton_autolabelling: Some({pre_labeled_info: pli, _}), _}) =>
+  | InfoExp({
+      label_inference:
+        Some(SingletonLabelInference({pre_labeled_info: pli, _})),
+      _,
+    }) =>
     pre_labeled_info(InfoExp(pli))
-  | InfoPat({singleton_autolabelling: Some({pre_labeled_info: pli, _}), _}) =>
+  | InfoPat({
+      label_inference:
+        Some(SingletonLabelInference({pre_labeled_info: pli, _})),
+      _,
+    }) =>
     pre_labeled_info(InfoPat(pli))
   | _ => info
   };
@@ -874,5 +871,5 @@ let derive_label_inference_info = (original_labels, new_labels) => {
         new_labels,
         original_labels,
       );
-  {reordered, introduced_labels};
+  MultiLabelInference({reordered, introduced_labels});
 };

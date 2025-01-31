@@ -203,8 +203,8 @@ let common_err_view =
 let common_ok_view =
     (
       ~globals,
-      ~auto_labels: list(LabeledTuple.label)=[],
-      ~label_inference: Info.label_inference,
+      ~reordered: bool,
+      ~introduced_labels: list(LabeledTuple.label)=[],
       ~lifted_ty: option(Typ.t)=?,
       cls: Cls.t,
       ok: Info.ok_common,
@@ -243,11 +243,11 @@ let common_ok_view =
     ]
   | (_, Ana(Consistent({ana, syn, _}))) when ana == syn =>
     switch (syn.term) {
-    | Label(l) => [text(":"), code(l), text(" is a an expected label")]
+    | Label(l) => [text(":"), code(l), text(" is an expected label")]
     | _ =>
       [text(":"), view_type(syn)]
       @ (
-        switch (label_inference.reordered) {
+        switch (reordered) {
         | false => []
         | true => [text(" after reordering labels ")]
         }
@@ -260,12 +260,12 @@ let common_ok_view =
         }
       )
       @ (
-        switch (auto_labels) {
+        switch (introduced_labels) {
         | [] => []
-        | [a] => [text("after automatically added label "), code(a)]
+        | [a] => [text("by automatically added label "), code(a)]
         | _ => [
-            text("after automatically added labels "),
-            ...ListUtil.join(text(","), List.map(code, auto_labels)),
+            text("by automatically added labels "),
+            ...ListUtil.join(text(","), List.map(code, introduced_labels)),
           ]
         }
       )
@@ -273,20 +273,7 @@ let common_ok_view =
   | (_, Ana(Consistent({ana, syn, _}))) =>
     [text(":"), view_type(syn)]
     @ (
-      switch (label_inference.introduced_labels) {
-      | [] => []
-      | [a] => [text("by automatically added label "), code(a)]
-      | _ => [
-          text("by automatically added labels "),
-          ...ListUtil.join(
-               text(","),
-               List.map(code, label_inference.introduced_labels),
-             ),
-        ]
-      }
-    )
-    @ (
-      switch (label_inference.reordered) {
+      switch (reordered) {
       | false => []
       | true => [text(" after reordering labels ")]
       }
@@ -299,12 +286,12 @@ let common_ok_view =
       }
     )
     @ (
-      switch (auto_labels) {
+      switch (introduced_labels) {
       | [] => []
       | [a] => [text("by automatically added label "), code(a)]
       | _ => [
           text("by automatically added labels "),
-          ...ListUtil.join(text(","), List.map(code, auto_labels)),
+          ...ListUtil.join(text(","), List.map(code, introduced_labels)),
         ]
       }
     )
@@ -390,32 +377,41 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
 
 let rec automatic_inserted_labels_exp =
         (info: option(Info.exp)): list(string) =>
-  switch (Option.bind(info, i => i.singleton_autolabelling)) {
-  | None => []
-  | Some({label, pre_labeled_info}) =>
+  switch (Option.bind(info, i => i.label_inference)) {
+  | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
+  | Some(SingletonLabelInference({label, pre_labeled_info})) =>
     [label] @ automatic_inserted_labels_exp(Some(pre_labeled_info))
+  | _ => []
   };
 
 let rec automatic_inserted_labels_pat =
         (info: option(Info.pat)): list(string) =>
-  switch (Option.bind(info, i => i.singleton_autolabelling)) {
-  | None => []
-  | Some({label, pre_labeled_info}) =>
+  switch (Option.bind(info, i => i.label_inference)) {
+  | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
+  | Some(SingletonLabelInference({label, pre_labeled_info})) =>
     [label] @ automatic_inserted_labels_pat(Some(pre_labeled_info))
+  | _ => []
   };
 
 let rec exp_view =
         (~globals, cls: Cls.t, status: Info.status_exp, info: Info.exp) => {
-  let labels = automatic_inserted_labels_exp(Some(info));
-
-  Ppx_deriving_runtime.Option.(
-    print_endline(
-      "Singleton autolabelling: "
-      ++ [%derive.show: option(Info.singleton_autolabelling(Info.exp))](
-           info.singleton_autolabelling,
-         ),
-    )
-  );
+  let introduced_labels =
+    switch (info.label_inference) {
+    | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
+    | Some(SingletonLabelInference({label, pre_labeled_info})) =>
+      [label] @ automatic_inserted_labels_exp(Some(pre_labeled_info))
+    | _ => []
+    };
+  let reordered =
+    switch (info.label_inference) {
+    | Some(MultiLabelInference({reordered, _})) => reordered
+    | _ => false
+    };
+  let lifted_ty =
+    switch (info.label_inference) {
+    | Some(SingletonLabelInference(_)) => Some(info.ty)
+    | _ => None
+    };
 
   let view_type =
     CodeViewable.view_typ(
@@ -464,8 +460,8 @@ let rec exp_view =
     div_err(
       common_err_view(
         ~globals,
-        ~auto_labels=labels,
-        ~lifted_ty=?Option.map(_ => info.ty, info.singleton_autolabelling),
+        ~auto_labels=introduced_labels,
+        ~lifted_ty?,
         cls,
         error,
       ),
@@ -476,9 +472,9 @@ let rec exp_view =
     div_ok(
       common_ok_view(
         ~globals,
-        ~auto_labels=labels,
-        ~lifted_ty=?Option.map(_ => info.ty, info.singleton_autolabelling),
-        ~label_inference=info.label_inference,
+        ~lifted_ty?,
+        ~reordered,
+        ~introduced_labels,
         cls,
         ok,
       ),
@@ -488,7 +484,12 @@ let rec exp_view =
 
 let rec pat_view =
         (~globals, cls: Cls.t, status: Info.status_pat, info: Info.pat) => {
-  let labels = automatic_inserted_labels_pat(Some(info));
+  let lifted_ty =
+    switch (info.label_inference) {
+    | Some(SingletonLabelInference(_)) => Some(info.ty)
+    | _ => None
+    };
+
   switch (status) {
   | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
   | InHole(Redundant(additional_err)) =>
@@ -505,9 +506,19 @@ let rec pat_view =
     div_ok(
       common_ok_view(
         ~globals,
-        ~auto_labels=labels,
-        ~lifted_ty=?Option.map(_ => info.ty, info.singleton_autolabelling),
-        ~label_inference=info.label_inference,
+        ~lifted_ty?,
+        ~reordered=
+          switch (info.label_inference) {
+          | Some(MultiLabelInference({reordered, _})) => reordered
+          | _ => false
+          },
+        ~introduced_labels=
+          switch (info.label_inference) {
+          | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
+          | Some(SingletonLabelInference({label, pre_labeled_info})) =>
+            [label] @ automatic_inserted_labels_pat(Some(pre_labeled_info))
+          | _ => []
+          },
         cls,
         ok,
       ),
