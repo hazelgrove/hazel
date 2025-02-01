@@ -21,110 +21,6 @@ let exercise : Tutorial.spec =
           };
         caret = Outer;
       };
-    (* hidden_tests =
-       {
-         tests =
-           {
-             selection = { focus = Left; content = []; mode = Normal };
-             backpack = [];
-             relatives =
-               {
-                 siblings =
-                   ( [
-                       Tile
-                         {
-                           id = Id.mk ();
-                           label = [ "test"; "end" ];
-                           mold =
-                             {
-                               out = Exp;
-                               in_ = [ Exp ];
-                               nibs =
-                                 ( { shape = Convex; sort = Exp },
-                                   { shape = Convex; sort = Exp } );
-                             };
-                           shards = [ 0; 1 ];
-                           children =
-                             [
-                               [
-                                 Secondary
-                                   { id = Id.mk (); content = Whitespace " " };
-                                 Tile
-                                   {
-                                     id = Id.mk ();
-                                     label = [ "answer"; "=="; "4" ];
-                                     mold =
-                                       {
-                                         out = Exp;
-                                         in_ = [ Exp; Exp ];
-                                         nibs =
-                                           ( { shape = Convex; sort = Exp },
-                                             { shape = Convex; sort = Exp } );
-                                       };
-                                     shards = [ 0; 1; 2 ];
-                                     children =
-                                       [
-                                         [
-                                           Tile
-                                             {
-                                               id = Id.mk ();
-                                               label = [ "answer" ];
-                                               mold =
-                                                 {
-                                                   out = Exp;
-                                                   in_ = [];
-                                                   nibs =
-                                                     ( {
-                                                         shape = Convex;
-                                                         sort = Exp;
-                                                       },
-                                                       {
-                                                         shape = Convex;
-                                                         sort = Exp;
-                                                       } );
-                                                 };
-                                               shards = [ 0 ];
-                                               children = [];
-                                             };
-                                         ];
-                                         [
-                                           Tile
-                                             {
-                                               id = Id.mk ();
-                                               label = [ "4" ];
-                                               mold =
-                                                 {
-                                                   out = Exp;
-                                                   in_ = [];
-                                                   nibs =
-                                                     ( {
-                                                         shape = Convex;
-                                                         sort = Exp;
-                                                       },
-                                                       {
-                                                         shape = Convex;
-                                                         sort = Exp;
-                                                       } );
-                                                 };
-                                               shards = [ 0 ];
-                                               children = [];
-                                             };
-                                         ];
-                                       ];
-                                   };
-                                 Secondary
-                                   { id = Id.mk (); content = Whitespace " " };
-                               ];
-                             ];
-                         };
-                     ],
-                     [] );
-                 ancestors = [];
-               };
-             caret = Outer;
-           };
-         hints = [];
-       }; *)
     hidden_tests =
       {
         tests =
@@ -133,11 +29,115 @@ let exercise : Tutorial.spec =
             backpack = [];
             relatives =
               {
-                siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
+                siblings =
+                  ( [
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ "test"; "end" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "answer"; "=="; "4" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [ Exp; Exp ];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0; 1; 2 ];
+                                    children =
+                                      [
+                                        [
+                                          Tile
+                                            {
+                                              id = Id.mk ();
+                                              label = [ "answer" ];
+                                              mold =
+                                                {
+                                                  out = Exp;
+                                                  in_ = [];
+                                                  nibs =
+                                                    ( {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      },
+                                                      {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      } );
+                                                };
+                                              shards = [ 0 ];
+                                              children = [];
+                                            };
+                                        ];
+                                        [
+                                          Tile
+                                            {
+                                              id = Id.mk ();
+                                              label = [ "4" ];
+                                              mold =
+                                                {
+                                                  out = Exp;
+                                                  in_ = [];
+                                                  nibs =
+                                                    ( {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      },
+                                                      {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      } );
+                                                };
+                                              shards = [ 0 ];
+                                              children = [];
+                                            };
+                                        ];
+                                      ];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ];
+                        };
+                    ],
+                    [] );
                 ancestors = [];
               };
             caret = Outer;
           };
-        hints = [];
+        hints = [ "Reread the question!" ];
       };
+    (* hidden_tests =
+       {
+         tests =
+           {
+             selection = { focus = Left; content = []; mode = Normal };
+             backpack = [];
+             relatives =
+               {
+                 siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
+                 ancestors = [];
+               };
+             caret = Outer;
+           };
+         hints = [];
+       }; *)
   }
