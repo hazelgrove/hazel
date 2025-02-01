@@ -684,3 +684,7 @@ let split3 = (xs: list(('a, 'b, 'c))): (list('a), list('b), list('c)) => {
   };
   aux(xs, [], [], []);
 };
+
+/* Move the first element equal to x to the front of the list */
+let lift = (x: 'a, xs: list('a)): list('a) =>
+  List.cons(x, List.filter((!=)(x), xs));
