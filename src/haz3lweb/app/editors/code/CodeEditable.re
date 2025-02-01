@@ -232,7 +232,7 @@ module View = {
         model,
       );
 
-    let goal = (e: Pointer.event) =>
+    let loc = (e: Pointer.event) =>
       FontMetrics.get_goal(
         ~font_metrics=globals.font_metrics,
         container_target(e.current_target),
@@ -244,18 +244,18 @@ module View = {
       | {shift: Down, _} =>
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Select(Resize(Goal(Point(goal(mouse))))))),
+          inject(Perform(Select(Resize(Goal(Point(loc(mouse))))))),
         ])
       | {sys: PC, ctrl: Down, _}
       | {sys: Mac, meta: Down, _} =>
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Move(Goal(Point(goal(mouse)))))),
+          inject(Perform(Move(Goal(Point(loc(mouse)))))),
           inject(Perform(Jump(BindingSiteOfIndicatedVar))),
         ])
       | {button: Left, _} =>
+        MouseState.pointerdown(loc(mouse));
         let click_count = MouseState.count();
-        MouseState.down_transition();
         /* Check how many clicks have happened recently
          * and cycle between options on-click */
         switch (click_count mod 3 + 1) {
@@ -264,7 +264,7 @@ module View = {
           PointerCapture.set(mouse.current_target, pointer_id);
           Effect.Many([
             signal(MakeActive),
-            inject(Perform(Move(Goal(Point(goal(mouse)))))),
+            inject(Perform(Move(Goal(Point(loc(mouse)))))),
           ]);
         | 2 => inject(Perform(Select(Smart(2))))
         | 3 => inject(Perform(Select(Smart(3))))
@@ -274,7 +274,7 @@ module View = {
       };
 
     let toggle_button = (e: Pointer.event, pointer_id: int) => {
-      MouseState.up_transition();
+      MouseState.pointerup(loc(e));
       PointerCapture.release(e.current_target, pointer_id);
       Effect.Ignore;
     };
@@ -282,7 +282,7 @@ module View = {
     let drag_select = (pointer: Pointer.event) =>
       switch (pointer) {
       | {button: Left, _} when MouseState.is_button_down() =>
-        inject(Perform(Select(Resize(Goal(Point(goal(pointer)))))))
+        inject(Perform(Select(Resize(Goal(Point(loc(pointer)))))))
       | _ => Effect.Ignore
       };
 

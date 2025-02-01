@@ -29,6 +29,8 @@ let view =
     ~id="caret",
     ~base_cls=["blink"],
     ~path_cls=["caret-path"],
+    /* A smaller scale causes scroll-to-caret issues */
+    ~scale=1.0,
     /* Make caret as tall as shard + shard's shadow */
     ~height_fudge=ShardDec.shadow_dy *. font_metrics.row_height,
     caret_base_path(side, shape),

@@ -521,6 +521,11 @@
   color: var(--exp-ap-indicated);
 }
 
+.projector.probe .value .token.explicit-hole {
+  color: white;
+  text-shadow: none;
+}
+
 /* LIVE ENV */
 
 .projector.probe .live-env {
