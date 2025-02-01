@@ -509,14 +509,8 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
 
   let instructor =
     eds.wrapper
-      ? EditorUtil.append_exp(
-          wrapped_user_impl,
-          term_of(eds.hidden_tests.tests),
-        )
-      : EditorUtil.append_exp(
-          user_impl_term,
-          term_of(eds.hidden_tests.tests),
-        );
+      ? EditorUtil.append_exp(wrapped_user_impl, term_of(eds.your_impl))
+      : EditorUtil.append_exp(user_impl_term, term_of(eds.your_impl));
 
   {
     user_impl: wrap(user_impl_term, eds.your_impl),

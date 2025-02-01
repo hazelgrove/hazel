@@ -319,6 +319,11 @@ module View = {
       Exercise.stitched('a) =
       model.cells;
 
+    Printf.printf(
+      "User Impl Before View: %s\n",
+      CellEditor.Model.show(user_impl),
+    );
+
     let stitched_tests =
       Exercise.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
