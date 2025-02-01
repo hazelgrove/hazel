@@ -3,6 +3,10 @@
 @import "panel.css";
 @import "proj-probe.css";
 @import "proj-type.css";
+@import "proj-text.css";
+@import "proj-fold.css";
+@import "proj-checkbox.css";
+@import "proj-slider.css";
 
 /* Default projector styles */
 
@@ -16,6 +20,13 @@
 
 .projector.indicated {
   z-index: var(--projector-indicated-z);
+}
+
+.projector.error:not(.selected) > svg path {
+  stroke-dasharray: 1, 1;
+  stroke: var(--R1);
+  stroke-width: 0.75px;
+  fill: var(--error-hole-fill);
 }
 
 .projector:hover {
@@ -51,153 +62,4 @@
 .cell-item.selected .projector.selected > svg,
 .cell-item.selected .projector.selected.indicated > svg {
   fill: var(--shard-selected);
-}
-
-/* PROJECTOR: FOLD */
-
-.projector.fold:hover,
-.projector.indicated.fold {
-  color: --var(BLACK);
-}
-.projector.fold {
-  cursor: pointer;
-  font-family: var(--code-font);
-}
-.projector.fold .hover-view {
-  display: none;
-  position: absolute;
-}
-.projector.fold:hover .hover-view {
-  display: block;
-  /* background-color: var(--T2); */
-  /* outline: 1px solid var(--BR1); */
-  /* border-radius: 0 0.2em 0.2em 0.2em; */
-  /* padding: 0em 1em; */
-  /* top: 1px; */
-  left: 0;
-  top: 0;
-}
-
-.projector.fold .quick-select-deco svg {
-  filter: drop-shadow(1px 1px 0px var(--BR2)) drop-shadow(3px 3px 1px #00000012);
-}
-
-.projector.fold .quick-select-deco path {
-  fill: #e7e1cf;
-  /* stroke: #ac9b6a; */
-  /* stroke-width: 1px; */
-  /* filter: drop-shadow(0.2px px 0px black); */
-}
-
-.result .projector.fold {
-  cursor: default;
-}
-
-/* PROJECTOR: CHECKBOX */
-
-.projector.check input {
-  margin: 0;
-  filter: sepia(1);
-  cursor: pointer;
-  outline: none;
-}
-.projector.check:not(.indicated):not(:hover) > svg {
-  fill: var(--NONE);
-}
-
-/* PROJECTOR: SLIDERS (INT & FLOAT) */
-
-.projector.slider input,
-.projector.sliderf input {
-  margin: 0;
-  filter: sepia(1);
-  cursor: pointer;
-  outline: none;
-  width: 90%;
-}
-.projector.slider:not(.indicated):not(:hover) > svg,
-.projector.sliderf:not(.indicated):not(:hover) > svg {
-  fill: var(--NONE);
-}
-
-/* PROJECTOR: TEXTAREA */
-
-/* Turn off caret when text projector is focused */
-/* TODO: Figure out how to generalize this logic to other projectors */
-.code-deco:has(~ .projectors .projector.text *:focus) #caret .caret-path {
-  fill: #0000;
-}
-
-.projector.text {
-  cursor: default;
-}
-
-.projector.text > svg {
-  stroke-width: 0.5px;
-  stroke: var(--BR2);
-}
-
-.projector.text .wrapper {
-  height: 100%;
-  width: 100%;
-  border-radius: 0.1em;
-}
-
-.projector.text.indicated .cols,
-.projector.text:has(textarea:focus) .cols {
-  color: var(--R1);
-}
-
-.projector.text.indicated > svg {
-  fill: var(--textarea-indicated);
-}
-
-.projector.text .cols {
-  height: 100%;
-  margin-left: 2px;
-  margin-right: 2px;
-  display: flex;
-  border-radius: 0 0.1em 0.1em 0.1em;
-  color: var(--SAND);
-  background: repeating-linear-gradient(
-    var(--NONE),
-    var(--NONE) 1.41em,
-    var(--textarea-h-stripe) 1.41em,
-    var(--textarea-h-stripe) 1.47em /* line-height */
-  );
-}
-
-.projector.text.selected .cols {
-  background: repeating-linear-gradient(
-    var(--NONE),
-    var(--NONE) 1.41em,
-    var(--textarea-h-strip-selected) 1.41em,
-    var(--textarea-h-strip-selected) 1.47em /* line-height */
-  );
-}
-.projector.text.selected > svg {
-  z-index: 9;
-}
-
-.projector.text textarea {
-  outline: none;
-  resize: none;
-  width: 100%;
-  caret-color: var(--caret-color);
-  padding: 0;
-  margin: 0;
-  margin-left: -2px;
-  line-height: var(--line-height);
-  font-family: var(--code-font);
-  font-size: inherit;
-  border: none;
-  color: var(--textarea-text);
-  background: none;
-  box-shadow: inset 1px 0 0 var(--textarea-v-stripe);
-  overflow: hidden; /* hack: scrolls in chrome without this? */
-}
-
-.projector.text textarea::selection {
-  color: var(--BLACK);
-  background-color: var(--shard-selected);
 }
