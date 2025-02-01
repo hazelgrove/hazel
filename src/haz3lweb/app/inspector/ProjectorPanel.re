@@ -5,26 +5,17 @@ open Util;
 open OptUtil.Syntax;
 open Web;
 
-// The projector selection panel on the right of the bottom bar
-
-let indicated_kind = (editor: option(Editor.t)) => {
-  let* editor = editor;
-  let* (piece, _, _) = Indicated.for_index(editor.state.zipper);
-  switch (piece) {
-  | Projector({kind, _}) => Some(kind)
-  | _ => None
-  };
-};
+/* This defines the projector selection menu/toggle at the bottom right */
 
 module Applicable = {
+  /* If there are applicable projectors, we distinguish the first
+   * one, which will be the current active projector if the indicated
+   * term is already projected */
   type t = option((ProjectorCore.kind, list(ProjectorCore.kind)));
 
-  /* Determines what term to target for projection. Ideally this would
-   * use exactly the same logic as ProjectorPerform, which, in the event
-   * there is no selection, tries to form one with Select.current_term,
-   * and then proceeds in the same way as if there was an existing selection.
-   * However, I haven't found a good way to call Select.current_term here
-   * due to dependencies, so for now we duplicate the logic here */
+  /* Determines what term to target for projection. This logic
+   * should be kept in sync with the projector add/remove logic
+   * in ProjectorPerform */
   let target_term = (cursor: Cursor.cursor(Editors.Update.t)) =>
     switch (cursor.selection) {
     | None
@@ -41,8 +32,7 @@ module Applicable = {
     | Some(seg) => MakeTerm.for_projection(seg)
     };
 
-  /* Is a projector of `kind` applicable to the
-   * currently selected or indicated term? */
+  /* Is a projector of `kind` applicable to the target term? */
   let is_applicable =
       (cursor: Cursor.cursor(Editors.Update.t), kind: ProjectorCore.kind)
       : option(ProjectorCore.kind) => {
@@ -51,37 +41,51 @@ module Applicable = {
     P.can_project(term) ? Some(kind) : None;
   };
 
-  let lift = (str, strs) => List.cons(str, List.filter((!=)(str), strs));
+  /* If the current indicated term is a projector, return its kind */
+  let indicated_kind =
+      (editor: option(Editor.t)): option(ProjectorCore.kind) => {
+    let* editor = editor;
+    let* (piece, _, _) = Indicated.for_index(editor.state.zipper);
+    switch (piece) {
+    | Projector({kind, _}) => Some(kind)
+    | _ => None
+    };
+  };
 
   /* The string names of all projectors applicable to the currently
    * indicated syntax, with the currently applied projection (if any)
    * lifted to the top of the list */
   let lift_active_projector =
-      (cursor: Cursor.cursor(Editors.Update.t), applicable_projectors) => {
+      (
+        cursor: Cursor.cursor(Editors.Update.t),
+        applicable_projectors: list(ProjectorCore.kind),
+      )
+      : list(ProjectorCore.kind) => {
     switch (indicated_kind(cursor.editor)) {
     | None => applicable_projectors
-    | Some(k) => lift(k, applicable_projectors)
+    | Some(k) => ListUtil.lift(k, applicable_projectors)
     };
   };
 
-  let might_project: Cursor.cursor(Editors.Update.t) => bool =
-    cursor =>
-      switch (cursor.editor) {
-      | None => false
-      | _ => !cursor.editor_read_only
+  let is_read_only = (cursor: Cursor.cursor(Editors.Update.t)): bool =>
+    switch (cursor.editor) {
+    | None => true
+    | _ => cursor.editor_read_only
+    };
+
+  let projectors = (cursor): t =>
+    if (is_read_only(cursor)) {
+      None;
+    } else {
+      let list =
+        ProjectorCore.projectors
+        |> List.filter_map(is_applicable(cursor))
+        |> lift_active_projector(cursor);
+      switch (list) {
+      | [] => None
+      | [hd, ...tl] => Some((hd, tl))
       };
-
-  let projectors = (cursor): t => {
-    let list =
-      ProjectorCore.projectors
-      |> List.filter_map(is_applicable(cursor))
-      |> lift_active_projector(cursor);
-    switch (list) {
-    | _ when !might_project(cursor) => None
-    | [] => None
-    | [hd, ...tl] => Some((hd, tl))
     };
-  };
 };
 let knob =
   div(
@@ -94,21 +98,17 @@ let toggle_view =
       ~inject: Action.project => Ui_effect.t(unit),
       applicable_projectors: Applicable.t,
     ) =>
-  div(
-    ~attrs=[
-      clss(
-        ["toggle-switch"]
-        @ (applicable_projectors == None ? ["inactive"] : ["active"]),
-      ),
-      Attr.on_mousedown(_ =>
-        switch (applicable_projectors) {
-        | None => Effect.Ignore
-        | Some((active, _)) => inject(SetIndicated(Specific(active)))
-        }
-      ),
-    ],
-    [knob],
-  );
+  switch (applicable_projectors) {
+  | None => div(~attrs=[clss(["toggle-switch", "inactive"])], [knob])
+  | Some((active, _)) =>
+    div(
+      ~attrs=[
+        clss(["toggle-switch", "active"]),
+        Attr.on_mousedown(_ => inject(SetIndicated(Specific(active)))),
+      ],
+      [knob],
+    )
+  };
 
 let keyboard_shortcut_of = (kind: ProjectorCore.kind): string =>
   switch (kind) {
