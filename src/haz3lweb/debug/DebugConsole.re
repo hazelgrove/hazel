@@ -34,6 +34,7 @@ let print =
     | None => print("DEBUG: No indicated index")
     };
   | "F9" =>
+    print_endline("STATIC CONTEXT AT CURSOR:");
     Util.OptUtil.Syntax.(
       switch (
         {
@@ -41,17 +42,31 @@ let print =
           let* ci = Id.Map.find_opt(index, map);
           let sketch_seg =
             Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, zipper);
-          ChatLSP.InitPrompt.mk_msg(
-            ChatLSP.filler_options_init,
-            ci,
-            sketch_seg,
-          );
+          ChatLSP.Prompt.static_context(ChatLSP.Options.init, ci, sketch_seg);
         }
       ) {
       | None => print_endline("prompt generation failed")
       | Some(prompt) => print_endline(prompt)
       }
-    )
+    );
+  | "F10" =>
+    print_endline("WHOLE PROGRAM ERROR REPORT:");
+    switch (
+      {
+        let whole_program_str =
+          zipper
+          |> Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true)
+          |> ChatLSP.Print.seg;
+        ChatLSP.ErrorPrint.mk(
+          ~init_ctx=Builtins.ctx_init,
+          ~mode=Syn,
+          whole_program_str,
+        );
+      }
+    ) {
+    | None => print_endline("error reply generation failed")
+    | Some(prompt) => print_endline(prompt)
+    };
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };

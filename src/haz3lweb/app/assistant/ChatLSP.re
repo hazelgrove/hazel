@@ -2,76 +2,84 @@ open Util;
 open OptUtil.Syntax;
 open Haz3lcore;
 
-[@deriving (show({with_path: false}), yojson, sexp)]
-type parse_error = option(string);
+let prn = Printf.sprintf;
 
-[@deriving (show({with_path: false}), yojson, sexp)]
-type static_errors = list(string);
+let statics_of_exp_zipper =
+    (init_ctx: Ctx.t, z: Zipper.t): (Info.exp, Statics.Map.t) =>
+  Statics.uexp_to_info_map(
+    ~ctx=init_ctx,
+    ~ancestors=[],
+    MakeTerm.from_zip_for_sem(z).term,
+    Id.Map.empty,
+  );
 
-[@deriving (show({with_path: false}), yojson, sexp)]
-type error_report =
-  | ParseError(string)
-  | StaticErrors(static_errors)
-  | NoErrors;
+module Options = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    params: OpenAI.params,
+    instructions: bool,
+    syntax_notes: bool,
+    num_examples: int,
+    expected_type: bool,
+    relevant_ctx: bool,
+    error_rounds_max: int,
+  };
 
-[@deriving (show({with_path: false}), yojson, sexp)]
-type round_report = {
-  reply: OpenAI.reply,
-  error_report,
+  let init: t = {
+    params: OpenAI.default_params,
+    instructions: true,
+    syntax_notes: true,
+    num_examples: 9,
+    expected_type: true,
+    relevant_ctx: true,
+    error_rounds_max: 2,
+  };
 };
 
-type samples = list((string, string, string));
+module Print = {
+  let seg = (~holes: option(string)=Some(""), segment: Segment.t): string => {
+    let segment =
+      ZipperBase.MapPiece.of_segment(
+        ProjectorPerform.Update.remove_any_projector,
+        segment,
+      );
+    Printer.to_rows(
+      ~holes,
+      ~measured=Measured.of_segment(segment, Id.Map.empty),
+      ~caret=None,
+      ~indent=" ",
+      ~segment,
+    )
+    |> String.concat("\n");
+  };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type filler_options = {
-  params: OpenAI.params,
-  instructions: bool,
-  syntax_notes: bool,
-  num_examples: int,
-  expected_type: bool,
-  error_rounds_max: int,
-  relevant_ctx: bool,
-  rag: option(string),
+  let term = (term: Term.Any.t): string => {
+    let settings =
+      ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off);
+    term |> ExpToSegment.any_to_pretty(~settings) |> seg(~holes=None);
+  };
+
+  let typ = (ty: Typ.t): string =>
+    //TODO: make sure that the ExpToSegment pretty printing fully subsumes Typ.pretty_print
+    //Typ.pretty_print(ty);
+    term(Typ(ty));
 };
-
-let filler_options_init: filler_options = {
-  params: OpenAI.default_params,
-  instructions: true,
-  syntax_notes: true,
-  num_examples: 9,
-  expected_type: true,
-  error_rounds_max: 2,
-  relevant_ctx: true,
-  rag: None,
-};
-
-let pretty_print_seg =
-    (~holes: option(string)=Some(""), segment: Segment.t): string =>
-  Printer.to_rows(
-    ~holes,
-    ~measured=
-      segment
-      |> ZipperBase.MapPiece.of_segment(
-           ProjectorPerform.Update.remove_any_projector,
-         )
-      |> Measured.of_segment(_, Id.Map.empty),
-    ~caret=None,
-    ~indent=" ",
-    ~segment,
-  )
-  |> String.concat("\n");
 
 module ErrorPrint = {
-  /*
-   ERRORS TODO:
-   make multihole an error (say something about ap)
-   do a completeness check
-    */
+  [@deriving (show({with_path: false}), yojson, sexp)]
+  type t =
+    | ParseError(string)
+    | StaticErrors(list(string))
+    | NoErrors;
 
-  let prn = Printf.sprintf;
+  /* TODO:
+      Better errors for more broken programs: Completeness/formedness checks / multihole errors
+      Contextualize errors with line numbers (would need to add them to the sketch), or
+     including surrounding syntax, or inlining an error representation into a provided sketch */
 
   let common_error: Info.error_common => string =
     fun
+    // TODO: This error class doesn't seem to exist anymore, not sure what happens to multiholes now
     // | NoType(MultiError) =>
     //   /* NOTE: possible cause explanation actually helps.
     //      e.g. when generating
@@ -81,40 +89,39 @@ module ErrorPrint = {
     //   prn(
     //     "Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)",
     //   )
-
     | NoType(BadToken(token)) => prn("\"%s\" isn't a valid token", token)
     | NoType(BadTrivAp(ty)) =>
       prn(
         "Function argument type \"%s\" inconsistent with ()",
-        Typ.pretty_print(ty),
+        Print.typ(ty),
       )
     | Inconsistent(WithArrow(ty)) =>
-      prn("type %s is not consistent with arrow type", Typ.pretty_print(ty))
+      prn("type %s is not consistent with arrow type", Print.typ(ty))
     | NoType(FreeConstructor(_name)) => prn("Constructor is not defined")
     | Inconsistent(Internal(tys)) =>
       prn(
         "Expecting branches to have consistent types but got types: %s",
-        List.map(Typ.pretty_print, tys) |> String.concat(", "),
+        List.map(Print.typ, tys) |> String.concat(", "),
       )
     | Inconsistent(Expectation({ana, syn})) =>
       prn(
         "Expecting type %s but got inconsistent type %s",
-        Typ.pretty_print(ana),
-        Typ.pretty_print(syn),
+        Print.typ(ana),
+        Print.typ(syn),
       );
 
   let exp_error: Info.error_exp => string =
     fun
     | FreeVariable(name) => "Variable " ++ name ++ " is not bound"
-    | InexhaustiveMatch(_) => "TODO: Match is not exhaustive"
-    | UnusedDeferral => "TODO: Unused deferral"
-    | BadPartialAp(_) => "TODO: Bad partial app"
+    | InexhaustiveMatch(_) => "Match is not exhaustive" //TODO: elaborate
+    | UnusedDeferral => "Unused deferral" //TODO: better message
+    | BadPartialAp(_) => "Bad partial application" //TODO: elaborate
     | Common(error) => common_error(error);
 
   let pat_error: Info.error_pat => string =
     fun
     | ExpectedConstructor => "Expected a constructor"
-    | Redundant(_) => "TODO: Redundant"
+    | Redundant(_) => "Redundant" //TODO: elaborate
     | Common(error) => common_error(error);
 
   let typ_error: Info.error_typ => string =
@@ -123,15 +130,15 @@ module ErrorPrint = {
     | BadToken(token) => prn("\"%s\" isn't a valid type token", token)
     | WantConstructorFoundAp => "Expected a constructor, found application"
     | WantConstructorFoundType(ty) =>
-      prn("Expected a constructor, found type %s", Typ.pretty_print(ty))
+      prn("Expected a constructor, found type %s", Print.typ(ty))
     | WantTypeFoundAp => "Constructor application must be in sum"
     | DuplicateConstructor(name) =>
       prn("Constructor %s already used in this sum", name);
 
   let tpat_error: Info.error_tpat => string =
     fun
-    | NotAVar(_) => "TODO: Not a valid type name"
-    | ShadowsType(name, _source) => "TODO: Can't shadow type " ++ name;
+    | NotAVar(_) => "Not a valid type name" //TODO: elaborate
+    | ShadowsType(name, _source) => "Can't shadow type " ++ name; //TODO: elaborate
 
   let string_of: Info.error => string =
     fun
@@ -145,82 +152,124 @@ module ErrorPrint = {
 
   let term_string_of: Info.t => string =
     fun
-    | InfoExp({term, _}) =>
-      term
-      |> ExpToSegment.exp_to_pretty(
-           ~settings=
-             ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
-         )
-      |> pretty_print_seg(~holes=None)
-    | InfoPat({term, _}) =>
-      term
-      |> ExpToSegment.pat_to_pretty(
-           ~settings=
-             ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
-         )
-      |> pretty_print_seg(~holes=None)
-    | InfoTyp({term, _}) => Typ.pretty_print(term)
-    | InfoTPat({term, _}) =>
-      term
-      |> ExpToSegment.tpat_to_pretty(
-           ~settings=
-             ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
-         )
-      |> pretty_print_seg(~holes=None)
-    | Secondary(_) => "TODO";
+    | InfoExp({term, _}) => Print.term(Exp(term))
+    | InfoPat({term, _}) => Print.term(Pat(term))
+    | InfoTyp({term, _}) => Print.term(Typ(term))
+    | InfoTPat({term, _}) => Print.term(TPat(term))
+    | Secondary(_) => failwith("ChatLSP: term_string_of: Secondary");
 
   let collect_static = (info_map: Statics.Map.t): list(string) => {
-    let errors =
-      Id.Map.fold(
-        (_id, info: Info.t, acc) =>
-          switch (Info.error_of(info)) {
-          | None => acc
-          | Some(_) => [info] @ acc
-          },
-        info_map,
-        [],
-      );
-    let errors = List.sort_uniq(compare, errors);
-    List.filter_map(
-      info =>
+    Id.Map.fold(
+      (_id, info: Info.t, acc) =>
         switch (Info.error_of(info)) {
-        | None => None
-        | Some(error) =>
-          let term = term_string_of(info);
-          Some(format_error(term, string_of(error)));
+        | None => acc
+        | Some(_) => [info] @ acc
         },
-      errors,
-    );
+      info_map,
+      [],
+    )
+    |> List.sort_uniq(compare)
+    |> List.filter_map(info =>
+         switch (Info.error_of(info)) {
+         | None => None
+         | Some(error) =>
+           let term = term_string_of(info);
+           Some(format_error(term, string_of(error)));
+         }
+       );
+  };
+
+  let get_top_level_errs = (init_ctx, mode, top_ci: Info.exp) => {
+    let self: Self.t =
+      switch (top_ci) {
+      | {self, _} =>
+        switch (Self.typ_of_exp(init_ctx, self)) {
+        | None => Just(Typ.fresh(Unknown(Internal)))
+        | Some(ty) => Just(ty)
+        }
+      };
+    let status = Info.status_common(init_ctx, mode, self);
+    switch (status) {
+    | InHole(Inconsistent(Expectation({ana, syn}))) => [
+        "The suggested completion has the wrong expected type: expected "
+        ++ Print.typ(ana)
+        ++ ", but got "
+        ++ Print.typ(syn)
+        ++ ".",
+      ]
+    | _ => []
+    };
+  };
+
+  let get_parse_errs = (completion: string): Result.t(Zipper.t, string) =>
+    switch (Printer.zipper_of_string(completion)) {
+    | None => Error("Undocumented parse error, no feedback available")
+    | Some(completion_z) =>
+      //TODO: For syntax errors, also collect bad syntax eg % operator
+      switch (
+        completion_z.backpack
+        |> List.map((s: Selection.t) =>
+             Printer.of_segment(~holes=None, s.content)
+           )
+      ) {
+      | [_, ..._] as orphans =>
+        Error(
+          "The parser has detected the following unmatched delimiters:. The presence of a '=>' in the list likely indicates that a '->' was mistakingly used in a case expression: "
+          ++ String.concat(", ", orphans),
+        )
+      | [] => Ok(completion_z)
+      }
+    };
+
+  let mk_errors = (~init_ctx, ~mode, reply: string): t =>
+    switch (get_parse_errs(reply)) {
+    | Error(err) => ParseError(err)
+    | Ok(completion_z) =>
+      //TODO: This is implictly specialized for expressions only
+      let (top_ci, info_map) = statics_of_exp_zipper(init_ctx, completion_z);
+      let static_errs =
+        get_top_level_errs(init_ctx, mode, top_ci) @ collect_static(info_map);
+      if (List.length(static_errs) == 0) {
+        NoErrors;
+      } else {
+        StaticErrors(static_errs);
+      };
+    };
+
+  let mk = (~init_ctx: Ctx.t, ~mode: Mode.t, reply: string): option(string) => {
+    let wrap = (intro, errs) =>
+      [intro]
+      @ errs
+      @ [
+        "Please try to address the error(s) by updating your previous code suggestion",
+        "Please respond ONLY with the update suggestion",
+      ]
+      |> String.concat("\n");
+    let error_report = mk_errors(~init_ctx, ~mode, reply);
+    switch (error_report) {
+    | NoErrors => None
+    | ParseError(err) =>
+      Some(wrap("The following parse error occured:", [err]))
+    | StaticErrors(errs) =>
+      Some(wrap("The following static errors were discovered:", errs))
+    };
   };
 };
 
 module RelevantType = {
-  let expected_ty_no_lookup = (mode: Mode.t): Typ.t => {
-    switch (mode) {
-    | Ana(ty) => ty
-    | SynFun =>
-      Typ.fresh(
-        Arrow(Typ.fresh(Unknown(Internal)), Typ.fresh(Unknown(Internal))),
-      )
-    | Syn
-    | SynTypFun => Typ.fresh(Unknown(SynSwitch))
-    };
-  };
-
   let expected_ty = (~ctx, mode: Mode.t): Typ.t => {
     switch (mode) {
     | Ana({term: Var(name), _}) when Ctx.lookup_alias(ctx, name) != None =>
       let ty_expanded = Ctx.lookup_alias(ctx, name) |> Option.get;
       ty_expanded;
-    | _ => expected_ty_no_lookup(mode)
+    | _ => Mode.ty_of(mode)
     };
   };
 
-  let format_def = (alias: string, ty: Typ.t): string => {
-    Printf.sprintf("type %s = %s in", alias, Typ.pretty_print(ty));
-  };
+  let format_def = (alias: string, ty: Typ.t): string =>
+    prn("type %s = %s in", alias, Print.typ(ty));
 
-  let subst_if_rec = ((name: string, ty: Typ.t)) => {
+  let subst_if_rec = ((name: string, ty: Typ.t)): (string, Typ.t) => {
     switch (ty) {
     | {term: Rec(name', ty'), _} => (
         name,
@@ -281,7 +330,7 @@ module RelevantType = {
     rec_calls @ defs;
   };
 
-  let collate_aliases = (ctx, expected_ty'): option(string) => {
+  let collate_aliases = (ctx: Ctx.t, expected_ty': Typ.t): option(string) => {
     let defs =
       collect_aliases_deep(ctx, expected_ty')
       |> Util.ListUtil.dedup
@@ -293,35 +342,27 @@ module RelevantType = {
     };
   };
 
-  let expected = (~ctx, mode: Mode.t): string => {
-    /*
-     TODO(andrew): maybe include more than just the immediate type.
-     like for example, when inside a fn(s), include
-     argument types.
-     like basically to benefit maximally from included type info,
-     want to make sure we're including the full expansion of any type
-     we might want to either case on or construct.
-     expected type should mostly(?) give us the latter,
-     but not always the former
-     */
+  let expected = (~ctx: Ctx.t, mode: Mode.t): string => {
+    /* TODO: Maybe include more than just the immediate type.
+     * like for example, when inside a fn(s), include argument types.
+     * Like basically to benefit maximally from included type info,
+     * want to make sure we're including the full expansion of any type
+     * we might want to either case on or construct. Rxpected type should
+     * mostly(?) give us the latter, but not always the former. */
     let prefix = "# The expected type of the hole ?? is: ";
     switch (mode) {
     | Ana(ty) =>
       let defs =
-        switch (collate_aliases(ctx, expected_ty_no_lookup(mode))) {
+        switch (collate_aliases(ctx, Mode.ty_of(mode))) {
         | Some(defs) =>
           "# The following type definitions are likely relevant: #\n" ++ defs
         | None => "\n"
         };
-      prefix
-      ++ "a type consistent with "
-      ++ Typ.pretty_print(ty)
-      ++ " #\n"
-      ++ defs;
+      prefix ++ "a type consistent with " ++ Print.typ(ty) ++ " #\n" ++ defs;
     | SynFun =>
       prefix
       ++ "a type consistent with "
-      ++ Typ.pretty_print(
+      ++ Print.typ(
            Typ.fresh(
              Arrow(
                Typ.fresh(Unknown(Internal)),
@@ -345,7 +386,16 @@ module RelevantCtx = {
     depth: int,
   };
 
-  let is_list_unk = (ty: Typ.t) =>
+  /* TODO: For all functions on types, we want to makse sure we're
+   * normalizing first where appropriate (replacing type aliases with
+   * their definitions). Where it's always appropriate, internalize it
+   *  into the relevant function; otherwise, list it as a precondition */
+
+  /* TODO: Some of the functions below were hastily updated to dev.
+   * The new cases of Typ (Parens, Forsll, Ap) especially should be
+   * double-checked */
+
+  let is_list_unk = (ty: Typ.t): bool =>
     switch (ty.term) {
     | List({term: Unknown(_), _}) => true
     | _ => false
@@ -360,7 +410,7 @@ module RelevantCtx = {
     | _ => false
     };
 
-  let returns_base = (ty: Typ.t) =>
+  let returns_base = (ty: Typ.t): bool =>
     switch (ty.term) {
     | Arrow(_, ty) => is_base(ty)
     | _ => false
@@ -435,7 +485,7 @@ module RelevantCtx = {
     | Bool
     | String
     | Unknown(_) => false
-    | Var("Option") => false //TODO(andrew): hack for LSP
+    | Var("Option") => false //TODO: hack for LSP
     | Var(_)
     | Sum(_) => true
     | Arrow(t1, t2) => contains_sum_or_var(t1) || contains_sum_or_var(t2)
@@ -455,19 +505,19 @@ module RelevantCtx = {
     (total -. unknowns) /. total;
   };
 
-  let score_type = (ty: Typ.t) => {
+  let score_type = (ty: Typ.t): float => {
     let unk_ratio = unknown_ratio(ty);
     is_base(ty) ? 0.8 : unk_ratio;
   };
 
-  let take_up_to_n = (n, xs) =>
+  let take_up_to_n = (n: int, xs: list('a)): list('a) =>
     switch (Util.ListUtil.split_n_opt(n, xs)) {
     | Some((xs, _)) => xs
     | None => xs
     };
 
   let format_def = (name: string, ty: Typ.t) =>
-    Printf.sprintf("let %s: %s =  in", name, Typ.pretty_print(ty));
+    prn("let %s: %s =  in", name, Print.typ(ty));
 
   let filter_ctx = (ctx: Ctx.t, ty_expect: Typ.t): list(filtered_entry) =>
     List.filter_map(
@@ -503,11 +553,6 @@ module RelevantCtx = {
         [target] @ terts;
       | _ => []
       };
-    print_endline("primary_goal: " ++ Typ.pretty_print(primary_goal));
-    print_endline(
-      "secondary_targets: "
-      ++ String.concat(",", List.map(Typ.pretty_print, secondary_targets)),
-    );
     let primary_entries = filter_ctx(ctx, primary_goal);
     let secondary_entries =
       List.concat(List.map(filter_ctx(ctx, _), secondary_targets));
@@ -529,30 +574,11 @@ module RelevantCtx = {
   };
 };
 
-let mk_user_message =
-    (
-      ~expected_ty: option(string),
-      ~relevant_ctx: option(string),
-      sketch: string,
-    )
-    : string =>
-  //TODO: proper JSON construction
-  "{\n"
-  ++ String.concat(
-       ",\n",
-       List.filter_map(
-         Fun.id,
-         [
-           Some("sketch: " ++ sketch),
-           Option.map(Printf.sprintf("expected_ty: %s"), expected_ty),
-           Option.map(Printf.sprintf("relevant_ctx:\n %s"), relevant_ctx),
-         ],
-       ),
-     )
-  ++ ",\n}";
-
 module Samples = {
-  let samples = [
+  type t = list((string, string, string));
+
+  //TODO: I think some of these examples are syntactically incorrect
+  let samples: t = [
     (
       {|
 let List.length: [(String, Bool)]-> Int =
@@ -684,26 +710,12 @@ List.merge(cmp, merge_sort_helper(left), merge_sort_helper(right))
     ),
   ];
 
-  let get = (num_examples, samples) =>
+  let get = (num_examples: int) =>
     switch (Util.ListUtil.split_n_opt(num_examples, samples)) {
     | Some(samples) =>
       samples |> fst |> List.map(((s, t, u)) => (s, Some(t), u))
     | None => []
     };
-
-  let mk = (num_examples: int): list(OpenAI.message) =>
-    Util.ListUtil.flat_map(
-      ((sketch, expected_ty, completion)): list(OpenAI.message) =>
-        [
-          {
-            role: User,
-            content:
-              mk_user_message(sketch, ~expected_ty, ~relevant_ctx=None),
-          },
-          {role: Assistant, content: completion},
-        ],
-      get(num_examples, samples),
-    );
 };
 
 module SystemPrompt = {
@@ -730,112 +742,40 @@ module SystemPrompt = {
     "- Format the code with proper linebreaks",
   ];
 
-  let mk =
-      ({instructions, syntax_notes, num_examples, _}: filler_options)
-      : list(OpenAI.message) => {
-    let system_prompt =
-      String.concat(
-        "\n",
-        (instructions ? main_prompt : [])
-        @ (syntax_notes ? hazel_syntax_notes : []),
-      );
-    OpenAI.[{role: System, content: system_prompt}]
-    @ Samples.mk(num_examples);
-  };
+  let mk = ({instructions, syntax_notes, _}: Options.t): string =>
+    String.concat(
+      "\n",
+      (instructions ? main_prompt : [])
+      @ (syntax_notes ? hazel_syntax_notes : []),
+    );
 };
 
-module ErrorRound = {
-  let get_top_level_errs = (init_ctx, mode, top_ci: Info.exp) => {
-    let self: Self.t =
-      switch (top_ci) {
-      | {self, _} =>
-        switch (Self.typ_of_exp(init_ctx, self)) {
-        | None => Just(Typ.fresh(Unknown(Internal)))
-        | Some(ty) => Just(ty)
-        }
-      };
-    let status = Info.status_common(init_ctx, mode, self);
-    switch (status) {
-    | InHole(Inconsistent(Expectation({ana, syn}))) => [
-        "The suggested filling has the wrong expected type: expected "
-        ++ Typ.pretty_print(ana)
-        ++ ", but got "
-        ++ Typ.pretty_print(syn)
-        ++ ".",
-      ]
-    | _ => []
-    };
-  };
-
-  let get_parse_errs = (filling: string): Result.t(Zipper.t, string) =>
-    switch (Printer.zipper_of_string(filling)) {
-    | None => Error("Undocumented parse error, no feedback available")
-    | Some(filling_z) =>
-      //TODO(andrew): for syntax errors, also collect bad syntax eg % operator
-      switch (
-        filling_z.backpack
-        |> List.map((s: Selection.t) =>
-             Printer.of_segment(~holes=None, s.content)
-           )
-      ) {
-      | [_, ..._] as orphans =>
-        Error(
-          "The parser has detected the following unmatched delimiters:. The presence of a '=>' in the list likely indicates that a '->' was mistakingly used in a case expression: "
-          ++ String.concat(", ", orphans),
-        )
-      | [] => Ok(filling_z)
-      }
-    };
-
-  let mk_round_report = (~init_ctx, ~mode, reply: OpenAI.reply): round_report =>
-    switch (get_parse_errs(reply.content)) {
-    | Error(err) => {reply, error_report: ParseError(err)}
-    | Ok(filling_z) =>
-      let (top_ci, info_map) =
-        Statics.uexp_to_info_map(
-          ~ctx=init_ctx,
-          ~ancestors=[],
-          MakeTerm.from_zip_for_sem(filling_z).term,
-          Id.Map.empty,
-        );
-      let static_errs =
-        get_top_level_errs(init_ctx, mode, top_ci)
-        @ ErrorPrint.collect_static(info_map);
-      if (List.length(static_errs) == 0) {
-        {reply, error_report: NoErrors};
-      } else {
-        {reply, error_report: StaticErrors(static_errs)};
-      };
-    };
-
-  let mk =
-      (~init_ctx: Ctx.t, ~mode: Mode.t, reply: OpenAI.reply)
-      : (error_report, string) => {
-    //TODO(andrew): this is implictly specialized for exp only
-    let wrap = (intro, errs) =>
-      [intro]
-      @ errs
-      @ [
-        "Please try to address the error(s) by updating your previous code suggestion",
-        "Please respond ONLY with the update suggestion",
-      ]
-      |> String.concat("\n");
-    let error_report = mk_round_report(~init_ctx, ~mode, reply).error_report;
-    let str =
-      switch (error_report) {
-      | NoErrors => ""
-      | ParseError(err) => wrap("The following parse error occured:", [err])
-      | StaticErrors(errs) =>
-        wrap("The following static errors were discovered:", errs)
-      };
-    (error_report, str);
-  };
-};
-
-module InitPrompt = {
-  let mk_msg =
+module Prompt = {
+  //TODO: Build JSON instead of string
+  let mk_user_message =
       (
-        {expected_type, relevant_ctx, _}: filler_options,
+        ~expected_ty: option(string),
+        ~relevant_ctx: option(string),
+        sketch: string,
+      )
+      : string =>
+    "{\n"
+    ++ String.concat(
+         ",\n",
+         List.filter_map(
+           Fun.id,
+           [
+             Some("sketch: " ++ sketch),
+             Option.map(Printf.sprintf("expected_ty: %s"), expected_ty),
+             Option.map(Printf.sprintf("relevant_ctx:\n %s"), relevant_ctx),
+           ],
+         ),
+       )
+    ++ ",\n}";
+
+  let static_context =
+      (
+        {expected_type, relevant_ctx, _}: Options.t,
         ci: Info.t,
         sketch: Segment.t,
       )
@@ -847,7 +787,7 @@ module InitPrompt = {
       | InfoPat({mode, _}) => Some(mode)
       | _ => None
       };
-    let sketch = pretty_print_seg(~holes=Some("?"), sketch);
+    let sketch = Print.seg(~holes=Some("?"), sketch);
     let+ () = String.trim(sketch) == "" ? None : Some();
     let ctx_at_caret = Info.ctx_of(ci);
     let expected_ty =
@@ -858,10 +798,40 @@ module InitPrompt = {
     mk_user_message(sketch, ~expected_ty, ~relevant_ctx);
   };
 
-  let mk =
-      (filler_options: filler_options, ci: Info.t, sketch: Segment.t)
+  let samples = (num_examples: int): list(OpenAI.message) =>
+    Util.ListUtil.flat_map(
+      ((sketch, expected_ty, completion)): list(OpenAI.message) =>
+        [
+          {
+            role: User,
+            content:
+              mk_user_message(sketch, ~expected_ty, ~relevant_ctx=None),
+          },
+          {role: Assistant, content: completion},
+        ],
+      Samples.get(num_examples),
+    );
+
+  let mk_init =
+      (options: Options.t, ci: Info.t, sketch: Segment.t)
       : option(OpenAI.prompt) => {
-    let+ user_message = mk_msg(filler_options, ci, sketch);
-    SystemPrompt.mk(filler_options) @ [{role: User, content: user_message}];
+    let+ user_message = static_context(options, ci, sketch);
+    OpenAI.[{role: System, content: SystemPrompt.mk(options)}]
+    @ samples(options.num_examples)
+    @ [{role: User, content: user_message}];
+  };
+
+  let mk_error = (ci: Info.t, reply: OpenAI.reply): option(string) => {
+    /* TODO: This should maybe take whole JSON convo
+     * so far and return an appended version */
+    //TODO: Proper errors
+    let* mode =
+      switch (ci) {
+      | InfoExp({mode, _}) => Some(mode)
+      | InfoPat({mode, _}) => Some(mode)
+      | _ => None
+      };
+    let init_ctx = Info.ctx_of(ci);
+    ErrorPrint.mk(~init_ctx, ~mode, reply.content);
   };
 };
