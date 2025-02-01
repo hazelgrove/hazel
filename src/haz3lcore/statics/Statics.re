@@ -529,7 +529,7 @@ and uexp_to_info_map =
         let pats_to_info_map = (ps: list(Pat.t), m) => {
           /* Add co-ctxs to patterns */
           List.fold_left(
-            ((m, acc_constraint), (p, co_ctx)) => {
+            ((m, acc_constraints), (p, co_ctx)) => {
               let p_constraint =
                 go_pat(
                   ~is_synswitch=false,
@@ -549,7 +549,10 @@ and uexp_to_info_map =
                   m,
                 );
               let is_redundant =
-                Incon.is_redundant(p_constraint, acc_constraint);
+                Incon.is_redundant(
+                  p_constraint,
+                  Constraint.Or(acc_constraints),
+                );
               let self = is_redundant ? Self.Redundant(p.self) : p.self;
               let info =
                 Info.derived_pat(
@@ -568,16 +571,24 @@ and uexp_to_info_map =
                 // Override the info for the single upat
                 add_info(p.term.ids, InfoPat(info), m),
                 is_redundant
-                  ? acc_constraint  // Redundant patterns are ignored
-                  : Constraint.Or(p_constraint, acc_constraint),
+                  ? acc_constraints  // Redundant patterns are ignored
+                  : [p_constraint, ...acc_constraints],
               );
             },
-            (m, Constraint.Falsity),
+            (m, []),
             List.combine(ps, e_co_ctxs),
           );
         };
-        let (m, final_constraint) = pats_to_info_map(ps, m);
-        let is_exhaustive = Incon.is_exhaustive(final_constraint);
+        let (m, final_constraints) = pats_to_info_map(ps, m);
+        print_endline("Calling is_exhaustive");
+
+        let is_exhaustive =
+          Incon.is_exhaustive(Constraint.Or(final_constraints));
+
+        print_endline(
+          "Got is_exhaustive: " ++ string_of_bool(is_exhaustive),
+        );
+
         let self =
           is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
         (self, m);
