@@ -17,6 +17,8 @@ let indicated_kind = (editor: option(Editor.t)) => {
 };
 
 module Applicable = {
+  type t = option((ProjectorCore.kind, list(ProjectorCore.kind)));
+
   /* Determines what term to target for projection. Ideally this would
    * use exactly the same logic as ProjectorPerform, which, in the event
    * there is no selection, tries to form one with Select.current_term,
@@ -62,37 +64,47 @@ module Applicable = {
     };
   };
 
-  let projectors = cursor =>
-    ProjectorCore.projectors
-    |> List.filter_map(is_applicable(cursor))
-    |> lift_active_projector(cursor);
+  let might_project: Cursor.cursor(Editors.Update.t) => bool =
+    cursor =>
+      switch (cursor.editor) {
+      | None => false
+      | _ => !cursor.editor_read_only
+      };
+
+  let projectors = (cursor): t => {
+    let list =
+      ProjectorCore.projectors
+      |> List.filter_map(is_applicable(cursor))
+      |> lift_active_projector(cursor);
+    switch (list) {
+    | _ when !might_project(cursor) => None
+    | [] => None
+    | [hd, ...tl] => Some((hd, tl))
+    };
+  };
 };
-
-let toggle_projector = (active, applicable_projectors): Action.project =>
-  active || applicable_projectors == []
-    ? RemoveIndicated
-    : SetIndicated(Specific(List.hd(applicable_projectors)));
-
 let knob =
   div(
     ~attrs=[clss(["toggle-knob"])],
-    [
-      Node.create("img", ~attrs=[Attr.src("img/noun-fold-1593402.svg")], []),
-    ],
+    [create("img", ~attrs=[Attr.src("img/noun-fold-1593402.svg")], [])],
   );
+
 let toggle_view =
-    (~inject, applicable_projectors, ~active: bool, ~might_project) =>
+    (
+      ~inject: Action.project => Ui_effect.t(unit),
+      applicable_projectors: Applicable.t,
+    ) =>
   div(
     ~attrs=[
       clss(
         ["toggle-switch"]
-        @ (active ? ["active"] : [])
-        @ (might_project && applicable_projectors != [] ? [] : ["inactive"]),
+        @ (applicable_projectors == None ? ["inactive"] : ["active"]),
       ),
       Attr.on_mousedown(_ =>
-        might_project
-          ? inject(toggle_projector(active, applicable_projectors))
-          : Effect.Ignore
+        switch (applicable_projectors) {
+        | None => Effect.Ignore
+        | Some((active, _)) => inject(SetIndicated(Specific(active)))
+        }
       ),
     ],
     [knob],
@@ -110,50 +122,33 @@ let keyboard_shortcut_of = (kind: ProjectorCore.kind): string =>
 let select_view =
     (
       ~inject: Action.project => Ui_effect.t(unit),
-      applicable_projectors: list(ProjectorCore.kind),
+      applicable_projectors: Applicable.t,
     ) => {
-  let applicable_projector_strings =
-    List.map(ProjectorView.name, applicable_projectors);
-  let value =
-    switch (applicable_projector_strings) {
-    | [] => ""
-    | [hd, ..._] => hd
-    };
-  let title =
-    switch (applicable_projectors) {
-    | [] => ""
-    | [hd, ..._] => keyboard_shortcut_of(hd)
-    };
-  print_endline("select_view: " ++ value);
-  Node.select(
-    ~attrs=[
-      Attr.id("projector-select"),
-      Attr.title(title),
-      Attr.on_change((_, name) => {
-        JsUtil.set_select_value("projector-select", name);
-        inject(SetIndicated(Specific(ProjectorView.of_name(name))));
-      }),
-      Attr.string_property("value", value),
-    ],
-    applicable_projector_strings |> List.map(n => option([text(n)])),
-  );
+  switch (applicable_projectors) {
+  | None => select(~attrs=[Attr.id("projector-select")], [])
+  | Some((active, rest)) =>
+    select(
+      ~attrs=[
+        Attr.id("projector-select"),
+        Attr.title(keyboard_shortcut_of(active)),
+        Attr.on_change((_, name) => {
+          let value = ProjectorView.name(active);
+          JsUtil.set_select_value("projector-select", value);
+          inject(SetIndicated(Specific(ProjectorView.of_name(name))));
+        }),
+        //Attr.string_property("value", value),
+      ],
+      [active, ...rest]
+      |> List.map(k => option([text(ProjectorView.name(k))])),
+    )
+  };
 };
 
-let might_project: Cursor.cursor(Editors.Update.t) => bool =
-  cursor =>
-    switch (cursor.editor) {
-    | None => false
-    | _ => !cursor.editor_read_only
-    };
-
 let view = (~inject, cursor: Cursor.cursor(Editors.Update.t)) => {
-  let might_project = might_project(cursor);
-  let active = indicated_kind(cursor.editor) != None;
-  let applicable_projectors =
-    might_project ? Applicable.projectors(cursor) : [];
+  let applicable_projectors = Applicable.projectors(cursor);
   div(
     ~attrs=[Attr.id("projectors")],
     [select_view(~inject, applicable_projectors)]
-    @ [toggle_view(~inject, ~active, ~might_project, applicable_projectors)],
+    @ [toggle_view(~inject, applicable_projectors)],
   );
 };
