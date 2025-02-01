@@ -33,6 +33,25 @@ let print =
       };
     | None => print("DEBUG: No indicated index")
     };
+  | "F9" =>
+    Util.OptUtil.Syntax.(
+      switch (
+        {
+          let* index = Indicated.index(zipper);
+          let* ci = Id.Map.find_opt(index, map);
+          let sketch_seg =
+            Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, zipper);
+          ChatLSP.InitPrompt.mk_msg(
+            ChatLSP.filler_options_init,
+            ci,
+            sketch_seg,
+          );
+        }
+      ) {
+      | None => print_endline("prompt generation failed")
+      | Some(prompt) => print_endline(prompt)
+      }
+    )
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };
