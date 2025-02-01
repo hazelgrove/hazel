@@ -11,8 +11,8 @@ type t =
   | NotFloat(float)
   | String(string)
   | NotString(string)
-  | And(t, t)
-  | Or(t, t)
+  | And(list(t))
+  | Or(list(t))
   | InjL(t)
   | InjR(t)
   | Pair(t, t);
@@ -28,15 +28,16 @@ let rec dual = (c: t): t =>
   | NotFloat(n) => Float(n)
   | String(s) => NotString(s)
   | NotString(s) => String(s)
-  | And(c1, c2) => Or(dual(c1), dual(c2))
-  | Or(c1, c2) => And(dual(c1), dual(c2))
-  | InjL(c1) => Or(InjL(dual(c1)), InjR(Truth))
-  | InjR(c2) => Or(InjR(dual(c2)), InjL(Truth))
+  | And(cs) => Or(List.map(dual, cs))
+  | Or(cs) => And(List.map(dual, cs))
+  | InjL(c1) => Or([InjL(dual(c1)), InjR(Truth)])
+  | InjR(c2) => Or([InjR(dual(c2)), InjL(Truth)])
   | Pair(c1, c2) =>
-    Or(
+    Or([
       Pair(c1, dual(c2)),
-      Or(Pair(dual(c1), c2), Pair(dual(c1), dual(c2))),
-    )
+      Pair(dual(c1), c2),
+      Pair(dual(c1), dual(c2)),
+    ])
   };
 
 /** substitute Truth for Hole */
@@ -51,8 +52,8 @@ let rec truify = (c: t): t =>
   | NotFloat(_)
   | String(_)
   | NotString(_) => c
-  | And(c1, c2) => And(truify(c1), truify(c2))
-  | Or(c1, c2) => Or(truify(c1), truify(c2))
+  | And(cs) => And(List.map(truify, cs))
+  | Or(cs) => Or(List.map(truify, cs))
   | InjL(c) => InjL(truify(c))
   | InjR(c) => InjR(truify(c))
   | Pair(c1, c2) => Pair(truify(c1), truify(c2))
@@ -70,8 +71,8 @@ let rec falsify = (c: t): t =>
   | NotFloat(_)
   | String(_)
   | NotString(_) => c
-  | And(c1, c2) => And(falsify(c1), falsify(c2))
-  | Or(c1, c2) => Or(falsify(c1), falsify(c2))
+  | And(cs) => And(List.map(falsify, cs))
+  | Or(cs) => Or(List.map(falsify, cs))
   | InjL(c) => InjL(falsify(c))
   | InjR(c) => InjR(falsify(c))
   | Pair(c1, c2) => Pair(falsify(c1), falsify(c2))
@@ -106,7 +107,7 @@ let rec or_constraints = (lst: list(t)): t =>
   switch (lst) {
   | [] => Falsity
   | [xi] => xi
-  | [xi, ...xis] => Or(xi, or_constraints(xis))
+  | _ => Or(lst)
   };
 
 let rec ctr_of_nth_variant = (num_variants, nth): (t => t) =>
