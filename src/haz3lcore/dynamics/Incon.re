@@ -70,6 +70,9 @@ let empty_submatrices = {
 };
 
 type seen = {
+  seen_int: bool,
+  seen_float: bool,
+  seen_string: bool,
   seen_prod: bool,
   seen_injL: bool,
   seen_injR: bool,
@@ -77,6 +80,9 @@ type seen = {
 };
 
 let init_seen = {
+  seen_int: false,
+  seen_float: false,
+  seen_string: false,
   seen_prod: false,
   seen_injL: false,
   seen_injR: false,
@@ -87,11 +93,14 @@ let seen = (m: matrix): seen => {
   List.fold_left(
     (seen, row: list(Constraint.t)) =>
       switch (row) {
+      | [Int(_), ..._] => {...seen, seen_int: true}
+      | [Float(_), ..._] => {...seen, seen_float: true}
+      | [String(_), ..._] => {...seen, seen_string: true}
       | [Pair(_, _), ..._] => {...seen, seen_prod: true}
       | [InjL(_), ..._] => {...seen, seen_injL: true}
       | [InjR(_), ..._] => {...seen, seen_injR: true}
       | [Truth, ..._] => {...seen, seen_truth: true}
-      | _ => seen
+      | _ => seen // TODO: remove _
       },
     init_seen,
     m,
@@ -99,7 +108,16 @@ let seen = (m: matrix): seen => {
 };
 
 let submatrices = (m: matrix): submatrices => {
-  let {seen_prod, seen_injL, seen_injR, seen_truth} = seen(m);
+  let {
+    seen_int,
+    seen_float,
+    seen_string,
+    seen_prod,
+    seen_injL,
+    seen_injR,
+    seen_truth,
+  } =
+    seen(m);
   let include_unit = !seen_prod && !seen_injL && !seen_injR && seen_truth;
   let submatrices =
     List.fold_left(
@@ -139,12 +157,22 @@ let submatrices = (m: matrix): submatrices => {
       m,
     );
   let first_col_exhaustive =
-    switch (seen_truth, seen_injR, seen_injL) {
-    | (true, _, _) => true
-    | (false, true, true) => true
-    | (false, false, false) => true
-    | (false, true, false)
-    | (false, false, true) => false
+    switch (
+      seen_int,
+      seen_float,
+      seen_string,
+      seen_truth,
+      seen_injR,
+      seen_injL,
+    ) {
+    | (_, _, _, true, _, _) => true
+    | (true, _, _, false, _, _) => false
+    | (_, true, _, false, _, _) => false
+    | (_, _, true, false, _, _) => false
+    | (_, _, _, false, true, true) => true
+    | (_, _, _, false, false, false) => true
+    | (_, _, _, false, true, false)
+    | (_, _, _, false, false, true) => false
     };
   {...submatrices, first_col_exhaustive};
 };
@@ -178,11 +206,29 @@ let rec check_matrix = (m: matrix): bool => {
   };
 };
 
-let rec check = (xis: list(Constraint.t)): bool => {
-  // convert to a matrix and call check_matrix
-  check_matrix(
-    matrix_of_constraints(xis),
-  );
+let is_exhaustive'' = (xis: list(Constraint.t)): bool => {
+  check_matrix(matrix_of_constraints(xis));
+};
+
+let is_exhaustive' = (xi: Constraint.t): bool => {
+  switch (xi) {
+  | Truth
+  | Hole
+  | Int(_)
+  | Float(_)
+  | String(_)
+  | InjL(_)
+  | InjR(_)
+  | Pair(_, _) => is_exhaustive''([xi])
+  | Or(xis) => is_exhaustive''(xis)
+  | Falsity
+  | NotInt(_)
+  | NotFloat(_)
+  | NotString(_)
+  | And(_) =>
+    print_endline(Constraint.show(xi));
+    failwith("Invalid top-level constraint.'");
+  };
 };
 
 let rec is_exhaustive = (xi: Constraint.t): bool => {
@@ -205,29 +251,6 @@ let rec is_exhaustive = (xi: Constraint.t): bool => {
     print_endline(Constraint.show(xi));
     failwith("Invalid top-level constraint.");
   };
-}
-and is_exhaustive' = (xi: Constraint.t): bool => {
-  switch (xi) {
-  | Truth
-  | Hole
-  | Int(_)
-  | Float(_)
-  | String(_)
-  | InjL(_)
-  | InjR(_)
-  | Pair(_, _) => is_exhaustive''([xi])
-  | Or(xis) => is_exhaustive''(xis)
-  | Falsity
-  | NotInt(_)
-  | NotFloat(_)
-  | NotString(_)
-  | And(_) =>
-    print_endline(Constraint.show(xi));
-    failwith("Invalid top-level constraint.'");
-  };
-}
-and is_exhaustive'' = (xis: list(Constraint.t)): bool => {
-  check(xis);
 };
 
 let is_redundant = (xi: Constraint.t, xis: Constraint.t): bool => {
