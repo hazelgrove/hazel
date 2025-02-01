@@ -713,6 +713,19 @@ let update = (m: model, info: info, a: action) => {
       max_closures: m.max_closures == 1 ? init.max_closures : 1,
     }
   | Offset(offset) =>
+    // switch (info.dynamics) {
+    // | Some(closures) =>
+    //   let cursor_idx = DynCursor.first_index_of(closures);
+    //   switch (cursor_idx) {
+    //   /* Cursor would be outside window, reset to next visible closure */
+    //   | Some(idx) =>
+    //     let next_idx = (idx + offset) mod List.length(closures);
+    //     DynCursor.capture_cursor(List.nth(closures, next_idx));
+    //   | _ => ()
+    //   };
+    // | None => ()
+    // };
+    // m;
     let abs_offset = m.index_offset + offset;
     let abs_offset = abs_offset < 0 ? 0 : abs_offset;
     switch (info.dynamics) {
