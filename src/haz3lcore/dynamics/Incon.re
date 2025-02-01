@@ -49,16 +49,6 @@ let is_inconsistent_string = (xis: list(Constraint.t)): bool => {
   || List.exists(StringSet.mem(_, string_set), not_string_list);
 };
 
-/*
- exhaustiveness algorithm:
-
- if there is a wildcard anywhere in the list, return true
- if there is a pair anywhere in the list, split the list into two and recurse on each
- if there is one but not both of injR and injLR, return false
- if there are both injL and injR, then gather up their arguments and recurse
-
- */
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type matrix = list(list(Constraint.t)); // Row-major order
 
