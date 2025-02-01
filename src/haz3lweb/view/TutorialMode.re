@@ -311,8 +311,8 @@ module View = {
       );
     let grading_report =
       TutorialGrading.GradingReport.mk(eds, ~stitched_tests);
-    let score_view =
-      TutorialGrading.GradingReport.view_overall_score(grading_report);
+    // let score_view =
+    //   TutorialGrading.GradingReport.view_overall_score(grading_report);
     let editor_view =
         (
           ~caption: string,
