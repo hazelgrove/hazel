@@ -99,10 +99,6 @@ let seen = (m: matrix): seen => {
 };
 
 let submatrices = (m: matrix): submatrices => {
-  // TODO: compute seen's in a first pass, the below is incorrect
-  // TODO: report errors with typechecking error reporting on constructors
-  // TODO: not handling first column is Truth correctly -- second column never gets processed
-  // (need to compute a remnant matrix if its all Truths)
   let {seen_prod, seen_injL, seen_injR, seen_truth} = seen(m);
   let include_unit = !seen_prod && !seen_injL && !seen_injR && seen_truth;
   let submatrices =
