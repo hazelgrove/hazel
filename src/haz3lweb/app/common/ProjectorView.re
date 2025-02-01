@@ -48,9 +48,16 @@ let backing_deco =
 
 /* Adds attributes to a projector UI to support
  * custom styling when selected or indicated */
-let status = (indicated: option(Direction.t), selected: bool, sort) =>
+let status =
+    (
+      indicated: option(Direction.t),
+      selected: bool,
+      error: bool,
+      sort: Sort.t,
+    ) =>
   [Sort.show(sort)]
   @ (selected ? ["selected"] : [])
+  @ (error ? ["error"] : [])
   @ (
     switch (indicated) {
     | Some(d) => ["indicated", Direction.show(d)]
@@ -69,6 +76,7 @@ let view_wrapper =
       ~info: info,
       ~indication: option(Direction.t),
       ~selected: bool,
+      ~error: bool,
       p: Base.projector,
       views: list(Node.t),
     ) => {
@@ -77,7 +85,8 @@ let view_wrapper =
   div(
     ~attrs=[
       Attr.classes(
-        ["projector", name(p.kind)] @ status(indication, selected, sort),
+        ["projector", name(p.kind)]
+        @ status(indication, selected, error, sort),
       ),
       /* Stopping propagation here is stops the base editor's
        * drag-select interaction from being triggered */
@@ -134,6 +143,7 @@ type projector_data = {
   p: Piece.projector,
   indication: option(Direction.t),
   selected: bool,
+  error: bool,
   info: ProjectorBase.info,
   measurement: Measured.measurement,
   offside_base: int,
@@ -151,17 +161,20 @@ let collect_data =
     ((id, _)) => {
       let* p = Id.Map.find_opt(id, cached_syntax.projectors);
       let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
+      let info =
+        ProjectorInfo.mk_info(p, ~statics=cached_statics.info_map, ~dynamics);
+      let error =
+        Option.value(
+          ~default=false,
+          Option.map(Info.is_error, info.statics),
+        );
       {
         p,
         indication: indication(zipper, id),
         selected: List.mem(id, cached_syntax.selection_ids),
+        error,
         measurement,
-        info:
-          ProjectorInfo.mk_info(
-            p,
-            ~statics=cached_statics.info_map,
-            ~dynamics,
-          ),
+        info,
         offside_base:
           offside_base(~offset=4, measurement, cached_syntax.measured),
       };
@@ -206,7 +219,7 @@ let setup_view =
     (
       inject: Action.t => Ui_effect.t(unit),
       font_metrics: FontMetrics.t,
-      {p, info, offside_base, indication, measurement, selected}: projector_data,
+      {p, info, offside_base, indication, measurement, selected, error}: projector_data,
     )
     : (Node.t, Node.t, option(Node.t)) => {
   let (module P) = ProjectorInit.to_module(p.kind);
@@ -223,6 +236,7 @@ let setup_view =
       ~indication,
       ~info,
       ~selected,
+      ~error,
       p,
     );
   let inline_view = P.view(p.model, info, ~local, ~parent, ~view_seg);

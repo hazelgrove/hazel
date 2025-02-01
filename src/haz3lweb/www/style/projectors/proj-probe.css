@@ -61,8 +61,8 @@
   justify-content: space-evenly;
   width: 100%;
 }
-.projector.probe.indicated:not(.selected) .main,
-.cell-item:not(.selected) .projector.probe.indicated .main {
+.projector.probe.indicated:not(.selected):not(.error) .main,
+.cell-item:not(.selected):not(.error) .projector.probe.indicated .main {
   color: white;
 }
 
@@ -87,7 +87,7 @@
   rotate: -6deg;
   translate: -2px;
 }
-.projector.probe.indicated:not(.selected) .main .icon {
+.projector.probe.indicated:not(.selected):not(.error) .main .icon {
   filter: invert(1);
 }
 
@@ -117,8 +117,12 @@
 .overlays .projector.probe.Pat .num-closures {
   --original-bg: var(--pat-indicated);
 }
+.overlays .projector.probe.error:not(.selected) .num-closures {
+  --original-bg: var(--R1);
+}
 .overlays .projector.probe.selected .num-closures {
   --original-bg: var(--num-closures);
+  color: black;
 }
 
 @keyframes blink-probe-caret {

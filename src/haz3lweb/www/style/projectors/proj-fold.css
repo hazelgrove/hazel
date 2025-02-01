@@ -1,0 +1,31 @@
+/* PROJECTOR: FOLD */
+
+.projector.fold:hover,
+.projector.indicated.fold {
+  color: --var(BLACK);
+}
+.projector.fold {
+  cursor: pointer;
+  font-family: var(--code-font);
+}
+.projector.fold .hover-view {
+  display: none;
+  position: absolute;
+}
+.projector.fold:hover .hover-view {
+  display: block;
+  left: 0;
+  top: 0;
+}
+
+.projector.fold .quick-select-deco svg {
+  filter: drop-shadow(1px 1px 0px var(--BR2)) drop-shadow(3px 3px 1px #00000012);
+}
+
+.projector.fold .quick-select-deco path {
+  fill: #e7e1cf;
+}
+
+.result .projector.fold {
+  cursor: default;
+}
