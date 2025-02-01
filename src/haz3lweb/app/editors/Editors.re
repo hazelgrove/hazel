@@ -149,7 +149,6 @@ module Update = {
     | (Exercises(_), Tutorial(_)) => model |> return_quiet
     | (SwitchMode(Scratch), Scratch(_))
     | (SwitchMode(Documentation), Documentation(_))
-    | (SwitchMode(Tutorial), Tutorial(_)) => model |> return_quiet
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
       Model.Scratch(
@@ -165,7 +164,9 @@ module Update = {
            ),
       )
       |> return
+    | (SwitchMode(Tutorial), Tutorial(_)) => model |> return_quiet
     | (SwitchMode(Tutorial), _) =>
+      // print_endline("Switching to Tutorial Mode...");
       Model.Tutorial(
         TutorialsMode.Store.load(
           ~settings=globals.settings.core,
@@ -177,6 +178,7 @@ module Update = {
            ),
       )
       |> return
+
     | (SwitchMode(Exercises), _) =>
       Model.Exercises(
         ExercisesMode.Store.load(

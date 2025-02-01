@@ -190,7 +190,7 @@ module View = {
             let mouse_handler =
               e##.target |> Js.Opt.get(_, _ => failwith("no target"));
             let text_box =
-              JsUtil.get_child_with_class(
+              JsUtil.get_child_with_(
                 mouse_handler##.parentNode
                 |> Js.Opt.get(_, _ => failwith(""))
                 |> Js.Unsafe.coerce,
@@ -211,7 +211,7 @@ module View = {
         ~font_metrics=globals.font_metrics,
         evt##.currentTarget
         |> Js.Opt.get(_, _ => failwith(""))
-        |> JsUtil.get_child_with_class(_, "code-container")
+        |> JsUtil.get_child_with_(_, "code-container")
         |> Option.get,
         evt,
       );

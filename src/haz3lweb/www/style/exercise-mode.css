@@ -8,6 +8,7 @@
   flex-direction: column;
   justify-content: space-between;
   gap: 1.2em;
+  /* background-color: black */
   background-color: var(--ui-bkg);
 }
 

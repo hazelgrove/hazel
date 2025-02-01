@@ -48,11 +48,11 @@ let validate_point_distribution =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type p('code) = {
   title: string,
-  description: string,
+  // description: string,
   version: int,
   module_name: string,
-  //   prompt:
-  //     [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] Node.t,
+  prompt:
+    [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] Node.t,
   //   point_distribution,
   //   prelude: 'code,
   // correct_impl: 'code,
@@ -94,10 +94,10 @@ type transitionary_spec = p(CodeString.t);
 let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
   {
     title: p.title,
-    description: p.description,
+    // description: p.description,
     version: p.version,
     module_name: p.module_name,
-    // prompt: p.prompt,
+    prompt: p.prompt,
     // point_distribution: p.point_distribution,
     // prelude: f_hidden(p.prelude),
     // correct_impl: f_hidden(p.correct_impl),
@@ -135,7 +135,7 @@ let key_of_state = eds => key_of(eds);
 type persistent_state = {
   focus: pos,
   title: string,
-  description: string,
+  // description: string,
   editors: list((pos, PersistentZipper.t)),
   wrapper: bool,
 };
@@ -306,10 +306,10 @@ let eds_of_spec =
     (
       {
         title,
-        description,
+        // description,
         version,
         module_name,
-        // prompt,
+        prompt,
         // point_distribution,
         // prelude,
         // correct_impl,
@@ -343,10 +343,10 @@ let eds_of_spec =
   };
   {
     title,
-    description,
+    // description,
     version,
     module_name,
-    // prompt,
+    prompt,
     // point_distribution,
     // prelude,
     // correct_impl,
@@ -591,15 +591,16 @@ let export_grading_module = (module_name, {eds, _}: state) => {
   data;
 };
 
-let blank_spec = (~title, ~description) => {
+let blank_spec = (~title) => {
   let your_impl = Zipper.next_blank();
   let hidden_tests_tests = Zipper.next_blank();
   let wrapper = false;
   {
     title,
-    description,
+    // description,
     version: 1,
     module_name: "Blank",
+    prompt: Node.text("TODO: prompt"),
     your_impl,
     hidden_tests: {
       tests: hidden_tests_tests,
@@ -628,10 +629,11 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
   let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
   {
     title: spec.title,
-    description: spec.description,
+    // description: spec.description,
     version: spec.version,
     module_name: spec.module_name,
     your_impl,
+    prompt: spec.prompt,
     hidden_tests: {
       tests: hidden_tests_tests,
       hints: spec.hidden_tests.hints,

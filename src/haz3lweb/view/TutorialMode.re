@@ -187,10 +187,10 @@ module Update = {
         // let calculate = Editor.Update.calculate(~is_edited);
 
         title: model.editors.title,
-        description: model.editors.description,
+        // description: model.editors.description,
         version: model.editors.version,
         module_name: model.editors.module_name,
-        // prompt: model.editors.prompt,
+        prompt: model.editors.prompt,
         // point_distribution: model.editors.point_distribution,
         // prelude:
         //   calculate(cells.prelude.editor.statics, model.editors.prelude),
@@ -296,10 +296,10 @@ module View = {
     let {user_impl, instructor, hidden_tests}: Tutorial.stitched('a) =
       model.cells;
 
-    Printf.printf(
-      "User Impl Before View: %s\n",
-      CellEditor.Model.show(user_impl),
-    );
+    // Printf.printf(
+    //   "User Impl Before View: %s\n",
+    //   CellEditor.Model.show(user_impl),
+    // );
 
     // let answer_value = raw_result.result;
 
@@ -338,9 +338,15 @@ module View = {
       );
     };
     let title_view = CellCommon.title_cell(eds.title);
-    let description_view =
+    // let description_view =
+    //   CellCommon.narrative_cell(
+    //     div(~attrs=[Attr.class_("cell-prompt")], [text(eds.description)]),
+    //   );
+
+    // let pre_title_view = CellCommon.title_cell(" ");
+    let prompt_view =
       CellCommon.narrative_cell(
-        div(~attrs=[Attr.class_("cell-prompt")], [text(eds.description)]),
+        div(~attrs=[Attr.class_("cell-prompt")], [eds.prompt]),
       );
     let your_impl_view = {
       Always(
@@ -352,10 +358,10 @@ module View = {
         ),
       );
     };
-    Printf.printf(
-      "User Impl After View: %s\n",
-      CellEditor.Model.show(user_impl),
-    );
+    // Printf.printf(
+    //   "User Impl After View: %s\n",
+    //   CellEditor.Model.show(user_impl),
+    // );
     let hidden_tests_view =
       InstructorOnly(
         () => editor_view(HiddenTests, hidden_tests, ~caption="Hidden Tests"),
@@ -375,7 +381,7 @@ module View = {
           ~max_points=1,
         ),
       );
-    [score_view, title_view, description_view]
+    [title_view, prompt_view]
     @ render_cells(
         globals.settings,
         []

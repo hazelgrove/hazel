@@ -44,7 +44,7 @@
   transform-origin: top;
   transform: scaleY(0);
   transition: transform 0.07s ease;
-  background-color: var(--menu-bkg);
+  -color: var(--menu-bkg);
   border: 0.6px solid var(--menu-outline);
   border-top: none;
 }

@@ -42,3 +42,17 @@ let title_cell = title => {
     ),
   ]);
 };
+
+// let title_cell_with_space = title => {
+//   simple_cell_view([
+//     div(
+//       ~attrs=[Attr.class_("title-cell")],
+//       [
+//         div(
+//           ~attrs=[Attr.class_("title-text")],
+//           [p(), text(title)],
+//         ),
+//       ],
+//     ),
+//   ]);
+// };
