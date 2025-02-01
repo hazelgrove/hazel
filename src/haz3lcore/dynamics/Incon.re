@@ -1,56 +1,30 @@
 open Sets;
 open Util;
 
-let is_inconsistent_int = (xis: list(Constraint.t)): bool => {
-  let (int_set, not_int_list) =
-    List.fold_left(
-      ((int_set, not_int_list), xi: Constraint.t) =>
-        switch (xi) {
-        | Int(n) => (IntSet.add(n, int_set), not_int_list)
-        | NotInt(n) => (int_set, [n, ...not_int_list])
-        | _ => failwith("input can only be Int | NotInt")
-        },
-      (IntSet.empty, []),
-      xis,
-    );
-  IntSet.cardinal(int_set) > 1
-  || List.exists(IntSet.mem(_, int_set), not_int_list);
-};
-
-let is_inconsistent_float = (xis: list(Constraint.t)): bool => {
-  let (float_set, not_float_list) =
-    List.fold_left(
-      ((float_set, not_float_list), xi: Constraint.t) =>
-        switch (xi) {
-        | Float(n) => (FloatSet.add(n, float_set), not_float_list)
-        | NotFloat(n) => (float_set, [n, ...not_float_list])
-        | _ => failwith("input can only be Float | NotFloat")
-        },
-      (FloatSet.empty, []),
-      xis,
-    );
-  FloatSet.cardinal(float_set) > 1
-  || List.exists(FloatSet.mem(_, float_set), not_float_list);
-};
-
-let is_inconsistent_string = (xis: list(Constraint.t)): bool => {
-  let (string_set, not_string_list) =
-    List.fold_left(
-      ((string_set, not_string_list), xi: Constraint.t) =>
-        switch (xi) {
-        | String(s) => (StringSet.add(s, string_set), not_string_list)
-        | NotString(s) => (string_set, [s, ...not_string_list])
-        | _ => failwith("input can only be String | NotString")
-        },
-      (StringSet.empty, []),
-      xis,
-    );
-  StringSet.cardinal(string_set) > 1
-  || List.exists(StringSet.mem(_, string_set), not_string_list);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type row = {
+  idx: int,
+  cols: list(Constraint.t),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type matrix = list(list(Constraint.t)); // Row-major order
+type matrix = list(row);
+
+let contains_row = (idx: int, m: matrix): bool =>
+  List.exists((row: row) => row.idx == idx, m);
+
+let has_multiple_columns = (m: matrix): bool =>
+  switch (m) {
+  | [] => false
+  | [{idx: _, cols: []}, ..._] => false
+  | [{idx: _, cols: [_]}, ..._] => false
+  | [{idx: _, cols: _}, ..._] => true
+  };
+
+let rev_matrix = (m: matrix): matrix => List.rev(m);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type redundant_rows = list(int);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type submatrices = {
@@ -59,6 +33,15 @@ type submatrices = {
   injR: matrix,
   unit: matrix,
   first_col_exhaustive: bool,
+  first_col_redundant_rows: redundant_rows,
+};
+
+let rev_submatrices = (s: submatrices): submatrices => {
+  ...s,
+  prod: rev_matrix(s.prod),
+  injL: rev_matrix(s.injL),
+  injR: rev_matrix(s.injR),
+  unit: rev_matrix(s.unit),
 };
 
 let empty_submatrices = {
@@ -67,39 +50,110 @@ let empty_submatrices = {
   injR: [],
   unit: [],
   first_col_exhaustive: false,
+  first_col_redundant_rows: [],
 };
 
 type seen = {
-  seen_int: bool,
-  seen_float: bool,
-  seen_string: bool,
+  seen_ints: IntSet.t,
+  seen_floats: FloatSet.t,
+  seen_strings: StringSet.t,
   seen_prod: bool,
   seen_injL: bool,
   seen_injR: bool,
   seen_truth: bool,
+  first_col_redundant_rows: redundant_rows,
 };
 
 let init_seen = {
-  seen_int: false,
-  seen_float: false,
-  seen_string: false,
+  seen_ints: IntSet.empty,
+  seen_floats: FloatSet.empty,
+  seen_strings: StringSet.empty,
   seen_prod: false,
   seen_injL: false,
   seen_injR: false,
   seen_truth: false,
+  first_col_redundant_rows: [],
 };
 
+// data accumulation pass over the first column of the matrix
 let seen = (m: matrix): seen => {
   List.fold_left(
-    (seen, row: list(Constraint.t)) =>
-      switch (row) {
-      | [Int(_), ..._] => {...seen, seen_int: true}
-      | [Float(_), ..._] => {...seen, seen_float: true}
-      | [String(_), ..._] => {...seen, seen_string: true}
-      | [Pair(_, _), ..._] => {...seen, seen_prod: true}
-      | [InjL(_), ..._] => {...seen, seen_injL: true}
-      | [InjR(_), ..._] => {...seen, seen_injR: true}
-      | [Truth, ..._] => {...seen, seen_truth: true}
+    (seen, row: row) =>
+      switch (row.cols) {
+      | [Int(n), ..._] =>
+        let first_col_redundant_rows =
+          if (IntSet.mem(n, seen.seen_ints)) {
+            [row.idx, ...seen.first_col_redundant_rows];
+          } else {
+            seen.first_col_redundant_rows;
+          };
+        {
+          ...seen,
+          seen_ints: seen.seen_ints |> IntSet.add(n),
+          first_col_redundant_rows,
+        };
+      | [Float(x), ..._] =>
+        let first_col_redundant_rows =
+          if (FloatSet.mem(x, seen.seen_floats)) {
+            [row.idx, ...seen.first_col_redundant_rows];
+          } else {
+            seen.first_col_redundant_rows;
+          };
+        {
+          ...seen,
+          seen_floats: seen.seen_floats |> FloatSet.add(x),
+          first_col_redundant_rows,
+        };
+      | [String(s), ..._] =>
+        let first_col_redundant_rows =
+          if (StringSet.mem(s, seen.seen_strings)) {
+            [row.idx, ...seen.first_col_redundant_rows];
+          } else {
+            seen.first_col_redundant_rows;
+          };
+        {
+          ...seen,
+          seen_strings: seen.seen_strings |> StringSet.add(s),
+          first_col_redundant_rows,
+        };
+      | [Pair(_, _), ..._] =>
+        let first_col_redundant_rows =
+          if (seen.seen_prod) {
+            [row.idx, ...seen.first_col_redundant_rows];
+          } else {
+            seen.first_col_redundant_rows;
+          };
+        {...seen, seen_prod: true, first_col_redundant_rows};
+      | [InjL(_), ..._] =>
+        let first_col_redundant_rows =
+          if (seen.seen_injL) {
+            [row.idx, ...seen.first_col_redundant_rows];
+          } else {
+            seen.first_col_redundant_rows;
+          };
+        {...seen, seen_injL: true, first_col_redundant_rows};
+      | [InjR(_), ..._] =>
+        let first_col_redundant_rows =
+          if (seen.seen_injR) {
+            [row.idx, ...seen.first_col_redundant_rows];
+          } else {
+            seen.first_col_redundant_rows;
+          };
+        {...seen, seen_injR: true, first_col_redundant_rows};
+      | [Truth, ..._] =>
+        let first_col_redundant_rows =
+          switch (
+            seen.seen_truth,
+            seen.seen_prod,
+            seen.seen_injL,
+            seen.seen_injR,
+          ) {
+          | (true, _, _, _) => [row.idx, ...seen.first_col_redundant_rows]
+          | (_, true, _, _) => [row.idx, ...seen.first_col_redundant_rows]
+          | (_, _, true, true) => [row.idx, ...seen.first_col_redundant_rows]
+          | (_, _, _, _) => seen.first_col_redundant_rows
+          };
+        {...seen, seen_truth: true, first_col_redundant_rows};
       | _ => seen // TODO: remove _
       },
     init_seen,
@@ -109,46 +163,74 @@ let seen = (m: matrix): seen => {
 
 let submatrices = (m: matrix): submatrices => {
   let {
-    seen_int,
-    seen_float,
-    seen_string,
+    seen_ints,
+    seen_floats,
+    seen_strings,
     seen_prod,
     seen_injL,
     seen_injR,
     seen_truth,
+    first_col_redundant_rows,
   } =
     seen(m);
-  let include_unit = !seen_prod && !seen_injL && !seen_injR && seen_truth;
+  let include_unit =
+    !seen_prod
+    && !seen_injL
+    && !seen_injR
+    && seen_truth
+    && has_multiple_columns(m);
   let submatrices =
     List.fold_left(
-      (submatrices, row: list(Constraint.t)) => {
-        switch (row) {
+      (submatrices, row: row) => {
+        switch (row.cols) {
         | [Pair(xi1, xi2), ...cols] => {
             ...submatrices,
-            prod: [[xi1, xi2, ...cols], ...submatrices.prod],
+            prod: [
+              {idx: row.idx, cols: [xi1, xi2, ...cols]},
+              ...submatrices.prod,
+            ],
           }
         | [InjL(xi), ...cols] => {
             ...submatrices,
-            injL: [[xi, ...cols], ...submatrices.injL],
+            injL: [
+              {idx: row.idx, cols: [xi, ...cols]},
+              ...submatrices.injL,
+            ],
           }
         | [InjR(xi), ...cols] => {
             ...submatrices,
-            injR: [[xi, ...cols], ...submatrices.injR],
+            injR: [
+              {idx: row.idx, cols: [xi, ...cols]},
+              ...submatrices.injR,
+            ],
           }
         | [Truth, ...cols] => {
             ...submatrices,
             prod:
               seen_prod
-                ? [[Truth, Truth, ...cols], ...submatrices.prod]
+                ? [
+                  {idx: row.idx, cols: [Truth, Truth, ...cols]},
+                  ...submatrices.prod,
+                ]
                 : submatrices.prod,
             injL:
               seen_injL
-                ? [[Truth, ...cols], ...submatrices.injL] : submatrices.injL,
+                ? [
+                  {idx: row.idx, cols: [Truth, ...cols]},
+                  ...submatrices.injL,
+                ]
+                : submatrices.injL,
             injR:
               seen_injR
-                ? [[Truth, ...cols], ...submatrices.injR] : submatrices.injR,
+                ? [
+                  {idx: row.idx, cols: [Truth, ...cols]},
+                  ...submatrices.injR,
+                ]
+                : submatrices.injR,
             unit:
-              include_unit ? [cols, ...submatrices.unit] : submatrices.unit,
+              include_unit
+                ? [{idx: row.idx, cols}, ...submatrices.unit]
+                : submatrices.unit,
           }
         | _ => submatrices // TODO: other cases
         }
@@ -156,6 +238,9 @@ let submatrices = (m: matrix): submatrices => {
       empty_submatrices,
       m,
     );
+  let seen_int = IntSet.is_empty(seen_ints);
+  let seen_float = FloatSet.is_empty(seen_floats);
+  let seen_string = StringSet.is_empty(seen_strings);
   let first_col_exhaustive =
     switch (
       seen_int,
@@ -174,40 +259,78 @@ let submatrices = (m: matrix): submatrices => {
     | (_, _, _, false, true, false)
     | (_, _, _, false, false, true) => false
     };
-  {...submatrices, first_col_exhaustive};
+  print_endline(
+    "First col redundant rows: "
+    ++ show_redundant_rows(first_col_redundant_rows),
+  );
+  // needed so that rows show up in order for redundancy checking
+  let submatrices = rev_submatrices(submatrices);
+  {...submatrices, first_col_exhaustive, first_col_redundant_rows};
 };
 
-let matrix_of_constraints = (xis: list(Constraint.t)) => {
-  List.map(xi => [xi], xis);
+let matrix_of_constraints = (xis: list(Constraint.t)): matrix => {
+  List.mapi((idx, xi) => {idx, cols: [xi]}, xis);
 };
 
-let rec check_matrix = (m: matrix): bool => {
-  // if it is a single column unit matrix, check that there is at least one truth row
-  // else if it is of sum type, check that the first column contains both L and R
-  // then compute the submatrices for L and R and recurse on each of them
-  // else if it is of product type, compute the submatrix and recurse on it
-  // else if it is of integer/float/string type, ... TODO ...
+type check_result = {
+  is_exhaustive: bool,
+  redundant_rows: list(int),
+};
+
+let exhaustive_and_irredundant = {is_exhaustive: true, redundant_rows: []};
+
+let rec check_matrix = (m: matrix): check_result => {
   print_endline(show_matrix(m));
   switch (m) {
-  | [] => true // empty matrix, TODO: what about void types?
-  | [[], ..._] => true // no columns in the matrix
+  | [] => exhaustive_and_irredundant // empty matrix, TODO: what about void types?
+  | [{idx: _, cols: []}, ..._] => exhaustive_and_irredundant // no columns in the matrix
   | _ =>
     let submatrices = submatrices(m);
     print_endline(show_submatrices(submatrices));
-    if (!submatrices.first_col_exhaustive) {
-      print_endline("First col not exhaustive");
-      false;
-    } else {
-      check_matrix(submatrices.prod)
-      && check_matrix(submatrices.injL)
-      && check_matrix(submatrices.injR)
-      && check_matrix(submatrices.unit);
-    };
+    let checked_prod = check_matrix(submatrices.prod);
+    let checked_injL = check_matrix(submatrices.injL);
+    let checked_injR = check_matrix(submatrices.injR);
+    let checked_unit = check_matrix(submatrices.unit);
+    let is_exhaustive =
+      submatrices.first_col_exhaustive
+      && checked_prod.is_exhaustive
+      && checked_injL.is_exhaustive
+      && checked_injR.is_exhaustive
+      && checked_unit.is_exhaustive;
+
+    /* a row is redundant if its first column is redundant and
+       it is a redundant row in any submatrix in which it appears */
+    let redundant_rows =
+      List.filter(
+        (idx: int) => {
+          let p =
+            !contains_row(idx, submatrices.prod)
+            || List.mem(idx, checked_prod.redundant_rows);
+          let iL =
+            !contains_row(idx, submatrices.injL)
+            || List.mem(idx, checked_injL.redundant_rows);
+          let iR =
+            !contains_row(idx, submatrices.injR)
+            || List.mem(idx, checked_injR.redundant_rows);
+          let u =
+            !contains_row(idx, submatrices.unit)
+            || List.mem(idx, checked_unit.redundant_rows); // todo do we need this?
+          p && iL && iR && u;
+        },
+        submatrices.first_col_redundant_rows,
+      );
+    print_endline("Redundant rows: " ++ show_redundant_rows(redundant_rows));
+    {is_exhaustive, redundant_rows};
   };
 };
 
 let is_exhaustive'' = (xis: list(Constraint.t)): bool => {
-  check_matrix(matrix_of_constraints(xis));
+  let check_result = check_matrix(matrix_of_constraints(xis));
+  print_endline(
+    "Redundant rows (final): "
+    ++ show_redundant_rows(check_result.redundant_rows),
+  );
+  check_result.is_exhaustive;
 };
 
 let is_exhaustive' = (xi: Constraint.t): bool => {
@@ -220,7 +343,7 @@ let is_exhaustive' = (xi: Constraint.t): bool => {
   | InjL(_)
   | InjR(_)
   | Pair(_, _) => is_exhaustive''([xi])
-  | Or(xis) => is_exhaustive''(xis)
+  | Or(xis) => is_exhaustive''(List.rev(xis)) // TODO: reverse when generated
   | Falsity
   | NotInt(_)
   | NotFloat(_)
