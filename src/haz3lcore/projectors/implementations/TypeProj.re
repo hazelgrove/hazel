@@ -91,11 +91,7 @@ module M: Projector = {
 
   let syntax_str = (info: info) => {
     let max_len = 30;
-    let seg =
-      switch (Segment.unparenthesize(info.syntax)) {
-      | Some(seg) => seg
-      | None => info.syntax
-      };
+    let seg = Segment.unparenthesize(info.syntax);
     let str = Printer.of_segment(~holes=Some("?"), seg);
     let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
     String.length(str) > max_len

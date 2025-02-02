@@ -22,13 +22,13 @@ module Applicable = {
     | Some([]) =>
       switch (cursor.indicated_piece) {
       | Some(Projector({syntax, _})) =>
-        MakeTerm.for_projection(Segment.unparenthesize_or_wrap(syntax))
+        MakeTerm.for_projection(Piece.unparenthesize(syntax))
       | _ =>
         let* info = cursor.info;
         Info.any_of(info);
       }
     | Some([Projector({syntax, _})]) =>
-      MakeTerm.for_projection(Segment.unparenthesize_or_wrap(syntax))
+      MakeTerm.for_projection(Piece.unparenthesize(syntax))
     | Some(seg) => MakeTerm.for_projection(seg)
     };
 

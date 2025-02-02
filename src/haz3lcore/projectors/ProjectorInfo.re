@@ -22,7 +22,7 @@ let mk_info =
     (p: Piece.projector, ~statics: Statics.Map.t, ~dynamics: Dynamics.Map.t)
     : ProjectorBase.info => {
   id: p.id,
-  syntax: Segment.unparenthesize_or_wrap(p.syntax),
+  syntax: Piece.unparenthesize(p.syntax),
   statics: Statics.Map.lookup(p.id, statics),
   dynamics: Dynamics.Map.lookup(p.id, dynamics),
   utility,

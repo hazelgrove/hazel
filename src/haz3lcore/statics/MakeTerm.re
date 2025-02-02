@@ -553,7 +553,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
       //TODO(andrew): be more selective about unparening
-      let seg = Segment.unparenthesize_or_wrap(syntax);
+      let seg = Piece.unparenthesize(syntax);
       [go_s(sort, Segment.skel(seg), seg)];
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))

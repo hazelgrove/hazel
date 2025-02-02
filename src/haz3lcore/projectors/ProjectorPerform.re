@@ -38,7 +38,7 @@ let replace_selection_and_unselect =
   |> Zipper.directional_unselect(focus);
 
 let remove = (piece: Base.piece, focus: Direction.t, z: Zipper.t): Zipper.t => {
-  let seg = Segment.unparenthesize_or_wrap(piece);
+  let seg = Piece.unparenthesize(piece);
   /* If it's a convex tile, unselect; otherwise, leave selection to guarantee you can toggle */
   switch (seg) {
   | [piece] => replace_selection_and_unselect(piece, Right, z)
@@ -47,10 +47,11 @@ let remove = (piece: Base.piece, focus: Direction.t, z: Zipper.t): Zipper.t => {
 };
 
 let update_piece =
-    (f: Base.projector => Base.projector, id: Id.t, piece: Base.piece) =>
+    (f: Base.projector => Base.projector, id: Id.t, piece: Base.piece)
+    : Base.segment =>
   switch (piece) {
-  | Projector(pr) when pr.id == id => Base.Projector(f(pr))
-  | x => x
+  | Projector(pr) when pr.id == id => [Base.Projector(f(pr))]
+  | x => [x]
   };
 
 let update =
@@ -83,7 +84,7 @@ let go =
     | [Projector(pr)] when pr.kind == kind =>
       Some(remove(pr.syntax, focus, z))
     | [Projector(pr)] =>
-      let+ piece = init(kind, Segment.unparenthesize_or_wrap(pr.syntax));
+      let+ piece = init(kind, Piece.unparenthesize(pr.syntax));
       replace_selection_and_unselect(piece, focus, z);
     | seg =>
       let+ piece = init(kind, seg);
