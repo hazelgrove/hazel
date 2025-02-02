@@ -1,6 +1,7 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
+open Util;
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
 /* This file follows conventions in [docs/ui-architecture.md] */
 module Model = {
@@ -344,10 +345,12 @@ module View = {
     //   );
 
     // let pre_title_view = CellCommon.title_cell(" ");
-    let prompt_view =
-      CellCommon.narrative_cell(
-        div(~attrs=[Attr.class_("cell-prompt")], [eds.prompt]),
-      );
+    let prompt_view = {
+      let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
+      let (msg, _) =
+        ExplainThis.mk_translation(~globals, prompt_placeholder);
+      div(~attrs=[Attr.class_("prompt-content")], msg);
+    };
     let your_impl_view = {
       Always(
         editor_view(

@@ -1,13 +1,20 @@
 open Haz3lcore
 
-let prompt = Tu_ExpressiveProgramming_prompt.prompt
+(* let prompt = Tu_ExpressiveProgramming_prompt.prompt *)
 
 let exercise : Tutorial.spec =
   {
     title = "Expressive Programming";
     (* description = ""; *)
-    module_name = "Ex_OddlyRecursive_tutorial";
-    prompt;
+    module_name = "Tu_ExpressiveProgramming";
+    prompt =
+      "You might not have realized it, but you wrote your first computer \
+       programs in grade school in the form of arithmetic expressions!\n\n\
+       For example, enter the program `2 + 2` in the expression editor below. \
+       Hazel operates like a calculator, computing the value of your \
+       expression by equationally simplifying it (i.e. evaluating it), here to \
+       the integer value `4`. The symbol `≡` is pronounced \"is equivalent \
+       to\".";
     wrapper = false;
     version = 1;
     your_impl =
@@ -121,7 +128,6 @@ let exercise : Tutorial.spec =
                       Secondary { id = Id.mk (); content = Whitespace "\n" };
                     ],
                     [ Grout { id = Id.mk (); shape = Convex } ] );
-                (* Close the siblings list *)
                 ancestors = [];
               };
             caret = Outer;

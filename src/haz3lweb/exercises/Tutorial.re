@@ -51,8 +51,7 @@ type p('code) = {
   // description: string,
   version: int,
   module_name: string,
-  prompt:
-    [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] Node.t,
+  prompt: string,
   //   point_distribution,
   //   prelude: 'code,
   // correct_impl: 'code,
@@ -600,7 +599,7 @@ let blank_spec = (~title) => {
     // description,
     version: 1,
     module_name: "Blank",
-    prompt: Node.text("TODO: prompt"),
+    prompt: "",
     your_impl,
     hidden_tests: {
       tests: hidden_tests_tests,
