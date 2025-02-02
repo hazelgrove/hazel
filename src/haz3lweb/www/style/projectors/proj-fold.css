@@ -8,24 +8,88 @@
   cursor: pointer;
   font-family: var(--code-font);
 }
+
+.result .projector.fold {
+  cursor: default;
+}
+
+.projector.fold > svg {
+  --shadow: var(--BR3);
+  filter: drop-shadow(0.7px 0.7px 0px var(--shadow));
+}
+
+.projector.fold.Pat {
+  color: var(--PAT);
+}
+.projector.fold.Typ {
+  color: var(--TYP);
+}
+.projector.fold.TPat {
+  color: var(--TPAT);
+}
+
+.projector.fold.Pat > svg {
+  --shadow: var(--token-pat);
+}
+.projector.fold.Typ > svg {
+  --shadow: var(--token-typ);
+}
+.projector.fold.TPat > svg {
+  --shadow: var(--token-tpat);
+}
+
 .projector.fold .hover-view {
   display: none;
   position: absolute;
 }
-.projector.fold:hover .hover-view {
+.projector.fold:hover .hover-view,
+.projector.fold .hover-view path:hover {
   display: block;
   left: 0;
   top: 0;
 }
 
-.projector.fold .quick-select-deco svg {
-  filter: drop-shadow(1px 1px 0px var(--BR2)) drop-shadow(3px 3px 1px #00000012);
+.projector.fold .hover-view {
+  filter: drop-shadow(3px 3px 2px #00000010);
 }
 
-.projector.fold .quick-select-deco path {
-  fill: #e7e1cf;
+.projector.fold .hover-view svg {
+  --shadow: var(--BR3);
+  filter: drop-shadow(0.7px 0.7px 0px var(--shadow));
+}
+.projector.fold.Pat .hover-view svg {
+  --shadow: var(--token-pat);
+}
+.projector.fold.Typ .hover-view svg {
+  --shadow: var(--token-typ);
+}
+.projector.fold.TPat .hover-view svg {
+  --shadow: var(--token-tpat);
 }
 
-.result .projector.fold {
-  cursor: default;
+.projector.fold .hover-view path {
+  --fill: var(--shard-exp);
+  fill: var(--fill);
+  stroke: var(--fill);
+}
+.projector.fold.Pat .hover-view path {
+  --fill: var(--shard-pat);
+}
+.projector.fold.Typ .hover-view path {
+  --fill: var(--shard-typ);
+}
+.projector.fold.TPat .hover-view path {
+  --fill: var(--shard-tpat);
+}
+
+.projector.fold.Pat.indicated > svg path {
+  fill: var(--shard-pat);
+}
+
+.projector.fold.Typ.indicated > svg path {
+  fill: var(--shard-typ);
+}
+
+.projector.fold.TPat.indicated > svg path {
+  fill: var(--shard-tpat);
 }

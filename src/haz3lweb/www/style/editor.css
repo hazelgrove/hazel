@@ -220,6 +220,7 @@ svg.shard.selected.buffer > path {
 
 #caret {
   z-index: var(--caret-z);
+  pointer-events: none;
 }
 
 #caret.blink {

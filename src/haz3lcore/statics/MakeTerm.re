@@ -507,6 +507,7 @@ and tpat_term: unsorted => TPat.term = {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Invalid(t)
+        | (label, [TPat(body)]) when is_probe_wrap(label) => body.term
         | _ => hole(tm)
         },
       )

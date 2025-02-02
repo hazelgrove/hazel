@@ -778,6 +778,7 @@ module M: Projector = {
     switch (any) {
     | Exp(_) => true
     | Pat(_) => true
+    | Any(_) => true /* Grout don't have sorts rn */
     | _ => false
     };
 
