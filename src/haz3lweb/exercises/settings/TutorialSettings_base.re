@@ -3,4 +3,6 @@ let log_key = filename;
 let exercises: list(Tutorial.spec) = [
   Tu_ExpressiveProgramming.exercise,
   Tu_ComposingArithmetic.exercise,
+  Tu_ComputingEquationally.exercise,
+  Tu_Variables.exercise,
 ];
