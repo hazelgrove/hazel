@@ -59,7 +59,7 @@ type p('code) = {
   your_impl: 'code,
   //   hidden_bugs: list(wrong_impl('code)),
   hidden_tests: hidden_tests('code),
-  mutable wrapper: bool,
+  wrapper: bool,
   //   syntax_tests,
 };
 
@@ -472,13 +472,8 @@ let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
 let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
   // Printf.printf("Wrapper: %b\n", eds.wrapper);
   // Printf.printf("Name: %s\n", eds.module_name);
-  eds.wrapper = (
-    switch (eds.module_name) {
-    | "Ex_OddlyRecursive_tutorial" => true
-    | _ => false
-    }
-  );
   Printf.printf("Wrapper: %b\n", eds.wrapper);
+  Printf.printf("prompt: %s\n", eds.prompt);
 
   let user_impl_term = {
     eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
