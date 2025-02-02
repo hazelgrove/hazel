@@ -78,7 +78,7 @@ let go =
 
   let set_indicated =
       (z: Zipper.t, kind: ProjectorCore.kind): option(Zipper.t) => {
-    /* If not projected, project. If already kind, remove. If other projector, change */
+    /* If not projected, project. If already same kind, remove. If other kind, change */
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
     | [Projector(pr)] when pr.kind == kind =>
@@ -125,9 +125,10 @@ let go =
     switch (d) {
     | None =>
       /* Focus by mouse click */
+      /* Currently not calling focus method as projectors get focus here naturally */
       Ok(Option.value(~default=z, jump_to_id_indicated(z, id)))
     | Some(Right) =>
-      /* Focus by keyboard handoff */
+      /* Focus by arrow key hand-off */
       switch (Siblings.left_neighbor(z.relatives.siblings)) {
       | Some(Projector({id, kind, _})) =>
         let (module P) = ProjectorInit.to_module(kind);
@@ -136,7 +137,7 @@ let go =
       };
       Ok(z);
     | Some(Left) =>
-      /* Focus by keyboard handoff */
+      /* Focus by arrow key hand-off */
       switch (Siblings.right_neighbor(z.relatives.siblings)) {
       | Some(Projector({id, kind, _})) =>
         let (module P) = ProjectorInit.to_module(kind);

@@ -17,20 +17,7 @@ module M: Projector = {
 
   let init = {text: "⋱"};
 
-  let can_project = (any: Any.t) =>
-    switch (any) {
-    | TPat(_) =>
-      /* Because TPat has no parentheses, the current parenthesis-based approach
-       * causes them to break when unwrapped in MakeTerm. In the absence of a more
-       * robust approach, we currently prohibit folding them */
-      false
-    | Typ(_) =>
-      /* While types do have parentheses, sum type constructor definitions are
-       * implemented in a bespoke way which breaks if they are parenthesized.
-       * Easier to just prohibit folding types for now. */
-      false
-    | _ => true
-    };
+  let can_project = _ => true;
   let focus = _ => ();
   let can_focus = false;
   let dynamics = false;
@@ -39,13 +26,16 @@ module M: Projector = {
     ProjectorCore.inline(m.text == "⋱" ? 2 : m.text |> String.length);
   let update = (m, _, _) => m;
 
-  let hover_view = (view_seg: view_seg, info: info) =>
+  let hover_view = (view_seg: view_seg, info: info) => {
+    let seg = Segment.unparenthesize(info.syntax);
+    let sort = Segment.sort_of(Segment.skel(seg), seg);
     div(
       ~attrs=[Attr.class_("hover-view")],
       [
-        view_seg(~background=true, Exp, Segment.unparenthesize(info.syntax)),
+        view_seg(~background=true, sort, Segment.unparenthesize(info.syntax)),
       ],
     );
+  };
 
   let view = (m: model, info, ~local as _, ~parent, ~view_seg) =>
     div(
