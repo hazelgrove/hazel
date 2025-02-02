@@ -3,7 +3,6 @@ open Haz3lcore
 let exercise : Tutorial.spec =
   {
     title = "Expressive Programming";
-    (* description = ""; *)
     module_name = "Tu_ExpressiveProgramming";
     prompt =
       "You might not have realized it, but you wrote your first computer \

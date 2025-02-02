@@ -473,7 +473,6 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
   // Printf.printf("Wrapper: %b\n", eds.wrapper);
   // Printf.printf("Name: %s\n", eds.module_name);
   Printf.printf("Wrapper: %b\n", eds.wrapper);
-  Printf.printf("prompt: %s\n", eds.prompt);
 
   let user_impl_term = {
     eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
