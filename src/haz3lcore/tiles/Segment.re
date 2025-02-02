@@ -754,6 +754,7 @@ let rec deep_tile_complete = (seg: t): bool =>
     t => Tile.is_complete(t) && List.for_all(deep_tile_complete, t.children),
     tiles(seg),
   );
+
 let mk_duo = (sort: Sort.t, seg: t): Piece.t =>
   Piece.mk_tile(Form.mk_parens(sort), [seg]);
 
@@ -764,28 +765,10 @@ let parenthesize = (~sort: option(Sort.t)=?, seg: t): Piece.t => {
   mk_duo(sort, seg);
 };
 
-let unparenthesize' = (piece: Piece.t): option(t) =>
-  switch (piece) {
-  | Tile({
-      label: ["(", ")"],
-      mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-      children: [seg],
-      _,
-    }) =>
-    Some(seg)
-  | _ => None
-  };
-
-let unparenthesize = (seg: t): option(t) =>
+let unparenthesize = (seg: t): t =>
   switch (seg) {
-  | [piece] => unparenthesize'(piece)
-  | _ => None
-  };
-
-let unparenthesize_or_wrap = (piece: Base.piece): Base.segment =>
-  switch (unparenthesize'(piece)) {
-  | Some(seg) => seg
-  | None => [piece]
+  | [piece] => Piece.unparenthesize(piece)
+  | _ => seg
   };
 
 let rec take_while_secondary = (seg: t): (t, t) =>

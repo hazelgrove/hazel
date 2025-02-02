@@ -42,10 +42,9 @@ module M: Projector = {
   let hover_view = (view_seg: view_seg, info: info) =>
     div(
       ~attrs=[Attr.class_("hover-view")],
-      switch (Segment.unparenthesize(info.syntax)) {
-      | Some(seg) => [view_seg(~background=true, Exp, seg)]
-      | None => []
-      },
+      [
+        view_seg(~background=true, Exp, Segment.unparenthesize(info.syntax)),
+      ],
     );
 
   let view = (m: model, info, ~local as _, ~parent, ~view_seg) =>
