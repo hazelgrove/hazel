@@ -514,100 +514,67 @@ and uexp_to_info_map =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
     let unwrapped_self: Self.exp =
       Common(Self.match(ctx, e_tys, branch_ids));
-    let constraint_ty =
-      switch (scrut.ty.term) {
-      | Unknown(_) =>
-        map_m(go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty), ps, m)
-        |> fst
-        |> List.map(Info.pat_ty)
-        |> Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx)
-      | _ => Some(scrut.ty)
-      };
-    let (self, m) =
-      switch (constraint_ty) {
-      | Some(constraint_ty) =>
-        let pats_to_info_map = (ps: list(Pat.t), m) => {
-          /* Add co-ctxs to patterns */
-          List.fold_left(
-            ((m, acc_constraints), (p, co_ctx)) => {
-              let p_constraint =
-                go_pat(
-                  ~is_synswitch=false,
-                  ~co_ctx,
-                  ~mode=Mode.Ana(constraint_ty),
-                  p,
-                  m,
-                )
-                |> fst
-                |> Info.pat_constraint;
-              let (p, m) =
-                go_pat(
-                  ~is_synswitch=false,
-                  ~co_ctx,
-                  ~mode=Mode.Ana(scrut.ty),
-                  p,
-                  m,
-                );
-              let is_redundant =
-                Incon.is_redundant(
-                  p_constraint,
-                  Constraint.Or(acc_constraints),
-                );
-              let self = is_redundant ? Self.Redundant(p.self) : p.self;
-              let info =
-                Info.derived_pat(
-                  ~upat=p.term,
-                  ~ctx=p.ctx,
-                  ~co_ctx=p.co_ctx,
-                  ~mode=p.mode,
-                  ~ancestors=p.ancestors,
-                  ~prev_synswitch=None,
-                  ~self,
-                  // Mark patterns as redundant at the top level
-                  // because redundancy doesn't make sense in a smaller context
-                  ~constraint_=p_constraint,
-                );
-              (
-                // Override the info for the single upat
-                add_info(p.term.ids, InfoPat(info), m),
-                is_redundant
-                  ? acc_constraints  // Redundant patterns are ignored
-                  : [p_constraint, ...acc_constraints],
+    /* let constraint_ty =
+       switch (scrut.ty.term) {
+       | Unknown(_) =>
+         map_m(go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty), ps, m)
+         |> fst
+         |> List.map(Info.pat_ty)
+         |> Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx)
+       | _ => Some(scrut.ty)
+       }; */
+    let (constraints, m) =
+      List.fold_left(
+        ((constraints: list(Constraint.t), m: Map.t), (p, co_ctx)) => {
+          let (info, m) =
+            go_pat(
+              ~is_synswitch=false,
+              ~co_ctx,
+              ~mode=Mode.Ana(scrut.ty),
+              p,
+              m,
+            );
+          let p_constraint = Info.pat_constraint(info);
+          ([p_constraint, ...constraints], m);
+        },
+        ([], m),
+        List.combine(ps, e_co_ctxs),
+      );
+    let constraints = List.rev(constraints);
+    print_endline(
+      "Calling check with: " ++ Constraint.show(Constraint.Or(constraints)),
+    );
+    let Incon.{is_exhaustive, redundant_rows} as check_result =
+      Incon.check(constraints);
+    print_endline("Final result: " ++ Incon.show_check_result(check_result));
+    let self =
+      is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+    let add_redundancy = (ps: list(TermBase.pat_t), redundant_rows, m) => {
+      List.fold_left(
+        (m, row) => {
+          let p = List.nth(ps, row);
+          switch (Id.Map.find(IdTagged.rep_id(p), m)) {
+          | Info.InfoPat(info) =>
+            let info =
+              Info.derived_pat(
+                ~upat=info.term,
+                ~ctx=info.ctx,
+                ~co_ctx=info.co_ctx,
+                ~mode=info.mode,
+                ~ancestors=info.ancestors,
+                ~prev_synswitch=info.prev_synswitch,
+                ~self=Self.Redundant(info.self),
+                ~constraint_=info.constraint_,
               );
-            },
-            (m, []),
-            List.combine(ps, e_co_ctxs),
-          );
-        };
-        let (m, final_constraints) = pats_to_info_map(ps, m);
-        print_endline("Calling is_exhaustive");
-
-        let is_exhaustive =
-          Incon.is_exhaustive(Constraint.Or(final_constraints));
-
-        print_endline(
-          "Got is_exhaustive: " ++ string_of_bool(is_exhaustive),
-        );
-
-        let self =
-          is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
-        (self, m);
-      | None =>
-        /* Add co-ctxs to patterns */
-        let (_, m) =
-          map_m(
-            ((p, co_ctx)) =>
-              go_pat(
-                ~is_synswitch=false,
-                ~co_ctx,
-                ~mode=Mode.Ana(scrut.ty),
-                p,
-              ),
-            List.combine(ps, e_co_ctxs),
-            m,
-          );
-        (unwrapped_self, m);
-      };
+            add_info(p.ids, InfoPat(info), m);
+          | _ => failwith("Invalid sort for pattern.")
+          };
+        },
+        m,
+        redundant_rows,
+      );
+    };
+    let m = add_redundancy(ps, redundant_rows, m);
     add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
   | TyAlias(typat, utyp, body) =>
     let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;

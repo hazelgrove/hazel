@@ -173,6 +173,12 @@ let submatrices = (m: matrix): submatrices => {
     first_col_redundant_rows,
   } =
     seen(m);
+  print_endline(
+    "Seen: "
+    ++ string_of_bool(seen_injL)
+    ++ ", "
+    ++ string_of_bool(seen_injR),
+  );
   let include_unit =
     !seen_prod
     && !seen_injL
@@ -238,9 +244,9 @@ let submatrices = (m: matrix): submatrices => {
       empty_submatrices,
       m,
     );
-  let seen_int = IntSet.is_empty(seen_ints);
-  let seen_float = FloatSet.is_empty(seen_floats);
-  let seen_string = StringSet.is_empty(seen_strings);
+  let seen_int = !IntSet.is_empty(seen_ints);
+  let seen_float = !FloatSet.is_empty(seen_floats);
+  let seen_string = !StringSet.is_empty(seen_strings);
   let first_col_exhaustive =
     switch (
       seen_int,
@@ -254,11 +260,14 @@ let submatrices = (m: matrix): submatrices => {
     | (true, _, _, false, _, _) => false
     | (_, true, _, false, _, _) => false
     | (_, _, true, false, _, _) => false
-    | (_, _, _, false, true, true) => true
-    | (_, _, _, false, false, false) => true
-    | (_, _, _, false, true, false)
-    | (_, _, _, false, false, true) => false
+    | (_, _, _, _, true, true) => true
+    | (_, _, _, _, false, false) => true
+    | (_, _, _, _, true, false)
+    | (_, _, _, _, false, true) => false
     };
+  print_endline(
+    "First col exhaustive: " ++ string_of_bool(first_col_exhaustive),
+  );
   print_endline(
     "First col redundant rows: "
     ++ show_redundant_rows(first_col_redundant_rows),
@@ -272,6 +281,7 @@ let matrix_of_constraints = (xis: list(Constraint.t)): matrix => {
   List.mapi((idx, xi) => {idx, cols: [xi]}, xis);
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type check_result = {
   is_exhaustive: bool,
   redundant_rows: list(int),
@@ -324,59 +334,10 @@ let rec check_matrix = (m: matrix): check_result => {
   };
 };
 
-let is_exhaustive'' = (xis: list(Constraint.t)): bool => {
-  let check_result = check_matrix(matrix_of_constraints(xis));
-  print_endline(
-    "Redundant rows (final): "
-    ++ show_redundant_rows(check_result.redundant_rows),
-  );
-  check_result.is_exhaustive;
+let check = (xis: list(Constraint.t)): check_result => {
+  check_matrix(matrix_of_constraints(xis));
 };
 
-let is_exhaustive' = (xi: Constraint.t): bool => {
-  switch (xi) {
-  | Truth
-  | Hole
-  | Int(_)
-  | Float(_)
-  | String(_)
-  | InjL(_)
-  | InjR(_)
-  | Pair(_, _) => is_exhaustive''([xi])
-  | Or(xis) => is_exhaustive''(List.rev(xis)) // TODO: reverse when generated
-  | Falsity
-  | NotInt(_)
-  | NotFloat(_)
-  | NotString(_)
-  | And(_) =>
-    print_endline(Constraint.show(xi));
-    failwith("Invalid top-level constraint.'");
-  };
-};
-
-let rec is_exhaustive = (xi: Constraint.t): bool => {
-  print_endline(Constraint.show(xi));
-  switch (xi) {
-  | Truth
-  | Hole
-  | Int(_)
-  | Float(_)
-  | String(_)
-  | InjL(_)
-  | InjR(_)
-  | Pair(_, _)
-  | Or(_) => is_exhaustive'(Constraint.truify(xi))
-  | Falsity
-  | NotInt(_)
-  | NotFloat(_)
-  | NotString(_)
-  | And(_) =>
-    print_endline(Constraint.show(xi));
-    failwith("Invalid top-level constraint.");
-  };
-};
-
-let is_redundant = (xi: Constraint.t, xis: Constraint.t): bool => {
-  false;
-       // TODO: implement me
+let is_exhaustive = (_xi: Constraint.t) => {
+  true;
 };
