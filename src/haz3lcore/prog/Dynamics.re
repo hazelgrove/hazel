@@ -62,7 +62,8 @@ module Probe = {
       syntax_id: Id.t, /* Syntax ID of probed expression */
       value: DHExp.t, /* Value of expression */
       env: Env.t, /* (Filtered) Environment Values  */
-      call_stack: Probe.call_stack /* Call stacks as ap ids */
+      call_stack: Probe.call_stack, /* Call stacks as ap ids */
+      time: float /* Time of evaluatation */
     };
 
     let mk =
@@ -78,6 +79,7 @@ module Probe = {
       value,
       env: Env.filter(env, pr.refs),
       call_stack,
+      time: JsUtil.timestamp(),
     };
   };
 

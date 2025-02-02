@@ -168,3 +168,11 @@ let remove_all_projectors = (z: t): t =>
     | x => x,
     z,
   );
+
+// let remove_all_projectors = (z: t): t =>
+//   MapPiece.go(
+//     fun
+//     | Projector(pr) => Segment.unparenthesize'(pr.syntax)
+//     | x => x,
+//     z,
+//   );
