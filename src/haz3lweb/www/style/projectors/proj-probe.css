@@ -18,7 +18,7 @@
 
   --exp-shadow: oklch(0.55 0.15 150);
   --pat-shadow: oklch(0.5 0.1 245);
-  --typ-shadow: oklch(0.5 0.1 300);
+  --exp-ap-shadow: oklch(0.5 0.1 300);
 
   --exp-cell: hsl(115, 30%, 70%);
   --pat-cell: hsl(165, 30%, 70%);
@@ -80,7 +80,7 @@
   height: 16px;
   background-image: url(../../img/noun-search-5661270.svg);
   background-size: cover;
-  filter: invert(1) brightness(0.4) sepia(1) saturate(1.8) hue-rotate(75deg);
+  filter: invert(1) brightness(0.5) sepia(1) saturate(2) hue-rotate(75deg);
 }
 .projector.probe .main.ap .icon {
   background-image: url(../../img/noun-telescope-7245201.svg);
@@ -345,6 +345,10 @@
   top: 2px;
 } */
 
+.projector.probe .closure:has(.value.above) {
+  /* --below-shadow: #d0cab7bb; */
+  --below-shadow: oklch(0.89 0.07 302.03);
+}
 .projector.probe .closure:has(.value.above.indirect) {
   background-color: oklch(0.4 0.18 300);
   box-shadow: inset 24px 25px 0 #551da0;
@@ -352,32 +356,32 @@
 .projector.probe .closure:has(.value.above.direct.L1) {
   background-color: oklch(0.7 0.18 300);
   box-shadow: inset 1.5px 1.5px 0 #551da0;
-  filter: drop-shadow(0 1.5px 0 #d0cab7bb);
+  filter: drop-shadow(0 1.5px 0 var(--below-shadow));
 }
 .projector.probe .closure:has(.value.above.indirect.L2) {
   background-color: oklch(0.66 0.18 300);
   box-shadow: inset 3px 3px 0 #551da0;
-  filter: drop-shadow(0 2.25px 0 #d0cab7bb);
+  filter: drop-shadow(0 2.25px 0 var(--below-shadow));
 }
 .projector.probe .closure:has(.value.above.indirect.L3) {
   background-color: oklch(0.62 0.18 300);
   box-shadow: inset 6px 6px 0 #551da0;
-  filter: drop-shadow(0 3px 0 #d0cab7bb);
+  filter: drop-shadow(0 3px 0 var(--below-shadow));
 }
 .projector.probe .closure:has(.value.above.indirect.L4) {
   background-color: oklch(0.58 0.18 300);
   box-shadow: inset 9px 9px 0 #551da0;
-  filter: drop-shadow(0 3.75px 0 #d0cab7bb);
+  filter: drop-shadow(0 3.75px 0 var(--below-shadow));
 }
 .projector.probe .closure:has(.value.above.indirect.L5) {
   background-color: oklch(0.54 0.18 300);
   box-shadow: inset 14px 14px 0 #551da0;
-  filter: drop-shadow(0 4.5px 0 #d0cab7bb);
+  filter: drop-shadow(0 4.5px 0 var(--below-shadow));
 }
 .projector.probe .closure:has(.value.above.indirect.L6) {
   background-color: oklch(0.5 0.18 300);
   box-shadow: inset 18px 18px 0 #551da0;
-  filter: drop-shadow(0 5.25px 0 #d0cab7bb);
+  filter: drop-shadow(0 5.25px 0 var(--below-shadow));
 }
 
 .projector.probe.Exp .closure {

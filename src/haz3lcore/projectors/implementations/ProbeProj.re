@@ -252,6 +252,8 @@ module DynCursor = {
       )
       ++ "\nstack:\n"
       ++ stack(closure.call_stack);
+    // ++ "\ntime: "
+    // ++ string_of_float(closure.time /. 10000.0);
   };
 };
 
