@@ -1,7 +1,5 @@
 open Haz3lcore
 
-(* let prompt = Tu_ComposingArithmetic_prompt.prompt *)
-
 let exercise : Tutorial.spec =
   {
     title = "Composing Arithmetic Expressions";
@@ -17,7 +15,7 @@ let exercise : Tutorial.spec =
        Try moving your cursor through the program to see how Hazel visually \
        groups operands according to their operators, making the structure of \
        the expression clear.\n";
-    wrapper = false;
+    wrapper = true;
     version = 1;
     your_impl =
       {

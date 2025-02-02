@@ -1,7 +1,5 @@
 open Haz3lcore
 
-(* let prompt = Tu_ExpressiveProgramming_prompt.prompt *)
-
 let exercise : Tutorial.spec =
   {
     title = "Expressive Programming";
@@ -15,7 +13,7 @@ let exercise : Tutorial.spec =
        expression by equationally simplifying it (i.e. evaluating it), here to \
        the integer value `4`. The symbol `≡` is pronounced \"is equivalent \
        to\".";
-    wrapper = false;
+    wrapper = true;
     version = 1;
     your_impl =
       {
