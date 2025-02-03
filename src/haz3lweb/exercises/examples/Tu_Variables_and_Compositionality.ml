@@ -44,3 +44,41 @@ let exercise : Tutorial.spec =
         hints = [];
       };
   }
+
+let comp_exercise : Tutorial.spec =
+  {
+    title = "Compositionality";
+    module_name = "Tu_Compositionality";
+    prompt =
+      "Let expressions are expressions, just like arithmetic expressions. As \
+       we discussed earlier, expressions are constructed compositionally, so \
+       we can even make a let expression an operand of an arithmetic operator.";
+    wrapper = true;
+    version = 1;
+    your_impl =
+      {
+        selection = { focus = Left; content = []; mode = Normal };
+        backpack = [];
+        relatives =
+          {
+            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
+            ancestors = [];
+          };
+        caret = Outer;
+      };
+    hidden_tests =
+      {
+        tests =
+          {
+            selection = { focus = Left; content = []; mode = Normal };
+            backpack = [];
+            relatives =
+              {
+                siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
+                ancestors = [];
+              };
+            caret = Outer;
+          };
+        hints = [];
+      };
+  }

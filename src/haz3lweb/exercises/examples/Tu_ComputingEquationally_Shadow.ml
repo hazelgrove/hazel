@@ -42,3 +42,45 @@ let exercise : Tutorial.spec =
         hints = [];
       };
   }
+
+let shadow_exercise : Tutorial.spec =
+  {
+    title = "Shadowing";
+    module_name = "Tu_Shadowing";
+    prompt =
+      "Once a variable is defined, it cannot be changed. There is no \
+       assignment operator in languages based on pure mathematical \
+       expressions, where variables are given meaning by substitution, like \
+       Hazel. However, it is possible to define a `new variable` that shares \
+       the name of a previously bound variable. However, this makes it \
+       impossible to refer to the previous binding within the scope of the new \
+       binding; we say that variable has been `shadowed`.";
+    wrapper = true;
+    version = 1;
+    your_impl =
+      {
+        selection = { focus = Left; content = []; mode = Normal };
+        backpack = [];
+        relatives =
+          {
+            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
+            ancestors = [];
+          };
+        caret = Outer;
+      };
+    hidden_tests =
+      {
+        tests =
+          {
+            selection = { focus = Left; content = []; mode = Normal };
+            backpack = [];
+            relatives =
+              {
+                siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
+                ancestors = [];
+              };
+            caret = Outer;
+          };
+        hints = [];
+      };
+  }

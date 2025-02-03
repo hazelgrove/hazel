@@ -44,3 +44,43 @@ let exercise : Tutorial.spec =
         hints = [];
       };
   }
+
+let scope_exercise : Tutorial.spec =
+  {
+    title = "Scope";
+    module_name = "Tu_Scope";
+    prompt =
+      "The scope of a variable is the expression(s) of the program where it is \
+       available for use. For let expressions, the sub-expression that follows \
+       the `in` keyword has the variable bound by the let expression in scope. \
+       Hazel's expression decorations show you where the scope of the variable \
+       will end.";
+    wrapper = true;
+    version = 1;
+    your_impl =
+      {
+        selection = { focus = Left; content = []; mode = Normal };
+        backpack = [];
+        relatives =
+          {
+            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
+            ancestors = [];
+          };
+        caret = Outer;
+      };
+    hidden_tests =
+      {
+        tests =
+          {
+            selection = { focus = Left; content = []; mode = Normal };
+            backpack = [];
+            relatives =
+              {
+                siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
+                ancestors = [];
+              };
+            caret = Outer;
+          };
+        hints = [];
+      };
+  }
