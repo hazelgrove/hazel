@@ -641,9 +641,66 @@ let syntax_str = (info: info) => {
 };
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-let view = (local, info: info): Node.t =>
+let state: ref(option(Direction.t)) = ref(Option.None);
+
+let move_cursor = (info: info, offset: int): unit =>
+  switch (info.dynamics) {
+  | Some(closures) =>
+    let closures = Closures.filter_frames_by_pin(info, closures);
+    let cursor_idx = DynCursor.first_index_of_interest(closures);
+    switch (cursor_idx) {
+    /* Cursor would be outside window, reset to next visible closure */
+    | Some(idx) =>
+      let next_idx_maybe = idx - offset;
+      if (next_idx_maybe >= 0 && next_idx_maybe < List.length(closures)) {
+        DynCursor.capture_cursor(List.nth(closures, next_idx_maybe));
+      };
+    | _ => ()
+    };
+  | None => ()
+  };
+
+let key_handler = (local, info: info, ~parent, evt) => {
+  print_endline("key_handler");
+  open Effect;
+  let key = Key.mk(KeyDown, evt);
+
+  switch (key.key) {
+  | D("ArrowRight") when key.shift == Down =>
+    print_endline("ArrowRight Shift");
+    //move_cursor(info, -1);
+    Many([Stop_propagation, local(MoveCursor(-1))]);
+  | D("ArrowLeft") when key.shift == Down =>
+    print_endline("ArrowLeft Shift");
+    //move_cursor(info, 1);
+    Many([Stop_propagation, local(MoveCursor(1))]);
+  | D("ArrowRight" | "ArrowDown") =>
+    print_endline("ArrowRight");
+    JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
+    Many([parent(Escape(Right)), Stop_propagation]);
+  | D("ArrowLeft" | "ArrowUp") =>
+    print_endline("ArrowLeft");
+    JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
+    Many([parent(Escape(Left)), Stop_propagation]);
+  /* Defer to parent editor undo for now */
+  // | D("z" | "Z" | "y" | "Y") when Key.ctrl_held(evt) || Key.meta_held(evt) =>
+  //   Many([Prevent_default])
+  // | D("z" | "Z")
+  //     when Key.shift_held(evt) && (Key.ctrl_held(evt) || Key.meta_held(evt)) =>
+  //   Many([Prevent_default])
+  // | D("\"") =>
+  //   /* Hide quotes from both the textarea and parent editor */
+  //   Many([Prevent_default, Stop_propagation])
+  | _ => Stop_propagation
+  };
+};
+
+let view = (local, parent, info: info): Node.t =>
   div(
     ~attrs=[
+      Attr.id(Id.cls(info.id)),
+      Attr.tabindex(0),
+      Attr.on_keydown(key_handler(local, info, ~parent)),
       Attr.classes(
         ["main"]
         @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
@@ -684,21 +741,7 @@ let update = (m: model, info: info, a: action) => {
       max_closures: m.max_closures == 1 ? init.max_closures : 1,
     }
   | MoveCursor(offset) =>
-    switch (info.dynamics) {
-    | Some(closures) =>
-      let closures = Closures.filter_frames_by_pin(info, closures);
-      let cursor_idx = DynCursor.first_index_of_interest(closures);
-      switch (cursor_idx) {
-      /* Cursor would be outside window, reset to next visible closure */
-      | Some(idx) =>
-        let next_idx_maybe = idx - offset;
-        if (next_idx_maybe >= 0 && next_idx_maybe < List.length(closures)) {
-          DynCursor.capture_cursor(List.nth(closures, next_idx_maybe));
-        };
-      | _ => ()
-      };
-    | None => ()
-    };
+    move_cursor(info, offset);
     m;
   | PinAp =>
     /* Pin a function call, filtering the cells in other probes */
@@ -720,8 +763,19 @@ module M: Projector = {
 
   let init = init;
   let dynamics = true;
-  let can_focus = false;
-  let focus = _ => ();
+  let can_focus = true;
+  let focus = ((id: Id.t, d: option(Direction.t))) => {
+    JsUtil.get_elem_by_id(Id.cls(id))##focus;
+    switch (d) {
+    | None => ()
+    | Some(Left) =>
+      print_endline("focus left");
+      state := Some(Left);
+    | Some(Right) =>
+      print_endline("focus right");
+      state := Some(Right);
+    };
+  };
 
   let can_project = (any: Term.Any.t) =>
     switch (any) {
@@ -736,8 +790,8 @@ module M: Projector = {
 
   let update = update;
 
-  let view = (_model, info, ~local, ~parent as _, ~view_seg as _) =>
-    view(local, info);
+  let view = (_model, info, ~local, ~parent, ~view_seg as _) =>
+    view(local, parent, info);
   let offside_view =
     Some(
       (model, info, ~local, ~parent as _, ~view_seg) =>
