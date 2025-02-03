@@ -17,22 +17,22 @@ module M: Projector = {
     };
 
   let get = (info: info): bool =>
-    switch (info.syntax |> info.utility.seg_to_term) {
-    | Some(b) =>
-      switch (bool_of(b)) {
-      | Some(b) => b
-      | None => failwith("Checkbox: Get: not boolean literal")
-      }
+    switch (
+      info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(bool_of)
+    ) {
+    | Some(b) => b
     | None => failwith("Checkbox: Get: not boolean literal")
     };
 
-  let toggle_bool_lit: Any.t => Any.t =
-    fun
-    | Exp({term: Bool(b), _} as t) => Exp({...t, term: Bool(!b)})
-    | _ => failwith("Checkbox: Toggle: not boolean literal");
-
   let toggle = (info): Base.segment =>
-    switch (info.utility.lift_syntax(toggle_bool_lit, info.syntax)) {
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: Bool(b), _} as t) => Exp({...t, term: Bool(!b)})
+        | _ => failwith("Checkbox: Toggle: not boolean literal"),
+        info.syntax,
+      )
+    ) {
     | Some(s) => s
     | None => failwith("Checkbox: Toggle: lift failed")
     };

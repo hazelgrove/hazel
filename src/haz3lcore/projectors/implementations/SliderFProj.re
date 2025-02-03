@@ -17,12 +17,10 @@ module M: Projector = {
     };
 
   let get = (info: info): float =>
-    switch (info.syntax |> info.utility.seg_to_term) {
-    | Some(f) =>
-      switch (float_of(f)) {
-      | Some(f) => f
-      | None => failwith("SliderF: Get: not float literal")
-      }
+    switch (
+      info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(float_of)
+    ) {
+    | Some(f) => f
     | None => failwith("SliderF: Get: not float literal")
     };
 
@@ -30,7 +28,7 @@ module M: Projector = {
     switch (
       info.utility.lift_syntax(
         fun
-        | Exp(any) => Exp({...any, term: Float(float_of_string(v))})
+        | Exp(t) => Exp({...t, term: Float(float_of_string(v))})
         | _ => failwith("SliderF: Put: not float literal"),
         info.syntax,
       )

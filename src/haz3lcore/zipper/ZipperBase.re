@@ -145,7 +145,7 @@ module MapPiece = {
     put_siblings(sibs, z);
   };
 
-  let fast_local = (f: Piece.t => Segment.t, id: Id.t, z: t): t =>
+  let fast_local_seg = (f: Piece.t => Segment.t, id: Id.t, z: t): t =>
     /* This applies the function to the piece in the zipper having id id, and
      * then replaces the id of the resulting piece with the idea of the old
      * piece, ensuring that the root id remains stable. This function assumes
@@ -159,6 +159,9 @@ module MapPiece = {
     } else {
       go(f, z);
     };
+
+  let fast_local = (f: Piece.t => Piece.t, id: Id.t, z: t): t =>
+    fast_local_seg(p => [f(p)], id, z);
 };
 
 let remove_all_projectors = (z: t): t =>

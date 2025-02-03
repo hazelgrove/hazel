@@ -57,7 +57,7 @@ let update_piece =
 let update =
     (f: Base.projector => Base.projector, id: Id.t, z: ZipperBase.t)
     : ZipperBase.t =>
-  ZipperBase.MapPiece.fast_local(update_piece(f, id), id, z);
+  ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
 
 let go =
     (
