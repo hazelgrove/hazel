@@ -17,12 +17,10 @@ module M: Projector = {
     };
 
   let get = (info: info): int =>
-    switch (info.syntax |> info.utility.seg_to_term) {
-    | Some(i) =>
-      switch (int_of(i)) {
-      | Some(i) => i
-      | None => failwith("Slider: Get: not integer literal")
-      }
+    switch (
+      info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(int_of)
+    ) {
+    | Some(i) => i
     | None => failwith("Slider: Get: not integer literal")
     };
 
@@ -30,7 +28,7 @@ module M: Projector = {
     switch (
       info.utility.lift_syntax(
         fun
-        | Exp(any) => Exp({...any, term: Int(int_of_string(v))})
+        | Exp(t) => Exp({...t, term: Int(int_of_string(v))})
         | _ => failwith("Slider: Put: not integer literal"),
         info.syntax,
       )
