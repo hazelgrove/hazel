@@ -273,25 +273,23 @@ module DynCursor = {
 };
 
 module Closures = {
-  let total = (info: info): int =>
-    switch (info.dynamics) {
-    | Some(di) => List.length(di)
-    | None => 0
-    };
-
   let filter_frames_by_pin =
       (info: info, frames: list(closure)): list(closure) =>
     switch (DynCursor.s.pinned_call) {
     | Some(pinned_ap) =>
       List.filter(
         (closure: closure) =>
-          /* Which do we want to show here? */
-          //DynCursor.s.pinned_call == cur_call(info, closure)
           ListUtil.hd_opt(pinned_ap) == cur_ap(info)
           || ListUtil.is_suffix_of(pinned_ap, closure.call_stack),
         frames,
       )
     | None => frames
+    };
+
+  let total = (info: info): int =>
+    switch (info.dynamics) {
+    | Some(closures) => List.length(filter_frames_by_pin(info, closures))
+    | None => 0
     };
 
   let new_home = (cursor_idx: int, home: int, max_closures: int): int =>

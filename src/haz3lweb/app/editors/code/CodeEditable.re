@@ -211,12 +211,14 @@ module View = {
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),
+        signal(MakeActive),
         globals.font_metrics,
         ProjectorView.collect_data(
           model.editor.syntax,
           model.editor.state.zipper,
           model.statics,
           model.dynamics,
+          selected,
         ),
       );
     let overlays =
