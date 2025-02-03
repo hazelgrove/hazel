@@ -342,15 +342,6 @@ module Closures = {
     };
   };
 
-  // let sort_by_call_stack_size =
-  //     (closures: list((int, closure))): list((int, closure)) => {
-  //   List.stable_sort(
-  //     ((_, c1: closure), (_, c2: closure)) =>
-  //       compare(List.length(c1.call_stack), List.length(c2.call_stack)),
-  //     closures,
-  //   );
-  // };
-
   let group =
       (closures: list((int, closure))): list(list((int, closure))) => {
     let grouped =
@@ -368,13 +359,13 @@ module Closures = {
   };
 };
 
-let seg_view = (view_seg, utility: utility, available: int, seg: Exp.t) =>
-  seg
-  |> DHExp.strip_casts
-  |> Abbreviate.abbreviate_exp(~available)
-  |> PairUtil.map_fst(e => TermBase.Exp(e))
-  |> PairUtil.map_fst(utility.term_to_seg)
-  |> PairUtil.map_fst(view_seg(Sort.Exp));
+let seg_view = (view_seg, utility: utility, available: int, exp: Exp.t) => {
+  let (abbr_exp, _length) =
+    exp |> DHExp.strip_casts |> Abbreviate.abbreviate_exp(~available);
+  let seg = utility.term_to_seg(Exp(abbr_exp));
+  let len = seg |> Printer.of_segment(~holes=Some("?")) |> String.length;
+  (view_seg(Sort.Exp, seg), len);
+};
 
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   open Float;
@@ -399,6 +390,25 @@ let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
 
 let click_coords: ref(option(Point.t)) = ref(Option.None);
 
+let length_cls = (length: int): string =>
+  if (length > 10) {
+    "extra";
+  } else if (length > 9) {
+    "s6";
+  } else if (length > 8) {
+    "s5";
+  } else if (length > 7) {
+    "s4";
+  } else if (length > 6) {
+    "s3";
+  } else if (length > 5) {
+    "s2";
+  } else if (length > 4) {
+    "s1";
+  } else {
+    "s0";
+  };
+
 let value_view =
     (
       info: info,
@@ -410,9 +420,7 @@ let value_view =
       index: int,
     ) => {
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
-    print_endline("val_pointerdown");
     if (Js.to_bool(e##.shiftKey)) {
-      print_endline("pointerdown: shift key");
       let target =
         e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
       JsUtil.setPointerCapture(target, e##.pointerId);
@@ -424,7 +432,6 @@ let value_view =
   };
 
   let val_pointerup = (e: Js.t(Dom_html.pointerEvent)) => {
-    print_endline("val_pointerup");
     let target =
       e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
     if (JsUtil.hasPointerCapture(target, e##.pointerId)) {
@@ -436,15 +443,11 @@ let value_view =
   };
 
   let val_mousemove = (e: Js.t(Dom_html.mouseEvent)) => {
-    print_endline("val_mousemove");
     switch (mousedown^) {
-    | Some(_elem) when Js.to_bool(e##.shiftKey) =>
-      print_endline("mousemove: shift key");
+    | Some(_) when Js.to_bool(e##.shiftKey) =>
       let goal = pos_rel_to_target(e);
       local(ChangeLength(closure.closure_id, goal.col));
-    | _ =>
-      print_endline("mousemove:ignore");
-      Effect.Ignore;
+    | _ => Effect.Ignore
     };
   };
 
@@ -458,11 +461,10 @@ let value_view =
 
   div(
     ~attrs=[
-      Attr.title(DynCursor.Debug.str(info, closure)),
+      //Attr.title(DynCursor.Debug.str(info, closure)),
       Attr.classes(
-        ["value"]
+        ["value", length_cls(length)]
         @ DynCursor.clss(info, closure)
-        @ (length > 5 ? ["long"] : [])
         @ (Option.is_some(cur_ap(info)) ? ["ap"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
@@ -578,7 +580,6 @@ let nav_bar_view = (model: model, num_total: int, local) => {
   // TODO: better logic
   let show_left = num_total < model.max_closures;
   let show_right = num_total < model.max_closures;
-
   div(
     ~attrs=[Attr.classes(["nav-bar"])],
     [nav_arrow(show_left, 1), nav_arrow(show_right, -1)],
@@ -671,7 +672,6 @@ let overlay_view = (info: info): Node.t =>
   );
 
 let update = (m: model, info: info, a: action) => {
-  //print_endline("update: action:" ++ show_action(a));
   switch (a) {
   | ChangeLength(id, len) =>
     if (len > (-1)) {

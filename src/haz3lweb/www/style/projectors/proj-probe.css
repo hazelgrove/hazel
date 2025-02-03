@@ -494,16 +494,49 @@
   position: relative;
   filter: drop-shadow(1.5px 3px 0 #95876452) !important;
 }
-.projector.probe .closure:hover:not(:has(.long)) {
-  scale: 1.18;
+
+.projector.probe .closure {
+  --num-levels: 7;
+  --base: 0;
+  --init: calc(0.18 * (var(--num-levels) - var(--base)) / var(--num-levels));
+  --first-scale: calc(1 + var(--init));
+  --second-scale: calc(1 + (var(--init) * 2 / 3));
+  --third-scale: calc(1 + (var(--init) * 1 / 3));
 }
-.projector.probe .closure:hover + .closure:not(:has(.long)),
-.projector.probe .closure:has(+ .closure:hover):not(:has(.long)) {
-  scale: 1.12;
+.projector.probe .closure:has(.s0) {
+  --base: 0;
 }
-.projector.probe .closure:hover + * + .closure:not(:has(.long)),
-.projector.probe .closure:has(+ * + .closure:hover):not(:has(.long)) {
-  scale: 1.04;
+.projector.probe .closure:has(.s1) {
+  --base: 1;
+}
+.projector.probe .closure:has(.s2) {
+  --base: 2;
+}
+.projector.probe .closure:has(.s3) {
+  --base: 3;
+}
+.projector.probe .closure:has(.s4) {
+  --base: 4;
+}
+.projector.probe .closure:has(.s5) {
+  --base: 5;
+}
+.projector.probe .closure:has(.s6) {
+  --base: 6;
+}
+.projector.probe .closure:has(.extra) {
+  --base: 7;
+}
+.projector.probe .closure:hover {
+  scale: var(--first-scale);
+}
+.projector.probe .closure:hover + .closure,
+.projector.probe .closure:has(+ .closure:hover) {
+  scale: var(--second-scale);
+}
+.projector.probe .closure:hover + * + .closure,
+.projector.probe .closure:has(+ * + .closure:hover) {
+  scale: var(--third-scale);
 }
 
 /* TOKENS */
