@@ -9413,8 +9413,9 @@ let startup : PersistentData.t =
                  90e0e2a5-5448-4d6c-be8d-618a5976dee3)(content(Whitespace\" \
                  \")))))))))(Secondary((id \
                  33547f17-dd1f-4b49-8e27-e42a1270ffd0)(content(Whitespace\"\\n\"))))(Secondary((id \
-                 494ce8e0-8833-4ffd-8366-56880569b9ce)(content(Comment\"# \
-                 Labeled Tuples#\"))))(Secondary((id \
+                 88a7530d-c7d3-4442-a6aa-757918d35d73)(content(Comment\"# \
+                 Labeled Tuples (Optional labels on tuple \
+                 elements)#\"))))(Secondary((id \
                  50c4fd22-af40-446b-bc43-48eaf37d00f6)(content(Whitespace\"\\n\"))))(Tile((id \
                  f2d606bd-9c20-49c1-835c-3bf2c67e0937)(label(let = \
                  in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort \
@@ -9448,7 +9449,16 @@ let startup : PersistentData.t =
                  Exp))))))(shards(0))(children())))(Secondary((id \
                  130d27c2-0248-447a-8b90-fead67788973)(content(Whitespace\" \
                  \"))))(Tile((id \
-                 b9eef104-afdd-4378-95de-f676ee37dc57)(label(b))(mold((out \
+                 30736c38-797e-470c-bcb7-176f000ccf8c)(label(0))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 81d74661-27f3-4391-afa3-8e0d1c37439f)(label(,))(mold((out \
+                 Exp)(in_())(nibs(((shape(Concave 47))(sort \
+                 Exp))((shape(Concave 47))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 18dbbbd0-6f98-4627-a491-55e0b8fb602b)(content(Whitespace\" \
+                 \"))))(Tile((id \
+                 5b75826e-40b0-4123-9a62-223a1f68daa8)(label(b))(mold((out \
                  Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
                  Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
                  da98b6ea-c7ea-469e-a9fe-8b6755abd6b6)(label(=))(mold((out \
@@ -11555,8 +11565,8 @@ let startup : PersistentData.t =
                  let tuple : (Int, Bool, (Bool, Int)) =\n\
                  (1, true, (false, 3)) in\n\
                  let (a, b, (c, d)) = tuple in\n\
-                 # Labeled Tuples#\n\
-                 let labeled_tuple = (a=true, b=false) in\n\
+                 # Labeled Tuples (Optional labels on tuple elements)#\n\
+                 let labeled_tuple = (a=true, 0, b=false) in\n\
                  test labeled_tuple.a end;\n\
                  test labeled_tuple.b end;\n\n\
                  # Functions (Take a single argument which can be a tuple) #\n\
