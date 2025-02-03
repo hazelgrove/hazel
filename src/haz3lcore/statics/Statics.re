@@ -131,7 +131,14 @@ let rec any_to_info_map =
   switch (any) {
   | Exp(e) =>
     let ({co_ctx, _}: Info.exp, m) =
-      uexp_to_info_map(~ctx, ~ancestors, ~duplicates=[], e, m);
+      uexp_to_info_map(
+        ~ctx,
+        ~ancestors,
+        ~duplicates=[],
+        ~expected_labels=None,
+        e,
+        m,
+      );
     (co_ctx, m);
   | Pat(p) =>
     let m =
@@ -173,6 +180,7 @@ and uexp_to_info_map =
       ~is_in_filter=false,
       ~ancestors,
       ~duplicates: list(string),
+      ~expected_labels: option(list(string)),
       ~override_self: option(Self.exp)=?,
       ~inferred_label: option(LabeledTuple.label)=?,
       {ids, copied: _, term} as uexp: Exp.t,
@@ -211,6 +219,7 @@ and uexp_to_info_map =
         ~is_in_filter=is_in_filter,
         ~ancestors=ancestors,
         ~duplicates=[],
+        ~expected_labels=?,
         ~inferred_label: option(string)=?,
         ~override_self=?,
         uexp: Exp.t,
@@ -222,6 +231,7 @@ and uexp_to_info_map =
       ~is_in_filter,
       ~ancestors,
       ~duplicates,
+      ~expected_labels,
       ~override_self?,
       ~inferred_label?,
       uexp,
@@ -402,9 +412,12 @@ and uexp_to_info_map =
             go(
               ~mode=Ana(Unknown(Internal) |> Typ.temp),
               ~override_self=?
-                switch (label.term) {
-                | Label(name) => Some(Common(UnexpectedLabel(name)))
-                | EmptyHole => None
+                switch (label.term, expected_labels) {
+                | (Label(name), Some(expected_labels))
+                    when !List.mem(name, expected_labels) =>
+                  Some(Common(UnexpectedLabel(name)))
+                | (Label(_), _)
+                | (EmptyHole, _) => None
                 | _ => Some(Common(BadLabel(Exp(label))))
                 },
               ~duplicates,
@@ -460,6 +473,18 @@ and uexp_to_info_map =
         m,
       )
     | Tuple(es) =>
+      let expected_labels =
+        switch (Typ.weak_head_normalize(ctx, Mode.ty_of(mode)).term) {
+        | Prod(ts) =>
+          Some(
+            List.filter_map(
+              t => Typ.match_tup_label(t) |> Option.map(fst),
+              ts,
+            ),
+          )
+        | _ => None
+        };
+
       let original_labels =
         List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
 
@@ -490,7 +515,14 @@ and uexp_to_info_map =
       let (es', m) =
         List.fold_left2(
           ((es, m), mode, (inferred_label, e)) => {
-            go(~mode, ~inferred_label?, ~duplicates=duplicate_labels, e, m)
+            go(
+              ~mode,
+              ~inferred_label?,
+              ~duplicates=duplicate_labels,
+              ~expected_labels?,
+              e,
+              m,
+            )
             |> (((e, m)) => (es @ [e], m))
           },
           ([], m),
@@ -995,6 +1027,7 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~duplicates: list(string),
+      ~expected_labels=?,
       ~mode: Mode.t=Mode.Syn,
       ~under_ascription: bool=false,
       ~override_self: option(Self.t)=?,
@@ -1033,6 +1066,7 @@ and upat_to_info_map =
         ~co_ctx,
         ~ancestors,
         ~duplicates=[],
+        ~expected_labels=?,
         ~mode,
         ~under_ascription=false,
         ~override_self=?,
@@ -1050,6 +1084,7 @@ and upat_to_info_map =
       ~under_ascription,
       ~override_self?,
       ~inferred_label?,
+      ~expected_labels?,
       upat,
       m: Map.t,
     );
@@ -1220,9 +1255,12 @@ and upat_to_info_map =
               ~ctx,
               ~mode=Ana(Unknown(Internal) |> Typ.temp),
               ~override_self=?
-                switch (label.term) {
-                | Label(name) => Some(UnexpectedLabel(name))
-                | EmptyHole => None
+                switch (label.term, expected_labels) {
+                | (Label(name), Some(expected_labels))
+                    when !List.mem(name, expected_labels) =>
+                  Some(UnexpectedLabel(name))
+                | (Label(_), _)
+                | (EmptyHole, _) => None
                 | _ => Some(BadLabel(Pat(label)))
                 },
               ~duplicates,
@@ -1278,6 +1316,18 @@ and upat_to_info_map =
         m,
       );
     | Tuple(ps) =>
+      let expected_labels =
+        switch (Typ.weak_head_normalize(ctx, Mode.ty_of(mode)).term) {
+        | Prod(ts) =>
+          Some(
+            List.filter_map(
+              t => Typ.match_tup_label(t) |> Option.map(fst),
+              ts,
+            ),
+          )
+        | _ => None
+        };
+
       let original_labels =
         List.map(p => Pat.match_tup_label(p) |> Option.map(fst), ps);
 
@@ -1317,6 +1367,7 @@ and upat_to_info_map =
               ~mode,
               ~inferred_label?,
               ~duplicates=duplicate_labels,
+              ~expected_labels?,
               e,
               m,
             )
@@ -1603,7 +1654,14 @@ and variant_to_info_map =
 
 let mk =
   Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
-    uexp_to_info_map(~ctx, ~ancestors=[], ~duplicates=[], e, Id.Map.empty)
+    uexp_to_info_map(
+      ~ctx,
+      ~ancestors=[],
+      ~duplicates=[],
+      ~expected_labels=None,
+      e,
+      Id.Map.empty,
+    )
     |> snd
   });
 
