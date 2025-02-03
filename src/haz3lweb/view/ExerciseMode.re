@@ -145,6 +145,8 @@ module Update = {
             editor: {
               editor,
               statics: cell.editor.statics,
+              //TODO(andrew): does below make sense?
+              dynamics: EvalResult.Model.dynamics(cell.result),
             },
             result: cell.result,
           }
@@ -205,20 +207,20 @@ module Update = {
         prelude:
           calculate(
             cells.prelude.editor.statics,
-            EvalResult.Model.dynamics(cells.prelude.result),
+            cells.prelude.editor.dynamics,
             model.editors.prelude,
           ),
         correct_impl:
           calculate(
             cells.test_validation.editor.statics,
-            EvalResult.Model.dynamics(cells.test_validation.result),
+            cells.test_validation.editor.dynamics,
             model.editors.correct_impl,
           ),
         your_tests: {
           tests:
             calculate(
               cells.user_tests.editor.statics,
-              EvalResult.Model.dynamics(cells.user_tests.result),
+              cells.user_tests.editor.dynamics,
               model.editors.your_tests.tests,
             ),
           required: model.editors.your_tests.required,
@@ -227,7 +229,7 @@ module Update = {
         your_impl:
           calculate(
             cells.user_impl.editor.statics,
-            EvalResult.Model.dynamics(cells.user_impl.result),
+            cells.user_impl.editor.dynamics,
             model.editors.your_impl,
           ),
         hidden_bugs:
@@ -238,7 +240,7 @@ module Update = {
                 impl:
                   calculate(
                     cell.editor.statics,
-                    EvalResult.Model.dynamics(cell.result),
+                    cell.editor.dynamics,
                     editor.impl,
                   ),
                 hint: editor.hint,
@@ -250,7 +252,7 @@ module Update = {
           tests:
             calculate(
               cells.hidden_tests.editor.statics,
-              EvalResult.Model.dynamics(cells.hidden_tests.result),
+              cells.hidden_tests.editor.dynamics,
               model.editors.hidden_tests.tests,
             ),
           hints: model.editors.hidden_tests.hints,

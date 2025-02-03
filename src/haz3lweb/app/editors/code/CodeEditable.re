@@ -31,7 +31,8 @@ module Update = {
       )
       |> (
         fun
-        | Ok(editor) => Model.{editor, statics: model.statics}
+        | Ok(editor) =>
+          Model.{editor, statics: model.statics, dynamics: model.dynamics}
         | Error(err) => raise(Action.Failure.Exception(err))
       )
       |> Updated.return(
@@ -195,7 +196,6 @@ module View = {
         ~selected: bool,
         ~overlays: list(Node.t)=[],
         ~sort=?,
-        ~dynamics: Dynamics.Map.t,
         model: Model.t,
       ) => {
     let edit_decos = {
@@ -204,7 +204,7 @@ module View = {
           let editor = model.editor;
           let globals = globals;
           let statics = model.statics;
-          let dynamics = dynamics;
+          let dynamics = model.dynamics;
         });
       Deco.editor(model.editor.state.zipper, selected);
     };
@@ -216,7 +216,7 @@ module View = {
           model.editor.syntax,
           model.editor.state.zipper,
           model.statics,
-          dynamics,
+          model.dynamics,
         ),
       );
     let overlays =
@@ -224,13 +224,7 @@ module View = {
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
       @ projectors;
     let code_view =
-      CodeWithStatics.View.view(
-        ~globals,
-        ~overlays,
-        ~dynamics,
-        ~sort?,
-        model,
-      );
+      CodeWithStatics.View.view(~globals, ~overlays, ~sort?, model);
 
     let loc = (e: Pointer.event) =>
       FontMetrics.get_goal(

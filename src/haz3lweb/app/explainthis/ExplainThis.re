@@ -512,9 +512,8 @@ let get_doc =
         CodeWithStatics.View.view(
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
-          ~dynamics,
           ~sort,
-          {editor, statics},
+          {editor, statics, dynamics},
         );
       let example_view =
         example_view(

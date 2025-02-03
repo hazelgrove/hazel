@@ -93,7 +93,6 @@ module View = {
       ~selected,
       ~globals,
       ~overlays,
-      ~dynamics,
       model.editor,
     );
   };
