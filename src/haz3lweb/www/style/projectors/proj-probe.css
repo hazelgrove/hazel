@@ -352,6 +352,7 @@
 .projector.probe .closure:has(.value.above.indirect) {
   background-color: oklch(0.4 0.18 300);
   box-shadow: inset 24px 25px 0 #551da0;
+  filter: drop-shadow(0 5.25px 0 var(--below-shadow));
 }
 .projector.probe .closure:has(.value.above.direct.L1) {
   background-color: oklch(0.7 0.18 300);

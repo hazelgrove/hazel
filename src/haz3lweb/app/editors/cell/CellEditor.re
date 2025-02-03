@@ -16,6 +16,7 @@ module Model = {
     editor: {
       editor,
       statics: CachedStatics.empty,
+      dynamics: Dynamics.Map.empty,
     },
     result: EvalResult.Model.init,
   };
@@ -193,7 +194,6 @@ module View = {
               : (action => inject(MainEditor(action))),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
-          ~dynamics=EvalResult.Model.dynamics(model.result),
           ~sort?,
           model.editor,
         ),

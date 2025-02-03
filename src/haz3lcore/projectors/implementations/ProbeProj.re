@@ -13,18 +13,16 @@ type model = {
   display_lengths: Id.Map.t(int),
   /* Max number of closures to display */
   max_closures: int,
-  /* Index offset for closure display if over max */
-  index_offset: int,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ChangeLength(Id.t, int)
-  | Offset(int)
+  | MoveCursor(int)
   | ToggleShowAllVals(int)
   | PinAp;
 
-let init = {display_lengths: Id.Map.empty, max_closures: 30, index_offset: 0};
+let init = {display_lengths: Id.Map.empty, max_closures: 30};
 
 let model_of_sexp = (sexp): model =>
   switch (model_of_sexp(sexp)) {
@@ -69,6 +67,22 @@ let cur_ap = (info: info) =>
   | _ => None
   };
 
+let home = Hashtbl.create(100);
+
+let get_home = (k: Id.t): int =>
+  switch (Hashtbl.find_opt(home, k)) {
+  | Some(v) => v
+  | None => 0
+  };
+
+let set_home = (k: Id.t, v: int) => Hashtbl.add(home, k, v);
+
+/* when we draw the window, we check if the current home has the cursor in window.
+     if not, we move the current home to put the cursor in window
+   when we use the arrows to move the closure cursor,
+   we check how far the new index of the closure cursor is from the current home
+    */
+
 module DynCursor = {
   /* Manages shared state between probes */
 
@@ -101,7 +115,8 @@ module DynCursor = {
       closures,
     );
 
-  let first_index_of = (closures: list(closure)): option(int) =>
+  let first_index_of_interest = (closures: list(closure)): option(int) =>
+    //TODO: maybe expand logic to consider more than just call cursor e.g. when ap is indicated
     List.find_index(
       (closure: closure) => s.call_cursor == closure.call_stack,
       closures,
@@ -265,64 +280,41 @@ module Closures = {
     };
 
   let filter_frames_by_pin =
-      (cur_ap: option(Id.t), frames: list(closure)): list(closure) =>
+      (info: info, frames: list(closure)): list(closure) =>
     switch (DynCursor.s.pinned_call) {
     | Some(pinned_ap) =>
       List.filter(
         (closure: closure) =>
           /* Which do we want to show here? */
           //DynCursor.s.pinned_call == cur_call(info, closure)
-          ListUtil.hd_opt(pinned_ap) == cur_ap
+          ListUtil.hd_opt(pinned_ap) == cur_ap(info)
           || ListUtil.is_suffix_of(pinned_ap, closure.call_stack),
         frames,
       )
     | None => frames
     };
 
-  let first_cursored_is_oustide_window =
-      (m: model, closures: list(closure)): option(int) => {
-    let cursor_idx = DynCursor.first_index_of(closures);
-    let abs_offset = m.index_offset;
-    switch (cursor_idx) {
-    /* Cursor would be outside window, reset to next visible closure */
-    | Some(idx) when idx >= abs_offset + m.max_closures => Some(idx)
-    | Some(idx) when idx < abs_offset => Some(idx)
-    | _ => None
+  let new_home = (cursor_idx: int, home: int, max_closures: int): int =>
+    if (cursor_idx < home) {
+      cursor_idx;
+    } else if (cursor_idx >= home + max_closures) {
+      cursor_idx - max_closures + 1;
+    } else {
+      home;
     };
-  };
 
   let select_frames =
-      (model: model, cur_ap: option(Id.t), closures: list(closure))
-      : list(closure) => {
-    let total_closures = List.length(closures);
-    let pin_filtered = closures |> filter_frames_by_pin(cur_ap);
-    //TODO: Improve below in long filtered case
-    if (List.length(pin_filtered) < total_closures) {
-      ListUtil.slice(0, model.max_closures, pin_filtered);
-    } else {
-      /* If the cursor is not visible, advance to the cursor. This
-       * is intended to effect probes other than the indicated one,
-       * in response to the indicated one changing offset. it's not
-       * very robust is that it doesn't actually change the offset
-       * of the non-indicated probes, so changing their offset in kind
-       * may have hard to understand effects. Ideally too this logic
-       * should be extended to the pinned case. */
-      switch (first_cursored_is_oustide_window(model, closures)) {
-      | None =>
-        ListUtil.slice(model.index_offset, model.max_closures, closures)
-      | Some(idx) =>
-        let num_would_be_shown = total_closures - idx - 1;
-        if (num_would_be_shown < model.max_closures) {
-          ListUtil.slice(
-            total_closures - 1 - model.max_closures,
-            total_closures - 1,
-            closures,
-          );
-        } else {
-          ListUtil.slice(idx, model.max_closures, closures);
-        };
+      (model: model, info: info, closures: list(closure)): list(closure) => {
+    let closures = filter_frames_by_pin(info, closures);
+    let cursor_idx =
+      switch (DynCursor.first_index_of_interest(closures)) {
+      | Some(idx) => idx
+      | None => 0
       };
-    };
+    let home = get_home(info.id);
+    let new_home = new_home(cursor_idx, home, model.max_closures);
+    set_home(info.id, new_home);
+    ListUtil.slice(new_home, model.max_closures, closures);
   };
 
   let group_by_predicate =
@@ -581,12 +573,14 @@ let nav_bar_view = (model: model, num_total: int, local) => {
     Node.div(
       ~attrs=[
         Attr.classes(["nav-arrow"] @ (cond ? ["disabled"] : [])),
-        Attr.on_click(_ => cond ? Effect.Ignore : local(Offset(offset))),
+        Attr.on_click(_ => local(MoveCursor(offset))),
       ],
       [],
     );
-  let show_left = model.index_offset >= num_total - model.max_closures;
-  let show_right = model.index_offset <= 0;
+  // TODO: better logic
+  let show_left = num_total < model.max_closures;
+  let show_right = num_total < model.max_closures;
+
   div(
     ~attrs=[Attr.classes(["nav-bar"])],
     [nav_arrow(show_left, 1), nav_arrow(show_right, -1)],
@@ -609,7 +603,7 @@ let offside_view =
     switch (info.dynamics) {
     | Some(closures) =>
       let num_total = Closures.total(info);
-      let closures = Closures.select_frames(model, cur_ap(info), closures);
+      let closures = Closures.select_frames(model, info, closures);
       let (num_shown, groups) = Closures.collate(closures);
       let is_cut_off = num_shown != num_total && num_shown > 0;
       let extras = [
@@ -646,30 +640,9 @@ let syntax_str = (info: info) => {
   let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
   String.length(str) > max_len ? String.sub(str, 0, max_len) ++ "..." : str;
 };
-
-let syntax_view = (info: info) => info |> syntax_str |> text;
-
-//TODO(andrew): rm
-let _syntax_view = (view_seg, utility, info: info) => {
-  let display_length = 12;
-  switch (utility.seg_to_term(info.syntax)) {
-  | Some(TermBase.Exp(e)) =>
-    let (view: Node.t, _length) =
-      seg_view(view_seg, utility, display_length, e);
-    view;
-  | _ => Node.div([])
-  };
-};
-
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-let view = (local, info: info): Node.t => {
-  let on_double_click = _ => local(PinAp);
-  let on_pointerdown = _ => {
-    /* Select a default cell if one is not already selected */
-    DynCursor.probe_default(info);
-    Effect.Ignore;
-  };
+let view = (local, info: info): Node.t =>
   div(
     ~attrs=[
       Attr.classes(
@@ -677,12 +650,15 @@ let view = (local, info: info): Node.t => {
         @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
         @ (DynCursor.is_pinned(info) ? ["pinned"] : []),
       ),
-      Attr.on_double_click(on_double_click),
-      Attr.on_pointerdown(on_pointerdown),
+      Attr.on_double_click(_ => local(PinAp)),
+      Attr.on_pointerdown(_ => {
+        /* Select a default cell if one is not already selected */
+        DynCursor.probe_default(info);
+        Effect.Ignore;
+      }),
     ],
-    [syntax_view(info), icon],
+    [text(syntax_str(info)), icon],
   );
-};
 
 let overlay_view = (info: info): Node.t =>
   div(
@@ -705,52 +681,27 @@ let update = (m: model, info: info, a: action) => {
     } else {
       m;
     }
-  | ToggleShowAllVals(offset) => {
+  | ToggleShowAllVals(_) => {
       ...m,
-      index_offset: offset,
       max_closures: m.max_closures == 1 ? init.max_closures : 1,
     }
-  | Offset(offset) =>
-    // switch (info.dynamics) {
-    // | Some(closures) =>
-    //   let cursor_idx = DynCursor.first_index_of(closures);
-    //   switch (cursor_idx) {
-    //   /* Cursor would be outside window, reset to next visible closure */
-    //   | Some(idx) =>
-    //     let next_idx = (idx + offset) mod List.length(closures);
-    //     DynCursor.capture_cursor(List.nth(closures, next_idx));
-    //   | _ => ()
-    //   };
-    // | None => ()
-    // };
-    // m;
-    let abs_offset = m.index_offset + offset;
-    let abs_offset = abs_offset < 0 ? 0 : abs_offset;
+  | MoveCursor(offset) =>
     switch (info.dynamics) {
     | Some(closures) =>
-      let cursor_idx = DynCursor.first_index_of(closures);
+      let closures = Closures.filter_frames_by_pin(info, closures);
+      let cursor_idx = DynCursor.first_index_of_interest(closures);
       switch (cursor_idx) {
       /* Cursor would be outside window, reset to next visible closure */
-      | Some(idx) when idx >= abs_offset + m.max_closures =>
-        switch (ListUtil.slice(abs_offset, m.max_closures, closures)) {
-        | [first, ..._] => DynCursor.capture_cursor(first)
-        | [] => ()
-        }
-      | Some(idx) when idx < abs_offset =>
-        /* Cursor would be outside window, reset to first visible closure */
-        switch (
-          List.rev(ListUtil.slice(abs_offset, m.max_closures, closures))
-        ) {
-        | [first, ..._] => DynCursor.capture_cursor(first)
-        | [] => ()
-        }
+      | Some(idx) =>
+        let next_idx_maybe = idx - offset;
+        if (next_idx_maybe >= 0 && next_idx_maybe < List.length(closures)) {
+          DynCursor.capture_cursor(List.nth(closures, next_idx_maybe));
+        };
       | _ => ()
       };
     | None => ()
     };
-    let index_offset = m.index_offset + offset;
-    let index_offset = index_offset < 0 ? 0 : index_offset;
-    {...m, index_offset};
+    m;
   | PinAp =>
     /* Pin a function call, filtering the cells in other probes */
     DynCursor.toggle_pinned_call(info);
