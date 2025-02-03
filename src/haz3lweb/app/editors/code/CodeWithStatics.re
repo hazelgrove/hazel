@@ -12,9 +12,7 @@ module Model = {
   type t = {
     // Updated:
     editor: Editor.t,
-    // Calculated:
     statics: CachedStatics.t,
-    // Added dynamics to model:
     dynamics: Dynamics.Map.t,
   };
 

@@ -6,6 +6,22 @@ open Util;
 open Util.OptUtil.Syntax;
 open Util.Web;
 
+type status = {
+  kind: ProjectorCore.kind,
+  sort: Sort.t,
+  indication: option(Direction.t),
+  selected: bool,
+  error: bool,
+};
+
+type projector_data = {
+  p: Piece.projector,
+  info: ProjectorBase.info,
+  measurement: Measured.measurement,
+  offside_base: int,
+  status,
+};
+
 /* A friendly name for each projector. This is used
  * both for identifying a projector in the CSS and for
  * selecting projectors in the projector panel menu */
@@ -48,18 +64,12 @@ let backing_deco =
 
 /* Adds attributes to a projector UI to support
  * custom styling when selected or indicated */
-let status =
-    (
-      indicated: option(Direction.t),
-      selected: bool,
-      error: bool,
-      sort: Sort.t,
-    ) =>
-  [Sort.show(sort)]
+let projector_clss = ({kind, sort, indication, selected, error}: status) =>
+  ["projector", name(kind), Sort.show(sort)]
   @ (selected ? ["selected"] : [])
   @ (error ? ["error"] : [])
   @ (
-    switch (indicated) {
+    switch (indication) {
     | Some(d) => ["indicated", Direction.show(d)]
     | None => []
     }
@@ -71,28 +81,22 @@ let status =
 let view_wrapper =
     (
       ~inject: Action.t => Ui_effect.t(unit),
+      ~make_active,
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~info: info,
-      ~indication: option(Direction.t),
-      ~selected: bool,
-      ~error: bool,
-      p: Base.projector,
+      ~status: status,
       views: list(Node.t),
-    ) => {
-  let sort =
-    Option.map(Info.sort_of, info.statics) |> Option.value(~default=Sort.Exp);
+    ) =>
   div(
     ~attrs=[
-      Attr.classes(
-        ["projector", name(p.kind)]
-        @ status(indication, selected, error, sort),
-      ),
+      Attr.classes(projector_clss(status)),
       /* Stopping propagation here is stops the base editor's
        * drag-select interaction from being triggered */
       Attr.on_pointerdown(_ =>
         Effect.Many([
           Effect.Stop_propagation,
+          make_active,
           inject(Project(Focus(info.id, None))),
         ])
       ),
@@ -100,7 +104,6 @@ let view_wrapper =
     ],
     views,
   );
-};
 
 /* Dispatches projector external actions to editor-level actions */
 let handle = (id, action: external_action): Action.project =>
@@ -139,22 +142,13 @@ let offside_base =
   + offset
   - measurement.origin.col;
 
-type projector_data = {
-  p: Piece.projector,
-  indication: option(Direction.t),
-  selected: bool,
-  error: bool,
-  info: ProjectorBase.info,
-  measurement: Measured.measurement,
-  offside_base: int,
-};
-
 let collect_data =
     (
       cached_syntax: Editor.CachedSyntax.t,
       zipper,
       cached_statics: CachedStatics.t,
       dynamics,
+      editor_active: bool,
     ) => {
   let projector_ids = cached_syntax.projectors |> Id.Map.bindings |> List.rev;
   List.filter_map(
@@ -163,6 +157,9 @@ let collect_data =
       let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
       let info =
         ProjectorInfo.mk_info(p, ~statics=cached_statics.info_map, ~dynamics);
+      let sort =
+        Option.map(Info.sort_of, info.statics)
+        |> Option.value(~default=Sort.Exp);
       let error =
         Option.value(
           ~default=false,
@@ -170,13 +167,18 @@ let collect_data =
         );
       {
         p,
-        indication: indication(zipper, id),
-        selected: List.mem(id, cached_syntax.selection_ids),
-        error,
-        measurement,
         info,
+        measurement,
         offside_base:
           offside_base(~offset=4, measurement, cached_syntax.measured),
+        status: {
+          sort,
+          error,
+          kind: p.kind,
+          indication: editor_active ? indication(zipper, id) : None,
+          selected:
+            editor_active ? List.mem(id, cached_syntax.selection_ids) : false,
+        },
       };
     },
     projector_ids,
@@ -218,8 +220,9 @@ let simple_code_view =
 let setup_view =
     (
       inject: Action.t => Ui_effect.t(unit),
+      make_active,
       font_metrics: FontMetrics.t,
-      {p, info, offside_base, indication, measurement, selected, error}: projector_data,
+      {p, info, offside_base, measurement, status}: projector_data,
     )
     : (Node.t, Node.t, option(Node.t)) => {
   let (module P) = ProjectorInit.to_module(p.kind);
@@ -231,13 +234,11 @@ let setup_view =
   let wrapper =
     view_wrapper(
       ~inject,
+      ~make_active,
       ~font_metrics,
       ~measurement,
-      ~indication,
+      ~status,
       ~info,
-      ~selected,
-      ~error,
-      p,
     );
   let inline_view = P.view(p.model, info, ~local, ~parent, ~view_seg);
   let offside_view =
@@ -276,12 +277,13 @@ let indication = (z, id) =>
 let all =
     (
       inject: Action.t => Ui_effect.t(unit),
+      make_active,
       font_metrics: FontMetrics.t,
       projector_data: list(projector_data),
     ) => {
   let (underlay_views, base_views, overlay_views) =
     projector_data
-    |> List.map(setup_view(inject, font_metrics))
+    |> List.map(setup_view(inject, make_active, font_metrics))
     |> ListUtil.split3;
   let overlay_views = overlay_views |> List.filter_map(Fun.id);
   [
