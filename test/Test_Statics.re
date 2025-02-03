@@ -1046,5 +1046,43 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "tuple with cast to non-tuple",
+      `Quick,
+      () => {
+        let exp = parse_exp({|(a=1, b=2) : Int|});
+
+        let tuple =
+          switch (exp.term) {
+          | Cast({term: Parens({term: Tuple(_), _} as tuple), _}, _, _) => tuple
+          | _ => Alcotest.fail("Unexpected form")
+          };
+
+        let s = statics(exp);
+
+        check(
+          option(testable_info_error_exp),
+          "Tuple Error",
+          Some(
+            Common(
+              Inconsistent(
+                Expectation({
+                  syn:
+                    Prod([
+                      TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
+                      |> Typ.temp,
+                      TupLabel(Label("b") |> Typ.temp, Int |> Typ.temp)
+                      |> Typ.temp,
+                    ])
+                    |> Typ.temp,
+                  ana: Int |> Typ.temp,
+                }),
+              ),
+            ),
+          ),
+          Statics.get_error_at(s, IdTagged.rep_id(tuple)),
+        );
+      },
+    ),
   ],
 );
