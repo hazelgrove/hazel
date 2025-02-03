@@ -287,9 +287,9 @@ let common_ok_view =
         @ (
           switch (introduced_labels) {
           | [] => []
-          | [a] => [text("by automatically added label "), code(a)]
+          | [a] => [text("by automatically adding label "), code(a)]
           | _ => [
-              text("by automatically added labels "),
+              text("by automatically adding labels "),
               ...ListUtil.join(
                    text(","),
                    List.map(code, introduced_labels),
@@ -306,7 +306,15 @@ let common_ok_view =
         | true => [text(" after reordering labels ")]
         }
       )
-      @ [text("consistent with expected type"), view_type(ana)]
+      @ [
+        text(
+          switch (syn.term) {
+          | Label(_) => ""
+          | _ => "consistent with expected type"
+          },
+        ),
+        view_type(ana),
+      ]
       @ (
         switch (lifted_ty) {
         | None => []
@@ -316,9 +324,9 @@ let common_ok_view =
       @ (
         switch (introduced_labels) {
         | [] => []
-        | [a] => [text("by automatically added label "), code(a)]
+        | [a] => [text("by automatically adding label "), code(a)]
         | _ => [
-            text("by automatically added labels "),
+            text("by automatically adding labels "),
             ...ListUtil.join(text(","), List.map(code, introduced_labels)),
           ]
         }
@@ -355,7 +363,15 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
     );
   switch (ok) {
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
-  | Type(ty) => [view_type(ty), text("is a type")]
+  | Type(ty) =>
+    [view_type(ty)]
+    @ (
+      switch (cls) {
+      | Typ(Label) => []
+      | _ => [text("is a type")]
+      }
+    )
+
   | TypeAlias(name, ty_lookup) => [
       view_type(Var(name) |> Typ.fresh),
       text("is an alias for"),

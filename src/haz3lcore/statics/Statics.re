@@ -619,23 +619,7 @@ and uexp_to_info_map =
       let fn_mode = Mode.of_ap(ctx, mode, Exp.ctr_name(fn));
       let (fn, m) = go(~mode=fn_mode, fn, m);
       let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
-      let arg =
-        switch (arg.term, Typ.weak_head_normalize(ctx, ty_in).term) {
-        | (Tuple(es), Prod(ts)) =>
-          let es' =
-            LabeledTuple.rearrange(
-              Typ.match_tup_label, Exp.match_tup_label, ts, es, (name, e) =>
-              TupLabel(Label(name) |> Exp.fresh, e) |> Exp.fresh
-            );
-          let arg: Exp.t = {
-            term: Tuple(es'),
-            ids: arg.ids,
-            copied: arg.copied,
-          };
-          arg;
 
-        | (_, _) => arg
-        };
       let (arg, m) = go(~mode=Ana(ty_in), arg, m);
       let self: Self.t =
         Id.is_nullary_ap_flag(arg.term.ids)
