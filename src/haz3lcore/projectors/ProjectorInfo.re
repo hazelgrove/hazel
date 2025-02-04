@@ -37,4 +37,13 @@ module Shape = {
   };
 
   let of_map_default = of_map(Id.Map.empty, Id.Map.empty);
+
+  let mk_map =
+      (
+        proj_map: Id.Map.t(Base.projector),
+        statics: Statics.Map.t,
+        dynamics: Dynamics.Map.t,
+      )
+      : Id.Map.t(ProjectorCore.shape) =>
+    Id.Map.map(of_map(statics, dynamics), proj_map);
 };

@@ -631,13 +631,15 @@ let pin_view = (info: info) =>
   DynCursor.show_pin(info)
     ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
-let syntax_str = (info: info) => {
-  let max_len = 30;
-  let seg = Segment.unparenthesize(info.syntax);
-  let str = Printer.of_segment(~holes=Some("?"), seg);
-  let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
-  String.length(str) > max_len ? String.sub(str, 0, max_len) ++ "..." : str;
-};
+let syntax_str =
+  Core.Memo.general(seg => {
+    let max_len = 30;
+    let seg = Segment.unparenthesize(seg);
+    let str = Printer.of_segment(~holes=Some("?"), seg);
+    let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
+    String.length(str) > max_len
+      ? String.sub(str, 0, max_len) ++ "..." : str;
+  });
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
 let view = (local, info: info): Node.t =>
@@ -655,7 +657,7 @@ let view = (local, info: info): Node.t =>
         Effect.Ignore;
       }),
     ],
-    [text(syntax_str(info)), icon],
+    [text(syntax_str(info.syntax)), icon],
   );
 
 let overlay_view = (info: info): Node.t =>
@@ -731,7 +733,7 @@ module M: Projector = {
     };
 
   let placeholder = (_, info: info) =>
-    ProjectorCore.inline(2 + String.length(syntax_str(info)));
+    ProjectorCore.inline(2 + String.length(syntax_str(info.syntax)));
 
   let update = update;
 
