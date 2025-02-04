@@ -293,9 +293,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           shards: [0],
           children: [],
         }),
-        Secondary(Secondary.mk_space(Id.mk())),
       ],
-      e,
+      if (Form.begins_with_potential_operator(Segment.first_string(e))) {
+        [Secondary(Secondary.mk_space(Id.mk()))] @ e;
+      } else {
+        e;
+      },
     ]);
   | Dot(e, l) =>
     let* e = go(e)
@@ -563,9 +566,12 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
           shards: [0],
           children: [],
         }),
-        Secondary(Secondary.mk_space(Id.mk())),
       ],
-      p,
+      if (Form.begins_with_potential_operator(Segment.first_string(p))) {
+        [Secondary(Secondary.mk_space(Id.mk()))] @ p;
+      } else {
+        p;
+      },
     ]);
   | Label(l) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, l)
   | Parens(p) =>
@@ -664,9 +670,12 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           shards: [0],
           children: [],
         }),
-        Secondary(Secondary.mk_space(Id.mk())),
       ],
-      t,
+      if (Form.begins_with_potential_operator(Segment.first_string(t))) {
+        [Secondary(Secondary.mk_space(Id.mk()))] @ t;
+      } else {
+        t;
+      },
     ]);
   | Parens(t) =>
     let id = typ |> Typ.rep_id;
