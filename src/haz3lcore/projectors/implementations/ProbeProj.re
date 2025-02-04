@@ -461,6 +461,10 @@ let value_view =
     };
   };
 
+  let is_value =
+    ValueChecker.check_value((), ClosureEnvironment.empty, closure.value)
+    == Value;
+
   let (view, length) =
     seg_view(
       view_seg,
@@ -475,7 +479,8 @@ let value_view =
       Attr.classes(
         ["value", length_cls(length)]
         @ DynCursor.clss(info, closure)
-        @ (Option.is_some(cur_ap(info)) ? ["ap"] : []),
+        @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
+        @ (!is_value ? ["indet"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
       Attr.on_pointerdown(val_pointerdown),
