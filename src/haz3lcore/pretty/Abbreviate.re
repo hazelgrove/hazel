@@ -1,12 +1,14 @@
 /* Abbreviate a term for display, specifically for the live
  * value probe projector. This is currently specialized for
  * expressions which are (at least partially) values. This
- * is a bit rough right now, and should be redone when we
- * projectors (in particular, fold) within value displays */
+ * is pretty rough right now, and should be redone when we
+ * projectors (in particular, fold) within value displays.
+ *
+ * This approach ends up duplicating way too much info
+ * with ExpToSeg. This should probably be rewritten to
+ * use that somehow. */
 
-let comp_elipses = "…"; //"⋱"; // "┄"
-let flat_ellipses = "…";
-let ellipses_term = () => IdTagged.fresh(Invalid(comp_elipses): Exp.term);
+let flat_ellipses = "…"; //"⋱"; // "┄"
 let flat_ellipses_term = () =>
   IdTagged.fresh(Invalid(flat_ellipses): Exp.term);
 let is_flat_ellipses = (term: IdTagged.t(Exp.term)): bool =>
@@ -38,6 +40,12 @@ let abbreviate_str = (min_len: int, s: string): string => {
   };
 };
 
+let indet_term: Exp.term = Invalid("?");
+let indet_term_typ: Typ.term = Unknown(Internal);
+let indet_term_pat: Pat.term = Invalid("?");
+let indet_term_rul: Rul.term = Invalid("?");
+let indet_term_tpat: TPat.term = Invalid("?");
+
 let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
   let rewrap = (term: Exp.term): Exp.t => {
     {...exp, term};
@@ -50,8 +58,6 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
     } else {
       Invalid(abbreviate_str(available^, str));
     };
-
-  let indet_term: Exp.term = Invalid("?");
 
   let abbreviate_seq = xs => {
     let rec go = xs =>
@@ -71,6 +77,39 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       };
     go(xs);
   };
+
+  // Helper to handle cases where we need to check available space and potentially return indet_term
+  let handle_op_indet =
+      (
+        ~cost: int,
+        ~make_term: (Exp.t, Exp.t) => Exp.term,
+        e1: Exp.t,
+        e2: Exp.t,
+      )
+      : Exp.term =>
+    if (available^ <= cost) {
+      indet_term;
+    } else {
+      available := available^ - cost;
+      let e1' = abbreviate_exp(e1);
+      if (available^ > 0) {
+        let e2' = abbreviate_exp(e2);
+        make_term(e1', e2');
+      } else {
+        e1'.term;
+      };
+    };
+
+  // Helper for unary operations
+  let handle_unary =
+      (~cost: int, ~make_term: Exp.t => Exp.term, e: Exp.t): Exp.term =>
+    if (available^ <= cost) {
+      indet_term;
+    } else {
+      available := available^ - cost;
+      make_term(abbreviate_exp(e));
+    };
+
   let term: Exp.term =
     switch (exp |> Exp.term_of) {
     | Fun(_p, _e, _, Some(s)) => Invalid("<" ++ s ++ ">")
@@ -93,6 +132,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
     | EmptyHole => EmptyHole
     | ListLit([]) => ListLit([])
     | Tuple([]) => Tuple([])
+    | Deferral(pos) => Deferral(pos)
     | Undefined => wrap_or(Undefined, "undefined")
     | Bool(b) => wrap_or(Bool(b), string_of_bool(b))
     | Int(n) =>
@@ -120,42 +160,305 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         if (available^ > 0) {
           abbreviate_exp(arg);
         } else {
-          ellipses_term();
+          flat_ellipses_term();
         };
       Ap(Forward, konst, arg);
     | Wrap(e, pt) =>
       available := available^ - 2;
       Wrap(abbreviate_exp(e), pt);
 
-    //unhandled atm
-    | Closure(_) => indet_term
-    | MultiHole(_es) => indet_term
-    | TypFun(_tp, _e, _) => indet_term
-    | FailedCast(_e, _, _t) => indet_term
-    | Cast(_e, _, _t) => indet_term
+    // Casts
 
-    //non-value
-    | Cons(_) => indet_term
-    | Filter(_) => indet_term
-    | Ap(Forward, _e1, _e2) => indet_term
-    | Ap(Reverse, _e1, _e2) => indet_term
-    | Deferral(_d) => indet_term
-    | BinOp(_op, _l, _r) => indet_term
-    | Let(_p, _e1, _e2) => indet_term
-    | FixF(_p, _e, _) => indet_term
-    | TyAlias(_tp, _t, _e) => indet_term
+    | Cast(e, t1, t2) =>
+      handle_op_indet(
+        ~cost=3, // " : "
+        ~make_term=(e', _) => Cast(e', t1, t2),
+        e,
+        e // dummy second arg since Cast only has one expression
+      )
+    | FailedCast(e, t1, t2) =>
+      handle_op_indet(
+        ~cost=3, // " : "
+        ~make_term=(e', _) => FailedCast(e', t1, t2),
+        e,
+        e // dummy second arg
+      )
+
+    // Indeterminant forms
+
+    // List operations
+    | Cons(e1, e2) =>
+      handle_op_indet(
+        ~cost=4, // " :: "
+        ~make_term=(e1', e2') => Cons(e1', e2'),
+        e1,
+        e2,
+      )
+    | ListConcat(e1, e2) =>
+      handle_op_indet(
+        ~cost=3, // " @ "
+        ~make_term=(e1', e2') => ListConcat(e1', e2'),
+        e1,
+        e2,
+      )
+
+    // Unary operations
+    | UnOp(Bool(Not), e) =>
+      handle_unary(
+        ~cost=1, // "!"
+        ~make_term=e' => UnOp(Bool(Not), e'),
+        e,
+      )
+    | UnOp(Int(Minus), e) =>
+      handle_unary(
+        ~cost=1, // "-"
+        ~make_term=e' => UnOp(Int(Minus), e'),
+        e,
+      )
+
+    // Binary operations
+    | BinOp(op, e1, e2) =>
+      let op_str =
+        switch (op) {
+        | Int(Plus) => " + "
+        | Int(Minus) => " - "
+        | Int(Times) => " * "
+        | Int(Divide) => " / "
+        | Int(Equals) => " == "
+        | Int(LessThan) => " < "
+        | Int(GreaterThan) => " > "
+        | Int(LessThanOrEqual) => " <= "
+        | Int(GreaterThanOrEqual) => " >= "
+        | Int(NotEquals) => " != "
+        | Int(Power) => " ** "
+        | Bool(And) => " && "
+        | Bool(Or) => " || "
+        | Float(Plus) => " + "
+        | Float(Minus) => " - "
+        | Float(Times) => " * "
+        | Float(Divide) => " / "
+        | Float(Equals) => " == "
+        | Float(LessThan) => " < "
+        | Float(GreaterThan) => " > "
+        | Float(LessThanOrEqual) => " <= "
+        | Float(GreaterThanOrEqual) => " >= "
+        | Float(NotEquals) => " != "
+        | Float(Power) => " ** "
+        | String(Concat) => " @ "
+        | String(Equals) => " == "
+        };
+      if (available^ <= String.length(op_str)) {
+        indet_term;
+      } else {
+        available := available^ - String.length(op_str);
+        let e1' = abbreviate_exp(e1);
+        if (available^ > 0) {
+          let e2' = abbreviate_exp(e2);
+          BinOp(op, e1', e2');
+        } else {
+          e1'.term;
+        };
+      };
+
+    | Ap(Forward, e1, e2) =>
+      if (available^ <= 1) {
+        indet_term;
+      } else {
+        available := available^ - 1; // space between terms
+        let e1' = abbreviate_exp(e1);
+        if (available^ > 0) {
+          let e2' = abbreviate_exp(e2);
+          Ap(Forward, e1', e2');
+        } else {
+          e1'.term;
+        };
+      }
+
+    //similar to ap, except with builtin tuple for args
+    | DeferredAp(e, es) =>
+      if (available^ <= 1) {
+        indet_term;
+      } else {
+        available := available^ - 1; // space between terms
+        let e' = abbreviate_exp(e);
+        if (available^ > 0) {
+          let es' = List.map((e: Exp.t) => abbreviate_exp(e), es);
+          DeferredAp(e', es');
+        } else {
+          e'.term;
+        };
+      }
+
+    | Test(e) =>
+      handle_unary(
+        ~cost=9, // "test " + " end"
+        ~make_term=e' => Test(e'),
+        e,
+      )
+    | Seq(e1, e2) =>
+      handle_op_indet(
+        ~cost=2, // "; "
+        ~make_term=(e1', e2') => Seq(e1', e2'),
+        e1,
+        e2,
+      )
+    | If(e1, e2, e3) =>
+      if (available^ <= 14) {
+        // "if then else "
+        indet_term;
+      } else {
+        available := available^ - 14;
+        let e1' = abbreviate_exp(e1);
+        if (available^ > 0) {
+          let e2' = abbreviate_exp(e2);
+          if (available^ > 0) {
+            let e3' = abbreviate_exp(e3);
+            If(e1', e2', e3');
+          } else {
+            e2'.term;
+          };
+        } else {
+          e1'.term;
+        };
+      }
+    | Ap(Reverse, e1, e2) =>
+      handle_op_indet(
+        ~cost=1, // space between terms
+        ~make_term=(e1', e2') => Ap(Reverse, e1', e2'),
+        e1,
+        e2,
+      )
+
+    | Let(p, e1, e2) =>
+      if (available^ < 3) {
+        indet_term;
+      } else if (available^ <= 3) {
+        Invalid("let");
+      } else if (available^ <= 4) {
+        Invalid("let…");
+      } else if (available^ <= 6) {
+        Invalid("let…in");
+      } else if (available^ <= 8) {
+        Invalid("let…in…");
+      } else {
+        available := available^ - 8;
+        let p' = abbreviate_pat(p);
+        if (available^ > 3) {
+          // " = "
+          available := available^ - 3;
+          let e1' = abbreviate_exp(e1);
+          if (available^ > 4) {
+            // " in "
+            available := available^ - 4;
+            let e2' = abbreviate_exp(e2);
+            Let(p', e1', e2');
+          } else {
+            Let(p', e1', {...e2, term: indet_term});
+          };
+        } else {
+          Let(p', {...e1, term: indet_term}, {...e2, term: indet_term});
+        };
+      }
+
+    | TyAlias(tp, t, e) =>
+      if (available^ < 4) {
+        indet_term;
+      } else if (available^ <= 4) {
+        Invalid("type");
+      } else if (available^ <= 6) {
+        Invalid("type…");
+      } else if (available^ <= 7) {
+        Invalid("type…in");
+      } else if (available^ <= 11) {
+        Invalid("type…in…");
+      } else {
+        available := available^ - 8;
+        let tp' = abbreviate_tpat(tp);
+        if (available^ > 3) {
+          // " = "
+          available := available^ - 3;
+          let t' = abbreviate_typ(t);
+          if (available^ > 4) {
+            // " in "
+            available := available^ - 4;
+            let e' = abbreviate_exp(e);
+            TyAlias(tp', t', e');
+          } else {
+            TyAlias(tp', t', {...e, term: indet_term});
+          };
+        } else {
+          TyAlias(
+            tp',
+            {...t, term: indet_term_typ},
+            {...e, term: indet_term},
+          );
+        };
+      }
+
+    | FixF(p, e, t) =>
+      if (available^ < 3) {
+        indet_term;
+      } else if (available^ <= 3) {
+        Invalid("fix");
+      } else if (available^ <= 5) {
+        Invalid("fix…");
+      } else if (available^ <= 6) {
+        Invalid("fix…→");
+      } else if (available^ <= 7) {
+        Invalid("fix…→…");
+      } else {
+        available := available^ - 7;
+        let p' = abbreviate_pat(p);
+        if (available^ > 4) {
+          // " -> "
+          available := available^ - 4;
+          let e' = abbreviate_exp(e);
+          FixF(p', e', t);
+        } else {
+          FixF(p', {...e, term: indet_term}, t);
+        };
+      }
+
+    | Match(_e, _rs) =>
+      //TODO: scrut, rules
+      if (available^ <= 3) {
+        indet_term;
+      } else if (available^ <= 4) {
+        Invalid("case");
+      } else if (available^ <= 7) {
+        Invalid("case…");
+      } else {
+        Invalid("case…end");
+      }
+
+    | Closure(env, exp) =>
+      handle_unary(
+        ~cost=1, // space between terms
+        ~make_term=e' => Closure(env, e'),
+        exp,
+      )
+
+    // Unimplemented:
+    | MultiHole(_es) => indet_term
+
+    | TypFun(_tp, _e, _) => indet_term
     | TypAp(_e, _t) => indet_term
-    | DeferredAp(_e, _es) => indet_term
-    | If(_e1, _e2, _e3) => indet_term
-    | Seq(_e1, _e2) => indet_term
-    | Test(_e) => indet_term
-    | ListConcat(_e1, _e2) => indet_term
-    | UnOp(Bool(Not), _e) => indet_term
-    | UnOp(Int(Minus), _e) => indet_term
+    | Filter(_) => indet_term
     | UnOp(Meta(Unquote), _e) => indet_term
-    | Match(_e, _rs) => indet_term
     };
   rewrap(term);
+}
+and abbreviate_pat = (_pat: Pat.t): Pat.t => {
+  //TODO
+  IdTagged.fresh(indet_term_pat);
+}
+and abbreviate_typ = (_typ: Typ.t): Typ.t => {
+  //TODO
+  IdTagged.fresh(indet_term_typ);
+}
+and abbreviate_tpat = (_tpat: TPat.t): TPat.t => {
+  //TODO
+  IdTagged.fresh(indet_term_tpat);
 };
 
 let abbreviate_exp = (~available as a=12, exp: Exp.t): (Exp.t, int) => {
@@ -163,7 +466,7 @@ let abbreviate_exp = (~available as a=12, exp: Exp.t): (Exp.t, int) => {
   let exp = abbreviate_exp(exp);
   let length_exp = a - available^;
   a < 0 || a <= 1 && length_exp > 1
-    ? (ellipses_term(), length_exp)
+    ? (flat_ellipses_term(), length_exp)
     : {
       (exp, length_exp);
     };
