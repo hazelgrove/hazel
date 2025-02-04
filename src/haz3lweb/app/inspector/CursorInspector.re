@@ -271,12 +271,6 @@ let common_ok_view =
       | Label(l) => [text(":"), code(l), text(" is an expected label")]
       | _ =>
         [text(":"), view_type(syn)]
-        @ (
-          switch (reordered) {
-          | false => []
-          | true => [text(" after reordering labels ")]
-          }
-        )
         @ [text("equals expected type")]
         @ (
           switch (lifted_ty) {
@@ -297,15 +291,15 @@ let common_ok_view =
             ]
           }
         )
+        @ (
+          switch (reordered) {
+          | false => []
+          | true => [text(" after reordering by labels ")]
+          }
+        )
       }
     | (_, Ana(Consistent({ana, syn, _}))) =>
       [text(":"), view_type(syn)]
-      @ (
-        switch (reordered) {
-        | false => []
-        | true => [text(" after reordering labels ")]
-        }
-      )
       @ [
         text(
           switch (syn.term) {
@@ -329,6 +323,12 @@ let common_ok_view =
             text("by automatically adding labels "),
             ...ListUtil.join(text(","), List.map(code, introduced_labels)),
           ]
+        }
+      )
+      @ (
+        switch (reordered) {
+        | false => []
+        | true => [text(" after reordering by labels ")]
         }
       )
     | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
