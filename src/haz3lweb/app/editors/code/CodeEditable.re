@@ -204,7 +204,6 @@ module View = {
           let editor = model.editor;
           let globals = globals;
           let statics = model.statics;
-          let dynamics = model.dynamics;
         });
       Deco.editor(model.editor.state.zipper, selected);
     };

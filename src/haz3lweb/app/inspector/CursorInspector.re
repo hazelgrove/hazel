@@ -86,7 +86,6 @@ let view_type = (~globals, typ: Typ.t) =>
       show_filters: false,
       show_unknown_as_hole: true,
     },
-    ~info_map=Id.Map.empty,
     typ,
   )
   |> code_box_container;

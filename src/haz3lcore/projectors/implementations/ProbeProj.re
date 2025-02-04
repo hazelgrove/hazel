@@ -733,7 +733,7 @@ module M: Projector = {
     };
 
   let placeholder = (_, info: info) =>
-    ProjectorCore.inline(2 + String.length(syntax_str(info.syntax)));
+    ProjectorCore.Shape.inline(2 + String.length(syntax_str(info.syntax)));
 
   let update = update;
 

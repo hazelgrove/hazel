@@ -23,7 +23,7 @@ module M: Projector = {
   let dynamics = false;
 
   let placeholder = (m, _) =>
-    ProjectorCore.inline(m.text == "⋱" ? 2 : m.text |> String.length);
+    ProjectorCore.Shape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
   let update = (m, _, _) => m;
 
   let hover_view = (view_seg: view_seg, info: info) => {

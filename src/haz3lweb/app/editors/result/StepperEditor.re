@@ -71,7 +71,6 @@ module View = {
         ~signal: event => 'a,
         ~overlays=[],
         ~selected,
-        ~dynamics: Dynamics.Map.t,
         model: Model.t,
       ) => {
     let overlays = {
@@ -80,7 +79,6 @@ module View = {
           let editor = model.editor.editor;
           let globals = globals;
           let statics = model.editor.statics;
-          let dynamics = dynamics;
         });
       overlays
       @ Deco.taken_steps(model.taken_steps)

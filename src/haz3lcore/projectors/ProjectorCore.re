@@ -2,7 +2,7 @@ open Util;
 
 /* Projector dependencies are currently somewhat convoluted.
  * This is the lowermost projectors module; Base depends on
- * this (specifically, it parametrizes the type t below over piece).
+ * this (specifically, it parameterizes the type t below over piece).
  *
  * ProjectorBase then depends on this and on Base.piece,
  * and also on Vdom, necessitating its inclusion in Core.
@@ -12,57 +12,108 @@ open Util;
  * ProjectorInfo depends on ProjectorBase but not on ProjectorInit
  * (to avoid cyclical dependencies due to MakeTerm and ExpToSegment) */
 
-/* The different kinds of projector. New projectors
- * types need to be registered here in order to be
- * able to create and update their instances */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type kind =
-  | Fold
-  | Info
-  | Probe
-  | Checkbox
-  | Slider
-  | SliderF
-  | TextArea;
+module Kind = {
+  /* The different kinds of projector. New projector
+   * types need to be registered here in order to be
+   * able to create and update their instances */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Fold
+    | Info
+    | Probe
+    | Checkbox
+    | Slider
+    | SliderF
+    | TextArea;
 
-/* A projector shape determines the space left for
- * that projector, and how text flows around a projector
- * in a text editor. All projectors have a horizontal
- * extend (in characters), and the vertical extent may
- * be either 1 character (Inline), or it may insert
- * an additional number of linebreaks */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type vertical =
-  | Inline
-  | Block(int);
+  let livelit_projectors: list(t) = [Checkbox, Slider, SliderF, TextArea];
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type shape = {
-  horizontal: int,
-  vertical,
+  let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];
+
+  /* A friendly name for each projector. This is used
+   * both for identifying a projector in the CSS and for
+   * selecting projectors in the projector panel menu */
+  let name = (p: t): string =>
+    switch (p) {
+    | Fold => "fold"
+    | Info => "type"
+    | Probe => "probe"
+    | Checkbox => "check"
+    | Slider => "slider"
+    | SliderF => "sliderf"
+    | TextArea => "text"
+    };
+
+  /* This must be updated and kept 1-to-1 with the above
+   * name function in order to be able to select the
+   * projector in the projector panel menu */
+  let of_name = (p: string): t =>
+    switch (p) {
+    | "fold" => Fold
+    | "type" => Info
+    | "probe" => Probe
+    | "check" => Checkbox
+    | "slider" => Slider
+    | "sliderf" => SliderF
+    | "text" => TextArea
+    | _ => failwith("Unknown projector kind")
+    };
 };
 
 /* Projectors in syntax */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('syntax) = {
   id: Id.t,
-  kind,
+  kind: Kind.t,
   syntax: 'syntax,
   model: string,
 };
 
 let mk = (kind, syntax, model) => {id: Id.mk(), kind, syntax, model};
 
-let livelit_projectors: list(kind) = [Checkbox, Slider, SliderF, TextArea];
+module Shape = {
+  /* A projector shape determines the space left for
+   * that projector, and how text flows around a projector
+   * in a text editor. All projectors have a horizontal
+   * extend (in characters), and the vertical extent may
+   * be either 1 character (Inline), or it may insert
+   * an additional number of linebreaks */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type vertical =
+    | Inline
+    | Block(int);
 
-let projectors: list(kind) = livelit_projectors @ [Fold, Info, Probe];
-
-let inline = (width: int): shape => {horizontal: width, vertical: Inline};
-let default: shape = inline(0);
-
-let token = (shape: shape): string =>
-  switch (shape.vertical) {
-  | Inline => String.make(shape.horizontal, ' ')
-  | Block(num_lb) =>
-    String.make(num_lb, '\n') ++ String.make(shape.horizontal, ' ')
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    horizontal: int,
+    vertical,
   };
+  let inline = (width: int): t => {horizontal: width, vertical: Inline};
+  let default: t = inline(0);
+
+  let token = (shape: t): string =>
+    switch (shape.vertical) {
+    | Inline => String.make(shape.horizontal, ' ')
+    | Block(num_lb) =>
+      String.make(num_lb, '\n') ++ String.make(shape.horizontal, ' ')
+    };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type shape = t;
+
+  module Map = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = Id.Map.t(shape);
+
+    let empty: t = Id.Map.empty;
+
+    let lookup = (id: Id.t, shape_map: t): shape =>
+      switch (Id.Map.find_opt(id, shape_map)) {
+      | None => inline(0) //TODO: error reporting
+      | Some(shape) => shape
+      };
+
+    let lookup_token = (id: Id.t, shape_map: t): string =>
+      lookup(id, shape_map) |> token;
+  };
+};

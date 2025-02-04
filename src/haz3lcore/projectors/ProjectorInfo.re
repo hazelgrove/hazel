@@ -1,3 +1,6 @@
+/* Projector data which is dependent on semantics,
+ * separated out for dependency reasons */
+
 /* Gather utility functions/values to be sspaed to the projector.
  * See ProjectorBase.utility definition for more information */
 let utility: ProjectorBase.utility = {
@@ -28,22 +31,20 @@ let mk_info =
   utility,
 };
 
-module Shape = {
-  let of_map =
+module ShapeMapSemantics = {
+  let from_semantics =
       (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector)
-      : ProjectorCore.shape => {
+      : ProjectorCore.Shape.t => {
     let (module P) = ProjectorInit.to_module(p.kind);
     P.placeholder(p.model, mk_info(p, ~statics, ~dynamics));
   };
 
-  let of_map_default = of_map(Id.Map.empty, Id.Map.empty);
-
-  let mk_map =
+  let mk =
       (
         proj_map: Id.Map.t(Base.projector),
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
       )
-      : Id.Map.t(ProjectorCore.shape) =>
-    Id.Map.map(of_map(statics, dynamics), proj_map);
+      : Id.Map.t(ProjectorCore.Shape.t) =>
+    Id.Map.map(from_semantics(statics, dynamics), proj_map);
 };

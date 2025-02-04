@@ -23,7 +23,7 @@ open OptUtil.Syntax;
  * neighboring infix operation was added which binds tighter. Again,
  * this is the same as would happen if unparenthesizing a subterm. */
 
-let init = (kind: ProjectorCore.kind, seg: Base.segment): option(syntax) =>
+let init = (kind: ProjectorCore.Kind.t, seg: Base.segment): option(syntax) =>
   /* Projected syntax always gets parenthesized, but only the contents
    * of those parentheses are passed to the projector implementations  */
   switch (MakeTerm.for_projection(seg)) {
@@ -77,7 +77,7 @@ let go =
       : Some((z.selection.focus, z));
 
   let set_indicated =
-      (z: Zipper.t, kind: ProjectorCore.kind): option(Zipper.t) => {
+      (z: Zipper.t, kind: ProjectorCore.Kind.t): option(Zipper.t) => {
     /* If not projected, project. If already same kind, remove. If other kind, change */
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
@@ -108,7 +108,10 @@ let go =
     }
   | SetIndicated(ChooseLivelit) =>
     switch (
-      List.filter_map(set_indicated(z), ProjectorCore.livelit_projectors)
+      List.filter_map(
+        set_indicated(z),
+        ProjectorCore.Kind.livelit_projectors,
+      )
     ) {
     | [hd, ..._] => Ok(hd)
     | [] => Error(Cant_project)

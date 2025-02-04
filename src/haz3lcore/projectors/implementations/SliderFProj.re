@@ -40,7 +40,7 @@ module M: Projector = {
   let can_project = any => float_of(any) != None;
   let can_focus = false;
   let dynamics = false;
-  let placeholder = (_, _) => ProjectorCore.inline(10);
+  let placeholder = (_, _) => ProjectorCore.Shape.inline(10);
   let update = (model, _, _) => model;
 
   let view =
