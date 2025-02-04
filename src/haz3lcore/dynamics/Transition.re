@@ -772,7 +772,7 @@ module Transition = (EV: EV_MODE) => {
           update_probe(state, closure);
         },
         kind: RemoveParens,
-        is_value: true,
+        is_value: false,
       });
     | Wrap(d, Parens) =>
       let. _ = otherwise(env, d);

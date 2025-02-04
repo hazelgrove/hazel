@@ -115,13 +115,6 @@ module DynCursor = {
       closures,
     );
 
-  let first_index_of_interest = (closures: list(closure)): option(int) =>
-    //TODO: maybe expand logic to consider more than just call cursor e.g. when ap is indicated
-    List.find_index(
-      (closure: closure) => s.call_cursor == closure.call_stack,
-      closures,
-    );
-
   /* If one of the current probe's cells is not already selected,
    * select the first one */
   let probe_default = (info: info): unit =>
@@ -222,6 +215,22 @@ module DynCursor = {
     );
   };
 
+  let first_index_of_interest = (info, closures: list(closure)): option(int) => {
+    let find = (rel: relation => bool): option(int) =>
+      List.find_index(
+        (closure: closure) => rel(relation(info, closure)),
+        closures,
+      );
+    switch (find(relation => relation.is_call_cursor)) {
+    | Some(idx) => Some(idx)
+    | None =>
+      switch (find(relation => relation.is_below_indicated_call == Some(0))) {
+      | Some(idx) => Some(idx)
+      | None => find(relation => relation.is_below_indicated_call != None)
+      }
+    };
+  };
+
   let show_pin = info => {
     s.pinned_call != None
     && s.pinned_call
@@ -305,7 +314,7 @@ module Closures = {
       (model: model, info: info, closures: list(closure)): list(closure) => {
     let closures = filter_frames_by_pin(info, closures);
     let cursor_idx =
-      switch (DynCursor.first_index_of_interest(closures)) {
+      switch (DynCursor.first_index_of_interest(info, closures)) {
       | Some(idx) => idx
       | None => 0
       };
@@ -383,8 +392,9 @@ let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   {row, col};
 };
 
-let display_length = (display_lengths, id: Id.t): int =>
-  Id.Map.find_opt(id, display_lengths) |> Option.value(~default=12);
+let display_length = (model: model, id: Id.t): int =>
+  Id.Map.find_opt(id, model.display_lengths)
+  |> Option.value(~default=model.max_closures == 1 ? 36 : 12);
 
 let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
 
@@ -455,7 +465,7 @@ let value_view =
     seg_view(
       view_seg,
       utility,
-      display_length(model.display_lengths, closure.closure_id),
+      display_length(model, closure.closure_id),
       closure.value,
     );
 
@@ -478,7 +488,7 @@ let value_view =
 
 let env_val =
     (
-      display_lengths,
+      model: model,
       closure_id,
       view_seg,
       utility: utility,
@@ -492,28 +502,20 @@ let env_val =
       switch (en.value) {
       | Opaque => Node.text("Opaque")
       | Val(d) =>
-        seg_view(
-          view_seg,
-          utility,
-          display_length(display_lengths, closure_id),
-          d,
-        )
+        seg_view(view_seg, utility, display_length(model, closure_id), d)
         |> fst
       },
     ],
   );
 };
 
-let env_view =
-    (display_lengths, closure: closure, view_seg, utility: utility): Node.t =>
+let env_view = (model, closure: closure, view_seg, utility: utility): Node.t =>
   Node.div(
     ~attrs=[Attr.classes(["live-env"])],
     closure.env
     |> ListUtil.dedup
     |> rm_opaques
-    |> List.map(
-         env_val(display_lengths, closure.closure_id, view_seg, utility),
-       ),
+    |> List.map(env_val(model, closure.closure_id, view_seg, utility)),
   );
 
 let closure_view =
@@ -528,10 +530,7 @@ let closure_view =
   div(
     ~attrs=[Attr.classes(["closure"])],
     [value_view(info, model, utility, view_seg, local, closure, index)]
-    @ (
-      hide_env(info)
-        ? [] : [env_view(model.display_lengths, closure, view_seg, utility)]
-    ),
+    @ (hide_env(info) ? [] : [env_view(model, closure, view_seg, utility)]),
   );
 
 let closure_group_view =
@@ -687,7 +686,7 @@ let update = (m: model, info: info, a: action) => {
     switch (info.dynamics) {
     | Some(closures) =>
       let closures = Closures.filter_frames_by_pin(info, closures);
-      let cursor_idx = DynCursor.first_index_of_interest(closures);
+      let cursor_idx = DynCursor.first_index_of_interest(info, closures);
       switch (cursor_idx) {
       /* Cursor would be outside window, reset to next visible closure */
       | Some(idx) =>
