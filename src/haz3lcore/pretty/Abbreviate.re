@@ -1,8 +1,9 @@
 /* Abbreviate a term for display, specifically for the live
  * value probe projector. This is currently specialized for
- * expressions which are (at least partially) values. This
- * is pretty rough right now, and should be redone when we
- * projectors (in particular, fold) within value displays.
+ * expressions which are (at least partially) values.
+ *
+ * This is an ugly rough approach, and should be rewritten when
+ * we have projectors (in particular, fold) within value displays.
  *
  * This approach ends up duplicating way too much info
  * with ExpToSeg. This should probably be rewritten to
@@ -11,6 +12,8 @@
 let flat_ellipses = "…"; //"⋱"; // "┄"
 let flat_ellipses_term = () =>
   IdTagged.fresh(Invalid(flat_ellipses): Exp.term);
+let flat_ellipses_term_pat = (): TermBase.pat_t =>
+  IdTagged.fresh(Invalid(flat_ellipses): Pat.term);
 let is_flat_ellipses = (term: IdTagged.t(Exp.term)): bool =>
   switch (term.term) {
   | Invalid(s) => s == flat_ellipses
@@ -213,6 +216,12 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       handle_unary(
         ~cost=1, // "-"
         ~make_term=e' => UnOp(Int(Minus), e'),
+        e,
+      )
+    | UnOp(Meta(Unquote), e) =>
+      handle_unary(
+        ~cost=1, // "$"
+        ~make_term=e' => UnOp(Meta(Unquote), e'),
         e,
       )
 
@@ -419,16 +428,80 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         };
       }
 
-    | Match(_e, _rs) =>
-      //TODO: scrut, rules
+    | Match(exp, pat_exp_pairs) =>
       if (available^ <= 3) {
         indet_term;
       } else if (available^ <= 4) {
         Invalid("case");
       } else if (available^ <= 7) {
         Invalid("case…");
-      } else {
+      } else if (available^ <= 8) {
         Invalid("case…end");
+      } else {
+        available := available^ - 8;
+        let exp' = abbreviate_exp(exp);
+        let abbreviate_pair = ((p, e)) => (
+          abbreviate_pat(p),
+          abbreviate_exp(e),
+        );
+        let rec go = pairs =>
+          switch (pairs) {
+          | [] => []
+          | [pair, ...pairs] =>
+            let hd = abbreviate_pair(pair);
+            if (available^ > 3) {
+              available := available^ - 6; // "| " " => "
+              [hd, ...go(pairs)];
+            } else if (pairs == []) {
+              [hd];
+            } else {
+              available := available^ - 3;
+              [hd, (flat_ellipses_term_pat(), flat_ellipses_term())];
+            };
+          };
+        Match(exp', go(pat_exp_pairs));
+      }
+
+    | TypAp(e, t) =>
+      // <e> "@<"" <t> ">"
+      if (available^ < 5) {
+        indet_term;
+      } else if (available^ <= 5) {
+        Invalid("…@<…>");
+      } else {
+        available := available^ - 3; // "@<" ">"
+        let e' = abbreviate_exp(e);
+        if (available^ > 1) {
+          available := available^ - 1;
+          let t' = abbreviate_typ(t);
+          TypAp(e', t');
+        } else {
+          TypAp(e', {...t, term: indet_term_typ});
+        };
+      }
+
+    | TypFun(tpat, e, name) =>
+      if (available^ < 6) {
+        indet_term;
+      } else if (available^ <= 6) {
+        Invalid("typfun");
+      } else if (available^ <= 7) {
+        Invalid("typfun…");
+      } else if (available^ <= 8) {
+        Invalid("typfun…→");
+      } else if (available^ <= 9) {
+        Invalid("typfun…→…");
+      } else {
+        available := available^ - 7;
+        let tp' = abbreviate_tpat(tpat);
+        if (available^ > 4) {
+          // " -> "
+          available := available^ - 4;
+          let e' = abbreviate_exp(e);
+          TypFun(tp', e', name);
+        } else {
+          TypFun(tp', {...e, term: indet_term}, name);
+        };
       }
 
     | Closure(env, exp) =>
@@ -438,28 +511,285 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         exp,
       )
 
-    // Unimplemented:
-    | MultiHole(_es) => indet_term
-
-    | TypFun(_tp, _e, _) => indet_term
-    | TypAp(_e, _t) => indet_term
-    | Filter(_) => indet_term
-    | UnOp(Meta(Unquote), _e) => indet_term
+    | MultiHole(things) =>
+      if (available^ <= 1) {
+        indet_term;
+      } else {
+        available := available^ - 1; // space
+        MultiHole(List.map(abbreviate_any, things));
+      }
+    | Filter(_) => indet_term //TODO
     };
   rewrap(term);
 }
-and abbreviate_pat = (_pat: Pat.t): Pat.t => {
-  //TODO
-  IdTagged.fresh(indet_term_pat);
+and abbreviate_pat = (pat: Pat.t): Pat.t => {
+  let rewrap = (term: Pat.term): Pat.t => {
+    {...pat, term};
+  };
+
+  let wrap_or = (term, str): Pat.term =>
+    if (available^ > String.length(str)) {
+      available := available^ - String.length(str);
+      term;
+    } else {
+      Invalid(abbreviate_str(available^, str));
+    };
+
+  let term: Pat.term =
+    switch (pat.term) {
+    | Wild => Wild
+    | Var(v) => Var(abbreviate_str(available^, v))
+    | Int(n) => wrap_or(Int(n), string_of_int(n))
+    | Float(f) => wrap_or(Float(f), string_of_float(f))
+    | String(s) =>
+      let str = abbreviate_str(available^, s);
+      available := available^ - 2; // for quotes in printed representation
+      String(str);
+    | Bool(b) => wrap_or(Bool(b), string_of_bool(b))
+
+    | Cons(p1, p2) =>
+      if (available^ < 4) {
+        indet_term_pat;
+      } else if (available^ <= 4) {
+        Invalid("…::…");
+      } else {
+        available := available^ - 2; // "::"
+        let p1' = abbreviate_pat(p1);
+        if (available^ > 1) {
+          available := available^ - 1;
+          let p2' = abbreviate_pat(p2);
+          Cons(p1', p2');
+        } else {
+          Cons(p1', {...p2, term: indet_term_pat});
+        };
+      }
+
+    | Ap(p1, p2) =>
+      if (available^ < 3) {
+        indet_term_pat;
+      } else if (available^ <= 3) {
+        Invalid("(…)");
+      } else {
+        available := available^ - 2; // "()"
+        let p1' = abbreviate_pat(p1);
+        if (available^ > 1) {
+          available := available^ - 1;
+          let p2' = abbreviate_pat(p2);
+          Ap(p1', p2');
+        } else {
+          Ap(p1', {...p2, term: indet_term_pat});
+        };
+      }
+
+    | Cast(p, t1, t2) =>
+      if (available^ < 3) {
+        indet_term_pat;
+      } else if (available^ <= 3) {
+        Invalid("…:…");
+      } else {
+        available := available^ - 1; // ":"
+        let p' = abbreviate_pat(p);
+        if (available^ > 1) {
+          available := available^ - 1;
+          let t' = abbreviate_typ(t2);
+          Cast(p', t1, t');
+        } else {
+          Cast(p', t1, {...t2, term: indet_term_typ});
+        };
+      }
+
+    | ListLit(ps) =>
+      if (available^ < 3) {
+        indet_term_pat;
+      } else if (available^ <= 3) {
+        Invalid("[…]");
+      } else {
+        available := available^ - 2; // "[]"
+        let ps' = List.map(abbreviate_pat, ps);
+        ListLit(ps');
+      }
+
+    | Tuple(ps) =>
+      if (available^ < 3) {
+        indet_term_pat;
+      } else if (available^ <= 3) {
+        Invalid("(…)");
+      } else {
+        available := available^ - 2; // "()"
+        let ps' = List.map(abbreviate_pat, ps);
+        Tuple(ps');
+      }
+
+    | MultiHole(things) =>
+      if (available^ <= 1) {
+        indet_term_pat;
+      } else {
+        available := available^ - 1; // space
+        MultiHole(List.map(abbreviate_any, things));
+      }
+
+    | Invalid(str) => Invalid(abbreviate_str(available^, str))
+    | EmptyHole => EmptyHole
+    | Constructor(name, typ) =>
+      if (available^ <= 1) {
+        indet_term_pat;
+      } else {
+        available := available^ - 1; // space
+        Constructor(name, typ);
+      }
+    | Wrap(_p, _tag) => indet_term_pat //TODO
+    };
+  rewrap(term);
 }
-and abbreviate_typ = (_typ: Typ.t): Typ.t => {
-  //TODO
-  IdTagged.fresh(indet_term_typ);
+and abbreviate_typ = (typ: Typ.t): Typ.t => {
+  let rewrap = (term: Typ.term): Typ.t => {
+    {...typ, term};
+  };
+
+  let term: Typ.term =
+    switch (typ |> Typ.term_of) {
+    | Unknown(prov) => Unknown(prov)
+    | Int =>
+      if (available^ < 3) {
+        indet_term_typ;
+      } else {
+        Int;
+      }
+    | Float =>
+      if (available^ < 5) {
+        indet_term_typ;
+      } else {
+        Float;
+      }
+    | Bool =>
+      if (available^ < 4) {
+        indet_term_typ;
+      } else {
+        Bool;
+      }
+    | String =>
+      if (available^ < 6) {
+        indet_term_typ;
+      } else {
+        String;
+      }
+    | Var(v) => Var(abbreviate_str(available^, v))
+    | List(t) =>
+      if (available^ <= 2) {
+        indet_term_typ;
+      } else {
+        available := available^ - 2; // "[]"
+        List(abbreviate_typ(t));
+      }
+    | Arrow(t1, t2) =>
+      if (available^ <= 2) {
+        indet_term_typ;
+      } else {
+        available := available^ - 2; // "->"
+        let t1' = abbreviate_typ(t1);
+        if (available^ > 0) {
+          let t2' = abbreviate_typ(t2);
+          Arrow(t1', t2');
+        } else {
+          Arrow(t1', {...t2, term: indet_term_typ});
+        };
+      }
+    | Sum(ctors) =>
+      if (available^ <= 1) {
+        indet_term_typ;
+      } else {
+        //TODO: abbreviate these like tuples
+        available := available^ - 1; // "+"
+        let ctors' =
+          ConstructorMap.map(t => Option.map(abbreviate_typ, t), ctors);
+        Sum(ctors');
+      }
+    | Prod(ts) =>
+      if (available^ <= 2) {
+        indet_term_typ;
+      } else {
+        //TODO: abbreviate these like tuples
+        available := available^ - 2; // "()"
+        let ts' = List.map(abbreviate_typ, ts);
+        Prod(ts');
+      }
+    | Wrap(t) =>
+      if (available^ <= 2) {
+        indet_term_typ;
+      } else {
+        available := available^ - 2; // "()"
+        Wrap(abbreviate_typ(t));
+      }
+    | Ap(t1, t2) =>
+      if (available^ <= 1) {
+        indet_term_typ;
+      } else {
+        available := available^ - 1; // space
+        let t1' = abbreviate_typ(t1);
+        if (available^ > 0) {
+          let t2' = abbreviate_typ(t2);
+          Ap(t1', t2');
+        } else {
+          Ap(t1', {...t2, term: indet_term_typ});
+        };
+      }
+    | Rec(tp, t) =>
+      if (available^ <= 3) {
+        indet_term_typ;
+      } else {
+        available := available^ - 3; // "rec"
+        let tp' = abbreviate_tpat(tp);
+        if (available^ > 2) {
+          available := available^ - 2; // "->"
+          let t' = abbreviate_typ(t);
+          Rec(tp', t');
+        } else {
+          Rec(tp', {...t, term: indet_term_typ});
+        };
+      }
+    | Forall(tp, t) =>
+      if (available^ <= 6) {
+        indet_term_typ;
+      } else {
+        available := available^ - 6; // "forall"
+        let tp' = abbreviate_tpat(tp);
+        if (available^ > 2) {
+          available := available^ - 2; // "->"
+          let t' = abbreviate_typ(t);
+          Forall(tp', t');
+        } else {
+          Forall(tp', {...t, term: indet_term_typ});
+        };
+      }
+    };
+  rewrap(term);
 }
-and abbreviate_tpat = (_tpat: TPat.t): TPat.t => {
-  //TODO
-  IdTagged.fresh(indet_term_tpat);
-};
+and abbreviate_tpat = (tpat: TPat.t): TPat.t => {
+  let rewrap = term => {...tpat, term};
+  let term =
+    switch (tpat.term) {
+    | EmptyHole => tpat.term
+    | Invalid(str) => Invalid(abbreviate_str(available^, str))
+    | Var(v) => Var(abbreviate_str(available^, v))
+    | MultiHole(things) =>
+      if (available^ <= 1) {
+        indet_term_tpat;
+      } else {
+        available := available^ - 1; // space
+        MultiHole(List.map(abbreviate_any, things));
+      }
+    };
+  rewrap(term);
+}
+and abbreviate_any = (any: Any.t): Any.t =>
+  switch (any) {
+  | Exp(e) => Exp(abbreviate_exp(e))
+  | Pat(p) => Pat(abbreviate_pat(p))
+  | Typ(t) => Typ(abbreviate_typ(t))
+  | TPat(tp) => TPat(abbreviate_tpat(tp))
+  | Rul(_r) => failwith("TODO")
+  | Any(_) => any
+  };
 
 let abbreviate_exp = (~available as a=12, exp: Exp.t): (Exp.t, int) => {
   available := a;
