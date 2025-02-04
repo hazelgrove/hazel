@@ -99,7 +99,7 @@ module M: Projector = {
   };
 
   let placeholder = (_m, info) =>
-    ProjectorCore.inline(3 + String.length(syntax_str(info)));
+    ProjectorCore.Shape.inline(3 + String.length(syntax_str(info)));
 
   let syntax_view = (info: info) => info |> syntax_str |> text;
 

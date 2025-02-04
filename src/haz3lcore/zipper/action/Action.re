@@ -45,7 +45,7 @@ type select =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type chooser =
-  | Specific(ProjectorCore.kind)
+  | Specific(ProjectorCore.Kind.t)
   | ChooseLivelit;
 
 /* This type defines the top-level actions used to manage

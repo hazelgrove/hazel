@@ -19,7 +19,6 @@ let view = (~globals, kind: Haz3lcore.Ctx.kind): Node.t =>
             show_filters: false,
             show_unknown_as_hole: true,
           },
-          ~info_map=Haz3lcore.Id.Map.empty,
           ty,
         ),
       ],

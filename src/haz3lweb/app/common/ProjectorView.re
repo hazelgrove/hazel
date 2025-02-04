@@ -7,7 +7,7 @@ open Util.OptUtil.Syntax;
 open Util.Web;
 
 type status = {
-  kind: ProjectorCore.kind,
+  kind: ProjectorCore.Kind.t,
   sort: Sort.t,
   indication: option(Direction.t),
   selected: bool,
@@ -21,35 +21,6 @@ type projector_data = {
   offside_base: int,
   status,
 };
-
-/* A friendly name for each projector. This is used
- * both for identifying a projector in the CSS and for
- * selecting projectors in the projector panel menu */
-let name = (p: ProjectorCore.kind): string =>
-  switch (p) {
-  | Fold => "fold"
-  | Info => "type"
-  | Probe => "probe"
-  | Checkbox => "check"
-  | Slider => "slider"
-  | SliderF => "sliderf"
-  | TextArea => "text"
-  };
-
-/* This must be updated and kept 1-to-1 with the above
- * name function in order to be able to select the
- * projector in the projector panel menu */
-let of_name = (p: string): ProjectorCore.kind =>
-  switch (p) {
-  | "fold" => Fold
-  | "type" => Info
-  | "probe" => Probe
-  | "check" => Checkbox
-  | "slider" => Slider
-  | "sliderf" => SliderF
-  | "text" => TextArea
-  | _ => failwith("Unknown projector kind")
-  };
 
 /* Projectors get a default backing decoration similar
  * to token decorations. This can be made transparent
@@ -65,7 +36,7 @@ let backing_deco =
 /* Adds attributes to a projector UI to support
  * custom styling when selected or indicated */
 let projector_clss = ({kind, sort, indication, selected, error}: status) =>
-  ["projector", name(kind), Sort.show(sort)]
+  ["projector", ProjectorCore.Kind.name(kind), Sort.show(sort)]
   @ (selected ? ["selected"] : [])
   @ (error ? ["error"] : [])
   @ (
@@ -187,14 +158,13 @@ let collect_data =
 
 let simple_code_view =
     (~background=false, font_metrics, sort, segment): Node.t => {
-  /* Assume this doesn't contain projectors */
-  let shape_of_proj = ProjectorInfo.Shape.of_map_default;
-  let map = Measured.of_segment(segment, shape_of_proj);
+  let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
+  let map = Measured.of_segment(segment, shape_map);
   module Text =
     Code.Text({
       let map = map;
       let settings = Settings.Model.init;
-      let shape_of_proj = shape_of_proj;
+      let shape_map = shape_map;
       let font_metrics = font_metrics;
     });
   let backing =

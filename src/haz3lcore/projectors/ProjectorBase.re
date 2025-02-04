@@ -67,7 +67,7 @@ type view_seg = (~background: bool=?, Sort.t, list(syntax)) => Node.t;
 
 /* To add a new projector:
  * 1. Create a new module implementing Projector (e.g. FoldProj)
- * 2. Add an entry for it in ProjectorCore.kind
+ * 2. Add an entry for it in ProjectorCore.Kind.t
  * 3. Register the module in ProjectorInit.to_module
  * 4. If you want to expose the projector via a keyboard
  *    shortcut, add a Project(...) entry in Keyboard.re
@@ -164,7 +164,7 @@ module type Projector = {
    * from the view, but this is awkward to do so for now
    * projector writers are responsible for keeping these
    * in sync with each other. */
-  let placeholder: (model, info) => ProjectorCore.shape;
+  let placeholder: (model, info) => ProjectorCore.Shape.t;
   /* Update the local projector model given an action */
   let update: (model, info, action) => model;
   /* Does whatever needs to be done to give a projector

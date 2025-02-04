@@ -236,7 +236,6 @@ let expander_deco =
       let editor = editor;
       let globals = globals;
       let statics = CachedStatics.empty;
-      let dynamics = Dynamics.Map.empty;
     });
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
@@ -278,7 +277,7 @@ let expander_deco =
                   CodeViewable.view_segment(
                     ~globals,
                     ~sort=Exp,
-                    ~shape_of_proj=ProjectorInfo.Shape.of_map_default, // Assume no projectors
+                    ~shape_map=ProjectorCore.Shape.Map.empty, // Assume no projectors
                     segment,
                   );
                 let classes =
@@ -504,7 +503,6 @@ let get_doc =
             let editor = editor;
             let globals = {...globals, color_highlights: highlights};
             let statics = statics;
-            let dynamics = dynamics;
           });
         [Deco.color_highlights()];
       };

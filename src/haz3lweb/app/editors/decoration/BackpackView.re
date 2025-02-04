@@ -3,16 +3,16 @@ open Node;
 open Haz3lcore;
 open Util;
 
-let shape_of_proj = ProjectorInfo.Shape.of_map_default; /* Assume this doesn't contain projectors */
+let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
 
-let measured_of = seg => Measured.of_segment(seg, shape_of_proj);
+let measured_of = seg => Measured.of_segment(seg, shape_map); /* Assume this doesn't contain projectors */
 
 let text_view = (font_metrics, seg: Segment.t): list(Node.t) => {
   module Text =
     Code.Text({
       let map = measured_of(seg);
       let settings = Settings.Model.init;
-      let shape_of_proj = shape_of_proj;
+      let shape_map = shape_map;
       let font_metrics = font_metrics;
     });
   Text.of_segment([], true, Any, seg);
