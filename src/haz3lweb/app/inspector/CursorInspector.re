@@ -177,7 +177,6 @@ let common_err_view =
     | Inconsistent(Expectation({ana, syn})) =>
       switch (syn.term, ana.term) {
       | (Label(syn_l), Label(an_label)) => [
-          text(":"),
           code(syn_l),
           text("but expected label"),
           code(an_label),
@@ -268,7 +267,7 @@ let common_ok_view =
       ]
     | (_, Ana(Consistent({ana, syn, _}))) when ana == syn =>
       switch (syn.term) {
-      | Label(l) => [text(":"), code(l), text(" is an expected label")]
+      | Label(l) => [code(l), text(" is an expected label")]
       | _ =>
         [text(":"), view_type(syn)]
         @ [text("equals expected type")]
@@ -299,16 +298,17 @@ let common_ok_view =
         )
       }
     | (_, Ana(Consistent({ana, syn, _}))) =>
-      [text(":"), view_type(syn)]
-      @ [
-        text(
-          switch (syn.term) {
-          | Label(_) => ""
-          | _ => "consistent with expected type"
-          },
-        ),
-        view_type(ana),
-      ]
+      (
+        switch (syn.term) {
+        | Label(l) => [code(l), text(" is an expected label")]
+        | _ => [
+            text(":"),
+            view_type(syn),
+            text("consistent with expected type"),
+          ]
+        }
+      )
+      @ [view_type(ana)]
       @ (
         switch (lifted_ty) {
         | None => []
