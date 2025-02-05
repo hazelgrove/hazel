@@ -77,11 +77,8 @@ let get_home = (k: Id.t): int =>
 
 let set_home = (k: Id.t, v: int) => Hashtbl.add(home, k, v);
 
-/* when we draw the window, we check if the current home has the cursor in window.
-     if not, we move the current home to put the cursor in window
-   when we use the arrows to move the closure cursor,
-   we check how far the new index of the closure cursor is from the current home
-    */
+let is_value = (exp: Exp.t) =>
+  ValueChecker.check_value((), ClosureEnvironment.empty, exp) == Value;
 
 module DynCursor = {
   /* Manages shared state between probes */
@@ -392,9 +389,12 @@ let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   {row, col};
 };
 
-let display_length = (model: model, id: Id.t): int =>
-  Id.Map.find_opt(id, model.display_lengths)
-  |> Option.value(~default=model.max_closures == 1 ? 36 : 12);
+let display_length = (model: model, closure: closure): int =>
+  Id.Map.find_opt(closure.closure_id, model.display_lengths)
+  |> Option.value(
+       ~default=
+         !is_value(closure.value) ? 5 : model.max_closures == 1 ? 36 : 12,
+     );
 
 let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
 
@@ -461,15 +461,11 @@ let value_view =
     };
   };
 
-  let is_value =
-    ValueChecker.check_value((), ClosureEnvironment.empty, closure.value)
-    == Value;
-
   let (view, length) =
     seg_view(
       view_seg,
       utility,
-      display_length(model, closure.closure_id),
+      display_length(model, closure),
       closure.value,
     );
 
@@ -480,7 +476,7 @@ let value_view =
         ["value", length_cls(length)]
         @ DynCursor.clss(info, closure)
         @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
-        @ (!is_value ? ["indet"] : []),
+        @ (!is_value(closure.value) ? ["indet"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
       Attr.on_pointerdown(val_pointerdown),
@@ -520,7 +516,7 @@ let env_view = (model, closure: closure, view_seg, utility: utility): Node.t =>
     closure.env
     |> ListUtil.dedup
     |> rm_opaques
-    |> List.map(env_val(model, closure.closure_id, view_seg, utility)),
+    |> List.map(env_val(model, closure, view_seg, utility)),
   );
 
 let closure_view =
