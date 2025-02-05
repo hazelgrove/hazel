@@ -136,6 +136,7 @@ let rec any_to_info_map =
         ~ancestors,
         ~duplicates=[],
         ~expected_labels=None,
+        ~label_sort=false,
         e,
         m,
       );
@@ -183,6 +184,7 @@ and uexp_to_info_map =
       ~expected_labels: option(list(string)),
       ~override_self: option(Self.exp)=?,
       ~inferred_label: option(LabeledTuple.label)=?,
+      ~label_sort,
       {ids, copied: _, term} as uexp: Exp.t,
       m: Map.t,
     )
@@ -204,6 +206,7 @@ and uexp_to_info_map =
         ~co_ctx,
         ~label_inference,
         ~inferred_label,
+        ~label_sort,
       );
 
     (info, add_info(ids, InfoExp(info), m));
@@ -222,6 +225,7 @@ and uexp_to_info_map =
         ~expected_labels=?,
         ~inferred_label: option(string)=?,
         ~override_self=?,
+        ~label_sort=false,
         uexp: Exp.t,
         m: Map.t,
       ) => {
@@ -234,6 +238,7 @@ and uexp_to_info_map =
       ~expected_labels,
       ~override_self?,
       ~inferred_label?,
+      ~label_sort,
       uexp,
       m,
     );
@@ -401,6 +406,7 @@ and uexp_to_info_map =
             go(
               ~mode=labmode,
               ~override_self=?label_self,
+              ~label_sort=true,
               ~duplicates,
               label,
               m,
@@ -421,6 +427,7 @@ and uexp_to_info_map =
                 | _ => Some(Common(BadLabel(Exp(label))))
                 },
               ~duplicates,
+              ~label_sort=true,
               label,
               m,
             );
@@ -901,6 +908,7 @@ and uexp_to_info_map =
                     ~constraint_=p_constraint,
                     ~label_inference=None,
                     ~inferred_label,
+                    ~label_sort=false,
                   );
                 (
                   // Override the info for the single upat
@@ -1032,6 +1040,7 @@ and upat_to_info_map =
       ~under_ascription: bool=false,
       ~override_self: option(Self.t)=?,
       ~inferred_label=?,
+      ~label_sort=false,
       {ids, term, _} as upat: Pat.t,
       m: Map.t,
     )
@@ -1056,6 +1065,7 @@ and upat_to_info_map =
         ~constraint_,
         ~label_inference,
         ~inferred_label,
+        ~label_sort,
       );
     (info, add_info(ids, InfoPat(info), m));
   };
@@ -1071,6 +1081,7 @@ and upat_to_info_map =
         ~under_ascription=false,
         ~override_self=?,
         ~inferred_label=?,
+        ~label_sort=false,
         upat: Pat.t,
         m: Map.t,
       ) => {
@@ -1085,6 +1096,7 @@ and upat_to_info_map =
       ~override_self?,
       ~inferred_label?,
       ~expected_labels?,
+      ~label_sort,
       upat,
       m: Map.t,
     );
@@ -1233,7 +1245,7 @@ and upat_to_info_map =
         | Some((labmode, val_mode)) =>
           let label_self: option(Self.t) =
             switch (label.term) {
-            | Label(_)
+            | Label(_) => None
             | EmptyHole => None
             | _ => Some(BadLabel(Pat(label)))
             };
@@ -1244,6 +1256,7 @@ and upat_to_info_map =
               ~mode=labmode,
               ~override_self=?label_self,
               ~duplicates,
+              ~label_sort=true,
               label,
               m,
             );
@@ -1254,6 +1267,7 @@ and upat_to_info_map =
             go(
               ~ctx,
               ~mode=Ana(Unknown(Internal) |> Typ.temp),
+              ~label_sort=true,
               ~override_self=?
                 switch (label.term, expected_labels) {
                 | (Label(name), Some(expected_labels))
@@ -1659,6 +1673,7 @@ let mk =
       ~ancestors=[],
       ~duplicates=[],
       ~expected_labels=None,
+      ~label_sort=false,
       e,
       Id.Map.empty,
     )

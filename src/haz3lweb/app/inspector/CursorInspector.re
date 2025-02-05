@@ -34,11 +34,24 @@ let explain_this_toggle = (~globals: Globals.t): Node.t => {
   );
 };
 
-let cls_view = (ci: Info.t): Node.t =>
+let cls_view = (ci: Info.t): Node.t => {
+  let cls = ci |> Info.cls_of;
+
   div(
     ~attrs=[clss(["syntax-class"])],
-    [text(ci |> Info.cls_of |> Cls.show)],
+    [
+      text(
+        switch (cls) {
+        | Typ(EmptyHole)
+        | Exp(EmptyHole)
+        | Pat(EmptyHole) =>
+          Info.is_label(ci) ? "Empty Label" : Cls.show(cls)
+        | cls => cls |> Cls.show
+        },
+      ),
+    ],
   );
+};
 
 let ctx_toggle = (~globals: Globals.t): Node.t =>
   div(
@@ -52,7 +65,8 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
   );
 
 let term_view = (~globals: Globals.t, ci) => {
-  let sort = ci |> Info.sort_of |> Sort.show;
+  let sort = Info.is_label(ci) ? "label" : ci |> Info.sort_of |> Sort.show;
+
   div(
     ~attrs=[
       clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [okc])),
@@ -229,6 +243,7 @@ let common_ok_view =
       ~introduced_labels: list(LabeledTuple.label),
       ~lifted_ty: option(Typ.t),
       ~inferred_label: option(LabeledTuple.label),
+      ~label_sort: bool,
       cls: Cls.t,
       ok: Info.ok_common,
     ) => {
@@ -247,6 +262,8 @@ let common_ok_view =
     );
   (
     switch (cls, ok) {
+    | (Pat(EmptyHole), _) when label_sort => []
+    | (Exp(EmptyHole), _) when label_sort => []
     | (Exp(MultiHole) | Pat(MultiHole), _) => [
         text("Expecting operator or delimiter"),
       ]
@@ -362,6 +379,7 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
       ~info_map=Id.Map.empty,
     );
   switch (ok) {
+  | EmptyLabel => []
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
   | Type(ty) =>
     [view_type(ty)]
@@ -528,6 +546,7 @@ let rec exp_view =
         ~reordered,
         ~introduced_labels,
         ~inferred_label,
+        ~label_sort=info.label_sort,
         cls,
         ok,
       ),
@@ -585,6 +604,7 @@ let rec pat_view =
           },
         ~introduced_labels,
         ~inferred_label,
+        ~label_sort=info.label_sort,
         cls,
         ok,
       ),

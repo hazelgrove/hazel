@@ -177,7 +177,8 @@ type ok_typ =
   | Variant(Constructor.t, Typ.t)
   | VariantIncomplete(Typ.t)
   | TypeAlias(string, Typ.t)
-  | Type(Typ.t);
+  | Type(Typ.t)
+  | EmptyLabel;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_typ =
@@ -236,7 +237,8 @@ type exp = {
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
   ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
   label_inference: option(label_inference(exp)), /* Label inference information for the tuple */
-  inferred_label: option(LabeledTuple.label) /* Inferred label for an expression within the tuple */
+  inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
+  label_sort: bool /* When in the position of a label */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -254,6 +256,7 @@ type pat = {
   constraint_: Constraint.t,
   label_inference: option(label_inference(pat)),
   inferred_label: option(LabeledTuple.label),
+  label_sort: bool /* When in the position of a label */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -492,7 +495,7 @@ let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
    makeup of the expression / pattern itself. */
-let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
+let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp => {
   switch (self, mode) {
   | (Free(name), _) => InHole(FreeVariable(name))
   | (InexhaustiveMatch(self), _) =>
@@ -521,6 +524,7 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
     | InHole(err_exp) => InHole(Common(err_exp))
     }
   };
+};
 
 /* This logic determines whether a type should be put
    in a hole or not. It's mostly syntactic, determining
@@ -532,7 +536,11 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
 let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
   switch (ty.term) {
   | Unknown(Hole(Invalid(token))) => InHole(BadToken(token))
-  | Unknown(Hole(EmptyHole)) => NotInHole(Type(ty))
+  | Unknown(Hole(EmptyHole)) =>
+    switch (expects) {
+    | LabelExpected(_) => NotInHole(EmptyLabel)
+    | _ => NotInHole(Type(ty))
+    }
   | Var(name) =>
     switch (expects) {
     | VariantExpected(Unique, sum_ty)
@@ -742,6 +750,7 @@ let derived_exp =
       ~co_ctx,
       ~label_inference: option(label_inference(exp)),
       ~inferred_label: option(LabeledTuple.label),
+      ~label_sort,
     )
     : exp => {
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
@@ -759,6 +768,7 @@ let derived_exp =
     term: uexp,
     label_inference,
     inferred_label,
+    label_sort,
   };
 };
 
@@ -775,6 +785,7 @@ let derived_pat =
       ~constraint_,
       ~label_inference,
       ~inferred_label,
+      ~label_sort,
     )
     : pat => {
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
@@ -795,6 +806,7 @@ let derived_pat =
     constraint_,
     label_inference,
     inferred_label,
+    label_sort,
   };
 };
 
@@ -882,3 +894,14 @@ let derive_label_inference_info = (original_labels, new_labels) => {
 
   MultiLabelInference({reordered, introduced_labels});
 };
+
+let is_label = (info: t): bool =>
+  switch (info) {
+  | InfoTyp({status: NotInHole(EmptyLabel), _})
+  | InfoTyp({term: {term: Label(_), _}, _})
+  | InfoExp({term: {term: Label(_), _}, _})
+  | InfoPat({term: {term: Label(_), _}, _})
+  | InfoPat({label_sort: true, _})
+  | InfoExp({label_sort: true, _}) => true
+  | _ => false
+  };
