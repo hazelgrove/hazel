@@ -14,32 +14,40 @@ module ElaborationResult = {
 };
 
 let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): Exp.t => {
-  Typ.eq(t1, t2)
-    ? d
-    : {
-      let d': Exp.t =
-        (Cast(d, t1, Typ.temp(Unknown(Internal))): Exp.term)
-        |> IdTagged.fresh_deterministic(DHExp.rep_id(d))
+  switch (d.term) {
+  | Label(_) => d
+  | _ =>
+    Typ.eq(t1, t2)
+      ? d
+      : {
+        let d': Exp.t =
+          (Cast(d, t1, Typ.temp(Unknown(Internal))): Exp.term)
+          |> IdTagged.fresh_deterministic(DHExp.rep_id(d))
+          |> Casts.transition_multiple;
+        (Cast(d', Typ.temp(Unknown(Internal)), t2): Exp.term)
+        |> IdTagged.fresh_deterministic(DHExp.rep_id(d'))
         |> Casts.transition_multiple;
-      (Cast(d', Typ.temp(Unknown(Internal)), t2): Exp.term)
-      |> IdTagged.fresh_deterministic(DHExp.rep_id(d'))
-      |> Casts.transition_multiple;
-    };
+      }
+  };
 };
 
 let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
-  Typ.eq(t1, t2)
-    ? p
-    : {
-      Cast(
-        DHPat.fresh(Cast(p, t1, Typ.temp(Unknown(Internal))))
-        |> Casts.pattern_fixup,
-        Typ.temp(Unknown(Internal)),
-        t2,
-      )
-      |> DHPat.fresh
-      |> Casts.pattern_fixup;
-    };
+  switch (p.term) {
+  | Label(_) => p
+  | _ =>
+    Typ.eq(t1, t2)
+      ? p
+      : {
+        Cast(
+          DHPat.fresh(Cast(p, t1, Typ.temp(Unknown(Internal))))
+          |> Casts.pattern_fixup,
+          Typ.temp(Unknown(Internal)),
+          t2,
+        )
+        |> DHPat.fresh
+        |> Casts.pattern_fixup;
+      }
+  };
 };
 
 let elaborated_type =
