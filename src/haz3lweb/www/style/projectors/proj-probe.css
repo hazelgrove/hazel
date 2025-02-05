@@ -80,7 +80,12 @@
   height: 16px;
   background-image: url(../../img/noun-search-5661270.svg);
   background-size: cover;
+}
+.projector.probe.Exp .main .icon {
   filter: invert(1) brightness(0.5) sepia(1) saturate(2) hue-rotate(75deg);
+}
+.projector.probe.Pat .main .icon {
+  filter: invert(1) brightness(0.5) sepia(1) saturate(2) hue-rotate(150deg);
 }
 .projector.probe .main.ap .icon {
   background-image: url(../../img/noun-telescope-7245201.svg);
@@ -161,7 +166,7 @@
   transform-origin: top right;
   scale: 0.6;
 }
-.overlays .projector.probe.indicated.Left .pin {
+.overlays .projector.probe .pin {
   background-color: oklch(0.8 0.18 201.83);
 }
 
@@ -267,81 +272,86 @@
   border-radius: 0.05em 0.05em 0.05em 0.2em;
   transition: filter 0.14s ease-in-out;
   transition: scale 0.07s ease-in-out;
+  background-color: var(--bkg);
+  border-bottom-color: var(--bottom-border-clr);
 }
 .projector.probe.Exp .closure {
   --bottom-border-clr: var(--exp-shadow);
-  background-color: var(--exp-base);
-  border-bottom: 1px solid var(--bottom-border-clr);
+  --bkg: var(--exp-base);
 }
 .projector.probe.Pat .closure {
   --bottom-border-clr: var(--pat-shadow);
-  background-color: var(--pat-base);
-  border-bottom: 1px solid var(--bottom-border-clr);
+  --bkg: var(--pat-base);
 }
 .projector.probe .closure:has(.value.indet) {
-  background-color: var(--R0) !important;
+  /* background-color: var(--R0) !important;
   --below-shadow: var(--R2);
+  --bottom-border-clr: var(--R2);
+  --inner-shadow: #f59393 !important; */
+  background-color: oklch(0.87 0 0) !important;
+  --below-shadow: oklch(0.46 0 0);
+  --bottom-border-clr: oklch(0.4 0 0);
+  --inner-shadow: #a2a2a2 !important;
 }
 .projector.probe .closure:has(.value.cursor-callee) {
   --below-shadow: var(--exp-ap-indicated);
 }
-.projector.probe .closure:has(.value.cursor-caller.direct) {
-  outline: 1px solid var(--exp-ap-indicated);
-  border-color: var(--exp-ap-indicated);
-  background-color: var(--exp-ap-indicated);
-}
-.projector.probe .closure:has(.value.cursor-caller.indirect) {
-  outline: 1px solid var(--exp-ap-indicated);
-  border-color: var(--exp-ap-indicated);
-  background-color: var(--exp-ap-indicated);
+.projector.probe .closure:has(.value.cursor-caller) {
+  --caller-accent: var(--exp-ap-indicated);
+  --bottom-border-clr: var(--caller-accent);
+  --bkg: var(--exp-ap-indicated);
+  outline: 1px solid var(--caller-accent);
 }
 .projector.probe .closure:has(.value.cursor-unrelated),
 .projector.probe .closure:has(.value.cursor-callee.indirect) {
   filter: contrast(0.32) brightness(1.51) saturate(0.7);
 }
 .projector.probe.Pat .closure:has(.value.cursor-unrelated.level0) {
-  border-bottom-color: #73c1e1;
+  --bottom-border-clr: #73c1e1;
 }
 .projector.probe.Exp .closure:has(.value.cursor-unrelated.level0) {
-  border-bottom-color: #73e1a3;
+  --bottom-border-clr: #73e1a3;
 }
 
 .projector.probe .closure:has(.value.above) {
-  --below-shadow: oklch(0.89 0.07 302.03);
+  --below-shadow: oklch(0.9 0.07 300);
+  --inner-shadow: #551da0;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
 }
 .projector.probe .closure:has(.value.above.indirect) {
-  background-color: oklch(0.4 0.18 300);
-  box-shadow: inset 24px 25px 0 #551da0;
+  --bkg: oklch(0.4 0.18 300);
+  box-shadow: inset 24px 25px 0 var(--inner-shadow);
   filter: drop-shadow(0 5.25px 0 var(--below-shadow));
 }
 .projector.probe .closure:has(.value.above.direct.L1) {
-  background-color: oklch(0.7 0.18 300);
-  box-shadow: inset 1.5px 1.5px 0 #551da0;
+  --bkg: oklch(0.7 0.18 300);
+  box-shadow: inset 1.5px 1.5px 0 var(--inner-shadow);
   filter: drop-shadow(0 1.5px 0 var(--below-shadow));
 }
 .projector.probe .closure:has(.value.above.indirect.L2) {
-  background-color: oklch(0.66 0.18 300);
-  box-shadow: inset 3px 3px 0 #551da0;
+  --bkg: oklch(0.66 0.18 300);
+  box-shadow: inset 3px 3px 0 var(--inner-shadow);
   filter: drop-shadow(0 2.25px 0 var(--below-shadow));
 }
 .projector.probe .closure:has(.value.above.indirect.L3) {
-  background-color: oklch(0.62 0.18 300);
-  box-shadow: inset 6px 6px 0 #551da0;
+  --bkg: oklch(0.62 0.18 300);
+  box-shadow: inset 6px 6px 0 var(--inner-shadow);
   filter: drop-shadow(0 3px 0 var(--below-shadow));
 }
 .projector.probe .closure:has(.value.above.indirect.L4) {
-  background-color: oklch(0.58 0.18 300);
-  box-shadow: inset 9px 9px 0 #551da0;
+  --bkg: oklch(0.58 0.18 300);
+  box-shadow: inset 9px 9px 0 var(--inner-shadow);
   filter: drop-shadow(0 3.75px 0 var(--below-shadow));
 }
 .projector.probe .closure:has(.value.above.indirect.L5) {
-  background-color: oklch(0.54 0.18 300);
-  box-shadow: inset 14px 14px 0 #551da0;
+  --bkg: oklch(0.54 0.18 300);
+  box-shadow: inset 14px 14px 0 var(--inner-shadow);
   filter: drop-shadow(0 4.5px 0 var(--below-shadow));
 }
 .projector.probe .closure:has(.value.above.indirect.L6) {
-  background-color: oklch(0.5 0.18 300);
-  box-shadow: inset 18px 18px 0 #551da0;
+  --bkg: oklch(0.5 0.18 300);
+  box-shadow: inset 18px 18px 0 var(--inner-shadow);
   filter: drop-shadow(0 5.25px 0 var(--below-shadow));
 }
 
@@ -356,6 +366,7 @@
   top: -3.5px;
   box-shadow: 0 3.5px 0 #d0cab7bb;
   position: relative;
+  border-bottom-style: solid;
 }
 .projector.probe .closure:has(.value.above.L1) {
   top: -1.5px;
@@ -364,14 +375,15 @@
 .projector.probe .closure:has(.value.below) {
   position: relative;
   border-top: 1px solid var(--pat-shadow);
-  border-bottom: none;
+  /* border-bottom: none; */
   border-radius: 0.05em 0.2em 0.05em 0.2em;
   border: none;
-
   translate: 0 3px;
   box-shadow: 0px -0.75px 0 var(--below-shadow),
     0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow),
     0px -3px 0 var(--below-shadow);
+  height: calc(1.45em - 4.25px);
+  overflow: hidden;
 }
 
 .projector.probe .closure:has(.value.above.L2) {
@@ -383,6 +395,7 @@
   translate: 0 0.75px;
   box-shadow: 0px -0.75px 0 var(--below-shadow);
   border: none;
+  height: calc(1.45em - 2px);
 }
 
 .projector.probe .closure:has(.value.below.L2) {
@@ -390,6 +403,7 @@
   translate: 0 1.5px;
   box-shadow: 0px -0.75px 0 var(--below-shadow),
     0px -1.5px 0 var(--below-shadow);
+  height: calc(1.45em - 2.75px);
 }
 
 .projector.probe .closure:has(.value.below.L3) {
@@ -397,6 +411,7 @@
   translate: 0 2.25px;
   box-shadow: 0px -0.75px 0 var(--below-shadow),
     0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow);
+  height: calc(1.45em - 3.5px);
 }
 
 .projector.probe .closure:has(.value.below.L4) {
@@ -405,52 +420,38 @@
   box-shadow: 0px -0.75px 0 var(--below-shadow),
     0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow),
     0px -3px 0 var(--below-shadow);
+  height: calc(1.45em - 4.25px);
 }
 
 /* TOKEN BKG INDICATED + HOVER */
 .projector.probe.indicated .closure:has(.value.cursor-unrelated) {
   filter: contrast(0.5) brightness(1.32) saturate(0.7);
-  /* opacity: 60%; */
 }
 .projector.probe.indicated .closure:has(.value.cursor) {
   background: white;
   outline-width: 2.1px;
   outline-style: solid;
-  /* border-bottom-width: 1.5px; */
   border: none;
 }
-.todo {
-  /*TODO(andrew)*/
-  color: oklch(0.82 0.13 150.57);
-  filter: none;
-}
+
 .projector.probe.indicated.Exp .closure:has(.value.cursor),
 .projector.probe.Exp .closure:hover {
   outline-color: var(--exp-indicated);
-  border-color: var(--exp-indicated);
-  border: none;
 }
 .projector.probe.indicated.Pat .closure:has(.value.cursor),
 .projector.probe.Pat .closure:hover {
   outline-color: var(--pat-indicated);
-  border-color: var(--pat-indicated);
 }
 .projector.probe.indicated .closure:has(.value.cursor.ap),
 .projector.probe.Exp .closure:has(.value.ap):hover {
   outline-color: var(--exp-ap-indicated);
-  border-color: var(--exp-ap-indicated);
 }
 .projector.probe .closure:hover {
-  /* transform-origin: bottom left; */
-  /* scale: 1.18; */
   z-index: var(--projector-indicated-z);
   position: relative;
-  /* opacity: 100% !important; */
-  outline-width: 1px;
+  outline-width: 2.1px;
   outline-style: solid;
-  outline-offset: -0.1px;
-  border-width: 1.5px;
-  /* top: 0.5px; */
+  /* outline-offset: -0.1px; */
   position: relative;
   filter: drop-shadow(1.5px 3px 0 #95876452) !important;
 }
@@ -502,7 +503,8 @@
 /* TOKENS */
 
 .projector.probe .value.indet .code-text .token {
-  color: var(--R2) !important;
+  /* color: var(--R2) !important; */
+  color: white;
   filter: none !important;
 }
 
@@ -515,7 +517,8 @@
 
 .projector.probe .value.cursor-unrelated .code-text .token,
 .projector.probe .value.cursor-caller .code-text .token {
-  filter: invert(1) brightness(10);
+  /* filter: invert(1) brightness(10); */
+  color: white;
 }
 .projector.probe .value.cursor-callee.indirect .code-text .token {
   color: white;
@@ -537,7 +540,8 @@
   padding: 0.2em;
   display: none;
   position: absolute;
-  top: 1.4em;
+  /* top: 1.4em; */
+  left: 3px;
   scale: 0.86;
   transform-origin: top left;
 }
