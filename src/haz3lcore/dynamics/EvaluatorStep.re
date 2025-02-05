@@ -93,10 +93,10 @@ let rec matches =
       | Let2(d1, d2, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Let2(d1, d2, ctx) |> rewrap;
-      | Fun(dp, ctx, env', name) =>
-        let+ ctx =
-          matches(Option.value(~default=env, env'), flt, ctx, exp, act, idx);
-        Fun(dp, ctx, env', name) |> rewrap;
+      | Fun(dp, ctx, ty, name) =>
+        // TODO: Should this env include the bound variables?
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Fun(dp, ctx, ty, name) |> rewrap;
       | FixF(name, ctx, env') =>
         let+ ctx =
           matches(Option.value(~default=env, env'), flt, ctx, exp, act, idx);
@@ -301,9 +301,9 @@ module Decompose = {
   };
 
   module Decomp = Transition(DecomposeEVMode);
-  let rec decompose = (state, env, exp) => {
+  let rec decompose = (~in_closure=?, state, env, exp) => {
     switch (exp) {
-    | _ => Decomp.transition(decompose, state, env, exp)
+    | _ => Decomp.transition(decompose, ~in_closure?, state, env, exp)
     };
   };
 };
@@ -343,8 +343,14 @@ module TakeStep = {
 
   module TakeStepEV = Transition(TakeStepEVMode);
 
-  let take_step = (state, env, d) =>
-    TakeStepEV.transition((_, _, _) => None, state, env, d)
+  let take_step = (~in_closure=?, state, env, d) =>
+    TakeStepEV.transition(
+      (~in_closure as _=?, _, _, _) => None,
+      ~in_closure?,
+      state,
+      env,
+      d,
+    )
     |> Option.map(DHExp.repair_ids);
 };
 

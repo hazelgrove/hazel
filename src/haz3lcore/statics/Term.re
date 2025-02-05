@@ -618,19 +618,17 @@ module Exp = {
               new_bound_vars,
               e,
             )
-          | Fun(p, e, Some(env), n) =>
+          | Fun(p, e, t, n) =>
             let pat_bound_vars = Pat.bound_vars(p);
             Fun(
               p,
               substitute_closures(
-                env
-                |> ClosureEnvironment.map_of
-                |> Environment.without_keys(pat_bound_vars),
+                env |> Environment.without_keys(pat_bound_vars),
                 pat_bound_vars,
                 pat_bound_vars @ new_bound_vars,
                 e,
               ),
-              None,
+              t,
               n,
             )
             |> rewrap;
@@ -681,20 +679,6 @@ module Exp = {
                  }),
             )
             |> rewrap
-          | Fun(p, e, None, n) =>
-            let pat_bound_vars = Pat.bound_vars(p);
-            Fun(
-              p,
-              substitute_closures(
-                env |> Environment.without_keys(pat_bound_vars),
-                pat_bound_vars @ old_bound_vars,
-                pat_bound_vars @ new_bound_vars,
-                e,
-              ),
-              None,
-              n,
-            )
-            |> rewrap;
           | FixF(p, e, None) =>
             let pat_bound_vars = Pat.bound_vars(p);
             FixF(
