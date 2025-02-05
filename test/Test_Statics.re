@@ -801,7 +801,6 @@ let tests = (
       `Quick,
       () => {
         let exp = parse_exp({|(1="hello")|});
-        print_endline("Exp: " ++ [%derive.show: Exp.t](exp));
 
         let (l1, tl1, tuple) =
           switch (exp.term) {
