@@ -44,6 +44,14 @@ let equal_constructor =
   | (Variant(_), BadEntry(_)) => false
   };
 
+let is_empty = (x: t('a)): bool =>
+  List.for_all(
+    fun
+    | Variant(_, _, _) => false
+    | BadEntry(_) => true,
+    x,
+  );
+
 let same_constructor =
     (eq: ('a, 'a) => bool, x: variant('a), y: variant('a)): bool =>
   switch (x, y) {

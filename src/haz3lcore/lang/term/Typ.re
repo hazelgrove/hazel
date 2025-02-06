@@ -144,6 +144,13 @@ let rec is_forall = (typ: t) => {
   };
 };
 
+let is_void = (typ: t) =>
+  switch (typ.term) {
+  | Sum(ctrs) => ConstructorMap.is_empty(ctrs)
+  | Rec(_, {term: Sum(ctrs), _}) => ConstructorMap.is_empty(ctrs)
+  | _ => false
+  };
+
 /* Functions below this point assume that types have been through the to_typ function above */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
