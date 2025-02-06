@@ -242,6 +242,9 @@ let indication = (z, id) =>
   | _ => None
   };
 
+let by_measurement = (pd1: projector_data, pd2: projector_data) =>
+  compare(pd1.measurement.origin.row, pd2.measurement.origin.row);
+
 /* Returns a div containing all projector UIs, intended to
  * be absolutely positioned atop a rendered editor UI */
 let all =
@@ -251,8 +254,15 @@ let all =
       font_metrics: FontMetrics.t,
       projector_data: list(projector_data),
     ) => {
+  /* Sorting the projectors by position tends to be a good
+   * z-index default; projectors further to the right or
+   * further down count as a higher. On its own this could
+   * impinge on hover-dropdowns, but the hovered projector
+   * has z-index handled separately. But ideally dropdowns
+   * should be on the overlay layer so this doesn't arise */
   let (underlay_views, base_views, overlay_views) =
     projector_data
+    |> List.sort(by_measurement)
     |> List.map(setup_view(inject, make_active, font_metrics))
     |> ListUtil.split3;
   let overlay_views = overlay_views |> List.filter_map(Fun.id);
