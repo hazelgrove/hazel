@@ -797,6 +797,29 @@ in 1|},
         ),
       )
     }),
+    test_case("Does not add labels with different cardinality", `Quick, () => {
+      alco_check(
+        "Does not add label",
+        FailedCast(
+          DHExp.strip_casts(parse_exp({|(1, 2) : (a= ,b= ,  )|})),
+          Prod([
+            Unknown(Internal) |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          ])
+          |> Typ.fresh,
+          Prod([
+            Unknown(Internal) |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          ])
+          |> Typ.fresh,
+        )
+        |> Exp.fresh,
+        DHExp.strip_casts(
+          dhexp_of_uexp(parse_exp({|(1, 2) : (a= ,b= ,  )|})),
+        ),
+      )
+    }),
   ];
 };
 module MenhirElaborationTests = {
