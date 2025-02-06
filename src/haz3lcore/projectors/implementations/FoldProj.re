@@ -26,7 +26,7 @@ module M: Projector = {
     ProjectorCore.Shape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
   let update = (m, _, _) => m;
 
-  let hover_view = (view_seg: view_seg, info: info) => {
+  let hover_view = (view_seg: View.seg, info: info) => {
     let seg = Segment.unparenthesize(info.syntax);
     let sort = Segment.sort_of(Segment.skel(seg), seg);
     div(
@@ -38,12 +38,10 @@ module M: Projector = {
   };
 
   let view = (m: model, info, ~local as _, ~parent, ~view_seg) =>
-    div(
-      ~attrs=[Attr.on_double_click(_ => parent(Remove))],
-      [text(m.text), hover_view(view_seg, info)],
+    ProjectorBase.View.mk(
+      div(
+        ~attrs=[Attr.on_double_click(_ => parent(Remove))],
+        [text(m.text), hover_view(view_seg, info)],
+      ),
     );
-
-  let offside_view = Option.None;
-  let overlay_view = Option.None;
-  let underlay_view = Option.None;
 };

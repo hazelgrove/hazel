@@ -63,7 +63,24 @@ type info = {
   utility,
 };
 
-type view_seg = (~background: bool=?, Sort.t, list(syntax)) => Node.t;
+module View = {
+  type t = {
+    underlay: option(Node.t),
+    inline: option(Node.t),
+    overlay: option(Node.t),
+    offside: option(Node.t),
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type seg = (~background: bool=?, Sort.t, list(syntax)) => Node.t;
+
+  let mk = (~underlay=None, ~overlay=None, ~offside=None, inline) => {
+    inline: Some(inline),
+    underlay,
+    overlay,
+    offside,
+  };
+};
 
 /* To add a new projector:
  * 1. Create a new module implementing Projector (e.g. FoldProj)
@@ -119,51 +136,9 @@ module type Projector = {
       ~parent: external_action => Ui_effect.t(unit),
       /* Creates a non-interactive embedded syntax view,
        * provided here to address a dependency cycle */
-      ~view_seg: view_seg
+      ~view_seg: View.seg
     ) =>
-    Node.t;
-  /* An optional additional view to be rendered at the
-   * end of the row which includes the projector */
-  let offside_view:
-    option(
-      (
-        model,
-        info,
-        ~local: action => Ui_effect.t(unit),
-        ~parent: external_action => Ui_effect.t(unit),
-        ~view_seg: view_seg
-      ) =>
-      Node.t,
-    );
-  /* An optional view to be rendered above
-   * the code / regular projector layer */
-  let overlay_view:
-    option(
-      (
-        model,
-        info,
-        ~local: action => Ui_effect.t(unit),
-        ~parent: external_action => Ui_effect.t(unit),
-        ~view_seg: view_seg
-      ) =>
-      Node.t,
-    );
-  /* An optional view to be rendered below the code and
-   * regular projector layer. If this is provided,
-   * regular underlays like indication and selection
-   * decorations will not be drawn; projector clients
-   * should use the classes placed on the wrapping
-   * element to trigger their own custom indication and
-   * selection decorations. Pointer handlers should not
-   * be placed on this layer. */
-  let underlay_view: option((model, info, ~view_seg: view_seg) => Node.t);
-  /* How much space should be left in the code view for
-   * this projector? This determines how the base code
-   * view is laid out, including how movement around the
-   * projector works. In principle this could be derived
-   * from the view, but this is awkward to do so for now
-   * projector writers are responsible for keeping these
-   * in sync with each other. */
+    View.t;
   let placeholder: (model, info) => ProjectorCore.Shape.t;
   /* Update the local projector model given an action */
   let update: (model, info, action) => model;
@@ -202,35 +177,6 @@ module Cook = (C: Projector) : Cooked => {
       ~local=a => local(serialize_a(a)),
       ~parent,
       ~view_seg,
-    );
-  let offside_view =
-    Option.map(
-      (f, m, info, ~local, ~parent, ~view_seg) =>
-        f(
-          deserialize_m(m),
-          info,
-          ~local=a => local(serialize_a(a)),
-          ~parent,
-          ~view_seg,
-        ),
-      C.offside_view,
-    );
-  let overlay_view =
-    Option.map(
-      (f, m, info, ~local, ~parent, ~view_seg) =>
-        f(
-          deserialize_m(m),
-          info,
-          ~local=a => local(serialize_a(a)),
-          ~parent,
-          ~view_seg,
-        ),
-      C.overlay_view,
-    );
-  let underlay_view =
-    Option.map(
-      (f, m, info, ~view_seg) => f(deserialize_m(m), info, ~view_seg),
-      C.underlay_view,
     );
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;

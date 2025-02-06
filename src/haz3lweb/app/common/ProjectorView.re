@@ -210,28 +210,20 @@ let setup_view =
       ~status,
       ~info,
     );
-  let inline_view = P.view(p.model, info, ~local, ~parent, ~view_seg);
+  let view = P.view(p.model, info, ~local, ~parent, ~view_seg);
   let offside_view =
     Option.map(
-      v =>
-        offside_wrapper(
-          font_metrics,
-          offside_base,
-          v(p.model, info, ~local, ~parent, ~view_seg),
-        ),
-      P.offside_view,
+      v => offside_wrapper(font_metrics, offside_base, v),
+      view.offside,
     );
-  let overlay_view =
-    Option.map(
-      v => wrapper([v(p.model, info, ~local, ~parent, ~view_seg)]),
-      P.overlay_view,
-    );
+  let overlay_view = Option.map(v => wrapper([v]), view.overlay);
   let underlay_view =
-    switch (P.underlay_view) {
-    | Some(v) => wrapper([v(p.model, info, ~view_seg)])
+    switch (view.underlay) {
+    | Some(v) => wrapper([v])
     | None => wrapper([backing_deco(~font_metrics, ~measurement, p)])
     };
-  let combined_view = wrapper([inline_view] @ Option.to_list(offside_view));
+  let combined_view =
+    wrapper(Option.to_list(view.inline) @ Option.to_list(offside_view));
   (underlay_view, combined_view, overlay_view);
 };
 
@@ -259,7 +251,7 @@ let all =
    * further down count as a higher. On its own this could
    * impinge on hover-dropdowns, but the hovered projector
    * has z-index handled separately. But ideally dropdowns
-   * should be on the overlay layer so this doesn't arise */
+   * should be on the overlay layer so this doesn't come up */
   let (underlay_views, base_views, overlay_views) =
     projector_data
     |> List.sort(by_measurement)

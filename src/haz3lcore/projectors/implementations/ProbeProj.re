@@ -738,17 +738,12 @@ module M: Projector = {
 
   let update = update;
 
-  let view = (_model, info, ~local, ~parent as _, ~view_seg as _) =>
-    view(local, info);
-  let offside_view =
-    Some(
-      (model, info, ~local, ~parent as _, ~view_seg) =>
-        offside_view(model, info, local, view_seg, info.utility),
-    );
-  let overlay_view =
-    Some(
-      (_model, info, ~local as _, ~parent as _, ~view_seg as _) =>
-        overlay_view(info),
-    );
-  let underlay_view = Option.None;
+  let view = (model, info, ~local, ~parent as _, ~view_seg) =>
+    View.{
+      inline: Some(view(local, info)),
+      underlay: None,
+      overlay: Some(overlay_view(info)),
+      offside:
+        Some(offside_view(model, info, local, view_seg, info.utility)),
+    };
 };
