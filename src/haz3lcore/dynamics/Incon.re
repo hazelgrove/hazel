@@ -2,52 +2,63 @@ open Sets;
 open Util;
 open Util.Maps;
 
-module CtrMap =
-  MapUtil.Make({
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Constructor.t;
-    let compare = compare;
-  });
+module Ctr = {
+  module Map =
+    MapUtil.Make({
+      [@deriving (show({with_path: false}), sexp, yojson)]
+      type t = Constructor.t;
+      let compare = compare;
+    });
 
-module CtrSet =
-  Set.Make({
-    type t = Constructor.t;
-    let compare = compare;
-  });
+  module Set =
+    Set.Make({
+      type t = Constructor.t;
+      let compare = compare;
+    });
 
-// we treat tuples like constructors for some purposes.
-// this should not be anotherwise valid constructor name.
-let tuple_ctr: Constructor.t = "tuple";
-let nil_ctr: Constructor.t = "nil";
-let cons_ctr: Constructor.t = "cons";
+  // we treat tuples like constructors for some purposes.
+  // this should not be anotherwise valid constructor name.
+  let tuple_ctr: Constructor.t = "tuple";
+  let nil_ctr: Constructor.t = "nil";
+  let cons_ctr: Constructor.t = "cons";
 
-let all_ctrs_of_typ = (ty: Typ.t): option(CtrSet.t) =>
-  switch (ty.term) {
-  | Sum(map)
-  | Rec(_, {term: Sum(map), _}) =>
-    Some(
-      map
-      |> List.filter_map(
-           fun
-           | ConstructorMap.Variant(ctr, _, _) => Some(ctr)
-           | BadEntry(_) => None,
-         )
-      |> CtrSet.of_list,
-    )
-  | Prod(_) => Some(CtrSet.singleton(tuple_ctr))
-  | List(_) => Some(CtrSet.of_list([nil_ctr, cons_ctr]))
-  | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
-  | Var(_)
-  | Arrow(_)
-  | Parens(_)
-  | Ap(_)
-  | Rec(_)
-  | Forall(_) => None
+  type arity = int;
+
+  let all_ctrs_of_typ = (ty: Typ.t): option(Map.t(arity)) =>
+    switch (ty.term) {
+    | Sum(map)
+    | Rec(_, {term: Sum(map), _}) =>
+      Some(
+        map
+        |> List.filter_map(
+             fun
+             | ConstructorMap.Variant(ctr, _, _) => Some(ctr)
+             | BadEntry(_) => None,
+           )
+        |> Set.of_list,
+      )
+    | Prod(_) => Some(Set.singleton(tuple_ctr))
+    | List(_) => Some(Set.of_list([nil_ctr, cons_ctr]))
+    | Unknown(_)
+    | Int
+    | Float
+    | Bool
+    | String
+    | Var(_)
+    | Arrow(_)
+    | Parens(_)
+    | Ap(_)
+    | Rec(_)
+    | Forall(_) => None
+    };
+
+  let seen_all_ctrs = (seen_ctrs, all_ctrs) => {
+    switch (all_ctrs) {
+    | Some(all_ctrs) => Set.equal(seen_ctrs, all_ctrs)
+    | None => false
+    };
   };
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type redundant_rows = list(int);
@@ -86,18 +97,37 @@ module Submatrices = {
     ints: IntMap.t(Matrix.t),
     floats: FloatMap.t(Matrix.t),
     strings: StringMap.t(Matrix.t),
-    ctrs: ConstructorMap.t(Matrix.t),
+    ctrs: Ctr.Map.t(Matrix.t),
     unit: option(Matrix.t),
     first_col_exhaustive: bool,
     first_col_redundant_rows: redundant_rows,
   };
+
+  let update_ctrs =
+      (
+        ctr: Constructor.t,
+        idx: int,
+        cols: list(Constraint.t),
+        ctrs: Ctr.Map.t(Matrix.t),
+      )
+      : Ctr.Map.t(Matrix.t) =>
+    Ctr.Map.update(
+      ctr,
+      (data: option(Matrix.t)) => {
+        switch (data) {
+        | Some(matrix) => Some([{idx, cols}, ...matrix])
+        | None => Some([{idx, cols}])
+        }
+      },
+      ctrs,
+    );
 
   let rev = (s: t): t => {
     ...s,
     ints: IntMap.map(Matrix.rev, s.ints),
     floats: FloatMap.map(Matrix.rev, s.floats),
     strings: StringMap.map(Matrix.rev, s.strings),
-    ctrs: ConstructorMap.map(Matrix.rev, s.ctrs),
+    ctrs: Ctr.Map.map(Matrix.rev, s.ctrs),
     unit: Option.map(Matrix.rev, s.unit),
   };
 
@@ -105,7 +135,7 @@ module Submatrices = {
     ints: IntMap.empty,
     floats: FloatMap.empty,
     strings: StringMap.empty,
-    ctrs: ConstructorMap.empty,
+    ctrs: Ctr.Map.empty,
     unit: None,
     first_col_exhaustive: false,
     first_col_redundant_rows: [],
@@ -115,7 +145,7 @@ module Submatrices = {
     seen_ints: IntSet.t,
     seen_floats: FloatSet.t,
     seen_strings: StringSet.t,
-    seen_ctrs: ConstructorSet.t,
+    seen_ctrs: Ctr.Set.t,
     seen_all_ctrs: bool,
     seen_truth: bool,
     first_col_redundant_rows: redundant_rows,
@@ -125,14 +155,14 @@ module Submatrices = {
     seen_ints: IntSet.empty,
     seen_floats: FloatSet.empty,
     seen_strings: StringSet.empty,
-    seen_ctrs: ConstructorSet.empty,
+    seen_ctrs: Ctr.Set.empty,
     seen_all_ctrs: false,
     seen_truth: false,
     first_col_redundant_rows: [],
   };
 
   // data accumulation pass over the first column of the matrix
-  let seen = (m: Matrix.t, all_ctrs: option(ConstructorSet.t)): seen => {
+  let seen = (m: Matrix.t, all_ctrs: option(Ctr.Set.t)): seen => {
     List.fold_left(
       (seen, row: Matrix.row) =>
         switch (row.cols) {
@@ -175,31 +205,25 @@ module Submatrices = {
           };
         | [Tuple(_), ..._] =>
           let first_col_redundant_rows =
-            if (ConstructorSet.mem(tuple_ctr, seen.seen_ctrs)) {
+            if (Ctr.Set.mem(Ctr.tuple_ctr, seen.seen_ctrs)) {
               [row.idx, ...seen.first_col_redundant_rows];
             } else {
               seen.first_col_redundant_rows;
             };
-          let seen_ctrs = ConstructorSet.add(tuple_ctr, seen.seen_ctrs);
+          let seen_ctrs = Ctr.Set.add(Ctr.tuple_ctr, seen.seen_ctrs);
           let seen_all_ctrs =
-            switch (all_ctrs) {
-            | Some(all_ctrs) => ConstructorSet.equal(seen_ctrs, all_ctrs)
-            | None => seen.seen_all_ctrs
-            };
+            seen.seen_all_ctrs || Ctr.seen_all_ctrs(seen_ctrs, all_ctrs);
           {...seen, seen_ctrs, seen_all_ctrs, first_col_redundant_rows};
         | [Ap(ctr, _), ..._] =>
           let first_col_redundant_rows =
-            if (ConstructorSet.mem(ctr, seen.seen_ctrs)) {
+            if (Ctr.Set.mem(ctr, seen.seen_ctrs)) {
               [row.idx, ...seen.first_col_redundant_rows];
             } else {
               seen.first_col_redundant_rows;
             };
-          let seen_ctrs = ConstructorSet.add(ctr, seen.seen_ctrs);
+          let seen_ctrs = Ctr.Set.add(ctr, seen.seen_ctrs);
           let seen_all_ctrs =
-            switch (all_ctrs) {
-            | Some(all_ctrs) => ConstructorSet.equal(seen_ctrs, all_ctrs)
-            | None => seen.seen_all_ctrs
-            };
+            seen.seen_all_ctrs || Ctr.seen_all_ctrs(seen_ctrs, all_ctrs);
           {...seen, seen_ctrs, seen_all_ctrs, first_col_redundant_rows};
         | [Truth, ..._] =>
           let first_col_redundant_rows =
@@ -218,7 +242,7 @@ module Submatrices = {
     );
   };
 
-  let of_matrix = (m: Matrix.t, all_ctrs: option(CtrSet.t)): t => {
+  let of_matrix = (m: Matrix.t, all_ctrs: option(Ctr.Set.t)): t => {
     let {
       seen_ints,
       seen_floats,
@@ -229,18 +253,7 @@ module Submatrices = {
       first_col_redundant_rows,
     } =
       seen(m, all_ctrs);
-    print_endline(
-      "Seen: "
-      ++ string_of_bool(seen_injL)
-      ++ ", "
-      ++ string_of_bool(seen_injR),
-    );
-    let include_unit =
-      !seen_prod
-      && !seen_injL
-      && !seen_injR
-      && seen_truth
-      && Matrix.has_multiple_columns(m);
+    let include_unit = seen_all_ctrs && Matrix.has_multiple_columns(m);
     let submatrices =
       List.fold_left(
         (submatrices, row: Matrix.row) => {
@@ -251,7 +264,7 @@ module Submatrices = {
               ints:
                 IntMap.update(
                   n,
-                  data => {
+                  (data: option(Matrix.t)) => {
                     switch (data) {
                     | Some(matrix) =>
                       Some([{idx: row.idx, cols}, ...matrix])
@@ -261,30 +274,67 @@ module Submatrices = {
                   submatrices.ints,
                 ),
             }
-          | [Float(x), ...cols] => failwith("TODO")
-          | [String(s), ...cols] => failwith("TODO")
-          | [Pair(xi1, xi2), ...cols] => {
+          | [Float(x), ...cols] => {
               ...submatrices,
-              prod: [
-                {idx: row.idx, cols: [xi1, xi2, ...cols]},
-                ...submatrices.prod,
-              ],
+              floats:
+                FloatMap.update(
+                  x,
+                  (data: option(Matrix.t)) => {
+                    switch (data) {
+                    | Some(matrix) =>
+                      Some([{idx: row.idx, cols}, ...matrix])
+                    | None => Some([{idx: row.idx, cols}])
+                    }
+                  },
+                  submatrices.floats,
+                ),
             }
-          | [InjL(xi), ...cols] => {
+          | [String(s), ...cols] => {
               ...submatrices,
-              injL: [
-                {idx: row.idx, cols: [xi, ...cols]},
-                ...submatrices.injL,
-              ],
+              strings:
+                StringMap.update(
+                  s,
+                  (data: option(Matrix.t)) => {
+                    switch (data) {
+                    | Some(matrix) =>
+                      Some([{idx: row.idx, cols}, ...matrix])
+                    | None => Some([{idx: row.idx, cols}])
+                    }
+                  },
+                  submatrices.strings,
+                ),
             }
-          | [InjR(xi), ...cols] => {
+          | [Tuple(xis), ...cols] =>
+            let cols' = xis @ cols;
+            {
               ...submatrices,
-              injR: [
-                {idx: row.idx, cols: [xi, ...cols]},
-                ...submatrices.injR,
-              ],
-            }
-          | [Truth | Hole, ...cols] => {
+              ctrs:
+                update_ctrs(Ctr.tuple_ctr, row.idx, cols', submatrices.ctrs),
+            };
+          | [Ap(ctr, arg), ...cols] =>
+            let cols' =
+              switch (arg) {
+              | Some(arg) => [arg, ...cols]
+              | None => cols
+              };
+            {
+              ...submatrices,
+              ctrs: update_ctrs(ctr, row.idx, cols', submatrices.ctrs),
+            };
+          | [Truth | Hole, ...cols] =>
+            // holes act like truth for the purposes of exhaustiveness checking
+            // update all submatrices for seen ctrs
+            let ctrs =
+              Ctr.Set.fold(
+                (ctr, ctrs) => {
+                  let arity = Ctr.arity(ctr);
+                  let cols = List.make(arity, Truth) @ cols;
+                  update_ctrs(ctr, row.idx, cols, ctrs),
+                seen_ctrs,
+                submatrices.ctrs,
+              );
+
+            {
               ...submatrices,
               prod:
                 seen_prod
@@ -311,7 +361,7 @@ module Submatrices = {
                 include_unit
                   ? [{idx: row.idx, cols}, ...submatrices.unit]
                   : submatrices.unit,
-            }
+            };
           | [Falsity, ..._] => submatrices
           }
         },
@@ -355,7 +405,7 @@ module Submatrices = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type result = {
   is_exhaustive: bool,
-  redundant_rows: list(int),
+  redundant_rows,
 };
 
 let exhaustive_and_irredundant = {is_exhaustive: true, redundant_rows: []};
@@ -375,7 +425,7 @@ let rec check_matrix = (m: Matrix.t, ty: Typ.t): result => {
     let checked_ints = IntMap.map(check_matrix, submatrices.ints);
     let checked_floats = FloatMap.map(check_matrix, submatrices.floats);
     let checked_strings = StringMap.map(check_matrix, submatrices.strings);
-    let checked_ctrs = CtrMap.map(check_matrix, submatrices.ctrs);
+    let checked_ctrs = Ctr.Map.map(check_matrix, submatrices.ctrs);
     let checked_unit = Option.map(check_matrix, submatrices.unit);
     let is_exhaustive =
       submatrices.first_col_exhaustive
