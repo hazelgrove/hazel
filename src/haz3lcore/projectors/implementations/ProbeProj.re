@@ -12,7 +12,7 @@ type model = {
   /* Max col length for value display, indexed by closure id */
   display_lengths: Id.Map.t(int),
   /* Max number of closures to display */
-  max_closures: int,
+  //max_closures: int,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -22,7 +22,7 @@ type action =
   | ToggleShowAllVals(int)
   | PinAp;
 
-let init = {display_lengths: Id.Map.empty, max_closures: 30};
+let init = {display_lengths: Id.Map.empty};
 
 let model_of_sexp = (sexp): model =>
   switch (model_of_sexp(sexp)) {
@@ -31,6 +31,20 @@ let model_of_sexp = (sexp): model =>
   };
 
 module State = {
+  type view_mode =
+    | Single
+    | Many;
+
+  let view_mode = ref(Many);
+
+  let max_closures = () =>
+    switch (view_mode^) {
+    | Single => 1
+    | Many => 30
+    };
+
+  let get_view_mode = () => view_mode^;
+
   let home = Hashtbl.create(100);
 
   let get_home = (k: Id.t): int =>
@@ -314,7 +328,7 @@ module Closures = {
     };
 
   let select_frames =
-      (model: model, info: info, closures: list(closure)): list(closure) => {
+      (_model: model, info: info, closures: list(closure)): list(closure) => {
     let closures = filter_frames_by_pin(info, closures);
     let cursor_idx =
       switch (DynCursor.first_index_of_interest(info, closures)) {
@@ -322,9 +336,10 @@ module Closures = {
       | None => 0
       };
     let home = State.get_home(info.id);
-    let new_home = new_home(cursor_idx, home, model.max_closures);
+    let max_closures = State.max_closures();
+    let new_home = new_home(cursor_idx, home, max_closures);
     State.set_home(info.id, new_home);
-    ListUtil.slice(new_home, model.max_closures, closures);
+    ListUtil.slice(new_home, max_closures, closures);
   };
 
   let group_by_predicate =
@@ -399,7 +414,8 @@ let display_length = (model: model, closure: closure): int =>
   Id.Map.find_opt(closure.closure_id, model.display_lengths)
   |> Option.value(
        ~default=
-         !is_value(closure.value) ? 5 : model.max_closures == 1 ? 36 : 12,
+         !is_value(closure.value)
+           ? 5 : State.get_view_mode() == Single ? 36 : 12,
      );
 
 let length_cls = (length: int): string =>
@@ -570,7 +586,7 @@ let ellipsis_view = (local): Node.t =>
     [text("⋯")],
   );
 
-let nav_bar_view = (model: model, num_total: int, local) => {
+let nav_bar_view = (_model: model, num_total: int, local) => {
   let nav_arrow = (cond: bool, offset: int): Node.t =>
     Node.div(
       ~attrs=[
@@ -580,8 +596,8 @@ let nav_bar_view = (model: model, num_total: int, local) => {
       [],
     );
   // TODO: better logic
-  let show_left = num_total < model.max_closures;
-  let show_right = num_total < model.max_closures;
+  let show_left = num_total < State.max_closures();
+  let show_right = num_total < State.max_closures();
   div(
     ~attrs=[Attr.classes(["nav-bar"])],
     [nav_arrow(show_left, 1), nav_arrow(show_right, -1)],
@@ -679,14 +695,16 @@ let update = (m: model, info: info, a: action) => {
   switch (a) {
   | ChangeLength(id, len) =>
     if (len > (-1)) {
-      {...m, display_lengths: Id.Map.add(id, len, m.display_lengths)};
+      {display_lengths: Id.Map.add(id, len, m.display_lengths)};
     } else {
       m;
     }
-  | ToggleShowAllVals(_) => {
-      ...m,
-      max_closures: m.max_closures == 1 ? init.max_closures : 1,
-    }
+  | ToggleShowAllVals(_) =>
+    switch (State.view_mode^) {
+    | Single => State.view_mode := Many
+    | Many => State.view_mode := Single
+    };
+    m;
   | MoveCursor(offset) =>
     switch (info.dynamics) {
     | Some(closures) =>
