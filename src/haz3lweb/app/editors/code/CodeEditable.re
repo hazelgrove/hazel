@@ -212,10 +212,12 @@ module View = {
         x => inject(Perform(x)),
         signal(MakeActive),
         globals.font_metrics,
-        ProjectorView.collect_data(
-          model.editor.syntax,
-          model.editor.state.zipper,
-          model.statics,
+        ProjectorView.Model.mk(
+          model.editor.syntax.projectors,
+          model.editor.syntax.measured,
+          model.editor.syntax.selection_ids,
+          Indicated.piece(model.editor.state.zipper),
+          model.statics.info_map,
           model.dynamics,
           selected,
         ),

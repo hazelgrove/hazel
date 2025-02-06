@@ -30,6 +30,22 @@ let model_of_sexp = (sexp): model =>
   | x => x
   };
 
+module State = {
+  let home = Hashtbl.create(100);
+
+  let get_home = (k: Id.t): int =>
+    switch (Hashtbl.find_opt(home, k)) {
+    | Some(v) => v
+    | None => 0
+    };
+
+  let set_home = (k: Id.t, v: int) => Hashtbl.add(home, k, v);
+
+  let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
+
+  let click_coords: ref(option(Point.t)) = ref(Option.None);
+};
+
 /* Remove opaque values like function literals */
 let rm_opaques:
   list(Dynamics.Probe.Env.entry) => list(Dynamics.Probe.Env.entry) =
@@ -66,16 +82,6 @@ let cur_ap = (info: info) =>
     Some(Term.Exp.rep_id(ap))
   | _ => None
   };
-
-let home = Hashtbl.create(100);
-
-let get_home = (k: Id.t): int =>
-  switch (Hashtbl.find_opt(home, k)) {
-  | Some(v) => v
-  | None => 0
-  };
-
-let set_home = (k: Id.t, v: int) => Hashtbl.add(home, k, v);
 
 let is_value = (exp: Exp.t) =>
   ValueChecker.check_value((), ClosureEnvironment.empty, exp) == Value;
@@ -315,9 +321,9 @@ module Closures = {
       | Some(idx) => idx
       | None => 0
       };
-    let home = get_home(info.id);
+    let home = State.get_home(info.id);
     let new_home = new_home(cursor_idx, home, model.max_closures);
-    set_home(info.id, new_home);
+    State.set_home(info.id, new_home);
     ListUtil.slice(new_home, model.max_closures, closures);
   };
 
@@ -396,10 +402,6 @@ let display_length = (model: model, closure: closure): int =>
          !is_value(closure.value) ? 5 : model.max_closures == 1 ? 36 : 12,
      );
 
-let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
-
-let click_coords: ref(option(Point.t)) = ref(Option.None);
-
 let length_cls = (length: int): string =>
   if (length > 10) {
     "extra";
@@ -434,8 +436,8 @@ let value_view =
       let target =
         e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
       JsUtil.setPointerCapture(target, e##.pointerId);
-      mousedown := Some(target);
-      click_coords := Some({row: e##.clientY, col: e##.clientX});
+      State.mousedown := Some(target);
+      State.click_coords := Some({row: e##.clientY, col: e##.clientX});
     };
     DynCursor.capture(info, closure);
     Effect.Ignore;
@@ -447,13 +449,13 @@ let value_view =
     if (JsUtil.hasPointerCapture(target, e##.pointerId)) {
       JsUtil.releasePointerCapture(target, e##.pointerId);
     };
-    mousedown := None;
-    click_coords := None;
+    State.mousedown := None;
+    State.click_coords := None;
     Effect.Ignore;
   };
 
   let val_mousemove = (e: Js.t(Dom_html.mouseEvent)) => {
-    switch (mousedown^) {
+    switch (State.mousedown^) {
     | Some(_) when Js.to_bool(e##.shiftKey) =>
       let goal = pos_rel_to_target(e);
       local(ChangeLength(closure.closure_id, goal.col));
