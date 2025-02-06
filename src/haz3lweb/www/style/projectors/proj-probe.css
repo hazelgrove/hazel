@@ -214,18 +214,18 @@
 .projector.probe .live-offside .ellipsis {
   cursor: pointer;
 }
-.projector.probe.Exp .live-offside .ellipsis {
+.projector.probe .live-offside .ellipsis {
   color: var(--exp-base);
 }
-.projector.probe.Pat .live-offside .ellipsis {
+/* .projector.probe.Pat .live-offside .ellipsis {
   color: var(--pat-base);
-}
-.projector.probe.indicated.Exp .live-offside .ellipsis {
+} */
+.projector.probe.indicated .live-offside .ellipsis {
   color: var(--exp-indicated);
 }
-.projector.probe.indicated.Pat .live-offside .ellipsis {
+/* .projector.probe.indicated.Pat .live-offside .ellipsis {
   color: var(--pat-indicated);
-}
+} */
 .projector.probe .live-offside .ellipsis:hover {
   /* filter: brightness(1.2) saturate(2); */
   scale: 1.4;
@@ -248,12 +248,12 @@
   font-size: 0.4em;
   margin: -1px;
 }
-.projector.probe.Exp .closure-group:not(:last-child)::after {
+.projector.probe .closure-group:not(:last-child)::after {
   color: var(--exp-indicated);
 }
-.projector.probe.Pat .closure-group:not(:last-child)::after {
+/* .projector.probe.Pat .closure-group:not(:last-child)::after {
   color: var(--pat-indicated);
-}
+} */
 
 .projector.probe .value {
   cursor: pointer;
@@ -275,14 +275,14 @@
   background-color: var(--bkg);
   border-bottom-color: var(--bottom-border-clr);
 }
-.projector.probe.Exp .closure {
+.projector.probe .closure {
   --bottom-border-clr: var(--exp-shadow);
   --bkg: var(--exp-base);
 }
-.projector.probe.Pat .closure {
+/* .projector.probe.Pat .closure {
   --bottom-border-clr: var(--pat-shadow);
   --bkg: var(--pat-base);
-}
+} */
 .projector.probe .closure:has(.value.indet) {
   /* background-color: var(--R0) !important;
   --below-shadow: var(--R2);
@@ -306,12 +306,13 @@
 .projector.probe .closure:has(.value.cursor-callee.indirect) {
   filter: contrast(0.32) brightness(1.51) saturate(0.7);
 }
-.projector.probe.Pat .closure:has(.value.cursor-unrelated.level0) {
-  --bottom-border-clr: #73c1e1;
-}
-.projector.probe.Exp .closure:has(.value.cursor-unrelated.level0) {
+
+.projector.probe .closure:has(.value.cursor-unrelated.level0) {
   --bottom-border-clr: #73e1a3;
 }
+/* .projector.probe.Pat .closure:has(.value.cursor-unrelated.level0) {
+  --bottom-border-clr: #73c1e1;
+} */
 
 .projector.probe .closure:has(.value.above) {
   --below-shadow: oklch(0.9 0.07 300);
@@ -355,12 +356,12 @@
   filter: drop-shadow(0 5.25px 0 var(--below-shadow));
 }
 
-.projector.probe.Exp .closure {
+.projector.probe .closure {
   --below-shadow: #00c17d;
 }
-.projector.probe.Pat .closure {
+/* .projector.probe.Pat .closure {
   --below-shadow: #00aec1;
-}
+} */
 
 .projector.probe .closure:has(.value.above) {
   top: -3.5px;
@@ -434,14 +435,14 @@
   border: none;
 }
 
-.projector.probe.indicated.Exp .closure:has(.value.cursor),
-.projector.probe.Exp .closure:hover {
+.projector.probe.indicated .closure:has(.value.cursor),
+.projector.probe .closure:hover {
   outline-color: var(--exp-indicated);
 }
-.projector.probe.indicated.Pat .closure:has(.value.cursor),
+/* .projector.probe.indicated.Pat .closure:has(.value.cursor),
 .projector.probe.Pat .closure:hover {
   outline-color: var(--pat-indicated);
-}
+} */
 .projector.probe.indicated .closure:has(.value.cursor.ap),
 .projector.probe.Exp .closure:has(.value.ap):hover {
   outline-color: var(--exp-ap-indicated);
@@ -511,9 +512,9 @@
 .projector.probe.Exp .value.cursor .code-text .token {
   color: var(--exp-indicated);
 }
-.projector.probe.Pat .value.cursor .code-text .token {
+/* .projector.probe.Pat .value.cursor .code-text .token {
   color: var(--pat-indicated);
-}
+} */
 
 .projector.probe .value.cursor-unrelated .code-text .token,
 .projector.probe .value.cursor-caller .code-text .token {
@@ -559,8 +560,7 @@
 .projector.probe.indicated .closure:hover .live-env {
   display: block;
 }
-.projector.probe.indicated .closure:hover .live-env:empty,
-.projector.probe.Pat.indicated .closure:hover .live-env {
+.projector.probe.indicated .closure:hover .live-env:empty {
   display: none;
 }
 
@@ -579,12 +579,12 @@
 .projector.probe .nav-arrow:last-child {
   transform: rotate(180deg);
 }
-.projector.probe.Exp .nav-arrow {
+.projector.probe .nav-arrow {
   filter: invert(1) brightness(0.7) sepia(1) hue-rotate(61deg) saturate(0.6);
 }
-.projector.probe.Pat .nav-arrow {
+/* .projector.probe.Pat .nav-arrow {
   filter: invert(1) brightness(0.7) sepia(1) hue-rotate(141deg) saturate(0.6);
-}
+} */
 
 .projector.probe:not(.indicated) .nav-arrow {
   pointer-events: none;
