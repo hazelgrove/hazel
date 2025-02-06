@@ -30,34 +30,60 @@ let model_of_sexp = (sexp): model =>
   | x => x
   };
 
-module State = {
-  type view_mode =
+module Window = {
+  type mode =
     | Single
     | Many;
 
-  let view_mode = ref(Many);
+  let mode = ref(Many);
+  let offset = Hashtbl.create(100);
 
   let max_closures = () =>
-    switch (view_mode^) {
+    switch (mode^) {
     | Single => 1
     | Many => 30
     };
 
-  let get_view_mode = () => view_mode^;
+  let get_mode = () => mode^;
 
-  let home = Hashtbl.create(100);
+  let toggle_mode = () =>
+    switch (mode^) {
+    | Single => mode := Many
+    | Many => mode := Single
+    };
 
-  let get_home = (k: Id.t): int =>
-    switch (Hashtbl.find_opt(home, k)) {
+  let get_offset = (k: Id.t): int =>
+    switch (Hashtbl.find_opt(offset, k)) {
     | Some(v) => v
     | None => 0
     };
 
-  let set_home = (k: Id.t, v: int) => Hashtbl.add(home, k, v);
+  /* We are displaying a certain window of closures near the closure cursor.
+   * If the closure cursor moves, we want to readjust this window to show the
+   * cursor, but only if necessary. Thus we compare the cursor position to the
+   * current window bounds, and make the minimum change to the window necessary
+   * to show the cursor. As an edge case, if there are less total closures than
+   * the window size, we set the window to begin at zero. */
+  let new_offest =
+      (cursor_idx: int, home: int, max_closures: int, all_closures: int): int =>
+    if (all_closures <= max_closures) {
+      0;
+    } else if (cursor_idx < home) {
+      cursor_idx;
+    } else if (cursor_idx >= home + max_closures) {
+      cursor_idx - max_closures + 1;
+    } else {
+      home;
+    };
 
-  let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
+  let set_offset = (k: Id.t, v: int) => Hashtbl.add(offset, k, v);
 
-  let click_coords: ref(option(Point.t)) = ref(Option.None);
+  let reset = (id, all_closures, cursor_idx): (int, int) => {
+    let max = max_closures();
+    let new_home = new_offest(cursor_idx, get_offset(id), max, all_closures);
+    set_offset(id, new_home);
+    (new_home, max);
+  };
 };
 
 /* Remove opaque values like function literals */
@@ -315,15 +341,6 @@ module Closures = {
     | None => 0
     };
 
-  let new_home = (cursor_idx: int, home: int, max_closures: int): int =>
-    if (cursor_idx < home) {
-      cursor_idx;
-    } else if (cursor_idx >= home + max_closures) {
-      cursor_idx - max_closures + 1;
-    } else {
-      home;
-    };
-
   let select_frames =
       (_model: model, info: info, closures: list(closure)): list(closure) => {
     let closures = filter_frames_by_pin(info, closures);
@@ -332,11 +349,9 @@ module Closures = {
       | Some(idx) => idx
       | None => 0
       };
-    let home = State.get_home(info.id);
-    let max_closures = State.max_closures();
-    let new_home = new_home(cursor_idx, home, max_closures);
-    State.set_home(info.id, new_home);
-    ListUtil.slice(new_home, max_closures, closures);
+    let all_closures = List.length(closures);
+    let (l, r) = Window.reset(info.id, all_closures, cursor_idx);
+    ListUtil.slice(l, r, closures);
   };
 
   let group_by_predicate =
@@ -411,8 +426,7 @@ let display_length = (model: model, closure: closure): int =>
   Id.Map.find_opt(closure.closure_id, model.display_lengths)
   |> Option.value(
        ~default=
-         !is_value(closure.value)
-           ? 5 : State.get_view_mode() == Single ? 36 : 12,
+         !is_value(closure.value) ? 5 : Window.get_mode() == Single ? 36 : 12,
      );
 
 let length_cls = (length: int): string =>
@@ -434,6 +448,12 @@ let length_cls = (length: int): string =>
     "s0";
   };
 
+module ValueState = {
+  let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
+
+  let click_coords: ref(option(Point.t)) = ref(Option.None);
+};
+
 let value_view =
     (
       info: info,
@@ -449,8 +469,8 @@ let value_view =
       let target =
         e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
       JsUtil.setPointerCapture(target, e##.pointerId);
-      State.mousedown := Some(target);
-      State.click_coords := Some({row: e##.clientY, col: e##.clientX});
+      ValueState.mousedown := Some(target);
+      ValueState.click_coords := Some({row: e##.clientY, col: e##.clientX});
     };
     DynCursor.capture(info, closure);
     Effect.Ignore;
@@ -462,13 +482,13 @@ let value_view =
     if (JsUtil.hasPointerCapture(target, e##.pointerId)) {
       JsUtil.releasePointerCapture(target, e##.pointerId);
     };
-    State.mousedown := None;
-    State.click_coords := None;
+    ValueState.mousedown := None;
+    ValueState.click_coords := None;
     Effect.Ignore;
   };
 
   let val_mousemove = (e: Js.t(Dom_html.mouseEvent)) => {
-    switch (State.mousedown^) {
+    switch (ValueState.mousedown^) {
     | Some(_) when Js.to_bool(e##.shiftKey) =>
       let goal = pos_rel_to_target(e);
       local(ChangeLength(closure.closure_id, goal.col));
@@ -593,8 +613,8 @@ let nav_bar_view = (_model: model, num_total: int, local) => {
       [],
     );
   // TODO: better logic
-  let show_left = num_total < State.max_closures();
-  let show_right = num_total < State.max_closures();
+  let show_left = num_total < Window.max_closures();
+  let show_right = num_total < Window.max_closures();
   div(
     ~attrs=[Attr.classes(["nav-bar"])],
     [nav_arrow(show_left, 1), nav_arrow(show_right, -1)],
@@ -697,10 +717,7 @@ let update = (m: model, info: info, a: action) => {
       m;
     }
   | ToggleShowAllVals(_) =>
-    switch (State.view_mode^) {
-    | Single => State.view_mode := Many
-    | Many => State.view_mode := Single
-    };
+    Window.toggle_mode();
     m;
   | MoveCursor(offset) =>
     switch (info.dynamics) {
