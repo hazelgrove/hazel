@@ -23,7 +23,8 @@ type term =
   | BinOp2(Operators.op_bin, DHExp.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
   | Test(t)
-  | Wrap(t, TermBase.wrap)
+  | Parens(t)
+  | Probe(t, Probe.t)
   | ListLit(t, (list(DHExp.t), list(DHExp.t)))
   | MultiHole(t, (list(Any.t), list(Any.t)))
   | Cons1(t, DHExp.t)
@@ -89,9 +90,12 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | Test(ctx) =>
       let d1 = compose(ctx, d);
       Test(d1) |> wrap;
-    | Wrap(ctx, tag) =>
+    | Parens(ctx) =>
       let d1 = compose(ctx, d);
-      Wrap(d1, tag) |> wrap;
+      Parens(d1) |> wrap;
+    | Probe(ctx, p) =>
+      let d1 = compose(ctx, d);
+      Probe(d1, p) |> wrap;
     | UnOp(op, ctx) =>
       let d1 = compose(ctx, d);
       UnOp(op, d1) |> wrap;

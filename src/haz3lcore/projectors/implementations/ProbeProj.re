@@ -73,9 +73,7 @@ let rm_opaques:
 /* Don't redundantly show an env for variable references, patterns */
 let hide_env = (info: info): bool =>
   switch (info.statics) {
-  | Some(
-      InfoExp({term: {term: Var(_) | Wrap({term: Var(_), _}, _), _}, _}),
-    ) =>
+  | Some(InfoExp({term: {term: Var(_) | Parens({term: Var(_), _}), _}, _})) =>
     true
   | Some(InfoPat(_)) => true
   | _ => false
@@ -84,12 +82,11 @@ let hide_env = (info: info): bool =>
 let cur_ap = (info: info) =>
   switch (info.statics) {
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
-  | Some(InfoExp({term: {term: Wrap({term: Ap(_), _} as ap, _), _}, _})) =>
+  | Some(InfoExp({term: {term: Parens({term: Ap(_), _} as ap), _}, _})) =>
     Some(Term.Exp.rep_id(ap))
   | Some(
       InfoExp({
-        term:
-          {term: Wrap({term: Wrap({term: Ap(_), _} as ap, _), _}, _), _},
+        term: {term: Parens({term: Parens({term: Ap(_), _} as ap), _}), _},
         _,
       }),
     ) =>
