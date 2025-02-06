@@ -1,7 +1,10 @@
+/* Projector data which is dependent on semantics,
+ * separated out for dependency reasons */
+
 /* Gather utility functions/values to be sspaed to the projector.
  * See ProjectorBase.utility definition for more information */
 let utility: ProjectorBase.utility = {
-  let seg_to_term = MakeTerm.any;
+  let seg_to_term = MakeTerm.for_projection;
   let term_to_seg =
     ExpToSegment.any_to_pretty(
       ~settings={
@@ -9,54 +12,39 @@ let utility: ProjectorBase.utility = {
         show_unknown_as_hole: false,
       },
     );
-  let term_to_syntax = (any: Any.t): Base.piece =>
-    switch (term_to_seg(any)) {
-    | [e] => e
-    | seg => Segment.parenthesize(seg)
+  let lift_syntax =
+      (fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) =>
+    switch (seg |> seg_to_term) {
+    | None => None
+    | Some(s) => Some(s |> fn |> term_to_seg)
     };
-  let lift_syntax = (fn: Any.t => Any.t, piece: Base.piece): Base.piece =>
-    [piece] |> seg_to_term |> fn |> term_to_syntax;
   {term_to_seg, seg_to_term, lift_syntax};
 };
-
-let adjust_syntax = (syntax: Base.piece): Base.piece =>
-  /* Given that syntax is unconditionally parenthesize on projection,
-   * (for technical reasons), and we don't want to make individual
-   * projectors have to deal with this extra wrapping level, we
-   * unparenthesize when possible (this may be ill-advised) */
-  switch (Segment.unparenthesize(syntax)) {
-  | Some([e]) => e
-  | Some(_) => syntax
-  | None =>
-    //prerr_endline("WARNING: asjust_syntax: not parenthesized");
-    syntax
-  };
-
-let unparenthesize = (piece: Piece.t): Segment.t =>
-  switch (Segment.unparenthesize(piece)) {
-  | Some(seg) => seg
-  | _ =>
-    //prerr_endline("WARNING: Unparenthesize: not parenthesized");
-    [piece]
-  };
 
 let mk_info =
     (p: Piece.projector, ~statics: Statics.Map.t, ~dynamics: Dynamics.Map.t)
     : ProjectorBase.info => {
   id: p.id,
-  syntax: adjust_syntax(p.syntax),
+  syntax: Piece.unparenthesize(p.syntax),
   statics: Statics.Map.lookup(p.id, statics),
   dynamics: Dynamics.Map.lookup(p.id, dynamics),
   utility,
 };
 
-module Shape = {
-  let of_map =
+module ShapeMapSemantics = {
+  let from_semantics =
       (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector)
-      : ProjectorCore.shape => {
+      : ProjectorCore.Shape.t => {
     let (module P) = ProjectorInit.to_module(p.kind);
     P.placeholder(p.model, mk_info(p, ~statics, ~dynamics));
   };
 
-  let of_map_default = of_map(Id.Map.empty, Id.Map.empty);
+  let mk =
+      (
+        proj_map: Id.Map.t(Base.projector),
+        statics: Statics.Map.t,
+        dynamics: Dynamics.Map.t,
+      )
+      : Id.Map.t(ProjectorCore.Shape.t) =>
+    Id.Map.map(from_semantics(statics, dynamics), proj_map);
 };

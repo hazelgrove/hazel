@@ -63,7 +63,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Forall(_, {term: Unknown(_), _})
   | Arrow({term: Unknown(_), _}, {term: Unknown(_), _})
   | List({term: Unknown(_), _}) => Ground
-  | Wrap(ty) => ground_cases_of(ty)
+  | Parens(ty) => ground_cases_of(ty)
   | Prod(tys) =>
     if (List.for_all(
           fun

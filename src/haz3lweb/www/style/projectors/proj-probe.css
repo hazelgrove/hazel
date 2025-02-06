@@ -18,7 +18,7 @@
 
   --exp-shadow: oklch(0.55 0.15 150);
   --pat-shadow: oklch(0.5 0.1 245);
-  --typ-shadow: oklch(0.5 0.1 300);
+  --exp-ap-shadow: oklch(0.5 0.1 300);
 
   --exp-cell: hsl(115, 30%, 70%);
   --pat-cell: hsl(165, 30%, 70%);
@@ -56,12 +56,13 @@
   color: var(--code-text);
   display: flex;
   flex-direction: row;
-  gap: 0.4em;
   cursor: pointer;
   align-items: center;
+  justify-content: space-evenly;
+  width: 100%;
 }
-.projector.probe.indicated:not(.selected) .main,
-.cell-item:not(.selected) .projector.probe.indicated .main {
+.projector.probe.indicated:not(.selected):not(.error) .main,
+.cell-item:not(.selected):not(.error) .projector.probe.indicated .main {
   color: white;
 }
 
@@ -74,16 +75,24 @@
   animation: rotate 5s linear infinite;
 }
 .projector.probe .main .icon {
+  scale: 0.95;
   width: 16px;
   height: 16px;
   background-image: url(../../img/noun-search-5661270.svg);
   background-size: cover;
-  filter: invert(1) brightness(0.4) sepia(1) saturate(1.8) hue-rotate(75deg);
+}
+.projector.probe.Exp .main .icon {
+  filter: invert(1) brightness(0.5) sepia(1) saturate(2) hue-rotate(75deg);
+}
+.projector.probe.Pat .main .icon {
+  filter: invert(1) brightness(0.5) sepia(1) saturate(2) hue-rotate(150deg);
 }
 .projector.probe .main.ap .icon {
   background-image: url(../../img/noun-telescope-7245201.svg);
+  rotate: -6deg;
+  translate: -2px;
 }
-.projector.probe.indicated:not(.selected) .main .icon {
+.projector.probe.indicated:not(.selected):not(.error) .main .icon {
   filter: invert(1);
 }
 
@@ -113,8 +122,12 @@
 .overlays .projector.probe.Pat .num-closures {
   --original-bg: var(--pat-indicated);
 }
+.overlays .projector.probe.error:not(.selected) .num-closures {
+  --original-bg: var(--R1);
+}
 .overlays .projector.probe.selected .num-closures {
   --original-bg: var(--num-closures);
+  color: black;
 }
 
 @keyframes blink-probe-caret {
@@ -153,7 +166,7 @@
   transform-origin: top right;
   scale: 0.6;
 }
-.overlays .projector.probe.indicated.Left .pin {
+.overlays .projector.probe .pin {
   background-color: oklch(0.8 0.18 201.83);
 }
 
@@ -171,12 +184,22 @@
 
 .projector.probe .live-equals {
   font-weight: 800;
-  color: var(--exp-base);
   opacity: 80%;
+}
+.projector.probe.Exp .live-equals {
+  color: var(--exp-base);
+}
+.projector.probe.Pat .live-equals {
+  color: var(--pat-base);
 }
 .projector.probe.indicated .live-equals {
   opacity: 100%;
+}
+.projector.probe.Exp.indicated .live-equals {
   color: var(--exp-indicated);
+}
+.projector.probe.Pat.indicated .live-equals {
+  color: var(--pat-indicated);
 }
 
 .projector.probe .live-offside .nav-bar {
@@ -191,18 +214,18 @@
 .projector.probe .live-offside .ellipsis {
   cursor: pointer;
 }
-.projector.probe.Exp .live-offside .ellipsis {
+.projector.probe .live-offside .ellipsis {
   color: var(--exp-base);
 }
-.projector.probe.Pat .live-offside .ellipsis {
+/* .projector.probe.Pat .live-offside .ellipsis {
   color: var(--pat-base);
-}
-.projector.probe.indicated.Exp .live-offside .ellipsis {
+} */
+.projector.probe.indicated .live-offside .ellipsis {
   color: var(--exp-indicated);
 }
-.projector.probe.indicated.Pat .live-offside .ellipsis {
+/* .projector.probe.indicated.Pat .live-offside .ellipsis {
   color: var(--pat-indicated);
-}
+} */
 .projector.probe .live-offside .ellipsis:hover {
   /* filter: brightness(1.2) saturate(2); */
   scale: 1.4;
@@ -225,12 +248,12 @@
   font-size: 0.4em;
   margin: -1px;
 }
-.projector.probe.Exp .closure-group:not(:last-child)::after {
+.projector.probe .closure-group:not(:last-child)::after {
   color: var(--exp-indicated);
 }
-.projector.probe.Pat .closure-group:not(:last-child)::after {
+/* .projector.probe.Pat .closure-group:not(:last-child)::after {
   color: var(--pat-indicated);
-}
+} */
 
 .projector.probe .value {
   cursor: pointer;
@@ -249,91 +272,265 @@
   border-radius: 0.05em 0.05em 0.05em 0.2em;
   transition: filter 0.14s ease-in-out;
   transition: scale 0.07s ease-in-out;
+  background-color: var(--bkg);
+  border-bottom-color: var(--bottom-border-clr);
 }
-.projector.probe.Exp .closure {
-  background-color: var(--exp-base);
-  border-bottom: 1px solid var(--exp-shadow);
+.projector.probe .closure {
+  --bottom-border-clr: var(--exp-shadow);
+  --bkg: var(--exp-base);
 }
-.projector.probe.Pat .closure {
-  background-color: var(--pat-base);
-  border-bottom: 1px solid var(--pat-shadow);
+/* .projector.probe.Pat .closure {
+  --bottom-border-clr: var(--pat-shadow);
+  --bkg: var(--pat-base);
+} */
+.projector.probe .closure:has(.value.indet) {
+  /* background-color: var(--R0) !important;
+  --below-shadow: var(--R2);
+  --bottom-border-clr: var(--R2);
+  --inner-shadow: #f59393 !important; */
+  background-color: oklch(0.87 0 0) !important;
+  --below-shadow: oklch(0.46 0 0);
+  --bottom-border-clr: oklch(0.4 0 0);
+  --inner-shadow: #a2a2a2 !important;
 }
-.projector.probe .closure:has(.value.cursor-callee.direct) {
-  outline: 1px solid var(--exp-ap-indicated);
-  border-color: var(--exp-ap-indicated);
+.projector.probe .closure:has(.value.cursor-callee) {
+  --below-shadow: var(--exp-ap-indicated);
 }
 .projector.probe .closure:has(.value.cursor-caller) {
-  outline: 1px solid var(--exp-ap-indicated);
-  border-color: var(--exp-ap-indicated);
-  background-color: var(--exp-ap-indicated);
-  box-shadow: inset 4px 4px 0 #551da0;
+  --caller-accent: var(--exp-ap-indicated);
+  --bottom-border-clr: var(--caller-accent);
+  --bkg: var(--exp-ap-indicated);
+  outline: 1px solid var(--caller-accent);
 }
 .projector.probe .closure:has(.value.cursor-unrelated),
 .projector.probe .closure:has(.value.cursor-callee.indirect) {
   filter: contrast(0.32) brightness(1.51) saturate(0.7);
-  /* opacity: 40%; */
+}
+
+.projector.probe .closure:has(.value.cursor-unrelated.level0) {
+  --bottom-border-clr: #73e1a3;
+}
+/* .projector.probe.Pat .closure:has(.value.cursor-unrelated.level0) {
+  --bottom-border-clr: #73c1e1;
+} */
+
+.projector.probe .closure:has(.value.above) {
+  --below-shadow: oklch(0.9 0.07 300);
+  --inner-shadow: #551da0;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+}
+.projector.probe .closure:has(.value.above.indirect) {
+  --bkg: oklch(0.4 0.18 300);
+  box-shadow: inset 24px 25px 0 var(--inner-shadow);
+  filter: drop-shadow(0 5.25px 0 var(--below-shadow));
+}
+.projector.probe .closure:has(.value.above.direct.L1) {
+  --bkg: oklch(0.7 0.18 300);
+  box-shadow: inset 1.5px 1.5px 0 var(--inner-shadow);
+  filter: drop-shadow(0 1.5px 0 var(--below-shadow));
+}
+.projector.probe .closure:has(.value.above.indirect.L2) {
+  --bkg: oklch(0.66 0.18 300);
+  box-shadow: inset 3px 3px 0 var(--inner-shadow);
+  filter: drop-shadow(0 2.25px 0 var(--below-shadow));
+}
+.projector.probe .closure:has(.value.above.indirect.L3) {
+  --bkg: oklch(0.62 0.18 300);
+  box-shadow: inset 6px 6px 0 var(--inner-shadow);
+  filter: drop-shadow(0 3px 0 var(--below-shadow));
+}
+.projector.probe .closure:has(.value.above.indirect.L4) {
+  --bkg: oklch(0.58 0.18 300);
+  box-shadow: inset 9px 9px 0 var(--inner-shadow);
+  filter: drop-shadow(0 3.75px 0 var(--below-shadow));
+}
+.projector.probe .closure:has(.value.above.indirect.L5) {
+  --bkg: oklch(0.54 0.18 300);
+  box-shadow: inset 14px 14px 0 var(--inner-shadow);
+  filter: drop-shadow(0 4.5px 0 var(--below-shadow));
+}
+.projector.probe .closure:has(.value.above.indirect.L6) {
+  --bkg: oklch(0.5 0.18 300);
+  box-shadow: inset 18px 18px 0 var(--inner-shadow);
+  filter: drop-shadow(0 5.25px 0 var(--below-shadow));
+}
+
+.projector.probe .closure {
+  --below-shadow: #00c17d;
+}
+/* .projector.probe.Pat .closure {
+  --below-shadow: #00aec1;
+} */
+
+.projector.probe .closure:has(.value.above) {
+  top: -3.5px;
+  box-shadow: 0 3.5px 0 #d0cab7bb;
+  position: relative;
+  border-bottom-style: solid;
+}
+.projector.probe .closure:has(.value.above.L1) {
+  top: -1.5px;
+  box-shadow: 0 1.5px 0 #d0cab7bb;
+}
+.projector.probe .closure:has(.value.below) {
+  position: relative;
+  border-top: 1px solid var(--pat-shadow);
+  /* border-bottom: none; */
+  border-radius: 0.05em 0.2em 0.05em 0.2em;
+  border: none;
+  translate: 0 3px;
+  box-shadow: 0px -0.75px 0 var(--below-shadow),
+    0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow),
+    0px -3px 0 var(--below-shadow);
+  height: calc(1.45em - 4.25px);
+  overflow: hidden;
+}
+
+.projector.probe .closure:has(.value.above.L2) {
+  top: -2.5px;
+  box-shadow: 0 2.5px 0 #d0cab7bb;
+}
+.projector.probe .closure:has(.value.below.L1) {
+  border: none;
+  translate: 0 0.75px;
+  box-shadow: 0px -0.75px 0 var(--below-shadow);
+  border: none;
+  height: calc(1.45em - 2px);
+}
+
+.projector.probe .closure:has(.value.below.L2) {
+  border: none;
+  translate: 0 1.5px;
+  box-shadow: 0px -0.75px 0 var(--below-shadow),
+    0px -1.5px 0 var(--below-shadow);
+  height: calc(1.45em - 2.75px);
+}
+
+.projector.probe .closure:has(.value.below.L3) {
+  border: none;
+  translate: 0 2.25px;
+  box-shadow: 0px -0.75px 0 var(--below-shadow),
+    0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow);
+  height: calc(1.45em - 3.5px);
+}
+
+.projector.probe .closure:has(.value.below.L4) {
+  border: none;
+  translate: 0 3px;
+  box-shadow: 0px -0.75px 0 var(--below-shadow),
+    0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow),
+    0px -3px 0 var(--below-shadow);
+  height: calc(1.45em - 4.25px);
 }
 
 /* TOKEN BKG INDICATED + HOVER */
 .projector.probe.indicated .closure:has(.value.cursor-unrelated) {
   filter: contrast(0.5) brightness(1.32) saturate(0.7);
-  /* opacity: 60%; */
 }
 .projector.probe.indicated .closure:has(.value.cursor) {
   background: white;
-  outline-width: 2.1px;
+  outline-width: 1.5px;
   outline-style: solid;
-  border-bottom-width: 1.5px;
+  border: none;
 }
-.projector.probe.indicated.Exp .closure:has(.value.cursor),
-.projector.probe.Exp .closure:hover {
+
+.projector.probe.indicated .closure:has(.value.cursor),
+.projector.probe .closure:hover {
   outline-color: var(--exp-indicated);
-  border-color: var(--exp-indicated);
 }
-.projector.probe.indicated.Pat .closure:has(.value.cursor),
+/* .projector.probe.indicated.Pat .closure:has(.value.cursor),
 .projector.probe.Pat .closure:hover {
   outline-color: var(--pat-indicated);
-  border-color: var(--pat-indicated);
-}
+} */
 .projector.probe.indicated .closure:has(.value.cursor.ap),
 .projector.probe.Exp .closure:has(.value.ap):hover {
   outline-color: var(--exp-ap-indicated);
-  border-color: var(--exp-ap-indicated);
 }
 .projector.probe .closure:hover {
-  /* transform-origin: bottom left; */
-  /* scale: 1.18; */
   z-index: var(--projector-indicated-z);
   position: relative;
-  /* opacity: 100% !important; */
-  outline-width: 1px;
+  outline-width: 1.5px;
   outline-style: solid;
-  outline-offset: -0.1px;
-  border-width: 1.5px;
-  /* top: 0.5px; */
+  /* outline-offset: -0.1px; */
   position: relative;
   filter: drop-shadow(1.5px 3px 0 #95876452) !important;
 }
-.projector.probe .closure:hover:not(:has(.long)) {
-  scale: 1.18;
+
+.projector.probe .closure {
+  --num-levels: 7;
+  --base: 0;
+  --init: calc(0.18 * (var(--num-levels) - var(--base)) / var(--num-levels));
+  --first-scale: calc(1 + var(--init));
+  --second-scale: calc(1 + (var(--init) * 2 / 3));
+  --third-scale: calc(1 + (var(--init) * 1 / 3));
 }
-.projector.probe .closure:hover + .closure:not(:has(.long)),
-.projector.probe .closure:has(+ .closure:hover):not(:has(.long)) {
-  scale: 1.12;
+.projector.probe .closure:has(.s0) {
+  --base: 0;
 }
-.projector.probe .closure:hover + * + .closure:not(:has(.long)),
-.projector.probe .closure:has(+ * + .closure:hover):not(:has(.long)) {
-  scale: 1.04;
+.projector.probe .closure:has(.s1) {
+  --base: 1;
+}
+.projector.probe .closure:has(.s2) {
+  --base: 2;
+}
+.projector.probe .closure:has(.s3) {
+  --base: 3;
+}
+.projector.probe .closure:has(.s4) {
+  --base: 4;
+}
+.projector.probe .closure:has(.s5) {
+  --base: 5;
+}
+.projector.probe .closure:has(.s6) {
+  --base: 6;
+}
+.projector.probe .closure:has(.extra) {
+  --base: 7;
+}
+.projector.probe .closure:hover {
+  scale: var(--first-scale);
+}
+.projector.probe .closure:hover + .closure,
+.projector.probe .closure:has(+ .closure:hover) {
+  scale: var(--second-scale);
+}
+.projector.probe .closure:hover + * + .closure,
+.projector.probe .closure:has(+ * + .closure:hover) {
+  scale: var(--third-scale);
 }
 
 /* TOKENS */
 
+.projector.probe .value.indet .code-text .token {
+  /* color: var(--R2) !important; */
+  color: white;
+  filter: none !important;
+}
+
+.projector.probe .value.cursor .code-text .token {
+  color: var(--exp-indicated);
+}
+/* .projector.probe.Pat .value.cursor .code-text .token {
+  color: var(--pat-indicated);
+} */
+
 .projector.probe .value.cursor-unrelated .code-text .token,
 .projector.probe .value.cursor-caller .code-text .token {
-  filter: invert(1) brightness(10);
+  /* filter: invert(1) brightness(10); */
+  color: white;
 }
-.projector.probe .value.cursor-callee .code-text .token {
+.projector.probe .value.cursor-callee.indirect .code-text .token {
+  color: white;
+}
+.projector.probe .value.cursor-callee.direct .code-text .token {
   color: var(--exp-ap-indicated);
+}
+
+.projector.probe .value .token.explicit-hole {
+  color: white;
+  text-shadow: none;
 }
 
 /* LIVE ENV */
@@ -344,7 +541,8 @@
   padding: 0.2em;
   display: none;
   position: absolute;
-  top: 1.4em;
+  /* top: 1.4em; */
+  left: 3px;
   scale: 0.86;
   transform-origin: top left;
 }
@@ -381,12 +579,12 @@
 .projector.probe .nav-arrow:last-child {
   transform: rotate(180deg);
 }
-.projector.probe.Exp .nav-arrow {
+.projector.probe .nav-arrow {
   filter: invert(1) brightness(0.7) sepia(1) hue-rotate(61deg) saturate(0.6);
 }
-.projector.probe.Pat .nav-arrow {
+/* .projector.probe.Pat .nav-arrow {
   filter: invert(1) brightness(0.7) sepia(1) hue-rotate(141deg) saturate(0.6);
-}
+} */
 
 .projector.probe:not(.indicated) .nav-arrow {
   pointer-events: none;

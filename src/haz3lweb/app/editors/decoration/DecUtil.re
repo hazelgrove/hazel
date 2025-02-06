@@ -2,88 +2,6 @@ open Virtual_dom.Vdom;
 open Node;
 open Util;
 
-let caret_width = 0.2;
-
-let tip_width = 0.32;
-let concave_offset = 0.8 *. 0.32; /* Tuned parameter */
-let convex_offset = 0.6 *. 0.32; /* Tuned parameter  */
-
-let shadow_dy = 0.037;
-let shadow_dx = 0.08;
-let child_border_thickness = 0.; //0.05;
-let shadow_adj = shadow_dy /. 2.;
-let t = child_border_thickness /. 0.5;
-let short_tip_width = (1. -. t) *. tip_width;
-let short_tip_height = (1. -. t) *. 0.5;
-
-let shape_adjust = (d1: Direction.t, d2: Direction.t): float =>
-  switch (d1, d2) {
-  | (Left, Left) => -. convex_offset
-  | (Right, Right) => convex_offset
-  | (Left, Right) => concave_offset
-  | (Right, Left) => -. concave_offset
-  };
-
-let shape_adjust = (side: Direction.t, shape: option(Direction.t)) =>
-  switch (shape) {
-  | None => 0.
-  | Some(d2) => shape_adjust(side, d2)
-  };
-
-let caret_run = (shape: option(Direction.t)) =>
-  switch (shape) {
-  | None => 0.
-  | Some(Left) => +. tip_width
-  | Some(Right) => -. tip_width
-  };
-
-let chevronf = (run: float, rise: float): list(SvgUtil.Path.cmd) =>
-  SvgUtil.Path.[L_({dx: -. run, dy: rise}), L_({dx: +. run, dy: rise})];
-
-let chevron = (direction: option(Direction.t), drawing_from: Direction.t) =>
-  chevronf(caret_run(direction), drawing_from == Left ? (-0.5) : 0.5);
-
-let chonky_shard_path_base =
-    ((l, r), x_offset, length: float, height: float): list(SvgUtil.Path.cmd) => {
-  List.flatten(
-    SvgUtil.Path.[
-      [M({x: -. x_offset, y: 0.}), H_({dx: length}), V({y: height})],
-      chevron(r, Right),
-      [H_({dx: -. length}), v(~y=1)],
-      chevron(l, Left),
-      [Z],
-    ],
-  );
-};
-
-let caret_base_path = (side, shape): list(SvgUtil.Path.cmd) =>
-  chonky_shard_path_base(
-    (shape, shape),
-    shape_adjust(side, shape) +. 0.5 *. caret_width,
-    caret_width,
-    float_of_int(0),
-  );
-
-let shard_length = (length, d_l, d_r) =>
-  float_of_int(length)
-  +. shape_adjust(Left, d_l)
-  -. shape_adjust(Right, d_r);
-
-let shard_offset = d_l => shape_adjust(Left, d_l);
-
-let shard_path =
-    ((d_l, d_r), length: int, height: int): list(SvgUtil.Path.cmd) =>
-  chonky_shard_path_base(
-    (d_l, d_r),
-    shard_offset(d_l),
-    shard_length(length, d_l, d_r),
-    float_of_int(height),
-  );
-
-let extra_tail = 0.;
-let jagged_edge_h = child_border_thickness /. 3.;
-let jagged_edge_w = child_border_thickness /. 1.;
-
 type dims = {
   width: int,
   height: int,
@@ -211,13 +129,14 @@ let code_svg =
       ~id="",
       ~attrs=[],
       ~abs_pos=true,
+      ~scale=0.5,
       paths: list(SvgUtil.Path.cmd),
     ) => {
+  // re: scale
   // Using a viewBox of 0 0 1 1 seems to trigger Chrome rounding bug
   // (https://bugs.chromium.org/p/chromium/issues/detail?id=424288) that
   // causes miaslignment between piece decorations and text.
   // Using a different viewBox size seems to fix this.
-  let scale = 0.5;
   create_svg(
     "svg",
     ~attrs=
@@ -250,31 +169,3 @@ let code_svg =
     [SvgUtil.Path.view(~attrs=[Attr.classes(path_cls)], paths)],
   );
 };
-
-let drop_shadow_filter = (sort: Haz3lcore.Sort.t) => {
-  let s = Haz3lcore.Sort.to_string(sort);
-  create_svg(
-    "filter",
-    ~attrs=[Attr.id("drop-shadow-" ++ s)],
-    [
-      create_svg(
-        "feDropShadow",
-        ~attrs=[
-          Attr.classes(["tile-drop-shadow"]),
-          Attr.create("dx", Printf.sprintf("%.3f", shadow_dx)),
-          Attr.create("dy", Printf.sprintf("%.3f", shadow_dy)),
-          Attr.create("stdDeviation", "0"),
-        ],
-        [],
-      ),
-    ],
-  );
-};
-
-let svg = (attrs, children) => Node.create_svg("svg", ~attrs, children);
-
-let filters =
-  svg(
-    Attr.[id("filters")],
-    List.map(drop_shadow_filter, Haz3lcore.Sort.all),
-  );

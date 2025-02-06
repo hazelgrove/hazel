@@ -23,6 +23,10 @@ open PatternMatch;
     are all enumerated by the <i> field, so i=0 indicates that it is the first
     sub-expression, i=1 the second etc.
 
+    If there are any sub-expressions that are not requirements, and therefore not
+    guaranteed to be run, you should add a `let.wrap_closure () = env` to ensure that
+    the closure isn't lost if the expression is indet.
+
     Finally, we have the Step construct that defines the actual step. Note "Step"s
     should be used if and only if they change the expression. If they do not change
     the expression, use `Constructor` or `Indet`.
@@ -47,7 +51,7 @@ type step_kind =
   | VarLookup
   | Seq
   | LetBind
-  | FunClosure
+  | WrapClosure
   | FixUnwrap
   | FixClosure
   | UpdateTest
@@ -118,7 +122,7 @@ module type EV_MODE = {
 
   let update_test: (state, Id.t, TestMap.instance_report) => unit;
 
-  let update_probe: (state, Id.t, Dynamics.Probe.Closure.t) => unit;
+  let update_probe: (state, Dynamics.Probe.Closure.t) => unit;
 };
 
 module Transition = (EV: EV_MODE) => {
@@ -128,32 +132,64 @@ module Transition = (EV: EV_MODE) => {
   // Default state update
   let state_update = () => ();
 
-  let (let.match) = ((env, match_result: PatternMatch.match_result), r) =>
+  let (let.match) = ((env, match_result: match_result, call_stack), r) =>
     switch (match_result) {
     | IndetMatch
     | DoesNotMatch => Indet
-    | Matches(env') => r(evaluate_extend_env(env', env))
+    | Matches(env') => r(evaluate_extend_env(env', env, ~call_stack))
     };
 
   let capture_closures =
       (env: ClosureEnvironment.t, state: state, closures, ()): unit =>
     List.iter(
-      closure => {
-        let (id, closure: Dynamics.Probe.Closure.t) =
-          closure(env.stack, env.call_stack);
-        update_probe(state, id, closure);
-      },
+      closure => update_probe(state, closure(env.call_stack)),
       closures,
     );
+
+  /* Helper function to wrap a closure around an expression. Required for functions, but also for
+     things like if-then-else expressions where the scrutinee is indet, and for hole closures */
+  let wrap_closure_when_done = (~in_closure, expr, env, r: rule) =>
+    switch (in_closure, r) {
+    | (_, Step(_)) => r
+    | (None, Constructor | Indet | Value) =>
+      Step({
+        expr: Closure(env, expr) |> fresh,
+        state_update,
+        kind: WrapClosure,
+        is_value: false,
+      })
+    | (Some(f), Constructor | Indet | Value) =>
+      f();
+      r;
+    };
 
   /* Note[Matt]: For IDs, I'm currently using a fresh id
      if anything about the current node changes, if only its
      children change, we use rewrap */
 
-  let transition = (req, state, env, d): 'a => {
+  let transition =
+      (
+        req:
+          (
+            ~in_closure: unit => unit=?,
+            state,
+            ClosureEnvironment.t,
+            DHExp.t
+          ) =>
+          'a,
+        ~in_closure=?,
+        state,
+        env,
+        d,
+      )
+      : 'a => {
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t => Term({term, ids: [rep_id(d)]});
+
+    let (let.wrap_closure) = (env, f: unit => rule) => {
+      wrap_closure_when_done(~in_closure, d, env, f());
+    };
 
     // Transition rules
     switch (term) {
@@ -173,7 +209,9 @@ module Transition = (EV: EV_MODE) => {
           kind: VarLookup,
           is_value,
         });
-      | None => Indet
+      | None =>
+        let.wrap_closure _ = env;
+        Indet;
       };
     | Seq(d1, d2) =>
       let. _ = otherwise(env, d1 => Seq(d1, d2) |> rewrap)
@@ -184,8 +222,9 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d1 => Let(dp, d1, d2) |> rewrap)
       and. d1' =
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
+      let.wrap_closure _ = env;
       let {matches, closures} = matches(dp, d1');
-      let.match env' = (env, matches);
+      let.match env' = (env, matches, env.call_stack);
       Step({
         expr: Closure(env', d2) |> fresh,
         state_update: capture_closures(env, state, closures),
@@ -193,17 +232,10 @@ module Transition = (EV: EV_MODE) => {
         is_value: false,
       });
     | TypFun(_)
-    | Fun(_, _, Some(_), _) =>
+    | Fun(_, _, _, _) =>
       let. _ = otherwise(env, d);
-      Constructor;
-    | Fun(p, d1, None, v) =>
-      let. _ = otherwise(env, d);
-      Step({
-        expr: Fun(p, d1, Some(env), v) |> rewrap,
-        state_update,
-        kind: FunClosure,
-        is_value: true,
-      });
+      let.wrap_closure _ = env;
+      Value;
     | FixF(dp, d1, None) =>
       let. _ = otherwise(env, FixF(dp, d1, None) |> rewrap);
       Step({
@@ -219,6 +251,7 @@ module Transition = (EV: EV_MODE) => {
         let. _ = otherwise(env, d);
         let env'' =
           evaluate_extend_env(
+            ~call_stack=env.call_stack,
             Environment.singleton((f, FixF(dp, d1, Some(env)) |> rewrap)),
             env,
           );
@@ -247,7 +280,11 @@ module Transition = (EV: EV_MODE) => {
             bindings,
           );
         let env'' =
-          evaluate_extend_env(Environment.of_list(substitutions), env);
+          evaluate_extend_env(
+            ~call_stack=env.call_stack,
+            Environment.of_list(substitutions),
+            env,
+          );
         Step({
           expr: Closure(env'', d1) |> fresh,
           state_update,
@@ -332,18 +369,18 @@ module Transition = (EV: EV_MODE) => {
       let-unbox unboxed_fun = (Fun, d1');
       switch (unboxed_fun) {
       | Constructor(_) => Constructor
-      | FunEnv(dp, d3, env') =>
+      | FunEnv(dp, d3, function_lexical_env) =>
         let matches = matches(dp, d2');
         switch (matches.matches) {
         | IndetMatch
         | DoesNotMatch => Indet
-        | Matches(env'') =>
+        | Matches(function_arg_env) =>
           let env'' =
             evaluate_extend_env(
-              ~frame=Some(Term.Exp.rep_id(d)),
-              ~dyn_env=env,
-              env'',
-              env',
+              ~ap_id=Term.Exp.rep_id(d),
+              ~call_stack=env.call_stack,
+              function_arg_env,
+              function_lexical_env,
             );
           Step({
             expr: Closure(env'', d3) |> fresh,
@@ -434,6 +471,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, c => If(c, d1, d2) |> rewrap)
       and. c' =
         req_final(req(state, env), c => If1(c, d1, d2) |> wrap_ctx, c);
+      let.wrap_closure _ = env;
       let-unbox b = (Bool, c');
       Step({
         expr: {
@@ -485,6 +523,7 @@ module Transition = (EV: EV_MODE) => {
           d1 => BinOp1(Bool(And), d1, d2) |> wrap_ctx,
           d1,
         );
+      let.wrap_closure _ = env;
       let-unbox b1 = (Bool, d1');
       Step({
         expr: b1 ? d2 : Bool(false) |> fresh,
@@ -500,6 +539,7 @@ module Transition = (EV: EV_MODE) => {
           d1 => BinOp1(Bool(Or), d1, d2) |> wrap_ctx,
           d1,
         );
+      let.wrap_closure _ = env;
       let-unbox b1 = (Bool, d1');
       Step({
         expr: b1 ? Bool(true) |> fresh : d2,
@@ -698,31 +738,50 @@ module Transition = (EV: EV_MODE) => {
       switch (next_rule(rules)) {
       | Some((env', d2, closures)) =>
         Step({
-          expr: Closure(evaluate_extend_env(env', env), d2) |> fresh,
+          expr:
+            Closure(
+              evaluate_extend_env(env', env, ~call_stack=env.call_stack),
+              d2,
+            )
+            |> fresh,
           state_update: capture_closures(env, state, closures),
           kind: CaseApply,
           is_value: false,
         })
-      | None => Indet
+      | None =>
+        let.wrap_closure _ = env;
+        Indet;
       };
     | Closure(env', d) =>
+      // HACK [Matt] This ref is a hack to ensure that we don't get into an infinite loop
+      // where we keep deleting and re-adding closures around forms that need closures
+      // e.g. functions.
+      let needs_closure = ref(false);
+      let in_closure = () => needs_closure := true;
       let. _ = otherwise(env, d => Closure(env', d) |> rewrap)
       and. d' =
-        req_final(req(state, env'), d1 => Closure(env', d1) |> wrap_ctx, d);
-      Step({expr: d', state_update, kind: CompleteClosure, is_value: true});
+        req_final(
+          req(~in_closure, state, env'),
+          d1 => Closure(env', d1) |> wrap_ctx,
+          d,
+        );
+      if (needs_closure^) {
+        Constructor;
+      } else {
+        Step({expr: d', state_update, kind: CompleteClosure, is_value: true});
+      };
     | MultiHole(_) =>
       let. _ = otherwise(env, d);
-      // and. _ =
-      //   req_all_final(
-      //     req(state, env),
-      //     (d1, ds) => MultiHole(d1, ds) |> wrap_ctx,
-      //     ds,
-      //   );
+      let.wrap_closure _ = env;
       Indet;
     | EmptyHole
-    | Invalid(_)
+    | Invalid(_) =>
+      let. _ = otherwise(env, d);
+      // let.wrap_closure _ = env;  // uncomment for hole closures
+      Indet;
     | DynamicErrorHole(_) =>
       let. _ = otherwise(env, d);
+      let.wrap_closure _ = env;
       Indet;
     | Cast(d, t1, t2) =>
       let. _ = otherwise(env, d => Cast(d, t1, t2) |> rewrap)
@@ -744,26 +803,26 @@ module Transition = (EV: EV_MODE) => {
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;
-    | Wrap(d'', Probe(pr)) =>
+    | Probe(d'', pr) =>
       /* When evaluated, a probe adds a dynamics info entry
        * reflecting the evaluation of the contained expression */
-      let. _ = otherwise(env, d => Wrap(d, Probe(pr)) |> rewrap)
+      let. _ = otherwise(env, d => Probe(d, pr) |> rewrap)
       and. d' =
-        req_final(
-          req(state, env),
-          d => Wrap(d, Probe(pr)) |> wrap_ctx,
-          d'',
-        );
+        req_final(req(state, env), d => Probe(d, pr) |> wrap_ctx, d'');
       Step({
         expr: d',
         state_update: () => {
-          let closure = Dynamics.Probe.Closure.mk(d', env, pr);
-          update_probe(state, DHExp.rep_id(d), closure);
+          let call_stack = ClosureEnvironment.call_stack_of(env);
+          let map = ClosureEnvironment.map_of(env);
+          let id = DHExp.rep_id(d);
+          let closure =
+            Dynamics.Probe.Closure.mk(id, d', map, call_stack, pr);
+          update_probe(state, closure);
         },
         kind: RemoveParens,
-        is_value: true,
+        is_value: false,
       });
-    | Wrap(d, Paren) =>
+    | Parens(d) =>
       let. _ = otherwise(env, d);
       Step({expr: d, state_update, kind: RemoveParens, is_value: false});
     | TyAlias(_, _, d) =>
@@ -807,7 +866,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | CompleteClosure
   | CompleteFilter
   | BuiltinWrap
-  | FunClosure
+  | WrapClosure
   | FixClosure
   | RemoveParens => true;
 
@@ -846,7 +905,7 @@ let stepper_justification: step_kind => string =
   | FixClosure => "fixpoint closure"
   | CompleteFilter => "complete filter"
   | CompleteClosure => "complete closure"
-  | FunClosure => "function closure"
+  | WrapClosure => "wrap closure"
   | RemoveTypeAlias => "define type"
   | RemoveParens => "remove parentheses"
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");

@@ -17,24 +17,31 @@ module M: Projector = {
     };
 
   let get = (info: info): bool =>
-    switch ([info.syntax] |> info.utility.seg_to_term |> bool_of) {
+    switch (
+      info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(bool_of)
+    ) {
     | Some(b) => b
     | None => failwith("Checkbox: Get: not boolean literal")
     };
 
-  let toggle_bool_lit: Any.t => Any.t =
-    fun
-    | Exp({term: Bool(b), _} as t) => Exp({...t, term: Bool(!b)})
-    | _ => failwith("Checkbox: Toggle: not boolean literal");
+  let toggle = (info): Base.segment =>
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: Bool(b), _} as t) => Exp({...t, term: Bool(!b)})
+        | _ => failwith("Checkbox: Toggle: not boolean literal"),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("Checkbox: Toggle: lift failed")
+    };
 
-  let toggle = (info): syntax =>
-    info.utility.lift_syntax(toggle_bool_lit, info.syntax);
-
-  let can_project = (_, any: Term.Any.t) => bool_of(any) != None;
+  let can_project = (any: Term.Any.t) => bool_of(any) != None;
 
   let can_focus = false;
   let dynamics = false;
-  let placeholder = (_, _) => ProjectorCore.inline(2);
+  let placeholder = (_, _) => ProjectorCore.Shape.inline(2);
   let update = (model, _, _) => model;
 
   let view =
@@ -45,18 +52,17 @@ module M: Projector = {
         ~parent: external_action => Ui_effect.t(unit),
         ~view_seg as _,
       ) =>
-    Node.input(
-      ~attrs=
-        [
-          Attr.create("type", "checkbox"),
-          Attr.on_input((_, _) => parent(SetSyntax(toggle(info)))),
-        ]
-        @ (info |> get ? [Attr.checked] : []),
-      (),
+    View.mk(
+      Node.input(
+        ~attrs=
+          [
+            Attr.create("type", "checkbox"),
+            Attr.on_input((_, _) => parent(SetSyntax(toggle(info)))),
+          ]
+          @ (info |> get ? [Attr.checked] : []),
+        (),
+      ),
     );
 
-  let offside_view = Option.None;
-  let overlay_view = Option.None;
-  let underlay_view = Option.None;
   let focus = _ => ();
 };

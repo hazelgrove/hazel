@@ -97,25 +97,25 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | _ => None
     }
   | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    Some(Project(ToggleIndicated(Specific(Fold))))
+    Some(Project(SetIndicated(Specific(Fold))))
   | {key: D("ƒ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     /* Curly ƒ is what holding option turns f into on Mac */
-    Some(Project(ToggleIndicated(Specific(Fold))))
+    Some(Project(SetIndicated(Specific(Fold))))
   | {key: D("v"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    Some(Project(ToggleIndicated(Specific(Probe))))
+    Some(Project(SetIndicated(Specific(Probe))))
   | {key: D("√"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     /* √ is what holding option turns f into on Mac */
-    Some(Project(ToggleIndicated(Specific(Probe))))
+    Some(Project(SetIndicated(Specific(Probe))))
   | {key: D("t"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    Some(Project(ToggleIndicated(Specific(Info))))
+    Some(Project(SetIndicated(Specific(Info))))
   | {key: D("†"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     /* † is what holding option turns t into on Mac */
-    Some(Project(ToggleIndicated(Specific(Info))))
+    Some(Project(SetIndicated(Specific(Info))))
   | {key: D("l"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    Some(Project(ToggleIndicated(ChooseLivelit)))
+    Some(Project(SetIndicated(ChooseLivelit)))
   | {key: D("¬"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     /* † is what holding option turns t into on Mac */
-    Some(Project(ToggleIndicated(ChooseLivelit)))
+    Some(Project(SetIndicated(ChooseLivelit)))
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (key) {
     | "ArrowLeft" => now(MoveToBackpackTarget(Left(ByToken)))

@@ -160,7 +160,6 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   | Typ => Typ(typ(unsorted(skel, seg)))
   | Exp => Exp(exp(unsorted(skel, seg)))
   | Rul => Rul(rul(unsorted(skel, seg)))
-  | Nul => Nul() //TODO
   | Any =>
     let tm = unsorted(skel, seg);
     let ids = ids(tm);
@@ -191,7 +190,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     // single-tile case
-    | ([(_id, t)], []) =>
+    | ([(id, t)], []) =>
       switch (t) {
       | ([t], []) when Form.is_empty_tuple(t) => ret(Tuple([]))
       | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
@@ -205,13 +204,10 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_ctr(t) =>
         ret(Constructor(t, Unknown(Internal) |> Typ.temp))
-      | (["(", ")"], [Exp(body)]) => ret(Wrap(body, Paren))
+      | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (label, [Exp(body)]) when is_probe_wrap(label) =>
         // Temporary wrapping form to persist projector probes
-        ret(
-          should_instrument(Exp.rep_id(body))
-            ? Wrap(body, Probe(Probe.empty)) : body.term,
-        )
+        ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
         | {ids, copied: false, term: Tuple(es)} => (ListLit(es), ids)
@@ -358,7 +354,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
-    | ([(_id, tile)], []) =>
+    | ([(id, tile)], []) =>
       ret(
         switch (tile) {
         | ([t], []) when Form.is_empty_tuple(t) => Tuple([])
@@ -373,10 +369,9 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           Constructor(t, Unknown(Internal) |> Typ.fresh)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Invalid(t)
-        | (["(", ")"], [Pat(body)]) => Wrap(body, Paren)
+        | (["(", ")"], [Pat(body)]) => Parens(body)
         | (label, [Pat(body)]) when is_probe_wrap(label) =>
-          should_instrument(Pat.rep_id(body))
-            ? Wrap(body, Probe(Probe.empty)) : body.term
+          should_instrument(id) ? Probe(body, Probe.empty) : body.term
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
           | {term: Tuple(ps), _} => ListLit(ps)
@@ -436,7 +431,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Float"], []) => Float
         | (["String"], []) => String
         | ([t], []) when Form.is_typ_var(t) => Var(t)
-        | (["(", ")"], [Typ(body)]) => Wrap(body)
+        | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
@@ -509,6 +504,7 @@ and tpat_term: unsorted => TPat.term = {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Invalid(t)
+        | (label, [TPat(body)]) when is_probe_wrap(label) => body.term
         | _ => hole(tm)
         },
       )
@@ -554,7 +550,9 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     | Projector({syntax, _} as pr) =>
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
-      [go_s(sort, Segment.skel([syntax]), [syntax])];
+      //TODO(andrew): be more selective about unparening
+      let seg = Piece.unparenthesize(syntax);
+      [go_s(sort, Segment.skel(seg), seg)];
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
@@ -603,13 +601,12 @@ let go =
     seg => {
       map := TermMap.empty;
       projectors := Id.Map.empty;
-      print_endline("TODO(andrew): remove. Maketerm.go Skel call");
       let term = exp(unsorted(Segment.skel(seg), seg));
       {term, terms: map^, projectors: projectors^};
     },
   );
 
-let any =
+let for_projection =
   /* Returns Nul() unless segment represents a well-structured term in isolation.
    * This means that the term is complete, modulo non-empty holes and sort errors.
    * Specifically, it ensures there are no incomplete tiles in the segment, and
@@ -618,52 +615,41 @@ let any =
    * representing missing infix operators, and invalid tokens. */
   Core.Memo.general(~cache_size_bound=1000, (seg: Segment.t) =>
     if (!Segment.deep_tile_complete(seg)) {
-      /* Returns Nul if any subsegment contains incomplete tiles */
-      TermBase.Nul();
+      None; /* Returns None if any subsegment contains incomplete tiles */
     } else if (Segment.is_padded(seg)) {
-      /* Returns Nul the segment has secondary around it */
-      TermBase.Nul();
+      None; /* Returns None if the segment has secondary around it */
     } else {
       switch (Segment.skel(seg)) {
-      /* Returns Nul if any subsegment is non-convex */
-      | exception _ => TermBase.Nul()
+      | exception _ => None /* Returns None if any subsegment is non-convex */
       | skel =>
         let (unsorted, sort) = (
           unsorted(skel, seg),
           Segment.sort_of(skel, seg),
         );
-        /* Tuple / Prod cases prevents projection of pseudo-terms
-         * consisting of partial tuples / list listerals. This is
-         * overly restrictive as it rejects unparenthesized
-         * tuples; for that to work the logic would be need
-         * to check the surrounding syntactic context, so would
-         * need to do it at the callsite rather than here */
         switch (sort) {
         | Exp =>
           switch (exp(unsorted)) {
-          | {term: Tuple(_), _} => TermBase.Nul()
-          | _ => Exp(exp(unsorted))
+          | {term: Tuple(_), _} => None
+          | _ => Some(TermBase.Exp(exp(unsorted)))
           }
         | Pat =>
           switch (pat(unsorted)) {
-          | {term: Tuple(_), _} => TermBase.Nul()
-          | _ => Pat(pat(unsorted))
+          | {term: Tuple(_), _} => None
+          | _ => Some(Pat(pat(unsorted)))
           }
         | Typ =>
           switch (typ(unsorted)) {
-          | {term: Prod(_), _} => TermBase.Nul()
-          | _ => Typ(typ(unsorted))
+          | {term: Prod(_), _} => None
+          | _ => Some(Typ(typ(unsorted)))
           }
         | TPat =>
           switch (tpat(unsorted)) {
-          | _ => TPat(tpat(unsorted))
+          | _ => Some(TPat(tpat(unsorted)))
           }
         /* Rul case below prevents returning pseudo-terms
          * consisting of case scrutinee + rule(s) */
-        | Rul => Nul()
-        | Any => Any() /* grout */
-        //TODO: Consider term rootted at concave grout
-        | Nul => Nul()
+        | Rul => None
+        | Any => Some(Any()) /* grout */
         };
       };
     }

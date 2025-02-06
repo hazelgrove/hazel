@@ -15,8 +15,8 @@ let get = (f_w, f_g, f_t: tile => _, f_p: projector => _, p: t) =>
   | Projector(p) => f_p(p)
   };
 
-let proj_id = (projector: ProjectorCore.t(t)) => projector.id;
-let id = get(Secondary.id, Grout.id, tile => tile.id, proj_id);
+let id =
+  get(Secondary.id, Grout.id, tile => tile.id, projector => projector.id);
 
 let sort =
   get(
@@ -127,14 +127,6 @@ let is_complete: t => bool =
   | Tile(t) => Tile.is_complete(t)
   | _ => true;
 
-let replace_id = (id: Id.t, p: t): t =>
-  switch (p) {
-  | Tile(t) => Tile({...t, id})
-  | Grout(g) => Grout({...g, id})
-  | Secondary(w) => Secondary({...w, id})
-  | Projector(p) => Projector({...p, id})
-  };
-
 let mk_tile: (Form.t, list(list(t))) => t =
   (form, children) =>
     Tile({
@@ -185,4 +177,17 @@ let is_term = (p: t) =>
     true
   | Secondary(_) => false // debatable
   | _ => false
+  };
+
+/* If the piece is parentheses, return the child. Otherwise,
+ * return a singleton segment consisting of the piece */
+let unparenthesize = (piece: t): list(t) =>
+  switch (piece) {
+  | Tile({
+      label: ["(", ")"],
+      mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
+      children: [seg],
+      _,
+    }) => seg
+  | _ => [piece]
   };

@@ -612,16 +612,19 @@ let is_suffix_of = (s1, s2) =>
   common_suffix_length(s1, s2) == List.length(s1);
 
 /* Returns Some(depth) if xs is a suffix of ys at depth, None otherwise */
-let rec suffix_at_depth =
-        (xs: list('a), ys: list('a), depth: int): option(int) =>
-  if (xs == ys) {
-    Some(depth);
-  } else {
-    switch (ys) {
-    | [] => None
-    | [_, ...rest] => suffix_at_depth(xs, rest, depth + 1)
+
+let suffix_at_depth = (xs: list('a), ys: list('a)): option(int) => {
+  let rec go = (depth: int, xs, ys): option(int) =>
+    if (xs == ys) {
+      Some(depth);
+    } else {
+      switch (ys) {
+      | [] => None
+      | [_, ...rest] => go(depth + 1, xs, rest)
+      };
     };
-  };
+  go(0, xs, ys);
+};
 
 /* list truncated after at most n elementsnts */
 let truncate = (n: int, xs: list('a)): list('a) => {
@@ -681,3 +684,7 @@ let split3 = (xs: list(('a, 'b, 'c))): (list('a), list('b), list('c)) => {
   };
   aux(xs, [], [], []);
 };
+
+/* Move the first element equal to x to the front of the list */
+let lift = (x: 'a, xs: list('a)): list('a) =>
+  List.cons(x, List.filter((!=)(x), xs));

@@ -41,11 +41,9 @@ module M: Projector = {
   let init = Expected;
   let can_focus = false;
   let dynamics = false;
-  let overlay_view = Option.None;
-  let underlay_view = Option.None;
   let focus = _ => ();
 
-  let can_project = (_: Piece.t, any: Term.Any.t): bool => {
+  let can_project = (any: Term.Any.t): bool => {
     switch (any) {
     | Exp(_)
     | Pat(_) => true
@@ -75,7 +73,7 @@ module M: Projector = {
       [text(display_mode(model, info))],
     );
 
-  let typ_view = (model, info: info, utility, view_seg) => {
+  let typ_view = (model, info: info, utility, view_seg: View.seg) => {
     let typ = display_ty(model, info.statics) |> totalize_ty;
     div(
       ~attrs=[Attr.classes(["type-cell"])],
@@ -91,11 +89,7 @@ module M: Projector = {
 
   let syntax_str = (info: info) => {
     let max_len = 30;
-    let seg =
-      switch (Segment.unparenthesize(info.syntax)) {
-      | Some(seg) => seg
-      | None => [info.syntax]
-      };
+    let seg = Segment.unparenthesize(info.syntax);
     let str = Printer.of_segment(~holes=Some("?"), seg);
     let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
     String.length(str) > max_len
@@ -103,30 +97,35 @@ module M: Projector = {
   };
 
   let placeholder = (_m, info) =>
-    ProjectorCore.inline(3 + String.length(syntax_str(info)));
+    ProjectorCore.Shape.inline(3 + String.length(syntax_str(info)));
 
   let syntax_view = (info: info) => info |> syntax_str |> text;
 
   let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-  let view = (_model, info, ~local, ~parent as _, ~view_seg as _) =>
-    div(
-      ~attrs=[
-        Attr.classes(["main"]),
-        Attr.on_double_click(_ => local(ToggleDisplay)),
-      ],
-      [syntax_view(info), icon],
-    );
-
-  let offside_view =
-    Some(
-      (model, info, ~local as _, ~parent as _, ~view_seg) =>
-        div(
-          ~attrs=[Attr.classes(["offside"])],
-          [
-            mode_view(model, info.statics),
-            typ_view(model, info, info.utility, view_seg),
-          ],
+  let view = (model, info, ~local, ~parent as _, ~view_seg) =>
+    View.{
+      inline:
+        Some(
+          div(
+            ~attrs=[
+              Attr.classes(["main"]),
+              Attr.on_double_click(_ => local(ToggleDisplay)),
+            ],
+            [syntax_view(info), icon],
+          ),
         ),
-    );
+      offside:
+        Some(
+          div(
+            ~attrs=[Attr.classes(["offside"])],
+            [
+              mode_view(model, info.statics),
+              typ_view(model, info, info.utility, view_seg),
+            ],
+          ),
+        ),
+      overlay: None,
+      underlay: None,
+    };
 };

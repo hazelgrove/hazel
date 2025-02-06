@@ -84,7 +84,6 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   | Exp => remold_exp(shape, seg)
   | Rul => remold_rul(shape, seg)
   | TPat => remold_tpat(shape, seg)
-  | _ => failwith("remold unexpected")
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
@@ -755,6 +754,7 @@ let rec deep_tile_complete = (seg: t): bool =>
     t => Tile.is_complete(t) && List.for_all(deep_tile_complete, t.children),
     tiles(seg),
   );
+
 let mk_duo = (sort: Sort.t, seg: t): Piece.t =>
   Piece.mk_tile(Form.mk_parens(sort), [seg]);
 
@@ -765,16 +765,10 @@ let parenthesize = (~sort: option(Sort.t)=?, seg: t): Piece.t => {
   mk_duo(sort, seg);
 };
 
-let unparenthesize = (piece: Piece.t): option(t) =>
-  switch (piece) {
-  | Tile({
-      label: ["(", ")"],
-      mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-      children: [seg],
-      _,
-    }) =>
-    Some(seg)
-  | _ => None
+let unparenthesize = (seg: t): t =>
+  switch (seg) {
+  | [piece] => Piece.unparenthesize(piece)
+  | _ => seg
   };
 
 let rec take_while_secondary = (seg: t): (t, t) =>

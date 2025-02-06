@@ -17,23 +17,30 @@ module M: Projector = {
     };
 
   let get = (info: info): float =>
-    switch ([info.syntax] |> info.utility.seg_to_term |> float_of) {
+    switch (
+      info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(float_of)
+    ) {
     | Some(f) => f
     | None => failwith("SliderF: Get: not float literal")
     };
 
-  let put = (info: info, v: string): syntax =>
-    info.utility.lift_syntax(
-      fun
-      | Exp(any) => Exp({...any, term: Float(float_of_string(v))})
-      | _ => failwith("SliderF: Put: not float literal"),
-      info.syntax,
-    );
+  let put = (info: info, v: string): Base.segment =>
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp(t) => Exp({...t, term: Float(float_of_string(v))})
+        | _ => failwith("SliderF: Put: not float literal"),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("SliderF: Put: lift failed")
+    };
 
-  let can_project = (_, any) => float_of(any) != None;
+  let can_project = any => float_of(any) != None;
   let can_focus = false;
   let dynamics = false;
-  let placeholder = (_, _) => ProjectorCore.inline(10);
+  let placeholder = (_, _) => ProjectorCore.Shape.inline(10);
   let update = (model, _, _) => model;
 
   let view =
@@ -44,13 +51,12 @@ module M: Projector = {
         ~parent: external_action => Ui_effect.t(unit),
         ~view_seg as _,
       ) =>
-    Util.Web.range(
-      ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(info, v))))],
-      info |> get |> Printf.sprintf("%.2f"),
+    View.mk(
+      Util.Web.range(
+        ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(info, v))))],
+        info |> get |> Printf.sprintf("%.2f"),
+      ),
     );
 
-  let offside_view = Option.None;
-  let overlay_view = Option.None;
-  let underlay_view = Option.None;
   let focus = _ => ();
 };

@@ -47,7 +47,7 @@ module Probe = {
       | None => None
       };
 
-    let mk = (env: Environment.t, bound_in: Binding.s) =>
+    let filter = (env: Environment.t, bound_in: Binding.s) =>
       List.filter_map(mk_entry(env), bound_in);
   };
 
@@ -59,20 +59,27 @@ module Probe = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = {
       closure_id: Id.t, /* Primary ID (unique) */
-      env_id: Id.t, /* Parent Closure Environment */
+      syntax_id: Id.t, /* Syntax ID of probed expression */
       value: DHExp.t, /* Value of expression */
       env: Env.t, /* (Filtered) Environment Values  */
-      call_stack: Probe.call_stack,
-      closure_stack: Probe.closure_stack,
+      call_stack: Probe.call_stack, /* Call stacks as ap ids */
+      time: float /* Time of evaluatation */
     };
 
-    let mk = (value: DHExp.t, env: ClosureEnvironment.t, pr: Probe.t) => {
+    let mk =
+        (
+          syntax_id: Id.t,
+          value: DHExp.t,
+          env: Environment.t,
+          call_stack: Probe.call_stack,
+          pr: Probe.t,
+        ) => {
       closure_id: Id.mk(),
-      env_id: ClosureEnvironment.id_of(env),
+      syntax_id,
       value,
-      env: Env.mk(ClosureEnvironment.map_of(env), pr.refs),
-      closure_stack: ClosureEnvironment.stack_of(env),
-      call_stack: ClosureEnvironment.call_stack_of(env),
+      env: Env.filter(env, pr.refs),
+      call_stack,
+      time: JsUtil.timestamp(),
     };
   };
 
@@ -99,19 +106,13 @@ module Probe = {
 
   /* Intercepts a probe form and adds in static semantic information
    * to guide dynamic information gathering  */
-  let instrument_exp =
-      (m: Statics.Map.t, id: Id.t, probe_tag: Probe.tag): Probe.tag =>
-    switch (probe_tag) {
-    | Paren => Paren
-    | Probe(_) => Probe({refs: Statics.Map.refs_in(m, id)})
-    };
+  let instrument_exp = (m: Statics.Map.t, id: Id.t, _: Probe.t): Probe.t => {
+    refs: Statics.Map.refs_in(m, id),
+  };
 
-  let instrument_pat =
-      (m: Statics.Map.t, id: Id.t, probe_tag: Probe.tag): Probe.tag =>
-    switch (probe_tag) {
-    | Paren => Paren
-    | Probe(_) => Probe({refs: Statics.Map.bound_in(m, id)})
-    };
+  let instrument_pat = (m: Statics.Map.t, id: Id.t, _: Probe.t): Probe.t => {
+    refs: Statics.Map.bound_in(m, id),
+  };
 };
 
 module Info = {

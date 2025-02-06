@@ -9,19 +9,28 @@ let string_of = (any: Any.t): option(string) =>
   };
 
 let get = (info: info): string =>
-  switch ([info.syntax] |> info.utility.seg_to_term |> string_of) {
-  | Some(s) => s
+  switch (info.syntax |> info.utility.seg_to_term) {
+  | Some(s) =>
+    switch (string_of(s)) {
+    | Some(s) => s
+    | None => failwith("TextArea: get: Not string literal")
+    }
   | None => failwith("TextArea: get: Not string literal")
   };
 
-let put = (info, s: string): syntax =>
-  info.utility.lift_syntax(
-    fun
-    | Exp(any) =>
-      Exp({...any, term: String(StringUtil.escape_linebreaks(s))})
-    | _any => failwith("TextArea: put: not string literal"),
-    info.syntax,
-  );
+let put = (info, s: string): Base.segment =>
+  switch (
+    info.utility.lift_syntax(
+      fun
+      | Exp(any) =>
+        Exp({...any, term: String(StringUtil.escape_linebreaks(s))})
+      | _any => failwith("TextArea: put: not string literal"),
+      info.syntax,
+    )
+  ) {
+  | Some(s) => s
+  | None => failwith("TextArea: put: lift failed")
+  };
 
 let key_handler = (id, ~parent, evt) => {
   open Effect;
@@ -73,12 +82,12 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
   let init = ();
-  let can_project = (_, any) => string_of(any) != None;
+  let can_project = any => string_of(any) != None;
   let can_focus = true;
   let dynamics = false;
   let placeholder = (_, info) => {
     let str = info |> get;
-    ProjectorCore.{
+    ProjectorCore.Shape.{
       vertical: Block(StringUtil.num_linebreaks(str)),
       /* +2 for left and right padding */
       horizontal: 2 + StringUtil.max_line_width(str),
@@ -87,19 +96,17 @@ module M: Projector = {
   let update = (model, _, _) => model;
 
   let view = (_, info, ~local as _, ~parent, ~view_seg as _) =>
-    Node.div(
-      ~attrs=[Attr.classes(["wrapper"])],
-      [
-        Node.div(
-          ~attrs=[Attr.classes(["cols", "code"])],
-          [Node.text("·")] @ [textarea(info, ~parent, info |> get)],
-        ),
-      ],
+    View.mk(
+      Node.div(
+        ~attrs=[Attr.classes(["wrapper"])],
+        [
+          Node.div(
+            ~attrs=[Attr.classes(["cols", "code"])],
+            [Node.text("·")] @ [textarea(info, ~parent, info |> get)],
+          ),
+        ],
+      ),
     );
-
-  let offside_view = Option.None;
-  let overlay_view = Option.None;
-  let underlay_view = Option.None; //TODO
 
   let focus = ((id: Id.t, d: option(Direction.t))) => {
     JsUtil.get_elem_by_id(Id.cls(id))##focus;

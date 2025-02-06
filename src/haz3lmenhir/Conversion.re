@@ -206,12 +206,9 @@ module rec Exp: {
     | ListExp(l) => ListLit(List.map(of_menhir_ast, l))
     | TupleExp(t) =>
       if (List.length(t) == 1) {
-        Wrap(of_menhir_ast(List.hd(t)), Paren);
+        Parens(of_menhir_ast(List.hd(t)));
       } else {
-        Wrap(
-          Tuple(List.map(of_menhir_ast, t)) |> Haz3lcore.Exp.fresh,
-          Paren,
-        );
+        Parens(Tuple(List.map(of_menhir_ast, t)) |> Haz3lcore.Exp.fresh);
       }
     | Let(p, e1, e2) =>
       Let(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
@@ -349,7 +346,8 @@ module rec Exp: {
     | Filter(Residue(_), _) => raise(Failure("Residue not supported"))
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Closure(_) => raise(Failure("Closure not supported"))
-    | Wrap(e, _) => of_core(e)
+    | Parens(e) => of_core(e)
+    | Probe(e, _) => of_core(e)
     | Constructor(s, typ) => Constructor(s, Typ.of_core(typ))
     | DeferredAp(e, es) =>
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
@@ -379,9 +377,9 @@ and Typ: {
       | EmptyHole => Unknown(Hole(EmptyHole))
       }
     | TypVar(s) => Var(s)
-    | TupleType([t]) => Wrap(of_menhir_ast(t))
+    | TupleType([t]) => Parens(of_menhir_ast(t))
     | TupleType(ts) =>
-      Wrap(Prod(List.map(of_menhir_ast, ts)) |> Haz3lcore.Typ.fresh)
+      Parens(Prod(List.map(of_menhir_ast, ts)) |> Haz3lcore.Typ.fresh)
     | ArrayType(t) => List(of_menhir_ast(t))
     | ArrowType(t1, t2) => Arrow(of_menhir_ast(t1), of_menhir_ast(t2))
     | SumTyp(sumterms) =>
@@ -396,14 +394,14 @@ and Typ: {
             },
           sumterms,
         );
-      Wrap(Sum(converted_terms) |> Typ.fresh); // Adds Wrap due to MakeTerm
+      Parens(Sum(converted_terms) |> Typ.fresh); // Adds Wrap due to MakeTerm
     | ForallType(tp, t) =>
-      Wrap(
+      Parens(
         Forall(TPat.of_menhir_ast(tp), of_menhir_ast(t))
         |> Haz3lcore.Typ.fresh,
       )
     | RecType(tp, t) =>
-      Wrap(
+      Parens(
         Rec(TPat.of_menhir_ast(tp), of_menhir_ast(t)) |> Haz3lcore.Typ.fresh,
       ) // Wrap because of (rec ? -> Bool, ())
     };
@@ -429,7 +427,7 @@ and Typ: {
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
     | Forall(tp, t) => ForallType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
-    | Wrap(t) => of_core(t)
+    | Parens(t) => of_core(t)
     | Ap(_) => raise(Failure("Ap not supported"))
     | Sum(constructors) =>
       let sumterms =
@@ -483,28 +481,23 @@ and Pat: {
     | IntPat(i) => Int(i)
     | FloatPat(f) => Float(f)
     | CastPat(p, t1, t2) =>
-      Wrap(
+      Parens(
         Cast(
           of_menhir_ast(p),
           Typ.of_menhir_ast(t1),
           Typ.of_menhir_ast(t2),
         )
         |> Haz3lcore.Pat.fresh,
-        Paren,
       )
     | VarPat(x) => Var(x)
     | ConstructorPat(x, ty) => Constructor(x, Typ.of_menhir_ast(ty))
     | StringPat(s) => String(s)
     | TuplePat(pats) =>
-      Wrap(
-        Tuple(List.map(of_menhir_ast, pats)) |> Haz3lcore.Pat.fresh,
-        Paren,
-      )
+      Parens(Tuple(List.map(of_menhir_ast, pats)) |> Haz3lcore.Pat.fresh)
     | ApPat(pat1, pat2) => Ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
     | ConsPat(p1, p2) =>
-      Wrap(
+      Parens(
         Cons(of_menhir_ast(p1), of_menhir_ast(p2)) |> Haz3lcore.Pat.fresh,
-        Paren,
       )
     | BoolPat(b) => Bool(b)
     | EmptyHolePat => EmptyHole
@@ -533,7 +526,8 @@ and Pat: {
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Cast(p, t1, t2) =>
       CastPat(of_core(p), Typ.of_core(t1), Typ.of_core(t2))
-    | Wrap(p, _) => of_core(p)
+    | Parens(p) => of_core(p)
+    | Probe(p, _) => of_core(p)
     };
   };
 };
