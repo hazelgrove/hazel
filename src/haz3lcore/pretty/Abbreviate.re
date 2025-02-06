@@ -166,9 +166,10 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           flat_ellipses_term();
         };
       Ap(Forward, konst, arg);
-    | Wrap(e, pt) =>
+    | Parens(e)
+    | Probe(e, _) =>
       available := available^ - 2;
-      Wrap(abbreviate_exp(e), pt);
+      Parens(abbreviate_exp(e));
 
     // Casts
 
@@ -637,7 +638,14 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
         available := available^ - 1; // space
         Constructor(name, typ);
       }
-    | Wrap(_p, _tag) => indet_term_pat //TODO
+    | Parens(p)
+    | Probe(p, _) =>
+      if (available^ <= 3) {
+        indet_term_pat;
+      } else {
+        available := available^ - 3; // "()"
+        Parens(abbreviate_pat(p));
+      }
     };
   rewrap(term);
 }
@@ -713,12 +721,12 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         let ts' = List.map(abbreviate_typ, ts);
         Prod(ts');
       }
-    | Wrap(t) =>
+    | Parens(t) =>
       if (available^ <= 2) {
         indet_term_typ;
       } else {
         available := available^ - 2; // "()"
-        Wrap(abbreviate_typ(t));
+        Parens(abbreviate_typ(t));
       }
     | Ap(t1, t2) =>
       if (available^ <= 1) {

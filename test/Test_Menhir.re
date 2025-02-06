@@ -14,7 +14,8 @@ let strip_Wrap_and_add_builtins =
     ~f_exp=
       (cont: TermBase.exp_t => TermBase.exp_t, e: TermBase.exp_t) =>
         switch (e.term) {
-        | Wrap(e, _) => cont(e)
+        | Parens(e)
+        | Probe(e, _) => cont(e)
         | Var(x) =>
           let builtin =
             VarMap.lookup(Haz3lcore.Builtins.Pervasives.builtins, x);
@@ -30,13 +31,14 @@ let strip_Wrap_and_add_builtins =
     ~f_pat=
       (cont, e) =>
         switch (e.term) {
-        | Wrap(e, _) => cont(e)
+        | Parens(e)
+        | Probe(e, _) => cont(e)
         | _ => cont(e)
         },
     ~f_typ=
       (cont, e) =>
         switch (e.term) {
-        | Wrap(e) => cont(e)
+        | Parens(e) => cont(e)
         | _ => cont(e)
         },
     _,
@@ -190,7 +192,7 @@ let tests = (
     full_parser_test("Var", Var("x") |> Exp.fresh, "x"),
     full_parser_test(
       "Wrap",
-      Wrap(Var("y") |> Exp.fresh, Parens) |> Exp.fresh,
+      Parens(Var("y") |> Exp.fresh) |> Exp.fresh,
       "(y)",
     ),
     full_parser_test(
@@ -473,7 +475,7 @@ let tests = (
       Fun(
         Cast(
           Var("b") |> Pat.fresh,
-          Wrap(
+          Parens(
             Arrow(
               Unknown(Hole(EmptyHole)) |> Typ.fresh,
               Unknown(Hole(EmptyHole)) |> Typ.fresh,
