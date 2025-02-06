@@ -51,13 +51,12 @@ module M: Projector = {
         ~parent: external_action => Ui_effect.t(unit),
         ~view_seg as _,
       ) =>
-    Util.Web.range(
-      ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(info, v))))],
-      info |> get |> Printf.sprintf("%.2f"),
+    View.mk(
+      Util.Web.range(
+        ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(info, v))))],
+        info |> get |> Printf.sprintf("%.2f"),
+      ),
     );
 
-  let offside_view = Option.None;
-  let overlay_view = Option.None;
-  let underlay_view = Option.None;
   let focus = _ => ();
 };
