@@ -509,7 +509,7 @@
   filter: none !important;
 }
 
-.projector.probe.Exp .value.cursor .code-text .token {
+.projector.probe .value.cursor .code-text .token {
   color: var(--exp-indicated);
 }
 /* .projector.probe.Pat .value.cursor .code-text .token {
