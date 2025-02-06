@@ -128,8 +128,7 @@ module Transition = (EV: EV_MODE) => {
   // Default state update
   let state_update = () => ();
 
-  let (let.match) =
-      ((env, match_result: PatternMatch.match_result, call_stack), r) =>
+  let (let.match) = ((env, match_result: match_result, call_stack), r) =>
     switch (match_result) {
     | IndetMatch
     | DoesNotMatch => Indet
