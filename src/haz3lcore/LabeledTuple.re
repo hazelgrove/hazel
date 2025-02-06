@@ -204,41 +204,44 @@ let rearrange2:
   ) =>
   (list('a), list('b))
  =
-  (labels, get_label1, get_label2, l1, l2, constructor1, constructor2) => {
-    let (l1_labels, l1_vals) = separate_and_keep_labels(get_label1, l1);
-    let l1' = List.combine(l1_labels, l1_vals);
-    let l1_reordered = rearrange_base(labels, l1');
-    let l1_rearranged =
-      List.map(
-        ((optional_label, b)) =>
-          switch (optional_label) {
-          | Some(label) =>
-            switch (get_label1(b)) {
-            | Some(_) => b
-            | None => constructor1(label, b)
-            }
-          | None => b
-          },
-        l1_reordered,
-      );
-    let (l2_labels, l2_vals) = separate_and_keep_labels(get_label2, l2);
-    let l2' = List.combine(l2_labels, l2_vals);
-    let l2_reordered = rearrange_base(labels, l2');
-    let l2_rearranged =
-      List.map(
-        ((optional_label, b)) =>
-          switch (optional_label) {
-          | Some(label) =>
-            switch (get_label2(b)) {
-            | Some(_) => b
-            | None => constructor2(label, b)
-            }
-          | None => b
-          },
-        l2_reordered,
-      );
-    (l1_rearranged, l2_rearranged);
-  };
+  (labels, get_label1, get_label2, l1, l2, constructor1, constructor2) =>
+    if (List.length(labels) != List.length(l1)) {
+      (l1, l2);
+    } else {
+      let (l1_labels, l1_vals) = separate_and_keep_labels(get_label1, l1);
+      let l1' = List.combine(l1_labels, l1_vals);
+      let l1_reordered = rearrange_base(labels, l1');
+      let l1_rearranged =
+        List.map(
+          ((optional_label, b)) =>
+            switch (optional_label) {
+            | Some(label) =>
+              switch (get_label1(b)) {
+              | Some(_) => b
+              | None => constructor1(label, b)
+              }
+            | None => b
+            },
+          l1_reordered,
+        );
+      let (l2_labels, l2_vals) = separate_and_keep_labels(get_label2, l2);
+      let l2' = List.combine(l2_labels, l2_vals);
+      let l2_reordered = rearrange_base(labels, l2');
+      let l2_rearranged =
+        List.map(
+          ((optional_label, b)) =>
+            switch (optional_label) {
+            | Some(label) =>
+              switch (get_label2(b)) {
+              | Some(_) => b
+              | None => constructor2(label, b)
+              }
+            | None => b
+            },
+          l2_reordered,
+        );
+      (l1_rearranged, l2_rearranged);
+    };
 
 let find_label: ('a => option((label, 'a)), list('a), label) => option('a) =
   (filt, es, label) => {
