@@ -6,20 +6,93 @@ open Util;
 open Util.OptUtil.Syntax;
 open Util.Web;
 
-type status = {
-  kind: ProjectorCore.Kind.t,
-  sort: Sort.t,
-  indication: option(Direction.t),
-  selected: bool,
-  error: bool,
-};
+module Model = {
+  type status = {
+    kind: ProjectorCore.Kind.t,
+    sort: Sort.t,
+    indication: option(Direction.t),
+    selected: bool,
+    error: bool,
+  };
 
-type projector_data = {
-  p: Piece.projector,
-  info: ProjectorBase.info,
-  measurement: Measured.measurement,
-  offside_base: int,
-  status,
+  type projector_data = {
+    p: Piece.projector,
+    info: ProjectorBase.info,
+    measurement: Measured.measurement,
+    offside_base: int,
+    status,
+  };
+
+  type t = list(projector_data);
+
+  /* Is projector indicated and if so what side is the caret on? */
+  let indication = (p: option(Indicated.piece), id) =>
+    switch (p) {
+    | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
+    | _ => None
+    };
+
+  /* Find the end of row offset position in grid units */
+  let offside_base =
+      (~offset: int, measurement: Measured.measurement, measured: Measured.t)
+      : int =>
+    Measured.start_row_width(measurement, measured)
+    + offset
+    - measurement.origin.col;
+
+  let mk_status =
+      (
+        p: Base.projector,
+        ~editor_active: bool,
+        ~indicated: option(Indicated.piece),
+        ~selection_ids: list(Id.t),
+        ~info: ProjectorBase.info,
+        ~id: Id.t,
+      ) => {
+    sort:
+      Option.map(Info.sort_of, info.statics)
+      |> Option.value(~default=Sort.Exp),
+    error:
+      Option.map(Info.is_error, info.statics) |> Option.value(~default=false),
+    kind: p.kind,
+    indication: editor_active ? indication(indicated, id) : None,
+    selected: editor_active ? List.mem(id, selection_ids) : false,
+  };
+
+  let mk =
+      (
+        projectors: Id.Map.t(Base.projector),
+        measured: Measured.t,
+        selection_ids: list(Id.t),
+        indicated: option(Indicated.piece),
+        statics: Statics.Map.t,
+        dynamics: Dynamics.Map.t,
+        editor_active: bool,
+      ) => {
+    List.filter_map(
+      ((id, _)) => {
+        let* p = Id.Map.find_opt(id, projectors);
+        let+ measurement = Measured.find_pr_opt(p, measured);
+        let info = ProjectorInfo.mk_info(p, ~statics, ~dynamics);
+        {
+          p,
+          info,
+          measurement,
+          offside_base: offside_base(~offset=4, measurement, measured),
+          status:
+            mk_status(
+              p,
+              ~editor_active,
+              ~indicated,
+              ~selection_ids,
+              ~info,
+              ~id,
+            ),
+        };
+      },
+      Id.Map.bindings(projectors),
+    );
+  };
 };
 
 /* Projectors get a default backing decoration similar
@@ -35,7 +108,8 @@ let backing_deco =
 
 /* Adds attributes to a projector UI to support
  * custom styling when selected or indicated */
-let projector_clss = ({kind, sort, indication, selected, error}: status) =>
+let projector_clss =
+    ({kind, sort, indication, selected, error}: Model.status) =>
   ["projector", ProjectorCore.Kind.name(kind), Sort.show(sort)]
   @ (selected ? ["selected"] : [])
   @ (error ? ["error"] : [])
@@ -56,7 +130,7 @@ let view_wrapper =
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~info: info,
-      ~status: status,
+      ~status: Model.status,
       views: list(Node.t),
     ) =>
   div(
@@ -99,65 +173,7 @@ let offside_wrapper =
     [v],
   );
 
-let indication = (z, id) =>
-  switch (Indicated.piece(z)) {
-  | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
-  | _ => None
-  };
-
-/* Find end of row offset position in grid units */
-let offside_base =
-    (~offset: int, measurement: Measured.measurement, measured: Measured.t)
-    : int =>
-  Measured.start_row_width(measurement, measured)
-  + offset
-  - measurement.origin.col;
-
-let collect_data =
-    (
-      cached_syntax: Editor.CachedSyntax.t,
-      zipper,
-      cached_statics: CachedStatics.t,
-      dynamics,
-      editor_active: bool,
-    ) => {
-  let projector_ids = cached_syntax.projectors |> Id.Map.bindings |> List.rev;
-  List.filter_map(
-    ((id, _)) => {
-      let* p = Id.Map.find_opt(id, cached_syntax.projectors);
-      let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
-      let info =
-        ProjectorInfo.mk_info(p, ~statics=cached_statics.info_map, ~dynamics);
-      let sort =
-        Option.map(Info.sort_of, info.statics)
-        |> Option.value(~default=Sort.Exp);
-      let error =
-        Option.value(
-          ~default=false,
-          Option.map(Info.is_error, info.statics),
-        );
-      {
-        p,
-        info,
-        measurement,
-        offside_base:
-          offside_base(~offset=4, measurement, cached_syntax.measured),
-        status: {
-          sort,
-          error,
-          kind: p.kind,
-          indication: editor_active ? indication(zipper, id) : None,
-          selected:
-            editor_active ? List.mem(id, cached_syntax.selection_ids) : false,
-        },
-      };
-    },
-    projector_ids,
-  );
-};
-
-let simple_code_view =
-    (~background=false, font_metrics, sort, segment): Node.t => {
+let simple_code = (~background=false, font_metrics, sort, segment): Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
   let map = Measured.of_segment(segment, shape_map);
   module Text =
@@ -183,24 +199,32 @@ let simple_code_view =
   );
 };
 
-/* Extracts projector-instance-specific metadata necessary to
- * render the view, instantiates appropriate action handlers,
- * renders the view, and then wraps it so as to position it
- * correctly with respect to the underyling editor */
-let setup_view =
+/* Route top-level metadata to the projector view function. */
+let mk_view =
     (
       inject: Action.t => Ui_effect.t(unit),
-      make_active,
       font_metrics: FontMetrics.t,
-      {p, info, offside_base, measurement, status}: projector_data,
+      {p, info, _}: Model.projector_data,
     )
-    : (Node.t, Node.t, option(Node.t)) => {
+    : View.t => {
   let (module P) = ProjectorInit.to_module(p.kind);
   let parent = a => inject(Project(handle(p.id, a)));
   let local = a =>
     inject(Project(SetModel(p.id, P.update(p.model, info, a))));
-  let view_seg = (~background=false, sort, seg) =>
-    simple_code_view(~background, font_metrics, sort, seg);
+  let view_seg = (~background=?) => simple_code(~background?, font_metrics);
+  P.view(p.model, info, ~local, ~parent, ~view_seg);
+};
+
+/* Extract and collate different layers of the resulting view
+ * in order to stratify z-levels across all projectors */
+let split_views =
+    (
+      inject: Action.t => Ui_effect.t(unit),
+      make_active,
+      font_metrics: FontMetrics.t,
+      {p, info, offside_base, measurement, status} as projector_data: Model.projector_data,
+    )
+    : (Node.t, Node.t, option(Node.t)) => {
   let wrapper =
     view_wrapper(
       ~inject,
@@ -210,21 +234,23 @@ let setup_view =
       ~status,
       ~info,
     );
-  let view = P.view(p.model, info, ~local, ~parent, ~view_seg);
-  let offside_view =
-    Option.map(
-      v => offside_wrapper(font_metrics, offside_base, v),
-      view.offside,
-    );
-  let overlay_view = Option.map(v => wrapper([v]), view.overlay);
+  let views = mk_view(inject, font_metrics, projector_data);
+  let line_view = {
+    let inline_view = Option.to_list(views.inline);
+    let offside_view =
+      views.offside
+      |> Option.map(offside_wrapper(font_metrics, offside_base))
+      |> Option.to_list;
+    wrapper(inline_view @ offside_view);
+  };
+  let overlay_view = Option.map(v => wrapper([v]), views.overlay);
   let underlay_view =
-    switch (view.underlay) {
+    switch (views.underlay) {
     | Some(v) => wrapper([v])
     | None => wrapper([backing_deco(~font_metrics, ~measurement, p)])
     };
-  let combined_view =
-    wrapper(Option.to_list(view.inline) @ Option.to_list(offside_view));
-  (underlay_view, combined_view, overlay_view);
+
+  (underlay_view, line_view, overlay_view);
 };
 
 /* Is the piece with id indicated? If so, where is it wrt the caret? */
@@ -234,7 +260,7 @@ let indication = (z, id) =>
   | _ => None
   };
 
-let by_measurement = (pd1: projector_data, pd2: projector_data) =>
+let by_measurement = (pd1: Model.projector_data, pd2: Model.projector_data) =>
   compare(pd1.measurement.origin.row, pd2.measurement.origin.row);
 
 /* Returns a div containing all projector UIs, intended to
@@ -244,7 +270,7 @@ let all =
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
-      projector_data: list(projector_data),
+      projector_data: list(Model.projector_data),
     ) => {
   /* Sorting the projectors by position tends to be a good
    * z-index default; projectors further to the right or
@@ -255,9 +281,9 @@ let all =
   let (underlay_views, base_views, overlay_views) =
     projector_data
     |> List.sort(by_measurement)
-    |> List.map(setup_view(inject, make_active, font_metrics))
+    |> List.map(split_views(inject, make_active, font_metrics))
     |> ListUtil.split3;
-  let overlay_views = overlay_views |> List.filter_map(Fun.id);
+  let overlay_views = List.filter_map(Fun.id, overlay_views);
   [
     div_c(
       "projectors",

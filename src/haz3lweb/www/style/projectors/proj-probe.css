@@ -430,7 +430,7 @@
 }
 .projector.probe.indicated .closure:has(.value.cursor) {
   background: white;
-  outline-width: 2.1px;
+  outline-width: 1.5px;
   outline-style: solid;
   border: none;
 }
@@ -450,7 +450,7 @@
 .projector.probe .closure:hover {
   z-index: var(--projector-indicated-z);
   position: relative;
-  outline-width: 2.1px;
+  outline-width: 1.5px;
   outline-style: solid;
   /* outline-offset: -0.1px; */
   position: relative;
