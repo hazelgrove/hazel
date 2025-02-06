@@ -295,6 +295,7 @@ module View = {
           toggle_button(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
         ),
         Attr.on_mousemove(evt => drag_select(Pointer.Event.mk(evt))),
+        Attr.on_mousewheel(evt => drag_select(Pointer.Event.mk(evt))),
       ],
       [code_view],
     );
