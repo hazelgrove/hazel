@@ -21,6 +21,7 @@ module Key = Key;
 module Os = Os;
 module Point = Point;
 module Calc = Calc;
+module Maps = Maps;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

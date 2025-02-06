@@ -1,331 +1,440 @@
 open Sets;
 open Util;
+open Util.Maps;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type row = {
-  idx: int,
-  cols: list(Constraint.t),
-};
+module CtrMap =
+  MapUtil.Make({
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = Constructor.t;
+    let compare = compare;
+  });
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type matrix = list(row);
+module CtrSet =
+  Set.Make({
+    type t = Constructor.t;
+    let compare = compare;
+  });
 
-let contains_row = (idx: int, m: matrix): bool =>
-  List.exists((row: row) => row.idx == idx, m);
+// we treat tuples like constructors for some purposes.
+// this should not be anotherwise valid constructor name.
+let tuple_ctr: Constructor.t = "tuple";
+let nil_ctr: Constructor.t = "nil";
+let cons_ctr: Constructor.t = "cons";
 
-let has_multiple_columns = (m: matrix): bool =>
-  switch (m) {
-  | [] => false
-  | [{idx: _, cols: []}, ..._] => false
-  | [{idx: _, cols: [_]}, ..._] => false
-  | [{idx: _, cols: _}, ..._] => true
+let all_ctrs_of_typ = (ty: Typ.t): option(CtrSet.t) =>
+  switch (ty.term) {
+  | Sum(map)
+  | Rec(_, {term: Sum(map), _}) =>
+    Some(
+      map
+      |> List.filter_map(
+           fun
+           | ConstructorMap.Variant(ctr, _, _) => Some(ctr)
+           | BadEntry(_) => None,
+         )
+      |> CtrSet.of_list,
+    )
+  | Prod(_) => Some(CtrSet.singleton(tuple_ctr))
+  | List(_) => Some(CtrSet.of_list([nil_ctr, cons_ctr]))
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String
+  | Var(_)
+  | Arrow(_)
+  | Parens(_)
+  | Ap(_)
+  | Rec(_)
+  | Forall(_) => None
   };
-
-let rev_matrix = (m: matrix): matrix => List.rev(m);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type redundant_rows = list(int);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type submatrices = {
-  prod: matrix,
-  injL: matrix,
-  injR: matrix,
-  unit: matrix,
-  first_col_exhaustive: bool,
-  first_col_redundant_rows: redundant_rows,
+module Matrix = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type row = {
+    idx: int,
+    cols: list(Constraint.t),
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = list(row);
+
+  let of_constraints = (xis: list(Constraint.t)): t => {
+    List.mapi((idx, xi) => {idx, cols: [xi]}, xis);
+  };
+
+  let contains_row = (idx: int, m: t): bool =>
+    List.exists((row: row) => row.idx == idx, m);
+
+  let has_multiple_columns = (m: t): bool =>
+    switch (m) {
+    | [] => false
+    | [{idx: _, cols: []}, ..._] => false
+    | [{idx: _, cols: [_]}, ..._] => false
+    | [{idx: _, cols: _}, ..._] => true
+    };
+
+  let rev = (m: t): t => List.rev(m);
 };
 
-let rev_submatrices = (s: submatrices): submatrices => {
-  ...s,
-  prod: rev_matrix(s.prod),
-  injL: rev_matrix(s.injL),
-  injR: rev_matrix(s.injR),
-  unit: rev_matrix(s.unit),
-};
+module Submatrices = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    ints: IntMap.t(Matrix.t),
+    floats: FloatMap.t(Matrix.t),
+    strings: StringMap.t(Matrix.t),
+    ctrs: ConstructorMap.t(Matrix.t),
+    unit: option(Matrix.t),
+    first_col_exhaustive: bool,
+    first_col_redundant_rows: redundant_rows,
+  };
 
-let empty_submatrices = {
-  prod: [],
-  injL: [],
-  injR: [],
-  unit: [],
-  first_col_exhaustive: false,
-  first_col_redundant_rows: [],
-};
+  let rev = (s: t): t => {
+    ...s,
+    ints: IntMap.map(Matrix.rev, s.ints),
+    floats: FloatMap.map(Matrix.rev, s.floats),
+    strings: StringMap.map(Matrix.rev, s.strings),
+    ctrs: ConstructorMap.map(Matrix.rev, s.ctrs),
+    unit: Option.map(Matrix.rev, s.unit),
+  };
 
-type seen = {
-  seen_ints: IntSet.t,
-  seen_floats: FloatSet.t,
-  seen_strings: StringSet.t,
-  seen_prod: bool,
-  seen_injL: bool,
-  seen_injR: bool,
-  seen_truth: bool,
-  first_col_redundant_rows: redundant_rows,
-};
+  let empty = {
+    ints: IntMap.empty,
+    floats: FloatMap.empty,
+    strings: StringMap.empty,
+    ctrs: ConstructorMap.empty,
+    unit: None,
+    first_col_exhaustive: false,
+    first_col_redundant_rows: [],
+  };
 
-let init_seen = {
-  seen_ints: IntSet.empty,
-  seen_floats: FloatSet.empty,
-  seen_strings: StringSet.empty,
-  seen_prod: false,
-  seen_injL: false,
-  seen_injR: false,
-  seen_truth: false,
-  first_col_redundant_rows: [],
-};
+  type seen = {
+    seen_ints: IntSet.t,
+    seen_floats: FloatSet.t,
+    seen_strings: StringSet.t,
+    seen_ctrs: ConstructorSet.t,
+    seen_all_ctrs: bool,
+    seen_truth: bool,
+    first_col_redundant_rows: redundant_rows,
+  };
 
-// data accumulation pass over the first column of the matrix
-let seen = (m: matrix): seen => {
-  List.fold_left(
-    (seen, row: row) =>
-      switch (row.cols) {
-      | [Int(n), ..._] =>
-        let first_col_redundant_rows =
-          if (IntSet.mem(n, seen.seen_ints)) {
-            [row.idx, ...seen.first_col_redundant_rows];
-          } else {
-            seen.first_col_redundant_rows;
-          };
-        {
-          ...seen,
-          seen_ints: seen.seen_ints |> IntSet.add(n),
-          first_col_redundant_rows,
-        };
-      | [Float(x), ..._] =>
-        let first_col_redundant_rows =
-          if (FloatSet.mem(x, seen.seen_floats)) {
-            [row.idx, ...seen.first_col_redundant_rows];
-          } else {
-            seen.first_col_redundant_rows;
-          };
-        {
-          ...seen,
-          seen_floats: seen.seen_floats |> FloatSet.add(x),
-          first_col_redundant_rows,
-        };
-      | [String(s), ..._] =>
-        let first_col_redundant_rows =
-          if (StringSet.mem(s, seen.seen_strings)) {
-            [row.idx, ...seen.first_col_redundant_rows];
-          } else {
-            seen.first_col_redundant_rows;
-          };
-        {
-          ...seen,
-          seen_strings: seen.seen_strings |> StringSet.add(s),
-          first_col_redundant_rows,
-        };
-      | [Pair(_, _), ..._] =>
-        let first_col_redundant_rows =
-          if (seen.seen_prod) {
-            [row.idx, ...seen.first_col_redundant_rows];
-          } else {
-            seen.first_col_redundant_rows;
-          };
-        {...seen, seen_prod: true, first_col_redundant_rows};
-      | [InjL(_), ..._] =>
-        let first_col_redundant_rows =
-          if (seen.seen_injL) {
-            [row.idx, ...seen.first_col_redundant_rows];
-          } else {
-            seen.first_col_redundant_rows;
-          };
-        {...seen, seen_injL: true, first_col_redundant_rows};
-      | [InjR(_), ..._] =>
-        let first_col_redundant_rows =
-          if (seen.seen_injR) {
-            [row.idx, ...seen.first_col_redundant_rows];
-          } else {
-            seen.first_col_redundant_rows;
-          };
-        {...seen, seen_injR: true, first_col_redundant_rows};
-      | [Truth, ..._] =>
-        let first_col_redundant_rows =
-          switch (
-            seen.seen_truth,
-            seen.seen_prod,
-            seen.seen_injL,
-            seen.seen_injR,
-          ) {
-          | (true, _, _, _) => [row.idx, ...seen.first_col_redundant_rows]
-          | (_, true, _, _) => [row.idx, ...seen.first_col_redundant_rows]
-          | (_, _, true, true) => [row.idx, ...seen.first_col_redundant_rows]
-          | (_, _, _, _) => seen.first_col_redundant_rows
-          };
-        {...seen, seen_truth: true, first_col_redundant_rows};
-      | _ => seen // TODO: remove _
-      },
-    init_seen,
-    m,
-  );
-};
+  let init_seen = {
+    seen_ints: IntSet.empty,
+    seen_floats: FloatSet.empty,
+    seen_strings: StringSet.empty,
+    seen_ctrs: ConstructorSet.empty,
+    seen_all_ctrs: false,
+    seen_truth: false,
+    first_col_redundant_rows: [],
+  };
 
-let submatrices = (m: matrix): submatrices => {
-  let {
-    seen_ints,
-    seen_floats,
-    seen_strings,
-    seen_prod,
-    seen_injL,
-    seen_injR,
-    seen_truth,
-    first_col_redundant_rows,
-  } =
-    seen(m);
-  print_endline(
-    "Seen: "
-    ++ string_of_bool(seen_injL)
-    ++ ", "
-    ++ string_of_bool(seen_injR),
-  );
-  let include_unit =
-    !seen_prod
-    && !seen_injL
-    && !seen_injR
-    && seen_truth
-    && has_multiple_columns(m);
-  let submatrices =
+  // data accumulation pass over the first column of the matrix
+  let seen = (m: Matrix.t, all_ctrs: option(ConstructorSet.t)): seen => {
     List.fold_left(
-      (submatrices, row: row) => {
+      (seen, row: Matrix.row) =>
         switch (row.cols) {
-        | [Pair(xi1, xi2), ...cols] => {
-            ...submatrices,
-            prod: [
-              {idx: row.idx, cols: [xi1, xi2, ...cols]},
-              ...submatrices.prod,
-            ],
-          }
-        | [InjL(xi), ...cols] => {
-            ...submatrices,
-            injL: [
-              {idx: row.idx, cols: [xi, ...cols]},
-              ...submatrices.injL,
-            ],
-          }
-        | [InjR(xi), ...cols] => {
-            ...submatrices,
-            injR: [
-              {idx: row.idx, cols: [xi, ...cols]},
-              ...submatrices.injR,
-            ],
-          }
-        | [Truth, ...cols] => {
-            ...submatrices,
-            prod:
-              seen_prod
-                ? [
-                  {idx: row.idx, cols: [Truth, Truth, ...cols]},
-                  ...submatrices.prod,
-                ]
-                : submatrices.prod,
-            injL:
-              seen_injL
-                ? [
-                  {idx: row.idx, cols: [Truth, ...cols]},
-                  ...submatrices.injL,
-                ]
-                : submatrices.injL,
-            injR:
-              seen_injR
-                ? [
-                  {idx: row.idx, cols: [Truth, ...cols]},
-                  ...submatrices.injR,
-                ]
-                : submatrices.injR,
-            unit:
-              include_unit
-                ? [{idx: row.idx, cols}, ...submatrices.unit]
-                : submatrices.unit,
-          }
-        | _ => submatrices // TODO: other cases
-        }
-      },
-      empty_submatrices,
+        | [] => seen
+        | [Int(n), ..._] =>
+          let first_col_redundant_rows =
+            if (IntSet.mem(n, seen.seen_ints)) {
+              [row.idx, ...seen.first_col_redundant_rows];
+            } else {
+              seen.first_col_redundant_rows;
+            };
+          {
+            ...seen,
+            seen_ints: seen.seen_ints |> IntSet.add(n),
+            first_col_redundant_rows,
+          };
+        | [Float(x), ..._] =>
+          let first_col_redundant_rows =
+            if (FloatSet.mem(x, seen.seen_floats)) {
+              [row.idx, ...seen.first_col_redundant_rows];
+            } else {
+              seen.first_col_redundant_rows;
+            };
+          {
+            ...seen,
+            seen_floats: seen.seen_floats |> FloatSet.add(x),
+            first_col_redundant_rows,
+          };
+        | [String(s), ..._] =>
+          let first_col_redundant_rows =
+            if (StringSet.mem(s, seen.seen_strings)) {
+              [row.idx, ...seen.first_col_redundant_rows];
+            } else {
+              seen.first_col_redundant_rows;
+            };
+          {
+            ...seen,
+            seen_strings: seen.seen_strings |> StringSet.add(s),
+            first_col_redundant_rows,
+          };
+        | [Tuple(_), ..._] =>
+          let first_col_redundant_rows =
+            if (ConstructorSet.mem(tuple_ctr, seen.seen_ctrs)) {
+              [row.idx, ...seen.first_col_redundant_rows];
+            } else {
+              seen.first_col_redundant_rows;
+            };
+          let seen_ctrs = ConstructorSet.add(tuple_ctr, seen.seen_ctrs);
+          let seen_all_ctrs =
+            switch (all_ctrs) {
+            | Some(all_ctrs) => ConstructorSet.equal(seen_ctrs, all_ctrs)
+            | None => seen.seen_all_ctrs
+            };
+          {...seen, seen_ctrs, seen_all_ctrs, first_col_redundant_rows};
+        | [Ap(ctr, _), ..._] =>
+          let first_col_redundant_rows =
+            if (ConstructorSet.mem(ctr, seen.seen_ctrs)) {
+              [row.idx, ...seen.first_col_redundant_rows];
+            } else {
+              seen.first_col_redundant_rows;
+            };
+          let seen_ctrs = ConstructorSet.add(ctr, seen.seen_ctrs);
+          let seen_all_ctrs =
+            switch (all_ctrs) {
+            | Some(all_ctrs) => ConstructorSet.equal(seen_ctrs, all_ctrs)
+            | None => seen.seen_all_ctrs
+            };
+          {...seen, seen_ctrs, seen_all_ctrs, first_col_redundant_rows};
+        | [Truth, ..._] =>
+          let first_col_redundant_rows =
+            seen.seen_truth || seen.seen_all_ctrs
+              ? [row.idx, ...seen.first_col_redundant_rows]
+              : seen.first_col_redundant_rows;
+          {...seen, seen_truth: true, first_col_redundant_rows};
+        | [Falsity, ..._] => seen
+        | [Hole, ..._] =>
+          // holes act like truth for the purposes of exhaustiveness checking,
+          // but are never redundant
+          {...seen, seen_truth: true}
+        },
+      init_seen,
       m,
     );
-  let seen_int = !IntSet.is_empty(seen_ints);
-  let seen_float = !FloatSet.is_empty(seen_floats);
-  let seen_string = !StringSet.is_empty(seen_strings);
-  let first_col_exhaustive =
-    switch (
-      seen_int,
-      seen_float,
-      seen_string,
-      seen_truth,
-      seen_injR,
-      seen_injL,
-    ) {
-    | (_, _, _, true, _, _) => true
-    | (true, _, _, false, _, _) => false
-    | (_, true, _, false, _, _) => false
-    | (_, _, true, false, _, _) => false
-    | (_, _, _, _, true, true) => true
-    | (_, _, _, _, false, false) => true
-    | (_, _, _, _, true, false)
-    | (_, _, _, _, false, true) => false
-    };
-  print_endline(
-    "First col exhaustive: " ++ string_of_bool(first_col_exhaustive),
-  );
-  print_endline(
-    "First col redundant rows: "
-    ++ show_redundant_rows(first_col_redundant_rows),
-  );
-  // needed so that rows show up in order for redundancy checking
-  let submatrices = rev_submatrices(submatrices);
-  {...submatrices, first_col_exhaustive, first_col_redundant_rows};
-};
+  };
 
-let matrix_of_constraints = (xis: list(Constraint.t)): matrix => {
-  List.mapi((idx, xi) => {idx, cols: [xi]}, xis);
+  let of_matrix = (m: Matrix.t, all_ctrs: option(CtrSet.t)): t => {
+    let {
+      seen_ints,
+      seen_floats,
+      seen_strings,
+      seen_ctrs,
+      seen_all_ctrs,
+      seen_truth,
+      first_col_redundant_rows,
+    } =
+      seen(m, all_ctrs);
+    print_endline(
+      "Seen: "
+      ++ string_of_bool(seen_injL)
+      ++ ", "
+      ++ string_of_bool(seen_injR),
+    );
+    let include_unit =
+      !seen_prod
+      && !seen_injL
+      && !seen_injR
+      && seen_truth
+      && Matrix.has_multiple_columns(m);
+    let submatrices =
+      List.fold_left(
+        (submatrices, row: Matrix.row) => {
+          switch (row.cols) {
+          | [] => submatrices
+          | [Int(n), ...cols] => {
+              ...submatrices,
+              ints:
+                IntMap.update(
+                  n,
+                  data => {
+                    switch (data) {
+                    | Some(matrix) =>
+                      Some([{idx: row.idx, cols}, ...matrix])
+                    | None => Some([{idx: row.idx, cols}])
+                    }
+                  },
+                  submatrices.ints,
+                ),
+            }
+          | [Float(x), ...cols] => failwith("TODO")
+          | [String(s), ...cols] => failwith("TODO")
+          | [Pair(xi1, xi2), ...cols] => {
+              ...submatrices,
+              prod: [
+                {idx: row.idx, cols: [xi1, xi2, ...cols]},
+                ...submatrices.prod,
+              ],
+            }
+          | [InjL(xi), ...cols] => {
+              ...submatrices,
+              injL: [
+                {idx: row.idx, cols: [xi, ...cols]},
+                ...submatrices.injL,
+              ],
+            }
+          | [InjR(xi), ...cols] => {
+              ...submatrices,
+              injR: [
+                {idx: row.idx, cols: [xi, ...cols]},
+                ...submatrices.injR,
+              ],
+            }
+          | [Truth | Hole, ...cols] => {
+              ...submatrices,
+              prod:
+                seen_prod
+                  ? [
+                    {idx: row.idx, cols: [Truth, Truth, ...cols]},
+                    ...submatrices.prod,
+                  ]
+                  : submatrices.prod,
+              injL:
+                seen_injL
+                  ? [
+                    {idx: row.idx, cols: [Truth, ...cols]},
+                    ...submatrices.injL,
+                  ]
+                  : submatrices.injL,
+              injR:
+                seen_injR
+                  ? [
+                    {idx: row.idx, cols: [Truth, ...cols]},
+                    ...submatrices.injR,
+                  ]
+                  : submatrices.injR,
+              unit:
+                include_unit
+                  ? [{idx: row.idx, cols}, ...submatrices.unit]
+                  : submatrices.unit,
+            }
+          | [Falsity, ..._] => submatrices
+          }
+        },
+        empty,
+        m,
+      );
+    let seen_int = !IntSet.is_empty(seen_ints);
+    let seen_float = !FloatSet.is_empty(seen_floats);
+    let seen_string = !StringSet.is_empty(seen_strings);
+    let first_col_exhaustive =
+      switch (
+        seen_int,
+        seen_float,
+        seen_string,
+        seen_truth,
+        seen_injR,
+        seen_injL,
+      ) {
+      | (_, _, _, true, _, _) => true
+      | (true, _, _, false, _, _) => false
+      | (_, true, _, false, _, _) => false
+      | (_, _, true, false, _, _) => false
+      | (_, _, _, _, true, true) => true
+      | (_, _, _, _, false, false) => true
+      | (_, _, _, _, true, false)
+      | (_, _, _, _, false, true) => false
+      };
+    print_endline(
+      "First col exhaustive: " ++ string_of_bool(first_col_exhaustive),
+    );
+    print_endline(
+      "First col redundant rows: "
+      ++ show_redundant_rows(first_col_redundant_rows),
+    );
+    // needed so that rows show up in order for redundancy checking
+    let submatrices = rev(submatrices);
+    {...submatrices, first_col_exhaustive, first_col_redundant_rows};
+  };
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type check_result = {
+type result = {
   is_exhaustive: bool,
   redundant_rows: list(int),
 };
 
 let exhaustive_and_irredundant = {is_exhaustive: true, redundant_rows: []};
+let inexhaustive_and_irredundant = {is_exhaustive: false, redundant_rows: []};
 
-let rec check_matrix = (m: matrix): check_result => {
-  print_endline(show_matrix(m));
+// We assume ty is already normalized.
+let rec check_matrix = (m: Matrix.t, ty: Typ.t): result => {
+  print_endline(Matrix.show(m));
   switch (m) {
-  | [] => exhaustive_and_irredundant // empty matrix, TODO: what about void types?
-  | [{idx: _, cols: []}, ..._] => exhaustive_and_irredundant // no columns in the matrix
+  | [] =>
+    Typ.is_void(ty)
+      ? exhaustive_and_irredundant : inexhaustive_and_irredundant
+  | [{idx: _, cols: []}, ..._] => failwith("No columns in the matrix.")
   | _ =>
-    let submatrices = submatrices(m);
-    print_endline(show_submatrices(submatrices));
-    let checked_prod = check_matrix(submatrices.prod);
-    let checked_injL = check_matrix(submatrices.injL);
-    let checked_injR = check_matrix(submatrices.injR);
-    let checked_unit = check_matrix(submatrices.unit);
+    let all_ctrs = all_ctrs_of_typ(ty);
+    let submatrices = Submatrices.of_matrix(m, all_ctrs);
+    let checked_ints = IntMap.map(check_matrix, submatrices.ints);
+    let checked_floats = FloatMap.map(check_matrix, submatrices.floats);
+    let checked_strings = StringMap.map(check_matrix, submatrices.strings);
+    let checked_ctrs = CtrMap.map(check_matrix, submatrices.ctrs);
+    let checked_unit = Option.map(check_matrix, submatrices.unit);
     let is_exhaustive =
       submatrices.first_col_exhaustive
       && checked_prod.is_exhaustive
       && checked_injL.is_exhaustive
       && checked_injR.is_exhaustive
-      && checked_unit.is_exhaustive;
+      && checked_unit.is_exhaustive
+      && IntMap.for_all((_, c) => c.is_exhaustive, checked_ints)
+      && FloatMap.for_all((_, c) => c.is_exhaustive, checked_floats)
+      && StringMap.for_all((_, c) => c.is_exhaustive, checked_strings);
 
     /* a row is redundant if its first column is redundant and
        it is a redundant row in any submatrix in which it appears */
     let redundant_rows =
       List.filter(
         (idx: int) => {
+          let i =
+            IntMap.for_all(
+              (_, m) =>
+                !Matrix.contains_row(idx, m)
+                || IntMap.exists(
+                     (_, c) => List.mem(idx, c.redundant_rows),
+                     checked_ints,
+                   ),
+              submatrices.ints,
+            );
+          let f =
+            FloatMap.for_all(
+              (_, m) =>
+                !Matrix.contains_row(idx, m)
+                || FloatMap.exists(
+                     (_, c) => List.mem(idx, c.redundant_rows),
+                     checked_floats,
+                   ),
+              submatrices.floats,
+            );
+          let s =
+            StringMap.for_all(
+              (_, m) =>
+                !Matrix.contains_row(idx, m)
+                || StringMap.exists(
+                     (_, c) => List.mem(idx, c.redundant_rows),
+                     checked_strings,
+                   ),
+              submatrices.strings,
+            );
           let p =
-            !contains_row(idx, submatrices.prod)
+            !Matrix.contains_row(idx, submatrices.prod)
             || List.mem(idx, checked_prod.redundant_rows);
           let iL =
-            !contains_row(idx, submatrices.injL)
+            !Matrix.contains_row(idx, submatrices.injL)
             || List.mem(idx, checked_injL.redundant_rows);
           let iR =
-            !contains_row(idx, submatrices.injR)
+            !Matrix.contains_row(idx, submatrices.injR)
             || List.mem(idx, checked_injR.redundant_rows);
           let u =
-            !contains_row(idx, submatrices.unit)
+            !Matrix.contains_row(idx, submatrices.unit)
             || List.mem(idx, checked_unit.redundant_rows); // todo do we need this?
-          p && iL && iR && u;
+          i && f && s && p && iL && iR && u;
         },
         submatrices.first_col_redundant_rows,
       );
@@ -334,10 +443,10 @@ let rec check_matrix = (m: matrix): check_result => {
   };
 };
 
-let check = (xis: list(Constraint.t)): check_result => {
-  check_matrix(matrix_of_constraints(xis));
+let check = (xis: list(Constraint.t), ty: Typ.t): result => {
+  check_matrix(Matrix.of_constraints(xis), ty);
 };
 
 let is_exhaustive = (_xi: Constraint.t) => {
-  true;
+  true /* TODO: delet*/;
 };

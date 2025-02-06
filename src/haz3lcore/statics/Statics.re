@@ -541,9 +541,8 @@ and uexp_to_info_map =
         List.combine(ps, e_co_ctxs),
       );
     let constraints = List.rev(constraints);
-    print_endline(
-      "Calling check with: " ++ Constraint.show(Constraint.Or(constraints)),
-    );
+    let x = [%derive.show: list(Constraint.t)](constraints);
+    print_endline("Calling check with: " ++ x);
     let Incon.{is_exhaustive, redundant_rows} as check_result =
       Incon.check(constraints);
     print_endline("Final result: " ++ Incon.show_check_result(check_result));
