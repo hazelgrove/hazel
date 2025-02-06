@@ -6,10 +6,8 @@ module CachedSyntax = {
     segment: Segment.t,
     measured: Measured.t,
     tiles: TileMap.t,
-    holes: list(Grout.t),
     selection_ids: list(Id.t),
-    term: Exp.t,
-    /* This term, and the term-derived data structured below, may differ
+    /* The term-derived data structured below, may differ
      * from the term used for semantics. These terms are identical when
      * the backpack is empty. If the backpack is non-empty, then when we
      * make the term for semantics, we attempt to empty the backpack
@@ -24,7 +22,13 @@ module CachedSyntax = {
      * certain ids to be present/non-present unexpectedly. */
     term_ranges: TermRanges.t,
     terms: TermMap.t,
+    /* Since the introduction of shape_map below, caching projectors
+     * here is almost vesigial (currently used only for error deco) */
     projectors: Id.Map.t(Base.projector),
+    /* The shape_map is used to leave space for projectors in the
+     * underlying editor. In principle calculating this can involve
+     * both static and dynamic information, so we cache this for perf */
+    shape_map: ProjectorCore.Shape.Map.t,
   };
 
   // should not be serializing
@@ -33,20 +37,21 @@ module CachedSyntax = {
   let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-  let init = (~shape_of_proj, z): t => {
+  let init = (~info_map, ~dyn_map, z): t => {
     let segment = Zipper.unselect_and_zip(z);
-    let MakeTerm.{term, terms, projectors} = MakeTerm.go(segment);
+    let MakeTerm.{term: _, terms, projectors} = MakeTerm.go(segment);
+    let projector_shapes =
+      ProjectorInfo.ShapeMapSemantics.mk(projectors, info_map, dyn_map);
     {
       old: false,
       segment,
       term_ranges: TermRanges.mk(segment),
       tiles: TileMap.mk(segment),
-      holes: Segment.holes(segment),
-      measured: Measured.of_segment(segment, shape_of_proj),
+      measured: Measured.of_segment(segment, projector_shapes),
       selection_ids: Selection.selection_ids(z.selection),
-      term,
       terms,
       projectors,
+      shape_map: projector_shapes,
     };
   };
 
@@ -54,10 +59,7 @@ module CachedSyntax = {
 
   let calculate = (z: Zipper.t, info_map, dyn_map, old: t) =>
     old.old
-      ? init(
-          z,
-          ~shape_of_proj=ProjectorInfo.Shape.of_map(info_map, dyn_map),
-        )
+      ? init(z, ~info_map, ~dyn_map)
       : {...old, selection_ids: Selection.selection_ids(z.selection)};
 };
 
@@ -103,7 +105,8 @@ module Model = {
     syntax:
       CachedSyntax.init(
         zipper,
-        ~shape_of_proj=ProjectorInfo.Shape.of_map_default,
+        ~info_map=Id.Map.empty,
+        ~dyn_map=Id.Map.empty,
       ),
   };
 

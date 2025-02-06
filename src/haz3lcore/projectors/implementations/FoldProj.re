@@ -14,20 +14,34 @@ module M: Projector = {
   type model = t;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
+
   let init = {text: "⋱"};
-  let can_project = (_, _) => true;
+
+  let can_project = _ => true;
+  let focus = _ => ();
   let can_focus = false;
   let dynamics = false;
+
   let placeholder = (m, _) =>
-    ProjectorCore.inline(m.text == "⋱" ? 2 : m.text |> String.length);
+    ProjectorCore.Shape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
   let update = (m, _, _) => m;
-  let view = (m: model, _, ~local as _, ~parent, ~view_seg as _) =>
+
+  let hover_view = (view_seg: View.seg, info: info) => {
+    let seg = Segment.unparenthesize(info.syntax);
+    let sort = Segment.sort_of(Segment.skel(seg), seg);
     div(
-      ~attrs=[Attr.on_double_click(_ => parent(Remove))],
-      [text(m.text)],
+      ~attrs=[Attr.class_("hover-view")],
+      [
+        view_seg(~background=true, sort, Segment.unparenthesize(info.syntax)),
+      ],
     );
-  let offside_view = Option.None;
-  let overlay_view = Option.None;
-  let underlay_view = Option.None;
-  let focus = _ => ();
+  };
+
+  let view = (m: model, info, ~local as _, ~parent, ~view_seg) =>
+    ProjectorBase.View.mk(
+      div(
+        ~attrs=[Attr.on_double_click(_ => parent(Remove))],
+        [text(m.text), hover_view(view_seg, info)],
+      ),
+    );
 };

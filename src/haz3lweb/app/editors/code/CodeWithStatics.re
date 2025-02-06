@@ -12,11 +12,15 @@ module Model = {
   type t = {
     // Updated:
     editor: Editor.t,
-    // Calculated:
     statics: CachedStatics.t,
+    dynamics: Dynamics.Map.t,
   };
 
-  let mk = editor => {editor, statics: CachedStatics.empty};
+  let mk = editor => {
+    editor,
+    statics: CachedStatics.empty,
+    dynamics: Dynamics.Map.empty,
+  };
 
   let mk_from_exp = (~settings: CoreSettings.t, ~inline=false, term: Exp.t) => {
     ExpToSegment.exp_to_segment(
@@ -29,6 +33,8 @@ module Model = {
   };
 
   let get_statics = (model: t) => model.statics;
+
+  let get_dynamics = (model: t) => model.dynamics;
 
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
     info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
@@ -64,7 +70,7 @@ module Update = {
         ~is_edited,
         ~stitch,
         ~dynamics: Dynamics.Map.t,
-        {editor, statics: _}: Model.t,
+        {editor, statics: _, dynamics: _}: Model.t,
       )
       : Model.t => {
     let statics = CachedStatics.init(~settings, ~stitch, editor.state.zipper);
@@ -76,7 +82,7 @@ module Update = {
         dynamics,
         editor,
       );
-    {editor, statics};
+    {editor, statics, dynamics};
   };
 };
 
@@ -85,24 +91,16 @@ module View = {
   type event;
 
   let view =
-      (
-        ~globals,
-        ~overlays: list(Node.t)=[],
-        ~sort=Sort.root,
-        ~dynamics: Dynamics.Map.t,
-        model: Model.t,
-      ) => {
+      (~globals, ~overlays: list(Node.t)=[], ~sort=Sort.root, model: Model.t) => {
     let {
-      statics: {info_map, _},
       editor:
         {
-          syntax: {measured, selection_ids, segment, holes, _},
+          syntax: {measured, selection_ids, segment, shape_map, _},
           state: {zipper: z, _},
           _,
         },
       _,
     }: Model.t = model;
-    let shape_of_proj = ProjectorInfo.Shape.of_map(info_map, dynamics);
     let code_text_view =
       CodeViewable.view(
         ~globals,
@@ -110,8 +108,7 @@ module View = {
         ~measured,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~segment,
-        ~holes,
-        ~shape_of_proj,
+        ~shape_map,
       );
     let statics_decos = {
       module Deco =
@@ -119,7 +116,6 @@ module View = {
           let globals = globals;
           let editor = model.editor;
           let statics = model.statics;
-          let dynamics = dynamics;
         });
       Deco.statics();
     };

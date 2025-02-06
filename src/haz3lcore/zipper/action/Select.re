@@ -59,7 +59,7 @@ module Make = (M: Move.S) => {
   };
 
   let current_term_id = (z: Zipper.t): option(Id.t) => {
-    let* (p, _, _) = Indicated.piece''(z);
+    let* (p, _, rel) = Indicated.piece''(z);
     switch (p) {
     | Secondary(_) => None
     | Grout(_)
@@ -68,10 +68,22 @@ module Make = (M: Move.S) => {
       /* Basic term selection uses termranges, which is out of data
        * with the parsing logic which makes list listerals. We also
        * treat tuples as including the parens (if any), though this
-       * is a free choice */
+       * is a free choice. We also handle case rules, whose parent
+       * term in tylr is considered to be the combination of the
+       * rules and the scrutinee, but we want to consider it to be
+       * the whole case expression. */
       switch (t.label, Zipper.parent(z)) {
       | ([","], Some(Tile({label: ["[", "]"] | ["(", ")"], id, _}))) =>
         Some(id)
+      | (["|", "=>"], Some(Tile({label: ["case", "end"], id, _})))
+          when rel == Sibling =>
+        Some(id)
+      | (["|", "=>"], Some(Tile({label: ["|", "=>"], _})))
+          when rel == Parent =>
+        switch (z.relatives.ancestors) {
+        | [_, (gp, _), ..._] => Some(gp.id)
+        | _ => None
+        }
       | _ => Some(Piece.id(p))
       }
     };
@@ -97,7 +109,10 @@ module Make = (M: Move.S) => {
     shrink_left_until_not_case_or_rule_or_space(z);
   };
 
-  let current_term_fancy = (z: Zipper.t) => {
+  let current_term_psuedo = (z: Zipper.t) => {
+    /* Similar to current_term, except that we consider case rules
+     * and let/type definitions (without their bodies) to be 'pseudoterms',
+     * currently used for purposes of term-based selection. */
     let* (p, _, _) = Indicated.piece''(z);
     switch (p) {
     | Tile({label: ["let" | "type", ..._], _}) => current_tile(z)
@@ -181,6 +196,6 @@ module Make = (M: Move.S) => {
   let parent_of_indicated = (z: Zipper.t, info_map) => {
     let* id = parent_id(z, info_map);
     let* z = Move.jump_to_id_indicated(z, id);
-    current_term_fancy(z);
+    current_term_psuedo(z);
   };
 };

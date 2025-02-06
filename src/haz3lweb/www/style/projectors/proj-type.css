@@ -10,8 +10,6 @@
 /* BACKING */
 
 .projector.type > svg {
-  /* fill: var(--main-base);
-  filter: drop-shadow(0.7px 0.7px 0px var(--main-shadow)); */
   filter: drop-shadow(0.7px 0.7px 0px var(--BR3));
 }
 
@@ -40,7 +38,7 @@
   gap: 0.4em;
 }
 
-.projector.type.indicated .main {
+.projector.type.indicated:not(.selected):not(.error) .main {
   color: white;
 }
 
@@ -51,7 +49,7 @@
   background-size: cover;
   filter: invert(1) brightness(0.4) sepia(1) saturate(1.8) hue-rotate(245deg);
 }
-.projector.type.indicated:not(.selected) .main .icon {
+.projector.type.indicated:not(.selected):not(.error) .main .icon {
   filter: invert(1);
 }
 
@@ -82,12 +80,10 @@
 }
 
 .projector.type.indicated .offside .type-cell {
-  /* background: white; */
   outline-width: 1px;
   outline-style: solid;
   outline-color: var(--main-indicated);
   border-color: var(--main-indicated);
-  /* border-bottom-width: 1.5px; */
 }
 
 .projector.type .offside .code {

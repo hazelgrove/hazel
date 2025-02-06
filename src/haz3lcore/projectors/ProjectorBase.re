@@ -19,21 +19,21 @@ type syntax = Base.piece;
 type external_action =
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
-  | SetSyntax(syntax); /* Set underlying syntax */
+  | SetSyntax(Base.segment); /* Set underlying syntax */
 
 /* Syntax utility functions/values for projector use,
  * provided here to resolve cyclic dependency issues */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type utility = {
   /* Convert a segment to a term */
-  seg_to_term: list(syntax) => Term.Any.t,
+  seg_to_term: Base.segment => option(Term.Any.t),
   /* Convert a term to a segment */
-  term_to_seg: Any.t => list(syntax),
+  term_to_seg: Any.t => Base.segment,
   /* Lifts term->term functions to syntax->syntax. This will
    * proactively attempt to parenthesize resulting non-single
    * piece terms. As such, sorts that do not have parentheses
    * (currently all degenerate cases) will throw an error */
-  lift_syntax: (Any.t => Any.t, syntax) => syntax,
+  lift_syntax: (Any.t => Any.t, Base.segment) => option(Base.segment),
 };
 
 /* External info proivded to all projectors */
@@ -48,7 +48,7 @@ type info = {
   /* The syntax underlying the projector. Currently this
    * is a single piece representing a complete term, but
    * this may be relaxed in the future. */
-  syntax,
+  syntax: Base.segment,
   /* Static information about the syntax including type
    * information. Statics may be disabled by the user;
    * this case (None) must be handled by projector authors */
@@ -63,9 +63,28 @@ type info = {
   utility,
 };
 
+module View = {
+  type t = {
+    underlay: option(Node.t),
+    inline: option(Node.t),
+    overlay: option(Node.t),
+    offside: option(Node.t),
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type seg = (~background: bool=?, Sort.t, list(syntax)) => Node.t;
+
+  let mk = (~underlay=None, ~overlay=None, ~offside=None, inline) => {
+    inline: Some(inline),
+    underlay,
+    overlay,
+    offside,
+  };
+};
+
 /* To add a new projector:
  * 1. Create a new module implementing Projector (e.g. FoldProj)
- * 2. Add an entry for it in ProjectorCore.kind
+ * 2. Add an entry for it in ProjectorCore.Kind.t
  * 3. Register the module in ProjectorInit.to_module
  * 4. If you want to expose the projector via a keyboard
  *    shortcut, add a Project(...) entry in Keyboard.re
@@ -93,7 +112,7 @@ module type Projector = {
    * syntax (currently limited to convex pieces) is
    * supported by this projector. This is used to gate
    * adding the projector */
-  let can_project: (syntax, Term.Any.t) => bool;
+  let can_project: Term.Any.t => bool;
   /* Does this projector have internal position states,
    * overriding the editor caret & keyboard handlers?
    * If yes, the focus method will be called when this
@@ -117,55 +136,10 @@ module type Projector = {
       ~parent: external_action => Ui_effect.t(unit),
       /* Creates a non-interactive embedded syntax view,
        * provided here to address a dependency cycle */
-      ~view_seg: (Sort.t, list(syntax)) => Node.t
+      ~view_seg: View.seg
     ) =>
-    Node.t;
-  /* An optional additional view to be rendered at the
-   * end of the row which includes the projector */
-  let offside_view:
-    option(
-      (
-        model,
-        info,
-        ~local: action => Ui_effect.t(unit),
-        ~parent: external_action => Ui_effect.t(unit),
-        ~view_seg: (Sort.t, list(syntax)) => Node.t
-      ) =>
-      Node.t,
-    );
-  /* An optional view to be rendered above
-   * the code / regular projector layer */
-  let overlay_view:
-    option(
-      (
-        model,
-        info,
-        ~local: action => Ui_effect.t(unit),
-        ~parent: external_action => Ui_effect.t(unit),
-        ~view_seg: (Sort.t, list(syntax)) => Node.t
-      ) =>
-      Node.t,
-    );
-  /* An optional view to be rendered below the code and
-   * regular projector layer. If this is provided,
-   * regular underlays like indication and selection
-   * decorations will not be drawn; projector clients
-   * should use the classes placed on the wrapping
-   * element to trigger their own custom indication and
-   * selection decorations. Pointer handlers should not
-   * be placed on this layer. */
-  let underlay_view:
-    option(
-      (model, info, ~view_seg: (Sort.t, list(syntax)) => Node.t) => Node.t,
-    );
-  /* How much space should be left in the code view for
-   * this projector? This determines how the base code
-   * view is laid out, including how movement around the
-   * projector works. In principle this could be derived
-   * from the view, but this is awkward to do so for now
-   * projector writers are responsible for keeping these
-   * in sync with each other. */
-  let placeholder: (model, info) => ProjectorCore.shape;
+    View.t;
+  let placeholder: (model, info) => ProjectorCore.Shape.t;
   /* Update the local projector model given an action */
   let update: (model, info, action) => model;
   /* Does whatever needs to be done to give a projector
@@ -203,35 +177,6 @@ module Cook = (C: Projector) : Cooked => {
       ~local=a => local(serialize_a(a)),
       ~parent,
       ~view_seg,
-    );
-  let offside_view =
-    Option.map(
-      (f, m, info, ~local, ~parent, ~view_seg) =>
-        f(
-          deserialize_m(m),
-          info,
-          ~local=a => local(serialize_a(a)),
-          ~parent,
-          ~view_seg,
-        ),
-      C.offside_view,
-    );
-  let overlay_view =
-    Option.map(
-      (f, m, info, ~local, ~parent, ~view_seg) =>
-        f(
-          deserialize_m(m),
-          info,
-          ~local=a => local(serialize_a(a)),
-          ~parent,
-          ~view_seg,
-        ),
-      C.overlay_view,
-    );
-  let underlay_view =
-    Option.map(
-      (f, m, info, ~view_seg) => f(deserialize_m(m), info, ~view_seg),
-      C.underlay_view,
     );
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;

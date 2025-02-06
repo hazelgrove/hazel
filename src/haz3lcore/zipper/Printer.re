@@ -13,7 +13,7 @@ and of_piece = (~holes, p: Piece.t): string =>
   | Grout({shape: Convex, _}) => " "
   | Secondary(w) =>
     Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
-  | Projector(p) => of_piece(~holes, p.syntax)
+  | Projector(p) => of_segment(~holes, Piece.unparenthesize(p.syntax))
   }
 and of_tile = (~holes, t: Tile.t): string =>
   Aba.mk(t.shards, t.children)
@@ -58,7 +58,7 @@ let measured = z =>
   z
   |> ZipperBase.remove_all_projectors
   |> Zipper.seg_without_buffer
-  |> Measured.of_segment(_, _ => ProjectorCore.default); // No projectors
+  |> Measured.of_segment(_, ProjectorCore.Shape.Map.empty); // No projectors
 
 let pretty_print = (~holes: option(string)=Some(""), z: Zipper.t): string =>
   to_rows(

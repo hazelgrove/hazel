@@ -62,8 +62,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
   (request, expr) => {
     switch (request, DHExp.term_of(expr)) {
     /* Remove parentheses from casts */
-    | (_, Cast(d, {term: Wrap(x), _}, y))
-    | (_, Cast(d, x, {term: Wrap(y), _})) =>
+    | (_, Cast(d, {term: Parens(x), _}, y))
+    | (_, Cast(d, x, {term: Parens(y), _})) =>
       unbox(request, Cast(d, x, y) |> DHExp.fresh)
 
     /* Base types are always already unboxed because of the ITCastID rule*/
@@ -150,7 +150,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
 
     /* Function-like things can look like the following when values */
     | (Fun, Constructor(name, _)) => Matches(Constructor(name)) // Perhaps we should check if the constructor actually is a function?
-    | (Fun, Fun(dp, d3, Some(env'), _)) => Matches(FunEnv(dp, d3, env'))
+    | (Fun, Closure(env', {term: Fun(dp, d3, _, _), _})) =>
+      Matches(FunEnv(dp, d3, env'))
     | (
         Fun,
         Cast(
@@ -191,7 +192,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         BuiltinFun(_) |
         Deferral(_) |
         DeferredAp(_) |
-        Fun(_, _, _, Some(_)) |
         ListLit(_) |
         Tuple(_) |
         Cast(_) |
@@ -221,7 +221,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Invalid(_) | Undefined | EmptyHole | MultiHole(_) | DynamicErrorHole(_) |
         Var(_) |
         Let(_) |
-        Fun(_, _, _, None) |
+        Fun(_, _, _, _) |
         FixF(_) |
         TyAlias(_) |
         Ap(_) |
@@ -230,7 +230,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Test(_) |
         Filter(_) |
         Closure(_) |
-        Wrap(_) |
+        Parens(_) |
+        Probe(_) |
         Cons(_) |
         ListConcat(_) |
         UnOp(_) |

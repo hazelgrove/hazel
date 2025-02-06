@@ -276,7 +276,7 @@ let consume_deferred_linebreaks = () => {
 };
 
 let of_segment =
-    (seg: Segment.t, shape_of_proj: Base.projector => ProjectorCore.shape): t => {
+    (seg: Segment.t, shape_map: Id.Map.t(ProjectorCore.Shape.t)): t => {
   deferred_linebreaks := [];
   let is_indented = is_indented_map(seg);
 
@@ -344,7 +344,7 @@ let of_segment =
             (contained_indent, last, map);
           | Projector(p) =>
             let row_indent = container_indent + contained_indent;
-            let shape = shape_of_proj(p);
+            let shape = ProjectorCore.Shape.Map.lookup(p.id, shape_map);
             let num_extra_rows =
               switch (shape.vertical) {
               | Inline
@@ -413,6 +413,9 @@ let of_segment =
   };
   snd(go_nested(~map=empty, seg));
 };
+
+/* Memoized for perf */
+let of_segment = Core.Memo.general(of_segment);
 
 let length = (seg: Segment.t, map: t): int =>
   switch (seg) {

@@ -79,7 +79,8 @@ let rec strip_casts =
         | UnOp(_)
         | BinOp(_)
         | Match(_)
-        | Wrap(_)
+        | Parens(_)
+        | Probe(_)
         | EmptyHole
         | Invalid(_)
         | Var(_)
@@ -106,7 +107,7 @@ let rec strip_casts =
 let assign_name_if_none = (t, name) => {
   let (term, rewrap) = unwrap(t);
   switch (term) {
-  | Fun(arg, ty, body, None) => Fun(arg, ty, body, name) |> rewrap
+  | Fun(arg, body, typ, None) => Fun(arg, body, typ, name) |> rewrap
   | TypFun(utpat, body, None) => TypFun(utpat, body, name) |> rewrap
   | _ => t
   };
@@ -161,7 +162,8 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Deferral(_)
           | TyAlias(_)
           | DeferredAp(_)
-          | Wrap(_)
+          | Parens(_)
+          | Probe(_)
           | UnOp(_) => continue(exp)
           },
       exp,

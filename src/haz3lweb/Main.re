@@ -120,7 +120,7 @@ let start = {
       size,
       ~callback=
         app_inject
-        |> Bonsai.Value.map(~f=(i, rect: BonsaiUtil.SizeObserver.Size.t) =>
+        |> Bonsai.Value.map(~f=(i, rect: BonsaiUtil.SizeObserver.Size.t) => {
              i(
                Page.Update.Globals(
                  SetFontMetrics({
@@ -129,7 +129,7 @@ let start = {
                  }),
                ),
              )
-           ),
+           }),
     );
 
   // Other Initialization

@@ -18,10 +18,9 @@ let consume_deferred_linebreaks = () => {
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
-    ((label, is_in_buffer, sort, is_consistent, is_complete, indent, i)) => {
+    ((label, sort, is_consistent, is_complete, indent, i)) => {
       let cls =
         switch (label) {
-        | _ when is_in_buffer => "in-buffer"
         | _ when !is_consistent => "sort-inconsistent"
         | _ when !is_complete => "incomplete"
         | [s] when s == Form.explicit_hole => "explicit-hole"
@@ -29,7 +28,6 @@ let of_delim' =
         | _ => Sort.to_string(sort)
         };
       let plurality = List.length(label) == 1 ? "mono" : "poly";
-      //let label = is_in_buffer ? AssistantExpander.mark(label) : label;
       let token = List.nth(label, i);
       /* Add indent to multiline tokens: */
       let num_lb = StringUtil.num_linebreaks(token);
@@ -45,12 +43,9 @@ let of_delim' =
       ];
     },
   );
-let of_delim =
-    (is_in_buffer, is_consistent, indent, t: Piece.tile, i: int)
-    : list(Node.t) =>
+let of_delim = (is_consistent, indent, t: Piece.tile, i: int): list(Node.t) =>
   of_delim'((
     t.label,
-    is_in_buffer,
     t.mold.out,
     is_consistent,
     Tile.is_complete(t),
@@ -62,8 +57,10 @@ let space = " "; //Unicode.nbsp;
 
 let of_secondary =
     //Core.Memo.general(  ~cache_size_bound=10000,
-    ((content, secondary_icons, indent)) =>
-  if (String.equal(Secondary.get_string(content), Form.linebreak)) {
+    ((content, secondary_icons, indent, is_in_buffer)) =>
+  if (is_in_buffer) {
+    [span_c("in-buffer", [Node.text(Secondary.get_string(content))])];
+  } else if (String.equal(Secondary.get_string(content), Form.linebreak)) {
     let str = secondary_icons ? ">" : "";
     [span_c("linebreak", [text(str)])]
     @ List.init(1 + consume_deferred_linebreaks(), _ => Node.text("\n"))
@@ -78,20 +75,20 @@ let of_secondary =
   };
 //);
 
-let of_projector = (expected_sort, indent, shape: ProjectorCore.shape) => {
+let of_projector = (expected_sort, indent, shape: ProjectorCore.Shape.t) => {
   let token =
     switch (shape.vertical) {
     | Inline
     | Tab(0)
-    | Block(0) => ProjectorCore.token(shape)
+    | Block(0) => ProjectorCore.Shape.token(shape)
     | Tab(num_lb) =>
       deferred_linebreaks := [num_lb, ...deferred_linebreaks^];
-      ProjectorCore.token(shape);
+      ProjectorCore.Shape.token(shape);
     | Block(_) =>
       String.make(consume_deferred_linebreaks(), '\n')
-      ++ ProjectorCore.token(shape)
+      ++ ProjectorCore.Shape.token(shape)
     };
-  of_delim'(([token], false, expected_sort, true, true, indent, 0));
+  of_delim'(([token], expected_sort, true, true, indent, 0));
 };
 
 module Text =
@@ -99,7 +96,7 @@ module Text =
          M: {
            let map: Measured.t;
            let settings: Settings.Model.t;
-           let shape_of_proj: Base.projector => ProjectorCore.shape;
+           let shape_map: ProjectorCore.Shape.Map.t;
            let font_metrics: FontMetrics.t;
          },
        ) => {
@@ -130,13 +127,19 @@ module Text =
     switch (p) {
     | Tile(t) => of_tile(buffer_ids, expected_sort, t)
     | Grout(g) => [EmptyHoleDec.view(M.font_metrics, g.shape)]
-    | Secondary({content, _}) =>
-      of_secondary((content, M.settings.secondary_icons, m(p).last.col))
+    | Secondary({content, id}) =>
+      let is_in_buffer = List.mem(id, buffer_ids);
+      of_secondary((
+        content,
+        M.settings.secondary_icons,
+        m(p).last.col,
+        is_in_buffer,
+      ));
     | Projector(p) =>
       of_projector(
         expected_sort,
         m(Projector(p)).origin.col,
-        M.shape_of_proj(p),
+        ProjectorCore.Shape.Map.lookup(p.id, M.shape_map),
       )
     };
   }
@@ -148,30 +151,11 @@ module Text =
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
-    let is_in_buffer = List.mem(t.id, buffer_ids);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(
-         of_delim(is_in_buffer, is_consistent, m(Tile(t)).origin.col, t),
-         ((seg, sort)) =>
+         of_delim(is_consistent, m(Tile(t)).origin.col, t), ((seg, sort)) =>
          of_segment(buffer_ids, false, sort, seg)
        )
     |> List.concat;
   };
-};
-
-let simple_view = (font_metrics, sort, segment): Node.t => {
-  /* Assume this doesn't contain projectors */
-  let shape_of_proj = ProjectorInfo.Shape.of_map_default;
-  let map = Measured.of_segment(segment, shape_of_proj);
-  module Text =
-    Text({
-      let map = map;
-      let settings = Settings.Model.init;
-      let shape_of_proj = shape_of_proj;
-      let font_metrics = font_metrics;
-    });
-  div(
-    ~attrs=[Attr.class_("code")],
-    [span_c("code-text", Text.of_segment([], false, sort, segment))],
-  );
 };

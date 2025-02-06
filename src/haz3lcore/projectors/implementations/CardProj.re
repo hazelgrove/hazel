@@ -83,7 +83,7 @@ module SyntaxTerm = {
   module Exp = {
     let get_wrap = (term: Term.Exp.t): option(Term.Exp.t) =>
       switch (term) {
-      | {term: Wrap(term, _), _} => Some(term)
+      | {term: Parens(term), _} => Some(term)
       | _ => None
       };
 
@@ -123,13 +123,13 @@ module SyntaxTerm = {
       IdTagged.fresh(ListLit(children): Term.Exp.term);
 
     let mk_wrap = (term: Term.Exp.t): Term.Exp.t =>
-      IdTagged.fresh(Wrap(term, Paren): Term.Exp.term);
+      IdTagged.fresh(Parens(term): Term.Exp.term);
   };
 
   module Pat = {
     let get_wrap = (term: Term.Pat.t): option(Term.Pat.t) =>
       switch (term) {
-      | {term: Wrap(term, _), _} => Some(term)
+      | {term: Parens(term), _} => Some(term)
       | _ => None
       };
 
@@ -172,7 +172,7 @@ module SyntaxTerm = {
       IdTagged.fresh(ListLit(children): Term.Pat.term);
 
     let mk_wrap = (term: Term.Pat.t): Term.Pat.t =>
-      IdTagged.fresh(Wrap(term, Paren): Term.Pat.term);
+      IdTagged.fresh(Parens(term): Term.Pat.term);
   };
 
   let suit_of_exp = (suit): option(suit) =>
@@ -251,7 +251,7 @@ module SyntaxTerm = {
     Exp.mk_constructor(rank |> sexp_of_rank |> Sexplib.Sexp.to_string);
 
   let card_to_exp = ((suit, rank): card): Term.Exp.t =>
-    Exp.mk_tuple([suit_to_exp(suit), rank_to_exp(rank)]);
+    Exp.mk_wrap(Exp.mk_tuple([suit_to_exp(suit), rank_to_exp(rank)]));
 
   let hand_to_exp = (hand: hand): Term.Exp.t =>
     Exp.mk_listlit(List.map(card_to_exp, hand));
@@ -263,7 +263,7 @@ module SyntaxTerm = {
     Pat.mk_constructor(rank |> sexp_of_rank |> Sexplib.Sexp.to_string);
 
   let card_to_pat = ((suit, rank): card): Term.Pat.t =>
-    Pat.mk_tuple([suit_to_pat(suit), rank_to_pat(rank)]);
+    Pat.mk_wrap(Pat.mk_tuple([suit_to_pat(suit), rank_to_pat(rank)]));
 
   let hand_to_pat = (hand: hand): Term.Pat.t =>
     Pat.mk_listlit(List.map(card_to_pat, hand));
@@ -276,7 +276,7 @@ module SyntaxTerm = {
     | (Pat, Hand(hand)) => Pat(hand_to_pat(hand))
     };
 
-  let put = (info, syntax): Piece.t =>
+  let put = (info, syntax): option(Base.segment) =>
     info.utility.lift_syntax(_ => syntax_to_any(syntax), info.syntax);
 
   let get_opt = (any: Any.t): option(syntax) =>
@@ -286,9 +286,13 @@ module SyntaxTerm = {
     };
 
   let get = (info: info): syntax =>
-    switch ([info.syntax] |> info.utility.seg_to_term |> get_opt) {
-    | Some(syntax) => syntax
-    | None => failwith("Cards: Get: not cards")
+    switch (info.syntax |> info.utility.seg_to_term) {
+    | Some(syntax) =>
+      switch (get_opt(syntax)) {
+      | Some(syntax) => syntax
+      | None => failwith("Cards: Get: not cards")
+      }
+    | None => failwith("Cards: Get: seg_to_term ")
     };
 
   let width_of_syntax = (syntax: syntax): int =>
@@ -298,7 +302,11 @@ module SyntaxTerm = {
     };
 
   let width_of_any = (info: info): int =>
-    switch (any_to_syntax([info.syntax] |> info.utility.seg_to_term)) {
+    switch (
+      info.syntax
+      |> info.utility.seg_to_term
+      |> OptUtil.and_then(any_to_syntax)
+    ) {
     | None => 0
     | Some((_, Card(_)))
     | Some((_, Hand([_]))) => 4
@@ -592,17 +600,15 @@ module Chooser = {
       ~attrs=[
         Attr.classes(["card-wrapper"] @ (indicated ? ["indicated"] : [])),
         Attr.on_mousedown(_ => {
-          print_endline("setting syntax");
           //TODO: make this work for hands
-          Effect.Many([
-            parent(
-              SetSyntax(
-                SyntaxTerm.put(info, (sort_of(sort), Card(card))),
-              ),
-            ),
-            // Effect.Prevent_default,
-            // Effect.Stop_propagation,
-          ]);
+          switch (SyntaxTerm.put(info, (sort_of(sort), Card(card)))) {
+          | None => Effect.Ignore
+          | Some(seg) =>
+            print_endline("putting seg:" ++ Segment.show(seg));
+            Effect.Many([parent(SetSyntax(seg))]);
+          // Effect.Prevent_default,
+          // Effect.Stop_propagation,
+          }
         }),
         Attr.create(
           "style",
@@ -653,8 +659,8 @@ module Singleton = {
       )
       : Node.t => {
     let on_mousedown = evt =>
-      switch (JsUtil.is_double_click(evt)) {
-      | _ when JsUtil.shift_held(evt) =>
+      switch (Js_of_ocaml.Js.Unsafe.coerce(evt)##.detail == 2) {
+      | _ when Js_of_ocaml.Js.to_bool(evt##.shiftKey) =>
         switch (mode) {
         | Choose
         | Flipped => local(SetMode(Show))
@@ -706,8 +712,8 @@ module CardInHand = {
       )
       : Node.t => {
     let on_mousedown = evt =>
-      switch (JsUtil.is_double_click(evt)) {
-      | _ when JsUtil.shift_held(evt) =>
+      switch (Js_of_ocaml.Js.Unsafe.coerce(evt)##.detail == 2) {
+      | _ when Js_of_ocaml.Js.to_bool(evt##.shiftKey) =>
         switch (mode) {
         | Choose
         | Flipped => local(SetMode(Show))
@@ -808,10 +814,11 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
   let init: model = {mode: Show};
-  let can_project = (_, info) => SyntaxTerm.get_opt(info) != None;
+  let can_project = (info: TermBase.Any.t) =>
+    SyntaxTerm.get_opt(info) != None;
   let can_focus = false;
   let dynamics = false;
-  let placeholder = (_, info): ProjectorCore.shape => {
+  let placeholder = (_, info): ProjectorCore.Shape.t => {
     horizontal: SyntaxTerm.width_of_any(info),
     vertical: Tab(1),
   };
@@ -826,16 +833,21 @@ module M: Projector = {
         ~local,
         ~parent: external_action => Ui_effect.t(unit),
         ~view_seg as _,
-      ) => {
-    switch (SyntaxTerm.get(info)) {
-    | (sort, Card(card)) =>
-      Singleton.view(info, model.mode, parent, local, to_sort(sort), card)
-    | (sort, Hand(hand)) =>
-      Hand.view(info, model.mode, parent, local, to_sort(sort), hand)
-    };
+      )
+      : View.t => {
+    inline:
+      switch (SyntaxTerm.get(info)) {
+      | (sort, Card(card)) =>
+        Singleton.view(info, model.mode, parent, local, to_sort(sort), card)
+        |> Option.some
+      | (sort, Hand(hand)) =>
+        Hand.view(info, model.mode, parent, local, to_sort(sort), hand)
+        |> Option.some
+      },
+    offside: None,
+    overlay: None,
+    underlay: None,
   };
-  let offside_view = None;
-  let overlay_view = None;
-  let underlay_view = None;
+
   let focus = _ => ();
 };
