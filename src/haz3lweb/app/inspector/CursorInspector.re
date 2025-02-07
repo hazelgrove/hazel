@@ -135,15 +135,15 @@ let common_err_view =
         view_type(Prod([]) |> Typ.fresh),
       ]
     | NoType(BadLabel(label)) => [
-        text("An invalid Label: "),
+        text("Malformed Label: "),
         view_any(label),
       ]
     | NoType(FreeConstructor(name)) => [code(name), text("not found")]
     | NoType(WantTuple) => [
-        text("Invalid Dot Operation: requires tuple for first argument"),
+        text("Requires tuple for first argument"),
       ]
     | NoType(LabelNotFound(name, labels)) => [
-        text("Invalid Dot Operation: label "),
+        text("Label "),
         code(name),
         text(" not found in tuple's labels: "),
         ...List.map(code, labels),
@@ -153,17 +153,17 @@ let common_err_view =
         code(name),
       ]
     | TupleLabelError({
-        invalid_labels,
+        malformed_labels,
         duplicate_labels,
         unexpected_labels,
         _,
       }) =>
       (
-        List.is_empty(invalid_labels)
+        List.is_empty(malformed_labels)
           ? []
           : [
-            text("Invalid labels: "),
-            ...List.map(view_any, invalid_labels),
+            text("Malformed labels: "),
+            ...List.map(view_any, malformed_labels),
           ]
       )
       @ (
@@ -182,7 +182,7 @@ let common_err_view =
             ...List.map(code, unexpected_labels),
           ]
       )
-    | DuplicateLabel(name, _) => [text("Duplicated Label:"), code(name)]
+    | DuplicateLabel(name, _) => [text("Duplicate Label:"), code(name)]
     | Inconsistent(WithArrow(typ)) => [
         text(":"),
         view_type(typ) |> code_box_container,
@@ -440,7 +440,7 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
       text("Duplicate labels within a tuple: "),
       ...List.map(code, labels),
     ]
-  | Duplicate(name, _) => [text("Duplicated Label: "), code(name)]
+  | Duplicate(name, _) => [text("Duplicate Label: "), code(name)]
   | DuplicateConstructor(name) => [
       view_type(Var(name) |> Typ.fresh) |> code_box_container,
       text("already used in this sum"),

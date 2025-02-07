@@ -209,7 +209,7 @@ let tests = (
         {|let x : (l=Int, l2=String) = (l=32, l2="") in x|},
       )
     ),
-    test_case("Invalid label in singleton tuple", `Quick, () =>
+    test_case("Malformed label in singleton tuple", `Quick, () =>
       exp_check(
         Parens(
           Tuple([

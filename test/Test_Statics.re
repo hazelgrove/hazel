@@ -15,7 +15,7 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
     ) =>
     Typ.fast_equal(a1, b1) && Typ.fast_equal(a2, b2)
   | (Common(TupleLabelError(err)), Common(TupleLabelError(err'))) =>
-    List.equal(Any.fast_equal, err.invalid_labels, err'.invalid_labels)
+    List.equal(Any.fast_equal, err.malformed_labels, err'.malformed_labels)
     && List.equal(String.equal, err.duplicate_labels, err'.duplicate_labels)
     && List.equal(
          String.equal,
@@ -729,7 +729,7 @@ let tests = (
           Some(
             Common(
               TupleLabelError({
-                invalid_labels: [],
+                malformed_labels: [],
                 duplicate_labels: ["a", "a"],
                 unexpected_labels: [],
                 typ:
@@ -753,7 +753,7 @@ let tests = (
           Some(
             Common(
               TupleLabelError({
-                invalid_labels: [],
+                malformed_labels: [],
                 duplicate_labels: ["a"],
                 unexpected_labels: [],
                 typ:
@@ -770,7 +770,7 @@ let tests = (
           Some(
             Common(
               TupleLabelError({
-                invalid_labels: [],
+                malformed_labels: [],
                 duplicate_labels: ["a"],
                 unexpected_labels: [],
                 typ:
@@ -828,7 +828,7 @@ let tests = (
           Some(
             Common(
               TupleLabelError({
-                invalid_labels: [Exp(l1)],
+                malformed_labels: [Exp(l1)],
                 duplicate_labels: [],
                 unexpected_labels: [],
                 typ:
@@ -852,7 +852,7 @@ let tests = (
           Some(
             Common(
               TupleLabelError({
-                invalid_labels: [Exp(l1)],
+                malformed_labels: [Exp(l1)],
                 unexpected_labels: [],
                 duplicate_labels: [],
                 typ:
@@ -907,7 +907,7 @@ let tests = (
           Some(
             Common(
               TupleLabelError({
-                invalid_labels: [Exp(l1)],
+                malformed_labels: [Exp(l1)],
                 unexpected_labels: [],
                 duplicate_labels: [],
                 typ:
@@ -933,7 +933,7 @@ let tests = (
           Some(
             Common(
               TupleLabelError({
-                invalid_labels: [Exp(l1)],
+                malformed_labels: [Exp(l1)],
                 unexpected_labels: [],
                 duplicate_labels: [],
                 typ:
@@ -953,7 +953,7 @@ let tests = (
 
         check(
           option(testable_info_error_exp),
-          "Label Error invalid label",
+          "Label Error malformed label",
           Some(Common(NoType(BadLabel(Exp(l1))))),
           Statics.get_error_at(s, IdTagged.rep_id(l1)),
         );
@@ -1007,7 +1007,7 @@ let tests = (
           Some(
             Common(
               TupleLabelError({
-                invalid_labels: [],
+                malformed_labels: [],
                 duplicate_labels: [],
                 unexpected_labels: ["c"],
                 typ: TupLabel(Label("c") |> Typ.temp, int_ty) |> Typ.temp,
@@ -1028,7 +1028,7 @@ let tests = (
           Some(
             Common(
               TupleLabelError({
-                invalid_labels: [],
+                malformed_labels: [],
                 duplicate_labels: [],
                 unexpected_labels: ["c"],
                 typ:

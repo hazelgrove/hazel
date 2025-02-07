@@ -70,9 +70,9 @@ type error_common =
   | Inconsistent(error_inconsistent)
   /* The error on a specific duplicate label */
   | DuplicateLabel(LabeledTuple.label, Typ.t)
-  /* Tuple/TupLabel contains invalid labels, duplicate labels, and/or unexpected labels */
+  /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or unexpected labels */
   | TupleLabelError({
-      invalid_labels: list(Any.t),
+      malformed_labels: list(Any.t),
       duplicate_labels: list(LabeledTuple.label),
       unexpected_labels: list(LabeledTuple.label),
       typ: Typ.t,
@@ -419,7 +419,7 @@ let rec status_common =
   | (UnexpectedLabel(label), _) => InHole(NoType(UnexpectedLabel(label)))
   | (
       TupleLabelError({
-        invalid_labels,
+        malformed_labels,
         duplicate_labels,
         unexpected_labels,
         typ,
@@ -428,7 +428,7 @@ let rec status_common =
     ) =>
     InHole(
       TupleLabelError({
-        invalid_labels,
+        malformed_labels,
         duplicate_labels,
         unexpected_labels,
         typ,

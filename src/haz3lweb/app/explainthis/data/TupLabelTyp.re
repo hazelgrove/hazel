@@ -23,7 +23,7 @@ let labeled_exps_coloring_ids =
   (Piece.id(p), typ_id),
 ];
 let labeled_typ: form = {
-  let explanation = "Assigns a [*label*](%s) to a [*type*](%s) within a Tuple type. Labeled types cannot exist outside of a Product. Labeled types that are not contained within a Product are autmatically converted into a singleton product.";
+  let explanation = "Assigns a [*label*](%s) to a [*type*](%s) within a Tuple type. Labeled types cannot exist outside of a Tuple. Labeled types that are not contained within a Tuple are autmatically converted into a singleton tuple.";
   {
     id: LabeledTyp,
     syntactic_form: [lab, labeled_typ(), p],
