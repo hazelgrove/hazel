@@ -52,9 +52,6 @@ module Exp = {
     IdTagged.fresh(Parens(term): Exp.term);
 
   let mk_wrapped_tuple = (ps: list(Exp.t)): Exp.t => mk_wrap(mk_tuple(ps));
-
-  let constr_of_sexp = (sexp: Sexplib.Sexp.t): Exp.t =>
-    mk_constructor(Sexplib.Sexp.to_string(sexp));
 };
 
 module Pat = {
@@ -107,6 +104,8 @@ module Pat = {
       Constructor(str, Unknown(Internal) |> Typ.temp): Pat.term,
     );
 
+  let mk_wild = (): Pat.t => IdTagged.fresh(Wild: Pat.term);
+
   let mk_tuple = (children: list(Pat.t)): Pat.t =>
     IdTagged.fresh(Tuple(children): Pat.term);
 
@@ -117,7 +116,4 @@ module Pat = {
     IdTagged.fresh(Parens(term): Pat.term);
 
   let mk_wrapped_tuple = (ps: list(Pat.t)): Pat.t => mk_wrap(mk_tuple(ps));
-
-  let constr_of_sexp = (sexp: Sexplib.Sexp.t): Pat.t =>
-    mk_constructor(Sexplib.Sexp.to_string(sexp));
 };

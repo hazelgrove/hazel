@@ -180,6 +180,9 @@
   display: grid;
   grid-template-columns: repeat(13, 1fr);
 }
+.projector.card .card-wrapper:has(.choose) {
+  z-index: 10000 !important;
+}
 .projector.card:has(.chooser) {
   justify-content: flex-start;
   align-items: flex-start;
