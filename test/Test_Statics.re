@@ -19,8 +19,8 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
     && List.equal(String.equal, err.duplicate_labels, err'.duplicate_labels)
     && List.equal(
          String.equal,
-         err.unexpected_labels,
-         err'.unexpected_labels,
+         err.invalid_labels,
+         err'.invalid_labels,
        )
     && Typ.fast_equal(err.typ, err'.typ)
   | _ =>
@@ -731,7 +731,7 @@ let tests = (
               TupleLabelError({
                 malformed_labels: [],
                 duplicate_labels: ["a", "a"],
-                unexpected_labels: [],
+                invalid_labels: [],
                 typ:
                   Prod([
                     TupLabel(
@@ -755,7 +755,7 @@ let tests = (
               TupleLabelError({
                 malformed_labels: [],
                 duplicate_labels: ["a"],
-                unexpected_labels: [],
+                invalid_labels: [],
                 typ:
                   TupLabel(Label("a") |> Typ.temp, String |> Typ.temp)
                   |> Typ.temp,
@@ -772,7 +772,7 @@ let tests = (
               TupleLabelError({
                 malformed_labels: [],
                 duplicate_labels: ["a"],
-                unexpected_labels: [],
+                invalid_labels: [],
                 typ:
                   TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
                   |> Typ.temp,
@@ -830,7 +830,7 @@ let tests = (
               TupleLabelError({
                 malformed_labels: [Exp(l1)],
                 duplicate_labels: [],
-                unexpected_labels: [],
+                invalid_labels: [],
                 typ:
                   Prod([
                     TupLabel(
@@ -853,7 +853,7 @@ let tests = (
             Common(
               TupleLabelError({
                 malformed_labels: [Exp(l1)],
-                unexpected_labels: [],
+                invalid_labels: [],
                 duplicate_labels: [],
                 typ:
                   TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
@@ -908,7 +908,7 @@ let tests = (
             Common(
               TupleLabelError({
                 malformed_labels: [Exp(l1)],
-                unexpected_labels: [],
+                invalid_labels: [],
                 duplicate_labels: [],
                 typ:
                   Prod([
@@ -934,7 +934,7 @@ let tests = (
             Common(
               TupleLabelError({
                 malformed_labels: [Exp(l1)],
-                unexpected_labels: [],
+                invalid_labels: [],
                 duplicate_labels: [],
                 typ:
                   TupLabel(Unknown(Internal) |> Typ.temp, String |> Typ.temp)
@@ -1009,7 +1009,7 @@ let tests = (
               TupleLabelError({
                 malformed_labels: [],
                 duplicate_labels: [],
-                unexpected_labels: ["c"],
+                invalid_labels: ["c"],
                 typ: TupLabel(Label("c") |> Typ.temp, int_ty) |> Typ.temp,
               }),
             ),
@@ -1030,7 +1030,7 @@ let tests = (
               TupleLabelError({
                 malformed_labels: [],
                 duplicate_labels: [],
-                unexpected_labels: ["c"],
+                invalid_labels: ["c"],
                 typ:
                   Prod([
                     TupLabel(Label("c") |> Typ.temp, int_ty) |> Typ.temp,

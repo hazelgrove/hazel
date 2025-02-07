@@ -146,16 +146,8 @@ let common_err_view =
         text(" not found in tuple's labels: "),
         ...List.map(code, labels),
       ]
-    | NoType(UnexpectedLabel(name)) => [
-        text("Unexpected Label:"),
-        code(name),
-      ]
-    | TupleLabelError({
-        malformed_labels,
-        duplicate_labels,
-        unexpected_labels,
-        _,
-      }) =>
+    | NoType(InvalidLabel(name)) => [text("Invalid label:"), code(name)]
+    | TupleLabelError({malformed_labels, duplicate_labels, invalid_labels, _}) =>
       (
         List.is_empty(malformed_labels)
           ? []
@@ -173,12 +165,9 @@ let common_err_view =
           ]
       )
       @ (
-        List.is_empty(unexpected_labels)
+        List.is_empty(invalid_labels)
           ? []
-          : [
-            text("Unexpected labels: "),
-            ...List.map(code, unexpected_labels),
-          ]
+          : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
       )
     | DuplicateLabel(name, _) => [text("Duplicate Label:"), code(name)]
     | Inconsistent(WithArrow(typ)) => [
@@ -286,7 +275,7 @@ let common_ok_view =
       ]
     | (_, Ana(Consistent({ana, syn, _}))) when ana == syn =>
       switch (syn.term) {
-      | Label(l) => [code(l), text(" is an expected label")]
+      | Label(l) => [code(l), text(" is a valid label")]
       | _ =>
         [text(":"), view_type(syn)]
         @ [text("equals expected type")]
@@ -319,7 +308,7 @@ let common_ok_view =
     | (_, Ana(Consistent({ana, syn, _}))) =>
       (
         switch (syn.term) {
-        | Label(l) => [code(l), text(" is an expected label")]
+        | Label(l) => [code(l), text(" is a valid label")]
         | _ => [
             text(":"),
             view_type(syn),
@@ -435,7 +424,7 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   | WantTuple => [text("Expect a valid tuple")]
   | WantLabel => [text("Expect a valid label")]
   | DuplicateLabels(labels, _) => [
-      text("Duplicate labels within a tuple: "),
+      text("Duplicate labels within tuple: "),
       ...List.map(code, labels),
     ]
   | Duplicate(name, _) => [text("Duplicate Label: "), code(name)]

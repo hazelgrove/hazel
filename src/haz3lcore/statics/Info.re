@@ -58,8 +58,8 @@ type error_no_type =
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   /* Sort error used as label in tuple */
   | BadLabel(Any.t)
-  /* Unexpected label in tuple */
-  | UnexpectedLabel(LabeledTuple.label);
+  /* Invalid label in tuple */
+  | InvalidLabel(LabeledTuple.label);
 
 /* Errors which can apply to either expression or patterns */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -70,11 +70,11 @@ type error_common =
   | Inconsistent(error_inconsistent)
   /* The error on a specific duplicate label */
   | DuplicateLabel(LabeledTuple.label, Typ.t)
-  /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or unexpected labels */
+  /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | TupleLabelError({
       malformed_labels: list(Any.t),
       duplicate_labels: list(LabeledTuple.label),
-      unexpected_labels: list(LabeledTuple.label),
+      invalid_labels: list(LabeledTuple.label),
       typ: Typ.t,
     });
 
@@ -416,12 +416,12 @@ let rec status_common =
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
-  | (UnexpectedLabel(label), _) => InHole(NoType(UnexpectedLabel(label)))
+  | (InvalidLabel(label), _) => InHole(NoType(InvalidLabel(label)))
   | (
       TupleLabelError({
         malformed_labels,
         duplicate_labels,
-        unexpected_labels,
+        invalid_labels,
         typ,
       }),
       _,
@@ -430,7 +430,7 @@ let rec status_common =
       TupleLabelError({
         malformed_labels,
         duplicate_labels,
-        unexpected_labels,
+        invalid_labels,
         typ,
       }),
     )
