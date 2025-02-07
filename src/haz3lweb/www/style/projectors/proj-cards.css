@@ -128,13 +128,37 @@
   }
 }
 
-.projector.card.indicated.Left > .card-wrapper > .card-scene > .card-sprite,
-.projector.card.indicated.Left .hand > *:first-child .card-sprite {
+.projector.card.indicated.Left
+  > .card-wrapper
+  > .card-scene
+  > .card-sprite.front,
+.projector.card.indicated.Left .hand > *:first-child .card-sprite.front,
+.projector.card.indicated.Right
+  > .card-wrapper.flipped
+  > .card-scene
+  > .card-sprite.front,
+.projector.card.indicated.Right
+  .hand
+  > .card-wrapper.flipped
+  > *:first-child
+  .card-sprite.front {
   animation: blink-shadow 1s infinite !important;
 }
 
-.projector.card.indicated.Right > .card-wrapper > .card-scene > .card-sprite,
-.projector.card.indicated.Right .hand > *:last-child .card-sprite {
+.projector.card.indicated.Right
+  > .card-wrapper
+  > .card-scene
+  > .card-sprite.front,
+.projector.card.indicated.Right .hand > *:last-child .card-sprite.front,
+.projector.card.indicated.Left
+  > .card-wrapper.flipped
+  > .card-scene
+  > .card-sprite.front,
+.projector.card.indicated.Left
+  .hand
+  > .card-wrapper.flipped
+  > *:first-child
+  .card-sprite.front {
   animation: blink-shadow-right 1s infinite !important;
 }
 
