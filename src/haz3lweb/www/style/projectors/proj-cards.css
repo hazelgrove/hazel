@@ -17,16 +17,25 @@
   perspective: 300px;
 }
 
-.projector.card.selected {
+.base .projector.card.selected {
   filter: brightness(0.72) sepia(1) hue-rotate(12deg) saturate(1.5);
 }
 .projector.card {
   z-index: var(--projector-z); /* hack? to get above selection shard */
 }
 
-.projector.card > svg,
-.projector.card.indicated > svg {
+.underlays .projector.card:not(.selected) > svg,
+.underlays .projector.card.indicated:not(.selected) > svg {
   display: none;
+}
+.underlays .projector.card.selected {
+  /* z-index: 3; */
+}
+.underlays .projector.card.selected > svg {
+  display: block;
+  /* filter: drop-shadow(1px 1px 0 var(--shadow-nul)); */
+  stroke-width: 0.5px;
+  stroke: var(--BR2);
 }
 
 /* Singleton */
@@ -137,6 +146,8 @@
   gap: 2px;
   width: 100%;
   height: 100%;
+  left: 3px;
+  position: relative;
 }
 
 @keyframes rock-back-and-forth {
