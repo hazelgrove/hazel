@@ -31,7 +31,14 @@ module Model = {
     | MissingStep(missing_step)
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  and missing_step = {next_steps: Calc.saved(EvaluatorStep.status)}
+  and missing_step_rewrites = {rewrites: list(Exp.t)}
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  and missing_step = {
+    next_steps: Calc.saved(EvaluatorStep.status),
+    selected_id: Calc.saved(option(Id.t)),
+    rewrites: Calc.saved(option(missing_step_rewrites)),
+  }
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   and single_step = {
@@ -74,7 +81,13 @@ module Model = {
     bindings: Calc.saved(list((string, Typ.t))),
   };
 
-  let init_missing_step = MissingStep({next_steps: Calc.Pending});
+  let init_missing_step' = {
+    next_steps: Calc.Pending,
+    rewrites: Calc.Pending,
+    selected_id: Calc.Pending,
+  };
+
+  let init_missing_step = MissingStep(init_missing_step');
 
   let init_step = {
     expr: Calc.Pending,
@@ -398,7 +411,7 @@ module Update = {
         and.calc expr = expr;
         expr
         |> CodeWithStatics.Model.mk_from_exp(~settings)
-        |> CodeWithStatics.Update.calculate(
+        |> CodeSelectable.Update.calculate(
              ~is_dynamic_term=true,
              ~settings,
              ~is_edited=true,
@@ -408,7 +421,7 @@ module Update = {
            );
       };
     let (step_kind, hidden, next_expr_state) =
-      calculate_step_kind(~settings, expr, state, step_kind, hidden);
+      calculate_step_kind(~settings, expr, state, step_kind, hidden, editor);
     let (next_step, last_expr) =
       switch (next_expr_state) {
       | Some((next_expr, next_state)) =>
@@ -437,21 +450,29 @@ module Update = {
         state: Calc.t(EvaluatorState.t),
         step_kind: Model.step_kind,
         hidden: Calc.saved(bool),
+        editor: Calc.t(CodeSelectable.Model.t),
       ) => {
     switch (step_kind) {
     | SingleStep(m) =>
-      calculate_single_step(~settings, expr, state, m, hidden)
+      calculate_single_step(~settings, expr, state, m, hidden, editor)
     | InductionStep(m) =>
       calculate_induction_step(~settings, expr, state, m, hidden)
     | ForallStep(m) =>
-      calculate_forall_step(~settings, expr, state, m, hidden)
+      calculate_forall_step(~settings, expr, state, m, hidden, editor)
     | MissingStep(m) =>
-      calculate_missing_step(~settings, expr, state, m, hidden)
+      calculate_missing_step(~settings, expr, state, m, hidden, editor)
     };
   }
 
   and calculate_missing_step =
-      (~settings, exp, state, {next_steps}: Model.missing_step, hidden)
+      (
+        ~settings,
+        exp,
+        state,
+        {next_steps, rewrites, selected_id}: Model.missing_step,
+        hidden,
+        editor: Calc.t(CodeSelectable.Model.t),
+      )
       : (
           Model.step_kind,
           Calc.t(bool),
@@ -487,17 +508,51 @@ module Update = {
           next_state: Calc.Pending,
         },
         hidden,
+        editor,
       )
-    | None => (
-        Model.MissingStep({next_steps: next_steps |> Calc.save}),
+    | None =>
+      let selected_id =
+        // hacky way to get a currently-selected id
+        {
+          let cursor_info: Cursor.cursor('a) =
+            CodeSelectable.Selection.get_cursor_info(
+              ~selection=(),
+              editor |> Calc.get_value,
+            );
+          cursor_info.info |> Option.map(Info.id_of);
+        }
+        |> Calc.set(_, selected_id);
+      let rewrites =
+        rewrites
+        |> {
+          let.calc selected_id = selected_id
+          and.calc exp = exp;
+          open OptUtil.Syntax;
+          let* id = selected_id;
+          let* exp' = ProofHacks.find_exp_id(id, exp);
+          Some(Model.{rewrites: ProofCtx.get_rewrites(Axioms.v, exp')});
+        };
+      (
+        Model.MissingStep({
+          next_steps: next_steps |> Calc.save,
+          rewrites: rewrites |> Calc.save,
+          selected_id: selected_id |> Calc.save,
+        }),
         Calc.set(true, hidden),
         None,
-      )
+      );
     };
   }
 
   and calculate_single_step =
-      (~settings, exp, state, {evalobj, next_exp, next_state}, hidden)
+      (
+        ~settings,
+        exp,
+        state,
+        {evalobj, next_exp, next_state},
+        hidden,
+        editor,
+      )
       : (
           Model.step_kind,
           Calc.t(bool),
@@ -547,8 +602,9 @@ module Update = {
            ~settings,
            exp |> Calc.make_new,
            state |> Calc.make_new,
-           Model.{next_steps: Calc.Pending},
+           Model.init_missing_step',
            hidden,
+           editor,
          )
        )
 
@@ -666,7 +722,7 @@ module Update = {
   }
 
   and calculate_forall_step =
-      (~settings, exp, state, m: Model.forall_step, hidden) =>
+      (~settings, exp, state, m: Model.forall_step, hidden, editor) =>
     {
       open OptUtil.Syntax;
       let {inner_exp, bindings}: Model.forall_step = m;
@@ -695,8 +751,9 @@ module Update = {
            ~settings,
            exp |> Calc.make_new,
            state |> Calc.make_new,
-           Model.{next_steps: Calc.Pending},
+           Model.init_missing_step',
            hidden,
+           editor,
          )
        });
 };
@@ -1081,6 +1138,20 @@ module View = {
         m,
       )
     | ForallStep(_) => []
+    | MissingStep({rewrites: Calculated(Some({rewrites: [x, ..._]})), _}) => [
+        x
+        |> Haz3lcore.ExpToSegment.(
+             exp_to_segment(
+               ~settings=
+                 Settings.of_core(~inline=false, globals.settings.core),
+             )
+           )
+        |> CodeViewable.view_segment(
+             ~globals,
+             ~sort=Exp,
+             ~shape_map=Haz3lcore.Id.Map.empty,
+           ),
+      ]
     | MissingStep(_) => []
     };
   }

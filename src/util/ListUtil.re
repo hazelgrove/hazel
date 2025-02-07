@@ -697,3 +697,15 @@ let rec remove_nth = (n: int, xs: list('a)): option(list('a)) =>
   | (n, [hd, ...tl]) =>
     remove_nth(n - 1, tl) |> Option.map(tl' => [hd, ...tl'])
   };
+
+let rec fold_left_opt =
+        (f: ('a, 'b) => option('a), acc: 'a, xs: list('b)): option('a) => {
+  switch (xs) {
+  | [] => Some(acc)
+  | [x, ...xs] =>
+    switch (f(acc, x)) {
+    | None => None
+    | Some(acc') => fold_left_opt(f, acc', xs)
+    }
+  };
+};
