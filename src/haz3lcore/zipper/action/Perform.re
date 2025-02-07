@@ -89,14 +89,11 @@ let go_z =
 
   switch (a) {
   | Paste(String(clipboard)) =>
-    Animation.request([Animation.Actions.move("caret")]);
     switch (paste(z, clipboard)) {
     | None => Error(CantPaste)
     | Some(z) => Ok(z)
-    };
-  | Paste(Segment(segment)) =>
-    Animation.request([Animation.Actions.move("caret")]);
-    Ok(paste_segment(z, segment));
+    }
+  | Paste(Segment(segment)) => Ok(paste_segment(z, segment))
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
     switch (Destruct.go(Left, z)) {
@@ -128,8 +125,7 @@ let go_z =
       z,
     )
   | Move(d) =>
-    Animation.request([Animation.Actions.move("caret")]);
-    Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move);
+    Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | Jump(jump_target) =>
     (
       switch (jump_target) {
@@ -143,9 +139,7 @@ let go_z =
       }
     )
     |> Result.of_option(~error=Action.Failure.Cant_move)
-  | Unselect(Some(d)) =>
-    Animation.request([Animation.Actions.move("caret")]);
-    Ok(Zipper.directional_unselect(d, z));
+  | Unselect(Some(d)) => Ok(Zipper.directional_unselect(d, z))
   | Unselect(None) =>
     let z = Zipper.directional_unselect(z.selection.focus, z);
     Ok(z);
@@ -160,31 +154,27 @@ let go_z =
     | None => Error(Action.Failure.Cant_select)
     };
   | Select(Term(Current)) =>
-    Animation.request([Animation.Actions.move("caret")]);
     switch (Select.current_term(z)) {
     | None => Error(Cant_select)
     | Some(z) => Ok(z)
-    };
+    }
   | Select(Smart(n)) =>
-    Animation.request([Animation.Actions.move("caret")]);
     switch (smart_select(n, z)) {
     | None => Error(Cant_select)
     | Some(z) => Ok(z)
-    };
+    }
   | Select(Term(Id(id, d))) =>
-    Animation.request([Animation.Actions.move("caret")]);
     switch (Select.term(id, z)) {
     | Some(z) =>
       let z = d == Right ? z : Zipper.toggle_focus(z);
       Ok(z);
     | None => Error(Action.Failure.Cant_select)
-    };
+    }
   | Select(Tile(Current)) =>
-    Animation.request([Animation.Actions.move("caret")]);
     switch (Select.current_tile(z)) {
     | None => Error(Cant_select)
     | Some(z) => Ok(z)
-    };
+    }
   | Select(Tile(Id(id, d))) =>
     switch (Select.tile(id, z)) {
     | Some(z) =>
@@ -193,8 +183,7 @@ let go_z =
     | None => Error(Action.Failure.Cant_select)
     }
   | Select(Resize(d)) =>
-    Animation.request([Animation.Actions.move("caret")]);
-    Select.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_select);
+    Select.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_select)
   | Destruct(d) =>
     z
     |> Destruct.go(d)
