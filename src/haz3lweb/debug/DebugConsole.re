@@ -14,7 +14,7 @@ let print =
   switch (key) {
   | "F1" => zipper |> Zipper.show |> print
   | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
-  | "F3" => term |> UExp.show |> print
+  | "F3" => term |> Exp.show |> print
   | "F4" => map |> Statics.Map.show |> print
   | "F5" =>
     let env_init = Builtins.env_init;

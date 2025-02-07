@@ -1576,15 +1576,15 @@ let get_doc =
       | FixF(pat, body, _) =>
         message_single(
           FixFExp.single(
-            ~pat_id=UPat.rep_id(pat),
-            ~body_id=UExp.rep_id(body),
+            ~pat_id=Pat.rep_id(pat),
+            ~body_id=Exp.rep_id(body),
           ),
         )
       | Ap(Reverse, arg, fn) =>
         message_single(
           PipelineExp.single(
-            ~arg_id=UExp.rep_id(arg),
-            ~fn_id=UExp.rep_id(fn),
+            ~arg_id=Exp.rep_id(arg),
+            ~fn_id=Exp.rep_id(fn),
           ),
         )
       | TypAp(f, typ) =>
@@ -1721,29 +1721,29 @@ let get_doc =
       | Filter(Filter({act: (Step, One), pat}), body) =>
         message_single(
           FilterExp.filter_pause(
-            ~p_id=UExp.rep_id(pat),
-            ~body_id=UExp.rep_id(body),
+            ~p_id=Exp.rep_id(pat),
+            ~body_id=Exp.rep_id(body),
           ),
         )
       | Filter(Filter({act: (Step, All), pat}), body) =>
         message_single(
           FilterExp.filter_debug(
-            ~p_id=UExp.rep_id(pat),
-            ~body_id=UExp.rep_id(body),
+            ~p_id=Exp.rep_id(pat),
+            ~body_id=Exp.rep_id(body),
           ),
         )
       | Filter(Filter({act: (Eval, All), pat}), body) =>
         message_single(
           FilterExp.filter_eval(
-            ~p_id=UExp.rep_id(pat),
-            ~body_id=UExp.rep_id(body),
+            ~p_id=Exp.rep_id(pat),
+            ~body_id=Exp.rep_id(body),
           ),
         )
       | Filter(Filter({act: (Eval, One), pat}), body) =>
         message_single(
           FilterExp.filter_hide(
-            ~p_id=UExp.rep_id(pat),
-            ~body_id=UExp.rep_id(body),
+            ~p_id=Exp.rep_id(pat),
+            ~body_id=Exp.rep_id(body),
           ),
         )
       | Filter(_) => simple("Internal expression")
@@ -1825,7 +1825,7 @@ let get_doc =
             OpExp.int_un_minus,
           );
         | Meta(Unquote) =>
-          message_single(FilterExp.unquote(~sel_id=UExp.rep_id(exp)))
+          message_single(FilterExp.unquote(~sel_id=Exp.rep_id(exp)))
         }
       | BinOp(op, left, right) =>
         open OpExp;

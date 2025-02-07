@@ -1,4 +1,3 @@
-open Haz3lcore;
 open Util;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
@@ -8,11 +7,6 @@ module Model = {
   type t = {
     current: int,
     scratchpads: list((string, CellEditor.Model.t)),
-  };
-
-  let get_spliced_elabs = model => {
-    let (key, ed) = List.nth(model.scratchpads, model.current);
-    [(key, Elaborator.Elaboration.{d: ed.editor.statics.term})];
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]

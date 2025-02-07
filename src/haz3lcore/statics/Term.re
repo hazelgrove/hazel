@@ -100,7 +100,7 @@ module Pat = {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
     | Cast(pat, typ, _) =>
-      is_var(pat) && (UTyp.is_arrow(typ) || Typ.is_forall(typ))
+      is_var(pat) && (Typ.is_arrow(typ) || Typ.is_forall(typ))
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -189,7 +189,7 @@ module Pat = {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
     | Cast(pat, t1, _) =>
-      if (Typ.is_arrow(t1) || UTyp.is_forall(t1)) {
+      if (Typ.is_arrow(t1) || Typ.is_forall(t1)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
@@ -618,19 +618,17 @@ module Exp = {
               new_bound_vars,
               e,
             )
-          | Fun(p, e, Some(env), n) =>
+          | Fun(p, e, t, n) =>
             let pat_bound_vars = Pat.bound_vars(p);
             Fun(
               p,
               substitute_closures(
-                env
-                |> ClosureEnvironment.map_of
-                |> Environment.without_keys(pat_bound_vars),
+                env |> Environment.without_keys(pat_bound_vars),
                 pat_bound_vars,
                 pat_bound_vars @ new_bound_vars,
                 e,
               ),
-              None,
+              t,
               n,
             )
             |> rewrap;
@@ -681,20 +679,6 @@ module Exp = {
                  }),
             )
             |> rewrap
-          | Fun(p, e, None, n) =>
-            let pat_bound_vars = Pat.bound_vars(p);
-            Fun(
-              p,
-              substitute_closures(
-                env |> Environment.without_keys(pat_bound_vars),
-                pat_bound_vars @ old_bound_vars,
-                pat_bound_vars @ new_bound_vars,
-                e,
-              ),
-              None,
-              n,
-            )
-            |> rewrap;
           | FixF(p, e, None) =>
             let pat_bound_vars = Pat.bound_vars(p);
             FixF(
@@ -791,7 +775,7 @@ module Rul = {
 
   let rep_id = (~any_ids, tm) =>
     switch (ids(~any_ids, tm)) {
-    | [] => raise(Invalid_argument("UExp.rep_id"))
+    | [] => raise(Invalid_argument("Exp.rep_id"))
     | [id, ..._] => id
     };
 };
@@ -819,7 +803,6 @@ module Any = {
     | Typ(tm) => tm.ids
     | TPat(tm) => tm.ids
     | Rul(tm) => Rul.ids(~any_ids=ids, tm)
-    | Nul ()
     | Any () => [];
 
   // Terms may consist of multiple tiles, eg the commas in an n-tuple,
@@ -840,6 +823,5 @@ module Any = {
     | Typ(tm) => Typ.rep_id(tm)
     | TPat(tm) => TPat.rep_id(tm)
     | Rul(tm) => Rul.rep_id(~any_ids=ids, tm)
-    | Nul ()
     | Any () => raise(Invalid_argument("Term.rep_id"));
 };

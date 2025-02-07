@@ -35,7 +35,7 @@ module Model = {
         : CellEditor.Model.t => {
       CellEditor.Model.mk_from_manager(item.editor);
     };
-    let term_of = (editor: EditorManager.Model.t): UExp.t =>
+    let term_of = (editor: EditorManager.Model.t): Exp.t =>
       (EditorManager.Update.assemble(editor) |> MakeTerm.go).term;
     let cells =
       Exercise.stitch_term(term_of, editors)
@@ -190,7 +190,7 @@ module Update = {
 
   let calculate =
       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
-    let term_of = (editor: EditorManager.Model.t): UExp.t =>
+    let term_of = (editor: EditorManager.Model.t): Exp.t =>
       (EditorManager.Update.assemble(editor) |> MakeTerm.go).term;
     let stitched_elabs = Exercise.stitch_term(term_of, model.editors);
     let worker_request = ref([]);

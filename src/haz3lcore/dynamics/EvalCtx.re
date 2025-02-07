@@ -8,7 +8,7 @@ type term =
   | Seq2(DHExp.t, t)
   | Let1(Pat.t, t, DHExp.t)
   | Let2(Pat.t, DHExp.t, t)
-  | Fun(Pat.t, t, option(ClosureEnvironment.t), option(Var.t))
+  | Fun(Pat.t, t, option(Typ.t), option(Var.t))
   | FixF(Pat.t, t, option(ClosureEnvironment.t))
   | TypAp(t, Typ.t)
   | Ap1(Operators.ap_direction, t, DHExp.t)
@@ -32,12 +32,12 @@ type term =
   | Cast(t, Typ.t, Typ.t)
   | FailedCast(t, Typ.t, Typ.t)
   | DynamicErrorHole(t, InvalidOperationError.t)
-  | MatchScrut(t, list((UPat.t, DHExp.t)))
+  | MatchScrut(t, list((Pat.t, DHExp.t)))
   | MatchRule(
       DHExp.t,
-      UPat.t,
+      Pat.t,
       t,
-      (list((UPat.t, DHExp.t)), list((UPat.t, DHExp.t))),
+      (list((Pat.t, DHExp.t)), list((Pat.t, DHExp.t))),
     )
 and t =
   | Mark
@@ -124,9 +124,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | Let2(dp, d1, ctx) =>
       let d = compose(ctx, d);
       Let(dp, d1, d) |> wrap;
-    | Fun(dp, ctx, env, v) =>
+    | Fun(dp, ctx, typ, v) =>
       let d = compose(ctx, d);
-      Fun(dp, d, env, v) |> wrap;
+      Fun(dp, d, typ, v) |> wrap;
     | FixF(v, ctx, env) =>
       let d = compose(ctx, d);
       FixF(v, d, env) |> wrap;

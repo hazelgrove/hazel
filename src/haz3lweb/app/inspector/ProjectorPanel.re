@@ -43,7 +43,7 @@ let applicable_projectors: option(Info.t) => list(Base.kind) =
 
 let toggle_projector = (active, id, ci: option(Info.t)): Action.project =>
   active || applicable_projectors(ci) == []
-    ? Remove(id) : SetIndicated(List.hd(applicable_projectors(ci)));
+    ? Remove(id) : SetIndicated(List.hd(applicable_projectors(ci)), id);
 
 let toggle_view =
     (
