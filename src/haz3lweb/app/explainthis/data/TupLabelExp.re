@@ -22,7 +22,7 @@ let labeled_exps_coloring_ids =
   (Piece.id(e), exp_id),
 ];
 let labeled_exp: form = {
-  let explanation = "Assigns a [*label*](%s) to an [*expression*](%s) within a tuple. Labeled expressions cannot exist outside of a tuple. Labeled expressions that are not contained within a tuple are autmatically converted into a singleton tuple.";
+  let explanation = "Assigns a [*label*](%s) to an [*expression*](%s) appearing as an element within a tuple. Labeled tuple items cannot exist outside of a tuple. Labeled tuple items that are not contained within a tuple are autmatically converted into a singleton tuple.";
   {
     id: LabeledExp,
     syntactic_form: [lab, labeled_exp(), e],
