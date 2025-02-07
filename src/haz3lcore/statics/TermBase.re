@@ -131,6 +131,7 @@ and typ_term =
   | Prod(list(typ_t))
   | Parens(typ_t)
   | Ap(typ_t, typ_t)
+  | ParamAp(typ_t,typ_t)
   | Rec(tpat_t, typ_t)
   | Forall(tpat_t, typ_t)
 and typ_t = IdTagged.t(typ_term)
@@ -653,6 +654,7 @@ and Typ: {
           )
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
+        | ParamAp(t1,t2) => ParamAp(typ_map_term(t1),typ_map_term(t2))
         },
     };
     x |> f_typ(rec_call);
@@ -684,6 +686,7 @@ and Typ: {
       | Var(y) => str == y ? s : Var(y) |> rewrap
       | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
       | Ap(t1, t2) => Ap(subst(s, x, t1), subst(s, x, t2)) |> rewrap
+      | ParamAp(t1,t2) => ParamAp( subst(s,x,t1), subst(s,x,t2)) |> rewrap
       };
     | None => ty
     };
@@ -733,6 +736,8 @@ and Typ: {
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
+    | (ParamAp(t1,t2),ParamAp(t1',t2')) => eq_internal(n,t1,t1') && eq_internal(n,t2,t2')
+    | (ParamAp(_,_),_ ) => false
     };
   };
 
