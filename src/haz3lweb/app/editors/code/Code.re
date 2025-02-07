@@ -34,7 +34,6 @@ let of_delim' =
       let token =
         num_lb == 0
           ? token : token ++ StringUtil.repeat(indent, Unicode.nbsp);
-      //TODO: deffered linebreaks
       [
         span(
           ~attrs=[Attr.classes(["token", cls, plurality])],
@@ -55,25 +54,32 @@ let of_delim = (is_consistent, indent, t: Piece.tile, i: int): list(Node.t) =>
 
 let space = " "; //Unicode.nbsp;
 
+let secondary_text =
+  Core.Memo.general(~cache_size_bound=10000, (cls, str) =>
+    span_c(cls, [text(str)])
+  );
+
 let of_secondary =
-    //Core.Memo.general(  ~cache_size_bound=10000,
-    ((content, secondary_icons, indent, is_in_buffer)) =>
-  if (is_in_buffer) {
-    [span_c("in-buffer", [Node.text(Secondary.get_string(content))])];
-  } else if (String.equal(Secondary.get_string(content), Form.linebreak)) {
-    let str = secondary_icons ? ">" : "";
-    [span_c("linebreak", [text(str)])]
+    (
+      (
+        content: Secondary.secondary_content,
+        secondary_icons: bool,
+        indent: int,
+        is_in_buffer: bool,
+      ),
+    ) =>
+  switch (content) {
+  | Whitespace(str) when str == Form.linebreak =>
+    [secondary_text("linebreak", secondary_icons ? ">" : "")]
     @ List.init(1 + consume_deferred_linebreaks(), _ => Node.text("\n"))
-    @ [Node.text(StringUtil.repeat(indent, space))];
-  } else if (String.equal(Secondary.get_string(content), Form.space)) {
-    let str = secondary_icons ? "·" : space;
-    [span_c("whitespace", [text(str)])];
-  } else if (Secondary.content_is_comment(content)) {
-    [span_c("comment", [Node.text(Secondary.get_string(content))])];
-  } else {
-    [span_c("secondary", [Node.text(Secondary.get_string(content))])];
+    @ [Node.text(StringUtil.repeat(indent, space))]
+  | Whitespace(str) when str == Form.space => [
+      secondary_text("whitespace", secondary_icons ? "·" : space),
+    ]
+  | Whitespace(_) => failwith("Code: Unrecognized Secondary")
+  | Comment(str) when is_in_buffer => [secondary_text("in-buffer", str)]
+  | Comment(str) => [secondary_text("comment", str)]
   };
-//);
 
 let of_projector = (expected_sort, indent, shape: ProjectorCore.Shape.t) => {
   let token =
@@ -128,11 +134,12 @@ module Text =
     | Tile(t) => of_tile(buffer_ids, expected_sort, t)
     | Grout(g) => [EmptyHoleDec.view(M.font_metrics, g.shape)]
     | Secondary({content, id}) =>
+      let indent = m(p).last.col;
       let is_in_buffer = List.mem(id, buffer_ids);
       of_secondary((
         content,
         M.settings.secondary_icons,
-        m(p).last.col,
+        indent,
         is_in_buffer,
       ));
     | Projector(p) =>
