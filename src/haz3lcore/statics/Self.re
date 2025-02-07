@@ -35,11 +35,11 @@ type t =
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
   | UnexpectedLabel(LabeledTuple.label) /* Unexpected label in a labeled tuple */
   | TupleLabelError({
-      invalid_labels: list(Any.t),
+      malformed_labels: list(Any.t), // Labels that are not of the right syntactic form
       duplicate_labels: list(LabeledTuple.label),
-      unexpected_labels: list(LabeledTuple.label),
+      unexpected_labels: list(LabeledTuple.label), // Labels that are present but aren't present in the analyzed type
       typ: Typ.t,
-    }) /* Tuple/TupLabel contains invalid labels, duplicate labels, and/or unexpected labels */
+    }) /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or unexpected labels */
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
       name: Constructor.t,
