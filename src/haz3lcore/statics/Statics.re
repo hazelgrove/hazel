@@ -438,14 +438,9 @@ and uexp_to_info_map =
   | Let(p, def, body) =>
     switch (check_annotated_function(p)) {
     | Some((f_name, f_args, f_type)) =>
-      let def: UExp.t = {
-        ids: p.ids, // the ID of the original application statement
-        term: UExp.Fun(f_args, def, None, None),
-        copied: false,
-      };
+      let def: UExp.t = UExp.Fun(f_args, def, None, None) |> UExp.fresh;
       let p: UPat.t =
-        UPat.Cast(f_name, f_type, Typ.temp(Unknown(Internal)))
-        |> IdTagged.fresh;
+        UPat.Cast(f_name, f_type, Typ.temp(Unknown(Internal))) |> UPat.fresh;
       let new_binding: UExp.t = {
         ids,
         copied: false,
