@@ -171,7 +171,13 @@ let unlabeled_tuple_to_labeled_fails =
               Unknown(Internal) |> Typ.fresh,
             )
             |> Pat.fresh,
-            {ids: [reusable_id], term: Var("x"), copied: false},
+            {
+              term: Var("x"),
+              annotation: {
+                ids: [reusable_id],
+                copied: false,
+              },
+            },
             Var("y") |> Exp.fresh,
           )
           |> Exp.fresh,
@@ -205,7 +211,13 @@ let simple_inconsistency =
             Unknown(Internal) |> Typ.fresh,
           )
           |> Pat.fresh,
-          {ids: [reusable_id], term: Bool(true), copied: false},
+          {
+            term: Bool(true),
+            annotation: {
+              ids: [reusable_id],
+              copied: false,
+            },
+          },
           Var("y") |> Exp.fresh,
         )
         |> Exp.fresh,
