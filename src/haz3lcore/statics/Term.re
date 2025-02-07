@@ -315,17 +315,6 @@ module Pat = {
          | None => {id: Id.invalid, name}
          }
        );
-
-  let rec strip_wraps = (p: t): t => {
-    switch (p.term) {
-    | Parens(inner) =>
-      switch (inner.term) {
-      | Tuple(_) => p
-      | _ => strip_wraps(inner)
-      }
-    | _ => p
-    };
-  };
 };
 
 module Exp = {
@@ -791,19 +780,6 @@ module Exp = {
     | Probe(e, _) => get_fn_name(e)
     | TypFun(_, _, n) => n
     | _ => None
-    };
-  };
-
-  /* Strips outer parentheses, unless the
-   * innermost outer parenthesis is on a tuple */
-  let rec strip_wraps = (e: t): t => {
-    switch (e.term) {
-    | Parens(inner) =>
-      switch (inner.term) {
-      | Tuple(_) => e
-      | _ => strip_wraps(inner)
-      }
-    | _ => e
     };
   };
 };
