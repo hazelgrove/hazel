@@ -628,6 +628,7 @@ let fold_if = (condition, pieces) =>
       ProjectorPerform.Update.init(
         Fold,
         mk_form("parens_exp", Id.mk(), [pieces]),
+        Id.mk(),
       ),
     ];
   } else {

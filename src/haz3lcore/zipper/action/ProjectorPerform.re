@@ -10,14 +10,14 @@ module Update = {
     | x => x
     };
 
-  let init = (kind: t, syntax: syntax): syntax => {
+  let init = (kind: t, syntax: syntax, projector_id): syntax => {
     /* We set the projector id equal to the Piece id for convienence
      * including cursor-info association. We maintain this invariant
      * when we update a projector's contained syntax */
     let (module P) = to_module(kind);
     switch (P.can_project(syntax) && minimum_projection_condition(syntax)) {
     | false => syntax
-    | true => Projector({id: Piece.id(syntax), kind, model: P.init, syntax})
+    | true => Projector({id: projector_id, kind, model: P.init, syntax})
     };
   };
 
@@ -30,10 +30,13 @@ module Update = {
     };
   };
 
-  let add_projector = (kind: Base.kind, id: Id.t, syntax: syntax) =>
+  let add_projector =
+      (kind: Base.kind, projector_id, piece_id: Id.t, syntax: syntax) =>
     switch (syntax) {
-    | Projector(pr) when Piece.id(syntax) == id => init(kind, pr.syntax)
-    | syntax when Piece.id(syntax) == id => init(kind, syntax)
+    | Projector(pr) when Piece.id(syntax) == piece_id =>
+      init(kind, pr.syntax, projector_id)
+    | syntax when Piece.id(syntax) == piece_id =>
+      init(kind, syntax, projector_id)
     | x => x
     };
 
@@ -43,10 +46,12 @@ module Update = {
     | x => x
     };
 
-  let add_or_remove_projector = (kind: Base.kind, id: Id.t, syntax: syntax) =>
+  let add_or_remove_projector =
+      (kind: Base.kind, piece_id: Id.t, projector_id, syntax: syntax) =>
     switch (syntax) {
-    | Projector(pr) when Piece.id(syntax) == id => pr.syntax
-    | syntax when Piece.id(syntax) == id => init(kind, syntax)
+    | Projector(pr) when Piece.id(syntax) == piece_id => pr.syntax
+    | syntax when Piece.id(syntax) == piece_id =>
+      init(kind, syntax, projector_id)
     | x => x
     };
 
@@ -61,11 +66,23 @@ module Update = {
       : ZipperBase.t =>
     ZipperBase.MapPiece.fast_local(update_piece(f, id), id, z);
 
-  let add = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
-    ZipperBase.MapPiece.fast_local(add_projector(k, id), id, z);
+  let add =
+      (k: Base.kind, projector_id, piece_id: Id.t, z: ZipperBase.t)
+      : ZipperBase.t =>
+    ZipperBase.MapPiece.fast_local(
+      add_projector(k, projector_id, piece_id),
+      piece_id,
+      z,
+    );
 
-  let add_or_remove = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
-    ZipperBase.MapPiece.fast_local(add_or_remove_projector(k, id), id, z);
+  let add_or_remove =
+      (k: Base.kind, piece_id: Id.t, projector_id, z: ZipperBase.t)
+      : ZipperBase.t =>
+    ZipperBase.MapPiece.fast_local(
+      add_or_remove_projector(k, piece_id, projector_id),
+      piece_id,
+      z,
+    );
 
   let remove = (id: Id.t, z: ZipperBase.t): ZipperBase.t =>
     ZipperBase.MapPiece.fast_local(remove_projector(id), id, z);
@@ -92,16 +109,24 @@ let go =
     : result(ZipperBase.t, Action.Failure.t) => {
   switch (a) {
   | SetIndicated(p, id) =>
+    print_endline("SetIndicated");
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)
-    | Some((_, d, rel)) =>
-      Ok(move_out_of_piece(d, rel, z) |> Update.add(p, id))
-    }
+    | Some((piece, d, rel)) =>
+      print_endline("oldz:" ++ Zipper.show(z));
+      print_endline("piece_id:" ++ Id.to_string(Piece.id(piece)));
+      print_endline("id:" ++ Id.to_string(id));
+      let new_z =
+        move_out_of_piece(d, rel, z) |> Update.add(p, id, Piece.id(piece));
+      print_endline("newz:" ++ Zipper.show(new_z));
+      Ok(new_z);
+    };
   | ToggleIndicated(p, id) =>
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)
     | Some((_, d, rel)) =>
-      Ok(move_out_of_piece(d, rel, z) |> Update.add_or_remove(p, id))
+      //TODO: projector id?
+      Ok(move_out_of_piece(d, rel, z) |> Update.add_or_remove(p, id, id))
     }
   | Remove(id) => Ok(Update.remove(id, z))
   | SetSyntax(id, syntax) =>
