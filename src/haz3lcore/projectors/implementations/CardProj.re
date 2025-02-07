@@ -5,7 +5,7 @@ open ProjectorBase;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
   | Show
-  | Choose
+  | Choose(int)
   | Flipped;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -22,7 +22,7 @@ let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type suit =
-  | UnknownS(string)
+  | UnknownS
   | Hearts
   | Diamonds
   | Clubs
@@ -30,7 +30,7 @@ type suit =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type rank =
-  | UnknownR(string)
+  | UnknownR
   | Ace
   | Two
   | Three
@@ -64,13 +64,46 @@ type sort =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type state = (sort, collection);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type update =
+  | ReplaceCard(card)
+  | ReplaceCardInHand(int, card);
+
+//TODO: cleanup
+let nth_card_of_hand = (hand: hand, i: int): option(card) =>
+  switch (ListUtil.split_n_opt(i, hand)) {
+  | None => None
+  | Some((_, [])) => None
+  | Some((_, [card, ..._])) => Some(card)
+  };
+
+//TODO: cleanup
+let update_nth_card_of_hand = (hand: hand, i: int, card: card): hand =>
+  switch (ListUtil.split_n_opt(i, hand)) {
+  | None => hand
+  | Some((prefix, [_, ...suffix])) => prefix @ [card, ...suffix]
+  | Some((_, [])) => hand
+  };
+
+let update = ((sort, collection): state, update: update): state =>
+  switch (update) {
+  | ReplaceCard(new_card) =>
+    switch (collection) {
+    | Card(_) => (sort, Card(new_card))
+    | Hand(_) => (sort, collection)
+    }
+  | ReplaceCardInHand(i, card) =>
+    switch (collection) {
+    | Card(_) => (sort, collection)
+    | Hand(hand) => (sort, Hand(update_nth_card_of_hand(hand, i, card)))
+    }
+  };
+
 let sort_of = (sort: Sort.t): sort =>
   switch (sort) {
   | Sort.Exp => Exp
   | Sort.Pat => Pat
-  | _ =>
-    print_endline("WARNING:Card: Invalid sort: " ++ Sort.show(sort));
-    Exp;
+  | _ => Exp
   };
 
 let to_sort = (sort: sort): Sort.t =>
@@ -83,14 +116,20 @@ module SyntaxTerm = {
   open SyntaxUtil;
   let card_to_exp = ((suit, rank): card): Term.Exp.t =>
     Exp.mk_wrapped_tuple([
-      Exp.constr_of_sexp(sexp_of_suit(suit)),
-      Exp.constr_of_sexp(sexp_of_rank(rank)),
+      Exp.mk_constructor(Sexplib.Sexp.to_string(sexp_of_suit(suit))),
+      Exp.mk_constructor(Sexplib.Sexp.to_string(sexp_of_rank(rank))),
     ]);
 
   let card_to_pat = ((suit, rank): card): Term.Pat.t =>
     Pat.mk_wrapped_tuple([
-      Pat.constr_of_sexp(sexp_of_suit(suit)),
-      Pat.constr_of_sexp(sexp_of_rank(rank)),
+      switch (suit) {
+      | UnknownS => Pat.mk_wild()
+      | _ => Pat.mk_constructor(Sexplib.Sexp.to_string(sexp_of_suit(suit)))
+      },
+      switch (rank) {
+      | UnknownR => Pat.mk_wild()
+      | _ => Pat.mk_constructor(Sexplib.Sexp.to_string(sexp_of_rank(rank)))
+      },
     ]);
 
   let syntax_to_any = ((sort, collection): state): Term.Any.t => {
@@ -153,11 +192,11 @@ module SyntaxTerm = {
         Some((s, r));
       | (Constructor(suit, _), Wild) =>
         let* s = string_to_suit(suit);
-        Some((s, UnknownR("")));
+        Some((s, UnknownR));
       | (Wild, Constructor(rank, _)) =>
         let* r = string_to_rank(rank);
-        Some((UnknownS(""), r));
-      | (Wild, Wild) => Some((UnknownS(""), UnknownR("")))
+        Some((UnknownS, r));
+      | (Wild, Wild) => Some((UnknownS, UnknownR))
       | _ => None
       }
     | _ => None
@@ -223,9 +262,10 @@ module SyntaxTerm = {
     | Some((_, Card(_)))
     | Some((_, Hand([_]))) => 4
     | Some((_, Hand(hand))) =>
-      //TODO: Better formula / card dimensions / offset
-      let handlen: float = List.length(hand) |> Float.of_int;
-      Float.ceil(3.5 +. 81. /. 100. *. (handlen -. 1.)) |> Float.to_int;
+      Float.ceil(
+        3.5 +. 81. /. 100. *. (Float.of_int(List.length(hand)) -. 1.),
+      )
+      |> Float.to_int
     };
 };
 
@@ -235,7 +275,7 @@ let suit_to_int = (suit: suit): int =>
   | Clubs => 1
   | Diamonds => 2
   | Spades => 3
-  | UnknownS(_) => 4
+  | UnknownS => 4
   };
 
 let rank_to_int = (rank: rank): int =>
@@ -253,7 +293,7 @@ let rank_to_int = (rank: rank): int =>
   | Queen => 11
   | King => 12
   | Ace => 13
-  | UnknownR(_) => 14
+  | UnknownR => 14
   };
 
 module Card = {
@@ -317,12 +357,12 @@ module Chooser = {
     let maybe_rank =
       switch (sort) {
       | Exp => []
-      | Pat => [UnknownR("_")] //TODO
+      | Pat => [UnknownR]
       };
     let maybe_suit: list(suit) =
       switch (sort) {
       | Exp => []
-      | Pat => [UnknownS("_")] //TODO
+      | Pat => [UnknownS]
       };
     let suits: list(suit) = [Hearts, Spades, Diamonds, Clubs] @ maybe_suit;
     let ranks: list(rank) =
@@ -349,21 +389,31 @@ module Chooser = {
   };
 
   let card_wrapper =
-      (info, ~indicated, parent, sort: Sort.t, col: int, row: int, card: card)
+      (
+        info,
+        ~indicated,
+        parent,
+        sort: Sort.t,
+        col: int,
+        row: int,
+        card: card,
+        index: option(int),
+      )
       : Node.t =>
     Node.div(
       ~attrs=[
         Attr.classes(["card-wrapper"] @ (indicated ? ["indicated"] : [])),
         Attr.on_mousedown(_ => {
-          //TODO: make this work for hands
-          switch (SyntaxTerm.put(info, (sort_of(sort), Card(card)))) {
+          let state = SyntaxTerm.get(info);
+          let new_state =
+            switch (index) {
+            | None => update(state, ReplaceCard(card))
+            | Some(index) => update(state, ReplaceCardInHand(index, card))
+            };
+          switch (SyntaxTerm.put(info, new_state)) {
           | None => Effect.Ignore
-          | Some(seg) =>
-            print_endline("putting seg:" ++ Segment.show(seg));
-            Effect.Many([parent(SetSyntax(seg))]);
-          // Effect.Prevent_default,
-          // Effect.Stop_propagation,
-          }
+          | Some(seg) => parent(SetSyntax(seg))
+          };
         }),
         Attr.create(
           "style",
@@ -378,7 +428,8 @@ module Chooser = {
       [Card.view(sort, card)],
     );
 
-  let view = (info, parent, sort: Sort.t, card: card): Node.t =>
+  let view =
+      (info, parent, sort: Sort.t, card: card, index: option(int)): Node.t =>
     Node.div(
       ~attrs=[Attr.classes(["chooser", Sort.show(sort)])],
       List.mapi(
@@ -393,6 +444,7 @@ module Chooser = {
                 col,
                 r,
                 c,
+                index,
               ),
             row,
           ),
@@ -417,14 +469,14 @@ module Singleton = {
       switch (Js_of_ocaml.Js.Unsafe.coerce(evt)##.detail == 2) {
       | _ when Js_of_ocaml.Js.to_bool(evt##.shiftKey) =>
         switch (mode) {
-        | Choose
+        | Choose(_)
         | Flipped => local(SetMode(Show))
-        | Show => local(SetMode(Choose))
+        | Show => local(SetMode(Choose(0)))
         }
       | _ =>
         switch (mode) {
         | Flipped
-        | Choose => local(SetMode(Show))
+        | Choose(_) => local(SetMode(Show))
         | _ => local(SetMode(Flipped))
         }
       };
@@ -437,7 +489,7 @@ module Singleton = {
             switch (mode) {
             | Show => ["show"]
             | Flipped => ["flipped"]
-            | Choose => ["choose"]
+            | Choose(_) => ["choose"]
             }
           ),
         ),
@@ -446,7 +498,7 @@ module Singleton = {
       [
         switch (mode) {
         | Show => Card.view(sort, card)
-        | Choose => Chooser.view(info, parent, sort, card)
+        | Choose(_) => Chooser.view(info, parent, sort, card, None)
         | Flipped => Card.view(sort, card)
         },
       ],
@@ -457,24 +509,29 @@ module Singleton = {
 module CardInHand = {
   let view =
       (
-        _info,
+        info,
         _elem_ids,
         mode,
-        _parent,
+        parent,
         local: action => Ui_effect.t(unit),
         sort: Sort.t,
         card: card,
+        index: int,
       )
       : Node.t => {
     let on_mousedown = evt =>
       switch (Js_of_ocaml.Js.Unsafe.coerce(evt)##.detail == 2) {
       | _ when Js_of_ocaml.Js.to_bool(evt##.shiftKey) =>
         switch (mode) {
-        | Choose
+        | Choose(_)
         | Flipped => local(SetMode(Show))
-        | Show => local(SetMode(Choose))
+        | Show => local(SetMode(Choose(index)))
         }
-      | _ => Effect.Ignore
+      | _ =>
+        switch (mode) {
+        | Choose(_) => local(SetMode(Show))
+        | _ => Effect.Ignore
+        }
       };
 
     Node.div(
@@ -485,7 +542,7 @@ module CardInHand = {
             switch (mode) {
             | Show => ["show"]
             | Flipped => ["flipped"]
-            | Choose => ["choose"]
+            | Choose(cidx) => cidx == index ? ["choose"] : []
             }
           ),
         ),
@@ -494,9 +551,10 @@ module CardInHand = {
       [
         switch (mode) {
         | Show => Card.view(sort, card)
-        | Choose => Card.view(sort, card)
-        //TODO: choosing for hands
-        //Chooser.view(info, parent, sort, card)
+        | Choose(cidx) =>
+          cidx == index
+            ? Chooser.view(info, parent, sort, card, Some(index))
+            : Card.view(sort, card)
         | Flipped => Card.view(sort, card)
         },
       ],
@@ -538,7 +596,18 @@ module Hand = {
           ),
         ),
       ],
-      [CardInHand.view(info, elem_ids, mode, parent, local, sort, card)],
+      [
+        CardInHand.view(
+          info,
+          elem_ids,
+          mode,
+          parent,
+          local,
+          sort,
+          card,
+          index,
+        ),
+      ],
     );
 
   let view = (info, mode, parent, local, sort: Sort.t, hand: hand): Node.t => {
