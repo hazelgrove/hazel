@@ -99,7 +99,7 @@ let show_cls: cls => string =
   | Float
   | String
   | Bool => "Base type"
-  | Label => "Label type"
+  | Label => "Label"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
   | List => "List type"
