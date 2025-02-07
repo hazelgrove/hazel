@@ -33,13 +33,13 @@ type t =
   | BadToken(Token.t) /* Invalid expression token, continues with undefined behavior */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
-  | UnexpectedLabel(LabeledTuple.label) /* Unexpected label in a labeled tuple */
+  | InvalidLabel(LabeledTuple.label) /* Invalid label in a labeled tuple */
   | TupleLabelError({
       malformed_labels: list(Any.t), // Labels that are not of the right syntactic form
       duplicate_labels: list(LabeledTuple.label),
-      unexpected_labels: list(LabeledTuple.label), // Labels that are present but aren't present in the analyzed type
+      invalid_labels: list(LabeledTuple.label), // Labels that are present but aren't present in the analyzed type
       typ: Typ.t,
-    }) /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or unexpected labels */
+    }) /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
       name: Constructor.t,
@@ -93,7 +93,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | WantTuple
     | LabelNotFound(_)
     | BadLabel(_)
-    | UnexpectedLabel(_)
+    | InvalidLabel(_)
     | NoJoin(_) => None;
 
 let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =

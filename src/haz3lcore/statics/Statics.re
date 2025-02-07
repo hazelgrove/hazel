@@ -421,7 +421,7 @@ and uexp_to_info_map =
                 switch (label.term, expected_labels) {
                 | (Label(name), Some(expected_labels))
                     when !List.mem(name, expected_labels) =>
-                  Some(Common(UnexpectedLabel(name)))
+                  Some(Common(InvalidLabel(name)))
                 | (Label(_), _)
                 | (EmptyHole, _) => None
                 | _ => Some(Common(BadLabel(Exp(label))))
@@ -450,25 +450,25 @@ and uexp_to_info_map =
               Inconsistent(Expectation({syn: {term: Label(name), _}, _})),
             ),
           )
-        | InHole(Common(NoType(UnexpectedLabel(name)))) =>
+        | InHole(Common(NoType(InvalidLabel(name)))) =>
           Self.TupleLabelError({
             malformed_labels: [],
             duplicate_labels: [],
-            unexpected_labels: [name],
+            invalid_labels: [name],
             typ: TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
           })
         | InHole(Common(DuplicateLabel(name, _))) =>
           Self.TupleLabelError({
             malformed_labels: [],
             duplicate_labels: [name],
-            unexpected_labels: [],
+            invalid_labels: [],
             typ: TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
           })
         | InHole(_) =>
           Self.TupleLabelError({
             malformed_labels: [Exp(label)],
             duplicate_labels: [],
-            unexpected_labels: [],
+            invalid_labels: [],
             typ: TupLabel(Unknown(Internal) |> Typ.temp, e.ty) |> Typ.temp,
           })
         };
@@ -538,7 +538,7 @@ and uexp_to_info_map =
         );
       let ty_list = List.map(Info.exp_ty, es');
 
-      let (malformed_labels, duplicate_labels, unexpected_labels) =
+      let (malformed_labels, duplicate_labels, invalid_labels) =
         List.fold_left(
           ((a, b, c), e: Info.exp) => {
             switch (e.status) {
@@ -547,14 +547,14 @@ and uexp_to_info_map =
                   TupleLabelError({
                     malformed_labels,
                     duplicate_labels,
-                    unexpected_labels,
+                    invalid_labels,
                     _,
                   }),
                 ),
               ) => (
                 a @ malformed_labels,
                 b @ duplicate_labels,
-                c @ unexpected_labels,
+                c @ invalid_labels,
               )
             | _ => (a, b, c)
             }
@@ -568,12 +568,12 @@ and uexp_to_info_map =
       let self =
         List.is_empty(malformed_labels)
         && List.is_empty(duplicate_labels)
-        && List.is_empty(unexpected_labels)
+        && List.is_empty(invalid_labels)
           ? Self.Just(Prod(ty_list) |> Typ.temp)
           : Self.TupleLabelError({
               malformed_labels,
               duplicate_labels,
-              unexpected_labels,
+              invalid_labels,
               typ: Prod(ty_list) |> Typ.temp,
             });
 
@@ -1272,7 +1272,7 @@ and upat_to_info_map =
                 switch (label.term, expected_labels) {
                 | (Label(name), Some(expected_labels))
                     when !List.mem(name, expected_labels) =>
-                  Some(UnexpectedLabel(name))
+                  Some(InvalidLabel(name))
                 | (Label(_), _)
                 | (EmptyHole, _) => None
                 | _ => Some(BadLabel(Pat(label)))
@@ -1301,25 +1301,25 @@ and upat_to_info_map =
               Inconsistent(Expectation({syn: {term: Label(name), _}, _})),
             ),
           )
-        | InHole(Common(NoType(UnexpectedLabel(name)))) =>
+        | InHole(Common(NoType(InvalidLabel(name)))) =>
           Self.TupleLabelError({
             malformed_labels: [],
             duplicate_labels: [],
-            unexpected_labels: [name],
+            invalid_labels: [name],
             typ: TupLabel(Label(name) |> Typ.temp, p.ty) |> Typ.temp,
           })
         | InHole(Common(DuplicateLabel(name, _))) =>
           Self.TupleLabelError({
             malformed_labels: [],
             duplicate_labels: [name],
-            unexpected_labels: [],
+            invalid_labels: [],
             typ: TupLabel(Label(name) |> Typ.temp, p.ty) |> Typ.temp,
           })
         | InHole(_) =>
           Self.TupleLabelError({
             malformed_labels: [Pat(label)],
             duplicate_labels: [],
-            unexpected_labels: [],
+            invalid_labels: [],
             typ: TupLabel(Unknown(Internal) |> Typ.temp, p.ty) |> Typ.temp,
           })
         };
@@ -1399,7 +1399,7 @@ and upat_to_info_map =
           modes,
         );
 
-      let (malformed_labels, duplicate_labels, unexpected_labels) =
+      let (malformed_labels, duplicate_labels, invalid_labels) =
         List.fold_left(
           ((a, b, c), e: Info.pat) => {
             switch (e.status) {
@@ -1408,14 +1408,14 @@ and upat_to_info_map =
                   TupleLabelError({
                     malformed_labels,
                     duplicate_labels,
-                    unexpected_labels,
+                    invalid_labels,
                     _,
                   }),
                 ),
               ) => (
                 a @ malformed_labels,
                 b @ duplicate_labels,
-                c @ unexpected_labels,
+                c @ invalid_labels,
               )
             | _ => (a, b, c)
             }
@@ -1426,12 +1426,12 @@ and upat_to_info_map =
       let self =
         List.is_empty(malformed_labels)
         && List.is_empty(duplicate_labels)
-        && List.is_empty(unexpected_labels)
+        && List.is_empty(invalid_labels)
           ? Self.Just(Prod(tys) |> Typ.temp)
           : Self.TupleLabelError({
               malformed_labels,
               duplicate_labels,
-              unexpected_labels,
+              invalid_labels,
               typ: Prod(tys) |> Typ.temp,
             });
 
