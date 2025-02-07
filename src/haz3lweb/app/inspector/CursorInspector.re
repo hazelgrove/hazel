@@ -277,7 +277,11 @@ let common_ok_view =
         text("Fillable by any pattern of type"),
         view_type(ana),
       ]
-    | (_, Syn(syn)) => [text(":"), view_type(syn)]
+    | (_, Syn(syn)) =>
+      switch (syn.term) {
+      | Label(l) => [code(l)]
+      | _ => [text(":"), view_type(syn)]
+      }
     | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) => [
         text(":"),
         view_type(ana),
