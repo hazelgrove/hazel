@@ -66,24 +66,6 @@ module Store = {
     let key = Store.Scratch;
     let default = () => Init.startup.scratch;
   });
-
-  // Override the load function
-  let load = (): t => {
-    switch (JsUtil.QueryParams.get_param(key_string)) {
-    | Some(data) =>
-      let decompressed = StringUtil.decompress(data);
-      let zip = Haz3lcore.Printer.zipper_of_string(decompressed);
-      switch (zip) {
-      | Some(zip) => (0, [PersistentZipper.persist(zip)])
-      | None => init()
-      };
-    | None =>
-      switch (JsUtil.get_localstore(key_string)) {
-      | None => init()
-      | Some(data) => deserialize(data, default())
-      }
-    };
-  };
 };
 
 module Update = {
@@ -95,7 +77,6 @@ module Update = {
     | ResetCurrent
     | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
     | FinishImportScratchpad(option(string))
-    | Encode
     | Export;
 
   let export_scratch_slide = (model: Model.t): unit => {
@@ -105,19 +86,6 @@ module Update = {
       ~filename="hazel-scratchpad",
       ~content_type="text/plain",
       ~contents=data,
-    );
-  };
-
-  let encode_scratch_slide = (model: Model.t): unit => {
-    let zip =
-      (model.current |> List.nth(model.scratchpads) |> snd).editor.editor.
-        state.
-        zipper;
-    let compressed = StringUtil.compress(Printer.to_string_basic(zip));
-    JsUtil.QueryParams.set_param(
-      // would like to use Store.key_to_string(Store.Scratch) here, but it's shadowed?
-      "SAVE_SCRATCH",
-      compressed,
     );
   };
 
@@ -176,9 +144,6 @@ module Update = {
       {...model, scratchpads} |> Updated.return;
     | Export =>
       export_scratch_slide(model);
-      model |> Updated.return_quiet;
-    | Encode =>
-      encode_scratch_slide(model);
       model |> Updated.return_quiet;
     };
   };
@@ -308,13 +273,6 @@ module View = {
         ~tooltip="Export Scratchpad",
       );
 
-    let encode_button =
-      Widgets.button_named(
-        Icons.export,
-        _ => inject(Encode),
-        ~tooltip="Encode Scratchpad",
-      );
-
     let import_button =
       Widgets.file_select_button_named(
         "import-scratchpad",
@@ -329,11 +287,7 @@ module View = {
       );
 
     let file_group_scratch =
-      NutMenu.item_group(
-        ~inject,
-        "File",
-        [export_button, encode_button, import_button],
-      );
+      NutMenu.item_group(~inject, "File", [export_button, import_button]);
 
     let reset_button =
       Widgets.button_named(

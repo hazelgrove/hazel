@@ -100,7 +100,7 @@ module M: Projector = {
         print_endline(
           "Warning - LivelitProj.placeholder: Not an InfoExp term",
         );
-        "syntax_error";
+        "error";
       };
 
     let ctx =
@@ -148,7 +148,7 @@ module M: Projector = {
         };
       | _ =>
         print_endline("Warning - LivelitProj.view: Not an InfoExp term");
-        ("syntax_error", []);
+        ("error", []);
       };
 
     let ctx =
@@ -158,7 +158,7 @@ module M: Projector = {
       };
     let ll = Livelit.find_livelit(ll, ctx);
 
-    if (ll.name == "syntax_error") {
+    if (ll.name == "error") {
       Node.div(
         ~attrs=[Attr.class_("livelit")],
         [Node.text("Syntax error -- are statics enabled?")],
@@ -167,8 +167,6 @@ module M: Projector = {
       /* Ignore the first piece, which is the livelit invocation */
       let pieces =
         List.tl(getLeafPieces(info.syntax, ~ignored_labels=[[","]]));
-
-      print_endline(info.syntax |> ProjectorBase.show_syntax);
 
       /* Combine args and pieces into model_piece records */
       let model_pieces =
