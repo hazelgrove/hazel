@@ -36,7 +36,7 @@ let slider: t = {
       };
 
     Node.div(
-      ~attrs=[Attr.class_("livelit")],
+      ~attrs=[Attr.class_("slider")],
       [
         Util.Web.range(
           ~attrs=[
@@ -142,57 +142,69 @@ let js: t = {
   id: Id.invalid,
 };
 
-/* Timestamp livelit */
-let timestamp: t = {
-  explain_this: [
-    "Timestamp livelit",
-    "Usage: ^timestamp(time: Int, update_freq: Int) -> Int",
-  ],
-  name: "timestamp",
-  expansion_t: Typ.temp(Int),
-  expansion_f: (model: UExp.t) =>
-    DHExp.fresh(Int(Float.to_int(JsUtil.timestamp()))),
-  model_default: "0, 1000",
-  model_t: Typ.temp(Prod([Typ.temp(Int), Typ.temp(Int)])),
-  projector: (model: list(model_piece), _parent) => {
-    let ((m_time, time_piece), (m_update_freq, update_freq_piece)) =
-      switch (model) {
-      | [{model: m_time, piece: p_time}, {model: m_freq, piece: p_freq}] => (
-          (m_time, p_time),
-          (m_freq, p_freq),
-        )
-      | _ =>
-        failwith(
-          "Timestamp livelit: expected two model pieces (time, update_freq)",
-        )
-      };
-
-    let (time, update_freq) =
-      switch (m_time.term, m_update_freq.term) {
-      | (Int(t), Int(f)) => (t, f)
-      | _ => failwith("Timestamp livelit: not given two ints")
-      };
-
-    Node.div(
-      ~attrs=[Attr.class_("livelit")],
-      [
-        Node.text(
-          "Timestamp livelit -- time: "
-          ++ string_of_int(time)
-          ++ ", update_freq: "
-          ++ string_of_int(update_freq),
-        ),
-      ],
-    );
-  },
-  size: Inline(20),
-  id: Id.invalid,
-};
+// /* Timestamp livelit */
+// let timestamp: t = {
+//   explain_this: [
+//     "Timestamp livelit",
+//     "Usage: ^timestamp(time: Int, update_freq: Int) -> Int",
+//   ],
+//   name: "timestamp",
+//   expansion_t: Typ.temp(Int),
+//   expansion_f: (model: UExp.t) =>
+//     DHExp.fresh(Int(Float.to_int(JsUtil.timestamp()))),
+//   model_default: "0, 1000",
+//   model_t: Typ.temp(Prod([Typ.temp(Int), Typ.temp(Int)])),
+//   projector: (models: list(model_piece), update) => {
+//     /* Extract model pieces: time and update frequency */
+//     let ((m_time, time_piece), (m_update_freq, _)) =
+//       switch (models) {
+//       | [{model: m_time, piece: p_time}, {model: m_freq, piece: p_freq}] => (
+//           (m_time, p_time),
+//           (m_freq, p_freq),
+//         )
+//       | _ =>
+//         failwith(
+//           "Timestamp livelit: expected two model pieces (time, update_freq)",
+//         )
+//       };
+//     let (time, update_freq) =
+//       switch (m_time.term, m_update_freq.term) {
+//       | (Int(t), Int(f)) => (t, f)
+//       | _ => failwith("Timestamp livelit: not given two ints")
+//       };
+//     /* Schedule an update after 'update_freq' milliseconds */
+//     let _ =
+//       Js_of_ocaml.Dom_html.window##setTimeout(
+//         Js_of_ocaml.Js.wrap_callback(() =>
+//           update(
+//             put(
+//               string_of_int(Float.to_int(JsUtil.timestamp())),
+//               Piece.id(time_piece),
+//             ),
+//           )
+//         ),
+//         float_of_int(update_freq),
+//       );
+//     Node.div(
+//       ~attrs=[Attr.class_("livelit")],
+//       [
+//         Node.text(
+//           "Timestamp livelit -- time: "
+//           ++ string_of_int(time)
+//           ++ ", update_freq: "
+//           ++ string_of_int(update_freq),
+//         ),
+//       ],
+//     );
+//   },
+//   size: Inline(20),
+//   id: Id.invalid,
+// };
 
 /* Syntax error livelit */
-let syntax_error: t = {
+let error: t = {
   explain_this: ["A syntax error livelit"],
-  name: "syntax_error",
+  name: "error",
   expansion_t: Typ.temp(Unknown(Internal)),
   expansion_f: (_model: UExp.t) =>
     DHExp.fresh(String("Syntax error -- are statics enabled?")),
@@ -201,7 +213,7 @@ let syntax_error: t = {
   projector: (_model: list(model_piece), _) =>
     Node.div(
       ~attrs=[Attr.class_("livelit")],
-      [Node.text("Syntax error -- are statics enabled?")],
+      [Node.text("Error livelit -- are statics enabled?")],
     ),
   size: Inline(20),
   id: Id.invalid,
@@ -317,9 +329,9 @@ let emotion: t = {
 };
 
 /* Export the final set of livelits we want to keep. */
-let livelits: list(t) = [slider, js, timestamp, emotion, syntax_error];
+let livelits: list(t) = [slider, emotion, error]; // timestamp, js
 
-/* A helper to find a livelit by name. Returns syntax_error if not found, or if ctx not given. */
+/* A helper to find a livelit by name. Returns error if not found, or if ctx not given. */
 let find_livelit = (name: string, ctx: Ctx.t) => {
   let entry =
     List.find_opt(
@@ -333,6 +345,6 @@ let find_livelit = (name: string, ctx: Ctx.t) => {
 
   switch (entry) {
   | Some(LivelitEntry(l)) => l
-  | _ => syntax_error
+  | _ => error
   };
 };

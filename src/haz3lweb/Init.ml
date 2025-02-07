@@ -67,11 +67,9 @@ let startup : PersistentData.t =
                Convex))))))(ancestors())))(caret Outer))";
             backup_text = "";
           };
-        ]
-        (* ,
-           [ ("scratch_0", Evaluation); ("scratch_1", Evaluation) ] *) );
+        ] );
     documentation =
-      ( 2,
+      ( 14,
         [
           ( "Casting",
             {
@@ -12159,26 +12157,26 @@ let startup : PersistentData.t =
                  # Fold projectors cover terms with abstractions.     #\n\
                  # 1. A simple fold roles up any term, replacing      #\n\
                  #    it with ... until it is expanded again.         #\n\n\
-                 let fold =  in\n\n\
+                 let fold = (((((((((((()))))))))))) in\n\n\
                  # 2. A semantic fold covers a term with a property:  #\n\
                  #    Click to toggle inferred & synthesized types    #\n\n\
-                 let folds:  =  in\n\n\
+                 let folds: (Int -> Bool) =   in\n\n\
                  # Projectors on literal data are called livelits.    #\n\
                  # Three base types literals use inline views:        #\n\n\
-                 let guard: Bool =  in\n\
-                 let phase: Int =  in\n\
-                 let float: Float =  in\n\n\
+                 let guard: Bool = true in\n\
+                 let phase: Int = 44 in\n\
+                 let float: Float = 79.00 in\n\n\
                  # Inline error decorations (same as for tokens) #\n\n\
-                 let (a:Int, f: Float) = ,  in\n\n\
+                 let (a:Int, f: Float) = true, 28 in\n\n\
                  # The String base type get a multiline view: #\n\n\
-                 let _ =  in\n\
-                 let __ =  in\n\
-                 let ___ =  in\n\
-                 let ____ =  in\n\
-                 let _____ =  in\n\
-                 let ______ =  in\n\n\
+                 let _ = \"\" in\n\
+                 let __ = \"\\n\" in\n\
+                 let ___ = \"a\" in\n\
+                 let ____ = \"shift\\n\" in\n\
+                 let _____ = \"\\nmalicious\" in\n\
+                 let ______ = \"a\\n shift\\n   malicious\" in\n\n\
                  # Multiline error decorations #\n\n\
-                 let box: Int =  in\n\n\
+                 let box: Int = \"\\nmalicious\" in\n\n\
                  # ERRATA:                                            #\n\
                  # The bottom toggle can also be used to remove       #\n\
                  # projectors. Currently only bidelmited terms can    #\n\
@@ -12187,7 +12185,7 @@ let startup : PersistentData.t =
                  # currently are lost on cut/copy. Both these         #\n\
                  # restrictions will be removed in a future update.   #\n\n\
                  # Projectors playground #\n\n\
-                 if  &&  < ()   \n\
+                 if true && 23 < int_of_float(51.00)   \n\
                  then ______ else \"its: \" ++ box";
             } );
           ( "Types & static errors",
@@ -17588,6 +17586,186 @@ let startup : PersistentData.t =
                  Convex))))))(ancestors())))(caret Outer))";
               backup_text = " ";
             } );
+          ( "Livelits",
+            {
+              zipper =
+                "((selection((focus Left)(content())(mode \
+                 Normal)))(backpack())(relatives((siblings(((Secondary((id \
+                 b7d75610-1748-449b-af68-69cadef09e2e)(content(Comment\"# \
+                 LIVELITS #\"))))(Secondary((id \
+                 a4a389c1-b5f6-4480-a455-e9632d15e44e)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 c6dc4c5f-3e79-4485-9432-cb2c6934dcc3)(content(Comment\"# A \
+                 livelit is a widget which can be interacted with \
+                 #\"))))(Secondary((id \
+                 7e04fcb8-f2df-4cb9-bcdd-315c765822ee)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 c49d6ec3-30fa-4a80-bb66-7782d28d3438)(content(Comment\"# as a \
+                 live GUI, which elaborates to a value in the  \
+                 #\"))))(Secondary((id \
+                 de5f8bb2-fd92-4874-a284-5498af56d07b)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 c3d08883-fe9e-4f72-a3ab-472056f3ba9f)(content(Comment\"# \
+                 Hazel editor. These are built-in, and exist in the \
+                 #\"))))(Secondary((id \
+                 e2d4201e-3660-498f-a992-c9a8d0de0b25)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 76c53f95-89d9-4695-b084-3596c8277cfc)(content(Comment\"# \
+                 context.                                           \
+                 #\"))))(Secondary((id \
+                 181e5b78-3997-454f-baf1-a6834532d904)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 f14880d9-a400-42c1-831c-1ce9d6da8cf7)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 c9abc4c2-bb3f-46ee-b4fe-3578c95c6ade)(content(Comment\"# \
+                 Invocation: #\")))))((Secondary((id \
+                 f962807a-a4b9-4a64-9cbf-551dee3bbc87)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 b1bc9a05-bb83-4528-ac83-e9013bc52063)(content(Comment\"# To \
+                 invoke a livelit, insert '^', followed by the name of a \
+                 #\"))))(Secondary((id \
+                 9e005d0b-dbdf-4e84-9284-acc6b3854f7d)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 2185ecdb-263d-49bc-b9c2-5b52d9af6906)(content(Comment\"# \
+                 livelit. Press the spacebar to immediately create a \
+                 default#\"))))(Secondary((id \
+                 ef91b345-9b86-40fd-95a1-1fde50421ac7)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 56912201-7602-405e-be60-8c99f10a32e2)(content(Comment\"# \
+                 model and project the livelit to an interactible widget.   \
+                 #\"))))(Secondary((id \
+                 3b3bfbd6-3f57-4232-971c-a4f72ae39696)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 4a73b0c1-4e33-4786-ba41-983b3c5cb2e5)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 24dae050-a696-466c-a850-4b2aaf911ce5)(content(Comment\"# \
+                 Built-in Livelits: #\"))))(Secondary((id \
+                 1fc8c29d-80b4-455a-98ac-1132ea6f4c00)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 60426601-3064-4b0b-b02b-847a36de7fbe)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 94e329c2-903f-494d-ae7b-9341bd88b3b2)(content(Comment\"# 1. \
+                 Slider #\"))))(Secondary((id \
+                 4e1e3e23-6c5a-4fbb-adee-3f47deae92d4)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 407e455c-ce48-4373-a304-99ce209faeaa)(content(Comment\"# \
+                 Model: (value: Int)               #\"))))(Secondary((id \
+                 48b60913-560e-42dc-8bde-66b790fcd60b)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 4a76d8ab-74a4-4075-bc5d-9487b4481986)(content(Comment\"# \
+                 Elaboration: Returns value as Int #\"))))(Secondary((id \
+                 c5d91ec2-097b-4708-97f5-1f237393a89a)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 0d9d62f6-2228-4d32-a0fc-c96299d8c866)(content(Comment\"# \
+                 Example: (^slider(10))            #\"))))(Secondary((id \
+                 8258e3a8-531f-403c-9612-52b5b1f1d731)(content(Whitespace\"\\n\"))))(Tile((id \
+                 5c79b483-3a16-4db4-8e69-b3e924b55111)(label(let = \
+                 in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape(Concave 38))(sort Exp))))))(shards(0 1 \
+                 2))(children(((Secondary((id \
+                 768e6970-e882-4ca6-af43-858b4c80d166)(content(Whitespace\" \
+                 \"))))(Tile((id \
+                 49a2592f-54c8-4bd8-988e-c86e494dc81b)(label(slider_val))(mold((out \
+                 Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape \
+                 Convex)(sort Pat))))))(shards(0))(children())))(Secondary((id \
+                 ed154ab2-c53c-421f-baaf-f3bca5edee73)(content(Whitespace\" \
+                 \")))))((Secondary((id \
+                 20edd4ac-a807-4798-85f2-c2860a0fd36a)(content(Whitespace\" \
+                 \"))))(Projector((id \
+                 75308bb4-3691-43a2-8bb9-d0c0f4f7580f)(kind \
+                 Livelit)(syntax(Tile((id \
+                 75308bb4-3691-43a2-8bb9-d0c0f4f7580f)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 84df7963-0fbf-4b6b-abca-2ea5b39177a9)(label(^slider))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 25fdf1b0-693e-4768-b356-0d7dff74d4dd)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 22))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 d7c4733e-99f2-4883-8b49-3b9d461ca790)(label(50))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))))))))(model\"()\")))(Secondary((id \
+                 79fab5ca-c88f-4ee0-abc5-46ecc0a723c2)(content(Whitespace\" \
+                 \")))))))))(Secondary((id \
+                 5c8d06b0-2702-42b2-a5e7-464e57eb116e)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 9ec62eff-a6ec-41a1-ba74-041c6418f221)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 fbafef22-0ca5-40c7-9020-dc3a3c60db00)(content(Comment\"# 2. \
+                 Emotion #\"))))(Secondary((id \
+                 2dac21cb-cfbd-4459-8097-04072f3267ee)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 c8f4a047-796c-4c23-ae10-adffc8a86a47)(content(Comment\"# \
+                 Model: (value: Int)                                    \
+                 #\"))))(Secondary((id \
+                 a7248de3-17fb-4ac4-8ec5-64e7b71ff6dc)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 54a88ef2-6d73-440e-a3fd-a68d7b6cafc2)(content(Comment\"# \
+                 Elaboration: Returns a String representing an emotion, \
+                 #\"))))(Secondary((id \
+                 e815a717-824b-4857-b5b1-b70771eb6e51)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 ce27fa59-ad30-4ecc-b88f-47472da5f1a7)(content(Comment\"#              \
+                 determined as follows:                    \
+                 #\"))))(Secondary((id \
+                 146dd29d-18f6-4696-a3db-8a6217e67053)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 f1201af0-99b9-481d-b9d9-4135431b7906)(content(Comment\"#              \
+                 if value < 40 then \\\"sad\\\"                  \
+                 #\"))))(Secondary((id \
+                 eb23c3e6-0ef9-4877-a6c7-7833a75d7877)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 d8be09b7-b705-4cb8-89b5-5073ae399d91)(content(Comment\"#              \
+                 if value > 70 then \\\"happy\\\"                \
+                 #\"))))(Secondary((id \
+                 3e9a7e86-85b2-4a49-a73d-ff0da24061d3)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 c8092972-8458-45e5-9210-b081f7522e70)(content(Comment\"#              \
+                 otherwise \\\"neutral\\\"                       \
+                 #\"))))(Secondary((id \
+                 95dc62b5-45c0-4c00-88d7-55c7846494f1)(content(Whitespace\"\\n\"))))(Secondary((id \
+                 d15b83c4-a72e-44ee-87c5-0175cad5d3c8)(content(Comment\"# \
+                 Example: (^emotion(50))                                \
+                 #\"))))(Secondary((id \
+                 f7aede7e-a944-4c58-b7dc-403005c9f95a)(content(Whitespace\"\\n\"))))(Tile((id \
+                 de8b3ee4-999d-4c4f-b844-3382512a8764)(label(let = \
+                 in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape(Concave 38))(sort Exp))))))(shards(0 1 \
+                 2))(children(((Secondary((id \
+                 23563c6f-35e3-4f9b-9479-d49c606414aa)(content(Whitespace\" \
+                 \"))))(Tile((id \
+                 896fbbee-1275-4382-8ef0-7e8a320753fd)(label(current_mood))(mold((out \
+                 Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape \
+                 Convex)(sort Pat))))))(shards(0))(children())))(Secondary((id \
+                 c39ae7f8-5e00-4c66-b537-807c59ecaf82)(content(Whitespace\" \
+                 \")))))((Secondary((id \
+                 d59d97c7-2576-4163-86f4-a1e5d77277ba)(content(Whitespace\" \
+                 \"))))(Projector((id \
+                 c0f4a270-f6aa-4efb-be6c-825e6a569b34)(kind \
+                 Livelit)(syntax(Tile((id \
+                 c0f4a270-f6aa-4efb-be6c-825e6a569b34)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 ef7e3434-ca15-4613-b6c2-63dd6acf0389)(label(^emotion))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 8c0e5c8b-6a84-4e33-b48b-a764eacdeb11)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 22))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 11828df1-806b-4812-a14e-1ca416389146)(label(50))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))))))))(model\"()\")))(Secondary((id \
+                 13e8dca3-4134-43b3-8b04-505c4cd7584f)(content(Whitespace\" \
+                 \")))))))))(Secondary((id \
+                 5cd4e97e-70f7-42c8-87c3-7e6cc2d5afce)(content(Whitespace\" \
+                 \"))))(Grout((id aad64a50-d934-4d19-9c93-09024bf5f402)(shape \
+                 Convex))))))(ancestors())))(caret Outer))";
+              backup_text =
+                "# LIVELITS #\n\
+                 # A livelit is a widget which can be interacted with #\n\
+                 # as a live GUI, which elaborates to a value in the  #\n\
+                 # Hazel editor. These are built-in, and exist in the #\n\
+                 # context.                                           #\n\n\
+                 # Invocation: #\n\
+                 # To invoke a livelit, insert '^', followed by the name of a #\n\
+                 # livelit. Press the spacebar to immediately create a default#\n\
+                 # model and project the livelit to an interactible widget.   \
+                 #\n\n\
+                 # Built-in Livelits: #\n\n\
+                 # 1. Slider #\n\
+                 # Model: (value: Int)               #\n\
+                 # Elaboration: Returns value as Int #\n\
+                 # Example: (^slider(10))            #\n\
+                 let slider_val = (^slider(50)) in\n\n\
+                 # 2. Emotion #\n\
+                 # Model: (value: Int)                                    #\n\
+                 # Elaboration: Returns a String representing an emotion, #\n\
+                 #              determined as follows:                    #\n\
+                 #              if value < 40 then \"sad\"                  #\n\
+                 #              if value > 70 then \"happy\"                #\n\
+                 #              otherwise \"neutral\"                       #\n\
+                 # Example: (^emotion(50))                                #\n\
+                 let current_mood = (^emotion(50)) in  ";
+            } );
           ( "Booleans and Types",
             {
               zipper =
@@ -17615,25 +17793,5 @@ let startup : PersistentData.t =
                  Convex))))))(ancestors())))(caret Outer))";
               backup_text = " ";
             } );
-        ]
-        (* ,
-           [
-             ("scratch_ADT Dynamics", Evaluation);
-             ("scratch_ADT Statics", Evaluation);
-             ("scratch_Basic Reference", Evaluation);
-             ("scratch_Booleans and Types", Evaluation);
-             ("scratch_Casting", Evaluation);
-             ("scratch_Composing Arithmetic Expressions", Evaluation);
-             ("scratch_Compositionality", Evaluation);
-             ("scratch_Computing Equationally", Evaluation);
-             ("scratch_Conditional Expressions", Evaluation);
-             ("scratch_Functions", Evaluation);
-             ("scratch_Polymorphism", Evaluation);
-             ("scratch_Programming Expressively", Evaluation);
-             ("scratch_Projectors", Evaluation);
-             ("scratch_Scope", Evaluation);
-             ("scratch_Shadowing", Evaluation);
-             ("scratch_Types & static errors", Evaluation);
-             ("scratch_Variables", Evaluation);
-           ] *) );
+        ] );
   }

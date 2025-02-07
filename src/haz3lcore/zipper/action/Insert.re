@@ -231,7 +231,7 @@ let rec go =
       let name = Form.parse_livelit(t);
       let ll = Livelit.find_livelit(name, ctx);
 
-      if (ll.name == "syntax_error") {
+      if (ll.name == "error") {
         insert_outer(char, z);
       } else {
         // Move to the left
