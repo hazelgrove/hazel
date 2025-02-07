@@ -139,9 +139,7 @@ let common_err_view =
         view_any(label),
       ]
     | NoType(FreeConstructor(name)) => [code(name), text("not found")]
-    | NoType(WantTuple) => [
-        text("Requires tuple for first argument"),
-      ]
+    | NoType(WantTuple) => [text("Requires tuple for first argument")]
     | NoType(LabelNotFound(name, labels)) => [
         text("Label "),
         code(name),
