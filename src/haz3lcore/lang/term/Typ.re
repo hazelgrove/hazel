@@ -105,7 +105,7 @@ let show_cls: cls => string =
   | List => "List type"
   | Arrow => "Function type"
   | Prod => "Tuple type"
-  | TupLabel => "Labeled element type"
+  | TupLabel => "Labeled tuple item type"
   | Sum => "Sum type"
   | Parens => "Parenthesized type"
   | Ap => "Constructor application"
