@@ -330,6 +330,7 @@ module Exp = {
     | Let
     | FixF
     | TyAlias
+    | LivelitAp
     | Ap
     | TypAp
     | DeferredAp
@@ -384,7 +385,11 @@ module Exp = {
     | Let(_) => Let
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
-    | Ap(_) => Ap
+    | Ap(_, e1, _) =>
+      switch (e1 |> term_of) {
+      | LivelitName(_) => LivelitAp
+      | _ => Ap
+      }
     | TypAp(_) => TypAp
     | DeferredAp(_) => DeferredAp
     | If(_) => If
@@ -426,6 +431,7 @@ module Exp = {
     | Let => "Let expression"
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
+    | LivelitAp => "Livelit application"
     | Ap => "Application"
     | TypAp => "Type application"
     | DeferredAp => "Partial Application"
@@ -442,7 +448,7 @@ module Exp = {
     | UnOp(op) => Operators.show_unop(op)
     | BuiltinFun => "Built-in Function"
     | Match => "Case expression"
-    | LivelitName => "Livelit invocation"
+    | LivelitName => "Livelit name"
     | Cast => "Cast expression";
 
   // Typfun should be treated as a function here as this is only used to
