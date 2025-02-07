@@ -17,11 +17,7 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
   | (Common(TupleLabelError(err)), Common(TupleLabelError(err'))) =>
     List.equal(Any.fast_equal, err.malformed_labels, err'.malformed_labels)
     && List.equal(String.equal, err.duplicate_labels, err'.duplicate_labels)
-    && List.equal(
-         String.equal,
-         err.invalid_labels,
-         err'.invalid_labels,
-       )
+    && List.equal(String.equal, err.invalid_labels, err'.invalid_labels)
     && Typ.fast_equal(err.typ, err'.typ)
   | _ =>
     Alcotest.fail(
