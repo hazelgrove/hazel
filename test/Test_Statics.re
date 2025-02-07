@@ -57,6 +57,41 @@ let info_error_of_id = (f: Exp.t, id: Id.t) => {
   Statics.get_error_at(statics(f), id);
 };
 
+let parse_exp = (s: string) => {
+  switch (MakeTerm.parse_exp(s)) {
+  | Some(e) => e
+  | None => Alcotest.fail("Failed to parse expression: " ++ s)
+  };
+};
+
+let info_error_of_id = (f: Exp.t, id: Id.t) => {
+  Statics.get_error_at(statics(f), id);
+};
+
+let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
+  Grammar.map_exp_annotation(
+    ({ids, _}: Grammar.IdTag.t) => {
+      let new_info = Id.Map.find(List.hd(ids), info_map);
+      Info.is_error(new_info);
+    },
+    exp,
+  );
+};
+
+let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
+  Grammar.map_exp_annotation(
+    (_annotation): Grammar.IdTag.t => {
+      let id = Id.mk();
+      {ids: [id], copied: false};
+    },
+    exp,
+  );
+};
+let lift: type a. a => Grammar.Annotated.t(a, unit) =
+  term => {
+    {term, annotation: ()};
+  };
+
 // Get the type from the statics
 let type_of = f => {
   IdTagged.rep_id(f)
@@ -1125,6 +1160,51 @@ let tests = (
             ),
           ),
           Statics.get_error_at(s, IdTagged.rep_id(tuple)),
+        );
+      },
+    ),
+    test_case(
+      "Example error annotations",
+      `Quick,
+      () => {
+        let no_error = (e: Grammar.exp_term(bool)): Grammar.exp_t(bool) => {
+          {term: e, annotation: false};
+        };
+        let error = (e: Grammar.exp_term(bool)): Grammar.exp_t(bool) => {
+          {term: e, annotation: true};
+        };
+
+        let term =
+          fresh(
+            lift(
+              BinOp(
+                Int(Plus),
+                lift(Int(1): Grammar.exp_term(unit)),
+                lift(String("hello"): Grammar.exp_term(unit)),
+              ): Grammar.exp_term(unit),
+            ),
+          );
+
+        let annotated: Grammar.exp_t(bool) =
+          annotate_static_errors(term, statics(term));
+
+        let expected: Grammar.exp_t(bool) =
+          no_error(
+            BinOp(
+              Int(Plus),
+              no_error(Int(1): Grammar.exp_term(bool)),
+              error(String("hello"): Grammar.exp_term(bool)),
+            ): Grammar.exp_term(bool),
+          );
+
+        Alcotest.check(
+          testable(
+            Fmt.using([%derive.show: Grammar.exp_t(bool)], Fmt.string),
+            (==),
+          ),
+          "Error on string",
+          expected,
+          annotated,
         );
       },
     ),

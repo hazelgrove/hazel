@@ -114,7 +114,7 @@ module Ordered = {
     {map, rev_order};
   };
 
-  let mapo = (f, {map, rev_order}) => {
+  let mapo = (f: ((string, 'a)) => 'b, {map, rev_order}: t_('a)): t_('b) => {
     let map =
       rev_order
       |> List.rev
