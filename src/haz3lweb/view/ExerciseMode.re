@@ -449,11 +449,21 @@ module View = {
         },
       );
 
+    let rm_probe_data = (editor: CellEditor.Model.t): CellEditor.Model.t => {
+      editor: {
+        editor: editor.editor.editor,
+        statics: editor.editor.statics,
+        dynamics: Dynamics.Map.empty,
+      },
+      result: editor.result,
+    };
+
     let your_tests_view =
       Always(
         editor_view(
           YourTestsValidation,
-          test_validation,
+          // Remove probe data from this cell to prevent data leaks from correct implementation
+          rm_probe_data(test_validation),
           ~caption="Test Validation",
           ~subcaption=": Your Tests vs. Correct Implementation",
           ~result_kind=
