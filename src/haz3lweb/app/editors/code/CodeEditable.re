@@ -144,8 +144,8 @@ module Selection = {
     | k =>
       Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
 
-  let handle_key_event = (~selection, model: Model.t, key) => {
-    switch (ProjectorView.key_handoff(model.editor, key)) {
+  let handle_key_event = (projectors, ~selection, model: Model.t, key) => {
+    switch (ProjectorView.key_handoff(projectors, model.editor, key)) {
     | Some(action) => Some(Update.Perform(Project(action)))
     | None => handle_key_event(~selection, model, key)
     };

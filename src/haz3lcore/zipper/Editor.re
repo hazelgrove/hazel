@@ -24,7 +24,7 @@ module CachedSyntax = {
     terms: TermMap.t,
     /* Since the introduction of shape_map below, caching projectors
      * here is almost vesigial (currently used only for error deco) */
-    projectors: Id.Map.t(Base.projector),
+    projectors: Id.Map.t(ProjectorBase.trad),
     /* The shape_map is used to leave space for projectors in the
      * underlying editor. In principle calculating this can involve
      * both static and dynamic information, so we cache this for perf */
@@ -37,9 +37,9 @@ module CachedSyntax = {
   let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-  let init = (~info_map, ~dyn_map, z): t => {
+  let init = (~info_map, ~dyn_map, projectors, z): t => {
     let segment = Zipper.unselect_and_zip(z);
-    let MakeTerm.{term: _, terms, projectors} = MakeTerm.go(segment);
+    let MakeTerm.{term: _, terms, _} = MakeTerm.go(segment);
     let projector_shapes =
       ProjectorInfo.ShapeMapSemantics.mk(projectors, info_map, dyn_map);
     {
@@ -57,9 +57,9 @@ module CachedSyntax = {
 
   let mark_old: t => t = old => {...old, old: true};
 
-  let calculate = (z: Zipper.t, info_map, dyn_map, old: t) =>
+  let calculate = (projectors, z: Zipper.t, info_map, dyn_map, old: t) =>
     old.old
-      ? init(z, ~info_map, ~dyn_map)
+      ? init(projectors, z, ~info_map, ~dyn_map)
       : {...old, selection_ids: Selection.selection_ids(z.selection)};
 };
 
@@ -96,7 +96,7 @@ module Model = {
     syntax: CachedSyntax.t,
   };
 
-  let mk = zipper => {
+  let mk = (zipper, projectors) => {
     state: {
       zipper,
       col_target: None,
@@ -104,6 +104,7 @@ module Model = {
     history: History.empty,
     syntax:
       CachedSyntax.init(
+        projectors,
         zipper,
         ~info_map=Id.Map.empty,
         ~dyn_map=Id.Map.empty,
@@ -113,7 +114,8 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = PersistentZipper.t;
   let persist = (model: t) => model.state.zipper |> PersistentZipper.persist;
-  let unpersist = p => p |> PersistentZipper.unpersist |> mk;
+  //TODO(andrew): putting an empty projectors map here is probably a bad idea
+  let unpersist = p => p |> PersistentZipper.unpersist |> mk(_, Id.Map.empty);
 
   let to_move_s = (model: t): (module Move.S) => {
     module M: Move.S = {
@@ -170,6 +172,7 @@ module Update = {
               old_statics,
               Buffer(Clear),
               Model.to_move_s({state, history, syntax}),
+              syntax.projectors, //TODO: make sure this is actually hooked up
               state.zipper,
             )
             |> Action.Result.ok
@@ -207,6 +210,7 @@ module Update = {
         old_statics,
         a,
         Model.to_move_s({state, history, syntax}),
+        syntax.projectors, //TODO: make sure this is actually hooked up
         state.zipper,
       );
 
@@ -253,6 +257,7 @@ module Update = {
       (
         ~settings: CoreSettings.t,
         ~is_edited,
+        projectors: Id.Map.t(ProjectorBase.trad),
         new_statics,
         dyn_map,
         {syntax, state, history}: Model.t,
@@ -266,6 +271,7 @@ module Update = {
             new_statics,
             Buffer(Set(TyDi)),
             Model.to_move_s({syntax, state, history}),
+            syntax.projectors, //TODO: make sure this is actually hooked up
             state.zipper,
           )
         ) {
@@ -279,7 +285,13 @@ module Update = {
     let syntax = is_edited ? CachedSyntax.mark_old(syntax) : syntax;
 
     let syntax =
-      CachedSyntax.calculate(zipper, new_statics.info_map, dyn_map, syntax);
+      CachedSyntax.calculate(
+        projectors,
+        zipper,
+        new_statics.info_map,
+        dyn_map,
+        syntax,
+      );
 
     // Recombine
     Model.{

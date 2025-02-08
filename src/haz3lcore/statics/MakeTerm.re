@@ -29,7 +29,8 @@ let tokens =
        * which are retained through maketerm so as to be used in
        * dynamics. These are inserted and removed entirely internal
        * to maketerm. */
-      probe_wrap,
+      //probe_wrap,
+      ["PROBE_WRAP"],
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -130,13 +131,13 @@ let log_projector = (pr: Base.projector): unit => {
 /* Check if a term should be instrumented with a probe.
  * Precondition: The relevant projector must have been
  * logged before this is called */
-let should_instrument = (id: Id.t): bool =>
-  switch (Id.Map.find_opt(id, projectors^)) {
-  | Some(pr) =>
-    let (module P) = ProjectorInit.to_module(pr.kind);
-    P.dynamics;
-  | None => failwith("MakeTerm.exp: projector not found")
-  };
+// let should_instrument = (id: Id.t): bool =>
+//   switch (Id.Map.find_opt(id, projectors^)) {
+//   | Some(pr) =>
+//     let (module P) = ProjectorInit.to_module(pr.kind);
+//     P.dynamics;
+//   | None => failwith("MakeTerm.exp: projector not found")
+//   };
 
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
@@ -190,7 +191,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     // single-tile case
-    | ([(id, t)], []) =>
+    | ([(_id, t)], []) =>
       switch (t) {
       | ([t], []) when Form.is_empty_tuple(t) => ret(Tuple([]))
       | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
@@ -207,7 +208,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (label, [Exp(body)]) when is_probe_wrap(label) =>
         // Temporary wrapping form to persist projector probes
-        ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
+        ret(Probe(body, Probe.empty))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
         | {ids, copied: false, term: Tuple(es)} => (ListLit(es), ids)
@@ -354,7 +355,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
-    | ([(id, tile)], []) =>
+    | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
         | ([t], []) when Form.is_empty_tuple(t) => Tuple([])
@@ -371,7 +372,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (label, [Pat(body)]) when is_probe_wrap(label) =>
-          should_instrument(id) ? Probe(body, Probe.empty) : body.term
+          Probe(body, Probe.empty)
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
           | {term: Tuple(ps), _} => ListLit(ps)
@@ -547,12 +548,14 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector({syntax, _} as pr) =>
-      let _ = log_projector(pr);
-      let sort = Piece.sort(syntax) |> fst;
-      //TODO(andrew): be more selective about unparening
-      let seg = Piece.unparenthesize(syntax);
-      [go_s(sort, Segment.skel(seg), seg)];
+    | Projector(_) => []
+    //TODO(andrew): allowing this as want the cachedsyntax call to go through
+    // failwith("TODO: MakeTerm unsorted projector")
+    // let _ = log_projector(pr);
+    // let sort = Piece.sort(syntax) |> fst;
+    // //TODO(andrew): be more selective about unparening
+    // let seg = Piece.unparenthesize(syntax);
+    // [go_s(sort, Segment.skel(seg), seg)];
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {

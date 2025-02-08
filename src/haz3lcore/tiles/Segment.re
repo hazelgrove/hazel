@@ -801,11 +801,11 @@ module IDs = {
     | Tile(t) => Tile({...t, children: List.map(replace, t.children), id})
     | Grout(grout) => Grout({...grout, id})
     | Secondary(w) => Secondary({...w, id})
-    | Projector(p) =>
-      /* Need to keep projector and contained piece id in-sync */
-      let id = Id.mk();
-      let syntax = replace_piece(~id, p.syntax);
-      Projector({...p, syntax, id});
+    | Projector(p) => failwith("Segment: IDs.all: Projectors not supported")
+    /* Need to keep projector and contained piece id in-sync */
+    // let id = Id.mk();
+    // let syntax = replace_piece(~id, p.syntax);
+    // Projector({...p, syntax, id});
     };
   };
 
@@ -817,7 +817,8 @@ module IDs = {
     | Tile(t) => [id, ...List.concat_map(all, t.children)]
     | Grout(_)
     | Secondary(_) => [id]
-    | Projector(p) => [id, ...all_piece(p.syntax)]
+    | Projector(_) => failwith("Segment: IDs.all: Projectors not supported")
+    // [id, ...all_piece(p.syntax)]
     };
   };
 };

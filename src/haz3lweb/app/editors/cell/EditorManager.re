@@ -94,7 +94,9 @@ module Update = {
         let new_component: Model.component = {
           id: new_id,
           parent: Some(parent),
-          editor: [piece] |> Zipper.unzip |> Editor.Model.mk,
+          //TODO(andrew): empty map below
+          editor:
+            [piece] |> Zipper.unzip |> Editor.Model.mk(_, Id.Map.empty),
           kind: Some(kind),
           model: P.init,
         };
@@ -106,7 +108,9 @@ module Update = {
         res;
       };
     | SetSyntax(id, syntax) =>
-      let new_editor = Zipper.unzip(syntax) |> Editor.Model.mk;
+      //TODO(andrew): empty map below
+      let new_editor =
+        Zipper.unzip(syntax) |> Editor.Model.mk(_, Id.Map.empty);
       let _ = print_endline("SETTING SYNTAX");
       let _ = print_endline("SETTING ID > " ++ Id.to_string(id));
       let _ =
@@ -129,7 +133,11 @@ module Update = {
   };
 
   let assemble = Model.assemble;
-
+  //TODO(andrew):
+  let sdfsdfds = components =>
+    List.filter_map(EditorManagerModel.component_to_trad, components)
+    |> List.map((g: ProjectorBase.trad) => (g.id, g))
+    |> Id.Map.of_list;
   let calculate_syntax_cache =
       (
         ~settings,
@@ -148,6 +156,7 @@ module Update = {
               Editor.Update.calculate(
                 ~settings,
                 ~is_edited,
+                sdfsdfds(model.components),
                 statics,
                 dynamics,
                 c.editor,
@@ -201,6 +210,7 @@ module Focus = {
         Some(Update.Manage(Project({parent: selection.component, kind}))),
       undo_action: Some(Undo(selection.component)),
       redo_action: Some(Redo(selection.component)),
+      projectors: Some(component.editor.syntax.projectors) //TODO(andrew): make sure this routes
     };
   };
 
@@ -291,13 +301,7 @@ module View = {
       };
     switch (component.kind) {
     | Some(kind) =>
-      let syntax =
-        switch (component.editor.state.zipper |> Zipper.zip) {
-        | [hd] => hd
-        | _ =>
-          //TODO: make less representable
-          failwith("Assumption: zipper zips to singleton segment")
-        };
+      let syntax = Model.piece_of_component(component);
       let (module P) = ProjectorInit.to_module(kind);
       P.view(
         component.model,

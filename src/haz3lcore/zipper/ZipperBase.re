@@ -66,14 +66,14 @@ module MapPiece = {
   type updater = Piece.t => Segment.t;
 
   let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
-    seg |> List.concat_map(p => f(p)) |> List.map(of_piece(f));
+    seg |> List.concat_map(of_piece(f));
   }
-  and of_piece = (f: updater, piece: Piece.t): Piece.t => {
+  and of_piece = (f: updater, piece: Piece.t): Segment.t => {
     switch (piece) {
-    | Tile(t) => Tile(of_tile(f, t))
+    | Tile(t) => f(Tile(of_tile(f, t)))
     | Grout(_)
     | Projector(_)
-    | Secondary(_) => piece
+    | Secondary(_) => f(piece)
     };
   }
   and of_tile = (f: updater, t: Tile.t): Tile.t => {
@@ -163,11 +163,3 @@ module MapPiece = {
   let fast_local = (f: Piece.t => Piece.t, id: Id.t, z: t): t =>
     fast_local_seg(p => [f(p)], id, z);
 };
-
-let remove_all_projectors = (z: t): t =>
-  MapPiece.go(
-    fun
-    | Projector(pr) => Piece.unparenthesize(pr.syntax)
-    | x => [x],
-    z,
-  );

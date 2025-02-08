@@ -19,6 +19,7 @@ let go_z =
       statics: CachedStatics.t,
       a: Action.t,
       module M: Move.S,
+      projectors: Id.Map.t(ProjectorBase.trad),
       z: Zipper.t,
     )
     : Action.Result.t(Zipper.t) => {
@@ -121,6 +122,7 @@ let go_z =
       Move.jump_to_id_indicated,
       Move.jump_to_side_of_id,
       Select.current_term,
+      projectors,
       a,
       z,
     )

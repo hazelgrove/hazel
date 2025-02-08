@@ -16,7 +16,7 @@ module Model = {
   };
 
   type projector_data = {
-    p: Piece.projector,
+    p: ProjectorBase.trad,
     info: ProjectorBase.info,
     measurement: Measured.measurement,
     offside_base: int,
@@ -42,7 +42,7 @@ module Model = {
 
   let mk_status =
       (
-        p: Base.projector,
+        p: ProjectorBase.trad,
         ~editor_active: bool,
         ~indicated: option(Indicated.piece),
         ~selection_ids: list(Id.t),
@@ -61,7 +61,7 @@ module Model = {
 
   let mk =
       (
-        projectors: Id.Map.t(Base.projector),
+        projectors: Id.Map.t(ProjectorBase.trad),
         measured: Measured.t,
         selection_ids: list(Id.t),
         indicated: option(Indicated.piece),
@@ -72,7 +72,7 @@ module Model = {
     List.filter_map(
       ((id, _)) => {
         let* p = Id.Map.find_opt(id, projectors);
-        let+ measurement = Measured.find_pr_opt(p, measured);
+        let+ measurement = Id.Map.find_opt(p.id, measured.projectors);
         let info = ProjectorInfo.mk_info(p.id, p.syntax, ~statics, ~dynamics);
         {
           p,
@@ -276,19 +276,29 @@ let move_dir = (key: Key.t): option(Direction.t) =>
  * to consider how they interact with all the editor keyboard commands.
  * For example, without the modifiers check, this would break selection
  * around a projector. */
-let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) => {
+let key_handoff =
+    (projectors: Id.Map.t(ProjectorBase.trad), editor: Editor.t, key: Key.t)
+    : option(Action.project) => {
   let z = editor.state.zipper;
   switch (
     move_dir(key),
     Siblings.neighbors(editor.state.zipper.relatives.siblings),
   ) {
   | _ when z.caret != Outer => None
-  | (Some(Left), (Some(Projector({id, kind, _})), _)) =>
-    let (module P) = ProjectorInit.to_module(kind);
-    P.can_focus ? Some(Focus(id, Some(Right))) : None;
-  | (Some(Right), (_, Some(Projector({id, kind, _})))) =>
-    let (module P) = ProjectorInit.to_module(kind);
-    P.can_focus ? Some(Focus(id, Some(Left))) : None;
+  | (Some(Left), (Some(Projector({id})), _)) =>
+    switch (Id.Map.find_opt(id, projectors)) {
+    | Some(p) =>
+      let (module P) = ProjectorInit.to_module(p.kind);
+      P.can_focus ? Some(Focus(id, Some(Right))) : None;
+    | None => None
+    }
+  | (Some(Right), (_, Some(Projector({id})))) =>
+    switch (Id.Map.find_opt(id, projectors)) {
+    | Some(p) =>
+      let (module P) = ProjectorInit.to_module(p.kind);
+      P.can_focus ? Some(Focus(id, Some(Left))) : None;
+    | None => None
+    }
   | _ => None
   };
 };

@@ -16,19 +16,29 @@ module Applicable = {
   /* Determines what term to target for projection. This logic
    * should be kept in sync with the projector add/remove logic
    * in ProjectorPerform */
-  let target_term = (cursor: Cursor.cursor(Editors.Update.t)) =>
+  let target_term =
+      (
+        projectors: Id.Map.t(ProjectorBase.trad),
+        cursor: Cursor.cursor(Editors.Update.t),
+      ) =>
     switch (cursor.selection) {
     | None
     | Some([]) =>
       switch (cursor.indicated_piece) {
-      | Some(Projector({syntax, _})) =>
-        MakeTerm.for_projection(Piece.unparenthesize(syntax))
+      | Some(Projector({id})) =>
+        switch (Id.Map.find_opt(id, projectors)) {
+        | Some(p) => MakeTerm.for_projection(Piece.unparenthesize(p.syntax))
+        | None => None
+        }
       | _ =>
         let* info = cursor.info;
         Info.any_of(info);
       }
-    | Some([Projector({syntax, _})]) =>
-      MakeTerm.for_projection(Piece.unparenthesize(syntax))
+    | Some([Projector({id})]) =>
+      switch (Id.Map.find_opt(id, projectors)) {
+      | Some(p) => MakeTerm.for_projection(Piece.unparenthesize(p.syntax))
+      | None => None
+      }
     | Some(seg) => MakeTerm.for_projection(seg)
     };
 
@@ -37,17 +47,24 @@ module Applicable = {
       (cursor: Cursor.cursor(Editors.Update.t), kind: ProjectorCore.Kind.t)
       : option(ProjectorCore.Kind.t) => {
     let (module P) = ProjectorInit.to_module(kind);
-    let* term = target_term(cursor);
+    let* projectors = cursor.projectors;
+    let* term = target_term(projectors, cursor);
     P.can_project(term) ? Some(kind) : None;
   };
 
   /* If the current indicated term is a projector, return its kind */
   let indicated_kind =
-      (editor: option(Editor.t)): option(ProjectorCore.Kind.t) => {
-    let* editor = editor;
+      (cursor: Cursor.cursor(Editors.Update.t))
+      : option(ProjectorCore.Kind.t) => {
+    let* editor = cursor.editor;
+    let* projectors = cursor.projectors;
     let* (piece, _, _) = Indicated.for_index(editor.state.zipper);
     switch (piece) {
-    | Projector({kind, _}) => Some(kind)
+    | Projector({id}) =>
+      switch (Id.Map.find_opt(id, projectors)) {
+      | Some(p) => Some(p.kind)
+      | None => None
+      }
     | _ => None
     };
   };
@@ -61,7 +78,7 @@ module Applicable = {
         applicable_projectors: list(ProjectorCore.Kind.t),
       )
       : list(ProjectorCore.Kind.t) => {
-    switch (indicated_kind(cursor.editor)) {
+    switch (indicated_kind(cursor)) {
     | None => applicable_projectors
     | Some(k) => ListUtil.lift(k, applicable_projectors)
     };

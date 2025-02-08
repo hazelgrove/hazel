@@ -64,12 +64,13 @@ module Kind = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('syntax) = {
   id: Id.t,
-  kind: Kind.t,
-  syntax: 'syntax,
-  model: string,
+  // kind: Kind.t,
+  // syntax: 'syntax,
+  // model: string,
 };
 
-let mk = (id, kind, syntax, model) => {id, kind, syntax, model};
+//let mk = (id, kind, syntax, model) => {id, kind, syntax, model};
+let mk = (id: Id.t): t('a) => {id: id};
 
 module Shape = {
   /* A projector shape determines the space left for

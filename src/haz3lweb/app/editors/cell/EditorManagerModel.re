@@ -9,6 +9,7 @@ type component = {
   kind: option(ProjectorCore.Kind.t),
   model: string,
 };
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   components: list(component),
@@ -16,6 +17,27 @@ type t = {
   statics: CachedStatics.t,
   dynamics: Dynamics.Map.t,
 };
+
+let piece_of_component = (component: component): Piece.t =>
+  switch (component.editor.state.zipper |> Zipper.zip) {
+  | [hd] => hd
+  | _ =>
+    //TODO: make less representable
+    failwith("Assumption: zipper zips to singleton segment")
+  };
+let component_to_trad = (component: component): option(ProjectorBase.trad) =>
+  switch (component.kind) {
+  | Some(kind) =>
+    Some({
+      id: component.id,
+      kind,
+      model: component.model,
+      syntax: piece_of_component(component),
+    })
+  | None =>
+    prerr_endline("EditorManager.component_to_trad: None TODO");
+    None;
+  };
 
 let mk = editor => {
   let id = Id.mk();
@@ -123,15 +145,37 @@ let component_to_piece = (component: component): Piece.t => {
 };
 
 let assemble = (model: t): Segment.t => {
+  print_endline("assemble");
   let swap_out = (go, piece: Piece.t): Segment.t => {
+    print_endline("swap_out");
     switch (piece) {
-    | Projector(pr) => Piece.unparenthesize(go(pr.id))
-    | _ => [piece]
+    | Projector(pr) =>
+      let component = get_component(pr.id, model);
+      switch (component.kind) {
+      | Some(kind) =>
+        let (module P) = ProjectorInit.to_module(kind);
+
+        let _should_instrument = P.dynamics;
+        //TODO: this logic will leave it in for the printer; divide this fn
+        // into a total stripper and partial stripper
+        //TODO: make this actually work (instrument with... something)
+        //should_instrument ? Piece.unparenthesize(P.go(pr.id)) : piece;
+        let piece = component_to_piece(component);
+        print_endline("piece: " ++ Piece.show(piece));
+        //TODO(andrew): needs to recurse for general case...
+        //Piece.unparenthesize(go(pr.id));
+        Piece.unparenthesize(piece);
+      | None => failwith("EditorManager.assemble: None TODO")
+      };
+    | _ =>
+      print_endline("piece not proj: " ++ Piece.show(piece));
+      [piece];
     };
   };
-  let rec go = (id: Id.t): Piece.t => {
+  let rec go = (id: Id.t): Segment.t => {
     let seg = get_component(id, model) |> component_to_piece;
+    print_endline("seg: " ++ Piece.show(seg));
     ZipperBase.MapPiece.of_piece(swap_out(go), seg);
   };
-  [go(model.root_id)];
+  go(model.root_id);
 };

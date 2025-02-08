@@ -15,35 +15,33 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | TextArea => (module Cook(TextAreaProj.M))
   };
 
-let init =
-    (kind: ProjectorCore.Kind.t, id, syntax: syntax, any: Term.Any.t)
-    : option(syntax) => {
+let init = (kind: ProjectorCore.Kind.t, id, any: Term.Any.t): option(syntax) => {
   let (module P) = to_module(kind);
   switch (P.can_project(any)) {
   | false => None
-  | true => Some(Projector(ProjectorCore.mk(id, kind, syntax, P.init)))
+  | true => Some(Projector(ProjectorCore.mk(id)))
   };
 };
 
 let init_or_noop =
     (kind: ProjectorCore.Kind.t, id, syntax: syntax, any: Term.Any.t): syntax =>
-  switch (init(kind, id, syntax, any)) {
+  switch (init(kind, id, any)) {
   | Some(pr) => pr
   | None => syntax
   };
 
-let init_or_noop_from_str =
-    (
-      kind: ProjectorCore.Kind.t,
-      syntax: syntax,
-      any: Term.Any.t,
-      model_str: string,
-      id: Id.t,
-    )
-    : syntax => {
-  let (module P) = to_module(kind);
-  switch (P.can_project(any)) {
-  | false => syntax
-  | true => Projector(ProjectorCore.mk(id, kind, syntax, model_str))
-  };
-};
+// let init_or_noop_from_str =
+//     (
+//       kind: ProjectorCore.Kind.t,
+//       syntax: syntax,
+//       any: Term.Any.t,
+//       model_str: string,
+//       id: Id.t,
+//     )
+//     : syntax => {
+//   let (module P) = to_module(kind);
+//   switch (P.can_project(any)) {
+//   | false => syntax
+//   | true => Projector(ProjectorCore.mk(id, kind, syntax, model_str))
+//   };
+// };

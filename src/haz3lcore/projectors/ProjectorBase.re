@@ -15,6 +15,15 @@ open Virtual_dom.Vdom;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type syntax = Base.piece;
 
+//TODO(andrew)
+[@deriving (show({with_path: false}), sexp, yojson)]
+type trad = {
+  id: Id.t,
+  kind: ProjectorCore.Kind.t,
+  syntax: Base.piece,
+  model: string,
+};
+
 /* Global actions available to handlers in all projectors */
 type external_action =
   | Remove /* Remove projector entirely */
@@ -190,5 +199,4 @@ module Cook = (C: Projector) : Cooked => {
 };
 
 /* Projectors currently are all convex */
-let shapes = (_: ProjectorCore.t(syntax)): Nibs.shapes =>
-  Nib.Shape.(Convex, Convex);
+let shapes = _: Nibs.shapes => Nib.Shape.(Convex, Convex);

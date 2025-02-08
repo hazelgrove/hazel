@@ -291,7 +291,9 @@ module Deco =
               tips: p |> ProjectorBase.shapes |> ShardDec.tips_of_shapes,
             },
             [
-              p.syntax |> Piece.sort |> fst |> Sort.to_string,
+              //TODO(andrew): sort somehow
+              //p.syntax |> Piece.sort |> fst |> Sort.to_string,
+              "Exp",
               "caret",
               "indicated",
             ],

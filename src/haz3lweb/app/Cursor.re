@@ -10,6 +10,7 @@ type cursor('update) = {
   add_projector: Haz3lcore.ProjectorCore.Kind.t => option('update),
   undo_action: option('update),
   redo_action: option('update),
+  projectors: option(Haz3lcore.Id.Map.t(Haz3lcore.ProjectorBase.trad)),
 };
 
 let map = (f: 'a => 'b, cursor) => {
@@ -42,6 +43,7 @@ let empty = {
   add_projector: _ => None,
   undo_action: None,
   redo_action: None,
+  projectors: None,
 };
 
 let (let+) = (cursor, f) => map(f, cursor);
