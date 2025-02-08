@@ -22,12 +22,17 @@ let utility: ProjectorBase.utility = {
 };
 
 let mk_info =
-    (p: Piece.projector, ~statics: Statics.Map.t, ~dynamics: Dynamics.Map.t)
+    (
+      id: Id.t,
+      syntax: Piece.t,
+      ~statics: Statics.Map.t,
+      ~dynamics: Dynamics.Map.t,
+    )
     : ProjectorBase.info => {
-  id: p.id,
-  syntax: Piece.unparenthesize(p.syntax),
-  statics: Statics.Map.lookup(p.id, statics),
-  dynamics: Dynamics.Map.lookup(p.id, dynamics),
+  id,
+  syntax: Piece.unparenthesize(syntax),
+  statics: Statics.Map.lookup(id, statics),
+  dynamics: Dynamics.Map.lookup(id, dynamics),
   utility,
 };
 
@@ -36,7 +41,7 @@ module ShapeMapSemantics = {
       (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector)
       : ProjectorCore.Shape.t => {
     let (module P) = ProjectorInit.to_module(p.kind);
-    P.placeholder(p.model, mk_info(p, ~statics, ~dynamics));
+    P.placeholder(p.model, mk_info(p.id, p.syntax, ~statics, ~dynamics));
   };
 
   let mk =

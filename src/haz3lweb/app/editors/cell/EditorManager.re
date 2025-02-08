@@ -159,6 +159,7 @@ module Update = {
 
   let calculate = (~settings, ~is_edited, ~dynamics, ~stitch, model: Model.t) => {
     let segment = assemble(model);
+    print_endline("assembled segment:" ++ Segment.show(segment));
     let statics =
       CachedStatics.init_from_segment(~settings, ~stitch, segment);
     let components =
@@ -289,25 +290,24 @@ module View = {
         );
       };
     switch (component.kind) {
-    | Some(x) =>
-      let (module P) = ProjectorInit.to_module(x);
-      let view_seg = (~background=?) =>
-        ProjectorView.simple_code(~background?, globals.font_metrics);
+    | Some(kind) =>
+      let syntax =
+        switch (component.editor.state.zipper |> Zipper.zip) {
+        | [hd] => hd
+        | _ =>
+          //TODO: make less representable
+          failwith("Assumption: zipper zips to singleton segment")
+        };
+      let (module P) = ProjectorInit.to_module(kind);
       P.view(
         component.model,
         ~local=x => inject(Update.SetModel(component.id, x)),
-        //TODO: below copied from ProjectorInfo.mk_info
-        {
-          id: component.id,
-          syntax:
-            component.editor.state.zipper
-            |> Zipper.zip
-            |> List.hd
-            |> Piece.unparenthesize,
-          statics: Id.Map.find_opt(component.id, model.statics.info_map),
-          dynamics: Dynamics.Map.lookup(component.id, dynamics),
-          utility: ProjectorInfo.utility,
-        },
+        ProjectorInfo.mk_info(
+          component.id,
+          syntax,
+          ~statics=model.statics.info_map,
+          ~dynamics,
+        ),
         ~parent=
           fun
           | Remove => inject(Update.Manage(Remove({child: component.id})))
@@ -317,7 +317,9 @@ module View = {
             )
           | SetSyntax(syntax) =>
             inject(Update.SetSyntax(component.id, syntax)),
-        ~view_seg,
+        ~view_seg=
+          (~background=?) =>
+            ProjectorView.simple_code(~background?, globals.font_metrics),
       );
     | None =>
       let edit_decos = {
@@ -332,95 +334,6 @@ module View = {
           selected == Some({component: component.id}),
         );
       };
-      // let view_wrapper =
-      //     (
-      //       ~font_metrics: FontMetrics.t,
-      //       ~measurement: Measured.measurement,
-      //       ~info: ProjectorBase.info,
-      //       ~indication: option(Direction.t),
-      //       ~selected: bool,
-      //       p: Base.projector,
-      //       view: Node.t,
-      //     ) => {
-      //   open Virtual_dom.Vdom;
-      //   let shape = Projector.shape(p, info);
-      //   Node.div(
-      //     ~attrs=[
-      //       Attr.classes(
-      //         ["projector", ProjectorView.name(p.kind)]
-      //         @ ProjectorView.status(indication, selected, shape),
-      //       ),
-      //       Attr.on_mousedown(_ => signal(Focus({component: info.id}))),
-      //       DecUtil.abs_style(measurement, ~font_metrics),
-      //     ],
-      //     [
-      //       view,
-      //       ProjectorView.backing_deco(~font_metrics, ~measurement, ~shape),
-      //     ],
-      //   );
-      // };
-      // let setup_view =
-      //     (
-      //       id: Id.t,
-      //       ~cached_statics: CachedStatics.t,
-      //       ~cached_syntax: Editor.CachedSyntax.t,
-      //       ~font_metrics,
-      //       ~indication: option(Direction.t),
-      //     )
-      //     : option(Node.t) => {
-      //   open OptUtil.Syntax;
-      //   let* p = Id.Map.find_opt(id, cached_syntax.projectors);
-      //   let* syntax = Some(p.syntax);
-      //   let ci = Id.Map.find_opt(id, cached_statics.info_map);
-      //   let info = ProjectorBase.{id, ci, syntax};
-      //   let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
-      //   // let (module P) = Projector.to_module(p.kind);
-      //   view_wrapper(
-      //     ~font_metrics,
-      //     ~measurement,
-      //     ~indication,
-      //     ~info,
-      //     ~selected=List.mem(id, cached_syntax.selection_ids),
-      //     p,
-      //     f(id),
-      //   );
-      // };
-      // let all =
-      //     (
-      //       z: Zipper.t,
-      //       ~cached_statics: CachedStatics.t,
-      //       ~cached_syntax: Editor.CachedSyntax.t,
-      //       ~font_metrics,
-      //     ) => {
-      //   // print_endline(
-      //   //   "cardinal: "
-      //   //   ++ (meta.projected.projectors |> Id.Map.cardinal |> string_of_int),
-      //   // );
-      //   div_c(
-      //     "projectors",
-      //     List.filter_map(
-      //       ((id, _)) => {
-      //         let indication = ProjectorView.indication(z, id);
-      //         setup_view(
-      //           id,
-      //           ~cached_statics,
-      //           ~cached_syntax,
-      //           ~font_metrics,
-      //           ~indication,
-      //         );
-      //       },
-      //       Id.Map.bindings(cached_syntax.projectors) |> List.rev,
-      //     ),
-      //   );
-      // };
-      // let projectors =
-      //   all(
-      //     component.editor.state.zipper,
-      //     ~cached_statics=model.statics,
-      //     ~cached_syntax=component.editor.syntax,
-      //     ~font_metrics=globals.font_metrics,
-      //   );
-
       let projectors =
         ProjectorView.all(
           ~focus=signal(Focus({component: component.id})),
@@ -444,7 +357,7 @@ module View = {
           ~sort=Exp,
           {editor: component.editor, statics: model.statics, dynamics},
         );
-      //TODO:
+      //TODO: weird wrapper
       Tylr(
         Virtual_dom.Vdom.Node.div(
           ~attrs=[

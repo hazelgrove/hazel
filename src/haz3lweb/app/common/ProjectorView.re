@@ -73,7 +73,7 @@ module Model = {
       ((id, _)) => {
         let* p = Id.Map.find_opt(id, projectors);
         let+ measurement = Measured.find_pr_opt(p, measured);
-        let info = ProjectorInfo.mk_info(p, ~statics, ~dynamics);
+        let info = ProjectorInfo.mk_info(p.id, p.syntax, ~statics, ~dynamics);
         {
           p,
           info,
