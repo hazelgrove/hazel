@@ -12,10 +12,10 @@ type cls =
   | Float
   | Bool
   | String
-  | Label
   | Arrow
   | Prod
   | TupLabel
+  | Label
   | Sum
   | List
   | Var
@@ -76,12 +76,12 @@ let cls_of_term: term => cls =
   | Float => Float
   | Bool => Bool
   | String => String
-  | Label(_) => Label
   | List(_) => List
   | Arrow(_) => Arrow
   | Var(_) => Var
   | Prod(_) => Prod
   | TupLabel(_) => TupLabel
+  | Label(_) => Label
   | Parens(_) => Parens
   | Ap(_) => Ap
   | Sum(_) => Sum
@@ -99,13 +99,13 @@ let show_cls: cls => string =
   | Float
   | String
   | Bool => "Base type"
-  | Label => "Label"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
   | List => "List type"
   | Arrow => "Function type"
   | Prod => "Tuple type"
   | TupLabel => "Labeled tuple item type"
+  | Label => "Label"
   | Sum => "Sum type"
   | Parens => "Parenthesized type"
   | Ap => "Constructor application"

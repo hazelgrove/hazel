@@ -631,7 +631,6 @@ let get_doc =
         let pat_id = List.nth(pat.ids, 0);
         let body_id = List.nth(body.ids, 0);
         switch (pat.term) {
-        // TODO (Anthony): put in a real message
         | EmptyHole =>
           if (FunctionExp.function_empty_hole_exp.id
               == get_specificity_level(FunctionExp.functions_empty_hole)) {

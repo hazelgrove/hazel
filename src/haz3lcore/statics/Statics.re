@@ -320,10 +320,6 @@ and uexp_to_info_map =
     | Int(_) => atomic(Just(Int |> Typ.temp))
     | Float(_) => atomic(Just(Float |> Typ.temp))
     | String(_) => atomic(Just(String |> Typ.temp))
-    | Label(name) =>
-      let self = Self.Just(Label(name) |> Typ.temp);
-      List.exists(l => name == l, duplicates)
-        ? atomic(Duplicate(name, self)) : atomic(self);
     | ListLit(es) =>
       let ids = List.map(Exp.rep_id, es);
       let modes = Mode.of_list_lit(ctx, List.length(es), mode);
@@ -389,6 +385,113 @@ and uexp_to_info_map =
       add(
         ~self=Just(ty_out),
         ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
+        m,
+      );
+    | Tuple(es) =>
+      let expected_labels =
+        switch (Typ.weak_head_normalize(ctx, Mode.ty_of(mode)).term) {
+        | Prod(ts) =>
+          Some(
+            List.filter_map(
+              t => Typ.match_tup_label(t) |> Option.map(fst),
+              ts,
+            ),
+          )
+        | _ => None
+        };
+
+      let original_labels =
+        List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
+
+      let (inferred_es, modes) =
+        Mode.of_prod(
+          ctx,
+          mode,
+          List.map(e => (None: option(string), e), es),
+          ((inferred, e)) => {
+            Exp.match_tup_label(e)
+            |> Option.map(((label, element)) =>
+                 (label, (inferred, element))
+               )
+          },
+          (name, (_, e)) =>
+            (
+              Some(name),
+              TupLabel(Label(name) |> Exp.fresh, e) |> Exp.fresh,
+            ),
+        );
+      let es = List.map(snd, inferred_es);
+      let inferred = List.map(fst, inferred_es);
+
+      let new_labels =
+        List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
+
+      let duplicate_labels =
+        LabeledTuple.get_duplicate_labels(Exp.match_tup_label, es);
+
+      let (es', m) =
+        List.fold_left2(
+          ((es, m), mode, (inferred_label, e)) => {
+            go(
+              ~mode,
+              ~inferred_label?,
+              ~duplicates=duplicate_labels,
+              ~expected_labels?,
+              e,
+              m,
+            )
+            |> (((e, m)) => (es @ [e], m))
+          },
+          ([], m),
+          modes,
+          List.combine(inferred, es),
+        );
+      let ty_list = List.map(Info.exp_ty, es');
+
+      let (malformed_labels, duplicate_labels, invalid_labels) =
+        List.fold_left(
+          ((a, b, c), e: Info.exp) => {
+            switch (e.status) {
+            | InHole(
+                Common(
+                  TupleLabelError({
+                    malformed_labels,
+                    duplicate_labels,
+                    invalid_labels,
+                    _,
+                  }),
+                ),
+              ) => (
+                a @ malformed_labels,
+                b @ duplicate_labels,
+                c @ invalid_labels,
+              )
+            | _ => (a, b, c)
+            }
+          },
+          ([], [], []),
+          es',
+        );
+
+      let ty_list = Typ.remove_duplicate_labels(~duplicate_labels, ty_list);
+
+      let self =
+        List.is_empty(malformed_labels)
+        && List.is_empty(duplicate_labels)
+        && List.is_empty(invalid_labels)
+          ? Self.Just(Prod(ty_list) |> Typ.temp)
+          : Self.TupleLabelError({
+              malformed_labels,
+              duplicate_labels,
+              invalid_labels,
+              typ: Prod(ty_list) |> Typ.temp,
+            });
+
+      add'(
+        ~self=Common(self),
+        ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')),
+        ~label_inference=
+          Info.derive_label_inference_info(original_labels, new_labels),
         m,
       );
     | TupLabel(label, e) =>
@@ -473,117 +576,17 @@ and uexp_to_info_map =
           })
         };
       add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
+    | Label(name) =>
+      let self = Self.Just(Label(name) |> Typ.temp);
+      List.exists(l => name == l, duplicates)
+        ? atomic(Duplicate(name, self)) : atomic(self);
     | BuiltinFun(string) =>
       add'(
         ~self=Self.of_exp_var(Builtins.ctx_init, string),
         ~co_ctx=CoCtx.empty,
         m,
       )
-    | Tuple(es) =>
-      let expected_labels =
-        switch (Typ.weak_head_normalize(ctx, Mode.ty_of(mode)).term) {
-        | Prod(ts) =>
-          Some(
-            List.filter_map(
-              t => Typ.match_tup_label(t) |> Option.map(fst),
-              ts,
-            ),
-          )
-        | _ => None
-        };
 
-      let original_labels =
-        List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
-
-      let (inferred_es, modes) =
-        Mode.of_prod(
-          ctx,
-          mode,
-          List.map(e => (None: option(string), e), es),
-          ((inferred, e)) => {
-            Exp.match_tup_label(e)
-            |> Option.map(((label, value)) => (label, (inferred, value)))
-          },
-          (name, (_, e)) =>
-            (
-              Some(name),
-              TupLabel(Label(name) |> Exp.fresh, e) |> Exp.fresh,
-            ),
-        );
-      let es = List.map(snd, inferred_es);
-      let inferred = List.map(fst, inferred_es);
-
-      let new_labels =
-        List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
-
-      let duplicate_labels =
-        LabeledTuple.get_duplicate_labels(Exp.match_tup_label, es);
-
-      let (es', m) =
-        List.fold_left2(
-          ((es, m), mode, (inferred_label, e)) => {
-            go(
-              ~mode,
-              ~inferred_label?,
-              ~duplicates=duplicate_labels,
-              ~expected_labels?,
-              e,
-              m,
-            )
-            |> (((e, m)) => (es @ [e], m))
-          },
-          ([], m),
-          modes,
-          List.combine(inferred, es),
-        );
-      let ty_list = List.map(Info.exp_ty, es');
-
-      let (malformed_labels, duplicate_labels, invalid_labels) =
-        List.fold_left(
-          ((a, b, c), e: Info.exp) => {
-            switch (e.status) {
-            | InHole(
-                Common(
-                  TupleLabelError({
-                    malformed_labels,
-                    duplicate_labels,
-                    invalid_labels,
-                    _,
-                  }),
-                ),
-              ) => (
-                a @ malformed_labels,
-                b @ duplicate_labels,
-                c @ invalid_labels,
-              )
-            | _ => (a, b, c)
-            }
-          },
-          ([], [], []),
-          es',
-        );
-
-      let ty_list = Typ.remove_duplicate_labels(~duplicate_labels, ty_list);
-
-      let self =
-        List.is_empty(malformed_labels)
-        && List.is_empty(duplicate_labels)
-        && List.is_empty(invalid_labels)
-          ? Self.Just(Prod(ty_list) |> Typ.temp)
-          : Self.TupleLabelError({
-              malformed_labels,
-              duplicate_labels,
-              invalid_labels,
-              typ: Prod(ty_list) |> Typ.temp,
-            });
-
-      add'(
-        ~self=Common(self),
-        ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')),
-        ~label_inference=
-          Info.derive_label_inference_info(original_labels, new_labels),
-        m,
-      );
     | Dot(e1, e2) =>
       let (info_e1, m) = go(~mode=Syn, e1, m);
       let (info_e2, m) = go(~mode=Ana(Label("") |> Typ.temp), e2, m);
@@ -1189,11 +1192,6 @@ and upat_to_info_map =
       )
     | String(string) =>
       atomic(Just(String |> Typ.temp), Constraint.String(string))
-    | Label(name) =>
-      let self = Self.Just(Label(name) |> Typ.temp);
-      List.exists(l => name == l, duplicates)
-        ? atomic(Duplicate(name, self), Constraint.Truth)
-        : atomic(self, Constraint.Truth);
     | ListLit(ps) =>
       let ids = List.map(Pat.rep_id, ps);
       let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
@@ -1443,6 +1441,11 @@ and upat_to_info_map =
           Info.derive_label_inference_info(original_labels, new_labels),
         m,
       );
+    | Label(name) =>
+      let self = Self.Just(Label(name) |> Typ.temp);
+      List.exists(l => name == l, duplicates)
+        ? atomic(Duplicate(name, self), Constraint.Truth)
+        : atomic(self, Constraint.Truth);
     | Parens(p) =>
       let (p, m) = go(~ctx, ~mode, p, m);
       add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
@@ -1519,7 +1522,6 @@ and utyp_to_info_map =
   | Float
   | Bool
   | String => add(m)
-  | Label(_) => add(m)
   | Var(_) =>
     /* Names are resolved in Info.status_typ */
     add(m)
@@ -1529,15 +1531,6 @@ and utyp_to_info_map =
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
     add(m);
-  | TupLabel(label, t) =>
-    let expects_label =
-      switch (expects) {
-      | LabelExpected(_) => expects
-      | _ => LabelExpected(Unique, [])
-      };
-    let m = go'(~expects=expects_label, label, m) |> snd;
-    let m = go(t, m) |> snd;
-    add'(~expects=TypeExpected, m);
   | Prod(ts) =>
     let duplicate_labels =
       LabeledTuple.get_duplicate_labels(Typ.match_tup_label, ts);
@@ -1552,6 +1545,16 @@ and utyp_to_info_map =
           |> snd;
     let info = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects);
     (info, add_info(ids, InfoTyp(info), m));
+  | TupLabel(label, t) =>
+    let expects_label =
+      switch (expects) {
+      | LabelExpected(_) => expects
+      | _ => LabelExpected(Unique, [])
+      };
+    let m = go'(~expects=expects_label, label, m) |> snd;
+    let m = go(t, m) |> snd;
+    add'(~expects=TypeExpected, m);
+  | Label(_) => add(m)
   | Ap(t1, t2) =>
     let t1_mode: Info.typ_expects =
       switch (expects) {
