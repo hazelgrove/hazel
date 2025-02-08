@@ -55,6 +55,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | SendMessage(Model.message)
+    | SendSketch
     | NewChat
     | Respond(Model.message);
 
@@ -65,7 +66,13 @@ module Update = {
   };
 
   let update =
-      (~settings: Settings.t, ~action, ~model: Model.t, ~schedule_action)
+      (
+        ~settings: Settings.t,
+        ~action,
+        ~editor: CellEditor.Model.t,
+        ~model: Model.t,
+        ~schedule_action,
+      )
       : Updated.t(Model.t) => {
     switch (action) {
     | SendMessage(message) =>
@@ -97,6 +104,30 @@ module Update = {
     | Respond(message) =>
       Model.{chat: ListUtil.leading(model.chat) @ [message], currSender: LS}
       |> Updated.return_quiet
+    | SendSketch =>
+      Util.OptUtil.Syntax.(
+        switch (
+          {
+            let* index = Indicated.index(editor.editor.state.zipper);
+            let* ci = Id.Map.find_opt(index, editor.statics.info_map);
+            let sketch_seg =
+              Zipper.smart_seg(
+                ~dump_backpack=true,
+                ~erase_buffer=true,
+                editor.editor.state.zipper,
+              );
+            ChatLSP.Prompt.mk_init(ChatLSP.Options.init, ci, sketch_seg);
+          }
+        ) {
+        | None => print_endline("prompt generation failed")
+        | Some(openai_prompt) =>
+          List.iter(
+            (message: OpenAI.message) => print_endline(message.content),
+            openai_prompt,
+          )
+        }
+      );
+      Model.{chat: model.chat, currSender: LS} |> Updated.return_quiet;
     };
   };
 };

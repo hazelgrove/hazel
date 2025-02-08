@@ -238,9 +238,19 @@ module Update = {
       {...model, explain_this};
     | Assistant(action) =>
       let settings = globals.settings.assistant;
+      let ed: CellEditor.Model.t =
+        switch (model.editors) {
+        | Scratch(m) => List.nth(m.scratchpads, m.current) |> snd
+        | Documentation(m) => List.nth(m.scratchpads, m.current) |> snd
+        | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl // Todo this is an error
+        };
       let* assistant =
         AssistantModel.Update.update(
-          ~settings, ~action, ~model=model.assistant, ~schedule_action=a =>
+          ~settings,
+          ~action,
+          ~model=model.assistant,
+          ~editor=ed,
+          ~schedule_action=a =>
           schedule_action(Assistant(a))
         );
       {...model, assistant};
