@@ -42,11 +42,15 @@ let print =
           let* ci = Id.Map.find_opt(index, map);
           let sketch_seg =
             Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, zipper);
-          ChatLSP.Prompt.static_context(ChatLSP.Options.init, ci, sketch_seg);
+          ChatLSP.Prompt.mk_init(ChatLSP.Options.init, ci, sketch_seg);
         }
       ) {
       | None => print_endline("prompt generation failed")
-      | Some(prompt) => print_endline(prompt)
+      | Some(openai_prompt) =>
+        List.iter(
+          (message: OpenAI.message) => print_endline(message.content),
+          openai_prompt,
+        )
       }
     );
   | "F10" =>
