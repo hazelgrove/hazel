@@ -278,6 +278,16 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     @ e
     |> fold_fun_if(settings.fold_fn_bodies, name);
   | Tuple([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()")
+  | Tuple([{term: TupLabel(_), _} as le]) => go(le)
+  | Tuple([x, ...xs]) =>
+    // TODO: Add optional newlines
+    let+ x = go(x)
+    and+ xs = xs |> List.map(go) |> all;
+    let ids = exp.ids |> pad_ids(List.length(xs));
+    x
+    @ List.flatten(
+        List.map2((id, x) => [mk_form("comma_exp", id, [])] @ x, ids, xs),
+      );
   | Label(l) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, l)
   | TupLabel(l, e) =>
     let* l = go(l)
@@ -304,16 +314,6 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let* e = go(e)
     and* l = go(l);
     List.flatten([e, [mk_form("dot_exp", exp |> Exp.rep_id, [])], l]);
-  | Tuple([{term: TupLabel(_), _} as le]) => go(le)
-  | Tuple([x, ...xs]) =>
-    // TODO: Add optional newlines
-    let+ x = go(x)
-    and+ xs = xs |> List.map(go) |> all;
-    let ids = exp.ids |> pad_ids(List.length(xs));
-    x
-    @ List.flatten(
-        List.map2((id, x) => [mk_form("comma_exp", id, [])] @ x, ids, xs),
-      );
   | Let(p, e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;

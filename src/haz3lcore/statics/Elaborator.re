@@ -146,7 +146,6 @@ let rec elaborate_pattern =
     | Bool(_) => upat |> cast_from(Bool |> Typ.temp)
     | Float(_) => upat |> cast_from(Float |> Typ.temp)
     | String(_) => upat |> cast_from(String |> Typ.temp)
-    | Label(name) => upat |> cast_from(Label(name) |> Typ.temp)
     | ListLit(ps) =>
       let (ps, tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
       let inner_type =
@@ -200,6 +199,7 @@ let rec elaborate_pattern =
           (name, t) => TupLabel(Label(name) |> Typ.temp, t) |> Typ.temp,
         );
       Tuple(ps') |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
+    | Label(name) => upat |> cast_from(Label(name) |> Typ.temp)
     | Ap(p1, p2) =>
       let (p1', ty1) = elaborate_pattern(m, p1);
       let (p2', ty2) = elaborate_pattern(m, p2);
@@ -309,7 +309,6 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Bool(_) => uexp |> cast_from(Bool |> Typ.temp)
     | Float(_) => uexp |> cast_from(Float |> Typ.temp)
     | String(_) => uexp |> cast_from(String |> Typ.temp)
-    | Label(name) => uexp |> cast_from(Label(name) |> Typ.temp)
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let inner_type =
@@ -342,12 +341,6 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       TypFun(tpat, e', name)
       |> rewrap
       |> cast_from(Forall(tpat, tye) |> Typ.temp);
-    | TupLabel(label, e) =>
-      let (label', labty) = elaborate(m, label);
-      let (e', ety) = elaborate(m, e);
-      TupLabel(label', e')
-      |> rewrap
-      |> cast_from(TupLabel(labty, ety) |> Typ.temp);
     | Tuple(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
 
@@ -367,11 +360,16 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           (name, t) => TupLabel(Label(name) |> Typ.temp, t) |> Typ.temp,
         );
       Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
-
+    | TupLabel(label, e) =>
+      let (label', labty) = elaborate(m, label);
+      let (e', ety) = elaborate(m, e);
+      TupLabel(label', e')
+      |> rewrap
+      |> cast_from(TupLabel(labty, ety) |> Typ.temp);
+    | Label(name) => uexp |> cast_from(Label(name) |> Typ.temp)
     | Dot(e1, e2) =>
       let (e1, ty1) = elaborate(m, e1);
       // Don't elaborate labels
-      // let (e2, ty2) = elaborate(m, e2);
       let rec elab_dot = (ty1: Typ.t, e2: DHExp.t) =>
         switch (ty1.term, e2.term) {
         | (Parens(ty1), _) => elab_dot(ty1, e2)
@@ -391,9 +389,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         | _ => Unknown(Internal) |> Typ.temp
         };
       let ty = elab_dot(ty1, e2);
-      // Freshcast this, if necessary?
       Dot(e1, e2) |> rewrap |> cast_from(ty);
-
     | Var(v) =>
       uexp
       |> cast_from(

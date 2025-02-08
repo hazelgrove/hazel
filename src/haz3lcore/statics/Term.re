@@ -95,10 +95,10 @@ module Pat = {
     | Float(_)
     | Bool(_)
     | String(_)
-    | Label(_)
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
+    | Label(_)
     | Constructor(_)
     | Ap(_) => false
     };
@@ -118,10 +118,10 @@ module Pat = {
     | Float(_)
     | Bool(_)
     | String(_)
-    | Label(_)
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
+    | Label(_)
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => false
@@ -135,6 +135,7 @@ module Pat = {
       | Parens(pat) => is_tuple_of_arrows(pat)
       | TupLabel(_, pat) => is_tuple_of_arrows(pat)
       | Tuple(pats) => pats |> List.for_all(is_fun_var)
+      | Label(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -143,7 +144,6 @@ module Pat = {
       | Float(_)
       | Bool(_)
       | String(_)
-      | Label(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -161,6 +161,7 @@ module Pat = {
       | TupLabel(_, pat)
       | Cast(pat, _, _) => is_tuple_of_vars(pat)
       | Tuple(pats) => pats |> List.for_all(is_var)
+      | Label(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -169,7 +170,6 @@ module Pat = {
       | Float(_)
       | Bool(_)
       | String(_)
-      | Label(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -192,9 +192,9 @@ module Pat = {
     | Float(_)
     | Bool(_)
     | String(_)
-    | Label(_)
     | ListLit(_)
     | Cons(_, _)
+    | Label(_)
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => None
@@ -219,10 +219,10 @@ module Pat = {
     | Float(_)
     | Bool(_)
     | String(_)
-    | Label(_)
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
+    | Label(_)
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => None
@@ -235,8 +235,9 @@ module Pat = {
     | None =>
       switch (pat.term) {
       | Parens(pat)
-      | TupLabel(_, pat)
-      | Cast(pat, _, _) => get_bindings(pat)
+      
+      | Cast(pat, _, _)
+      | TupLabel(_, pat) => get_bindings(pat)
       | Tuple(pats) =>
         let vars = pats |> List.map(get_var);
         if (List.exists(Option.is_none, vars)) {
@@ -244,6 +245,7 @@ module Pat = {
         } else {
           Some(List.map(Option.get, vars));
         };
+      | Label(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -252,7 +254,6 @@ module Pat = {
       | Float(_)
       | Bool(_)
       | String(_)
-      | Label(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -267,10 +268,12 @@ module Pat = {
     } else {
       switch (pat.term) {
       | Parens(pat)
+      | Cast(pat, _, _)
       | TupLabel(_, pat)
-      | Cast(pat, _, _) => get_num_of_vars(pat)
+       => get_num_of_vars(pat)
       | Tuple(pats) =>
         is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
+      | Label(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -279,7 +282,6 @@ module Pat = {
       | Float(_)
       | Bool(_)
       | String(_)
-      | Label(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -350,9 +352,9 @@ module Exp = {
     | ListLit
     | Constructor
     | Fun
+    | TypFun
     | Label
     | TupLabel
-    | TypFun
     | Tuple
     | Dot
     | Var
@@ -407,10 +409,10 @@ module Exp = {
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
-    | Label(_) => Label
-    | TupLabel(_, _) => TupLabel
     | TypFun(_) => TypFun
     | Tuple(_) => Tuple
+    | Label(_) => Label
+    | TupLabel(_, _) => TupLabel
     | Dot(_) => Dot
     | Var(_) => Var
     | Let(_) => Let
@@ -450,10 +452,10 @@ module Exp = {
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Fun => "Function literal"
-    | Label => "Label"
-    | TupLabel => "Labeled Tuple Item"
     | TypFun => "Type Function Literal"
     | Tuple => "Tuple literal"
+    | Label => "Label"
+    | TupLabel => "Labeled Tuple Item"
     | Dot => "Dot operator"
     | Var => "Variable reference"
     | MetaVar => "Meta variable reference"
@@ -502,11 +504,11 @@ module Exp = {
   let rec is_fun = (e: t) => {
     switch (e.term) {
     | Parens(e) => is_fun(e)
-    | TupLabel(_, e) => is_fun(e)
     | Cast(e, _, _) => is_fun(e)
     | TypFun(_)
     | Fun(_)
     | BuiltinFun(_) => true
+    | TupLabel(_, e) => is_fun(e)
     | Dot(e1, e2) =>
       let rec check_tuple = (e1: t, e2: t) =>
         switch (e1.term) {

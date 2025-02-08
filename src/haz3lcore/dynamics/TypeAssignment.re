@@ -40,6 +40,10 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       | _ => ty
       };
     switch (dhpat |> Pat.term_of) {
+    | Var(name) =>
+      let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty});
+      Some([entry]);
+    | Label(name) => Typ.eq(ty, Label(name) |> Typ.temp) ? Some([]) : None
     | TupLabel(_, dp1) =>
       switch (ty'.term) {
       | TupLabel(_, ty2)
@@ -52,9 +56,6 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       | TupLabel(_, _) => None
       | _ => dhpat_var_entry(dp1, ty)
       }
-    | Var(name) =>
-      let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty});
-      Some([entry]);
     | Tuple(l1) =>
       let (l1, ts) =
         Typ.matched_prod(ctx, l1, Pat.match_tup_label, ty, (name, b) =>
@@ -90,7 +91,6 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Float(_) => Typ.eq(ty, Float |> Typ.temp) ? Some([]) : None
     | Bool(_) => Typ.eq(ty, Bool |> Typ.temp) ? Some([]) : None
     | String(_) => Typ.eq(ty, String |> Typ.temp) ? Some([]) : None
-    | Label(name) => Typ.eq(ty, Label(name) |> Typ.temp) ? Some([]) : None
     | Constructor(_) => Some([]) // TODO: make this stricter
     | Cast(dhp, ty1, ty2) =>
       Typ.eq(ty, ty2) ? dhpat_var_entry(dhp, ty1) : None
@@ -106,13 +106,14 @@ let rec dhpat_synthesize = (dhpat: DHPat.t, ctx: Ctx.t): option(Typ.t) => {
   | Var(_)
   | Constructor(_)
   | Ap(_) => None
-  | Tuple(dhs) =>
-    let* l = List.map(dhpat_synthesize(_, ctx), dhs) |> OptUtil.sequence;
-    Some(Prod(l) |> Typ.temp);
+  | Label(name) => Some(Label(name) |> Typ.temp)
   | TupLabel(dlab, d) =>
     let* tlab = dhpat_synthesize(dlab, ctx);
     let* ty = dhpat_synthesize(d, ctx);
     Some(TupLabel(tlab, ty) |> Typ.temp);
+  | Tuple(dhs) =>
+    let* l = List.map(dhpat_synthesize(_, ctx), dhs) |> OptUtil.sequence;
+    Some(Prod(l) |> Typ.temp);
   | Cons(dhp1, _) =>
     let* t = dhpat_synthesize(dhp1, ctx);
     Some(List(t) |> Typ.temp);
@@ -129,7 +130,6 @@ let rec dhpat_synthesize = (dhpat: DHPat.t, ctx: Ctx.t): option(Typ.t) => {
   | Float(_) => Some(Float |> Typ.temp)
   | Bool(_) => Some(Bool |> Typ.temp)
   | String(_) => Some(String |> Typ.temp)
-  | Label(name) => Some(Label(name) |> Typ.temp)
   | Cast(_, _, ty) => Some(ty)
   };
 };
@@ -253,7 +253,6 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
   | Int(_) => Some(Int |> Typ.temp)
   | Float(_) => Some(Float |> Typ.temp)
   | String(_) => Some(String |> Typ.temp)
-  | Label(name) => Some(Label(name) |> Typ.temp)
   | BinOp(Bool(_), d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
@@ -336,6 +335,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     let* ty2 = typ_of_dhexp(ctx, m, d2);
     let* ty2l = Typ.matched_list_strict(ctx, ty2);
     Typ.eq(ty1l, ty2l) ? Some(ty1) : None;
+  | Label(name) => Some(Label(name) |> Typ.temp)
   | TupLabel(dlab, d) =>
     let* tlab = typ_of_dhexp(ctx, m, dlab);
     let* ty = typ_of_dhexp(ctx, m, d);
