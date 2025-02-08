@@ -19,6 +19,7 @@ type cls =
   | Var
   | Constructor
   | Parens
+  | ParamAp
   | Ap
   | Rec
   | Forall;
@@ -82,6 +83,7 @@ let cls_of_term: term => cls =
   | Ap(_) => Ap
   | Sum(_) => Sum
   | Rec(_) => Rec
+  | ParamAp(_) => ParamAp
   | Forall(_) => Forall;
 
 let show_cls: cls => string =
@@ -102,6 +104,7 @@ let show_cls: cls => string =
   | Prod => "Product type"
   | Sum => "Sum type"
   | Parens => "Parenthesized type"
+  | ParamAp => "Parameterized type"
   | Ap => "Constructor application"
   | Rec => "Recursive type"
   | Forall => "Forall type";
@@ -121,6 +124,7 @@ let rec is_arrow = (typ: t) => {
   | Ap(_)
   | Sum(_)
   | Forall(_)
+  | ParamAp(_)
   | Rec(_) => false
   };
 };
@@ -140,11 +144,11 @@ let rec is_forall = (typ: t) => {
   | Var(_)
   | Ap(_)
   | Sum(_)
+  | ParamAp(_)
   | Rec(_) => false
   };
 };
 
-/* Functions below this point assume that types have been through the to_typ function above */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type source = {
@@ -180,6 +184,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Float
   | Bool
   | String => []
+  | ParamAp(t1,t2) => free_vars(~bound,t1) @ free_vars(~bound, t2)
   | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | Parens(ty) => free_vars(~bound, ty)
@@ -506,6 +511,7 @@ let rec needs_parens = (ty: t): bool =>
   | Rec(_, _)
   | Forall(_, _) => true
   | List(_) => false /* is already wrapped in [] */
+  | ParamAp(_) => false
   | Arrow(_, _) => true
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
@@ -529,6 +535,7 @@ let rec pretty_print = (ty: t): string =>
   switch (term_of(ty)) {
   | Parens(ty) => pretty_print(ty)
   | Ap(_)
+  | ParamAp(_) /* Temporary */
   | Unknown(_) => "?"
   | Int => "Int"
   | Float => "Float"
