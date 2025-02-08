@@ -120,44 +120,6 @@ let projector_clss =
     }
   );
 
-/* Wraps the view function for a projector, absolutely positioning
- * relative to the syntax, adding a default backing decoration, and
- * adding fallthrough handlers where appropriate*/
-let view_wrapper =
-    (
-      ~inject: Action.t => Ui_effect.t(unit),
-      ~make_active,
-      ~font_metrics: FontMetrics.t,
-      ~measurement: Measured.measurement,
-      ~info: info,
-      ~status: Model.status,
-      views: list(Node.t),
-    ) =>
-  div(
-    ~attrs=[
-      Attr.classes(projector_clss(status)),
-      /* Stopping propagation here is stops the base editor's
-       * drag-select interaction from being triggered */
-      Attr.on_pointerdown(_ =>
-        Effect.Many([
-          Effect.Stop_propagation,
-          make_active,
-          inject(Project(Focus(info.id, None))),
-        ])
-      ),
-      DecUtil.abs_style(measurement, ~font_metrics),
-    ],
-    views,
-  );
-
-/* Dispatches projector external actions to editor-level actions */
-let handle = (id, action: external_action): Action.project =>
-  switch (action) {
-  | Remove => RemoveIndicated
-  | Escape(d) => Escape(id, d)
-  | SetSyntax(f) => SetSyntax(id, f)
-  };
-
 let offside_wrapper =
     (font_metrics: FontMetrics.t, offside_base: int, v: Node.t) =>
   div(
@@ -199,60 +161,6 @@ let simple_code = (~background=false, font_metrics, sort, segment): Node.t => {
   );
 };
 
-/* Route top-level metadata to the projector view function. */
-let mk_view =
-    (
-      inject: Action.t => Ui_effect.t(unit),
-      font_metrics: FontMetrics.t,
-      {p, info, _}: Model.projector_data,
-    )
-    : View.t => {
-  let (module P) = ProjectorInit.to_module(p.kind);
-  let parent = a => inject(Project(handle(p.id, a)));
-  let local = a =>
-    inject(Project(SetModel(p.id, P.update(p.model, info, a))));
-  let view_seg = (~background=?) => simple_code(~background?, font_metrics);
-  P.view(p.model, info, ~local, ~parent, ~view_seg);
-};
-
-/* Extract and collate different layers of the resulting view
- * in order to stratify z-levels across all projectors */
-// let split_views =
-//     (
-//       inject: Action.t => Ui_effect.t(unit),
-//       make_active,
-//       font_metrics: FontMetrics.t,
-//       {p, info, offside_base, measurement, status} as projector_data: Model.projector_data,
-//     )
-//     : (Node.t, Node.t, option(Node.t)) => {
-//   let wrapper =
-//     view_wrapper(
-//       ~inject,
-//       ~make_active,
-//       ~font_metrics,
-//       ~measurement,
-//       ~status,
-//       ~info,
-//     );
-//   let views = mk_view(inject, font_metrics, projector_data);
-//   let line_view = {
-//     let inline_view = Option.to_list(views.inline);
-//     let offside_view =
-//       views.offside
-//       |> Option.map(offside_wrapper(font_metrics, offside_base))
-//       |> Option.to_list;
-//     wrapper(inline_view @ offside_view);
-//   };
-//   let overlay_view = Option.map(v => wrapper([v]), views.overlay);
-//   let underlay_view =
-//     switch (views.underlay) {
-//     | Some(v) => wrapper([v])
-//     | None => wrapper([backing_deco(~font_metrics, ~measurement, p)])
-//     };
-
-//   (underlay_view, line_view, overlay_view);
-// };
-
 /* Is the piece with id indicated? If so, where is it wrt the caret? */
 let indication = (z, id) =>
   switch (Indicated.piece(z)) {
@@ -263,38 +171,93 @@ let indication = (z, id) =>
 let by_measurement = (pd1: Model.projector_data, pd2: Model.projector_data) =>
   compare(pd1.measurement.origin.row, pd2.measurement.origin.row);
 
-/* Returns a div containing all projector UIs, intended to
- * be absolutely positioned atop a rendered editor UI */
-// let all =
-//     (
-//       inject: Action.t => Ui_effect.t(unit),
-//       make_active,
-//       font_metrics: FontMetrics.t,
-//       projector_data: list(Model.projector_data),
-//     ) => {
-//   /* Sorting the projectors by position tends to be a good
-//    * z-index default; projectors further to the right or
-//    * further down count as a higher. On its own this could
-//    * impinge on hover-dropdowns, but the hovered projector
-//    * has z-index handled separately. But ideally dropdowns
-//    * should be on the overlay layer so this doesn't come up */
-//   let (underlay_views, base_views, overlay_views) =
-//     projector_data
-//     |> List.sort(by_measurement)
-//     |> List.map(split_views(inject, make_active, font_metrics))
-//     |> ListUtil.split3;
-//   let overlay_views = List.filter_map(Fun.id, overlay_views);
-//   [
-//     div_c(
-//       "projectors",
-//       [
-//         div_c("base", base_views),
-//         div_c("underlays", underlay_views),
-//         div_c("overlays", overlay_views),
-//       ],
-//     ),
-//   ];
-// };
+let view_wrapper =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~measurement: Measured.measurement,
+      ~status: Model.status,
+      ~focus,
+      views: list(Node.t),
+    )
+    : Node.t =>
+  Node.div(
+    ~attrs=[
+      Attr.classes(projector_clss(status)),
+      /* Stopping propagation here is stops the base editor's
+       * drag-select interaction from being triggered */
+      Attr.on_pointerdown(_ =>
+        Effect.Many([
+          Effect.Stop_propagation,
+          //make_active,
+          focus,
+          //inject(Project(Focus(info.id, None))),
+        ])
+      ),
+      DecUtil.abs_style(measurement, ~font_metrics),
+    ],
+    views,
+  );
+let split_views =
+    (
+      font_metrics: FontMetrics.t,
+      f: Id.t => ProjectorBase.View.t,
+      ~focus,
+      {p, offside_base, measurement, status, _}: Model.projector_data,
+    )
+    : (Node.t, Node.t, option(Node.t)) => {
+  let wrapper = view_wrapper(~focus, ~font_metrics, ~measurement, ~status);
+  let views = f(p.id);
+  switch (views) {
+  | Tylr(_) => failwith("Tylrlmao")
+  | Pro(views) =>
+    let line_view = {
+      let inline_view = Option.to_list(views.inline);
+      let offside_view =
+        views.offside
+        |> Option.map(offside_wrapper(font_metrics, offside_base))
+        |> Option.to_list;
+      wrapper(inline_view @ offside_view);
+    };
+    let overlay_view = Option.map(v => wrapper([v]), views.overlay);
+    let underlay_view =
+      switch (views.underlay) {
+      | Some(v) => wrapper([v])
+      | None => wrapper([backing_deco(~font_metrics, ~measurement, p)])
+      };
+
+    (underlay_view, line_view, overlay_view);
+  };
+};
+let all =
+    (
+      ~focus: Ui_effect.t(unit),
+      f,
+      font_metrics: FontMetrics.t,
+      projector_data: list(Model.projector_data),
+    ) => {
+  /* Sorting the projectors by position tends to be a good
+   * z-index default; projectors further to the right or
+   * further down count as a higher. On its own this could
+   * impinge on hover-dropdowns, but the hovered projector
+   * has z-index handled separately. But ideally dropdowns
+   * should be on the overlay layer so this doesn't come up */
+  let (underlay_views, base_views, overlay_views) =
+    projector_data
+    |> List.sort(by_measurement)
+    |> List.map(split_views(font_metrics, f, ~focus))
+    |> ListUtil.split3;
+  let overlay_views = List.filter_map(Fun.id, overlay_views);
+  [
+    div_c(
+      "projectors",
+      [
+        div_c("base", base_views),
+        div_c("underlays", underlay_views),
+        div_c("overlays", overlay_views),
+      ],
+    ),
+  ];
+};
 
 let move_dir = (key: Key.t): option(Direction.t) =>
   switch (key) {

@@ -1,6 +1,5 @@
 open Util;
 open Haz3lcore;
-open Web;
 
 module Model = EditorManagerModel;
 
@@ -76,6 +75,7 @@ module Update = {
       let new_component = {...component, model: projector_model};
       Model.set_component(id, new_component, model) |> Updated.return;
     | Manage(Project({parent, kind})) =>
+      print_endline("EditorManager: Manage(Project({parent, kind}))");
       let parent_component = Model.get_component(parent, model);
       let parent_z = parent_component.editor.state.zipper;
       switch (Indicated.for_index(parent_z)) {
@@ -98,9 +98,12 @@ module Update = {
           kind: Some(kind),
           model: P.init,
         };
-        model
-        |> Model.add_component(new_component)
-        |> Model.set_component(parent, parent_component);
+        let res =
+          model
+          |> Model.add_component(new_component)
+          |> Model.set_component(parent, parent_component);
+        print_endline("new component added. id: " ++ Id.str8(new_id));
+        res;
       };
     | SetSyntax(id, syntax) =>
       let new_editor = Zipper.unzip(syntax) |> Editor.Model.mk;
@@ -272,7 +275,7 @@ module View = {
             component: Model.component,
           )
           : ProjectorBase.View.t => {
-    let f: Id.t => ProjectorBase.View.t =
+    let projector_view: Id.t => ProjectorBase.View.t =
       id => {
         view_component(
           ~globals,
@@ -329,8 +332,6 @@ module View = {
           selected == Some({component: component.id}),
         );
       };
-      open ProjectorView;
-      open Virtual_dom.Vdom;
       // let view_wrapper =
       //     (
       //       ~font_metrics: FontMetrics.t,
@@ -419,89 +420,11 @@ module View = {
       //     ~cached_syntax=component.editor.syntax,
       //     ~font_metrics=globals.font_metrics,
       //   );
-      let view_wrapper =
-          (
-            ~font_metrics: FontMetrics.t,
-            ~measurement: Measured.measurement,
-            ~status: Model.status,
-            views: list(Node.t),
-          ) =>
-        Node.div(
-          ~attrs=[
-            Attr.classes(projector_clss(status)),
-            /* Stopping propagation here is stops the base editor's
-             * drag-select interaction from being triggered */
-            Attr.on_pointerdown(_ =>
-              Effect.Many([
-                Effect.Stop_propagation,
-                //make_active,
-                signal(Focus({component: component.id})),
-                //inject(Project(Focus(info.id, None))),
-              ])
-            ),
-            DecUtil.abs_style(measurement, ~font_metrics),
-          ],
-          views,
-        );
-      let split_views =
-          (
-            font_metrics: FontMetrics.t,
-            {p, offside_base, measurement, status, _}: Model.projector_data,
-          )
-          : (Node.t, Node.t, option(Node.t)) => {
-        let wrapper = view_wrapper(~font_metrics, ~measurement, ~status);
-        let views = f(p.id);
-        switch (views) {
-        | Tylr(_) => failwith("Tylrlmao")
-        | Pro(views) =>
-          let line_view = {
-            let inline_view = Option.to_list(views.inline);
-            let offside_view =
-              views.offside
-              |> Option.map(offside_wrapper(font_metrics, offside_base))
-              |> Option.to_list;
-            wrapper(inline_view @ offside_view);
-          };
-          let overlay_view = Option.map(v => wrapper([v]), views.overlay);
-          let underlay_view =
-            switch (views.underlay) {
-            | Some(v) => wrapper([v])
-            | None => wrapper([backing_deco(~font_metrics, ~measurement, p)])
-            };
 
-          (underlay_view, line_view, overlay_view);
-        };
-      };
-      let all =
-          (
-            font_metrics: FontMetrics.t,
-            projector_data: list(Model.projector_data),
-          ) => {
-        /* Sorting the projectors by position tends to be a good
-         * z-index default; projectors further to the right or
-         * further down count as a higher. On its own this could
-         * impinge on hover-dropdowns, but the hovered projector
-         * has z-index handled separately. But ideally dropdowns
-         * should be on the overlay layer so this doesn't come up */
-        let (underlay_views, base_views, overlay_views) =
-          projector_data
-          |> List.sort(by_measurement)
-          |> List.map(split_views(font_metrics))
-          |> ListUtil.split3;
-        let overlay_views = List.filter_map(Fun.id, overlay_views);
-        [
-          div_c(
-            "projectors",
-            [
-              div_c("base", base_views),
-              div_c("underlays", underlay_views),
-              div_c("overlays", overlay_views),
-            ],
-          ),
-        ];
-      };
       let projectors =
-        all(
+        ProjectorView.all(
+          ~focus=signal(Focus({component: component.id})),
+          projector_view,
           globals.font_metrics,
           ProjectorView.Model.mk(
             component.editor.syntax.projectors,
@@ -521,8 +444,9 @@ module View = {
           ~sort=Exp,
           {editor: component.editor, statics: model.statics, dynamics},
         );
+      //TODO:
       Tylr(
-        Node.div(
+        Virtual_dom.Vdom.Node.div(
           ~attrs=[
             Virtual_dom.Vdom.Attr.classes(
               ["cell-item", "code-editor"]

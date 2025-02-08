@@ -23,12 +23,15 @@ open OptUtil.Syntax;
  * neighboring infix operation was added which binds tighter. Again,
  * this is the same as would happen if unparenthesizing a subterm. */
 
-let init = (kind: ProjectorCore.Kind.t, seg: Base.segment): option(syntax) =>
+let init =
+    (kind: ProjectorCore.Kind.t, projector_id, seg: Base.segment)
+    : option(syntax) =>
   /* Projected syntax always gets parenthesized, but only the contents
    * of those parentheses are passed to the projector implementations  */
   switch (MakeTerm.for_projection(seg)) {
   | None => None
-  | Some(any) => ProjectorInit.init(kind, Segment.parenthesize(seg), any)
+  | Some(any) =>
+    ProjectorInit.init(kind, projector_id, Segment.parenthesize(seg), any)
   };
 
 let replace_selection_and_unselect =
@@ -77,17 +80,18 @@ let go =
       : Some((z.selection.focus, z));
 
   let set_indicated =
-      (z: Zipper.t, kind: ProjectorCore.Kind.t): option(Zipper.t) => {
+      (z: Zipper.t, projector_id, kind: ProjectorCore.Kind.t)
+      : option(Zipper.t) => {
     /* If not projected, project. If already same kind, remove. If other kind, change */
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
     | [Projector(pr)] when pr.kind == kind =>
       Some(remove(pr.syntax, focus, z))
     | [Projector(pr)] =>
-      let+ piece = init(kind, Piece.unparenthesize(pr.syntax));
+      let+ piece = init(kind, projector_id, Piece.unparenthesize(pr.syntax));
       replace_selection_and_unselect(piece, focus, z);
     | seg =>
-      let+ piece = init(kind, seg);
+      let+ piece = init(kind, projector_id, seg);
       replace_selection_and_unselect(piece, focus, z);
     };
   };
@@ -101,15 +105,15 @@ let go =
   };
 
   switch (a) {
-  | SetIndicated(Specific(kind), _todo_id) =>
-    switch (set_indicated(z, kind)) {
+  | SetIndicated(Specific(kind), projector_id) =>
+    switch (set_indicated(z, projector_id, kind)) {
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
-  | SetIndicated(ChooseLivelit, _todo_id) =>
+  | SetIndicated(ChooseLivelit, projector_id) =>
     switch (
       List.filter_map(
-        set_indicated(z),
+        set_indicated(z, projector_id),
         ProjectorCore.Kind.livelit_projectors,
       )
     ) {

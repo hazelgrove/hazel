@@ -16,18 +16,18 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   };
 
 let init =
-    (kind: ProjectorCore.Kind.t, syntax: syntax, any: Term.Any.t)
+    (kind: ProjectorCore.Kind.t, id, syntax: syntax, any: Term.Any.t)
     : option(syntax) => {
   let (module P) = to_module(kind);
   switch (P.can_project(any)) {
   | false => None
-  | true => Some(Projector(ProjectorCore.mk(kind, syntax, P.init)))
+  | true => Some(Projector(ProjectorCore.mk(id, kind, syntax, P.init)))
   };
 };
 
 let init_or_noop =
-    (kind: ProjectorCore.Kind.t, syntax: syntax, any: Term.Any.t): syntax =>
-  switch (init(kind, syntax, any)) {
+    (kind: ProjectorCore.Kind.t, id, syntax: syntax, any: Term.Any.t): syntax =>
+  switch (init(kind, id, syntax, any)) {
   | Some(pr) => pr
   | None => syntax
   };
@@ -38,11 +38,12 @@ let init_or_noop_from_str =
       syntax: syntax,
       any: Term.Any.t,
       model_str: string,
+      id: Id.t,
     )
     : syntax => {
   let (module P) = to_module(kind);
   switch (P.can_project(any)) {
   | false => syntax
-  | true => Projector(ProjectorCore.mk(kind, syntax, model_str))
+  | true => Projector(ProjectorCore.mk(id, kind, syntax, model_str))
   };
 };

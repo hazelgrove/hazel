@@ -100,7 +100,10 @@ let toggle_view = (~add_projector, applicable_projectors: Applicable.t) =>
     div(
       ~attrs=[
         clss(["toggle-switch", "active"]),
-        Attr.on_mousedown(_ => add_projector(active)),
+        Attr.on_mousedown(_ => {
+          print_endline("projectorPanel: toggle_view");
+          add_projector(active);
+        }),
       ],
       [knob],
     )
@@ -126,6 +129,7 @@ let select_view = (~add_projector, applicable_projectors: Applicable.t) => {
         Attr.on_change((_, name) => {
           let value = ProjectorCore.Kind.name(active);
           JsUtil.set_select_value("projector-select", value);
+          print_endline("projectorPanel: select_view:add_projector");
           add_projector(ProjectorCore.Kind.of_name(name));
         }),
         //Attr.string_property("value", value),

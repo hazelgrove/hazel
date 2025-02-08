@@ -638,24 +638,32 @@ let fold_if = (condition, pieces) =>
     let syntax = mk_form("parens_exp", Id.mk(), [pieces]);
     switch (MakeTerm.for_projection([syntax])) {
     | None => failwith("ExpToSegment.fold_if")
-    | Some(any) => [ProjectorInit.init_or_noop(Fold, syntax, any)]
+    | Some(_any) =>
+      //TODO(andrew||matt): find a new way to insert these i guess
+      // [
+      //     ProjectorInit.init_or_noop(Fold, syntax, any),
+      //   ]
+      pieces
     };
   } else {
     pieces;
   };
 
-let fold_fun_if = (condition, f_name: string, pieces) =>
+let fold_fun_if = (condition, _f_name: string, pieces) =>
   if (condition) {
-    let syntax = mk_form("parens_exp", Id.mk(), [pieces]);
-    let str = FoldProj.sexp_of_t({text: f_name}) |> Sexplib.Sexp.to_string;
-    switch (MakeTerm.for_projection([syntax])) {
-    | None => failwith("ExpToSegment.fold_fun_if")
-    | Some(any) => [
-        ProjectorInit.init_or_noop_from_str(Fold, syntax, any, str),
-      ]
-    };
+    // let syntax = mk_form("parens_exp", Id.mk(), [pieces]);
+    // let str = FoldProj.sexp_of_t({text: f_name}) |> Sexplib.Sexp.to_string;
+    // switch (MakeTerm.for_projection([syntax])) {
+    // | None => failwith("ExpToSegment.fold_fun_if")
+    // | Some(any) =>
+    //TODO(andrew||matt): find a new way to insert these i guess
+    // [
+    //     ProjectorInit.init_or_noop_from_str(Fold, syntax, any, str),
+    //   ]
+    pieces
+    // };
   } else {
-    pieces;
+    pieces
   };
 
 /* We assume that parentheses have already been added as necessary, and

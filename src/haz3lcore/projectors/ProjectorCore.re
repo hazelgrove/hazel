@@ -69,7 +69,7 @@ type t('syntax) = {
   model: string,
 };
 
-let mk = (kind, syntax, model) => {id: Id.mk(), kind, syntax, model};
+let mk = (id, kind, syntax, model) => {id, kind, syntax, model};
 
 module Shape = {
   /* A projector shape determines the space left for
