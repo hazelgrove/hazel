@@ -43,16 +43,24 @@ type select =
   | Tile(rel)
   | Term(rel);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type chooser =
+  | Specific(ProjectorCore.Kind.t)
+  | ChooseLivelit;
+
 /* This type defines the top-level actions used to manage
  * projectors,as distinguished from external_action,
  * which defines the actions available internally to all projectors,
  * and from each projector's own internal action type */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type project =
-  | SetIndicated(Base.kind, Id.t) /* Project syntax at caret */
-  | ToggleIndicated(Base.kind, Id.t) /* Un/Project syntax at caret */
-  | Remove(Id.t) /* Remove projector at Id */
-  | SetSyntax(Id.t, Piece.t) /* Set underlying syntax */
+  // | SetIndicated(Base.kind, Id.t) /* Project syntax at caret */
+  // | ToggleIndicated(Base.kind, Id.t) /* Un/Project syntax at caret */
+  // | Remove(Id.t) /* Remove projector at Id */
+  // | SetSyntax(Id.t, Piece.t) /* Set underlying syntax */
+  | SetIndicated(chooser, Id.t) /* Project syntax at caret */
+  | RemoveIndicated /* Remove projector at caret */
+  | SetSyntax(Id.t, Base.segment) /* Set underlying syntax */
   | SetModel(Id.t, string) /* Set serialized projector model */
   | Focus(Id.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(Id.t, Direction.t); /* Pass control to parent editor */
@@ -68,10 +76,15 @@ type buffer =
   | Accept;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type paste =
+  | String(string)
+  | Segment(Segment.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Reparse
   | Buffer(buffer)
-  | Paste(string)
+  | Paste(paste)
   | Copy
   | Cut
   | Project(project)
@@ -131,8 +144,7 @@ let is_edit: t => bool =
     | SetSyntax(_)
     | SetModel(_)
     | SetIndicated(_)
-    | ToggleIndicated(_)
-    | Remove(_) => true
+    | RemoveIndicated => true
     | Focus(_)
     | Escape(_) => false
     };
@@ -161,8 +173,7 @@ let is_historic: t => bool =
     | SetSyntax(_)
     | SetModel(_)
     | SetIndicated(_)
-    | ToggleIndicated(_)
-    | Remove(_) => true
+    | RemoveIndicated => true
     | Focus(_)
     | Escape(_) => false
     };
@@ -189,8 +200,7 @@ let prevent_in_read_only_editor = (a: t) => {
     | SetSyntax(_) => true
     | SetModel(_)
     | SetIndicated(_)
-    | ToggleIndicated(_)
-    | Remove(_)
+    | RemoveIndicated
     | Focus(_)
     | Escape(_) => false
     }

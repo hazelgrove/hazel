@@ -99,7 +99,7 @@
   margin-left: 0.17em;
   font-size: 64%;
   vertical-align: super;
-  z-index: var(--test-result-z);
+  z-index: var(--projector-overlay-z);
 }
 
 .test-instance.Pass:before,

@@ -143,7 +143,8 @@ module Store = {
     |> sexp_of_exercise_export
     |> Sexplib.Sexp.to_string;
 
-  let import = (~settings, data, ~specs, ~instructor_mode) => {
+  let import = (~settings as _, data, ~specs, ~instructor_mode) => {
+    //TODO: unused?
     let exercise_export =
       data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
     StoreExerciseKey.save(exercise_export.cur_exercise);

@@ -9,12 +9,13 @@ let alco_check =
   )
   |> Alcotest.check;
 
-let strip_parens_and_add_builtins =
+let strip_Wrap_and_add_builtins =
   Exp.map_term(
     ~f_exp=
       (cont: TermBase.exp_t => TermBase.exp_t, e: TermBase.exp_t) =>
         switch (e.term) {
-        | Parens(e) => cont(e)
+        | Parens(e)
+        | Probe(e, _) => cont(e)
         | Var(x) =>
           let builtin =
             VarMap.lookup(Haz3lcore.Builtins.Pervasives.builtins, x);
@@ -30,7 +31,8 @@ let strip_parens_and_add_builtins =
     ~f_pat=
       (cont, e) =>
         switch (e.term) {
-        | Parens(e) => cont(e)
+        | Parens(e)
+        | Probe(e, _) => cont(e)
         | _ => cont(e)
         },
     ~f_typ=
@@ -44,7 +46,7 @@ let strip_parens_and_add_builtins =
 
 // Existing recovering parser
 let make_term_parse = (s: string) =>
-  strip_parens_and_add_builtins(
+  strip_Wrap_and_add_builtins(
     MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term,
   );
 
@@ -160,6 +162,7 @@ let qcheck_menhir_serialized_equivalent_test =
             hide_fixpoints: false,
             fold_cast_types: false,
             show_filters: true,
+            show_unknown_as_hole: true,
           },
           core_exp,
         );
@@ -188,7 +191,7 @@ let tests = (
     full_parser_test("Empty Hole", EmptyHole |> Exp.fresh, "?"),
     full_parser_test("Var", Var("x") |> Exp.fresh, "x"),
     full_parser_test(
-      "Parens",
+      "Wrap",
       Parens(Var("y") |> Exp.fresh) |> Exp.fresh,
       "(y)",
     ),

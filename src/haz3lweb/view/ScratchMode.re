@@ -18,7 +18,8 @@ module Model = {
   );
 
   let unpersist =
-      (~settings, (current, slides: list(CellEditor.Model.persistent))) => {
+      (~settings as _, (current, slides: list(CellEditor.Model.persistent))) => {
+    //TODO: unused?
     current,
     scratchpads:
       List.mapi(

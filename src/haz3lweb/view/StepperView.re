@@ -268,6 +268,7 @@ module Update = {
                 CodeSelectable.Update.calculate(
                   ~settings=settings |> Calc.get_value,
                   ~is_edited=false,
+                  ~dynamics=Dynamics.Map.empty, // No projectors in stepper atm
                   ~stitch=x =>
                   x
                 ),
@@ -475,6 +476,7 @@ module View = {
                  [
                    div(~attrs=[Attr.class_("equiv")], [Node.text("≡")]),
                    StepperEditor.View.view(
+                     ~dynamics=Dynamics.Map.empty, //TODO
                      ~globals,
                      ~overlays=[],
                      ~selected=
@@ -510,6 +512,7 @@ module View = {
                        taken_steps: [b.step.d_loc |> Exp.rep_id],
                      },
                    )
+                   |> ProjectorBase.View.get_tylr
                    |> (x => [x])
                    |> Web.div_c("result"),
                    div(
@@ -542,6 +545,7 @@ module View = {
           | Calculated(model) => [
               div(~attrs=[Attr.class_("equiv")], [Node.text("≡")]),
               StepperEditor.View.view(
+                ~dynamics=Dynamics.Map.empty, //TODO
                 ~globals,
                 ~selected=
                   switch (selection) {
@@ -585,6 +589,7 @@ module View = {
                   taken_steps: [],
                 },
               )
+              |> ProjectorBase.View.get_tylr
               |> (x => [x])
               |> Web.div_c("result"),
             ]

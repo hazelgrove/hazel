@@ -30,7 +30,8 @@ let rec find_var_upat = (name: string, upat: Pat.t): bool => {
   | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l)
-  | Parens(up) => find_var_upat(name, up)
+  | Parens(up)
+  | Probe(up, _) => find_var_upat(name, up)
   | Ap(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
   | Cast(up, _, _) => find_var_upat(name, up)
   };
@@ -46,9 +47,10 @@ let rec find_var_upat = (name: string, upat: Pat.t): bool => {
 let rec find_in_let =
         (name: string, upat: Pat.t, def: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   switch (upat.term, def.term) {
-  | (Parens(up), Parens(ue)) => find_in_let(name, up, ue, l)
-  | (Parens(up), _) => find_in_let(name, up, def, l)
-  | (_, Parens(ue)) => find_in_let(name, upat, ue, l)
+  | (Parens(up) | Probe(up, _), Parens(ue) | Probe(ue, _)) =>
+    find_in_let(name, up, ue, l)
+  | (Parens(up) | Probe(up, _), _) => find_in_let(name, up, def, l)
+  | (_, Parens(ue) | Probe(ue, _)) => find_in_let(name, upat, ue, l)
   | (Cast(up, _, _), _) => find_in_let(name, up, def, l)
   | (Var(x), Fun(_)) => x == name ? [def, ...l] : l
   | (Tuple(pl), Tuple(ul)) =>
@@ -91,6 +93,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | Fun(_, body, _, _) => l |> find_fn(name, body)
   | TypAp(u1, _)
   | Parens(u1)
+  | Probe(u1, _)
   | Cast(u1, _, _)
   | UnOp(_, u1)
   | TyAlias(_, _, u1)
@@ -155,7 +158,8 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
       false,
       l,
     )
-  | Parens(up) => var_mention_upat(name, up)
+  | Parens(up)
+  | Probe(up, _) => var_mention_upat(name, up)
   | Ap(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
   | Cast(up, _, _) => var_mention_upat(name, up)
@@ -190,6 +194,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | TypAp(u, _)
   | Test(u)
   | Parens(u)
+  | Probe(u, _)
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Filter(_, u) => var_mention(name, u)
@@ -251,6 +256,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | TypFun(_, u, _)
   | Test(u)
   | Parens(u)
+  | Probe(u, _)
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Filter(_, u) => var_applied(name, u)
@@ -348,7 +354,8 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Closure(_, u)
   | TypFun(_, u, _)
   | TypAp(u, _)
-  | Parens(u) => tail_check(name, u)
+  | Parens(u)
+  | Probe(u, _) => tail_check(name, u)
   | UnOp(_, u) => !var_mention(name, u)
   | Ap(_, u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
   | DeferredAp(fn, args) =>

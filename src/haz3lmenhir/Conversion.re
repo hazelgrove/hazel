@@ -347,6 +347,7 @@ module rec Exp: {
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Closure(_) => raise(Failure("Closure not supported"))
     | Parens(e) => of_core(e)
+    | Probe(e, _) => of_core(e)
     | Constructor(s, typ) => Constructor(s, Typ.of_core(typ))
     | DeferredAp(e, es) =>
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
@@ -393,7 +394,7 @@ and Typ: {
             },
           sumterms,
         );
-      Parens(Sum(converted_terms) |> Typ.fresh); // Adds parens due to MakeTerm
+      Parens(Sum(converted_terms) |> Typ.fresh); // Adds Wrap due to MakeTerm
     | ForallType(tp, t) =>
       Parens(
         Forall(TPat.of_menhir_ast(tp), of_menhir_ast(t))
@@ -402,7 +403,7 @@ and Typ: {
     | RecType(tp, t) =>
       Parens(
         Rec(TPat.of_menhir_ast(tp), of_menhir_ast(t)) |> Haz3lcore.Typ.fresh,
-      ) // Parens because of (rec ? -> Bool, ())
+      ) // Wrap because of (rec ? -> Bool, ())
     };
   };
   let of_core_type_provenance =
@@ -526,6 +527,7 @@ and Pat: {
     | Cast(p, t1, t2) =>
       CastPat(of_core(p), Typ.of_core(t1), Typ.of_core(t2))
     | Parens(p) => of_core(p)
+    | Probe(p, _) => of_core(p)
     };
   };
 };

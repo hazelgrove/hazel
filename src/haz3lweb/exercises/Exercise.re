@@ -471,7 +471,9 @@ let stitch_term: ('a => 'b, p('a)) => stitched(TermItem.t('a)) =
         );
       {
         test_validation: wrap(test_validation_term, eds.your_tests.tests),
-        user_impl: wrap(user_impl_term, eds.your_impl),
+        /* Passing tests term to user_impl so probes in impl reflect tests: */
+        //user_impl: wrap(user_impl_term, eds.your_impl),
+        user_impl: wrap(user_tests_term, eds.your_impl),
         user_tests: wrap(user_tests_term, eds.your_tests.tests),
         prelude: wrap(instructor, eds.prelude),
         instructor: wrap(instructor, eds.correct_impl),

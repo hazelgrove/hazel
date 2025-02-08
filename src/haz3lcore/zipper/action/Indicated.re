@@ -1,13 +1,15 @@
 open Util;
 open OptUtil.Syntax;
 
+[@deriving show]
 type relation =
   | Parent
   | Sibling;
 
+type piece = (Piece.t, Direction.t, relation);
+
 let piece' =
-    (~no_ws: bool, ~ign: Piece.t => bool, z: ZipperBase.t)
-    : option((Piece.t, Direction.t, relation)) => {
+    (~no_ws: bool, ~ign: Piece.t => bool, z: ZipperBase.t): option(piece) => {
   /* Returns the piece currently indicated (if any) and which side of
      that piece the caret is on. We favor indicating the piece to the
      (R)ight, but may end up indicating the (P)arent or the (L)eft.
@@ -84,6 +86,12 @@ let shard_index = (z: ZipperBase.t): option(int) =>
   };
 
 let for_index = piece'(~no_ws=false, ~ign=Piece.is_secondary);
+
+let direction = (z: ZipperBase.t): option(Direction.t) =>
+  switch (piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
+  | None => None
+  | Some((_, d, _)) => Some(d)
+  };
 
 let index = (z: ZipperBase.t): option(Id.t) =>
   switch (for_index(z)) {

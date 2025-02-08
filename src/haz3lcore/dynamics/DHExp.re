@@ -80,6 +80,7 @@ let rec strip_casts =
         | BinOp(_)
         | Match(_)
         | Parens(_)
+        | Probe(_)
         | EmptyHole
         | Invalid(_)
         | Var(_)
@@ -162,6 +163,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | TyAlias(_)
           | DeferredAp(_)
           | Parens(_)
+          | Probe(_)
           | UnOp(_) => continue(exp)
           },
       exp,

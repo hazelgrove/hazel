@@ -277,7 +277,7 @@ let expander_deco =
                   CodeViewable.view_segment(
                     ~globals,
                     ~sort=Exp,
-                    ~info_map=Id.Map.empty,
+                    ~shape_map=ProjectorCore.Shape.Map.empty, // Assume no projectors
                     segment,
                   );
                 let classes =
@@ -372,6 +372,7 @@ let example_view =
                     term
                     |> Zipper.unzip
                     |> Editor.Model.mk
+                    |> EditorManager.Model.mk
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
                          ~settings=globals.settings.core,
@@ -397,6 +398,7 @@ let example_view =
 let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p)
+  | Probe(p, _)
   | Cast(p, _, _) => bypass_parens_and_annot_pat(p)
   | _ => pat
   };
@@ -404,14 +406,16 @@ let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
 
 let rec bypass_parens_pat = (pat: Pat.t) => {
   switch (pat.term) {
-  | Parens(p) => bypass_parens_pat(p)
+  | Parens(p)
+  | Probe(p, _) => bypass_parens_pat(p)
   | _ => pat
   };
 };
 
 let rec bypass_parens_exp = (exp: Exp.t) => {
   switch (exp.term) {
-  | Parens(e) => bypass_parens_exp(e)
+  | Parens(e)
+  | Probe(e, _) => bypass_parens_exp(e)
   | _ => exp
   };
 };
@@ -496,6 +500,7 @@ let get_doc =
           editor,
         );
       let statics = CachedStatics.empty;
+      let dynamics = Dynamics.Map.empty;
       let highlight_deco = {
         module Deco =
           Deco.Deco({
@@ -510,7 +515,7 @@ let get_doc =
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
           ~sort,
-          {editor, statics},
+          {editor, statics, dynamics},
         );
       let example_view =
         example_view(
@@ -1064,7 +1069,8 @@ let get_doc =
             basic(FunctionExp.functions_ctr);
           }
         | Invalid(_) => default // Shouldn't get hit
-        | Parens(_) => default // Shouldn't get hit?
+        | Parens(_)
+        | Probe(_) => default // Shouldn't get hit?
         | Cast(_) => default // Shouldn't get hit?
         };
       | Tuple(terms) =>
@@ -1570,7 +1576,8 @@ let get_doc =
             basic(LetExp.lets_ctr);
           }
         | Invalid(_) => default // Shouldn't get hit
-        | Parens(_) => default // Shouldn't get hit?
+        | Parens(_)
+        | Probe(_) => default // Shouldn't get hit?
         | Cast(_) => default // Shouldn't get hit?
         };
       | FixF(pat, body, _) =>
@@ -1761,7 +1768,8 @@ let get_doc =
             ),
           TestExp.tests,
         );
-      | Parens(term) => get_message_exp(term.term) // No Special message?
+      | Parens(term)
+      | Probe(term, _) => get_message_exp(term.term) // No Special message?
       | Cons(hd, tl) =>
         let hd_id = List.nth(hd.ids, 0);
         let tl_id = List.nth(tl.ids, 0);
@@ -2131,7 +2139,8 @@ let get_doc =
         TypAnnPat.typann,
       );
     | Invalid(_) => simple("Not a valid pattern")
-    | Parens(_) =>
+    | Parens(_)
+    | Probe(_) =>
       // Shouldn't be hit?
       default
     }

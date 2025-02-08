@@ -34,6 +34,9 @@ module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(Info.t);
 
+  let empty = Id.Map.empty;
+  let lookup = Id.Map.find_opt;
+
   let error_ids = (info_map: t): list(Id.t) =>
     Id.Map.fold(
       (id, info, acc) =>
@@ -43,6 +46,22 @@ module Map = {
       info_map,
       [],
     );
+
+  /* The ids of binding sites for for all references in term with `id` */
+  let refs_in = (m: t, id: Id.t): Binding.s =>
+    switch (lookup(id, m)) {
+    | Some(InfoExp({co_ctx, ctx, _})) =>
+      co_ctx
+      |> VarMap.to_list
+      |> List.map(((n, _)) => Ctx.binding_of(ctx, n))
+    | _ => []
+    };
+
+  let bound_in = (m: t, id: Id.t): Binding.s =>
+    switch (lookup(id, m)) {
+    | Some(InfoPat({term, _})) => Term.Pat.bindings(term)
+    | _ => []
+    };
 };
 
 let map_m = (f, xs, m: Map.t) =>
@@ -271,6 +290,13 @@ and uexp_to_info_map =
   | Parens(e) =>
     let (e, m) = go(~mode, e, m);
     add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
+  | Probe(e, _) =>
+    /* Currently doing this as otherwise it clobbers the statics
+     * for the contained expression as i'm just reusing the same id
+     * in order to associate it through dynamics */
+    let (ci, map) = go(~mode, e, m);
+    let map = add_info(ids, InfoExp(ci), map);
+    (ci, map);
   | UnOp(Meta(Unquote), e) when is_in_filter =>
     let e: Exp.t = {
       ids: e.ids,
@@ -792,6 +818,13 @@ and upat_to_info_map =
       ~constraint_=cons_fold_tuple(cons),
       m,
     );
+  | Probe(p, _) =>
+    /* Currently doing this as otherwise it clobbers the statics
+     * for the contained expression as i'm just reusing the same id
+     * in order to associate it through dynamics */
+    let (ci, map) = go(~ctx, ~mode, p, m);
+    let map = add_info(ids, InfoPat(ci), map);
+    (ci, map);
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
@@ -1009,11 +1042,3 @@ let get_pat_error_at = (info_map: Map.t, id: Id.t) => {
        }
      );
 };
-
-let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>
-  Id.Map.fold(
-    (id, info: Info.t, acc) =>
-      Option.to_list(Info.error_of(info) |> Option.map(x => (id, x))) @ acc,
-    map,
-    [],
-  );

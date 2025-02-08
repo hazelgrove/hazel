@@ -6,7 +6,7 @@ type component = {
   id: Id.t,
   parent: option(Id.t),
   editor: Editor.t,
-  kind: option(Base.kind),
+  kind: option(ProjectorCore.Kind.t),
   model: string,
 };
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -14,6 +14,7 @@ type t = {
   components: list(component),
   root_id: Id.t,
   statics: CachedStatics.t,
+  dynamics: Dynamics.Map.t,
 };
 
 let mk = editor => {
@@ -22,6 +23,7 @@ let mk = editor => {
     components: [{id, parent: None, editor, kind: None, model: ""}],
     root_id: id,
     statics: CachedStatics.empty,
+    dynamics: Dynamics.Map.empty,
   };
 };
 
@@ -49,7 +51,7 @@ type persistent_component = {
   id: Id.t,
   parent: option(Id.t),
   editor: Editor.Model.persistent,
-  kind: option(Base.kind),
+  kind: option(ProjectorCore.Kind.t),
   model: string,
 };
 
@@ -88,7 +90,12 @@ let unpersist = (data: persistent): t => {
         },
       data.components,
     );
-  {components, root_id: data.root_id, statics: CachedStatics.empty};
+  {
+    components,
+    root_id: data.root_id,
+    statics: CachedStatics.empty,
+    dynamics: Dynamics.Map.empty,
+  };
 };
 
 let segment_to_piece = (seg: Segment.t): Piece.t =>
@@ -116,10 +123,10 @@ let component_to_piece = (component: component): Piece.t => {
 };
 
 let assemble = (model: t): Segment.t => {
-  let swap_out = (go, piece: Piece.t): Piece.t => {
+  let swap_out = (go, piece: Piece.t): Segment.t => {
     switch (piece) {
-    | Projector(pr) => go(pr.id)
-    | _ => piece
+    | Projector(pr) => Piece.unparenthesize(go(pr.id))
+    | _ => [piece]
     };
   };
   let rec go = (id: Id.t): Piece.t => {

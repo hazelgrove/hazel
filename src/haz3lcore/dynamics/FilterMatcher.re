@@ -1,11 +1,4 @@
-let evaluate_extend_env =
-    (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
-    : ClosureEnvironment.t => {
-  to_extend
-  |> ClosureEnvironment.map_of
-  |> Environment.union(new_bindings)
-  |> ClosureEnvironment.of_environment;
-};
+let evaluate_extend_env = ClosureEnvironment.extend_eval(~call_stack=[]);
 
 let evaluate_extend_env_with_pat =
     (
@@ -104,8 +97,8 @@ let rec matches_exp =
     true;
   } else {
     switch (d |> DHExp.term_of, f |> DHExp.term_of) {
-    | (Parens(d), _) => matches_exp(d, f)
-    | (_, Parens(f)) => matches_exp(d, f)
+    | (Parens(d) | Probe(d, _), _) => matches_exp(d, f)
+    | (_, Parens(f) | Probe(f, _)) => matches_exp(d, f)
 
     | (Constructor("$e", _), _) => failwith("$e in matched expression")
     | (Constructor("$v", _), _) => failwith("$v in matched expression")

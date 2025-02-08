@@ -17,8 +17,6 @@ type gadt('a) =
 
 let root = Exp;
 
-let all = [Any, Pat, Typ, Rul, Exp, TPat];
-
 let consistent = (s, s') =>
   switch (s, s') {
   | (Any, _)

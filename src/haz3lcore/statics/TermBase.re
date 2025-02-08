@@ -83,7 +83,8 @@ and exp_term =
   | Test(exp_t)
   | Filter(stepper_filter_kind_t, exp_t)
   | Closure([@show.opaque] closure_environment_t, exp_t)
-  | Parens(exp_t) // (
+  | Parens(exp_t)
+  | Probe(exp_t, Probe.t)
   | Cons(exp_t, exp_t)
   | ListConcat(exp_t, exp_t)
   | UnOp(Operators.op_un, exp_t)
@@ -110,6 +111,7 @@ and pat_term =
   | Var(Var.t)
   | Tuple(list(pat_t))
   | Parens(pat_t)
+  | Probe(pat_t, Probe.t)
   | Ap(pat_t, pat_t)
   | Cast(pat_t, typ_t, typ_t)
 and pat_t = IdTagged.t(pat_term)
@@ -141,7 +143,11 @@ and rul_term =
   | Rules(exp_t, list((pat_t, exp_t)))
 and rul_t = IdTagged.t(rul_term)
 and environment_t = VarBstMap.Ordered.t_(exp_t)
-and closure_environment_t = (Id.t, environment_t)
+and closure_environment_t = {
+  id: Id.t,
+  env: environment_t,
+  call_stack: Probe.call_stack,
+}
 and stepper_filter_kind_t =
   | Filter(filter)
   | Residue(int, FilterAction.t)
@@ -325,6 +331,7 @@ and Exp: {
         | Filter(f, e) => Filter(flt_map_term(f), exp_map_term(e))
         | Closure(env, e) => Closure(env, exp_map_term(e))
         | Parens(e) => Parens(exp_map_term(e))
+        | Probe(e, tag) => Probe(exp_map_term(e), tag)
         | Cons(e1, e2) => Cons(exp_map_term(e1), exp_map_term(e2))
         | ListConcat(e1, e2) =>
           ListConcat(exp_map_term(e1), exp_map_term(e2))
@@ -353,6 +360,10 @@ and Exp: {
     | (Parens(x), _) => fast_equal(x, e2)
     | (_, DynamicErrorHole(x, _))
     | (_, Parens(x)) => fast_equal(e1, x)
+    /* Below is kind of a hack to make EvalResult.calculate go after adding a projector.
+     * We should clarify syntactic/semantic equality here */
+    | (Probe(x1, _), Probe(x2, _)) => fast_equal(x1, x2)
+    | (Probe(_, _), _) => false
     | (EmptyHole, EmptyHole) => true
     | (Undefined, Undefined) => true
     | (Invalid(s1), Invalid(s2)) => s1 == s2
@@ -522,6 +533,7 @@ and Pat: {
         | Cons(e1, e2) => Cons(pat_map_term(e1), pat_map_term(e2))
         | Tuple(xs) => Tuple(List.map(pat_map_term, xs))
         | Parens(e) => Parens(pat_map_term(e))
+        | Probe(e, tag) => Probe(pat_map_term(e), tag)
         | Cast(e, t1, t2) =>
           Cast(pat_map_term(e), typ_map_term(t1), typ_map_term(t2))
         },
@@ -531,6 +543,10 @@ and Pat: {
 
   let rec fast_equal = (p1: t, p2: t) =>
     switch (p1 |> IdTagged.term_of, p2 |> IdTagged.term_of) {
+    /* Below is kind of a hack to make EvalResult.calculate go after adding a projector.
+     * We should clarify syntactic/semantic equality here */
+    | (Probe(x1, _), Probe(x2, _)) => fast_equal(x1, x2)
+    | (Probe(_, _), _) => false
     | (Parens(x), _) => fast_equal(x, p2)
     | (_, Parens(x)) => fast_equal(p1, x)
     | (EmptyHole, EmptyHole) => true
@@ -906,56 +922,43 @@ and ClosureEnvironment: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = closure_environment_t;
 
-  let wrap: (Id.t, Environment.t) => t;
-
-  let id_of: t => Id.t;
-  let map_of: t => Environment.t;
-
-  let to_list: t => list((Var.t, Exp.t));
+  let empty: t;
 
   let of_environment: Environment.t => t;
 
+  let id_of: t => Id.t;
+  let map_of: t => Environment.t;
+  let call_stack_of: t => Probe.call_stack;
+
   let id_equal: (closure_environment_t, closure_environment_t) => bool;
 
-  let empty: t;
-  let is_empty: t => bool;
-  let length: t => int;
-
   let lookup: (t, Var.t) => option(Exp.t);
-  let contains: (t, Var.t) => bool;
-  let update: (Environment.t => Environment.t, t) => t;
-  let update_keep_id: (Environment.t => Environment.t, t) => t;
-  let extend: (t, (Var.t, Exp.t)) => t;
-  let extend_keep_id: (t, (Var.t, Exp.t)) => t;
-  let union: (t, t) => t;
-  let union_keep_id: (t, t) => t;
-  let map: (((Var.t, Exp.t)) => Exp.t, t) => t;
-  let map_keep_id: (((Var.t, Exp.t)) => Exp.t, t) => t;
-  let filter: (((Var.t, Exp.t)) => bool, t) => t;
-  let filter_keep_id: (((Var.t, Exp.t)) => bool, t) => t;
-  let fold: (((Var.t, Exp.t), 'b) => 'b, 'b, t) => 'b;
+  let update_env: (Environment.t => Environment.t, t) => t;
+  let extend_eval:
+    (~ap_id: Id.t=?, ~call_stack: Probe.call_stack, Environment.t, t) => t;
 
+  let to_list: t => list((Var.t, Exp.t));
   let without_keys: (list(Var.t), t) => t;
-  let with_symbolic_keys: (list(Var.t), t) => t;
-
-  let placeholder: t;
 } = {
   module Inner: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = closure_environment_t;
 
-    let wrap: (Id.t, Environment.t) => t;
+    let wrap: (Id.t, Environment.t, Probe.call_stack) => t;
 
     let id_of: t => Id.t;
     let map_of: t => Environment.t;
+    let call_stack_of: t => Probe.call_stack;
   } = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = closure_environment_t;
 
-    let wrap = (ei, map): t => (ei, map);
+    let wrap = (id, env, call_stack): t => {id, env, call_stack};
 
-    let id_of = ((ei, _)) => ei;
-    let map_of = ((_, map)) => map;
+    let id_of = t => t.id;
+    let map_of = t => t.env;
+    let call_stack_of = t => t.call_stack;
+
     let (sexp_of_t, t_of_sexp) =
       StructureShareSexp.structure_share_here(id_of, sexp_of_t, t_of_sexp);
   };
@@ -963,10 +966,7 @@ and ClosureEnvironment: {
 
   let to_list = env => env |> map_of |> Environment.to_listo;
 
-  let of_environment = map => {
-    let ei = Id.mk();
-    wrap(ei, map);
-  };
+  let of_environment = env => wrap(Id.mk(), env, []);
 
   /* Equals only needs to check environment id's (faster than structural equality
    * checking.) */
@@ -974,52 +974,30 @@ and ClosureEnvironment: {
 
   let empty = Environment.empty |> of_environment;
 
-  let is_empty = env => env |> map_of |> Environment.is_empty;
-
-  let length = env => Environment.length(map_of(env));
-
   let lookup = (env, x) =>
     env |> map_of |> (map => Environment.lookup(map, x));
 
-  let contains = (env, x) =>
-    env |> map_of |> (map => Environment.contains(map, x));
+  let update_env = (f, env) => env |> map_of |> f |> of_environment;
 
-  let update = (f, env) => env |> map_of |> f |> of_environment;
+  let without_keys = keys => update_env(Environment.without_keys(keys));
 
-  let update_keep_id = (f, env) => env |> map_of |> f |> wrap(env |> id_of);
-
-  let extend = (env, xr) =>
-    env |> update(map => Environment.extend(map, xr));
-
-  let extend_keep_id = (env, xr) =>
-    env |> update_keep_id(map => Environment.extend(map, xr));
-
-  let union = (env1, env2) =>
-    env2 |> update(map2 => Environment.union(env1 |> map_of, map2));
-
-  let union_keep_id = (env1, env2) =>
-    env2 |> update_keep_id(map2 => Environment.union(env1 |> map_of, map2));
-
-  let map = (f, env) => env |> update(Environment.mapo(f));
-
-  let map_keep_id = (f, env) => env |> update_keep_id(Environment.mapo(f));
-
-  let filter = (f, env) => env |> update(Environment.filtero(f));
-
-  let filter_keep_id = (f, env) =>
-    env |> update_keep_id(Environment.filtero(f));
-
-  let fold = (f, init, env) => env |> map_of |> Environment.foldo(f, init);
-
-  let placeholder = wrap(Id.invalid, Environment.empty);
-
-  let without_keys = keys => update(Environment.without_keys(keys));
-  let with_symbolic_keys = (keys, env) =>
-    List.fold_right(
-      (key, env) => extend(env, (key, Var(key) |> IdTagged.fresh)),
-      keys,
-      env,
-    );
+  /* Extend the environment with new bindings. ~ap_id is an optional argument which
+   * will add an entry in a stack of function application syntax ids, used to
+   * represent and track the call stack for use by live value probes. */
+  let extend_eval =
+      (
+        ~ap_id: option(Id.t)=?,
+        ~call_stack: Probe.call_stack,
+        new_bindings: Environment.t,
+        env_to_extend: t,
+      )
+      : t => {
+    {
+      id: Id.mk(),
+      env: Environment.union(new_bindings, map_of(env_to_extend)),
+      call_stack: Option.to_list(ap_id) @ call_stack,
+    };
+  };
 }
 and StepperFilterKind: {
   [@deriving (show({with_path: false}), sexp, yojson)]

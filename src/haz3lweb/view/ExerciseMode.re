@@ -205,7 +205,16 @@ module Update = {
           {term, editor}: Exercise.TermItem.t(EditorManager.Model.t),
           cell: CellEditor.Model.t,
         ) =>
-          {editor, result: cell.result}
+          {
+            editor, // TODO: missing dynamics
+            // editor: {
+            //   editor,
+            //   statics: cell.editor.statics,
+            //   //TODO(andrew): does below make sense?
+            //   dynamics: EvalResult.Model.dynamics(cell.result),
+            // },
+            result: cell.result,
+          }
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
@@ -251,8 +260,14 @@ module Update = {
        one of the editors is shown in two cells, so we arbitrarily choose which
        statics to take */
     let editors: Exercise.p('a) = {
-      let calculate =
-        EditorManager.Update.calculate_syntax_cache(~settings, ~is_edited);
+      let calculate = (statics, dynamics, ed) =>
+        EditorManager.Update.calculate_syntax_cache(
+          ~settings,
+          statics,
+          dynamics,
+          ~is_edited,
+          ed,
+        );
       {
         title: model.editors.title,
         version: model.editors.version,
@@ -260,29 +275,44 @@ module Update = {
         prompt: model.editors.prompt,
         point_distribution: model.editors.point_distribution,
         prelude:
-          calculate(cells.prelude.editor.statics, model.editors.prelude),
+          calculate(
+            cells.prelude.editor.statics,
+            cells.prelude.editor.dynamics,
+            model.editors.prelude,
+          ),
         correct_impl:
           calculate(
             cells.test_validation.editor.statics,
+            cells.test_validation.editor.dynamics,
             model.editors.correct_impl,
           ),
         your_tests: {
           tests:
             calculate(
               cells.user_tests.editor.statics,
+              cells.user_tests.editor.dynamics,
               model.editors.your_tests.tests,
             ),
           required: model.editors.your_tests.required,
           provided: model.editors.your_tests.provided,
         },
         your_impl:
-          calculate(cells.user_impl.editor.statics, model.editors.your_impl),
+          calculate(
+            cells.user_impl.editor.statics,
+            cells.user_impl.editor.dynamics,
+            model.editors.your_impl,
+          ),
         hidden_bugs:
           List.map2(
             (cell: CellEditor.Model.t, editor: Exercise.wrong_impl('a)):
               Exercise.wrong_impl('a) =>
               {
-                impl: calculate(cell.editor.statics, editor.impl),
+                impl:
+                  calculate(
+                    cell.editor.statics,
+                    cell.editor.dynamics,
+                    editor.impl,
+                  ),
                 hint: editor.hint,
               },
             cells.hidden_bugs,
@@ -292,6 +322,7 @@ module Update = {
           tests:
             calculate(
               cells.hidden_tests.editor.statics,
+              cells.hidden_tests.editor.dynamics,
               model.editors.hidden_tests.tests,
             ),
           hints: model.editors.hidden_tests.hints,

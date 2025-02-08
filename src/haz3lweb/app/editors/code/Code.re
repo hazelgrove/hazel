@@ -9,10 +9,9 @@ open Util.Web;
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
-    ((label, is_in_buffer, sort, is_consistent, is_complete, indent, i)) => {
+    ((label, sort, is_consistent, is_complete, indent, i)) => {
       let cls =
         switch (label) {
-        | _ when is_in_buffer => "in-buffer"
         | _ when !is_consistent => "sort-inconsistent"
         | _ when !is_complete => "incomplete"
         | [s] when s == Form.explicit_hole => "explicit-hole"
@@ -20,7 +19,6 @@ let of_delim' =
         | _ => Sort.to_string(sort)
         };
       let plurality = List.length(label) == 1 ? "mono" : "poly";
-      //let label = is_in_buffer ? AssistantExpander.mark(label) : label;
       let token = List.nth(label, i);
       /* Add indent to multiline tokens: */
       let token =
@@ -34,12 +32,9 @@ let of_delim' =
       ];
     },
   );
-let of_delim =
-    (is_in_buffer, is_consistent, indent, t: Piece.tile, i: int)
-    : list(Node.t) =>
+let of_delim = (is_consistent, indent, t: Piece.tile, i: int): list(Node.t) =>
   of_delim'((
     t.label,
-    is_in_buffer,
     t.mold.out,
     is_consistent,
     Tile.is_complete(t),
@@ -49,12 +44,13 @@ let of_delim =
 
 let space = " "; //Unicode.nbsp;
 
-let of_grout = [Node.text(space)];
-
 let of_secondary =
   Core.Memo.general(
-    ~cache_size_bound=10000, ((content, secondary_icons, indent)) =>
-    if (String.equal(Secondary.get_string(content), Form.linebreak)) {
+    ~cache_size_bound=10000,
+    ((content, secondary_icons, indent, is_in_buffer: bool)) =>
+    if (is_in_buffer) {
+      [span_c("in-buffer", [Node.text(Secondary.get_string(content))])];
+    } else if (String.equal(Secondary.get_string(content), Form.linebreak)) {
       let str = secondary_icons ? ">" : "";
       [
         span_c("linebreak", [text(str)]),
@@ -71,23 +67,16 @@ let of_secondary =
     }
   );
 
-let of_projector = (p, expected_sort, indent, info_map) =>
-  of_delim'((
-    [Projector.placeholder(p, Id.Map.find_opt(p.id, info_map))],
-    false,
-    expected_sort,
-    true,
-    true,
-    indent,
-    0,
-  ));
+let of_projector = (expected_sort, indent, token) =>
+  of_delim'(([token], expected_sort, true, true, indent, 0));
 
 module Text =
        (
          M: {
            let map: Measured.t;
            let settings: Settings.Model.t;
-           let info_map: Statics.Map.t;
+           let shape_map: ProjectorCore.Shape.Map.t;
+           let font_metrics: FontMetrics.t;
          },
        ) => {
   let m = p => Measured.find_p(~msg="Text", p, M.map);
@@ -114,11 +103,21 @@ module Text =
       (buffer_ids, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
     switch (p) {
     | Tile(t) => of_tile(buffer_ids, expected_sort, t)
-    | Grout(_) => of_grout
-    | Secondary({content, _}) =>
-      of_secondary((content, M.settings.secondary_icons, m(p).last.col))
+    | Grout(g) => [EmptyHoleDec.view(M.font_metrics, g.shape)]
+    | Secondary({content, id}) =>
+      let is_in_buffer = List.mem(id, buffer_ids);
+      of_secondary((
+        content,
+        M.settings.secondary_icons,
+        m(p).last.col,
+        is_in_buffer,
+      ));
     | Projector(p) =>
-      of_projector(p, expected_sort, m(Projector(p)).origin.col, M.info_map)
+      of_projector(
+        expected_sort,
+        m(Projector(p)).origin.col,
+        ProjectorCore.Shape.Map.lookup_token(p.id, M.shape_map),
+      )
     };
   }
   and of_tile = (buffer_ids, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
@@ -129,60 +128,11 @@ module Text =
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
-    let is_in_buffer = List.mem(t.id, buffer_ids);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(
-         of_delim(is_in_buffer, is_consistent, m(Tile(t)).origin.col, t),
-         ((seg, sort)) =>
+         of_delim(is_consistent, m(Tile(t)).origin.col, t), ((seg, sort)) =>
          of_segment(buffer_ids, false, sort, seg)
        )
     |> List.concat;
   };
 };
-
-let rec holes =
-        (~font_metrics, ~map: Measured.t, seg: Segment.t): list(Node.t) =>
-  seg
-  |> List.concat_map(
-       fun
-       | Piece.Secondary(_) => []
-       | Projector(_) => []
-       | Tile(t) => List.concat_map(holes(~map, ~font_metrics), t.children)
-       | Grout(g) => [
-           EmptyHoleDec.view(
-             ~font_metrics, // TODO(d) fix sort
-             {
-               measurement: Measured.find_g(~msg="Code.holes", g, map),
-               mold: Mold.of_grout(g, Any),
-             },
-           ),
-         ],
-     );
-
-let simple_view = (~font_metrics, ~segment, ~settings: Settings.t): Node.t => {
-  let map = Measured.of_segment(segment, Id.Map.empty);
-  module Text =
-    Text({
-      let map = map;
-      let settings = settings;
-      let info_map = Id.Map.empty; /* Assume this doesn't contain projectors */
-    });
-  let holes = holes(~map, ~font_metrics, segment);
-  div(
-    ~attrs=[Attr.class_("code")],
-    [
-      span_c("code-text", Text.of_segment([], false, Sort.Any, segment)),
-      ...holes,
-    ],
-  );
-};
-
-let of_hole = (~globals: Globals.t, ~measured, g: Grout.t) =>
-  // TODO(d) fix sort
-  EmptyHoleDec.view(
-    ~font_metrics=globals.font_metrics,
-    {
-      measurement: Measured.find_g(~msg="Code.of_hole", g, measured),
-      mold: Mold.of_grout(g, Any),
-    },
-  );

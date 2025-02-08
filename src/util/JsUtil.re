@@ -45,23 +45,6 @@ let date_now = () => {
 
 let timestamp = () => date_now()##valueOf;
 
-let get_key = evt =>
-  Js.to_string(Js.Optdef.get(evt##.key, () => failwith("JsUtil.get_key")));
-
-let ctrl_held = evt => Js.to_bool(evt##.ctrlKey);
-let shift_held = evt => Js.to_bool(evt##.shiftKey);
-let alt_held = evt => Js.to_bool(evt##.altKey);
-let meta_held = evt => Js.to_bool(evt##.metaKey);
-
-let num_clicks = (evt: Js.t(Js_of_ocaml.Dom_html.mouseEvent)): int =>
-  Js.Unsafe.coerce(evt)##.detail;
-
-let is_double_click = (evt: Js.t(Js_of_ocaml.Dom_html.mouseEvent)): bool =>
-  num_clicks(evt) == 2;
-
-let mouse_button = (evt: Js.t(Js_of_ocaml.Dom_html.mouseEvent)): int =>
-  Js.Unsafe.coerce(evt)##.button;
-
 let download_string_file =
     (~filename: string, ~content_type: string, ~contents: string) => {
   let blob = File.blob_from_string(~contentType=content_type, contents);
@@ -189,4 +172,42 @@ module Fragment = {
       };
     Url.Current.get() |> Option.map(fragment_of_url);
   };
+};
+
+let setPointerCapture = (e: Js.t(Dom_html.element), pointerId: int): unit =>
+  Js.Unsafe.meth_call(
+    e,
+    "setPointerCapture",
+    [|Js.Unsafe.inject(pointerId)|],
+  );
+
+let releasePointerCapture = (e: Js.t(Dom_html.element), pointerId: int) =>
+  Js.Unsafe.meth_call(
+    e,
+    "releasePointerCapture",
+    [|Js.Unsafe.inject(pointerId)|],
+  );
+
+let hasPointerCapture = (e: Js.t(Dom_html.element), pointerId: int) =>
+  Js.Unsafe.meth_call(
+    e,
+    "hasPointerCapture",
+    [|Js.Unsafe.inject(pointerId)|],
+  );
+
+let delay = (delay: float, callback: unit => unit) => {
+  let _ =
+    Js_of_ocaml.Dom_html.window##setTimeout(
+      Js.wrap_callback(callback),
+      delay,
+    );
+  ();
+};
+
+let set_select_value = (select_id, value) => {
+  Js_of_ocaml.Js.Unsafe.set(
+    get_elem_by_id(select_id),
+    "value",
+    Js_of_ocaml.Js.string(value),
+  );
 };

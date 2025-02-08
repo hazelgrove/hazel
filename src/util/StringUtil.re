@@ -67,4 +67,8 @@ let escape_linebreaks: string => string =
 let unescape_linebreaks: string => string =
   Re.Str.global_replace(Re.Str.regexp("\\\\n"), "\n");
 
-let trim_leading = Re.Str.global_replace(Re.Str.regexp("\n[ ]*"), "\n");
+let trim_leading = (s: string): string => {
+  s
+  |> Re.Str.global_replace(Re.Str.regexp("^[ ]*"), "")  // Remove leading spaces at start
+  |> Re.Str.global_replace(Re.Str.regexp("\n[ ]*"), "\n"); // Remove leading spaces after newlines
+};

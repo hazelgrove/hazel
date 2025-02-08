@@ -11,10 +11,7 @@ module Model = {
     result: EvalResult.Model.t,
   };
 
-  let mk = editor => {
-    editor: EditorManager.Model.mk(editor),
-    result: EvalResult.Model.init,
-  };
+  let mk = editor => {editor, result: EvalResult.Model.init};
 
   let mk_from_manager = editor => {editor, result: EvalResult.Model.init};
 
@@ -64,7 +61,13 @@ module Update = {
       )
       : Model.t => {
     let editor =
-      EditorManager.Update.calculate(~settings, ~is_edited, ~stitch, editor);
+      EditorManager.Update.calculate(
+        ~settings,
+        ~is_edited,
+        ~stitch,
+        ~dynamics=EvalResult.Model.dynamics(result),
+        editor,
+      );
     let result =
       EvalResult.Update.calculate(
         ~settings={...settings, assist: false},
@@ -169,6 +172,7 @@ module View = {
       Option.to_list(caption)
       @ [
         EditorManager.View.view(
+          ~dynamics=EvalResult.Model.dynamics(model.result),
           ~globals,
           ~signal=
             locked
@@ -187,7 +191,8 @@ module View = {
           ~overlays=
             overlays(model.editor |> EditorManager.Model.get_root_editor),
           model.editor,
-        ),
+        )
+        |> Haz3lcore.ProjectorBase.View.get_tylr,
       ]
       @ footer,
     );
