@@ -80,6 +80,19 @@ let resume_chat_button = (~globals: Globals.t, ~inject): Node.t => {
   );
 };
 
+let req_button = (~globals: Globals.t, ~inject): Node.t => {
+  let tooltip = "??";
+  let send_sketch = _ =>
+    Virtual_dom.Vdom.Effect.Many([
+      inject(AssistantModel.Update.SendSketch),
+      Virtual_dom.Vdom.Effect.Stop_propagation,
+    ]);
+  div(
+    ~attrs=[clss(["chat-button"]), Attr.on_click(send_sketch)],
+    [Widgets.button_named(~tooltip, None, send_sketch)],
+  );
+};
+
 let end_chat_button = (~globals: Globals.t, ~inject): Node.t => {
   let tooltip = "End Chat";
   let end_chat = _ =>
@@ -256,7 +269,9 @@ let view =
                 [text("Agentic Assistant Chat")],
               ),
               globals.settings.assistant.ongoing_chat
-                ? end_chat_button(~globals, ~inject) : None,
+                ? req_button(~globals, ~inject) : None,
+              globals.settings.assistant.ongoing_chat
+                ? end_chat_button(~globals, ~inject) : None, 
             ],
           ),
           globals.settings.assistant.ongoing_chat

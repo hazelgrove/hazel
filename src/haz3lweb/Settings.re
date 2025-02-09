@@ -11,7 +11,7 @@ module Model = {
     instructor_mode: bool,
     benchmark: bool,
     explainThis: ExplainThisModel.Settings.t,
-    assistant: AssistantModel.Settings.t,
+    assistant: AssistantSettings.t,
     sidebar: SidebarModel.Settings.t,
   };
 
@@ -103,7 +103,7 @@ module Update = {
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
-    | Assistant(AssistantModel.Settings.action);
+    | Assistant(AssistantSettings.action);
 
   let update = (action, settings: Model.t): Updated.t(Model.t) => {
     (
