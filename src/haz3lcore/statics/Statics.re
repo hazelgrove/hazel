@@ -541,11 +541,13 @@ and uexp_to_info_map =
         List.combine(ps, e_co_ctxs),
       );
     let constraints = List.rev(constraints);
+
+    let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
     let x = [%derive.show: list(Constraint.t)](constraints);
     print_endline("Calling check with: " ++ x);
     let Incon.{is_exhaustive, redundant_rows} as check_result =
-      Incon.check(constraints);
-    print_endline("Final result: " ++ Incon.show_check_result(check_result));
+      Incon.check(constraints, normalized_scrut_ty);
+    print_endline("Final result: " ++ Incon.show_result(check_result));
     let self =
       is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
     let add_redundancy = (ps: list(TermBase.pat_t), redundant_rows, m) => {
@@ -699,13 +701,17 @@ and upat_to_info_map =
   | Int(int) => atomic(Just(Int |> Typ.temp), Constraint.Int(int))
   | Float(float) =>
     atomic(Just(Float |> Typ.temp), Constraint.Float(float))
-  | Tuple([]) => atomic(Just(Prod([]) |> Typ.temp), Constraint.Truth)
+  | Tuple([]) =>
+    atomic(
+      Just(Prod([]) |> Typ.temp),
+      Constraint.Ap(Incon.Ctr.tuple_ctr, None),
+    )
   | Bool(bool) =>
     atomic(
       Just(Bool |> Typ.temp),
       bool
-        ? Constraint.InjL(Constraint.Truth)
-        : Constraint.InjR(Constraint.Truth),
+        ? Constraint.Ap(Incon.Ctr.true_ctr, None)
+        : Constraint.Ap(Incon.Ctr.false_ctr, None),
     )
   | String(string) =>
     atomic(Just(String |> Typ.temp), Constraint.String(string))
@@ -715,9 +721,12 @@ and upat_to_info_map =
     let (ctx, tys, cons, m) = ctx_fold(ctx, m, ps, modes);
     let rec cons_fold_list = cs =>
       switch (cs) {
-      | [] => Constraint.InjL(Constraint.Truth) // Left = nil, Right = cons
+      | [] => Constraint.Ap(Incon.Ctr.nil_ctr, None)
       | [hd, ...tl] =>
-        Constraint.InjR(Constraint.Pair(hd, cons_fold_list(tl)))
+        Constraint.Ap(
+          Incon.Ctr.cons_ctr,
+          Some(Constraint.Tuple([hd, cons_fold_list(tl)])),
+        )
       };
     add(
       ~self=Self.listlit(~empty=unknown, ctx, tys, ids),
@@ -733,7 +742,10 @@ and upat_to_info_map =
       ~self=Just(List(hd.ty) |> Typ.temp),
       ~ctx=tl.ctx,
       ~constraint_=
-        Constraint.InjR(Constraint.Pair(hd.constraint_, tl.constraint_)),
+        Constraint.Ap(
+          Incon.Ctr.cons_ctr,
+          Some(Constraint.Tuple([hd.constraint_, tl.constraint_])),
+        ),
       m,
     );
   | Wild => atomic(Just(unknown), Constraint.Truth)
@@ -757,16 +769,10 @@ and upat_to_info_map =
   | Tuple(ps) =>
     let modes = Mode.of_prod(ctx, mode, List.length(ps));
     let (ctx, tys, cons, m) = ctx_fold(ctx, m, ps, modes);
-    let rec cons_fold_tuple = cs =>
-      switch (cs) {
-      | [] => Constraint.Truth
-      | [elt] => elt
-      | [hd, ...tl] => Constraint.Pair(hd, cons_fold_tuple(tl))
-      };
     add(
       ~self=Just(Prod(tys) |> Typ.temp),
       ~ctx,
-      ~constraint_=cons_fold_tuple(cons),
+      ~constraint_=Constraint.Tuple(cons),
       m,
     );
   | Parens(p) =>
@@ -774,20 +780,19 @@ and upat_to_info_map =
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
   | Constructor(ctr, _) =>
     let self = Self.of_ctr(ctx, ctr);
-    atomic(self, Constraint.of_ctr(ctx, mode, ctr, self));
+    atomic(self, Constraint.Ap(ctr, None));
   | Ap(fn, arg) =>
     let ctr = Pat.ctr_name(fn);
     let fn_mode = Mode.of_ap(ctx, mode, ctr);
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
-    add(
-      ~self=Just(ty_out),
-      ~ctx=arg.ctx,
-      ~constraint_=
-        Constraint.of_ap(ctx, mode, ctr, arg.constraint_, Some(ty_out)),
-      m,
-    );
+    let constraint_ =
+      switch (ctr) {
+      | Some(ctr) => Constraint.Ap(ctr, Some(arg.constraint_))
+      | None => Constraint.Hole
+      };
+    add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
   | Cast(p, ann, _) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
     let (p, m) = go(~ctx, ~mode=Ana(ann.term), p, m);
