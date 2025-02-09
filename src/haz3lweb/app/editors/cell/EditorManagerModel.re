@@ -154,7 +154,6 @@ let assemble = (model: t): Segment.t => {
       switch (component.kind) {
       | Some(kind) =>
         let (module P) = ProjectorInit.to_module(kind);
-
         let _should_instrument = P.dynamics;
         //TODO: this logic will leave it in for the printer; divide this fn
         // into a total stripper and partial stripper
@@ -164,7 +163,20 @@ let assemble = (model: t): Segment.t => {
         print_endline("piece: " ++ Piece.show(piece));
         //TODO(andrew): needs to recurse for general case...
         //Piece.unparenthesize(go(pr.id));
-        Piece.unparenthesize(piece);
+        //Piece.unparenthesize(piece);
+        /* For now, creating parentheses with projector_id so
+         * it shows up in the cursor inspector... need to consider
+         * approaches here */
+        let sort = Piece.sort(piece) |> fst;
+        [
+          Tile({
+            id: component.id,
+            label: ["(", ")"],
+            mold: Mold.mk_op(sort, [sort]),
+            shards: List.mapi((i, _) => i, ["(", ")"]),
+            children: [Piece.unparenthesize(piece)],
+          }),
+        ];
       | None => failwith("EditorManager.assemble: None TODO")
       };
     | _ =>

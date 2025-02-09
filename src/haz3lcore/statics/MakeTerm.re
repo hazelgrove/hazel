@@ -191,7 +191,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     // single-tile case
-    | ([(_id, t)], []) =>
+    | ([(id, t)], []) =>
       switch (t) {
       | ([t], []) when Form.is_empty_tuple(t) => ret(Tuple([]))
       | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
@@ -206,6 +206,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Form.is_ctr(t) =>
         ret(Constructor(t, Unknown(Internal) |> Typ.temp))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
+      | (["PROBE_WRAP"], []) =>
+        print_endline("PROBE_WRAP");
+        ret(
+          Probe(
+            {ids: [id], term: Invalid(""), copied: false},
+            Probe.empty,
+          ),
+        );
       | (label, [Exp(body)]) when is_probe_wrap(label) =>
         // Temporary wrapping form to persist projector probes
         ret(Probe(body, Probe.empty))

@@ -251,6 +251,7 @@ module View = {
           inject(Perform(Jump(BindingSiteOfIndicatedVar))),
         ])
       | {button: Left, _} =>
+        print_endline("mousedown");
         MouseState.pointerdown(loc(mouse));
         let click_count = MouseState.count();
         /* Check how many clicks have happened recently

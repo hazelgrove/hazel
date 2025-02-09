@@ -75,7 +75,6 @@ module Update = {
       let new_component = {...component, model: projector_model};
       Model.set_component(id, new_component, model) |> Updated.return;
     | Manage(Project({parent, kind})) =>
-      print_endline("EditorManager: Manage(Project({parent, kind}))");
       let parent_component = Model.get_component(parent, model);
       let parent_z = parent_component.editor.state.zipper;
       switch (Indicated.for_index(parent_z)) {
@@ -353,6 +352,7 @@ module View = {
             selected == Some({component: component.id}),
           ),
         );
+      let _ = CodeEditable.View.view;
       let overlays = overlays @ edit_decos @ projectors;
       let code_view =
         CodeWithStatics.View.view(
