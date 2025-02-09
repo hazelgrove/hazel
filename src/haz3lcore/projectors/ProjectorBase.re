@@ -106,7 +106,7 @@ module View = {
  *    ProjectorView.of_name, and ProjectorCore.projectors
  * 6. If you want to manually manage the projector as part of
  *    the update cycle, use the implementations of the SetIndicated
- *    and RemoveIndicated actions in ProjectorPerform as a guide
+ *    actions in ProjectorPerform as a guide
  *    for how to add/remove projectors from an editor */
 module type Projector = {
   /* The internal model type of the projector which will

@@ -48,22 +48,22 @@ let remove = (piece: Base.piece, focus: Direction.t, z: Zipper.t): Zipper.t => {
   };
 };
 
-let update_piece =
-    (f: Base.projector => Base.projector, id: Id.t, piece: Base.piece)
-    : Base.segment =>
-  switch (piece) {
-  | Projector(pr) when pr.id == id => [Base.Projector(f(pr))]
-  | x => [x]
-  };
+// let update_piece =
+//     (f: Base.projector => Base.projector, id: Id.t, piece: Base.piece)
+//     : Base.segment =>
+//   switch (piece) {
+//   | Projector(pr) when pr.id == id => [Base.Projector(f(pr))]
+//   | x => [x]
+//   };
 
-let update =
-    (f: Base.projector => Base.projector, id: Id.t, z: ZipperBase.t)
-    : ZipperBase.t =>
-  ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
+// let update =
+//     (f: Base.projector => Base.projector, id: Id.t, z: ZipperBase.t)
+//     : ZipperBase.t =>
+//   ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
 
 let go =
     (
-      _jump_to_id_indicated, //TODO:
+      jump_to_id_indicated, //TODO:
       jump_to_side_of_id,
       select_term: Zipper.t => option(Zipper.t),
       projectors: Id.Map.t(ProjectorBase.trad),
@@ -103,18 +103,18 @@ let go =
     };
   };
 
-  let remove_indicated = (z: Zipper.t): option(Zipper.t) => {
-    let* (focus, z) = setup_selection(z);
-    switch (z.selection.content) {
-    | [Projector(pr)] =>
-      let pr = Id.Map.find_opt(pr.id, projectors);
-      switch (pr) {
-      | Some(pr) => Some(remove(pr.syntax, focus, z))
-      | None => None
-      };
-    | _ => None
-    };
-  };
+  // let remove_indicated = (z: Zipper.t): option(Zipper.t) => {
+  //   let* (focus, z) = setup_selection(z);
+  //   switch (z.selection.content) {
+  //   | [Projector(pr)] =>
+  //     let pr = Id.Map.find_opt(pr.id, projectors);
+  //     switch (pr) {
+  //     | Some(pr) => Some(remove(pr.syntax, focus, z))
+  //     | None => None
+  //     };
+  //   | _ => None
+  //   };
+  // };
 
   switch (a) {
   | SetIndicated(Specific(kind), projector_id) =>
@@ -132,44 +132,49 @@ let go =
     | [hd, ..._] => Ok(hd)
     | [] => Error(Cant_project)
     }
-  | RemoveIndicated =>
-    switch (remove_indicated(z)) {
-    | Some(z) => Ok(z)
-    | None => Error(Cant_project)
-    }
-  | SetSyntax(_id, _seg) =>
-    failwith("TODO: projectorperform update: wire or remove")
+  // | SetSyntax(_id, _seg) =>
+  //   failwith("TODO: projectorperform update: wire or remove")
 
   //Ok(update(p => {...p, syntax: Segment.parenthesize(seg)}, id, z))
-  | SetModel(_id, _model) =>
-    failwith("TODO: projectorperform setmodel: wire or remove")
+  // | SetModel(_id, _model) =>
+  //   failwith("TODO: projectorperform setmodel: wire or remove")
   //Ok(update(pr => {...pr, model}, id, z))
-  | Focus(_id, _d) =>
-    failwith("TODO: projectorperform focus: wire or remove")
-  // switch (d) {
-  // | None =>
-  //   /* Focus by mouse click */
-  //   /* Currently not calling focus method as projectors get focus here naturally */
-  //   Ok(Option.value(~default=z, jump_to_id_indicated(z, id)))
-  // | Some(Right) =>
-  //   /* Focus by arrow key hand-off */
-  //   switch (Siblings.left_neighbor(z.relatives.siblings)) {
-  //   | Some(Projector({id, kind, _})) =>
-  //     let (module P) = ProjectorInit.to_module(kind);
-  //     P.focus((id, Some(Right)));
-  //   | _ => ()
-  //   };
-  //   Ok(z);
-  // | Some(Left) =>
-  //   /* Focus by arrow key hand-off */
-  //   switch (Siblings.right_neighbor(z.relatives.siblings)) {
-  //   | Some(Projector({id, kind, _})) =>
-  //     let (module P) = ProjectorInit.to_module(kind);
-  //     P.focus((id, Some(Left)));
-  //   | _ => ()
-  //   };
-  //   Ok(z);
-  // }
+  | Focus(id, d) =>
+    // failwith("TODO: projectorperform focus: wire or remove")
+    switch (d) {
+    | None =>
+      /* Focus by mouse click */
+      /* Currently not calling focus method as projectors get focus here naturally */
+      Ok(Option.value(~default=z, jump_to_id_indicated(z, id)))
+    | Some(Right) =>
+      /* Focus by arrow key hand-off */
+      switch (Siblings.left_neighbor(z.relatives.siblings)) {
+      | Some(Projector({id})) =>
+        let pr = Id.Map.find_opt(id, projectors);
+        switch (pr) {
+        | Some(pr) =>
+          let (module P) = ProjectorInit.to_module(pr.kind);
+          P.focus((id, Some(Right)));
+        | None => ()
+        };
+      | _ => ()
+      };
+      Ok(z);
+    | Some(Left) =>
+      /* Focus by arrow key hand-off */
+      switch (Siblings.right_neighbor(z.relatives.siblings)) {
+      | Some(Projector({id})) =>
+        let pr = Id.Map.find_opt(id, projectors);
+        switch (pr) {
+        | Some(pr) =>
+          let (module P) = ProjectorInit.to_module(pr.kind);
+          P.focus((id, Some(Left)));
+        | None => ()
+        };
+      | _ => ()
+      };
+      Ok(z);
+    }
   | Escape(id, d) => Ok(jump_to_side_of_id(d, z, id))
   };
 };

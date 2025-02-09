@@ -59,9 +59,8 @@ type project =
   // | Remove(Id.t) /* Remove projector at Id */
   // | SetSyntax(Id.t, Piece.t) /* Set underlying syntax */
   | SetIndicated(chooser, Id.t) /* Project syntax at caret */
-  | RemoveIndicated /* Remove projector at caret */
-  | SetSyntax(Id.t, Base.segment) /* Set underlying syntax */
-  | SetModel(Id.t, string) /* Set serialized projector model */
+  // | SetSyntax(Id.t, Base.segment) /* Set underlying syntax */
+  // | SetModel(Id.t, string) /* Set serialized projector model */
   | Focus(Id.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(Id.t, Direction.t); /* Pass control to parent editor */
 
@@ -141,10 +140,7 @@ let is_edit: t => bool =
   | MoveToBackpackTarget(_) => false
   | Project(p) =>
     switch (p) {
-    | SetSyntax(_)
-    | SetModel(_)
-    | SetIndicated(_)
-    | RemoveIndicated => true
+    | SetIndicated(_) => true
     | Focus(_)
     | Escape(_) => false
     };
@@ -170,10 +166,7 @@ let is_historic: t => bool =
   | Put_down => true
   | Project(p) =>
     switch (p) {
-    | SetSyntax(_)
-    | SetModel(_)
-    | SetIndicated(_)
-    | RemoveIndicated => true
+    | SetIndicated(_) => true
     | Focus(_)
     | Escape(_) => false
     };
@@ -197,10 +190,7 @@ let prevent_in_read_only_editor = (a: t) => {
   | MoveToBackpackTarget(_) => true
   | Project(p) =>
     switch (p) {
-    | SetSyntax(_) => true
-    | SetModel(_)
     | SetIndicated(_)
-    | RemoveIndicated
     | Focus(_)
     | Escape(_) => false
     }
