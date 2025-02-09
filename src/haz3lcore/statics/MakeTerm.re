@@ -204,13 +204,10 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_ctr(t) =>
         ret(Constructor(t, Unknown(Internal) |> Typ.temp))
-      | (["(", ")"], [Exp(body)]) => ret(Wrap(body, Parens))
+      | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (label, [Exp(body)]) when is_probe_wrap(label) =>
         // Temporary wrapping form to persist projector probes
-        ret(
-          should_instrument(id)
-            ? Wrap(body, Probe(Probe.empty)) : body.term,
-        )
+        ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
         | {ids, copied: false, term: Tuple(es)} => (ListLit(es), ids)
@@ -372,9 +369,9 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           Constructor(t, Unknown(Internal) |> Typ.fresh)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Invalid(t)
-        | (["(", ")"], [Pat(body)]) => Wrap(body, Parens)
+        | (["(", ")"], [Pat(body)]) => Parens(body)
         | (label, [Pat(body)]) when is_probe_wrap(label) =>
-          should_instrument(id) ? Wrap(body, Probe(Probe.empty)) : body.term
+          should_instrument(id) ? Probe(body, Probe.empty) : body.term
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
           | {term: Tuple(ps), _} => ListLit(ps)
@@ -434,7 +431,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Float"], []) => Float
         | (["String"], []) => String
         | ([t], []) when Form.is_typ_var(t) => Var(t)
-        | (["(", ")"], [Typ(body)]) => Wrap(body)
+        | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>

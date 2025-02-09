@@ -47,11 +47,6 @@ type deferral_position_t =
  */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type wrap =
-  | Parens
-  | Probe(Probe.t);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type any_t =
   | Exp(exp_t)
   | Pat(pat_t)
@@ -73,12 +68,7 @@ and exp_term =
   | String(string)
   | ListLit(list(exp_t))
   | Constructor(string, typ_t) // Typ.t field is only meaningful in dynamic expressions
-  | Fun(
-      pat_t,
-      exp_t,
-      [@show.opaque] option(closure_environment_t),
-      option(Var.t),
-    )
+  | Fun(pat_t, exp_t, option(typ_t), option(Var.t)) // typ_t field is only used to display types in results
   | TypFun(tpat_t, exp_t, option(Var.t))
   | Tuple(list(exp_t))
   | Var(Var.t)
@@ -93,7 +83,8 @@ and exp_term =
   | Test(exp_t)
   | Filter(stepper_filter_kind_t, exp_t)
   | Closure([@show.opaque] closure_environment_t, exp_t)
-  | Wrap(exp_t, wrap)
+  | Parens(exp_t)
+  | Probe(exp_t, Probe.t)
   | Cons(exp_t, exp_t)
   | ListConcat(exp_t, exp_t)
   | UnOp(Operators.op_un, exp_t)
@@ -119,7 +110,8 @@ and pat_term =
   | Cons(pat_t, pat_t)
   | Var(Var.t)
   | Tuple(list(pat_t))
-  | Wrap(pat_t, wrap)
+  | Parens(pat_t)
+  | Probe(pat_t, Probe.t)
   | Ap(pat_t, pat_t)
   | Cast(pat_t, typ_t, typ_t)
 and pat_t = IdTagged.t(pat_term)
@@ -134,7 +126,7 @@ and typ_term =
   | Arrow(typ_t, typ_t)
   | Sum(ConstructorMap.t(typ_t))
   | Prod(list(typ_t))
-  | Wrap(typ_t)
+  | Parens(typ_t)
   | Ap(typ_t, typ_t)
   | Rec(tpat_t, typ_t)
   | Forall(tpat_t, typ_t)
@@ -314,8 +306,13 @@ and Exp: {
         | FailedCast(e, t1, t2) =>
           FailedCast(exp_map_term(e), typ_map_term(t1), typ_map_term(t2))
         | ListLit(ts) => ListLit(List.map(exp_map_term, ts))
-        | Fun(p, e, env, f) =>
-          Fun(pat_map_term(p), exp_map_term(e), env, f)
+        | Fun(p, e, t, f) =>
+          Fun(
+            pat_map_term(p),
+            exp_map_term(e),
+            Option.map(typ_map_term, t),
+            f,
+          )
         | TypFun(tp, e, f) => TypFun(tpat_map_term(tp), exp_map_term(e), f)
         | Tuple(xs) => Tuple(List.map(exp_map_term, xs))
         | Let(p, e1, e2) =>
@@ -333,7 +330,8 @@ and Exp: {
         | Test(e) => Test(exp_map_term(e))
         | Filter(f, e) => Filter(flt_map_term(f), exp_map_term(e))
         | Closure(env, e) => Closure(env, exp_map_term(e))
-        | Wrap(e, tag) => Wrap(exp_map_term(e), tag)
+        | Parens(e) => Parens(exp_map_term(e))
+        | Probe(e, tag) => Probe(exp_map_term(e), tag)
         | Cons(e1, e2) => Cons(exp_map_term(e1), exp_map_term(e2))
         | ListConcat(e1, e2) =>
           ListConcat(exp_map_term(e1), exp_map_term(e2))
@@ -359,13 +357,13 @@ and Exp: {
   let rec fast_equal = (e1, e2) =>
     switch (e1 |> IdTagged.term_of, e2 |> IdTagged.term_of) {
     | (DynamicErrorHole(x, _), _)
-    | (Wrap(x, Parens), _) => fast_equal(x, e2)
+    | (Parens(x), _) => fast_equal(x, e2)
     | (_, DynamicErrorHole(x, _))
-    | (_, Wrap(x, Parens)) => fast_equal(e1, x)
+    | (_, Parens(x)) => fast_equal(e1, x)
     /* Below is kind of a hack to make EvalResult.calculate go after adding a projector.
      * We should clarify syntactic/semantic equality here */
-    | (Wrap(x1, Probe(_)), Wrap(x2, Probe(_))) => fast_equal(x1, x2)
-    | (Wrap(_, Probe(_)), _) => false
+    | (Probe(x1, _), Probe(x2, _)) => fast_equal(x1, x2)
+    | (Probe(_, _), _) => false
     | (EmptyHole, EmptyHole) => true
     | (Undefined, Undefined) => true
     | (Invalid(s1), Invalid(s2)) => s1 == s2
@@ -384,10 +382,10 @@ and Exp: {
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Constructor(c1, ty1), Constructor(c2, ty2)) =>
       c1 == c2 && Typ.fast_equal(ty1, ty2)
-    | (Fun(p1, e1, env1, _), Fun(p2, e2, env2, _)) =>
+    | (Fun(p1, e1, t1, _), Fun(p2, e2, t2, _)) =>
       Pat.fast_equal(p1, p2)
       && fast_equal(e1, e2)
-      && Option.equal(ClosureEnvironment.id_equal, env1, env2)
+      && Option.equal(Typ.fast_equal, t1, t2)
     | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
       TPat.fast_equal(tp1, tp2) && fast_equal(e1, e2)
     | (Tuple(xs), Tuple(ys)) =>
@@ -534,7 +532,8 @@ and Pat: {
         | Ap(e1, e2) => Ap(pat_map_term(e1), pat_map_term(e2))
         | Cons(e1, e2) => Cons(pat_map_term(e1), pat_map_term(e2))
         | Tuple(xs) => Tuple(List.map(pat_map_term, xs))
-        | Wrap(e, tag) => Wrap(pat_map_term(e), tag)
+        | Parens(e) => Parens(pat_map_term(e))
+        | Probe(e, tag) => Probe(pat_map_term(e), tag)
         | Cast(e, t1, t2) =>
           Cast(pat_map_term(e), typ_map_term(t1), typ_map_term(t2))
         },
@@ -546,10 +545,10 @@ and Pat: {
     switch (p1 |> IdTagged.term_of, p2 |> IdTagged.term_of) {
     /* Below is kind of a hack to make EvalResult.calculate go after adding a projector.
      * We should clarify syntactic/semantic equality here */
-    | (Wrap(x1, Probe(_)), Wrap(x2, Probe(_))) => fast_equal(x1, x2)
-    | (Wrap(_, Probe(_)), _) => false
-    | (Wrap(x, _tag), _) => fast_equal(x, p2)
-    | (_, Wrap(x, _tag)) => fast_equal(p1, x)
+    | (Probe(x1, _), Probe(x2, _)) => fast_equal(x1, x2)
+    | (Probe(_, _), _) => false
+    | (Parens(x), _) => fast_equal(x, p2)
+    | (_, Parens(x)) => fast_equal(p1, x)
     | (EmptyHole, EmptyHole) => true
     | (MultiHole(xs), MultiHole(ys)) =>
       List.length(xs) == List.length(ys)
@@ -654,7 +653,7 @@ and Typ: {
           Unknown(Hole(MultiHole(List.map(any_map_term, things))))
         | Ap(e1, e2) => Ap(typ_map_term(e1), typ_map_term(e2))
         | Prod(xs) => Prod(List.map(typ_map_term, xs))
-        | Wrap(e) => Wrap(typ_map_term(e))
+        | Parens(e) => Parens(typ_map_term(e))
         | Arrow(t1, t2) => Arrow(typ_map_term(t1), typ_map_term(t2))
         | Sum(variants) =>
           Sum(
@@ -698,7 +697,7 @@ and Typ: {
       | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
       | List(ty) => List(subst(s, x, ty)) |> rewrap
       | Var(y) => str == y ? s : Var(y) |> rewrap
-      | Wrap(ty) => Wrap(subst(s, x, ty)) |> rewrap
+      | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
       | Ap(t1, t2) => Ap(subst(s, x, t1), subst(s, x, t2)) |> rewrap
       };
     | None => ty
@@ -710,8 +709,8 @@ and Typ: {
 
   let rec eq_internal = (n: int, t1: t, t2: t) => {
     switch (IdTagged.term_of(t1), IdTagged.term_of(t2)) {
-    | (Wrap(t1), _) => eq_internal(n, t1, t2)
-    | (_, Wrap(t2)) => eq_internal(n, t1, t2)
+    | (Parens(t1), _) => eq_internal(n, t1, t2)
+    | (_, Parens(t2)) => eq_internal(n, t1, t2)
     | (Rec(x1, t1), Rec(x2, t2))
     | (Forall(x1, t1), Forall(x2, t2)) =>
       let alpha_subst =

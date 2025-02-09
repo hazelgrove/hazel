@@ -547,11 +547,7 @@ module View = {
         text("Evaluation disabled, showing elaboration:"),
         switch (Model.get_elaboration(model)) {
         | Some(elab) =>
-          let shape_of_proj =
-            ProjectorInfo.Shape.of_map(
-              Statics.Map.empty,
-              Model.dynamics(model),
-            );
+          let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
           elab
           |> Haz3lcore.ExpToSegment.(
                exp_to_segment(
@@ -559,7 +555,7 @@ module View = {
                    Settings.of_core(~inline=false, globals.settings.core),
                )
              )
-          |> CodeViewable.view_segment(~globals, ~sort=Exp, ~shape_of_proj);
+          |> CodeViewable.view_segment(~globals, ~sort=Exp, ~shape_map);
         | None => text("No elaboration found")
         },
       ];

@@ -484,7 +484,6 @@ module View = {
                               (),
                             ),
                           ),
-                     ~dynamics=Dynamics.Map.empty,
                      ~inject=
                        (x: StepperEditor.Update.t) =>
                          inject(StepperEditor(i + 1, x)),
@@ -554,7 +553,6 @@ module View = {
                 ~inject=
                   (x: StepperEditor.Update.t) =>
                     inject(StepperEditor(current_n, x)),
-                ~dynamics=Dynamics.Map.empty,
                 ~signal=
                   fun
                   | TakeStep(x) =>

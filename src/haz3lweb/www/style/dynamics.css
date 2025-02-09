@@ -3,7 +3,6 @@
 /* DYNAMICS */
 
 .cell-result {
-  overflow: hidden;
   display: flex;
   flex-direction: row;
   background-color: var(--cell-result);
