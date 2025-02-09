@@ -701,17 +701,11 @@ and upat_to_info_map =
   | Int(int) => atomic(Just(Int |> Typ.temp), Constraint.Int(int))
   | Float(float) =>
     atomic(Just(Float |> Typ.temp), Constraint.Float(float))
-  | Tuple([]) =>
-    atomic(
-      Just(Prod([]) |> Typ.temp),
-      Constraint.Ap(Incon.Ctr.tuple_ctr, None),
-    )
+  | Tuple([]) => atomic(Just(Prod([]) |> Typ.temp), Constraint.Tuple([]))
   | Bool(bool) =>
     atomic(
       Just(Bool |> Typ.temp),
-      bool
-        ? Constraint.Ap(Incon.Ctr.true_ctr, None)
-        : Constraint.Ap(Incon.Ctr.false_ctr, None),
+      bool ? Constraint.true_ : Constraint.false_,
     )
   | String(string) =>
     atomic(Just(String |> Typ.temp), Constraint.String(string))
@@ -721,12 +715,8 @@ and upat_to_info_map =
     let (ctx, tys, cons, m) = ctx_fold(ctx, m, ps, modes);
     let rec cons_fold_list = cs =>
       switch (cs) {
-      | [] => Constraint.Ap(Incon.Ctr.nil_ctr, None)
-      | [hd, ...tl] =>
-        Constraint.Ap(
-          Incon.Ctr.cons_ctr,
-          Some(Constraint.Tuple([hd, cons_fold_list(tl)])),
-        )
+      | [] => Constraint.nil
+      | [hd, ...tl] => Constraint.cons(hd, cons_fold_list(tl))
       };
     add(
       ~self=Self.listlit(~empty=unknown, ctx, tys, ids),
@@ -741,11 +731,7 @@ and upat_to_info_map =
     add(
       ~self=Just(List(hd.ty) |> Typ.temp),
       ~ctx=tl.ctx,
-      ~constraint_=
-        Constraint.Ap(
-          Incon.Ctr.cons_ctr,
-          Some(Constraint.Tuple([hd.constraint_, tl.constraint_])),
-        ),
+      ~constraint_=Constraint.cons(hd.constraint_, tl.constraint_),
       m,
     );
   | Wild => atomic(Just(unknown), Constraint.Truth)
