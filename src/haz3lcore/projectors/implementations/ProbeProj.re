@@ -711,14 +711,14 @@ let key_handler = (local, info: info, ~parent, evt) => {
     print_endline("ArrowLeft Shift");
     //move_cursor(info, 1);
     Many([Stop_propagation, local(MoveCursor(1))]);
-  | D("ArrowRight" | "ArrowDown") =>
-    print_endline("ArrowRight");
-    JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
-    Many([parent(Escape(Right)), Stop_propagation]);
-  | D("ArrowLeft" | "ArrowUp") =>
-    print_endline("ArrowLeft");
-    JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
-    Many([parent(Escape(Left)), Stop_propagation]);
+  // | D("ArrowRight" | "ArrowDown") =>
+  //   print_endline("ArrowRight");
+  //   JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
+  //   Many([parent(Escape(Right)), Stop_propagation]);
+  // | D("ArrowLeft" | "ArrowUp") =>
+  //   print_endline("ArrowLeft");
+  //   JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
+  //   Many([parent(Escape(Left)), Stop_propagation]);
   /* Defer to parent editor undo for now */
   // | D("z" | "Z" | "y" | "Y") when Key.ctrl_held(evt) || Key.meta_held(evt) =>
   //   Many([Prevent_default])
@@ -814,17 +814,13 @@ module M: Projector = {
 
   let init = init;
   let dynamics = true;
-  let can_focus = true;
+  let focusable = Focusable.{pointer: true, keyboard: false};
   let focus = ((id: Id.t, d: option(Direction.t))) => {
     JsUtil.get_elem_by_id(Id.cls(id))##focus;
     switch (d) {
     | None => ()
-    | Some(Left) =>
-      print_endline("focus left");
-      state := Some(Left);
-    | Some(Right) =>
-      print_endline("focus right");
-      state := Some(Right);
+    | Some(Left) => ()
+    | Some(Right) => ()
     };
   };
 

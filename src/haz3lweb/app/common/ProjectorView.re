@@ -129,8 +129,9 @@ let view_wrapper =
       ~make_active,
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
-      ~info: info,
       ~status: Model.status,
+      ~id: Id.t,
+      ~kind: ProjectorCore.Kind.t,
       views: list(Node.t),
     ) =>
   div(
@@ -142,7 +143,7 @@ let view_wrapper =
         Effect.Many([
           Effect.Stop_propagation,
           make_active,
-          inject(Project(Focus(info.id, None))),
+          inject(Project(Focus(id, kind, None))),
         ])
       ),
       DecUtil.abs_style(measurement, ~font_metrics),
@@ -222,7 +223,7 @@ let split_views =
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
-      {p, info, offside_base, measurement, status} as projector_data: Model.projector_data,
+      {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
     )
     : (Node.t, Node.t, option(Node.t)) => {
   let wrapper =
@@ -232,7 +233,8 @@ let split_views =
       ~font_metrics,
       ~measurement,
       ~status,
-      ~info,
+      ~id=p.id,
+      ~kind=p.kind,
     );
   let views = mk_view(inject, font_metrics, projector_data);
   let line_view = {
@@ -322,10 +324,10 @@ let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) => {
   | _ when z.caret != Outer => None
   | (Some(Left), (Some(Projector({id, kind, _})), _)) =>
     let (module P) = ProjectorInit.to_module(kind);
-    P.can_focus ? Some(Focus(id, Some(Right))) : None;
+    P.focusable.keyboard ? Some(Focus(id, kind, Some(Right))) : None;
   | (Some(Right), (_, Some(Projector({id, kind, _})))) =>
     let (module P) = ProjectorInit.to_module(kind);
-    P.can_focus ? Some(Focus(id, Some(Left))) : None;
+    P.focusable.keyboard ? Some(Focus(id, kind, Some(Left))) : None;
   | _ => None
   };
 };

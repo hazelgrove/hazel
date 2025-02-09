@@ -124,29 +124,22 @@ let go =
   | SetSyntax(id, seg) =>
     Ok(update(p => {...p, syntax: Segment.parenthesize(seg)}, id, z))
   | SetModel(id, model) => Ok(update(pr => {...pr, model}, id, z))
-  | Focus(id, d) =>
+  | Focus(id, kind, d) =>
     switch (d) {
     | None =>
       /* Focus by mouse click */
-      /* Currently not calling focus method as projectors get focus here naturally */
-      Ok(Option.value(~default=z, jump_to_id_indicated(z, id)))
+      let (module P) = ProjectorInit.to_module(kind);
+      P.focus((id, None));
+      Ok(Option.value(~default=z, jump_to_id_indicated(z, id)));
     | Some(Right) =>
       /* Focus by arrow key hand-off */
-      switch (Siblings.left_neighbor(z.relatives.siblings)) {
-      | Some(Projector({id, kind, _})) =>
-        let (module P) = ProjectorInit.to_module(kind);
-        P.focus((id, Some(Right)));
-      | _ => ()
-      };
+      let (module P) = ProjectorInit.to_module(kind);
+      P.focus((id, Some(Right)));
       Ok(z);
     | Some(Left) =>
       /* Focus by arrow key hand-off */
-      switch (Siblings.right_neighbor(z.relatives.siblings)) {
-      | Some(Projector({id, kind, _})) =>
-        let (module P) = ProjectorInit.to_module(kind);
-        P.focus((id, Some(Left)));
-      | _ => ()
-      };
+      let (module P) = ProjectorInit.to_module(kind);
+      P.focus((id, Some(Left)));
       Ok(z);
     }
   | Escape(id, d) => Ok(jump_to_side_of_id(d, z, id))
