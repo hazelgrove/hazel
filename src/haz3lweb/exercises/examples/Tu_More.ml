@@ -7,17 +7,20 @@ let bools_ex : Tutorial.spec =
     prompt =
       "So far, we have only seen expressions that evaluate to integers. \
        However, Hazel supports many other types of values, like booleans. \
-       There are two boolean values, `true` and `false` Hazel's type system \
-       ensures that expressions are used in ways that make sense. Each \
-       expression has a type, which predicts the type of its value. The \
-       expressions in the previous slides all had type `Int`, which is the \
-       type of integers, whereas the boolean values have type `Bool`. You can \
-       see the type of the expression your cursor is on in the cursor \
+       There are two boolean values, `true` and `false`. \n\
+      \ \n\
+      \ Hazel's type system ensures that expressions are used in ways that \
+       make sense. Each expression has a type, which predicts the type of its \
+       value. The expressions in the previous slides all had type `Int`, which \
+       is the type of integers, whereas the boolean values have type `Bool`. \
+       You can see the type of the expression your cursor is on in the cursor \
        inspector at the bottom of the screen. The symbol `:`  is pronounced \
-       \"has type\". Boolean values can be constructed by using comparison \
-       operators like `<`, `==`, and `>` on integers. For example, `2 < 3` \
-       evaluates to `true`. Booleans can also be combined using logical and \
-       (conjunction), `&&`, and logical or (disjunction), `||`.";
+       \"has type\". \n\
+      \ \n\
+      \ Boolean values can be constructed by using comparison operators like \
+       `<`, `==`, and `>` on integers. For example, `2 < 3` evaluates to \
+       `true`. Booleans can also be combined using logical and (conjunction), \
+       `&&`, and logical or (disjunction), `||`.";
     wrapper = true;
     version = 1;
     your_impl =

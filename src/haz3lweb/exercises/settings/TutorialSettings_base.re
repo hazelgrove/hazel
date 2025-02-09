@@ -9,5 +9,6 @@ let exercises: list(Tutorial.spec) = [
   Tu_ComposingArithmetic_and_Scope.scope_exercise,
   Tu_ComputingEquationally_Shadow.shadow_exercise,
   Tu_More.bools_ex,
+  Tu_More.cond_ex,
   Tu_More.func_ex,
 ];

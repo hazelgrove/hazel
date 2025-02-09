@@ -13,7 +13,7 @@ let exercise : Tutorial.spec =
        below and interactively prove that our evaluation to `26` is correct \
        one elementary arithmetic step at a time. This proof is the essence of \
        computation!";
-    wrapper = true;
+    wrapper = false;
     version = 1;
     your_impl =
       {
