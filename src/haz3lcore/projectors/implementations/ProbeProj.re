@@ -12,7 +12,7 @@ type model = {
   /* Max col length for value display, indexed by closure id */
   display_lengths: Id.Map.t(int),
   /* Max number of closures to display */
-  max_closures: int,
+  //max_closures: int,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -22,13 +22,69 @@ type action =
   | ToggleShowAllVals(int)
   | PinAp;
 
-let init = {display_lengths: Id.Map.empty, max_closures: 30};
+let init = {display_lengths: Id.Map.empty};
 
 let model_of_sexp = (sexp): model =>
   switch (model_of_sexp(sexp)) {
   | exception _ => init
   | x => x
   };
+
+module Window = {
+  type mode =
+    | Single
+    | Many;
+
+  let mode = ref(Many);
+  let offset = Hashtbl.create(100);
+
+  let max_closures = () =>
+    switch (mode^) {
+    | Single => 1
+    | Many => 30
+    };
+
+  let get_mode = () => mode^;
+
+  let toggle_mode = () =>
+    switch (mode^) {
+    | Single => mode := Many
+    | Many => mode := Single
+    };
+
+  let get_offset = (k: Id.t): int =>
+    switch (Hashtbl.find_opt(offset, k)) {
+    | Some(v) => v
+    | None => 0
+    };
+
+  /* We are displaying a certain window of closures near the closure cursor.
+   * If the closure cursor moves, we want to readjust this window to show the
+   * cursor, but only if necessary. Thus we compare the cursor position to the
+   * current window bounds, and make the minimum change to the window necessary
+   * to show the cursor. As an edge case, if there are less total closures than
+   * the window size, we set the window to begin at zero. */
+  let new_offest =
+      (cursor_idx: int, home: int, max_closures: int, all_closures: int): int =>
+    if (all_closures <= max_closures) {
+      0;
+    } else if (cursor_idx < home) {
+      cursor_idx;
+    } else if (cursor_idx >= home + max_closures) {
+      cursor_idx - max_closures + 1;
+    } else {
+      home;
+    };
+
+  let set_offset = (k: Id.t, v: int) => Hashtbl.add(offset, k, v);
+
+  let reset = (id, all_closures, cursor_idx): (int, int) => {
+    let max = max_closures();
+    let new_home = new_offest(cursor_idx, get_offset(id), max, all_closures);
+    set_offset(id, new_home);
+    (new_home, max);
+  };
+};
 
 /* Remove opaque values like function literals */
 let rm_opaques:
@@ -43,9 +99,7 @@ let rm_opaques:
 /* Don't redundantly show an env for variable references, patterns */
 let hide_env = (info: info): bool =>
   switch (info.statics) {
-  | Some(
-      InfoExp({term: {term: Var(_) | Wrap({term: Var(_), _}, _), _}, _}),
-    ) =>
+  | Some(InfoExp({term: {term: Var(_) | Parens({term: Var(_), _}), _}, _})) =>
     true
   | Some(InfoPat(_)) => true
   | _ => false
@@ -54,12 +108,11 @@ let hide_env = (info: info): bool =>
 let cur_ap = (info: info) =>
   switch (info.statics) {
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
-  | Some(InfoExp({term: {term: Wrap({term: Ap(_), _} as ap, _), _}, _})) =>
+  | Some(InfoExp({term: {term: Parens({term: Ap(_), _} as ap), _}, _})) =>
     Some(Term.Exp.rep_id(ap))
   | Some(
       InfoExp({
-        term:
-          {term: Wrap({term: Wrap({term: Ap(_), _} as ap, _), _}, _), _},
+        term: {term: Parens({term: Parens({term: Ap(_), _} as ap), _}), _},
         _,
       }),
     ) =>
@@ -67,21 +120,8 @@ let cur_ap = (info: info) =>
   | _ => None
   };
 
-let home = Hashtbl.create(100);
-
-let get_home = (k: Id.t): int =>
-  switch (Hashtbl.find_opt(home, k)) {
-  | Some(v) => v
-  | None => 0
-  };
-
-let set_home = (k: Id.t, v: int) => Hashtbl.add(home, k, v);
-
-/* when we draw the window, we check if the current home has the cursor in window.
-     if not, we move the current home to put the cursor in window
-   when we use the arrows to move the closure cursor,
-   we check how far the new index of the closure cursor is from the current home
-    */
+let is_value = (exp: Exp.t) =>
+  ValueChecker.check_value((), ClosureEnvironment.empty, exp) == Value;
 
 module DynCursor = {
   /* Manages shared state between probes */
@@ -111,13 +151,6 @@ module DynCursor = {
 
   let is_in = (closures: list(closure)): option(closure) =>
     List.find_opt(
-      (closure: closure) => s.call_cursor == closure.call_stack,
-      closures,
-    );
-
-  let first_index_of_interest = (closures: list(closure)): option(int) =>
-    //TODO: maybe expand logic to consider more than just call cursor e.g. when ap is indicated
-    List.find_index(
       (closure: closure) => s.call_cursor == closure.call_stack,
       closures,
     );
@@ -222,6 +255,22 @@ module DynCursor = {
     );
   };
 
+  let first_index_of_interest = (info, closures: list(closure)): option(int) => {
+    let find = (rel: relation => bool): option(int) =>
+      List.find_index(
+        (closure: closure) => rel(relation(info, closure)),
+        closures,
+      );
+    switch (find(relation => relation.is_call_cursor)) {
+    | Some(idx) => Some(idx)
+    | None =>
+      switch (find(relation => relation.is_below_indicated_call == Some(0))) {
+      | Some(idx) => Some(idx)
+      | None => find(relation => relation.is_below_indicated_call != None)
+      }
+    };
+  };
+
   let show_pin = info => {
     s.pinned_call != None
     && s.pinned_call
@@ -292,27 +341,17 @@ module Closures = {
     | None => 0
     };
 
-  let new_home = (cursor_idx: int, home: int, max_closures: int): int =>
-    if (cursor_idx < home) {
-      cursor_idx;
-    } else if (cursor_idx >= home + max_closures) {
-      cursor_idx - max_closures + 1;
-    } else {
-      home;
-    };
-
   let select_frames =
-      (model: model, info: info, closures: list(closure)): list(closure) => {
+      (_model: model, info: info, closures: list(closure)): list(closure) => {
     let closures = filter_frames_by_pin(info, closures);
     let cursor_idx =
-      switch (DynCursor.first_index_of_interest(closures)) {
+      switch (DynCursor.first_index_of_interest(info, closures)) {
       | Some(idx) => idx
       | None => 0
       };
-    let home = get_home(info.id);
-    let new_home = new_home(cursor_idx, home, model.max_closures);
-    set_home(info.id, new_home);
-    ListUtil.slice(new_home, model.max_closures, closures);
+    let all_closures = List.length(closures);
+    let (l, r) = Window.reset(info.id, all_closures, cursor_idx);
+    ListUtil.slice(l, r, closures);
   };
 
   let group_by_predicate =
@@ -383,12 +422,12 @@ let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   {row, col};
 };
 
-let display_length = (display_lengths, id: Id.t): int =>
-  Id.Map.find_opt(id, display_lengths) |> Option.value(~default=12);
-
-let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
-
-let click_coords: ref(option(Point.t)) = ref(Option.None);
+let display_length = (model: model, closure: closure): int =>
+  Id.Map.find_opt(closure.closure_id, model.display_lengths)
+  |> Option.value(
+       ~default=
+         !is_value(closure.value) ? 5 : Window.get_mode() == Single ? 36 : 12,
+     );
 
 let length_cls = (length: int): string =>
   if (length > 10) {
@@ -409,6 +448,12 @@ let length_cls = (length: int): string =>
     "s0";
   };
 
+module ValueState = {
+  let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
+
+  let click_coords: ref(option(Point.t)) = ref(Option.None);
+};
+
 let value_view =
     (
       info: info,
@@ -424,8 +469,8 @@ let value_view =
       let target =
         e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
       JsUtil.setPointerCapture(target, e##.pointerId);
-      mousedown := Some(target);
-      click_coords := Some({row: e##.clientY, col: e##.clientX});
+      ValueState.mousedown := Some(target);
+      ValueState.click_coords := Some({row: e##.clientY, col: e##.clientX});
     };
     DynCursor.capture(info, closure);
     Effect.Ignore;
@@ -437,13 +482,13 @@ let value_view =
     if (JsUtil.hasPointerCapture(target, e##.pointerId)) {
       JsUtil.releasePointerCapture(target, e##.pointerId);
     };
-    mousedown := None;
-    click_coords := None;
+    ValueState.mousedown := None;
+    ValueState.click_coords := None;
     Effect.Ignore;
   };
 
   let val_mousemove = (e: Js.t(Dom_html.mouseEvent)) => {
-    switch (mousedown^) {
+    switch (ValueState.mousedown^) {
     | Some(_) when Js.to_bool(e##.shiftKey) =>
       let goal = pos_rel_to_target(e);
       local(ChangeLength(closure.closure_id, goal.col));
@@ -455,7 +500,7 @@ let value_view =
     seg_view(
       view_seg,
       utility,
-      display_length(model.display_lengths, closure.closure_id),
+      display_length(model, closure),
       closure.value,
     );
 
@@ -465,7 +510,8 @@ let value_view =
       Attr.classes(
         ["value", length_cls(length)]
         @ DynCursor.clss(info, closure)
-        @ (Option.is_some(cur_ap(info)) ? ["ap"] : []),
+        @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
+        @ (!is_value(closure.value) ? ["indet"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
       Attr.on_pointerdown(val_pointerdown),
@@ -478,7 +524,7 @@ let value_view =
 
 let env_val =
     (
-      display_lengths,
+      model: model,
       closure_id,
       view_seg,
       utility: utility,
@@ -492,28 +538,20 @@ let env_val =
       switch (en.value) {
       | Opaque => Node.text("Opaque")
       | Val(d) =>
-        seg_view(
-          view_seg,
-          utility,
-          display_length(display_lengths, closure_id),
-          d,
-        )
+        seg_view(view_seg, utility, display_length(model, closure_id), d)
         |> fst
       },
     ],
   );
 };
 
-let env_view =
-    (display_lengths, closure: closure, view_seg, utility: utility): Node.t =>
+let env_view = (model, closure: closure, view_seg, utility: utility): Node.t =>
   Node.div(
     ~attrs=[Attr.classes(["live-env"])],
     closure.env
     |> ListUtil.dedup
     |> rm_opaques
-    |> List.map(
-         env_val(display_lengths, closure.closure_id, view_seg, utility),
-       ),
+    |> List.map(env_val(model, closure, view_seg, utility)),
   );
 
 let closure_view =
@@ -528,10 +566,7 @@ let closure_view =
   div(
     ~attrs=[Attr.classes(["closure"])],
     [value_view(info, model, utility, view_seg, local, closure, index)]
-    @ (
-      hide_env(info)
-        ? [] : [env_view(model.display_lengths, closure, view_seg, utility)]
-    ),
+    @ (hide_env(info) ? [] : [env_view(model, closure, view_seg, utility)]),
   );
 
 let closure_group_view =
@@ -568,7 +603,7 @@ let ellipsis_view = (local): Node.t =>
     [text("⋯")],
   );
 
-let nav_bar_view = (model: model, num_total: int, local) => {
+let nav_bar_view = (_model: model, num_total: int, local) => {
   let nav_arrow = (cond: bool, offset: int): Node.t =>
     Node.div(
       ~attrs=[
@@ -578,8 +613,8 @@ let nav_bar_view = (model: model, num_total: int, local) => {
       [],
     );
   // TODO: better logic
-  let show_left = num_total < model.max_closures;
-  let show_right = num_total < model.max_closures;
+  let show_left = num_total < Window.max_closures();
+  let show_right = num_total < Window.max_closures();
   div(
     ~attrs=[Attr.classes(["nav-bar"])],
     [nav_arrow(show_left, 1), nav_arrow(show_right, -1)],
@@ -632,13 +667,15 @@ let pin_view = (info: info) =>
   DynCursor.show_pin(info)
     ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
-let syntax_str = (info: info) => {
-  let max_len = 30;
-  let seg = Segment.unparenthesize(info.syntax);
-  let str = Printer.of_segment(~holes=Some("?"), seg);
-  let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
-  String.length(str) > max_len ? String.sub(str, 0, max_len) ++ "..." : str;
-};
+let syntax_str =
+  Core.Memo.general(seg => {
+    let max_len = 30;
+    let seg = Segment.unparenthesize(seg);
+    let str = Printer.of_segment(~holes=Some("?"), seg);
+    let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
+    String.length(str) > max_len
+      ? String.sub(str, 0, max_len) ++ "..." : str;
+  });
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
 let state: ref(option(Direction.t)) = ref(Option.None);
@@ -647,7 +684,7 @@ let move_cursor = (info: info, offset: int): unit =>
   switch (info.dynamics) {
   | Some(closures) =>
     let closures = Closures.filter_frames_by_pin(info, closures);
-    let cursor_idx = DynCursor.first_index_of_interest(closures);
+    let cursor_idx = DynCursor.first_index_of_interest(info, closures);
     switch (cursor_idx) {
     /* Cursor would be outside window, reset to next visible closure */
     | Some(idx) =>
@@ -713,7 +750,7 @@ let view = (local, parent, info: info): Node.t =>
         Effect.Ignore;
       }),
     ],
-    [text(syntax_str(info)), icon],
+    [text(syntax_str(info.syntax)), icon],
   );
 
 let overlay_view = (info: info): Node.t =>
@@ -732,16 +769,30 @@ let update = (m: model, info: info, a: action) => {
   switch (a) {
   | ChangeLength(id, len) =>
     if (len > (-1)) {
-      {...m, display_lengths: Id.Map.add(id, len, m.display_lengths)};
+      {display_lengths: Id.Map.add(id, len, m.display_lengths)};
     } else {
       m;
     }
-  | ToggleShowAllVals(_) => {
-      ...m,
-      max_closures: m.max_closures == 1 ? init.max_closures : 1,
-    }
+  | ToggleShowAllVals(_) =>
+    Window.toggle_mode();
+    m;
   | MoveCursor(offset) =>
-    move_cursor(info, offset);
+    //move_cursor(info, offset);
+    switch (info.dynamics) {
+    | Some(closures) =>
+      let closures = Closures.filter_frames_by_pin(info, closures);
+      let cursor_idx = DynCursor.first_index_of_interest(info, closures);
+      switch (cursor_idx) {
+      /* Cursor would be outside window, reset to next visible closure */
+      | Some(idx) =>
+        let next_idx_maybe = idx - offset;
+        if (next_idx_maybe >= 0 && next_idx_maybe < List.length(closures)) {
+          DynCursor.capture_cursor(List.nth(closures, next_idx_maybe));
+        };
+      | _ => ()
+      };
+    | None => ()
+    };
     m;
   | PinAp =>
     /* Pin a function call, filtering the cells in other probes */
@@ -786,21 +837,16 @@ module M: Projector = {
     };
 
   let placeholder = (_, info: info) =>
-    ProjectorCore.inline(2 + String.length(syntax_str(info)));
+    ProjectorCore.Shape.inline(2 + String.length(syntax_str(info.syntax)));
 
   let update = update;
 
-  let view = (_model, info, ~local, ~parent, ~view_seg as _) =>
-    view(local, parent, info);
-  let offside_view =
-    Some(
-      (model, info, ~local, ~parent as _, ~view_seg) =>
-        offside_view(model, info, local, view_seg, info.utility),
-    );
-  let overlay_view =
-    Some(
-      (_model, info, ~local as _, ~parent as _, ~view_seg as _) =>
-        overlay_view(info),
-    );
-  let underlay_view = Option.None;
+  let view = (model, info, ~local, ~parent, ~view_seg) =>
+    View.{
+      inline: Some(view(local, parent, info)),
+      underlay: None,
+      overlay: Some(overlay_view(info)),
+      offside:
+        Some(offside_view(model, info, local, view_seg, info.utility)),
+    };
 };

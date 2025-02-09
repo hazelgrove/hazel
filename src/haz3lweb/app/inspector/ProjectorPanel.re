@@ -11,7 +11,7 @@ module Applicable = {
   /* If there are applicable projectors, we distinguish the first
    * one, which will be the current active projector if the indicated
    * term is already projected */
-  type t = option((ProjectorCore.kind, list(ProjectorCore.kind)));
+  type t = option((ProjectorCore.Kind.t, list(ProjectorCore.Kind.t)));
 
   /* Determines what term to target for projection. This logic
    * should be kept in sync with the projector add/remove logic
@@ -34,8 +34,8 @@ module Applicable = {
 
   /* Is a projector of `kind` applicable to the target term? */
   let is_applicable =
-      (cursor: Cursor.cursor(Editors.Update.t), kind: ProjectorCore.kind)
-      : option(ProjectorCore.kind) => {
+      (cursor: Cursor.cursor(Editors.Update.t), kind: ProjectorCore.Kind.t)
+      : option(ProjectorCore.Kind.t) => {
     let (module P) = ProjectorInit.to_module(kind);
     let* term = target_term(cursor);
     P.can_project(term) ? Some(kind) : None;
@@ -43,7 +43,7 @@ module Applicable = {
 
   /* If the current indicated term is a projector, return its kind */
   let indicated_kind =
-      (editor: option(Editor.t)): option(ProjectorCore.kind) => {
+      (editor: option(Editor.t)): option(ProjectorCore.Kind.t) => {
     let* editor = editor;
     let* (piece, _, _) = Indicated.for_index(editor.state.zipper);
     switch (piece) {
@@ -58,9 +58,9 @@ module Applicable = {
   let lift_active_projector =
       (
         cursor: Cursor.cursor(Editors.Update.t),
-        applicable_projectors: list(ProjectorCore.kind),
+        applicable_projectors: list(ProjectorCore.Kind.t),
       )
-      : list(ProjectorCore.kind) => {
+      : list(ProjectorCore.Kind.t) => {
     switch (indicated_kind(cursor.editor)) {
     | None => applicable_projectors
     | Some(k) => ListUtil.lift(k, applicable_projectors)
@@ -78,7 +78,7 @@ module Applicable = {
       None;
     } else {
       let list =
-        ProjectorCore.projectors
+        ProjectorCore.Kind.projectors
         |> List.filter_map(is_applicable(cursor))
         |> lift_active_projector(cursor);
       switch (list) {
@@ -110,7 +110,7 @@ let toggle_view =
     )
   };
 
-let keyboard_shortcut_of = (kind: ProjectorCore.kind): string =>
+let keyboard_shortcut_of = (kind: ProjectorCore.Kind.t): string =>
   switch (kind) {
   | Fold => "Option-f"
   | Probe => "Option-v"
@@ -132,14 +132,14 @@ let select_view =
         Attr.id("projector-select"),
         Attr.title(keyboard_shortcut_of(active)),
         Attr.on_change((_, name) => {
-          let value = ProjectorView.name(active);
+          let value = ProjectorCore.Kind.name(active);
           JsUtil.set_select_value("projector-select", value);
-          inject(SetIndicated(Specific(ProjectorView.of_name(name))));
+          inject(SetIndicated(Specific(ProjectorCore.Kind.of_name(name))));
         }),
         //Attr.string_property("value", value),
       ],
       [active, ...rest]
-      |> List.map(k => option([text(ProjectorView.name(k))])),
+      |> List.map(k => option([text(ProjectorCore.Kind.name(k))])),
     )
   };
 };

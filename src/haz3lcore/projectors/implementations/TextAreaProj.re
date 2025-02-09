@@ -87,7 +87,7 @@ module M: Projector = {
   let dynamics = false;
   let placeholder = (_, info) => {
     let str = info |> get;
-    ProjectorCore.{
+    ProjectorCore.Shape.{
       vertical: Block(StringUtil.num_linebreaks(str)),
       /* +2 for left and right padding */
       horizontal: 2 + StringUtil.max_line_width(str),
@@ -96,19 +96,17 @@ module M: Projector = {
   let update = (model, _, _) => model;
 
   let view = (_, info, ~local as _, ~parent, ~view_seg as _) =>
-    Node.div(
-      ~attrs=[Attr.classes(["wrapper"])],
-      [
-        Node.div(
-          ~attrs=[Attr.classes(["cols", "code"])],
-          [Node.text("·")] @ [textarea(info, ~parent, info |> get)],
-        ),
-      ],
+    View.mk(
+      Node.div(
+        ~attrs=[Attr.classes(["wrapper"])],
+        [
+          Node.div(
+            ~attrs=[Attr.classes(["cols", "code"])],
+            [Node.text("·")] @ [textarea(info, ~parent, info |> get)],
+          ),
+        ],
+      ),
     );
-
-  let offside_view = Option.None;
-  let overlay_view = Option.None;
-  let underlay_view = Option.None; //TODO
 
   let focus = ((id: Id.t, d: option(Direction.t))) => {
     JsUtil.get_elem_by_id(Id.cls(id))##focus;

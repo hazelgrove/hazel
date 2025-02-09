@@ -11,23 +11,8 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
     Matches(Environment.union(env1, env2))
   };
 
-type closure_closures = list(Probe.call_stack => Dynamics.Probe.Closure.t);
-let closure_closures: ref(closure_closures) = ref([]);
-
-/* Closure capture for Probe instrumentation */
-let capture_closure = (pr, id: Id.t, d, inner_match: match_result): unit =>
-  switch (inner_match) {
-  | DoesNotMatch => ()
-  | IndetMatch => ()
-  | Matches(env) =>
-    closure_closures :=
-      List.cons(
-        Dynamics.Probe.Closure.mk(id, d, env, _, pr),
-        closure_closures^,
-      )
-  };
-
-let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
+let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
+  let matches = matches(capture);
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
   | EmptyHole
@@ -71,23 +56,39 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
     List.map2(matches, ps, ds)
     |> List.fold_left(combine_result, Matches(Environment.empty));
-  | Wrap(p, Parens) => matches(p, d)
-  | Wrap(p, Probe(pr)) =>
+  | Parens(p) => matches(p, d)
+  | Probe(p, pr) =>
     let inner_match = matches(p, d);
-    capture_closure(pr, Term.Pat.rep_id(dp), d, inner_match);
+    capture(pr, dp, d, inner_match);
     inner_match;
   | Cast(p, t1, t2) =>
     matches(p, Cast(d, t2, t1) |> DHExp.fresh |> Casts.transition_multiple)
   };
+};
+
+type closure_closures = list(Probe.call_stack => Dynamics.Probe.Closure.t);
 
 type matches_and_closures = {
   matches: match_result,
   closures: closure_closures,
 };
 
-// wrap matches but do stateful thing (closure capture)
 let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
-  closure_closures := [];
-  let res = matches(dp, d);
+  /* Closure capture for Probe instrumentation */
+  let closure_closures: ref(closure_closures) = ref([]);
+  let capture =
+      (pr: Probe.t, dp: Term.Pat.t, d: DHExp.t, inner_match: match_result)
+      : unit =>
+    switch (inner_match) {
+    | DoesNotMatch => ()
+    | IndetMatch => ()
+    | Matches(env) =>
+      closure_closures :=
+        List.cons(
+          Dynamics.Probe.Closure.mk(Term.Pat.rep_id(dp), d, env, _, pr),
+          closure_closures^,
+        )
+    };
+  let res = matches(capture, dp, d);
   {matches: res, closures: closure_closures^};
 };

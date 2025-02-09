@@ -97,8 +97,8 @@ let rec matches_exp =
     true;
   } else {
     switch (d |> DHExp.term_of, f |> DHExp.term_of) {
-    | (Wrap(d, _), _) => matches_exp(d, f)
-    | (_, Wrap(f, _)) => matches_exp(d, f)
+    | (Parens(d) | Probe(d, _), _) => matches_exp(d, f)
+    | (_, Parens(f) | Probe(f, _)) => matches_exp(d, f)
 
     | (Constructor("$e", _), _) => failwith("$e in matched expression")
     | (Constructor("$v", _), _) => failwith("$v in matched expression")
@@ -221,14 +221,7 @@ let rec matches_exp =
     | (TypFun(pat1, d1, s1), TypFun(pat2, d2, s2)) =>
       s1 == s2 && matches_utpat(pat1, pat2) && matches_exp(d1, d2)
     | (TypFun(_), _) => false
-
-    | (Fun(dp1, d1, Some(denv), _), Fun(fp1, f1, Some(fenv), _)) =>
-      matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
-    | (Fun(dp1, d1, Some(denv), _), Fun(fp1, f1, None, _)) =>
-      matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
-    | (Fun(dp1, d1, None, _), Fun(fp1, f1, Some(fenv), _)) =>
-      matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
-    | (Fun(dp1, d1, None, _), Fun(fp1, f1, None, _)) =>
+    | (Fun(dp1, d1, _, _), Fun(fp1, f1, _, _)) =>
       matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
     | (Fun(_), _) => false
 

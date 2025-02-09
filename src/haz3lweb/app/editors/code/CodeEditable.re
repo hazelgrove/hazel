@@ -211,7 +211,6 @@ module View = {
           let editor = model.editor;
           let globals = globals;
           let statics = model.statics;
-          let dynamics = model.dynamics;
         });
       Deco.editor(model.editor.state.zipper, selected);
     };
@@ -220,10 +219,12 @@ module View = {
         x => inject(Perform(x)),
         signal(MakeActive),
         globals.font_metrics,
-        ProjectorView.collect_data(
-          model.editor.syntax,
-          model.editor.state.zipper,
-          model.statics,
+        ProjectorView.Model.mk(
+          model.editor.syntax.projectors,
+          model.editor.syntax.measured,
+          model.editor.syntax.selection_ids,
+          Indicated.piece(model.editor.state.zipper),
+          model.statics.info_map,
           model.dynamics,
           selected,
         ),
@@ -235,14 +236,14 @@ module View = {
     let code_view =
       CodeWithStatics.View.view(~globals, ~overlays, ~sort?, model);
 
-    let loc = (e: Pointer.event) =>
+    let loc = (e: Pointer.Event.t) =>
       FontMetrics.get_goal(
         ~font_metrics=globals.font_metrics,
         container_target(e.current_target),
         e.loc,
       );
 
-    let move_or_select = (mouse: Pointer.event, pointer_id: int) =>
+    let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) =>
       switch (mouse) {
       | {shift: Down, _} =>
         Effect.Many([
@@ -276,13 +277,13 @@ module View = {
       | _ => Effect.Ignore
       };
 
-    let toggle_button = (e: Pointer.event, pointer_id: int) => {
+    let toggle_button = (e: Pointer.Event.t, pointer_id: int) => {
       MouseState.pointerup(loc(e));
       PointerCapture.release(e.current_target, pointer_id);
       Effect.Ignore;
     };
 
-    let drag_select = (pointer: Pointer.event) =>
+    let drag_select = (pointer: Pointer.Event.t) =>
       switch (pointer) {
       | {button: Left, _} when MouseState.is_button_down() =>
         inject(Perform(Select(Resize(Goal(Point(loc(pointer)))))))
@@ -295,12 +296,13 @@ module View = {
           ["cell-item", "code-editor"] @ (selected ? ["selected"] : []),
         ),
         Attr.on_pointerdown(evt =>
-          move_or_select(Pointer.mk(evt), Pointer.id_of(evt))
+          move_or_select(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
         ),
         Attr.on_pointerup(evt =>
-          toggle_button(Pointer.mk(evt), Pointer.id_of(evt))
+          toggle_button(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
         ),
-        Attr.on_mousemove(evt => drag_select(Pointer.mk(evt))),
+        Attr.on_mousemove(evt => drag_select(Pointer.Event.mk(evt))),
+        Attr.on_wheel(evt => drag_select(Pointer.Event.mk(evt))),
       ],
       [code_view],
     );

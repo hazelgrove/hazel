@@ -4,67 +4,69 @@ open Js_of_ocaml;
 /* This provides various utility data structures and
  * functions for dealing with Mouse and Pointer Events */
 
-type sys =
-  | Mac
-  | PC;
+module Event = {
+  type sys =
+    | Mac
+    | PC;
 
-type held =
-  | Down
-  | Up;
+  type held =
+    | Down
+    | Up;
 
-type button =
-  | Left
-  | MiddleWheel
-  | Right
-  | Back
-  | Forward
-  | Unknown(int);
+  type button =
+    | Left
+    | MiddleWheel
+    | Right
+    | Back
+    | Forward
+    | Unknown(int);
 
-/* Data representing a pointer/mouse event. As attributes are
- * needed they can be added here; probably a good idea to keep
- * this data structure restricted to properties common to both
- * MouseEvents and PointerEvents */
-type event = {
-  sys,
-  loc: Point.t,
-  current_target: Js.opt(Js.t(Dom_html.element)),
-  button,
-  shift: held,
-  meta: held,
-  ctrl: held,
-  alt: held,
-};
-
-/* Note these methods are ineffective when used with PointerEvents */
-let num_clicks = (evt): int => Js.Unsafe.coerce(evt)##.detail;
-let is_double_click = (evt): bool => num_clicks(evt) == 2;
-
-let button = (evt): button =>
-  switch (Js.Unsafe.coerce(evt)##.button) {
-  | 0 => Left
-  | 1 => MiddleWheel
-  | 2 => Right
-  | 3 => Back
-  | 4 => Forward
-  | b => Unknown(b)
+  /* Data representing a pointer/mouse event. As attributes are
+   * needed they can be added here; probably a good idea to keep
+   * this data structure restricted to properties common to both
+   * MouseEvents and PointerEvents */
+  type t = {
+    sys,
+    loc: Point.t,
+    current_target: Js.opt(Js.t(Dom_html.element)),
+    button,
+    shift: held,
+    meta: held,
+    ctrl: held,
+    alt: held,
   };
 
-/* Not incoporate into above to preserve MouseEvent compatibility */
-let id_of = (evt: Js.t(Dom_html.pointerEvent)): int => evt##.pointerId;
+  /* Note these methods are ineffective when used with PointerEvents */
+  let num_clicks = (evt): int => Js.Unsafe.coerce(evt)##.detail;
+  let is_double_click = (evt): bool => num_clicks(evt) == 2;
 
-/* Works with both MouseEvents or PointerEvents */
-let mk = (evt): event => {
-  sys: Os.is_mac^ ? Mac : PC,
-  loc: {
-    row: evt##.clientY,
-    col: evt##.clientX,
-  },
-  current_target: evt##.currentTarget,
-  button: button(evt),
-  shift: Js.to_bool(evt##.shiftKey) ? Down : Up,
-  meta: Js.to_bool(evt##.metaKey) ? Down : Up,
-  ctrl: Js.to_bool(evt##.ctrlKey) ? Down : Up,
-  alt: Js.to_bool(evt##.altKey) ? Down : Up,
+  let button = (evt): button =>
+    switch (Js.Unsafe.coerce(evt)##.button) {
+    | 0 => Left
+    | 1 => MiddleWheel
+    | 2 => Right
+    | 3 => Back
+    | 4 => Forward
+    | b => Unknown(b)
+    };
+
+  /* Not incoporate into above to preserve MouseEvent compatibility */
+  let id_of = (evt: Js.t(Dom_html.pointerEvent)): int => evt##.pointerId;
+
+  /* Works with both MouseEvents or PointerEvents */
+  let mk = (evt): t => {
+    sys: Os.is_mac^ ? Mac : PC,
+    loc: {
+      row: evt##.clientY,
+      col: evt##.clientX,
+    },
+    current_target: evt##.currentTarget,
+    button: button(evt),
+    shift: Js.to_bool(evt##.shiftKey) ? Down : Up,
+    meta: Js.to_bool(evt##.metaKey) ? Down : Up,
+    ctrl: Js.to_bool(evt##.ctrlKey) ? Down : Up,
+    alt: Js.to_bool(evt##.altKey) ? Down : Up,
+  };
 };
 
 module MkState = () => {
@@ -138,21 +140,22 @@ module MkState = () => {
       }
     );
 
-  let pointerdown = (loc: Point.t): unit =>
+  let pointerdown = (loc: Point.t): unit => {
     if (!is_init() && loc != state.loc) {
-      reset();
-    } else {
-      state.button = toggle(state.button);
-      state.loc = loc;
+      state.count = 0;
     };
+    state.button = Down;
+    state.loc = loc;
+  };
 
-  let pointerup = (loc: Point.t): unit =>
+  let pointerup = (loc: Point.t): unit => {
     if (loc != state.loc) {
-      reset();
+      state.count = 0;
     } else if (!is_init()) {
       count_reset_timer(state.count);
       state.count = state.count + 1;
-      state.button = toggle(state.button);
-      state.loc = loc;
     };
+    state.button = Up;
+    state.loc = loc;
+  };
 };

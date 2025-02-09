@@ -75,7 +75,7 @@ module Text =
          M: {
            let map: Measured.t;
            let settings: Settings.Model.t;
-           let shape_of_proj: Base.projector => ProjectorCore.shape;
+           let shape_map: ProjectorCore.Shape.Map.t;
            let font_metrics: FontMetrics.t;
          },
        ) => {
@@ -116,7 +116,7 @@ module Text =
       of_projector(
         expected_sort,
         m(Projector(p)).origin.col,
-        p |> M.shape_of_proj |> ProjectorCore.token,
+        ProjectorCore.Shape.Map.lookup_token(p.id, M.shape_map),
       )
     };
   }

@@ -287,10 +287,10 @@ and uexp_to_info_map =
       m,
     )
   | DynamicErrorHole(e, _)
-  | Wrap(e, Parens) =>
+  | Parens(e) =>
     let (e, m) = go(~mode, e, m);
     add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
-  | Wrap(e, Probe(_)) =>
+  | Probe(e, _) =>
     /* Currently doing this as otherwise it clobbers the statics
      * for the contained expression as i'm just reusing the same id
      * in order to associate it through dynamics */
@@ -385,8 +385,8 @@ and uexp_to_info_map =
     let (args, m) = map_m_go(m, modes, args);
     let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
     add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]), m);
-  | Fun(p, e, _, _) =>
-    let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
+  | Fun(p, e, typ, _) =>
+    let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode, typ);
     let (p', _) =
       go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=mode_pat, p, m);
     let (e, m) = go'(~ctx=p'.ctx, ~mode=mode_body, e, m);
@@ -818,14 +818,14 @@ and upat_to_info_map =
       ~constraint_=cons_fold_tuple(cons),
       m,
     );
-  | Wrap(p, Probe(_)) =>
+  | Probe(p, _) =>
     /* Currently doing this as otherwise it clobbers the statics
      * for the contained expression as i'm just reusing the same id
      * in order to associate it through dynamics */
     let (ci, map) = go(~ctx, ~mode, p, m);
     let map = add_info(ids, InfoPat(ci), map);
     (ci, map);
-  | Wrap(p, Parens) =>
+  | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
   | Constructor(ctr, ty) =>
@@ -879,7 +879,7 @@ and utyp_to_info_map =
     /* Names are resolved in Info.status_typ */
     add(m)
   | List(t)
-  | Wrap(t) => add(go(t, m) |> snd)
+  | Parens(t) => add(go(t, m) |> snd)
   | Arrow(t1, t2) =>
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;

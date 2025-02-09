@@ -41,7 +41,7 @@ module M: Projector = {
 
   let can_focus = false;
   let dynamics = false;
-  let placeholder = (_, _) => ProjectorCore.inline(2);
+  let placeholder = (_, _) => ProjectorCore.Shape.inline(2);
   let update = (model, _, _) => model;
 
   let view =
@@ -52,18 +52,17 @@ module M: Projector = {
         ~parent: external_action => Ui_effect.t(unit),
         ~view_seg as _,
       ) =>
-    Node.input(
-      ~attrs=
-        [
-          Attr.create("type", "checkbox"),
-          Attr.on_input((_, _) => parent(SetSyntax(toggle(info)))),
-        ]
-        @ (info |> get ? [Attr.checked] : []),
-      (),
+    View.mk(
+      Node.input(
+        ~attrs=
+          [
+            Attr.create("type", "checkbox"),
+            Attr.on_input((_, _) => parent(SetSyntax(toggle(info)))),
+          ]
+          @ (info |> get ? [Attr.checked] : []),
+        (),
+      ),
     );
 
-  let offside_view = Option.None;
-  let overlay_view = Option.None;
-  let underlay_view = Option.None;
   let focus = _ => ();
 };

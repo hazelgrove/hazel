@@ -15,6 +15,7 @@ module Pat = {
     | Var
     | Tuple
     | Parens
+    | Probe
     | Ap
     | Cast;
 
@@ -52,7 +53,8 @@ module Pat = {
     | Cons(_) => Cons
     | Var(_) => Var
     | Tuple(_) => Tuple
-    | Wrap(_) => Parens
+    | Parens(_) => Parens
+    | Probe(_) => Probe
     | Ap(_) => Ap
     | Cast(_) => Cast;
 
@@ -72,12 +74,14 @@ module Pat = {
     | Var => "Variable binding"
     | Tuple => "Tuple"
     | Parens => "Parenthesized pattern"
+    | Probe => "Probe"
     | Ap => "Constructor application"
     | Cast => "Annotation";
 
   let rec is_var = (pat: t) => {
     switch (pat.term) {
-    | Wrap(pat, _)
+    | Parens(pat)
+    | Probe(pat, _)
     | Cast(pat, _, _) => is_var(pat)
     | Var(_) => true
     | Invalid(_)
@@ -98,7 +102,8 @@ module Pat = {
 
   let rec is_fun_var = (pat: t) => {
     switch (pat.term) {
-    | Wrap(pat, _) => is_fun_var(pat)
+    | Parens(pat)
+    | Probe(pat, _) => is_fun_var(pat)
     | Cast(pat, typ, _) =>
       is_var(pat) && (Typ.is_arrow(typ) || Typ.is_forall(typ))
     | Invalid(_)
@@ -122,7 +127,8 @@ module Pat = {
     is_fun_var(pat)
     || (
       switch (pat.term) {
-      | Wrap(pat, _) => is_tuple_of_arrows(pat)
+      | Parens(pat)
+      | Probe(pat, _) => is_tuple_of_arrows(pat)
       | Tuple(pats) => pats |> List.for_all(is_fun_var)
       | Invalid(_)
       | EmptyHole
@@ -145,7 +151,8 @@ module Pat = {
     is_var(pat)
     || (
       switch (pat.term) {
-      | Wrap(pat, _)
+      | Parens(pat)
+      | Probe(pat, _)
       | Cast(pat, _, _) => is_tuple_of_vars(pat)
       | Tuple(pats) => pats |> List.for_all(is_var)
       | Invalid(_)
@@ -166,7 +173,8 @@ module Pat = {
 
   let rec get_var = (pat: t) => {
     switch (pat.term) {
-    | Wrap(pat, _) => get_var(pat)
+    | Parens(pat)
+    | Probe(pat, _) => get_var(pat)
     | Var(x) => Some(x)
     | Cast(x, _, _) => get_var(x)
     | Invalid(_)
@@ -187,7 +195,8 @@ module Pat = {
 
   let rec get_fun_var = (pat: t) => {
     switch (pat.term) {
-    | Wrap(pat, _) => get_fun_var(pat)
+    | Parens(pat)
+    | Probe(pat, _) => get_fun_var(pat)
     | Cast(pat, t1, _) =>
       if (Typ.is_arrow(t1) || Typ.is_forall(t1)) {
         get_var(pat) |> Option.map(var => var);
@@ -216,7 +225,8 @@ module Pat = {
     | Some(x) => Some([x])
     | None =>
       switch (pat.term) {
-      | Wrap(pat, _)
+      | Parens(pat)
+      | Probe(pat, _)
       | Cast(pat, _, _) => get_bindings(pat)
       | Tuple(pats) =>
         let vars = pats |> List.map(get_var);
@@ -246,7 +256,8 @@ module Pat = {
       Some(1);
     } else {
       switch (pat.term) {
-      | Wrap(pat, _)
+      | Parens(pat)
+      | Probe(pat, _)
       | Cast(pat, _, _) => get_num_of_vars(pat)
       | Tuple(pats) =>
         is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
@@ -284,7 +295,8 @@ module Pat = {
     | String(_)
     | Constructor(_) => []
     | Cast(y, _, _)
-    | Wrap(y, _) => bindings(y)
+    | Parens(y)
+    | Probe(y, _) => bindings(y)
     | Var(name) => [{name, id: rep_id(dp)}]
     | Tuple(dps) => List.flatten(List.map(bindings, dps))
     | Cons(dp1, dp2) => bindings(dp1) @ bindings(dp2)
@@ -340,6 +352,7 @@ module Exp = {
     | Filter
     | Closure
     | Parens
+    | Probe
     | Cons
     | UnOp(Operators.op_un)
     | BinOp(Operators.op_bin)
@@ -391,7 +404,8 @@ module Exp = {
     | Test(_) => Test
     | Filter(_) => Filter
     | Closure(_) => Closure
-    | Wrap(_) => Parens
+    | Parens(_) => Parens
+    | Probe(_) => Probe
     | Cons(_) => Cons
     | ListConcat(_) => ListConcat
     | UnOp(op, _) => UnOp(op)
@@ -434,6 +448,7 @@ module Exp = {
     | Filter => "Filter"
     | Closure => "Closure"
     | Parens => "Parenthesized expression"
+    | Probe => "Probe"
     | Cons => "Cons"
     | ListConcat => "List Concatenation"
     | BinOp(op) => Operators.show_binop(op)
@@ -446,7 +461,8 @@ module Exp = {
   // determine when to allow for recursive definitions in a let binding.
   let rec is_fun = (e: t) => {
     switch (e.term) {
-    | Wrap(e, _) => is_fun(e)
+    | Parens(e)
+    | Probe(e, _) => is_fun(e)
     | Cast(e, _, _) => is_fun(e)
     | TypFun(_)
     | Fun(_)
@@ -490,7 +506,8 @@ module Exp = {
     || (
       switch (e.term) {
       | Cast(e, _, _)
-      | Wrap(e, _) => is_tuple_of_functions(e)
+      | Parens(e)
+      | Probe(e, _) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
       | Invalid(_)
       | EmptyHole
@@ -546,7 +563,8 @@ module Exp = {
       Some(1);
     } else {
       switch (e.term) {
-      | Wrap(e, _) => get_num_of_functions(e)
+      | Parens(e)
+      | Probe(e, _) => get_num_of_functions(e)
       | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
       | Invalid(_)
       | EmptyHole
@@ -630,19 +648,17 @@ module Exp = {
               new_bound_vars,
               e,
             )
-          | Fun(p, e, Some(env), n) =>
+          | Fun(p, e, t, n) =>
             let pat_bound_vars = Pat.bound_vars(p);
             Fun(
               p,
               substitute_closures(
-                env
-                |> ClosureEnvironment.map_of
-                |> Environment.without_keys(pat_bound_vars),
+                env |> Environment.without_keys(pat_bound_vars),
                 pat_bound_vars,
                 pat_bound_vars @ new_bound_vars,
                 e,
               ),
-              None,
+              t,
               n,
             )
             |> rewrap;
@@ -693,20 +709,6 @@ module Exp = {
                  }),
             )
             |> rewrap
-          | Fun(p, e, None, n) =>
-            let pat_bound_vars = Pat.bound_vars(p);
-            Fun(
-              p,
-              substitute_closures(
-                env |> Environment.without_keys(pat_bound_vars),
-                pat_bound_vars @ old_bound_vars,
-                pat_bound_vars @ new_bound_vars,
-                e,
-              ),
-              None,
-              n,
-            )
-            |> rewrap;
           | FixF(p, e, None) =>
             let pat_bound_vars = Pat.bound_vars(p);
             FixF(
@@ -743,7 +745,8 @@ module Exp = {
           | Seq(_)
           | Test(_)
           | Filter(_)
-          | Wrap(_)
+          | Parens(_)
+          | Probe(_)
           | Cons(_)
           | ListConcat(_)
           | UnOp(_)
@@ -773,7 +776,8 @@ module Exp = {
     switch (e.term) {
     | Fun(_, _, _, n) => n
     | FixF(_, e, _) => get_fn_name(e)
-    | Wrap(e, _) => get_fn_name(e)
+    | Parens(e)
+    | Probe(e, _) => get_fn_name(e)
     | TypFun(_, _, n) => n
     | _ => None
     };
