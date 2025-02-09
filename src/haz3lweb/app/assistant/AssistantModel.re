@@ -1,31 +1,9 @@
 module Sexp = Sexplib.Sexp;
 open Haz3lcore;
 open Util;
+open Util.OptUtil.Syntax;
 
-module Settings = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type manual_llm =
-    | Agent
-    | Human;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type manual_lsp =
-    | LanguageServer
-    | Human;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    llm: bool,
-    lsp: bool,
-    ongoing_chat: bool,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action =
-    | ToggleLLM
-    | ToggleLSP
-    | UpdateChatStatus;
-};
+module CodeModel = CodeEditable.Model;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -67,9 +45,9 @@ module Update = {
 
   let update =
       (
-        ~settings: Settings.t,
+        ~settings: AssistantSettings.t,
         ~action,
-        ~editor: CellEditor.Model.t,
+        ~editor: CodeModel.t,
         ~model: Model.t,
         ~schedule_action,
       )
@@ -105,29 +83,46 @@ module Update = {
       Model.{chat: ListUtil.leading(model.chat) @ [message], currSender: LS}
       |> Updated.return_quiet
     | SendSketch =>
-      Util.OptUtil.Syntax.(
-        switch (
-          {
-            let* index = Indicated.index(editor.editor.state.zipper);
-            let* ci = Id.Map.find_opt(index, editor.statics.info_map);
-            let sketch_seg =
-              Zipper.smart_seg(
-                ~dump_backpack=true,
-                ~erase_buffer=true,
-                editor.editor.state.zipper,
-              );
-            ChatLSP.Prompt.mk_init(ChatLSP.Options.init, ci, sketch_seg);
-          }
-        ) {
-        | None => print_endline("prompt generation failed")
-        | Some(openai_prompt) =>
-          List.iter(
-            (message: OpenAI.message) => print_endline(message.content),
-            openai_prompt,
-          )
+      switch (
+        {
+          let* index = Indicated.index(editor.editor.state.zipper);
+          let* ci = Id.Map.find_opt(index, editor.statics.info_map);
+          let sketch_seg =
+            Zipper.smart_seg(
+              ~dump_backpack=true,
+              ~erase_buffer=true,
+              editor.editor.state.zipper,
+            );
+          ChatLSP.Prompt.mk_init(ChatLSP.Options.init, ci, sketch_seg);
         }
-      );
-      Model.{chat: model.chat, currSender: LS} |> Updated.return_quiet;
+      ) {
+      | None =>
+        print_endline("prompt generation failed");
+        Model.{chat: model.chat, currSender: LLM} |> Updated.return_quiet;
+      | Some(openai_prompt) =>
+        let messages =
+          ListUtil.flat_map(
+            (msg: OpenAI.message): list(string) => {[msg.content]},
+            openai_prompt,
+          );
+        let prompt = ListUtil.concat_strings(messages);
+        let llm = OpenAI.Azure_GPT4_0613;
+        let key = OpenAI.lookup_key(llm);
+        let params: OpenAI.params = {llm, temperature: 1.0, top_p: 1.0};
+        OpenAI.start_chat(~params, ~key, openai_prompt, req =>
+          switch (OpenAI.handle_chat(req)) {
+          | Some({content, _}) => schedule_action(react(content))
+          | None => print_endline("Assistant: response parse failed")
+          }
+        );
+        let await_llm_response: Model.message = {party: LLM, content: "..."};
+        Model.{
+          chat:
+            model.chat @ [{party: LS, content: prompt}, await_llm_response],
+          currSender: LLM,
+        }
+        |> Updated.return_quiet;
+      }
     };
   };
 };

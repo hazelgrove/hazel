@@ -248,8 +248,8 @@ module Update = {
         AssistantModel.Update.update(
           ~settings,
           ~action,
+          ~editor=ed.editor,
           ~model=model.assistant,
-          ~editor=ed,
           ~schedule_action=a =>
           schedule_action(Assistant(a))
         );
