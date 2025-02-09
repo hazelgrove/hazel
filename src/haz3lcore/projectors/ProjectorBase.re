@@ -36,6 +36,18 @@ type utility = {
   lift_syntax: (Any.t => Any.t, Base.segment) => option(Base.segment),
 };
 
+module Focusable = {
+  /* Can the projector take focus, in the sense of handling
+   * keyboard input? If so, how can it take focus? */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    pointer: bool,
+    keyboard: bool,
+  };
+
+  let non: t = {pointer: false, keyboard: false};
+};
+
 /* External info proivded to all projectors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info = {
@@ -119,7 +131,7 @@ module type Projector = {
    * projector is either clicked on or if left/right
    * is pressed when the caret is to the immediate
    * right/left of the projector */
-  let can_focus: bool;
+  let focusable: Focusable.t;
   /* If dynamics is true, this projector will be
    * instrumented with a probe to collect dynamic
    * information during evaluation */
@@ -168,7 +180,7 @@ module Cook = (C: Projector) : Cooked => {
   let deserialize_a = s => s |> Sexplib.Sexp.of_string |> C.action_of_sexp;
   let init = C.init |> serialize_m;
   let can_project = C.can_project;
-  let can_focus = C.can_focus;
+  let focusable = C.focusable;
   let dynamics = C.dynamics;
   let view = (m, info, ~local, ~parent, ~view_seg) =>
     C.view(

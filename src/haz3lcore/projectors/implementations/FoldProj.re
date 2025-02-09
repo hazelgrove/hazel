@@ -19,7 +19,7 @@ module M: Projector = {
 
   let can_project = _ => true;
   let focus = _ => ();
-  let can_focus = false;
+  let focusable = Focusable.non;
   let dynamics = false;
 
   let placeholder = (m, _) =>

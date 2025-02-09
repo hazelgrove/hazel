@@ -83,7 +83,7 @@ module M: Projector = {
   type action = unit;
   let init = ();
   let can_project = any => string_of(any) != None;
-  let can_focus = true;
+  let focusable = Focusable.{pointer: true, keyboard: true};
   let dynamics = false;
   let placeholder = (_, info) => {
     let str = info |> get;
