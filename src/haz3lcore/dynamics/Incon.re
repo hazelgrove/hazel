@@ -3,85 +3,123 @@ open Util;
 open Util.Maps;
 
 module Ctr = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    ctr: Constructor.t,
+    num_args: int,
+    string_key: string,
+  };
+
+  let show = (x: t) => x.string_key;
+
+  let mk = (ctr, num_args) => {
+    let string_key = string_of_int(num_args) ++ "~" ++ ctr;
+    {ctr, num_args, string_key};
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type ctr = t;
+
+  let compare =
+      (
+        {ctr: _, num_args: _, string_key: string_key1},
+        {ctr: _, num_args: _, string_key: string_key2},
+      ) =>
+    compare(string_key1, string_key2);
+
   module Map =
     MapUtil.Make({
       [@deriving (show({with_path: false}), sexp, yojson)]
-      type t = Constructor.t;
+      type t = ctr;
       let compare = compare;
     });
 
   module Set =
     Set.Make({
-      type t = Constructor.t;
+      type t = ctr;
       let compare = compare;
     });
 
   // we treat tuples like constructors for some purposes.
   // this should not be anotherwise valid constructor name.
-  let of_int = string_of_int;
-  let of_float = string_of_float;
-  let of_string = s => "\"" ++ s; // don't need closing quote, just need to distinguish from others
-  let tuple_ctr: Constructor.t = "tuple";
-  let nil_ctr: Constructor.t = "nil";
-  let cons_ctr: Constructor.t = "cons";
-  let true_ctr: Constructor.t = "true";
-  let false_ctr: Constructor.t = "false";
+  let of_int = n => mk(string_of_int(n), 0);
+  let of_float = x => mk(string_of_float(x), 0);
+  let of_string = s => mk("\"" ++ s, 0); // don't need closing quote, just need to distinguish from others
+  let tuple_ctr: int => t = n => mk("tuple", n);
+  let nil_ctr = mk("nil", 0);
+  let cons_ctr = mk("cons", 1);
+  let true_ctr = mk("true", 0);
+  let false_ctr = mk("false", 0);
 
   // used when not all constructors have been seen to handle the unseen cases
-  let default_ctr: Constructor.t = "_";
+  let default_ctr = mk("_", 0);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type arity = list(Typ.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type all_ctrs = Map.t(arity);
+  type all_ctrs =
+    | Unknown
+    | Infinite
+    | Finite(Map.t(arity));
 
-  let arity_of = (ctr, all_ctrs: option(all_ctrs)): arity =>
+  let num_args_of = (ctr: t): int => ctr.num_args;
+
+  let arity_of = (ctr, all_ctrs: all_ctrs): arity =>
     switch (all_ctrs) {
-    | None => []
-    | Some(all_ctrs) =>
+    | Unknown =>
+      List.init(ctr.num_args, _ => TermBase.Unknown(Internal) |> Typ.temp)
+    | Infinite =>
+      List.init(ctr.num_args, _ => TermBase.Unknown(Internal) |> Typ.temp)
+    | Finite(all_ctrs) =>
       switch (Map.find_opt(ctr, all_ctrs)) {
       | Some(arity) => arity
-      | None => []
+      | None =>
+        List.init(ctr.num_args, _ => TermBase.Unknown(Internal) |> Typ.temp)
       }
     };
 
-  let all_ctrs_of_typ = (ty: Typ.t): option(all_ctrs) =>
+  let all_ctrs_of_typ = (ty: Typ.t): all_ctrs =>
     switch (ty.term) {
     | Sum(map)
     | Rec(_, {term: Sum(map), _}) =>
-      Some(
+      Finite(
         map
         |> List.filter_map(
              fun
-             | ConstructorMap.Variant(ctr, _, None) => Some((ctr, []))
-             | Variant(ctr, _, Some(arg_ty)) => Some((ctr, [arg_ty]))
+             | ConstructorMap.Variant(ctr, _, None) =>
+               Some((mk(ctr, 0), []))
+             | Variant(ctr, _, Some(arg_ty)) =>
+               Some((mk(ctr, 1), [arg_ty]))
              | BadEntry(_) => None,
            )
         |> Map.of_list,
       )
-    | Prod(elts) => Some(Map.singleton(tuple_ctr, elts))
-    | List(_) => Some(Map.of_list([(nil_ctr, []), (cons_ctr, [ty])]))
-    | Bool => Some(Map.of_list([(true_ctr, []), (false_ctr, [])]))
-    | Unknown(_)
+    | Prod(elts) =>
+      Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
+    | List(_) => Finite(Map.of_list([(nil_ctr, []), (cons_ctr, [ty])]))
+    | Bool => Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))
+    | Unknown(_) => Unknown
     | Int
     | Float
     | String
-    | Var(_)
     | Arrow(_)
+    | Forall(_) => Infinite
+    | Var(_)
     | Parens(_)
     | Ap(_)
-    | Rec(_)
-    | Forall(_) => None
+    | Rec(_) =>
+      failwith("all_ctrs_of_type called with a non-normalized type.")
     };
 
-  let seen_all_ctrs = (seen_ctrs, all_ctrs: option(all_ctrs)) => {
+  let seen_all_ctrs = (seen_ctrs, all_ctrs: all_ctrs) => {
     switch (all_ctrs) {
-    | Some(all_ctrs) =>
+    | Unknown => false
+    | Infinite => false
+    | Finite(all_ctrs) =>
       List.split(Map.bindings(all_ctrs))
       |> fst
       |> List.for_all(ctr => Set.mem(ctr, seen_ctrs))
-    | None => false
     };
   };
 };
@@ -154,7 +192,7 @@ module Submatrices = {
   };
 
   // data accumulation pass over the first column of the matrix
-  let seen = (m: Matrix.t, all_ctrs: option(Ctr.all_ctrs)): seen => {
+  let seen = (m: Matrix.t, all_ctrs: Ctr.all_ctrs): seen => {
     List.fold_left(
       (seen, row: Matrix.row) =>
         switch (row.cols) {
@@ -195,18 +233,27 @@ module Submatrices = {
             seen_strings: seen.seen_strings |> StringSet.add(s),
             first_col_redundant_rows,
           };
-        | [Tuple(_), ..._] =>
+        | [Tuple(elts), ..._] =>
+          let ctr = Ctr.tuple_ctr(List.length(elts));
           let first_col_redundant_rows =
-            if (Ctr.Set.mem(Ctr.tuple_ctr, seen.seen_ctrs)) {
+            if (Ctr.Set.mem(ctr, seen.seen_ctrs)) {
               [row.idx, ...seen.first_col_redundant_rows];
             } else {
               seen.first_col_redundant_rows;
             };
-          let seen_ctrs = Ctr.Set.add(Ctr.tuple_ctr, seen.seen_ctrs);
+          let seen_ctrs = Ctr.Set.add(ctr, seen.seen_ctrs);
           let seen_all_ctrs =
             seen.seen_all_ctrs || Ctr.seen_all_ctrs(seen_ctrs, all_ctrs);
           {...seen, seen_ctrs, seen_all_ctrs, first_col_redundant_rows};
-        | [Ap(ctr, _), ..._] =>
+        | [Ap(c, arg), ..._] =>
+          let ctr =
+            Ctr.mk(
+              c,
+              switch (arg) {
+              | Some(_) => 1
+              | None => 0
+              },
+            );
           let first_col_redundant_rows =
             if (Ctr.Set.mem(ctr, seen.seen_ctrs)) {
               [row.idx, ...seen.first_col_redundant_rows];
@@ -243,35 +290,33 @@ module Submatrices = {
 
   let update_ctrs =
       (
-        ctr: Constructor.t,
+        ctr: Ctr.t,
         idx: int,
         cols: list(Constraint.t),
         ctrs: Ctr.Map.t(Matrix.t),
       )
       : Ctr.Map.t(Matrix.t) =>
-    Ctr.Map.update(
-      ctr,
-      (data: option(Matrix.t)) => {
-        switch (data) {
-        | Some(matrix) => Some([{idx, cols}, ...matrix])
-        | None => Some([{idx, cols}])
-        }
-      },
-      ctrs,
-    );
+    Ctr.Map.update(ctr, add_row(idx, cols), ctrs);
 
-  let of_matrix = (m: Matrix.t, all_ctrs: option(Ctr.all_ctrs)): t => {
+  let of_matrix = (m: Matrix.t, all_ctrs: Ctr.all_ctrs): t => {
     let {
-      seen_ints,
-      seen_floats,
-      seen_strings,
+      seen_ints: _,
+      seen_floats: _,
+      seen_strings: _,
       seen_ctrs,
       seen_all_ctrs,
       seen_truth,
       first_col_redundant_rows,
     } =
       seen(m, all_ctrs);
-    let include_default = !seen_all_ctrs;
+
+    let include_default =
+      switch (all_ctrs) {
+      | Unknown => false
+      | Infinite => true
+      | Finite(_) => !seen_all_ctrs
+      };
+
     let submatrices =
       List.fold_left(
         (submatrices, row: Matrix.row) => {
@@ -307,13 +352,18 @@ module Submatrices = {
             {
               ...submatrices,
               ctrs:
-                update_ctrs(Ctr.tuple_ctr, row.idx, cols', submatrices.ctrs),
+                update_ctrs(
+                  Ctr.tuple_ctr(List.length(xis)),
+                  row.idx,
+                  cols',
+                  submatrices.ctrs,
+                ),
             };
-          | [Ap(ctr, arg), ...cols] =>
-            let cols' =
+          | [Ap(c, arg), ...cols] =>
+            let (ctr, cols') =
               switch (arg) {
-              | Some(arg) => [arg, ...cols]
-              | None => cols
+              | Some(arg) => (Ctr.mk(c, 1), [arg, ...cols])
+              | None => (Ctr.mk(c, 0), cols)
               };
             {
               ...submatrices,
@@ -326,9 +376,8 @@ module Submatrices = {
             let ctrs =
               Ctr.Set.fold(
                 (ctr, ctrs) => {
-                  let arity_len = List.length(Ctr.arity_of(ctr, all_ctrs));
-                  let cols =
-                    List.init(arity_len, _ => Constraint.Truth) @ cols;
+                  let num_args = Ctr.num_args_of(ctr);
+                  let cols = List.init(num_args, _ => Constraint.Truth) @ cols;
                   update_ctrs(ctr, row.idx, cols, ctrs);
                 },
                 seen_ctrs,
@@ -347,17 +396,11 @@ module Submatrices = {
       );
     let submatrices = rev(submatrices); // needed so that rows show up in order for redundancy checking
 
-    let seen_int = !IntSet.is_empty(seen_ints);
-    let seen_float = !FloatSet.is_empty(seen_floats);
-    let seen_string = !StringSet.is_empty(seen_strings);
     let first_col_exhaustive =
-      switch (seen_truth, seen_int, seen_float, seen_string, seen_all_ctrs) {
-      | (true, _, _, _, _) => true
-      | (_, true, _, _, _) => false
-      | (_, _, true, _, _) => false
-      | (_, _, _, true, _) => false
-      | (_, _, _, _, true) => true
-      | (_, _, _, _, _) => false
+      switch (all_ctrs) {
+      | Unknown => true
+      | Infinite => seen_truth
+      | Finite(_) => seen_truth || seen_all_ctrs
       };
     {...submatrices, first_col_exhaustive, first_col_redundant_rows};
   };
