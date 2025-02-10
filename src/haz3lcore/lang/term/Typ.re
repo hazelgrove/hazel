@@ -473,17 +473,10 @@ let rec get_labels = (ctx, ty): list(option(string)) => {
 };
 
 let rec matched_prod_strict:
-  'a.
-  (Ctx.t, list('a), 'a => option((string, 'a)), t, (string, 'a) => 'a) =>
-  (list('a), option(list(t)))
- =
-  (
-    ctx: Ctx.t,
-    es,
-    get_label_es: 'a => option((string, 'a)),
-    ty: t,
-    constructor,
-  ) => {
+  type a.
+    (Ctx.t, list(a), a => option((string, a)), t, (string, a) => a) =>
+    (list(a), option(list(t))) =
+  (ctx: Ctx.t, es, get_label_es, ty: t, constructor) => {
     switch (term_of(weak_head_normalize(ctx, ty))) {
     | Parens(ty) =>
       matched_prod_strict(ctx, es, get_label_es, ty, constructor)
