@@ -84,7 +84,6 @@ let get_duplicate_labels:
 
 // Assumes all labels are unique
 // Rearranges all the labels in l2 to match the order of the labels in l1. Labels are optional and should me reordered for all present labels first and then unlabled fields matched up pairwise. So labeled fields can be reordered and unlabeled ones can't. Also add labels to the unlabeled.
-// TODO Handle the unequal length case and extra labels case
 let rec rearrange_base:
   'b.
   (
@@ -189,7 +188,6 @@ let rearrange:
   };
 
 // rearrange two other lists to match the first list of labels.
-// TODO: Ensure that the two lists match up with each other
 // TODO: Efficiency
 let rearrange2:
   'a 'b.

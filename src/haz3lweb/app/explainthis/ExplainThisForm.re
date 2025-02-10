@@ -234,6 +234,7 @@ type form_id =
   | Tuple2Typ
   | Tuple3Typ
   | DotTyp
+  | Label
   | LabelledSumTyp
   | SumTypUnaryConstructorDef
   | SumTypNullaryConstructorDef
@@ -241,7 +242,6 @@ type form_id =
   | MultiHoleTPat
   | VarTPat
   | PipelineExp
-  | Label
   | FilterPause
   | FilterEval
   | FilterDebug
@@ -329,6 +329,7 @@ type group_id =
   | ArrowTyp
   | Arrow3Typ
   | LabeledTyp
+  | Label
   | TupleTyp
   | Tuple0Typ
   | Tuple2Typ
@@ -340,7 +341,6 @@ type group_id =
   | EmptyHoleTPat
   | MultiHoleTPat
   | VarTPat
-  | Label
   | FilterPause
   | FilterEval
   | FilterDebug
