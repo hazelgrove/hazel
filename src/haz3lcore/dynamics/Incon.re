@@ -260,7 +260,12 @@ module Submatrices = {
               ? [row.idx, ...seen.first_col_redundant_rows]
               : seen.first_col_redundant_rows;
           {...seen, seen_truth: true, first_col_redundant_rows};
-        | [Hole, ..._] => {...seen, seen_hole: true}
+        | [Hole, ..._] =>
+          let first_col_redundant_rows =
+            seen.seen_truth || seen.seen_all_ctrs
+              ? [row.idx, ...seen.first_col_redundant_rows]
+              : seen.first_col_redundant_rows;
+          {...seen, seen_hole: true, first_col_redundant_rows};
         },
       init_seen,
       m,
