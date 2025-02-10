@@ -269,6 +269,7 @@ module Selection = {
        );
   };
 };
+
 module View = {
   type event =
     | MakeActive(Selection.t);
@@ -296,7 +297,6 @@ module View = {
     let eds = model.editors;
     let {user_impl, instructor, hidden_tests}: Tutorial.stitched('a) =
       model.cells;
-
     // Printf.printf(
     //   "User Impl Before View: %s\n",
     //   CellEditor.Model.show(user_impl),
@@ -310,10 +310,14 @@ module View = {
           cell_editor.result |> EvalResult.Model.make_test_report,
         model.cells,
       );
+    let test_count =
+      switch (Tutorial.get_stitched(HiddenTests, stitched_tests)) {
+      | None => 0 /* No test cases */
+      | Some(test_results) => test_results.total
+      };
     let grading_report =
       TutorialGrading.GradingReport.mk(eds, ~stitched_tests);
-    // let score_view =
-    //   TutorialGrading.GradingReport.view_overall_score(grading_report);
+
     let editor_view =
         (
           ~caption: string,
@@ -364,25 +368,33 @@ module View = {
     // Printf.printf(
     //   "User Impl After View: %s\n",
     //   CellEditor.Model.show(user_impl),
-    // );
+    // ):
+
     let hidden_tests_view =
       InstructorOnly(
         () => editor_view(HiddenTests, hidden_tests, ~caption="Hidden Tests"),
       );
     let impl_grading_view =
       Always(
-        TutorialGrading.ImplGradingReport.view(
-          ~signal_jump=
-            id =>
-              inject(
-                Editor(
-                  HiddenTests,
-                  MainEditor(Perform(Jump(TileId(id)))),
+        if (test_count == 1) {
+          div(
+            ~attrs=[Attr.class_("checkmark-container")],
+            [div(~attrs=[Attr.class_("checkmark")], [text("✅")])],
+          );
+        } else {
+          TutorialGrading.ImplGradingReport.view(
+            ~signal_jump=
+              id =>
+                inject(
+                  Editor(
+                    HiddenTests,
+                    MainEditor(Perform(Jump(TileId(id)))),
+                  ),
                 ),
-              ),
-          ~report=grading_report.impl_grading_report,
-          ~max_points=1,
-        ),
+            ~report=grading_report.impl_grading_report,
+            ~max_points=1,
+          );
+        },
       );
     [title_view, prompt_view]
     @ render_cells(

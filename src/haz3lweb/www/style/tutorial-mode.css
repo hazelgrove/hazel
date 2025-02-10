@@ -236,3 +236,15 @@
     max-width: fit-content; /* Correct implementation type sigs */
      
   }
+  #main.Tutorial.checkmark {
+    font-size: 4rem !important;  /* Increase size */
+    font-weight: bold !important;
+    /* color: green !important;  Force green color */
+    text-align: right !important;  /* Align to right */
+    display: block !important;
+    padding-right: 30px !important;  /* Extra spacing */
+  }
+  #main.checkmark-container {
+    display: flex;
+    justify-content: flex-end; /* Push checkmark to the right */
+  }
