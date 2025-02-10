@@ -122,8 +122,8 @@ let rec is_arrow = (typ: t) => {
   | Float
   | Bool
   | String
-  | Label(_)
   | List(_)
+  | Label(_)
   | Prod(_)
   | Var(_)
   | Ap(_)
@@ -143,9 +143,9 @@ let rec is_forall = (typ: t) => {
   | Float
   | Bool
   | String
-  | Label(_)
   | Arrow(_)
   | List(_)
+  | Label(_)
   | Prod(_)
   | Var(_)
   | Ap(_)
@@ -593,15 +593,15 @@ let rec needs_parens = (ty: t): bool =>
   | Unknown(_)
   | Int
   | Float
-  | String
   | Label(_)
   | Bool
+  | String
   | TupLabel(_, _)
+  | List(_) /* is already wrapped in [] */
   | Var(_) => false
   | Rec(_, _)
-  | Forall(_, _) => true
-  | List(_) => false /* is already wrapped in [] */
-  | Arrow(_, _) => true
+  | Forall(_, _)
+  | Arrow(_, _)
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
   };
@@ -624,7 +624,6 @@ let rec pretty_print = (ty: t): string =>
   | Float => "Float"
   | Bool => "Bool"
   | String => "String"
-  | Label(name) => name
   | Var(tvar) => tvar
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)
@@ -648,6 +647,7 @@ let rec pretty_print = (ty: t): string =>
          ts,
        )
     ++ ")"
+  | Label(name) => name
   | TupLabel(label, t) => pretty_print(label) ++ "=" ++ pretty_print(t)
   | Rec(tv, t) =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)

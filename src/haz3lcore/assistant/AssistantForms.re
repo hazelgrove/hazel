@@ -204,7 +204,7 @@ let suggest_operator: Info.t => list(Suggestion.t) =
           {term: Tuple([{term: TupLabel({term: Label(_), _}, _), _}]), _},
         _,
       }) =>
-      [] // Override the completion of (a= to (a==
+      [] // Stop completing (a= to (a==
     | _ =>
       suggest_form(
         List.map(((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
