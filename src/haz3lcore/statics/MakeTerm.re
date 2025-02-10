@@ -341,14 +341,12 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["$=="], []) => BinOp(String(Equals), l, r)
           | (["="], []) =>
             switch (l.term) {
-            // Currently not allowing Strings to prevent empty Labels
             | Var(name) =>
               TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r)
             | _ => TupLabel(l, r)
             }
           | (["."], []) =>
             switch (r.term) {
-            // Currently not allowing Strings to prevent empty Labels
             | Var(name) =>
               Dot(l, {ids: r.ids, copied: r.copied, term: Label(name)})
             | _ => Dot(l, r)
