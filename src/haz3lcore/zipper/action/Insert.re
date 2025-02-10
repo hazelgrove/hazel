@@ -189,17 +189,29 @@ let closing_stringlit_or_comment = (char, t) =>
 
 let go =
     (char: string, {caret, relatives: {siblings, _}, _} as z: t): option(t) => {
+  print_endline("Inserting: " ++ char);
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destruct(z) : z;
+  print_endline(
+    "caret, neighbor_monotiles(siblings): "
+    ++ [%derive.show: (Zipper.Caret.t, (option(string), option(string)))]((
+         caret,
+         neighbor_monotiles(siblings),
+       )),
+  );
+
   switch (caret, neighbor_monotiles(siblings)) {
   /* If we try to insert a quote inside an existing string, or a #
    * in a comment, we are instead moved to the righthand side of
    * the operand. Note that this behavior is load-bearing for the
    * current parsing approach including Paste */
   | (_, (_, Some(t))) when closing_stringlit_or_comment(char, t) =>
-    z |> Zipper.set_caret(Outer) |> Zipper.move(Right)
+    print_endline("Case1");
+    z |> Zipper.set_caret(Outer) |> Zipper.move(Right);
   | (Outer, (Some(t), _)) when closing_stringlit_or_comment(char, t) =>
-    Some(z)
+    print_endline("Case2");
+
+    Some(z);
   | (Inner(d_idx, n), (_, Some(t))) =>
     let idx = n + 1;
     let new_t = Token.insert_nth(idx, char, t);
@@ -220,6 +232,7 @@ let go =
   /* Can't insert inside delimiter */
   | (Inner(_, _), (_, None)) => None
   | (Outer, (_, Some(_))) =>
+    print_endline("Case5");
     let caret: Zipper.Caret.t =
       switch (sibling_appendability(char, siblings)) {
       | AppendRight(_) =>
@@ -235,9 +248,10 @@ let go =
     |> opt_regrold(Left)
     |> Option.map(move_into_if_stringlit_or_comment(char));
   | (Outer, (_, None)) =>
+    print_endline("Case6");
     z
     |> insert_outer(char)
     |> opt_regrold(Left)
-    |> Option.map(move_into_if_stringlit_or_comment(char))
+    |> Option.map(move_into_if_stringlit_or_comment(char));
   };
 };

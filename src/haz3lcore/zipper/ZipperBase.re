@@ -21,7 +21,9 @@ module Caret = {
 // assuming single backpack, shards may appear in selection, backpack, or siblings
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
+  [@show.opaque]
   selection: Selection.t,
+  [@show.opaque]
   backpack: Backpack.t,
   relatives: Relatives.t,
   caret: Caret.t,

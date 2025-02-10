@@ -19,6 +19,17 @@ let exp_check = (expected, actual) =>
 let tests = (
   "MakeTerm",
   [
+    test_case("invalid label projection", `Quick, () => {
+      exp_check(
+        FailedCast(
+          Var("x") |> Exp.fresh,
+          Unknown(Internal) |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Exp.fresh,
+        "a.(1)",
+      )
+    }),
     test_case("Integer Literal", `Quick, () => {
       exp_check(Int(0) |> Exp.fresh, "0")
     }),

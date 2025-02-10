@@ -84,6 +84,7 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   | Exp => remold_exp(shape, seg)
   | Rul => remold_rul(shape, seg)
   | TPat => remold_tpat(shape, seg)
+  | Label => remold_label(shape, seg)
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
@@ -229,6 +230,36 @@ and remold_pat = (shape, seg: t): t =>
       }
     }
   }
+and remold_label = (shape, seg: t): t => {
+  print_endline("remold_label: " ++ show(seg));
+  print_endline("shape: " ++ Nib.Shape.show(shape));
+  // TODO
+  switch (seg) {
+  | [] => []
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Secondary(_)
+    | Grout(_)
+    | Projector(_) => [hd, ...remold_label(shape, tl)]
+    | Tile(t) =>
+      switch (remold_tile(Label, shape, t)) {
+      | None => [Tile(t), ...remold_label(snd(Tile.shapes(t)), tl)]
+      | Some(t) when !Tile.has_end(Right, t) =>
+        let (_, r) = Tile.nibs(t);
+        let remolded = remold(~shape=r.shape, tl, r.sort);
+        [Tile(t), ...remolded];
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort: Typ}) =>
+          let (remolded, shape, rest) =
+            remold_typ_uni(shape, tl, [Sort.Label]);
+          [Piece.Tile(t), ...remolded] @ remold_label(shape, rest);
+        | _ => [Tile(t), ...remold_label(snd(Tile.shapes(t)), tl)]
+        }
+      }
+    }
+  };
+}
 and remold_tpat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
   switch (seg) {
   | [] => ([], shape, [])

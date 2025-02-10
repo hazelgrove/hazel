@@ -82,7 +82,9 @@ let remold = (z: t): t => {
   {...z, relatives: Relatives.remold(z.relatives)};
 };
 
-let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
+let remold_regrout = (d: Direction.t, z: t): t => {
+  print_endline("Remolding grout: " ++ show(z));
+  z |> remold |> regrout(d)};
 
 let clear_unparsed_buffer = (z: t) =>
   switch (z.selection.mode) {

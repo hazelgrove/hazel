@@ -146,6 +146,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   | Typ => Typ(typ(unsorted(skel, seg)))
   | Exp => Exp(exp(unsorted(skel, seg)))
   | Rul => Rul(rul(unsorted(skel, seg)))
+  | Label => Exp(exp(unsorted(skel, seg))) // TODO
   | Any =>
     let tm = unsorted(skel, seg);
     let ids = ids(tm);
@@ -675,5 +676,6 @@ let from_zip_for_sem =
 let parse_exp = (s: string) => {
   open OptUtil.Syntax;
   let+ zip = Printer.zipper_of_string(s);
+  print_endline("Zipper: " ++ Zipper.show(zip));
   from_zip_for_sem(zip).term;
 };

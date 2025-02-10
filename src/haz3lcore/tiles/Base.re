@@ -25,6 +25,7 @@ and tile = {
   // - length(shards) <= length(label)
   // - length(shards) == length(children) + 1
   // - sort(shards) == shards
+  [@show.opaque]
   id: Id.t,
   label: Label.t,
   mold: Mold.t,
