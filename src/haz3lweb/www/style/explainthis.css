@@ -1,7 +1,7 @@
 #explain-this {
   display: flex;
   flex: 1;
-  width: 20em;
+  width: 25em;
   padding: 1em;
   flex-direction: column;
   overflow-y: auto;

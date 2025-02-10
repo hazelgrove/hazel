@@ -1,7 +1,7 @@
 #assistant {
     display: flex;
     flex: 1;
-    width: 20em;
+    width: 25em;
     padding: 1em;
     flex-direction: column;
     overflow-y: auto;
@@ -146,10 +146,18 @@
     justify-content: flex-end;
 }
 
-/* Content of the message */
-#assistant .message-content {
+#assistant .llm-message {
     padding: 8px 12px;
-    background-color: var(--SAND);
+    background-color: var(--T1);
+    border-radius: 12px;
+    font-size: 1em;
+    max-width: 80%;
+    word-wrap: break-word;
+}
+
+#assistant .ls-message {
+    padding: 8px 12px;
+    background-color: var(--T3);
     border-radius: 12px;
     font-size: 1em;
     max-width: 80%;
