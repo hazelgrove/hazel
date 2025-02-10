@@ -793,6 +793,29 @@ let tests = (
       },
     ),
     test_case(
+      "Bad label Projection",
+      `Quick,
+      () => {
+        let exp = parse_exp({|(1, 2) . 1|});
+
+        print_endline(Exp.show(exp));
+        let label =
+          switch (exp.term) {
+          | Dot(_, _ as l) => l
+          | _ => Alcotest.fail("Unexpected form")
+          };
+
+        let s = statics(exp);
+
+        check(
+          option(testable_info_error_exp),
+          "Tuple",
+          Some(Common(NoType(BadLabel(Exp(label))))),
+          Statics.get_error_at(s, IdTagged.rep_id(exp)),
+        );
+      },
+    ),
+    test_case(
       "Singleton Bad label synthesis",
       `Quick,
       () => {
@@ -804,7 +827,14 @@ let tests = (
               {
                 term:
                   Tuple([
-                    {term: TupLabel({term: Int(1), _} as l1, _), _} as tl1,
+                    {
+                      term:
+                        TupLabel(
+                          {term: MultiHole([Exp({term: Int(1), _})]), _} as l1,
+                          _,
+                        ),
+                      _,
+                    } as tl1,
                   ]),
                 _,
               } as tuple,
@@ -880,7 +910,14 @@ let tests = (
               {
                 term:
                   Tuple([
-                    {term: TupLabel({term: Int(1), _} as l1, _), _} as tl1,
+                    {
+                      term:
+                        TupLabel(
+                          {term: MultiHole([Exp({term: Int(1), _})]), _} as l1,
+                          _,
+                        ),
+                      _,
+                    } as tl1,
                     {term: TupLabel({term: Label(_), _} as l2, _), _} as tl2,
                   ]),
                 _,

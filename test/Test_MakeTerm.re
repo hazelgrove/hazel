@@ -213,7 +213,11 @@ let tests = (
       exp_check(
         Parens(
           Tuple([
-            TupLabel(Int(1) |> Exp.fresh, Int(3) |> Exp.fresh) |> Exp.fresh,
+            TupLabel(
+              MultiHole([Exp(Int(1) |> Exp.fresh)]) |> Exp.fresh,
+              Int(3) |> Exp.fresh,
+            )
+            |> Exp.fresh,
           ])
           |> Exp.fresh,
         )
