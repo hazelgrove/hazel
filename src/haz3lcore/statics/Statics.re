@@ -327,7 +327,7 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
-  | Constructor(ctr, _) => atomic(Self.of_ctr(ctx, ctr))
+  | Constructor(ctr, _) => atomic(Self.of_ctr(ctx, ctr, mode))
   | Ap(_, fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, Exp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
@@ -490,6 +490,7 @@ and uexp_to_info_map =
     let (scrut, m) = go(~mode=Syn, scrut, m);
     let (ps, es) = List.split(rules);
     let branch_ids = List.map(Exp.rep_id, es);
+    print_endline("First pass");
     let (ps', _) =
       map_m(
         go_pat(
@@ -523,6 +524,7 @@ and uexp_to_info_map =
          |> Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx)
        | _ => Some(scrut.ty)
        }; */
+    print_endline("Second pass");
     let (constraints, m) =
       List.fold_left(
         ((constraints: list(Constraint.t), m: Map.t), (p, co_ctx)) => {
@@ -550,6 +552,7 @@ and uexp_to_info_map =
     print_endline("Final result: " ++ Incon.show_result(check_result));
     let self =
       is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+    print_endline("Third pass");
     let add_redundancy = (ps: list(TermBase.pat_t), redundant_rows, m) => {
       List.fold_left(
         (m, row) => {
@@ -576,6 +579,7 @@ and uexp_to_info_map =
       );
     };
     let m = add_redundancy(ps, redundant_rows, m);
+    print_endline("Done");
     add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
   | TyAlias(typat, utyp, body) =>
     let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
@@ -671,6 +675,7 @@ and upat_to_info_map =
         ~self=Common(self),
         ~constraint_,
       );
+    // print_endline("Adding pat: " ++ Info.show_pat(info));
     (info, add_info(ids, InfoPat(info), m));
   };
   let atomic = (self, constraint_) => add(~self, ~ctx, ~constraint_, m);
@@ -765,12 +770,30 @@ and upat_to_info_map =
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
   | Constructor(ctr, _) =>
-    let self = Self.of_ctr(ctx, ctr);
+    let self = Self.of_ctr(ctx, ctr, mode);
+    print_endline("Self: " ++ Self.show(self));
     atomic(self, Constraint.Ap(ctr, None));
   | Ap(fn, arg) =>
     let ctr = Pat.ctr_name(fn);
+    print_endline("ctr: " ++ [%derive.show: option(string)](ctr));
+    /*switch (ctr) {
+      | Some(ctr) =>
+        let fn_mode = Mode.ctr_ana_typ(ctx, mode, ctr);
+        switch (fn_mode) {
+        | Some({term: Arrow(ty_in, ty_out), _} as fn_ty) =>
+          let (fn, m) = go(~ctx, ~mode=Mode.of_ap(ctx, mode, ctr), fn, m);
+          let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
+          let constraint_ = Constraint.Ap(ctr, Some(arg.constraint_));
+          add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
+        | Some(_) => failwith("TODO: constructor does not take an argument")
+        | None => failwith("TODO: constructor not found")
+        };
+      | None => failwith("TODO: not a constructor")
+      };*/
     let fn_mode = Mode.of_ap(ctx, mode, ctr);
+    print_endline("mode: " ++ Mode.show(fn_mode));
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
+    print_endline("info: " ++ Info.show_pat(fn));
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
     let constraint_ =

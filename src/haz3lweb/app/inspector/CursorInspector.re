@@ -102,7 +102,9 @@ let common_err_view = (~globals, cls: Cls.t, err: Info.error_common) => {
       text("inconsistent with"),
       view_type(Prod([]) |> Typ.fresh),
     ]
-  | NoType(FreeConstructor(name)) => [code_err(name), text("not found")]
+  | NoType(FreeConstructor(name)) =>
+    print_endline("Free constructor error");
+    [code_err(name), text("not found")];
   | Inconsistent(WithArrow(typ)) => [
       text(":"),
       view_type(typ) |> code_box_container,

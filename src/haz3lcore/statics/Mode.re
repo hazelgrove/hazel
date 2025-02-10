@@ -108,18 +108,31 @@ let ctr_ana_typ = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(Typ.t) => {
      a sum type having that ctr as a variant, we consider the
      ctr's type to be determined by the sum type */
   switch (mode) {
+  | Ana({term: Arrow(_, ty_out), _} as ty) =>
+    let* ctrs = Typ.get_sum_constructors(ctx, ty_out);
+    let* ty_entry = ConstructorMap.get_entry(ctr, ctrs);
+    switch (ty_entry) {
+    | None => None
+    | Some(_) => Some(ty)
+    };
   | Ana(ty_ana) =>
-    let ty_ana =
-      switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
-      | Some((_, ty_ana)) => ty_ana
-      | None => ty_ana
-      };
-    let+ ctrs = Typ.get_sum_constructors(ctx, ty_ana);
-    let ty_entry = ConstructorMap.get_entry(ctr, ctrs);
+    let* ctrs = Typ.get_sum_constructors(ctx, ty_ana);
+    let+ ty_entry = ConstructorMap.get_entry(ctr, ctrs);
     switch (ty_entry) {
     | None => ty_ana
     | Some(ty_in) => Arrow(ty_in, ty_ana) |> Typ.temp
     };
+  /* let ty_ana =
+       switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
+       | Some((_, ty_ana)) => ty_ana
+       | None => ty_ana
+       };
+     let+ ctrs = Typ.get_sum_constructors(ctx, ty_ana);
+     let ty_entry = ConstructorMap.get_entry(ctr, ctrs);
+     switch (ty_entry) {
+     | None => ty_ana
+     | Some(ty_in) => Arrow(ty_in, ty_ana) |> Typ.temp
+     }; */
   | _ => None
   };
 };

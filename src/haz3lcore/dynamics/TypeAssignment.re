@@ -57,8 +57,10 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       // TODO: make this stricter
       let* ctrs = Typ.get_sum_constructors(ctx, ty);
       let* typ = ConstructorMap.get_entry(name, ctrs);
-      let* (ty1, ty2) = Typ.matched_arrow_strict(ctx, typ);
-      Typ.eq(ty2, ty) ? dhpat_var_entry(dhp, ty1) : None;
+      switch (typ) {
+      | None => None
+      | Some(typ) => dhpat_var_entry(dhp, typ)
+      };
     | Ap(_) => None
     | EmptyHole
     | Wild

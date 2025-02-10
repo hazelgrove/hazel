@@ -101,16 +101,21 @@ let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
   | Some(var) => Common(Just(var.typ))
   };
 
-/* The self of a ctr depends on the ctx, but a
-   lookup failure doesn't necessarily means its
-   free; it may be given a type analytically */
-let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
+let of_ctr = (ctx: Ctx.t, name: Constructor.t, mode: Mode.t): t =>
   IsConstructor({
     name,
     syn_ty:
-      switch (Ctx.lookup_ctr(ctx, name)) {
-      | None => None
-      | Some({typ, _}) => Some(typ)
+      switch (mode) {
+      | SynFun
+      | Syn
+      | Ana({term: Unknown(_), _}) =>
+        switch (Ctx.lookup_ctr(ctx, name)) {
+        | None => None
+        | Some({typ, _}) => Some(typ)
+        }
+
+      | Ana(_) => Mode.ctr_ana_typ(ctx, mode, name)
+      | SynTypFun => None
       },
   });
 
