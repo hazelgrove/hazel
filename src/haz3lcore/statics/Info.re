@@ -495,7 +495,7 @@ let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
    makeup of the expression / pattern itself. */
-let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp => {
+let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   switch (self, mode) {
   | (Free(name), _) => InHole(FreeVariable(name))
   | (InexhaustiveMatch(self), _) =>
@@ -524,7 +524,6 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp => {
     | InHole(err_exp) => InHole(Common(err_exp))
     }
   };
-};
 
 /* This logic determines whether a type should be put
    in a hole or not. It's mostly syntactic, determining
@@ -533,7 +532,7 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp => {
    separate sort. It also determines semantic properties
    such as whether or not a type variable reference is
    free, and whether a ctr name is a dupe. */
-let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
+let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
   switch (ty.term) {
   | Unknown(Hole(Invalid(token))) => InHole(BadToken(token))
   | Unknown(Hole(EmptyHole)) =>
@@ -621,7 +620,6 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
     }
   };
-};
 
 let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
   switch (utpat.term) {

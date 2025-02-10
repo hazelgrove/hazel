@@ -51,7 +51,7 @@ let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
 };
 
 let elaborated_type =
-    (m: Statics.Map.t, uexp: Exp.t): (Typ.t, Ctx.t, 'a, Exp.t) => {
+    (m: Statics.Map.t, uexp: Exp.t): (Typ.t, Ctx.t, CoCtx.t, Exp.t) => {
   let (mode, self_ty, ctx, co_ctx, term) =
     switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
     | Some(Info.InfoExp({mode, ty, ctx, co_ctx, term, _})) => (
@@ -134,7 +134,7 @@ let elaborated_pat_type =
 
 let rec elaborate_pattern =
         (m: Statics.Map.t, upat: Pat.t, in_container: bool): (Pat.t, Typ.t) => {
-  // Pulling upat back out of the statics map for statics level elaboration
+  // Pulling upat back out of the statics map for statics level singleton tuple autolabeling
   let (elaborated_type, ctx, upat) = elaborated_pat_type(m, upat);
   let elaborate_pattern = (~in_container=false, m, upat) =>
     elaborate_pattern(m, upat, in_container);
@@ -473,7 +473,6 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         | _ => Prod(ty_fargs) |> Typ.temp
         };
       let f'' = fresh_cast(f', tyf, Arrow(prod_args, tyf2) |> Typ.temp);
-
       let args'' = ListUtil.map3(fresh_cast, args', tys, ty_fargs);
       let remaining_args =
         List.filter(

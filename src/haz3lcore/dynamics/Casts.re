@@ -87,7 +87,6 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Arrow(_, _) => grounded_Arrow
   | Forall(_) => grounded_Forall
   | List(_) => grounded_List
-
   | Ap(_) => failwith("type application in dynamics")
   };
 };
