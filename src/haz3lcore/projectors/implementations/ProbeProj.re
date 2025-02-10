@@ -722,6 +722,21 @@ let move_cursor = (info: info, offset: int): unit =>
 let key_handler = (local, info: info, _, evt) => {
   print_endline("key_handler");
   open Effect;
+  /* PLAN: inter-probe navigation
+      ultimately need to be able to issue a parent action to move to and focus on
+     another projector. for now, should be able to use the Project(Focus(id)) action
+     to do both in one; will need to rethink when we want to /create/ probes as well.
+     the probe that we want to move to is going to depend on the closure cursor, but
+     also maybe the row of the closure we're on. alternatively, can maybe avoid
+     row based logic by using closure creation time instead. In any case, want a function
+     that takes the closure cursor and emits a new closure cursor and the id of a
+     probe to jump to. Not sure this is the best approach at all, but for now maybe
+     we could add all probe data to a common mutable structure in this module, when
+     projectorview.all is called, and use this to calculate the probe id to jump to.
+     like basically we're going to treat this mutable cache as a db, and do certain
+     queries. specifically, return all probe_ids that have a closure with equal
+     closure cursor to current, and take the one with the timestamp closet to but
+     before/after the current closure cursor closure timestamp. */
   let key = Key.mk(KeyDown, evt);
   switch (key.key) {
   | D("Escape") when key.shift == Down =>
