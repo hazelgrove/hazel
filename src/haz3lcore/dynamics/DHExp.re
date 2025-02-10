@@ -95,7 +95,7 @@ and strip_casts_pat = (p: Pat.t): Pat.t => {
 let assign_name_if_none = (t, name) => {
   let (term, rewrap) = unwrap(t);
   switch (term) {
-  | Fun(arg, ty, body, None) => Fun(arg, ty, body, name) |> rewrap
+  | Fun(arg, body, typ, None) => Fun(arg, body, typ, name) |> rewrap
   | TypFun(utpat, body, None) => TypFun(utpat, body, name) |> rewrap
   | _ => t
   };
