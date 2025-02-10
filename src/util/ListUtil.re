@@ -1,12 +1,5 @@
 let rev_if = (b: bool) => b ? List.rev : Fun.id;
 
-let dedup = xs =>
-  List.fold_right(
-    (x, deduped) => List.mem(x, deduped) ? deduped : [x, ...deduped],
-    xs,
-    [],
-  );
-
 let dedup_f = (f, xs) =>
   List.fold_right(
     (x, deduped) => List.exists(f(x), deduped) ? deduped : [x, ...deduped],
@@ -14,9 +7,22 @@ let dedup_f = (f, xs) =>
     [],
   );
 
-let are_duplicates = xs =>
-  List.length(List.sort_uniq(compare, xs)) == List.length(xs);
+let dedup = xs => dedup_f((==), xs);
 
+/**
+  Groups elements of a list by a specified key.
+
+ {b Note: The groups are not guaranteed to preserve the order of elements from the original list. }
+
+  @param key
+  The key function used to determine the grouping key.
+
+  @param xs
+  The list of elements to be grouped.
+
+  @return
+  A list of tuples where each tuple contains the grouping key and a list of elements that belong to that group.
+*/
 let group_by = (key: 'x => 'k, xs: list('x)): list(('k, list('x))) =>
   List.fold_left(
     (grouped, x) => {
@@ -32,7 +38,7 @@ let group_by = (key: 'x => 'k, xs: list('x)): list(('k, list('x))) =>
     xs,
   );
 
-let rec range = (~lo=0, hi) =>
+let rec range = (~lo: int=0, hi: int) =>
   if (lo > hi) {
     raise(Invalid_argument("ListUtil.range"));
   } else if (lo == hi) {
@@ -171,7 +177,15 @@ let split_sublist_opt =
 let split_sublist =
     (i: int, j: int, xs: list('x)): (list('x), list('x), list('x)) =>
   switch (split_sublist_opt(i, j, xs)) {
-  | None => raise(Invalid_argument("ListUtil.split_sublist"))
+  | None =>
+    raise(
+      Invalid_argument(
+        "ListUtil.split_sublist: "
+        ++ string_of_int(i)
+        ++ ", "
+        ++ string_of_int(j),
+      ),
+    )
   | Some(r) => r
   };
 let sublist = ((i, j), xs: list('x)): list('x) => {
@@ -526,3 +540,54 @@ let rec unzip = (lst: list(('a, 'b))): (list('a), list('b)) => {
     ([a, ..._as], [b, ...bs]);
   };
 };
+
+let cross = (xs, ys) =>
+  List.concat(List.map(x => List.map(y => (x, y), ys), xs));
+
+let rec intersperse = (sep, xs) =>
+  switch (xs) {
+  | [] => []
+  | [x] => [x]
+  | [x, ...xs] => [x, sep, ...intersperse(sep, xs)]
+  };
+
+let rec flat_intersperse = (sep, xss) =>
+  switch (xss) {
+  | [] => []
+  | [xs] => xs
+  | [xs, ...xss] => xs @ [sep, ...flat_intersperse(sep, xss)]
+  };
+
+let rec map_last_only = (f, xs) =>
+  switch (xs) {
+  | [] => []
+  | [x] => [f(x)]
+  | [x, ...xs] => [x, ...map_last_only(f, xs)]
+  };
+
+let rec split_last = (xs: list('x)): (list('x), 'x) =>
+  switch (xs) {
+  | [] => failwith("ListUtil.split_last")
+  | [x] => ([], x)
+  | [x, ...xs] =>
+    let (prefix, last) = split_last(xs);
+    ([x, ...prefix], last);
+  };
+
+let minimum = (f: 'a => int, xs: list('a)): option('a) =>
+  switch (xs) {
+  | [] => None
+  | [x, ...xs] =>
+    let rec loop = (best: 'a, best_f: int, xs: list('a)): option('a) =>
+      switch (xs) {
+      | [] => Some(best)
+      | [x, ...xs] =>
+        let f_x = f(x);
+        if (f_x < best_f) {
+          loop(x, f_x, xs);
+        } else {
+          loop(best, best_f, xs);
+        };
+      };
+    loop(x, f(x), xs);
+  };

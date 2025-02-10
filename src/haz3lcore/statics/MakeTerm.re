@@ -36,7 +36,7 @@ type unsorted =
   | Bin(t, tiles, t);
 
 type t = {
-  term: UExp.t,
+  term: Exp.t,
   terms: TermMap.t,
   projectors: Id.Map.t(Piece.projector),
 };
@@ -58,14 +58,14 @@ let is_typ_bsum = is_nary(Any.is_typ, "+");
 let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
 
-let is_rules = ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t)) => {
+let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
   open OptUtil.Syntax;
   let+ ps =
-    ts
+    (ts: list(tile))
     |> List.map(
          fun
-         | (_, (["|", "=>"], [Any.Pat(p)])) => Some(p)
-         | _ => None,
+         | (_, (["|", "=>"], [Pat(p)])) => Some(p)
+         | _ => None: tile => option(TermBase.pat_t),
        )
     |> OptUtil.sequence
   and+ clauses =
@@ -73,7 +73,7 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t)) => {
     |> List.map(
          fun
          | Exp(clause) => Some(clause)
-         | _ => None,
+         | _ => None: TermBase.any_t => option(TermBase.exp_t),
        )
     |> OptUtil.sequence;
   Aba.mk(ps, clauses);
@@ -124,7 +124,7 @@ let rm_and_log_projectors = (seg: Segment.t): Segment.t =>
     seg,
   );
 
-let parse_sum_term: UTyp.t => ConstructorMap.variant(UTyp.t) =
+let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
   | {term: Var(ctr), ids, _} => Variant(ctr, ids, None)
   | {term: Ap({term: Var(ctr), ids: ids_ctr, _}, u), ids: ids_ap, _} =>
@@ -132,7 +132,11 @@ let parse_sum_term: UTyp.t => ConstructorMap.variant(UTyp.t) =
   | t => BadEntry(t);
 
 let mk_bad = (ctr, ids, value) => {
-  let t: Typ.t = {ids, copied: false, term: Var(ctr)};
+  let t: Typ.t = {
+    ids,
+    copied: false,
+    term: Var(ctr),
+  };
   switch (value) {
   | None => t
   | Some(u) => Ap(t, u) |> Typ.fresh
@@ -146,7 +150,6 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   | Typ => Typ(typ(unsorted(skel, seg)))
   | Exp => Exp(exp(unsorted(skel, seg)))
   | Rul => Rul(rul(unsorted(skel, seg)))
-  | Nul => Nul() //TODO
   | Any =>
     let tm = unsorted(skel, seg);
     let ids = ids(tm);
@@ -168,11 +171,19 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(e => Exp(e), ids, {ids, copied: false, term});
+  return(
+    e => Exp(e),
+    ids,
+    {
+      ids,
+      copied: false,
+      term,
+    },
+  );
 }
-and exp_term: unsorted => (UExp.term, list(Id.t)) = {
-  let ret = (tm: UExp.term) => (tm, []);
-  let hole = unsorted => UExp.hole(kids_of_unsorted(unsorted));
+and exp_term: unsorted => (Exp.term, list(Id.t)) = {
+  let ret = (tm: Exp.term) => (tm, []);
+  let hole = unsorted => Exp.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -223,13 +234,37 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["theorem", "proof", "in"], [Pat(pat), Exp(def)]) =>
           Theorem(pat, def, r)
         | (["hide", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Eval, One), pat: filter}), r)
+          Filter(
+            Filter({
+              act: (Eval, One),
+              pat: filter,
+            }),
+            r,
+          )
         | (["eval", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Eval, All), pat: filter}), r)
+          Filter(
+            Filter({
+              act: (Eval, All),
+              pat: filter,
+            }),
+            r,
+          )
         | (["pause", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Step, One), pat: filter}), r)
+          Filter(
+            Filter({
+              act: (Step, One),
+              pat: filter,
+            }),
+            r,
+          )
         | (["debug", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Step, All), pat: filter}), r)
+          Filter(
+            Filter({
+              act: (Step, All),
+              pat: filter,
+            }),
+            r,
+          )
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
@@ -248,23 +283,27 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           Ap(
             Forward,
             l,
-            {ids: [Id.nullary_ap_flag], copied: false, term: Tuple([])},
+            {
+              ids: [Id.nullary_ap_flag],
+              copied: false,
+              term: Tuple([]),
+            },
           ),
         )
       | (["(", ")"], [Exp(arg)]) =>
-        let use_deferral = (arg: UExp.t): UExp.t => {
+        let use_deferral = (arg: Exp.t): Exp.t => {
           ids: arg.ids,
           copied: false,
           term: Deferral(InAp),
         };
         switch (arg.term) {
-        | _ when UExp.is_deferral(arg) =>
+        | _ when Exp.is_deferral(arg) =>
           ret(DeferredAp(l, [use_deferral(arg)]))
-        | Tuple(es) when List.exists(UExp.is_deferral, es) => (
+        | Tuple(es) when List.exists(Exp.is_deferral, es) => (
             DeferredAp(
               l,
               List.map(
-                arg => UExp.is_deferral(arg) ? use_deferral(arg) : arg,
+                arg => Exp.is_deferral(arg) ? use_deferral(arg) : arg,
                 es,
               ),
             ),
@@ -275,6 +314,12 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | (["@<", ">"], [Typ(ty)]) => ret(TypAp(l, ty))
       | _ => ret(hole(tm))
       }
+    | _ => ret(hole(tm))
+    }
+  | Bin(Exp(l), tiles, Typ(r)) as tm =>
+    switch (tiles) {
+    | ([(_id, ([":"], []))], []) =>
+      ret(Cast(l, Unknown(Internal) |> Typ.fresh, r))
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
@@ -326,11 +371,19 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(p => Pat(p), ids, {ids, term, copied: false});
+  return(
+    p => Pat(p),
+    ids,
+    {
+      ids,
+      term,
+      copied: false,
+    },
+  );
 }
-and pat_term: unsorted => (UPat.term, list(Id.t)) = {
-  let ret = (term: UPat.term) => (term, []);
-  let hole = unsorted => UPat.hole(kids_of_unsorted(unsorted));
+and pat_term: unsorted => (Pat.term, list(Id.t)) = {
+  let ret = (term: Pat.term) => (term, []);
+  let hole = unsorted => Pat.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -392,11 +445,19 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
 and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(ty => Typ(ty), ids, {ids, term, copied: false});
+  return(
+    ty => Typ(ty),
+    ids,
+    {
+      ids,
+      term,
+      copied: false,
+    },
+  );
 }
-and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
-  let ret = (term: UTyp.term) => (term, []);
-  let hole = unsorted => UTyp.hole(kids_of_unsorted(unsorted));
+and typ_term: unsorted => (Typ.term, list(Id.t)) = {
+  let ret = (term: Typ.term) => (term, []);
+  let hole = unsorted => Typ.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -470,7 +531,15 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
   let ids = ids(unsorted);
-  return(ty => TPat(ty), ids, {ids, term, copied: false});
+  return(
+    ty => TPat(ty),
+    ids,
+    {
+      ids,
+      term,
+      copied: false,
+    },
+  );
 }
 and tpat_term: unsorted => TPat.term = {
   let ret = (term: TPat.term) => term;
@@ -499,7 +568,7 @@ and tpat_term: unsorted => TPat.term = {
 //   return(r => Rul(r), ids, {ids, term});
 // }
 and rul = (unsorted: unsorted): Rul.t => {
-  let hole = Rul.Hole(kids_of_unsorted(unsorted));
+  let hole: Rul.term = Hole(kids_of_unsorted(unsorted));
   switch (exp(unsorted)) {
   | {term: MultiHole(_), _} =>
     switch (unsorted) {
@@ -511,11 +580,23 @@ and rul = (unsorted: unsorted): Rul.t => {
             Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
           copied: false,
         }
-      | None => {ids: ids(unsorted), term: hole, copied: false}
+      | None => {
+          ids: ids(unsorted),
+          term: hole,
+          copied: false,
+        }
       }
-    | _ => {ids: ids(unsorted), term: hole, copied: false}
+    | _ => {
+        ids: ids(unsorted),
+        term: hole,
+        copied: false,
+      }
     }
-  | e => {ids: [], term: Rules(e, []), copied: false}
+  | e => {
+      ids: [],
+      term: Rules(e, []),
+      copied: false,
+    }
   };
 }
 
@@ -577,7 +658,11 @@ let go =
       map := TermMap.empty;
       projectors := Id.Map.empty;
       let term = exp(unsorted(Segment.skel(seg), seg));
-      {term, terms: map^, projectors: projectors^};
+      {
+        term,
+        terms: map^,
+        projectors: projectors^,
+      };
     },
   );
 

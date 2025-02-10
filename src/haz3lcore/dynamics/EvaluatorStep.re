@@ -19,7 +19,12 @@ module EvalObj = {
     knd: step_kind,
   };
 
-  let mk = (ctx, env, d_loc, knd) => {ctx, env, d_loc, knd};
+  let mk = (ctx, env, d_loc, knd) => {
+    ctx,
+    env,
+    d_loc,
+    knd,
+  };
 
   let get_ctx = (obj: t): EvalCtx.t => {
     obj.ctx;
@@ -30,7 +35,217 @@ module EvalObj = {
     ...obj,
     ctx: obj.ctx |> f,
   };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = {
+    old_id: Id.t, // The id of the term about to be stepped
+    new_id: Id.t, // The id of the term after it is stepped
+    knd: step_kind,
+  };
 };
+
+let rec matches =
+        (
+          env: ClosureEnvironment.t,
+          flt: FilterEnvironment.t,
+          ctx: EvalCtx.t,
+          exp: DHExp.t,
+          act: FilterAction.t,
+          idx: int,
+        )
+        : (FilterAction.t, int, EvalCtx.t) => {
+  let composed = EvalCtx.compose(ctx, exp);
+  let (pact, pidx) = (act, idx);
+  let (mact, midx) = FilterMatcher.matches(~env, ~exp=composed, ~act, flt);
+  let (act, idx) =
+    switch (ctx) {
+    | Term({term: Filter(_, _), _}) => (pact, pidx)
+    | _ => midx > pidx ? (mact, midx) : (pact, pidx)
+    };
+  let map = ((a, i, c), f) => {
+    (a, i, f(c));
+  };
+  let (let+) = map;
+  let (ract, ridx, rctx) =
+    switch (ctx) {
+    | Mark => (act, idx, EvalCtx.Mark)
+    | Term({term, ids}) =>
+      let rewrap = term =>
+        EvalCtx.Term({
+          term,
+          ids,
+        });
+      switch ((term: EvalCtx.term)) {
+      | Closure(env, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Closure(env, ctx) |> rewrap;
+      | Filter(Filter(flt'), ctx) =>
+        let flt = flt |> FilterEnvironment.extends(flt');
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Filter(Filter(flt'), ctx) |> rewrap;
+      | Filter(Residue(idx, act), ctx) =>
+        let (ract, ridx, rctx) = matches(env, flt, ctx, exp, act, idx);
+        if (ridx == idx && ract |> snd == All) {
+          (ract, ridx, Filter(Residue(idx, act), rctx) |> rewrap);
+        } else {
+          (ract, ridx, rctx);
+        };
+      | Seq1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Seq1(ctx, d2) |> rewrap;
+      | Seq2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Seq2(d1, ctx) |> rewrap;
+      | Let1(d1, ctx, d3) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Let1(d1, ctx, d3) |> rewrap;
+      | Let2(d1, d2, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Let2(d1, d2, ctx) |> rewrap;
+      | Fun(dp, ctx, env', name) =>
+        let+ ctx =
+          matches(Option.value(~default=env, env'), flt, ctx, exp, act, idx);
+        Fun(dp, ctx, env', name) |> rewrap;
+      | FixF(name, ctx, env') =>
+        let+ ctx =
+          matches(Option.value(~default=env, env'), flt, ctx, exp, act, idx);
+        FixF(name, ctx, env') |> rewrap;
+      | Ap1(dir, ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Ap1(dir, ctx, d2) |> rewrap;
+      | Ap2(dir, d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Ap2(dir, d1, ctx) |> rewrap;
+      | TypAp(ctx, ty) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        TypAp(ctx, ty) |> rewrap;
+      | DeferredAp1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        DeferredAp1(ctx, d2) |> rewrap;
+      | DeferredAp2(d1, ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        DeferredAp2(d1, ctx, ds) |> rewrap;
+      | If1(ctx, d2, d3) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        If1(ctx, d2, d3) |> rewrap;
+      | If2(d1, ctx, d3) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        If2(d1, ctx, d3) |> rewrap;
+      | If3(d1, d2, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        If3(d1, d2, ctx) |> rewrap;
+      | UnOp(op, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        UnOp(op, ctx) |> rewrap;
+      | BinOp1(op, ctx, d1) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinOp1(op, ctx, d1) |> rewrap;
+      | BinOp2(op, d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinOp2(op, d1, ctx) |> rewrap;
+      | Tuple(ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Tuple(ctx, ds) |> rewrap;
+      | Test(ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Test(ctx) |> rewrap;
+      | ListLit(ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ListLit(ctx, ds) |> rewrap;
+      | Cons1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Cons1(ctx, d2) |> rewrap;
+      | Cons2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Cons2(d1, ctx) |> rewrap;
+      | ListConcat1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ListConcat1(ctx, d2) |> rewrap;
+      | ListConcat2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ListConcat2(d1, ctx) |> rewrap;
+      | MultiHole(ctx, (dl, dr)) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        MultiHole(ctx, (dl, dr)) |> rewrap;
+      | Cast(ctx, ty, ty') =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Cast(ctx, ty, ty') |> rewrap;
+      | FailedCast(ctx, ty, ty') =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        FailedCast(ctx, ty, ty') |> rewrap;
+      | DynamicErrorHole(ctx, error) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        DynamicErrorHole(ctx, error) |> rewrap;
+      | MatchScrut(ctx, rs) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        MatchScrut(ctx, rs) |> rewrap;
+      | MatchRule(scr, p, ctx, rs) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        MatchRule(scr, p, ctx, rs) |> rewrap;
+      };
+    };
+  switch (ctx) {
+  | Term({term: Filter(_), _}) => (ract, ridx, rctx)
+  | _ when midx == ridx && midx > pidx && mact |> snd == All => (
+      ract,
+      ridx,
+      Term({
+        term: Filter(Residue(midx, mact), rctx),
+        ids: [Id.mk()],
+      }),
+    )
+  | _ => (ract, ridx, rctx)
+  };
+};
+
+let should_hide_eval_obj =
+    (~settings, x: EvalObj.t): (FilterAction.action, EvalObj.t) =>
+  if (should_hide_step_kind(~settings, x.knd)) {
+    (Eval, x);
+  } else {
+    let (act, _, ctx) =
+      matches(ClosureEnvironment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
+    switch (act) {
+    | (Eval, _) => (
+        Eval,
+        {
+          ...x,
+          ctx,
+        },
+      )
+    | (Step, _) => (
+        Step,
+        {
+          ...x,
+          ctx,
+        },
+      )
+    };
+  };
+
+let should_hide_step = (~settings, x: step): (FilterAction.action, step) =>
+  if (should_hide_step_kind(~settings, x.knd)) {
+    (Eval, x);
+  } else {
+    let (act, _, ctx) =
+      matches(ClosureEnvironment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
+    switch (act) {
+    | (Eval, _) => (
+        Eval,
+        {
+          ...x,
+          ctx,
+        },
+      )
+    | (Step, _) => (
+        Step,
+        {
+          ...x,
+          ctx,
+        },
+      )
+    };
+  };
 
 module Decompose = {
   module Result = {
@@ -58,17 +273,6 @@ module Decompose = {
     type requirements('a, 'b) = ('b, Result.t, ClosureEnvironment.t, 'a);
     type result = Result.t;
 
-    let req_value = (cont, wr, d) => {
-      switch (cont(d)) {
-      | Result.Indet => (Result.Indet, d)
-      | Result.BoxedValue => (Result.BoxedValue, d)
-      | Result.Step(objs) => (
-          Result.Step(List.map(EvalObj.wrap(wr), objs)),
-          d,
-        )
-      };
-    };
-
     let (&&): (Result.t, Result.t) => Result.t =
       (u, v) =>
         switch (u, v) {
@@ -81,18 +285,6 @@ module Decompose = {
         | (BoxedValue, BoxedValue) => BoxedValue
         };
 
-    let rec req_all_value' = (cont, wr, ds') =>
-      fun
-      | [] => (Result.BoxedValue, [])
-      | [d, ...ds] => {
-          let (r1, v) = req_value(cont, wr(_, (ds', ds)), d);
-          let (r2, vs) = req_all_value'(cont, wr, [d, ...ds'], ds);
-          (r1 && r2, [v, ...vs]);
-        };
-    let req_all_value = (cont, wr, ds) => {
-      req_all_value'(cont, wr, [], ds);
-    };
-
     let req_final = (cont, wr, d) => {
       (
         switch (cont(d)) {
@@ -103,17 +295,6 @@ module Decompose = {
         },
         d,
       );
-    };
-
-    let req_final_or_value = (cont, wr, d) => {
-      switch (cont(d)) {
-      | Result.Indet => (Result.BoxedValue, (d, false))
-      | Result.BoxedValue => (Result.BoxedValue, (d, true))
-      | Result.Step(objs) => (
-          Result.Step(List.map(EvalObj.wrap(wr), objs)),
-          (d, false),
-        )
-      };
     };
 
     let rec req_all_final' = (cont, wr, ds') =>
@@ -136,6 +317,7 @@ module Decompose = {
         | (undo, Result.BoxedValue, env, v) =>
           switch (rl(v)) {
           | Constructor => Result.BoxedValue
+          | Value => Result.BoxedValue
           | Indet => Result.Indet
           | Step(s) => Result.Step([EvalObj.mk(Mark, env, undo, s.kind)])
           // TODO: Actually show these exceptions to the user!
@@ -174,12 +356,8 @@ module TakeStep = {
     type result = option(DHExp.t);
 
     // Assume that everything is either value or final as required.
-    let req_value = (_, _, d) => d;
-    let req_all_value = (_, _, ds) => ds;
     let req_final = (_, _, d) => d;
     let req_all_final = (_, _, ds) => ds;
-
-    let req_final_or_value = (_, _, d) => (d, true);
 
     let (let.) = (rq: requirements('a, DHExp.t), rl: 'a => rule) =>
       switch (rl(rq)) {
@@ -187,6 +365,7 @@ module TakeStep = {
         state_update();
         Some(expr);
       | Constructor
+      | Value
       | Indet => None
       };
 
@@ -201,7 +380,8 @@ module TakeStep = {
   module TakeStepEV = Transition(TakeStepEVMode);
 
   let take_step = (state, env, d) =>
-    TakeStepEV.transition((_, _, _) => None, state, env, d);
+    TakeStepEV.transition((_, _, _) => None, state, env, d)
+    |> Option.map(DHExp.repair_ids);
 };
 
 let take_step = TakeStep.take_step;
@@ -210,222 +390,4 @@ let decompose = (d: DHExp.t, es: EvaluatorState.t) => {
   let env = ClosureEnvironment.of_environment(Builtins.env_init);
   let rs = Decompose.decompose(ref(es), env, d);
   Decompose.Result.unbox(rs);
-};
-
-let rec matches =
-        (
-          env: ClosureEnvironment.t,
-          flt: FilterEnvironment.t,
-          ctx: EvalCtx.t,
-          exp: DHExp.t,
-          act: FilterAction.t,
-          idx: int,
-        )
-        : (FilterAction.t, int, EvalCtx.t) => {
-  let composed = EvalCtx.compose(ctx, exp);
-  let (pact, pidx) = (act, idx);
-  let (mact, midx) = FilterMatcher.matches(~env, ~exp=composed, ~act, flt);
-  let (act, idx) =
-    switch (ctx) {
-    | Term({term: Filter(_, _), _}) => (pact, pidx)
-    | _ => midx > pidx ? (mact, midx) : (pact, pidx)
-    };
-  let map = ((a, i, c), f: EvalCtx.t => EvalCtx.t) => {
-    (a, i, f(c));
-  };
-  let (let+) = map;
-  let (ract, ridx, rctx) = {
-    let wrap_ids = (ids, ctx) => EvalCtx.Term({term: ctx, ids});
-    switch (ctx) {
-    | Mark => (act, idx, EvalCtx.Mark)
-    | Term({term, ids}) =>
-      switch (term) {
-      | Closure(env, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Closure(env, ctx) |> wrap_ids(ids);
-      | Filter(Filter(flt'), ctx) =>
-        let flt = flt |> FilterEnvironment.extends(flt');
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Filter(Filter(flt'), ctx) |> wrap_ids(ids);
-      | Filter(Residue(idx', act'), ctx) =>
-        let (ract, ridx, rctx) =
-          if (idx > idx') {
-            matches(env, flt, ctx, exp, act, idx);
-          } else {
-            matches(env, flt, ctx, exp, act', idx');
-          };
-        if (act' |> snd == All) {
-          (
-            ract,
-            ridx,
-            Term({
-              term: Filter(Residue(idx', act'), rctx),
-              ids: [Id.mk()],
-            }),
-          );
-        } else {
-          (ract, ridx, rctx);
-        };
-      | Seq1(ctx, d2) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Seq1(ctx, d2) |> wrap_ids(ids);
-      | Seq2(d1, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Seq2(d1, ctx) |> wrap_ids(ids);
-      | Let1(d1, ctx, d3) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Let1(d1, ctx, d3) |> wrap_ids(ids);
-      | Let2(d1, d2, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Let2(d1, d2, ctx) |> wrap_ids(ids);
-      | Fun(dp, ctx, env', name) =>
-        let+ ctx =
-          matches(
-            env' |> Option.value(~default=env),
-            flt,
-            ctx,
-            exp,
-            act,
-            idx,
-          );
-        Fun(dp, ctx, env', name) |> wrap_ids(ids);
-      | FixF(name, ctx, env') =>
-        let+ ctx =
-          matches(
-            env' |> Option.value(~default=env),
-            flt,
-            ctx,
-            exp,
-            act,
-            idx,
-          );
-        FixF(name, ctx, env') |> wrap_ids(ids);
-      | Ap1(dir, ctx, d2) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Ap1(dir, ctx, d2) |> wrap_ids(ids);
-      | Ap2(dir, d1, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Ap2(dir, d1, ctx) |> wrap_ids(ids);
-      | If1(ctx, d2, d3) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        If1(ctx, d2, d3) |> wrap_ids(ids);
-      | If2(d1, ctx, d3) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        If2(d1, ctx, d3) |> wrap_ids(ids);
-      | If3(d1, d2, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        If3(d1, d2, ctx) |> wrap_ids(ids);
-      | BinOp1(op, ctx, d1) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        BinOp1(op, ctx, d1) |> wrap_ids(ids);
-      | BinOp2(op, d1, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        BinOp2(op, d1, ctx) |> wrap_ids(ids);
-      | Test(ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Test(ctx) |> wrap_ids(ids);
-      | ListLit(ctx, ds) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        ListLit(ctx, ds) |> wrap_ids(ids);
-      | Tuple(ctx, ds) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Tuple(ctx, ds) |> wrap_ids(ids);
-      | MultiHole(ctx, ds) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        MultiHole(ctx, ds) |> wrap_ids(ids);
-      | Cons1(ctx, d2) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Cons1(ctx, d2) |> wrap_ids(ids);
-      | Cons2(d1, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Cons2(d1, ctx) |> wrap_ids(ids);
-      | ListConcat1(ctx, d2) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        ListConcat1(ctx, d2) |> wrap_ids(ids);
-      | ListConcat2(d1, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        ListConcat2(d1, ctx) |> wrap_ids(ids);
-      | Cast(ctx, ty, ty') =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Cast(ctx, ty, ty') |> wrap_ids(ids);
-      | FailedCast(ctx, ty, ty') =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        FailedCast(ctx, ty, ty') |> wrap_ids(ids);
-      | DynamicErrorHole(ctx, error) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        DynamicErrorHole(ctx, error) |> wrap_ids(ids);
-      | MatchScrut(ctx, rs) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        MatchScrut(ctx, rs) |> wrap_ids(ids);
-      | MatchRule(dexp, dpat, ctx, rs) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        MatchRule(dexp, dpat, ctx, rs) |> wrap_ids(ids);
-      | TypAp(ctx, ty) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        TypAp(ctx, ty) |> wrap_ids(ids);
-      | DeferredAp1(ctx, ds) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        DeferredAp1(ctx, ds) |> wrap_ids(ids);
-      | DeferredAp2(d1, ctx, ds) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        DeferredAp2(d1, ctx, ds) |> wrap_ids(ids);
-      | UnOp(op, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        UnOp(op, ctx) |> wrap_ids(ids);
-      }
-    };
-  };
-  switch (ctx) {
-  | Term({term: Filter(_), _}) => (ract, ridx, rctx)
-  | _ when midx > pidx && mact |> snd == All => (
-      ract,
-      ridx,
-      Term({term: Filter(Residue(midx, mact), rctx), ids: [Id.mk()]}),
-    )
-  | _ => (ract, ridx, rctx)
-  };
-};
-
-let should_hide_eval_obj =
-    (~settings, x: EvalObj.t): (FilterAction.action, EvalObj.t) =>
-  if (should_hide_step_kind(~settings, x.knd)) {
-    (Eval, x);
-  } else {
-    let (act, _, ctx) =
-      matches(ClosureEnvironment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
-    switch (act) {
-    | (Eval, _) => (Eval, {...x, ctx})
-    | (Step, _) => (Step, {...x, ctx})
-    };
-  };
-
-let should_hide_step = (~settings, x: step): (FilterAction.action, step) =>
-  if (should_hide_step_kind(~settings, x.knd)) {
-    (Eval, x);
-  } else {
-    let (act, _, ctx) =
-      matches(ClosureEnvironment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
-    switch (act) {
-    | (Eval, _) => (Eval, {...x, ctx})
-    | (Step, _) => (Step, {...x, ctx})
-    };
-  };
-
-let decompose = (~settings, d, st) =>
-  decompose(d, st) |> List.map(should_hide_eval_obj(~settings));
-
-let evaluate_with_history = (~settings, d) => {
-  let state = ref(EvaluatorState.init);
-  let rec go = d =>
-    switch (decompose(~settings, d, state^)) {
-    | [] => []
-    | [(_, x), ..._] =>
-      switch (take_step(state, x.env, x.d_loc)) {
-      | None => []
-      | Some(d) =>
-        let next = EvalCtx.compose(x.ctx, d);
-        [next, ...go(next)];
-      }
-    };
-  go(d);
 };

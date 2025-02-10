@@ -26,7 +26,16 @@ let shape = (p: Base.projector, info: info): shape => {
  * is considered a placeholder. This could be made more principled.
  * Note that a placeholder retains the UUID of the underlying. */
 let placeholder = (p: Base.projector, ci: option(Info.t)): string =>
-  switch (shape(p, {id: p.id, syntax: p.syntax, ci})) {
+  switch (
+    shape(
+      p,
+      {
+        id: p.id,
+        syntax: p.syntax,
+        ci,
+      },
+    )
+  ) {
   | Inline(width) => String.make(width, ' ')
   | Block({row, col}) => String.make(row - 1, '\n') ++ String.make(col, ' ')
   };

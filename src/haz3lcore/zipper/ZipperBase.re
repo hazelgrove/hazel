@@ -33,7 +33,13 @@ let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
 };
 
 let update_siblings: (Siblings.t => Siblings.t, t) => t =
-  f => update_relatives(rs => {...rs, siblings: f(rs.siblings)});
+  f =>
+    update_relatives(rs =>
+      {
+        ...rs,
+        siblings: f(rs.siblings),
+      }
+    );
 
 let put_siblings = (siblings, z: t): t => update_siblings(_ => siblings, z);
 
@@ -77,7 +83,10 @@ module MapPiece = {
     };
   }
   and of_tile = (f: updater, t: Tile.t): Tile.t => {
-    {...t, children: List.map(of_segment(f), t.children)};
+    {
+      ...t,
+      children: List.map(of_segment(f), t.children),
+    };
   };
 
   let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
@@ -105,7 +114,10 @@ module MapPiece = {
     List.map(of_generation(f), ancestors);
 
   let of_selection = (f: updater, selection: Selection.t): Selection.t => {
-    {...selection, content: of_segment(f, selection.content)};
+    {
+      ...selection,
+      content: of_segment(f, selection.content),
+    };
   };
 
   /* Maps the updater over all pieces in the zipper

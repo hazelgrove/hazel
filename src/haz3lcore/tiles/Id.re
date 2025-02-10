@@ -59,6 +59,10 @@ let t_of_yojson: Yojson.Safe.t => Uuidm.t =
 type t = Uuidm.t;
 
 let mk: unit => t = Uuidm.v4_gen(Random.State.make_self_init());
+let namespace_uuid =
+  Uuidm.of_string("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+  |> Util.OptUtil.get(_ => failwith("Invalid namespace UUID"));
+let next: t => t = x => Uuidm.v5(namespace_uuid, Uuidm.to_string(x));
 
 let compare: (t, t) => int = Uuidm.compare;
 let to_string: (~upper: bool=?, t) => string = Uuidm.to_string;
@@ -133,7 +137,10 @@ module Uf: {
     refs: ref(Map.t(M.rref('a))),
     store: M.store('a),
   };
-  let init = () => {refs: ref(Map.empty), store: M.new_store()};
+  let init = () => {
+    refs: ref(Map.empty),
+    store: M.new_store(),
+  };
   let rref = (id, s) => Map.find(id, s.refs^);
   let add = (id, a, s) =>
     switch (Map.find_opt(id, s.refs^)) {

@@ -9,7 +9,10 @@ let suggest_backpack = (z: Zipper.t): list(Suggestion.t) => {
   | [{content, _}, ..._] =>
     switch (content) {
     | [Tile({label, shards: [idx], _})] when Zipper.can_put_down(z) => [
-        {content: List.nth(label, idx), strategy: Any(FromBackpack)},
+        {
+          content: List.nth(label, idx),
+          strategy: Any(FromBackpack),
+        },
       ]
     | _ => []
     }
@@ -52,7 +55,15 @@ let token_to_left = (z: Zipper.t): option(string) =>
 let mk_unparsed_buffer =
     (~sort: Sort.t, sibs: Siblings.t, t: Token.t): Segment.t => {
   let mold = Siblings.mold_fitting_between(sort, Precedence.max, sibs);
-  [Tile({id: Id.mk(), label: [t], shards: [0], children: [], mold})];
+  [
+    Tile({
+      id: Id.mk(),
+      label: [t],
+      shards: [0],
+      children: [],
+      mold,
+    }),
+  ];
 };
 
 /* If 'current' is a proper prefix of 'candidate', return the
@@ -77,6 +88,14 @@ let get_buffer = (z: Zipper.t): option(Token.t) =>
 
 /* Populates the suggestion buffer with a type-directed suggestion */
 let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
+  let* _ =
+    switch (z.selection.mode) {
+    /* Make sure not to populate the completion buffer if there is a non-empty
+     * selection, otherwise it will get clobbered by the buffer */
+    | Buffer(Unparsed) => Some()
+    | Normal when Selection.is_empty(z.selection) => Some()
+    | Normal => None
+    };
   let* tok_to_left = token_to_left(z);
   let* index = Indicated.index(z);
   let* ci = Id.Map.find_opt(index, info_map);

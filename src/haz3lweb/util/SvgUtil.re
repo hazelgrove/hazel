@@ -48,16 +48,32 @@ module Path = {
   let cmdfudge = (~x=0., ~y=0., c: cmd): cmd => {
     let (h, v) = (x, y);
     switch (c) {
-    | M({x, y}) => M({x: x +. h, y: y +. v})
-    | L({x, y}) => L({x: x +. h, y: y +. v})
+    | M({x, y}) =>
+      M({
+        x: x +. h,
+        y: y +. v,
+      })
+    | L({x, y}) =>
+      L({
+        x: x +. h,
+        y: y +. v,
+      })
     | H({x}) => H({x: x +. h})
     | V({y}) => V({y: y +. v})
     | _ => c
     };
   };
 
-  let m = (~x, ~y) => M({x: Float.of_int(x), y: Float.of_int(y)});
-  let l_ = (~dx, ~dy) => L_({dx: Float.of_int(dx), dy: Float.of_int(dy)});
+  let m = (~x, ~y) =>
+    M({
+      x: Float.of_int(x),
+      y: Float.of_int(y),
+    });
+  let l_ = (~dx, ~dy) =>
+    L_({
+      dx: Float.of_int(dx),
+      dy: Float.of_int(dy),
+    });
   let h = (~x) => H({x: Float.of_int(x)});
   let h_ = (~dx) => H_({dx: Float.of_int(dx)});
   let v = (~y) => V({y: Float.of_int(y)});
@@ -66,8 +82,16 @@ module Path = {
   let scale_cmd = (~scale_x=1., ~scale_y=1.) =>
     fun
     | (Z | M(_) | L(_) | H(_) | V(_) | A_(_)) as cmd => cmd
-    | M_({dx, dy}) => M_({dx: scale_x *. dx, dy: scale_y *. dy})
-    | L_({dx, dy}) => L_({dx: scale_x *. dx, dy: scale_y *. dy})
+    | M_({dx, dy}) =>
+      M_({
+        dx: scale_x *. dx,
+        dy: scale_y *. dy,
+      })
+    | L_({dx, dy}) =>
+      L_({
+        dx: scale_x *. dx,
+        dy: scale_y *. dy,
+      })
     | H_({dx}) => H_({dx: scale_x *. dx})
     | V_({dy}) => V_({dy: scale_y *. dy});
 
@@ -80,8 +104,16 @@ module Path = {
   let translate_cmd = (v: Vector.t) =>
     fun
     | (Z | M_(_) | L_(_) | H_(_) | V_(_) | A_(_)) as cmd => cmd
-    | M({x, y}) => M({x: x +. v.dx, y: y +. v.dy})
-    | L({x, y}) => L({x: x +. v.dx, y: y +. v.dy})
+    | M({x, y}) =>
+      M({
+        x: x +. v.dx,
+        y: y +. v.dy,
+      })
+    | L({x, y}) =>
+      L({
+        x: x +. v.dx,
+        y: y +. v.dy,
+      })
     | H({x}) => H({x: x +. v.dx})
     | V({y}) => V({y: y +. v.dy});
   let translate = v => List.map(translate_cmd(v));
@@ -237,7 +269,13 @@ module OrthogonalPolygon = {
              | [] => [v]
              | [hd, ...tl] as stack =>
                if (v.src.x == hd.dst.x && v.src.y >= hd.dst.y) {
-                 [{...hd, dst: v.dst}, ...tl];
+                 [
+                   {
+                     ...hd,
+                     dst: v.dst,
+                   },
+                   ...tl,
+                 ];
                } else {
                  [v, ...stack];
                }
@@ -261,7 +299,13 @@ module OrthogonalPolygon = {
              | [] => [v]
              | [hd, ...tl] as stack =>
                if (v.src.x == hd.dst.x && v.src.y <= hd.dst.y) {
-                 [{...hd, dst: v.dst}, ...tl];
+                 [
+                   {
+                     ...hd,
+                     dst: v.dst,
+                   },
+                   ...tl,
+                 ];
                } else {
                  [v, ...stack];
                }
@@ -281,14 +325,34 @@ module OrthogonalPolygon = {
       |> List.map((Rect.{min, width, height}) => {
            let max_x = min.x +. width;
            let max_y = min.y +. height;
-           let max = Point.{x: max_x, y: max_y};
-           let min_max = Point.{x: min.x, y: max_y};
-           let max_min = Point.{x: max_x, y: min.y};
+           let max =
+             Point.{
+               x: max_x,
+               y: max_y,
+             };
+           let min_max =
+             Point.{
+               x: min.x,
+               y: max_y,
+             };
+           let max_min =
+             Point.{
+               x: max_x,
+               y: min.y,
+             };
            [
-             // left sides point in negative direction
-             {src: min_max, dst: min, next: None},
-             // right sides point in positive direction
-             {src: max_min, dst: max, next: None},
+             {
+               // left sides point in negative direction
+               src: min_max,
+               dst: min,
+               next: None,
+             },
+             {
+               // right sides point in positive direction
+               src: max_min,
+               dst: max,
+               next: None,
+             },
            ];
          })
       |> List.flatten
@@ -325,9 +389,21 @@ module OrthogonalPolygon = {
            let x = v.src.x;
            let ys = (v.src.y, v.dst.y);
            let mk_contour_edge = ((y_src, y_dst)) => {
-             let src = Point.{x, y: y_src};
-             let dst = Point.{x, y: y_dst};
-             {src, dst, next: None};
+             let src =
+               Point.{
+                 x,
+                 y: y_src,
+               };
+             let dst =
+               Point.{
+                 x,
+                 y: y_dst,
+               };
+             {
+               src,
+               dst,
+               next: None,
+             };
            };
            if (is_left_side(v)) {
              let new_contour_edges =
@@ -391,9 +467,21 @@ module OrthogonalPolygon = {
            is_src1 ? (pt2.x, pt1.x, v2, v1) : (pt1.x, pt2.x, v1, v2);
 
          let h = {
-           let src = Point.{x: x_src, y};
-           let dst = Point.{x: x_dst, y};
-           {src, dst, next: Some(next)};
+           let src =
+             Point.{
+               x: x_src,
+               y,
+             };
+           let dst =
+             Point.{
+               x: x_dst,
+               y,
+             };
+           {
+             src,
+             dst,
+             next: Some(next),
+           };
          };
          prev.next = Some(h);
        });

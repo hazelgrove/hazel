@@ -104,21 +104,34 @@ let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
 /* The self of a ctr depends on the ctx, but a
    lookup failure doesn't necessarily means its
    free; it may be given a type analytically */
-let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
-  IsConstructor({
-    name,
-    syn_ty:
-      switch (Ctx.lookup_ctr(ctx, name)) {
-      | None => None
-      | Some({typ, _}) => Some(typ)
-      },
-  });
+let of_ctr = (ctx: Ctx.t, name: Constructor.t, ty: Typ.t): t =>
+  switch (ty) {
+  | {term: Unknown(Internal), _} =>
+    IsConstructor({
+      name,
+      syn_ty:
+        switch (Ctx.lookup_ctr(ctx, name)) {
+        | None => None
+        | Some({typ, _}) => Some(typ)
+        },
+    })
+  | _ =>
+    IsConstructor({
+      name,
+      syn_ty: Some(ty),
+    })
+  };
 
 let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   let expected = List.length(ty_ins);
   let actual = List.length(args);
   if (expected != actual) {
-    IsBadPartialAp(ArityMismatch({expected, actual}));
+    IsBadPartialAp(
+      ArityMismatch({
+        expected,
+        actual,
+      }),
+    );
   } else if (List.for_all(Exp.is_deferral, args)) {
     IsBadPartialAp(NoDeferredArgs);
   } else {
@@ -133,7 +146,13 @@ let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   };
 };
 
-let add_source = List.map2((id, ty) => Typ.{id, ty});
+let add_source =
+  List.map2((id, ty) =>
+    Typ.{
+      id,
+      ty,
+    }
+  );
 
 let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {

@@ -47,7 +47,11 @@ type bad_token_cls =
   | Other
   | BadInt;
 
-let mk = (expansion, label, mold) => {label, mold, expansion};
+let mk = (expansion, label, mold) => {
+  label,
+  mold,
+  expansion,
+};
 
 /* Abbreviations for expansion behaviors */
 let ss: expansion = (Static, Static);
@@ -249,7 +253,6 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
 
 let forms: list((string, t)) = [
   // INFIX OPERATORS
-  ("typ_plus", mk_infix("+", Typ, P.type_plus)),
   ("type-arrow", mk_infix("->", Typ, P.type_arrow)),
   ("cell-join", mk_infix(";", Exp, P.semi)),
   ("plus", mk_infix("+", Exp, P.plus)),
@@ -260,7 +263,7 @@ let forms: list((string, t)) = [
   ("divide", mk_infix("/", Exp, P.mult)),
   ("equals", mk_infix("==", Exp, P.eqs)),
   ("string_equals", mk_infix("$==", Exp, P.eqs)),
-  ("string_concat", mk_infix("++", Exp, P.plus)),
+  ("string_concat", mk_infix("++", Exp, P.concat)),
   ("lt", mk_infix("<", Exp, P.eqs)),
   ("gt", mk_infix(">", Exp, P.eqs)),
   ("not_equals", mk_infix("!=", Exp, P.eqs)),
@@ -279,10 +282,12 @@ let forms: list((string, t)) = [
   ("logical_and", mk_infix("&&", Exp, P.and_)),
   ("logical_or_legacy", mk_infix("\\/", Exp, P.or_)),
   ("logical_or", mk_infix("||", Exp, P.or_)),
-  ("list_concat", mk_infix("@", Exp, P.plus)),
+  ("list_concat", mk_infix("@", Exp, P.concat)),
   ("cons_exp", mk_infix("::", Exp, P.cons)),
   ("cons_pat", mk_infix("::", Pat, P.cons)),
-  ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
+  ("typeann", mk(ss, [":"], mk_bin'(P.cast, Pat, Pat, [], Typ))),
+  ("typeasc", mk(ss, [":"], mk_bin'(P.cast, Exp, Exp, [], Typ))),
+  ("typ_plus", mk_infix("+", Typ, P.type_plus)),
   // UNARY PREFIX OPERATORS
   ("not", mk(ii, ["!"], mk_pre(P.not_, Exp, []))),
   ("typ_sum_single", mk(ss, ["+"], mk_pre(P.or_, Typ, []))),
@@ -304,7 +309,7 @@ let forms: list((string, t)) = [
   ("ap_exp_empty", mk(ii, ["()"], mk_post(P.ap, Exp, []))),
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
-  ("ap_typ", mk(ii, ["(", ")"], mk_post(P.ap, Typ, [Typ]))),
+  ("ap_typ", mk(ii, ["(", ")"], mk_post(P.type_sum_ap, Typ, [Typ]))),
   (
     "ap_exp_typ",
     mk((Instant, Static), ["@<", ">"], mk_post(P.ap, Exp, [Typ])),

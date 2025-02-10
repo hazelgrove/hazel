@@ -1,30 +1,34 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Any
-  | Nul
   | Pat
   | Typ
   | TPat
   | Rul
   | Exp;
 
+type gadt('a) =
+  | AnySort: gadt(TermBase.Any.t)
+  | PatSort: gadt(TermBase.Pat.t)
+  | TypSort: gadt(TermBase.Typ.t)
+  | TPatSort: gadt(TermBase.TPat.t)
+  | RulSort: gadt(TermBase.Rul.t)
+  | ExpSort: gadt(TermBase.Exp.t);
+
 let root = Exp;
 
-let all = [Any, Nul, Pat, Typ, Rul, Exp, TPat];
+let all = [Any, Pat, Typ, Rul, Exp, TPat];
 
 let consistent = (s, s') =>
   switch (s, s') {
   | (Any, _)
   | (_, Any) => true
-  | (Nul, _)
-  | (_, Nul) => false
   | _ => s == s'
   };
 
 let to_string =
   fun
   | Any => "Any"
-  | Nul => "Nul"
   | Pat => "Pat"
   | TPat => "TPat"
   | Typ => "Typ"
@@ -34,7 +38,6 @@ let to_string =
 let to_string_verbose =
   fun
   | Any => "any"
-  | Nul => "null"
   | Pat => "pattern"
   | TPat => "type pattern"
   | Typ => "type"

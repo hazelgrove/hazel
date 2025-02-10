@@ -1,19 +1,24 @@
 (library
  (name util)
- (libraries re base ptmap incr_dom virtual_dom yojson)
+ (libraries re base ptmap bonsai bonsai.web virtual_dom yojson)
  (js_of_ocaml)
+ (instrumentation
+  (backend bisect_ppx))
  (preprocess
   (pps
    ppx_yojson_conv
    js_of_ocaml-ppx
    ppx_let
    ppx_sexp_conv
-   ppx_deriving.show)))
+   ppx_deriving.show
+   bonsai.ppx_bonsai)))
 
 (env
  (dev
+  (flags :standard -warn-error -A)
   (js_of_ocaml
    (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
  (release
+  (flags :standard -warn-error +A-58)
   (js_of_ocaml
    (flags :standard))))

@@ -2,14 +2,14 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type kind =
-  | Singleton(TermBase.Typ.t)
+  | Singleton(TermBase.typ_t)
   | Abstract;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type var_entry = {
   name: Var.t,
   id: Id.t,
-  typ: TermBase.Typ.t,
+  typ: TermBase.typ_t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -34,11 +34,26 @@ let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
   extend(ctx, TVarEntry(tvar_entry));
 
 let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
-  extend_tvar(ctx, {name, id, kind: Singleton(ty)});
+  extend_tvar(
+    ctx,
+    {
+      name,
+      id,
+      kind: Singleton(ty),
+    },
+  );
 
 let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
   switch (TPat.tyvar_of_utpat(tvar)) {
-  | Some(name) => extend_tvar(ctx, {kind: Abstract, name, id: Id.invalid})
+  | Some(name) =>
+    extend_tvar(
+      ctx,
+      {
+        kind: Abstract,
+        name,
+        id: Id.invalid,
+      },
+    )
   | None => ctx
   };
 
@@ -99,7 +114,9 @@ let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
   | Some(Singleton(ty)) => Some(ty)
   | Some(Abstract) => None
   | None =>
-    Some(TermBase.Typ.Unknown(Hole(Invalid(name))) |> IdTagged.fresh)
+    Some(
+      (Unknown(Hole(Invalid(name))): TermBase.Typ.term) |> IdTagged.fresh,
+    )
   };
 
 let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t =>
@@ -112,11 +129,10 @@ let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t =
           id,
           typ:
             switch (typ) {
-            | None => TermBase.Typ.Var(name) |> IdTagged.fresh
+            | None => (Var(name): TermBase.typ_term) |> IdTagged.fresh
             | Some(typ) =>
-              TermBase.Typ.Arrow(
-                typ,
-                TermBase.Typ.Var(name) |> IdTagged.fresh,
+              (
+                Arrow(typ, (Var(name): TermBase.typ_term) |> IdTagged.fresh): TermBase.typ_term
               )
               |> IdTagged.fresh
             },

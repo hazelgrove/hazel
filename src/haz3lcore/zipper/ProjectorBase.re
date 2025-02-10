@@ -145,7 +145,16 @@ let mold_of = (p, sort: Sort.t): Mold.t => {
   let (l, r) = shapes(p);
   {
     nibs: {
-      ({shape: l, sort}, {shape: r, sort});
+      (
+        {
+          shape: l,
+          sort,
+        },
+        {
+          shape: r,
+          sort,
+        },
+      );
     },
     out: sort,
     in_: [],

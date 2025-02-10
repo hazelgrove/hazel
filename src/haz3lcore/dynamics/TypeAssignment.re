@@ -35,7 +35,12 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
           (dhpat: DHPat.t, ty: Typ.t): option(list(Ctx.entry)) => {
     switch (dhpat |> Pat.term_of) {
     | Var(name) =>
-      let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty});
+      let entry =
+        Ctx.VarEntry({
+          name,
+          id: Id.invalid,
+          typ: ty,
+        });
       Some([entry]);
     | Tuple(l1) =>
       let* ts = Typ.matched_prod_strict(ctx, List.length(l1), ty);
@@ -115,7 +120,11 @@ let rec env_extend_ctx =
     |> ClosureEnvironment.to_list
     |> List.map(((name, de)) => {
          let+ ty = typ_of_dhexp(ctx, m, de);
-         Ctx.VarEntry({name, id: Id.invalid, typ: ty});
+         Ctx.VarEntry({
+           name,
+           id: Id.invalid,
+           typ: ty,
+         });
        })
     |> OptUtil.sequence;
   List.fold_left((ctx, var_entry) => Ctx.extend(ctx, var_entry), ctx, l);
@@ -165,16 +174,23 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
       };
     let* ctx = dhpat_extend_ctx(dhp, ty_p, ctx);
     let* ty2 = typ_of_dhexp(ctx, m, d);
-    Some(Typ.Arrow(ty_p, ty2) |> Typ.temp);
+    Some(Arrow(ty_p, ty2) |> Typ.temp);
   | TypFun({term: Var(name), _} as utpat, d, _)
       when !Ctx.shadows_typ(ctx, name) =>
     let ctx =
-      Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
+      Ctx.extend_tvar(
+        ctx,
+        {
+          name,
+          id: TPat.rep_id(utpat),
+          kind: Abstract,
+        },
+      );
     let* ty = typ_of_dhexp(ctx, m, d);
-    Some(Typ.Type(utpat, ty) |> Typ.temp);
+    Some(Type(utpat, ty) |> Typ.temp);
   | TypFun(_, d, _) =>
     let* ty = typ_of_dhexp(ctx, m, d);
-    Some(Typ.Type(Var("?") |> TPat.fresh, ty) |> Typ.temp);
+    Some(Type(Var("?") |> TPat.fresh, ty) |> Typ.temp);
   | TypAp(d, ty1) =>
     let* ty = typ_of_dhexp(ctx, m, d);
     let* (name, ty2) = Typ.matched_type_strict(ctx, ty);
@@ -213,8 +229,8 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
         |> OptUtil.sequence;
       switch (tys) {
       | [] => Some(tyr)
-      | [ty] => Some(Typ.Arrow(ty, tyr) |> Typ.temp)
-      | tys => Some(Typ.Arrow(Prod(tys) |> Typ.temp, tyr) |> Typ.temp)
+      | [ty] => Some(Arrow(ty, tyr) |> Typ.temp)
+      | tys => Some(Arrow(Prod(tys) |> Typ.temp, tyr) |> Typ.temp)
       };
     } else {
       None;
@@ -225,7 +241,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     Some(var.typ);
   | Test(dtest) =>
     let* ty = typ_of_dhexp(ctx, m, dtest);
-    Typ.eq(ty, Bool |> Typ.temp) ? Some(Typ.Prod([]) |> Typ.temp) : None;
+    Typ.eq(ty, Bool |> Typ.temp) ? Some(Prod([]) |> Typ.temp) : None;
   | Bool(_) => Some(Bool |> Typ.temp)
   | Int(_) => Some(Int |> Typ.temp)
   | Float(_) => Some(Float |> Typ.temp)

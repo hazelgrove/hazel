@@ -59,7 +59,13 @@ let neighbor_movability =
   (l, r);
 };
 
-module Make = (M: Editor.Meta.S) => {
+module type S = {
+  let measured: Measured.t;
+  let term_ranges: TermRanges.t;
+  let col_target: int;
+};
+
+module Make = (M: S) => {
   let caret_point = Zipper.caret_point(M.measured);
 
   let pop_out = z => Some(z |> Zipper.set_caret(Outer));
@@ -191,7 +197,10 @@ module Make = (M: Editor.Meta.S) => {
        caret position to a target derived from the initial position */
     let cur_p = caret_point(z);
     let goal =
-      Point.{col: M.col_target, row: cur_p.row + (d == Right ? 1 : (-1))};
+      Point.{
+        col: M.col_target,
+        row: cur_p.row + (d == Right ? 1 : (-1)),
+      };
     do_towards(~force_progress=true, f, goal, z);
   };
 
@@ -200,10 +209,22 @@ module Make = (M: Editor.Meta.S) => {
     let cur_p = caret_point(z);
     let goal: Point.t =
       switch (d) {
-      | Right(_) => {col: Int.max_int, row: cur_p.row}
-      | Left(_) => {col: 0, row: cur_p.row}
-      | Up => {col: 0, row: 0}
-      | Down => {col: Int.max_int, row: Int.max_int}
+      | Right(_) => {
+          col: Int.max_int,
+          row: cur_p.row,
+        }
+      | Left(_) => {
+          col: 0,
+          row: cur_p.row,
+        }
+      | Up => {
+          col: 0,
+          row: 0,
+        }
+      | Down => {
+          col: Int.max_int,
+          row: Int.max_int,
+        }
       };
     do_towards(f, goal, z);
   };
