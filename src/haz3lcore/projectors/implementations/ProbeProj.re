@@ -9,21 +9,22 @@ type closure = Dynamics.Probe.Closure.t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model = {
+  a: int,
   /* Max col length for value display, indexed by closure id */
-  display_lengths: Id.Map.t(int),
+  //display_lengths: Id.Map.t(int),
   /* Max number of closures to display */
   //max_closures: int,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
-  | ChangeLength(Id.t, int)
+  | ChangeLength(int, int)
   | MoveCursor(int)
   | ToggleShowAllVals(int)
   | NoOp
   | PinAp;
 
-let init = {display_lengths: Id.Map.empty};
+let init = {a: 666};
 
 let model_of_sexp = (sexp): model =>
   switch (model_of_sexp(sexp)) {
@@ -38,6 +39,11 @@ module Window = {
 
   let mode = ref(Many);
   let offset = Hashtbl.create(100);
+
+  let reset = () => {
+    Hashtbl.clear(offset);
+    mode := Many;
+  };
 
   let max_closures = () =>
     switch (mode^) {
@@ -79,12 +85,26 @@ module Window = {
 
   let set_offset = (k: Id.t, v: int) => Hashtbl.add(offset, k, v);
 
-  let reset = (id, all_closures, cursor_idx): (int, int) => {
+  let reform = (id, all_closures, cursor_idx): (int, int) => {
     let max = max_closures();
     let new_home = new_offest(cursor_idx, get_offset(id), max, all_closures);
     set_offset(id, new_home);
     (new_home, max);
   };
+};
+
+let is_value = (exp: Exp.t) =>
+  ValueChecker.check_value((), ClosureEnvironment.empty, exp) == Value;
+module ClosureLength = {
+  let lengths: Hashtbl.t(int, int) = Hashtbl.create(100);
+
+  let reset = () => {
+    Hashtbl.clear(lengths);
+  };
+
+  let get = (id: int): option(int) => Hashtbl.find_opt(lengths, id);
+
+  let set = (id: int, length: int): unit => Hashtbl.add(lengths, id, length);
 };
 
 /* Remove opaque values like function literals */
@@ -121,9 +141,6 @@ let cur_ap = (info: info) =>
   | _ => None
   };
 
-let is_value = (exp: Exp.t) =>
-  ValueChecker.check_value((), ClosureEnvironment.empty, exp) == Value;
-
 module DynCursor = {
   /* Manages shared state between probes */
 
@@ -135,7 +152,11 @@ module DynCursor = {
 
   let s: t = {call_cursor: [], indicated_call: None, pinned_call: None};
 
-  let reset = () => s;
+  let reset = () => {
+    s.call_cursor = [];
+    s.indicated_call = None;
+    s.pinned_call = None;
+  };
 
   let capture_cursor = (closure: closure): unit => {
     s.call_cursor = closure.call_stack;
@@ -351,7 +372,7 @@ module Closures = {
       | None => 0
       };
     let all_closures = List.length(closures);
-    let (l, r) = Window.reset(info.id, all_closures, cursor_idx);
+    let (l, r) = Window.reform(info.id, all_closures, cursor_idx);
     ListUtil.slice(l, r, closures);
   };
 
@@ -423,8 +444,8 @@ let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   {row, col};
 };
 
-let display_length = (model: model, closure: closure): int =>
-  Id.Map.find_opt(closure.closure_id, model.display_lengths)
+let display_length = (_model: model, closure: closure): int =>
+  ClosureLength.get(closure.closure_id)
   |> Option.value(
        ~default=
          !is_value(closure.value) ? 5 : Window.get_mode() == Single ? 36 : 12,
@@ -703,13 +724,19 @@ let key_handler = (local, info: info, _, evt) => {
   open Effect;
   let key = Key.mk(KeyDown, evt);
   switch (key.key) {
+  | D("Escape") when key.shift == Down =>
+    JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
+    DynCursor.reset();
+    Window.reset();
+    ClosureLength.reset();
+    local(NoOp);
   | D("Escape") =>
     JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
     Ignore;
-  | D("ArrowRight") /*when key.shift == Down*/ =>
+  | D("ArrowRight") =>
     move_cursor(info, -1);
     Many([local(NoOp), Stop_propagation]); // trigger redraw
-  | D("ArrowLeft") /*when key.shift == Down*/ =>
+  | D("ArrowLeft") =>
     move_cursor(info, 1);
     Many([local(NoOp), Stop_propagation]); // trigger redraw
   | D(" ") =>
@@ -722,11 +749,13 @@ let key_handler = (local, info: info, _, evt) => {
 let update = (m: model, info: info, a: action) => {
   switch (a) {
   | ChangeLength(id, len) =>
-    if (len > (-1)) {
-      {display_lengths: Id.Map.add(id, len, m.display_lengths)};
-    } else {
-      m;
-    }
+    ClosureLength.set(id, len);
+    // if (len > (-1)) {
+    //   {display_lengths: Id.Map.add(id, len, m.display_lengths)};
+    // } else {
+    //   m;
+    // }
+    m;
   | ToggleShowAllVals(_) =>
     Window.toggle_mode();
     m;
