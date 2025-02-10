@@ -106,7 +106,7 @@ module Pat = {
 
   let rec is_fun_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => is_fun_var(pat)
+    | Parens(pat)
     | TupLabel(_, pat) => is_fun_var(pat)
     | Cast(pat, typ, _) =>
       is_var(pat) && (Typ.is_arrow(typ) || Typ.is_forall(typ))
@@ -158,8 +158,8 @@ module Pat = {
     || (
       switch (pat.term) {
       | Parens(pat)
-      | TupLabel(_, pat)
-      | Cast(pat, _, _) => is_tuple_of_vars(pat)
+      | Cast(pat, _, _)
+      | TupLabel(_, pat) => is_tuple_of_vars(pat)
       | Tuple(pats) => pats |> List.for_all(is_var)
       | Label(_)
       | Invalid(_)
@@ -203,7 +203,7 @@ module Pat = {
 
   let rec get_fun_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => get_fun_var(pat)
+    | Parens(pat)
     | TupLabel(_, pat) => get_fun_var(pat)
     | Cast(pat, t1, _) =>
       if (Typ.is_arrow(t1) || Typ.is_forall(t1)) {
