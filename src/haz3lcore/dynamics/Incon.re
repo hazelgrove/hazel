@@ -85,7 +85,13 @@ module Ctr = {
       )
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
-    | List(_) => Finite(Map.of_list([(nil_ctr, []), (cons_ctr, [ty])]))
+    | List(elt_ty) =>
+      Finite(
+        Map.of_list([
+          (nil_ctr, []),
+          (cons_ctr, [TermBase.Prod([elt_ty, ty]) |> Typ.fresh]),
+        ]),
+      )
     | Bool => Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))
     | Unknown(_) => Unknown
     | Int
@@ -305,7 +311,7 @@ module Submatrices = {
 
     let include_default =
       switch (all_ctrs) {
-      | Unknown => false
+      | Unknown => true
       | Infinite => true
       | Finite(_) => !seen_all_ctrs
       };
