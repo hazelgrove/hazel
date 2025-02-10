@@ -343,13 +343,27 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             switch (l.term) {
             | Var(name) =>
               TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r)
-            | _ => TupLabel(l, r)
+            | EmptyHole => TupLabel(l, r)
+            | _ =>
+              let (e_term, rewrap) = IdTagged.unwrap(l);
+
+              TupLabel(
+                rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
+                r,
+              );
             }
           | (["."], []) =>
             switch (r.term) {
             | Var(name) =>
               Dot(l, {ids: r.ids, copied: r.copied, term: Label(name)})
-            | _ => Dot(l, r)
+            | EmptyHole => Dot(l, r)
+            | _ =>
+              let (e_term, rewrap) = IdTagged.unwrap(r);
+
+              Dot(
+                l,
+                rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
+              );
             }
           | (["|>"], []) => Ap(Reverse, r, l)
           | (["@"], []) => ListConcat(l, r)
@@ -441,7 +455,15 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           ret(
             TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r),
           )
-        | _ => ret(TupLabel(l, r))
+        | EmptyHole => ret(TupLabel(l, r))
+        | _ =>
+          let (e_term, rewrap) = IdTagged.unwrap(l);
+          ret(
+            TupLabel(
+              rewrap(MultiHole([Pat(e_term |> Pat.fresh)]): Pat.term),
+              r,
+            ),
+          );
         }
       | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
       | _ => ret(hole(tm))
