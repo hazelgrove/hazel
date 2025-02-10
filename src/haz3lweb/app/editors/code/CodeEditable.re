@@ -145,7 +145,6 @@ module Selection = {
       Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
 
   let handle_key_event = (~selection, model: Model.t, key) => {
-    print_endline("handle_key_event");
     switch (ProjectorView.key_handoff(model.editor, key)) {
     | Some(action) =>
       print_endline(
@@ -153,7 +152,7 @@ module Selection = {
       );
       Some(Update.Perform(Project(action)));
     | None =>
-      print_endline("handle_key_event");
+      print_endline("handle_key_event: default");
       handle_key_event(~selection, model, key);
     };
   };

@@ -195,9 +195,9 @@
   /* Z-STACK */
 
   /* BELOW CODE LEVEL */
-  --err-hole-arms-z: 0;
-  --tile-z: 1;
-  --err-hole-z: 2;
+  --err-hole-arms-z: 1;
+  --tile-z: 2;
+  --err-hole-z: 3;
   --select-z: 4;
   --projector-underlay-z: 9;
 
@@ -220,7 +220,6 @@
   --explainthis-expander-z: 31;
 
   /* HACKS */
-  --overlay-z: 100;
   --modal-back-z: 100;
   --modal-z: 101;
 }
