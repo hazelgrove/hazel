@@ -8990,7 +8990,7 @@ let startup : PersistentData.t =
                  2))(children(((Secondary((id \
                  6fa0b5da-1fea-4936-9d00-0135ecee95f3)(content(Whitespace\" \
                  \"))))(Tile((id \
-                 61605777-fb9c-44a4-91d0-baf4ce95c861)(label(artihmetic))(mold((out \
+                 61605777-fb9c-44a4-91d0-baf4ce95c861)(label(arithmetic))(mold((out \
                  Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape \
                  Convex)(sort Pat))))))(shards(0))(children())))(Secondary((id \
                  5a50e12c-e2f4-46ea-a4c3-dac58a336c26)(content(Whitespace\" \
@@ -11451,7 +11451,7 @@ let startup : PersistentData.t =
                  in\n\n\
                  # Floating Point Numbers #\n\
                  let float: Float = 0.1 in\n\
-                 let artihmetic = 0. *. 1. +. 2. /. 3. -. 4. **. 5. in\n\
+                 let arithmetic = 0. *. 1. +. 2. /. 3. -. 4. **. 5. in\n\
                  let comparison =\n\
                  (0. ==. 0., 0. <. 1., 1. <=. 1., 2. >. 1., 1. >=. 1.) \n\
                  in\n\n\
