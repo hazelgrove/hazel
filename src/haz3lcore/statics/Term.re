@@ -235,7 +235,6 @@ module Pat = {
     | None =>
       switch (pat.term) {
       | Parens(pat)
-      
       | Cast(pat, _, _)
       | TupLabel(_, pat) => get_bindings(pat)
       | Tuple(pats) =>
@@ -269,8 +268,7 @@ module Pat = {
       switch (pat.term) {
       | Parens(pat)
       | Cast(pat, _, _)
-      | TupLabel(_, pat)
-       => get_num_of_vars(pat)
+      | TupLabel(_, pat) => get_num_of_vars(pat)
       | Tuple(pats) =>
         is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
       | Label(_)
