@@ -202,7 +202,8 @@ let map = (f: option('a) => option('b), m: t('a)): t('b) => {
 let get_entry = (ctr, m) =>
   List.find_map(
     fun
-    | Variant(ctr', _, value) when Constructor.equal(ctr, ctr') => value
+    | Variant(ctr', _, value) when Constructor.equal(ctr, ctr') =>
+      Some(value)
     | Variant(_)
     | BadEntry(_) => None,
     m,

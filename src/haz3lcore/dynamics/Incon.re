@@ -3,42 +3,30 @@ open Util;
 open Util.Maps;
 
 module Ctr = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    ctr: Constructor.t,
-    num_args: int,
-    string_key: string,
+  module M = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = {
+      ctr: Constructor.t,
+      num_args: int,
+      string_key: string,
+    };
+    let compare =
+        (
+          {ctr: _, num_args: _, string_key: string_key1},
+          {ctr: _, num_args: _, string_key: string_key2},
+        ) =>
+      compare(string_key1, string_key2);
   };
-
-  let show = (x: t) => x.string_key;
+  include M;
 
   let mk = (ctr, num_args) => {
     let string_key = string_of_int(num_args) ++ "~" ++ ctr;
     {ctr, num_args, string_key};
   };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type ctr = t;
+  module Map = MapUtil.Make(M);
 
-  let compare =
-      (
-        {ctr: _, num_args: _, string_key: string_key1},
-        {ctr: _, num_args: _, string_key: string_key2},
-      ) =>
-    compare(string_key1, string_key2);
-
-  module Map =
-    MapUtil.Make({
-      [@deriving (show({with_path: false}), sexp, yojson)]
-      type t = ctr;
-      let compare = compare;
-    });
-
-  module Set =
-    Set.Make({
-      type t = ctr;
-      let compare = compare;
-    });
+  module Set = Set.Make(M);
 
   // we treat tuples like constructors for some purposes.
   // this should not be anotherwise valid constructor name.
@@ -199,7 +187,7 @@ module Submatrices = {
         | [] => seen
         | [Int(n), ..._] =>
           let first_col_redundant_rows =
-            if (IntSet.mem(n, seen.seen_ints)) {
+            if (IntSet.mem(n, seen.seen_ints) || seen.seen_truth) {
               [row.idx, ...seen.first_col_redundant_rows];
             } else {
               seen.first_col_redundant_rows;
@@ -211,7 +199,7 @@ module Submatrices = {
           };
         | [Float(x), ..._] =>
           let first_col_redundant_rows =
-            if (FloatSet.mem(x, seen.seen_floats)) {
+            if (FloatSet.mem(x, seen.seen_floats) || seen.seen_truth) {
               [row.idx, ...seen.first_col_redundant_rows];
             } else {
               seen.first_col_redundant_rows;
@@ -223,7 +211,7 @@ module Submatrices = {
           };
         | [String(s), ..._] =>
           let first_col_redundant_rows =
-            if (StringSet.mem(s, seen.seen_strings)) {
+            if (StringSet.mem(s, seen.seen_strings) || seen.seen_truth) {
               [row.idx, ...seen.first_col_redundant_rows];
             } else {
               seen.first_col_redundant_rows;
@@ -236,7 +224,7 @@ module Submatrices = {
         | [Tuple(elts), ..._] =>
           let ctr = Ctr.tuple_ctr(List.length(elts));
           let first_col_redundant_rows =
-            if (Ctr.Set.mem(ctr, seen.seen_ctrs)) {
+            if (Ctr.Set.mem(ctr, seen.seen_ctrs) || seen.seen_truth) {
               [row.idx, ...seen.first_col_redundant_rows];
             } else {
               seen.first_col_redundant_rows;
@@ -255,7 +243,7 @@ module Submatrices = {
               },
             );
           let first_col_redundant_rows =
-            if (Ctr.Set.mem(ctr, seen.seen_ctrs)) {
+            if (Ctr.Set.mem(ctr, seen.seen_ctrs) || seen.seen_truth) {
               [row.idx, ...seen.first_col_redundant_rows];
             } else {
               seen.first_col_redundant_rows;

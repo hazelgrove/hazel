@@ -363,11 +363,12 @@ let rec status_common =
        a sum type having that ctr as a variant, its self type is
        considered to be determined by the sum type; otherwise,
        check the context for the ctr's type */
+    print_endline("IsConstructor(" ++ Constructor.show(name) ++ ")");
     switch (Mode.ctr_ana_typ(ctx, mode, name), syn_ty) {
     | (Some(ana_ty), _) => status_common(ctx, mode, Just(ana_ty))
     | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
     | _ => InHole(NoType(FreeConstructor(name)))
-    }
+    };
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
@@ -631,6 +632,7 @@ let derived_pat =
     : pat => {
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
   let status = status_pat(ctx, mode, self);
+  // print_endline("Status: " ++ show_status_pat(status));
   let ty = fixed_typ_pat(ctx, mode, self);
   let constraint_ = fixed_constraint_pat(upat, ctx, mode, self, constraint_);
   {
