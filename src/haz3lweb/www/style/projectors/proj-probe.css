@@ -310,7 +310,11 @@
   --caller-accent: var(--exp-ap-indicated);
   --bottom-border-clr: var(--caller-accent);
   --bkg: var(--exp-ap-indicated);
-  outline: 1px solid var(--caller-accent);
+}
+.projector.probe .closure:has(.value.cursor-caller):not(:hover) {
+  outline-width: 1px;
+  outline-style: solid;
+  outline-color: var(--caller-accent);
 }
 .projector.probe .closure:has(.value.cursor-unrelated),
 .projector.probe .closure:has(.value.cursor-callee.indirect) {
