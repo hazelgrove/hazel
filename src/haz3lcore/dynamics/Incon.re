@@ -166,6 +166,7 @@ module Submatrices = {
     seen_ctrs: Ctr.Set.t,
     seen_all_ctrs: bool,
     seen_truth: bool,
+    seen_hole: bool,
     first_col_redundant_rows: redundant_rows,
   };
 
@@ -176,6 +177,7 @@ module Submatrices = {
     seen_ctrs: Ctr.Set.empty,
     seen_all_ctrs: false,
     seen_truth: false,
+    seen_hole: false,
     first_col_redundant_rows: [],
   };
 
@@ -258,10 +260,7 @@ module Submatrices = {
               ? [row.idx, ...seen.first_col_redundant_rows]
               : seen.first_col_redundant_rows;
           {...seen, seen_truth: true, first_col_redundant_rows};
-        | [Hole, ..._] =>
-          // holes act like truth for the purposes of exhaustiveness checking,
-          // but are never redundant
-          {...seen, seen_truth: true}
+        | [Hole, ..._] => {...seen, seen_hole: true}
         },
       init_seen,
       m,
@@ -294,6 +293,7 @@ module Submatrices = {
       seen_ctrs,
       seen_all_ctrs,
       seen_truth,
+      seen_hole,
       first_col_redundant_rows,
     } =
       seen(m, all_ctrs);
@@ -387,8 +387,8 @@ module Submatrices = {
     let first_col_exhaustive =
       switch (all_ctrs) {
       | Unknown => true
-      | Infinite => seen_truth
-      | Finite(_) => seen_truth || seen_all_ctrs
+      | Infinite => seen_truth || seen_hole
+      | Finite(_) => seen_truth || seen_hole || seen_all_ctrs
       };
     {...submatrices, first_col_exhaustive, first_col_redundant_rows};
   };

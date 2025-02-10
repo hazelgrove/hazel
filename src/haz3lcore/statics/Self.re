@@ -113,7 +113,6 @@ let of_ctr = (ctx: Ctx.t, name: Constructor.t, mode: Mode.t): t =>
         | None => None
         | Some({typ, _}) => Some(typ)
         }
-
       | Ana(_) => Mode.ctr_ana_typ(ctx, mode, name)
       | SynTypFun => None
       },
