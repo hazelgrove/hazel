@@ -2,6 +2,7 @@ module Sexp = Sexplib.Sexp;
 open Haz3lcore;
 open Util;
 open Util.OptUtil.Syntax;
+open Example;
 
 module CodeModel = CodeEditable.Model;
 
@@ -16,6 +17,7 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type message = {
     party,
+    code: option(Segment.t),
     content: string,
   };
 
@@ -39,7 +41,7 @@ module Update = {
 
   let react = (response: string): t => {
     // let response = response |> sanitize_response |> quote;
-    let response: Model.message = {party: LLM, content: response};
+    let response: Model.message = {party: LLM, code: None, content: response};
     Respond(response);
   };
 
@@ -70,7 +72,11 @@ module Update = {
             }
           );
         };
-        let await_llm_response: Model.message = {party: LLM, content: "..."};
+        let await_llm_response: Model.message = {
+          party: LLM,
+          code: None,
+          content: "...",
+        };
         Model.{
           chat: model.chat @ [message, await_llm_response],
           currSender: LLM,
@@ -83,16 +89,16 @@ module Update = {
       Model.{chat: ListUtil.leading(model.chat) @ [message], currSender: LS}
       |> Updated.return_quiet
     | SendSketch =>
+      let sketch_seg =
+        Zipper.smart_seg(
+          ~dump_backpack=true,
+          ~erase_buffer=true,
+          editor.editor.state.zipper,
+        );
       switch (
         {
           let* index = Indicated.index(editor.editor.state.zipper);
           let* ci = Id.Map.find_opt(index, editor.statics.info_map);
-          let sketch_seg =
-            Zipper.smart_seg(
-              ~dump_backpack=true,
-              ~erase_buffer=true,
-              editor.editor.state.zipper,
-            );
           ChatLSP.Prompt.mk_init(ChatLSP.Options.init, ci, sketch_seg);
         }
       ) {
@@ -101,8 +107,8 @@ module Update = {
         Model.{chat: model.chat, currSender: LLM} |> Updated.return_quiet;
       | Some(openai_prompt) =>
         let messages =
-          ListUtil.flat_map(
-            (msg: OpenAI.message): list(string) => {[msg.content]},
+          List.map(
+            (msg: OpenAI.message): string => {msg.content},
             openai_prompt,
           );
         let prompt = ListUtil.concat_strings(messages);
@@ -115,14 +121,22 @@ module Update = {
           | None => print_endline("Assistant: response parse failed")
           }
         );
-        let await_llm_response: Model.message = {party: LLM, content: "..."};
+        let await_llm_response: Model.message = {
+          party: LLM,
+          code: None,
+          content: "...",
+        };
         Model.{
           chat:
-            model.chat @ [{party: LS, content: prompt}, await_llm_response],
+            model.chat
+            @ [
+              {party: LS, code: Some(sketch_seg), content: prompt},
+              await_llm_response,
+            ],
           currSender: LLM,
         }
         |> Updated.return_quiet;
-      }
+      };
     };
   };
 };

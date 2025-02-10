@@ -129,6 +129,7 @@ let message_input =
   let handle_send = (message: string) => {
     let message: AssistantModel.Model.message = {
       party: assistantModel.currSender,
+      code: None,
       content: message,
     };
     JsUtil.log("Message sent: " ++ message.content);
@@ -158,7 +159,7 @@ let message_input =
   let handle_keydown = event => {
     let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
     switch (key, ListUtil.last_opt(assistantModel.chat)) {
-    | (_, Some({party: LLM, content: "..."})) => Virtual_dom.Vdom.Effect.Ignore
+    | (_, Some({party: LLM, code: None, content: "..."})) => Virtual_dom.Vdom.Effect.Ignore
     | (Some("Enter"), _) => send_message()
     | _ => Virtual_dom.Vdom.Effect.Ignore
     };
@@ -181,7 +182,7 @@ let message_input =
         (),
       ),
       switch (ListUtil.last_opt(assistantModel.chat)) {
-      | Some({party: LLM, content: "..."}) =>
+      | Some({party: LLM, code: None, content: "..."}) =>
         div(
           ~attrs=[
             clss(["disabled-send-button", "icon"]),
@@ -223,27 +224,91 @@ let message_display =
     )
     : Node.t => {
   let message_nodes =
-    List.map(
-      (message: AssistantModel.Model.message) => {
-        print_endline(message.content);
-        message.content == "..." && message.party == LLM
-          ? loading_dots()
-          : div(
-              ~attrs=[
-                clss([
-                  "message-container",
-                  message.party == LLM ? "llm" : "ls",
-                ]),
-              ],
-              [
+    List.flatten(
+      List.map(
+        (message: AssistantModel.Model.message) => {
+          switch (message.code) {
+          | Some(sketch) =>
+            message.content == "..." && message.party == LLM
+              ? [loading_dots()]
+              : [
                 div(
-                  ~attrs=[clss(["message-content"])],
-                  [text(message.content)],
+                  ~attrs=[
+                    clss([
+                      "message-container",
+                      message.party == LLM ? "llm" : "ls",
+                    ]),
+                  ],
+                  [
+                    div(
+                      ~attrs=[
+                        clss([
+                          message.party == LLM ? "llm-message" : "ls-message",
+                        ]),
+                      ],
+                      [text(message.content)],
+                    ),
+                  ],
                 ),
-              ],
-            );
-      },
-      assistantModel.chat,
+                div(
+                  ~attrs=[
+                    clss([
+                      "message-container",
+                      "example",
+                      message.party == LLM ? "llm" : "ls",
+                    ]),
+                  ],
+                  [
+                    CellEditor.View.view(
+                      ~globals,
+                      ~signal=_ => Ui_effect.Ignore,
+                      ~inject=_ => Ui_effect.Ignore,
+                      ~selected=None,
+                      ~caption=None,
+                      ~locked=true,
+                      {
+                        sketch
+                        |> Zipper.unzip
+                        |> Editor.Model.mk
+                        |> CellEditor.Model.mk
+                        |> CellEditor.Update.calculate(
+                             ~settings=globals.settings.core,
+                             ~is_edited=true,
+                             ~stitch=x => x,
+                             ~queue_worker=None,
+                           );
+                      },
+                    ),
+                  ],
+                ),
+              ]
+          | None =>
+            message.content == "..." && message.party == LLM
+              ? [loading_dots()]
+              : [
+                div(
+                  ~attrs=[
+                    clss([
+                      "message-container",
+                      message.party == LLM ? "llm" : "ls",
+                    ]),
+                  ],
+                  [
+                    div(
+                      ~attrs=[
+                        clss([
+                          message.party == LLM ? "llm-message" : "ls-message",
+                        ]),
+                      ],
+                      [text(message.content)],
+                    ),
+                  ],
+                ),
+              ]
+          }
+        },
+        assistantModel.chat,
+      ),
     );
   div(~attrs=[clss(["message-display-container"])], message_nodes);
 };
@@ -271,7 +336,7 @@ let view =
               globals.settings.assistant.ongoing_chat
                 ? req_button(~globals, ~inject) : None,
               globals.settings.assistant.ongoing_chat
-                ? end_chat_button(~globals, ~inject) : None, 
+                ? end_chat_button(~globals, ~inject) : None,
             ],
           ),
           globals.settings.assistant.ongoing_chat
