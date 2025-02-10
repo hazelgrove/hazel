@@ -24,6 +24,12 @@
   --pat-cell: hsl(165, 30%, 70%);
 }
 
+/* Turn off caret when text projector is focused */
+/* TODO: Generalize this logic to other projectors */
+.code-deco:has(~ .projectors .projector.probe *:focus) #caret .caret-path {
+  fill: #0000;
+}
+
 /* BACKING */
 
 .projector.probe.Exp > svg {
@@ -45,7 +51,7 @@
   fill: var(--pat-indicated);
 }
 .projector.probe:has(.ap.pinned) > svg {
-  fill: var(--exp-ap-indicated);
+  /* fill: var(--exp-ap-indicated); */
 }
 
 /* INLINE VIEW */
@@ -64,6 +70,9 @@
 .projector.probe.indicated:not(.selected):not(.error) .main,
 .cell-item:not(.selected):not(.error) .projector.probe.indicated .main {
   color: white;
+}
+.projector.probe .main:focus {
+  outline: none;
 }
 
 @keyframes rotate {
@@ -270,8 +279,9 @@
 /* TOKEN BKG */
 .projector.probe .closure {
   border-radius: 0.05em 0.05em 0.05em 0.2em;
-  transition: filter 0.14s ease-in-out;
-  transition: scale 0.07s ease-in-out;
+  transition: scale 0.1s ease-in-out, transform 0.1s ease-in-out,
+    translate 0.1s ease-in-out, border 0.1s ease-in-out,
+    box-shadow 0.1s ease-in-out, top 0.1s ease-in-out;
   background-color: var(--bkg);
   border-bottom-color: var(--bottom-border-clr);
 }
@@ -435,9 +445,12 @@
   border: none;
 }
 
-.projector.probe.indicated .closure:has(.value.cursor),
-.projector.probe .closure:hover {
+.projector.probe .closure:hover,
+.projector.probe.indicated .closure:has(.value.cursor) {
   outline-color: var(--exp-indicated);
+}
+.projector.probe.indicated:has(*:focus) .closure:has(.value.cursor) {
+  outline-color: var(--R1);
 }
 /* .projector.probe.indicated.Pat .closure:has(.value.cursor),
 .projector.probe.Pat .closure:hover {
@@ -445,7 +458,7 @@
 } */
 .projector.probe.indicated .closure:has(.value.cursor.ap),
 .projector.probe.Exp .closure:has(.value.ap):hover {
-  outline-color: var(--exp-ap-indicated);
+  /* outline-color: var(--exp-ap-indicated); */
 }
 .projector.probe .closure:hover {
   z-index: var(--projector-indicated-z);

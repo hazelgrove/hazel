@@ -139,13 +139,13 @@ let view_wrapper =
       Attr.classes(projector_clss(status)),
       /* Stopping propagation here is stops the base editor's
        * drag-select interaction from being triggered */
-      Attr.on_pointerdown(_ =>
+      Attr.on_pointerdown(_ => {
         Effect.Many([
           Effect.Stop_propagation,
           make_active,
           inject(Project(Focus(id, kind, None))),
         ])
-      ),
+      }),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
     views,
@@ -243,16 +243,20 @@ let split_views =
       views.offside
       |> Option.map(offside_wrapper(font_metrics, offside_base))
       |> Option.to_list;
-    wrapper(inline_view @ offside_view);
+    wrapper(
+      inline_view
+      @ [backing_deco(~font_metrics, ~measurement, p)]
+      @ offside_view,
+    );
   };
   let overlay_view = Option.map(v => wrapper([v]), views.overlay);
-  let underlay_view =
+  let _underlay_view =
     switch (views.underlay) {
     | Some(v) => wrapper([v])
     | None => wrapper([backing_deco(~font_metrics, ~measurement, p)])
     };
 
-  (underlay_view, line_view, overlay_view);
+  (Node.text(""), line_view, overlay_view);
 };
 
 /* Is the piece with id indicated? If so, where is it wrt the caret? */

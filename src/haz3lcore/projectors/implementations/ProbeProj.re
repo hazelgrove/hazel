@@ -20,6 +20,7 @@ type action =
   | ChangeLength(Id.t, int)
   | MoveCursor(int)
   | ToggleShowAllVals(int)
+  | NoOp
   | PinAp;
 
 let init = {display_lengths: Id.Map.empty};
@@ -697,38 +698,46 @@ let move_cursor = (info: info, offset: int): unit =>
   | None => ()
   };
 
-let key_handler = (local, info: info, ~parent, evt) => {
+let key_handler = (local, info: info, _, evt) => {
   print_endline("key_handler");
   open Effect;
   let key = Key.mk(KeyDown, evt);
-
   switch (key.key) {
-  | D("ArrowRight") when key.shift == Down =>
-    print_endline("ArrowRight Shift");
-    //move_cursor(info, -1);
-    Many([Stop_propagation, local(MoveCursor(-1))]);
-  | D("ArrowLeft") when key.shift == Down =>
-    print_endline("ArrowLeft Shift");
-    //move_cursor(info, 1);
-    Many([Stop_propagation, local(MoveCursor(1))]);
-  // | D("ArrowRight" | "ArrowDown") =>
-  //   print_endline("ArrowRight");
-  //   JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
-  //   Many([parent(Escape(Right)), Stop_propagation]);
-  // | D("ArrowLeft" | "ArrowUp") =>
-  //   print_endline("ArrowLeft");
-  //   JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
-  //   Many([parent(Escape(Left)), Stop_propagation]);
-  /* Defer to parent editor undo for now */
-  // | D("z" | "Z" | "y" | "Y") when Key.ctrl_held(evt) || Key.meta_held(evt) =>
-  //   Many([Prevent_default])
-  // | D("z" | "Z")
-  //     when Key.shift_held(evt) && (Key.ctrl_held(evt) || Key.meta_held(evt)) =>
-  //   Many([Prevent_default])
-  // | D("\"") =>
-  //   /* Hide quotes from both the textarea and parent editor */
-  //   Many([Prevent_default, Stop_propagation])
+  | D("Escape") =>
+    JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
+    Ignore;
+  | D("ArrowRight") /*when key.shift == Down*/ =>
+    move_cursor(info, -1);
+    Many([local(NoOp), Stop_propagation]); // trigger redraw
+  | D("ArrowLeft") /*when key.shift == Down*/ =>
+    move_cursor(info, 1);
+    Many([local(NoOp), Stop_propagation]); // trigger redraw
+  | D(" ") =>
+    Window.toggle_mode();
+    Many([local(NoOp), Stop_propagation]); // trigger redraw
   | _ => Stop_propagation
+  };
+};
+
+let update = (m: model, info: info, a: action) => {
+  switch (a) {
+  | ChangeLength(id, len) =>
+    if (len > (-1)) {
+      {display_lengths: Id.Map.add(id, len, m.display_lengths)};
+    } else {
+      m;
+    }
+  | ToggleShowAllVals(_) =>
+    Window.toggle_mode();
+    m;
+  | MoveCursor(offset) =>
+    move_cursor(info, offset);
+    m;
+  | PinAp =>
+    /* Pin a function call, filtering the cells in other probes */
+    DynCursor.toggle_pinned_call(info);
+    m;
+  | NoOp => m
   };
 };
 
@@ -737,7 +746,7 @@ let view = (local, parent, info: info): Node.t =>
     ~attrs=[
       Attr.id(Id.cls(info.id)),
       Attr.tabindex(0),
-      Attr.on_keydown(key_handler(local, info, ~parent)),
+      Attr.on_keydown(key_handler(local, info, parent)),
       Attr.classes(
         ["main"]
         @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
@@ -747,6 +756,11 @@ let view = (local, parent, info: info): Node.t =>
       Attr.on_pointerdown(_ => {
         /* Select a default cell if one is not already selected */
         DynCursor.probe_default(info);
+        Effect.Ignore;
+      }),
+      Attr.on_pointerup(_ => {
+        //blur:
+        JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
         Effect.Ignore;
       }),
     ],
@@ -764,42 +778,6 @@ let overlay_view = (info: info): Node.t =>
     ],
     [num_closures_view(info)] @ pin_view(info),
   );
-
-let update = (m: model, info: info, a: action) => {
-  switch (a) {
-  | ChangeLength(id, len) =>
-    if (len > (-1)) {
-      {display_lengths: Id.Map.add(id, len, m.display_lengths)};
-    } else {
-      m;
-    }
-  | ToggleShowAllVals(_) =>
-    Window.toggle_mode();
-    m;
-  | MoveCursor(offset) =>
-    //move_cursor(info, offset);
-    switch (info.dynamics) {
-    | Some(closures) =>
-      let closures = Closures.filter_frames_by_pin(info, closures);
-      let cursor_idx = DynCursor.first_index_of_interest(info, closures);
-      switch (cursor_idx) {
-      /* Cursor would be outside window, reset to next visible closure */
-      | Some(idx) =>
-        let next_idx_maybe = idx - offset;
-        if (next_idx_maybe >= 0 && next_idx_maybe < List.length(closures)) {
-          DynCursor.capture_cursor(List.nth(closures, next_idx_maybe));
-        };
-      | _ => ()
-      };
-    | None => ()
-    };
-    m;
-  | PinAp =>
-    /* Pin a function call, filtering the cells in other probes */
-    DynCursor.toggle_pinned_call(info);
-    m;
-  };
-};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type m = model;
