@@ -94,6 +94,9 @@ and exp_term =
      two consistent types. Both types should be normalized in
      dynamics for the cast calculus to work right. */
   | Cast(exp_t, typ_t, typ_t)
+  | Label(string)
+  | TupLabel(exp_t, exp_t)
+  | Dot(exp_t, exp_t)
 and exp_t = IdTagged.t(exp_term)
 and pat_term =
   | Invalid(string)
@@ -112,6 +115,8 @@ and pat_term =
   | Parens(pat_t)
   | Ap(pat_t, pat_t)
   | Cast(pat_t, typ_t, typ_t)
+  | Label(string)
+  | TupLabel(pat_t, pat_t)
 and pat_t = IdTagged.t(pat_term)
 and typ_term =
   | Unknown(type_provenance)
@@ -128,6 +133,8 @@ and typ_term =
   | Ap(typ_t, typ_t)
   | Rec(tpat_t, typ_t)
   | Forall(tpat_t, typ_t)
+  | Label(string)
+  | TupLabel(typ_t, typ_t)
 and typ_t = IdTagged.t(typ_term)
 and tpat_term =
   | Invalid(string)
@@ -292,6 +299,7 @@ and Exp: {
         | Float(_)
         | Constructor(_)
         | String(_)
+        | Label(_)
         | Deferral(_)
         | Var(_)
         | Undefined => term
@@ -308,7 +316,10 @@ and Exp: {
             f,
           )
         | TypFun(tp, e, f) => TypFun(tpat_map_term(tp), exp_map_term(e), f)
+        | TupLabel(label, e) =>
+          TupLabel(exp_map_term(label), exp_map_term(e))
         | Tuple(xs) => Tuple(List.map(exp_map_term, xs))
+        | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
         | FixF(p, e, env) => FixF(pat_map_term(p), exp_map_term(e), env)
@@ -367,6 +378,7 @@ and Exp: {
     | (Int(i1), Int(i2)) => i1 == i2
     | (Float(f1), Float(f2)) => f1 == f2
     | (String(s1), String(s2)) => s1 == s2
+    | (Label(s1), Label(s2)) => s1 == s2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Constructor(c1, ty1), Constructor(c2, ty2)) =>
@@ -426,6 +438,10 @@ and Exp: {
          )
     | (Cast(e1, t1, t2), Cast(e2, t3, t4)) =>
       fast_equal(e1, e2) && Typ.fast_equal(t1, t3) && Typ.fast_equal(t2, t4)
+    | (TupLabel(e1, e2), TupLabel(e3, e4)) =>
+      fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (Dot(e1, e2), Dot(e3, e4)) =>
+      fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Invalid(_), _)
     | (FailedCast(_), _)
     | (Deferral(_), _)
@@ -433,11 +449,14 @@ and Exp: {
     | (Int(_), _)
     | (Float(_), _)
     | (String(_), _)
+    | (Label(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
     | (Fun(_), _)
     | (TypFun(_), _)
     | (Tuple(_), _)
+    | (TupLabel(_), _)
+    | (Dot(_), _)
     | (Var(_), _)
     | (Let(_), _)
     | (FixF(_), _)
@@ -515,12 +534,15 @@ and Pat: {
         | Float(_)
         | Constructor(_)
         | String(_)
+        | Label(_)
         | Var(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | ListLit(ts) => ListLit(List.map(pat_map_term, ts))
         | Ap(e1, e2) => Ap(pat_map_term(e1), pat_map_term(e2))
         | Cons(e1, e2) => Cons(pat_map_term(e1), pat_map_term(e2))
         | Tuple(xs) => Tuple(List.map(pat_map_term, xs))
+        | TupLabel(label, e) =>
+          TupLabel(pat_map_term(label), pat_map_term(e))
         | Parens(e) => Parens(pat_map_term(e))
         | Cast(e, t1, t2) =>
           Cast(pat_map_term(e), typ_map_term(t1), typ_map_term(t2))
@@ -543,6 +565,7 @@ and Pat: {
     | (Int(i1), Int(i2)) => i1 == i2
     | (Float(f1), Float(f2)) => f1 == f2
     | (String(s1), String(s2)) => s1 == s2
+    | (Label(s1), Label(s2)) => s1 == s2
     | (Constructor(c1, t1), Constructor(c2, t2)) =>
       c1 == c2 && Typ.fast_equal(t1, t2)
     | (Var(v1), Var(v2)) => v1 == v2
@@ -550,6 +573,8 @@ and Pat: {
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Cons(x1, y1), Cons(x2, y2)) =>
       fast_equal(x1, x2) && fast_equal(y1, y2)
+    | (TupLabel(label1, d1'), TupLabel(label2, d2')) =>
+      fast_equal(label1, label2) && fast_equal(d1', d2')
     | (Tuple(xs), Tuple(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Ap(x1, y1), Ap(x2, y2)) => fast_equal(x1, x2) && fast_equal(y1, y2)
@@ -563,10 +588,12 @@ and Pat: {
     | (Int(_), _)
     | (Float(_), _)
     | (String(_), _)
+    | (Label(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
     | (Cons(_), _)
     | (Var(_), _)
+    | (TupLabel(_), _)
     | (Tuple(_), _)
     | (Ap(_), _)
     | (Cast(_), _) => false
@@ -631,12 +658,15 @@ and Typ: {
         | Int
         | Float
         | String
+        | Label(_)
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>
           Unknown(Hole(MultiHole(List.map(any_map_term, things))))
         | Ap(e1, e2) => Ap(typ_map_term(e1), typ_map_term(e2))
         | Prod(xs) => Prod(List.map(typ_map_term, xs))
+        | TupLabel(label, e) =>
+          TupLabel(typ_map_term(label), typ_map_term(e))
         | Parens(e) => Parens(typ_map_term(e))
         | Arrow(t1, t2) => Arrow(typ_map_term(t1), typ_map_term(t2))
         | Sum(variants) =>
@@ -666,10 +696,12 @@ and Typ: {
       | Float => Float |> rewrap
       | Bool => Bool |> rewrap
       | String => String |> rewrap
+      | Label(name) => Label(name) |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
       | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
+      | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
       | Sum(sm) =>
         Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
       | Forall(tp2, ty)
@@ -695,6 +727,9 @@ and Typ: {
     switch (IdTagged.term_of(t1), IdTagged.term_of(t2)) {
     | (Parens(t1), _) => eq_internal(n, t1, t2)
     | (_, Parens(t2)) => eq_internal(n, t1, t2)
+    | (TupLabel(label1, t1'), TupLabel(label2, t2')) =>
+      eq_internal(n, label1, label2) && eq_internal(n, t1', t2')
+    | (TupLabel(_), _) => false
     | (Rec(x1, t1), Rec(x2, t2))
     | (Forall(x1, t1), Forall(x2, t2)) =>
       let alpha_subst =
@@ -714,6 +749,9 @@ and Typ: {
     | (Bool, _) => false
     | (String, String) => true
     | (String, _) => false
+    | (Label(name1), Label(name2)) =>
+      LabeledTuple.match_labels(name1, name2)
+    | (Label(_), _) => false
     | (Ap(t1, t2), Ap(t1', t2')) =>
       eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
     | (Ap(_), _) => false

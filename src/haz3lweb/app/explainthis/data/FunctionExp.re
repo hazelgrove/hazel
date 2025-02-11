@@ -77,6 +77,11 @@ let tuple3_fun_ex = {
   term: mk_example("fun (a, b, c) ->\na && b && c"),
   message: "When given a 3-tuple of booleans, the function evaluates to the logical-and of the three booleans.",
 };
+let tuplabel_fun_ex = {
+  sub_id: Fun(TupLabel),
+  term: mk_example("(fun x=y, y=z -> y)\n(1, 2)"),
+  message: "When given a 2-tuple of elements, the function evaluates to the first element (not the second).",
+};
 let ctr_fun_ex = {
   sub_id: Fun(Ctr),
   term: mk_example("fun None -> 1"),
@@ -311,6 +316,36 @@ let function_var_exp: form = {
     examples: [basic_fun_ex, var_incr_fun_ex, var_and_fun_ex],
   };
 };
+
+let lp' = labeled_pat();
+let exp' = exp("e");
+let label = pat("x");
+let pat' = pat("y");
+let function_labeled_exp_coloring_ids =
+    (~label_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => {
+  [
+    (Piece.id(label), label_id),
+    (Piece.id(pat'), pat_id),
+    (Piece.id(exp'), body_id),
+  ];
+};
+
+let function_labeled_exp: form = {
+  let explanation = "A function with one [*labeled argument*]. Only labeled arguments that match the [*label*](%s) 'x' are accepted, and are bound to the [*parameter*](%s) 'y' in the function [*body*](%s).";
+  let form = [
+    mk_fun([[space(), label, lp', pat', space()]]),
+    space(),
+    exp',
+  ];
+  {
+    id: FunctionExp(TupLabel),
+    syntactic_form: form,
+    expandable_id:
+      Some((Piece.id(lp'), [pat("x"), labeled_pat(), pat("y")])),
+    explanation,
+    examples: [tuplabel_fun_ex],
+  };
+};
 let _comma = comma_pat();
 let _exp = exp("e");
 let function_tuple_exp_coloring_ids =
@@ -499,6 +534,11 @@ let functions_cons = {
 let functions_var = {
   id: FunctionExp(Var),
   forms: [function_var_exp, function_exp],
+};
+
+let functions_tuplabel = {
+  id: FunctionExp(TupLabel),
+  forms: [function_labeled_exp, function_exp],
 };
 
 let functions_tuple = {

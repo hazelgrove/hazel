@@ -67,6 +67,7 @@ type step_kind =
   | BinIntOp(Operators.op_bin_int)
   | BinFloatOp(Operators.op_bin_float)
   | BinStringOp(Operators.op_bin_string)
+  | Dot
   | Conditional(bool)
   | Projection
   | ListCons
@@ -443,6 +444,7 @@ module Transition = (EV: EV_MODE) => {
     | Int(_)
     | Float(_)
     | String(_)
+    | Label(_)
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
@@ -642,6 +644,36 @@ module Transition = (EV: EV_MODE) => {
         kind: BinStringOp(op),
         is_value: true,
       });
+    | Dot(d1, d2) =>
+      let. _ = otherwise(env, (d1, d2) => Dot(d1, d2) |> rewrap)
+      and. d1' =
+        req_final(req(state, env), d1 => Dot1(d1, d2) |> wrap_ctx, d1)
+      and. d2' =
+        req_final(req(state, env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
+      switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
+      | (Tuple(ds), Label(name)) =>
+        switch (LabeledTuple.find_label(Exp.match_tup_label, ds, name)) {
+        | Some({term: TupLabel(_, exp), _}) =>
+          Step({expr: exp, state_update, kind: Dot, is_value: false})
+        | _ => Indet
+        }
+      | (TupLabel(_, d), Label(name)) =>
+        LabeledTuple.has_same_labels(
+          Exp.match_tup_label(d1'),
+          Some((name, d)),
+        )
+          ? Step({expr: d, state_update, kind: Dot, is_value: false}) : Indet
+      | _ => Indet
+      };
+    | TupLabel(label, d1) =>
+      let. _ = otherwise(env, d1 => TupLabel(label, d1) |> rewrap)
+      and. _ =
+        req_final(
+          req(state, env),
+          d1 => TupLabel(label, d1) |> wrap_ctx,
+          d1,
+        );
+      Constructor;
     | Tuple(ds) =>
       let. _ = otherwise(env, ds => Tuple(ds) |> rewrap)
       and. _ =
@@ -804,6 +836,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | BinIntOp(_)
   | BinFloatOp(_)
   | BinStringOp(_)
+  | Dot
   | UnOp(_)
   | ListCons
   | ListConcat
@@ -862,4 +895,5 @@ let stepper_justification: step_kind => string =
   | WrapClosure => "wrap closure"
   | RemoveTypeAlias => "define type"
   | RemoveParens => "remove parentheses"
+  | Dot => "Labeled tuple access"
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");
