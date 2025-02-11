@@ -62,12 +62,12 @@ let view =
           Printf.sprintf(
             "width: %fpx; height: %fpx;",
             font_metrics.col_width,
-            font_metrics.row_height,
+            font_metrics.col_width //font_metrics.row_height,
           ),
         ),
         Attr.create(
           "viewBox",
-          Printf.sprintf("%f %f %f %f", 0., 0., 1., 1.),
+          Printf.sprintf("%f %f %f %f", 0., 0.3, 1., 0.4),
         ),
         Attr.create("preserveAspectRatio", "none"),
       ],

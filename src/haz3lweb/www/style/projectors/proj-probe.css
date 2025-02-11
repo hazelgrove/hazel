@@ -181,10 +181,14 @@
 
 /* OFFSIDE VIEW */
 
+.projector.probe div:has(.live-offside) {
+  top: 0;
+}
+
 .projector.probe .live-offside {
   display: flex;
   flex-direction: row;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
 }
 .projector.probe .live-offside:empty {
@@ -524,6 +528,10 @@
   /* color: var(--R2) !important; */
   color: white;
   filter: none !important;
+}
+
+.projector.probe .value.indet.cursor .code-text .token {
+  color: grey;
 }
 
 .projector.probe .value.cursor .code-text .token {

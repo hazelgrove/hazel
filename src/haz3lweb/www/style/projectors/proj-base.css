@@ -16,6 +16,10 @@
   justify-content: center;
   align-items: center;
   color: var(--BR2);
+  z-index: var(--projector-z);
+}
+
+.projector > svg {
   z-index: var(--projector-underlay-z);
 }
 
