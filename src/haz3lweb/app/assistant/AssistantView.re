@@ -131,7 +131,7 @@ let message_input =
       party: assistantModel.currSender,
       code: None,
       content: message,
-      collapsed: String.length(message) >= 20,
+      collapsed: String.length(message) >= 200,
     };
     JsUtil.log("Message sent: " ++ message.content);
     Virtual_dom.Vdom.Effect.Many([
@@ -258,6 +258,7 @@ let message_display =
                       ],
                       [
                         message.collapsed
+                        && String.length(message.content) >= 200
                           ? text(
                               String.concat(
                                 "",
