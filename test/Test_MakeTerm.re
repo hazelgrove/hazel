@@ -22,6 +22,9 @@ let tests = (
     test_case("Integer Literal", `Quick, () => {
       exp_check(Int(0) |> Exp.fresh, "0")
     }),
+    test_case("Float literal", `Quick, () => {
+      exp_check(Float(2.000000) |> Exp.fresh, "2.000000")
+    }),
     test_case("Empty Hole", `Quick, () => {
       exp_check(EmptyHole |> Exp.fresh, "?")
     }),
@@ -225,5 +228,8 @@ let tests = (
         "(1=3)",
       )
     ),
+    test_case("Scientific notation floating point", `Quick, () => {
+      exp_check(Float(1.2e30) |> Exp.fresh, "1.2e30")
+    }),
   ],
 );
