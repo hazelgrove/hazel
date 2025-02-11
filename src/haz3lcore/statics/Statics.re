@@ -370,8 +370,8 @@ and uexp_to_info_map =
     // TODO: factor out code
     let unwrapped_self: Self.exp =
       Common(Just(Arrow(p.ty, e.ty) |> Typ.temp));
-    let Incon.{is_exhaustive, _} =
-      Incon.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
+    let Coverage.{is_exhaustive, _} =
+      Coverage.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
     let self =
       is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
     add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
@@ -457,8 +457,8 @@ and uexp_to_info_map =
       );
     // TODO: factor out code
     let unwrapped_self: Self.exp = Common(Just(body.ty));
-    let Incon.{is_exhaustive, _} =
-      Incon.check(
+    let Coverage.{is_exhaustive, _} =
+      Coverage.check(
         [Info.pat_constraint(p_ana)],
         Typ.normalize(ctx, p_ana.ty),
       );
@@ -532,7 +532,7 @@ and uexp_to_info_map =
     print_endline("Second pass");
     let (constraints, m) =
       List.fold_left(
-        ((constraints: list(Constraint.t), m: Map.t), (p, co_ctx)) => {
+        ((constraints: list(Coverage.Constraint.t), m: Map.t), (p, co_ctx)) => {
           let (info, m) =
             go_pat(
               ~is_synswitch=false,
@@ -550,11 +550,11 @@ and uexp_to_info_map =
     let constraints = List.rev(constraints);
 
     let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
-    let x = [%derive.show: list(Constraint.t)](constraints);
+    let x = [%derive.show: list(Coverage.Constraint.t)](constraints);
     print_endline("Calling check with: " ++ x);
-    let Incon.{is_exhaustive, redundant_rows} as check_result =
-      Incon.check(constraints, normalized_scrut_ty);
-    print_endline("Final result: " ++ Incon.show_result(check_result));
+    let Coverage.{is_exhaustive, redundant_rows} as check_result =
+      Coverage.check(constraints, normalized_scrut_ty);
+    print_endline("Final result: " ++ Coverage.show_result(check_result));
     let self =
       is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
     print_endline("Third pass");
@@ -701,32 +701,33 @@ and upat_to_info_map =
         ),
       (ctx, [], [], m),
     );
-  let hole = self => atomic(self, Constraint.Hole);
+  let hole = self => atomic(self, Coverage.Constraint.Hole);
   switch (term) {
   | MultiHole(tms) =>
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
-    add(~self=IsMulti, ~ctx, ~constraint_=Constraint.Hole, m);
+    add(~self=IsMulti, ~ctx, ~constraint_=Coverage.Constraint.Hole, m);
   | Invalid(token) => hole(BadToken(token))
   | EmptyHole => hole(Just(unknown))
-  | Int(int) => atomic(Just(Int |> Typ.temp), Constraint.Int(int))
+  | Int(int) => atomic(Just(Int |> Typ.temp), Coverage.Constraint.Int(int))
   | Float(float) =>
-    atomic(Just(Float |> Typ.temp), Constraint.Float(float))
-  | Tuple([]) => atomic(Just(Prod([]) |> Typ.temp), Constraint.Tuple([]))
+    atomic(Just(Float |> Typ.temp), Coverage.Constraint.Float(float))
+  | Tuple([]) =>
+    atomic(Just(Prod([]) |> Typ.temp), Coverage.Constraint.Tuple([]))
   | Bool(bool) =>
     atomic(
       Just(Bool |> Typ.temp),
-      bool ? Constraint.true_ : Constraint.false_,
+      bool ? Coverage.Constraint.true_ : Coverage.Constraint.false_,
     )
   | String(string) =>
-    atomic(Just(String |> Typ.temp), Constraint.String(string))
+    atomic(Just(String |> Typ.temp), Coverage.Constraint.String(string))
   | ListLit(ps) =>
     let ids = List.map(Pat.rep_id, ps);
     let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
     let (ctx, tys, cons, m) = ctx_fold(ctx, m, ps, modes);
     let rec cons_fold_list = cs =>
       switch (cs) {
-      | [] => Constraint.nil
-      | [hd, ...tl] => Constraint.cons(hd, cons_fold_list(tl))
+      | [] => Coverage.Constraint.nil
+      | [hd, ...tl] => Coverage.Constraint.cons(hd, cons_fold_list(tl))
       };
     add(
       ~self=Self.listlit(~empty=unknown, ctx, tys, ids),
@@ -741,10 +742,10 @@ and upat_to_info_map =
     add(
       ~self=Just(List(hd.ty) |> Typ.temp),
       ~ctx=tl.ctx,
-      ~constraint_=Constraint.cons(hd.constraint_, tl.constraint_),
+      ~constraint_=Coverage.Constraint.cons(hd.constraint_, tl.constraint_),
       m,
     );
-  | Wild => atomic(Just(unknown), Constraint.Truth)
+  | Wild => atomic(Just(unknown), Coverage.Constraint.Truth)
   | Var(name) =>
     /* NOTE: The self type assigned to pattern variables (Unknown)
        may be SynSwitch, but SynSwitch is never added to the context;
@@ -759,7 +760,7 @@ and upat_to_info_map =
     add(
       ~self=Just(unknown),
       ~ctx=Ctx.extend(ctx, entry),
-      ~constraint_=Constraint.Truth,
+      ~constraint_=Coverage.Constraint.Truth,
       m,
     );
   | Tuple(ps) =>
@@ -768,7 +769,7 @@ and upat_to_info_map =
     add(
       ~self=Just(Prod(tys) |> Typ.temp),
       ~ctx,
-      ~constraint_=Constraint.Tuple(cons),
+      ~constraint_=Coverage.Constraint.Tuple(cons),
       m,
     );
   | Parens(p) =>
@@ -777,7 +778,7 @@ and upat_to_info_map =
   | Constructor(ctr, _) =>
     let self = Self.of_ctr(ctx, ctr, mode);
     print_endline("Self: " ++ Self.show(self));
-    atomic(self, Constraint.Ap(ctr, None));
+    atomic(self, Coverage.Constraint.Ap(ctr, None));
   | Ap(fn, arg) =>
     let ctr = Pat.ctr_name(fn);
     print_endline("ctr: " ++ [%derive.show: option(string)](ctr));
@@ -788,7 +789,7 @@ and upat_to_info_map =
         | Some({term: Arrow(ty_in, ty_out), _} as fn_ty) =>
           let (fn, m) = go(~ctx, ~mode=Mode.of_ap(ctx, mode, ctr), fn, m);
           let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
-          let constraint_ = Constraint.Ap(ctr, Some(arg.constraint_));
+          let constraint_ = Coverage.Constraint.Ap(ctr, Some(arg.constraint_));
           add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
         | Some(_) => failwith("TODO: constructor does not take an argument")
         | None => failwith("TODO: constructor not found")
@@ -803,8 +804,8 @@ and upat_to_info_map =
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
     let constraint_ =
       switch (ctr) {
-      | Some(ctr) => Constraint.Ap(ctr, Some(arg.constraint_))
-      | None => Constraint.Hole
+      | Some(ctr) => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
+      | None => Coverage.Constraint.Hole
       };
     add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
   | Cast(p, ann, _) =>

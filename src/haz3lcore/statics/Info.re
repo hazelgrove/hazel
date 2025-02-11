@@ -215,7 +215,7 @@ type pat = {
   cls: Cls.t,
   status: status_pat,
   ty: Typ.t,
-  constraint_: Constraint.t,
+  constraint_: Coverage.Constraint.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -317,7 +317,8 @@ let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
 let pat_ty: pat => Typ.t = ({ty, _}) => ty;
-let pat_constraint: pat => Constraint.t = ({constraint_, _}) => constraint_;
+let pat_constraint: pat => Coverage.Constraint.t =
+  ({constraint_, _}) => constraint_;
 
 let rec status_common =
         (ctx: Ctx.t, mode: Mode.t, self: Self.t): status_common =>
@@ -590,9 +591,9 @@ let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t => {
 //       ctx,
 //       mode: Mode.t,
 //       self: Self.pat,
-//       constraint_: Constraint.t,
+//       constraint_: Coverage.Constraint.t,
 //     )
-//     : Constraint.t =>
+//     : Coverage.Constraint.t =>
 //   switch (upat.term) {
 //   | Cast(_) => constraint_
 //   | _ =>
