@@ -85,10 +85,9 @@ module Ctr = {
       }
     };
 
-  let all_ctrs_of_typ = (ty: Typ.t): all_ctrs =>
+  let rec all_ctrs_of_typ = (ty: Typ.t): all_ctrs =>
     switch (ty.term) {
-    | Sum(map)
-    | Rec(_, {term: Sum(map), _}) =>
+    | Sum(map) =>
       Finite(
         map
         |> List.filter_map(
@@ -101,6 +100,7 @@ module Ctr = {
            )
         |> Map.of_list,
       )
+    | Rec(_) => all_ctrs_of_typ(Typ.unroll(ty))
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
     | List(elt_ty) =>
@@ -119,9 +119,10 @@ module Ctr = {
     | Forall(_) => Infinite
     | Var(_)
     | Parens(_)
-    | Ap(_)
-    | Rec(_) =>
-      failwith("all_ctrs_of_type called with a non-normalized type.")
+    | Ap(_) =>
+      failwith(
+        "all_ctrs_of_type called with a non-normalized type: " ++ Typ.show(ty),
+      )
     };
 
   let seen_all_ctrs = (seen_ctrs, all_ctrs: all_ctrs) => {
