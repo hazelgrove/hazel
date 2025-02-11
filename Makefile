@@ -64,7 +64,7 @@ test:
 	node $(TEST_DIR)/haz3ltest.bc.js
 
 watch-test:
-	dune build @ocaml-index @fmt @runtest --auto-promote --watch
+	dune build @ocaml-index @fmt @runtest @default --profile dev --auto-promote --watch
 
 coverage:
 	dune build @src/fmt @test/fmt --auto-promote src test --profile dev

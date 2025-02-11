@@ -52,6 +52,14 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
     matches(p2, d2);
   | Ap(_, _) => IndetMatch // TODO: should this fail?
   | Var(x) => Matches(Environment.singleton((x, d)))
+  /* Labels are a special case */
+  | Label(name) =>
+    let* name' = Unboxing.unbox(Label, d);
+    LabeledTuple.match_labels(name, name')
+      ? Matches(Environment.empty) : DoesNotMatch;
+  | TupLabel(_, x) =>
+    let* x' = Unboxing.unbox(TupLabel(dp), d);
+    matches(x, x');
   | Tuple(ps) =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
     List.map2(matches, ps, ds)

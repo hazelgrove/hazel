@@ -44,7 +44,9 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | EmptyHole
   | Deferral(_)
   | BuiltinFun(_)
-  | Undefined => Precedence.max
+  | Undefined
+  | Label(_)
+  | TupLabel(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
   | Parens(_)
@@ -72,6 +74,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | FixF(_) => Precedence.fun_
   | Tuple(_) => Precedence.prod
   | Seq(_) => Precedence.semi
+  | Dot(_) => Precedence.dot
 
   // Top-level things
   | Filter(_)
@@ -94,7 +97,9 @@ let external_precedence_pat = (dp: Pat.t) =>
   | Float(_)
   | Bool(_)
   | String(_)
-  | Constructor(_) => Precedence.max
+  | Constructor(_)
+  | Label(_)
+  | TupLabel(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
   | ListLit(_)
@@ -122,14 +127,16 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Int
   | Float
   | Bool
-  | String => Precedence.max
+  | String
+  | Label(_)
+  | TupLabel(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
   | Parens(_)
   | List(_) => Precedence.max
 
   // Other forms
-  | Prod(_) => Precedence.type_prod
+  | Prod(_) => Precedence.comma
   | Ap(_) => Precedence.type_sum_ap
   | Arrow(_, _) => Precedence.type_arrow
   | Sum(_) => Precedence.type_plus
@@ -166,7 +173,8 @@ let paren_typ_assoc_at =
   external_precedence_typ(typ) > internal_precedence
     ? Typ.fresh(Parens(typ)) : typ;
 
-let rec parenthesize = (~show_filters: bool, exp: Exp.t): Exp.t => {
+let rec parenthesize =
+        (~show_filters: bool, ~already_paren=false, exp: Exp.t): Exp.t => {
   let parenthesize = parenthesize(~show_filters);
   let parenthesize_pat = parenthesize_pat(~show_filters);
   let parenthesize_typ = parenthesize_typ(~show_filters);
@@ -183,12 +191,12 @@ let rec parenthesize = (~show_filters: bool, exp: Exp.t): Exp.t => {
   //| Constructor(_) // Not indivisible because of the type annotation!
   | Deferral(_)
   | BuiltinFun(_)
+  | Tuple([])
   | Undefined => exp
 
   // Forms that currently need to stripped before outputting
   | Closure(_, x)
-  | DynamicErrorHole(x, _)
-  | Tuple([x]) => parenthesize(x)
+  | DynamicErrorHole(x, _) => parenthesize(x)
   | Filter(Filter({pat, act}), x) =>
     Filter(Filter({pat: parenthesize(pat), act}), parenthesize(x))
     |> rewrap
@@ -208,10 +216,22 @@ let rec parenthesize = (~show_filters: bool, exp: Exp.t): Exp.t => {
     TypFun(tp, parenthesize(e) |> paren_assoc_at(Precedence.fun_), n)
     |> rewrap
   | Tuple(es) =>
-    Tuple(
-      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
-    )
-    |> rewrap
+    let inner =
+      Tuple(
+        es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
+      )
+      |> rewrap;
+
+    if (already_paren) {
+      inner;
+    } else {
+      Parens(inner) |> Exp.fresh;
+    };
+  | Label(_) => exp
+  | TupLabel(l, e) =>
+    TupLabel(l, parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
+  | Dot(e, l) =>
+    Dot(parenthesize(e) |> paren_at(Precedence.min), l) |> rewrap
   | ListLit(es) =>
     ListLit(
       es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
@@ -299,9 +319,14 @@ let rec parenthesize = (~show_filters: bool, exp: Exp.t): Exp.t => {
   //   )
   //   |> rewrap
   | Parens(e) =>
-    Parens(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
+    Parens(parenthesize(~already_paren=true, e) |> paren_at(Precedence.min))
+    |> rewrap
   | Probe(e, pr) =>
-    Probe(parenthesize(e) |> paren_at(Precedence.min), pr) |> rewrap
+    Probe(
+      parenthesize(~already_paren=true, e) |> paren_at(Precedence.min),
+      pr,
+    )
+    |> rewrap
   | Cons(e1, e2) =>
     Cons(
       parenthesize(e1) |> paren_at(Precedence.cons),
@@ -356,7 +381,8 @@ let rec parenthesize = (~show_filters: bool, exp: Exp.t): Exp.t => {
     MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
   };
 }
-and parenthesize_pat = (~show_filters: bool, pat: Pat.t): Pat.t => {
+and parenthesize_pat =
+    (~show_filters: bool, ~already_paren=false, pat: Pat.t): Pat.t => {
   let parenthesize_pat = parenthesize_pat(~show_filters);
   let parenthesize_typ = parenthesize_typ(~show_filters);
   let (term, rewrap) = Pat.unwrap(pat);
@@ -374,9 +400,18 @@ and parenthesize_pat = (~show_filters: bool, pat: Pat.t): Pat.t => {
   // Other forms
   | Wild => pat
   | Parens(p) =>
-    Parens(parenthesize_pat(p) |> paren_pat_at(Precedence.min)) |> rewrap
+    Parens(
+      parenthesize_pat(~already_paren=true, p)
+      |> paren_pat_at(Precedence.min),
+    )
+    |> rewrap
   | Probe(p, pr) =>
-    Probe(parenthesize_pat(p) |> paren_pat_at(Precedence.min), pr) |> rewrap
+    Probe(
+      parenthesize_pat(~already_paren=true, p)
+      |> paren_pat_at(Precedence.min),
+      pr,
+    )
+    |> rewrap
   | Cons(p1, p2) =>
     Cons(
       parenthesize_pat(p1) |> paren_pat_at(Precedence.cons),
@@ -384,11 +419,17 @@ and parenthesize_pat = (~show_filters: bool, pat: Pat.t): Pat.t => {
     )
     |> rewrap
   | Tuple(ps) =>
-    Tuple(
-      ps
-      |> List.map(parenthesize_pat)
-      |> List.map(paren_pat_at(Precedence.prod)),
-    )
+    let inner =
+      Tuple(
+        ps
+        |> List.map(parenthesize_pat)
+        |> List.map(paren_pat_at(Precedence.prod)),
+      )
+      |> rewrap;
+    already_paren ? inner : Parens(inner) |> Pat.fresh;
+  | Label(_) => pat
+  | TupLabel(l, p) =>
+    TupLabel(l, parenthesize_pat(p) |> paren_pat_at(Precedence.min))
     |> rewrap
   | ListLit(ps) =>
     ListLit(
@@ -415,7 +456,8 @@ and parenthesize_pat = (~show_filters: bool, pat: Pat.t): Pat.t => {
   };
 }
 
-and parenthesize_typ = (~show_filters: bool, typ: Typ.t): Typ.t => {
+and parenthesize_typ =
+    (~show_filters: bool, ~already_paren=false, typ: Typ.t): Typ.t => {
   let parenthesize_typ = parenthesize_typ(~show_filters);
   let (term, rewrap) = Typ.unwrap(typ);
   switch (term) {
@@ -432,15 +474,25 @@ and parenthesize_typ = (~show_filters: bool, typ: Typ.t): Typ.t => {
 
   // Other forms
   | Parens(t) =>
-    Parens(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
+    Parens(
+      parenthesize_typ(~already_paren=true, t)
+      |> paren_typ_at(Precedence.min),
+    )
+    |> rewrap
   | List(t) =>
     List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
   | Prod(ts) =>
-    Prod(
-      ts
-      |> List.map(parenthesize_typ)
-      |> List.map(paren_typ_at(Precedence.type_prod)),
-    )
+    let inner =
+      Prod(
+        ts
+        |> List.map(parenthesize_typ)
+        |> List.map(paren_typ_at(Precedence.comma)),
+      )
+      |> rewrap;
+    already_paren ? inner : Parens(inner) |> Typ.fresh;
+  | Label(_) => typ
+  | TupLabel(l, t) =>
+    TupLabel(l, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
     |> rewrap
   | Ap(t1, t2) =>
     Ap(
@@ -800,7 +852,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     @ e
     |> fold_fun_if(settings.fold_fn_bodies, name);
   | Tuple([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()")
-  | Tuple([_]) => failwith("Singleton Tuples are not allowed")
+  | Tuple([{term: TupLabel(_), _} as le]) => go(le)
   | Tuple([x, ...xs]) =>
     // TODO: Add optional newlines
     let+ x = go(x)
@@ -810,6 +862,32 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     @ List.flatten(
         List.map2((id, x) => [mk_form("comma_exp", id, [])] @ x, ids, xs),
       );
+  | Label(l) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, l)
+  | TupLabel(l, e) =>
+    let* l = go(l)
+    and* e = go(e);
+
+    List.flatten([
+      l,
+      [
+        Tile({
+          id: exp |> Exp.rep_id,
+          label: ["="],
+          mold: Mold.mk_bin(Precedence.lab, Sort.Exp, []),
+          shards: [0],
+          children: [],
+        }),
+      ],
+      if (Form.begins_with_potential_operator(Segment.first_string(e))) {
+        [Secondary(Secondary.mk_space(Id.mk()))] @ e;
+      } else {
+        e;
+      },
+    ]);
+  | Dot(e, l) =>
+    let* e = go(e)
+    and* l = go(l);
+    List.flatten([e, [mk_form("dot_exp", exp |> Exp.rep_id, [])], l]);
   | Let(p, e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1044,7 +1122,6 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     and+ p2 = go(p2);
     p1 @ [mk_form("cons_pat", id, [])] @ p2;
   | Tuple([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "()")
-  | Tuple([_]) => failwith("Singleton Tuples are not allowed")
   | Tuple([x, ...xs]) =>
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
@@ -1053,6 +1130,27 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     @ List.flatten(
         List.map2((id, x) => [mk_form("comma_pat", id, [])] @ x, ids, xs),
       );
+  | TupLabel(l, p) =>
+    let* l = go(l)
+    and* p = go(p);
+    List.flatten([
+      l,
+      [
+        Tile({
+          id: pat |> Pat.rep_id,
+          label: ["="],
+          mold: Mold.mk_bin(Precedence.lab, Sort.Pat, []),
+          shards: [0],
+          children: [],
+        }),
+      ],
+      if (Form.begins_with_potential_operator(Segment.first_string(p))) {
+        [Secondary(Secondary.mk_space(Id.mk()))] @ p;
+      } else {
+        p;
+      },
+    ]);
+  | Label(l) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, l)
   | Parens(p) =>
     let id = pat |> Pat.rep_id;
     let+ p = go(p);
@@ -1131,7 +1229,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t = go(t);
     [mk_form("list_typ", id, [t])];
   | Prod([]) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "()")
-  | Prod([_]) => failwith("Singleton Prods are not allowed")
   | Prod([t, ...ts]) =>
     let+ t = go(t)
     and+ ts = ts |> List.map(go) |> all;
@@ -1143,6 +1240,28 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           ts,
         ),
       );
+  | Label(l) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, l)
+  | TupLabel(l, t) =>
+    let+ l = go(l)
+    and+ t = go(t);
+
+    List.flatten([
+      l,
+      [
+        Tile({
+          id: typ |> Typ.rep_id,
+          label: ["="],
+          mold: Mold.mk_bin(Precedence.lab, Sort.Typ, []),
+          shards: [0],
+          children: [],
+        }),
+      ],
+      if (Form.begins_with_potential_operator(Segment.first_string(t))) {
+        [Secondary(Secondary.mk_space(Id.mk()))] @ t;
+      } else {
+        t;
+      },
+    ]);
   | Parens(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);
@@ -1224,5 +1343,11 @@ let exp_to_segment = (~settings: Settings.t, exp: Exp.t): Segment.t => {
 let typ_to_segment = (~settings, typ: Typ.t): Segment.t => {
   let typ = parenthesize_typ(typ);
   let p = typ_to_pretty(~settings, typ(~show_filters=settings.show_filters));
+  p |> PrettySegment.select;
+};
+
+let any_to_segment = (~settings, any: Any.t): Segment.t => {
+  let any = any |> parenthesize_any;
+  let p = any_to_pretty(~settings, any(~show_filters=settings.show_filters));
   p |> PrettySegment.select;
 };

@@ -129,6 +129,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       available := available^ - 2; // for quotes in printed representation
       String(str);
     | Var(v) => Var(abbreviate_str(available^, v))
+    | Label(v) => Label(abbreviate_str(available^, v))
     | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)
 
     // Other atomic cases
@@ -156,6 +157,20 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         ListLit(abbreviate_seq(xs));
       }
     | Tuple([_, _, ..._] as xs) => Tuple(abbreviate_seq(xs))
+    | TupLabel(e1, e2) =>
+      if (available^ <= 3) {
+        Invalid(flat_ellipses);
+      } else {
+        available := available^ - 3;
+        TupLabel(abbreviate_exp(e1), abbreviate_exp(e2));
+      }
+    | Dot(e1, e2) =>
+      if (available^ <= 3) {
+        Invalid(flat_ellipses);
+      } else {
+        available := available^ - 3;
+        Dot(abbreviate_exp(e1), abbreviate_exp(e2));
+      }
     | Ap(Forward, {term: Constructor(_str, _), _} as konst, arg) =>
       let konst = abbreviate_exp(konst);
       available := available^ - 2;
@@ -540,6 +555,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
     switch (pat.term) {
     | Wild => Wild
     | Var(v) => Var(abbreviate_str(available^, v))
+    | Label(v) => Label(abbreviate_str(available^, v))
     | Int(n) => wrap_or(Int(n), string_of_int(n))
     | Float(f) => wrap_or(Float(f), string_of_float(f))
     | String(s) =>
@@ -621,6 +637,14 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
         Tuple(ps');
       }
 
+    | TupLabel(p1, p2) =>
+      if (available^ <= 3) {
+        indet_term_pat;
+      } else {
+        available := available^ - 3;
+        TupLabel(abbreviate_pat(p1), abbreviate_pat(p2));
+      }
+
     | MultiHole(things) =>
       if (available^ <= 1) {
         indet_term_pat;
@@ -682,6 +706,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         String;
       }
     | Var(v) => Var(abbreviate_str(available^, v))
+    | Label(v) => Label(abbreviate_str(available^, v))
     | List(t) =>
       if (available^ <= 2) {
         indet_term_typ;
@@ -701,6 +726,13 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         } else {
           Arrow(t1', {...t2, term: indet_term_typ});
         };
+      }
+    | TupLabel(t1, t2) =>
+      if (available^ <= 3) {
+        indet_term_typ;
+      } else {
+        available := available^ - 3;
+        TupLabel(abbreviate_typ(t1), abbreviate_typ(t2));
       }
     | Sum(ctors) =>
       if (available^ <= 1) {
