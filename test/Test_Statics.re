@@ -28,6 +28,19 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
     )
   };
 };
+
+let eq_info_error = (a: Info.error, b: Info.error) => {
+  switch (a, b) {
+  | (Exp(a), Exp(b)) => eq_info_error_exp(a, b)
+  | _ =>
+    Alcotest.fail(
+      "Not implemented for "
+      ++ Info.show_error(a)
+      ++ " and "
+      ++ Info.show_error(b),
+    )
+  };
+};
 let testable_info_error_exp =
   testable(Fmt.using(Info.show_error_exp, Fmt.string), eq_info_error_exp);
 
@@ -46,13 +59,6 @@ module FreshId = {
 let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init);
 let alco_check = Alcotest.option(testable_typ) |> Alcotest.check;
 
-let parse_exp = (s: string) => {
-  switch (MakeTerm.parse_exp(s)) {
-  | Some(e) => e
-  | None => Alcotest.fail("Failed to parse expression: " ++ s)
-  };
-};
-
 let info_error_of_id = (f: Exp.t, id: Id.t) => {
   Statics.get_error_at(statics(f), id);
 };
@@ -62,21 +68,26 @@ let parse_exp = (s: string) => {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };
-};
-
-let info_error_of_id = (f: Exp.t, id: Id.t) => {
-  Statics.get_error_at(statics(f), id);
 };
 
 let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
   Grammar.map_exp_annotation(
     ({ids, _}: Grammar.IdTag.t) => {
       let new_info = Id.Map.find(List.hd(ids), info_map);
-      Info.is_error(new_info);
+      Info.error_of(new_info);
     },
     exp,
   );
 };
+
+let annotated_exp: testable(Grammar.exp_t(option(Info.error))) =
+  testable(
+    Fmt.using(
+      [%derive.show: Grammar.exp_t(option(Info.error))],
+      Fmt.string,
+    ),
+    Grammar.equal_exp_t(Option.equal(eq_info_error)),
+  );
 
 let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
   Grammar.map_exp_annotation(
@@ -1167,11 +1178,15 @@ let tests = (
       "Example error annotations",
       `Quick,
       () => {
-        let no_error = (e: Grammar.exp_term(bool)): Grammar.exp_t(bool) => {
-          {term: e, annotation: false};
+        let no_error =
+            (e: Grammar.exp_term(option(Info.error)))
+            : Grammar.exp_t(option(Info.error)) => {
+          {term: e, annotation: None};
         };
-        let error = (e: Grammar.exp_term(bool)): Grammar.exp_t(bool) => {
-          {term: e, annotation: true};
+        let error =
+            (err, e: Grammar.exp_term(option(Info.error)))
+            : Grammar.exp_t(option(Info.error)) => {
+          {term: e, annotation: Some(err)};
         };
 
         let term =
@@ -1185,27 +1200,31 @@ let tests = (
             ),
           );
 
-        let annotated: Grammar.exp_t(bool) =
+        let annotated: Grammar.exp_t(option(Info.error)) =
           annotate_static_errors(term, statics(term));
 
-        let expected: Grammar.exp_t(bool) =
+        let expected: Grammar.exp_t(option(Info.error)) =
           no_error(
             BinOp(
               Int(Plus),
-              no_error(Int(1): Grammar.exp_term(bool)),
-              error(String("hello"): Grammar.exp_term(bool)),
-            ): Grammar.exp_term(bool),
+              no_error(Int(1): Grammar.exp_term(option(Info.error))),
+              error(
+                Exp(
+                  Common(
+                    Inconsistent(
+                      Expectation({
+                        ana: Int |> Typ.fresh,
+                        syn: String |> Typ.fresh,
+                      }),
+                    ),
+                  ),
+                ),
+                String("hello"): Grammar.exp_term(option(Info.error)),
+              ),
+            ): Grammar.exp_term(option(Info.error)),
           );
 
-        Alcotest.check(
-          testable(
-            Fmt.using([%derive.show: Grammar.exp_t(bool)], Fmt.string),
-            (==),
-          ),
-          "Error on string",
-          expected,
-          annotated,
-        );
+        Alcotest.check(annotated_exp, "Error on string", expected, annotated);
       },
     ),
   ],
