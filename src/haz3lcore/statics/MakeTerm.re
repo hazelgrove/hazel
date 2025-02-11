@@ -167,7 +167,15 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(e => Exp(e), ids, {ids, copied: false, term});
+  let e: TermBase.exp_t =
+    return(e => Exp(e), ids, {ids, copied: false, term});
+  switch (term) {
+  | TupLabel(_) =>
+    // The tile id is the id of the tuple not the tuplabel
+    let (e_term, rewrap) = IdTagged.unwrap(e);
+    rewrap(Tuple([e_term |> Exp.fresh]): Exp.term);
+  | _ => e
+  };
 }
 and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   let ret = (tm: Exp.term) => (tm, []);
@@ -282,7 +290,22 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | Some(between_kids) =>
+      let tuple_children: list(Exp.t) =
+        [l]
+        @ between_kids
+        @ [r]
+        |> List.map((child: Exp.t) => {
+             switch (child) {
+             | {term: Tuple([{term: TupLabel(_) as tl, _}]), _} as tup =>
+               // We use the Id for the tuple as the ids for the tuplabels
+               let (_, rewrap) = IdTagged.unwrap(tup);
+               rewrap(tl);
+             | _ => child
+             }
+           });
+
+      ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
       | ([(_id, t)], []) =>
@@ -316,6 +339,32 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["="], []) =>
+            switch (l.term) {
+            | Var(name) =>
+              TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r)
+            | EmptyHole => TupLabel(l, r)
+            | _ =>
+              let (e_term, rewrap) = IdTagged.unwrap(l);
+
+              TupLabel(
+                rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
+                r,
+              );
+            }
+          | (["."], []) =>
+            switch (r.term) {
+            | Var(name) =>
+              Dot(l, {ids: r.ids, copied: r.copied, term: Label(name)})
+            | EmptyHole => Dot(l, r)
+            | _ =>
+              let (e_term, rewrap) = IdTagged.unwrap(r);
+
+              Dot(
+                l,
+                rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
+              );
+            }
           | (["|>"], []) => Ap(Reverse, r, l)
           | (["@"], []) => ListConcat(l, r)
           | _ => hole(tm)
@@ -329,7 +378,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(p => Pat(p), ids, {ids, term, copied: false});
+  let p = return(p => Pat(p), ids, {ids, term, copied: false});
+  switch (term) {
+  | TupLabel(_) => Tuple([p]) |> Pat.fresh
+  | _ => p
+  };
 }
 and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   let ret = (term: Pat.term) => (term, []);
@@ -383,9 +436,36 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     }
   | Bin(Pat(l), tiles, Pat(r)) as tm =>
     switch (is_tuple_pat(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | Some(between_kids) =>
+      let tuple_children =
+        [l]
+        @ between_kids
+        @ [r]
+        |> List.map((child: Pat.t) => {
+             switch (child) {
+             | {term: Tuple([{term: TupLabel(_), _} as tl]), _} => tl
+             | _ => child
+             }
+           });
+      ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
+      | ([(_id, (["="], []))], []) =>
+        switch (l.term) {
+        | Var(name) =>
+          ret(
+            TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r),
+          )
+        | EmptyHole => ret(TupLabel(l, r))
+        | _ =>
+          let (e_term, rewrap) = IdTagged.unwrap(l);
+          ret(
+            TupLabel(
+              rewrap(MultiHole([Pat(e_term |> Pat.fresh)]): Pat.term),
+              r,
+            ),
+          );
+        }
       | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
       | _ => ret(hole(tm))
       }
@@ -395,7 +475,11 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
 and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(ty => Typ(ty), ids, {ids, term, copied: false});
+  let t = return(ty => Typ(ty), ids, {ids, term, copied: false});
+  switch (term) {
+  | TupLabel(_) => Prod([t]) |> Typ.fresh
+  | _ => t
+  };
 }
 and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   let ret = (term: Typ.term) => (term, []);
@@ -458,10 +542,30 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
-    | Some(between_kids) => ret(Prod([l] @ between_kids @ [r]))
+    | Some(between_kids) =>
+      let tuple_children: list(Typ.t) =
+        [l]
+        @ between_kids
+        @ [r]
+        |> List.map((child: Typ.t) => {
+             switch (child) {
+             | {term: Prod([{term: TupLabel(_), _} as tl]), _} => tl
+             | _ => child
+             }
+           });
+
+      ret(Prod(tuple_children));
     | None =>
       switch (tiles) {
       | ([(_id, (["->"], []))], []) => ret(Arrow(l, r))
+      | ([(_id, (["="], []))], []) =>
+        switch (l.term) {
+        | Var(name) =>
+          ret(
+            TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r),
+          )
+        | _ => ret(TupLabel(l, r))
+        }
       | _ => ret(hole(tm))
       }
     }
@@ -498,7 +602,7 @@ and tpat_term: unsorted => TPat.term = {
 //   let ids = ids(unsorted);
 //   return(r => Rul(r), ids, {ids, term});
 // }
-and rul = (unsorted: unsorted): Rul.t => {
+and rul = (unsorted): Rul.t => {
   let hole: Rul.term = Hole(kids_of_unsorted(unsorted));
   switch (exp(unsorted)) {
   | {term: MultiHole(_), _} =>
@@ -592,3 +696,9 @@ let from_zip_for_sem =
     ~cache_size_bound=1000,
     from_zip_for_sem(~dump_backpack=true, ~erase_buffer=true),
   );
+
+let parse_exp = (s: string) => {
+  open OptUtil.Syntax;
+  let+ zip = Printer.zipper_of_string(s);
+  from_zip_for_sem(zip).term;
+};

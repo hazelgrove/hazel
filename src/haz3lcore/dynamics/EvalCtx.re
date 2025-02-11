@@ -8,7 +8,7 @@ type term =
   | Seq2(DHExp.t, t)
   | Let1(Pat.t, t, DHExp.t)
   | Let2(Pat.t, DHExp.t, t)
-  | Fun(Pat.t, t, option(ClosureEnvironment.t), option(Var.t))
+  | Fun(Pat.t, t, option(Typ.t), option(Var.t))
   | FixF(Pat.t, t, option(ClosureEnvironment.t))
   | TypAp(t, Typ.t)
   | Ap1(Operators.ap_direction, t, DHExp.t)
@@ -21,7 +21,10 @@ type term =
   | UnOp(Operators.op_un, t)
   | BinOp1(Operators.op_bin, t, DHExp.t)
   | BinOp2(Operators.op_bin, DHExp.t, t)
+  | TupLabel(DHExp.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
+  | Dot1(t, DHExp.t)
+  | Dot2(DHExp.t, t)
   | Test(t)
   | ListLit(t, (list(DHExp.t), list(DHExp.t)))
   | MultiHole(t, (list(Any.t), list(Any.t)))
@@ -109,6 +112,15 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | ListConcat2(d1, ctx) =>
       let d2 = compose(ctx, d);
       ListConcat(d1, d2) |> wrap;
+    | TupLabel(label, ctx) =>
+      let d = compose(ctx, d);
+      TupLabel(label, d) |> wrap;
+    | Dot1(ctx, d2) =>
+      let d1 = compose(ctx, d);
+      Dot(d1, d2) |> wrap;
+    | Dot2(d1, ctx) =>
+      let d2 = compose(ctx, d);
+      Dot(d1, d2) |> wrap;
     | Tuple(ctx, (ld, rd)) =>
       let d = compose(ctx, d);
       Tuple(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
@@ -124,9 +136,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | Let2(dp, d1, ctx) =>
       let d = compose(ctx, d);
       Let(dp, d1, d) |> wrap;
-    | Fun(dp, ctx, env, v) =>
+    | Fun(dp, ctx, typ, v) =>
       let d = compose(ctx, d);
-      Fun(dp, d, env, v) |> wrap;
+      Fun(dp, d, typ, v) |> wrap;
     | FixF(v, ctx, env) =>
       let d = compose(ctx, d);
       FixF(v, d, env) |> wrap;

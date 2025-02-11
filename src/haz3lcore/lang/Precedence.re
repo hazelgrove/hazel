@@ -43,56 +43,60 @@ let type_binder = 15;
 
 let unquote = 21;
 // $_____
-let ap = 22;
+let dot = 22;
+let ap = 23;
 // _____(x)
 // 5 : _____
-let cast = 23 |> left_associative;
+let cast = 24 |> left_associative;
 // _____ : T
 // - _____
-let neg = 24;
+let neg = 25;
 // _____ ** 2
-let power = 25 |> right_associative;
+let power = 26 |> right_associative;
 // 2 ** _____
 // 6 / _____
-let mult = 26 |> left_associative;
-let not_ = 26;
+let mult = 27 |> left_associative;
+let not_ = 27;
 // _____ / 6
 // 4 - _____
-let plus = 27 |> left_associative;
+let plus = 28 |> left_associative;
 // _____ - 4
 // _____ :: []
-let cons = 28 |> right_associative;
+let cons = 29 |> right_associative;
 // 1 :: _____
 // [1,2] @ _____
-let concat = 29 |> right_associative;
+let concat = 30 |> right_associative;
 // _____ @ [1,2]
 // x == _____
-let eqs = 30 |> left_associative;
+let eqs = 31 |> left_associative;
 // _____ == x
 // _____ && true
-let and_ = 31 |> right_associative;
+let and_ = 32 |> right_associative;
 // true && _____
 // _____ || false
-let or_ = 32 |> right_associative;
+let or_ = 33 |> right_associative;
 // false || _____
-let if_ = 34;
-let fun_ = 35;
+let if_ = 35;
+let fun_ = 36;
 // fun x -> _____
-let prod = 36;
+let prod = 37;
 // a , _____ , x
 // _____ ; ()
-let semi = 37 |> right_associative;
+let semi = 38 |> right_associative;
 // () ; _____
-let let_ = 38;
+
+let lab = 39;
+
+let let_ = 40;
 // let x = 3 in _____
-let rule_arr = 39;
-let rule_pre = 40;
-let rule_sep = 41;
-let case_ = 42;
+let rule_arr = 41;
+let rule_pre = 42;
+let rule_sep = 43;
+let case_ = 44;
 
-let comma = 45;
+let comma = 47;
 
-let min = 46;
+let min = 48;
 
 let compare = (p1: t, p2: t): int =>
   (-1) * Int.compare((p1 :> int), (p2 :> int));
