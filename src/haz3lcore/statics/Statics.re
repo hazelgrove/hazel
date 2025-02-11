@@ -370,7 +370,8 @@ and uexp_to_info_map =
     // TODO: factor out code
     let unwrapped_self: Self.exp =
       Common(Just(Arrow(p.ty, e.ty) |> Typ.temp));
-    let is_exhaustive = p |> Info.pat_constraint |> Incon.is_exhaustive;
+    let Incon.{is_exhaustive, _} =
+      Incon.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
     let self =
       is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
     add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
@@ -456,7 +457,11 @@ and uexp_to_info_map =
       );
     // TODO: factor out code
     let unwrapped_self: Self.exp = Common(Just(body.ty));
-    let is_exhaustive = p_ana |> Info.pat_constraint |> Incon.is_exhaustive;
+    let Incon.{is_exhaustive, _} =
+      Incon.check(
+        [Info.pat_constraint(p_ana)],
+        Typ.normalize(ctx, p_ana.ty),
+      );
     let self =
       is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
     add'(

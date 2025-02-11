@@ -476,7 +476,3 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
 let check = (xis: list(Constraint.t), ty: Typ.t): result => {
   check_matrix(Matrix.of_constraints(xis), [ty]);
 };
-
-let is_exhaustive = (_xi: Constraint.t) => {
-  true /* TODO: delet*/;
-};
