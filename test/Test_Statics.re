@@ -1195,15 +1195,9 @@ let tests = (
       `Quick,
       () => {
         let term =
-          fresh(
-            PlainGrammar.(
-              bin_op(Int(Plus), int_lit(1), string_lit("hello"))
-            ),
+          PlainGrammar.(
+            bin_op(Int(Plus), int_lit(1), string_lit("hello"))
           );
-
-        let annotated: Grammar.exp_t(option(Info.error)) =
-          annotate_static_errors(term, statics(term));
-
         let expected: Grammar.exp_t(option(Info.error)) =
           no_error(
             BinOp(
@@ -1225,7 +1219,11 @@ let tests = (
             ): Grammar.exp_term(option(Info.error)),
           );
 
-        Alcotest.check(annotated_exp, "Error on string", expected, annotated);
+        annotated_tree_test(
+          "Inconsistent expectation on plus",
+          term,
+          expected,
+        );
       },
     ),
   ],
