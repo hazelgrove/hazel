@@ -187,17 +187,24 @@ let rec elaborate_pattern =
       let expected_labels: list(option(string)) =
         Typ.get_labels(ctx, elaborated_type);
 
-      let (ps', tys) =
-        LabeledTuple.rearrange2(
-          expected_labels,
+      let ps' =
+        LabeledTuple.rearrange(
+          s => Option.map(x => (x, Some(x)), s),
           Pat.match_tup_label,
-          Typ.match_tup_label,
+          expected_labels,
           ps',
-          tys,
-          (name, p) =>
-            TupLabel(Label(name) |> DHPat.fresh, p) |> DHPat.fresh,
-          (name, t) => TupLabel(Label(name) |> Typ.temp, t) |> Typ.temp,
+          (name, e) => {TupLabel(Label(name) |> Pat.fresh, e) |> Pat.fresh},
         );
+
+      let tys =
+        LabeledTuple.rearrange(
+          s => Option.map(x => (x, Some(x)), s),
+          Typ.match_tup_label,
+          expected_labels,
+          tys,
+          (name, e) => {TupLabel(Label(name) |> Typ.fresh, e) |> Typ.fresh},
+        );
+
       Tuple(ps') |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
     | Label(name) => upat |> cast_from(Label(name) |> Typ.temp)
     | Ap(p1, p2) =>
@@ -346,18 +353,24 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
 
       let expected_labels: list(option(string)) =
         Typ.get_labels(ctx, elaborated_type);
-
-      let (ds, tys) =
-        LabeledTuple.rearrange2(
-          expected_labels,
+      let ds =
+        LabeledTuple.rearrange(
+          s => Option.map(x => (x, Some(x)), s),
           Exp.match_tup_label,
-          Typ.match_tup_label,
+          expected_labels,
           ds,
-          tys,
           (name, e) => {
             TupLabel(Label(name) |> DHExp.fresh, e) |> DHExp.fresh
           },
-          (name, t) => TupLabel(Label(name) |> Typ.temp, t) |> Typ.temp,
+        );
+
+      let tys =
+        LabeledTuple.rearrange(
+          s => Option.map(x => (x, Some(x)), s),
+          Typ.match_tup_label,
+          expected_labels,
+          tys,
+          (name, e) => {TupLabel(Label(name) |> Typ.fresh, e) |> Typ.fresh},
         );
       Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
     | TupLabel(label, e) =>
