@@ -110,7 +110,8 @@ let is_keyword = match(keyword_regexp);
 
 /* Potential tokens: These are fallthrough classes which determine
  * the behavior when inserting a character in contact with a token */
-let is_potential_operand = match(regexp("^[a-zA-Z0-9_'\\.?]+$"));
+let is_potential_operand =
+  match(regexp("^([a-zA-Z0-9_'?]+)$|^([0-9_]+\\.[a-zA-Z0-9_'\\.?]*)$"));
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
@@ -118,6 +119,8 @@ let is_potential_operand = match(regexp("^[a-zA-Z0-9_'\\.?]+$"));
 let potential_operator_regexp =
   regexp("^[^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+$"); /* Multiline operators not supported */
 let is_potential_operator = match(potential_operator_regexp);
+let begins_with_potential_operator =
+  match(regexp("^[^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+"));
 let is_potential_token = t =>
   is_potential_operand(t)
   || is_potential_operator(t)
@@ -279,6 +282,11 @@ let forms: list((string, t)) = [
   ("cons_exp", mk_infix("::", Exp, P.cons)),
   ("cons_pat", mk_infix("::", Pat, P.cons)),
   ("typeann", mk(ss, [":"], mk_bin'(P.cast, Pat, Pat, [], Typ))),
+  ("tuple_labeled_exp", mk_infix("=", Exp, P.lab)),
+  ("tuple_labeled_pat", mk_infix("=", Pat, P.lab)),
+  ("tuple_labeled_typ", mk_infix("=", Typ, P.lab)),
+  ("dot_exp", mk_infix(".", Exp, P.dot)),
+  ("dot_typ", mk_infix(".", Typ, P.dot)),
   ("typeasc", mk(ss, [":"], mk_bin'(P.cast, Exp, Exp, [], Typ))),
   ("typ_plus", mk_infix("+", Typ, P.type_plus)),
   // UNARY PREFIX OPERATORS
@@ -289,7 +297,7 @@ let forms: list((string, t)) = [
   // N-ARY OPS (on the semantics level)
   ("comma_exp", mk_infix(",", Exp, P.comma)),
   ("comma_pat", mk_infix(",", Pat, P.comma)),
-  ("comma_typ", mk_infix(",", Typ, P.type_prod)),
+  ("comma_typ", mk_infix(",", Typ, P.comma)),
   // PAIRED DELIMITERS:
   ("list_lit_exp", mk(ii, ["[", "]"], mk_op(Exp, [Exp]))),
   ("list_lit_pat", mk(ii, ["[", "]"], mk_op(Pat, [Pat]))),

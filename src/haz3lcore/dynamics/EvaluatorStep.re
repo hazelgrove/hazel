@@ -137,6 +137,15 @@ let rec matches =
       | Tuple(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Tuple(ctx, ds) |> rewrap;
+      | TupLabel(label, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        TupLabel(label, ctx) |> rewrap;
+      | Dot1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Dot1(ctx, d2) |> rewrap;
+      | Dot2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Dot2(d1, ctx) |> rewrap;
       | Test(ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Test(ctx) |> rewrap;
