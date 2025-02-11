@@ -103,6 +103,7 @@ module Ctr = {
     | Rec(_) => all_ctrs_of_typ(Typ.unroll(ty))
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
+    | TupLabel(_, ty) => Finite(Map.singleton(tuple_ctr(1), [ty]))
     | List(elt_ty) =>
       Finite(
         Map.of_list([
@@ -119,7 +120,8 @@ module Ctr = {
     | Forall(_)
     | Var(_) => Infinite
     | Parens(_)
-    | Ap(_) =>
+    | Ap(_)
+    | Label(_) =>
       failwith(
         "all_ctrs_of_type called with a non-normalized type: " ++ Typ.show(ty),
       )
