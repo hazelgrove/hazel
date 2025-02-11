@@ -138,6 +138,23 @@
     margin-bottom: 10px;
 }
 
+#assistant .collapse-indicator {
+    width: 100%;
+    text-align: center;
+    color: var(--STONE);
+    font-size: 0.8em;
+    opacity: 0.7;
+    margin-top: 4px;
+}
+
+#assistant .message-container.collapsed .collapse-indicator::after {
+    content: "▼ Show more";
+}
+
+#assistant .message-container.expanded .collapse-indicator::after {
+    content: "▲ Show less";
+}
+
 #assistant .llm {
     justify-content: none;
 }

@@ -131,6 +131,7 @@ let message_input =
       party: assistantModel.currSender,
       code: None,
       content: message,
+      collapsed: String.length(message) >= 20,
     };
     JsUtil.log("Message sent: " ++ message.content);
     Virtual_dom.Vdom.Effect.Many([
@@ -159,7 +160,7 @@ let message_input =
   let handle_keydown = event => {
     let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
     switch (key, ListUtil.last_opt(assistantModel.chat)) {
-    | (_, Some({party: LLM, code: None, content: "..."})) => Virtual_dom.Vdom.Effect.Ignore
+    | (_, Some({party: LLM, code: None, content: "...", collapsed: false})) => Virtual_dom.Vdom.Effect.Ignore
     | (Some("Enter"), _) => send_message()
     | _ => Virtual_dom.Vdom.Effect.Ignore
     };
@@ -182,7 +183,7 @@ let message_input =
         (),
       ),
       switch (ListUtil.last_opt(assistantModel.chat)) {
-      | Some({party: LLM, code: None, content: "..."}) =>
+      | Some({party: LLM, code: None, content: "...", collapsed: false}) =>
         div(
           ~attrs=[
             clss(["disabled-send-button", "icon"]),
@@ -223,10 +224,18 @@ let message_display =
       ~assistantModel: AssistantModel.Model.t,
     )
     : Node.t => {
+  let toggle_collapse = index => {
+    // Create an action to toggle the collapsed state of a specific message
+    Virtual_dom.Vdom.Effect.Many([
+      inject(AssistantModel.Update.ToggleCollapse(index)),
+      Virtual_dom.Vdom.Effect.Stop_propagation,
+    ]);
+  };
+
   let message_nodes =
     List.flatten(
-      List.map(
-        (message: AssistantModel.Model.message) => {
+      List.mapi(
+        (index: int, message: AssistantModel.Model.message) => {
           switch (message.code) {
           | Some(sketch) =>
             message.content == "..." && message.party == LLM
@@ -238,6 +247,7 @@ let message_display =
                       "message-container",
                       message.party == LLM ? "llm" : "ls",
                     ]),
+                    Attr.on_click(_ => toggle_collapse(index)),
                   ],
                   [
                     div(
@@ -246,7 +256,23 @@ let message_display =
                           message.party == LLM ? "llm-message" : "ls-message",
                         ]),
                       ],
-                      [text(message.content)],
+                      [
+                        message.collapsed
+                          ? text(
+                              String.concat(
+                                "",
+                                [
+                                  String.sub(
+                                    message.content,
+                                    0,
+                                    min(String.length(message.content), 200),
+                                  ),
+                                  "...",
+                                ],
+                              ),
+                            )
+                          : text(message.content),
+                      ],
                     ),
                   ],
                 ),
@@ -292,6 +318,7 @@ let message_display =
                       "message-container",
                       message.party == LLM ? "llm" : "ls",
                     ]),
+                    Attr.on_click(_ => toggle_collapse(index)),
                   ],
                   [
                     div(
@@ -300,7 +327,23 @@ let message_display =
                           message.party == LLM ? "llm-message" : "ls-message",
                         ]),
                       ],
-                      [text(message.content)],
+                      [
+                        message.collapsed
+                          ? text(
+                              String.concat(
+                                "",
+                                [
+                                  String.sub(
+                                    message.content,
+                                    0,
+                                    min(String.length(message.content), 200),
+                                  ),
+                                  "...",
+                                ],
+                              ),
+                            )
+                          : text(message.content),
+                      ],
                     ),
                   ],
                 ),

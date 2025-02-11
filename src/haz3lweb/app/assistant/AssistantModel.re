@@ -19,6 +19,7 @@ module Model = {
     party,
     code: option(Segment.t),
     content: string,
+    collapsed: bool,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -37,12 +38,25 @@ module Update = {
     | SendMessage(Model.message)
     | SendSketch
     | NewChat
-    | Respond(Model.message);
+    | Respond(Model.message)
+    | ToggleCollapse(int);
 
   let react = (response: string): t => {
     // let response = response |> sanitize_response |> quote;
-    let response: Model.message = {party: LLM, code: None, content: response};
+    let response: Model.message = {
+      party: LLM,
+      code: None,
+      content: response,
+      collapsed: String.length(response) >= 20,
+    };
     Respond(response);
+  };
+
+  let await_llm_response: Model.message = {
+    party: LLM,
+    code: None,
+    content: "...",
+    collapsed: false,
   };
 
   let update =
@@ -71,11 +85,6 @@ module Update = {
             | None => print_endline("Assistant: response parse failed")
             }
           );
-        };
-        let await_llm_response: Model.message = {
-          party: LLM,
-          code: None,
-          content: "...",
         };
         Model.{
           chat: model.chat @ [message, await_llm_response],
@@ -121,22 +130,34 @@ module Update = {
           | None => print_endline("Assistant: response parse failed")
           }
         );
-        let await_llm_response: Model.message = {
-          party: LLM,
-          code: None,
-          content: "...",
-        };
         Model.{
           chat:
             model.chat
             @ [
-              {party: LS, code: Some(sketch_seg), content: prompt},
+              {
+                party: LS,
+                code: Some(sketch_seg),
+                content: prompt,
+                collapsed: String.length(prompt) >= 20,
+              },
               await_llm_response,
             ],
           currSender: LLM,
         }
         |> Updated.return_quiet;
       };
+    | ToggleCollapse(index) =>
+      let updated_chat =
+        List.mapi(
+          (i: int, msg: Model.message) =>
+            if (i == index) {
+              {...msg, collapsed: !msg.collapsed};
+            } else {
+              msg;
+            },
+          model.chat,
+        );
+      Model.{...model, chat: updated_chat} |> Updated.return_quiet;
     };
   };
 };
