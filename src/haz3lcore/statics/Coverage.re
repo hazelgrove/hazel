@@ -1,5 +1,5 @@
-open Sets;
 open Util;
+open Util.Sets;
 open Util.Maps;
 
 module Constraint = {
@@ -431,9 +431,6 @@ type result = {
   is_exhaustive: bool,
   redundant_rows,
 };
-
-let exhaustive_and_irredundant = {is_exhaustive: true, redundant_rows: []};
-let inexhaustive_and_irredundant = {is_exhaustive: false, redundant_rows: []};
 
 // We assume ty is already normalized.
 let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
