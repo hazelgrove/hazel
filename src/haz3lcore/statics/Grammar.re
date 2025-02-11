@@ -1,7 +1,7 @@
 open Util;
 
 module Annotated = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t('a, 'b) = {
     term: 'a,
     annotation: 'b,
@@ -11,12 +11,12 @@ module Annotated = {
   let unwrap = x => (x.term, term' => {...x, term: term'});
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type deferral_position_t =
   | InAp
   | OutsideAp;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type any_t('a) =
   | Exp(exp_t('a))
   | Pat(pat_t('a))

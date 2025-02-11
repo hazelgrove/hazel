@@ -6,7 +6,7 @@ module Inner = {
   include Map.Make(Var);
 
   /* See IntMap */
-  [@deriving (sexp, yojson)]
+  [@deriving (sexp, yojson, eq)]
   type binding('v) = (Var.t, 'v);
 
   let pp = (pp_v, f, map) =>
@@ -29,7 +29,7 @@ module Inner = {
 };
 
 module VarBstMap0 = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t_('a) = Inner.t('a);
 
   let empty = Inner.empty;
@@ -64,7 +64,7 @@ module VarBstMap0 = {
 };
 
 module Ordered = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t_('a) = {
     map: VarBstMap0.t_('a),
     /** The reverse insertion order of bindings (denoted by key). */
