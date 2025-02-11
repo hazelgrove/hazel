@@ -54,12 +54,18 @@ let elaborated_type =
     (m: Statics.Map.t, uexp: Exp.t): (Typ.t, Ctx.t, CoCtx.t, Exp.t) => {
   let (mode, self_ty, ctx, co_ctx, term) =
     switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
-    | Some(Info.InfoExp({mode, ty, ctx, co_ctx, term, _})) => (
+    | Some(Info.InfoExp({mode, ty, ctx, co_ctx, term: new_term, _})) => (
         mode,
         ty,
         ctx,
         co_ctx,
-        term,
+        switch (uexp.term) {
+        /* This is a temporary hack to work around the Probe hack
+         * in statics. That hack should no longer be necessary post
+         * flat-projectors. -- andrew */
+        | Probe(_, _) => uexp
+        | _ => new_term
+        },
       )
     | _ => raise(MissingTypeInfo)
     };
