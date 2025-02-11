@@ -116,8 +116,8 @@ module Ctr = {
     | Float
     | String
     | Arrow(_)
-    | Forall(_) => Infinite
-    | Var(_)
+    | Forall(_)
+    | Var(_) => Infinite
     | Parens(_)
     | Ap(_) =>
       failwith(
