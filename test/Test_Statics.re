@@ -88,7 +88,16 @@ let annotated_exp: testable(Grammar.exp_t(option(Info.error))) =
     ),
     Grammar.equal_exp_t(Option.equal(eq_info_error)),
   );
-
+let no_error =
+    (e: Grammar.exp_term(option(Info.error)))
+    : Grammar.exp_t(option(Info.error)) => {
+  {term: e, annotation: None};
+};
+let error =
+    (err, e: Grammar.exp_term(option(Info.error)))
+    : Grammar.exp_t(option(Info.error)) => {
+  {term: e, annotation: Some(err)};
+};
 let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
   Grammar.map_exp_annotation(
     (_annotation): Grammar.IdTag.t => {
@@ -97,6 +106,13 @@ let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
     },
     exp,
   );
+};
+
+let annotated_tree_test = (name, exp, expected) => {
+  let term = fresh(exp);
+  let annotated: Grammar.exp_t(option(Info.error)) =
+    annotate_static_errors(term, statics(term));
+  Alcotest.check(annotated_exp, "Error on string", expected, annotated);
 };
 let lift: type a. a => Grammar.Annotated.t(a, unit) =
   term => {
@@ -1178,25 +1194,10 @@ let tests = (
       "Example error annotations",
       `Quick,
       () => {
-        let no_error =
-            (e: Grammar.exp_term(option(Info.error)))
-            : Grammar.exp_t(option(Info.error)) => {
-          {term: e, annotation: None};
-        };
-        let error =
-            (err, e: Grammar.exp_term(option(Info.error)))
-            : Grammar.exp_t(option(Info.error)) => {
-          {term: e, annotation: Some(err)};
-        };
-
         let term =
           fresh(
-            lift(
-              BinOp(
-                Int(Plus),
-                lift(Int(1): Grammar.exp_term(unit)),
-                lift(String("hello"): Grammar.exp_term(unit)),
-              ): Grammar.exp_term(unit),
+            PlainGrammar.(
+              bin_op(Int(Plus), int_lit(1), string_lit("hello"))
             ),
           );
 
