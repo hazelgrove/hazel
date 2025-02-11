@@ -164,7 +164,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
     };
   }
 
-and exp = (unsorted: unsorted) => {
+and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   let e: TermBase.exp_t =
@@ -179,7 +179,7 @@ and exp = (unsorted: unsorted) => {
 }
 and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   let ret = (tm: Exp.term) => (tm, []);
-  let hole = (unsorted: unsorted) => Exp.hole(kids_of_unsorted(unsorted));
+  let hole = unsorted => Exp.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -291,19 +291,19 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
     | Some(between_kids) =>
-      let tuple_children: list(TermBase.Exp.t) = [l] @ between_kids @ [r];
-      let mapping_fn: Exp.t => Exp.t = (
-        (child: Exp.t) => {
-          switch (child) {
-          | {term: Tuple([{term: TupLabel(_) as tl, _}]), _} as tup =>
-            // We use the Id for the tuple as the ids for the tuplabels
-            let (_, rewrap) = IdTagged.unwrap(tup);
-            rewrap(tl);
-          | _ => child
-          };
-        }
-      );
-      let tuple_children: list(Exp.t) = List.map(mapping_fn, tuple_children);
+      let tuple_children: list(Exp.t) =
+        [l]
+        @ between_kids
+        @ [r]
+        |> List.map((child: Exp.t) => {
+             switch (child) {
+             | {term: Tuple([{term: TupLabel(_) as tl, _}]), _} as tup =>
+               // We use the Id for the tuple as the ids for the tuplabels
+               let (_, rewrap) = IdTagged.unwrap(tup);
+               rewrap(tl);
+             | _ => child
+             }
+           });
 
       ret(Tuple(tuple_children));
     | None =>
@@ -437,16 +437,17 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   | Bin(Pat(l), tiles, Pat(r)) as tm =>
     switch (is_tuple_pat(tiles)) {
     | Some(between_kids) =>
-      let tuple_children = [l] @ between_kids @ [r];
-      let mapping_fn = (child: Pat.t) => {
-        switch (child) {
-        | {term: Tuple([{term: TupLabel(_), _} as tl]), _} => tl
-        | _ => child
-        };
-      };
-      let tuple_children = List.map(mapping_fn, tuple_children);
+      let tuple_children =
+        [l]
+        @ between_kids
+        @ [r]
+        |> List.map((child: Pat.t) => {
+             switch (child) {
+             | {term: Tuple([{term: TupLabel(_), _} as tl]), _} => tl
+             | _ => child
+             }
+           });
       ret(Tuple(tuple_children));
-
     | None =>
       switch (tiles) {
       | ([(_id, (["="], []))], []) =>
@@ -542,14 +543,16 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
     | Some(between_kids) =>
-      let tuple_children = [l] @ between_kids @ [r];
-      let mapping_fn = (child: Typ.t) => {
-        switch (child) {
-        | {term: Prod([{term: TupLabel(_), _} as tl]), _} => tl
-        | _ => child
-        };
-      };
-      let tuple_children: list(Typ.t) = List.map(mapping_fn, tuple_children);
+      let tuple_children: list(Typ.t) =
+        [l]
+        @ between_kids
+        @ [r]
+        |> List.map((child: Typ.t) => {
+             switch (child) {
+             | {term: Prod([{term: TupLabel(_), _} as tl]), _} => tl
+             | _ => child
+             }
+           });
 
       ret(Prod(tuple_children));
     | None =>
@@ -599,7 +602,7 @@ and tpat_term: unsorted => TPat.term = {
 //   let ids = ids(unsorted);
 //   return(r => Rul(r), ids, {ids, term});
 // }
-and rul = (unsorted: unsorted): Rul.t => {
+and rul = (unsorted): Rul.t => {
   let hole: Rul.term = Hole(kids_of_unsorted(unsorted));
   switch (exp(unsorted)) {
   | {term: MultiHole(_), _} =>
