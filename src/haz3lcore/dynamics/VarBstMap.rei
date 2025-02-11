@@ -78,7 +78,7 @@ module Ordered: {
     The type of a variable-indexed map backed by a binary search tree with
     insertion order tracking.
    */
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t_('a);
 
   /**
