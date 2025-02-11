@@ -47,7 +47,7 @@ module Update = {
       party: LLM,
       code: None,
       content: response,
-      collapsed: String.length(response) >= 20,
+      collapsed: String.length(response) >= 200,
     };
     Respond(response);
   };
@@ -138,7 +138,7 @@ module Update = {
                 party: LS,
                 code: Some(sketch_seg),
                 content: prompt,
-                collapsed: String.length(prompt) >= 20,
+                collapsed: String.length(prompt) >= 200,
               },
               await_llm_response,
             ],
