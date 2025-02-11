@@ -108,11 +108,12 @@ let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
   );
 };
 
-let annotated_tree_test = (name, exp, expected) => {
-  let term = fresh(exp);
+let annotated_tree_test = (name, expected) => {
+  let term = fresh(Grammar.map_exp_annotation(_ => (), expected));
   let annotated: Grammar.exp_t(option(Info.error)) =
     annotate_static_errors(term, statics(term));
-  Alcotest.check(annotated_exp, "Error on string", expected, annotated);
+
+  Alcotest.check(annotated_exp, name, expected, annotated);
 };
 let lift: type a. a => Grammar.Annotated.t(a, unit) =
   term => {
@@ -1190,41 +1191,29 @@ let tests = (
         );
       },
     ),
-    test_case(
-      "Example error annotations",
-      `Quick,
-      () => {
-        let term =
-          PlainGrammar.(
-            bin_op(Int(Plus), int_lit(1), string_lit("hello"))
-          );
-        let expected: Grammar.exp_t(option(Info.error)) =
-          no_error(
-            BinOp(
-              Int(Plus),
-              no_error(Int(1): Grammar.exp_term(option(Info.error))),
-              error(
-                Exp(
-                  Common(
-                    Inconsistent(
-                      Expectation({
-                        ana: Int |> Typ.fresh,
-                        syn: String |> Typ.fresh,
-                      }),
-                    ),
+    test_case("Example error annotations", `Quick, () => {
+      annotated_tree_test(
+        "Inconsistent expectation on plus",
+        no_error(
+          BinOp(
+            Int(Plus),
+            no_error(Int(1)),
+            error(
+              Exp(
+                Common(
+                  Inconsistent(
+                    Expectation({
+                      ana: Int |> Typ.fresh,
+                      syn: String |> Typ.fresh,
+                    }),
                   ),
                 ),
-                String("hello"): Grammar.exp_term(option(Info.error)),
               ),
-            ): Grammar.exp_term(option(Info.error)),
-          );
-
-        annotated_tree_test(
-          "Inconsistent expectation on plus",
-          term,
-          expected,
-        );
-      },
-    ),
+              String("hello"),
+            ),
+          ),
+        ),
+      )
+    }),
   ],
 );
