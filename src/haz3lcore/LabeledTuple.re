@@ -82,8 +82,12 @@ let get_duplicate_labels:
     |> get_duplicate_labels_base;
   };
 
-// Assumes all labels are unique
-// Rearranges all the labels in l2 to match the order of the labels in l1. Labels are optional and should me reordered for all present labels first and then unlabled fields matched up pairwise. So labeled fields can be reordered and unlabeled ones can't. Also add labels to the unlabeled.
+/**
+ * Assumes all labels are unique.
+ * Rearranges all the labels in `l2` to match the order of the labels in `l1`.
+ * Labels are optional and should be reordered for all present labels first and then unlabeled fields matched up pairwise.
+ * So labeled fields can be reordered and unlabeled ones can't. Also, add labels to the unlabeled.
+ */
 let rec rearrange_base:
   'b.
   (
@@ -154,8 +158,13 @@ let rec rearrange_base:
     };
   };
 
-// Basically another way to call rearrange_base using the raw lists, functions to extract labels from TupLabels, and constructor for new TupLabels.
-// Maintains the same ids if possible
+/**
+ * Rearranges the elements of the list to match up the labels and adds missing labels.
+ * This function is essentially another way to call `rearrange_base` using raw lists.
+ * It utilizes functions to extract labels from `TupLabels` and a constructor for new `TupLabels`.
+ * The function maintains the same ids if possible, ensuring that the rearranged list
+ * preserves the original structure as closely as possible while accommodating any new labels.
+ */
 let rearrange:
   'a 'b.
   (
@@ -167,78 +176,27 @@ let rearrange:
   ) =>
   list('b)
  =
-  (get_label1, get_label2, l1, l2, constructor) => {
-    // TODO: Error handling in case of bad arguments
-    let l1' = fst(separate_and_keep_labels(get_label1, l1));
-    let (l2_labels, l2_vals) = separate_and_keep_labels(get_label2, l2);
-    let l2' = List.combine(l2_labels, l2_vals);
-    let l2_reordered = rearrange_base(l1', l2');
-    List.map(
-      ((optional_label, b)) =>
-        switch (optional_label) {
-        | Some(label) =>
-          switch (get_label2(b)) {
-          | Some(_) => b
-          | None => constructor(label, b)
-          }
-        | None => b
-        },
-      l2_reordered,
-    );
-  };
-
-// rearrange two other lists to match the first list of labels.
-// TODO: Efficiency
-let rearrange2:
-  'a 'b.
-  (
-    list(option(label)),
-    'a => option((label, 'a)),
-    'b => option((label, 'b)),
-    list('a),
-    list('b),
-    (label, 'a) => 'a,
-    (label, 'b) => 'b
-  ) =>
-  (list('a), list('b))
- =
-  (labels, get_label1, get_label2, l1, l2, constructor1, constructor2) =>
-    if (List.length(labels) != List.length(l1)) {
-      (l1, l2);
+  (get_label1, get_label2, l1, l2, constructor) =>
+    if (List.length(l1) != List.length(l2)) {
+      l2;
     } else {
-      let (l1_labels, l1_vals) = separate_and_keep_labels(get_label1, l1);
-      let l1' = List.combine(l1_labels, l1_vals);
-      let l1_reordered = rearrange_base(labels, l1');
-      let l1_rearranged =
-        List.map(
-          ((optional_label, b)) =>
-            switch (optional_label) {
-            | Some(label) =>
-              switch (get_label1(b)) {
-              | Some(_) => b
-              | None => constructor1(label, b)
-              }
-            | None => b
-            },
-          l1_reordered,
-        );
+      // TODO: Error handling in case of bad arguments
+      let l1' = fst(separate_and_keep_labels(get_label1, l1));
       let (l2_labels, l2_vals) = separate_and_keep_labels(get_label2, l2);
       let l2' = List.combine(l2_labels, l2_vals);
-      let l2_reordered = rearrange_base(labels, l2');
-      let l2_rearranged =
-        List.map(
-          ((optional_label, b)) =>
-            switch (optional_label) {
-            | Some(label) =>
-              switch (get_label2(b)) {
-              | Some(_) => b
-              | None => constructor2(label, b)
-              }
-            | None => b
-            },
-          l2_reordered,
-        );
-      (l1_rearranged, l2_rearranged);
+      let l2_reordered = rearrange_base(l1', l2');
+      List.map(
+        ((optional_label, b)) =>
+          switch (optional_label) {
+          | Some(label) =>
+            switch (get_label2(b)) {
+            | Some(_) => b
+            | None => constructor(label, b)
+            }
+          | None => b
+          },
+        l2_reordered,
+      );
     };
 
 let find_label: ('a => option((label, 'a)), list('a), label) => option('a) =
