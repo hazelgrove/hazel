@@ -1,5 +1,5 @@
-open Sets;
 open Util;
+open Util.Sets;
 open Util.Maps;
 
 module Constraint = {
