@@ -1,4 +1,5 @@
 open Util;
+open Grammar;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type any_t = Grammar.any_t(unit);
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -35,3 +36,28 @@ type type_provenance = Grammar.type_provenance(unit);
 type filter = Grammar.filter(unit);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type deferral_position_t = Grammar.deferral_position_t;
+
+// Trying to add helper functions to build terms
+let lift: 'a => Annotated.t('a, unit) = term => {term, annotation: ()};
+
+let invalid: string => exp_t = s => lift(Invalid(s): exp_term);
+let empty_hole: exp_t = lift(EmptyHole: exp_term);
+let multi_hole: list(any_t) => exp_t = l => lift(MultiHole(l): exp_term);
+let dynamic_error_hole: (exp_t, InvalidOperationError.t) => exp_t =
+  (e, err) => lift(DynamicErrorHole(e, err): exp_term);
+let failed_cast: (exp_t, typ_t, typ_t) => exp_t =
+  (e, t1, t2) => lift(FailedCast(e, t1, t2): exp_term);
+
+let deferral: deferral_position_t => exp_t =
+  d => lift(Deferral(d): exp_term);
+let undefined: exp_t = lift(Undefined: exp_term);
+let bool_lit: bool => exp_t = b => lift(Bool(b): exp_term);
+let int_lit: int => exp_t = i => lift(Int(i): exp_term);
+let float_lit: float => exp_t = f => lift(Float(f): exp_term);
+let string_lit: string => exp_t = s => lift(String(s): exp_term);
+let list_lit: list(exp_t) => exp_t = l => lift(ListLit(l): exp_term);
+let constructor: (string, typ_t) => exp_t =
+  (s, t) => lift(Constructor(s, t): exp_term);
+let fun_: (pat_t, exp_t, option(typ_t), option(Var.t)) => exp_t =
+  (p, e, t, n) => lift(Fun(p, e, t, n): exp_term);
+let bin_op = (op, e1, e2) => lift(BinOp(op, e1, e2): exp_term);
