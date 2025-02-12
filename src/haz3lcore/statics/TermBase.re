@@ -130,8 +130,14 @@ and typ_term =
   | Sum(ConstructorMap.t(typ_t))
   | Prod(list(typ_t))
   | Parens(typ_t)
-  | Ap(typ_t, typ_t)
-  | ParamAp(typ_t,typ_t)
+  | TFun(tpat_t,typ_t)
+    // | Fun(
+    //   pat_t,
+    //   exp_t,
+    //   [@show.opaque] option(closure_environment_t),
+    //   option(Var.t),
+    // )
+  | Ap(typ_t, typ_t) //represents Tree(Int) in a type annotation
   | Rec(tpat_t, typ_t)
   | Forall(tpat_t, typ_t)
 and typ_t = IdTagged.t(typ_term)
@@ -140,7 +146,7 @@ and tpat_term =
   | EmptyHole
   | MultiHole(list(any_t))
   | Var(string)
-  | Ap(tpat_term, tpat_term)
+  | Ap(tpat_term, tpat_term) //represents Tree(a)
 and tpat_t = IdTagged.t(tpat_term)
 and rul_term =
   | Invalid(string)
@@ -654,7 +660,7 @@ and Typ: {
           )
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
-        | ParamAp(t1,t2) => ParamAp(typ_map_term(t1),typ_map_term(t2))
+        | TFun(a,b) => TFun(a,typ_map_term(b)) //can't recurse further on a pattern 
         },
     };
     x |> f_typ(rec_call);
@@ -686,7 +692,7 @@ and Typ: {
       | Var(y) => str == y ? s : Var(y) |> rewrap
       | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
       | Ap(t1, t2) => Ap(subst(s, x, t1), subst(s, x, t2)) |> rewrap
-      | ParamAp(t1,t2) => ParamAp( subst(s,x,t1), subst(s,x,t2)) |> rewrap
+      | TFun(pat, ty) => TFun(pat, subst(s,x,ty)) |> rewrap //double check this in OH
       };
     | None => ty
     };
@@ -736,8 +742,9 @@ and Typ: {
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
-    | (ParamAp(t1,t2),ParamAp(t1',t2')) => eq_internal(n,t1,t1') && eq_internal(n,t2,t2')
-    | (ParamAp(_,_),_ ) => false
+    //double check how i'm doing type pattern equality 
+    | (TFun(a,ty1),TFun(b,ty2)) => a == b && eq_internal(n,ty1,ty2)
+    | (TFun(_),_) => false
     };
   };
 

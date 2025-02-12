@@ -100,7 +100,7 @@ let is_abstract = (ctx: t, name: string): bool =>
 
 let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) => 
   switch (lookup_tvar(ctx, name)) {
-  | Some(Arrow(_,ty2)) => Some(ty2)
+  | Some(Arrow(_,ty2)) => Some(ty2) //i'm not positive what this should be doing here
   | Some(Singleton(ty)) => Some(ty)
   | Some(Abstract) => None
   | None =>
