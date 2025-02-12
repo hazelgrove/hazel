@@ -48,7 +48,7 @@ type t =
   | WantTuple /* Want a Tuple, found not-tuple */
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label)); /* Currently used by the dot operator for a label not found */
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_partial_ap =
   | NoDeferredArgs
   | ArityMismatch({

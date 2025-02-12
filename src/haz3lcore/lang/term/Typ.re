@@ -29,12 +29,56 @@ include TermBase.Typ;
 
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
+let rep_id: t => Id.t = IdTagged.rep_id;
+
 let fresh: term => t = IdTagged.fresh;
 /* fresh assigns a random id, whereas temp assigns Id.invalid, which
    is a lot faster, and since we so often make types and throw them away
    shortly after, it makes sense to use it. */
 let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
-let rep_id: t => Id.t = IdTagged.rep_id;
+
+module Fresh = {
+  open TermBase;
+  let unknown = (p: type_provenance) => Unknown(p) |> fresh;
+  let int = () => Int |> fresh;
+  let float = () => Float |> fresh;
+  let bool = () => Bool |> fresh;
+  let string = () => String |> fresh;
+  let var = x => Var(x) |> fresh;
+  let list = t => List(t) |> fresh;
+  let arrow = (t1, t2) => Arrow(t1, t2) |> fresh;
+  let sum = ctrs => Sum(ctrs) |> fresh;
+  let prod = ts => Prod(ts) |> fresh;
+  let parens = t => Parens(t) |> fresh;
+  let ap = (t1, t2) => Ap(t1, t2) |> fresh;
+  let rec_ = (tp, t) => Rec(tp, t) |> fresh;
+  let forall = (tp, t) => Forall(tp, t) |> fresh;
+  let label = l => Label(l) |> fresh;
+  let tup_label = (l, t) => TupLabel(l, t) |> fresh;
+
+  // The following function exists only as a reminder to update the above when a new constructor is added.
+  let ok = (_: 'a) => failwith("covered should never be called");
+  let covered = (e: typ_term) => {
+    switch (e) {
+    | Unknown(_) => ok(unknown)
+    | Int => ok(int)
+    | Float => ok(float)
+    | Bool => ok(bool)
+    | String => ok(string)
+    | Var(_) => ok(var)
+    | List(_) => ok(list)
+    | Arrow(_, _) => ok(arrow)
+    | Sum(_) => ok(sum)
+    | Prod(_) => ok(prod)
+    | Parens(_) => ok(parens)
+    | Ap(_, _) => ok(ap)
+    | Rec(_, _) => ok(rec_)
+    | Forall(_, _) => ok(forall)
+    | Label(_) => ok(label)
+    | TupLabel(_, _) => ok(tup_label)
+    };
+  };
+};
 
 let all_ids_temp = {
   let f:
@@ -237,7 +281,7 @@ let unroll = (ty: t): t =>
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
-let eq = (t1: t, t2: t): bool => fast_equal(t1, t2);
+let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
 
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown. The optional
@@ -265,16 +309,16 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
       let* ty1 = Ctx.lookup_alias(ctx, n1);
       let* ty2 = Ctx.lookup_alias(ctx, n2);
       let+ ty_join = join'(ty1, ty2);
-      !resolve && eq(ty1, ty_join) ? ty1 : ty_join;
+      !resolve && equal(ty1, ty_join) ? ty1 : ty_join;
     }
   | (Var(name), _) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty2);
-    !resolve && eq(ty_name, ty_join) ? ty1 : ty_join;
+    !resolve && equal(ty_name, ty_join) ? ty1 : ty_join;
   | (_, Var(name)) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty1);
-    !resolve && eq(ty_name, ty_join) ? ty2 : ty_join;
+    !resolve && equal(ty_name, ty_join) ? ty2 : ty_join;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
@@ -336,7 +380,8 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     }
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
-    let+ sm' = ConstructorMap.join(eq, join(~resolve, ~fix, ctx), sm1, sm2);
+    let+ sm' =
+      ConstructorMap.join(equal, join(~resolve, ~fix, ctx), sm1, sm2);
     Sum(sm') |> temp;
   | (Sum(_), _) => None
   | (List(ty1), List(ty2)) =>
@@ -380,7 +425,8 @@ let rec match_synswitch = (t1: t, t2: t) => {
     |> rewrap1
   | (TupLabel(_, _), _) => t1
   | (Sum(sm1), Sum(sm2)) =>
-    let sm' = ConstructorMap.match_synswitch(match_synswitch, eq, sm1, sm2);
+    let sm' =
+      ConstructorMap.match_synswitch(match_synswitch, equal, sm1, sm2);
     Sum(sm') |> rewrap1;
   | (Sum(_), _) => t1
   };
