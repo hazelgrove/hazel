@@ -119,7 +119,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       switch (DHExp.term_of(d1)) {
       | Cast(d2, t3, {term: Unknown(_), _}) =>
         /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
-        if (Typ.eq(t3, t2)) {
+        if (Typ.equal(t3, t2)) {
           Some
             (d2); // Rule ITCastSucceed
         } else {
@@ -159,7 +159,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Ground, NotGroundOrHole(_)) =>
       switch (DHExp.term_of(d1)) {
       | Cast(d2, t3, _) =>
-        if (Typ.eq(t3, t2)) {
+        if (Typ.equal(t3, t2)) {
           Some(d2);
         } else {
           None;
@@ -172,7 +172,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
 
     | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
       /* they might be eq in this case, so remove cast if so */
-      if (Typ.eq(t1, t2)) {
+      if (Typ.equal(t1, t2)) {
         Some
           (d1); // Rule ITCastId
       } else {

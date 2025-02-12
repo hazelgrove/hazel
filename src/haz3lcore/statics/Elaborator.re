@@ -17,7 +17,7 @@ let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): Exp.t => {
   switch (d.term) {
   | Label(_) => d
   | _ =>
-    Typ.eq(t1, t2)
+    Typ.equal(t1, t2)
       ? d
       : {
         let d': Exp.t =
@@ -35,7 +35,7 @@ let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
   switch (p.term) {
   | Label(_) => p
   | _ =>
-    Typ.eq(t1, t2)
+    Typ.equal(t1, t2)
       ? p
       : {
         Cast(

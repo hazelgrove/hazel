@@ -182,6 +182,7 @@ module rec Any: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
@@ -230,6 +231,8 @@ module rec Any: {
     | (Rul(_), _)
     | (Any (), _) => false
     };
+
+  let equal = fast_equal;
 }
 and Exp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -251,6 +254,7 @@ and Exp: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = exp_term;
@@ -480,6 +484,7 @@ and Exp: {
     | (EmptyHole, _)
     | (Undefined, _) => false
     };
+  let equal = fast_equal;
 }
 and Pat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -500,6 +505,7 @@ and Pat: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = pat_term;
@@ -598,6 +604,7 @@ and Pat: {
     | (Ap(_), _)
     | (Cast(_), _) => false
     };
+  let equal = fast_equal;
 }
 and Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -622,6 +629,7 @@ and Typ: {
   let subst: (t, TPat.t, t) => t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = typ_term;
@@ -774,6 +782,7 @@ and Typ: {
   };
 
   let fast_equal = eq_internal(0);
+  let equal = fast_equal;
 }
 and TPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -796,6 +805,7 @@ and TPat: {
   let tyvar_of_utpat: t => option(string);
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = tpat_term;
@@ -846,6 +856,7 @@ and TPat: {
     | (MultiHole(_), _)
     | (Var(_), _) => false
     };
+  let equal = fast_equal;
 }
 and Rul: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -866,6 +877,7 @@ and Rul: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = rul_term;
@@ -926,6 +938,7 @@ and Rul: {
     | (Hole(_), _)
     | (Rules(_), _) => false
     };
+  let equal = fast_equal;
 }
 
 and Environment: {

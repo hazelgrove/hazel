@@ -773,7 +773,7 @@ and uexp_to_info_map =
             go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
           let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
             Typ.term_of(ty_p) == Unknown(SynSwitch)
-            && !Typ.eq(ty_fn1, ty_fn2)
+            && !Typ.equal(ty_fn1, ty_fn2)
               ? ty_fn1 : ty_p;
           };
           let ana =
@@ -1664,6 +1664,23 @@ let get_error_at = (info_map: Map.t, id: Id.t) => {
        _,
        fun
        | InfoExp(e) => Some(e)
+       | _ => None,
+     )
+  |> Option.bind(_, e =>
+       switch (e.status) {
+       | InHole(err_info) => Some(err_info)
+       | NotInHole(_) => None
+       }
+     );
+};
+
+let get_pat_error_at = (info_map: Map.t, id: Id.t) => {
+  id
+  |> Id.Map.find_opt(_, info_map)
+  |> Option.bind(
+       _,
+       fun
+       | InfoPat(e) => Some(e)
        | _ => None,
      )
   |> Option.bind(_, e =>

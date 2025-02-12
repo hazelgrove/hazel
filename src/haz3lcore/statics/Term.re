@@ -33,6 +33,52 @@ module Pat = {
 
   let fresh: term => t = IdTagged.fresh;
 
+  module Fresh = {
+    open TermBase;
+    let invalid = s => Invalid(s) |> fresh;
+    let empty_hole = () => EmptyHole |> fresh;
+    let multi_hole = tms => MultiHole(tms) |> fresh;
+    let wild = () => Wild |> fresh;
+    let int = i => Int(i) |> fresh;
+    let float = f => Float(f) |> fresh;
+    let bool = b => Bool(b) |> fresh;
+    let string = s => String(s) |> fresh;
+    let list_lit = ts => ListLit(ts) |> fresh;
+    let constructor = (c, ty) => Constructor(c, ty) |> fresh;
+    let cons = (hd, tl) => Cons(hd, tl) |> fresh;
+    let var = x => Var(x) |> fresh;
+    let tuple = ps => Tuple(ps) |> fresh;
+    let parens = p => Parens(p) |> fresh;
+    let ap = (f, x) => Ap(f, x) |> fresh;
+    let cast = (e, t1, t2) => Cast(e, t1, t2) |> fresh;
+    let label = l => Label(l) |> fresh;
+    let tup_label = (l, p) => TupLabel(l, p) |> fresh;
+    // The following function exists only as a reminder to update the above when a new constructor is added.
+    let ok = (_: 'a) => failwith("covered should never be called");
+    let covered = (e: pat_term) => {
+      switch (e) {
+      | Invalid(_) => ok(invalid)
+      | EmptyHole => ok(empty_hole)
+      | MultiHole(_) => ok(multi_hole)
+      | Wild => ok(wild)
+      | Int(_) => ok(int)
+      | Float(_) => ok(float)
+      | Bool(_) => ok(bool)
+      | String(_) => ok(string)
+      | ListLit(_) => ok(list_lit)
+      | Constructor(_, _) => ok(constructor)
+      | Cons(_, _) => ok(cons)
+      | Var(_) => ok(var)
+      | Tuple(_) => ok(tuple)
+      | Parens(_) => ok(parens)
+      | Ap(_, _) => ok(ap)
+      | Cast(_, _, _) => ok(cast)
+      | Label(_) => ok(label)
+      | TupLabel(_, _) => ok(tup_label)
+      };
+    };
+  };
+
   let hole = (tms: list(TermBase.Any.t)): TermBase.Pat.term =>
     switch (tms) {
     | [] => EmptyHole
@@ -380,6 +426,98 @@ module Exp = {
 
   include TermBase.Exp;
 
+  let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
+  let fresh: term => t = IdTagged.fresh;
+
+  module Fresh = {
+    open TermBase;
+    let invalid = s => Invalid(s) |> fresh;
+    let empty_hole = () => EmptyHole |> fresh;
+    let multi_hole = tms => MultiHole(tms) |> fresh;
+    let dynamic_error_hole = (e, err) => DynamicErrorHole(e, err) |> fresh;
+    let failed_cast = (e, ty1, ty2) => FailedCast(e, ty1, ty2) |> fresh;
+    let deferral = position => Deferral(position) |> fresh;
+    let undefined = () => Undefined |> fresh;
+    let bool = b => Bool(b) |> fresh;
+    let int = i => Int(i) |> fresh;
+    let float = f => Float(f) |> fresh;
+    let string = s => String(s) |> fresh;
+    let list_lit = es => ListLit(es) |> fresh;
+    let constructor = (s, ty) => Constructor(s, ty) |> fresh;
+    let fun_ = (p, e, ty, v) => Fun(p, e, ty, v) |> fresh;
+    let typ_fun = (p, e, x) => TypFun(p, e, x) |> fresh;
+    let tuple = es => Tuple(es) |> fresh;
+    let var = s => Var(s) |> fresh;
+    let let_ = (p, e, b) => Let(p, e, b) |> fresh;
+    let fix_f = (f, x, e) => FixF(f, x, e) |> fresh;
+    let ty_alias = (p, ty, e) => TyAlias(p, ty, e) |> fresh;
+    let ap = (d, f, x) => Ap(d, f, x) |> fresh;
+    let typ_ap = (f, x) => TypAp(f, x) |> fresh;
+    let deferred_ap = (f, x) => DeferredAp(f, x) |> fresh;
+    let if_ = (c, t, e) => If(c, t, e) |> fresh;
+    let seq = (e1, e2) => Seq(e1, e2) |> fresh;
+    let test = e => Test(e) |> fresh;
+    let filter = (k, e) => Filter(k, e) |> fresh;
+    let closure = (env, e) => Closure(env, e) |> fresh;
+    let parens = e => Parens(e) |> fresh;
+    let cons = (h, t) => Cons(h, t) |> fresh;
+    let list_concat = (e1, e2) => ListConcat(e1, e2) |> fresh;
+    let un_op = (op, e) => UnOp(op, e) |> fresh;
+    let bin_op = (op, e1, e2) => BinOp(op, e1, e2) |> fresh;
+    let builtin_fun = s => BuiltinFun(s) |> fresh;
+    let match_ = (e, bs) => Match(e, bs) |> fresh;
+    let cast = (e, t1, t2) => Cast(e, t1, t2) |> fresh;
+    let label = s => Label(s) |> fresh;
+    let tup_label = (l, e) => TupLabel(l, e) |> fresh;
+    let dot = (e1, e2) => Dot(e1, e2) |> fresh;
+
+    // The following function exists only as a reminder to update the above when a new constructor is added.
+    let ok = (_: 'a) => failwith("covered should never be called");
+    let covered = (e: exp_term) => {
+      switch (e) {
+      | Invalid(_) => ok(invalid)
+      | EmptyHole => ok(empty_hole)
+      | MultiHole(_) => ok(multi_hole)
+      | DynamicErrorHole(_, _) => ok(dynamic_error_hole)
+      | FailedCast(_, _, _) => ok(failed_cast)
+      | Deferral(_) => ok(deferral)
+      | Undefined => ok(undefined)
+      | Bool(_) => ok(bool)
+      | Int(_) => ok(int)
+      | Float(_) => ok(float)
+      | String(_) => ok(string)
+      | ListLit(_) => ok(list_lit)
+      | Constructor(_, _) => ok(constructor)
+      | Fun(_, _, _, _) => ok(fun_)
+      | TypFun(_, _, _) => ok(typ_fun)
+      | Tuple(_) => ok(tuple)
+      | Var(_) => ok(var)
+      | Let(_, _, _) => ok(let_)
+      | FixF(_, _, _) => ok(fix_f)
+      | TyAlias(_, _, _) => ok(ty_alias)
+      | Ap(_, _, _) => ok(ap)
+      | TypAp(_, _) => ok(typ_ap)
+      | DeferredAp(_, _) => ok(deferred_ap)
+      | If(_, _, _) => ok(if_)
+      | Seq(_, _) => ok(seq)
+      | Test(_) => ok(test)
+      | Filter(_, _) => ok(filter)
+      | Closure(_, _) => ok(closure)
+      | Parens(_) => ok(parens)
+      | Cons(_, _) => ok(cons)
+      | ListConcat(_, _) => ok(list_concat)
+      | UnOp(_, _) => ok(un_op)
+      | BinOp(_, _, _) => ok(bin_op)
+      | BuiltinFun(_) => ok(builtin_fun)
+      | Match(_, _) => ok(match_)
+      | Cast(_, _, _) => ok(cast)
+      | Label(_) => ok(label)
+      | TupLabel(_, _) => ok(tup_label)
+      | Dot(_, _) => ok(dot)
+      };
+    };
+  };
+
   let hole = (tms: list(TermBase.Any.t)): term =>
     switch (tms) {
     | [] => EmptyHole
@@ -387,7 +525,6 @@ module Exp = {
     };
 
   let rep_id: t => Id.t = IdTagged.rep_id;
-  let fresh: term => t = IdTagged.fresh;
   let term_of: t => term = IdTagged.term_of;
   let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
