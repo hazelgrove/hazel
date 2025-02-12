@@ -81,8 +81,13 @@ module M: Projector = {
   type model = unit;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
-  let init = ();
-  let can_project = any => string_of(any) != None;
+
+  let init = (any: Term.Any.t) =>
+    switch (string_of(any)) {
+    | Some(_) => Some()
+    | None => None
+    };
+
   let focus_keyboard = (id: Id.t, d: Direction.t) => {
     JsUtil.get_elem_by_id(Id.cls(id))##focus;
     switch (d) {

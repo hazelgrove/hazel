@@ -888,21 +888,20 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
-  let init = init;
+  let init = (any: Term.Any.t) =>
+    switch (any) {
+    | Exp(_)
+    | Pat(_) => Some(init)
+    | Any(_) => Some(init) /* Grout don't have sorts rn */
+    | _ => None
+    };
+
   let dynamics = true;
 
   let focusable =
     Focusable.{
       pointer: Some(id => JsUtil.get_elem_by_id(Id.cls(id))##focus),
       keyboard: None,
-    };
-
-  let can_project = (any: Term.Any.t) =>
-    switch (any) {
-    | Exp(_) => true
-    | Pat(_) => true
-    | Any(_) => true /* Grout don't have sorts rn */
-    | _ => false
     };
 
   let placeholder = (_, info: info) =>

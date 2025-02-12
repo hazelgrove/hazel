@@ -8,12 +8,16 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let init = ();
-
   let bool_of = (any: Any.t): option(bool) =>
     switch (any) {
     | Exp({term: Bool(b), _}) => Some(b)
     | _ => None
+    };
+
+  let init = (any: Term.Any.t) =>
+    switch (bool_of(any)) {
+    | Some(_) => Some()
+    | None => None
     };
 
   let get = (info: info): bool =>
@@ -36,8 +40,6 @@ module M: Projector = {
     | Some(s) => s
     | None => failwith("Checkbox: Toggle: lift failed")
     };
-
-  let can_project = (any: Term.Any.t) => bool_of(any) != None;
 
   let focusable = Focusable.non;
   let dynamics = false;
