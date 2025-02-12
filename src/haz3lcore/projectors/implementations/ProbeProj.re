@@ -634,7 +634,6 @@ let nav_bar_view = (_model: model, num_total: int, local) => {
       ],
       [],
     );
-  // TODO: better logic
   let show_left = num_total < Window.max_closures();
   let show_right = num_total < Window.max_closures();
   div(
