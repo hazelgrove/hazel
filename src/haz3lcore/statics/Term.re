@@ -13,6 +13,8 @@ module Pat = {
     | Constructor
     | Cons
     | Var
+    | Label
+    | TupLabel
     | Tuple
     | Parens
     | Probe
@@ -52,6 +54,8 @@ module Pat = {
     | Constructor(_) => Constructor
     | Cons(_) => Cons
     | Var(_) => Var
+    | Label(_) => Label
+    | TupLabel(_) => TupLabel
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Probe(_) => Probe
@@ -72,6 +76,8 @@ module Pat = {
     | Constructor => "Constructor"
     | Cons => "Cons"
     | Var => "Variable binding"
+    | Label => "Label"
+    | TupLabel => "Labeled Tuple Item"
     | Tuple => "Tuple"
     | Parens => "Parenthesized pattern"
     | Probe => "Probe"
@@ -82,6 +88,7 @@ module Pat = {
     switch (pat.term) {
     | Parens(pat)
     | Probe(pat, _)
+    | TupLabel(_, pat)
     | Cast(pat, _, _) => is_var(pat)
     | Var(_) => true
     | Invalid(_)
@@ -95,6 +102,7 @@ module Pat = {
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
+    | Label(_)
     | Constructor(_)
     | Ap(_) => false
     };
@@ -103,7 +111,8 @@ module Pat = {
   let rec is_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat)
-    | Probe(pat, _) => is_fun_var(pat)
+    | Probe(pat, _)
+    | TupLabel(_, pat) => is_fun_var(pat)
     | Cast(pat, typ, _) =>
       is_var(pat) && (Typ.is_arrow(typ) || Typ.is_forall(typ))
     | Invalid(_)
@@ -117,6 +126,7 @@ module Pat = {
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
+    | Label(_)
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => false
@@ -128,8 +138,10 @@ module Pat = {
     || (
       switch (pat.term) {
       | Parens(pat)
-      | Probe(pat, _) => is_tuple_of_arrows(pat)
+      | Probe(pat, _)
+      | TupLabel(_, pat) => is_tuple_of_arrows(pat)
       | Tuple(pats) => pats |> List.for_all(is_fun_var)
+      | Label(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -153,8 +165,10 @@ module Pat = {
       switch (pat.term) {
       | Parens(pat)
       | Probe(pat, _)
-      | Cast(pat, _, _) => is_tuple_of_vars(pat)
+      | Cast(pat, _, _)
+      | TupLabel(_, pat) => is_tuple_of_vars(pat)
       | Tuple(pats) => pats |> List.for_all(is_var)
+      | Label(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -174,7 +188,8 @@ module Pat = {
   let rec get_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat)
-    | Probe(pat, _) => get_var(pat)
+    | Probe(pat, _)
+    | TupLabel(_, pat) => get_var(pat)
     | Var(x) => Some(x)
     | Cast(x, _, _) => get_var(x)
     | Invalid(_)
@@ -187,6 +202,7 @@ module Pat = {
     | String(_)
     | ListLit(_)
     | Cons(_, _)
+    | Label(_)
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => None
@@ -196,7 +212,8 @@ module Pat = {
   let rec get_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat)
-    | Probe(pat, _) => get_fun_var(pat)
+    | Probe(pat, _)
+    | TupLabel(_, pat) => get_fun_var(pat)
     | Cast(pat, t1, _) =>
       if (Typ.is_arrow(t1) || Typ.is_forall(t1)) {
         get_var(pat) |> Option.map(var => var);
@@ -214,6 +231,7 @@ module Pat = {
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
+    | Label(_)
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => None
@@ -227,7 +245,8 @@ module Pat = {
       switch (pat.term) {
       | Parens(pat)
       | Probe(pat, _)
-      | Cast(pat, _, _) => get_bindings(pat)
+      | Cast(pat, _, _)
+      | TupLabel(_, pat) => get_bindings(pat)
       | Tuple(pats) =>
         let vars = pats |> List.map(get_var);
         if (List.exists(Option.is_none, vars)) {
@@ -235,6 +254,7 @@ module Pat = {
         } else {
           Some(List.map(Option.get, vars));
         };
+      | Label(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -258,9 +278,11 @@ module Pat = {
       switch (pat.term) {
       | Parens(pat)
       | Probe(pat, _)
-      | Cast(pat, _, _) => get_num_of_vars(pat)
+      | Cast(pat, _, _)
+      | TupLabel(_, pat) => get_num_of_vars(pat)
       | Tuple(pats) =>
         is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
+      | Label(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -283,6 +305,21 @@ module Pat = {
     | _ => None
     };
 
+  let rec match_tup_label: t => option((LabeledTuple.label, t)) =
+    p =>
+      switch (p.term) {
+      | Parens(p) => match_tup_label(p)
+      | TupLabel(plab, p') =>
+        switch (plab.term) {
+        | Label(name) => Some((name, p'))
+        | _ => None
+        }
+      | _ => None
+      };
+
+  let get_label: t => option(LabeledTuple.label) =
+    p => match_tup_label(p) |> Option.map(fst);
+
   let rec bindings = (dp: t): Binding.s =>
     switch (dp |> term_of) {
     | EmptyHole
@@ -293,9 +330,11 @@ module Pat = {
     | Float(_)
     | Bool(_)
     | String(_)
+    | Label(_)
     | Constructor(_) => []
     | Cast(y, _, _)
     | Parens(y)
+    | TupLabel(_, y)
     | Probe(y, _) => bindings(y)
     | Var(name) => [{name, id: rep_id(dp)}]
     | Tuple(dps) => List.flatten(List.map(bindings, dps))
@@ -336,7 +375,10 @@ module Exp = {
     | Constructor
     | Fun
     | TypFun
+    | Label
+    | TupLabel
     | Tuple
+    | Dot
     | Var
     | MetaVar
     | Let
@@ -392,6 +434,9 @@ module Exp = {
     | Fun(_) => Fun
     | TypFun(_) => TypFun
     | Tuple(_) => Tuple
+    | Label(_) => Label
+    | TupLabel(_, _) => TupLabel
+    | Dot(_) => Dot
     | Var(_) => Var
     | Let(_) => Let
     | FixF(_) => FixF
@@ -433,6 +478,9 @@ module Exp = {
     | Fun => "Function literal"
     | TypFun => "Type Function Literal"
     | Tuple => "Tuple literal"
+    | Label => "Label"
+    | TupLabel => "Labeled Tuple Item"
+    | Dot => "Dot operator"
     | Var => "Variable reference"
     | MetaVar => "Meta variable reference"
     | Let => "Let expression"
@@ -457,6 +505,25 @@ module Exp = {
     | Match => "Case expression"
     | Cast => "Cast expression";
 
+  let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
+    e => {
+      switch (e.term) {
+      | Parens(e) => match_tup_label(e)
+      | TupLabel(elab, e') =>
+        switch (elab.term) {
+        | Label(name) => Some((name, e'))
+        | _ => None
+        }
+      | Cast(e, _, _) => match_tup_label(e)
+      | _ => None
+      };
+    };
+  };
+
+  let get_label: t => option(LabeledTuple.label) = {
+    e => match_tup_label(e) |> Option.map(fst);
+  };
+
   // Typfun should be treated as a function here as this is only used to
   // determine when to allow for recursive definitions in a let binding.
   let rec is_fun = (e: t) => {
@@ -467,6 +534,23 @@ module Exp = {
     | TypFun(_)
     | Fun(_)
     | BuiltinFun(_) => true
+    | TupLabel(_, e) => is_fun(e)
+    | Dot(e1, e2) =>
+      let rec check_tuple = (e1: t, e2: t) =>
+        switch (e1.term) {
+        | Parens(e) => check_tuple(e, e2)
+        | Tuple(ts) =>
+          switch (e2.term) {
+          | Label(name) => LabeledTuple.find_label(match_tup_label, ts, name)
+          | _ => None
+          }
+        | _ => None
+        };
+      let element: option(t) = check_tuple(e1, e2);
+      switch (element) {
+      | Some(exp) => is_fun(exp)
+      | None => false
+      };
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -478,6 +562,7 @@ module Exp = {
     | Int(_)
     | Float(_)
     | String(_)
+    | Label(_)
     | ListLit(_)
     | Tuple(_)
     | Var(_)
@@ -507,8 +592,26 @@ module Exp = {
       switch (e.term) {
       | Cast(e, _, _)
       | Parens(e)
-      | Probe(e, _) => is_tuple_of_functions(e)
+      | Probe(e, _)
+      | TupLabel(_, e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
+      | Dot(e1, e2) =>
+        let rec check_tuple = (e1: t, e2: t) =>
+          switch (e1.term) {
+          | Parens(e) => check_tuple(e, e2)
+          | Tuple(ts) =>
+            switch (e2.term) {
+            | Label(name) =>
+              LabeledTuple.find_label(match_tup_label, ts, name)
+            | _ => None
+            }
+          | _ => None
+          };
+        let element: option(t) = check_tuple(e1, e2);
+        switch (element) {
+        | Some(exp) => is_tuple_of_functions(exp)
+        | None => false
+        };
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -520,6 +623,7 @@ module Exp = {
       | Int(_)
       | Float(_)
       | String(_)
+      | Label(_)
       | ListLit(_)
       | Fun(_)
       | TypFun(_)
@@ -564,7 +668,9 @@ module Exp = {
     } else {
       switch (e.term) {
       | Parens(e)
-      | Probe(e, _) => get_num_of_functions(e)
+      | Probe(e, _)
+      | TupLabel(_, e)
+      | Dot(e, _) => get_num_of_functions(e)
       | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
       | Invalid(_)
       | EmptyHole
@@ -581,6 +687,7 @@ module Exp = {
       | Int(_)
       | Float(_)
       | String(_)
+      | Label(_)
       | ListLit(_)
       | Fun(_)
       | TypFun(_)
@@ -737,6 +844,9 @@ module Exp = {
           | Constructor(_)
           | TypFun(_)
           | Tuple(_)
+          | TupLabel(_)
+          | Label(_)
+          | Dot(_)
           | TyAlias(_)
           | Ap(_)
           | TypAp(_)
