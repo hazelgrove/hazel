@@ -57,6 +57,4 @@ module M: Projector = {
         info |> get |> string_of_int,
       ),
     );
-
-  let focus = _ => ();
 };

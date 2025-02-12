@@ -41,7 +41,6 @@ module M: Projector = {
   let init = Expected;
   let dynamics = false;
   let focusable = Focusable.non;
-  let focus = _ => ();
 
   let can_project = (any: Term.Any.t): bool => {
     switch (any) {

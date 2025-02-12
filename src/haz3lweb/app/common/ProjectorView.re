@@ -328,10 +328,11 @@ let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) => {
   | _ when z.caret != Outer => None
   | (Some(Left), (Some(Projector({id, kind, _})), _)) =>
     let (module P) = ProjectorInit.to_module(kind);
-    P.focusable.keyboard ? Some(Focus(id, kind, Some(Right))) : None;
+    P.focusable.keyboard != None
+      ? Some(Focus(id, kind, Some(Right))) : None;
   | (Some(Right), (_, Some(Projector({id, kind, _})))) =>
     let (module P) = ProjectorInit.to_module(kind);
-    P.focusable.keyboard ? Some(Focus(id, kind, Some(Left))) : None;
+    P.focusable.keyboard != None ? Some(Focus(id, kind, Some(Left))) : None;
   | _ => None
   };
 };
