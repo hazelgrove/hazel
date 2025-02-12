@@ -73,8 +73,8 @@ let parse_exp = (s: string) => {
 let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
   Grammar.map_exp_annotation(
     ({ids, _}: Grammar.IdTag.t) => {
-      let new_info = Id.Map.find(List.hd(ids), info_map);
-      Info.error_of(new_info);
+      let new_info = Id.Map.find_opt(List.hd(ids), info_map);
+      Option.bind(new_info, Info.error_of);
     },
     exp,
   );
@@ -92,6 +92,16 @@ let no_error =
     (e: Grammar.exp_term(option(Info.error)))
     : Grammar.exp_t(option(Info.error)) => {
   {term: e, annotation: None};
+};
+let no_error_pat =
+    (p: Grammar.pat_term(option(Info.error)))
+    : Grammar.pat_t(option(Info.error)) => {
+  {term: p, annotation: None};
+};
+let no_error_typ =
+    (t: Grammar.typ_term(option(Info.error)))
+    : Grammar.typ_t(option(Info.error)) => {
+  {term: t, annotation: None};
 };
 let error =
     (err, e: Grammar.exp_term(option(Info.error)))
@@ -187,107 +197,115 @@ let unlabeled_tuple_to_labeled_fails =
   test_case(
     "Typechecking fails for unlabeled variable being assigned to labeled tuple",
     `Quick,
-    () =>
-    Alcotest.check(
-      Alcotest.option(testable_info_error_exp),
-      "let x = (1, 2) in  let y : (a=Int, b=Int) = x in y",
-      Some(
-        Common(
-          Inconsistent(
-            Expectation({
-              ana:
-                Parens(
-                  Prod([
-                    TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
-                    |> Typ.fresh,
-                    TupLabel(Label("b") |> Typ.fresh, Int |> Typ.fresh)
-                    |> Typ.fresh,
-                  ])
-                  |> Typ.fresh,
-                )
-                |> Typ.fresh,
-              syn: Prod([Int |> Typ.fresh, Int |> Typ.fresh]) |> Typ.fresh,
-            }),
+    () => {
+    annotated_tree_test(
+      "Unlabeled variable assigned to labeled tuple",
+      no_error(
+        Let(
+          no_error_pat(Var("x")),
+          no_error(
+            Parens(
+              Tuple([Int(1) |> no_error, Int(2) |> no_error]) |> no_error,
+            ),
+          ),
+          no_error(
+            Let(
+              no_error_pat(
+                Cast(
+                  no_error_pat(Var("y")),
+                  no_error_typ(
+                    Parens(
+                      Prod([
+                        no_error_typ(
+                          TupLabel(
+                            Label("a") |> no_error_typ,
+                            Int |> no_error_typ,
+                          ),
+                        ),
+                        TupLabel(
+                          Label("b") |> no_error_typ,
+                          Int |> no_error_typ,
+                        )
+                        |> no_error_typ,
+                      ])
+                      |> no_error_typ,
+                    ),
+                  ),
+                  Unknown(Internal) |> no_error_typ,
+                ),
+              ),
+              error(
+                Exp(
+                  Common(
+                    Inconsistent(
+                      Expectation({
+                        ana:
+                          Parens(
+                            Prod([
+                              TupLabel(
+                                Label("a") |> Typ.fresh,
+                                Int |> Typ.fresh,
+                              )
+                              |> Typ.fresh,
+                              TupLabel(
+                                Label("b") |> Typ.fresh,
+                                Int |> Typ.fresh,
+                              )
+                              |> Typ.fresh,
+                            ])
+                            |> Typ.fresh,
+                          )
+                          |> Typ.fresh,
+                        syn:
+                          Prod([Int |> Typ.fresh, Int |> Typ.fresh])
+                          |> Typ.fresh,
+                      }),
+                    ),
+                  ),
+                ),
+                Var("x"),
+              ),
+              no_error(Var("y")),
+            ),
           ),
         ),
       ),
-      info_error_of_id(
-        Let(
-          Var("x") |> Pat.fresh,
-          Parens(
-            Tuple([Int(1) |> Exp.fresh, Int(2) |> Exp.fresh]) |> Exp.fresh,
-          )
-          |> Exp.fresh,
-          Let(
-            Cast(
-              Var("y") |> Pat.fresh,
-              Parens(
-                Prod([
-                  TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
-                  |> Typ.fresh,
-                  TupLabel(Label("b") |> Typ.fresh, Int |> Typ.fresh)
-                  |> Typ.fresh,
-                ])
-                |> Typ.fresh,
-              )
-              |> Typ.fresh,
-              Unknown(Internal) |> Typ.fresh,
-            )
-            |> Pat.fresh,
-            {
-              term: Var("x"),
-              annotation: {
-                ids: [reusable_id],
-                copied: false,
-              },
-            },
-            Var("y") |> Exp.fresh,
-          )
-          |> Exp.fresh,
-        )
-        |> Exp.fresh,
-        reusable_id,
-      ),
     )
-  );
+  });
 
 let simple_inconsistency =
   test_case(
     "Typechecking fails for unlabeled variable being assigned to labeled tuple",
     `Quick,
-    () =>
-    Alcotest.check(
-      Alcotest.option(testable_info_error_exp),
+    () => {
+    annotated_tree_test(
       "let y : String = true",
-      Some(
-        Common(
-          Inconsistent(
-            Expectation({ana: String |> Typ.fresh, syn: Bool |> Typ.fresh}),
-          ),
-        ),
-      ),
-      info_error_of_id(
+      no_error(
         Let(
           Cast(
-            Var("y") |> Pat.fresh,
-            String |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
+            Var("y") |> no_error_pat,
+            String |> no_error_typ,
+            Unknown(Internal) |> no_error_typ,
           )
-          |> Pat.fresh,
-          {
-            term: Bool(true),
-            annotation: {
-              ids: [reusable_id],
-              copied: false,
-            },
-          },
-          Var("y") |> Exp.fresh,
-        )
-        |> Exp.fresh,
-        reusable_id,
+          |> no_error_pat,
+          error(
+            Exp(
+              Common(
+                Inconsistent(
+                  Expectation({
+                    ana: String |> Typ.fresh,
+                    syn: Bool |> Typ.fresh,
+                  }),
+                ),
+              ),
+            ),
+            Bool(true),
+          ),
+          Var("y") |> no_error,
+        ),
       ),
     )
-  );
+  });
 
 let unapplied_function = () =>
   alco_check(
@@ -478,27 +496,44 @@ let tests = (
       )
       |> Exp.fresh,
     ),
-    inconsistent_typecheck(
+    test_case(
       "Singleton Labled Tuple ascription in let with wrong type should fail",
-      Let(
-        Cast(
-          Var("x") |> Pat.fresh,
-          Parens(
-            Prod([
-              TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
-              |> Typ.fresh,
-            ])
-            |> Typ.fresh,
+      `Quick,
+      () => {
+      annotated_tree_test(
+        "",
+        Let(
+          Cast(
+            Var("x") |> no_error_pat,
+            Parens(
+              Prod([
+                TupLabel(Label("l") |> no_error_typ, String |> no_error_typ)
+                |> no_error_typ,
+              ])
+              |> no_error_typ,
+            )
+            |> no_error_typ,
+            Unknown(Internal) |> no_error_typ,
           )
-          |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
+          |> no_error_pat,
+          error(
+            Exp(
+              Common(
+                Inconsistent(
+                  Expectation({
+                    ana: String |> Typ.fresh,
+                    syn: Int |> Typ.fresh,
+                  }),
+                ),
+              ),
+            ),
+            Int(1),
+          ),
+          Var("x") |> no_error,
         )
-        |> Pat.fresh,
-        Int(1) |> Exp.fresh,
-        Var("x") |> Exp.fresh,
+        |> no_error,
       )
-      |> Exp.fresh,
-    ),
+    }),
     fully_consistent_typecheck(
       "Singleton Labled Tuple with specified label",
       "let x : (l=String) = (l=\"a\") in x",
