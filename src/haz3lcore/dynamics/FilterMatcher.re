@@ -214,6 +214,13 @@ let rec matches_exp =
     | (String(dv), String(fv)) => dv == fv
     | (String(_), _) => false
 
+    | (Label(dv), Label(fv)) => dv == fv
+    | (Label(_), _) => false
+
+    | (TupLabel(dl, dv), TupLabel(fl, fv)) =>
+      matches_exp(dl, fl) && matches_exp(dv, fv)
+    | (TupLabel(_), _) => false
+
     | (
         Constructor(_),
         Ap(_, {term: Constructor("~MVal", _), _}, {term: Tuple([]), _}),
@@ -228,14 +235,7 @@ let rec matches_exp =
     | (TypFun(pat1, d1, s1), TypFun(pat2, d2, s2)) =>
       s1 == s2 && matches_utpat(pat1, pat2) && matches_exp(d1, d2)
     | (TypFun(_), _) => false
-
-    | (Fun(dp1, d1, Some(denv), _), Fun(fp1, f1, Some(fenv), _)) =>
-      matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
-    | (Fun(dp1, d1, Some(denv), _), Fun(fp1, f1, None, _)) =>
-      matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
-    | (Fun(dp1, d1, None, _), Fun(fp1, f1, Some(fenv), _)) =>
-      matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
-    | (Fun(dp1, d1, None, _), Fun(fp1, f1, None, _)) =>
+    | (Fun(dp1, d1, _, _), Fun(fp1, f1, _, _)) =>
       matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
     | (Fun(_), _) => false
 
@@ -284,6 +284,10 @@ let rec matches_exp =
     | (ListLit(dv), ListLit(fv)) =>
       List.fold_left2((acc, d, f) => acc && matches_exp(d, f), true, dv, fv)
     | (ListLit(_), _) => false
+
+    | (Dot(d1, d2), Dot(f1, f2)) =>
+      matches_exp(d1, f1) && matches_exp(d2, f2)
+    | (Dot(_), _) => false
 
     | (Tuple(dv), Tuple(fv)) =>
       List.fold_left2((acc, d, f) => acc && matches_exp(d, f), true, dv, fv)
