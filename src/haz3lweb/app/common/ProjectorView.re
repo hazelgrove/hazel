@@ -225,7 +225,7 @@ let split_views =
       font_metrics: FontMetrics.t,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
     )
-    : (Node.t, Node.t, option(Node.t)) => {
+    : (Node.t, option(Node.t)) => {
   let wrapper =
     view_wrapper(
       ~inject,
@@ -238,25 +238,18 @@ let split_views =
     );
   let views = mk_view(inject, font_metrics, projector_data);
   let line_view = {
-    let inline_view = Option.to_list(views.inline);
     let offside_view =
       views.offside
       |> Option.map(offside_wrapper(font_metrics, offside_base))
       |> Option.to_list;
     wrapper(
-      inline_view
+      [views.inline]
       @ [backing_deco(~font_metrics, ~measurement, p)]
       @ offside_view,
     );
   };
   let overlay_view = Option.map(v => wrapper([v]), views.overlay);
-  let _underlay_view =
-    switch (views.underlay) {
-    | Some(v) => wrapper([v])
-    | None => wrapper([backing_deco(~font_metrics, ~measurement, p)])
-    };
-
-  (Node.text(""), line_view, overlay_view);
+  (line_view, overlay_view);
 };
 
 /* Is the piece with id indicated? If so, where is it wrt the caret? */
@@ -284,20 +277,16 @@ let all =
    * impinge on hover-dropdowns, but the hovered projector
    * has z-index handled separately. But ideally dropdowns
    * should be on the overlay layer so this doesn't come up */
-  let (underlay_views, base_views, overlay_views) =
+  let (base_views, overlay_views) =
     projector_data
     |> List.sort(by_measurement)
     |> List.map(split_views(inject, make_active, font_metrics))
-    |> ListUtil.split3;
+    |> List.split;
   let overlay_views = List.filter_map(Fun.id, overlay_views);
   [
     div_c(
       "projectors",
-      [
-        div_c("base", base_views),
-        div_c("underlays", underlay_views),
-        div_c("overlays", overlay_views),
-      ],
+      [div_c("base", base_views), div_c("overlays", overlay_views)],
     ),
   ];
 };
