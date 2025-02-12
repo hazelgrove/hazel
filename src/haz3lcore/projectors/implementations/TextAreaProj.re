@@ -83,7 +83,23 @@ module M: Projector = {
   type action = unit;
   let init = ();
   let can_project = any => string_of(any) != None;
-  let focusable = Focusable.{pointer: true, keyboard: true};
+  let focus_keyboard = (id: Id.t, d: Direction.t) => {
+    JsUtil.get_elem_by_id(Id.cls(id))##focus;
+    switch (d) {
+    | Left => Web.TextArea.set_caret_to_start(Web.TextArea.get(Id.cls(id)))
+    | Right => Web.TextArea.set_caret_to_end(Web.TextArea.get(Id.cls(id)))
+    };
+  };
+
+  let focus_pointer = (id: Id.t) => {
+    JsUtil.get_elem_by_id(Id.cls(id))##focus;
+  };
+
+  let focusable =
+    Focusable.{
+      pointer: Some(focus_pointer),
+      keyboard: Some(focus_keyboard),
+    };
   let dynamics = false;
   let placeholder = (_, info) => {
     let str = info |> get;
@@ -107,15 +123,4 @@ module M: Projector = {
         ],
       ),
     );
-
-  let focus = ((id: Id.t, d: option(Direction.t))) => {
-    JsUtil.get_elem_by_id(Id.cls(id))##focus;
-    switch (d) {
-    | None => ()
-    | Some(Left) =>
-      Web.TextArea.set_caret_to_start(Web.TextArea.get(Id.cls(id)))
-    | Some(Right) =>
-      Web.TextArea.set_caret_to_end(Web.TextArea.get(Id.cls(id)))
-    };
-  };
 };

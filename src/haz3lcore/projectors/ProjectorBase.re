@@ -39,13 +39,23 @@ type utility = {
 module Focusable = {
   /* Can the projector take focus, in the sense of handling
    * keyboard input? If so, how can it take focus? */
+
+  /* Callbacks for projectors to react to getting focus */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type focus_keyboard = (Id.t, Direction.t) => unit;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type focus_pointer = Id.t => unit;
+
+  /* If keyboard is not None, the projector can get focus
+   * from keyboard arrow movement into it. If point is not
+   * None, it can get focus from pointer events */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    pointer: bool,
-    keyboard: bool,
+    pointer: option(focus_pointer),
+    keyboard: option(focus_keyboard),
   };
 
-  let non: t = {pointer: false, keyboard: false};
+  let non: t = {pointer: None, keyboard: None};
 };
 
 /* External info proivded to all projectors */
@@ -154,12 +164,6 @@ module type Projector = {
   let placeholder: (model, info) => ProjectorCore.Shape.t;
   /* Update the local projector model given an action */
   let update: (model, info, action) => model;
-  /* Does whatever needs to be done to give a projector
-   * keyboard focus. Right now this is only for side
-   * effects but could be extended in the future to
-   * take/return the model if the projector needs to
-   * maintain a complex internal position state */
-  let focus: ((Id.t, option(Direction.t))) => unit;
 };
 
 /* A cooked projector is the same as the base module
@@ -194,7 +198,6 @@ module Cook = (C: Projector) : Cooked => {
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
   let update = (m, i, a) =>
     C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
-  let focus = C.focus;
 };
 
 /* Projectors currently are all convex */

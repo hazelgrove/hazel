@@ -129,17 +129,26 @@ let go =
     | None =>
       /* Focus by mouse click */
       let (module P) = ProjectorInit.to_module(kind);
-      P.focus((id, None));
+      switch (P.focusable.pointer) {
+      | Some(focus) => focus(id)
+      | None => ()
+      };
       Ok(Option.value(~default=z, jump_to_id_indicated(z, id)));
     | Some(Right) =>
       /* Focus by arrow key hand-off */
       let (module P) = ProjectorInit.to_module(kind);
-      P.focus((id, Some(Right)));
+      switch (P.focusable.keyboard) {
+      | Some(focus) => focus(id, Right)
+      | None => ()
+      };
       Ok(z);
     | Some(Left) =>
       /* Focus by arrow key hand-off */
       let (module P) = ProjectorInit.to_module(kind);
-      P.focus((id, Some(Left)));
+      switch (P.focusable.keyboard) {
+      | Some(focus) => focus(id, Left)
+      | None => ()
+      };
       Ok(z);
     }
   | Escape(id, d) => Ok(jump_to_side_of_id(d, z, id))

@@ -57,6 +57,4 @@ module M: Projector = {
         info |> get |> Printf.sprintf("%.2f"),
       ),
     );
-
-  let focus = _ => ();
 };

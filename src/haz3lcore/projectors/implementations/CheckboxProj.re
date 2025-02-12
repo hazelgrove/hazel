@@ -63,6 +63,4 @@ module M: Projector = {
         (),
       ),
     );
-
-  let focus = _ => ();
 };

@@ -18,7 +18,7 @@ module M: Projector = {
   let init = {text: "⋱"};
 
   let can_project = _ => true;
-  let focus = _ => ();
+
   let focusable = Focusable.non;
   let dynamics = false;
 

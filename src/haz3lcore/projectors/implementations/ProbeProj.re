@@ -104,6 +104,14 @@ module ClosureLength = {
 
   let get = (id: int): option(int) => Hashtbl.find_opt(lengths, id);
 
+  let get2 = (closure: closure): int =>
+    get(closure.closure_id)
+    |> Option.value(
+         ~default=
+           !is_value(closure.value)
+             ? 5 : Window.get_mode() == Single ? 36 : 12,
+       );
+
   let set = (id: int, length: int): unit => Hashtbl.add(lengths, id, length);
 };
 
@@ -293,6 +301,19 @@ module DynCursor = {
     };
   };
 
+  let first_cursor_closure =
+      (info: info, closures: list(closure)): option(closure) => {
+    let find_cursor =
+      List.find_opt(
+        (closure: closure) => relation(info, closure).is_call_cursor,
+        closures,
+      );
+    switch (find_cursor) {
+    | Some(closure) => Some(closure)
+    | None => None
+    };
+  };
+
   let show_pin = info => {
     s.pinned_call != None
     && s.pinned_call
@@ -420,12 +441,25 @@ module Closures = {
   };
 };
 
-let seg_view = (view_seg, utility: utility, available: int, exp: Exp.t) => {
+let abbreviate = (exp: Exp.t, available: int): Exp.t => {
   let (abbr_exp, _length) =
     exp |> DHExp.strip_casts |> Abbreviate.abbreviate_exp(~available);
-  let seg = utility.term_to_seg(Exp(abbr_exp));
-  let len = seg |> Printer.of_segment(~holes=Some("?")) |> String.length;
-  (view_seg(Sort.Exp, seg), len);
+  abbr_exp;
+};
+
+let len_seg = (seg: Segment.t): int =>
+  seg |> Printer.of_segment(~holes=Some("?")) |> String.length;
+
+let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
+  let seg = utility.term_to_seg(Exp(exp));
+  (seg, len_seg(seg));
+};
+
+let abbreviated_seg_of =
+    (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
+  let (abbr_exp, _length) =
+    exp |> DHExp.strip_casts |> Abbreviate.abbreviate_exp(~available);
+  seg_of_exp(utility, abbr_exp);
 };
 
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
@@ -443,13 +477,6 @@ let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   let col = to_int(round(x_rel /. col_width));
   {row, col};
 };
-
-let display_length = (_model: model, closure: closure): int =>
-  ClosureLength.get(closure.closure_id)
-  |> Option.value(
-       ~default=
-         !is_value(closure.value) ? 5 : Window.get_mode() == Single ? 36 : 12,
-     );
 
 let length_cls = (length: int): string =>
   if (length > 10) {
@@ -479,7 +506,6 @@ module ValueState = {
 let value_view =
     (
       info: info,
-      model: model,
       utility: utility,
       view_seg,
       local,
@@ -518,13 +544,8 @@ let value_view =
     };
   };
 
-  let (view, length) =
-    seg_view(
-      view_seg,
-      utility,
-      display_length(model, closure),
-      closure.value,
-    );
+  let (seg, length) =
+    abbreviated_seg_of(utility, ClosureLength.get2(closure), closure.value);
 
   div(
     ~attrs=[
@@ -540,18 +561,12 @@ let value_view =
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
     ],
-    [view],
+    [view_seg(Sort.Exp, seg)],
   );
 };
 
 let env_val =
-    (
-      model: model,
-      closure_id,
-      view_seg,
-      utility: utility,
-      en: Dynamics.Probe.Env.entry,
-    )
+    (closure, view_seg, utility: utility, en: Dynamics.Probe.Env.entry)
     : Node.t => {
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
@@ -560,20 +575,21 @@ let env_val =
       switch (en.value) {
       | Opaque => Node.text("Opaque")
       | Val(d) =>
-        seg_view(view_seg, utility, display_length(model, closure_id), d)
-        |> fst
+        let (seg, _) =
+          abbreviated_seg_of(utility, ClosureLength.get2(closure), d);
+        view_seg(Sort.Exp, seg);
       },
     ],
   );
 };
 
-let env_view = (model, closure: closure, view_seg, utility: utility): Node.t =>
+let env_view = (closure: closure, view_seg, utility: utility): Node.t =>
   Node.div(
     ~attrs=[Attr.classes(["live-env"])],
     closure.env
     |> ListUtil.dedup
     |> rm_opaques
-    |> List.map(env_val(model, closure, view_seg, utility)),
+    |> List.map(env_val(closure, view_seg, utility)),
   );
 
 let closure_view =
@@ -581,34 +597,23 @@ let closure_view =
       info: info,
       utility: utility,
       view_seg,
-      model: model,
       local,
       (index: int, closure: closure),
     ) =>
   div(
     ~attrs=[Attr.classes(["closure"])],
-    [value_view(info, model, utility, view_seg, local, closure, index)]
-    @ (hide_env(info) ? [] : [env_view(model, closure, view_seg, utility)]),
+    [value_view(info, utility, view_seg, local, closure, index)]
+    @ (hide_env(info) ? [] : [env_view(closure, view_seg, utility)]),
   );
 
 let closure_group_view =
-    (
-      info,
-      utility,
-      view_seg,
-      model,
-      local,
-      groups: list(list((int, closure))),
-    ) => {
+    (info, utility, view_seg, local, groups: list(list((int, closure)))) => {
   let group_views =
     List.map(
       closures =>
         Node.div(
           ~attrs=[Attr.classes(["closure-group"])],
-          List.map(
-            closure_view(info, utility, view_seg, model, local),
-            closures,
-          ),
+          List.map(closure_view(info, utility, view_seg, local), closures),
         ),
       groups,
     );
@@ -666,7 +671,7 @@ let offside_view =
         ellipsis_view(local),
       ];
       (num_shown > 0 ? [equals_view] : [])
-      @ closure_group_view(info, utility, view_seg, model, local, groups)
+      @ closure_group_view(info, utility, view_seg, local, groups)
       @ (is_cut_off ? extras : []);
     | _ => []
     },
@@ -718,6 +723,42 @@ let move_cursor = (info: info, offset: int): unit =>
   | None => ()
   };
 
+let round_up = (utility: utility, closure): unit => {
+  let (_, cur) =
+    abbreviated_seg_of(utility, ClosureLength.get2(closure), closure.value);
+  let goal = cur + 1;
+  let (_, max_len) = seg_of_exp(utility, DHExp.strip_casts(closure.value));
+  let rec find_target = (target: int): int => {
+    let attempt_len =
+      abbreviated_seg_of(utility, target, closure.value) |> snd;
+    if (attempt_len < goal && target <= max_len) {
+      find_target(target + 1);
+    } else {
+      target;
+    };
+  };
+  ClosureLength.set(closure.closure_id, find_target(goal));
+};
+
+let round_down = (utility: utility, closure: closure): unit => {
+  let (_, cur) =
+    abbreviated_seg_of(utility, ClosureLength.get2(closure), closure.value);
+  let goal = cur - 1;
+  let rec find_target = (target: int): int => {
+    let attempt_len =
+      abbreviated_seg_of(utility, target, closure.value) |> snd;
+    if (attempt_len > goal && target > 0) {
+      find_target(target - 1);
+    } else {
+      target;
+    };
+  };
+  ClosureLength.set(closure.closure_id, find_target(goal));
+};
+
+let indicated_closure = (info: info): option(closure) =>
+  OptUtil.and_then(DynCursor.first_cursor_closure(info), info.dynamics);
+
 let key_handler = (local, info: info, _, evt) => {
   print_endline("key_handler");
   open Effect;
@@ -747,16 +788,30 @@ let key_handler = (local, info: info, _, evt) => {
   | D("Escape") =>
     JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
     Ignore;
+  | D("ArrowRight") when key.shift == Down =>
+    switch (indicated_closure(info)) {
+    | Some(closure) => round_up(info.utility, closure)
+    | None => ()
+    };
+    Many([local(NoOp), Stop_propagation, Prevent_default]);
+  | D("ArrowLeft") when key.shift == Down =>
+    switch (indicated_closure(info)) {
+    | Some(closure) => round_down(info.utility, closure)
+    | None => ()
+    };
+    Many([local(NoOp), Stop_propagation, Prevent_default]);
   | D("ArrowRight") =>
     move_cursor(info, -1);
-    Many([local(NoOp), Stop_propagation]); // trigger redraw
+    // hack: Prevent_default below stops aggressive horizontal scroll
+    // noop to trigger redraw
+    Many([local(NoOp), Stop_propagation, Prevent_default]);
   | D("ArrowLeft") =>
     move_cursor(info, 1);
-    Many([local(NoOp), Stop_propagation]); // trigger redraw
+    Many([local(NoOp), Stop_propagation, Prevent_default]);
   | D(" ") =>
     Window.toggle_mode();
-    Many([local(NoOp), Stop_propagation]); // trigger redraw
-  | _ => Stop_propagation
+    Many([local(NoOp), Stop_propagation, Prevent_default]); // trigger redraw
+  | _ => Many([Stop_propagation])
   };
 };
 
@@ -835,15 +890,12 @@ module M: Projector = {
 
   let init = init;
   let dynamics = true;
-  let focusable = Focusable.{pointer: true, keyboard: false};
-  let focus = ((id: Id.t, d: option(Direction.t))) => {
-    JsUtil.get_elem_by_id(Id.cls(id))##focus;
-    switch (d) {
-    | None => ()
-    | Some(Left) => ()
-    | Some(Right) => ()
+
+  let focusable =
+    Focusable.{
+      pointer: Some(id => JsUtil.get_elem_by_id(Id.cls(id))##focus),
+      keyboard: None,
     };
-  };
 
   let can_project = (any: Term.Any.t) =>
     switch (any) {
