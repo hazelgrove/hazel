@@ -85,10 +85,9 @@ module Ctr = {
       }
     };
 
-  let all_ctrs_of_typ = (ty: Typ.t): all_ctrs =>
+  let rec all_ctrs_of_typ = (ty: Typ.t): all_ctrs =>
     switch (ty.term) {
-    | Sum(map)
-    | Rec(_, {term: Sum(map), _}) =>
+    | Sum(map) =>
       Finite(
         map
         |> List.filter_map(
@@ -101,8 +100,10 @@ module Ctr = {
            )
         |> Map.of_list,
       )
+    | Rec(_) => all_ctrs_of_typ(Typ.unroll(ty))
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
+    | TupLabel(_, ty) => Finite(Map.singleton(tuple_ctr(1), [ty]))
     | List(elt_ty) =>
       Finite(
         Map.of_list([
@@ -116,12 +117,14 @@ module Ctr = {
     | Float
     | String
     | Arrow(_)
-    | Forall(_) => Infinite
-    | Var(_)
+    | Forall(_)
+    | Var(_) => Infinite
     | Parens(_)
     | Ap(_)
-    | Rec(_) =>
-      failwith("all_ctrs_of_type called with a non-normalized type.")
+    | Label(_) =>
+      failwith(
+        "all_ctrs_of_type called with a non-normalized type: " ++ Typ.show(ty),
+      )
     };
 
   let seen_all_ctrs = (seen_ctrs, all_ctrs: all_ctrs) => {
@@ -428,9 +431,6 @@ type result = {
   is_exhaustive: bool,
   redundant_rows,
 };
-
-let exhaustive_and_irredundant = {is_exhaustive: true, redundant_rows: []};
-let inexhaustive_and_irredundant = {is_exhaustive: false, redundant_rows: []};
 
 // We assume ty is already normalized.
 let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {

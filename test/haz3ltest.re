@@ -6,12 +6,13 @@ let (suite, _) =
     "HazelTests",
     [
       Test_ExpToSegment.tests,
+      Test_LabeledTuple.tests,
+      Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_StringUtil.tests,
       Test_Statics.tests,
       Test_Evaluator.tests,
       Test_ListUtil.tests,
-      Test_MakeTerm.tests,
     ]
     @ Test_Elaboration.tests,
   );

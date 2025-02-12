@@ -22,6 +22,553 @@ module Settings = {
   };
 };
 
+// Use Precedence.re to work out where your construct goes here.
+let rec external_precedence = (exp: Exp.t): Precedence.t => {
+  switch (Exp.term_of(exp)) {
+  // Forms which we are about to strip, so we just look inside
+  | Closure(_, x)
+  | DynamicErrorHole(x, _) => external_precedence(x)
+
+  // Binary operations are handled in Precedence.re
+  | BinOp(op, _, _) => Precedence.of_bin_op(op)
+
+  // Indivisible forms never need parentheses around them
+  | Var(_)
+  | Invalid(_)
+  | Bool(_)
+  | Int(_)
+  | Float(_)
+  | String(_)
+  | EmptyHole
+  | Deferral(_)
+  | BuiltinFun(_)
+  | Undefined
+  | Label(_)
+  | TupLabel(_) => Precedence.max
+
+  // Same goes for forms which are already surrounded
+  | Parens(_)
+  | ListLit(_)
+  | Test(_)
+  | Match(_) => Precedence.max
+
+  // Other forms
+  | UnOp(Meta(Unquote), _) => Precedence.unquote
+  | Constructor(_) // Constructor is here because we currently always add a type annotation to constructors
+  | Cast(_)
+  | FailedCast(_) => Precedence.cast
+  | Ap(Forward, _, _)
+  | DeferredAp(_)
+  | TypAp(_) => Precedence.ap
+  | UnOp(Bool(Not), _) => Precedence.not_
+  | UnOp(Int(Minus), _) => Precedence.neg
+  | Cons(_) => Precedence.cons
+  | Ap(Reverse, _, _) => Precedence.eqs
+  | ListConcat(_) => Precedence.concat
+  | If(_) => Precedence.if_
+  | TypFun(_)
+  | Fun(_)
+  | FixF(_) => Precedence.fun_
+  | Tuple(_) => Precedence.prod
+  | Seq(_) => Precedence.semi
+  | Dot(_) => Precedence.dot
+
+  // Top-level things
+  | Filter(_)
+  | TyAlias(_)
+  | Let(_) => Precedence.let_
+
+  // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
+  | MultiHole(_) => Precedence.min
+  };
+};
+
+let external_precedence_pat = (dp: Pat.t) =>
+  switch (DHPat.term_of(dp)) {
+  // Indivisible forms never need parentheses around them
+  | EmptyHole
+  | Wild
+  | Invalid(_)
+  | Var(_)
+  | Int(_)
+  | Float(_)
+  | Bool(_)
+  | String(_)
+  | Constructor(_)
+  | Label(_)
+  | TupLabel(_) => Precedence.max
+
+  // Same goes for forms which are already surrounded
+  | ListLit(_)
+  | Parens(_) => Precedence.max
+
+  // Other forms
+  | Cons(_) => Precedence.cons
+  | Ap(_) => Precedence.ap
+  | Cast(_) => Precedence.cast
+  | Tuple(_) => Precedence.prod
+
+  // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
+  | MultiHole(_) => Precedence.min
+  };
+
+let external_precedence_typ = (tp: Typ.t) =>
+  switch (Typ.term_of(tp)) {
+  // Indivisible forms never need parentheses around them
+  | Unknown(Hole(Invalid(_)))
+  | Unknown(Internal)
+  | Unknown(SynSwitch)
+  | Unknown(Hole(EmptyHole))
+  | Var(_)
+  | Int
+  | Float
+  | Bool
+  | String
+  | Label(_)
+  | TupLabel(_) => Precedence.max
+
+  // Same goes for forms which are already surrounded
+  | Parens(_)
+  | List(_) => Precedence.max
+
+  // Other forms
+  | Prod(_) => Precedence.comma
+  | Ap(_) => Precedence.type_sum_ap
+  | Arrow(_, _) => Precedence.type_arrow
+  | Sum(_) => Precedence.type_plus
+  | Rec(_, _) => Precedence.let_
+  | Forall(_, _) => Precedence.let_
+
+  // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
+  | Unknown(Hole(MultiHole(_))) => Precedence.min
+  };
+
+let paren_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
+  external_precedence(exp) >= internal_precedence
+    ? Exp.fresh(Parens(exp)) : exp;
+
+let paren_assoc_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
+  external_precedence(exp) > internal_precedence
+    ? Exp.fresh(Parens(exp)) : exp;
+
+let paren_pat_at = (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
+  external_precedence_pat(pat) >= internal_precedence
+    ? Pat.fresh(Parens(pat)) : pat;
+
+let paren_pat_assoc_at =
+    (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
+  external_precedence_pat(pat) > internal_precedence
+    ? Pat.fresh(Parens(pat)) : pat;
+
+let paren_typ_at = (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
+  external_precedence_typ(typ) >= internal_precedence
+    ? Typ.fresh(Parens(typ)) : typ;
+
+let paren_typ_assoc_at =
+    (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
+  external_precedence_typ(typ) > internal_precedence
+    ? Typ.fresh(Parens(typ)) : typ;
+
+let rec parenthesize =
+        (~show_filters: bool, ~already_paren=false, exp: Exp.t): Exp.t => {
+  let parenthesize = parenthesize(~show_filters);
+  let parenthesize_pat = parenthesize_pat(~show_filters);
+  let parenthesize_typ = parenthesize_typ(~show_filters);
+  let (term, rewrap) = Exp.unwrap(exp);
+  switch (term) {
+  // Indivisible forms dont' change
+  | Var(_)
+  | Invalid(_)
+  | Bool(_)
+  | Int(_)
+  | Float(_)
+  | String(_)
+  | EmptyHole
+  //| Constructor(_) // Not indivisible because of the type annotation!
+  | Deferral(_)
+  | BuiltinFun(_)
+  | Tuple([])
+  | Undefined => exp
+
+  // Forms that currently need to stripped before outputting
+  | Closure(_, x)
+  | DynamicErrorHole(x, _) => parenthesize(x)
+  | Filter(Filter({pat, act}), x) =>
+    Filter(Filter({pat: parenthesize(pat), act}), parenthesize(x))
+    |> rewrap
+  | Filter(Residue(_), x) => x |> parenthesize
+  // Other forms
+  | Constructor(c, t) =>
+    Constructor(c, paren_typ_at(Precedence.cast, t)) |> rewrap
+  | Fun(p, e, typ, n) =>
+    Fun(
+      parenthesize_pat(p) |> paren_pat_at(Precedence.min),
+      parenthesize(e) |> paren_assoc_at(Precedence.fun_),
+      typ, // this typ is currently never output
+      n,
+    )
+    |> rewrap
+  | TypFun(tp, e, n) =>
+    TypFun(tp, parenthesize(e) |> paren_assoc_at(Precedence.fun_), n)
+    |> rewrap
+  | Tuple(es) =>
+    let inner =
+      Tuple(
+        es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
+      )
+      |> rewrap;
+
+    if (already_paren) {
+      inner;
+    } else {
+      Parens(inner) |> Exp.fresh;
+    };
+  | Label(_) => exp
+  | TupLabel(l, e) =>
+    TupLabel(l, parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
+  | Dot(e, l) =>
+    Dot(parenthesize(e) |> paren_at(Precedence.min), l) |> rewrap
+  | ListLit(es) =>
+    ListLit(
+      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
+    )
+    |> rewrap
+  | Let(p, e1, e2) =>
+    Let(
+      parenthesize_pat(p) |> paren_pat_at(Precedence.min),
+      parenthesize(e1) |> paren_at(Precedence.min),
+      parenthesize(e2) |> paren_assoc_at(Precedence.let_),
+    )
+    |> rewrap
+  | FixF(p, e, c) =>
+    FixF(
+      parenthesize_pat(p) |> paren_pat_at(Precedence.min),
+      parenthesize(e) |> paren_assoc_at(Precedence.fun_),
+      c // TODO: Parenthesize through closure
+    )
+    |> rewrap
+  | TyAlias(tp, t, e) =>
+    TyAlias(
+      tp,
+      parenthesize_typ(t) |> paren_typ_at(Precedence.min),
+      parenthesize(e) |> paren_assoc_at(Precedence.let_),
+    )
+    |> rewrap
+  | Ap(Forward, e1, e2) =>
+    Ap(
+      Forward,
+      parenthesize(e1) |> paren_assoc_at(Precedence.ap),
+      parenthesize(e2) |> paren_at(Precedence.min),
+    )
+    |> rewrap
+  | Ap(Reverse, e1, e2) =>
+    Ap(
+      Reverse,
+      parenthesize(e1) |> paren_assoc_at(Precedence.eqs),
+      parenthesize(e2) |> paren_at(Precedence.eqs),
+    )
+    |> rewrap
+  | TypAp(e, tp) =>
+    TypAp(
+      parenthesize(e) |> paren_assoc_at(Precedence.ap),
+      parenthesize_typ(tp) |> paren_typ_at(Precedence.min),
+    )
+    |> rewrap
+  | DeferredAp(e, es) =>
+    DeferredAp(
+      parenthesize(e) |> paren_assoc_at(Precedence.ap),
+      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
+    )
+    |> rewrap
+  | If(e1, e2, e3) =>
+    If(
+      parenthesize(e1) |> paren_at(Precedence.min),
+      parenthesize(e2) |> paren_at(Precedence.min),
+      parenthesize(e3) |> paren_assoc_at(Precedence.if_),
+    )
+    |> rewrap
+  | Seq(e1, e2) =>
+    Seq(
+      parenthesize(e1) |> paren_at(Precedence.semi), // tempting to make this one assoc too
+      parenthesize(e2) |> paren_assoc_at(Precedence.semi),
+    )
+    |> rewrap
+  | Cast(e, t1, t2) =>
+    Cast(
+      parenthesize(e) |> paren_assoc_at(Precedence.cast),
+      parenthesize_typ(t1) |> paren_typ_at(Precedence.cast),
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.cast),
+    )
+    |> rewrap
+  | FailedCast(e, t1, t2) =>
+    FailedCast(
+      parenthesize(e) |> paren_at(Precedence.cast),
+      parenthesize_typ(t1) |> paren_typ_at(Precedence.cast),
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.cast),
+    )
+    |> rewrap
+  | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
+  // | Filter(f, e) =>
+  //   Filter(
+  //     f, // TODO: Filters
+  //     parenthesize(e) |> paren_at(Precedence.min),
+  //   )
+  //   |> rewrap
+  | Parens(e) =>
+    Parens(parenthesize(~already_paren=true, e) |> paren_at(Precedence.min))
+    |> rewrap
+  | Cons(e1, e2) =>
+    Cons(
+      parenthesize(e1) |> paren_at(Precedence.cons),
+      parenthesize(e2) |> paren_assoc_at(Precedence.cons),
+    )
+    |> rewrap
+  | ListConcat(e1, e2) =>
+    ListConcat(
+      parenthesize(e1) |> paren_at(Precedence.concat),
+      parenthesize(e2) |> paren_assoc_at(Precedence.concat),
+    )
+    |> rewrap
+  | UnOp(Meta(Unquote), e) =>
+    UnOp(Meta(Unquote), parenthesize(e) |> paren_at(Precedence.unquote))
+    |> rewrap
+  | UnOp(Bool(Not), e) =>
+    UnOp(Bool(Not), parenthesize(e) |> paren_at(Precedence.not_)) |> rewrap
+  | UnOp(Int(Minus), e) =>
+    UnOp(Int(Minus), parenthesize(e) |> paren_at(Precedence.neg)) |> rewrap
+  | BinOp(op, e1, e2) =>
+    (
+      switch (Precedence.of_bin_op(op) |> Precedence.associativity) {
+      | Some(Left)
+      | None =>
+        BinOp(
+          op,
+          parenthesize(e1) |> paren_assoc_at(Precedence.of_bin_op(op)),
+          parenthesize(e2) |> paren_at(Precedence.of_bin_op(op)),
+        )
+      | Some(Right) =>
+        BinOp(
+          op,
+          parenthesize(e1) |> paren_at(Precedence.of_bin_op(op)),
+          parenthesize(e2) |> paren_assoc_at(Precedence.of_bin_op(op)),
+        )
+      }
+    )
+    |> rewrap
+  | Match(e, rs) =>
+    Match(
+      parenthesize(e) |> paren_at(Precedence.min),
+      rs
+      |> List.map(((p, e)) =>
+           (
+             parenthesize_pat(p) |> paren_pat_at(Precedence.min),
+             parenthesize(e) |> paren_assoc_at(Precedence.case_),
+           )
+         ),
+    )
+    |> rewrap
+  | MultiHole(xs) =>
+    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
+  };
+}
+and parenthesize_pat =
+    (~show_filters: bool, ~already_paren=false, pat: Pat.t): Pat.t => {
+  let parenthesize_pat = parenthesize_pat(~show_filters);
+  let parenthesize_typ = parenthesize_typ(~show_filters);
+  let (term, rewrap) = Pat.unwrap(pat);
+  switch (term) {
+  // Indivisible forms dont' change
+  | Var(_)
+  | Invalid(_)
+  | Bool(_)
+  | Int(_)
+  | Float(_)
+  | String(_)
+  | EmptyHole
+  | Constructor(_) => pat
+
+  // Other forms
+  | Wild => pat
+  | Parens(p) =>
+    Parens(
+      parenthesize_pat(~already_paren=true, p)
+      |> paren_pat_at(Precedence.min),
+    )
+    |> rewrap
+  | Cons(p1, p2) =>
+    Cons(
+      parenthesize_pat(p1) |> paren_pat_at(Precedence.cons),
+      parenthesize_pat(p2) |> paren_pat_assoc_at(Precedence.cons),
+    )
+    |> rewrap
+  | Tuple(ps) =>
+    let inner =
+      Tuple(
+        ps
+        |> List.map(parenthesize_pat)
+        |> List.map(paren_pat_at(Precedence.prod)),
+      )
+      |> rewrap;
+    already_paren ? inner : Parens(inner) |> Pat.fresh;
+  | Label(_) => pat
+  | TupLabel(l, p) =>
+    TupLabel(l, parenthesize_pat(p) |> paren_pat_at(Precedence.min))
+    |> rewrap
+  | ListLit(ps) =>
+    ListLit(
+      ps
+      |> List.map(parenthesize_pat)
+      |> List.map(paren_pat_at(Precedence.prod)),
+    )
+    |> rewrap
+  | Ap(p1, p2) =>
+    Ap(
+      parenthesize_pat(p1) |> paren_pat_assoc_at(Precedence.ap),
+      parenthesize_pat(p2) |> paren_pat_at(Precedence.min),
+    )
+    |> rewrap
+  | MultiHole(xs) =>
+    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
+  | Cast(p, t1, t2) =>
+    Cast(
+      parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.cast),
+      parenthesize_typ(t1) |> paren_typ_at(Precedence.max), // Hack[Matt]: always add parens to get the arrows right
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.max),
+    )
+    |> rewrap
+  };
+}
+
+and parenthesize_typ =
+    (~show_filters: bool, ~already_paren=false, typ: Typ.t): Typ.t => {
+  let parenthesize_typ = parenthesize_typ(~show_filters);
+  let (term, rewrap) = Typ.unwrap(typ);
+  switch (term) {
+  // Indivisible forms dont' change
+  | Var(_)
+  | Unknown(Hole(Invalid(_)))
+  | Unknown(Internal)
+  | Unknown(SynSwitch)
+  | Unknown(Hole(EmptyHole))
+  | Int
+  | Float
+  | Bool
+  | String => typ
+
+  // Other forms
+  | Parens(t) =>
+    Parens(
+      parenthesize_typ(~already_paren=true, t)
+      |> paren_typ_at(Precedence.min),
+    )
+    |> rewrap
+  | List(t) =>
+    List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
+  | Prod(ts) =>
+    let inner =
+      Prod(
+        ts
+        |> List.map(parenthesize_typ)
+        |> List.map(paren_typ_at(Precedence.comma)),
+      )
+      |> rewrap;
+    already_paren ? inner : Parens(inner) |> Typ.fresh;
+  | Label(_) => typ
+  | TupLabel(l, t) =>
+    TupLabel(l, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
+    |> rewrap
+  | Ap(t1, t2) =>
+    Ap(
+      parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.type_sum_ap),
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.min),
+    )
+    |> rewrap
+  | Rec(tp, t) =>
+    Rec(
+      tp,
+      parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
+    )
+    |> rewrap
+  | Forall(tp, t) =>
+    Forall(
+      tp,
+      parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
+    )
+    |> rewrap
+  | Arrow(t1, t2) =>
+    Arrow(
+      parenthesize_typ(t1) |> paren_typ_at(Precedence.type_arrow),
+      parenthesize_typ(t2) |> paren_typ_assoc_at(Precedence.type_arrow),
+    )
+    |> rewrap
+  | Sum(ts) =>
+    Sum(
+      ConstructorMap.map(
+        ts =>
+          ts
+          |> Option.map(parenthesize_typ)
+          |> Option.map(paren_typ_at(Precedence.type_plus)),
+        ts,
+      ),
+    )
+    |> rewrap
+  | Unknown(Hole(MultiHole(xs))) =>
+    Unknown(
+      Hole(MultiHole(List.map(parenthesize_any(~show_filters), xs))),
+    )
+    |> rewrap
+  };
+}
+
+and parenthesize_tpat = (~show_filters: bool, tpat: TPat.t): TPat.t => {
+  let (term, rewrap: TPat.term => TPat.t) = IdTagged.unwrap(tpat);
+  switch (term) {
+  // Indivisible forms dont' change
+  | Var(_)
+  | Invalid(_)
+  | EmptyHole => tpat
+
+  // Other forms
+  | MultiHole(xs) =>
+    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
+  };
+}
+
+and parenthesize_rul = (~show_filters: bool, rul: Rul.t): Rul.t => {
+  let (term, rewrap: Rul.term => Rul.t) = IdTagged.unwrap(rul);
+  switch (term) {
+  // Indivisible forms dont' change
+  | Invalid(_) => rul
+
+  // Other forms
+  | Rules(e, ps) =>
+    Rules(
+      parenthesize(~show_filters, e),
+      List.map(
+        ((p, e)) =>
+          (
+            parenthesize_pat(~show_filters, p),
+            parenthesize(~show_filters, e),
+          ),
+        ps,
+      ),
+    )
+    |> rewrap
+  | Hole(xs) =>
+    Hole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
+  };
+}
+
+and parenthesize_any = (~show_filters: bool, any: Any.t): Any.t =>
+  switch (any) {
+  | Exp(e) => Exp(parenthesize(~show_filters, e))
+  | Pat(p) => Pat(parenthesize_pat(~show_filters, p))
+  | Typ(t) => Typ(parenthesize_typ(~show_filters, t))
+  | TPat(tp) => TPat(parenthesize_tpat(~show_filters, tp))
+  | Rul(r) => Rul(parenthesize_rul(~show_filters, r))
+  | Any(_) => any
+  };
+
 let should_add_space = (s1, s2) =>
   switch () {
   | _ when String.ends_with(s1, ~suffix="(") => false
@@ -249,9 +796,17 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let fun_form = [mk_form("fun_", id, [p])] @ e;
     [mk_form("parens_exp", exp |> Exp.rep_id, [fun_form])]
     |> fold_fun_if(settings.fold_fn_bodies, name);
-  | Fun(p, e, _, _) =>
+  | Fun(p, e, t, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
+    let p =
+      switch (t) {
+      | None => p
+      | Some(t) =>
+        let t = t |> Typ.replace_temp;
+        Pat.fresh(Cast(p, t, t))
+        |> parenthesize_pat(~show_filters=settings.show_filters);
+      };
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e = go(e);
     let name = Exp.get_fn_name(exp) |> Option.value(~default="anon fun");
@@ -278,7 +833,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     @ e
     |> fold_fun_if(settings.fold_fn_bodies, name);
   | Tuple([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()")
-  | Tuple([_]) => failwith("Singleton Tuples are not allowed")
+  | Tuple([{term: TupLabel(_), _} as le]) => go(le)
   | Tuple([x, ...xs]) =>
     // TODO: Add optional newlines
     let+ x = go(x)
@@ -288,6 +843,32 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     @ List.flatten(
         List.map2((id, x) => [mk_form("comma_exp", id, [])] @ x, ids, xs),
       );
+  | Label(l) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, l)
+  | TupLabel(l, e) =>
+    let* l = go(l)
+    and* e = go(e);
+
+    List.flatten([
+      l,
+      [
+        Tile({
+          id: exp |> Exp.rep_id,
+          label: ["="],
+          mold: Mold.mk_bin(Precedence.lab, Sort.Exp, []),
+          shards: [0],
+          children: [],
+        }),
+      ],
+      if (Form.begins_with_potential_operator(Segment.first_string(e))) {
+        [Secondary(Secondary.mk_space(Id.mk()))] @ e;
+      } else {
+        e;
+      },
+    ]);
+  | Dot(e, l) =>
+    let* e = go(e)
+    and* l = go(l);
+    List.flatten([e, [mk_form("dot_exp", exp |> Exp.rep_id, [])], l]);
   | Let(p, e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -519,7 +1100,6 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     and+ p2 = go(p2);
     p1 @ [mk_form("cons_pat", id, [])] @ p2;
   | Tuple([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "()")
-  | Tuple([_]) => failwith("Singleton Tuples are not allowed")
   | Tuple([x, ...xs]) =>
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
@@ -528,6 +1108,27 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     @ List.flatten(
         List.map2((id, x) => [mk_form("comma_pat", id, [])] @ x, ids, xs),
       );
+  | TupLabel(l, p) =>
+    let* l = go(l)
+    and* p = go(p);
+    List.flatten([
+      l,
+      [
+        Tile({
+          id: pat |> Pat.rep_id,
+          label: ["="],
+          mold: Mold.mk_bin(Precedence.lab, Sort.Pat, []),
+          shards: [0],
+          children: [],
+        }),
+      ],
+      if (Form.begins_with_potential_operator(Segment.first_string(p))) {
+        [Secondary(Secondary.mk_space(Id.mk()))] @ p;
+      } else {
+        p;
+      },
+    ]);
+  | Label(l) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, l)
   | Parens(p) =>
     let id = pat |> Pat.rep_id;
     let+ p = go(p);
@@ -598,7 +1199,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t = go(t);
     [mk_form("list_typ", id, [t])];
   | Prod([]) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "()")
-  | Prod([_]) => failwith("Singleton Prods are not allowed")
   | Prod([t, ...ts]) =>
     let+ t = go(t)
     and+ ts = ts |> List.map(go) |> all;
@@ -610,6 +1210,28 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           ts,
         ),
       );
+  | Label(l) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, l)
+  | TupLabel(l, t) =>
+    let+ l = go(l)
+    and+ t = go(t);
+
+    List.flatten([
+      l,
+      [
+        Tile({
+          id: typ |> Typ.rep_id,
+          label: ["="],
+          mold: Mold.mk_bin(Precedence.lab, Sort.Typ, []),
+          shards: [0],
+          children: [],
+        }),
+      ],
+      if (Form.begins_with_potential_operator(Segment.first_string(t))) {
+        [Secondary(Secondary.mk_space(Id.mk()))] @ t;
+      } else {
+        t;
+      },
+    ]);
   | Parens(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);
@@ -679,510 +1301,6 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   };
 };
 
-// Use Precedence.re to work out where your construct goes here.
-let rec external_precedence = (exp: Exp.t): Precedence.t => {
-  switch (Exp.term_of(exp)) {
-  // Forms which we are about to strip, so we just look inside
-  | Closure(_, x)
-  | DynamicErrorHole(x, _) => external_precedence(x)
-
-  // Binary operations are handled in Precedence.re
-  | BinOp(op, _, _) => Precedence.of_bin_op(op)
-
-  // Indivisible forms never need parentheses around them
-  | Var(_)
-  | Invalid(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
-  | EmptyHole
-  | Deferral(_)
-  | BuiltinFun(_)
-  | Undefined => Precedence.max
-
-  // Same goes for forms which are already surrounded
-  | Parens(_)
-  | ListLit(_)
-  | Test(_)
-  | Match(_) => Precedence.max
-
-  // Other forms
-  | UnOp(Meta(Unquote), _) => Precedence.unquote
-  | Constructor(_) // Constructor is here because we currently always add a type annotation to constructors
-  | Cast(_)
-  | FailedCast(_) => Precedence.cast
-  | Ap(Forward, _, _)
-  | DeferredAp(_)
-  | TypAp(_) => Precedence.ap
-  | UnOp(Bool(Not), _) => Precedence.not_
-  | UnOp(Int(Minus), _) => Precedence.neg
-  | Cons(_) => Precedence.cons
-  | Ap(Reverse, _, _) => Precedence.eqs
-  | ListConcat(_) => Precedence.concat
-  | If(_) => Precedence.if_
-  | TypFun(_)
-  | Fun(_)
-  | FixF(_) => Precedence.fun_
-  | Tuple(_) => Precedence.prod
-  | Seq(_) => Precedence.semi
-
-  // Top-level things
-  | Filter(_)
-  | TyAlias(_)
-  | Let(_) => Precedence.let_
-
-  // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
-  | MultiHole(_) => Precedence.min
-  };
-};
-
-let external_precedence_pat = (dp: Pat.t) =>
-  switch (DHPat.term_of(dp)) {
-  // Indivisible forms never need parentheses around them
-  | EmptyHole
-  | Wild
-  | Invalid(_)
-  | Var(_)
-  | Int(_)
-  | Float(_)
-  | Bool(_)
-  | String(_)
-  | Constructor(_) => Precedence.max
-
-  // Same goes for forms which are already surrounded
-  | ListLit(_)
-  | Parens(_) => Precedence.max
-
-  // Other forms
-  | Cons(_) => Precedence.cons
-  | Ap(_) => Precedence.ap
-  | Cast(_) => Precedence.cast
-  | Tuple(_) => Precedence.prod
-
-  // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
-  | MultiHole(_) => Precedence.min
-  };
-
-let external_precedence_typ = (tp: Typ.t) =>
-  switch (Typ.term_of(tp)) {
-  // Indivisible forms never need parentheses around them
-  | Unknown(Hole(Invalid(_)))
-  | Unknown(Internal)
-  | Unknown(SynSwitch)
-  | Unknown(Hole(EmptyHole))
-  | Var(_)
-  | Int
-  | Float
-  | Bool
-  | String => Precedence.max
-
-  // Same goes for forms which are already surrounded
-  | Parens(_)
-  | List(_) => Precedence.max
-
-  // Other forms
-  | Prod(_) => Precedence.type_prod
-  | Ap(_) => Precedence.type_sum_ap
-  | Arrow(_, _) => Precedence.type_arrow
-  | Sum(_) => Precedence.type_plus
-  | Rec(_, _) => Precedence.let_
-  | Forall(_, _) => Precedence.let_
-
-  // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
-  | Unknown(Hole(MultiHole(_))) => Precedence.min
-  };
-
-let paren_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
-  external_precedence(exp) >= internal_precedence
-    ? Exp.fresh(Parens(exp)) : exp;
-
-let paren_assoc_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
-  external_precedence(exp) > internal_precedence
-    ? Exp.fresh(Parens(exp)) : exp;
-
-let paren_pat_at = (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
-  external_precedence_pat(pat) >= internal_precedence
-    ? Pat.fresh(Parens(pat)) : pat;
-
-let paren_pat_assoc_at =
-    (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
-  external_precedence_pat(pat) > internal_precedence
-    ? Pat.fresh(Parens(pat)) : pat;
-
-let paren_typ_at = (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
-  external_precedence_typ(typ) >= internal_precedence
-    ? Typ.fresh(Parens(typ)) : typ;
-
-let paren_typ_assoc_at =
-    (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
-  external_precedence_typ(typ) > internal_precedence
-    ? Typ.fresh(Parens(typ)) : typ;
-
-let rec parenthesize = (~show_filters: bool, exp: Exp.t): Exp.t => {
-  let parenthesize = parenthesize(~show_filters);
-  let parenthesize_pat = parenthesize_pat(~show_filters);
-  let parenthesize_typ = parenthesize_typ(~show_filters);
-  let (term, rewrap) = Exp.unwrap(exp);
-  switch (term) {
-  // Indivisible forms dont' change
-  | Var(_)
-  | Invalid(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
-  | EmptyHole
-  //| Constructor(_) // Not indivisible because of the type annotation!
-  | Deferral(_)
-  | BuiltinFun(_)
-  | Undefined => exp
-
-  // Forms that currently need to stripped before outputting
-  | Closure(_, x)
-  | DynamicErrorHole(x, _)
-  | Tuple([x]) => parenthesize(x)
-  | Filter(Filter({pat, act}), x) =>
-    Filter(Filter({pat: parenthesize(pat), act}), parenthesize(x))
-    |> rewrap
-  | Filter(Residue(_), x) => x |> parenthesize
-  // Other forms
-  | Constructor(c, t) =>
-    Constructor(c, paren_typ_at(Precedence.cast, t)) |> rewrap
-  | Fun(p, e, c, n) =>
-    Fun(
-      parenthesize_pat(p) |> paren_pat_at(Precedence.min),
-      parenthesize(e) |> paren_assoc_at(Precedence.fun_),
-      c, // TODO: Parenthesize through closure
-      n,
-    )
-    |> rewrap
-  | TypFun(tp, e, n) =>
-    TypFun(tp, parenthesize(e) |> paren_assoc_at(Precedence.fun_), n)
-    |> rewrap
-  | Tuple(es) =>
-    Tuple(
-      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
-    )
-    |> rewrap
-  | ListLit(es) =>
-    ListLit(
-      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
-    )
-    |> rewrap
-  | Let(p, e1, e2) =>
-    Let(
-      parenthesize_pat(p) |> paren_pat_at(Precedence.min),
-      parenthesize(e1) |> paren_at(Precedence.min),
-      parenthesize(e2) |> paren_assoc_at(Precedence.let_),
-    )
-    |> rewrap
-  | FixF(p, e, c) =>
-    FixF(
-      parenthesize_pat(p) |> paren_pat_at(Precedence.min),
-      parenthesize(e) |> paren_assoc_at(Precedence.fun_),
-      c // TODO: Parenthesize through closure
-    )
-    |> rewrap
-  | TyAlias(tp, t, e) =>
-    TyAlias(
-      tp,
-      parenthesize_typ(t) |> paren_typ_at(Precedence.min),
-      parenthesize(e) |> paren_assoc_at(Precedence.let_),
-    )
-    |> rewrap
-  | Ap(Forward, e1, e2) =>
-    Ap(
-      Forward,
-      parenthesize(e1) |> paren_assoc_at(Precedence.ap),
-      parenthesize(e2) |> paren_at(Precedence.min),
-    )
-    |> rewrap
-  | Ap(Reverse, e1, e2) =>
-    Ap(
-      Reverse,
-      parenthesize(e1) |> paren_assoc_at(Precedence.eqs),
-      parenthesize(e2) |> paren_at(Precedence.eqs),
-    )
-    |> rewrap
-  | TypAp(e, tp) =>
-    TypAp(
-      parenthesize(e) |> paren_assoc_at(Precedence.ap),
-      parenthesize_typ(tp) |> paren_typ_at(Precedence.min),
-    )
-    |> rewrap
-  | DeferredAp(e, es) =>
-    DeferredAp(
-      parenthesize(e) |> paren_assoc_at(Precedence.ap),
-      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
-    )
-    |> rewrap
-  | If(e1, e2, e3) =>
-    If(
-      parenthesize(e1) |> paren_at(Precedence.min),
-      parenthesize(e2) |> paren_at(Precedence.min),
-      parenthesize(e3) |> paren_assoc_at(Precedence.if_),
-    )
-    |> rewrap
-  | Seq(e1, e2) =>
-    Seq(
-      parenthesize(e1) |> paren_at(Precedence.semi), // tempting to make this one assoc too
-      parenthesize(e2) |> paren_assoc_at(Precedence.semi),
-    )
-    |> rewrap
-  | Cast(e, t1, t2) =>
-    Cast(
-      parenthesize(e) |> paren_assoc_at(Precedence.cast),
-      parenthesize_typ(t1) |> paren_typ_at(Precedence.cast),
-      parenthesize_typ(t2) |> paren_typ_at(Precedence.cast),
-    )
-    |> rewrap
-  | FailedCast(e, t1, t2) =>
-    FailedCast(
-      parenthesize(e) |> paren_at(Precedence.cast),
-      parenthesize_typ(t1) |> paren_typ_at(Precedence.cast),
-      parenthesize_typ(t2) |> paren_typ_at(Precedence.cast),
-    )
-    |> rewrap
-  | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
-  // | Filter(f, e) =>
-  //   Filter(
-  //     f, // TODO: Filters
-  //     parenthesize(e) |> paren_at(Precedence.min),
-  //   )
-  //   |> rewrap
-  | Parens(e) =>
-    Parens(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
-  | Cons(e1, e2) =>
-    Cons(
-      parenthesize(e1) |> paren_at(Precedence.cons),
-      parenthesize(e2) |> paren_assoc_at(Precedence.cons),
-    )
-    |> rewrap
-  | ListConcat(e1, e2) =>
-    ListConcat(
-      parenthesize(e1) |> paren_at(Precedence.concat),
-      parenthesize(e2) |> paren_assoc_at(Precedence.concat),
-    )
-    |> rewrap
-  | UnOp(Meta(Unquote), e) =>
-    UnOp(Meta(Unquote), parenthesize(e) |> paren_at(Precedence.unquote))
-    |> rewrap
-  | UnOp(Bool(Not), e) =>
-    UnOp(Bool(Not), parenthesize(e) |> paren_at(Precedence.not_)) |> rewrap
-  | UnOp(Int(Minus), e) =>
-    UnOp(Int(Minus), parenthesize(e) |> paren_at(Precedence.neg)) |> rewrap
-  | BinOp(op, e1, e2) =>
-    (
-      switch (Precedence.of_bin_op(op) |> Precedence.associativity) {
-      | Some(Left)
-      | None =>
-        BinOp(
-          op,
-          parenthesize(e1) |> paren_assoc_at(Precedence.of_bin_op(op)),
-          parenthesize(e2) |> paren_at(Precedence.of_bin_op(op)),
-        )
-      | Some(Right) =>
-        BinOp(
-          op,
-          parenthesize(e1) |> paren_at(Precedence.of_bin_op(op)),
-          parenthesize(e2) |> paren_assoc_at(Precedence.of_bin_op(op)),
-        )
-      }
-    )
-    |> rewrap
-  | Match(e, rs) =>
-    Match(
-      parenthesize(e) |> paren_at(Precedence.min),
-      rs
-      |> List.map(((p, e)) =>
-           (
-             parenthesize_pat(p) |> paren_pat_at(Precedence.min),
-             parenthesize(e) |> paren_assoc_at(Precedence.case_),
-           )
-         ),
-    )
-    |> rewrap
-  | MultiHole(xs) =>
-    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
-  };
-}
-and parenthesize_pat = (~show_filters: bool, pat: Pat.t): Pat.t => {
-  let parenthesize_pat = parenthesize_pat(~show_filters);
-  let parenthesize_typ = parenthesize_typ(~show_filters);
-  let (term, rewrap) = Pat.unwrap(pat);
-  switch (term) {
-  // Indivisible forms dont' change
-  | Var(_)
-  | Invalid(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
-  | EmptyHole
-  | Constructor(_) => pat
-
-  // Other forms
-  | Wild => pat
-  | Parens(p) =>
-    Parens(parenthesize_pat(p) |> paren_pat_at(Precedence.min)) |> rewrap
-  | Cons(p1, p2) =>
-    Cons(
-      parenthesize_pat(p1) |> paren_pat_at(Precedence.cons),
-      parenthesize_pat(p2) |> paren_pat_assoc_at(Precedence.cons),
-    )
-    |> rewrap
-  | Tuple(ps) =>
-    Tuple(
-      ps
-      |> List.map(parenthesize_pat)
-      |> List.map(paren_pat_at(Precedence.prod)),
-    )
-    |> rewrap
-  | ListLit(ps) =>
-    ListLit(
-      ps
-      |> List.map(parenthesize_pat)
-      |> List.map(paren_pat_at(Precedence.prod)),
-    )
-    |> rewrap
-  | Ap(p1, p2) =>
-    Ap(
-      parenthesize_pat(p1) |> paren_pat_assoc_at(Precedence.ap),
-      parenthesize_pat(p2) |> paren_pat_at(Precedence.min),
-    )
-    |> rewrap
-  | MultiHole(xs) =>
-    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
-  | Cast(p, t1, t2) =>
-    Cast(
-      parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.cast),
-      parenthesize_typ(t1) |> paren_typ_at(Precedence.max), // Hack[Matt]: always add parens to get the arrows right
-      parenthesize_typ(t2) |> paren_typ_at(Precedence.max),
-    )
-    |> rewrap
-  };
-}
-
-and parenthesize_typ = (~show_filters: bool, typ: Typ.t): Typ.t => {
-  let parenthesize_typ = parenthesize_typ(~show_filters);
-  let (term, rewrap) = Typ.unwrap(typ);
-  switch (term) {
-  // Indivisible forms dont' change
-  | Var(_)
-  | Unknown(Hole(Invalid(_)))
-  | Unknown(Internal)
-  | Unknown(SynSwitch)
-  | Unknown(Hole(EmptyHole))
-  | Int
-  | Float
-  | Bool
-  | String => typ
-
-  // Other forms
-  | Parens(t) =>
-    Parens(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
-  | List(t) =>
-    List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
-  | Prod(ts) =>
-    Prod(
-      ts
-      |> List.map(parenthesize_typ)
-      |> List.map(paren_typ_at(Precedence.type_prod)),
-    )
-    |> rewrap
-  | Ap(t1, t2) =>
-    Ap(
-      parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.type_sum_ap),
-      parenthesize_typ(t2) |> paren_typ_at(Precedence.min),
-    )
-    |> rewrap
-  | Rec(tp, t) =>
-    Rec(
-      tp,
-      parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
-    )
-    |> rewrap
-  | Forall(tp, t) =>
-    Forall(
-      tp,
-      parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
-    )
-    |> rewrap
-  | Arrow(t1, t2) =>
-    Arrow(
-      parenthesize_typ(t1) |> paren_typ_at(Precedence.type_arrow),
-      parenthesize_typ(t2) |> paren_typ_assoc_at(Precedence.type_arrow),
-    )
-    |> rewrap
-  | Sum(ts) =>
-    Sum(
-      ConstructorMap.map(
-        ts =>
-          ts
-          |> Option.map(parenthesize_typ)
-          |> Option.map(paren_typ_at(Precedence.type_plus)),
-        ts,
-      ),
-    )
-    |> rewrap
-  | Unknown(Hole(MultiHole(xs))) =>
-    Unknown(
-      Hole(MultiHole(List.map(parenthesize_any(~show_filters), xs))),
-    )
-    |> rewrap
-  };
-}
-
-and parenthesize_tpat = (~show_filters: bool, tpat: TPat.t): TPat.t => {
-  let (term, rewrap: TPat.term => TPat.t) = IdTagged.unwrap(tpat);
-  switch (term) {
-  // Indivisible forms dont' change
-  | Var(_)
-  | Invalid(_)
-  | EmptyHole => tpat
-
-  // Other forms
-  | MultiHole(xs) =>
-    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
-  };
-}
-
-and parenthesize_rul = (~show_filters: bool, rul: Rul.t): Rul.t => {
-  let (term, rewrap: Rul.term => Rul.t) = IdTagged.unwrap(rul);
-  switch (term) {
-  // Indivisible forms dont' change
-  | Invalid(_) => rul
-
-  // Other forms
-  | Rules(e, ps) =>
-    Rules(
-      parenthesize(~show_filters, e),
-      List.map(
-        ((p, e)) =>
-          (
-            parenthesize_pat(~show_filters, p),
-            parenthesize(~show_filters, e),
-          ),
-        ps,
-      ),
-    )
-    |> rewrap
-  | Hole(xs) =>
-    Hole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
-  };
-}
-
-and parenthesize_any = (~show_filters: bool, any: Any.t): Any.t =>
-  switch (any) {
-  | Exp(e) => Exp(parenthesize(~show_filters, e))
-  | Pat(p) => Pat(parenthesize_pat(~show_filters, p))
-  | Typ(t) => Typ(parenthesize_typ(~show_filters, t))
-  | TPat(tp) => TPat(parenthesize_tpat(~show_filters, tp))
-  | Rul(r) => Rul(parenthesize_rul(~show_filters, r))
-  | Any(_) => any
-  };
-
 let exp_to_segment = (~settings: Settings.t, exp: Exp.t): Segment.t => {
   let exp =
     exp
@@ -1195,5 +1313,11 @@ let exp_to_segment = (~settings: Settings.t, exp: Exp.t): Segment.t => {
 let typ_to_segment = (~settings, typ: Typ.t): Segment.t => {
   let typ = parenthesize_typ(typ);
   let p = typ_to_pretty(~settings, typ(~show_filters=settings.show_filters));
+  p |> PrettySegment.select;
+};
+
+let any_to_segment = (~settings, any: Any.t): Segment.t => {
+  let any = any |> parenthesize_any;
+  let p = any_to_pretty(~settings, any(~show_filters=settings.show_filters));
   p |> PrettySegment.select;
 };
