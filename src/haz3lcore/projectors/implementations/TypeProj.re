@@ -104,14 +104,12 @@ module M: Projector = {
   let view = (model, info, ~local, ~parent as _, ~view_seg) =>
     View.{
       inline:
-        Some(
-          div(
-            ~attrs=[
-              Attr.classes(["main"]),
-              Attr.on_double_click(_ => local(ToggleDisplay)),
-            ],
-            [syntax_view(info), icon],
-          ),
+        div(
+          ~attrs=[
+            Attr.classes(["main"]),
+            Attr.on_double_click(_ => local(ToggleDisplay)),
+          ],
+          [syntax_view(info), icon],
         ),
       offside:
         Some(
@@ -124,6 +122,5 @@ module M: Projector = {
           ),
         ),
       overlay: None,
-      underlay: None,
     };
 };

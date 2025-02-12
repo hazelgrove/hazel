@@ -87,9 +87,14 @@ type info = {
 };
 
 module View = {
+  /* A projector has an inline view, which replaces the underlying
+   * syntax. Optionally, it may have an overlay view, which is shown
+   * in the same place, but above most base editor decorations
+   * including the inline views of all other projectors, and/or
+   * an offside view, which is rendered at the end of the base
+   * editor line containing the projector */
   type t = {
-    underlay: option(Node.t),
-    inline: option(Node.t),
+    inline: Node.t,
     overlay: option(Node.t),
     offside: option(Node.t),
   };
@@ -97,9 +102,8 @@ module View = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type seg = (~background: bool=?, Sort.t, list(syntax)) => Node.t;
 
-  let mk = (~underlay=None, ~overlay=None, ~offside=None, inline) => {
-    inline: Some(inline),
-    underlay,
+  let mk = (~overlay=None, ~offside=None, inline) => {
+    inline,
     overlay,
     offside,
   };

@@ -911,8 +911,7 @@ module M: Projector = {
 
   let view = (model, info, ~local, ~parent, ~view_seg) =>
     View.{
-      inline: Some(view(local, parent, info)),
-      underlay: None,
+      inline: view(local, parent, info),
       overlay: Some(overlay_view(info)),
       offside:
         Some(offside_view(model, info, local, view_seg, info.utility)),
