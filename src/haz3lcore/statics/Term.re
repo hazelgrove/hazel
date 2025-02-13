@@ -35,46 +35,47 @@ module Pat = {
 
   module Fresh = {
     open TermBase;
-    let invalid = s => Invalid(s) |> fresh;
-    let empty_hole = () => EmptyHole |> fresh;
-    let multi_hole = tms => MultiHole(tms) |> fresh;
-    let wild = () => Wild |> fresh;
-    let int = i => Int(i) |> fresh;
-    let float = f => Float(f) |> fresh;
-    let bool = b => Bool(b) |> fresh;
-    let string = s => String(s) |> fresh;
-    let list_lit = ts => ListLit(ts) |> fresh;
-    let constructor = (c, ty) => Constructor(c, ty) |> fresh;
-    let cons = (hd, tl) => Cons(hd, tl) |> fresh;
-    let var = x => Var(x) |> fresh;
-    let tuple = ps => Tuple(ps) |> fresh;
-    let parens = p => Parens(p) |> fresh;
-    let ap = (f, x) => Ap(f, x) |> fresh;
-    let cast = (e, t1, t2) => Cast(e, t1, t2) |> fresh;
-    let label = l => Label(l) |> fresh;
-    let tup_label = (l, p) => TupLabel(l, p) |> fresh;
+    let pinvalid = s => Invalid(s) |> fresh;
+    let pempty_hole = () => EmptyHole |> fresh;
+    let pmulti_hole = tms => MultiHole(tms) |> fresh;
+    let pwild = () => Wild |> fresh;
+    let pint = i => Int(i) |> fresh;
+    let pfloat = f => Float(f) |> fresh;
+    let pbool = b => Bool(b) |> fresh;
+    let pstring = s => String(s) |> fresh;
+    let plist_lit = ts => ListLit(ts) |> fresh;
+    let pconstructor = (c, ty) => Constructor(c, ty) |> fresh;
+    let pcons = (hd, tl) => Cons(hd, tl) |> fresh;
+    let pvar = x => Var(x) |> fresh;
+    let ptuple = ps => Tuple(ps) |> fresh;
+    let pparens = p => Parens(p) |> fresh;
+    let pap = (f, x) => Ap(f, x) |> fresh;
+    let pcast = (e, t1, t2) => Cast(e, t1, t2) |> fresh;
+    let pasc = (e, t) => pcast(e, t, Unknown(Internal) |> IdTagged.fresh);
+    let plabel = l => Label(l) |> fresh;
+    let ptup_label = (l, p) => TupLabel(l, p) |> fresh;
     // The following function exists only as a reminder to update the above when a new constructor is added.
     let ok = (_: 'a) => failwith("covered should never be called");
     let covered = (e: pat_term) => {
       switch (e) {
-      | Invalid(_) => ok(invalid)
-      | EmptyHole => ok(empty_hole)
-      | MultiHole(_) => ok(multi_hole)
-      | Wild => ok(wild)
-      | Int(_) => ok(int)
-      | Float(_) => ok(float)
-      | Bool(_) => ok(bool)
-      | String(_) => ok(string)
-      | ListLit(_) => ok(list_lit)
-      | Constructor(_, _) => ok(constructor)
-      | Cons(_, _) => ok(cons)
-      | Var(_) => ok(var)
-      | Tuple(_) => ok(tuple)
-      | Parens(_) => ok(parens)
-      | Ap(_, _) => ok(ap)
-      | Cast(_, _, _) => ok(cast)
-      | Label(_) => ok(label)
-      | TupLabel(_, _) => ok(tup_label)
+      | Invalid(_) => ok(pinvalid)
+      | EmptyHole => ok(pempty_hole)
+      | MultiHole(_) => ok(pmulti_hole)
+      | Wild => ok(pwild)
+      | Int(_) => ok(pint)
+      | Float(_) => ok(pfloat)
+      | Bool(_) => ok(pbool)
+      | String(_) => ok(pstring)
+      | ListLit(_) => ok(plist_lit)
+      | Constructor(_, _) => ok(pconstructor)
+      | Cons(_, _) => ok(pcons)
+      | Var(_) => ok(pvar)
+      | Tuple(_) => ok(ptuple)
+      | Parens(_) => ok(pparens)
+      | Ap(_, _) => ok(pap)
+      | Cast(_, _, _) => ok(pcast)
+      | Label(_) => ok(plabel)
+      | TupLabel(_, _) => ok(ptup_label)
       };
     };
   };
@@ -1071,4 +1072,11 @@ module Any = {
     | TPat(tm) => TPat.rep_id(tm)
     | Rul(tm) => Rul.rep_id(~any_ids=ids, tm)
     | Any () => raise(Invalid_argument("Term.rep_id"));
+};
+
+module Fresh = {
+  include TPat.Fresh;
+  include Pat.Fresh;
+  include Typ.Fresh;
+  include Exp.Fresh;
 };

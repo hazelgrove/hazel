@@ -8,7 +8,27 @@ type cls =
 include TermBase.TPat;
 
 let rep_id: t => Id.t = IdTagged.rep_id;
+
 let fresh: term => t = IdTagged.fresh;
+
+module Fresh = {
+  open TermBase;
+  let tpinvalid = s => Invalid(s) |> fresh;
+  let tpempty_hole = () => EmptyHole |> fresh;
+  let tpmulti_hole = tms => MultiHole(tms) |> fresh;
+  let tpvar = x => Var(x) |> fresh;
+
+  // The following function exists only as a reminder to update the above when a new constructor is added.
+  let ok = (_: 'a) => failwith("covered should never be called");
+  let covered = (e: tpat_term) => {
+    switch (e) {
+    | Invalid(_) => ok(tpinvalid)
+    | EmptyHole => ok(tpempty_hole)
+    | MultiHole(_) => ok(tpmulti_hole)
+    | Var(_) => ok(tpvar)
+    };
+  };
+};
 
 let hole = (tms: list(TermBase.Any.t)): TermBase.TPat.term =>
   switch (tms) {
