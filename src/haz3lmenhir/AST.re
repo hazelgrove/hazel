@@ -98,6 +98,7 @@ type typ =
   | RecType(tpat, typ)
   | LabelType(string)
   | TupLabelType(typ, typ)
+  | IndicationTyp(typ)
 and sumterm =
   | Variant(string, option(typ))
   | BadEntry(typ)
@@ -122,7 +123,8 @@ type pat =
   | ApPat(pat, pat)
   | InvalidPat(string) // Menhir parser doesn't actually support invalid pats
   | TupLabelPat(pat, pat)
-  | LabelPat(string);
+  | LabelPat(string)
+  | IndicationPat(pat);
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type if_consistency =
@@ -174,7 +176,8 @@ type exp =
   | InvalidExp(string)
   | TypAp(exp, typ)
   | DynamicErrorHole(exp, string)
-  | TyAlias(tpat, typ, exp);
+  | TyAlias(tpat, typ, exp)
+  | IndicationExp(exp);
 
 /**
  * Generates a random CONSTRUCTOR_IDENT string. Used for CONSTRUCTOR_IDENT in the lexer.
