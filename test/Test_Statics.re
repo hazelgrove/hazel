@@ -9,6 +9,8 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
     l == r && Typ.fast_equal(ty, ty2)
   | (Common(NoType(BadLabel(a))), Common(NoType(BadLabel(b)))) =>
     Any.fast_equal(a, b)
+  | (Common(NoType(InvalidLabel(a))), Common(NoType(InvalidLabel(b)))) =>
+    a == b
   | (
       Common(Inconsistent(Expectation({ana: a1, syn: a2}))),
       Common(Inconsistent(Expectation({ana: b1, syn: b2}))),
@@ -32,6 +34,7 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
 let eq_info_error = (a: Info.error, b: Info.error) => {
   switch (a, b) {
   | (Exp(a), Exp(b)) => eq_info_error_exp(a, b)
+
   | _ =>
     Alcotest.fail(
       "Not implemented for "
@@ -86,9 +89,10 @@ let annotated_exp: testable(Grammar.exp_t(option(Info.error))) =
       [%derive.show: Grammar.exp_t(option(Info.error))],
       Fmt.string,
     ),
-    Grammar.equal_exp_t(Option.equal(eq_info_error)),
-  );
-let no_error =
+    (a, b) => {
+    Grammar.equal_exp_t(Option.equal(eq_info_error), a, b)
+  });
+let no_error_exp =
     (e: Grammar.exp_term(option(Info.error)))
     : Grammar.exp_t(option(Info.error)) => {
   {term: e, annotation: None};
@@ -103,7 +107,7 @@ let no_error_typ =
     : Grammar.typ_t(option(Info.error)) => {
   {term: t, annotation: None};
 };
-let error =
+let error_exp =
     (err, e: Grammar.exp_term(option(Info.error)))
     : Grammar.exp_t(option(Info.error)) => {
   {term: e, annotation: Some(err)};
@@ -200,15 +204,16 @@ let unlabeled_tuple_to_labeled_fails =
     () => {
     annotated_tree_test(
       "Unlabeled variable assigned to labeled tuple",
-      no_error(
+      no_error_exp(
         Let(
           no_error_pat(Var("x")),
-          no_error(
+          no_error_exp(
             Parens(
-              Tuple([Int(1) |> no_error, Int(2) |> no_error]) |> no_error,
+              Tuple([Int(1) |> no_error_exp, Int(2) |> no_error_exp])
+              |> no_error_exp,
             ),
           ),
-          no_error(
+          no_error_exp(
             Let(
               no_error_pat(
                 Cast(
@@ -234,7 +239,7 @@ let unlabeled_tuple_to_labeled_fails =
                   Unknown(Internal) |> no_error_typ,
                 ),
               ),
-              error(
+              error_exp(
                 Exp(
                   Common(
                     Inconsistent(
@@ -265,7 +270,7 @@ let unlabeled_tuple_to_labeled_fails =
                 ),
                 Var("x"),
               ),
-              no_error(Var("y")),
+              no_error_exp(Var("y")),
             ),
           ),
         ),
@@ -280,7 +285,7 @@ let simple_inconsistency =
     () => {
     annotated_tree_test(
       "let y : String = true",
-      no_error(
+      no_error_exp(
         Let(
           Cast(
             Var("y") |> no_error_pat,
@@ -288,7 +293,7 @@ let simple_inconsistency =
             Unknown(Internal) |> no_error_typ,
           )
           |> no_error_pat,
-          error(
+          error_exp(
             Exp(
               Common(
                 Inconsistent(
@@ -301,7 +306,7 @@ let simple_inconsistency =
             ),
             Bool(true),
           ),
-          Var("y") |> no_error,
+          Var("y") |> no_error_exp,
         ),
       ),
     )
@@ -516,7 +521,7 @@ let tests = (
             Unknown(Internal) |> no_error_typ,
           )
           |> no_error_pat,
-          error(
+          error_exp(
             Exp(
               Common(
                 Inconsistent(
@@ -529,9 +534,9 @@ let tests = (
             ),
             Int(1),
           ),
-          Var("x") |> no_error,
+          Var("x") |> no_error_exp,
         )
-        |> no_error,
+        |> no_error_exp,
       )
     }),
     fully_consistent_typecheck(
@@ -796,10 +801,117 @@ let tests = (
     ),
     inconsistent_typecheck(
       "Unknown label in last postition for expression",
-      parse_exp(
-        {|let x : (a=Int, b=Float, String) = (1, 1.2, z="hello") in |},
-      ),
+      parse_exp({|(1, 1.2, z="hello") : (a=Int, b=Float, String)|}),
     ),
+    test_case("Unknown label in last position2", `Quick, () => {
+      annotated_tree_test(
+        "Unlabeled variable assigned to labeled tuple",
+        error_exp(
+          Exp(
+            Common(
+              Inconsistent(
+                Expectation({
+                  ana:
+                    Prod([
+                      TupLabel(Typ.temp(Label("a")), Typ.temp(Int))
+                      |> Typ.temp,
+                      TupLabel(Typ.temp(Label("b")), Typ.temp(Float))
+                      |> Typ.temp,
+                      Typ.temp(String),
+                    ])
+                    |> Typ.temp,
+                  syn:
+                    Prod([
+                      TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
+                      |> Typ.temp,
+                      TupLabel(Label("b") |> Typ.temp, Float |> Typ.temp)
+                      |> Typ.temp,
+                      TupLabel(Label("z") |> Typ.temp, String |> Typ.temp)
+                      |> Typ.temp,
+                    ])
+                    |> Typ.temp,
+                }),
+              ),
+            ),
+          ),
+          Cast(
+            no_error_exp(
+              Parens(
+                error_exp(
+                  Exp(
+                    Common(
+                      TupleLabelError({
+                        malformed_labels: [],
+                        duplicate_labels: [],
+                        invalid_labels: ["z"],
+                        typ:
+                          Prod([
+                            TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
+                            |> Typ.temp,
+                            TupLabel(
+                              Label("b") |> Typ.temp,
+                              Float |> Typ.temp,
+                            )
+                            |> Typ.temp,
+                            TupLabel(
+                              Label("z") |> Typ.temp,
+                              String |> Typ.temp,
+                            )
+                            |> Typ.temp,
+                          ])
+                          |> Typ.temp,
+                      }),
+                    ),
+                  ),
+                  Tuple([
+                    no_error_exp(Int(1)),
+                    no_error_exp(Float(1.2)),
+                    error_exp(
+                      Exp(
+                        Common(
+                          TupleLabelError({
+                            malformed_labels: [],
+                            duplicate_labels: [],
+                            invalid_labels: ["z"],
+                            typ:
+                              TupLabel(
+                                Label("z") |> Typ.temp,
+                                String |> Typ.temp,
+                              )
+                              |> Typ.temp,
+                          }),
+                        ),
+                      ),
+                      TupLabel(
+                        error_exp(
+                          Exp(Common(NoType(InvalidLabel("z")))),
+                          Label("z"),
+                        ),
+                        no_error_exp(String("hello")),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+            no_error_typ(Unknown(Internal)),
+            no_error_typ(
+              Parens(
+                no_error_typ(
+                  Prod([
+                    TupLabel(no_error_typ(Label("a")), no_error_typ(Int))
+                    |> no_error_typ,
+                    TupLabel(no_error_typ(Label("b")), no_error_typ(Float))
+                    |> no_error_typ,
+                    no_error_typ(String),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ),
+      )
+    }),
     test_case(
       "Duplicate label synthesis",
       `Quick,
@@ -1229,11 +1341,11 @@ let tests = (
     test_case("Example error annotations", `Quick, () => {
       annotated_tree_test(
         "Inconsistent expectation on plus",
-        no_error(
+        no_error_exp(
           BinOp(
             Int(Plus),
-            no_error(Int(1)),
-            error(
+            no_error_exp(Int(1)),
+            error_exp(
               Exp(
                 Common(
                   Inconsistent(
