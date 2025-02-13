@@ -203,7 +203,7 @@ let unlabeled_tuple_to_labeled_fails =
     `Quick,
     () => {
     annotated_tree_test(
-      "Unlabeled variable assigned to labeled tuple",
+      "let x = (1, 2) in let y : (a=Int, b=Int) = x in y",
       no_error_exp(
         Let(
           no_error_pat(Var("x")),
@@ -799,13 +799,9 @@ let tests = (
       Some(int),
       parse_exp("let x : (a=Int) -> Int = fun a -> a in x(2)"),
     ),
-    inconsistent_typecheck(
-      "Unknown label in last postition for expression",
-      parse_exp({|(1, 1.2, z="hello") : (a=Int, b=Float, String)|}),
-    ),
     test_case("Unknown label in last position2", `Quick, () => {
       annotated_tree_test(
-        "Unlabeled variable assigned to labeled tuple",
+        {|(1, 1.2, z="hello") : (a=Int, b=Float, String)|},
         no_error_exp(
           Cast(
             error_exp(
