@@ -512,17 +512,24 @@ and uexp_to_info_map =
           p,
           m,
         );
+      //print_endline("STA body = " ++ UExp.show(body.term));
+      //print_endline("STA p_ana = " ++ UPat.show(p_ana.term));
       // TODO: factor out code
       let unwrapped_self: Self.exp = Common(Just(body.ty));
       let is_exhaustive = p_ana |> Info.pat_constraint |> Incon.is_exhaustive;
+      //print_endline("STA is_exhaustive = " ++ Bool.to_string(is_exhaustive));
       let self =
         is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
-      add'(
-        ~self,
-        ~co_ctx=
-          CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
-        m,
-      );
+      //print_endline("STA self = " ++ Self.show_exp(self));
+      let (new_info, new_map) =
+        add'(
+          ~self,
+          ~co_ctx=
+            CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
+          m,
+        );
+      //print_endline("STA new_map" ++ Map.show(new_map));
+      (new_info, new_map);
     }
   | FixF(p, e, _) =>
     let (p', _) =

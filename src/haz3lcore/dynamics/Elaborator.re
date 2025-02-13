@@ -75,8 +75,8 @@ let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t, 'a) => {
 };
 
 let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
-  print_endline("ELA_PT m = " ++ Statics.Map.show(m));
-  print_endline("ELA_PT upat = " ++ UPat.show(upat));
+  //print_endline("ELA_PT m = " ++ Statics.Map.show(m));
+  //print_endline("ELA_PT upat = " ++ UPat.show(upat));
   let (mode, self_ty, ctx, prev_synswitch) =
     switch (Id.Map.find_opt(UPat.rep_id(upat), m)) {
     | Some(Info.InfoPat({mode, ty, ctx, prev_synswitch, _})) => (
@@ -108,11 +108,12 @@ let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
 
 let rec elaborate_pattern =
         (m: Statics.Map.t, upat: UPat.t): (DHPat.t, Typ.t) => {
-  print_endline("ELA_P upat = " ++ UPat.show(upat));
   let (elaborated_type, ctx) = elaborated_pat_type(m, upat);
+  //print_endline("ELA_P elaborated_type = " ++ Typ.show(elaborated_type));
+  //print_endline("ELA_P ctx = " ++ Ctx.show(ctx));
   let cast_from = (ty, exp) => fresh_pat_cast(exp, ty, elaborated_type);
+  //print_endline("ELA_P upat = " ++ UPat.show(upat));
   let (term, rewrap) = UPat.unwrap(upat);
-  print_endline("ELA_P term = " ++ UPat.show_term(term));
   let dpat =
     switch (term) {
     | Int(_) => upat |> cast_from(Int |> Typ.temp)
@@ -162,12 +163,19 @@ let rec elaborate_pattern =
     | MultiHole(_)
     | Wild => upat |> cast_from(Typ.temp(Unknown(Internal)))
     | Var(v) =>
+      //print_endline("ELA_P upat(2) = " ++ UPat.show(upat));
+      let tmp1 = Ctx.lookup_var(ctx, v);
+      // switch (tmp1) {
+      // | Some(tmp2) =>
+      //   print_endline("ELA_P ctx lookup = " ++ Ctx.show_var_entry(tmp2))
+      // | None => print_endline("ELA_P ctx lookup fail")
+      // };
       upat
       |> cast_from(
-           Ctx.lookup_var(ctx, v)
+           tmp1
            |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
            |> Option.value(~default=Typ.temp(Unknown(Internal))),
-         )
+         );
     // Type annotations should already appear
     | Parens(p)
     | Cast(p, _, _) =>
@@ -291,6 +299,16 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
            |> Option.value(~default=Typ.temp(Typ.Unknown(Internal))),
          )
     | Let(p, def, body) =>
+      let (p, def) =
+        switch (Statics.check_annotated_function(p)) {
+        | Some((f_name, f_args, _)) =>
+          let def: UExp.t = UExp.Fun(f_args, def, None, None) |> UExp.fresh;
+          // let p: UPat.t =
+          //   UPat.Cast(f_name, f_type, Typ.temp(Unknown(Internal)))
+          //   |> UPat.fresh;
+          (f_name, def);
+        | None => (p, def)
+        };
       let add_name: (option(string), DHExp.t) => DHExp.t = (
         (name, exp) => {
           let (term, rewrap) = DHExp.unwrap(exp);
@@ -301,14 +319,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
           };
         }
       );
-      print_endline("ELA p(1) = " ++ UPat.show(p));
+      // print_endline("ELA p(1) = " ++ UPat.show(p));
       // print_endline("ELA m = " ++ Statics.Map.show(m));
-      // check if it is new syntax
-      // switch (p) {
-      // | Ap(f_name, args) =>
-      // }
       let (p, ty1) = elaborate_pattern(m, p);
-      print_endline("ELA p(2) = " ++ DHPat.show(p));
+      print_endline("ELA p = " ++ DHPat.show(p));
       let is_recursive =
         Statics.is_recursive(ctx, p, def, ty1)
         && Pat.get_bindings(p)
@@ -316,12 +330,16 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
       if (!is_recursive) {
         let def = add_name(Pat.get_var(p), def);
-        print_endline("ELA def = " ++ DHExp.show(def));
+        print_endline("ELA def(1) = " ++ DHExp.show(def));
         let (def, ty2) = elaborate(m, def);
+        print_endline("ELA def(2) = " ++ DHExp.show(def));
         let (body, ty) = elaborate(m, body);
-        Exp.Let(p, fresh_cast(def, ty2, ty1), body)
-        |> rewrap
-        |> cast_from(ty);
+        let result =
+          Exp.Let(p, fresh_cast(def, ty2, ty1), body)
+          |> rewrap
+          |> cast_from(ty);
+        print_endline("ELA result = " ++ DHExp.show(result));
+        result;
       } else {
         // TODO: Add names to mutually recursive functions
         // TODO: Don't add fixpoint if there already is one
