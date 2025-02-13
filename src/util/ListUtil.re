@@ -591,3 +591,12 @@ let minimum = (f: 'a => int, xs: list('a)): option('a) =>
       };
     loop(x, f(x), xs);
   };
+
+// for performance, doesn't check the whole list if already above length
+let rec is_length = (n: int, xs: list('a)): bool =>
+  switch (xs) {
+  | [] when n == 0 => true
+  | _ when n <= 0 => false
+  | [] => false
+  | [_, ...xs] => is_length(n - 1, xs)
+  };
