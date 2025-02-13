@@ -806,36 +806,39 @@ let tests = (
     test_case("Unknown label in last position2", `Quick, () => {
       annotated_tree_test(
         "Unlabeled variable assigned to labeled tuple",
-        error_exp(
-          Exp(
-            Common(
-              Inconsistent(
-                Expectation({
-                  ana:
-                    Prod([
-                      TupLabel(Typ.temp(Label("a")), Typ.temp(Int))
-                      |> Typ.temp,
-                      TupLabel(Typ.temp(Label("b")), Typ.temp(Float))
-                      |> Typ.temp,
-                      Typ.temp(String),
-                    ])
-                    |> Typ.temp,
-                  syn:
-                    Prod([
-                      TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
-                      |> Typ.temp,
-                      TupLabel(Label("b") |> Typ.temp, Float |> Typ.temp)
-                      |> Typ.temp,
-                      TupLabel(Label("z") |> Typ.temp, String |> Typ.temp)
-                      |> Typ.temp,
-                    ])
-                    |> Typ.temp,
-                }),
-              ),
-            ),
-          ),
+        no_error_exp(
           Cast(
-            no_error_exp(
+            error_exp(
+              Exp(
+                Common(
+                  Inconsistent(
+                    Expectation({
+                      ana:
+                        Prod([
+                          TupLabel(Typ.temp(Label("a")), Typ.temp(Int))
+                          |> Typ.temp,
+                          TupLabel(Typ.temp(Label("b")), Typ.temp(Float))
+                          |> Typ.temp,
+                          Typ.temp(String),
+                        ])
+                        |> Typ.temp,
+                      syn:
+                        Prod([
+                          TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
+                          |> Typ.temp,
+                          TupLabel(Label("b") |> Typ.temp, Float |> Typ.temp)
+                          |> Typ.temp,
+                          TupLabel(
+                            Label("z") |> Typ.temp,
+                            String |> Typ.temp,
+                          )
+                          |> Typ.temp,
+                        ])
+                        |> Typ.temp,
+                    }),
+                  ),
+                ),
+              ),
               Parens(
                 error_exp(
                   Exp(
@@ -1020,7 +1023,6 @@ let tests = (
       () => {
         let exp = parse_exp({|(1, 2) . 1|});
 
-        print_endline(Exp.show(exp));
         let label =
           switch (exp.term) {
           | Dot(_, _ as l) => l
