@@ -4,13 +4,42 @@ open Haz3lcore;
 let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 let testable_info_error_pat =
   testable(Fmt.using(Info.show_error_pat, Fmt.string), Info.equal_error_pat);
+let testable_list_uuidm = testable(Fmt.list(Uuidm.pp), (==));
 
 let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init);
 let info_error_of_pat_id = (f: Exp.t, id: Id.t): option(Info.error_pat) => {
   Statics.get_pat_error_at(statics(f), id);
 };
 
-let alco_check = Alcotest.option(testable_typ) |> Alcotest.check;
+let no_errors = (name, exp) => {
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let s = statics(exp);
+      let errors = Statics.Map.error_ids(s);
+      Alcotest.check(testable_list_uuidm, "Static Errors", [], errors);
+    },
+  );
+};
+
+let parse_exp = (s: string) => {
+  switch (MakeTerm.parse_exp(s)) {
+  | Some(e) => e
+  | None => Alcotest.fail("Failed to parse expression: " ++ s)
+  };
+};
+
+let parse_menhir = (s: string) => {
+  let (e, _) =
+    Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+      Haz3lmenhir.Interface.parse_program(s),
+    );
+  // print_endline("Parsed: " ++ Exp.show(e));
+  // print_endline("Original: " ++ (parse_exp(s) |> Exp.show));
+  // failwith("X");
+  e;
+};
 
 let reusable_id = Id.mk();
 let reusable_pat: TermBase.pat_term => TermBase.pat_t =
@@ -25,7 +54,7 @@ let bare_let =
       "let x = 1 in x",
       None,
       info_error_of_pat_id(
-        Exp.Fresh.(let_(reusable_pat(Var("x")), int(1), var("x"))),
+        Term.Fresh.(let_(reusable_pat(Var("x")), int(1), var("x"))),
         reusable_id,
       ),
     )
@@ -38,7 +67,7 @@ let bare_fun =
       "fun x -> x",
       None,
       info_error_of_pat_id(
-        Exp.Fresh.(fun_(reusable_pat(Var("x")), var("x"), None, None)),
+        Term.Fresh.(fun_(reusable_pat(Var("x")), var("x"), None, None)),
         reusable_id,
       ),
     )
@@ -51,13 +80,9 @@ let annotated_let =
       "let x : Int = 1 in x",
       None,
       info_error_of_pat_id(
-        Exp.Fresh.(
+        Term.Fresh.(
           let_(
-            reusable_pat(
-              Pat.Fresh.(
-                Cast(var("x"), Typ.Fresh.int(), Typ.Fresh.unknown(Internal))
-              ),
-            ),
+            reusable_pat(Cast(pvar("x"), tint(), tunknown(Internal))),
             int(1),
             var("x"),
           )
@@ -74,13 +99,9 @@ let annotated_fun =
       "fun x : Int -> x",
       None,
       info_error_of_pat_id(
-        Exp.Fresh.(
+        Term.Fresh.(
           fun_(
-            reusable_pat(
-              Pat.Fresh.(
-                Cast(var("x"), Typ.Fresh.int(), Typ.Fresh.unknown(Internal))
-              ),
-            ),
+            reusable_pat(Cast(pvar("x"), tint(), tunknown(Internal))),
             var("x"),
             None,
             None,
@@ -98,11 +119,9 @@ let let_tuple =
       "let (x, y, z) = 1 in x",
       None,
       info_error_of_pat_id(
-        Exp.Fresh.(
+        Term.Fresh.(
           let_(
-            reusable_pat(
-              Pat.Fresh.(Tuple([var("x"), var("y"), var("z")])),
-            ),
+            reusable_pat(Tuple([pvar("x"), pvar("y"), pvar("z")])),
             tuple([int(1), int(2), int(3)]),
             var("x"),
           )
@@ -119,11 +138,9 @@ let fun_tuple =
       "fun (x, y, z) => x",
       None,
       info_error_of_pat_id(
-        Exp.Fresh.(
+        Term.Fresh.(
           fun_(
-            reusable_pat(
-              Pat.Fresh.(Tuple([var("x"), var("y"), var("z")])),
-            ),
+            reusable_pat(Tuple([pvar("x"), pvar("y"), pvar("z")])),
             var("x"),
             None,
             None,
@@ -142,15 +159,13 @@ let annotated_let_tuple =
       "let (x, y, z): (Int, Int, Int) = 1 in x",
       None,
       info_error_of_pat_id(
-        Exp.Fresh.(
+        Term.Fresh.(
           let_(
             reusable_pat(
-              Pat.Fresh.(
-                Cast(
-                  tuple([var("x"), var("y"), var("z")]),
-                  Typ.Fresh.(prod([int(), int(), int()])),
-                  Typ.Fresh.unknown(Internal),
-                )
+              Cast(
+                ptuple([pvar("x"), pvar("y"), pvar("z")]),
+                tprod([tint(), tint(), tint()]),
+                tunknown(Internal),
               ),
             ),
             tuple([int(1), int(2), int(3)]),
@@ -170,15 +185,13 @@ let annotated_fun_tuple =
       "fun (x, y, z) : (Int, Int, Int) -> x",
       None,
       info_error_of_pat_id(
-        Exp.Fresh.(
+        Term.Fresh.(
           fun_(
             reusable_pat(
-              Pat.Fresh.(
-                Cast(
-                  tuple([var("x"), var("y"), var("z")]),
-                  Typ.Fresh.(prod([int(), int(), int()])),
-                  Typ.Fresh.unknown(Internal),
-                )
+              Cast(
+                ptuple([pvar("x"), pvar("y"), pvar("z")]),
+                tprod([tint(), tint(), tint()]),
+                tunknown(Internal),
               ),
             ),
             var("x"),
@@ -191,6 +204,25 @@ let annotated_fun_tuple =
     )
   );
 
+let peanut_tree =
+  no_errors(
+    "Peanut Figure 1: Exhaustive + Irredundant Tree",
+    parse_menhir(
+      {|
+type Tree = +Empty + Leaf(Int) + Node([Tree]) in
+let f = fun (x : Tree) ->
+  {{{case x
+    | Node([]) => Empty
+    | Node([x]) => Node([f(x), Empty])
+    | Node([x, y]) => Node([f(x), f(y)])
+    | Node(x::y::tl) => Node(f(x)::[f(Node(y::tl))])
+    | Leaf(x) => Leaf(x)
+    | Empty => Empty
+  end}}}
+in ?
+      |},
+    ),
+  );
 // TODO: list examples from paper
 // TODO: first example from paper
 // TODO: recursive type
@@ -213,5 +245,6 @@ let tests = (
     fun_tuple,
     annotated_let_tuple,
     annotated_fun_tuple,
+    peanut_tree,
   ],
 );
