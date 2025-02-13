@@ -6,6 +6,8 @@ let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 let testable_info_error_exp =
   testable(Fmt.using(Info.show_error_exp, Fmt.string), Info.equal_error_exp);
 
+let testable_list_uuidm = testable(Fmt.list(Uuidm.pp), (==));
+
 let status_exp: testable(Info.status_exp) =
   testable(Fmt.using(Info.show_status_exp, Fmt.string), (==));
 let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init);
@@ -67,18 +69,8 @@ let fully_consistent_typecheck = (name, serialized, expected, exp) => {
     `Quick,
     () => {
       let s = statics(exp);
-      let errors =
-        List.map(
-          (id: Id.t) => {
-            let info = Id.Map.find(id, s);
-            switch (info) {
-            | InfoExp(ie) => ie.status
-            | _ => fail("Expected InfoExp")
-            };
-          },
-          Statics.Map.error_ids(s),
-        );
-      Alcotest.check(list(status_exp), "Static Errors", [], errors);
+      let errors = Statics.Map.error_ids(s);
+      Alcotest.check(testable_list_uuidm, "Static Errors", [], errors);
       alco_check(serialized, expected, type_of(exp));
     },
   );
@@ -182,7 +174,7 @@ let simple_inconsistency =
 let unapplied_function = () =>
   alco_check(
     "Unknown param",
-    Some(Typ.Fresh.(arrow(unknown(Internal), int()))),
+    Some(Term.Fresh.(tarrow(tunknown(Internal), tint()))),
     type_of(
       Fun(
         Var("x") |> Pat.fresh,
@@ -201,7 +193,7 @@ let tests = (
     fully_consistent_typecheck(
       "Function with unknown param",
       "x => 4 + 5",
-      Some(arrow(unknown(Internal), int())),
+      Some(tarrow(tunknown(Internal), tint())),
       Fun(
         Var("x") |> Pat.fresh,
         BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
@@ -214,9 +206,9 @@ let tests = (
     fully_consistent_typecheck(
       "Function with known param",
       "x : Int => 4 + 5",
-      Some(arrow(int(), int())),
+      Some(tarrow(tint(), tint())),
       Fun(
-        Cast(Var("x") |> Pat.fresh, int(), unknown(Internal)) |> Pat.fresh,
+        Cast(Var("x") |> Pat.fresh, tint(), tunknown(Internal)) |> Pat.fresh,
         BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
         |> Exp.fresh,
         None,
@@ -228,7 +220,10 @@ let tests = (
       "Function with labeled param",
       "fun (a=x) -> 4",
       Some(
-        arrow(prod([tup_label(label("a"), unknown(Internal))]), int()),
+        tarrow(
+          tprod([ttup_label(tlabel("a"), tunknown(Internal))]),
+          tint(),
+        ),
       ),
       Fun(
         Parens(
@@ -248,11 +243,13 @@ let tests = (
     fully_consistent_typecheck(
       "bifunction",
       "x : Int, y: Int => x + y",
-      Some(arrow(prod([int(), int()]), int())),
+      Some(tarrow(tprod([tint(), tint()]), tint())),
       Fun(
         Tuple([
-          Cast(Var("x") |> Pat.fresh, int(), unknown(Internal)) |> Pat.fresh,
-          Cast(Var("y") |> Pat.fresh, int(), unknown(Internal)) |> Pat.fresh,
+          Cast(Var("x") |> Pat.fresh, tint(), tunknown(Internal))
+          |> Pat.fresh,
+          Cast(Var("y") |> Pat.fresh, tint(), tunknown(Internal))
+          |> Pat.fresh,
         ])
         |> Pat.fresh,
         BinOp(Int(Plus), Var("x") |> Exp.fresh, Var("y") |> Exp.fresh)
@@ -265,11 +262,13 @@ let tests = (
     fully_consistent_typecheck(
       "bifunction",
       "x : Int, y: Int => x + y",
-      Some(arrow(prod([int(), int()]), int())),
+      Some(tarrow(tprod([tint(), tint()]), tint())),
       Fun(
         Tuple([
-          Cast(Var("x") |> Pat.fresh, int(), unknown(Internal)) |> Pat.fresh,
-          Cast(Var("y") |> Pat.fresh, int(), unknown(Internal)) |> Pat.fresh,
+          Cast(Var("x") |> Pat.fresh, tint(), tunknown(Internal))
+          |> Pat.fresh,
+          Cast(Var("y") |> Pat.fresh, tint(), tunknown(Internal))
+          |> Pat.fresh,
         ])
         |> Pat.fresh,
         BinOp(Int(Plus), Var("x") |> Exp.fresh, Var("y") |> Exp.fresh)
@@ -282,14 +281,14 @@ let tests = (
     fully_consistent_typecheck(
       "function application",
       "float_of_int(1)",
-      Some(float()),
+      Some(tfloat()),
       Ap(Forward, Var("float_of_int") |> Exp.fresh, Int(1) |> Exp.fresh)
       |> Exp.fresh,
     ),
     fully_consistent_typecheck(
       "function deferral",
       "string_sub(\"hello\", 1, _)",
-      Some(arrow(int(), string())),
+      Some(tarrow(tint(), tstring())),
       DeferredAp(
         Var("string_sub") |> Exp.fresh,
         [
@@ -598,7 +597,7 @@ let tests = (
     fully_consistent_typecheck(
       "Singleton labeled argument function application with unknown type",
       {|(fun a=x->x)(a=1)|},
-      Some(unknown(Internal)),
+      Some(tunknown(Internal)),
       Ap(
         Forward,
         Fun(
@@ -623,7 +622,7 @@ let tests = (
     fully_consistent_typecheck(
       "Singleton labeled argument function application with no labeled param",
       {|(fun a=x->x)(1)|},
-      Some(unknown(Internal)),
+      Some(tunknown(Internal)),
       Ap(
         Forward,
         Fun(
@@ -648,7 +647,7 @@ let tests = (
     fully_consistent_typecheck(
       "Singleton labeled argument not labeled in pattern",
       {|let x : (a=Int) -> Int = fun a -> a in x(2)|},
-      Some(int()),
+      Some(tint()),
       parse_exp("let x : (a=Int) -> Int = fun a -> a in x(2)"),
     ),
     inconsistent_typecheck(
