@@ -26,10 +26,11 @@ module Model = {
   type t = {
     chat: list(message) /*To-do: Add chat ids for saving past chats*/,
     currSender: party,
+    llm: OpenRouter.chat_models,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let init: t = {chat: [], currSender: LS};
+  let init: t = {chat: [], currSender: LS, llm: Gemini_Flash_Lite};
 };
 
 module Update = {
@@ -40,7 +41,8 @@ module Update = {
     | SendSketch
     | NewChat
     | Respond(Model.message)
-    | ToggleCollapse(int);
+    | ToggleCollapse(int)
+    | SelectLLM(OpenRouter.chat_models);
 
   let react = (~response: string, ~code_suggestion: bool): t => {
     // let response = response |> sanitize_response |> quote;
@@ -114,7 +116,7 @@ module Update = {
         switch (Oracle.ask(collected_chat)) {
         | None => print_endline("Oracle: prompt generation failed")
         | Some(prompt) =>
-          let llm = OpenRouter.Gemini_Flash_Lite;
+          let llm = model.llm;
           let key = Store.Generic.load("API");
           let params: OpenRouter.params = {llm, temperature: 1.0, top_p: 1.0};
           OpenRouter.start_chat(~params, ~key, prompt, req =>
@@ -128,18 +130,26 @@ module Update = {
           );
         };
         Model.{
+          ...model,
           chat: model.chat @ [message, await_llm_response],
           currSender: LLM,
         }
         |> Updated.return_quiet;
-      | _ => Model.{chat: model.chat, currSender: LLM} |> Updated.return_quiet
+      | _ =>
+        Model.{...model, chat: model.chat, currSender: LLM}
+        |> Updated.return_quiet
       }
     | SetKey(api_key) =>
       Store.Generic.save("API", api_key);
       model |> Updated.return_quiet;
-    | NewChat => Model.{chat: [], currSender: LS} |> Updated.return_quiet
+    | NewChat =>
+      Model.{...model, chat: [], currSender: LS} |> Updated.return_quiet
     | Respond(message) =>
-      Model.{chat: ListUtil.leading(model.chat) @ [message], currSender: LS}
+      Model.{
+        ...model,
+        chat: ListUtil.leading(model.chat) @ [message],
+        currSender: LS,
+      }
       |> Updated.return_quiet
     | SendSketch =>
       let sketch_seg =
@@ -157,7 +167,8 @@ module Update = {
       ) {
       | None =>
         print_endline("prompt generation failed");
-        Model.{chat: model.chat, currSender: LLM} |> Updated.return_quiet;
+        Model.{...model, chat: model.chat, currSender: LLM}
+        |> Updated.return_quiet;
       | Some(openrouter_prompt) =>
         let messages =
           List.map(
@@ -165,7 +176,7 @@ module Update = {
             openrouter_prompt,
           );
         let prompt = ListUtil.concat_strings(messages);
-        let llm = OpenRouter.Gemini_Flash_Lite;
+        let llm = model.llm;
         let key = Store.Generic.load("API");
         let params: OpenRouter.params = {llm, temperature: 1.0, top_p: 1.0};
         OpenRouter.start_chat(~params, ~key, openrouter_prompt, req =>
@@ -176,6 +187,7 @@ module Update = {
           }
         );
         Model.{
+          ...model,
           chat:
             model.chat
             @ [
@@ -203,6 +215,7 @@ module Update = {
           model.chat,
         );
       Model.{...model, chat: updated_chat} |> Updated.return_quiet;
+    | SelectLLM(llm) => {...model, llm} |> Updated.return_quiet
     };
   };
 };

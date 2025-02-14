@@ -1,9 +1,11 @@
+module Sexp = Sexplib.Sexp;
 open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 open Util;
 open Util.OptUtil.Syntax;
 open Haz3lcore;
+
 open Js_of_ocaml;
 
 type selection =
@@ -104,6 +106,49 @@ let end_chat_button = (~globals: Globals.t, ~inject): Node.t => {
   div(
     ~attrs=[clss(["chat-button"]), Attr.on_click(end_chat)],
     [Widgets.button_named(~tooltip, None, end_chat)],
+  );
+};
+
+let select_llm =
+    (
+      ~signal,
+      ~inject,
+      ~globals: Globals.t,
+      ~assistantModel: AssistantModel.Model.t,
+    )
+    : Node.t => {
+  let handle_change = (event, _) => {
+    let value = Js.to_string(Js.Unsafe.coerce(event)##.target##.value);
+    let selected_llm =
+      switch (value) {
+      | "Gemini Flash Lite 2.0" => OpenRouter.Gemini_Flash_Lite
+      | "Llama 3.1 Nemotron 70B" => OpenRouter.Llama_3_1_Nemo
+      | _ => OpenRouter.Gemini_Flash_Lite
+      };
+    Virtual_dom.Vdom.Effect.Many([
+      inject(AssistantModel.Update.SelectLLM(selected_llm)),
+      Virtual_dom.Vdom.Effect.Stop_propagation,
+    ]);
+  };
+
+  div(
+    ~attrs=[clss(["llm-selector"])],
+    [
+      label(~attrs=[clss(["llm-label"])], [text("Select LLM Model: ")]),
+      select(
+        ~attrs=[Attr.on_change(handle_change), clss(["llm-dropdown"])],
+        [
+          option(
+            ~attrs=[Attr.value("Gemini_Flash_Lite")],
+            [text("Gemini Flash Lite 2.0")],
+          ),
+          option(
+            ~attrs=[Attr.value("Llama 3.1 Nemotron 70B")],
+            [text("Llama 3.1 Nemotron 70B")],
+          ),
+        ],
+      ),
+    ],
   );
 };
 
@@ -471,6 +516,8 @@ let view =
             : None,
           globals.settings.assistant.ongoing_chat
             ? None : api_input(~signal, ~inject, ~globals, ~assistantModel),
+          globals.settings.assistant.ongoing_chat
+            ? None : select_llm(~signal, ~inject, ~globals, ~assistantModel),
           globals.settings.assistant.ongoing_chat
             ? None : settings_box(~globals, ~inject),
         ],
