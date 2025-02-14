@@ -41,6 +41,7 @@
   --DRV: oklch(60% 0.1 126);
   --PAT: oklch(from var(--TYP) l c calc(h - 1 * 75));
   --TPAT: var(--PAT);
+  --LABEL: oklch(60% 0.2 180);
 
   /* AURA - docs highlighting */
   --highlight-a: oklch(0.95 0.07 360);
@@ -88,6 +89,7 @@
   --token-typ: var(--TYP);
   --token-drv: var(--DRV);
   --token-tpat: var(--TPAT);
+  --token-label: var(--LABEL);
   --token-string-lit: var(--Y3);
   --token-comment: var(--G2);
   --token-incomplete: var(--Y3);

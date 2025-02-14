@@ -38,12 +38,16 @@ let ty_of: t => Typ.t =
     Forall(Var("syntypfun") |> TPat.fresh, Unknown(SynSwitch) |> Typ.temp)
     |> Typ.temp; /* TODO: naming the type variable? */
 
-let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
-  switch (mode) {
-  | Syn
-  | SynFun
-  | SynTypFun => (Syn, Syn)
-  | Ana(ty) => ty |> Typ.matched_arrow(ctx) |> TupleUtil.map2(ana)
+// ty is Some if the expression is an annotated lambda
+let of_arrow = (ctx: Ctx.t, mode: t, ty: option(Typ.t)): (t, t) =>
+  switch (mode, ty) {
+  | (Syn | SynFun | SynTypFun, None) => (Syn, Syn)
+  | (Syn | SynFun | SynTypFun, Some(ty)) => (Ana(ty), Syn)
+  | (Ana(ty), None) => ty |> Typ.matched_arrow(ctx) |> TupleUtil.map2(ana)
+  | (Ana(ty), Some(ty')) =>
+    let (t1, t2) = ty |> Typ.matched_arrow(ctx);
+    (Typ.join(ctx, t1, ty') |> Option.value(~default=ty'), t2)
+    |> TupleUtil.map2(ana);
   };
 
 let of_forall = (ctx: Ctx.t, name_opt: option(string), mode: t): t =>
@@ -60,12 +64,32 @@ let of_forall = (ctx: Ctx.t, name_opt: option(string), mode: t): t =>
     };
   };
 
-let of_prod = (ctx: Ctx.t, mode: t, length): list(t) =>
+let of_label = (mode: t): option((t, t)) =>
   switch (mode) {
   | Syn
   | SynFun
-  | SynTypFun => List.init(length, _ => Syn)
-  | Ana(ty) => ty |> Typ.matched_prod(ctx, length) |> List.map(ana)
+  | SynTypFun => Some((Syn, Syn))
+  | Ana({term: TupLabel({term: Label(mode_label), _}, val_ty), _}) =>
+    Some((Ana(Label(mode_label) |> Typ.temp), Ana(val_ty)))
+  | Ana(_) => None
+  };
+
+let of_prod =
+    (
+      ctx: Ctx.t,
+      mode: t,
+      es: list('a),
+      filt: 'a => option((string, 'a)),
+      constructor: (string, 'a) => 'a,
+    )
+    : (list('a), list(t)) =>
+  switch (mode) {
+  | Syn
+  | SynFun
+  | SynTypFun => (es, List.init(List.length(es), _ => Syn))
+  | Ana(ty) =>
+    let (es, tys) = Typ.matched_prod(ctx, es, filt, ty, constructor);
+    (es, tys |> List.map(ana));
   };
 
 let of_cons_hd = (ctx: Ctx.t, mode: t): t =>

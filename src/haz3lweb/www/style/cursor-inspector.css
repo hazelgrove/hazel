@@ -54,6 +54,9 @@
 #cursor-inspector .TPat .gamma {
   background-color: var(--token-tpat);
 }
+#cursor-inspector .Label .gamma {
+  background-color: var(--token-label);
+}
 
 #cursor-inspector .ci-header .gamma:hover,
 #cursor-inspector .ci-header.error .gamma:hover,
@@ -112,6 +115,9 @@
 #cursor-inspector .ci-header.ok.TPat .toggle-switch.active  {
   background-color: var(--token-tpat);
 }
+#cursor-inspector .ci-header.ok.Label .toggle-switch.active  {
+  background-color: var(--token-label);
+}
 #cursor-inspector .ci-header.ok.Exp .toggle-switch .toggle-knob  {
   color: var(--BR3);
 }
@@ -126,6 +132,9 @@
 }
 #cursor-inspector .ci-header.ok.TPat .toggle-switch .toggle-knob {
   color: var(--token-tpat);
+}
+#cursor-inspector .ci-header.ok.Label .toggle-switch .toggle-knob {
+  color: var(--token-label);
 }
 
 #cursor-inspector .ci-header.ok.Nul {
@@ -159,6 +168,10 @@
 #cursor-inspector .ci-header.ok.TPat {
   background-color: var(--shard-tpat);
   color: var(--token-tpat);
+}
+#cursor-inspector .ci-header.ok.Label {
+  background-color: var(--shard-label);
+  color: var(--token-label);
 }
 
 #cursor-inspector .term-tag {

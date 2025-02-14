@@ -56,9 +56,11 @@ module Update = {
 
   /* Calculates the statics for the editor. */
   let calculate =
-      (~settings, ~is_edited, ~stitch, {editor, statics: _}: Model.t)
-      : Model.t => {
-    let statics = CachedStatics.init(~settings, ~stitch, editor.state.zipper);
+      (~settings, ~is_edited, ~stitch, {editor, statics}: Model.t): Model.t => {
+    let statics =
+      is_edited
+        ? CachedStatics.init(~settings, ~stitch, editor.state.zipper)
+        : statics;
     let editor =
       Editor.Update.calculate(~settings, ~is_edited, statics, editor);
     {editor, statics};

@@ -58,6 +58,8 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Int
   | Float
   | String
+  | Label(_)
+  | TupLabel(_, {term: Unknown(_), _})
   | DrvTyp(_)
   | Var(_)
   | Rec(_)
@@ -65,6 +67,10 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Arrow({term: Unknown(_), _}, {term: Unknown(_), _})
   | List({term: Unknown(_), _}) => Ground
   | Parens(ty) => ground_cases_of(ty)
+  | TupLabel(label, _) =>
+    NotGroundOrHole(
+      TupLabel(label, Unknown(Internal) |> Typ.temp) |> Typ.temp,
+    )
   | Prod(tys) =>
     if (List.for_all(
           fun
