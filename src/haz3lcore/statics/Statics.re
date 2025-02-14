@@ -43,6 +43,15 @@ module Map = {
       info_map,
       [],
     );
+
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type error_map = Id.Map.t(Info.error);
+
+  let errors = (info_map: t): error_map =>
+    Id.Map.filter_map(
+      (_: Uuidm.t, info: Info.t) => {Info.error_of(info)},
+      info_map,
+    );
 };
 
 let map_m = (f, xs, m: Map.t) =>
