@@ -198,9 +198,6 @@ let destruct = (~destroy_kids=true, z: t): t => {
   {...z, backpack};
 };
 
-let delete = (d: Direction.t, z: t): option(t) =>
-  z |> select(d) |> Option.map(destruct);
-
 let put_down = (d: Direction.t, z: t): option(t) => {
   let z = destruct(z);
   let* (_, popped, backpack) = pop_backpack(z);
@@ -250,6 +247,26 @@ let rec construct =
 
 let construct_mono = (d: Direction.t, t: Token.t, z: t): t =>
   construct(~caret=d, ~backpack=Left, [t], z);
+
+let remove_projector = (id: Id.t, syntax: Piece.t) =>
+  switch (syntax) {
+  | Projector(pr) when pr.id == id => pr.syntax
+  | x => x
+  };
+
+let delete = (d: Direction.t, z: t): option(t) => {
+  let to_delete = z |> select(d);
+
+  switch (to_delete) {
+  | Some({selection: {content: [Projector(p)], _}, _}) =>
+    switch (p.kind) {
+    | Livelit =>
+      Some(ZipperBase.MapPiece.fast_local(remove_projector(p.id), p.id, z))
+    | _ => to_delete |> Option.map(destruct)
+    }
+  | _ => to_delete |> Option.map(destruct)
+  };
+};
 
 let replace =
     (~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
