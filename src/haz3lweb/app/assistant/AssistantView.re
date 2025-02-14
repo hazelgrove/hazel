@@ -121,14 +121,20 @@ let select_llm =
     let value = Js.to_string(Js.Unsafe.coerce(event)##.target##.value);
     let selected_llm =
       switch (value) {
-      | "Gemini Flash Lite 2.0" => OpenRouter.Gemini_Flash_Lite
-      | "Llama 3.1 Nemotron 70B" => OpenRouter.Llama_3_1_Nemo
+      | "Gemini_Flash_Lite" => OpenRouter.Gemini_Flash_Lite
+      | "Llama_3_1_Nemo" => OpenRouter.Llama_3_1_Nemo
       | _ => OpenRouter.Gemini_Flash_Lite
       };
     Virtual_dom.Vdom.Effect.Many([
       inject(AssistantModel.Update.SelectLLM(selected_llm)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
+  };
+
+  // Helper function to determine if an option should be selected
+  let is_selected =
+      (llm: OpenRouter.chat_models, current_llm: OpenRouter.chat_models) => {
+    llm == current_llm;
   };
 
   div(
@@ -139,11 +145,19 @@ let select_llm =
         ~attrs=[Attr.on_change(handle_change), clss(["llm-dropdown"])],
         [
           option(
-            ~attrs=[Attr.value("Gemini_Flash_Lite")],
+            ~attrs=[
+              Attr.value("Gemini_Flash_Lite"),
+              is_selected(OpenRouter.Gemini_Flash_Lite, assistantModel.llm)
+                ? Attr.selected : Attr.empty,
+            ],
             [text("Gemini Flash Lite 2.0")],
           ),
           option(
-            ~attrs=[Attr.value("Llama 3.1 Nemotron 70B")],
+            ~attrs=[
+              Attr.value("Llama_3_1_Nemo"),
+              is_selected(OpenRouter.Llama_3_1_Nemo, assistantModel.llm)
+                ? Attr.selected : Attr.empty,
+            ],
             [text("Llama 3.1 Nemotron 70B")],
           ),
         ],
