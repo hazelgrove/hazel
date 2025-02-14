@@ -295,7 +295,7 @@ type t =
   | InfoTPat(tpat)
   | Secondary(secondary);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error =
   | Exp(error_exp)
   | Pat(error_pat)
@@ -664,6 +664,20 @@ let is_error = (ci: t): bool => {
     | NotInHole(_) => false
     }
   | Secondary(_) => false
+  };
+};
+
+let error = (ci: t): option(error) => {
+  switch (ci) {
+  | InfoExp({status: InHole(err), _}) => Some(Exp(err))
+  | InfoPat({status: InHole(err), _}) => Some(Pat(err))
+  | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
+  | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
+  | InfoExp({status: NotInHole(_), _}) => None
+  | InfoPat({status: NotInHole(_), _}) => None
+  | InfoTyp({status: NotInHole(_), _}) => None
+  | InfoTPat({status: NotInHole(_), _}) => None
+  | Secondary(_) => None
   };
 };
 
