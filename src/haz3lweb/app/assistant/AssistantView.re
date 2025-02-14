@@ -2,6 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 open Util;
+open Util.OptUtil.Syntax;
 open Haz3lcore;
 open Js_of_ocaml;
 
@@ -110,10 +111,88 @@ let settings_box = (~globals: Globals.t, ~inject): Node.t => {
   div(
     ~attrs=[clss(["settings-box"])],
     [
-      llm_toggle(~globals),
-      lsp_toggle(~globals),
+      // llm_toggle(~globals),
+      // lsp_toggle(~globals),
       begin_chat_button(~globals, ~inject),
       resume_chat_button(~globals, ~inject),
+    ],
+  );
+};
+
+let api_input =
+    (
+      ~signal,
+      ~inject,
+      ~globals: Globals.t,
+      ~assistantModel: AssistantModel.Model.t,
+    )
+    : Node.t => {
+  let handle_submission = (api_key: string) => {
+    JsUtil.log("Your API key for this session has been set: " ++ api_key);
+    Virtual_dom.Vdom.Effect.Many([
+      inject(AssistantModel.Update.SetKey(api_key)),
+      Virtual_dom.Vdom.Effect.Stop_propagation,
+    ]);
+  };
+  let submit_key = _ => {
+    let message =
+      Js.Opt.case(
+        Dom_html.document##getElementById(Js.string("api-input")),
+        () => "",
+        el =>
+          switch (Js.Unsafe.coerce(el)) {
+          | input => Js.to_string(input##.value)
+          },
+      );
+    Js.Opt.case(
+      Dom_html.document##getElementById(Js.string("api-input")),
+      () => (),
+      el => Js.Unsafe.coerce(el)##.value := Js.string(""),
+    );
+    handle_submission(message);
+  };
+  let handle_keydown = event => {
+    let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
+    switch (key, ListUtil.last_opt(assistantModel.chat)) {
+    | (_, Some({party: LLM, code: None, content: "...", collapsed: false})) => Virtual_dom.Vdom.Effect.Ignore
+    | (Some("Enter"), _) => submit_key()
+    | _ => Virtual_dom.Vdom.Effect.Ignore
+    };
+  };
+
+  div(
+    ~attrs=[clss(["api-key-container"])],
+    [
+      input(
+        ~attrs=[
+          Attr.id("api-input"),
+          Attr.placeholder("Enter your API key..."),
+          Attr.type_("text"),
+          Attr.property("autocomplete", Js.Unsafe.inject("off")),
+          Attr.on_focus(_ =>
+            signal(MakeActive(ScratchMode.Selection.TextBox))
+          ),
+          Attr.on_keydown(handle_keydown),
+          clss(["api-input"]),
+        ],
+        (),
+      ),
+      div(
+        ~attrs=[clss(["chat-button"]), Attr.on_click(submit_key)],
+        [Widgets.button_named(~tooltip="Update API Key", None, submit_key)],
+      ),
+      div(~attrs=[clss(["text-display"])], [text("Current API Key:\n")]),
+      div(
+        ~attrs=[clss(["api-key-display"])],
+        [
+          text(
+            Option.value(
+              Store.Generic.load("API"),
+              ~default="No API key set",
+            ),
+          ),
+        ],
+      ),
     ],
   );
 };
@@ -186,7 +265,7 @@ let message_input =
       | Some({party: LLM, code: None, content: "...", collapsed: false}) =>
         div(
           ~attrs=[
-            clss(["disabled-send-button", "icon"]),
+            clss(["send-button-disabled", "icon"]),
             Attr.title("Submitting Message Disabled"),
           ],
           [Icons.thin_x],
@@ -330,6 +409,7 @@ let message_display =
                       ],
                       [
                         message.collapsed
+                        && String.length(message.content) >= 200
                           ? text(
                               String.concat(
                                 "",
@@ -384,13 +464,15 @@ let view =
             ],
           ),
           globals.settings.assistant.ongoing_chat
-            ? None : settings_box(~globals, ~inject),
-          globals.settings.assistant.ongoing_chat
             ? message_display(~signal, ~inject, ~globals, ~assistantModel)
             : None,
           globals.settings.assistant.ongoing_chat
             ? message_input(~signal, ~inject, ~globals, ~assistantModel)
             : None,
+          globals.settings.assistant.ongoing_chat
+            ? None : api_input(~signal, ~inject, ~globals, ~assistantModel),
+          globals.settings.assistant.ongoing_chat
+            ? None : settings_box(~globals, ~inject),
         ],
       ),
     ],

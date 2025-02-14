@@ -36,6 +36,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | SendMessage(Model.message)
+    | SetKey(string)
     | SendSketch
     | NewChat
     | Respond(Model.message)
@@ -43,13 +44,27 @@ module Update = {
 
   let react = (response: string): t => {
     // let response = response |> sanitize_response |> quote;
-    let response: Model.message = {
-      party: LLM,
-      code: None,
-      content: response,
-      collapsed: String.length(response) >= 200,
+    let zipper_of_response = Printer.zipper_of_string(response);
+    switch (zipper_of_response) {
+    | Some(z) =>
+      let segment_of_response =
+        Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, z);
+      let response_as_message: Model.message = {
+        party: LLM,
+        code: Some(segment_of_response),
+        content: "",
+        collapsed: String.length(response) >= 200,
+      };
+      Respond(response_as_message);
+    | None =>
+      let response_as_message: Model.message = {
+        party: LLM,
+        code: None,
+        content: response,
+        collapsed: String.length(response) >= 200,
+      };
+      Respond(response_as_message);
     };
-    Respond(response);
   };
 
   let await_llm_response: Model.message = {
@@ -93,6 +108,9 @@ module Update = {
         |> Updated.return_quiet;
       | _ => Model.{chat: model.chat, currSender: LLM} |> Updated.return_quiet
       }
+    | SetKey(api_key) =>
+      Store.Generic.save("API", api_key);
+      model |> Updated.return_quiet;
     | NewChat => Model.{chat: [], currSender: LS} |> Updated.return_quiet
     | Respond(message) =>
       Model.{chat: ListUtil.leading(model.chat) @ [message], currSender: LS}

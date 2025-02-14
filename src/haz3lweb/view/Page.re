@@ -364,6 +364,7 @@ module View = {
           let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
           switch (elId) {
           | Some("message-input") => ()
+          | Some("api-input") => ()
           | _ =>
             JsUtil.copy(
               (cursor.selected_text |> Option.value(~default=() => ""))(),
@@ -380,6 +381,7 @@ module View = {
           let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
           switch (elId) {
           | Some("message-input") => Effect.Ignore
+          | Some("api-input") => Effect.Ignore
           | _ =>
             JsUtil.copy(
               (cursor.selected_text |> Option.value(~default=() => ""))(),
@@ -414,6 +416,7 @@ module View = {
           let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
           switch (elId) {
           | Some("message-input") => Effect.Ignore
+          | Some("api-input") => Effect.Ignore
           | _ =>
             let pasted_text =
               Js.to_string(evt##.clipboardData##getData(Js.string("text")))
