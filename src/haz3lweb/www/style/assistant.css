@@ -36,7 +36,7 @@
     flex-direction: column;
     align-items: center;
     gap: 2.25em;
-    margin-top: 1em;
+    margin-top: auto;
 }
 
 #assistant .chat-button {
@@ -213,3 +213,97 @@
       opacity: 1;
     }
   }
+
+  /* API key container styling */
+#assistant .api-key-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    align-items: center;
+    margin-top: 1em;
+}
+
+#assistant .api-input {
+    width: 85%;
+    background-color: var(--SAND);
+    padding: 14px;
+    outline: none;
+    border-radius: 3.5px;
+    border: none;
+    transition: all 0.3s ease;
+    margin-bottom: 10px;
+}
+
+#assistant .api-input:focus {
+    box-shadow: 0px 0px 1px var(--SHADOW), 0 0 0 1px var(--SHADOW);
+}
+
+/* LLM and LSP toggle button containers */
+#assistant .llm-button,
+#assistant .lsp-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 0.5em;
+    padding: 0 1em;
+}
+
+/* Example message container */
+#assistant .message-container.example {
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 20px;
+}
+
+#assistant .message-container.example .cell-editor {
+    width: 100%;
+    background-color: var(--UI-Background);
+    border-radius: 8px;
+    padding: 8px;
+}
+
+#assistant .api-key-display {
+  width: 85%;
+  padding: 12px;
+  background-color: var(--UI-Background);
+  border-radius: 3.5px;
+  border: 1px solid var(--SAND);
+  font-size: 0.9em;
+  color: var(--STONE);
+  text-align: center;
+  word-wrap: break-word;
+  margin-bottom: 10px;
+  font-family: monospace;
+  overflow-x: auto;
+}
+
+#assistant .api-key-label {
+  font-size: 0.85em;
+  color: var(--STONE);
+  opacity: 0.7;
+  margin-bottom: 5px;
+}
+
+#assistant .api-key-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  align-items: center;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+#assistant .text-display {
+    width: 85%;
+    padding: 12px;
+    background-color: var(--UI-Background);
+    font-size: 0.8em;
+    color: var(--STONE);
+    /* text-align: center; */
+    word-wrap: break-word;
+    margin-bottom: -15px;
+    overflow-x: auto;
+}

@@ -72,7 +72,6 @@ module F =
   };
 };
 
-// todo russ: make work with .F
 module Generic = {
   let prefix: string = "KEY_STORE_";
 
