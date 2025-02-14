@@ -204,6 +204,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Fun, DeferredAp(d1, ds)) => Matches(DeferredAp(d1, ds))
 
     /* TypFun-like things can look like the following when values */
+    | (TypFun, Closure(env', {term: TypFun(utpat, tfbody, name), _})) =>
+      Matches(TypFun(utpat, Closure(env', tfbody) |> Exp.fresh, name))
     | (TypFun, TypFun(utpat, tfbody, name)) =>
       Matches(TypFun(utpat, tfbody, name))
     // Note: We might be able to handle this cast like other casts
