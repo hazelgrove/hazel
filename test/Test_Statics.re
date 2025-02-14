@@ -799,7 +799,7 @@ let tests = (
       Some(int),
       parse_exp("let x : (a=Int) -> Int = fun a -> a in x(2)"),
     ),
-    test_case("Unknown label in last position2", `Quick, () => {
+    test_case("Unknown label in last position", `Quick, () => {
       annotated_tree_test(
         {|(1, 1.2, z="hello") : (a=Int, b=Float, String)|},
         no_error_exp(
@@ -911,108 +911,86 @@ let tests = (
         ),
       )
     }),
-    test_case(
-      "Duplicate label synthesis",
-      `Quick,
-      () => {
-        let exp = parse_exp({|(a="hello", a=3)|});
-
-        let (l1, l2, tl1, tl2, tuple) =
-          switch (exp.term) {
-          | Parens(
-              {
-                term:
-                  Tuple([
-                    {term: TupLabel({term: Label(_), _} as l1, _), _} as tl1,
-                    {term: TupLabel({term: Label(_), _} as l2, _), _} as tl2,
-                  ]),
-                _,
-              } as tuple,
-            ) => (
-              l1,
-              l2,
-              tl1,
-              tl2,
-              tuple,
-            )
-          | _ => Alcotest.fail("Unexpected form")
-          };
-
-        let s = statics(exp);
-
-        check(
-          option(testable_info_error_exp),
-          "Tuple Error",
-          Some(
-            Common(
-              TupleLabelError({
-                malformed_labels: [],
-                duplicate_labels: ["a", "a"],
-                invalid_labels: [],
-                typ:
-                  Prod([
-                    TupLabel(
-                      Label("a") |> Typ.temp,
-                      Unknown(Internal) |> Typ.temp,
-                    )
-                    |> Typ.temp,
-                  ])
-                  |> Typ.temp,
-              }),
+    test_case("Duplicate label synthesis", `Quick, () => {
+      annotated_tree_test(
+        {|(a="hello", a=3)|},
+        no_error_exp(
+          Parens(
+            error_exp(
+              Exp(
+                Common(
+                  TupleLabelError({
+                    malformed_labels: [],
+                    duplicate_labels: ["a", "a"],
+                    invalid_labels: [],
+                    typ:
+                      Prod([
+                        TupLabel(
+                          Label("a") |> Typ.temp,
+                          Unknown(Internal) |> Typ.temp,
+                        )
+                        |> Typ.temp,
+                      ])
+                      |> Typ.temp,
+                  }),
+                ),
+              ),
+              Tuple([
+                error_exp(
+                  Exp(
+                    Common(
+                      TupleLabelError({
+                        malformed_labels: [],
+                        duplicate_labels: ["a"],
+                        invalid_labels: [],
+                        typ:
+                          TupLabel(
+                            Label("a") |> Typ.temp,
+                            String |> Typ.temp,
+                          )
+                          |> Typ.temp,
+                      }),
+                    ),
+                  ),
+                  TupLabel(
+                    error_exp(
+                      Exp(
+                        Common(DuplicateLabel("a", Label("a") |> Typ.temp)),
+                      ),
+                      Label("a"),
+                    ),
+                    no_error_exp(String("hello")),
+                  ),
+                ),
+                error_exp(
+                  Exp(
+                    Common(
+                      TupleLabelError({
+                        malformed_labels: [],
+                        duplicate_labels: ["a"],
+                        invalid_labels: [],
+                        typ:
+                          TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
+                          |> Typ.temp,
+                      }),
+                    ),
+                  ),
+                  TupLabel(
+                    error_exp(
+                      Exp(
+                        Common(DuplicateLabel("a", Label("a") |> Typ.temp)),
+                      ),
+                      Label("a"),
+                    ),
+                    no_error_exp(Int(3)),
+                  ),
+                ),
+              ]),
             ),
           ),
-          Statics.get_error_at(s, IdTagged.rep_id(tuple)),
-        );
-
-        check(
-          option(testable_info_error_exp),
-          "TupLabel1 Error",
-          Some(
-            Common(
-              TupleLabelError({
-                malformed_labels: [],
-                duplicate_labels: ["a"],
-                invalid_labels: [],
-                typ:
-                  TupLabel(Label("a") |> Typ.temp, String |> Typ.temp)
-                  |> Typ.temp,
-              }),
-            ),
-          ),
-          Statics.get_error_at(s, IdTagged.rep_id(tl1)),
-        );
-        check(
-          option(testable_info_error_exp),
-          "TupLabel2 Error",
-          Some(
-            Common(
-              TupleLabelError({
-                malformed_labels: [],
-                duplicate_labels: ["a"],
-                invalid_labels: [],
-                typ:
-                  TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
-                  |> Typ.temp,
-              }),
-            ),
-          ),
-          Statics.get_error_at(s, IdTagged.rep_id(tl2)),
-        );
-
-        check(
-          option(testable_info_error_exp),
-          "Duplicate Label Error 1",
-          Some(Common(DuplicateLabel("a", Label("a") |> Typ.temp))),
-          Statics.get_error_at(s, IdTagged.rep_id(l1)),
-        );
-        check(
-          option(testable_info_error_exp),
-          "Duplicate Label Error 2",
-          Some(Common(DuplicateLabel("a", Label("a") |> Typ.temp))),
-          Statics.get_error_at(s, IdTagged.rep_id(l2)),
-        );
-      },
-    ),
+        ),
+      )
+    }),
     test_case(
       "Bad label Projection",
       `Quick,
