@@ -16,7 +16,7 @@ let statics_of_exp_zipper =
 module Options = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    params: OpenAI.params,
+    params: OpenRouter.params,
     instructions: bool,
     syntax_notes: bool,
     num_examples: int,
@@ -26,7 +26,7 @@ module Options = {
   };
 
   let init: t = {
-    params: OpenAI.default_params,
+    params: OpenRouter.default_params,
     instructions: true,
     syntax_notes: true,
     num_examples: 9,
@@ -798,9 +798,9 @@ module Prompt = {
     mk_user_message(sketch, ~expected_ty, ~relevant_ctx);
   };
 
-  let samples = (num_examples: int): list(OpenAI.message) =>
+  let samples = (num_examples: int): list(OpenRouter.message) =>
     Util.ListUtil.flat_map(
-      ((sketch, expected_ty, completion)): list(OpenAI.message) =>
+      ((sketch, expected_ty, completion)): list(OpenRouter.message) =>
         [
           {
             role: User,
@@ -814,14 +814,14 @@ module Prompt = {
 
   let mk_init =
       (options: Options.t, ci: Info.t, sketch: Segment.t)
-      : option(OpenAI.prompt) => {
+      : option(OpenRouter.prompt) => {
     let+ user_message = static_context(options, ci, sketch);
-    OpenAI.[{role: System, content: SystemPrompt.mk(options)}]
+    OpenRouter.[{role: System, content: SystemPrompt.mk(options)}]
     @ samples(options.num_examples)
     @ [{role: User, content: user_message}];
   };
 
-  let mk_error = (ci: Info.t, reply: OpenAI.reply): option(string) => {
+  let mk_error = (ci: Info.t, reply: OpenRouter.reply): option(string) => {
     /* TODO: This should maybe take whole JSON convo
      * so far and return an appended version */
     //TODO: Proper errors
