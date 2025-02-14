@@ -236,15 +236,63 @@
     max-width: fit-content; /* Correct implementation type sigs */
      
   }
-  #main.Tutorial.checkmark {
-    font-size: 4rem !important;  /* Increase size */
-    font-weight: bold !important;
-    /* color: green !important;  Force green color */
-    text-align: right !important;  /* Align to right */
-    display: block !important;
-    padding-right: 30px !important;  /* Extra spacing */
-  }
-  #main.checkmark-container {
+  .checkmark-container {
     display: flex;
-    justify-content: flex-end; /* Push checkmark to the right */
+    justify-content: right;
+    align-items: right;
+    margin-top: 20px;
+  }
+  
+  .checkmark {
+    width: 80px; /* Adjust size as needed */
+    height: 80px;
+    background-color: #60f382; /* Green background */
+    border-radius: 50%; /* Makes it round */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 50px; /* Massive check mark */
+    font-weight: bold;
+    color: white; /* White check mark */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    border: 4px solid #218838; /* Slightly darker green border */
+    animation: popIn 0.3s ease-out;
+  }
+  
+  @keyframes popIn {
+    0% {
+      transform: scale(0);
+      opacity: 0;
+    }
+    80% {
+      transform: scale(1.2);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  
+  .hint-cell {
+    background-color: #f8f9fa; /* Light gray background */
+    border-left: 5px solid #ffc107; /* Yellow accent bar */
+    padding: 15px;
+    margin: 20px 0;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    font-size: 16px;
+    color: #333;
+    max-width: 600px;
+  }
+  
+  .hint-title {
+    font-weight: bold;
+    color: #d39e00; /* Darker yellow */
+    font-size: 18px;
+    margin-bottom: 5px;
+  }
+  
+  .hint-content {
+    font-size: 16px;
+    color: #555;
   }

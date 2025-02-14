@@ -374,14 +374,39 @@ module View = {
       InstructorOnly(
         () => editor_view(HiddenTests, hidden_tests, ~caption="Hidden Tests"),
       );
+    let hint_view =
+      switch (grading_report.impl_grading_report.hints) {
+      | [hint] => div([text("💡 Hint: " ++ hint)])
+      | _ => div([]) // No hint available
+      };
     let impl_grading_view =
       Always(
         if (test_count == 1) {
-          div(
-            ~attrs=[Attr.class_("checkmark-container")],
-            [div(~attrs=[Attr.class_("checkmark")], [text("✅")])],
-          );
-        } else {
+          let checkmark_view =
+            switch (Tutorial.get_stitched(HiddenTests, stitched_tests)) {
+            | Some(test_results) =>
+              if (test_results.total == 1 && test_results.passing == 1) {
+                // ✅ Test case has passed -> Show check mark next to hint
+                div(
+                  ~attrs=[Attr.class_("checkmark-container")],
+                  [
+                    div(
+                      ~attrs=[Attr.class_("checkmark")],
+                      [text("✔️")],
+                    ),
+                  ],
+                );
+              } else {
+                div(
+                  [] // Don't show check mark if test hasn't passed
+                );
+              }
+            | None => div([]) // No test results available yet
+            };
+
+          // ✅ Fix: Pass children as last positional argument instead of using `~children`
+          div([checkmark_view]);
+        } else if (test_count > 1) {
           TutorialGrading.ImplGradingReport.view(
             ~signal_jump=
               id =>
@@ -394,9 +419,13 @@ module View = {
             ~report=grading_report.impl_grading_report,
             ~max_points=1,
           );
+        } else {
+          div(
+            [] // Ensure nothing appears if test_count is 0
+          );
         },
       );
-    [title_view, prompt_view]
+    [title_view, prompt_view, hint_view]
     @ render_cells(
         globals.settings,
         []
