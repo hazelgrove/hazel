@@ -5,10 +5,10 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type chat_models =
-  | GPT4
-  | GPT3_5Turbo
-  | Azure_GPT4_0613
-  | Azure_GPT3_5Turbo;
+  | DeepSeek_V3
+  | O3_Mini_High
+  | Gemini_Experimental_1206
+  | Gemini_Flash_Lite;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type role =
@@ -49,10 +49,10 @@ type reply = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 let string_of_chat_model =
   fun
-  | GPT4 => "gpt-4"
-  | GPT3_5Turbo => "gpt-3.5-turbo"
-  | Azure_GPT4_0613 => "azure-gpt-4"
-  | Azure_GPT3_5Turbo => "azure-gpt-3.5-turbo";
+  | DeepSeek_V3 => "deepseek-v3"
+  | O3_Mini_High => "o3-mini-high"
+  | Gemini_Experimental_1206 => "gemini-experimental-1206"
+  | Gemini_Flash_Lite => "google/gemini-2.0-flash-lite-preview-02-05:free";
 
 let string_of_role =
   fun
@@ -61,7 +61,7 @@ let string_of_role =
   | Assistant => "assistant"
   | Function => "function";
 
-let default_params = {llm: Azure_GPT4_0613, temperature: 1.0, top_p: 1.0};
+let default_params = {llm: Gemini_Flash_Lite, temperature: 1.0, top_p: 1.0};
 
 let mk_message = ({role, content}) =>
   `Assoc([
@@ -80,43 +80,20 @@ let body = (~params: params, messages: prompt): Json.t => {
 
 let lookup_key = (llm: chat_models) =>
   switch (llm) {
-  | Azure_GPT3_5Turbo => Store.Generic.load("AZURE")
-  | Azure_GPT4_0613 => Store.Generic.load("AZURE4")
-  | GPT3_5Turbo
-  | GPT4 => Store.Generic.load("OpenAI")
+  | DeepSeek_V3 => Store.Generic.load("API")
+  | O3_Mini_High => Store.Generic.load("API")
+  | Gemini_Experimental_1206 => Store.Generic.load("API")
+  | Gemini_Flash_Lite => Store.Generic.load("API") // Adjust if using a different key
   };
-
-/* SAMPLE OPENAI CHAT RESPONSE:
-    {
-      "id":"chatcmpl-6y5167eYM6ovo5yVThXzr5CB8oVIO",
-      "object":"chat.completion",
-      "created":1679776984,
-      "model":"gpt-3.5-turbo-0301",
-      "usage":{
-         "prompt_tokens":25,
-         "completion_tokens":1,
-         "total_tokens":26
-      },
-      "choices":[
-         {
-            "message":{
-               "role":"assistant",
-               "content":"576"
-            },
-            "finish_reason":"stop",
-            "index":0
-         }
-      ]
-   }*/
 
 let chat = (~key, ~body, ~handler): unit =>
   switch (key) {
   | None => print_endline("API: OpenAI KEY NOT FOUND")
   | Some(api_key) =>
-    print_endline("API: POSTing OpenAI request");
+    print_endline("API: POSTing OpenRouter request");
     request(
       ~method=POST,
-      ~url="https://api.openai.com/v1/chat/completions",
+      ~url="https://openrouter.ai/api/v1/chat/completions",
       ~headers=[
         ("Content-Type", "application/json"),
         ("Authorization", "Bearer " ++ api_key),
@@ -126,48 +103,13 @@ let chat = (~key, ~body, ~handler): unit =>
     );
   };
 
-let azure_request =
-    (~key, ~resource, ~deployment, ~api_version, ~body, ~handler): unit =>
-  switch (key) {
-  | None => print_endline("API: KEY NOT FOUND")
-  | Some(api_key) =>
-    print_endline("API: POSTing Azure request");
-    request(
-      ~method=POST,
-      ~url=
-        Printf.sprintf(
-          "https://%s.openai.azure.com/openai/deployments/%s/chat/completions?api-version=%s",
-          resource,
-          deployment,
-          api_version,
-        ),
-      ~headers=[("Content-Type", "application/json"), ("api-key", api_key)],
-      ~body,
-      handler,
-    );
-  };
-
-let chat_azure35 =
-  azure_request(
-    ~resource="hazel",
-    ~deployment="gpt35turbo",
-    ~api_version="2023-05-15",
-  );
-
-let chat_azure4 =
-  azure_request(
-    ~resource="hazel2",
-    ~deployment="hazel-gpt-4",
-    ~api_version="2023-05-15",
-  );
-
 let start_chat = (~params, ~key, prompt: prompt, handler): unit => {
   let body = body(~params, prompt);
   switch (params.llm) {
-  | Azure_GPT3_5Turbo => chat_azure35(~key, ~body, ~handler)
-  | Azure_GPT4_0613 => chat_azure4(~key, ~body, ~handler)
-  | GPT3_5Turbo
-  | GPT4 => chat(~key, ~body, ~handler)
+  | DeepSeek_V3 => chat(~key, ~body, ~handler)
+  | O3_Mini_High => chat(~key, ~body, ~handler)
+  | Gemini_Experimental_1206 => chat(~key, ~body, ~handler)
+  | Gemini_Flash_Lite => chat(~key, ~body, ~handler) // Add Dolphin handling
   };
 };
 

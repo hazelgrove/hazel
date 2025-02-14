@@ -46,14 +46,14 @@ let print =
         }
       ) {
       | None => print_endline("prompt generation failed")
-      | Some(openai_prompt) =>
+      | Some(prompt) =>
         List.iter(
-          (message: OpenAI.message) => {
+          (message: OpenRouter.message) => {
             print_endline("---------- STRING ----------");
             print_endline(message.content);
             print_endline("---------- STRING ----------");
           },
-          openai_prompt,
+          prompt,
         )
       }
     );

@@ -12,7 +12,7 @@ let sanitize_prompt = (prompt: string): string => {
   prompt;
 };
 
-let ask = (body: string): option(OpenAI.prompt) => {
+let ask = (body: string): option(OpenRouter.prompt) => {
   /*
    let system_prompt = [
      "Respond as minimally as possible",
@@ -22,10 +22,7 @@ let ask = (body: string): option(OpenAI.prompt) => {
   switch (String.trim(body)) {
   | "" => None
   | _ =>
-    let input =
-      /* [OpenAI.{role: System, content: String.concat("\n", system_prompt)}]
-         @ */
-      [{OpenAI.role: User, OpenAI.content: body}];
+    let input = [{OpenRouter.role: User, OpenRouter.content: body}];
     Some(input);
   };
 };

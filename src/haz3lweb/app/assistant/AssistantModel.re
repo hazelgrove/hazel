@@ -91,11 +91,11 @@ module Update = {
         switch (Oracle.ask(message.content)) {
         | None => print_endline("Oracle: prompt generation failed")
         | Some(prompt) =>
-          let llm = OpenAI.Azure_GPT4_0613;
-          let key = OpenAI.lookup_key(llm);
-          let params: OpenAI.params = {llm, temperature: 1.0, top_p: 1.0};
-          OpenAI.start_chat(~params, ~key, prompt, req =>
-            switch (OpenAI.handle_chat(req)) {
+          let llm = OpenRouter.Gemini_Flash_Lite;
+          let key = Store.Generic.load("API");
+          let params: OpenRouter.params = {llm, temperature: 1.0, top_p: 1.0};
+          OpenRouter.start_chat(~params, ~key, prompt, req =>
+            switch (OpenRouter.handle_chat(req)) {
             | Some({content, _}) => schedule_action(react(content))
             | None => print_endline("Assistant: response parse failed")
             }
@@ -132,18 +132,18 @@ module Update = {
       | None =>
         print_endline("prompt generation failed");
         Model.{chat: model.chat, currSender: LLM} |> Updated.return_quiet;
-      | Some(openai_prompt) =>
+      | Some(openrouter_prompt) =>
         let messages =
           List.map(
-            (msg: OpenAI.message): string => {msg.content},
-            openai_prompt,
+            (msg: OpenRouter.message): string => {msg.content},
+            openrouter_prompt,
           );
         let prompt = ListUtil.concat_strings(messages);
-        let llm = OpenAI.Azure_GPT4_0613;
-        let key = OpenAI.lookup_key(llm);
-        let params: OpenAI.params = {llm, temperature: 1.0, top_p: 1.0};
-        OpenAI.start_chat(~params, ~key, openai_prompt, req =>
-          switch (OpenAI.handle_chat(req)) {
+        let llm = OpenRouter.Gemini_Flash_Lite;
+        let key = Store.Generic.load("API");
+        let params: OpenRouter.params = {llm, temperature: 1.0, top_p: 1.0};
+        OpenRouter.start_chat(~params, ~key, openrouter_prompt, req =>
+          switch (OpenRouter.handle_chat(req)) {
           | Some({content, _}) => schedule_action(react(content))
           | None => print_endline("Assistant: response parse failed")
           }
