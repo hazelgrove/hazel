@@ -38,7 +38,16 @@ let caret_run = (shape: option(Direction.t)) =>
   };
 
 let chevronf = (run: float, rise: float): list(SvgUtil.Path.cmd) =>
-  SvgUtil.Path.[L_({dx: -. run, dy: rise}), L_({dx: +. run, dy: rise})];
+  SvgUtil.Path.[
+    L_({
+      dx: -. run,
+      dy: rise,
+    }),
+    L_({
+      dx: +. run,
+      dy: rise,
+    }),
+  ];
 
 let chevron = (direction: option(Direction.t), drawing_from: Direction.t) =>
   chevronf(caret_run(direction), drawing_from == Left ? (-0.5) : 0.5);
@@ -47,7 +56,14 @@ let chonky_shard_path_base =
     ((l, r), x_offset, length: float, height: float): list(SvgUtil.Path.cmd) => {
   List.flatten(
     SvgUtil.Path.[
-      [M({x: -. x_offset, y: 0.}), H_({dx: length}), V({y: height})],
+      [
+        M({
+          x: -. x_offset,
+          y: 0.,
+        }),
+        H_({dx: length}),
+        V({y: height}),
+      ],
       chevron(r, Right),
       [H_({dx: -. length}), v(~y=1)],
       chevron(l, Left),
@@ -97,7 +113,12 @@ type fdims = {
   top: float,
 };
 
-let fzero: fdims = {width: 0., height: 0., left: 0., top: 0.};
+let fzero: fdims = {
+  width: 0.,
+  height: 0.,
+  left: 0.,
+  top: 0.,
+};
 
 let pos_str = (~d: dims, ~fudge: fdims=fzero, font_metrics: FontMetrics.t) =>
   Printf.sprintf(
@@ -133,7 +154,15 @@ let code_svg_sized =
       paths: list(SvgUtil.Path.cmd),
     ) => {
   let d = abs_dims(measurement);
-  let d = absolute ? d : {left: 0, top: 0, width: d.width, height: d.height};
+  let d =
+    absolute
+      ? d
+      : {
+        left: 0,
+        top: 0,
+        width: d.width,
+        height: d.height,
+      };
   create_svg(
     "svg",
     ~attrs=

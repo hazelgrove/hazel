@@ -41,7 +41,11 @@ let evaluate_extend_env_with_pat =
             (
               Let(
                 pat,
-                {ids, copied, term: FixF(pat, exp, Some(to_extend))},
+                {
+                  ids,
+                  copied,
+                  term: FixF(pat, exp, Some(to_extend)),
+                },
                 (Var(binding): TermBase.exp_term) |> IdTagged.fresh,
               ): TermBase.exp_term
             )

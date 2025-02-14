@@ -60,7 +60,11 @@ module Model = {
     | NoElab => None
     };
 
-  let init = {kind: Evaluation, result: NoElab, previous_tests: None};
+  let init = {
+    kind: Evaluation,
+    result: NoElab,
+    previous_tests: None,
+  };
 
   let test_results = (model: t): option(Haz3lcore.TestResults.t) =>
     switch (model.result) {
@@ -104,12 +108,23 @@ module Update = {
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) =>
     switch (action, model) {
     | (ToggleStepper, {kind: Stepper, _}) =>
-      {...model, kind: Evaluation} |> Updated.return
+      {
+        ...model,
+        kind: Evaluation,
+      }
+      |> Updated.return
     | (ToggleStepper, {kind: Evaluation, _}) =>
-      {...model, kind: Stepper} |> Updated.return
+      {
+        ...model,
+        kind: Stepper,
+      }
+      |> Updated.return
     | (StepperAction(a), {result: Stepper(s), _}) =>
       let* stepper = StepperView.Update.update(~settings, a, s);
-      {...model, result: Stepper(stepper)};
+      {
+        ...model,
+        result: Stepper(stepper),
+      };
     | (StepperAction(_), _) => model |> Updated.return_quiet
     | (
         EvalEditorAction(a),
@@ -161,7 +176,12 @@ module Update = {
             cached_settings,
           }),
       }
-      |> (x => {...x, previous_tests: Model.test_results(x)})
+      |> (
+        x => {
+          ...x,
+          previous_tests: Model.test_results(x),
+        }
+      )
       |> Updated.return
     | (UpdateResult(_), _) => model |> Updated.return_quiet
     };
@@ -184,7 +204,13 @@ module Update = {
         )
           when Haz3lcore.Exp.fast_equal(elab, elab') => {
           ...model,
-          result: Evaluation({elab, result, cached_settings, editor}),
+          result:
+            Evaluation({
+              elab,
+              result,
+              cached_settings,
+              editor,
+            }),
         }
       // If elab has changed, recalculate
       | (Evaluation, _) when settings.dynamics =>
@@ -221,15 +247,24 @@ module Update = {
               }),
           };
         }
-      | (Evaluation, _) => {...model, result: NoElab}
+      | (Evaluation, _) => {
+          ...model,
+          result: NoElab,
+        }
       | (Stepper, Stepper(s)) =>
         let s' = StepperView.Update.calculate(~settings, elab, s);
-        {...model, result: Stepper(s')};
+        {
+          ...model,
+          result: Stepper(s'),
+        };
       | (Stepper, _) =>
         let s =
           StepperView.Model.init
           |> StepperView.Update.calculate(~settings, elab);
-        {...model, result: Stepper(s)};
+        {
+          ...model,
+          result: Stepper(s),
+        };
       };
 
     // Calculate evaluation editor

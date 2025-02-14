@@ -49,10 +49,19 @@ let mk = (values: list(float)) => {
         let mid = (a + b) / 2;
         Branch(lazy(mk_node(a, mid)), lazy(mk_node(mid, b)));
       };
-    {shape, interval: (a, b), count: 0, status: Empty};
+    {
+      shape,
+      interval: (a, b),
+      count: 0,
+      status: Empty,
+    };
   };
 
-  {values, ordinals, root: mk_node(0, Array.length(values) - 1)};
+  {
+    values,
+    ordinals,
+    root: mk_node(0, Array.length(values) - 1),
+  };
 };
 
 let update_status = (node: node): node => {
@@ -69,7 +78,10 @@ let update_status = (node: node): node => {
         }
       };
     };
-  {...node, status};
+  {
+    ...node,
+    status,
+  };
 };
 
 type op =
@@ -112,7 +124,10 @@ let perform = (op, (a, b): interval, tree: t): t => {
           let mid = (a' + b') / 2;
           let l = a >= mid ? l : (lazy(go(op, interval, Lazy.force(l))));
           let r = b <= mid ? r : (lazy(go(op, interval, Lazy.force(r))));
-          {...node, shape: Branch(l, r)};
+          {
+            ...node,
+            shape: Branch(l, r),
+          };
         };
       };
     update_status(node);
@@ -132,7 +147,10 @@ let perform = (op, (a, b): interval, tree: t): t => {
   | (Some(a), Some(b)) =>
     let interval = a < b ? (a, b) : (b, a);
     let new_root = go(op, interval, tree.root);
-    {...tree, root: new_root};
+    {
+      ...tree,
+      root: new_root,
+    };
   };
 };
 let insert = perform(Insert);

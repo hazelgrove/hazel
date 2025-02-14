@@ -379,7 +379,14 @@ and uexp_to_info_map =
     let mode_body = Mode.of_forall(ctx, Some(name), mode);
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     let ctx_body =
-      Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
+      Ctx.extend_tvar(
+        ctx,
+        {
+          name,
+          id: TPat.rep_id(utpat),
+          kind: Abstract,
+        },
+      );
     let (body, m) = go'(~ctx=ctx_body, ~mode=mode_body, body, m);
     add(
       ~self=Just(Forall(utpat, body.ty) |> Typ.temp),
@@ -770,7 +777,12 @@ and upat_to_info_map =
         mode,
         Common(Just(Unknown(Internal) |> Typ.temp)),
       );
-    let entry = Ctx.VarEntry({name, id: Pat.rep_id(upat), typ: ctx_typ});
+    let entry =
+      Ctx.VarEntry({
+        name,
+        id: Pat.rep_id(upat),
+        typ: ctx_typ,
+      });
     add(
       ~self=Just(unknown),
       ~ctx=Ctx.extend(ctx, entry),
@@ -878,7 +890,14 @@ and utyp_to_info_map =
     add(m);
   | Forall({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
-      Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
+      Ctx.extend_tvar(
+        ctx,
+        {
+          name,
+          id: TPat.rep_id(utpat),
+          kind: Abstract,
+        },
+      );
     let m =
       utyp_to_info_map(
         tbody,
@@ -898,7 +917,14 @@ and utyp_to_info_map =
     add(m); // TODO: check with andrew
   | Rec({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
-      Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
+      Ctx.extend_tvar(
+        ctx,
+        {
+          name,
+          id: TPat.rep_id(utpat),
+          kind: Abstract,
+        },
+      );
     let m =
       utyp_to_info_map(
         tbody,
@@ -955,7 +981,11 @@ and variant_to_info_map =
           List.mem(ctr, ctrs) ? Duplicate : Unique,
           ty_sum,
         ),
-        {term: Var(ctr), ids, copied: false},
+        {
+          term: Var(ctr),
+          ids,
+          copied: false,
+        },
         m,
       )
       |> snd;

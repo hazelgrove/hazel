@@ -40,7 +40,11 @@ module Update = {
       : Model.t => {
     let editor =
       CodeSelectable.Update.calculate(~settings, ~is_edited, ~stitch, editor);
-    {editor, taken_steps, next_steps};
+    {
+      editor,
+      taken_steps,
+      next_steps,
+    };
   };
 };
 

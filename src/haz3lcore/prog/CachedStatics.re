@@ -43,7 +43,12 @@ let init_from_term = (~settings, ~ctx=?, term): t => {
       | Elaborates(d, _, _) => d
       }
     };
-  {term, elaborated, info_map, error_ids};
+  {
+    term,
+    elaborated,
+    info_map,
+    error_ids,
+  };
 };
 
 let init = (~settings: CoreSettings.t, ~stitch, ~ctx=?, z: Zipper.t): t => {

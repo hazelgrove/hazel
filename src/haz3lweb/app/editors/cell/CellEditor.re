@@ -40,7 +40,10 @@ module Update = {
     | MainEditor(action) =>
       let* editor =
         CodeEditable.Update.update(~settings, action, model.editor);
-      {...model, editor};
+      {
+        ...model,
+        editor,
+      };
     | ResultAction(action) =>
       let* result =
         EvalResult.Update.update(
@@ -54,7 +57,10 @@ module Update = {
           action,
           model.result,
         );
-      {...model, result};
+      {
+        ...model,
+        result,
+      };
     };
   };
 
@@ -71,13 +77,19 @@ module Update = {
       CodeEditable.Update.calculate(~settings, ~is_edited, ~stitch, editor);
     let result =
       EvalResult.Update.calculate(
-        ~settings={...settings, assist: false},
+        ~settings={
+          ...settings,
+          assist: false,
+        },
         ~queue_worker,
         ~is_edited,
         editor |> CodeEditable.Model.get_statics,
         result,
       );
-    {editor, result};
+    {
+      editor,
+      result,
+    };
   };
 };
 

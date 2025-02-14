@@ -11,7 +11,11 @@ let term_of: t => term = IdTagged.term_of;
 let fast_copy: (Id.t, t) => t = IdTagged.fast_copy;
 
 let mk = (ids, term): t => {
-  {ids, copied: true, term};
+  {
+    ids,
+    copied: true,
+    term,
+  };
 };
 
 // TODO: make this function emit a map of changes

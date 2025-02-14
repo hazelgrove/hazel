@@ -16,15 +16,27 @@ let rec exp_to_rule = (exp: Exp.t): t =>
     let bindings' =
       TypeAssignment.dhpat_extend_ctx(p, t, []) |> OptUtil.get(() => []);
     let {bindings, assumptions, conclusion} = exp_to_rule(e);
-    {bindings: bindings' @ bindings, assumptions, conclusion};
+    {
+      bindings: bindings' @ bindings,
+      assumptions,
+      conclusion,
+    };
   | BinOp(Bool(Or), {term: UnOp(Bool(Not), e1), _}, e2) =>
     // TODO: Negate more generally and implication
     let {bindings, assumptions, conclusion} = exp_to_rule(e2);
-    {bindings, assumptions: [e1] @ assumptions, conclusion};
+    {
+      bindings,
+      assumptions: [e1] @ assumptions,
+      conclusion,
+    };
   | BinOp(Int(Equals), e1, e2) => {
       bindings: [],
       assumptions: [],
       conclusion: Equality(e1, e2),
     }
-  | _ => {bindings: [], assumptions: [], conclusion: Other(exp)}
+  | _ => {
+      bindings: [],
+      assumptions: [],
+      conclusion: Other(exp),
+    }
   };

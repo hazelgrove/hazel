@@ -355,8 +355,25 @@ let rec status_common =
         syn /* Note: the ordering of ana, syn matters */
       )
     ) {
-    | None => InHole(Inconsistent(Expectation({syn, ana})))
-    | Some(join) => NotInHole(Ana(Consistent({ana, syn, join})))
+    | None =>
+      InHole(
+        Inconsistent(
+          Expectation({
+            syn,
+            ana,
+          }),
+        ),
+      )
+    | Some(join) =>
+      NotInHole(
+        Ana(
+          Consistent({
+            ana,
+            syn,
+            join,
+          }),
+        ),
+      )
     }
   | (IsConstructor({name, syn_ty}), _) =>
     /* If a ctr is being analyzed against (an arrow type returning)
@@ -374,10 +391,23 @@ let rec status_common =
   | (NoJoin(wrap, tys), Ana(ana)) =>
     let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.temp);
     switch (Typ.join_fix(ctx, ana, syn)) {
-    | None => InHole(Inconsistent(Expectation({ana, syn})))
+    | None =>
+      InHole(
+        Inconsistent(
+          Expectation({
+            ana,
+            syn,
+          }),
+        ),
+      )
     | Some(_) =>
       NotInHole(
-        Ana(InternallyInconsistent({ana, nojoin: Typ.of_source(tys)})),
+        Ana(
+          InternallyInconsistent({
+            ana,
+            nojoin: Typ.of_source(tys),
+          }),
+        ),
       )
     };
   | (NoJoin(_, tys), Syn | SynFun | SynTypFun) =>
@@ -613,7 +643,17 @@ let derived_exp = (~uexp: Exp.t, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx): exp =
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
   let status = status_exp(ctx, mode, self);
   let ty = fixed_typ_exp(ctx, mode, self);
-  {cls, self, ty, mode, status, ctx, co_ctx, ancestors, term: uexp};
+  {
+    cls,
+    self,
+    ty,
+    mode,
+    status,
+    ctx,
+    co_ctx,
+    ancestors,
+    term: uexp,
+  };
 };
 
 /* Add derivable attributes for pattern terms */
@@ -658,14 +698,27 @@ let derived_typ = (~utyp: Typ.t, ~ctx, ~ancestors, ~expects): typ => {
     | (_, cls) => Cls.Typ(cls)
     };
   let status = status_typ(ctx, expects, utyp);
-  {cls, ctx, ancestors, status, expects, term: utyp};
+  {
+    cls,
+    ctx,
+    ancestors,
+    status,
+    expects,
+    term: utyp,
+  };
 };
 
 /* Add derivable attributes for type patterns */
 let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
   let cls = Cls.TPat(TPat.cls_of_term(utpat.term));
   let status = status_tpat(ctx, utpat);
-  {cls, ancestors, status, ctx, term: utpat};
+  {
+    cls,
+    ancestors,
+    status,
+    ctx,
+    term: utpat,
+  };
 };
 
 /* If the info represents some kind of name binding which

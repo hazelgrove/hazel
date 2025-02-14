@@ -69,7 +69,8 @@ let startup : PersistentData.t =
           };
         ]
         (* ,
-           [ ("scratch_0", Evaluation); ("scratch_1", Evaluation) ] *) );
+           [ ("scratch_0", Evaluation); ("scratch_1", Evaluation) ] *)
+      );
     documentation =
       ( 2,
         [
@@ -17635,5 +17636,6 @@ let startup : PersistentData.t =
              ("scratch_Shadowing", Evaluation);
              ("scratch_Types & static errors", Evaluation);
              ("scratch_Variables", Evaluation);
-           ] *) );
+           ] *)
+      );
   }

@@ -10,7 +10,14 @@ let empty = [];
 
 let add_entry = (name: string, exp: Exp.t, ctx: t) => {
   let rule = ProofRule.exp_to_rule(exp);
-  [{name, exp, rule}, ...ctx];
+  [
+    {
+      name,
+      exp,
+      rule,
+    },
+    ...ctx,
+  ];
 };
 
 let rec get_empty_bindings = (ctx: Ctx.t) =>

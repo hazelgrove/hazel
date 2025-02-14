@@ -77,8 +77,17 @@ let tuple_exp_size3: form = {
   };
 };
 
-let tuples: group = {id: TupleExp, forms: [tuple_exp]};
+let tuples: group = {
+  id: TupleExp,
+  forms: [tuple_exp],
+};
 
-let tuples2: group = {id: Tuple2Exp, forms: [tuple_exp_size2, tuple_exp]};
+let tuples2: group = {
+  id: Tuple2Exp,
+  forms: [tuple_exp_size2, tuple_exp],
+};
 
-let tuples3: group = {id: Tuple3Exp, forms: [tuple_exp_size3, tuple_exp]};
+let tuples3: group = {
+  id: Tuple3Exp,
+  forms: [tuple_exp_size3, tuple_exp],
+};

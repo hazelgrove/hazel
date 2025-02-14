@@ -128,7 +128,13 @@ let rec add_n_rows = (origin: Point.t, row_indent, n: abs_indent, map: t): t =>
   | _ =>
     map
     |> add_n_rows(origin, row_indent, n - 1)
-    |> add_row(origin.row + n - 1, {indent: row_indent, max_col: origin.col})
+    |> add_row(
+         origin.row + n - 1,
+         {
+           indent: row_indent,
+           max_col: origin.col,
+         },
+       )
   };
 
 let add_lb = (id, indent, map) => {
@@ -180,7 +186,10 @@ let find_t = (t: Tile.t, map): measurement => {
     }) {
     | _ => failwith("find_t: inconsistent shard infor between tile and map")
     };
-  {origin: first.origin, last: last.last};
+  {
+    origin: first.origin,
+    last: last.last,
+  };
 };
 let find_p = (~msg="", p: Piece.t, map): measurement =>
   try(
@@ -212,7 +221,10 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
             shards,
             "find_by_id",
           );
-        Some({origin: first.origin, last: last.last});
+        Some({
+          origin: first.origin,
+          last: last.last,
+        });
       | None =>
         switch (Id.Map.find_opt(id, map.projectors)) {
         | Some(m) => Some(m)
@@ -332,39 +344,90 @@ let of_segment = (seg: Segment.t, info_map: Statics.Map.t): t => {
                 contained_indent + (Id.Map.find(w.id, is_indented) ? 2 : 0);
               };
             let last =
-              Point.{row: origin.row + 1, col: container_indent + indent};
+              Point.{
+                row: origin.row + 1,
+                col: container_indent + indent,
+              };
             let map =
               map
-              |> add_w(w, {origin, last})
+              |> add_w(
+                   w,
+                   {
+                     origin,
+                     last,
+                   },
+                 )
               |> add_row(
                    origin.row,
-                   {indent: row_indent, max_col: origin.col},
+                   {
+                     indent: row_indent,
+                     max_col: origin.col,
+                   },
                  )
               |> add_lb(w.id, indent);
             (indent, last, map);
           | Secondary(w) =>
             let wspace_length =
               Unicode.length(Secondary.get_string(w.content));
-            let last = {...origin, col: origin.col + wspace_length};
-            let map = map |> add_w(w, {origin, last});
+            let last = {
+              ...origin,
+              col: origin.col + wspace_length,
+            };
+            let map =
+              map
+              |> add_w(
+                   w,
+                   {
+                     origin,
+                     last,
+                   },
+                 );
             (contained_indent, last, map);
           | Grout(g) =>
-            let last = {...origin, col: origin.col + 1};
-            let map = map |> add_g(g, {origin, last});
+            let last = {
+              ...origin,
+              col: origin.col + 1,
+            };
+            let map =
+              map
+              |> add_g(
+                   g,
+                   {
+                     origin,
+                     last,
+                   },
+                 );
             (contained_indent, last, map);
           | Projector(p) =>
             let token =
               Projector.placeholder(p, Id.Map.find_opt(p.id, info_map));
             let last = last_of_token(token, origin);
             let map = extra_rows(token, origin, map);
-            let map = add_pr(p, {origin, last}, map);
+            let map =
+              add_pr(
+                p,
+                {
+                  origin,
+                  last,
+                },
+                map,
+              );
             (contained_indent, last, map);
           | Tile(t) =>
             let add_shard = (origin, shard, map) => {
               let token = List.nth(t.label, shard);
               let map = extra_rows(token, origin, map);
               let last = last_of_token(token, origin);
-              let map = add_s(t.id, shard, {origin, last}, map);
+              let map =
+                add_s(
+                  t.id,
+                  shard,
+                  {
+                    origin,
+                    last,
+                  },
+                  map,
+                );
               (last, map);
             };
             let (last, map) =

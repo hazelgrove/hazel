@@ -171,11 +171,17 @@ let view =
   let genie_view =
     DecUtil.code_svg(
       ~font_metrics,
-      ~origin={row: 0, col: 0},
+      ~origin={
+        row: 0,
+        col: 0,
+      },
       ~base_cls=["restructuring-genie"],
       ~path_cls=["backpack-genie"],
       SvgUtil.Path.[
-        M({x: 0., y: 0.}),
+        M({
+          x: 0.,
+          y: 0.,
+        }),
         V({y: (-1.0)}),
         H_({dx: Float.of_int(length)}),
         V_({dy: 0.0}),

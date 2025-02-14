@@ -176,7 +176,10 @@ module Update = {
     switch (action) {
     | RootAction(action) =>
       let* new_root = update_step(~settings, action, model.root);
-      {...model, root: new_root};
+      {
+        ...model,
+        root: new_root,
+      };
     };
   }
 
@@ -188,23 +191,38 @@ module Update = {
       | Calc.Pending => model |> return_quiet
       | Calc.Calculated(editor) =>
         let* new_editor = CodeSelectable.Update.update(~settings, ea, editor);
-        {...model, editor: Calc.Calculated(new_editor)};
+        {
+          ...model,
+          editor: Calc.Calculated(new_editor),
+        };
       }
     | (NextStep(a), _, Some(ns)) =>
       let* new_next_step = update_step(~settings, a, ns);
-      {...model, next_step: Some(new_next_step)};
+      {
+        ...model,
+        next_step: Some(new_next_step),
+      };
     | (NextStep(_), _, None) => model |> return_quiet
     | (SingleStep(a), SingleStep(m), _) =>
       let* step_kind = update_single_step(~settings, a, m);
-      {...model, step_kind};
+      {
+        ...model,
+        step_kind,
+      };
     | (SingleStep(_), _, _) => model |> return_quiet
     | (InductionStep(a), InductionStep(m), _) =>
       let* step_kind = update_induction_step(~settings, a, m);
-      {...model, step_kind};
+      {
+        ...model,
+        step_kind,
+      };
     | (InductionStep(_), _, _) => model |> return_quiet
     | (ForallStep(a), ForallStep(m), _) =>
       let* step_kind = update_forall_step(~settings, a, m);
-      {...model, step_kind};
+      {
+        ...model,
+        step_kind,
+      };
     | (ForallStep(_), _, _) => model |> return_quiet
     | (RemoveStep, _, _) =>
       {...model, step_kind: Model.init_missing_step} |> return
@@ -258,7 +276,10 @@ module Update = {
     switch (action) {
     | ScrutUpdate(a) =>
       let* new_scrut = CodeEditable.Update.update(~settings, a, model.scrut);
-      Model.InductionStep({...model, scrut: new_scrut});
+      Model.InductionStep({
+        ...model,
+        scrut: new_scrut,
+      });
     | CasePatternUpdate(i, a) =>
       switch (List.nth_opt(model.cases, i)) {
       | Some(case) =>
@@ -269,7 +290,10 @@ module Update = {
           cases:
             ListUtil.put_nth(
               i,
-              {...case, pattern: new_pattern},
+              {
+                ...case,
+                pattern: new_pattern,
+              },
               model.cases,
             ),
         });
@@ -281,7 +305,15 @@ module Update = {
         let* new_step = update_step(~settings, a, case.step);
         Model.InductionStep({
           ...model,
-          cases: ListUtil.put_nth(i, {...case, step: new_step}, model.cases),
+          cases:
+            ListUtil.put_nth(
+              i,
+              {
+                ...case,
+                step: new_step,
+              },
+              model.cases,
+            ),
         });
       | None => Model.InductionStep(model) |> return_quiet
       }
@@ -294,12 +326,19 @@ module Update = {
           step: Model.init_step,
           last_exp: Calc.Pending,
         };
-      Model.InductionStep({...model, cases: model.cases @ [new_case]})
+      Model.InductionStep({
+        ...model,
+        cases: model.cases @ [new_case],
+      })
       |> return;
     | RemoveCase(i) =>
       switch (ListUtil.remove_nth(i, model.cases)) {
       | Some(new_cases) =>
-        Model.InductionStep({...model, cases: new_cases}) |> return
+        Model.InductionStep({
+          ...model,
+          cases: new_cases,
+        })
+        |> return
       | None => Model.InductionStep(model) |> return_quiet
       }
     };
@@ -481,7 +520,11 @@ module Update = {
         ~settings,
         exp |> Calc.make_new,
         state |> Calc.make_new,
-        Model.{evalobj, next_exp: Calc.Pending, next_state: Calc.Pending},
+        Model.{
+          evalobj,
+          next_exp: Calc.Pending,
+          next_state: Calc.Pending,
+        },
         hidden,
         editor,
       )
@@ -884,7 +927,7 @@ module Selection = {
     | Scrut(a) =>
       let editor = model.scrut;
       CodeEditable.Selection.handle_key_event(~selection=a, editor, event)
-      |> Option.map((x) => (Update.ScrutUpdate(x): Update.induction_step));
+      |> Option.map((x): Update.induction_step => Update.ScrutUpdate(x));
     | CasePattern(i, a) =>
       switch (List.nth_opt(model.cases, i)) {
       | Some(case) =>
@@ -893,8 +936,8 @@ module Selection = {
           case.pattern,
           event,
         )
-        |> Option.map((x) =>
-             (Update.CasePatternUpdate(i, x): Update.induction_step)
+        |> Option.map((x): Update.induction_step =>
+             Update.CasePatternUpdate(i, x)
            )
       | None => None
       }
@@ -902,8 +945,8 @@ module Selection = {
       switch (List.nth_opt(model.cases, i)) {
       | Some(case) =>
         handle_key_event_step(~selection=a, ~event, case.step)
-        |> Option.map((x) =>
-             (Update.CaseStepperUpdate(i, x): Update.induction_step)
+        |> Option.map((x): Update.induction_step =>
+             Update.CaseStepperUpdate(i, x)
            )
       | None => None
       }

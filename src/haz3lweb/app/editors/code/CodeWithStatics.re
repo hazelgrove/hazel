@@ -16,7 +16,10 @@ module Model = {
     statics: CachedStatics.t,
   };
 
-  let mk = editor => {editor, statics: CachedStatics.empty};
+  let mk = editor => {
+    editor,
+    statics: CachedStatics.empty,
+  };
 
   let mk_from_exp = (~settings: CoreSettings.t, ~inline=false, term: Exp.t) => {
     ExpToSegment.exp_to_segment(
@@ -61,7 +64,10 @@ module Update = {
       CachedStatics.init(~settings, ~stitch, ~ctx?, editor.state.zipper);
     let editor =
       Editor.Update.calculate(~settings, ~is_edited, statics, editor);
-    {editor, statics};
+    {
+      editor,
+      statics,
+    };
   };
 };
 

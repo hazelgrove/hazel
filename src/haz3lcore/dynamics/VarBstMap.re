@@ -74,12 +74,18 @@ module Ordered = {
   let failwith_keysinconsistent = () =>
     failwith("VarBstMap.Ordered: order key not in map");
 
-  let empty = {map: VarBstMap0.empty, rev_order: []};
+  let empty = {
+    map: VarBstMap0.empty,
+    rev_order: [],
+  };
 
   let is_empty = ({map, _}) => VarBstMap0.is_empty(map);
 
   let singleton = ((x, a)) => {
-    {map: VarBstMap0.singleton((x, a)), rev_order: [(x, ())]};
+    {
+      map: VarBstMap0.singleton((x, a)),
+      rev_order: [(x, ())],
+    };
   };
 
   let extend = ({map, rev_order}, (x, a)) => {
@@ -102,7 +108,10 @@ module Ordered = {
 
     let map = VarBstMap0.union(map1, map2);
     let rev_order = union_order(List.rev(rev_order1), rev_order2);
-    {map, rev_order};
+    {
+      map,
+      rev_order,
+    };
   };
 
   let lookup = ({map, _}, x) => VarBstMap0.lookup(map, x);
@@ -111,7 +120,10 @@ module Ordered = {
 
   let mapk = (f, {map, rev_order}) => {
     let map = map |> VarBstMap0.map(f);
-    {map, rev_order};
+    {
+      map,
+      rev_order,
+    };
   };
 
   let mapo = (f, {map, rev_order}) => {
@@ -128,7 +140,10 @@ module Ordered = {
              },
            VarBstMap0.empty,
          );
-    {map, rev_order};
+    {
+      map,
+      rev_order,
+    };
   };
 
   let filterk = (f, {map, rev_order}) => {
@@ -138,7 +153,10 @@ module Ordered = {
       |> List.rev
       |> List.filter(((x, _)) => VarBstMap0.contains(map, x))
       |> List.rev;
-    {map, rev_order};
+    {
+      map,
+      rev_order,
+    };
   };
 
   let filtero = (f, {map, rev_order}) => {
@@ -165,7 +183,10 @@ module Ordered = {
            (map, []),
          );
 
-    {map, rev_order};
+    {
+      map,
+      rev_order,
+    };
   };
 
   let foldk = (f, init, {map, _}) =>
@@ -200,7 +221,10 @@ module Ordered = {
   let of_list = bindings => {
     let map = VarBstMap0.of_list(bindings);
     let rev_order = bindings |> List.map(((x, _)) => (x, ())) |> List.rev;
-    {map, rev_order};
+    {
+      map,
+      rev_order,
+    };
   };
 
   let without_keys = (keys, m) => {

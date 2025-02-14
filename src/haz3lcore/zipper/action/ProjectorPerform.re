@@ -17,7 +17,13 @@ module Update = {
     let (module P) = to_module(kind);
     switch (P.can_project(syntax) && minimum_projection_condition(syntax)) {
     | false => syntax
-    | true => Projector({id: Piece.id(syntax), kind, model: P.init, syntax})
+    | true =>
+      Projector({
+        id: Piece.id(syntax),
+        kind,
+        model: P.init,
+        syntax,
+      })
     };
   };
 
@@ -26,7 +32,12 @@ module Update = {
     switch (P.can_project(syntax) && minimum_projection_condition(syntax)) {
     | false => syntax
     | true =>
-      Projector({id: Piece.id(syntax), kind, model: model_str, syntax})
+      Projector({
+        id: Piece.id(syntax),
+        kind,
+        model: model_str,
+        syntax,
+      })
     };
   };
 
@@ -79,9 +90,20 @@ module Update = {
 let move_out_of_piece =
     (d: Util.Direction.t, rel: Indicated.relation, z: Zipper.t): Zipper.t =>
   switch (rel) {
-  | Sibling => {...z, caret: Outer}
+  | Sibling => {
+      ...z,
+      caret: Outer,
+    }
   | Parent =>
-    switch (Zipper.move(d, {...z, caret: Outer})) {
+    switch (
+      Zipper.move(
+        d,
+        {
+          ...z,
+          caret: Outer,
+        },
+      )
+    ) {
     | Some(z) => z
     | None => z
     }
@@ -112,12 +134,27 @@ let go =
      * See intial id setting in Update.init */
     Ok(
       Update.update(
-        p => {...p, syntax: Piece.replace_id(id, syntax)},
+        p =>
+          {
+            ...p,
+            syntax: Piece.replace_id(id, syntax),
+          },
         id,
         z,
       ),
     )
-  | SetModel(id, model) => Ok(Update.update(pr => {...pr, model}, id, z))
+  | SetModel(id, model) =>
+    Ok(
+      Update.update(
+        pr =>
+          {
+            ...pr,
+            model,
+          },
+        id,
+        z,
+      ),
+    )
   | Focus(id, d) =>
     let z =
       switch (d) {

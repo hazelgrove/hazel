@@ -196,7 +196,11 @@ let pattern_fixup = (p: DHPat.t): DHPat.t => {
       let (p1, d1) = unwrap_casts(p1);
       (
         p1,
-        {term: Cast(d1, t1, t2), copied: p.copied, ids: p.ids}
+        {
+          term: Cast(d1, t1, t2),
+          copied: p.copied,
+          ids: p.ids,
+        }
         |> transition_multiple,
       );
     | _ => (p, hole)
@@ -207,7 +211,11 @@ let pattern_fixup = (p: DHPat.t): DHPat.t => {
     | EmptyHole => p
     | Cast(d1, t1, t2) =>
       let p1 = rewrap_casts((p, d1));
-      {term: Cast(p1, t1, t2), copied: d.copied, ids: d.ids};
+      {
+        term: Cast(p1, t1, t2),
+        copied: d.copied,
+        ids: d.ids,
+      };
     | FailedCast(d1, t1, t2) =>
       let p1 = rewrap_casts((p, d1));
       {

@@ -322,9 +322,18 @@ let ctx_init: Ctx.t = {
     });
   List.map(
     fun
-    | (name, Const(typ, _)) => Ctx.VarEntry({name, typ, id: Id.invalid})
+    | (name, Const(typ, _)) =>
+      Ctx.VarEntry({
+        name,
+        typ,
+        id: Id.invalid,
+      })
     | (name, Fn(t1, t2, _)) =>
-      Ctx.VarEntry({name, typ: Arrow(t1, t2) |> Typ.fresh, id: Id.invalid}),
+      Ctx.VarEntry({
+        name,
+        typ: Arrow(t1, t2) |> Typ.fresh,
+        id: Id.invalid,
+      }),
     Pervasives.builtins,
   )
   |> Ctx.extend(_, meta)

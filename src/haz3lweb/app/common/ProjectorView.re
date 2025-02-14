@@ -126,7 +126,11 @@ let setup_view =
   let* p = Id.Map.find_opt(id, cached_syntax.projectors);
   let* syntax = Some(p.syntax);
   let ci = Id.Map.find_opt(id, cached_statics.info_map);
-  let info = {id, ci, syntax};
+  let info = {
+    id,
+    ci,
+    syntax,
+  };
   let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
   let (module P) = to_module(p.kind);
   let parent = a => inject(Project(handle(id, a)));

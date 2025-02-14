@@ -48,7 +48,10 @@ type t('k, 'v) = {
 };
 
 let mk = (): t('k, 'v) => {
-  {primitive_keys: JsMap.mk(), non_primitive_keys: JsWeakMap.mk()};
+  {
+    primitive_keys: JsMap.mk(),
+    non_primitive_keys: JsWeakMap.mk(),
+  };
 };
 
 let get = (t: t('k, 'v), k: 'k): option('v) => {

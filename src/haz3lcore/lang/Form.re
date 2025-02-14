@@ -47,7 +47,11 @@ type bad_token_cls =
   | Other
   | BadInt;
 
-let mk = (expansion, label, mold) => {label, mold, expansion};
+let mk = (expansion, label, mold) => {
+  label,
+  mold,
+  expansion,
+};
 
 /* Abbreviations for expansion behaviors */
 let ss: expansion = (Static, Static);

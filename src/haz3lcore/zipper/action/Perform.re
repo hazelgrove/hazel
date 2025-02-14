@@ -3,7 +3,10 @@ open Zipper;
 
 let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
-  | Buffer(_) => {...z, selection: Selection.mk([])}
+  | Buffer(_) => {
+      ...z,
+      selection: Selection.mk([]),
+    }
   | _ => z
   };
 
@@ -194,7 +197,10 @@ let go_z =
     |> Option.map(remold_regrout(Left))
     |> Result.of_option(~error=Action.Failure.Cant_put_down);
   | RotateBackpack =>
-    let z = {...z, backpack: Util.ListUtil.rotate(z.backpack)};
+    let z = {
+      ...z,
+      backpack: Util.ListUtil.rotate(z.backpack),
+    };
     Ok(z);
   | MoveToBackpackTarget((Left(_) | Right(_)) as d) =>
     if (Backpack.restricted(z.backpack)) {

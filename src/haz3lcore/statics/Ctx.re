@@ -34,11 +34,26 @@ let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
   extend(ctx, TVarEntry(tvar_entry));
 
 let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
-  extend_tvar(ctx, {name, id, kind: Singleton(ty)});
+  extend_tvar(
+    ctx,
+    {
+      name,
+      id,
+      kind: Singleton(ty),
+    },
+  );
 
 let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
   switch (TPat.tyvar_of_utpat(tvar)) {
-  | Some(name) => extend_tvar(ctx, {kind: Abstract, name, id: Id.invalid})
+  | Some(name) =>
+    extend_tvar(
+      ctx,
+      {
+        kind: Abstract,
+        name,
+        id: Id.invalid,
+      },
+    )
   | None => ctx
   };
 

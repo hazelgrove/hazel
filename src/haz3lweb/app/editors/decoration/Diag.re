@@ -11,7 +11,10 @@ type tip_shape = (Haz3lcore.Nib.t, int);
 let tr_bl =
     (
       ~scale as s=1.,
-      ~hemi: [ | `North | `South],
+      ~hemi: [
+         | `North
+         | `South
+       ],
       ~with_child_border=false,
       ~stretch_x=0.,
       ~stretch_y=0.,
@@ -21,11 +24,17 @@ let tr_bl =
     let (diag, junction) =
       with_child_border
         ? (
-          L_({dx: Float.neg(short_tip_width), dy: short_tip_height}),
+          L_({
+            dx: Float.neg(short_tip_width),
+            dy: short_tip_height,
+          }),
           H_({dx: Float.neg(0.5 -. short_tip_width)}),
         )
         : (
-          L_({dx: Float.neg(tip_width), dy: 0.5 +. stretch_y}),
+          L_({
+            dx: Float.neg(tip_width),
+            dy: 0.5 +. stretch_y,
+          }),
           H_({dx: Float.neg(stretch_x)}),
         );
     let path =
@@ -38,7 +47,10 @@ let tr_bl =
 // bottom left to top right
 let bl_tr =
     (
-      ~hemi: [ | `North | `South],
+      ~hemi: [
+         | `North
+         | `South
+       ],
       ~with_child_border=false,
       ~stretch_x=0.,
       ~stretch_y=0.,
@@ -51,7 +63,10 @@ let bl_tr =
 // top left to bottom right
 let tl_br =
     (
-      ~hemi: [ | `North | `South],
+      ~hemi: [
+         | `North
+         | `South
+       ],
       ~with_child_border=false,
       ~stretch_x=0.,
       ~stretch_y=0.,
@@ -61,10 +76,19 @@ let tl_br =
     let (diag, junction) =
       with_child_border
         ? (
-          L_({dx: short_tip_width, dy: short_tip_height}),
+          L_({
+            dx: short_tip_width,
+            dy: short_tip_height,
+          }),
           H_({dx: 0.5 -. short_tip_width}),
         )
-        : (L_({dx: tip_width, dy: 0.5 +. stretch_y}), H_({dx: stretch_x}));
+        : (
+          L_({
+            dx: tip_width,
+            dy: 0.5 +. stretch_y,
+          }),
+          H_({dx: stretch_x}),
+        );
     switch (hemi) {
     | `North => [junction, diag]
     | `South => [diag, junction]
@@ -73,7 +97,10 @@ let tl_br =
 // bottom right to top left
 let br_tl =
     (
-      ~hemi: [ | `North | `South],
+      ~hemi: [
+         | `North
+         | `South
+       ],
       ~with_child_border=false,
       ~stretch_x=0.,
       ~stretch_y=0.,
@@ -91,9 +118,18 @@ let left_tip_path =
       br_tl(~hemi=`South, ()) @ bl_tr(~hemi=`North, ())
     | ({shape: Concave(_a), _}, n) =>
       let jag = [
-        L_({dx: -. jagged_edge_w, dy: -. jagged_edge_h}),
-        L_({dx: jagged_edge_w, dy: -. jagged_edge_h}),
-        L_({dx: -. jagged_edge_w, dy: -. jagged_edge_h}),
+        L_({
+          dx: -. jagged_edge_w,
+          dy: -. jagged_edge_h,
+        }),
+        L_({
+          dx: jagged_edge_w,
+          dy: -. jagged_edge_h,
+        }),
+        L_({
+          dx: -. jagged_edge_w,
+          dy: -. jagged_edge_h,
+        }),
       ];
       let bottom_half =
         n == 0
@@ -126,9 +162,18 @@ let right_tip_path =
     | ({shape: Concave(_a), _}, n) =>
       open SvgUtil.Path;
       let jag = [
-        L_({dx: jagged_edge_w, dy: jagged_edge_h}),
-        L_({dx: -. jagged_edge_w, dy: jagged_edge_h}),
-        L_({dx: jagged_edge_w, dy: jagged_edge_h}),
+        L_({
+          dx: jagged_edge_w,
+          dy: jagged_edge_h,
+        }),
+        L_({
+          dx: -. jagged_edge_w,
+          dy: jagged_edge_h,
+        }),
+        L_({
+          dx: jagged_edge_w,
+          dy: jagged_edge_h,
+        }),
       ];
       let top_half =
         n == 0 || n == 1

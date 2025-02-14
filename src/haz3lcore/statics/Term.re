@@ -578,7 +578,12 @@ module Exp = {
       'a.
       (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
      =
-      (continue, exp) => {...exp, ids: [Id.mk()]} |> continue;
+      (continue, exp) =>
+        {
+          ...exp,
+          ids: [Id.mk()],
+        }
+        |> continue;
     (
       map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
       Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
