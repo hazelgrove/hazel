@@ -282,7 +282,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | None => ty1
       };
     let+ ty_body = join(~resolve, ctx, ty1', ty2);
-    Forall(x1, ty_body) |> temp;
+    Forall(x2, ty_body) |> temp;
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
      may generate internal type variable names that in corner cases can
