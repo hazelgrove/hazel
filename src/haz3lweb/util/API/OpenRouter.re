@@ -5,10 +5,8 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type chat_models =
-  | DeepSeek_V3
-  | O3_Mini_High
-  | Gemini_Experimental_1206
-  | Gemini_Flash_Lite;
+  | Gemini_Flash_Lite
+  | Llama_3_1_Nemo;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type role =
@@ -49,10 +47,8 @@ type reply = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 let string_of_chat_model =
   fun
-  | DeepSeek_V3 => "deepseek-v3"
-  | O3_Mini_High => "o3-mini-high"
-  | Gemini_Experimental_1206 => "gemini-experimental-1206"
-  | Gemini_Flash_Lite => "google/gemini-2.0-flash-lite-preview-02-05:free";
+  | Gemini_Flash_Lite => "google/gemini-2.0-flash-lite-preview-02-05:free"
+  | Llama_3_1_Nemo => "nvidia/llama-3.1-nemotron-70b-instruct:free";
 
 let string_of_role =
   fun
@@ -80,10 +76,8 @@ let body = (~params: params, messages: prompt): Json.t => {
 
 let lookup_key = (llm: chat_models) =>
   switch (llm) {
-  | DeepSeek_V3 => Store.Generic.load("API")
-  | O3_Mini_High => Store.Generic.load("API")
-  | Gemini_Experimental_1206 => Store.Generic.load("API")
-  | Gemini_Flash_Lite => Store.Generic.load("API") // Adjust if using a different key
+  | Gemini_Flash_Lite => Store.Generic.load("API")
+  | Llama_3_1_Nemo => Store.Generic.load("API")
   };
 
 let chat = (~key, ~body, ~handler): unit =>
@@ -106,10 +100,8 @@ let chat = (~key, ~body, ~handler): unit =>
 let start_chat = (~params, ~key, prompt: prompt, handler): unit => {
   let body = body(~params, prompt);
   switch (params.llm) {
-  | DeepSeek_V3 => chat(~key, ~body, ~handler)
-  | O3_Mini_High => chat(~key, ~body, ~handler)
-  | Gemini_Experimental_1206 => chat(~key, ~body, ~handler)
-  | Gemini_Flash_Lite => chat(~key, ~body, ~handler) // Add Dolphin handling
+  | Gemini_Flash_Lite => chat(~key, ~body, ~handler)
+  | Llama_3_1_Nemo => chat(~key, ~body, ~handler)
   };
 };
 
