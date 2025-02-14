@@ -274,8 +274,8 @@
   }
   
   .hint-cell {
-    background-color: var(--cell-active); /* Light gray background */
-    border-left: 5px solid #ffc107; /* Yellow accent bar */
+    background-color: 1px solid var(--cell-selected-accent); 
+    border-left: 5px solid #ffc107; 
     padding: 13px;
     margin: 20px 0;
     border-radius: 8px;
