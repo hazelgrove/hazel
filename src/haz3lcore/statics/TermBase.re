@@ -41,39 +41,39 @@ let stop = (_, x) => x;
  */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type any_t = Grammar.any_t(Grammar.IdTag.t);
+type any_t = Grammar.any_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type exp_t = Grammar.exp_t(Grammar.IdTag.t);
+type exp_t = Grammar.exp_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type exp_term = Grammar.exp_term(Grammar.IdTag.t);
+type exp_term = Grammar.exp_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type pat_t = Grammar.pat_t(Grammar.IdTag.t);
+type pat_t = Grammar.pat_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type pat_term = Grammar.pat_term(Grammar.IdTag.t);
+type pat_term = Grammar.pat_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type typ_t = Grammar.typ_t(Grammar.IdTag.t);
+type typ_t = Grammar.typ_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type typ_term = Grammar.typ_term(Grammar.IdTag.t);
+type typ_term = Grammar.typ_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type tpat_t = Grammar.tpat_t(Grammar.IdTag.t);
+type tpat_t = Grammar.tpat_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type tpat_term = Grammar.tpat_term(Grammar.IdTag.t);
+type tpat_term = Grammar.tpat_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type rul_t = Grammar.rul_t(Grammar.IdTag.t);
+type rul_t = Grammar.rul_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type rul_term = Grammar.rul_term(Grammar.IdTag.t);
+type rul_term = Grammar.rul_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type environment_t = Grammar.environment_t(Grammar.IdTag.t);
+type environment_t = Grammar.environment_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type closure_environment_t = Grammar.closure_environment_t(Grammar.IdTag.t);
+type closure_environment_t = Grammar.closure_environment_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type stepper_filter_kind_t = Grammar.stepper_filter_kind_t(Grammar.IdTag.t);
+type stepper_filter_kind_t = Grammar.stepper_filter_kind_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type type_hole = Grammar.type_hole(Grammar.IdTag.t);
+type type_hole = Grammar.type_hole(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type type_provenance = Grammar.type_provenance(Grammar.IdTag.t);
+type type_provenance = Grammar.type_provenance(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type filter = Grammar.filter(Grammar.IdTag.t);
+type filter = Grammar.filter(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type deferral_position_t = Grammar.deferral_position_t;
 
