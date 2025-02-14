@@ -135,21 +135,6 @@ and filter('a) = {
   act: FilterAction.t,
 };
 
-module IdTag = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    [@show.opaque]
-    ids: list(Id.t),
-    [@show.opaque]
-    /* Exp invariant: copied should always be false, and the id should be unique
-       DHExp invariant: if copied is true, then this term and its children may not
-       have unique ids. The flag is used to avoid deep-copying expressions during
-       evaluation, while keeping track of where we will need to replace the ids
-       at the end of evaluation to keep them unique.*/
-    copied: bool,
-  };
-};
-
 
 let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
   (type a, type b, f: a => b, e: exp_t(a)) => (

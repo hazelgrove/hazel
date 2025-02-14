@@ -75,7 +75,7 @@ let parse_exp = (s: string) => {
 
 let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
   Grammar.map_exp_annotation(
-    ({ids, _}: Grammar.IdTag.t) => {
+    ({ids, _}: IdTagged.IdTag.t) => {
       let new_info = Id.Map.find_opt(List.hd(ids), info_map);
       Option.bind(new_info, Info.error_of);
     },
@@ -114,7 +114,7 @@ let error_exp =
 };
 let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
   Grammar.map_exp_annotation(
-    (_annotation): Grammar.IdTag.t => {
+    (_annotation): IdTagged.IdTag.t => {
       let id = Id.mk();
       {ids: [id], copied: false};
     },
