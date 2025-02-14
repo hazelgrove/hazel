@@ -42,29 +42,30 @@ module Update = {
     | Respond(Model.message)
     | ToggleCollapse(int);
 
-  let react = (response: string): t => {
+  let react = (~response: string, ~code_suggestion: bool): t => {
     // let response = response |> sanitize_response |> quote;
     let zipper_of_response = Printer.zipper_of_string(response);
-    switch (zipper_of_response) {
-    | Some(z) =>
-      let segment_of_response =
-        Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, z);
-      let response_as_message: Model.message = {
-        party: LLM,
-        code: Some(segment_of_response),
-        content: "",
-        collapsed: String.length(response) >= 200,
-      };
-      Respond(response_as_message);
-    | None =>
-      let response_as_message: Model.message = {
-        party: LLM,
-        code: None,
-        content: response,
-        collapsed: String.length(response) >= 200,
-      };
-      Respond(response_as_message);
+    let response_as_message: Model.message = {
+      party: LLM,
+      code: None,
+      content: response,
+      collapsed: String.length(response) >= 200,
     };
+    code_suggestion
+      ? switch (zipper_of_response) {
+        | Some(z) =>
+          let segment_of_response =
+            Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, z);
+          let response_as_message: Model.message = {
+            party: LLM,
+            code: Some(segment_of_response),
+            content: "",
+            collapsed: String.length(response) >= 200,
+          };
+          Respond(response_as_message);
+        | None => Respond(response_as_message)
+        }
+      : Respond(response_as_message);
   };
 
   let await_llm_response: Model.message = {
@@ -72,6 +73,27 @@ module Update = {
     code: None,
     content: "...",
     collapsed: false,
+  };
+
+  let collect_chat = (~messages: list(Model.message)): string => {
+    let chat = "The following is a log of the current conversation. This is solely for the purpose
+    to help you recall the entire conversation, in case the user asks you something that needs context
+    from before. You should respond as normal, using the entire chat as context, and understand that the
+    most recent \"User Input\" is what the user is currently sending/asking, and is what your main focus should be.
+    For the most part, you should treat this solely as a prompt, and not explicitly acknowledge it in your
+    reponse. Here is the conversation for context: ";
+    List.fold_left(
+      (chat: string, message: Model.message) =>
+        if (message.party == LLM) {
+          chat ++ "Your Reponse: " ++ message.content ++ " ";
+        } else if (message.party == LS) {
+          chat ++ "User Input: " ++ message.content ++ " ";
+        } else {
+          chat ++ message.content;
+        },
+      chat,
+      messages,
+    );
   };
 
   let update =
@@ -85,10 +107,11 @@ module Update = {
       : Updated.t(Model.t) => {
     switch (action) {
     | SendMessage(message) =>
-      // todo: send API Call here
       switch (message.party) {
       | LS =>
-        switch (Oracle.ask(message.content)) {
+        let collected_chat = collect_chat(~messages=model.chat @ [message]);
+        print_endline(collected_chat);
+        switch (Oracle.ask(collected_chat)) {
         | None => print_endline("Oracle: prompt generation failed")
         | Some(prompt) =>
           let llm = OpenRouter.Gemini_Flash_Lite;
@@ -96,7 +119,10 @@ module Update = {
           let params: OpenRouter.params = {llm, temperature: 1.0, top_p: 1.0};
           OpenRouter.start_chat(~params, ~key, prompt, req =>
             switch (OpenRouter.handle_chat(req)) {
-            | Some({content, _}) => schedule_action(react(content))
+            | Some({content, _}) =>
+              schedule_action(
+                react(~response=content, ~code_suggestion=false),
+              )
             | None => print_endline("Assistant: response parse failed")
             }
           );
@@ -144,7 +170,8 @@ module Update = {
         let params: OpenRouter.params = {llm, temperature: 1.0, top_p: 1.0};
         OpenRouter.start_chat(~params, ~key, openrouter_prompt, req =>
           switch (OpenRouter.handle_chat(req)) {
-          | Some({content, _}) => schedule_action(react(content))
+          | Some({content, _}) =>
+            schedule_action(react(~response=content, ~code_suggestion=true))
           | None => print_endline("Assistant: response parse failed")
           }
         );
