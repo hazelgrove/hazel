@@ -121,9 +121,11 @@ let select_llm =
     let value = Js.to_string(Js.Unsafe.coerce(event)##.target##.value);
     let selected_llm =
       switch (value) {
-      | "Gemini_Flash_Lite" => OpenRouter.Gemini_Flash_Lite
+      | "Gemini_Flash_Lite_2_0" => OpenRouter.Gemini_Flash_Lite_2_0
+      | "Gemini_Experimental_1206" => OpenRouter.Gemini_Experimental_1206
       | "Llama_3_1_Nemo" => OpenRouter.Llama_3_1_Nemo
-      | _ => OpenRouter.Gemini_Flash_Lite
+      | "DeepSeek_V3" => OpenRouter.DeepSeek_V3
+      | _ => OpenRouter.Gemini_Flash_Lite_2_0
       };
     Virtual_dom.Vdom.Effect.Many([
       inject(AssistantModel.Update.SelectLLM(selected_llm)),
@@ -146,11 +148,25 @@ let select_llm =
         [
           option(
             ~attrs=[
-              Attr.value("Gemini_Flash_Lite"),
-              is_selected(OpenRouter.Gemini_Flash_Lite, assistantModel.llm)
+              Attr.value("Gemini_Flash_Lite_2_0"),
+              is_selected(
+                OpenRouter.Gemini_Flash_Lite_2_0,
+                assistantModel.llm,
+              )
                 ? Attr.selected : Attr.empty,
             ],
             [text("Gemini Flash Lite 2.0")],
+          ),
+          option(
+            ~attrs=[
+              Attr.value("Gemini_Experimental_1206"),
+              is_selected(
+                OpenRouter.Gemini_Experimental_1206,
+                assistantModel.llm,
+              )
+                ? Attr.selected : Attr.empty,
+            ],
+            [text("Gemini Experimental 1206")],
           ),
           option(
             ~attrs=[
@@ -159,6 +175,14 @@ let select_llm =
                 ? Attr.selected : Attr.empty,
             ],
             [text("Llama 3.1 Nemotron 70B")],
+          ),
+          option(
+            ~attrs=[
+              Attr.value("DeepSeek_V3"),
+              is_selected(OpenRouter.DeepSeek_V3, assistantModel.llm)
+                ? Attr.selected : Attr.empty,
+            ],
+            [text("DeepSeek V3")],
           ),
         ],
       ),

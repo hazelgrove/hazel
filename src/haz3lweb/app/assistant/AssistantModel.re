@@ -30,7 +30,7 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let init: t = {chat: [], currSender: LS, llm: Gemini_Flash_Lite};
+  let init: t = {chat: [], currSender: LS, llm: Gemini_Flash_Lite_2_0};
 };
 
 module Update = {
