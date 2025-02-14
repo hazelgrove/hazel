@@ -274,25 +274,26 @@
   }
   
   .hint-cell {
-    background-color: #f8f9fa; /* Light gray background */
+    background-color: var(--cell-active); /* Light gray background */
     border-left: 5px solid #ffc107; /* Yellow accent bar */
-    padding: 15px;
+    padding: 13px;
     margin: 20px 0;
     border-radius: 8px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     font-size: 16px;
     color: #333;
-    max-width: 600px;
+    max-width: 200px;
+    /* height: 75px; */
   }
   
   .hint-title {
     font-weight: bold;
     color: #d39e00; /* Darker yellow */
-    font-size: 18px;
+    font-size: 15px;
     margin-bottom: 5px;
   }
   
   .hint-content {
-    font-size: 16px;
+    font-size: 15px;
     color: #555;
   }

@@ -376,7 +376,14 @@ module View = {
       );
     let hint_view =
       switch (grading_report.impl_grading_report.hints) {
-      | [hint] => div([text("💡 Hint: " ++ hint)])
+      | [hint] =>
+        div(
+          ~attrs=[Attr.class_("hint-cell")],
+          [
+            div(~attrs=[Attr.class_("hint-title")], [text("💡 Hint")]),
+            div(~attrs=[Attr.class_("hint-content")], [text(hint)]),
+          ],
+        )
       | _ => div([]) // No hint available
       };
     let impl_grading_view =
