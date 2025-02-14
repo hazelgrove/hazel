@@ -127,6 +127,23 @@ let annotated_tree_test = (name, expected) => {
   let annotated: Grammar.exp_t(option(Info.error)) =
     annotate_static_errors(term, statics(term));
 
+  print_endline(
+    Printer.of_segment(
+      ~holes=Some("?"),
+      ExpToSegment.exp_to_segment(
+        ~settings={
+          inline: true,
+          fold_case_clauses: false,
+          fold_fn_bodies: false,
+          hide_fixpoints: false,
+          fold_cast_types: false,
+          show_filters: true,
+        },
+        term,
+      ),
+    ),
+  );
+
   Alcotest.check(annotated_exp, name, expected, annotated);
 };
 let lift: type a. a => Grammar.Annotated.t(a, unit) =
@@ -1171,124 +1188,182 @@ let tests = (
         ),
       )
     }),
-    test_case(
-      "extra label",
-      `Quick,
-      () => {
-        let exp =
-          parse_exp(
-            {|let extra_label : (Int, a=String) = (c=1, a="hello") in true|},
-          );
-
-        let (_typ, tuple, tl1, tl2, int_ty) =
-          switch (exp.term) {
-          | Let(
-              {
-                term:
-                  Cast(
-                    _,
-                    {term: Parens({term: Prod([int_ty, _]), _}), _} as typ,
-                    _,
+    test_case("Extra Label", `Quick, () => {
+      annotated_tree_test(
+        {|let extra_label : (Int, a=String) = (c=1, a="hello") in true|},
+        no_error_exp(
+          Let(
+            no_error_pat(
+              Cast(
+                no_error_pat(Var("extra_label")),
+                no_error_typ(
+                  Parens(
+                    no_error_typ(
+                      Prod([
+                        no_error_typ(Int),
+                        no_error_typ(
+                          TupLabel(
+                            no_error_typ(Label("a")),
+                            no_error_typ(String),
+                          ),
+                        ),
+                      ]),
+                    ),
                   ),
-                _,
-              },
-              {term: Parens({term: Tuple([tl1, tl2]), _} as tuple), _},
-              _,
-            ) => (
-              typ,
-              tuple,
-              tl1,
-              tl2,
-              int_ty,
-            )
-          | _ =>
-            Alcotest.fail("Unexpected form: " ++ [%derive.show: Exp.t](exp))
-          };
-
-        let s = statics(exp);
-
-        check(
-          option(testable_info_error_exp),
-          "Tuple Label1 Error",
-          Some(
-            Common(
-              TupleLabelError({
-                malformed_labels: [],
-                duplicate_labels: [],
-                invalid_labels: ["c"],
-                typ: TupLabel(Label("c") |> Typ.temp, int_ty) |> Typ.temp,
-              }),
-            ),
-          ),
-          Statics.get_error_at(s, IdTagged.rep_id(tl1)),
-        );
-        check(
-          option(testable_info_error_exp),
-          "Tuple Label2 Error",
-          None,
-          Statics.get_error_at(s, IdTagged.rep_id(tl2)),
-        );
-        check(
-          option(testable_info_error_exp),
-          "Tuple Error",
-          Some(
-            Common(
-              TupleLabelError({
-                malformed_labels: [],
-                duplicate_labels: [],
-                invalid_labels: ["c"],
-                typ:
-                  Prod([
-                    TupLabel(Label("c") |> Typ.temp, int_ty) |> Typ.temp,
-                    TupLabel(Label("a") |> Typ.temp, String |> Typ.temp)
-                    |> Typ.temp,
-                  ])
-                  |> Typ.temp,
-              }),
-            ),
-          ),
-          Statics.get_error_at(s, IdTagged.rep_id(tuple)),
-        );
-      },
-    ),
-    test_case(
-      "tuple with cast to non-tuple",
-      `Quick,
-      () => {
-        let exp = parse_exp({|(a=1, b=2) : Int|});
-
-        let tuple =
-          switch (exp.term) {
-          | Cast({term: Parens({term: Tuple(_), _} as tuple), _}, _, _) => tuple
-          | _ => Alcotest.fail("Unexpected form")
-          };
-
-        let s = statics(exp);
-
-        check(
-          option(testable_info_error_exp),
-          "Tuple Error",
-          Some(
-            Common(
-              Inconsistent(
-                Expectation({
-                  syn:
-                    Prod([
-                      TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
-                      |> Typ.temp,
-                      TupLabel(Label("b") |> Typ.temp, Int |> Typ.temp)
-                      |> Typ.temp,
-                    ])
-                    |> Typ.temp,
-                  ana: Int |> Typ.temp,
-                }),
+                ),
+                no_error_typ(Unknown(Internal)),
               ),
             ),
+            error_exp(
+              Exp(
+                Common(
+                  Inconsistent(
+                    Expectation({
+                      ana:
+                        Parens(
+                          Prod([
+                            Int |> Typ.fresh,
+                            TupLabel(
+                              Label("a") |> Typ.fresh,
+                              String |> Typ.fresh,
+                            )
+                            |> Typ.fresh,
+                          ])
+                          |> Typ.fresh,
+                        )
+                        |> Typ.fresh,
+                      syn:
+                        Prod([
+                          TupLabel(Label("c") |> Typ.fresh, Int |> Typ.fresh)
+                          |> Typ.fresh,
+                          TupLabel(
+                            Label("a") |> Typ.fresh,
+                            String |> Typ.fresh,
+                          )
+                          |> Typ.fresh,
+                        ])
+                        |> Typ.fresh,
+                    }),
+                  ),
+                ),
+              ),
+              Parens(
+                error_exp(
+                  Exp(
+                    Common(
+                      TupleLabelError({
+                        malformed_labels: [],
+                        duplicate_labels: [],
+                        invalid_labels: ["c"],
+                        typ:
+                          Prod([
+                            TupLabel(
+                              Label("c") |> Typ.fresh,
+                              Int |> Typ.fresh,
+                            )
+                            |> Typ.fresh,
+                            TupLabel(
+                              Label("a") |> Typ.fresh,
+                              String |> Typ.fresh,
+                            )
+                            |> Typ.fresh,
+                          ])
+                          |> Typ.fresh,
+                      }),
+                    ),
+                  ),
+                  Tuple([
+                    error_exp(
+                      Exp(
+                        Common(
+                          TupleLabelError({
+                            malformed_labels: [],
+                            duplicate_labels: [],
+                            invalid_labels: ["c"],
+                            typ:
+                              TupLabel(
+                                Label("c") |> Typ.fresh,
+                                Int |> Typ.fresh,
+                              )
+                              |> Typ.fresh,
+                          }),
+                        ),
+                      ),
+                      TupLabel(
+                        error_exp(
+                          Exp(Common(NoType(InvalidLabel("c")))),
+                          Label("c"),
+                        ),
+                        no_error_exp(Int(1)),
+                      ),
+                    ),
+                    no_error_exp(
+                      TupLabel(
+                        no_error_exp(Label("a")),
+                        no_error_exp(String("hello")),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+            no_error_exp(Bool(true)),
           ),
-          Statics.get_error_at(s, IdTagged.rep_id(tuple)),
-        );
-      },
-    ),
+        ),
+      )
+    }),
+    test_case("tuple with cast to non-tuple", `Quick, () => {
+      annotated_tree_test(
+        {|(a=1, b=2) : Int|},
+        no_error_exp(
+          Cast(
+            no_error_exp(
+              Parens(
+                error_exp(
+                  Exp(
+                    Common(
+                      Inconsistent(
+                        Expectation({
+                          ana: Int |> Typ.temp,
+                          syn:
+                            Prod([
+                              TupLabel(
+                                Label("a") |> Typ.temp,
+                                Int |> Typ.temp,
+                              )
+                              |> Typ.temp,
+                              TupLabel(
+                                Label("b") |> Typ.temp,
+                                Int |> Typ.temp,
+                              )
+                              |> Typ.temp,
+                            ])
+                            |> Typ.temp,
+                        }),
+                      ),
+                    ),
+                  ),
+                  Tuple([
+                    TupLabel(
+                      no_error_exp(Label("a")),
+                      no_error_exp(Int(1)),
+                    )
+                    |> no_error_exp,
+                    TupLabel(
+                      no_error_exp(Label("b")),
+                      no_error_exp(Int(2)),
+                    )
+                    |> no_error_exp,
+                  ]),
+                ),
+              ),
+            ),
+            Unknown(Internal) |> no_error_typ,
+            Int |> no_error_typ,
+          ),
+        ),
+      )
+    }),
     test_case("Example error annotations", `Quick, () => {
       annotated_tree_test(
         "Inconsistent expectation on plus",
