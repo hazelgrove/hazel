@@ -75,12 +75,20 @@ module Update = {
     // Exercises
     | Exercises(ExercisesMode.Update.t);
 
-  let update = (~globals: Globals.t, ~schedule_action, action, model: Model.t) => {
+  let update =
+      (
+        ~globals: Globals.t,
+        ~schedule_action: t => unit,
+        ~schedule_assistant_action: AssistantModel.Update.t => unit,
+        action,
+        model: Model.t,
+      ) => {
     switch (action, model) {
     | (Scratch(action), Scratch(m)) =>
       let* scratch =
         ScratchMode.Update.update(
           ~schedule_action=a => schedule_action(Scratch(a)),
+          ~schedule_assistant_action,
           ~is_documentation=false,
           ~settings=globals.settings,
           action,
@@ -92,6 +100,7 @@ module Update = {
         ScratchMode.Update.update(
           ~settings=globals.settings,
           ~schedule_action=a => schedule_action(Scratch(a)),
+          ~schedule_assistant_action,
           ~is_documentation=true,
           action,
           m,
@@ -102,6 +111,7 @@ module Update = {
         ExercisesMode.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Exercises(a)),
+          ~schedule_assistant_action,
           action,
           m,
         );

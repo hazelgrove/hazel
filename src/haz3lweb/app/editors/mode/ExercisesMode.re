@@ -229,7 +229,13 @@ module Update = {
   };
 
   let update =
-      (~globals: Globals.t, ~schedule_action, action: t, model: Model.t) => {
+      (
+        ~globals: Globals.t,
+        ~schedule_action,
+        ~schedule_assistant_action: AssistantModel.Update.t => unit,
+        action: t,
+        model: Model.t,
+      ) => {
     switch (action) {
     | Exercise(action) =>
       let current = List.nth(model.exercises, model.current);
@@ -237,6 +243,7 @@ module Update = {
         ExerciseMode.Update.update(
           ~settings=globals.settings,
           ~schedule_action,
+          ~schedule_assistant_action,
           action,
           current,
         );

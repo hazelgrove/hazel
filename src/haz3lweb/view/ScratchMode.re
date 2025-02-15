@@ -86,6 +86,7 @@ module Update = {
   let update =
       (
         ~schedule_action,
+        ~schedule_assistant_action: AssistantModel.Update.t => unit,
         ~settings: Settings.t,
         ~is_documentation: bool,
         action,
@@ -95,6 +96,23 @@ module Update = {
     | CellAction(a) =>
       let (key, ed) = List.nth(model.scratchpads, model.current);
       let* new_ed = CellEditor.Update.update(~settings, a, ed);
+      switch (a) {
+      | MainEditor(action) =>
+        switch (action) {
+        | Perform(a) =>
+          switch (a) {
+          | Insert(char) =>
+            AssistantModel.Update.check_req(
+              char,
+              schedule_assistant_action,
+              new_ed.editor.editor.state.zipper,
+            )
+          | _ => ()
+          }
+        | _ => ()
+        }
+      | _ => ()
+      };
       let new_sp =
         ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
       {...model, scratchpads: new_sp};

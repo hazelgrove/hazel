@@ -132,6 +132,7 @@ module Update = {
           Editors.Update.update(
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
+            ~schedule_assistant_action=a => schedule_action(Assistant(a)),
             action,
             model.editors,
           );
@@ -163,6 +164,7 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
+            ~schedule_assistant_action=a => schedule_action(Assistant(a)),
             action,
             model.editors,
           );
@@ -181,6 +183,7 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
+            ~schedule_assistant_action=a => schedule_action(Assistant(a)),
             action,
             model.editors,
           );
@@ -199,6 +202,7 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
+            ~schedule_assistant_action=a => schedule_action(Assistant(a)),
             action,
             model.editors,
           );
@@ -228,6 +232,7 @@ module Update = {
         Editors.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
+          ~schedule_assistant_action=a => schedule_action(Assistant(a)),
           action,
           model.editors,
         );

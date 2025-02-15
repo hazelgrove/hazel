@@ -57,7 +57,13 @@ module Update = {
     | ResetExercise;
 
   let update =
-      (~settings: Settings.t, ~schedule_action as _, action, model: Model.t)
+      (
+        ~settings: Settings.t,
+        ~schedule_action as _,
+        ~schedule_assistant_action: AssistantModel.Update.t => unit,
+        action,
+        model: Model.t,
+      )
       : Updated.t(Model.t) => {
     let instructor_mode = settings.instructor_mode;
     switch (action) {
@@ -71,6 +77,19 @@ module Update = {
         editor
         |> CodeEditable.Model.mk
         |> CodeEditable.Update.update(~settings, action);
+      switch (action) {
+      | Perform(a) =>
+        switch (a) {
+        | Insert(char) =>
+          AssistantModel.Update.check_req(
+            char,
+            schedule_assistant_action,
+            new_editor.editor.state.zipper,
+          )
+        | _ => ()
+        }
+      | _ => ()
+      };
       {
         ...model,
         editors:
@@ -82,14 +101,27 @@ module Update = {
       };
     | Editor(pos, MainEditor(action)) =>
       switch (CodeSelectable.Update.convert_action(action)) {
-      | Some(action) =>
+      | Some(a) =>
         let editor =
           Exercise.main_editor_of_state(~selection=pos, model.editors);
         let* new_editor =
           // Hack[Matt]: put Editor.t into a CodeSelectable.t to use its update function
           editor
           |> CodeSelectable.Model.mk
-          |> CodeSelectable.Update.update(~settings, action);
+          |> CodeSelectable.Update.update(~settings, a);
+        switch (action) {
+        | Perform(a) =>
+          switch (a) {
+          | Insert(char) =>
+            AssistantModel.Update.check_req(
+              char,
+              schedule_assistant_action,
+              new_editor.editor.state.zipper,
+            )
+          | _ => ()
+          }
+        | _ => ()
+        };
         {
           ...model,
           editors:
