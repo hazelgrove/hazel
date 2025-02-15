@@ -179,13 +179,206 @@ let odd_length : [Int] -> Bool =
     end in ?|},
     [Info.Pat(Redundant(None))],
   );
-// TODO: list examples from paper
-// TODO: recursive type
-// TODO: integers
-// TODO: floats
-// TODO: strings
-// TODO: Andrew's card example
-// TODO: test that exercises the default case
+
+let integers_exhaustive =
+  no_errors(
+    "Integers: Exhaustive",
+    {|
+let x : Int = ? in
+case x
+  | 1 => 1
+  | 2 => 2
+  | _ => 3
+end|},
+  );
+
+let integers_non_exhaustive =
+  has_errors(
+    "Integers: Non-Exhaustive",
+    {|
+let x : Int = ? in
+{{{case x
+  | 1 => 1
+  | 2 => 2
+end}}}|},
+    [Info.Exp(InexhaustiveMatch(None))],
+  );
+
+let integers_redundant =
+  has_errors(
+    "Integers: Redundant",
+    {|
+let x : Int = ? in
+case x
+  | 1 => 1
+  | 2 => 2
+  | {{{1}}} => 1
+  | _ => 3
+end|},
+    [Info.Pat(Redundant(None))],
+  );
+
+let floats_exhaustive =
+  no_errors(
+    "Floats: Exhaustive",
+    {|
+let x : Float = ? in
+case x
+  | 1.0 => 1
+  | 2.0 => 2
+  | _ => 3
+end|},
+  );
+
+let floats_non_exhaustive =
+  has_errors(
+    "Floats: Non-Exhaustive",
+    {|
+let x : Float = ? in
+{{{case x
+  | 1.0 => 1
+  | 2.0 => 2
+end}}}|},
+    [Info.Exp(InexhaustiveMatch(None))],
+  );
+
+let floats_redundant =
+  has_errors(
+    "Floats: Redundant",
+    {|
+let x : Float = ? in
+case x
+  | 1.0 => 1
+  | 2.0 => 2
+  | {{{1.0}}} => 1
+  | _ => 3
+end|},
+    [Info.Pat(Redundant(None))],
+  );
+
+let strings_exhaustive =
+  no_errors(
+    "Strings: Exhaustive",
+    {|
+let x : String = ? in
+case x
+  | "ABC" => 1
+  | "" => 2
+  | _ => 3
+end|},
+  );
+
+let strings_non_exhaustive =
+  has_errors(
+    "Strings: Non-Exhaustive",
+    {|
+let x : String = ? in
+{{{case x
+  | "ABC" => 1
+  | "" => 2
+end}}}|},
+    [Info.Exp(InexhaustiveMatch(None))],
+  );
+
+let strings_redundant =
+  has_errors(
+    "Strings: Exhaustive",
+    {|
+let x : String = ? in
+case x
+  | "ABC" => 1
+  | "" => 2
+  | {{{""}}} => 2
+  | {{{"ABC"}}} => 1
+  | _ => 3
+end|},
+    [Info.Pat(Redundant(None)), Info.Pat(Redundant(None))],
+  );
+
+let unit_exhaustive =
+  no_errors(
+    "Unit: Exhaustive",
+    {|
+let x : () = ? in
+case x
+| () => 1
+end
+    |},
+  );
+
+let unit_redundant =
+  has_errors(
+    "Unit: Redundant",
+    {|
+let x : () = ? in
+case x
+| () => 1
+| {{{()}}} => 1
+| {{{_}}} => 2
+end
+    |},
+    [Info.Pat(Redundant(None)), Info.Pat(Redundant(None))],
+  );
+
+let rank_compare =
+  has_errors(
+    "Rank Compare -- Andrew's Example from Issue #1473",
+    {|
+type Rank =
+  + Ace
+  + King
+  + Queen
+  + Jack in
+let rank_compare: (Rank, Rank) -> Int =
+  fun (r1, r2) ->
+    case (r1, r2)
+      | (Ace, Ace) => 0
+      | (Ace, _) => -1
+      | (_, Ace) => 1
+      | (King, King) => 0
+      | (King, _) => -1
+      | (_, King) => 1
+      | (Queen, Queen) => 0
+      | (Queen, _) => -1
+      | (_, Queen) => 1
+      | (Jack, Jack) => 0
+      | {{{(Jack, _)}}} => -1
+      | {{{_}}} => 1
+end in ?
+|},
+    [Info.Pat(Redundant(None)), Info.Pat(Redundant(None))],
+  );
+
+let rank_let_inexhaustive =
+  has_errors(
+    "Rank Compare -- Let Inexhaustive",
+    {|
+type Rank =
+  + Ace
+  + King
+  + Queen
+  + Jack in
+let x : Rank = ? in
+{{{let Ace = x in
+?}}}|},
+    [Info.Exp(InexhaustiveMatch(None))],
+  );
+
+let rank_fun_inexhaustive =
+  has_errors(
+    "Rank Compare -- Fun Inexhaustive",
+    {|
+type Rank =
+  + Ace
+  + King
+  + Queen
+  + Jack in
+let x : Rank = ? in
+let f = {{{fun Ace -> ?}}} in
+?|},
+    [Info.Exp(InexhaustiveMatch(None))],
+  );
+
 // TODO: unknown scrutinee
 // TODO: partially unknown scrutinee - still check exhaustiveness at outer level?
 // TODO: double errors
@@ -208,5 +401,19 @@ let tests = (
     peanut_2c,
     peanut_3a,
     peanut_3b,
+    integers_exhaustive,
+    integers_non_exhaustive,
+    integers_redundant,
+    floats_exhaustive,
+    floats_non_exhaustive,
+    floats_redundant,
+    strings_exhaustive,
+    strings_non_exhaustive,
+    strings_redundant,
+    unit_exhaustive,
+    unit_redundant,
+    rank_compare,
+    rank_let_inexhaustive,
+    rank_fun_inexhaustive,
   ],
 );
