@@ -195,6 +195,8 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Rec(x, ty)
   | Forall(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
+  | TFun(x,ty) =>
+    free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
   };
 
 let var_count = ref(0);
@@ -304,6 +306,9 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     List(ty) |> temp;
   | (List(_), _) => None
   | (Ap(_), _) => failwith("Type join of ap")
+  | (TFun(x,ty1),TFun(y,ty2)) => 
+    join'(ty1,ty2) //very very questionable
+  | (TFun(_),_) => None
   };
 };
 
@@ -338,6 +343,8 @@ let rec match_synswitch = (t1: t, t2: t) => {
     let sm' = ConstructorMap.match_synswitch(match_synswitch, eq, sm1, sm2);
     Sum(sm') |> rewrap1;
   | (Sum(_), _) => t1
+  | (TFun(x,ty1),TFun(y,ty2)) => t1 //update later
+  | (TFun(_),_) => t1
   };
 };
 
@@ -392,6 +399,8 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
   | Forall(name, ty) =>
     Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  | TFun(tpat,ty) => 
+    TFun(tpat, normalize(ctx,ty)) |> rewrap
   };
 };
 
@@ -507,6 +516,7 @@ let rec needs_parens = (ty: t): bool =>
   | Float
   | String
   | Bool
+  | TFun(_)
   | Var(_) => false
   | Rec(_, _)
   | Forall(_, _) => true
