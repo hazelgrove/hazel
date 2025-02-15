@@ -180,6 +180,21 @@ let odd_length : [Int] -> Bool =
     [Info.Pat(Redundant(None))],
   );
 
+let loooong_list =
+  no_errors(
+    "Loooong List: Exhaustive",
+    {|let x : [Int] = ? in
+case x
+| [] => 1
+| [_] => 2
+| [_, _] => 3
+| [_, _, _] => 4
+| [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _] => 5
+| [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _] => 6
+| _ => 7
+end|},
+  );
+
 let integers_exhaustive =
   no_errors(
     "Integers: Exhaustive",
@@ -453,10 +468,238 @@ let f = {{{fun Ace -> ?}}} in
     [Info.Exp(InexhaustiveMatch(None))],
   );
 
-// TODO: multiple holes are not redundant
-// TODO: unknown scrutinee
-// TODO: partially unknown scrutinee - still check exhaustiveness at outer level?
-// TODO: double errors
+let nested_constructors_inexhaustive =
+  has_errors(
+    "Nested Constructors: Inexhaustive",
+    {|
+type Tree = +Empty + Leaf(Int) + Node([Tree]) in
+let f = fun (x : Tree) ->
+  {{{case x
+    | Node([]) => Empty
+    | Node([Node(_)]) => Empty
+    | Node([x, y]) => Node([f(x), f(y)])
+    | Node(x::y::tl) => Node(f(x)::[f(Node(y::tl))])
+    | Leaf(x) => Leaf(x)
+    | Empty => Empty
+  end}}}
+in ?|},
+    [Info.Exp(InexhaustiveMatch(None))],
+  );
+
+let nested_constructors_exhaustive =
+  no_errors(
+    "Nested Constructors: Inexhaustive",
+    {|
+type Tree = +Empty + Leaf(Int) + Node([Tree]) in
+let f = fun (x : Tree) ->
+  case x
+    | Node([]) => Empty
+    | Node([Node(_)]) => Empty
+    | Node([Empty]) => Empty
+    | Node([Leaf(_)]) => Empty
+    | Node([x, y]) => Node([f(x), f(y)])
+    | Node(x::y::tl) => Node(f(x)::[f(Node(y::tl))])
+    | Leaf(x) => Leaf(x)
+    | Empty => Empty
+  end
+in ?|},
+  );
+
+let multiple_holes_irredundant =
+  no_errors(
+    "Multiple Holes: Irredundant",
+    {|
+type Tree = +Empty + Leaf(Int) + Node([Tree]) in
+let f = fun (x : Tree) ->
+  case x
+    | Node([]) => Empty
+    | ? => Empty
+    | ? => Empty
+  end
+in ?|},
+  );
+
+let unknown_scrutinee_exhaustive =
+  no_errors(
+    "Unknown Scrutinee is Exhaustive",
+    {|
+type Tree = +Empty + Leaf(Int) + Node([Tree]) in
+let f = fun (x : ?) ->
+  case x
+    | Node([]) => Empty
+  end
+in ?|},
+  );
+
+let unknown_scrutinee_redundant_vars =
+  has_errors(
+    "Unknown Scrutinee is Exhaustive",
+    {|
+type Tree = +Empty + Leaf(Int) + Node([Tree]) in
+let f = fun (x : ?) ->
+  case x
+    | x => Empty
+    | {{{x}}} => Empty
+    | {{{_}}} => Empty
+  end
+in ?|},
+    [Info.Pat(Redundant(None)), Info.Pat(Redundant(None))],
+  );
+
+let unknown_scrutinee_tuples_of_many_lengths =
+  has_errors(
+    "Unknown Scrutinee: Tuples of Many Lengths",
+    {|
+    let x : ? = ? in
+    case x
+    | (x, y) => 1
+    | (x, y, z) => 2
+    | {{{(x, y, z)}}} => 3
+    | {{{(a, b)}}} => 4
+    end|},
+    [Info.Pat(Redundant(None)), Info.Pat(Redundant(None))],
+  );
+
+let partially_unknown_scrutinee_inexhaustive =
+  has_errors(
+    "Partially Unknown Scrutinee: Inxhaustive",
+    {|
+type Tree = +Empty + Leaf(?) + Node([Tree]) in
+let f = fun (x : Tree) ->
+  {{{case x
+    | Empty => 1
+    | Leaf(_) => 2
+  end}}}
+in ?|},
+    [Info.Exp(InexhaustiveMatch(None))],
+  );
+
+let partially_unknown_scrutinee_redundancy =
+  has_errors(
+    "Partially Unknown Scrutinee: Redundancy",
+    {|
+type Tree = +Empty + Leaf(?) + Node([Tree]) in
+let f = fun (x : Tree) ->
+  {{{case x
+    | Empty => 1
+    | Leaf(_) => 2
+    | {{{Leaf(x)}}} => 3
+  end}}}
+in ?|},
+    [Info.Exp(InexhaustiveMatch(None)), Info.Pat(Redundant(None))],
+  );
+
+let erroneous_pattern_redundancy =
+  has_errors(
+    "Erroneous Pattern: Redundancy",
+    {|
+type Tree = +Empty + Leaf(Tree) + Node([Tree]) in
+let f = fun (x : Tree) ->
+  {{{case x
+    | Empty => 1
+    | {{{A}}} => 2
+    | {{{A}}} => 3
+    | {{{B}}}(_) => 4
+    | {{{{{{B}}}(_)}}} => 5
+    | Leaf(_) => 6
+  end}}}
+in ?|},
+    [
+      Info.Exp(InexhaustiveMatch(None)),
+      Info.Pat(Common(NoType(FreeConstructor("A")))),
+      Info.Pat(Redundant(Some(Common(NoType(FreeConstructor("A")))))),
+      Info.Pat(Common(NoType(FreeConstructor("B")))),
+      Info.Pat(Redundant(None)),
+      Info.Pat(Common(NoType(FreeConstructor("B")))),
+    ],
+  );
+
+let labeled_tuple_exhaustiveness =
+  no_errors(
+    "Labeled Tuple Exhaustiveness Stress Test",
+    {|
+type ATree = +A + B + C + D in
+type BTree = +E + F + G + H in
+type Tuple = (x=ATree, y=BTree, z=ATree) in
+let f = fun (tpl : Tuple) ->
+  case tpl
+    | (A, E, A) => 1
+    | (x=B, y=E, z=C) => 2
+    | (y=_, x=C, _) => 3
+    | (z=C, y=_, x=D) => 5
+    | (B, _, _) => 6
+    | (x=A, _, _) => 7
+    | (x=D, z=_, y=_) => 8
+  end
+in ?|},
+  );
+
+let labeled_tuple_inexhaustiveness =
+  has_errors(
+    "Labeled Tuple Inexhaustiveness Stress Test",
+    {|
+type ATree = +A + B + C + D in
+type BTree = +E + F + G + H in
+type Tuple = (x=ATree, y=BTree, z=ATree) in
+let f = fun (tpl : Tuple) ->
+  {{{case tpl
+    | (A, E, A) => 1
+    | (x=B, y=E, z=C) => 2
+    | (y=_, x=C, _) => 3
+    | (z=C, y=_, x=D) => 5
+    | (B, _, _) => 6
+    | (x=A, _, _) => 7
+  end}}}
+in ?|},
+    [Info.Exp(InexhaustiveMatch(None))],
+  );
+
+let labeled_tuple_redundancy =
+  has_errors(
+    "Labeled Tuple Redundancy Stress Test",
+    {|
+type ATree = +A + B + C + D in
+type BTree = +E + F + G + H in
+type Tuple = (x=ATree, y=BTree, z=ATree) in
+let f = fun (tpl : Tuple) ->
+  {{{case tpl
+    | (A, E, A) => 1
+    | {{{(x=A, y=E, z=A)}}} => 2
+    | {{{(y=E, x=A, z=A)}}} => 3
+    | {{{(A, z=A, y=E)}}} => 4
+    | {{{(x=A, E, A)}}} => 5
+  end}}}
+in ?|},
+    [
+      Info.Exp(InexhaustiveMatch(None)),
+      Info.Pat(Redundant(None)),
+      Info.Pat(Redundant(None)),
+      Info.Pat(Redundant(None)),
+      Info.Pat(Redundant(None)),
+    ],
+  );
+
+let function_scrutinee =
+  has_errors(
+    "Function Scrutinee",
+    {|let f: Int -> Int = fun x -> x in
+case f
+| g => g
+| {{{h}}} => h
+end|},
+    [Info.Pat(Redundant(None))],
+  );
+
+let type_function_scrutinee =
+  has_errors(
+    "Function Scrutinee",
+    {|let f: forall a -> a -> a = typfun a -> fun x -> x in
+case f
+| g => g
+| {{{h}}} => h
+end|},
+    [Info.Pat(Redundant(None))],
+  );
 
 let tests = (
   "Pattern Coverage Checker",
@@ -476,6 +719,7 @@ let tests = (
     peanut_2c,
     peanut_3a,
     peanut_3b,
+    loooong_list,
     integers_exhaustive,
     integers_non_exhaustive,
     integers_redundant,
@@ -494,5 +738,17 @@ let tests = (
     rank_compare_inexhaustive,
     rank_let_inexhaustive,
     rank_fun_inexhaustive,
+    nested_constructors_inexhaustive,
+    multiple_holes_irredundant,
+    unknown_scrutinee_exhaustive,
+    unknown_scrutinee_redundant_vars,
+    unknown_scrutinee_tuples_of_many_lengths,
+    partially_unknown_scrutinee_inexhaustive,
+    partially_unknown_scrutinee_redundancy,
+    erroneous_pattern_redundancy,
+    labeled_tuple_exhaustiveness,
+    labeled_tuple_inexhaustiveness,
+    labeled_tuple_redundancy,
+    function_scrutinee,
   ],
 );
