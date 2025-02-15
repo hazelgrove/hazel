@@ -3,6 +3,7 @@ open Haz3lcore;
 open Util;
 open Util.OptUtil.Syntax;
 open Example;
+open StringUtil;
 
 module CodeModel = CodeEditable.Model;
 
@@ -96,6 +97,28 @@ module Update = {
       chat,
       messages,
     );
+  };
+
+  let check_req =
+      (
+        char: string,
+        schedule_action: t => unit,
+        {caret, relatives: {siblings, _}, _} as z: Zipper.t,
+      )
+      : unit => {
+    switch (caret, Zipper.neighbor_monotiles(siblings)) {
+    | (Outer, (_, Some(_))) =>
+      switch (Zipper.right_neighbor_monotile(siblings)) {
+      | Some(c) => c == "??" ? schedule_action(SendSketch) : ()
+      | _ => ()
+      }
+    | (Outer, (_, None)) =>
+      switch (Zipper.left_neighbor_monotile(siblings)) {
+      | Some(c) => c == "??" ? schedule_action(SendSketch) : ()
+      | _ => ()
+      }
+    | _ => ()
+    };
   };
 
   let update =
