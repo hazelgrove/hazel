@@ -548,20 +548,27 @@ module Transition = (EV: EV_MODE) => {
       if (!DHExp.ty_comparable(d1') || !DHExp.ty_comparable(d2')) {
         Indet;
       } else {
+        prerr_endline("==========");
+        print_endline(d1' |> show);
+        prerr_endline("<<<<<<<<<<");
+        print_endline(d2' |> show);
         Step({
           expr:
             (
               if (!DHExp.ty_consistent(d1', d2')) {
+                prerr_endline("Inconsistent");
                 DynamicErrorHole(
                   BinOp(Int(op), d1', d2') |> rewrap,
                   Inconsistent,
                 );
               } else if (DHExp.ty_has_arrow(d1') || DHExp.ty_has_arrow(d2')) {
+                prerr_endline("CompareArrow");
                 DynamicErrorHole(
                   BinOp(Int(op), d1', d2') |> rewrap,
                   CompareArrow,
                 );
               } else {
+                prerr_endline("PolyEqual");
                 let res = DHExp.poly_equal(d1', d2');
                 Bool(op == Equals ? res : !res);
               }

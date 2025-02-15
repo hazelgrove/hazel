@@ -250,7 +250,7 @@ let rec ty_consistent = (d1, d2) => {
   | (Label(_), Label(_)) => true
   | (Label(_), _) => false
   | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
-    l1 == l2 && ty_consistent(d1, d2)
+    ty_consistent(l1, l2) && ty_consistent(d1, d2)
   | (TupLabel(_), _) => false
   | (Fun(_) | BuiltinFun(_), Fun(_) | BuiltinFun(_)) => true
   | (Fun(_) | BuiltinFun(_), _) => false
@@ -373,7 +373,8 @@ let rec poly_equal = (d1, d2) => {
   | (String(_), _) => false
   | (Label(l1), Label(l2)) => l1 == l2
   | (Label(_), _) => false
-  | (TupLabel(l1, d1), TupLabel(l2, d2)) => l1 == l2 && poly_equal(d1, d2)
+  | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
+    poly_equal(l1, l2) && poly_equal(d1, d2)
   | (TupLabel(_), _) => false
   | (ListLit(ds1), ListLit(ds2)) =>
     List.length(ds1) == List.length(ds2)
