@@ -1,3 +1,34 @@
+/**
+ * Whether dp contains the variable x outside of a hole.
+ */
+let rec binds_var = (m: Statics.Map.t, x: Var.t, dp: DHPat.t): bool =>
+  switch (Statics.get_pat_error_at(m, Pat.rep_id(dp))) {
+  | Some(_) => false
+  | None =>
+    switch (dp |> Pat.term_of) {
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Invalid(_)
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | Label(_)
+    | Constructor(_) => false
+    | Cast(y, _, _)
+    | Parens(y) => binds_var(m, x, y)
+    | Var(y) => Var.eq(x, y)
+    | TupLabel(_, dp) => binds_var(m, x, dp)
+    | Tuple(dps) => dps |> List.exists(binds_var(m, x))
+    | Cons(dp1, dp2) => binds_var(m, x, dp1) || binds_var(m, x, dp2)
+    | ListLit(d_list) =>
+      let new_list = List.map(binds_var(m, x), d_list);
+      List.fold_left((||), false, new_list);
+    | Ap(_, _) => false
+    }
+  };
+
 /* closed substitution [d1/x]d2 */
 let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   let (term, rewrap) = DHExp.unwrap(d2);
@@ -21,7 +52,7 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | Let(dp, d3, d4) =>
     let d3 = subst_var(m, d1, x, d3);
     let d4 =
-      if (DHPat.binds_var(m, x, dp)) {
+      if (binds_var(m, x, dp)) {
         d4;
       } else {
         subst_var(m, d1, x, d4);
@@ -30,22 +61,19 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | FixF(y, d3, env) =>
     let env' = Option.map(subst_var_env(m, d1, x), env);
     let d3 =
-      if (DHPat.binds_var(m, x, y)) {
+      if (binds_var(m, x, y)) {
         d3;
       } else {
         subst_var(m, d1, x, d3);
       };
     FixF(y, d3, env') |> rewrap;
-  | Fun(dp, d3, env, s) =>
-    /* Function closure shouldn't appear during substitution
-       (which only is called from elaboration currently) */
-    let env' = Option.map(subst_var_env(m, d1, x), env);
-    if (DHPat.binds_var(m, x, dp)) {
-      Fun(dp, d3, env', s) |> rewrap;
+  | Fun(dp, d3, ty, s) =>
+    if (binds_var(m, x, dp)) {
+      Fun(dp, d3, ty, s) |> rewrap;
     } else {
       let d3 = subst_var(m, d1, x, d3);
-      Fun(dp, d3, env', s) |> rewrap;
-    };
+      Fun(dp, d3, ty, s) |> rewrap;
+    }
   | TypFun(tpat, d3, s) =>
     TypFun(tpat, subst_var(m, d1, x, d3), s) |> rewrap
   | Closure(env, d3) =>
@@ -64,6 +92,7 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | Int(_)
   | Float(_)
   | String(_)
+  | Label(_)
   | Constructor(_) => d2
   | ListLit(ds) => ListLit(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | Cons(d3, d4) =>
@@ -74,6 +103,11 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     let d3 = subst_var(m, d1, x, d3);
     let d4 = subst_var(m, d1, x, d4);
     ListConcat(d3, d4) |> rewrap;
+  | TupLabel(label, d) => TupLabel(label, subst_var(m, d1, x, d)) |> rewrap
+  | Dot(d3, d4) =>
+    let d3 = subst_var(m, d1, x, d3);
+    let d4 = subst_var(m, d1, x, d4);
+    Dot(d3, d4) |> rewrap;
   | Tuple(ds) => Tuple(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | UnOp(op, d3) =>
     let d3 = subst_var(m, d1, x, d3);
@@ -87,7 +121,7 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     let rules =
       List.map(
         ((p, v)) =>
-          if (DHPat.binds_var(m, x, p)) {
+          if (binds_var(m, x, p)) {
             (p, v);
           } else {
             (p, subst_var(m, d1, x, v));

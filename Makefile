@@ -8,20 +8,24 @@ all: dev
 
 deps:
 	opam update
-	opam switch import opam.export
+	opam install ./hazel.opam.locked --deps-only --with-test --with-doc
 
 change-deps:
-	opam switch export opam.export
-	sed -i '' '/host-/d' opam.export # remove host- lines which are arch-specific
+	opam update
+	dune build hazel.opam
+	opam install ./hazel.opam --deps-only --with-test --with-doc
+	opam lock .
+	sed -i'.old' '/host-/d' hazel.opam.locked  # remove host- lines which are arch-specific. Not using -i '' because of portability issues https://stackoverflow.com/questions/4247068/sed-command-with-i-option-failing-on-mac-but-works-on-linux
 
 setup-instructor:
-	cp src/haz3lweb/ExerciseSettings_instructor.re src/haz3lweb/ExerciseSettings.re
+	cp src/haz3lweb/exercises/settings/ExerciseSettings_instructor.re src/haz3lweb/exercises/settings/ExerciseSettings.re
 
 setup-student: 
-	cp src/haz3lweb/ExerciseSettings_student.re src/haz3lweb/ExerciseSettings.re
+	cp src/haz3lweb/exercises/settings/ExerciseSettings_student.re src/haz3lweb/exercises/settings/ExerciseSettings.re
 
-dev-helper: 
-	dune build @src/fmt --auto-promote src --profile dev
+dev-helper:
+	dune fmt --auto-promote || true
+	dune build @ocaml-index @src/fmt --auto-promote src --profile dev
 
 dev: setup-instructor dev-helper
 
@@ -31,7 +35,7 @@ fmt:
 	dune fmt --auto-promote
 
 watch: setup-instructor
-	dune build @src/fmt --auto-promote src --profile dev --watch
+	dune build @ocaml-index @src/fmt --auto-promote src --profile dev --watch
 
 watch-release: setup-instructor
 	dune build @src/fmt --auto-promote src --profile release --watch
@@ -55,8 +59,20 @@ repl:
 	dune utop src/haz3lcore
 
 test:
-	dune build @src/fmt @test/fmt --auto-promote src test --profile dev
+	dune fmt --auto-promote || true
+	dune build @ocaml-index @src/fmt @test/fmt --auto-promote src test --profile dev
 	node $(TEST_DIR)/haz3ltest.bc.js
+
+watch-test:
+	dune build @ocaml-index @fmt @runtest @default --profile dev --auto-promote --watch
+
+coverage:
+	dune build @src/fmt @test/fmt --auto-promote src test --profile dev
+	dune runtest --instrument-with bisect_ppx --force
+	bisect-ppx-report summary
+
+generate-coverage-html:
+	bisect-ppx-report html
 
 clean:
 	dune clean

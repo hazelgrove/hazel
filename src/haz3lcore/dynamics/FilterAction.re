@@ -10,12 +10,3 @@ type count =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = (action, count);
-
-let string_of_t = v => {
-  switch (v) {
-  | (Step, One) => "pause"
-  | (Step, All) => "debug"
-  | (Eval, One) => "hide"
-  | (Eval, All) => "eval"
-  };
-};

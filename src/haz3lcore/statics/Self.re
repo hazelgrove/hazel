@@ -30,14 +30,25 @@ type join_type =
 type t =
   | Just(Typ.t) /* Just a regular type */
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
+  | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
   | CompareArrow(Typ.t) /* Type equality failed because of arrow type inside */
-  | BadToken(Token.t) /* Invalid expression token, treated as hole */
+  | BadToken(Token.t) /* Invalid expression token, continues with undefined behavior */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
+  | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
+  | InvalidLabel(LabeledTuple.label) /* Invalid label in a labeled tuple */
+  | TupleLabelError({
+      malformed_labels: list(Any.t), // Labels that are not of the right syntactic form
+      duplicate_labels: list(LabeledTuple.label),
+      invalid_labels: list(LabeledTuple.label), // Labels that are present but aren't present in the analyzed type
+      typ: Typ.t,
+    }) /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
       name: Constructor.t,
       syn_ty: option(Typ.t),
-    }); /* Constructors have special ana logic */
+    }) /* Constructors have special ana logic */
+  | WantTuple /* Want a Tuple, found not-tuple */
+  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label)); /* Currently used by the dot operator for a label not found */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_partial_ap =
@@ -74,12 +85,19 @@ let join_of = (j: join_type, ty: Typ.t): Typ.t =>
 let typ_of: (Ctx.t, t) => option(Typ.t) =
   _ctx =>
     fun
-    | Just(typ) => Some(typ)
+    | Just(typ)
+    | Duplicate(_, Just(typ))
+    | TupleLabelError({typ, _}) => Some(typ)
     | IsConstructor({syn_ty, _}) => syn_ty
     | CompareArrow(_) => Some(Bool |> Typ.fresh)
     | BadToken(_)
     | BadTrivAp(_)
     | IsMulti
+    | Duplicate(_)
+    | WantTuple
+    | LabelNotFound(_)
+    | BadLabel(_)
+    | InvalidLabel(_)
     | NoJoin(_) => None;
 
 let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
@@ -108,15 +126,19 @@ let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
 /* The self of a ctr depends on the ctx, but a
    lookup failure doesn't necessarily means its
    free; it may be given a type analytically */
-let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
-  IsConstructor({
-    name,
-    syn_ty:
-      switch (Ctx.lookup_ctr(ctx, name)) {
-      | None => None
-      | Some({typ, _}) => Some(typ)
-      },
-  });
+let of_ctr = (ctx: Ctx.t, name: Constructor.t, ty: Typ.t): t =>
+  switch (ty) {
+  | {term: Unknown(Internal), _} =>
+    IsConstructor({
+      name,
+      syn_ty:
+        switch (Ctx.lookup_ctr(ctx, name)) {
+        | None => None
+        | Some({typ, _}) => Some(typ)
+        },
+    })
+  | _ => IsConstructor({name, syn_ty: Some(ty)})
+  };
 
 let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   let expected = List.length(ty_ins);
