@@ -18,6 +18,9 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | TypFun(_)
   | FixF(_)
   | Tuple(_)
+  | TupLabel(_)
+  | Label(_)
+  | Dot(_)
   | Var(_)
   | Ap(_)
   | TypAp(_)
@@ -47,7 +50,7 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   };
 };
 
-let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t => {
+let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
   term:
     Filter(
       Filter({

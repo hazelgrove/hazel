@@ -84,7 +84,6 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   | Exp => remold_exp(shape, seg)
   | Rul => remold_rul(shape, seg)
   | TPat => remold_tpat(shape, seg)
-  | _ => failwith("remold unexpected")
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
@@ -156,8 +155,8 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
         ([Tile(t), ...remolded], shape, []);
       | Some(t)
           when
-            t.label == Form.get("comma_typ").label
-            || t.label == Form.get("typ_plus").label
+            t.label == Form.get(CommaTyp).label
+            || t.label == Form.get(TypPlus).label
             && List.exists((==)(Sort.Exp), parent_sorts) => (
           [],
           shape,

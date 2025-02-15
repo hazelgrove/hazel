@@ -911,6 +911,31 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_var);
           }
+        | Tuple([{term: TupLabel(l, p), _}]) =>
+          if (FunctionExp.function_labeled_exp.id
+              == get_specificity_level(FunctionExp.functions_tuplabel)) {
+            get_message(
+              ~colorings=
+                FunctionExp.function_labeled_exp_coloring_ids(
+                  ~label_id=Pat.rep_id(l),
+                  ~pat_id=Pat.rep_id(p),
+                  ~body_id=Exp.rep_id(body),
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(Pat.rep_id(l)),
+                      Id.to_string(Pat.rep_id(p)),
+                      Id.to_string(body_id),
+                    ),
+                ),
+              FunctionExp.functions_tuplabel,
+            );
+          } else {
+            basic(FunctionExp.functions_tuplabel);
+          }
         | Tuple(elements) =>
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
@@ -1057,10 +1082,57 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_ctr);
           }
-        | Invalid(_) => default // Shouldn't get hit
-        | Parens(_) => default // Shouldn't get hit?
+        | TupLabel(_)
+        | Invalid(_)
+        | Parens(_)
+        | Label(_)
         | Cast(_) => default // Shouldn't get hit?
         };
+      | Label(name) =>
+        get_message(
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(Scanf.format_from_string(msg, "%s"), name),
+            ),
+          LabelTerm.labels(name),
+        )
+      | TupLabel(l, e) =>
+        get_message(
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(Exp.rep_id(l)),
+                  Id.to_string(Exp.rep_id(e)),
+                ),
+            ),
+          ~colorings=
+            TupLabelExp.labeled_exps_coloring_ids(
+              ~label_id=Exp.rep_id(l),
+              ~exp_id=Exp.rep_id(e),
+            ),
+          TupLabelExp.labeled_exps,
+        )
+      | Dot(tup, lab) =>
+        get_message(
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(Exp.rep_id(lab)),
+                  Id.to_string(Exp.rep_id(tup)),
+                ),
+            ),
+          ~colorings=
+            DotExp.dot_coloring_ids(
+              ~tup_id=Exp.rep_id(tup),
+              ~lab_id=Exp.rep_id(lab),
+            ),
+          DotExp.dot_exp,
+        )
       | Tuple(terms) =>
         let basic = group_id =>
           get_message(
@@ -1563,6 +1635,8 @@ let get_doc =
           } else {
             basic(LetExp.lets_ctr);
           }
+        | TupLabel(_)
+        | Label(_)
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
         | Cast(_) => default // Shouldn't get hit?
@@ -1570,15 +1644,15 @@ let get_doc =
       | FixF(pat, body, _) =>
         message_single(
           FixFExp.single(
-            ~pat_id=UPat.rep_id(pat),
-            ~body_id=UExp.rep_id(body),
+            ~pat_id=Pat.rep_id(pat),
+            ~body_id=Exp.rep_id(body),
           ),
         )
       | Ap(Reverse, arg, fn) =>
         message_single(
           PipelineExp.single(
-            ~arg_id=UExp.rep_id(arg),
-            ~fn_id=UExp.rep_id(fn),
+            ~arg_id=Exp.rep_id(arg),
+            ~fn_id=Exp.rep_id(fn),
           ),
         )
       | TypAp(f, typ) =>
@@ -1715,29 +1789,29 @@ let get_doc =
       | Filter(Filter({act: (Step, One), pat}), body) =>
         message_single(
           FilterExp.filter_pause(
-            ~p_id=UExp.rep_id(pat),
-            ~body_id=UExp.rep_id(body),
+            ~p_id=Exp.rep_id(pat),
+            ~body_id=Exp.rep_id(body),
           ),
         )
       | Filter(Filter({act: (Step, All), pat}), body) =>
         message_single(
           FilterExp.filter_debug(
-            ~p_id=UExp.rep_id(pat),
-            ~body_id=UExp.rep_id(body),
+            ~p_id=Exp.rep_id(pat),
+            ~body_id=Exp.rep_id(body),
           ),
         )
       | Filter(Filter({act: (Eval, All), pat}), body) =>
         message_single(
           FilterExp.filter_eval(
-            ~p_id=UExp.rep_id(pat),
-            ~body_id=UExp.rep_id(body),
+            ~p_id=Exp.rep_id(pat),
+            ~body_id=Exp.rep_id(body),
           ),
         )
       | Filter(Filter({act: (Eval, One), pat}), body) =>
         message_single(
           FilterExp.filter_hide(
-            ~p_id=UExp.rep_id(pat),
-            ~body_id=UExp.rep_id(body),
+            ~p_id=Exp.rep_id(pat),
+            ~body_id=Exp.rep_id(body),
           ),
         )
       | Filter(_) => simple("Internal expression")
@@ -1819,7 +1893,7 @@ let get_doc =
             OpExp.int_un_minus,
           );
         | Meta(Unquote) =>
-          message_single(FilterExp.unquote(~sel_id=UExp.rep_id(exp)))
+          message_single(FilterExp.unquote(~sel_id=Exp.rep_id(exp)))
         }
       | BinOp(op, left, right) =>
         open OpExp;
@@ -2017,6 +2091,32 @@ let get_doc =
             msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
           ),
         TerminalPat.var(v),
+      )
+    | Label(name) =>
+      get_message(
+        ~format=
+          Some(
+            msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), name),
+          ),
+        LabelTerm.labels(name),
+      )
+    | TupLabel(l, p) =>
+      get_message(
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(Pat.rep_id(l)),
+                Id.to_string(Pat.rep_id(p)),
+              ),
+          ),
+        ~colorings=
+          TupLabelPat.labeled_exps_coloring_ids(
+            ~label_id=Pat.rep_id(l),
+            ~pat_id=Pat.rep_id(p),
+          ),
+        TupLabelPat.labeled_pats,
       )
     | Tuple(elements) =>
       let basic = group =>
@@ -2231,6 +2331,32 @@ let get_doc =
         }
       | _ => basic(ArrowTyp.arrow)
       };
+    | Label(name) =>
+      get_message(
+        ~format=
+          Some(
+            msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), name),
+          ),
+        LabelTerm.labels(name),
+      )
+    | TupLabel(l, t) =>
+      get_message(
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(Typ.rep_id(l)),
+                Id.to_string(Typ.rep_id(t)),
+              ),
+          ),
+        ~colorings=
+          TupLabelTyp.labeled_exps_coloring_ids(
+            ~label_id=Typ.rep_id(l),
+            ~typ_id=Typ.rep_id(t),
+          ),
+        TupLabelTyp.labeled_typs,
+      )
     | Prod(elements) =>
       let basic = group =>
         get_message(
@@ -2373,6 +2499,8 @@ let view =
       ~explainThisModel: ExplainThisModel.t,
       info: option(Info.t),
     ) => {
+  // This gets the info from the infomap before singleton autolabelling
+  let info = Option.map(Info.pre_labeled_info, info);
   let (syn_form, (explanation, _), example) =
     get_doc(
       ~globals,
