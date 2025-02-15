@@ -62,7 +62,7 @@ module Update = {
           let response_as_message: Model.message = {
             party: LLM,
             code: Some(segment_of_response),
-            content: "",
+            content: response,
             collapsed: String.length(response) >= 200,
           };
           Respond(response_as_message);
@@ -199,6 +199,14 @@ module Update = {
             openrouter_prompt,
           );
         let prompt = ListUtil.concat_strings(messages);
+        let message: Model.message = {
+          party: LS,
+          code: Some(sketch_seg),
+          content: prompt,
+          collapsed: String.length(prompt) >= 200,
+        };
+        let collected_chat = collect_chat(~messages=model.chat @ [message]);
+        print_endline(collected_chat);
         let llm = model.llm;
         let key = Store.Generic.load("API");
         let params: OpenRouter.params = {llm, temperature: 1.0, top_p: 1.0};
@@ -211,17 +219,7 @@ module Update = {
         );
         Model.{
           ...model,
-          chat:
-            model.chat
-            @ [
-              {
-                party: LS,
-                code: Some(sketch_seg),
-                content: prompt,
-                collapsed: String.length(prompt) >= 200,
-              },
-              await_llm_response,
-            ],
+          chat: model.chat @ [message, await_llm_response],
           currSender: LLM,
         }
         |> Updated.return_quiet;
