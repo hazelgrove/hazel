@@ -3,5 +3,15 @@
 (library
  (name pretty)
  (libraries util sexplib)
+ (instrumentation
+  (backend bisect_ppx))
  (preprocess
   (pps ppx_let ppx_sexp_conv)))
+
+(env
+ (dev
+  (js_of_ocaml
+   (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
+ (release
+  (js_of_ocaml
+   (flags :standard))))

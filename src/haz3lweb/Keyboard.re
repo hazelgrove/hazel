@@ -1,11 +1,18 @@
 open Haz3lcore;
+open Util;
 
-let is_digit = s => Re.Str.(string_match(regexp("^[0-9]$"), s, 0));
-let is_f_key = s => Re.Str.(string_match(regexp("^F[0-9][0-9]*$"), s, 0));
+let is_digit = s => StringUtil.(match(regexp("^[0-9]$"), s));
+let is_f_key = s => StringUtil.(match(regexp("^F[0-9][0-9]*$"), s));
 
-let handle_key_event = (k: Key.t): option(Update.t) => {
-  let now = (a: Action.t): option(UpdateAction.t) =>
-    Some(PerformAction(a));
+let meta = (sys: Key.sys): string => {
+  switch (sys) {
+  | Mac => "cmd"
+  | PC => "ctrl"
+  };
+};
+
+let handle_key_event = (k: Key.t): option(Action.t) => {
+  let now = (a: Action.t) => Some(a);
   switch (k) {
   | {key: U(key), _} =>
     /* Keu-UPpEvents:
@@ -13,14 +20,7 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
        keydown, making an update here may trigger an entire
        extra redraw, contingent on model.cutoff */
     switch (key) {
-    | "Alt" => Some(SetMeta(ShowBackpackTargets(false)))
     | _ => None
-    }
-  | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
-      when is_f_key(key) =>
-    switch (key) {
-    | "F7" => Some(Benchmark(Start))
-    | _ => Some(DebugConsole(key))
     }
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
     switch (shift, key) {
@@ -33,9 +33,8 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     | (Up, "Backspace") => now(Destruct(Left))
     | (Up, "Delete") => now(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
-    | (Up, "Tab") => Some(TAB)
     | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
-    | (Down, "Tab") => Some(MoveToNextHole(Left))
+    | (Down, "Tab") => now(Move(Goal(Piece(Grout, Left))))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
     | (Down, "ArrowUp") => now(Select(Resize(Local(Up))))
@@ -51,8 +50,6 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     }
   | {key: D(key), sys: Mac, shift: Down, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
-    | "Z"
-    | "z" => Some(Redo)
     | "ArrowLeft" => now(Select(Resize(Extreme(Left(ByToken)))))
     | "ArrowRight" => now(Select(Resize(Extreme(Right(ByToken)))))
     | "ArrowUp" => now(Select(Resize(Extreme(Up))))
@@ -61,8 +58,6 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
-    | "Z"
-    | "z" => Some(Redo)
     | "ArrowLeft" => now(Select(Resize(Local(Left(ByToken)))))
     | "ArrowRight" => now(Select(Resize(Local(Right(ByToken)))))
     | "ArrowUp" => now(Select(Resize(Local(Up))))
@@ -73,12 +68,10 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
-    | "z" => Some(Undo)
     | "d" => now(Select(Term(Current)))
-    | "p" => Some(PerformAction(Pick_up))
+    | "p" => now(Pick_up)
     | "a" => now(Select(All))
-    | "k" => Some(ReparseCurrentEditor)
-    | "/" => Some(Assistant(Prompt(TyDi)))
+    | "/" => Some(Buffer(Set(TyDi)))
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
     | "ArrowRight" => now(Move(Extreme(Right(ByToken))))
     | "ArrowUp" => now(Move(Extreme(Up)))
@@ -87,12 +80,10 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     }
   | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
-    | "z" => Some(Undo)
     | "d" => now(Select(Term(Current)))
-    | "p" => Some(PerformAction(Pick_up))
+    | "p" => now(Pick_up)
     | "a" => now(Select(All))
-    | "k" => Some(ReparseCurrentEditor)
-    | "/" => Some(Assistant(Prompt(TyDi)))
+    | "/" => Some(Buffer(Set(TyDi)))
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
     | "ArrowRight" => now(Move(Local(Right(ByToken))))
     | "Home" => now(Move(Extreme(Up)))
@@ -105,13 +96,17 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     | "e" => now(Move(Extreme(Right(ByToken))))
     | _ => None
     }
-  | {key: D(key), sys, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    switch (sys, key) {
-    | (_, "ArrowLeft") => now(MoveToBackpackTarget(Left(ByToken)))
-    | (_, "ArrowRight") => now(MoveToBackpackTarget(Right(ByToken)))
-    | (_, "Alt") => Some(SetMeta(ShowBackpackTargets(true)))
-    | (_, "ArrowUp") => now(MoveToBackpackTarget(Up))
-    | (_, "ArrowDown") => now(MoveToBackpackTarget(Down))
+  | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    Some(Project(ToggleIndicated(Fold)))
+  | {key: D("ƒ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    /* Curly ƒ is what holding option turns f into on Mac */
+    Some(Project(ToggleIndicated(Fold)))
+  | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    switch (key) {
+    | "ArrowLeft" => now(MoveToBackpackTarget(Left(ByToken)))
+    | "ArrowRight" => now(MoveToBackpackTarget(Right(ByToken)))
+    | "ArrowUp" => now(MoveToBackpackTarget(Up))
+    | "ArrowDown" => now(MoveToBackpackTarget(Down))
     | _ => None
     }
   | _ => None

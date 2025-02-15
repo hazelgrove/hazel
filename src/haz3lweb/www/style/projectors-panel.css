@@ -1,0 +1,29 @@
+/* PROJECTORS PANEL */
+
+#projectors {
+  display: flex;
+  gap: 0.75em;
+  align-items: center;
+  padding-left: 0.75em;
+  padding-right: 0.75em;
+  white-space: nowrap;
+  border-radius: 1.1em 0 0 0;
+  outline: 0.3px solid var(--BR2);
+}
+
+#projectors img {
+  width: 0.7em;
+}
+
+#projectors option {
+  font-size: 1em;
+}
+
+#projectors .toggle-switch {
+  display: flex;
+  align-items: center;
+}
+
+#projectors .toggle-switch.inactive {
+  opacity: 40%;
+}

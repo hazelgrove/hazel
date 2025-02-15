@@ -22,15 +22,24 @@ let suggest = (ci: Info.t, z: Zipper.t): list(Suggestion.t) => {
    * may not be desirable in other ways, for example maybe we want
    * recency bias in ctx. Revisit this later. I'm sorting before
    * combination because we want backpack candidates to show up first */
-  suggest_backpack(z)
-  @ (
-    AssistantForms.suggest_operand(ci)
-    @ AssistantForms.suggest_leading(ci)
-    @ AssistantCtx.suggest_variable(ci)
-    @ AssistantCtx.suggest_lookahead_variable(ci)
-    |> List.sort(Suggestion.compare)
-  )
-  @ (AssistantForms.suggest_operator(ci) |> List.sort(Suggestion.compare));
+  switch (ci) {
+  | InfoExp({cls: Exp(Label), _})
+  | InfoPat({cls: Pat(Label), _})
+  | InfoTyp({cls: Typ(Label), _})
+  | InfoExp({cls: Exp(TupLabel), _})
+  | InfoPat({cls: Pat(TupLabel), _})
+  | InfoTyp({cls: Typ(TupLabel), _}) => [] // TODO: Autocomplete for labels
+  | _ =>
+    suggest_backpack(z)
+    @ (
+      AssistantForms.suggest_operand(ci)
+      @ AssistantForms.suggest_leading(ci)
+      @ AssistantCtx.suggest_variable(ci)
+      @ AssistantCtx.suggest_lookahead_variable(ci)
+      |> List.sort(Suggestion.compare)
+    )
+    @ (AssistantForms.suggest_operator(ci) |> List.sort(Suggestion.compare))
+  };
 };
 
 /* If there is a monotile to the left of the caret, return it. We
@@ -67,17 +76,6 @@ let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
   candidate_suffix == "" ? None : Some(candidate_suffix);
 };
 
-/* PERF: This is quite expensive */
-let z_to_ci = (~settings: CoreSettings.t, ~ctx: Ctx.t, z: Zipper.t) => {
-  let map =
-    z
-    |> MakeTerm.from_zip_for_sem
-    |> fst
-    |> Interface.Statics.mk_map_ctx(settings, ctx);
-  let* index = Indicated.index(z);
-  Id.Map.find_opt(index, map);
-};
-
 /* Returns the text content of the suggestion buffer */
 let get_buffer = (z: Zipper.t): option(Token.t) =>
   switch (z.selection.mode, z.selection.content) {
@@ -87,9 +85,18 @@ let get_buffer = (z: Zipper.t): option(Token.t) =>
   };
 
 /* Populates the suggestion buffer with a type-directed suggestion */
-let set_buffer = (~settings, ~ctx: Ctx.t, z: Zipper.t): option(Zipper.t) => {
+let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
+  let* _ =
+    switch (z.selection.mode) {
+    /* Make sure not to populate the completion buffer if there is a non-empty
+     * selection, otherwise it will get clobbered by the buffer */
+    | Buffer(Unparsed) => Some()
+    | Normal when Selection.is_empty(z.selection) => Some()
+    | Normal => None
+    };
   let* tok_to_left = token_to_left(z);
-  let* ci = z_to_ci(~settings, ~ctx, z);
+  let* index = Indicated.index(z);
+  let* ci = Id.Map.find_opt(index, info_map);
   let suggestions = suggest(ci, z);
   let suggestions =
     suggestions

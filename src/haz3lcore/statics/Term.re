@@ -13,6 +13,8 @@ module Pat = {
     | Constructor
     | Cons
     | Var
+    | Label
+    | TupLabel
     | Tuple
     | Parens
     | Ap
@@ -31,7 +33,7 @@ module Pat = {
 
   let fresh: term => t = IdTagged.fresh;
 
-  let hole = (tms: list(TermBase.Any.t)) =>
+  let hole = (tms: list(TermBase.Any.t)): TermBase.Pat.term =>
     switch (tms) {
     | [] => EmptyHole
     | [_, ..._] => MultiHole(tms)
@@ -51,6 +53,8 @@ module Pat = {
     | Constructor(_) => Constructor
     | Cons(_) => Cons
     | Var(_) => Var
+    | Label(_) => Label
+    | TupLabel(_) => TupLabel
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
@@ -70,6 +74,8 @@ module Pat = {
     | Constructor => "Constructor"
     | Cons => "Cons"
     | Var => "Variable binding"
+    | Label => "Label"
+    | TupLabel => "Labeled Tuple Item"
     | Tuple => "Tuple"
     | Parens => "Parenthesized pattern"
     | Ap => "Constructor application"
@@ -78,6 +84,7 @@ module Pat = {
   let rec is_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat)
+    | TupLabel(_, pat)
     | Cast(pat, _, _) => is_var(pat)
     | Var(_) => true
     | Invalid(_)
@@ -91,6 +98,7 @@ module Pat = {
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
+    | Label(_)
     | Constructor(_)
     | Ap(_) => false
     };
@@ -98,9 +106,10 @@ module Pat = {
 
   let rec is_fun_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => is_fun_var(pat)
+    | Parens(pat)
+    | TupLabel(_, pat) => is_fun_var(pat)
     | Cast(pat, typ, _) =>
-      is_var(pat) && (UTyp.is_arrow(typ) || Typ.is_forall(typ))
+      is_var(pat) && (Typ.is_arrow(typ) || Typ.is_forall(typ))
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -112,6 +121,7 @@ module Pat = {
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
+    | Label(_)
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => false
@@ -123,7 +133,9 @@ module Pat = {
     || (
       switch (pat.term) {
       | Parens(pat) => is_tuple_of_arrows(pat)
+      | TupLabel(_, pat) => is_tuple_of_arrows(pat)
       | Tuple(pats) => pats |> List.for_all(is_fun_var)
+      | Label(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -146,8 +158,10 @@ module Pat = {
     || (
       switch (pat.term) {
       | Parens(pat)
-      | Cast(pat, _, _) => is_tuple_of_vars(pat)
+      | Cast(pat, _, _)
+      | TupLabel(_, pat) => is_tuple_of_vars(pat)
       | Tuple(pats) => pats |> List.for_all(is_var)
+      | Label(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -166,6 +180,7 @@ module Pat = {
 
   let rec get_var = (pat: t) => {
     switch (pat.term) {
+    | TupLabel(_, pat)
     | Parens(pat) => get_var(pat)
     | Var(x) => Some(x)
     | Cast(x, _, _) => get_var(x)
@@ -179,6 +194,7 @@ module Pat = {
     | String(_)
     | ListLit(_)
     | Cons(_, _)
+    | Label(_)
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => None
@@ -187,9 +203,10 @@ module Pat = {
 
   let rec get_fun_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => get_fun_var(pat)
+    | Parens(pat)
+    | TupLabel(_, pat) => get_fun_var(pat)
     | Cast(pat, t1, _) =>
-      if (Typ.is_arrow(t1) || UTyp.is_forall(t1)) {
+      if (Typ.is_arrow(t1) || Typ.is_forall(t1)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
@@ -205,6 +222,7 @@ module Pat = {
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
+    | Label(_)
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => None
@@ -217,7 +235,8 @@ module Pat = {
     | None =>
       switch (pat.term) {
       | Parens(pat)
-      | Cast(pat, _, _) => get_bindings(pat)
+      | Cast(pat, _, _)
+      | TupLabel(_, pat) => get_bindings(pat)
       | Tuple(pats) =>
         let vars = pats |> List.map(get_var);
         if (List.exists(Option.is_none, vars)) {
@@ -225,6 +244,7 @@ module Pat = {
         } else {
           Some(List.map(Option.get, vars));
         };
+      | Label(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -247,9 +267,11 @@ module Pat = {
     } else {
       switch (pat.term) {
       | Parens(pat)
-      | Cast(pat, _, _) => get_num_of_vars(pat)
+      | Cast(pat, _, _)
+      | TupLabel(_, pat) => get_num_of_vars(pat)
       | Tuple(pats) =>
         is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
+      | Label(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -271,11 +293,46 @@ module Pat = {
     | Constructor(name, _) => Some(name)
     | _ => None
     };
+
+  let rec match_tup_label: t => option((LabeledTuple.label, t)) =
+    p =>
+      switch (p.term) {
+      | Parens(p) => match_tup_label(p)
+      | TupLabel(plab, p') =>
+        switch (plab.term) {
+        | Label(name) => Some((name, p'))
+        | _ => None
+        }
+      | _ => None
+      };
+
+  let get_label: t => option(LabeledTuple.label) =
+    p => match_tup_label(p) |> Option.map(fst);
+
+  let rec bound_vars = (dp: t): list(Var.t) =>
+    switch (dp |> term_of) {
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Invalid(_)
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | Label(_)
+    | Constructor(_) => []
+    | Cast(y, _, _)
+    | Parens(y) => bound_vars(y)
+    | Var(y) => [y]
+    | TupLabel(_, dp) => bound_vars(dp)
+    | Tuple(dps) => List.flatten(List.map(bound_vars, dps))
+    | Cons(dp1, dp2) => bound_vars(dp1) @ bound_vars(dp2)
+    | ListLit(dps) => List.flatten(List.map(bound_vars, dps))
+    | Ap(_, dp1) => bound_vars(dp1)
+    };
 };
 
 module Exp = {
-  include TermBase.Exp;
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
@@ -294,7 +351,10 @@ module Exp = {
     | Constructor
     | Fun
     | TypFun
+    | Label
+    | TupLabel
     | Tuple
+    | Dot
     | Var
     | MetaVar
     | Let
@@ -318,6 +378,8 @@ module Exp = {
     | Cast
     | ListConcat;
 
+  include TermBase.Exp;
+
   let hole = (tms: list(TermBase.Any.t)): term =>
     switch (tms) {
     | [] => EmptyHole
@@ -326,6 +388,7 @@ module Exp = {
 
   let rep_id: t => Id.t = IdTagged.rep_id;
   let fresh: term => t = IdTagged.fresh;
+  let term_of: t => term = IdTagged.term_of;
   let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
   let cls_of_term: term => cls =
@@ -346,6 +409,9 @@ module Exp = {
     | Fun(_) => Fun
     | TypFun(_) => TypFun
     | Tuple(_) => Tuple
+    | Label(_) => Label
+    | TupLabel(_, _) => TupLabel
+    | Dot(_) => Dot
     | Var(_) => Var
     | Let(_) => Let
     | FixF(_) => FixF
@@ -386,6 +452,9 @@ module Exp = {
     | Fun => "Function literal"
     | TypFun => "Type Function Literal"
     | Tuple => "Tuple literal"
+    | Label => "Label"
+    | TupLabel => "Labeled Tuple Item"
+    | Dot => "Dot operator"
     | Var => "Variable reference"
     | MetaVar => "Meta variable reference"
     | Let => "Let expression"
@@ -409,6 +478,25 @@ module Exp = {
     | Match => "Case expression"
     | Cast => "Cast expression";
 
+  let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
+    e => {
+      switch (e.term) {
+      | Parens(e) => match_tup_label(e)
+      | TupLabel(elab, e') =>
+        switch (elab.term) {
+        | Label(name) => Some((name, e'))
+        | _ => None
+        }
+      | Cast(e, _, _) => match_tup_label(e)
+      | _ => None
+      };
+    };
+  };
+
+  let get_label: t => option(LabeledTuple.label) = {
+    e => match_tup_label(e) |> Option.map(fst);
+  };
+
   // Typfun should be treated as a function here as this is only used to
   // determine when to allow for recursive definitions in a let binding.
   let rec is_fun = (e: t) => {
@@ -418,6 +506,23 @@ module Exp = {
     | TypFun(_)
     | Fun(_)
     | BuiltinFun(_) => true
+    | TupLabel(_, e) => is_fun(e)
+    | Dot(e1, e2) =>
+      let rec check_tuple = (e1: t, e2: t) =>
+        switch (e1.term) {
+        | Parens(e) => check_tuple(e, e2)
+        | Tuple(ts) =>
+          switch (e2.term) {
+          | Label(name) => LabeledTuple.find_label(match_tup_label, ts, name)
+          | _ => None
+          }
+        | _ => None
+        };
+      let element: option(t) = check_tuple(e1, e2);
+      switch (element) {
+      | Some(exp) => is_fun(exp)
+      | None => false
+      };
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -429,6 +534,7 @@ module Exp = {
     | Int(_)
     | Float(_)
     | String(_)
+    | Label(_)
     | ListLit(_)
     | Tuple(_)
     | Var(_)
@@ -458,7 +564,25 @@ module Exp = {
       switch (e.term) {
       | Cast(e, _, _)
       | Parens(e) => is_tuple_of_functions(e)
+      | TupLabel(_, e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
+      | Dot(e1, e2) =>
+        let rec check_tuple = (e1: t, e2: t) =>
+          switch (e1.term) {
+          | Parens(e) => check_tuple(e, e2)
+          | Tuple(ts) =>
+            switch (e2.term) {
+            | Label(name) =>
+              LabeledTuple.find_label(match_tup_label, ts, name)
+            | _ => None
+            }
+          | _ => None
+          };
+        let element: option(t) = check_tuple(e1, e2);
+        switch (element) {
+        | Some(exp) => is_tuple_of_functions(exp)
+        | None => false
+        };
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -470,6 +594,7 @@ module Exp = {
       | Int(_)
       | Float(_)
       | String(_)
+      | Label(_)
       | ListLit(_)
       | Fun(_)
       | TypFun(_)
@@ -513,7 +638,9 @@ module Exp = {
       Some(1);
     } else {
       switch (e.term) {
-      | Parens(e) => get_num_of_functions(e)
+      | Parens(e)
+      | TupLabel(_, e)
+      | Dot(e, _) => get_num_of_functions(e)
       | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
       | Invalid(_)
       | EmptyHole
@@ -530,6 +657,7 @@ module Exp = {
       | Int(_)
       | Float(_)
       | String(_)
+      | Label(_)
       | ListLit(_)
       | Fun(_)
       | TypFun(_)
@@ -551,6 +679,187 @@ module Exp = {
       | Constructor(_) => None
       };
     };
+
+  let (replace_all_ids, replace_all_ids_typ) = {
+    let f:
+      'a.
+      (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+     =
+      (continue, exp) => {...exp, ids: [Id.mk()]} |> continue;
+    (
+      map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+      Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    );
+  };
+
+  let rec substitute_closures =
+          (
+            env: Environment.t,
+            old_bound_vars: list(string),
+            new_bound_vars: list(string),
+          ) =>
+    map_term(
+      ~f_exp=
+        (cont, e) => {
+          let (term, rewrap) = unwrap(e);
+          switch (term) {
+          // Variables: lookup if bound
+          | Var(x) =>
+            switch (Environment.lookup(env, x)) {
+            | Some(e) =>
+              e
+              |> replace_all_ids
+              |> substitute_closures(env, old_bound_vars, new_bound_vars)
+            | None =>
+              Var(
+                List.mem(x, old_bound_vars)
+                  ? x : Var.free_name(x, new_bound_vars),
+              )
+              |> rewrap
+            }
+          // Forms with environments: look up in new environment
+          | Closure(env, e) =>
+            substitute_closures(
+              env |> ClosureEnvironment.map_of,
+              [],
+              new_bound_vars,
+              e,
+            )
+          | Fun(p, e, t, n) =>
+            let pat_bound_vars = Pat.bound_vars(p);
+            Fun(
+              p,
+              substitute_closures(
+                env |> Environment.without_keys(pat_bound_vars),
+                pat_bound_vars,
+                pat_bound_vars @ new_bound_vars,
+                e,
+              ),
+              t,
+              n,
+            )
+            |> rewrap;
+          | FixF(p, e, Some(env)) =>
+            let pat_bound_vars = Pat.bound_vars(p);
+            FixF(
+              p,
+              substitute_closures(
+                env
+                |> ClosureEnvironment.map_of
+                |> Environment.without_keys(pat_bound_vars),
+                pat_bound_vars,
+                pat_bound_vars @ new_bound_vars,
+                e,
+              ),
+              None,
+            )
+            |> rewrap;
+          // Cases with binders: remove binder from env
+          | Let(p, e1, e2) =>
+            let pat_bound_vars = Pat.bound_vars(p);
+            Let(
+              p,
+              substitute_closures(env, old_bound_vars, new_bound_vars, e1),
+              substitute_closures(
+                env |> Environment.without_keys(pat_bound_vars),
+                pat_bound_vars @ old_bound_vars,
+                pat_bound_vars @ new_bound_vars,
+                e2,
+              ),
+            )
+            |> rewrap;
+          | Match(e, cases) =>
+            Match(
+              substitute_closures(env, old_bound_vars, new_bound_vars, e),
+              cases
+              |> List.map(((p, e)) => {
+                   let pat_bound_vars = Pat.bound_vars(p);
+                   (
+                     p,
+                     substitute_closures(
+                       env |> Environment.without_keys(pat_bound_vars),
+                       pat_bound_vars @ old_bound_vars,
+                       pat_bound_vars @ new_bound_vars,
+                       e,
+                     ),
+                   );
+                 }),
+            )
+            |> rewrap
+          | FixF(p, e, None) =>
+            let pat_bound_vars = Pat.bound_vars(p);
+            FixF(
+              p,
+              substitute_closures(
+                env |> Environment.without_keys(pat_bound_vars),
+                pat_bound_vars @ old_bound_vars,
+                pat_bound_vars @ new_bound_vars,
+                e,
+              ),
+              None,
+            )
+            |> rewrap;
+          // Other cases: recurse
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_)
+          | DynamicErrorHole(_)
+          | FailedCast(_)
+          | Deferral(_)
+          | Bool(_)
+          | Int(_)
+          | Float(_)
+          | String(_)
+          | ListLit(_)
+          | Constructor(_)
+          | TypFun(_)
+          | Tuple(_)
+          | TupLabel(_)
+          | Label(_)
+          | Dot(_)
+          | TyAlias(_)
+          | Ap(_)
+          | TypAp(_)
+          | DeferredAp(_)
+          | If(_)
+          | Seq(_)
+          | Test(_)
+          | Filter(_)
+          | Parens(_)
+          | Cons(_)
+          | ListConcat(_)
+          | UnOp(_)
+          | BinOp(_)
+          | BuiltinFun(_)
+          | Cast(_)
+          | Undefined => cont(e)
+          };
+        },
+      _,
+    );
+  let substitute_closures = substitute_closures(_, [], []);
+
+  let unfix = (e: t, p: Pat.t) => {
+    switch (e.term) {
+    | FixF(p1, e1, _) =>
+      if (Pat.fast_equal(p, p1)) {
+        e1;
+      } else {
+        e;
+      }
+    | _ => e
+    };
+  };
+
+  let rec get_fn_name = (e: t) => {
+    switch (e.term) {
+    | Fun(_, _, _, n) => n
+    | FixF(_, e, _) => get_fn_name(e)
+    | Parens(e) => get_fn_name(e)
+    | TypFun(_, _, n) => n
+    | _ => None
+    };
+  };
 };
 
 module Rul = {
@@ -576,7 +885,7 @@ module Rul = {
 
   let rep_id = (~any_ids, tm) =>
     switch (ids(~any_ids, tm)) {
-    | [] => raise(Invalid_argument("UExp.rep_id"))
+    | [] => raise(Invalid_argument("Exp.rep_id"))
     | [id, ..._] => id
     };
 };
@@ -597,14 +906,13 @@ module Any = {
     | Typ(t) => Some(t)
     | _ => None;
 
-  let rec ids =
+  let rec ids: TermBase.any_t => list(Id.t) =
     fun
     | Exp(tm) => tm.ids
     | Pat(tm) => tm.ids
     | Typ(tm) => tm.ids
     | TPat(tm) => tm.ids
     | Rul(tm) => Rul.ids(~any_ids=ids, tm)
-    | Nul ()
     | Any () => [];
 
   // Terms may consist of multiple tiles, eg the commas in an n-tuple,
@@ -620,11 +928,10 @@ module Any = {
   // (This would change for n-tuples if we decided parentheses are necessary.)
   let rep_id =
     fun
-    | Exp(tm) => Exp.rep_id(tm)
+    | (Exp(tm): TermBase.any_t) => Exp.rep_id(tm)
     | Pat(tm) => Pat.rep_id(tm)
     | Typ(tm) => Typ.rep_id(tm)
     | TPat(tm) => TPat.rep_id(tm)
     | Rul(tm) => Rul.rep_id(~any_ids=ids, tm)
-    | Nul ()
     | Any () => raise(Invalid_argument("Term.rep_id"));
 };

@@ -15,16 +15,6 @@ let mk = (ids, term): t => {
 };
 
 // TODO: make this function emit a map of changes
-let replace_all_ids =
-  map_term(
-    ~f_exp=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-    ~f_pat=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-    ~f_typ=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-    ~f_tpat=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-    ~f_rul=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-  );
-
-// TODO: make this function emit a map of changes
 let repair_ids =
   map_term(
     ~f_exp=
@@ -34,62 +24,78 @@ let repair_ids =
         } else {
           continue(exp);
         },
+    ~f_typ=
+      (continue, typ) =>
+        if (Typ.rep_id(typ) == Id.invalid) {
+          replace_all_ids_typ(typ);
+        } else {
+          continue(typ);
+        },
+    _,
+  );
+
+let repair_ids_typ =
+  Typ.map_term(
+    ~f_exp=
+      (continue, exp) =>
+        if (Exp.rep_id(exp) == Id.invalid) {
+          replace_all_ids(exp);
+        } else {
+          continue(exp);
+        },
+    ~f_typ=
+      (continue, typ) =>
+        if (typ.copied) {
+          replace_all_ids_typ(typ);
+        } else {
+          continue(typ);
+        },
     _,
   );
 
 // Also strips static error holes - kinda like unelaboration
 let rec strip_casts =
   map_term(
+    ~f_pat=
+      (continue, t) =>
+        switch (t.term) {
+        | Cast(p, _, _) => strip_casts_pat(p)
+        | _ => continue(t)
+        },
     ~f_exp=
       (continue, exp) => {
         switch (term_of(exp)) {
-        /* Leave non-casts unchanged */
-        | Tuple(_)
-        | Cons(_)
-        | ListConcat(_)
-        | ListLit(_)
-        | MultiHole(_)
-        | Seq(_)
-        | Filter(_)
-        | Let(_)
-        | FixF(_)
-        | TyAlias(_)
-        | Fun(_)
-        | Ap(_)
-        | Deferral(_)
-        | DeferredAp(_)
-        | Test(_)
-        | BuiltinFun(_)
-        | UnOp(_)
-        | BinOp(_)
-        | Match(_)
-        | Parens(_)
-        | EmptyHole
-        | Invalid(_)
-        | Var(_)
-        | Bool(_)
-        | Int(_)
-        | Float(_)
-        | String(_)
-        | Constructor(_)
-        | DynamicErrorHole(_)
-        | Closure(_)
-        | TypFun(_)
-        | TypAp(_)
-        | Undefined
-        | If(_) => continue(exp)
         /* Remove casts*/
-        | FailedCast(d, _, _)
         | Cast(d, _, _) => strip_casts(d)
+        /* Keep failed casts*/
+        | FailedCast(_, _, _)
+        | _ => continue(exp)
         }
       },
     _,
+  )
+and strip_casts_pat = (p: Pat.t): Pat.t => {
+  Pat.map_term(
+    ~f_pat=
+      (continue, t) =>
+        switch (t.term) {
+        | Cast(p, _, _) => strip_casts_pat(p)
+        | _ => continue(t)
+        },
+    ~f_exp=
+      (continue, t) =>
+        switch (t.term) {
+        | Cast(e, _, _) => strip_casts(e)
+        | _ => continue(t)
+        },
+    p,
   );
+};
 
 let assign_name_if_none = (t, name) => {
   let (term, rewrap) = unwrap(t);
   switch (term) {
-  | Fun(arg, ty, body, None) => Fun(arg, ty, body, name) |> rewrap
+  | Fun(arg, body, typ, None) => Fun(arg, body, typ, name) |> rewrap
   | TypFun(utpat, body, None) => TypFun(utpat, body, name) |> rewrap
   | _ => t
   };
@@ -126,6 +132,9 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Cons(_)
           | ListConcat(_)
           | Tuple(_)
+          | TupLabel(_)
+          | Label(_)
+          | Dot(_)
           | Match(_)
           | DynamicErrorHole(_)
           | Filter(_)
@@ -178,6 +187,7 @@ let rec ty_comparable = (exp: t): bool =>
   | UnOp(_)
   | BinOp(_)
   | Match(_)
+  | Dot(_)
   | Cast(_) => false
   | Fun(_)
   | TypFun(_)
@@ -186,9 +196,11 @@ let rec ty_comparable = (exp: t): bool =>
   | Int(_)
   | Float(_)
   | String(_)
+  | Label(_)
   | Constructor(_) => true
   | ListLit(tys)
   | Tuple(tys) => tys |> List.for_all(ty_comparable)
+  | TupLabel(_, t) => ty_comparable(t)
   // Note: Only Constructor Ap is comparable
   | Ap(_, {term: Constructor(_), _}, ty) => ty_comparable(ty)
   | Ap(_) => false
@@ -201,21 +213,60 @@ let rec ty_consistent = (d1, d2) => {
   // is hidden and not elaborated to DHExp, though it will still be caught as
   // CompareArrow in later stage.
   switch (term_of(d1), term_of(d2)) {
-  | (Int(_), Int(_))
-  | (Float(_), Float(_))
-  | (Bool(_), Bool(_))
-  | (String(_), String(_))
-  | (Fun(_) | BuiltinFun(_), Fun(_) | BuiltinFun(_))
+  | (Invalid(_), _)
+  | (EmptyHole, _)
+  | (MultiHole(_), _)
+  | (DynamicErrorHole(_), _)
+  | (FailedCast(_), _)
+  | (Deferral(_), _)
+  | (DeferredAp(_), _)
+  | (Undefined, _)
+  | (Var(_), _)
+  | (Let(_), _)
+  | (FixF(_), _)
+  | (TyAlias(_), _)
+  | (TypAp(_), _)
+  | (If(_), _)
+  | (Seq(_), _)
+  | (Test(_), _)
+  | (Filter(_), _)
+  | (Closure(_), _)
+  | (Parens(_), _) // Parens should have been stripped
+  | (Cons(_), _)
+  | (ListConcat(_), _)
+  | (UnOp(_), _)
+  | (BinOp(_), _)
+  | (Match(_), _)
+  | (Dot(_), _)
+  | (Cast(_), _) => false
+  | (Int(_), Int(_)) => true
+  | (Int(_), _) => false
+  | (Float(_), Float(_)) => true
+  | (Float(_), _) => false
+  | (Bool(_), Bool(_)) => true
+  | (Bool(_), _) => false
+  | (String(_), String(_)) => true
+  | (String(_), _) => false
+  | (Label(_), Label(_)) => true
+  | (Label(_), _) => false
+  | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
+    l1 == l2 && ty_consistent(d1, d2)
+  | (TupLabel(_), _) => false
+  | (Fun(_) | BuiltinFun(_), Fun(_) | BuiltinFun(_)) => true
+  | (Fun(_) | BuiltinFun(_), _) => false
   | (TypFun(_), TypFun(_)) => true
+  | (TypFun(_), _) => false
   | (ListLit(ds1), ListLit(ds2)) =>
     let ds = ds1 @ ds2;
     switch (ds) {
     | [] => true
     | [d, ..._] => List.for_all(ty_consistent(d), ds)
     };
+  | (ListLit(_), _) => false
   | (Tuple(ds1), Tuple(ds2)) =>
     List.length(ds1) == List.length(ds2)
     && List.for_all2(ty_consistent, ds1, ds2)
+  | (Tuple(_), _) => false
   | (
       Ap(_, {term: Constructor(_, {term: Arrow(_, t1), _}), _}, d1),
       Ap(_, {term: Constructor(_, {term: Arrow(_, t2), _}), _}, d2),
@@ -228,12 +279,45 @@ let rec ty_consistent = (d1, d2) => {
       Ap(_, {term: Constructor(_, {term: Arrow(_, t2), _}), _}, _),
     ) =>
     Typ.is_consistent([], t1, t2)
-  | _ => false
+  | (Constructor(_), _) => false
+  | (Ap(_), _) => false
   };
 };
 
 let rec ty_has_arrow = (d: t): bool =>
   switch (term_of(d)) {
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | DynamicErrorHole(_)
+  | FailedCast(_)
+  | Deferral(_)
+  | DeferredAp(_)
+  | Undefined
+  | Var(_)
+  | Let(_)
+  | FixF(_)
+  | TyAlias(_)
+  | TypAp(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | Filter(_)
+  | Closure(_)
+  | Parens(_)
+  | Cons(_)
+  | ListConcat(_)
+  | UnOp(_)
+  | BinOp(_)
+  | Match(_)
+  | Dot(_)
+  | Cast(_)
+  | Int(_)
+  | Float(_)
+  | Bool(_)
+  | String(_)
+  | Label(_) => false
+  | TupLabel(_, t) => ty_has_arrow(t)
   | Fun(_)
   | BuiltinFun(_)
   | TypFun(_) => true
@@ -244,27 +328,69 @@ let rec ty_has_arrow = (d: t): bool =>
     // Note(zhiyao): It's necessary to check the type of the argument because
     // elaborated types may contain Hole.
     Typ.has_arrow([], t) || ty_has_arrow(d)
-  | _ => false
+  | Ap(_, _, _) => false
   };
 
 let rec poly_equal = (d1, d2) => {
   // With assumption that the types are consistent and have no arrow type
-  let (e1, e2) = (term_of(d1), term_of(d2));
-  switch (e1, e2) {
-  | (Bool(_), Bool(_))
-  | (Int(_), Int(_))
-  | (Float(_), Float(_))
-  | (String(_), String(_)) => e1 == e2
-  | (ListLit(ds1), ListLit(ds2))
+  switch (term_of(d1), term_of(d2)) {
+  | (Invalid(_), _)
+  | (EmptyHole, _)
+  | (MultiHole(_), _)
+  | (DynamicErrorHole(_), _)
+  | (FailedCast(_), _)
+  | (Deferral(_), _)
+  | (DeferredAp(_), _)
+  | (Undefined, _)
+  | (Var(_), _)
+  | (Let(_), _)
+  | (FixF(_), _)
+  | (TyAlias(_), _)
+  | (TypAp(_), _)
+  | (If(_), _)
+  | (Seq(_), _)
+  | (Test(_), _)
+  | (Filter(_), _)
+  | (Closure(_), _)
+  | (Parens(_), _) // Parens should have been stripped
+  | (Cons(_), _)
+  | (ListConcat(_), _)
+  | (UnOp(_), _)
+  | (BinOp(_), _)
+  | (Match(_), _)
+  | (Dot(_), _)
+  | (Cast(_), _)
+  | (Fun(_), _)
+  | (TypFun(_), _)
+  | (BuiltinFun(_), _) => false
+  | (Bool(b1), Bool(b2)) => b1 == b2
+  | (Bool(_), _) => false
+  | (Int(i1), Int(i2)) => i1 == i2
+  | (Int(_), _) => false
+  | (Float(f1), Float(f2)) => f1 == f2
+  | (Float(_), _) => false
+  | (String(s1), String(s2)) => s1 == s2
+  | (String(_), _) => false
+  | (Label(l1), Label(l2)) => l1 == l2
+  | (Label(_), _) => false
+  | (TupLabel(l1, d1), TupLabel(l2, d2)) => l1 == l2 && poly_equal(d1, d2)
+  | (TupLabel(_), _) => false
+  | (ListLit(ds1), ListLit(ds2)) =>
+    List.length(ds1) == List.length(ds2)
+    && List.for_all2(poly_equal, ds1, ds2)
+  | (ListLit(_), _) => false
   | (Tuple(ds1), Tuple(ds2)) =>
     List.length(ds1) == List.length(ds2)
     && List.for_all2(poly_equal, ds1, ds2)
-  | (Constructor(c1, _), Constructor(c2, _)) => String.equal(c1, c2)
+  | (Tuple(_), _) => false
+  | (Constructor(c1, _), Constructor(c2, _)) => c1 == c2
+  | (Constructor(_), _) => false
+  // Note: Only Constructor Ap is comparable
   | (
       Ap(_, {term: Constructor(c1, _), _}, d1),
       Ap(_, {term: Constructor(c2, _), _}, d2),
     ) =>
-    String.equal(c1, c2) && poly_equal(d1, d2)
-  | _ => false
+    c1 == c2 && poly_equal(d1, d2)
+  | (Ap(_), _) => false
   };
 };

@@ -1,3 +1,5 @@
+open Util;
+open OptUtil.Syntax;
 open DHExp;
 
 /*
@@ -12,15 +14,13 @@ open DHExp;
 [@deriving (show({with_path: false}), sexp)]
 type builtin =
   | Const(Typ.t, DHExp.t)
-  | Fn(Typ.t, Typ.t, DHExp.t => DHExp.t);
+  | Fn(Typ.t, Typ.t, DHExp.t => option(DHExp.t));
 
 [@deriving (show({with_path: false}), sexp)]
 type t = VarMap.t_(builtin);
 
 [@deriving (show({with_path: false}), sexp)]
-type forms = VarMap.t_(DHExp.t => DHExp.t);
-
-type result = Result.t(DHExp.t, EvaluatorError.t);
+type forms = VarMap.t_(DHExp.t => option(DHExp.t));
 
 let const = (name: Var.t, typ: Typ.term, v: DHExp.t, builtins: t): t =>
   VarMap.extend(builtins, (name, Const(typ |> Typ.fresh, v)));
@@ -29,7 +29,7 @@ let fn =
       name: Var.t,
       t1: Typ.term,
       t2: Typ.term,
-      impl: DHExp.t => DHExp.t,
+      impl: DHExp.t => option(DHExp.t), // None if indet
       builtins: t,
     )
     : t =>
@@ -38,125 +38,88 @@ let fn =
     (name, Fn(t1 |> Typ.fresh, t2 |> Typ.fresh, impl)),
   );
 
+let (let-unbox) = ((request, v), f) =>
+  switch (Unboxing.unbox(request, v)) {
+  | IndetMatch
+  | DoesNotMatch => None
+  | Matches(n) => f(n)
+  };
+
 module Pervasives = {
   module Impls = {
     /* constants */
-    let infinity = DHExp.Float(Float.infinity) |> fresh;
-    let neg_infinity = DHExp.Float(Float.neg_infinity) |> fresh;
-    let nan = DHExp.Float(Float.nan) |> fresh;
-    let epsilon_float = DHExp.Float(epsilon_float) |> fresh;
-    let pi = DHExp.Float(Float.pi) |> fresh;
-    let max_int = DHExp.Int(Int.max_int) |> fresh;
-    let min_int = DHExp.Int(Int.min_int) |> fresh;
+    let infinity = Float(Float.infinity) |> fresh;
+    let neg_infinity = Float(Float.neg_infinity) |> fresh;
+    let nan = Float(Float.nan) |> fresh;
+    let epsilon_float = Float(epsilon_float) |> fresh;
+    let pi = Float(Float.pi) |> fresh;
+    let max_int = Int(Int.max_int) |> fresh;
+    let min_int = Int(Int.min_int) |> fresh;
 
-    let unary = (f: DHExp.t => result, d: DHExp.t) => {
-      switch (f(d)) {
-      | Ok(r') => r'
-      | Error(e) => EvaluatorError.Exception(e) |> raise
-      };
+    [@warning "-8"]
+    // let-unbox guarantees that the tuple will have length 2
+    let binary = (f: (DHExp.t, DHExp.t) => option(DHExp.t), d: DHExp.t) => {
+      let-unbox [d1, d2] = (Tuple(2), d);
+      f(d1, d2);
     };
 
-    let binary = (f: (DHExp.t, DHExp.t) => result, d: DHExp.t) => {
-      switch (term_of(d)) {
-      | Tuple([d1, d2]) =>
-        switch (f(d1, d2)) {
-        | Ok(r) => r
-        | Error(e) => EvaluatorError.Exception(e) |> raise
-        }
-      | _ => raise(EvaluatorError.Exception(InvalidBoxedTuple(d)))
-      };
+    [@warning "-8"]
+    // let-unbox guarantees that the tuple will have length 3
+    let ternary =
+        (f: (DHExp.t, DHExp.t, DHExp.t) => option(DHExp.t), d: DHExp.t) => {
+      let-unbox [d1, d2, d3] = (Tuple(3), d);
+      f(d1, d2, d3);
     };
 
-    let ternary = (f: (DHExp.t, DHExp.t, DHExp.t) => result, d: DHExp.t) => {
-      switch (term_of(d)) {
-      | Tuple([d1, d2, d3]) =>
-        switch (f(d1, d2, d3)) {
-        | Ok(r) => r
-        | Error(e) => EvaluatorError.Exception(e) |> raise
-        }
-      | _ => raise(EvaluatorError.Exception(InvalidBoxedTuple(d)))
-      };
+    let is_finite = d => {
+      let-unbox f = (Float, d);
+      Some(fresh(Bool(Float.is_finite(f))));
     };
 
-    let is_finite =
-      unary(d =>
-        switch (term_of(d)) {
-        | Float(f) => Ok(fresh(Bool(Float.is_finite(f))))
-        | _ => Error(InvalidBoxedFloatLit(d))
-        }
-      );
+    let is_infinite = d => {
+      let-unbox f = (Float, d);
+      Some(fresh(Bool(Float.is_infinite(f))));
+    };
 
-    let is_infinite =
-      unary(d =>
-        switch (term_of(d)) {
-        | Float(f) => Ok(fresh(Bool(Float.is_infinite(f))))
-        | _ => Error(InvalidBoxedFloatLit(d))
-        }
-      );
+    let is_nan = d => {
+      let-unbox f = (Float, d);
+      Some(fresh(Bool(Float.is_nan(f))));
+    };
 
-    let is_nan =
-      unary(d =>
-        switch (term_of(d)) {
-        | Float(f) => Ok(fresh(Bool(Float.is_nan(f))))
-        | _ => Error(InvalidBoxedFloatLit(d))
-        }
-      );
+    let string_of_int = d => {
+      let-unbox n = (Int, d);
+      Some(fresh(String(string_of_int(n))));
+    };
 
-    let string_of_int =
-      unary(d =>
-        switch (term_of(d)) {
-        | Int(n) => Ok(fresh(String(string_of_int(n))))
-        | _ => Error(InvalidBoxedIntLit(d))
-        }
-      );
+    let string_of_float = d => {
+      let-unbox f = (Float, d);
+      Some(fresh(String(string_of_float(f))));
+    };
 
-    let string_of_float =
-      unary(d =>
-        switch (term_of(d)) {
-        | Float(f) => Ok(fresh(String(string_of_float(f))))
-        | _ => Error(InvalidBoxedFloatLit(d))
-        }
-      );
+    let string_of_bool = d => {
+      let-unbox b = (Bool, d);
+      Some(fresh(String(string_of_bool(b))));
+    };
 
-    let string_of_bool =
-      unary(d =>
-        switch (term_of(d)) {
-        | Bool(b) => Ok(fresh(String(string_of_bool(b))))
-        | _ => Error(InvalidBoxedBoolLit(d))
-        }
-      );
+    let int_of_float = d => {
+      let-unbox f = (Float, d);
+      Some(fresh(Int(int_of_float(f))));
+    };
 
-    let int_of_float =
-      unary(d =>
-        switch (term_of(d)) {
-        | Float(f) => Ok(fresh(Int(int_of_float(f))))
-        | _ => Error(InvalidBoxedFloatLit(d))
-        }
-      );
+    let float_of_int = d => {
+      let-unbox n = (Int, d);
+      Some(fresh(Float(float_of_int(n))));
+    };
 
-    let float_of_int =
-      unary(d =>
-        switch (term_of(d)) {
-        | Int(n) => Ok(fresh(Float(float_of_int(n))))
-        | _ => Error(InvalidBoxedIntLit(d))
-        }
-      );
+    let abs = d => {
+      let-unbox n = (Int, d);
+      Some(fresh(Int(abs(n))));
+    };
 
-    let abs =
-      unary(d =>
-        switch (term_of(d)) {
-        | Int(n) => Ok(fresh(Int(abs(n))))
-        | _ => Error(InvalidBoxedIntLit(d))
-        }
-      );
-
-    let float_op = fn =>
-      unary(d =>
-        switch (term_of(d)) {
-        | Float(f) => Ok(fresh(Float(fn(f))))
-        | _ => Error(InvalidBoxedFloatLit(d))
-        }
-      );
+    let float_op = (fn, d) => {
+      let-unbox f = (Float, d);
+      Some(fresh(Float(fn(f))));
+    };
 
     let abs_float = float_op(abs_float);
     let ceil = float_op(ceil);
@@ -173,21 +136,22 @@ module Pervasives = {
     let atan = float_op(atan);
 
     let of_string =
-        (convert: string => option('a), wrap: 'a => DHExp.t, name: string) =>
-      unary(d =>
-        switch (term_of(d)) {
-        | String(s) =>
-          switch (convert(s)) {
-          | Some(n) => Ok(wrap(n))
-          | None =>
-            let d' = DHExp.BuiltinFun(name) |> DHExp.fresh;
-            let d' = DHExp.Ap(Forward, d', d) |> DHExp.fresh;
-            let d' = DynamicErrorHole(d', InvalidOfString) |> DHExp.fresh;
-            Ok(d');
-          }
-        | _ => Error(InvalidBoxedStringLit(d))
-        }
-      );
+        (
+          convert: string => option('a),
+          wrap: 'a => DHExp.t,
+          name: string,
+          d: DHExp.t,
+        ) => {
+      let-unbox s = (String, d);
+      switch (convert(s)) {
+      | Some(n) => Some(wrap(n))
+      | None =>
+        let d' = BuiltinFun(name) |> DHExp.fresh;
+        let d' = Ap(Forward, d', d) |> DHExp.fresh;
+        let d' = DynamicErrorHole(d', InvalidOfString) |> DHExp.fresh;
+        Some(d');
+      };
+    };
 
     let int_of_string =
       of_string(int_of_string_opt, n => Int(n) |> DHExp.fresh);
@@ -196,92 +160,82 @@ module Pervasives = {
     let bool_of_string =
       of_string(bool_of_string_opt, b => Bool(b) |> DHExp.fresh);
 
-    let int_mod = (name, d1) =>
-      binary(
-        (d1, d2) =>
-          switch (term_of(d1), term_of(d2)) {
-          | (Int(_), Int(0)) =>
-            Ok(
-              fresh(
-                DynamicErrorHole(
-                  DHExp.Ap(Forward, DHExp.BuiltinFun(name) |> fresh, d1)
-                  |> fresh,
-                  DivideByZero,
-                ),
+    let int_mod = name =>
+      binary((d1, d2) => {
+        let-unbox m = (Int, d1);
+        let-unbox n = (Int, d2);
+        if (n == 0) {
+          Some(
+            fresh(
+              DynamicErrorHole(
+                Ap(Forward, BuiltinFun(name) |> fresh, d1) |> fresh,
+                DivideByZero,
               ),
-            )
-          | (Int(n), Int(m)) => Ok(Int(n mod m) |> fresh)
-          | (Int(_), _) =>
-            raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2)))
-          | (_, _) =>
-            raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
-          },
-        d1,
-      );
+            ),
+          );
+        } else {
+          Some(fresh(Int(m mod n)));
+        };
+      });
 
-    let string_length =
-      unary(d =>
-        switch (term_of(d)) {
-        | String(s) => Ok(Int(String.length(s)) |> fresh)
-        | _ => Error(InvalidBoxedStringLit(d))
-        }
-      );
+    let string_length = d => {
+      let-unbox s = (String, d);
+      Some(fresh(Int(String.length(s))));
+    };
 
     let string_compare =
-      binary((d1, d2) =>
-        switch (term_of(d1), term_of(d2)) {
-        | (String(s1), String(s2)) =>
-          Ok(Int(String.compare(s1, s2)) |> fresh)
-        | (String(_), _) => Error(InvalidBoxedStringLit(d2))
-        | (_, _) => Error(InvalidBoxedStringLit(d1))
-        }
-      );
+      binary((d1, d2) => {
+        let-unbox s1 = (String, d1);
+        let-unbox s2 = (String, d2);
+        Some(fresh(Int(String.compare(s1, s2))));
+      });
 
-    let string_trim =
-      unary(d =>
-        switch (term_of(d)) {
-        | String(s) => Ok(String(String.trim(s)) |> fresh)
-        | _ => Error(InvalidBoxedStringLit(d))
-        }
-      );
+    let string_trim = d => {
+      let-unbox s = (String, d);
+      Some(fresh(String(String.trim(s))));
+    };
 
     let string_of: DHExp.t => option(string) =
-      d =>
-        switch (term_of(d)) {
-        | String(s) => Some(s)
-        | _ => None
-        };
+      d => {
+        let-unbox s = (String, d);
+        Some(s);
+      };
 
     let string_concat =
-      binary((d1, d2) =>
-        switch (term_of(d1), term_of(d2)) {
-        | (String(s1), ListLit(xs)) =>
-          switch (xs |> List.map(string_of) |> Util.OptUtil.sequence) {
-          | None => Error(InvalidBoxedStringLit(List.hd(xs)))
-          | Some(xs) => Ok(String(String.concat(s1, xs)) |> fresh)
-          }
-        | (String(_), _) => Error(InvalidBoxedListLit(d2))
-        | (_, _) => Error(InvalidBoxedStringLit(d1))
-        }
-      );
+      binary((d1, d2) => {
+        let-unbox s1 = (String, d1);
+        let-unbox xs = (List, d2);
+        let* xs' = List.map(string_of, xs) |> Util.OptUtil.sequence;
+        Some(fresh(String(String.concat(s1, xs'))));
+      });
 
-    let string_sub = _ =>
-      ternary((d1, d2, d3) =>
-        switch (term_of(d1), term_of(d2), term_of(d3)) {
-        | (String(s), Int(idx), Int(len)) =>
-          try(Ok(String(String.sub(s, idx, len)) |> fresh)) {
-          | _ =>
-            // TODO: make it clear that the problem could be with d3 too
-            Ok(DynamicErrorHole(d2, IndexOutOfBounds) |> fresh)
-          }
-        | (String(_), Int(_), _) => Error(InvalidBoxedIntLit(d3))
-        | (String(_), _, _) => Error(InvalidBoxedIntLit(d2))
-        | (_, _, _) => Error(InvalidBoxedIntLit(d1))
-        }
-      );
+    let string_sub = name =>
+      ternary((d1, d2, d3) => {
+        let-unbox s = (String, d1);
+        let-unbox idx = (Int, d2);
+        let-unbox len = (Int, d3);
+        try(Some(fresh(String(String.sub(s, idx, len))))) {
+        | _ =>
+          let d' = BuiltinFun(name) |> DHExp.fresh;
+          let d' = Ap(Forward, d', d1) |> DHExp.fresh;
+          let d' = DynamicErrorHole(d', IndexOutOfBounds) |> DHExp.fresh;
+          Some(d');
+        };
+      });
+
+    let string_split = _ =>
+      binary((d1, d2) => {
+        let-unbox s = (String, d1);
+        let-unbox sep = (String, d2);
+        let split_str = Util.StringUtil.plain_split(sep, s);
+        let split_str' = List.map(s => String(s) |> DHExp.fresh, split_str);
+        Some(fresh(ListLit(split_str')));
+      });
   };
 
   open Impls;
+
+  // Update src/haz3lmenhir/Lexer.mll when any new builtin is added
   let builtins =
     VarMap.empty
     |> const("infinity", Float, infinity)
@@ -346,6 +300,12 @@ module Pervasives = {
          Prod([String |> Typ.fresh, Int |> Typ.fresh, Int |> Typ.fresh]),
          String,
          string_sub("string_sub"),
+       )
+    |> fn(
+         "string_split",
+         Prod([String |> Typ.fresh, String |> Typ.fresh]),
+         List(String |> Typ.fresh),
+         string_split("string_split"),
        );
 };
 
