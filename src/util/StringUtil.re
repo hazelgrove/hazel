@@ -36,6 +36,11 @@ let replace = Js_of_ocaml.Regexp.global_replace;
 
 let split = Js_of_ocaml.Regexp.split;
 
+let plain_split: (string, string) => list(string) =
+  (str, sep) => {
+    split(Js_of_ocaml.Regexp.regexp_string(sep), str);
+  };
+
 let to_lines = String.split_on_char('\n');
 
 let line_widths = (s: string): list(int) =>
