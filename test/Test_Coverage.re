@@ -94,8 +94,92 @@ let f = fun (x : Tree) ->
 in ?|},
   );
 
+let peanut_1b =
+  has_errors(
+    "Peanut Figure 1b: Inexhaustive + Redundant (Second Pattern)",
+    {|
+type Tree = +Empty + Leaf(Int) + Node([Tree]) in
+let f = fun (x : Tree) ->
+  {{{case x
+    | Node(x::y::tl) => Node(f(x)::[f(Node(y::tl))])
+    | {{{Node([x, y])}}} => Node([f(x), f(y)])
+    | Node([x]) => Node([f(x), Empty])
+    | Node([]) => Empty
+    | Empty => Empty
+  end}}}
+in ?|},
+    [Info.Exp(InexhaustiveMatch(None)), Info.Pat(Redundant(None))],
+  );
+
+let peanut_2a =
+  no_errors(
+    "Peanut Figure 2a: Indeterminately Exhaustive",
+    {|
+let odd_length : [Int] -> Bool =
+  fun xs ->
+    case xs
+    | [] => false
+    | x::? => true
+    end
+in ?|},
+  );
+
+let peanut_2b =
+  has_errors(
+    "Peanut Figure 2b: Necessarily Exhaustive",
+    {|
+let odd_length : [Int] -> Bool =
+  fun xs ->
+    {{{case xs
+      | [] => false
+      | x::?::? => true
+    end}}} in ?
+|},
+    [Info.Exp(InexhaustiveMatch(None))],
+  );
+
+let peanut_2c =
+  no_errors(
+    "Peanut Figure 2c: Necessarily Exhaustive",
+    {|
+let not : Bool -> Bool = ? in
+let odd_length : [Int] -> Bool =
+  fun xs ->
+    case xs
+      | [] => false
+      | x::? => true
+      | x::tl => not(odd_length(tl))
+    end in ?
+|},
+  );
+
+let peanut_3a =
+  no_errors(
+    "Peanut Figure 3a: Necessarily Irredundant (first two patterns) + Indeterminately Redundant (third pattern)",
+    {|
+let odd_length : [Int] -> Bool =
+  fun xs ->
+    case xs
+      | [] => false
+      | x::? => true
+      | x::y::tl => odd_length(tl)
+    end in ?|},
+  );
+
+let peanut_3b =
+  has_errors(
+    "Peanut Figure 3b: Necessarily Redundant (third pattern)",
+    {|
+let odd_length : [Int] -> Bool =
+  fun xs ->
+    case xs
+      | [] => false
+      | x::tl => odd_length(tl)
+      | {{{x::?}}} => true
+    end in ?|},
+    [Info.Pat(Redundant(None))],
+  );
 // TODO: list examples from paper
-// TODO: first example from paper
 // TODO: recursive type
 // TODO: integers
 // TODO: floats
@@ -104,6 +188,7 @@ in ?|},
 // TODO: test that exercises the default case
 // TODO: unknown scrutinee
 // TODO: partially unknown scrutinee - still check exhaustiveness at outer level?
+// TODO: double errors
 
 let tests = (
   "Pattern Coverage Checker",
@@ -117,5 +202,11 @@ let tests = (
     annotated_let_tuple,
     annotated_fun_tuple,
     peanut_1a,
+    peanut_1b,
+    peanut_2a,
+    peanut_2b,
+    peanut_2c,
+    peanut_3a,
+    peanut_3b,
   ],
 );
