@@ -282,7 +282,7 @@ end}}}|},
 
 let strings_redundant =
   has_errors(
-    "Strings: Exhaustive",
+    "Strings: Redundant",
     {|
 let x : String = ? in
 case x
@@ -293,6 +293,54 @@ case x
   | _ => 3
 end|},
     [Info.Pat(Redundant(None)), Info.Pat(Redundant(None))],
+  );
+
+let bools_exhaustive =
+  no_errors(
+    "Bools: Exhaustive",
+    {|
+let x : Bool = ? in
+case x
+  | true => 1
+  | false => 2
+end|},
+  );
+
+let bools_non_exhaustive =
+  has_errors(
+    "Bools: Non-Exhaustive",
+    {|
+let x : Bool = ? in
+let y = {{{case x
+  | true => 1
+end}}} in
+let z = {{{case x
+  | false => 2
+end}}} in ?
+|},
+    [
+      Info.Exp(InexhaustiveMatch(None)),
+      Info.Exp(InexhaustiveMatch(None)),
+    ],
+  );
+
+let bools_redundant =
+  has_errors(
+    "Bools: Redundant",
+    {|
+let x : Bool = ? in
+case x
+  | true => 1
+  | false => 2
+  | {{{true}}} => 2
+  | {{{false}}} => 1
+  | {{{_}}} => 3
+end|},
+    [
+      Info.Pat(Redundant(None)),
+      Info.Pat(Redundant(None)),
+      Info.Pat(Redundant(None)),
+    ],
   );
 
 let unit_exhaustive =
@@ -349,6 +397,32 @@ end in ?
     [Info.Pat(Redundant(None)), Info.Pat(Redundant(None))],
   );
 
+let rank_compare_inexhaustive =
+  has_errors(
+    "Rank Compare -- Andrew's Example from Issue #1473 with cases removed",
+    {|
+type Rank =
+  + Ace
+  + King
+  + Queen
+  + Jack in
+let rank_compare: (Rank, Rank) -> Int =
+  fun (r1, r2) ->
+    {{{case (r1, r2)
+      | (Ace, Ace) => 0
+      | (Ace, _) => -1
+      | (_, Ace) => 1
+      | (King, King) => 0
+      | (King, _) => -1
+      | (_, King) => 1
+      | (Queen, Queen) => 0
+      | (Queen, _) => -1
+      | (_, Queen) => 1
+end}}} in ?
+|},
+    [Info.Exp(InexhaustiveMatch(None))],
+  );
+
 let rank_let_inexhaustive =
   has_errors(
     "Rank Compare -- Let Inexhaustive",
@@ -379,6 +453,7 @@ let f = {{{fun Ace -> ?}}} in
     [Info.Exp(InexhaustiveMatch(None))],
   );
 
+// TODO: multiple holes are not redundant
 // TODO: unknown scrutinee
 // TODO: partially unknown scrutinee - still check exhaustiveness at outer level?
 // TODO: double errors
@@ -410,9 +485,13 @@ let tests = (
     strings_exhaustive,
     strings_non_exhaustive,
     strings_redundant,
+    bools_exhaustive,
+    bools_non_exhaustive,
+    bools_redundant,
     unit_exhaustive,
     unit_redundant,
     rank_compare,
+    rank_compare_inexhaustive,
     rank_let_inexhaustive,
     rank_fun_inexhaustive,
   ],
