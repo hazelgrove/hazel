@@ -69,7 +69,7 @@ let startup : PersistentData.t =
           };
         ] );
     documentation =
-      ( 0,
+      ( 2,
         [
           ( "Casting",
             {
