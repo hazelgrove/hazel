@@ -880,14 +880,10 @@ and uexp_to_info_map =
       let constraints = List.rev(constraints);
 
       let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
-      let x = [%derive.show: list(Coverage.Constraint.t)](constraints);
-      print_endline("Calling check with: " ++ x);
-      let Coverage.{is_exhaustive, redundant_rows} as check_result =
+      let Coverage.{is_exhaustive, redundant_rows} =
         Coverage.check(constraints, normalized_scrut_ty);
-      print_endline("Final result: " ++ Coverage.show_result(check_result));
       let self =
         is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
-      print_endline("Third pass");
       let add_redundancy = (ps: list(TermBase.pat_t), redundant_rows, m) => {
         List.fold_left(
           (m, row) => {
@@ -917,7 +913,6 @@ and uexp_to_info_map =
         );
       };
       let m = add_redundancy(ps, redundant_rows, m);
-      print_endline("Done");
       add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
     | TyAlias(typat, utyp, body) =>
       let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
