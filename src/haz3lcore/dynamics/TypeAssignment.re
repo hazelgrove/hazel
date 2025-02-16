@@ -378,7 +378,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     let* rules_ty = List.map(rule_to_ty, rules) |> OptUtil.sequence;
     List.for_all(Typ.equal(rule_ty, _), rules_ty) ? Some(rule_ty) : None;
   | Cast(d, ty1, ty2) =>
-    let* _ = Typ.join(~fix=true, ctx, ty1, ty2);
+    let* _ = Typ.join(ctx, ty1, ty2);
     let* tyd = typ_of_dhexp(ctx, m, d);
     Typ.equal(tyd, ty1) ? Some(ty2) : None;
   | FailedCast(d, ty1, ty2) =>

@@ -367,7 +367,7 @@ let rec status_common =
   | (Just(ty), Syn) => NotInHole(Syn(ty))
   | (Just(ty), SynFun) =>
     switch (
-      Typ.join_fix(
+      Typ.join(
         ctx,
         Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
         |> Typ.temp,
@@ -379,7 +379,7 @@ let rec status_common =
     }
   | (Just(ty), SynTypFun) =>
     switch (
-      Typ.join_fix(
+      Typ.join(
         ctx,
         Forall(Var("?") |> TPat.fresh, Unknown(Internal) |> Typ.temp)
         |> Typ.temp,
@@ -391,7 +391,7 @@ let rec status_common =
     }
   | (Just(syn), Ana(ana)) =>
     switch (
-      Typ.join_fix(
+      Typ.join(
         ctx,
         ana,
         syn /* Note: the ordering of ana, syn matters */
@@ -441,7 +441,7 @@ let rec status_common =
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
   | (NoJoin(wrap, tys), Ana(ana)) =>
     let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.temp);
-    switch (Typ.join_fix(ctx, ana, syn)) {
+    switch (Typ.join(ctx, ana, syn)) {
     | None =>
       switch (ana.term, syn.term) {
       | (Label(_), Label(_)) =>
