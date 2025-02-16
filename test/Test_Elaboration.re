@@ -11,6 +11,12 @@ let id_at = x => x |> List.nth(ids);
 let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init);
 let dhexp_of_uexp = u => Elaborator.elaborate(mk_map(u), u) |> fst;
 let alco_check = dhexp_typ |> Alcotest.check;
+let parse_exp = (s: string) => {
+  switch (MakeTerm.parse_exp(s)) {
+  | Some(e) => e
+  | None => Alcotest.fail("Failed to parse expression: " ++ s)
+  };
+};
 
 module PlainTests = {
   let u1: Exp.t = {ids: [id_at(0)], term: Int(8), copied: false};
@@ -90,13 +96,25 @@ module PlainTests = {
       None,
     )
     |> Exp.fresh;
+
+  let f' =
+    Fun(
+      Var("x") |> Pat.fresh,
+      BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
+      |> Exp.fresh,
+      Some(Unknown(Hole(EmptyHole)) |> Typ.fresh),
+      None,
+    )
+    |> Exp.fresh;
   let unapplied_function = () =>
-    alco_check("A function", f, dhexp_of_uexp(f));
+    alco_check("A function", f', dhexp_of_uexp(f));
 
   let u7: Exp.t = Ap(Forward, f, Var("y") |> Exp.fresh) |> Exp.fresh;
 
+  let d7: Exp.t = Ap(Forward, f', Var("y") |> Exp.fresh) |> Exp.fresh;
+
   let ap_fun = () =>
-    alco_check("Application of a function", u7, dhexp_of_uexp(u7));
+    alco_check("Application of a function", d7, dhexp_of_uexp(u7));
 
   let u8: Exp.t =
     Match(
@@ -170,7 +188,7 @@ module PlainTests = {
         Var("x") |> Pat.fresh,
         BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
         |> Exp.fresh,
-        None,
+        Some(Int |> Typ.fresh),
         Some("f"),
       )
       |> Exp.fresh,
@@ -327,6 +345,190 @@ module PlainTests = {
       ),
     );
 
+  /*
+     Labeled Tuple Elaboration Test
+     ```hazel
+     let add : (street=String, city=String, state=String, zipcode=Int) = (
+       "123 Maple St",
+       "Ann Arbor",
+       "MI",
+       48103
+     ) in add
+     ```
+     elaborates to
+     ```hazel
+     let add : (street=String, city=String, state=String, zipcode=Int) =
+     (street="123 Maple St", city="Ann Arbor", state="MI", zipcode=48103) in add
+     ```
+   */
+  let elaborated_labeled_tuple = () => {
+    let full_labeled_tuple_program: Exp.t =
+      Let(
+        Cast(
+          Var("add") |> Pat.fresh,
+          Parens(
+            Prod([
+              TupLabel(Label("street") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+              TupLabel(Label("city") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+              TupLabel(Label("state") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+              TupLabel(Label("zipcode") |> Typ.fresh, Int |> Typ.fresh)
+              |> Typ.fresh,
+            ])
+            |> Typ.fresh,
+          )
+          |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Pat.fresh,
+        Parens(
+          Tuple([
+            String("123 Maple St") |> Exp.fresh,
+            String("Ann Arbor") |> Exp.fresh,
+            String("MI") |> Exp.fresh,
+            Int(48103) |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        Var("add") |> Exp.fresh,
+      )
+      |> Exp.fresh;
+    alco_check(
+      "Labeled Tuple label introduction",
+      Let(
+        Var("add") |> Pat.fresh,
+        Tuple([
+          TupLabel(
+            Label("street") |> Exp.fresh,
+            String("123 Maple St") |> Exp.fresh,
+          )
+          |> Exp.fresh,
+          TupLabel(
+            Label("city") |> Exp.fresh,
+            String("Ann Arbor") |> Exp.fresh,
+          )
+          |> Exp.fresh,
+          TupLabel(Label("state") |> Exp.fresh, String("MI") |> Exp.fresh)
+          |> Exp.fresh,
+          TupLabel(Label("zipcode") |> Exp.fresh, Int(48103) |> Exp.fresh)
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+        Var("add") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      dhexp_of_uexp(full_labeled_tuple_program),
+    );
+  };
+
+  let singleton_labeled_tuple = () =>
+    alco_check(
+      "Singleton Labeled Tuple",
+      Tuple([
+        TupLabel(
+          Label("label") |> Exp.fresh,
+          String("a string value") |> Exp.fresh,
+        )
+        |> Exp.fresh,
+      ])
+      |> Exp.fresh,
+      dhexp_of_uexp(
+        Tuple([
+          TupLabel(
+            Label("label") |> Exp.fresh,
+            String("a string value") |> Exp.fresh,
+          )
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+      ),
+    );
+
+  let singleton_labeled_tuple_elaborates_labels = () =>
+    alco_check(
+      "let x : (l=String) = \"a\" in x",
+      Let(
+        Var("x") |> Pat.fresh,
+        Tuple([
+          TupLabel(Label("l") |> Exp.fresh, String("a") |> Exp.fresh)
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+        Var("x") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      dhexp_of_uexp(parse_exp("let x : (l=String) = \"a\" in x")),
+    );
+
+  /* Labeled Tuple Rearranging
+       ```hazel
+      let val : (a=Int, b=String, Float, c=Bool)= (1,
+        1.0,
+        c=true,
+        b="a") in val ```
+       elaborates to
+       (a=1, b="a", 1.0, c=true)
+     */
+  let rearranged_labeled_tuple = () => {
+    let rearranged_labeled_tuple_program: Exp.t =
+      Let(
+        Cast(
+          Var("val") |> Pat.fresh,
+          Parens(
+            Prod([
+              TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
+              |> Typ.fresh,
+              TupLabel(Label("b") |> Typ.fresh, String |> Typ.fresh)
+              |> Typ.fresh,
+              Float |> Typ.fresh,
+              TupLabel(Label("c") |> Typ.fresh, Bool |> Typ.fresh)
+              |> Typ.fresh,
+            ])
+            |> Typ.fresh,
+          )
+          |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Pat.fresh,
+        Parens(
+          Tuple([
+            Int(1) |> Exp.fresh,
+            Float(1.0) |> Exp.fresh,
+            TupLabel(Label("c") |> Exp.fresh, Bool(true) |> Exp.fresh)
+            |> Exp.fresh,
+            TupLabel(Label("b") |> Exp.fresh, String("a") |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        Var("val") |> Exp.fresh,
+      )
+      |> Exp.fresh;
+    alco_check(
+      "Labeled Tuple rearrangement",
+      Let(
+        Var("val") |> Pat.fresh,
+        Tuple([
+          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+          |> Exp.fresh,
+          TupLabel(Label("b") |> Exp.fresh, String("a") |> Exp.fresh)
+          |> Exp.fresh,
+          Float(1.0) |> Exp.fresh,
+          TupLabel(Label("c") |> Exp.fresh, Bool(true) |> Exp.fresh)
+          |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+        Var("val") |> Exp.fresh,
+      )
+      |> Exp.fresh,
+      dhexp_of_uexp(rearranged_labeled_tuple_program),
+    );
+  };
+
   let tests = [
     test_case("Single integer", `Quick, single_integer),
     test_case("Empty hole", `Quick, empty_hole),
@@ -353,6 +555,304 @@ module PlainTests = {
       `Quick,
       ap_of_deferral_of_hole,
     ),
+    test_case("Labeled tuple elaboration", `Quick, elaborated_labeled_tuple),
+    test_case("Rearranged labeled tuple", `Quick, rearranged_labeled_tuple),
+    test_case(
+      "Singleton labeled tuple adds labels",
+      `Quick,
+      singleton_labeled_tuple_elaborates_labels,
+    ),
+    test_case("Singleton labeled tuple", `Quick, singleton_labeled_tuple),
+    test_case("Singleton labeled tuple analysis adds label", `Quick, () =>
+      alco_check(
+        "Singleton labeled tuple analysis adds label",
+        Let(
+          Var("x") |> Pat.fresh,
+          Tuple([
+            TupLabel(Label("l") |> Exp.fresh, String("a") |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+          Var("x") |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        dhexp_of_uexp(
+          Let(
+            Cast(
+              Var("x") |> Pat.fresh,
+              Parens(
+                Prod([
+                  TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
+                  |> Typ.fresh,
+                ])
+                |> Typ.fresh,
+              )
+              |> Typ.fresh,
+              Unknown(Internal) |> Typ.fresh,
+            )
+            |> Pat.fresh,
+            Parens(String("a") |> Exp.fresh) |> Exp.fresh,
+            Var("x") |> Exp.fresh,
+          )
+          |> Exp.fresh,
+        ),
+      )
+    ),
+    test_case(
+      "Singleton labeled tuple analysis adds label with type alias", `Quick, () =>
+      alco_check(
+        {|type T = (a=String) in
+        let x : T = "hello" in x|},
+        Let(
+          Var("x") |> Pat.fresh,
+          Tuple([
+            TupLabel(Label("a") |> Exp.fresh, String("hello") |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+          Var("x") |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        dhexp_of_uexp(
+          parse_exp({|type T = (a=String) in let x : T = "hello" in x|}),
+        ),
+      )
+    ),
+    test_case(
+      "Singleton labeled tuple analysis adds label with type alias", `Quick, () =>
+      alco_check(
+        {|let zip_only : (zip=Int) = (zip=12345) in zip_only|},
+        Let(
+          Var("zip_only") |> Pat.fresh,
+          Tuple([
+            TupLabel(Label("zip") |> Exp.fresh, Int(12345) |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+          Var("zip_only") |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        dhexp_of_uexp(
+          parse_exp({|let zip_only : (zip=Int) = (zip=12345) in zip_only|}),
+        ),
+      )
+    ),
+    test_case(
+      "Singleton labeled argument function application with known type",
+      `Quick,
+      () =>
+      alco_check(
+        {|(fun a=(x:Int) -> x)(a=1)|},
+        Ap(
+          Forward,
+          Fun(
+            Tuple([
+              TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
+              |> Pat.fresh,
+            ])
+            |> Pat.fresh,
+            Var("x") |> Exp.fresh,
+            Some(
+              Prod([
+                TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
+                |> Typ.fresh,
+              ])
+              |> Typ.fresh,
+            ),
+            None,
+          )
+          |> Exp.fresh,
+          Tuple([
+            TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(a=1)|})) // Ignoring casts for now
+      )
+    ),
+    test_case(
+      "Singleton labeled argument function application with no label in ap",
+      `Quick,
+      () =>
+      alco_check(
+        {|(fun a=(x:Int) -> x)(1)|},
+        Ap(
+          Forward,
+          Fun(
+            Tuple([
+              TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
+              |> Pat.fresh,
+            ])
+            |> Pat.fresh,
+            Var("x") |> Exp.fresh,
+            Some(
+              Prod([
+                TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
+                |> Typ.fresh,
+              ])
+              |> Typ.fresh,
+            ),
+            None,
+          )
+          |> Exp.fresh,
+          Tuple([
+            TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(1)|})),
+      )
+    ),
+    test_case("Failed cast inside labeled tuple", `Quick, () =>
+      alco_check(
+        {|let x : (c=String) = c=1 in x|},
+        Let(
+          Var("x") |> Pat.fresh,
+          Tuple([
+            TupLabel(
+              Label("c") |> Exp.fresh,
+              FailedCast(
+                Int(1) |> Exp.fresh,
+                Int |> Typ.fresh,
+                String |> Typ.fresh,
+              )
+              |> Exp.fresh,
+            )
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+          Var("x") |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        dhexp_of_uexp(parse_exp({|let x : (c=String) = c=1 in x|})),
+      )
+    ),
+    test_case("nested different singleton labeled arguments", `Quick, () =>
+      alco_check(
+        {|let x : (b=c=String) = b="" in x|},
+        Let(
+          Var("x") |> Pat.fresh,
+          Tuple([
+            TupLabel(
+              Label("b") |> Exp.fresh,
+              Tuple([
+                TupLabel(Label("c") |> Exp.fresh, String("") |> Exp.fresh)
+                |> Exp.fresh,
+              ])
+              |> Exp.fresh,
+            )
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+          Var("x") |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        dhexp_of_uexp(parse_exp({|let x : (b=c=String) = b="" in x|})),
+      )
+    ),
+    test_case(
+      "Singleton labeled argument function application with unknown type",
+      `Quick,
+      () =>
+      alco_check(
+        {|(fun a=x->x)(a=1)|},
+        Ap(
+          Forward,
+          Fun(
+            Tuple([
+              TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
+              |> Pat.fresh,
+            ])
+            |> Pat.fresh,
+            Var("x") |> Exp.fresh,
+            Some(
+              Prod([
+                TupLabel(
+                  Label("a") |> Typ.fresh,
+                  Unknown(Internal) |> Typ.fresh,
+                )
+                |> Typ.fresh,
+              ])
+              |> Typ.fresh,
+            ),
+            None,
+          )
+          |> Exp.fresh,
+          Tuple([
+            TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        DHExp.strip_casts(dhexp_of_uexp(parse_exp({|(fun a=x->x)(a=1)|}))),
+      )
+    ),
+    test_case("Singleton labeled argument let with unknown type", `Quick, () =>
+      alco_check(
+        {|let x : (a=?) = (a=1) in x|},
+        Let(
+          Var("x") |> Pat.fresh,
+          Tuple([
+            TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+            |> Exp.fresh,
+          ])
+          |> Exp.fresh,
+          Var("x") |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        DHExp.strip_casts(
+          dhexp_of_uexp(parse_exp({|let x : (a=?) = (a=1) in x|})),
+        ) // Ignoring casts for now
+      )
+    ),
+    test_case(
+      "Automatically add label in pattern inside type annotation", `Quick, () => {
+      alco_check(
+        "Adds label",
+        dhexp_of_uexp(
+          parse_exp(
+            {|let fn : (a=String) -> Int =
+  fun (a=a : String) -> 1
+in 1|},
+          ),
+        ),
+        dhexp_of_uexp(
+          parse_exp(
+            {|let fn : (a=String) -> Int =
+  fun (a : String) -> 1
+in 1|},
+          ),
+        ),
+      )
+    }),
+    test_case("Does not add labels with different cardinality", `Quick, () => {
+      alco_check(
+        "Does not add label",
+        FailedCast(
+          DHExp.strip_casts(parse_exp({|(1, 2) : (a= ,b= ,  )|})),
+          Prod([
+            Unknown(Internal) |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          ])
+          |> Typ.fresh,
+          Prod([
+            Unknown(Internal) |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          ])
+          |> Typ.fresh,
+        )
+        |> Exp.fresh,
+        DHExp.strip_casts(
+          dhexp_of_uexp(parse_exp({|(1, 2) : (a= ,b= ,  )|})),
+        ),
+      )
+    }),
   ];
 };
 module MenhirElaborationTests = {
@@ -365,41 +865,6 @@ module MenhirElaborationTests = {
         Haz3lmenhir.Interface.parse_program(dhexp),
       ),
       dhexp_of_uexp(uexp),
-    );
-
-  //Test for a let function
-  let let_fun_uexp: Exp.t =
-    Let(
-      Cast(
-        Var("f") |> Pat.fresh,
-        Arrow(Int |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
-        Unknown(Internal) |> Typ.fresh,
-      )
-      |> Pat.fresh,
-      Fun(
-        Var("x") |> Pat.fresh,
-        BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
-        |> Exp.fresh,
-        None,
-        None,
-      )
-      |> Exp.fresh,
-      Int(55) |> Exp.fresh,
-    )
-    |> Exp.fresh;
-
-  let let_fun_str = "
-let f =
-    named_fun f x ->
-        1 + x
-    in
-55";
-
-  let let_fun_menhir = () =>
-    alco_check_menhir(
-      "Let expression for a function which is not recursive (menhir)",
-      let_fun_str,
-      let_fun_uexp,
     );
 
   //Test for an empty hole
@@ -461,31 +926,6 @@ let f =
       "Inconsistent branches where the first branch is an integer and second branch is a boolean (menhir)",
       inconsistent_case_menhir_str,
       inconsistent_case_uexp,
-    );
-
-  //Function free var application menhir test
-  let ap_fun_uexp: Exp.t =
-    Ap(
-      Forward,
-      Fun(
-        Var("x") |> Pat.fresh,
-        BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
-        |> Exp.fresh,
-        None,
-        None,
-      )
-      |> Exp.fresh,
-      Var("y") |> Exp.fresh,
-    )
-    |> Exp.fresh;
-  let ap_fun_str = "
-    (fun x -> 4 + 5)(y)
-";
-  let ap_fun_menhir = () =>
-    alco_check_menhir(
-      "Application of a function (menhir)",
-      ap_fun_str,
-      dhexp_of_uexp(ap_fun_uexp),
     );
 
   //Consistent if statement menhir test
@@ -737,16 +1177,10 @@ x
     test_case("Type ap test (menhir)", `Quick, typ_ap_menhir),
     test_case("Let expression for a tuple (menhir)", `Quick, let_exp_menhir),
     test_case("Single integer (menhir)", `Quick, single_integer_menhir),
-    test_case(
-      "Let expression for a function (menhir)",
-      `Quick,
-      let_fun_menhir,
-    ),
     test_case("Empty hole (menhir)", `Quick, empty_hole_menhir),
     test_case("Free var (menhir)", `Quick, free_var_menhir),
     test_case("Bin op (menhir)", `Quick, bin_op_menhir),
     test_case("Inconsistent case (menhir)", `Quick, inconsistent_case_menhir),
-    test_case("ap fun (menhir)", `Quick, ap_fun_menhir),
     test_case("Consistent if (menhir)", `Quick, consistent_if_menhir),
     test_case("Undefined test (menhir)", `Quick, undefined_menhir),
     test_case("List exp (menhir)", `Quick, list_exp_menhir),

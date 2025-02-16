@@ -14,6 +14,8 @@ type cls =
   | String
   | Arrow
   | Prod
+  | TupLabel
+  | Label
   | Sum
   | List
   | Var
@@ -79,6 +81,8 @@ let cls_of_term: term => cls =
   | Arrow(_) => Arrow
   | Var(_) => Var
   | Prod(_) => Prod
+  | TupLabel(_) => TupLabel
+  | Label(_) => Label
   | Parens(_) => Parens
   | Ap(_) => Ap
   | Sum(_) => Sum
@@ -101,7 +105,9 @@ let show_cls: cls => string =
   | Constructor => "Sum constructor"
   | List => "List type"
   | Arrow => "Function type"
-  | Prod => "Product type"
+  | Prod => "Tuple type"
+  | TupLabel => "Labeled tuple item type"
+  | Label => "Label"
   | Sum => "Sum type"
   | Parens => "Parenthesized type"
   | Ap => "Constructor application"
@@ -112,7 +118,8 @@ let show_cls: cls => string =
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
-  | Parens(typ) => is_arrow(typ)
+  | Parens(typ)
+  | TupLabel(_, typ) => is_arrow(typ)
   | Arrow(_) => true
   | Unknown(_)
   | Int
@@ -120,6 +127,7 @@ let rec is_arrow = (typ: t) => {
   | Bool
   | String
   | List(_)
+  | Label(_)
   | Prod(_)
   | Var(_)
   | Ap(_)
@@ -132,7 +140,8 @@ let rec is_arrow = (typ: t) => {
 
 let rec is_forall = (typ: t) => {
   switch (typ.term) {
-  | Parens(typ) => is_forall(typ)
+  | Parens(typ)
+  | TupLabel(_, typ) => is_forall(typ)
   | Forall(_) => true
   | Unknown(_)
   | Int
@@ -142,6 +151,7 @@ let rec is_forall = (typ: t) => {
   | TFun(_)
   | Arrow(_)
   | List(_)
+  | Label(_)
   | Prod(_)
   | Var(_)
   | Ap(_)
@@ -178,13 +188,25 @@ let join_type_provenance =
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
+let rec match_tup_label = ty =>
+  switch (term_of(ty)) {
+  | Parens(ty) => match_tup_label(ty)
+  | TupLabel(label, t') =>
+    switch (term_of(label)) {
+    | Label(name) => Some((name, t'))
+    | _ => None
+    }
+  | _ => None
+  };
+
 let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (term_of(ty)) {
   | Unknown(_)
   | Int
   | Float
   | Bool
-  | String => []
+  | String
+  | Label(_) => []
   | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | Parens(ty) => free_vars(~bound, ty)
@@ -192,6 +214,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
   | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
+  | TupLabel(_, ty) => free_vars(~bound, ty)
   | Rec(x, ty)
   | Forall(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
@@ -221,20 +244,15 @@ let eq = (t1: t, t2: t): bool => fast_equal(t1, t2);
    resolve parameter specifies whether, in the case of a type
    variable and a succesful join, to return the resolved join type,
    or to return the (first) type variable for readability */
-let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-  let join' = join(~resolve, ~fix, ctx);
+let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+  let join' = join(~resolve, ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
   | (Parens(ty1), _) => join'(ty1, ty2)
-  | (_, Unknown(Hole(_))) when fix =>
-    /* NOTE(andrew): This is load bearing
-       for ensuring that function literals get appropriate
-       casts. Documentation/Dynamics has regression tests */
-    Some(ty2)
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(join_type_provenance(p1, p2)) |> temp)
   | (Unknown(_), _) => Some(ty2)
-  | (_, Unknown(Internal | SynSwitch)) => Some(ty1)
+  | (_, Unknown(_)) => Some(ty1)
   | (Var(n1), Var(n2)) =>
     if (n1 == n2) {
       Some(ty1);
@@ -260,7 +278,7 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
       | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
       | None => ty1
       };
-    let+ ty_body = join(~resolve, ~fix, ctx, ty1', ty2);
+    let+ ty_body = join(~resolve, ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
   | (Rec(_), _) => None
   | (Forall(x1, ty1), Forall(x2, ty2)) =>
@@ -270,7 +288,7 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
       | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
       | None => ty1
       };
-    let+ ty_body = join(~resolve, ~fix, ctx, ty1', ty2);
+    let+ ty_body = join(~resolve, ctx, ty1', ty2);
     Forall(x1, ty_body) |> temp;
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
@@ -287,18 +305,33 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
   | (Bool, _) => None
   | (String, String) => Some(ty1)
   | (String, _) => None
+  | (Label(_), Label("")) => Some(ty1)
+  | (Label(""), Label(_)) => Some(ty2)
+  | (Label(name1), Label(name2))
+      when LabeledTuple.match_labels(name1, name2) =>
+    Some(ty1)
+  | (Label(_), _) => None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     let* ty1 = join'(ty1, ty1');
     let+ ty2 = join'(ty2, ty2');
     Arrow(ty1, ty2) |> temp;
   | (Arrow(_), _) => None
+  | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
+    let* lab = join'(lab1, lab2);
+    let+ ty = join'(ty1', ty2');
+    TupLabel(lab, ty) |> temp;
+  | (TupLabel(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
-    let* tys = ListUtil.map2_opt(join', tys1, tys2);
-    let+ tys = OptUtil.sequence(tys);
-    Prod(tys) |> temp;
+    if (List.length(tys1) != List.length(tys2)) {
+      None;
+    } else {
+      let* tys = ListUtil.map2_opt(join', tys1, tys2);
+      let+ tys = OptUtil.sequence(tys);
+      Prod(tys) |> temp;
+    }
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
-    let+ sm' = ConstructorMap.join(eq, join(~resolve, ~fix, ctx), sm1, sm2);
+    let+ sm' = ConstructorMap.join(eq, join(~resolve, ctx), sm1, sm2);
     Sum(sm') |> temp;
   | (Sum(_), _) => None
   | (List(ty1), List(ty2)) =>
@@ -325,6 +358,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Float, _)
   | (Bool, _)
   | (String, _)
+  | (Label(_), _)
   | (Var(_), _)
   | (Ap(_), _)
   | (Rec(_), _)
@@ -339,6 +373,10 @@ let rec match_synswitch = (t1: t, t2: t) => {
     let tys = List.map2(match_synswitch, tys1, tys2);
     Prod(tys) |> rewrap1;
   | (Prod(_), _) => t1
+  | (TupLabel(label1, ty1), TupLabel(label2, ty2)) =>
+    TupLabel(match_synswitch(label1, label2), match_synswitch(ty1, ty2))
+    |> rewrap1
+  | (TupLabel(_, _), _) => t1
   | (Sum(sm1), Sum(sm2)) =>
     let sm' = ConstructorMap.match_synswitch(match_synswitch, eq, sm1, sm2);
     Sum(sm') |> rewrap1;
@@ -348,17 +386,15 @@ let rec match_synswitch = (t1: t, t2: t) => {
   };
 };
 
-let join_fix = join(~fix=true);
-
 let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
   List.fold_left(
-    (acc, ty) => OptUtil.and_then(join(~fix=false, ctx, ty), acc),
+    (acc, ty) => OptUtil.and_then(join(ctx, ty), acc),
     Some(empty),
     ts,
   );
 
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
-  join(~fix=false, ctx, ty1, ty2) != None;
+  join(ctx, ty1, ty2) != None;
 
 let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
   switch (term_of(ty)) {
@@ -383,13 +419,16 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Int
   | Float
   | Bool
-  | String => ty
+  | String
+  | Label(_) => ty
   | Parens(t) => Parens(normalize(ctx, t)) |> rewrap
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
+  | TupLabel(label, ty) =>
+    TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
   | Sum(ts) =>
     Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts)) |> rewrap
   | Rec(tpat, ty) =>
@@ -431,18 +470,57 @@ let matched_forall = (ctx, ty) =>
   matched_forall_strict(ctx, ty)
   |> Option.value(~default=(None, Unknown(Internal) |> temp));
 
-let rec matched_prod_strict = (ctx, length, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_prod_strict(ctx, length, ty)
-  | Prod(tys) when List.length(tys) == length => Some(tys)
-  | Unknown(SynSwitch) =>
-    Some(List.init(length, _ => Unknown(SynSwitch) |> temp))
-  | _ => None
+let rec get_labels = (ctx, ty): list(option(string)) => {
+  let ty = weak_head_normalize(ctx, ty);
+  switch (term_of(ty)) {
+  | Parens(ty) => get_labels(ctx, ty)
+  | Prod(tys) => List.map(x => Option.map(fst, match_tup_label(x)), tys)
+  | _ => []
+  };
+};
+
+let rec matched_prod_strict:
+  type a.
+    (Ctx.t, list(a), a => option((string, a)), t, (string, a) => a) =>
+    (list(a), option(list(t))) =
+  (ctx: Ctx.t, es, get_label_es, ty: t, constructor) => {
+    switch (term_of(weak_head_normalize(ctx, ty))) {
+    | Parens(ty) =>
+      matched_prod_strict(ctx, es, get_label_es, ty, constructor)
+    | Prod(tys: list(t)) =>
+      if (List.length(es) != List.length(tys)) {
+        (es, None);
+      } else {
+        (
+          LabeledTuple.rearrange(
+            match_tup_label,
+            get_label_es,
+            tys,
+            es,
+            constructor,
+          ),
+          Some(tys),
+        );
+      }
+    | Unknown(SynSwitch) => (
+        es,
+        Some(List.init(List.length(es), _ => Unknown(SynSwitch) |> temp)),
+      )
+    | _ => (es, None)
+    };
   };
 
-let matched_prod = (ctx, length, ty) =>
-  matched_prod_strict(ctx, length, ty)
-  |> Option.value(~default=List.init(length, _ => Unknown(Internal) |> temp));
+let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
+  let (es, tys_opt) =
+    matched_prod_strict(ctx, es, get_label_es, ty, constructor);
+  (
+    es,
+    tys_opt
+    |> Option.value(
+         ~default=List.init(List.length(es), _ => Unknown(Internal) |> temp),
+       ),
+  );
+};
 
 let rec matched_list_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
@@ -501,6 +579,7 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
 
 let rec is_unknown = (ty: t): bool =>
   switch (ty |> term_of) {
+  | TupLabel(_, x)
   | Parens(x) => is_unknown(x)
   | Unknown(_) => true
   | _ => false
@@ -514,14 +593,16 @@ let rec needs_parens = (ty: t): bool =>
   | Unknown(_)
   | Int
   | Float
-  | String
+  | Label(_)
   | Bool
+  | String
+  | TupLabel(_, _)
+  | List(_) /* is already wrapped in [] */
   | TFun(_)
   | Var(_) => false
   | Rec(_, _)
-  | Forall(_, _) => true
-  | List(_) => false /* is already wrapped in [] */
-  | Arrow(_, _) => true
+  | Forall(_, _)
+  | Arrow(_, _)
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
   };
@@ -572,6 +653,8 @@ let rec pretty_print = (ty: t): string =>
          ts,
        )
     ++ ")"
+  | Label(name) => name
+  | TupLabel(label, t) => pretty_print(label) ++ "=" ++ pretty_print(t)
   | Rec(tv, t) =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | Forall(tv, t) =>
@@ -591,3 +674,43 @@ and paren_pretty_print = typ =>
   } else {
     pretty_print(typ);
   };
+
+/**
+ * Removes duplicate labels from a given list of types inside a tuple.
+ *
+ * This function takes a list of types and returns a new list with all
+ * duplicate labels replaced with their first occurence and the unknown type.
+ *
+ * @param duplicate_labels - The list of duplicate labels.
+ * @param tys - The list of types to remove duplicates from.
+ * @return A new list of types with duplicates removed.
+ */
+let remove_duplicate_labels =
+    (~duplicate_labels: list(LabeledTuple.label), tys: list(t)): list(t) => {
+  snd(
+    List.fold_left(
+      ((seen_duplicates, deduplicated_types), ty) => {
+        let tup_label = match_tup_label(ty);
+        switch (tup_label) {
+        | Some((l, _))
+            when
+              List.mem(l, duplicate_labels) && List.mem(l, seen_duplicates) => (
+            seen_duplicates,
+            deduplicated_types,
+          )
+        | Some((l, _)) when List.mem(l, duplicate_labels) => (
+            [l] @ seen_duplicates,
+            deduplicated_types
+            @ [
+              TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
+            ],
+          )
+        | Some(_) => (seen_duplicates, deduplicated_types @ [ty])
+        | None => (seen_duplicates, deduplicated_types @ [ty])
+        };
+      },
+      ([], []),
+      tys,
+    ),
+  );
+};

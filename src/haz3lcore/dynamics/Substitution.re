@@ -14,10 +14,12 @@ let rec binds_var = (m: Statics.Map.t, x: Var.t, dp: DHPat.t): bool =>
     | Float(_)
     | Bool(_)
     | String(_)
+    | Label(_)
     | Constructor(_) => false
     | Cast(y, _, _)
     | Parens(y) => binds_var(m, x, y)
     | Var(y) => Var.eq(x, y)
+    | TupLabel(_, dp) => binds_var(m, x, dp)
     | Tuple(dps) => dps |> List.exists(binds_var(m, x))
     | Cons(dp1, dp2) => binds_var(m, x, dp1) || binds_var(m, x, dp2)
     | ListLit(d_list) =>
@@ -65,16 +67,13 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
         subst_var(m, d1, x, d3);
       };
     FixF(y, d3, env') |> rewrap;
-  | Fun(dp, d3, env, s) =>
-    /* Function closure shouldn't appear during substitution
-       (which only is called from elaboration currently) */
-    let env' = Option.map(subst_var_env(m, d1, x), env);
+  | Fun(dp, d3, ty, s) =>
     if (binds_var(m, x, dp)) {
-      Fun(dp, d3, env', s) |> rewrap;
+      Fun(dp, d3, ty, s) |> rewrap;
     } else {
       let d3 = subst_var(m, d1, x, d3);
-      Fun(dp, d3, env', s) |> rewrap;
-    };
+      Fun(dp, d3, ty, s) |> rewrap;
+    }
   | TypFun(tpat, d3, s) =>
     TypFun(tpat, subst_var(m, d1, x, d3), s) |> rewrap
   | Closure(env, d3) =>
@@ -93,6 +92,7 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | Int(_)
   | Float(_)
   | String(_)
+  | Label(_)
   | Constructor(_) => d2
   | ListLit(ds) => ListLit(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | Cons(d3, d4) =>
@@ -103,6 +103,11 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     let d3 = subst_var(m, d1, x, d3);
     let d4 = subst_var(m, d1, x, d4);
     ListConcat(d3, d4) |> rewrap;
+  | TupLabel(label, d) => TupLabel(label, subst_var(m, d1, x, d)) |> rewrap
+  | Dot(d3, d4) =>
+    let d3 = subst_var(m, d1, x, d3);
+    let d4 = subst_var(m, d1, x, d4);
+    Dot(d3, d4) |> rewrap;
   | Tuple(ds) => Tuple(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | UnOp(op, d3) =>
     let d3 = subst_var(m, d1, x, d3);
