@@ -36,12 +36,6 @@ let has_errors = (name: string, exp: string, errors: list(Info.error)) => {
 
 let no_errors = (name: string, exp: string) => has_errors(name, exp, []);
 
-let reusable_id = Id.mk();
-let reusable_pat: TermBase.pat_term => TermBase.pat_t =
-  p => {
-    {ids: [reusable_id], term: p, copied: false};
-  };
-
 let bare_let =
   no_errors("Bare let has no error on pattern", "let x = 1 in x");
 
