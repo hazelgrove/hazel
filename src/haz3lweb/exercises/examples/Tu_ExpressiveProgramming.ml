@@ -13,7 +13,7 @@ let exercise : Tutorial.spec =
        the integer value `4`. The symbol `≡` is pronounced \"is equivalent \
        to\".";
     wrapper = true;
-    show_report = flase;
+    show_report = false;
     version = 1;
     your_impl =
       {

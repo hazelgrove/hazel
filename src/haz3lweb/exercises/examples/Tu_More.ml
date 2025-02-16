@@ -20,7 +20,11 @@ let bools_ex : Tutorial.spec =
       \ Boolean values can be constructed by using comparison operators like \
        `<`, `==`, and `>` on integers. For example, `2 < 3` evaluates to \
        `true`. Booleans can also be combined using logical and (conjunction), \
-       `&&`, and logical or (disjunction), `||`.";
+       `&&`, and logical or (disjunction), `||`. \n\
+      \ \n\
+      \ Now declare 4 variables (exp1, exp2, exp3, exp4), and make exp1 and \
+       exp2 evaluate to true, and exp3 and exp4 evaluate to false. Feel free \
+       to combine different operators using conjunction or disjunction.";
     wrapper = true;
     show_report = false;
     version = 1;
@@ -66,7 +70,7 @@ let bools_ex : Tutorial.spec =
                                 Tile
                                   {
                                     id = Id.mk ();
-                                    label = [ "answer" ];
+                                    label = [ "exp1" ];
                                     mold =
                                       {
                                         out = Exp;
@@ -80,27 +84,185 @@ let bools_ex : Tutorial.spec =
                                   };
                                 Secondary
                                   { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ];
+                        };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ ";" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [];
+                              nibs =
+                                ( { shape = Concave 10; sort = Exp },
+                                  { shape = Concave 10; sort = Exp } );
+                            };
+                          shards = [ 0 ];
+                          children = [];
+                        };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ "test"; "end" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
                                     id = Id.mk ();
-                                    label = [ "==" ];
+                                    label = [ "exp2" ];
                                     mold =
                                       {
                                         out = Exp;
                                         in_ = [];
                                         nibs =
-                                          ( { shape = Concave 7; sort = Exp },
-                                            { shape = Concave 7; sort = Exp } );
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
                                       };
                                     shards = [ 0 ];
                                     children = [];
                                   };
                                 Secondary
                                   { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ];
+                        };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ ";" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [];
+                              nibs =
+                                ( { shape = Concave 10; sort = Exp },
+                                  { shape = Concave 10; sort = Exp } );
+                            };
+                          shards = [ 0 ];
+                          children = [];
+                        };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ "test"; "end" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
                                     id = Id.mk ();
-                                    label = [ "true" ];
+                                    label = [ "!" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Concave 4; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "exp3" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ];
+                        };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ ";" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [];
+                              nibs =
+                                ( { shape = Concave 10; sort = Exp },
+                                  { shape = Concave 10; sort = Exp } );
+                            };
+                          shards = [ 0 ];
+                          children = [];
+                        };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ "test"; "end" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "!" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Concave 4; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "exp4" ];
                                     mold =
                                       {
                                         out = Exp;
@@ -139,7 +301,13 @@ let bools_ex : Tutorial.spec =
               };
             caret = Outer;
           };
-        hints = [ "Check your logic!" ];
+        hints =
+          [
+            "Have you declared exp1? Remember that it has to evaluate to true.";
+            "Have you declared exp2? Remember that it has to evaluate to true.";
+            "Have you declared exp3? Remember that it has to evaluate to false.";
+            "Have you declared exp4? Remember that it has to evaluate to false.";
+          ];
       };
   }
 

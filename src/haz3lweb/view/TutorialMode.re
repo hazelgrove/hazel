@@ -399,7 +399,6 @@ module View = {
     let impl_grading_view =
       Always(
         if (test_count == 1) {
-          Printf.printf("show report: %b\n", eds.show_report);
           let checkmark_view =
             switch (Tutorial.get_stitched(HiddenTests, stitched_tests)) {
             | Some(test_results) =>
