@@ -614,7 +614,7 @@ let text_to_pretty = (id, sort, str): pretty => {
   ]);
 };
 
-let mk_form = (form_name: string, id, children): Piece.t => {
+let mk_form = (form_name: Form.compound_form, id, children): Piece.t => {
   let form: Form.t = Form.get(form_name);
   assert(List.length(children) == List.length(form.mold.in_));
   // Add whitespaces
@@ -671,7 +671,7 @@ let fold_if = (condition, pieces) =>
     [
       ProjectorPerform.Update.init(
         Fold,
-        mk_form("parens_exp", Id.mk(), [pieces]),
+        mk_form(ParensExp, Id.mk(), [pieces]),
       ),
     ];
   } else {
@@ -683,7 +683,7 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
     [
       ProjectorPerform.Update.init_from_str(
         Fold,
-        mk_form("parens_exp", Id.mk(), [pieces]),
+        mk_form(ParensExp, Id.mk(), [pieces]),
         ({text: f_name}: FoldProj.t)
         |> FoldProj.sexp_of_t
         |> Sexplib.Sexp.to_string,
@@ -705,11 +705,17 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | DynamicErrorHole(_)
   | Filter(Residue(_), _) => failwith("printing these not implemented yet")
   | Filter(Filter({pat, act}), e) =>
-    let label = FilterAction.string_of_t(act);
     let id = exp |> Exp.rep_id;
     let* p = go(pat);
     let+ e = go(e);
-    [mk_form("filter_" ++ label, id, [p])] @ e;
+    let form =
+      switch (act) {
+      | (Step, One) => Form.FilterPause
+      | (Step, All) => Form.FilterDebug
+      | (Eval, One) => Form.FilterHide
+      | (Eval, All) => Form.FilterEval
+      };
+    [mk_form(form, id, [p])] @ e;
   // Forms which should be removed by substitute_closures
   | Closure(_) => failwith("closure not removed before printing")
   // Other cases
@@ -745,13 +751,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     );
     let form = (x, xs) =>
       mk_form(
-        "list_lit_exp",
+        ListLitExp,
         id,
         [
           x
           @ List.flatten(
               List.map2(
-                (id, x) => [mk_form("comma_exp", id, [])] @ x,
+                (id, x) => [mk_form(CommaExp, id, [])] @ x,
                 ids,
                 xs,
               ),
@@ -794,8 +800,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         name;
       };
     let name = "<" ++ name ++ ">";
-    let fun_form = [mk_form("fun_", id, [p])] @ e;
-    [mk_form("parens_exp", exp |> Exp.rep_id, [fun_form])]
+    let fun_form = [mk_form(Fun, id, [p])] @ e;
+    [mk_form(ParensExp, exp |> Exp.rep_id, [fun_form])]
     |> fold_fun_if(settings.fold_fn_bodies, name);
   | Fun(p, e, t, _) =>
     // TODO: Add optional newlines
@@ -818,7 +824,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         name;
       };
     let name = "<" ++ name ++ ">";
-    [mk_form("fun_", id, [p])]
+    [mk_form(Fun, id, [p])]
     @ e
     |> fold_fun_if(settings.fold_fn_bodies, name);
   | TypFun(tp, e, _) =>
@@ -830,7 +836,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       "<"
       ++ (Exp.get_fn_name(exp) |> Option.value(~default="anon typfun"))
       ++ ">";
-    [mk_form("typfun", id, [tp])]
+    [mk_form(TypFun, id, [tp])]
     @ e
     |> fold_fun_if(settings.fold_fn_bodies, name);
   | Tuple([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()")
@@ -842,7 +848,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let ids = exp.ids |> pad_ids(List.length(xs));
     x
     @ List.flatten(
-        List.map2((id, x) => [mk_form("comma_exp", id, [])] @ x, ids, xs),
+        List.map2((id, x) => [mk_form(CommaExp, id, [])] @ x, ids, xs),
       );
   | Label(l) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, l)
   | TupLabel(l, e) =>
@@ -869,7 +875,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Dot(e, l) =>
     let* e = go(e)
     and* l = go(l);
-    List.flatten([e, [mk_form("dot_exp", exp |> Exp.rep_id, [])], l]);
+    List.flatten([e, [mk_form(DotExp, exp |> Exp.rep_id, [])], l]);
   | Let(p, e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -881,7 +887,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let e2 =
       settings.inline
         ? e2 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e2;
-    [mk_form("let_", id, [p, e1])] @ e2;
+    [mk_form(Let, id, [p, e1])] @ e2;
   | FixF(p, e, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -889,7 +895,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e = go(e);
     let name =
       "<" ++ (Exp.get_fn_name(exp) |> Option.value(~default="fun")) ++ ">";
-    [mk_form("fix", id, [p])]
+    [mk_form(Fix, id, [p])]
     @ e
     |> fold_fun_if(settings.fold_fn_bodies, name);
   | TyAlias(tp, t, e) =>
@@ -900,12 +906,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e = go(e);
     let e =
       settings.inline ? e : [Secondary(Secondary.mk_newline(Id.mk()))] @ e;
-    [mk_form("type_alias", id, [tp, t])] @ e;
+    [mk_form(TypeAlias, id, [tp, t])] @ e;
   | Ap(Forward, e1, e2) =>
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
-    e1 @ [mk_form("ap_exp", id, [e2])];
+    e1 @ [mk_form(ApExp, id, [e2])];
   | Ap(Reverse, e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -918,7 +924,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e)
     and+ tp = typ_to_pretty(~settings: Settings.t, t);
-    e @ [mk_form("ap_exp_typ", id, [tp])];
+    e @ [mk_form(ApExpTyp, id, [tp])];
   | DeferredAp(e, es) =>
     // TODO: Add optional newlines
     let+ e = go(e)
@@ -930,13 +936,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     e
     @ [
       mk_form(
-        "ap_exp",
+        ApExp,
         id,
         [
           (es |> List.hd)
           @ List.flatten(
               List.map2(
-                (id, e) => [mk_form("comma_exp", id, [])] @ e,
+                (id, e) => [mk_form(CommaExp, id, [])] @ e,
                 ids |> List.tl,
                 es |> List.tl,
               ),
@@ -958,7 +964,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let e3 =
       settings.inline
         ? e3 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e3;
-    [mk_form("if_", id, [e1, e2])] @ e3;
+    [mk_form(If, id, [e1, e2])] @ e3;
   | Seq(e1, e2) =>
     // TODO: Make newline optional
     let id = exp |> Exp.rep_id;
@@ -967,40 +973,40 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let e2 =
       settings.inline
         ? e2 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e2;
-    e1 @ [mk_form("cell-join", id, [])] @ e2;
+    e1 @ [mk_form(CellJoin, id, [])] @ e2;
   | Test(e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
-    [mk_form("test", id, [e])];
+    [mk_form(Test, id, [e])];
   | Parens(e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
-    [mk_form("parens_exp", id, [e])];
+    [mk_form(ParensExp, id, [e])];
   | Cons(e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
-    e1 @ [mk_form("cons_exp", id, [])] @ e2;
+    e1 @ [mk_form(ConsExp, id, [])] @ e2;
   | ListConcat(e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
-    e1 @ [mk_form("list_concat", id, [])] @ e2;
+    e1 @ [mk_form(ListConcat, id, [])] @ e2;
   | UnOp(Meta(Unquote), e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
-    [mk_form("unquote", id, [])] @ e;
+    [mk_form(Unquote, id, [])] @ e;
   | UnOp(Bool(Not), e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
-    [mk_form("not", id, [])] @ e;
+    [mk_form(Not, id, [])] @ e;
   | UnOp(Int(Minus), e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
-    [mk_form("unary_minus", id, [])] @ e;
+    [mk_form(UnaryMinus, id, [])] @ e;
   /* TODO: this isn't actually correct because we could the builtin
      could have been overriden in this scope; worth fixing when we fix
      closures. */
@@ -1010,7 +1016,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e)
     and+ t = typ_to_pretty(~settings: Settings.t, t);
-    e @ [mk_form("typeasc", id, [])] @ t;
+    e @ [mk_form(TypeAsc, id, [])] @ t;
   | Match(e, rs) =>
     // TODO: Add newlines
     let+ e = go(e)
@@ -1028,7 +1034,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     );
     [
       mk_form(
-        "case",
+        Case,
         id,
         [
           e
@@ -1039,7 +1045,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                   settings.inline
                     ? [] : [Secondary(Secondary.mk_newline(Id.mk()))]
                 )
-                @ [mk_form("rule", id, [p])]
+                @ [mk_form(Rule, id, [p])]
                 @ (e |> fold_if(settings.fold_case_clauses)),
               ids,
               rs,
@@ -1081,13 +1087,13 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     );
     p_just([
       mk_form(
-        "list_lit_pat",
+        ListLitPat,
         id,
         [
           x
           @ List.flatten(
               List.map2(
-                (id, x) => [mk_form("comma_pat", id, [])] @ x,
+                (id, x) => [mk_form(CommaPat, id, [])] @ x,
                 ids,
                 xs,
               ),
@@ -1099,7 +1105,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let id = pat |> Pat.rep_id;
     let+ p1 = go(p1)
     and+ p2 = go(p2);
-    p1 @ [mk_form("cons_pat", id, [])] @ p2;
+    p1 @ [mk_form(ConsPat, id, [])] @ p2;
   | Tuple([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "()")
   | Tuple([x, ...xs]) =>
     let+ x = go(x)
@@ -1107,7 +1113,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let ids = pat.ids |> pad_ids(List.length(xs));
     x
     @ List.flatten(
-        List.map2((id, x) => [mk_form("comma_pat", id, [])] @ x, ids, xs),
+        List.map2((id, x) => [mk_form(CommaPat, id, [])] @ x, ids, xs),
       );
   | TupLabel(l, p) =>
     let* l = go(l)
@@ -1133,7 +1139,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Parens(p) =>
     let id = pat |> Pat.rep_id;
     let+ p = go(p);
-    [mk_form("parens_pat", id, [p])];
+    [mk_form(ParensPat, id, [p])];
   | MultiHole(es) =>
     let id = pat |> Pat.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
@@ -1142,12 +1148,12 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let id = pat |> Pat.rep_id;
     let+ p1 = go(p1)
     and+ p2 = go(p2);
-    p1 @ [mk_form("ap_pat", id, [p2])];
+    p1 @ [mk_form(ApPat, id, [p2])];
   | Cast(p, t, _) =>
     let id = pat |> Pat.rep_id;
     let+ p = go(p)
     and+ t = typ_to_pretty(~settings: Settings.t, t);
-    p @ [mk_form("typeann", id, [])] @ t;
+    p @ [mk_form(Typeann, id, [])] @ t;
   };
 }
 and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
@@ -1171,7 +1177,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         constructor
         @ [
           mk_form(
-            "ap_typ",
+            ApTyp,
             Option.value(~default=Id.invalid, ListUtil.hd_opt(ids)),
             [go(x)],
           ),
@@ -1198,7 +1204,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | List(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);
-    [mk_form("list_typ", id, [t])];
+    [mk_form(ListTyp, id, [t])];
   | Prod([]) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "()")
   | Prod([t, ...ts]) =>
     let+ t = go(t)
@@ -1206,7 +1212,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     t
     @ List.flatten(
         List.map2(
-          (id, t) => [mk_form("comma_typ", id, [])] @ t,
+          (id, t) => [mk_form(CommaTyp, id, [])] @ t,
           typ.ids |> pad_ids(ts |> List.length),
           ts,
         ),
@@ -1236,42 +1242,42 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Parens(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);
-    [mk_form("parens_typ", id, [t])];
+    [mk_form(ParensTyp, id, [t])];
   | Ap(t1, t2) =>
     let id = typ |> Typ.rep_id;
     let+ t1 = go(t1)
     and+ t2 = go(t2);
-    t1 @ [mk_form("ap_typ", id, [t2])];
+    t1 @ [mk_form(ApTyp, id, [t2])];
   | Rec(tp, t) =>
     let id = typ |> Typ.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
-    [mk_form("rec", id, [tp])] @ t;
+    [mk_form(Rec, id, [tp])] @ t;
   | Forall(tp, t) =>
     let id = typ |> Typ.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
-    [mk_form("forall", id, [tp])] @ t;
+    [mk_form(Forall, id, [tp])] @ t;
   | Arrow(t1, t2) =>
     let id = typ |> Typ.rep_id;
     let+ t1 = go(t1)
     and+ t2 = go(t2);
-    t1 @ [mk_form("type-arrow", id, [])] @ t2;
+    t1 @ [mk_form(TypeArrow, id, [])] @ t2;
   | Sum([]) => failwith("Empty Sums are not allowed")
   | Sum([t]) =>
     let id = typ |> Typ.rep_id;
     let+ t = go_constructor(t);
-    [mk_form("typ_sum_single", id, [])] @ t;
+    [mk_form(TypSumSingle, id, [])] @ t;
   | Sum([t, ...ts]) =>
     let ids = typ.ids |> pad_ids(List.length(ts) + 1);
     let id = List.hd(ids);
     let ids = List.tl(ids);
     let+ t = go_constructor(t)
     and+ ts = ts |> List.map(go_constructor) |> all;
-    [mk_form("typ_sum_single", id, [])]
+    [mk_form(TypSumSingle, id, [])]
     @ t
     @ List.flatten(
-        List.map2((id, t) => [mk_form("typ_plus", id, [])] @ t, ids, ts),
+        List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
       );
   };
 }

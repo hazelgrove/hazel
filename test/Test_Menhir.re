@@ -552,7 +552,7 @@ let comparison =
 in
 
 let float: Float = 0.1 in
-let artihmetic = 0. *. 1. +. 2. /. 3. -. 4. **. 5. in
+let arithmetic = 0. *. 1. +. 2. /. 3. -. 4. **. 5. in
 let comparison =
   (0. ==. 0., 0. <. 1., 1. <=. 1., 2. >. 1., 1. >=. 1.)
 in

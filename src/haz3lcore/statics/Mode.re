@@ -46,7 +46,7 @@ let of_arrow = (ctx: Ctx.t, mode: t, ty: option(Typ.t)): (t, t) =>
   | (Ana(ty), None) => ty |> Typ.matched_arrow(ctx) |> TupleUtil.map2(ana)
   | (Ana(ty), Some(ty')) =>
     let (t1, t2) = ty |> Typ.matched_arrow(ctx);
-    (Typ.join(~fix=true, ctx, t1, ty') |> Option.value(~default=ty'), t2)
+    (Typ.join(ctx, t1, ty') |> Option.value(~default=ty'), t2)
     |> TupleUtil.map2(ana);
   };
 

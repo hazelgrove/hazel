@@ -154,7 +154,11 @@ let rec matches_exp =
     | (_, EmptyHole)
     | (_, Constructor("$e", _)) => true
 
-    | (Cast(d, _, _), Cast(f, _, _)) => matches_exp(d, f)
+    | (Cast(d, dty1, dty2), Cast(f, fty1, fty2)) =>
+      matches_exp(d, f)
+      && matches_typ(dty1, fty1)
+      && matches_typ(dty2, fty2)
+    | (Cast(_), _) => false
     | (Closure(denv, d), Closure(fenv, f)) =>
       matches_exp(~denv, d, ~fenv, f)
 
@@ -163,7 +167,6 @@ let rec matches_exp =
     | (_, FailedCast(f, _, _)) => matches_exp(d, f)
 
     | (Closure(denv, d), _) => matches_exp(~denv, d, f)
-    | (Cast(d, _, _), _) => matches_exp(d, f)
     | (FailedCast(d, _, _), _) => matches_exp(d, f)
     | (Filter(Residue(_), d), _) => matches_exp(d, f)
 
@@ -232,8 +235,25 @@ let rec matches_exp =
     | (BuiltinFun(dn), BuiltinFun(fn)) => dn == fn
     | (BuiltinFun(_), _) => false
 
-    | (TypFun(pat1, d1, s1), TypFun(pat2, d2, s2)) =>
-      s1 == s2 && matches_utpat(pat1, pat2) && matches_exp(d1, d2)
+    | (TypFun(dpat, d, _), TypFun(fpat, f, _)) =>
+      switch (dpat |> IdTagged.term_of, fpat |> IdTagged.term_of) {
+      | (_, EmptyHole) => matches_exp(d, f)
+      | _ =>
+        let id = alpha_magic ++ Uuidm.to_string(Uuidm.v(`V4));
+        let d' =
+          DHExp.ty_subst(
+            (Var(id): TermBase.Typ.term) |> IdTagged.fresh,
+            dpat,
+            d,
+          );
+        let f' =
+          DHExp.ty_subst(
+            (Var(id): TermBase.Typ.term) |> IdTagged.fresh,
+            fpat,
+            f,
+          );
+        matches_exp(d', f');
+      }
     | (TypFun(_), _) => false
     | (Fun(dp1, d1, _, _), Fun(fp1, f1, _, _)) =>
       matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
