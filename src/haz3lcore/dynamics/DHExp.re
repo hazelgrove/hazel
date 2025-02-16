@@ -268,11 +268,6 @@ let rec ty_consistent = (d1, d2) => {
     && List.for_all2(ty_consistent, ds1, ds2)
   | (Tuple(_), _) => false
   | (
-      Ap(_, {term: Constructor(_, {term: Arrow(_, t1), _}), _}, d1),
-      Ap(_, {term: Constructor(_, {term: Arrow(_, t2), _}), _}, d2),
-    ) =>
-    Typ.is_consistent([], t1, t2) && ty_consistent(d1, d2)
-  | (
       Constructor(_, t1) |
       Ap(_, {term: Constructor(_, {term: Arrow(_, t1), _}), _}, _),
       Constructor(_, t2) |
