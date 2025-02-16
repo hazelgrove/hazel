@@ -47,7 +47,8 @@ module Update = {
   type t =
     | Editor(Tutorial.pos, CellEditor.Update.t)
     | ResetEditor(Tutorial.pos)
-    | ResetTutorial;
+    | ResetTutorial
+    | Change_report_view;
   let update =
       (~settings: Settings.t, ~schedule_action as _, action, model: Model.t)
       : Updated.t(Model.t) => {
@@ -119,6 +120,14 @@ module Update = {
       let new_editors =
         Tutorial.map(model.spec, Editor.Model.mk, Editor.Model.mk);
       {...model, editors: new_editors} |> Updated.return;
+    | Change_report_view =>
+      Updated.return_quiet({
+        ...model,
+        editors: {
+          ...model.editors,
+          show_report: !model.editors.show_report,
+        },
+      })
     };
   };
   let calculate =
@@ -232,6 +241,7 @@ module Update = {
           hints: model.editors.hidden_tests.hints,
         },
         wrapper: model.editors.wrapper,
+        show_report: model.editors.show_report,
         // syntax_tests: model.editors.syntax_tests,
       };
     };
@@ -389,17 +399,26 @@ module View = {
     let impl_grading_view =
       Always(
         if (test_count == 1) {
+          Printf.printf("show report: %b\n", eds.show_report);
           let checkmark_view =
             switch (Tutorial.get_stitched(HiddenTests, stitched_tests)) {
             | Some(test_results) =>
               if (test_results.total == 1 && test_results.passing == 1) {
-                // ✅ Test case has passed -> Show check mark next to hint
+                // ✅ Test case has passed -> Show check mark next to hint with a button
                 div(
                   ~attrs=[Attr.class_("checkmark-container")],
                   [
                     div(
                       ~attrs=[Attr.class_("checkmark")],
                       [text("✔️")],
+                    ),
+                    div(
+                      ~attrs=[Attr.class_("report-icon")],
+                      [
+                        Widgets.button(Icons.info, _ =>
+                          inject(Change_report_view)
+                        ),
+                      ],
                     ),
                   ],
                 );
@@ -412,7 +431,23 @@ module View = {
             };
 
           // ✅ Fix: Pass children as last positional argument instead of using `~children`
-          div([checkmark_view]);
+          div([
+            checkmark_view,
+            eds.show_report
+              ? TutorialGrading.ImplGradingReport.view(
+                  ~signal_jump=
+                    id =>
+                      inject(
+                        Editor(
+                          HiddenTests,
+                          MainEditor(Perform(Jump(TileId(id)))),
+                        ),
+                      ),
+                  ~report=grading_report.impl_grading_report,
+                  ~max_points=1,
+                )
+              : div([]),
+          ]);
         } else if (test_count > 1) {
           TutorialGrading.ImplGradingReport.view(
             ~signal_jump=

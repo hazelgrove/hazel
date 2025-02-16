@@ -16,6 +16,7 @@ let exercise : Tutorial.spec =
        groups operands according to their operators, making the structure of \
        the expression clear.\n";
     wrapper = true;
+    show_report = false;
     version = 1;
     your_impl =
       {
@@ -147,6 +148,7 @@ let scope_exercise : Tutorial.spec =
        Hazel's expression decorations show you where the scope of the variable \
        will end.";
     wrapper = true;
+    show_report = false;
     version = 1;
     your_impl =
       {

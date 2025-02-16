@@ -60,6 +60,7 @@ type p('code) = {
   //   hidden_bugs: list(wrong_impl('code)),
   hidden_tests: hidden_tests('code),
   wrapper: bool,
+  show_report: bool,
   //   syntax_tests,
 };
 
@@ -116,6 +117,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
       hints: p.hidden_tests.hints,
     },
     wrapper: p.wrapper,
+    show_report: p.show_report,
     // syntax_tests: p.syntax_tests,
   };
 };
@@ -137,6 +139,7 @@ type persistent_state = {
   // description: string,
   editors: list((pos, PersistentZipper.t)),
   wrapper: bool,
+  show_report: bool,
 };
 
 let main_editor_of_state = (~selection: pos, eds) =>
@@ -317,6 +320,7 @@ let eds_of_spec =
         // hidden_bugs,
         hidden_tests,
         wrapper,
+        show_report,
         // syntax_tests,
       },
       ~settings as _: CoreSettings.t,
@@ -355,6 +359,7 @@ let eds_of_spec =
     hidden_tests,
     // syntax_tests,
     wrapper,
+    show_report,
   };
 };
 
@@ -588,6 +593,7 @@ let blank_spec = (~title) => {
   let your_impl = Zipper.next_blank();
   let hidden_tests_tests = Zipper.next_blank();
   let wrapper = false;
+  let show_report = true;
   {
     title,
     // description,
@@ -600,6 +606,7 @@ let blank_spec = (~title) => {
       hints: [],
     },
     wrapper,
+    show_report,
   };
 };
 
@@ -632,5 +639,6 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
       hints: spec.hidden_tests.hints,
     },
     wrapper: spec.wrapper,
+    show_report: spec.show_report,
   };
 };

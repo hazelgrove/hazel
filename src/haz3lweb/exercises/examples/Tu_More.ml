@@ -22,6 +22,7 @@ let bools_ex : Tutorial.spec =
        `true`. Booleans can also be combined using logical and (conjunction), \
        `&&`, and logical or (disjunction), `||`.";
     wrapper = true;
+    show_report = false;
     version = 1;
     your_impl =
       {
@@ -151,6 +152,7 @@ let cond_ex : Tutorial.spec =
        expressions using a `conditional expression`. For example, `if 2 < 3 \
        then 4 * 4 else 5 * 5` evaluates to `4`.";
     wrapper = true;
+    show_report = false;
     version = 1;
     your_impl =
       {
@@ -197,6 +199,7 @@ let func_ex : Tutorial.spec =
        how substitution of the function for the variable standing for the \
        function works.";
     wrapper = true;
+    show_report = false;
     version = 1;
     your_impl =
       {

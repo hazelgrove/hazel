@@ -16,6 +16,7 @@ let exercise : Tutorial.spec =
        Variables are given computational meaning simply by substitution. Use \
        the stepper to see how this works.";
     wrapper = true;
+    show_report = false;
     version = 1;
     your_impl =
       {
@@ -243,6 +244,7 @@ let comp_exercise : Tutorial.spec =
        Try embedding a let expression in the following expression: 2 + 3. (You \
        can embed the let expression into either the 2, the 3 or both!)\n";
     wrapper = true;
+    show_report = false;
     version = 1;
     your_impl =
       {

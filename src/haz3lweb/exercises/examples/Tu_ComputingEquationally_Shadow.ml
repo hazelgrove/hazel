@@ -14,6 +14,7 @@ let exercise : Tutorial.spec =
        one elementary arithmetic step at a time. This proof is the essence of \
        computation!";
     wrapper = false;
+    show_report = false;
     version = 1;
     your_impl =
       {
@@ -60,6 +61,7 @@ let shadow_exercise : Tutorial.spec =
        Then, shadow x to the value 7. Make sure you that in both let \
        expression the variable has the same name. ";
     wrapper = false;
+    show_report = false;
     version = 1;
     your_impl =
       {

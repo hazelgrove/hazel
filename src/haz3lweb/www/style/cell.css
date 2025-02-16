@@ -39,7 +39,7 @@
   min-width: 100%;
 }
 
-.cell > * {
+.cell>* {
   padding-left: 1em;
   padding: 1em;
   padding-left: 1.2em;
