@@ -67,7 +67,7 @@ and exp_term =
   | Float(float)
   | String(string)
   | ListLit(list(exp_t))
-  | Constructor(string, typ_t) // Typ.t field is only meaningful in dynamic expressions
+  | Constructor(string, option(typ_t)) // Typ.t field is only meaningful in dynamic expressions
   | Fun(pat_t, exp_t, option(typ_t), option(Var.t)) // typ_t field is only used to display types in results
   | TypFun(tpat_t, exp_t, option(Var.t))
   | Tuple(list(exp_t))
@@ -108,7 +108,7 @@ and pat_term =
   | Bool(bool)
   | String(string)
   | ListLit(list(pat_t))
-  | Constructor(string, typ_t) // Typ.t field is only meaningful in dynamic patterns
+  | Constructor(string, option(typ_t)) // Typ.t field is only meaningful in dynamic patterns
   | Cons(pat_t, pat_t)
   | Var(Var.t)
   | Tuple(list(pat_t))
@@ -385,8 +385,9 @@ and Exp: {
     | (Label(s1), Label(s2)) => s1 == s2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
-    | (Constructor(c1, ty1), Constructor(c2, ty2)) =>
+    | (Constructor(c1, Some(ty1)), Constructor(c2, Some(ty2))) =>
       c1 == c2 && Typ.fast_equal(ty1, ty2)
+    | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
     | (Fun(p1, e1, t1, _), Fun(p2, e2, t2, _)) =>
       Pat.fast_equal(p1, p2)
       && fast_equal(e1, e2)
@@ -572,8 +573,9 @@ and Pat: {
     | (Float(f1), Float(f2)) => f1 == f2
     | (String(s1), String(s2)) => s1 == s2
     | (Label(s1), Label(s2)) => s1 == s2
-    | (Constructor(c1, t1), Constructor(c2, t2)) =>
+    | (Constructor(c1, Some(t1)), Constructor(c2, Some(t2))) =>
       c1 == c2 && Typ.fast_equal(t1, t2)
+    | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
     | (Var(v1), Var(v2)) => v1 == v2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)

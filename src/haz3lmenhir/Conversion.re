@@ -202,7 +202,8 @@ module rec Exp: {
     | String(s) => String(s)
     | Bool(b) => Bool(b)
     | Var(x) => Var(x)
-    | Constructor(x, ty) => Constructor(x, Typ.of_menhir_ast'(ty))
+    | Constructor(x, ty) =>
+      Constructor(x, Option.map(Typ.of_menhir_ast', ty))
     | Deferral => Deferral(InAp)
     // switch (pos) {
     // | InAp => Deferral(InAp)
@@ -379,7 +380,7 @@ module rec Exp: {
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Closure(_) => raise(Failure("Closure not supported"))
     | Parens(e) => of_core(e)
-    | Constructor(s, typ) => Constructor(s, Typ.of_core(typ))
+    | Constructor(s, typ) => Constructor(s, Option.map(Typ.of_core, typ))
     | DeferredAp(e, es) =>
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
@@ -543,7 +544,8 @@ and Pat: {
         |> Haz3lcore.Pat.fresh,
       )
     | VarPat(x) => Var(x)
-    | ConstructorPat(x, ty) => Constructor(x, Typ.of_menhir_ast'(ty))
+    | ConstructorPat(x, ty) =>
+      Constructor(x, Option.map(Typ.of_menhir_ast', ty))
     | StringPat(s) => String(s)
     | TuplePat(pats) =>
       Parens(Tuple(List.map(of_menhir_ast', pats)) |> Haz3lcore.Pat.fresh)
@@ -582,7 +584,7 @@ and Pat: {
     | Int(i) => IntPat(i)
     | Float(f) => FloatPat(f)
     | Var(x) => VarPat(x)
-    | Constructor(x, ty) => ConstructorPat(x, Typ.of_core(ty))
+    | Constructor(x, ty) => ConstructorPat(x, Option.map(Typ.of_core, ty))
     | String(s) => StringPat(s)
     | Tuple(l) => TuplePat(List.map(of_core, l))
     | Bool(b) => BoolPat(b)

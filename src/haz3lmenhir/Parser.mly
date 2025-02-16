@@ -257,8 +257,8 @@ nonAscriptingPat:
     | WILD { WildPat }
     | QUESTION { EmptyHolePat }
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
-    | c = CONSTRUCTOR_IDENT { ConstructorPat(c, UnknownType(Internal))}
-    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { CastPat(ConstructorPat(c, UnknownType(Internal)), UnknownType(Internal), t) }
+    | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
+    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { CastPat(ConstructorPat(c, None), UnknownType(Internal), t) }
     | p = IDENT { VarPat(p) }
     | i = INT { IntPat i }
     | f = FLOAT { FloatPat f }
@@ -319,9 +319,9 @@ exp:
     | i = INT { Int i }
     | f = FLOAT { Float f }
     | v = IDENT { Var v }
-    | c = CONSTRUCTOR_IDENT { Constructor(c, UnknownType(Internal))}
-    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, t) }
-    | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { Cast(Constructor(c, UnknownType(Internal)), UnknownType(Internal), t) }
+    | c = CONSTRUCTOR_IDENT { print_endline("Bare constructor"); Constructor(c, None)}
+    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(t)) }
+    | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { Cast(Constructor(c, None), UnknownType(Internal), t) }
     | s = STRING { String s}
     | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(e) }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 

@@ -265,13 +265,13 @@ let tests = (
     menhir_only_test("Unit", Tuple([]) |> Exp.fresh, "()"),
     menhir_only_test(
       "Constructor",
-      Constructor("A", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
+      Constructor("A", None) |> Exp.fresh,
       "A",
     ),
     menhir_only_test(
       "Constructor cast",
       Cast(
-        Constructor("A", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
+        Constructor("A", None) |> Exp.fresh,
         Unknown(Internal) |> Typ.fresh,
         Int |> Typ.fresh,
       )
@@ -280,13 +280,13 @@ let tests = (
     ),
     menhir_only_test(
       "Constructor of specific sum type",
-      Constructor("A", Int |> Typ.fresh) |> Exp.fresh,
+      Constructor("A", Some(Int |> Typ.fresh)) |> Exp.fresh,
       "A ~ Int",
     ),
     // TODO Fix for the tests below
     menhir_only_test(
       "Constructor with Type Variable",
-      Constructor("A", Var("T") |> Typ.fresh) |> Exp.fresh,
+      Constructor("A", Some(Var("T") |> Typ.fresh)) |> Exp.fresh,
       "A ~ T",
     ),
     full_parser_test(
@@ -460,7 +460,7 @@ let tests = (
         |> Pat.fresh,
         Ap(
           Forward,
-          Constructor("C", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
+          Constructor("C", None) |> Exp.fresh,
           Int(7) |> Exp.fresh,
         )
         |> Exp.fresh,

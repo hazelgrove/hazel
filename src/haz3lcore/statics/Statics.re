@@ -355,8 +355,10 @@ and uexp_to_info_map =
         copied: false,
         term:
           switch (e.term) {
-          | Var("e") => Constructor("$e", Unknown(Internal) |> Typ.temp)
-          | Var("v") => Constructor("$v", Unknown(Internal) |> Typ.temp)
+          | Var("e") =>
+            Constructor("$e", Some(Unknown(Internal) |> Typ.fresh))
+          | Var("v") =>
+            Constructor("$v", Some(Unknown(Internal) |> Typ.fresh))
           | _ => e.term
           },
       };
@@ -646,7 +648,7 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
         m,
       );
-    | Constructor(ctr, _) => atomic(Self.of_ctr(ctx, ctr, mode))
+    | Constructor(ctr, ty) => atomic(Self.of_ctr(ctx, ctr, mode, ty))
     | Ap(_, fn, arg) =>
       let fn_mode = Mode.of_ap(ctx, mode, Exp.ctr_name(fn));
       let (fn, m) = go(~mode=fn_mode, fn, m);
@@ -1411,8 +1413,8 @@ and upat_to_info_map =
     | Parens(p) =>
       let (p, m) = go(~ctx, ~mode, p, m);
       add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
-    | Constructor(ctr, _) =>
-      let self = Self.of_ctr(ctx, ctr, mode);
+    | Constructor(ctr, ty) =>
+      let self = Self.of_ctr(ctx, ctr, mode, ty);
       atomic(self, Coverage.Constraint.Ap(ctr, None));
     | Ap(fn, arg) =>
       let ctr = Pat.ctr_name(fn);
