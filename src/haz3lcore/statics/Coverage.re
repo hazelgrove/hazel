@@ -443,17 +443,10 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
         redundant_rows: List.init(List.length(m), i => i),
       };
     } else {
-      // print_endline("type: " ++ [%derive.show: Typ.t](first_col_ty));
       let all_ctrs = Ctr.all_ctrs_of_typ(first_col_ty);
-      // print_endline(
-      //   "all_ctrs: " ++ [%derive.show: option(Ctr.all_ctrs)](all_ctrs),
-      // );
       let submatrices = Submatrices.of_matrix(m, all_ctrs);
       // for each submatrix, recursively check_matrix, computing the col_tys based
       // on the first_col_ty and the constructor name.
-      print_endline(
-        "submatrices: " ++ [%derive.show: Submatrices.t](submatrices),
-      );
       let (is_exhaustive, redundant_rows) =
         Ctr.Map.fold(
           (ctr, submatrix, (is_exhaustive, redundant_rows)) => {
@@ -482,10 +475,6 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
             submatrices.first_col_redundant_rows,
           ),
         );
-      print_endline(
-        "returning: "
-        ++ [%derive.show: result]({is_exhaustive, redundant_rows}),
-      );
       {is_exhaustive, redundant_rows};
     }
   };

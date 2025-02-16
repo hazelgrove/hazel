@@ -319,7 +319,7 @@ exp:
     | i = INT { Int i }
     | f = FLOAT { Float f }
     | v = IDENT { Var v }
-    | c = CONSTRUCTOR_IDENT { print_endline("Bare constructor"); Constructor(c, None)}
+    | c = CONSTRUCTOR_IDENT { Constructor(c, None)}
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(t)) }
     | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { Cast(Constructor(c, None), UnknownType(Internal), t) }
     | s = STRING { String s}

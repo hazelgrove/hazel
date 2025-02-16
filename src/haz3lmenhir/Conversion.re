@@ -306,7 +306,7 @@ module rec Exp: {
         of_menhir_ast'(e),
         Haz3lcore.InvalidOperationError.t_of_sexp(sexp_of_string(s)),
       )
-    | IndicationExp(e) =>
+    | IndicationExp(_) =>
       failwith(
         "IndicationExp should not appear as argument to term_of_menhir_ast.",
       )
