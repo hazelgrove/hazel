@@ -409,12 +409,11 @@ let rec status_common =
        a sum type having that ctr as a variant, its self type is
        considered to be determined by the sum type; otherwise,
        check the context for the ctr's type */
-    print_endline("IsConstructor(" ++ Constructor.show(name) ++ ")");
     switch (Mode.ctr_ana_typ(ctx, mode, name), syn_ty) {
     | (Some(ana_ty), _) => status_common(ctx, mode, Just(ana_ty))
     | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
     | _ => InHole(NoType(FreeConstructor(name)))
-    };
+    }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))

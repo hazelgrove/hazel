@@ -1036,7 +1036,6 @@ and upat_to_info_map =
         ~inferred_label,
         ~label_sort,
       );
-    // print_endline("Adding pat: " ++ Info.show_pat(info));
     (info, add_info(ids, InfoPat(info), m));
   };
   let upat_to_info_map =
