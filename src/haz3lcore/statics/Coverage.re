@@ -1,3 +1,9 @@
+/* The pattern coverage checker implements a variant of Maranget's pattern matrix checker
+   (see "Warnings for Pattern Matching", Maranget 2007).
+
+   The main novelty here is that we handle holes following the developments in Yuan et al, OOPSLA 2023
+   (the Peanut paper) + we handle unknowns in scrutinee types. */
+
 open Util;
 open Util.Sets;
 open Util.Maps;
@@ -22,6 +28,7 @@ module Constraint = {
 
 module Ctr = {
   module M = {
+    // Ctrs are Constructors equipped with arities.
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = {
       ctr: Constructor.t,
@@ -45,7 +52,8 @@ module Ctr = {
   };
   let num_args_of = (ctr: t): int => ctr.num_args;
 
-  // this should not be anotherwise valid constructor name.
+  // Ctrs for primitive types
+  // Names here should not be anotherwise valid sum type constructor names.
   let of_int = n => mk(string_of_int(n), 0);
   let of_float = x => mk(string_of_float(x), 0);
   let of_string = s => mk("\"" ++ s, 0); // don't need closing quote, just need to distinguish from others
@@ -442,7 +450,7 @@ type result = {
   redundant_rows,
 };
 
-// We assume ty is already normalized.
+// We assume col_tys is already normalized.
 let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
   switch (col_tys) {
   | [] => failwith("Empty column types.")
@@ -455,11 +463,11 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
     } else {
       let all_ctrs = Ctr.all_ctrs_of_typ(first_col_ty);
       let submatrices = Submatrices.of_matrix(m, all_ctrs);
-      // for each submatrix, recursively check_matrix, computing the col_tys based
-      // on the first_col_ty and the constructor name.
       let (is_exhaustive, redundant_rows) =
         Ctr.Map.fold(
           (ctr, submatrix, (is_exhaustive, redundant_rows)) => {
+            // for each submatrix, recursively check_matrix, computing the col_tys based
+            // on the first_col_ty and the constructor name.
             let arity = Ctr.arity_of(ctr, all_ctrs);
             let col_tys = arity @ rem_col_tys;
             switch (col_tys) {
@@ -490,6 +498,7 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
   };
 };
 
+// IMPORTANT: ty should already be fully normalized.
 let check = (xis: list(Constraint.t), ty: Typ.t): result => {
   check_matrix(Matrix.of_constraints(xis), [ty]);
 };
