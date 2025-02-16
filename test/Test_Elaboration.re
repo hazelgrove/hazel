@@ -994,9 +994,8 @@ module MenhirElaborationTests = {
       failed_cast_uexp,
     );
 
-  let constructor_str = "X";
-  let constructor_uexp: Exp.t =
-    Constructor("X", Unknown(Internal) |> Typ.fresh) |> Exp.fresh;
+  let constructor_str = "X ~ ?";
+  let constructor_uexp: Exp.t = Constructor("X", None) |> Exp.fresh;
   let constructor_menhir = () =>
     alco_check_menhir(
       "Constructor test (menhir)",

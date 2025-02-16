@@ -245,7 +245,7 @@ let rec elaborate_pattern =
         | _ => Unknown(Internal) |> Typ.temp
         };
       let t = t |> Typ.normalize(ctx);
-      Constructor(c, t) |> rewrap |> cast_from(t);
+      Constructor(c, Some(t)) |> rewrap |> cast_from(t);
     };
   (dpat, elaborated_type);
 };
@@ -336,7 +336,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         | _ => Unknown(Internal) |> Typ.temp
         };
       let t = t |> Typ.normalize(ctx) |> Typ.all_ids_temp;
-      Constructor(c, t) |> rewrap |> cast_from(t);
+      Constructor(c, Some(t)) |> rewrap |> cast_from(t);
     | Fun(p, e, _, n) =>
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', tye) = elaborate(m, e);
@@ -569,9 +569,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       switch (e.term) {
       // TODO: confirm whether these types are correct
       | Var("e") =>
-        Constructor("$e", Unknown(Internal) |> Typ.temp) |> rewrap
+        Constructor("$e", Some(Unknown(Internal) |> Typ.fresh)) |> rewrap
       | Var("v") =>
-        Constructor("$v", Unknown(Internal) |> Typ.temp) |> rewrap
+        Constructor("$v", Some(Unknown(Internal) |> Typ.fresh)) |> rewrap
       | _ => EmptyHole |> rewrap |> cast_from(Typ.temp(Unknown(Internal)))
       }
     | UnOp(Int(Minus), e) =>

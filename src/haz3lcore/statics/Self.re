@@ -119,20 +119,25 @@ let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
   | Some(var) => Common(Just(var.typ))
   };
 
-let of_ctr = (ctx: Ctx.t, name: Constructor.t, mode: Mode.t): t =>
+let of_ctr =
+    (ctx: Ctx.t, name: Constructor.t, mode: Mode.t, ty: option(Typ.t)): t =>
   IsConstructor({
     name,
     syn_ty:
-      switch (mode) {
-      | SynFun
-      | Syn
-      | Ana({term: Unknown(_), _}) =>
-        switch (Ctx.lookup_ctr(ctx, name)) {
-        | None => None
-        | Some({typ, _}) => Some(typ)
+      switch (ty) {
+      | Some(_) => ty
+      | None =>
+        switch (mode) {
+        | SynFun
+        | Syn
+        | Ana({term: Unknown(_), _}) =>
+          switch (Ctx.lookup_ctr(ctx, name)) {
+          | None => None
+          | Some({typ, _}) => Some(typ)
+          }
+        | Ana(_) => Mode.ctr_ana_typ(ctx, mode, name)
+        | SynTypFun => None
         }
-      | Ana(_) => Mode.ctr_ana_typ(ctx, mode, name)
-      | SynTypFun => None
       },
   });
 
