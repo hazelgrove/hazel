@@ -51,7 +51,7 @@ let inconsistent_typecheck = (name, exp) => {
             | _ => fail("Expected InfoExp")
             };
           },
-          Statics.Map.error_ids(s),
+          Statics.error_ids(s),
         );
 
       Alcotest.check(
@@ -69,7 +69,7 @@ let fully_consistent_typecheck = (name, serialized, expected, exp) => {
     `Quick,
     () => {
       let s = statics(exp);
-      let errors = Statics.Map.error_ids(s);
+      let errors = Statics.error_ids(s);
       Alcotest.check(testable_list_uuidm, "Static Errors", [], errors);
       alco_check(serialized, expected, type_of(exp));
     },

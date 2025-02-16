@@ -33,25 +33,6 @@ module Info = Info;
 module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(Info.t);
-
-  let error_ids = (info_map: t): list(Id.t) =>
-    Id.Map.fold(
-      (id, info, acc) =>
-        /* Second clause is to eliminate non-representative ids,
-         * which will not be found in the measurements map */
-        Info.is_error(info) && id == Info.id_of(info) ? [id, ...acc] : acc,
-      info_map,
-      [],
-    );
-
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type error_map = Id.Map.t(Info.error);
-
-  let errors = (info_map: t): error_map =>
-    Id.Map.filter_map(
-      (_: Uuidm.t, info: Info.t) => {Info.error_of(info)},
-      info_map,
-    );
 };
 
 let map_m = (f, xs, m: Map.t) =>
@@ -1700,27 +1681,21 @@ let get_pat_error_at = (info_map: Map.t, id: Id.t) => {
      );
 };
 
-let get_pat_error_at = (info_map: Map.t, id: Id.t) => {
-  id
-  |> Id.Map.find_opt(_, info_map)
-  |> Option.bind(
-       _,
-       fun
-       | InfoPat(e) => Some(e)
-       | _ => None,
-     )
-  |> Option.bind(_, e =>
-       switch (e.status) {
-       | InHole(err_info) => Some(err_info)
-       | NotInHole(_) => None
-       }
-     );
-};
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type error_map = Id.Map.t(Info.error);
 
-let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>
+let error_ids = (info_map: Map.t): list(Id.t) =>
   Id.Map.fold(
-    (id, info: Info.t, acc) =>
-      Option.to_list(Info.error_of(info) |> Option.map(x => (id, x))) @ acc,
-    map,
+    (id, info, acc) =>
+      /* Second clause is to eliminate non-representative ids,
+       * which will not be found in the measurements map */
+      Info.is_error(info) && id == Info.id_of(info) ? [id, ...acc] : acc,
+    info_map,
     [],
+  );
+
+let collect_errors = (map: Map.t): error_map =>
+  Id.Map.filter_map(
+    (_: Uuidm.t, info: Info.t) => {Info.error_of(info)},
+    map,
   );
