@@ -764,7 +764,6 @@ let tests = (
       () => {
         let exp = parse_exp({|(1, 2) . 1|});
 
-        print_endline(Exp.show(exp));
         let label =
           switch (exp.term) {
           | Dot(_, _ as l) => l

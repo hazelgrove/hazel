@@ -36,17 +36,15 @@ module Ctr = {
       compare(string_key1, string_key2);
   };
   include M;
+  module Map = MapUtil.Make(M);
+  module Set = Set.Make(M);
 
   let mk = (ctr, num_args) => {
     let string_key = string_of_int(num_args) ++ "~" ++ ctr;
     {ctr, num_args, string_key};
   };
+  let num_args_of = (ctr: t): int => ctr.num_args;
 
-  module Map = MapUtil.Make(M);
-
-  module Set = Set.Make(M);
-
-  // we treat tuples like constructors for some purposes.
   // this should not be anotherwise valid constructor name.
   let of_int = n => mk(string_of_int(n), 0);
   let of_float = x => mk(string_of_float(x), 0);
@@ -57,7 +55,7 @@ module Ctr = {
   let true_ctr = mk("true", 0);
   let false_ctr = mk("false", 0);
 
-  // used when not all constructors have been seen to handle the unseen cases
+  // used when not all constructors have been seen to handle the unseen cases when a wildcard appears
   let default_ctr = mk("_", 0);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -69,19 +67,14 @@ module Ctr = {
     | Infinite
     | Finite(Map.t(arity));
 
-  let num_args_of = (ctr: t): int => ctr.num_args;
-
   let arity_of = (ctr, all_ctrs: all_ctrs): arity =>
     switch (all_ctrs) {
-    | Unknown =>
-      List.init(ctr.num_args, _ => TermBase.Unknown(Internal) |> Typ.temp)
-    | Infinite =>
-      List.init(ctr.num_args, _ => TermBase.Unknown(Internal) |> Typ.temp)
+    | Unknown => List.init(ctr.num_args, _ => Typ.Fresh.tunknown(Internal))
+    | Infinite => List.init(ctr.num_args, _ => Typ.Fresh.tunknown(Internal))
     | Finite(all_ctrs) =>
       switch (Map.find_opt(ctr, all_ctrs)) {
       | Some(arity) => arity
-      | None =>
-        List.init(ctr.num_args, _ => TermBase.Unknown(Internal) |> Typ.temp)
+      | None => List.init(ctr.num_args, _ => Typ.Fresh.tunknown(Internal))
       }
     };
 
@@ -108,7 +101,7 @@ module Ctr = {
       Finite(
         Map.of_list([
           (nil_ctr, []),
-          (cons_ctr, [TermBase.Prod([elt_ty, ty]) |> Typ.fresh]),
+          (cons_ctr, [Typ.Fresh.tprod([elt_ty, ty])]),
         ]),
       )
     | Bool => Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))
@@ -208,60 +201,65 @@ module Submatrices = {
     first_col_redundant_rows: [],
   };
 
+  let add_redundant_row_if = (cond: bool, idx: int, redundant_rows) =>
+    if (cond) {
+      [idx, ...redundant_rows];
+    } else {
+      redundant_rows;
+    };
+
   // data accumulation pass over the first column of the matrix
   let seen = (m: Matrix.t, all_ctrs: Ctr.all_ctrs): seen => {
     List.fold_left(
       (seen, row: Matrix.row) =>
         switch (row.cols) {
         | [] => seen
-        | [Int(n), ..._] =>
-          let first_col_redundant_rows =
-            if (IntSet.mem(n, seen.seen_ints) || seen.seen_truth) {
-              [row.idx, ...seen.first_col_redundant_rows];
-            } else {
-              seen.first_col_redundant_rows;
-            };
-          {
+        | [Int(n), ..._] => {
             ...seen,
-            seen_ints: seen.seen_ints |> IntSet.add(n),
-            first_col_redundant_rows,
-          };
-        | [Float(x), ..._] =>
-          let first_col_redundant_rows =
-            if (FloatSet.mem(x, seen.seen_floats) || seen.seen_truth) {
-              [row.idx, ...seen.first_col_redundant_rows];
-            } else {
-              seen.first_col_redundant_rows;
-            };
-          {
+            seen_ints: IntSet.add(n, seen.seen_ints),
+            first_col_redundant_rows:
+              add_redundant_row_if(
+                IntSet.mem(n, seen.seen_ints) || seen.seen_truth,
+                row.idx,
+                seen.first_col_redundant_rows,
+              ),
+          }
+        | [Float(x), ..._] => {
             ...seen,
             seen_floats: seen.seen_floats |> FloatSet.add(x),
-            first_col_redundant_rows,
-          };
-        | [String(s), ..._] =>
-          let first_col_redundant_rows =
-            if (StringSet.mem(s, seen.seen_strings) || seen.seen_truth) {
-              [row.idx, ...seen.first_col_redundant_rows];
-            } else {
-              seen.first_col_redundant_rows;
-            };
-          {
+            first_col_redundant_rows:
+              add_redundant_row_if(
+                FloatSet.mem(x, seen.seen_floats) || seen.seen_truth,
+                row.idx,
+                seen.first_col_redundant_rows,
+              ),
+          }
+        | [String(s), ..._] => {
             ...seen,
             seen_strings: seen.seen_strings |> StringSet.add(s),
-            first_col_redundant_rows,
-          };
+            first_col_redundant_rows:
+              add_redundant_row_if(
+                StringSet.mem(s, seen.seen_strings) || seen.seen_truth,
+                row.idx,
+                seen.first_col_redundant_rows,
+              ),
+          }
         | [Tuple(elts), ..._] =>
           let ctr = Ctr.tuple_ctr(List.length(elts));
-          let first_col_redundant_rows =
-            if (Ctr.Set.mem(ctr, seen.seen_ctrs) || seen.seen_truth) {
-              [row.idx, ...seen.first_col_redundant_rows];
-            } else {
-              seen.first_col_redundant_rows;
-            };
           let seen_ctrs = Ctr.Set.add(ctr, seen.seen_ctrs);
           let seen_all_ctrs =
             seen.seen_all_ctrs || Ctr.seen_all_ctrs(seen_ctrs, all_ctrs);
-          {...seen, seen_ctrs, seen_all_ctrs, first_col_redundant_rows};
+          {
+            ...seen,
+            seen_ctrs,
+            seen_all_ctrs,
+            first_col_redundant_rows:
+              add_redundant_row_if(
+                Ctr.Set.mem(ctr, seen.seen_ctrs) || seen.seen_truth,
+                row.idx,
+                seen.first_col_redundant_rows,
+              ),
+          };
         | [Ap(c, arg), ..._] =>
           let ctr =
             Ctr.mk(
@@ -271,28 +269,40 @@ module Submatrices = {
               | None => 0
               },
             );
-          let first_col_redundant_rows =
-            if (Ctr.Set.mem(ctr, seen.seen_ctrs) || seen.seen_truth) {
-              [row.idx, ...seen.first_col_redundant_rows];
-            } else {
-              seen.first_col_redundant_rows;
-            };
           let seen_ctrs = Ctr.Set.add(ctr, seen.seen_ctrs);
           let seen_all_ctrs =
             seen.seen_all_ctrs || Ctr.seen_all_ctrs(seen_ctrs, all_ctrs);
-          {...seen, seen_ctrs, seen_all_ctrs, first_col_redundant_rows};
-        | [Truth, ..._] =>
-          let first_col_redundant_rows =
-            seen.seen_truth || seen.seen_all_ctrs
-              ? [row.idx, ...seen.first_col_redundant_rows]
-              : seen.first_col_redundant_rows;
-          {...seen, seen_truth: true, first_col_redundant_rows};
-        | [Hole, ..._] =>
-          let first_col_redundant_rows =
-            seen.seen_truth || seen.seen_all_ctrs
-              ? [row.idx, ...seen.first_col_redundant_rows]
-              : seen.first_col_redundant_rows;
-          {...seen, seen_hole: true, first_col_redundant_rows};
+          {
+            ...seen,
+            seen_ctrs,
+            seen_all_ctrs,
+            first_col_redundant_rows:
+              add_redundant_row_if(
+                Ctr.Set.mem(ctr, seen.seen_ctrs) || seen.seen_truth,
+                row.idx,
+                seen.first_col_redundant_rows,
+              ),
+          };
+        | [Truth, ..._] => {
+            ...seen,
+            seen_truth: true,
+            first_col_redundant_rows:
+              add_redundant_row_if(
+                seen.seen_truth || seen.seen_all_ctrs,
+                row.idx,
+                seen.first_col_redundant_rows,
+              ),
+          }
+        | [Hole, ..._] => {
+            ...seen,
+            seen_hole: true,
+            first_col_redundant_rows:
+              add_redundant_row_if(
+                seen.seen_truth || seen.seen_all_ctrs,
+                row.idx,
+                seen.first_col_redundant_rows,
+              ),
+          }
         },
       init_seen,
       m,
