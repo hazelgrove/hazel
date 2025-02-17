@@ -25,22 +25,28 @@ let tests = (
       },
     ),
     test_case(
-      "Capture avoiding substitution",
+      "Equality alpha equivalent",
       `Quick,
       () => {
-        let t =
-          Typ.join(
-            [],
+        check(
+          bool,
+          "Forall alpha equivalent",
+          true,
+          Typ.fast_equal(
+            ~alpha_equivalence=true,
             Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
             Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
-          );
-        check(
-          option(testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal)),
-          "Forall alpha equivalent",
-          Some(
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
           ),
-          t,
+        );
+        check(
+          bool,
+          "Forall non alpha equivalent",
+          false,
+          Typ.fast_equal(
+            ~alpha_equivalence=false,
+            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
+            Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
+          ),
         );
       },
     ),
