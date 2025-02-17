@@ -25,6 +25,8 @@ let rec match_exp =
   /* Parens */
   | (Parens(e1), _) => match_exp(alphas, ctx, e1, exp)
   | (_, Parens(e2)) => match_exp(alphas, ctx, exp_r, e2)
+  | (Probe(e1, _), _) => match_exp(alphas, ctx, e1, exp)
+  | (_, Probe(e2, _)) => match_exp(alphas, ctx, exp_r, e2)
   /* Variables */
   | (Var(x), _) when match_ctx_has(ctx, x) =>
     switch (List.assoc(x, ctx)) {
@@ -180,6 +182,14 @@ let rec match_exp =
     let* () = match_typ(t2, t4);
     Some(ctx);
   | (Cast(_, _, _), _) => None
+  | (Label(l1), Label(l2)) when l1 == l2 => Some(ctx)
+  | (Label(_), _) => None
+  | (TupLabel(l, e1), TupLabel(l2, e2)) when l == l2 =>
+    match_exp(alphas, ctx, e1, e2)
+  | (TupLabel(_), _) => None
+  | (Dot(e1, l1), Dot(e2, l2)) when l1 == l2 =>
+    match_exp(alphas, ctx, e1, e2)
+  | (Dot(_, _), _) => None
   };
 }
 
@@ -189,6 +199,8 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   switch (pat_r |> Pat.term_of, pat |> Pat.term_of) {
   | (Parens(p1), _) => match_pat(p1, pat)
   | (_, Parens(p2)) => match_pat(pat_r, p2)
+  | (Probe(p1, _), _) => match_pat(p1, pat)
+  | (_, Probe(p2, _)) => match_pat(pat_r, p2)
   | (Invalid(x), Invalid(y)) when x == y => Some([])
   | (Invalid(_), _) => None
   | (EmptyHole, EmptyHole) => Some([])
@@ -245,11 +257,15 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
     let* () = match_typ(t2, t4);
     Some(alphas1);
   | (Cast(_, _, _), _) => None
+  | (Label(x), Label(y)) when x == y => Some([])
+  | (Label(_), _) => None
+  | (TupLabel(x1, e1), TupLabel(x2, e2)) when x1 == x2 => match_pat(e1, e2)
+  | (TupLabel(_), _) => None
   }
 
 // TODO complete
 and match_typ = (typ_r: Typ.t, typ: Typ.t): option(unit) =>
-  if (Typ.eq(typ_r, typ)) {
+  if (Typ.fast_equal(typ_r, typ)) {
     Some();
   } else {
     None;
@@ -264,6 +280,22 @@ and match_tpat = (tpat_r: TPat.t, tpat: TPat.t): option(unit) =>
   }
 
 and match_rul = (_ctx: match_ctx, _rul_r: Rul.t, _rul: Rul.t): option(match_ctx) => None /* TODO */ /* }*/;
+
+let substitute_exp = (sub: match_ctx, exp: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_exp=
+      (cont, exp) =>
+        switch (exp |> Exp.term_of) {
+        // TODO[Matt]: flesh out with capture avoidance etc...
+        | Var(x) when match_ctx_has(sub, x) =>
+          switch (List.assoc(x, sub)) {
+          | None => exp
+          | Some(e) => e
+          }
+        | _ => cont(exp)
+        },
+    exp,
+  );
 
 // [@deriving (show({with_path: false}), sexp, yojson)]
 // type any_t =
