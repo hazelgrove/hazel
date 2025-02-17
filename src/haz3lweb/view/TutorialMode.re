@@ -48,12 +48,23 @@ module Update = {
     | Editor(Tutorial.pos, CellEditor.Update.t)
     | ResetEditor(Tutorial.pos)
     | ResetTutorial
+    | MoveToNextExercise
     | Change_report_view;
   let update =
       (~settings: Settings.t, ~schedule_action as _, action, model: Model.t)
       : Updated.t(Model.t) => {
     let instructor_mode = settings.instructor_mode;
     switch (action) {
+    | MoveToNextExercise =>
+      let next_index =
+        (model.spec.version + 1) mod List.length(TutorialSettings.exercises);
+      Updated.return({
+        ...model,
+        spec: {
+          ...model.spec,
+          version: next_index,
+        },
+      });
     | Editor(pos, MainEditor(action))
         when Tutorial.visible_in(pos, ~instructor_mode) =>
       // Redirect to editors
