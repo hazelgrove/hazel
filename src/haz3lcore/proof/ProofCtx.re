@@ -39,10 +39,13 @@ let rec get_rewrites = (ctx: t, exp: Exp.t) =>
     ] =>
     let bindings = get_empty_bindings(bindings);
     switch (MatchExp.match_exp([], bindings, a, exp)) {
-    | Some(_) => [b, ...get_rewrites(rs, exp)]
+    | Some(m) => [b |> MatchExp.substitute_exp(m), ...get_rewrites(rs, exp)]
     | None =>
       switch (MatchExp.match_exp([], bindings, b, exp)) {
-      | Some(_) => [a, ...get_rewrites(rs, exp)]
+      | Some(m) => [
+          a |> MatchExp.substitute_exp(m),
+          ...get_rewrites(rs, exp),
+        ]
       | None =>
         print_endline("NOPE");
         get_rewrites(rs, exp);

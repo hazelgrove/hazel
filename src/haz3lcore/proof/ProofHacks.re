@@ -18,3 +18,15 @@ let find_exp_id = (id: Id.t, exp: Exp.t) =>
   | exception (Found(x)) => Some(x)
   | _ => None
   };
+
+let replace_exp_id = (id: Id.t, exp: Exp.t, new_exp: Exp.t) =>
+  Exp.map_term(
+    ~f_exp=
+      (cont, exp) =>
+        if (Exp.rep_id(exp) == id) {
+          new_exp;
+        } else {
+          cont(exp);
+        },
+    exp,
+  );
