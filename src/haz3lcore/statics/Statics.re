@@ -439,14 +439,28 @@ and uexp_to_info_map =
     switch (check_annotated_function(p)) {
     | Some((f_name, f_args, f_type)) =>
       let def: UExp.t = UExp.Fun(f_args, def, None, None) |> UExp.fresh;
-      let p: UPat.t =
+      let p': UPat.t =
         UPat.Cast(f_name, f_type, Typ.temp(Unknown(Internal))) |> UPat.fresh;
       let new_binding: UExp.t = {
         ids,
         copied: false,
-        term: Let(p, def, body),
+        term: Let(p', def, body),
       };
-      go(new_binding, m);
+      let (e, m) = go(new_binding, m);
+      // Add related information to map
+      let info =
+      Info.derived_pat(
+        ~prev_synswitch=None,
+        ~upat=p,
+        ~ctx=e.ctx,
+        ~co_ctx=CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p'.ctx, body.co_ctx)]),,
+        ~mode,
+        ~ancestors,
+        ~self=Just(f_type),
+        ~constraint_=Constraint.of_ap(ctx, mode, ctr, arg.constraint_, Some(ty_out)),,
+        ~rewrite_term=None,
+      );
+    (info, add_info(ids, InfoPat(info), m));
     | None =>
       let (p_syn, _) =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
@@ -629,6 +643,7 @@ and uexp_to_info_map =
                   // Mark patterns as redundant at the top level
                   // because redundancy doesn't make sense in a smaller context
                   ~constraint_=p_constraint,
+                  ~rewrite_term=None,
                 );
               (
                 // Override the info for the single upat
@@ -757,6 +772,7 @@ and upat_to_info_map =
         ~ancestors,
         ~self=Common(self),
         ~constraint_,
+        ~rewrite_term=None,
       );
     (info, add_info(ids, InfoPat(info), m));
   };

@@ -216,6 +216,7 @@ type pat = {
   status: status_pat,
   ty: Typ.t,
   constraint_: Constraint.t,
+  rewrite_term: option(list(Id.t)) // For rewritten let binding
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -628,6 +629,7 @@ let derived_pat =
       ~ancestors,
       ~self,
       ~constraint_,
+      ~rewrite_term: option(list(Id.t)),
     )
     : pat => {
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
@@ -646,6 +648,7 @@ let derived_pat =
     ancestors,
     term: upat,
     constraint_,
+    rewrite_term,
   };
 };
 
