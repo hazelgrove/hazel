@@ -265,6 +265,22 @@ and match_tpat = (tpat_r: TPat.t, tpat: TPat.t): option(unit) =>
 
 and match_rul = (_ctx: match_ctx, _rul_r: Rul.t, _rul: Rul.t): option(match_ctx) => None /* TODO */ /* }*/;
 
+let substitute_exp = (sub: match_ctx, exp: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_exp=
+      (cont, exp) =>
+        switch (exp |> Exp.term_of) {
+        // TODO[Matt]: flesh out with capture avoidance etc...
+        | Var(x) when match_ctx_has(sub, x) =>
+          switch (List.assoc(x, sub)) {
+          | None => exp
+          | Some(e) => e
+          }
+        | _ => cont(exp)
+        },
+    exp,
+  );
+
 // [@deriving (show({with_path: false}), sexp, yojson)]
 // type any_t =
 //   | Exp(exp_t)
