@@ -71,6 +71,7 @@ jobs:
         run: |
           eval $(opam env)
           make test
+          make coverage
         working-directory: ./source
       - name: Test Report
         uses: dorny/test-reporter@v1
@@ -81,3 +82,9 @@ jobs:
           fail-on-error: true
           fail-on-empty: true # Use an empty test report to detect when something failed with the test runner
           working-directory: ./source
+      - name: Send coverage report to Codecov
+        run: opam exec -- bisect-ppx-report send-to Codecov --verbose
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          PULL_REQUEST_NUMBER: ${{ github.event.number }}
+        working-directory: ./source
