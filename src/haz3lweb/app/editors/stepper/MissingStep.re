@@ -47,12 +47,19 @@ module Update = {
     let selected_id =
       // hacky way to get a currently-selected id
       {
-        let cursor_info: Cursor.cursor('a) =
-          CodeSelectable.Selection.get_cursor_info(
-            ~selection=(),
-            editor |> Calc.get_value,
-          );
-        cursor_info.info |> Option.map(Info.id_of);
+        let editor: CodeSelectable.Model.t = editor |> Calc.get_value;
+        try({
+          let zipper = editor.editor.state.zipper;
+          let selection = zipper.selection.content;
+          let skel = Segment.skel(selection);
+          let root = Skel.root(skel);
+          let idx = Aba.first_a(root);
+          let piece = List.nth(selection, idx);
+          let id = Piece.id(piece);
+          Some(id);
+        }) {
+        | _ => None
+        };
       }
       |> Calc.set(_, selected_id);
     let selected_exp =
@@ -150,28 +157,36 @@ module View = {
   };
 
   let view_step_content = (~globals, ~signal, model: Model.t) => {
-    [
-      Web.Node.text("Selection:"),
-      switch (
-        model.selected_exp |> Calc.get_saved_exc(~print="view_step_content")
-      ) {
-      | Some(exp) =>
-        exp
-        |> Haz3lcore.ExpToSegment.(
-             exp_to_segment(
-               ~settings=
-                 Settings.of_core(~inline=false, globals.settings.core),
-             )
-           )
-        |> CodeViewable.view_segment(
-             ~globals,
-             ~sort=Exp,
-             ~shape_map=Haz3lcore.Id.Map.empty,
-           )
-      | None => Web.Node.text("(None)")
-      },
-      Web.Node.text("Rewrites:"),
-    ]
+    (
+      model.rewrites
+      |> Calc.get_saved_exc(~print="view_step_rewrites")
+      |> Option.value(~default=Model.{rewrites: []})
+      |> (r => r.rewrites)
+      |> List.is_empty
+        ? []
+        : [
+          // Web.Node.text("Selection:"),
+          // switch (
+          //   model.selected_exp |> Calc.get_saved_exc(~print="view_step_content")
+          // ) {
+          // | Some(exp) =>
+          //   exp
+          //   |> Haz3lcore.ExpToSegment.(
+          //        exp_to_segment(
+          //          ~settings=
+          //            Settings.of_core(~inline=false, globals.settings.core),
+          //        )
+          //      )
+          //   |> CodeViewable.view_segment(
+          //        ~globals,
+          //        ~sort=Exp,
+          //        ~shape_map=Haz3lcore.Id.Map.empty,
+          //      )
+          // | None => Web.Node.text("(None)")
+          // },
+          Web.Node.text("Rewrites:"),
+        ]
+    )
     @ (
       List.map(
         (exp: Exp.t) =>
