@@ -28,23 +28,23 @@ module Model = {
     | SingleStep(single_step)
     | InductionStep(induction_step)
     | ForallStep(forall_step)
-    | MissingStep(missing_step)
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  and missing_step_rewrites = {rewrites: list(Exp.t)}
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  and missing_step = {
-    next_steps: Calc.saved(EvaluatorStep.status),
-    selected_id: Calc.saved(option(Id.t)),
-    rewrites: Calc.saved(option(missing_step_rewrites)),
-  }
+    | MissingStep(MissingStep.Model.t)
+    | AxiomStep(axiom_step)
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   and single_step = {
     evalobj: EvaluatorStep.step,
     next_exp: Calc.saved(Exp.t),
     next_state: Calc.saved(EvaluatorState.t),
+  }
+
+  and axiom_step = {
+    // Constant
+    at_id: Id.t,
+    at_exp: Exp.t,
+    with_exp: Exp.t,
+    // Calculated
+    next_exp: Calc.saved(Exp.t),
   }
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -81,13 +81,7 @@ module Model = {
     bindings: Calc.saved(list((string, Typ.t))),
   };
 
-  let init_missing_step' = {
-    next_steps: Calc.Pending,
-    rewrites: Calc.Pending,
-    selected_id: Calc.Pending,
-  };
-
-  let init_missing_step = MissingStep(init_missing_step');
+  let init_missing_step = MissingStep(MissingStep.Model.init);
 
   let init_step = {
     expr: Calc.Pending,
@@ -146,17 +140,15 @@ module Update = {
   and step =
     | EditorAction(StepperEditor.Update.t)
     | NextStep(step)
-    | MissingStep(missing_step)
+    // | MissingStep(missing_step)
     | SingleStep(single_step)
     | InductionStep(induction_step)
     | ForallStep(forall_step)
     | RemoveStep
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  and missing_step =
     | StepForward(int)
     | AddInduction
     | AddForall
+    | AddAxiom(Exp.t, Exp.t)
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   and single_step = unit
@@ -204,13 +196,6 @@ module Update = {
         next_step: Some(new_next_step),
       };
     | (NextStep(_), _, None) => model |> return_quiet
-    | (MissingStep(a), MissingStep(m), _) =>
-      let* step_kind = update_missing_step(~settings, a, m);
-      {
-        ...model,
-        step_kind,
-      };
-    | (MissingStep(_), _, _) => model |> return_quiet
     | (SingleStep(a), SingleStep(m), _) =>
       let* step_kind = update_single_step(~settings, a, m);
       {
@@ -238,39 +223,54 @@ module Update = {
         step_kind: Model.init_missing_step,
       }
       |> return
+    | (StepForward(idx), MissingStep(ms), _) =>
+      let msns = MissingStep.Model.get_next_steps(ms);
+      switch (List.nth_opt(msns, idx)) {
+      | Some((_, evalobj)) =>
+        {
+          ...model,
+          step_kind:
+            Model.SingleStep({
+              evalobj,
+              next_exp: Calc.Pending,
+              next_state: Calc.Pending,
+            }),
+        }
+        |> return
+      | None => model |> return_quiet
+      };
+    | (StepForward(_), _, _) => model |> return_quiet
+    | (AddInduction, MissingStep(_), _) =>
+      {
+        ...model,
+        step_kind: Model.InductionStep(Model.init_induction_step),
+      }
+      |> return
+    | (AddInduction, _, _) => model |> return_quiet
+    | (AddForall, MissingStep(_), _) =>
+      {
+        ...model,
+        step_kind: Model.ForallStep(Model.init_forall_step),
+      }
+      |> return
+    | (AddForall, _, _) => model |> return_quiet
+    | (AddAxiom(at_exp, with_exp), MissingStep(_), _) =>
+      let at_id = Exp.rep_id(at_exp);
+      {
+        ...model,
+        step_kind:
+          Model.AxiomStep({
+            at_id,
+            at_exp,
+            with_exp,
+            next_exp: Calc.Pending,
+          }),
+      }
+      |> return;
+    | (AddAxiom(_, _), _, _) => model |> return_quiet
     };
   }
 
-  and update_missing_step =
-      (~settings as _, action: missing_step, model: Model.missing_step)
-      : Updated.t(Model.step_kind) => {
-    switch (action) {
-    | StepForward(idx) =>
-      switch (
-        List.nth_opt(
-          model.next_steps
-          |> Calc.get_saved_exc(~print="next steps")
-          |> (
-            fun
-            | AutoStep(_) => []
-            | AvailableSteps(x) => x
-          ),
-          idx,
-        )
-      ) {
-      | Some(evalobj) =>
-        Model.SingleStep({
-          evalobj,
-          next_exp: Calc.Pending,
-          next_state: Calc.Pending,
-        })
-        |> return
-      | None => Model.MissingStep(model) |> return_quiet
-      }
-    | AddInduction => Model.InductionStep(Model.init_induction_step) |> return
-    | AddForall => Model.ForallStep(Model.init_forall_step) |> return
-    };
-  }
   and update_single_step =
       (~settings as _, action: single_step, _model: Model.single_step)
       : Updated.t(Model.step_kind) => {
@@ -461,6 +461,8 @@ module Update = {
       calculate_forall_step(~settings, expr, state, m, hidden, editor)
     | MissingStep(m) =>
       calculate_missing_step(~settings, expr, state, m, hidden, editor)
+    | AxiomStep(m) =>
+      calculate_axiom_step(~settings, expr, state, m, hidden, editor)
     };
   }
 
@@ -469,7 +471,7 @@ module Update = {
         ~settings,
         exp,
         state,
-        {next_steps, rewrites, selected_id}: Model.missing_step,
+        missing_step: MissingStep.Model.t,
         hidden,
         editor: Calc.t(CodeSelectable.Model.t),
       )
@@ -479,7 +481,7 @@ module Update = {
           option((Calc.t(Exp.t), Calc.t(EvaluatorState.t))),
         ) => {
     let next_steps =
-      next_steps
+      missing_step.next_steps
       |> {
         let.calc settings = settings
         and.calc exp = exp
@@ -510,37 +512,20 @@ module Update = {
         hidden,
         editor,
       )
-    | None =>
-      let selected_id =
-        // hacky way to get a currently-selected id
-        {
-          let cursor_info: Cursor.cursor('a) =
-            CodeSelectable.Selection.get_cursor_info(
-              ~selection=(),
-              editor |> Calc.get_value,
-            );
-          cursor_info.info |> Option.map(Info.id_of);
-        }
-        |> Calc.set(_, selected_id);
-      let rewrites =
-        rewrites
-        |> {
-          let.calc selected_id = selected_id
-          and.calc exp = exp;
-          open OptUtil.Syntax;
-          let* id = selected_id;
-          let* exp' = ProofHacks.find_exp_id(id, exp);
-          Some(Model.{rewrites: ProofCtx.get_rewrites(Axioms.v, exp')});
-        };
-      (
-        Model.MissingStep({
-          next_steps: next_steps |> Calc.save,
-          rewrites: rewrites |> Calc.save,
-          selected_id: selected_id |> Calc.save,
-        }),
+    | None => (
+        Model.MissingStep(
+          MissingStep.Update.calculate(
+            ~settings,
+            exp,
+            state,
+            next_steps,
+            missing_step,
+            editor,
+          ),
+        ),
         Calc.set(true, hidden),
         None,
-      );
+      )
     };
   }
 
@@ -602,7 +587,7 @@ module Update = {
            ~settings,
            exp |> Calc.make_new,
            state |> Calc.make_new,
-           Model.init_missing_step',
+           MissingStep.Model.init,
            hidden,
            editor,
          )
@@ -751,7 +736,42 @@ module Update = {
            ~settings,
            exp |> Calc.make_new,
            state |> Calc.make_new,
-           Model.init_missing_step',
+           MissingStep.Model.init,
+           hidden,
+           editor,
+         )
+       })
+
+  and calculate_axiom_step = (~settings, exp, state, m, hidden, editor) =>
+    {
+      let {at_id, at_exp, with_exp, next_exp}: Model.axiom_step = m;
+      open OptUtil.Syntax;
+      let+ next_exp =
+        next_exp
+        |> Calc.map_saved(Option.some)
+        |> {
+          let.calc exp = exp;
+          let* _ = ProofHacks.find_exp_id(at_id, exp);
+          Some(ProofHacks.replace_exp_id(at_id, exp, with_exp));
+        }
+        |> Calc.to_option;
+      (
+        Model.AxiomStep({
+          at_id,
+          at_exp,
+          with_exp,
+          next_exp: next_exp |> Calc.save,
+        }),
+        hidden |> Calc.set(false),
+        Some((next_exp, state)),
+      );
+    }
+    |> OptUtil.get(() => {
+         calculate_missing_step(
+           ~settings,
+           exp |> Calc.make_new,
+           state |> Calc.make_new,
+           MissingStep.Model.init,
            hidden,
            editor,
          )
@@ -969,7 +989,7 @@ module View = {
         ~signal=
           fun
           | MakeActive => signal(MakeActive(Here()))
-          | TakeStep(int) => inject(Update.MissingStep(StepForward(int))),
+          | TakeStep(int) => inject(StepForward(int)),
         ~inject=x => inject(EditorAction(x)),
         ~selected=
           switch (selected) {
@@ -1059,58 +1079,19 @@ module View = {
         )
       | InductionStep(_) => Node.text("Induction Step")
       | ForallStep(_) => Node.text("Forall Step")
-      | MissingStep(_) =>
-        let button_back =
-          Widgets.button_d(
-            Icons.undo,
-            switch (undo) {
-            | Some(u) => u
-            | None => Ui_effect.Ignore
-            },
-            ~disabled=Option.is_none(undo),
-            ~tooltip="Step Backwards",
-          );
-        let button_induction =
-          Widgets.button_d(
-            Icons.star,
-            inject(MissingStep(AddInduction)),
-            ~disabled=false,
-            ~tooltip="Begin a proof by induction",
-          );
-        let button_forall =
-          Widgets.button_d(
-            Icons.star,
-            inject(MissingStep(AddForall)),
-            ~disabled=false,
-            ~tooltip="Prove a forall",
-          );
-        let button_hide_stepper =
-          Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
-            signal(HideStepper)
-          );
-        let toggle_show_history =
-          Widgets.toggle(
-            ~tooltip="Show History",
-            "h",
-            globals.settings.core.evaluation.stepper_history,
-            _ =>
-            globals.inject_global(Set(Evaluation(ShowRecord)))
-          );
-        let eval_settings =
-          Widgets.button(Icons.gear, _ =>
-            globals.inject_global(Set(Evaluation(ShowSettings)))
-          );
-        Web.Node.div(
-          ~attrs=[Attr.classes(["stepper-controls"])],
-          [
-            button_back,
-            button_induction,
-            button_forall,
-            eval_settings,
-            toggle_show_history,
-            button_hide_stepper,
-          ],
-        );
+      | AxiomStep(_) => Node.text("Axiom Step")
+      | MissingStep(ms) =>
+        MissingStep.View.view_justification(
+          ~globals,
+          ~signal=
+            fun
+            | HideStepper => Ui_effect.Ignore
+            | AddForall => inject(AddForall)
+            | AddInduction => inject(AddInduction)
+            | AddAxiom(e1, e2) => inject(AddAxiom(e1, e2)),
+          ~undo,
+          ms,
+        )
       };
     div_c("step-justification", [justification]);
   }
@@ -1125,6 +1106,7 @@ module View = {
       ) => {
     switch (step_kind) {
     | SingleStep(_) => []
+    | AxiomStep(_) => []
     | InductionStep(m) =>
       view_induction_step(
         ~globals,
@@ -1138,21 +1120,17 @@ module View = {
         m,
       )
     | ForallStep(_) => []
-    | MissingStep({rewrites: Calculated(Some({rewrites: [x, ..._]})), _}) => [
-        x
-        |> Haz3lcore.ExpToSegment.(
-             exp_to_segment(
-               ~settings=
-                 Settings.of_core(~inline=false, globals.settings.core),
-             )
-           )
-        |> CodeViewable.view_segment(
-             ~globals,
-             ~sort=Exp,
-             ~shape_map=Haz3lcore.Id.Map.empty,
-           ),
-      ]
-    | MissingStep(_) => []
+    | MissingStep(ms) =>
+      MissingStep.View.view_step_content(
+        ~globals,
+        ~signal=
+          fun
+          | HideStepper => Ui_effect.Ignore
+          | AddForall => inject(AddForall)
+          | AddInduction => inject(AddInduction)
+          | AddAxiom(e1, e2) => inject(AddAxiom(e1, e2)),
+        ms,
+      )
     };
   }
 

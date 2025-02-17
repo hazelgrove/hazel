@@ -23,8 +23,10 @@ let rec match_exp =
         : option(match_ctx) => {
   switch (exp_r |> Exp.term_of, exp |> Exp.term_of) {
   /* Parens */
-  | (Parens(e1) | Probe(e1, _), _) => match_exp(alphas, ctx, e1, exp)
-  | (_, Parens(e2) | Probe(e2, _)) => match_exp(alphas, ctx, exp_r, e2)
+  | (Parens(e1), _) => match_exp(alphas, ctx, e1, exp)
+  | (_, Parens(e2)) => match_exp(alphas, ctx, exp_r, e2)
+  | (Probe(e1, _), _) => match_exp(alphas, ctx, e1, exp)
+  | (_, Probe(e2, _)) => match_exp(alphas, ctx, exp_r, e2)
   /* Variables */
   | (Var(x), _) when match_ctx_has(ctx, x) =>
     switch (List.assoc(x, ctx)) {
@@ -190,9 +192,8 @@ let rec match_exp =
   | (TupLabel(l1, e1), TupLabel(l2, e2)) when l1 == l2 =>
     match_exp(alphas, ctx, e1, e2)
   | (TupLabel(_, _), _) => None
-  | (Dot(e1, e2), Dot(e3, e4)) =>
-    let* ctx = match_exp(alphas, ctx, e1, e3);
-    match_exp(alphas, ctx, e2, e4);
+  | (Dot(e1, l1), Dot(e2, l2)) when l1 == l2 =>
+    match_exp(alphas, ctx, e1, e2)
   | (Dot(_, _), _) => None
   | (LivelitName(l1), LivelitName(l2)) when l1 == l2 => Some(ctx)
   | (LivelitName(_), _) => None
@@ -296,6 +297,22 @@ and match_tpat = (tpat_r: TPat.t, tpat: TPat.t): option(unit) =>
   }
 
 and match_rul = (_ctx: match_ctx, _rul_r: Rul.t, _rul: Rul.t): option(match_ctx) => None /* TODO */ /* }*/;
+
+let substitute_exp = (sub: match_ctx, exp: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_exp=
+      (cont, exp) =>
+        switch (exp |> Exp.term_of) {
+        // TODO[Matt]: flesh out with capture avoidance etc...
+        | Var(x) when match_ctx_has(sub, x) =>
+          switch (List.assoc(x, sub)) {
+          | None => exp
+          | Some(e) => e
+          }
+        | _ => cont(exp)
+        },
+    exp,
+  );
 
 // [@deriving (show({with_path: false}), sexp, yojson)]
 // type any_t =
