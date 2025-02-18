@@ -64,3 +64,11 @@ let new_ids = ({term, annotation: {ids: _, copied}}: t('a)): t('a) => {
 
 let ids = ({annotation: {ids, _}, _}: t('a)) => ids;
 let copied = ({annotation: {copied, _}, _}: t('a)) => copied;
+
+let replace_temp = ({term, annotation: {ids, copied}}: t('a)): t('a) => {
+  term,
+  annotation: {
+    ids: ids == [Id.invalid] ? [Id.mk()] : ids,
+    copied,
+  },
+};
