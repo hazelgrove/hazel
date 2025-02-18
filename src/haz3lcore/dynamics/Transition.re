@@ -175,9 +175,10 @@ module Transition = (EV: EV_MODE) => {
             DHExp.t
           ) =>
           'a,
+        ~mode: [ | `Substitution | `Environment],
         ~in_closure=?,
         state,
-        env,
+        env, // Empty in substitution mode
         d,
       )
       : 'a => {
@@ -185,32 +186,46 @@ module Transition = (EV: EV_MODE) => {
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t => Term({term, ids: [rep_id(d)]});
 
-    let (let.wrap_closure) = (env, f: unit => rule) => {
-      wrap_closure_when_done(~in_closure, d, env, f());
-    };
+    let (let.wrap_closure) = (env, f: unit => rule) =>
+      switch (mode) {
+      | `Environment => wrap_closure_when_done(~in_closure, d, env, f())
+      | `Substitution => f()
+      };
+
+    let subst_env = (env, d) =>
+      switch (mode) {
+      | `Environment => Closure(env, d) |> fresh
+      | `Substitution => d |> Substitution.subst(env |> snd)
+      };
 
     // Transition rules
     switch (term) {
     | Var(x) =>
-      let. _ = otherwise(env, Var(x) |> rewrap);
-      switch (ClosureEnvironment.lookup(env, x)) {
-      | Some(d) =>
-        let is_value =
-          switch (d |> Exp.term_of) {
-          | FixF(_, _, _) => false // fixpoints aren't final
-          | Let(_, _, _) => false // could be mutually-recursive fixpoint
-          | _ => true // all other closure entries should be final
-          };
-        Step({
-          expr: d |> fast_copy(Id.mk()),
-          state_update,
-          kind: VarLookup,
-          is_value,
-        });
-      | None =>
-        let.wrap_closure _ = env;
+      switch (mode) {
+      | `Environment =>
+        let. _ = otherwise(env, Var(x) |> rewrap);
+        switch (ClosureEnvironment.lookup(env, x)) {
+        | Some(d) =>
+          let is_value =
+            switch (d |> Exp.term_of) {
+            | FixF(_, _, _) => false // fixpoints aren't final
+            | Let(_, _, _) => false // could be mutually-recursive fixpoint
+            | _ => true // all other closure entries should be final
+            };
+          Step({
+            expr: d |> fast_copy(Id.mk()),
+            state_update,
+            kind: VarLookup,
+            is_value,
+          });
+        | None =>
+          let.wrap_closure _ = env;
+          Indet;
+        };
+      | `Substitution =>
+        let. _ = otherwise(env, d);
         Indet;
-      };
+      }
     | Seq(d1, d2) =>
       let. _ = otherwise(env, d1 => Seq(d1, d2) |> rewrap)
       and. _ =
@@ -223,7 +238,7 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = env;
       let.match env' = (env, matches(dp, d1'));
       Step({
-        expr: Closure(env', d2) |> fresh,
+        expr: subst_env(env', d2),
         state_update,
         kind: LetBind,
         is_value: false,
@@ -252,7 +267,7 @@ module Transition = (EV: EV_MODE) => {
             env,
           );
         Step({
-          expr: Closure(env'', d1) |> fresh,
+          expr: subst_env(env'', d1),
           state_update,
           kind: FixUnwrap,
           is_value: false,
@@ -278,7 +293,7 @@ module Transition = (EV: EV_MODE) => {
         let env'' =
           evaluate_extend_env(Environment.of_list(substitutions), env);
         Step({
-          expr: Closure(env'', d1) |> fresh,
+          expr: subst_env(env'', d1),
           state_update,
           kind: FixUnwrap,
           is_value: false,
@@ -364,7 +379,7 @@ module Transition = (EV: EV_MODE) => {
       | FunEnv(dp, d3, env') =>
         let.match env'' = (env', matches(dp, d2'));
         Step({
-          expr: Closure(env'', d3) |> fresh,
+          expr: subst_env(env'', d3),
           state_update,
           kind: FunAp,
           is_value: false,
