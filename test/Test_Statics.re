@@ -153,11 +153,12 @@ let inconsistent_typecheck = (name, exp) => {
     },
   );
 };
-let fully_consistent_typecheck = (name, serialized, expected, exp) => {
+let fully_consistent_typecheck = (name, serialized, expected) => {
   test_case(
     name,
     `Quick,
     () => {
+      let exp = parse_exp(serialized);
       let s = statics(exp);
       let errors = List.map(snd, Statics.collect_errors(s));
       Alcotest.check(list(testable_error), "Static Errors", [], errors);
@@ -176,103 +177,38 @@ let tests = (
   FreshId.[
     fully_consistent_typecheck(
       "Function with unknown param",
-      "x => 4 + 5",
+      "fun x -> 4 + 5",
       Some(arrow(unknown(Internal), int)),
-      Fun(
-        Var("x") |> Pat.fresh,
-        BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
-        |> Exp.fresh,
-        None,
-        None,
-      )
-      |> Exp.fresh,
     ),
     fully_consistent_typecheck(
       "Function with known param",
-      "x : Int => 4 + 5",
+      "fun x : Int -> 4 + 5",
       Some(arrow(int, int)),
-      Fun(
-        Cast(Var("x") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
-        BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
-        |> Exp.fresh,
-        None,
-        None,
-      )
-      |> Exp.fresh,
     ),
     fully_consistent_typecheck(
       "Function with labeled param",
       "fun (a=x) -> 4",
       Some(arrow(prod([tup_label(label("a"), unknown(Internal))]), int)),
-      Fun(
-        Parens(
-          Tuple([
-            TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
-            |> Pat.fresh,
-          ])
-          |> Pat.fresh,
-        )
-        |> Pat.fresh,
-        Int(4) |> Exp.fresh,
-        None,
-        None,
-      )
-      |> Exp.fresh,
     ),
     fully_consistent_typecheck(
       "bifunction",
-      "x : Int, y: Int => x + y",
+      "fun x : Int, y: Int -> x + y",
       Some(arrow(prod([int, int]), int)),
-      Fun(
-        Tuple([
-          Cast(Var("x") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
-          Cast(Var("y") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
-        ])
-        |> Pat.fresh,
-        BinOp(Int(Plus), Var("x") |> Exp.fresh, Var("y") |> Exp.fresh)
-        |> Exp.fresh,
-        None,
-        None,
-      )
-      |> Exp.fresh,
     ),
     fully_consistent_typecheck(
       "bifunction",
-      "x : Int, y: Int => x + y",
+      "fun x : Int, y: Int -> x + y",
       Some(arrow(prod([int, int]), int)),
-      Fun(
-        Tuple([
-          Cast(Var("x") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
-          Cast(Var("y") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
-        ])
-        |> Pat.fresh,
-        BinOp(Int(Plus), Var("x") |> Exp.fresh, Var("y") |> Exp.fresh)
-        |> Exp.fresh,
-        None,
-        None,
-      )
-      |> Exp.fresh,
     ),
     fully_consistent_typecheck(
       "function application",
       "float_of_int(1)",
       Some(float),
-      Ap(Forward, Var("float_of_int") |> Exp.fresh, Int(1) |> Exp.fresh)
-      |> Exp.fresh,
     ),
     fully_consistent_typecheck(
       "function deferral",
       "string_sub(\"hello\", 1, _)",
       Some(arrow(int, string)),
-      DeferredAp(
-        Var("string_sub") |> Exp.fresh,
-        [
-          String("hello") |> Exp.fresh,
-          Int(1) |> Exp.fresh,
-          Deferral(InAp) |> Exp.fresh,
-        ],
-      )
-      |> Exp.fresh,
     ),
     test_case(
       "Typechecking fails for unlabeled variable being assigned to labeled tuple",
@@ -394,36 +330,6 @@ let tests = (
         ])
         |> Typ.fresh,
       ),
-      Let(
-        Var("x") |> Pat.fresh,
-        Parens(
-          Tuple([
-            TupLabel(Label("l") |> Exp.fresh, Int(32) |> Exp.fresh)
-            |> Exp.fresh,
-          ])
-          |> Exp.fresh,
-        )
-        |> Exp.fresh,
-        Let(
-          Cast(
-            Var("y") |> Pat.fresh,
-            Parens(
-              Prod([
-                TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh)
-                |> Typ.fresh,
-              ])
-              |> Typ.fresh,
-            )
-            |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
-          |> Pat.fresh,
-          Var("x") |> Exp.fresh,
-          Var("y") |> Exp.fresh,
-        )
-        |> Exp.fresh,
-      )
-      |> Exp.fresh,
     ),
     fully_consistent_typecheck(
       "Singleton Labled Tuple ascription in let",
@@ -434,24 +340,6 @@ let tests = (
         ])
         |> Typ.fresh,
       ),
-      Let(
-        Cast(
-          Var("x") |> Pat.fresh,
-          Parens(
-            Prod([
-              TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
-              |> Typ.fresh,
-            ])
-            |> Typ.fresh,
-          )
-          |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Pat.fresh,
-        Parens(String("a") |> Exp.fresh) |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-      )
-      |> Exp.fresh,
     ),
     test_case(
       "Singleton Labled Tuple ascription in let with wrong type should fail",
@@ -500,31 +388,6 @@ let tests = (
         ])
         |> Typ.fresh,
       ),
-      Let(
-        Cast(
-          Var("x") |> Pat.fresh,
-          Parens(
-            Prod([
-              TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
-              |> Typ.fresh,
-            ])
-            |> Typ.fresh,
-          )
-          |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Pat.fresh,
-        Parens(
-          Tuple([
-            TupLabel(Label("l") |> Exp.fresh, String("a") |> Exp.fresh)
-            |> Exp.fresh,
-          ])
-          |> Exp.fresh,
-        )
-        |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-      )
-      |> Exp.fresh,
     ),
     fully_consistent_typecheck(
       "Labeled tuple with multiple labels",
@@ -537,20 +400,10 @@ let tests = (
         ])
         |> Typ.fresh,
       ),
-      Parens(
-        Tuple([
-          TupLabel(Label("l") |> Exp.fresh, Int(32) |> Exp.fresh)
-          |> Exp.fresh,
-          TupLabel(Label("l2") |> Exp.fresh, String("") |> Exp.fresh)
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-      )
-      |> Exp.fresh,
     ),
     fully_consistent_typecheck(
       "Let statement that adds labels during elaboration",
-      {|let x : (name=String, age=Int)= ("Bob", 20) |},
+      {|let x : (name=String, age=Int)= ("Bob", 20) in x|},
       Some(
         Prod([
           TupLabel(Label("name") |> Typ.fresh, String |> Typ.fresh)
@@ -559,30 +412,6 @@ let tests = (
         ])
         |> Typ.fresh,
       ),
-      Let(
-        Cast(
-          Var("x") |> Pat.fresh,
-          Parens(
-            Prod([
-              TupLabel(Label("name") |> Typ.fresh, String |> Typ.fresh)
-              |> Typ.fresh,
-              TupLabel(Label("age") |> Typ.fresh, Int |> Typ.fresh)
-              |> Typ.fresh,
-            ])
-            |> Typ.fresh,
-          )
-          |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Pat.fresh,
-        Parens(
-          Tuple([String("Bob") |> Exp.fresh, Int(20) |> Exp.fresh])
-          |> Exp.fresh,
-        )
-        |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-      )
-      |> Exp.fresh,
     ),
     fully_consistent_typecheck(
       "Duplicate singleton labels",
@@ -604,33 +433,11 @@ let tests = (
         ])
         |> Typ.fresh,
       ),
-      parse_exp({|let y : (l=(l=Int)) = (l=1) in y|}),
     ),
     fully_consistent_typecheck(
       "Reconstructed labeled tuple without values",
       {|let x : (l=|},
       Some(Unknown(Internal) |> Typ.fresh),
-      Let(
-        Cast(
-          Var("x") |> Pat.fresh,
-          Parens(
-            Prod([
-              TupLabel(
-                Label("l") |> Typ.fresh,
-                Unknown(Hole(EmptyHole)) |> Typ.fresh,
-              )
-              |> Typ.fresh,
-            ])
-            |> Typ.fresh,
-          )
-          |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Pat.fresh,
-        EmptyHole |> Exp.fresh,
-        EmptyHole |> Exp.fresh,
-      )
-      |> Exp.fresh,
     ),
     fully_consistent_typecheck(
       "Singleton labeled argument let with unknown type",
@@ -645,7 +452,6 @@ let tests = (
         ])
         |> Typ.fresh,
       ),
-      parse_exp({|let x : (a=?) = (a=1) in x|}),
     ),
     fully_consistent_typecheck(
       "nested different singleton labeled arguments",
@@ -664,7 +470,6 @@ let tests = (
         ])
         |> Typ.fresh,
       ),
-      parse_exp({|let x : (b=c=String) = b="" in x|}),
     ),
     fully_consistent_typecheck(
       "nested different singleton labeled arguments",
@@ -693,63 +498,21 @@ let tests = (
         ])
         |> Typ.fresh,
       ),
-      parse_exp({|let x : (a=b=c=?) = b=? in x|}),
     ),
     fully_consistent_typecheck(
       "Singleton labeled argument function application with unknown type",
       {|(fun a=x->x)(a=1)|},
       Some(unknown(Internal)),
-      Ap(
-        Forward,
-        Fun(
-          Tuple([
-            TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
-            |> Pat.fresh,
-          ])
-          |> Pat.fresh,
-          Var("x") |> Exp.fresh,
-          None,
-          None,
-        )
-        |> Exp.fresh,
-        Tuple([
-          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-      )
-      |> Exp.fresh,
     ),
     fully_consistent_typecheck(
       "Singleton labeled argument function application with no labeled param",
       {|(fun a=x->x)(1)|},
       Some(unknown(Internal)),
-      Ap(
-        Forward,
-        Fun(
-          Tuple([
-            TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
-            |> Pat.fresh,
-          ])
-          |> Pat.fresh,
-          Var("x") |> Exp.fresh,
-          None,
-          None,
-        )
-        |> Exp.fresh,
-        Tuple([
-          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-      )
-      |> Exp.fresh,
     ),
     fully_consistent_typecheck(
       "Singleton labeled argument not labeled in pattern",
       {|let x : (a=Int) -> Int = fun a -> a in x(2)|},
       Some(int),
-      parse_exp("let x : (a=Int) -> Int = fun a -> a in x(2)"),
     ),
     test_case("Unknown label in last position", `Quick, () => {
       annotated_tree_test(
@@ -1329,15 +1092,11 @@ let tests = (
       Some(
         Forall(Var("b") |> TPat.fresh, Var("b") |> Typ.fresh) |> Typ.fresh,
       ),
-      parse_exp({|let x : forall a -> a = in (x : forall b -> b)|}),
     ),
     fully_consistent_typecheck(
       "Forall alpha equivalent in let",
       {|let x : forall a -> a = in let y : forall b -> b = x in 1|},
       Some(int),
-      parse_exp(
-        {|let x : forall a -> a = in let y : forall b -> b = x in 1|},
-      ),
     ),
   ],
 );
