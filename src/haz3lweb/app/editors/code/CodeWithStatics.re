@@ -68,6 +68,7 @@ module Update = {
       (
         ~settings,
         ~is_edited,
+        ~ctx=?,
         ~stitch,
         ~dynamics: Dynamics.Map.t,
         {editor, statics, dynamics: _}: Model.t,
@@ -75,7 +76,7 @@ module Update = {
       : Model.t => {
     let statics =
       is_edited
-        ? CachedStatics.init(~settings, ~stitch, editor.state.zipper)
+        ? CachedStatics.init(~settings, ~stitch, ~ctx?, editor.state.zipper)
         : statics;
     let editor =
       Editor.Update.calculate(
