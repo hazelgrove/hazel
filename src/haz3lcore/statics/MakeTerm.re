@@ -154,26 +154,33 @@ let mk_bad = (ctr, ids, value) => {
   };
 };
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
+let rec go_s =
+        (
+          ~of_projector: Id.t => Any.t,
+          s: Sort.t,
+          skel: Skel.t,
+          seg: Segment.t,
+        )
+        : Term.Any.t =>
   switch (s) {
-  | Pat => Pat(pat(unsorted(skel, seg)))
-  | TPat => TPat(tpat(unsorted(skel, seg)))
-  | Typ => Typ(typ(unsorted(skel, seg)))
-  | Exp => Exp(exp(unsorted(skel, seg)))
-  | Rul => Rul(rul(unsorted(skel, seg)))
+  | Pat => Pat(pat(unsorted(~of_projector, skel, seg)))
+  | TPat => TPat(tpat(unsorted(~of_projector, skel, seg)))
+  | Typ => Typ(typ(unsorted(~of_projector, skel, seg)))
+  | Exp => Exp(exp(unsorted(~of_projector, skel, seg)))
+  | Rul => Rul(rul(unsorted(~of_projector, skel, seg)))
   | Any =>
-    let tm = unsorted(skel, seg);
+    let tm = unsorted(~of_projector, skel, seg);
     let ids = ids(tm);
     switch (ListUtil.hd_opt(ids)) {
-    | None => Exp(exp(unsorted(skel, seg)))
+    | None => Exp(exp(unsorted(~of_projector, skel, seg)))
     | Some(id) =>
       switch (TileMap.find_opt(id, TileMap.mk(seg))) {
-      | None => Exp(exp(unsorted(skel, seg)))
+      | None => Exp(exp(unsorted(~of_projector, skel, seg)))
       | Some(t) =>
         if (t.mold.out == Any) {
-          Exp(exp(unsorted(skel, seg)));
+          Exp(exp(unsorted(~of_projector, skel, seg)));
         } else {
-          go_s(t.mold.out, skel, seg);
+          go_s(~of_projector, t.mold.out, skel, seg);
         }
       }
     };
@@ -549,14 +556,15 @@ and rul = (unsorted: unsorted): Rul.t => {
   };
 }
 
-and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
+and unsorted =
+    (~of_projector: Id.t => Any.t, skel: Skel.t, seg: Segment.t): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
   let tile_kids = (p: Piece.t): list(Term.Any.t) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector(_) => []
+    | Projector({id}) => [of_projector(id)]
     //TODO(andrew): allowing this as want the cachedsyntax call to go through
     // failwith("TODO: MakeTerm unsorted projector")
     // let _ = log_projector(pr);
@@ -568,7 +576,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
            let s = l + 1 == r ? List.nth(mold.in_, l) : Sort.Any;
-           go_s(s, Segment.skel(kid), kid);
+           go_s(~of_projector, s, Segment.skel(kid), kid);
          })
     };
 
@@ -583,7 +591,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
          let (_, s_l) = Piece.nib_sorts(p_l);
          let (s_r, _) = Piece.nib_sorts(p_r);
          let s = s_l == s_r ? s_l : Sort.Any;
-         go_s(s, kid, seg);
+         go_s(~of_projector, s, kid, seg);
        })
     |> Aba.map_a(p
          // TODO throw proper exception
@@ -600,10 +608,22 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
 
   switch (skel) {
   | Op(_) => Op(tiles)
-  | Pre(_, r) => Pre(tiles, go_s(r_sort, r, seg))
-  | Post(l, _) => Post(go_s(l_sort, l, seg), tiles)
-  | Bin(l, _, r) => Bin(go_s(l_sort, l, seg), tiles, go_s(r_sort, r, seg))
+  | Pre(_, r) => Pre(tiles, go_s(~of_projector, r_sort, r, seg))
+  | Post(l, _) => Post(go_s(~of_projector, l_sort, l, seg), tiles)
+  | Bin(l, _, r) =>
+    Bin(
+      go_s(~of_projector, l_sort, l, seg),
+      tiles,
+      go_s(~of_projector, r_sort, r, seg),
+    )
   };
+};
+
+let go_em = (seg, ~of_projector: Id.t => Any.t) => {
+  map := TermMap.empty;
+  projectors := Id.Map.empty;
+  let term = exp(unsorted(~of_projector, Segment.skel(seg), seg));
+  {term, terms: map^, projectors: projectors^};
 };
 
 let go =
@@ -612,7 +632,9 @@ let go =
     seg => {
       map := TermMap.empty;
       projectors := Id.Map.empty;
-      let term = exp(unsorted(Segment.skel(seg), seg));
+      //TODO(andrew): ??????
+      let term =
+        exp(unsorted(~of_projector=_ => Any(), Segment.skel(seg), seg));
       {term, terms: map^, projectors: projectors^};
     },
   );
@@ -624,7 +646,7 @@ let for_projection =
    * that no contained sub-segment is non-convex. However, there can still be convex
    * holes, singleton multiholes representing sort errors, non-singleton multiholes
    * representing missing infix operators, and invalid tokens. */
-  Core.Memo.general(~cache_size_bound=1000, (seg: Segment.t) =>
+  Core.Memo.general(~cache_size_bound=1000, (of_projector, seg: Segment.t) =>
     if (!Segment.deep_tile_complete(seg)) {
       None; /* Returns None if any subsegment contains incomplete tiles */
     } else if (Segment.is_padded(seg)) {
@@ -634,7 +656,7 @@ let for_projection =
       | exception _ => None /* Returns None if any subsegment is non-convex */
       | skel =>
         let (unsorted, sort) = (
-          unsorted(skel, seg),
+          unsorted(~of_projector, skel, seg),
           Segment.sort_of(skel, seg),
         );
         switch (sort) {

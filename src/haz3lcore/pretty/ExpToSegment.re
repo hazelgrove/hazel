@@ -635,18 +635,19 @@ let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
 
 let fold_if = (condition, pieces) =>
   if (condition) {
-    let syntax = mk_form("parens_exp", Id.mk(), [pieces]);
-    switch (MakeTerm.for_projection([syntax])) {
-    | None => failwith("ExpToSegment.fold_if")
-    | Some(_any) =>
-      //TODO(andrew||matt): find a new way to insert these i guess
-      // [
-      //     ProjectorInit.init_or_noop(Fold, syntax, any),
-      //   ]
-      pieces
-    };
+    // let syntax = mk_form("parens_exp", Id.mk(), [pieces]);
+    // switch (MakeTerm.for_projection([syntax])) {
+    // | None => failwith("ExpToSegment.fold_if")
+    // | Some(_any) =>
+    //   //TODO(andrew||matt): find a new way to insert these i guess
+    //   // [
+    //   //     ProjectorInit.init_or_noop(Fold, syntax, any),
+    //   //   ]
+    //   pieces
+    // };
+    pieces
   } else {
-    pieces;
+    pieces
   };
 
 let fold_fun_if = (condition, _f_name: string, pieces) =>

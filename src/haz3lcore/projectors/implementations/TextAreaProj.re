@@ -118,4 +118,5 @@ module M: Projector = {
       Web.TextArea.set_caret_to_end(Web.TextArea.get(Id.cls(id)))
     };
   };
+  let mk_term = ProjectorBase.mk_term_default;
 };

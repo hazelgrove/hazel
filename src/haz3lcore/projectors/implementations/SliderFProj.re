@@ -59,4 +59,5 @@ module M: Projector = {
     );
 
   let focus = _ => ();
+  let mk_term = ProjectorBase.mk_term_default;
 };

@@ -161,6 +161,12 @@ module type Projector = {
    * take/return the model if the projector needs to
    * maintain a complex internal position state */
   let focus: ((Id.t, option(Direction.t))) => unit;
+  let mk_term:
+    (~from_segment: Base.segment => Any.t, ~segment: Base.segment) => Any.t;
+};
+
+let mk_term_default = (~from_segment, ~segment) => {
+  from_segment(segment);
 };
 
 /* A cooked projector is the same as the base module
@@ -196,6 +202,7 @@ module Cook = (C: Projector) : Cooked => {
   let update = (m, i, a) =>
     C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
   let focus = C.focus;
+  let mk_term = C.mk_term;
 };
 
 /* Projectors currently are all convex */

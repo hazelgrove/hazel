@@ -780,4 +780,6 @@ module M: Projector = {
       offside:
         Some(offside_view(model, info, local, view_seg, info.utility)),
     });
+
+  let mk_term = ProjectorBase.mk_term_default;
 };

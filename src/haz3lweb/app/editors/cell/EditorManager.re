@@ -131,6 +131,19 @@ module Update = {
     };
   };
 
+  let mk_term = (id: Id.t, model: Model.t) => {
+    let component = Model.get_component(id, model);
+    let seg_to_term = (segment: Segment.t) => {
+      MakeTerm.go(~from_segment=Model.assemble(model), ~segment);
+    };
+    switch (component.kind) {
+    | Some(kind) =>
+      let (module P) = ProjectorInit.to_module(kind);
+      P.mk_term(~from_segment=Model.assemble(model), ~segment);
+    | None => failwith("No kind found for id: " ++ Id.to_string(id))
+    };
+  };
+
   let assemble = Model.assemble;
   //TODO(andrew):
   let sdfsdfds = components =>
@@ -310,6 +323,7 @@ module View = {
           syntax,
           ~statics=model.statics.info_map,
           ~dynamics,
+          ~of_projector=Update.mk_term(_, model),
         ),
         ~parent=
           fun

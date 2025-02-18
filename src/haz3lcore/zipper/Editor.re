@@ -41,7 +41,12 @@ module CachedSyntax = {
     let segment = Zipper.unselect_and_zip(z);
     let MakeTerm.{term: _, terms, _} = MakeTerm.go(segment);
     let projector_shapes =
-      ProjectorInfo.ShapeMapSemantics.mk(projectors, info_map, dyn_map);
+      ProjectorInfo.ShapeMapSemantics.mk(
+        projectors,
+        info_map,
+        dyn_map,
+        of_projector,
+      );
     {
       old: false,
       segment,

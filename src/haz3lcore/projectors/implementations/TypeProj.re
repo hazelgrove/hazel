@@ -128,4 +128,6 @@ module M: Projector = {
       overlay: None,
       underlay: None,
     });
+
+  let mk_term = ProjectorBase.mk_term_default;
 };

@@ -24,7 +24,7 @@ let startup : PersistentData.t =
                          Normal)))(backpack())(relatives((siblings((((Grout((id \
                          e87c8d67-9374-4a6f-ba01-5ec8f300b924)(shape \
                          Convex))))))(ancestors())))(caret Outer))";
-                      backup_text = "";
+                      (* backup_text = ""; *)
                     };
                 };
               ];
@@ -55,7 +55,7 @@ let startup : PersistentData.t =
                            Normal)))(backpack())(relatives((siblings((((Grout((id \
                            e87c8d67-9374-4a6f-ba01-5ec8f300b924)(shape \
                            Convex))))))(ancestors())))(caret Outer))";
-                        backup_text = "";
+                        (* backup_text = ""; *)
                       };
                   };
                 ];

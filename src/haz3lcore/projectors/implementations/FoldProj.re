@@ -44,4 +44,6 @@ module M: Projector = {
         [text(m.text), hover_view(view_seg, info)],
       ),
     );
+
+  let mk_term = ProjectorBase.mk_term_default;
 };

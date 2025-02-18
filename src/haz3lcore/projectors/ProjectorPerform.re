@@ -28,7 +28,8 @@ let init =
     : option(syntax) =>
   /* Projected syntax always gets parenthesized, but only the contents
    * of those parentheses are passed to the projector implementations  */
-  switch (MakeTerm.for_projection(seg)) {
+  //TODO(andrew)
+  switch (MakeTerm.for_projection(_ => Any(), seg)) {
   | None => None
   | Some(any) => ProjectorInit.init(kind, projector_id, any)
   };
