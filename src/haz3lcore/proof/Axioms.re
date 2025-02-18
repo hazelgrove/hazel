@@ -21,6 +21,26 @@ let v: ProofCtx.t =
        |> Exp.fresh,
      )
   |> ProofCtx.add_entry(
+       "Zero(*)",
+       Fun(
+         Var("x") |> Pat.fresh,
+         BinOp(
+           Int(Equals),
+           BinOp(
+             Int(Times),
+             Var("x") |> Exp.fresh,
+             Atom(Int(Bigint.zero)) |> Exp.fresh,
+           )
+           |> Exp.fresh,
+           Atom(Int(Bigint.zero)) |> Exp.fresh,
+         )
+         |> Exp.fresh,
+         Some(Atom(Int) |> Typ.fresh),
+         None,
+       )
+       |> Exp.fresh,
+     )
+  |> ProofCtx.add_entry(
        "Comm(+)",
        Fun(
          Var("x") |> Pat.fresh,

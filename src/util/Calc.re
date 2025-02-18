@@ -78,6 +78,13 @@ let map_saved = (f: 'a => 'b, x: saved('a)): saved('b) =>
   | Calculated(x) => Calculated(f(x))
   };
 
+let saved_pair = ((x: saved('a), y: saved('b))): saved(('a, 'b)) =>
+  switch (x, y) {
+  | (Pending, _)
+  | (_, Pending) => Pending
+  | (Calculated(x), Calculated(y)) => Calculated((x, y))
+  };
+
 /* Using update, we can make a value of saved('a) that recalculates whenever
    the value of t('a) changes. */
 let update = (x: t('a), f: 'a => 'b, y: saved('b)): t('b) =>
