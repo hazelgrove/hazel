@@ -1,3 +1,6 @@
+codecov:
+  branch: dev
+
 coverage:
   status:
     project: # more options at https://docs.codecov.com/docs/commit-status
