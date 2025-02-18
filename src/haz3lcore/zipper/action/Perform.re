@@ -7,8 +7,14 @@ let buffer_clear = (z: t): t =>
   | _ => z
   };
 
-let set_buffer = (info_map: Statics.Map.t, z: t): t =>
+let set_tydi_buffer = (info_map: Statics.Map.t, z: t): t =>
   switch (TyDi.set_buffer(~info_map, z)) {
+  | None => z
+  | Some(z) => z
+  };
+
+let set_llm_buffer = (info_map: Statics.Map.t, z: t, response: string): t =>
+  switch (TyDi.set_llm_buffer(~info_map, z, response)) {
   | None => z
   | Some(z) => z
   };
@@ -98,7 +104,9 @@ let go_z =
     | None => Error(CantReparse)
     | Some(z) => Ok(z)
     }
-  | Buffer(Set(TyDi)) => Ok(set_buffer(statics.info_map, z))
+  | Buffer(Set(TyDi)) => Ok(set_tydi_buffer(statics.info_map, z))
+  | Buffer(Set(LLMSug(response))) =>
+    Ok(set_llm_buffer(statics.info_map, z, response))
   | Buffer(Accept) =>
     switch (buffer_accept(z)) {
     | None => Error(CantAccept)

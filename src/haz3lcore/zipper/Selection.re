@@ -26,6 +26,9 @@ let mk = (~mode=Normal, ~focus=Direction.Left, content: Segment.t) => {
 
 let mk_buffer = buffer => mk(~mode=Buffer(buffer), ~focus=Direction.Left);
 
+let mk_llm_buffer = buffer =>
+  mk(~mode=Buffer(buffer), ~focus=Direction.Right);
+
 let is_buffer: t => bool =
   fun
   | {mode: Buffer(_), _} => true

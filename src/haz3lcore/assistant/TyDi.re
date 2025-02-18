@@ -68,12 +68,13 @@ let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
 };
 
 /* Returns the text content of the suggestion buffer */
-let get_buffer = (z: Zipper.t): option(Token.t) =>
+let get_buffer = (z: Zipper.t): option(Token.t) => {
   switch (z.selection.mode, z.selection.content) {
   | (Buffer(Unparsed), [Tile({label: [completion], _})]) =>
     Some(completion)
   | _ => None
   };
+};
 
 /* Populates the suggestion buffer with a type-directed suggestion */
 let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
@@ -95,5 +96,20 @@ let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
       suggestion_suffix,
     );
   let z = Zipper.set_buffer(z, ~content, ~mode=Unparsed);
+  Some(z);
+};
+
+let set_llm_buffer =
+    (~info_map: Statics.Map.t, z: Zipper.t, response: string)
+    : option(Zipper.t) => {
+  let* index = Indicated.index(z);
+  let* ci = Id.Map.find_opt(index, info_map);
+  let content =
+    mk_unparsed_buffer(
+      ~sort=Info.sort_of(ci),
+      z.relatives.siblings,
+      response,
+    );
+  let z = Zipper.set_llm_buffer(z, ~content, ~mode=Unparsed);
   Some(z);
 };
