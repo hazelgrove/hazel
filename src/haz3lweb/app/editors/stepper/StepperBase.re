@@ -224,9 +224,16 @@ module Update = {
       }
       |> return
     | (StepForward(idx), MissingStep(ms), _) =>
-      let msns = MissingStep.Model.get_next_steps(ms);
+      let msns =
+        ms.next_steps
+        |> Calc.get_saved_exc(~print="StepForward")
+        |> (
+          fun
+          | AutoStep(_) => []
+          | AvailableSteps(msns) => msns
+        );
       switch (List.nth_opt(msns, idx)) {
-      | Some((_, evalobj)) =>
+      | Some(evalobj) =>
         {
           ...model,
           step_kind:
@@ -523,7 +530,7 @@ module Update = {
             editor,
           ),
         ),
-        Calc.set(true, hidden),
+        Calc.set(false, hidden),
         None,
       )
     };
@@ -965,59 +972,81 @@ module View = {
         ~undo: option(Ui_effect.t(unit)),
         model: Model.step,
       ) => {
-    let taken_steps =
-      switch (model.step_kind) {
-      | Model.SingleStep(m) => [m.evalobj |> EvaluatorStep.get_step_id]
-      | _ => []
+    let current_step =
+      if (model.hidden == Calc.Calculated(true)
+          && !globals.settings.core.evaluation.show_hidden_steps) {
+        [];
+      } else {
+        let taken_steps =
+          switch (model.step_kind) {
+          | Model.SingleStep(m) => [m.evalobj |> EvaluatorStep.get_step_id]
+          | _ => []
+          };
+        let next_steps =
+          switch (model.step_kind) {
+          | Model.MissingStep(m) =>
+            m.next_steps
+            |> Calc.get_saved_exc(~print="next_steps")
+            |> (
+              fun
+              | AutoStep(_) => []
+              | AvailableSteps(steps) => steps
+            )
+            |> List.map(step => step |> EvaluatorStep.get_step_id)
+          | _ => []
+          };
+        let editor =
+          StepperEditor.View.view(
+            ~globals,
+            ~signal=
+              fun
+              | MakeActive => signal(MakeActive(Here()))
+              | TakeStep(int) => inject(StepForward(int)),
+            ~inject=x => inject(EditorAction(x)),
+            ~selected=
+              switch (selected) {
+              | Some(Here(_)) => true
+              | _ => false
+              },
+            StepperEditor.Model.{
+              editor: model.editor |> Calc.get_saved_exc(~print="Editor"),
+              taken_steps,
+              next_steps,
+            },
+          );
+        let justification =
+          view_justification(
+            ~globals: Globals.t,
+            ~signal: event_step => Ui_effect.t(unit),
+            ~inject: Update.step => Ui_effect.t(unit),
+            ~undo,
+            model.step_kind,
+          );
+        let step_content =
+          view_step_content(
+            ~globals,
+            ~signal,
+            ~inject,
+            ~selected,
+            model.step_kind,
+          );
+        [
+          Web.div_c(
+            "step-border",
+            [
+              Web.div_c(
+                "step-display",
+                [
+                  div_c("equiv", [Node.text("≡")]),
+                  div_c("step-output", [editor]),
+                  justification,
+                ],
+              ),
+            ]
+            @ step_content,
+          ),
+        ];
       };
-    let next_steps =
-      switch (model.step_kind) {
-      | Model.MissingStep(m) =>
-        m.next_steps
-        |> Calc.get_saved_exc(~print="Next Steps")
-        |> (
-          fun
-          | AutoStep(_) => []
-          | AvailableSteps(x) => x
-        )
-        |> List.map(EvaluatorStep.get_step_id)
-      | _ => []
-      };
-    let editor =
-      StepperEditor.View.view(
-        ~globals,
-        ~signal=
-          fun
-          | MakeActive => signal(MakeActive(Here()))
-          | TakeStep(int) => inject(StepForward(int)),
-        ~inject=x => inject(EditorAction(x)),
-        ~selected=
-          switch (selected) {
-          | Some(Here(_)) => true
-          | _ => false
-          },
-        StepperEditor.Model.{
-          editor: model.editor |> Calc.get_saved_exc(~print="Editor"),
-          taken_steps,
-          next_steps,
-        },
-      );
-    let justification =
-      view_justification(
-        ~globals: Globals.t,
-        ~signal: event_step => Ui_effect.t(unit),
-        ~inject: Update.step => Ui_effect.t(unit),
-        ~undo,
-        model.step_kind,
-      );
-    let step_content =
-      view_step_content(
-        ~globals,
-        ~signal,
-        ~inject,
-        ~selected,
-        model.step_kind,
-      );
     let next_step =
       Option.map(
         view_step(
@@ -1042,29 +1071,13 @@ module View = {
         model.next_step,
       )
       |> Option.value(~default=[]);
-    [
-      Web.div_c(
-        "step-border",
-        [
-          Web.div_c(
-            "step-display",
-            [
-              div_c("equiv", [Node.text("≡")]),
-              div_c("step-output", [editor]),
-              justification,
-            ],
-          ),
-        ]
-        @ step_content,
-      ),
-    ]
-    @ next_step;
+    current_step @ next_step;
   }
 
   and view_justification =
       (
         ~globals: Globals.t,
-        ~signal: event_step => Ui_effect.t(unit),
+        ~signal as _: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
         ~undo: option(Ui_effect.t(unit)),
         step_kind: Model.step_kind,

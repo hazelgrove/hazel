@@ -8,8 +8,7 @@ module Model = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    next_steps:
-      Calc.saved(list((FilterAction.action, EvaluatorStep.EvalObj.t))),
+    next_steps: Calc.saved(EvaluatorStep.status),
     selected_id: Calc.saved(option(Id.t)),
     selected_exp: Calc.saved(option(Exp.t)),
     rewrites: Calc.saved(option(rewrites)),
@@ -21,11 +20,6 @@ module Model = {
     selected_exp: Calc.Pending,
     rewrites: Calc.Pending,
   };
-
-  let get_next_steps =
-      (m: t): list((FilterAction.action, EvaluatorStep.EvalObj.t)) =>
-    m.next_steps |> Calc.get_saved_exc(~print="get_next_steps");
-
   let get_selected_exp = (m: t): Exp.t =>
     m.selected_exp
     |> Calc.saved_to_option
