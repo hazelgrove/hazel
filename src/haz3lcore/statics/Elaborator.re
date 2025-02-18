@@ -169,7 +169,7 @@ let rec elaborate_pattern =
       let (p2', ty2) = elaborate_pattern(m, p2);
       let ty2_inner = Typ.matched_list(ctx, ty2);
       let ty_inner =
-        Typ.join(~fix=false, ctx, ty1, ty2_inner)
+        Typ.join(ctx, ty1, ty2_inner)
         |> Option.value(~default=Typ.temp(Unknown(Internal)));
       let p1'' = fresh_pat_cast(p1', ty1, ty_inner);
       let p2'' = fresh_pat_cast(p2', ty2, List(ty_inner) |> Typ.temp);
@@ -531,7 +531,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (t', tyt) = elaborate(m, t);
       let (f', tyf) = elaborate(m, f);
       let ty =
-        Typ.join(~fix=false, ctx, tyt, tyf)
+        Typ.join(ctx, tyt, tyf)
         |> Option.value(~default=Typ.temp(Unknown(Internal)));
       let c'' = fresh_cast(c', tyc, Bool |> Typ.temp);
       let t'' = fresh_cast(t', tyt, ty);
@@ -563,7 +563,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e2', ty2) = elaborate(m, e2);
       let ty2_inner = Typ.matched_list(ctx, ty2);
       let ty_inner =
-        Typ.join(~fix=false, ctx, ty1, ty2_inner)
+        Typ.join(ctx, ty1, ty2_inner)
         |> Option.value(~default=Typ.temp(Unknown(Internal)));
       let e1'' = fresh_cast(e1', ty1, ty_inner);
       let e2'' = fresh_cast(e2', ty2, List(ty_inner) |> Typ.temp);
@@ -574,7 +574,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let ty_inner1 = Typ.matched_list(ctx, ty1);
       let ty_inner2 = Typ.matched_list(ctx, ty2);
       let ty_inner =
-        Typ.join(~fix=false, ctx, ty_inner1, ty_inner2)
+        Typ.join(ctx, ty_inner1, ty_inner2)
         |> Option.value(~default=Typ.temp(Unknown(Internal)));
       let e1'' = fresh_cast(e1', ty1, List(ty_inner) |> Typ.temp);
       let e2'' = fresh_cast(e2', ty2, List(ty_inner) |> Typ.temp);

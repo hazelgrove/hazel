@@ -47,7 +47,7 @@ let equivalent_to_make_term = (serialized: string) => {
   };
 };
 
-let mk_form = (form_name: string): Piece.t => {
+let mk_form = (form_name: Form.compound_form): Piece.t => {
   let form: Form.t = Form.get(form_name);
 
   Tile({

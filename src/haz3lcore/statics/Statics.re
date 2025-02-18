@@ -47,6 +47,15 @@ module Map = {
       [],
     );
 
+  let errors = (map: t): list((Id.t, Info.error)) =>
+    Id.Map.fold(
+      (id, info: Info.t, acc) =>
+        Option.to_list(Info.error_of(info) |> Option.map(x => (id, x)))
+        @ acc,
+      map,
+      [],
+    );
+
   /* The ids of binding sites for for all references in term with `id` */
   let refs_in = (m: t, id: Id.t): Binding.s =>
     switch (lookup(id, m)) {

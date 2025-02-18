@@ -158,8 +158,8 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
         ([Tile(t), ...remolded], shape, []);
       | Some(t)
           when
-            t.label == Form.get("comma_typ").label
-            || t.label == Form.get("typ_plus").label
+            t.label == Form.get(CommaTyp).label
+            || t.label == Form.get(TypPlus).label
             && List.exists((==)(Sort.Exp), parent_sorts) => (
           [],
           shape,
