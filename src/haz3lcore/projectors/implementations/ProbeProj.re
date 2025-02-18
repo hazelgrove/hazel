@@ -760,7 +760,6 @@ let indicated_closure = (info: info): option(closure) =>
   OptUtil.and_then(DynCursor.first_cursor_closure(info), info.dynamics);
 
 let key_handler = (local, info: info, _, evt) => {
-  print_endline("key_handler");
   open Effect;
   /* PLAN: inter-probe navigation
       ultimately need to be able to issue a parent action to move to and focus on

@@ -146,14 +146,8 @@ module Selection = {
 
   let handle_key_event = (~selection, model: Model.t, key) => {
     switch (ProjectorView.key_handoff(model.editor, key)) {
-    | Some(action) =>
-      print_endline(
-        "ProjectorView.key_handoff: action: " ++ Action.show_project(action),
-      );
-      Some(Update.Perform(Project(action)));
-    | None =>
-      print_endline("handle_key_event: default");
-      handle_key_event(~selection, model, key);
+    | Some(action) => Some(Update.Perform(Project(action)))
+    | None => handle_key_event(~selection, model, key)
     };
   };
 
