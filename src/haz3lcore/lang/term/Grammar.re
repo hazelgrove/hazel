@@ -13,7 +13,6 @@ module Annotated = {
   let empty = term => {term, annotation: ()};
 };
 
-[@coverage off];
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type deferral_position_t =
   | InAp
@@ -137,11 +136,10 @@ and filter('a) = {
   pat: exp_t('a),
   act: FilterAction.t,
 };
-[@coverage on];
 
 
 let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
-  (type a, type b, f: a => b, e: exp_t(a)) => (
+  (f, e) => (
     {
       let (term, annotation) = (e.term, e.annotation);
       let new_annotation: b = f(annotation);
@@ -252,7 +250,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         };
       {term, annotation: new_annotation};
     }:
-      exp_t(b) // TODO
+      exp_t(b)
   )
 
 and map_any_annotation: 'a 'b. ('a => 'b, any_t('a)) => any_t('b) =
