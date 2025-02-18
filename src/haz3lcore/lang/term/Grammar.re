@@ -9,8 +9,11 @@ module Annotated = {
 
   let term_of = x => x.term;
   let unwrap = x => (x.term, term' => {...x, term: term'});
+
+  let empty = term => {term, annotation: ()};
 };
 
+[@coverage off];
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type deferral_position_t =
   | InAp
@@ -134,6 +137,7 @@ and filter('a) = {
   pat: exp_t('a),
   act: FilterAction.t,
 };
+[@coverage on];
 
 
 let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
