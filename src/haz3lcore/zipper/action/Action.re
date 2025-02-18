@@ -59,7 +59,8 @@ type project =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type agent =
-  | TyDi;
+  | TyDi
+  | LLMSug(string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type buffer =

@@ -53,7 +53,7 @@ module Update = {
     | ToggleCollapse(int)
     | SelectLLM(OpenRouter.chat_models)
     | StoreTile(Id.t)
-    | RemoveTile;
+    | RemoveAndSuggest(string);
 
   let code_message_of_str =
       (settings, editor: CodeModel.t, response: string, party: Model.party)
@@ -180,6 +180,18 @@ module Update = {
     };
   };
 
+  let set_buffer = (~response: string, z: Zipper.t): option(Zipper.t) => {
+    let zipper_of_response = Option.get(Printer.zipper_of_string(response));
+    let seg_of_response =
+      Zipper.smart_seg(
+        ~dump_backpack=true,
+        ~erase_buffer=true,
+        zipper_of_response,
+      );
+    let z = Zipper.set_buffer(z, ~content=seg_of_response, ~mode=Unparsed);
+    Some(z);
+  };
+
   let update =
       (
         ~settings,
@@ -304,7 +316,7 @@ module Update = {
       switch (ChatLSP.Prompt.mk_error(ci, response)) {
       | None =>
         print_endline("ERROR ROUNDS (Non-error Response): " ++ response);
-        schedule_action(RemoveTile);
+        schedule_action(RemoveAndSuggest(response));
       | Some(error) =>
         print_endline("ERROR ROUNDS (Error): " ++ error);
         print_endline("ERROR ROUNDS (Error-causing Response): " ++ response);
@@ -368,8 +380,7 @@ module Update = {
       Model.{...model, chat: updated_chat} |> Updated.return_quiet;
     | SelectLLM(llm) => {...model, llm} |> Updated.return_quiet
     | StoreTile(id) => {...model, tile: id} |> Updated.return_quiet
-    | RemoveTile =>
-      print_endline("Here now");
+    | RemoveAndSuggest(response) =>
       // Select Question Marks and double-destruct
       let perform_action: CodeEditable.Update.t =
         Perform(Action.Select(Tile(Id(model.tile, Direction.Left))));
@@ -381,6 +392,21 @@ module Update = {
       let cell_action: CellEditor.Update.t = MainEditor(perform_action);
       let scratch_action: EditorsUpdate.t = Scratch(CellAction(cell_action));
       schedule_editor_action(scratch_action);
+
+      let perform_action: CodeEditable.Update.t =
+        Perform(Action.Buffer(Set(LLMSug(response))));
+      let cell_action: CellEditor.Update.t = MainEditor(perform_action);
+      let scratch_action: EditorsUpdate.t = Scratch(CellAction(cell_action));
+      schedule_editor_action(scratch_action);
+
+      /* Paste in code completion
+         let perform_action: CodeEditable.Update.t =
+           Perform(Action.Paste(response));
+         let cell_action: CellEditor.Update.t = MainEditor(perform_action);
+         let scratch_action: EditorsUpdate.t = Scratch(CellAction(cell_action));
+         schedule_editor_action(scratch_action);
+         */
+
       {...model, tile: Id.invalid} |> Updated.return_quiet;
     };
   };
