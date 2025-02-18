@@ -65,17 +65,7 @@ let (replace_temp, replace_temp_exp) = {
     'a.
     (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
    =
-    (continue, exp) =>
-      {
-        ...exp,
-        annotation: {
-          ...exp.annotation,
-          ids:
-            exp.annotation.ids == [Id.invalid]
-              ? [Id.mk()] : exp.annotation.ids,
-        },
-      }
-      |> continue;
+    (continue, exp) => IdTagged.replace_temp(exp) |> continue;
   (
     map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
     TermBase.Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
