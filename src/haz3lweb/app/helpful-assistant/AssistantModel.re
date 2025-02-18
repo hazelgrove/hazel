@@ -28,10 +28,16 @@ module Model = {
     chat: list(message) /*To-do: Add chat ids for saving past chats*/,
     currSender: party,
     llm: OpenRouter.chat_models,
+    tile: Id.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let init: t = {chat: [], currSender: LS, llm: Gemini_Flash_Lite_2_0};
+  let init: t = {
+    chat: [],
+    currSender: LS,
+    llm: Gemini_Flash_Lite_2_0,
+    tile: Id.invalid,
+  };
 };
 
 module Update = {
@@ -40,35 +46,78 @@ module Update = {
     | SendMessage(Model.message)
     | SetKey(string)
     | SendSketch
+    | SendError(string, Info.t, int)
+    | ErrorRespond(string, Info.t, int)
     | NewChat
     | Respond(Model.message)
     | ToggleCollapse(int)
-    | SelectLLM(OpenRouter.chat_models);
+    | SelectLLM(OpenRouter.chat_models)
+    | StoreTile(Id.t)
+    | RemoveTile;
 
-  let react = (~response: string, ~code_suggestion: bool): t => {
-    // let response = response |> sanitize_response |> quote;
-    let zipper_of_response = Printer.zipper_of_string(response);
-    let response_as_message: Model.message = {
-      party: LLM,
+  let code_message_of_str =
+      (settings, editor: CodeModel.t, response: string, party: Model.party)
+      : Model.message => {
+    /* Alternate method using Detruct and Insert. We need a memory of cursor location for this however.
+       let z = editor.editor.state.zipper;
+       let z = Option.get(Destruct.go(Direction.Left, z));
+       let z = Option.get(Destruct.go(Direction.Left, z));
+       let z = Option.get(Insert.go(response, z));
+       let segment_of_response =
+         Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, z);
+       {
+         party,
+         code: Some(segment_of_response),
+         content: response,
+         collapsed: String.length(response) >= 200,
+       }; */
+    // Hack(Russ) Uses same logic Andrew uses in Oracle.re to remove "??"
+    let string_of_sketch =
+      Printer.zipper_to_string(editor.editor.state.zipper);
+    let sketch_with_response =
+      Str.global_replace(Str.regexp("\\?\\?"), response, string_of_sketch);
+    let zipper_of_response = Printer.zipper_of_string(sketch_with_response);
+    switch (zipper_of_response) {
+    | Some(z) =>
+      let segment_of_response =
+        Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, z);
+      {
+        party,
+        code: Some(segment_of_response),
+        content: response,
+        collapsed: String.length(response) >= 200,
+      };
+    | None => {
+        party,
+        code: None,
+        content: response,
+        collapsed: String.length(response) >= 200,
+      }
+    };
+  };
+
+  let text_message_of_str =
+      (response: string, party: Model.party): Model.message => {
+    {
+      party,
       code: None,
       content: response,
       collapsed: String.length(response) >= 200,
     };
+  };
+
+  let react =
+      (
+        ~settings,
+        ~editor: CodeModel.t,
+        ~response: string,
+        ~code_suggestion: bool,
+      )
+      : t => {
+    // let response = response |> sanitize_response |> quote;
     code_suggestion
-      ? switch (zipper_of_response) {
-        | Some(z) =>
-          let segment_of_response =
-            Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, z);
-          let response_as_message: Model.message = {
-            party: LLM,
-            code: Some(segment_of_response),
-            content: response,
-            collapsed: String.length(response) >= 200,
-          };
-          Respond(response_as_message);
-        | None => Respond(response_as_message)
-        }
-      : Respond(response_as_message);
+      ? Respond(code_message_of_str(settings, editor, response, LLM))
+      : Respond(text_message_of_str(response, LLM));
   };
 
   let await_llm_response: Model.message = {
@@ -99,22 +148,32 @@ module Update = {
     );
   };
 
-  let check_req =
-      (
-        char: string,
-        schedule_action: t => unit,
-        {caret, relatives: {siblings, _}, _} as z: Zipper.t,
-      )
-      : unit => {
+  let check_req = (_: string, schedule_action: t => unit, z: Zipper.t): unit => {
+    let caret = z.caret;
+    let siblings = z.relatives.siblings;
     switch (caret, Zipper.neighbor_monotiles(siblings)) {
     | (Outer, (_, Some(_))) =>
       switch (Zipper.right_neighbor_monotile(siblings)) {
-      | Some(c) => c == "??" ? schedule_action(SendSketch) : ()
+      | Some(c) =>
+        c == "??"
+          ? {
+            let id = Option.get(Indicated.index(z));
+            schedule_action(StoreTile(id));
+            schedule_action(SendSketch);
+          }
+          : ()
       | _ => ()
       }
     | (Outer, (_, None)) =>
       switch (Zipper.left_neighbor_monotile(siblings)) {
-      | Some(c) => c == "??" ? schedule_action(SendSketch) : ()
+      | Some(c) =>
+        c == "??"
+          ? {
+            let id = Option.get(Indicated.index(z));
+            schedule_action(StoreTile(id));
+            schedule_action(SendSketch);
+          }
+          : ()
       | _ => ()
       }
     | _ => ()
@@ -123,11 +182,12 @@ module Update = {
 
   let update =
       (
-        ~settings: AssistantSettings.t,
+        ~settings,
         ~action,
         ~editor: CodeModel.t,
         ~model: Model.t,
         ~schedule_action,
+        ~schedule_editor_action,
       )
       : Updated.t(Model.t) => {
     switch (action) {
@@ -146,7 +206,12 @@ module Update = {
             switch (OpenRouter.handle_chat(req)) {
             | Some({content, _}) =>
               schedule_action(
-                react(~response=content, ~code_suggestion=false),
+                react(
+                  ~settings,
+                  ~editor,
+                  ~response=content,
+                  ~code_suggestion=false,
+                ),
               )
             | None => print_endline("Assistant: response parse failed")
             }
@@ -213,7 +278,17 @@ module Update = {
         OpenRouter.start_chat(~params, ~key, openrouter_prompt, req =>
           switch (OpenRouter.handle_chat(req)) {
           | Some({content, _}) =>
-            schedule_action(react(~response=content, ~code_suggestion=true))
+            let index =
+              Option.get(Indicated.index(editor.editor.state.zipper));
+            let ci =
+              Option.get(Id.Map.find_opt(index, editor.statics.info_map));
+            schedule_action(
+              ErrorRespond(
+                content,
+                ci,
+                ChatLSP.Options.init.error_rounds_max,
+              ),
+            );
           | None => print_endline("Assistant: response parse failed")
           }
         );
@@ -224,6 +299,61 @@ module Update = {
         }
         |> Updated.return_quiet;
       };
+    | ErrorRespond(response, ci, fuel) =>
+      let message = code_message_of_str(settings, editor, response, LLM);
+      switch (ChatLSP.Prompt.mk_error(ci, response)) {
+      | None =>
+        print_endline("ERROR ROUNDS (Non-error Response): " ++ response);
+        schedule_action(RemoveTile);
+      | Some(error) =>
+        print_endline("ERROR ROUNDS (Error): " ++ error);
+        print_endline("ERROR ROUNDS (Error-causing Response): " ++ response);
+        schedule_action(SendError(error, ci, fuel - 1));
+      };
+      Model.{
+        ...model,
+        chat: ListUtil.leading(model.chat) @ [message],
+        currSender: LS,
+      }
+      |> Updated.return_quiet;
+    | SendError(error, ci, fuel) =>
+      let error_message =
+        text_message_of_str(
+          "Your previous response caused the following error. Please fix it in your response: "
+          ++ error,
+          LS,
+        );
+      // check that fuel is not 0
+      if (fuel <= 0) {
+        schedule_action(
+          Respond(
+            text_message_of_str("Error round limit reached, stopping", LLM),
+          ),
+        );
+      } else {
+        let collected_chat =
+          collect_chat(~messages=model.chat @ [error_message]);
+        switch (Oracle.ask(collected_chat)) {
+        | None => print_endline("Oracle: prompt generation failed")
+        | Some(openrouter_prompt) =>
+          let llm = model.llm;
+          let key = Store.Generic.load("API");
+          let params: OpenRouter.params = {llm, temperature: 1.0, top_p: 1.0};
+          OpenRouter.start_chat(~params, ~key, openrouter_prompt, req =>
+            switch (OpenRouter.handle_chat(req)) {
+            | Some({content, _}) =>
+              schedule_action(ErrorRespond(content, ci, fuel))
+            | None => print_endline("Assistant: response parse failed")
+            }
+          );
+        };
+      };
+      Model.{
+        ...model,
+        chat: model.chat @ [error_message, await_llm_response],
+        currSender: LLM,
+      }
+      |> Updated.return_quiet;
     | ToggleCollapse(index) =>
       let updated_chat =
         List.mapi(
@@ -237,6 +367,21 @@ module Update = {
         );
       Model.{...model, chat: updated_chat} |> Updated.return_quiet;
     | SelectLLM(llm) => {...model, llm} |> Updated.return_quiet
+    | StoreTile(id) => {...model, tile: id} |> Updated.return_quiet
+    | RemoveTile =>
+      print_endline("Here now");
+      // Select Question Marks and double-destruct
+      let perform_action: CodeEditable.Update.t =
+        Perform(Action.Select(Tile(Id(model.tile, Direction.Left))));
+      let cell_action: CellEditor.Update.t = MainEditor(perform_action);
+      let scratch_action: EditorsUpdate.t = Scratch(CellAction(cell_action));
+      schedule_editor_action(scratch_action);
+      let perform_action: CodeEditable.Update.t =
+        Perform(Action.Destruct(Direction.Left));
+      let cell_action: CellEditor.Update.t = MainEditor(perform_action);
+      let scratch_action: EditorsUpdate.t = Scratch(CellAction(cell_action));
+      schedule_editor_action(scratch_action);
+      {...model, tile: Id.invalid} |> Updated.return_quiet;
     };
   };
 };

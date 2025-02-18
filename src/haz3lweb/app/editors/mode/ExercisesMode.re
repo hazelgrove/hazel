@@ -7,18 +7,12 @@ open Util;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    current: int,
-    exercises: list(ExerciseMode.Model.t),
-  };
+  type t = ExercisesModeModel.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = {
-    cur_exercise: Exercise.key,
-    exercise_data: list((Exercise.key, ExerciseMode.Model.persistent)),
-  };
+  type persistent = ExercisesModeModel.persistent;
 
-  let persist = (~instructor_mode, model): persistent => {
+  let persist = (~instructor_mode, model: t): persistent => {
     cur_exercise:
       Exercise.key_of_state(
         List.nth(model.exercises, model.current).editors,
@@ -34,7 +28,7 @@ module Model = {
       ),
   };
 
-  let unpersist = (~settings, ~instructor_mode, persistent: persistent) => {
+  let unpersist = (~settings, ~instructor_mode, persistent: persistent): t => {
     let exercises =
       List.map2(
         ExerciseMode.Model.unpersist(~settings, ~instructor_mode),
@@ -174,13 +168,7 @@ module Update = {
   open Updated;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | SwitchExercise(int)
-    | Exercise(ExerciseMode.Update.t)
-    | ExportModule
-    | ExportSubmission
-    | ExportTransitionary
-    | ExportGrading;
+  type t = ExercisesModeUpdate.t;
 
   let export_exercise_module = (exercises: Model.t): unit => {
     let exercise = Model.get_current(exercises);
@@ -231,7 +219,7 @@ module Update = {
   let update =
       (
         ~globals: Globals.t,
-        ~schedule_action,
+        ~schedule_action: t => unit,
         ~schedule_assistant_action: AssistantModel.Update.t => unit,
         action: t,
         model: Model.t,
@@ -249,9 +237,9 @@ module Update = {
         );
       let new_exercises =
         ListUtil.put_nth(model.current, new_current, model.exercises);
-      Model.{current: model.current, exercises: new_exercises};
+      ExercisesModeModel.{current: model.current, exercises: new_exercises};
     | SwitchExercise(n) =>
-      Model.{current: n, exercises: model.exercises} |> return
+      ExercisesModeModel.{current: n, exercises: model.exercises} |> return
     | ExportModule =>
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_exercise_module(model);
@@ -272,7 +260,13 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~is_edited,
+        ~schedule_action: t => unit,
+        model: ExercisesModeModel.t,
+      )
+      : Model.t => {
     let exercise =
       ExerciseMode.Update.calculate(
         ~settings,
@@ -280,7 +274,7 @@ module Update = {
         ~schedule_action=a => schedule_action(Exercise(a)),
         List.nth(model.exercises, model.current),
       );
-    Model.{
+    ExercisesModeModel.{
       current: model.current,
       exercises: ListUtil.put_nth(model.current, exercise, model.exercises),
     };
@@ -299,7 +293,7 @@ module Selection = {
         ~selection,
         List.nth(model.exercises, model.current),
       );
-    Update.Exercise(ci);
+    ExercisesModeUpdate.Exercise(ci);
   };
 
   let handle_key_event = (~selection, ~event, model: Model.t) =>
@@ -308,7 +302,7 @@ module Selection = {
       ~event,
       List.nth(model.exercises, model.current),
     )
-    |> Option.map(a => Update.Exercise(a));
+    |> Option.map(a => ExercisesModeUpdate.Exercise(a));
 
   let jump_to_tile =
       (~settings, tile, model: Model.t): option((Update.t, t)) =>
@@ -317,7 +311,7 @@ module Selection = {
       tile,
       List.nth(model.exercises, model.current),
     )
-    |> Option.map(((x, y)) => (Update.Exercise(x), y));
+    |> Option.map(((x, y)) => (ExercisesModeUpdate.Exercise(x), y));
 };
 
 module View = {
@@ -328,7 +322,7 @@ module View = {
     let current = List.nth(model.exercises, model.current);
     ExerciseMode.View.view(
       ~globals,
-      ~inject=a => inject(Update.Exercise(a)),
+      ~inject=a => inject(ExercisesModeUpdate.Exercise(a)),
       current,
     );
   };
@@ -480,13 +474,13 @@ module View = {
           fun
           | Previous =>
             inject(
-              Update.SwitchExercise(
+              ExercisesModeUpdate.SwitchExercise(
                 model.current - 1 mod List.length(model.exercises),
               ),
             )
           | Next =>
             inject(
-              Update.SwitchExercise(
+              ExercisesModeUpdate.SwitchExercise(
                 model.current + 1 mod List.length(model.exercises),
               ),
             ),
