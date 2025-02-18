@@ -46,8 +46,8 @@ let eq_info_error = (a: Info.error, b: Info.error) => {
 let testable_info_error_exp =
   testable(Fmt.using(Info.show_error_exp, Fmt.string), eq_info_error_exp);
 
-let status_exp: testable(Info.status_exp) =
-  testable(Fmt.using(Info.show_status_exp, Fmt.string), (==));
+let testable_error: testable(Info.error) =
+  testable(Fmt.using(Info.show_error, Fmt.string), (==));
 module FreshId = {
   let arrow = (a, b) => Arrow(a, b) |> Typ.fresh;
   let unknown = a => Unknown(a) |> Typ.fresh;
@@ -135,24 +135,32 @@ let type_of = f => {
      );
 };
 
+let inconsistent_typecheck = (name, exp) => {
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let s = statics(exp);
+
+      let errors = List.map(snd, Statics.collect_errors(s));
+
+      Alcotest.check(
+        neg(list(testable_error)),
+        "Missing Static Errors",
+        [],
+        errors,
+      );
+    },
+  );
+};
 let fully_consistent_typecheck = (name, serialized, expected, exp) => {
   test_case(
     name,
     `Quick,
     () => {
       let s = statics(exp);
-      let errors =
-        List.map(
-          (id: Id.t) => {
-            let info = Id.Map.find(id, s);
-            switch (info) {
-            | InfoExp(ie) => ie.status
-            | _ => fail("Expected InfoExp")
-            };
-          },
-          Statics.Map.error_ids(s),
-        );
-      Alcotest.check(list(status_exp), "Static Errors", [], errors);
+      let errors = List.map(snd, Statics.collect_errors(s));
+      Alcotest.check(list(testable_error), "Static Errors", [], errors);
       Alcotest.check(
         Alcotest.option(testable_typ),
         serialized,
@@ -1315,5 +1323,21 @@ let tests = (
         ),
       )
     }),
+    fully_consistent_typecheck(
+      "Forall alpha equivalent in cast",
+      {|let x : forall a -> a = in (x : forall b -> b)|},
+      Some(
+        Forall(Var("b") |> TPat.fresh, Var("b") |> Typ.fresh) |> Typ.fresh,
+      ),
+      parse_exp({|let x : forall a -> a = in (x : forall b -> b)|}),
+    ),
+    fully_consistent_typecheck(
+      "Forall alpha equivalent in let",
+      {|let x : forall a -> a = in let y : forall b -> b = x in 1|},
+      Some(int),
+      parse_exp(
+        {|let x : forall a -> a = in let y : forall b -> b = x in 1|},
+      ),
+    ),
   ],
 );
