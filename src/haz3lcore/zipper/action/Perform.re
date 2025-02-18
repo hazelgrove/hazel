@@ -38,7 +38,6 @@ let go_z =
   };
 
   let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
-    print_endline("Pasting from segment");
     let replace_selection = (z, focus, segment): Zipper.t =>
       {...z, selection: Selection.mk(~focus, segment)}
       |> Zipper.unselect
