@@ -4,7 +4,7 @@ open Example;
 
 let labelled_sum_typ: form = {
   let explanation = "Sum types describe a finite set of labeled choices. Values of this type consist of one of the specified constructors applied to a parameter of the corresponding parameter type, if specified. Constructor names must be unique within a sum.";
-  let divider = Example.mk_monotile(Form.get("typ_plus"));
+  let divider = Example.mk_monotile(Form.get(TypPlus));
   {
     id: LabelledSumTyp,
     syntactic_form: [
