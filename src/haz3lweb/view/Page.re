@@ -64,7 +64,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Globals(Globals.Update.t)
-    | Editors(Editors.Update.t)
+    | Editors(EditorsUpdate.t)
     | ExplainThis(ExplainThisUpdate.update)
     | Assistant(AssistantModel.Update.t)
     | MakeActive(selection)
@@ -242,7 +242,7 @@ module Update = {
         ExplainThisUpdate.set_update(model.explain_this, action);
       {...model, explain_this};
     | Assistant(action) =>
-      let settings = globals.settings.assistant;
+      let settings = globals.settings;
       let ed: CellEditor.Model.t =
         switch (model.editors) {
         | Scratch(m) => List.nth(m.scratchpads, m.current) |> snd
@@ -255,8 +255,8 @@ module Update = {
           ~action,
           ~editor=ed.editor,
           ~model=model.assistant,
-          ~schedule_action=a =>
-          schedule_action(Assistant(a))
+          ~schedule_action=a => schedule_action(Assistant(a)),
+          ~schedule_editor_action=a => schedule_action(Editors(a)),
         );
       {...model, assistant};
     | MakeActive(selection) => {...model, selection} |> Updated.return

@@ -722,6 +722,9 @@ module SystemPrompt = {
   let main_prompt = [
     "CODE COMPLETION INSTRUCTIONS:",
     "- Reply with a functional, idiomatic replacement for the program hole marked '??' in the provided program sketch",
+    // Uncomment either of the following lines to test error rounds
+    // "- However, make sure that your initial response CAUSES A TYPE ERROR in the program. Then, fix it in your second response",
+    // "- However, it is CRITICALLY important to make sure that your response ALWAYS CAUSES A TYPE ERROR in the program, no matter how many times you are re-prompted",
     "- Reply only with a single replacement term for the unqiue distinguished hole marked '??'",
     "- Reply only with code",
     "- DO NOT suggest more replacements for other holes in the sketch (marked '?'), or implicit holes",
@@ -821,7 +824,7 @@ module Prompt = {
     @ [{role: User, content: user_message}];
   };
 
-  let mk_error = (ci: Info.t, reply: OpenRouter.reply): option(string) => {
+  let mk_error = (ci: Info.t, reply: string): option(string) => {
     /* TODO: This should maybe take whole JSON convo
      * so far and return an appended version */
     //TODO: Proper errors
@@ -832,6 +835,6 @@ module Prompt = {
       | _ => None
       };
     let init_ctx = Info.ctx_of(ci);
-    ErrorPrint.mk(~init_ctx, ~mode, reply.content);
+    ErrorPrint.mk(~init_ctx, ~mode, reply);
   };
 };

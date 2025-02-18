@@ -5,7 +5,6 @@ open Util.Web;
 open Util;
 open Util.OptUtil.Syntax;
 open Haz3lcore;
-
 open Js_of_ocaml;
 
 type selection =
