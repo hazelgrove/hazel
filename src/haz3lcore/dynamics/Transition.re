@@ -306,7 +306,6 @@ module Transition = (EV: EV_MODE) => {
       and. d' =
         req_final(req(state, env), d => TypAp(d, tau) |> wrap_ctx, d);
       let-unbox typfun = (TypFun, d');
-      print_endline("'ere");
       switch (typfun) {
       | TypFun(utpat, tfbody, name) =>
         /* Rule ITTLam */
