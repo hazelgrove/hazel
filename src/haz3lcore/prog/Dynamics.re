@@ -78,7 +78,7 @@ module Probe = {
        * closures currently used to keep display-length data between
        * similar runs. May want to alter this or simply used a fresh
        * UUID depending on future desiderata */
-      closure_id: Hashtbl.hash((call_stack, pr)),
+      closure_id: Hashtbl.hash((call_stack, value, pr)),
       syntax_id,
       value,
       env: Env.filter(env, pr.refs),
