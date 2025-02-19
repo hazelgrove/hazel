@@ -340,5 +340,12 @@ in fn("hello")|},
     test_case("Variable capture", `Quick, test_variable_capture),
     test_case("Unbound lookup", `Quick, test_unbound_lookup),
     test_case("Unevaluated if closure", `Quick, test_unevaluated_if),
+    test_case("Negative integer literal", `Quick, () =>
+      evaluation_test(
+        "-8",
+        Int(-8) |> Exp.fresh,
+        UnOp(Int(Minus), Int(8) |> Exp.fresh) |> Exp.fresh,
+      )
+    ),
   ],
 );

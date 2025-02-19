@@ -71,6 +71,10 @@ coverage:
 	dune runtest --instrument-with bisect_ppx --force
 	bisect-ppx-report summary
 
+ci:
+	dune build --profile dev
+	dune runtest --instrument-with bisect_ppx --force
+	
 generate-coverage-html:
 	bisect-ppx-report html
 

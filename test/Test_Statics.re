@@ -10,6 +10,9 @@ let testable_list_uuidm = testable(Fmt.list(Uuidm.pp), (==));
 
 let status_exp: testable(Info.status_exp) =
   testable(Fmt.using(Info.show_status_exp, Fmt.string), (==));
+let testable_error: testable(Info.error) =
+  testable(Fmt.using(Info.show_error, Fmt.string), (==));
+
 let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init);
 let alco_check = Alcotest.option(testable_typ) |> Alcotest.check;
 
@@ -42,20 +45,9 @@ let inconsistent_typecheck = (name, exp) => {
     `Quick,
     () => {
       let s = statics(exp);
-      let errors: list(Info.status_exp) =
-        List.map(
-          (id: Id.t) => {
-            let info = Id.Map.find(id, s);
-            switch (info) {
-            | InfoExp(ie) => ie.status
-            | _ => fail("Expected InfoExp")
-            };
-          },
-          Statics.error_ids(s),
-        );
-
+      let errors = List.map(snd, Id.Map.to_list(Statics.collect_errors(s)));
       Alcotest.check(
-        neg(list(status_exp)),
+        neg(list(testable_error)),
         "Missing Static Errors",
         [],
         errors,
@@ -69,8 +61,8 @@ let fully_consistent_typecheck = (name, serialized, expected, exp) => {
     `Quick,
     () => {
       let s = statics(exp);
-      let errors = Statics.error_ids(s);
-      Alcotest.check(testable_list_uuidm, "Static Errors", [], errors);
+      let errors = List.map(snd, Id.Map.to_list(Statics.collect_errors(s)));
+      Alcotest.check(list(testable_error), "Static Errors", [], errors);
       alco_check(serialized, expected, type_of(exp));
     },
   );
@@ -1080,6 +1072,22 @@ let tests = (
           Statics.get_error_at(s, IdTagged.rep_id(tuple)),
         );
       },
+    ),
+    fully_consistent_typecheck(
+      "Forall alpha equivalent in cast",
+      {|let x : forall a -> a = in (x : forall b -> b)|},
+      Some(
+        Forall(Var("b") |> TPat.fresh, Var("b") |> Typ.fresh) |> Typ.fresh,
+      ),
+      parse_exp({|let x : forall a -> a = in (x : forall b -> b)|}),
+    ),
+    fully_consistent_typecheck(
+      "Forall alpha equivalent in let",
+      {|let x : forall a -> a = in let y : forall b -> b = x in 1|},
+      Some(Typ.Fresh.tint()),
+      parse_exp(
+        {|let x : forall a -> a = in let y : forall b -> b = x in 1|},
+      ),
     ),
   ],
 );

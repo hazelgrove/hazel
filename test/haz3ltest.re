@@ -10,6 +10,7 @@ let (suite, _) =
       Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_StringUtil.tests,
+      Test_Typ.tests,
       Test_Statics.tests,
       Test_Coverage.tests,
       Test_Evaluator.tests,
