@@ -49,3 +49,5 @@ let show_cls: cls => string =
   | MultiHole => "Broken type alias"
   | EmptyHole => "Empty type alias hole"
   | Var => "Type alias";
+
+let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
