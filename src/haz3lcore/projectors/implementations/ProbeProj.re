@@ -8,29 +8,12 @@ open Js_of_ocaml;
 type closure = Dynamics.Probe.Closure.t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model = {
-  a: int,
-  /* Max col length for value display, indexed by closure id */
-  //display_lengths: Id.Map.t(int),
-  /* Max number of closures to display */
-  //max_closures: int,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ChangeLength(int, int)
   | MoveCursor(int)
   | ToggleShowAllVals(int)
   | NoOp
   | PinAp;
-
-let init = {a: 666};
-
-let model_of_sexp = (sexp): model =>
-  switch (model_of_sexp(sexp)) {
-  | exception _ => init
-  | x => x
-  };
 
 module Window = {
   type mode =
@@ -357,6 +340,8 @@ module DynCursor = {
         | _ => "None"
         }
       )
+      ++ "\nvalue:\n"
+      ++ DHExp.show(closure.value)
       ++ "\nstack:\n"
       ++ stack(closure.call_stack);
     // ++ "\ntime: "
@@ -384,8 +369,7 @@ module Closures = {
     | None => 0
     };
 
-  let select_frames =
-      (_model: model, info: info, closures: list(closure)): list(closure) => {
+  let select_frames = (info: info, closures: list(closure)): list(closure) => {
     let closures = filter_frames_by_pin(info, closures);
     let cursor_idx =
       switch (DynCursor.first_index_of_interest(info, closures)) {
@@ -630,7 +614,7 @@ let ellipsis_view = (local): Node.t =>
     [text("⋯")],
   );
 
-let nav_bar_view = (_model: model, num_total: int, local) => {
+let nav_bar_view = (num_total: int, local) => {
   let nav_arrow = (cond: bool, offset: int): Node.t =>
     Node.div(
       ~attrs=[
@@ -652,7 +636,6 @@ let equals_view =
 
 let offside_view =
     (
-      model: model,
       info: info,
       local,
       view_seg: (~background: bool=?, Sort.t, list(syntax)) => Node.t,
@@ -663,13 +646,10 @@ let offside_view =
     switch (info.dynamics) {
     | Some(closures) =>
       let num_total = Closures.total(info);
-      let closures = Closures.select_frames(model, info, closures);
+      let closures = Closures.select_frames(info, closures);
       let (num_shown, groups) = Closures.collate(closures);
       let is_cut_off = num_shown != num_total && num_shown > 0;
-      let extras = [
-        nav_bar_view(model, num_total, local),
-        ellipsis_view(local),
-      ];
+      let extras = [nav_bar_view(num_total, local), ellipsis_view(local)];
       (num_shown > 0 ? [equals_view] : [])
       @ closure_group_view(info, utility, view_seg, local, groups)
       @ (is_cut_off ? extras : []);
@@ -814,27 +794,13 @@ let key_handler = (local, info: info, _, evt) => {
   };
 };
 
-let update = (m: model, info: info, a: action) => {
+let update = ((), info: info, a: action) => {
   switch (a) {
-  | ChangeLength(id, len) =>
-    ClosureLength.set(id, len);
-    // if (len > (-1)) {
-    //   {display_lengths: Id.Map.add(id, len, m.display_lengths)};
-    // } else {
-    //   m;
-    // }
-    m;
-  | ToggleShowAllVals(_) =>
-    Window.toggle_mode();
-    m;
-  | MoveCursor(offset) =>
-    move_cursor(info, offset);
-    m;
-  | PinAp =>
-    /* Pin a function call, filtering the cells in other probes */
-    DynCursor.toggle_pinned_call(info);
-    m;
-  | NoOp => m
+  | ChangeLength(id, len) => ClosureLength.set(id, len)
+  | ToggleShowAllVals(_) => Window.toggle_mode()
+  | MoveCursor(offset) => move_cursor(info, offset)
+  | PinAp => DynCursor.toggle_pinned_call(info)
+  | NoOp => ()
   };
 };
 
@@ -856,7 +822,6 @@ let view = (local, parent, info: info): Node.t =>
         Effect.Ignore;
       }),
       Attr.on_pointerup(_ => {
-        //blur:
         JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
         Effect.Ignore;
       }),
@@ -877,21 +842,20 @@ let overlay_view = (info: info): Node.t =>
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type m = model;
-[@deriving (show({with_path: false}), sexp, yojson)]
 type a = action;
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = m;
+  type model = unit;
+  let model_of_sexp = _ => ();
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
   let init = (any: Term.Any.t) =>
     switch (any) {
     | Exp(_)
-    | Pat(_) => Some(init)
-    | Any(_) => Some(init) /* Grout don't have sorts rn */
+    | Pat(_) => Some()
+    | Any(_) => Some() /* Grout don't have sorts rn */
     | _ => None
     };
 
@@ -908,11 +872,10 @@ module M: Projector = {
 
   let update = update;
 
-  let view = (model, info, ~local, ~parent, ~view_seg) =>
+  let view = (_model, info, ~local, ~parent, ~view_seg) =>
     View.{
       inline: view(local, parent, info),
       overlay: Some(overlay_view(info)),
-      offside:
-        Some(offside_view(model, info, local, view_seg, info.utility)),
+      offside: Some(offside_view(info, local, view_seg, info.utility)),
     };
 };

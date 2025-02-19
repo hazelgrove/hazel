@@ -60,9 +60,8 @@ let elaborated_type =
         ctx,
         co_ctx,
         switch (uexp.term) {
-        /* This is a temporary hack to work around the Probe hack
-         * in statics. That hack should no longer be necessary post
-         * flat-projectors. -- andrew */
+        /* This is an attempted hack to work to get probes to work
+         * TODO(andrew) */
         | Probe(_, _) => uexp
         | _ => new_term
         },
