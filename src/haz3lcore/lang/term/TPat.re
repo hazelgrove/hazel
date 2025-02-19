@@ -32,3 +32,5 @@ let show_cls: cls => string =
   | EmptyHole => "Empty type alias hole"
   | Ap => "Type substitution"
   | Var => "Type alias";
+
+let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
