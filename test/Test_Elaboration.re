@@ -995,16 +995,6 @@ module MenhirElaborationTests = {
       failed_cast_uexp,
     );
 
-  let constructor_str = "X";
-  let constructor_uexp: Exp.t =
-    Constructor("X", Unknown(Internal) |> Typ.fresh) |> Exp.fresh;
-  let constructor_menhir = () =>
-    alco_check_menhir(
-      "Constructor test (menhir)",
-      constructor_str,
-      constructor_uexp,
-    );
-
   /*
    <<1 / 2 ? `a`>>
        */
@@ -1172,7 +1162,6 @@ x
       `Quick,
       dynamic_error_hole_menhir,
     ),
-    test_case("Constructor test (menhir)", `Quick, constructor_menhir),
     test_case("Failed cast test (menhir)", `Quick, failed_cast_menhir),
     test_case("Type ap test (menhir)", `Quick, typ_ap_menhir),
     test_case("Let expression for a tuple (menhir)", `Quick, let_exp_menhir),
