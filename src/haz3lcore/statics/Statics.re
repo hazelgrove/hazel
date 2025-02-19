@@ -388,8 +388,8 @@ and uexp_to_info_map =
       let (e, m) = go(~mode, e, m);
       add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
     | Probe(e, _) =>
-      /* Probes just the statics of their contained expression
-       * for ci purposes */
+      /* Probes just copy the statics of their
+       * contained expression for ci purposes */
       let (ci, map) = go(~mode, e, m);
       let map = add_info(ids, InfoExp(ci), map);
       (ci, map);
@@ -1484,9 +1484,8 @@ and upat_to_info_map =
       let (p, m) = go(~ctx, ~mode, p, m);
       add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     | Probe(p, _) =>
-      /* Currently doing this as otherwise it clobbers the statics
-       * for the contained expression as i'm just reusing the same id
-       * in order to associate it through dynamics */
+      /* Probes just copy the statics of their
+       * contained expression for ci purposes */
       let (ci, map) = go(~ctx, ~mode, p, m);
       let map = add_info(ids, InfoPat(ci), map);
       (ci, map);
