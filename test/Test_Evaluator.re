@@ -13,6 +13,13 @@ let evaluation_test = (msg, expected, unevaluated) =>
     |> ProgramResult.Result.unbox
     |> Exp.substitute_closures(Builtins.env_init),
   );
+
+let evaluate_probes = unevaluated =>
+  unevaluated
+  |> Evaluator.evaluate'(Builtins.env_init)
+  |> fst
+  |> EvaluatorState.get_probes;
+
 let parse_exp = (s: string) => {
   switch (MakeTerm.parse_exp(s)) {
   | Some(e) => e
@@ -346,6 +353,44 @@ in fn("hello")|},
         Int(-8) |> Exp.fresh,
         UnOp(Int(Minus), Int(8) |> Exp.fresh) |> Exp.fresh,
       )
+    ),
+    test_case(
+      "Evaluate probe around inferred labeled tuple",
+      `Quick,
+      () => {
+        let uexp =
+          Let(
+            Cast(
+              Var("x") |> Pat.fresh,
+              Parens(
+                Prod([
+                  TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
+                  |> Typ.fresh,
+                ])
+                |> Typ.fresh,
+              )
+              |> Typ.fresh,
+              Unknown(Internal) |> Typ.fresh,
+            )
+            |> Pat.fresh,
+            Probe(String("a") |> Exp.fresh, {refs: []}) |> Exp.fresh,
+            Var("x") |> Exp.fresh,
+          )
+          |> Exp.fresh;
+
+        print_endline("UExp: " ++ [%derive.show: Exp.t](uexp));
+        let elaborated = elaborate(uexp);
+        print_endline("Elaboration: " ++ [%derive.show: Exp.t](elaborated));
+        let probes = evaluate_probes(elaborated);
+
+        print_endline("Probes: " ++ [%derive.show: Dynamics.Map.t](probes));
+
+        evaluation_test(
+          {|let x : (a=String) = "a" in x|},
+          Int(3) |> Exp.fresh,
+          elaborated,
+        );
+      },
     ),
   ],
 );
