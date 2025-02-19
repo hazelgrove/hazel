@@ -390,9 +390,11 @@ and uexp_to_info_map =
     | Probe(e, _) =>
       /* Probes just copy the statics of their
        * contained expression for ci purposes */
-      let (ci, map) = go(~mode, e, m);
-      let map = add_info(ids, InfoExp(ci), map);
-      (ci, map);
+      // let (ci, map) = go(~mode, e, m);
+      // let map = add_info(ids, InfoExp(ci), map);
+      // (ci, map);
+      let (e, m) = go(~mode, e, m);
+      add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) when is_in_filter =>
       let e: Exp.t = {
         ids: e.ids,
@@ -1486,9 +1488,11 @@ and upat_to_info_map =
     | Probe(p, _) =>
       /* Probes just copy the statics of their
        * contained expression for ci purposes */
-      let (ci, map) = go(~ctx, ~mode, p, m);
-      let map = add_info(ids, InfoPat(ci), map);
-      (ci, map);
+      // let (ci, map) = go(~ctx, ~mode, p, m);
+      // let map = add_info(ids, InfoPat(ci), map);
+      // (ci, map);
+      let (p, m) = go(~ctx, ~mode, p, m);
+      add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     | Constructor(ctr, ty) =>
       let self = Self.of_ctr(ctx, ctr, ty);
       atomic(self, Constraint.of_ctr(ctx, mode, ctr, self));
