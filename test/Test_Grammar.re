@@ -1,6 +1,4 @@
-open Alcotest;
 open Haz3lcore;
-open Grammar;
 
 let qcheck_map_annotation_test =
   QCheck.Test.make(
@@ -12,7 +10,7 @@ let qcheck_map_annotation_test =
     ),
     exp => {
       let core_exp = Haz3lmenhir.Conversion.Exp.of_menhir_ast(exp);
-
+      let _ = [%derive.show: Exp.t](core_exp); // Gets coverage for show
       Grammar.equal_exp_t(
         (==),
         Grammar.map_exp_annotation(Fun.id, core_exp),
