@@ -363,7 +363,9 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Ap(_), _)
   | (Rec(_), _)
   | (Forall(_), _) => t1
-  // These might
+  | (TFun(_),_) => failwith("Type Function in dynamics")
+  //think about failwith 
+// These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
@@ -381,8 +383,6 @@ let rec match_synswitch = (t1: t, t2: t) => {
     let sm' = ConstructorMap.match_synswitch(match_synswitch, eq, sm1, sm2);
     Sum(sm') |> rewrap1;
   | (Sum(_), _) => t1
-  | (TFun(x,ty1),TFun(y,ty2)) => t1 //update later
-  | (TFun(_),_) => t1
   };
 };
 

@@ -130,7 +130,7 @@ and typ_term =
   | Sum(ConstructorMap.t(typ_t))
   | Prod(list(typ_t))
   | Parens(typ_t)
-  | TFun(tpat_t,typ_t)
+  | TFun(tpat_t,typ_t,option(Var.t))
     // | Fun(
     //   pat_t,
     //   exp_t,

@@ -5,7 +5,7 @@ open Util;
 
 /* GROUND TYPES */
 
-/* You can think of a ground type as a typet that tells you what the root of the
+/* You can think of a ground type as a type that tells you what the root of the
       type expression is, but nothing more. For example: Int, [?], ? -> ?, ... are
       ground types and [Int], ? -> Float are not.
 
@@ -88,6 +88,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Forall(_) => grounded_Forall
   | List(_) => grounded_List
   | Ap(_) => failwith("type application in dynamics")
+  | TFun(_) => failwith("type function in dynamics")
   };
 };
 
