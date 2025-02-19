@@ -73,6 +73,7 @@ and exp_term =
   | Tuple(list(exp_t))
   | Var(Var.t)
   | Let(pat_t, exp_t, exp_t)
+  | Theorem(pat_t, exp_t, exp_t)
   | FixF(pat_t, exp_t, option(closure_environment_t))
   | TyAlias(tpat_t, typ_t, exp_t)
   | Ap(Operators.ap_direction, exp_t, exp_t)
@@ -132,7 +133,9 @@ and typ_term =
   | Parens(typ_t)
   | Ap(typ_t, typ_t)
   | Rec(tpat_t, typ_t)
-  | Forall(tpat_t, typ_t)
+  | All(tpat_t, typ_t)
+  | FORALL_REPLACEME(pat_t, typ_t)
+  | Equals(exp_t, exp_t)
   | Label(string)
   | TupLabel(typ_t, typ_t)
 and typ_t = IdTagged.t(typ_term)
@@ -322,6 +325,8 @@ and Exp: {
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
+        | Theorem(p, e1, e2) =>
+          Theorem(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
         | FixF(p, e, env) => FixF(pat_map_term(p), exp_map_term(e), env)
         | TyAlias(tp, t, e) =>
           TyAlias(tpat_map_term(tp), typ_map_term(t), exp_map_term(e))
@@ -394,6 +399,8 @@ and Exp: {
     | (Var(v1), Var(v2)) => v1 == v2
     | (Let(p1, e1, e2), Let(p2, e3, e4)) =>
       Pat.fast_equal(p1, p2) && fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (Theorem(p1, e1, e2), Theorem(p2, e3, e4)) =>
+      Pat.fast_equal(p1, p2) && fast_equal(e1, e3) && fast_equal(e2, e4)
     | (FixF(p1, e1, c1), FixF(p2, e2, c2)) =>
       Pat.fast_equal(p1, p2)
       && fast_equal(e1, e2)
@@ -459,6 +466,7 @@ and Exp: {
     | (Dot(_), _)
     | (Var(_), _)
     | (Let(_), _)
+    | (Theorem(_), _)
     | (FixF(_), _)
     | (TyAlias(_), _)
     | (Ap(_), _)
@@ -646,6 +654,10 @@ and Typ: {
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let tpat_map_term =
       TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let pat_map_term =
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let exp_map_term =
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -681,41 +693,108 @@ and Typ: {
             ),
           )
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
-        | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
+        | All(tp, t) => All(tpat_map_term(tp), typ_map_term(t))
+        | FORALL_REPLACEME(p, t) =>
+          FORALL_REPLACEME(pat_map_term(p), typ_map_term(t))
+        | Equals(e1, e2) => Equals(exp_map_term(e1), exp_map_term(e2))
         },
     };
     x |> f_typ(rec_call);
   };
 
-  let rec subst = (s: t, x: TPat.t, ty: t): typ_t => {
+  let subst = (s: t, x: TPat.t, ty: t): typ_t => {
     switch (TPat.tyvar_of_utpat(x)) {
     | Some(str) =>
-      let (term, rewrap) = IdTagged.unwrap(ty);
-      switch (term) {
-      | Int => (Int: typ_term) |> rewrap
-      | Float => Float |> rewrap
-      | Bool => Bool |> rewrap
-      | String => String |> rewrap
-      | Label(name) => Label(name) |> rewrap
-      | Unknown(prov) => Unknown(prov) |> rewrap
-      | Arrow(ty1, ty2) =>
-        Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
-      | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
-      | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
-      | Sum(sm) =>
-        Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
-      | Forall(tp2, ty)
-          when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-        Forall(tp2, ty) |> rewrap
-      | Forall(tp2, ty) => Forall(tp2, subst(s, x, ty)) |> rewrap
-      | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-        Rec(tp2, ty) |> rewrap
-      | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
-      | List(ty) => List(subst(s, x, ty)) |> rewrap
-      | Var(y) => str == y ? s : Var(y) |> rewrap
-      | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
-      | Ap(t1, t2) => Ap(subst(s, x, t1), subst(s, x, t2)) |> rewrap
-      };
+      Typ.map_term(
+        ~f_typ=
+          (cont, ty) => {
+            let (term, rewrap) = IdTagged.unwrap(ty);
+            switch (term) {
+            // Replace variables
+            | Var(y) => str == y ? s : (Var(y): Typ.term) |> rewrap
+            // Forms with TPat: these forms need to prevent variable capture
+            | All(tp2, ty)
+                when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
+              All(tp2, ty) |> rewrap
+            | All(_) => ty |> cont
+            | Rec(tp2, ty)
+                when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
+              Rec(tp2, ty) |> rewrap
+            | Rec(_) => ty |> cont
+            // Forms with no TPat, no action required
+            | Int
+            | Float
+            | Bool
+            | String
+            | Label(_)
+            | Unknown(_)
+            | Arrow(_)
+            | Prod(_)
+            | TupLabel(_)
+            | Sum(_)
+            | Equals(_)
+            | FORALL_REPLACEME(_)
+            | List(_)
+            | Parens(_)
+            | Ap(_) => ty |> cont
+            };
+          },
+        ty,
+        ~f_exp=
+          (cont, exp) => {
+            let (term, rewrap) = IdTagged.unwrap(exp);
+            switch (term) {
+            // Forms with TPat: these forms need to prevent variable capture
+            | TypFun(tp2, e, n)
+                when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
+              TypFun(tp2, e, n) |> rewrap
+            | TypFun(_) => exp |> cont
+            | TyAlias(tp2, t, e)
+                when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
+              TyAlias(tp2, t, e) |> rewrap
+            | TyAlias(_) => exp |> cont
+            // Forms with no TPat, no action required
+            | EmptyHole
+            | Invalid(_)
+            | MultiHole(_)
+            | DynamicErrorHole(_, _)
+            | FailedCast(_, _, _)
+            | Deferral(_)
+            | Undefined
+            | Bool(_)
+            | Int(_)
+            | Float(_)
+            | String(_)
+            | ListLit(_)
+            | Constructor(_)
+            | Fun(_, _, _, _)
+            | Tuple(_)
+            | Var(_)
+            | Let(_, _, _)
+            | Theorem(_, _, _)
+            | FixF(_)
+            | Ap(_)
+            | DeferredAp(_)
+            | If(_)
+            | Seq(_)
+            | Test(_)
+            | Filter(_)
+            | Closure(_)
+            | Parens(_)
+            | Cons(_)
+            | ListConcat(_)
+            | UnOp(_)
+            | BinOp(_)
+            | BuiltinFun(_)
+            | Match(_)
+            | Cast(_)
+            | Dot(_)
+            | TypAp(_)
+            | Label(_)
+            | TupLabel(_) => exp |> cont
+            };
+          },
+      )
     | None => ty
     };
   };
@@ -731,7 +810,7 @@ and Typ: {
       eq_internal(n, label1, label2) && eq_internal(n, t1', t2')
     | (TupLabel(_), _) => false
     | (Rec(x1, t1), Rec(x2, t2))
-    | (Forall(x1, t1), Forall(x2, t2)) =>
+    | (All(x1, t1), All(x2, t2)) =>
       let alpha_subst =
         subst({
           term: Var("=" ++ string_of_int(n)),
@@ -740,7 +819,7 @@ and Typ: {
         });
       eq_internal(n + 1, alpha_subst(x1, t1), alpha_subst(x2, t2));
     | (Rec(_), _) => false
-    | (Forall(_), _) => false
+    | (All(_), _) => false
     | (Int, Int) => true
     | (Int, _) => false
     | (Float, Float) => true
@@ -770,6 +849,12 @@ and Typ: {
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
+    // TODO(theorem): improve these two comparisons
+    | (Equals(e1, e2), Equals(e3, e4)) when e1 == e3 && e2 == e4 => true
+    | (Equals(_), _) => false
+    | (FORALL_REPLACEME(p1, t1), FORALL_REPLACEME(p2, t2)) =>
+      p1 == p2 && eq_internal(n, t1, t2)
+    | (FORALL_REPLACEME(_), _) => false
     };
   };
 

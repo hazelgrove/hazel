@@ -59,7 +59,7 @@ let rec is_arrow_like = (t: Typ.t) => {
   switch (t |> Typ.term_of) {
   | Unknown(_) => true
   | Arrow(_) => true
-  | Forall(_, t) => is_arrow_like(t)
+  | All(_, t) => is_arrow_like(t)
   | _ => false
   };
 };
@@ -672,7 +672,7 @@ and uexp_to_info_map =
       let typfn_mode = Mode.typap_mode;
       let (fn, m) = go(~mode=typfn_mode, fn, m);
       let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
-      let (option_name, ty_body) = Typ.matched_forall(ctx, fn.ty);
+      let (option_name, ty_body) = Typ.matched_all(ctx, fn.ty);
       switch (option_name) {
       | Some(name) =>
         add(
@@ -725,7 +725,7 @@ and uexp_to_info_map =
         );
       let (body, m) = go'(~ctx=ctx_body, ~mode=mode_body, body, m);
       add(
-        ~self=Just(Forall(utpat, body.ty) |> Typ.temp),
+        ~self=Just(All(utpat, body.ty) |> Typ.temp),
         ~co_ctx=body.co_ctx,
         m,
       );
@@ -734,10 +734,11 @@ and uexp_to_info_map =
       let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
       let (body, m) = go(~mode=mode_body, body, m);
       add(
-        ~self=Just(Forall(utpat, body.ty) |> Typ.temp),
+        ~self=Just(All(utpat, body.ty) |> Typ.temp),
         ~co_ctx=body.co_ctx,
         m,
       );
+    | Theorem(p, def, body)
     | Let(p, def, body) =>
       let (p_syn, _) =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
@@ -1513,6 +1514,15 @@ and utyp_to_info_map =
   let ancestors = [Typ.rep_id(utyp)] @ ancestors;
   let go' = utyp_to_info_map(~ctx, ~ancestors);
   let go = go'(~expects=TypeExpected);
+  let go_exp' =
+    uexp_to_info_map(
+      ~ancestors,
+      ~duplicates=[],
+      ~expected_labels=None,
+      ~label_sort=false,
+    );
+  let go_exp = go_exp'(~ctx);
+  let go_pat = upat_to_info_map(~ctx, ~ancestors, ~duplicates=[]);
   switch (term) {
   | Unknown(Hole(MultiHole(tms))) =>
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
@@ -1577,7 +1587,7 @@ and utyp_to_info_map =
         variants,
       );
     add(m);
-  | Forall({term: Var(name), _} as utpat, tbody) =>
+  | All({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
     let m =
@@ -1591,12 +1601,30 @@ and utyp_to_info_map =
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
-  | Forall(utpat, tbody) =>
+  | All(utpat, tbody) =>
     let m =
       utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected, m)
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
+  | FORALL_REPLACEME(p, tbody) =>
+    let (p', m) =
+      go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
+    let m =
+      utyp_to_info_map(
+        tbody,
+        ~ctx=p'.ctx,
+        ~ancestors,
+        ~expects=TypeExpected,
+        m,
+      )
+      |> snd;
+    add(m);
+  | Equals(e1, e2) =>
+    let (e1, m) = go_exp(~mode=Syn, e1, m);
+    let (_, m) = go_exp'(~ctx=e1.ctx, ~mode=Syn, e2, m);
+    // TODO: constrain synthesized types to be equal
+    add(m);
   | Rec({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});

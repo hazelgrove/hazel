@@ -76,6 +76,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   // Top-level things
   | Filter(_)
   | TyAlias(_)
+  | Theorem(_)
   | Let(_) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
@@ -125,7 +126,8 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Bool
   | String
   | Label(_)
-  | TupLabel(_) => Precedence.max
+  | TupLabel(_)
+  | Equals(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
   | Parens(_)
@@ -137,7 +139,8 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Arrow(_, _) => Precedence.type_arrow
   | Sum(_) => Precedence.type_plus
   | Rec(_, _) => Precedence.let_
-  | Forall(_, _) => Precedence.let_
+  | All(_, _) => Precedence.let_
+  | FORALL_REPLACEME(_, _) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown(Hole(MultiHole(_))) => Precedence.min
@@ -235,6 +238,13 @@ let rec parenthesize =
     |> rewrap
   | Let(p, e1, e2) =>
     Let(
+      parenthesize_pat(p) |> paren_pat_at(Precedence.min),
+      parenthesize(e1) |> paren_at(Precedence.min),
+      parenthesize(e2) |> paren_assoc_at(Precedence.let_),
+    )
+    |> rewrap
+  | Theorem(p, e1, e2) =>
+    Theorem(
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),
       parenthesize(e1) |> paren_at(Precedence.min),
       parenthesize(e2) |> paren_assoc_at(Precedence.let_),
@@ -442,6 +452,8 @@ and parenthesize_pat =
 and parenthesize_typ =
     (~show_filters: bool, ~already_paren=false, typ: Typ.t): Typ.t => {
   let parenthesize_typ = parenthesize_typ(~show_filters);
+  let parenthesize_pat = parenthesize_pat(~show_filters);
+  let parenthesize_exp = parenthesize(~show_filters);
   let (term, rewrap) = Typ.unwrap(typ);
   switch (term) {
   // Indivisible forms dont' change
@@ -489,12 +501,20 @@ and parenthesize_typ =
       parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
     )
     |> rewrap
-  | Forall(tp, t) =>
-    Forall(
+  | All(tp, t) =>
+    All(
       tp,
       parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
     )
     |> rewrap
+  | FORALL_REPLACEME(p, t) =>
+    FORALL_REPLACEME(
+      parenthesize_pat(p),
+      parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
+    )
+    |> rewrap
+  | Equals(e1, e2) =>
+    Equals(parenthesize_exp(e1), parenthesize_exp(e2)) |> rewrap
   | Arrow(t1, t2) =>
     Arrow(
       parenthesize_typ(t1) |> paren_typ_at(Precedence.type_arrow),
@@ -881,6 +901,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       settings.inline
         ? e2 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e2;
     [mk_form("let_", id, [p, e1])] @ e2;
+  | Theorem(p, e1, e2) =>
+    let id = exp |> Exp.rep_id;
+    let+ p = pat_to_pretty(~settings: Settings.t, p)
+    and+ e1 = go(e1)
+    and+ e2 = go(e2);
+    [mk_form("theorem", id, [p, e1])] @ e2;
   | FixF(p, e, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1246,11 +1272,21 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
     [mk_form("rec", id, [tp])] @ t;
-  | Forall(tp, t) =>
+  | All(tp, t) =>
     let id = typ |> Typ.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
-    [mk_form("forall", id, [tp])] @ t;
+    [mk_form("typebinder", id, [tp])] @ t;
+  | FORALL_REPLACEME(p, t) =>
+    let id = typ |> Typ.rep_id;
+    let+ p = pat_to_pretty(~settings: Settings.t, p)
+    and+ t = go(t);
+    [mk_form("forall", id, [p])] @ t;
+  | Equals(e1, e2) =>
+    let id = typ |> Typ.rep_id;
+    let+ e1 = exp_to_pretty(~settings, e1)
+    and+ e2 = exp_to_pretty(~settings, e2);
+    [mk_form("prop-equals", id, [e1, e2])];
   | Arrow(t1, t2) =>
     let id = typ |> Typ.rep_id;
     let+ t1 = go(t1)

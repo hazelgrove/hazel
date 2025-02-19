@@ -202,8 +202,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         TypFun,
         Cast(
           d'',
-          {term: Forall(tp1, _), _} as t1,
-          {term: Forall(tp2, _), _} as t2,
+          {term: All(tp1, _), _} as t1,
+          {term: All(tp2, _), _} as t2,
         ),
       ) =>
       Matches(TFunCast(d'', tp1, t1, tp2, t2))
@@ -255,6 +255,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Invalid(_) | Undefined | EmptyHole | MultiHole(_) | DynamicErrorHole(_) |
         Var(_) |
         Let(_) |
+        Theorem(_) |
         Fun(_, _, _, _) |
         FixF(_) |
         TyAlias(_) |

@@ -227,6 +227,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (["theorem", "proof", "in"], [Pat(pat), Exp(def)]) =>
+          Theorem(pat, def, r)
         | (["hide", "in"], [Exp(filter)]) =>
           Filter(Filter({act: (Eval, One), pat: filter}), r)
         | (["eval", "in"], [Exp(filter)]) =>
@@ -498,6 +500,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["[", "]"], [Typ(body)]) => List(body)
+        | (["{", "=", "}"], [Exp(e1), Exp(e2)]) => Equals(e1, e2)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Unknown(Hole(Invalid(t)))
         | _ => hole(tm)
@@ -510,11 +513,13 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
     | _ => ret(hole(tm))
     }
-  /* forall and rec have to be before sum so that they bind tighter.
+  /* type and rec have to be before sum so that they bind tighter.
    * Thus `rec A -> Left(A) + Right(B)` get parsed as `rec A -> (Left(A) + Right(B))`
    * If this is below the case for sum, then it gets parsed as an invalid form. */
-  | Pre(([(_id, (["forall", "->"], [TPat(tpat)]))], []), Typ(t)) =>
-    ret(Forall(tpat, t))
+  | Pre(([(_id, (["type", "->"], [TPat(tpat)]))], []), Typ(t)) =>
+    ret(All(tpat, t))
+  | Pre(([(_id, (["forall", "->"], [Pat(pat)]))], []), Typ(t)) =>
+    ret(FORALL_REPLACEME(pat, t))
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
   | Pre(tiles, Typ({term: Sum(t0), ids, _})) as tm =>

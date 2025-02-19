@@ -108,6 +108,7 @@ let rec evaluate = (~in_closure=?, state, env, d) => {
 };
 
 let evaluate' = (env, d: DHExp.t) => {
+  print_endline("evaluate'");
   let state = ref(EvaluatorState.init);
   let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);

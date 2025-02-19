@@ -10948,7 +10948,7 @@ let startup : PersistentData.t =
                  Typ))))))(shards(0))(children())))(Secondary((id \
                  e188f595-e2f5-443a-8691-ea5e90e15c93)(content(Whitespace\" \
                  \"))))(Tile((id \
-                 c13ad045-9b63-4728-96e1-9ab69c5071fc)(label(forall \
+                 c13ad045-9b63-4728-96e1-9ab69c5071fc)(label(all \
                  ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
                  Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
                  1))(children(((Secondary((id \
@@ -11040,7 +11040,7 @@ let startup : PersistentData.t =
                  Pat))((shape(Concave 24))(sort \
                  Typ))))))(shards(0))(children())))(Secondary((id \
                  993bc2f6-361b-4498-9725-2d6b4b6153a3)(content(Whitespace\"\\n\"))))(Tile((id \
-                 583c0292-b714-48e5-85bf-933b56e4e2b4)(label(forall \
+                 583c0292-b714-48e5-85bf-933b56e4e2b4)(label(all \
                  ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
                  Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
                  1))(children(((Secondary((id \
@@ -11054,7 +11054,7 @@ let startup : PersistentData.t =
                  \")))))))))(Secondary((id \
                  a6c22e18-8b38-4fec-aae1-b7cd7b621c1a)(content(Whitespace\" \
                  \"))))(Tile((id \
-                 8fc4acb5-9a79-4510-9b16-90d8eed13453)(label(forall \
+                 8fc4acb5-9a79-4510-9b16-90d8eed13453)(label(all \
                  ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
                  Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
                  1))(children(((Secondary((id \
@@ -11071,7 +11071,7 @@ let startup : PersistentData.t =
                  432cbdb3-2386-4473-89a8-1030c3b595cc)(label(\"(\"\")\"))(mold((out \
                  Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
                  Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
-                 7d7d63a0-6c7d-49e9-b099-33dee9a01377)(label(forall \
+                 7d7d63a0-6c7d-49e9-b099-33dee9a01377)(label(all \
                  ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
                  Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
                  1))(children(((Secondary((id \
@@ -11198,7 +11198,7 @@ let startup : PersistentData.t =
                  Typ))))))(shards(0))(children())))(Secondary((id \
                  b548f5a1-bf83-424e-8778-2c3d90f6f9cd)(content(Whitespace\" \
                  \"))))(Tile((id \
-                 b8e65f68-5435-49a7-ba60-6ee322a98723)(label(forall \
+                 b8e65f68-5435-49a7-ba60-6ee322a98723)(label(all \
                  ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
                  Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
                  1))(children(((Secondary((id \
@@ -11344,7 +11344,7 @@ let startup : PersistentData.t =
                  Typ))))))(shards(0))(children())))(Secondary((id \
                  c9df02f8-02e4-4036-9f56-569c85b097c5)(content(Whitespace\" \
                  \"))))(Tile((id \
-                 cc52f461-83df-4cf2-b7be-bd2882f4ebc4)(label(forall \
+                 cc52f461-83df-4cf2-b7be-bd2882f4ebc4)(label(all \
                  ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
                  Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
                  1))(children(((Secondary((id \
@@ -11748,17 +11748,16 @@ let startup : PersistentData.t =
                  end  \n\
                  in\n\n\
                  # Polymorphic Functions #\n\
-                 let poly_id: forall a -> a -> a =\n\
+                 let poly_id: all a -> a -> a =\n\
                  typfun a -> fun x : a -> x  \n\
                  in\n\
                  let apply_both:\n\
-                 forall a -> forall b -> (forall c -> c -> c) -> ((a, b) -> \
-                 (a, b)) =\n\
+                 all a -> all b -> (all c -> c -> c) -> ((a, b) -> (a, b)) =\n\
                  typfun a -> typfun b ->\n\
-                 fun f : forall c -> (c -> c) ->\n\
+                 fun f : all c -> (c -> c) ->\n\
                  fun (x, y) : (a, b) -> (f@<a>(x), f@<b>(y))  \n\
                  in\n\
-                 let list_length: forall a -> [a] -> Int =\n\
+                 let list_length: all a -> [a] -> Int =\n\
                  typfun a -> fun l : [a] ->\n\
                  case l\n\
                  | [] => 0\n\
@@ -16234,7 +16233,7 @@ let startup : PersistentData.t =
                  e18f14ee-2a3d-40a7-8382-e2dc47460705)(content(Whitespace\"\\n\"))))(Secondary((id \
                  9b482a9f-4d3c-45f0-9575-1210e418ed40)(content(Whitespace\"\\n\"))))(Secondary((id \
                  ea86c170-45e1-4cfc-85c6-1169f4672b07)(content(Comment\"# We \
-                 can annotate the type of a type function with a forall. \
+                 can annotate the type of a type function with a all. \
                  #\"))))(Secondary((id \
                  50721d7e-0d4b-4fad-9d3d-0ad35aff0607)(content(Whitespace\"\\n\"))))(Tile((id \
                  54190e69-8d5b-4141-9772-57086b9f52a3)(label(let = \
@@ -16254,7 +16253,7 @@ let startup : PersistentData.t =
                  Typ))))))(shards(0))(children())))(Secondary((id \
                  8143949a-3dd3-4732-a13c-2cd0d7b23ecd)(content(Whitespace\" \
                  \"))))(Tile((id \
-                 fb076cc3-7d71-4790-8ce0-f53e99880360)(label(forall \
+                 fb076cc3-7d71-4790-8ce0-f53e99880360)(label(all \
                  ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
                  Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
                  1))(children(((Secondary((id \
@@ -16268,7 +16267,7 @@ let startup : PersistentData.t =
                  \")))))))))(Secondary((id \
                  c07e287a-65dc-40a7-9f03-98032f99e5c1)(content(Whitespace\" \
                  \"))))(Tile((id \
-                 fa372a19-6dbf-483f-b89d-e13262eae981)(label(forall \
+                 fa372a19-6dbf-483f-b89d-e13262eae981)(label(all \
                  ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
                  Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
                  1))(children(((Secondary((id \
@@ -16441,7 +16440,7 @@ let startup : PersistentData.t =
                  Typ))))))(shards(0))(children())))(Secondary((id \
                  33b28b03-a7cf-4851-9058-c63ecf72d0d2)(content(Whitespace\" \
                  \"))))(Tile((id \
-                 d98dc209-aa8f-43d8-a2ef-7d8561b52949)(label(forall \
+                 d98dc209-aa8f-43d8-a2ef-7d8561b52949)(label(all \
                  ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
                  Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
                  1))(children(((Secondary((id \
@@ -16455,7 +16454,7 @@ let startup : PersistentData.t =
                  \")))))))))(Secondary((id \
                  2f58f69c-61fe-499a-8df3-fa1e3b4ef1cd)(content(Whitespace\" \
                  \"))))(Tile((id \
-                 b29fd0bd-6098-4672-953c-1a8dbef4a0d1)(label(forall \
+                 b29fd0bd-6098-4672-953c-1a8dbef4a0d1)(label(all \
                  ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
                  Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
                  1))(children(((Secondary((id \
@@ -16472,7 +16471,7 @@ let startup : PersistentData.t =
                  7607d5ae-5735-45ff-941f-99735f18397b)(label(\"(\"\")\"))(mold((out \
                  Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
                  Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
-                 2bcdf1a3-7e39-400a-a28c-54efe6c4b230)(label(forall \
+                 2bcdf1a3-7e39-400a-a28c-54efe6c4b230)(label(all \
                  ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
                  Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
                  1))(children(((Secondary((id \
@@ -16751,7 +16750,7 @@ let startup : PersistentData.t =
                  Typ))))))(shards(0))(children())))(Secondary((id \
                  571fd085-6129-4a04-bbf6-0dbc2c9a2594)(content(Whitespace\" \
                  \"))))(Tile((id \
-                 662286da-d85e-490c-acb9-040d773812d2)(label(forall \
+                 662286da-d85e-490c-acb9-040d773812d2)(label(all \
                  ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
                  Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
                  1))(children(((Secondary((id \
@@ -16817,7 +16816,7 @@ let startup : PersistentData.t =
                  Typ))))))(shards(0))(children())))(Secondary((id \
                  3b4c15a3-4f5f-4331-8f11-b232c5fd8161)(content(Whitespace\" \
                  \"))))(Tile((id \
-                 079a65aa-b256-4546-a16d-7c7b2aaaa52c)(label(forall \
+                 079a65aa-b256-4546-a16d-7c7b2aaaa52c)(label(all \
                  ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
                  Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
                  1))(children(((Secondary((id \
@@ -16831,7 +16830,7 @@ let startup : PersistentData.t =
                  \")))))))))(Secondary((id \
                  4dc8e08b-0820-47c3-b60c-cb4b38f12cb1)(content(Whitespace\" \
                  \"))))(Tile((id \
-                 ede7b6b0-fd76-4742-a8c1-e7e65aed91a8)(label(forall \
+                 ede7b6b0-fd76-4742-a8c1-e7e65aed91a8)(label(all \
                  ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
                  Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
                  1))(children(((Secondary((id \
@@ -17719,22 +17718,22 @@ let startup : PersistentData.t =
                  let id = typfun A -> fun x : A -> x in\n\n\
                  # Such functions are applied like so: #\n\
                  let ex1 = id@<Int>(1) in # 1 #\n\n\
-                 # We can annotate the type of a type function with a forall. #\n\
-                 let const : forall A -> forall B -> A -> B -> A = \n\
+                 # We can annotate the type of a type function with a all. #\n\
+                 let const : all A -> all B -> A -> B -> A = \n\
                  typfun A -> typfun B -> fun x -> fun y -> x in\n\
                  let ex2 = const@<Int>@<String>(2)(\"Hello World\") in # 2 #\n\n\
                  # We can go beyond rank 1 polymorphism: #\n\
-                 let apply_both : forall A -> forall B -> (forall D -> D -> D) \
-                 -> (A , B) -> (A , B) =\n\
+                 let apply_both : all A -> all B -> (all D -> D -> D) -> (A , \
+                 B) -> (A , B) =\n\
                  typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), \
                  f@<B>(y)) in  \n\
                  let ex3 = apply_both@<Int>@<String>(id)(3, \"Hello World\") \
                  in # (3, \"Hello World\") # \n\n\
                  # Finally, here is a more in-depth, yet applicable example: \
                  polymorphic map #\n\
-                 let emptylist : forall A -> [A] = typfun A -> [] in # \
+                 let emptylist : all A -> [A] = typfun A -> [] in # \
                  polymorphic constant #\n\
-                 let map : forall A -> forall B -> (A -> B) -> ([A] -> [B]) = \n\
+                 let map : all A -> all B -> (A -> B) -> ([A] -> [B]) = \n\
                  typfun A -> typfun B -> fun f : (A -> B) -> fun l : [A] -> \n\
                  case l\n\
                  | h :: t => f(h) :: map@<A>@<B>(f)(t)\n\

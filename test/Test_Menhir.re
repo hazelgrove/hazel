@@ -604,16 +604,16 @@ let exp_equal: (Exp, Exp) -> Bool =
     end
 in
 
-let poly_id: (forall a -> (a -> a)) =
+let poly_id: (all a -> (a -> a)) =
   (typfun a -> (fun (x : a) -> x))
 in
 let apply_both:
-forall a -> forall b -> (forall c -> c -> c) -> ((a, b) -> (a, b)) =
+all a -> all b -> (all c -> c -> c) -> ((a, b) -> (a, b)) =
   typfun a -> typfun b ->
-    fun (f : forall c -> (c -> c)) ->
+    fun (f : all c -> (c -> c)) ->
       fun ((x, y) : (a, b)) -> (f@<a>(x), f@<b>(y))
 in
-let list_length: forall a -> ([a] -> Int) =
+let list_length: all a -> ([a] -> Int) =
   typfun a -> fun (l : [a]) ->
     case l
       | [] => 0
@@ -772,14 +772,14 @@ Ok(Lam("bro", Var("bro")))) end
       "Altered Documentation Buffer: Polymorphism",
       {|let id = typfun A -> (fun (x : A) -> x) in
 let ex1 = id@<Int>(1) in
-let const : forall A -> (forall B -> (A -> B -> A)) =
+let const : type A -> (type B -> (A -> B -> A)) =
 typfun A -> (typfun B -> (fun x -> fun y -> x)) in
 let ex2 = const@<Int>@<String>(2)("Hello World") in
-let apply_both : forall A -> forall B -> (forall D -> D -> D) -> (A , B) -> (A , B) =
+let apply_both : type A -> type B -> (type D -> D -> D) -> (A , B) -> (A , B) =
 typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in
 let ex3 = apply_both@<Int>@<String>(id)(3, "Hello World") in
-let emptylist : forall A -> [A] = typfun A -> [] in
-let map : forall A -> forall B -> (A -> B) -> ([A] -> [B]) =
+let emptylist : type A -> [A] = typfun A -> [] in
+let map : type A -> type B -> (A -> B) -> ([A] -> [B]) =
   typfun A -> typfun B -> fun (f : (A -> B)) -> fun (l : [A]) ->
     case l
       | (h :: a) => f(h) :: map@<A>@<B>(f)(a)

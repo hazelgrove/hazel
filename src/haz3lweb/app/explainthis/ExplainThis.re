@@ -546,7 +546,8 @@ let get_doc =
       | FailedCast(_)
       | Closure(_)
       | Cast(_)
-      | BuiltinFun(_) => simple("Internal expression")
+      | BuiltinFun(_)
+      | Theorem(_) => simple("Internal expression") // TODO: Add explanation
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
@@ -2240,6 +2241,8 @@ let get_doc =
     | Unknown(SynSwitch)
     | Unknown(Internal)
     | Unknown(Hole(EmptyHole)) => get_message(HoleTyp.empty_hole)
+    | FORALL_REPLACEME(_) // TODO: Add explanation
+    | Equals(_) => simple("Internal expression")
     | Unknown(Hole(MultiHole(_))) => get_message(HoleTyp.multi_hole)
     | Int => get_message(TerminalTyp.int)
     | Float => get_message(TerminalTyp.float)
@@ -2259,7 +2262,7 @@ let get_doc =
           ),
         ListTyp.list,
       );
-    | Forall(tpat, typ) =>
+    | All(tpat, typ) =>
       let tpat_id = List.nth(tpat.ids, 0);
       let tbody_id = List.nth(typ.ids, 0);
       get_message(

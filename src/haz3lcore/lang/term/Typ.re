@@ -23,7 +23,9 @@ type cls =
   | Parens
   | Ap
   | Rec
-  | Forall;
+  | All
+  | FORALL_REPLACEME
+  | Equals;
 
 include TermBase.Typ;
 
@@ -86,7 +88,9 @@ let cls_of_term: term => cls =
   | Ap(_) => Ap
   | Sum(_) => Sum
   | Rec(_) => Rec
-  | Forall(_) => Forall;
+  | All(_) => All
+  | FORALL_REPLACEME(_) => FORALL_REPLACEME
+  | Equals(_) => Equals;
 
 let show_cls: cls => string =
   fun
@@ -110,7 +114,9 @@ let show_cls: cls => string =
   | Parens => "Parenthesized type"
   | Ap => "Constructor application"
   | Rec => "Recursive type"
-  | Forall => "Forall type";
+  | All => "Type quantifier"
+  | FORALL_REPLACEME => "Forall proof"
+  | Equals => "Equality proof";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -128,16 +134,19 @@ let rec is_arrow = (typ: t) => {
   | Var(_)
   | Ap(_)
   | Sum(_)
-  | Forall(_)
+  | All(_)
+  | FORALL_REPLACEME(_)
+  | Equals(_)
   | Rec(_) => false
   };
 };
 
-let rec is_forall = (typ: t) => {
+let rec is_typetyp = (typ: t) => {
   switch (typ.term) {
   | Parens(typ)
-  | TupLabel(_, typ) => is_forall(typ)
-  | Forall(_) => true
+  | TupLabel(_, typ) => is_typetyp(typ)
+  | All(_) => true
+  | Equals(_)
   | Unknown(_)
   | Int
   | Float
@@ -150,7 +159,8 @@ let rec is_forall = (typ: t) => {
   | Var(_)
   | Ap(_)
   | Sum(_)
-  | Rec(_) => false
+  | Rec(_)
+  | FORALL_REPLACEME(_) => false
   };
 };
 
@@ -211,8 +221,10 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
   | TupLabel(_, ty) => free_vars(~bound, ty)
   | Rec(x, ty)
-  | Forall(x, ty) =>
+  | All(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
+  | FORALL_REPLACEME(_, ty) => free_vars(~bound, ty)
+  | Equals(_, _) => []
   };
 
 let var_count = ref(0);
@@ -279,7 +291,8 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     let+ ty_body = join(~resolve, ~fix, ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
   | (Rec(_), _) => None
-  | (Forall(x1, ty1), Forall(x2, ty2)) =>
+  | (All(x1, ty1), All(x2, ty2)) =>
+    // Note(Thomas): should this ctx be extended with x2 instead?
     let ctx = Ctx.extend_dummy_tvar(ctx, x1);
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
@@ -287,14 +300,22 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
       | None => ty1
       };
     let+ ty_body = join(~resolve, ~fix, ctx, ty1', ty2);
-    Forall(x1, ty_body) |> temp;
+    All(x1, ty_body) |> temp;
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
      may generate internal type variable names that in corner cases can
      be exposed to the user. We preserve the variable name of the
      second type to preserve synthesized type variable names, which
      come from user annotations. */
-  | (Forall(_), _) => None
+  // TODO(theorem): allow for alpha variation and pattern joining
+  | (FORALL_REPLACEME(x1, ty1), FORALL_REPLACEME(x2, ty2)) when x1 == x2 =>
+    let+ ty_body = join(~resolve, ~fix, ctx, ty1, ty2);
+    FORALL_REPLACEME(x1, ty_body) |> temp;
+  | (Equals(e1, e2), Equals(e3, e4)) when e1 == e3 && e2 == e4 =>
+    Some(Equals(e1, e2) |> temp)
+  | (All(_), _) => None
+  | (FORALL_REPLACEME(_), _) => None
+  | (Equals(_), _) => None
   | (Int, Int) => Some(ty1)
   | (Int, _) => None
   | (Float, Float) => Some(ty1)
@@ -357,7 +378,9 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Var(_), _)
   | (Ap(_), _)
   | (Rec(_), _)
-  | (Forall(_), _) => t1
+  | (All(_), _) => t1
+  | (FORALL_REPLACEME(_), _) => t1
+  | (Equals(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -431,8 +454,11 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
        as in current implementation Recs do not occur in the
        surface syntax, so we won't try to jump to them. */
     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
-  | Forall(name, ty) =>
-    Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  | All(name, ty) =>
+    All(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  | FORALL_REPLACEME(p, t) =>
+    FORALL_REPLACEME(p, normalize(ctx, t)) |> rewrap
+  | Equals(e1, e2) => Equals(e1, e2) |> rewrap
   };
 };
 
@@ -451,16 +477,16 @@ let matched_arrow = (ctx, ty) =>
        ~default=(Unknown(Internal) |> temp, Unknown(Internal) |> temp),
      );
 
-let rec matched_forall_strict = (ctx, ty) =>
+let rec matched_all_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_forall_strict(ctx, ty)
-  | Forall(t, ty) => Some((Some(t), ty))
+  | Parens(ty) => matched_all_strict(ctx, ty)
+  | All(t, ty) => Some((Some(t), ty))
   | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
   | _ => None // (None, Unknown(Internal) |> temp)
   };
 
-let matched_forall = (ctx, ty) =>
-  matched_forall_strict(ctx, ty)
+let matched_all = (ctx, ty) =>
+  matched_all_strict(ctx, ty)
   |> Option.value(~default=(None, Unknown(Internal) |> temp));
 
 let rec get_labels = (ctx, ty): list(option(string)) => {
@@ -593,7 +619,9 @@ let rec needs_parens = (ty: t): bool =>
   | List(_) /* is already wrapped in [] */
   | Var(_) => false
   | Rec(_, _)
-  | Forall(_, _)
+  | FORALL_REPLACEME(_, _)
+  | All(_, _)
+  | Equals(_, _)
   | Arrow(_, _)
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
@@ -644,8 +672,11 @@ let rec pretty_print = (ty: t): string =>
   | TupLabel(label, t) => pretty_print(label) ++ "=" ++ pretty_print(t)
   | Rec(tv, t) =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
-  | Forall(tv, t) =>
-    "forall " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
+  | All(tv, t) =>
+    "all " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
+  // printing isn't supported for patterns & expressions
+  | FORALL_REPLACEME(_, t) => "forall <p> -> " ++ pretty_print(t)
+  | Equals(_, _) => "{<e1> = <e2>}"
   }
 and ctr_pretty_print =
   fun

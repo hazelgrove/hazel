@@ -130,6 +130,7 @@ rule token =
     | "?e" {E_EXP}
     | "named_fun" {NAMED_FUN}
     | "forall" {FORALL}
+    | "all" {ALL}
     | "rec" {REC}
     | identifier as i { IDENT(i) }
     | constructor_ident as i { CONSTRUCTOR_IDENT(i)}

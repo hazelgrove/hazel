@@ -70,9 +70,9 @@ let elaborated_type =
       let (ty1, ty2) = Typ.matched_arrow(ctx, self_ty);
       Arrow(ty1, ty2) |> Typ.temp;
     | SynTypFun =>
-      let (tpat, ty) = Typ.matched_forall(ctx, self_ty);
+      let (tpat, ty) = Typ.matched_all(ctx, self_ty);
       let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHole));
-      Forall(tpat, ty) |> Typ.temp;
+      All(tpat, ty) |> Typ.temp;
     // We need to remove the synswitches from this type.
     | Ana(ana_ty) => Typ.match_synswitch(ana_ty, self_ty)
     };
@@ -110,9 +110,9 @@ let elaborated_pat_type =
       let (ty1, ty2) = Typ.matched_arrow(ctx, self_ty);
       Arrow(ty1, ty2) |> Typ.temp;
     | SynTypFun =>
-      let (tpat, ty) = Typ.matched_forall(ctx, self_ty);
+      let (tpat, ty) = Typ.matched_all(ctx, self_ty);
       let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHole));
-      Forall(tpat, ty) |> Typ.temp;
+      All(tpat, ty) |> Typ.temp;
     | Ana(ana_ty) =>
       switch (prev_synswitch) {
       | None => ana_ty
@@ -347,7 +347,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e', tye) = elaborate(m, e);
       TypFun(tpat, e', name)
       |> rewrap
-      |> cast_from(Forall(tpat, tye) |> Typ.temp);
+      |> cast_from(All(tpat, tye) |> Typ.temp);
     | Tuple(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
 
@@ -458,6 +458,54 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           |> IdTagged.fresh_deterministic(DHExp.rep_id(uexp));
         Let(p, fixf, body) |> rewrap |> cast_from(ty);
       };
+    | Theorem(p, def, body) =>
+      let add_name: (option(string), DHExp.t) => DHExp.t = (
+        (name, exp) => {
+          let (term, rewrap) = DHExp.unwrap(exp);
+          switch (term) {
+          | Fun(p, e, t, _) => Fun(p, e, t, name) |> rewrap
+          | TypFun(tpat, e, _) => TypFun(tpat, e, name) |> rewrap
+          | _ => exp
+          };
+        }
+      );
+      let (p, ty1) = elaborate_pattern(m, p, false);
+      // attach labels if needed for labeled tuples
+      let (def_term, def_rewrap) = DHExp.unwrap(def);
+      let def =
+        switch (def_term, Typ.term_of(Typ.normalize(ctx, ty1))) {
+        | (Tuple(ds), Prod(tys)) =>
+          Tuple(
+            LabeledTuple.rearrange(
+              Typ.match_tup_label, DHExp.match_tup_label, tys, ds, (t, b) =>
+              TupLabel(Label(t) |> Exp.fresh, b) |> Exp.fresh
+            ),
+          )
+          |> def_rewrap
+        | (_, _) => def
+        };
+      let is_recursive =
+        Statics.is_recursive(ctx, p, def, ty1)
+        && Pat.get_bindings(p)
+        |> Option.get
+        |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
+      if (!is_recursive) {
+        let def = add_name(Pat.get_var(p), def);
+        let (def, ty2) = elaborate(m, def);
+        let (body, ty) = elaborate(m, body);
+        Theorem(p, fresh_cast(def, ty2, ty1), body)
+        |> rewrap
+        |> cast_from(ty);
+      } else {
+        // TODO: Add names to mutually recursive functions
+        let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
+        let (def, ty2) = elaborate(m, def);
+        let (body, ty) = elaborate(m, body);
+        let fixf =
+          (FixF(p, fresh_cast(def, ty2, ty1), None): Exp.term)
+          |> IdTagged.fresh_deterministic(DHExp.rep_id(uexp));
+        Theorem(p, fixf, body) |> rewrap |> cast_from(ty);
+      };
     | FixF(p, e, env) =>
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', tye) = elaborate(m, e);
@@ -501,7 +549,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       |> cast_from(Arrow(remaining_arg_ty, tyf2) |> Typ.temp);
     | TypAp(e, ut) =>
       let (e', tye) = elaborate(m, e);
-      let (tpat, tye') = Typ.matched_forall(ctx, tye);
+      let (tpat, tye') = Typ.matched_all(ctx, tye);
       let ut' = Typ.normalize(ctx, ut);
       let tye'' =
         Typ.subst(

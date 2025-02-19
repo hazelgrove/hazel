@@ -214,6 +214,8 @@ module rec Exp: {
     | Dot(e1, e2) => Dot(of_menhir_ast(e1), of_menhir_ast(e2))
     | Let(p, e1, e2) =>
       Let(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
+    | Theorem(p, e1, e2) =>
+      Theorem(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
     | FixF(p, e) => FixF(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
     | TypFun(t, e) => TypFun(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
     | Undefined => Undefined
@@ -311,6 +313,8 @@ module rec Exp: {
     | ListLit(l) => ListExp(List.map(of_core, l))
     | Tuple(l) => TupleExp(List.map(of_core, l))
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
+    | Theorem(p, e1, e2) =>
+      Theorem(Pat.of_core(p), of_core(e1), of_core(e2))
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
     | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))
     | Undefined => Undefined
@@ -402,11 +406,17 @@ and Typ: {
           sumterms,
         );
       Parens(Sum(converted_terms) |> Typ.fresh); // Adds parens due to MakeTerm
-    | ForallType(tp, t) =>
+    | AllType(tp, t) =>
       Parens(
-        Forall(TPat.of_menhir_ast(tp), of_menhir_ast(t))
+        All(TPat.of_menhir_ast(tp), of_menhir_ast(t)) |> Haz3lcore.Typ.fresh,
+      )
+    | FORALL_REPLACEMEType(tp, t) =>
+      Parens(
+        FORALL_REPLACEME(Pat.of_menhir_ast(tp), of_menhir_ast(t))
         |> Haz3lcore.Typ.fresh,
       )
+    | EqualsType(e1, e2) =>
+      Equals(Exp.of_menhir_ast(e1), Exp.of_menhir_ast(e2))
     | RecType(tp, t) =>
       Parens(
         Rec(TPat.of_menhir_ast(tp), of_menhir_ast(t)) |> Haz3lcore.Typ.fresh,
@@ -432,7 +442,10 @@ and Typ: {
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
-    | Forall(tp, t) => ForallType(TPat.of_core(tp), of_core(t))
+    | All(tp, t) => AllType(TPat.of_core(tp), of_core(t))
+    | FORALL_REPLACEME(tp, t) =>
+      FORALL_REPLACEMEType(Pat.of_core(tp), of_core(t))
+    | Equals(e1, e2) => EqualsType(Exp.of_core(e1), Exp.of_core(e2))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
     | Parens(t) => of_core(t)
     | Label(s) => LabelType(s)

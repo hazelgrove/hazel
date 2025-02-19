@@ -94,17 +94,18 @@ type typ =
   | ArrowType(typ, typ)
   | TypVar(string)
   | InvalidTyp(string)
-  | ForallType(tpat, typ)
+  | AllType(tpat, typ)
   | RecType(tpat, typ)
   | LabelType(string)
   | TupLabelType(typ, typ)
+  | FORALL_REPLACEMEType(pat, typ)
+  | EqualsType(exp, exp)
 and sumterm =
   | Variant(string, option(typ))
   | BadEntry(typ)
-and sumtype = list(sumterm);
+and sumtype = list(sumterm)
 
-[@deriving (show({with_path: false}), sexp, eq)]
-type pat =
+and pat =
   | CastPat(pat, typ, typ)
   | EmptyHolePat
   | WildPat
@@ -122,20 +123,17 @@ type pat =
   | ApPat(pat, pat)
   | InvalidPat(string) // Menhir parser doesn't actually support invalid pats
   | TupLabelPat(pat, pat)
-  | LabelPat(string);
+  | LabelPat(string)
 
-[@deriving (show({with_path: false}), sexp, qcheck, eq)]
-type if_consistency =
+and if_consistency =
   | Consistent
-  | Inconsistent;
+  | Inconsistent
 
-[@deriving (show({with_path: false}), sexp, qcheck, eq)]
-type deferral_pos =
+and deferral_pos =
   | InAp
-  | OutsideAp;
+  | OutsideAp
 
-[@deriving (show({with_path: false}), sexp, eq)]
-type exp =
+and exp =
   | Int(int)
   | Float
       // This equality condition is used to say that two floats are equal if they are equal in the ExpToSegment serialization
@@ -150,6 +148,7 @@ type exp =
   | BinExp(exp, bin_op, exp)
   | UnOp(op_un, exp)
   | Let(pat, exp, exp)
+  | Theorem(pat, exp, exp)
   | Fun(pat, exp, option(string))
   | CaseExp(exp, list((pat, exp)))
   | Label(string)
@@ -510,7 +509,7 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
               {
                 let* gen_tpat = gen_tpat;
                 let+ t = self(n - 1);
-                ForallType(gen_tpat, t);
+                AllType(gen_tpat, t);
               },
               {
                 let* gen_tpat = gen_tpat;

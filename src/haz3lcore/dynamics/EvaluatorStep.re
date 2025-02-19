@@ -93,6 +93,12 @@ let rec matches =
       | Let2(d1, d2, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Let2(d1, d2, ctx) |> rewrap;
+      | Theorem1(d1, ctx, d3) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Theorem1(d1, ctx, d3) |> rewrap;
+      | Theorem2(d1, d2, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Theorem2(d1, d2, ctx) |> rewrap;
       | Fun(dp, ctx, ty, name) =>
         // TODO: Should this env include the bound variables?
         let+ ctx = matches(env, flt, ctx, exp, act, idx);

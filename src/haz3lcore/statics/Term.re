@@ -109,7 +109,7 @@ module Pat = {
     | Parens(pat)
     | TupLabel(_, pat) => is_fun_var(pat)
     | Cast(pat, typ, _) =>
-      is_var(pat) && (Typ.is_arrow(typ) || Typ.is_forall(typ))
+      is_var(pat) && (Typ.is_arrow(typ) || Typ.is_typetyp(typ))
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -206,7 +206,7 @@ module Pat = {
     | Parens(pat)
     | TupLabel(_, pat) => get_fun_var(pat)
     | Cast(pat, t1, _) =>
-      if (Typ.is_arrow(t1) || Typ.is_forall(t1)) {
+      if (Typ.is_arrow(t1) || Typ.is_typetyp(t1)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
@@ -358,6 +358,7 @@ module Exp = {
     | Var
     | MetaVar
     | Let
+    | Theorem
     | FixF
     | TyAlias
     | Ap
@@ -414,6 +415,7 @@ module Exp = {
     | Dot(_) => Dot
     | Var(_) => Var
     | Let(_) => Let
+    | Theorem(_) => Theorem
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
@@ -458,6 +460,7 @@ module Exp = {
     | Var => "Variable reference"
     | MetaVar => "Meta variable reference"
     | Let => "Let expression"
+    | Theorem => "Theorem expression"
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
@@ -539,6 +542,7 @@ module Exp = {
     | Tuple(_)
     | Var(_)
     | Let(_)
+    | Theorem(_)
     | FixF(_)
     | TyAlias(_)
     | Ap(_)
@@ -602,6 +606,7 @@ module Exp = {
       | BuiltinFun(_)
       | Var(_)
       | Let(_)
+      | Theorem(_)
       | FixF(_)
       | TyAlias(_)
       | Ap(_)
@@ -663,6 +668,7 @@ module Exp = {
       | TypFun(_)
       | Var(_)
       | Let(_)
+      | Theorem(_)
       | Filter(_)
       | TyAlias(_)
       | Ap(_)
@@ -758,6 +764,19 @@ module Exp = {
           | Let(p, e1, e2) =>
             let pat_bound_vars = Pat.bound_vars(p);
             Let(
+              p,
+              substitute_closures(env, old_bound_vars, new_bound_vars, e1),
+              substitute_closures(
+                env |> Environment.without_keys(pat_bound_vars),
+                pat_bound_vars @ old_bound_vars,
+                pat_bound_vars @ new_bound_vars,
+                e2,
+              ),
+            )
+            |> rewrap;
+          | Theorem(p, e1, e2) =>
+            let pat_bound_vars = Pat.bound_vars(p);
+            Theorem(
               p,
               substitute_closures(env, old_bound_vars, new_bound_vars, e1),
               substitute_closures(

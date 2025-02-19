@@ -126,6 +126,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Closure(_)
           | Seq(_)
           | Let(_)
+          | Theorem(_)
           | Ap(_)
           | BuiltinFun(_)
           | BinOp(_)

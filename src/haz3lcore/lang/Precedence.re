@@ -35,7 +35,7 @@ let type_arrow = 13 |> right_associative;
 // String , _____ , String
 let type_prod = 14;
 let type_binder = 15;
-// forall t -> _____
+// type t -> _____
 // rec t -> _____
 
 // ======== PATTERNS =========

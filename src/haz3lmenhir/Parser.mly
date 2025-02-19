@@ -12,7 +12,9 @@ open AST
 %token E_EXP
 %token TILDE
 %token NAMED_FUN
+%token ALL
 %token FORALL
+%token EQUALS
 %token REC
 %token UNDEF
 %token <string> SEXP_STRING
@@ -233,7 +235,9 @@ typ:
     | UNKNOWN; INTERNAL { UnknownType(Internal) }
     | QUESTION { UnknownType(EmptyHole) }
     | UNIT { TupleType([]) }
-    | FORALL; a = tpat; DASH_ARROW; t = typ { ForallType(a, t) }
+    | ALL; a = tpat; DASH_ARROW; t = typ { AllType(a, t) }
+    | FORALL; a = pat; DASH_ARROW; t = typ { FORALL_REPLACEMEType(a, t) }
+    | OPEN_CURLY; a = exp; EQUALS; b = exp; CLOSE_CURLY { EqualsType(a, b) }
     | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
