@@ -94,7 +94,7 @@ let elaborated_pat_type =
           ty,
           ctx,
           prev_synswitch,
-          term,
+          term: new_term,
           label_inference,
           _,
         }),
@@ -103,7 +103,12 @@ let elaborated_pat_type =
         ty,
         ctx,
         prev_synswitch,
-        term,
+        switch (upat.term) {
+        /* This is an attempted hack to work to get probes to work
+         * TODO(andrew) */
+        | Probe(_, _) => upat
+        | _ => new_term
+        },
         label_inference,
       )
     | _ => raise(MissingTypeInfo)
@@ -240,7 +245,11 @@ let rec elaborate_pattern =
     | Probe(p, probe) =>
       let (e', ty) = elaborate_pattern(m, p);
       let probe = Dynamics.Probe.instrument_pat(m, Pat.rep_id(upat), probe);
-      Probe(e' |> cast_from(ty), probe) |> rewrap;
+      Probe(
+        e' |> cast_from(ty |> Typ.normalize(ctx) |> Typ.all_ids_temp),
+        probe,
+      )
+      |> rewrap;
     | Constructor(c, _) =>
       let mode =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
