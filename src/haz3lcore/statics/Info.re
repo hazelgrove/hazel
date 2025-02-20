@@ -200,7 +200,8 @@ type exp = {
   co_ctx: CoCtx.t, /* Locally free variables */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
-  ty: Typ.t /* DERIVED: Type after nonempty hole fixing */
+  ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
+  rewrite_id: option(Id.t) // For rewritten let binding
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -216,7 +217,6 @@ type pat = {
   status: status_pat,
   ty: Typ.t,
   constraint_: Constraint.t,
-  rewrite_term: option(list(Id.t)) // For rewritten let binding
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -611,11 +611,22 @@ let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
 
 /* Add derivable attributes for expression terms */
 let derived_exp =
-    (~uexp: UExp.t, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx): exp => {
+    (~uexp: UExp.t, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx, ~rewrite_id): exp => {
   let cls = Cls.Exp(UExp.cls_of_term(uexp.term));
   let status = status_exp(ctx, mode, self);
   let ty = fixed_typ_exp(ctx, mode, self);
-  {cls, self, ty, mode, status, ctx, co_ctx, ancestors, term: uexp};
+  {
+    cls,
+    self,
+    ty,
+    mode,
+    status,
+    ctx,
+    co_ctx,
+    ancestors,
+    rewrite_id,
+    term: uexp,
+  };
 };
 
 /* Add derivable attributes for pattern terms */
@@ -629,7 +640,6 @@ let derived_pat =
       ~ancestors,
       ~self,
       ~constraint_,
-      ~rewrite_term: option(list(Id.t)),
     )
     : pat => {
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
@@ -648,7 +658,6 @@ let derived_pat =
     ancestors,
     term: upat,
     constraint_,
-    rewrite_term,
   };
 };
 

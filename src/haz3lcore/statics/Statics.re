@@ -223,9 +223,17 @@ and uexp_to_info_map =
     | Ana({term: Unknown(SynSwitch), _}) => Mode.Syn
     | _ => mode
     };
-  let add' = (~self, ~co_ctx, m) => {
+  let add' = (~self, ~co_ctx, ~rewrite_id=None, m) => {
     let info =
-      Info.derived_exp(~uexp, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx);
+      Info.derived_exp(
+        ~uexp,
+        ~ctx,
+        ~mode,
+        ~ancestors,
+        ~self,
+        ~co_ctx,
+        ~rewrite_id,
+      );
     (info, add_info(ids, InfoExp(info), m));
   };
   let add = (~self, ~co_ctx, m) => add'(~self=Common(self), ~co_ctx, m);
@@ -436,110 +444,104 @@ and uexp_to_info_map =
       m,
     );
   | Let(p, def, body) =>
-    switch (check_annotated_function(p)) {
-    | Some((f_name, f_args, f_type)) =>
-      let def: UExp.t = UExp.Fun(f_args, def, None, None) |> UExp.fresh;
-      let p': UPat.t =
-        UPat.Cast(f_name, f_type, Typ.temp(Unknown(Internal))) |> UPat.fresh;
-      let (_, m) =
-        go_pat(
-          ~is_synswitch=true,
-          ~co_ctx=CoCtx.empty,
-          ~mode=Syn,
-          ~rewrite_term=Some([p' |> UPat.rep_id, def |> UExp.rep_id]),
-          p,
-          m,
-        );
-      let new_binding: UExp.t = {
-        ids,
-        copied: false,
-        term: Let(p', def, body),
+    let (rewrite_id, rewrite_coctx, m) =
+      switch (check_annotated_function(p)) {
+      | Some((f_name, f_args, f_type)) =>
+        let def: UExp.t = UExp.Fun(f_args, def, None, None) |> UExp.fresh;
+        let p': UPat.t =
+          UPat.Cast(f_name, f_type, Typ.temp(Unknown(Internal)))
+          |> UPat.fresh;
+        // let (_, m) = go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
+        let new_binding: UExp.t = Let(p', def, body) |> UExp.fresh;
+        let (info, m) = go(new_binding, m);
+        (Some(UExp.rep_id(new_binding)), info.co_ctx, m);
+      | None => (None, CoCtx.empty, m)
       };
-      go(new_binding, m);
-    | None =>
-      let (p_syn, _) =
-        go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
-      let (def, p_ana_ctx, m, ty_p_ana) =
-        if (!is_recursive(ctx, p, def, p_syn.ty)) {
-          let (def, m) = go(~mode=Ana(p_syn.ty), def, m);
-          let ty_p_ana = def.ty;
+    let (p_syn, _) =
+      go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
+    let (def, p_ana_ctx, m, ty_p_ana) =
+      if (!is_recursive(ctx, p, def, p_syn.ty)) {
+        let (def, m) = go(~mode=Ana(p_syn.ty), def, m);
+        let ty_p_ana = def.ty;
 
-          let (p_ana', _) =
-            go_pat(
-              ~is_synswitch=false,
-              ~co_ctx=CoCtx.empty,
-              ~mode=Ana(ty_p_ana),
-              p,
-              m,
-            );
-          // print_endline("STA p_ana'.ctx = " ++ Ctx.show(p_ana'.ctx));
-          (def, p_ana'.ctx, m, ty_p_ana);
-        } else {
-          let (def_base, _) =
-            go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn.ty), def, m);
-          let ty_p_ana = def_base.ty;
-          /* Analyze pattern to incorporate def type into ctx */
+        let (p_ana', _) =
+          go_pat(
+            ~is_synswitch=false,
+            ~co_ctx=CoCtx.empty,
+            ~mode=Ana(ty_p_ana),
+            p,
+            m,
+          );
+        // print_endline("STA p_ana'.ctx = " ++ Ctx.show(p_ana'.ctx));
+        (def, p_ana'.ctx, m, ty_p_ana);
+      } else {
+        let (def_base, _) =
+          go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn.ty), def, m);
+        let ty_p_ana = def_base.ty;
+        /* Analyze pattern to incorporate def type into ctx */
 
-          let (p_ana', _) =
-            go_pat(
-              ~is_synswitch=false,
-              ~co_ctx=CoCtx.empty,
-              ~mode=Ana(ty_p_ana),
-              p,
-              m,
-            );
-          let def_ctx = p_ana'.ctx;
-          let (def_base2, _) =
-            go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
-          let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
-            Typ.term_of(ty_p) == Typ.Unknown(SynSwitch)
-            && !Typ.eq(ty_fn1, ty_fn2)
-              ? ty_fn1 : ty_p;
-          };
-          let ana =
-            switch (
-              (def_base.ty |> Typ.term_of, def_base2.ty |> Typ.term_of),
-              p_syn.ty |> Typ.term_of,
-            ) {
-            | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
-              let tys =
-                List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
-              Typ.Prod(tys) |> Typ.temp;
-            | ((_, _), _) =>
-              ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
-            };
-          let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(ana), def, m);
-          (def, def_ctx, m, ty_p_ana);
+        let (p_ana', _) =
+          go_pat(
+            ~is_synswitch=false,
+            ~co_ctx=CoCtx.empty,
+            ~mode=Ana(ty_p_ana),
+            p,
+            m,
+          );
+        let def_ctx = p_ana'.ctx;
+        let (def_base2, _) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
+        let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
+          Typ.term_of(ty_p) == Typ.Unknown(SynSwitch)
+          && !Typ.eq(ty_fn1, ty_fn2)
+            ? ty_fn1 : ty_p;
         };
-      let (body, m) = go'(~ctx=p_ana_ctx, ~mode, body, m);
-      /* add co_ctx to pattern */
-      let (p_ana, m) =
-        go_pat(
-          ~is_synswitch=false,
-          ~co_ctx=body.co_ctx,
-          ~mode=Ana(ty_p_ana),
-          p,
-          m,
-        );
-      //print_endline("STA body = " ++ UExp.show(body.term));
-      //print_endline("STA p_ana = " ++ UPat.show(p_ana.term));
-      // TODO: factor out code
-      let unwrapped_self: Self.exp = Common(Just(body.ty));
-      let is_exhaustive = p_ana |> Info.pat_constraint |> Incon.is_exhaustive;
-      //print_endline("STA is_exhaustive = " ++ Bool.to_string(is_exhaustive));
-      let self =
-        is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
-      //print_endline("STA self = " ++ Self.show_exp(self));
-      //let (new_info, new_map) =
-      add'(
-        ~self,
-        ~co_ctx=
-          CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
+        let ana =
+          switch (
+            (def_base.ty |> Typ.term_of, def_base2.ty |> Typ.term_of),
+            p_syn.ty |> Typ.term_of,
+          ) {
+          | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
+            let tys =
+              List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
+            Typ.Prod(tys) |> Typ.temp;
+          | ((_, _), _) => ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
+          };
+        let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(ana), def, m);
+        (def, def_ctx, m, ty_p_ana);
+      };
+    let (body, m) = go'(~ctx=p_ana_ctx, ~mode, body, m);
+    /* add co_ctx to pattern */
+    let (p_ana, m) =
+      go_pat(
+        ~is_synswitch=false,
+        ~co_ctx=body.co_ctx,
+        ~mode=Ana(ty_p_ana),
+        p,
         m,
       );
-    //print_endline("STA new_map" ++ Map.show(new_map));
-    //(new_info, new_map);
-    }
+    //print_endline("STA body = " ++ UExp.show(body.term));
+    //print_endline("STA p_ana = " ++ UPat.show(p_ana.term));
+    // TODO: factor out code
+    let unwrapped_self: Self.exp = Common(Just(body.ty));
+    let is_exhaustive = p_ana |> Info.pat_constraint |> Incon.is_exhaustive;
+    //print_endline("STA is_exhaustive = " ++ Bool.to_string(is_exhaustive));
+    let self =
+      is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+    //print_endline("STA self = " ++ Self.show_exp(self));
+    //let (new_info, new_map) =
+    add'(
+      ~self,
+      ~co_ctx=
+        CoCtx.union([
+          def.co_ctx,
+          CoCtx.mk(ctx, p_ana.ctx, body.co_ctx),
+          rewrite_coctx,
+        ]),
+      ~rewrite_id,
+      m,
+    );
+  //print_endline("STA new_map" ++ Map.show(new_map));
+  //(new_info, new_map);
   | FixF(p, e, _) =>
     let (p', _) =
       go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode, p, m);
@@ -638,7 +640,6 @@ and uexp_to_info_map =
                   // Mark patterns as redundant at the top level
                   // because redundancy doesn't make sense in a smaller context
                   ~constraint_=p_constraint,
-                  ~rewrite_term=None,
                 );
               (
                 // Override the info for the single upat
@@ -745,7 +746,6 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~mode: Mode.t=Mode.Syn,
-      ~rewrite_term: option(list(Id.t))=None,
       {ids, term, _} as upat: UPat.t,
       m: Map.t,
     )
@@ -768,7 +768,6 @@ and upat_to_info_map =
         ~ancestors,
         ~self=Common(self),
         ~constraint_,
-        ~rewrite_term,
       );
     (info, add_info(ids, InfoPat(info), m));
   };
