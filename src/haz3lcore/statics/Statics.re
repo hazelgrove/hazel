@@ -384,15 +384,8 @@ and uexp_to_info_map =
         m,
       )
     | DynamicErrorHole(e, _)
-    | Parens(e) =>
-      let (e, m) = go(~mode, e, m);
-      add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
+    | Parens(e)
     | Probe(e, _) =>
-      /* Probes just copy the statics of their
-       * contained expression for ci purposes */
-      // let (ci, map) = go(~mode, e, m);
-      // let map = add_info(ids, InfoExp(ci), map);
-      // (ci, map);
       let (e, m) = go(~mode, e, m);
       add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) when is_in_filter =>
@@ -1482,15 +1475,8 @@ and upat_to_info_map =
       List.exists(l => name == l, duplicates)
         ? atomic(Duplicate(name, self), Constraint.Truth)
         : atomic(self, Constraint.Truth);
-    | Parens(p) =>
-      let (p, m) = go(~ctx, ~mode, p, m);
-      add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
+    | Parens(p)
     | Probe(p, _) =>
-      /* Probes just copy the statics of their
-       * contained expression for ci purposes */
-      // let (ci, map) = go(~ctx, ~mode, p, m);
-      // let map = add_info(ids, InfoPat(ci), map);
-      // (ci, map);
       let (p, m) = go(~ctx, ~mode, p, m);
       add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     | Constructor(ctr, ty) =>
