@@ -69,22 +69,6 @@ type update =
   | ReplaceCard(card)
   | ReplaceCardInHand(int, card);
 
-//TODO: cleanup
-let nth_card_of_hand = (hand: hand, i: int): option(card) =>
-  switch (ListUtil.split_n_opt(i, hand)) {
-  | None => None
-  | Some((_, [])) => None
-  | Some((_, [card, ..._])) => Some(card)
-  };
-
-//TODO: cleanup
-let update_nth_card_of_hand = (hand: hand, i: int, card: card): hand =>
-  switch (ListUtil.split_n_opt(i, hand)) {
-  | None => hand
-  | Some((prefix, [_, ...suffix])) => prefix @ [card, ...suffix]
-  | Some((_, [])) => hand
-  };
-
 let update = ((sort, collection): state, update: update): state =>
   switch (update) {
   | ReplaceCard(new_card) =>
@@ -95,7 +79,7 @@ let update = ((sort, collection): state, update: update): state =>
   | ReplaceCardInHand(i, card) =>
     switch (collection) {
     | Card(_) => (sort, collection)
-    | Hand(hand) => (sort, Hand(update_nth_card_of_hand(hand, i, card)))
+    | Hand(hand) => (sort, Hand(ListUtil.update_nth(i, hand, _ => card)))
     }
   };
 
@@ -323,28 +307,24 @@ module Card = {
     );
   };
 
+  let side: (Sort.t, card, ~flipped: bool, string) => Node.t =
+    (sort, card, ~flipped, clss) =>
+      Node.div(
+        ~attrs=[
+          Attr.classes(["card-sprite", clss, Sort.show(sort)]),
+          Attr.style(background_offset(~flipped, sort, card)),
+        ],
+        [],
+      );
+
   let view =
     Core.Memo.general((sort: Sort.t, card: card) =>
-      (
-        Node.div(
-          ~attrs=[Attr.classes(["card-scene", Sort.show(sort)])],
-          [
-            Node.div(
-              ~attrs=[
-                Attr.classes(["card-sprite", "front", Sort.show(sort)]),
-                Attr.style(background_offset(~flipped=false, sort, card)),
-              ],
-              [],
-            ),
-            Node.div(
-              ~attrs=[
-                Attr.classes(["card-sprite", "back", Sort.show(sort)]),
-                Attr.style(background_offset(~flipped=true, sort, card)),
-              ],
-              [],
-            ),
-          ],
-        ): Node.t
+      Node.div(
+        ~attrs=[Attr.classes(["card-scene", Sort.show(sort)])],
+        [
+          side(sort, card, ~flipped=false, "front"),
+          side(sort, card, ~flipped=true, "back"),
+        ],
       )
     );
 };
@@ -388,42 +368,37 @@ module Chooser = {
     );
   };
 
+  let replace_card = (info, parent, card: card, index: option(int), _) => {
+    let action =
+      switch (index) {
+      | None => ReplaceCard(card)
+      | Some(index) => ReplaceCardInHand(index, card)
+      };
+    switch (action |> update(SyntaxTerm.get(info)) |> SyntaxTerm.put(info)) {
+    | None => Effect.Ignore
+    | Some(seg) => parent(SetSyntax(seg))
+    };
+  };
+
+  let card_pos = (col: int, row: int) =>
+    Attr.create(
+      "style",
+      Printf.sprintf(
+        "position: absolute; left: %dpx; top: %dpx; z-index: %d;",
+        col * col_width,
+        row * row_height,
+        100 + row + col,
+      ),
+    );
+
   let card_wrapper =
-      (
-        info,
-        ~indicated,
-        parent,
-        sort: Sort.t,
-        col: int,
-        row: int,
-        card: card,
-        index: option(int),
-      )
+      (~indicated, replace_card, sort: Sort.t, col: int, row: int, card: card)
       : Node.t =>
     Node.div(
       ~attrs=[
         Attr.classes(["card-wrapper"] @ (indicated ? ["indicated"] : [])),
-        Attr.on_mousedown(_ => {
-          let state = SyntaxTerm.get(info);
-          let new_state =
-            switch (index) {
-            | None => update(state, ReplaceCard(card))
-            | Some(index) => update(state, ReplaceCardInHand(index, card))
-            };
-          switch (SyntaxTerm.put(info, new_state)) {
-          | None => Effect.Ignore
-          | Some(seg) => parent(SetSyntax(seg))
-          };
-        }),
-        Attr.create(
-          "style",
-          Printf.sprintf(
-            "position: absolute; left: %dpx; top: %dpx; z-index: %d;",
-            col * col_width,
-            row * row_height,
-            100 + row + col,
-          ),
-        ),
+        Attr.on_mousedown(replace_card(card)),
+        card_pos(col, row),
       ],
       [Card.view(sort, card)],
     );
@@ -437,14 +412,12 @@ module Chooser = {
           List.mapi(
             (col, c) =>
               card_wrapper(
-                info,
-                parent,
+                replace_card(info, parent, _, index),
                 ~indicated=c == card,
                 sort,
                 col,
                 r,
                 c,
-                index,
               ),
             row,
           ),
@@ -510,7 +483,6 @@ module CardInHand = {
   let view =
       (
         info,
-        _elem_ids,
         mode,
         parent,
         local: action => Ui_effect.t(unit),
@@ -562,19 +534,11 @@ module CardInHand = {
   };
 };
 
-let hand_elem_ids = (id, hand: hand): list(string) =>
-  List.mapi(
-    (i, _) => Id.cls(id) ++ "card-index-" ++ string_of_int(i),
-    hand,
-  );
-
 module Hand = {
-  // a card, but each subsequent card should be absoluted positioned 20px to the right of the last and higher in z-index:
   let card_wrapper =
       (
         info,
         id,
-        elem_ids,
         mode,
         parent: external_action => Ui_effect.t(unit),
         local: action => Ui_effect.t(unit),
@@ -596,37 +560,17 @@ module Hand = {
           ),
         ),
       ],
-      [
-        CardInHand.view(
-          info,
-          elem_ids,
-          mode,
-          parent,
-          local,
-          sort,
-          card,
-          index,
-        ),
-      ],
+      [CardInHand.view(info, mode, parent, local, sort, card, index)],
     );
 
-  let view = (info, mode, parent, local, sort: Sort.t, hand: hand): Node.t => {
+  let view = (info, mode, parent, local, sort: Sort.t, hand: hand): Node.t =>
     Node.div(
       ~attrs=[Attr.classes(["hand", Sort.show(sort)])],
       List.mapi(
-        card_wrapper(
-          info,
-          info.id,
-          hand_elem_ids(info.id, hand),
-          mode,
-          parent,
-          local,
-          sort,
-        ),
+        card_wrapper(info, info.id, mode, parent, local, sort),
         hand,
       ),
     );
-  };
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -639,19 +583,22 @@ module M: Projector = {
   type model = m;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
-  let init: model = {mode: Show};
-  let can_project = (info: TermBase.Any.t) =>
-    SyntaxTerm.get_opt(info) != None;
-  let can_focus = false;
+  let focusable = Focusable.non;
   let dynamics = false;
+
+  let init = (info: TermBase.Any.t): option(model) =>
+    SyntaxTerm.get_opt(info) != None ? Some({mode: Show}) : None;
+
   let placeholder = (_, info): ProjectorCore.Shape.t => {
     horizontal: SyntaxTerm.width_of_any(info),
     vertical: Tab(1),
   };
+
   let update = (_model, _, action) =>
     switch (action) {
     | SetMode(mode) => {mode: mode}
     };
+
   let view =
       (
         model,
@@ -665,15 +612,10 @@ module M: Projector = {
       switch (SyntaxTerm.get(info)) {
       | (sort, Card(card)) =>
         Singleton.view(info, model.mode, parent, local, to_sort(sort), card)
-        |> Option.some
       | (sort, Hand(hand)) =>
         Hand.view(info, model.mode, parent, local, to_sort(sort), hand)
-        |> Option.some
       },
     offside: None,
     overlay: None,
-    underlay: None,
   };
-
-  let focus = _ => ();
 };
