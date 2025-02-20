@@ -299,21 +299,20 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
            |> Option.value(~default=Typ.temp(Typ.Unknown(Internal))),
          )
     | Let(p, def, body) =>
-      let rewrite_id =
+      let rewritten_term =
         // If ID not in map, error is thrown on Ln 223 already
         switch (Id.Map.find(Exp.rep_id(uexp), m)) {
-        | InfoExp(item) => item.rewrite_id
-        | _ => None // Would not happen by design; just a filler
+        | InfoExp({rewrite_id: Some(id), _}) =>
+          switch (Id.Map.find(id, m)) {
+          | InfoExp({term, _}) => Some(term)
+          | _ => None // Would not happen by design; just a filler
+          }
+        | _ => None // No rewritten ID
         };
-      switch (rewrite_id) {
-      | Some(id) =>
-        let info = Id.Map.find(id, m); // Can always be found by design
-        switch (info) {
-        | InfoExp({term, _}) =>
-          let (dhexp, _) = elaborate(m, term);
-          dhexp;
-        | _ => raise(MissingTypeInfo) // Would not happen by design; just a filler
-        };
+      switch (rewritten_term) {
+      | Some(term) =>
+        let (dhexp, _) = elaborate(m, term);
+        dhexp;
       | None =>
         let add_name: (option(string), DHExp.t) => DHExp.t = (
           (name, exp) => {
