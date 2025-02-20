@@ -415,3 +415,385 @@ and map_type_hole_annotation:
     | MultiHole(l) => MultiHole(List.map(x => map_any_annotation(f, x), l))
     };
   };
+
+module type DefaultAnnotation = {
+  type t;
+  let default_value: unit => t;
+};
+
+module UnitAnnotation: DefaultAnnotation = {
+  type t = unit;
+  let default_value = () => ();
+};
+
+module Factory = (DefaultAnnotation: DefaultAnnotation) => {
+  let invalid = (s): exp_t(DefaultAnnotation.t) => {
+    term: Invalid(s),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let empty_hole = (): exp_t(DefaultAnnotation.t) => {
+    term: EmptyHole,
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let multi_hole = (l): exp_t(DefaultAnnotation.t) => {
+    term: MultiHole(l),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let dynamic_error_hole = (e, err): exp_t(DefaultAnnotation.t) => {
+    term: DynamicErrorHole(e, err),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let failed_cast = (e, t1, t2): exp_t(DefaultAnnotation.t) => {
+    term: FailedCast(e, t1, t2),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let deferral = (pos): exp_t(DefaultAnnotation.t) => {
+    term: Deferral(pos),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let undefined = (): exp_t(DefaultAnnotation.t) => {
+    term: Undefined,
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let bool = (b): exp_t(DefaultAnnotation.t) => {
+    term: Bool(b),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let int = (i): exp_t(DefaultAnnotation.t) => {
+    term: Int(i),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let float = (f): exp_t(DefaultAnnotation.t) => {
+    term: Float(f),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let string = (s): exp_t(DefaultAnnotation.t) => {
+    term: String(s),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let list_lit = (l): exp_t(DefaultAnnotation.t) => {
+    term: ListLit(l),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let constructor = (s, t): exp_t(DefaultAnnotation.t) => {
+    term: Constructor(s, t),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let fn = (p, e, t, v): exp_t(DefaultAnnotation.t) => {
+    term: Fun(p, e, t, v),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let typ_fun = (p, e, v): exp_t(DefaultAnnotation.t) => {
+    term: TypFun(p, e, v),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let tuple = (l): exp_t(DefaultAnnotation.t) => {
+    term: Tuple(l),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let label = (l): exp_t(DefaultAnnotation.t) => {
+    term: Label(l),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let tup_label = (l, e): exp_t(DefaultAnnotation.t) => {
+    term: TupLabel(l, e),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let dot = (e1, e2): exp_t(DefaultAnnotation.t) => {
+    term: Dot(e1, e2),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let var = (v): exp_t(DefaultAnnotation.t) => {
+    term: Var(v),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let let_ = (p, e1, e2): exp_t(DefaultAnnotation.t) => {
+    term: Let(p, e1, e2),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let fix_f = (p, e, env): exp_t(DefaultAnnotation.t) => {
+    term: FixF(p, e, env),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ty_alias = (p, t, e): exp_t(DefaultAnnotation.t) => {
+    term: TyAlias(p, t, e),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ap = (d, e1, e2): exp_t(DefaultAnnotation.t) => {
+    term: Ap(d, e1, e2),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let typ_ap = (e, t): exp_t(DefaultAnnotation.t) => {
+    term: TypAp(e, t),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let deferred_ap = (e, l): exp_t(DefaultAnnotation.t) => {
+    term: DeferredAp(e, l),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let if_ = (e1, e2, e3): exp_t(DefaultAnnotation.t) => {
+    term: If(e1, e2, e3),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let seq = (e1, e2): exp_t(DefaultAnnotation.t) => {
+    term: Seq(e1, e2),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let test = (e): exp_t(DefaultAnnotation.t) => {
+    term: Test(e),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let filter = (k, e): exp_t(DefaultAnnotation.t) => {
+    term: Filter(k, e),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let closure = (env, e): exp_t(DefaultAnnotation.t) => {
+    term: Closure(env, e),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let parens = (e): exp_t(DefaultAnnotation.t) => {
+    term: Parens(e),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let cons = (e1, e2): exp_t(DefaultAnnotation.t) => {
+    term: Cons(e1, e2),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let list_concat = (e1, e2): exp_t(DefaultAnnotation.t) => {
+    term: ListConcat(e1, e2),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let un_op = (op, e): exp_t(DefaultAnnotation.t) => {
+    term: UnOp(op, e),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let bin_op = (op, e1, e2): exp_t(DefaultAnnotation.t) => {
+    term: BinOp(op, e1, e2),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let builtin_fun = (s): exp_t(DefaultAnnotation.t) => {
+    term: BuiltinFun(s),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let match = (e, l): exp_t(DefaultAnnotation.t) => {
+    term: Match(e, l),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let cast = (e, t1, t2): exp_t(DefaultAnnotation.t) => {
+    term: Cast(e, t1, t2),
+    annotation: DefaultAnnotation.default_value(),
+  };
+
+  // pat
+  let pat_invalid = (s): pat_t(DefaultAnnotation.t) => {
+    term: Invalid(s),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_empty_hole = (): pat_t(DefaultAnnotation.t) => {
+    term: EmptyHole,
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_multi_hole = (l): pat_t(DefaultAnnotation.t) => {
+    term: MultiHole(l),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_wild = (): pat_t(DefaultAnnotation.t) => {
+    term: Wild,
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_int = (i): pat_t(DefaultAnnotation.t) => {
+    term: Int(i),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_float = (f): pat_t(DefaultAnnotation.t) => {
+    term: Float(f),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_bool = (b): pat_t(DefaultAnnotation.t) => {
+    term: Bool(b),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_string = (s): pat_t(DefaultAnnotation.t) => {
+    term: String(s),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_list_lit = (l): pat_t(DefaultAnnotation.t) => {
+    term: ListLit(l),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_constructor = (s, t): pat_t(DefaultAnnotation.t) => {
+    term: Constructor(s, t),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_cons = (p1, p2): pat_t(DefaultAnnotation.t) => {
+    term: Cons(p1, p2),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_var = (v): pat_t(DefaultAnnotation.t) => {
+    term: Var(v),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_tuple = (l): pat_t(DefaultAnnotation.t) => {
+    term: Tuple(l),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_label = (l): pat_t(DefaultAnnotation.t) => {
+    term: Label(l),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_tup_label = (p1, p2): pat_t(DefaultAnnotation.t) => {
+    term: TupLabel(p1, p2),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_parens = (p): pat_t(DefaultAnnotation.t) => {
+    term: Parens(p),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_ap = (p1, p2): pat_t(DefaultAnnotation.t) => {
+    term: Ap(p1, p2),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let pat_cast = (p, t1, t2): pat_t(DefaultAnnotation.t) => {
+    term: Cast(p, t1, t2),
+    annotation: DefaultAnnotation.default_value(),
+  };
+
+  // typ
+  let ty_unknown = (p): typ_t(DefaultAnnotation.t) => {
+    term: Unknown(p),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ty_int = (): typ_t(DefaultAnnotation.t) => {
+    term: Int,
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ty_float = (): typ_t(DefaultAnnotation.t) => {
+    term: Float,
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ty_bool = (): typ_t(DefaultAnnotation.t) => {
+    term: Bool,
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ty_string = (): typ_t(DefaultAnnotation.t) => {
+    term: String,
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ty_var = (s): typ_t(DefaultAnnotation.t) => {
+    term: Var(s),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ty_list = (t): typ_t(DefaultAnnotation.t) => {
+    term: List(t),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ty_arrow = (t1, t2): typ_t(DefaultAnnotation.t) => {
+    term: Arrow(t1, t2),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ty_sum = (m): typ_t(DefaultAnnotation.t) => {
+    term: Sum(m),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ty_prod = (l): typ_t(DefaultAnnotation.t) => {
+    term: Prod(l),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ty_label = (l): typ_t(DefaultAnnotation.t) => {
+    term: Label(l),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ty_tup_label = (t1, t2): typ_t(DefaultAnnotation.t) => {
+    term: TupLabel(t1, t2),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ty_parens = (t): typ_t(DefaultAnnotation.t) => {
+    term: Parens(t),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ty_ap = (t1, t2): typ_t(DefaultAnnotation.t) => {
+    term: Ap(t1, t2),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ty_rec = (tp, t): typ_t(DefaultAnnotation.t) => {
+    term: Rec(tp, t),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let ty_forall = (tp, t): typ_t(DefaultAnnotation.t) => {
+    term: Forall(tp, t),
+    annotation: DefaultAnnotation.default_value(),
+  };
+
+  // tpat
+  let tpat_invalid = (s): tpat_t(DefaultAnnotation.t) => {
+    term: Invalid(s),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let tpat_empty_hole = (): tpat_t(DefaultAnnotation.t) => {
+    term: EmptyHole,
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let tpat_multi_hole = (l): tpat_t(DefaultAnnotation.t) => {
+    term: MultiHole(l),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let tpat_var = (s): tpat_t(DefaultAnnotation.t) => {
+    term: Var(s),
+    annotation: DefaultAnnotation.default_value(),
+  };
+
+  //rul
+  let rul_invalid = (s): rul_t(DefaultAnnotation.t) => {
+    term: Invalid(s),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let rul_hole = (l): rul_t(DefaultAnnotation.t) => {
+    term: Hole(l),
+    annotation: DefaultAnnotation.default_value(),
+  };
+  let rul_rules = (e, l): rul_t(DefaultAnnotation.t) => {
+    term: Rules(e, l),
+    annotation: DefaultAnnotation.default_value(),
+  };
+
+  // environment
+  let environment = (env): environment_t(DefaultAnnotation.t) => {
+    VarBstMap.Ordered.mapo(((_, y)) => map_exp_annotation(x => x, y), env);
+  };
+
+  // closure_environment
+  let closure_environment =
+      (id, env): closure_environment_t(DefaultAnnotation.t) => {
+    (id, environment(env));
+  };
+
+  // stepper_filter_kind
+  let sf_filter = (f): stepper_filter_kind_t(DefaultAnnotation.t) => {
+    Filter({pat: map_exp_annotation(x => x, f.pat), act: f.act});
+  };
+  let sf_residue = (i, act): stepper_filter_kind_t(DefaultAnnotation.t) => {
+    Residue(i, act);
+  };
+
+  // type_hole
+  let th_invalid = (s): type_hole(DefaultAnnotation.t) => {
+    Invalid(s);
+  };
+  let th_empty_hole = (): type_hole(DefaultAnnotation.t) => {
+    EmptyHole;
+  };
+  let th_multi_hole = (l): type_hole(DefaultAnnotation.t) => {
+    MultiHole(l);
+  };
+
+  // type_provenance
+  let tp_syn_switch = (): type_provenance(DefaultAnnotation.t) => {
+    SynSwitch;
+  };
+  let tp_hole = (h): type_provenance(DefaultAnnotation.t) => {
+    Hole(h);
+  };
+  let tp_internal = (): type_provenance(DefaultAnnotation.t) => {
+    Internal;
+  };
+};
