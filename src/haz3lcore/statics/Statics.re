@@ -441,26 +441,21 @@ and uexp_to_info_map =
       let def: UExp.t = UExp.Fun(f_args, def, None, None) |> UExp.fresh;
       let p': UPat.t =
         UPat.Cast(f_name, f_type, Typ.temp(Unknown(Internal))) |> UPat.fresh;
+      let (_, m) =
+        go_pat(
+          ~is_synswitch=true,
+          ~co_ctx=CoCtx.empty,
+          ~mode=Syn,
+          ~rewrite_term=Some([p' |> UPat.rep_id, def |> UExp.rep_id]),
+          p,
+          m,
+        );
       let new_binding: UExp.t = {
         ids,
         copied: false,
         term: Let(p', def, body),
       };
-      let (e, m) = go(new_binding, m);
-      // Add related information to map
-      let info =
-      Info.derived_pat(
-        ~prev_synswitch=None,
-        ~upat=p,
-        ~ctx=e.ctx,
-        ~co_ctx=CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p'.ctx, body.co_ctx)]),,
-        ~mode,
-        ~ancestors,
-        ~self=Just(f_type),
-        ~constraint_=Constraint.of_ap(ctx, mode, ctr, arg.constraint_, Some(ty_out)),,
-        ~rewrite_term=None,
-      );
-    (info, add_info(ids, InfoPat(info), m));
+      go(new_binding, m);
     | None =>
       let (p_syn, _) =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
@@ -535,15 +530,15 @@ and uexp_to_info_map =
       let self =
         is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
       //print_endline("STA self = " ++ Self.show_exp(self));
-      let (new_info, new_map) =
-        add'(
-          ~self,
-          ~co_ctx=
-            CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
-          m,
-        );
-      //print_endline("STA new_map" ++ Map.show(new_map));
-      (new_info, new_map);
+      //let (new_info, new_map) =
+      add'(
+        ~self,
+        ~co_ctx=
+          CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
+        m,
+      );
+    //print_endline("STA new_map" ++ Map.show(new_map));
+    //(new_info, new_map);
     }
   | FixF(p, e, _) =>
     let (p', _) =
@@ -750,6 +745,7 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~mode: Mode.t=Mode.Syn,
+      ~rewrite_term: option(list(Id.t))=None,
       {ids, term, _} as upat: UPat.t,
       m: Map.t,
     )
@@ -772,7 +768,7 @@ and upat_to_info_map =
         ~ancestors,
         ~self=Common(self),
         ~constraint_,
-        ~rewrite_term=None,
+        ~rewrite_term,
       );
     (info, add_info(ids, InfoPat(info), m));
   };

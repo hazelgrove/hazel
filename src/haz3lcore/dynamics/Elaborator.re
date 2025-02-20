@@ -302,6 +302,17 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let (p, def) =
         switch (Statics.check_annotated_function(p)) {
         | Some((f_name, f_args, _)) =>
+          switch (Id.Map.find_opt(Pat.rep_id(p), m)) {
+          | Some(item) =>
+            print_endline("ELA p_search_res = " ++ Info.show(item))
+          // switch (rewrite_term) {
+          // | Some(idx) =>
+          //   print_string("ELA p_search_res = ");
+          //   idx |> List.iter(id => print_endline(Uuidm.to_string(id)));
+          // | None => ()
+          // }
+          | _ => ()
+          };
           let def: UExp.t = UExp.Fun(f_args, def, None, None) |> UExp.fresh;
           // let p: UPat.t =
           //   UPat.Cast(f_name, f_type, Typ.temp(Unknown(Internal)))
