@@ -38,7 +38,8 @@ module Applicable = {
       : option(ProjectorCore.Kind.t) => {
     let (module P) = ProjectorInit.to_module(kind);
     let* term = target_term(cursor);
-    P.can_project(term) ? Some(kind) : None;
+    let+ _ = P.init(term);
+    kind;
   };
 
   /* If the current indicated term is a projector, return its kind */

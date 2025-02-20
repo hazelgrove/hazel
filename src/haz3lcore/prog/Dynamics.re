@@ -58,7 +58,7 @@ module Probe = {
   module Closure = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = {
-      closure_id: Id.t, /* Primary ID (unique) */
+      closure_id: int, /* Primary ID (unique-ish) */
       syntax_id: Id.t, /* Syntax ID of probed expression */
       value: DHExp.t, /* Value of expression */
       env: Env.t, /* (Filtered) Environment Values  */
@@ -74,7 +74,11 @@ module Probe = {
           call_stack: Probe.call_stack,
           pr: Probe.t,
         ) => {
-      closure_id: Id.mk(),
+      /* Below hash provides a coarse-grained identification of
+       * closures currently used to keep display-length data between
+       * similar runs. May want to alter this or simply used a fresh
+       * UUID depending on future desiderata */
+      closure_id: Hashtbl.hash((call_stack, value, pr)),
       syntax_id,
       value,
       env: Env.filter(env, pr.refs),

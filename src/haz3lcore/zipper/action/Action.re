@@ -58,7 +58,7 @@ type project =
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(Id.t, Base.segment) /* Set underlying syntax */
   | SetModel(Id.t, string) /* Set serialized projector model */
-  | Focus(Id.t, option(Util.Direction.t)) /* Pass control to projector */
+  | Focus(Id.t, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(Id.t, Direction.t); /* Pass control to parent editor */
 
 [@deriving (show({with_path: false}), sexp, yojson)]

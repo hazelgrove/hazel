@@ -36,6 +36,29 @@ type utility = {
   lift_syntax: (Any.t => Any.t, Base.segment) => option(Base.segment),
 };
 
+module Focusable = {
+  /* Can the projector take focus, in the sense of handling
+   * keyboard input? If so, how can it take focus? */
+
+  /* Callbacks for projectors to react to getting focus */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type focus_keyboard = (Id.t, Direction.t) => unit;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type focus_pointer = Id.t => unit;
+
+  /* If keyboard is not None, the projector can get focus
+   * from keyboard arrow movement into it. If pointer is
+   * not None, it can get focus from pointer interaction */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    pointer: option(focus_pointer),
+    keyboard: option(focus_keyboard),
+  };
+
+  /* Default: A projector that cannot take focus */
+  let non: t = {pointer: None, keyboard: None};
+};
+
 /* External info proivded to all projectors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info = {
@@ -64,9 +87,14 @@ type info = {
 };
 
 module View = {
+  /* A projector has an inline view, which replaces the underlying
+   * syntax. Optionally, it may have an overlay view, which is shown
+   * in the same place, but above most base editor decorations
+   * including the inline views of all other projectors, and/or
+   * an offside view, which is rendered at the end of the base
+   * editor line containing the projector */
   type t = {
-    underlay: option(Node.t),
-    inline: option(Node.t),
+    inline: Node.t,
     overlay: option(Node.t),
     offside: option(Node.t),
   };
@@ -74,9 +102,8 @@ module View = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type seg = (~background: bool=?, Sort.t, list(syntax)) => Node.t;
 
-  let mk = (~underlay=None, ~overlay=None, ~offside=None, inline) => {
-    inline: Some(inline),
-    underlay,
+  let mk = (~overlay=None, ~offside=None, inline) => {
+    inline,
     overlay,
     offside,
   };
@@ -89,12 +116,12 @@ module View = {
  * 4. If you want to expose the projector via a keyboard
  *    shortcut, add a Project(...) entry in Keyboard.re
  * 5. If you want to expose the projector in the projector
- *    panel bottom bar UI, update ProjectorView.name,
- *    ProjectorView.of_name, and ProjectorCore.projectors
+ *    panel bottom bar UI, update ProjectorCore.Kind.name,
+ *    ProjectorCore.Kind.of_name, and ProjectorCore.projectors
  * 6. If you want to manually manage the projector as part of
- *    the update cycle, use the implementations of the SetIndicated
- *    and RemoveIndicated actions in ProjectorPerform as a guide
- *    for how to add/remove projectors from an editor */
+ *    the update cycle, use the implementation of the
+ *    SetIndicated action in ProjectorPerform as a guide
+ *    for how to add/remove projectors in an editor */
 module type Projector = {
   /* The internal model type of the projector which will
    * be serialized and persisted. Use `unit` if you don't
@@ -106,26 +133,20 @@ module type Projector = {
    * actions (type `action`) above suffice */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action;
-  /* Initial state of the model */
-  let init: model;
-  /* A predicate determining if the given underlying
-   * syntax (currently limited to convex pieces) is
-   * supported by this projector. This is used to gate
-   * adding the projector */
-  let can_project: Term.Any.t => bool;
-  /* Does this projector have internal position states,
-   * overriding the editor caret & keyboard handlers?
-   * If yes, the focus method will be called when this
-   * projector is either clicked on or if left/right
-   * is pressed when the caret is to the immediate
-   * right/left of the projector */
-  let can_focus: bool;
+  /* Init should return None if the projector doesn't want
+   * to handle the provided term. Otherwise, it should
+   * return the desired initial state of the model. */
+  let init: Term.Any.t => option(model);
+  /* Does this projector have some notion of internal
+   * positions, whose handling should override the editor
+   * caret & keyboard handlers? If so, provide handlers
+   * here (see Focusable for more information) */
+  let focusable: Focusable.t;
   /* If dynamics is true, this projector will be
    * instrumented with a probe to collect dynamic
    * information during evaluation */
   let dynamics: bool;
-  /* Renders the main DOM view for the projector,
-   * which will replace the syntax in-line. */
+  /* Renders the DOM views for the projector */
   let view:
     (
       model,
@@ -139,15 +160,10 @@ module type Projector = {
       ~view_seg: View.seg
     ) =>
     View.t;
+  /* The space left for the projector in the base editor */
   let placeholder: (model, info) => ProjectorCore.Shape.t;
   /* Update the local projector model given an action */
   let update: (model, info, action) => model;
-  /* Does whatever needs to be done to give a projector
-   * keyboard focus. Right now this is only for side
-   * effects but could be extended in the future to
-   * take/return the model if the projector needs to
-   * maintain a complex internal position state */
-  let focus: ((Id.t, option(Direction.t))) => unit;
 };
 
 /* A cooked projector is the same as the base module
@@ -166,9 +182,8 @@ module Cook = (C: Projector) : Cooked => {
   let deserialize_m = s => s |> Sexplib.Sexp.of_string |> C.model_of_sexp;
   let serialize_a = a => a |> C.sexp_of_action |> Sexplib.Sexp.to_string;
   let deserialize_a = s => s |> Sexplib.Sexp.of_string |> C.action_of_sexp;
-  let init = C.init |> serialize_m;
-  let can_project = C.can_project;
-  let can_focus = C.can_focus;
+  let init = any => C.init(any) |> Option.map(serialize_m);
+  let focusable = C.focusable;
   let dynamics = C.dynamics;
   let view = (m, info, ~local, ~parent, ~view_seg) =>
     C.view(
@@ -182,7 +197,6 @@ module Cook = (C: Projector) : Cooked => {
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
   let update = (m, i, a) =>
     C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
-  let focus = C.focus;
 };
 
 /* Projectors currently are all convex */

@@ -24,6 +24,12 @@
   --pat-cell: hsl(165, 30%, 70%);
 }
 
+/* Turn off caret when text projector is focused */
+/* TODO: Generalize this logic to other projectors */
+.code-deco:has(~ .projectors .projector.probe *:focus) #caret .caret-path {
+  fill: #0000;
+}
+
 /* BACKING */
 
 .projector.probe.Exp > svg {
@@ -45,7 +51,7 @@
   fill: var(--pat-indicated);
 }
 .projector.probe:has(.ap.pinned) > svg {
-  fill: var(--exp-ap-indicated);
+  /* fill: var(--exp-ap-indicated); */
 }
 
 /* INLINE VIEW */
@@ -64,6 +70,9 @@
 .projector.probe.indicated:not(.selected):not(.error) .main,
 .cell-item:not(.selected):not(.error) .projector.probe.indicated .main {
   color: white;
+}
+.projector.probe .main:focus {
+  outline: none;
 }
 
 @keyframes rotate {
@@ -172,10 +181,14 @@
 
 /* OFFSIDE VIEW */
 
+.projector.probe div:has(.live-offside) {
+  top: 0;
+}
+
 .projector.probe .live-offside {
   display: flex;
   flex-direction: row;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
 }
 .projector.probe .live-offside:empty {
@@ -209,6 +222,7 @@
   gap: 2px;
   position: absolute;
   left: -1.75em;
+  top: 0.35em;
 }
 
 .projector.probe .live-offside .ellipsis {
@@ -270,8 +284,9 @@
 /* TOKEN BKG */
 .projector.probe .closure {
   border-radius: 0.05em 0.05em 0.05em 0.2em;
-  transition: filter 0.14s ease-in-out;
-  transition: scale 0.07s ease-in-out;
+  transition: scale 0.1s ease-in-out, transform 0.1s ease-in-out,
+    translate 0.1s ease-in-out, border 0.1s ease-in-out,
+    box-shadow 0.1s ease-in-out, top 0.1s ease-in-out;
   background-color: var(--bkg);
   border-bottom-color: var(--bottom-border-clr);
 }
@@ -300,7 +315,11 @@
   --caller-accent: var(--exp-ap-indicated);
   --bottom-border-clr: var(--caller-accent);
   --bkg: var(--exp-ap-indicated);
-  outline: 1px solid var(--caller-accent);
+}
+.projector.probe .closure:has(.value.cursor-caller):not(:hover) {
+  outline-width: 1px;
+  outline-style: solid;
+  outline-color: var(--caller-accent);
 }
 .projector.probe .closure:has(.value.cursor-unrelated),
 .projector.probe .closure:has(.value.cursor-callee.indirect) {
@@ -435,9 +454,12 @@
   border: none;
 }
 
-.projector.probe.indicated .closure:has(.value.cursor),
-.projector.probe .closure:hover {
+.projector.probe .closure:hover,
+.projector.probe.indicated .closure:has(.value.cursor) {
   outline-color: var(--exp-indicated);
+}
+.projector.probe.indicated:has(*:focus) .closure:has(.value.cursor) {
+  outline-color: var(--R1);
 }
 /* .projector.probe.indicated.Pat .closure:has(.value.cursor),
 .projector.probe.Pat .closure:hover {
@@ -445,7 +467,7 @@
 } */
 .projector.probe.indicated .closure:has(.value.cursor.ap),
 .projector.probe.Exp .closure:has(.value.ap):hover {
-  outline-color: var(--exp-ap-indicated);
+  /* outline-color: var(--exp-ap-indicated); */
 }
 .projector.probe .closure:hover {
   z-index: var(--projector-indicated-z);
@@ -509,6 +531,10 @@
   filter: none !important;
 }
 
+.projector.probe .value.indet.cursor .code-text .token {
+  color: grey;
+}
+
 .projector.probe .value.cursor .code-text .token {
   color: var(--exp-indicated);
 }
@@ -567,7 +593,6 @@
 .projector.probe .nav-arrow {
   width: 10px;
   height: 13px;
-
   color: var(--exp-indicated);
   background: url(../../img/noun-arrow-3130579.svg);
   background-size: cover;
@@ -582,9 +607,9 @@
 .projector.probe .nav-arrow {
   filter: invert(1) brightness(0.7) sepia(1) hue-rotate(61deg) saturate(0.6);
 }
-/* .projector.probe.Pat .nav-arrow {
+.projector.probe.Pat .nav-arrow {
   filter: invert(1) brightness(0.7) sepia(1) hue-rotate(141deg) saturate(0.6);
-} */
+}
 
 .projector.probe:not(.indicated) .nav-arrow {
   pointer-events: none;
