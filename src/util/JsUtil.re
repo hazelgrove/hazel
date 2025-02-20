@@ -3,14 +3,14 @@ open Virtual_dom.Vdom;
 
 let get_elem_by_id = id => {
   let doc = Dom_html.document;
-  Js.Opt.get(
-    doc##getElementById(Js.string(id)),
-    () => {
-      print_endline(id);
-      assert(false);
-    },
-  );
+  Js.Opt.get(doc##getElementById(Js.string(id)), () => {assert(false)});
 };
+
+let get_elem_by_id_opt = id =>
+  switch (get_elem_by_id(id)) {
+  | exception _ => None
+  | e => Some(e)
+  };
 
 let get_elem_by_selector = selector => {
   let doc = Dom_html.document;

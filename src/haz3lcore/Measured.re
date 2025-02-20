@@ -266,15 +266,18 @@ let is_indented_map = (seg: Segment.t) => {
   go(seg);
 };
 
-let last_of_token = (token: string, origin: Point.t): Point.t =>
-  /* Supports multi-line tokens e.g. projector placeholders */
-  Point.{
-    col: origin.col + StringUtil.max_line_width(token),
-    row: origin.row + StringUtil.num_linebreaks(token),
-  };
+/* Tab projectors add linebreaks after the end of their line */
+let deferred_linebreaks: ref(list(int)) = ref([]);
+
+let consume_deferred_linebreaks = () => {
+  let max_deferred_linebreaks = List.fold_left(max, 0, deferred_linebreaks^);
+  deferred_linebreaks := [];
+  max_deferred_linebreaks;
+};
 
 let of_segment =
     (seg: Segment.t, shape_map: Id.Map.t(ProjectorCore.Shape.t)): t => {
+  deferred_linebreaks := [];
   let is_indented = is_indented_map(seg);
 
   // recursive across seg's bidelimited containers
@@ -308,11 +311,6 @@ let of_segment =
              );
         (origin, map);
       | [hd, ...tl] =>
-        let extra_rows = (token, origin, map) => {
-          let row_indent = container_indent + contained_indent;
-          let num_extra_rows = StringUtil.num_linebreaks(token);
-          add_n_rows(origin, row_indent, num_extra_rows, map);
-        };
         let (contained_indent, origin, map) =
           switch (hd) {
           | Secondary(w) when Secondary.is_linebreak(w) =>
@@ -323,16 +321,16 @@ let of_segment =
               } else {
                 contained_indent + (Id.Map.find(w.id, is_indented) ? 2 : 0);
               };
+            let num_extra_rows = 1 + consume_deferred_linebreaks();
             let last =
-              Point.{row: origin.row + 1, col: container_indent + indent};
+              Point.{
+                row: origin.row + num_extra_rows,
+                col: container_indent + indent,
+              };
             let map =
               map
               |> add_w(w, {origin, last})
-              |> add_row(
-                   origin.row,
-                   {indent: row_indent, max_col: origin.col},
-                 )
-              |> add_n_rows(origin, row_indent, 1);
+              |> add_n_rows(origin, row_indent, num_extra_rows);
             (indent, last, map);
           | Secondary(w) =>
             let wspace_length =
@@ -349,14 +347,20 @@ let of_segment =
             let shape = ProjectorCore.Shape.Map.lookup(p.id, shape_map);
             let num_extra_rows =
               switch (shape.vertical) {
-              | Inline => 0
-              | Block(num_lbs) => num_lbs
+              | Inline
+              | Tab(0)
+              | Block(0) => 0
+              | Tab(num_lb) =>
+                deferred_linebreaks := [num_lb, ...deferred_linebreaks^];
+                num_lb;
+              | Block(num_lb) => num_lb + consume_deferred_linebreaks()
               };
             let last = {
               col: origin.col + shape.horizontal,
               row:
                 switch (shape.vertical) {
                 | Inline => origin.row
+                | Tab(_) => origin.row
                 | Block(num_lb) => origin.row + num_lb
                 },
             };
@@ -366,6 +370,18 @@ let of_segment =
               |> add_pr(p, {origin, last});
             (contained_indent, last, map);
           | Tile(t) =>
+            let extra_rows = (token, origin, map) => {
+              let row_indent = container_indent + contained_indent;
+              let num_lb = StringUtil.num_linebreaks(token);
+              let num_extra_rows =
+                StringUtil.num_linebreaks(token) + num_lb == 0
+                  ? 0 : consume_deferred_linebreaks();
+              add_n_rows(origin, row_indent, num_extra_rows, map);
+            };
+            let last_of_token = (token: string, origin: Point.t): Point.t => {
+              col: origin.col + StringUtil.max_line_width(token),
+              row: origin.row + StringUtil.num_linebreaks(token),
+            };
             let add_shard = (origin, shard, map) => {
               let token = List.nth(t.label, shard);
               let map = extra_rows(token, origin, map);

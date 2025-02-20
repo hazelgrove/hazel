@@ -24,9 +24,16 @@ module Kind = {
     | Checkbox
     | Slider
     | SliderF
+    | Card
     | TextArea;
 
-  let livelit_projectors: list(t) = [Checkbox, Slider, SliderF, TextArea];
+  let livelit_projectors: list(t) = [
+    Checkbox,
+    Slider,
+    SliderF,
+    TextArea,
+    Card,
+  ];
 
   let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];
 
@@ -41,6 +48,7 @@ module Kind = {
     | Checkbox => "check"
     | Slider => "slider"
     | SliderF => "sliderf"
+    | Card => "card"
     | TextArea => "text"
     };
 
@@ -56,6 +64,7 @@ module Kind = {
     | "slider" => Slider
     | "sliderf" => SliderF
     | "text" => TextArea
+    | "card" => Card
     | _ => failwith("Unknown projector kind")
     };
 };
@@ -77,10 +86,16 @@ module Shape = {
    * in a text editor. All projectors have a horizontal
    * extend (in characters), and the vertical extent may
    * be either 1 character (Inline), or it may insert
-   * an additional number of linebreaks */
+   * an additional number of linebreaks, either immediately
+   * after the projector (Block style) or defer them to
+   * the next linebreak (Tab style). In the latter case,
+   * if there are multiple Tab projectors on a line, the
+   * total extra linebreaks inserted is the maxium required
+   * to accomodate them */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type vertical =
     | Inline
+    | Tab(int)
     | Block(int);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -93,7 +108,8 @@ module Shape = {
 
   let token = (shape: t): string =>
     switch (shape.vertical) {
-    | Inline => String.make(shape.horizontal, ' ')
+    | Inline
+    | Tab(_) => String.make(shape.horizontal, ' ')
     | Block(num_lb) =>
       String.make(num_lb, '\n') ++ String.make(shape.horizontal, ' ')
     };
@@ -112,8 +128,5 @@ module Shape = {
       | None => inline(0) //TODO: error reporting
       | Some(shape) => shape
       };
-
-    let lookup_token = (id: Id.t, shape_map: t): string =>
-      lookup(id, shape_map) |> token;
   };
 };

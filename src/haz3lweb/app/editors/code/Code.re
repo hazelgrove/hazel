@@ -6,6 +6,15 @@ open Util.Web;
 
 /* Helpers for rendering code text with holes and syntax highlighting */
 
+/* Tab projectors add linebreaks after the end of their line */
+let deferred_linebreaks: ref(list(int)) = ref([]);
+
+let consume_deferred_linebreaks = () => {
+  let max_deferred_linebreaks = List.fold_left(max, 0, deferred_linebreaks^);
+  deferred_linebreaks := [];
+  max_deferred_linebreaks;
+};
+
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
@@ -21,8 +30,9 @@ let of_delim' =
       let plurality = List.length(label) == 1 ? "mono" : "poly";
       let token = List.nth(label, i);
       /* Add indent to multiline tokens: */
+      let num_lb = StringUtil.num_linebreaks(token);
       let token =
-        StringUtil.num_linebreaks(token) == 0
+        num_lb == 0
           ? token : token ++ StringUtil.repeat(indent, Unicode.nbsp);
       [
         span(
@@ -44,31 +54,48 @@ let of_delim = (is_consistent, indent, t: Piece.tile, i: int): list(Node.t) =>
 
 let space = " "; //Unicode.nbsp;
 
-let of_secondary =
-  Core.Memo.general(
-    ~cache_size_bound=10000,
-    ((content, secondary_icons, indent, is_in_buffer: bool)) =>
-    if (is_in_buffer) {
-      [span_c("in-buffer", [Node.text(Secondary.get_string(content))])];
-    } else if (String.equal(Secondary.get_string(content), Form.linebreak)) {
-      let str = secondary_icons ? ">" : "";
-      [
-        span_c("linebreak", [text(str)]),
-        Node.text("\n"),
-        Node.text(StringUtil.repeat(indent, space)),
-      ];
-    } else if (String.equal(Secondary.get_string(content), Form.space)) {
-      let str = secondary_icons ? "·" : space;
-      [span_c("whitespace", [text(str)])];
-    } else if (Secondary.content_is_comment(content)) {
-      [span_c("comment", [Node.text(Secondary.get_string(content))])];
-    } else {
-      [span_c("secondary", [Node.text(Secondary.get_string(content))])];
-    }
+let secondary_text =
+  Core.Memo.general(~cache_size_bound=10000, (cls, str) =>
+    span_c(cls, [text(str)])
   );
 
-let of_projector = (expected_sort, indent, token) =>
+let of_secondary =
+    (
+      (
+        content: Secondary.secondary_content,
+        secondary_icons: bool,
+        indent: int,
+        is_in_buffer: bool,
+      ),
+    ) =>
+  switch (content) {
+  | Whitespace(str) when str == Form.linebreak =>
+    [secondary_text("linebreak", secondary_icons ? ">" : "")]
+    @ List.init(1 + consume_deferred_linebreaks(), _ => Node.text("\n"))
+    @ [Node.text(StringUtil.repeat(indent, space))]
+  | Whitespace(str) when str == Form.space => [
+      secondary_text("whitespace", secondary_icons ? "·" : space),
+    ]
+  | Whitespace(_) => failwith("Code: Unrecognized Secondary")
+  | Comment(str) when is_in_buffer => [secondary_text("in-buffer", str)]
+  | Comment(str) => [secondary_text("comment", str)]
+  };
+
+let of_projector = (expected_sort, indent, shape: ProjectorCore.Shape.t) => {
+  let token =
+    switch (shape.vertical) {
+    | Inline
+    | Tab(0)
+    | Block(0) => ProjectorCore.Shape.token(shape)
+    | Tab(num_lb) =>
+      deferred_linebreaks := [num_lb, ...deferred_linebreaks^];
+      ProjectorCore.Shape.token(shape);
+    | Block(_) =>
+      String.make(consume_deferred_linebreaks(), '\n')
+      ++ ProjectorCore.Shape.token(shape)
+    };
   of_delim'(([token], expected_sort, true, true, indent, 0));
+};
 
 module Text =
        (
@@ -79,6 +106,8 @@ module Text =
            let font_metrics: FontMetrics.t;
          },
        ) => {
+  deferred_linebreaks := [];
+
   let m = p => Measured.find_p(~msg="Text", p, M.map);
   let rec of_segment =
           (buffer_ids, no_sorts, sort, seg: Segment.t): list(Node.t) => {
@@ -105,18 +134,19 @@ module Text =
     | Tile(t) => of_tile(buffer_ids, expected_sort, t)
     | Grout(g) => [EmptyHoleDec.view(M.font_metrics, g.shape)]
     | Secondary({content, id}) =>
+      let indent = m(p).last.col;
       let is_in_buffer = List.mem(id, buffer_ids);
       of_secondary((
         content,
         M.settings.secondary_icons,
-        m(p).last.col,
+        indent,
         is_in_buffer,
       ));
     | Projector(p) =>
       of_projector(
         expected_sort,
         m(Projector(p)).origin.col,
-        ProjectorCore.Shape.Map.lookup_token(p.id, M.shape_map),
+        ProjectorCore.Shape.Map.lookup(p.id, M.shape_map),
       )
     };
   }

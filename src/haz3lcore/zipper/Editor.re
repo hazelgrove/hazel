@@ -204,6 +204,9 @@ module Update = {
         state.zipper,
       );
 
+    settings.flip_animations
+      ? Animation.request([Animation.Actions.move("caret")]) : ();
+
     // Recombine
     Model.{
       state: {
