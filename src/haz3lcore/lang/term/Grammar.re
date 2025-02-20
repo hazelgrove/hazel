@@ -427,333 +427,333 @@ module UnitAnnotation: DefaultAnnotation = {
 };
 
 module Factory = (DefaultAnnotation: DefaultAnnotation) => {
-  let invalid = (s): exp_t(DefaultAnnotation.t) => {
+  let invalid = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
     term: Invalid(s),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let empty_hole = (): exp_t(DefaultAnnotation.t) => {
+  let empty_hole = (~ann=?, ()): exp_t(DefaultAnnotation.t) => {
     term: EmptyHole,
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let multi_hole = (l): exp_t(DefaultAnnotation.t) => {
+  let multi_hole = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
     term: MultiHole(l),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let dynamic_error_hole = (e, err): exp_t(DefaultAnnotation.t) => {
+  let dynamic_error_hole = (~ann=?, e, err): exp_t(DefaultAnnotation.t) => {
     term: DynamicErrorHole(e, err),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let failed_cast = (e, t1, t2): exp_t(DefaultAnnotation.t) => {
+  let failed_cast = (~ann=?, e, t1, t2): exp_t(DefaultAnnotation.t) => {
     term: FailedCast(e, t1, t2),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let deferral = (pos): exp_t(DefaultAnnotation.t) => {
+  let deferral = (~ann=?, pos): exp_t(DefaultAnnotation.t) => {
     term: Deferral(pos),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let undefined = (): exp_t(DefaultAnnotation.t) => {
+  let undefined = (~ann=?, ()): exp_t(DefaultAnnotation.t) => {
     term: Undefined,
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let bool = (b): exp_t(DefaultAnnotation.t) => {
+  let bool = (~ann=?, b): exp_t(DefaultAnnotation.t) => {
     term: Bool(b),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let int = (i): exp_t(DefaultAnnotation.t) => {
+  let int = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
     term: Int(i),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let float = (f): exp_t(DefaultAnnotation.t) => {
+  let float = (~ann=?, f): exp_t(DefaultAnnotation.t) => {
     term: Float(f),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let string = (s): exp_t(DefaultAnnotation.t) => {
+  let string = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
     term: String(s),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let list_lit = (l): exp_t(DefaultAnnotation.t) => {
+  let list_lit = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
     term: ListLit(l),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let constructor = (s, t): exp_t(DefaultAnnotation.t) => {
+  let constructor = (~ann=?, s, t): exp_t(DefaultAnnotation.t) => {
     term: Constructor(s, t),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let fn = (p, e, t, v): exp_t(DefaultAnnotation.t) => {
+  let fn = (~ann=?, p, e, t, v): exp_t(DefaultAnnotation.t) => {
     term: Fun(p, e, t, v),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let typ_fun = (p, e, v): exp_t(DefaultAnnotation.t) => {
+  let typ_fun = (~ann=?, p, e, v): exp_t(DefaultAnnotation.t) => {
     term: TypFun(p, e, v),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let tuple = (l): exp_t(DefaultAnnotation.t) => {
+  let tuple = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
     term: Tuple(l),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let label = (l): exp_t(DefaultAnnotation.t) => {
+  let label = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
     term: Label(l),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let tup_label = (l, e): exp_t(DefaultAnnotation.t) => {
+  let tup_label = (~ann=?, l, e): exp_t(DefaultAnnotation.t) => {
     term: TupLabel(l, e),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let dot = (e1, e2): exp_t(DefaultAnnotation.t) => {
+  let dot = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
     term: Dot(e1, e2),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let var = (v): exp_t(DefaultAnnotation.t) => {
+  let var = (~ann=?, v): exp_t(DefaultAnnotation.t) => {
     term: Var(v),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let let_ = (p, e1, e2): exp_t(DefaultAnnotation.t) => {
+  let let_ = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {
     term: Let(p, e1, e2),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let fix_f = (p, e, env): exp_t(DefaultAnnotation.t) => {
+  let fix_f = (~ann=?, p, e, env): exp_t(DefaultAnnotation.t) => {
     term: FixF(p, e, env),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ty_alias = (p, t, e): exp_t(DefaultAnnotation.t) => {
+  let ty_alias = (~ann=?, p, t, e): exp_t(DefaultAnnotation.t) => {
     term: TyAlias(p, t, e),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ap = (d, e1, e2): exp_t(DefaultAnnotation.t) => {
+  let ap = (~ann=?, d, e1, e2): exp_t(DefaultAnnotation.t) => {
     term: Ap(d, e1, e2),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let typ_ap = (e, t): exp_t(DefaultAnnotation.t) => {
+  let typ_ap = (~ann=?, e, t): exp_t(DefaultAnnotation.t) => {
     term: TypAp(e, t),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let deferred_ap = (e, l): exp_t(DefaultAnnotation.t) => {
+  let deferred_ap = (~ann=?, e, l): exp_t(DefaultAnnotation.t) => {
     term: DeferredAp(e, l),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let if_ = (e1, e2, e3): exp_t(DefaultAnnotation.t) => {
+  let if_ = (~ann=?, e1, e2, e3): exp_t(DefaultAnnotation.t) => {
     term: If(e1, e2, e3),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let seq = (e1, e2): exp_t(DefaultAnnotation.t) => {
+  let seq = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
     term: Seq(e1, e2),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let test = (e): exp_t(DefaultAnnotation.t) => {
+  let test = (~ann=?, e): exp_t(DefaultAnnotation.t) => {
     term: Test(e),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let filter = (k, e): exp_t(DefaultAnnotation.t) => {
+  let filter = (~ann=?, k, e): exp_t(DefaultAnnotation.t) => {
     term: Filter(k, e),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let closure = (env, e): exp_t(DefaultAnnotation.t) => {
+  let closure = (~ann=?, env, e): exp_t(DefaultAnnotation.t) => {
     term: Closure(env, e),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let parens = (e): exp_t(DefaultAnnotation.t) => {
+  let parens = (~ann=?, e): exp_t(DefaultAnnotation.t) => {
     term: Parens(e),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let cons = (e1, e2): exp_t(DefaultAnnotation.t) => {
+  let cons = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
     term: Cons(e1, e2),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let list_concat = (e1, e2): exp_t(DefaultAnnotation.t) => {
+  let list_concat = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
     term: ListConcat(e1, e2),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let un_op = (op, e): exp_t(DefaultAnnotation.t) => {
+  let un_op = (~ann=?, op, e): exp_t(DefaultAnnotation.t) => {
     term: UnOp(op, e),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let bin_op = (op, e1, e2): exp_t(DefaultAnnotation.t) => {
+  let bin_op = (~ann=?, op, e1, e2): exp_t(DefaultAnnotation.t) => {
     term: BinOp(op, e1, e2),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let builtin_fun = (s): exp_t(DefaultAnnotation.t) => {
+  let builtin_fun = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
     term: BuiltinFun(s),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let match = (e, l): exp_t(DefaultAnnotation.t) => {
+  let match = (~ann=?, e, l): exp_t(DefaultAnnotation.t) => {
     term: Match(e, l),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let cast = (e, t1, t2): exp_t(DefaultAnnotation.t) => {
+  let cast = (~ann=?, e, t1, t2): exp_t(DefaultAnnotation.t) => {
     term: Cast(e, t1, t2),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
 
   // pat
-  let pat_invalid = (s): pat_t(DefaultAnnotation.t) => {
+  let pat_invalid = (~ann=?, s): pat_t(DefaultAnnotation.t) => {
     term: Invalid(s),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_empty_hole = (): pat_t(DefaultAnnotation.t) => {
+  let pat_empty_hole = (~ann=?, ()): pat_t(DefaultAnnotation.t) => {
     term: EmptyHole,
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_multi_hole = (l): pat_t(DefaultAnnotation.t) => {
+  let pat_multi_hole = (~ann=?, l): pat_t(DefaultAnnotation.t) => {
     term: MultiHole(l),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_wild = (): pat_t(DefaultAnnotation.t) => {
+  let pat_wild = (~ann=?, ()): pat_t(DefaultAnnotation.t) => {
     term: Wild,
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_int = (i): pat_t(DefaultAnnotation.t) => {
+  let pat_int = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
     term: Int(i),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_float = (f): pat_t(DefaultAnnotation.t) => {
+  let pat_float = (~ann=?, f): pat_t(DefaultAnnotation.t) => {
     term: Float(f),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_bool = (b): pat_t(DefaultAnnotation.t) => {
+  let pat_bool = (~ann=?, b): pat_t(DefaultAnnotation.t) => {
     term: Bool(b),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_string = (s): pat_t(DefaultAnnotation.t) => {
+  let pat_string = (~ann=?, s): pat_t(DefaultAnnotation.t) => {
     term: String(s),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_list_lit = (l): pat_t(DefaultAnnotation.t) => {
+  let pat_list_lit = (~ann=?, l): pat_t(DefaultAnnotation.t) => {
     term: ListLit(l),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_constructor = (s, t): pat_t(DefaultAnnotation.t) => {
+  let pat_constructor = (~ann=?, s, t): pat_t(DefaultAnnotation.t) => {
     term: Constructor(s, t),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_cons = (p1, p2): pat_t(DefaultAnnotation.t) => {
+  let pat_cons = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
     term: Cons(p1, p2),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_var = (v): pat_t(DefaultAnnotation.t) => {
+  let pat_var = (~ann=?, v): pat_t(DefaultAnnotation.t) => {
     term: Var(v),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_tuple = (l): pat_t(DefaultAnnotation.t) => {
+  let pat_tuple = (~ann=?, l): pat_t(DefaultAnnotation.t) => {
     term: Tuple(l),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_label = (l): pat_t(DefaultAnnotation.t) => {
+  let pat_label = (~ann=?, l): pat_t(DefaultAnnotation.t) => {
     term: Label(l),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_tup_label = (p1, p2): pat_t(DefaultAnnotation.t) => {
+  let pat_tup_label = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
     term: TupLabel(p1, p2),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_parens = (p): pat_t(DefaultAnnotation.t) => {
+  let pat_parens = (~ann=?, p): pat_t(DefaultAnnotation.t) => {
     term: Parens(p),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_ap = (p1, p2): pat_t(DefaultAnnotation.t) => {
+  let pat_ap = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
     term: Ap(p1, p2),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let pat_cast = (p, t1, t2): pat_t(DefaultAnnotation.t) => {
+  let pat_cast = (~ann=?, p, t1, t2): pat_t(DefaultAnnotation.t) => {
     term: Cast(p, t1, t2),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
 
   // typ
-  let ty_unknown = (p): typ_t(DefaultAnnotation.t) => {
+  let ty_unknown = (~ann=?, p): typ_t(DefaultAnnotation.t) => {
     term: Unknown(p),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ty_int = (): typ_t(DefaultAnnotation.t) => {
+  let ty_int = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
     term: Int,
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ty_float = (): typ_t(DefaultAnnotation.t) => {
+  let ty_float = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
     term: Float,
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ty_bool = (): typ_t(DefaultAnnotation.t) => {
+  let ty_bool = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
     term: Bool,
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ty_string = (): typ_t(DefaultAnnotation.t) => {
+  let ty_string = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
     term: String,
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ty_var = (s): typ_t(DefaultAnnotation.t) => {
+  let ty_var = (~ann=?, s): typ_t(DefaultAnnotation.t) => {
     term: Var(s),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ty_list = (t): typ_t(DefaultAnnotation.t) => {
+  let ty_list = (~ann=?, t): typ_t(DefaultAnnotation.t) => {
     term: List(t),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ty_arrow = (t1, t2): typ_t(DefaultAnnotation.t) => {
+  let ty_arrow = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
     term: Arrow(t1, t2),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ty_sum = (m): typ_t(DefaultAnnotation.t) => {
+  let ty_sum = (~ann=?, m): typ_t(DefaultAnnotation.t) => {
     term: Sum(m),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ty_prod = (l): typ_t(DefaultAnnotation.t) => {
+  let ty_prod = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
     term: Prod(l),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ty_label = (l): typ_t(DefaultAnnotation.t) => {
+  let ty_label = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
     term: Label(l),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ty_tup_label = (t1, t2): typ_t(DefaultAnnotation.t) => {
+  let ty_tup_label = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
     term: TupLabel(t1, t2),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ty_parens = (t): typ_t(DefaultAnnotation.t) => {
+  let ty_parens = (~ann=?, t): typ_t(DefaultAnnotation.t) => {
     term: Parens(t),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ty_ap = (t1, t2): typ_t(DefaultAnnotation.t) => {
+  let ty_ap = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
     term: Ap(t1, t2),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ty_rec = (tp, t): typ_t(DefaultAnnotation.t) => {
+  let ty_rec = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
     term: Rec(tp, t),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let ty_forall = (tp, t): typ_t(DefaultAnnotation.t) => {
+  let ty_forall = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
     term: Forall(tp, t),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
 
   // tpat
-  let tpat_invalid = (s): tpat_t(DefaultAnnotation.t) => {
+  let tpat_invalid = (~ann=?, s): tpat_t(DefaultAnnotation.t) => {
     term: Invalid(s),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let tpat_empty_hole = (): tpat_t(DefaultAnnotation.t) => {
+  let tpat_empty_hole = (~ann=?, ()): tpat_t(DefaultAnnotation.t) => {
     term: EmptyHole,
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let tpat_multi_hole = (l): tpat_t(DefaultAnnotation.t) => {
+  let tpat_multi_hole = (~ann=?, l): tpat_t(DefaultAnnotation.t) => {
     term: MultiHole(l),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let tpat_var = (s): tpat_t(DefaultAnnotation.t) => {
+  let tpat_var = (~ann=?, s): tpat_t(DefaultAnnotation.t) => {
     term: Var(s),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
 
   //rul
-  let rul_invalid = (s): rul_t(DefaultAnnotation.t) => {
+  let rul_invalid = (~ann=?, s): rul_t(DefaultAnnotation.t) => {
     term: Invalid(s),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let rul_hole = (l): rul_t(DefaultAnnotation.t) => {
+  let rul_hole = (~ann=?, l): rul_t(DefaultAnnotation.t) => {
     term: Hole(l),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
-  let rul_rules = (e, l): rul_t(DefaultAnnotation.t) => {
+  let rul_rules = (~ann=?, e, l): rul_t(DefaultAnnotation.t) => {
     term: Rules(e, l),
-    annotation: DefaultAnnotation.default_value(),
+    annotation: Option.value(~default=DefaultAnnotation.default_value(), ann),
   };
 
   // environment
