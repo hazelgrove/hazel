@@ -108,7 +108,6 @@ module VerifiedTree = {
       | Just(Error(exn)) => {res: Pending(exn), rule: None}
       | Just(Ok({rule: None, _})) => {res: Pending(NoRule), rule: None}
       | Just(Ok({rule: Some(rule), jdmt: concl})) =>
-        let concl = Drv.Exp.strip_parens(concl);
         switch (RuleImage.to_rule(version, rule)) {
         | None => {res: Pending(NotAvailable), rule: None}
         | Some(rule) =>
@@ -131,12 +130,12 @@ module VerifiedTree = {
             };
           // let tests = RuleVerify.test_remove_eq_test(tests);
           {res, rule: Some({rule, spec, tests})};
-        };
+        }
       };
     let concl =
       switch (concl) {
       | Abbr(Some(i)) => List.nth(acc, i) |> snd
-      | Just(Ok({jdmt, _})) => Some(Drv.Exp.strip_parens(jdmt))
+      | Just(Ok({jdmt, _})) => Some(jdmt)
       | _ => None
       };
     (Tree.Node(res, sub_trees), concl);

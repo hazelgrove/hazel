@@ -633,7 +633,7 @@ and Typ: {
 
   let subst: (t, TPat.t, t) => t;
 
-  let fast_equal: (t, t) => bool;
+  let fast_equal: (~alpha_equivalence: bool=?, t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = typ_term;
@@ -737,22 +737,33 @@ and Typ: {
   /* Type Equality: This coincides with alpha equivalence for normalized types.
      Other types may be equivalent but this will not detect so if they are not normalized. */
 
-  let rec eq_internal = (n: int, t1: t, t2: t) => {
+  let rec eq_internal = (~alpha_equivalence: bool, n: int, t1: t, t2: t) => {
     switch (IdTagged.term_of(t1), IdTagged.term_of(t2)) {
-    | (Parens(t1), _) => eq_internal(n, t1, t2)
-    | (_, Parens(t2)) => eq_internal(n, t1, t2)
+    | (Parens(t1), _) => eq_internal(~alpha_equivalence, n, t1, t2)
+    | (_, Parens(t2)) => eq_internal(~alpha_equivalence, n, t1, t2)
     | (TupLabel(label1, t1'), TupLabel(label2, t2')) =>
-      eq_internal(n, label1, label2) && eq_internal(n, t1', t2')
+      eq_internal(~alpha_equivalence, n, label1, label2)
+      && eq_internal(~alpha_equivalence, n, t1', t2')
     | (TupLabel(_), _) => false
     | (Rec(x1, t1), Rec(x2, t2))
     | (Forall(x1, t1), Forall(x2, t2)) =>
-      let alpha_subst =
-        subst({
-          term: Var("=" ++ string_of_int(n)),
-          copied: false,
-          ids: [Id.invalid],
-        });
-      eq_internal(n + 1, alpha_subst(x1, t1), alpha_subst(x2, t2));
+      if (alpha_equivalence) {
+        let alpha_subst =
+          subst({
+            term: Var("=" ++ string_of_int(n)),
+            copied: false,
+            ids: [Id.invalid],
+          });
+        eq_internal(
+          ~alpha_equivalence,
+          n + 1,
+          alpha_subst(x1, t1),
+          alpha_subst(x2, t2),
+        );
+      } else {
+        TPat.fast_equal(x1, x2)
+        && eq_internal(~alpha_equivalence, n + 1, t1, t2);
+      }
     | (Rec(_), _) => false
     | (Forall(_), _) => false
     | (Int, Int) => true
@@ -769,27 +780,31 @@ and Typ: {
     | (DrvTyp(s1), DrvTyp(s2)) => s1 == s2
     | (DrvTyp(_), _) => false
     | (Ap(t1, t2), Ap(t1', t2')) =>
-      eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
+      eq_internal(~alpha_equivalence, n, t1, t1')
+      && eq_internal(~alpha_equivalence, n, t2, t2')
     | (Ap(_), _) => false
     | (Unknown(_), Unknown(_)) => true
     | (Unknown(_), _) => false
     | (Arrow(t1, t2), Arrow(t1', t2')) =>
-      eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
+      eq_internal(~alpha_equivalence, n, t1, t1')
+      && eq_internal(~alpha_equivalence, n, t2, t2')
     | (Arrow(_), _) => false
-    | (Prod(tys1), Prod(tys2)) => List.equal(eq_internal(n), tys1, tys2)
+    | (Prod(tys1), Prod(tys2)) =>
+      List.equal(eq_internal(~alpha_equivalence, n), tys1, tys2)
     | (Prod(_), _) => false
-    | (List(t1), List(t2)) => eq_internal(n, t1, t2)
+    | (List(t1), List(t2)) => eq_internal(~alpha_equivalence, n, t1, t2)
     | (List(_), _) => false
     | (Sum(sm1), Sum(sm2)) =>
       /* Does not normalize the types. */
-      ConstructorMap.equal(eq_internal(n), sm1, sm2)
+      ConstructorMap.equal(eq_internal(~alpha_equivalence, n), sm1, sm2)
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
     };
   };
 
-  let fast_equal = eq_internal(0);
+  let fast_equal = (~alpha_equivalence=true, t1, t2) =>
+    eq_internal(~alpha_equivalence, 0, t1, t2);
 }
 and TPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
