@@ -47,17 +47,18 @@ let score_of_percent = (percent, max_points) => {
 
 module ProofTree = {
   type t = list(Tree.p(abbr(res)))
-  and res = result(deduction(DrvSyntax.t), ExternalError.t);
+  and res = result(deduction(Drv.Exp.t), ExternalError.t);
 
   let res_of_di = (result: option(Exp.t), rule): res => {
     let jdmt =
       switch (result) {
       | Some(e) =>
         switch (IdTagged.term_of(DHExp.strip_casts(e))) {
-        | DrvExp(Exp(d), _) => DrvElab.elab_exp(d)
-        | _ => Hole("Not a Drv Exp" ++ DHExp.show(e)) |> DrvSyntax.fresh
+        | DrvExp(Exp(d), _) => d
+        | _ =>
+          Hole(Invalid("Not a Drv Exp: " ++ DHExp.show(e))) |> Drv.Exp.fresh
         }
-      | None => Hole("No Result") |> DrvSyntax.fresh
+      | None => Hole(Invalid("No Result")) |> Drv.Exp.fresh
       };
     Ok({jdmt, rule});
   };
@@ -95,9 +96,9 @@ module VerifiedTree = {
   let verify_single =
       (
         version: RuleImage.version,
-        acc: list((tree(info), option(DrvSyntax.t))),
+        acc: list((tree(info), option(Drv.Exp.t))),
         concl: abbr(ProofTree.res),
-        prems: list((tree(info), option(DrvSyntax.t))),
+        prems: list((tree(info), option(Drv.Exp.t))),
       ) => {
     let (sub_trees, prems) = List.split(prems);
     let res =
@@ -112,7 +113,8 @@ module VerifiedTree = {
         | Some(rule) =>
           let spec = RuleSpec.of_spec(rule);
           let tests = RuleTest.of_tests(rule);
-          let (spec, tests) = RuleVerify.fill_eq_tests(spec, tests);
+          // TODO(zhiyao): may not bring it back now
+          // let (spec, tests) = RuleVerify.fill_eq_tests(spec, tests);
           let res =
             if (List.for_all(Option.is_some, prems)) {
               let prems = prems |> List.map(Option.get);
@@ -126,7 +128,7 @@ module VerifiedTree = {
             } else {
               Pending(PremiseNotReady);
             };
-          let tests = RuleVerify.test_remove_eq_test(tests);
+          // let tests = RuleVerify.test_remove_eq_test(tests);
           {res, rule: Some({rule, spec, tests})};
         }
       };

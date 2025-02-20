@@ -124,8 +124,7 @@ and subsort_of = (sort: Sort.t): list(Sort.t) =>
     | Jdmt
     | Ctx
     | Prop => failwith("subsort_of unexpected")
-    | Exp => [Pat, Drv(Rul), Drv(Pat), Drv(Typ), Drv(TPat)]
-    | Rul => [Pat, Drv(Exp), Drv(Pat), Drv(Typ), Drv(TPat)]
+    | Exp => [Pat, Drv(Pat), Drv(Typ), Drv(TPat)]
     | Pat => [Drv(Typ)]
     | Typ => [Pat]
     | TPat => [Drv(Typ)]

@@ -313,6 +313,11 @@ let sort_of: t => Sort.t =
   | InfoTPat(_) => TPat
   | Secondary(s) => s.sort;
 
+let class_of: t => string =
+  fun
+  | InfoDrv(drv) => DrvInfo.sort_of(drv) |> DrvSort.class_of
+  | _ as i => sort_of(i) |> Sort.show;
+
 let cls_of: t => Cls.t =
   fun
   | InfoDrv(drv) => DrvInfo.cls_of(drv)

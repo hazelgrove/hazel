@@ -5,13 +5,12 @@
   because of a remolding issue. We are using `Exp` for the above sorts.
  */
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type t =
   | Jdmt
   | Ctx
   | Prop
   | Exp
-  | Rul
   | Pat
   | Typ
   | TPat;
@@ -22,7 +21,6 @@ let show =
   | Prop => "Prop"
   | Ctx => "Ctx"
   | Exp => "ALFA_Exp"
-  | Rul => "ALFA_Rul"
   | Pat => "ALFA_Pat"
   | Typ => "ALFA_Typ"
   | TPat => "ALFA_TPat";
@@ -31,14 +29,11 @@ let class_of =
   fun
   | Jdmt => "Drv"
   | Ctx => "Drv"
-  | Prop => "Exp"
+  | Prop => "Drv"
   | Exp => "Exp"
-  | Rul => "Rul"
   | Pat => "Pat"
   | Typ => "Typ"
   | TPat => "TPat";
-
-let all = [Jdmt, Ctx, Prop, Exp, Pat, Typ, TPat];
 
 let to_string =
   fun
@@ -46,7 +41,6 @@ let to_string =
   | Ctx => "Ctx"
   | Prop => "Prop"
   | Exp => "ALFA_Exp"
-  | Rul => "ALFA_Rul"
   | Pat => "ALFA_Pat"
   | Typ => "ALFA_Typ"
   | TPat => "ALFA_TPat";
@@ -57,7 +51,6 @@ let to_string_verbose =
   | Ctx => "context"
   | Prop => "proposition"
   | Exp => "ALFA expression"
-  | Rul => "ALFA rule"
   | Pat => "ALFA pattern"
   | Typ => "ALFA type"
   | TPat => "ALFA type pattern";

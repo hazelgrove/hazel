@@ -4,42 +4,41 @@ module Map = RuleSpec.Map;
 type map = RuleSpec.map;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type spec = (RuleSpec.t, list(RuleSpec.t));
+type spec = (Drv.Exp.t, list(Drv.Exp.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type tests = list(RuleTest.t);
+type tests = list(RuleTest.test);
 
 type failure =
-  | Mismatch(int, int) /* expected, actual */
   | FailSpec(RuleSpec.failure)
-  // | FailUnbox(specced)
+  // | FailMatch(specced)
   // | NotEqual(specced, specced)
-  | FailTest(map, RuleTest.t);
+  | FailTest(RuleTest.failure)
+  // | FailUnbox(specced, Drv.Any.cls);
+  // | FailTest(map, test)
+  | Mismatch(int, int); /* expected, actual */
 
 let failure_msg = (failure: failure): string =>
   switch (failure) {
   | Mismatch(expected, actual) =>
     Printf.sprintf("Expected %d premises, but got %d", expected, actual)
   | FailSpec(failure) => RuleSpec.failure_msg(failure)
-  | FailTest(map, test) =>
-    Printf.sprintf("Failed to verify %s", RuleTest.show_linked(map, test))
+  | FailTest(failure) => RuleTest.failure_msg(failure)
   };
 
 type res = list(failure);
 
-let rec fold_left2_safe:
-  (list('a), list('b), 'c, ('c, ('a, 'b)) => 'c) => 'c =
+let rec fold_left2_safe: (list('a), list('b), 'c, ('a, 'b, 'c) => 'c) => 'c =
   (xs, ys, acc, f) =>
     switch (xs, ys) {
-    | ([x, ...xs], [y, ...ys]) =>
-      fold_left2_safe(xs, ys, f(acc, (x, y)), f)
+    | ([x, ...xs], [y, ...ys]) => fold_left2_safe(xs, ys, f(x, y, acc), f)
     | _ => acc
     };
 
-let go_spec: (list(RuleSpec.t), list(DrvSyntax.t)) => (map, res) =
+let go_spec: (list(Drv.Exp.t), list(Drv.Exp.t)) => (map, res) =
   (specs, syntaxes) => {
     let (map, res) =
-      fold_left2_safe(specs, syntaxes, (Map.empty, []), RuleSpec.go);
+      fold_left2_safe(specs, syntaxes, (Map.empty, []), RuleSpec.go_exp);
     (
       map,
       List.map(
@@ -57,11 +56,14 @@ let go_spec: (list(RuleSpec.t), list(DrvSyntax.t)) => (map, res) =
 let go_test: (map, res, tests) => res =
   map => {
     List.fold_left((res, test) => {
-      RuleTest.go(map, test) ? res : [FailTest(map, test), ...res]
+      switch (RuleTest.go(map, test)) {
+      | None => res
+      | Some(failure) => [FailTest(failure), ...res]
+      }
     });
   };
 
-let verify: (spec, tests, (DrvSyntax.t, list(DrvSyntax.t))) => res =
+let verify: (spec, tests, (Drv.Exp.t, list(Drv.Exp.t))) => res =
   (spec, tests, (concl, prems)) => {
     let (concl_spec, prems_spec) = spec;
     // We simply stick conclusion and premises together
@@ -79,20 +81,22 @@ let __print_all_specs_and_tests = () => {
   |> List.iter(rule => {
        let (concl, prems) = RuleSpec.of_spec(rule);
        let tests = RuleTest.of_tests(rule);
-       List.iter(prem => print_endline("  " ++ RuleSpec.show(prem)), prems);
+       List.iter(prem => print_endline("  " ++ Drv.Exp.show(prem)), prems);
        List.iter(
-         test => print_endline("  {Test} " ++ RuleTest.show(test)),
+         test => print_endline("  {Test} " ++ RuleTest.show_test(test)),
          tests,
        );
        print_endline(
          "——————————————————————["
          ++ Rule.show(rule)
          ++ "]\n  "
-         ++ RuleSpec.show(concl)
+         ++ Drv.Exp.show(concl)
          ++ "\n",
        );
      });
 };
+
+// Note(zhiyao): never mind
 
 /**
   The following functions are utilized in the frontend to address the problem
@@ -109,39 +113,39 @@ let __print_all_specs_and_tests = () => {
   Premises := [ e_def ⇓ v_def , [v_def/x]e_body ⇓ v' ]
   Conclusion := let x = e_def in e_body ⇓ v
   Tests: []
- */
+ */;
 
-let spec_fill_eq_test: (RuleTest.t, RuleSpec.t) => RuleSpec.t =
-  fun
-  | Eq(Get(s'), op) =>
-    RuleSpec.map_reg(s => s == s' ? RuleTest.Operation.show(op) : s)
-  | _ => Fun.id;
+// let spec_fill_eq_test: (RuleTest.test, Drv.Exp.t) => Drv.Exp.t =
+//   fun
+//   | Eq(Get(s'), op) =>
+//     RuleSpec.map_reg(s => s == s' ? RuleTest.Operation.show(op) : s)
+//   | _ => Fun.id;
 
-let spec_fill_eq_tests: (spec, tests) => spec =
-  List.fold_left(((concl, prems), test) =>
-    (
-      concl |> spec_fill_eq_test(test),
-      prems |> List.map(spec_fill_eq_test(test)),
-    )
-  );
+// let spec_fill_eq_tests: (spec, tests) => spec =
+//   List.fold_left(((concl, prems), test) =>
+//     (
+//       concl |> spec_fill_eq_test(test),
+//       prems |> List.map(spec_fill_eq_test(test)),
+//     )
+//   );
 
-let tests_fill_eq_tests: tests => tests =
-  List.map(
-    fun
-    | RuleTest.Eq(Get(_), op) =>
-      RuleTest.Eq(Get(RuleTest.Operation.show(op)), op)
-    | _ as test => test,
-  );
+// let tests_fill_eq_tests: tests => tests =
+//   List.map(
+//     fun
+//     | RuleTest.Eq(Get(_), op) =>
+//       RuleTest.Eq(Get(RuleTest.Operation.show(op)), op)
+//     | _ as test => test,
+//   );
 
-let fill_eq_tests: (spec, tests) => (spec, tests) =
-  (spec, tests) => (
-    spec_fill_eq_tests(spec, tests),
-    tests_fill_eq_tests(tests),
-  );
+// let fill_eq_tests: (spec, tests) => (spec, tests) =
+//   (spec, tests) => (
+//     spec_fill_eq_tests(spec, tests),
+//     tests_fill_eq_tests(tests),
+//   );
 
-let test_remove_eq_test: tests => tests =
-  List.filter(
-    fun
-    | RuleTest.Eq(Get(_), _) => false
-    | _ => true,
-  );
+// let test_remove_eq_test: tests => tests =
+//   List.filter(
+//     fun
+//     | RuleTest.Eq(Get(_), _) => false
+//     | _ => true,
+//   );

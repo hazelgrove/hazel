@@ -35,17 +35,27 @@ let of_delim' =
     },
   );
 let of_delim =
-    (is_in_buffer, is_consistent, indent, t: Piece.tile, i: int)
-    : list(Node.t) =>
+    (is_in_buffer, is_consistent, indent, t: Piece.tile, info_map, i: int)
+    : list(Node.t) => {
+  let sort: Sort.t =
+    switch (t.mold.out) {
+    | Drv(Exp) =>
+      switch (Id.Map.find_opt(t.id, info_map)) {
+      | Some(Info.InfoDrv({sort, _})) => Drv(sort)
+      | _ => Drv(Exp)
+      }
+    | _ as sort => sort
+    };
   of_delim'((
     t.label,
     is_in_buffer,
-    t.mold.out,
+    sort,
     is_consistent,
     Tile.is_complete(t),
     indent,
     i,
   ));
+};
 
 let space = " "; //Unicode.nbsp;
 
@@ -132,7 +142,13 @@ module Text =
     let is_in_buffer = List.mem(t.id, buffer_ids);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(
-         of_delim(is_in_buffer, is_consistent, m(Tile(t)).origin.col, t),
+         of_delim(
+           is_in_buffer,
+           is_consistent,
+           m(Tile(t)).origin.col,
+           t,
+           M.info_map,
+         ),
          ((seg, sort)) =>
          of_segment(buffer_ids, false, sort, seg)
        )

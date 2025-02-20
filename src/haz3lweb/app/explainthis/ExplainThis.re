@@ -2577,33 +2577,20 @@ let get_doc =
         VarTPat.var_typ_pats(v),
       )
     }
-  | Some(InfoDrv(drv)) =>
+  | Some(InfoDrv({term, sort, _})) =>
     let (syntax, msg) =
-      switch ((drv: Haz3lcore.DrvInfo.t)) {
-      | Exp(exp) => DrvDoc.exp_form(exp.term.term)
-      | Typ(typ) => DrvDoc.typ_form(typ.term.term)
-      | Pat(pat) => DrvDoc.pat_form(pat.term.term)
-      | TPat(tpat) => DrvDoc.tpat_form(tpat.term.term)
+      switch (term) {
+      | Exp(exp) => DrvDoc.exp_form(exp)
+      | Typ(typ) => DrvDoc.typ_form(typ)
+      | Pat(pat) => DrvDoc.pat_form(pat)
+      | TPat(tpat) => DrvDoc.tpat_form(tpat)
       };
     (
       [
         syntax
-        |> ExpToSegment.drv_to_pretty(
-             ~settings=
-               ExpToSegment.Settings.of_core(
-                 ~inline=false,
-                 globals.settings.core,
-               ),
-           )
         |> CodeViewable.view_segment(
              ~globals,
-             ~sort=
-               switch (drv) {
-               | Exp(_) => Drv(Exp)
-               | Typ(_) => Drv(Typ)
-               | Pat(_) => Drv(Pat)
-               | TPat(_) => Drv(TPat)
-               },
+             ~sort=Drv(sort),
              ~info_map=Id.Map.empty,
            ),
       ],

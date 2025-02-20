@@ -223,7 +223,7 @@ module rec Any: {
 
   let fast_equal = (x, y) =>
     switch (x, y) {
-    | (Drv(x), Drv(y)) => DrvTermBase.Any.fast_equal(x, y)
+    | (Drv(x), Drv(y)) => DrvTermBase.Any.eq(x, y)
     | (Exp(x), Exp(y)) => Exp.fast_equal(x, y)
     | (Pat(x), Pat(y)) => Pat.fast_equal(x, y)
     | (Typ(x), Typ(y)) => Typ.fast_equal(x, y)
@@ -389,7 +389,7 @@ and Exp: {
     | (String(s1), String(s2)) => s1 == s2
     | (Label(s1), Label(s2)) => s1 == s2
     | (DrvExp(t1, s1), DrvExp(t2, s2)) =>
-      DrvTermBase.Any.fast_equal(t1, t2) && s1 == s2
+      DrvTermBase.Any.eq(t1, t2) && s1 == s2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Constructor(c1, ty1), Constructor(c2, ty2)) =>

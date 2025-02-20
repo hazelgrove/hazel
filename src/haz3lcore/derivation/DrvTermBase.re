@@ -2,105 +2,123 @@ open Util;
 
 let continue = x => x;
 let stop = (_, x) => x;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
-type any_t =
-  | Exp(exp_t)
-  | Pat(pat_t)
-  | Typ(typ_t)
-  | TPat(tpat_t)
-  | Rul(rul_t)
-and exp_term =
-  | Hole(type_hole)
-  | Var(Var.t) // Prop / Exp
-  | Abbr(exp_t) // Jdmt / Ctxt / Prop / Exp
-  | Parens(exp_t) // Jdmt / Ctxt / Prop / Exp
-  | Tuple(list(exp_t)) // [invalid] / Exp
-  // Jdmt
-  | Val(exp_t)
-  | Eval(exp_t, exp_t)
-  | Entail(exp_t, exp_t)
-  | Consistent(typ_t, typ_t)
-  | MatchedArrow(typ_t, typ_t)
-  | MatchedProd(typ_t, typ_t)
-  | MatchedSum(typ_t, typ_t)
-  // Ctx
-  | Ctx(list(exp_t))
-  | Cons(exp_t, exp_t)
-  | Concat(exp_t, exp_t)
-  // Prop
-  | Type(typ_t)
-  | HasType(exp_t, typ_t)
-  | Syn(exp_t, typ_t)
-  | Ana(exp_t, typ_t)
-  | And(exp_t, exp_t)
-  | Or(exp_t, exp_t)
-  | Impl(exp_t, exp_t)
-  | Truth
-  | Falsity
-  // Exp
-  | NumLit(int)
-  | Neg(exp_t)
-  | Plus(exp_t, exp_t)
-  | Minus(exp_t, exp_t)
-  | Times(exp_t, exp_t)
-  | Gt(exp_t, exp_t)
-  | Lt(exp_t, exp_t)
-  | Eq(exp_t, exp_t)
-  | True
-  | False
-  | If(exp_t, exp_t, exp_t)
-  | Let(pat_t, exp_t, exp_t)
-  | Fix(pat_t, exp_t)
-  | Fun(pat_t, exp_t)
-  | Ap(exp_t, exp_t)
-  | Triv
-  | PrjL(exp_t)
-  | PrjR(exp_t)
-  | InjL(exp_t)
-  | InjR(exp_t)
-  | Case(exp_t, list((pat_t, exp_t)))
-  | Roll(exp_t)
-  | Unroll(exp_t)
-  | ExpHole
-and exp_t = IdTagged.t(exp_term)
-and pat_term =
-  | Hole(type_hole)
-  | Var(Var.t)
-  | Cast(pat_t, typ_t)
-  | InjL(pat_t)
-  | InjR(pat_t)
-  | Pair(pat_t, pat_t)
-  | Parens(pat_t)
-and pat_t = IdTagged.t(pat_term)
-and rul_term =
-  | Hole(type_hole)
-  | Rules(exp_t, list((pat_t, exp_t)))
-and rul_t = IdTagged.t(rul_term)
-and typ_term =
-  | Hole(type_hole)
-  | Abbr(typ_t)
-  | Num
-  | Bool
-  | Arrow(typ_t, typ_t)
-  | Prod(typ_t, typ_t)
-  | Unit
-  | Sum(typ_t, typ_t)
-  | Var(string)
-  | Rec(tpat_t, typ_t)
-  | Parens(typ_t)
-  | TypHole
-and typ_t = IdTagged.t(typ_term)
-and tpat_term =
-  | Hole(type_hole)
-  | Var(Var.t)
-and tpat_t = IdTagged.t(tpat_term)
-and type_hole =
-  | AbbrNotVar
-  | AbbrNotFound
-  | AbbrNotDrvTerm
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t));
+type op_bin =
+  | Plus
+  | Minus
+  | Times
+  | Gt
+  | Lt
+  | Eq;
+
+module type Wrapper = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t('a);
+};
+
+module M = (W: Wrapper) => {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type any_t =
+    | Exp(exp_t)
+    | Pat(pat_t)
+    | Typ(typ_t)
+    | TPat(tpat_t)
+  and exp_term =
+    | Hole(type_hole)
+    | Quote(Var.t)
+    | Var(Var.t) // Prop / Exp
+    | Parens(exp_t) // Jdmt / Ctxt / Prop / Exp
+    | Tuple(list(exp_t)) // [invalid]
+    // Jdmt
+    | Val(exp_t)
+    | Eval(exp_t, exp_t)
+    | Entail(exp_t, exp_t)
+    | Consistent(typ_t, typ_t)
+    | MatchedArrow(typ_t, typ_t)
+    | MatchedProd(typ_t, typ_t)
+    | MatchedSum(typ_t, typ_t)
+    // Ctx
+    | Ctx(list(exp_t))
+    | Cons(exp_t, exp_t)
+    | Concat(exp_t, exp_t)
+    // Prop
+    | Type(typ_t)
+    | HasType(exp_t, typ_t)
+    | Syn(exp_t, typ_t)
+    | Ana(exp_t, typ_t)
+    | And(exp_t, exp_t)
+    | Or(exp_t, exp_t)
+    | Impl(exp_t, exp_t)
+    | Truth
+    | Falsity
+    // Exp
+    | NumLit(int)
+    | Neg(exp_t)
+    | BinOp(op_bin, exp_t, exp_t)
+    | True
+    | False
+    | If(exp_t, exp_t, exp_t)
+    | Let(pat_t, exp_t, exp_t)
+    | Fix(pat_t, exp_t)
+    | Fun(pat_t, exp_t)
+    | Ap(exp_t, exp_t)
+    | Pair(exp_t, exp_t)
+    | Triv
+    | PrjL(exp_t)
+    | PrjR(exp_t)
+    | InjL(exp_t)
+    | InjR(exp_t)
+    | Case(exp_t, pat_t, exp_t, pat_t, exp_t)
+    | Roll(exp_t)
+    | Unroll(exp_t)
+    | ExpHole
+  and exp_t = W.t(exp_term)
+  and pat_term =
+    | Hole(type_hole)
+    | Quote(Var.t)
+    | Var(Var.t)
+    | Parens(pat_t)
+    | Cast(pat_t, typ_t)
+    | InjL(pat_t)
+    | InjR(pat_t)
+    | Pair(pat_t, pat_t)
+  and pat_t = W.t(pat_term)
+  and typ_term =
+    | Hole(type_hole)
+    | Quote(Var.t)
+    | Var(Var.t)
+    | Parens(typ_t)
+    | Num
+    | Bool
+    | Arrow(typ_t, typ_t)
+    | Prod(typ_t, typ_t)
+    | Unit
+    | Sum(typ_t, typ_t)
+    | Rec(tpat_t, typ_t)
+    | TypHole
+  and typ_t = W.t(typ_term)
+  and tpat_term =
+    | Hole(type_hole)
+    | Quote(Var.t)
+    | Var(Var.t)
+  and tpat_t = W.t(tpat_term)
+  and type_hole =
+    | AbbrNotVar
+    | AbbrNotFound
+    | AbbrNotDrvTerm
+    | Invalid(string)
+    | EmptyHole
+    | MultiHole(list(any_t));
+};
+
+module M_IdTagged =
+  M({
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t('a) = IdTagged.t('a);
+  });
+
+include M_IdTagged;
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -108,7 +126,6 @@ module rec Any: {
 
   type mapper = {
     f_exp: (exp_t => exp_t, exp_t) => exp_t,
-    f_rul: (rul_t => rul_t, rul_t) => rul_t,
     f_pat: (pat_t => pat_t, pat_t) => pat_t,
     f_typ: (typ_t => typ_t, typ_t) => typ_t,
     f_tpat: (tpat_t => tpat_t, tpat_t) => tpat_t,
@@ -118,14 +135,13 @@ module rec Any: {
 
   let map_term: (~f_drv: mapper=?, t) => t;
 
-  let fast_equal: (t, t) => bool;
+  let eq: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
 
   type mapper = {
     f_exp: (exp_t => exp_t, exp_t) => exp_t,
-    f_rul: (rul_t => rul_t, rul_t) => rul_t,
     f_pat: (pat_t => pat_t, pat_t) => pat_t,
     f_typ: (typ_t => typ_t, typ_t) => typ_t,
     f_tpat: (tpat_t => tpat_t, tpat_t) => tpat_t,
@@ -133,35 +149,30 @@ module rec Any: {
 
   let drv_continue = {
     f_exp: continue,
-    f_rul: continue,
     f_pat: continue,
     f_typ: continue,
     f_tpat: continue,
   };
 
   let map_term = (~f_drv=drv_continue, x: t) => {
-    let {f_exp, f_rul, f_pat, f_typ, f_tpat} = f_drv;
+    let {f_exp, f_pat, f_typ, f_tpat} = f_drv;
     switch (x) {
     | Exp(exp) => Exp(Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, exp))
-    | Rul(rul) =>
-      Rul(Rul.map_term(~f_exp, ~f_rul, ~f_pat, ~f_typ, ~f_tpat, rul))
     | Pat(pat) => Pat(Pat.map_term(~f_pat, ~f_typ, ~f_tpat, pat))
     | Typ(typ) => Typ(Typ.map_term(~f_typ, ~f_tpat, typ))
     | TPat(tpat) => TPat(TPat.map_term(~f_tpat, tpat))
     };
   };
 
-  let fast_equal = (x, y) =>
+  let eq = (x, y) =>
     switch (x, y) {
-    | (Exp(e1), Exp(e2)) => Exp.fast_equal(e1, e2)
+    | (Exp(e1), Exp(e2)) => Exp.eq(e1, e2)
     | (Exp(_), _) => false
-    | (Rul(r1), Rul(r2)) => Rul.fast_equal(r1, r2)
-    | (Rul(_), _) => false
-    | (Pat(p1), Pat(p2)) => Pat.fast_equal(p1, p2)
+    | (Pat(p1), Pat(p2)) => Pat.eq(p1, p2)
     | (Pat(_), _) => false
-    | (Typ(t1), Typ(t2)) => Typ.fast_equal(t1, t2)
+    | (Typ(t1), Typ(t2)) => Typ.eq(t1, t2)
     | (Typ(_), _) => false
-    | (TPat(tp1), TPat(tp2)) => TPat.fast_equal(tp1, tp2)
+    | (TPat(tp1), TPat(tp2)) => TPat.eq(tp1, tp2)
     | (TPat(_), _) => false
     };
 }
@@ -181,7 +192,15 @@ and Exp: {
     ) =>
     t;
 
-  let fast_equal: (t, t) => bool;
+  let subst: (t, string, t) => t;
+
+  let eq: (t, t) => bool;
+
+  let mem_ctx: (t, list(t)) => bool;
+
+  let subset_ctx: (list(t), list(t)) => bool;
+
+  let cons_ctx: (list(t), t) => list(t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = exp_term;
@@ -199,7 +218,7 @@ and Exp: {
         switch (term) {
         | Hole(_) => term
         | Var(v) => Var(v)
-        | Abbr(e) => Abbr(exp_map_term(e))
+        | Quote(s) => Quote(s)
         | Parens(e) => Parens(exp_map_term(e))
         | Val(e) => Val(exp_map_term(e))
         | Eval(e1, e2) => Eval(exp_map_term(e1), exp_map_term(e2))
@@ -227,12 +246,8 @@ and Exp: {
         | Tuple(es) => Tuple(List.map(exp_map_term, es))
         | NumLit(n) => NumLit(n)
         | Neg(e) => Neg(exp_map_term(e))
-        | Plus(e1, e2) => Plus(exp_map_term(e1), exp_map_term(e2))
-        | Minus(e1, e2) => Minus(exp_map_term(e1), exp_map_term(e2))
-        | Times(e1, e2) => Times(exp_map_term(e1), exp_map_term(e2))
-        | Gt(e1, e2) => Gt(exp_map_term(e1), exp_map_term(e2))
-        | Lt(e1, e2) => Lt(exp_map_term(e1), exp_map_term(e2))
-        | Eq(e1, e2) => Eq(exp_map_term(e1), exp_map_term(e2))
+        | BinOp(op, e1, e2) =>
+          BinOp(op, exp_map_term(e1), exp_map_term(e2))
         | True => True
         | False => False
         | If(e1, e2, e3) =>
@@ -242,18 +257,19 @@ and Exp: {
         | Fix(p, e) => Fix(pat_map_term(p), exp_map_term(e))
         | Fun(p, e) => Fun(pat_map_term(p), exp_map_term(e))
         | Ap(e1, e2) => Ap(exp_map_term(e1), exp_map_term(e2))
+        | Pair(e1, e2) => Pair(exp_map_term(e1), exp_map_term(e2))
         | Triv => Triv
         | PrjL(e) => PrjL(exp_map_term(e))
         | PrjR(e) => PrjR(exp_map_term(e))
         | InjL(e) => InjL(exp_map_term(e))
         | InjR(e) => InjR(exp_map_term(e))
-        | Case(e, rls) =>
+        | Case(e, p1, e1, p2, e2) =>
           Case(
             exp_map_term(e),
-            List.map(
-              ((p, e)) => (pat_map_term(p), exp_map_term(e)),
-              rls,
-            ),
+            pat_map_term(p1),
+            exp_map_term(e1),
+            pat_map_term(p2),
+            exp_map_term(e2),
           )
         | Roll(e) => Roll(exp_map_term(e))
         | Unroll(e) => Unroll(exp_map_term(e))
@@ -263,213 +279,212 @@ and Exp: {
     x |> f_exp(rec_call);
   };
 
-  let fast_equal = (x, y) =>
+  let rec subst = (v: t, x: string, e: t) => {
+    let (term, rewrap: term => t) = IdTagged.unwrap(e);
+    let subst = subst(v, x);
+    let rec is_shadow = (p: pat_t) =>
+      switch (IdTagged.term_of(p)) {
+      | Var(x') => String.equal(x', x)
+      | Cast(p, _) => is_shadow(p)
+      | Pair(p1, p2) => is_shadow(p1) || is_shadow(p2)
+      | _ => false
+      };
+    let subst' = p => is_shadow(p) ? Fun.id : subst;
+    switch (term) {
+    | Hole(_) => e
+    | Var(x') => String.equal(x', x) ? v : e
+    | Quote(_) => e
+    | Parens(e) => Parens(subst(e)) |> rewrap
+    | Tuple(es) => Tuple(List.map(subst, es)) |> rewrap
+    // Jdmt
+    | Val(_)
+    | Eval(_)
+    | Entail(_)
+    | Consistent(_)
+    | MatchedArrow(_)
+    | MatchedProd(_)
+    | MatchedSum(_) => e
+    // Ctx
+    | Ctx(_)
+    | Cons(_)
+    | Concat(_) => e
+    // Prop
+    | Type(_)
+    | HasType(_)
+    | Syn(_)
+    | Ana(_)
+    | And(_)
+    | Or(_)
+    | Impl(_)
+    | Truth
+    | Falsity => e
+    // Typ
+    | NumLit(_) => e
+    | Neg(e) => Neg(subst(e)) |> rewrap
+    | BinOp(op, e1, e2) => BinOp(op, subst(e1), subst(e2)) |> rewrap
+    | True
+    | False => e
+    | If(e1, e2, e3) => If(subst(e1), subst(e2), subst(e3)) |> rewrap
+    | Let(x, e1, e2) => Let(x, subst(e1), subst'(x, e2)) |> rewrap
+    | Fix(x, e) => Fix(x, subst'(x, e)) |> rewrap
+    | Fun(x, e) => Fun(x, subst'(x, e)) |> rewrap
+    | Ap(e1, e2) => Ap(subst(e1), subst(e2)) |> rewrap
+    | Pair(e1, e2) => Pair(subst(e1), subst(e2)) |> rewrap
+    | Triv => e
+    | PrjL(e) => PrjL(subst(e)) |> rewrap
+    | PrjR(e) => PrjR(subst(e)) |> rewrap
+    | InjL(e) => InjL(subst(e)) |> rewrap
+    | InjR(e) => InjR(subst(e)) |> rewrap
+    | Case(e, x, e1, y, e2) =>
+      Case(subst(e), x, subst'(x, e1), y, subst'(y, e2)) |> rewrap
+    | Roll(e) => Roll(subst(e)) |> rewrap
+    | Unroll(e) => Unroll(subst(e)) |> rewrap
+    | ExpHole => e
+    };
+  };
+
+  let rec eq = (x: t, y: t) =>
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
     | (Hole(_), _) => false
     | (Var(v1), Var(v2)) => v1 == v2
     | (Var(_), _) => false
-    | (Abbr(p1), Abbr(p2)) => Exp.fast_equal(p1, p2)
-    | (Abbr(_), _) => false
-    | (Parens(e1), Parens(e2)) => Exp.fast_equal(e1, e2)
+    | (Quote(s1), Quote(s2)) => s1 == s2
+    | (Quote(_), _) => false
+    | (Parens(e1), Parens(e2)) => eq(e1, e2)
     | (Parens(_), _) => false
-    | (Val(e1), Val(e2)) => Exp.fast_equal(e1, e2)
+    | (Val(e1), Val(e2)) => eq(e1, e2)
     | (Val(_), _) => false
-    | (Eval(e11, e12), Eval(e21, e22)) =>
-      Exp.fast_equal(e11, e21) && Exp.fast_equal(e12, e22)
+    | (Eval(e11, e12), Eval(e21, e22)) => eq(e11, e21) && eq(e12, e22)
     | (Eval(_), _) => false
-    | (Entail(e11, e12), Entail(e21, e22)) =>
-      Exp.fast_equal(e11, e21) && Exp.fast_equal(e12, e22)
+    | (Entail(e11, e12), Entail(e21, e22)) => eq(e11, e21) && eq(e12, e22)
     | (Entail(_), _) => false
     | (Consistent(t11, t12), Consistent(t21, t22)) =>
-      Typ.fast_equal(t11, t21) && Typ.fast_equal(t12, t22)
+      Typ.eq(t11, t21) && Typ.eq(t12, t22)
     | (Consistent(_), _) => false
     | (MatchedArrow(t11, t12), MatchedArrow(t21, t22)) =>
-      Typ.fast_equal(t11, t21) && Typ.fast_equal(t12, t22)
+      Typ.eq(t11, t21) && Typ.eq(t12, t22)
     | (MatchedArrow(_), _) => false
     | (MatchedProd(t11, t12), MatchedProd(t21, t22)) =>
-      Typ.fast_equal(t11, t21) && Typ.fast_equal(t12, t22)
+      Typ.eq(t11, t21) && Typ.eq(t12, t22)
     | (MatchedProd(_), _) => false
     | (MatchedSum(t11, t12), MatchedSum(t21, t22)) =>
-      Typ.fast_equal(t11, t21) && Typ.fast_equal(t12, t22)
+      Typ.eq(t11, t21) && Typ.eq(t12, t22)
     | (MatchedSum(_), _) => false
     | (Ctx(es1), Ctx(es2)) =>
-      List.length(es1) == List.length(es2)
-      && List.for_all2(Exp.fast_equal, es1, es2)
+      List.length(es1) == List.length(es2) && List.for_all2(eq, es1, es2)
     | (Ctx(_), _) => false
-    | (Cons(e11, e12), Cons(e21, e22)) =>
-      Exp.fast_equal(e11, e21) && Exp.fast_equal(e12, e22)
+    | (Cons(e11, e12), Cons(e21, e22)) => eq(e11, e21) && eq(e12, e22)
     | (Cons(_), _) => false
-    | (Concat(e11, e12), Concat(e21, e22)) =>
-      Exp.fast_equal(e11, e21) && Exp.fast_equal(e12, e22)
+    | (Concat(e11, e12), Concat(e21, e22)) => eq(e11, e21) && eq(e12, e22)
     | (Concat(_), _) => false
-    | (Type(t1), Type(t2)) => Typ.fast_equal(t1, t2)
+    | (Type(t1), Type(t2)) => Typ.eq(t1, t2)
     | (Type(_), _) => false
-    | (HasType(e1, t1), HasType(e2, t2)) =>
-      Exp.fast_equal(e1, e2) && Typ.fast_equal(t1, t2)
+    | (HasType(e1, t1), HasType(e2, t2)) => eq(e1, e2) && Typ.eq(t1, t2)
     | (HasType(_), _) => false
-    | (Syn(e1, t1), Syn(e2, t2)) =>
-      Exp.fast_equal(e1, e2) && Typ.fast_equal(t1, t2)
+    | (Syn(e1, t1), Syn(e2, t2)) => eq(e1, e2) && Typ.eq(t1, t2)
     | (Syn(_), _) => false
-    | (Ana(e1, t1), Ana(e2, t2)) =>
-      Exp.fast_equal(e1, e2) && Typ.fast_equal(t1, t2)
+    | (Ana(e1, t1), Ana(e2, t2)) => eq(e1, e2) && Typ.eq(t1, t2)
     | (Ana(_), _) => false
-    | (And(e11, e12), And(e21, e22)) =>
-      Exp.fast_equal(e11, e21) && Exp.fast_equal(e12, e22)
+    | (And(e11, e12), And(e21, e22)) => eq(e11, e21) && eq(e12, e22)
     | (And(_), _) => false
-    | (Or(e11, e12), Or(e21, e22)) =>
-      Exp.fast_equal(e11, e21) && Exp.fast_equal(e12, e22)
+    | (Or(e11, e12), Or(e21, e22)) => eq(e11, e21) && eq(e12, e22)
     | (Or(_), _) => false
-    | (Impl(e11, e12), Impl(e21, e22)) =>
-      Exp.fast_equal(e11, e21) && Exp.fast_equal(e12, e22)
+    | (Impl(e11, e12), Impl(e21, e22)) => eq(e11, e21) && eq(e12, e22)
     | (Impl(_), _) => false
     | (Truth, Truth) => true
     | (Truth, _) => false
     | (Falsity, Falsity) => true
     | (Falsity, _) => false
     | (Tuple(es1), Tuple(es2)) =>
-      List.length(es1) == List.length(es2)
-      && List.for_all2(Exp.fast_equal, es1, es2)
+      List.length(es1) == List.length(es2) && List.for_all2(eq, es1, es2)
     | (Tuple(_), _) => false
     | (NumLit(n1), NumLit(n2)) => n1 == n2
     | (NumLit(_), _) => false
-    | (Neg(e1), Neg(e2)) => Exp.fast_equal(e1, e2)
+    | (Neg(e1), Neg(e2)) => eq(e1, e2)
     | (Neg(_), _) => false
-    | (Plus(e11, e12), Plus(e21, e22)) =>
-      Exp.fast_equal(e11, e21) && Exp.fast_equal(e12, e22)
-    | (Plus(_), _) => false
-    | (Minus(e11, e12), Minus(e21, e22)) =>
-      Exp.fast_equal(e11, e21) && Exp.fast_equal(e12, e22)
-    | (Minus(_), _) => false
-    | (Times(e11, e12), Times(e21, e22)) =>
-      Exp.fast_equal(e11, e21) && Exp.fast_equal(e12, e22)
-    | (Times(_), _) => false
-    | (Gt(e11, e12), Gt(e21, e22)) =>
-      Exp.fast_equal(e11, e21) && Exp.fast_equal(e12, e22)
-    | (Gt(_), _) => false
-    | (Lt(e11, e12), Lt(e21, e22)) =>
-      Exp.fast_equal(e11, e21) && Exp.fast_equal(e12, e22)
-    | (Lt(_), _) => false
-    | (Eq(e11, e12), Eq(e21, e22)) =>
-      Exp.fast_equal(e11, e21) && Exp.fast_equal(e12, e22)
-    | (Eq(_), _) => false
+    | (BinOp(op1, e11, e12), BinOp(op2, e21, e22)) =>
+      op1 == op2 && eq(e11, e21) && eq(e12, e22)
+    | (BinOp(_), _) => false
     | (True, True) => true
     | (True, _) => false
     | (False, False) => true
     | (False, _) => false
     | (If(e1, e2, e3), If(e1', e2', e3')) =>
-      Exp.fast_equal(e1, e1')
-      && Exp.fast_equal(e2, e2')
-      && Exp.fast_equal(e3, e3')
+      eq(e1, e1') && eq(e2, e2') && eq(e3, e3')
     | (If(_), _) => false
     | (Let(p1, e11, e12), Let(p2, e21, e22)) =>
-      Pat.fast_equal(p1, p2)
-      && Exp.fast_equal(e11, e21)
-      && Exp.fast_equal(e12, e22)
+      Pat.eq(p1, p2) && eq(e11, e21) && eq(e12, e22)
     | (Let(_), _) => false
-    | (Fix(p1, e1), Fix(p2, e2)) =>
-      Pat.fast_equal(p1, p2) && Exp.fast_equal(e1, e2)
+    | (Fix(p1, e1), Fix(p2, e2)) => Pat.eq(p1, p2) && eq(e1, e2)
     | (Fix(_), _) => false
-    | (Fun(p1, e1), Fun(p2, e2)) =>
-      Pat.fast_equal(p1, p2) && Exp.fast_equal(e1, e2)
+    | (Fun(p1, e1), Fun(p2, e2)) => Pat.eq(p1, p2) && eq(e1, e2)
     | (Fun(_), _) => false
-    | (Ap(e11, e12), Ap(e21, e22)) =>
-      Exp.fast_equal(e11, e21) && Exp.fast_equal(e12, e22)
+    | (Ap(e11, e12), Ap(e21, e22)) => eq(e11, e21) && eq(e12, e22)
     | (Ap(_), _) => false
+    | (Pair(e11, e12), Pair(e21, e22)) => eq(e11, e21) && eq(e12, e22)
+    | (Pair(_), _) => false
     | (Triv, Triv) => true
     | (Triv, _) => false
-    | (PrjL(e1), PrjL(e2)) => Exp.fast_equal(e1, e2)
+    | (PrjL(e1), PrjL(e2)) => eq(e1, e2)
     | (PrjL(_), _) => false
-    | (PrjR(e1), PrjR(e2)) => Exp.fast_equal(e1, e2)
+    | (PrjR(e1), PrjR(e2)) => eq(e1, e2)
     | (PrjR(_), _) => false
-    | (InjL(e1), InjL(e2)) => Exp.fast_equal(e1, e2)
+    | (InjL(e1), InjL(e2)) => eq(e1, e2)
     | (InjL(_), _) => false
-    | (InjR(e1), InjR(e2)) => Exp.fast_equal(e1, e2)
+    | (InjR(e1), InjR(e2)) => eq(e1, e2)
     | (InjR(_), _) => false
-    | (Case(e1, rls1), Case(e2, rls2)) =>
-      Exp.fast_equal(e1, e2)
-      && List.length(rls1) == List.length(rls2)
-      && List.for_all2(
-           ((p1, e1), (p2, e2)) =>
-             Pat.fast_equal(p1, p2) && Exp.fast_equal(e1, e2),
-           rls1,
-           rls2,
-         )
+    | (Case(e1, x1, e11, y1, e12), Case(e2, x2, e21, y2, e22)) =>
+      eq(e1, e2)
+      && Pat.eq(x1, x2)
+      && eq(e11, e21)
+      && Pat.eq(y1, y2)
+      && eq(e12, e22)
     | (Case(_), _) => false
-    | (Roll(e1), Roll(e2)) => Exp.fast_equal(e1, e2)
+    | (Roll(e1), Roll(e2)) => eq(e1, e2)
     | (Roll(_), _) => false
-    | (Unroll(e1), Unroll(e2)) => Exp.fast_equal(e1, e2)
+    | (Unroll(e1), Unroll(e2)) => eq(e1, e2)
     | (Unroll(_), _) => false
     | (ExpHole, ExpHole) => true
     | (ExpHole, _) => false
     };
-}
-and Rul: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type term = rul_term;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = rul_t;
 
-  let map_term:
-    (
-      ~f_exp: (exp_t => exp_t, exp_t) => exp_t=?,
-      ~f_rul: (rul_t => rul_t, rul_t) => rul_t=?,
-      ~f_pat: (pat_t => pat_t, pat_t) => pat_t=?,
-      ~f_typ: (typ_t => typ_t, typ_t) => typ_t=?,
-      ~f_tpat: (tpat_t => tpat_t, tpat_t) => tpat_t=?,
-      t
-    ) =>
-    t;
-
-  let fast_equal: (t, t) => bool;
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type term = rul_term;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = rul_t;
-
-  let map_term =
-      (
-        ~f_exp=continue,
-        ~f_rul=continue,
-        ~f_pat=continue,
-        ~f_typ=continue,
-        ~f_tpat=continue,
-        x,
-      ) => {
-    let exp_map_term = Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat);
-    let pat_map_term = Pat.map_term(~f_pat, ~f_typ, ~f_tpat);
-    let rec_call = ({term, _} as exp: t) => {
-      ...exp,
-      term:
-        switch (term) {
-        | Hole(_) => term
-        | Rules(e, rls) =>
-          Rules(
-            exp_map_term(e),
-            List.map(
-              ((p, e)) => (pat_map_term(p), exp_map_term(e)),
-              rls,
-            ),
-          )
-        },
+  let rec splice_on_exist = (p, l) =>
+    switch (l) {
+    | [] => []
+    | [hd, ...tl] => eq(p, hd) ? l : splice_on_exist(p, tl)
     };
-    x |> f_rul(rec_call);
+
+  let mem_ctx = (p, l) => splice_on_exist(p, l) != [];
+
+  let rec subset_ctx = (s, l) =>
+    switch (s, l) {
+    | ([], _) => true
+    | (_, []) => false
+    | ([hd, ...tl], l) =>
+      switch (splice_on_exist(hd, l)) {
+      | [] => false
+      | [_, ...tl'] => subset_ctx(tl, tl')
+      }
+    };
+
+  // Note(zhiyao): This implementation of cons_ctx is not linear.
+  let cons_ctx = (ctx, p) => {
+    let cmp = p' => show(p) < show(p');
+    let eq_key = p' =>
+      switch (IdTagged.term_of(p): term, IdTagged.term_of(p'): term) {
+      | (HasType(a, _), HasType(b, _)) => eq(a, b)
+      | (Syn(a, _), Syn(b, _)) => eq(a, b)
+      | (Ana(a, _), Ana(b, _)) => eq(a, b)
+      | _ => show(p) == show(p')
+      };
+    let rec insert =
+      fun
+      | [] => [p]
+      | [hd, ...tl] when eq_key(hd) => [p, ...tl]
+      | [hd, ...tl] when cmp(hd) => [p, hd, ...tl]
+      | [hd, ...tl] => [hd, ...insert(tl)];
+    insert(ctx);
   };
-
-  let fast_equal = (r1: t, r2: t) =>
-    switch (r1 |> IdTagged.term_of, r2 |> IdTagged.term_of) {
-    | (Hole(_), _) => false
-    | (Rules(e1, rls1), Rules(e2, rls2)) =>
-      Exp.fast_equal(e1, e2)
-      && List.length(rls1) == List.length(rls2)
-      && List.for_all2(
-           ((p1, e1), (p2, e2)) =>
-             Pat.fast_equal(p1, p2) && Exp.fast_equal(e1, e2),
-           rls1,
-           rls2,
-         )
-    | (Rules(_), _) => false
-    };
 }
 and Pat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -485,7 +500,7 @@ and Pat: {
     ) =>
     t;
 
-  let fast_equal: (t, t) => bool;
+  let eq: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = pat_term;
@@ -500,34 +515,35 @@ and Pat: {
       term:
         switch (term) {
         | Hole(_) => term
+        | Quote(s) => Quote(s)
         | Var(v) => Var(v)
+        | Parens(p) => Parens(pat_map_term(p))
         | Cast(p, t) => Cast(pat_map_term(p), typ_map_term(t))
         | InjL(p) => InjL(pat_map_term(p))
         | InjR(p) => InjR(pat_map_term(p))
         | Pair(p1, p2) => Pair(pat_map_term(p1), pat_map_term(p2))
-        | Parens(p) => Parens(pat_map_term(p))
         },
     };
     x |> f_pat(rec_call);
   };
 
-  let fast_equal = (x: t, y: t) =>
+  let rec eq = (x: t, y: t) =>
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
     | (Hole(_), _) => false
+    | (Quote(s1), Quote(s2)) => s1 == s2
+    | (Quote(_), _) => false
     | (Var(v1), Var(v2)) => v1 == v2
     | (Var(_), _) => false
-    | (Cast(p1, t1), Cast(p2, t2)) =>
-      Pat.fast_equal(p1, p2) && Typ.fast_equal(t1, t2)
-    | (Cast(_), _) => false
-    | (InjL(p1), InjL(p2)) => Pat.fast_equal(p1, p2)
-    | (InjL(_), _) => false
-    | (InjR(p1), InjR(p2)) => Pat.fast_equal(p1, p2)
-    | (InjR(_), _) => false
-    | (Pair(p1, p2), Pair(p1', p2')) =>
-      Pat.fast_equal(p1, p1') && Pat.fast_equal(p2, p2')
-    | (Pair(_), _) => false
-    | (Parens(p1), Parens(p2)) => Pat.fast_equal(p1, p2)
+    | (Parens(p1), Parens(p2)) => eq(p1, p2)
     | (Parens(_), _) => false
+    | (Cast(p1, t1), Cast(p2, t2)) => eq(p1, p2) && Typ.eq(t1, t2)
+    | (Cast(_), _) => false
+    | (InjL(p1), InjL(p2)) => eq(p1, p2)
+    | (InjL(_), _) => false
+    | (InjR(p1), InjR(p2)) => eq(p1, p2)
+    | (InjR(_), _) => false
+    | (Pair(p1, p2), Pair(p1', p2')) => eq(p1, p1') && eq(p2, p2')
+    | (Pair(_), _) => false
     };
 }
 and Typ: {
@@ -544,7 +560,11 @@ and Typ: {
     ) =>
     t;
 
-  let fast_equal: (t, t) => bool;
+  let subst: (t, string, t) => t;
+
+  let glb: (t, t) => t;
+
+  let eq: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = typ_term;
@@ -559,7 +579,7 @@ and Typ: {
       term:
         switch (term) {
         | Hole(_) => term
-        | Abbr(e) => Abbr(typ_map_term(e))
+        | Quote(s) => Quote(s)
         | Num => Num
         | Bool => Bool
         | Arrow(t1, t2) => Arrow(typ_map_term(t1), typ_map_term(t2))
@@ -575,35 +595,74 @@ and Typ: {
     x |> f_typ(rec_call);
   };
 
-  let fast_equal = (x: t, y: t) =>
+  let rec subst = (v: t, x: string, e: t) => {
+    let (term, rewrap: term => t) = IdTagged.unwrap(e);
+    let subst = subst(v, x);
+    let is_shadow = (p: tpat_t) =>
+      switch (IdTagged.term_of(p)) {
+      | Var(x') => String.equal(x', x)
+      | _ => false
+      };
+    let subst' = p => is_shadow(p) ? Fun.id : subst;
+    switch (term) {
+    | Hole(_) => e
+    | Quote(_) => e
+    | Var(x') => String.equal(x', x) ? v : e
+    | Num => e
+    | Bool => e
+    | Arrow(t1, t2) => Arrow(subst(t1), subst(t2)) |> rewrap
+    | Prod(t1, t2) => Prod(subst(t1), subst(t2)) |> rewrap
+    | Unit => e
+    | Sum(t1, t2) => Sum(subst(t1), subst(t2)) |> rewrap
+    | Rec(tp, t) => Rec(tp, subst'(tp, t)) |> rewrap
+    | Parens(t) => Parens(subst(t)) |> rewrap
+    | TypHole => e
+    };
+  };
+
+  let temp = (term): t => {term, ids: [Id.invalid], copied: false};
+
+  let rec eq = (x: t, y: t) =>
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
     | (Hole(_), _) => false
-    | (Abbr(p1), Abbr(p2)) => Typ.fast_equal(p1, p2)
-    | (Abbr(_), _) => false
+    | (Quote(s1), Quote(s2)) => s1 == s2
+    | (Quote(_), _) => false
     | (Num, Num) => true
     | (Num, _) => false
     | (Bool, Bool) => true
     | (Bool, _) => false
-    | (Arrow(t1, t2), Arrow(t1', t2')) =>
-      Typ.fast_equal(t1, t1') && Typ.fast_equal(t2, t2')
+    | (Arrow(t1, t2), Arrow(t1', t2')) => eq(t1, t1') && eq(t2, t2')
     | (Arrow(_), _) => false
-    | (Prod(t1, t2), Prod(t1', t2')) =>
-      Typ.fast_equal(t1, t1') && Typ.fast_equal(t2, t2')
+    | (Prod(t1, t2), Prod(t1', t2')) => eq(t1, t1') && eq(t2, t2')
     | (Prod(_), _) => false
     | (Unit, Unit) => true
     | (Unit, _) => false
-    | (Sum(t1, t2), Sum(t1', t2')) =>
-      Typ.fast_equal(t1, t1') && Typ.fast_equal(t2, t2')
+    | (Sum(t1, t2), Sum(t1', t2')) => eq(t1, t1') && eq(t2, t2')
     | (Sum(_), _) => false
     | (Var(v1), Var(v2)) => v1 == v2
     | (Var(_), _) => false
-    | (Rec(tp1, t1), Rec(tp2, t2)) =>
-      TPat.fast_equal(tp1, tp2) && Typ.fast_equal(t1, t2)
+    | (Rec({term: Var(a1), _}, a2), Rec({term: Var(b1), _}, b2)) =>
+      let rep_id = temp(Var(Id.mk() |> Id.show));
+      eq(subst(rep_id, a1, a2), subst(rep_id, b1, b2));
     | (Rec(_), _) => false
-    | (Parens(t1), Parens(t2)) => Typ.fast_equal(t1, t2)
+    | (Parens(t1), Parens(t2)) => eq(t1, t2)
     | (Parens(_), _) => false
     | (TypHole, TypHole) => true
     | (TypHole, _) => false
+    };
+
+  let rec glb = (t1: t, t2: t): t =>
+    switch (t1 |> IdTagged.term_of, t2 |> IdTagged.term_of) {
+    | _ when eq(t1, t2) => t1
+    | (TypHole, _) => t2
+    | (_, TypHole) => t1
+    | (Arrow(t11, t12), Arrow(t21, t22)) =>
+      Arrow(glb(t11, t21), glb(t12, t22)) |> temp
+    | (Prod(t11, t12), Prod(t21, t22)) =>
+      Prod(glb(t11, t21), glb(t12, t22)) |> temp
+    | (Sum(t11, t12), Sum(t21, t22)) =>
+      Sum(glb(t11, t21), glb(t12, t22)) |> temp
+    | _ => Hole(Invalid("Glb Failure")) |> temp
     };
 }
 and TPat: {
@@ -614,7 +673,7 @@ and TPat: {
 
   let map_term: (~f_tpat: (tpat_t => tpat_t, tpat_t) => tpat_t=?, t) => t;
 
-  let fast_equal: (t, t) => bool;
+  let eq: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = tpat_term;
@@ -627,15 +686,18 @@ and TPat: {
       term:
         switch (term) {
         | Hole(_) => term
+        | Quote(s) => Quote(s)
         | Var(v) => Var(v)
         },
     };
     x |> f_tpat(rec_call);
   };
 
-  let fast_equal = (x: t, y: t) =>
+  let eq = (x: t, y: t) =>
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
     | (Hole(_), _) => false
+    | (Quote(s1), Quote(s2)) => s1 == s2
+    | (Quote(_), _) => false
     | (Var(v1), Var(v2)) => v1 == v2
     | (Var(_), _) => false
     };

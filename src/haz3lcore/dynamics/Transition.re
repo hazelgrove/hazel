@@ -173,18 +173,14 @@ module Transition = (EV: EV_MODE) => {
         switch (term) {
         | Hole(s) => Hole(s)
         | Var(x) => Var(x)
-        | Abbr(p) =>
-          switch (IdTagged.term_of(p)) {
-          | Var(x) =>
-            switch (ClosureEnvironment.lookup(env, x)) {
-            | Some(d) =>
-              switch (DHExp.term_of(DHExp.strip_casts(d))) {
-              | DrvExp(Exp({term, _}), _) => term
-              | _ => Hole(AbbrNotDrvTerm)
-              }
-            | None => Hole(AbbrNotFound)
+        | Quote(x) =>
+          switch (ClosureEnvironment.lookup(env, x)) {
+          | Some(d) =>
+            switch (DHExp.term_of(DHExp.strip_casts(d))) {
+            | DrvExp(Exp({term, _}), _) => term
+            | _ => Hole(AbbrNotDrvTerm)
             }
-          | _ => Hole(AbbrNotVar)
+          | None => Hole(AbbrNotFound)
           }
         | Parens(e) => Parens(go_exp(e))
         | Val(e) => Val(go_exp(e))
@@ -208,12 +204,7 @@ module Transition = (EV: EV_MODE) => {
         | Falsity => Falsity
         | NumLit(n) => NumLit(n)
         | Neg(e) => Neg(go_exp(e))
-        | Plus(e1, e2) => Plus(go_exp(e1), go_exp(e2))
-        | Minus(e1, e2) => Minus(go_exp(e1), go_exp(e2))
-        | Times(e1, e2) => Times(go_exp(e1), go_exp(e2))
-        | Gt(e1, e2) => Gt(go_exp(e1), go_exp(e2))
-        | Lt(e1, e2) => Lt(go_exp(e1), go_exp(e2))
-        | Eq(e1, e2) => Eq(go_exp(e1), go_exp(e2))
+        | BinOp(op, e1, e2) => BinOp(op, go_exp(e1), go_exp(e2))
         | True => True
         | False => False
         | If(e1, e2, e3) => If(go_exp(e1), go_exp(e2), go_exp(e3))
@@ -222,28 +213,17 @@ module Transition = (EV: EV_MODE) => {
         | Fun(x, e) => Fun(go_pat(x), go_exp(e))
         | Ap(e1, e2) => Ap(go_exp(e1), go_exp(e2))
         | Tuple(es) => Tuple(List.map(go_exp, es))
+        | Pair(e1, e2) => Pair(go_exp(e1), go_exp(e2))
         | Triv => Triv
         | PrjL(e) => PrjL(go_exp(e))
         | PrjR(e) => PrjR(go_exp(e))
         | InjL(e) => InjL(go_exp(e))
         | InjR(e) => InjR(go_exp(e))
-        | Case(e1, rls) =>
-          Case(go_exp(e1), List.map(((p, e)) => (p, go_exp(e)), rls))
+        | Case(e, x, e1, y, e2) =>
+          Case(go_exp(e), go_pat(x), go_exp(e1), go_pat(y), go_exp(e2))
         | Roll(e) => Roll(go_exp(e))
         | Unroll(e) => Unroll(go_exp(e))
         | ExpHole => ExpHole
-        };
-      term |> rewrap;
-    }
-    and go_rul = rul => {
-      let (term, rewrap) = Drv.Rul.unwrap(rul);
-      let term: Drv.Rul.term =
-        switch (term) {
-        | Hole(s) => Hole(s)
-        | Rules(e, rls) =>
-          let e = go_exp(e);
-          let rls = List.map(((p, e)) => (p, go_exp(e)), rls);
-          Rules(e, rls);
         };
       term |> rewrap;
     }
@@ -252,18 +232,14 @@ module Transition = (EV: EV_MODE) => {
       let term: Drv.Typ.term =
         switch (term) {
         | Hole(s) => Hole(s)
-        | Abbr(p) =>
-          switch (IdTagged.term_of(p)) {
-          | Var(x) =>
-            switch (ClosureEnvironment.lookup(env, x)) {
-            | Some(d) =>
-              switch (DHExp.term_of(DHExp.strip_casts(d))) {
-              | DrvExp(Typ({term, _}), _) => term
-              | _ => Hole(AbbrNotDrvTerm)
-              }
-            | None => Hole(AbbrNotFound)
+        | Quote(x) =>
+          switch (ClosureEnvironment.lookup(env, x)) {
+          | Some(d) =>
+            switch (DHExp.term_of(DHExp.strip_casts(d))) {
+            | DrvExp(Typ({term, _}), _) => term
+            | _ => Hole(AbbrNotDrvTerm)
             }
-          | _ => Hole(AbbrNotVar)
+          | None => Hole(AbbrNotFound)
           }
         | Num => Num
         | Bool => Bool
@@ -283,12 +259,39 @@ module Transition = (EV: EV_MODE) => {
       let term: Drv.Pat.term =
         switch (term) {
         | Hole(s) => Hole(s)
+        | Quote(x) =>
+          switch (ClosureEnvironment.lookup(env, x)) {
+          | Some(d) =>
+            switch (DHExp.term_of(DHExp.strip_casts(d))) {
+            | DrvExp(Pat({term, _}), _) => term
+            | _ => Hole(AbbrNotDrvTerm)
+            }
+          | None => Hole(AbbrNotFound)
+          }
         | Var(x) => Var(x)
         | Cast(p, t) => Cast(go_pat(p), go_typ(t))
         | InjL(p) => InjL(go_pat(p))
         | InjR(p) => InjR(go_pat(p))
         | Pair(p1, p2) => Pair(go_pat(p1), go_pat(p2))
         | Parens(p) => Parens(go_pat(p))
+        };
+      term |> rewrap;
+    }
+    and go_tpat = tpat => {
+      let (term, rewrap) = Drv.TPat.unwrap(tpat);
+      let term: Drv.TPat.term =
+        switch (term) {
+        | Hole(s) => Hole(s)
+        | Quote(x) =>
+          switch (ClosureEnvironment.lookup(env, x)) {
+          | Some(d) =>
+            switch (DHExp.term_of(DHExp.strip_casts(d))) {
+            | DrvExp(TPat({term, _}), _) => term
+            | _ => Hole(AbbrNotDrvTerm)
+            }
+          | None => Hole(AbbrNotFound)
+          }
+        | Var(x) => Var(x)
         };
       term |> rewrap;
     };
@@ -300,8 +303,7 @@ module Transition = (EV: EV_MODE) => {
         | Exp(e) => DrvExp(Exp(go_exp(e)), s)
         | Typ(t) => DrvExp(Typ(go_typ(t)), s)
         | Pat(p) => DrvExp(Pat(go_pat(p)), s)
-        | Rul(r) => DrvExp(Rul(go_rul(r)), s)
-        | TPat(t) => DrvExp(TPat(t), s)
+        | TPat(t) => DrvExp(TPat(go_tpat(t)), s)
         }
       | _ => term
       };

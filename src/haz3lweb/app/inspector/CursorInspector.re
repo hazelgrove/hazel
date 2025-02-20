@@ -65,15 +65,18 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
   );
 
 let term_view = (~globals: Globals.t, ci) => {
-  let sort = Info.is_label(ci) ? "Label" : ci |> Info.sort_of |> Sort.show;
-
+  let sort_text =
+    Info.is_label(ci) ? "Label" : ci |> Info.sort_of |> Sort.show;
+  let sort_class = Info.is_label(ci) ? "Label" : ci |> Info.class_of;
   div(
     ~attrs=[
-      clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [okc])),
+      clss(
+        ["ci-header", sort_class] @ (Info.is_error(ci) ? [errc] : [okc]),
+      ),
     ],
     [
       ctx_toggle(~globals),
-      div(~attrs=[clss(["term-tag"])], [text(sort)]),
+      div(~attrs=[clss(["term-tag"])], [text(sort_text)]),
       explain_this_toggle(~globals),
       cls_view(ci),
     ],

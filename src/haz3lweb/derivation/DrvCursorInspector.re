@@ -31,56 +31,28 @@ let drv_view = (~globals, status: DrvInfo.t) => {
   | None => div_ok([text("Fillable by any derivation element")])
   | Some(err) =>
     switch (err) {
-    | Exp(BadToken(token))
-    | Pat(BadToken(token))
-    | Typ(BadToken(token))
-    | TPat(BadToken(token)) =>
+    | BadToken(token) =>
       div_err([text(Printf.sprintf("\"%s\" isn't a valid token", token))])
-    | Exp(MultiHole)
-    | Pat(MultiHole)
-    | Typ(MultiHole)
-    | TPat(MultiHole) => div_err([text("Expecting operator or delimiter")])
-    | Exp(NoJoin(expect, actuals)) =>
+    | MultiHole => div_err([text("Expecting operator or delimiter")])
+    | NoJoin(expect, actuals) =>
       div_err([
         text(
-          "Expected "
-          ++ DrvInfo.show_ana_exp(expect)
+          "Expected sort "
+          ++ (expect |> DrvSort.show)
           ++ ", got "
-          ++ DrvInfo.repr_list_ana_exp(actuals),
+          ++ (actuals |> List.map(DrvSort.show) |> String.concat("/")),
         ),
       ])
-    | Pat(NoJoin(expect, _)) =>
-      let expect =
-        switch (expect) {
-        | Var => "A variable pattern"
-        | Cast_Var => "A variable pattern with optional type annotation"
-        | Pair_Or_Case_Var => "A pair or a variable pattern with optional type annotation"
-        | InjL => "A Left Injection pattern"
-        | InjR => "A Right Injection pattern"
-        };
-      div_err([text("Expected " ++ expect)]);
-    | Exp(FreeVar)
-    | Typ(FreeVar) => div_err([text("Unbound variable")])
-    | Exp(NotVar)
-    | Typ(NotVar) => div_err([text("Expected a variable")])
-    | Exp(VarNoJoin(expect, actual)) =>
+    | FreeVar => div_err([text("Unbound variable")])
+    | VarNoJoin(expect, actual) =>
       div_err([
         text(
-          "Expected a variable of type "
-          ++ DrvInfo.show_ana_exp(expect)
+          "Expected a variable of sort type "
+          ++ (expect |> DrvSort.show)
           ++ ", got ",
         ),
         view_type(actual),
       ])
-    | Typ(VarNoJoin(actual)) =>
-      div_err([
-        text("Expected a variable of type ALFA Typ, got "),
-        view_type(actual),
-      ])
-    | Exp(TupleNotStandard) =>
-      div_err([text("Expected a standard tuple expression")])
-    | Exp(CaseNotStandard) =>
-      div_err([text("Expected a standard case expression")])
     }
   };
 };

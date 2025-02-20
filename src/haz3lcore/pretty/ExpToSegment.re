@@ -697,12 +697,26 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
     pieces;
   };
 
-let rec drv_to_pretty = (~settings: Settings.t, syntax: DrvSyntax.t): pretty => {
+let rec drv_exp_to_pretty = (~settings: Settings.t, syntax: Drv.Exp.t): pretty => {
   let go = (~inline=settings.inline) =>
-    drv_to_pretty(~settings={...settings, inline});
-  let id = syntax |> DrvSyntax.rep_id;
-  switch (syntax |> DrvSyntax.term_of) {
-  | Hole(s) => text_to_pretty(id, Sort.Drv(Exp), "{" ++ s ++ "}")
+    drv_exp_to_pretty(~settings={...settings, inline});
+  let id = syntax |> Drv.Exp.rep_id;
+  switch (syntax |> Drv.Exp.term_of) {
+  | Hole(_) => text_to_pretty(id, Sort.Drv(Exp), "?")
+  | Quote(e) => text_to_pretty(id, Sort.Drv(Exp), e)
+  | Parens(e) =>
+    let+ e = go(e);
+    [mk_form(Drv(Paren), id, [e])];
+  // Note(zhiyao): Tuple is an intermediate form that should not be displayed
+  | Tuple(_) => text_to_pretty(id, Sort.Drv(Exp), "[Tuple]")
+  | Cons(e1, e2) =>
+    let+ e1 = go(e1)
+    and+ e2 = go(e2);
+    e1 @ [mk_form(Drv(Cons), id, [])] @ e2;
+  | Concat(e1, e2) =>
+    let+ e1 = go(e1)
+    and+ e2 = go(e2);
+    e1 @ [mk_form(Drv(Concat), id, [])] @ e2;
   | And(l, r) =>
     let+ l = go(l)
     and+ r = go(r);
@@ -756,65 +770,54 @@ let rec drv_to_pretty = (~settings: Settings.t, syntax: DrvSyntax.t): pretty => 
     and+ r = go(r);
     l @ [mk_form(Drv(Entail), id, [])] @ r;
   | Consistent(l, r) =>
-    let+ l = go(l)
-    and+ r = go(r);
+    let+ l = drv_typ_to_pretty(~settings, l)
+    and+ r = drv_typ_to_pretty(~settings, r);
     [mk_form(Drv(Consistent), id, [l])] @ r;
   | MatchedArrow(l, r) =>
-    let+ l = go(l)
-    and+ r = go(r);
+    let+ l = drv_typ_to_pretty(~settings, l)
+    and+ r = drv_typ_to_pretty(~settings, r);
     [mk_form(Drv(MatchedArrow), id, [l])] @ r;
   | MatchedProd(l, r) =>
-    let+ l = go(l)
-    and+ r = go(r);
+    let+ l = drv_typ_to_pretty(~settings, l)
+    and+ r = drv_typ_to_pretty(~settings, r);
     [mk_form(Drv(MatchedProd), id, [l])] @ r;
   | MatchedSum(l, r) =>
-    let+ l = go(l)
-    and+ r = go(r);
+    let+ l = drv_typ_to_pretty(~settings, l)
+    and+ r = drv_typ_to_pretty(~settings, r);
     [mk_form(Drv(MatchedSum), id, [l])] @ r;
   | Type(t) =>
-    let+ t = go(t);
+    let+ t = drv_typ_to_pretty(~settings, t);
     [mk_form(Drv(Valid), id, [t])];
   | HasType(e, t) =>
     let+ e = go(e)
-    and+ t = go(t);
+    and+ t = drv_typ_to_pretty(~settings, t);
     e @ [mk_form(Drv(HasType), id, [])] @ t;
   | Syn(e, t) =>
     let+ e = go(e)
-    and+ t = go(t);
+    and+ t = drv_typ_to_pretty(~settings, t);
     e @ [mk_form(Drv(Syn), id, [])] @ t;
   | Ana(e, t) =>
     let+ e = go(e)
-    and+ t = go(t);
+    and+ t = drv_typ_to_pretty(~settings, t);
     e @ [mk_form(Drv(Ana), id, [])] @ t;
   | Var(x) => text_to_pretty(id, Sort.Drv(Exp), x)
   | NumLit(n) => text_to_pretty(id, Sort.Drv(Exp), Int.to_string(n))
   | Neg(e) =>
     let+ e = go(e);
     [mk_form(Drv(Neg), id, [])] @ e;
-  | Plus(l, r) =>
+  | BinOp(op, l, r) =>
     let+ l = go(l)
     and+ r = go(r);
-    l @ [mk_form(Drv(Plus), id, [])] @ r;
-  | Minus(l, r) =>
-    let+ l = go(l)
-    and+ r = go(r);
-    l @ [mk_form(Drv(Minus), id, [])] @ r;
-  | Times(l, r) =>
-    let+ l = go(l)
-    and+ r = go(r);
-    l @ [mk_form(Drv(Times), id, [])] @ r;
-  | Lt(l, r) =>
-    let+ l = go(l)
-    and+ r = go(r);
-    l @ [mk_form(Drv(Lt), id, [])] @ r;
-  | Gt(l, r) =>
-    let+ l = go(l)
-    and+ r = go(r);
-    l @ [mk_form(Drv(Gt), id, [])] @ r;
-  | Eq(l, r) =>
-    let+ l = go(l)
-    and+ r = go(r);
-    l @ [mk_form(Drv(Eq), id, [])] @ r;
+    let cls: Form.drv_compound_form =
+      switch (op) {
+      | Plus => Plus
+      | Minus => Minus
+      | Times => Times
+      | Eq => Eq
+      | Gt => Gt
+      | Lt => Lt
+      };
+    l @ [mk_form(Drv(cls), id, [])] @ r;
   | True => text_to_pretty(id, Sort.Drv(Exp), "True")
   | False => text_to_pretty(id, Sort.Drv(Exp), "False")
   | If(c, t, f) =>
@@ -823,16 +826,16 @@ let rec drv_to_pretty = (~settings: Settings.t, syntax: DrvSyntax.t): pretty => 
     and+ f = go(f);
     [mk_form(Drv(If), id, [c, t])] @ f;
   | Let(p, e1, e2) =>
-    let+ p = go(p)
+    let+ p = drv_pat_to_pretty(~settings, p)
     and+ e1 = go(e1)
     and+ e2 = go(e2);
     [mk_form(Drv(Let), id, [p, e1])] @ e2;
   | Fix(p, e) =>
-    let+ p = go(p)
+    let+ p = drv_pat_to_pretty(~settings, p)
     and+ e = go(e);
     [mk_form(Drv(Fix), id, [p])] @ e;
   | Fun(p, e) =>
-    let+ p = go(p)
+    let+ p = drv_pat_to_pretty(~settings, p)
     and+ e = go(e);
     [mk_form(Drv(Fun), id, [p])] @ e;
   | Ap(l, r) =>
@@ -846,17 +849,25 @@ let rec drv_to_pretty = (~settings: Settings.t, syntax: DrvSyntax.t): pretty => 
   | Triv => text_to_pretty(id, Sort.Drv(Exp), "()")
   | PrjL(e) =>
     let+ e = go(e);
-    e @ [mk_form(Drv(PrjL), id, [])];
+    e
+    @ [mk_form(Drv(Dot), id, [])]
+    @ text_to_pretty(id, Sort.Drv(Exp), "fst");
   | PrjR(e) =>
     let+ e = go(e);
-    e @ [mk_form(Drv(PrjR), id, [])];
-  | InjL(e) => go({...syntax, term: Ap(Var("L") |> DrvSyntax.temp, e)})
-  | InjR(e) => go({...syntax, term: Ap(Var("R") |> DrvSyntax.temp, e)})
+    e
+    @ [mk_form(Drv(Dot), id, [])]
+    @ text_to_pretty(id, Sort.Drv(Exp), "snd");
+  | InjL(e) =>
+    let e = go(e);
+    text_to_pretty(id, Sort.Drv(Exp), "L") @ [mk_form(Drv(Ap), id, [e])];
+  | InjR(e) =>
+    let e = go(e);
+    text_to_pretty(id, Sort.Drv(Exp), "R") @ [mk_form(Drv(Ap), id, [e])];
   | Case(e, x, e1, y, e2) =>
     let+ e = go(e)
-    and+ x = go(x)
+    and+ x = drv_pat_to_pretty(~settings, x)
     and+ e1 = go(e1)
-    and+ y = go(y)
+    and+ y = drv_pat_to_pretty(~settings, y)
     and+ e2 = go(e2);
     [
       mk_form(
@@ -871,16 +882,33 @@ let rec drv_to_pretty = (~settings: Settings.t, syntax: DrvSyntax.t): pretty => 
         ],
       ),
     ];
-  | Roll(e) => go({...syntax, term: Ap(Var("Roll") |> DrvSyntax.temp, e)})
+  | Roll(e) =>
+    let e = go(e);
+    text_to_pretty(id, Sort.Drv(Exp), "Roll")
+    @ [mk_form(Drv(Ap), id, [e])];
   | Unroll(e) =>
-    go({...syntax, term: Ap(Var("Unroll") |> DrvSyntax.temp, e)})
+    let e = go(e);
+    text_to_pretty(id, Sort.Drv(Exp), "Unroll")
+    @ [mk_form(Drv(Ap), id, [e])];
   | ExpHole => text_to_pretty(id, Sort.Drv(Exp), "_")
-  | Pat(s) => text_to_pretty(id, Sort.Drv(Pat), s)
+  };
+}
+and drv_pat_to_pretty = (~settings: Settings.t, syntax: Drv.Pat.t): pretty => {
+  let go = (~inline=settings.inline) =>
+    drv_pat_to_pretty(~settings={...settings, inline});
+  let id = syntax |> Drv.Pat.rep_id;
+  switch (syntax |> Drv.Pat.term_of) {
+  | Hole(_) => text_to_pretty(id, Sort.Drv(Pat), "?")
+  | Quote(e) => text_to_pretty(id, Sort.Drv(Pat), e)
+  | Parens(e) =>
+    let+ e = go(e);
+    [mk_form(Drv(PatParen), id, [e])];
+  | Var(s) => text_to_pretty(id, Sort.Drv(Pat), s)
   | Cast(e, t) =>
     let+ e = go(e)
-    and+ t = go(t);
+    and+ t = drv_typ_to_pretty(~settings, t);
     e @ [mk_form(Drv(Cast), id, [])] @ t;
-  | PatPair(l, r) =>
+  | Pair(l, r) =>
     let+ l = go(l)
     and+ r = go(r);
     [
@@ -890,6 +918,26 @@ let rec drv_to_pretty = (~settings: Settings.t, syntax: DrvSyntax.t): pretty => 
         [l @ [mk_form(Drv(PatComma), id, [])] @ r],
       ),
     ];
+  | InjL(p) =>
+    let+ p = go(p);
+    text_to_pretty(id, Sort.Drv(Pat), "L")
+    @ [mk_form(Drv(PatAp), id, [p])];
+  | InjR(p) =>
+    let+ p = go(p);
+    text_to_pretty(id, Sort.Drv(Pat), "R")
+    @ [mk_form(Drv(PatAp), id, [p])];
+  };
+}
+and drv_typ_to_pretty = (~settings: Settings.t, syntax: Drv.Typ.t): pretty => {
+  let go = (~inline=settings.inline) =>
+    drv_typ_to_pretty(~settings={...settings, inline});
+  let id = syntax |> Drv.Typ.rep_id;
+  switch (syntax |> Drv.Typ.term_of) {
+  | Hole(_) => text_to_pretty(id, Sort.Drv(Typ), "?")
+  | Quote(e) => text_to_pretty(id, Sort.Drv(Exp), e)
+  | Parens(e) =>
+    let+ e = go(e);
+    [mk_form(Drv(Paren), id, [e])];
   | Num => text_to_pretty(id, Sort.Drv(Typ), "Num")
   | Bool => text_to_pretty(id, Sort.Drv(Typ), "Bool")
   | Arrow(l, r) =>
@@ -905,13 +953,30 @@ let rec drv_to_pretty = (~settings: Settings.t, syntax: DrvSyntax.t): pretty => 
     let+ l = go(l)
     and+ r = go(r);
     l @ [mk_form(Drv(Sum), id, [])] @ r;
-  | TVar(s) => text_to_pretty(id, Sort.Drv(Typ), s)
+  | Var(s) => text_to_pretty(id, Sort.Drv(Typ), s)
   | Rec(l, r) =>
-    let+ l = go(l)
+    let+ l = drv_tpat_to_pretty(~settings, l)
     and+ r = go(r);
     [mk_form(Drv(Rec), id, [l])] @ r;
   | TypHole => text_to_pretty(id, Sort.Drv(Typ), "_")
-  | TPat(s) => text_to_pretty(id, Sort.Drv(TPat), s)
+  };
+}
+and drv_tpat_to_pretty =
+    (~settings as _: Settings.t, syntax: Drv.TPat.t): pretty => {
+  let id = syntax |> Drv.TPat.rep_id;
+  switch (syntax |> Drv.TPat.term_of) {
+  | Hole(_) => text_to_pretty(id, Sort.Drv(TPat), "?")
+  | Quote(e) => text_to_pretty(id, Sort.Drv(Exp), e)
+  | Var(s) => text_to_pretty(id, Sort.Drv(TPat), s)
+  };
+};
+
+let drv_to_pretty = (~settings: Settings.t, drv: Drv.Any.t): pretty => {
+  switch (drv) {
+  | Exp(e) => drv_exp_to_pretty(~settings, e)
+  | Pat(p) => drv_pat_to_pretty(~settings, p)
+  | Typ(t) => drv_typ_to_pretty(~settings, t)
+  | TPat(tp) => drv_tpat_to_pretty(~settings, tp)
   };
 };
 
@@ -953,7 +1018,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Printf.sprintf("%f", f))
   | String(s) =>
     text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "\"" ++ s ++ "\"")
-  | DrvExp(d, _) => drv_to_pretty(~settings, d |> DrvElab.elab_any)
+  | DrvExp(d, _) => drv_to_pretty(~settings, d)
   // TODO: Make sure types are correct
   | Constructor(c, _t) =>
     // let id = Id.mk();
@@ -1524,7 +1589,7 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Pat(p) => pat_to_pretty(~settings: Settings.t, p)
   | Typ(t) => typ_to_pretty(~settings: Settings.t, t)
   | TPat(tp) => tpat_to_pretty(~settings: Settings.t, tp)
-  | Drv(d) => drv_to_pretty(~settings: Settings.t, d |> DrvElab.elab_any)
+  | Drv(d) => drv_to_pretty(~settings: Settings.t, d)
   | Any(_)
   | Rul(_) =>
     //TODO: print out invalid rules properly

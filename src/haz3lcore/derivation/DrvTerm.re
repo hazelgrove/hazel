@@ -3,7 +3,7 @@ module Exp = {
   type cls =
     | Hole
     | Var
-    | Abbr
+    | Quote
     | Parens
     | Tuple
     | Val
@@ -27,12 +27,7 @@ module Exp = {
     | Falsity
     | NumLit
     | Neg
-    | Plus
-    | Minus
-    | Times
-    | Lt
-    | Gt
-    | Eq
+    | BinOp(DrvTermBase.op_bin)
     | True
     | False
     | If
@@ -40,6 +35,7 @@ module Exp = {
     | Fix
     | Fun
     | Ap
+    | Pair
     | Triv
     | PrjL
     | PrjR
@@ -53,8 +49,8 @@ module Exp = {
   let show_cls =
     fun
     | Hole => "Expression hole"
+    | Quote => "Quoted variable"
     | Var => "Variable reference"
-    | Abbr => "Abbreviation"
     | Parens => "Parenthesized expression"
     | Tuple => "Pair literal"
     | Val => "Value judgement"
@@ -78,12 +74,12 @@ module Exp = {
     | Falsity => "Absurdity proposition"
     | NumLit => "Number literal"
     | Neg => "Negation expression"
-    | Plus => "Addition expression"
-    | Minus => "Subtraction expression"
-    | Times => "Multiplication expression"
-    | Lt => "Less than expression"
-    | Gt => "Greater than expression"
-    | Eq => "Equality expression"
+    | BinOp(Plus) => "Addition expression"
+    | BinOp(Minus) => "Subtraction expression"
+    | BinOp(Times) => "Multiplication expression"
+    | BinOp(Lt) => "Less than expression"
+    | BinOp(Gt) => "Greater than expression"
+    | BinOp(Eq) => "Equality expression"
     | True => "Boolean literal true"
     | False => "Boolean literal false"
     | If => "If expression"
@@ -91,6 +87,7 @@ module Exp = {
     | Fix => "Fixpoint operator"
     | Fun => "Function literal"
     | Ap => "Application"
+    | Pair => "Pair expression"
     | Triv => "Unit literal"
     | PrjL => "Left projection expression"
     | PrjR => "Right projection expression"
@@ -121,7 +118,7 @@ module Exp = {
     fun
     | Hole(_) => Hole
     | Var(_) => Var
-    | Abbr(_) => Abbr
+    | Quote(_) => Quote
     | Parens(_) => Parens
     | Val(_) => Val
     | Eval(_) => Eval
@@ -145,12 +142,7 @@ module Exp = {
     | Tuple(_) => Tuple
     | NumLit(_) => NumLit
     | Neg(_) => Neg
-    | Plus(_) => Plus
-    | Minus(_) => Minus
-    | Times(_) => Times
-    | Lt(_) => Lt
-    | Gt(_) => Gt
-    | Eq(_) => Eq
+    | BinOp(cls, _, _) => BinOp(cls)
     | True => True
     | False => False
     | If(_) => If
@@ -158,6 +150,7 @@ module Exp = {
     | Fix(_) => Fix
     | Fun(_) => Fun
     | Ap(_) => Ap
+    | Pair(_) => Pair
     | Triv => Triv
     | PrjL(_) => PrjL
     | PrjR(_) => PrjR
@@ -169,43 +162,11 @@ module Exp = {
     | ExpHole => ExpHole;
 };
 
-module Rul = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Hole
-    | Rules;
-
-  let show_cls =
-    fun
-    | Hole => "Rule hole"
-    | Rules => "Rules";
-
-  include DrvTermBase.Rul;
-
-  // let hole = (tms: list(TermBase.Any.t)): term =>
-  //   Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
-
-  let rep_id = ({ids, _}: t) => {
-    assert(ids != []);
-    List.hd(ids);
-  };
-
-  let term_of: t => term = IdTagged.term_of;
-
-  let unwrap: t => (term, term => t) = IdTagged.unwrap;
-
-  let fresh: term => t = IdTagged.fresh;
-
-  let cls_of_term: term => cls =
-    fun
-    | Hole(_) => Hole
-    | Rules(_, _) => Rules;
-};
-
 module Pat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Hole
+    | Quote
     | Var
     | Cast
     | InjL
@@ -217,6 +178,7 @@ module Pat = {
   let show_cls =
     fun
     | Hole => "Pattern hole"
+    | Quote => "Quoted variable"
     | Var => "Variable pattern"
     | Cast => "Type cast pattern"
     | InjL => "Left injection pattern"
@@ -241,6 +203,7 @@ module Pat = {
   let cls_of_term: term => cls =
     fun
     | Hole(_) => Hole
+    | Quote(_) => Quote
     | Var(_) => Var
     | Cast(_) => Cast
     | InjL(_) => InjL
@@ -253,31 +216,31 @@ module Typ = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Hole
-    | Abbr
+    | Quote
+    | Var
+    | Parens
     | Num
     | Bool
     | Arrow
     | Prod
     | Unit
     | Sum
-    | Var
     | Rec
-    | Parens
     | TypHole;
 
   let show_cls =
     fun
     | Hole => "Type hole"
-    | Abbr => "Type abbreviation"
+    | Quote => "Quoted variable"
+    | Var => "Variable type"
+    | Parens => "Parenthesized type"
     | Num => "Number type"
     | Bool => "Boolean type"
     | Arrow => "Arrow type"
     | Prod => "Product type"
     | Unit => "Unit type"
     | Sum => "Sum type"
-    | Var => "Type variable"
     | Rec => "Recursive type"
-    | Parens => "Parenthesized type"
     | TypHole => "Type hole";
 
   include DrvTermBase.Typ;
@@ -299,16 +262,16 @@ module Typ = {
   let cls_of_term: term => cls =
     fun
     | Hole(_) => Hole
-    | Abbr(_) => Abbr
+    | Quote(_) => Quote
+    | Var(_) => Var
+    | Parens(_) => Parens
     | Num => Num
     | Bool => Bool
     | Arrow(_) => Arrow
     | Prod(_) => Prod
     | Unit => Unit
     | Sum(_) => Sum
-    | Var(_) => Var
     | Rec(_) => Rec
-    | Parens(_) => Parens
     | TypHole => TypHole;
 };
 
@@ -316,12 +279,14 @@ module TPat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Hole
+    | Quote
     | Var;
 
   let show_cls =
     fun
     | Hole => "Type pattern hole"
-    | Var => "Type pattern variable";
+    | Var => "Variable type pattern"
+    | Quote => "Quoted variable";
 
   include DrvTermBase.TPat;
 
@@ -342,6 +307,7 @@ module TPat = {
   let cls_of_term: term => cls =
     fun
     | Hole(_) => Hole
+    | Quote(_) => Quote
     | Var(_) => Var;
 };
 
@@ -349,7 +315,6 @@ module Any = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Exp(Exp.cls)
-    | Rul(Rul.cls)
     | Pat(Pat.cls)
     | Typ(Typ.cls)
     | TPat(TPat.cls);
@@ -357,7 +322,6 @@ module Any = {
   let show_cls =
     fun
     | Exp(cls) => Exp.show_cls(cls)
-    | Rul(cls) => Rul.show_cls(cls)
     | Pat(cls) => Pat.show_cls(cls)
     | Typ(cls) => Typ.show_cls(cls)
     | TPat(cls) => TPat.show_cls(cls);
@@ -367,7 +331,6 @@ module Any = {
   let rep_id: t => Id.t =
     fun
     | Exp(exp) => Exp.rep_id(exp)
-    | Rul(rul) => Rul.rep_id(rul)
     | Pat(pat) => Pat.rep_id(pat)
     | Typ(typ) => Typ.rep_id(typ)
     | TPat(tpat) => TPat.rep_id(tpat);
@@ -375,7 +338,6 @@ module Any = {
   let of_id: t => list(Id.t) =
     fun
     | Exp(exp) => exp.ids
-    | Rul(rul) => rul.ids
     | Pat(pat) => pat.ids
     | Typ(typ) => typ.ids
     | TPat(tpat) => tpat.ids;
@@ -383,7 +345,6 @@ module Any = {
   let cls_of: t => cls =
     fun
     | Exp(exp) => Exp(Exp.cls_of_term(exp.term))
-    | Rul(rul) => Rul(Rul.cls_of_term(rul.term))
     | Pat(pat) => Pat(Pat.cls_of_term(pat.term))
     | Typ(typ) => Typ(Typ.cls_of_term(typ.term))
     | TPat(tpat) => TPat(TPat.cls_of_term(tpat.term));

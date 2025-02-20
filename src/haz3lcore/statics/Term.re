@@ -933,7 +933,6 @@ module Any = {
   let rec ids: TermBase.any_t => list(Id.t) =
     fun
     | Drv(Exp(tm)) => tm.ids
-    | Drv(Rul(tm)) => tm.ids
     | Drv(Pat(tm)) => tm.ids
     | Drv(Typ(tm)) => tm.ids
     | Drv(TPat(tm)) => tm.ids
@@ -958,11 +957,10 @@ module Any = {
   let rep_id: TermBase.any_t => Id.t =
     fun
     | Drv(Exp(tm)) => Drv.Exp.rep_id(tm)
-    | Drv(Rul(tm)) => Drv.Rul.rep_id(tm)
     | Drv(Pat(tm)) => Drv.Pat.rep_id(tm)
     | Drv(Typ(tm)) => Drv.Typ.rep_id(tm)
     | Drv(TPat(tm)) => Drv.TPat.rep_id(tm)
-    | (Exp(tm): TermBase.any_t) => Exp.rep_id(tm)
+    | Exp(tm) => Exp.rep_id(tm)
     | Pat(tm) => Pat.rep_id(tm)
     | Typ(tm) => Typ.rep_id(tm)
     | TPat(tm) => TPat.rep_id(tm)

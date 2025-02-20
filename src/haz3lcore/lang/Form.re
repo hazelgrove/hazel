@@ -276,7 +276,7 @@ let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
   | Ctr => (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])
   | Type => (is_base_typ, [mk_op(Typ, [])])
   | DrvVar => (
-      is_var,
+      is_typ_var,
       [
         mk_op(Drv(Exp), []),
         mk_op(Drv(Pat), []),
@@ -300,6 +300,8 @@ type drv_compound_form =
   | OfJdmt
   | OfAlfaExp
   | OfAlfaTyp
+  | OfAlfaPat
+  | OfAlfaTPat
   // Judgments
   | Val
   | Eval
@@ -339,25 +341,26 @@ type drv_compound_form =
   | Fix
   | Fun
   | Ap
-  | PrjL
-  | PrjR
+  | Dot
   | Case
   | Rule
   | Cast
   | Comma
   | Paren
-  | Abbr
+  | Quote
   // Pat
   | PatAp
   | PatComma
   | PatParen
+  | PatQuote
   // Typ
   | Arrow
   | Prod
   | Sum
   | Rec
   | TypParen
-  | TypAbbr;
+  | TypQuote
+  | TPatQuote;
 
 let drv_get: drv_compound_form => t =
   fun
@@ -366,6 +369,8 @@ let drv_get: drv_compound_form => t =
   | OfJdmt => mk(ds, ["of_jdmt", "end"], mk_op(Exp, [Drv(Exp)]))
   | OfAlfaExp => mk(ds, ["of_alfa_exp", "end"], mk_op(Exp, [Drv(Exp)]))
   | OfAlfaTyp => mk(ds, ["of_alfa_typ", "end"], mk_op(Exp, [Drv(Typ)]))
+  | OfAlfaPat => mk(ds, ["of_alfa_pat", "end"], mk_op(Exp, [Drv(Pat)]))
+  | OfAlfaTPat => mk(ds, ["of_alfa_tpat", "end"], mk_op(Exp, [Drv(TPat)]))
   | Val => mk(ds, ["val", "end"], mk_op(Drv(Exp), [Drv(Exp)]))
   | Eval => mk_infix("\\=/", Drv(Exp), P.min)
   | Entail => mk_infix("|-", Drv(Exp), P.min)
@@ -438,8 +443,7 @@ let drv_get: drv_compound_form => t =
   | Fix => mk(ds, ["fix", "->"], mk_pre(P.fun_, Drv(Exp), [Drv(Pat)]))
   | Fun => mk(ds, ["fun", "->"], mk_pre(P.fun_, Drv(Exp), [Drv(Pat)]))
   | Ap => mk(ii, ["(", ")"], mk_post(P.ap, Drv(Exp), [Drv(Exp)]))
-  | PrjL => mk(ii, [".fst"], mk_post(P.ap, Drv(Exp), []))
-  | PrjR => mk(ii, [".snd"], mk_post(P.ap, Drv(Exp), []))
+  | Dot => mk_infix(".", Drv(Exp), P.dot)
   | Case => mk(ds, ["case", "end"], mk_op(Drv(Exp), [Drv(Exp)]))
   | Rule =>
     mk(
@@ -452,14 +456,16 @@ let drv_get: drv_compound_form => t =
   | PatAp => mk(ii, ["(", ")"], mk_post(P.ap, Drv(Pat), [Drv(Pat)]))
   | PatComma => mk_infix(",", Drv(Pat), P.comma)
   | PatParen => mk(ii, ["(", ")"], mk_op(Drv(Pat), [Drv(Pat)]))
-  | Cons => mk_infix("::", Drv(Pat), P.cons)
+  | Cons => mk_infix("::", Drv(Exp), P.cons)
   | Concat => mk_infix("@", Drv(Exp), P.plus)
   | List => mk(ii, ["[", "]"], mk_op(Drv(Exp), [Drv(Exp)]))
   | Paren => mk(ii, ["(", ")"], mk_op(Drv(Exp), [Drv(Exp)]))
   | TypParen => mk(ii, ["(", ")"], mk_op(Drv(Typ), [Drv(Typ)]))
-  | TypAbbr => mk(ii, ["$"], mk_pre(P.unquote, Drv(Typ), []))
+  | TypQuote => mk(ii, ["$"], mk_pre(P.unquote, Drv(Typ), []))
+  | TPatQuote => mk(ii, ["$"], mk_pre(P.unquote, Drv(TPat), []))
+  | PatQuote => mk(ii, ["$"], mk_pre(P.unquote, Drv(Pat), []))
   | Comma => mk_infix(",", Drv(Exp), P.comma)
-  | Abbr => mk(ii, ["$"], mk_pre(P.unquote, Drv(Exp), []))
+  | Quote => mk(ii, ["$"], mk_pre(P.unquote, Drv(Exp), []))
   | Arrow => mk_infix("->", Drv(Typ), P.type_arrow)
   | Prod => mk_infix("*", Drv(Typ), P.type_plus - 1)
   | Sum => mk_infix("+", Drv(Typ), P.type_plus)

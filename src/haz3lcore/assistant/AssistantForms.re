@@ -38,6 +38,8 @@ module Typ = {
     ("of_prop" ++ leading_expander, unk),
     ("of_alfa_exp" ++ leading_expander, unk),
     ("of_alfa_typ" ++ leading_expander, unk),
+    ("of_alfa_pat" ++ leading_expander, unk),
+    ("of_alfa_tpat" ++ leading_expander, unk),
     ("consistent" ++ leading_expander, unk),
     ("matched_arrow" ++ leading_expander, unk),
     ("matched_prod" ++ leading_expander, unk),

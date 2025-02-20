@@ -2,8 +2,6 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open ExplainThisForm;
 
-open DrvSyntax;
-
 let highlight = (msg: list(Node.t), id: Id.t, mapping: ColorSteps.t): Node.t => {
   let (c, _) = ColorSteps.get_color(id, mapping);
   let classes = Attr.class_("highlight-" ++ c);
@@ -62,11 +60,12 @@ let highlight = (msg: list(Node.t), id: Id.t, mapping: ColorSteps.t): Node.t => 
 //     }
 //   );
 
-let show = (syntax: t, ~color_map: ColorSteps.t, ~globals: Globals.t): Node.t => {
+let show =
+    (syntax: Drv.Exp.t, ~color_map: ColorSteps.t, ~globals: Globals.t): Node.t => {
   let editor =
     Editor.Model.mk(
       syntax
-      |> ExpToSegment.drv_to_pretty(
+      |> ExpToSegment.drv_exp_to_pretty(
            ~settings={
              inline: true,
              fold_case_clauses: false,
@@ -102,10 +101,10 @@ let copy_color_map =
   (
     List.fold_left(
       (new_map, (spec, syntax)) =>
-        switch (Haz3lcore.Id.Map.find_opt(IdTagged.rep_id(syntax), map)) {
+        switch (Haz3lcore.Id.Map.find_opt(Drv.Any.rep_id(syntax), map)) {
         | None => new_map
         | Some(color) =>
-          Haz3lcore.Id.Map.add(IdTagged.rep_id(spec), color, new_map)
+          Haz3lcore.Id.Map.add(Drv.Any.rep_id(spec), color, new_map)
         },
       Haz3lcore.Id.Map.empty,
       terms,
@@ -119,9 +118,10 @@ let copy_color_map =
   let terms: list(RuleSpec.specced) =
     switch (failure) {
     | Mismatch(_) => []
-    | FailSpec(FailUnbox(specced)) => [specced]
+    | FailSpec(FailMatch(specced)) => [specced]
     | FailSpec(NotEqual(specced1, specced2)) => [specced1, specced2]
-    | FailTest(map, test) =>
+    | FailTest(FailUnbox(specced, _)) => [specced]
+    | FailTest(FailTest(map, test)) =>
       test
       |> RuleTest.get_symbols
       |> List.map(RuleSpec.Map.find_opt(_, map))
@@ -131,10 +131,10 @@ let copy_color_map =
 };
 
 let conclusion_view =
-    (~spec: RuleSpec.t, ~color_map: ColorSteps.t, ~globals: Globals.t) =>
+    (~spec: Drv.Exp.t, ~color_map: ColorSteps.t, ~globals: Globals.t) =>
   Node.div(
     ~attrs=[Attr.class_("deduction-concl"), Attr.class_("drv-explainthis")],
-    [show(RuleSpec.of_syntax(spec), ~color_map, ~globals)],
+    [show(spec, ~color_map, ~globals)],
   );
 
 let rule_to_label =
@@ -147,8 +147,8 @@ let label_view = (~label) =>
 
 let premises_view =
     (
-      ~specs: list(RuleSpec.t),
-      ~tests: list(RuleTest.t),
+      ~specs: list(Drv.Exp.t),
+      ~tests: list(RuleTest.test),
       ~rule,
       ~color_map: ColorSteps.t,
       ~globals,
@@ -166,7 +166,7 @@ let premises_view =
           spec =>
             Node.div(
               ~attrs=[Attr.class_("drv-explainthis")],
-              [show(RuleSpec.of_syntax(spec), ~color_map, ~globals)],
+              [show(spec, ~color_map, ~globals)],
             ),
           specs,
         )
@@ -178,7 +178,7 @@ let premises_view =
                   Attr.class_("drv-explainthis"),
                 ],
                 [
-                  Node.text(RuleTest.show(test)),
+                  Node.text(RuleTest.show_test(test)),
                   Node.text(
                     String.concat("", List.init(3, _ => Unicode.nbsp)),
                   ),
@@ -240,12 +240,6 @@ let mk_explanation_title = () =>
     ~attrs=[Attr.class_("section-title")],
     [Node.text("Verification Result")],
   );
-
-let show_ghost = (t: option(t)) =>
-  switch (t) {
-  | Some(t) => DrvSyntax.show(t) |> String.trim
-  | None => "?"
-  };
 
 let premise_mismatch: group = {
   id: Derivation,

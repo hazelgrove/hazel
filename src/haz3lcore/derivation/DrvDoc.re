@@ -1,421 +1,288 @@
-open DrvSyntax;
+open DrvTermBase;
 
 module SymbolMap =
   SymbolMap.M({
-    type target = t;
-    let f: string => target = s => Var(s) |> fresh;
+    type exp = exp_t;
+    type pat = pat_t;
+    type typ = typ_t;
+    type tpat = tpat_t;
+    let exp: string => exp = s => Var(s) |> Drv.Exp.fresh;
+    let pat: string => pat = s => Var(s) |> Drv.Pat.fresh;
+    let typ: string => typ = s => Var(s) |> Drv.Typ.fresh;
+    let tpat: string => tpat = s => Var(s) |> Drv.TPat.fresh;
   });
 open SymbolMap;
 
-let scan1 = msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"));
-let scan2 = msg => Printf.sprintf(Scanf.format_from_string(msg, "%s%s"));
-let scan3 = msg => Printf.sprintf(Scanf.format_from_string(msg, "%s%s%s"));
-let scan4 = msg => Printf.sprintf(Scanf.format_from_string(msg, "%s%s%s%s"));
-let exp_form: DrvTermBase.exp_term => (t, string) =
-  fun
-  | Hole(_) => (Hole("") |> fresh, "")
-  | Var(x) => (Var(x) |> fresh, scan1("The variable `%s`", x))
-  | Abbr(_) => (
-      Var("$e") |> fresh,
-      "The abbreviation represents the definition of $e.",
-    )
-  | Parens(_) => (
-      Var("(e)") |> fresh,
-      "The parenthesis is used to explicitly group expressions. This does not carry other semantic meaning.",
-    )
-  | Val(_) => (
-      Val(v) |> fresh,
-      scan1(
-        "The value judgement defines the values in ALFA, i.e. `%s` is a value.",
-        show(v),
-      ),
-    )
-  | Eval(_) => (
-      Eval(e, v) |> fresh,
-      scan2(
-        "The evaluation judgement defines the evaluation behavior of ALFA expressions, i.e. it relates an expression `%s` to its value `%s`.",
-        show(e),
-        show(v),
-      ),
-    )
-  | Entail(_) => (
-      Entail(gamma, a) |> fresh,
-      scan2(
-        "The judgement defines that the context `%s` entails the proposition `%s`.",
-        show(gamma),
-        show(a),
-      ),
-    )
-  | Consistent(_) => (
-      Consistent(t1, t2) |> fresh,
-      scan2(
-        "A Type consistency judgement is a weakened form of equivalence: `%s` and `%s` are consistent if they differ only up to the appearance of an unknown type.",
-        show(t1),
-        show(t2),
-      ),
-    )
-  | MatchedArrow(_) => (
-      MatchedArrow(t, Arrow(t1, t2) |> fresh) |> fresh,
-      scan4(
-        "The matched arrow judgement defines that the type `%s` matches the arrow type `%s`. When `%s` is already an arrow type, it matches to itself. When `%s` is the unknown type, then it gets matched to `? -> f`.",
-        show(t),
-        show(Arrow(t1, t2) |> fresh),
-        show(t),
-        show(t),
-      ),
-    )
-  | MatchedProd(_) => (
-      MatchedProd(t, Prod(t1, t2) |> fresh) |> fresh,
-      scan4(
-        "The matched product judgement defines that the type `%s` matches the product type `%s`. When `%s` is already a product type, it matches to itself. When `%s` is the unknown type, then it gets matched to `? * ?`.",
-        show(t),
-        show(Prod(t1, t2) |> fresh),
-        show(t),
-        show(t),
-      ),
-    )
-  | MatchedSum(_) => (
-      MatchedSum(t, Sum(t1, t2) |> fresh) |> fresh,
-      scan4(
-        "The matched sum judgement defines that the type `%s` matches the sum type `%s`. When `%s` is already a sum type, it matches to itself. When `%s` is the unknown type, then it gets matched to `? + ?`.",
-        show(t),
-        show(Sum(t1, t2) |> fresh),
-        show(t),
-        show(t),
-      ),
-    )
-  | Type(_) => (
-      Entail(delta, Type(t) |> fresh) |> fresh,
-      scan2(
-        "The type validity judgement defines that the type validation context `%s` entails that the type variable `%s` does actually stand for a valid type.",
-        show(delta),
-        show(t),
-      ),
-    )
-  | HasType(_) => (
-      Entail(gamma, HasType(e, t) |> fresh) |> fresh,
-      scan3(
-        "The type judgement defines that the expression `%s` has type `%s` assuming the context `%s`.",
-        show(e),
-        show(t),
-        show(gamma),
-      ),
-    )
-  | Syn(_) => (
-      Entail(gamma, Syn(e, t) |> fresh) |> fresh,
-      scan3(
-        "The type synthesis judgement defines that the expression `%s` synthesizes type `%s` assuming the context `%s`.",
-        show(e),
-        show(t),
-        show(gamma),
-      ),
-    )
-  | Ana(_) => (
-      Entail(gamma, Ana(e, t) |> fresh) |> fresh,
-      scan3(
-        "The type analysis judgement defines that the expression `%s` analyzes against type `%s` assuming the context `%s`.",
-        show(e),
-        show(t),
-        show(gamma),
-      ),
-    )
-  | And(_) => (
-      And(a, b) |> fresh,
-      scan2(
-        "The conjunction proposition is true if both `%s` and `%s` are true assuming the given hypothesis.",
-        show(a),
-        show(b),
-      ),
-    )
-  | Or(_) => (
-      Or(a, b) |> fresh,
-      scan2(
-        "The disjunction proposition is true if either `%s` or `%s` is true assuming the given hypothesis.",
-        show(a),
-        show(b),
-      ),
-    )
-  | Impl(_) => (
-      Impl(a, b) |> fresh,
-      scan2(
-        "The implication proposition is true if whenever `%s` is true, `%s` is also true assuming the given hypothesis.",
-        show(a),
-        show(b),
-      ),
-    )
-  | Truth => (
-      Truth |> fresh,
-      "The tautology proposition is true under any hypothesis.",
-    )
-  | Falsity => (
-      Falsity |> fresh,
-      "The absurdity proposition is false under any hypothesis.",
-    )
-  | Ctx(_) => (
-      Var("[A, B, ...]") |> fresh,
-      "The context literal is a list of propositions written in Hazel syntax.",
-    )
-  | Cons(_) => (
-      Var("A :: [B, ...]") |> fresh,
-      scan2(
-        "The context extension proposition defines that the context `%s` extended with `%s`.",
-        show(a),
-        show(b),
-      ),
-    )
-  | Concat(_) => (
-      Var("[A, B] @ [C, ...]") |> fresh,
-      scan2(
-        "The context concatenation proposition defines that the context `%s` concatenated with `%s`.",
-        show(a),
-        show(b),
-      ),
-    )
-  | NumLit(n) => (NumLit(n) |> fresh, "A number literal")
-  | Neg(_) => (
-      Neg(n) |> fresh,
-      scan1(
-        "The negation expression defines the negation of numlit `%s`.",
-        show(n),
-      ),
-    )
-  | Plus(_) => (
-      Plus(n1, n2) |> fresh,
-      scan2(
-        "The addition expression defines the sum of numlit `%s` and `%s`.",
-        show(n1),
-        show(n2),
-      ),
-    )
-  | Minus(_) => (
-      Minus(n1, n2) |> fresh,
-      scan2(
-        "The subtraction expression defines the difference between numlit `%s` and `%s`.",
-        show(n1),
-        show(n2),
-      ),
-    )
-  | Times(_) => (
-      Times(n1, n2) |> fresh,
-      scan2(
-        "The multiplication expression defines the product of numlit `%s` and `%s`.",
-        show(n1),
-        show(n2),
-      ),
-    )
-  | Lt(_) => (
-      Lt(n1, n2) |> fresh,
-      scan2(
-        "The less-than expression defines the comparison between numlit `%s` and `%s`.",
-        show(n1),
-        show(n2),
-      ),
-    )
-  | Gt(_) => (
-      Gt(n1, n2) |> fresh,
-      scan2(
-        "The greater-than expression defines the comparison between numlit `%s` and `%s`.",
-        show(n1),
-        show(n2),
-      ),
-    )
-  | Eq(_) => (
-      Eq(n1, n2) |> fresh,
-      scan2(
-        "The equal-to expression defines the comparison between numlit `%s` and `%s`.",
-        show(n1),
-        show(n2),
-      ),
-    )
-  | True => (True |> fresh, "The boolean literal true")
-  | False => (False |> fresh, "The boolean literal false")
-  | If(_) => (
-      If(e, e1, e2) |> fresh,
-      scan3(
-        "The if-then-else expression defines that if `%s` is true, then the result is `%s`, otherwise the result is `%s`.",
-        show(e),
-        show(e1),
-        show(e2),
-      ),
-    )
-  | Let(_) => (
-      Let(x, e_def, e_body) |> fresh,
-      scan3(
-        "The let expression defines the local binding of `%s` to `%s` in the body `%s`.",
-        show(e_def),
-        show(x),
-        show(e_body),
-      ),
-    )
-  | Fix(_) => (
-      Fix(x, e) |> fresh,
-      scan2(
-        "The fix expression defines the fixed-point of `%s` as the value of `%s`.",
-        show(x),
-        show(e),
-      ),
-    )
-  | Fun(_) => (
-      Fun(x, e) |> fresh,
-      scan2(
-        "The function expression defines the function with parameter `%s` and body `%s`.",
-        show(x),
-        show(e),
-      ),
-    )
-  | Ap(_) => (
-      Ap(e1, e2) |> fresh,
-      scan2(
-        "The application expression defines the application of function `%s` to argument `%s`.",
-        show(e1),
-        show(e2),
-      ),
-    )
-  | Tuple(_) => (
-      Pair(e1, e2) |> fresh,
-      scan2(
-        "The pair expression defines the product of `%s` and `%s`.",
-        show(e1),
-        show(e2),
-      ),
-    )
-  | Triv => (Triv |> fresh, "The unit expression defines the unit literal.")
-  | PrjL(_) => (
-      PrjL(e) |> fresh,
-      scan1(
-        "The projection-left expression defines the left projection of `%s`.",
-        show(e),
-      ),
-    )
-  | PrjR(_) => (
-      PrjR(e) |> fresh,
-      scan1(
-        "The projection-right expression defines the right projection of `%s`.",
-        show(e),
-      ),
-    )
-  | InjL(_) => (
-      InjL(e) |> fresh,
-      scan1(
-        "The injection-left expression defines the left injection of `%s`.",
-        show(e),
-      ),
-    )
-  | InjR(_) => (
-      InjR(e) |> fresh,
-      scan1(
-        "The injection-right expression defines the right injection of `%s`.",
-        show(e),
-      ),
-    )
-  | Case(_) => (
-      Case(e, InjL(x) |> fresh, e1, InjL(y) |> fresh, e2) |> fresh,
-      scan3(
-        "The case expression defines the pattern matching of `%s` against `%s` and `%s`.",
-        show(e),
-        show(InjL(x) |> fresh),
-        show(InjL(y) |> fresh),
-      ),
-    )
-  | Roll(_) => (
-      Roll(e) |> fresh,
-      scan1("The roll expression defines the roll of `%s`.", show(e)),
-    )
-  | Unroll(_) => (
-      Unroll(e) |> fresh,
-      scan1("The unroll expression defines the unroll of `%s`.", show(e)),
-    )
-  | ExpHole => (ExpHole |> fresh, "The expression hole");
+let settings =
+  ExpToSegment.Settings.{
+    inline: true,
+    fold_case_clauses: false,
+    fold_fn_bodies: false,
+    hide_fixpoints: false,
+    fold_cast_types: false,
+    show_filters: false,
+  };
 
-let typ_form: DrvTermBase.typ_term => (t, string) =
-  fun
-  | Hole(_) => (Hole("") |> fresh, "")
-  | Var(x) => (TVar(x) |> fresh, scan1("The type variable `%s`", x))
-  | Abbr(_) => (
-      Var("$t") |> fresh,
-      "The abbreviation represents the definition of type $t.",
-    )
-  | Num => (Num |> fresh, "The numlit type defines the type of numlit")
-  | Bool => (Bool |> fresh, "The bool type defines the type of boolean")
-  | Arrow(_) => (
-      Arrow(t1, t2) |> fresh,
-      scan2(
-        "This arrow type defines the type of function that takes an argument of type `%s` and returns a value of type `%s`.",
-        show(t1),
-        show(t2),
-      ),
-    )
-  | Prod(_) => (
-      Prod(t1, t2) |> fresh,
-      scan2(
-        "The product type defines the type of pair of `%s` and `%s`.",
-        show(t1),
-        show(t2),
-      ),
-    )
-  | Unit => (Unit |> fresh, "The unit type defines the type of unit literal")
-  | Sum(_) => (
-      Sum(t1, t2) |> fresh,
-      scan2(
-        "The sum type defines the type of either `%s` or `%s`.",
-        show(t1),
-        show(t2),
-      ),
-    )
-  | Rec(_) => (
-      Rec(x, t) |> fresh,
-      scan2(
-        "This recursive type defines the type of `%s` that is recursively defined by `%s`.",
-        show(x),
-        show(t),
-      ),
-    )
-  | TypHole => (TypHole |> fresh, "The type hole")
-  | Parens(_) => (
-      Var("(t)") |> fresh,
-      "The parenthesis type is used to explicitly group types. This does not carry other semantic meaning.",
-    );
+let f_exp: exp_t => Segment.t = ExpToSegment.drv_exp_to_pretty(~settings);
+let f_pat: pat_t => Segment.t = ExpToSegment.drv_pat_to_pretty(~settings);
+let f_typ: typ_t => Segment.t = ExpToSegment.drv_typ_to_pretty(~settings);
+let f_tpat: tpat_t => Segment.t = ExpToSegment.drv_tpat_to_pretty(~settings);
 
-let pat_form: DrvTermBase.pat_term => (t, string) =
-  fun
-  | Hole(_) => (Hole("") |> fresh, "")
-  | Var(x) => (Pat(x) |> fresh, "The pattern variable `%s`")
-  | Cast(_) => (
-      Cast(x, t) |> fresh,
-      scan2(
-        "Only expression that matches the pattern `%s` and have the type `%s` match this type annotation pattern.",
-        show(x),
-        show(t),
-      ),
-    )
-  | InjL(_) => (
-      InjL(x) |> fresh,
-      scan1(
-        "The left injection pattern matches any expression that is injected to the left.",
-        show(x),
-      ),
-    )
-  | InjR(_) => (
-      InjR(x) |> fresh,
-      scan1(
-        "The right injection pattern matches any expression that is injected to the right.",
-        show(x),
-      ),
-    )
-  | Pair(_) => (
-      PatPair(x, y) |> fresh,
-      scan2(
-        "The pair pattern matches any expression that matches both patterns `%s` and `%s`.",
-        show(x),
-        show(y),
-      ),
-    )
-  | Parens(_) => (
-      Var("(p)") |> fresh,
-      "The parenthesis pattern is used to explicitly group patterns. This does not carry other semantic meaning.",
-    );
+let exp_form: exp_t => (Segment.t, string) =
+  exp =>
+    switch (Drv.Exp.term_of(exp)) {
+    | Hole(_) => ([], "")
+    | Var(_) => (exp |> f_exp, "The variable represents the expression.")
+    | Quote(_) => (
+        Var("$x") |> Drv.Exp.fresh |> f_exp,
+        "The abbreviation represents the definition of $x.",
+      )
+    | Parens(_) => (
+        Parens(e) |> Drv.Exp.fresh |> f_exp,
+        "The parenthesis is used to explicitly group expressions. This does not carry other semantic meaning.",
+      )
+    | Val(_) => (
+        v |> f_exp,
+        "The value judgement defines the values in ALFA, i.e. v is a value",
+      )
+    | Eval(_) => (
+        Eval(e, v) |> Drv.Exp.fresh |> f_exp,
+        "The evaluation judgement defines the evaluation behavior of ALFA expressions, i.e. it relates an expression e to its value v.",
+      )
+    | Entail(_) => (
+        Entail(gamma, a) |> Drv.Exp.fresh |> f_exp,
+        "The judgement defines that the context gamma entails the proposition a.",
+      )
+    | Consistent(_) => (
+        Consistent(t1, t2) |> Drv.Exp.fresh |> f_exp,
+        "A Type consistency judgement is a weakened form of equivalence: t1 and t2 are consistent if they differ only up to the appearance of an unknown type.",
+      )
+    | MatchedArrow(_) => (
+        MatchedArrow(t, Arrow(t1, t2) |> Drv.Typ.fresh)
+        |> Drv.Exp.fresh
+        |> f_exp,
+        "The matched arrow judgement defines that the type t matches the arrow type Arrow(t1, t2). When t is already an arrow type, it matches to itself. When t is the unknown type, then it gets matched to ? -> f.",
+      )
+    | MatchedProd(_) => (
+        MatchedProd(t, Prod(t1, t2) |> Drv.Typ.fresh)
+        |> Drv.Exp.fresh
+        |> f_exp,
+        "The matched product judgement defines that the type t matches the product type Prod(t1, t2). When t is already a product type, it matches to itself. When t is the unknown type, then it gets matched to ? * ?.",
+      )
+    | MatchedSum(_) => (
+        MatchedSum(t, Sum(t1, t2) |> Drv.Typ.fresh) |> Drv.Exp.fresh |> f_exp,
+        "The matched sum judgement defines that the type t matches the sum type Sum(t1, t2). When t is already a sum type, it matches to itself. When t is the unknown type, then it gets matched to ? + ?.",
+      )
+    | Ctx([]) => (Ctx([]) |> Drv.Exp.fresh |> f_exp, "The empty context.")
+    | Ctx(_) => (
+        Ctx([a, b, Var("...") |> Drv.Exp.fresh]) |> Drv.Exp.fresh |> f_exp,
+        "The context is a list of propositions A, B, ... The order does not matter.",
+      )
+    | Cons(_, _) => (
+        Cons(a, Ctx([a, Var("...") |> Drv.Exp.fresh]) |> Drv.Exp.fresh)
+        |> Drv.Exp.fresh
+        |> f_exp,
+        "The context cons operation adds the proposition A to the context. The order does not matter.",
+      )
+    | Concat(_, _) => (
+        Concat(Ctx([a, Var("...") |> Drv.Exp.fresh]) |> Drv.Exp.fresh, b)
+        |> Drv.Exp.fresh
+        |> f_exp,
+        "The context concatenation operation appends the proposition B to the context. The order does not matter.",
+      )
+    | Type(_) => (
+        Entail(delta, Type(t) |> Drv.Exp.fresh) |> Drv.Exp.fresh |> f_exp,
+        "The type validity judgement defines that the type validation context delta entails that the type variable t does actually stand for a valid type.",
+      )
+    | HasType(_) => (
+        Entail(gamma, HasType(e, t) |> Drv.Exp.fresh)
+        |> Drv.Exp.fresh
+        |> f_exp,
+        "The type judgement defines that the expression e has type t assuming the context gamma.",
+      )
+    | Syn(_) => (
+        Entail(gamma, Syn(e, t) |> Drv.Exp.fresh) |> Drv.Exp.fresh |> f_exp,
+        "The type synthesis judgement defines that the expression e synthesizes type t assuming the context gamma.",
+      )
+    | Ana(_) => (
+        Entail(gamma, Ana(e, t) |> Drv.Exp.fresh) |> Drv.Exp.fresh |> f_exp,
+        "The type analysis judgement defines that the expression e analyzes against type t assuming the context gamma.",
+      )
+    | And(_) => (
+        And(a, b) |> Drv.Exp.fresh |> f_exp,
+        "The conjunction proposition is true if both a and b are true assuming the given hypothesis.",
+      )
+    | Or(_) => (
+        Or(a, b) |> Drv.Exp.fresh |> f_exp,
+        "The disjunction proposition is true if either a or b is true assuming the given hypothesis.",
+      )
+    | Impl(_) => (
+        Impl(a, b) |> Drv.Exp.fresh |> f_exp,
+        "The implication proposition is true if a implies b assuming the given hypothesis.",
+      )
+    | Truth => (
+        Truth |> Drv.Exp.fresh |> f_exp,
+        "The truth proposition is always true.",
+      )
+    | Falsity => (
+        Falsity |> Drv.Exp.fresh |> f_exp,
+        "The falsity proposition is always false.",
+      )
+    | NumLit(_) => (n |> f_exp, "The numeric literal represents the number.")
+    | Neg(_) => (
+        Neg(e) |> Drv.Exp.fresh |> f_exp,
+        "The negation of the expression e.",
+      )
+    | BinOp(op, _, _) => (
+        BinOp(op, e1, e2) |> Drv.Exp.fresh |> f_exp,
+        "The binary operation "
+        ++ show_op_bin(op)
+        ++ " of the expressions e1 and e2.",
+      )
+    | True => (True |> Drv.Exp.fresh |> f_exp, "The boolean literal true.")
+    | False => (False |> Drv.Exp.fresh |> f_exp, "The boolean literal false.")
+    | If(_, _, _) => (
+        If(e, e1, e2) |> Drv.Exp.fresh |> f_exp,
+        "The conditional expression if e is true then e1 else e2.",
+      )
+    | Let(_, _, _) => (
+        Let(x, e_body, e) |> Drv.Exp.fresh |> f_exp,
+        "The let expression defines a binding of the variable x to the expression e_body in the expression e.",
+      )
+    | Fix(_, _) => (
+        Fix(x, e) |> Drv.Exp.fresh |> f_exp,
+        "The fixpoint expression defines a recursive binding of the variable x to the expression e.",
+      )
+    | Fun(_, _) => (
+        Fun(x, e) |> Drv.Exp.fresh |> f_exp,
+        "The function expression defines a lambda abstraction of the variable x in the expression e.",
+      )
+    | Ap(_, _) => (
+        Ap(e1, e2) |> Drv.Exp.fresh |> f_exp,
+        "The application of the expression e1 to the expression e2.",
+      )
+    | Tuple(_)
+    | Pair(_, _) => (
+        Pair(e1, e2) |> Drv.Exp.fresh |> f_exp,
+        "The pair expression.",
+      )
+    | Triv => (Triv |> Drv.Exp.fresh |> f_exp, "The unit literal expression.")
+    | PrjL(_) => (
+        PrjL(e) |> Drv.Exp.fresh |> f_exp,
+        "The projection of the left component of the pair expression e.",
+      )
+    | PrjR(_) => (
+        PrjR(e) |> Drv.Exp.fresh |> f_exp,
+        "The projection of the right component of the pair expression e.",
+      )
+    | InjL(_) => (
+        InjL(e) |> Drv.Exp.fresh |> f_exp,
+        "The injection of the left component of the sum expression e.",
+      )
+    | InjR(_) => (
+        InjR(e) |> Drv.Exp.fresh |> f_exp,
+        "The injection of the right component of the sum expression e.",
+      )
+    | Case(_) => (
+        Case(e, x, e1, y, e2) |> Drv.Exp.fresh |> f_exp,
+        "The case expression of the expression e with the patterns x and y and the expressions e1 and e2.",
+      )
+    | Roll(_) => (
+        Roll(e) |> Drv.Exp.fresh |> f_exp,
+        "The roll expression of the expression e.",
+      )
+    | Unroll(_) => (
+        Unroll(e) |> Drv.Exp.fresh |> f_exp,
+        "The unroll expression of the expression e.",
+      )
+    | ExpHole => (ExpHole |> Drv.Exp.fresh |> f_exp, "The expression hole.")
+    };
 
-let tpat_form: DrvTermBase.tpat_term => (t, string) =
-  fun
-  | Hole(_) => (Hole("") |> fresh, "")
-  | Var(x) => (Var(x) |> fresh, "The type pattern variable `%s`");
+let typ_form: typ_t => (Segment.t, string) =
+  typ =>
+    switch (Drv.Typ.term_of(typ)) {
+    | Hole(_) => ([], "")
+    | Var(_) => (typ |> f_typ, "The type variable represents the type.")
+    | Quote(_) => (
+        Var("$x") |> Drv.Typ.fresh |> f_typ,
+        "The abbreviation represents the definition of type $x.",
+      )
+    | Num => (
+        Num |> Drv.Typ.fresh |> f_typ,
+        "The numlit type defines the type of numlit",
+      )
+    | Bool => (
+        Bool |> Drv.Typ.fresh |> f_typ,
+        "The bool type defines the type of boolean",
+      )
+    | Arrow(_) => (
+        Arrow(t1, t2) |> Drv.Typ.fresh |> f_typ,
+        "This arrow type defines the type of function that takes an argument of type t1 and returns a value of type t2.",
+      )
+    | Prod(_) => (
+        Prod(t1, t2) |> Drv.Typ.fresh |> f_typ,
+        "The product type defines the type of pair of t1 and t2.",
+      )
+    | Unit => (
+        Unit |> Drv.Typ.fresh |> f_typ,
+        "The unit type defines the type of unit literal",
+      )
+    | Sum(_) => (
+        Sum(t1, t2) |> Drv.Typ.fresh |> f_typ,
+        "The sum type defines the type of either t1 or t2.",
+      )
+    | Rec(_) => (
+        Rec(tpat, t) |> Drv.Typ.fresh |> f_typ,
+        "This recursive type defines the type of t that is recursively defined by a.",
+      )
+    | TypHole => (TypHole |> Drv.Typ.fresh |> f_typ, "The type hole")
+    | Parens(_) => (
+        Var("(t)") |> Drv.Typ.fresh |> f_typ,
+        "The parenthesis type is used to explicitly group types. This does not carry other semantic meaning.",
+      )
+    };
+
+let pat_form: pat_t => (Segment.t, string) =
+  pat =>
+    switch (Drv.Pat.term_of(pat)) {
+    | Hole(_) => ([], "")
+    | Quote(_) => (
+        Var("$x") |> Drv.Pat.fresh |> f_pat,
+        "The abbreviation represents the definition of pattern $x.",
+      )
+    | Var(_) => (pat |> f_pat, "The pattern variable represents the pattern.")
+    | Cast(_) => (
+        Cast(x, t) |> Drv.Pat.fresh |> f_pat,
+        "Only expression that matches the pattern x and have the type t match this type annotation pattern.",
+      )
+    | InjL(_) => (
+        InjL(x) |> Drv.Pat.fresh |> f_pat,
+        "The left injection pattern matches any expression that is injected to L(x).",
+      )
+    | InjR(_) => (
+        InjR(x) |> Drv.Pat.fresh |> f_pat,
+        "The right injection pattern matches any expression that is injected to R(x).",
+      )
+    | Pair(_) => (
+        Pair(x, y) |> Drv.Pat.fresh |> f_pat,
+        "The pair pattern matches any expression that matches both patterns x and y.",
+      )
+    | Parens(_) => (
+        Var("(x)") |> Drv.Pat.fresh |> f_pat,
+        "The parenthesis pattern is used to explicitly group patterns. This does not carry other semantic meaning.",
+      )
+    };
+
+let tpat_form: tpat_t => (Segment.t, string) =
+  tpat =>
+    switch (Drv.TPat.term_of(tpat)) {
+    | Hole(_) => ([], "")
+    | Quote(_) => (
+        Var("$x") |> Drv.TPat.fresh |> f_tpat,
+        "The abbreviation represents the definition of type pattern $x.",
+      )
+    | Var(_) => (
+        tpat |> f_tpat,
+        "The type pattern variable represents the type pattern.",
+      )
+    };
