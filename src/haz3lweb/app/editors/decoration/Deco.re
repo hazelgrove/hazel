@@ -144,6 +144,7 @@ module HighlightSegment =
       let num_lb =
         switch (shape.vertical) {
         | Inline => 0
+        | Tab(num_lbs) => num_lbs
         | Block(num_lbs) => num_lbs
         };
       if (num_lb == 0) {
