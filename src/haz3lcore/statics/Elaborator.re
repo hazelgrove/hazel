@@ -242,7 +242,12 @@ let rec elaborate_pattern =
         switch (Mode.ctr_ana_typ(ctx, mode, c), Ctx.lookup_ctr(ctx, c)) {
         | (Some(ana_ty), _) => ana_ty
         | (_, Some({typ: syn_ty, _})) => syn_ty
-        | _ => Unknown(Internal) |> Typ.temp
+        | _ =>
+          Sum([
+            ConstructorMap.Variant(c, [Id.invalid], None),
+            ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+          ])
+          |> Typ.temp
         };
       let t = t |> Typ.normalize(ctx);
       Constructor(c, t) |> rewrap |> cast_from(t);
@@ -333,7 +338,12 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         switch (Mode.ctr_ana_typ(ctx, mode, c), Ctx.lookup_ctr(ctx, c)) {
         | (Some(ana_ty), _) => ana_ty
         | (_, Some({typ: syn_ty, _})) => syn_ty
-        | _ => Unknown(Internal) |> Typ.temp
+        | _ =>
+          Sum([
+            ConstructorMap.Variant(c, [Id.invalid], None),
+            ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+          ])
+          |> Typ.temp
         };
       let t = t |> Typ.normalize(ctx) |> Typ.all_ids_temp;
       Constructor(c, t) |> rewrap |> cast_from(t);
