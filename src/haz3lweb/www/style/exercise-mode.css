@@ -324,12 +324,6 @@
   width: 100%;
 }
 
-.drv-explainthis .code .token,
-.drv-explainthis .code .whitespace {
-  /* font-size: small; */
-  color: var(--token-exp);
-}
-
 .add-abbr-btn,
 .add-premise-btn {
   opacity: 0;

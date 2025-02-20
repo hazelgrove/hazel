@@ -166,7 +166,7 @@ module Transition = (EV: EV_MODE) => {
      if anything about the current node changes, if only its
      children change, we use rewrap */
 
-  let subst_drv_abbrs = (env, d: t): t => {
+  let drv_transition = (env, d: t): t => {
     let rec go_exp = exp => {
       let (term, rewrap) = Drv.Exp.unwrap(exp);
       let term: Drv.Exp.term =
@@ -182,7 +182,7 @@ module Transition = (EV: EV_MODE) => {
             }
           | None => Hole(AbbrNotFound)
           }
-        | Parens(e) => Parens(go_exp(e))
+        | Parens(e) => Drv.Exp.term_of(go_exp(e))
         | Val(e) => Val(go_exp(e))
         | Eval(e1, e2) => Eval(go_exp(e1), go_exp(e2))
         | Entail(ctx, p) => Entail(go_exp(ctx), go_exp(p))
@@ -191,8 +191,20 @@ module Transition = (EV: EV_MODE) => {
         | MatchedProd(t1, t2) => MatchedProd(go_typ(t1), go_typ(t2))
         | MatchedSum(t1, t2) => MatchedSum(go_typ(t1), go_typ(t2))
         | Ctx(es) => Ctx(List.map(go_exp, es))
-        | Cons(e1, e2) => Cons(go_exp(e1), go_exp(e2))
-        | Concat(e1, e2) => Concat(go_exp(e1), go_exp(e2))
+        | Cons(p, ctx) =>
+          switch (Drv.Exp.term_of(go_exp(ctx))) {
+          | Ctx(es) => Ctx(Drv.Exp.cons_ctx(es, go_exp(p)))
+          | _ => Cons(p, ctx) // TODO(zhiyao): should we throw an error here?
+          }
+        | Concat(e1, e2) =>
+          switch (
+            Drv.Exp.term_of(go_exp(e1)),
+            Drv.Exp.term_of(go_exp(e2)),
+          ) {
+          | (Ctx(es1), Ctx(es2)) =>
+            Ctx(List.fold_left(Drv.Exp.cons_ctx, es2, es1))
+          | _ => Concat(go_exp(e1), go_exp(e2)) // TODO: should we throw an error here?
+          }
         | Type(t) => Type(go_typ(t))
         | HasType(e, t) => HasType(go_exp(e), go_typ(t))
         | Syn(e, t) => Syn(go_exp(e), go_typ(t))
@@ -249,7 +261,7 @@ module Transition = (EV: EV_MODE) => {
         | Sum(t1, t2) => Sum(go_typ(t1), go_typ(t2))
         | Var(x) => Var(x)
         | Rec(x, t) => Rec(x, go_typ(t))
-        | Parens(t) => Parens(go_typ(t))
+        | Parens(t) => Drv.Typ.term_of(go_typ(t))
         | TypHole => TypHole
         };
       term |> rewrap;
@@ -273,7 +285,7 @@ module Transition = (EV: EV_MODE) => {
         | InjL(p) => InjL(go_pat(p))
         | InjR(p) => InjR(go_pat(p))
         | Pair(p1, p2) => Pair(go_pat(p1), go_pat(p2))
-        | Parens(p) => Parens(go_pat(p))
+        | Parens(p) => Drv.Pat.term_of(go_pat(p))
         };
       term |> rewrap;
     }
@@ -595,7 +607,7 @@ module Transition = (EV: EV_MODE) => {
       Constructor;
     | DrvExp(_) =>
       let. _ = otherwise(env, d);
-      let d' = subst_drv_abbrs(env, d);
+      let d' = drv_transition(env, d);
       if (DHExp.fast_equal(d, d')) {
         Constructor;
       } else {

@@ -67,6 +67,16 @@ let verify: (spec, tests, (Drv.Exp.t, list(Drv.Exp.t))) => res =
   (spec, tests, (concl, prems)) => {
     let (concl_spec, prems_spec) = spec;
     // We simply stick conclusion and premises together
+
+    // print_endline("Actual Conclusion:");
+    // print_endline(Drv.Exp.show(concl));
+    // print_endline("Actual Premises:");
+    // List.iter(prem => print_endline(Drv.Exp.show(prem)), prems);
+    // print_endline("Spec Conclusion:");
+    // print_endline(Drv.Exp.show(concl_spec));
+    // print_endline("Spec Premises:");
+    // List.iter(prem => print_endline(Drv.Exp.show(prem)), prems_spec);
+
     let (map, res) =
       go_spec([concl_spec, ...prems_spec], [concl, ...prems]);
     let (m, n) = (List.length(prems_spec), List.length(prems));

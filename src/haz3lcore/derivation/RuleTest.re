@@ -137,31 +137,31 @@ let rec get_symbols: type a. t(a) => list(string) =
   | Mem(a, b) => get_symbols(a) @ get_symbols(b)
   | Subset(a, b) => get_symbols(a) @ get_symbols(b);
 
-exception Unreachable;
+exception Unreachable(int);
 exception Failure(failure);
 
 let go = (map: map, test: test): option(failure) => {
   let unquote = s =>
     switch (RuleSpec.Map.find_opt(s, map)) {
     | Some(specced) => specced
-    | None => raise(Unreachable)
+    | None => raise(Unreachable(0))
     };
   let exp_of_specced =
     fun
     | (_, Exp(syntax)) => syntax
-    | _ => raise(Unreachable);
+    | _ => raise(Unreachable(1));
   let pat_of_specced =
     fun
     | (_, Pat(syntax)) => syntax
-    | _ => raise(Unreachable);
+    | _ => raise(Unreachable(2));
   let typ_of_specced =
     fun
     | (_, Typ(syntax)) => syntax
-    | _ => raise(Unreachable);
+    | _ => raise(Unreachable(3));
   let tpat_of_specced =
     fun
     | (_, TPat(syntax)) => syntax
-    | _ => raise(Unreachable);
+    | _ => raise(Unreachable(4));
   let rec go: type a. t(a) => a =
     formula =>
       switch (formula) {
@@ -171,11 +171,12 @@ let go = (map: map, test: test): option(failure) => {
       | LookUpTPat(s) => s |> unquote |> tpat_of_specced
       | UnboxCtx(LookUpExp(s)) =>
         let specced = unquote(s);
+        print_endline(RuleSpec.show_specced(specced));
         switch (Drv.Exp.term_of(exp_of_specced(specced))) {
         | Ctx(syntax) => syntax
         | _ => raise(Failure(FailUnbox(specced, Exp(Ctx))))
         };
-      | UnboxCtx(_) => raise(Unreachable)
+      | UnboxCtx(_) => raise(Unreachable(5))
       | UnboxNumLit(LookUpExp(s)) =>
         let specced = unquote(s);
         switch (Drv.Exp.term_of(exp_of_specced(specced))) {
@@ -183,14 +184,14 @@ let go = (map: map, test: test): option(failure) => {
         | Neg({term: NumLit(i), _}) => - i
         | _ => raise(Failure(FailUnbox(specced, Exp(NumLit))))
         };
-      | UnboxNumLit(_) => raise(Unreachable)
+      | UnboxNumLit(_) => raise(Unreachable(6))
       | UnboxExpVar(LookUpExp(s)) =>
         let specced = unquote(s);
         switch (Drv.Exp.term_of(exp_of_specced(specced))) {
         | Var(s) => s
         | _ => raise(Failure(FailUnbox(specced, Exp(Var))))
         };
-      | UnboxExpVar(_) => raise(Unreachable)
+      | UnboxExpVar(_) => raise(Unreachable(7))
       | UnboxPatVar(LookUpPat(s)) =>
         let specced = unquote(s);
         let rec f = p =>
@@ -206,7 +207,7 @@ let go = (map: map, test: test): option(failure) => {
         | Var(s) => s
         | _ => raise(Failure(FailUnbox(specced, Typ(Var))))
         };
-      | UnboxTypVar(_) => raise(Unreachable)
+      | UnboxTypVar(_) => raise(Unreachable(8))
       | UnboxTPatVar(LookUpTPat(s)) =>
         let specced = unquote(s);
         switch (Drv.TPat.term_of(tpat_of_specced(specced))) {
@@ -243,7 +244,7 @@ let go = (map: map, test: test): option(failure) => {
       };
   try(go(test) ? None : Some(FailTest(map, test))) {
   | Failure(failure) => Some(failure)
-  | Unreachable => failwith("Unreachable")
+  | Unreachable(n) => failwith("Unreachable" ++ string_of_int(n))
   | _ => None
   };
 };
@@ -449,7 +450,9 @@ let of_tests: Rule.t => list(test) = {
     | T_Eq
     | S_Eq => []
     | T_Var
-    | S_Var => [Mem(HasType(ExpVar(UnboxExpVar(e)), t), UnboxCtx(gamma))]
+    | S_Var => [
+        Mem(HasType(ExpVar(UnboxExpVar(ex)), t), UnboxCtx(gamma)),
+      ]
     | T_LetAnn_TV => [
         EqCtx(
           UnboxCtx(gamma'),

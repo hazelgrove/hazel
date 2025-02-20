@@ -124,38 +124,23 @@ module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
 
-  type mapper = {
-    f_exp: (exp_t => exp_t, exp_t) => exp_t,
-    f_pat: (pat_t => pat_t, pat_t) => pat_t,
-    f_typ: (typ_t => typ_t, typ_t) => typ_t,
-    f_tpat: (tpat_t => tpat_t, tpat_t) => tpat_t,
-  };
-
-  let drv_continue: mapper;
-
-  let map_term: (~f_drv: mapper=?, t) => t;
+  let map_term:
+    (
+      ~f_exp: (exp_t => exp_t, exp_t) => exp_t=?,
+      ~f_pat: (pat_t => pat_t, pat_t) => pat_t=?,
+      ~f_typ: (typ_t => typ_t, typ_t) => typ_t=?,
+      ~f_tpat: (tpat_t => tpat_t, tpat_t) => tpat_t=?,
+      t
+    ) =>
+    t;
 
   let eq: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
 
-  type mapper = {
-    f_exp: (exp_t => exp_t, exp_t) => exp_t,
-    f_pat: (pat_t => pat_t, pat_t) => pat_t,
-    f_typ: (typ_t => typ_t, typ_t) => typ_t,
-    f_tpat: (tpat_t => tpat_t, tpat_t) => tpat_t,
-  };
-
-  let drv_continue = {
-    f_exp: continue,
-    f_pat: continue,
-    f_typ: continue,
-    f_tpat: continue,
-  };
-
-  let map_term = (~f_drv=drv_continue, x: t) => {
-    let {f_exp, f_pat, f_typ, f_tpat} = f_drv;
+  let map_term =
+      (~f_exp=continue, ~f_pat=continue, ~f_typ=continue, ~f_tpat=continue, x) => {
     switch (x) {
     | Exp(exp) => Exp(Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, exp))
     | Pat(pat) => Pat(Pat.map_term(~f_pat, ~f_typ, ~f_tpat, pat))

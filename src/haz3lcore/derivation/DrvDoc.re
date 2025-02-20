@@ -31,7 +31,7 @@ let f_tpat: tpat_t => Segment.t = ExpToSegment.drv_tpat_to_pretty(~settings);
 let exp_form: exp_t => (Segment.t, string) =
   exp =>
     switch (Drv.Exp.term_of(exp)) {
-    | Hole(_) => ([], "")
+    | Hole(_) => (exp |> f_exp, "")
     | Var(_) => (exp |> f_exp, "The variable represents the expression.")
     | Quote(_) => (
         Var("$x") |> Drv.Exp.fresh |> f_exp,
@@ -201,7 +201,7 @@ let exp_form: exp_t => (Segment.t, string) =
 let typ_form: typ_t => (Segment.t, string) =
   typ =>
     switch (Drv.Typ.term_of(typ)) {
-    | Hole(_) => ([], "")
+    | Hole(_) => (typ |> f_typ, "")
     | Var(_) => (typ |> f_typ, "The type variable represents the type.")
     | Quote(_) => (
         Var("$x") |> Drv.Typ.fresh |> f_typ,
@@ -245,7 +245,7 @@ let typ_form: typ_t => (Segment.t, string) =
 let pat_form: pat_t => (Segment.t, string) =
   pat =>
     switch (Drv.Pat.term_of(pat)) {
-    | Hole(_) => ([], "")
+    | Hole(_) => (pat |> f_pat, "")
     | Quote(_) => (
         Var("$x") |> Drv.Pat.fresh |> f_pat,
         "The abbreviation represents the definition of pattern $x.",
@@ -276,7 +276,7 @@ let pat_form: pat_t => (Segment.t, string) =
 let tpat_form: tpat_t => (Segment.t, string) =
   tpat =>
     switch (Drv.TPat.term_of(tpat)) {
-    | Hole(_) => ([], "")
+    | Hole(_) => (tpat |> f_tpat, "")
     | Quote(_) => (
         Var("$x") |> Drv.TPat.fresh |> f_tpat,
         "The abbreviation represents the definition of type pattern $x.",
