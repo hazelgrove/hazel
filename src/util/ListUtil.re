@@ -668,23 +668,6 @@ let take = (n, xs) => {
   loop(n, xs, []);
 };
 
-let split3 = (xs: list(('a, 'b, 'c))): (list('a), list('b), list('c)) => {
-  let rec aux =
-          (
-            xs: list(('a, 'b, 'c)),
-            acc1: list('a),
-            acc2: list('b),
-            acc3: list('c),
-          ) => {
-    switch (xs) {
-    | [] => (List.rev(acc1), List.rev(acc2), List.rev(acc3))
-    | [(x, y, z), ...rest] =>
-      aux(rest, [x, ...acc1], [y, ...acc2], [z, ...acc3])
-    };
-  };
-  aux(xs, [], [], []);
-};
-
 /* Move the first element equal to x to the front of the list */
 let lift = (x: 'a, xs: list('a)): list('a) =>
   List.cons(x, List.filter((!=)(x), xs));

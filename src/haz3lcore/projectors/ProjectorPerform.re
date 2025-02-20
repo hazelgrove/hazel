@@ -124,28 +124,30 @@ let go =
   | SetSyntax(id, seg) =>
     Ok(update(p => {...p, syntax: Segment.parenthesize(seg)}, id, z))
   | SetModel(id, model) => Ok(update(pr => {...pr, model}, id, z))
-  | Focus(id, d) =>
+  | Focus(id, kind, d) =>
     switch (d) {
     | None =>
       /* Focus by mouse click */
-      /* Currently not calling focus method as projectors get focus here naturally */
-      Ok(Option.value(~default=z, jump_to_id_indicated(z, id)))
+      let (module P) = ProjectorInit.to_module(kind);
+      switch (P.focusable.pointer) {
+      | Some(focus) => focus(id)
+      | None => ()
+      };
+      Ok(Option.value(~default=z, jump_to_id_indicated(z, id)));
     | Some(Right) =>
       /* Focus by arrow key hand-off */
-      switch (Siblings.left_neighbor(z.relatives.siblings)) {
-      | Some(Projector({id, kind, _})) =>
-        let (module P) = ProjectorInit.to_module(kind);
-        P.focus((id, Some(Right)));
-      | _ => ()
+      let (module P) = ProjectorInit.to_module(kind);
+      switch (P.focusable.keyboard) {
+      | Some(focus) => focus(id, Right)
+      | None => ()
       };
       Ok(z);
     | Some(Left) =>
       /* Focus by arrow key hand-off */
-      switch (Siblings.right_neighbor(z.relatives.siblings)) {
-      | Some(Projector({id, kind, _})) =>
-        let (module P) = ProjectorInit.to_module(kind);
-        P.focus((id, Some(Left)));
-      | _ => ()
+      let (module P) = ProjectorInit.to_module(kind);
+      switch (P.focusable.keyboard) {
+      | Some(focus) => focus(id, Left)
+      | None => ()
       };
       Ok(z);
     }

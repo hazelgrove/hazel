@@ -38,19 +38,17 @@ module M: Projector = {
   type action =
     | ToggleDisplay;
 
-  let init = Expected;
-  let can_focus = false;
-  let dynamics = false;
-  let focus = _ => ();
-
-  let can_project = (any: Term.Any.t): bool => {
+  let init = (any: Term.Any.t): option(model) => {
     switch (any) {
     | Exp(_)
-    | Pat(_) => true
-    | Any () => true /* Grout don't have sorts rn */
-    | _ => false
+    | Pat(_) => Some(Expected)
+    | Any () => Some(Expected) /* Grout don't have sorts rn */
+    | _ => None
     };
   };
+
+  let dynamics = false;
+  let focusable = Focusable.non;
 
   let display_ty = (model, statics): option(Typ.t) =>
     switch (model) {
@@ -106,14 +104,12 @@ module M: Projector = {
   let view = (model, info, ~local, ~parent as _, ~view_seg) =>
     View.{
       inline:
-        Some(
-          div(
-            ~attrs=[
-              Attr.classes(["main"]),
-              Attr.on_double_click(_ => local(ToggleDisplay)),
-            ],
-            [syntax_view(info), icon],
-          ),
+        div(
+          ~attrs=[
+            Attr.classes(["main"]),
+            Attr.on_double_click(_ => local(ToggleDisplay)),
+          ],
+          [syntax_view(info), icon],
         ),
       offside:
         Some(
@@ -126,6 +122,5 @@ module M: Projector = {
           ),
         ),
       overlay: None,
-      underlay: None,
     };
 };

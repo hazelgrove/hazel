@@ -8,12 +8,16 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let init = ();
-
   let float_of = (any: Any.t): option(float) =>
     switch (any) {
     | Exp({term: Float(f), _}) => Some(f)
     | _ => None
+    };
+
+  let init = (any: Term.Any.t) =>
+    switch (float_of(any)) {
+    | Some(_) => Some()
+    | None => None
     };
 
   let get = (info: info): float =>
@@ -37,8 +41,7 @@ module M: Projector = {
     | None => failwith("SliderF: Put: lift failed")
     };
 
-  let can_project = any => float_of(any) != None;
-  let can_focus = false;
+  let focusable = Focusable.non;
   let dynamics = false;
   let placeholder = (_, _) => ProjectorCore.Shape.inline(10);
   let update = (model, _, _) => model;
@@ -57,6 +60,4 @@ module M: Projector = {
         info |> get |> Printf.sprintf("%.2f"),
       ),
     );
-
-  let focus = _ => ();
 };

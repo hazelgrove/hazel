@@ -2,17 +2,6 @@
  * ~ everything below the main panel, but above the code
  * display in the hierarchy */
 
-#mousedown-overlay {
-  cursor: text;
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 100%;
-  width: 100%;
-  background-color: transparent;
-  z-index: var(--overlay-z);
-}
-
 #clipboard-shim {
   /* probably overkill for hiding it... */
   position: fixed;
@@ -64,7 +53,7 @@
 }
 
 .result .cell-item {
-  padding: 0em
+  padding: 0em;
 }
 
 .title-cell {

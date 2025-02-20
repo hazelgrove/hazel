@@ -17,16 +17,17 @@ let set = (seg: option(Segment.t), str: string): unit =>
 let intersection = (ids1: list(Id.t), ids2: list(Id.t)): list(Id.t) =>
   List.filter(id => List.mem(id, ids2), ids1);
 
-let get = (pasted: string): Action.t =>
+let get = (pasted: string): Action.t => {
+  /* Note the trimming of leading whitespace on each line */
+  let trim = Util.StringUtil.trim_leading;
+  let trimmed_pasted = trim(pasted);
   switch (cache^) {
-  | None => Paste(String(pasted))
+  | None => Paste(String(trimmed_pasted))
   | Some((cached, segment)) =>
-    let trim = Util.StringUtil.trim_leading;
-    /* Note the trim */
-    let trimmed_pasted = trim(pasted);
     /* Note that we must replace unique ids here if we want to
      * support copying and/or multiples pastes for a copy */
     trim(cached) == trimmed_pasted
       ? Paste(Segment(Segment.IDs.replace(segment)))
-      : Paste(String(trimmed_pasted));
+      : Paste(String(trimmed_pasted))
   };
+};
