@@ -3,16 +3,24 @@ open Virtual_dom.Vdom;
 
 let get_elem_by_id = id => {
   let doc = Dom_html.document;
-  Js.Opt.get(doc##getElementById(Js.string(id)), () => {
-    failwith("Could not find element by ID: " ++ id)
-  });
+  Js.Opt.get(
+    doc##getElementById(Js.string(id)),
+    () => {
+      print_endline("Could not find element by ID: " ++ id);
+      assert(false);
+    },
+  );
 };
 
 let get_elem_by_selector = selector => {
   let doc = Dom_html.document;
-  Js.Opt.get(doc##querySelector(Js.string(selector)), () => {
-    failwith("Selector could not be found: " ++ selector)
-  });
+  Js.Opt.get(
+    doc##querySelector(Js.string(selector)),
+    () => {
+      print_endline("Selector could not be found: " ++ selector);
+      assert(false);
+    },
+  );
 };
 
 let get_child_with_class = (element: Js.t(Dom_html.element), className) => {

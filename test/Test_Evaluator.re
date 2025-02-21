@@ -290,6 +290,44 @@ let test_unevaluated_if = () =>
     |> Exp.fresh,
   );
 
+let test_invalid_constructor_match = () => {
+  let invalid_constructor_match =
+    Let(
+      Constructor("T", Some(Unknown(Internal) |> Typ.fresh)) |> Pat.fresh,
+      Int(1) |> Exp.fresh,
+      EmptyHole |> Exp.fresh,
+    )
+    |> Exp.fresh
+    |> elaborate;
+  evaluation_test(
+    "let T = 1 in ?",
+    invalid_constructor_match,
+    invalid_constructor_match,
+  );
+};
+
+let test_typfun_application = () =>
+  evaluation_test(
+    "(typfun T -> fun x -> 1)@<Int>(2)",
+    Int(1) |> Exp.fresh,
+    Ap(
+      Forward,
+      TypAp(
+        TypFun(
+          Var("T") |> TPat.fresh,
+          Fun(Var("x") |> Pat.fresh, Int(1) |> Exp.fresh, None, None)
+          |> Exp.fresh,
+          None,
+        )
+        |> Exp.fresh,
+        Int |> Typ.fresh,
+      )
+      |> Exp.fresh,
+      Int(2) |> Exp.fresh,
+    )
+    |> Exp.fresh,
+  );
+
 let tests = (
   "Evaluator",
   [
@@ -340,6 +378,12 @@ in fn("hello")|},
     test_case("Variable capture", `Quick, test_variable_capture),
     test_case("Unbound lookup", `Quick, test_unbound_lookup),
     test_case("Unevaluated if closure", `Quick, test_unevaluated_if),
+    test_case(
+      "Invalid constructor match",
+      `Quick,
+      test_invalid_constructor_match,
+    ),
+    test_case("Typfun application", `Quick, test_typfun_application),
     test_case("Negative integer literal", `Quick, () =>
       evaluation_test(
         "-8",
