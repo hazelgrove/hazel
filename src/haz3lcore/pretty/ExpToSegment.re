@@ -241,7 +241,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let fun_form = [mk_form("fun_", id, [p])] @ e;
     [mk_form("parens_exp", exp |> Exp.rep_id, [fun_form])]
     |> fold_fun_if(settings.fold_fn_bodies, name);
-  | LivelitName(l) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, l)
+  | LivelitName(s) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s)
   | Fun(p, e, _, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -480,7 +480,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Bool(b) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Bool.to_string(b))
   | String(s) =>
     text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "\"" ++ s ++ "\"")
-  | LivelitName(l) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, l)
+  | LivelitName(l) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "^" ++ l)
   | Constructor(c, _) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, c)
   | ListLit([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "[]")
   | ListLit([x, ...xs]) =>

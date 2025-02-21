@@ -102,6 +102,11 @@ let common_err_view = (~globals, cls: Cls.t, err: Info.error_common) => {
       view_type(Prod([]) |> Typ.fresh),
     ]
   | NoType(FreeConstructor(name)) => [code_err(name), text("not found")]
+  | NoType(UnboundLivelit(name)) => [
+      text("Livelit with name"),
+      code_err(name),
+      text("not found, and also, it's a livelit"),
+    ]
   | Inconsistent(WithArrow(typ)) => [
       text(":"),
       view_type(typ) |> code_box_container,

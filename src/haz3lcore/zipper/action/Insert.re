@@ -229,11 +229,9 @@ let rec go =
     switch (ctx) {
     | Some(ctx) =>
       let name = Form.parse_livelit(t);
-      let ll = Livelit.find_livelit(name, ctx);
-
-      if (ll.name == "error") {
-        insert_outer(char, z);
-      } else {
+      switch (Ctx.lookup_livelit(ctx, name)) {
+      // if we find a matching livelit, insert it projected
+      | Some(ll) =>
         // Move to the left
         let left_z = z |> Zipper.move(Left) |> Option.get;
         // insert (
@@ -267,7 +265,8 @@ let rec go =
           Option.get(formatted_z)
           |> Zipper.update_siblings(((_, r)) => (new_left_siblings, r)),
         );
-        // formatted_z;
+      // No matching livelit found, insert space
+      | None => insert_outer(char, z)
       };
     | None => insert(Some(z), char)
     };

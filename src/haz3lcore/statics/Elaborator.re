@@ -248,9 +248,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         |> Option.value(~default=Typ.temp(Unknown(Internal)));
       let ds' = List.map2((d, t) => fresh_cast(d, t, inner_type), ds, tys);
       ListLit(ds') |> rewrap |> cast_from(List(inner_type) |> Typ.temp);
-    | LivelitName(_) =>
-      // This should never happen if the Livelit is invoked!
-      uexp |> cast_from(Typ.temp(Unknown(Internal)))
+    | LivelitName(_) => uexp |> cast_from(Typ.temp(Unknown(Internal)))
     | Constructor(c, _) =>
       let mode =
         switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
@@ -330,8 +328,12 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
     | Ap(dir, f, a) =>
       switch (f.term) {
       | LivelitName(s) =>
-        let ll = Livelit.find_livelit(s, ctx);
-        ll.expansion_f(a) |> cast_from(ll.expansion_t);
+        switch (Ctx.lookup_livelit(ctx, s)) {
+        | Some(ll) =>
+          let ll_expansion_f = ll.expansion_f(a);
+          ll_expansion_f |> cast_from(ll.expansion_t);
+        | None => raise(MissingTypeInfo)
+        }
       | _ =>
         let (f', tyf) = elaborate(m, f);
         let (a', tya) = elaborate(m, a);

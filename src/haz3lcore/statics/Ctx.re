@@ -79,6 +79,14 @@ let lookup_tvar_id = (ctx: t, name: string): option(Id.t) =>
     ctx,
   );
 
+let lookup_livelit = (ctx: t, name: string): option(livelit_entry) =>
+  List.find_map(
+    fun
+    | LivelitEntry(v) when v.name == name => Some(v)
+    | _ => None,
+    ctx,
+  );
+
 let get_id: entry => Id.t =
   fun
   | VarEntry({id, _})

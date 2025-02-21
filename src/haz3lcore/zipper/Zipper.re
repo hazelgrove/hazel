@@ -248,9 +248,37 @@ let rec construct =
 let construct_mono = (d: Direction.t, t: Token.t, z: t): t =>
   construct(~caret=d, ~backpack=Left, [t], z);
 
+let rec getLeafPieces =
+        (syntaxNode: Piece.t, ~ignored_labels: list(list(string)))
+        : list(Piece.t) =>
+  switch (syntaxNode) {
+  | Tile(tile) =>
+    /* Check if this tile's label is in the ignored labels */
+    let should_ignore =
+      List.exists(label => label == tile.label, ignored_labels);
+    if (should_ignore) {
+      [];
+        /* Ignore this tile */
+    } else if (tile.children == []) {
+      [
+        /* It's a leaf piece */
+        Tile(tile),
+      ];
+    } else {
+      /* Recurse into the children */
+      tile.children
+      |> List.concat_map(segment =>
+           segment |> List.concat_map(getLeafPieces(~ignored_labels))
+         );
+    };
+  | _ => []
+  };
+
 let remove_projector = (id: Id.t, syntax: Piece.t) =>
   switch (syntax) {
-  | Projector(pr) when pr.id == id => pr.syntax
+  | Projector(pr) when pr.id == id =>
+    // just get the label, found as first leaf piece
+    getLeafPieces(pr.syntax, ~ignored_labels=[[","]]) |> List.hd
   | x => x
   };
 
