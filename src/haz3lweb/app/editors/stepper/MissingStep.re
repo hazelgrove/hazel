@@ -4,6 +4,11 @@ open Calc.Syntax;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type open_box =
+    | AxiomsOpen
+    | NoneOpen;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type rewrites = {rewrites: list(Exp.t)};
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -12,6 +17,7 @@ module Model = {
     selected_id: Calc.saved(option(Id.t)),
     selected_exp: Calc.saved(option(Exp.t)),
     rewrites: Calc.saved(option(rewrites)),
+    open_box,
   };
 
   let init = {
@@ -19,6 +25,7 @@ module Model = {
     selected_id: Calc.Pending,
     selected_exp: Calc.Pending,
     rewrites: Calc.Pending,
+    open_box: NoneOpen,
   };
   let get_selected_exp = (m: t): Exp.t =>
     m.selected_exp
@@ -34,7 +41,7 @@ module Update = {
         exp,
         _state,
         new_next_steps,
-        {next_steps: _, rewrites, selected_exp, selected_id}: Model.t,
+        {next_steps: _, rewrites, selected_exp, selected_id, open_box}: Model.t,
         editor,
       )
       : Model.t => {
@@ -79,16 +86,117 @@ module Update = {
       rewrites: rewrites |> Calc.save,
       selected_exp: selected_exp |> Calc.save,
       selected_id: selected_id |> Calc.save,
+      open_box,
     };
   };
 };
 
 module View = {
+  open OptUtil.Syntax;
   type event =
     | AddInduction
     | AddForall
     | HideStepper
     | AddAxiom(Exp.t, Exp.t);
+
+  let get_segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
+    let* first_piece = ListUtil.hd_opt(segment);
+    let Point.{row: start_y, col: start_x} =
+      Measured.find_p(~msg="get_segment_bounds", first_piece, measured)
+      |> (m => m.origin);
+    let* last_piece = ListUtil.last_opt(segment);
+    let Point.{row: end_y, col: end_x} =
+      Measured.find_p(~msg="get_segment_bounds", last_piece, measured)
+      |> (m => m.last);
+    let rec get_left = (current_left: int, row: int, final_row: int) =>
+      if (row > final_row) {
+        current_left;
+      } else {
+        get_left(
+          Int.min(
+            current_left,
+            Measured.Rows.find(row, measured.rows).indent,
+          ),
+          row + 1,
+          final_row,
+        );
+      };
+    let left = get_left(start_x, start_y, end_y);
+    let rec get_right = (current_right: int, row: int, final_row: int) =>
+      if (row == final_row) {
+        current_right;
+      } else {
+        get_right(
+          Int.max(
+            current_right,
+            Measured.Rows.find(row, measured.rows).max_col,
+          ),
+          row + 1,
+          final_row,
+        );
+      };
+    let right = get_right(end_x, start_y, end_y);
+    Some((left, right, start_y, end_y + 1));
+  };
+
+  let view_overlay =
+      (~globals: Globals.t, ~editor: CodeSelectable.Model.t, model: Model.t) =>
+    {
+      let+ (left, right, top, bottom) =
+        get_segment_bounds(
+          ~measured=editor.editor.syntax.measured,
+          editor.editor.state.zipper.selection.content,
+        );
+
+      let proof_button = (~callback: Ui_effect.t(unit), label: string) => {
+        Web.Node.div(
+          ~attrs=[
+            Web.Attr.classes(["proof-button"]),
+            Web.Attr.on_mousedown(_ =>
+              Virtual_dom.Vdom.Effect.Stop_propagation
+            ),
+            Web.Attr.on_click(_ =>
+              Bonsai.Effect.Many([
+                callback,
+                Virtual_dom.Vdom.Effect.Stop_propagation,
+              ])
+            ),
+          ],
+          [Web.Node.text(label)],
+        );
+      };
+
+      // I want to make a bunch of buttons here:
+      // Evaluate [TODO], Rewrite [TODO], Axioms, Cases,
+      let buttons =
+        Web.Node.div(
+          ~attrs=[Web.Attr.classes(["proof-selection-buttons"])],
+          [
+            proof_button(~callback=Ui_effect.Ignore, "Evaluate [TODO]"),
+            proof_button(~callback=Ui_effect.Ignore, "Rewrite [TODO]"),
+            proof_button(~callback=Ui_effect.Ignore, "Axioms"),
+            proof_button(~callback=Ui_effect.Ignore, "Cases"),
+          ],
+        );
+      
+      
+
+      [
+        Web.Node.div(
+          ~attrs=[
+            Web.Attr.classes(["missing-step-overlay-align"]),
+            DecUtil.position(
+              ~width=right - left,
+              ~height=bottom - top,
+              ~font_metrics=globals.font_metrics,
+              Point.{col: left, row: top},
+            ),
+          ],
+          [Web.div_c("proof-context-box", [buttons])],
+        ),
+      ];
+    }
+    |> Option.value(~default=[]);
 
   let view_justification =
       (
