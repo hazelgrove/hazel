@@ -1079,6 +1079,16 @@ module View = {
               | Some(Here(_)) => true
               | _ => false
               },
+            ~overlays=
+              switch (model.step_kind) {
+              | Model.MissingStep(m) =>
+                MissingStep.View.view_overlay(
+                  ~globals,
+                  ~editor=model.editor |> Calc.get_saved_exc(~print="Editor"),
+                  m,
+                )
+              | _ => []
+              },
             StepperEditor.Model.{
               editor: model.editor |> Calc.get_saved_exc(~print="Editor"),
               taken_steps,
