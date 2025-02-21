@@ -553,10 +553,10 @@ let get_doc =
       | Cast(_)
       | BuiltinFun(_) => simple("Internal expression")
       | LivelitName(s) =>
-        simple_list(
-          Livelit.find_livelit(s, Info.ctx_of(Option.get(info))).
-            explain_this,
-        )
+        switch (Ctx.lookup_livelit(Info.ctx_of(Option.get(info)), s)) {
+        | Some(ll) => simple_list(ll.explain_this)
+        | None => simple("Livelit name not found")
+        }
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>

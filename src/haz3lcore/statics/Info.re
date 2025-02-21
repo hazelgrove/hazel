@@ -51,7 +51,9 @@ type error_no_type =
   /* Empty application of function with inconsistent type */
   | BadTrivAp(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
-  | FreeConstructor(Constructor.t);
+  | FreeConstructor(Constructor.t)
+  /* Livelit name not bound in ctx */
+  | UnboundLivelit(string);
 
 /* Errors which can apply to either expression or patterns */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -358,6 +360,12 @@ let rec status_common =
     | None => InHole(Inconsistent(Expectation({syn, ana})))
     | Some(join) => NotInHole(Ana(Consistent({ana, syn, join})))
     }
+  | (IsLivelitName({name, _}), _) =>
+    let ll = Ctx.lookup_livelit(ctx, name);
+    switch (ll) {
+    | None => InHole(NoType(UnboundLivelit(name)))
+    | Some(_livelit) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
+    };
   | (IsConstructor({name, syn_ty}), _) =>
     /* If a ctr is being analyzed against (an arrow type returning)
        a sum type having that ctr as a variant, its self type is

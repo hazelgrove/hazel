@@ -35,7 +35,13 @@ type t =
   | IsConstructor({
       name: Constructor.t,
       syn_ty: option(Typ.t),
-    }); /* Constructors have special ana logic */
+    })
+  /* Constructors have special ana logic */
+  | IsLivelitName({
+      name: string,
+      exp_t: Typ.t,
+    });
+/* Livelit name, treated as hole */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_partial_ap =
@@ -72,6 +78,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
   _ctx =>
     fun
     | Just(typ) => Some(typ)
+    | IsLivelitName({exp_t, _}) => Some(exp_t)
     | IsConstructor({syn_ty, _}) => syn_ty
     | BadToken(_)
     | BadTrivAp(_)
@@ -93,13 +100,22 @@ let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
     | Redundant(pat) => typ_of_pat(ctx, pat)
     | Common(self) => typ_of(ctx, self);
 
-/* The self of a var depends on the ctx; if the
+/* The self of a var and livelit depends on the ctx; if the
    lookup fails, it is a free variable */
 let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
   switch (Ctx.lookup_var(ctx, name)) {
   | None => Free(name)
   | Some(var) => Common(Just(var.typ))
   };
+
+let of_exp_livelit_name = (ctx: Ctx.t, name: string): exp => {
+  let res = Ctx.lookup_livelit(ctx, name);
+  switch (res) {
+  | None => Free(name)
+  | Some(livelit) =>
+    Common(IsLivelitName({name: livelit.name, exp_t: livelit.expansion_t}))
+  };
+};
 
 /* The self of a ctr depends on the ctx, but a
    lookup failure doesn't necessarily means its

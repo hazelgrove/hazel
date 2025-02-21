@@ -108,8 +108,10 @@ module M: Projector = {
       | Some(InfoExp(exp)) => exp.ctx
       | _ => []
       };
-    let ll = Livelit.find_livelit(llname, ctx);
-    ll.size;
+    switch (Ctx.lookup_livelit(ctx, llname)) {
+    | Some(ll) => ll.size
+    | None => ProjectorCore.Inline(20)
+    };
   };
   let update = (model, _) => model;
 
@@ -156,14 +158,15 @@ module M: Projector = {
       | Some(InfoExp(exp)) => exp.ctx
       | _ => []
       };
-    let ll = Livelit.find_livelit(ll, ctx);
+    let ll = Ctx.lookup_livelit(ctx, ll);
 
-    if (ll.name == "error") {
+    switch (ll) {
+    | None =>
       Node.div(
         ~attrs=[Attr.class_("livelit")],
-        [Node.text("Syntax error -- are statics enabled?")],
-      );
-    } else {
+        [Node.text("Error livelit -- are statics enabled?")],
+      )
+    | Some(ll) =>
       /* Ignore the first piece, which is the livelit invocation */
       let pieces =
         List.tl(getLeafPieces(info.syntax, ~ignored_labels=[[","]]));

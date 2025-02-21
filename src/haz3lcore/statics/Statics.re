@@ -234,7 +234,11 @@ and uexp_to_info_map =
   | Float(_) => atomic(Just(Float |> Typ.temp))
   | String(_) => atomic(Just(String |> Typ.temp))
   | LivelitName(name) =>
-    atomic(Just(Livelit.find_livelit(name, ctx).expansion_t))
+    add'(
+      ~self=Self.of_exp_livelit_name(ctx, name),
+      ~co_ctx=CoCtx.singleton(name, UExp.rep_id(uexp), Mode.ty_of(mode)),
+      m,
+    )
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
     let modes = Mode.of_list_lit(ctx, List.length(es), mode);
@@ -335,7 +339,7 @@ and uexp_to_info_map =
     switch (fn_uexp.term) {
     | LivelitName(s) =>
       // refer to livelit context to find types
-      let ll = Livelit.find_livelit(s, ctx);
+      let ll = Ctx.lookup_livelit(ctx, s) |> Option.get;
       let expansion_t = ll.expansion_t;
       let model_t = ll.model_t;
       let (_, m) = go(~mode=Syn, fn_uexp, m);
@@ -749,10 +753,10 @@ and upat_to_info_map =
   | String(string) =>
     atomic(Just(String |> Typ.temp), Constraint.String(string))
   | LivelitName(name) =>
-    atomic(
-      Just(Livelit.find_livelit(name, ctx).expansion_t),
-      Constraint.Truth,
-    )
+    switch (Ctx.lookup_livelit(ctx, name)) {
+    | None => atomic(Just(unknown), Constraint.Truth)
+    | Some(ll) => atomic(Just(ll.expansion_t), Constraint.Truth)
+    }
   | ListLit(ps) =>
     let ids = List.map(UPat.rep_id, ps);
     let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
