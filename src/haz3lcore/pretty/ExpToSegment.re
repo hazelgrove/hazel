@@ -703,7 +703,7 @@ let rec drv_exp_to_pretty = (~settings: Settings.t, syntax: Drv.Exp.t): pretty =
   let id = syntax |> Drv.Exp.rep_id;
   switch (syntax |> Drv.Exp.term_of) {
   | Hole(_) => text_to_pretty(id, Sort.Drv(Exp), "?")
-  | Quote(e) => text_to_pretty(id, Sort.Drv(Exp), e)
+  | Quote(e) => text_to_pretty(id, Sort.Drv(Exp), "$" ++ e)
   | Parens(e) =>
     let+ e = go(e);
     [mk_form(Drv(Paren), id, [e])];

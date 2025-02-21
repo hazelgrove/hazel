@@ -89,8 +89,7 @@ module VerifiedTree = {
     | Pending(ExternalError.t)
   and rule = {
     rule: Rule.t,
-    spec: RuleVerify.spec,
-    tests: RuleVerify.tests,
+    spec: RuleSpec.t,
   };
 
   let verify_single =
@@ -112,13 +111,12 @@ module VerifiedTree = {
         | None => {res: Pending(NotAvailable), rule: None}
         | Some(rule) =>
           let spec = RuleSpec.of_spec(rule);
-          let tests = RuleTest.of_tests(rule);
           // TODO(zhiyao): may not bring it back now
           // let (spec, tests) = RuleVerify.fill_eq_tests(spec, tests);
           let res =
             if (List.for_all(Option.is_some, prems)) {
               let prems = prems |> List.map(Option.get);
-              let res = RuleVerify.verify(spec, tests, (concl, prems));
+              let res = RuleVerify.verify(spec, (concl, prems));
               switch (res) {
               | [] => Correct
               // Note(zhiyao): we only show the first failure
@@ -129,7 +127,7 @@ module VerifiedTree = {
               Pending(PremiseNotReady);
             };
           // let tests = RuleVerify.test_remove_eq_test(tests);
-          {res, rule: Some({rule, spec, tests})};
+          {res, rule: Some({rule, spec})};
         }
       };
     let concl =

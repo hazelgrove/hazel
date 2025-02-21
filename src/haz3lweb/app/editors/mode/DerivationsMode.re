@@ -342,12 +342,11 @@ module Selection = {
                     {
                       print_endline("Uncaught Rule: " ++ Rule.show(rule));
                       let spec = RuleSpec.of_spec(rule);
-                      let tests = RuleTest.of_tests(rule);
                       // TODO(zhiyao): may not bring it back now
                       // let (spec, tests) =
                       //   RuleVerify.fill_eq_tests(spec, tests);
                       // let tests = RuleVerify.test_remove_eq_test(tests);
-                      {rule, spec, tests};
+                      {rule, spec};
                     },
                   ),
               })

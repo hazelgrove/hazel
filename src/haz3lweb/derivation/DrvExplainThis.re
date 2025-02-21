@@ -75,10 +75,15 @@ let show =
              show_filters: false,
            },
          )
-      |> Zipper.unzip,
-      ~root=Drv(Jdmt),
+      |> Zipper.unzip
+      |> Zipper.remold_regrout(Left, _, ~root=Drv(Exp)),
+      ~root=Drv(Exp),
     );
-  let statics = CachedStatics.empty;
+  let statics =
+    CachedStatics.init_from_term(
+      ~settings=CoreSettings.on,
+      DrvExp(Exp(syntax), Jdmt) |> Exp.fresh,
+    );
   let highlight_deco = {
     module Deco =
       Deco.Deco({
@@ -91,13 +96,14 @@ let show =
   CodeWithStatics.View.view(
     ~globals,
     ~overlays=highlight_deco,
-    ~sort=Drv(Jdmt),
+    ~sort=Drv(Exp),
     {editor, statics},
   );
 };
 
 let copy_color_map =
-    (terms: list(RuleSpec.specced), (map, idx): ColorSteps.t): ColorSteps.t => {
+    (terms: list(RuleVerify.specced), (map, idx): ColorSteps.t)
+    : ColorSteps.t => {
   (
     List.fold_left(
       (new_map, (spec, syntax)) =>
@@ -115,16 +121,16 @@ let copy_color_map =
 
 let copy_color_map =
     (failure: RuleVerify.failure, color_map: ColorSteps.t): ColorSteps.t => {
-  let terms: list(RuleSpec.specced) =
+  let terms: list(RuleVerify.specced) =
     switch (failure) {
     | Mismatch(_) => []
-    | FailSpec(FailMatch(specced)) => [specced]
-    | FailSpec(NotEqual(specced1, specced2)) => [specced1, specced2]
-    | FailTest(FailUnbox(specced, _)) => [specced]
-    | FailTest(FailTest(map, test)) =>
+    | FailMatch(specced) => [specced]
+    | NotEqual(specced1, specced2) => [specced1, specced2]
+    | FailUnbox(specced, _) => [specced]
+    | FailTest(map, test) =>
       test
-      |> RuleTest.get_symbols
-      |> List.map(RuleSpec.Map.find_opt(_, map))
+      |> RuleSpec.Formula.get_symbols
+      |> List.map(RuleVerify.Map.find_opt(_, map))
       |> List.filter_map(Fun.id)
     };
   copy_color_map(terms, color_map);
@@ -147,8 +153,7 @@ let label_view = (~label) =>
 
 let premises_view =
     (
-      ~specs: list(Drv.Exp.t),
-      ~tests: list(RuleTest.test),
+      ~spec as {prems, tests, _}: RuleSpec.t,
       ~rule,
       ~color_map: ColorSteps.t,
       ~globals,
@@ -168,7 +173,7 @@ let premises_view =
               ~attrs=[Attr.class_("drv-explainthis")],
               [show(spec, ~color_map, ~globals)],
             ),
-          specs,
+          prems,
         )
         @ List.map(
             test =>
@@ -178,7 +183,7 @@ let premises_view =
                   Attr.class_("drv-explainthis"),
                 ],
                 [
-                  Node.text(RuleTest.show_test(test)),
+                  Node.text(RuleSpec.show_test(test)),
                   Node.text(
                     String.concat("", List.init(3, _ => Unicode.nbsp)),
                   ),
@@ -209,15 +214,14 @@ let rule_example_view =
       Attr.class_("drv-explainthis-section"),
     ],
     switch (rule) {
-    | Some({spec: (concl, prems), tests, rule}) => [
+    | Some({spec, rule}) => [
         premises_view(
-          ~specs=prems,
-          ~tests,
+          ~spec,
           ~rule=Some(RuleImage.to_image(rule)),
           ~color_map,
           ~globals,
         ),
-        conclusion_view(~spec=concl, ~color_map, ~globals),
+        conclusion_view(~spec=spec.concl, ~color_map, ~globals),
       ]
     | None => []
     },
