@@ -454,14 +454,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         |> Option.get
         |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
       if (!is_recursive) {
-        let def = add_name(Pat.get_var(p), def);
         let (def, ty2) = elaborate(m, def);
+        let def = add_name(Pat.get_var(p), def);
         let (body, ty) = elaborate(m, body);
         Let(p, fresh_cast(def, ty2, ty1), body) |> rewrap |> cast_from(ty);
       } else {
         // TODO: Add names to mutually recursive functions
-        let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
         let (def, ty2) = elaborate(m, def);
+        let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
         let (body, ty) = elaborate(m, body);
         let fixf =
           (FixF(p, fresh_cast(def, ty2, ty1), None): Exp.term)
