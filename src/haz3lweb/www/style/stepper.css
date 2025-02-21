@@ -67,6 +67,38 @@
   border: 1px dotted var(--cell-result-border);
 }
 
+/* PROVER */
+
+.missing-step-overlay-align {
+  position: absolute;
+}
+
+.proof-context-box {
+  position: absolute;
+  top: calc(100% + 0.5em);
+  left: 2em;
+  z-index: var(--stepper-interactive-z);
+  display: flex;
+  flex-direction: column;
+}
+
+.proof-selection-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5em;
+}
+
+.proof-button {
+  cursor: pointer;
+  pointer-events: all;
+  background-color: var(--BR4);
+  color: var(--T3);
+  padding: 0.2em 0.5em;
+  border-radius: 0.2em;
+  white-space: nowrap;
+}
+
+
 
 /* STEPPER (OLD) */
 
