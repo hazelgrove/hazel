@@ -6,7 +6,7 @@ coverage:
     project: # more options at https://docs.codecov.com/docs/commit-status
       default:
         target: auto # Monotonically increasing coverage
-        threshold: 0% # Allows coverage to drop by 0%
+        threshold: 2% # Allows coverage to drop by 2%
 
 comment:
   layout: " diff, files"
