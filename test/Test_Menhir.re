@@ -52,8 +52,11 @@ let menhir_matches = (exp: Term.Exp.t, actual: string) =>
   alco_check(
     "menhir matches expected parse",
     exp,
-    Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-      Haz3lmenhir.Interface.parse_program(actual),
+    Grammar.map_exp_annotation(
+      (): IdTagged.IdTag.t => {ids: [Id.invalid], copied: false},
+      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+        Haz3lmenhir.Interface.parse_program(actual),
+      ),
     ),
   );
 
@@ -84,8 +87,11 @@ let menhir_maketerm_equivalent_test =
     alco_check(
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
-      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-        Haz3lmenhir.Interface.parse_program(actual),
+      Grammar.map_exp_annotation(
+        (): IdTagged.IdTag.t => {ids: [Id.invalid], copied: false},
+        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+          Haz3lmenhir.Interface.parse_program(actual),
+        ),
       ),
     )
   });
@@ -101,7 +107,9 @@ let qcheck_menhir_maketerm_equivalent_test =
     ~count=100,
     QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
     exp => {
-      let core_exp = Conversion.Exp.of_menhir_ast(exp);
+      let unit_exp = Conversion.Exp.of_menhir_ast(exp);
+      let core_exp =
+        Grammar.map_exp_annotation(() => IdTagged.IdTag.fresh(), unit_exp);
 
       let segment =
         ExpToSegment.exp_to_segment(
@@ -117,7 +125,13 @@ let qcheck_menhir_maketerm_equivalent_test =
         Haz3lmenhir.Conversion.Exp.of_menhir_ast(menhir_parsed);
 
       switch (
-        Haz3lcore.DHExp.fast_equal(make_term_parsed, menhir_parsed_converted)
+        Haz3lcore.DHExp.fast_equal(
+          make_term_parsed,
+          Grammar.map_exp_annotation(
+            () => IdTagged.IdTag.fresh(),
+            menhir_parsed_converted,
+          ),
+        )
       ) {
       | true => true
       | false => false
@@ -147,8 +161,9 @@ let qcheck_menhir_serialized_equivalent_test =
     ~count=1000,
     QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
     exp => {
-      let core_exp = Conversion.Exp.of_menhir_ast(exp);
-
+      let unit_exp = Conversion.Exp.of_menhir_ast(exp);
+      let core_exp =
+        Grammar.map_exp_annotation(() => IdTagged.IdTag.fresh(), unit_exp);
       let segment =
         ExpToSegment.exp_to_segment(
           ~settings={

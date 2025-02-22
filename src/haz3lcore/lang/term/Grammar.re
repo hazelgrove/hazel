@@ -421,12 +421,18 @@ module type DefaultAnnotation = {
   let default_value: unit => t;
 };
 
-module UnitAnnotation: DefaultAnnotation = {
+module UnitAnnotation: DefaultAnnotation with type t = unit = {
   type t = unit;
   let default_value = () => ();
 };
 
 module Factory = (DefaultAnnotation: DefaultAnnotation) => {
+  type exp = exp_t(DefaultAnnotation.t);
+  type pat = pat_t(DefaultAnnotation.t);
+  type typ = typ_t(DefaultAnnotation.t);
+  type tpat = tpat_t(DefaultAnnotation.t);
+  type typ_provenance = type_provenance(DefaultAnnotation.t);
+
   let default_annotation = ann =>
     Option.value(~default=DefaultAnnotation.default_value(), ann);
   module Exp = {

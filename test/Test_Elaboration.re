@@ -882,8 +882,11 @@ module MenhirElaborationTests = {
   let alco_check_menhir = (name: string, dhexp: string, uexp: Term.Exp.t) =>
     alco_check(
       name,
-      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-        Haz3lmenhir.Interface.parse_program(dhexp),
+      Grammar.map_exp_annotation(
+        () => IdTagged.IdTag.fresh(),
+        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+          Haz3lmenhir.Interface.parse_program(dhexp),
+        ),
       ),
       dhexp_of_uexp(uexp),
     );
