@@ -76,26 +76,7 @@ let annotated_exp: testable(Grammar.exp_t(option(Info.error))) =
     ),
     Grammar.equal_exp_t(Option.equal(eq_info_error)),
   );
-let no_error_exp =
-    (e: Grammar.exp_term(option(Info.error)))
-    : Grammar.exp_t(option(Info.error)) => {
-  {term: e, annotation: None};
-};
-let no_error_pat =
-    (p: Grammar.pat_term(option(Info.error)))
-    : Grammar.pat_t(option(Info.error)) => {
-  {term: p, annotation: None};
-};
-let no_error_typ =
-    (t: Grammar.typ_term(option(Info.error)))
-    : Grammar.typ_t(option(Info.error)) => {
-  {term: t, annotation: None};
-};
-let error_exp =
-    (err, e: Grammar.exp_term(option(Info.error)))
-    : Grammar.exp_t(option(Info.error)) => {
-  {term: e, annotation: Some(err)};
-};
+
 let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
   Grammar.map_exp_annotation(
     (_annotation): IdTagged.IdTag.t => {
@@ -225,7 +206,7 @@ let tests = (
           FIError.(
             Exp.(
               let_(
-                no_error_pat(Var("x")),
+                Pat.(var("x")),
                 parens(tuple([int(1), int(2)])),
                 let_(
                   Pat.(
@@ -266,7 +247,7 @@ let tests = (
                       ),
                     "x",
                   ),
-                  no_error_exp(Var("y")),
+                  var("y"),
                 ),
               )
             )
@@ -544,72 +525,87 @@ let tests = (
       test_case("Duplicate label synthesis", `Quick, () => {
         annotated_tree_test(
           {|(a="hello", a=3)|},
-          no_error_exp(
-            Parens(
-              error_exp(
-                FTemp.Typ.(
-                  Exp(
-                    Common(
-                      TupleLabelError({
-                        malformed_labels: [],
-                        duplicate_labels: ["a", "a"],
-                        invalid_labels: [],
-                        typ:
-                          prod([tup_label(label("a"), unknown(Internal))]),
-                      }),
-                    ),
-                  )
-                ),
-                Tuple([
-                  error_exp(
-                    FTemp.Typ.(
-                      Exp(
-                        Common(
-                          TupleLabelError({
-                            malformed_labels: [],
-                            duplicate_labels: ["a"],
-                            invalid_labels: [],
-                            typ: tup_label(label("a"), string()),
-                          }),
-                        ),
-                      )
-                    ),
-                    TupLabel(
-                      error_exp(
-                        FTemp.Typ.(
-                          Exp(Common(DuplicateLabel("a", label("a"))))
-                        ),
-                        Label("a"),
-                      ),
-                      no_error_exp(String("hello")),
-                    ),
-                  ),
-                  error_exp(
-                    FTemp.Typ.(
-                      Exp(
-                        Common(
-                          TupleLabelError({
-                            malformed_labels: [],
-                            duplicate_labels: ["a"],
-                            invalid_labels: [],
-                            typ: tup_label(label("a"), int()),
-                          }),
-                        ),
-                      )
-                    ),
-                    TupLabel(
+          FIError.(
+            Exp.(
+              parens(
+                tuple(
+                  ~ann=
+                    Some(
                       FTemp.Typ.(
-                        error_exp(
-                          Exp(Common(DuplicateLabel("a", label("a")))),
-                          Label("a"),
+                        Exp(
+                          Common(
+                            TupleLabelError({
+                              malformed_labels: [],
+                              duplicate_labels: ["a", "a"],
+                              invalid_labels: [],
+                              typ:
+                                prod([
+                                  tup_label(label("a"), unknown(Internal)),
+                                ]),
+                            }),
+                          ),
                         )
                       ),
-                      no_error_exp(Int(3)),
                     ),
-                  ),
-                ]),
-              ),
-            ),
+                  [
+                    tup_label(
+                      ~ann=
+                        Some(
+                          FTemp.Typ.(
+                            Exp(
+                              Common(
+                                TupleLabelError({
+                                  malformed_labels: [],
+                                  duplicate_labels: ["a"],
+                                  invalid_labels: [],
+                                  typ: tup_label(label("a"), string()),
+                                }),
+                              ),
+                            )
+                          ),
+                        ),
+                      label(
+                        ~ann=
+                          Some(
+                            FTemp.Typ.(
+                              Exp(Common(DuplicateLabel("a", label("a"))))
+                            ),
+                          ),
+                        "a",
+                      ),
+                      string("hello"),
+                    ),
+                    tup_label(
+                      ~ann=
+                        Some(
+                          FTemp.Typ.(
+                            Exp(
+                              Common(
+                                TupleLabelError({
+                                  malformed_labels: [],
+                                  duplicate_labels: ["a"],
+                                  invalid_labels: [],
+                                  typ: tup_label(label("a"), int()),
+                                }),
+                              ),
+                            )
+                          ),
+                        ),
+                      label(
+                        ~ann=
+                          Some(
+                            FTemp.Typ.(
+                              Exp(Common(DuplicateLabel("a", label("a"))))
+                            ),
+                          ),
+                        "a",
+                      ),
+                      int(3),
+                    ),
+                  ],
+                ),
+              )
+            )
           ),
         )
       }),
@@ -706,7 +702,7 @@ let tests = (
                               ),
                             ),
                           ),
-                        [Exp(no_error_exp(Label("1")))],
+                        [Exp(label("1"))],
                       ),
                       string("hello"),
                     ),
@@ -720,66 +716,79 @@ let tests = (
       test_case("Bad label synthesis", `Quick, () => {
         annotated_tree_test(
           {|(1="hello", a=3)|},
-          no_error_exp(
-            Parens(
-              error_exp(
-                Exp(
-                  Common(
-                    TupleLabelError({
-                      malformed_labels: [
-                        Exp.(Exp(multi_hole([Exp(int(1))]))),
-                      ],
-                      duplicate_labels: [],
-                      invalid_labels: [],
-                      typ:
-                        Typ.(
-                          prod([
-                            tup_label(unknown(Internal), string()),
-                            tup_label(label("a"), int()),
-                          ])
-                        ),
-                    }),
-                  ),
-                ),
-                Tuple([
-                  error_exp(
-                    Exp(
-                      Common(
-                        TupleLabelError({
-                          malformed_labels: [
-                            Exp.(Exp(multi_hole([Exp(int(1))]))),
-                          ],
-                          duplicate_labels: [],
-                          invalid_labels: [],
-                          typ: tup_label(unknown(Internal), string()),
-                        }),
-                      ),
-                    ),
-                    TupLabel(
-                      error_exp(
+          FIError.(
+            Exp.(
+              parens(
+                tuple(
+                  ~ann=
+                    Some(
+                      FTemp.(
                         Exp(
                           Common(
-                            NoType(
-                              BadLabel(
+                            TupleLabelError({
+                              malformed_labels: [
                                 Exp.(Exp(multi_hole([Exp(int(1))]))),
+                              ],
+                              duplicate_labels: [],
+                              invalid_labels: [],
+                              typ:
+                                Typ.(
+                                  prod([
+                                    tup_label(unknown(Internal), string()),
+                                    tup_label(label("a"), int()),
+                                  ])
+                                ),
+                            }),
+                          ),
+                        )
+                      ),
+                    ),
+                  [
+                    tup_label(
+                      ~ann=
+                        Some(
+                          FTemp.(
+                            Exp(
+                              Common(
+                                TupleLabelError({
+                                  malformed_labels: [
+                                    Exp.(Exp(multi_hole([Exp(int(1))]))),
+                                  ],
+                                  duplicate_labels: [],
+                                  invalid_labels: [],
+                                  typ:
+                                    Typ.(
+                                      tup_label(unknown(Internal), string())
+                                    ),
+                                }),
                               ),
-                            ),
+                            )
                           ),
                         ),
-                        MultiHole([Exp(no_error_exp(Int(1)))]),
+                      multi_hole(
+                        ~ann=
+                          FTemp.(
+                            Some(
+                              Exp(
+                                Common(
+                                  NoType(
+                                    BadLabel(
+                                      Exp.(Exp(multi_hole([Exp(int(1))]))),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          ),
+                        [Exp(int(1))],
                       ),
-                      no_error_exp(String("hello")),
+                      string("hello"),
                     ),
-                  ),
-                  no_error_exp(
-                    TupLabel(
-                      no_error_exp(Label("a")),
-                      no_error_exp(Int(3)),
-                    ),
-                  ),
-                ]),
-              ),
-            ),
+                    tup_label(label("a"), int(3)),
+                  ],
+                ),
+              )
+            )
           ),
         )
       }),
@@ -797,7 +806,7 @@ let tests = (
                         prod([int(), tup_label(label("a"), string())]),
                       )
                     ),
-                    no_error_typ(Unknown(Internal)),
+                    Typ.unknown(Internal),
                   )
                 ),
                 parens(
@@ -865,9 +874,12 @@ let tests = (
                                 ),
                               ),
                             ),
-                          error_exp(
-                            Exp(Common(NoType(InvalidLabel("c")))),
-                            Label("c"),
+                          label(
+                            ~ann=
+                              Some(
+                                Exp(Common(NoType(InvalidLabel("c")))),
+                              ),
+                            "c",
                           ),
                           int(1),
                         );
