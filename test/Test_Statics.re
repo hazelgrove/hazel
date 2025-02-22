@@ -222,64 +222,54 @@ let tests = (
         () => {
         annotated_tree_test(
           "let x = (1, 2) in let y : (a=Int, b=Int) = x in y",
-          no_error_exp(
-            Let(
-              no_error_pat(Var("x")),
-              no_error_exp(
-                Parens(
-                  Tuple([Int(1) |> no_error_exp, Int(2) |> no_error_exp])
-                  |> no_error_exp,
-                ),
-              ),
-              no_error_exp(
-                Let(
-                  no_error_pat(
-                    Cast(
-                      no_error_pat(Var("y")),
-                      no_error_typ(
-                        Parens(
-                          Prod([
-                            no_error_typ(
-                              TupLabel(
-                                Label("a") |> no_error_typ,
-                                Int |> no_error_typ,
+          FIError.(
+            Exp.(
+              let_(
+                no_error_pat(Var("x")),
+                parens(tuple([int(1), int(2)])),
+                let_(
+                  Pat.(
+                    cast(
+                      var("y"),
+                      Typ.(
+                        parens(
+                          prod([
+                            tup_label(label("a"), int()),
+                            tup_label(label("b"), int()),
+                          ]),
+                        )
+                      ),
+                      Typ.unknown(Internal),
+                    )
+                  ),
+                  var(
+                    ~ann=
+                      Some(
+                        FTemp.Typ.(
+                          Exp(
+                            Common(
+                              Inconsistent(
+                                Expectation({
+                                  ana:
+                                    parens(
+                                      prod([
+                                        tup_label(label("a"), int()),
+                                        tup_label(label("b"), int()),
+                                      ]),
+                                    ),
+                                  syn: prod([int(), int()]),
+                                }),
                               ),
                             ),
-                            TupLabel(
-                              Label("b") |> no_error_typ,
-                              Int |> no_error_typ,
-                            )
-                            |> no_error_typ,
-                          ])
-                          |> no_error_typ,
+                          )
                         ),
                       ),
-                      Unknown(Internal) |> no_error_typ,
-                    ),
-                  ),
-                  error_exp(
-                    Exp(
-                      Common(
-                        Inconsistent(
-                          Expectation({
-                            ana:
-                              parens(
-                                prod([
-                                  tup_label(label("a"), int()),
-                                  tup_label(label("b"), int()),
-                                ]),
-                              ),
-                            syn: prod([int(), int()]),
-                          }),
-                        ),
-                      ),
-                    ),
-                    Var("x"),
+                    "x",
                   ),
                   no_error_exp(Var("y")),
                 ),
-              ),
-            ),
+              )
+            )
           ),
         )
       }),
@@ -289,28 +279,30 @@ let tests = (
         () => {
         annotated_tree_test(
           "let y : String = true",
-          no_error_exp(
-            Let(
-              Cast(
-                Var("y") |> no_error_pat,
-                String |> no_error_typ,
-                Unknown(Internal) |> no_error_typ,
-              )
-              |> no_error_pat,
-              error_exp(
-                FTemp.Typ.(
-                  Exp(
-                    Common(
-                      Inconsistent(
-                        Expectation({ana: string(), syn: bool()}),
+          FIError.(
+            Exp.(
+              let_(
+                Pat.(
+                  cast(var("y"), Typ.(string()), Typ.(unknown(Internal)))
+                ),
+                bool(
+                  ~ann=
+                    Some(
+                      FTemp.Typ.(
+                        Exp(
+                          Common(
+                            Inconsistent(
+                              Expectation({ana: string(), syn: bool()}),
+                            ),
+                          ),
+                        )
                       ),
                     ),
-                  )
+                  true,
                 ),
-                Bool(true),
-              ),
-              Var("y") |> no_error_exp,
-            ),
+                var("y"),
+              )
+            )
           ),
         )
       }),
@@ -330,36 +322,35 @@ let tests = (
         () => {
         annotated_tree_test(
           "",
-          Let(
-            Cast(
-              Var("x") |> no_error_pat,
-              Parens(
-                Prod([
-                  TupLabel(
-                    Label("l") |> no_error_typ,
-                    String |> no_error_typ,
+          FIError.(
+            Exp.(
+              let_(
+                Pat.(
+                  cast(
+                    var("x"),
+                    Typ.(parens(prod([tup_label(label("l"), string())]))),
+                    Typ.unknown(Internal),
                   )
-                  |> no_error_typ,
-                ])
-                |> no_error_typ,
+                ),
+                int(
+                  ~ann=
+                    Some(
+                      FTemp.Typ.(
+                        Exp(
+                          Common(
+                            Inconsistent(
+                              Expectation({ana: string(), syn: int()}),
+                            ),
+                          ),
+                        )
+                      ),
+                    ),
+                  1,
+                ),
+                var("x"),
               )
-              |> no_error_typ,
-              Unknown(Internal) |> no_error_typ,
             )
-            |> no_error_pat,
-            error_exp(
-              FTemp.Typ.(
-                Exp(
-                  Common(
-                    Inconsistent(Expectation({ana: string(), syn: int()})),
-                  ),
-                )
-              ),
-              Int(1),
-            ),
-            Var("x") |> no_error_exp,
-          )
-          |> no_error_exp,
+          ),
         )
       }),
       fully_consistent_typecheck(
@@ -456,94 +447,97 @@ let tests = (
       test_case("Unknown label in last position", `Quick, () => {
         annotated_tree_test(
           {|(1, 1.2, z="hello") : (a=Int, b=Float, String)|},
-          no_error_exp(
-            Cast(
-              error_exp(
-                FTemp.Typ.(
-                  Exp(
-                    Common(
-                      Inconsistent(
-                        Expectation({
-                          ana:
-                            prod([
-                              tup_label(label("a"), int()),
-                              tup_label(label("b"), float()),
-                              string(),
-                            ]),
-                          syn:
-                            prod([
-                              tup_label(label("a"), int()),
-                              tup_label(label("b"), float()),
-                              tup_label(label("z"), string()),
-                            ]),
-                        }),
-                      ),
-                    ),
-                  )
-                ),
-                Parens(
-                  error_exp(
-                    Exp(
-                      Common(
-                        TupleLabelError({
-                          malformed_labels: [],
-                          duplicate_labels: [],
-                          invalid_labels: ["z"],
-                          typ:
-                            prod([
-                              tup_label(label("a"), int()),
-                              tup_label(label("b"), float()),
-                              tup_label(label("z"), string()),
-                            ]),
-                        }),
-                      ),
-                    ),
-                    Tuple([
-                      no_error_exp(Int(1)),
-                      no_error_exp(Float(1.2)),
-                      error_exp(
-                        FTemp.Typ.(
-                          Exp(
-                            Common(
-                              TupleLabelError({
-                                malformed_labels: [],
-                                duplicate_labels: [],
-                                invalid_labels: ["z"],
-                                typ: tup_label(label("z"), string()),
+          FIError.(
+            Exp.(
+              cast(
+                parens(
+                  ~ann=
+                    Some(
+                      FTemp.Typ.(
+                        Exp(
+                          Common(
+                            Inconsistent(
+                              Expectation({
+                                ana:
+                                  prod([
+                                    tup_label(label("a"), int()),
+                                    tup_label(label("b"), float()),
+                                    string(),
+                                  ]),
+                                syn:
+                                  prod([
+                                    tup_label(label("a"), int()),
+                                    tup_label(label("b"), float()),
+                                    tup_label(label("z"), string()),
+                                  ]),
                               }),
                             ),
-                          )
-                        ),
-                        TupLabel(
-                          error_exp(
-                            Exp(Common(NoType(InvalidLabel("z")))),
-                            Label("z"),
                           ),
-                          no_error_exp(String("hello")),
+                        )
+                      ),
+                    ),
+                  tuple(
+                    ~ann=
+                      Some(
+                        Exp(
+                          Common(
+                            TupleLabelError({
+                              malformed_labels: [],
+                              duplicate_labels: [],
+                              invalid_labels: ["z"],
+                              typ:
+                                FTemp.Typ.(
+                                  prod([
+                                    tup_label(label("a"), int()),
+                                    tup_label(label("b"), float()),
+                                    tup_label(label("z"), string()),
+                                  ])
+                                ),
+                            }),
+                          ),
                         ),
                       ),
-                    ]),
+                    [
+                      int(1),
+                      float(1.2),
+                      tup_label(
+                        ~ann=
+                          Some(
+                            FTemp.Typ.(
+                              Exp(
+                                Common(
+                                  TupleLabelError({
+                                    malformed_labels: [],
+                                    duplicate_labels: [],
+                                    invalid_labels: ["z"],
+                                    typ: tup_label(label("z"), string()),
+                                  }),
+                                ),
+                              )
+                            ),
+                          ),
+                        label(
+                          ~ann=
+                            Some(Exp(Common(NoType(InvalidLabel("z"))))),
+                          "z",
+                        ),
+                        string("hello"),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              no_error_typ(Unknown(Internal)),
-              no_error_typ(
-                Parens(
-                  no_error_typ(
-                    Prod([
-                      TupLabel(no_error_typ(Label("a")), no_error_typ(Int))
-                      |> no_error_typ,
-                      TupLabel(
-                        no_error_typ(Label("b")),
-                        no_error_typ(Float),
-                      )
-                      |> no_error_typ,
-                      no_error_typ(String),
+                Typ.unknown(Internal),
+                Typ.(
+                  parens(
+                    prod([
+                      tup_label(label("a"), int()),
+                      tup_label(label("b"), float()),
+                      string(),
                     ]),
-                  ),
+                  )
                 ),
-              ),
-            ),
+              )
+            )
           ),
         )
       }),
