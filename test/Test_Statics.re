@@ -616,77 +616,104 @@ let tests = (
       test_case("Bad label projection", `Quick, () => {
         annotated_tree_test(
           {|(1, 2) . 1|},
-          error_exp(
-            Exp(
-              Common(
-                NoType(BadLabel(Exp(Exp.(multi_hole([Exp(int(1))]))))),
-              ),
-            ),
-            Dot(
-              Tuple([no_error_exp(Int(1)), no_error_exp(Int(2))])
-              |> no_error_exp,
-              no_error_exp(MultiHole([Exp(no_error_exp(Int(1)))])),
-            ),
+          FIError.(
+            Exp.(
+              dot(
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(
+                        NoType(
+                          BadLabel(
+                            Exp(FTemp.Exp.(multi_hole([Exp(int(1))]))),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                tuple([int(1), int(2)]),
+                multi_hole([Exp(int(1))]),
+              )
+            )
           ),
         )
       }),
       test_case("Singleton Bad label synthesis", `Quick, () => {
         annotated_tree_test(
           {|(1="hello")|},
-          no_error_exp(
-            FTemp.(
-              Parens(
-                error_exp(
-                  Exp(
-                    Common(
-                      TupleLabelError({
-                        malformed_labels: [
-                          Exp.(Exp(multi_hole([Exp(label("1"))]))),
-                        ],
-                        duplicate_labels: [],
-                        invalid_labels: [],
-                        typ:
-                          Typ.(
-                            prod([tup_label(unknown(Internal), string())])
+          FIError.(
+            Exp.(
+              parens(
+                tuple(
+                  ~ann=
+                    Some(
+                      FTemp.(
+                        Exp(
+                          Common(
+                            TupleLabelError({
+                              malformed_labels: [
+                                Exp.(Exp(multi_hole([Exp(label("1"))]))),
+                              ],
+                              duplicate_labels: [],
+                              invalid_labels: [],
+                              typ:
+                                Typ.(
+                                  prod([
+                                    tup_label(unknown(Internal), string()),
+                                  ])
+                                ),
+                            }),
                           ),
-                      }),
-                    ),
-                  ),
-                  Tuple([
-                    error_exp(
-                      Exp(
-                        Common(
-                          TupleLabelError({
-                            malformed_labels: [
-                              Exp.(Exp(multi_hole([Exp(label("1"))]))),
-                            ],
-                            duplicate_labels: [],
-                            invalid_labels: [],
-                            typ:
-                              Typ.(tup_label(unknown(Internal), string())),
-                          }),
-                        ),
+                        )
                       ),
-                      TupLabel(
-                        error_exp(
-                          Exp(
-                            Common(
-                              NoType(
-                                BadLabel(
-                                  Exp.(Exp(multi_hole([Exp(label("1"))]))),
+                    ),
+                  [
+                    tup_label(
+                      ~ann=
+                        Some(
+                          FTemp.(
+                            Exp(
+                              Common(
+                                TupleLabelError({
+                                  malformed_labels: [
+                                    Exp.(
+                                      Exp(multi_hole([Exp(label("1"))]))
+                                    ),
+                                  ],
+                                  duplicate_labels: [],
+                                  invalid_labels: [],
+                                  typ:
+                                    Typ.(
+                                      tup_label(unknown(Internal), string())
+                                    ),
+                                }),
+                              ),
+                            )
+                          ),
+                        ),
+                      multi_hole(
+                        ~ann=
+                          Some(
+                            Exp(
+                              Common(
+                                NoType(
+                                  BadLabel(
+                                    FTemp.Exp.(
+                                      Exp(multi_hole([Exp(label("1"))]))
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                          MultiHole([Exp(no_error_exp(Label("1")))]),
-                        ),
-                        no_error_exp(String("hello")),
+                        [Exp(no_error_exp(Label("1")))],
                       ),
+                      string("hello"),
                     ),
-                  ]),
+                  ],
                 ),
               )
-            ),
+            )
           ),
         )
       }),
