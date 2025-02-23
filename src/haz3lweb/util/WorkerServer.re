@@ -41,7 +41,16 @@ let work = (res: Request.value): Response.value =>
     Error(
       Haz3lcore.ProgramResult.UnknownException(Printexc.to_string(exn)),
     );
-  | (state, result) => Ok((result, state))
+  //| (state, result) => Ok((result, state))
+  | results =>
+    Ok((
+      BoxedValue(
+        results
+        |> Haz3lcore.Futures.finals(Haz3lcore.Builtins.env_init)
+        |> Haz3lcore.Futures.first,
+      ),
+      Haz3lcore.EvaluatorState.init,
+    ))
   };
 
 let on_request = (req: string): unit =>

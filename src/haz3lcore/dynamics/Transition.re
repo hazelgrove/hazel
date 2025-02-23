@@ -43,6 +43,9 @@ open PatternMatch;
 
     A value is either a literal, or a function with a closure, or a type function.
     (functions without closures immediately inside them do not count as values).
+
+    The hole environment maps Hole Id's to terms and can be substituted as a variable
+    substitution.
    */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -94,13 +97,13 @@ type rule =
       is_value: bool,
     })
   | Constructor
-  | Indet(DHExp.t)
+  | Indet
   | Value;
 
 let (let-unbox) = ((request, v), f) =>
   switch (Unboxing.unbox(request, v)) {
   | IndetMatch
-  | DoesNotMatch => Indet(v)
+  | DoesNotMatch => Indet
   | Matches(n) => f(n)
   };
 
@@ -140,7 +143,7 @@ module Transition = (EV: EV_MODE) => {
   let (let.match) = ((env, match_result: PatternMatch.match_result), r) =>
     switch (match_result) {
     | IndetMatch
-    | DoesNotMatch => Indet(Exp.hole([]) |> Exp.fresh) // TODO: Work out this
+    | DoesNotMatch => Indet
     | Matches(env') => r(evaluate_extend_env(env', env))
     };
 
@@ -149,14 +152,14 @@ module Transition = (EV: EV_MODE) => {
   let wrap_closure_when_done = (~in_closure, expr, env, r: rule) =>
     switch (in_closure, r) {
     | (_, Step(_)) => r
-    | (None, Constructor | Indet(_) | Value) =>
+    | (None, Constructor | Indet | Value) =>
       Step({
         expr: Closure(env, expr) |> fresh,
         state_update,
         kind: WrapClosure,
         is_value: false,
       })
-    | (Some(f), Constructor | Indet(_) | Value) =>
+    | (Some(f), Constructor | Indet | Value) =>
       f();
       r;
     };
@@ -178,6 +181,7 @@ module Transition = (EV: EV_MODE) => {
         ~in_closure=?,
         state,
         env,
+        //env_hole,
         d,
       )
       : 'a => {
@@ -209,7 +213,7 @@ module Transition = (EV: EV_MODE) => {
         });
       | None =>
         let.wrap_closure _ = env;
-        Indet(d);
+        Indet;
       };
     | Seq(d1, d2) =>
       let. _ = otherwise(env, d1 => Seq(d1, d2) |> rewrap)
@@ -396,7 +400,7 @@ module Transition = (EV: EV_MODE) => {
         switch (builtin(d2')) {
         | Some(expr) =>
           Step({expr, state_update, kind: BuiltinAp(ident), is_value: false})
-        | None => Indet(d)
+        | None => Indet
         };
       | DeferredAp(d3, d4s) =>
         let n_args =
@@ -438,7 +442,7 @@ module Transition = (EV: EV_MODE) => {
       };
     | Deferral(_) =>
       let. _ = otherwise(env, d);
-      Indet(d);
+      Indet;
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -464,7 +468,7 @@ module Transition = (EV: EV_MODE) => {
       });
     | UnOp(Meta(Unquote), _) =>
       let. _ = otherwise(env, d);
-      Indet(d);
+      Indet;
     | UnOp(Int(Minus), d1) =>
       let. _ = otherwise(env, d1 => UnOp(Int(Minus), d1) |> rewrap)
       and. d1' =
@@ -723,7 +727,7 @@ module Transition = (EV: EV_MODE) => {
         })
       | None =>
         let.wrap_closure _ = env;
-        Indet(d);
+        Indet;
       };
     | Closure(env', d) =>
       // HACK [Matt] This ref is a hack to ensure that we don't get into an infinite loop
@@ -746,16 +750,16 @@ module Transition = (EV: EV_MODE) => {
     | MultiHole(_) =>
       let. _ = otherwise(env, d);
       let.wrap_closure _ = env;
-      Indet(d);
+      Indet;
     | EmptyHole
     | Invalid(_) =>
       let. _ = otherwise(env, d);
       // let.wrap_closure _ = env;  // uncomment for hole closures
-      Indet(d);
+      Indet;
     | DynamicErrorHole(_) =>
       let. _ = otherwise(env, d);
       let.wrap_closure _ = env;
-      Indet(d);
+      Indet;
     | Cast(d, t1, t2) =>
       let. _ = otherwise(env, d => Cast(d, t1, t2) |> rewrap)
       and. d' =
@@ -772,10 +776,10 @@ module Transition = (EV: EV_MODE) => {
           d => FailedCast(d, t1, t2) |> wrap_ctx,
           d,
         );
-      Indet(d);
+      Indet;
     | Undefined =>
       let. _ = otherwise(env, d);
-      Indet(d);
+      Indet;
     | Parens(d) =>
       let. _ = otherwise(env, d);
       Step({expr: d, state_update, kind: RemoveParens, is_value: false});

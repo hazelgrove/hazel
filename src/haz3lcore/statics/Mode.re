@@ -68,7 +68,7 @@ let of_arrow = (ids, ctx: Ctx.t, mode: t, ty: option(TypSlice.t)): (t, t) =>
       t2,
     )
     |> TupleUtil.map2(t =>
-         Ana(TypSlice.wrap_global(TypSlice.slice_of_ids(ids), t))
+         Ana(TypSlice.wrap_incr(TypSlice.slice_of_ids(ids), t))
        );
   };
 

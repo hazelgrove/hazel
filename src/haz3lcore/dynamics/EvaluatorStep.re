@@ -282,7 +282,7 @@ module Decompose = {
           switch (rl(v)) {
           | Constructor => Result.BoxedValue
           | Value => Result.BoxedValue
-          | Indet(_) => Result.Indet
+          | Indet => Result.Indet
           | Step(s) => Result.Step([EvalObj.mk(Mark, env, undo, s.kind)])
           // TODO: Actually show these exceptions to the user!
           | exception (EvaluatorError.Exception(_)) => Result.Indet
@@ -296,6 +296,7 @@ module Decompose = {
       ((u, r1, env, v1), (r2, v2)) => (u(v2), r1 && r2, env, (v1, v2));
 
     let otherwise = (env, o) => (o, Result.BoxedValue, env, ());
+    let atom = otherwise;
     let update_test = (state, id, v) =>
       state := EvaluatorState.add_test(state^, id, v);
   };
@@ -330,12 +331,13 @@ module TakeStep = {
         Some(expr);
       | Constructor
       | Value
-      | Indet(_) => None
+      | Indet => None
       };
 
     let (and.) = (x1, x2) => (x1, x2);
 
     let otherwise = (_, _) => ();
+    let atom = otherwise;
 
     let update_test = (state, id, v) =>
       state := EvaluatorState.add_test(state^, id, v);

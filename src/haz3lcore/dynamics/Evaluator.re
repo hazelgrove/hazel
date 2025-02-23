@@ -42,6 +42,7 @@ module EvaluatorEVMode: {
     };
 
   let otherwise = (_, c) => Trampoline.return(((), c));
+  let atom = otherwise;
   let (and.) = (t1, t2) => {
     let.trampoline (x1, c1) = t1;
     let.trampoline x2 = t2;
@@ -58,7 +59,7 @@ module EvaluatorEVMode: {
       Trampoline.return((Uneval, expr));
     | Constructor
     | Value
-    | Indet(_) => Trampoline.return((Final, c))
+    | Indet => Trampoline.return((Final, c))
     };
   };
 };
@@ -85,6 +86,13 @@ let evaluate' = (env, d: DHExp.t) => {
     | (Uneval, x) => Indet(x |> DHExp.repair_ids)
     };
   (state^, result);
+};
+
+let evaluate'' = (env, d: DHExp.t) => {
+  let state = ref(EvaluatorState.init);
+  let env = ClosureEnvironment.of_environment(env);
+  let result = evaluate(state, env, d);
+  Trampoline.run(result) |> snd;
 };
 
 let evaluate =

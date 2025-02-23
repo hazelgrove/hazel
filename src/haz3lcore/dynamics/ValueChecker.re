@@ -32,12 +32,13 @@ module ValueCheckerEVMode: {
     );
 
   let otherwise = (_, _) => ((), Value);
+  let atom = otherwise;
 
   let (let.) = ((v, r), rule) =>
     switch (r, rule(v)) {
     | (_, Constructor) => r
-    | (Expr, Indet(_)) => Expr
-    | (_, Indet(_)) => Indet
+    | (Expr, Indet) => Expr
+    | (_, Indet) => Indet
     | (_, Value) => Value
     | (_, Step(_)) => Expr
     };

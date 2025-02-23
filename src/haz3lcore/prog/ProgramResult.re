@@ -32,6 +32,11 @@ type inner = {
   state: EvaluatorState.t,
 };
 
+type indet = {
+  results: Futures.t,
+  // TODO: threading states through each future
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error =
   | Timeout
