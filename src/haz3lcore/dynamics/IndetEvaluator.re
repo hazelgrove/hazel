@@ -20,7 +20,10 @@ let rec evaluate = (env, ds: Futures.t): Futures.t => {
 };
 
 let evaluate' = (env, d: DHExp.t): Futures.t => {
-  d |> singleton |> evaluate(env);
+  shift_right(
+    d |> singleton |> evaluate(env),
+    d |> Evaluator.evaluate''(env),
+  );
 };
 
 let evaluate =
