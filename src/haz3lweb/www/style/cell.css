@@ -39,7 +39,7 @@
   min-width: 100%;
 }
 
-.cell > * {
+.cell>* {
   padding-left: 1em;
   padding: 1em;
   padding-left: 1.2em;
@@ -210,7 +210,6 @@
 
 .cell-prompt .prompt-edit {
   font-size: 1.5rem;
-  font-weight: bold;
   color: var(--light-text-color);
   flex-grow: 1;
   display: flex;

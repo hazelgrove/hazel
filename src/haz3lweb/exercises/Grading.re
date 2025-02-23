@@ -140,7 +140,7 @@ module TestValidationReport = {
                       div(
                         ~attrs=[Attr.class_("input-field")],
                         [
-                          label([text("New point max:")]),
+                          label([text("Points:")]),
                           input(
                             ~attrs=[
                               Attr.type_("number"),
@@ -366,7 +366,7 @@ module MutationTestingReport = {
               div(
                 ~attrs=[Attr.class_("input-field")],
                 [
-                  label([text("New point max:")]),
+                  label([text("Points:")]),
                   input(
                     ~attrs=[
                       Attr.type_("number"),
@@ -1147,7 +1147,7 @@ module ImplGradingReport = {
                             div(
                               ~attrs=[Attr.class_("input-field")],
                               [
-                                label([text("New point max:")]),
+                                label([text("Points:")]),
                                 input(
                                   ~attrs=[
                                     Attr.type_("number"),
