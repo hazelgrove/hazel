@@ -207,10 +207,10 @@ let rec apply_t = (f_typ, f_slc, s: t) => {
   };
 };
 
-let hole = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
+let hole = (tms: list(TermBase.Any.t)): TermBase.TypSlice.term =>
   switch (tms) {
-  | [] => Unknown(Hole(EmptyHole))
-  | [_, ..._] => Unknown(Hole(MultiHole(tms)))
+  | [] => `Typ(Unknown(Hole(EmptyHole)))
+  | [_, ..._] => `Typ(Unknown(Hole(MultiHole(tms))))
   };
 
 let cls_slc_of_term: term => cls_slc =

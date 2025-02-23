@@ -34,6 +34,48 @@ let print =
     | None => print("DEBUG: No indicated index")
     };
   | "F8" => statics.elaborated |> Exp.show |> print
+  | "F9" =>
+    let futures =
+      statics.elaborated |> IndetEvaluator.evaluate'(Builtins.env_init);
+    let _ =
+      Util.Sequence.take(futures, 10)
+      |> Util.Sequence.to_list
+      |> List.mapi((i, d) =>
+           print(
+             "Instantiation "
+             ++ Int.to_string(i)
+             ++ ": "
+             ++ Exp.show(d)
+             ++ "\n",
+           )
+         );
+    ();
+  | "F12" =>
+    let index = Indicated.index(zipper);
+    switch (index) {
+    | Some(index) =>
+      print("id:" ++ Id.to_string(index));
+      switch (Id.Map.find_opt(index, map)) {
+      | Some(InfoTyp({term, _})) =>
+        let futures =
+          term |> TypSlice.typ_of |> Typ.term_of |> Instantiation.enum_typ;
+        let _ =
+          Util.Sequence.take(futures, 10)
+          |> Util.Sequence.to_list
+          |> List.mapi((i, d) =>
+               print(
+                 "Instantiation "
+                 ++ Int.to_string(i)
+                 ++ ": "
+                 ++ Exp.show(d)
+                 ++ "\n",
+               )
+             );
+        ();
+      | _ => print("DEBUG: No InfoTyp found for index")
+      };
+    | None => print("DEBUG: No indicated index")
+    };
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };
