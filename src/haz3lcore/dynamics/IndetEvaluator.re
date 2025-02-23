@@ -21,7 +21,9 @@ let rec evaluate = (env, ds: Futures.t): Futures.t => {
 };
 
 let evaluate' = (env, d: DHExp.t): Futures.t => {
-  d |> Evaluator.evaluate''(env) |> singleton |> evaluate(env);
+  d
+  |> Evaluator.evaluate''(env)
+  |> (d' => shift_right(d' |> singleton |> evaluate(env), d'));
 };
 
 let evaluate =
