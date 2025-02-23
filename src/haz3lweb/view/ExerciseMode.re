@@ -131,12 +131,25 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings: CoreSettings.t,
+        ~is_edited,
+        ~schedule_action,
+        model: Model.t,
+      )
+      : Model.t => {
     let stitched_elabs = Exercise.stitch_term(model.editors);
     let worker_request = ref([]);
     let queue_worker = (pos, expr) => {
       worker_request :=
-        worker_request^ @ [(pos |> Exercise.key_for_statics, expr)];
+        worker_request^
+        @ [
+          (
+            pos |> Exercise.key_for_statics,
+            expr,
+            settings.evaluation.indet_step,
+          ),
+        ];
     };
     let cells =
       Exercise.map2_stitched(

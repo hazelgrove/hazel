@@ -33,7 +33,7 @@ module Model = {
         show_hidden_steps: false,
         indet_step: 0,
       },
-    },
+    }, // Ideally this should be an option in the EvalResult footer, not globally
     async_evaluation: false,
     context_inspector: false,
     instructor_mode: true,
@@ -92,7 +92,9 @@ module Update = {
     | ContextInspector
     | InstructorMode
     | Evaluation(evaluation)
-    | ExplainThis(ExplainThisModel.Settings.action);
+    | ExplainThis(ExplainThisModel.Settings.action)
+    | NextIndet
+    | PrevIndet;
 
   let update = (action, settings: Model.t): Updated.t(Model.t) => {
     (
@@ -214,6 +216,26 @@ module Update = {
       | InstructorMode => {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
+        }
+      | NextIndet => {
+          ...settings,
+          core: {
+            ...settings.core,
+            evaluation: {
+              ...settings.core.evaluation,
+              indet_step: settings.core.evaluation.indet_step + 1,
+            },
+          },
+        }
+      | PrevIndet => {
+          ...settings,
+          core: {
+            ...settings.core,
+            evaluation: {
+              ...settings.core.evaluation,
+              indet_step: settings.core.evaluation.indet_step - 1,
+            },
+          },
         }
       }
     )

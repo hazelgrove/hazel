@@ -143,11 +143,22 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
+      (
+        ~settings: CoreSettings.t,
+        ~schedule_action,
+        ~is_edited,
+        model: Model.t,
+      )
+      : Model.t => {
     let (key, ed) = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
-      Some(expr => {worker_request := worker_request^ @ [("", expr)]});
+      Some(
+        expr => {
+          worker_request :=
+            worker_request^ @ [("", expr, settings.evaluation.indet_step)]
+        },
+      );
     let new_ed =
       CellEditor.Update.calculate(
         ~settings,

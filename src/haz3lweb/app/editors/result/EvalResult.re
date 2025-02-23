@@ -195,7 +195,9 @@ module Update = {
               Evaluation({
                 elab,
                 result: {
-                  switch (WorkerServer.work(elab)) {
+                  switch (
+                    WorkerServer.work(elab, settings.evaluation.indet_step)
+                  ) {
                   | Ok((r, state)) =>
                     let exp = Haz3lcore.ProgramResult.Result.unbox(r);
                     NewValue(Haz3lcore.ProgramResult.ResultOk((exp, state)));
