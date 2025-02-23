@@ -155,7 +155,7 @@
 /* EDITING */
 
 .cell-module-name {
-  padding: 1em;
+  padding-left: 1em;
   display: flex;
   align-items: center;
   gap: 0.5em;
@@ -195,7 +195,9 @@
 }
 
 .cell-prompt {
-  padding: 1em;
+  padding-left: 1em;
+  padding-top: 0.25em;
+  padding-bottom: 0.5em;
 }
 
 .prompt-edit .prompt-text {
