@@ -2,7 +2,7 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = {
-  //[@show.opaque]
+  [@show.opaque]
   ids: list(Id.t),
   [@show.opaque]
   /* Exp invariant: copied should always be false, and the id should be unique

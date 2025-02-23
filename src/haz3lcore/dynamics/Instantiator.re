@@ -42,10 +42,6 @@ module InstantiatorEVMode: {
 
   let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
     ((h, a, d), rl) => {
-      //hs
-      //|> List.fold_left((acc, d) => acc ++ "\nINDET: " ++ Exp.show(d), "")
-      //|> print_endline;
-      //d |> Exp.show |> (x => print_endline("TERM: " ++ x));
       switch (rl(a), Exp.term_of(d)) {
       | (Step(_), _) => failwith("Step possible before hole instantiation") // Assume full reduction before instantiation
       // Pattern match on casts to retrieve the type to instantiate the hole

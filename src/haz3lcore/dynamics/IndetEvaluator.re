@@ -2,13 +2,14 @@ open ProgramResult.Result;
 
 open Util.Sequence;
 
+// Assumes the input ds are already evaluated
 let rec evaluate = (env, ds: Futures.t): Futures.t => {
   ds
   >>| (
     d =>
       d
-      |> Evaluator.evaluate''(env)
       |> Instantiator.instantiate(env)
+      >>| Evaluator.evaluate''(env)
       |> (
         init =>
           unfold(~init, ~f=s => Some((s, s |> evaluate(env))))
@@ -20,10 +21,7 @@ let rec evaluate = (env, ds: Futures.t): Futures.t => {
 };
 
 let evaluate' = (env, d: DHExp.t): Futures.t => {
-  shift_right(
-    d |> singleton |> evaluate(env),
-    d |> Evaluator.evaluate''(env),
-  );
+  d |> Evaluator.evaluate''(env) |> singleton |> evaluate(env);
 };
 
 let evaluate =
