@@ -202,7 +202,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           Match(scrut, rules),
           ids,
         )
-      | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+      | ([t], [])
+          when t != " " && !Form.is_explicit_hole(t) && !Form.is_llm_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))
       }
@@ -351,7 +352,9 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) =>
           Constructor(t, Unknown(Internal) |> Typ.fresh)
-        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+        | ([t], [])
+            when
+              t != " " && !Form.is_explicit_hole(t) && !Form.is_llm_hole(t) =>
           Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (["[", "]"], [Pat(body)]) =>
@@ -415,7 +418,9 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["[", "]"], [Typ(body)]) => List(body)
-        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+        | ([t], [])
+            when
+              t != " " && !Form.is_explicit_hole(t) && !Form.is_llm_hole(t) =>
           Unknown(Hole(Invalid(t)))
         | _ => hole(tm)
         },
@@ -483,7 +488,9 @@ and tpat_term: unsorted => TPat.term = {
       ret(
         switch (tile) {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
-        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+        | ([t], [])
+            when
+              t != " " && !Form.is_explicit_hole(t) && !Form.is_llm_hole(t) =>
           Invalid(t)
         | _ => hole(tm)
         },

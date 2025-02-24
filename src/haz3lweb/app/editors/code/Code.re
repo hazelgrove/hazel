@@ -15,6 +15,7 @@ let of_delim' =
         | _ when is_in_buffer => "in-buffer"
         | _ when !is_consistent => "sort-inconsistent"
         | _ when !is_complete => "incomplete"
+        | [s] when s == Form.llm_hole => "llm-waiting"
         | [s] when s == Form.explicit_hole => "explicit-hole"
         | [s] when Form.is_string(s) => "string-lit"
         | _ => Sort.to_string(sort)
