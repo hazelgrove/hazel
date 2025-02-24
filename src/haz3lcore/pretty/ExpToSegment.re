@@ -258,7 +258,7 @@ let rec parenthesize =
     Ap(
       Forward,
       parenthesize(e1) |> paren_assoc_at(Precedence.ap),
-      parenthesize(e2) |> paren_at(Precedence.min),
+      parenthesize(~already_paren=true, e2) |> paren_at(Precedence.min),
     )
     |> rewrap
   | Ap(Reverse, e1, e2) =>
@@ -458,6 +458,7 @@ and parenthesize_typ =
     |> rewrap
   | List(t) =>
     List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
+  | Prod([]) => typ
   | Prod(ts) =>
     let inner =
       Prod(
