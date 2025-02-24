@@ -91,29 +91,30 @@ let single_step_export = (ind, step, forall_str) => {
   let newExprString = string_of_d(newExpr);
   //Printf.printf("old: %s\n", oldExprString);
   //Printf.printf("new: %s\n", newExprString);
+  // TODO(nishant): unpack the axiom correctly
   let evalTactic =
     switch (step.knd) {
     | Axiom(step) =>
       switch (step.name) {
       | IdPlusL => "rewrite Qplus_0_l"
       | CommPlus => "rewrite Qplus_comm"
-      | AssocPlusL => "rewrite Qplus_assoc"
-      | AssocPlusR => "rewrite Qplus_assoc"
-      | IdTimesL => "rewrite Qmult_1_r"
-      | CommTimes => "rewrite Qmult_comm"
-      | AssocTimesL => "rewrite Qmult_assoc"
-      | AssocTimesR => "rewrite Qmult_assoc"
-      | DistPlusTimesL => "rewrite Qmult_plus_distr_l"
-      | DistPlusTimesR => "rewrite Qmult_plus_distr_l"
-      | DistPlusTimesLC => "rewrite Qmult_plus_distr_r"
-      | DistPlusTimesRC => "rewrite Qmult_plus_distr_r"
-      | DistPlusDivL => "unfold Qdiv. rewrite Qmult_plus_distr_l"
-      | DistPlusDivR => "unfold Qdiv. rewrite Qmult_plus_distr_l"
-      | DefDivL => "unfold Qdiv. rewrite Qmult_1_l"
-      | DefDivR => "unfold Qdiv. rewrite Qmult_1_l"
-      | NilTimesL => "rewrite Qmult_0_l"
-      | AssocTimesDivL => "unfold Qdiv. rewrite Qmult_assoc"
-      | AssocTimesDivR => "unfold Qdiv. rewrite Qmult_assoc"
+      // | AssocPlusL => "rewrite Qplus_assoc"
+      // | AssocPlusR => "rewrite Qplus_assoc"
+      // | IdTimesL => "rewrite Qmult_1_r"
+      // | CommTimes => "rewrite Qmult_comm"
+      // | AssocTimesL => "rewrite Qmult_assoc"
+      // | AssocTimesR => "rewrite Qmult_assoc"
+      // | DistPlusTimesL => "rewrite Qmult_plus_distr_l"
+      // | DistPlusTimesR => "rewrite Qmult_plus_distr_l"
+      // | DistPlusTimesLC => "rewrite Qmult_plus_distr_r"
+      // | DistPlusTimesRC => "rewrite Qmult_plus_distr_r"
+      // | DistPlusDivL => "unfold Qdiv. rewrite Qmult_plus_distr_l"
+      // | DistPlusDivR => "unfold Qdiv. rewrite Qmult_plus_distr_l"
+      // | DefDivL => "unfold Qdiv. rewrite Qmult_1_l"
+      // | DefDivR => "unfold Qdiv. rewrite Qmult_1_l"
+      // | NilTimesL => "rewrite Qmult_0_l"
+      // | AssocTimesDivL => "unfold Qdiv. rewrite Qmult_assoc"
+      // | AssocTimesDivR => "unfold Qdiv. rewrite Qmult_assoc"
       }
     | _ => "cbv"
     };

@@ -33,6 +33,7 @@ module Model = {
     | MissingStep(MissingStep.Model.t)
     | AxiomStep(axiom_step)
 
+  // Single step is evaluation
   [@deriving (show({with_path: false}), sexp, yojson)]
   and single_step = {
     evalobj: EvaluatorStep.EvalObj.t,
@@ -53,6 +54,7 @@ module Model = {
   and induction_valid =
     | Valid
 
+  // each case has a linked list inside it
   and case = {
     // Updated
     pattern: CodeEditable.Model.t,
@@ -972,6 +974,7 @@ module View = {
     | MakeActive(Selection.step)
     | HideStepper;
 
+  // TODO(nishant): make Coq export button here and pass it down
   let rec view_stepper =
           (
             ~globals: Globals.t,
