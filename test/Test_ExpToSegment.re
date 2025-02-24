@@ -32,12 +32,27 @@ let exp_to_segment =
 let zipper_parse = (s: string) =>
   Option.map(Printer.seg_of_zip, Printer.zipper_of_string(s));
 
+let exp_to_segment_settings: ExpToSegment.Settings.t = {
+  inline: true,
+  fold_case_clauses: false,
+  fold_fn_bodies: false,
+  hide_fixpoints: false,
+  fold_cast_types: false,
+  show_filters: true,
+};
 let equivalent_to_make_term = (serialized: string) => {
   switch (Printer.zipper_of_string(serialized)) {
   | None => Alcotest.fail("Failed to parse term")
   | Some(zb) =>
     let exp = MakeTerm.from_zip_for_sem(zb).term;
-    let seg = Printer.seg_of_zip(zb);
+    let seg =
+      ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings, exp);
+    check(
+      string,
+      "Make term print equivalent: " ++ serialized,
+      serialized,
+      Printer.of_segment(~holes=Some("?"), seg),
+    );
     check(
       segment,
       "Make term equivalent: " ++ serialized,
@@ -47,30 +62,8 @@ let equivalent_to_make_term = (serialized: string) => {
   };
 };
 
-let mk_form = (form_name: Form.compound_form): Piece.t => {
-  let form: Form.t = Form.get(form_name);
-
-  Tile({
-    id: Id.invalid,
-    label: form.label,
-    mold: form.mold,
-    shards: [0],
-    children: [],
-  });
-};
-
 let segmentize =
-  ExpToSegment.exp_to_segment(
-    ~settings={
-      inline: true,
-      fold_case_clauses: false,
-      fold_fn_bodies: false,
-      hide_fixpoints: false,
-      fold_cast_types: false,
-      show_filters: true,
-    },
-    _,
-  );
+  ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings, _);
 
 let tests = (
   "ExpToSegment",
@@ -350,5 +343,22 @@ let tests = (
         );
       },
     ),
+    test_case("Unit type", `Quick, () => {
+      check(
+        string,
+        "Unit type",
+        "()",
+        Printer.of_segment(
+          ~holes=Some("?"),
+          ExpToSegment.typ_to_segment(
+            ~settings=exp_to_segment_settings,
+            Typ.temp(Prod([])),
+          ),
+        ),
+      )
+    }),
+    test_case("Function call", `Quick, () => {
+      equivalent_to_make_term("a(1, 2)")
+    }),
   ],
 );
