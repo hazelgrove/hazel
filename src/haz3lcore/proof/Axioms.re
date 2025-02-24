@@ -2,6 +2,7 @@ let v: ProofCtx.t =
   []
   |> ProofCtx.add_entry(
        "Iden(+)L",
+       // Fun is being used as a stand-in for Forall
        Fun(
          Var("x") |> Pat.fresh,
          BinOp(
