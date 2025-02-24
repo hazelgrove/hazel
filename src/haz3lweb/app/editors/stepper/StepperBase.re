@@ -150,11 +150,12 @@ module Update = {
     | SingleStep(single_step)
     | InductionStep(induction_step)
     | ForallStep(forall_step)
+    | MissingStep(MissingStep.Update.t)
     | RemoveStep
     | StepForward(int)
     | AddInduction
     | AddForall
-    | AddAxiom(Exp.t, Exp.t)
+    | AddAxiomStep(Exp.t, Exp.t)
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   and single_step = unit
@@ -224,6 +225,13 @@ module Update = {
         step_kind,
       };
     | (ForallStep(_), _, _) => model |> return_quiet
+    | (MissingStep(a), MissingStep(ms), _) =>
+      let* ms = MissingStep.Update.update(~settings, a, ms);
+      {
+        ...model,
+        step_kind: MissingStep(ms),
+      };
+    | (MissingStep(_), _, _) => model |> return_quiet
     | (RemoveStep, _, _) =>
       {
         ...model,
@@ -268,7 +276,7 @@ module Update = {
       }
       |> return
     | (AddForall, _, _) => model |> return_quiet
-    | (AddAxiom(at_exp, with_exp), MissingStep(_), _) =>
+    | (AddAxiomStep(at_exp, with_exp), MissingStep(_), _) =>
       let at_id = Exp.rep_id(at_exp);
       {
         ...model,
@@ -281,7 +289,7 @@ module Update = {
           }),
       }
       |> return;
-    | (AddAxiom(_, _), _, _) => model |> return_quiet
+    | (AddAxiomStep(_, _), _, _) => model |> return_quiet
     };
   }
 
@@ -842,6 +850,7 @@ module Selection = {
     | Next(step)
     | InductionStep(induction_step)
     | ForallStep(forall_step)
+    | MissingStep(MissingStep.Selection.t)
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   and induction_step =
@@ -878,6 +887,10 @@ module Selection = {
     | (ForallStep(a), Model.ForallStep(m), _) =>
       get_cursor_info_forall_step(~selection=a, ~model=m)
     | (ForallStep(_), _, _) => empty
+    | (MissingStep(a), Model.MissingStep(m), _) =>
+      let+ ci = MissingStep.Selection.get_cursor_info(~selection=a, m);
+      Update.MissingStep(ci);
+    | (MissingStep(_), _, _) => empty
     }
   and get_cursor_info_induction_step =
       (~selection: induction_step, ~model: Model.induction_step) =>
@@ -931,6 +944,10 @@ module Selection = {
       handle_key_event_forall_step(~selection=a, ~event, ~model=m)
       |> Option.map(x => Update.ForallStep(x))
     | (ForallStep(_), _) => None
+    | (MissingStep(a), {step_kind: Model.MissingStep(m), _}) =>
+      MissingStep.Selection.handle_key_event(~selection=a, ~event, ~model=m)
+      |> Option.map(x => Update.MissingStep(x))
+    | (MissingStep(_), _) => None
     }
   and handle_key_event_induction_step =
       (~selection: induction_step, ~event, ~model: Model.induction_step) =>
@@ -1084,6 +1101,14 @@ module View = {
               | Model.MissingStep(m) =>
                 MissingStep.View.view_overlay(
                   ~globals,
+                  ~inject=x => inject(MissingStep(x)),
+                  ~signal=
+                    fun
+                    | HideStepper => Ui_effect.Ignore
+                    | MakeActive(s) => signal(MakeActive(MissingStep(s)))
+                    | AddForall => inject(AddForall)
+                    | AddInduction => inject(AddInduction)
+                    | AddAxiomStep(e1, e2) => inject(AddAxiomStep(e1, e2)),
                   ~editor=model.editor |> Calc.get_saved_exc(~print="Editor"),
                   m,
                 )
@@ -1180,9 +1205,10 @@ module View = {
           ~signal=
             fun
             | HideStepper => Ui_effect.Ignore
+            | MakeActive(s) => signal(MakeActive(MissingStep(s)))
             | AddForall => inject(AddForall)
             | AddInduction => inject(AddInduction)
-            | AddAxiom(e1, e2) => inject(AddAxiom(e1, e2)),
+            | AddAxiomStep(e1, e2) => inject(AddAxiomStep(e1, e2)),
           ~undo,
           ms,
         )
@@ -1229,17 +1255,7 @@ module View = {
         ~undo=Some(inject(RemoveStep)),
         fs.inner_stepper,
       )
-    | MissingStep(ms) =>
-      MissingStep.View.view_step_content(
-        ~globals,
-        ~signal=
-          fun
-          | HideStepper => Ui_effect.Ignore
-          | AddForall => inject(AddForall)
-          | AddInduction => inject(AddInduction)
-          | AddAxiom(e1, e2) => inject(AddAxiom(e1, e2)),
-        ms,
-      )
+    | MissingStep(ms) => []
     };
   }
 
