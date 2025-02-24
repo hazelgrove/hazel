@@ -202,7 +202,10 @@ let const_mono_delims =
   base_typs @ bools @ [undefined, wild, empty_list, empty_tuple, empty_string];
 
 let explicit_hole = "?";
+let llm_hole = "??";
 let is_explicit_hole = t => t == explicit_hole;
+
+let is_llm_hole = t => t == llm_hole;
 let bad_token_cls: string => bad_token_cls =
   t =>
     switch () {
@@ -219,6 +222,13 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
     "explicit_hole",
     (
       is_explicit_hole,
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
+    ),
+  ),
+  (
+    "llm_hole",
+    (
+      is_llm_hole,
       [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
     ),
   ),

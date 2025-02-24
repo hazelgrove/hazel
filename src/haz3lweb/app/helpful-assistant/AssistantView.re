@@ -1,10 +1,9 @@
 module Sexp = Sexplib.Sexp;
+open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 open Util;
-open Util.OptUtil.Syntax;
-open Haz3lcore;
 open Js_of_ocaml;
 
 type selection =
@@ -69,7 +68,7 @@ let begin_chat_button = (~globals: Globals.t, ~inject): Node.t => {
   );
 };
 
-let resume_chat_button = (~globals: Globals.t, ~inject): Node.t => {
+let resume_chat_button = (~globals: Globals.t): Node.t => {
   let tooltip = "Previous Chat";
   let resume_chat = _ =>
     Virtual_dom.Vdom.Effect.Many([
@@ -82,7 +81,7 @@ let resume_chat_button = (~globals: Globals.t, ~inject): Node.t => {
   );
 };
 
-let req_button = (~globals: Globals.t, ~inject): Node.t => {
+let req_button = (~inject): Node.t => {
   let tooltip = "??";
   let send_sketch = _ =>
     Virtual_dom.Vdom.Effect.Many([
@@ -95,7 +94,7 @@ let req_button = (~globals: Globals.t, ~inject): Node.t => {
   );
 };
 
-let end_chat_button = (~globals: Globals.t, ~inject): Node.t => {
+let end_chat_button = (~globals: Globals.t): Node.t => {
   let tooltip = "End Chat";
   let end_chat = _ =>
     Virtual_dom.Vdom.Effect.Many([
@@ -108,14 +107,7 @@ let end_chat_button = (~globals: Globals.t, ~inject): Node.t => {
   );
 };
 
-let select_llm =
-    (
-      ~signal,
-      ~inject,
-      ~globals: Globals.t,
-      ~assistantModel: AssistantModel.Model.t,
-    )
-    : Node.t => {
+let select_llm = (~inject, ~assistantModel: AssistantModel.Model.t): Node.t => {
   let handle_change = (event, _) => {
     let value = Js.to_string(Js.Unsafe.coerce(event)##.target##.value);
     let selected_llm =
@@ -196,19 +188,13 @@ let settings_box = (~globals: Globals.t, ~inject): Node.t => {
       // llm_toggle(~globals),
       // lsp_toggle(~globals),
       begin_chat_button(~globals, ~inject),
-      resume_chat_button(~globals, ~inject),
+      resume_chat_button(~globals),
     ],
   );
 };
 
 let api_input =
-    (
-      ~signal,
-      ~inject,
-      ~globals: Globals.t,
-      ~assistantModel: AssistantModel.Model.t,
-    )
-    : Node.t => {
+    (~signal, ~inject, ~assistantModel: AssistantModel.Model.t): Node.t => {
   let handle_submission = (api_key: string) => {
     JsUtil.log("Your API key for this session has been set: " ++ api_key);
     Virtual_dom.Vdom.Effect.Many([
@@ -280,13 +266,7 @@ let api_input =
 };
 
 let message_input =
-    (
-      ~signal,
-      ~inject,
-      ~globals: Globals.t,
-      ~assistantModel: AssistantModel.Model.t,
-    )
-    : Node.t => {
+    (~signal, ~inject, ~assistantModel: AssistantModel.Model.t): Node.t => {
   let handle_send = (message: string) => {
     let message: AssistantModel.Model.message = {
       party: assistantModel.currSender,
@@ -378,12 +358,7 @@ let loading_dots = () => {
 };
 
 let message_display =
-    (
-      ~signal,
-      ~inject,
-      ~globals: Globals.t,
-      ~assistantModel: AssistantModel.Model.t,
-    )
+    (~inject, ~globals: Globals.t, ~assistantModel: AssistantModel.Model.t)
     : Node.t => {
   let toggle_collapse = index => {
     // Create an action to toggle the collapsed state of a specific message
@@ -540,21 +515,19 @@ let view =
                 [text("Agentic Assistant Chat")],
               ),
               globals.settings.assistant.ongoing_chat
-                ? req_button(~globals, ~inject) : None,
+                ? req_button(~inject) : None,
               globals.settings.assistant.ongoing_chat
-                ? end_chat_button(~globals, ~inject) : None,
+                ? end_chat_button(~globals) : None,
             ],
           ),
           globals.settings.assistant.ongoing_chat
-            ? message_display(~signal, ~inject, ~globals, ~assistantModel)
-            : None,
+            ? message_display(~inject, ~globals, ~assistantModel) : None,
           globals.settings.assistant.ongoing_chat
-            ? message_input(~signal, ~inject, ~globals, ~assistantModel)
-            : None,
+            ? message_input(~signal, ~inject, ~assistantModel) : None,
           globals.settings.assistant.ongoing_chat
-            ? None : api_input(~signal, ~inject, ~globals, ~assistantModel),
+            ? None : api_input(~signal, ~inject, ~assistantModel),
           globals.settings.assistant.ongoing_chat
-            ? None : select_llm(~signal, ~inject, ~globals, ~assistantModel),
+            ? None : select_llm(~inject, ~assistantModel),
           globals.settings.assistant.ongoing_chat
             ? None : settings_box(~globals, ~inject),
         ],

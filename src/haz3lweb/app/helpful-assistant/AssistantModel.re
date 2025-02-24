@@ -2,7 +2,6 @@ module Sexp = Sexplib.Sexp;
 open Haz3lcore;
 open Util;
 open Util.OptUtil.Syntax;
-open Example;
 open StringUtil;
 
 module CodeModel = CodeEditable.Model;
@@ -381,31 +380,24 @@ module Update = {
     | SelectLLM(llm) => {...model, llm} |> Updated.return_quiet
     | StoreTile(id) => {...model, tile: id} |> Updated.return_quiet
     | RemoveAndSuggest(response) =>
-      // Select Question Marks and double-destruct
-      let perform_action: CodeEditable.Update.t =
-        Perform(Action.Select(Tile(Id(model.tile, Direction.Left))));
-      let cell_action: CellEditor.Update.t = MainEditor(perform_action);
-      let scratch_action: EditorsUpdate.t = Scratch(CellAction(cell_action));
-      schedule_editor_action(scratch_action);
-      let perform_action: CodeEditable.Update.t =
-        Perform(Action.Destruct(Direction.Left));
-      let cell_action: CellEditor.Update.t = MainEditor(perform_action);
-      let scratch_action: EditorsUpdate.t = Scratch(CellAction(cell_action));
-      schedule_editor_action(scratch_action);
+      // Create a sequence of actions to handle the suggestion
+      let actions = [
+        Action.Select(Tile(Id(model.tile, Direction.Left))),
+        Action.Destruct(Direction.Left),
+        Action.Buffer(Set(LLMSug(response))),
+      ];
 
-      let perform_action: CodeEditable.Update.t =
-        Perform(Action.Buffer(Set(LLMSug(response))));
-      let cell_action: CellEditor.Update.t = MainEditor(perform_action);
-      let scratch_action: EditorsUpdate.t = Scratch(CellAction(cell_action));
-      schedule_editor_action(scratch_action);
-
-      /* Paste in code completion
-         let perform_action: CodeEditable.Update.t =
-           Perform(Action.Paste(response));
-         let cell_action: CellEditor.Update.t = MainEditor(perform_action);
-         let scratch_action: EditorsUpdate.t = Scratch(CellAction(cell_action));
-         schedule_editor_action(scratch_action);
-         */
+      // Apply each action in sequence
+      List.iter(
+        action => {
+          let perform_action = CodeEditable.Update.Perform(action);
+          let cell_action = CellEditor.Update.MainEditor(perform_action);
+          let scratch_action =
+            EditorsUpdate.Scratch(CellAction(cell_action));
+          schedule_editor_action(scratch_action);
+        },
+        actions,
+      );
 
       {...model, tile: Id.invalid} |> Updated.return_quiet;
     };

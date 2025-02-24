@@ -72,6 +72,7 @@
 .code .token.explicit-hole {
   color: var(--token-explicit-hole);
   text-shadow: 1px 1px 0px var(--token-explicit-hole-shadow);
+  font-weight: bold;
 }
 
 .code .comment {
@@ -87,6 +88,21 @@
   font-family: system-ui;
   vertical-align: middle;
   font-size: 0.59em;
+}
+
+.code .token.llm-waiting {
+  animation: rainbow 4s linear infinite;
+  font-weight: bold;
+}
+
+@keyframes rainbow {
+  0% { color: #4477ff; }  /* Start with muted blue */
+  17% { color: #9944ff; } /* Muted purple */
+  33% { color: #ff4488; } /* Muted pink */
+  50% { color: #ff7744; } /* Muted orange */
+  67% { color: #88aa44; } /* Muted green */
+  83% { color: #44aaff; } /* Muted cyan */
+  100% { color: #4477ff; } /* Back to muted blue */
 }
 
 /* TOKEN BACKING DECOS */
