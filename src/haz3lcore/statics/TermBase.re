@@ -690,7 +690,7 @@ and Typ: {
           )
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
-        | TFun(a,b) => TFun(a,typ_map_term(b)) //can't recurse further on a pattern 
+        | TFun(tp,t,var) => TFun(tp,typ_map_term(t),var) //can't recurse further on a pattern 
         },
     };
     x |> f_typ(rec_call);
@@ -724,7 +724,7 @@ and Typ: {
       | Var(y) => str == y ? s : Var(y) |> rewrap
       | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
       | Ap(t1, t2) => Ap(subst(s, x, t1), subst(s, x, t2)) |> rewrap
-      | TFun(pat, ty) => TFun(pat, subst(s,x,ty)) |> rewrap //double check this in OH
+      | TFun(pat, ty,var) => TFun(pat, subst(s,x,ty),var) |> rewrap //double check this in OH
       };
     | None => ty
     };
@@ -794,8 +794,8 @@ and Typ: {
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
-    //double check how i'm doing type pattern equality 
-    | (TFun(a,ty1),TFun(b,ty2)) => a == b && eq_internal(n,ty1,ty2)
+    // Ignore the variable when considering equality
+    | (TFun(tp1,ty1,_),TFun(tp2,ty2,_)) => tp1 == tp2 && eq_internal(~alpha_equivalence,n,ty1,ty2)
     | (TFun(_),_) => false
     };
   };
