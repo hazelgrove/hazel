@@ -1,6 +1,8 @@
 include Sexplib.Std;
 
-module UG = Haz3lcore.Grammar.Factory(Haz3lcore.Grammar.UnitAnnotation);
+// mutable array to gather indicated IDs when generating expressions
+let indicated_ids = Dynarray.create();
+
 module FilterAction = {
   open Haz3lcore.FilterAction;
   let of_menhir_ast = (a: AST.filter_action): t => {
@@ -187,113 +189,154 @@ module Operators = {
 };
 
 module rec Exp: {
-  let of_menhir_ast: AST.exp => UG.exp;
-  let of_core: UG.exp => AST.exp;
+  let term_of_menhir_ast: AST.exp => Haz3lcore.Exp.term;
+  let of_menhir_ast': AST.exp => Haz3lcore.Exp.t;
+  let of_menhir_ast: AST.exp => (Haz3lcore.Exp.t, list(Haz3lcore.Id.t));
+  let of_core: Haz3lcore.Exp.t => AST.exp;
 } = {
-  open UG.Exp;
-  let rec of_menhir_ast = (exp: AST.exp): UG.exp => {
+  let rec term_of_menhir_ast = (exp: AST.exp): Haz3lcore.Exp.term => {
     switch (exp) {
-    | InvalidExp(s) => invalid(s)
-    | Int(i) => int(i)
-    | Float(f) => float(f)
-    | String(s) => string(s)
-    | Bool(b) => bool(b)
-    | Var(x) => var(x)
-    | Constructor(x, ty) => constructor(x, Typ.of_menhir_ast(ty))
-    | Deferral => deferral(InAp)
-    | ListExp(l) => list_lit(List.map(of_menhir_ast, l))
-    | TupleExp([TupLabel(_) as tl]) => parens(tuple([of_menhir_ast(tl)]))
-    | TupleExp([e]) => parens(of_menhir_ast(e))
-    | TupleExp(e) => parens(tuple(List.map(of_menhir_ast, e)))
-    | Label(s) => label(s)
-    | TupLabel(e1, e2) => tup_label(of_menhir_ast(e1), of_menhir_ast(e2))
-    | Dot(e1, e2) => dot(of_menhir_ast(e1), of_menhir_ast(e2))
+    | InvalidExp(s) => Invalid(s)
+    | Int(i) => Int(i)
+    | Float(f) => Float(f)
+    | String(s) => String(s)
+    | Bool(b) => Bool(b)
+    | Var(x) => Var(x)
+    | Constructor(x, ty) =>
+      Constructor(x, Option.map(Typ.of_menhir_ast', ty))
+    | Deferral => Deferral(InAp)
+    // switch (pos) {
+    // | InAp => Deferral(InAp)
+    // | OutsideAp => Deferral(OutsideAp)
+    // }
+    | ListExp(l) => ListLit(List.map(of_menhir_ast', l))
+    | TupleExp([TupLabel(_) as tl]) =>
+      Parens(Tuple([of_menhir_ast'(tl)]) |> Haz3lcore.Exp.fresh)
+    | TupleExp([e]) => Parens(of_menhir_ast'(e))
+    | TupleExp(e) =>
+      Parens(Tuple(List.map(of_menhir_ast', e)) |> Haz3lcore.Exp.fresh)
+    | Label(s) => Label(s)
+    | TupLabel(e1, e2) => TupLabel(of_menhir_ast'(e1), of_menhir_ast'(e2))
+    | Dot(e1, e2) => Dot(of_menhir_ast'(e1), of_menhir_ast'(e2))
     | Let(p, e1, e2) =>
-      let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
-    | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
+      Let(Pat.of_menhir_ast'(p), of_menhir_ast'(e1), of_menhir_ast'(e2))
+    | FixF(p, e) => FixF(Pat.of_menhir_ast'(p), of_menhir_ast'(e), None)
     | TypFun(t, e) =>
-      typ_fun(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
-    | Undefined => undefined()
+      TypFun(TPat.of_menhir_ast(t), of_menhir_ast'(e), None)
+    | Undefined => Undefined
     | TyAlias(tp, ty, e) =>
-      ty_alias(
-        TPat.of_menhir_ast(tp),
-        Typ.of_menhir_ast(ty),
-        of_menhir_ast(e),
-      )
-    | BuiltinFun(s) => builtin_fun(s)
+      let ty = Typ.of_menhir_ast'(ty);
+      let ty =
+        switch (ty) {
+        | {term: Parens(ty), _} => ty
+        | _ => ty
+        };
+      TyAlias(TPat.of_menhir_ast(tp), ty, of_menhir_ast'(e));
+    | BuiltinFun(s) => BuiltinFun(s)
     | Fun(p, e, name_opt) =>
       switch (name_opt) {
       | Some(name_str) =>
-        fn(Pat.of_menhir_ast(p), of_menhir_ast(e), None, Some(name_str))
-      | None => fn(Pat.of_menhir_ast(p), of_menhir_ast(e), None, None)
+        Fun(Pat.of_menhir_ast'(p), of_menhir_ast'(e), None, Some(name_str))
+      | None => Fun(Pat.of_menhir_ast'(p), of_menhir_ast'(e), None, None)
       }
     | ApExp(e1, args) =>
       switch (args) {
       | TupleExp(l) =>
         List.mem(AST.Deferral, l)
-          ? deferred_ap(of_menhir_ast(e1), List.map(of_menhir_ast, l))
-          : ap(
+          ? DeferredAp(of_menhir_ast'(e1), List.map(of_menhir_ast', l))
+          : Ap(
               Haz3lcore.Operators.Forward,
-              of_menhir_ast(e1),
-              of_menhir_ast(args),
+              of_menhir_ast'(e1),
+              of_menhir_ast'(args),
             )
-      | Deferral => deferred_ap(of_menhir_ast(e1), [args |> of_menhir_ast])
+      | Deferral => DeferredAp(of_menhir_ast'(e1), [args |> of_menhir_ast'])
 
       | _ =>
-        ap(
+        Ap(
           Haz3lcore.Operators.Forward,
-          of_menhir_ast(e1),
-          of_menhir_ast(args),
+          of_menhir_ast'(e1),
+          of_menhir_ast'(args),
         )
       }
     | BinExp(e1, op, e2) =>
-      bin_op(
+      BinOp(
         Operators.of_menhir_ast(op),
-        of_menhir_ast(e1),
-        of_menhir_ast(e2),
+        of_menhir_ast'(e1),
+        of_menhir_ast'(e2),
       )
 
     | If(e1, e2, e3) =>
-      if_(of_menhir_ast(e1), of_menhir_ast(e2), of_menhir_ast(e3))
+      If(of_menhir_ast'(e1), of_menhir_ast'(e2), of_menhir_ast'(e3))
     | CaseExp(e, l) =>
-      let d_scrut = of_menhir_ast(e);
+      let d_scrut = of_menhir_ast'(e);
       let d_rules =
         List.map(
-          ((pat, exp)) => (Pat.of_menhir_ast(pat), of_menhir_ast(exp)),
+          ((pat, exp)) => (Pat.of_menhir_ast'(pat), of_menhir_ast'(exp)),
           l,
         );
-      match(d_scrut, d_rules);
+      Match(d_scrut, d_rules);
     | Cast(e, t1, t2) =>
-      cast(of_menhir_ast(e), Typ.of_menhir_ast(t1), Typ.of_menhir_ast(t2))
-    | FailedCast(e, t1, t2) =>
-      failed_cast(
-        of_menhir_ast(e),
-        Typ.of_menhir_ast(t1),
-        Typ.of_menhir_ast(t2),
+      Cast(
+        of_menhir_ast'(e),
+        Typ.of_menhir_ast'(t1),
+        Typ.of_menhir_ast'(t2),
       )
-    | EmptyHole => empty_hole()
-    | Seq(e1, e2) => seq(of_menhir_ast(e1), of_menhir_ast(e2))
-    | Test(e) => test(of_menhir_ast(e))
-    | Cons(e1, e2) => cons(of_menhir_ast(e1), of_menhir_ast(e2))
+    | FailedCast(e, t1, t2) =>
+      FailedCast(
+        of_menhir_ast'(e),
+        Typ.of_menhir_ast'(t1),
+        Typ.of_menhir_ast'(t2),
+      )
+    | EmptyHole => EmptyHole
+    | Seq(e1, e2) => Seq(of_menhir_ast'(e1), of_menhir_ast'(e2))
+    | Test(e) => Test(of_menhir_ast'(e))
+    | Cons(e1, e2) => Cons(of_menhir_ast'(e1), of_menhir_ast'(e2))
     | ListConcat(e1, e2) =>
-      list_concat(of_menhir_ast(e1), of_menhir_ast(e2))
+      ListConcat(of_menhir_ast'(e1), of_menhir_ast'(e2))
     | Filter(a, cond, body) =>
-      let dcond = of_menhir_ast(cond);
-      let dbody = of_menhir_ast(body);
+      let dcond = of_menhir_ast'(cond);
+      let dbody = of_menhir_ast'(body);
       let act = FilterAction.of_menhir_ast(a);
-      filter(Filter({pat: dcond, act}), dbody);
-    | TypAp(e, ty) => typ_ap(of_menhir_ast(e), Typ.of_menhir_ast(ty))
+      Filter(Filter({pat: dcond, act}), dbody);
+    | TypAp(e, ty) => TypAp(of_menhir_ast'(e), Typ.of_menhir_ast'(ty))
     | UnOp(op, e) =>
-      un_op(Operators.op_un_of_menhir_ast(op), of_menhir_ast(e))
+      UnOp(Operators.op_un_of_menhir_ast(op), of_menhir_ast'(e))
     | DynamicErrorHole(e, s) =>
-      dynamic_error_hole(
-        of_menhir_ast(e),
+      DynamicErrorHole(
+        of_menhir_ast'(e),
         Haz3lcore.InvalidOperationError.t_of_sexp(sexp_of_string(s)),
       )
+    | IndicationExp(_) =>
+      failwith(
+        "IndicationExp should not appear as argument to term_of_menhir_ast.",
+      )
+    };
+  }
+  and of_menhir_ast' = (exp: AST.exp): Haz3lcore.Exp.t => {
+    switch (exp) {
+    | IndicationExp(e) =>
+      let id = Haz3lcore.Id.mk();
+      Dynarray.add_last(indicated_ids, id);
+      {
+        term: term_of_menhir_ast(e),
+        annotation: {
+          ids: [id],
+          copied: false,
+        },
+      };
+    | _ => Haz3lcore.IdTagged.fresh(term_of_menhir_ast(exp))
     };
   };
 
-  let rec of_core = (exp: UG.exp): AST.exp => {
+  let of_menhir_ast =
+      (exp: AST.exp): (Haz3lcore.Exp.t, list(Haz3lcore.Id.t)) => {
+    Dynarray.clear(indicated_ids);
+    let e = of_menhir_ast'(exp);
+    let ids = Dynarray.to_list(indicated_ids);
+    (e, ids);
+  };
+
+  let rec of_core = (exp: Haz3lcore.Exp.t): AST.exp => {
     switch (exp.term) {
     | Invalid(_) => InvalidExp("Invalid")
     | Int(i) => Int(i)
@@ -343,7 +386,7 @@ module rec Exp: {
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Closure(_) => raise(Failure("Closure not supported"))
     | Parens(e) => of_core(e)
-    | Constructor(s, typ) => Constructor(s, Typ.of_core(typ))
+    | Constructor(s, typ) => Constructor(s, Option.map(Typ.of_core, typ))
     | DeferredAp(e, es) =>
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
@@ -355,58 +398,87 @@ module rec Exp: {
   };
 }
 and Typ: {
-  let of_menhir_ast: AST.typ => UG.typ;
-  let of_core: UG.typ => AST.typ;
+  let of_menhir_ast': AST.typ => Haz3lcore.Typ.t;
+
+  let of_core: Haz3lcore.Typ.t => AST.typ;
 } = {
-  open UG.Typ;
-  let rec of_menhir_ast = (typ: AST.typ): UG.typ => {
+  let rec of_menhir_ast' = (typ: AST.typ): Haz3lcore.Typ.t => {
     switch (typ) {
-    | InvalidTyp(s) => unknown(Hole(Invalid(s)))
-    | IntType => int()
-    | FloatType => float()
-    | BoolType => bool()
-    | StringType => string()
+    | IndicationTyp(t) =>
+      let id = Haz3lcore.Id.mk();
+      Dynarray.add_last(indicated_ids, id);
+      {
+        term: term_of_menhir_ast(t),
+        annotation: {
+          ids: [id],
+          copied: false,
+        },
+      };
+    | _ => Haz3lcore.IdTagged.fresh(term_of_menhir_ast(typ))
+    };
+  }
+  and term_of_menhir_ast = (typ: AST.typ): Haz3lcore.Typ.term => {
+    switch (typ) {
+    | InvalidTyp(s) => Unknown(Hole(Invalid(s)))
+    | IntType => Int
+    | FloatType => Float
+    | BoolType => Bool
+    | StringType => String
     | UnknownType(p) =>
       switch (p) {
-      | Internal => unknown(Internal)
-      | EmptyHole => unknown(Hole(EmptyHole))
+      | Internal => Unknown(Internal)
+      | EmptyHole => Unknown(Hole(EmptyHole))
       }
-    | TypVar(s) => var(s)
-    | TupleType([t]) => parens(of_menhir_ast(t))
-    | TupleType(ts) => parens(prod(List.map(of_menhir_ast, ts)))
-    | LabelType(s) => label(s)
+    | TypVar(s) => Var(s)
+    | TupleType([t]) => Parens(of_menhir_ast'(t))
+    | TupleType(ts) =>
+      Parens(Prod(List.map(of_menhir_ast', ts)) |> Haz3lcore.Typ.fresh)
+    | LabelType(s) => Label(s)
     | TupLabelType(t1, t2) =>
-      tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
-    | ArrayType(t) => list(of_menhir_ast(t))
-    | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
+      TupLabel(of_menhir_ast'(t1), of_menhir_ast'(t2))
+    | ArrayType(t) => List(of_menhir_ast'(t))
+    | ArrowType(t1, t2) => Arrow(of_menhir_ast'(t1), of_menhir_ast'(t2))
     | SumTyp(sumterms) =>
       open Haz3lcore;
-      let converted_terms: list(ConstructorMap.variant(UG.typ)) =
+      let converted_terms: list(ConstructorMap.variant(TermBase.typ_t)) =
         List.map(
-          (sumterm: AST.sumterm): ConstructorMap.variant(UG.typ) =>
+          (sumterm: AST.sumterm): ConstructorMap.variant(TermBase.typ_t) =>
             switch (sumterm) {
             | Variant(name, typ) =>
-              Variant(name, [], Option.map(of_menhir_ast, typ))
-            | BadEntry(typ) => BadEntry(of_menhir_ast(typ))
+              Variant(name, [Id.mk()], Option.map(of_menhir_ast', typ))
+            | BadEntry(typ) => BadEntry(of_menhir_ast'(typ))
             },
           sumterms,
         );
-      parens(sum(converted_terms));
+      Parens(Sum(converted_terms) |> Typ.fresh); // Adds parens due to MakeTerm
     | ForallType(tp, t) =>
-      parens(forall(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
+      Parens(
+        Forall(TPat.of_menhir_ast(tp), of_menhir_ast'(t))
+        |> Haz3lcore.Typ.fresh,
+      )
     | RecType(tp, t) =>
-      parens(rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
+      Parens(
+        Rec(TPat.of_menhir_ast(tp), of_menhir_ast'(t))
+        |> Haz3lcore.Typ.fresh,
+      ) // Parens because of (rec ? -> Bool, ())
+    | IndicationTyp(_) =>
+      raise(
+        Failure(
+          "IndicationExp should not appear as argument to term_of_menhir_ast.",
+        ),
+      )
     };
   };
 
-  let of_core_type_provenance = (p: UG.typ_provenance): AST.typ_provenance => {
+  let of_core_type_provenance =
+      (p: Haz3lcore.TermBase.type_provenance): AST.typ_provenance => {
     switch (p) {
     | Internal => Internal
     | Hole(EmptyHole) => EmptyHole
     | _ => raise(Failure("Unknown type_provenance"))
     };
   };
-  let rec of_core = (typ: UG.typ): AST.typ => {
+  let rec of_core = (typ: Haz3lcore.Typ.t): AST.typ => {
     switch (typ.term) {
     | Int => IntType
     | Float => FloatType
@@ -426,7 +498,7 @@ and Typ: {
     | Sum(constructors) =>
       let sumterms =
         List.map(
-          (variant: Haz3lcore.ConstructorMap.variant(UG.typ)): AST.sumterm => {
+          (variant: Haz3lcore.ConstructorMap.variant(Haz3lcore.Typ.t)): AST.sumterm => {
             switch (variant) {
             | Variant(name, _, None) => Variant(name, None)
             | Variant(name, _, Some(t)) => Variant(name, Some(of_core(t)))
@@ -440,19 +512,22 @@ and Typ: {
   };
 }
 and TPat: {
-  let of_menhir_ast: AST.tpat => UG.tpat;
-  let of_core: UG.tpat => AST.tpat;
+  let of_menhir_ast: AST.tpat => Haz3lcore.TPat.t;
+  let term_of_menhir_ast: AST.tpat => Haz3lcore.TPat.term;
+  let of_core: Haz3lcore.TPat.t => AST.tpat;
 } = {
-  open UG.TPat;
-  let of_menhir_ast = (tpat: AST.tpat): UG.tpat => {
+  let rec term_of_menhir_ast = (tpat: AST.tpat): Haz3lcore.TPat.term => {
     switch (tpat) {
-    | InvalidTPat(s) => invalid(s)
-    | EmptyHoleTPat => empty_hole()
-    | VarTPat(s) => var(s)
+    | InvalidTPat(s) => Invalid(s)
+    | EmptyHoleTPat => EmptyHole
+    | VarTPat(s) => Var(s)
     };
+  }
+  and of_menhir_ast = (tpat: AST.tpat) => {
+    Haz3lcore.IdTagged.fresh(term_of_menhir_ast(tpat));
   };
 
-  let of_core = (tpat: UG.tpat): AST.tpat => {
+  let of_core = (tpat: Haz3lcore.TPat.t): AST.tpat => {
     switch (tpat.term) {
     | EmptyHole => EmptyHoleTPat
     | Var(x) => VarTPat(x)
@@ -462,46 +537,72 @@ and TPat: {
   };
 }
 and Pat: {
-  let of_menhir_ast: AST.pat => UG.pat;
-  let of_core: UG.pat => AST.pat;
+  let term_of_menhir_ast: AST.pat => Haz3lcore.Pat.term;
+  let of_menhir_ast': AST.pat => Haz3lcore.Pat.t;
+  let of_core: Haz3lcore.Pat.t => AST.pat;
 } = {
-  open UG.Pat;
-  let rec of_menhir_ast = (pat: AST.pat): UG.pat => {
+  let rec term_of_menhir_ast = (pat: AST.pat): Haz3lcore.Pat.term => {
     switch (pat) {
-    | InvalidPat(s) => invalid(s)
-    | IntPat(i) => int(i)
-    | FloatPat(f) => float(f)
+    | InvalidPat(s) => Invalid(s)
+    | IntPat(i) => Int(i)
+    | FloatPat(f) => Float(f)
     | CastPat(p, t1, t2) =>
-      parens(
-        cast(
-          of_menhir_ast(p),
-          Typ.of_menhir_ast(t1),
-          Typ.of_menhir_ast(t2),
+      Parens(
+        Cast(
+          of_menhir_ast'(p),
+          Typ.of_menhir_ast'(t1),
+          Typ.of_menhir_ast'(t2),
+        )
+        |> Haz3lcore.Pat.fresh,
+      )
+    | VarPat(x) => Var(x)
+    | ConstructorPat(x, ty) =>
+      Constructor(x, Option.map(Typ.of_menhir_ast', ty))
+    | StringPat(s) => String(s)
+    | TuplePat(pats) =>
+      Parens(Tuple(List.map(of_menhir_ast', pats)) |> Haz3lcore.Pat.fresh)
+    | ApPat(pat1, pat2) => Ap(of_menhir_ast'(pat1), of_menhir_ast'(pat2))
+    | ConsPat(p1, p2) =>
+      Parens(
+        Cons(of_menhir_ast'(p1), of_menhir_ast'(p2)) |> Haz3lcore.Pat.fresh,
+      )
+    | BoolPat(b) => Bool(b)
+    | EmptyHolePat => EmptyHole
+    | WildPat => Wild
+    | LabelPat(s) => Label(s)
+    | TupLabelPat(p1, p2) =>
+      TupLabel(of_menhir_ast'(p1), of_menhir_ast'(p2))
+    | ListPat(l) => ListLit(List.map(of_menhir_ast', l))
+    | IndicationPat(_) =>
+      raise(
+        Failure(
+          "IndicationPat should not appear as argument to term_of_menhir_ast.",
         ),
       )
-    | VarPat(x) => var(x)
-    | ConstructorPat(x, ty) => constructor(x, Typ.of_menhir_ast(ty))
-    | StringPat(s) => string(s)
-    | TuplePat(pats) => parens(tuple(List.map(of_menhir_ast, pats)))
-    | ApPat(pat1, pat2) => ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
-    | ConsPat(p1, p2) =>
-      parens(cons(of_menhir_ast(p1), of_menhir_ast(p2)))
-    | BoolPat(b) => bool(b)
-    | EmptyHolePat => empty_hole()
-    | WildPat => wild()
-    | LabelPat(s) => label(s)
-    | TupLabelPat(p1, p2) =>
-      tup_label(of_menhir_ast(p1), of_menhir_ast(p2))
-    | ListPat(l) => list_lit(List.map(of_menhir_ast, l))
+    };
+  }
+  and of_menhir_ast' = (pat: AST.pat): Haz3lcore.Pat.t => {
+    switch (pat) {
+    | IndicationPat(p) =>
+      let id = Haz3lcore.Id.mk();
+      Dynarray.add_last(indicated_ids, id);
+      {
+        term: term_of_menhir_ast(p),
+        annotation: {
+          ids: [id],
+          copied: false,
+        },
+      };
+    | _ => Haz3lcore.IdTagged.fresh(term_of_menhir_ast(pat))
     };
   };
-  let rec of_core = (pat: UG.pat): AST.pat => {
+  let rec of_core = (pat: Haz3lcore.Pat.t): AST.pat => {
     switch (pat.term) {
     | Invalid(_) => InvalidPat("Invalid")
     | Int(i) => IntPat(i)
     | Float(f) => FloatPat(f)
     | Var(x) => VarPat(x)
-    | Constructor(x, ty) => ConstructorPat(x, Typ.of_core(ty))
+    | Constructor(x, ty) => ConstructorPat(x, Option.map(Typ.of_core, ty))
     | String(s) => StringPat(s)
     | Tuple(l) => TuplePat(List.map(of_core, l))
     | Bool(b) => BoolPat(b)

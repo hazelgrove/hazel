@@ -211,8 +211,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(String(Form.strip_quotes(t)))
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
-      | ([t], []) when Form.is_ctr(t) =>
-        ret(Constructor(t, Unknown(Internal) |> Typ.temp))
+      | ([t], []) when Form.is_ctr(t) => ret(Constructor(t, None))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
@@ -437,8 +436,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         | ([t], []) when Form.is_string(t) => String(Form.strip_quotes(t))
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
-        | ([t], []) when Form.is_ctr(t) =>
-          Constructor(t, Unknown(Internal) |> Typ.fresh)
+        | ([t], []) when Form.is_ctr(t) => Constructor(t, None)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
