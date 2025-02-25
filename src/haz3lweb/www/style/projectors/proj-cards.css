@@ -17,8 +17,17 @@
   perspective: 300px;
 }
 
-.base .projector.card.selected {
-  filter: brightness(0.72) sepia(1) hue-rotate(12deg) saturate(1.5);
+.projector.card:not(.selected) > svg {
+  display: none;
+}
+.projector.card.selected > svg {
+  stroke-width: 0.5px;
+  stroke: var(--shard-selected);
+  /* filter: drop-shadow(0px 1px 0 var(--shadow-nul)); */
+}
+
+.base .projector.card.selected .card-scene {
+  filter: brightness(0.71) sepia(1) hue-rotate(11deg) saturate(1.5);
 }
 .projector.card {
   z-index: var(--projector-z); /* hack? to get above selection shard */
@@ -92,7 +101,7 @@
   height: var(--card-height);
   image-rendering: pixelated;
   background-image: url("../../img/cards-pixel-pattern.png");
-  filter: drop-shadow(-0.5px 0px 0px black) drop-shadow(0px -0.5px 0px black)
+  filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
     drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
 }
 
@@ -105,12 +114,12 @@
 @keyframes blink-shadow {
   0%,
   50% {
-    filter: drop-shadow(0px -0.5px 0px black) drop-shadow(1px 0px 0px black)
+    filter: drop-shadow(0px -1px 0px black) drop-shadow(1px 0px 0px black)
       drop-shadow(0px 1px 0px black) drop-shadow(-2px 0px 0px red);
   }
   51%,
   100% {
-    filter: drop-shadow(-0.5px 0px 0px black) drop-shadow(0px -0.5px 0px black)
+    filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
       drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
   }
 }
@@ -118,12 +127,12 @@
 @keyframes blink-shadow-right {
   0%,
   50% {
-    filter: drop-shadow(-0.5px 0px 0px black) drop-shadow(0px -0.5px 0px black)
+    filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
       drop-shadow(0px 1px 0px black) drop-shadow(2px 0px 0px red);
   }
   51%,
   100% {
-    filter: drop-shadow(-0.5px 0px 0px black) drop-shadow(0px -0.5px 0px black)
+    filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
       drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
   }
 }
