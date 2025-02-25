@@ -13,6 +13,10 @@ module IdTag = {
        at the end of evaluation to keep them unique.*/
     copied: bool,
   };
+
+  let fresh = (): t => {
+    {ids: [Id.mk()], copied: false};
+  };
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
