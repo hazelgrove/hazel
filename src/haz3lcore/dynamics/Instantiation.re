@@ -71,15 +71,49 @@ let construct = (hole_id: Id.t, slice: TypSlice.t) => {
 // Wrapping in a cast from the slice to the hole type to allow evaluation to proceed
 // i.e. ? : ? -> Int may instantiate to 0 : Int -> ? -> Int
 // Note that this requires the hole to have a UNIQUE id. TODO: ensure this
-let subst = (d, {hole_id, enum, slice}) =>
-  enum
-  >>| (
-    d' =>
-      d
-      |> DHExp.map_term(~f_exp=(continue, d) =>
-           DHExp.rep_id(d) == hole_id
-             ? Cast(d', slice, TypSlice.hole([]) |> TypSlice.fresh)
-               |> DHExp.fresh
-             : continue(d)
-         )
-  );
+// The holes may also exist inside the closures, so must be substituted there too
+// Also evaluate the substitutions within closures in order to maintain that closures only contain values. (Somewhat inefficient)
+let subst = (d, {hole_id, enum, slice}) => {
+  let rec subst_term = (d', d) =>
+    d
+    |> DHExp.map_term(~f_exp=(continue, d'') =>
+         DHExp.rep_id(d'') == hole_id
+           ? Cast(d', slice, TypSlice.hole([]) |> TypSlice.fresh)
+             |> DHExp.fresh
+           : (
+             switch (DHExp.term_of(d'')) {
+             | Closure(env, d) => {
+                 ...d'',
+                 term:
+                   Closure(
+                     env
+                     |> ClosureEnvironment.map(((_, d)) =>
+                          d
+                          |> subst_term(d')
+                          |> Evaluator.evaluate''(Builtins.env_init)
+                        ),
+                     continue(d),
+                   ),
+               }
+             | FixF(p, d, env_opt) => {
+                 ...d'',
+                 term:
+                   FixF(
+                     p,
+                     continue(d),
+                     env_opt
+                     |> Option.map(
+                          ClosureEnvironment.map(((_, d)) =>
+                            d
+                            |> subst_term(d')
+                            |> Evaluator.evaluate''(Builtins.env_init)
+                          ),
+                        ),
+                   ),
+               }
+             | _ => continue(d'')
+             }
+           )
+       );
+  enum >>| (d' => d |> subst_term(d'));
+};

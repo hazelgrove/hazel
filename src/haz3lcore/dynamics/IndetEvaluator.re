@@ -3,6 +3,7 @@ open ProgramResult.Result;
 open Util.Sequence;
 
 // Assumes the input ds are already evaluated
+// Requires that env evaluating under does not contain holes (e.g. Builtins.env_init)
 let rec evaluate = (env, ds: Futures.t): Futures.t => {
   ds
   >>| (
@@ -12,9 +13,7 @@ let rec evaluate = (env, ds: Futures.t): Futures.t => {
       >>| Evaluator.evaluate''(env)
       |> (
         init =>
-          unfold(~init, ~f=s => Some((s, s |> evaluate(env))))
-          // TODO: Check if env needs to change
-          |> interleave
+          unfold(~init, ~f=s => Some((s, s |> evaluate(env)))) |> interleave
       )
   )
   |> interleave;

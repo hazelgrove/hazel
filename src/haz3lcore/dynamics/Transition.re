@@ -181,7 +181,6 @@ module Transition = (EV: EV_MODE) => {
         ~in_closure=?,
         state,
         env,
-        //env_hole,
         d,
       )
       : 'a => {
@@ -206,7 +205,7 @@ module Transition = (EV: EV_MODE) => {
           | _ => true // all other closure entries should be final
           };
         Step({
-          expr: d |> fast_copy(Id.mk()),
+          expr: d, //|> fast_copy(Id.mk()), NOTE: removed to maintain hole ids
           state_update,
           kind: VarLookup,
           is_value,

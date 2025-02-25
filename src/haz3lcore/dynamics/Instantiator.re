@@ -64,13 +64,13 @@ module InstantiatorEVMode: {
 
 module Instantiator = Transition(InstantiatorEVMode);
 
-let rec instantiate' = (~in_closure=?, state, env, d) =>
-  Instantiator.transition(instantiate', ~in_closure?, state, env, d);
+let rec find = (~in_closure=?, state, env, d) =>
+  Instantiator.transition(find, ~in_closure?, state, env, d);
 
 // TODO: for the stepper add logging: i.e. return a sequence of exps paired with a step-kind detailing the instantiation made. Slice info is available for this
 let instantiate = (env, d) => {
   let env = ClosureEnvironment.of_environment(env);
-  switch (instantiate'((), env, d)) {
+  switch (find((), env, d)) {
   | None
   | Some((_, None)) => d |> Util.Sequence.singleton
   | Some((hole, Some(slc))) =>
