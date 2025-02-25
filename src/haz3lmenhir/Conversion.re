@@ -317,7 +317,13 @@ module rec Exp: {
     | IndicationExp(e) =>
       let id = Haz3lcore.Id.mk();
       Dynarray.add_last(indicated_ids, id);
-      {term: term_of_menhir_ast(e), ids: [id], copied: false};
+      {
+        term: term_of_menhir_ast(e),
+        annotation: {
+          ids: [id],
+          copied: false,
+        },
+      };
     | _ => Haz3lcore.IdTagged.fresh(term_of_menhir_ast(exp))
     };
   };
@@ -401,7 +407,13 @@ and Typ: {
     | IndicationTyp(t) =>
       let id = Haz3lcore.Id.mk();
       Dynarray.add_last(indicated_ids, id);
-      {term: term_of_menhir_ast(t), ids: [id], copied: false};
+      {
+        term: term_of_menhir_ast(t),
+        annotation: {
+          ids: [id],
+          copied: false,
+        },
+      };
     | _ => Haz3lcore.IdTagged.fresh(term_of_menhir_ast(typ))
     };
   }
@@ -574,7 +586,13 @@ and Pat: {
     | IndicationPat(p) =>
       let id = Haz3lcore.Id.mk();
       Dynarray.add_last(indicated_ids, id);
-      {term: term_of_menhir_ast(p), ids: [id], copied: false};
+      {
+        term: term_of_menhir_ast(p),
+        annotation: {
+          ids: [id],
+          copied: false,
+        },
+      };
     | _ => Haz3lcore.IdTagged.fresh(term_of_menhir_ast(pat))
     };
   };

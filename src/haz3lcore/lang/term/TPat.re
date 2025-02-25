@@ -31,4 +31,11 @@ let show_cls: cls => string =
   | EmptyHole => "Empty type alias hole"
   | Var => "Type alias";
 
-let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
+let temp: term => t =
+  term => {
+    term,
+    annotation: {
+      ids: [Id.invalid],
+      copied: false,
+    },
+  };

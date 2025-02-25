@@ -126,13 +126,22 @@ let rm_and_log_projectors = (seg: Segment.t): Segment.t =>
 
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
-  | {term: Var(ctr), ids, _} => Variant(ctr, ids, None)
-  | {term: Ap({term: Var(ctr), ids: ids_ctr, _}, u), ids: ids_ap, _} =>
+  | {term: Var(ctr), annotation: {ids, _}} => Variant(ctr, ids, None)
+  | {
+      term: Ap({term: Var(ctr), annotation: {ids: ids_ctr, _}}, u),
+      annotation: {ids: ids_ap, _},
+    } =>
     Variant(ctr, ids_ctr @ ids_ap, Some(u))
   | t => BadEntry(t);
 
 let mk_bad = (ctr, ids, value) => {
-  let t: Typ.t = {ids, copied: false, term: Var(ctr)};
+  let t: Typ.t = {
+    annotation: {
+      ids,
+      copied: false,
+    },
+    term: Var(ctr),
+  };
   switch (value) {
   | None => t
   | Some(u) => Ap(t, u) |> Typ.fresh
@@ -168,7 +177,13 @@ and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   let e: TermBase.exp_t =
-    return(e => Exp(e), ids, {ids, copied: false, term});
+    return(e => Exp(e), ids, {
+                                annotation: {
+                                  ids,
+                                  copied: false,
+                                },
+                                term,
+                              });
   switch (term) {
   | TupLabel(_) =>
     // The tile id is the id of the tuple not the tuplabel
@@ -200,11 +215,17 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {ids, copied: false, term: Tuple(es)} => (ListLit(es), ids)
+        | {annotation: {ids, copied: false}, term: Tuple(es)} => (
+            ListLit(es),
+            ids,
+          )
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (["case", "end"], [Rul({ids, term: Rules(scrut, rules), _})]) => (
+      | (
+          ["case", "end"],
+          [Rul({term: Rules(scrut, rules), annotation: {ids, _}})],
+        ) => (
           Match(scrut, rules),
           ids,
         )
@@ -252,13 +273,21 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           Ap(
             Forward,
             l,
-            {ids: [Id.nullary_ap_flag], copied: false, term: Tuple([])},
+            {
+              annotation: {
+                ids: [Id.nullary_ap_flag],
+                copied: false,
+              },
+              term: Tuple([]),
+            },
           ),
         )
       | (["(", ")"], [Exp(arg)]) =>
         let use_deferral = (arg: Exp.t): Exp.t => {
-          ids: arg.ids,
-          copied: false,
+          annotation: {
+            ids: IdTagged.ids(arg),
+            copied: false,
+          },
           term: Deferral(InAp),
         };
         switch (arg.term) {
@@ -272,7 +301,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 es,
               ),
             ),
-            arg.ids,
+            IdTagged.ids(arg),
           )
         | _ => ret(Ap(Forward, l, arg))
         };
@@ -341,7 +370,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["="], []) =>
             switch (l.term) {
             | Var(name) =>
-              TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r)
+              TupLabel({annotation: l.annotation, term: Label(name)}, r)
             | EmptyHole => TupLabel(l, r)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(l);
@@ -354,7 +383,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["."], []) =>
             switch (r.term) {
             | Var(name) =>
-              Dot(l, {ids: r.ids, copied: r.copied, term: Label(name)})
+              Dot(l, {annotation: r.annotation, term: Label(name)})
             | EmptyHole => Dot(l, r)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(r);
@@ -377,7 +406,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  let p = return(p => Pat(p), ids, {ids, term, copied: false});
+  let p =
+    return(p => Pat(p), ids, {
+                                annotation: {
+                                  ids,
+                                  copied: false,
+                                },
+                                term,
+                              });
   switch (term) {
   | TupLabel(_) => Tuple([p]) |> Pat.fresh
   | _ => p
@@ -451,9 +487,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | ([(_id, (["="], []))], []) =>
         switch (l.term) {
         | Var(name) =>
-          ret(
-            TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r),
-          )
+          ret(TupLabel({annotation: l.annotation, term: Label(name)}, r))
         | EmptyHole => ret(TupLabel(l, r))
         | _ =>
           let (e_term, rewrap) = IdTagged.unwrap(l);
@@ -473,7 +507,14 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
 and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  let t = return(ty => Typ(ty), ids, {ids, term, copied: false});
+  let t =
+    return(ty => Typ(ty), ids, {
+                                  term,
+                                  annotation: {
+                                    ids,
+                                    copied: false,
+                                  },
+                                });
   switch (term) {
   | TupLabel(_) => Prod([t]) |> Typ.fresh
   | _ => t
@@ -515,7 +556,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     ret(Forall(tpat, t))
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
-  | Pre(tiles, Typ({term: Sum(t0), ids, _})) as tm =>
+  | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
     | ([(_, (["+"], []))], []) => (Sum(t0), ids)
@@ -559,9 +600,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       | ([(_id, (["="], []))], []) =>
         switch (l.term) {
         | Var(name) =>
-          ret(
-            TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r),
-          )
+          ret(TupLabel({annotation: l.annotation, term: Label(name)}, r))
         | _ => ret(TupLabel(l, r))
         }
       | _ => ret(hole(tm))
@@ -572,7 +611,13 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
   let ids = ids(unsorted);
-  return(ty => TPat(ty), ids, {ids, term, copied: false});
+  return(ty => TPat(ty), ids, {
+                                 term,
+                                 annotation: {
+                                   ids,
+                                   copied: false,
+                                 },
+                               });
 }
 and tpat_term: unsorted => TPat.term = {
   let ret = (term: TPat.term) => term;
@@ -608,16 +653,36 @@ and rul = (unsorted): Rul.t => {
     | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
       switch (is_rules(tiles)) {
       | Some((ps, leading_clauses)) => {
-          ids: ids(unsorted),
+          annotation: {
+            ids: ids(unsorted),
+            copied: false,
+          },
           term:
             Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
-          copied: false,
         }
-      | None => {ids: ids(unsorted), term: hole, copied: false}
+      | None => {
+          term: hole,
+          annotation: {
+            ids: ids(unsorted),
+            copied: false,
+          },
+        }
       }
-    | _ => {ids: ids(unsorted), term: hole, copied: false}
+    | _ => {
+        term: hole,
+        annotation: {
+          ids: ids(unsorted),
+          copied: false,
+        },
+      }
     }
-  | e => {ids: [], term: Rules(e, []), copied: false}
+  | e => {
+      term: Rules(e, []),
+      annotation: {
+        ids: [],
+        copied: false,
+      },
+    }
   };
 }
 
