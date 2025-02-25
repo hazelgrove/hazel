@@ -30,15 +30,10 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
   | String(s) =>
     let* s' = Unboxing.unbox(String, d);
     s == s' ? Matches(Environment.empty) : DoesNotMatch;
-  | Cast({term: ListLit([] as xs), _}, _, _) // Shortcut for empty list pattern match perf
   | ListLit(xs) =>
-    let* s' = Unboxing.unbox(List, d);
-    if (List.length(xs) == List.length(s')) {
-      List.map2(matches, xs, s')
-      |> List.fold_left(combine_result, Matches(Environment.empty));
-    } else {
-      DoesNotMatch;
-    };
+    let* s' = Unboxing.unbox(ListLit(List.length(xs)), d);
+    List.map2(matches, xs, s')
+    |> List.fold_left(combine_result, Matches(Environment.empty));
   | Cons(x, xs) =>
     let* (x', xs') = Unboxing.unbox(Cons, d);
     let* m_x = matches(x, x');

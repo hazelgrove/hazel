@@ -19,7 +19,7 @@ let rec binds_var = (m: Statics.Map.t, x: Var.t, dp: DHPat.t): bool =>
     | Cast(y, _, _)
     | Parens(y)
     | Probe(y, _) => binds_var(m, x, y)
-    | Var(y) => Var.eq(x, y)
+    | Var(y) => Var.equal(x, y)
     | TupLabel(_, dp) => binds_var(m, x, dp)
     | Tuple(dps) => dps |> List.exists(binds_var(m, x))
     | Cons(dp1, dp2) => binds_var(m, x, dp1) || binds_var(m, x, dp2)
@@ -35,7 +35,7 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   let (term, rewrap) = DHExp.unwrap(d2);
   switch (term) {
   | Var(y) =>
-    if (Var.eq(x, y)) {
+    if (Var.equal(x, y)) {
       d1;
     } else {
       d2;

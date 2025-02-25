@@ -17,7 +17,7 @@ let get_elem_by_selector = selector => {
   Js.Opt.get(
     doc##querySelector(Js.string(selector)),
     () => {
-      print_endline(selector);
+      print_endline("Selector could not be found: " ++ selector);
       assert(false);
     },
   );

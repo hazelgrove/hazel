@@ -1,11 +1,5 @@
-open Util;
-
 let continue = x => x;
 let stop = (_, x) => x;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type deferral_position_t =
-  | InAp
-  | OutsideAp;
 
 /*
    This megafile contains the definitions of the expression data types in
@@ -47,129 +41,41 @@ type deferral_position_t =
  */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type any_t =
-  | Exp(exp_t)
-  | Pat(pat_t)
-  | Typ(typ_t)
-  | TPat(tpat_t)
-  | Rul(rul_t)
-  | Any(unit)
-and exp_term =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t))
-  | DynamicErrorHole(exp_t, InvalidOperationError.t)
-  | FailedCast(exp_t, typ_t, typ_t)
-  | Deferral(deferral_position_t)
-  | Undefined
-  | Bool(bool)
-  | Int(int)
-  | Float(float)
-  | String(string)
-  | ListLit(list(exp_t))
-  | Constructor(string, typ_t) // Typ.t field is only meaningful in dynamic expressions
-  | Fun(pat_t, exp_t, option(typ_t), option(Var.t)) // typ_t field is only used to display types in results
-  | TypFun(tpat_t, exp_t, option(Var.t))
-  | Tuple(list(exp_t))
-  | Var(Var.t)
-  | Let(pat_t, exp_t, exp_t)
-  | FixF(pat_t, exp_t, option(closure_environment_t))
-  | TyAlias(tpat_t, typ_t, exp_t)
-  | Ap(Operators.ap_direction, exp_t, exp_t)
-  | TypAp(exp_t, typ_t)
-  | DeferredAp(exp_t, list(exp_t))
-  | If(exp_t, exp_t, exp_t)
-  | Seq(exp_t, exp_t)
-  | Test(exp_t)
-  | Filter(stepper_filter_kind_t, exp_t)
-  | Closure([@show.opaque] closure_environment_t, exp_t)
-  | Parens(exp_t)
-  | Probe(exp_t, Probe.t)
-  | Cons(exp_t, exp_t)
-  | ListConcat(exp_t, exp_t)
-  | UnOp(Operators.op_un, exp_t)
-  | BinOp(Operators.op_bin, exp_t, exp_t)
-  | BuiltinFun(string)
-  | Match(exp_t, list((pat_t, exp_t)))
-  /* INVARIANT: in dynamic expressions, casts must be between
-     two consistent types. Both types should be normalized in
-     dynamics for the cast calculus to work right. */
-  | Cast(exp_t, typ_t, typ_t)
-  | Label(string)
-  | TupLabel(exp_t, exp_t)
-  | Dot(exp_t, exp_t)
-and exp_t = IdTagged.t(exp_term)
-and pat_term =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t))
-  | Wild
-  | Int(int)
-  | Float(float)
-  | Bool(bool)
-  | String(string)
-  | ListLit(list(pat_t))
-  | Constructor(string, typ_t) // Typ.t field is only meaningful in dynamic patterns
-  | Cons(pat_t, pat_t)
-  | Var(Var.t)
-  | Tuple(list(pat_t))
-  | Parens(pat_t)
-  | Probe(pat_t, Probe.t)
-  | Ap(pat_t, pat_t)
-  | Cast(pat_t, typ_t, typ_t)
-  | Label(string)
-  | TupLabel(pat_t, pat_t)
-and pat_t = IdTagged.t(pat_term)
-and typ_term =
-  | Unknown(type_provenance)
-  | Int
-  | Float
-  | Bool
-  | String
-  | Var(string)
-  | List(typ_t)
-  | Arrow(typ_t, typ_t)
-  | Sum(ConstructorMap.t(typ_t))
-  | Prod(list(typ_t))
-  | Parens(typ_t)
-  | Ap(typ_t, typ_t)
-  | Rec(tpat_t, typ_t)
-  | Forall(tpat_t, typ_t)
-  | Label(string)
-  | TupLabel(typ_t, typ_t)
-and typ_t = IdTagged.t(typ_term)
-and tpat_term =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t))
-  | Var(string)
-and tpat_t = IdTagged.t(tpat_term)
-and rul_term =
-  | Invalid(string)
-  | Hole(list(any_t))
-  | Rules(exp_t, list((pat_t, exp_t)))
-and rul_t = IdTagged.t(rul_term)
-and environment_t = VarBstMap.Ordered.t_(exp_t)
-and closure_environment_t = {
-  id: Id.t,
-  env: environment_t,
-  call_stack: Probe.call_stack,
-}
-and stepper_filter_kind_t =
-  | Filter(filter)
-  | Residue(int, FilterAction.t)
-and type_hole =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t))
-and type_provenance =
-  | SynSwitch
-  | Hole(type_hole)
-  | Internal
-and filter = {
-  pat: exp_t,
-  act: FilterAction.t,
-};
+type any_t = Grammar.any_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type exp_t = Grammar.exp_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type exp_term = Grammar.exp_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type pat_t = Grammar.pat_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type pat_term = Grammar.pat_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typ_t = Grammar.typ_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typ_term = Grammar.typ_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tpat_t = Grammar.tpat_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tpat_term = Grammar.tpat_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type rul_t = Grammar.rul_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type rul_term = Grammar.rul_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type environment_t = Grammar.environment_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type closure_environment_t = Grammar.closure_environment_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type stepper_filter_kind_t = Grammar.stepper_filter_kind_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type type_hole = Grammar.type_hole(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type type_provenance = Grammar.type_provenance(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type filter = Grammar.filter(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type deferral_position_t = Grammar.deferral_position_t;
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -190,6 +96,7 @@ module rec Any: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
@@ -212,9 +119,9 @@ module rec Any: {
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
-        x,
+        x: any_t,
       ) => {
-    let rec_call = y =>
+    let rec_call = (y: any_t): any_t =>
       switch (y) {
       | Exp(x) =>
         Exp(Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
@@ -233,7 +140,7 @@ module rec Any: {
     x |> f_any(rec_call);
   };
 
-  let fast_equal = (x, y) =>
+  let fast_equal = (x: t, y: t) =>
     switch (x, y) {
     | (Exp(x), Exp(y)) => Exp.fast_equal(x, y)
     | (Pat(x), Pat(y)) => Pat.fast_equal(x, y)
@@ -248,6 +155,8 @@ module rec Any: {
     | (Rul(_), _)
     | (Any (), _) => false
     };
+
+  let equal = fast_equal;
 }
 and Exp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -269,6 +178,7 @@ and Exp: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = exp_term;
@@ -377,8 +287,8 @@ and Exp: {
     x |> f_exp(rec_call);
   };
 
-  let rec fast_equal = (e1, e2) =>
-    switch (e1 |> IdTagged.term_of, e2 |> IdTagged.term_of) {
+  let rec fast_equal = (e1: t, e2: t) =>
+    switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
     | (DynamicErrorHole(x, _), _)
     | (Parens(x), _) => fast_equal(x, e2)
     | (_, DynamicErrorHole(x, _))
@@ -404,8 +314,9 @@ and Exp: {
     | (Label(s1), Label(s2)) => s1 == s2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
-    | (Constructor(c1, ty1), Constructor(c2, ty2)) =>
+    | (Constructor(c1, Some(ty1)), Constructor(c2, Some(ty2))) =>
       c1 == c2 && Typ.fast_equal(ty1, ty2)
+    | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
     | (Fun(p1, e1, t1, _), Fun(p2, e2, t2, _)) =>
       Pat.fast_equal(p1, p2)
       && fast_equal(e1, e2)
@@ -503,6 +414,7 @@ and Exp: {
     | (EmptyHole, _)
     | (Undefined, _) => false
     };
+  let equal = fast_equal;
 }
 and Pat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -523,6 +435,7 @@ and Pat: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = pat_term;
@@ -576,7 +489,7 @@ and Pat: {
   };
 
   let rec fast_equal = (p1: t, p2: t) =>
-    switch (p1 |> IdTagged.term_of, p2 |> IdTagged.term_of) {
+    switch (p1 |> Grammar.Annotated.term_of, p2 |> Grammar.Annotated.term_of) {
     /* Below is kind of a hack to make EvalResult.calculate go after adding a projector.
      * We should clarify syntactic/semantic equality here */
     | (Probe(x1, _), Probe(x2, _)) => fast_equal(x1, x2)
@@ -594,8 +507,9 @@ and Pat: {
     | (Float(f1), Float(f2)) => f1 == f2
     | (String(s1), String(s2)) => s1 == s2
     | (Label(s1), Label(s2)) => s1 == s2
-    | (Constructor(c1, t1), Constructor(c2, t2)) =>
+    | (Constructor(c1, Some(t1)), Constructor(c2, Some(t2))) =>
       c1 == c2 && Typ.fast_equal(t1, t2)
+    | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
     | (Var(v1), Var(v2)) => v1 == v2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
@@ -626,6 +540,7 @@ and Pat: {
     | (Ap(_), _)
     | (Cast(_), _) => false
     };
+  let equal = fast_equal;
 }
 and Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -650,6 +565,7 @@ and Typ: {
   let subst: (t, TPat.t, t) => t;
 
   let fast_equal: (~alpha_equivalence: bool=?, t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = typ_term;
@@ -718,7 +634,7 @@ and Typ: {
   let rec subst = (s: t, x: TPat.t, ty: t): typ_t => {
     switch (TPat.tyvar_of_utpat(x)) {
     | Some(str) =>
-      let (term, rewrap) = IdTagged.unwrap(ty);
+      let (term, rewrap) = Grammar.Annotated.unwrap(ty);
       switch (term) {
       | Int => (Int: typ_term) |> rewrap
       | Float => Float |> rewrap
@@ -752,7 +668,7 @@ and Typ: {
      Other types may be equivalent but this will not detect so if they are not normalized. */
 
   let rec eq_internal = (~alpha_equivalence: bool, n: int, t1: t, t2: t) => {
-    switch (IdTagged.term_of(t1), IdTagged.term_of(t2)) {
+    switch (Grammar.Annotated.term_of(t1), Grammar.Annotated.term_of(t2)) {
     | (Parens(t1), _) => eq_internal(~alpha_equivalence, n, t1, t2)
     | (_, Parens(t2)) => eq_internal(~alpha_equivalence, n, t1, t2)
     | (TupLabel(label1, t1'), TupLabel(label2, t2')) =>
@@ -765,8 +681,10 @@ and Typ: {
         let alpha_subst =
           subst({
             term: Var("=" ++ string_of_int(n)),
-            copied: false,
-            ids: [Id.invalid],
+            annotation: {
+              copied: false,
+              ids: [Id.invalid],
+            },
           });
         eq_internal(
           ~alpha_equivalence,
@@ -817,6 +735,7 @@ and Typ: {
 
   let fast_equal = (~alpha_equivalence=true, t1, t2) =>
     eq_internal(~alpha_equivalence, 0, t1, t2);
+  let equal: (t, t) => bool = fast_equal(~alpha_equivalence=true);
 }
 and TPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -839,6 +758,7 @@ and TPat: {
   let tyvar_of_utpat: t => option(string);
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = tpat_term;
@@ -877,7 +797,10 @@ and TPat: {
     };
 
   let fast_equal = (tp1: t, tp2: t) =>
-    switch (tp1 |> IdTagged.term_of, tp2 |> IdTagged.term_of) {
+    switch (
+      tp1 |> Grammar.Annotated.term_of,
+      tp2 |> Grammar.Annotated.term_of,
+    ) {
     | (EmptyHole, EmptyHole) => true
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (MultiHole(xs), MultiHole(ys)) =>
@@ -889,6 +812,7 @@ and TPat: {
     | (MultiHole(_), _)
     | (Var(_), _) => false
     };
+  let equal = fast_equal;
 }
 and Rul: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -909,6 +833,7 @@ and Rul: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = rul_term;
@@ -951,7 +876,7 @@ and Rul: {
   };
 
   let fast_equal = (r1: t, r2: t) =>
-    switch (r1 |> IdTagged.term_of, r2 |> IdTagged.term_of) {
+    switch (r1 |> Grammar.Annotated.term_of, r2 |> Grammar.Annotated.term_of) {
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (Hole(xs), Hole(ys)) =>
       List.length(xs) == List.length(ys)
@@ -969,6 +894,7 @@ and Rul: {
     | (Hole(_), _)
     | (Rules(_), _) => false
     };
+  let equal = fast_equal;
 }
 
 and Environment: {
@@ -1020,9 +946,9 @@ and ClosureEnvironment: {
 
     let wrap = (id, env, call_stack): t => {id, env, call_stack};
 
-    let id_of = t => t.id;
-    let map_of = t => t.env;
-    let call_stack_of = t => t.call_stack;
+    let id_of = (t: t) => t.id;
+    let map_of = (t: t) => t.env;
+    let call_stack_of = (t: t) => t.call_stack;
 
     let (sexp_of_t, t_of_sexp) =
       StructureShareSexp.structure_share_here(id_of, sexp_of_t, t_of_sexp);
@@ -1063,6 +989,31 @@ and ClosureEnvironment: {
       call_stack: Option.to_list(ap_id) @ call_stack,
     };
   };
+  //TODO(andrew): cleanup below
+  // let update_keep_id = (f, env) => env |> map_of |> f |> wrap(env |> id_of);
+  // let extend = (env, xr) =>
+  //   env |> update(map => Environment.extend(map, xr));
+  // let extend_keep_id = (env, xr) =>
+  //   env |> update_keep_id(map => Environment.extend(map, xr));
+  // let union = (env1, env2) =>
+  //   env2 |> update(map2 => Environment.union(env1 |> map_of, map2));
+  // let union_keep_id = (env1, env2) =>
+  //   env2 |> update_keep_id(map2 => Environment.union(env1 |> map_of, map2));
+  // let map = (f, env) => env |> update(Environment.mapo(f));
+  // let map_keep_id = (f, env) => env |> update_keep_id(Environment.mapo(f));
+  // let filter = (f, env) => env |> update(Environment.filtero(f));
+  // let filter_keep_id = (f, env) =>
+  //   env |> update_keep_id(Environment.filtero(f));
+  // let fold = (f, init, env) => env |> map_of |> Environment.foldo(f, init);
+  // let placeholder = wrap(Id.invalid, Environment.empty);
+  // let without_keys = keys => update(Environment.without_keys(keys));
+  // let with_symbolic_keys = (keys, env) =>
+  //   List.fold_right(
+  //     (key, env) =>
+  //       extend(env, (key, (Var(key): exp_term) |> IdTagged.fresh)),
+  //     keys,
+  //     env,
+  //   );
 }
 and StepperFilterKind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
