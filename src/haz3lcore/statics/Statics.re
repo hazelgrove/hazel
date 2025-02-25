@@ -304,12 +304,29 @@ and uexp_to_info_map =
         original_expression,
         m,
       );
+
     let elaborated_exp =
-      rewrap(
-        Tuple([
-          TupLabel(Label(l) |> Exp.fresh, original_expression) |> Exp.fresh,
-        ]),
-      );
+      switch (term) {
+      | Probe(_, p) =>
+        print_endline("Probe found: " ++ Probe.show(p));
+        rewrap(
+          Probe(
+            Tuple([
+              TupLabel(Label(l) |> Exp.fresh, original_expression)
+              |> Exp.fresh,
+            ])
+            |> Exp.fresh,
+            p,
+          ),
+        );
+      | _ =>
+        rewrap(
+          Tuple([
+            TupLabel(Label(l) |> Exp.fresh, original_expression) |> Exp.fresh,
+          ]),
+        )
+      };
+
     // We need to reanalyze the elaborated expression to get the statics in the map for the label and tuple
     let (info, m) =
       uexp_to_info_map(~ctx, ~mode, ~ancestors, elaborated_exp, m);
