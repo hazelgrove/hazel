@@ -77,13 +77,10 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
         List.map(dhp => {dhpat_var_entry(dhp, t)}, l) |> OptUtil.sequence;
       Some(List.concat(l));
     | Ap({term: Constructor(name, _), _}, dhp) =>
-      // TODO: make this stricter
       let* ctrs = Typ.get_sum_constructors(ctx, ty);
       let* typ = ConstructorMap.get_entry(name, ctrs);
-      switch (typ) {
-      | None => None
-      | Some(typ) => dhpat_var_entry(dhp, typ)
-      };
+      let* typ' = typ;
+      dhpat_var_entry(dhp, typ');
     | Ap(_) => None
     | EmptyHole
     | Wild

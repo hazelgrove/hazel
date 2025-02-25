@@ -77,12 +77,12 @@ module Ctr = {
 
   let arity_of = (ctr, all_ctrs: all_ctrs): arity =>
     switch (all_ctrs) {
-    | Unknown => List.init(ctr.num_args, _ => Typ.Fresh.tunknown(Internal))
-    | Infinite => List.init(ctr.num_args, _ => Typ.Fresh.tunknown(Internal))
+    | Unknown => List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp)
+    | Infinite => List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp)
     | Finite(all_ctrs) =>
       switch (Map.find_opt(ctr, all_ctrs)) {
       | Some(arity) => arity
-      | None => List.init(ctr.num_args, _ => Typ.Fresh.tunknown(Internal))
+      | None => List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp)
       }
     };
 
@@ -109,12 +109,12 @@ module Ctr = {
       Finite(
         Map.of_list([
           (nil_ctr, []),
-          (cons_ctr, [Typ.Fresh.tprod([elt_ty, ty])]),
+          (cons_ctr, [Prod([elt_ty, ty]) |> Typ.temp]),
         ]),
       )
     | Bool => Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))
     | Unknown(_) => Unknown
-    | Int
+    | Int // technically int and float are finite, but ya know
     | Float
     | String
     | Arrow(_)
@@ -146,7 +146,7 @@ type redundant_rows = list(int);
 module Matrix = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type row = {
-    idx: int,
+    idx: int, // retaining row index from original matrix when constructing submatrices
     cols: list(Constraint.t),
   };
 

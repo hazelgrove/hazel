@@ -199,6 +199,7 @@ let map = (f: option('a) => option('b), m: t('a)): t('b) => {
   );
 };
 
+// TODO: maybe define a variant here instead of double option
 let get_entry = (ctr, m) =>
   List.find_map(
     fun

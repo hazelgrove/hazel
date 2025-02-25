@@ -121,6 +121,7 @@ let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
 
 let of_ctr =
     (ctx: Ctx.t, name: Constructor.t, mode: Mode.t, ty: option(Typ.t)): t =>
+  // this has gotten a bit complex, depends on mode
   IsConstructor({
     name,
     syn_ty:
