@@ -57,7 +57,10 @@
 }
 
 .induction-case-patten {
-
+  display: flex;
+  flex-direction: row;
+  gap: 0.5em;
+  align-items: center;
 }
 
 .inline-editor-wrapper {
@@ -106,6 +109,12 @@
   box-shadow: 0px 10px 20px var(--menu-shadow);
 }
 
+.rewrite-box {
+  background-color: var(--menu-bkg);
+  border-radius: 0 0 0.5em 0;
+  outline: 0.6px solid var(--menu-outline);
+  box-shadow: 0px 10px 20px var(--menu-shadow);
+}
 
 
 /* STEPPER (OLD) */

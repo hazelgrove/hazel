@@ -6,7 +6,11 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type open_box =
     | AxiomsOpen
-    | RewritesOpen(CodeEditable.Model.t)
+    | RewritesOpen({
+        editor: CodeEditable.Model.t,
+        cached_exp: Calc.saved(Exp.t),
+        cached_result: option(bool),
+      })
     | NoneOpen;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -40,11 +44,12 @@ module Update = {
   type t =
     | ToggleAxioms
     | ProposeRewrite
+    | UpdateResult(bool)
     | RewriteEditorAction(CodeEditable.Update.t);
 
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
-    switch (action) {
-    | ToggleAxioms =>
+    switch (action, model.open_box) {
+    | (ToggleAxioms, _) =>
       let open_box =
         switch (model.open_box) {
         | NoneOpen
@@ -56,40 +61,54 @@ module Update = {
         open_box,
       }
       |> Updated.return_quiet;
-    | ProposeRewrite =>
+    | (ProposeRewrite, _) =>
       let open_box =
         switch (model.open_box) {
         | NoneOpen
         | AxiomsOpen =>
-          Model.RewritesOpen(
-            CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
-          )
+          Model.RewritesOpen({
+            editor: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
+            cached_exp: Calc.Pending,
+            cached_result: None,
+          })
         | RewritesOpen(_) => Model.NoneOpen
         };
       Model.{
         ...model,
         open_box,
       }
-      |> Updated.return_quiet;
-    | RewriteEditorAction(action) =>
-      switch (model.open_box) {
-      | RewritesOpen(editor) =>
-        open Updated;
-        let* new_editor =
-          CodeEditable.Update.update(~settings, action, editor);
-        Model.{
-          ...model,
-          open_box: Model.RewritesOpen(new_editor),
-        };
-      | _ => model |> Updated.return_quiet
+      |> Updated.return_quiet(~recalculate=true);
+    | (RewriteEditorAction(action), RewritesOpen({editor, _} as r)) =>
+      open Updated;
+      let* new_editor = CodeEditable.Update.update(~settings, action, editor);
+      Model.{
+        ...model,
+        open_box:
+          Model.RewritesOpen({
+            ...r,
+            editor: new_editor,
+          }),
+      };
+    | (RewriteEditorAction(_), _) => model |> Updated.return_quiet
+    | (UpdateResult(result), RewritesOpen(r)) =>
+      Model.{
+        ...model,
+        open_box:
+          Model.RewritesOpen({
+            ...r,
+            cached_result: Some(result),
+          }),
       }
+      |> Updated.return_quiet
+    | (UpdateResult(_), _) => model |> Updated.return_quiet
     };
   };
 
   let calculate =
       (
-        ~settings as _,
+        ~settings,
         exp,
+        ctx: Calc.t(Ctx.t),
         _state,
         new_next_steps,
         {next_steps: _, rewrites, selected_exp, selected_id, open_box}: Model.t,
@@ -132,6 +151,41 @@ module Update = {
         let* exp' = exp;
         Some(Model.{rewrites: ProofCtx.get_rewrites(Axioms.v, exp')});
       };
+    let open_box =
+      switch (open_box) {
+      | RewritesOpen({editor, cached_exp, cached_result}) =>
+        // Calculate syntax, holes, types, etc for the editor
+        let editor =
+          CodeEditable.Update.calculate(
+            ~settings,
+            ~is_edited=true,
+            ~dynamics=Dynamics.Map.empty,
+            ~stitch=x => x,
+            ~ctx=Calc.get_value(ctx),
+            editor,
+          );
+        // Extract an exp from the editor
+        let cached_exp =
+          Calc.set(
+            ~eq=Exp.fast_equal,
+            CodeEditable.Model.get_statics(editor).elaborated,
+            cached_exp,
+          );
+        // Reset result if editor changes
+        let cached_result =
+          Calc.Calculated(cached_result)
+          |> {
+            let.calc _ = cached_exp;
+            None;
+          };
+        Model.RewritesOpen({
+          editor,
+          cached_exp: cached_exp |> Calc.save,
+          cached_result: cached_result |> Calc.get_value,
+        });
+      | AxiomsOpen => AxiomsOpen
+      | NoneOpen => NoneOpen
+      };
     {
       next_steps: new_next_steps |> Calc.save,
       rewrites: rewrites |> Calc.save,
@@ -152,7 +206,7 @@ module Selection = {
 
   let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
     switch (selection, model.open_box) {
-    | (RewriteEditor(selection), RewritesOpen(editor)) =>
+    | (RewriteEditor(selection), RewritesOpen({editor, _})) =>
       let+ ci = CodeEditable.Selection.get_cursor_info(~selection, editor);
       Update.RewriteEditorAction(ci);
     | (RewriteEditor(_), _) => empty
@@ -161,7 +215,7 @@ module Selection = {
 
   let handle_key_event = (~selection: t, ~event, ~model: Model.t) => {
     switch (selection, model.open_box) {
-    | (RewriteEditor(selection), RewritesOpen(editor)) =>
+    | (RewriteEditor(selection), RewritesOpen({editor, _})) =>
       CodeEditable.Selection.handle_key_event(~selection, editor, event)
       |> Option.map(x => Update.RewriteEditorAction(x))
     | (RewriteEditor(_), _) => None
@@ -257,6 +311,7 @@ module View = {
         ~signal: event => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
         ~editor: CodeSelectable.Model.t,
+        ~selected: option(Selection.t),
         model: Model.t,
       ) =>
     {
@@ -291,7 +346,7 @@ module View = {
           ~attrs=[Web.Attr.classes(["proof-selection-buttons"])],
           [
             proof_button(~callback=Ui_effect.Ignore, "Evaluate"),
-            proof_button(~callback=Ui_effect.Ignore, "Rewrite ▼"),
+            proof_button(~callback=inject(ProposeRewrite), "Rewrite ▼"),
             proof_button(~callback=inject(ToggleAxioms), "Axioms ▼"),
             proof_button(~callback=signal(AddInduction), "Cases"),
           ],
@@ -312,8 +367,13 @@ module View = {
             ),
           ],
           [
-            Web.div_c(
-              "proof-context-box",
+            Web.Node.div(
+              ~attrs=[
+                Web.Attr.class_("proof-context-box"),
+                Web.Attr.on_mousedown(_ =>
+                  Virtual_dom.Vdom.Effect.Stop_propagation
+                ),
+              ],
               [buttons]
               @ {
                 switch (model.open_box) {
@@ -324,7 +384,21 @@ module View = {
                       view_rewrites(~globals, ~signal, model),
                     ),
                   ]
-                | RewritesOpen(editor) => [
+                | RewritesOpen({editor, cached_exp, cached_result}) =>
+                  let unboxed_cached_exp =
+                    Calc.get_saved_exc(
+                      ~print="cached exp not calculated",
+                      cached_exp,
+                    );
+                  let unboxed_selected_exp =
+                    Option.value(
+                      ~default=EmptyHole |> Exp.fresh,
+                      Calc.get_saved_exc(
+                        ~print="selected exp not calculated",
+                        model.selected_exp,
+                      ),
+                    );
+                  [
                     // one element list with a div
                     // with a list containing two elements
                     // an Editor for user to propose their rewrite
@@ -338,16 +412,47 @@ module View = {
                             fun
                             | MakeActive =>
                               signal(MakeActive(RewriteEditor())),
-                          ~inject=x => inject(ProposeRewrite),
-                          ~selected=false,
+                          ~inject=x => inject(RewriteEditorAction(x)),
+                          ~selected=
+                            switch (selected) {
+                            | Some(RewriteEditor ()) => true
+                            | _ => false
+                            },
                           editor,
                         ),
-                        Widgets.button(Icons.star, _ =>
-                          inject(ProposeRewrite)
+                        Widgets.button(
+                          Icons.star,
+                          _ =>
+                            inject(
+                              UpdateResult(
+                                RewriteChecker.check_rewrite(
+                                  unboxed_selected_exp,
+                                  unboxed_cached_exp,
+                                ),
+                              ),
+                            ),
+                          ~tooltip="check",
                         ),
-                      ],
+                      ]
+                      @ {
+                        switch (cached_result) {
+                        | Some(true) => [
+                            Web.Node.text("Valid"),
+                            Widgets.button(Icons.star, _ =>
+                              signal(
+                                AddAxiomStep(
+                                  unboxed_selected_exp,
+                                  unboxed_cached_exp,
+                                ),
+                              )
+                            ),
+                          ]
+                        | Some(false) => [Web.Node.text("Invalid")]
+                        | None => []
+                        };
+                      },
                     ),
-                  ]
+                  ];
                 };
               },
             ),

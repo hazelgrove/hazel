@@ -503,15 +503,15 @@ module Update = {
       ) => {
     switch (step_kind) {
     | SingleStep(m) =>
-      calculate_single_step(~settings, expr, state, m, hidden, editor)
+      calculate_single_step(~settings, expr, ctx, state, m, hidden, editor)
     | InductionStep(m) =>
       calculate_induction_step(~settings, ctx, expr, state, m, hidden)
     | ForallStep(m) =>
       calculate_forall_step(~settings, ctx, expr, state, m, hidden, editor)
     | MissingStep(m) =>
-      calculate_missing_step(~settings, expr, state, m, hidden, editor)
+      calculate_missing_step(~settings, expr, ctx, state, m, hidden, editor)
     | AxiomStep(m) =>
-      calculate_axiom_step(~settings, expr, state, m, hidden, editor)
+      calculate_axiom_step(~settings, expr, ctx, state, m, hidden, editor)
     };
   }
 
@@ -519,6 +519,7 @@ module Update = {
       (
         ~settings,
         exp,
+        ctx,
         state,
         missing_step: MissingStep.Model.t,
         hidden,
@@ -552,6 +553,7 @@ module Update = {
       calculate_single_step(
         ~settings,
         exp |> Calc.make_new,
+        ctx |> Calc.make_new,
         state |> Calc.make_new,
         Model.{
           evalobj,
@@ -564,8 +566,9 @@ module Update = {
     | None => (
         Model.MissingStep(
           MissingStep.Update.calculate(
-            ~settings,
+            ~settings=settings |> Calc.get_value,
             exp,
+            ctx,
             state,
             next_steps,
             missing_step,
@@ -582,6 +585,7 @@ module Update = {
       (
         ~settings,
         exp,
+        ctx,
         state,
         {evalobj, next_exp, next_state},
         hidden,
@@ -635,6 +639,7 @@ module Update = {
          calculate_missing_step(
            ~settings,
            exp |> Calc.make_new,
+           ctx |> Calc.make_new,
            state |> Calc.make_new,
            MissingStep.Model.init,
            hidden,
@@ -795,6 +800,7 @@ module Update = {
          calculate_missing_step(
            ~settings,
            exp |> Calc.make_new,
+           ctx |> Calc.make_new,
            state |> Calc.make_new,
            MissingStep.Model.init,
            hidden,
@@ -802,7 +808,7 @@ module Update = {
          )
        })
 
-  and calculate_axiom_step = (~settings, exp, state, m, hidden, editor) =>
+  and calculate_axiom_step = (~settings, exp, ctx, state, m, hidden, editor) =>
     {
       let {at_id, at_exp, with_exp, next_exp}: Model.axiom_step = m;
       open OptUtil.Syntax;
@@ -830,6 +836,7 @@ module Update = {
          calculate_missing_step(
            ~settings,
            exp |> Calc.make_new,
+           ctx |> Calc.make_new,
            state |> Calc.make_new,
            MissingStep.Model.init,
            hidden,
@@ -1102,6 +1109,11 @@ module View = {
                 MissingStep.View.view_overlay(
                   ~globals,
                   ~inject=x => inject(MissingStep(x)),
+                  ~selected=
+                    switch (selected) {
+                    | Some(MissingStep(s)) => Some(s)
+                    | _ => None
+                    },
                   ~signal=
                     fun
                     | HideStepper => Ui_effect.Ignore
@@ -1255,7 +1267,7 @@ module View = {
         ~undo=Some(inject(RemoveStep)),
         fs.inner_stepper,
       )
-    | MissingStep(ms) => []
+    | MissingStep(_) => []
     };
   }
 
