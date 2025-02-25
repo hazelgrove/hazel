@@ -97,6 +97,7 @@ module Update = {
     | InitImportScratchpad(_) => true
     | FinishImportScratchpad(_) => false
     | Export => false
+    | Encode => false
     };
   };
 
