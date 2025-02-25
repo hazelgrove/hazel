@@ -60,6 +60,7 @@ let fixup_cast = Casts.transition_multiple;
 
 let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
   (request, expr) => {
+    //TODO: move all these to TypSlice
     let unparens = TypSlice.unparens;
     let unlist =
       TypSlice.map_merge(
@@ -111,7 +112,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     };
     // get forall term
     let unforall = (s: TypSlice.t) => {
-      // TODO: Move these into TypSlice.re?
       let unforall =
         TypSlice.apply(
           fun

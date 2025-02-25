@@ -45,13 +45,30 @@ As compared to `witnesses` branch:
 - [ ] More ergonomic use of TypSlice (better versions of map & apply)
 - [ ] Improve performance: Likely issues due to overuse of TypSlice.typ_of? Hopefully not due to TypSlice.wrap_global or wrap_incr.....
 
+# SEARCH PROC/INDET EVAL:
+- [ ] Cast Transitions for terms like 0 : Int -> ? -> Int, (or otherwise 0 : ? -> Int)
+- [ ] Insert the correct casts when instantiating terms like an (Int, Int) to (?, ?), i.e. a cast from (?, ?) -> ? -> (Int, Int). Also make sure cast transitions work for these
+- [X] Check that closure substitution during instantiation doesn't replace hole ids
+- [X] Check that function application etc. doesn't replace hole ids
+- [X] Check that instantiations work with pattern matches (i.e. let x::y = ? in x)
+- [ ] Analyse how hole substitute could explode the stack when closures are deeply nested (i.e. in FixF terms)
+
 ## Bugs
 ### High Priority
 - [X] Types in stepper share ids which messes with selecting them/cursor movement
+- [X] Multiple holes not instantiated, i.e. ? + ?
 - [ ] Cast slicing in stepper does not highlight in editor
+- [ ] FAILURE: Not a product in `let (x, y) = ? in x`
+- [ ] Unboxing bug when annotating with explicit dynamic type ?, i.e. in: 
+```let x : ? = [1] in
+case x
+  |[] => true
+  | _ => false
+end```
 
 ## Middle Priority
 - [ ] Constructor names not highlighted in slices
+- [ ] Unbound vars not instantiated in IndetEvaluator
 
 ## Low Priority
 - [ ] Deferrals: See failed test
