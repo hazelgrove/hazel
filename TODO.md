@@ -49,11 +49,13 @@ As compared to `witnesses` branch:
 - [ ] Cast Transitions for terms like 0 : Int -> ? -> Int, (or otherwise 0 : ? -> Int)
 - [ ] Insert the correct casts when instantiating terms like an (Int, Int) to (?, ?), i.e. a cast from (?, ?) -> ? -> (Int, Int). Also make sure cast transitions work for these
 - [ ] Deal with holes with no immediate cast. These seem to appear during pattern matching expressions i.e. in the unnanotated map function, casts are instead placed on the branches (it might be equivalent placing on scrutinant)
+- [ ] Implement Sum type instantiation
 - [X] Check that closure substitution during instantiation doesn't replace hole ids
 - [X] Check that function application etc. doesn't replace hole ids
 - [X] Check that instantiations work with pattern matches (i.e. let x::y = ? in x)
 - [ ] Analyse how hole substitute could explode the stack when closures are deeply nested (i.e. in FixF terms)
 - [ ] Add depth limits to search (i.e. iterative deepening)
+- [ ] Implement Type Function instantiation
 
 ## Bugs
 ### High Priority
