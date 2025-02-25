@@ -293,7 +293,7 @@ let test_unevaluated_if = () =>
 let test_invalid_constructor_match = () => {
   let invalid_constructor_match =
     Let(
-      Constructor("T", Unknown(Internal) |> Typ.fresh) |> Pat.fresh,
+      Constructor("T", Some(Unknown(Internal) |> Typ.fresh)) |> Pat.fresh,
       Int(1) |> Exp.fresh,
       EmptyHole |> Exp.fresh,
     )

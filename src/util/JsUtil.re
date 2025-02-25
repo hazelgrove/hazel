@@ -6,7 +6,7 @@ let get_elem_by_id = id => {
   Js.Opt.get(
     doc##getElementById(Js.string(id)),
     () => {
-      print_endline(id);
+      print_endline("Could not find element by ID: " ++ id);
       assert(false);
     },
   );
@@ -17,7 +17,7 @@ let get_elem_by_selector = selector => {
   Js.Opt.get(
     doc##querySelector(Js.string(selector)),
     () => {
-      print_endline(selector);
+      print_endline("Selector could not be found: " ++ selector);
       assert(false);
     },
   );

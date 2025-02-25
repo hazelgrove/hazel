@@ -430,7 +430,7 @@ and matches_fun =
 }
 
 and matches_typ = (d: Typ.t, f: Typ.t) => {
-  Typ.eq(d, f);
+  Typ.equal(d, f);
 }
 
 and matches_utpat = (d: TPat.t, f: TPat.t): bool => {
