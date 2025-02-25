@@ -20,6 +20,16 @@ module Update = {
 
   exception CantReset;
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | Perform(action) => Action.is_historic(action)
+    | Undo => false
+    | Redo => false
+    | TAB => true
+    | DebugConsole(_) => false
+    };
+  };
+
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
     let perform = (action, model: Model.t) =>
