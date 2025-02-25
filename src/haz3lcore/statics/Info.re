@@ -32,7 +32,7 @@ open OptUtil.Syntax;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ancestors = list(Id.t);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_inconsistent =
   /* Self type (syn) inconsistent with expected type (ana) */
   | Expectation({
@@ -44,7 +44,7 @@ type error_inconsistent =
   /* Bad function position */
   | WithArrow(Typ.t);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_no_type =
   /* Invalid expression token, treated as hole */
   | BadToken(Token.t)
@@ -62,7 +62,7 @@ type error_no_type =
   | InvalidLabel(LabeledTuple.label);
 
 /* Errors which can apply to either expression or patterns */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_common =
   /* Underdetermined: No type can be assigned */
   | NoType(error_no_type)
@@ -78,7 +78,7 @@ type error_common =
       typ: Typ.t,
     });
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_exp =
   | FreeVariable(Var.t) /* Unbound variable (not in typing context) */
   | InexhaustiveMatch(option(error_common))
@@ -86,13 +86,13 @@ type error_exp =
   | BadPartialAp(Self.error_partial_ap)
   | Common(error_common);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_pat =
   | ExpectedConstructor /* Only construtors can be applied */
   | Redundant(option(error_pat))
   | Common(error_common);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_ana =
   /* The expected (ana) type and the self (syn) type are
      consistent, as witnessed by their joint type (join) */
@@ -110,35 +110,35 @@ type ok_ana =
       nojoin: list(Typ.t),
     });
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_common =
   | Syn(Typ.t)
   | Ana(ok_ana);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_exp =
   | AnaDeferralConsistent(Typ.t)
   | Common(ok_common);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_pat = ok_common;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status_common =
   | InHole(error_common)
   | NotInHole(ok_common);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status_exp =
   | InHole(error_exp)
   | NotInHole(ok_exp);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status_pat =
   | InHole(error_pat)
   | NotInHole(ok_pat);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status_variant =
   | Unique
   | Duplicate;
@@ -146,7 +146,7 @@ type status_variant =
 /* Expectation imposed on a type by the parent form.
    TODO: This is fundamentally syntactic and should
    eventually be reimplemeted via a seperate sort */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type typ_expects =
   | TypeExpected
   | TupleExpected
@@ -158,7 +158,7 @@ type typ_expects =
    TODO: The three additional errors statuses
    are fundamentally syntactic and should when
    possible be reimplemeted via a seperate sort */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_typ =
   | BadToken(Token.t) /* Invalid token, treated as type hole */
   | FreeTypeVariable(string) /* Free type variable */
@@ -172,7 +172,7 @@ type error_typ =
   | WantConstructorFoundAp;
 
 /* Type ok statuses for cursor inspector */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_typ =
   | Variant(Constructor.t, Typ.t)
   | VariantIncomplete(Typ.t)
@@ -180,36 +180,36 @@ type ok_typ =
   | Type(Typ.t)
   | EmptyLabel;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status_typ =
   | InHole(error_typ)
   | NotInHole(ok_typ);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type type_var_err =
   | Other
   | NotCapitalized;
 
 /* What are we shadowing? */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type shadow_src =
   | BaseTyp
   | TyAlias
   | TyVar;
 
 /* Type pattern term errors */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_tpat =
   | ShadowsType(string, shadow_src)
   | NotAVar(type_var_err);
 
 /* Type pattern ok statuses for cursor inspector */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_tpat =
   | Empty
   | Var(string);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status_tpat =
   | NotInHole(ok_tpat)
   | InHole(error_tpat);
@@ -253,7 +253,7 @@ type pat = {
   cls: Cls.t,
   status: status_pat,
   ty: Typ.t,
-  constraint_: Constraint.t,
+  constraint_: Coverage.Constraint.t,
   label_inference: option(label_inference(pat)),
   inferred_label: option(LabeledTuple.label),
   label_sort: bool /* When in the position of a label */
@@ -295,7 +295,7 @@ type t =
   | InfoTPat(tpat)
   | Secondary(secondary);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error =
   | Exp(error_exp)
   | Pat(error_pat)
@@ -358,7 +358,8 @@ let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
 let pat_ty: pat => Typ.t = ({ty, _}) => ty;
-let pat_constraint: pat => Constraint.t = ({constraint_, _}) => constraint_;
+let pat_constraint: pat => Coverage.Constraint.t =
+  ({constraint_, _}) => constraint_;
 
 let rec status_common =
         (ctx: Ctx.t, mode: Mode.t, self: Self.t): status_common =>
@@ -723,24 +724,6 @@ let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t => {
   };
 };
 
-let fixed_constraint_pat =
-    (
-      upat: Pat.t,
-      ctx,
-      mode: Mode.t,
-      self: Self.pat,
-      constraint_: Constraint.t,
-    )
-    : Constraint.t =>
-  switch (upat.term) {
-  | Cast(_) => constraint_
-  | _ =>
-    switch (fixed_typ_pat(ctx, mode, self) |> Typ.term_of) {
-    | Unknown(_) => Constraint.Hole
-    | _ => constraint_
-    }
-  };
-
 let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
   | InHole(err) => fixed_typ_err(err)
@@ -800,7 +783,6 @@ let derived_pat =
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
   let status = status_pat(ctx, mode, self);
   let ty = fixed_typ_pat(ctx, mode, self);
-  let constraint_ = fixed_constraint_pat(upat, ctx, mode, self, constraint_);
   {
     cls,
     self,

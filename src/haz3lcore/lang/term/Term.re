@@ -380,6 +380,16 @@ module Exp = {
 
   include TermBase.Exp;
 
+  let temp: term => t =
+    term => {
+      term,
+      annotation: {
+        ids: [Id.invalid],
+        copied: false,
+      },
+    };
+  let fresh: term => t = IdTagged.fresh;
+
   let hole = (tms: list(TermBase.Any.t)): term =>
     switch (tms) {
     | [] => EmptyHole
@@ -387,7 +397,6 @@ module Exp = {
     };
 
   let rep_id: t => Id.t = IdTagged.rep_id;
-  let fresh: term => t = IdTagged.fresh;
   let term_of: t => term = IdTagged.term_of;
   let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
