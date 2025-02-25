@@ -175,7 +175,10 @@ module Transition = (EV: EV_MODE) => {
             DHExp.t
           ) =>
           'a,
-        ~mode: [ | `Substitution | `Environment],
+        ~mode: [
+           | `Substitution
+           | `Environment
+         ],
         ~in_closure=?,
         state,
         env, // Empty in substitution mode

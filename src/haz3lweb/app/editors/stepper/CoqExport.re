@@ -1,8 +1,8 @@
 /*
  Coq export for Hazel arithmetic expressions
  */
-
-open EvaluatorStep;
+open Haz3lcore;
+open Util;
 
 let rec unique_vars_in_ast_helper =
         (d: DHExp.t, unique_vars: Hashtbl.t(string, unit)) => {
@@ -81,41 +81,41 @@ let rec string_of_d = (d: DHExp.t) => {
 };
 // Takes a single step
 let single_step_export = (ind, step, forall_str) => {
-  let {d_loc, d_loc', ctx, _} = step;
-  let oldFragmentString = string_of_d(d_loc);
-  let newFragmentString = string_of_d(d_loc');
+  let {expr, next_step, state, editor, step_kind, hidden} = step;
+
+  let oldFragmentString = string_of_d(expr);
+  let newFragmentString = string_of_d(next_step.expr);
 
   //Printf.printf("Step: %s -> %s\n", oldFragmentString, newFragmentString);
-  let oldExprString = string_of_d(EvalCtx.compose(ctx, d_loc));
-  let newExpr = EvalCtx.compose(ctx, d_loc');
+  let oldExprString = string_of_d(EvalCtx.compose(ctx, expr));
+  let newExpr = EvalCtx.compose(ctx, next_step.expr);
   let newExprString = string_of_d(newExpr);
   //Printf.printf("old: %s\n", oldExprString);
   //Printf.printf("new: %s\n", newExprString);
   // TODO(nishant): unpack the axiom correctly
   let evalTactic =
-    switch (step.knd) {
-    | Axiom(step) =>
-      switch (step.name) {
-      | IdPlusL => "rewrite Qplus_0_l"
-      | CommPlus => "rewrite Qplus_comm"
-      // | AssocPlusL => "rewrite Qplus_assoc"
-      // | AssocPlusR => "rewrite Qplus_assoc"
-      // | IdTimesL => "rewrite Qmult_1_r"
-      // | CommTimes => "rewrite Qmult_comm"
-      // | AssocTimesL => "rewrite Qmult_assoc"
-      // | AssocTimesR => "rewrite Qmult_assoc"
-      // | DistPlusTimesL => "rewrite Qmult_plus_distr_l"
-      // | DistPlusTimesR => "rewrite Qmult_plus_distr_l"
-      // | DistPlusTimesLC => "rewrite Qmult_plus_distr_r"
-      // | DistPlusTimesRC => "rewrite Qmult_plus_distr_r"
-      // | DistPlusDivL => "unfold Qdiv. rewrite Qmult_plus_distr_l"
-      // | DistPlusDivR => "unfold Qdiv. rewrite Qmult_plus_distr_l"
-      // | DefDivL => "unfold Qdiv. rewrite Qmult_1_l"
-      // | DefDivR => "unfold Qdiv. rewrite Qmult_1_l"
-      // | NilTimesL => "rewrite Qmult_0_l"
-      // | AssocTimesDivL => "unfold Qdiv. rewrite Qmult_assoc"
-      // | AssocTimesDivR => "unfold Qdiv. rewrite Qmult_assoc"
-      }
+    switch (step.step_kind) {
+    //   switch (step.name) {
+    //   | IdPlusL => "rewrite Qplus_0_l"
+    //   | CommPlus => "rewrite Qplus_comm"
+    // | AssocPlusL => "rewrite Qplus_assoc"
+    // | AssocPlusR => "rewrite Qplus_assoc"
+    // | IdTimesL => "rewrite Qmult_1_r"
+    // | CommTimes => "rewrite Qmult_comm"
+    // | AssocTimesL => "rewrite Qmult_assoc"
+    // | AssocTimesR => "rewrite Qmult_assoc"
+    // | DistPlusTimesL => "rewrite Qmult_plus_distr_l"
+    // | DistPlusTimesR => "rewrite Qmult_plus_distr_l"
+    // | DistPlusTimesLC => "rewrite Qmult_plus_distr_r"
+    // | DistPlusTimesRC => "rewrite Qmult_plus_distr_r"
+    // | DistPlusDivL => "unfold Qdiv. rewrite Qmult_plus_distr_l"
+    // | DistPlusDivR => "unfold Qdiv. rewrite Qmult_plus_distr_l"
+    // | DefDivL => "unfold Qdiv. rewrite Qmult_1_l"
+    // | DefDivR => "unfold Qdiv. rewrite Qmult_1_l"
+    // | NilTimesL => "rewrite Qmult_0_l"
+    // | AssocTimesDivL => "unfold Qdiv. rewrite Qmult_assoc"
+    // | AssocTimesDivR => "unfold Qdiv. rewrite Qmult_assoc"
+    // };
     | _ => "cbv"
     };
   let rewriteIndex = index_of_like_terms(ctx, d_loc');
@@ -136,7 +136,7 @@ let single_step_export = (ind, step, forall_str) => {
 };
 
 // Takes a list of steps and generates the Coq proof of equivalence between the first and last steps
-let exportCoq = steps =>
+let exportCoq = (steps: list(Model.step)) =>
   if (List.length(steps) == 0) {
     "Not exporting proof with no steps";
   } else {
@@ -148,6 +148,7 @@ let exportCoq = steps =>
       } else {
         "forall " ++ String.concat(" ", unique_vars) ++ ",";
       };
+
     let lemmasAndInvocations =
       List.mapi(
         (ind, step) =>
@@ -161,10 +162,13 @@ let exportCoq = steps =>
         steps,
       );
     let (lemmas, invocations) = List.split(lemmasAndInvocations);
+
     let finalExpr =
-      string_of_d(compose(List.hd(steps).ctx, List.hd(steps).d_loc'));
+      string_of_d(
+        EvalCtx.compose(List.hd(steps).ctx, List.hd(steps).d_loc'),
+      );
     let firstExpr = string_of_d(firstD);
-    // Return a string that is the Coq proof but don't print to console
+
     Printf.sprintf(
       "Require Import QArith.\nRequire Export Plus.\nRequire Export Mult.\n%s\nTheorem equiv_exp:%s%s==%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
       String.concat("\n", lemmas),

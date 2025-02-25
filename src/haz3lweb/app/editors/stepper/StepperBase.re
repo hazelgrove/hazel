@@ -227,7 +227,11 @@ module Update = {
       };
     | (ForallStep(_), _, _) => model |> return_quiet
     | (RemoveStep, _, _) =>
-      {...model, step_kind: Model.init_missing_step} |> return
+      {
+        ...model,
+        step_kind: Model.init_missing_step,
+      }
+      |> return
     | (StepForward(idx), MissingStep(ms), _) =>
       let msns = MissingStep.Model.get_next_steps(ms);
       switch (List.nth_opt(msns, idx)) {
@@ -246,11 +250,17 @@ module Update = {
       };
     | (StepForward(_), _, _) => model |> return_quiet
     | (AddInduction, MissingStep(_), _) =>
-      {...model, step_kind: Model.InductionStep(Model.init_induction_step)}
+      {
+        ...model,
+        step_kind: Model.InductionStep(Model.init_induction_step),
+      }
       |> return
     | (AddInduction, _, _) => model |> return_quiet
     | (AddForall, MissingStep(_), _) =>
-      {...model, step_kind: Model.ForallStep(Model.init_forall_step)}
+      {
+        ...model,
+        step_kind: Model.ForallStep(Model.init_forall_step),
+      }
       |> return
     | (AddForall, _, _) => model |> return_quiet
     | (AddAxiom(at_exp, with_exp), MissingStep(_), _) =>
@@ -258,7 +268,12 @@ module Update = {
       {
         ...model,
         step_kind:
-          Model.AxiomStep({at_id, at_exp, with_exp, next_exp: Calc.Pending}),
+          Model.AxiomStep({
+            at_id,
+            at_exp,
+            with_exp,
+            next_exp: Calc.Pending,
+          }),
       }
       |> return;
     | (AddAxiom(_, _), _, _) => model |> return_quiet
@@ -352,7 +367,10 @@ module Update = {
     switch (action) {
     | InnerExp(a) =>
       let* new_inner_step = update_step(~settings, a, _model.inner_stepper);
-      Model.ForallStep({..._model, inner_stepper: new_inner_step});
+      Model.ForallStep({
+        ..._model,
+        inner_stepper: new_inner_step,
+      });
     };
   };
 
@@ -990,6 +1008,34 @@ module View = {
             globals.settings.core.evaluation,
           )
         : [];
+
+    let rec get_all_steps = (step: Model.step): list(Model.step) => {
+      let current_step = [step];
+      let next_steps =
+        switch (step.next_step) {
+        | Some(next) => get_all_steps(next)
+        | None => []
+        };
+
+      // Collect all steps based on step_kind
+      let step_kind_steps =
+        switch (step.step_kind) {
+        | InductionStep(ind_step) => [] // don't handle induction yet
+        | ForallStep(fs) => get_all_steps(fs.inner_stepper)
+        | _ => []
+        };
+
+      current_step @ next_steps @ step_kind_steps;
+    };
+
+    let get_all_steps_from_root = (model: Model.stepper): list(Model.step) => {
+      get_all_steps(model.root);
+    };
+
+    let coq_button =
+      Widgets.button(Icons.star, _ =>
+        CoqExport.exportCoq(get_all_steps_from_root(model))
+      );
     view_stepper'(
       ~globals,
       ~signal=
