@@ -51,7 +51,14 @@ module UndoController = {
 
   let register_component =
       (component: string, undo: Effect.t(unit), redo: Effect.t(unit)) => {
-    Hashtbl.add(register, component, {undo, redo});
+    Hashtbl.add(
+      register,
+      component,
+      {
+        undo,
+        redo,
+      },
+    );
   };
 
   let unregister_component = (component: string) => {
@@ -59,7 +66,14 @@ module UndoController = {
   };
 
   let add_action = (component: string, action: Sexp.t) => {
-    history := [Action({component, action}), ...history^];
+    history :=
+      [
+        Action({
+          component,
+          action,
+        }),
+        ...history^,
+      ];
   };
 
   let add_undo = (component: string) => {
@@ -98,7 +112,10 @@ module UndoRedo = {
   };
 
   let sexp_of_t = (_: t) => Sexp.Atom("UndoRedo");
-  let t_of_sexp = (_: Sexp.t) => {undo: Effect.Ignore, redo: Effect.Ignore};
+  let t_of_sexp = (_: Sexp.t) => {
+    undo: Effect.Ignore,
+    redo: Effect.Ignore,
+  };
   let equal = (x, y) => x.undo == y.undo && x.redo == y.redo;
 };
 
@@ -135,7 +152,11 @@ let state_machine_with_undo =
     state_machine1(
       (module Model'),
       (module Action'),
-      ~default_model={current: default_model, past: [], future: []},
+      ~default_model={
+        current: default_model,
+        past: [],
+        future: [],
+      },
       ~apply_action=
         (~inject, ~schedule_event, input, {current, past, future}, action) => {
           let (input, path) =
@@ -161,9 +182,17 @@ let state_machine_with_undo =
               );
             if (can_undo(action)) {
               UndoController.add_action(path, action |> Action.sexp_of_t);
-              {current: current', past: [current, ...past], future: []};
+              {
+                current: current',
+                past: [current, ...past],
+                future: [],
+              };
             } else {
-              {current: current', past, future};
+              {
+                current: current',
+                past,
+                future,
+              };
             };
           | Undo when !List.is_empty(past) =>
             UndoController.add_undo(path);
@@ -172,7 +201,11 @@ let state_machine_with_undo =
               past: past |> List.tl,
               future: [current, ...future],
             };
-          | Undo => {current, past, future}
+          | Undo => {
+              current,
+              past,
+              future,
+            }
           | Redo when !List.is_empty(future) =>
             UndoController.add_redo(path);
             {
@@ -180,14 +213,21 @@ let state_machine_with_undo =
               past: [current, ...past],
               future: future |> List.tl,
             };
-          | Redo => {current, past, future}
+          | Redo => {
+              current,
+              past,
+              future,
+            }
           };
         },
       input',
     );
   let undo_redo = {
     let%map (_, inject) = sm;
-    UndoRedo.{undo: inject(Undo), redo: inject(Redo)};
+    UndoRedo.{
+      undo: inject(Undo),
+      redo: inject(Redo),
+    };
   };
   let callback = {
     let%map path = path;

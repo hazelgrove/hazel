@@ -21,6 +21,7 @@ let apply =
     (
       model: Page.Model.t,
       action: Page.Update.t,
+      ~schedule_effect,
       ~schedule_action,
       ~schedule_autosave,
     )
@@ -36,6 +37,7 @@ let apply =
       Page.Update.update(
         ~import_log=Log.import,
         ~get_log_and=Log.get_and,
+        ~schedule_effect,
         ~schedule_action,
         action,
         model,
@@ -95,7 +97,11 @@ let start = {
               schedule_event(alarm_inject(action))
             | Inactive => ()
             };
-          apply(~schedule_action, ~schedule_autosave);
+          apply(
+            ~schedule_action,
+            ~schedule_effect=schedule_event,
+            ~schedule_autosave,
+          );
         },
       ~default_model=Page.Store.load(),
       ~can_undo=Page.Update.can_undo,
