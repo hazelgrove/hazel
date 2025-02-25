@@ -20,7 +20,23 @@ let has_errors = (name: string, exp: string, errors: list(Info.error)) => {
     name,
     `Quick,
     () => {
-      let (e, ids) = parse_menhir(exp);
+      let indicated_exp: Grammar.exp_t(bool) = parse_menhir(exp);
+
+      // mutable array to gather indicated IDs when generating expressions
+      let indicated_ids = Dynarray.create();
+      let e =
+        Grammar.map_exp_annotation(
+          (indicated): IdTagged.IdTag.t => {
+            let id = Id.mk();
+            if (indicated) {
+              Dynarray.add_last(indicated_ids, id);
+            };
+            {ids: [id], copied: false};
+          },
+          indicated_exp,
+        );
+      let ids = Dynarray.to_list(indicated_ids);
+
       let s = statics(e);
       let actual_errors = Statics.collect_errors(s);
       let expected_errors = Id.Map.of_list(List.combine(ids, errors));

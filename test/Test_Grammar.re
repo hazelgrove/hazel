@@ -9,7 +9,12 @@ let qcheck_map_annotation_test =
       Haz3lmenhir.AST.gen_exp_sized(7),
     ),
     exp => {
-      let (core_exp, _) = Haz3lmenhir.Conversion.Exp.of_menhir_ast(exp);
+      let indicated_exp = Haz3lmenhir.Conversion.Exp.of_menhir_ast(exp);
+      let core_exp =
+        Grammar.map_exp_annotation(
+          _ => IdTagged.IdTag.fresh(),
+          indicated_exp,
+        );
       let _ = [%derive.show: Exp.t](core_exp); // Gets coverage for show
       Grammar.equal_exp_t(
         (==),
