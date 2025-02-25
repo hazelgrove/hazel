@@ -112,6 +112,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     };
     // get forall term
     let unforall = (s: TypSlice.t) => {
+      // TODO: Move these into TypSlice.re?
       let unforall =
         TypSlice.apply(
           fun
