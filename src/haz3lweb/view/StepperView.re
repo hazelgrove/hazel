@@ -86,6 +86,14 @@ module Update = {
     | StepForward(int)
     | StepBackward;
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | StepperEditor(_, action) => StepperEditor.Update.can_undo(action)
+    | StepForward(_) => true
+    | StepBackward => true
+    };
+  };
+
   let update = (~settings, action: t, model: Model.t): Updated.t(Model.t) => {
     switch (action) {
     | StepForward(idx) =>

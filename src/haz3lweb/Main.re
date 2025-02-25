@@ -83,7 +83,7 @@ let apply =
 let start = {
   let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
   let%sub (app_model, app_inject) =
-    Bonsai.state_machine1(
+    BonsaiUndo.state_machine_with_undo(
       (module Page.Model),
       (module Page.Update),
       ~apply_action=
@@ -98,6 +98,7 @@ let start = {
           apply(~schedule_action, ~schedule_autosave);
         },
       ~default_model=Page.Store.load(),
+      ~can_undo=Page.Update.can_undo,
       save_scheduler,
     );
 

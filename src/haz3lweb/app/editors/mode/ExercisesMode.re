@@ -188,6 +188,16 @@ module Update = {
     | ExportTransitionary
     | ExportGrading;
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | SwitchExercise(_) => true
+    | Exercise(action) => ExerciseMode.Update.can_undo(action)
+    | ExportModule => false
+    | ExportSubmission => false
+    | ExportTransitionary => false
+    | ExportGrading => false
+    };
+  };
   let export_exercise_module = (exercises: Model.t): unit => {
     let exercise = Model.get_current(exercises);
     let module_name = exercise.editors.module_name;
