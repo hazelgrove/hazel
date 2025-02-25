@@ -39,7 +39,7 @@ and exp_term('a) =
   | Float(float)
   | String(string)
   | ListLit(list(exp_t('a)))
-  | Constructor(string, typ_t('a)) // Typ.t field is only meaningful in dynamic expressions
+  | Constructor(string, option(typ_t('a))) // Typ.t field is only meaningful in dynamic expressions
   | Fun(pat_t('a), exp_t('a), option(typ_t('a)), option(Var.t)) // typ_t field is only used to display types in results
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
   | Tuple(list(exp_t('a)))
@@ -80,7 +80,7 @@ and pat_term('a) =
   | Bool(bool)
   | String(string)
   | ListLit(list(pat_t('a)))
-  | Constructor(string, typ_t('a)) // Typ.t field is only meaningful in dynamic patterns
+  | Constructor(string, option(typ_t('a))) // Typ.t field is only meaningful in dynamic patterns
   | Cons(pat_t('a), pat_t('a))
   | Var(Var.t)
   | Tuple(list(pat_t('a)))
@@ -164,7 +164,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Float(f) => Float(f)
         | String(s) => String(s)
         | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
-        | Constructor(s, t) => Constructor(s, map_typ_annotation(f, t))
+        | Constructor(s, t) =>
+          Constructor(s, Option.map(map_typ_annotation(f), t))
         | Fun(p, e, t, v) =>
           Fun(
             map_pat_annotation(f, p),
@@ -281,7 +282,8 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | Bool(b) => Bool(b)
         | String(s) => String(s)
         | ListLit(l) => ListLit(List.map(x => map_pat_annotation(f, x), l))
-        | Constructor(s, t) => Constructor(s, map_typ_annotation(f, t))
+        | Constructor(s, t) =>
+          Constructor(s, Option.map(map_typ_annotation(f), t))
         | Cons(p1, p2) =>
           Cons(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Var(v) => Var(v)

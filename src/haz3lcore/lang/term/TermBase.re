@@ -94,6 +94,7 @@ module rec Any: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
@@ -142,6 +143,8 @@ module rec Any: {
     | (Rul(_), _)
     | (Any (), _) => false
     };
+
+  let equal = fast_equal;
 }
 and Exp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -163,6 +166,7 @@ and Exp: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = exp_term;
@@ -293,8 +297,9 @@ and Exp: {
     | (Label(s1), Label(s2)) => s1 == s2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
-    | (Constructor(c1, ty1), Constructor(c2, ty2)) =>
+    | (Constructor(c1, Some(ty1)), Constructor(c2, Some(ty2))) =>
       c1 == c2 && Typ.fast_equal(ty1, ty2)
+    | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
     | (Fun(p1, e1, t1, _), Fun(p2, e2, t2, _)) =>
       Pat.fast_equal(p1, p2)
       && fast_equal(e1, e2)
@@ -392,6 +397,7 @@ and Exp: {
     | (EmptyHole, _)
     | (Undefined, _) => false
     };
+  let equal = fast_equal;
 }
 and Pat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -412,6 +418,7 @@ and Pat: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = pat_term;
@@ -478,8 +485,9 @@ and Pat: {
     | (Float(f1), Float(f2)) => f1 == f2
     | (String(s1), String(s2)) => s1 == s2
     | (Label(s1), Label(s2)) => s1 == s2
-    | (Constructor(c1, t1), Constructor(c2, t2)) =>
+    | (Constructor(c1, Some(t1)), Constructor(c2, Some(t2))) =>
       c1 == c2 && Typ.fast_equal(t1, t2)
+    | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
     | (Var(v1), Var(v2)) => v1 == v2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
@@ -510,6 +518,7 @@ and Pat: {
     | (Ap(_), _)
     | (Cast(_), _) => false
     };
+  let equal = fast_equal;
 }
 and Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -534,6 +543,7 @@ and Typ: {
   let subst: (t, TPat.t, t) => t;
 
   let fast_equal: (~alpha_equivalence: bool=?, t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = typ_term;
@@ -703,6 +713,7 @@ and Typ: {
 
   let fast_equal = (~alpha_equivalence=true, t1, t2) =>
     eq_internal(~alpha_equivalence, 0, t1, t2);
+  let equal: (t, t) => bool = fast_equal(~alpha_equivalence=true);
 }
 and TPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -725,6 +736,7 @@ and TPat: {
   let tyvar_of_utpat: t => option(string);
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = tpat_term;
@@ -778,6 +790,7 @@ and TPat: {
     | (MultiHole(_), _)
     | (Var(_), _) => false
     };
+  let equal = fast_equal;
 }
 and Rul: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -798,6 +811,7 @@ and Rul: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = rul_term;
@@ -858,6 +872,7 @@ and Rul: {
     | (Hole(_), _)
     | (Rules(_), _) => false
     };
+  let equal = fast_equal;
 }
 
 and Environment: {

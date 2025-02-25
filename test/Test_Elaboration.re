@@ -879,14 +879,13 @@ in 1|},
 module MenhirElaborationTests = {
   //dhexp = expected
   //uexp = tested
-  let alco_check_menhir = (name: string, dhexp: string, uexp: Term.Exp.t) =>
-    alco_check(
-      name,
+  let alco_check_menhir = (name: string, dhexp: string, uexp: Term.Exp.t) => {
+    let (e, _) =
       Haz3lmenhir.Conversion.Exp.of_menhir_ast(
         Haz3lmenhir.Interface.parse_program(dhexp),
-      ),
-      dhexp_of_uexp(uexp),
-    );
+      );
+    alco_check(name, e, dhexp_of_uexp(uexp));
+  };
 
   //Test for an empty hole
   let empty_hole_str = "?";
@@ -1027,6 +1026,15 @@ module MenhirElaborationTests = {
       "Failed cast test (menhir)",
       failed_cast_str,
       failed_cast_uexp,
+    );
+
+  let constructor_str = "X";
+  let constructor_uexp: Exp.t = Constructor("X", None) |> Exp.fresh;
+  let constructor_menhir = () =>
+    alco_check_menhir(
+      "Constructor test (menhir)",
+      constructor_str,
+      constructor_uexp,
     );
 
   /*
@@ -1223,6 +1231,7 @@ x
       dynamic_error_hole_menhir,
     ),
     test_case("Failed cast test (menhir)", `Quick, failed_cast_menhir),
+    test_case("Constructor test (menhir)", `Quick, constructor_menhir),
     test_case("Type ap test (menhir)", `Quick, typ_ap_menhir),
     test_case("Let expression for a tuple (menhir)", `Quick, let_exp_menhir),
     test_case("Single integer (menhir)", `Quick, single_integer_menhir),
