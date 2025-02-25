@@ -75,7 +75,7 @@ module M: Projector = {
     let typ = display_ty(model, info.statics) |> totalize_ty;
     div(
       ~attrs=[Attr.classes(["type-cell"])],
-      [TermBase.Typ(typ) |> utility.term_to_seg |> view_seg(Sort.Typ)],
+      [Typ(typ) |> utility.term_to_seg |> view_seg(Sort.Typ)],
     );
   };
 

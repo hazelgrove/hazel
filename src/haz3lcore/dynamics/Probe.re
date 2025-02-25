@@ -11,11 +11,11 @@ open Util;
  * capture (such as as restricting environment variable
  * capture to variables actually referenced. */
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {refs: Binding.s};
 
 /* A call at stack represented by function ap ids */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type call_stack = list(Id.t);
 
 let empty: t = {refs: []};

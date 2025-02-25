@@ -23,7 +23,7 @@ module Pat = {
 
   include TermBase.Pat;
 
-  let rep_id = ({ids, _}: t) => {
+  let rep_id = ({annotation: {ids, _}, _}: t) => {
     assert(ids != []);
     List.hd(ids);
   };
@@ -405,6 +405,16 @@ module Exp = {
 
   include TermBase.Exp;
 
+  let temp: term => t =
+    term => {
+      term,
+      annotation: {
+        ids: [Id.invalid],
+        copied: false,
+      },
+    };
+  let fresh: term => t = IdTagged.fresh;
+
   let hole = (tms: list(TermBase.Any.t)): term =>
     switch (tms) {
     | [] => EmptyHole
@@ -412,7 +422,6 @@ module Exp = {
     };
 
   let rep_id: t => Id.t = IdTagged.rep_id;
-  let fresh: term => t = IdTagged.fresh;
   let term_of: t => term = IdTagged.term_of;
   let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
@@ -715,7 +724,15 @@ module Exp = {
       'a.
       (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
      =
-      (continue, exp) => {...exp, ids: [Id.mk()]} |> continue;
+      (continue, exp) =>
+        {
+          ...exp,
+          annotation: {
+            ...exp.annotation,
+            ids: [Id.mk()],
+          },
+        }
+        |> continue;
     (
       map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
       Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
@@ -904,13 +921,13 @@ module Rul = {
   // example of awkwardness induced by having forms like rules
   // that may have a different-sorted child with no delimiters
   // (eg scrut with no rules)
-  let ids = (~any_ids, {ids, term, _}: t) =>
+  let ids = (~any_ids, {term, annotation: {ids, _}}: t) =>
     switch (ids) {
     | [_, ..._] => ids
     | [] =>
       switch (term) {
       | Hole([tm, ..._]) => any_ids(tm)
-      | Rules(scrut, []) => scrut.ids
+      | Rules(scrut, []) => IdTagged.ids(scrut)
       | _ => []
       }
     };
@@ -940,10 +957,10 @@ module Any = {
 
   let rec ids: TermBase.any_t => list(Id.t) =
     fun
-    | Exp(tm) => tm.ids
-    | Pat(tm) => tm.ids
-    | Typ(tm) => tm.ids
-    | TPat(tm) => tm.ids
+    | Exp(tm) => IdTagged.ids(tm)
+    | Pat(tm) => IdTagged.ids(tm)
+    | Typ(tm) => IdTagged.ids(tm)
+    | TPat(tm) => IdTagged.ids(tm)
     | Rul(tm) => Rul.ids(~any_ids=ids, tm)
     | Any () => [];
 

@@ -39,7 +39,7 @@ module Exp = {
 
   let mk_constructor = (str: string): Exp.t =>
     IdTagged.fresh(
-      Constructor(str, Unknown(Internal) |> Typ.temp): Exp.term,
+      Constructor(str, Some(Unknown(Internal) |> Typ.temp)): Exp.term,
     );
 
   let mk_tuple = (children: list(Exp.t)): Exp.t =>
@@ -101,7 +101,7 @@ module Pat = {
 
   let mk_constructor = (str: string): Pat.t =>
     IdTagged.fresh(
-      Constructor(str, Unknown(Internal) |> Typ.temp): Pat.term,
+      Constructor(str, Some(Unknown(Internal) |> Typ.temp)): Pat.term,
     );
 
   let mk_wild = (): Pat.t => IdTagged.fresh(Wild: Pat.term);
