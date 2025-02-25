@@ -37,52 +37,6 @@ let fresh: term => t = IdTagged.fresh;
    shortly after, it makes sense to use it. */
 let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
 
-module Fresh = {
-  open TermBase;
-  let tunknown = (p: type_provenance) => Unknown(p) |> fresh;
-  let tint = () => Int |> fresh;
-  let tfloat = () => Float |> fresh;
-  let tbool = () => Bool |> fresh;
-  let tstring = () => String |> fresh;
-  let tvar = x => Var(x) |> fresh;
-  let tlist = t => List(t) |> fresh;
-  let tarrow = (t1, t2) => Arrow(t1, t2) |> fresh;
-  let tsum = ctrs => Sum(ctrs) |> fresh;
-  let tprod = ts => Prod(ts) |> fresh;
-  let tparens = t => Parens(t) |> fresh;
-  let tap = (t1, t2) => Ap(t1, t2) |> fresh;
-  let trec = (tp, t) => Rec(tp, t) |> fresh;
-  let tforall = (tp, t) => Forall(tp, t) |> fresh;
-  let tlabel = l => Label(l) |> fresh;
-  let ttup_label = (l, t) => TupLabel(l, t) |> fresh;
-
-  let tvariant = (ctr, arg: option(Typ.t)) =>
-    ConstructorMap.Variant(ctr, [Id.mk()], arg);
-
-  // The following function exists only as a reminder to update the above when a new constructor is added.
-  let ok = (_: 'a) => failwith("covered should never be called");
-  let covered = (e: typ_term) => {
-    switch (e) {
-    | Unknown(_) => ok(tunknown)
-    | Int => ok(tint)
-    | Float => ok(tfloat)
-    | Bool => ok(tbool)
-    | String => ok(tstring)
-    | Var(_) => ok(tvar)
-    | List(_) => ok(tlist)
-    | Arrow(_, _) => ok(tarrow)
-    | Sum(_) => ok(tsum)
-    | Prod(_) => ok(tprod)
-    | Parens(_) => ok(tparens)
-    | Ap(_, _) => ok(tap)
-    | Rec(_, _) => ok(trec)
-    | Forall(_, _) => ok(tforall)
-    | Label(_) => ok(tlabel)
-    | TupLabel(_, _) => ok(ttup_label)
-    };
-  };
-};
-
 let all_ids_temp = {
   let f:
     'a.

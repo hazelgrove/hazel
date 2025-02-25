@@ -666,20 +666,6 @@ let is_error = (ci: t): bool => {
   };
 };
 
-let error = (ci: t): option(error) => {
-  switch (ci) {
-  | InfoExp({status: InHole(err), _}) => Some(Exp(err))
-  | InfoPat({status: InHole(err), _}) => Some(Pat(err))
-  | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
-  | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
-  | InfoExp({status: NotInHole(_), _}) => None
-  | InfoPat({status: NotInHole(_), _}) => None
-  | InfoTyp({status: NotInHole(_), _}) => None
-  | InfoTPat({status: NotInHole(_), _}) => None
-  | Secondary(_) => None
-  };
-};
-
 /* Determined the type of an expression or pattern 'after hole fixing';
    that is, some ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */
@@ -737,24 +723,6 @@ let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t => {
   | NotInHole(ok) => fixed_typ_ok(ok)
   };
 };
-
-// let fixed_constraint_pat =
-//     (
-//       upat: Pat.t,
-//       ctx,
-//       mode: Mode.t,
-//       self: Self.pat,
-//       constraint_: Coverage.Constraint.t,
-//     )
-//     : Coverage.Constraint.t =>
-//   switch (upat.term) {
-//   | Cast(_) => constraint_
-//   | _ =>
-//     switch (fixed_typ_pat(ctx, mode, self) |> Typ.term_of) {
-//     | Unknown(_) => Constraint.Hole
-//     | _ => constraint_
-//     }
-//   };
 
 let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
@@ -814,7 +782,6 @@ let derived_pat =
     : pat => {
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
   let status = status_pat(ctx, mode, self);
-  // print_endline("Status: " ++ show_status_pat(status));
   let ty = fixed_typ_pat(ctx, mode, self);
   {
     cls,
