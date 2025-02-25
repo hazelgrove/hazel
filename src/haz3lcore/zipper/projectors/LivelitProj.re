@@ -74,26 +74,25 @@ module M: Projector = {
     let llname =
       switch (info.ci) {
       | Some(InfoExp(exp)) =>
-        let (term, _) = UExp.unwrap(exp.term);
+        let (term, _) = Exp.unwrap(exp.term);
         switch (term) {
         | Parens(args) =>
           switch (args.term) {
-          | Ap(_dir, ll_uexp, args) =>
-            let (ll_term, _) = UExp.unwrap(ll_uexp);
+          | Ap(_dir, ll_Exp, args) =>
+            let (ll_term, _) = Exp.unwrap(ll_Exp);
             switch (ll_term) {
             | LivelitName(name) => name
             | _ =>
               failwith(
-                "LivelitProj: Not a LivelitName term -- "
-                ++ UExp.show(ll_uexp),
+                "LivelitProj: Not a LivelitName term -- " ++ Exp.show(ll_Exp),
               )
             };
           | _ =>
-            failwith("LivelitProj: Not an Ap term -- " ++ UExp.show(args))
+            failwith("LivelitProj: Not an Ap term -- " ++ Exp.show(args))
           }
         | _ =>
           failwith(
-            "LivelitProj: Not a Parens term -- " ++ UExp.show(exp.term),
+            "LivelitProj: Not a Parens term -- " ++ Exp.show(exp.term),
           )
         };
       | _ =>
@@ -117,35 +116,35 @@ module M: Projector = {
 
   let view =
       (_, ~info, ~local as _, ~parent: external_action => Ui_effect.t(unit)) => {
-    let (ll, args): (string, list(UExp.t)) =
+    let (ll, args): (string, list(Exp.t)) =
       switch (info.ci) {
       | Some(InfoExp(exp)) =>
-        let (term, _) = UExp.unwrap(exp.term);
+        let (term, _) = Exp.unwrap(exp.term);
         switch (term) {
         | Parens(args) =>
           switch (args.term) {
-          | Ap(_dir, ll_uexp, args) =>
-            let (ll_term, _) = UExp.unwrap(ll_uexp);
+          | Ap(_dir, ll_Exp, args) =>
+            let (ll_term, _) = Exp.unwrap(ll_Exp);
             let ll =
               switch (ll_term) {
               | LivelitName(name) => name
               | _ =>
                 failwith(
                   "LivelitProj: Not a LivelitName term -- "
-                  ++ UExp.show(ll_uexp),
+                  ++ Exp.show(ll_Exp),
                 )
               };
-            let (term, _) = UExp.unwrap(args);
+            let (term, _) = Exp.unwrap(args);
             switch (term) {
             | Tuple(lst) => (ll, lst)
             | _ => (ll, [args])
             };
           | _ =>
-            failwith("LivelitProj: Not an Ap term -- " ++ UExp.show(args))
+            failwith("LivelitProj: Not an Ap term -- " ++ Exp.show(args))
           }
         | _ =>
           failwith(
-            "LivelitProj: Not a Parens term -- " ++ UExp.show(exp.term),
+            "LivelitProj: Not a Parens term -- " ++ Exp.show(exp.term),
           )
         };
       | _ =>

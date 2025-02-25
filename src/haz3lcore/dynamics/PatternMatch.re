@@ -30,6 +30,7 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
     let* s' = Unboxing.unbox(String, d);
     s == s' ? Matches(Environment.empty) : DoesNotMatch;
   | LivelitName(_) => IndetMatch
+  | Cast({term: ListLit([] as xs), _}, _, _) // Shortcut for empty list pattern match perf
   | ListLit(xs) =>
     let* s' = Unboxing.unbox(List, d);
     if (List.length(xs) == List.length(s')) {

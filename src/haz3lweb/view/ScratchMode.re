@@ -10,11 +10,6 @@ module Model = {
     scratchpads: list((string, CellEditor.Model.t)),
   };
 
-  let get_spliced_elabs = model => {
-    let (key, ed) = List.nth(model.scratchpads, model.current);
-    [(key, Elaborator.Elaboration.{d: ed.editor.statics.term})];
-  };
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = (int, list((string, CellEditor.Model.persistent)));
 

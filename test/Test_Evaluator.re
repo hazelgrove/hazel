@@ -8,7 +8,7 @@ let evaluation_test = (msg, expected, unevaluated) =>
     msg,
     expected,
     ProgramResult.Result.unbox(
-      snd(Evaluator.evaluate'(Builtins.env_init, {d: unevaluated})),
+      snd(Evaluator.evaluate'(Builtins.env_init, unevaluated)),
     ),
   );
 
@@ -56,53 +56,45 @@ let tet_ap_of_hole_deferral = () =>
     Ap(
       Forward,
       Cast(
-        Cast(
-          EmptyHole |> Exp.fresh,
-          Unknown(Internal) |> Typ.fresh,
-          Arrow(
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
-          |> Typ.fresh,
-        )
-        |> Exp.fresh,
+        EmptyHole |> Exp.fresh,
+        Unknown(Internal) |> Typ.fresh,
         Arrow(
           Unknown(Internal) |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Typ.fresh,
-        Arrow(
-          Prod([
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          ])
-          |> Typ.fresh,
           Unknown(Internal) |> Typ.fresh,
         )
         |> Typ.fresh,
       )
       |> Exp.fresh,
-      Tuple([
-        Cast(
-          Float(1.) |> Exp.fresh,
-          Float |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
+      Cast(
+        Tuple([
+          Cast(
+            Float(1.) |> Exp.fresh,
+            Float |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Exp.fresh,
+          Cast(
+            Bool(true) |> Exp.fresh,
+            Bool |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Exp.fresh,
+          Cast(
+            Int(3) |> Exp.fresh,
+            Int |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
+          |> Exp.fresh,
+        ])
         |> Exp.fresh,
-        Cast(
-          Bool(true) |> Exp.fresh,
-          Bool |> Typ.fresh,
+        Prod([
           Unknown(Internal) |> Typ.fresh,
-        )
-        |> Exp.fresh,
-        Cast(
-          Int(3) |> Exp.fresh,
-          Int |> Typ.fresh,
           Unknown(Internal) |> Typ.fresh,
-        )
-        |> Exp.fresh,
-      ])
+          Unknown(Internal) |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+        Unknown(Internal) |> Typ.fresh,
+      )
       |> Exp.fresh,
     )
     |> Exp.fresh,
@@ -168,10 +160,13 @@ let tet_ap_of_hole_deferral = () =>
     |> Exp.fresh,
   );
 
-let tests = [
-  test_case("Integer literal", `Quick, test_int),
-  test_case("Integer sum", `Quick, test_sum),
-  test_case("Function application", `Quick, test_function_application),
-  test_case("Function deferral", `Quick, test_function_deferral),
-  test_case("Deferral applied to hole", `Quick, tet_ap_of_hole_deferral),
-];
+let tests = (
+  "Evaluator",
+  [
+    test_case("Integer literal", `Quick, test_int),
+    test_case("Integer sum", `Quick, test_sum),
+    test_case("Function application", `Quick, test_function_application),
+    test_case("Function deferral", `Quick, test_function_deferral),
+    test_case("Deferral applied to hole", `Quick, tet_ap_of_hole_deferral),
+  ],
+);

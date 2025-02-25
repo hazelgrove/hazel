@@ -15,6 +15,17 @@ open Util;
     the inner lists may still have casts around them after unboxing.
     */
 
+type unboxed_tfun =
+  | TypFun(TPat.t, Exp.t, option(string))
+  | TFunCast(DHExp.t, TPat.t, Typ.t, TPat.t, Typ.t);
+
+type unboxed_fun =
+  | Constructor(string)
+  | FunEnv(Pat.t, Exp.t, ClosureEnvironment.t)
+  | FunCast(DHExp.t, Typ.t, Typ.t, Typ.t, Typ.t)
+  | BuiltinFun(string)
+  | DeferredAp(DHExp.t, list(DHExp.t));
+
 type unbox_request('a) =
   | Int: unbox_request(int)
   | Float: unbox_request(float)
@@ -24,7 +35,9 @@ type unbox_request('a) =
   | List: unbox_request(list(DHExp.t))
   | Cons: unbox_request((DHExp.t, DHExp.t))
   | SumNoArg(string): unbox_request(unit)
-  | SumWithArg(string): unbox_request(DHExp.t);
+  | SumWithArg(string): unbox_request(DHExp.t)
+  | TypFun: unbox_request(unboxed_tfun)
+  | Fun: unbox_request(unboxed_fun);
 
 type unboxed('a) =
   | DoesNotMatch
@@ -135,6 +148,35 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       };
     // There should be some sort of failure here when the cast doesn't go through.
 
+    /* Function-like things can look like the following when values */
+    | (Fun, Constructor(name, _)) => Matches(Constructor(name)) // Perhaps we should check if the constructor actually is a function?
+    | (Fun, Fun(dp, d3, Some(env'), _)) => Matches(FunEnv(dp, d3, env'))
+    | (
+        Fun,
+        Cast(
+          d3',
+          {term: Arrow(ty1, ty2), _},
+          {term: Arrow(ty1', ty2'), _},
+        ),
+      ) =>
+      Matches(FunCast(d3', ty1, ty2, ty1', ty2'))
+    | (Fun, BuiltinFun(name)) => Matches(BuiltinFun(name))
+    | (Fun, DeferredAp(d1, ds)) => Matches(DeferredAp(d1, ds))
+
+    /* TypFun-like things can look like the following when values */
+    | (TypFun, TypFun(utpat, tfbody, name)) =>
+      Matches(TypFun(utpat, tfbody, name))
+    // Note: We might be able to handle this cast like other casts
+    | (
+        TypFun,
+        Cast(
+          d'',
+          {term: Forall(tp1, _), _} as t1,
+          {term: Forall(tp2, _), _} as t2,
+        ),
+      ) =>
+      Matches(TFunCast(d'', tp1, t1, tp2, t2))
+
     /* Any cast from unknown is indet */
     | (_, Cast(_, {term: Unknown(_), _}, _)) => IndetMatch
 
@@ -169,6 +211,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | SumNoArg(_)
       | SumWithArg(_) =>
         raise(EvaluatorError.Exception(InvalidBoxedSumConstructor(expr)))
+      | Fun => raise(EvaluatorError.Exception(InvalidBoxedFun(expr)))
+      | TypFun => raise(EvaluatorError.Exception(InvalidBoxedTypFun(expr)))
       }
 
     /* Forms that are not yet or will never be a value */

@@ -70,10 +70,10 @@ let concat = 29 |> right_associative;
 let eqs = 30 |> left_associative;
 // _____ == x
 // _____ && true
-let and_ = 31;
+let and_ = 31 |> right_associative;
 // true && _____
 // _____ || false
-let or_ = 32;
+let or_ = 32 |> right_associative;
 // false || _____
 let if_ = 34;
 let fun_ = 35;
