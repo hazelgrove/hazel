@@ -73,6 +73,7 @@ module Update = {
       (
         ~import_log,
         ~schedule_action,
+        ~schedule_effect,
         ~globals: Globals.Model.t,
         action: Globals.Update.t,
         model: Model.t,
@@ -173,46 +174,24 @@ module Update = {
         };
       };
     | Undo =>
-      let cursor_info =
-        Editors.Selection.get_cursor_info(
-          ~selection=model.selection,
-          model.editors,
-        );
-      switch (cursor_info.undo_action) {
-      | None => model |> return_quiet
-      | Some(action) =>
-        let* editors =
-          Editors.Update.update(
-            ~globals=model.globals,
-            ~schedule_action=a => schedule_action(Editors(a)),
-            action,
-            model.editors,
-          );
-        {
-          ...model,
-          editors,
-        };
+      let undo = BonsaiUndo.UndoController.get_undo();
+      switch (undo) {
+      | None =>
+        print_endline("Cannot undo");
+        model |> return_quiet;
+      | Some(effect) =>
+        schedule_effect(effect);
+        model |> return_quiet;
       };
     | Redo =>
-      let cursor_info =
-        Editors.Selection.get_cursor_info(
-          ~selection=model.selection,
-          model.editors,
-        );
-      switch (cursor_info.redo_action) {
-      | None => model |> return_quiet
-      | Some(action) =>
-        let* editors =
-          Editors.Update.update(
-            ~globals=model.globals,
-            ~schedule_action=a => schedule_action(Editors(a)),
-            action,
-            model.editors,
-          );
-        {
-          ...model,
-          editors,
-        };
+      let redo = BonsaiUndo.UndoController.get_redo();
+      switch (redo) {
+      | None =>
+        print_endline("Cannot redo");
+        model |> return_quiet;
+      | Some(effect) =>
+        schedule_effect(effect);
+        model |> return_quiet;
       };
     };
   };
@@ -221,6 +200,7 @@ module Update = {
       (
         ~import_log,
         ~get_log_and,
+        ~schedule_effect,
         ~schedule_action: t => unit,
         action: t,
         model: Model.t,
@@ -232,7 +212,14 @@ module Update = {
     };
     switch (action) {
     | Globals(action) =>
-      update_global(~globals, ~import_log, ~schedule_action, action, model)
+      update_global(
+        ~globals,
+        ~import_log,
+        ~schedule_effect,
+        ~schedule_action,
+        action,
+        model,
+      )
     | Editors(action) =>
       let* editors =
         Editors.Update.update(
@@ -328,6 +315,26 @@ module Selection = {
       Some(Update.Globals(SetShowBackpackTargets(false)))
     | {key: D("F7"), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
       Some(Update.Benchmark(Start))
+    | {
+        key: D("Z" | "z"),
+        sys: Mac,
+        shift: Down,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+      }
+    | {
+        key: D("Z" | "z"),
+        sys: PC,
+        shift: Down,
+        meta: Up,
+        ctrl: Down,
+        alt: Up,
+      } =>
+      Some(Update.Globals(Redo))
+    | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
+    | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+      Some(Update.Globals(Undo))
     | _ =>
       Editors.Selection.handle_key_event(~selection, ~event, model.editors)
       |> Option.map(x => Update.Editors(x))
@@ -454,15 +461,6 @@ module View = {
                 ++ Keyboard.meta(Os.is_mac^ ? Mac : PC)
                 ++ " + k)",
             ),
-            {
-              let undo = BonsaiUndo.UndoController.get_undo();
-              button_d(
-                Icons.undo,
-                ~disabled=undo == None,
-                undo |> Option.value(~default=Effect.Ignore),
-                ~tooltip="Undo (Test)",
-              );
-            },
             link(
               Icons.github,
               "https://github.com/hazelgrove/hazel",
