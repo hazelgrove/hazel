@@ -67,6 +67,8 @@ module Update = {
     | Start
     | Save;
 
+  let equal = (===);
+
   let update_global =
       (
         ~import_log,
@@ -296,6 +298,18 @@ module Update = {
     };
   };
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | Globals(action) => Globals.Update.can_undo(action)
+    | Editors(action) => Editors.Update.can_undo(action)
+    | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
+    | MakeActive(_) => false
+    | Benchmark(_) => false
+    | Start => false
+    | Save => false
+    };
+  };
+
   let calculate = (~schedule_action, ~is_edited, model: Model.t) => {
     let editors =
       Editors.Update.calculate(
@@ -464,6 +478,15 @@ module View = {
                 ++ Keyboard.meta(Os.is_mac^ ? Mac : PC)
                 ++ " + k)",
             ),
+            {
+              let undo = BonsaiUndo.UndoController.get_undo();
+              button_d(
+                Icons.undo,
+                ~disabled=undo == None,
+                undo |> Option.value(~default=Effect.Ignore),
+                ~tooltip="Undo (Test)",
+              );
+            },
             link(
               Icons.github,
               "https://github.com/hazelgrove/hazel",

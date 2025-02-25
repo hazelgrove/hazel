@@ -88,6 +88,22 @@ module Update = {
     ...model,
     color_highlights,
   };
+
+  let can_undo = (action: t) => {
+    switch (action) {
+    | SetMousedown(_) => false
+    | SetShowBackpackTargets(_) => false
+    | SetFontMetrics(_) => false
+    | Set(action) => Settings.Update.can_undo(action)
+    | JumpToTile(_) => false
+    | InitImportAll(_) => true
+    | FinishImportAll(_) => true
+    | ExportPersistentData => false
+    | ActiveEditor(_) => false
+    | Undo => false
+    | Redo => false
+    };
+  };
 };
 
 type t = Model.t;

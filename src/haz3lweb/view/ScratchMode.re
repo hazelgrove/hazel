@@ -89,6 +89,17 @@ module Update = {
     | Export
     | Encode;
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | CellAction(action) => CellEditor.Update.can_undo(action)
+    | SwitchSlide(_) => true
+    | ResetCurrent => true
+    | InitImportScratchpad(_) => true
+    | FinishImportScratchpad(_) => false
+    | Export => false
+    };
+  };
+
   let export_scratch_slide = (model: Model.t): unit => {
     Store.save(model |> Model.persist);
     let data = Store.export();
