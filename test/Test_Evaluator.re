@@ -596,21 +596,54 @@ in fn("hello")|},
               p(
                 String("a"),
                 [
-                  TupLabel(
-                    Grammar.Annotated.empty(
-                      Label("l"): Grammar.exp_term(unit),
-                    ),
-                    Grammar.Annotated.empty(
-                      String("a"): Grammar.exp_term(unit),
-                    ),
-                  ),
+                  Tuple([
+                    {
+                      term:
+                        TupLabel(
+                          {term: Label("l"), annotation: ()},
+                          {term: String("a"), annotation: ()},
+                        ),
+                      annotation: (),
+                    },
+                  ]),
                 ],
               ),
               np(Var("x")),
             ),
           );
-
         probe_test({|let x : (a=String) = "a" in x|}, uexp);
+      },
+    ),
+    test_case(
+      "Evaluate probe around inferred labeled tuple",
+      `Quick,
+      () => {
+        let np = expected_probe(_, []);
+        let p = (p, es: list(Grammar.exp_term(unit))) =>
+          expected_probe(
+            Probe(np(p), {refs: []}),
+            List.map(Grammar.Annotated.empty, es),
+          );
+        let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
+          term: t,
+          annotation: [],
+        };
+        let uexp =
+          np(
+            Cast(
+              p(String("a"), [String("a")]),
+              npt(
+                Parens(
+                  npt(
+                    Prod([npt(TupLabel(npt(Label("l")), npt(String)))]),
+                  ),
+                ),
+              ),
+              npt(Unknown(Internal)),
+            ),
+          );
+
+        probe_test({|"" : (a=String)|}, uexp);
       },
     ),
   ],
