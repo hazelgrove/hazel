@@ -175,7 +175,7 @@ and uexp_to_info_map =
       ~override_self: option(Self.exp)=?,
       ~inferred_label: option(LabeledTuple.label)=?,
       ~label_sort,
-      {ids, copied: _, term} as uexp: Exp.t,
+      {annotation: {ids, copied: _}, term} as uexp: Exp.t,
       m: Map.t,
     )
     : (Info.exp, Map.t) => {
@@ -280,7 +280,7 @@ and uexp_to_info_map =
         ),
     };
 
-    (info, add_info(elaborated_exp.ids, InfoExp(info), m));
+    (info, add_info(IdTagged.ids(elaborated_exp), InfoExp(info), m));
   };
   let atomic = self => {
     add(~self, ~co_ctx=CoCtx.empty, m);
@@ -351,8 +351,10 @@ and uexp_to_info_map =
       add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) when is_in_filter =>
       let e: Exp.t = {
-        ids: e.ids,
-        copied: false,
+        annotation: {
+          ids: IdTagged.ids(e),
+          copied: false,
+        },
         term:
           switch (e.term) {
           | Var("e") =>
@@ -656,7 +658,7 @@ and uexp_to_info_map =
 
       let (arg, m) = go(~mode=Ana(ty_in), arg, m);
       let self: Self.t =
-        Id.is_nullary_ap_flag(arg.term.ids)
+        Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
         && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
           ? BadTrivAp(ty_in) : Just(ty_out);
       add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
@@ -904,7 +906,7 @@ and uexp_to_info_map =
                   ~inferred_label=info.inferred_label,
                   ~label_sort=info.label_sort,
                 );
-              add_info(p.ids, InfoPat(info), m);
+              add_info(IdTagged.ids(p), InfoPat(info), m);
             | _ => failwith("Invalid sort for pattern.")
             };
           },
@@ -1010,7 +1012,7 @@ and upat_to_info_map =
       ~override_self: option(Self.t)=?,
       ~inferred_label=?,
       ~label_sort=false,
-      {ids, term, _} as upat: Pat.t,
+      {annotation: {ids, _}, term} as upat: Pat.t,
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
@@ -1135,7 +1137,7 @@ and upat_to_info_map =
         ),
     };
 
-    (info, add_info(elaborated_pat.ids, InfoPat(info), m));
+    (info, add_info(IdTagged.ids(elaborated_pat), InfoPat(info), m));
   };
 
   let default_case = () =>
@@ -1458,7 +1460,7 @@ and utyp_to_info_map =
       ~ctx,
       ~expects=Info.TypeExpected,
       ~ancestors,
-      {ids, term, _} as utyp: Typ.t,
+      {annotation: {ids, _}, term} as utyp: Typ.t,
       m: Map.t,
     )
     : (Info.typ, Map.t) => {
@@ -1577,7 +1579,12 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, {ids, term, _} as utpat: TPat.t, m: Map.t)
+    (
+      ~ctx,
+      ~ancestors,
+      {annotation: {ids, _}, term} as utpat: TPat.t,
+      m: Map.t,
+    )
     : (Info.tpat, Map.t) => {
   let add = m => {
     let info = Info.derived_tpat(~utpat, ~ctx, ~ancestors);
@@ -1613,7 +1620,13 @@ and variant_to_info_map =
           List.mem(ctr, ctrs) ? Duplicate : Unique,
           ty_sum,
         ),
-        {term: Var(ctr), ids, copied: false},
+        {
+          term: Var(ctr),
+          annotation: {
+            ids,
+            copied: false,
+          },
+        },
         m,
       )
       |> snd;
