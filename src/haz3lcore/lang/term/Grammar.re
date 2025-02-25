@@ -423,11 +423,6 @@ module type DefaultAnnotation = {
   let default_value: unit => t;
 };
 
-module UnitAnnotation: DefaultAnnotation with type t = unit = {
-  type t = unit;
-  let default_value = () => ();
-};
-
 module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   type exp = exp_t(DefaultAnnotation.t);
   type pat = pat_t(DefaultAnnotation.t);
@@ -757,7 +752,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   };
 
   module Rul = {
-    //rul
     let rul_invalid = (~ann=?, s): rul_t(DefaultAnnotation.t) => {
       term: Invalid(s),
       annotation: default_annotation(ann),
@@ -772,12 +766,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
   };
 
-  // environment
   let environment = (env): environment_t(DefaultAnnotation.t) => {
     VarBstMap.Ordered.mapo(((_, y)) => map_exp_annotation(x => x, y), env);
   };
 
-  // closure_environment
   let closure_environment =
       (id, env): closure_environment_t(DefaultAnnotation.t) => {
     (id, environment(env));
