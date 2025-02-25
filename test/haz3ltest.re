@@ -12,6 +12,7 @@ let (suite, _) =
       Test_StringUtil.tests,
       Test_Typ.tests,
       Test_Statics.tests,
+      Test_Coverage.tests,
       Test_Evaluator.tests,
       Test_ListUtil.tests,
     ]

@@ -88,10 +88,7 @@ let tests = (
       )
     }),
     test_case("Constructor", `Quick, () => {
-      exp_check(
-        Constructor("A", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
-        "A",
-      )
+      exp_check(Constructor("A", None) |> Exp.fresh, "A")
     }),
     test_case("Type Alias", `Quick, () => {
       exp_check(
