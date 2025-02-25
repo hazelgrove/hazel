@@ -76,7 +76,7 @@ let inconsistent_typecheck = (name, exp) => {
     () => {
       let s = statics(exp);
 
-      let errors = List.map(snd, Statics.collect_errors(s));
+      let errors = List.map(snd, Id.Map.to_list(Statics.collect_errors(s)));
 
       Alcotest.check(
         neg(list(testable_error)),
@@ -93,7 +93,7 @@ let fully_consistent_typecheck = (name, serialized, expected, exp) => {
     `Quick,
     () => {
       let s = statics(exp);
-      let errors = List.map(snd, Statics.collect_errors(s));
+      let errors = List.map(snd, Id.Map.to_list(Statics.collect_errors(s)));
       Alcotest.check(list(testable_error), "Static Errors", [], errors);
       alco_check(serialized, expected, type_of(exp));
     },

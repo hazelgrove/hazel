@@ -199,7 +199,8 @@ let rec parenthesize =
   | Filter(Residue(_), x) => x |> parenthesize
   // Other forms
   | Constructor(c, t) =>
-    Constructor(c, paren_typ_at(Precedence.cast, t)) |> rewrap
+    Constructor(c, Option.map(ty => paren_typ_at(Precedence.cast, ty), t))
+    |> rewrap
   | Fun(p, e, typ, n) =>
     Fun(
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),

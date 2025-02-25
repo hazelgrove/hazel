@@ -29,12 +29,13 @@ include TermBase.Typ;
 
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
+let rep_id: t => Id.t = IdTagged.rep_id;
+
 let fresh: term => t = IdTagged.fresh;
 /* fresh assigns a random id, whereas temp assigns Id.invalid, which
    is a lot faster, and since we so often make types and throw them away
    shortly after, it makes sense to use it. */
 let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
-let rep_id: t => Id.t = IdTagged.rep_id;
 
 let all_ids_temp = {
   let f:
@@ -154,6 +155,13 @@ let rec is_forall = (typ: t) => {
   };
 };
 
+let is_void = (typ: t) =>
+  switch (typ.term) {
+  | Sum(ctrs) => ConstructorMap.is_empty(ctrs)
+  | Rec(_, {term: Sum(ctrs), _}) => ConstructorMap.is_empty(ctrs)
+  | _ => false
+  };
+
 /* Functions below this point assume that types have been through the to_typ function above */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -230,7 +238,7 @@ let unroll = (ty: t): t =>
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
-let eq = (t1: t, t2: t): bool => fast_equal(t1, t2);
+let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
 
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown. The optional
@@ -253,16 +261,16 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       let* ty1 = Ctx.lookup_alias(ctx, n1);
       let* ty2 = Ctx.lookup_alias(ctx, n2);
       let+ ty_join = join'(ty1, ty2);
-      !resolve && eq(ty1, ty_join) ? ty1 : ty_join;
+      !resolve && equal(ty1, ty_join) ? ty1 : ty_join;
     }
   | (Var(name), _) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty2);
-    !resolve && eq(ty_name, ty_join) ? ty1 : ty_join;
+    !resolve && equal(ty_name, ty_join) ? ty1 : ty_join;
   | (_, Var(name)) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty1);
-    !resolve && eq(ty_name, ty_join) ? ty2 : ty_join;
+    !resolve && equal(ty_name, ty_join) ? ty2 : ty_join;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
@@ -324,7 +332,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     }
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
-    let+ sm' = ConstructorMap.join(eq, join(~resolve, ctx), sm1, sm2);
+    let+ sm' = ConstructorMap.join(equal, join(~resolve, ctx), sm1, sm2);
     Sum(sm') |> temp;
   | (Sum(_), _) => None
   | (List(ty1), List(ty2)) =>
@@ -368,7 +376,8 @@ let rec match_synswitch = (t1: t, t2: t) => {
     |> rewrap1
   | (TupLabel(_, _), _) => t1
   | (Sum(sm1), Sum(sm2)) =>
-    let sm' = ConstructorMap.match_synswitch(match_synswitch, eq, sm1, sm2);
+    let sm' =
+      ConstructorMap.match_synswitch(match_synswitch, equal, sm1, sm2);
     Sum(sm') |> rewrap1;
   | (Sum(_), _) => t1
   };
@@ -409,7 +418,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Bool
   | String
   | Label(_) => ty
-  | Parens(t) => Parens(normalize(ctx, t)) |> rewrap
+  | Parens(t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Arrow(t1, t2) =>
