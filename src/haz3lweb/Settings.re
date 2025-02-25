@@ -32,6 +32,7 @@ module Model = {
         show_settings: false,
         show_hidden_steps: false,
         indet_step: 0,
+        search: false,
       },
     }, // Ideally this should be an option in the EvalResult footer, not globally
     async_evaluation: false,
@@ -94,7 +95,8 @@ module Update = {
     | Evaluation(evaluation)
     | ExplainThis(ExplainThisModel.Settings.action)
     | NextIndet
-    | PrevIndet;
+    | PrevIndet
+    | Search;
 
   let update = (action, settings: Model.t): Updated.t(Model.t) => {
     (
@@ -234,6 +236,17 @@ module Update = {
             evaluation: {
               ...settings.core.evaluation,
               indet_step: settings.core.evaluation.indet_step - 1,
+            },
+          },
+        }
+
+      | Search => {
+          ...settings,
+          core: {
+            ...settings.core,
+            evaluation: {
+              ...settings.core.evaluation,
+              search: !settings.core.evaluation.search,
             },
           },
         }

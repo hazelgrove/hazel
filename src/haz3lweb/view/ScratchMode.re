@@ -156,7 +156,15 @@ module Update = {
       Some(
         expr => {
           worker_request :=
-            worker_request^ @ [("", expr, settings.evaluation.indet_step)]
+            worker_request^
+            @ [
+              (
+                "",
+                expr,
+                settings.evaluation.search,
+                settings.evaluation.indet_step,
+              ),
+            ]
         },
       );
     let new_ed =

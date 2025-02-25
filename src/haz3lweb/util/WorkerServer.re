@@ -7,7 +7,7 @@ module Request = {
   [@deriving (show, sexp, yojson)]
   type value = Haz3lcore.Exp.t;
   [@deriving (show, sexp, yojson)]
-  type t = list((string, value, int));
+  type t = list((string, value, bool, int));
 
   let serialize = program => program |> sexp_of_t |> Sexplib.Sexp.to_string;
   let deserialize = sexp => sexp |> Sexplib.Sexp.of_string |> t_of_sexp;
@@ -27,7 +27,7 @@ module Response = {
   let deserialize = sexp => sexp |> Sexplib.Sexp.of_string |> t_of_sexp;
 };
 
-let work = (res: Request.value, n): Response.value =>
+let work = (res: Request.value, search, n): Response.value =>
   switch (
     Haz3lcore.IndetEvaluator.evaluate'(Haz3lcore.Builtins.env_init, res)
   ) {
@@ -44,7 +44,11 @@ let work = (res: Request.value, n): Response.value =>
   //| (state, result) => Ok((result, state))
   | results =>
     Ok((
-      BoxedValue(results |> Haz3lcore.Futures.nth(n)),
+      BoxedValue(
+        results
+        |> (search ? Haz3lcore.Futures.failed_casts : (x => x))
+        |> Haz3lcore.Futures.nth(n),
+      ),
       Haz3lcore.EvaluatorState.init,
     ))
   };
@@ -52,7 +56,7 @@ let work = (res: Request.value, n): Response.value =>
 let on_request = (req: string): unit =>
   req
   |> Request.deserialize
-  |> List.map(((k, v, n)) => (k, work(v, n)))
+  |> List.map(((k, v, b, n)) => (k, work(v, b, n)))
   |> Response.serialize
   |> Js_of_ocaml.Worker.post_message;
 

@@ -147,6 +147,7 @@ module Update = {
           (
             pos |> Exercise.key_for_statics,
             expr,
+            settings.evaluation.search,
             settings.evaluation.indet_step,
           ),
         ];

@@ -70,6 +70,7 @@ let semantics_group = (~globals) => {
       ("τ", "Types", globals.settings.core.statics, Statics),
       ("⇲", "Completion", globals.settings.core.assist, Assist),
       ("𝛿", "Evaluation", globals.settings.core.dynamics, Dynamics),
+      ("S", "Error Search", globals.settings.core.evaluation.search, Search),
       (
         "?",
         "Docs",
