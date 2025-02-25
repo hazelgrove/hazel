@@ -2,6 +2,7 @@ open Util.Sequence;
 
 type t = Util.Sequence.t(DHExp.t);
 
+let empty = empty;
 let first = hd_exn;
 let nth = (i, s) => nth_exn(s, i);
 

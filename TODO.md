@@ -46,6 +46,7 @@ As compared to `witnesses` branch:
 - [ ] Improve performance: Likely issues due to overuse of TypSlice.typ_of? Hopefully not due to TypSlice.wrap_global or wrap_incr.....
 
 # SEARCH PROC/INDET EVAL:
+- [ ] Catch only cast errors in direct evaluation line - i.e. having been established by hole instantiation (which also only are instantiated in direct evaluation line)
 - [ ] Cast Transitions for terms like 0 : Int -> ? -> Int, (or otherwise 0 : ? -> Int)
 - [ ] Insert the correct casts when instantiating terms like an (Int, Int) to (?, ?), i.e. a cast from (?, ?) -> ? -> (Int, Int). Also make sure cast transitions work for these
 - [ ] Deal with holes with no immediate cast. These seem to appear during pattern matching expressions i.e. in the unnanotated map function, casts are instead placed on the branches (it might be equivalent placing on scrutinant)
@@ -61,6 +62,10 @@ As compared to `witnesses` branch:
 ### High Priority
 - [X] Types in stepper share ids which messes with selecting them/cursor movement
 - [X] Multiple holes not instantiated, i.e. ? + ?
+- [X] Instantiating products crashes: `let x = ? in let y = ? in (x, y)`
+- [ ] Products not being instantiated to inner types, i.e. ? : (Int, Int) is instantiated to (?, ?) : (Int, Int) but then no transition is taken to (? : Int, ? : Int). This is an issue with the Transition rules!!
+- [X] Multiple hole instantiations not trying all possibilities, i.e. when a second hold could be instantiated but the only the first seems to be instantiated (might be weirdness from interleaving sequences).
+- [X] Holes being instantiated multiple times in same way redundantly (when multiple holes involved, i.e. (? : Int,? : Int))
 - [ ] Cast slicing in stepper does not highlight in editor
 - [ ] FAILURE: Not a product in `let (x, y) = ? in x`
 - [ ] Unboxing bug when annotating with explicit dynamic type ?, i.e. in: 

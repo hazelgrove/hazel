@@ -38,7 +38,7 @@ let print =
     let futures =
       statics.elaborated |> IndetEvaluator.evaluate'(Builtins.env_init);
     let _ =
-      Util.Sequence.take(futures, 10)
+      Util.Sequence.take(futures, 30)
       |> Util.Sequence.to_list
       |> List.mapi((i, d) =>
            print(
@@ -51,31 +51,21 @@ let print =
          );
     ();
   | "F12" =>
-    let index = Indicated.index(zipper);
-    switch (index) {
-    | Some(index) =>
-      print("id:" ++ Id.to_string(index));
-      switch (Id.Map.find_opt(index, map)) {
-      | Some(InfoTyp({term, _})) =>
-        let futures =
-          term |> TypSlice.typ_of |> Typ.term_of |> Instantiation.enum_typ;
-        let _ =
-          Util.Sequence.take(futures, 10)
-          |> Util.Sequence.to_list
-          |> List.mapi((i, d) =>
-               print(
-                 "Instantiation "
-                 ++ Int.to_string(i)
-                 ++ ": "
-                 ++ Exp.show(d)
-                 ++ "\n",
-               )
-             );
-        ();
-      | _ => print("DEBUG: No InfoTyp found for index")
-      };
-    | None => print("DEBUG: No indicated index")
-    };
+    let inst =
+      statics.elaborated
+      |> Evaluator.evaluate''(Builtins.env_init)
+      |> Instantiator.find(
+           (),
+           Builtins.env_init |> ClosureEnvironment.of_environment,
+         );
+    (
+      switch (inst) {
+      | None => "No Hole"
+      | Some((d, None)) => "Hole with no cast"
+      | Some((d, Some(slc))) => "Cast Hole"
+      }
+    )
+    |> print;
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };

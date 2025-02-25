@@ -13,6 +13,12 @@ module InstantiatorEVMode: {
   type requirement('a) = (result, 'a);
   type requirements('a, 'b) = (result, 'a, 'b);
 
+  let combine = (h1: result, h2: result): result =>
+    switch (h1) {
+    | Some(d) => Some(d)
+    | None => h2
+    };
+
   let req_final:
     (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
     requirement(DHExp.t) =
@@ -26,19 +32,10 @@ module InstantiatorEVMode: {
       list(DHExp.t)
     ) =>
     requirement(list(DHExp.t)) =
-    (h, _, ds) => (
-      ds |> Util.ListUtil.hd_opt |> Option.map(h) |> Option.join,
-      ds,
-    );
+    (h, _, ds) => (ds |> List.map(h) |> List.fold_left(combine, None), ds);
 
   let otherwise: (ClosureEnvironment.t, 'a) => requirements(unit, 'a) =
     (_, r) => (None, (), r);
-
-  let combine = (h1: result, h2: result): result =>
-    switch (h1) {
-    | Some(d) => Some(d)
-    | None => h2
-    };
 
   let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
     ((h, a, d), rl) => {
@@ -72,7 +69,7 @@ let instantiate = (env, d) => {
   let env = ClosureEnvironment.of_environment(env);
   switch (find((), env, d)) {
   | None
-  | Some((_, None)) => d |> Util.Sequence.singleton
+  | Some((_, None)) => Futures.empty
   | Some((hole, Some(slc))) =>
     Instantiation.(construct(DHExp.rep_id(hole), slc) |> subst(d))
   };
