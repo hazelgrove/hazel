@@ -369,7 +369,7 @@ module Selection = {
         let a: option(Model.a) =
           mr.history
           |> Aba.get_as
-          |> List.nth_opt(_, List.length(mr.history |> Aba.get_as) - n - 1);
+          |> ListUtil.nth_opt(List.length(mr.history |> Aba.get_as) - n - 1);
         switch (a) {
         | Some(Calculated(a)) =>
           let+ x =
@@ -391,7 +391,7 @@ module Selection = {
     let a: option(Model.a) =
       mr.history
       |> Aba.get_as
-      |> List.nth_opt(_, List.length(mr.history |> Aba.get_as) - i - 1);
+      |> ListUtil.nth_opt(List.length(mr.history |> Aba.get_as) - i - 1);
     switch (a) {
     | Some(Calculated(a)) =>
       let+ x =

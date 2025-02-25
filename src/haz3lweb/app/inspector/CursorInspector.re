@@ -85,6 +85,7 @@ let common_err_view = (~globals, cls: Cls.t, err: Info.error_common) => {
            fold_fn_bodies: false,
            hide_fixpoints: false,
            fold_cast_types: false,
+           show_filters: false,
          },
          ~info_map=Id.Map.empty,
        )
@@ -136,6 +137,7 @@ let common_ok_view = (~globals, cls: Cls.t, ok: Info.ok_pat) => {
         fold_fn_bodies: false,
         hide_fixpoints: false,
         fold_cast_types: false,
+        show_filters: false,
       },
     );
   switch (cls, ok) {
@@ -187,6 +189,7 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
         fold_fn_bodies: false,
         hide_fixpoints: false,
         fold_cast_types: false,
+        show_filters: false,
       },
       ~info_map=Id.Map.empty,
     );
@@ -220,6 +223,7 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
         fold_fn_bodies: false,
         hide_fixpoints: false,
         fold_cast_types: false,
+        show_filters: false,
       },
       ~info_map=Id.Map.empty,
     );
@@ -252,6 +256,7 @@ let rec exp_view = (~globals, cls: Cls.t, status: Info.status_exp) => {
         fold_fn_bodies: false,
         hide_fixpoints: false,
         fold_cast_types: false,
+        show_filters: false,
       },
       ~info_map=Id.Map.empty,
     );
@@ -324,6 +329,7 @@ let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
         fold_fn_bodies: false,
         hide_fixpoints: false,
         fold_cast_types: false,
+        show_filters: false,
       },
       ~info_map=Id.Map.empty,
     );

@@ -2,8 +2,8 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  term: UExp.t,
-  elaborated: UExp.t,
+  term: Exp.t,
+  elaborated: Exp.t,
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
 };

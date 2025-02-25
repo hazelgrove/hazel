@@ -22,7 +22,7 @@ let slider: t = {
   ],
   name: "slider",
   expansion_t: Typ.temp(Int),
-  expansion_f: (model: UExp.t) =>
+  expansion_f: (model: Exp.t) =>
     switch (model.term) {
     | Int(n) => DHExp.fresh(Int(n))
     | _ => DHExp.fresh(Undefined)
@@ -61,7 +61,7 @@ let js: t = {
   ],
   name: "js",
   expansion_t: Typ.temp(String),
-  expansion_f: (model: UExp.t) =>
+  expansion_f: (model: Exp.t) =>
     switch (model.term) {
     | Tuple([_code, result]) => DHExp.fresh(Tuple([result]))
     | _ => DHExp.fresh(Undefined)
@@ -143,7 +143,7 @@ let error: t = {
   explain_this: ["A syntax error livelit"],
   name: "error",
   expansion_t: Typ.temp(Unknown(Internal)),
-  expansion_f: (_model: UExp.t) =>
+  expansion_f: (_model: Exp.t) =>
     DHExp.fresh(String("Syntax error -- are statics enabled?")),
   model_t: Typ.temp(Unknown(Internal)),
   model_default: "I SHOULD NEVER APPEAR",
@@ -165,7 +165,7 @@ let emotion: t = {
   explain_this: ["An emotion livelit"],
   name: "emotion",
   expansion_t: Typ.temp(String),
-  expansion_f: (model: UExp.t) =>
+  expansion_f: (model: Exp.t) =>
     switch (model.term) {
     | Int(n) =>
       DHExp.fresh(
