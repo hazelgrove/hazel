@@ -85,10 +85,8 @@ module ClosureLength = {
     Hashtbl.clear(lengths);
   };
 
-  let get = (id: int): option(int) => Hashtbl.find_opt(lengths, id);
-
-  let get2 = (closure: closure): int =>
-    get(closure.closure_id)
+  let get = (closure: closure): int =>
+    Hashtbl.find_opt(lengths, closure.closure_id)
     |> Option.value(
          ~default=
            !is_value(closure.value)
@@ -540,7 +538,7 @@ let value_view =
   };
 
   let (seg, length) =
-    abbreviated_seg_of(utility, ClosureLength.get2(closure), closure.value);
+    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
 
   div(
     ~attrs=[
@@ -566,12 +564,12 @@ let env_val =
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
     [
-      Node.text(en.binding.name ++ " ⇒"),
+      Node.text(en.binding.name ++ "⇒"),
       switch (en.value) {
       | Opaque => Node.text("Opaque")
       | Val(d) =>
         let (seg, _) =
-          abbreviated_seg_of(utility, ClosureLength.get2(closure), d);
+          abbreviated_seg_of(utility, ClosureLength.get(closure), d);
         view_seg(Sort.Exp, seg);
       },
     ],
@@ -716,7 +714,7 @@ let move_cursor = (info: info, offset: int): unit =>
 
 let round_up = (utility: utility, closure): unit => {
   let (_, cur) =
-    abbreviated_seg_of(utility, ClosureLength.get2(closure), closure.value);
+    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
   let goal = cur + 1;
   let (_, max_len) = seg_of_exp(utility, DHExp.strip_casts(closure.value));
   let rec find_target = (target: int): int => {
@@ -733,7 +731,7 @@ let round_up = (utility: utility, closure): unit => {
 
 let round_down = (utility: utility, closure: closure): unit => {
   let (_, cur) =
-    abbreviated_seg_of(utility, ClosureLength.get2(closure), closure.value);
+    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
   let goal = cur - 1;
   let rec find_target = (target: int): int => {
     let attempt_len =

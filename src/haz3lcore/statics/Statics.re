@@ -305,10 +305,10 @@ and uexp_to_info_map =
         m,
       );
 
+    /* Special case for probes, which would otherwise lose their id association here */
     let elaborated_exp =
       switch (term) {
       | Probe(_, p) =>
-        print_endline("Probe found: " ++ Probe.show(p));
         rewrap(
           Probe(
             Tuple([
@@ -318,7 +318,7 @@ and uexp_to_info_map =
             |> Exp.fresh,
             p,
           ),
-        );
+        )
       | _ =>
         rewrap(
           Tuple([
@@ -1172,12 +1172,27 @@ and upat_to_info_map =
         original_expression,
         m,
       );
+    /* Special case for probes, which would otherwise lose their id association here */
     let elaborated_pat =
-      rewrap(
-        Tuple([
-          TupLabel(Label(l) |> Pat.fresh, original_expression) |> Pat.fresh,
-        ]),
-      );
+      switch (term) {
+      | Probe(_, p) =>
+        rewrap(
+          Probe(
+            Tuple([
+              TupLabel(Label(l) |> Pat.fresh, original_expression)
+              |> Pat.fresh,
+            ])
+            |> Pat.fresh,
+            p,
+          ),
+        )
+      | _ =>
+        rewrap(
+          Tuple([
+            TupLabel(Label(l) |> Pat.fresh, original_expression) |> Pat.fresh,
+          ]),
+        )
+      };
     let (info, m) =
       upat_to_info_map(
         ~ctx,

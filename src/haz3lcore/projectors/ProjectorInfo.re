@@ -6,7 +6,7 @@
 let utility: ProjectorBase.utility = {
   let seg_to_term = MakeTerm.for_projection;
   let term_to_seg =
-    ExpToSegment.any_to_pretty(
+    ExpToSegment.any_to_segment(
       ~settings={
         ...ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
         show_unknown_as_hole: false,
