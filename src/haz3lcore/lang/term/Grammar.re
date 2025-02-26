@@ -808,3 +808,9 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
   };
 };
+
+module UnitGrammar =
+  Factory({
+    type t = unit;
+    let default_value = () => ();
+  });
