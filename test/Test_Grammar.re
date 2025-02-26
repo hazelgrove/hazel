@@ -89,6 +89,64 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
   );
 };
 
+let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
+  Grammar.UnitGrammar.(
+    Pat.(
+      switch (cls_pat) {
+      | Invalid => invalid("invalid")
+      | EmptyHole => empty_hole()
+      | MultiHole => multi_hole([Pat(empty_hole()), Pat(empty_hole())])
+      | Bool => bool(true)
+      | Int => int(1)
+      | Float => float(2.)
+      | String => string("hello")
+      | ListLit => list_lit([])
+      | Constructor => constructor("A", None)
+      | Var => var("x")
+      | Tuple => tuple([])
+      | Cons => cons(empty_hole(), empty_hole())
+      | Label => label("label")
+      | TupLabel => tup_label(label("label"), empty_hole())
+      | Parens => parens(empty_hole())
+      | Ap => ap(empty_hole(), empty_hole())
+      | Cast => cast(empty_hole(), Typ.int(), Typ.string())
+      | Wild => wild()
+      }
+    )
+  );
+};
+
+let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
+  Grammar.UnitGrammar.(
+    Typ.(
+      switch (cls_typ) {
+      | Invalid => unknown(Hole(Invalid("invalid")))
+      | Int => int()
+      | Float => float()
+      | String => string()
+      | Bool => bool()
+      | List => list(unknown(Hole(EmptyHole)))
+      | Arrow => arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
+      | Var => var("x")
+      | Prod => prod([])
+      | TupLabel =>
+        tup_label(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
+      | Parens => parens(unknown(Hole(EmptyHole)))
+      | Ap => ap(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
+      | Rec => rec_(TPat.var("x"), unknown(Hole(EmptyHole)))
+      | Forall => forall(TPat.var("x"), unknown(Hole(EmptyHole)))
+      | EmptyHole => unknown(Hole(EmptyHole))
+      | SynSwitch => unknown(SynSwitch)
+      | Internal => unknown(Internal)
+      | Label => label("label")
+      | MultiHole => unknown(Hole(MultiHole([])))
+      | Sum => sum([])
+      | Constructor => assert(false) // Excluded because there is no Typ constructor
+      }
+    )
+  );
+};
+
 let tests = (
   "Grammar",
   [
@@ -108,6 +166,49 @@ let tests = (
               Exp.cls_of_term(sample_expression(cls).term),
             ),
           exp_classes,
+        );
+      },
+    ),
+    test_case(
+      "Pattern classes are correct",
+      `Quick,
+      () => {
+        let pat_classes = Pat.all_of_cls;
+        let cls_testable =
+          testable(Fmt.using(Pat.show_cls, Fmt.string), Pat.equal_cls);
+        List.iter(
+          cls =>
+            check(
+              cls_testable,
+              Pat.show_cls(cls) ++ " Equivalency",
+              cls,
+              Pat.cls_of_term(sample_pattern(cls).term),
+            ),
+          pat_classes,
+        );
+      },
+    ),
+    test_case(
+      "Type classes are correct",
+      `Quick,
+      () => {
+        let typ_classes = Typ.all_of_cls;
+        let cls_testable =
+          testable(Fmt.using(Typ.show_cls, Fmt.string), Typ.equal_cls);
+        List.iter(
+          (cls: Typ.cls) => {
+            switch (cls) {
+            | Constructor => ()
+            | _ =>
+              check(
+                cls_testable,
+                Typ.show_cls(cls) ++ " Equivalency",
+                cls,
+                Typ.cls_of_term(sample_type(cls).term),
+              )
+            }
+          },
+          typ_classes,
         );
       },
     ),

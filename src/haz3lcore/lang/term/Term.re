@@ -1,5 +1,5 @@
 module Pat = {
-  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
   type cls =
     | Invalid
     | EmptyHole
@@ -39,7 +39,7 @@ module Pat = {
     | [_, ..._] => MultiHole(tms)
     };
 
-  let cls_of_term: term => cls =
+  let cls_of_term: Grammar.pat_term('a) => cls =
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
