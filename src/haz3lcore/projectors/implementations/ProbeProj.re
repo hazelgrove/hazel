@@ -111,7 +111,18 @@ let rm_opaques:
 /* Don't redundantly show an env for variable references, patterns */
 let hide_env = (info: info): bool =>
   switch (info.statics) {
-  | Some(InfoExp({term: {term: Var(_) | Parens({term: Var(_), _}), _}, _})) =>
+  | Some(
+      InfoExp({
+        term:
+          {
+            term:
+              Var(_) | Parens({term: Var(_), _}) |
+              Probe({term: Var(_), _}, _),
+            _,
+          },
+        _,
+      }),
+    ) =>
     true
   | Some(InfoPat(_)) => true
   | _ => false
@@ -555,7 +566,7 @@ let env_val =
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
     [
-      Node.text(en.binding.name ++ "="),
+      Node.text(en.binding.name ++ " ⇒"),
       switch (en.value) {
       | Opaque => Node.text("Opaque")
       | Val(d) =>
@@ -632,7 +643,7 @@ let nav_bar_view = (num_total: int, local) => {
 };
 
 let equals_view =
-  div(~attrs=[Attr.classes(["live-equals"])], [text("=")]);
+  div(~attrs=[Attr.classes(["live-equals"])], [text("⇒")]);
 
 let offside_view =
     (
