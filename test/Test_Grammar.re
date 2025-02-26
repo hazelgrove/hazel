@@ -147,6 +147,19 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
   );
 };
 
+let sample_tpat = (cls_tpat: TPat.cls): Grammar.UnitGrammar.tpat => {
+  Grammar.UnitGrammar.(
+    TPat.(
+      switch (cls_tpat) {
+      | Invalid => invalid("invalid")
+      | EmptyHole => empty_hole()
+      | Var => var("x")
+      | MultiHole => multi_hole([TPat(empty_hole()), TPat(empty_hole())])
+      }
+    )
+  );
+};
+
 let tests = (
   "Grammar",
   [
@@ -209,6 +222,25 @@ let tests = (
             }
           },
           typ_classes,
+        );
+      },
+    ),
+    test_case(
+      "Type pattern classes are correct",
+      `Quick,
+      () => {
+        let tpat_classes = TPat.all_of_cls;
+        let cls_testable =
+          testable(Fmt.using(TPat.show_cls, Fmt.string), TPat.equal_cls);
+        List.iter(
+          cls =>
+            check(
+              cls_testable,
+              TPat.show_cls(cls) ++ " Equivalency",
+              cls,
+              TPat.cls_of_term(sample_tpat(cls).term),
+            ),
+          tpat_classes,
         );
       },
     ),
