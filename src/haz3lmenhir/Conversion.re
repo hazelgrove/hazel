@@ -193,6 +193,8 @@ module Operators = {
 module rec Exp: {
   let of_menhir_ast: AST.exp => IndicatedG.exp;
   let of_core: IndicatedG.exp => AST.exp;
+  let get_indicated_ids:
+    IndicatedG.exp => (Haz3lcore.Exp.t, list(Haz3lcore.Id.t));
 } = {
   open IndicatedG.Exp;
   let rec of_menhir_ast = (exp: AST.exp): IndicatedG.exp => {
@@ -360,6 +362,27 @@ module rec Exp: {
     | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
     };
+  };
+
+  let get_indicated_ids =
+      (indicated_exp: IndicatedG.exp)
+      : (Haz3lcore.Exp.t, list(Haz3lcore.Id.t)) => {
+    open Haz3lcore;
+    // mutable array to gather indicated IDs when generating expressions
+    let indicated_ids = Dynarray.create();
+    let e =
+      Grammar.map_exp_annotation(
+        (indicated): IdTagged.IdTag.t => {
+          let id = Id.mk();
+          if (indicated) {
+            Dynarray.add_last(indicated_ids, id);
+          };
+          {ids: [id], copied: false};
+        },
+        indicated_exp,
+      );
+    let ids = Dynarray.to_list(indicated_ids);
+    (e, ids);
   };
 }
 and Typ: {
