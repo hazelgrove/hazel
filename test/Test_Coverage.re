@@ -21,21 +21,8 @@ let has_errors = (name: string, exp: string, errors: list(Info.error)) => {
     `Quick,
     () => {
       let indicated_exp: Grammar.exp_t(bool) = parse_menhir(exp);
-
-      // mutable array to gather indicated IDs when generating expressions
-      let indicated_ids = Dynarray.create();
-      let e =
-        Grammar.map_exp_annotation(
-          (indicated): IdTagged.IdTag.t => {
-            let id = Id.mk();
-            if (indicated) {
-              Dynarray.add_last(indicated_ids, id);
-            };
-            {ids: [id], copied: false};
-          },
-          indicated_exp,
-        );
-      let ids = Dynarray.to_list(indicated_ids);
+      let (e, ids) =
+        Haz3lmenhir.Conversion.Exp.get_indicated_ids(indicated_exp);
 
       let s = statics(e);
       let actual_errors = Statics.collect_errors(s);
