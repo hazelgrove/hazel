@@ -338,7 +338,6 @@ module Exp = {
     | Invalid
     | EmptyHole
     | MultiHole
-    | StaticErrorHole
     | DynamicErrorHole
     | FailedCast
     | Deferral
@@ -356,14 +355,12 @@ module Exp = {
     | Tuple
     | Dot
     | Var
-    | MetaVar
     | Let
     | FixF
     | TyAlias
     | Ap
     | TypAp
     | DeferredAp
-    | Pipeline
     | If
     | Seq
     | Test
@@ -447,7 +444,6 @@ module Exp = {
     | Invalid => "Invalid expression"
     | MultiHole => "Broken expression"
     | EmptyHole => "Empty expression hole"
-    | StaticErrorHole => "Static error hole"
     | DynamicErrorHole => "Dynamic error hole"
     | FailedCast => "Failed cast"
     | Deferral => "Deferral"
@@ -472,7 +468,6 @@ module Exp = {
     | Ap => "Application"
     | TypAp => "Type application"
     | DeferredAp => "Partial Application"
-    | Pipeline => "Pipeline expression"
     | If => "If expression"
     | Seq => "Sequence expression"
     | Test => "Test"
