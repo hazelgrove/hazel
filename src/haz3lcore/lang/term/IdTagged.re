@@ -68,3 +68,9 @@ let replace_temp = ({term, annotation: {ids, copied}}: t('a)): t('a) => {
     copied,
   },
 };
+
+module FreshGrammar =
+  Grammar.Factory({
+    type t = IdTag.t;
+    let default_value = (): IdTag.t => IdTag.fresh();
+  });
