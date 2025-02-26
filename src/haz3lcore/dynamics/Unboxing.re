@@ -265,9 +265,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* Forms that are not yet or will never be a value */
     | (
         _,
-        Invalid(_) | Undefined | EmptyHole | MultiHole(_) | DynamicErrorHole(_) |
-        Var(_) |
-        Let(_) |
+        Invalid(_) | Undefined | EmptyHole | MultiHole(_) | Var(_) | Let(_) |
         Fun(_, _, _, _) |
         FixF(_) |
         TyAlias(_) |

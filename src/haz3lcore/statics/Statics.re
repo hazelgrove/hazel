@@ -345,7 +345,6 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), Mode.ty_of(mode)),
         m,
       )
-    | DynamicErrorHole(e, _)
     | Parens(e) =>
       let (e, m) = go(~mode, e, m);
       add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);

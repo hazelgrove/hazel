@@ -3,7 +3,6 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)
-  | DynamicErrorHole(_)
   | FailedCast(_)
   | Undefined
   | Deferral(_)

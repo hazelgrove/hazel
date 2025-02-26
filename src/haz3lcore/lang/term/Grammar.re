@@ -30,7 +30,6 @@ and exp_term('a) =
   | Invalid(string)
   | EmptyHole
   | MultiHole(list(any_t('a)))
-  | DynamicErrorHole(exp_t('a), InvalidOperationError.t)
   | FailedCast(exp_t('a), typ_t('a), typ_t('a))
   | Deferral(deferral_position_t)
   | Undefined
@@ -149,8 +148,6 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | EmptyHole => EmptyHole
         | MultiHole(l) =>
           MultiHole(List.map(x => map_any_annotation(f, x), l))
-        | DynamicErrorHole(e, err) =>
-          DynamicErrorHole(map_exp_annotation(f, e), err)
         | FailedCast(e: exp_t(a), t1, t2) =>
           FailedCast(
             map_exp_annotation(f, e),

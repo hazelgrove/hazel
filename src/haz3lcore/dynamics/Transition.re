@@ -398,6 +398,7 @@ module Transition = (EV: EV_MODE) => {
         | Some(expr) =>
           Step({expr, state_update, kind: BuiltinAp(ident), is_value: false})
         | None => Indet
+        | exception (InvalidOperationError.Exception(_)) => Indet
         };
       | DeferredAp(d3, d4s) =>
         let n_args =
@@ -545,39 +546,34 @@ module Transition = (EV: EV_MODE) => {
         );
       let-unbox n1 = (Int, d1');
       let-unbox n2 = (Int, d2');
-      Step({
-        expr:
-          (
-            switch (op) {
-            | Plus => Int(n1 + n2)
-            | Minus => Int(n1 - n2)
-            | Power when n2 < 0 =>
-              DynamicErrorHole(
-                BinOp(Int(op), d1', d2') |> rewrap,
-                NegativeExponent,
-              )
-            | Power => Int(IntUtil.ipow(n1, n2))
-            | Times => Int(n1 * n2)
-            | Divide when n2 == 0 =>
-              DynamicErrorHole(
-                BinOp(Int(op), d1', d2') |> rewrap,
-                DivideByZero,
-              )
-            | Divide => Int(n1 / n2)
-            | LessThan => Bool(n1 < n2)
-            | LessThanOrEqual => Bool(n1 <= n2)
-            | GreaterThan => Bool(n1 > n2)
-            | GreaterThanOrEqual => Bool(n1 >= n2)
-            | Equals => Bool(n1 == n2)
-            | NotEquals => Bool(n1 != n2)
-            }
-          )
-          |> fresh,
-        state_update,
-        kind: BinIntOp(op),
-        // False so that InvalidOperations are caught and made indet by the next step
-        is_value: false,
-      });
+      switch (op) {
+      | Power when n2 < 0 => Indet
+      | Divide when n2 == 0 => Indet
+      | _ =>
+        Step({
+          expr:
+            (
+              switch (op) {
+              | Plus => Int(n1 + n2)
+              | Minus => Int(n1 - n2)
+              | Power => Int(IntUtil.ipow(n1, n2))
+              | Times => Int(n1 * n2)
+              | Divide => Int(n1 / n2)
+              | LessThan => Bool(n1 < n2)
+              | LessThanOrEqual => Bool(n1 <= n2)
+              | GreaterThan => Bool(n1 > n2)
+              | GreaterThanOrEqual => Bool(n1 >= n2)
+              | Equals => Bool(n1 == n2)
+              | NotEquals => Bool(n1 != n2)
+              }
+            )
+            |> fresh,
+          state_update,
+          kind: BinIntOp(op),
+          // False so that InvalidOperations are caught and made indet by the next step
+          is_value: false,
+        })
+      };
     | BinOp(Float(op), d1, d2) =>
       let. _ =
         otherwise(env, (d1, d2) => BinOp(Float(op), d1, d2) |> rewrap)
@@ -783,10 +779,6 @@ module Transition = (EV: EV_MODE) => {
     | Invalid(_) =>
       let. _ = otherwise(env, d);
       // let.wrap_closure _ = env;  // uncomment for hole closures
-      Indet;
-    | DynamicErrorHole(_) =>
-      let. _ = otherwise(env, d);
-      let.wrap_closure _ = env;
       Indet;
     | Cast(d, t1, t2) =>
       let. _ = otherwise(env, d => Cast(d, t1, t2) |> rewrap)

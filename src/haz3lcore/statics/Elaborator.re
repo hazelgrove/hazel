@@ -306,11 +306,6 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           |> rewrap
           |> cast_from(Typ.temp(Unknown(Internal)))
       )
-    | DynamicErrorHole(e, err) =>
-      let (e', _) = elaborate(m, e);
-      DynamicErrorHole(e', err)
-      |> rewrap
-      |> cast_from(Typ.temp(Unknown(Internal)));
     | Cast(e, _, _) // We remove these casts because they should be re-inserted in the recursive call
     | FailedCast(e, _, _)
     | Parens(e) =>

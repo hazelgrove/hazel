@@ -125,7 +125,6 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | Deferral(_)
   | Invalid(_)
   | MultiHole(_)
-  | DynamicErrorHole(_)
   | FailedCast(_)
   | Bool(_)
   | Int(_)
@@ -205,7 +204,6 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | TyAlias(_, _, u)
   | TupLabel(_, u)
   | Filter(_, u) => var_mention(name, u)
-  | DynamicErrorHole(u, _) => var_mention(name, u)
   | FailedCast(u, _, _) => var_mention(name, u)
   | FixF(args, body, _) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
@@ -274,7 +272,6 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
     | Var(x) => x == name ? true : false
     | _ => var_applied(name, u)
     }
-  | DynamicErrorHole(_) => false
   | FailedCast(_) => false
   // This case shouldn't come up!
   | Closure(_) => false
@@ -337,7 +334,6 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Deferral(_)
   | Invalid(_)
   | MultiHole(_)
-  | DynamicErrorHole(_)
   | FailedCast(_)
   | Bool(_)
   | Int(_)

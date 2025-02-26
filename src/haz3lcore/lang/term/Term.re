@@ -405,7 +405,6 @@ module Exp = {
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
-    | DynamicErrorHole(_) => DynamicErrorHole
     | FailedCast(_) => FailedCast
     | Deferral(_) => Deferral
     | Undefined => Undefined
@@ -535,7 +534,6 @@ module Exp = {
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
-    | DynamicErrorHole(_)
     | FailedCast(_)
     | Deferral(_)
     | Undefined
@@ -595,7 +593,6 @@ module Exp = {
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
-      | DynamicErrorHole(_)
       | FailedCast(_)
       | Deferral(_)
       | Undefined
@@ -654,7 +651,6 @@ module Exp = {
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
-      | DynamicErrorHole(_)
       | FailedCast(_)
       | FixF(_)
       | Closure(_)
@@ -820,7 +816,6 @@ module Exp = {
           | Invalid(_)
           | EmptyHole
           | MultiHole(_)
-          | DynamicErrorHole(_)
           | FailedCast(_)
           | Deferral(_)
           | Bool(_)

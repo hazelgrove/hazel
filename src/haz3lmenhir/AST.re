@@ -175,7 +175,6 @@ type exp =
   | If(exp, exp, exp)
   | InvalidExp(string)
   | TypAp(exp, typ)
-  | DynamicErrorHole(exp, string)
   | TyAlias(tpat, typ, exp)
   | IndicationExp(exp);
 

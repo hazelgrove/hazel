@@ -142,7 +142,6 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Label(_)
           | Dot(_)
           | Match(_)
-          | DynamicErrorHole(_)
           | Filter(_)
           | If(_)
           | EmptyHole

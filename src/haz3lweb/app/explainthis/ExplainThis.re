@@ -542,7 +542,6 @@ let get_doc =
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch ((term: Exp.term)) {
       | Invalid(_) => simple("Not a valid expression")
-      | DynamicErrorHole(_)
       | FailedCast(_)
       | Closure(_)
       | Cast(_)

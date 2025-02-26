@@ -220,7 +220,6 @@ and Exp: {
         | Var(_)
         | Undefined => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
-        | DynamicErrorHole(e, err) => DynamicErrorHole(exp_map_term(e), err)
         | FailedCast(e, t1, t2) =>
           FailedCast(exp_map_term(e), typ_map_term(t1), typ_map_term(t2))
         | ListLit(ts) => ListLit(List.map(exp_map_term, ts))
@@ -276,9 +275,7 @@ and Exp: {
 
   let rec fast_equal = (e1: t, e2: t) =>
     switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
-    | (DynamicErrorHole(x, _), _)
     | (Parens(x), _) => fast_equal(x, e2)
-    | (_, DynamicErrorHole(x, _))
     | (_, Parens(x)) => fast_equal(e1, x)
     | (EmptyHole, EmptyHole) => true
     | (Undefined, Undefined) => true

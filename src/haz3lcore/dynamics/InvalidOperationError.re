@@ -6,6 +6,8 @@ type t =
   | NegativeExponent
   | OutOfFuel;
 
+exception Exception(t);
+
 let err_msg = (err: t): string =>
   switch (err) {
   | InvalidOfString => "Error: Invalid String Conversion"

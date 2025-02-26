@@ -155,7 +155,6 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
   | EmptyHole
   | Deferral(_)
   | Undefined => Some(Unknown(Internal) |> Typ.temp)
-  | DynamicErrorHole(e, _) => typ_of_dhexp(ctx, m, e)
   | Closure(env, d) =>
     let* ctx' = env_extend_ctx(env, m, ctx);
     typ_of_dhexp(ctx', m, d);

@@ -301,11 +301,6 @@ module rec Exp: {
     | TypAp(e, ty) => TypAp(of_menhir_ast'(e), Typ.of_menhir_ast'(ty))
     | UnOp(op, e) =>
       UnOp(Operators.op_un_of_menhir_ast(op), of_menhir_ast'(e))
-    | DynamicErrorHole(e, s) =>
-      DynamicErrorHole(
-        of_menhir_ast'(e),
-        Haz3lcore.InvalidOperationError.t_of_sexp(sexp_of_string(s)),
-      )
     | IndicationExp(_) =>
       failwith(
         "IndicationExp should not appear as argument to term_of_menhir_ast.",
@@ -376,11 +371,6 @@ module rec Exp: {
       Filter(FilterAction.of_core(act), of_core(pat), of_core(body))
     | TypAp(e, ty) => TypAp(of_core(e), Typ.of_core(ty))
     | UnOp(op, e) => UnOp(Operators.of_core_op_un(op), of_core(e))
-    | DynamicErrorHole(e, s) =>
-      DynamicErrorHole(
-        of_core(e),
-        Sexplib.Sexp.to_string(Haz3lcore.InvalidOperationError.sexp_of_t(s)),
-      )
     | Deferral(_) => Deferral
     | Filter(Residue(_), _) => raise(Failure("Residue not supported"))
     | MultiHole(_) => raise(Failure("MultiHole not supported"))

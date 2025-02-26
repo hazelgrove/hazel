@@ -138,9 +138,6 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | FailedCast(d, ty1, ty2) =>
     let d' = subst_var(m, d1, x, d);
     FailedCast(d', ty1, ty2) |> rewrap;
-  | DynamicErrorHole(d, err) =>
-    let d' = subst_var(m, d1, x, d);
-    DynamicErrorHole(d', err) |> rewrap;
   | If(d4, d5, d6) =>
     let d4' = subst_var(m, d1, x, d4);
     let d5' = subst_var(m, d1, x, d5);

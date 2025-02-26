@@ -136,20 +136,11 @@ module Pervasives = {
     let atan = float_op(atan);
 
     let of_string =
-        (
-          convert: string => option('a),
-          wrap: 'a => DHExp.t,
-          name: string,
-          d: DHExp.t,
-        ) => {
+        (convert: string => option('a), wrap: 'a => DHExp.t, d: DHExp.t) => {
       let-unbox s = (String, d);
       switch (convert(s)) {
       | Some(n) => Some(wrap(n))
-      | None =>
-        let d' = BuiltinFun(name) |> DHExp.fresh;
-        let d' = Ap(Forward, d', d) |> DHExp.fresh;
-        let d' = DynamicErrorHole(d', InvalidOfString) |> DHExp.fresh;
-        Some(d');
+      | None => raise(InvalidOperationError.Exception(InvalidOfString))
       };
     };
 
@@ -160,19 +151,12 @@ module Pervasives = {
     let bool_of_string =
       of_string(bool_of_string_opt, b => Bool(b) |> DHExp.fresh);
 
-    let int_mod = name =>
+    let int_mod = _ =>
       binary((d1, d2) => {
         let-unbox m = (Int, d1);
         let-unbox n = (Int, d2);
         if (n == 0) {
-          Some(
-            fresh(
-              DynamicErrorHole(
-                Ap(Forward, BuiltinFun(name) |> fresh, d1) |> fresh,
-                DivideByZero,
-              ),
-            ),
-          );
+          raise(InvalidOperationError.Exception(DivideByZero));
         } else {
           Some(fresh(Int(m mod n)));
         };
@@ -209,17 +193,13 @@ module Pervasives = {
         Some(fresh(String(String.concat(s1, xs'))));
       });
 
-    let string_sub = name =>
+    let string_sub = _ =>
       ternary((d1, d2, d3) => {
         let-unbox s = (String, d1);
         let-unbox idx = (Int, d2);
         let-unbox len = (Int, d3);
         try(Some(fresh(String(String.sub(s, idx, len))))) {
-        | _ =>
-          let d' = BuiltinFun(name) |> DHExp.fresh;
-          let d' = Ap(Forward, d', d1) |> DHExp.fresh;
-          let d' = DynamicErrorHole(d', IndexOutOfBounds) |> DHExp.fresh;
-          Some(d');
+        | _ => raise(InvalidOperationError.Exception(IndexOutOfBounds))
         };
       });
 
@@ -253,14 +233,9 @@ module Pervasives = {
     |> fn("string_of_int", Int, String, string_of_int)
     |> fn("string_of_float", Float, String, string_of_float)
     |> fn("string_of_bool", Bool, String, string_of_bool)
-    |> fn("int_of_string", String, Int, int_of_string("int_of_string"))
-    |> fn(
-         "float_of_string",
-         String,
-         Float,
-         float_of_string("float_of_string"),
-       )
-    |> fn("bool_of_string", String, Bool, bool_of_string("bool_of_string"))
+    |> fn("int_of_string", String, Int, int_of_string)
+    |> fn("float_of_string", String, Float, float_of_string)
+    |> fn("bool_of_string", String, Bool, bool_of_string)
     |> fn("abs", Int, Int, abs)
     |> fn("abs_float", Float, Float, abs_float)
     |> fn("ceil", Float, Float, ceil)

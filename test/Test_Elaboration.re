@@ -1037,29 +1037,6 @@ module MenhirElaborationTests = {
       constructor_uexp,
     );
 
-  /*
-   <<1 / 2 ? `a`>>
-       */
-  let dynamic_error_hole_str = "<<(1/0) ? `DivideByZero`>> {Unknown Internal => Int}";
-  let dynamic_error_hole_uexp: Exp.t = {
-    term:
-      DynamicErrorHole(
-        BinOp(Int(Divide), Int(1) |> Exp.fresh, Int(0) |> Exp.fresh)
-        |> Exp.fresh,
-        InvalidOperationError.DivideByZero,
-      ),
-    annotation: {
-      ids: [id_at(0)],
-      copied: false,
-    },
-  };
-  let dynamic_error_hole_menhir = () =>
-    alco_check_menhir(
-      "Dynamic error hole (menhir)",
-      dynamic_error_hole_str,
-      dynamic_error_hole_uexp,
-    );
-
   let builtin_fun_str = "infinity";
   let builtin_fun_uexp: Exp.t = {
     term: BuiltinFun("infinity"),
@@ -1225,11 +1202,6 @@ x
     test_case("Filter test (menhir)", `Quick, filter_menhir),
     test_case("Test failed (menhir)", `Quick, test_menhir),
     test_case("Built-in function (menhir)", `Quick, builtin_fun_menhir),
-    test_case(
-      "Dynamic error hole (menhir)",
-      `Quick,
-      dynamic_error_hole_menhir,
-    ),
     test_case("Failed cast test (menhir)", `Quick, failed_cast_menhir),
     test_case("Constructor test (menhir)", `Quick, constructor_menhir),
     test_case("Type ap test (menhir)", `Quick, typ_ap_menhir),

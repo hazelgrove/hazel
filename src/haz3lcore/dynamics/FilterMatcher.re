@@ -382,7 +382,6 @@ let rec matches_exp =
     // TODO: should these not default to false?
     | (MultiHole(_), _) => false
     | (Invalid(_), _) => false
-    | (DynamicErrorHole(_), _) => false
 
     | (Undefined, _) => false
 

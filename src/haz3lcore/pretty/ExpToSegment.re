@@ -26,8 +26,7 @@ module Settings = {
 let rec external_precedence = (exp: Exp.t): Precedence.t => {
   switch (Exp.term_of(exp)) {
   // Forms which we are about to strip, so we just look inside
-  | Closure(_, x)
-  | DynamicErrorHole(x, _) => external_precedence(x)
+  | Closure(_, x) => external_precedence(x)
 
   // Binary operations are handled in Precedence.re
   | BinOp(op, _, _) => Precedence.of_bin_op(op)
@@ -191,8 +190,7 @@ let rec parenthesize =
   | Undefined => exp
 
   // Forms that currently need to stripped before outputting
-  | Closure(_, x)
-  | DynamicErrorHole(x, _) => parenthesize(x)
+  | Closure(_, x) => parenthesize(x)
   | Filter(Filter({pat, act}), x) =>
     Filter(Filter({pat: parenthesize(pat), act}), parenthesize(x))
     |> rewrap
@@ -697,7 +695,6 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     exp_to_pretty(~settings={...settings, inline});
   switch (exp |> Exp.term_of) {
   // Assume these have been removed by the parenthesizer
-  | DynamicErrorHole(_)
   | Filter(Residue(_), _) => failwith("printing these not implemented yet")
   | Filter(Filter({pat, act}), e) =>
     let id = exp |> Exp.rep_id;
