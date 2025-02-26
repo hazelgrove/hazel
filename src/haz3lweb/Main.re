@@ -162,15 +162,14 @@ let start = {
   let after_display = {
     let%map model = app_model;
     Bonsai.Effect.of_sync_fun(
-      () =>
+      () => {
+        /* Order of effects here is load-bearing to avoid sudden jerks */
+        model.globals.settings.core.statics ? Haz3lcore.Animation.go() : ();
         if (scroll_to_caret.contents) {
           scroll_to_caret := false;
           JsUtil.scroll_cursor_into_view_if_needed();
-        } else {
-          /* Don't animate when scrolling to avoid sudden jerks */
-          model.globals.settings.core.statics
-            ? Haz3lcore.Animation.go() : ();
-        },
+        };
+      },
       (),
     );
   };
