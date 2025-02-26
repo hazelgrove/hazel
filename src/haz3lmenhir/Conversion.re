@@ -206,7 +206,7 @@ module rec Exp: {
     | Bool(b) => bool(b)
     | Var(x) => var(x)
     | Constructor(x, ty) =>
-      constructor(x, Option.map(Typ.of_menhir_ast, ty))
+      constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
     | Deferral => deferral(InAp)
     | ListExp(l) => list_lit(List.map(of_menhir_ast, l))
     | TupleExp([TupLabel(_) as tl]) => parens(tuple([of_menhir_ast(tl)]))
@@ -363,7 +363,8 @@ module rec Exp: {
     | Closure(_) => raise(Failure("Closure not supported"))
     | Parens(e) => of_core(e)
     | Probe(e, _) => of_core(e)
-    | Constructor(s, typ) => Constructor(s, Option.map(Typ.of_core, typ))
+    | Constructor(s, typ) =>
+      Constructor(s, Option.map(Option.map(Typ.of_core), typ))
     | DeferredAp(e, es) =>
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
@@ -527,7 +528,7 @@ and Pat: {
       )
     | VarPat(x) => var(x)
     | ConstructorPat(x, ty) =>
-      constructor(x, Option.map(Typ.of_menhir_ast, ty))
+      constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
     | StringPat(s) => string(s)
     | TuplePat(pats) => parens(tuple(List.map(of_menhir_ast, pats)))
     | ApPat(pat1, pat2) => ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
@@ -552,7 +553,8 @@ and Pat: {
     | Int(i) => IntPat(i)
     | Float(f) => FloatPat(f)
     | Var(x) => VarPat(x)
-    | Constructor(x, ty) => ConstructorPat(x, Option.map(Typ.of_core, ty))
+    | Constructor(x, ty) =>
+      ConstructorPat(x, Option.map(Option.map(Typ.of_core), ty))
     | String(s) => StringPat(s)
     | Tuple(l) => TuplePat(List.map(of_core, l))
     | Bool(b) => BoolPat(b)

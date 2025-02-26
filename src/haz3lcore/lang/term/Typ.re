@@ -550,6 +550,14 @@ let rec matched_args = (ctx, default_arity, ty) => {
   };
 };
 
+let matched_label = (ctx, ty): option((t, t)) =>
+  switch (term_of(weak_head_normalize(ctx, ty))) {
+  | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))
+  | Unknown(SynSwitch) =>
+    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
+  | _ => None
+  };
+
 let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
@@ -588,6 +596,32 @@ let rec is_unknown = (ty: t): bool =>
   | TupLabel(_, x)
   | Parens(x) => is_unknown(x)
   | Unknown(_) => true
+  | _ => false
+  };
+
+let rec is_syn = (ty: t): bool =>
+  switch (ty |> term_of) {
+  | TupLabel(_, x)
+  | Parens(x) => is_syn(x)
+  | Unknown(SynSwitch) => true
+  | _ => false
+  };
+
+let rec is_syn_fun = (ty: t): bool =>
+  switch (ty |> term_of) {
+  | TupLabel(_, x)
+  | Parens(x) => is_syn_fun(x)
+  | Arrow(t1, t2) => is_syn(t1) && is_syn_fun(t2)
+  | _ => false
+  };
+
+let rec is_syn_plus = (ty: t): bool =>
+  switch (ty |> term_of) {
+  | TupLabel(_, x)
+  | Parens(x) => is_syn_plus(x)
+  | Unknown(SynSwitch) => true
+  | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
+  | Forall(_, t) => is_syn(t)
   | _ => false
   };
 

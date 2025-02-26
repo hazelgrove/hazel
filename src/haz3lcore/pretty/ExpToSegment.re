@@ -210,7 +210,10 @@ let rec parenthesize =
   | Filter(Residue(_), x) => x |> parenthesize
   // Other forms
   | Constructor(c, t) =>
-    Constructor(c, Option.map(ty => paren_typ_at(Precedence.cast, ty), t))
+    Constructor(
+      c,
+      Option.map(Option.map(paren_typ_at(Precedence.cast)), t),
+    )
     |> rewrap
   | Fun(p, e, typ, n) =>
     Fun(

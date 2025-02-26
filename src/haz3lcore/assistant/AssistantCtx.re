@@ -105,15 +105,15 @@ let typ_context_entries = (ctx: Ctx.t): list(Suggestion.t) =>
 let suggest_variable = (ci: Info.t): list(Suggestion.t) => {
   let ctx = Info.ctx_of(ci);
   switch (ci) {
-  | InfoExp({mode, _}) =>
-    bound_variables(Mode.ty_of(mode), ctx)
-    @ bound_aps(Mode.ty_of(mode), ctx)
-    @ bound_constructors(x => Exp(Common(x)), Mode.ty_of(mode), ctx)
-    @ bound_constructor_aps(x => Exp(Common(x)), Mode.ty_of(mode), ctx)
-  | InfoPat({mode, co_ctx, _}) =>
-    free_variables(Mode.ty_of(mode), ctx, co_ctx)
-    @ bound_constructors(x => Pat(Common(x)), Mode.ty_of(mode), ctx)
-    @ bound_constructor_aps(x => Pat(Common(x)), Mode.ty_of(mode), ctx)
+  | InfoExp({ana, _}) =>
+    bound_variables(ana, ctx)
+    @ bound_aps(ana, ctx)
+    @ bound_constructors(x => Exp(Common(x)), ana, ctx)
+    @ bound_constructor_aps(x => Exp(Common(x)), ana, ctx)
+  | InfoPat({ana, co_ctx, _}) =>
+    free_variables(ana, ctx, co_ctx)
+    @ bound_constructors(x => Pat(Common(x)), ana, ctx)
+    @ bound_constructor_aps(x => Pat(Common(x)), ana, ctx)
   | InfoTyp(_) => typ_context_entries(ctx)
   | _ => []
   };
@@ -148,14 +148,14 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
   };
   let ctx = Info.ctx_of(ci);
   switch (ci) {
-  | InfoExp({mode, _}) =>
+  | InfoExp({ana, _}) =>
     let exp_refs = ty =>
       bound_variables(ty, ctx)
       @ bound_constructors(x => Exp(Common(x)), ty, ctx);
     let exp_aps = ty =>
       bound_aps(ty, ctx)
       @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
-    switch (Mode.ty_of(mode) |> Typ.term_of) {
+    switch (ana |> Typ.term_of) {
     | List(ty) =>
       List.map(restrategize(" )::"), exp_aps(ty))
       @ List.map(restrategize("::"), exp_refs(ty))
@@ -174,12 +174,12 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
       @ exp_aps(String |> Typ.fresh)
     | _ => []
     };
-  | InfoPat({mode, co_ctx, _}) =>
+  | InfoPat({ana, co_ctx, _}) =>
     let pat_refs = ty =>
       free_variables(ty, ctx, co_ctx)
       @ bound_constructors(x => Pat(Common(x)), ty, ctx);
     let pat_aps = ty => bound_constructor_aps(x => Pat(Common(x)), ty, ctx);
-    switch (Mode.ty_of(mode) |> Typ.term_of) {
+    switch (ana |> Typ.term_of) {
     | List(ty) =>
       List.map(restrategize(" )::"), pat_aps(ty))
       @ List.map(restrategize("::"), pat_refs(ty))

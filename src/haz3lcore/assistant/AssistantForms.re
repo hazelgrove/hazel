@@ -73,8 +73,8 @@ module Typ = {
 
   let expected: Info.t => Typ.t =
     fun
-    | InfoExp({mode, _})
-    | InfoPat({mode, _}) => Mode.ty_of(mode)
+    | InfoExp({ana, _})
+    | InfoPat({ana, _}) => ana
     | _ => Unknown(Internal) |> Typ.fresh;
 
   let filter_by =
