@@ -114,7 +114,7 @@ type pat =
       [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
     )
   | VarPat(string)
-  | ConstructorPat(string, option(typ))
+  | ConstructorPat(string, option(option(typ)))
   | StringPat(string)
   | TuplePat(list(pat))
   | BoolPat(bool)
@@ -145,7 +145,7 @@ type exp =
         [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
       )
   | Var(string)
-  | Constructor(string, option(typ))
+  | Constructor(string, option(option(typ)))
   | String(string)
   | ListExp(list(exp))
   | TupleExp(list(exp))

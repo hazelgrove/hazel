@@ -48,7 +48,11 @@ and exp_term('a) =
   | Float(float)
   | String(string)
   | ListLit(list(exp_t('a)))
-  | Constructor(string, option(typ_t('a))) // Typ.t field is only meaningful in dynamic expressions
+  /* The type double-option field of this constructor is required to assign the correct
+     statics to constructors after evaluation. In dynamic expressions `Some(None)` means
+     that it is a free constructor, while Some(Some(t)) means it has type t. In user expressions
+     this field is None.*/
+  | Constructor(string, option(option(typ_t('a))))
   | Fun(pat_t('a), exp_t('a), option(typ_t('a)), option(Var.t)) // typ_t field is only used to display types in results
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
   | Tuple(list(exp_t('a)))
@@ -90,7 +94,7 @@ and pat_term('a) =
   | Bool(bool)
   | String(string)
   | ListLit(list(pat_t('a)))
-  | Constructor(string, option(typ_t('a))) // Typ.t field is only meaningful in dynamic patterns
+  | Constructor(string, option(option(typ_t('a)))) // see comment on constructor expressions
   | Cons(pat_t('a), pat_t('a))
   | Var(Var.t)
   | Tuple(list(pat_t('a)))
@@ -180,7 +184,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | String(s) => String(s)
         | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
         | Constructor(s, t) =>
-          Constructor(s, Option.map(map_typ_annotation(f), t))
+          Constructor(s, Option.map(Option.map(map_typ_annotation(f)), t))
         | Fun(p, e, t, v) =>
           Fun(
             map_pat_annotation(f, p),
@@ -302,7 +306,7 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | String(s) => String(s)
         | ListLit(l) => ListLit(List.map(x => map_pat_annotation(f, x), l))
         | Constructor(s, t) =>
-          Constructor(s, Option.map(map_typ_annotation(f), t))
+          Constructor(s, Option.map(Option.map(map_typ_annotation(f)), t))
         | Cons(p1, p2) =>
           Cons(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Var(v) => Var(v)
