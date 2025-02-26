@@ -1,7 +1,7 @@
 open Util;
 open OptUtil.Syntax;
 
-[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
+[@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
   | Invalid
   | EmptyHole
@@ -19,7 +19,7 @@ type cls =
   | Sum
   | List
   | Var
-  | Constructor
+  | Constructor // Constructor does not exist on Typ.term it's being used here as a hack for the cursors inspector
   | Parens
   | Ap
   | Rec
@@ -79,7 +79,7 @@ let hole = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
   | [_, ..._] => Unknown(Hole(MultiHole(tms)))
   };
 
-let cls_of_term: term => cls =
+let cls_of_term: Grammar.typ_term('a) => cls =
   fun
   | Unknown(Hole(Invalid(_))) => Invalid
   | Unknown(Hole(EmptyHole)) => EmptyHole
