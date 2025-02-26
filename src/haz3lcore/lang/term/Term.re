@@ -1,5 +1,5 @@
 module Pat = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type cls =
     | Invalid
     | EmptyHole
@@ -333,7 +333,7 @@ module Pat = {
 };
 
 module Exp = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
   type cls =
     | Invalid
     | EmptyHole
@@ -397,7 +397,7 @@ module Exp = {
   let term_of: t => term = IdTagged.term_of;
   let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
-  let cls_of_term: term => cls =
+  let cls_of_term: Grammar.exp_term('a) => cls =
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
@@ -461,7 +461,6 @@ module Exp = {
     | TupLabel => "Labeled Tuple Item"
     | Dot => "Dot operator"
     | Var => "Variable reference"
-    | MetaVar => "Meta variable reference"
     | Let => "Let expression"
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
@@ -877,7 +876,7 @@ module Exp = {
 module Rul = {
   include TermBase.Rul;
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type cls =
     | Rule;
 

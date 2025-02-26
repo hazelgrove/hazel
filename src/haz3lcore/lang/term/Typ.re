@@ -1,7 +1,7 @@
 open Util;
 open OptUtil.Syntax;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type cls =
   | Invalid
   | EmptyHole
