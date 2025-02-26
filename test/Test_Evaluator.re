@@ -611,7 +611,7 @@ in fn("hello")|},
               np(Var("x")),
             ),
           );
-        probe_test({|let x : (a=String) = "a" in x|}, uexp);
+        probe_test({|let x : (a=String) = PROBE("a") in x|}, uexp);
       },
     ),
     test_case(
@@ -643,7 +643,61 @@ in fn("hello")|},
             ),
           );
 
-        probe_test({|"" : (a=String)|}, uexp);
+        probe_test({|PROBE("a") : (a=String)|}, uexp);
+      },
+    ),
+    test_case(
+      "Evaluate probe around inferred singleton labeled tuple in pattern",
+      `Quick,
+      () => {
+        let npp = expected_probe_pat(_, []);
+        let np = expected_probe(_, []);
+        let p = (p, es: list(Grammar.exp_term(unit))) =>
+          expected_probe_pat(
+            Probe(npp(p), {refs: []}),
+            List.map(Grammar.Annotated.empty, es),
+          );
+        let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
+          term: t,
+          annotation: [],
+        };
+        let uexp =
+          np(
+            Let(
+              npp(
+                Cast(
+                  p(
+                    Var("x"),
+                    [
+                      Tuple([
+                        {
+                          term:
+                            TupLabel(
+                              {term: Label("l"), annotation: ()},
+                              {term: String("a"), annotation: ()},
+                            ),
+                          annotation: (),
+                        },
+                      ]),
+                    ],
+                  ),
+                  npt(
+                    Parens(
+                      npt(
+                        Prod([
+                          npt(TupLabel(npt(Label("l")), npt(String))),
+                        ]),
+                      ),
+                    ),
+                  ),
+                  npt(Unknown(Internal)),
+                ),
+              ),
+              np(String("a")),
+              np(Var("x")),
+            ),
+          );
+        probe_test({|let PROBE(x) : (a=String) = "a" in x|}, uexp);
       },
     ),
   ],
