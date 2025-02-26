@@ -202,3 +202,32 @@ let prevent_in_read_only_editor = (a: t) => {
     }
   };
 };
+
+/* Currently animations are disabled during selection
+ * to paper over a weird interaction with scroll-to-caret */
+let should_animate: t => bool =
+  fun
+  | Select(_)
+  | Unselect(_) => false
+  | Paste(_)
+  | Cut
+  | Reparse
+  | Insert(_)
+  | Destruct(_)
+  | Pick_up
+  | Put_down
+  | Buffer(Accept | Clear | Set(_))
+  | Copy
+  | Move(_)
+  | Jump(_)
+  | RotateBackpack
+  | MoveToBackpackTarget(_) => true
+  | Project(p) =>
+    switch (p) {
+    | SetSyntax(_)
+    | SetModel(_)
+    | SetIndicated(_)
+    | RemoveIndicated
+    | Focus(_)
+    | Escape(_) => true
+    };
