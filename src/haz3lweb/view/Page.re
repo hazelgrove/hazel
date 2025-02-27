@@ -64,7 +64,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Globals(Globals.Update.t)
-    | Editors(EditorsUpdate.t)
+    | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
     | Assistant(AssistantModel.Update.t)
     | MakeActive(selection)
@@ -80,6 +80,15 @@ module Update = {
         action: Globals.Update.t,
         model: Model.t,
       ) => {
+    /* A function passed down to trigger an update within
+       assistant which checks for the insertion of '??' */
+    let send_insertion_info = (~char, ~editor) => {
+      AssistantModel.Update.check_req(
+        char,
+        a => schedule_action(Assistant(a)),
+        editor,
+      );
+    };
     switch (action) {
     | SetMousedown(mousedown) =>
       {
@@ -132,7 +141,7 @@ module Update = {
           Editors.Update.update(
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
-            ~schedule_assistant_action=a => schedule_action(Assistant(a)),
+            ~send_insertion_info,
             action,
             model.editors,
           );
@@ -164,7 +173,7 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
-            ~schedule_assistant_action=a => schedule_action(Assistant(a)),
+            ~send_insertion_info,
             action,
             model.editors,
           );
@@ -183,7 +192,7 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
-            ~schedule_assistant_action=a => schedule_action(Assistant(a)),
+            ~send_insertion_info,
             action,
             model.editors,
           );
@@ -202,7 +211,7 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
-            ~schedule_assistant_action=a => schedule_action(Assistant(a)),
+            ~send_insertion_info,
             action,
             model.editors,
           );
@@ -219,6 +228,15 @@ module Update = {
         action: t,
         model: Model.t,
       ) => {
+    /* A function passed down to trigger an update within
+       assistant which checks for the insertion of '??' */
+    let send_insertion_info = (~char, ~editor) => {
+      AssistantModel.Update.check_req(
+        char,
+        a => schedule_action(Assistant(a)),
+        editor,
+      );
+    };
     let globals = {
       ...model.globals,
       export_all: Export.export_all,
@@ -232,7 +250,7 @@ module Update = {
         Editors.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
-          ~schedule_assistant_action=a => schedule_action(Assistant(a)),
+          ~send_insertion_info,
           action,
           model.editors,
         );
@@ -249,6 +267,26 @@ module Update = {
         | Documentation(m) => List.nth(m.scratchpads, m.current) |> snd
         | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl // Todo this is an error
         };
+      open Haz3lcore;
+      let add_suggestion = (~response: string, tile: Id.t) => {
+        // Create a sequence of actions to handle the suggestion
+        let actions = [
+          Action.Select(Tile(Id(tile, Direction.Left))),
+          Action.Destruct(Direction.Left),
+          Action.Buffer(Set(LLMSug(response))),
+        ];
+        // Apply each action in sequence
+        List.iter(
+          action => {
+            let perform_action = CodeEditable.Update.Perform(action);
+            let cell_action = CellEditor.Update.MainEditor(perform_action);
+            let scratch_action =
+              Editors.Update.Scratch(CellAction(cell_action));
+            schedule_action(Editors(scratch_action));
+          },
+          actions,
+        );
+      };
       let* assistant =
         AssistantModel.Update.update(
           ~settings,
@@ -256,7 +294,7 @@ module Update = {
           ~editor=ed.editor,
           ~model=model.assistant,
           ~schedule_action=a => schedule_action(Assistant(a)),
-          ~schedule_editor_action=a => schedule_action(Editors(a)),
+          ~add_suggestion,
         );
       {...model, assistant};
     | MakeActive(selection) => {...model, selection} |> Updated.return
