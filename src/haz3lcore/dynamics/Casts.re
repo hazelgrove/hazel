@@ -136,7 +136,12 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         Cast(
           d1,
           t1,
-          t2_grounded |> DHExp.replace_all_ids_typ |> TypSlice.t_of_typ_t,
+          TypSlice.(
+            t2_grounded
+            |> DHExp.replace_all_ids_typ
+            |> t_of_typ_t
+            |> add_slice(get_slice(t2 |> term_of))
+          ) // Maintain outer constructor slice
         )
         |> DHExp.fresh;
       // HACK: we need to check the inner cast here
@@ -148,7 +153,12 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       Some(
         Cast(
           inner_cast,
-          t2_grounded |> DHExp.replace_all_ids_typ |> TypSlice.t_of_typ_t,
+          TypSlice.(
+            t2_grounded
+            |> DHExp.replace_all_ids_typ
+            |> t_of_typ_t
+            |> add_slice(get_slice(t2 |> term_of))
+          ), // Maintain outer constructor slice
           t2,
         )
         |> DHExp.fresh,
@@ -161,10 +171,20 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           Cast(
             d1,
             t1,
-            t1_grounded |> DHExp.replace_all_ids_typ |> TypSlice.t_of_typ_t,
+            TypSlice.(
+              t1_grounded
+              |> DHExp.replace_all_ids_typ
+              |> t_of_typ_t
+              |> add_slice(get_slice(t1 |> term_of))
+            ) // Maintain outer constructor slice,
           )
           |> DHExp.fresh,
-          t1_grounded |> DHExp.replace_all_ids_typ |> TypSlice.t_of_typ_t,
+          TypSlice.(
+            t1_grounded
+            |> DHExp.replace_all_ids_typ
+            |> t_of_typ_t
+            |> add_slice(get_slice(t1 |> term_of))
+          ), // Maintain outer constructor slice,
           t2,
         )
         |> DHExp.fresh,

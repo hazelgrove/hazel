@@ -1228,6 +1228,24 @@ let is_synswitch = s =>
        | _ => false,
        _ => false);
 
+//
+let get_slice: term => (option(slc_global), option(slc_incr)) =
+  fun
+  | `Typ(_) => (None, None)
+  | `SliceIncr(_, slc_incr) => (None, Some(slc_incr))
+  | `SliceGlobal(`SliceIncr(_, slc_incr), slc_global) => (
+      Some(slc_global),
+      Some(slc_incr),
+    )
+  | `SliceGlobal(_, slc_global) => (Some(slc_global), None);
+
+let rec add_slice = (slc, s) =>
+  switch (slc) {
+  | (None, None) => s
+  | (g, Some(slc_incr)) => s |> add_slice((g, None)) |> wrap_incr(slc_incr)
+  | (Some(slc_global), None) => s |> wrap_global(slc_global)
+  };
+
 /* Does the type require parentheses when on the left of an arrow for printing? */
 let rec needs_parens = (s: t): bool => Typ.needs_parens(typ_of(s));
 
