@@ -198,7 +198,7 @@ module Update = {
         ~editor: CodeModel.t,
         ~model: Model.t,
         ~schedule_action,
-        ~schedule_editor_action,
+        ~add_suggestion,
       )
       : Updated.t(Model.t) => {
     switch (action) {
@@ -380,25 +380,7 @@ module Update = {
     | SelectLLM(llm) => {...model, llm} |> Updated.return_quiet
     | StoreTile(id) => {...model, tile: id} |> Updated.return_quiet
     | RemoveAndSuggest(response) =>
-      // Create a sequence of actions to handle the suggestion
-      let actions = [
-        Action.Select(Tile(Id(model.tile, Direction.Left))),
-        Action.Destruct(Direction.Left),
-        Action.Buffer(Set(LLMSug(response))),
-      ];
-
-      // Apply each action in sequence
-      List.iter(
-        action => {
-          let perform_action = CodeEditable.Update.Perform(action);
-          let cell_action = CellEditor.Update.MainEditor(perform_action);
-          let scratch_action =
-            EditorsUpdate.Scratch(CellAction(cell_action));
-          schedule_editor_action(scratch_action);
-        },
-        actions,
-      );
-
+      add_suggestion(~response, model.tile);
       {...model, tile: Id.invalid} |> Updated.return_quiet;
     };
   };

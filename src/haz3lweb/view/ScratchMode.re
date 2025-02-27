@@ -5,17 +5,20 @@ open Util;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = ScratchModeModel.t;
+  type t = {
+    current: int,
+    scratchpads: list((string, CellEditor.Model.t)),
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = ScratchModeModel.persistent;
+  type persistent = (int, list((string, CellEditor.Model.persistent)));
 
-  let persist = (model: t) => (
+  let persist = model => (
     model.current,
     List.map(((_, m)) => CellEditor.Model.persist(m), model.scratchpads),
   );
 
-  let unpersist = (~settings, (current, slides)): t => {
+  let unpersist = (~settings, (current, slides)) => {
     current,
     scratchpads:
       List.mapi(
@@ -25,7 +28,7 @@ module Model = {
       ),
   };
 
-  let persist_documentation = (model: ScratchModeModel.t) => (
+  let persist_documentation = model => (
     model.current,
     List.map(
       ((s, m)) => (s, CellEditor.Model.persist(m)),
@@ -33,7 +36,7 @@ module Model = {
     ),
   );
 
-  let unpersist_documentation = (~settings, (current, slides)): t => {
+  let unpersist_documentation = (~settings, (current, slides)) => {
     current,
     scratchpads:
       List.map(
@@ -62,7 +65,13 @@ module Store =
 module Update = {
   open Updated;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = ScratchModeUpdate.t;
+  type t =
+    | CellAction(CellEditor.Update.t)
+    | SwitchSlide(int)
+    | ResetCurrent
+    | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
+    | FinishImportScratchpad(option(string))
+    | Export;
 
   let export_scratch_slide = (model: Model.t): unit => {
     Store.save(model |> Model.persist);
@@ -76,11 +85,11 @@ module Update = {
 
   let update =
       (
-        ~schedule_action: t => unit,
-        ~schedule_assistant_action: AssistantModel.Update.t => unit,
+        ~schedule_action,
+        ~send_insertion_info,
         ~settings: Settings.t,
         ~is_documentation: bool,
-        action: t,
+        action,
         model: Model.t,
       ) => {
     switch (action) {
@@ -93,10 +102,9 @@ module Update = {
         | Perform(a) =>
           switch (a) {
           | Insert(char) =>
-            AssistantModel.Update.check_req(
-              char,
-              schedule_assistant_action,
-              new_ed.editor.editor.state.zipper,
+            send_insertion_info(
+              ~char,
+              ~editor=new_ed.editor.editor.state.zipper,
             )
           | _ => ()
           }
@@ -152,8 +160,7 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~schedule_action: t => unit, ~is_edited, model: Model.t)
-      : Model.t => {
+      (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
     let (key, ed) = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
@@ -215,7 +222,7 @@ module Selection = {
           ~selection=s,
           List.nth(model.scratchpads, model.current) |> snd,
         );
-      ScratchModeUpdate.CellAction(a);
+      Update.CellAction(a);
     | TextBox => empty
     };
   };
@@ -227,14 +234,14 @@ module Selection = {
       switch (event) {
       | {key: D(key), sys: Mac | PC, shift: Up, meta: Down, ctrl: Up, alt: Up}
           when Keyboard.is_digit(key) =>
-        Some(ScratchModeUpdate.SwitchSlide(int_of_string(key)))
+        Some(Update.SwitchSlide(int_of_string(key)))
       | _ =>
         CellEditor.Selection.handle_key_event(
           ~selection=s,
           ~event,
           List.nth(model.scratchpads, model.current) |> snd,
         )
-        |> Option.map(x => ScratchModeUpdate.CellAction(x))
+        |> Option.map(x => Update.CellAction(x))
       }
     | TextBox => None
     };
@@ -244,7 +251,7 @@ module Selection = {
       tile,
       List.nth(model.scratchpads, model.current) |> snd,
     )
-    |> Option.map(((x, y)) => (ScratchModeUpdate.CellAction(x), Cell(y)));
+    |> Option.map(((x, y)) => (Update.CellAction(x), Cell(y)));
 };
 
 module View = {

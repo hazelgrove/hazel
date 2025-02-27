@@ -8,9 +8,17 @@ open Node;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = ExerciseModeModel.t;
+  type t = {
+    spec: Exercise.spec, // The spec that the model will be reset to on ResetExercise
+    /* We keep a separate editors field below (even though each cell technically also has its own editor)
+       for two reasons:
+          1. There are two synced cells that have the same internal `editor` model
+          2. The editors need to be `stitched` together before any cell calculations can be done */
+    editors: Exercise.p(Editor.t),
+    cells: Exercise.stitched(CellEditor.Model.t),
+  };
 
-  let of_spec = (~settings as _, ~instructor_mode as _: bool, spec): t => {
+  let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
     let editors = Exercise.map(spec, Editor.Model.mk, Editor.Model.mk);
     let term_item_to_cell = (item: Exercise.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
@@ -22,7 +30,7 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = ExerciseModeModel.persistent;
+  type persistent = Exercise.persistent_exercise_mode;
 
   let persist = (exercise: t, ~instructor_mode: bool) => {
     Exercise.positioned_editors(exercise.editors)
@@ -43,16 +51,13 @@ module Model = {
 module Update = {
   open Updated;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = ExerciseModeUpdate.t;
+  type t =
+    | Editor(Exercise.pos, CellEditor.Update.t)
+    | ResetEditor(Exercise.pos)
+    | ResetExercise;
 
   let update =
-      (
-        ~settings: Settings.t,
-        ~schedule_action as _,
-        ~schedule_assistant_action: AssistantModel.Update.t => unit,
-        action: t,
-        model: Model.t,
-      )
+      (~settings: Settings.t, ~schedule_action as _, action, model: Model.t)
       : Updated.t(Model.t) => {
     let instructor_mode = settings.instructor_mode;
     switch (action) {
@@ -66,19 +71,6 @@ module Update = {
         editor
         |> CodeEditable.Model.mk
         |> CodeEditable.Update.update(~settings, action);
-      switch (action) {
-      | Perform(a) =>
-        switch (a) {
-        | Insert(char) =>
-          AssistantModel.Update.check_req(
-            char,
-            schedule_assistant_action,
-            new_editor.editor.state.zipper,
-          )
-        | _ => ()
-        }
-      | _ => ()
-      };
       {
         ...model,
         editors:
@@ -98,19 +90,6 @@ module Update = {
           editor
           |> CodeSelectable.Model.mk
           |> CodeSelectable.Update.update(~settings, a);
-        switch (action) {
-        | Perform(a) =>
-          switch (a) {
-          | Insert(char) =>
-            AssistantModel.Update.check_req(
-              char,
-              schedule_assistant_action,
-              new_editor.editor.state.zipper,
-            )
-          | _ => ()
-          }
-        | _ => ()
-        };
         {
           ...model,
           editors:
@@ -152,8 +131,7 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action: t => unit, model: Model.t)
-      : Model.t => {
+      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
     let stitched_elabs = Exercise.stitch_term(model.editors);
     let worker_request = ref([]);
     let queue_worker = (pos, expr) => {
@@ -275,14 +253,14 @@ module Selection = {
     let (pos, s) = selection;
     let cell_editor = Exercise.get_stitched(pos, model.cells);
     let+ a = CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
-    ExerciseModeUpdate.Editor(pos, a);
+    Update.Editor(pos, a);
   };
 
   let handle_key_event = (~selection, ~event, model: Model.t) => {
     let (pos, s) = selection;
     let cell_editor = Exercise.get_stitched(pos, model.cells);
     CellEditor.Selection.handle_key_event(~selection=s, ~event, cell_editor)
-    |> Option.map(a => ExerciseModeUpdate.Editor(pos, a));
+    |> Option.map(a => Update.Editor(pos, a));
   };
 
   let jump_to_tile =
@@ -294,10 +272,7 @@ module Selection = {
        )
     |> Option.map(((pos, _)) =>
          (
-           ExerciseModeUpdate.Editor(
-             pos,
-             MainEditor(Perform(Jump(TileId(tile)))),
-           ),
+           Update.Editor(pos, MainEditor(Perform(Jump(TileId(tile))))),
            (pos, CellEditor.Selection.MainEditor),
          )
        );
