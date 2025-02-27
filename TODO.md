@@ -47,7 +47,9 @@ As compared to `witnesses` branch:
 
 # Slicing
 - [X] Add slices to inserted casts to least specific compound types, i.e. [ ]
-- [ ] HIGH PRIORITY: UI for synthesis slices AND analysis slices AND their joins
+- [ ] HIGH PRIORITY: UI for synthesis slices AND analysis slices AND their joins.
+- [ ] HIGH PRIORITY: Allow turning slicing off.
+- [ ] MIDDLE PRIORITY: Fix slice performance when scrolling.
 
 # SEARCH PROC/INDET EVAL:
 - [ ] Catch only cast errors in direct evaluation line - i.e. having been established by hole instantiation (which also only are instantiated in direct evaluation line)
