@@ -34,30 +34,25 @@ let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
 let init_from_term = (~settings: CoreSettings.t, term): t => {
   let ctx_init = Builtins.ctx_init;
-  let (info_map, error_ids, elaborated) =
-    switch () {
-    | _ when !settings.statics => (
-        Id.Map.empty,
-        [],
-        dh_err("Statics disabled"),
-      )
-    | _ when !settings.dynamics && !settings.elaborate =>
-      let info_map = Statics.mk(ctx_init, term);
-      (
-        info_map,
-        Statics.error_ids(info_map),
-        dh_err("Dynamics & Elaboration disabled"),
-      );
-    | _ =>
-      let info_map = Statics.mk(ctx_init, term);
+  if (!settings.statics) {
+    let elaborated = dh_err("Statics disabled");
+    {term, elaborated, info_map: Id.Map.empty, error_ids: []};
+  } else {
+    let info_map = Statics.mk(ctx_init, term);
+    let error_ids = Statics.error_ids(info_map);
+    if (!settings.dynamics && !settings.elaborate) {
+      let elaborated = dh_err("Dynamics & Elaboration disabled");
+
+      {term, elaborated, info_map, error_ids};
+    } else {
       let elaborated =
         switch (elaborate(info_map, term)) {
         | DoesNotElaborate => dh_err("Elaboration returns None")
         | Elaborates(d, _, _) => d
         };
-      (info_map, Statics.error_ids(info_map), elaborated);
+      {term, elaborated, info_map, error_ids};
     };
-  {term, elaborated, info_map, error_ids};
+  };
 };
 
 let init = (~settings: CoreSettings.t, ~stitch, z: Zipper.t): t => {
