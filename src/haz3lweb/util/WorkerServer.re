@@ -29,7 +29,12 @@ module Response = {
 
 let work = (res: Request.value, search, n): Response.value =>
   switch (
-    Haz3lcore.IndetEvaluator.evaluate'(Haz3lcore.Builtins.env_init, res)
+    res
+    |> Haz3lcore.(
+         search
+           ? SearchProc.evaluate'(Builtins.env_init)
+           : IndetEvaluator.evaluate'(Builtins.env_init)
+       )
   ) {
   | exception (Haz3lcore.EvaluatorError.Exception(reason)) =>
     print_endline(
@@ -44,11 +49,7 @@ let work = (res: Request.value, search, n): Response.value =>
   //| (state, result) => Ok((result, state))
   | results =>
     Ok((
-      BoxedValue(
-        results
-        |> (search ? Haz3lcore.Futures.failed_casts : (x => x))
-        |> Haz3lcore.Futures.nth(n),
-      ),
+      BoxedValue(results |> Haz3lcore.Futures.nth(n)),
       Haz3lcore.EvaluatorState.init,
     ))
   };
