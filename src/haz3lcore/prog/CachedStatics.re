@@ -38,7 +38,7 @@ let init_from_term = (~settings: CoreSettings.t, term): t => {
     let elaborated = dh_err("Statics disabled");
     {term, elaborated, info_map: Id.Map.empty, error_ids: []};
   } else {
-    let info_map = Statics.mk(ctx_init, term);
+    let (info_map, term) = Statics.mk(ctx_init, term);
     let error_ids = Statics.error_ids(info_map);
     if (!settings.dynamics && !settings.elaborate) {
       let elaborated = dh_err("Dynamics & Elaboration disabled");

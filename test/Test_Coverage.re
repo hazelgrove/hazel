@@ -21,7 +21,7 @@ let has_errors = (name: string, exp: string, errors: list(Info.error)) => {
     `Quick,
     () => {
       let (e, ids) = parse_menhir(exp);
-      let s = statics(e);
+      let s = fst(statics(e));
       let actual_errors = Statics.collect_errors(s);
       let expected_errors = Id.Map.of_list(List.combine(ids, errors));
       Alcotest.check(

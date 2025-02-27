@@ -1653,6 +1653,20 @@ let mk =
     |> snd
   });
 
+let mk = (ctx, e) => {
+  let info_map = mk(ctx, e);
+  let exp_info =
+    Id.Map.find(Exp.rep_id(e), info_map)
+    |> (
+      info =>
+        switch (info) {
+        | Info.InfoExp(info) => info // TODO This should be returned from uexp_to_info_map and exception removed
+        | _ => failwith("Invalid sort for expression.")
+        }
+    );
+  (info_map, exp_info.term);
+};
+
 let get_error_at = (info_map: Map.t, id: Id.t) => {
   id
   |> Id.Map.find_opt(_, info_map)

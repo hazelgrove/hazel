@@ -58,7 +58,7 @@ module FreshId = {
   let tup_label = (a, b) => TupLabel(a, b) |> Typ.fresh;
   let string = Typ.fresh(String);
 };
-let statics = Statics.mk(Builtins.ctx_init);
+let statics_map = u => Statics.mk(Builtins.ctx_init, u) |> fst;
 
 let parse_exp = (s: string) => {
   switch (MakeTerm.parse_exp(s)) {
@@ -118,7 +118,7 @@ let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
 let annotated_tree_test = (name, expected) => {
   let term = fresh(Grammar.map_exp_annotation(_ => (), expected));
   let annotated: Grammar.exp_t(option(Info.error)) =
-    annotate_static_errors(term, statics(term));
+    annotate_static_errors(term, statics_map(term));
 
   Alcotest.check(annotated_exp, name, expected, annotated);
 };
@@ -126,7 +126,7 @@ let annotated_tree_test = (name, expected) => {
 // Get the type from the statics
 let type_of = f => {
   IdTagged.rep_id(f)
-  |> Id.Map.find_opt(_, statics(f))
+  |> Id.Map.find_opt(_, statics_map(f))
   |> Option.bind(
        _,
        fun
@@ -140,7 +140,7 @@ let inconsistent_typecheck = (name, exp) => {
     name,
     `Quick,
     () => {
-      let s = statics(exp);
+      let s = statics_map(exp);
 
       let errors = List.map(snd, Id.Map.to_list(Statics.collect_errors(s)));
 
@@ -159,7 +159,7 @@ let fully_consistent_typecheck = (name, serialized, expected) => {
     `Quick,
     () => {
       let exp = parse_exp(serialized);
-      let s = statics(exp);
+      let s = statics_map(exp);
       let errors = List.map(snd, Id.Map.to_list(Statics.collect_errors(s)));
       Alcotest.check(list(testable_error), "Static Errors", [], errors);
       Alcotest.check(
