@@ -57,6 +57,11 @@ As compared to `witnesses` branch:
 - [ ] Analyse how hole substitute could explode the stack when closures are deeply nested (i.e. in FixF terms)
 - [ ] Add depth limits to search (i.e. iterative deepening)
 - [ ] Implement Type Function instantiation
+- [ ] Tag futures with previous instantiation info
+
+# Indet Stepper:
+- [ ] User instantiations
+- [ ] 
 
 ## Bugs
 ### High Priority
@@ -64,6 +69,7 @@ As compared to `witnesses` branch:
 - [X] Multiple holes not instantiated, i.e. ? + ?
 - [X] Instantiating products crashes: `let x = ? in let y = ? in (x, y)`
 - [ ] Products not being instantiated to inner types, i.e. ? : (Int, Int) is instantiated to (?, ?) : (Int, Int) but then no transition is taken to (? : Int, ? : Int). This is an issue with the Transition rules!!
+- [ ] Cons not instantiating tail, i.e. in `?::?` -> `?::[]` / `?::[?]` / `?::[?, ?]` ....
 - [X] Multiple hole instantiations not trying all possibilities, i.e. when a second hold could be instantiated but the only the first seems to be instantiated (might be weirdness from interleaving sequences).
 - [X] Holes being instantiated multiple times in same way redundantly (when multiple holes involved, i.e. (? : Int,? : Int))
 - [ ] Cast slicing in stepper does not highlight in editor
@@ -80,7 +86,7 @@ end```
 - [ ] Unbound vars not instantiated in IndetEvaluator
 
 ## Low Priority
-- [ ] Deferrals: See failed test
+- [X] Deferrals: See failed test
 - [X] Parentheses not highlighted in slices (likely due to type normliasation?)
 - [ ] Type application not highlighted in slice, e.g: let f : forall A -> A -> A = typfun B -> fun x -> x in f@<Int>**(** 2 **)**. This is because (probably): type slice substitution drops all slices (as `Var(_)` appears only in Typ. and Typ.subst is used here)
 - [X] Cast slice stack overflows see: `let f : forall A -> A -> A = typfun B -> fun x -> x in f@<Int>(2)`
