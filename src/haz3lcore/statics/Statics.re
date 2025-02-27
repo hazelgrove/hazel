@@ -1653,9 +1653,6 @@ let mk =
     |> snd
   });
 
-let mk = (core: CoreSettings.t, ctx, exp) =>
-  core.statics ? mk(ctx, exp) : Id.Map.empty;
-
 let get_error_at = (info_map: Map.t, id: Id.t) => {
   id
   |> Id.Map.find_opt(_, info_map)

@@ -20,8 +20,7 @@ let parse_exp = (s: string) => {
   };
 };
 let elaborate = u =>
-  Elaborator.elaborate(Statics.mk(CoreSettings.on, Builtins.ctx_init, u), u)
-  |> fst;
+  Elaborator.elaborate(Statics.mk(Builtins.ctx_init, u), u) |> fst;
 let parse_and_evaluate = (s: string) =>
   ProgramResult.Result.unbox(
     snd(Evaluator.evaluate'(Builtins.env_init, elaborate(parse_exp(s)))),

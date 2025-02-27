@@ -58,7 +58,7 @@ module FreshId = {
   let tup_label = (a, b) => TupLabel(a, b) |> Typ.fresh;
   let string = Typ.fresh(String);
 };
-let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init);
+let statics = Statics.mk(Builtins.ctx_init);
 
 let parse_exp = (s: string) => {
   switch (MakeTerm.parse_exp(s)) {

@@ -32,20 +32,30 @@ let elaborate =
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
-let init_from_term = (~settings, term): t => {
+let init_from_term = (~settings: CoreSettings.t, term): t => {
   let ctx_init = Builtins.ctx_init;
-  let info_map = Statics.mk(settings, ctx_init, term);
-  let error_ids = Statics.error_ids(info_map);
-  let elaborated =
+  let (info_map, error_ids, elaborated) =
     switch () {
-    | _ when !settings.statics => dh_err("Statics disabled")
+    | _ when !settings.statics => (
+        Id.Map.empty,
+        [],
+        dh_err("Statics disabled"),
+      )
     | _ when !settings.dynamics && !settings.elaborate =>
-      dh_err("Dynamics & Elaboration disabled")
+      let info_map = Statics.mk(ctx_init, term);
+      (
+        info_map,
+        Statics.error_ids(info_map),
+        dh_err("Dynamics & Elaboration disabled"),
+      );
     | _ =>
-      switch (elaborate(info_map, term)) {
-      | DoesNotElaborate => dh_err("Elaboration returns None")
-      | Elaborates(d, _, _) => d
-      }
+      let info_map = Statics.mk(ctx_init, term);
+      let elaborated =
+        switch (elaborate(info_map, term)) {
+        | DoesNotElaborate => dh_err("Elaboration returns None")
+        | Elaborates(d, _, _) => d
+        };
+      (info_map, Statics.error_ids(info_map), elaborated);
     };
   {term, elaborated, info_map, error_ids};
 };
