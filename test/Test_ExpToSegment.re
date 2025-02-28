@@ -205,16 +205,8 @@ let tests = (
             Match(
               Var("x") |> Exp.fresh,
               [
-                (
-                  Constructor("A", Unknown(Internal) |> Typ.fresh)
-                  |> Pat.fresh,
-                  Int(1) |> Exp.fresh,
-                ),
-                (
-                  Constructor("B", Unknown(Internal) |> Typ.fresh)
-                  |> Pat.fresh,
-                  Int(2) |> Exp.fresh,
-                ),
+                (Constructor("A", None) |> Pat.fresh, Int(1) |> Exp.fresh),
+                (Constructor("B", None) |> Pat.fresh, Int(2) |> Exp.fresh),
               ],
             )
             |> Exp.fresh,

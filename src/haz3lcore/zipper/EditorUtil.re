@@ -34,19 +34,49 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | BinOp(_)
   | BuiltinFun(_)
   | Cast(_)
-  | Match(_) => {ids: [Id.mk()], copied: false, term: Seq(e1, e2)}
+  | Match(_) => {
+      term: Seq(e1, e2),
+      annotation: {
+        ids: [Id.mk()],
+        copied: false,
+      },
+    }
   | Seq(e11, e12) =>
     let e12' = append_exp(e12, e2);
-    {ids: e1.ids, copied: false, term: Seq(e11, e12')};
+    {
+      term: Seq(e11, e12'),
+      annotation: {
+        ids: IdTagged.ids(e1),
+        copied: false,
+      },
+    };
   | Filter(kind, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    {ids: e1.ids, copied: false, term: Filter(kind, ebody')};
+    {
+      term: Filter(kind, ebody'),
+      annotation: {
+        ids: IdTagged.ids(e1),
+        copied: false,
+      },
+    };
   | Let(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    {ids: e1.ids, copied: false, term: Let(p, edef, ebody')};
+    {
+      term: Let(p, edef, ebody'),
+      annotation: {
+        ids: IdTagged.ids(e1),
+        copied: false,
+      },
+    };
   | TyDef(tp, tdef, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    {ids: e1.ids, copied: false, term: TyDef(tp, tdef, ebody')};
+    {
+      term: TyDef(tp, tdef, ebody'),
+      annotation: {
+        ids: IdTagged.ids(e1),
+        copied: false,
+      },
+    };
   };
 };
 
@@ -56,13 +86,17 @@ let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
       Filter({
         act: FilterAction.(act, One),
         pat: {
-          term: Constructor("$e", Unknown(Internal) |> Typ.fresh),
-          copied: false,
-          ids: [Id.mk()],
+          term: Constructor("$e", Some(Unknown(Internal) |> Typ.fresh)),
+          annotation: {
+            copied: false,
+            ids: [Id.mk()],
+          },
         },
       }),
       term,
     ),
-  copied: false,
-  ids: [Id.mk()],
+  annotation: {
+    copied: false,
+    ids: [Id.mk()],
+  },
 };

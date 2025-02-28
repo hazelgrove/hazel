@@ -60,6 +60,8 @@ rule token =
     | "}" { CLOSE_CURLY }
     | "(" { OPEN_PAREN }
     | ")" { CLOSE_PAREN }
+    | "{{{" { OPEN_TRIPLE_CURLY }
+    | "}}}" { CLOSE_TRIPLE_CURLY }
     | "->" { DASH_ARROW }
     | "=>" { EQUAL_ARROW }
     | "=" { SINGLE_EQUAL }

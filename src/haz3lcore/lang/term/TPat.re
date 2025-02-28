@@ -9,6 +9,7 @@ type cls =
 include TermBase.TPat;
 
 let rep_id: t => Id.t = IdTagged.rep_id;
+
 let fresh: term => t = IdTagged.fresh;
 
 let hole = (tms: list(TermBase.Any.t)): TermBase.TPat.term =>
@@ -33,4 +34,11 @@ let show_cls: cls => string =
   | Ap => "Type substitution"
   | Var => "Type alias";
 
-let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
+let temp: term => t =
+  term => {
+    term,
+    annotation: {
+      ids: [Id.invalid],
+      copied: false,
+    },
+  };

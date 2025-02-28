@@ -1,11 +1,5 @@
-open Util;
-
 let continue = x => x;
 let stop = (_, x) => x;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type deferral_position_t =
-  | InAp
-  | OutsideAp;
 
 /*
    This megafile contains the definitions of the expression data types in
@@ -47,6 +41,7 @@ type deferral_position_t =
  */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+<<<<<<< HEAD:src/haz3lcore/statics/TermBase.re
 type any_t =
   | Exp(exp_t)
   | Pat(pat_t)
@@ -172,6 +167,43 @@ and filter = {
   pat: exp_t,
   act: FilterAction.t,
 };
+=======
+type any_t = Grammar.any_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type exp_t = Grammar.exp_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type exp_term = Grammar.exp_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type pat_t = Grammar.pat_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type pat_term = Grammar.pat_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typ_t = Grammar.typ_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typ_term = Grammar.typ_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tpat_t = Grammar.tpat_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tpat_term = Grammar.tpat_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type rul_t = Grammar.rul_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type rul_term = Grammar.rul_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type environment_t = Grammar.environment_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type closure_environment_t = Grammar.closure_environment_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type stepper_filter_kind_t = Grammar.stepper_filter_kind_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type type_hole = Grammar.type_hole(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type type_provenance = Grammar.type_provenance(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type filter = Grammar.filter(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type deferral_position_t = Grammar.deferral_position_t;
+>>>>>>> dev:src/haz3lcore/lang/term/TermBase.re
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -190,6 +222,7 @@ module rec Any: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
@@ -202,9 +235,9 @@ module rec Any: {
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
-        x,
+        x: any_t,
       ) => {
-    let rec_call = y =>
+    let rec_call = (y: any_t): any_t =>
       switch (y) {
       | Exp(x) =>
         Exp(Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
@@ -223,7 +256,7 @@ module rec Any: {
     x |> f_any(rec_call);
   };
 
-  let fast_equal = (x, y) =>
+  let fast_equal = (x: t, y: t) =>
     switch (x, y) {
     | (Exp(x), Exp(y)) => Exp.fast_equal(x, y)
     | (Pat(x), Pat(y)) => Pat.fast_equal(x, y)
@@ -238,6 +271,8 @@ module rec Any: {
     | (Rul(_), _)
     | (Any (), _) => false
     };
+
+  let equal = fast_equal;
 }
 and Exp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -259,6 +294,7 @@ and Exp: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = exp_term;
@@ -366,8 +402,8 @@ and Exp: {
     x |> f_exp(rec_call);
   };
 
-  let rec fast_equal = (e1, e2) =>
-    switch (e1 |> IdTagged.term_of, e2 |> IdTagged.term_of) {
+  let rec fast_equal = (e1: t, e2: t) =>
+    switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
     | (DynamicErrorHole(x, _), _)
     | (Parens(x), _) => fast_equal(x, e2)
     | (_, DynamicErrorHole(x, _))
@@ -389,8 +425,9 @@ and Exp: {
     | (Label(s1), Label(s2)) => s1 == s2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
-    | (Constructor(c1, ty1), Constructor(c2, ty2)) =>
+    | (Constructor(c1, Some(ty1)), Constructor(c2, Some(ty2))) =>
       c1 == c2 && Typ.fast_equal(ty1, ty2)
+    | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
     | (Fun(p1, e1, t1, _), Fun(p2, e2, t2, _)) =>
       Pat.fast_equal(p1, p2)
       && fast_equal(e1, e2)
@@ -488,6 +525,7 @@ and Exp: {
     | (EmptyHole, _)
     | (Undefined, _) => false
     };
+  let equal = fast_equal;
 }
 and Pat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -508,6 +546,7 @@ and Pat: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = pat_term;
@@ -560,7 +599,7 @@ and Pat: {
   };
 
   let rec fast_equal = (p1: t, p2: t) =>
-    switch (p1 |> IdTagged.term_of, p2 |> IdTagged.term_of) {
+    switch (p1 |> Grammar.Annotated.term_of, p2 |> Grammar.Annotated.term_of) {
     | (Parens(x), _) => fast_equal(x, p2)
     | (_, Parens(x)) => fast_equal(p1, x)
     | (EmptyHole, EmptyHole) => true
@@ -574,8 +613,9 @@ and Pat: {
     | (Float(f1), Float(f2)) => f1 == f2
     | (String(s1), String(s2)) => s1 == s2
     | (Label(s1), Label(s2)) => s1 == s2
-    | (Constructor(c1, t1), Constructor(c2, t2)) =>
+    | (Constructor(c1, Some(t1)), Constructor(c2, Some(t2))) =>
       c1 == c2 && Typ.fast_equal(t1, t2)
+    | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
     | (Var(v1), Var(v2)) => v1 == v2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
@@ -606,6 +646,7 @@ and Pat: {
     | (Ap(_), _)
     | (Cast(_), _) => false
     };
+  let equal = fast_equal;
 }
 and Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -630,6 +671,7 @@ and Typ: {
   let subst: (t, TPat.t, t) => t;
 
   let fast_equal: (~alpha_equivalence: bool=?, t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = typ_term;
@@ -699,7 +741,7 @@ and Typ: {
   let rec subst = (s: t, x: TPat.t, ty: t): typ_t => {
     switch (TPat.tyvar_of_utpat(x)) {
     | Some(str) =>
-      let (term, rewrap) = IdTagged.unwrap(ty);
+      let (term, rewrap) = Grammar.Annotated.unwrap(ty);
       switch (term) {
       | Int => (Int: typ_term) |> rewrap
       | Float => Float |> rewrap
@@ -734,7 +776,7 @@ and Typ: {
      Other types may be equivalent but this will not detect so if they are not normalized. */
 
   let rec eq_internal = (~alpha_equivalence: bool, n: int, t1: t, t2: t) => {
-    switch (IdTagged.term_of(t1), IdTagged.term_of(t2)) {
+    switch (Grammar.Annotated.term_of(t1), Grammar.Annotated.term_of(t2)) {
     | (Parens(t1), _) => eq_internal(~alpha_equivalence, n, t1, t2)
     | (_, Parens(t2)) => eq_internal(~alpha_equivalence, n, t1, t2)
     | (TupLabel(label1, t1'), TupLabel(label2, t2')) =>
@@ -747,8 +789,10 @@ and Typ: {
         let alpha_subst =
           subst({
             term: Var("=" ++ string_of_int(n)),
-            copied: false,
-            ids: [Id.invalid],
+            annotation: {
+              copied: false,
+              ids: [Id.invalid],
+            },
           });
         eq_internal(
           ~alpha_equivalence,
@@ -802,6 +846,7 @@ and Typ: {
 
   let fast_equal = (~alpha_equivalence=true, t1, t2) =>
     eq_internal(~alpha_equivalence, 0, t1, t2);
+  let equal: (t, t) => bool = fast_equal(~alpha_equivalence=true);
 }
 and TPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -824,6 +869,7 @@ and TPat: {
   let tyvar_of_utpat: t => option(string);
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = tpat_term;
@@ -863,7 +909,10 @@ and TPat: {
     };
 
   let fast_equal = (tp1: t, tp2: t) =>
-    switch (tp1 |> IdTagged.term_of, tp2 |> IdTagged.term_of) {
+    switch (
+      tp1 |> Grammar.Annotated.term_of,
+      tp2 |> Grammar.Annotated.term_of,
+    ) {
     | (EmptyHole, EmptyHole) => true
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (MultiHole(xs), MultiHole(ys)) =>
@@ -877,6 +926,7 @@ and TPat: {
     | (MultiHole(_), _)
     | (Var(_), _) => false
     };
+  let equal = fast_equal;
 }
 and Rul: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -897,6 +947,7 @@ and Rul: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = rul_term;
@@ -939,7 +990,7 @@ and Rul: {
   };
 
   let fast_equal = (r1: t, r2: t) =>
-    switch (r1 |> IdTagged.term_of, r2 |> IdTagged.term_of) {
+    switch (r1 |> Grammar.Annotated.term_of, r2 |> Grammar.Annotated.term_of) {
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (Hole(xs), Hole(ys)) =>
       List.length(xs) == List.length(ys)
@@ -957,6 +1008,7 @@ and Rul: {
     | (Hole(_), _)
     | (Rules(_), _) => false
     };
+  let equal = fast_equal;
 }
 
 and Environment: {
@@ -1085,7 +1137,8 @@ and ClosureEnvironment: {
   let without_keys = keys => update(Environment.without_keys(keys));
   let with_symbolic_keys = (keys, env) =>
     List.fold_right(
-      (key, env) => extend(env, (key, Var(key) |> IdTagged.fresh)),
+      (key, env) =>
+        extend(env, (key, (Var(key): exp_term) |> IdTagged.fresh)),
       keys,
       env,
     );
