@@ -520,15 +520,11 @@
 #assistant .history-menu-item-actions {
     display: flex;
     align-items: center;
-    gap: 4px;
-    opacity: 1;
-    transition: opacity 0.2s ease;
+    gap: 8px;
+    transition: all 0.2s ease;
 }
 
-#assistant .history-menu-item:hover .history-menu-item-actions {
-    opacity: 1;
-}
-
+/* Show delete button only on hover */
 #assistant .delete-chat-button {
     color: var(--STONE);
     padding: 4px;
@@ -537,11 +533,20 @@
     opacity: 0;
     transition: all 0.2s ease;
     margin-left: 8px;
+    margin-top: -10px;
     line-height: 0;
+    display: none;
+    transform: scale(0.75); /* Shrink the icon to 75% of its original size */
+}
+
+#assistant .delete-chat-button svg {
+    width: 18px; /* Make the SVG icon smaller */
+    height: 18px;
 }
 
 #assistant .history-menu-item:hover .delete-chat-button {
     opacity: 0.75;
+    display: block;
 }
 
 #assistant .delete-chat-button:hover {
@@ -553,7 +558,8 @@
     font-size: 0.725em;
     color: var(--STONE);
     margin-left: 8px;
-    margin-top: -16px;
+    margin-top: -12px;
+    transition: all 0.2s ease;
 }
 
 #assistant .history-menu-item:last-child {

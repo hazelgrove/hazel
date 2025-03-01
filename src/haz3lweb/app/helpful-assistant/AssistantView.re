@@ -662,6 +662,12 @@ let history_menu =
                   ~attrs=[clss(["history-menu-item-actions"])],
                   [
                     div(
+                      ~attrs=[clss(["history-menu-item-time"])],
+                      [
+                        text(AssistantUtil.format_time_diff(chat.timestamp)),
+                      ],
+                    ),
+                    div(
                       ~attrs=[clss(["delete-chat-button"])],
                       [
                         Widgets.button(~tooltip="Delete chat", Icons.trash, _ =>
@@ -671,12 +677,6 @@ let history_menu =
                             Virtual_dom.Vdom.Effect.Prevent_default,
                           ])
                         ),
-                      ],
-                    ),
-                    div(
-                      ~attrs=[clss(["history-menu-item-time"])],
-                      [
-                        text(AssistantUtil.format_time_diff(chat.timestamp)),
                       ],
                     ),
                   ],
