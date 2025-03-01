@@ -102,9 +102,15 @@
     border: 0 solid var(--SAND);
     border-radius: .5em;
     font-weight: bold;
-    cursor: pointer;
+    cursor: not-allowed;
     transition: all 0.3s ease;
     pointer-events: none;
+    opacity: 0.5;
+}
+
+#assistant .send-button-disabled:hover {
+    background-color: var(--SAND);
+    box-shadow: none;
 }
 
 #assistant .send-button {
@@ -420,11 +426,11 @@
 #assistant .history-menu {
     position: absolute;
     top: 3.5em;
-    right: 32.2em;
-    width: 250px;
-    background-color: var(--UI-Background);
-    border: 1px solid var(--SAND);
-    border-radius: 4px;
+    right: 32.5em;
+    width: 350px;
+    /* background-color: var(--UI-Background); */
+    /* border: 1px solid var(--SAND); */
+    border-radius: 2px;
     box-shadow: 0 4px 12px var(--SHADOW);
     z-index: 1000;
     overflow: hidden;
@@ -454,7 +460,8 @@
 }
 
 #assistant .history-menu-list {
-    max-height: 300px;
+    background: var(--T2);
+    max-height: 400px;
     overflow-y: auto;
     padding: 4px 0;
 }
@@ -474,24 +481,81 @@
 
 #assistant .history-menu-item {
     padding: 10px 16px;
+    background-color: var(--T2);
     color: var(--STONE);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.1s ease;
     border-bottom: 1px solid var(--SAND);
     font-size: 0.9em;
     display: flex;
     align-items: center;
 }
 
+#assistant .history-menu-item.active {
+    padding: 10px 16px;
+    background-color: var(--T3);
+    color: var(--STONE);
+    cursor: pointer;
+    transition: all 0.1s ease;
+    border-bottom: 1px solid var(--SAND);
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+}
+
+#assistant .history-menu-item:hover:not(:has(.button:hover)) {
+    background-color: var(--T3);
+    padding-left: 18px;
+}
+
+#assistant .history-menu-item:active:not(:has(.button:hover)) {
+    background-color: var(--T3);
+}
+
+#assistant .history-menu-item-content {
+    flex: 1;
+    margin-right: 8px;
+}
+
+#assistant .history-menu-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    opacity: 1;
+    transition: opacity 0.2s ease;
+}
+
+#assistant .history-menu-item:hover .history-menu-item-actions {
+    opacity: 1;
+}
+
+#assistant .delete-chat-button {
+    color: var(--STONE);
+    padding: 4px;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s ease;
+    margin-left: 8px;
+    line-height: 0;
+}
+
+#assistant .history-menu-item:hover .delete-chat-button {
+    opacity: 0.75;
+}
+
+#assistant .delete-chat-button:hover {
+    background-color: var(--T3);
+    opacity: 0.5 !important;
+}
+
+#assistant .history-menu-item-time {
+    font-size: 0.725em;
+    color: var(--STONE);
+    margin-left: 8px;
+    margin-top: -16px;
+}
+
 #assistant .history-menu-item:last-child {
     border-bottom: none;
-}
-
-#assistant .history-menu-item:hover {
-    background-color: var(--T1);
-    padding-left: 20px;
-}
-
-#assistant .history-menu-item:active {
-    background-color: var(--T3);
 }
