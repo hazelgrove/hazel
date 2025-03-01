@@ -101,11 +101,7 @@ module Update = {
         switch (action) {
         | Perform(a) =>
           switch (a) {
-          | Insert(char) =>
-            send_insertion_info(
-              ~char,
-              ~editor=new_ed.editor.editor.state.zipper,
-            )
+          | Insert(char) => send_insertion_info(~char, ~editor=new_ed.editor)
           | _ => ()
           }
         | _ => ()

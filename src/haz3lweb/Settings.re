@@ -47,6 +47,7 @@ module Model = {
       llm: false,
       lsp: false,
       ongoing_chat: false,
+      mode: CodeSuggestion,
     },
     sidebar: {
       window: LanguageDocumentation,
@@ -241,6 +242,13 @@ module Update = {
           assistant: {
             ...settings.assistant,
             ongoing_chat: !settings.assistant.ongoing_chat,
+          },
+        }
+      | Assistant(SwitchMode(mode)) => {
+          ...settings,
+          assistant: {
+            ...settings.assistant,
+            mode,
           },
         }
       | Benchmark => {...settings, benchmark: !settings.benchmark}

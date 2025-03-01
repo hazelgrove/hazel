@@ -25,9 +25,15 @@
     display: flex;
     text-transform: none;
     font-weight: bold;
+    margin-bottom: 1em;
+    width: 100%;
+}
+
+#assistant .header-content {
+    display: flex;
+    width: 100%;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1em;
 }
 
 #assistant .settings-box {
@@ -53,6 +59,7 @@
     height: 1.25em;  
     cursor: pointer;  
     transition: all 0.3s ease;
+    margin: 4px;
 }
 
 #assistant .chat-button:hover {
@@ -134,8 +141,32 @@
 /* Individual message container */
 #assistant .message-container {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     margin-bottom: 10px;
+}
+
+#assistant .message-identifier {
+    font-size: 0.8em;
+    color: var(--STONE);
+    opacity: 0.7;
+    margin-bottom: 4px;
+    padding: 0 12px;
+}
+
+#assistant .llm .message-identifier {
+    align-self: flex-start;
+}
+
+#assistant .ls .message-identifier {
+    align-self: flex-end;
+}
+
+#assistant .llm {
+    align-items: flex-start;
+}
+
+#assistant .ls {
+    align-items: flex-end;
 }
 
 #assistant .collapse-indicator {
@@ -153,14 +184,6 @@
 
 #assistant .message-container.expanded .collapse-indicator::after {
     content: "▲ Show less";
-}
-
-#assistant .llm {
-    justify-content: none;
-}
-
-#assistant .ls {
-    justify-content: flex-end;
 }
 
 #assistant .llm-message {
@@ -332,4 +355,143 @@
 .llm-dropdown:focus {
     outline: none;
     border-color: #555;
+}
+
+/* Mode buttons styling */
+#assistant .mode-buttons {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+#assistant .mode-button {
+    padding: 0.35em 0.75em;
+    font-size: 0.75em;
+    color: var(--STONE);
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+#assistant .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+#assistant .mode-button:hover {
+    opacity: 0.7;
+}
+
+#assistant .mode-button.active {
+    text-decoration: underline;
+    text-underline-offset: 8px;
+    color: var(--STONE);
+}
+
+#assistant .add-button,
+#assistant .history-button {
+    color: var(--STONE);
+    padding: .45em .5em;
+    border-radius: 4px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    line-height: 0;
+}
+
+#assistant .add-button:hover,
+#assistant .history-button:hover {
+    background-color: var(--T1);
+    box-shadow: 0px 2px 4px var(--SHADOW);
+    opacity: 0.7;
+}
+
+#assistant .add-button:active,
+#assistant .history-button:active {
+    background-color: var(--T3);
+    opacity: 0.5;
+}
+
+/* History Menu Styling */
+#assistant .history-menu {
+    position: absolute;
+    top: 3.5em;
+    right: 32.2em;
+    width: 250px;
+    background-color: var(--UI-Background);
+    border: 1px solid var(--SAND);
+    border-radius: 4px;
+    box-shadow: 0 4px 12px var(--SHADOW);
+    z-index: 1000;
+    overflow: hidden;
+    animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#assistant .history-menu-header {
+    padding: 12px 16px;
+    background-color: var(--T1);
+    color: var(--STONE);
+    font-weight: bold;
+    border-bottom: 1px solid var(--SAND);
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+#assistant .history-menu-list {
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+#assistant .history-menu-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+#assistant .history-menu-list::-webkit-scrollbar-track {
+    background: var(--UI-Background);
+}
+
+#assistant .history-menu-list::-webkit-scrollbar-thumb {
+    background: var(--SAND);
+    border-radius: 4px;
+}
+
+#assistant .history-menu-item {
+    padding: 10px 16px;
+    color: var(--STONE);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-bottom: 1px solid var(--SAND);
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+}
+
+#assistant .history-menu-item:last-child {
+    border-bottom: none;
+}
+
+#assistant .history-menu-item:hover {
+    background-color: var(--T1);
+    padding-left: 20px;
+}
+
+#assistant .history-menu-item:active {
+    background-color: var(--T3);
 }
