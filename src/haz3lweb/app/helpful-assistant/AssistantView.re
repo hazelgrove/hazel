@@ -59,7 +59,7 @@ let begin_chat_button = (~globals: Globals.t, ~inject): Node.t => {
   let begin_chat = _ =>
     Virtual_dom.Vdom.Effect.Many([
       globals.inject_global(Set(Assistant(UpdateChatStatus))),
-      inject(AssistantModel.Update.NewChat),
+      inject(Assistant.Update.NewChat),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
@@ -69,7 +69,7 @@ let begin_chat_button = (~globals: Globals.t, ~inject): Node.t => {
 };
 
 let resume_chat_button = (~globals: Globals.t): Node.t => {
-  let tooltip = "Previous Chat";
+  let tooltip = "Confirm and Chat";
   let resume_chat = _ =>
     Virtual_dom.Vdom.Effect.Many([
       globals.inject_global(Set(Assistant(UpdateChatStatus))),
@@ -81,33 +81,43 @@ let resume_chat_button = (~globals: Globals.t): Node.t => {
   );
 };
 
-let req_button = (~inject): Node.t => {
-  let tooltip = "??";
-  let send_sketch = _ =>
-    Virtual_dom.Vdom.Effect.Many([
-      inject(AssistantModel.Update.SendSketch),
-      Virtual_dom.Vdom.Effect.Stop_propagation,
-    ]);
-  div(
-    ~attrs=[clss(["chat-button"]), Attr.on_click(send_sketch)],
-    [Widgets.button_named(~tooltip, None, send_sketch)],
-  );
-};
-
 let end_chat_button = (~globals: Globals.t): Node.t => {
-  let tooltip = "End Chat";
+  let tooltip = "Settings";
   let end_chat = _ =>
     Virtual_dom.Vdom.Effect.Many([
       globals.inject_global(Set(Assistant(UpdateChatStatus))),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
-    ~attrs=[clss(["chat-button"]), Attr.on_click(end_chat)],
+    ~attrs=[clss(["chat-button"])],
     [Widgets.button_named(~tooltip, None, end_chat)],
   );
 };
 
-let select_llm = (~inject, ~assistantModel: AssistantModel.Model.t): Node.t => {
+let new_chat_button = (~globals: Globals.t, ~inject): Node.t => {
+  let tooltip = "New Chat";
+  let new_chat = _ =>
+    Virtual_dom.Vdom.Effect.Many([
+      inject(Assistant.Update.NewChat),
+      Virtual_dom.Vdom.Effect.Stop_propagation,
+    ]);
+  div(
+    ~attrs=[clss(["add-button"])],
+    [Widgets.button(~tooltip, Icons.add, new_chat)],
+  );
+};
+
+let history_button = (~globals: Globals.t, ~inject): Node.t => {
+  let tooltip = "Past Chats";
+  let history = _ =>
+    Virtual_dom.Vdom.Effect.Many([inject(Assistant.Update.History)]);
+  div(
+    ~attrs=[clss(["history-button"])],
+    [Widgets.button(~tooltip, Icons.history, history)],
+  );
+};
+
+let select_llm = (~inject, ~assistantModel: Assistant.Model.t): Node.t => {
   let handle_change = (event, _) => {
     let value = Js.to_string(Js.Unsafe.coerce(event)##.target##.value);
     let selected_llm =
@@ -119,7 +129,7 @@ let select_llm = (~inject, ~assistantModel: AssistantModel.Model.t): Node.t => {
       | _ => OpenRouter.Gemini_Flash_Lite_2_0
       };
     Virtual_dom.Vdom.Effect.Many([
-      inject(AssistantModel.Update.SelectLLM(selected_llm)),
+      inject(Assistant.Update.SelectLLM(selected_llm)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
@@ -187,18 +197,24 @@ let settings_box = (~globals: Globals.t, ~inject): Node.t => {
     [
       // llm_toggle(~globals),
       // lsp_toggle(~globals),
-      begin_chat_button(~globals, ~inject),
+      // begin_chat_button(~globals, ~inject),
       resume_chat_button(~globals),
     ],
   );
 };
 
 let api_input =
-    (~signal, ~inject, ~assistantModel: AssistantModel.Model.t): Node.t => {
+    (
+      ~signal,
+      ~inject,
+      ~assistantModel: Assistant.Model.t,
+      ~settings: AssistantSettings.t,
+    )
+    : Node.t => {
   let handle_submission = (api_key: string) => {
     JsUtil.log("Your API key for this session has been set: " ++ api_key);
     Virtual_dom.Vdom.Effect.Many([
-      inject(AssistantModel.Update.SetKey(api_key)),
+      inject(Assistant.Update.SetKey(api_key)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
@@ -221,7 +237,16 @@ let api_input =
   };
   let handle_keydown = event => {
     let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
-    switch (key, ListUtil.last_opt(assistantModel.chat)) {
+    switch (
+      key,
+      ListUtil.last_opt(
+        switch (settings.mode) {
+        | SimpleChat => assistantModel.chats.curr_simple_chat.messages
+        | CodeSuggestion => assistantModel.chats.curr_suggestion_chat.messages
+        | TaskCompletion => assistantModel.chats.curr_completion_chat.messages
+        },
+      ),
+    ) {
     | (_, Some({party: LLM, code: None, content: "...", collapsed: false})) => Virtual_dom.Vdom.Effect.Ignore
     | (Some("Enter"), _) => submit_key()
     | _ => Virtual_dom.Vdom.Effect.Ignore
@@ -266,17 +291,23 @@ let api_input =
 };
 
 let message_input =
-    (~signal, ~inject, ~assistantModel: AssistantModel.Model.t): Node.t => {
+    (
+      ~signal,
+      ~inject,
+      ~assistantModel: Assistant.Model.t,
+      ~settings: AssistantSettings.t,
+    )
+    : Node.t => {
   let handle_send = (message: string) => {
-    let message: AssistantModel.Model.message = {
-      party: assistantModel.currSender,
+    let message: Assistant.Model.message = {
+      party: LS,
       code: None,
       content: message,
       collapsed: String.length(message) >= 200,
     };
     JsUtil.log("Message sent: " ++ message.content);
     Virtual_dom.Vdom.Effect.Many([
-      inject(AssistantModel.Update.SendMessage(message)),
+      inject(Assistant.Update.SendMessage(message)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
@@ -300,7 +331,16 @@ let message_input =
   };
   let handle_keydown = event => {
     let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
-    switch (key, ListUtil.last_opt(assistantModel.chat)) {
+    switch (
+      key,
+      ListUtil.last_opt(
+        switch (settings.mode) {
+        | SimpleChat => assistantModel.chats.curr_simple_chat.messages
+        | CodeSuggestion => assistantModel.chats.curr_suggestion_chat.messages
+        | TaskCompletion => assistantModel.chats.curr_completion_chat.messages
+        },
+      ),
+    ) {
     | (_, Some({party: LLM, code: None, content: "...", collapsed: false})) => Virtual_dom.Vdom.Effect.Ignore
     | (Some("Enter"), _) => send_message()
     | _ => Virtual_dom.Vdom.Effect.Ignore
@@ -312,7 +352,13 @@ let message_input =
       input(
         ~attrs=[
           Attr.id("message-input"),
-          Attr.placeholder("Type a message..."),
+          Attr.placeholder(
+            switch (settings.mode) {
+            | SimpleChat => "Ask anything..."
+            | CodeSuggestion => "Followup with a question..."
+            | TaskCompletion => "Type a task completion..."
+            },
+          ),
           Attr.type_("text"),
           Attr.property("autocomplete", Js.Unsafe.inject("off")),
           Attr.on_focus(_ =>
@@ -323,7 +369,17 @@ let message_input =
         ],
         (),
       ),
-      switch (ListUtil.last_opt(assistantModel.chat)) {
+      switch (
+        ListUtil.last_opt(
+          switch (settings.mode) {
+          | SimpleChat => assistantModel.chats.curr_simple_chat.messages
+          | CodeSuggestion =>
+            assistantModel.chats.curr_suggestion_chat.messages
+          | TaskCompletion =>
+            assistantModel.chats.curr_completion_chat.messages
+          },
+        )
+      ) {
       | Some({party: LLM, code: None, content: "...", collapsed: false}) =>
         div(
           ~attrs=[
@@ -358,12 +414,17 @@ let loading_dots = () => {
 };
 
 let message_display =
-    (~inject, ~globals: Globals.t, ~assistantModel: AssistantModel.Model.t)
+    (
+      ~inject,
+      ~globals: Globals.t,
+      ~assistantModel: Assistant.Model.t,
+      ~settings: AssistantSettings.t,
+    )
     : Node.t => {
   let toggle_collapse = index => {
     // Create an action to toggle the collapsed state of a specific message
     Virtual_dom.Vdom.Effect.Many([
-      inject(AssistantModel.Update.ToggleCollapse(index)),
+      inject(Assistant.Update.ToggleCollapse(index)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
@@ -371,7 +432,7 @@ let message_display =
   let message_nodes =
     List.flatten(
       List.mapi(
-        (index: int, message: AssistantModel.Model.message) => {
+        (index: int, message: Assistant.Model.message) => {
           switch (message.code) {
           | Some(sketch) =>
             message.content == "..." && message.party == LLM
@@ -386,6 +447,10 @@ let message_display =
                     Attr.on_click(_ => toggle_collapse(index)),
                   ],
                   [
+                    div(
+                      ~attrs=[clss(["message-identifier"])],
+                      [text(message.party == LLM ? "LLM" : "LS")],
+                    ),
                     div(
                       ~attrs=[
                         clss([
@@ -429,18 +494,25 @@ let message_display =
                       ~selected=None,
                       ~caption=None,
                       ~locked=true,
-                      {
-                        sketch
-                        |> Zipper.unzip
-                        |> Editor.Model.mk
-                        |> CellEditor.Model.mk
-                        |> CellEditor.Update.calculate(
-                             ~settings=globals.settings.core,
-                             ~is_edited=true,
-                             ~stitch=x => x,
-                             ~queue_worker=None,
-                           );
-                      },
+                      message.party == LLM
+                        ? {
+                          sketch
+                          |> Zipper.unzip
+                          |> Editor.Model.mk
+                          |> CellEditor.Model.mk;
+                        }
+                        : {
+                          sketch
+                          |> Zipper.unzip
+                          |> Editor.Model.mk
+                          |> CellEditor.Model.mk
+                          |> CellEditor.Update.calculate(
+                               ~settings=globals.settings.core,
+                               ~is_edited=true,
+                               ~stitch=x => x,
+                               ~queue_worker=None,
+                             );
+                        },
                     ),
                   ],
                 ),
@@ -458,6 +530,10 @@ let message_display =
                     Attr.on_click(_ => toggle_collapse(index)),
                   ],
                   [
+                    div(
+                      ~attrs=[clss(["message-identifier"])],
+                      [text(message.party == LLM ? "Assistant" : "User")],
+                    ),
                     div(
                       ~attrs=[
                         clss([
@@ -488,10 +564,84 @@ let message_display =
               ]
           }
         },
-        assistantModel.chat,
+        switch (settings.mode) {
+        | SimpleChat => assistantModel.chats.curr_simple_chat.messages
+        | CodeSuggestion => assistantModel.chats.curr_suggestion_chat.messages
+        | TaskCompletion => assistantModel.chats.curr_completion_chat.messages
+        },
       ),
     );
   div(~attrs=[clss(["message-display-container"])], message_nodes);
+};
+
+let mode_buttons = (~globals: Globals.t): Node.t => {
+  let mode_button = (mode: AssistantSettings.mode, label: string) => {
+    let switch_mode = _ =>
+      Virtual_dom.Vdom.Effect.Many([
+        globals.inject_global(Set(Assistant(SwitchMode(mode)))),
+        Virtual_dom.Vdom.Effect.Stop_propagation,
+      ]);
+    div(
+      ~attrs=[
+        clss([
+          "mode-button",
+          globals.settings.assistant.mode == mode ? "active" : "",
+        ]),
+        Attr.on_click(switch_mode),
+      ],
+      [text(label)],
+    );
+  };
+
+  div(
+    ~attrs=[clss(["mode-buttons"])],
+    [
+      mode_button(SimpleChat, "Chat"),
+      mode_button(CodeSuggestion, "Suggest"),
+      mode_button(TaskCompletion, "Compose"),
+    ],
+  );
+};
+
+let history_menu =
+    (
+      ~assistantModel: Assistant.Model.t,
+      ~settings: AssistantSettings.t,
+      ~inject,
+    )
+    : Node.t => {
+  let past_chats =
+    switch (settings.mode) {
+    | SimpleChat => assistantModel.chats.past_simple_chats
+    | CodeSuggestion => assistantModel.chats.past_suggestion_chats
+    | TaskCompletion => assistantModel.chats.past_completion_chats
+    };
+
+  div(
+    ~attrs=[clss(["history-menu"])],
+    [
+      div(~attrs=[clss(["history-menu-header"])], [text("Chat History")]),
+      div(
+        ~attrs=[clss(["history-menu-list"])],
+        List.map(
+          (chat: Assistant.Model.chat) =>
+            div(
+              ~attrs=[
+                clss(["history-menu-item"]),
+                Attr.on_click(_ =>
+                  Virtual_dom.Vdom.Effect.Many([
+                    inject(Assistant.Update.SwitchChat(chat.id)),
+                    Virtual_dom.Vdom.Effect.Stop_propagation,
+                  ])
+                ),
+              ],
+              [text(chat.descriptor == "" ? "New chat" : chat.descriptor)],
+            ),
+          past_chats,
+        ),
+      ),
+    ],
+  );
 };
 
 let view =
@@ -499,7 +649,7 @@ let view =
       ~globals: Globals.t,
       ~signal,
       ~inject,
-      ~assistantModel: AssistantModel.Model.t,
+      ~assistantModel: Assistant.Model.t,
     ) => {
   div(
     ~attrs=[Attr.id("side-bar")],
@@ -511,25 +661,61 @@ let view =
             ~attrs=[clss(["header"])],
             [
               div(
-                ~attrs=[clss(["title"])],
-                [text("Agentic Assistant Chat")],
+                ~attrs=[clss(["header-content"])],
+                [
+                  globals.settings.assistant.ongoing_chat
+                    ? mode_buttons(~globals) : text("Assistant Settings"),
+                  div(
+                    ~attrs=[clss(["header-actions"])],
+                    [
+                      globals.settings.assistant.ongoing_chat
+                        ? history_button(~globals, ~inject) : None,
+                      globals.settings.assistant.ongoing_chat
+                        ? new_chat_button(~globals, ~inject) : None,
+                      globals.settings.assistant.ongoing_chat
+                        ? end_chat_button(~globals) : None,
+                    ],
+                  ),
+                ],
               ),
-              globals.settings.assistant.ongoing_chat
-                ? req_button(~inject) : None,
-              globals.settings.assistant.ongoing_chat
-                ? end_chat_button(~globals) : None,
             ],
           ),
           globals.settings.assistant.ongoing_chat
-            ? message_display(~inject, ~globals, ~assistantModel) : None,
+            ? message_display(
+                ~inject,
+                ~globals,
+                ~assistantModel,
+                ~settings=globals.settings.assistant,
+              )
+            : None,
           globals.settings.assistant.ongoing_chat
-            ? message_input(~signal, ~inject, ~assistantModel) : None,
+            ? message_input(
+                ~signal,
+                ~inject,
+                ~assistantModel,
+                ~settings=globals.settings.assistant,
+              )
+            : None,
           globals.settings.assistant.ongoing_chat
-            ? None : api_input(~signal, ~inject, ~assistantModel),
+            ? None
+            : api_input(
+                ~signal,
+                ~inject,
+                ~assistantModel,
+                ~settings=globals.settings.assistant,
+              ),
           globals.settings.assistant.ongoing_chat
             ? None : select_llm(~inject, ~assistantModel),
           globals.settings.assistant.ongoing_chat
             ? None : settings_box(~globals, ~inject),
+          globals.settings.assistant.ongoing_chat
+          && assistantModel.show_history
+            ? history_menu(
+                ~assistantModel,
+                ~settings=globals.settings.assistant,
+                ~inject,
+              )
+            : None,
         ],
       ),
     ],
