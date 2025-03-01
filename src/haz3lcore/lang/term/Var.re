@@ -1,23 +1,23 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = string;
 
-let eq = String.equal;
+let equal = String.equal;
 
 let length = String.length;
 
-let is_true = eq("true");
+let is_true = equal("true");
 
-let is_false = eq("false");
+let is_false = equal("false");
 
-let is_let = eq("let");
+let is_let = equal("let");
 
-let is_fun = eq("fun");
+let is_fun = equal("fun");
 
-let is_case = eq("case");
+let is_case = equal("case");
 
-let is_wild = eq("_");
+let is_wild = equal("_");
 
 let split = (pos, name) => {
   let left_var = String.sub(name, 0, pos);

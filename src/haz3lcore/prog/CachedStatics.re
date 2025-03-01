@@ -10,13 +10,17 @@ type t = {
 
 let empty: t = {
   term: {
-    ids: [Id.invalid],
-    copied: false,
+    annotation: {
+      ids: [Id.invalid],
+      copied: false,
+    },
     term: Tuple([]),
   },
   elaborated: {
-    ids: [Id.invalid],
-    copied: false,
+    annotation: {
+      ids: [Id.invalid],
+      copied: false,
+    },
     term: Tuple([]),
   },
   info_map: Id.Map.empty,
@@ -31,7 +35,7 @@ let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 let init_from_term = (~settings, term): t => {
   let ctx_init = Builtins.ctx_init;
   let info_map = Statics.mk(settings, ctx_init, term);
-  let error_ids = Statics.Map.error_ids(info_map);
+  let error_ids = Statics.error_ids(info_map);
   let elaborated =
     switch () {
     | _ when !settings.statics => dh_err("Statics disabled")
