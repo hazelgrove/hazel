@@ -50,7 +50,7 @@ type t =
   | WantTuple /* Want a Tuple, found not-tuple */
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label)); /* Currently used by the dot operator for a label not found */
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_partial_ap =
   | NoDeferredArgs
   | ArityMismatch({
@@ -123,22 +123,28 @@ let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
   | Some(var) => Common(Just(var.typ))
   };
 
-/* The self of a ctr depends on the ctx, but a
-   lookup failure doesn't necessarily means its
-   free; it may be given a type analytically */
-let of_ctr = (ctx: Ctx.t, name: Constructor.t, ty: Typ.t): t =>
-  switch (ty) {
-  | {term: Unknown(Internal), _} =>
-    IsConstructor({
-      name,
-      syn_ty:
-        switch (Ctx.lookup_ctr(ctx, name)) {
-        | None => None
-        | Some({typ, _}) => Some(typ)
-        },
-    })
-  | _ => IsConstructor({name, syn_ty: Some(ty)})
-  };
+let of_ctr =
+    (ctx: Ctx.t, name: Constructor.t, mode: Mode.t, ty: option(Typ.t)): t =>
+  // this has gotten a bit complex, depends on mode
+  IsConstructor({
+    name,
+    syn_ty:
+      switch (ty) {
+      | Some(_) => ty
+      | None =>
+        switch (mode) {
+        | SynFun
+        | Syn
+        | Ana({term: Unknown(_), _}) =>
+          switch (Ctx.lookup_ctr(ctx, name)) {
+          | None => None
+          | Some({typ, _}) => Some(typ)
+          }
+        | Ana(_) => Mode.ctr_ana_typ(ctx, mode, name)
+        | SynTypFun => None
+        }
+      },
+  });
 
 let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   let expected = List.length(ty_ins);

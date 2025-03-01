@@ -17,7 +17,7 @@ let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): Exp.t => {
   switch (d.term) {
   | Label(_) => d
   | _ =>
-    Typ.eq(t1, t2)
+    Typ.equal(t1, t2)
       ? d
       : {
         let d': Exp.t =
@@ -35,7 +35,7 @@ let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
   switch (p.term) {
   | Label(_) => p
   | _ =>
-    Typ.eq(t1, t2)
+    Typ.equal(t1, t2)
       ? p
       : {
         Cast(
@@ -250,7 +250,7 @@ let rec elaborate_pattern =
           |> Typ.temp
         };
       let t = t |> Typ.normalize(ctx);
-      Constructor(c, t) |> rewrap |> cast_from(t);
+      Constructor(c, Some(t)) |> rewrap |> cast_from(t);
     };
   (dpat, elaborated_type);
 };
@@ -336,17 +336,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         };
       let t =
         switch (Mode.ctr_ana_typ(ctx, mode, c), Ctx.lookup_ctr(ctx, c)) {
-        | (Some(ana_ty), _) => ana_ty
-        | (_, Some({typ: syn_ty, _})) => syn_ty
-        | _ =>
-          Sum([
-            ConstructorMap.Variant(c, [Id.invalid], None),
-            ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
-          ])
-          |> Typ.temp
+        | (Some(ana_ty), _) => Some(Typ.normalize(ctx, ana_ty))
+        | (_, Some({typ: syn_ty, _})) => Some(Typ.normalize(ctx, syn_ty))
+        | _ => None
         };
-      let t = t |> Typ.normalize(ctx) |> Typ.all_ids_temp;
-      Constructor(c, t) |> rewrap |> cast_from(t);
+      switch (t) {
+      | Some(ty) => Constructor(c, t) |> rewrap |> cast_from(ty)
+      | None => Constructor(c, t) |> rewrap
+      };
     | Fun(p, e, _, n) =>
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', tye) = elaborate(m, e);
@@ -454,14 +451,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         |> Option.get
         |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
       if (!is_recursive) {
-        let def = add_name(Pat.get_var(p), def);
         let (def, ty2) = elaborate(m, def);
+        let def = add_name(Pat.get_var(p), def);
         let (body, ty) = elaborate(m, body);
         Let(p, fresh_cast(def, ty2, ty1), body) |> rewrap |> cast_from(ty);
       } else {
         // TODO: Add names to mutually recursive functions
-        let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
         let (def, ty2) = elaborate(m, def);
+        let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
         let (body, ty) = elaborate(m, body);
         let fixf =
           (FixF(p, fresh_cast(def, ty2, ty1), None): Exp.term)
@@ -579,9 +576,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       switch (e.term) {
       // TODO: confirm whether these types are correct
       | Var("e") =>
-        Constructor("$e", Unknown(Internal) |> Typ.temp) |> rewrap
+        Constructor("$e", Some(Unknown(Internal) |> Typ.fresh)) |> rewrap
       | Var("v") =>
-        Constructor("$v", Unknown(Internal) |> Typ.temp) |> rewrap
+        Constructor("$v", Some(Unknown(Internal) |> Typ.fresh)) |> rewrap
       | _ => EmptyHole |> rewrap |> cast_from(Typ.temp(Unknown(Internal)))
       }
     | UnOp(Int(Minus), e) =>

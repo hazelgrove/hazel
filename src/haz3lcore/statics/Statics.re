@@ -33,16 +33,6 @@ module Info = Info;
 module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(Info.t);
-
-  let error_ids = (info_map: t): list(Id.t) =>
-    Id.Map.fold(
-      (id, info, acc) =>
-        /* Second clause is to eliminate non-representative ids,
-         * which will not be found in the measurements map */
-        Info.is_error(info) && id == Info.id_of(info) ? [id, ...acc] : acc,
-      info_map,
-      [],
-    );
 };
 
 let map_m = (f, xs, m: Map.t) =>
@@ -185,7 +175,7 @@ and uexp_to_info_map =
       ~override_self: option(Self.exp)=?,
       ~inferred_label: option(LabeledTuple.label)=?,
       ~label_sort,
-      {ids, copied: _, term} as uexp: Exp.t,
+      {annotation: {ids, copied: _}, term} as uexp: Exp.t,
       m: Map.t,
     )
     : (Info.exp, Map.t) => {
@@ -290,7 +280,7 @@ and uexp_to_info_map =
         ),
     };
 
-    (info, add_info(elaborated_exp.ids, InfoExp(info), m));
+    (info, add_info(IdTagged.ids(elaborated_exp), InfoExp(info), m));
   };
   let atomic = self => {
     add(~self, ~co_ctx=CoCtx.empty, m);
@@ -361,12 +351,16 @@ and uexp_to_info_map =
       add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) when is_in_filter =>
       let e: Exp.t = {
-        ids: e.ids,
-        copied: false,
+        annotation: {
+          ids: IdTagged.ids(e),
+          copied: false,
+        },
         term:
           switch (e.term) {
-          | Var("e") => Constructor("$e", Unknown(Internal) |> Typ.temp)
-          | Var("v") => Constructor("$v", Unknown(Internal) |> Typ.temp)
+          | Var("e") =>
+            Constructor("$e", Some(Unknown(Internal) |> Typ.fresh))
+          | Var("v") =>
+            Constructor("$v", Some(Unknown(Internal) |> Typ.fresh))
           | _ => e.term
           },
       };
@@ -665,7 +659,7 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
         m,
       );
-    | Constructor(ctr, ty) => atomic(Self.of_ctr(ctx, ctr, ty))
+    | Constructor(ctr, ty) => atomic(Self.of_ctr(ctx, ctr, mode, ty))
     | Ap(_, fn, arg) =>
       let fn_mode = Mode.of_ap(ctx, mode, Exp.ctr_name(fn));
       let (fn, m) = go(~mode=fn_mode, fn, m);
@@ -673,7 +667,7 @@ and uexp_to_info_map =
 
       let (arg, m) = go(~mode=Ana(ty_in), arg, m);
       let self: Self.t =
-        Id.is_nullary_ap_flag(arg.term.ids)
+        Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
         && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
           ? BadTrivAp(ty_in) : Just(ty_out);
       add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
@@ -714,15 +708,16 @@ and uexp_to_info_map =
         );
       let (e, m) = go'(~ctx=p'.ctx, ~mode=mode_body, e, m);
       /* add co_ctx to pattern */
-      let (p'', m) =
+      let (p, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~mode=mode_pat, p, m);
       // TODO: factor out code
       let unwrapped_self: Self.exp =
-        Common(Just(Arrow(p''.ty, e.ty) |> Typ.temp));
-      let is_exhaustive = p'' |> Info.pat_constraint |> Incon.is_exhaustive;
+        Common(Just(Arrow(p.ty, e.ty) |> Typ.temp));
+      let Coverage.{is_exhaustive, _} =
+        Coverage.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
       let self =
         is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
-      add'(~self, ~co_ctx=CoCtx.mk(ctx, p''.ctx, e.co_ctx), m);
+      add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
     | TypFun({term: Var(name), _} as utpat, body, _)
         when !Ctx.shadows_typ(ctx, name) =>
       let mode_body = Mode.of_forall(ctx, Some(name), mode);
@@ -781,7 +776,7 @@ and uexp_to_info_map =
             go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
           let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
             Typ.term_of(ty_p) == Unknown(SynSwitch)
-            && !Typ.eq(ty_fn1, ty_fn2)
+            && !Typ.equal(ty_fn1, ty_fn2)
               ? ty_fn1 : ty_p;
           };
           let ana =
@@ -811,7 +806,11 @@ and uexp_to_info_map =
         );
       // TODO: factor out code
       let unwrapped_self: Self.exp = Common(Just(body.ty));
-      let is_exhaustive = p_ana |> Info.pat_constraint |> Incon.is_exhaustive;
+      let Coverage.{is_exhaustive, _} =
+        Coverage.check(
+          [Info.pat_constraint(p_ana)],
+          Typ.normalize(ctx, p_ana.ty),
+        );
       let self =
         is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
       add'(
@@ -869,93 +868,62 @@ and uexp_to_info_map =
         List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
       let unwrapped_self: Self.exp =
         Common(Self.match(ctx, e_tys, branch_ids));
-      let constraint_ty =
-        switch (scrut.ty.term) {
-        | Unknown(_) =>
-          map_m(go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty), ps, m)
-          |> fst
-          |> List.map(Info.pat_ty)
-          |> Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx)
-        | _ => Some(scrut.ty)
-        };
-      let (self, m) =
-        switch (constraint_ty) {
-        | Some(constraint_ty) =>
-          let pats_to_info_map = (ps: list(Pat.t), m) => {
-            /* Add co-ctxs to patterns */
-            List.fold_left(
-              ((m, acc_constraint), (p, co_ctx)) => {
-                let p_constraint =
-                  go_pat(
-                    ~is_synswitch=false,
-                    ~co_ctx,
-                    ~mode=Mode.Ana(constraint_ty),
-                    p,
-                    m,
-                  )
-                  |> fst
-                  |> Info.pat_constraint;
-                let (p, m) =
-                  go_pat(
-                    ~is_synswitch=false,
-                    ~co_ctx,
-                    ~mode=Mode.Ana(scrut.ty),
-                    p,
-                    m,
-                  );
-                let is_redundant =
-                  Incon.is_redundant(p_constraint, acc_constraint);
-                let self = is_redundant ? Self.Redundant(p.self) : p.self;
-                let info =
-                  Info.derived_pat(
-                    ~upat=p.term,
-                    ~ctx=p.ctx,
-                    ~co_ctx=p.co_ctx,
-                    ~mode=p.mode,
-                    ~ancestors=p.ancestors,
-                    ~prev_synswitch=None,
-                    ~self,
-                    // Mark patterns as redundant at the top level
-                    // because redundancy doesn't make sense in a smaller context
-                    ~constraint_=p_constraint,
-                    ~label_inference=None,
-                    ~inferred_label,
-                    ~label_sort=false,
-                  );
-                (
-                  // Override the info for the single upat
-                  add_info(p.term.ids, InfoPat(info), m),
-                  is_redundant
-                    ? acc_constraint  // Redundant patterns are ignored
-                    : Constraint.Or(p_constraint, acc_constraint),
+      let (constraints, m) =
+        List.fold_left(
+          (
+            (constraints: list(Coverage.Constraint.t), m: Map.t),
+            (p, co_ctx),
+          ) => {
+            let (info, m) =
+              go_pat(
+                ~is_synswitch=false,
+                ~co_ctx,
+                ~mode=Mode.Ana(scrut.ty),
+                p,
+                m,
+              );
+            let p_constraint = Info.pat_constraint(info);
+            ([p_constraint, ...constraints], m);
+          },
+          ([], m),
+          List.combine(ps, e_co_ctxs),
+        );
+      let constraints = List.rev(constraints);
+
+      let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
+      let Coverage.{is_exhaustive, redundant_rows} =
+        Coverage.check(constraints, normalized_scrut_ty);
+      let self =
+        is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+      let add_redundancy = (ps: list(TermBase.pat_t), redundant_rows, m) => {
+        List.fold_left(
+          (m, row) => {
+            let p = List.nth(ps, row);
+            switch (Id.Map.find(IdTagged.rep_id(p), m)) {
+            | Info.InfoPat(info) =>
+              let info =
+                Info.derived_pat(
+                  ~upat=info.term,
+                  ~ctx=info.ctx,
+                  ~co_ctx=info.co_ctx,
+                  ~prev_synswitch=info.prev_synswitch,
+                  ~mode=info.mode,
+                  ~ancestors=info.ancestors,
+                  ~self=Self.Redundant(info.self),
+                  ~constraint_=info.constraint_,
+                  ~label_inference=info.label_inference,
+                  ~inferred_label=info.inferred_label,
+                  ~label_sort=info.label_sort,
                 );
-              },
-              (m, Constraint.Falsity),
-              List.combine(ps, e_co_ctxs),
-            );
-          };
-          let (m, final_constraint) = pats_to_info_map(ps, m);
-          let is_exhaustive = Incon.is_exhaustive(final_constraint);
-          let self =
-            is_exhaustive
-              ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
-          (self, m);
-        | None =>
-          /* Add co-ctxs to patterns */
-          let (_, m) =
-            map_m(
-              ((p, co_ctx)) =>
-                go_pat(
-                  ~is_synswitch=false,
-                  ~co_ctx,
-                  ~mode=Mode.Ana(scrut.ty),
-                  p,
-                ),
-              List.combine(ps, e_co_ctxs),
-              m,
-            );
-          (unwrapped_self, m);
-        };
+              add_info(IdTagged.ids(p), InfoPat(info), m);
+            | _ => failwith("Invalid sort for pattern.")
+            };
+          },
+          m,
+          redundant_rows,
+        );
+      };
+      let m = add_redundancy(ps, redundant_rows, m);
       add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
     | TyAlias(typat, utyp, body) =>
       let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
@@ -1053,7 +1021,7 @@ and upat_to_info_map =
       ~override_self: option(Self.t)=?,
       ~inferred_label=?,
       ~label_sort=false,
-      {ids, term, _} as upat: Pat.t,
+      {annotation: {ids, _}, term} as upat: Pat.t,
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
@@ -1133,7 +1101,7 @@ and upat_to_info_map =
         ),
       (ctx, [], [], m, []),
     );
-  let hole = self => atomic(self, Constraint.Hole);
+  let hole = self => atomic(self, Coverage.Constraint.Hole);
 
   let elaborate_singleton_tuple = (upat: Pat.t, inner_ty, l, m) => {
     let (term, rewrap) = Pat.unwrap(upat);
@@ -1178,38 +1146,37 @@ and upat_to_info_map =
         ),
     };
 
-    (info, add_info(elaborated_pat.ids, InfoPat(info), m));
+    (info, add_info(IdTagged.ids(elaborated_pat), InfoPat(info), m));
   };
 
   let default_case = () =>
     switch (term) {
     | MultiHole(tms) =>
       let (_, m) = multi(~ctx, ~ancestors, m, tms);
-      add(~self=IsMulti, ~ctx, ~constraint_=Constraint.Hole, m);
+      add(~self=IsMulti, ~ctx, ~constraint_=Coverage.Constraint.Hole, m);
     | Invalid(token) => hole(BadToken(token))
     | EmptyHole => hole(Just(unknown))
-    | Int(int) => atomic(Just(Int |> Typ.temp), Constraint.Int(int))
+    | Int(int) =>
+      atomic(Just(Int |> Typ.temp), Coverage.Constraint.Int(int))
     | Float(float) =>
-      atomic(Just(Float |> Typ.temp), Constraint.Float(float))
-    | Tuple([]) => atomic(Just(Prod([]) |> Typ.temp), Constraint.Truth)
+      atomic(Just(Float |> Typ.temp), Coverage.Constraint.Float(float))
+    | Tuple([]) =>
+      atomic(Just(Prod([]) |> Typ.temp), Coverage.Constraint.Tuple([]))
     | Bool(bool) =>
       atomic(
         Just(Bool |> Typ.temp),
-        bool
-          ? Constraint.InjL(Constraint.Truth)
-          : Constraint.InjR(Constraint.Truth),
+        bool ? Coverage.Constraint.true_ : Coverage.Constraint.false_,
       )
     | String(string) =>
-      atomic(Just(String |> Typ.temp), Constraint.String(string))
+      atomic(Just(String |> Typ.temp), Coverage.Constraint.String(string))
     | ListLit(ps) =>
       let ids = List.map(Pat.rep_id, ps);
       let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
       let (ctx, tys, cons, m, _) = ctx_fold(ctx, m, ps, modes);
       let rec cons_fold_list = cs =>
         switch (cs) {
-        | [] => Constraint.InjL(Constraint.Truth) // Left = nil, Right = cons
-        | [hd, ...tl] =>
-          Constraint.InjR(Constraint.Pair(hd, cons_fold_list(tl)))
+        | [] => Coverage.Constraint.nil
+        | [hd, ...tl] => Coverage.Constraint.cons(hd, cons_fold_list(tl))
         };
       add(
         ~self=Self.listlit(~empty=unknown, ctx, tys, ids),
@@ -1224,11 +1191,10 @@ and upat_to_info_map =
       add(
         ~self=Just(List(hd.ty) |> Typ.temp),
         ~ctx=tl.ctx,
-        ~constraint_=
-          Constraint.InjR(Constraint.Pair(hd.constraint_, tl.constraint_)),
+        ~constraint_=Coverage.Constraint.cons(hd.constraint_, tl.constraint_),
         m,
       );
-    | Wild => atomic(Just(unknown), Constraint.Truth)
+    | Wild => atomic(Just(unknown), Coverage.Constraint.Truth)
     | Var(name) =>
       /* NOTE: The self type assigned to pattern variables (Unknown)
          may be SynSwitch, but SynSwitch is never added to the context;
@@ -1243,7 +1209,7 @@ and upat_to_info_map =
       add(
         ~self=Just(unknown),
         ~ctx=Ctx.extend(ctx, entry),
-        ~constraint_=Constraint.Truth,
+        ~constraint_=Coverage.Constraint.Truth,
         m,
       );
     | TupLabel(label, p) =>
@@ -1333,7 +1299,7 @@ and upat_to_info_map =
       add(
         ~self,
         ~ctx=p.ctx,
-        ~constraint_=Constraint.TupLabel(lab.constraint_, p.constraint_),
+        ~constraint_=Coverage.Constraint.Tuple([p.constraint_]),
         m,
       );
     | Tuple(ps) =>
@@ -1372,12 +1338,6 @@ and upat_to_info_map =
 
       let new_labels =
         List.map(p => Pat.match_tup_label(p) |> Option.map(fst), ps);
-      let rec cons_fold_tuple = cs =>
-        switch (cs) {
-        | [] => Constraint.Truth
-        | [elt] => elt
-        | [hd, ...tl] => Constraint.Pair(hd, cons_fold_tuple(tl))
-        };
       let duplicate_labels =
         LabeledTuple.get_duplicate_labels(Pat.match_tup_label, ps);
       let (ctx, tys, cons, m, info_pats) =
@@ -1405,7 +1365,7 @@ and upat_to_info_map =
           List.combine(inferred, ps),
           modes,
         );
-
+      let constraint_ = Coverage.Constraint.Tuple(cons);
       let (malformed_labels, duplicate_labels, invalid_labels) =
         List.fold_left(
           ((a, b, c), e: Info.pat) => {
@@ -1445,7 +1405,7 @@ and upat_to_info_map =
       add(
         ~self,
         ~ctx,
-        ~constraint_=cons_fold_tuple(cons),
+        ~constraint_,
         ~label_inference=
           Info.derive_label_inference_info(original_labels, new_labels),
         m,
@@ -1453,27 +1413,26 @@ and upat_to_info_map =
     | Label(name) =>
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)
-        ? atomic(Duplicate(name, self), Constraint.Truth)
-        : atomic(self, Constraint.Truth);
+        ? atomic(Duplicate(name, self), Coverage.Constraint.Truth)
+        : atomic(self, Coverage.Constraint.Truth);
     | Parens(p) =>
       let (p, m) = go(~ctx, ~mode, p, m);
       add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     | Constructor(ctr, ty) =>
-      let self = Self.of_ctr(ctx, ctr, ty);
-      atomic(self, Constraint.of_ctr(ctx, mode, ctr, self));
+      let self = Self.of_ctr(ctx, ctr, mode, ty);
+      atomic(self, Coverage.Constraint.Ap(ctr, None));
     | Ap(fn, arg) =>
       let ctr = Pat.ctr_name(fn);
       let fn_mode = Mode.of_ap(ctx, mode, ctr);
       let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
       let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
       let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
-      add(
-        ~self=Just(ty_out),
-        ~ctx=arg.ctx,
-        ~constraint_=
-          Constraint.of_ap(ctx, mode, ctr, arg.constraint_, Some(ty_out)),
-        m,
-      );
+      let constraint_ =
+        switch (ctr) {
+        | Some(ctr) => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
+        | None => Coverage.Constraint.Hole
+        };
+      add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
     | Cast(p, ann, _) =>
       let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
       let (p, m) =
@@ -1510,7 +1469,7 @@ and utyp_to_info_map =
       ~ctx,
       ~expects=Info.TypeExpected,
       ~ancestors,
-      {ids, term, _} as utyp: Typ.t,
+      {annotation: {ids, _}, term} as utyp: Typ.t,
       m: Map.t,
     )
     : (Info.typ, Map.t) => {
@@ -1629,7 +1588,12 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, {ids, term, _} as utpat: TPat.t, m: Map.t)
+    (
+      ~ctx,
+      ~ancestors,
+      {annotation: {ids, _}, term} as utpat: TPat.t,
+      m: Map.t,
+    )
     : (Info.tpat, Map.t) => {
   let add = m => {
     let info = Info.derived_tpat(~utpat, ~ctx, ~ancestors);
@@ -1665,7 +1629,13 @@ and variant_to_info_map =
           List.mem(ctr, ctrs) ? Duplicate : Unique,
           ty_sum,
         ),
-        {term: Var(ctr), ids, copied: false},
+        {
+          term: Var(ctr),
+          annotation: {
+            ids,
+            copied: false,
+          },
+        },
         m,
       )
       |> snd;
@@ -1729,10 +1699,21 @@ let get_pat_error_at = (info_map: Map.t, id: Id.t) => {
      );
 };
 
-let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type error_map = Id.Map.t(Info.error);
+
+let error_ids = (info_map: Map.t): list(Id.t) =>
   Id.Map.fold(
-    (id, info: Info.t, acc) =>
-      Option.to_list(Info.error_of(info) |> Option.map(x => (id, x))) @ acc,
-    map,
+    (id, info, acc) =>
+      /* Second clause is to eliminate non-representative ids,
+       * which will not be found in the measurements map */
+      Info.is_error(info) && id == Info.id_of(info) ? [id, ...acc] : acc,
+    info_map,
     [],
+  );
+
+let collect_errors = (map: Map.t): error_map =>
+  Id.Map.filter_map(
+    (_: Uuidm.t, info: Info.t) => {Info.error_of(info)},
+    map,
   );
