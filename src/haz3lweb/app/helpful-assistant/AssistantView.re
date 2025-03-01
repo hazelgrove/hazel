@@ -386,7 +386,7 @@ let message_input =
             clss(["send-button-disabled", "icon"]),
             Attr.title("Submitting Message Disabled"),
           ],
-          [Icons.thin_x],
+          [Icons.send],
         )
       | _ =>
         div(
@@ -627,15 +627,61 @@ let history_menu =
           (chat: Assistant.Model.chat) =>
             div(
               ~attrs=[
-                clss(["history-menu-item"]),
-                Attr.on_click(_ =>
-                  Virtual_dom.Vdom.Effect.Many([
-                    inject(Assistant.Update.SwitchChat(chat.id)),
-                    Virtual_dom.Vdom.Effect.Stop_propagation,
-                  ])
+                chat.id == assistantModel.chats.curr_simple_chat.id
+                || chat.id == assistantModel.chats.curr_suggestion_chat.id
+                || chat.id == assistantModel.chats.curr_completion_chat.id
+                  ? clss(["history-menu-item", "active"])
+                  : clss(["history-menu-item"]),
+                Attr.on_click(e => {
+                  let target = Js.Unsafe.coerce(e)##.target;
+                  let contains_button =
+                    Js.to_bool(target##.classList##contains("button"))
+                    || Js.to_bool(
+                         target##.parentElement##.classList##contains(
+                           "button",
+                         ),
+                       );
+                  if (!contains_button) {
+                    Virtual_dom.Vdom.Effect.Many([
+                      inject(Assistant.Update.SwitchChat(chat.id)),
+                      Virtual_dom.Vdom.Effect.Stop_propagation,
+                    ]);
+                  } else {
+                    Virtual_dom.Vdom.Effect.Stop_propagation;
+                  };
+                }),
+              ],
+              [
+                div(
+                  ~attrs=[clss(["history-menu-item-content"])],
+                  [
+                    text(chat.descriptor == "" ? "New chat" : chat.descriptor),
+                  ],
+                ),
+                div(
+                  ~attrs=[clss(["history-menu-item-actions"])],
+                  [
+                    div(
+                      ~attrs=[clss(["delete-chat-button"])],
+                      [
+                        Widgets.button(~tooltip="Delete chat", Icons.trash, _ =>
+                          Virtual_dom.Vdom.Effect.Many([
+                            inject(Assistant.Update.DeleteChat(chat.id)),
+                            Virtual_dom.Vdom.Effect.Stop_propagation,
+                            Virtual_dom.Vdom.Effect.Prevent_default,
+                          ])
+                        ),
+                      ],
+                    ),
+                    div(
+                      ~attrs=[clss(["history-menu-item-time"])],
+                      [
+                        text(AssistantUtil.format_time_diff(chat.timestamp)),
+                      ],
+                    ),
+                  ],
                 ),
               ],
-              [text(chat.descriptor == "" ? "New chat" : chat.descriptor)],
             ),
           past_chats,
         ),

@@ -27,6 +27,7 @@ module Model = {
     messages: list(message),
     id: Id.t,
     descriptor: string,
+    timestamp: float,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -46,9 +47,24 @@ module Model = {
     show_history: bool,
   };
 
-  let init_simple_chat = {messages: [], id: Id.mk(), descriptor: ""};
-  let init_suggestion_chat = {messages: [], id: Id.mk(), descriptor: ""};
-  let init_completion_chat = {messages: [], id: Id.mk(), descriptor: ""};
+  let init_simple_chat = {
+    messages: [],
+    id: Id.mk(),
+    descriptor: "",
+    timestamp: Unix.time(),
+  };
+  let init_suggestion_chat = {
+    messages: [],
+    id: Id.mk(),
+    descriptor: "",
+    timestamp: Unix.time(),
+  };
+  let init_completion_chat = {
+    messages: [],
+    id: Id.mk(),
+    descriptor: "",
+    timestamp: Unix.time(),
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   let init: t = {
@@ -74,6 +90,7 @@ module Update = {
     | SendError(string, Info.t, int, Id.t, AssistantSettings.mode)
     | ErrorRespond(string, Info.t, int, Id.t, AssistantSettings.mode)
     | NewChat
+    | DeleteChat(Id.t)
     | History
     | Respond(Model.message, AssistantSettings.mode)
     | ToggleCollapse(int)
@@ -235,37 +252,44 @@ module Update = {
         ~mode: AssistantSettings.mode,
       )
       : unit => {
+    // Only create a summary up to the first 3 exchanges
     switch (mode) {
     | SimpleChat =>
-      form_descriptor(
-        ~model,
-        ~settings,
-        ~editor,
-        ~schedule_action,
-        ~chat=model.chats.curr_simple_chat.messages @ [message],
-        ~mode,
-        ~chat_id=model.chats.curr_simple_chat.id,
-      )
+      List.length(model.chats.past_simple_chats) <= 6
+        ? form_descriptor(
+            ~model,
+            ~settings,
+            ~editor,
+            ~schedule_action,
+            ~chat=model.chats.curr_simple_chat.messages @ [message],
+            ~mode,
+            ~chat_id=model.chats.curr_simple_chat.id,
+          )
+        : ()
     | CodeSuggestion =>
-      form_descriptor(
-        ~model,
-        ~settings,
-        ~editor,
-        ~schedule_action,
-        ~chat=model.chats.curr_suggestion_chat.messages @ [message],
-        ~mode,
-        ~chat_id=model.chats.curr_suggestion_chat.id,
-      )
+      List.length(model.chats.past_suggestion_chats) <= 6
+        ? form_descriptor(
+            ~model,
+            ~settings,
+            ~editor,
+            ~schedule_action,
+            ~chat=model.chats.curr_suggestion_chat.messages @ [message],
+            ~mode,
+            ~chat_id=model.chats.curr_suggestion_chat.id,
+          )
+        : ()
     | TaskCompletion =>
-      form_descriptor(
-        ~model,
-        ~settings,
-        ~editor,
-        ~schedule_action,
-        ~chat=model.chats.curr_completion_chat.messages @ [message],
-        ~mode,
-        ~chat_id=model.chats.curr_completion_chat.id,
-      )
+      List.length(model.chats.past_completion_chats) <= 6
+        ? form_descriptor(
+            ~model,
+            ~settings,
+            ~editor,
+            ~schedule_action,
+            ~chat=model.chats.curr_completion_chat.messages @ [message],
+            ~mode,
+            ~chat_id=model.chats.curr_completion_chat.id,
+          )
+        : ()
     };
   };
 
@@ -399,21 +423,24 @@ module Update = {
             ...model.chats.curr_simple_chat,
             messages:
               mode == SimpleChat
-                ? model.chats.curr_simple_chat.messages @ [message]
+                ? model.chats.curr_simple_chat.messages
+                  @ [message, await_llm_response]
                 : model.chats.curr_simple_chat.messages,
           },
           curr_suggestion_chat: {
             ...model.chats.curr_suggestion_chat,
             messages:
               mode == CodeSuggestion
-                ? model.chats.curr_suggestion_chat.messages @ [message]
+                ? model.chats.curr_suggestion_chat.messages
+                  @ [message, await_llm_response]
                 : model.chats.curr_suggestion_chat.messages,
           },
           curr_completion_chat: {
             ...model.chats.curr_completion_chat,
             messages:
               mode == TaskCompletion
-                ? model.chats.curr_completion_chat.messages @ [message]
+                ? model.chats.curr_completion_chat.messages
+                  @ [message, await_llm_response]
                 : model.chats.curr_completion_chat.messages,
           },
         },
@@ -424,7 +451,12 @@ module Update = {
       model |> Updated.return_quiet;
     | NewChat =>
       let mode = settings.assistant.mode;
-      let new_chat: Model.chat = {messages: [], id: Id.mk(), descriptor: ""};
+      let new_chat: Model.chat = {
+        messages: [],
+        id: Id.mk(),
+        descriptor: "",
+        timestamp: Unix.time(),
+      };
       switch (mode) {
       | SimpleChat =>
         Model.{
@@ -459,6 +491,91 @@ module Update = {
         }
         |> Updated.return_quiet
       };
+    | DeleteChat(chat_to_be_gone_id) =>
+      let mode = settings.assistant.mode;
+      // Filter out the chat we're deleting
+      let updated_past_chats =
+        switch (mode) {
+        | SimpleChat => {
+            ...model.chats,
+            past_simple_chats:
+              switch (ListUtil.last_opt(model.chats.past_simple_chats)) {
+              | Some(_) =>
+                List.filter_map(
+                  (chat: Model.chat) =>
+                    chat.id == chat_to_be_gone_id ? None : Some(chat),
+                  model.chats.past_simple_chats,
+                )
+              | None => model.chats.past_simple_chats
+              },
+          }
+        | CodeSuggestion => {
+            ...model.chats,
+            past_suggestion_chats:
+              switch (ListUtil.last_opt(model.chats.past_suggestion_chats)) {
+              | Some(_) =>
+                List.filter_map(
+                  (chat: Model.chat) =>
+                    chat.id == chat_to_be_gone_id ? None : Some(chat),
+                  model.chats.past_suggestion_chats,
+                )
+              | None => model.chats.past_suggestion_chats
+              },
+          }
+        | TaskCompletion => {
+            ...model.chats,
+            past_completion_chats:
+              switch (ListUtil.last_opt(model.chats.past_completion_chats)) {
+              | Some(_) =>
+                List.filter_map(
+                  (chat: Model.chat) =>
+                    chat.id == chat_to_be_gone_id ? None : Some(chat),
+                  model.chats.past_completion_chats,
+                )
+              | None => model.chats.past_completion_chats
+              },
+          }
+        };
+      // Update the current chat we're on (in case it's the one we're deleting)
+      let final_chats =
+        switch (mode) {
+        | SimpleChat => {
+            ...updated_past_chats,
+            curr_simple_chat:
+              model.chats.curr_simple_chat.id == chat_to_be_gone_id
+                ? switch (ListUtil.last_opt(model.chats.past_simple_chats)) {
+                  | Some(last_chat) => last_chat
+                  | None => model.chats.curr_simple_chat
+                  }
+                : model.chats.curr_simple_chat,
+          }
+        | CodeSuggestion => {
+            ...updated_past_chats,
+            curr_suggestion_chat:
+              model.chats.curr_suggestion_chat.id == chat_to_be_gone_id
+                ? switch (
+                    ListUtil.last_opt(model.chats.past_suggestion_chats)
+                  ) {
+                  | Some(last_chat) => last_chat
+                  | None => model.chats.curr_suggestion_chat
+                  }
+                : model.chats.curr_suggestion_chat,
+          }
+        | TaskCompletion => {
+            ...updated_past_chats,
+            curr_completion_chat:
+              model.chats.curr_completion_chat.id == chat_to_be_gone_id
+                ? switch (
+                    ListUtil.last_opt(model.chats.past_completion_chats)
+                  ) {
+                  | Some(last_chat) => last_chat
+                  | None => model.chats.curr_completion_chat
+                  }
+                : model.chats.curr_completion_chat,
+          }
+        };
+
+      {...model, chats: final_chats} |> Updated.return_quiet;
     | History =>
       {...model, show_history: !model.show_history} |> Updated.return_quiet
     | Respond(message, mode) =>
@@ -478,21 +595,24 @@ module Update = {
             ...model.chats.curr_simple_chat,
             messages:
               mode == SimpleChat
-                ? model.chats.curr_simple_chat.messages @ [message]
+                ? ListUtil.leading(model.chats.curr_simple_chat.messages)
+                  @ [message]
                 : model.chats.curr_simple_chat.messages,
           },
           curr_suggestion_chat: {
             ...model.chats.curr_suggestion_chat,
             messages:
               mode == CodeSuggestion
-                ? model.chats.curr_suggestion_chat.messages @ [message]
+                ? ListUtil.leading(model.chats.curr_suggestion_chat.messages)
+                  @ [message]
                 : model.chats.curr_suggestion_chat.messages,
           },
           curr_completion_chat: {
             ...model.chats.curr_completion_chat,
             messages:
               mode == TaskCompletion
-                ? model.chats.curr_completion_chat.messages @ [message]
+                ? ListUtil.leading(model.chats.curr_completion_chat.messages)
+                  @ [message]
                 : model.chats.curr_completion_chat.messages,
           },
         },
@@ -539,7 +659,9 @@ module Update = {
               ~messages=model.chats.curr_completion_chat.messages @ [message],
             )
           | _ =>
-            print_endline("Invalid mode");
+            print_endline(
+              "Invalid mode. Cannot perform code completion in chat mode.",
+            );
             "";
           };
         print_endline(collected_chat);
@@ -768,10 +890,6 @@ module Update = {
     | SwitchMode(mode) =>
       {...model, show_history: false} |> Updated.return_quiet
     | Describe(content, mode, chat_id) =>
-      let find_by_id = (list, id, ~get_id) => {
-        List.find_opt(item => get_id(item) == id, list);
-      };
-
       let updated_chats =
         switch (mode) {
         | SimpleChat =>
@@ -838,10 +956,6 @@ module Update = {
         };
       };
 
-      // Get the chat we're switching to
-      let curr_chat =
-        Option.get(find_by_id(model.chats, chat_id, ~get_id=chat => chat.id));
-
       // Store current chat back into past_chats list
       let updated_past_chats =
         switch (mode) {
@@ -877,6 +991,12 @@ module Update = {
           }
         };
 
+      // Get the chat we're switching to
+      let curr_chat =
+        Option.get(
+          find_by_id(updated_past_chats, chat_id, ~get_id=chat => chat.id),
+        );
+
       // Now update the current chat
       let final_chats =
         switch (mode) {
@@ -891,8 +1011,7 @@ module Update = {
           }
         };
 
-      {...model, chats: final_chats, show_history: false}
-      |> Updated.return_quiet;
+      {...model, chats: final_chats} |> Updated.return_quiet;
     };
   };
 };
