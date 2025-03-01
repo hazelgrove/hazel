@@ -27,7 +27,7 @@ module Exp = {
     | Falsity
     | NumLit
     | Neg
-    | BinOp(DrvTermBase.op_bin)
+    | BinOp(Grammar.Drv.op_bin)
     | True
     | False
     | If
@@ -100,10 +100,7 @@ module Exp = {
 
   include DrvTermBase.Exp;
 
-  // let hole = (tms: list(TermBase.Any.t)): term =>
-  //   Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
-
-  let rep_id = ({ids, _}: t) => {
+  let rep_id = ({annotation: {ids, _}, _}: t) => {
     assert(ids != []);
     List.hd(ids);
   };
@@ -189,7 +186,7 @@ module Pat = {
 
   include DrvTermBase.Pat;
 
-  let rep_id = ({ids, _}: t) => {
+  let rep_id = ({annotation: {ids, _}, _}: t) => {
     assert(ids != []);
     List.hd(ids);
   };
@@ -248,7 +245,7 @@ module Typ = {
   // let hole = (tms: list(TermBase.Any.t)): term =>
   //   Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
 
-  let rep_id = ({ids, _}: t) => {
+  let rep_id = ({annotation: {ids, _}, _}: t) => {
     assert(ids != []);
     List.hd(ids);
   };
@@ -290,10 +287,7 @@ module TPat = {
 
   include DrvTermBase.TPat;
 
-  // let hole = (tms: list(TermBase.Any.t)): term =>
-  //   Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
-
-  let rep_id = ({ids, _}: t) => {
+  let rep_id = ({annotation: {ids, _}, _}: t) => {
     assert(ids != []);
     List.hd(ids);
   };
@@ -335,12 +329,12 @@ module Any = {
     | Typ(typ) => Typ.rep_id(typ)
     | TPat(tpat) => TPat.rep_id(tpat);
 
-  let of_id: t => list(Id.t) =
+  let ids: t => list(Id.t) =
     fun
-    | Exp(exp) => exp.ids
-    | Pat(pat) => pat.ids
-    | Typ(typ) => typ.ids
-    | TPat(tpat) => tpat.ids;
+    | Exp({annotation: {ids, _}, _})
+    | Pat({annotation: {ids, _}, _})
+    | Typ({annotation: {ids, _}, _})
+    | TPat({annotation: {ids, _}, _}) => ids;
 
   let cls_of: t => cls =
     fun

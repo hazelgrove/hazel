@@ -5,7 +5,7 @@
   because of a remolding issue. We are using `Exp` for the above sorts.
  */
 
-[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
+[@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type t =
   | Jdmt
   | Ctx

@@ -66,6 +66,7 @@ let simple_shards_indicated =
       ~base_cls=?,
       ~font_metrics: FontMetrics.t,
       ~caret: (Id.t, int),
+      ~sort,
       (id, mold, shards),
     )
     : list(t) =>
@@ -79,7 +80,7 @@ let simple_shards_indicated =
           measurement,
           tips: tips_of_shapes(Mold.nib_shapes(~index, mold)),
         },
-        ~sort=mold.out,
+        ~sort,
         ~at_caret=caret == (id, index),
       )
     },
@@ -143,6 +144,7 @@ let bi_lines =
       ~font_metrics: FontMetrics.t,
       ~rows: Measured.Rows.t,
       ~line_clss: list(string),
+      ~sort: Sort.t,
       tiles: list((Id.t, Mold.t, Measured.Shards.t)),
     )
     : list(t) => {
@@ -195,12 +197,7 @@ let bi_lines =
          );
        });
   // TODO(d) clean up Profile datatype
-  let s =
-    switch (tiles) {
-    | [] => failwith("empty tile")
-    | [(_, mold, _), ..._] => mold.out
-    };
-  let clss = ["child-line", Sort.to_string(s)] @ line_clss;
+  let clss = ["child-line", Sort.to_string(sort)] @ line_clss;
   intra_lines
   @ inter_lines
   |> List.map(((origin, path)) =>
@@ -213,6 +210,7 @@ let uni_lines =
       ~font_metrics: FontMetrics.t,
       ~rows: Measured.Rows.t,
       ~line_clss: list(string),
+      ~sort: Sort.t,
       (l: Measured.Point.t, r: Measured.Point.t),
       tiles: list((Id.t, Mold.t, Measured.Shards.t)),
     ) => {
@@ -332,12 +330,7 @@ let uni_lines =
     };
   };
   // TODO(d) clean up Profile datatype
-  let s =
-    switch (tiles) {
-    | [] => failwith("empty tile")
-    | [(_, mold, _), ..._] => mold.out
-    };
-  let clss = ["child-line", Sort.to_string(s)] @ line_clss;
+  let clss = ["child-line", Sort.to_string(sort)] @ line_clss;
   l_line
   @ r_line
   |> List.map(((origin, path)) =>
@@ -354,6 +347,7 @@ let indicated =
       ~tiles,
       ~line_clss: list(string),
       ~base_clss=?,
+      ~sort: Sort.t,
       range,
     )
     : list(Node.t) => {
@@ -363,9 +357,10 @@ let indicated =
       ~font_metrics,
       ~caret,
       ~base_cls=?base_clss,
+      ~sort,
     ),
     tiles,
   )
-  @ uni_lines(~line_clss, ~font_metrics, ~rows, range, tiles)
-  @ bi_lines(~line_clss, ~font_metrics, ~rows, tiles);
+  @ uni_lines(~line_clss, ~font_metrics, ~rows, ~sort, range, tiles)
+  @ bi_lines(~line_clss, ~font_metrics, ~rows, ~sort, tiles);
 };

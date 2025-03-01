@@ -136,7 +136,7 @@ let exp_form: exp_t => (Segment.t, string) =
     | BinOp(op, _, _) => (
         BinOp(op, e1, e2) |> Drv.Exp.fresh |> f_exp,
         "The binary operation "
-        ++ show_op_bin(op)
+        ++ Grammar.Drv.show_op_bin(op)
         ++ " of the expressions e1 and e2.",
       )
     | True => (True |> Drv.Exp.fresh |> f_exp, "The boolean literal true.")

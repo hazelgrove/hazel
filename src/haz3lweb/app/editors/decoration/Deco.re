@@ -196,6 +196,15 @@ module Deco =
   let error_ids = M.statics.error_ids;
   let color_highlights = M.globals.color_highlights;
   let segment = M.editor.syntax.segment;
+  let of_sort = (id: Uuidm.t, mold: Mold.t): Sort.t =>
+    switch (mold.out) {
+    | Sort.Drv(Exp) =>
+      switch (Id.Map.find_opt(id, M.statics.info_map)) {
+      | Some(Info.InfoDrv({sort, _})) => Drv(sort)
+      | _ => Drv(Exp)
+      }
+    | _ as sort => sort
+    };
 
   let tile = id => Id.Map.find(id, tiles);
 
@@ -292,6 +301,8 @@ module Deco =
           ~rows,
           ~caret=(Piece.id(p), index),
           ~tiles,
+          ~sort=
+            of_sort(Piece.id(p), List.hd(tiles) |> (((_, m, _)) => m)),
           range,
         );
       };
@@ -451,6 +462,7 @@ module Deco =
         switch (term_range(p)) {
         | Some(range) =>
           let rows = measured.rows;
+          let sort = of_sort(id, List.hd(tiles) |> (((_, m, _)) => m));
           let decos =
             shard_decos
             @ PieceDec.uni_lines(
@@ -459,8 +471,15 @@ module Deco =
                 range,
                 tiles,
                 ~line_clss=[],
+                ~sort,
               )
-            @ PieceDec.bi_lines(~font_metrics, ~rows, tiles, ~line_clss=[]);
+            @ PieceDec.bi_lines(
+                ~font_metrics,
+                ~rows,
+                tiles,
+                ~line_clss=[],
+                ~sort,
+              );
           div_c("errors-piece", decos);
         | None => div_c("errors-piece", shard_decos)
         };
@@ -511,6 +530,7 @@ module Deco =
               ~caret=(Id.invalid, 0),
               ~rows=measured.rows,
               ~tiles=[(id, mold, shards)],
+              ~sort=of_sort(id, mold),
               x,
             )
             @ PieceDec.indicated(
@@ -521,6 +541,7 @@ module Deco =
                 ~caret=(Id.invalid, 0),
                 ~rows=measured.rows,
                 ~tiles=[(id, mold, shards)],
+                ~sort=of_sort(id, mold),
                 x,
               )
           },
@@ -558,6 +579,7 @@ module Deco =
           ~caret=(Id.invalid, 0),
           ~rows=measured.rows,
           ~tiles=[(id, mold, shards)],
+          ~sort=of_sort(id, mold),
         )
         |> Option.map(_, range);
       },

@@ -174,7 +174,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (SumWithArg(name), Cast(d1, {term: Sum(s1), _}, {term: Sum(s2), _})) =>
       let get_entry_or_bad = s =>
         switch (ConstructorMap.get_entry(name, s)) {
-        | Some(x) => Some(x)
+        | Some(Some(x)) => Some(x)
+        | Some(None) => None
         | None when ConstructorMap.has_bad_entry(s) =>
           Some(Typ.temp(Unknown(Internal)))
         | None => None

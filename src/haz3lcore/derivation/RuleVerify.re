@@ -559,7 +559,7 @@ let verify: (t, (Drv.Exp.t, list(Drv.Exp.t))) => res =
 let __print_all_specs_and_tests = () => {
   Rule.all
   |> List.iter(rule => {
-       let Spec.{concl, prems, tests} = of_spec(rule);
+       let {concl, prems, tests} = of_spec(rule);
        List.iter(prem => print_endline("  " ++ Drv.Exp.show(prem)), prems);
        List.iter(
          test => print_endline("  {Test} " ++ show_test(test)),

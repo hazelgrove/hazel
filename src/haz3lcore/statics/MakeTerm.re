@@ -53,7 +53,7 @@ let is_nary =
 let is_tuple_exp = is_nary(Any.is_exp, ",");
 let is_tuple_pat = is_nary(Any.is_pat, ",");
 let is_tuple_typ = is_nary(Any.is_typ, ",");
-let is_tuple_alfa_exp = is_nary(Any.is_alfa_exp, ",");
+let is_tuple_alfa_exp = is_nary(Any.is_drv_exp, ",");
 let is_typ_bsum = is_nary(Any.is_typ, "+");
 
 let is_grout = tiles =>
@@ -86,7 +86,7 @@ let is_alfa_rules =
     ts
     |> List.map(
          fun
-         | (_, (["|", "=>"], [TermBase.Drv(Pat(p))])) => Some(p)
+         | (_, (["|", "=>"], [Grammar.Drv(Pat(p))])) => Some(p)
          | _ => None,
        )
     |> OptUtil.sequence
@@ -94,7 +94,7 @@ let is_alfa_rules =
     kids
     |> List.map(
          fun
-         | TermBase.Drv(Exp(clause)) => Some(clause)
+         | Grammar.Drv(Exp(clause)) => Some(clause)
          | _ => None,
        )
     |> OptUtil.sequence;
@@ -148,13 +148,22 @@ let rm_and_log_projectors = (seg: Segment.t): Segment.t =>
 
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
-  | {term: Var(ctr), ids, _} => Variant(ctr, ids, None)
-  | {term: Ap({term: Var(ctr), ids: ids_ctr, _}, u), ids: ids_ap, _} =>
+  | {term: Var(ctr), annotation: {ids, _}} => Variant(ctr, ids, None)
+  | {
+      term: Ap({term: Var(ctr), annotation: {ids: ids_ctr, _}}, u),
+      annotation: {ids: ids_ap, _},
+    } =>
     Variant(ctr, ids_ctr @ ids_ap, Some(u))
   | t => BadEntry(t);
 
 let mk_bad = (ctr, ids, value) => {
-  let t: Typ.t = {ids, copied: false, term: Var(ctr)};
+  let t: Typ.t = {
+    annotation: {
+      ids,
+      copied: false,
+    },
+    term: Var(ctr),
+  };
   switch (value) {
   | None => t
   | Some(u) => Ap(t, u) |> Typ.fresh
@@ -200,7 +209,13 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
 and alfa_exp = unsorted => {
   let (term, inner_ids) = alfa_exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(e => Drv(Exp(e)), ids, {ids, copied: false, term});
+  return(e => Drv(Exp(e)), ids, {
+                                    annotation: {
+                                      ids,
+                                      copied: false,
+                                    },
+                                    term,
+                                  });
 }
 and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
   let ret = (tm: Drv.Exp.term) => (tm, []);
@@ -225,20 +240,20 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     | (["val", "end"], [Drv(Exp(e))]) => ret(Val(e))
     | (["valid", "end"], [Drv(Typ(t))]) => ret(Type(t))
     | (["[", "]"], [Drv(Exp(body))]) =>
-      switch (body) {
-      | {ids, copied: false, term: Tuple(es)} => (Ctx(es), ids)
-      | {ids, copied: false, term: Pair(e1, e2)} => (Ctx([e1, e2]), ids)
-      | term => ret(Ctx([term]))
+      switch (body.term) {
+      | Tuple(es) => (Ctx(es), IdTagged.ids(body))
+      | Pair(e1, e2) => (Ctx([e1, e2]), IdTagged.ids(body))
+      | _ => ret(Ctx([body]))
       }
     | (["(", ")"], [Drv(Exp(body))]) =>
-      switch (body) {
+      switch (body.term) {
       // Note(zhiyao): a standard tuple includes a parens
-      | {ids, term: Tuple(_) as term, _} => (term, ids)
+      | Tuple(_) as term => (term, IdTagged.ids(body))
       | _ => ret(Parens(body))
       }
     | (["case", "end"], [Drv(Exp(body))]) =>
-      switch (body) {
-      | {ids, term: Case(_) as term, _} => (term, ids)
+      switch (body.term) {
+      | Case(_) as term => (term, IdTagged.ids(body))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -260,9 +275,9 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     | "<" => ret(BinOp(Lt, l, r))
     | ">" => ret(BinOp(Gt, l, r))
     | "." =>
-      switch (r) {
-      | {term: Var("fst"), ids, _} => (PrjL(l), ids)
-      | {term: Var("snd"), ids, _} => (PrjR(l), ids)
+      switch (r.term) {
+      | Var("fst") => (PrjL(l), IdTagged.ids(r))
+      | Var("snd") => (PrjR(l), IdTagged.ids(r))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -285,8 +300,8 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     | _ => ret(hole(tm))
     }
   | Pre(([(_id, (["$"], []))], []), Drv(Exp(r))) as tm =>
-    switch (r) {
-    | {term: Var(v), ids, _} => (Quote(v), ids)
+    switch (r.term) {
+    | Var(v) => (Quote(v), IdTagged.ids(r))
     | _ => ret(hole(tm))
     }
   | Pre(([(_id, t)], []), Drv(Exp(r))) as tm =>
@@ -314,10 +329,10 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     switch (t) {
     | (["(", ")"], [Drv(Exp(r))]) =>
       switch (l.term) {
-      | Var("L") => (InjL(r), l.ids)
-      | Var("R") => (InjR(r), l.ids)
-      | Var("roll") => (Roll(r), l.ids)
-      | Var("unroll") => (Unroll(r), l.ids)
+      | Var("L") => (InjL(r), IdTagged.ids(l))
+      | Var("R") => (InjR(r), IdTagged.ids(l))
+      | Var("roll") => (Roll(r), IdTagged.ids(l))
+      | Var("unroll") => (Unroll(r), IdTagged.ids(l))
       | _ => ret(Ap(l, r))
       }
     | _ => ret(hole(tm))
@@ -327,7 +342,13 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
 and alfa_pat = unsorted => {
   let (term, inner_ids) = alfa_pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(p => Drv(Pat(p)), ids, {ids, term, copied: false});
+  return(p => Drv(Pat(p)), ids, {
+                                    annotation: {
+                                      ids,
+                                      copied: false,
+                                    },
+                                    term,
+                                  });
 }
 and alfa_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
   let ret = (tm: Drv.Pat.term) => (tm, []);
@@ -343,8 +364,8 @@ and alfa_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
     ret(Parens(body))
   | Post(Drv(Pat(l)), ([(_id, (["(", ")"], [Drv(Pat(r))]))], [])) as tm =>
     switch (l.term) {
-    | Var("L") => (InjL(r), l.ids)
-    | Var("R") => (InjR(r), l.ids)
+    | Var("L") => (InjL(r), IdTagged.ids(l))
+    | Var("R") => (InjR(r), IdTagged.ids(l))
     | _ => ret(hole(tm))
     }
   | Bin(Drv(Pat(l)), ([(_id, ([":"], []))], []), Drv(Typ(r))) =>
@@ -352,8 +373,8 @@ and alfa_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
   | Bin(Drv(Pat(l)), ([(_id, ([","], []))], []), Drv(Pat(r))) =>
     ret(Pair(l, r))
   | Pre(([(_id, (["$"], []))], []), Drv(Pat(r))) as tm =>
-    switch (r) {
-    | {term: Var(v), ids, _} => (Quote(v), ids)
+    switch (r.term) {
+    | Var(v) => (Quote(v), IdTagged.ids(r))
     | _ => ret(hole(tm))
     }
   | _ as tm => ret(hole(tm));
@@ -362,7 +383,17 @@ and alfa_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
 and alfa_typ = unsorted => {
   let (term, inner_ids) = alfa_typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(ty => Drv(Typ(ty)), ids, {ids, term, copied: false});
+  return(
+    ty => Drv(Typ(ty)),
+    ids,
+    {
+      annotation: {
+        ids,
+        copied: false,
+      },
+      term,
+    },
+  );
 }
 and alfa_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
   let ret = (tm: Drv.Typ.term) => (tm, []);
@@ -384,8 +415,8 @@ and alfa_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
   | Pre(([(_id, (["rec", "->"], [Drv(TPat(p))]))], []), Drv(Typ(t))) =>
     ret(Rec(p, t))
   | Pre(([(_id, (["$"], []))], []), Drv(Typ(r))) as tm =>
-    switch (r) {
-    | {term: Var(v), ids, _} => (Quote(v), ids)
+    switch (r.term) {
+    | Var(v) => (Quote(v), IdTagged.ids(r))
     | _ => ret(hole(tm))
     }
   | Bin(Drv(Typ(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) as tm =>
@@ -401,7 +432,17 @@ and alfa_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
 and alfa_tpat = unsorted => {
   let (term, inner_ids) = alfa_tpat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(tpat => Drv(TPat(tpat)), ids, {ids, term, copied: false});
+  return(
+    tpat => Drv(TPat(tpat)),
+    ids,
+    {
+      annotation: {
+        ids,
+        copied: false,
+      },
+      term,
+    },
+  );
 }
 and alfa_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
   let ret = (tm: Drv.TPat.term) => (tm, []);
@@ -410,8 +451,8 @@ and alfa_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
   fun
   | Op(([(_id, ([t], []))], [])) when Form.is_typ_var(t) => ret(Var(t))
   | Pre(([(_id, (["$"], []))], []), Drv(TPat(r))) as tm =>
-    switch (r) {
-    | {term: Var(v), ids, _} => (Quote(v), ids)
+    switch (r.term) {
+    | Var(v) => (Quote(v), IdTagged.ids(r))
     | _ => ret(hole(tm))
     }
   | _ as tm => ret(hole(tm));
@@ -426,12 +467,29 @@ and exp = unsorted => {
   | MultiHole([Drv(_), ..._]) =>
     let (term, inner_ids) = alfa_exp_term(unsorted);
     let ids = ids(unsorted) @ inner_ids;
-    let exp = return(e => Drv(Exp(e)), ids, {ids, copied: false, term});
-    TermBase.DrvExp(Exp(exp), Jdmt) |> IdTagged.fresh;
+    let exp =
+      return(
+        e => Drv(Exp(e)),
+        ids,
+        {
+          annotation: {
+            ids,
+            copied: false,
+          },
+          term,
+        },
+      );
+    Grammar.DrvExp(Exp(exp), Jdmt) |> IdTagged.fresh;
   | _ =>
     let ids = ids(unsorted) @ inner_ids;
     let e: TermBase.exp_t =
-      return(e => Exp(e), ids, {ids, copied: false, term});
+      return(e => Exp(e), ids, {
+                                  annotation: {
+                                    ids,
+                                    copied: false,
+                                  },
+                                  term,
+                                });
     switch (term) {
     | TupLabel(_) =>
       // The tile id is the id of the tuple not the tuplabel
@@ -460,16 +518,21 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(String(Form.strip_quotes(t)))
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
-      | ([t], []) when Form.is_ctr(t) =>
-        ret(Constructor(t, Unknown(Internal) |> Typ.temp))
+      | ([t], []) when Form.is_ctr(t) => ret(Constructor(t, None))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {ids, copied: false, term: Tuple(es)} => (ListLit(es), ids)
+        | {annotation: {ids, copied: false}, term: Tuple(es)} => (
+            ListLit(es),
+            ids,
+          )
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (["case", "end"], [Rul({ids, term: Rules(scrut, rules), _})]) => (
+      | (
+          ["case", "end"],
+          [Rul({term: Rules(scrut, rules), annotation: {ids, _}})],
+        ) => (
           Match(scrut, rules),
           ids,
         )
@@ -529,13 +592,21 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           Ap(
             Forward,
             l,
-            {ids: [Id.nullary_ap_flag], copied: false, term: Tuple([])},
+            {
+              annotation: {
+                ids: [Id.nullary_ap_flag],
+                copied: false,
+              },
+              term: Tuple([]),
+            },
           ),
         )
       | (["(", ")"], [Exp(arg)]) =>
         let use_deferral = (arg: Exp.t): Exp.t => {
-          ids: arg.ids,
-          copied: false,
+          annotation: {
+            ids: IdTagged.ids(arg),
+            copied: false,
+          },
           term: Deferral(InAp),
         };
         switch (arg.term) {
@@ -549,7 +620,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 es,
               ),
             ),
-            arg.ids,
+            IdTagged.ids(arg),
           )
         | _ => ret(Ap(Forward, l, arg))
         };
@@ -618,7 +689,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["="], []) =>
             switch (l.term) {
             | Var(name) =>
-              TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r)
+              TupLabel({annotation: l.annotation, term: Label(name)}, r)
             | EmptyHole => TupLabel(l, r)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(l);
@@ -631,7 +702,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["."], []) =>
             switch (r.term) {
             | Var(name) =>
-              Dot(l, {ids: r.ids, copied: r.copied, term: Label(name)})
+              Dot(l, {annotation: r.annotation, term: Label(name)})
             | EmptyHole => Dot(l, r)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(r);
@@ -654,7 +725,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  let p = return(p => Pat(p), ids, {ids, term, copied: false});
+  let p =
+    return(p => Pat(p), ids, {
+                                annotation: {
+                                  ids,
+                                  copied: false,
+                                },
+                                term,
+                              });
   switch (term) {
   | TupLabel(_) => Tuple([p]) |> Pat.fresh
   | _ => p
@@ -677,8 +755,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         | ([t], []) when Form.is_string(t) => String(Form.strip_quotes(t))
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
-        | ([t], []) when Form.is_ctr(t) =>
-          Constructor(t, Unknown(Internal) |> Typ.fresh)
+        | ([t], []) when Form.is_ctr(t) => Constructor(t, None)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
@@ -729,9 +806,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | ([(_id, (["="], []))], []) =>
         switch (l.term) {
         | Var(name) =>
-          ret(
-            TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r),
-          )
+          ret(TupLabel({annotation: l.annotation, term: Label(name)}, r))
         | EmptyHole => ret(TupLabel(l, r))
         | _ =>
           let (e_term, rewrap) = IdTagged.unwrap(l);
@@ -751,7 +826,14 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
 and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  let t = return(ty => Typ(ty), ids, {ids, term, copied: false});
+  let t =
+    return(ty => Typ(ty), ids, {
+                                  term,
+                                  annotation: {
+                                    ids,
+                                    copied: false,
+                                  },
+                                });
   switch (term) {
   | TupLabel(_) => Prod([t]) |> Typ.fresh
   | _ => t
@@ -793,7 +875,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     ret(Forall(tpat, t))
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
-  | Pre(tiles, Typ({term: Sum(t0), ids, _})) as tm =>
+  | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
     | ([(_, (["+"], []))], []) => (Sum(t0), ids)
@@ -837,9 +919,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       | ([(_id, (["="], []))], []) =>
         switch (l.term) {
         | Var(name) =>
-          ret(
-            TupLabel({ids: l.ids, copied: l.copied, term: Label(name)}, r),
-          )
+          ret(TupLabel({annotation: l.annotation, term: Label(name)}, r))
         | _ => ret(TupLabel(l, r))
         }
       | _ => ret(hole(tm))
@@ -850,7 +930,13 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
   let ids = ids(unsorted);
-  return(ty => TPat(ty), ids, {ids, term, copied: false});
+  return(ty => TPat(ty), ids, {
+                                 term,
+                                 annotation: {
+                                   ids,
+                                   copied: false,
+                                 },
+                               });
 }
 and tpat_term: unsorted => TPat.term = {
   let ret = (term: TPat.term) => term;
@@ -886,16 +972,36 @@ and rul = (unsorted): Rul.t => {
     | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
       switch (is_rules(tiles)) {
       | Some((ps, leading_clauses)) => {
-          ids: ids(unsorted),
+          annotation: {
+            ids: ids(unsorted),
+            copied: false,
+          },
           term:
             Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
-          copied: false,
         }
-      | None => {ids: ids(unsorted), term: hole, copied: false}
+      | None => {
+          term: hole,
+          annotation: {
+            ids: ids(unsorted),
+            copied: false,
+          },
+        }
       }
-    | _ => {ids: ids(unsorted), term: hole, copied: false}
+    | _ => {
+        term: hole,
+        annotation: {
+          ids: ids(unsorted),
+          copied: false,
+        },
+      }
     }
-  | e => {ids: [], term: Rules(e, []), copied: false}
+  | e => {
+      term: Rules(e, []),
+      annotation: {
+        ids: [],
+        copied: false,
+      },
+    }
   };
 }
 
@@ -975,6 +1081,6 @@ let from_zip_for_sem =
 
 let parse_exp = (s: string) => {
   open OptUtil.Syntax;
-  let+ zip = Printer.zipper_of_string(s, ~root=Exp);
+  let+ zip = Printer.zipper_of_string(s, ~root=Sort.Exp);
   from_zip_for_sem(zip).term;
 };

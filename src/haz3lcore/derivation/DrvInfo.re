@@ -3,10 +3,10 @@ open Util;
 let repr_list_ana_exp = (anas: list(DrvSort.t)): string =>
   anas |> List.map(DrvSort.show) |> String.concat(", ");
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ancestors = list(Id.t);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error =
   | BadToken(Token.t)
   | MultiHole
@@ -14,7 +14,7 @@ type error =
   | VarNoJoin(DrvSort.t, Typ.t) // expect, actual
   | NoJoin(DrvSort.t, list(DrvSort.t)); // expect, actuals
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status =
   | NotInHole
   | InHole(error);

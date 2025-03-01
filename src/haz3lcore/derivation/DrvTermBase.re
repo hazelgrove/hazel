@@ -4,121 +4,25 @@ let continue = x => x;
 let stop = (_, x) => x;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type op_bin =
-  | Plus
-  | Minus
-  | Times
-  | Gt
-  | Lt
-  | Eq;
-
-module type Wrapper = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t('a);
-};
-
-module M = (W: Wrapper) => {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type any_t =
-    | Exp(exp_t)
-    | Pat(pat_t)
-    | Typ(typ_t)
-    | TPat(tpat_t)
-  and exp_term =
-    | Hole(type_hole)
-    | Quote(Var.t)
-    | Var(Var.t) // Prop / Exp
-    | Parens(exp_t) // Jdmt / Ctxt / Prop / Exp
-    | Tuple(list(exp_t)) // [invalid]
-    // Jdmt
-    | Val(exp_t)
-    | Eval(exp_t, exp_t)
-    | Entail(exp_t, exp_t)
-    | Consistent(typ_t, typ_t)
-    | MatchedArrow(typ_t, typ_t)
-    | MatchedProd(typ_t, typ_t)
-    | MatchedSum(typ_t, typ_t)
-    // Ctx
-    | Ctx(list(exp_t))
-    | Cons(exp_t, exp_t)
-    | Concat(exp_t, exp_t)
-    // Prop
-    | Type(typ_t)
-    | HasType(exp_t, typ_t)
-    | Syn(exp_t, typ_t)
-    | Ana(exp_t, typ_t)
-    | And(exp_t, exp_t)
-    | Or(exp_t, exp_t)
-    | Impl(exp_t, exp_t)
-    | Truth
-    | Falsity
-    // Exp
-    | NumLit(int)
-    | Neg(exp_t)
-    | BinOp(op_bin, exp_t, exp_t)
-    | True
-    | False
-    | If(exp_t, exp_t, exp_t)
-    | Let(pat_t, exp_t, exp_t)
-    | Fix(pat_t, exp_t)
-    | Fun(pat_t, exp_t)
-    | Ap(exp_t, exp_t)
-    | Pair(exp_t, exp_t)
-    | Triv
-    | PrjL(exp_t)
-    | PrjR(exp_t)
-    | InjL(exp_t)
-    | InjR(exp_t)
-    | Case(exp_t, pat_t, exp_t, pat_t, exp_t)
-    | Roll(exp_t)
-    | Unroll(exp_t)
-    | ExpHole
-  and exp_t = W.t(exp_term)
-  and pat_term =
-    | Hole(type_hole)
-    | Quote(Var.t)
-    | Var(Var.t)
-    | Parens(pat_t)
-    | Cast(pat_t, typ_t)
-    | InjL(pat_t)
-    | InjR(pat_t)
-    | Pair(pat_t, pat_t)
-  and pat_t = W.t(pat_term)
-  and typ_term =
-    | Hole(type_hole)
-    | Quote(Var.t)
-    | Var(Var.t)
-    | Parens(typ_t)
-    | Num
-    | Bool
-    | Arrow(typ_t, typ_t)
-    | Prod(typ_t, typ_t)
-    | Unit
-    | Sum(typ_t, typ_t)
-    | Rec(tpat_t, typ_t)
-    | TypHole
-  and typ_t = W.t(typ_term)
-  and tpat_term =
-    | Hole(type_hole)
-    | Quote(Var.t)
-    | Var(Var.t)
-  and tpat_t = W.t(tpat_term)
-  and type_hole =
-    | AbbrNotVar
-    | AbbrNotFound
-    | AbbrNotDrvTerm
-    | Invalid(string)
-    | EmptyHole
-    | MultiHole(list(any_t));
-};
-
-module M_IdTagged =
-  M({
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t('a) = IdTagged.t('a);
-  });
-
-include M_IdTagged;
+type any_t = Grammar.Drv.any_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type exp_t = Grammar.Drv.exp_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type exp_term = Grammar.Drv.exp_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type pat_t = Grammar.Drv.pat_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type pat_term = Grammar.Drv.pat_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typ_t = Grammar.Drv.typ_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typ_term = Grammar.Drv.typ_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tpat_t = Grammar.Drv.tpat_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tpat_term = Grammar.Drv.tpat_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type type_hole = Grammar.Drv.type_hole(IdTagged.IdTag.t);
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -130,6 +34,7 @@ module rec Any: {
       ~f_pat: (pat_t => pat_t, pat_t) => pat_t=?,
       ~f_typ: (typ_t => typ_t, typ_t) => typ_t=?,
       ~f_tpat: (tpat_t => tpat_t, tpat_t) => tpat_t=?,
+      ~f_any: (any_t => any_t, any_t) => any_t=?,
       t
     ) =>
     t;
@@ -140,16 +45,29 @@ module rec Any: {
   type t = any_t;
 
   let map_term =
-      (~f_exp=continue, ~f_pat=continue, ~f_typ=continue, ~f_tpat=continue, x) => {
-    switch (x) {
-    | Exp(exp) => Exp(Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, exp))
-    | Pat(pat) => Pat(Pat.map_term(~f_pat, ~f_typ, ~f_tpat, pat))
-    | Typ(typ) => Typ(Typ.map_term(~f_typ, ~f_tpat, typ))
-    | TPat(tpat) => TPat(TPat.map_term(~f_tpat, tpat))
-    };
+      (
+        ~f_exp=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_tpat=continue,
+        ~f_any=continue,
+        x: t,
+      ) => {
+    let rec_call = (y: t): t =>
+      switch (y) {
+      | Exp(x) =>
+        Exp(Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_any, x))
+      | Pat(x) =>
+        Pat(Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_any, x))
+      | Typ(x) =>
+        Typ(Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_any, x))
+      | TPat(x) =>
+        TPat(TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_any, x))
+      };
+    x |> f_any(rec_call);
   };
 
-  let eq = (x, y) =>
+  let eq = (x: t, y: t) =>
     switch (x, y) {
     | (Exp(e1), Exp(e2)) => Exp.eq(e1, e2)
     | (Exp(_), _) => false
@@ -173,6 +91,7 @@ and Exp: {
       ~f_pat: (pat_t => pat_t, pat_t) => pat_t=?,
       ~f_typ: (typ_t => typ_t, typ_t) => typ_t=?,
       ~f_tpat: (tpat_t => tpat_t, tpat_t) => tpat_t=?,
+      ~f_any: (any_t => any_t, any_t) => any_t=?,
       t
     ) =>
     t;
@@ -193,14 +112,23 @@ and Exp: {
   type t = exp_t;
 
   let map_term =
-      (~f_exp=continue, ~f_pat=continue, ~f_typ=continue, ~f_tpat=continue, x) => {
-    let exp_map_term = Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat);
-    let pat_map_term = Pat.map_term(~f_pat, ~f_typ, ~f_tpat);
-    let typ_map_term = Typ.map_term(~f_typ, ~f_tpat);
-    let rec_call = ({term, _} as exp: t) => {
+      (
+        ~f_exp=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_tpat=continue,
+        ~f_any=continue,
+        x: t,
+      ) => {
+    let exp_map_term = Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_any);
+    let pat_map_term = Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_any);
+    let typ_map_term = Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_any);
+    let any_map_term = Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_any);
+    let rec_call = ({term, _} as exp: t): t => {
       ...exp,
       term:
         switch (term) {
+        | Hole(MultiHole(l)) => Hole(MultiHole(List.map(any_map_term, l)))
         | Hole(_) => term
         | Var(v) => Var(v)
         | Quote(s) => Quote(s)
@@ -476,11 +404,14 @@ and Pat: {
   type term = pat_term;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = pat_t;
+
   let map_term:
     (
+      ~f_exp: (exp_t => exp_t, exp_t) => exp_t=?,
       ~f_pat: (pat_t => pat_t, pat_t) => pat_t=?,
       ~f_typ: (typ_t => typ_t, typ_t) => typ_t=?,
       ~f_tpat: (tpat_t => tpat_t, tpat_t) => tpat_t=?,
+      ~f_any: (any_t => any_t, any_t) => any_t=?,
       t
     ) =>
     t;
@@ -492,13 +423,23 @@ and Pat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = pat_t;
 
-  let map_term = (~f_pat=continue, ~f_typ=continue, ~f_tpat=continue, x) => {
-    let pat_map_term = Pat.map_term(~f_pat, ~f_typ, ~f_tpat);
-    let typ_map_term = Typ.map_term(~f_typ, ~f_tpat);
-    let rec_call = ({term, _} as exp: t) => {
+  let map_term =
+      (
+        ~f_exp=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_tpat=continue,
+        ~f_any=continue,
+        x: t,
+      ) => {
+    let pat_map_term = Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_any);
+    let typ_map_term = Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_any);
+    let any_map_term = Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_any);
+    let rec_call = ({term, _} as exp: t): t => {
       ...exp,
       term:
         switch (term) {
+        | Hole(MultiHole(l)) => Hole(MultiHole(List.map(any_map_term, l)))
         | Hole(_) => term
         | Quote(s) => Quote(s)
         | Var(v) => Var(v)
@@ -539,8 +480,11 @@ and Typ: {
 
   let map_term:
     (
+      ~f_exp: (exp_t => exp_t, exp_t) => exp_t=?,
+      ~f_pat: (pat_t => pat_t, pat_t) => pat_t=?,
       ~f_typ: (typ_t => typ_t, typ_t) => typ_t=?,
       ~f_tpat: (tpat_t => tpat_t, tpat_t) => tpat_t=?,
+      ~f_any: (any_t => any_t, any_t) => any_t=?,
       t
     ) =>
     t;
@@ -556,13 +500,24 @@ and Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = typ_t;
 
-  let map_term = (~f_typ=continue, ~f_tpat=continue, x) => {
-    let typ_map_term = Typ.map_term(~f_typ, ~f_tpat);
-    let tpat_map_term = TPat.map_term(~f_tpat);
-    let rec_call = ({term, _} as exp: t) => {
+  let map_term =
+      (
+        ~f_exp=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_tpat=continue,
+        ~f_any=continue,
+        x: t,
+      ) => {
+    let typ_map_term = Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_any);
+    let tpat_map_term =
+      TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_any);
+    let any_map_term = Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_any);
+    let rec_call = ({term, _} as exp: t): t => {
       ...exp,
       term:
         switch (term) {
+        | Hole(MultiHole(l)) => Hole(MultiHole(List.map(any_map_term, l)))
         | Hole(_) => term
         | Quote(s) => Quote(s)
         | Num => Num
@@ -605,7 +560,7 @@ and Typ: {
     };
   };
 
-  let temp = (term): t => {term, ids: [Id.invalid], copied: false};
+  let fresh: term => t = IdTagged.fresh;
 
   let rec eq = (x: t, y: t) =>
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
@@ -627,7 +582,7 @@ and Typ: {
     | (Var(v1), Var(v2)) => v1 == v2
     | (Var(_), _) => false
     | (Rec({term: Var(a1), _}, a2), Rec({term: Var(b1), _}, b2)) =>
-      let rep_id = temp(Var(Id.mk() |> Id.show));
+      let rep_id = fresh(Var(Id.mk() |> Id.show));
       eq(subst(rep_id, a1, a2), subst(rep_id, b1, b2));
     | (Rec(_), _) => false
     | (Parens(t1), Parens(t2)) => eq(t1, t2)
@@ -636,19 +591,20 @@ and Typ: {
     | (TypHole, _) => false
     };
 
-  let rec glb = (t1: t, t2: t): t =>
+  let rec glb = (t1: t, t2: t): t => {
     switch (t1 |> IdTagged.term_of, t2 |> IdTagged.term_of) {
     | _ when eq(t1, t2) => t1
     | (TypHole, _) => t2
     | (_, TypHole) => t1
     | (Arrow(t11, t12), Arrow(t21, t22)) =>
-      Arrow(glb(t11, t21), glb(t12, t22)) |> temp
+      Arrow(glb(t11, t21), glb(t12, t22)) |> fresh
     | (Prod(t11, t12), Prod(t21, t22)) =>
-      Prod(glb(t11, t21), glb(t12, t22)) |> temp
+      Prod(glb(t11, t21), glb(t12, t22)) |> fresh
     | (Sum(t11, t12), Sum(t21, t22)) =>
-      Sum(glb(t11, t21), glb(t12, t22)) |> temp
-    | _ => Hole(Invalid("Glb Failure")) |> temp
+      Sum(glb(t11, t21), glb(t12, t22)) |> fresh
+    | _ => Hole(Invalid("Glb Failure")) |> fresh
     };
+  };
 }
 and TPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -656,7 +612,16 @@ and TPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = tpat_t;
 
-  let map_term: (~f_tpat: (tpat_t => tpat_t, tpat_t) => tpat_t=?, t) => t;
+  let map_term:
+    (
+      ~f_exp: (exp_t => exp_t, exp_t) => exp_t=?,
+      ~f_pat: (pat_t => pat_t, pat_t) => pat_t=?,
+      ~f_typ: (typ_t => typ_t, typ_t) => typ_t=?,
+      ~f_tpat: (tpat_t => tpat_t, tpat_t) => tpat_t=?,
+      ~f_any: (any_t => any_t, any_t) => any_t=?,
+      t
+    ) =>
+    t;
 
   let eq: (t, t) => bool;
 } = {
@@ -665,11 +630,21 @@ and TPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = tpat_t;
 
-  let map_term = (~f_tpat=continue, x) => {
-    let rec_call = ({term, _} as exp: t) => {
+  let map_term =
+      (
+        ~f_exp=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_tpat=continue,
+        ~f_any=continue,
+        x: t,
+      ) => {
+    let any_map_term = Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_any);
+    let rec_call = ({term, _} as exp: t): t => {
       ...exp,
       term:
         switch (term) {
+        | Hole(MultiHole(l)) => Hole(MultiHole(List.map(any_map_term, l)))
         | Hole(_) => term
         | Quote(s) => Quote(s)
         | Var(v) => Var(v)

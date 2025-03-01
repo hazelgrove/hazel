@@ -18,7 +18,7 @@ module Settings = {
     fold_fn_bodies: !settings.evaluation.show_fn_bodies,
     hide_fixpoints: !settings.evaluation.show_fixpoints,
     fold_cast_types: !settings.evaluation.show_casts,
-    show_filters: false,
+    show_filters: settings.evaluation.show_stepper_filters,
   };
 };
 
@@ -202,7 +202,8 @@ let rec parenthesize =
   | Filter(Residue(_), x) => x |> parenthesize
   // Other forms
   | Constructor(c, t) =>
-    Constructor(c, paren_typ_at(Precedence.cast, t)) |> rewrap
+    Constructor(c, Option.map(ty => paren_typ_at(Precedence.cast, ty), t))
+    |> rewrap
   | Fun(p, e, typ, n) =>
     Fun(
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),
@@ -261,7 +262,7 @@ let rec parenthesize =
     Ap(
       Forward,
       parenthesize(e1) |> paren_assoc_at(Precedence.ap),
-      parenthesize(e2) |> paren_at(Precedence.min),
+      parenthesize(~already_paren=true, e2) |> paren_at(Precedence.min),
     )
     |> rewrap
   | Ap(Reverse, e1, e2) =>
@@ -311,12 +312,6 @@ let rec parenthesize =
     )
     |> rewrap
   | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
-  // | Filter(f, e) =>
-  //   Filter(
-  //     f, // TODO: Filters
-  //     parenthesize(e) |> paren_at(Precedence.min),
-  //   )
-  //   |> rewrap
   | Parens(e) =>
     Parens(parenthesize(~already_paren=true, e) |> paren_at(Precedence.min))
     |> rewrap
@@ -468,6 +463,7 @@ and parenthesize_typ =
     |> rewrap
   | List(t) =>
     List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
+  | Prod([]) => typ
   | Prod(ts) =>
     let inner =
       Prod(
@@ -738,7 +734,7 @@ let rec drv_exp_to_pretty = (~settings: Settings.t, syntax: Drv.Exp.t): pretty =
   | Ctx([x, ...xs]) =>
     let* x = go(x)
     and* xs = xs |> List.map(go) |> all;
-    let ids = syntax.ids |> List.tl |> pad_ids(List.length(xs));
+    let ids = syntax |> IdTagged.ids |> List.tl |> pad_ids(List.length(xs));
     [
       mk_form(
         Drv(List),
@@ -995,14 +991,18 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let* p = go(pat);
     let+ e = go(e);
-    let form =
-      switch (act) {
-      | (Step, One) => Form.FilterPause
-      | (Step, All) => Form.FilterDebug
-      | (Eval, One) => Form.FilterHide
-      | (Eval, All) => Form.FilterEval
-      };
-    [mk_form(form, id, [p])] @ e;
+    settings.show_filters
+      ? {
+        let form =
+          switch (act) {
+          | (Step, One) => Form.FilterPause
+          | (Step, All) => Form.FilterDebug
+          | (Eval, One) => Form.FilterHide
+          | (Eval, All) => Form.FilterEval
+          };
+        [mk_form(form, id, [p])] @ e;
+      }
+      : e;
   // Forms which should be removed by substitute_closures
   | Closure(_) => failwith("closure not removed before printing")
   // Other cases
@@ -1034,8 +1034,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let* x = go(x)
     and* xs = xs |> List.map(go) |> all;
     let (id, ids) = (
-      exp.ids |> List.hd,
-      exp.ids |> List.tl |> pad_ids(List.length(xs)),
+      IdTagged.ids(exp) |> List.hd,
+      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(xs)),
     );
     let form = (x, xs) =>
       mk_form(
@@ -1133,7 +1133,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     // TODO: Add optional newlines
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
-    let ids = exp.ids |> pad_ids(List.length(xs));
+    let ids = IdTagged.ids(exp) |> pad_ids(List.length(xs));
     x
     @ List.flatten(
         List.map2((id, x) => [mk_form(CommaExp, id, [])] @ x, ids, xs),
@@ -1218,8 +1218,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ e = go(e)
     and+ es = es |> List.map(go) |> all;
     let (id, ids) = (
-      exp.ids |> List.hd,
-      exp.ids |> List.tl |> pad_ids(List.length(es)),
+      IdTagged.ids(exp) |> List.hd,
+      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(es)),
     );
     e
     @ [
@@ -1317,8 +1317,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       |> all;
     };
     let (id, ids) = (
-      exp.ids |> List.hd,
-      exp.ids |> List.tl |> pad_ids(List.length(rs)),
+      IdTagged.ids(exp) |> List.hd,
+      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(rs)),
     );
     [
       mk_form(
@@ -1370,8 +1370,8 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let* x = go(x)
     and* xs = xs |> List.map(go) |> all;
     let (id, ids) = (
-      pat.ids |> List.hd,
-      pat.ids |> List.tl |> pad_ids(List.length(xs)),
+      IdTagged.ids(pat) |> List.hd,
+      IdTagged.ids(pat) |> List.tl |> pad_ids(List.length(xs)),
     );
     p_just([
       mk_form(
@@ -1398,7 +1398,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Tuple([x, ...xs]) =>
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
-    let ids = pat.ids |> pad_ids(List.length(xs));
+    let ids = IdTagged.ids(pat) |> pad_ids(List.length(xs));
     x
     @ List.flatten(
         List.map2((id, x) => [mk_form(CommaPat, id, [])] @ x, ids, xs),
@@ -1502,7 +1502,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     @ List.flatten(
         List.map2(
           (id, t) => [mk_form(CommaTyp, id, [])] @ t,
-          typ.ids |> pad_ids(ts |> List.length),
+          IdTagged.ids(typ) |> pad_ids(ts |> List.length),
           ts,
         ),
       );
@@ -1558,7 +1558,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t = go_constructor(t);
     [mk_form(TypSumSingle, id, [])] @ t;
   | Sum([t, ...ts]) =>
-    let ids = typ.ids |> pad_ids(List.length(ts) + 1);
+    let ids = IdTagged.ids(typ) |> pad_ids(List.length(ts) + 1);
     let id = List.hd(ids);
     let ids = List.tl(ids);
     let+ t = go_constructor(t)

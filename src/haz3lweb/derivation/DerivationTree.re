@@ -405,23 +405,6 @@ let put_stitched = (pos, s: stitched('a), x: 'a): stitched('a) =>
     }
   };
 
-let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
-  term:
-    Filter(
-      Filter({
-        act: FilterAction.(act, One),
-        pat: {
-          term: Constructor("$e", Unknown(Internal) |> Typ.temp),
-          copied: false,
-          ids: [Id.mk()],
-        },
-      }),
-      term,
-    ),
-  copied: false,
-  ids: [Id.mk()],
-};
-
 let wrap = (term, editor: Editor.t): TermItem.t => {term, editor};
 
 let term_of = (editor: Editor.t): Exp.t =>
@@ -434,7 +417,7 @@ let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
   );
 
 let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
-  let prelude_term = eds.prelude |> term_of |> wrap_filter(FilterAction.Eval);
+  let prelude_term = eds.prelude |> term_of;
   let setup_term = EditorUtil.append_exp(prelude_term, eds.setup |> term_of);
   {
     prelude: wrap(prelude_term, eds.prelude),
