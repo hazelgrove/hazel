@@ -725,9 +725,13 @@ module SystemPrompt = {
     // Uncomment either of the following lines to test error rounds
     // "- However, make sure that your initial response CAUSES A TYPE ERROR in the program. Then, fix it in your second response",
     // "- However, it is CRITICALLY important to make sure that your response ALWAYS CAUSES A TYPE ERROR in the program, no matter how many times you are re-prompted",
-    "- Reply only with a single replacement term for the unqiue distinguished hole marked '??'",
-    "- Reply only with code",
+    "- Reply ONLY with a SINGLE replacement term for the unqiue distinguished hole marked '??'",
+    "- Reply ONLY with code",
     "- DO NOT suggest more replacements for other holes in the sketch (marked '?'), or implicit holes",
+    "- This is critical, and I am going to reiterate it: DO NOT suggest more than one replacement term. It should ONLY be for the hole marked '??'",
+    "- For example, if you are being asked to complete 'let f = ? in ??', your response should ONLY be a single replacement term for the hole marked '??', NOT a replacement term for the hole marked '?'",
+    "- i.e. You should ONLY respond with a function application, or something else which would be a valid replacement term for the hole marked '??'",
+    "- IT WOULD BE A HUGE MISTAKE TO RESPOND WITH A FUNCTION BODY FOR THE HOLE MARKED '?'",
     "- DO NOT include the program sketch in your reply",
     "- DO NOT include a period at the end of your response and DO NOT use markdown",
   ];
