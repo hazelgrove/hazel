@@ -35,6 +35,7 @@ module Model = {
     curr_simple_chat: chat,
     curr_suggestion_chat: chat,
     curr_completion_chat: chat,
+    // Chats are stored as
     past_simple_chats: list(chat),
     past_suggestion_chats: list(chat),
     past_completion_chats: list(chat),
