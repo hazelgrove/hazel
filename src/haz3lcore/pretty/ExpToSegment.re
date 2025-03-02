@@ -698,7 +698,7 @@ let rec drv_exp_to_pretty = (~settings: Settings.t, syntax: Drv.Exp.t): pretty =
     drv_exp_to_pretty(~settings={...settings, inline});
   let id = syntax |> Drv.Exp.rep_id;
   switch (syntax |> Drv.Exp.term_of) {
-  | Hole(_) => text_to_pretty(id, Sort.Drv(Exp), "?")
+  | Hole(h) => drv_type_hole_to_pretty(~settings, h)
   | Quote(e) => text_to_pretty(id, Sort.Drv(Exp), "$" ++ e)
   | Parens(e) =>
     let+ e = go(e);
@@ -886,7 +886,7 @@ let rec drv_exp_to_pretty = (~settings: Settings.t, syntax: Drv.Exp.t): pretty =
     let e = go(e);
     text_to_pretty(id, Sort.Drv(Exp), "Unroll")
     @ [mk_form(Drv(Ap), id, [e])];
-  | ExpHole => text_to_pretty(id, Sort.Drv(Exp), "_")
+  | ExpHole => text_to_pretty(id, Sort.Drv(Exp), Form.wild)
   };
 }
 and drv_pat_to_pretty = (~settings: Settings.t, syntax: Drv.Pat.t): pretty => {
@@ -894,7 +894,7 @@ and drv_pat_to_pretty = (~settings: Settings.t, syntax: Drv.Pat.t): pretty => {
     drv_pat_to_pretty(~settings={...settings, inline});
   let id = syntax |> Drv.Pat.rep_id;
   switch (syntax |> Drv.Pat.term_of) {
-  | Hole(_) => text_to_pretty(id, Sort.Drv(Pat), "?")
+  | Hole(h) => drv_type_hole_to_pretty(~settings, h)
   | Quote(e) => text_to_pretty(id, Sort.Drv(Pat), e)
   | Parens(e) =>
     let+ e = go(e);
@@ -929,7 +929,7 @@ and drv_typ_to_pretty = (~settings: Settings.t, syntax: Drv.Typ.t): pretty => {
     drv_typ_to_pretty(~settings={...settings, inline});
   let id = syntax |> Drv.Typ.rep_id;
   switch (syntax |> Drv.Typ.term_of) {
-  | Hole(_) => text_to_pretty(id, Sort.Drv(Typ), "?")
+  | Hole(h) => drv_type_hole_to_pretty(~settings, h)
   | Quote(e) => text_to_pretty(id, Sort.Drv(Exp), e)
   | Parens(e) =>
     let+ e = go(e);
@@ -954,20 +954,35 @@ and drv_typ_to_pretty = (~settings: Settings.t, syntax: Drv.Typ.t): pretty => {
     let+ l = drv_tpat_to_pretty(~settings, l)
     and+ r = go(r);
     [mk_form(Drv(Rec), id, [l])] @ r;
-  | TypHole => text_to_pretty(id, Sort.Drv(Typ), "_")
+  | TypHole => text_to_pretty(id, Sort.Drv(Typ), Form.explicit_hole)
   };
 }
-and drv_tpat_to_pretty =
-    (~settings as _: Settings.t, syntax: Drv.TPat.t): pretty => {
+and drv_tpat_to_pretty = (~settings: Settings.t, syntax: Drv.TPat.t): pretty => {
   let id = syntax |> Drv.TPat.rep_id;
   switch (syntax |> Drv.TPat.term_of) {
-  | Hole(_) => text_to_pretty(id, Sort.Drv(TPat), "?")
+  | Hole(h) => drv_type_hole_to_pretty(~settings, h)
   | Quote(e) => text_to_pretty(id, Sort.Drv(Exp), e)
   | Var(s) => text_to_pretty(id, Sort.Drv(TPat), s)
   };
-};
-
-let drv_to_pretty = (~settings: Settings.t, drv: Drv.Any.t): pretty => {
+}
+and drv_type_hole_to_pretty =
+    (~settings: Settings.t, syntax: DrvTermBase.type_hole): pretty => {
+  let id = Id.invalid;
+  switch (syntax) {
+  | AbbrNotVar =>
+    text_to_pretty(id, Sort.Drv(Typ), "Error: Abbreviation not a variable")
+  | AbbrNotFound =>
+    text_to_pretty(id, Sort.Drv(Typ), "Error: Abbreviation not found")
+  | AbbrNotDrvTerm =>
+    text_to_pretty(id, Sort.Drv(Typ), "Error: Abbreviation not a drv term")
+  | Invalid(s) => text_to_pretty(id, Sort.Drv(Typ), "Error: " ++ s)
+  | EmptyHole => text_to_pretty(id, Sort.Drv(Typ), Form.space)
+  | MultiHole(tm) =>
+    let+ tm = tm |> List.map(drv_to_pretty(~settings)) |> all;
+    ListUtil.flat_intersperse(Grout({id, shape: Concave}), tm);
+  };
+}
+and drv_to_pretty = (~settings: Settings.t, drv: Drv.Any.t): pretty => {
   switch (drv) {
   | Exp(e) => drv_exp_to_pretty(~settings, e)
   | Pat(p) => drv_pat_to_pretty(~settings, p)

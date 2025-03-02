@@ -53,7 +53,7 @@ let is_nary =
 let is_tuple_exp = is_nary(Any.is_exp, ",");
 let is_tuple_pat = is_nary(Any.is_pat, ",");
 let is_tuple_typ = is_nary(Any.is_typ, ",");
-let is_tuple_alfa_exp = is_nary(Any.is_drv_exp, ",");
+let is_tuple_drv_exp = is_nary(Any.is_drv_exp, ",");
 let is_typ_bsum = is_nary(Any.is_typ, "+");
 
 let is_grout = tiles =>
@@ -79,8 +79,7 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
     |> OptUtil.sequence;
   Aba.mk(ps, clauses);
 };
-let is_alfa_rules =
-    ((ts, kids): tiles): option(Aba.t(Drv.Pat.t, Drv.Exp.t)) => {
+let is_drv_rules = ((ts, kids): tiles): option(Aba.t(Drv.Pat.t, Drv.Exp.t)) => {
   open OptUtil.Syntax;
   let+ ps =
     ts
@@ -178,10 +177,10 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
       | Jdmt
       | Ctx
       | Prop => failwith("unexpected drv sort (not used)")
-      | Exp => Exp(alfa_exp(unsorted(skel, seg)))
-      | Pat => Pat(alfa_pat(unsorted(skel, seg)))
-      | Typ => Typ(alfa_typ(unsorted(skel, seg)))
-      | TPat => TPat(alfa_tpat(unsorted(skel, seg)))
+      | Exp => Exp(drv_exp(unsorted(skel, seg)))
+      | Pat => Pat(drv_pat(unsorted(skel, seg)))
+      | Typ => Typ(drv_typ(unsorted(skel, seg)))
+      | TPat => TPat(drv_tpat(unsorted(skel, seg)))
       },
     )
   | Pat => Pat(pat(unsorted(skel, seg)))
@@ -206,8 +205,8 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
       }
     };
   }
-and alfa_exp = unsorted => {
-  let (term, inner_ids) = alfa_exp_term(unsorted);
+and drv_exp = unsorted => {
+  let (term, inner_ids) = drv_exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   return(e => Drv(Exp(e)), ids, {
                                     annotation: {
@@ -217,7 +216,7 @@ and alfa_exp = unsorted => {
                                     term,
                                   });
 }
-and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
+and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
   let ret = (tm: Drv.Exp.term) => (tm, []);
   let hole: unsorted => DrvTermBase.exp_term =
     unsorted => Hole(Any.drv_hole(kids_of_unsorted(unsorted)));
@@ -283,11 +282,11 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     | _ => ret(hole(tm))
     }
   | Bin(Drv(Exp(l)), tiles, Drv(Exp(r))) as tm =>
-    switch (is_tuple_alfa_exp(tiles)) {
+    switch (is_tuple_drv_exp(tiles)) {
     | Some([]) => ret(Pair(l, r))
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
     | None =>
-      switch (is_alfa_rules(tiles)) {
+      switch (is_drv_rules(tiles)) {
       | Some(([x, y], [e1])) => ret(Case(l, x, e1, y, r))
       | _ => ret(hole(tm))
       }
@@ -339,8 +338,8 @@ and alfa_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     }
   | _ as tm => ret(hole(tm));
 }
-and alfa_pat = unsorted => {
-  let (term, inner_ids) = alfa_pat_term(unsorted);
+and drv_pat = unsorted => {
+  let (term, inner_ids) = drv_pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   return(p => Drv(Pat(p)), ids, {
                                     annotation: {
@@ -350,7 +349,7 @@ and alfa_pat = unsorted => {
                                     term,
                                   });
 }
-and alfa_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
+and drv_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
   let ret = (tm: Drv.Pat.term) => (tm, []);
   let hole: unsorted => DrvTermBase.pat_term =
     unsorted => Hole(Any.drv_hole(kids_of_unsorted(unsorted)));
@@ -380,8 +379,8 @@ and alfa_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
   | _ as tm => ret(hole(tm));
 }
 
-and alfa_typ = unsorted => {
-  let (term, inner_ids) = alfa_typ_term(unsorted);
+and drv_typ = unsorted => {
+  let (term, inner_ids) = drv_typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   return(
     ty => Drv(Typ(ty)),
@@ -395,7 +394,7 @@ and alfa_typ = unsorted => {
     },
   );
 }
-and alfa_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
+and drv_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
   let ret = (tm: Drv.Typ.term) => (tm, []);
   let hole: unsorted => DrvTermBase.typ_term =
     unsorted => Hole(Any.drv_hole(kids_of_unsorted(unsorted)));
@@ -429,8 +428,8 @@ and alfa_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
   | _ as tm => ret(hole(tm));
 }
 
-and alfa_tpat = unsorted => {
-  let (term, inner_ids) = alfa_tpat_term(unsorted);
+and drv_tpat = unsorted => {
+  let (term, inner_ids) = drv_tpat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   return(
     tpat => Drv(TPat(tpat)),
@@ -444,7 +443,7 @@ and alfa_tpat = unsorted => {
     },
   );
 }
-and alfa_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
+and drv_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
   let ret = (tm: Drv.TPat.term) => (tm, []);
   let hole: unsorted => DrvTermBase.tpat_term =
     unsorted => Hole(Any.drv_hole(kids_of_unsorted(unsorted)));
@@ -465,7 +464,7 @@ and exp = unsorted => {
   // multi-hole error here.
   switch (term) {
   | MultiHole([Drv(_), ..._]) =>
-    let (term, inner_ids) = alfa_exp_term(unsorted);
+    let (term, inner_ids) = drv_exp_term(unsorted);
     let ids = ids(unsorted) @ inner_ids;
     let exp =
       return(
@@ -540,13 +539,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["of_jdmt", "end"], [Drv(Exp(j))]) => ret(DrvExp(Exp(j), Jdmt))
       | (["of_ctx", "end"], [Drv(Exp(c))]) => ret(DrvExp(Exp(c), Ctx))
       | (["of_prop", "end"], [Drv(Exp(p))]) => ret(DrvExp(Exp(p), Prop))
-      | (["of_alfa_exp", "end"], [Drv(Exp(e))]) =>
+      | (["of_drv_exp", "end"], [Drv(Exp(e))]) =>
         ret(DrvExp(Exp(e), Exp))
-      | (["of_alfa_typ", "end"], [Drv(Typ(t))]) =>
+      | (["of_drv_typ", "end"], [Drv(Typ(t))]) =>
         ret(DrvExp(Typ(t), Typ))
-      | (["of_alfa_pat", "end"], [Drv(Pat(p))]) =>
+      | (["of_drv_pat", "end"], [Drv(Pat(p))]) =>
         ret(DrvExp(Pat(p), Pat))
-      | (["of_alfa_tpat", "end"], [Drv(TPat(tp))]) =>
+      | (["of_drv_tpat", "end"], [Drv(TPat(tp))]) =>
         ret(DrvExp(TPat(tp), TPat))
       | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
         ret(Invalid(t))

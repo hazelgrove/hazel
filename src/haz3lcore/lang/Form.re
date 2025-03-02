@@ -241,7 +241,13 @@ let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
   | Var => (is_var, [mk_op(Exp, []), mk_op(Pat, [])])
   | ExplicitHole => (
       is_explicit_hole,
-      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
+      [
+        mk_op(Exp, []),
+        mk_op(Pat, []),
+        mk_op(Typ, []),
+        mk_op(TPat, []),
+        mk_op(Drv(Typ), []),
+      ],
     )
   | Wild => (is_wild, [mk_op(Pat, []), mk_op(Drv(Exp), [])])
   | String => (is_string, [mk_op(Exp, []), mk_op(Pat, [])])

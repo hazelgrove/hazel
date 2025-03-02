@@ -1,5 +1,3 @@
-open Util;
-
 let continue = x => x;
 let stop = (_, x) => x;
 
