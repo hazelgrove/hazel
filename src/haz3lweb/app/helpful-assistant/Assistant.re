@@ -648,23 +648,24 @@ module Update = {
           content: prompt,
           collapsed: String.length(prompt) >= 200,
         };
-        let collected_chat =
-          switch (mode) {
-          | CodeSuggestion =>
-            collect_chat(
-              ~messages=model.chats.curr_suggestion_chat.messages @ [message],
-            )
-          | TaskCompletion =>
-            collect_chat(
-              ~messages=model.chats.curr_completion_chat.messages @ [message],
-            )
-          | _ =>
-            print_endline(
-              "Invalid mode. Cannot perform code completion in chat mode.",
-            );
-            "";
-          };
-        print_endline(collected_chat);
+        /* Old code. Don't need to collect chat here, leads to far too long of prompt.
+           let collected_chat =
+             switch (mode) {
+             | CodeSuggestion =>
+               collect_chat(
+                 ~messages=model.chats.curr_suggestion_chat.messages @ [message],
+               )
+             | TaskCompletion =>
+               collect_chat(
+                 ~messages=model.chats.curr_completion_chat.messages @ [message],
+               )
+             | _ =>
+               print_endline(
+                 "Invalid mode. Cannot perform code completion in chat mode.",
+               );
+               "";
+             };
+           */
         let llm = model.llm;
         let key = Store.Generic.load("API");
         let params: OpenRouter.params = {llm, temperature: 1.0, top_p: 1.0};
@@ -715,6 +716,7 @@ module Update = {
       let message = code_message_of_str(settings, editor, response, LLM);
       switch (ChatLSP.Prompt.mk_error(ci, response)) {
       | None =>
+        // No error, all good. Concat and return suggestion.
         print_endline("ERROR ROUNDS (Non-error Response): " ++ response);
         check_descriptor(
           ~model,
@@ -726,10 +728,12 @@ module Update = {
         );
         schedule_action(RemoveAndSuggest(response, tileId));
       | Some(error) =>
+        // If there is some error, perform an error round
         print_endline("ERROR ROUNDS (Error): " ++ error);
         print_endline("ERROR ROUNDS (Error-causing Response): " ++ response);
         schedule_action(SendError(error, ci, fuel - 1, tileId, mode));
       };
+      // Remove await_llm_response (... animation) and concat LLM's suggestion
       Model.{
         ...model,
         chats: {
@@ -777,6 +781,9 @@ module Update = {
           ),
         );
       } else {
+        // TODO: We don't want to collect ENTIRE chat history here. We only want
+        //       to collect the history beginning from the initial suggestion request.
+        //       Otherwise, the prompt becomes too long in single message threads.
         let collected_chat =
           switch (mode) {
           | SimpleChat =>
@@ -810,6 +817,9 @@ module Update = {
           );
         };
       };
+      // Concat LS' error message and await_llm_response (... animation)
+      // This works even if out of fuel, as both Respond and ErrorRespond
+      // remove await_llm_response
       Model.{
         ...model,
         chats: {
@@ -818,24 +828,24 @@ module Update = {
             ...model.chats.curr_simple_chat,
             messages:
               mode == SimpleChat
-                ? ListUtil.leading(model.chats.curr_simple_chat.messages)
-                  @ [error_message]
+                ? model.chats.curr_simple_chat.messages
+                  @ [error_message, await_llm_response]
                 : model.chats.curr_simple_chat.messages,
           },
           curr_suggestion_chat: {
             ...model.chats.curr_suggestion_chat,
             messages:
               mode == CodeSuggestion
-                ? ListUtil.leading(model.chats.curr_suggestion_chat.messages)
-                  @ [error_message]
+                ? model.chats.curr_suggestion_chat.messages
+                  @ [error_message, await_llm_response]
                 : model.chats.curr_suggestion_chat.messages,
           },
           curr_completion_chat: {
             ...model.chats.curr_completion_chat,
             messages:
               mode == TaskCompletion
-                ? ListUtil.leading(model.chats.curr_completion_chat.messages)
-                  @ [error_message]
+                ? model.chats.curr_completion_chat.messages
+                  @ [error_message, await_llm_response]
                 : model.chats.curr_completion_chat.messages,
           },
         },
