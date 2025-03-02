@@ -28,12 +28,14 @@ let max: t = 0;
 let type_sum_ap = 11;
 // _____ (Int)
 // + T1 + _____
-let type_plus = 12 |> right_associative;
+
+// Derivation Mode Only
+let type_prod = 12;
+let type_plus = 13 |> right_associative;
 // _____ -> Int
-let type_arrow = 13 |> right_associative;
+let type_arrow = 14 |> right_associative;
 // Int -> _____
 // String , _____ , String
-let type_prod = 14;
 let type_binder = 15;
 // forall t -> _____
 // rec t -> _____
@@ -75,6 +77,11 @@ let and_ = 32 |> right_associative;
 // true && _____
 // _____ || false
 let or_ = 33 |> right_associative;
+
+// Derivation Mode Only
+// A /\ B \/ C ==> D
+// ((A /\ B) \/ C) ==> D
+let impl = 34;
 // false || _____
 let if_ = 35;
 let fun_ = 36;
@@ -96,7 +103,13 @@ let case_ = 44;
 
 let comma = 47;
 
-let min = 48;
+// Derivation Mode Only
+// Exp : Typ (HasType)
+// Exp => Typ (Synthesis)
+// Exp <= Typ (Analysis)
+let ann = 48;
+
+let min = 49;
 
 let compare = (p1: t, p2: t): int =>
   (-1) * Int.compare((p1 :> int), (p2 :> int));

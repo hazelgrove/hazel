@@ -702,7 +702,7 @@ let rec drv_exp_to_pretty = (~settings: Settings.t, syntax: Drv.Exp.t): pretty =
   | Quote(e) => text_to_pretty(id, Sort.Drv(Exp), "$" ++ e)
   | Parens(e) =>
     let+ e = go(e);
-    [mk_form(Drv(Paren), id, [e])];
+    [mk_form(Drv(ParenExp), id, [e])];
   // Note(zhiyao): Tuple is an intermediate form that should not be displayed
   | Tuple(_) => text_to_pretty(id, Sort.Drv(Exp), "[Tuple]")
   | Cons(e1, e2) =>
@@ -743,7 +743,7 @@ let rec drv_exp_to_pretty = (~settings: Settings.t, syntax: Drv.Exp.t): pretty =
           x
           @ List.flatten(
               List.map2(
-                (id, x) => [mk_form(Drv(Comma), id, [])] @ x,
+                (id, x) => [mk_form(Drv(CommaExp), id, [])] @ x,
                 ids,
                 xs,
               ),
@@ -837,11 +837,17 @@ let rec drv_exp_to_pretty = (~settings: Settings.t, syntax: Drv.Exp.t): pretty =
   | Ap(l, r) =>
     let+ l = go(l)
     and+ r = go(r);
-    l @ [mk_form(Drv(Ap), id, [r])];
+    l @ [mk_form(Drv(ApExp), id, [r])];
   | Pair(l, r) =>
     let+ l = go(l)
     and+ r = go(r);
-    [mk_form(Drv(Paren), id, [l @ [mk_form(Drv(Comma), id, [])] @ r])];
+    [
+      mk_form(
+        Drv(ParenExp),
+        id,
+        [l @ [mk_form(Drv(CommaExp), id, [])] @ r],
+      ),
+    ];
   | Triv => text_to_pretty(id, Sort.Drv(Exp), "()")
   | PrjL(e) =>
     let+ e = go(e);
@@ -855,10 +861,12 @@ let rec drv_exp_to_pretty = (~settings: Settings.t, syntax: Drv.Exp.t): pretty =
     @ text_to_pretty(id, Sort.Drv(Exp), "snd");
   | InjL(e) =>
     let e = go(e);
-    text_to_pretty(id, Sort.Drv(Exp), "L") @ [mk_form(Drv(Ap), id, [e])];
+    text_to_pretty(id, Sort.Drv(Exp), "L")
+    @ [mk_form(Drv(ApExp), id, [e])];
   | InjR(e) =>
     let e = go(e);
-    text_to_pretty(id, Sort.Drv(Exp), "R") @ [mk_form(Drv(Ap), id, [e])];
+    text_to_pretty(id, Sort.Drv(Exp), "R")
+    @ [mk_form(Drv(ApExp), id, [e])];
   | Case(e, x, e1, y, e2) =>
     let+ e = go(e)
     and+ x = drv_pat_to_pretty(~settings, x)
@@ -881,11 +889,11 @@ let rec drv_exp_to_pretty = (~settings: Settings.t, syntax: Drv.Exp.t): pretty =
   | Roll(e) =>
     let e = go(e);
     text_to_pretty(id, Sort.Drv(Exp), "Roll")
-    @ [mk_form(Drv(Ap), id, [e])];
+    @ [mk_form(Drv(ApExp), id, [e])];
   | Unroll(e) =>
     let e = go(e);
     text_to_pretty(id, Sort.Drv(Exp), "Unroll")
-    @ [mk_form(Drv(Ap), id, [e])];
+    @ [mk_form(Drv(ApExp), id, [e])];
   | ExpHole => text_to_pretty(id, Sort.Drv(Exp), Form.wild)
   };
 }
@@ -898,7 +906,7 @@ and drv_pat_to_pretty = (~settings: Settings.t, syntax: Drv.Pat.t): pretty => {
   | Quote(e) => text_to_pretty(id, Sort.Drv(Pat), e)
   | Parens(e) =>
     let+ e = go(e);
-    [mk_form(Drv(PatParen), id, [e])];
+    [mk_form(Drv(ParenPat), id, [e])];
   | Var(s) => text_to_pretty(id, Sort.Drv(Pat), s)
   | Cast(e, t) =>
     let+ e = go(e)
@@ -909,19 +917,19 @@ and drv_pat_to_pretty = (~settings: Settings.t, syntax: Drv.Pat.t): pretty => {
     and+ r = go(r);
     [
       mk_form(
-        Drv(PatParen),
+        Drv(ParenPat),
         id,
-        [l @ [mk_form(Drv(PatComma), id, [])] @ r],
+        [l @ [mk_form(Drv(CommaPat), id, [])] @ r],
       ),
     ];
   | InjL(p) =>
     let+ p = go(p);
     text_to_pretty(id, Sort.Drv(Pat), "L")
-    @ [mk_form(Drv(PatAp), id, [p])];
+    @ [mk_form(Drv(ApPat), id, [p])];
   | InjR(p) =>
     let+ p = go(p);
     text_to_pretty(id, Sort.Drv(Pat), "R")
-    @ [mk_form(Drv(PatAp), id, [p])];
+    @ [mk_form(Drv(ApPat), id, [p])];
   };
 }
 and drv_typ_to_pretty = (~settings: Settings.t, syntax: Drv.Typ.t): pretty => {
@@ -933,7 +941,7 @@ and drv_typ_to_pretty = (~settings: Settings.t, syntax: Drv.Typ.t): pretty => {
   | Quote(e) => text_to_pretty(id, Sort.Drv(Exp), e)
   | Parens(e) =>
     let+ e = go(e);
-    [mk_form(Drv(Paren), id, [e])];
+    [mk_form(Drv(ParenTyp), id, [e])];
   | Num => text_to_pretty(id, Sort.Drv(Typ), "Num")
   | Bool => text_to_pretty(id, Sort.Drv(Typ), "Bool")
   | Arrow(l, r) =>
