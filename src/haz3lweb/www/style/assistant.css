@@ -2,7 +2,7 @@
     display: flex;
     flex: 1;
     width: 25em;
-    padding: 1em;
+    padding: 8px;
     flex-direction: column;
     overflow-y: auto;
     gap: 1em;
@@ -163,11 +163,19 @@
     align-self: flex-start;
 }
 
+#assistant .system .message-identifier {
+    align-self: flex-start;
+}
+
 #assistant .ls .message-identifier {
     align-self: flex-end;
 }
 
 #assistant .llm {
+    align-items: flex-start;
+}
+
+#assistant .system {
     align-items: flex-start;
 }
 
@@ -195,6 +203,15 @@
 #assistant .llm-message {
     padding: 8px 12px;
     background-color: var(--T1);
+    border-radius: 12px;
+    font-size: 1em;
+    max-width: 80%;
+    word-wrap: break-word;
+}
+
+#assistant .system-message {
+    padding: 8px 12px;
+    background-color: var(--ERRHOLE);
     border-radius: 12px;
     font-size: 1em;
     max-width: 80%;

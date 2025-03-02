@@ -89,8 +89,10 @@ let end_chat_button = (~globals: Globals.t): Node.t => {
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
-    ~attrs=[clss(["chat-button"])],
-    [Widgets.button_named(~tooltip, None, end_chat)],
+    ~attrs=[clss(["chat-button"]), Attr.on_click(end_chat)],
+    [
+      Widgets.button_named(~tooltip, None, _ => Virtual_dom.Vdom.Effect.Ignore),
+    ],
   );
 };
 
@@ -102,18 +104,27 @@ let new_chat_button = (~globals: Globals.t, ~inject): Node.t => {
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
-    ~attrs=[clss(["add-button"])],
-    [Widgets.button(~tooltip, Icons.add, new_chat)],
+    ~attrs=[clss(["add-button"]), Attr.on_click(new_chat)],
+    [
+      Widgets.button(~tooltip, Icons.add, _ => Virtual_dom.Vdom.Effect.Ignore),
+    ],
   );
 };
 
 let history_button = (~globals: Globals.t, ~inject): Node.t => {
   let tooltip = "Past Chats";
   let history = _ =>
-    Virtual_dom.Vdom.Effect.Many([inject(Assistant.Update.History)]);
+    Virtual_dom.Vdom.Effect.Many([
+      inject(Assistant.Update.History),
+      Virtual_dom.Vdom.Effect.Stop_propagation,
+    ]);
   div(
-    ~attrs=[clss(["history-button"])],
-    [Widgets.button(~tooltip, Icons.history, history)],
+    ~attrs=[clss(["history-button"]), Attr.on_click(history)],
+    [
+      Widgets.button(~tooltip, Icons.history, _ =>
+        Virtual_dom.Vdom.Effect.Ignore
+      ),
+    ],
   );
 };
 
@@ -237,18 +248,8 @@ let api_input =
   };
   let handle_keydown = event => {
     let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
-    switch (
-      key,
-      ListUtil.last_opt(
-        switch (settings.mode) {
-        | SimpleChat => assistantModel.chats.curr_simple_chat.messages
-        | CodeSuggestion => assistantModel.chats.curr_suggestion_chat.messages
-        | TaskCompletion => assistantModel.chats.curr_completion_chat.messages
-        },
-      ),
-    ) {
-    | (_, Some({party: LLM, code: None, content: "...", collapsed: false})) => Virtual_dom.Vdom.Effect.Ignore
-    | (Some("Enter"), _) => submit_key()
+    switch (key) {
+    | Some("Enter") => submit_key()
     | _ => Virtual_dom.Vdom.Effect.Ignore
     };
   };
@@ -307,11 +308,13 @@ let message_input =
     };
     JsUtil.log("Message sent: " ++ message.content);
     Virtual_dom.Vdom.Effect.Many([
-      inject(Assistant.Update.SendMessage(message)),
+      inject(Assistant.Update.SendTextMessage(message)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
-
+  let (past_chats, curr_chat) =
+    Assistant.Update.get_mode_info(settings.mode, assistantModel);
+  let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
   let send_message = _ => {
     let message =
       Js.Opt.case(
@@ -331,16 +334,7 @@ let message_input =
   };
   let handle_keydown = event => {
     let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
-    switch (
-      key,
-      ListUtil.last_opt(
-        switch (settings.mode) {
-        | SimpleChat => assistantModel.chats.curr_simple_chat.messages
-        | CodeSuggestion => assistantModel.chats.curr_suggestion_chat.messages
-        | TaskCompletion => assistantModel.chats.curr_completion_chat.messages
-        },
-      ),
-    ) {
+    switch (key, ListUtil.last_opt(curr_messages)) {
     | (_, Some({party: LLM, code: None, content: "...", collapsed: false})) => Virtual_dom.Vdom.Effect.Ignore
     | (Some("Enter"), _) => send_message()
     | _ => Virtual_dom.Vdom.Effect.Ignore
@@ -369,17 +363,7 @@ let message_input =
         ],
         (),
       ),
-      switch (
-        ListUtil.last_opt(
-          switch (settings.mode) {
-          | SimpleChat => assistantModel.chats.curr_simple_chat.messages
-          | CodeSuggestion =>
-            assistantModel.chats.curr_suggestion_chat.messages
-          | TaskCompletion =>
-            assistantModel.chats.curr_completion_chat.messages
-          },
-        )
-      ) {
+      switch (ListUtil.last_opt(curr_messages)) {
       | Some({party: LLM, code: None, content: "...", collapsed: false}) =>
         div(
           ~attrs=[
@@ -402,6 +386,7 @@ let message_input =
   );
 };
 
+// For aesthetic purposes only :)
 let loading_dots = () => {
   div(
     ~attrs=[clss(["loading-dots"])],
@@ -428,7 +413,9 @@ let message_display =
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
-
+  let (past_chats, curr_chat) =
+    Assistant.Update.get_mode_info(settings.mode, assistantModel);
+  let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
   let message_nodes =
     List.flatten(
       List.mapi(
@@ -442,19 +429,35 @@ let message_display =
                   ~attrs=[
                     clss([
                       "message-container",
-                      message.party == LLM ? "llm" : "ls",
+                      switch (message.party) {
+                      | LS => "ls"
+                      | LLM => "llm"
+                      | System => "system"
+                      },
                     ]),
                     Attr.on_click(_ => toggle_collapse(index)),
                   ],
                   [
                     div(
                       ~attrs=[clss(["message-identifier"])],
-                      [text(message.party == LLM ? "LLM" : "LS")],
+                      [
+                        text(
+                          switch (message.party) {
+                          | LS => "User"
+                          | LLM => "Assistant"
+                          | System => "System"
+                          },
+                        ),
+                      ],
                     ),
                     div(
                       ~attrs=[
                         clss([
-                          message.party == LLM ? "llm-message" : "ls-message",
+                          switch (message.party) {
+                          | LS => "ls-message"
+                          | LLM => "llm-message"
+                          | System => "system-message"
+                          },
                         ]),
                       ],
                       [
@@ -525,19 +528,35 @@ let message_display =
                   ~attrs=[
                     clss([
                       "message-container",
-                      message.party == LLM ? "llm" : "ls",
+                      switch (message.party) {
+                      | LS => "ls"
+                      | LLM => "llm"
+                      | System => "system"
+                      },
                     ]),
                     Attr.on_click(_ => toggle_collapse(index)),
                   ],
                   [
                     div(
                       ~attrs=[clss(["message-identifier"])],
-                      [text(message.party == LLM ? "Assistant" : "User")],
+                      [
+                        text(
+                          switch (message.party) {
+                          | LS => "User"
+                          | LLM => "Assistant"
+                          | System => "System"
+                          },
+                        ),
+                      ],
                     ),
                     div(
                       ~attrs=[
                         clss([
-                          message.party == LLM ? "llm-message" : "ls-message",
+                          switch (message.party) {
+                          | LS => "ls-message"
+                          | LLM => "llm-message"
+                          | System => "system-message"
+                          },
                         ]),
                       ],
                       [
@@ -564,11 +583,7 @@ let message_display =
               ]
           }
         },
-        switch (settings.mode) {
-        | SimpleChat => assistantModel.chats.curr_simple_chat.messages
-        | CodeSuggestion => assistantModel.chats.curr_suggestion_chat.messages
-        | TaskCompletion => assistantModel.chats.curr_completion_chat.messages
-        },
+        curr_messages,
       ),
     );
   div(~attrs=[clss(["message-display-container"])], message_nodes);
@@ -610,13 +625,9 @@ let history_menu =
       ~inject,
     )
     : Node.t => {
-  let past_chats =
-    switch (settings.mode) {
-    | SimpleChat => assistantModel.chats.past_simple_chats
-    | CodeSuggestion => assistantModel.chats.past_suggestion_chats
-    | TaskCompletion => assistantModel.chats.past_completion_chats
-    };
-
+  let (past_chats, curr_chat) =
+    Assistant.Update.get_mode_info(settings.mode, assistantModel);
+  let chrono_past_chats = Assistant.Model.sorted_chats(past_chats);
   div(
     ~attrs=[clss(["history-menu"])],
     [
@@ -627,9 +638,7 @@ let history_menu =
           (chat: Assistant.Model.chat) =>
             div(
               ~attrs=[
-                chat.id == assistantModel.chats.curr_simple_chat.id
-                || chat.id == assistantModel.chats.curr_suggestion_chat.id
-                || chat.id == assistantModel.chats.curr_completion_chat.id
+                chat.id == curr_chat.id
                   ? clss(["history-menu-item", "active"])
                   : clss(["history-menu-item"]),
                 Attr.on_click(e => {
@@ -668,14 +677,18 @@ let history_menu =
                       ],
                     ),
                     div(
-                      ~attrs=[clss(["delete-chat-button"])],
-                      [
-                        Widgets.button(~tooltip="Delete chat", Icons.trash, _ =>
+                      ~attrs=[
+                        clss(["delete-chat-button"]),
+                        Attr.on_click(_ =>
                           Virtual_dom.Vdom.Effect.Many([
                             inject(Assistant.Update.DeleteChat(chat.id)),
                             Virtual_dom.Vdom.Effect.Stop_propagation,
-                            Virtual_dom.Vdom.Effect.Prevent_default,
                           ])
+                        ),
+                      ],
+                      [
+                        Widgets.button(~tooltip="Delete chat", Icons.trash, _ =>
+                          Virtual_dom.Vdom.Effect.Ignore
                         ),
                       ],
                     ),
@@ -683,7 +696,7 @@ let history_menu =
                 ),
               ],
             ),
-          past_chats,
+          chrono_past_chats,
         ),
       ),
     ],

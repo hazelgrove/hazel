@@ -90,22 +90,19 @@ let lookup_key = (llm: chat_models) =>
   | DeepSeek_V3 => Store.Generic.load("API")
   };
 
-let chat = (~key, ~body, ~handler): unit =>
-  switch (key) {
-  | None => print_endline("API: OpenAI KEY NOT FOUND")
-  | Some(api_key) =>
-    print_endline("API: POSTing OpenRouter request");
-    request(
-      ~method=POST,
-      ~url="https://openrouter.ai/api/v1/chat/completions",
-      ~headers=[
-        ("Content-Type", "application/json"),
-        ("Authorization", "Bearer " ++ api_key),
-      ],
-      ~body,
-      handler,
-    );
-  };
+let chat = (~key, ~body, ~handler): unit => {
+  print_endline("API: POSTing OpenRouter request");
+  request(
+    ~method=POST,
+    ~url="https://openrouter.ai/api/v1/chat/completions",
+    ~headers=[
+      ("Content-Type", "application/json"),
+      ("Authorization", "Bearer " ++ key),
+    ],
+    ~body,
+    handler,
+  );
+};
 
 let start_chat = (~params, ~key, prompt: prompt, handler): unit => {
   let body = body(~params, prompt);
