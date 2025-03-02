@@ -539,13 +539,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["of_jdmt", "end"], [Drv(Exp(j))]) => ret(DrvExp(Exp(j), Jdmt))
       | (["of_ctx", "end"], [Drv(Exp(c))]) => ret(DrvExp(Exp(c), Ctx))
       | (["of_prop", "end"], [Drv(Exp(p))]) => ret(DrvExp(Exp(p), Prop))
-      | (["of_drv_exp", "end"], [Drv(Exp(e))]) =>
+      | (["of_alfa_exp", "end"], [Drv(Exp(e))]) =>
         ret(DrvExp(Exp(e), Exp))
-      | (["of_drv_typ", "end"], [Drv(Typ(t))]) =>
+      | (["of_alfa_typ", "end"], [Drv(Typ(t))]) =>
         ret(DrvExp(Typ(t), Typ))
-      | (["of_drv_pat", "end"], [Drv(Pat(p))]) =>
+      | (["of_alfa_pat", "end"], [Drv(Pat(p))]) =>
         ret(DrvExp(Pat(p), Pat))
-      | (["of_drv_tpat", "end"], [Drv(TPat(tp))]) =>
+      | (["of_alfa_tpat", "end"], [Drv(TPat(tp))]) =>
         ret(DrvExp(TPat(tp), TPat))
       | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
         ret(Invalid(t))
