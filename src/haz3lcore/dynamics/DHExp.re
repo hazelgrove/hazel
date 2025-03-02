@@ -274,10 +274,10 @@ let rec ty_consistent = (d1, d2) => {
     && List.for_all2(ty_consistent, ds1, ds2)
   | (Tuple(_), _) => false
   | (
-      Constructor(_, t1) |
-      Ap(_, {term: Constructor(_, {term: Arrow(_, t1), _}), _}, _),
-      Constructor(_, t2) |
-      Ap(_, {term: Constructor(_, {term: Arrow(_, t2), _}), _}, _),
+      Constructor(_, Some(t1)) |
+      Ap(_, {term: Constructor(_, Some({term: Arrow(_, t1), _})), _}, _),
+      Constructor(_, Some(t2)) |
+      Ap(_, {term: Constructor(_, Some({term: Arrow(_, t2), _})), _}, _),
     ) =>
     Typ.is_consistent([], t1, t2)
   | (Constructor(_), _) => false
@@ -324,8 +324,9 @@ let rec ty_has_arrow = (d: t): bool =>
   | TypFun(_) => true
   | ListLit(ds)
   | Tuple(ds) => List.exists(ty_has_arrow, ds)
-  | Constructor(_, t) => Typ.has_arrow([], t)
-  | Ap(_, {term: Constructor(_, {term: Arrow(_, t), _}), _}, d) =>
+  | Constructor(_, Some(t)) => Typ.has_arrow([], t)
+  | Constructor(_) => false
+  | Ap(_, {term: Constructor(_, Some({term: Arrow(_, t), _})), _}, d) =>
     // Note(zhiyao): It's necessary to check the type of the argument because
     // elaborated types may contain Hole.
     Typ.has_arrow([], t) || ty_has_arrow(d)
