@@ -268,8 +268,18 @@ module Update = {
         | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl // Todo this is an error
         };
       open Haz3lcore;
-      let add_suggestion = (~response: string, tile: Id.t) => {
-        // Create a sequence of actions to handle the suggestion
+      let add_suggestion = (~response: string, tile: Id.t, resuggest: bool) => {
+        /*
+         let tile_content =
+           TileMap.find_opt(tile, ed.editor.editor.syntax.tiles)
+           |> Option.map((tile: Tile.t) => tile.label)
+           |> Option.map(List.hd);
+         switch (tile_content) {
+         | Some(content) => print_endline("tile_content: " ++ content)
+         | None => print_endline("tile_content: None")
+         };
+         */
+        print_endline("resuggest: " ++ string_of_bool(resuggest));
         let actions = [
           Action.Select(Tile(Id(tile, Direction.Left))),
           Action.Destruct(Direction.Left),

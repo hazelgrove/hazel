@@ -16,7 +16,7 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type message = {
     party,
-    code: option(Segment.t),
+    code: option((Segment.t, option(Id.t))),
     content: string,
     collapsed: bool,
   };
@@ -128,11 +128,13 @@ module Update = {
     | ToggleCollapse(int)
     | SelectLLM(OpenRouter.chat_models)
     | RemoveAndSuggest(string, Id.t)
+    | Resuggest(string, Id.t)
     | Describe(string, AssistantSettings.mode, Id.t)
     | SwitchChat(Id.t);
 
   let code_message_of_str =
-      (response: string, party: Model.party): Model.message => {
+      (response: string, party: Model.party, tileId: option(Id.t))
+      : Model.message => {
     /* Alternate method using Detruct and Insert. We need a memory of cursor location for this however.
        let z = editor.editor.state.zipper;
        let z = Option.get(Destruct.go(Direction.Left, z));
@@ -158,7 +160,7 @@ module Update = {
         Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, z);
       {
         party,
-        code: Some(segment_of_response),
+        code: Some((segment_of_response, tileId)),
         content: response,
         collapsed: String.length(response) >= 200,
       };
@@ -179,20 +181,6 @@ module Update = {
       content: response,
       collapsed: String.length(response) >= 200,
     };
-  };
-
-  let react =
-      (
-        ~response: string,
-        ~code_suggestion: bool,
-        ~mode: AssistantSettings.mode,
-        ~chat_id: Id.t,
-      )
-      : t => {
-    // let response = response |> sanitize_response |> quote;
-    code_suggestion
-      ? Respond(code_message_of_str(response, LLM), mode, chat_id)
-      : Respond(text_message_of_str(response, LLM), mode, chat_id);
   };
 
   let await_llm_response: Model.message = {
@@ -522,11 +510,10 @@ module Update = {
             switch (OpenRouter.handle_chat(req)) {
             | Some({content, _}) =>
               schedule_action(
-                react(
-                  ~response=content,
-                  ~code_suggestion=false,
-                  ~mode,
-                  ~chat_id=curr_chat.id,
+                Respond(
+                  text_message_of_str(content, LLM),
+                  mode,
+                  curr_chat.id,
                 ),
               )
             | None => print_endline("Assistant: response parse failed")
@@ -615,7 +602,7 @@ module Update = {
         let prompt = ListUtil.concat_strings(messages);
         let message: Model.message = {
           party: LS,
-          code: Some(sketch_seg),
+          code: Some((sketch_seg, None)),
           content: prompt,
           collapsed: String.length(prompt) >= 200,
         };
@@ -679,7 +666,7 @@ module Update = {
         };
       };
     | ErrorRespond(response, ci, fuel, tileId, mode, chat_id) =>
-      let message = code_message_of_str(response, LLM);
+      let message = code_message_of_str(response, LLM, Some(tileId));
       switch (ChatLSP.Prompt.mk_error(ci, response)) {
       | None =>
         // No error, all good. Concat and return suggestion.
@@ -811,7 +798,11 @@ module Update = {
     | SelectLLM(llm) => {...model, llm} |> Updated.return_quiet
     | RemoveAndSuggest(response, tileId) =>
       // Only side effects in the editor are performed here
-      add_suggestion(~response, tileId);
+      add_suggestion(~response, tileId, false);
+      model |> Updated.return_quiet;
+    | Resuggest(response, tileId) =>
+      // Only side effects in the editor are performed here
+      add_suggestion(~response, tileId, true);
       model |> Updated.return_quiet;
     | Describe(content, mode, chat_id) =>
       let (past_chats, _) = get_mode_info(mode, model);
