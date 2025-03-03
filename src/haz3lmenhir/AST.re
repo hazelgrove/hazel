@@ -109,7 +109,7 @@ type pat =
   | CastPat(pat, typ, typ)
   | EmptyHolePat
   | WildPat
-  | IntPat(int)
+  | IntPat(Bigint.t)
   | FloatPat(
       [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
     )
@@ -138,7 +138,7 @@ type deferral_pos =
 
 [@deriving (show({with_path: false}), sexp, eq)]
 type exp =
-  | Int(int)
+  | Int(Bigint.t)
   | Float
       // This equality condition is used to say that two floats are equal if they are equal in the ExpToSegment serialization
       (
@@ -305,7 +305,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
   QCheck.Gen.(
     let leaf =
       oneof([
-        map(x => Int(x), small_int),
+        map(x => Int(x |> Bigint.of_int), small_int),
         map(x => String(x), gen_string_literal),
         map(x => Float(x), QCheck.pos_float.gen), // Floats are positive because we use UnOp minus
         map(x => Var(x), gen_ident),
@@ -568,7 +568,7 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
             oneof([
               return(WildPat),
               return(EmptyHolePat),
-              map(x => IntPat(x), small_int),
+              map(x => IntPat(Bigint.of_int(x)), small_int),
               map(x => FloatPat(x), QCheck.pos_float.gen),
               map(x => VarPat(x), gen_ident),
               map(x => StringPat(x), gen_string_literal),

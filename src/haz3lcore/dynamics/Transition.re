@@ -477,7 +477,7 @@ module Transition = (EV: EV_MODE) => {
         );
       let-unbox n = (Int, d1');
       Step({
-        expr: Int(- n) |> fresh,
+        expr: Int(Bigint.neg(n)) |> fresh,
         state_update,
         kind: UnOp(Int(Minus)),
         is_value: true,
@@ -545,39 +545,41 @@ module Transition = (EV: EV_MODE) => {
         );
       let-unbox n1 = (Int, d1');
       let-unbox n2 = (Int, d2');
-      Step({
-        expr:
-          (
-            switch (op) {
-            | Plus => Int(n1 + n2)
-            | Minus => Int(n1 - n2)
-            | Power when n2 < 0 =>
-              DynamicErrorHole(
-                BinOp(Int(op), d1', d2') |> rewrap,
-                NegativeExponent,
-              )
-            | Power => Int(IntUtil.ipow(n1, n2))
-            | Times => Int(n1 * n2)
-            | Divide when n2 == 0 =>
-              DynamicErrorHole(
-                BinOp(Int(op), d1', d2') |> rewrap,
-                DivideByZero,
-              )
-            | Divide => Int(n1 / n2)
-            | LessThan => Bool(n1 < n2)
-            | LessThanOrEqual => Bool(n1 <= n2)
-            | GreaterThan => Bool(n1 > n2)
-            | GreaterThanOrEqual => Bool(n1 >= n2)
-            | Equals => Bool(n1 == n2)
-            | NotEquals => Bool(n1 != n2)
-            }
-          )
-          |> fresh,
-        state_update,
-        kind: BinIntOp(op),
-        // False so that InvalidOperations are caught and made indet by the next step
-        is_value: false,
-      });
+      Bigint.(
+        Step({
+          expr:
+            (
+              switch (op) {
+              | Plus => Int(n1 + n2)
+              | Minus => Int(n1 - n2)
+              | Power when n2 < zero =>
+                DynamicErrorHole(
+                  BinOp(Int(op), d1', d2') |> rewrap,
+                  NegativeExponent,
+                )
+              | Power => Int(Bigint.pow(n1, n2))
+              | Times => Int(n1 * n2)
+              | Divide when n2 == zero =>
+                DynamicErrorHole(
+                  BinOp(Int(op), d1', d2') |> rewrap,
+                  DivideByZero,
+                )
+              | Divide => Int(n1 / n2)
+              | LessThan => Bool(n1 < n2)
+              | LessThanOrEqual => Bool(n1 <= n2)
+              | GreaterThan => Bool(n1 > n2)
+              | GreaterThanOrEqual => Bool(n1 >= n2)
+              | Equals => Bool(n1 == n2)
+              | NotEquals => Bool(n1 != n2)
+              }
+            )
+            |> fresh,
+          state_update,
+          kind: BinIntOp(op),
+          // False so that InvalidOperations are caught and made indet by the next step
+          is_value: false,
+        })
+      );
     | BinOp(Float(op), d1, d2) =>
       let. _ =
         otherwise(env, (d1, d2) => BinOp(Float(op), d1, d2) |> rewrap)

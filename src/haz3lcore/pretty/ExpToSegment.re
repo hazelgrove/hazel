@@ -724,7 +724,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     p_just([Grout({id, shape: Convex})]);
   | Undefined => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "undefined")
   | Bool(b) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Bool.to_string(b))
-  | Int(n) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Int.to_string(n))
+  | Int(n) =>
+    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Bigint.to_string(n))
   // TODO: do floats print right?
   | Float(f) =>
     text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Printf.sprintf("%f", f))
@@ -1069,7 +1070,8 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     p_just([Grout({id, shape: Convex})]);
   | Wild => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_")
   | Var(v) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, v)
-  | Int(n) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Int.to_string(n))
+  | Int(n) =>
+    text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Bigint.to_string(n))
   | Float(f) =>
     text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Printf.sprintf("%f", f))
   | Bool(b) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Bool.to_string(b))

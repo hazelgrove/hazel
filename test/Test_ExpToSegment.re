@@ -84,7 +84,7 @@ let tests = (
               children: [],
             }),
           ],
-          exp_to_segment(Exp.temp(Int(1))),
+          exp_to_segment(Exp.temp(Int(1 |> Bigint.of_int))),
         );
         check(
           segment,
@@ -162,7 +162,12 @@ let tests = (
           zipper_parse("(1, 2)"),
           Some(
             exp_to_segment(
-              Exp.temp(Tuple([Exp.temp(Int(1)), Exp.temp(Int(2))])),
+              Exp.temp(
+                Tuple([
+                  Exp.temp(Int(1 |> Bigint.of_int)),
+                  Exp.temp(Int(2 |> Bigint.of_int)),
+                ]),
+              ),
             ),
           ),
         );
@@ -181,7 +186,10 @@ let tests = (
               Exp.temp(
                 Tuple([
                   Exp.temp(
-                    TupLabel(Exp.temp(Label("x")), Exp.temp(Int(1))),
+                    TupLabel(
+                      Exp.temp(Label("x")),
+                      Exp.temp(Int(1 |> Bigint.of_int)),
+                    ),
                   ),
                 ]),
               ),
@@ -205,8 +213,14 @@ let tests = (
             Match(
               Var("x") |> Exp.fresh,
               [
-                (Constructor("A", None) |> Pat.fresh, Int(1) |> Exp.fresh),
-                (Constructor("B", None) |> Pat.fresh, Int(2) |> Exp.fresh),
+                (
+                  Constructor("A", None) |> Pat.fresh,
+                  Int(1 |> Bigint.of_int) |> Exp.fresh,
+                ),
+                (
+                  Constructor("B", None) |> Pat.fresh,
+                  Int(2 |> Bigint.of_int) |> Exp.fresh,
+                ),
               ],
             )
             |> Exp.fresh,
@@ -231,7 +245,7 @@ let tests = (
               Var("string_sub") |> Exp.fresh,
               [
                 String("hello") |> Exp.fresh,
-                Int(1) |> Exp.fresh,
+                Int(1 |> Bigint.of_int) |> Exp.fresh,
                 Deferral(InAp) |> Exp.fresh,
               ],
             )
@@ -265,8 +279,11 @@ let tests = (
         let segment =
           segmentize(
             Filter(
-              Filter({pat: Int(1) |> Exp.fresh, act: (Step, One)}),
-              Int(2) |> Exp.fresh,
+              Filter({
+                pat: Int(1 |> Bigint.of_int) |> Exp.fresh,
+                act: (Step, One),
+              }),
+              Int(2 |> Bigint.of_int) |> Exp.fresh,
             )
             |> Exp.fresh,
           );
@@ -287,8 +304,12 @@ let tests = (
             segmentize(
               BinOp(
                 Int(Power),
-                Int(2) |> Exp.fresh,
-                BinOp(Int(Power), Int(3) |> Exp.fresh, Int(4) |> Exp.fresh)
+                Int(2 |> Bigint.of_int) |> Exp.fresh,
+                BinOp(
+                  Int(Power),
+                  Int(3 |> Bigint.of_int) |> Exp.fresh,
+                  Int(4 |> Bigint.of_int) |> Exp.fresh,
+                )
                 |> Exp.fresh,
               )
               |> Exp.fresh,
@@ -304,9 +325,13 @@ let tests = (
             segmentize(
               BinOp(
                 Int(Power),
-                BinOp(Int(Power), Int(2) |> Exp.fresh, Int(3) |> Exp.fresh)
+                BinOp(
+                  Int(Power),
+                  Int(2 |> Bigint.of_int) |> Exp.fresh,
+                  Int(3 |> Bigint.of_int) |> Exp.fresh,
+                )
                 |> Exp.fresh,
-                Int(4) |> Exp.fresh,
+                Int(4 |> Bigint.of_int) |> Exp.fresh,
               )
               |> Exp.fresh,
             ),
@@ -326,7 +351,7 @@ let tests = (
                   Var("x") |> Typ.fresh,
                 )
                 |> Typ.fresh,
-                Int(1) |> Exp.fresh,
+                Int(1 |> Bigint.of_int) |> Exp.fresh,
               )
               |> Exp.fresh,
             ),

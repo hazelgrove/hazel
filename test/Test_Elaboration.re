@@ -20,7 +20,7 @@ let parse_exp = (s: string) => {
 
 module PlainTests = {
   let u1: Exp.t = {
-    term: Int(8),
+    term: Int(8 |> Bigint.of_int),
     annotation: {
       ids: [id_at(0)],
       copied: false,
@@ -58,7 +58,11 @@ module PlainTests = {
   let u4: Exp.t =
     Let(
       Tuple([Var("a") |> Pat.fresh, Var("b") |> Pat.fresh]) |> Pat.fresh,
-      Tuple([Int(4) |> Exp.fresh, Int(6) |> Exp.fresh]) |> Exp.fresh,
+      Tuple([
+        Int(4 |> Bigint.of_int) |> Exp.fresh,
+        Int(6 |> Bigint.of_int) |> Exp.fresh,
+      ])
+      |> Exp.fresh,
       BinOp(Int(Minus), Var("a") |> Exp.fresh, Var("b") |> Exp.fresh)
       |> Exp.fresh,
     )
@@ -97,7 +101,11 @@ module PlainTests = {
     );
 
   let u6: Exp.t =
-    If(Bool(false) |> Exp.fresh, Int(8) |> Exp.fresh, Int(6) |> Exp.fresh)
+    If(
+      Bool(false) |> Exp.fresh,
+      Int(8 |> Bigint.of_int) |> Exp.fresh,
+      Int(6 |> Bigint.of_int) |> Exp.fresh,
+    )
     |> Exp.fresh;
 
   let consistent_if = () =>
@@ -111,7 +119,11 @@ module PlainTests = {
   let f =
     Fun(
       Var("x") |> Pat.fresh,
-      BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
+      BinOp(
+        Int(Plus),
+        Int(4 |> Bigint.of_int) |> Exp.fresh,
+        Int(5 |> Bigint.of_int) |> Exp.fresh,
+      )
       |> Exp.fresh,
       None,
       None,
@@ -121,7 +133,11 @@ module PlainTests = {
   let f' =
     Fun(
       Var("x") |> Pat.fresh,
-      BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
+      BinOp(
+        Int(Plus),
+        Int(4 |> Bigint.of_int) |> Exp.fresh,
+        Int(5 |> Bigint.of_int) |> Exp.fresh,
+      )
       |> Exp.fresh,
       Some(Unknown(Hole(EmptyHole)) |> Typ.fresh),
       None,
@@ -139,10 +155,14 @@ module PlainTests = {
 
   let u8: Exp.t =
     Match(
-      BinOp(Int(Equals), Int(4) |> Exp.fresh, Int(3) |> Exp.fresh)
+      BinOp(
+        Int(Equals),
+        Int(4 |> Bigint.of_int) |> Exp.fresh,
+        Int(3 |> Bigint.of_int) |> Exp.fresh,
+      )
       |> Exp.fresh,
       [
-        (Bool(true) |> Pat.fresh, Int(24) |> Exp.fresh),
+        (Bool(true) |> Pat.fresh, Int(24 |> Bigint.of_int) |> Exp.fresh),
         (Bool(false) |> Pat.fresh, Bool(false) |> Exp.fresh),
       ],
     )
@@ -150,13 +170,17 @@ module PlainTests = {
 
   let d8: Exp.t =
     Match(
-      BinOp(Int(Equals), Int(4) |> Exp.fresh, Int(3) |> Exp.fresh)
+      BinOp(
+        Int(Equals),
+        Int(4 |> Bigint.of_int) |> Exp.fresh,
+        Int(3 |> Bigint.of_int) |> Exp.fresh,
+      )
       |> Exp.fresh,
       [
         (
           Bool(true) |> Pat.fresh,
           Cast(
-            Int(24) |> Exp.fresh,
+            Int(24 |> Bigint.of_int) |> Exp.fresh,
             Int |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
@@ -192,13 +216,17 @@ module PlainTests = {
       |> Pat.fresh,
       Fun(
         Var("x") |> Pat.fresh,
-        BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
+        BinOp(
+          Int(Plus),
+          Int(1 |> Bigint.of_int) |> Exp.fresh,
+          Var("x") |> Exp.fresh,
+        )
         |> Exp.fresh,
         None,
         None,
       )
       |> Exp.fresh,
-      Int(55) |> Exp.fresh,
+      Int(55 |> Bigint.of_int) |> Exp.fresh,
     )
     |> Exp.fresh;
 
@@ -207,13 +235,17 @@ module PlainTests = {
       Var("f") |> Pat.fresh,
       Fun(
         Var("x") |> Pat.fresh,
-        BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
+        BinOp(
+          Int(Plus),
+          Int(1 |> Bigint.of_int) |> Exp.fresh,
+          Var("x") |> Exp.fresh,
+        )
         |> Exp.fresh,
         Some(Int |> Typ.fresh),
         Some("f"),
       )
       |> Exp.fresh,
-      Int(55) |> Exp.fresh,
+      Int(55 |> Bigint.of_int) |> Exp.fresh,
     )
     |> Exp.fresh;
 
@@ -231,7 +263,7 @@ module PlainTests = {
         Var("string_sub") |> Exp.fresh,
         [
           String("hello") |> Exp.fresh,
-          Int(1) |> Exp.fresh,
+          Int(1 |> Bigint.of_int) |> Exp.fresh,
           Deferral(InAp) |> Exp.fresh,
         ],
       )
@@ -241,7 +273,7 @@ module PlainTests = {
           Var("string_sub") |> Exp.fresh,
           [
             String("hello") |> Exp.fresh,
-            Int(1) |> Exp.fresh,
+            Int(1 |> Bigint.of_int) |> Exp.fresh,
             Deferral(InAp) |> Exp.fresh,
           ],
         )
@@ -258,12 +290,12 @@ module PlainTests = {
           Var("string_sub") |> Exp.fresh,
           [
             String("hello") |> Exp.fresh,
-            Int(1) |> Exp.fresh,
+            Int(1 |> Bigint.of_int) |> Exp.fresh,
             Deferral(InAp) |> Exp.fresh,
           ],
         )
         |> Exp.fresh,
-        Int(2) |> Exp.fresh,
+        Int(2 |> Bigint.of_int) |> Exp.fresh,
       )
       |> Exp.fresh,
       dhexp_of_uexp(
@@ -273,12 +305,12 @@ module PlainTests = {
             Var("string_sub") |> Exp.fresh,
             [
               String("hello") |> Exp.fresh,
-              Int(1) |> Exp.fresh,
+              Int(1 |> Bigint.of_int) |> Exp.fresh,
               Deferral(InAp) |> Exp.fresh,
             ],
           )
           |> Exp.fresh,
-          Int(2) |> Exp.fresh,
+          Int(2 |> Bigint.of_int) |> Exp.fresh,
         )
         |> Exp.fresh,
       ),
@@ -322,7 +354,7 @@ module PlainTests = {
             Deferral(InAp) |> Exp.fresh,
             Deferral(InAp) |> Exp.fresh,
             Cast(
-              Int(3) |> Exp.fresh,
+              Int(3 |> Bigint.of_int) |> Exp.fresh,
               Int |> Typ.fresh,
               Unknown(Internal) |> Typ.fresh,
             )
@@ -355,7 +387,7 @@ module PlainTests = {
             [
               Deferral(InAp) |> Exp.fresh,
               Deferral(InAp) |> Exp.fresh,
-              Int(3) |> Exp.fresh,
+              Int(3 |> Bigint.of_int) |> Exp.fresh,
             ],
           )
           |> Exp.fresh,
@@ -409,7 +441,7 @@ module PlainTests = {
             String("123 Maple St") |> Exp.fresh,
             String("Ann Arbor") |> Exp.fresh,
             String("MI") |> Exp.fresh,
-            Int(48103) |> Exp.fresh,
+            Int(48103 |> Bigint.of_int) |> Exp.fresh,
           ])
           |> Exp.fresh,
         )
@@ -434,7 +466,10 @@ module PlainTests = {
           |> Exp.fresh,
           TupLabel(Label("state") |> Exp.fresh, String("MI") |> Exp.fresh)
           |> Exp.fresh,
-          TupLabel(Label("zipcode") |> Exp.fresh, Int(48103) |> Exp.fresh)
+          TupLabel(
+            Label("zipcode") |> Exp.fresh,
+            Int(48103 |> Bigint.of_int) |> Exp.fresh,
+          )
           |> Exp.fresh,
         ])
         |> Exp.fresh,
@@ -516,7 +551,7 @@ module PlainTests = {
         |> Pat.fresh,
         Parens(
           Tuple([
-            Int(1) |> Exp.fresh,
+            Int(1 |> Bigint.of_int) |> Exp.fresh,
             Float(1.0) |> Exp.fresh,
             TupLabel(Label("c") |> Exp.fresh, Bool(true) |> Exp.fresh)
             |> Exp.fresh,
@@ -534,7 +569,10 @@ module PlainTests = {
       Let(
         Var("val") |> Pat.fresh,
         Tuple([
-          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+          TupLabel(
+            Label("a") |> Exp.fresh,
+            Int(1 |> Bigint.of_int) |> Exp.fresh,
+          )
           |> Exp.fresh,
           TupLabel(Label("b") |> Exp.fresh, String("a") |> Exp.fresh)
           |> Exp.fresh,
@@ -646,7 +684,10 @@ module PlainTests = {
         Let(
           Var("zip_only") |> Pat.fresh,
           Tuple([
-            TupLabel(Label("zip") |> Exp.fresh, Int(12345) |> Exp.fresh)
+            TupLabel(
+              Label("zip") |> Exp.fresh,
+              Int(12345 |> Bigint.of_int) |> Exp.fresh,
+            )
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -684,7 +725,10 @@ module PlainTests = {
           )
           |> Exp.fresh,
           Tuple([
-            TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+            TupLabel(
+              Label("a") |> Exp.fresh,
+              Int(1 |> Bigint.of_int) |> Exp.fresh,
+            )
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -719,7 +763,10 @@ module PlainTests = {
           )
           |> Exp.fresh,
           Tuple([
-            TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+            TupLabel(
+              Label("a") |> Exp.fresh,
+              Int(1 |> Bigint.of_int) |> Exp.fresh,
+            )
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -737,7 +784,7 @@ module PlainTests = {
             TupLabel(
               Label("c") |> Exp.fresh,
               FailedCast(
-                Int(1) |> Exp.fresh,
+                Int(1 |> Bigint.of_int) |> Exp.fresh,
                 Int |> Typ.fresh,
                 String |> Typ.fresh,
               )
@@ -804,7 +851,10 @@ module PlainTests = {
           )
           |> Exp.fresh,
           Tuple([
-            TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+            TupLabel(
+              Label("a") |> Exp.fresh,
+              Int(1 |> Bigint.of_int) |> Exp.fresh,
+            )
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -819,7 +869,10 @@ module PlainTests = {
         Let(
           Var("x") |> Pat.fresh,
           Tuple([
-            TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+            TupLabel(
+              Label("a") |> Exp.fresh,
+              Int(1 |> Bigint.of_int) |> Exp.fresh,
+            )
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -944,10 +997,14 @@ module MenhirElaborationTests = {
 ";
   let inconsistent_case_uexp: Exp.t =
     Match(
-      BinOp(Int(Equals), Int(4) |> Exp.fresh, Int(3) |> Exp.fresh)
+      BinOp(
+        Int(Equals),
+        Int(4 |> Bigint.of_int) |> Exp.fresh,
+        Int(3 |> Bigint.of_int) |> Exp.fresh,
+      )
       |> Exp.fresh,
       [
-        (Bool(true) |> Pat.fresh, Int(24) |> Exp.fresh),
+        (Bool(true) |> Pat.fresh, Int(24 |> Bigint.of_int) |> Exp.fresh),
         (Bool(false) |> Pat.fresh, Bool(false) |> Exp.fresh),
       ],
     )
@@ -961,7 +1018,11 @@ module MenhirElaborationTests = {
 
   //Consistent if statement menhir test
   let consistent_if_uexp: Exp.t =
-    If(Bool(false) |> Exp.fresh, Int(8) |> Exp.fresh, Int(6) |> Exp.fresh)
+    If(
+      Bool(false) |> Exp.fresh,
+      Int(8 |> Bigint.of_int) |> Exp.fresh,
+      Int(6 |> Bigint.of_int) |> Exp.fresh,
+    )
     |> Exp.fresh;
 
   let consistent_if_str = "
@@ -977,7 +1038,7 @@ module MenhirElaborationTests = {
   //Single integer menhir test
   let single_int_str = "8";
   let single_int_uexp: Exp.t = {
-    term: Int(8),
+    term: Int(8 |> Bigint.of_int),
     annotation: {
       ids: [id_at(0)],
       copied: false,
@@ -995,7 +1056,11 @@ module MenhirElaborationTests = {
   let let_exp_uexp: Exp.t =
     Let(
       Tuple([Var("a") |> Pat.fresh, Var("b") |> Pat.fresh]) |> Pat.fresh,
-      Tuple([Int(4) |> Exp.fresh, Int(6) |> Exp.fresh]) |> Exp.fresh,
+      Tuple([
+        Int(4 |> Bigint.of_int) |> Exp.fresh,
+        Int(6 |> Bigint.of_int) |> Exp.fresh,
+      ])
+      |> Exp.fresh,
       BinOp(Int(Minus), Var("a") |> Exp.fresh, Var("b") |> Exp.fresh)
       |> Exp.fresh,
     )
@@ -1010,7 +1075,12 @@ module MenhirElaborationTests = {
   let typ_ap_str = "(typfun x -> 4)@<Int>";
   let typ_ap_uexp: Exp.t =
     TypAp(
-      TypFun(Var("x") |> TPat.fresh, Int(4) |> Exp.fresh, None) |> Exp.fresh,
+      TypFun(
+        Var("x") |> TPat.fresh,
+        Int(4 |> Bigint.of_int) |> Exp.fresh,
+        None,
+      )
+      |> Exp.fresh,
       Int |> Typ.fresh,
     )
     |> Exp.fresh;
@@ -1019,7 +1089,11 @@ module MenhirElaborationTests = {
 
   let failed_cast_str = "1 ?{Int => String}";
   let failed_cast_uexp: Exp.t =
-    FailedCast(Int(1) |> Exp.fresh, Int |> Typ.fresh, String |> Typ.fresh)
+    FailedCast(
+      Int(1 |> Bigint.of_int) |> Exp.fresh,
+      Int |> Typ.fresh,
+      String |> Typ.fresh,
+    )
     |> Exp.fresh;
   let failed_cast_menhir = () =>
     alco_check_menhir(
@@ -1044,7 +1118,11 @@ module MenhirElaborationTests = {
   let dynamic_error_hole_uexp: Exp.t = {
     term:
       DynamicErrorHole(
-        BinOp(Int(Divide), Int(1) |> Exp.fresh, Int(0) |> Exp.fresh)
+        BinOp(
+          Int(Divide),
+          Int(1 |> Bigint.of_int) |> Exp.fresh,
+          Int(0 |> Bigint.of_int) |> Exp.fresh,
+        )
         |> Exp.fresh,
         InvalidOperationError.DivideByZero,
       ),
@@ -1088,7 +1166,7 @@ module MenhirElaborationTests = {
 
   let test_str = "test 1 ?{Int => Bool} end";
   let test_uexp: Exp.t = {
-    term: Test(Int(1) |> Exp.fresh),
+    term: Test(Int(1 |> Bigint.of_int) |> Exp.fresh),
     annotation: {
       ids: [id_at(0)],
       copied: false,
@@ -1100,11 +1178,11 @@ module MenhirElaborationTests = {
   let filter_str = "eval 1 in 0";
   let stepper_filter_kind: TermBase.stepper_filter_kind_t =
     Filter({
-      pat: Int(1) |> Exp.fresh,
+      pat: Int(1 |> Bigint.of_int) |> Exp.fresh,
       act: (FilterAction.Eval, FilterAction.All),
     });
   let filter_uexp: Exp.t = {
-    term: Filter(stepper_filter_kind, Int(0) |> Exp.fresh),
+    term: Filter(stepper_filter_kind, Int(0 |> Bigint.of_int) |> Exp.fresh),
     annotation: {
       ids: [id_at(0)],
       copied: false,
@@ -1128,9 +1206,9 @@ undef
   let list_exp_uexp: Exp.t = {
     term:
       ListLit([
-        Int(1) |> Exp.fresh,
-        Int(2) |> Exp.fresh,
-        Int(3) |> Exp.fresh,
+        Int(1 |> Bigint.of_int) |> Exp.fresh,
+        Int(2 |> Bigint.of_int) |> Exp.fresh,
+        Int(3 |> Bigint.of_int) |> Exp.fresh,
       ]),
     annotation: {
       ids: [id_at(0)],
@@ -1173,8 +1251,16 @@ x
   let list_concat_uexp: Exp.t = {
     term:
       ListConcat(
-        ListLit([Int(1) |> Exp.fresh, Int(2) |> Exp.fresh]) |> Exp.fresh,
-        ListLit([Int(3) |> Exp.fresh, Int(4) |> Exp.fresh]) |> Exp.fresh,
+        ListLit([
+          Int(1 |> Bigint.of_int) |> Exp.fresh,
+          Int(2 |> Bigint.of_int) |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+        ListLit([
+          Int(3 |> Bigint.of_int) |> Exp.fresh,
+          Int(4 |> Bigint.of_int) |> Exp.fresh,
+        ])
+        |> Exp.fresh,
       ),
     annotation: {
       ids: [id_at(0)],
@@ -1190,7 +1276,7 @@ x
 
   let unop_str = "-1";
   let unop_uexp: Exp.t = {
-    term: UnOp(Int(Minus), Int(1) |> Exp.fresh),
+    term: UnOp(Int(Minus), Int(1 |> Bigint.of_int) |> Exp.fresh),
     annotation: {
       ids: [id_at(0)],
       copied: false,
@@ -1201,7 +1287,11 @@ x
 
   let seq_str = "1; 2";
   let seq_uexp: Exp.t = {
-    term: Seq(Int(1) |> Exp.fresh, Int(2) |> Exp.fresh),
+    term:
+      Seq(
+        Int(1 |> Bigint.of_int) |> Exp.fresh,
+        Int(2 |> Bigint.of_int) |> Exp.fresh,
+      ),
     annotation: {
       ids: [id_at(0)],
       copied: false,
@@ -1212,7 +1302,12 @@ x
 
   let fixf_str = "fix x -> 1{Int => Unknown Internal}";
   let fixf_uexp: Exp.t = {
-    term: FixF(Var("x") |> Pat.fresh, Int(1) |> Exp.fresh, None),
+    term:
+      FixF(
+        Var("x") |> Pat.fresh,
+        Int(1 |> Bigint.of_int) |> Exp.fresh,
+        None,
+      ),
     annotation: {
       ids: [id_at(0)],
       copied: false,

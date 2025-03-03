@@ -179,7 +179,11 @@ let qcheck_menhir_serialized_equivalent_test =
 let tests = (
   "MenhirParser",
   [
-    full_parser_test("Integer Literal", Int(8) |> Exp.fresh, "8"),
+    full_parser_test(
+      "Integer Literal",
+      Int(8 |> Bigint.of_int) |> Exp.fresh,
+      "8",
+    ),
     full_parser_test(
       "Fun",
       Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None, None)
@@ -201,7 +205,11 @@ let tests = (
     ),
     full_parser_test(
       "BinOp",
-      BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
+      BinOp(
+        Int(Plus),
+        Int(4 |> Bigint.of_int) |> Exp.fresh,
+        Int(5 |> Bigint.of_int) |> Exp.fresh,
+      )
       |> Exp.fresh,
       "4 + 5",
     ),
@@ -209,7 +217,7 @@ let tests = (
       "Let",
       Let(
         Var("x") |> Pat.fresh,
-        Int(5) |> Exp.fresh,
+        Int(5 |> Bigint.of_int) |> Exp.fresh,
         Var("x") |> Exp.fresh,
       )
       |> Exp.fresh,
@@ -217,15 +225,22 @@ let tests = (
     ),
     full_parser_test(
       "Tuple",
-      Tuple([Int(4) |> Exp.fresh, Int(5) |> Exp.fresh]) |> Exp.fresh,
+      Tuple([
+        Int(4 |> Bigint.of_int) |> Exp.fresh,
+        Int(5 |> Bigint.of_int) |> Exp.fresh,
+      ])
+      |> Exp.fresh,
       "(4, 5)",
     ),
     full_parser_test(
       "Match",
       Match(
-        Int(4) |> Exp.fresh,
+        Int(4 |> Bigint.of_int) |> Exp.fresh,
         [
-          (Int(1) |> Pat.fresh, String("hello") |> Exp.fresh),
+          (
+            Int(1 |> Bigint.of_int) |> Pat.fresh,
+            String("hello") |> Exp.fresh,
+          ),
           (Wild |> Pat.fresh, String("world") |> Exp.fresh),
         ],
       )
@@ -237,7 +252,11 @@ let tests = (
     ),
     full_parser_test(
       "If",
-      If(Bool(true) |> Exp.fresh, Int(8) |> Exp.fresh, Int(6) |> Exp.fresh)
+      If(
+        Bool(true) |> Exp.fresh,
+        Int(8 |> Bigint.of_int) |> Exp.fresh,
+        Int(6 |> Bigint.of_int) |> Exp.fresh,
+      )
       |> Exp.fresh,
       "if true then 8 else 6",
     ),
@@ -249,15 +268,16 @@ let tests = (
     ),
     full_parser_test(
       "Cons",
-      Cons(Int(1) |> Exp.fresh, ListLit([]) |> Exp.fresh) |> Exp.fresh,
+      Cons(Int(1 |> Bigint.of_int) |> Exp.fresh, ListLit([]) |> Exp.fresh)
+      |> Exp.fresh,
       "1 :: []",
     ),
     full_parser_test(
       "ListLit",
       ListLit([
-        Int(1) |> Exp.fresh,
-        Int(2) |> Exp.fresh,
-        Int(3) |> Exp.fresh,
+        Int(1 |> Bigint.of_int) |> Exp.fresh,
+        Int(2 |> Bigint.of_int) |> Exp.fresh,
+        Int(3 |> Bigint.of_int) |> Exp.fresh,
       ])
       |> Exp.fresh,
       "[1, 2, 3]",
@@ -306,14 +326,22 @@ let tests = (
     ),
     full_parser_test(
       "Type Alias",
-      TyAlias(Var("x") |> TPat.fresh, Int |> Typ.fresh, Int(1) |> Exp.fresh)
+      TyAlias(
+        Var("x") |> TPat.fresh,
+        Int |> Typ.fresh,
+        Int(1 |> Bigint.of_int) |> Exp.fresh,
+      )
       |> Exp.fresh,
       "type x = Int in 1",
     ),
     full_parser_test(
       "Test",
       Test(
-        BinOp(Int(Equals), Int(3) |> Exp.fresh, Int(3) |> Exp.fresh)
+        BinOp(
+          Int(Equals),
+          Int(3 |> Bigint.of_int) |> Exp.fresh,
+          Int(3 |> Bigint.of_int) |> Exp.fresh,
+        )
         |> Exp.fresh,
       )
       |> Exp.fresh,
@@ -322,8 +350,11 @@ let tests = (
     full_parser_test(
       "Filter",
       Filter(
-        Filter({act: (Eval, All), pat: Int(3) |> Exp.fresh}),
-        Int(3) |> Exp.fresh,
+        Filter({
+          act: (Eval, All),
+          pat: Int(3 |> Bigint.of_int) |> Exp.fresh,
+        }),
+        Int(3 |> Bigint.of_int) |> Exp.fresh,
       )
       |> Exp.fresh,
       "eval 3 in 3" // TODO Use other filter commands
@@ -331,8 +362,16 @@ let tests = (
     full_parser_test(
       "List Concat",
       ListConcat(
-        ListLit([Int(1) |> Exp.fresh, Int(2) |> Exp.fresh]) |> Exp.fresh,
-        ListLit([Int(3) |> Exp.fresh, Int(4) |> Exp.fresh]) |> Exp.fresh,
+        ListLit([
+          Int(1 |> Bigint.of_int) |> Exp.fresh,
+          Int(2 |> Bigint.of_int) |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+        ListLit([
+          Int(3 |> Bigint.of_int) |> Exp.fresh,
+          Int(4 |> Bigint.of_int) |> Exp.fresh,
+        ])
+        |> Exp.fresh,
       )
       |> Exp.fresh,
       "[1, 2] @ [3, 4]",
@@ -341,9 +380,13 @@ let tests = (
       "times and divide precendence",
       BinOp(
         Int(Divide),
-        BinOp(Int(Times), Int(1) |> Exp.fresh, Int(2) |> Exp.fresh)
+        BinOp(
+          Int(Times),
+          Int(1 |> Bigint.of_int) |> Exp.fresh,
+          Int(2 |> Bigint.of_int) |> Exp.fresh,
+        )
         |> Exp.fresh,
-        Int(3) |> Exp.fresh,
+        Int(3 |> Bigint.of_int) |> Exp.fresh,
       )
       |> Exp.fresh,
       "1 * 2 / 3",
@@ -352,9 +395,13 @@ let tests = (
       "plus and minus precendence",
       BinOp(
         Int(Plus),
-        BinOp(Int(Minus), Int(1) |> Exp.fresh, Int(2) |> Exp.fresh)
+        BinOp(
+          Int(Minus),
+          Int(1 |> Bigint.of_int) |> Exp.fresh,
+          Int(2 |> Bigint.of_int) |> Exp.fresh,
+        )
         |> Exp.fresh,
-        Int(3) |> Exp.fresh,
+        Int(3 |> Bigint.of_int) |> Exp.fresh,
       )
       |> Exp.fresh,
       "1 - 2 + 3",
@@ -367,21 +414,30 @@ let tests = (
           Int(Minus),
           BinOp(
             Int(Plus),
-            UnOp(Int(Minus), Int(1) |> Exp.fresh) |> Exp.fresh,
-            Int(2) |> Exp.fresh,
+            UnOp(Int(Minus), Int(1 |> Bigint.of_int) |> Exp.fresh)
+            |> Exp.fresh,
+            Int(2 |> Bigint.of_int) |> Exp.fresh,
           )
           |> Exp.fresh,
           BinOp(
             Int(Times),
-            BinOp(Int(Divide), Int(3) |> Exp.fresh, Int(4) |> Exp.fresh)
+            BinOp(
+              Int(Divide),
+              Int(3 |> Bigint.of_int) |> Exp.fresh,
+              Int(4 |> Bigint.of_int) |> Exp.fresh,
+            )
             |> Exp.fresh,
-            BinOp(Int(Power), Int(5) |> Exp.fresh, Int(6) |> Exp.fresh)
+            BinOp(
+              Int(Power),
+              Int(5 |> Bigint.of_int) |> Exp.fresh,
+              Int(6 |> Bigint.of_int) |> Exp.fresh,
+            )
             |> Exp.fresh,
           )
           |> Exp.fresh,
         )
         |> Exp.fresh,
-        Int(8) |> Exp.fresh,
+        Int(8 |> Bigint.of_int) |> Exp.fresh,
       )
       |> Exp.fresh,
       "-1 + 2 - 3 / 4 * 5 ** 6 >= 8",
@@ -426,7 +482,7 @@ let tests = (
           Unknown(Internal) |> Typ.fresh,
         )
         |> Pat.fresh,
-        Int(5) |> Exp.fresh,
+        Int(5 |> Bigint.of_int) |> Exp.fresh,
         Var("x") |> Exp.fresh,
       )
       |> Exp.fresh,
@@ -436,7 +492,11 @@ let tests = (
       "named_function",
       Fun(
         (Var("x"): Pat.term) |> Pat.fresh,
-        BinOp(Int(Plus), Var("x") |> Exp.fresh, Int(5) |> Exp.fresh)
+        BinOp(
+          Int(Plus),
+          Var("x") |> Exp.fresh,
+          Int(5 |> Bigint.of_int) |> Exp.fresh,
+        )
         |> Exp.fresh,
         None,
         Some("f"),
@@ -461,7 +521,7 @@ let tests = (
         Ap(
           Forward,
           Constructor("C", None) |> Exp.fresh,
-          Int(7) |> Exp.fresh,
+          Int(7 |> Bigint.of_int) |> Exp.fresh,
         )
         |> Exp.fresh,
         Var("x") |> Exp.fresh,
@@ -502,7 +562,11 @@ let tests = (
       Ap(
         Forward,
         Var("f") |> Exp.fresh,
-        Tuple([Int(1) |> Exp.fresh, Int(2) |> Exp.fresh]) |> Exp.fresh,
+        Tuple([
+          Int(1 |> Bigint.of_int) |> Exp.fresh,
+          Int(2 |> Bigint.of_int) |> Exp.fresh,
+        ])
+        |> Exp.fresh,
       )
       |> Exp.fresh,
       "f(1, 2)",

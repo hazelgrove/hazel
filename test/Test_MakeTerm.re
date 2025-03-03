@@ -20,7 +20,7 @@ let tests = (
   "MakeTerm",
   [
     test_case("Integer Literal", `Quick, () => {
-      exp_check(Int(0) |> Exp.fresh, "0")
+      exp_check(Int(0 |> Bigint.of_int) |> Exp.fresh, "0")
     }),
     test_case("Float literal", `Quick, () => {
       exp_check(Float(2.000000) |> Exp.fresh, "2.000000")
@@ -32,7 +32,10 @@ let tests = (
       exp_check(Var("x") |> Exp.fresh, "x")
     }),
     test_case("Parenthesized Expression", `Quick, () => {
-      exp_check(Parens(Int(0) |> Exp.fresh) |> Exp.fresh, "(0)")
+      exp_check(
+        Parens(Int(0 |> Bigint.of_int) |> Exp.fresh) |> Exp.fresh,
+        "(0)",
+      )
     }),
     test_case("Floating operation", `Quick, () => {
       exp_check(
@@ -49,7 +52,7 @@ let tests = (
       exp_check(
         Let(
           Var("x") |> Pat.fresh,
-          Int(1) |> Exp.fresh,
+          Int(1 |> Bigint.of_int) |> Exp.fresh,
           Var("x") |> Exp.fresh,
         )
         |> Exp.fresh,
@@ -69,7 +72,7 @@ let tests = (
           Var("f") |> Pat.fresh,
           Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None, None)  // It seems as though the function naming happens during elaboration and not during parsing
           |> Exp.fresh,
-          Int(1) |> Exp.fresh,
+          Int(1 |> Bigint.of_int) |> Exp.fresh,
         )
         |> Exp.fresh,
         "let f = fun x -> x in 1",
@@ -95,7 +98,7 @@ let tests = (
         TyAlias(
           Var("x") |> TPat.fresh,
           Int |> Typ.fresh,
-          Int(1) |> Exp.fresh,
+          Int(1 |> Bigint.of_int) |> Exp.fresh,
         )
         |> Exp.fresh,
         "type x = Int in 1",
@@ -130,7 +133,10 @@ let tests = (
           Var("x") |> Pat.fresh,
           Parens(
             Tuple([
-              TupLabel(Label("l") |> Exp.fresh, Int(32) |> Exp.fresh)
+              TupLabel(
+                Label("l") |> Exp.fresh,
+                Int(32 |> Bigint.of_int) |> Exp.fresh,
+              )
               |> Exp.fresh,
             ])
             |> Exp.fresh,
@@ -164,7 +170,10 @@ let tests = (
       exp_check(
         Parens(
           Tuple([
-            TupLabel(Label("l") |> Exp.fresh, Int(32) |> Exp.fresh)
+            TupLabel(
+              Label("l") |> Exp.fresh,
+              Int(32 |> Bigint.of_int) |> Exp.fresh,
+            )
             |> Exp.fresh,
             TupLabel(Label("l2") |> Exp.fresh, String("") |> Exp.fresh)
             |> Exp.fresh,
@@ -195,7 +204,10 @@ let tests = (
           |> Pat.fresh,
           Parens(
             Tuple([
-              TupLabel(Label("l") |> Exp.fresh, Int(32) |> Exp.fresh)
+              TupLabel(
+                Label("l") |> Exp.fresh,
+                Int(32 |> Bigint.of_int) |> Exp.fresh,
+              )
               |> Exp.fresh,
               TupLabel(Label("l2") |> Exp.fresh, String("") |> Exp.fresh)
               |> Exp.fresh,
@@ -214,8 +226,9 @@ let tests = (
         Parens(
           Tuple([
             TupLabel(
-              MultiHole([Exp(Int(1) |> Exp.fresh)]) |> Exp.fresh,
-              Int(3) |> Exp.fresh,
+              MultiHole([Exp(Int(1 |> Bigint.of_int) |> Exp.fresh)])
+              |> Exp.fresh,
+              Int(3 |> Bigint.of_int) |> Exp.fresh,
             )
             |> Exp.fresh,
           ])

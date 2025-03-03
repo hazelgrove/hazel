@@ -221,7 +221,10 @@ let tests = (
             no_error_pat(Var("x")),
             no_error_exp(
               Parens(
-                Tuple([Int(1) |> no_error_exp, Int(2) |> no_error_exp])
+                Tuple([
+                  Int(1 |> Bigint.of_int) |> no_error_exp,
+                  Int(2 |> Bigint.of_int) |> no_error_exp,
+                ])
                 |> no_error_exp,
               ),
             ),
@@ -372,7 +375,7 @@ let tests = (
                 ),
               ),
             ),
-            Int(1),
+            Int(1 |> Bigint.of_int),
           ),
           Var("x") |> no_error_exp,
         )
@@ -578,7 +581,7 @@ let tests = (
                     ),
                   ),
                   Tuple([
-                    no_error_exp(Int(1)),
+                    no_error_exp(Int(1 |> Bigint.of_int)),
                     no_error_exp(Float(1.2)),
                     error_exp(
                       Exp(
@@ -697,7 +700,7 @@ let tests = (
                       ),
                       Label("a"),
                     ),
-                    no_error_exp(Int(3)),
+                    no_error_exp(Int(3 |> Bigint.of_int)),
                   ),
                 ),
               ]),
@@ -714,15 +717,23 @@ let tests = (
             Common(
               NoType(
                 BadLabel(
-                  Exp(MultiHole([Exp(Int(1) |> Exp.fresh)]) |> Exp.fresh),
+                  Exp(
+                    MultiHole([Exp(Int(1 |> Bigint.of_int) |> Exp.fresh)])
+                    |> Exp.fresh,
+                  ),
                 ),
               ),
             ),
           ),
           Dot(
-            Tuple([no_error_exp(Int(1)), no_error_exp(Int(2))])
+            Tuple([
+              no_error_exp(Int(1 |> Bigint.of_int)),
+              no_error_exp(Int(2 |> Bigint.of_int)),
+            ])
             |> no_error_exp,
-            no_error_exp(MultiHole([Exp(no_error_exp(Int(1)))])),
+            no_error_exp(
+              MultiHole([Exp(no_error_exp(Int(1 |> Bigint.of_int)))]),
+            ),
           ),
         ),
       )
@@ -814,7 +825,10 @@ let tests = (
                   TupleLabelError({
                     malformed_labels: [
                       Exp(
-                        MultiHole([Exp(Int(1) |> Exp.fresh)]) |> Exp.fresh,
+                        MultiHole([
+                          Exp(Int(1 |> Bigint.of_int) |> Exp.fresh),
+                        ])
+                        |> Exp.fresh,
                       ),
                     ],
                     duplicate_labels: [],
@@ -840,7 +854,9 @@ let tests = (
                       TupleLabelError({
                         malformed_labels: [
                           Exp(
-                            MultiHole([Exp(Int(1) |> Exp.fresh)])
+                            MultiHole([
+                              Exp(Int(1 |> Bigint.of_int) |> Exp.fresh),
+                            ])
                             |> Exp.fresh,
                           ),
                         ],
@@ -862,14 +878,18 @@ let tests = (
                           NoType(
                             BadLabel(
                               Exp(
-                                MultiHole([Exp(Int(1) |> Exp.fresh)])
+                                MultiHole([
+                                  Exp(Int(1 |> Bigint.of_int) |> Exp.fresh),
+                                ])
                                 |> Exp.fresh,
                               ),
                             ),
                           ),
                         ),
                       ),
-                      MultiHole([Exp(no_error_exp(Int(1)))]),
+                      MultiHole([
+                        Exp(no_error_exp(Int(1 |> Bigint.of_int))),
+                      ]),
                     ),
                     no_error_exp(String("hello")),
                   ),
@@ -877,7 +897,7 @@ let tests = (
                 no_error_exp(
                   TupLabel(
                     no_error_exp(Label("a")),
-                    no_error_exp(Int(3)),
+                    no_error_exp(Int(3 |> Bigint.of_int)),
                   ),
                 ),
               ]),
@@ -992,7 +1012,7 @@ let tests = (
                           Exp(Common(NoType(InvalidLabel("c")))),
                           Label("c"),
                         ),
-                        no_error_exp(Int(1)),
+                        no_error_exp(Int(1 |> Bigint.of_int)),
                       ),
                     ),
                     no_error_exp(
@@ -1044,12 +1064,12 @@ let tests = (
                   Tuple([
                     TupLabel(
                       no_error_exp(Label("a")),
-                      no_error_exp(Int(1)),
+                      no_error_exp(Int(1 |> Bigint.of_int)),
                     )
                     |> no_error_exp,
                     TupLabel(
                       no_error_exp(Label("b")),
-                      no_error_exp(Int(2)),
+                      no_error_exp(Int(2 |> Bigint.of_int)),
                     )
                     |> no_error_exp,
                   ]),
@@ -1068,7 +1088,7 @@ let tests = (
         no_error_exp(
           BinOp(
             Int(Plus),
-            no_error_exp(Int(1)),
+            no_error_exp(Int(1 |> Bigint.of_int)),
             error_exp(
               Exp(
                 Common(

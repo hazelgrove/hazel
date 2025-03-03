@@ -19,6 +19,7 @@ type t =
   | InvalidBoxedTuple(DHExp.t)
   | InvalidBuiltin(string)
   | BadBuiltinAp(string, list(DHExp.t))
-  | InvalidProjection(int);
+  | InvalidProjection(int)
+  | IntegerTooBig(Bigint.t);
 
 exception Exception(t);

@@ -13,7 +13,7 @@ module Constraint = {
   type t =
     | Truth
     | Hole
-    | Int(int)
+    | Int(Bigint.t)
     | Float(float)
     | String(string)
     | Ap(Constructor.t, option(t))
@@ -54,7 +54,7 @@ module Ctr = {
 
   // Ctrs for primitive types
   // Names here should not be anotherwise valid sum type constructor names.
-  let of_int = n => mk(string_of_int(n), 0);
+  let of_int = n => mk(Bigint.to_string(n), 0);
   let of_float = x => mk(string_of_float(x), 0);
   let of_string = s => mk("\"" ++ s, 0); // don't need closing quote, just need to distinguish from others
   let tuple_ctr: int => t = n => mk("tuple", n);
@@ -114,8 +114,8 @@ module Ctr = {
       )
     | Bool => Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))
     | Unknown(_) => Unknown
-    | Int // technically int and float are finite, but ya know
-    | Float
+    | Int
+    | Float // technically float is finite, but ya know
     | String
     | Arrow(_)
     | Forall(_)
@@ -188,7 +188,7 @@ module Submatrices = {
   };
 
   type seen = {
-    seen_ints: IntSet.t,
+    seen_ints: BigintSet.t,
     seen_floats: FloatSet.t,
     seen_strings: StringSet.t,
     seen_ctrs: Ctr.Set.t,
@@ -199,7 +199,7 @@ module Submatrices = {
   };
 
   let init_seen = {
-    seen_ints: IntSet.empty,
+    seen_ints: BigintSet.empty,
     seen_floats: FloatSet.empty,
     seen_strings: StringSet.empty,
     seen_ctrs: Ctr.Set.empty,
@@ -224,10 +224,10 @@ module Submatrices = {
         | [] => seen
         | [Int(n), ..._] => {
             ...seen,
-            seen_ints: IntSet.add(n, seen.seen_ints),
+            seen_ints: BigintSet.add(n, seen.seen_ints),
             first_col_redundant_rows:
               add_redundant_row_if(
-                IntSet.mem(n, seen.seen_ints) || seen.seen_truth,
+                BigintSet.mem(n, seen.seen_ints) || seen.seen_truth,
                 row.idx,
                 seen.first_col_redundant_rows,
               ),

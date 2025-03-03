@@ -35,7 +35,7 @@ and exp_term('a) =
   | Deferral(deferral_position_t)
   | Undefined
   | Bool(bool)
-  | Int(int)
+  | Int(Bigint.t)
   | Float(float)
   | String(string)
   | ListLit(list(exp_t('a)))
@@ -75,7 +75,7 @@ and pat_term('a) =
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | Wild
-  | Int(int)
+  | Int(Bigint.t)
   | Float(float)
   | Bool(bool)
   | String(string)

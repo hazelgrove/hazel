@@ -36,14 +36,14 @@ let bool_exp = (b: bool): form => {
 };
 let bool_exps = (b: bool): group => {id: BoolExp, forms: [bool_exp(b)]};
 
-let int_exp = (n: int): form => {
+let int_exp = (n: Bigint.t): form => {
   id: IntExp,
-  syntactic_form: [n |> string_of_int |> exp],
+  syntactic_form: [n |> Bigint.to_string |> exp],
   expandable_id: None,
   explanation: "A signed integer literal.",
   examples: [],
 };
-let int_exps = (i: int): group => {id: IntExp, forms: [int_exp(i)]};
+let int_exps = (i: Bigint.t): group => {id: IntExp, forms: [int_exp(i)]};
 
 let float_exp = (f: float): form => {
   id: FloatExp,

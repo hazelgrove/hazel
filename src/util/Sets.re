@@ -4,6 +4,12 @@ module IntSet =
     let compare = compare;
   });
 
+module BigintSet =
+  Set.Make({
+    type t = Bigint.t;
+    let compare = Bigint.compare;
+  });
+
 module BoolSet =
   Set.Make({
     type t = bool;

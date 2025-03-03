@@ -36,23 +36,40 @@ let parse_and_evaluate_test =
   );
 
 let test_int = () =>
-  evaluation_test("8", Int(8) |> Exp.fresh, Int(8) |> Exp.fresh);
+  evaluation_test(
+    "8",
+    Int(8 |> Bigint.of_int) |> Exp.fresh,
+    Int(8 |> Bigint.of_int) |> Exp.fresh,
+  );
 
 let test_sum = () =>
   evaluation_test(
     "4 + 5",
-    Int(9) |> Exp.fresh,
-    BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh) |> Exp.fresh,
+    Int(9 |> Bigint.of_int) |> Exp.fresh,
+    BinOp(
+      Int(Plus),
+      Int(4 |> Bigint.of_int) |> Exp.fresh,
+      Int(5 |> Bigint.of_int) |> Exp.fresh,
+    )
+    |> Exp.fresh,
   );
 
 let test_labeled_tuple_projection = () =>
   evaluation_test(
     "(a=1, b=2, c=?).a",
-    Int(1) |> Exp.fresh,
+    Int(1 |> Bigint.of_int) |> Exp.fresh,
     Dot(
       Tuple([
-        TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh) |> Exp.fresh,
-        TupLabel(Label("b") |> Exp.fresh, Int(2) |> Exp.fresh) |> Exp.fresh,
+        TupLabel(
+          Label("a") |> Exp.fresh,
+          Int(1 |> Bigint.of_int) |> Exp.fresh,
+        )
+        |> Exp.fresh,
+        TupLabel(
+          Label("b") |> Exp.fresh,
+          Int(2 |> Bigint.of_int) |> Exp.fresh,
+        )
+        |> Exp.fresh,
         TupLabel(Label("c") |> Exp.fresh, EmptyHole |> Exp.fresh)
         |> Exp.fresh,
       ])
@@ -66,7 +83,11 @@ let test_function_application = () =>
   evaluation_test(
     "float_of_int(1)",
     Float(1.0) |> Exp.fresh,
-    Ap(Forward, Var("float_of_int") |> Exp.fresh, Int(1) |> Exp.fresh)
+    Ap(
+      Forward,
+      Var("float_of_int") |> Exp.fresh,
+      Int(1 |> Bigint.of_int) |> Exp.fresh,
+    )
     |> Exp.fresh,
   );
 
@@ -80,12 +101,12 @@ let test_function_deferral = () =>
         Var("string_sub") |> Exp.fresh,
         [
           String("hello") |> Exp.fresh,
-          Int(1) |> Exp.fresh,
+          Int(1 |> Bigint.of_int) |> Exp.fresh,
           Deferral(InAp) |> Exp.fresh,
         ],
       )
       |> Exp.fresh,
-      Int(2) |> Exp.fresh,
+      Int(2 |> Bigint.of_int) |> Exp.fresh,
     )
     |> Exp.fresh,
   );
@@ -120,7 +141,7 @@ let test_ap_of_hole_deferral = () =>
           )
           |> Exp.fresh,
           Cast(
-            Int(3) |> Exp.fresh,
+            Int(3 |> Bigint.of_int) |> Exp.fresh,
             Int |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
@@ -173,7 +194,7 @@ let test_ap_of_hole_deferral = () =>
           Deferral(InAp) |> Exp.fresh,
           Deferral(InAp) |> Exp.fresh,
           Cast(
-            Int(3) |> Exp.fresh,
+            Int(3 |> Bigint.of_int) |> Exp.fresh,
             Int |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
@@ -203,7 +224,7 @@ let test_ap_of_hole_deferral = () =>
 let test_multi_arg_builtin_cast = () =>
   evaluation_test(
     "string_compare((\"Hello\", \"World\"):(?, ?))",
-    Int(-1) |> Exp.fresh,
+    Int((-1) |> Bigint.of_int) |> Exp.fresh,
     Ap(
       Forward,
       BuiltinFun("string_compare") |> Exp.fresh,
@@ -238,17 +259,17 @@ let test_multi_arg_builtin_cast = () =>
 let test_variable_capture = () =>
   evaluation_test(
     {|let u = 5 in let f = fun () -> u in let u = 3 in f()|},
-    Int(5) |> Exp.fresh,
+    Int(5 |> Bigint.of_int) |> Exp.fresh,
     Let(
       Var("u") |> Pat.fresh,
-      Int(5) |> Exp.fresh,
+      Int(5 |> Bigint.of_int) |> Exp.fresh,
       Let(
         Var("f") |> Pat.fresh,
         Fun(Tuple([]) |> Pat.fresh, Var("u") |> Exp.fresh, None, None)
         |> Exp.fresh,
         Let(
           Var("u") |> Pat.fresh,
-          Int(3) |> Exp.fresh,
+          Int(3 |> Bigint.of_int) |> Exp.fresh,
           Ap(Forward, Var("f") |> Exp.fresh, Tuple([]) |> Exp.fresh)
           |> Exp.fresh,
         )
@@ -275,11 +296,15 @@ let test_unbound_lookup = () =>
 let test_unevaluated_if = () =>
   evaluation_test(
     "let x = 5 in if ? then x else x",
-    If(EmptyHole |> Exp.fresh, Int(5) |> Exp.fresh, Int(5) |> Exp.fresh)
+    If(
+      EmptyHole |> Exp.fresh,
+      Int(5 |> Bigint.of_int) |> Exp.fresh,
+      Int(5 |> Bigint.of_int) |> Exp.fresh,
+    )
     |> Exp.fresh,
     Let(
       Var("x") |> Pat.fresh,
-      Int(5) |> Exp.fresh,
+      Int(5 |> Bigint.of_int) |> Exp.fresh,
       If(
         EmptyHole |> Exp.fresh,
         Var("x") |> Exp.fresh,
@@ -294,7 +319,7 @@ let test_invalid_constructor_match = () => {
   let invalid_constructor_match =
     Let(
       Constructor("T", Some(Unknown(Internal) |> Typ.fresh)) |> Pat.fresh,
-      Int(1) |> Exp.fresh,
+      Int(1 |> Bigint.of_int) |> Exp.fresh,
       EmptyHole |> Exp.fresh,
     )
     |> Exp.fresh
@@ -309,13 +334,18 @@ let test_invalid_constructor_match = () => {
 let test_typfun_application = () =>
   evaluation_test(
     "(typfun T -> fun x -> 1)@<Int>(2)",
-    Int(1) |> Exp.fresh,
+    Int(1 |> Bigint.of_int) |> Exp.fresh,
     Ap(
       Forward,
       TypAp(
         TypFun(
           Var("T") |> TPat.fresh,
-          Fun(Var("x") |> Pat.fresh, Int(1) |> Exp.fresh, None, None)
+          Fun(
+            Var("x") |> Pat.fresh,
+            Int(1 |> Bigint.of_int) |> Exp.fresh,
+            None,
+            None,
+          )
           |> Exp.fresh,
           None,
         )
@@ -323,7 +353,7 @@ let test_typfun_application = () =>
         Int |> Typ.fresh,
       )
       |> Exp.fresh,
-      Int(2) |> Exp.fresh,
+      Int(2 |> Bigint.of_int) |> Exp.fresh,
     )
     |> Exp.fresh,
   );
@@ -387,8 +417,8 @@ in fn("hello")|},
     test_case("Negative integer literal", `Quick, () =>
       evaluation_test(
         "-8",
-        Int(-8) |> Exp.fresh,
-        UnOp(Int(Minus), Int(8) |> Exp.fresh) |> Exp.fresh,
+        Int((-8) |> Bigint.of_int) |> Exp.fresh,
+        UnOp(Int(Minus), Int(8 |> Bigint.of_int) |> Exp.fresh) |> Exp.fresh,
       )
     ),
   ],

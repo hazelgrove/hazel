@@ -53,8 +53,6 @@ module Pervasives = {
     let nan = Float(Float.nan) |> fresh;
     let epsilon_float = Float(epsilon_float) |> fresh;
     let pi = Float(Float.pi) |> fresh;
-    let max_int = Int(Int.max_int) |> fresh;
-    let min_int = Int(Int.min_int) |> fresh;
 
     [@warning "-8"]
     // let-unbox guarantees that the tuple will have length 2
@@ -88,7 +86,7 @@ module Pervasives = {
 
     let string_of_int = d => {
       let-unbox n = (Int, d);
-      Some(fresh(String(string_of_int(n))));
+      Some(fresh(String(Bigint.to_string(n))));
     };
 
     let string_of_float = d => {
@@ -103,17 +101,17 @@ module Pervasives = {
 
     let int_of_float = d => {
       let-unbox f = (Float, d);
-      Some(fresh(Int(int_of_float(f))));
+      Some(fresh(Int(Bigint.of_float(f))));
     };
 
     let float_of_int = d => {
       let-unbox n = (Int, d);
-      Some(fresh(Float(float_of_int(n))));
+      Some(fresh(Float(Bigint.to_float(n))));
     };
 
     let abs = d => {
       let-unbox n = (Int, d);
-      Some(fresh(Int(abs(n))));
+      Some(fresh(Int(Bigint.abs(n))));
     };
 
     let float_op = (fn, d) => {
@@ -154,7 +152,7 @@ module Pervasives = {
     };
 
     let int_of_string =
-      of_string(int_of_string_opt, n => Int(n) |> DHExp.fresh);
+      of_string(Bigint.of_string_opt, n => Int(n) |> DHExp.fresh);
     let float_of_string =
       of_string(float_of_string_opt, f => Float(f) |> DHExp.fresh);
     let bool_of_string =
@@ -164,7 +162,7 @@ module Pervasives = {
       binary((d1, d2) => {
         let-unbox m = (Int, d1);
         let-unbox n = (Int, d2);
-        if (n == 0) {
+        if (n == Bigint.zero) {
           Some(
             fresh(
               DynamicErrorHole(
@@ -174,20 +172,20 @@ module Pervasives = {
             ),
           );
         } else {
-          Some(fresh(Int(m mod n)));
+          Some(fresh(Int(Bigint.rem(m, n))));
         };
       });
 
     let string_length = d => {
       let-unbox s = (String, d);
-      Some(fresh(Int(String.length(s))));
+      Some(fresh(Int(String.length(s) |> Bigint.of_int)));
     };
 
     let string_compare =
       binary((d1, d2) => {
         let-unbox s1 = (String, d1);
         let-unbox s2 = (String, d2);
-        Some(fresh(Int(String.compare(s1, s2))));
+        Some(fresh(Int(String.compare(s1, s2) |> Bigint.of_int)));
       });
 
     let string_trim = d => {
@@ -212,8 +210,8 @@ module Pervasives = {
     let string_sub = name =>
       ternary((d1, d2, d3) => {
         let-unbox s = (String, d1);
-        let-unbox idx = (Int, d2);
-        let-unbox len = (Int, d3);
+        let-unbox idx = (OCamlInt, d2);
+        let-unbox len = (OCamlInt, d3);
         try(Some(fresh(String(String.sub(s, idx, len))))) {
         | _ =>
           let d' = BuiltinFun(name) |> DHExp.fresh;
@@ -243,8 +241,6 @@ module Pervasives = {
     |> const("nan", Float, nan)
     |> const("epsilon_float", Float, epsilon_float)
     |> const("pi", Float, pi)
-    |> const("max_int", Int, max_int)
-    |> const("min_int", Int, min_int)
     |> fn("is_finite", Float, Bool, is_finite)
     |> fn("is_infinite", Float, Bool, is_infinite)
     |> fn("is_nan", Float, Bool, is_nan)

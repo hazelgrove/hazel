@@ -712,7 +712,7 @@ let get_doc =
                     Printf.sprintf(
                       Scanf.format_from_string(msg, "%s%s%s%s"),
                       Id.to_string(pat_id),
-                      string_of_int(i),
+                      Bigint.to_string(i),
                       Id.to_string(pat_id),
                       Id.to_string(body_id),
                     ),
@@ -1306,7 +1306,7 @@ let get_doc =
                       Scanf.format_from_string(msg, "%s%s%s%s%s"),
                       Id.to_string(def_id),
                       Id.to_string(pat_id),
-                      string_of_int(i),
+                      Bigint.to_string(i),
                       Id.to_string(def_id),
                       Id.to_string(body_id),
                     ),
@@ -2006,7 +2006,11 @@ let get_doc =
         ~format=
           Some(
             msg =>
-              Printf.sprintf(Scanf.format_from_string(msg, "%i%i"), i, i),
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                i |> Bigint.to_string,
+                i |> Bigint.to_string,
+              ),
           ),
         TerminalPat.intlit(i),
       )

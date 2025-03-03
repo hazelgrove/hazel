@@ -27,7 +27,8 @@ type unboxed_fun =
   | DeferredAp(DHExp.t, list(DHExp.t));
 
 type unbox_request('a) =
-  | Int: unbox_request(int)
+  | Int: unbox_request(Bigint.t)
+  | OCamlInt: unbox_request(int) // For builtins that require OCaml ints
   | Float: unbox_request(float)
   | Bool: unbox_request(bool)
   | String: unbox_request(string)
@@ -102,6 +103,13 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Float, Float(f)) => Matches(f)
     | (String, String(s)) => Matches(s)
     | (Label, Label(s)) => Matches(s)
+
+    /* Can only unbox an OCaml int if it's small enough */
+    | (OCamlInt, Int(i)) =>
+      switch (Bigint.to_int(i)) {
+      | Some(i) => Matches(i)
+      | None => raise(EvaluatorError.Exception(IntegerTooBig(i)))
+      }
 
     /* Lists can be either lists or list casts */
     | (List, ListLit(l)) => Matches(l)
@@ -246,6 +254,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | TupLabel(_) =>
         raise(EvaluatorError.Exception(InvalidBoxedTupLabel(expr)))
       | Bool => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(expr)))
+      | OCamlInt
       | Int => raise(EvaluatorError.Exception(InvalidBoxedIntLit(expr)))
       | Float => raise(EvaluatorError.Exception(InvalidBoxedFloatLit(expr)))
       | String =>

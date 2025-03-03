@@ -260,7 +260,7 @@ nonAscriptingPat:
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { CastPat(ConstructorPat(c, None), UnknownType(Internal), t) }
     | p = IDENT { VarPat(p) }
-    | i = INT { IntPat i }
+    | i = INT { IntPat (Bigint.of_int i) } // todo(matt): support bigints in menhir
     | f = FLOAT { FloatPat f }
     | s = STRING { StringPat s}
     | TRUE { BoolPat true}
@@ -316,7 +316,7 @@ tupExpEntry:
 
 exp:
     | b = binExp { b }
-    | i = INT { Int i }
+    | i = INT { Int (Bigint.of_int(i)) } // todo(matt): support bigints in menhir
     | f = FLOAT { Float f }
     | v = IDENT { Var v }
     | c = CONSTRUCTOR_IDENT { Constructor(c, None)}
