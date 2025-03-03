@@ -421,7 +421,7 @@ let message_display =
       List.mapi(
         (index: int, message: Assistant.Model.message) => {
           switch (message.code) {
-          | Some(sketch) =>
+          | Some((sketch, tileId)) =>
             message.content == "..." && message.party == LLM
               ? [loading_dots()]
               : [
@@ -479,6 +479,26 @@ let message_display =
                           : text(message.content),
                       ],
                     ),
+                    message.party == LLM && tileId != None
+                      ? div(
+                          ~attrs=[
+                            clss(["resuggest-button"]),
+                            Attr.on_click(_ =>
+                              Virtual_dom.Vdom.Effect.Many([
+                                inject(
+                                  Assistant.Update.Resuggest(
+                                    message.content,
+                                    Option.get(tileId),
+                                  ),
+                                ),
+                                Virtual_dom.Vdom.Effect.Stop_propagation,
+                              ])
+                            ),
+                            Attr.title("Resuggest"),
+                          ],
+                          [text("resuggest")],
+                        )
+                      : None,
                   ],
                 ),
                 div(
