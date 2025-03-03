@@ -55,7 +55,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   switch (Typ.term_of(ty)) {
   | Unknown(_) => Hole
   | Bool
-  | Int
+  | Int(_)
   | Float
   | String
   | Label(_)

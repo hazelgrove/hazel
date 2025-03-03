@@ -19,6 +19,11 @@ type deferral_position_t =
   | OutsideAp;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type int_kind =
+  | Nat
+  | Int;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type any_t('a) =
   | Exp(exp_t('a))
   | Pat(pat_t('a))
@@ -92,7 +97,7 @@ and pat_term('a) =
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
-  | Int
+  | Int(int_kind)
   | Float
   | Bool
   | String
@@ -312,7 +317,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
       term:
         switch (term) {
         | Unknown(p) => Unknown(map_type_provenance_annotation(f, p))
-        | Int => Int
+        | Int(kind) => Int(kind)
         | Float => Float
         | Bool => Bool
         | String => String

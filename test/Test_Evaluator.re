@@ -142,7 +142,7 @@ let test_ap_of_hole_deferral = () =>
           |> Exp.fresh,
           Cast(
             Int(3 |> Bigint.of_int) |> Exp.fresh,
-            Int |> Typ.fresh,
+            Int(Int) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
           |> Exp.fresh,
@@ -195,7 +195,7 @@ let test_ap_of_hole_deferral = () =>
           Deferral(InAp) |> Exp.fresh,
           Cast(
             Int(3 |> Bigint.of_int) |> Exp.fresh,
-            Int |> Typ.fresh,
+            Int(Int) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
           |> Exp.fresh,
@@ -350,7 +350,7 @@ let test_typfun_application = () =>
           None,
         )
         |> Exp.fresh,
-        Int |> Typ.fresh,
+        Int(Int) |> Typ.fresh,
       )
       |> Exp.fresh,
       Int(2 |> Bigint.of_int) |> Exp.fresh,

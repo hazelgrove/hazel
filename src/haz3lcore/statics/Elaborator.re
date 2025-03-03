@@ -142,7 +142,7 @@ let rec elaborate_pattern =
   let (term, rewrap) = Pat.unwrap(upat);
   let dpat =
     switch (term) {
-    | Int(_) => upat |> cast_from(Int |> Typ.temp)
+    | Int(_) => upat |> cast_from(Int(Int) |> Typ.temp)
     | Bool(_) => upat |> cast_from(Bool |> Typ.temp)
     | Float(_) => upat |> cast_from(Float |> Typ.temp)
     | String(_) => upat |> cast_from(String |> Typ.temp)
@@ -317,7 +317,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e', ty) = elaborate(m, e);
       e' |> cast_from(ty);
     | Deferral(_) => uexp
-    | Int(_) => uexp |> cast_from(Int |> Typ.temp)
+    | Int(_) => uexp |> cast_from(Int(Int) |> Typ.temp)
     | Bool(_) => uexp |> cast_from(Bool |> Typ.temp)
     | Float(_) => uexp |> cast_from(Float |> Typ.temp)
     | String(_) => uexp |> cast_from(String |> Typ.temp)
@@ -583,9 +583,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       }
     | UnOp(Int(Minus), e) =>
       let (e', t) = elaborate(m, e);
-      UnOp(Int(Minus), fresh_cast(e', t, Int |> Typ.temp))
+      UnOp(Int(Minus), fresh_cast(e', t, Int(Int) |> Typ.temp))
       |> rewrap
-      |> cast_from(Int |> Typ.temp);
+      |> cast_from(Int(Int) |> Typ.temp);
     | UnOp(Bool(Not), e) =>
       let (e', t) = elaborate(m, e);
       UnOp(Bool(Not), fresh_cast(e', t, Bool |> Typ.temp))
@@ -596,11 +596,11 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e2', t2) = elaborate(m, e2);
       BinOp(
         op,
-        fresh_cast(e1', t1, Int |> Typ.temp),
-        fresh_cast(e2', t2, Int |> Typ.temp),
+        fresh_cast(e1', t1, Int(Int) |> Typ.temp),
+        fresh_cast(e2', t2, Int(Int) |> Typ.temp),
       )
       |> rewrap
-      |> cast_from(Int |> Typ.temp);
+      |> cast_from(Int(Int) |> Typ.temp);
     | BinOp(
         Int(
           LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual |
@@ -614,8 +614,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e2', t2) = elaborate(m, e2);
       BinOp(
         op,
-        fresh_cast(e1', t1, Int |> Typ.temp),
-        fresh_cast(e2', t2, Int |> Typ.temp),
+        fresh_cast(e1', t1, Int(Int) |> Typ.temp),
+        fresh_cast(e2', t2, Int(Int) |> Typ.temp),
       )
       |> rewrap
       |> cast_from(Bool |> Typ.temp);

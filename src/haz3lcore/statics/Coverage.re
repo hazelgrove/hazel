@@ -114,7 +114,7 @@ module Ctr = {
       )
     | Bool => Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))
     | Unknown(_) => Unknown
-    | Int
+    | Int(_)
     | Float // technically float is finite, but ya know
     | String
     | Arrow(_)

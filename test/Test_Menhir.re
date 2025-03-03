@@ -293,14 +293,14 @@ let tests = (
       Cast(
         Constructor("A", None) |> Exp.fresh,
         Unknown(Internal) |> Typ.fresh,
-        Int |> Typ.fresh,
+        Int(Int) |> Typ.fresh,
       )
       |> Exp.fresh,
       "A : Int",
     ),
     menhir_only_test(
       "Constructor of specific sum type",
-      Constructor("A", Some(Int |> Typ.fresh)) |> Exp.fresh,
+      Constructor("A", Some(Int(Int) |> Typ.fresh)) |> Exp.fresh,
       "A ~ Int",
     ),
     // TODO Fix for the tests below
@@ -328,7 +328,7 @@ let tests = (
       "Type Alias",
       TyAlias(
         Var("x") |> TPat.fresh,
-        Int |> Typ.fresh,
+        Int(Int) |> Typ.fresh,
         Int(1 |> Bigint.of_int) |> Exp.fresh,
       )
       |> Exp.fresh,
@@ -478,7 +478,7 @@ let tests = (
       Let(
         Cast(
           Var("x") |> Pat.fresh,
-          Int |> Typ.fresh,
+          Int(Int) |> Typ.fresh,
           Unknown(Internal) |> Typ.fresh,
         )
         |> Pat.fresh,
@@ -512,7 +512,7 @@ let tests = (
           Sum([
             Variant("A", [], None),
             Variant("B", [], None),
-            Variant("C", [], Some(Int |> Typ.fresh)),
+            Variant("C", [], Some(Int(Int) |> Typ.fresh)),
           ])
           |> Typ.fresh,
           Unknown(Internal) |> Typ.fresh,

@@ -347,7 +347,7 @@ let tests = (
               TyAlias(
                 Var("x") |> TPat.fresh,
                 Arrow(
-                  Arrow(Int |> Typ.fresh, Bool |> Typ.fresh) |> Typ.fresh,
+                  Arrow(Int(Int) |> Typ.fresh, Bool |> Typ.fresh) |> Typ.fresh,
                   Var("x") |> Typ.fresh,
                 )
                 |> Typ.fresh,

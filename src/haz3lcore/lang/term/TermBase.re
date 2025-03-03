@@ -577,7 +577,7 @@ and Typ: {
         | Unknown(SynSwitch)
         | Unknown(Internal)
         | Bool
-        | Int
+        | Int(_)
         | Float
         | String
         | Label(_)
@@ -614,7 +614,7 @@ and Typ: {
     | Some(str) =>
       let (term, rewrap) = Grammar.Annotated.unwrap(ty);
       switch (term) {
-      | Int => (Int: typ_term) |> rewrap
+      | Int(kind) => (Int(kind): typ_term) |> rewrap
       | Float => Float |> rewrap
       | Bool => Bool |> rewrap
       | String => String |> rewrap
@@ -676,8 +676,8 @@ and Typ: {
       }
     | (Rec(_), _) => false
     | (Forall(_), _) => false
-    | (Int, Int) => true
-    | (Int, _) => false
+    | (Int(k1), Int(k2)) => k1 == k2
+    | (Int(_), _) => false
     | (Float, Float) => true
     | (Float, _) => false
     | (Bool, Bool) => true

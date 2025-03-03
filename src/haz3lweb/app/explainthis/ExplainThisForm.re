@@ -319,6 +319,7 @@ type group_id =
   | EmptyHoleTyp
   | MultiHoleTyp
   | IntTyp
+  | NatTyp
   | FloatTyp
   | BoolTyp
   | StrTyp

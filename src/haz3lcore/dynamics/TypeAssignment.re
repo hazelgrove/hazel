@@ -87,7 +87,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Invalid(_)
     | MultiHole(_) => Some([])
     | Parens(dhp) => dhpat_var_entry(dhp, ty)
-    | Int(_) => Typ.equal(ty, Int |> Typ.temp) ? Some([]) : None
+    | Int(_) => Typ.equal(ty, Int(Int) |> Typ.temp) ? Some([]) : None
     | Float(_) => Typ.equal(ty, Float |> Typ.temp) ? Some([]) : None
     | Bool(_) => Typ.equal(ty, Bool |> Typ.temp) ? Some([]) : None
     | String(_) => Typ.equal(ty, String |> Typ.temp) ? Some([]) : None
@@ -126,7 +126,7 @@ let rec dhpat_synthesize = (dhpat: DHPat.t, ctx: Ctx.t): option(Typ.t) => {
   | Invalid(_)
   | MultiHole(_) => Some(Unknown(Internal) |> Typ.temp)
   | Parens(dhp) => dhpat_synthesize(dhp, ctx)
-  | Int(_) => Some(Int |> Typ.temp)
+  | Int(_) => Some(Int(Int) |> Typ.temp)
   | Float(_) => Some(Float |> Typ.temp)
   | Bool(_) => Some(Bool |> Typ.temp)
   | String(_) => Some(String |> Typ.temp)
@@ -250,7 +250,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     let* ty = typ_of_dhexp(ctx, m, dtest);
     Typ.equal(ty, Bool |> Typ.temp) ? Some(Prod([]) |> Typ.temp) : None;
   | Bool(_) => Some(Bool |> Typ.temp)
-  | Int(_) => Some(Int |> Typ.temp)
+  | Int(_) => Some(Int(Int) |> Typ.temp)
   | Float(_) => Some(Float |> Typ.temp)
   | String(_) => Some(String |> Typ.temp)
   | BinOp(Bool(_), d1, d2) =>
@@ -261,13 +261,14 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
   | BinOp(Int(op), d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
-    if (Typ.equal(ty1, Int |> Typ.temp) && Typ.equal(ty2, Int |> Typ.temp)) {
+    if (Typ.equal(ty1, Int(Int) |> Typ.temp)
+        && Typ.equal(ty2, Int(Int) |> Typ.temp)) {
       switch (op) {
       | Minus
       | Plus
       | Times
       | Power
-      | Divide => Some(Int |> Typ.temp)
+      | Divide => Some(Int(Int) |> Typ.temp)
       | LessThan
       | LessThanOrEqual
       | GreaterThan
@@ -313,7 +314,8 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     };
   | UnOp(Int(Minus), d) =>
     let* ty = typ_of_dhexp(ctx, m, d);
-    Typ.equal(ty, Int |> Typ.temp) ? Some(Int |> Typ.temp) : None;
+    Typ.equal(ty, Int(Int) |> Typ.temp)
+      ? Some(Int(Int) |> Typ.temp) : None;
   | UnOp(Bool(Not), d) =>
     let* ty = typ_of_dhexp(ctx, m, d);
     Typ.equal(ty, Bool |> Typ.temp) ? Some(Bool |> Typ.temp) : None;

@@ -81,13 +81,13 @@ module PlainTests = {
       FailedCast(
         Bool(false) |> Exp.fresh,
         Bool |> Typ.fresh,
-        Int |> Typ.fresh,
+        Int(Int) |> Typ.fresh,
       )
       |> Exp.fresh,
       Cast(
         Var("y") |> Exp.fresh,
         Unknown(Internal) |> Typ.fresh,
-        Int |> Typ.fresh,
+        Int(Int) |> Typ.fresh,
       )
       |> Exp.fresh,
     )
@@ -181,7 +181,7 @@ module PlainTests = {
           Bool(true) |> Pat.fresh,
           Cast(
             Int(24 |> Bigint.of_int) |> Exp.fresh,
-            Int |> Typ.fresh,
+            Int(Int) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
           |> Exp.fresh,
@@ -210,7 +210,7 @@ module PlainTests = {
     Let(
       Cast(
         Var("f") |> Pat.fresh,
-        Arrow(Int |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
+        Arrow(Int(Int) |> Typ.fresh, Int(Int) |> Typ.fresh) |> Typ.fresh,
         Unknown(Internal) |> Typ.fresh,
       )
       |> Pat.fresh,
@@ -241,7 +241,7 @@ module PlainTests = {
           Var("x") |> Exp.fresh,
         )
         |> Exp.fresh,
-        Some(Int |> Typ.fresh),
+        Some(Int(Int) |> Typ.fresh),
         Some("f"),
       )
       |> Exp.fresh,
@@ -355,7 +355,7 @@ module PlainTests = {
             Deferral(InAp) |> Exp.fresh,
             Cast(
               Int(3 |> Bigint.of_int) |> Exp.fresh,
-              Int |> Typ.fresh,
+              Int(Int) |> Typ.fresh,
               Unknown(Internal) |> Typ.fresh,
             )
             |> Exp.fresh,
@@ -427,7 +427,7 @@ module PlainTests = {
               |> Typ.fresh,
               TupLabel(Label("state") |> Typ.fresh, String |> Typ.fresh)
               |> Typ.fresh,
-              TupLabel(Label("zipcode") |> Typ.fresh, Int |> Typ.fresh)
+              TupLabel(Label("zipcode") |> Typ.fresh, Int(Int) |> Typ.fresh)
               |> Typ.fresh,
             ])
             |> Typ.fresh,
@@ -535,7 +535,7 @@ module PlainTests = {
           Var("val") |> Pat.fresh,
           Parens(
             Prod([
-              TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
+              TupLabel(Label("a") |> Typ.fresh, Int(Int) |> Typ.fresh)
               |> Typ.fresh,
               TupLabel(Label("b") |> Typ.fresh, String |> Typ.fresh)
               |> Typ.fresh,
@@ -716,7 +716,7 @@ module PlainTests = {
             Var("x") |> Exp.fresh,
             Some(
               Prod([
-                TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
+                TupLabel(Label("a") |> Typ.fresh, Int(Int) |> Typ.fresh)
                 |> Typ.fresh,
               ])
               |> Typ.fresh,
@@ -754,7 +754,7 @@ module PlainTests = {
             Var("x") |> Exp.fresh,
             Some(
               Prod([
-                TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
+                TupLabel(Label("a") |> Typ.fresh, Int(Int) |> Typ.fresh)
                 |> Typ.fresh,
               ])
               |> Typ.fresh,
@@ -785,7 +785,7 @@ module PlainTests = {
               Label("c") |> Exp.fresh,
               FailedCast(
                 Int(1 |> Bigint.of_int) |> Exp.fresh,
-                Int |> Typ.fresh,
+                Int(Int) |> Typ.fresh,
                 String |> Typ.fresh,
               )
               |> Exp.fresh,
@@ -1081,7 +1081,7 @@ module MenhirElaborationTests = {
         None,
       )
       |> Exp.fresh,
-      Int |> Typ.fresh,
+      Int(Int) |> Typ.fresh,
     )
     |> Exp.fresh;
   let typ_ap_menhir = () =>
@@ -1091,7 +1091,7 @@ module MenhirElaborationTests = {
   let failed_cast_uexp: Exp.t =
     FailedCast(
       Int(1 |> Bigint.of_int) |> Exp.fresh,
-      Int |> Typ.fresh,
+      Int(Int) |> Typ.fresh,
       String |> Typ.fresh,
     )
     |> Exp.fresh;
@@ -1232,7 +1232,7 @@ x
     term:
       TyAlias(
         Var("x") |> TPat.fresh,
-        Int |> Typ.fresh,
+        Int(Int) |> Typ.fresh,
         Var("x") |> Exp.fresh,
       ),
     annotation: {

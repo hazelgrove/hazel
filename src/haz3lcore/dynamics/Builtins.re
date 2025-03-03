@@ -244,12 +244,17 @@ module Pervasives = {
     |> fn("is_finite", Float, Bool, is_finite)
     |> fn("is_infinite", Float, Bool, is_infinite)
     |> fn("is_nan", Float, Bool, is_nan)
-    |> fn("int_of_float", Float, Int, int_of_float)
-    |> fn("float_of_int", Int, Float, float_of_int)
-    |> fn("string_of_int", Int, String, string_of_int)
+    |> fn("int_of_float", Float, Int(Int), int_of_float)
+    |> fn("float_of_int", Int(Int), Float, float_of_int)
+    |> fn("string_of_int", Int(Int), String, string_of_int)
     |> fn("string_of_float", Float, String, string_of_float)
     |> fn("string_of_bool", Bool, String, string_of_bool)
-    |> fn("int_of_string", String, Int, int_of_string("int_of_string"))
+    |> fn(
+         "int_of_string",
+         String,
+         Int(Int),
+         int_of_string("int_of_string"),
+       )
     |> fn(
          "float_of_string",
          String,
@@ -257,7 +262,7 @@ module Pervasives = {
          float_of_string("float_of_string"),
        )
     |> fn("bool_of_string", String, Bool, bool_of_string("bool_of_string"))
-    |> fn("abs", Int, Int, abs)
+    |> fn("abs", Int(Int), Int(Nat), abs)
     |> fn("abs_float", Float, Float, abs_float)
     |> fn("ceil", Float, Float, ceil)
     |> fn("floor", Float, Float, floor)
@@ -273,15 +278,15 @@ module Pervasives = {
     |> fn("atan", Float, Float, atan)
     |> fn(
          "mod",
-         Prod([Int |> Typ.fresh, Int |> Typ.fresh]),
-         Int,
+         Prod([Int(Int) |> Typ.fresh, Int(Int) |> Typ.fresh]),
+         Int(Int),
          int_mod("mod"),
        )
-    |> fn("string_length", String, Int, string_length)
+    |> fn("string_length", String, Int(Nat), string_length)
     |> fn(
          "string_compare",
          Prod([String |> Typ.fresh, String |> Typ.fresh]),
-         Int,
+         Int(Int),
          string_compare,
        )
     |> fn("string_trim", String, String, string_trim)
@@ -293,7 +298,11 @@ module Pervasives = {
        )
     |> fn(
          "string_sub",
-         Prod([String |> Typ.fresh, Int |> Typ.fresh, Int |> Typ.fresh]),
+         Prod([
+           String |> Typ.fresh,
+           Int(Nat) |> Typ.fresh,
+           Int(Nat) |> Typ.fresh,
+         ]),
          String,
          string_sub("string_sub"),
        )

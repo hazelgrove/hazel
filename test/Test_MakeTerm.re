@@ -97,7 +97,7 @@ let tests = (
       exp_check(
         TyAlias(
           Var("x") |> TPat.fresh,
-          Int |> Typ.fresh,
+          Int(Int) |> Typ.fresh,
           Int(1 |> Bigint.of_int) |> Exp.fresh,
         )
         |> Exp.fresh,
@@ -147,7 +147,7 @@ let tests = (
               Var("y") |> Pat.fresh,
               Parens(
                 Prod([
-                  TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh)
+                  TupLabel(Label("l") |> Typ.fresh, Int(Int) |> Typ.fresh)
                   |> Typ.fresh,
                 ])
                 |> Typ.fresh,
@@ -191,7 +191,7 @@ let tests = (
             Var("x") |> Pat.fresh,
             Parens(
               Prod([
-                TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh)
+                TupLabel(Label("l") |> Typ.fresh, Int(Int) |> Typ.fresh)
                 |> Typ.fresh,
                 TupLabel(Label("l2") |> Typ.fresh, String |> Typ.fresh)
                 |> Typ.fresh,

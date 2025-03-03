@@ -420,7 +420,7 @@ and Typ: {
   and term_of_menhir_ast = (typ: AST.typ): Haz3lcore.Typ.term => {
     switch (typ) {
     | InvalidTyp(s) => Unknown(Hole(Invalid(s)))
-    | IntType => Int
+    | IntType => Int(Int)
     | FloatType => Float
     | BoolType => Bool
     | StringType => String
@@ -480,7 +480,7 @@ and Typ: {
   };
   let rec of_core = (typ: Haz3lcore.Typ.t): AST.typ => {
     switch (typ.term) {
-    | Int => IntType
+    | Int(Int | Nat) => IntType // Note(Matt): I think for now these are the same, will revisit when adding + pattern.
     | Float => FloatType
     | String => StringType
     | Bool => BoolType

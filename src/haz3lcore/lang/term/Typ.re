@@ -9,6 +9,7 @@ type cls =
   | SynSwitch
   | Internal
   | Int
+  | Nat
   | Float
   | Bool
   | String
@@ -43,7 +44,6 @@ let temp: term => t =
       copied: false,
     },
   };
-let rep_id: t => Id.t = IdTagged.rep_id;
 
 let all_ids_temp = {
   let f:
@@ -87,7 +87,8 @@ let cls_of_term: term => cls =
   | Unknown(Hole(MultiHole(_))) => MultiHole
   | Unknown(SynSwitch) => SynSwitch
   | Unknown(Internal) => Internal
-  | Int => Int
+  | Int(Int) => Int
+  | Int(Nat) => Nat
   | Float => Float
   | Bool => Bool
   | String => String
@@ -114,6 +115,7 @@ let show_cls: cls => string =
   | Float
   | String
   | Bool => "Base type"
+  | Nat => "Natural number type (>= 0)"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
   | List => "List type"
@@ -133,7 +135,7 @@ let rec is_arrow = (typ: t) => {
   | TupLabel(_, typ) => is_arrow(typ)
   | Arrow(_) => true
   | Unknown(_)
-  | Int
+  | Int(_)
   | Float
   | Bool
   | String
@@ -154,7 +156,7 @@ let rec is_forall = (typ: t) => {
   | TupLabel(_, typ) => is_forall(typ)
   | Forall(_) => true
   | Unknown(_)
-  | Int
+  | Int(_)
   | Float
   | Bool
   | String
@@ -219,7 +221,7 @@ let rec match_tup_label = ty =>
 let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (term_of(ty)) {
   | Unknown(_)
-  | Int
+  | Int(_)
   | Float
   | Bool
   | String
@@ -312,8 +314,8 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
      second type to preserve synthesized type variable names, which
      come from user annotations. */
   | (Forall(_), _) => None
-  | (Int, Int) => Some(ty1)
-  | (Int, _) => None
+  | (Int(k1), Int(k2)) when k1 == k2 => Some(ty1)
+  | (Int(_), _) => None
   | (Float, Float) => Some(ty1)
   | (Float, _) => None
   | (Bool, Bool) => Some(ty1)
@@ -366,7 +368,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Unknown(SynSwitch), _) => t2
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
-  | (Int, _)
+  | (Int(_), _)
   | (Float, _)
   | (Bool, _)
   | (String, _)
@@ -427,11 +429,11 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
     | None => ty
     }
   | Unknown(_)
-  | Int
   | Float
   | Bool
   | String
   | Label(_) => ty
+  | Int(_) => Int(Int) |> rewrap
   | Parens(t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
@@ -600,7 +602,7 @@ let rec needs_parens = (ty: t): bool =>
   | Parens(ty) => needs_parens(ty)
   | Ap(_)
   | Unknown(_)
-  | Int
+  | Int(_)
   | Float
   | Label(_)
   | Bool
@@ -629,7 +631,8 @@ let rec pretty_print = (ty: t): string =>
   | Parens(ty) => pretty_print(ty)
   | Ap(_)
   | Unknown(_) => "?"
-  | Int => "Int"
+  | Int(Int) => "Int"
+  | Int(Nat) => "Nat"
   | Float => "Float"
   | Bool => "Bool"
   | String => "String"

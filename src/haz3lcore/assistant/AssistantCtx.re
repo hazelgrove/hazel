@@ -151,10 +151,10 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
       @ List.map(restrategize(commas), exp_refs(ty));
     | Bool =>
       /* TODO: Find a UI to make these less confusing */
-      exp_refs(Int |> Typ.fresh)
+      exp_refs(Int(Int) |> Typ.fresh)
       @ exp_refs(Float |> Typ.fresh)
       @ exp_refs(String |> Typ.fresh)
-      @ exp_aps(Int |> Typ.fresh)
+      @ exp_aps(Int(Int) |> Typ.fresh)
       @ exp_aps(Float |> Typ.fresh)
       @ exp_aps(String |> Typ.fresh)
     | _ => []

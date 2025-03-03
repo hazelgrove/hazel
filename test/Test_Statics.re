@@ -51,7 +51,7 @@ let testable_error: testable(Info.error) =
 module FreshId = {
   let arrow = (a, b) => Arrow(a, b) |> Typ.fresh;
   let unknown = a => Unknown(a) |> Typ.fresh;
-  let int = Typ.fresh(Int);
+  let int = Typ.fresh(Int(Int));
   let float = Typ.fresh(Float);
   let prod = a => Prod(a) |> Typ.fresh;
   let label = a => Label(a) |> Typ.fresh;
@@ -239,12 +239,12 @@ let tests = (
                           no_error_typ(
                             TupLabel(
                               Label("a") |> no_error_typ,
-                              Int |> no_error_typ,
+                              Int(Int) |> no_error_typ,
                             ),
                           ),
                           TupLabel(
                             Label("b") |> no_error_typ,
-                            Int |> no_error_typ,
+                            Int(Int) |> no_error_typ,
                           )
                           |> no_error_typ,
                         ])
@@ -264,12 +264,12 @@ let tests = (
                               Prod([
                                 TupLabel(
                                   Label("a") |> Typ.fresh,
-                                  Int |> Typ.fresh,
+                                  Int(Int) |> Typ.fresh,
                                 )
                                 |> Typ.fresh,
                                 TupLabel(
                                   Label("b") |> Typ.fresh,
-                                  Int |> Typ.fresh,
+                                  Int(Int) |> Typ.fresh,
                                 )
                                 |> Typ.fresh,
                               ])
@@ -277,7 +277,7 @@ let tests = (
                             )
                             |> Typ.fresh,
                           syn:
-                            Prod([Int |> Typ.fresh, Int |> Typ.fresh])
+                            Prod([Int(Int) |> Typ.fresh, Int(Int) |> Typ.fresh])
                             |> Typ.fresh,
                         }),
                       ),
@@ -329,7 +329,7 @@ let tests = (
       "let x = (l=32) in let y : (l=Int) = x in y",
       Some(
         Prod([
-          TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
+          TupLabel(Label("l") |> Typ.fresh, Int(Int) |> Typ.fresh) |> Typ.fresh,
         ])
         |> Typ.fresh,
       ),
@@ -370,7 +370,7 @@ let tests = (
                 Inconsistent(
                   Expectation({
                     ana: String |> Typ.fresh,
-                    syn: Int |> Typ.fresh,
+                    syn: Int(Int) |> Typ.fresh,
                   }),
                 ),
               ),
@@ -397,7 +397,7 @@ let tests = (
       {|(l=32, l2="")|},
       Some(
         Prod([
-          TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
+          TupLabel(Label("l") |> Typ.fresh, Int(Int) |> Typ.fresh) |> Typ.fresh,
           TupLabel(Label("l2") |> Typ.fresh, String |> Typ.fresh)
           |> Typ.fresh,
         ])
@@ -411,7 +411,7 @@ let tests = (
         Prod([
           TupLabel(Label("name") |> Typ.fresh, String |> Typ.fresh)
           |> Typ.fresh,
-          TupLabel(Label("age") |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
+          TupLabel(Label("age") |> Typ.fresh, Int(Int) |> Typ.fresh) |> Typ.fresh,
         ])
         |> Typ.fresh,
       ),
@@ -425,7 +425,7 @@ let tests = (
             Label("l") |> Typ.fresh,
             Parens(
               Prod([
-                TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh)
+                TupLabel(Label("l") |> Typ.fresh, Int(Int) |> Typ.fresh)
                 |> Typ.fresh,
               ])
               |> Typ.fresh,
@@ -529,7 +529,7 @@ let tests = (
                     Expectation({
                       ana:
                         Prod([
-                          TupLabel(Typ.temp(Label("a")), Typ.temp(Int))
+                          TupLabel(Typ.temp(Label("a")), Typ.temp(Int(Int)))
                           |> Typ.temp,
                           TupLabel(Typ.temp(Label("b")), Typ.temp(Float))
                           |> Typ.temp,
@@ -538,7 +538,7 @@ let tests = (
                         |> Typ.temp,
                       syn:
                         Prod([
-                          TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
+                          TupLabel(Label("a") |> Typ.temp, Int(Int) |> Typ.temp)
                           |> Typ.temp,
                           TupLabel(Label("b") |> Typ.temp, Float |> Typ.temp)
                           |> Typ.temp,
@@ -563,7 +563,7 @@ let tests = (
                         invalid_labels: ["z"],
                         typ:
                           Prod([
-                            TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
+                            TupLabel(Label("a") |> Typ.temp, Int(Int) |> Typ.temp)
                             |> Typ.temp,
                             TupLabel(
                               Label("b") |> Typ.temp,
@@ -616,7 +616,7 @@ let tests = (
               Parens(
                 no_error_typ(
                   Prod([
-                    TupLabel(no_error_typ(Label("a")), no_error_typ(Int))
+                    TupLabel(no_error_typ(Label("a")), no_error_typ(Int(Int)))
                     |> no_error_typ,
                     TupLabel(no_error_typ(Label("b")), no_error_typ(Float))
                     |> no_error_typ,
@@ -688,7 +688,7 @@ let tests = (
                         duplicate_labels: ["a"],
                         invalid_labels: [],
                         typ:
-                          TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
+                          TupLabel(Label("a") |> Typ.temp, Int(Int) |> Typ.temp)
                           |> Typ.temp,
                       }),
                     ),
@@ -840,7 +840,7 @@ let tests = (
                           String |> Typ.temp,
                         )
                         |> Typ.temp,
-                        TupLabel(Label("a") |> Typ.temp, Int |> Typ.temp)
+                        TupLabel(Label("a") |> Typ.temp, Int(Int) |> Typ.temp)
                         |> Typ.temp,
                       ])
                       |> Typ.temp,
@@ -918,7 +918,7 @@ let tests = (
                   Parens(
                     no_error_typ(
                       Prod([
-                        no_error_typ(Int),
+                        no_error_typ(Int(Int)),
                         no_error_typ(
                           TupLabel(
                             no_error_typ(Label("a")),
@@ -940,7 +940,7 @@ let tests = (
                       ana:
                         Parens(
                           Prod([
-                            Int |> Typ.fresh,
+                            Int(Int) |> Typ.fresh,
                             TupLabel(
                               Label("a") |> Typ.fresh,
                               String |> Typ.fresh,
@@ -952,7 +952,7 @@ let tests = (
                         |> Typ.fresh,
                       syn:
                         Prod([
-                          TupLabel(Label("c") |> Typ.fresh, Int |> Typ.fresh)
+                          TupLabel(Label("c") |> Typ.fresh, Int(Int) |> Typ.fresh)
                           |> Typ.fresh,
                           TupLabel(
                             Label("a") |> Typ.fresh,
@@ -977,7 +977,7 @@ let tests = (
                           Prod([
                             TupLabel(
                               Label("c") |> Typ.fresh,
-                              Int |> Typ.fresh,
+                              Int(Int) |> Typ.fresh,
                             )
                             |> Typ.fresh,
                             TupLabel(
@@ -1001,7 +1001,7 @@ let tests = (
                             typ:
                               TupLabel(
                                 Label("c") |> Typ.fresh,
-                                Int |> Typ.fresh,
+                                Int(Int) |> Typ.fresh,
                               )
                               |> Typ.fresh,
                           }),
@@ -1042,17 +1042,17 @@ let tests = (
                     Common(
                       Inconsistent(
                         Expectation({
-                          ana: Int |> Typ.temp,
+                          ana: Int(Int) |> Typ.temp,
                           syn:
                             Prod([
                               TupLabel(
                                 Label("a") |> Typ.temp,
-                                Int |> Typ.temp,
+                                Int(Int) |> Typ.temp,
                               )
                               |> Typ.temp,
                               TupLabel(
                                 Label("b") |> Typ.temp,
-                                Int |> Typ.temp,
+                                Int(Int) |> Typ.temp,
                               )
                               |> Typ.temp,
                             ])
@@ -1077,7 +1077,7 @@ let tests = (
               ),
             ),
             Unknown(Internal) |> no_error_typ,
-            Int |> no_error_typ,
+            Int(Int) |> no_error_typ,
           ),
         ),
       )
@@ -1094,7 +1094,7 @@ let tests = (
                 Common(
                   Inconsistent(
                     Expectation({
-                      ana: Int |> Typ.fresh,
+                      ana: Int(Int) |> Typ.fresh,
                       syn: String |> Typ.fresh,
                     }),
                   ),

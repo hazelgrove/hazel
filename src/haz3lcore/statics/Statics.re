@@ -71,7 +71,7 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
 
 let typ_exp_binop_bin_int: Operators.op_bin_int => Typ.t =
   fun
-  | (Plus | Minus | Times | Power | Divide) as _op => Int |> Typ.temp
+  | (Plus | Minus | Times | Power | Divide) as _op => Int(Int) |> Typ.temp
   | (
       LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals |
       NotEquals
@@ -95,7 +95,11 @@ let typ_exp_binop_bin_string: Operators.op_bin_string => Typ.t =
 let typ_exp_binop: Operators.op_bin => (Typ.t, Typ.t, Typ.t) =
   fun
   | Bool(And | Or) => (Bool |> Typ.temp, Bool |> Typ.temp, Bool |> Typ.temp)
-  | Int(op) => (Int |> Typ.temp, Int |> Typ.temp, typ_exp_binop_bin_int(op))
+  | Int(op) => (
+      Int(Int) |> Typ.temp,
+      Int(Int) |> Typ.temp,
+      typ_exp_binop_bin_int(op),
+    )
   | Float(op) => (
       Float |> Typ.temp,
       Float |> Typ.temp,
@@ -114,7 +118,7 @@ let typ_exp_unop: Operators.op_un => (Typ.t, Typ.t) =
       Unknown(Internal) |> Typ.temp,
     )
   | Bool(Not) => (Bool |> Typ.temp, Bool |> Typ.temp)
-  | Int(Minus) => (Int |> Typ.temp, Int |> Typ.temp);
+  | Int(Minus) => (Int(Int) |> Typ.temp, Int(Int) |> Typ.temp);
 
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, Map.t) =>
@@ -307,7 +311,8 @@ and uexp_to_info_map =
       add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
     | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
     | Bool(_) => atomic(Just(Bool |> Typ.temp))
-    | Int(_) => atomic(Just(Int |> Typ.temp))
+    | Int(n) when n >= Bigint.zero => atomic(Just(Int(Nat) |> Typ.temp))
+    | Int(_) => atomic(Just(Int(Int) |> Typ.temp))
     | Float(_) => atomic(Just(Float |> Typ.temp))
     | String(_) => atomic(Just(String |> Typ.temp))
     | ListLit(es) =>
@@ -1148,7 +1153,7 @@ and upat_to_info_map =
     | Invalid(token) => hole(BadToken(token))
     | EmptyHole => hole(Just(unknown))
     | Int(int) =>
-      atomic(Just(Int |> Typ.temp), Coverage.Constraint.Int(int))
+      atomic(Just(Int(Int) |> Typ.temp), Coverage.Constraint.Int(int))
     | Float(float) =>
       atomic(Just(Float |> Typ.temp), Coverage.Constraint.Float(float))
     | Tuple([]) =>
@@ -1477,7 +1482,7 @@ and utyp_to_info_map =
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
     add(m);
   | Unknown(_)
-  | Int
+  | Int(_)
   | Float
   | Bool
   | String => add(m)

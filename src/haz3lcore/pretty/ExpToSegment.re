@@ -120,7 +120,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
   | Var(_)
-  | Int
+  | Int(_)
   | Float
   | Bool
   | String
@@ -445,7 +445,7 @@ and parenthesize_typ =
   | Unknown(Internal)
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
-  | Int
+  | Int(_)
   | Float
   | Bool
   | String => typ
@@ -1198,7 +1198,8 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
     ListUtil.flat_intersperse(Grout({id, shape: Concave}), es);
   | Var(v) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v)
-  | Int => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
+  | Int(Int) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
+  | Int(Nat) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Nat")
   | Float => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float")
   | Bool => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool")
   | String => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "String")

@@ -531,7 +531,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         switch (tile) {
         | ([t], []) when Form.is_empty_tuple(t) => Prod([])
         | (["Bool"], []) => Bool
-        | (["Int"], []) => Int
+        | (["Int"], []) => Int(Int)
+        | (["Nat"], []) => Int(Nat)
         | (["Float"], []) => Float
         | (["String"], []) => String
         | ([t], []) when Form.is_typ_var(t) => Var(t)
