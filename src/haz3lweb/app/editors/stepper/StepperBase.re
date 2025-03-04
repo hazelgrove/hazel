@@ -211,18 +211,16 @@ module Model = {
     ++ ")";
   };
   // Takes a single step
-  let single_step_export = (ind, step: step, forall_str, ctx) => {
+  let single_step_export = (ind, step, forall_str) => {
     let {expr, next_step, step_kind, _} = step;
 
     let oldFragmentString = string_of_d(expr |> Calc.get_saved_exc);
     switch (next_step) {
     | Some(next) =>
       let newFragmentString = string_of_d(next.expr |> Calc.get_saved_exc);
-      let newExpr = EvalCtx.compose(ctx, Calc.get_saved_exc(next.expr));
       //Printf.printf("Step: %s -> %s\n", oldFragmentString, newFragmentString);
-      let oldExprString =
-        string_of_d(EvalCtx.compose(ctx, Calc.get_saved_exc(expr)));
-      let newExprString = string_of_d(newExpr);
+      let oldExprString = string_of_d(expr |> Calc.get_saved_exc);
+      let newExprString = string_of_d(next.expr |> Calc.get_saved_exc);
       //Printf.printf("old: %s\n", oldExprString);
       //Printf.printf("new: %s\n", newExprString);
       // TODO(nishant): unpack the axiom correctly
@@ -252,7 +250,14 @@ module Model = {
         | _ => "cbv"
         };
       let rewriteIndex =
-        index_of_like_terms(ctx, Calc.get_saved_exc(next.expr));
+        switch (step_kind) {
+        | SingleStep(singlestep) =>
+          index_of_like_terms(
+            singlestep.evalobj.ctx,
+            Calc.get_saved_exc(next.expr),
+          )
+        | _ => 1 // Default fallback
+        };
       let coqLemmaString =
         Printf.sprintf(
           "Lemma equiv_exp%d:%s%s == %s.\nProof.\nintros.\ncut (%s==%s).\n- intros. rewrite <- H at %d. reflexivity.\n- intros. %s. reflexivity.\nQed.",
@@ -273,7 +278,7 @@ module Model = {
   };
 
   // Takes a list of steps and generates the Coq proof of equivalence between the first and last steps
-  let exportCoq = (steps: list(step), ctx) =>
+  let exportCoq = (steps: list(step)) =>
     if (List.length(steps) == 0) {
       "Not exporting proof with no steps";
     } else {
@@ -291,12 +296,7 @@ module Model = {
         List.mapi(
           (ind, step) =>
             (
-              single_step_export(
-                List.length(steps) - ind,
-                step,
-                forall_str,
-                ctx,
-              ),
+              single_step_export(List.length(steps) - ind, step, forall_str),
               Printf.sprintf(
                 "rewrite -> equiv_exp%d.",
                 List.length(steps) - ind,
@@ -308,8 +308,7 @@ module Model = {
 
       switch (List.hd(steps).next_step) {
       | Some(next) =>
-        let finalExpr =
-          string_of_d(EvalCtx.compose(ctx, Calc.get_saved_exc(next.expr)));
+        let finalExpr = string_of_d(Calc.get_saved_exc(next.expr));
         let firstExpr = string_of_d(firstD);
 
         Printf.sprintf(
@@ -1221,10 +1220,20 @@ module View = {
       get_all_steps(model.root);
     };
 
-    // let coq_button =
-    //   Widgets.button(Icons.star, _ =>
-    //     Model.exportCoq(get_all_steps_from_root(model))
-    //   );
+    let coq_button =
+      Widgets.button(
+        Icons.star,
+        _ => {
+          let coq_data = Model.exportCoq(get_all_steps_from_root(model));
+          // Output to a file
+          JsUtil.download_string_file(
+            ~filename="stepper_coq_export.v",
+            ~content_type="text/plain",
+            ~contents=coq_data,
+          );
+          Ui_effect.Ignore;
+        },
+      );
     view_stepper'(
       ~globals,
       ~signal=
@@ -1296,7 +1305,7 @@ module View = {
             ~signal=
               fun
               | MakeActive => signal(MakeActive(Here()))
-              | TakeStep(int) => inject(StepForward(int)),
+              | TakeStep(_) => signal(MakeActive(Here())),
             ~inject=x => inject(EditorAction(x)),
             ~selected=
               switch (selected) {
