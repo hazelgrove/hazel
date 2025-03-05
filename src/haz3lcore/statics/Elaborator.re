@@ -236,6 +236,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e', ty) = elaborate(m, e);
       e' |> cast_from(ty);
     | Probe(e, probe) =>
+      print_endline("Probe in Elaborator");
       let (e', ty) = elaborate(m, e);
       let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
       Probe(e' |> cast_from(ty), probe) |> rewrap;

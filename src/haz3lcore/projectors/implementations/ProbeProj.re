@@ -781,5 +781,15 @@ module M: Projector = {
         Some(offside_view(model, info, local, view_seg, info.utility)),
     });
 
-  let mk_term = ProjectorBase.mk_term_default;
+  let mk_term =
+      (~id: Id.t, ~from_segment: Segment.t => Any.t, ~segment): Any.t => {
+    print_endline("MK_TERM in ProbeProj");
+    switch (from_segment(segment)) {
+    | Exp(term) =>
+      Exp({ids: [id], copied: false, term: Probe(term, Probe.empty)})
+    | Pat(term) =>
+      Pat({ids: [id], copied: false, term: Probe(term, Probe.empty)})
+    | a => a
+    };
+  };
 };

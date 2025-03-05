@@ -3,8 +3,8 @@
 
 /* Gather utility functions/values to be sspaed to the projector.
  * See ProjectorBase.utility definition for more information */
-let utility = (of_projector: Id.t => Any.t): ProjectorBase.utility => {
-  let seg_to_term = MakeTerm.for_projection(of_projector);
+let utility: ProjectorBase.utility = {
+  let seg_to_term = MakeTerm.for_projection(_ => Any());
   let term_to_seg =
     ExpToSegment.any_to_pretty(
       ~settings={
@@ -27,14 +27,13 @@ let mk_info =
       syntax: Piece.t,
       ~statics: Statics.Map.t,
       ~dynamics: Dynamics.Map.t,
-      ~of_projector: Id.t => Any.t,
     )
     : ProjectorBase.info => {
   id,
   syntax: Piece.unparenthesize(syntax),
   statics: Statics.Map.lookup(id, statics),
   dynamics: Dynamics.Map.lookup(id, dynamics),
-  utility: utility(of_projector),
+  utility,
 };
 
 module ShapeMapSemantics = {
@@ -42,15 +41,11 @@ module ShapeMapSemantics = {
       (
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
-        of_projector: Id.t => Any.t,
         p: ProjectorBase.trad,
       )
       : ProjectorCore.Shape.t => {
     let (module P) = ProjectorInit.to_module(p.kind);
-    P.placeholder(
-      p.model,
-      mk_info(~of_projector, p.id, p.syntax, ~statics, ~dynamics),
-    );
+    P.placeholder(p.model, mk_info(p.id, p.syntax, ~statics, ~dynamics));
   };
 
   let mk =
@@ -58,8 +53,7 @@ module ShapeMapSemantics = {
         proj_map: Id.Map.t(ProjectorBase.trad),
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
-        of_projector: Id.t => Any.t,
       )
       : Id.Map.t(ProjectorCore.Shape.t) =>
-    Id.Map.map(from_semantics(statics, dynamics, of_projector), proj_map);
+    Id.Map.map(from_semantics(statics, dynamics), proj_map);
 };

@@ -20,14 +20,19 @@ module Applicable = {
       (
         projectors: Id.Map.t(ProjectorBase.trad),
         cursor: Cursor.cursor(Editors.Update.t),
-      ) =>
+      ) => {
+    let* of_projector = cursor.of_projector;
     switch (cursor.selection) {
     | None
     | Some([]) =>
       switch (cursor.indicated_piece) {
       | Some(Projector({id})) =>
         switch (Id.Map.find_opt(id, projectors)) {
-        | Some(p) => MakeTerm.for_projection(Piece.unparenthesize(p.syntax))
+        | Some(p) =>
+          MakeTerm.for_projection(
+            of_projector,
+            Piece.unparenthesize(p.syntax),
+          )
         | None => None
         }
       | _ =>
@@ -36,11 +41,13 @@ module Applicable = {
       }
     | Some([Projector({id})]) =>
       switch (Id.Map.find_opt(id, projectors)) {
-      | Some(p) => MakeTerm.for_projection(Piece.unparenthesize(p.syntax))
+      | Some(p) =>
+        MakeTerm.for_projection(of_projector, Piece.unparenthesize(p.syntax))
       | None => None
       }
-    | Some(seg) => MakeTerm.for_projection(seg)
+    | Some(seg) => MakeTerm.for_projection(of_projector, seg)
     };
+  };
 
   /* Is a projector of `kind` applicable to the target term? */
   let is_applicable =

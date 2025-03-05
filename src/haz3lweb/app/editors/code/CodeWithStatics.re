@@ -29,7 +29,7 @@ module Model = {
     )
     |> Zipper.unzip
     //TODO(andrew): empty projectors map below
-    |> Editor.Model.mk(_, Id.Map.empty)
+    |> Editor.Model.mk(_)
     |> mk;
   };
 
@@ -52,7 +52,8 @@ module Model = {
     add_projector: _ => None,
     undo_action: None,
     redo_action: None,
-    projectors: Some(model.editor.syntax.projectors) //TODO(andrew): make sure this routes
+    projectors: Some(model.editor.syntax.projectors), //TODO(andrew): make sure this routes
+    of_projector: None,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -61,7 +62,7 @@ module Model = {
     model.editor.state.zipper |> PersistentZipper.persist;
   let unpersist = p =>
     //TODO(andrew): empty projectors map below
-    p |> PersistentZipper.unpersist |> Editor.Model.mk(_, Id.Map.empty) |> mk;
+    p |> PersistentZipper.unpersist |> Editor.Model.mk(_) |> mk;
 };
 
 module Update = {

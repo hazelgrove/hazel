@@ -11,6 +11,7 @@ type cursor('update) = {
   undo_action: option('update),
   redo_action: option('update),
   projectors: option(Haz3lcore.Id.Map.t(Haz3lcore.ProjectorBase.trad)),
+  of_projector: option(Haz3lcore.Id.t => Haz3lcore.Any.t),
 };
 
 let map = (f: 'a => 'b, cursor) => {
@@ -44,6 +45,7 @@ let empty = {
   undo_action: None,
   redo_action: None,
   projectors: None,
+  of_projector: None,
 };
 
 let (let+) = (cursor, f) => map(f, cursor);

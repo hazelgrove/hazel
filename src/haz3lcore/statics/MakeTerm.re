@@ -30,7 +30,7 @@ let tokens =
        * dynamics. These are inserted and removed entirely internal
        * to maketerm. */
       //probe_wrap,
-      ["PROBE_WRAP"],
+      ["PROBE_WRAP", "PROBE_WRAP"],
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -619,11 +619,24 @@ and unsorted =
   };
 };
 
-let go_em = (seg, ~of_projector: Id.t => Any.t) => {
+let go_em = (seg, ~of_projector: Id.t => Any.t): Any.t => {
   map := TermMap.empty;
   projectors := Id.Map.empty;
-  let term = exp(unsorted(~of_projector, Segment.skel(seg), seg));
-  {term, terms: map^, projectors: projectors^};
+  let skel = Segment.skel(seg);
+  let (unsorted, sort) = (
+    unsorted(~of_projector, skel, seg),
+    Segment.sort_of(skel, seg),
+  );
+  print_endline("SORT: " ++ Sort.show(sort));
+  print_endline("UNSORTED: " ++ show_unsorted(unsorted));
+  switch (sort) {
+  | Exp => TermBase.Exp(exp(unsorted))
+  | Pat => Pat(pat(unsorted))
+  | Typ => Typ(typ(unsorted))
+  | TPat => TPat(tpat(unsorted))
+  | Rul => Rul(rul(unsorted))
+  | Any => Exp(exp(unsorted)) //TODO(andrew)
+  };
 };
 
 let go =
@@ -640,53 +653,54 @@ let go =
   );
 
 let for_projection =
-  /* Returns Nul() unless segment represents a well-structured term in isolation.
-   * This means that the term is complete, modulo non-empty holes and sort errors.
-   * Specifically, it ensures there are no incomplete tiles in the segment, and
-   * that no contained sub-segment is non-convex. However, there can still be convex
-   * holes, singleton multiholes representing sort errors, non-singleton multiholes
-   * representing missing infix operators, and invalid tokens. */
-  Core.Memo.general(~cache_size_bound=1000, (of_projector, seg: Segment.t) =>
-    if (!Segment.deep_tile_complete(seg)) {
-      None; /* Returns None if any subsegment contains incomplete tiles */
-    } else if (Segment.is_padded(seg)) {
-      None; /* Returns None if the segment has secondary around it */
-    } else {
-      switch (Segment.skel(seg)) {
-      | exception _ => None /* Returns None if any subsegment is non-convex */
-      | skel =>
-        let (unsorted, sort) = (
-          unsorted(~of_projector, skel, seg),
-          Segment.sort_of(skel, seg),
-        );
-        switch (sort) {
-        | Exp =>
-          switch (exp(unsorted)) {
-          | {term: Tuple(_), _} => None
-          | _ => Some(TermBase.Exp(exp(unsorted)))
-          }
-        | Pat =>
-          switch (pat(unsorted)) {
-          | {term: Tuple(_), _} => None
-          | _ => Some(Pat(pat(unsorted)))
-          }
-        | Typ =>
-          switch (typ(unsorted)) {
-          | {term: Prod(_), _} => None
-          | _ => Some(Typ(typ(unsorted)))
-          }
-        | TPat =>
-          switch (tpat(unsorted)) {
-          | _ => Some(TPat(tpat(unsorted)))
-          }
-        /* Rul case below prevents returning pseudo-terms
-         * consisting of case scrutinee + rule(s) */
-        | Rul => None
-        | Any => Some(Any()) /* grout */
-        };
+    /* Returns Nul() unless segment represents a well-structured term in isolation.
+     * This means that the term is complete, modulo non-empty holes and sort errors.
+     * Specifically, it ensures there are no incomplete tiles in the segment, and
+     * that no contained sub-segment is non-convex. However, there can still be convex
+     * holes, singleton multiholes representing sort errors, non-singleton multiholes
+     * representing missing infix operators, and invalid tokens. */
+    //Core.Memo.general(~cache_size_bound=1000,
+    (of_projector, seg: Segment.t) =>
+  if (!Segment.deep_tile_complete(seg)) {
+    None; /* Returns None if any subsegment contains incomplete tiles */
+  } else if (Segment.is_padded(seg)) {
+    None; /* Returns None if the segment has secondary around it */
+  } else {
+    switch (Segment.skel(seg)) {
+    | exception _ => None /* Returns None if any subsegment is non-convex */
+    | skel =>
+      let (unsorted, sort) = (
+        unsorted(~of_projector, skel, seg),
+        Segment.sort_of(skel, seg),
+      );
+      switch (sort) {
+      | Exp =>
+        switch (exp(unsorted)) {
+        | {term: Tuple(_), _} => None
+        | _ => Some(TermBase.Exp(exp(unsorted)))
+        }
+      | Pat =>
+        switch (pat(unsorted)) {
+        | {term: Tuple(_), _} => None
+        | _ => Some(Pat(pat(unsorted)))
+        }
+      | Typ =>
+        switch (typ(unsorted)) {
+        | {term: Prod(_), _} => None
+        | _ => Some(Typ(typ(unsorted)))
+        }
+      | TPat =>
+        switch (tpat(unsorted)) {
+        | _ => Some(TPat(tpat(unsorted)))
+        }
+      /* Rul case below prevents returning pseudo-terms
+       * consisting of case scrutinee + rule(s) */
+      | Rul => None
+      | Any => Some(Any()) /* grout */
       };
-    }
-  );
+    };
+  };
+//);
 
 let from_zip_for_sem =
     (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {

@@ -371,7 +371,7 @@ let example_view =
                   {
                     term
                     |> Zipper.unzip
-                    |> Editor.Model.mk(_, Id.Map.empty)  //TODO(andrew)
+                    |> Editor.Model.mk
                     |> EditorManager.Model.mk
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
@@ -488,9 +488,7 @@ let get_doc =
         |> List.to_seq
         |> Id.Map.of_seq
         |> Option.some;
-      //TODO(andrew): empty map below
-      let editor =
-        Editor.Model.mk(doc.syntactic_form |> Zipper.unzip, Id.Map.empty);
+      let editor = Editor.Model.mk(doc.syntactic_form |> Zipper.unzip);
       let expander_deco =
         expander_deco(
           ~globals,

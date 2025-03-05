@@ -162,10 +162,15 @@ module type Projector = {
    * maintain a complex internal position state */
   let focus: ((Id.t, option(Direction.t))) => unit;
   let mk_term:
-    (~from_segment: Base.segment => Any.t, ~segment: Base.segment) => Any.t;
+    (
+      ~id: Id.t,
+      ~from_segment: Base.segment => Any.t,
+      ~segment: Base.segment
+    ) =>
+    Any.t;
 };
 
-let mk_term_default = (~from_segment, ~segment) => {
+let mk_term_default = (~id as _, ~from_segment, ~segment) => {
   from_segment(segment);
 };
 

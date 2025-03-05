@@ -94,8 +94,7 @@ module Update = {
           id: new_id,
           parent: Some(parent),
           //TODO(andrew): empty map below
-          editor:
-            [piece] |> Zipper.unzip |> Editor.Model.mk(_, Id.Map.empty),
+          editor: [piece] |> Zipper.unzip |> Editor.Model.mk,
           kind: Some(kind),
           model: P.init,
         };
@@ -108,8 +107,7 @@ module Update = {
       };
     | SetSyntax(id, syntax) =>
       //TODO(andrew): empty map below
-      let new_editor =
-        Zipper.unzip(syntax) |> Editor.Model.mk(_, Id.Map.empty);
+      let new_editor = Zipper.unzip(syntax) |> Editor.Model.mk;
       let _ = print_endline("SETTING SYNTAX");
       let _ = print_endline("SETTING ID > " ++ Id.to_string(id));
       let _ =
@@ -131,16 +129,23 @@ module Update = {
     };
   };
 
-  let mk_term = (id: Id.t, model: Model.t) => {
+  let rec mk_term = (id: Id.t, model: Model.t) => {
     let component = Model.get_component(id, model);
-    let seg_to_term = (segment: Segment.t) => {
-      MakeTerm.go(~from_segment=Model.assemble(model), ~segment);
+    let from_segment = (segment: Segment.t) => {
+      MakeTerm.go_em(~of_projector=mk_term(_, model), segment);
     };
     switch (component.kind) {
     | Some(kind) =>
+      print_endline("MK_TERM in EditorManager");
       let (module P) = ProjectorInit.to_module(kind);
-      P.mk_term(~from_segment=Model.assemble(model), ~segment);
-    | None => failwith("No kind found for id: " ++ Id.to_string(id))
+      P.mk_term(
+        ~id,
+        ~from_segment,
+        ~segment=[component |> Model.piece_of_component],
+      );
+    | None =>
+      print_endline("NONE in EditorManager");
+      from_segment([component |> Model.piece_of_component]);
     };
   };
 
@@ -179,10 +184,16 @@ module Update = {
   };
 
   let calculate = (~settings, ~is_edited, ~dynamics, ~stitch, model: Model.t) => {
-    let segment = assemble(model);
-    print_endline("assembled segment:" ++ Segment.show(segment));
-    let statics =
-      CachedStatics.init_from_segment(~settings, ~stitch, segment);
+    // let segment = assemble(model);
+    // print_endline("assembled segment:" ++ Segment.show(segment));
+    let term =
+      switch (mk_term(model.root_id, model)) {
+      | Exp(term) => term
+      | t =>
+        print_endline("TERM: " ++ Any.show(t));
+        failwith("Not root?");
+      };
+    let statics = CachedStatics.init_from_term(~settings, term);
     let components =
       calculate_syntax_cache(~settings, ~is_edited, statics, dynamics, model).
         components;
@@ -222,7 +233,8 @@ module Focus = {
         Some(Update.Manage(Project({parent: selection.component, kind}))),
       undo_action: Some(Undo(selection.component)),
       redo_action: Some(Redo(selection.component)),
-      projectors: Some(component.editor.syntax.projectors) //TODO(andrew): make sure this routes
+      projectors: Some(component.editor.syntax.projectors), //TODO(andrew): make sure this routes
+      of_projector: Some(id => Update.mk_term(id, model)),
     };
   };
 
@@ -323,7 +335,6 @@ module View = {
           syntax,
           ~statics=model.statics.info_map,
           ~dynamics,
-          ~of_projector=Update.mk_term(_, model),
         ),
         ~parent=
           fun

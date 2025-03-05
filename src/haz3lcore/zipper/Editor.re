@@ -37,16 +37,11 @@ module CachedSyntax = {
   let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-  let init = (~info_map, ~dyn_map, projectors, z, ~of_projector): t => {
+  let init = (~info_map, ~dyn_map, projectors, z): t => {
     let segment = Zipper.unselect_and_zip(z);
     let MakeTerm.{term: _, terms, _} = MakeTerm.go(segment);
     let projector_shapes =
-      ProjectorInfo.ShapeMapSemantics.mk(
-        projectors,
-        info_map,
-        dyn_map,
-        of_projector,
-      );
+      ProjectorInfo.ShapeMapSemantics.mk(projectors, info_map, dyn_map);
     {
       old: false,
       segment,
@@ -62,10 +57,9 @@ module CachedSyntax = {
 
   let mark_old: t => t = old => {...old, old: true};
 
-  let calculate =
-      (projectors, z: Zipper.t, info_map, dyn_map, of_projector, old: t) =>
+  let calculate = (projectors, z: Zipper.t, info_map, dyn_map, old: t) =>
     old.old
-      ? init(projectors, z, ~info_map, ~dyn_map, ~of_projector)
+      ? init(projectors, z, ~info_map, ~dyn_map)
       : {...old, selection_ids: Selection.selection_ids(z.selection)};
 };
 
@@ -102,7 +96,7 @@ module Model = {
     syntax: CachedSyntax.t,
   };
 
-  let mk = (zipper, projectors, ~of_projector) => {
+  let mk = zipper => {
     state: {
       zipper,
       col_target: None,
@@ -110,11 +104,10 @@ module Model = {
     history: History.empty,
     syntax:
       CachedSyntax.init(
-        projectors,
+        Id.Map.empty,
         zipper,
         ~info_map=Id.Map.empty,
         ~dyn_map=Id.Map.empty,
-        ~of_projector,
       ),
   };
 
@@ -122,7 +115,7 @@ module Model = {
   type persistent = PersistentZipper.t;
   let persist = (model: t) => model.state.zipper |> PersistentZipper.persist;
   //TODO(andrew): putting an empty projectors map here is probably a bad idea
-  let unpersist = p => p |> PersistentZipper.unpersist |> mk(_, Id.Map.empty);
+  let unpersist = p => p |> PersistentZipper.unpersist |> mk;
 
   let to_move_s = (model: t): (module Move.S) => {
     module M: Move.S = {
@@ -265,7 +258,6 @@ module Update = {
         ~settings: CoreSettings.t,
         ~is_edited,
         projectors: Id.Map.t(ProjectorBase.trad),
-        ~of_projector,
         new_statics,
         dyn_map,
         {syntax, state, history}: Model.t,
@@ -298,7 +290,6 @@ module Update = {
         zipper,
         new_statics.info_map,
         dyn_map,
-        of_projector,
         syntax,
       );
 
