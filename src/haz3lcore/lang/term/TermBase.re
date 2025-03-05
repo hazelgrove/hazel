@@ -222,11 +222,8 @@ and Exp: {
         switch (term) {
         | EmptyHole
         | Invalid(_)
-        | Bool(_)
-        | Int(_)
-        | Float(_)
+        | CONST_RENAMEME(_)
         | Constructor(_)
-        | String(_)
         | Label(_)
         | Deferral(_)
         | Var(_)
@@ -308,11 +305,7 @@ and Exp: {
       && Typ.fast_equal(t1, t3)
       && Typ.fast_equal(t2, t4)
     | (Deferral(d1), Deferral(d2)) => d1 == d2
-    | (Bool(b1), Bool(b2)) => b1 == b2
-    | (Int(i1), Int(i2)) => i1 == i2
-    | (Float(f1), Float(f2)) => f1 == f2
-    | (String(s1), String(s2)) => s1 == s2
-    | (Label(s1), Label(s2)) => s1 == s2
+    | (CONST_RENAMEME(c1), CONST_RENAMEME(c2)) => c1 == c2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Constructor(c1, Some(Some(ty1))), Constructor(c2, Some(Some(ty2)))) =>
@@ -381,10 +374,7 @@ and Exp: {
     | (Invalid(_), _)
     | (FailedCast(_), _)
     | (Deferral(_), _)
-    | (Bool(_), _)
-    | (Int(_), _)
-    | (Float(_), _)
-    | (String(_), _)
+    | (CONST_RENAMEME(_), _)
     | (Label(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
@@ -467,11 +457,8 @@ and Pat: {
         | EmptyHole
         | Invalid(_)
         | Wild
-        | Bool(_)
-        | Int(_)
-        | Float(_)
+        | CONST_RENAMEME(_)
         | Constructor(_)
-        | String(_)
         | Label(_)
         | Var(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
@@ -504,10 +491,7 @@ and Pat: {
       && List.equal(Any.fast_equal, xs, ys)
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (Wild, Wild) => true
-    | (Bool(b1), Bool(b2)) => b1 == b2
-    | (Int(i1), Int(i2)) => i1 == i2
-    | (Float(f1), Float(f2)) => f1 == f2
-    | (String(s1), String(s2)) => s1 == s2
+    | (CONST_RENAMEME(c1), CONST_RENAMEME(c2)) => c1 == c2
     | (Label(s1), Label(s2)) => s1 == s2
     | (Constructor(c1, Some(Some(t1))), Constructor(c2, Some(Some(t2)))) =>
       c1 == c2 && Typ.fast_equal(t1, t2)
@@ -529,10 +513,7 @@ and Pat: {
     | (MultiHole(_), _)
     | (Invalid(_), _)
     | (Wild, _)
-    | (Bool(_), _)
-    | (Int(_), _)
-    | (Float(_), _)
-    | (String(_), _)
+    | (CONST_RENAMEME(_), _)
     | (Label(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
@@ -605,6 +586,7 @@ and Typ: {
         | Int
         | Float
         | String
+        | Nat
         | Label(_)
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
@@ -643,6 +625,7 @@ and Typ: {
       | Float => Float |> rewrap
       | Bool => Bool |> rewrap
       | String => String |> rewrap
+      | Nat => Nat |> rewrap
       | Label(name) => Label(name) |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
@@ -700,6 +683,8 @@ and Typ: {
       }
     | (Rec(_), _) => false
     | (Forall(_), _) => false
+    | (Nat, Nat) => true
+    | (Nat, _) => false
     | (Int, Int) => true
     | (Int, _) => false
     | (Float, Float) => true

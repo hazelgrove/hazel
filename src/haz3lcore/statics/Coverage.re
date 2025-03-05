@@ -14,6 +14,7 @@ module Constraint = {
     | Truth
     | Hole
     | Int(int)
+    | Nat(int)
     | Float(float)
     | String(string)
     | Ap(Constructor.t, option(t))
@@ -118,8 +119,9 @@ module Ctr = {
       )
     | Bool => Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))
     | Unknown(_) => Unknown
-    | Int // technically int and float are finite, but ya know
+    | Int // technically int, float and nat are finite, but ya know
     | Float
+    | Nat
     | String
     | Arrow(_)
     | Forall(_)
@@ -237,6 +239,16 @@ module Submatrices = {
         switch (row.cols) {
         | [] => seen
         | [Int(n), ..._] => {
+            ...seen,
+            seen_ints: IntSet.add(n, seen.seen_ints),
+            first_col_redundant_rows:
+              add_redundant_row_if(
+                IntSet.mem(n, seen.seen_ints) || seen.seen_truth,
+                row.idx,
+                seen.first_col_redundant_rows,
+              ),
+          }
+        | [Nat(n), ..._] => {
             ...seen,
             seen_ints: IntSet.add(n, seen.seen_ints),
             first_col_redundant_rows:
@@ -388,6 +400,11 @@ module Submatrices = {
           switch (row.cols) {
           | [] => submatrices
           | [Int(n), ...cols] => {
+              ...submatrices,
+              ctrs:
+                update_ctrs(Ctr.of_int(n), row.idx, cols, submatrices.ctrs),
+            }
+          | [Nat(n), ...cols] => {
               ...submatrices,
               ctrs:
                 update_ctrs(Ctr.of_int(n), row.idx, cols, submatrices.ctrs),

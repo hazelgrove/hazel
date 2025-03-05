@@ -12,6 +12,17 @@ let int_typ: form = {
   };
 };
 
+let nat_typ: form = {
+  let explanation = "The `Nat` type classifies natural numbers (integers >= 0).";
+  {
+    id: NatTyp,
+    syntactic_form: [typ("Nat")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 let float_typ: form = {
   let explanation = "The `Float` type classifies 64-bit floating-point values according to the IEEE 754 standard.";
   {
@@ -59,6 +70,10 @@ let var_typ = (name: string): form => {
 let int: group = {
   id: IntTyp,
   forms: [int_typ],
+};
+let nat: group = {
+  id: NatTyp,
+  forms: [nat_typ],
 };
 
 let float: group = {

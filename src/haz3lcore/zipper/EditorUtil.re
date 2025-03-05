@@ -7,10 +7,7 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | FailedCast(_)
   | Undefined
   | Deferral(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | CONST_RENAMEME(_)
   | ListLit(_)
   | Constructor(_)
   | Closure(_)

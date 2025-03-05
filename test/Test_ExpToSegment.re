@@ -85,7 +85,7 @@ let tests = (
               children: [],
             }),
           ],
-          exp_to_segment(Exp.temp(Int(1))),
+          exp_to_segment(Exp.temp(CONST_RENAMEME(Int(1)))),
         );
         check(
           segment,
@@ -99,7 +99,7 @@ let tests = (
               children: [],
             }),
           ],
-          exp_to_segment(Exp.temp(String("hello"))),
+          exp_to_segment(Exp.temp(CONST_RENAMEME(String("hello")))),
         );
       },
     ),
@@ -163,7 +163,12 @@ let tests = (
           zipper_parse("(1, 2)"),
           Some(
             exp_to_segment(
-              Exp.temp(Tuple([Exp.temp(Int(1)), Exp.temp(Int(2))])),
+              Exp.temp(
+                Tuple([
+                  Exp.temp(CONST_RENAMEME(Int(1))),
+                  Exp.temp(CONST_RENAMEME(Int(2))),
+                ]),
+              ),
             ),
           ),
         );
@@ -182,7 +187,10 @@ let tests = (
               Exp.temp(
                 Tuple([
                   Exp.temp(
-                    TupLabel(Exp.temp(Label("x")), Exp.temp(Int(1))),
+                    TupLabel(
+                      Exp.temp(Label("x")),
+                      Exp.temp(CONST_RENAMEME(Int(1))),
+                    ),
                   ),
                 ]),
               ),
@@ -206,8 +214,14 @@ let tests = (
             Match(
               Var("x") |> Exp.fresh,
               [
-                (Constructor("A", None) |> Pat.fresh, Int(1) |> Exp.fresh),
-                (Constructor("B", None) |> Pat.fresh, Int(2) |> Exp.fresh),
+                (
+                  Constructor("A", None) |> Pat.fresh,
+                  CONST_RENAMEME(Int(1)) |> Exp.fresh,
+                ),
+                (
+                  Constructor("B", None) |> Pat.fresh,
+                  CONST_RENAMEME(Int(2)) |> Exp.fresh,
+                ),
               ],
             )
             |> Exp.fresh,
@@ -231,8 +245,8 @@ let tests = (
             DeferredAp(
               Var("string_sub") |> Exp.fresh,
               [
-                String("hello") |> Exp.fresh,
-                Int(1) |> Exp.fresh,
+                CONST_RENAMEME(String("hello")) |> Exp.fresh,
+                CONST_RENAMEME(Int(1)) |> Exp.fresh,
                 Deferral(InAp) |> Exp.fresh,
               ],
             )
@@ -253,7 +267,9 @@ let tests = (
       `Quick,
       () => {
         let segment =
-          segmentize(Test(Bool(true) |> Exp.fresh) |> Exp.fresh);
+          segmentize(
+            Test(CONST_RENAMEME(Bool(true)) |> Exp.fresh) |> Exp.fresh,
+          );
         let serialized = Printer.of_segment(~holes=Some("?"), segment);
 
         check(string, "Test of true", {|test true end|}, serialized);
@@ -267,10 +283,10 @@ let tests = (
           segmentize(
             Filter(
               Filter({
-                pat: Int(1) |> Exp.fresh,
+                pat: CONST_RENAMEME(Int(1)) |> Exp.fresh,
                 act: (Step, One),
               }),
-              Int(2) |> Exp.fresh,
+              CONST_RENAMEME(Int(2)) |> Exp.fresh,
             )
             |> Exp.fresh,
           );
@@ -291,8 +307,12 @@ let tests = (
             segmentize(
               BinOp(
                 Int(Power),
-                Int(2) |> Exp.fresh,
-                BinOp(Int(Power), Int(3) |> Exp.fresh, Int(4) |> Exp.fresh)
+                CONST_RENAMEME(Int(2)) |> Exp.fresh,
+                BinOp(
+                  Int(Power),
+                  CONST_RENAMEME(Int(3)) |> Exp.fresh,
+                  CONST_RENAMEME(Int(4)) |> Exp.fresh,
+                )
                 |> Exp.fresh,
               )
               |> Exp.fresh,
@@ -308,9 +328,13 @@ let tests = (
             segmentize(
               BinOp(
                 Int(Power),
-                BinOp(Int(Power), Int(2) |> Exp.fresh, Int(3) |> Exp.fresh)
+                BinOp(
+                  Int(Power),
+                  CONST_RENAMEME(Int(2)) |> Exp.fresh,
+                  CONST_RENAMEME(Int(3)) |> Exp.fresh,
+                )
                 |> Exp.fresh,
-                Int(4) |> Exp.fresh,
+                CONST_RENAMEME(Int(4)) |> Exp.fresh,
               )
               |> Exp.fresh,
             ),
@@ -330,7 +354,7 @@ let tests = (
                   Var("x") |> Typ.fresh,
                 )
                 |> Typ.fresh,
-                Int(1) |> Exp.fresh,
+                CONST_RENAMEME(Int(1)) |> Exp.fresh,
               )
               |> Exp.fresh,
             ),

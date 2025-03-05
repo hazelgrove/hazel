@@ -14,6 +14,7 @@ type t =
   | InvalidBoxedListLit(DHExp.t)
   | InvalidBoxedListCons(DHExp.t)
   | InvalidBoxedStringLit(DHExp.t)
+  | InvalidBoxedNatLit(DHExp.t)
   | InvalidBoxedLabel(DHExp.t)
   | InvalidBoxedSumConstructor(DHExp.t)
   | InvalidBoxedTupLabel(DHExp.t)

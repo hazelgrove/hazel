@@ -87,6 +87,7 @@ type typ =
   | StringType
   | FloatType
   | BoolType
+  | NatType
   | SumTyp(sumtype)
   | UnknownType(typ_provenance)
   | TupleType(list(typ))
@@ -109,15 +110,10 @@ type pat =
   | CastPat(pat, typ, typ)
   | EmptyHolePat
   | WildPat
-  | IntPat(int)
-  | FloatPat(
-      [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
-    )
+  | CONST_RENAMEMEPat(Haz3lcore.CONST_RENAMEMO.t)
   | VarPat(string)
   | ConstructorPat(string, option(option(typ)))
-  | StringPat(string)
   | TuplePat(list(pat))
-  | BoolPat(bool)
   | ConsPat(pat, pat)
   | ListPat(list(pat))
   | ApPat(pat, pat)
@@ -138,15 +134,9 @@ type deferral_pos =
 
 [@deriving (show({with_path: false}), sexp, eq)]
 type exp =
-  | Int(int)
-  | Float
-      // This equality condition is used to say that two floats are equal if they are equal in the ExpToSegment serialization
-      (
-        [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
-      )
+  | CONST_RENAMEME(Haz3lcore.CONST_RENAMEMO.t)
   | Var(string)
   | Constructor(string, option(option(typ)))
-  | String(string)
   | ListExp(list(exp))
   | TupleExp(list(exp))
   | BinExp(exp, bin_op, exp)
@@ -159,7 +149,6 @@ type exp =
   | Dot(exp, exp)
   | ApExp(exp, exp)
   | FixF(pat, exp)
-  | Bool(bool)
   | Cast(exp, typ, typ)
   | FailedCast(exp, typ, typ)
   | EmptyHole
@@ -305,11 +294,11 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
   QCheck.Gen.(
     let leaf =
       oneof([
-        map(x => Int(x), small_int),
-        map(x => String(x), gen_string_literal),
-        map(x => Float(x), QCheck.pos_float.gen), // Floats are positive because we use UnOp minus
+        map(x => CONST_RENAMEME(Int(x)), small_int),
+        map(x => CONST_RENAMEME(String(x)), gen_string_literal),
+        map(x => CONST_RENAMEME(Float(x)), QCheck.pos_float.gen), // Floats are positive because we use UnOp minus
         map(x => Var(x), gen_ident),
-        map(x => Bool(x), bool),
+        map(x => CONST_RENAMEME(Bool(x)), bool),
         pure(EmptyHole),
         pure(TupleExp([])),
         pure(ListExp([])),
@@ -568,11 +557,11 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
             oneof([
               return(WildPat),
               return(EmptyHolePat),
-              map(x => IntPat(x), small_int),
-              map(x => FloatPat(x), QCheck.pos_float.gen),
+              map(x => CONST_RENAMEMEPat(Int(x)), small_int),
+              map(x => CONST_RENAMEMEPat(Float(x)), QCheck.pos_float.gen),
               map(x => VarPat(x), gen_ident),
-              map(x => StringPat(x), gen_string_literal),
-              map(x => BoolPat(x), bool),
+              map(x => CONST_RENAMEMEPat(String(x)), gen_string_literal),
+              map(x => CONST_RENAMEMEPat(Bool(x)), bool),
               map(x => ConstructorPat(x, None), gen_constructor_ident),
               return(TuplePat([])),
               return(ListPat([])),

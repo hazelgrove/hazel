@@ -21,10 +21,7 @@ let rec find_var_upat = (name: string, upat: Pat.t): bool => {
   | Wild
   | Invalid(_)
   | MultiHole(_)
-  | Int(_)
-  | Float(_)
-  | Bool(_)
-  | String(_)
+  | CONST_RENAMEME(_)
   | Label(_)
   | Constructor(_) => false
   | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
@@ -71,8 +68,7 @@ let rec find_in_let =
   | (Var(_), _)
   | (Tuple(_), _)
   | (
-      EmptyHole | Wild | Invalid(_) | MultiHole(_) | Int(_) | Float(_) | Bool(_) |
-      String(_) |
+      EmptyHole | Wild | Invalid(_) | MultiHole(_) | CONST_RENAMEME(_) |
       Label(_) |
       ListLit(_) |
       Constructor(_) |
@@ -130,10 +126,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | MultiHole(_)
   | DynamicErrorHole(_)
   | FailedCast(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | CONST_RENAMEME(_)
   | Label(_)
   | Constructor(_)
   | Undefined
@@ -152,10 +145,7 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | Wild
   | Invalid(_)
   | MultiHole(_)
-  | Int(_)
-  | Float(_)
-  | Bool(_)
-  | String(_)
+  | CONST_RENAMEME(_)
   | Label(_)
   | Constructor(_) => false
   | Cons(up1, up2) =>
@@ -185,10 +175,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | CONST_RENAMEME(_)
   | Label(_)
   | Constructor(_)
   | Undefined
@@ -250,10 +237,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | CONST_RENAMEME(_)
   | Label(_)
   | Constructor(_)
   | Undefined
@@ -345,10 +329,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | MultiHole(_)
   | DynamicErrorHole(_)
   | FailedCast(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | CONST_RENAMEME(_)
   | Label(_)
   | Constructor(_)
   | Undefined
