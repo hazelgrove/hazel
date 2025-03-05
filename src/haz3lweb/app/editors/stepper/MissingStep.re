@@ -4,6 +4,16 @@ open Calc.Syntax;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type open_box =
+    | AxiomsOpen
+    | RewritesOpen({
+        editor: CodeEditable.Model.t,
+        cached_exp: Calc.saved(Exp.t),
+        cached_result: option(bool),
+      })
+    | NoneOpen;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type rewrites = {rewrites: list(Exp.t)};
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -13,6 +23,7 @@ module Model = {
     selected_id: Calc.saved(option(Id.t)),
     selected_exp: Calc.saved(option(Exp.t)),
     rewrites: Calc.saved(option(rewrites)),
+    open_box,
   };
 
   let init = {
@@ -20,6 +31,7 @@ module Model = {
     selected_id: Calc.Pending,
     selected_exp: Calc.Pending,
     rewrites: Calc.Pending,
+    open_box: NoneOpen,
   };
 
   let get_next_steps =
@@ -34,13 +46,62 @@ module Model = {
 };
 
 module Update = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | ToggleAxioms
+    | ProposeRewrite
+    | UpdateResult(bool)
+    | RewriteEditorAction(CodeEditable.Update.t);
+
+  let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
+    switch (action, model.open_box) {
+    | (ToggleAxioms, _) =>
+      let open_box =
+        switch (model.open_box) {
+        | NoneOpen
+        | RewritesOpen(_) => Model.AxiomsOpen
+        | AxiomsOpen => Model.NoneOpen
+        };
+      Model.{...model, open_box} |> Updated.return_quiet;
+    | (ProposeRewrite, _) =>
+      let open_box =
+        switch (model.open_box) {
+        | NoneOpen
+        | AxiomsOpen =>
+          Model.RewritesOpen({
+            editor: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
+            cached_exp: Calc.Pending,
+            cached_result: None,
+          })
+        | RewritesOpen(_) => Model.NoneOpen
+        };
+      Model.{...model, open_box} |> Updated.return_quiet(~recalculate=true);
+    | (RewriteEditorAction(action), RewritesOpen({editor, _} as r)) =>
+      open Updated;
+      let* new_editor = CodeEditable.Update.update(~settings, action, editor);
+      Model.{
+        ...model,
+        open_box: Model.RewritesOpen({...r, editor: new_editor}),
+      };
+    | (RewriteEditorAction(_), _) => model |> Updated.return_quiet
+    | (UpdateResult(result), RewritesOpen(r)) =>
+      Model.{
+        ...model,
+        open_box: Model.RewritesOpen({...r, cached_result: Some(result)}),
+      }
+      |> Updated.return_quiet
+    | (UpdateResult(_), _) => model |> Updated.return_quiet
+    };
+  };
+
   let calculate =
       (
-        ~settings as _,
+        ~settings,
         exp,
+        ctx: Calc.t(Ctx.t),
         _state,
         new_next_steps,
-        {next_steps: _, rewrites, selected_exp, selected_id}: Model.t,
+        {next_steps: _, rewrites, selected_exp, selected_id, open_box}: Model.t,
         editor,
       )
       : Model.t => {
@@ -80,21 +141,312 @@ module Update = {
         let* exp' = exp;
         Some(Model.{rewrites: ProofCtx.get_rewrites(Axioms.v, exp')});
       };
+    let open_box =
+      switch (open_box) {
+      | RewritesOpen({editor, cached_exp, cached_result}) =>
+        // Calculate syntax, holes, types, etc for the editor
+        let editor =
+          CodeEditable.Update.calculate(
+            ~settings,
+            ~is_edited=true,
+            ~stitch=x => x,
+            ~ctx=Calc.get_value(ctx),
+            editor,
+          );
+        // Extract an exp from the editor
+        let cached_exp =
+          Calc.set(
+            ~eq=Exp.fast_equal,
+            CodeEditable.Model.get_statics(editor).elaborated,
+            cached_exp,
+          );
+        // Reset result if editor changes
+        let cached_result =
+          Calc.Calculated(cached_result)
+          |> {
+            let.calc _ = cached_exp;
+            None;
+          };
+        Model.RewritesOpen({
+          editor,
+          cached_exp: cached_exp |> Calc.save,
+          cached_result: cached_result |> Calc.get_value,
+        });
+      | AxiomsOpen => AxiomsOpen
+      | NoneOpen => NoneOpen
+      };
     {
       next_steps: new_next_steps |> Calc.save,
       rewrites: rewrites |> Calc.save,
       selected_exp: selected_exp |> Calc.save,
       selected_id: selected_id |> Calc.save,
+      open_box,
+    };
+  };
+};
+
+module Selection = {
+  open Cursor;
+  // Selection handles focus
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | RewriteEditor(CodeEditable.Selection.t);
+
+  let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
+    switch (selection, model.open_box) {
+    | (RewriteEditor(selection), RewritesOpen({editor, _})) =>
+      let+ ci = CodeEditable.Selection.get_cursor_info(~selection, editor);
+      Update.RewriteEditorAction(ci);
+    | (RewriteEditor(_), _) => empty
+    };
+  };
+
+  let handle_key_event = (~selection: t, ~event, ~model: Model.t) => {
+    switch (selection, model.open_box) {
+    | (RewriteEditor(selection), RewritesOpen({editor, _})) =>
+      CodeEditable.Selection.handle_key_event(~selection, editor, event)
+      |> Option.map(x => Update.RewriteEditorAction(x))
+    | (RewriteEditor(_), _) => None
     };
   };
 };
 
 module View = {
+  open OptUtil.Syntax;
   type event =
     | AddInduction
     | AddForall
     | HideStepper
-    | AddAxiom(Exp.t, Exp.t);
+    | AddAxiomStep(Exp.t, Exp.t)
+    | MakeActive(Selection.t);
+
+  let get_segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
+    let* first_piece = ListUtil.hd_opt(segment);
+    let Point.{row: start_y, col: start_x} =
+      Measured.find_p(~msg="get_segment_bounds", first_piece, measured)
+      |> (m => m.origin);
+    let* last_piece = ListUtil.last_opt(segment);
+    let Point.{row: end_y, col: end_x} =
+      Measured.find_p(~msg="get_segment_bounds", last_piece, measured)
+      |> (m => m.last);
+    let rec get_left = (current_left: int, row: int, final_row: int) =>
+      if (row > final_row) {
+        current_left;
+      } else {
+        get_left(
+          Int.min(
+            current_left,
+            Measured.Rows.find(row, measured.rows).indent,
+          ),
+          row + 1,
+          final_row,
+        );
+      };
+    let left = get_left(start_x, start_y, end_y);
+    let rec get_right = (current_right: int, row: int, final_row: int) =>
+      if (row == final_row) {
+        current_right;
+      } else {
+        get_right(
+          Int.max(
+            current_right,
+            Measured.Rows.find(row, measured.rows).max_col,
+          ),
+          row + 1,
+          final_row,
+        );
+      };
+    let right = get_right(end_x, start_y, end_y);
+    Some((left, right, start_y, end_y + 1));
+  };
+
+  let view_rewrites = (~globals, ~signal, model: Model.t) => {
+    let unpacked_rewrites =
+      model.rewrites
+      |> Calc.get_saved_exc(~print="view_step_rewrites")
+      |> Option.value(~default=Model.{rewrites: []})
+      |> (r => r.rewrites);
+    (unpacked_rewrites |> List.is_empty ? [] : [Web.Node.text("Rewrites:")])
+    @ (
+      List.map(
+        (exp: Exp.t) =>
+          [
+            exp
+            |> Haz3lcore.ExpToSegment.(
+                 exp_to_segment(
+                   ~settings=
+                     Settings.of_core(~inline=false, globals.settings.core),
+                 )
+               )
+            |> CodeViewable.view_segment(
+                 ~globals,
+                 ~sort=Exp,
+                 ~info_map=Haz3lcore.Id.Map.empty,
+               ),
+            Widgets.button(Icons.star, _ =>
+              signal(AddAxiomStep(Model.get_selected_exp(model), exp))
+            ),
+          ],
+        unpacked_rewrites,
+      )
+      |> List.flatten
+    );
+  };
+
+  let view_overlay =
+      (
+        ~globals: Globals.t,
+        ~signal: event => Ui_effect.t(unit),
+        ~inject: Update.t => Ui_effect.t(unit),
+        ~editor: CodeSelectable.Model.t,
+        ~selected: option(Selection.t),
+        model: Model.t,
+      ) =>
+    {
+      let+ (left, right, top, bottom) =
+        get_segment_bounds(
+          ~measured=editor.editor.syntax.measured,
+          editor.editor.state.zipper.selection.content,
+        );
+
+      let proof_button = (~callback: Ui_effect.t(unit), label: string) => {
+        Web.Node.div(
+          ~attrs=[
+            Web.Attr.classes(["proof-button"]),
+            Web.Attr.on_mousedown(_ =>
+              Virtual_dom.Vdom.Effect.Stop_propagation
+            ),
+            Web.Attr.on_click(_ =>
+              Bonsai.Effect.Many([
+                callback,
+                Virtual_dom.Vdom.Effect.Stop_propagation,
+              ])
+            ),
+          ],
+          [Web.Node.text(label)],
+        );
+      };
+
+      // I want to make a bunch of buttons here:
+      // Evaluate [TODO], Rewrite [TODO], Axioms, Cases,
+      let buttons =
+        Web.Node.div(
+          ~attrs=[Web.Attr.classes(["proof-selection-buttons"])],
+          [
+            proof_button(~callback=Ui_effect.Ignore, "Evaluate"),
+            proof_button(~callback=inject(ProposeRewrite), "Rewrite ▼"),
+            proof_button(~callback=inject(ToggleAxioms), "Axioms ▼"),
+            proof_button(~callback=signal(AddInduction), "Cases"),
+          ],
+        );
+
+      [
+        Web.Node.div(
+          ~attrs=[
+            Web.Attr.classes(["missing-step-overlay-align"]),
+            DecUtil.position(
+              ~width=right - left,
+              ~height=bottom - top,
+              ~font_metrics=globals.font_metrics,
+              Point.{col: left, row: top},
+            ),
+          ],
+          [
+            Web.Node.div(
+              ~attrs=[
+                Web.Attr.class_("proof-context-box"),
+                Web.Attr.on_mousedown(_ =>
+                  Virtual_dom.Vdom.Effect.Stop_propagation
+                ),
+              ],
+              [buttons]
+              @ {
+                switch (model.open_box) {
+                | NoneOpen => []
+                | AxiomsOpen => [
+                    Web.div_c(
+                      "axiom-box",
+                      view_rewrites(~globals, ~signal, model),
+                    ),
+                  ]
+                | RewritesOpen({editor, cached_exp, cached_result}) =>
+                  let unboxed_cached_exp =
+                    Calc.get_saved_exc(
+                      ~print="cached exp not calculated",
+                      cached_exp,
+                    );
+                  let unboxed_selected_exp =
+                    Option.value(
+                      ~default=EmptyHole |> Exp.fresh,
+                      Calc.get_saved_exc(
+                        ~print="selected exp not calculated",
+                        model.selected_exp,
+                      ),
+                    );
+                  [
+                    // one element list with a div
+                    // with a list containing two elements
+                    // an Editor for user to propose their rewrite
+                    // a button to submit the rewrite
+                    Web.div_c(
+                      "rewrite-box",
+                      [
+                        CodeEditable.View.view(
+                          ~globals,
+                          ~signal=
+                            fun
+                            | MakeActive =>
+                              signal(MakeActive(RewriteEditor())),
+                          ~inject=x => inject(RewriteEditorAction(x)),
+                          ~selected=
+                            switch (selected) {
+                            | Some(RewriteEditor ()) => true
+                            | _ => false
+                            },
+                          editor,
+                        ),
+                        Widgets.button(
+                          Icons.star,
+                          _ =>
+                            inject(
+                              UpdateResult(
+                                RewriteChecker.check_rewrite(
+                                  unboxed_selected_exp,
+                                  unboxed_cached_exp,
+                                ),
+                              ),
+                            ),
+                          ~tooltip="check",
+                        ),
+                      ]
+                      @ {
+                        switch (cached_result) {
+                        | Some(true) => [
+                            Web.Node.text("Valid"),
+                            Widgets.button(Icons.star, _ =>
+                              signal(
+                                AddAxiomStep(
+                                  unboxed_selected_exp,
+                                  unboxed_cached_exp,
+                                ),
+                              )
+                            ),
+                          ]
+                        | Some(false) => [Web.Node.text("Invalid")]
+                        | None => []
+                        };
+                      },
+                    ),
+                  ];
+                };
+              },
+            ),
+          ],
+        ),
+      ];
+    }
+    |> Option.value(~default=[]);
 
   let view_justification =
       (
@@ -153,66 +505,6 @@ module View = {
         toggle_show_history,
         button_hide_stepper,
       ],
-    );
-  };
-
-  let view_step_content = (~globals, ~signal, model: Model.t) => {
-    (
-      model.rewrites
-      |> Calc.get_saved_exc(~print="view_step_rewrites")
-      |> Option.value(~default=Model.{rewrites: []})
-      |> (r => r.rewrites)
-      |> List.is_empty
-        ? []
-        : [
-          // Web.Node.text("Selection:"),
-          // switch (
-          //   model.selected_exp |> Calc.get_saved_exc(~print="view_step_content")
-          // ) {
-          // | Some(exp) =>
-          //   exp
-          //   |> Haz3lcore.ExpToSegment.(
-          //        exp_to_segment(
-          //          ~settings=
-          //            Settings.of_core(~inline=false, globals.settings.core),
-          //        )
-          //      )
-          //   |> CodeViewable.view_segment(
-          //        ~globals,
-          //        ~sort=Exp,
-          //        ~info_map=Haz3lcore.Id.Map.empty,
-          //      )
-          // | None => Web.Node.text("(None)")
-          // },
-          Web.Node.text("Rewrites:"),
-        ]
-    )
-    @ (
-      List.map(
-        (exp: Exp.t) =>
-          [
-            exp
-            |> Haz3lcore.ExpToSegment.(
-                 exp_to_segment(
-                   ~settings=
-                     Settings.of_core(~inline=false, globals.settings.core),
-                 )
-               )
-            |> CodeViewable.view_segment(
-                 ~globals,
-                 ~sort=Exp,
-                 ~info_map=Haz3lcore.Id.Map.empty,
-               ),
-            Widgets.button(Icons.star, _ =>
-              signal(AddAxiom(Model.get_selected_exp(model), exp))
-            ),
-          ],
-        model.rewrites
-        |> Calc.get_saved_exc(~print="view_step_rewrites")
-        |> Option.value(~default=Model.{rewrites: []})
-        |> (r => r.rewrites),
-      )
-      |> List.flatten
     );
   };
 };
