@@ -65,6 +65,11 @@ type project =
   | Escape(Id.t, Direction.t); /* Pass control to parent editor */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type project_new =
+  | Add(Id.t, ProjectorCore.Kind.t)
+  | Remove(Piece.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type agent =
   | TyDi;
 
@@ -86,7 +91,7 @@ type t =
   | Paste(paste)
   | Copy
   | Cut
-  | Project(project)
+  | Project(project_new)
   | Move(move)
   | Jump(jump_target)
   | Select(select)
@@ -138,12 +143,7 @@ let is_edit: t => bool =
   | Unselect(_)
   | RotateBackpack
   | MoveToBackpackTarget(_) => false
-  | Project(p) =>
-    switch (p) {
-    | SetIndicated(_) => true
-    | Focus(_)
-    | Escape(_) => false
-    };
+  | Project(_) => true;
 
 /* Determines whether undo/redo skips action */
 let is_historic: t => bool =
@@ -164,12 +164,7 @@ let is_historic: t => bool =
   | Destruct(_)
   | Pick_up
   | Put_down => true
-  | Project(p) =>
-    switch (p) {
-    | SetIndicated(_) => true
-    | Focus(_)
-    | Escape(_) => false
-    };
+  | Project(_) => true;
 
 let prevent_in_read_only_editor = (a: t) => {
   switch (a) {
@@ -188,11 +183,6 @@ let prevent_in_read_only_editor = (a: t) => {
   | Put_down
   | RotateBackpack
   | MoveToBackpackTarget(_) => true
-  | Project(p) =>
-    switch (p) {
-    | SetIndicated(_)
-    | Focus(_)
-    | Escape(_) => false
-    }
+  | Project(_) => true
   };
 };

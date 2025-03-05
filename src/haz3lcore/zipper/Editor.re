@@ -172,7 +172,7 @@ module Update = {
               old_statics,
               Buffer(Clear),
               Model.to_move_s({state, history, syntax}),
-              syntax.projectors, //TODO: make sure this is actually hooked up
+              //syntax.projectors, //TODO: make sure this is actually hooked up
               state.zipper,
             )
             |> Action.Result.ok
@@ -210,7 +210,7 @@ module Update = {
         old_statics,
         a,
         Model.to_move_s({state, history, syntax}),
-        syntax.projectors, //TODO: make sure this is actually hooked up
+        //syntax.projectors, //TODO: make sure this is actually hooked up
         state.zipper,
       );
 
@@ -271,7 +271,7 @@ module Update = {
             new_statics,
             Buffer(Set(TyDi)),
             Model.to_move_s({syntax, state, history}),
-            syntax.projectors, //TODO: make sure this is actually hooked up
+            //syntax.projectors, //TODO: make sure this is actually hooked up
             state.zipper,
           )
         ) {

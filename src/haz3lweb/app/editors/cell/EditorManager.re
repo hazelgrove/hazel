@@ -85,7 +85,7 @@ module Update = {
         let* parent_editor =
           perform(
             ~settings,
-            Action.Project(SetIndicated(Specific(kind), new_id)),
+            Action.Project(Add(new_id, kind)),
             model,
             parent_component.editor,
           );
@@ -151,7 +151,7 @@ module Update = {
 
   let assemble = Model.assemble;
   //TODO(andrew):
-  let sdfsdfds = components =>
+  let mk_trad_map = components =>
     List.filter_map(EditorManagerModel.component_to_trad, components)
     |> List.map((g: ProjectorBase.trad) => (g.id, g))
     |> Id.Map.of_list;
@@ -173,7 +173,7 @@ module Update = {
               Editor.Update.calculate(
                 ~settings,
                 ~is_edited,
-                sdfsdfds(model.components),
+                mk_trad_map(model.components),
                 statics,
                 dynamics,
                 c.editor,

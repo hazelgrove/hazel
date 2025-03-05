@@ -21,9 +21,10 @@ type t = {
 let piece_of_component = (component: component): Piece.t =>
   switch (component.editor.state.zipper |> Zipper.zip) {
   | [hd] => hd
-  | _ =>
+  | seg =>
+    print_endline("piece_of_component: " ++ Segment.show(seg));
     //TODO: make less representable
-    failwith("Assumption: zipper zips to singleton segment")
+    failwith("Assumption: zipper zips to singleton segment");
   };
 let component_to_trad = (component: component): option(ProjectorBase.trad) =>
   switch (component.kind) {

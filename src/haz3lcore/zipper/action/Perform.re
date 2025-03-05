@@ -19,7 +19,7 @@ let go_z =
       statics: CachedStatics.t,
       a: Action.t,
       module M: Move.S,
-      projectors: Id.Map.t(ProjectorBase.trad),
+      //projectors: Id.Map.t(ProjectorBase.trad),
       z: Zipper.t,
     )
     : Action.Result.t(Zipper.t) => {
@@ -117,15 +117,57 @@ let go_z =
     | Some(z) => Ok(z)
     }
   | Buffer(Clear) => Ok(buffer_clear(z))
-  | Project(a) =>
-    ProjectorPerform.go(
-      Move.jump_to_id_indicated,
-      Move.jump_to_side_of_id,
-      Select.current_term,
-      projectors,
-      a,
-      z,
-    )
+  | Project(project_new) =>
+    let setup_selection = (z: Zipper.t): option((Direction.t, Zipper.t)) =>
+      Selection.is_empty(z.selection)
+        ? switch (Select.current_term(z), Indicated.direction(z)) {
+          | (Some(z), Some(d)) => Some((Direction.toggle(d), z))
+          | _ => None
+          }
+        : Some((z.selection.focus, z));
+    let replace_selection_and_unselect =
+        (piece: Base.piece, focus: Direction.t, z: Zipper.t): Zipper.t =>
+      z
+      |> Zipper.replace_selection(focus, [piece])
+      |> Zipper.directional_unselect(focus);
+    switch (project_new) {
+    | Add(id, kind) =>
+      switch (
+        {
+          open OptUtil.Syntax;
+          let* (focus, z) = setup_selection(z);
+          switch (z.selection.content) {
+          | [Projector(_)] => None
+          | seg =>
+            let+ piece =
+              switch (MakeTerm.for_projection(_ => Any(), seg)) {
+              | None => None
+              | Some(any) => ProjectorInit.init(kind, id, any)
+              };
+            replace_selection_and_unselect(piece, focus, z);
+          };
+        }
+      ) {
+      | Some(z) => Ok(z)
+      | None => Error(Cant_project)
+      }
+    | Remove(piece) =>
+      //TODO(andrew): this has illegal states
+      switch (
+        {
+          open OptUtil.Syntax;
+          let* (focus, z) = setup_selection(z);
+          switch (z.selection.content) {
+          | [Projector(_)] =>
+            Some(replace_selection_and_unselect(piece, focus, z))
+          | _ => None
+          };
+        }
+      ) {
+      | Some(z) => Ok(z)
+      | None => Error(Cant_project)
+      }
+    };
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | Jump(jump_target) =>

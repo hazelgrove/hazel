@@ -144,12 +144,15 @@ module Selection = {
     | k =>
       Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
 
-  let handle_key_event = (projectors, ~selection, model: Model.t, key) => {
-    switch (ProjectorView.key_handoff(projectors, model.editor, key)) {
-    | Some(action) => Some(Update.Perform(Project(action)))
-    | None => handle_key_event(~selection, model, key)
-    };
-  };
+  let handle_key_event = (projectors, ~selection, model: Model.t, key) =>
+    None;
+  //{
+  // switch (ProjectorView.key_handoff(projectors, model.editor, key)) {
+  //TODO(andrew): add projector indicator to cursor, use that to dispatch key event
+  // | None => handle_key_event(~selection, model, key)
+  // | Some(action) => Some(Update.Perform(Project(action)))
+  // };
+  //};
 
   let jump_to_tile = (tile, model: Model.t) => {
     switch (TileMap.find_opt(tile, model.editor.syntax.tiles)) {
