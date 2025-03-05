@@ -14,9 +14,7 @@ module IdTag = {
     copied: bool,
   };
 
-  let fresh = (): t => {
-    {ids: [Id.mk()], copied: false};
-  };
+  let fresh = (): t => {ids: [Id.mk()], copied: false};
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -28,13 +26,7 @@ type t('a) = Grammar.Annotated.t('a, IdTag.t);
 //     fmt_a(formatter, ta.term);
 //   };
 let fresh = (term: 'a): Grammar.Annotated.t('a, IdTag.t) => {
-  {
-    term,
-    annotation: {
-      ids: [Id.mk()],
-      copied: false,
-    },
-  };
+  {term, annotation: IdTag.fresh()};
 };
 let fresh_deterministic = (prev_id, term): t('a) => {
   {
@@ -76,3 +68,9 @@ let replace_temp = ({term, annotation: {ids, copied}}: t('a)): t('a) => {
     copied,
   },
 };
+
+module FreshGrammar =
+  Grammar.Factory({
+    type t = IdTag.t;
+    let default_value = (): IdTag.t => IdTag.fresh();
+  });

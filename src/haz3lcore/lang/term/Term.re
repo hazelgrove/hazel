@@ -1,5 +1,5 @@
 module Pat = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
   type cls =
     | Invalid
     | EmptyHole
@@ -40,7 +40,7 @@ module Pat = {
     | [_, ..._] => MultiHole(tms)
     };
 
-  let cls_of_term: term => cls =
+  let cls_of_term: Grammar.pat_term('a) => cls =
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
@@ -357,12 +357,11 @@ module Pat = {
 };
 
 module Exp = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
   type cls =
     | Invalid
     | EmptyHole
     | MultiHole
-    | StaticErrorHole
     | DynamicErrorHole
     | FailedCast
     | Deferral
@@ -380,14 +379,12 @@ module Exp = {
     | Tuple
     | Dot
     | Var
-    | MetaVar
     | Let
     | FixF
     | TyAlias
     | Ap
     | TypAp
     | DeferredAp
-    | Pipeline
     | If
     | Seq
     | Test
@@ -425,7 +422,7 @@ module Exp = {
   let term_of: t => term = IdTagged.term_of;
   let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
-  let cls_of_term: term => cls =
+  let cls_of_term: Grammar.exp_term('a) => cls =
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
@@ -473,7 +470,6 @@ module Exp = {
     | Invalid => "Invalid expression"
     | MultiHole => "Broken expression"
     | EmptyHole => "Empty expression hole"
-    | StaticErrorHole => "Static error hole"
     | DynamicErrorHole => "Dynamic error hole"
     | FailedCast => "Failed cast"
     | Deferral => "Deferral"
@@ -491,14 +487,12 @@ module Exp = {
     | TupLabel => "Labeled Tuple Item"
     | Dot => "Dot operator"
     | Var => "Variable reference"
-    | MetaVar => "Meta variable reference"
     | Let => "Let expression"
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
     | TypAp => "Type application"
     | DeferredAp => "Partial Application"
-    | Pipeline => "Pipeline expression"
     | If => "If expression"
     | Seq => "Sequence expression"
     | Test => "Test"
@@ -914,7 +908,7 @@ module Exp = {
 module Rul = {
   include TermBase.Rul;
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type cls =
     | Rule;
 
