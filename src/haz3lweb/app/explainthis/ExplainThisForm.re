@@ -169,6 +169,7 @@ type form_id =
   | DeferralExp
   | BoolExp
   | IntExp
+  | NatExp
   | FloatExp
   | StringExp
   | VarExp
@@ -219,6 +220,7 @@ type form_id =
   | EmptyHoleTyp
   | MultiHoleTyp
   | IntTyp
+  | NatTyp
   | FloatTyp
   | BoolTyp
   | StrTyp
@@ -268,6 +270,7 @@ type group_id =
   | DeferralExp
   | BoolExp
   | IntExp
+  | NatExp
   | FloatExp
   | StringExp
   | VarExp
@@ -319,6 +322,7 @@ type group_id =
   | EmptyHoleTyp
   | MultiHoleTyp
   | IntTyp
+  | NatTyp
   | FloatTyp
   | BoolTyp
   | StrTyp

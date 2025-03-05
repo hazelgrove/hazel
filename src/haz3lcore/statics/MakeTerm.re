@@ -220,12 +220,15 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Form.is_empty_tuple(t) => ret(Tuple([]))
       | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
       | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
-      | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))
+      | ([t], []) when Form.is_bool(t) =>
+        ret(CONST_RENAMEME(Bool(bool_of_string(t))))
       | ([t], []) when Form.is_undefined(t) => ret(Undefined)
-      | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
+      | ([t], []) when Form.is_int(t) =>
+        ret(CONST_RENAMEME(Int(int_of_string(t))))
       | ([t], []) when Form.is_string(t) =>
-        ret(String(Form.strip_quotes(t)))
-      | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
+        ret(CONST_RENAMEME(String(Form.strip_quotes(t))))
+      | ([t], []) when Form.is_float(t) =>
+        ret(CONST_RENAMEME(Float(float_of_string(t))))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_ctr(t) => ret(Constructor(t, None))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
@@ -483,10 +486,14 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         switch (tile) {
         | ([t], []) when Form.is_empty_tuple(t) => Tuple([])
         | ([t], []) when Form.is_empty_list(t) => ListLit([])
-        | ([t], []) when Form.is_bool(t) => Bool(bool_of_string(t))
-        | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
-        | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
-        | ([t], []) when Form.is_string(t) => String(Form.strip_quotes(t))
+        | ([t], []) when Form.is_bool(t) =>
+          CONST_RENAMEME(Bool(bool_of_string(t)))
+        | ([t], []) when Form.is_float(t) =>
+          CONST_RENAMEME(Float(float_of_string(t)))
+        | ([t], []) when Form.is_int(t) =>
+          CONST_RENAMEME(Int(int_of_string(t)))
+        | ([t], []) when Form.is_string(t) =>
+          CONST_RENAMEME(String(Form.strip_quotes(t)))
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) => Constructor(t, None)
@@ -600,6 +607,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Int"], []) => Int
         | (["Float"], []) => Float
         | (["String"], []) => String
+        | (["Nat"], []) => Nat
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term

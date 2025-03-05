@@ -93,10 +93,16 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | MultiHole(_) => Some([])
     | Parens(dhp)
     | Probe(dhp, _) => dhpat_var_entry(dhp, ty)
-    | Int(_) => Typ.equal(ty, Int |> Typ.temp) ? Some([]) : None
-    | Float(_) => Typ.equal(ty, Float |> Typ.temp) ? Some([]) : None
-    | Bool(_) => Typ.equal(ty, Bool |> Typ.temp) ? Some([]) : None
-    | String(_) => Typ.equal(ty, String |> Typ.temp) ? Some([]) : None
+    | CONST_RENAMEME(Int(_)) =>
+      Typ.equal(ty, Int |> Typ.temp) ? Some([]) : None
+    | CONST_RENAMEME(Float(_)) =>
+      Typ.equal(ty, Float |> Typ.temp) ? Some([]) : None
+    | CONST_RENAMEME(Bool(_)) =>
+      Typ.equal(ty, Bool |> Typ.temp) ? Some([]) : None
+    | CONST_RENAMEME(String(_)) =>
+      Typ.equal(ty, String |> Typ.temp) ? Some([]) : None
+    | CONST_RENAMEME(Nat(_)) =>
+      Typ.equal(ty, Nat |> Typ.temp) ? Some([]) : None
     | Constructor(_) => Some([]) // TODO: make this stricter
     | Cast(dhp, ty1, ty2) =>
       Typ.equal(ty, ty2) ? dhpat_var_entry(dhp, ty1) : None
@@ -133,10 +139,11 @@ let rec dhpat_synthesize = (dhpat: DHPat.t, ctx: Ctx.t): option(Typ.t) => {
   | MultiHole(_) => Some(Unknown(Internal) |> Typ.temp)
   | Parens(dhp)
   | Probe(dhp, _) => dhpat_synthesize(dhp, ctx)
-  | Int(_) => Some(Int |> Typ.temp)
-  | Float(_) => Some(Float |> Typ.temp)
-  | Bool(_) => Some(Bool |> Typ.temp)
-  | String(_) => Some(String |> Typ.temp)
+  | CONST_RENAMEME(Int(_)) => Some(Int |> Typ.temp)
+  | CONST_RENAMEME(Float(_)) => Some(Float |> Typ.temp)
+  | CONST_RENAMEME(Bool(_)) => Some(Bool |> Typ.temp)
+  | CONST_RENAMEME(String(_)) => Some(String |> Typ.temp)
+  | CONST_RENAMEME(Nat(_)) => Some(Nat |> Typ.temp)
   | Cast(_, _, ty) => Some(ty)
   };
 };
@@ -272,10 +279,11 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
   | Test(dtest) =>
     let* ty = typ_of_dhexp(ctx, m, dtest);
     Typ.equal(ty, Bool |> Typ.temp) ? Some(Prod([]) |> Typ.temp) : None;
-  | Bool(_) => Some(Bool |> Typ.temp)
-  | Int(_) => Some(Int |> Typ.temp)
-  | Float(_) => Some(Float |> Typ.temp)
-  | String(_) => Some(String |> Typ.temp)
+  | CONST_RENAMEME(Bool(_)) => Some(Bool |> Typ.temp)
+  | CONST_RENAMEME(Int(_)) => Some(Int |> Typ.temp)
+  | CONST_RENAMEME(Float(_)) => Some(Float |> Typ.temp)
+  | CONST_RENAMEME(String(_)) => Some(String |> Typ.temp)
+  | CONST_RENAMEME(Nat(_)) => Some(Nat |> Typ.temp)
   | BinOp(Bool(_), d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);

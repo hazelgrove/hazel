@@ -5,10 +5,7 @@ module Pat = {
     | EmptyHole
     | MultiHole
     | Wild
-    | Int
-    | Float
-    | Bool
-    | String
+    | CONST_RENAMEME(CONST_RENAMEMO.cls)
     | ListLit
     | Constructor
     | Cons
@@ -46,10 +43,7 @@ module Pat = {
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
     | Wild => Wild
-    | Int(_) => Int
-    | Float(_) => Float
-    | Bool(_) => Bool
-    | String(_) => String
+    | CONST_RENAMEME(c) => CONST_RENAMEME(CONST_RENAMEMO.cls_of_t(c))
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Cons(_) => Cons
@@ -68,10 +62,11 @@ module Pat = {
     | MultiHole => "Broken pattern"
     | EmptyHole => "Empty pattern hole"
     | Wild => "Wildcard"
-    | Int => "Integer literal"
-    | Float => "Float literal"
-    | Bool => "Boolean literal"
-    | String => "String literal"
+    | CONST_RENAMEME(Int) => "Integer literal"
+    | CONST_RENAMEME(Float) => "Float literal"
+    | CONST_RENAMEME(Bool) => "Boolean literal"
+    | CONST_RENAMEME(String) => "String literal"
+    | CONST_RENAMEME(Nat) => "Natural number literal"
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Cons => "Cons"
@@ -95,10 +90,7 @@ module Pat = {
     | EmptyHole
     | MultiHole(_)
     | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
+    | CONST_RENAMEME(_)
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
@@ -119,10 +111,7 @@ module Pat = {
     | EmptyHole
     | MultiHole(_)
     | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
+    | CONST_RENAMEME(_)
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
@@ -146,10 +135,7 @@ module Pat = {
       | EmptyHole
       | MultiHole(_)
       | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
+      | CONST_RENAMEME(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -173,10 +159,7 @@ module Pat = {
       | EmptyHole
       | MultiHole(_)
       | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
+      | CONST_RENAMEME(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -196,10 +179,7 @@ module Pat = {
     | EmptyHole
     | MultiHole(_)
     | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
+    | CONST_RENAMEME(_)
     | ListLit(_)
     | Cons(_, _)
     | Label(_)
@@ -224,10 +204,7 @@ module Pat = {
     | EmptyHole
     | MultiHole(_)
     | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
+    | CONST_RENAMEME(_)
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
@@ -259,10 +236,7 @@ module Pat = {
       | EmptyHole
       | MultiHole(_)
       | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
+      | CONST_RENAMEME(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -287,10 +261,7 @@ module Pat = {
       | EmptyHole
       | MultiHole(_)
       | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
+      | CONST_RENAMEME(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -326,10 +297,7 @@ module Pat = {
     | MultiHole(_)
     | Wild
     | Invalid(_)
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
+    | CONST_RENAMEME(_)
     | Label(_)
     | Constructor(_) => []
     | Cast(y, _, _)
@@ -378,10 +346,7 @@ module Exp = {
     | FailedCast
     | Deferral
     | Undefined
-    | Bool
-    | Int
-    | Float
-    | String
+    | CONST_RENAMEME(CONST_RENAMEMO.cls)
     | ListLit
     | Constructor
     | Fun
@@ -442,10 +407,7 @@ module Exp = {
     | FailedCast(_) => FailedCast
     | Deferral(_) => Deferral
     | Undefined => Undefined
-    | Bool(_) => Bool
-    | Int(_) => Int
-    | Float(_) => Float
-    | String(_) => String
+    | CONST_RENAMEME(c) => CONST_RENAMEME(CONST_RENAMEMO.cls_of_t(c))
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
@@ -485,10 +447,11 @@ module Exp = {
     | FailedCast => "Failed cast"
     | Deferral => "Deferral"
     | Undefined => "Undefined expression"
-    | Bool => "Boolean literal"
-    | Int => "Integer literal"
-    | Float => "Float literal"
-    | String => "String literal"
+    | CONST_RENAMEME(Int) => "Integer literal"
+    | CONST_RENAMEME(Float) => "Float literal"
+    | CONST_RENAMEME(Bool) => "Boolean literal"
+    | CONST_RENAMEME(String) => "String literal"
+    | CONST_RENAMEME(Nat) => "Natural number literal"
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Fun => "Function literal"
@@ -572,10 +535,7 @@ module Exp = {
     | FailedCast(_)
     | Deferral(_)
     | Undefined
-    | Bool(_)
-    | Int(_)
-    | Float(_)
-    | String(_)
+    | CONST_RENAMEME(_)
     | Label(_)
     | ListLit(_)
     | Tuple(_)
@@ -633,10 +593,7 @@ module Exp = {
       | FailedCast(_)
       | Deferral(_)
       | Undefined
-      | Bool(_)
-      | Int(_)
-      | Float(_)
-      | String(_)
+      | CONST_RENAMEME(_)
       | Label(_)
       | ListLit(_)
       | Fun(_)
@@ -697,10 +654,7 @@ module Exp = {
       | Cast(_)
       | Deferral(_)
       | Undefined
-      | Bool(_)
-      | Int(_)
-      | Float(_)
-      | String(_)
+      | CONST_RENAMEME(_)
       | Label(_)
       | ListLit(_)
       | Fun(_)
@@ -857,10 +811,7 @@ module Exp = {
           | DynamicErrorHole(_)
           | FailedCast(_)
           | Deferral(_)
-          | Bool(_)
-          | Int(_)
-          | Float(_)
-          | String(_)
+          | CONST_RENAMEME(_)
           | ListLit(_)
           | Constructor(_)
           | TypFun(_)

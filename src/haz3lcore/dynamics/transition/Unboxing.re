@@ -35,10 +35,7 @@ type unboxed_fun =
   | DeferredAp(DHExp.t, list(DHExp.t));
 
 type unbox_request('a) =
-  | Int: unbox_request(int)
-  | Float: unbox_request(float)
-  | Bool: unbox_request(bool)
-  | String: unbox_request(string)
+  | CONST_RENAMEME(CONST_RENAMEMO.kind('a)): unbox_request('a)
   | Label: unbox_request(string)
   | Tuple(int): unbox_request(list(DHExp.t))
   | TupLabel(DHPat.t): unbox_request(DHExp.t)
@@ -106,11 +103,11 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       }
 
     /* Base types are always already unboxed because of the ITCastID rule*/
-    | (Bool, Bool(b)) => Matches(b)
-    | (Int, Int(i)) => Matches(i)
-    | (Float, Float(f)) => Matches(f)
-    | (String, String(s)) => Matches(s)
-    | (Label, Label(s)) => Matches(s)
+    | (CONST_RENAMEME(r), CONST_RENAMEME(x)) =>
+      switch (CONST_RENAMEMO.unbox(r, x)) {
+      | Some(x) => Matches(x)
+      | None => DoesNotMatch
+      }
 
     /* Lists can be either lists or cons with indet tail or list casts */
     | (ListLit, ListLit(l)) => Matches(l)
@@ -244,8 +241,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
        in elaboration or in the cast calculus. */
     | (
         _,
-        Bool(_) | Int(_) | Float(_) | String(_) | Label(_) | Constructor(_) |
-        BuiltinFun(_) |
+        CONST_RENAMEME(_) | Label(_) | Constructor(_) | BuiltinFun(_) |
         Deferral(_) |
         DeferredAp(_) |
         ListLit(_) |
@@ -260,11 +256,16 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       switch (request) {
       | TupLabel(_) =>
         raise(EvaluatorError.Exception(InvalidBoxedTupLabel(expr)))
-      | Bool => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(expr)))
-      | Int => raise(EvaluatorError.Exception(InvalidBoxedIntLit(expr)))
-      | Float => raise(EvaluatorError.Exception(InvalidBoxedFloatLit(expr)))
-      | String =>
+      | CONST_RENAMEME(Bool) =>
+        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(expr)))
+      | CONST_RENAMEME(Int) =>
+        raise(EvaluatorError.Exception(InvalidBoxedIntLit(expr)))
+      | CONST_RENAMEME(Float) =>
+        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(expr)))
+      | CONST_RENAMEME(String) =>
         raise(EvaluatorError.Exception(InvalidBoxedStringLit(expr)))
+      | CONST_RENAMEME(Nat) =>
+        raise(EvaluatorError.Exception(InvalidBoxedNatLit(expr)))
       | Label => raise(EvaluatorError.Exception(InvalidBoxedLabel(expr)))
       | Tuple(_) => raise(EvaluatorError.Exception(InvalidBoxedTuple(expr)))
       | ListLit

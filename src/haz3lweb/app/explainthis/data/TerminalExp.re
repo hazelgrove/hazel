@@ -57,6 +57,18 @@ let int_exps = (i: int): group => {
   forms: [int_exp(i)],
 };
 
+let nat_exp = (n: int): form => {
+  id: NatExp,
+  syntactic_form: [n |> string_of_int |> exp],
+  expandable_id: None,
+  explanation: "A natural number literal.",
+  examples: [],
+};
+let nat_exps = (i: int): group => {
+  id: NatExp,
+  forms: [int_exp(i)],
+};
+
 let float_exp = (f: float): form => {
   id: FloatExp,
   syntactic_form: [f |> string_of_float |> exp],

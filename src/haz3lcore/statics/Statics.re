@@ -366,10 +366,11 @@ and uexp_to_info_map =
     | Deferral(position) =>
       add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
     | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
-    | Bool(_) => atomic(Just(Bool |> Typ.temp))
-    | Int(_) => atomic(Just(Int |> Typ.temp))
-    | Float(_) => atomic(Just(Float |> Typ.temp))
-    | String(_) => atomic(Just(String |> Typ.temp))
+    | CONST_RENAMEME(Bool(_)) => atomic(Just(Bool |> Typ.temp))
+    | CONST_RENAMEME(Int(_)) => atomic(Just(Int |> Typ.temp))
+    | CONST_RENAMEME(Float(_)) => atomic(Just(Float |> Typ.temp))
+    | CONST_RENAMEME(String(_)) => atomic(Just(String |> Typ.temp))
+    | CONST_RENAMEME(Nat(_)) => atomic(Just(Nat |> Typ.temp))
     | ListLit(es) =>
       let ids = List.map(Exp.rep_id, es);
       let inner_ana_ty = Typ.matched_list(ctx, ana);
@@ -1253,19 +1254,21 @@ and upat_to_info_map =
       add(~self=IsMulti, ~ctx, ~constraint_=Coverage.Constraint.Hole, m);
     | Invalid(token) => hole(BadToken(token))
     | EmptyHole => hole(Just(unknown))
-    | Int(int) =>
+    | CONST_RENAMEME(Int(int)) =>
       atomic(Just(Int |> Typ.temp), Coverage.Constraint.Int(int))
-    | Float(float) =>
+    | CONST_RENAMEME(Float(float)) =>
       atomic(Just(Float |> Typ.temp), Coverage.Constraint.Float(float))
     | Tuple([]) =>
       atomic(Just(Prod([]) |> Typ.temp), Coverage.Constraint.Tuple([]))
-    | Bool(bool) =>
+    | CONST_RENAMEME(Bool(bool)) =>
       atomic(
         Just(Bool |> Typ.temp),
         bool ? Coverage.Constraint.true_ : Coverage.Constraint.false_,
       )
-    | String(string) =>
+    | CONST_RENAMEME(String(string)) =>
       atomic(Just(String |> Typ.temp), Coverage.Constraint.String(string))
+    | CONST_RENAMEME(Nat(nat)) =>
+      atomic(Just(Nat |> Typ.temp), Coverage.Constraint.Nat(nat))
     | ListLit(ps) =>
       let ids = List.map(Pat.rep_id, ps);
       let mode = Typ.matched_list(ctx, ana);
@@ -1607,6 +1610,7 @@ and utyp_to_info_map =
     add(m);
   | Unknown(_)
   | Int
+  | Nat
   | Float
   | Bool
   | String => add(m)

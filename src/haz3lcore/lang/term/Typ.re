@@ -12,6 +12,7 @@ type cls =
   | Float
   | Bool
   | String
+  | Nat
   | Arrow
   | Prod
   | TupLabel
@@ -88,6 +89,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Float => Float
   | Bool => Bool
   | String => String
+  | Nat => Nat
   | List(_) => List
   | Arrow(_) => Arrow
   | Var(_) => Var
@@ -110,6 +112,7 @@ let show_cls: cls => string =
   | Int
   | Float
   | String
+  | Nat
   | Bool => "Base type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
@@ -134,6 +137,7 @@ let rec is_arrow = (typ: t) => {
   | Float
   | Bool
   | String
+  | Nat
   | List(_)
   | Label(_)
   | Prod(_)
@@ -155,6 +159,7 @@ let rec is_forall = (typ: t) => {
   | Float
   | Bool
   | String
+  | Nat
   | Arrow(_)
   | List(_)
   | Label(_)
@@ -220,6 +225,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Float
   | Bool
   | String
+  | Nat
   | Label(_) => []
   | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Var(v) => List.mem(v, bound) ? [] : [v]
@@ -317,6 +323,8 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (Bool, _) => None
   | (String, String) => Some(ty1)
   | (String, _) => None
+  | (Nat, Nat) => Some(ty1)
+  | (Nat, _) => None
   | (Label(_), Label("")) => Some(ty1)
   | (Label(""), Label(_)) => Some(ty2)
   | (Label(name1), Label(name2))
@@ -367,6 +375,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Float, _)
   | (Bool, _)
   | (String, _)
+  | (Nat, _)
   | (Label(_), _)
   | (Var(_), _)
   | (Ap(_), _)
@@ -430,6 +439,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Float
   | Bool
   | String
+  | Nat
   | Label(_) => ty
   | Parens(t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
@@ -685,6 +695,7 @@ let rec needs_parens = (ty: t): bool =>
   | Unknown(_)
   | Int
   | Float
+  | Nat
   | Label(_)
   | Bool
   | String
@@ -716,6 +727,7 @@ let rec pretty_print = (ty: t): string =>
   | Float => "Float"
   | Bool => "Bool"
   | String => "String"
+  | Nat => "Nat"
   | Var(tvar) => tvar
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)

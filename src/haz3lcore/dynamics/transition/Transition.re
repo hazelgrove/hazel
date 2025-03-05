@@ -302,7 +302,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d => Test(d) |> rewrap)
       and. d' = req_final(req(state, env), d => Test(d) |> wrap_ctx, d'');
       let result: TestStatus.t =
-        switch (Unboxing.unbox(Bool, d')) {
+        switch (Unboxing.unbox(CONST_RENAMEME(Bool), d')) {
         | DoesNotMatch
         | IndetMatch => Indet
         | Matches(b) => b ? Pass : Fail
@@ -464,10 +464,7 @@ module Transition = (EV: EV_MODE) => {
     | Deferral(_) =>
       let. _ = otherwise(env, d);
       Indet;
-    | Bool(_)
-    | Int(_)
-    | Float(_)
-    | String(_)
+    | CONST_RENAMEME(_)
     | Label(_)
     | Constructor(_)
     | BuiltinFun(_) =>
@@ -478,7 +475,7 @@ module Transition = (EV: EV_MODE) => {
       and. c' =
         req_final(req(state, env), c => If1(c, d1, d2) |> wrap_ctx, c);
       let.wrap_closure _ = env;
-      let-unbox b = (Bool, c');
+      let-unbox b = (CONST_RENAMEME(Bool), c');
       Step({
         expr: {
           b ? d1 : d2;
@@ -499,7 +496,7 @@ module Transition = (EV: EV_MODE) => {
           c => UnOp(Int(Minus), c) |> wrap_ctx,
           d1,
         );
-      let-unbox n = (Int, d1');
+      let-unbox n = (CONST_RENAMEME(Int), d1');
       Step({
         expr: int(- n),
         state_update,
@@ -514,7 +511,7 @@ module Transition = (EV: EV_MODE) => {
           c => UnOp(Bool(Not), c) |> wrap_ctx,
           d1,
         );
-      let-unbox b = (Bool, d1');
+      let-unbox b = (CONST_RENAMEME(Bool), d1');
       Step({
         expr: bool(!b),
         state_update,
@@ -530,7 +527,7 @@ module Transition = (EV: EV_MODE) => {
           d1,
         );
       let.wrap_closure _ = env;
-      let-unbox b1 = (Bool, d1');
+      let-unbox b1 = (CONST_RENAMEME(Bool), d1');
       Step({
         expr: b1 ? d2 : bool(false),
         state_update,
@@ -546,7 +543,7 @@ module Transition = (EV: EV_MODE) => {
           d1,
         );
       let.wrap_closure _ = env;
-      let-unbox b1 = (Bool, d1');
+      let-unbox b1 = (CONST_RENAMEME(Bool), d1');
       Step({
         expr: b1 ? bool(true) : d2,
         state_update,
@@ -567,8 +564,8 @@ module Transition = (EV: EV_MODE) => {
           d2 => BinOp2(Int(op), d1, d2) |> wrap_ctx,
           d2,
         );
-      let-unbox n1 = (Int, d1');
-      let-unbox n2 = (Int, d2');
+      let-unbox n1 = (CONST_RENAMEME(Int), d1');
+      let-unbox n2 = (CONST_RENAMEME(Int), d2');
       Step({
         expr:
           switch (op) {
@@ -615,8 +612,8 @@ module Transition = (EV: EV_MODE) => {
           d2 => BinOp2(Float(op), d1, d2) |> wrap_ctx,
           d2,
         );
-      let-unbox n1 = (Float, d1');
-      let-unbox n2 = (Float, d2');
+      let-unbox n1 = (CONST_RENAMEME(Float), d1');
+      let-unbox n2 = (CONST_RENAMEME(Float), d2');
       Step({
         expr:
           switch (op) {
@@ -652,8 +649,8 @@ module Transition = (EV: EV_MODE) => {
           d2 => BinOp2(String(op), d1, d2) |> wrap_ctx,
           d2,
         );
-      let-unbox s1 = (String, d1');
-      let-unbox s2 = (String, d2');
+      let-unbox s1 = (CONST_RENAMEME(String), d1');
+      let-unbox s2 = (CONST_RENAMEME(String), d2');
       Step({
         expr:
           switch (op) {

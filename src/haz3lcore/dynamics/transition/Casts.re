@@ -58,6 +58,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Int
   | Float
   | String
+  | Nat
   | Label(_)
   | TupLabel(_, {term: Unknown(_), _})
   | Var(_)

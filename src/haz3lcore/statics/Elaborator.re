@@ -119,10 +119,11 @@ let rec elaborate_pattern =
   let (term, rewrap) = Pat.unwrap(upat);
   let dpat =
     switch (term) {
-    | Int(_) => upat |> cast_from(Int |> Typ.temp)
-    | Bool(_) => upat |> cast_from(Bool |> Typ.temp)
-    | Float(_) => upat |> cast_from(Float |> Typ.temp)
-    | String(_) => upat |> cast_from(String |> Typ.temp)
+    | CONST_RENAMEME(Int(_)) => upat |> cast_from(Int |> Typ.temp)
+    | CONST_RENAMEME(Bool(_)) => upat |> cast_from(Bool |> Typ.temp)
+    | CONST_RENAMEME(Float(_)) => upat |> cast_from(Float |> Typ.temp)
+    | CONST_RENAMEME(String(_)) => upat |> cast_from(String |> Typ.temp)
+    | CONST_RENAMEME(Nat(_)) => upat |> cast_from(Nat |> Typ.temp)
     | ListLit(ps) =>
       let (ps, tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
       let inner_type =
@@ -308,10 +309,11 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
       Probe(e' |> cast_from(ty), probe) |> rewrap;
     | Deferral(_) => uexp
-    | Int(_) => uexp |> cast_from(Int |> Typ.temp)
-    | Bool(_) => uexp |> cast_from(Bool |> Typ.temp)
-    | Float(_) => uexp |> cast_from(Float |> Typ.temp)
-    | String(_) => uexp |> cast_from(String |> Typ.temp)
+    | CONST_RENAMEME(Bool(_)) => uexp |> cast_from(Bool |> Typ.temp)
+    | CONST_RENAMEME(Int(_)) => uexp |> cast_from(Int |> Typ.temp)
+    | CONST_RENAMEME(Float(_)) => uexp |> cast_from(Float |> Typ.temp)
+    | CONST_RENAMEME(String(_)) => uexp |> cast_from(String |> Typ.temp)
+    | CONST_RENAMEME(Nat(_)) => uexp |> cast_from(Nat |> Typ.temp)
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let inner_type =

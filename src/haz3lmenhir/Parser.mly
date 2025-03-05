@@ -261,11 +261,11 @@ nonAscriptingPat:
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { CastPat(ConstructorPat(c, None), UnknownType(Internal), t) }
     | p = IDENT { VarPat(p) }
-    | i = INT { IntPat i }
-    | f = FLOAT { FloatPat f }
-    | s = STRING { StringPat s}
-    | TRUE { BoolPat true}
-    | FALSE {BoolPat false}
+    | i = INT { CONST_RENAMEMEPat (Int i) }
+    | f = FLOAT { CONST_RENAMEMEPat (Float f) }
+    | s = STRING { CONST_RENAMEMEPat (String s)}
+    | TRUE {CONST_RENAMEMEPat (Bool true)}
+    | FALSE {CONST_RENAMEMEPat (Bool false)}
     | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) }
 
 funPat:
@@ -317,14 +317,14 @@ tupExpEntry:
 
 exp:
     | b = binExp { b }
-    | i = INT { Int i }
-    | f = FLOAT { Float f }
+    | i = INT { CONST_RENAMEME (Int i) }
+    | f = FLOAT { CONST_RENAMEME (Float f) }
     | v = IDENT { Var v }
     | c = CONSTRUCTOR_IDENT { Constructor(c, None)}
     | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) } 
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(Some(t))) }
     | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { Cast(Constructor(c, None), UnknownType(Internal), t) }
-    | s = STRING { String s}
+    | s = STRING { CONST_RENAMEME (String s)}
     | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(e) }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
     | OPEN_PAREN; e = tupExpEntry; COMMA; l = separated_list(COMMA, tupExpEntry); CLOSE_PAREN { TupleExp(e :: l) }
@@ -338,9 +338,9 @@ exp:
     | i = ifExp { i }
     | e1 = exp; QUESTION; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY {FailedCast(e1, t1, t2)}
     | e1 = exp; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY { Cast(e1, t1, t2) }
-    | TRUE { Bool true }
+    | TRUE { CONST_RENAMEME (Bool true) }
     | f = funExp {f}
-    | FALSE { Bool false }    
+    | FALSE { CONST_RENAMEME (Bool false) }    
     | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
     | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
     | QUESTION { EmptyHole }

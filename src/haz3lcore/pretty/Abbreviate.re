@@ -17,7 +17,7 @@ let flat_ellipses_term_pat = (): TermBase.pat_t =>
 let is_flat_ellipses = (term: IdTagged.t(Exp.term)): bool =>
   switch (term.term) {
   | Invalid(s) => s == flat_ellipses
-  | String(s) => s == flat_ellipses
+  | CONST_RENAMEME(String(s)) => s == flat_ellipses
   | Constructor(s, _) => s == flat_ellipses
   | Var(s) => s == flat_ellipses
   | _ => false
@@ -127,10 +127,10 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
 
     // Atomic string cases
     | Invalid(x) => Invalid(abbreviate_str(available^, x))
-    | String(s) =>
+    | CONST_RENAMEME(String(s)) =>
       let str = abbreviate_str(available^, s);
       available := available^ - 2; // for quotes in printed representation
-      String(str);
+      CONST_RENAMEME(String(str));
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
     | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)
@@ -141,11 +141,13 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
     | Tuple([]) => Tuple([])
     | Deferral(pos) => Deferral(pos)
     | Undefined => wrap_or(Undefined, "undefined")
-    | Bool(b) => wrap_or(Bool(b), string_of_bool(b))
-    | Int(n) =>
+    | CONST_RENAMEME(Bool(b)) =>
+      wrap_or(CONST_RENAMEME(Bool(b)), string_of_bool(b))
+    | CONST_RENAMEME(Int(n) | Nat(n)) =>
       //TODO: smarter number summarization?
-      wrap_or(Int(n), string_of_int(n))
-    | Float(f) => Invalid(abbreviate_str(available^, string_of_float(f)))
+      wrap_or(CONST_RENAMEME(Int(n)), string_of_int(n))
+    | CONST_RENAMEME(Float(f)) =>
+      Invalid(abbreviate_str(available^, string_of_float(f)))
 
     // composite literal cases
     | ListLit(xs) =>
@@ -610,14 +612,18 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
     | Wild => Wild
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
-    | Int(n) => wrap_or(Int(n), string_of_int(n))
-    | Float(f) => Invalid(abbreviate_str(available^, string_of_float(f)))
-    | String(s) =>
+    | CONST_RENAMEME(Int(n)) =>
+      wrap_or(CONST_RENAMEME(Int(n)), string_of_int(n))
+    | CONST_RENAMEME(Nat(n)) =>
+      wrap_or(CONST_RENAMEME(Nat(n)), string_of_int(n))
+    | CONST_RENAMEME(Float(f)) =>
+      Invalid(abbreviate_str(available^, string_of_float(f)))
+    | CONST_RENAMEME(String(s)) =>
       let str = abbreviate_str(available^, s);
       available := available^ - 2; // for quotes in printed representation
-      String(str);
-    | Bool(b) => wrap_or(Bool(b), string_of_bool(b))
-
+      CONST_RENAMEME(String(str));
+    | CONST_RENAMEME(Bool(b)) =>
+      wrap_or(CONST_RENAMEME(Bool(b)), string_of_bool(b))
     | Cons(p1, p2) =>
       if (available^ < 4) {
         indet_term_pat;
@@ -762,6 +768,12 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         indet_term_typ;
       } else {
         Int;
+      }
+    | Nat =>
+      if (available^ < 3) {
+        indet_term_typ;
+      } else {
+        Nat;
       }
     | Float =>
       if (available^ < 5) {

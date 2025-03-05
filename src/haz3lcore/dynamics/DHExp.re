@@ -110,10 +110,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Undefined
           | Constructor(_)
           | Var(_)
-          | Bool(_)
-          | Int(_)
-          | Float(_)
-          | String(_)
+          | CONST_RENAMEME(_)
           | FailedCast(_, _, _)
           | MultiHole(_)
           | Deferral(_)

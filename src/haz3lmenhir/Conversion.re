@@ -200,10 +200,7 @@ module rec Exp: {
   let rec of_menhir_ast = (exp: AST.exp): IndicatedG.exp => {
     switch (exp) {
     | InvalidExp(s) => invalid(s)
-    | Int(i) => int(i)
-    | Float(f) => float(f)
-    | String(s) => string(s)
-    | Bool(b) => bool(b)
+    | CONST_RENAMEME(c) => basic(c)
     | Var(x) => var(x)
     | Constructor(x, ty) =>
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
@@ -315,10 +312,7 @@ module rec Exp: {
   let rec of_core = (exp: IndicatedG.exp): AST.exp => {
     switch (exp.term) {
     | Invalid(_) => InvalidExp("Invalid")
-    | Int(i) => Int(i)
-    | Float(f) => Float(f)
-    | String(s) => String(s)
-    | Bool(b) => Bool(b)
+    | CONST_RENAMEME(c) => CONST_RENAMEME(c)
     | Var(x) => Var(x)
     | Deferral(InAp) => Deferral
     | ListLit(l) => ListExp(List.map(of_core, l))
@@ -408,6 +402,7 @@ and Typ: {
     | FloatType => float()
     | BoolType => bool()
     | StringType => string()
+    | NatType => nat()
     | UnknownType(p) =>
       switch (p) {
       | Internal => unknown(Internal)
@@ -459,6 +454,7 @@ and Typ: {
     | Float => FloatType
     | String => StringType
     | Bool => BoolType
+    | Nat => NatType
     | Var(x) => TypVar(x)
     | Prod(ts) => TupleType(List.map(of_core, ts))
     | List(t) => ArrayType(of_core(t))
@@ -516,8 +512,7 @@ and Pat: {
   let rec of_menhir_ast = (pat: AST.pat): IndicatedG.pat => {
     switch (pat) {
     | InvalidPat(s) => invalid(s)
-    | IntPat(i) => int(i)
-    | FloatPat(f) => float(f)
+    | CONST_RENAMEMEPat(c) => basic(c)
     | CastPat(p, t1, t2) =>
       parens(
         cast(
@@ -529,12 +524,10 @@ and Pat: {
     | VarPat(x) => var(x)
     | ConstructorPat(x, ty) =>
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
-    | StringPat(s) => string(s)
     | TuplePat(pats) => parens(tuple(List.map(of_menhir_ast, pats)))
     | ApPat(pat1, pat2) => ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
     | ConsPat(p1, p2) =>
       parens(cons(of_menhir_ast(p1), of_menhir_ast(p2)))
-    | BoolPat(b) => bool(b)
     | EmptyHolePat => empty_hole()
     | WildPat => wild()
     | LabelPat(s) => label(s)
@@ -550,14 +543,11 @@ and Pat: {
   let rec of_core = (pat: IndicatedG.pat): AST.pat => {
     switch (pat.term) {
     | Invalid(_) => InvalidPat("Invalid")
-    | Int(i) => IntPat(i)
-    | Float(f) => FloatPat(f)
+    | CONST_RENAMEME(c) => CONST_RENAMEMEPat(c)
     | Var(x) => VarPat(x)
     | Constructor(x, ty) =>
       ConstructorPat(x, Option.map(Option.map(Typ.of_core), ty))
-    | String(s) => StringPat(s)
     | Tuple(l) => TuplePat(List.map(of_core, l))
-    | Bool(b) => BoolPat(b)
     | Cons(p1, p2) => ConsPat(of_core(p1), of_core(p2))
     | ListLit(l) => ListPat(List.map(of_core, l))
     | Ap(p1, p2) => ApPat(of_core(p1), of_core(p2))

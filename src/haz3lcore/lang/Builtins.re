@@ -73,52 +73,52 @@ module Pervasives = {
     };
 
     let is_finite = d => {
-      let-unbox f = (Float, d);
+      let-unbox f = (CONST_RENAMEME(Float), d);
       Some(bool(Float.is_finite(f)));
     };
 
     let is_infinite = d => {
-      let-unbox f = (Float, d);
+      let-unbox f = (CONST_RENAMEME(Float), d);
       Some(bool(Float.is_infinite(f)));
     };
 
     let is_nan = d => {
-      let-unbox f = (Float, d);
+      let-unbox f = (CONST_RENAMEME(Float), d);
       Some(bool(Float.is_nan(f)));
     };
 
     let string_of_int = d => {
-      let-unbox n = (Int, d);
+      let-unbox n = (CONST_RENAMEME(Int), d);
       Some(string(string_of_int(n)));
     };
 
     let string_of_float = d => {
-      let-unbox f = (Float, d);
+      let-unbox f = (CONST_RENAMEME(Float), d);
       Some(string(string_of_float(f)));
     };
 
     let string_of_bool = d => {
-      let-unbox b = (Bool, d);
+      let-unbox b = (CONST_RENAMEME(Bool), d);
       Some(string(string_of_bool(b)));
     };
 
     let int_of_float = d => {
-      let-unbox f = (Float, d);
+      let-unbox f = (CONST_RENAMEME(Float), d);
       Some(int(int_of_float(f)));
     };
 
     let float_of_int = d => {
-      let-unbox n = (Int, d);
+      let-unbox n = (CONST_RENAMEME(Int), d);
       Some(float(float_of_int(n)));
     };
 
     let abs = d => {
-      let-unbox n = (Int, d);
+      let-unbox n = (CONST_RENAMEME(Int), d);
       Some(int(abs(n)));
     };
 
     let float_op = (fn, d) => {
-      let-unbox f = (Float, d);
+      let-unbox f = (CONST_RENAMEME(Float), d);
       Some(float(fn(f)));
     };
 
@@ -143,7 +143,7 @@ module Pervasives = {
           name: string,
           d: DHExp.t,
         ) => {
-      let-unbox s = (String, d);
+      let-unbox s = (CONST_RENAMEME(String), d);
       switch (convert(s)) {
       | Some(n) => Some(wrap(n))
       | None =>
@@ -160,8 +160,8 @@ module Pervasives = {
 
     let int_mod = name =>
       binary((d1, d2) => {
-        let-unbox m = (Int, d1);
-        let-unbox n = (Int, d2);
+        let-unbox m = (CONST_RENAMEME(Int), d1);
+        let-unbox n = (CONST_RENAMEME(Int), d2);
         if (n == 0) {
           Some(
             dynamic_error_hole(
@@ -175,31 +175,31 @@ module Pervasives = {
       });
 
     let string_length = d => {
-      let-unbox s = (String, d);
+      let-unbox s = (CONST_RENAMEME(String), d);
       Some(int(String.length(s)));
     };
 
     let string_compare =
       binary((d1, d2) => {
-        let-unbox s1 = (String, d1);
-        let-unbox s2 = (String, d2);
+        let-unbox s1 = (CONST_RENAMEME(String), d1);
+        let-unbox s2 = (CONST_RENAMEME(String), d2);
         Some(int(String.compare(s1, s2)));
       });
 
     let string_trim = d => {
-      let-unbox s = (String, d);
+      let-unbox s = (CONST_RENAMEME(String), d);
       Some(string(String.trim(s)));
     };
 
     let string_of: DHExp.t => option(string) =
       d => {
-        let-unbox s = (String, d);
+        let-unbox s = (CONST_RENAMEME(String), d);
         Some(s);
       };
 
     let string_concat =
       binary((d1, d2) => {
-        let-unbox s1 = (String, d1);
+        let-unbox s1 = (CONST_RENAMEME(String), d1);
         let-unbox xs = (ListLit, d2);
         let* xs' = List.map(string_of, xs) |> Util.OptUtil.sequence;
         Some(string(String.concat(s1, xs')));
@@ -207,9 +207,9 @@ module Pervasives = {
 
     let string_sub = name =>
       ternary((d1, d2, d3) => {
-        let-unbox s = (String, d1);
-        let-unbox idx = (Int, d2);
-        let-unbox len = (Int, d3);
+        let-unbox s = (CONST_RENAMEME(String), d1);
+        let-unbox idx = (CONST_RENAMEME(Int), d2);
+        let-unbox len = (CONST_RENAMEME(Int), d3);
         try(Some(string(String.sub(s, idx, len)))) {
         | _ =>
           let d' = BuiltinFun(name) |> DHExp.fresh;
@@ -221,8 +221,8 @@ module Pervasives = {
 
     let string_split = _ =>
       binary((d1, d2) => {
-        let-unbox s = (String, d1);
-        let-unbox sep = (String, d2);
+        let-unbox s = (CONST_RENAMEME(String), d1);
+        let-unbox sep = (CONST_RENAMEME(String), d2);
         let split_str = Util.StringUtil.plain_split(sep, s);
         let split_str' = List.map(s => string(s), split_str);
         Some(list_lit(split_str'));
