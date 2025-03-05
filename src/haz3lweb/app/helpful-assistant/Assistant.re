@@ -244,14 +244,17 @@ module Update = {
         model: Model.t,
         message: Model.message,
         chat_id: Id.t,
+        ~is_final: bool,
       ) => {
     let (past_chats, _) = get_mode_info(mode, model);
     let chat_to_update = Id.Map.find(chat_id, past_chats);
     let messages = {
       switch (message.party) {
       | LS => chat_to_update.messages @ [message, await_llm_response]
-      | LLM => ListUtil.leading(chat_to_update.messages) @ [message]
-      | System => ListUtil.leading(chat_to_update.messages) @ [message]
+      | LLM =>
+        let messages = ListUtil.leading(chat_to_update.messages) @ [message];
+        is_final ? messages : messages @ [await_llm_response];
+      | System => chat_to_update.messages @ [message]
       };
     };
     Model.{
@@ -499,6 +502,7 @@ module Update = {
             collapsed: false,
           },
           curr_chat.id,
+          ~is_final=true,
         )
         |> Updated.return_quiet
       | Some(prompt) =>
@@ -519,7 +523,13 @@ module Update = {
             | None => print_endline("Assistant: response parse failed")
             }
           );
-          add_message_to_model(mode, model, message, curr_chat.id)
+          add_message_to_model(
+            mode,
+            model,
+            message,
+            curr_chat.id,
+            ~is_final=true,
+          )
           |> Updated.return_quiet;
         | None =>
           add_message_to_model(
@@ -532,6 +542,7 @@ module Update = {
               collapsed: false,
             },
             curr_chat.id,
+            ~is_final=true,
           )
           |> Updated.return_quiet
         };
@@ -572,7 +583,7 @@ module Update = {
       {...model, show_history: !model.show_history} |> Updated.return_quiet
     | Respond(message, mode, chat_id) =>
       check_descriptor(~model, ~schedule_action, ~message, ~mode, ~chat_id);
-      add_message_to_model(mode, model, message, chat_id)
+      add_message_to_model(mode, model, message, chat_id, ~is_final=true)
       |> Updated.return_quiet;
     | SendSketchMessage(tileId, mode) =>
       // Capture the chat we're updating here. This will propogate.
@@ -606,6 +617,7 @@ module Update = {
           content: prompt,
           collapsed: String.length(prompt) >= 200,
         };
+        print_endline(prompt);
         /* Old code. Don't need to collect chat here, leads to far too long of prompts.
            let collected_chat =
              switch (mode) {
@@ -648,7 +660,13 @@ module Update = {
             | None => print_endline("Assistant: response parse failed")
             }
           );
-          add_message_to_model(mode, model, message, curr_chat.id)
+          add_message_to_model(
+            mode,
+            model,
+            message,
+            curr_chat.id,
+            ~is_final=true,
+          )
           |> Updated.return_quiet;
         | None =>
           add_message_to_model(
@@ -661,28 +679,70 @@ module Update = {
               collapsed: false,
             },
             curr_chat.id,
+            ~is_final=true,
           )
           |> Updated.return_quiet
         };
       };
     | ErrorRespond(response, ci, fuel, tileId, mode, chat_id) =>
-      let message = code_message_of_str(response, LLM, Some(tileId));
-      switch (ChatLSP.Prompt.mk_error(ci, response)) {
+      // Split response into discussion and completion
+      let code_pattern =
+        Str.regexp(
+          "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
+        );
+      let (discussion, completion) =
+        if (Str.string_match(code_pattern, response, 0)) {
+          let before = String.trim(Str.matched_group(1, response));
+          let code = String.trim(Str.matched_group(3, response));
+          (before, code);
+        } else {
+          print_endline("Regex match failed for: " ++ response);
+          ("", response); // Fallback if no code block found
+        };
+      print_endline("Response: " ++ response);
+      print_endline("Discussion: " ++ discussion);
+      print_endline("Completion: " ++ completion);
+      // First add the discussion message
+      let discussion_message = text_message_of_str(discussion, LLM);
+      let model_with_discussion =
+        add_message_to_model(
+          mode,
+          model,
+          discussion_message,
+          chat_id,
+          ~is_final=false,
+        );
+
+      // Then handle the completion as before
+      let completion_message =
+        code_message_of_str(completion, LLM, Some(tileId));
+      switch (ChatLSP.Prompt.mk_error(ci, completion)) {
       | None =>
-        // No error, all good. Concat and return suggestion.
-        print_endline("ERROR ROUNDS (Non-error Response): " ++ response);
-        check_descriptor(~model, ~schedule_action, ~message, ~mode, ~chat_id);
-        schedule_action(RemoveAndSuggest(response, tileId));
+        print_endline("ERROR ROUNDS (Non-error Response): " ++ completion);
+        check_descriptor(
+          ~model,
+          ~schedule_action,
+          ~message=completion_message,
+          ~mode,
+          ~chat_id,
+        );
+        schedule_action(RemoveAndSuggest(completion, tileId));
       | Some(error) =>
-        // There is some error, so perform an error round
         print_endline("ERROR ROUNDS (Error): " ++ error);
-        print_endline("ERROR ROUNDS (Error-causing Response): " ++ response);
+        print_endline(
+          "ERROR ROUNDS (Error-causing Response): " ++ completion,
+        );
         schedule_action(
           SendErrorMessage(error, ci, fuel - 1, tileId, mode, chat_id),
         );
       };
-      // Remove await_llm_response (... animation) and concat LLM's suggestion
-      add_message_to_model(mode, model, message, chat_id)
+      add_message_to_model(
+        mode,
+        model_with_discussion,
+        completion_message,
+        chat_id,
+        ~is_final=true,
+      )
       |> Updated.return_quiet;
     | SendErrorMessage(error, ci, fuel, tileId, mode, chat_id) =>
       let error_message =
@@ -693,7 +753,14 @@ module Update = {
         );
       // check that fuel is not 0
       if (fuel < 0) {
-        let model = add_message_to_model(mode, model, error_message, chat_id);
+        let model =
+          add_message_to_model(
+            mode,
+            model,
+            error_message,
+            chat_id,
+            ~is_final=true,
+          );
         add_message_to_model(
           mode,
           model,
@@ -707,6 +774,7 @@ module Update = {
             collapsed: false,
           },
           chat_id,
+          ~is_final=true,
         )
         |> Updated.return_quiet;
       } else {
@@ -728,6 +796,7 @@ module Update = {
               collapsed: false,
             },
             chat_id,
+            ~is_final=true,
           )
           |> Updated.return_quiet
         | Some(openrouter_prompt) =>
@@ -748,7 +817,13 @@ module Update = {
               | None => print_endline("Assistant: response parse failed")
               }
             );
-            add_message_to_model(mode, model, error_message, chat_id)
+            add_message_to_model(
+              mode,
+              model,
+              error_message,
+              chat_id,
+              ~is_final=true,
+            )
             |> Updated.return_quiet;
           | None =>
             add_message_to_model(
@@ -761,6 +836,7 @@ module Update = {
                 collapsed: false,
               },
               chat_id,
+              ~is_final=true,
             )
             |> Updated.return_quiet
           };
