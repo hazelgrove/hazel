@@ -342,6 +342,8 @@ let rec matches_exp =
     | (TyAlias(dtp, dut, dd), TyAlias(ftp, fut, fd)) =>
       dtp == ftp && dut == fut && matches_exp(dd, fd)
     | (TyAlias(_), _) => false
+    | (Use(d1, d2), Use(f1, f2)) => d1 == f1 && matches_exp(d2, f2)
+    | (Use(_), _) => false
     };
   };
 }

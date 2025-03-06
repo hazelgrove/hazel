@@ -226,6 +226,7 @@ module rec Exp: {
         | _ => ty
         };
       ty_alias(TPat.of_menhir_ast(tp), ty, of_menhir_ast(e));
+    | Use(t, e) => use(Typ.of_menhir_ast(t), of_menhir_ast(e))
     | BuiltinFun(s) => builtin_fun(s)
     | Fun(p, e, name_opt) =>
       switch (name_opt) {
@@ -323,6 +324,7 @@ module rec Exp: {
     | Undefined => Undefined
     | TyAlias(tp, ty, e) =>
       TyAlias(TPat.of_core(tp), Typ.of_core(ty), of_core(e))
+    | Use(ty, e) => Use(Typ.of_core(ty), of_core(e))
     | BuiltinFun(s) => BuiltinFun(s)
     | Ap(Forward, e1, e2) => ApExp(of_core(e1), TupleExp([of_core(e2)]))
     | BinOp(op, e1, e2) =>

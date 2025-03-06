@@ -557,6 +557,7 @@ let get_doc =
       | FailedCast(_)
       | Closure(_)
       | Cast(_)
+      | Use(_) /* TODO[Matt]: ExplainThis */
       | BuiltinFun(_) => simple("Internal expression")
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)

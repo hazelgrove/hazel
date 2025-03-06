@@ -77,6 +77,7 @@ type step_kind =
   | CompleteFilter
   | Cast
   | RemoveTypeAlias
+  | RemoveUse
   | RemoveParens;
 let evaluate_extend_env = ClosureEnvironment.extend_eval;
 
@@ -893,6 +894,14 @@ module Transition = (EV: EV_MODE) => {
         kind: RemoveTypeAlias,
         is_value: false,
       });
+    | Use(_, d) =>
+      let. _ = otherwise(env, d);
+      Step({
+        expr: d,
+        state_update,
+        kind: RemoveUse,
+        is_value: true,
+      });
     | Filter(f1, d1) =>
       let. _ = otherwise(env, d1 => Filter(f1, d1) |> rewrap)
       and. d1 =
@@ -928,6 +937,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Conditional(_)
   | RemoveTypeAlias
+  | RemoveUse
   | InvalidStep => false
   | VarLookup => !settings.show_lookup_steps
   | CastTypAp
@@ -978,6 +988,7 @@ let stepper_justification: step_kind => string =
   | CompleteClosure => "complete closure"
   | WrapClosure => "wrap closure"
   | RemoveTypeAlias => "define type"
+  | RemoveUse => "set use type"
   | RemoveParens => "remove parentheses"
   | Dot => "Labeled tuple access"
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");

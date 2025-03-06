@@ -73,6 +73,7 @@ and exp_term('a) =
   | Let(pat_t('a), exp_t('a), exp_t('a))
   | FixF(pat_t('a), exp_t('a), option(closure_environment_t('a)))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
+  | Use(typ_t('a), exp_t('a))
   | Ap(Operators.ap_direction, exp_t('a), exp_t('a))
   | TypAp(exp_t('a), typ_t('a))
   | DeferredAp(exp_t('a), list(exp_t('a)))
@@ -220,6 +221,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_typ_annotation(f, t),
             map_exp_annotation(f, e),
           )
+        | Use(t, e) =>
+          Use(map_typ_annotation(f, t), map_exp_annotation(f, e))
         | Ap(d, e1, e2) =>
           Ap(d, map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | TypAp(e, t) =>
@@ -560,6 +563,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let ty_alias = (~ann=?, p, t, e): exp_t(DefaultAnnotation.t) => {
       term: TyAlias(p, t, e),
+      annotation: default_annotation(ann),
+    };
+    let use = (~ann=?, t, e): exp_t(DefaultAnnotation.t) => {
+      term: Use(t, e),
       annotation: default_annotation(ann),
     };
     let ap = (~ann=?, d, e1, e2): exp_t(DefaultAnnotation.t) => {

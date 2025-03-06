@@ -405,6 +405,36 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         };
       }
 
+    | Use(t1, e1) =>
+      if (available^ < 3) {
+        indet_term;
+      } else if (available^ <= 3) {
+        Invalid("use");
+      } else if (available^ <= 4) {
+        Invalid("use…");
+      } else if (available^ <= 6) {
+        Invalid("use…in");
+      } else if (available^ <= 8) {
+        Invalid("use…in…");
+      } else {
+        available := available^ - 8;
+        let t1' = abbreviate_typ(t1);
+        if (available^ > 3) {
+          // " = "
+          available := available^ - 3;
+          let e1' = abbreviate_exp(e1);
+          Use(t1', e1');
+        } else {
+          Use(
+            t1',
+            {
+              ...e1,
+              term: indet_term,
+            },
+          );
+        };
+      }
+
     | TyAlias(tp, t, e) =>
       if (available^ < 4) {
         indet_term;

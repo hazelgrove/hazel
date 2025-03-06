@@ -250,6 +250,7 @@ and Exp: {
         | FixF(p, e, env) => FixF(pat_map_term(p), exp_map_term(e), env)
         | TyAlias(tp, t, e) =>
           TyAlias(tpat_map_term(tp), typ_map_term(t), exp_map_term(e))
+        | Use(t, e) => Use(typ_map_term(t), exp_map_term(e))
         | Ap(op, e1, e2) => Ap(op, exp_map_term(e1), exp_map_term(e2))
         | TypAp(e, t) => TypAp(exp_map_term(e), typ_map_term(t))
         | DeferredAp(e, es) =>
@@ -331,6 +332,8 @@ and Exp: {
       TPat.fast_equal(tp1, tp2)
       && Typ.fast_equal(t1, t2)
       && fast_equal(e1, e2)
+    | (Use(t1, e1), Use(t2, e2)) =>
+      Typ.fast_equal(t1, t2) && fast_equal(e1, e2)
     | (Ap(d1, e1, e2), Ap(d2, e3, e4)) =>
       d1 == d2 && fast_equal(e1, e3) && fast_equal(e2, e4)
     | (TypAp(e1, t1), TypAp(e2, t2)) =>
@@ -387,6 +390,7 @@ and Exp: {
     | (Let(_), _)
     | (FixF(_), _)
     | (TyAlias(_), _)
+    | (Use(_), _)
     | (Ap(_), _)
     | (TypAp(_), _)
     | (DeferredAp(_), _)

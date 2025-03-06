@@ -359,6 +359,7 @@ module Exp = {
     | Let
     | FixF
     | TyAlias
+    | Use
     | Ap
     | TypAp
     | DeferredAp
@@ -420,6 +421,7 @@ module Exp = {
     | Let(_) => Let
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
+    | Use(_) => Use
     | Ap(_) => Ap
     | TypAp(_) => TypAp
     | DeferredAp(_) => DeferredAp
@@ -464,6 +466,7 @@ module Exp = {
     | Let => "Let expression"
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
+    | Use => "Use: specify constants and operators"
     | Ap => "Application"
     | TypAp => "Type application"
     | DeferredAp => "Partial Application"
@@ -543,6 +546,7 @@ module Exp = {
     | Let(_)
     | FixF(_)
     | TyAlias(_)
+    | Use(_)
     | Ap(_)
     | TypAp(_)
     | DeferredAp(_)
@@ -604,6 +608,7 @@ module Exp = {
       | Let(_)
       | FixF(_)
       | TyAlias(_)
+      | Use(_)
       | Ap(_)
       | TypAp(_)
       | DeferredAp(_)
@@ -663,6 +668,7 @@ module Exp = {
       | Let(_)
       | Filter(_)
       | TyAlias(_)
+      | Use(_)
       | Ap(_)
       | TypAp(_)
       | DeferredAp(_)
@@ -820,6 +826,7 @@ module Exp = {
           | Label(_)
           | Dot(_)
           | TyAlias(_)
+          | Use(_)
           | Ap(_)
           | TypAp(_)
           | DeferredAp(_)

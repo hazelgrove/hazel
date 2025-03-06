@@ -77,6 +77,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   // Top-level things
   | Filter(_)
   | TyAlias(_)
+  | Use(_)
   | Let(_) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
@@ -257,6 +258,12 @@ let rec parenthesize =
   | TyAlias(tp, t, e) =>
     TyAlias(
       tp,
+      parenthesize_typ(t) |> paren_typ_at(Precedence.min),
+      parenthesize(e) |> paren_assoc_at(Precedence.let_),
+    )
+    |> rewrap
+  | Use(t, e) =>
+    Use(
       parenthesize_typ(t) |> paren_typ_at(Precedence.min),
       parenthesize(e) |> paren_assoc_at(Precedence.let_),
     )
@@ -937,6 +944,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let e =
       settings.inline ? e : [Secondary(Secondary.mk_newline(Id.mk()))] @ e;
     [mk_form(TypeAlias, id, [tp, t])] @ e;
+  | Use(t, e) =>
+    let id = exp |> Exp.rep_id;
+    let+ t = typ_to_pretty(~settings: Settings.t, t)
+    and+ e = go(e);
+    let e =
+      settings.inline ? e : [Secondary(Secondary.mk_newline(Id.mk()))] @ e;
+    [mk_form(Use, id, [t])] @ e;
   | Ap(Forward, e1, e2) =>
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)

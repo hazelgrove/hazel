@@ -1071,6 +1071,30 @@ and uexp_to_info_map =
         let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
         add(~self=Just(ty_body), ~co_ctx, m);
       };
+    | Use(typ, body) =>
+      let (typ, m) = utyp_to_info_map(~ctx, ~ancestors, typ, m);
+      let use_mode: option(UseMode.t) =
+        switch (typ.term |> Typ.weak_head_normalize(ctx) |> Typ.term_of) {
+        | Nat => Some(Nat)
+        | Int => Some(Int)
+        | _ => None
+        };
+      let ctx' =
+        switch (use_mode) {
+        | Some(m) => Ctx.set_use_mode(ctx, m)
+        | None => ctx
+        };
+      let (body, m) = go'(~ctx=ctx', ~mode, body, m);
+      let self: Self.t =
+        switch (use_mode) {
+        | Some(_) => Just(body.ty)
+        | None =>
+          InvalidUseMode({
+            bad_typ: typ.term,
+            inner_typ: body.ty,
+          })
+        };
+      add(~self, ~co_ctx=body.co_ctx, m);
     };
   };
 

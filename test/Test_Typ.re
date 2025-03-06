@@ -10,7 +10,7 @@ let tests = (
       () => {
         let t =
           Typ.join(
-            [],
+            Ctx.empty,
             Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
             Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           );
