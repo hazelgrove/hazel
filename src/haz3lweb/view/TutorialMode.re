@@ -40,6 +40,33 @@ module Model = {
     let spec = Tutorial.unpersist(~instructor_mode, positioned_zippers, spec);
     of_spec(~instructor_mode, spec);
   };
+  let all_tests_passed = (exercise: t) => {
+    let test_results =
+      Tutorial.map_stitched(
+        (_, cell_editor: CellEditor.Model.t) =>
+          cell_editor.result |> EvalResult.Model.make_test_report,
+        exercise.cells,
+      );
+
+    switch (Tutorial.get_stitched(HiddenTests, test_results)) {
+    | Some(test_results) =>
+      test_results.total > 0 && test_results.passing == test_results.total
+    | _ => false
+    };
+  };
+  let test_count = (exercise: t) => {
+    let test_results =
+      Tutorial.map_stitched(
+        (_, cell_editor: CellEditor.Model.t) =>
+          cell_editor.result |> EvalResult.Model.make_test_report,
+        exercise.cells,
+      );
+
+    switch (Tutorial.get_stitched(HiddenTests, test_results)) {
+    | Some(test_results) => test_results.total
+    | None => 0
+    };
+  };
 };
 module Update = {
   open Updated;
@@ -56,15 +83,29 @@ module Update = {
     let instructor_mode = settings.instructor_mode;
     switch (action) {
     | MoveToNextExercise =>
+      let total_exercises = List.length(TutorialSettings.exercises);
+
+      /* Prevent division by zero */
       let next_index =
-        (model.spec.version + 1) mod List.length(TutorialSettings.exercises);
-      Updated.return({
-        ...model,
-        spec: {
-          ...model.spec,
-          version: next_index,
-        },
-      });
+        if (total_exercises == 0) {
+          0;
+        } else {
+          (model.spec.version + 1) mod total_exercises;
+        };
+      print_endline(
+        "Current Version: " ++ string_of_int(model.spec.version),
+      );
+      print_endline("Next Version: " ++ string_of_int(next_index));
+      let updated_spec = {...model.spec, version: next_index};
+
+      /* Return the properly wrapped model */
+      return(
+        ~is_edit=true,
+        ~recalculate=true, /* Forces UI to refresh */
+        ~scroll_active=true,
+        ~logged=true,
+        {...model, spec: updated_spec} /* Update spec with new version */
+      );
     | Editor(pos, MainEditor(action))
         when Tutorial.visible_in(pos, ~instructor_mode) =>
       // Redirect to editors
@@ -259,6 +300,7 @@ module Update = {
     {spec: model.spec, editors, cells};
   };
 };
+
 module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -294,6 +336,7 @@ module Selection = {
 module View = {
   type event =
     | MakeActive(Selection.t);
+
   type vis_marked('a) =
     | InstructorOnly(unit => 'a)
     | Always('a);
@@ -430,6 +473,16 @@ module View = {
                         ),
                       ],
                     ),
+                    div(
+                      ~attrs=[Attr.class_("next-button")],
+                      [
+                        Widgets.button(Icons.info, _ =>
+                          inject(MoveToNextExercise)
+                        ),
+                      ],
+                    ),
+                    // ],
+                    // ),
                   ],
                 );
               } else {

@@ -1,6 +1,8 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
+// open Haz3lcore;
+// open Util;
 
 let button = (~tooltip="", icon, action) =>
   div(
@@ -78,4 +80,16 @@ let file_select_button_named = (~tooltip="", id, icon, on_input) =>
   div(
     ~attrs=[clss(["named-menu-item"])],
     [file_select_button(id, icon, on_input), div([text(tooltip)])],
+  );
+
+let menu_item = (~label, ~on_click) =>
+  div(~attrs=[Attr.on_click(_ => on_click())], [text(label)]);
+
+let dropdown = (~label, ~items) =>
+  div(
+    ~attrs=[Attr.class_("dropdown-container")],
+    [
+      div(~attrs=[Attr.class_("dropdown-label")], [text(label)]),
+      div(~attrs=[Attr.class_("dropdown-menu")], items),
+    ],
   );

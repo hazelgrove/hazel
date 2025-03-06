@@ -321,3 +321,35 @@
   display: inline;
   vertical-align: top;
 }
+
+.next-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 15px;
+  font-size: 32px;
+  font-weight: bold;
+  color: white;
+  background-color: #007bff; /* Blue background */
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  text-decoration: none;
+  user-select: none;
+}
+
+.next-button:hover {
+  background-color: #0056b3; /* Darker blue */
+  transform: scale(1.05);
+}
+
+.next-button:active {
+  transform: scale(0.95);
+}
+
+
+.next-button::after {
+  content: "➡"; /* Unicode for a bigger right arrow */
+  font-size: 40px; /* Make the arrow even bigger */
+  margin-left: 10px;
+}

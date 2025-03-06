@@ -27,7 +27,7 @@ let bools_ex : Tutorial.spec =
        to combine different operators using conjunction or disjunction.";
     wrapper = true;
     show_report = false;
-    version = 1;
+    version = 8;
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
@@ -321,7 +321,7 @@ let cond_ex : Tutorial.spec =
        then 4 * 4 else 5 * 5` evaluates to `4`.";
     wrapper = true;
     show_report = false;
-    version = 1;
+    version = 9;
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
@@ -368,7 +368,7 @@ let func_ex : Tutorial.spec =
        function works.";
     wrapper = true;
     show_report = false;
-    version = 1;
+    version = 10;
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

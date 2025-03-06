@@ -15,7 +15,7 @@ let exercise : Tutorial.spec =
        computation!";
     wrapper = false;
     show_report = false;
-    version = 1;
+    version = 3;
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
@@ -62,7 +62,7 @@ let shadow_exercise : Tutorial.spec =
        expression the variable has the same name. ";
     wrapper = false;
     show_report = false;
-    version = 1;
+    version = 7;
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

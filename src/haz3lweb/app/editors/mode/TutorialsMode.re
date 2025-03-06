@@ -1,4 +1,6 @@
 open Util;
+open Virtual_dom.Vdom;
+open Node;
 /* This file handles the pagenation of Tutorial Mode, and switching between
    exercises. TutorialMode.re handles the actual exercise. */
 /* This file follows conventions in [docs/ui-architecture.md] */
@@ -207,6 +209,7 @@ module Update = {
       Tutorial.export_grading_module(module_name, {eds: exercise.editors});
     JsUtil.download_string_file(~filename, ~content_type, ~contents);
   };
+
   let update =
       (~globals: Globals.t, ~schedule_action, action: t, model: Model.t) => {
     switch (action) {
@@ -285,9 +288,11 @@ module Selection = {
     )
     |> Option.map(((x, y)) => (Update.Tutorial(x), y));
 };
+
 module View = {
   open Widgets;
   open Js_of_ocaml;
+
   let view = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) => {
     let current = List.nth(model.exercises, model.current);
     TutorialMode.View.view(
@@ -419,6 +424,60 @@ module View = {
         ),
       ]
       : [];
+  let exercise_dropdown = (~globals: Globals.t, ~inject, model: Model.t) => {
+    let exercise_items =
+      List.mapi(
+        (index, exercise) => {
+          let is_passed =
+            switch (TutorialMode.Model.all_tests_passed(exercise)) {
+            | true => "✔ "
+            | _ => ""
+            };
+
+          Widgets.menu_item(
+            ~label=is_passed ++ "Exercise " ++ string_of_int(index + 1),
+            ~on_click=() =>
+            inject(Update.SwitchExercise(index))
+          );
+        },
+        model.exercises,
+      );
+
+    Widgets.dropdown(~label="Exercises", ~items=exercise_items);
+  };
+  // let top_bar = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) =>
+  //   .div(
+  //     [
+  //       instructor_toggle(
+  //         ~inject=globals.inject_global,
+  //         ~instructor_mode=globals.settings.instructor_mode,
+  //       ),
+  //       exercise_dropdown(~globals, ~inject, model), /* Dropdown is placed here */
+  //       EditorModeView.view(
+  //         ~signal=
+  //           fun
+  //           | Previous =>
+  //             inject(
+  //               Update.SwitchExercise(
+  //                 (model.current - 1 + List.length(model.exercises))
+  //                 mod List.length(model.exercises),
+  //               ),
+  //             )
+  //           | Next =>
+  //             inject(
+  //               Update.SwitchExercise(
+  //                 (model.current + 1) mod List.length(model.exercises),
+  //               ),
+  //             ),
+  //         ~indicator=
+  //           EditorModeView.indicator_n(
+  //             model.current,
+  //             List.length(model.exercises),
+  //           ),
+  //       ),
+  //     ]
+  //   );
+
   let top_bar = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) =>
     instructor_toggle(
       ~inject=globals.inject_global,

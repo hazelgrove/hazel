@@ -17,7 +17,7 @@ let exercise : Tutorial.spec =
        the stepper to see how this works.";
     wrapper = true;
     show_report = false;
-    version = 1;
+    version = 4;
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
@@ -245,7 +245,7 @@ let comp_exercise : Tutorial.spec =
        can embed the let expression into either the 2, the 3 or both!)\n";
     wrapper = true;
     show_report = false;
-    version = 1;
+    version = 5;
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

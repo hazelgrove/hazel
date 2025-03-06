@@ -17,7 +17,7 @@ let exercise : Tutorial.spec =
        the expression clear.\n";
     wrapper = true;
     show_report = false;
-    version = 1;
+    version = 2;
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
@@ -149,7 +149,7 @@ let scope_exercise : Tutorial.spec =
        will end.";
     wrapper = true;
     show_report = false;
-    version = 1;
+    version = 6;
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
