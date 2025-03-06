@@ -465,8 +465,6 @@ module View = {
       get_log_and,
       export_all: Export.export_all,
     };
-    let mode_class = Editors.Model.mode_string(editors);
-    // print_endline("Applying class: " ++ mode_class);
 
     let bottom_bar =
       CursorInspector.view(
