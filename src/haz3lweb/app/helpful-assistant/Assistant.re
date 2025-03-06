@@ -376,7 +376,8 @@ module Update = {
         switch (OpenRouter.handle_chat(req)) {
         | Some({content, _}) =>
           schedule_action(Describe(content, mode, chat.id))
-        | None => print_endline("Assistant: response parse failed")
+        | None =>
+          print_endline("Assistant: response parse failed (form_descriptor)")
         }
       );
     };
@@ -523,7 +524,10 @@ module Update = {
                   curr_chat.id,
                 ),
               )
-            | None => print_endline("Assistant: response parse failed")
+            | None =>
+              print_endline(
+                "Assistant: response parse failed (SendTextMessage)",
+              )
             }
           );
           add_message_to_model(
@@ -620,7 +624,6 @@ module Update = {
           content: prompt,
           collapsed: String.length(prompt) >= 200,
         };
-        print_endline(prompt);
         /* Old code. Don't need to collect chat here, leads to far too long of prompts.
            let collected_chat =
              switch (mode) {
@@ -660,7 +663,10 @@ module Update = {
                   curr_chat.id,
                 ),
               );
-            | None => print_endline("Assistant: response parse failed")
+            | None =>
+              print_endline(
+                "Assistant: response parse failed (SendSketchMessage)",
+              )
             }
           );
           add_message_to_model(
@@ -817,7 +823,10 @@ module Update = {
                 schedule_action(
                   ErrorRespond(content, ci, fuel, tileId, mode, curr_chat.id),
                 )
-              | None => print_endline("Assistant: response parse failed")
+              | None =>
+                print_endline(
+                  "Assistant: response parse failed (SendErrorMessage)",
+                )
               }
             );
             add_message_to_model(
