@@ -280,11 +280,17 @@ module Update = {
          };
          */
         print_endline("resuggest: " ++ string_of_bool(resuggest));
-        let actions = [
-          Action.Select(Tile(Id(tile, Direction.Left))),
-          Action.Destruct(Direction.Left),
-          Action.Buffer(Set(LLMSug(response))),
-        ];
+        let actions =
+          resuggest
+            ? [
+              Action.Select(Tile(Id(tile, Direction.Left))),
+              Action.Buffer(Set(LLMSug(response))),
+            ]
+            : [
+              Action.Select(Tile(Id(tile, Direction.Left))),
+              Action.Destruct(Direction.Left),
+              Action.Buffer(Set(LLMSug(response))),
+            ];
         // Apply each action in sequence
         List.iter(
           action => {
