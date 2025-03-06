@@ -424,61 +424,13 @@ module View = {
         ),
       ]
       : [];
-  let exercise_dropdown = (~globals: Globals.t, ~inject, model: Model.t) => {
-    let exercise_items =
-      List.mapi(
-        (index, exercise) => {
-          let is_passed =
-            switch (TutorialMode.Model.all_tests_passed(exercise)) {
-            | true => "✔ "
-            | _ => ""
-            };
 
-          Widgets.menu_item(
-            ~label=is_passed ++ "Exercise " ++ string_of_int(index + 1),
-            ~on_click=() =>
-            inject(Update.SwitchExercise(index))
-          );
-        },
+  let top_bar = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) => {
+    let titles =
+      List.map(
+        exercise => TutorialMode.Model.return_title(exercise),
         model.exercises,
       );
-
-    Widgets.dropdown(~label="Exercises", ~items=exercise_items);
-  };
-  // let top_bar = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) =>
-  //   .div(
-  //     [
-  //       instructor_toggle(
-  //         ~inject=globals.inject_global,
-  //         ~instructor_mode=globals.settings.instructor_mode,
-  //       ),
-  //       exercise_dropdown(~globals, ~inject, model), /* Dropdown is placed here */
-  //       EditorModeView.view(
-  //         ~signal=
-  //           fun
-  //           | Previous =>
-  //             inject(
-  //               Update.SwitchExercise(
-  //                 (model.current - 1 + List.length(model.exercises))
-  //                 mod List.length(model.exercises),
-  //               ),
-  //             )
-  //           | Next =>
-  //             inject(
-  //               Update.SwitchExercise(
-  //                 (model.current + 1) mod List.length(model.exercises),
-  //               ),
-  //             ),
-  //         ~indicator=
-  //           EditorModeView.indicator_n(
-  //             model.current,
-  //             List.length(model.exercises),
-  //           ),
-  //       ),
-  //     ]
-  //   );
-
-  let top_bar = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) =>
     instructor_toggle(
       ~inject=globals.inject_global,
       ~instructor_mode=globals.settings.instructor_mode,
@@ -499,9 +451,11 @@ module View = {
               ),
             ),
         ~indicator=
-          EditorModeView.indicator_n(
+          EditorModeView.indicator_select(
+            ~signal=i => inject(SwitchExercise(i)),
             model.current,
-            List.length(model.exercises),
+            titles,
           ),
       );
+  };
 };

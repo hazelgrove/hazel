@@ -67,6 +67,13 @@ module Model = {
     | None => 0
     };
   };
+
+  let return_title = (exercise: t) =>
+    if (all_tests_passed(exercise)) {
+      exercise.editors.title ++ " ✔";
+    } else {
+      exercise.editors.title;
+    };
 };
 module Update = {
   open Updated;
