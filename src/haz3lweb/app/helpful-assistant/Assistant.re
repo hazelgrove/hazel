@@ -51,7 +51,8 @@ module Model = {
     current_chats,
     chat_history,
     llm: OpenRouter.chat_models,
-    show_history: bool // TODO: Move this to AssistantSettings.re
+    show_history: bool, // TODO: Move this to AssistantSettings.re
+    show_api_key: bool,
   };
 
   let init_simple_chat = {
@@ -103,6 +104,7 @@ module Model = {
     },
     llm: Gemini_Flash_Lite_2_0,
     show_history: false,
+    show_api_key: false,
   };
 };
 
@@ -130,7 +132,8 @@ module Update = {
     | RemoveAndSuggest(string, Id.t)
     | Resuggest(string, Id.t)
     | Describe(string, AssistantSettings.mode, Id.t)
-    | SwitchChat(Id.t);
+    | SwitchChat(Id.t)
+    | ToggleAPIVisibility;
 
   let code_message_of_str =
       (response: string, party: Model.party, tileId: option(Id.t))
@@ -898,6 +901,8 @@ module Update = {
       let mode = settings.assistant.mode;
       let (past_chats, _) = get_mode_info(mode, model);
       resculpt_model(mode, model, past_chats, chat_id) |> Updated.return_quiet;
+    | ToggleAPIVisibility =>
+      {...model, show_api_key: !model.show_api_key} |> Updated.return_quiet
     };
   };
 };
