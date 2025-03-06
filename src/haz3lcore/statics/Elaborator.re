@@ -458,6 +458,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', tye) = elaborate(m, e);
       FixF(p', fresh_cast(e', tye, typ), env) |> rewrap |> cast_from(typ);
+    // These forms are removed in elaboration
+    | Use(_, e)
     | TyAlias(_, _, e) =>
       let (e', tye) = elaborate(m, e);
       e' |> cast_from(tye);

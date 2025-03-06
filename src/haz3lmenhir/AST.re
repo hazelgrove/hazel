@@ -166,6 +166,7 @@ type exp =
   | TypAp(exp, typ)
   | DynamicErrorHole(exp, string)
   | TyAlias(tpat, typ, exp)
+  | Use(typ, exp)
   | IndicationExp(exp);
 
 /**

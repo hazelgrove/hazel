@@ -288,6 +288,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Fun(_, _, _, _) |
         FixF(_) |
         TyAlias(_) |
+        Use(_) |
         Ap(_) |
         If(_) |
         Seq(_) |

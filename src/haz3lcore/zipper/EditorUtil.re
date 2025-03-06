@@ -70,6 +70,14 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
         ids: IdTagged.ids(e1),
       },
     };
+  | Use(t, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: Use(t, ebody'),
+      annotation: {
+        ids: IdTagged.ids(e1),
+      },
+    };
   };
 };
 

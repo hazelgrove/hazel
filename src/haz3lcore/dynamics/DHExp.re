@@ -115,6 +115,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | MultiHole(_)
           | Deferral(_)
           | TyAlias(_)
+          | Use(_)
           | DeferredAp(_)
           | Parens(_)
           | Probe(_)

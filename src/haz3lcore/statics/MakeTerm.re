@@ -298,6 +298,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             }),
             r,
           )
+        | (["use", "in"], [Typ(ty)]) => Use(ty, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
