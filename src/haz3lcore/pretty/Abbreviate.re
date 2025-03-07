@@ -246,35 +246,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
 
     // Binary operations
     | BinOp(op, e1, e2) =>
-      let op_str =
-        switch (op) {
-        | Int(Plus) => " + "
-        | Int(Minus) => " - "
-        | Int(Times) => " * "
-        | Int(Divide) => " / "
-        | Int(Equals) => " == "
-        | Int(LessThan) => " < "
-        | Int(GreaterThan) => " > "
-        | Int(LessThanOrEqual) => " <= "
-        | Int(GreaterThanOrEqual) => " >= "
-        | Int(NotEquals) => " != "
-        | Int(Power) => " ** "
-        | Bool(And) => " && "
-        | Bool(Or) => " || "
-        | Float(Plus) => " + "
-        | Float(Minus) => " - "
-        | Float(Times) => " * "
-        | Float(Divide) => " / "
-        | Float(Equals) => " == "
-        | Float(LessThan) => " < "
-        | Float(GreaterThan) => " > "
-        | Float(LessThanOrEqual) => " <= "
-        | Float(GreaterThanOrEqual) => " >= "
-        | Float(NotEquals) => " != "
-        | Float(Power) => " ** "
-        | String(Concat) => " @ "
-        | String(Equals) => " == "
-        };
+      let op_str = Operators.bin_op_to_string(op);
+
       if (available^ <= String.length(op_str)) {
         indet_term;
       } else {
@@ -793,35 +766,35 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
   let term: Typ.term =
     switch (typ |> Typ.term_of) {
     | Unknown(prov) => Unknown(prov)
-    | Int =>
+    | CONST_RENAMET(Int) =>
       if (available^ < 3) {
         indet_term_typ;
       } else {
-        Int;
+        CONST_RENAMET(Int);
       }
-    | Nat =>
+    | CONST_RENAMET(Nat) =>
       if (available^ < 3) {
         indet_term_typ;
       } else {
-        Nat;
+        CONST_RENAMET(Nat);
       }
-    | Float =>
+    | CONST_RENAMET(Float) =>
       if (available^ < 5) {
         indet_term_typ;
       } else {
-        Float;
+        CONST_RENAMET(Float);
       }
-    | Bool =>
+    | CONST_RENAMET(Bool) =>
       if (available^ < 4) {
         indet_term_typ;
       } else {
-        Bool;
+        CONST_RENAMET(Bool);
       }
-    | String =>
+    | CONST_RENAMET(String) =>
       if (available^ < 6) {
         indet_term_typ;
       } else {
-        String;
+        CONST_RENAMET(String);
       }
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))

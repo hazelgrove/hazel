@@ -164,14 +164,14 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
         List.init(List.length(tys), _ => ",") |> String.concat(" ");
       List.map(restrategize(" )" ++ commas), exp_aps(ty))
       @ List.map(restrategize(commas), exp_refs(ty));
-    | Bool =>
+    | CONST_RENAMET(Bool) =>
       /* TODO: Find a UI to make these less confusing */
-      exp_refs(Int |> Typ.fresh)
-      @ exp_refs(Float |> Typ.fresh)
-      @ exp_refs(String |> Typ.fresh)
-      @ exp_aps(Int |> Typ.fresh)
-      @ exp_aps(Float |> Typ.fresh)
-      @ exp_aps(String |> Typ.fresh)
+      exp_refs(CONST_RENAMET(Int) |> Typ.fresh)
+      @ exp_refs(CONST_RENAMET(Float) |> Typ.fresh)
+      @ exp_refs(CONST_RENAMET(String) |> Typ.fresh)
+      @ exp_aps(CONST_RENAMET(Int) |> Typ.fresh)
+      @ exp_aps(CONST_RENAMET(Float) |> Typ.fresh)
+      @ exp_aps(CONST_RENAMET(String) |> Typ.fresh)
     | _ => []
     };
   | InfoPat({ana, co_ctx, _}) =>

@@ -181,19 +181,19 @@ let test_ap_of_hole_deferral = () =>
         Tuple([
           Cast(
             CONST_RENAMEME(Float(1.)) |> Exp.fresh,
-            Float |> Typ.fresh,
+            CONST_RENAMET(Float) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
           |> Exp.fresh,
           Cast(
             CONST_RENAMEME(Bool(true)) |> Exp.fresh,
-            Bool |> Typ.fresh,
+            CONST_RENAMET(Bool) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
           |> Exp.fresh,
           Cast(
             CONST_RENAMEME(Int(3)) |> Exp.fresh,
-            Int |> Typ.fresh,
+            CONST_RENAMET(Int) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
           |> Exp.fresh,
@@ -246,7 +246,7 @@ let test_ap_of_hole_deferral = () =>
           Deferral(InAp) |> Exp.fresh,
           Cast(
             CONST_RENAMEME(Int(3)) |> Exp.fresh,
-            Int |> Typ.fresh,
+            CONST_RENAMET(Int) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
           |> Exp.fresh,
@@ -256,13 +256,13 @@ let test_ap_of_hole_deferral = () =>
       Tuple([
         Cast(
           CONST_RENAMEME(Float(1.)) |> Exp.fresh,
-          Float |> Typ.fresh,
+          CONST_RENAMET(Float) |> Typ.fresh,
           Unknown(Internal) |> Typ.fresh,
         )
         |> Exp.fresh,
         Cast(
           CONST_RENAMEME(Bool(true)) |> Exp.fresh,
-          Bool |> Typ.fresh,
+          CONST_RENAMET(Bool) |> Typ.fresh,
           Unknown(Internal) |> Typ.fresh,
         )
         |> Exp.fresh,
@@ -283,13 +283,13 @@ let test_multi_arg_builtin_cast = () =>
         Tuple([
           Cast(
             CONST_RENAMEME(String("Hello")) |> Exp.fresh,
-            String |> Typ.fresh,
+            CONST_RENAMET(String) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
           |> Exp.fresh,
           Cast(
             CONST_RENAMEME(String("World")) |> Exp.fresh,
-            String |> Typ.fresh,
+            CONST_RENAMET(String) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
           |> Exp.fresh,
@@ -300,7 +300,7 @@ let test_multi_arg_builtin_cast = () =>
           Unknown(Internal) |> Typ.fresh,
         ])
         |> Typ.fresh,
-        Prod([String |> Typ.fresh, String |> Typ.fresh]) |> Typ.fresh,
+        Prod([CONST_RENAMET(String) |> Typ.fresh, CONST_RENAMET(String) |> Typ.fresh]) |> Typ.fresh,
       )
       |> Exp.fresh,
     )
@@ -401,7 +401,7 @@ let test_typfun_application = () =>
           None,
         )
         |> Exp.fresh,
-        Int |> Typ.fresh,
+        CONST_RENAMET(Int) |> Typ.fresh,
       )
       |> Exp.fresh,
       CONST_RENAMEME(Int(2)) |> Exp.fresh,
@@ -639,7 +639,7 @@ in fn("hello")|},
                     Parens(
                       npt(
                         Prod([
-                          npt(TupLabel(npt(Label("l")), npt(String))),
+                          npt(TupLabel(npt(Label("l")), npt(CONST_RENAMET(String)))),
                         ]),
                       ),
                     ),
@@ -698,7 +698,7 @@ in fn("hello")|},
               npt(
                 Parens(
                   npt(
-                    Prod([npt(TupLabel(npt(Label("l")), npt(String)))]),
+                    Prod([npt(TupLabel(npt(Label("l")), npt(CONST_RENAMET(String))))]),
                   ),
                 ),
               ),
@@ -754,7 +754,7 @@ in fn("hello")|},
                     Parens(
                       npt(
                         Prod([
-                          npt(TupLabel(npt(Label("l")), npt(String))),
+                          npt(TupLabel(npt(Label("l")), npt(CONST_RENAMET(String)))),
                         ]),
                       ),
                     ),

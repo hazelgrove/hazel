@@ -117,12 +117,13 @@ module Ctr = {
           (cons_ctr, [Prod([elt_ty, ty]) |> Typ.temp]),
         ]),
       )
-    | Bool => Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))
+    | CONST_RENAMET(Bool) =>
+      Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))
     | Unknown(_) => Unknown
-    | Int // technically int, float and nat are finite, but ya know
-    | Float
-    | Nat
-    | String
+    | CONST_RENAMET(Int) // technically int, float and nat are finite, but ya know
+    | CONST_RENAMET(Float)
+    | CONST_RENAMET(Nat)
+    | CONST_RENAMET(String)
     | Arrow(_)
     | Forall(_)
     | Var(_) => Infinite

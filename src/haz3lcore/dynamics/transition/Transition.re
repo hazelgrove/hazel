@@ -63,10 +63,7 @@ type step_kind =
   | BuiltinWrap
   | BuiltinAp(string)
   | UnOp(Operators.op_un)
-  | BinBoolOp(Operators.op_bin_bool)
-  | BinIntOp(Operators.op_bin_int)
-  | BinFloatOp(Operators.op_bin_float)
-  | BinStringOp(Operators.op_bin_string)
+  | BinOp(Operators.op_bin)
   | Dot
   | Conditional(bool)
   | Projection
@@ -532,7 +529,7 @@ module Transition = (EV: EV_MODE) => {
       Step({
         expr: b1 ? d2 : bool(false),
         state_update,
-        kind: BinBoolOp(And),
+        kind: BinOp(Bool(And)),
         is_value: false,
       });
     | BinOp(Bool(Or), d1, d2) =>
@@ -548,120 +545,42 @@ module Transition = (EV: EV_MODE) => {
       Step({
         expr: b1 ? bool(true) : d2,
         state_update,
-        kind: BinBoolOp(Or),
+        kind: BinOp(Bool(Or)),
         is_value: false,
       });
-    | BinOp(Int(op), d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => BinOp(Int(op), d1, d2) |> rewrap)
-      and. d1' =
+    | BinOp(op, d1, d2) =>
+      let. _ = otherwise(env, (d1, d2) => BinOp(op, d1, d2) |> rewrap)
+      and. d1 =
+        req_final(req(state, env), d1 => BinOp1(op, d1, d2) |> wrap_ctx, d1)
+      and. d2 =
         req_final(
           req(state, env),
-          d1 => BinOp1(Int(op), d1, d2) |> wrap_ctx,
-          d1,
-        )
-      and. d2' =
-        req_final(
-          req(state, env),
-          d2 => BinOp2(Int(op), d1, d2) |> wrap_ctx,
+          d2 => BinOp2(op, d1, d2) |> wrap_ctx,
           d2,
         );
-      let-unbox n1 = (CONST_RENAMEME(Int), d1');
-      let-unbox n2 = (CONST_RENAMEME(Int), d2');
-      Step({
-        expr:
-          switch (op) {
-          | Plus => int(n1 + n2)
-          | Minus => int(n1 - n2)
-          | Power when n2 < 0 =>
-            dynamic_error_hole(
-              BinOp(Int(op), d1', d2') |> rewrap,
-              NegativeExponent,
-            )
-          | Power => int(IntUtil.ipow(n1, n2))
-          | Times => int(n1 * n2)
-          | Divide when n2 == 0 =>
-            dynamic_error_hole(
-              BinOp(Int(op), d1', d2') |> rewrap,
-              DivideByZero,
-            )
-          | Divide => int(n1 / n2)
-          | LessThan => bool(n1 < n2)
-          | LessThanOrEqual => bool(n1 <= n2)
-          | GreaterThan => bool(n1 > n2)
-          | GreaterThanOrEqual => bool(n1 >= n2)
-          | Equals => bool(n1 == n2)
-          | NotEquals => bool(n1 != n2)
-          },
-
-        state_update,
-        kind: BinIntOp(op),
-        // False so that InvalidOperations are caught and made indet by the next step
-        is_value: false,
-      });
-    | BinOp(Float(op), d1, d2) =>
-      let. _ =
-        otherwise(env, (d1, d2) => BinOp(Float(op), d1, d2) |> rewrap)
-      and. d1' =
-        req_final(
-          req(state, env),
-          d1 => BinOp1(Float(op), d1, d2) |> wrap_ctx,
-          d1,
-        )
-      and. d2' =
-        req_final(
-          req(state, env),
-          d2 => BinOp2(Float(op), d1, d2) |> wrap_ctx,
-          d2,
-        );
-      let-unbox n1 = (CONST_RENAMEME(Float), d1');
-      let-unbox n2 = (CONST_RENAMEME(Float), d2');
-      Step({
-        expr:
-          switch (op) {
-          | Plus => float(n1 +. n2)
-          | Minus => float(n1 -. n2)
-          | Power => float(n1 ** n2)
-          | Times => float(n1 *. n2)
-          | Divide => float(n1 /. n2)
-          | LessThan => bool(n1 < n2)
-          | LessThanOrEqual => bool(n1 <= n2)
-          | GreaterThan => bool(n1 > n2)
-          | GreaterThanOrEqual => bool(n1 >= n2)
-          | Equals => bool(n1 == n2)
-          | NotEquals => bool(n1 != n2)
-          },
-
-        state_update,
-        kind: BinFloatOp(op),
-        is_value: true,
-      });
-    | BinOp(String(op), d1, d2) =>
-      let. _ =
-        otherwise(env, (d1, d2) => BinOp(String(op), d1, d2) |> rewrap)
-      and. d1' =
-        req_final(
-          req(state, env),
-          d1 => BinOp1(String(op), d1, d2) |> wrap_ctx,
-          d1,
-        )
-      and. d2' =
-        req_final(
-          req(state, env),
-          d2 => BinOp2(String(op), d1, d2) |> wrap_ctx,
-          d2,
-        );
-      let-unbox s1 = (CONST_RENAMEME(String), d1');
-      let-unbox s2 = (CONST_RENAMEME(String), d2');
-      Step({
-        expr:
-          switch (op) {
-          | Concat => string(s1 ++ s2)
-          | Equals => bool(s1 == s2)
-          },
-        state_update,
-        kind: BinStringOp(op),
-        is_value: true,
-      });
+      // Operator semantics are defined in Operators.re
+      switch (Operators.semantics_of_bin_op(op)) {
+      | Undefined => Indet
+      | Defined(in_ty1, in_ty2, out_ty, f) =>
+        let-unbox n1 = (CONST_RENAMEME(in_ty1), d1);
+        let-unbox n2 = (CONST_RENAMEME(in_ty2), d2);
+        let expr =
+          switch (f(n1, n2)) {
+          | Either.L(return_value) =>
+            // operator was successful
+            CONST_RENAMEME(CONST_RENAMEMO.repack(out_ty, return_value))
+            |> Exp.fresh
+          | Either.R(error) =>
+            // e.g. divide by zero
+            dynamic_error_hole(BinOp(op, d1, d2) |> rewrap, error)
+          };
+        Step({
+          expr,
+          state_update,
+          kind: BinOp(op),
+          is_value: true,
+        });
+      };
     | Dot(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Dot(d1, d2) |> rewrap)
       and. d1' =
@@ -925,10 +844,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | FunAp
   | DeferredAp
   | BuiltinAp(_)
-  | BinBoolOp(_)
-  | BinIntOp(_)
-  | BinFloatOp(_)
-  | BinStringOp(_)
+  | BinOp(_)
   | Dot
   | UnOp(_)
   | ListCons
@@ -963,16 +879,21 @@ let stepper_justification: step_kind => string =
   | BuiltinWrap => "wrap builtin"
   | BuiltinAp(s) => "evaluate " ++ s
   | UnOp(Int(Minus))
-  | BinIntOp(Plus | Minus | Times | Power | Divide)
-  | BinFloatOp(Plus | Minus | Times | Power | Divide) => "arithmetic"
-  | BinIntOp(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual)
-  | BinFloatOp(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual) => "comparison"
-  | BinIntOp(Equals | NotEquals)
-  | BinFloatOp(Equals | NotEquals)
-  | BinStringOp(Equals) => "check equality"
-  | BinStringOp(Concat) => "string manipulation"
+  | BinOp(Nat(Plus | Minus | Times | Power | Divide))
+  | BinOp(Float(Plus | Minus | Times | Power | Divide))
+  | BinOp(Int(Plus | Minus | Times | Power | Divide)) => "arithmetic"
+  | BinOp(Nat(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual))
+  | BinOp(Int(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual))
+  | BinOp(
+      Float(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual),
+    ) => "comparison"
+  | BinOp(Nat(Equals | NotEquals))
+  | BinOp(Int(Equals | NotEquals))
+  | BinOp(Float(Equals | NotEquals))
+  | BinOp(String(Equals)) => "check equality"
+  | BinOp(String(Concat)) => "string manipulation"
   | UnOp(Bool(Not))
-  | BinBoolOp(_) => "boolean logic"
+  | BinOp(Bool(_)) => "boolean logic"
   | Conditional(_) => "conditional"
   | ListCons => "list manipulation"
   | ListConcat => "list manipulation"

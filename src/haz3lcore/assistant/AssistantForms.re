@@ -14,11 +14,11 @@ module Typ = {
   let unk: Typ.t = Unknown(Internal) |> Typ.fresh;
 
   let of_const_mono_delim: list((Token.t, Typ.t)) = [
-    ("true", Bool |> Typ.fresh),
-    ("false", Bool |> Typ.fresh),
+    ("true", CONST_RENAMET(Bool) |> Typ.fresh),
+    ("false", CONST_RENAMET(Bool) |> Typ.fresh),
     //("[]", List(unk)), / *NOTE: would need to refactor buffer for this to show up */
     //("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
-    ("\"\"", String |> Typ.fresh), /* NOTE: Irrelevent as second quote appears automatically */
+    ("\"\"", CONST_RENAMET(String) |> Typ.fresh), /* NOTE: Irrelevent as second quote appears automatically */
     ("_", unk),
   ];
 
@@ -41,34 +41,34 @@ module Typ = {
     //("::", List(unk)), /* annoying in patterns. TODO: add codepath to show only if Ana(List(_)) */
     ("@", List(unk)),
     (";", Unknown(Internal)),
-    ("&&", Bool),
-    ("\\/", Bool),
-    ("||", Bool),
-    ("$==", Bool),
-    ("==.", Bool),
-    ("==", Bool),
-    ("!", Bool),
-    //("!=", Bool), /* annoying as != is more common */
-    //("!=.", Bool), /* annoying as != is more common */
-    ("<", Bool),
-    (">", Bool),
-    ("<=", Bool),
-    (">=", Bool),
-    ("<.", Bool),
-    (">.", Bool),
-    ("<=.", Bool),
-    (">=.", Bool),
-    ("+", Int),
-    ("-", Int),
-    ("*", Int),
-    ("/", Int),
-    ("**", Int),
-    ("+.", Float),
-    ("-.", Float),
-    ("*.", Float),
-    ("/.", Float),
-    ("**.", Float),
-    ("++", String),
+    ("&&", CONST_RENAMET(Bool)),
+    ("\\/", CONST_RENAMET(Bool)),
+    ("||", CONST_RENAMET(Bool)),
+    ("$==", CONST_RENAMET(Bool)),
+    ("==.", CONST_RENAMET(Bool)),
+    ("==", CONST_RENAMET(Bool)),
+    ("!", CONST_RENAMET(Bool)),
+    //("!=", CONST_RENAMET(Bool)), /* annoying as != is more common */
+    //("!=.", CONST_RENAMET(Bool)), /* annoying as != is more common */
+    ("<", CONST_RENAMET(Bool)),
+    (">", CONST_RENAMET(Bool)),
+    ("<=", CONST_RENAMET(Bool)),
+    (">=", CONST_RENAMET(Bool)),
+    ("<.", CONST_RENAMET(Bool)),
+    (">.", CONST_RENAMET(Bool)),
+    ("<=.", CONST_RENAMET(Bool)),
+    (">=.", CONST_RENAMET(Bool)),
+    ("+", CONST_RENAMET(Int)),
+    ("-", CONST_RENAMET(Int)),
+    ("*", CONST_RENAMET(Int)),
+    ("/", CONST_RENAMET(Int)),
+    ("**", CONST_RENAMET(Int)),
+    ("+.", CONST_RENAMET(Float)),
+    ("-.", CONST_RENAMET(Float)),
+    ("*.", CONST_RENAMET(Float)),
+    ("/.", CONST_RENAMET(Float)),
+    ("**.", CONST_RENAMET(Float)),
+    ("++", CONST_RENAMET(String)),
   ];
 
   let expected: Info.t => Typ.t =

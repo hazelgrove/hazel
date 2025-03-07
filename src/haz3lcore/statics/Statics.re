@@ -118,52 +118,20 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
 
 let syn = Unknown(SynSwitch) |> Typ.temp;
 
-let typ_exp_binop_bin_int: Operators.op_bin_int => Typ.t =
-  fun
-  | (Plus | Minus | Times | Power | Divide) as _op => Int |> Typ.temp
-  | (
-      LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals |
-      NotEquals
-    ) as _op =>
-    Bool |> Typ.temp;
-
-let typ_exp_binop_bin_float: Operators.op_bin_float => Typ.t =
-  fun
-  | (Plus | Minus | Times | Power | Divide) as _op => Float |> Typ.temp
-  | (
-      LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals |
-      NotEquals
-    ) as _op =>
-    Bool |> Typ.temp;
-
-let typ_exp_binop_bin_string: Operators.op_bin_string => Typ.t =
-  fun
-  | Concat => String |> Typ.temp
-  | Equals => Bool |> Typ.temp;
-
-let typ_exp_binop: Operators.op_bin => (Typ.t, Typ.t, Typ.t) =
-  fun
-  | Bool(And | Or) => (Bool |> Typ.temp, Bool |> Typ.temp, Bool |> Typ.temp)
-  | Int(op) => (Int |> Typ.temp, Int |> Typ.temp, typ_exp_binop_bin_int(op))
-  | Float(op) => (
-      Float |> Typ.temp,
-      Float |> Typ.temp,
-      typ_exp_binop_bin_float(op),
-    )
-  | String(op) => (
-      String |> Typ.temp,
-      String |> Typ.temp,
-      typ_exp_binop_bin_string(op),
-    );
-
 let typ_exp_unop: Operators.op_un => (Typ.t, Typ.t) =
   fun
   | Meta(Unquote) => (
       Var("$Meta") |> Typ.temp,
       Unknown(Internal) |> Typ.temp,
     )
-  | Bool(Not) => (Bool |> Typ.temp, Bool |> Typ.temp)
-  | Int(Minus) => (Int |> Typ.temp, Int |> Typ.temp);
+  | Bool(Not) => (
+      CONST_RENAMET(Bool) |> Typ.temp,
+      CONST_RENAMET(Bool) |> Typ.temp,
+    )
+  | Int(Minus) => (
+      CONST_RENAMET(Int) |> Typ.temp,
+      CONST_RENAMET(Int) |> Typ.temp,
+    );
 
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, Map.t) =>
@@ -366,11 +334,16 @@ and uexp_to_info_map =
     | Deferral(position) =>
       add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
     | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
-    | CONST_RENAMEME(Bool(_)) => atomic(Just(Bool |> Typ.temp))
-    | CONST_RENAMEME(Int(_)) => atomic(Just(Int |> Typ.temp))
-    | CONST_RENAMEME(Float(_)) => atomic(Just(Float |> Typ.temp))
-    | CONST_RENAMEME(String(_)) => atomic(Just(String |> Typ.temp))
-    | CONST_RENAMEME(Nat(_)) => atomic(Just(Nat |> Typ.temp))
+    | CONST_RENAMEME(Bool(_)) =>
+      atomic(Just(CONST_RENAMET(Bool) |> Typ.temp))
+    | CONST_RENAMEME(Int(_)) =>
+      atomic(Just(CONST_RENAMET(Int) |> Typ.temp))
+    | CONST_RENAMEME(Float(_)) =>
+      atomic(Just(CONST_RENAMET(Float) |> Typ.temp))
+    | CONST_RENAMEME(String(_)) =>
+      atomic(Just(CONST_RENAMET(String) |> Typ.temp))
+    | CONST_RENAMEME(Nat(_)) =>
+      atomic(Just(CONST_RENAMET(Nat) |> Typ.temp))
     | ListLit(es) =>
       let ids = List.map(Exp.rep_id, es);
       let inner_ana_ty = Typ.matched_list(ctx, ana);
@@ -436,14 +409,29 @@ and uexp_to_info_map =
       let (e, m) = go(~ana=ty_in, e, m);
       add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
     | BinOp(op, e1, e2) =>
-      let (ty1, ty2, ty_out) = typ_exp_binop(op);
-      let (e1, m) = go(~ana=ty1, e1, m);
-      let (e2, m) = go(~ana=ty2, e2, m);
-      add(
-        ~self=Just(ty_out),
-        ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
-        m,
-      );
+      let op_semantics = Operators.semantics_of_bin_op(op);
+      switch (op_semantics) {
+      | Undefined =>
+        let (_e1, m) = go(~mode=Syn, e1, m);
+        let (_e2, m) = go(~mode=Syn, e2, m);
+        add(
+          ~self=BadToken(Operators.bin_op_to_string(op)),
+          ~co_ctx=CoCtx.empty,
+          m,
+        );
+      | Defined(ty1, ty2, ty_out, _) =>
+        let ty1 = CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(ty1)) |> Typ.temp;
+        let ty2 = CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(ty2)) |> Typ.temp;
+        let ty_out =
+          CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(ty_out)) |> Typ.temp;
+        let (e1, m) = go(~ana=ty1, e1, m);
+        let (e2, m) = go(~ana=ty2, e2, m);
+        add(
+          ~self=Just(ty_out),
+          ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
+          m,
+        );
+      };
     | Tuple(es) =>
       let expected_labels =
         switch (Typ.weak_head_normalize(ctx, ana).term) {
@@ -687,7 +675,7 @@ and uexp_to_info_map =
       | _ => add(~self=WantTuple, ~co_ctx=info_e2.co_ctx, m)
       };
     | Test(e) =>
-      let (e, m) = go(~ana=Bool |> Typ.temp, e, m);
+      let (e, m) = go(~mode=Ana(CONST_RENAMET(Bool) |> Typ.temp), e, m);
       add(~self=Just(Prod([]) |> Typ.temp), ~co_ctx=e.co_ctx, m);
     | Filter(Filter({pat: cond, _}), body) =>
       let (cond, m) =
@@ -927,9 +915,10 @@ and uexp_to_info_map =
       );
     | If(e0, e1, e2) =>
       let branch_ids = List.map(Exp.rep_id, [e1, e2]);
-      let (cond, m) = go(~ana=Bool |> Typ.temp, e0, m);
-      let (cons, m) = go(~ana, e1, m);
-      let (alt, m) = go(~ana, e2, m);
+      let (cond, m) =
+        go(~mode=Ana(CONST_RENAMET(Bool) |> Typ.temp), e0, m);
+      let (cons, m) = go(~mode, e1, m);
+      let (alt, m) = go(~mode, e2, m);
       add(
         ~self=Self.match(ctx, [cons.ty, alt.ty], branch_ids),
         ~co_ctx=CoCtx.union([cond.co_ctx, cons.co_ctx, alt.co_ctx]),
@@ -1073,10 +1062,10 @@ and uexp_to_info_map =
       };
     | Use(typ, body) =>
       let (typ, m) = utyp_to_info_map(~ctx, ~ancestors, typ, m);
-      let use_mode: option(UseMode.t) =
+      let use_mode: option(Operators.mode) =
         switch (typ.term |> Typ.weak_head_normalize(ctx) |> Typ.term_of) {
-        | Nat => Some(Nat)
-        | Int => Some(Int)
+        | CONST_RENAMET(Nat) => Some(Nat)
+        | CONST_RENAMET(Int) => Some(Int)
         | _ => None
         };
       let ctx' =
@@ -1278,21 +1267,33 @@ and upat_to_info_map =
       add(~self=IsMulti, ~ctx, ~constraint_=Coverage.Constraint.Hole, m);
     | Invalid(token) => hole(BadToken(token))
     | EmptyHole => hole(Just(unknown))
+    | CONST_RENAMEME(Nat(nat)) =>
+      atomic(
+        Just(CONST_RENAMET(Nat) |> Typ.temp),
+        Coverage.Constraint.Nat(nat),
+      )
     | CONST_RENAMEME(Int(int)) =>
-      atomic(Just(Int |> Typ.temp), Coverage.Constraint.Int(int))
+      atomic(
+        Just(CONST_RENAMET(Int) |> Typ.temp),
+        Coverage.Constraint.Int(int),
+      )
     | CONST_RENAMEME(Float(float)) =>
-      atomic(Just(Float |> Typ.temp), Coverage.Constraint.Float(float))
+      atomic(
+        Just(CONST_RENAMET(Float) |> Typ.temp),
+        Coverage.Constraint.Float(float),
+      )
     | Tuple([]) =>
       atomic(Just(Prod([]) |> Typ.temp), Coverage.Constraint.Tuple([]))
     | CONST_RENAMEME(Bool(bool)) =>
       atomic(
-        Just(Bool |> Typ.temp),
+        Just(CONST_RENAMET(Bool) |> Typ.temp),
         bool ? Coverage.Constraint.true_ : Coverage.Constraint.false_,
       )
     | CONST_RENAMEME(String(string)) =>
-      atomic(Just(String |> Typ.temp), Coverage.Constraint.String(string))
-    | CONST_RENAMEME(Nat(nat)) =>
-      atomic(Just(Nat |> Typ.temp), Coverage.Constraint.Nat(nat))
+      atomic(
+        Just(CONST_RENAMET(String) |> Typ.temp),
+        Coverage.Constraint.String(string),
+      )
     | ListLit(ps) =>
       let ids = List.map(Pat.rep_id, ps);
       let mode = Typ.matched_list(ctx, ana);
@@ -1633,11 +1634,7 @@ and utyp_to_info_map =
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
     add(m);
   | Unknown(_)
-  | Int
-  | Nat
-  | Float
-  | Bool
-  | String => add(m)
+  | CONST_RENAMET(_) => add(m)
   | Var(_) =>
     /* Names are resolved in Info.status_typ */
     add(m)

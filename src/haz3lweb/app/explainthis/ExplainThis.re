@@ -1931,22 +1931,33 @@ let get_doc =
         open OpExp;
         let (group, coloring_ids) =
           switch (op) {
+          | Nat(Plus)
           | Int(Plus) => (int_plus, int_plus_exp_coloring_ids)
+          | Nat(Minus)
           | Int(Minus) => (int_minus, int_minus_exp_coloring_ids)
+          | Nat(Times)
           | Int(Times) => (int_times, int_times_exp_coloring_ids)
+          | Nat(Power)
           | Int(Power) => (int_power, int_power_exp_coloring_ids)
+          | Nat(Divide)
           | Int(Divide) => (int_divide, int_divide_exp_coloring_ids)
+          | Nat(LessThan)
           | Int(LessThan) => (int_less_than, int_lt_exp_coloring_ids)
+          | Nat(LessThanOrEqual)
           | Int(LessThanOrEqual) => (
               int_less_than_equal,
               int_lte_exp_coloring_ids,
             )
+          | Nat(GreaterThan)
           | Int(GreaterThan) => (int_greater_than, int_gt_exp_coloring_ids)
+          | Nat(GreaterThanOrEqual)
           | Int(GreaterThanOrEqual) => (
               int_greater_than_equal,
               int_gte_exp_coloring_ids,
             )
+          | Nat(Equals)
           | Int(Equals) => (int_equal, int_eq_exp_coloring_ids)
+          | Nat(NotEquals)
           | Int(NotEquals) => (int_not_equal, int_neq_exp_coloring_ids)
           | Float(Plus) => (float_plus, float_plus_exp_coloring_ids)
           | Float(Minus) => (float_minus, float_minus_exp_coloring_ids)
@@ -2268,11 +2279,11 @@ let get_doc =
     | Unknown(Internal)
     | Unknown(Hole(EmptyHole)) => get_message(HoleTyp.empty_hole)
     | Unknown(Hole(MultiHole(_))) => get_message(HoleTyp.multi_hole)
-    | Int => get_message(TerminalTyp.int)
-    | Float => get_message(TerminalTyp.float)
-    | Bool => get_message(TerminalTyp.bool)
-    | String => get_message(TerminalTyp.str)
-    | Nat => get_message(TerminalTyp.nat)
+    | CONST_RENAMET(Int) => get_message(TerminalTyp.int)
+    | CONST_RENAMET(Float) => get_message(TerminalTyp.float)
+    | CONST_RENAMET(Bool) => get_message(TerminalTyp.bool)
+    | CONST_RENAMET(String) => get_message(TerminalTyp.str)
+    | CONST_RENAMET(Nat) => get_message(TerminalTyp.nat)
     | List(elem) =>
       let elem_id = List.nth(IdTagged.ids(elem), 0);
       get_message(

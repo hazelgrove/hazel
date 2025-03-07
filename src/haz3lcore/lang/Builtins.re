@@ -235,67 +235,127 @@ module Pervasives = {
   let builtins =
     Fresh.Typ.(
       VarMap.empty
-      |> const("infinity", Float, infinity)
-      |> const("neg_infinity", Float, neg_infinity)
-      |> const("nan", Float, nan)
-      |> const("epsilon_float", Float, epsilon_float)
-      |> const("pi", Float, pi)
-      |> const("max_int", Int, max_int)
-      |> const("min_int", Int, min_int)
-      |> fn("is_finite", Float, Bool, is_finite)
-      |> fn("is_infinite", Float, Bool, is_infinite)
-      |> fn("is_nan", Float, Bool, is_nan)
-      |> fn("int_of_float", Float, Int, int_of_float)
-      |> fn("float_of_int", Int, Float, float_of_int)
-      |> fn("string_of_int", Int, String, string_of_int)
-      |> fn("string_of_float", Float, String, string_of_float)
-      |> fn("string_of_bool", Bool, String, string_of_bool)
-      |> fn("int_of_string", String, Int, int_of_string("int_of_string"))
+      |> const("infinity", CONST_RENAMET(Float), infinity)
+      |> const("neg_infinity", CONST_RENAMET(Float), neg_infinity)
+      |> const("nan", CONST_RENAMET(Float), nan)
+      |> const("epsilon_float", CONST_RENAMET(Float), epsilon_float)
+      |> const("pi", CONST_RENAMET(Float), pi)
+      |> const("max_int", CONST_RENAMET(Int), max_int)
+      |> const("min_int", CONST_RENAMET(Int), min_int)
+      |> fn(
+           "is_finite",
+           CONST_RENAMET(Float),
+           CONST_RENAMET(Bool),
+           is_finite,
+         )
+      |> fn(
+           "is_infinite",
+           CONST_RENAMET(Float),
+           CONST_RENAMET(Bool),
+           is_infinite,
+         )
+      |> fn("is_nan", CONST_RENAMET(Float), CONST_RENAMET(Bool), is_nan)
+      |> fn(
+           "int_of_float",
+           CONST_RENAMET(Float),
+           CONST_RENAMET(Int),
+           int_of_float,
+         )
+      |> fn(
+           "float_of_int",
+           CONST_RENAMET(Int),
+           CONST_RENAMET(Float),
+           float_of_int,
+         )
+      |> fn(
+           "string_of_int",
+           CONST_RENAMET(Int),
+           CONST_RENAMET(String),
+           string_of_int,
+         )
+      |> fn(
+           "string_of_float",
+           CONST_RENAMET(Float),
+           CONST_RENAMET(String),
+           string_of_float,
+         )
+      |> fn(
+           "string_of_bool",
+           CONST_RENAMET(Bool),
+           CONST_RENAMET(String),
+           string_of_bool,
+         )
+      |> fn(
+           "int_of_string",
+           CONST_RENAMET(String),
+           CONST_RENAMET(Int),
+           int_of_string("int_of_string"),
+         )
       |> fn(
            "float_of_string",
-           String,
-           Float,
+           CONST_RENAMET(String),
+           CONST_RENAMET(Float),
            float_of_string("float_of_string"),
          )
       |> fn(
            "bool_of_string",
-           String,
-           Bool,
+           CONST_RENAMET(String),
+           CONST_RENAMET(Bool),
            bool_of_string("bool_of_string"),
          )
-      |> fn("abs", Int, Int, abs)
-      |> fn("abs_float", Float, Float, abs_float)
-      |> fn("ceil", Float, Float, ceil)
-      |> fn("floor", Float, Float, floor)
-      |> fn("exp", Float, Float, exp)
-      |> fn("log", Float, Float, log)
-      |> fn("log10", Float, Float, log10)
-      |> fn("sqrt", Float, Float, sqrt)
-      |> fn("sin", Float, Float, sin)
-      |> fn("cos", Float, Float, cos)
-      |> fn("tan", Float, Float, tan)
-      |> fn("asin", Float, Float, asin)
-      |> fn("acos", Float, Float, acos)
-      |> fn("atan", Float, Float, atan)
-      |> fn("mod", Prod([int(), int()]), Int, int_mod("mod"))
-      |> fn("string_length", String, Int, string_length)
+      |> fn("abs", CONST_RENAMET(Int), CONST_RENAMET(Int), abs)
+      |> fn(
+           "abs_float",
+           CONST_RENAMET(Float),
+           CONST_RENAMET(Float),
+           abs_float,
+         )
+      |> fn("ceil", CONST_RENAMET(Float), CONST_RENAMET(Float), ceil)
+      |> fn("floor", CONST_RENAMET(Float), CONST_RENAMET(Float), floor)
+      |> fn("exp", CONST_RENAMET(Float), CONST_RENAMET(Float), exp)
+      |> fn("log", CONST_RENAMET(Float), CONST_RENAMET(Float), log)
+      |> fn("log10", CONST_RENAMET(Float), CONST_RENAMET(Float), log10)
+      |> fn("sqrt", CONST_RENAMET(Float), CONST_RENAMET(Float), sqrt)
+      |> fn("sin", CONST_RENAMET(Float), CONST_RENAMET(Float), sin)
+      |> fn("cos", CONST_RENAMET(Float), CONST_RENAMET(Float), cos)
+      |> fn("tan", CONST_RENAMET(Float), CONST_RENAMET(Float), tan)
+      |> fn("asin", CONST_RENAMET(Float), CONST_RENAMET(Float), asin)
+      |> fn("acos", CONST_RENAMET(Float), CONST_RENAMET(Float), acos)
+      |> fn("atan", CONST_RENAMET(Float), CONST_RENAMET(Float), atan)
+      |> fn(
+           "mod",
+           Prod([int(), int()]),
+           CONST_RENAMET(Int),
+           int_mod("mod"),
+         )
+      |> fn(
+           "string_length",
+           CONST_RENAMET(String),
+           CONST_RENAMET(Int),
+           string_length,
+         )
       |> fn(
            "string_compare",
            Prod([string(), string()]),
-           Int,
+           CONST_RENAMET(Int),
            string_compare,
          )
-      |> fn("string_trim", String, String, string_trim)
+      |> fn(
+           "string_trim",
+           CONST_RENAMET(String),
+           CONST_RENAMET(String),
+           string_trim,
+         )
       |> fn(
            "string_concat",
            Prod([string(), list(string())]),
-           String,
+           CONST_RENAMET(String),
            string_concat,
          )
       |> fn(
            "string_sub",
            Prod([string(), int(), int()]),
-           String,
+           CONST_RENAMET(String),
            string_sub("string_sub"),
          )
       |> fn(
@@ -319,7 +379,7 @@ let ctx_init: Ctx.t = {
       kind: Ctx.Singleton(Fresh.Typ.sum(meta_cons_map)),
     });
   Ctx.{
-    use_mode: UseMode.default,
+    use_mode: Operators.default_mode,
     entries:
       List.map(
         fun
