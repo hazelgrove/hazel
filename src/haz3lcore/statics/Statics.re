@@ -662,6 +662,33 @@ and uexp_to_info_map =
           )
         | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
         };
+      | List({term: Prod(ts), _}) =>
+        let labels =
+          List.filter_map(Typ.match_tup_label, ts) |> List.map(fst);
+
+        switch (e2.term) {
+        | Label(name) =>
+          let element: option(Typ.t) =
+            LabeledTuple.find_label(Typ.match_tup_label, ts, name);
+          switch (element) {
+          | Some({term: TupLabel(_, typ), _})
+          | Some(typ) =>
+            add(
+              ~self=Just(List(typ) |> Typ.fresh),
+              ~co_ctx=info_e2.co_ctx,
+              m,
+            )
+          | None =>
+            add(~self=LabelNotFound(name, labels), ~co_ctx=info_e2.co_ctx, m)
+          };
+        | EmptyHole =>
+          add(
+            ~self=Just(Unknown(Internal) |> Typ.temp),
+            ~co_ctx=info_e2.co_ctx,
+            m,
+          )
+        | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
+        };
       | _ => add(~self=WantTuple, ~co_ctx=info_e2.co_ctx, m)
       };
     | Test(e) =>

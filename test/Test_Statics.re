@@ -1015,6 +1015,11 @@ end
         |},
         Some(int()),
       ),
+      fully_consistent_typecheck(
+        "Projection from list of labeled tuples",
+        {|[(a=1, b=false), (a=2, b=true)].a|},
+        Some(list(int())),
+      ),
     ]
   ),
 );
