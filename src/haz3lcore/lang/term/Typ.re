@@ -370,8 +370,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Label(_), _)
   | (Var(_), _)
   | (Ap(_), _)
-  | (Rec(_), _)
-  | (Forall(_), _) => t1
+  | (Rec(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -391,6 +390,9 @@ let rec match_synswitch = (t1: t, t2: t) => {
       ConstructorMap.match_synswitch(match_synswitch, equal, sm1, sm2);
     Sum(sm') |> rewrap1;
   | (Sum(_), _) => t1
+  // HACK[Matt]: The only possible forall is `Forall Syn -> Syn`
+  | (Forall(_), Forall(_)) => t2
+  | (Forall(_), _) => t1
   };
 };
 
@@ -455,7 +457,13 @@ let rec matched_arrow_strict = (ctx, ty) =>
   | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
   | Unknown(SynSwitch) =>
     Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
-  | _ => None
+  | _ =>
+    print_endline("matched_arrow_strict: None");
+    print_endline(
+      "term_of(weak_head_normalize(ctx, ty)): "
+      ++ show_term(term_of(weak_head_normalize(ctx, ty))),
+    );
+    None;
   };
 
 let matched_arrow = (ctx, ty) =>
@@ -469,7 +477,7 @@ let rec matched_forall_strict = (ctx, ty) =>
   | Parens(ty) => matched_forall_strict(ctx, ty)
   | Forall(t, ty) => Some((Some(t), ty))
   | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
-  | _ => None // (None, Unknown(Internal) |> temp)
+  | _ => None
   };
 
 let matched_forall = (ctx, ty) =>
@@ -540,14 +548,20 @@ let matched_list = (ctx, ty) =>
   matched_list_strict(ctx, ty)
   |> Option.value(~default=Unknown(Internal) |> temp);
 
-let rec matched_args = (ctx, default_arity, ty) => {
-  let ty' = weak_head_normalize(ctx, ty);
-  switch (term_of(ty')) {
-  | Parens(ty) => matched_args(ctx, default_arity, ty)
-  | Prod([_, ..._] as tys) => tys
-  | Unknown(_) => List.init(default_arity, _ => ty')
-  | _ => [ty']
+let rec matched_args_strict = (ctx, ty, arity) => {
+  switch (term_of(weak_head_normalize(ctx, ty))) {
+  | Parens(ty) => matched_args_strict(ctx, ty, arity)
+  | Prod(tys) when List.length(tys) == arity => Some(tys)
+  | _ when arity == 1 => Some([ty])
+  | Unknown(SynSwitch) =>
+    Some(List.init(arity, _ => Unknown(SynSwitch) |> temp))
+  | _ => None
   };
+};
+
+let matched_args = (ctx, ty, arity) => {
+  matched_args_strict(ctx, ty, arity)
+  |> Option.value(~default=List.init(arity, _ => Unknown(Internal) |> temp));
 };
 
 let matched_label = (ctx, ty): option((t, t)) =>

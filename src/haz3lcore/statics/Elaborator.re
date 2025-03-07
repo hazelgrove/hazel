@@ -69,7 +69,7 @@ let elaborated_type =
 
 let elaborated_pat_type =
     (m: Statics.Map.t, upat: Pat.t): (Typ.t, Ctx.t, Pat.t) => {
-  let (ana_ty, _self_ty, ctx, prev_synswitch, term, label_inference) =
+  let (ana_ty, self_ty, ctx, prev_synswitch, term, label_inference) =
     switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
     | Some(
         Info.InfoPat({
@@ -93,7 +93,7 @@ let elaborated_pat_type =
     };
   let elab_ty =
     switch (prev_synswitch) {
-    | None => ana_ty
+    | None => Typ.match_synswitch(self_ty, ana_ty)
     | Some(syn_ty) =>
       // Autolabelling for singleton labeled tuples
       switch (label_inference) {
@@ -334,6 +334,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Fun(p, e, _, n) =>
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', tye) = elaborate(m, e);
+      print_endline("typ: " ++ Typ.show(typ));
+      print_endline("tye: " ++ Typ.show(tye));
       Fun(p', e', Some(typ), n)
       |> rewrap
       |> cast_from(Arrow(typ, tye) |> Typ.temp);

@@ -1,3 +1,4 @@
+open Util;
 /* STATICS.re
 
    This module determines the statics semantics of a program.
@@ -740,29 +741,42 @@ and uexp_to_info_map =
       | None => add(~self=Just(ty_body), ~co_ctx=fn.co_ctx, m) /* invalid name matches with no free type variables. */
       };
     | DeferredAp(fn, args) =>
-      let fn_ana = Arrow(Unknown(SynSwitch) |> Typ.temp, ana) |> Typ.temp;
+      let (ana_in, ana_out) = Typ.matched_arrow(ctx, ana);
+      let num_args = List.length(args);
+      let num_deferrals = ListUtil.count_pred(Exp.is_deferral, args);
+      let deferred_ins = Typ.matched_args(ctx, ana_in, num_deferrals); // possible static error: mismatched number of deferrals
+      let syn_tys =
+        List.map(
+          x =>
+            Exp.is_deferral(x)
+              ? None : Some(Unknown(SynSwitch) |> Typ.temp),
+          args,
+        );
+      let fn_ana =
+        Arrow(
+          Prod(ListUtil.fill_nones(syn_tys, deferred_ins)) |> Typ.temp,
+          ana_out,
+        )
+        |> Typ.temp;
       let (fn, m) = go(~ana=fn_ana, fn, m);
       let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
-      let num_args = List.length(args);
-      let ty_ins = Typ.matched_args(ctx, num_args, ty_in);
-      let self: Self.exp = Self.of_deferred_ap(args, ty_ins, ty_out);
-      let anas =
-        (
-          List.length(ty_ins) == num_args
-            ? ty_ins
-            : List.init(num_args, _ =>
-                (Unknown(Internal): Typ.term) |> Typ.temp
-              )
-        )
-        |> List.map(ty => ty);
-      let (args, m) = map_m_go(m, anas, args);
+      let ty_ins = Typ.matched_args(ctx, ty_in, num_args);
+      let (args, m) = map_m_go(m, ty_ins, args);
       let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
+      let self: Self.exp =
+        Self.of_deferred_ap(
+          args |> List.map((x: Info.exp) => x.term),
+          ty_ins,
+          ty_out,
+        );
       add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]), m);
     | Fun(p, e, typ, _) =>
       let (mode_pat, mode_body) = Typ.matched_arrow(ctx, ana);
       let mode_pat = Option.value(~default=mode_pat, typ);
+      print_endline("mode_pat: " ++ Typ.show(mode_pat));
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);
+      print_endline("ty_pat: " ++ Typ.show(p'.ty));
       let (e, m) = go'(~ctx=p'.ctx, ~ana=mode_body, e, m);
       /* add co_ctx to pattern */
       let (p, m) =
@@ -1498,7 +1512,7 @@ and upat_to_info_map =
       let (fn', m) = go(~ctx, ~ana=fn_ana, fn, m);
       let m = {
         switch (fn |> Pat.term_of) {
-        | Constructor(ctr, _) => m
+        | Constructor(_) => m
         | _ =>
           let info =
             Info.derived_pat(
