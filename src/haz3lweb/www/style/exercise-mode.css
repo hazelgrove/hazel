@@ -311,7 +311,7 @@
 }
 
 .drv-explainthis .deduction-test {
-  background-color: lightgrey;
+  background-color: var(--cell-active)
 }
 
 #explain-this .drv-explainthis-section.section {

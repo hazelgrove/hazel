@@ -569,7 +569,11 @@ module View = {
         ]
         @ [
           label_view(~pos, ~res, ~label, ~index=None),
-          result_btn_view(~res),
+          if (globals.settings.core.dynamics) {
+            result_btn_view(~res);
+          } else {
+            none;
+          },
         ],
       );
     };

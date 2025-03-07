@@ -27,6 +27,35 @@ let show_linked = ((spec, syntax): specced): string =>
 [@deriving (show({with_path: false}), sexp, yojson)]
 type map = [@opaque] Map.t(specced);
 
+module Formula = {
+  include Formula;
+  // let rec show_linked = (p, map: map, op) =>
+  //   switch (op) {
+  //   | Get(s) =>
+  //     switch (RuleSpec.Map.find_opt(s, map)) {
+  //     | Some(specced) => RuleSpec.show_linked(specced)
+  //     | None => s
+  //     }
+  //   | _ =>
+  //     op
+  //     |> repr(p)
+  //     |> Aba.join(Fun.id, show_linked(precedence(op), map))
+  //     |> String.concat("")
+  //   };
+  // let show_linked = (map: map, test: t) =>
+  //   test
+  //   |> repr
+  //   |> (
+  //     ((labels, ops) as aba) =>
+  //       switch (test, ops) {
+  //       | (Eq(Get(_), _), [a, b]) => (labels, [a, b])
+  //       | _ => aba
+  //       }
+  //   )
+  //   |> Aba.join(Fun.id, Operation.show_linked(map))
+  //   |> String.concat("");
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type failure =
   | Mismatch(int, int) // expected, actual
@@ -67,34 +96,6 @@ let failure_msg = (failure: failure): string =>
   on unboxing and unification,
  */
 
-//   let rec show_linked = (p, map: RuleSpec.map, op) =>
-//     switch (op) {
-//     | Get(s) =>
-//       switch (RuleSpec.Map.find_opt(s, map)) {
-//       | Some(specced) => RuleSpec.show_linked(specced)
-//       | None => s
-//       }
-//     | _ =>
-//       op
-//       |> repr(p)
-//       |> Aba.join(Fun.id, show_linked(precedence(op), map))
-//       |> String.concat("")
-//     };
-
-// let show_linked = (map: RuleSpec.map, test: t) =>
-//   test
-//   |> repr
-//   |> (
-//     ((labels, ops) as aba) =>
-//       switch (test, ops) {
-//       | (Eq(Get(_), _), [a, b]) => (labels, [a, b])
-//       | _ => aba
-//       }
-//   )
-//   |> Aba.join(Fun.id, Operation.show_linked(map))
-//   |> String.concat("");
-
-exception NeverUsed;
 exception Unreachable;
 
 let rec go_spec: ((map, list(failure)), specced) => (map, list(failure)) =
@@ -121,11 +122,11 @@ let rec go_spec: ((map, list(failure)), specced) => (map, list(failure)) =
     switch (spec, syntax) {
     | (Exp(spec), Exp(syntax)) =>
       switch (Drv.Exp.term_of(spec), Drv.Exp.term_of(syntax)) {
-      | (Hole(_), _) => raise(NeverUsed)
-      | (Quote(_), _) => raise(NeverUsed)
+      | (Hole(_), _) => raise(Unreachable)
+      | (Quote(_), _) => raise(Unreachable)
       | (Var(s), _) => register(s)
-      | (Parens(_), _) => raise(NeverUsed)
-      | (Tuple(_), _) => raise(NeverUsed)
+      | (Parens(_), _) => raise(Unreachable)
+      | (Tuple(_), _) => raise(Unreachable)
       | (Val(sa), Val(a)) => info |> go_exp(sa, a)
       | (Val(_), _) => failunbox
       | (Eval(sa, sb), Eval(a, b)) =>
@@ -146,9 +147,9 @@ let rec go_spec: ((map, list(failure)), specced) => (map, list(failure)) =
       | (MatchedSum(sa, sb), MatchedSum(a, b)) =>
         info |> go_typ(sa, a) |> go_typ(sb, b)
       | (MatchedSum(_), _) => failunbox
-      | (Ctx(_), _) => raise(NeverUsed)
-      | (Cons(_), _) => raise(NeverUsed)
-      | (Concat(_), _) => raise(NeverUsed)
+      | (Ctx(_), _) => raise(Unreachable)
+      | (Cons(_), _) => raise(Unreachable)
+      | (Concat(_), _) => raise(Unreachable)
       | (Type(sa), Type(a)) => info |> go_typ(sa, a)
       | (Type(_), _) => failunbox
       | (HasType(sa, sb), HasType(a, b)) =>
@@ -169,7 +170,7 @@ let rec go_spec: ((map, list(failure)), specced) => (map, list(failure)) =
       | (Truth, _) => failunbox
       | (Falsity, Falsity) => info
       | (Falsity, _) => failunbox
-      | (NumLit(_), _) => raise(NeverUsed)
+      | (NumLit(_), _) => raise(Unreachable)
       | (Neg(sa), Neg(a)) => info |> go_exp(sa, a)
       | (Neg(_), _) => failunbox
       | (BinOp(sop, sa, sb), BinOp(op, a, b)) when sop == op =>
@@ -222,10 +223,10 @@ let rec go_spec: ((map, list(failure)), specced) => (map, list(failure)) =
     | (Exp(_), _) => raise(Unreachable)
     | (Pat(spec), Pat(syntax)) =>
       switch (Drv.Pat.term_of(spec), Drv.Pat.term_of(syntax)) {
-      | (Hole(_), _) => raise(NeverUsed)
-      | (Quote(_), _) => raise(NeverUsed)
+      | (Hole(_), _) => raise(Unreachable)
+      | (Quote(_), _) => raise(Unreachable)
       | (Var(s), _) => register(s)
-      | (Parens(_), _) => raise(NeverUsed)
+      | (Parens(_), _) => raise(Unreachable)
       | (Cast(sp, sa), Cast(p, a)) =>
         info |> go_pat(sp, p) |> go_typ(sa, a)
       | (Cast(_), _) => failunbox
@@ -240,10 +241,10 @@ let rec go_spec: ((map, list(failure)), specced) => (map, list(failure)) =
     | (Pat(_), _) => raise(Unreachable)
     | (Typ(spec), Typ(syntax)) =>
       switch (Drv.Typ.term_of(spec), Drv.Typ.term_of(syntax)) {
-      | (Hole(_), _) => raise(NeverUsed)
-      | (Quote(_), _) => raise(NeverUsed)
+      | (Hole(_), _) => raise(Unreachable)
+      | (Quote(_), _) => raise(Unreachable)
       | (Var(s), _) => register(s)
-      | (Parens(_), _) => raise(NeverUsed)
+      | (Parens(_), _) => raise(Unreachable)
       | (Num, Num) => info
       | (Num, _) => failunbox
       | (Bool, Bool) => info
@@ -267,8 +268,8 @@ let rec go_spec: ((map, list(failure)), specced) => (map, list(failure)) =
     | (Typ(_), _) => raise(Unreachable)
     | (TPat(spec), TPat(syntax)) =>
       switch (Drv.TPat.term_of(spec), Drv.TPat.term_of(syntax)) {
-      | (Hole(_), _) => raise(NeverUsed)
-      | (Quote(_), _) => raise(NeverUsed)
+      | (Hole(_), _) => raise(Unreachable)
+      | (Quote(_), _) => raise(Unreachable)
       | (Var(s), _) => register(s)
       }
     | (TPat(_), _) => raise(Unreachable)
@@ -516,17 +517,6 @@ type res = list(failure);
 
 let verify: (t, (Drv.Exp.t, list(Drv.Exp.t))) => res =
   ({concl, prems, tests}, (concl_syntax, prems_syntax)) => {
-    // We simply stick conclusion and premises together
-
-    // print_endline("Actual Conclusion:");
-    // print_endline(Drv.Exp.show(concl));
-    // print_endline("Actual Premises:");
-    // List.iter(prem => print_endline(Drv.Exp.show(prem)), prems);
-    // print_endline("Spec Conclusion:");
-    // print_endline(Drv.Exp.show(concl_spec));
-    // print_endline("Spec Premises:");
-    // List.iter(prem => print_endline(Drv.Exp.show(prem)), prems_spec);
-
     let rec go_specs = (xs, ys, acc) =>
       switch (xs, ys) {
       | ([x, ...xs], [y, ...ys]) =>

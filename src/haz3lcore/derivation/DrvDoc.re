@@ -23,7 +23,14 @@ let settings =
     show_filters: false,
   };
 
-let f_exp: exp_t => Segment.t = ExpToSegment.drv_exp_to_pretty(~settings);
+let f_jdmt: exp_t => Segment.t =
+  ExpToSegment.drv_exp_to_pretty(~settings, ~sort=Jdmt);
+let f_ctx: exp_t => Segment.t =
+  ExpToSegment.drv_exp_to_pretty(~settings, ~sort=Ctx);
+let f_prop: exp_t => Segment.t =
+  ExpToSegment.drv_exp_to_pretty(~settings, ~sort=Prop);
+let f_exp: exp_t => Segment.t =
+  ExpToSegment.drv_exp_to_pretty(~settings, ~sort=Exp);
 let f_pat: pat_t => Segment.t = ExpToSegment.drv_pat_to_pretty(~settings);
 let f_typ: typ_t => Segment.t = ExpToSegment.drv_typ_to_pretty(~settings);
 let f_tpat: tpat_t => Segment.t = ExpToSegment.drv_tpat_to_pretty(~settings);

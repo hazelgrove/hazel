@@ -176,7 +176,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
       switch (drv) {
       | Jdmt
       | Ctx
-      | Prop => failwith("unexpected drv sort (not used)")
+      | Prop
       | Exp => Exp(drv_exp(unsorted(skel, seg)))
       | Pat => Pat(drv_pat(unsorted(skel, seg)))
       | Typ => Typ(drv_typ(unsorted(skel, seg)))

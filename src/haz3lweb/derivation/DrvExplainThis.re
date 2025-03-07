@@ -74,16 +74,16 @@ let show =
              fold_cast_types: false,
              show_filters: false,
            },
+           ~sort=Jdmt,
          )
-      |> Zipper.unzip
-      |> Zipper.remold_regrout(Left, _, ~root=Drv(Exp)),
-      ~root=Drv(Exp),
+      |> Zipper.unzip,
+      ~root=Drv(Jdmt),
     );
-  let statics =
-    CachedStatics.init_from_term(
-      ~settings=CoreSettings.on,
-      DrvExp(Exp(syntax), Jdmt) |> Exp.fresh,
-    );
+  let statics = CachedStatics.empty;
+  // CachedStatics.init_from_term(
+  //   ~settings=CoreSettings.on,
+  //   DrvExp(Exp(syntax), Jdmt) |> Exp.fresh,
+  // );
   let highlight_deco = {
     module Deco =
       Deco.Deco({
@@ -96,8 +96,17 @@ let show =
   CodeWithStatics.View.view(
     ~globals,
     ~overlays=highlight_deco,
-    ~sort=Drv(Exp),
+    ~sort=Drv(Jdmt),
     {editor, statics},
+  );
+};
+
+let show_without_statics = (pretty: Segment.t, ~globals: Globals.t): Node.t => {
+  let editor = Editor.Model.mk(pretty |> Zipper.unzip, ~root=Drv(Jdmt));
+  CodeWithStatics.View.view(
+    ~globals,
+    ~sort=Drv(Jdmt),
+    {editor, statics: CachedStatics.empty},
   );
 };
 
@@ -183,9 +192,9 @@ let premises_view =
                   Attr.class_("drv-explainthis"),
                 ],
                 [
-                  Node.text(RuleSpec.show_test(test)),
-                  Node.text(
-                    String.concat("", List.init(3, _ => Unicode.nbsp)),
+                  show_without_statics(
+                    ExpToSegment.drv_formula_to_pretty(test, Jdmt),
+                    ~globals,
                   ),
                 ],
               ),
