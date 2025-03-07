@@ -2,13 +2,10 @@ open Alcotest;
 open Haz3lcore;
 let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
 
+let evaluate = unevaluated =>
+  unevaluated |> Evaluator.evaluate(~env=Builtins.env_init) |> fst;
 let evaluation_test = (msg, expected, unevaluated) =>
-  check(
-    dhexp_typ,
-    msg,
-    expected,
-    unevaluated |> Evaluator.evaluate(~env=Builtins.env_init) |> fst,
-  );
+  check(dhexp_typ, msg, expected, evaluate(unevaluated));
 
 let evaluate_probes = unevaluated =>
   unevaluated
@@ -782,7 +779,16 @@ in fn("hello")|},
       },
     ),
     test_case("Projection from list of labeled tuples", `Quick, () =>
-      parse_and_evaluate_test("[1, 2]", {|[(a=1, b=false), (a=2, b=true)].a|})
+      check(
+        dhexp_typ,
+        "[1, 2]",
+        parse_exp("[1, 2]"),
+        DHExp.strip_casts(
+          evaluate(
+            elaborate(parse_exp({|[(a=1, b=false), (a=2, b=true)].a|})),
+          ),
+        ),
+      )
     ),
   ],
 );
