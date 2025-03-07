@@ -781,5 +781,8 @@ in fn("hello")|},
         probe_test({|let PROBE(x) : (a=String) = "a" in x|}, uexp);
       },
     ),
+    test_case("Projection from list of labeled tuples", `Quick, () =>
+      parse_and_evaluate_test("[1, 2]", {|[(a=1, b=false), (a=2, b=true)].a|})
+    ),
   ],
 );

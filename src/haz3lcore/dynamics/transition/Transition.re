@@ -645,6 +645,16 @@ module Transition = (EV: EV_MODE) => {
               is_value: false,
             })
           : Indet
+      | (ListLit(ds), Label(_) as lab) =>
+        let mapped =
+          List.map(d => Dot(d, lab |> Exp.fresh) |> Exp.fresh, ds);
+        let ls = ListLit(mapped) |> Exp.fresh;
+        Step({
+          expr: ls,
+          state_update,
+          kind: Dot,
+          is_value: false,
+        });
       | _ => Indet
       };
     | TupLabel(label, d1) =>
