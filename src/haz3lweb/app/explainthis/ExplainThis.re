@@ -459,22 +459,28 @@ let get_doc_deduction =
       };
     switch (mode) {
     | MessageContent(inject, globals) =>
-      let (explanation, color_map) =
-        mk_explanation(
-          ~globals,
-          ~inject,
-          group.id,
-          doc.id,
-          explanation_msg,
-          docs,
-        );
+      let (explanation_title, (explanation, color_map)) =
+        if (globals.settings.core.dynamics) {
+          (
+            DrvExplainThis.mk_explanation_title(),
+            mk_explanation(
+              ~globals,
+              ~inject,
+              group.id,
+              doc.id,
+              explanation_msg,
+              docs,
+            ),
+          );
+        } else {
+          (none, (none, ColorSteps.empty));
+        };
       let rule_example_view =
         DrvExplainThis.rule_example_view(
           ~info=info_deduction,
           ~color_map,
           ~globals,
         );
-      let explanation_title = DrvExplainThis.mk_explanation_title();
       (
         [rule_example_view],
         ([explanation_title, explanation], color_map),
