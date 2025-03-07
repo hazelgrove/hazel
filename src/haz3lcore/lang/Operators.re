@@ -1,3 +1,14 @@
+open Util;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type mode =
+  | Nat
+  | Int;
+
+let default_mode = Int;
+
+/* ========== DEFINITIONS ========== */
+
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_un_bool =
   | Not;
@@ -57,6 +68,7 @@ type op_un =
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_bin =
   | Int(op_bin_int)
+  | Nat(op_bin_int)
   | Float(op_bin_float)
   | Bool(op_bin_bool)
   | String(op_bin_string);
@@ -66,7 +78,8 @@ type ap_direction =
   | Forward
   | Reverse;
 
-// Are these show function necessary?
+/* ========== PRINTING ========== */
+
 let show_op_un_meta: op_un_meta => string =
   fun
   | Unquote => "Un-quotation";
@@ -126,6 +139,7 @@ let show_op_bin_string: op_bin_string => string =
 let show_binop: op_bin => string =
   fun
   | Int(op) => show_op_bin_int(op)
+  | Nat(op) => show_op_bin_int(op)
   | Float(op) => show_op_bin_float(op)
   | Bool(op) => show_op_bin_bool(op)
   | String(op) => show_op_bin_string(op);
@@ -179,8 +193,97 @@ let string_op_to_string = (op: op_bin_string): string => {
 let bin_op_to_string = (op: op_bin): string => {
   switch (op) {
   | Int(op) => int_op_to_string(op)
+  | Nat(op) => int_op_to_string(op)
   | Float(op) => float_op_to_string(op)
   | Bool(op) => bool_op_to_string(op)
   | String(op) => string_op_to_string(op)
   };
 };
+
+/* ========== SEMANTICS ========== */
+
+type un_semantics =
+  | Fun(
+      CONST_RENAMEMO.kind('a),
+      CONST_RENAMEMO.kind('b),
+      'a => Either.t('b, InvalidOperationError.t),
+    )
+    : un_semantics
+  | Undefined;
+
+let just = (f, x) => Either.L(f(x));
+
+let semantics_of_un_op = (mode: mode, op: op_un_int): un_semantics =>
+  switch (mode, op) {
+  | (Int, Minus) => Fun(Int, Int, just((~-)))
+  | (Nat, Minus) => Undefined
+  };
+
+type bin_semantics =
+  | Defined(
+      CONST_RENAMEMO.kind('a),
+      CONST_RENAMEMO.kind('b),
+      CONST_RENAMEMO.kind('c),
+      ('a, 'b) => Either.t('c, InvalidOperationError.t),
+    )
+    : bin_semantics
+  | Undefined;
+
+let just = (f, x, y) => Either.L(f(x, y));
+let int_power = (x, y) =>
+  if (y < 0) {
+    Either.R(InvalidOperationError.NegativeExponent);
+  } else {
+    Either.L(IntUtil.ipow(x, y));
+  };
+let int_divide = (x, y) =>
+  if (y === 0) {
+    Either.R(InvalidOperationError.DivideByZero);
+  } else {
+    Either.L(x / y);
+  };
+
+let semantics_of_bin_op = (op: op_bin): bin_semantics =>
+  switch (op) {
+  | Int(Plus) => Defined(Int, Int, Int, just((+)))
+  | Int(Minus) => Defined(Int, Int, Int, just((-)))
+  | Int(Times) => Defined(Int, Int, Int, just(( * )))
+  | Int(Power) => Defined(Int, Int, Int, int_power)
+  | Int(Divide) => Defined(Int, Int, Int, int_divide)
+  | Int(LessThan) => Defined(Int, Int, Bool, just((<)))
+  | Int(LessThanOrEqual) => Defined(Int, Int, Bool, just((<=)))
+  | Int(GreaterThan) => Defined(Int, Int, Bool, just((>)))
+  | Int(GreaterThanOrEqual) => Defined(Int, Int, Bool, just((>=)))
+  | Int(Equals) => Defined(Int, Int, Bool, just((==)))
+  | Int(NotEquals) => Defined(Int, Int, Bool, just((!=)))
+
+  | Nat(Plus) => Defined(Nat, Nat, Nat, just((+)))
+  | Nat(Minus) => Undefined
+  | Nat(Times) => Defined(Nat, Nat, Nat, just(( * )))
+  | Nat(Power) => Defined(Nat, Nat, Nat, just(IntUtil.ipow))
+  | Nat(Divide) => Undefined
+  | Nat(LessThan) => Defined(Nat, Nat, Bool, just((<)))
+  | Nat(LessThanOrEqual) => Defined(Nat, Nat, Bool, just((<=)))
+  | Nat(GreaterThan) => Defined(Nat, Nat, Bool, just((>)))
+  | Nat(GreaterThanOrEqual) => Defined(Nat, Nat, Bool, just((>=)))
+  | Nat(Equals) => Defined(Nat, Nat, Bool, just((==)))
+  | Nat(NotEquals) => Defined(Nat, Nat, Bool, just((!=)))
+
+  | Float(Plus) => Defined(Float, Float, Float, just((+.)))
+  | Float(Minus) => Defined(Float, Float, Float, just((-.)))
+  | Float(Times) => Defined(Float, Float, Float, just(( *. )))
+  | Float(Power) => Defined(Float, Float, Float, just(( ** )))
+  | Float(Divide) => Defined(Float, Float, Float, just((/.)))
+  | Float(LessThan) => Defined(Float, Float, Bool, just((<)))
+  | Float(LessThanOrEqual) => Defined(Float, Float, Bool, just((<=)))
+  | Float(GreaterThan) => Defined(Float, Float, Bool, just((>)))
+  | Float(GreaterThanOrEqual) => Defined(Float, Float, Bool, just((>=)))
+  | Float(Equals) => Defined(Float, Float, Bool, just((==)))
+  | Float(NotEquals) => Defined(Float, Float, Bool, just((!=)))
+
+  | String(Concat) => Defined(String, String, String, just((++)))
+  | String(Equals) => Defined(String, String, Bool, just((==)))
+
+  | Bool(And) => Defined(Bool, Bool, Bool, just((&&))) // Note: booleans have extra short-cutting rules in transition
+  | Bool(Or) => Defined(Bool, Bool, Bool, just((||)))
+  };

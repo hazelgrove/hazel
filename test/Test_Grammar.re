@@ -129,11 +129,11 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
     Typ.(
       switch (cls_typ) {
       | Invalid => unknown(Hole(Invalid("invalid")))
-      | Int => int()
-      | Float => float()
-      | String => string()
-      | Bool => bool()
-      | Nat => nat()
+      | CONST_RENAMET(Bool) => bool()
+      | CONST_RENAMET(Int) => int()
+      | CONST_RENAMET(Float) => float()
+      | CONST_RENAMET(String) => string()
+      | CONST_RENAMET(Nat) => nat()
       | List => list(unknown(Hole(EmptyHole)))
       | Arrow => arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Var => var("x")

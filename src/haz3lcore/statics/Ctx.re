@@ -27,7 +27,7 @@ type entry =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  use_mode: UseMode.t,
+  use_mode: Operators.mode,
   entries: list(entry),
 };
 
@@ -152,7 +152,7 @@ let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t =
     @ ctx.entries,
 };
 
-let set_use_mode = (ctx: t, use_mode: UseMode.t): t => {
+let set_use_mode = (ctx: t, use_mode: Operators.mode): t => {
   ...ctx,
   use_mode,
 };
@@ -245,7 +245,7 @@ let shadows_typ = (ctx: t, name: string): bool =>
   Form.is_base_typ(name) || lookup_tvar(ctx, name) != None;
 
 let empty = {
-  use_mode: UseMode.default,
+  use_mode: Operators.default_mode,
   entries: [],
 };
 

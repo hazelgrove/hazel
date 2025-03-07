@@ -80,14 +80,14 @@ module PlainTests = {
       Int(Plus),
       FailedCast(
         CONST_RENAMEME(Bool(false)) |> Exp.fresh,
-        Bool |> Typ.fresh,
-        Int |> Typ.fresh,
+        CONST_RENAMET(Bool) |> Typ.fresh,
+        CONST_RENAMET(Int) |> Typ.fresh,
       )
       |> Exp.fresh,
       Cast(
         Var("y") |> Exp.fresh,
         Unknown(Internal) |> Typ.fresh,
-        Int |> Typ.fresh,
+        CONST_RENAMET(Int) |> Typ.fresh,
       )
       |> Exp.fresh,
     )
@@ -187,7 +187,7 @@ module PlainTests = {
           CONST_RENAMEME(Bool(true)) |> Pat.fresh,
           Cast(
             CONST_RENAMEME(Int(24)) |> Exp.fresh,
-            Int |> Typ.fresh,
+            CONST_RENAMET(Int) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
           |> Exp.fresh,
@@ -196,7 +196,7 @@ module PlainTests = {
           CONST_RENAMEME(Bool(false)) |> Pat.fresh,
           Cast(
             CONST_RENAMEME(Bool(false)) |> Exp.fresh,
-            Bool |> Typ.fresh,
+            CONST_RENAMET(Bool) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
           |> Exp.fresh,
@@ -216,7 +216,7 @@ module PlainTests = {
     Let(
       Cast(
         Var("f") |> Pat.fresh,
-        Arrow(Int |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
+        Arrow(CONST_RENAMET(Int) |> Typ.fresh, CONST_RENAMET(Int) |> Typ.fresh) |> Typ.fresh,
         Unknown(Internal) |> Typ.fresh,
       )
       |> Pat.fresh,
@@ -247,7 +247,7 @@ module PlainTests = {
           Var("x") |> Exp.fresh,
         )
         |> Exp.fresh,
-        Some(Int |> Typ.fresh),
+        Some(CONST_RENAMET(Int) |> Typ.fresh),
         Some("f"),
       )
       |> Exp.fresh,
@@ -361,18 +361,23 @@ module PlainTests = {
             Deferral(InAp) |> Exp.fresh,
             Cast(
               CONST_RENAMEME(Int(3)) |> Exp.fresh,
-              Int |> Typ.fresh,
+              CONST_RENAMET(Int) |> Typ.fresh,
               Unknown(Internal) |> Typ.fresh,
             )
             |> Exp.fresh,
           ],
         )
         |> Exp.fresh,
-        Cast(
-          Tuple([CONST_RENAMEME(Float(1.)) |> Exp.fresh, Bool(true) |> Exp.fresh])
+        Tuple([
+          Cast(
+            CONST_RENAMEME(Float(1.)) |> Exp.fresh,
+            CONST_RENAMET(Float) |> Typ.fresh,
+            Unknown(Internal) |> Typ.fresh,
+          )
           |> Exp.fresh,
-          Prod([Float |> Typ.fresh, CONST_RENAMEME(Bool |> Typ.fresh])) |> Typ.fresh,
-          Prod([
+          Cast(
+            CONST_RENAMEME(Bool(true)) |> Exp.fresh,
+            CONST_RENAMET(Bool) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           ])
@@ -426,13 +431,13 @@ module PlainTests = {
           Var("add") |> Pat.fresh,
           Parens(
             Prod([
-              TupLabel(Label("street") |> Typ.fresh, String |> Typ.fresh)
+              TupLabel(Label("street") |> Typ.fresh, CONST_RENAMET(String) |> Typ.fresh)
               |> Typ.fresh,
-              TupLabel(Label("city") |> Typ.fresh, String |> Typ.fresh)
+              TupLabel(Label("city") |> Typ.fresh, CONST_RENAMET(String) |> Typ.fresh)
               |> Typ.fresh,
-              TupLabel(Label("state") |> Typ.fresh, String |> Typ.fresh)
+              TupLabel(Label("state") |> Typ.fresh, CONST_RENAMET(String) |> Typ.fresh)
               |> Typ.fresh,
-              TupLabel(Label("zipcode") |> Typ.fresh, Int |> Typ.fresh)
+              TupLabel(Label("zipcode") |> Typ.fresh, CONST_RENAMET(Int) |> Typ.fresh)
               |> Typ.fresh,
             ])
             |> Typ.fresh,
@@ -546,12 +551,12 @@ module PlainTests = {
           Var("val") |> Pat.fresh,
           Parens(
             Prod([
-              TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
+              TupLabel(Label("a") |> Typ.fresh, CONST_RENAMET(Int) |> Typ.fresh)
               |> Typ.fresh,
-              TupLabel(Label("b") |> Typ.fresh, String |> Typ.fresh)
+              TupLabel(Label("b") |> Typ.fresh, CONST_RENAMET(String) |> Typ.fresh)
               |> Typ.fresh,
-              Float |> Typ.fresh,
-              TupLabel(Label("c") |> Typ.fresh, Bool |> Typ.fresh)
+              CONST_RENAMET(Float) |> Typ.fresh,
+              TupLabel(Label("c") |> Typ.fresh, CONST_RENAMET(Bool) |> Typ.fresh)
               |> Typ.fresh,
             ])
             |> Typ.fresh,
@@ -667,7 +672,7 @@ module PlainTests = {
               Var("x") |> Pat.fresh,
               Parens(
                 Prod([
-                  TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
+                  TupLabel(Label("l") |> Typ.fresh, CONST_RENAMET(String) |> Typ.fresh)
                   |> Typ.fresh,
                 ])
                 |> Typ.fresh,
@@ -745,7 +750,7 @@ module PlainTests = {
             Var("x") |> Exp.fresh,
             Some(
               Prod([
-                TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
+                TupLabel(Label("a") |> Typ.fresh, CONST_RENAMET(Int) |> Typ.fresh)
                 |> Typ.fresh,
               ])
               |> Typ.fresh,
@@ -783,7 +788,7 @@ module PlainTests = {
             Var("x") |> Exp.fresh,
             Some(
               Prod([
-                TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
+                TupLabel(Label("a") |> Typ.fresh, CONST_RENAMET(Int) |> Typ.fresh)
                 |> Typ.fresh,
               ])
               |> Typ.fresh,
@@ -814,8 +819,8 @@ module PlainTests = {
               Label("c") |> Exp.fresh,
               FailedCast(
                 CONST_RENAMEME(Int(1)) |> Exp.fresh,
-                Int |> Typ.fresh,
-                String |> Typ.fresh,
+                CONST_RENAMET(Int) |> Typ.fresh,
+                CONST_RENAMET(String) |> Typ.fresh,
               )
               |> Exp.fresh,
             )
@@ -1123,7 +1128,7 @@ module MenhirElaborationTests = {
         None,
       )
       |> Exp.fresh,
-      Int |> Typ.fresh,
+      CONST_RENAMET(Int) |> Typ.fresh,
     )
     |> Exp.fresh;
   let typ_ap_menhir = () =>
@@ -1133,8 +1138,8 @@ module MenhirElaborationTests = {
   let failed_cast_uexp: Exp.t =
     FailedCast(
       CONST_RENAMEME(Int(1)) |> Exp.fresh,
-      Int |> Typ.fresh,
-      String |> Typ.fresh,
+      CONST_RENAMET(Int) |> Typ.fresh,
+      CONST_RENAMET(String) |> Typ.fresh,
     )
     |> Exp.fresh;
   let failed_cast_menhir = () =>
@@ -1268,7 +1273,7 @@ x
     term:
       TyAlias(
         Var("x") |> TPat.fresh,
-        Int |> Typ.fresh,
+        CONST_RENAMET(Int) |> Typ.fresh,
         Var("x") |> Exp.fresh,
       ),
     annotation: {

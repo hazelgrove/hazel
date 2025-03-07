@@ -604,11 +604,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(
         switch (tile) {
         | ([t], []) when Form.is_empty_tuple(t) => Prod([])
-        | (["Bool"], []) => Bool
-        | (["Int"], []) => Int
-        | (["Float"], []) => Float
-        | (["String"], []) => String
-        | (["Nat"], []) => Nat
+        | (["Bool"], []) => CONST_RENAMET(Bool)
+        | (["Int"], []) => CONST_RENAMET(Int)
+        | (["Float"], []) => CONST_RENAMET(Float)
+        | (["String"], []) => CONST_RENAMET(String)
+        | (["Nat"], []) => CONST_RENAMET(Nat)
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term

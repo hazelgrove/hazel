@@ -57,6 +57,7 @@ module Operators = {
 
   let of_core_op_bin = (op: op_bin): AST.bin_op => {
     switch (op) {
+    | Nat(op_int)
     | Int(op_int) =>
       IntOp(
         switch (op_int) {
@@ -452,11 +453,11 @@ and Typ: {
   };
   let rec of_core = (typ: IndicatedG.typ): AST.typ => {
     switch (typ.term) {
-    | Int => IntType
-    | Float => FloatType
-    | String => StringType
-    | Bool => BoolType
-    | Nat => NatType
+    | CONST_RENAMET(Int) => IntType
+    | CONST_RENAMET(Float) => FloatType
+    | CONST_RENAMET(String) => StringType
+    | CONST_RENAMET(Bool) => BoolType
+    | CONST_RENAMET(Nat) => NatType
     | Var(x) => TypVar(x)
     | Prod(ts) => TupleType(List.map(of_core, ts))
     | List(t) => ArrayType(of_core(t))

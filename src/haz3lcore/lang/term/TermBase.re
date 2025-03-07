@@ -586,11 +586,7 @@ and Typ: {
         | Unknown(Hole(Invalid(_)))
         | Unknown(SynSwitch)
         | Unknown(Internal)
-        | Bool
-        | Int
-        | Float
-        | String
-        | Nat
+        | CONST_RENAMET(_)
         | Label(_)
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
@@ -625,12 +621,8 @@ and Typ: {
     | Some(str) =>
       let (term, rewrap) = Grammar.Annotated.unwrap(ty);
       switch (term) {
-      | Int => (Int: typ_term) |> rewrap
-      | Float => Float |> rewrap
-      | Bool => Bool |> rewrap
-      | String => String |> rewrap
-      | Nat => Nat |> rewrap
-      | Label(name) => Label(name) |> rewrap
+      | CONST_RENAMET(_) => ty
+      | Label(name) => Grammar.Label(name) |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
@@ -687,16 +679,8 @@ and Typ: {
       }
     | (Rec(_), _) => false
     | (Forall(_), _) => false
-    | (Nat, Nat) => true
-    | (Nat, _) => false
-    | (Int, Int) => true
-    | (Int, _) => false
-    | (Float, Float) => true
-    | (Float, _) => false
-    | (Bool, Bool) => true
-    | (Bool, _) => false
-    | (String, String) => true
-    | (String, _) => false
+    | (CONST_RENAMET(name1), CONST_RENAMET(name2)) => name1 == name2
+    | (CONST_RENAMET(_), _) => false
     | (Label(name1), Label(name2)) =>
       LabeledTuple.match_labels(name1, name2)
     | (Label(_), _) => false

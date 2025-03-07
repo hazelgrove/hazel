@@ -115,11 +115,7 @@ and pat_term('a) =
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
-  | Int
-  | Float
-  | Bool
-  | String
-  | Nat
+  | CONST_RENAMET(CONST_RENAMEMO.cls)
   | Var(string)
   | List(typ_t('a))
   | Arrow(typ_t('a), typ_t('a))
@@ -341,11 +337,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
       term:
         switch (term) {
         | Unknown(p) => Unknown(map_type_provenance_annotation(f, p))
-        | Int => Int
-        | Float => Float
-        | Bool => Bool
-        | String => String
-        | Nat => Nat
+        | CONST_RENAMET(c) => CONST_RENAMET(c)
         | Var(s) => Var(s)
         | List(t) => List(map_typ_annotation(f, t))
         | Arrow(t1, t2) =>
@@ -731,23 +723,23 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let int = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Int,
+      term: CONST_RENAMET(Int),
       annotation: default_annotation(ann),
     };
     let float = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Float,
+      term: CONST_RENAMET(Float),
       annotation: default_annotation(ann),
     };
     let bool = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Bool,
+      term: CONST_RENAMET(Bool),
       annotation: default_annotation(ann),
     };
     let string = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: String,
+      term: CONST_RENAMET(String),
       annotation: default_annotation(ann),
     };
     let nat = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Nat,
+      term: CONST_RENAMET(Nat),
       annotation: default_annotation(ann),
     };
     let var = (~ann=?, s): typ_t(DefaultAnnotation.t) => {

@@ -120,11 +120,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
   | Var(_)
-  | Int
-  | Float
-  | Bool
-  | String
-  | Nat
+  | CONST_RENAMET(_)
   | Label(_)
   | TupLabel(_) => Precedence.max
 
@@ -469,11 +465,7 @@ and parenthesize_typ =
   | Unknown(Internal)
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
-  | Int
-  | Float
-  | Bool
-  | String
-  | Nat => typ
+  | CONST_RENAMET(_) => typ
 
   // Other forms
   | Parens(t) =>
@@ -1270,11 +1262,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     );
 
   | Var(v) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v)
-  | Int => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
-  | Float => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float")
-  | Bool => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool")
-  | String => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "String")
-  | Nat => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Nat")
+  | CONST_RENAMET(Int) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
+  | CONST_RENAMET(Float) =>
+    text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float")
+  | CONST_RENAMET(Bool) =>
+    text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool")
+  | CONST_RENAMET(String) =>
+    text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "String")
+  | CONST_RENAMET(Nat) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Nat")
   | List(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);

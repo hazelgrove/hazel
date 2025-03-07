@@ -77,6 +77,15 @@ let unpack = (type a, e: t): wrapper =>
   | String(s) => V(s, String)
   };
 
+let repack = (type a, kind: kind(a), x: a): t =>
+  switch (kind) {
+  | Int => Int(x)
+  | Nat => Nat(x)
+  | Float => Float(x)
+  | Bool => Bool(x)
+  | String => String(x)
+  };
+
 /* ========== CONVERSION ========== */
 
 let to_literal = (e: t): string =>

@@ -121,7 +121,7 @@ let tests = (
               Cast(
                 ListLit([]) |> Pat.fresh,
                 Sum([Variant("Jg", [], None)]) |> Typ.fresh,
-                Float |> Typ.fresh,
+                CONST_RENAMET(Float) |> Typ.fresh,
               )
               |> Pat.fresh,
               EmptyHole |> Exp.fresh,
@@ -350,7 +350,7 @@ let tests = (
               TyAlias(
                 Var("x") |> TPat.fresh,
                 Arrow(
-                  Arrow(Int |> Typ.fresh, Bool |> Typ.fresh) |> Typ.fresh,
+                  Arrow(CONST_RENAMET(Int) |> Typ.fresh, CONST_RENAMET(Bool) |> Typ.fresh) |> Typ.fresh,
                   Var("x") |> Typ.fresh,
                 )
                 |> Typ.fresh,
