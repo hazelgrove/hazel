@@ -51,7 +51,8 @@ module Model = {
     current_chats,
     chat_history,
     llm: OpenRouter.chat_models,
-    show_history: bool // TODO: Move this to AssistantSettings.re
+    show_history: bool, // TODO: Move this to AssistantSettings.re
+    show_api_key: bool,
   };
 
   let init_simple_chat = {
@@ -103,6 +104,7 @@ module Model = {
     },
     llm: Gemini_Flash_Lite_2_0,
     show_history: false,
+    show_api_key: false,
   };
 };
 
@@ -130,7 +132,8 @@ module Update = {
     | RemoveAndSuggest(string, Id.t)
     | Resuggest(string, Id.t)
     | Describe(string, AssistantSettings.mode, Id.t)
-    | SwitchChat(Id.t);
+    | SwitchChat(Id.t)
+    | ToggleAPIVisibility;
 
   let code_message_of_str =
       (response: string, party: Model.party, tileId: option(Id.t))
@@ -244,14 +247,17 @@ module Update = {
         model: Model.t,
         message: Model.message,
         chat_id: Id.t,
+        ~is_final: bool,
       ) => {
     let (past_chats, _) = get_mode_info(mode, model);
     let chat_to_update = Id.Map.find(chat_id, past_chats);
     let messages = {
       switch (message.party) {
       | LS => chat_to_update.messages @ [message, await_llm_response]
-      | LLM => ListUtil.leading(chat_to_update.messages) @ [message]
-      | System => ListUtil.leading(chat_to_update.messages) @ [message]
+      | LLM =>
+        let messages = ListUtil.leading(chat_to_update.messages) @ [message];
+        is_final ? messages : messages @ [await_llm_response];
+      | System => chat_to_update.messages @ [message]
       };
     };
     Model.{
@@ -370,7 +376,8 @@ module Update = {
         switch (OpenRouter.handle_chat(req)) {
         | Some({content, _}) =>
           schedule_action(Describe(content, mode, chat.id))
-        | None => print_endline("Assistant: response parse failed")
+        | None =>
+          print_endline("Assistant: response parse failed (form_descriptor)")
         }
       );
     };
@@ -499,6 +506,7 @@ module Update = {
             collapsed: false,
           },
           curr_chat.id,
+          ~is_final=true,
         )
         |> Updated.return_quiet
       | Some(prompt) =>
@@ -516,10 +524,19 @@ module Update = {
                   curr_chat.id,
                 ),
               )
-            | None => print_endline("Assistant: response parse failed")
+            | None =>
+              print_endline(
+                "Assistant: response parse failed (SendTextMessage)",
+              )
             }
           );
-          add_message_to_model(mode, model, message, curr_chat.id)
+          add_message_to_model(
+            mode,
+            model,
+            message,
+            curr_chat.id,
+            ~is_final=true,
+          )
           |> Updated.return_quiet;
         | None =>
           add_message_to_model(
@@ -532,6 +549,7 @@ module Update = {
               collapsed: false,
             },
             curr_chat.id,
+            ~is_final=true,
           )
           |> Updated.return_quiet
         };
@@ -572,7 +590,7 @@ module Update = {
       {...model, show_history: !model.show_history} |> Updated.return_quiet
     | Respond(message, mode, chat_id) =>
       check_descriptor(~model, ~schedule_action, ~message, ~mode, ~chat_id);
-      add_message_to_model(mode, model, message, chat_id)
+      add_message_to_model(mode, model, message, chat_id, ~is_final=true)
       |> Updated.return_quiet;
     | SendSketchMessage(tileId, mode) =>
       // Capture the chat we're updating here. This will propogate.
@@ -645,10 +663,19 @@ module Update = {
                   curr_chat.id,
                 ),
               );
-            | None => print_endline("Assistant: response parse failed")
+            | None =>
+              print_endline(
+                "Assistant: response parse failed (SendSketchMessage)",
+              )
             }
           );
-          add_message_to_model(mode, model, message, curr_chat.id)
+          add_message_to_model(
+            mode,
+            model,
+            message,
+            curr_chat.id,
+            ~is_final=true,
+          )
           |> Updated.return_quiet;
         | None =>
           add_message_to_model(
@@ -661,32 +688,71 @@ module Update = {
               collapsed: false,
             },
             curr_chat.id,
+            ~is_final=true,
           )
           |> Updated.return_quiet
         };
       };
     | ErrorRespond(response, ci, fuel, tileId, mode, chat_id) =>
-      switch (ChatLSP.Prompt.mk_error(ci, response)) {
+      // Split response into discussion and completion
+      let code_pattern =
+        Str.regexp(
+          "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
+        );
+      let (discussion, completion) =
+        if (Str.string_match(code_pattern, response, 0)) {
+          let before = String.trim(Str.matched_group(1, response));
+          let code = String.trim(Str.matched_group(3, response));
+          (before, code);
+        } else {
+          print_endline("Regex match failed for: " ++ response);
+          ("", response); // Fallback if no code block found
+        };
+      print_endline("Response: " ++ response);
+      print_endline("Discussion: " ++ discussion);
+      print_endline("Completion: " ++ completion);
+      // First add the discussion message
+      let discussion_message = text_message_of_str(discussion, LLM);
+      let model_with_discussion =
+        add_message_to_model(
+          mode,
+          model,
+          discussion_message,
+          chat_id,
+          ~is_final=false,
+        );
+
+      // Then handle the completion as before
+      let completion_message =
+        code_message_of_str(completion, LLM, Some(tileId));
+      switch (ChatLSP.Prompt.mk_error(ci, completion)) {
       | None =>
-        // No error, all good. Concat and return suggestion.
-        print_endline("ERROR ROUNDS (Non-error Response): " ++ response);
-        let message = code_message_of_str(response, LLM, Some(tileId));
-        check_descriptor(~model, ~schedule_action, ~message, ~mode, ~chat_id);
-        schedule_action(RemoveAndSuggest(response, tileId));
-        add_message_to_model(mode, model, message, chat_id)
-        |> Updated.return_quiet;
+        print_endline("ERROR ROUNDS (Non-error Response): " ++ completion);
+        check_descriptor(
+          ~model,
+          ~schedule_action,
+          ~message=completion_message,
+          ~mode,
+          ~chat_id,
+        );
+        schedule_action(RemoveAndSuggest(completion, tileId));
       | Some(error) =>
-        // There is some error, so perform an error round
         print_endline("ERROR ROUNDS (Error): " ++ error);
-        print_endline("ERROR ROUNDS (Error-causing Response): " ++ response);
-        let message = code_message_of_str(response, LLM, None);
+        print_endline(
+          "ERROR ROUNDS (Error-causing Response): " ++ completion,
+        );
         schedule_action(
           SendErrorMessage(error, ci, fuel - 1, tileId, mode, chat_id),
         );
-        add_message_to_model(mode, model, message, chat_id)
-        |> Updated.return_quiet;
-      }
-
+      };
+      add_message_to_model(
+        mode,
+        model_with_discussion,
+        completion_message,
+        chat_id,
+        ~is_final=true,
+      )
+      |> Updated.return_quiet;
     | SendErrorMessage(error, ci, fuel, tileId, mode, chat_id) =>
       let error_message =
         text_message_of_str(
@@ -696,19 +762,29 @@ module Update = {
         );
       // check that fuel is not 0
       if (fuel < 0) {
-        let content =
-          "By default we stop the assistant after "
-          ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
-          ++ " error rounds.";
-        let message: Model.message = {
-          party: System,
-          code: None,
-          content,
-          collapsed: false,
-        };
-        check_descriptor(~model, ~schedule_action, ~message, ~mode, ~chat_id);
-        let model = add_message_to_model(mode, model, error_message, chat_id);
-        add_message_to_model(mode, model, message, chat_id)
+        let model =
+          add_message_to_model(
+            mode,
+            model,
+            error_message,
+            chat_id,
+            ~is_final=true,
+          );
+        add_message_to_model(
+          mode,
+          model,
+          {
+            party: System,
+            code: None,
+            content:
+              "By default we stop the assistant after "
+              ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
+              ++ " error rounds. Thus, stopping.",
+            collapsed: false,
+          },
+          chat_id,
+          ~is_final=true,
+        )
         |> Updated.return_quiet;
       } else {
         // TODO: We don't want to collect ENTIRE chat history here. We only want
@@ -729,6 +805,7 @@ module Update = {
               collapsed: false,
             },
             chat_id,
+            ~is_final=true,
           )
           |> Updated.return_quiet
         | Some(openrouter_prompt) =>
@@ -746,10 +823,19 @@ module Update = {
                 schedule_action(
                   ErrorRespond(content, ci, fuel, tileId, mode, curr_chat.id),
                 )
-              | None => print_endline("Assistant: response parse failed")
+              | None =>
+                print_endline(
+                  "Assistant: response parse failed (SendErrorMessage)",
+                )
               }
             );
-            add_message_to_model(mode, model, error_message, chat_id)
+            add_message_to_model(
+              mode,
+              model,
+              error_message,
+              chat_id,
+              ~is_final=true,
+            )
             |> Updated.return_quiet;
           | None =>
             add_message_to_model(
@@ -762,6 +848,7 @@ module Update = {
                 collapsed: false,
               },
               chat_id,
+              ~is_final=true,
             )
             |> Updated.return_quiet
           };
@@ -823,6 +910,8 @@ module Update = {
       let mode = settings.assistant.mode;
       let (past_chats, _) = get_mode_info(mode, model);
       resculpt_model(mode, model, past_chats, chat_id) |> Updated.return_quiet;
+    | ToggleAPIVisibility =>
+      {...model, show_api_key: !model.show_api_key} |> Updated.return_quiet
     };
   };
 };

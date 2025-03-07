@@ -6,6 +6,7 @@
     flex-direction: column;
     overflow-y: auto;
     gap: 1em;
+    overflow-x: hidden; /* Prevent outer scroll */
 }
 
 #assistant .assistant-button {
@@ -595,4 +596,59 @@
 
 #assistant .resuggest-button:hover {
     opacity: 0.9 !important;
+}
+
+#assistant .example {
+  overflow-x: scroll !important;
+  overflow-y: scroll !important;
+  width: 100%;
+  min-height: fit-content;
+  max-height: 400px;
+  padding: 8px;
+  border-radius: 4px;
+  margin: 4px 0;
+  background: var(--SAND);
+  box-sizing: border-box;
+  display: block;
+  position: relative; /* Create new containing block */
+}
+
+#assistant .example .code {
+  display: inline-block;
+  white-space: nowrap;
+  min-width: min-content;
+  padding-bottom: 4px;
+  position: relative; /* For proper width calculation */
+  width: max-content; /* Allow content to determine width */
+}
+
+#assistant .example .cell-editor {
+  white-space: pre;
+  display: inline-block;
+  position: relative; /* For proper width calculation */
+}
+
+/* Hide default editor scrollbar */
+#assistant .example .cell-editor::-webkit-scrollbar {
+  display: none;
+}
+
+/* Style the example scrollbar */
+#assistant .example::-webkit-scrollbar {
+  height: 8px;
+}
+
+#assistant .example::-webkit-scrollbar-thumb {
+  background: var(--STONE);
+  border-radius: 4px;
+}
+
+#assistant .message-code {
+  overflow-x: auto;
+  white-space: pre;
+  max-width: 100%;
+  padding: 8px;
+  background: var(--SAND);
+  border-radius: 4px;
+  margin: 4px 0;
 }
