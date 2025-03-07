@@ -651,7 +651,16 @@ let history_menu =
   div(
     ~attrs=[clss(["history-menu"])],
     [
-      div(~attrs=[clss(["history-menu-header"])], [text("Chat History")]),
+      div(
+        ~attrs=[clss(["history-menu-header"])],
+        [
+          switch (settings.mode) {
+          | SimpleChat => text("Chat History")
+          | CodeSuggestion => text("Suggestion History")
+          | TaskCompletion => text("Task History")
+          },
+        ],
+      ),
       div(
         ~attrs=[clss(["history-menu-list"])],
         List.map(
