@@ -34,20 +34,15 @@ let drv_view = (~globals, status: DrvInfo.t) => {
     | BadToken(token) =>
       div_err([text(Printf.sprintf("\"%s\" isn't a valid token", token))])
     | MultiHole => div_err([text("Expecting operator or delimiter")])
-    | NoJoin(expect, actuals) =>
+    | NoJoin(expect, _) =>
       div_err([
-        text(
-          "Expected sort "
-          ++ (expect |> DrvSort.show)
-          ++ ", got "
-          ++ (actuals |> List.map(DrvSort.show) |> String.concat("/")),
-        ),
+        text("Unexpected term for sort " ++ (expect |> DrvSort.show)),
       ])
     | FreeVar => div_err([text("Unbound variable")])
     | VarNoJoin(expect, actual) =>
       div_err([
         text(
-          "Expected a variable of sort type "
+          "Expected a variable of sort "
           ++ (expect |> DrvSort.show)
           ++ ", got ",
         ),

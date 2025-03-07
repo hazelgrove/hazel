@@ -53,7 +53,8 @@ let ancestors_of: t => ancestors = ({ancestors, _}) => ancestors;
 
 let sorts_of_exp: Drv.Exp.cls => list(DrvSort.t) =
   fun
-  | Hole
+  | Tuple => []
+  | Hole(_)
   | Quote
   | Parens => [Jdmt, Ctx, Prop, Exp]
   | Var => [Ctx, Prop, Exp] // Ctx is only for documentation purposes
@@ -88,7 +89,6 @@ let sorts_of_exp: Drv.Exp.cls => list(DrvSort.t) =
   | Ap
   | Pair
   | Triv
-  | Tuple
   | PrjL
   | PrjR
   | Case

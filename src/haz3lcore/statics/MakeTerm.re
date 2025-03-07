@@ -246,8 +246,8 @@ and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
       }
     | (["(", ")"], [Drv(Exp(body))]) =>
       switch (body.term) {
-      // Note(zhiyao): a standard tuple includes a parens
-      | Tuple(_) as term => (term, IdTagged.ids(body))
+      // Note(zhiyao): a standard pair includes a parens
+      | Tuple([e1, e2]) => (Pair(e1, e2), IdTagged.ids(body))
       | _ => ret(Parens(body))
       }
     | (["case", "end"], [Drv(Exp(body))]) =>

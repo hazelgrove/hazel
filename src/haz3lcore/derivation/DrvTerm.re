@@ -1,7 +1,36 @@
+module TypeHole = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | AbbrNotVar
+    | AbbrNotFound
+    | AbbrNotDrvTerm
+    | Invalid
+    | EmptyHole
+    | MultiHole;
+
+  let show_cls =
+    fun
+    | AbbrNotVar
+    | AbbrNotFound
+    | AbbrNotDrvTerm => "Abbreviation hole"
+    | Invalid => "Invalid derivation hole"
+    | EmptyHole => "Empty derivation hole"
+    | MultiHole => "Multiple derivation holes";
+
+  let cls_of: DrvTermBase.type_hole => cls =
+    fun
+    | AbbrNotVar => AbbrNotVar
+    | AbbrNotFound => AbbrNotFound
+    | AbbrNotDrvTerm => AbbrNotDrvTerm
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole;
+};
+
 module Exp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
-    | Hole
+    | Hole(TypeHole.cls)
     | Var
     | Quote
     | Parens
@@ -48,11 +77,11 @@ module Exp = {
 
   let show_cls =
     fun
-    | Hole => "Expression empty hole"
+    | Hole(cls) => TypeHole.show_cls(cls)
     | Quote => "Quoted variable"
     | Var => "Variable reference"
     | Parens => "Parenthesized expression"
-    | Tuple => "Pair literal"
+    | Tuple => "Tuple (intermediate term)"
     | Val => "Value judgement"
     | Eval => "Evaluation judgement"
     | Entail => "Entailment judgement"
@@ -113,7 +142,7 @@ module Exp = {
 
   let cls_of_term: term => cls =
     fun
-    | Hole(_) => Hole
+    | Hole(cls) => Hole(TypeHole.cls_of(cls))
     | Var(_) => Var
     | Quote(_) => Quote
     | Parens(_) => Parens
@@ -162,7 +191,7 @@ module Exp = {
 module Pat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
-    | Hole
+    | Hole(TypeHole.cls)
     | Quote
     | Var
     | Cast
@@ -174,7 +203,7 @@ module Pat = {
 
   let show_cls =
     fun
-    | Hole => "Pattern hole"
+    | Hole(cls) => TypeHole.show_cls(cls)
     | Quote => "Quoted variable"
     | Var => "Variable pattern"
     | Cast => "Type cast pattern"
@@ -199,7 +228,7 @@ module Pat = {
 
   let cls_of_term: term => cls =
     fun
-    | Hole(_) => Hole
+    | Hole(cls) => Hole(TypeHole.cls_of(cls))
     | Quote(_) => Quote
     | Var(_) => Var
     | Cast(_) => Cast
@@ -212,7 +241,7 @@ module Pat = {
 module Typ = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
-    | Hole
+    | Hole(TypeHole.cls)
     | Quote
     | Var
     | Parens
@@ -227,7 +256,7 @@ module Typ = {
 
   let show_cls =
     fun
-    | Hole => "Type empty hole"
+    | Hole(cls) => TypeHole.show_cls(cls)
     | Quote => "Quoted variable"
     | Var => "Variable type"
     | Parens => "Parenthesized type"
@@ -258,7 +287,7 @@ module Typ = {
 
   let cls_of_term: term => cls =
     fun
-    | Hole(_) => Hole
+    | Hole(cls) => Hole(TypeHole.cls_of(cls))
     | Quote(_) => Quote
     | Var(_) => Var
     | Parens(_) => Parens
@@ -275,13 +304,13 @@ module Typ = {
 module TPat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
-    | Hole
+    | Hole(TypeHole.cls)
     | Quote
     | Var;
 
   let show_cls =
     fun
-    | Hole => "Type pattern hole"
+    | Hole(cls) => TypeHole.show_cls(cls)
     | Var => "Variable type pattern"
     | Quote => "Quoted variable";
 
@@ -300,7 +329,7 @@ module TPat = {
 
   let cls_of_term: term => cls =
     fun
-    | Hole(_) => Hole
+    | Hole(cls) => Hole(TypeHole.cls_of(cls))
     | Quote(_) => Quote
     | Var(_) => Var;
 };
@@ -342,4 +371,46 @@ module Any = {
     | Pat(pat) => Pat(Pat.cls_of_term(pat.term))
     | Typ(typ) => Typ(Typ.cls_of_term(typ.term))
     | TPat(tpat) => TPat(TPat.cls_of_term(tpat.term));
+
+  let contains_hole: t => bool =
+    any => {
+      exception HoleFound;
+      try(
+        {
+          ignore(
+            DrvTermBase.Any.map_term(
+              ~f_exp=
+                (cont, exp) =>
+                  switch (exp.term) {
+                  | Hole(_) => raise(HoleFound)
+                  | _ => cont(exp)
+                  },
+              ~f_pat=
+                (cont, pat) =>
+                  switch (pat.term) {
+                  | Hole(_) => raise(HoleFound)
+                  | _ => cont(pat)
+                  },
+              ~f_typ=
+                (cont, typ) =>
+                  switch (typ.term) {
+                  | Hole(_) => raise(HoleFound)
+                  | _ => cont(typ)
+                  },
+              ~f_tpat=
+                (cont, tpat) =>
+                  switch (tpat.term) {
+                  | Hole(_) => raise(HoleFound)
+                  | _ => cont(tpat)
+                  },
+              ~f_any=Fun.id,
+              any,
+            ),
+          );
+          false;
+        }
+      ) {
+      | HoleFound => true
+      };
+    };
 };

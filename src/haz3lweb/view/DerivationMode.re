@@ -374,40 +374,13 @@ module View = {
         div(~attrs=[Attr.class_("cell-prompt")], [text(eds.prompt)]),
       );
 
-    // let make_pos = (pos: DerivationTree.pos, index): DerivationTree.pos =>
-    //   switch (pos) {
-    //   | Trees(i, pos) =>
-    //     Trees(i, Tree.pos_concat(Children(index, Value), pos))
-    //   | _ => Prelude
-    //   };
-
     let add_premise_btn_view = (~pos: DerivationTree.pos, ~index: int) =>
       div(
         ~attrs=[
           Attr.class_("add-premise-btn"),
           Attr.on_click(_ =>
-            inject(
-              MapEditor(
-                DerivationTree.add_premise(~pos, ~index),
-                // |> (m => {...m, pos: make_pos(pos, index)}),
-              ),
-            )
+            inject(MapEditor(DerivationTree.add_premise(~pos, ~index)))
           ),
-          // Attr.on_drop(drag_event => {
-          //   let grabbed_pos =
-          //     drag_event##.dataTransfer##getData(Js.string("pos"));
-          //   print_endline(Js.to_string(grabbed_pos));
-          //   Ui_effect.Ignore;
-          // switch (grabbed_pos) {
-          // | None => Ui_effect.Ignore
-          // | Some(pos) =>
-          //   inject(
-          //     UpdateAction.MapExercise(
-          //       map_model(add_premise(~pos, ~index)),
-          //     ),
-          //   )
-          // }
-          // }),
         ],
         [],
       );
@@ -475,16 +448,6 @@ module View = {
           NinjaKeysRule.open_command_palette();
           Effect.Ignore;
         },
-        // Attr.draggable(true),
-        // Attr.on_dragstart(drag_event => {
-        //   print_endline("drag_start");
-        //   drag_event##.dataTransfer##setData(
-        //     Js.string("pos"),
-        //     Js.string(show_pos(pos)),
-        //   );
-        //   Ui_effect.Ignore;
-        // }),
-        // Attr.on_mousemove(_ => label_on_mouseover(~pos))
         ~tooltip="Switch Rule",
       );
 

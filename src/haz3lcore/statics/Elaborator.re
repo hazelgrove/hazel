@@ -321,7 +321,26 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Bool(_) => uexp |> cast_from(Bool |> Typ.temp)
     | Float(_) => uexp |> cast_from(Float |> Typ.temp)
     | String(_) => uexp |> cast_from(String |> Typ.temp)
-    | DrvExp(_) => uexp // Note(zhiyao): we don't need to cast drv term
+    | DrvExp(drv, s) =>
+      // TODO(zhiyao): probably I don't need to elaborate drv here
+      // let drv: Drv.Any.t =
+      //   switch (Id.Map.find_opt(Drv.Any.rep_id(drv), m)) {
+      //   | Some(Info.InfoDrv({status: InHole(_), sort, _})) =>
+      //     let hole: DrvTermBase.type_hole = Invalid("dynamic elaboration");
+      //     print_endline("drv");
+      //     switch (sort) {
+      //     | Jdmt
+      //     | Ctx
+      //     | Prop
+      //     | Exp => Exp(Hole(hole) |> Drv.Exp.fresh)
+      //     | Pat => Pat(Hole(hole) |> Drv.Pat.fresh)
+      //     | Typ => Typ(Hole(hole) |> Drv.Typ.fresh)
+      //     | TPat => TPat(Hole(hole) |> Drv.TPat.fresh)
+      //     };
+      //   | Some(Info.InfoDrv({status: NotInHole, _})) => drv
+      //   | _ => raise(MissingTypeInfo)
+      //   };
+      DrvExp(drv, s) |> rewrap
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let inner_type =

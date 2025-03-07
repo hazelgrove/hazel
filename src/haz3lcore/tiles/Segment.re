@@ -123,7 +123,7 @@ and subsort_of = (sort: Sort.t): list(Sort.t) =>
     switch (drv) {
     | Jdmt
     | Ctx
-    | Prop => failwith("subsort_of unexpected")
+    | Prop
     | Exp => [Pat, Drv(Pat), Drv(Typ), Drv(TPat)]
     | Pat => [Drv(Typ)]
     | Typ => [Pat]
