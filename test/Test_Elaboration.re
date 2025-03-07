@@ -884,13 +884,17 @@ in 1|},
 module MenhirElaborationTests = {
   //dhexp = expected
   //uexp = tested
-  let alco_check_menhir = (name: string, dhexp: string, uexp: Term.Exp.t) => {
-    let (e, _) =
-      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-        Haz3lmenhir.Interface.parse_program(dhexp),
-      );
-    alco_check(name, e, dhexp_of_uexp(uexp));
-  };
+  let alco_check_menhir = (name: string, dhexp: string, uexp: Term.Exp.t) =>
+    alco_check(
+      name,
+      Grammar.map_exp_annotation(
+        _ => IdTagged.IdTag.fresh(),
+        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+          Haz3lmenhir.Interface.parse_program(dhexp),
+        ),
+      ),
+      dhexp_of_uexp(uexp),
+    );
 
   //Test for an empty hole
   let empty_hole_str = "?";

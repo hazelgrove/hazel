@@ -1,4 +1,4 @@
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type t =
   | Drv(Drv.Any.cls)
   | Exp(Exp.cls)
