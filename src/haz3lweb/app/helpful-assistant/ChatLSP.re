@@ -587,9 +587,14 @@ let List.length: [(String, Bool)]-> Int =
 |},
       RelevantType.expected(Ana(Typ.fresh(Int)), ~ctx=[]),
       {|
+DISCUSSION
+The function List.length takes a list of (String, Bool) tuples and returns an Int. The natural way to compute the length of a list is through recursion.
+The base case for an empty list is 0, and for a non-empty list, we increment the count and recursively call List.length on the tail.
+```
 case xs
 | [] => 0
-| _::xs => 1 + List.length(xs)|},
+| _::xs => 1 + List.length(xs)
+```|},
     ),
     (
       {|
@@ -604,10 +609,14 @@ let List.mapi: ((Int, Bool) -> Bool, [Bool]) -> [Bool]=
         ~ctx=[],
       ),
       {|
+DISCUSSION
+The function List.mapi applies a function f to each element of a list while keeping track of the index. The helper function go does this recursively.
+The base case returns an empty list. In the recursive case, f(idx, hd) is applied to the head, and go(idx + 1, tl) is called recursively on the tail to process the rest of the list.
+```
 case xs
 | [] => []
 | hd::tl => f(idx, hd)::go(idx + 1, tl)
-|},
+```|},
     ),
     (
       {|
@@ -625,17 +634,30 @@ in
         ~ctx=[],
       ),
       {|
+DISCUSSION
+The function total_capacity takes a Container and returns an Int. The Pod variant stores a Bool, which likely indicates whether the pod is active.
+The condition if !b && true simplifies to if !b, meaning inactive pods have a capacity of 1, while active ones have 0.
+The CapsuleCluster variant contains two integers, which are multiplied together to represent the total capacity.
+```
 fun c ->
     case c
       | Pod(b) => if !b && true then 1 else 0
       | CapsuleCluster(x, y) => x * y
     end
+```
 |},
     ),
     (
       "let f = ?? in f(5)",
       RelevantType.expected(Syn, ~ctx=[]),
-      "fun x:Int -> ??",
+      {|
+DISCUSSION
+The expression let f = ?? in f(5) means f should be a function that can take an integer input. A function of type fun x:Int -> ?? is defined, but its body is missing.
+Since no constraints are placed on the output type, the hole could be filled with any valid expression.
+```
+fun x:Int -> ??
+```
+      |},
     ),
     (
       {|let triple = (4, 8, true) in
@@ -646,12 +668,27 @@ fun maybe_num ->
  | Some(x) => ??
  | None => if !condition then 0 else y + 1 end in|},
       RelevantType.expected(Ana(Typ.fresh(Int)), ~ctx=[]),
-      "x",
+      {|
+DISCUSSION
+The function get extracts a value from an Option type. If Some(x), the function should return x, as x is already of type Int.
+The None case considers a condition; if !condition is true, it returns 0, otherwise, it returns y + 1.
+Since x is an Int, returning it in the Some case maintains type consistency.
+```
+x
+```
+      |},
     ),
     (
       "let num_or_zero = fun maybe_num ->\n case maybe_num\n | Some(num) => ?? \n| None => 0 end in",
       RelevantType.expected(Syn, ~ctx=[]),
-      "num",
+      {|
+DISCUSSION
+The function num_or_zero takes an Option(Int) and returns an Int. If the input is Some(num), it should return num, as num is already an integer.
+If None, the function defaults to returning 0. This ensures type consistency while preserving the stored number when available.
+```
+num
+```
+      |},
     ),
     (
       "let merge_sort: [Int]->[Int] =\n??\nin\nmerge_sort([4,1,3,7,2])",
@@ -666,12 +703,29 @@ fun maybe_num ->
         ),
         ~ctx=[],
       ),
-      "fun list ->\nlet split: [Int]->([Int],[Int]) = fun left, right -> ?\nin\nlet merge: ([Int],[Int])->[Int]= ?\nin\nlet merge_sort_helper: [Int]->[Int]= ?\nin\nmerge_sort_helper(list)",
+      {|
+DISCUSSION
+The function merge_sort sorts a list of integers. A common approach to implementing merge sort involves:
+1. Splitting the list into two halves (split).
+2. Recursively sorting both halves (merge_sort_helper).
+3. Merging the sorted halves (merge).
+The provided structure follows this approach, so we use helper functions to complete the sorting logic.
+```
+fun list ->\nlet split: [Int]->([Int],[Int]) = fun left, right -> ?\nin\nlet merge: ([Int],[Int])->[Int]= ?\nin\nlet merge_sort_helper: [Int]->[Int]= ?\nin\nmerge_sort_helper(list)
+```
+      |},
     ),
     (
       "type MenuItem =\n+ Breakfast(Int, Int)\n+ Lunch(Float)\nin\nlet per_lunch_unit = 0.95 in\nlet price: MenuItem-> Float   = fun m ->\ncase m\n| Breakfast(x, y) => ??\n| Lunch(f) => f *. per_lunch_unit\nend\nin price(Breakfast(1,2))/.3.",
       RelevantType.expected(Ana(Typ.fresh(Var("MenuItem"))), ~ctx=[]),
-      "fun m ->\ncase m\n| Breakfast(x, y) => ??\n| Lunch(f) => f *. per_lunch_unit\nend",
+      {|
+DISCUSSION
+The function price computes the cost of a MenuItem. The Lunch variant already has a predefined price calculation. For Breakfast(x, y), an expression must return a Float, but the completion is missing.
+The function should ensure a proper numeric computation based on x and y.
+```
+fun m ->\ncase m\n| Breakfast(x, y) => ??\n| Lunch(f) => f *. per_lunch_unit\nend
+```
+      |},
     ),
     (
       {|
@@ -703,9 +757,14 @@ test 2 == List.nth(List.sort(fun a, b -> a<b, [4,1,3,2]), 1) end
         ~ctx=[],
       ),
       {|
+DISCUSSION
+The function List.merge merges two sorted lists using a comparator function cmp. The List.sort function applies merge sort, using merge_sort_helper to recursively divide and sort the list.
+The base cases return [] or a single-element list. The recursive case splits the list into two halves and merges sorted sublists.
+```
 let mid = List.length(l) / 2 in
 let left, right = List.take(mid, l), List.drop(mid, l) in
 List.merge(cmp, merge_sort_helper(left), merge_sort_helper(right))
+```
 |},
     ),
   ];
@@ -721,12 +780,27 @@ List.merge(cmp, merge_sort_helper(left), merge_sort_helper(right))
 module SystemPrompt = {
   let main_prompt = [
     "CODE COMPLETION INSTRUCTIONS:",
-    "- Reply with a functional, idiomatic replacement for the program hole marked '??' in the provided program sketch",
+    "- First, provide a brief discussion of your approach and reasoning",
+    "- Then, provide your code completion for the hole marked '??' enclosed in triple backticks",
+    "- Your response MUST include two parts:",
+    "  1. A discussion section explaining your approach",
+    "  2. Your code completion inside triple backticks",
+    "- DO NOT include anything else in your response",
+    "- DO NOT provide multiple code suggestions",
+    "- DO NOT include any text after the code block",
+    "- Here is an example of the format you should follow:",
+    "- DISCUSSION",
+    "- The function takes an integer n as input and returns a float.",
+    "- The base case returns 1.0 when n is 0, ensuring the function adheres to the expected Float return type.",
+    "- For all other cases, the function returns 2.0, maintaining consistency in return type while providing a simple branching structure.",
+    "  ```",
+    "  fun n -> if n == 0 then 1.0 else 2.0",
+    "  ```",
+    "- The code completion should be a functional, idiomatic replacement for the program hole marked '??' in the provided program sketch",
     // Uncomment either of the following lines to test error rounds
     // "- However, make sure that your initial response CAUSES A TYPE ERROR in the program. Then, fix it in your second response",
     // "- However, it is CRITICALLY important to make sure that your response ALWAYS CAUSES A TYPE ERROR in the program, no matter how many times you are re-prompted",
-    "- Reply ONLY with a SINGLE replacement term for the unqiue distinguished hole marked '??'",
-    "- Reply ONLY with code",
+    "- Reply ONLY with a SINGLE replacement term for the unique distinguished hole marked '??'",
     "- DO NOT suggest more replacements for other holes in the sketch (marked '?'), or implicit holes",
     "- This is critical, and I am going to reiterate it: DO NOT suggest more than one replacement term. It should ONLY be for the hole marked '??'",
     "- For example, if you are being asked to complete 'let f = ? in ??', your response should ONLY be a single replacement term for the hole marked '??', NOT a replacement term for the hole marked '?'",

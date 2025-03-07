@@ -229,6 +229,13 @@ let api_input =
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
+
+  let toggle_visibility = _ =>
+    Virtual_dom.Vdom.Effect.Many([
+      inject(Assistant.Update.ToggleAPIVisibility),
+      Virtual_dom.Vdom.Effect.Stop_propagation,
+    ]);
+
   let submit_key = _ => {
     let message =
       Js.Opt.case(
@@ -246,6 +253,7 @@ let api_input =
     );
     handle_submission(message);
   };
+
   let handle_keydown = event => {
     let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
     switch (key) {
@@ -261,7 +269,7 @@ let api_input =
         ~attrs=[
           Attr.id("api-input"),
           Attr.placeholder("Enter your API key..."),
-          Attr.type_("text"),
+          Attr.type_("password"),
           Attr.property("autocomplete", Js.Unsafe.inject("off")),
           Attr.on_focus(_ =>
             signal(MakeActive(ScratchMode.Selection.TextBox))
@@ -275,15 +283,27 @@ let api_input =
         ~attrs=[clss(["chat-button"]), Attr.on_click(submit_key)],
         [Widgets.button_named(~tooltip="Update API Key", None, submit_key)],
       ),
+      div(
+        ~attrs=[clss(["chat-button"]), Attr.on_click(toggle_visibility)],
+        [
+          Widgets.button_named(
+            ~tooltip="Show/Hide Key",
+            None,
+            toggle_visibility,
+          ),
+        ],
+      ),
       div(~attrs=[clss(["text-display"])], [text("Current API Key:\n")]),
       div(
-        ~attrs=[clss(["api-key-display"])],
+        ~attrs=[clss(["api-key-display"]), Attr.id("api-key-display")],
         [
           text(
-            Option.value(
-              Store.Generic.load("API"),
-              ~default="No API key set",
-            ),
+            switch (Store.Generic.load("API")) {
+            | Some(key) when String.length(key) > 0 =>
+              assistantModel.show_api_key
+                ? key : String.make(String.length(key), '*')
+            | _ => "No API key set"
+            },
           ),
         ],
       ),
