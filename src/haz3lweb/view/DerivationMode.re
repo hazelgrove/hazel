@@ -155,7 +155,6 @@ module Update = {
             | Error(e) => ResultFail(e)
             };
           // TODO(zhiyao): I found action scheduling to be a bit tricky
-          prerr_endline("schedule_action");
           schedule_action(
             Editor(pos', ResultAction(UpdateResult(result'))),
           );

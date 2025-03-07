@@ -298,8 +298,7 @@ and Exp: {
     | (Int(i1), Int(i2)) => i1 == i2
     | (Float(f1), Float(f2)) => f1 == f2
     | (String(s1), String(s2)) => s1 == s2
-    | (DrvExp(d1, s1), DrvExp(d2, s2)) =>
-      Drv.Any.eq(d1, d2) && DrvSort.equal(s1, s2)
+    | (DrvExp(d1, s1), DrvExp(d2, s2)) => d1 == d2 && s1 == s2
     | (Label(s1), Label(s2)) => s1 == s2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
