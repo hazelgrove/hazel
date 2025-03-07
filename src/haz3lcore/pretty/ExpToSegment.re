@@ -1041,7 +1041,19 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Printf.sprintf("%f", f))
   | String(s) =>
     text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "\"" ++ s ++ "\"")
-  | DrvExp(d, _) => drv_to_pretty(~settings, d)
+  | DrvExp(d, s) =>
+    let+ d = drv_to_pretty(~settings, d);
+    let form: Form.drv_compound_form =
+      switch (s) {
+      | Jdmt => OfJdmt
+      | Ctx => OfCtx
+      | Prop => OfProp
+      | Exp => OfAlfaExp
+      | Pat => OfAlfaPat
+      | Typ => OfAlfaTyp
+      | TPat => OfAlfaTPat
+      };
+    [mk_form(Drv(form), exp |> Exp.rep_id, [d])];
   // TODO: Make sure types are correct
   | Constructor(c, _t) =>
     // let id = Id.mk();

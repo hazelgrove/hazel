@@ -307,7 +307,6 @@ let go_test = (map: map, test: test): option(failure) => {
       | LookUpTPat(s) => s |> lookup |> tpat_of_specced
       | UnboxCtx(LookUpExp(s)) =>
         let specced = lookup(s);
-        print_endline(show_specced(specced));
         switch (Drv.Exp.term_of(exp_of_specced(specced))) {
         | Ctx(syntax) => syntax
         | _ => raise(Failure(FailUnbox(specced, Exp(Ctx))))

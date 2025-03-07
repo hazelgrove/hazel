@@ -319,6 +319,7 @@ module Transition = (EV: EV_MODE) => {
         }
       | _ => term
       };
+    print_endline(term |> show_term);
     term |> rewrap;
   };
 

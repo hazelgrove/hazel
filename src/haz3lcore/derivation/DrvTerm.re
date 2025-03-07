@@ -48,7 +48,7 @@ module Exp = {
 
   let show_cls =
     fun
-    | Hole => "Expression hole"
+    | Hole => "Expression empty hole"
     | Quote => "Quoted variable"
     | Var => "Variable reference"
     | Parens => "Parenthesized expression"
@@ -227,7 +227,7 @@ module Typ = {
 
   let show_cls =
     fun
-    | Hole => "Type hole"
+    | Hole => "Type empty hole"
     | Quote => "Quoted variable"
     | Var => "Variable type"
     | Parens => "Parenthesized type"
