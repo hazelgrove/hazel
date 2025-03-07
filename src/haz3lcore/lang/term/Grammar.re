@@ -14,7 +14,7 @@ module Annotated = {
 };
 
 module Drv = {
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
   type op_bin =
     | Plus
     | Minus
@@ -715,6 +715,13 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
 
   let default_annotation = ann =>
     Option.value(~default=DefaultAnnotation.default_value(), ann);
+  module Drv = {
+    let placeholder = (~ann=?, ()): Drv.any_t(DefaultAnnotation.t) =>
+      Drv.Exp({
+        term: Drv.Hole(Invalid("place_holder")),
+        annotation: default_annotation(ann),
+      });
+  };
   module Exp = {
     let invalid = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
       term: Invalid(s),
@@ -758,6 +765,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let string = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
       term: String(s),
+      annotation: default_annotation(ann),
+    };
+    let drv_exp = (~ann=?, d, s): exp_t(DefaultAnnotation.t) => {
+      term: DrvExp(d, s),
       annotation: default_annotation(ann),
     };
     let list_lit = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
@@ -967,6 +978,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let string = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
       term: String,
+      annotation: default_annotation(ann),
+    };
+    let drv_typ = (~ann=?, s): typ_t(DefaultAnnotation.t) => {
+      term: DrvTyp(s),
       annotation: default_annotation(ann),
     };
     let var = (~ann=?, s): typ_t(DefaultAnnotation.t) => {

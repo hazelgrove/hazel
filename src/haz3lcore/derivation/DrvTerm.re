@@ -1,5 +1,5 @@
 module TypeHole = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type cls =
     | AbbrNotVar
     | AbbrNotFound
@@ -28,7 +28,7 @@ module TypeHole = {
 };
 
 module Exp = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type cls =
     | Hole(TypeHole.cls)
     | Var
@@ -189,7 +189,7 @@ module Exp = {
 };
 
 module Pat = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type cls =
     | Hole(TypeHole.cls)
     | Quote
@@ -239,7 +239,7 @@ module Pat = {
 };
 
 module Typ = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type cls =
     | Hole(TypeHole.cls)
     | Quote
@@ -302,7 +302,7 @@ module Typ = {
 };
 
 module TPat = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type cls =
     | Hole(TypeHole.cls)
     | Quote
@@ -335,7 +335,7 @@ module TPat = {
 };
 
 module Any = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type cls =
     | Exp(Exp.cls)
     | Pat(Pat.cls)

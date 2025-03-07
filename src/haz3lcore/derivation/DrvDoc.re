@@ -49,90 +49,90 @@ let exp_form: exp_t => (Segment.t, string) =
         "The parenthesis is used to explicitly group expressions. This does not carry other semantic meaning.",
       )
     | Val(_) => (
-        v |> f_exp,
+        Val(e) |> Drv.Exp.fresh |> f_jdmt,
         "The value judgement defines the values in ALFA, i.e. v is a value",
       )
     | Eval(_) => (
-        Eval(e, v) |> Drv.Exp.fresh |> f_exp,
+        Eval(e, v) |> Drv.Exp.fresh |> f_jdmt,
         "The evaluation judgement defines the evaluation behavior of ALFA expressions, i.e. it relates an expression e to its value v.",
       )
     | Entail(_) => (
-        Entail(gamma, a) |> Drv.Exp.fresh |> f_exp,
+        Entail(gamma, a) |> Drv.Exp.fresh |> f_jdmt,
         "The judgement defines that the context gamma entails the proposition a.",
       )
     | Consistent(_) => (
-        Consistent(t1, t2) |> Drv.Exp.fresh |> f_exp,
+        Consistent(t1, t2) |> Drv.Exp.fresh |> f_jdmt,
         "A Type consistency judgement is a weakened form of equivalence: t1 and t2 are consistent if they differ only up to the appearance of an unknown type.",
       )
     | MatchedArrow(_) => (
         MatchedArrow(t, Arrow(t1, t2) |> Drv.Typ.fresh)
         |> Drv.Exp.fresh
-        |> f_exp,
+        |> f_jdmt,
         "The matched arrow judgement defines that the type t matches the arrow type Arrow(t1, t2). When t is already an arrow type, it matches to itself. When t is the unknown type, then it gets matched to ? -> f.",
       )
     | MatchedProd(_) => (
         MatchedProd(t, Prod(t1, t2) |> Drv.Typ.fresh)
         |> Drv.Exp.fresh
-        |> f_exp,
+        |> f_jdmt,
         "The matched product judgement defines that the type t matches the product type Prod(t1, t2). When t is already a product type, it matches to itself. When t is the unknown type, then it gets matched to ? * ?.",
       )
     | MatchedSum(_) => (
-        MatchedSum(t, Sum(t1, t2) |> Drv.Typ.fresh) |> Drv.Exp.fresh |> f_exp,
+        MatchedSum(t, Sum(t1, t2) |> Drv.Typ.fresh)
+        |> Drv.Exp.fresh
+        |> f_jdmt,
         "The matched sum judgement defines that the type t matches the sum type Sum(t1, t2). When t is already a sum type, it matches to itself. When t is the unknown type, then it gets matched to ? + ?.",
       )
-    | Ctx([]) => (Ctx([]) |> Drv.Exp.fresh |> f_exp, "The empty context.")
+    | Ctx([]) => (Ctx([]) |> Drv.Exp.fresh |> f_ctx, "The empty context.")
     | Ctx(_) => (
-        Ctx([a, b, Var("...") |> Drv.Exp.fresh]) |> Drv.Exp.fresh |> f_exp,
+        Ctx([a, b, Var("...") |> Drv.Exp.fresh]) |> Drv.Exp.fresh |> f_ctx,
         "The context is a list of propositions A, B, ... The order does not matter.",
       )
     | Cons(_, _) => (
         Cons(a, Ctx([a, Var("...") |> Drv.Exp.fresh]) |> Drv.Exp.fresh)
         |> Drv.Exp.fresh
-        |> f_exp,
+        |> f_ctx,
         "The context cons operation adds the proposition A to the context. The order does not matter.",
       )
     | Concat(_, _) => (
         Concat(Ctx([a, Var("...") |> Drv.Exp.fresh]) |> Drv.Exp.fresh, b)
         |> Drv.Exp.fresh
-        |> f_exp,
+        |> f_ctx,
         "The context concatenation operation appends the proposition B to the context. The order does not matter.",
       )
     | Type(_) => (
-        Entail(delta, Type(t) |> Drv.Exp.fresh) |> Drv.Exp.fresh |> f_exp,
-        "The type validity judgement defines that the type validation context delta entails that the type variable t does actually stand for a valid type.",
+        Type(t) |> Drv.Exp.fresh |> f_prop,
+        "The type validity proposition defines that the type variable t does actually stand for a valid type.",
       )
     | HasType(_) => (
-        Entail(gamma, HasType(e, t) |> Drv.Exp.fresh)
-        |> Drv.Exp.fresh
-        |> f_exp,
-        "The type judgement defines that the expression e has type t assuming the context gamma.",
+        HasType(e, t) |> Drv.Exp.fresh |> f_prop,
+        "The type proposition defines that the expression e has type t",
       )
     | Syn(_) => (
-        Entail(gamma, Syn(e, t) |> Drv.Exp.fresh) |> Drv.Exp.fresh |> f_exp,
-        "The type synthesis judgement defines that the expression e synthesizes type t assuming the context gamma.",
+        Syn(e, t) |> Drv.Exp.fresh |> f_prop,
+        "The type synthesis proposition defines that the expression e synthesizes type t",
       )
     | Ana(_) => (
-        Entail(gamma, Ana(e, t) |> Drv.Exp.fresh) |> Drv.Exp.fresh |> f_exp,
-        "The type analysis judgement defines that the expression e analyzes against type t assuming the context gamma.",
+        Ana(e, t) |> Drv.Exp.fresh |> f_prop,
+        "The type analysis proposition defines that the expression e analyzes against type t",
       )
     | And(_) => (
-        And(a, b) |> Drv.Exp.fresh |> f_exp,
+        And(a, b) |> Drv.Exp.fresh |> f_prop,
         "The conjunction proposition is true if both a and b are true assuming the given hypothesis.",
       )
     | Or(_) => (
-        Or(a, b) |> Drv.Exp.fresh |> f_exp,
+        Or(a, b) |> Drv.Exp.fresh |> f_prop,
         "The disjunction proposition is true if either a or b is true assuming the given hypothesis.",
       )
     | Impl(_) => (
-        Impl(a, b) |> Drv.Exp.fresh |> f_exp,
+        Impl(a, b) |> Drv.Exp.fresh |> f_prop,
         "The implication proposition is true if a implies b assuming the given hypothesis.",
       )
     | Truth => (
-        Truth |> Drv.Exp.fresh |> f_exp,
+        Truth |> Drv.Exp.fresh |> f_prop,
         "The truth proposition is always true.",
       )
     | Falsity => (
-        Falsity |> Drv.Exp.fresh |> f_exp,
+        Falsity |> Drv.Exp.fresh |> f_prop,
         "The falsity proposition is always false.",
       )
     | NumLit(_) => (n |> f_exp, "The numeric literal represents the number.")

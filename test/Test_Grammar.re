@@ -45,6 +45,9 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Int => int(1)
       | Float => float(2.)
       | String => string("hello")
+      | DrvExp =>
+        // TODO(zhiyao): I might need instructions on how to write this part for derivation term
+        drv_exp(Drv.placeholder(), DrvSort.Jdmt)
       | ListLit => list_lit([])
       | Constructor => constructor("A", None)
       | Fun => fn(Pat.var("x"), var("x"), None, None)
@@ -125,6 +128,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | Float => float()
       | String => string()
       | Bool => bool()
+      | DrvTyp => drv_typ(DrvSort.Jdmt)
       | List => list(unknown(Hole(EmptyHole)))
       | Arrow => arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Var => var("x")
