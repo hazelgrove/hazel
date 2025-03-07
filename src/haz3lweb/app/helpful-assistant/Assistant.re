@@ -666,24 +666,27 @@ module Update = {
         };
       };
     | ErrorRespond(response, ci, fuel, tileId, mode, chat_id) =>
-      let message = code_message_of_str(response, LLM, Some(tileId));
       switch (ChatLSP.Prompt.mk_error(ci, response)) {
       | None =>
         // No error, all good. Concat and return suggestion.
         print_endline("ERROR ROUNDS (Non-error Response): " ++ response);
+        let message = code_message_of_str(response, LLM, Some(tileId));
         check_descriptor(~model, ~schedule_action, ~message, ~mode, ~chat_id);
         schedule_action(RemoveAndSuggest(response, tileId));
+        add_message_to_model(mode, model, message, chat_id)
+        |> Updated.return_quiet;
       | Some(error) =>
         // There is some error, so perform an error round
         print_endline("ERROR ROUNDS (Error): " ++ error);
         print_endline("ERROR ROUNDS (Error-causing Response): " ++ response);
+        let message = code_message_of_str(response, LLM, None);
         schedule_action(
           SendErrorMessage(error, ci, fuel - 1, tileId, mode, chat_id),
         );
-      };
-      // Remove await_llm_response (... animation) and concat LLM's suggestion
-      add_message_to_model(mode, model, message, chat_id)
-      |> Updated.return_quiet;
+        add_message_to_model(mode, model, message, chat_id)
+        |> Updated.return_quiet;
+      }
+
     | SendErrorMessage(error, ci, fuel, tileId, mode, chat_id) =>
       let error_message =
         text_message_of_str(
@@ -693,21 +696,19 @@ module Update = {
         );
       // check that fuel is not 0
       if (fuel < 0) {
+        let content =
+          "By default we stop the assistant after "
+          ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
+          ++ " error rounds.";
+        let message: Model.message = {
+          party: System,
+          code: None,
+          content,
+          collapsed: false,
+        };
+        check_descriptor(~model, ~schedule_action, ~message, ~mode, ~chat_id);
         let model = add_message_to_model(mode, model, error_message, chat_id);
-        add_message_to_model(
-          mode,
-          model,
-          {
-            party: System,
-            code: None,
-            content:
-              "By default we stop the assistant after "
-              ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
-              ++ " error rounds. Thus, stopping.",
-            collapsed: false,
-          },
-          chat_id,
-        )
+        add_message_to_model(mode, model, message, chat_id)
         |> Updated.return_quiet;
       } else {
         // TODO: We don't want to collect ENTIRE chat history here. We only want
