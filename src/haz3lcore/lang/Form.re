@@ -396,7 +396,8 @@ let drv_get: drv_compound_form => t =
       ["[", "/", "]"],
       mk_pre(P.fun_, Drv(Typ), [Drv(Typ), Drv(TPat)]),
     )
-  | Glb => mk(ds, ["glb(", ",", ")"], mk_op(Drv(Typ), [Drv(Typ)]))
+  | Glb =>
+    mk(ds, ["glb(", ",", ")"], mk_op(Drv(Typ), [Drv(Typ), Drv(Typ)]))
   | Val => mk(ds, ["val", "end"], mk_op(Drv(Exp), [Drv(Exp)]))
   | Eval =>
     mk(ss, ["\\=/"], mk_bin'(P.min, Drv(Exp), Drv(Exp), [], Drv(Exp)))

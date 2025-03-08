@@ -186,18 +186,22 @@ let premises_view =
         )
         @ List.map(
             test =>
-              Node.div(
-                ~attrs=[
-                  Attr.class_("deduction-test"),
-                  Attr.class_("drv-explainthis"),
-                ],
-                [
-                  show_without_statics(
-                    ExpToSegment.drv_formula_to_pretty(test, Jdmt),
-                    ~globals,
-                  ),
-                ],
-              ),
+              switch (test) {
+              | RuleSpec.Formula.Ignore(_) => Node.none
+              | _ =>
+                Node.div(
+                  ~attrs=[
+                    Attr.class_("deduction-test"),
+                    Attr.class_("drv-explainthis"),
+                  ],
+                  [
+                    show_without_statics(
+                      ExpToSegment.drv_formula_to_pretty(test, Jdmt),
+                      ~globals,
+                    ),
+                  ],
+                )
+              },
             tests,
           ),
       ),
