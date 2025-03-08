@@ -167,51 +167,6 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
   };
 };
 
-let rec ty_comparable = (exp: t): bool =>
-  switch (term_of(exp)) {
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | DynamicErrorHole(_)
-  | FailedCast(_)
-  | Deferral(_)
-  | DeferredAp(_)
-  | Undefined
-  | Var(_)
-  | Let(_)
-  | FixF(_)
-  | TyAlias(_)
-  | TypAp(_)
-  | If(_)
-  | Seq(_)
-  | Test(_)
-  | Filter(_)
-  | Closure(_)
-  | Parens(_)
-  | Cons(_)
-  | ListConcat(_)
-  | UnOp(_)
-  | BinOp(_)
-  | Match(_)
-  | Dot(_)
-  | Cast(_) => false
-  | Fun(_)
-  | TypFun(_)
-  | BuiltinFun(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
-  | Label(_)
-  | Constructor(_) => true
-  | ListLit(tys)
-  | Tuple(tys) => tys |> List.for_all(ty_comparable)
-  | TupLabel(_, t) => ty_comparable(t)
-  // Note: Only Constructor Ap is comparable
-  | Ap(_, {term: Constructor(_), _}, ty) => ty_comparable(ty)
-  | Ap(_) => false
-  };
-
 let rec ty_consistent = (d1, d2) => {
   // Note(zhiyao): This is a necessary condition for consistency, but not
   // sufficient. If for any reason an Arrow type escapes the type checker,
@@ -237,14 +192,16 @@ let rec ty_consistent = (d1, d2) => {
   | (Test(_), _)
   | (Filter(_), _)
   | (Closure(_), _)
-  | (Parens(_), _) // Parens should have been stripped
   | (Cons(_), _)
   | (ListConcat(_), _)
   | (UnOp(_), _)
   | (BinOp(_), _)
   | (Match(_), _)
-  | (Dot(_), _)
-  | (Cast(_), _) => false
+  | (Dot(_), _) => false
+  | (Parens(d1), _) => ty_consistent(d1, d2)
+  | (_, Parens(d2)) => ty_consistent(d1, d2)
+  | (Cast(d1, _, _), _) => ty_consistent(d1, d2)
+  | (_, Cast(d2, _, _)) => ty_consistent(d1, d2)
   | (Int(_), Int(_)) => true
   | (Int(_), _) => false
   | (Float(_), Float(_)) => true
@@ -258,16 +215,19 @@ let rec ty_consistent = (d1, d2) => {
   | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
     ty_consistent(l1, l2) && ty_consistent(d1, d2)
   | (TupLabel(_), _) => false
+  // Note(zhiyao): We want to leave err:CompareArrow to be caught in
+  // the later stage because we don't have the type information here.
   | (Fun(_) | BuiltinFun(_), Fun(_) | BuiltinFun(_)) => true
   | (Fun(_) | BuiltinFun(_), _) => false
   | (TypFun(_), TypFun(_)) => true
   | (TypFun(_), _) => false
+  // Note(zhiyao): Listlit checks the consistency of all elements,
+  // which is different from Tuple (check pairwise consistency).
   | (ListLit(ds1), ListLit(ds2)) =>
-    let ds = ds1 @ ds2;
-    switch (ds) {
+    switch (ds1 @ ds2) {
     | [] => true
-    | [d, ..._] => List.for_all(ty_consistent(d), ds)
-    };
+    | [hd, ...tl] => List.for_all(ty_consistent(hd), tl)
+    }
   | (ListLit(_), _) => false
   | (Tuple(ds1), Tuple(ds2)) =>
     List.length(ds1) == List.length(ds2)
@@ -305,20 +265,20 @@ let rec ty_has_arrow = (d: t): bool =>
   | Test(_)
   | Filter(_)
   | Closure(_)
-  | Parens(_)
   | Cons(_)
   | ListConcat(_)
   | UnOp(_)
   | BinOp(_)
   | Match(_)
   | Dot(_)
-  | Cast(_)
   | Int(_)
   | Float(_)
   | Bool(_)
   | String(_)
   | Label(_) => false
-  | TupLabel(_, t) => ty_has_arrow(t)
+  | Parens(d)
+  | Cast(d, _, _)
+  | TupLabel(_, d) => ty_has_arrow(d)
   | Fun(_)
   | BuiltinFun(_)
   | TypFun(_) => true
@@ -333,7 +293,7 @@ let rec ty_has_arrow = (d: t): bool =>
   | Ap(_, _, _) => false
   };
 
-let rec poly_equal = (d1, d2) => {
+let rec poly_equal = (d1, d2): bool => {
   // With assumption that the types are consistent and have no arrow type
   switch (term_of(d1), term_of(d2)) {
   | (Invalid(_), _)
@@ -354,17 +314,19 @@ let rec poly_equal = (d1, d2) => {
   | (Test(_), _)
   | (Filter(_), _)
   | (Closure(_), _)
-  | (Parens(_), _) // Parens should have been stripped
   | (Cons(_), _)
   | (ListConcat(_), _)
   | (UnOp(_), _)
   | (BinOp(_), _)
   | (Match(_), _)
   | (Dot(_), _)
-  | (Cast(_), _)
   | (Fun(_), _)
   | (TypFun(_), _)
   | (BuiltinFun(_), _) => false
+  | (Parens(d1), _) => poly_equal(d1, d2)
+  | (_, Parens(d2)) => poly_equal(d1, d2)
+  | (Cast(d1, _, _), _) => poly_equal(d1, d2)
+  | (_, Cast(d2, _, _)) => poly_equal(d1, d2)
   | (Bool(b1), Bool(b2)) => b1 == b2
   | (Bool(_), _) => false
   | (Int(i1), Int(i2)) => i1 == i2

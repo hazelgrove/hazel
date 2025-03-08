@@ -543,30 +543,18 @@ module Transition = (EV: EV_MODE) => {
           d2 => BinOp2(Int(op), d1, d2) |> wrap_ctx,
           d2,
         );
-      let (d1', d2') = (DHExp.strip_casts(d1'), DHExp.strip_casts(d2'));
-      // Note(zhiyao): detect either side contains a hole or intermediate type
-      if (!DHExp.ty_comparable(d1') || !DHExp.ty_comparable(d2')) {
-        Indet;
-      } else {
-        let expr: t =
-          if (!DHExp.ty_consistent(d1', d2')) {
-            DynamicErrorHole(
-              BinOp(Int(op), d1', d2') |> rewrap,
-              Inconsistent,
-            )
-            |> fresh;
-          } else if (DHExp.ty_has_arrow(d1') || DHExp.ty_has_arrow(d2')) {
-            DynamicErrorHole(
-              BinOp(Int(op), d1', d2') |> rewrap,
-              CompareArrow,
-            )
-            |> fresh;
-          } else {
-            let res = DHExp.poly_equal(d1', d2');
-            Bool(op == Equals ? res : !res) |> fresh;
-          };
-        Step({expr, state_update, kind: BinIntOp(op), is_value: false});
-      };
+      let expr: t =
+        if (!DHExp.ty_consistent(d1', d2')) {
+          DynamicErrorHole(BinOp(Int(op), d1', d2') |> rewrap, Inconsistent)
+          |> fresh;
+        } else if (DHExp.ty_has_arrow(d1') || DHExp.ty_has_arrow(d2')) {
+          DynamicErrorHole(BinOp(Int(op), d1', d2') |> rewrap, CompareArrow)
+          |> fresh;
+        } else {
+          let res = DHExp.poly_equal(d1', d2');
+          Bool(op == Equals ? res : !res) |> fresh;
+        };
+      Step({expr, state_update, kind: BinIntOp(op), is_value: false});
     | BinOp(Int(op), d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => BinOp(Int(op), d1, d2) |> rewrap)
       and. d1' =
