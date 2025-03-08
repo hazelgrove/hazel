@@ -494,7 +494,7 @@ let drv_get: drv_compound_form => t =
   | ApPat => mk(ii, ["(", ")"], mk_post(P.ap, Drv(Pat), [Drv(Pat)]))
   | CommaExp => mk_infix(",", Drv(Exp), P.comma)
   | CommaPat => mk_infix(",", Drv(Pat), P.comma)
-  | ParenProp => mk(ii, ["(", ")"], mk_op(Drv(Exp), [Drv(Exp)]))
+  | ParenProp => mk(ii, ["(", ")"], mk_op(Drv(Prop), [Drv(Prop)]))
   | ParenExp => mk(ii, ["(", ")"], mk_op(Drv(Exp), [Drv(Exp)]))
   | ParenPat => mk(ii, ["(", ")"], mk_op(Drv(Pat), [Drv(Pat)]))
   | ParenTyp => mk(ii, ["(", ")"], mk_op(Drv(Typ), [Drv(Typ)]))

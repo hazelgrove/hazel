@@ -79,11 +79,11 @@ let show =
       |> Zipper.unzip,
       ~root=Drv(Jdmt),
     );
-  let statics = CachedStatics.empty;
-  // CachedStatics.init_from_term(
-  //   ~settings=CoreSettings.on,
-  //   DrvExp(Exp(syntax), Jdmt) |> Exp.fresh,
-  // );
+  let statics =
+    CachedStatics.init_from_term(
+      ~settings=CoreSettings.on,
+      DrvExp(Exp(syntax), Jdmt) |> Exp.fresh,
+    );
   let highlight_deco = {
     module Deco =
       Deco.Deco({
@@ -184,26 +184,28 @@ let premises_view =
             ),
           prems,
         )
-        @ List.map(
-            test =>
-              switch (test) {
-              | RuleSpec.Formula.Ignore(_) => Node.none
-              | _ =>
-                Node.div(
-                  ~attrs=[
-                    Attr.class_("deduction-test"),
-                    Attr.class_("drv-explainthis"),
-                  ],
-                  [
-                    show_without_statics(
-                      ExpToSegment.drv_formula_to_pretty(test, Jdmt),
-                      ~globals,
-                    ),
-                  ],
-                )
-              },
-            tests,
+        @ [
+          Node.div(
+            ~attrs=[Attr.class_("deduction-test")],
+            List.map(
+              test =>
+                switch (test) {
+                | RuleSpec.Formula.Ignore(_) => Node.none
+                | _ =>
+                  Node.div(
+                    ~attrs=[Attr.class_("drv-explainthis")],
+                    [
+                      show_without_statics(
+                        ExpToSegment.drv_formula_to_pretty(test, Jdmt),
+                        ~globals,
+                      ),
+                    ],
+                  )
+                },
+              tests,
+            ),
           ),
+        ],
       ),
     ]
     @ [label_view(~label)],

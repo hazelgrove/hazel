@@ -310,8 +310,11 @@
   align-items: center;
 }
 
-.drv-explainthis .deduction-test {
-  background-color: var(--cell-active)
+.drv-explainthis .deduction-test:not(:empty) {
+  background-color: var(--cell-active);
+  border: solid var(--BR2) 0.1em;
+  border-radius: 1rem;
+  padding: 0 0.4rem;
 }
 
 #explain-this .drv-explainthis-section.section {
