@@ -276,14 +276,11 @@ module Update = {
     let color_highlights =
       switch (derivation_info) {
       | Some(_) =>
-        let (_, (_, (color_map, _)), _) =
-          ExplainThis.get_doc_deduction(
-            ~globals=model.globals,
-            ~docs=model.explain_this,
-            derivation_info,
-            Colorings,
-          );
-        Some(color_map);
+        ExplainThis.get_color_map_deduction(
+          ~globals=model.globals,
+          ~explainThisModel=model.explain_this,
+          derivation_info,
+        )
       | None => color_highlights
       };
     let globals = Globals.Update.calculate(color_highlights, model.globals);

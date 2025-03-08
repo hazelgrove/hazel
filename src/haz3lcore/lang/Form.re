@@ -377,9 +377,9 @@ type drv_compound_form =
 
 let drv_get: drv_compound_form => t =
   fun
-  | OfJdmt => mk(ds, ["of_jdmt", "end"], mk_op(Exp, [Drv(Jdmt)]))
-  | OfCtx => mk(ds, ["of_ctx", "end"], mk_op(Exp, [Drv(Ctx)]))
-  | OfProp => mk(ds, ["of_prop", "end"], mk_op(Exp, [Drv(Prop)]))
+  | OfJdmt => mk(ds, ["of_jdmt", "end"], mk_op(Exp, [Drv(Exp)]))
+  | OfCtx => mk(ds, ["of_ctx", "end"], mk_op(Exp, [Drv(Exp)]))
+  | OfProp => mk(ds, ["of_prop", "end"], mk_op(Exp, [Drv(Exp)]))
   | OfAlfaExp => mk(ds, ["of_alfa_exp", "end"], mk_op(Exp, [Drv(Exp)]))
   | OfAlfaTyp => mk(ds, ["of_alfa_typ", "end"], mk_op(Exp, [Drv(Typ)]))
   | OfAlfaPat => mk(ds, ["of_alfa_pat", "end"], mk_op(Exp, [Drv(Pat)]))
@@ -388,22 +388,22 @@ let drv_get: drv_compound_form => t =
     mk(
       ds,
       ["[", "/", "]"],
-      mk_pre(P.fun_, Drv(Exp), [Drv(Pat), Drv(Exp)]),
+      mk_pre(P.fun_, Drv(Exp), [Drv(Exp), Drv(Pat)]),
     )
   | SubstTy =>
     mk(
       ds,
       ["[", "/", "]"],
-      mk_pre(P.fun_, Drv(Typ), [Drv(TPat), Drv(Typ)]),
+      mk_pre(P.fun_, Drv(Typ), [Drv(Typ), Drv(TPat)]),
     )
   | Glb => mk(ds, ["glb(", ",", ")"], mk_op(Drv(Typ), [Drv(Typ)]))
-  | Val => mk(ds, ["val", "end"], mk_op(Drv(Jdmt), [Drv(Exp)]))
+  | Val => mk(ds, ["val", "end"], mk_op(Drv(Exp), [Drv(Exp)]))
   | Eval =>
-    mk(ss, ["\\=/"], mk_bin'(P.min, Drv(Jdmt), Drv(Exp), [], Drv(Exp)))
+    mk(ss, ["\\=/"], mk_bin'(P.min, Drv(Exp), Drv(Exp), [], Drv(Exp)))
   | Entail =>
-    mk(ss, ["|-"], mk_bin'(P.min, Drv(Jdmt), Drv(Ctx), [], Drv(Prop)))
+    mk(ss, ["|-"], mk_bin'(P.min, Drv(Exp), Drv(Exp), [], Drv(Exp)))
   | UnaryEntail =>
-    mk(ss, ["|-"], mk_pre'(P.min, Drv(Jdmt), Drv(Ctx), [], Drv(Prop)))
+    mk(ss, ["|-"], mk_pre'(P.min, Drv(Exp), Drv(Exp), [], Drv(Exp)))
   // Note(zhiyao):
   // Auto complete is only available for sort Exp, that's why
   // we need a fake_consistent to make it work for Drv(Exp)
@@ -413,7 +413,7 @@ let drv_get: drv_compound_form => t =
     mk(
       ds,
       ["consistent", "~"],
-      mk_pre'(P.fun_, Drv(Jdmt), Drv(Jdmt), [Drv(Typ)], Drv(Typ)),
+      mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
   | MatchedArrowFake =>
     mk(ds, ["matched_arrow", "with"], mk_pre(P.fun_, Exp, [Drv(Typ)]))
@@ -421,7 +421,7 @@ let drv_get: drv_compound_form => t =
     mk(
       ds,
       ["matched_arrow", "with"],
-      mk_pre'(P.fun_, Drv(Jdmt), Drv(Jdmt), [Drv(Typ)], Drv(Typ)),
+      mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
   | MatchedProdFake =>
     mk(ds, ["matched_prod", "with"], mk_pre(P.fun_, Exp, [Drv(Typ)]))
@@ -429,7 +429,7 @@ let drv_get: drv_compound_form => t =
     mk(
       ds,
       ["matched_prod", "with"],
-      mk_pre'(P.fun_, Drv(Jdmt), Drv(Jdmt), [Drv(Typ)], Drv(Typ)),
+      mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
   | MatchedSumFake =>
     mk(ds, ["matched_sum", "with"], mk_pre(P.fun_, Exp, [Drv(Typ)]))
@@ -437,23 +437,23 @@ let drv_get: drv_compound_form => t =
     mk(
       ds,
       ["matched_sum", "with"],
-      mk_pre'(P.fun_, Drv(Jdmt), Drv(Jdmt), [Drv(Typ)], Drv(Typ)),
+      mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
-  | Valid => mk(ds, ["valid", "end"], mk_op(Drv(Prop), [Drv(Typ)]))
+  | Valid => mk(ds, ["valid", "end"], mk_op(Drv(Exp), [Drv(Typ)]))
   | HasType =>
-    mk(ss, [":"], mk_bin'(P.ann, Drv(Prop), Drv(Exp), [], Drv(Typ)))
+    mk(ss, [":"], mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
   | Syn =>
-    mk(ss, ["=>"], mk_bin'(P.ann, Drv(Prop), Drv(Exp), [], Drv(Typ)))
+    mk(ss, ["=>"], mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
   | Ana =>
-    mk(ss, ["<="], mk_bin'(P.ann, Drv(Prop), Drv(Exp), [], Drv(Typ)))
-  | And => mk_infix("/\\", Drv(Prop), P.and_)
-  | Or => mk_infix("\\/", Drv(Prop), P.or_)
-  | Impl => mk_infix("==>", Drv(Prop), P.impl)
-  | Not => mk(ds, ["!"], mk_pre(P.neg, Drv(Prop), []))
+    mk(ss, ["<="], mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
+  | And => mk_infix("/\\", Drv(Exp), P.and_)
+  | Or => mk_infix("\\/", Drv(Exp), P.or_)
+  | Impl => mk_infix("==>", Drv(Exp), P.impl)
+  | Not => mk(ds, ["!"], mk_pre(P.neg, Drv(Exp), []))
   | Cons =>
-    mk(ss, ["::"], mk_bin'(P.cons, Drv(Ctx), Drv(Prop), [], Drv(Ctx)))
-  | Concat => mk_infix("@", Drv(Ctx), P.plus)
-  | List => mk(ii, ["[", "]"], mk_op(Drv(Ctx), [Drv(Prop)]))
+    mk(ss, ["::"], mk_bin'(P.cons, Drv(Exp), Drv(Exp), [], Drv(Exp)))
+  | Concat => mk_infix("@", Drv(Exp), P.plus)
+  | List => mk(ii, ["[", "]"], mk_op(Drv(Exp), [Drv(Exp)]))
   | Neg => mk(ds, ["-"], mk_pre(P.neg, Drv(Exp), []))
   | Plus => mk_infix("+", Drv(Exp), P.plus)
   | Minus => mk_infix("-", Drv(Exp), P.plus)
@@ -493,7 +493,7 @@ let drv_get: drv_compound_form => t =
   | ApPat => mk(ii, ["(", ")"], mk_post(P.ap, Drv(Pat), [Drv(Pat)]))
   | CommaExp => mk_infix(",", Drv(Exp), P.comma)
   | CommaPat => mk_infix(",", Drv(Pat), P.comma)
-  | ParenProp => mk(ii, ["(", ")"], mk_op(Drv(Prop), [Drv(Prop)]))
+  | ParenProp => mk(ii, ["(", ")"], mk_op(Drv(Exp), [Drv(Exp)]))
   | ParenExp => mk(ii, ["(", ")"], mk_op(Drv(Exp), [Drv(Exp)]))
   | ParenPat => mk(ii, ["(", ")"], mk_op(Drv(Pat), [Drv(Pat)]))
   | ParenTyp => mk(ii, ["(", ")"], mk_op(Drv(Typ), [Drv(Typ)]))

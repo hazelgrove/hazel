@@ -36,6 +36,8 @@ let consistent = (s, s') =>
   switch (s, s') {
   | (Any, _)
   | (_, Any) => true
+  | (Drv(s), Drv(s')) => DrvSort.consistent(s, s')
+  | (Drv(_), _) => false
   | _ => s == s'
   };
 
