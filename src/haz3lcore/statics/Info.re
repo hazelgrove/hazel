@@ -442,6 +442,8 @@ let rec status_common =
   | (Duplicate(lab, _), _) =>
     InHole(DuplicateLabel(lab, Unknown(Internal) |> Typ.temp))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
+  | (NoJoin(PolyEq, tys), _) =>
+    InHole(Inconsistent(Internal(Typ.of_source(tys))))
   | (NoJoin(wrap, tys), Ana(ana)) =>
     let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.temp);
     switch (Typ.join(ctx, ana, syn)) {
