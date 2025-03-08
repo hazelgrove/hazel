@@ -6,7 +6,7 @@ open Util;
     e.g. Unboxing `let x = 1 in x` results in: `x`(pat), `1`(exp), `x`(exp)
     - An error occurs if unboxing is not possible.
   2) Unifying
-    e.g. if_ unboxing reveals that `f` is unified with `fun x -> x`, any
+    e.g. If unboxing reveals that `f` is unified with `fun x -> x`, any
     subsequent attempt to unify `f` with a value not equal to `fun x -> x`
     will result in an error.
   This module does not include `checking` functionalities, such as:
@@ -101,14 +101,36 @@ module Formula = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type test = [@opaque] Formula.t(bool);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  prems: list(Drv.Exp.t),
-  concl: Drv.Exp.t,
-  tests: list(test),
+module Spec = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t('a) = {
+    prems: list('a),
+    concl: 'a,
+    tests: list(test),
+  };
 };
 
-let of_spec: Rule.t => t = {
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = Spec.t(Drv.Exp.t);
+
+module M_Id = {
+  module M_Id =
+    Grammar.Drv.M({
+      [@deriving (show({with_path: false}), sexp, yojson, eq)]
+      type t('a, 'b) = 'a;
+    });
+  include M_Id;
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type exp_t = M_Id.exp_t(unit);
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type pat_t = M_Id.pat_t(unit);
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type typ_t = M_Id.typ_t(unit);
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type tpat_t = M_Id.tpat_t(unit);
+};
+
+let of_spec: Rule.t => Spec.t(M_Id.exp_t) = {
   module TestSymbolMap =
     SymbolMap.M({
       type exp = Formula.t(Drv.Exp.t);
@@ -121,146 +143,85 @@ let of_spec: Rule.t => t = {
       let tpat: string => tpat = s => LookUpTPat(s);
     });
   module T = TestSymbolMap;
-
+  open M_Id;
   module SymbolMap =
     SymbolMap.M({
-      type exp = Drv.Exp.t;
-      type pat = Drv.Pat.t;
-      type typ = Drv.Typ.t;
-      type tpat = Drv.TPat.t;
-      let exp: string => exp = s => Var(s) |> Drv.Exp.fresh;
-      let pat: string => pat = s => Var(s) |> Drv.Pat.fresh;
-      let typ: string => typ = s => Var(s) |> Drv.Typ.fresh;
-      let tpat: string => tpat = s => Var(s) |> Drv.TPat.fresh;
+      type exp = exp_t;
+      type pat = pat_t;
+      type typ = typ_t;
+      type tpat = tpat_t;
+      let exp: string => exp = s => Var(s);
+      let pat: string => pat = s => Var(s);
+      let typ: string => typ = s => Var(s);
+      let tpat: string => tpat = s => Var(s);
     });
   open SymbolMap;
-
-  // JDMT
-  let val_ = v => Val(v) |> Drv.Exp.fresh;
-  let eval = (e, v) => Eval(e, v) |> Drv.Exp.fresh;
-  let entail = (ctx, p) => Entail(ctx, p) |> Drv.Exp.fresh;
-  let consistent = (t1, t2) => Consistent(t1, t2) |> Drv.Exp.fresh;
-  let matched_arrow = (t1, t2) => MatchedArrow(t1, t2) |> Drv.Exp.fresh;
-  let matched_prod = (t1, t2) => MatchedProd(t1, t2) |> Drv.Exp.fresh;
-  let matched_sum = (t1, t2) => MatchedSum(t1, t2) |> Drv.Exp.fresh;
-  // PROP (In JDMT form)
-  let type_ = (ctx, t) => entail(ctx, Type(t) |> Drv.Exp.fresh);
-  let has = (ctx, x, t) => entail(ctx, HasType(x, t) |> Drv.Exp.fresh);
-  let syn = (ctx, x, t) => entail(ctx, Syn(x, t) |> Drv.Exp.fresh);
-  let ana = (ctx, x, t) => entail(ctx, Ana(x, t) |> Drv.Exp.fresh);
-  // PROP
-  let and_ = (e1, e2) => And(e1, e2) |> Drv.Exp.fresh;
-  let or_ = (e1, e2) => Or(e1, e2) |> Drv.Exp.fresh;
-  let impl = (e1, e2) => Impl(e1, e2) |> Drv.Exp.fresh;
-  let truth = () => Truth |> Drv.Exp.fresh;
-  let falsity = () => Falsity |> Drv.Exp.fresh;
-  // EXP
-  let neg = e => Neg(e) |> Drv.Exp.fresh;
-  let binop = (op, e1, e2) => BinOp(op, e1, e2) |> Drv.Exp.fresh;
-  let true_ = () => True |> Drv.Exp.fresh;
-  let false_ = () => False |> Drv.Exp.fresh;
-  let if_ = (e, e1, e2) => If(e, e1, e2) |> Drv.Exp.fresh;
-  let let_ = (p, e1, e2) => Let(p, e1, e2) |> Drv.Exp.fresh;
-  let let_ann = ((p, t), e1, e2) =>
-    let_(Cast(p, t) |> Drv.Pat.fresh, e1, e2);
-  let let_pair = ((p1, p2), e1, e2) =>
-    let_(Pair(p1, p2) |> Drv.Pat.fresh, e1, e2);
-  let fix = (p, e) => Fix(p, e) |> Drv.Exp.fresh;
-  let fix_ann = ((p, t), e) => fix(Cast(p, t) |> Drv.Pat.fresh, e);
-  let fun_ = (p, e) => Fun(p, e) |> Drv.Exp.fresh;
-  let fun_ann = ((p, t), e) => fun_(Cast(p, t) |> Drv.Pat.fresh, e);
-  let ap = (e1, e2) => Ap(e1, e2) |> Drv.Exp.fresh;
-  let pair = (e1, e2) => Pair(e1, e2) |> Drv.Exp.fresh;
-  let triv = () => Triv |> Drv.Exp.fresh;
-  let prjl = e => PrjL(e) |> Drv.Exp.fresh;
-  let prjr = e => PrjR(e) |> Drv.Exp.fresh;
-  let injl = e => InjL(e) |> Drv.Exp.fresh;
-  let injr = e => InjR(e) |> Drv.Exp.fresh;
-  let case = (e, p1, e1, p2, e2) =>
-    Case(e, InjL(p1) |> Drv.Pat.fresh, e1, InjR(p2) |> Drv.Pat.fresh, e2)
-    |> Drv.Exp.fresh;
-  let roll = e => Roll(e) |> Drv.Exp.fresh;
-  let unroll = e => Unroll(e) |> Drv.Exp.fresh;
-  let exphole = () => ExpHole |> Drv.Exp.fresh;
-  // TYP
-  let num = () => Num |> Drv.Typ.fresh;
-  let bool = () => Bool |> Drv.Typ.fresh;
-  let arrow = (t1, t2) => Arrow(t1, t2) |> Drv.Typ.fresh;
-  let prod = (t1, t2) => Prod(t1, t2) |> Drv.Typ.fresh;
-  let unit = () => Unit |> Drv.Typ.fresh;
-  let sum = (t1, t2) => Sum(t1, t2) |> Drv.Typ.fresh;
-  let rec_ = (tpat, t) => Rec(tpat, t) |> Drv.Typ.fresh;
-  let typhole = () => TypHole |> Drv.Typ.fresh;
+  let val_ = v => Val(v);
+  let eval = (e, v) => Eval(e, v);
+  let entail = (ctx, p) => Entail(ctx, p);
+  let type_ = (ctx, t) => entail(ctx, Type(t));
+  let has = (ctx, x, t) => entail(ctx, HasType(x, t));
+  let syn = (ctx, x, t) => entail(ctx, Syn(x, t));
+  let ana = (ctx, x, t) => entail(ctx, Ana(x, t));
+  let case = (e, p1, e1, p2, e2) => Case(e, InjL(p1), e1, InjR(p2), e2);
 
   fun
-  | C_Refl => {concl: consistent(t, t), prems: [], tests: []}
-  | C_UnkL => {concl: consistent(typhole(), t), prems: [], tests: []}
-  | C_UnkR => {concl: consistent(t, typhole()), prems: [], tests: []}
+  | C_Refl => {concl: Consistent(t, t), prems: [], tests: []}
+  | C_UnkL => {concl: Consistent(TypHole, t), prems: [], tests: []}
+  | C_UnkR => {concl: Consistent(t, TypHole), prems: [], tests: []}
   | C_Sum => {
-      concl: consistent(sum(t1, t2), sum(t1', t2')),
-      prems: [consistent(t1, t1'), consistent(t2, t2')],
+      concl: Consistent(Sum(t1, t2), Sum(t1', t2')),
+      prems: [Consistent(t1, t1'), Consistent(t2, t2')],
       tests: [],
     }
   | C_Prod => {
-      concl: consistent(prod(t1, t2), prod(t1', t2')),
-      prems: [consistent(t1, t1'), consistent(t2, t2')],
+      concl: Consistent(Prod(t1, t2), Prod(t1', t2')),
+      prems: [Consistent(t1, t1'), Consistent(t2, t2')],
       tests: [],
     }
   | C_Arrow => {
-      concl: consistent(arrow(t_in, t_out), arrow(t_in', t_out')),
-      prems: [consistent(t_in, t_in'), consistent(t_out, t_out')],
+      concl: Consistent(Arrow(t_in, t_out), Arrow(t_in', t_out')),
+      prems: [Consistent(t_in, t_in'), Consistent(t_out, t_out')],
       tests: [],
     }
-  | MS_Hole => {
-      concl: matched_sum(typhole(), typhole()),
-      prems: [],
-      tests: [],
-    }
+  | MS_Hole => {concl: MatchedSum(TypHole, TypHole), prems: [], tests: []}
   | MS_Sum => {
-      concl: matched_sum(sum(t1, t2), sum(t1, t2)),
+      concl: MatchedSum(Sum(t1, t2), Sum(t1, t2)),
       prems: [],
       tests: [],
     }
-  | MP_Hole => {
-      concl: matched_prod(typhole(), typhole()),
-      prems: [],
-      tests: [],
-    }
+  | MP_Hole => {concl: MatchedProd(TypHole, TypHole), prems: [], tests: []}
   | MP_Prod => {
-      concl: matched_prod(prod(t1, t2), prod(t1, t2)),
+      concl: MatchedProd(Prod(t1, t2), Prod(t1, t2)),
       prems: [],
       tests: [],
     }
-  | MA_Hole => {
-      concl: matched_arrow(typhole(), typhole()),
-      prems: [],
-      tests: [],
-    }
+  | MA_Hole => {concl: MatchedArrow(TypHole, TypHole), prems: [], tests: []}
   | MA_Arrow => {
-      concl: matched_arrow(arrow(t_in, t_out), arrow(t_in, t_out)),
+      concl: MatchedArrow(Arrow(t_in, t_out), Arrow(t_in, t_out)),
       prems: [],
       tests: [],
     }
-  | TV_Num => {concl: type_(delta, num()), prems: [], tests: []}
-  | TV_Bool => {concl: type_(delta, bool()), prems: [], tests: []}
-  | TV_Unit => {concl: type_(delta, unit()), prems: [], tests: []}
+  | TV_Num => {concl: type_(delta, Num), prems: [], tests: []}
+  | TV_Bool => {concl: type_(delta, Bool), prems: [], tests: []}
+  | TV_Unit => {concl: type_(delta, Unit), prems: [], tests: []}
   | TV_Arrow => {
-      concl: type_(delta, arrow(t1, t2)),
+      concl: type_(delta, Arrow(t1, t2)),
       prems: [type_(delta, t1), type_(delta, t2)],
       tests: [],
     }
   | TV_Prod => {
-      concl: type_(delta, prod(t1, t2)),
+      concl: type_(delta, Prod(t1, t2)),
       prems: [type_(delta, t1), type_(delta, t2)],
       tests: [],
     }
   | TV_Sum => {
-      concl: type_(delta, sum(t1, t2)),
+      concl: type_(delta, Sum(t1, t2)),
       prems: [type_(delta, t1), type_(delta, t2)],
       tests: [],
     }
   | TV_Rec => {
-      concl: type_(delta, rec_(tpat, t)),
+      concl: type_(delta, Rec(tpat, t)),
       prems: [type_(delta', t)],
       tests:
         T.[
@@ -275,54 +236,50 @@ let of_spec: Rule.t => t = {
       prems: [],
       tests: T.[Mem(Type(t), UnboxCtx(delta))],
     }
-  | S_Hole => {concl: syn(gamma, exphole(), typhole()), prems: [], tests: []}
-  | T_True => {concl: has(gamma, true_(), bool()), prems: [], tests: []}
-  | S_True => {concl: syn(gamma, true_(), bool()), prems: [], tests: []}
-  | V_True => {concl: val_(true_()), prems: [], tests: []}
-  | T_False => {concl: has(gamma, false_(), bool()), prems: [], tests: []}
-  | S_False => {concl: syn(gamma, false_(), bool()), prems: [], tests: []}
-  | V_False => {concl: val_(false_()), prems: [], tests: []}
+  | S_Hole => {concl: syn(gamma, ExpHole, TypHole), prems: [], tests: []}
+  | T_True => {concl: has(gamma, True, Bool), prems: [], tests: []}
+  | S_True => {concl: syn(gamma, True, Bool), prems: [], tests: []}
+  | V_True => {concl: val_(True), prems: [], tests: []}
+  | T_False => {concl: has(gamma, False, Bool), prems: [], tests: []}
+  | S_False => {concl: syn(gamma, False, Bool), prems: [], tests: []}
+  | V_False => {concl: val_(False), prems: [], tests: []}
   | T_If => {
-      concl: has(gamma, if_(e, e1, e2), t),
-      prems: [has(gamma, e, bool()), has(gamma, e1, t), has(gamma, e2, t)],
+      concl: has(gamma, If(e, e1, e2), t),
+      prems: [has(gamma, e, Bool), has(gamma, e1, t), has(gamma, e2, t)],
       tests: [],
     }
   | S_If => {
-      concl: syn(gamma, if_(e, e1, e2), t),
-      prems: [ana(gamma, e, bool()), syn(gamma, e1, t), syn(gamma, e2, t)],
+      concl: syn(gamma, If(e, e1, e2), t),
+      prems: [ana(gamma, e, Bool), syn(gamma, e1, t), syn(gamma, e2, t)],
       tests: [],
     }
   | S_If_GT => {
-      concl: syn(gamma, if_(e, e1, e2), t),
-      prems: [
-        ana(gamma, e, bool()),
-        has(gamma, e1, t1),
-        has(gamma, e2, t2),
-      ],
+      concl: syn(gamma, If(e, e1, e2), t),
+      prems: [ana(gamma, e, Bool), has(gamma, e1, t1), has(gamma, e2, t2)],
       tests: T.[EqTyp(t, Glb(t1, t2))],
     }
   | A_If => {
-      concl: ana(gamma, if_(e, e1, e2), t),
-      prems: [ana(gamma, e, bool()), ana(gamma, e1, t), ana(gamma, e2, t)],
+      concl: ana(gamma, If(e, e1, e2), t),
+      prems: [ana(gamma, e, Bool), ana(gamma, e1, t), ana(gamma, e2, t)],
       tests: [],
     }
   | E_If_T => {
-      concl: eval(if_(e, e1, e2), v1),
-      prems: [eval(e, true_()), eval(e1, v1)],
+      concl: eval(If(e, e1, e2), v1),
+      prems: [eval(e, True), eval(e1, v1)],
       tests: [],
     }
   | E_If_F => {
-      concl: eval(if_(e, e1, e2), v2),
-      prems: [eval(e, false_()), eval(e2, v2)],
+      concl: eval(If(e, e1, e2), v2),
+      prems: [eval(e, False), eval(e2, v2)],
       tests: [],
     }
   | T_Num => {
-      concl: has(gamma, n, num()),
+      concl: has(gamma, n, Num),
       prems: [],
       tests: T.[Ignore(UnboxNumLit(n))],
     }
   | S_Num => {
-      concl: syn(gamma, n, num()),
+      concl: syn(gamma, n, Num),
       prems: [],
       tests: T.[Ignore(UnboxNumLit(n))],
     }
@@ -337,125 +294,125 @@ let of_spec: Rule.t => t = {
       tests: T.[Ignore(UnboxNumLit(n))],
     }
   | T_Neg => {
-      concl: has(gamma, neg(e), num()),
-      prems: [has(gamma, e, num())],
+      concl: has(gamma, Neg(e), Num),
+      prems: [has(gamma, e, Num)],
       tests: [],
     }
   | S_Neg => {
-      concl: syn(gamma, neg(e), num()),
-      prems: [ana(gamma, e, num())],
+      concl: syn(gamma, Neg(e), Num),
+      prems: [ana(gamma, e, Num)],
       tests: [],
     }
   | E_Neg => {
-      concl: eval(neg(e), n'),
+      concl: eval(Neg(e), n'),
       prems: [eval(e, n)],
       tests: T.[Eq(UnboxNumLit(n'), Neg(UnboxNumLit(n)))],
     }
   | T_Plus => {
-      concl: has(gamma, binop(Plus, e1, e2), num()),
-      prems: [has(gamma, e1, num()), has(gamma, e2, num())],
+      concl: has(gamma, BinOp(Plus, e1, e2), Num),
+      prems: [has(gamma, e1, Num), has(gamma, e2, Num)],
       tests: [],
     }
   | S_Plus => {
-      concl: syn(gamma, binop(Plus, e1, e2), num()),
-      prems: [ana(gamma, e1, num()), ana(gamma, e2, num())],
+      concl: syn(gamma, BinOp(Plus, e1, e2), Num),
+      prems: [ana(gamma, e1, Num), ana(gamma, e2, Num)],
       tests: [],
     }
   | E_Plus => {
-      concl: eval(binop(Plus, e1, e2), n'),
+      concl: eval(BinOp(Plus, e1, e2), n'),
       prems: [eval(e1, n1), eval(e2, n2)],
       tests:
         T.[Eq(UnboxNumLit(n'), Plus(UnboxNumLit(n1), UnboxNumLit(n2)))],
     }
   | T_Minus => {
-      concl: has(gamma, binop(Minus, e1, e2), num()),
-      prems: [has(gamma, e1, num()), has(gamma, e2, num())],
+      concl: has(gamma, BinOp(Minus, e1, e2), Num),
+      prems: [has(gamma, e1, Num), has(gamma, e2, Num)],
       tests: [],
     }
   | S_Minus => {
-      concl: syn(gamma, binop(Minus, e1, e2), num()),
-      prems: [ana(gamma, e1, num()), ana(gamma, e2, num())],
+      concl: syn(gamma, BinOp(Minus, e1, e2), Num),
+      prems: [ana(gamma, e1, Num), ana(gamma, e2, Num)],
       tests: [],
     }
   | E_Minus => {
-      concl: eval(binop(Minus, e1, e2), n'),
+      concl: eval(BinOp(Minus, e1, e2), n'),
       prems: [eval(e1, n1), eval(e2, n2)],
       tests:
         T.[Eq(UnboxNumLit(n'), Minus(UnboxNumLit(n1), UnboxNumLit(n2)))],
     }
   | T_Times => {
-      concl: has(gamma, binop(Times, e1, e2), num()),
-      prems: [has(gamma, e1, num()), has(gamma, e2, num())],
+      concl: has(gamma, BinOp(Times, e1, e2), Num),
+      prems: [has(gamma, e1, Num), has(gamma, e2, Num)],
       tests: [],
     }
   | S_Times => {
-      concl: syn(gamma, binop(Times, e1, e2), num()),
-      prems: [ana(gamma, e1, num()), ana(gamma, e2, num())],
+      concl: syn(gamma, BinOp(Times, e1, e2), Num),
+      prems: [ana(gamma, e1, Num), ana(gamma, e2, Num)],
       tests: [],
     }
   | E_Times => {
-      concl: eval(binop(Times, e1, e2), n'),
+      concl: eval(BinOp(Times, e1, e2), n'),
       prems: [eval(e1, n1), eval(e2, n2)],
       tests:
         T.[Eq(UnboxNumLit(n'), Times(UnboxNumLit(n1), UnboxNumLit(n2)))],
     }
   | T_Lt => {
-      concl: has(gamma, binop(Lt, e1, e2), bool()),
-      prems: [has(gamma, e1, num()), has(gamma, e2, num())],
+      concl: has(gamma, BinOp(Lt, e1, e2), Bool),
+      prems: [has(gamma, e1, Num), has(gamma, e2, Num)],
       tests: [],
     }
   | S_Lt => {
-      concl: syn(gamma, binop(Lt, e1, e2), bool()),
-      prems: [ana(gamma, e1, num()), ana(gamma, e2, num())],
+      concl: syn(gamma, BinOp(Lt, e1, e2), Bool),
+      prems: [ana(gamma, e1, Num), ana(gamma, e2, Num)],
       tests: [],
     }
   | E_Lt_T => {
-      concl: eval(binop(Lt, e1, e2), true_()),
+      concl: eval(BinOp(Lt, e1, e2), True),
       prems: [eval(e1, n1), eval(e2, n2)],
       tests: T.[Lt(UnboxNumLit(n1), UnboxNumLit(n2))],
     }
   | E_Lt_F => {
-      concl: eval(binop(Lt, e1, e2), false_()),
+      concl: eval(BinOp(Lt, e1, e2), False),
       prems: [eval(e1, n1), eval(e2, n2)],
       tests: T.[NotLt(UnboxNumLit(n1), UnboxNumLit(n2))],
     }
   | T_Gt => {
-      concl: has(gamma, binop(Gt, e1, e2), bool()),
-      prems: [has(gamma, e1, num()), has(gamma, e2, num())],
+      concl: has(gamma, BinOp(Gt, e1, e2), Bool),
+      prems: [has(gamma, e1, Num), has(gamma, e2, Num)],
       tests: [],
     }
   | S_Gt => {
-      concl: syn(gamma, binop(Gt, e1, e2), bool()),
-      prems: [ana(gamma, e1, num()), ana(gamma, e2, num())],
+      concl: syn(gamma, BinOp(Gt, e1, e2), Bool),
+      prems: [ana(gamma, e1, Num), ana(gamma, e2, Num)],
       tests: [],
     }
   | E_Gt_T => {
-      concl: eval(binop(Gt, e1, e2), true_()),
+      concl: eval(BinOp(Gt, e1, e2), True),
       prems: [eval(e1, n1), eval(e2, n2)],
       tests: T.[Gt(UnboxNumLit(n1), UnboxNumLit(n2))],
     }
   | E_Gt_F => {
-      concl: eval(binop(Gt, e1, e2), false_()),
+      concl: eval(BinOp(Gt, e1, e2), False),
       prems: [eval(e1, n1), eval(e2, n2)],
       tests: T.[NotGt(UnboxNumLit(n1), UnboxNumLit(n2))],
     }
   | T_Eq => {
-      concl: has(gamma, binop(Eq, e1, e2), bool()),
-      prems: [has(gamma, e1, num()), has(gamma, e2, num())],
+      concl: has(gamma, BinOp(Eq, e1, e2), Bool),
+      prems: [has(gamma, e1, Num), has(gamma, e2, Num)],
       tests: [],
     }
   | S_Eq => {
-      concl: syn(gamma, binop(Eq, e1, e2), bool()),
-      prems: [ana(gamma, e1, num()), ana(gamma, e2, num())],
+      concl: syn(gamma, BinOp(Eq, e1, e2), Bool),
+      prems: [ana(gamma, e1, Num), ana(gamma, e2, Num)],
       tests: [],
     }
   | E_Eq_T => {
-      concl: eval(binop(Eq, e1, e2), true_()),
+      concl: eval(BinOp(Eq, e1, e2), True),
       prems: [eval(e1, n), eval(e2, n)],
       tests: T.[Eq(UnboxNumLit(n1), UnboxNumLit(n2))],
     }
   | E_Eq_F => {
-      concl: eval(binop(Eq, e1, e2), false_()),
+      concl: eval(BinOp(Eq, e1, e2), False),
       prems: [eval(e1, n1), eval(e2, n2)],
       tests: T.[NotEq(UnboxNumLit(n1), UnboxNumLit(n2))],
     }
@@ -472,12 +429,12 @@ let of_spec: Rule.t => t = {
         T.[Mem(HasType(ExpVar(UnboxExpVar(ex)), t), UnboxCtx(gamma))],
     }
   | T_LetAnn => {
-      concl: has(gamma, let_ann((x, t_def), e_def, e_body), t),
+      concl: has(gamma, Let(Cast(x, t_def), e_def, e_body), t),
       prems: [has(gamma, e_def, t_def), has(gamma', e_body, t)],
       tests: T.[Ignore(UnboxPatVar(x))],
     }
   | T_LetAnn_TV => {
-      concl: has(gamma, let_ann((x, t_def), e_def, e_body), t),
+      concl: has(gamma, Let(Cast(x, t_def), e_def, e_body), t),
       prems: [
         type_(delta, t_def),
         has(gamma, e_def, t_def),
@@ -493,17 +450,17 @@ let of_spec: Rule.t => t = {
         ],
     }
   | S_LetAnn => {
-      concl: syn(gamma, let_ann((x, t_def), e_def, e_body), t),
+      concl: syn(gamma, Let(Cast(x, t_def), e_def, e_body), t),
       prems: [ana(gamma, e_def, t_def), syn(gamma', e_body, t)],
       tests: T.[Ignore(UnboxPatVar(x))],
     }
   | A_LetAnn => {
-      concl: ana(gamma, let_ann((x, t_def), e_def, e_body), t),
+      concl: ana(gamma, Let(Cast(x, t_def), e_def, e_body), t),
       prems: [ana(gamma, e_def, t_def), ana(gamma', e_body, t)],
       tests: T.[Ignore(UnboxPatVar(x))],
     }
   | T_Let => {
-      concl: has(gamma, let_(x, e_def, e_body), t),
+      concl: has(gamma, Let(x, e_def, e_body), t),
       prems: [has(gamma, e_def, t_def), has(gamma', e_body, t)],
       tests:
         T.[
@@ -514,7 +471,7 @@ let of_spec: Rule.t => t = {
         ],
     }
   | S_Let => {
-      concl: syn(gamma, let_(x, e_def, e_body), t),
+      concl: syn(gamma, Let(x, e_def, e_body), t),
       prems: [syn(gamma, e_def, t_def), syn(gamma', e_body, t)],
       tests:
         T.[
@@ -525,7 +482,7 @@ let of_spec: Rule.t => t = {
         ],
     }
   | A_Let => {
-      concl: ana(gamma, let_(x, e_def, e_body), t),
+      concl: ana(gamma, Let(x, e_def, e_body), t),
       prems: [syn(gamma, e_def, t_def), ana(gamma', e_body, t)],
       tests:
         T.[
@@ -536,17 +493,17 @@ let of_spec: Rule.t => t = {
         ],
     }
   | E_Let => {
-      concl: eval(let_(x, e_def, e_body), v),
+      concl: eval(Let(x, e_def, e_body), v),
       prems: [eval(e_def, v_def), eval(e_body', v)],
       tests: T.[EqExp(e_body', Subst(v_def, UnboxPatVar(x), e_body))],
     }
   | T_FunAnn => {
-      concl: has(gamma, fun_ann((x, t_in), e_body), arrow(t_in, t_out)),
+      concl: has(gamma, Fun(Cast(x, t_in), e_body), Arrow(t_in, t_out)),
       prems: [has(gamma', e_body, t_out)],
       tests: T.[Ignore(UnboxPatVar(x))],
     }
   | T_FunAnn_TV => {
-      concl: has(gamma, fun_ann((x, t_in), e_body), arrow(t_in, t_out)),
+      concl: has(gamma, Fun(Cast(x, t_in), e_body), Arrow(t_in, t_out)),
       prems: [type_(delta, t_in), has(gamma', e_body, t_out)],
       tests:
         T.[
@@ -558,20 +515,20 @@ let of_spec: Rule.t => t = {
         ],
     }
   | S_FunAnn => {
-      concl: syn(gamma, fun_ann((x, t_in), e_body), arrow(t_in, t_out)),
+      concl: syn(gamma, Fun(Cast(x, t_in), e_body), Arrow(t_in, t_out)),
       prems: [syn(gamma', e_body, t_out)],
       tests: T.[Ignore(UnboxPatVar(x))],
     }
   | A_FunAnn => {
-      concl: ana(gamma, fun_ann((x, t_in), e_body), arrow(t_in, t_out)),
+      concl: ana(gamma, Fun(Cast(x, t_in), e_body), Arrow(t_in, t_out)),
       prems: [ana(gamma', e_body, t_out)],
       tests: T.[Ignore(UnboxPatVar(x))],
     }
   | A_FunAnn_GT => {
-      concl: ana(gamma, fun_ann((x, t_in'), e_body), t),
+      concl: ana(gamma, Fun(Cast(x, t_in'), e_body), t),
       prems: [
-        matched_arrow(t, arrow(t_in, t_out)),
-        consistent(t_in', t_in),
+        MatchedArrow(t, Arrow(t_in, t_out)),
+        Consistent(t_in', t_in),
         ana(gamma', e_body, t_out),
       ],
       tests:
@@ -583,7 +540,7 @@ let of_spec: Rule.t => t = {
         ],
     }
   | T_Fun => {
-      concl: has(gamma, fun_(x, e_body), arrow(t_in, t_out)),
+      concl: has(gamma, Fun(x, e_body), Arrow(t_in, t_out)),
       prems: [has(gamma', e_body, t_out)],
       tests:
         T.[
@@ -594,7 +551,7 @@ let of_spec: Rule.t => t = {
         ],
     }
   | A_Fun => {
-      concl: ana(gamma, fun_(x, e_body), arrow(t_in, t_out)),
+      concl: ana(gamma, Fun(x, e_body), Arrow(t_in, t_out)),
       prems: [ana(gamma', e_body, t_out)],
       tests:
         T.[
@@ -605,9 +562,9 @@ let of_spec: Rule.t => t = {
         ],
     }
   | A_Fun_GT => {
-      concl: ana(gamma, fun_(x, e_body), t),
+      concl: ana(gamma, Fun(x, e_body), t),
       prems: [
-        matched_arrow(t, arrow(t_in, t_out)),
+        MatchedArrow(t, Arrow(t_in, t_out)),
         ana(gamma', e_body, t_out),
       ],
       tests:
@@ -619,74 +576,74 @@ let of_spec: Rule.t => t = {
         ],
     }
   | V_Fun => {
-      concl: val_(fun_(x, e_body)),
+      concl: val_(Fun(x, e_body)),
       prems: [],
       tests: T.[Ignore(UnboxPatVar(x))],
     }
   | T_Ap => {
-      concl: has(gamma, ap(e1, e2), t_out),
-      prems: [has(gamma, e1, arrow(t_in, t_out)), has(gamma, e2, t_in)],
+      concl: has(gamma, Ap(e1, e2), t_out),
+      prems: [has(gamma, e1, Arrow(t_in, t_out)), has(gamma, e2, t_in)],
       tests: [],
     }
   | S_Ap => {
-      concl: syn(gamma, ap(e1, e2), t_out),
-      prems: [syn(gamma, e1, arrow(t_in, t_out)), ana(gamma, e2, t_in)],
+      concl: syn(gamma, Ap(e1, e2), t_out),
+      prems: [syn(gamma, e1, Arrow(t_in, t_out)), ana(gamma, e2, t_in)],
       tests: [],
     }
   | S_Ap_GT => {
-      concl: syn(gamma, ap(e1, e2), t_out),
+      concl: syn(gamma, Ap(e1, e2), t_out),
       prems: [
         syn(gamma, e1, t),
-        matched_arrow(t, arrow(t_in, t_out)),
+        MatchedArrow(t, Arrow(t_in, t_out)),
         ana(gamma, e2, t_in),
       ],
       tests: [],
     }
   | E_Ap => {
-      concl: eval(ap(e1, e2), v),
-      prems: [eval(e1, fun_(x, e_body)), eval(e2, v2), eval(e_body', v)],
+      concl: eval(Ap(e1, e2), v),
+      prems: [eval(e1, Fun(x, e_body)), eval(e2, v2), eval(e_body', v)],
       tests: T.[EqExp(e_body', Subst(v2, UnboxPatVar(x), e_body))],
     }
-  | T_Triv => {concl: has(gamma, triv(), unit()), prems: [], tests: []}
-  | S_Triv => {concl: syn(gamma, triv(), unit()), prems: [], tests: []}
-  | V_Triv => {concl: val_(triv()), prems: [], tests: []}
+  | T_Triv => {concl: has(gamma, Triv, Unit), prems: [], tests: []}
+  | S_Triv => {concl: syn(gamma, Triv, Unit), prems: [], tests: []}
+  | V_Triv => {concl: val_(Triv), prems: [], tests: []}
   | T_Pair => {
-      concl: has(gamma, pair(e1, e2), prod(t1, t2)),
+      concl: has(gamma, Pair(e1, e2), Prod(t1, t2)),
       prems: [has(gamma, e1, t1), has(gamma, e2, t2)],
       tests: [],
     }
   | S_Pair => {
-      concl: syn(gamma, pair(e1, e2), prod(t1, t2)),
+      concl: syn(gamma, Pair(e1, e2), Prod(t1, t2)),
       prems: [syn(gamma, e1, t1), syn(gamma, e2, t2)],
       tests: [],
     }
   | A_Pair => {
-      concl: ana(gamma, pair(e1, e2), prod(t1, t2)),
+      concl: ana(gamma, Pair(e1, e2), Prod(t1, t2)),
       prems: [ana(gamma, e1, t1), ana(gamma, e2, t2)],
       tests: [],
     }
   | A_Pair_GT => {
-      concl: ana(gamma, pair(e1, e2), t),
+      concl: ana(gamma, Pair(e1, e2), t),
       prems: [
-        matched_prod(t, prod(t1, t2)),
+        MatchedProd(t, Prod(t1, t2)),
         ana(gamma, e1, t1),
         ana(gamma, e2, t2),
       ],
       tests: [],
     }
   | V_Pair => {
-      concl: val_(pair(v1, v2)),
+      concl: val_(Pair(v1, v2)),
       prems: [val_(v1), val_(v2)],
       tests: [],
     }
   | E_Pair => {
-      concl: eval(pair(e1, e2), pair(v1, v2)),
+      concl: eval(Pair(e1, e2), Pair(v1, v2)),
       prems: [eval(e1, v1), eval(e2, v2)],
       tests: [],
     }
   | T_LetPair => {
-      concl: has(gamma, let_pair((x, y), e_def, e_body), t),
-      prems: [has(gamma, e_def, prod(t1, t2)), has(gamma', e_body, t)],
+      concl: has(gamma, Let(Pair(x, y), e_def, e_body), t),
+      prems: [has(gamma, e_def, Prod(t1, t2)), has(gamma', e_body, t)],
       tests:
         T.[
           EqCtx(
@@ -699,8 +656,8 @@ let of_spec: Rule.t => t = {
         ],
     }
   | S_LetPair => {
-      concl: syn(gamma, let_pair((x, y), e_def, e_body), t),
-      prems: [syn(gamma, e_def, prod(t1, t2)), syn(gamma', e_body, t)],
+      concl: syn(gamma, Let(Pair(x, y), e_def, e_body), t),
+      prems: [syn(gamma, e_def, Prod(t1, t2)), syn(gamma', e_body, t)],
       tests:
         T.[
           EqCtx(
@@ -713,10 +670,10 @@ let of_spec: Rule.t => t = {
         ],
     }
   | S_LetPair_GT => {
-      concl: syn(gamma, let_pair((x, y), e_def, e_body), t'),
+      concl: syn(gamma, Let(Pair(x, y), e_def, e_body), t'),
       prems: [
         syn(gamma, e_def, t_def),
-        matched_prod(t_def, prod(t1, t2)),
+        MatchedProd(t_def, Prod(t1, t2)),
         syn(gamma', e_body, t),
       ],
       tests:
@@ -732,8 +689,8 @@ let of_spec: Rule.t => t = {
         ],
     }
   | A_LetPair => {
-      concl: ana(gamma, let_pair((x, y), e_def, e_body), t),
-      prems: [syn(gamma, e_def, prod(t1, t2)), ana(gamma', e_body, t)],
+      concl: ana(gamma, Let(Pair(x, y), e_def, e_body), t),
+      prems: [syn(gamma, e_def, Prod(t1, t2)), ana(gamma', e_body, t)],
       tests:
         T.[
           EqCtx(
@@ -746,10 +703,10 @@ let of_spec: Rule.t => t = {
         ],
     }
   | A_LetPair_GT => {
-      concl: ana(gamma, let_pair((x, y), e_def, e_body), t),
+      concl: ana(gamma, Let(Pair(x, y), e_def, e_body), t),
       prems: [
         syn(gamma, e_def, t_def),
-        matched_prod(t_def, prod(t1, t2)),
+        MatchedProd(t_def, Prod(t1, t2)),
         ana(gamma', e_body, t),
       ],
       tests:
@@ -764,8 +721,8 @@ let of_spec: Rule.t => t = {
         ],
     }
   | E_LetPair => {
-      concl: eval(let_pair((x, y), e_def, e_body), v),
-      prems: [eval(e_def, pair(v1, v2)), eval(e_body', v)],
+      concl: eval(Let(Pair(x, y), e_def, e_body), v),
+      prems: [eval(e_def, Pair(v1, v2)), eval(e_body', v)],
       tests:
         T.[
           EqExp(
@@ -775,91 +732,91 @@ let of_spec: Rule.t => t = {
         ],
     }
   | T_PrjL => {
-      concl: has(gamma, prjl(e), t1),
-      prems: [has(gamma, e, prod(t1, t2))],
+      concl: has(gamma, PrjL(e), t1),
+      prems: [has(gamma, e, Prod(t1, t2))],
       tests: [],
     }
   | S_PrjL => {
-      concl: syn(gamma, prjl(e), t1),
-      prems: [syn(gamma, e, prod(t1, t2))],
+      concl: syn(gamma, PrjL(e), t1),
+      prems: [syn(gamma, e, Prod(t1, t2))],
       tests: [],
     }
   | S_PrjL_GT => {
-      concl: syn(gamma, prjl(e), t1),
-      prems: [syn(gamma, e, t), matched_prod(t, prod(t1, t2))],
+      concl: syn(gamma, PrjL(e), t1),
+      prems: [syn(gamma, e, t), MatchedProd(t, Prod(t1, t2))],
       tests: [],
     }
   | E_PrjL => {
-      concl: eval(prjl(e), v1),
-      prems: [eval(e, pair(v1, v2))],
+      concl: eval(PrjL(e), v1),
+      prems: [eval(e, Pair(v1, v2))],
       tests: [],
     }
   | T_PrjR => {
-      concl: has(gamma, prjr(e), t2),
-      prems: [has(gamma, e, prod(t1, t2))],
+      concl: has(gamma, PrjR(e), t2),
+      prems: [has(gamma, e, Prod(t1, t2))],
       tests: [],
     }
   | S_PrjR => {
-      concl: syn(gamma, prjr(e), t2),
-      prems: [syn(gamma, e, prod(t1, t2))],
+      concl: syn(gamma, PrjR(e), t2),
+      prems: [syn(gamma, e, Prod(t1, t2))],
       tests: [],
     }
   | S_PrjR_GT => {
-      concl: syn(gamma, prjr(e), t2),
-      prems: [syn(gamma, e, t), matched_prod(t, prod(t1, t2))],
+      concl: syn(gamma, PrjR(e), t2),
+      prems: [syn(gamma, e, t), MatchedProd(t, Prod(t1, t2))],
       tests: [],
     }
   | E_PrjR => {
-      concl: eval(prjr(e), v2),
-      prems: [eval(e, pair(v1, v2))],
+      concl: eval(PrjR(e), v2),
+      prems: [eval(e, Pair(v1, v2))],
       tests: [],
     }
   | T_InjL => {
-      concl: has(gamma, injl(e), sum(t1, t2)),
+      concl: has(gamma, InjL(e), Sum(t1, t2)),
       prems: [has(gamma, e, t1)],
       tests: [],
     }
   | A_InjL => {
-      concl: ana(gamma, injl(e), sum(t1, t2)),
+      concl: ana(gamma, InjL(e), Sum(t1, t2)),
       prems: [ana(gamma, e, t1)],
       tests: [],
     }
   | A_InjL_GT => {
-      concl: ana(gamma, injl(e), t),
-      prems: [matched_sum(t, sum(t1, t2)), ana(gamma, e, t1)],
+      concl: ana(gamma, InjL(e), t),
+      prems: [MatchedSum(t, Sum(t1, t2)), ana(gamma, e, t1)],
       tests: [],
     }
-  | V_InjL => {concl: val_(injl(e)), prems: [val_(e)], tests: []}
+  | V_InjL => {concl: val_(InjL(e)), prems: [val_(e)], tests: []}
   | E_InjL => {
-      concl: eval(injl(e), injl(v)),
+      concl: eval(InjL(e), InjL(v)),
       prems: [eval(e, v)],
       tests: [],
     }
   | T_InjR => {
-      concl: has(gamma, injr(e), sum(t1, t2)),
+      concl: has(gamma, InjR(e), Sum(t1, t2)),
       prems: [has(gamma, e, t2)],
       tests: [],
     }
   | A_InjR => {
-      concl: ana(gamma, injr(e), sum(t1, t2)),
+      concl: ana(gamma, InjR(e), Sum(t1, t2)),
       prems: [ana(gamma, e, t2)],
       tests: [],
     }
   | A_InjR_GT => {
-      concl: ana(gamma, injr(e), t),
-      prems: [matched_sum(t, sum(t1, t2)), ana(gamma, e, t2)],
+      concl: ana(gamma, InjR(e), t),
+      prems: [MatchedSum(t, Sum(t1, t2)), ana(gamma, e, t2)],
       tests: [],
     }
-  | V_InjR => {concl: val_(injr(e)), prems: [val_(e)], tests: []}
+  | V_InjR => {concl: val_(InjR(e)), prems: [val_(e)], tests: []}
   | E_InjR => {
-      concl: eval(injr(e), injr(v)),
+      concl: eval(InjR(e), InjR(v)),
       prems: [eval(e, v)],
       tests: [],
     }
   | T_Case => {
       concl: has(gamma, case(e, x, e1, y, e2), t),
       prems: [
-        has(gamma, e, sum(t1, t2)),
+        has(gamma, e, Sum(t1, t2)),
         has(gamma', e1, t),
         has(gamma'', e2, t),
       ],
@@ -878,7 +835,7 @@ let of_spec: Rule.t => t = {
   | S_Case => {
       concl: syn(gamma, case(e, x, e1, y, e2), t),
       prems: [
-        syn(gamma, e, sum(t1, t2)),
+        syn(gamma, e, Sum(t1, t2)),
         syn(gamma', e1, t),
         syn(gamma'', e2, t),
       ],
@@ -898,7 +855,7 @@ let of_spec: Rule.t => t = {
       concl: syn(gamma, case(e, x, e1, y, e2), t'),
       prems: [
         syn(gamma, e, t),
-        matched_sum(t, sum(t1, t2)),
+        MatchedSum(t, Sum(t1, t2)),
         syn(gamma', e1, t1'),
         syn(gamma'', e2, t2'),
       ],
@@ -918,7 +875,7 @@ let of_spec: Rule.t => t = {
   | A_Case => {
       concl: ana(gamma, case(e, x, e1, y, e2), t),
       prems: [
-        syn(gamma, e, sum(t1, t2)),
+        syn(gamma, e, Sum(t1, t2)),
         ana(gamma', e1, t),
         ana(gamma'', e2, t),
       ],
@@ -938,7 +895,7 @@ let of_spec: Rule.t => t = {
       concl: ana(gamma, case(e, x, e1, y, e2), t),
       prems: [
         syn(gamma, e, t'),
-        matched_sum(t', sum(t1, t2)),
+        MatchedSum(t', Sum(t1, t2)),
         ana(gamma', e1, t1'),
         ana(gamma'', e2, t2'),
       ],
@@ -956,21 +913,21 @@ let of_spec: Rule.t => t = {
     }
   | E_Case_L => {
       concl: eval(case(e, x, e1, y, e2), v1),
-      prems: [eval(e, injl(v)), eval(e1', v1)],
+      prems: [eval(e, InjL(v)), eval(e1', v1)],
       tests: T.[EqExp(e1', Subst(v, UnboxPatVar(x), e1))],
     }
   | E_Case_R => {
       concl: eval(case(e, x, e1, y, e2), v2),
-      prems: [eval(e, injr(v)), eval(e2', v2)],
+      prems: [eval(e, InjR(v)), eval(e2', v2)],
       tests: T.[EqExp(e2', Subst(v, UnboxPatVar(y), e2))],
     }
   | T_FixAnn => {
-      concl: has(gamma, fix_ann((x, t), e), t),
+      concl: has(gamma, Fix(Cast(x, t), e), t),
       prems: [has(gamma', e, t)],
       tests: [],
     }
   | T_FixAnn_TV => {
-      concl: has(gamma, fix_ann((x, t), e), t),
+      concl: has(gamma, Fix(Cast(x, t), e), t),
       prems: [type_(delta, t), has(gamma', e, t)],
       tests:
         T.[
@@ -982,7 +939,7 @@ let of_spec: Rule.t => t = {
         ],
     }
   | T_Fix => {
-      concl: has(gamma, fix(x, e), t),
+      concl: has(gamma, Fix(x, e), t),
       prems: [has(gamma', e, t)],
       tests:
         T.[
@@ -993,12 +950,12 @@ let of_spec: Rule.t => t = {
         ],
     }
   | E_Fix => {
-      concl: eval(fix(x, e_body), v),
+      concl: eval(Fix(x, e_body), v),
       prems: [eval(e', v)],
       tests: T.[EqExp(e', Subst(Fix(x, e_body), UnboxPatVar(x), e_body))],
     }
   | T_Roll => {
-      concl: has(gamma, roll(e), rec_(tpat, t_body)),
+      concl: has(gamma, Roll(e), Rec(tpat, t_body)),
       prems: [has(gamma, e, t_body')],
       tests:
         T.[
@@ -1008,15 +965,15 @@ let of_spec: Rule.t => t = {
           ),
         ],
     }
-  | V_Roll => {concl: val_(roll(e)), prems: [val_(e)], tests: []}
+  | V_Roll => {concl: val_(Roll(e)), prems: [val_(e)], tests: []}
   | E_Roll => {
-      concl: eval(roll(e), roll(v)),
+      concl: eval(Roll(e), Roll(v)),
       prems: [eval(e, v)],
       tests: [],
     }
   | T_Unroll => {
-      concl: has(gamma, unroll(e), t_body'),
-      prems: [has(gamma, e, rec_(tpat, t_body))],
+      concl: has(gamma, Unroll(e), t_body'),
+      prems: [has(gamma, e, Rec(tpat, t_body))],
       tests:
         T.[
           EqTyp(
@@ -1026,8 +983,8 @@ let of_spec: Rule.t => t = {
         ],
     }
   | E_Unroll => {
-      concl: eval(unroll(e), v),
-      prems: [eval(e, roll(v))],
+      concl: eval(Unroll(e), v),
+      prems: [eval(e, Roll(v))],
       tests: [],
     }
   | A_Subsumption => {
@@ -1037,7 +994,7 @@ let of_spec: Rule.t => t = {
     }
   | A_Subsumption_GT => {
       concl: ana(gamma, e, t),
-      prems: [syn(gamma, e, t'), consistent(t', t)],
+      prems: [syn(gamma, e, t'), Consistent(t', t)],
       tests: [],
     }
   | E_Val => {concl: eval(e, e), prems: [val_(e)], tests: []}
@@ -1047,34 +1004,34 @@ let of_spec: Rule.t => t = {
       tests: T.[Mem(a, UnboxCtx(gamma))],
     }
   | And_I => {
-      concl: entail(gamma, and_(a, b)),
+      concl: entail(gamma, And(a, b)),
       prems: [entail(gamma, a), entail(gamma, b)],
       tests: [],
     }
   | And_E_L => {
       concl: entail(gamma, a),
-      prems: [entail(gamma, and_(a, b))],
+      prems: [entail(gamma, And(a, b))],
       tests: [],
     }
   | And_E_R => {
       concl: entail(gamma, b),
-      prems: [entail(gamma, and_(a, b))],
+      prems: [entail(gamma, And(a, b))],
       tests: [],
     }
   | Or_I_L => {
-      concl: entail(gamma, or_(a, b)),
+      concl: entail(gamma, Or(a, b)),
       prems: [entail(gamma, a)],
       tests: [],
     }
   | Or_I_R => {
-      concl: entail(gamma, or_(a, b)),
+      concl: entail(gamma, Or(a, b)),
       prems: [entail(gamma, b)],
       tests: [],
     }
   | Or_E => {
       concl: entail(gamma, c),
       prems: [
-        entail(gamma, or_(a, b)),
+        entail(gamma, Or(a, b)),
         entail(gamma', c),
         entail(gamma'', c),
       ],
@@ -1085,19 +1042,111 @@ let of_spec: Rule.t => t = {
         ],
     }
   | Implies_I => {
-      concl: entail(gamma, impl(a, b)),
+      concl: entail(gamma, Impl(a, b)),
       prems: [entail(gamma', b)],
       tests: T.[EqCtx(UnboxCtx(gamma'), Cons(a, UnboxCtx(gamma)))],
     }
   | Implies_E => {
       concl: entail(gamma, b),
-      prems: [entail(gamma, impl(a, b)), entail(gamma, a)],
+      prems: [entail(gamma, Impl(a, b)), entail(gamma, a)],
       tests: [],
     }
-  | Truth_I => {concl: entail(gamma, truth()), prems: [], tests: []}
+  | Truth_I => {concl: entail(gamma, Truth), prems: [], tests: []}
   | Falsity_E => {
       concl: entail(gamma, a),
-      prems: [entail(gamma, falsity())],
+      prems: [entail(gamma, Falsity)],
       tests: [],
     };
 };
+
+let of_spec: Rule.t => t =
+  rule => {
+    let rec tag_exp_term: M_Id.exp_t => Drv.Exp.term =
+      fun
+      | Hole(_) => failwith("Hole in spec")
+      | Quote(_) => failwith("Quote in spec")
+      | Var(x) => Var(x)
+      | Parens(e) => Parens(tag_exp(e))
+      | Val(e) => Val(tag_exp(e))
+      | Eval(e1, e2) => Eval(tag_exp(e1), tag_exp(e2))
+      | Entail(e1, e2) => Entail(tag_exp(e1), tag_exp(e2))
+      | Consistent(t1, t2) => Consistent(tag_typ(t1), tag_typ(t2))
+      | MatchedArrow(t1, t2) => MatchedArrow(tag_typ(t1), tag_typ(t2))
+      | MatchedProd(t1, t2) => MatchedProd(tag_typ(t1), tag_typ(t2))
+      | MatchedSum(t1, t2) => MatchedSum(tag_typ(t1), tag_typ(t2))
+      | Ctx(es) => Ctx(List.map(tag_exp, es))
+      | Cons(e1, e2) => Cons(tag_exp(e1), tag_exp(e2))
+      | Concat(e1, e2) => Concat(tag_exp(e1), tag_exp(e2))
+      | Type(t) => Type(tag_typ(t))
+      | HasType(e, t) => HasType(tag_exp(e), tag_typ(t))
+      | Syn(e, t) => Syn(tag_exp(e), tag_typ(t))
+      | Ana(e, t) => Ana(tag_exp(e), tag_typ(t))
+      | And(e1, e2) => And(tag_exp(e1), tag_exp(e2))
+      | Or(e1, e2) => Or(tag_exp(e1), tag_exp(e2))
+      | Impl(e1, e2) => Impl(tag_exp(e1), tag_exp(e2))
+      | Truth => Truth
+      | Falsity => Falsity
+      | Tuple(es) => Tuple(List.map(tag_exp, es))
+      | NumLit(n) => NumLit(n)
+      | Neg(e) => Neg(tag_exp(e))
+      | BinOp(op, e1, e2) => BinOp(op, tag_exp(e1), tag_exp(e2))
+      | True => True
+      | False => False
+      | If(e1, e2, e3) => If(tag_exp(e1), tag_exp(e2), tag_exp(e3))
+      | Let(p, e1, e2) => Let(tag_pat(p), tag_exp(e1), tag_exp(e2))
+      | Fix(p, e) => Fix(tag_pat(p), tag_exp(e))
+      | Fun(p, e) => Fun(tag_pat(p), tag_exp(e))
+      | Ap(e1, e2) => Ap(tag_exp(e1), tag_exp(e2))
+      | Pair(e1, e2) => Pair(tag_exp(e1), tag_exp(e2))
+      | Triv => Triv
+      | PrjL(e) => PrjL(tag_exp(e))
+      | PrjR(e) => PrjR(tag_exp(e))
+      | InjL(e) => InjL(tag_exp(e))
+      | InjR(e) => InjR(tag_exp(e))
+      | Case(e, x, e1, y, e2) =>
+        Case(
+          tag_exp(e),
+          tag_pat(x),
+          tag_exp(e1),
+          tag_pat(y),
+          tag_exp(e2),
+        )
+      | Roll(e) => Roll(tag_exp(e))
+      | Unroll(e) => Unroll(tag_exp(e))
+      | ExpHole => ExpHole
+    and tag_exp = e => e |> tag_exp_term |> IdTagged.fresh
+    and tag_pat_term: M_Id.pat_t => Drv.Pat.term =
+      fun
+      | Hole(_) => failwith("Hole in spec")
+      | Quote(_) => failwith("Quote in spec")
+      | Var(x) => Var(x)
+      | Parens(p) => Parens(tag_pat(p))
+      | Cast(p, t) => Cast(tag_pat(p), tag_typ(t))
+      | InjL(p) => InjL(tag_pat(p))
+      | InjR(p) => InjR(tag_pat(p))
+      | Pair(p1, p2) => Pair(tag_pat(p1), tag_pat(p2))
+    and tag_pat = p => p |> tag_pat_term |> IdTagged.fresh
+    and tag_typ_term: M_Id.typ_t => Drv.Typ.term =
+      fun
+      | Hole(_) => failwith("Hole in spec")
+      | Quote(_) => failwith("Quote in spec")
+      | Var(x) => Var(x)
+      | Parens(t) => Parens(tag_typ(t))
+      | Num => Num
+      | Bool => Bool
+      | Arrow(t1, t2) => Arrow(tag_typ(t1), tag_typ(t2))
+      | Prod(t1, t2) => Prod(tag_typ(t1), tag_typ(t2))
+      | Unit => Unit
+      | Sum(t1, t2) => Sum(tag_typ(t1), tag_typ(t2))
+      | Rec(p, t) => Rec(tag_tpat(p), tag_typ(t))
+      | TypHole => TypHole
+    and tag_typ = t => t |> tag_typ_term |> IdTagged.fresh
+    and tag_tpat_term: M_Id.tpat_t => Drv.TPat.term =
+      fun
+      | Hole(_) => failwith("Hole in spec")
+      | Quote(_) => failwith("Quote in spec")
+      | Var(x) => Var(x)
+    and tag_tpat = p => p |> tag_tpat_term |> IdTagged.fresh;
+    let Spec.{concl, prems, tests} = of_spec(rule);
+    {concl: tag_exp(concl), prems: List.map(tag_exp, prems), tests};
+  };

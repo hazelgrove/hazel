@@ -54,3 +54,15 @@ let to_string_verbose =
   | Pat => "ALFA pattern"
   | Typ => "ALFA type"
   | TPat => "ALFA type pattern";
+
+let consistent = (s, s') =>
+  switch (s, s') {
+  | (Jdmt | Ctx | Prop | Exp, Jdmt | Ctx | Prop | Exp) => true
+  | (Jdmt | Ctx | Prop | Exp, _) => false
+  | (Pat, Pat) => true
+  | (Pat, _) => false
+  | (Typ, Typ) => true
+  | (Typ, _) => false
+  | (TPat, TPat) => true
+  | (TPat, _) => false
+  };
