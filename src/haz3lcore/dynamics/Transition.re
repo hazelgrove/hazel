@@ -134,6 +134,7 @@ module type EV_MODE = {
 module Transition = (EV: EV_MODE) => {
   open EV;
   open DHExp;
+  open IdTagged.FreshGrammar.Exp;
 
   // Default state update
   let state_update = () => ();
@@ -152,7 +153,7 @@ module Transition = (EV: EV_MODE) => {
     | (_, Step(_)) => r
     | (None, Constructor | Indet | Value) =>
       Step({
-        expr: Closure(env, expr) |> fresh,
+        expr: closure(env, expr),
         state_update,
         kind: WrapClosure,
         is_value: false,
@@ -224,7 +225,7 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = env;
       let.match env' = (env, matches(dp, d1'));
       Step({
-        expr: Closure(env', d2) |> fresh,
+        expr: closure(env', d2),
         state_update,
         kind: LetBind,
         is_value: false,
@@ -253,7 +254,7 @@ module Transition = (EV: EV_MODE) => {
             env,
           );
         Step({
-          expr: Closure(env'', d1) |> fresh,
+          expr: closure(env'', d1),
           state_update,
           kind: FixUnwrap,
           is_value: false,
@@ -267,19 +268,14 @@ module Transition = (EV: EV_MODE) => {
             binding =>
               (
                 binding,
-                Let(
-                  dp,
-                  FixF(dp, d1, Some(env)) |> rewrap,
-                  Var(binding) |> fresh,
-                )
-                |> fresh,
+                let_(dp, FixF(dp, d1, Some(env)) |> rewrap, var(binding)),
               ),
             bindings,
           );
         let env'' =
           evaluate_extend_env(Environment.of_list(substitutions), env);
         Step({
-          expr: Closure(env'', d1) |> fresh,
+          expr: closure(env'', d1),
           state_update,
           kind: FixUnwrap,
           is_value: false,
@@ -295,7 +291,7 @@ module Transition = (EV: EV_MODE) => {
         | Matches(b) => b ? Pass : Fail
         };
       Step({
-        expr: Tuple([]) |> fresh,
+        expr: tuple([]),
         state_update: () =>
           update_test(state, DHExp.rep_id(d), (d', result)),
         kind: UpdateTest,
@@ -327,12 +323,11 @@ module Transition = (EV: EV_MODE) => {
         /* Rule ITTApCast */
         Step({
           expr:
-            Cast(
-              TypAp(d'', tau) |> Exp.fresh,
+            cast(
+              typ_ap(d'', tau),
               Typ.subst(tau, tp1, t1),
               Typ.subst(tau, tp2, t2),
-            )
-            |> Exp.fresh,
+            ),
           state_update,
           kind: CastTypAp,
           is_value: false,
@@ -365,20 +360,15 @@ module Transition = (EV: EV_MODE) => {
       | FunEnv(dp, d3, env') =>
         let.match env'' = (env', matches(dp, d2'));
         Step({
-          expr: Closure(env'', d3) |> fresh,
+          expr: closure(env'', d3),
           state_update,
           kind: FunAp,
           is_value: false,
         });
       | FunCast(d3', ty1, ty2, ty1', ty2') =>
         Step({
-          expr:
-            Cast(
-              Ap(dir, d3', Cast(d2', ty1', ty1) |> fresh) |> fresh,
-              ty2,
-              ty2',
-            )
-            |> fresh,
+          expr: cast(ap(dir, d3', cast(d2', ty1', ty1)), ty2, ty2'),
+
           state_update,
           kind: CastAp,
           is_value: false,
@@ -413,7 +403,7 @@ module Transition = (EV: EV_MODE) => {
           if (n_args == 1) {
             (
               Tuple(n_args),
-              Tuple([d2]) |> fresh // TODO Should we not be going to a tuple?
+              tuple([d2]) // TODO Should we not be going to a tuple?
             );
           } else {
             (Tuple(n_args), d2);
@@ -431,7 +421,7 @@ module Transition = (EV: EV_MODE) => {
           go(d4s, args);
         };
         Step({
-          expr: Ap(Forward, d3, Tuple(new_args) |> fresh) |> fresh,
+          expr: ap(Forward, d3, tuple(new_args)),
           state_update,
           kind: DeferredAp,
           is_value: false,
@@ -477,7 +467,7 @@ module Transition = (EV: EV_MODE) => {
         );
       let-unbox n = (Int, d1');
       Step({
-        expr: Int(- n) |> fresh,
+        expr: int(- n),
         state_update,
         kind: UnOp(Int(Minus)),
         is_value: true,
@@ -492,7 +482,7 @@ module Transition = (EV: EV_MODE) => {
         );
       let-unbox b = (Bool, d1');
       Step({
-        expr: Bool(!b) |> fresh,
+        expr: bool(!b),
         state_update,
         kind: UnOp(Bool(Not)),
         is_value: true,
@@ -508,7 +498,7 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = env;
       let-unbox b1 = (Bool, d1');
       Step({
-        expr: b1 ? d2 : Bool(false) |> fresh,
+        expr: b1 ? d2 : bool(false),
         state_update,
         kind: BinBoolOp(And),
         is_value: false,
@@ -524,7 +514,7 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = env;
       let-unbox b1 = (Bool, d1');
       Step({
-        expr: b1 ? Bool(true) |> fresh : d2,
+        expr: b1 ? bool(true) : d2,
         state_update,
         kind: BinBoolOp(Or),
         is_value: false,
@@ -573,33 +563,31 @@ module Transition = (EV: EV_MODE) => {
       let-unbox n2 = (Int, d2');
       Step({
         expr:
-          (
-            switch (op) {
-            | Plus => Int(n1 + n2)
-            | Minus => Int(n1 - n2)
-            | Power when n2 < 0 =>
-              DynamicErrorHole(
-                BinOp(Int(op), d1', d2') |> rewrap,
-                NegativeExponent,
-              )
-            | Power => Int(IntUtil.ipow(n1, n2))
-            | Times => Int(n1 * n2)
-            | Divide when n2 == 0 =>
-              DynamicErrorHole(
-                BinOp(Int(op), d1', d2') |> rewrap,
-                DivideByZero,
-              )
-            | Divide => Int(n1 / n2)
-            | LessThan => Bool(n1 < n2)
-            | LessThanOrEqual => Bool(n1 <= n2)
-            | GreaterThan => Bool(n1 > n2)
-            | GreaterThanOrEqual => Bool(n1 >= n2)
-            // Note(zhiyao): never reached because of polymorphic comparison
-            | Equals => Bool(n1 == n2)
-            | NotEquals => Bool(n1 != n2)
-            }
-          )
-          |> fresh,
+          switch (op) {
+          | Plus => int(n1 + n2)
+          | Minus => int(n1 - n2)
+          | Power when n2 < 0 =>
+            dynamic_error_hole(
+              BinOp(Int(op), d1', d2') |> rewrap,
+              NegativeExponent,
+            )
+          | Power => int(IntUtil.ipow(n1, n2))
+          | Times => int(n1 * n2)
+          | Divide when n2 == 0 =>
+            dynamic_error_hole(
+              BinOp(Int(op), d1', d2') |> rewrap,
+              DivideByZero,
+            )
+          | Divide => int(n1 / n2)
+          | LessThan => bool(n1 < n2)
+          | LessThanOrEqual => bool(n1 <= n2)
+          | GreaterThan => bool(n1 > n2)
+          | GreaterThanOrEqual => bool(n1 >= n2)
+          // Note(zhiyao): never reached because of polymorphic comparison
+          | Equals => bool(n1 == n2)
+          | NotEquals => bool(n1 != n2)
+          },
+
         state_update,
         kind: BinIntOp(op),
         // False so that InvalidOperations are caught and made indet by the next step
@@ -624,22 +612,20 @@ module Transition = (EV: EV_MODE) => {
       let-unbox n2 = (Float, d2');
       Step({
         expr:
-          (
-            switch (op) {
-            | Plus => Float(n1 +. n2)
-            | Minus => Float(n1 -. n2)
-            | Power => Float(n1 ** n2)
-            | Times => Float(n1 *. n2)
-            | Divide => Float(n1 /. n2)
-            | LessThan => Bool(n1 < n2)
-            | LessThanOrEqual => Bool(n1 <= n2)
-            | GreaterThan => Bool(n1 > n2)
-            | GreaterThanOrEqual => Bool(n1 >= n2)
-            | Equals => Bool(n1 == n2)
-            | NotEquals => Bool(n1 != n2)
-            }
-          )
-          |> fresh,
+          switch (op) {
+          | Plus => float(n1 +. n2)
+          | Minus => float(n1 -. n2)
+          | Power => float(n1 ** n2)
+          | Times => float(n1 *. n2)
+          | Divide => float(n1 /. n2)
+          | LessThan => bool(n1 < n2)
+          | LessThanOrEqual => bool(n1 <= n2)
+          | GreaterThan => bool(n1 > n2)
+          | GreaterThanOrEqual => bool(n1 >= n2)
+          | Equals => bool(n1 == n2)
+          | NotEquals => bool(n1 != n2)
+          },
+
         state_update,
         kind: BinFloatOp(op),
         is_value: true,
@@ -664,8 +650,8 @@ module Transition = (EV: EV_MODE) => {
       Step({
         expr:
           switch (op) {
-          | Concat => String(s1 ++ s2) |> fresh
-          | Equals => Bool(s1 == s2) |> fresh
+          | Concat => string(s1 ++ s2)
+          | Equals => bool(s1 == s2)
           },
         state_update,
         kind: BinStringOp(op),
@@ -718,7 +704,7 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d2 => Cons2(d1, d2) |> wrap_ctx, d2);
       let-unbox ds = (List, d2');
       Step({
-        expr: ListLit([d1', ...ds]) |> fresh,
+        expr: list_lit([d1', ...ds]),
         state_update,
         kind: ListCons,
         is_value: true,
@@ -740,7 +726,7 @@ module Transition = (EV: EV_MODE) => {
       let-unbox ds1 = (List, d1');
       let-unbox ds2 = (List, d2');
       Step({
-        expr: ListLit(ds1 @ ds2) |> fresh,
+        expr: list_lit(ds1 @ ds2),
         state_update,
         kind: ListConcat,
         is_value: true,
@@ -775,7 +761,7 @@ module Transition = (EV: EV_MODE) => {
       switch (next_rule(rules)) {
       | Some((env', d2)) =>
         Step({
-          expr: Closure(evaluate_extend_env(env', env), d2) |> fresh,
+          expr: closure(evaluate_extend_env(env', env), d2),
           state_update,
           kind: CaseApply,
           is_value: false,

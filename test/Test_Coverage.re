@@ -20,7 +20,10 @@ let has_errors = (name: string, exp: string, errors: list(Info.error)) => {
     name,
     `Quick,
     () => {
-      let (e, ids) = parse_menhir(exp);
+      let indicated_exp: Grammar.exp_t(bool) = parse_menhir(exp);
+      let (e, ids) =
+        Haz3lmenhir.Conversion.Exp.get_indicated_ids(indicated_exp);
+
       let s = statics(e);
       let actual_errors = Statics.collect_errors(s);
       let expected_errors = Id.Map.of_list(List.combine(ids, errors));
