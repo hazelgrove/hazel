@@ -271,9 +271,6 @@ module Typ = {
 
   include DrvTermBase.Typ;
 
-  // let hole = (tms: list(TermBase.Any.t)): term =>
-  //   Hole(List.is_empty(tms) ? EmptyHole : MultiHole(tms));
-
   let rep_id = ({annotation: {ids, _}, _}: t) => {
     assert(ids != []);
     List.hd(ids);

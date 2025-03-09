@@ -154,7 +154,6 @@ module Update = {
             | Ok((r, s)) => ResultOk({result: r, state: s})
             | Error(e) => ResultFail(e)
             };
-          // TODO(zhiyao): I found action scheduling to be a bit tricky
           schedule_action(
             Editor(pos', ResultAction(UpdateResult(result'))),
           );
@@ -439,11 +438,11 @@ module View = {
       | None => Node.none
       };
 
-    let dropdown_switch_rule_view = (~pos: DerivationTree.pos, ~version) =>
+    let dropdown_switch_rule_view = (~pos: DerivationTree.pos) =>
       Widgets.button_named(
         Icons.command_palette_sparkle,
         _ => {
-          NinjaKeysRule.open_command_palette(~version, ~pos);
+          NinjaKeysRule.open_command_palette(~version=eds.ruleset, ~pos);
           Effect.Ignore;
         },
         ~tooltip="Switch Rule",
@@ -469,7 +468,7 @@ module View = {
       | DerivationTree.Trees(_, Value) => true
       | _ => false;
 
-    let dropdown_view = (~pos, ~res, ~index, ~version): t =>
+    let dropdown_view = (~pos, ~res, ~index): t =>
       div(
         ~attrs=[
           Attr.class_("dropdown"),
@@ -505,7 +504,7 @@ module View = {
           && pos == Trees(List.length(eds.trees) - 1, Value)
             ? [] : [del_premise_btn_view(~pos)]
         )
-        @ [dropdown_switch_rule_view(~pos, ~version)],
+        @ [dropdown_switch_rule_view(~pos)],
       );
 
     let label_view = (~res, ~label) =>
@@ -527,16 +526,13 @@ module View = {
       div(~attrs=[Attr.classes(["test-result", status])], []);
     };
 
-    let label_view = (~pos, ~res, ~label, ~index, ~version) =>
+    let label_view = (~pos, ~res, ~label, ~index) =>
       div(
         ~attrs=[Attr.class_("deduction-label-wrapper")],
-        [
-          label_view(~res, ~label),
-          dropdown_view(~pos, ~res, ~index, ~version),
-        ],
+        [label_view(~res, ~label), dropdown_view(~pos, ~res, ~index)],
       );
 
-    let premises_view = (~children_node, ~pos, ~res, ~rule, ~version) => {
+    let premises_view = (~children_node, ~pos, ~res, ~rule) => {
       let label = rule_to_label(rule);
       div(
         ~attrs=[
@@ -569,7 +565,7 @@ module View = {
           ),
         ]
         @ [
-          label_view(~pos, ~res, ~label, ~index=None, ~version),
+          label_view(~pos, ~res, ~label, ~index=None),
           if (globals.settings.core.dynamics) {
             result_btn_view(~res);
           } else {
@@ -652,8 +648,7 @@ module View = {
         [editor_view(pos, editor, ~sort=Drv(Exp))],
       );
 
-    let deduction_view =
-        (~children_node, ~pos, ~res, ~rule, ~editor, ~version) =>
+    let deduction_view = (~children_node, ~pos, ~res, ~rule, ~editor) =>
       div(
         ~attrs=
           [Attr.class_("deduction-just")]
@@ -664,13 +659,13 @@ module View = {
             }
           ),
         [
-          premises_view(~children_node, ~pos, ~res, ~rule, ~version),
+          premises_view(~children_node, ~pos, ~res, ~rule),
           conclusion_view(~pos, ~editor),
         ],
       );
 
     // TODO: Refactor this
-    let abbreviation_view = (~pos, ~res, ~index, ~version) =>
+    let abbreviation_view = (~pos, ~res, ~index) =>
       div(
         ~attrs=[Attr.class_("deduction-abbr")],
         [
@@ -679,7 +674,7 @@ module View = {
               Attr.class_("deduction-prems"),
               Attr.class_(class_of_result(res)),
             ],
-            [label_view(~pos, ~res, ~label="•", ~index, ~version)],
+            [label_view(~pos, ~res, ~label="•", ~index)],
           ),
           div(
             ~attrs=[Attr.class_("deduction-concl")],
@@ -770,21 +765,17 @@ module View = {
            )
          );
 
-    let derivation_view = (i, info_single, ~version) =>
+    let derivation_view = (i, info_single) =>
       div(
         ~attrs=[Attr.class_("cell-derivation")],
         [add_abbr_btn_view(~index=i)]
-        @ [
-          info_single
-          |> Tree.fold_deep(deduction_view(~version))
-          |> abbr_wrapper(i),
-        ],
+        @ [info_single |> Tree.fold_deep(deduction_view) |> abbr_wrapper(i)],
       );
 
-    let derivations_view = (~version) =>
+    let derivations_view =
       div(
         ~attrs=[Attr.classes(["cell-item derivation-panel"])],
-        (info_tree |> List.mapi(derivation_view(~version)))
+        (info_tree |> List.mapi(derivation_view))
         @ (
           if (globals.settings.instructor_mode) {
             [
@@ -835,7 +826,7 @@ module View = {
       version_view,
       prelude_view,
       setup_view,
-      derivations_view(~version=eds.ruleset),
+      derivations_view,
     ];
   };
 };

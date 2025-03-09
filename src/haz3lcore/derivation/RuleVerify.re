@@ -383,49 +383,6 @@ let go_test = (map: map, test: test): option(failure) => {
   };
 };
 
-// module Operation = {
-//   [@deriving (show({with_path: false}), sexp, yojson)]
-//   type t =
-//     // Get what has been registered
-//     | Get(string)
-//     // These t do not take effect on frontend, but is essential
-//     | VarOfPat(t) // VarOfPat(Pat(_))
-//     | TVarOfTPat(t) // TVarOfTPat(TPat(_))
-//     // These t perform syntax reconstruction
-//     | HasType(t, t) // HasType(Var(_), _)
-//     | Type(t) // Type(TVar(_))
-//     | Fix(t, t) // Fix(Pat(_), _)
-//     | Rec(t, t) // Rec(TPat(_), _)
-//     // These t perform pure calculation
-//     | Glb(t, t) // Glb(_, _)
-//     | Subst((t, t), t) // Subst((_, Pat(_)), _)
-//     | SubstTy((t, t), t) // SubstTy((_, TPat(_)), _)
-//     | Cons(t, t) // Cons(_, Ctx(_))
-//     | Neg(t) // Neg(NumLit(_))
-//     | Plus(t, t) // Plus(NumLit(_), NumLit(_))
-//     | Minus(t, t) // Minus(NumLit(_), NumLit(_))
-//     | Times(t, t); // Times(NumLit(_), NumLit(_))
-
-//   let precedence: t => int = {
-//     module P = Precedence;
-//     fun
-//     | Get(_) => P.max
-//     | VarOfPat(_) => P.max
-//     | TVarOfTPat(_) => P.max
-//     | HasType(_, _) => P.cast
-//     | Type(_) => P.cast
-//     | Fix(_) => P.fun_
-//     | Rec(_) => P.type_arrow + 2
-//     | Glb(_, _) => P.max
-//     | Subst(_) => P.ap
-//     | SubstTy(_) => P.ap
-//     | Cons(_) => P.comma
-//     | Neg(_) => P.neg
-//     | Plus(_) => P.plus
-//     | Minus(_) => P.plus
-//     | Times(_) => P.mult;
-//   };
-
 //   let repr = (~sp: string=" ", p: int, operation: t): Aba.t(string, t) => {
 //     let p' = precedence(operation);
 //     let tight_start = s =>
