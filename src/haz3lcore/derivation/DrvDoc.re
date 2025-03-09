@@ -153,7 +153,7 @@ let exp_form: exp_t => (Segment.t, string) =
         "The conditional expression if e is true then e1 else e2.",
       )
     | Let(_, _, _) => (
-        Let(x, e_body, e) |> Drv.Exp.fresh |> f_exp,
+        Let(x, e_def, e_body) |> Drv.Exp.fresh |> f_exp,
         "The let expression defines a binding of the variable x to the expression e_body in the expression e.",
       )
     | Fix(_, _) => (
