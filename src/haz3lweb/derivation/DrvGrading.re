@@ -129,10 +129,7 @@ module VerifiedTree = {
     );
 
   let verify = (version, ts) => ts |> verify(version) |> List.map(fst);
-};
 
-module ProofReport = {
-  type t = {verified_tree: VerifiedTree.t};
   // strip the abbreviation in the tree
   // require:
   //   - all the abbreviation can be resolved
@@ -148,13 +145,7 @@ module ProofReport = {
               switch (value) {
               | Just(v) => Tree.Node(v, children)
               | Abbr(None) =>
-                Tree.Node(
-                  VerifiedTree.{
-                    res: VerifiedTree.Pending(NoAbbr),
-                    rule: None,
-                  },
-                  [],
-                )
+                Tree.Node({res: Pending(NoAbbr), rule: None}, [])
               | Abbr(Some(i)) => List.nth(acc, i)
               },
             tree,
@@ -165,15 +156,6 @@ module ProofReport = {
 
   let mk =
       (eds: p(Editor.t), ~stitched_results: stitched(option(Exp.t))): t => {
-    let proof_tree = ProofTree.mk(eds, ~stitched_results);
-    {verified_tree: VerifiedTree.verify(eds.ruleset, proof_tree)};
-  };
-};
-
-module GradingReport = {
-  type t = {proof_report: ProofReport.t};
-
-  let mk = (eds: 'a, ~stitched_results: stitched(option(Exp.t))): t => {
-    proof_report: ProofReport.mk(eds, ~stitched_results),
+    verify(eds.ruleset, ProofTree.mk(eds, ~stitched_results));
   };
 };

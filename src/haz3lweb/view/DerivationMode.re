@@ -320,12 +320,6 @@ let stitched_results =
     }
   );
 
-let grading_report = (model: Model.t) =>
-  DrvGrading.GradingReport.mk(
-    model.editors,
-    ~stitched_results=stitched_results(model.cells),
-  );
-
 // ====== Exercise ======
 
 module FakeCode = {
@@ -363,7 +357,11 @@ module View = {
     let eds = model.editors;
     let {prelude, setup, trees}: DerivationTree.stitched('a) = model.cells;
 
-    let grading_report = grading_report(model);
+    let result_tree =
+      DrvGrading.VerifiedTree.mk(
+        model.editors,
+        ~stitched_results=stitched_results(model.cells),
+      );
 
     let title_view = CellCommon.title_cell(eds.title);
 
@@ -717,12 +715,7 @@ module View = {
         ~attrs=[
           Attr.class_("add-abbr-btn"),
           Attr.on_click(_ =>
-            inject(
-              MapEditor(
-                DerivationTree.add_abbr(~index),
-                // |> (m => {...m, pos: Proof(Trees(index, Value))}),
-              ),
-            )
+            inject(MapEditor(DerivationTree.add_abbr(~index)))
           ),
         ],
         [
@@ -758,7 +751,7 @@ module View = {
              | _ => raise(Failure("DerivationTree.mk: ed<>di inconsistent")),
            ),
          )
-      |> List.map2(Tree.combine, grading_report.proof_report.verified_tree)
+      |> List.map2(Tree.combine, result_tree)
       |> List.mapi(i =>
            Tree.mapi((pos, (res, ed)) =>
              (DerivationTree.Trees(i, pos), res, ed)
