@@ -218,21 +218,8 @@ module NinjaKeysRule = {
   open Js_of_ocaml;
   open Util;
   let pos = ref(DerivationTree.Trees(0, Value));
-
-  let init = () =>
-    ""
-    |> DerivationTree.zipper_of_code(~root=Drv(Exp))
-    |> Editor.Model.mk(~root=Drv(Exp));
-
-  let update_rule: Haz3lcore.RuleImage.t => Update.t =
-    rule =>
-      Update.MapEditor(
-        DerivationTree.switch_rule(~pos=pos^, ~rule=Some(rule)),
-      );
-
-  /*
-   Configuration of the rule choice palette using the https://github.com/ssleptsov/ninja-keys web component.
-   */
+  let version = ref(RuleImage.PropositionalLogic: RuleImage.version);
+  let schedule_action = ref((_: Update.t) => ());
 
   let from_rule =
       (schedule_action: Update.t => unit, rule: Haz3lcore.RuleImage.t)
@@ -256,23 +243,35 @@ module NinjaKeysRule = {
              ),
            ),
          );
-       val handler = () => update_rule(rule) |> schedule_action;
+       val handler =
+         () =>
+           schedule_action(
+             Update.MapEditor(
+               DerivationTree.switch_rule(~pos=pos^, ~rule=Some(rule)),
+             ),
+           );
        val keywords =
          Haz3lcore.RuleImage.keywords(rule) |> String.concat(" ")
      }];
   };
 
-  let options = (schedule_action: Update.t => unit) =>
-    Array.of_list(
-      List.map(from_rule(schedule_action), Haz3lcore.RuleImage.all),
-    );
-
-  let elem = () => JsUtil.get_elem_by_id("ninja-keys-rules");
-
-  let initialize = opts => Js.Unsafe.set(elem(), "data", Js.array(opts));
-
-  let open_command_palette = (): unit =>
-    Js.Unsafe.meth_call(elem(), "open", [||]);
+  let open_command_palette = (~version as version', ~pos as pos'): unit => {
+    let elem = JsUtil.get_elem_by_id("ninja-keys-rules");
+    if (version^ != version') {
+      version := version';
+      Js.Unsafe.set(
+        elem,
+        "data",
+        version^
+        |> Haz3lcore.RuleImage.all_rules_of_version
+        |> List.map(from_rule(schedule_action^))
+        |> Array.of_list
+        |> Js.array,
+      );
+    };
+    pos := pos';
+    Js.Unsafe.meth_call(elem, "open", [||]);
+  };
 };
 
 module Selection = {
@@ -440,12 +439,11 @@ module View = {
       | None => Node.none
       };
 
-    let dropdown_switch_rule_view = (~pos: DerivationTree.pos) =>
+    let dropdown_switch_rule_view = (~pos: DerivationTree.pos, ~version) =>
       Widgets.button_named(
         Icons.command_palette_sparkle,
         _ => {
-          NinjaKeysRule.pos := pos;
-          NinjaKeysRule.open_command_palette();
+          NinjaKeysRule.open_command_palette(~version, ~pos);
           Effect.Ignore;
         },
         ~tooltip="Switch Rule",
@@ -471,7 +469,7 @@ module View = {
       | DerivationTree.Trees(_, Value) => true
       | _ => false;
 
-    let dropdown_view = (~pos, ~res, ~index): t =>
+    let dropdown_view = (~pos, ~res, ~index, ~version): t =>
       div(
         ~attrs=[
           Attr.class_("dropdown"),
@@ -507,7 +505,7 @@ module View = {
           && pos == Trees(List.length(eds.trees) - 1, Value)
             ? [] : [del_premise_btn_view(~pos)]
         )
-        @ [dropdown_switch_rule_view(~pos)],
+        @ [dropdown_switch_rule_view(~pos, ~version)],
       );
 
     let label_view = (~res, ~label) =>
@@ -529,13 +527,16 @@ module View = {
       div(~attrs=[Attr.classes(["test-result", status])], []);
     };
 
-    let label_view = (~pos, ~res, ~label, ~index) =>
+    let label_view = (~pos, ~res, ~label, ~index, ~version) =>
       div(
         ~attrs=[Attr.class_("deduction-label-wrapper")],
-        [label_view(~res, ~label), dropdown_view(~pos, ~res, ~index)],
+        [
+          label_view(~res, ~label),
+          dropdown_view(~pos, ~res, ~index, ~version),
+        ],
       );
 
-    let premises_view = (~children_node, ~pos, ~res, ~rule) => {
+    let premises_view = (~children_node, ~pos, ~res, ~rule, ~version) => {
       let label = rule_to_label(rule);
       div(
         ~attrs=[
@@ -568,7 +569,7 @@ module View = {
           ),
         ]
         @ [
-          label_view(~pos, ~res, ~label, ~index=None),
+          label_view(~pos, ~res, ~label, ~index=None, ~version),
           if (globals.settings.core.dynamics) {
             result_btn_view(~res);
           } else {
@@ -651,7 +652,8 @@ module View = {
         [editor_view(pos, editor, ~sort=Drv(Exp))],
       );
 
-    let deduction_view = (~children_node, ~pos, ~res, ~rule, ~editor) =>
+    let deduction_view =
+        (~children_node, ~pos, ~res, ~rule, ~editor, ~version) =>
       div(
         ~attrs=
           [Attr.class_("deduction-just")]
@@ -662,13 +664,13 @@ module View = {
             }
           ),
         [
-          premises_view(~children_node, ~pos, ~res, ~rule),
+          premises_view(~children_node, ~pos, ~res, ~rule, ~version),
           conclusion_view(~pos, ~editor),
         ],
       );
 
     // TODO: Refactor this
-    let abbreviation_view = (~pos, ~res, ~index) =>
+    let abbreviation_view = (~pos, ~res, ~index, ~version) =>
       div(
         ~attrs=[Attr.class_("deduction-abbr")],
         [
@@ -677,7 +679,7 @@ module View = {
               Attr.class_("deduction-prems"),
               Attr.class_(class_of_result(res)),
             ],
-            [label_view(~pos, ~res, ~label="•", ~index)],
+            [label_view(~pos, ~res, ~label="•", ~index, ~version)],
           ),
           div(
             ~attrs=[Attr.class_("deduction-concl")],
@@ -768,17 +770,21 @@ module View = {
            )
          );
 
-    let derivation_view = (i, info_single) =>
+    let derivation_view = (i, info_single, ~version) =>
       div(
         ~attrs=[Attr.class_("cell-derivation")],
         [add_abbr_btn_view(~index=i)]
-        @ [info_single |> Tree.fold_deep(deduction_view) |> abbr_wrapper(i)],
+        @ [
+          info_single
+          |> Tree.fold_deep(deduction_view(~version))
+          |> abbr_wrapper(i),
+        ],
       );
 
-    let derivations_view =
+    let derivations_view = (~version) =>
       div(
         ~attrs=[Attr.classes(["cell-item derivation-panel"])],
-        (info_tree |> List.mapi(derivation_view))
+        (info_tree |> List.mapi(derivation_view(~version)))
         @ (
           if (globals.settings.instructor_mode) {
             [
@@ -810,13 +816,10 @@ module View = {
           select(
             ~attrs=[
               Attr.class_("version-select"),
-              Attr.on_change((_, name) =>
-                inject(
-                  MapEditor(
-                    m => {...m, ruleset: RuleImage.version_of_string(name)},
-                  ),
-                )
-              ),
+              Attr.on_change((_, name) => {
+                let ruleset = RuleImage.version_of_string(name);
+                inject(MapEditor(m => {...m, ruleset}));
+              }),
             ],
             List.map(
               option_view(RuleImage.show_version(eds.ruleset)),
@@ -832,7 +835,7 @@ module View = {
       version_view,
       prelude_view,
       setup_view,
-      derivations_view,
+      derivations_view(~version=eds.ruleset),
     ];
   };
 };

@@ -179,7 +179,7 @@ let repr =
   | Truth_I => "⊤-I"
   | Falsity_E => "⊥-E"
   | A_Subsumption => "A-Sub."
-  | rule => show(rule);
+  | _ as rule => show(rule);
 
 [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type version =
@@ -248,7 +248,7 @@ let rec to_rule: (version, t) => option(Rule.t) =
       | E_Eq_F => Some(E_Eq_F)
       | E_If_T => Some(E_If_T)
       | E_If_F => Some(E_If_F)
-      | rule => to_rule(AL, rule)
+      | _ as rule => to_rule(AL, rule)
     )
   | ALF => (
       fun
@@ -274,7 +274,7 @@ let rec to_rule: (version, t) => option(Rule.t) =
       | T_FunAnn => Some(T_FunAnn)
       | T_Fun => Some(T_Fun)
       | T_Ap => Some(T_Ap)
-      | rule => to_rule(ALB, rule)
+      | _ as rule => to_rule(ALB, rule)
     )
   | ALFp => (
       fun
@@ -320,7 +320,7 @@ let rec to_rule: (version, t) => option(Rule.t) =
       | S_Triv => Some(S_Triv)
       | A_If => Some(A_If)
       | S_If => Some(S_If)
-      | rule => to_rule(ALF, rule)
+      | _ as rule => to_rule(ALF, rule)
     )
   | ALFA => (
       fun
@@ -337,7 +337,7 @@ let rec to_rule: (version, t) => option(Rule.t) =
       | T_Case => Some(T_Case) // Note(zhiyao): not in HW
       | E_Case_L => Some(E_Case_L)
       | E_Case_R => Some(E_Case_R)
-      | rule => to_rule(ALFp, rule)
+      | _ as rule => to_rule(ALFp, rule)
     )
   | RecursiveALFA => (
       fun
@@ -358,7 +358,7 @@ let rec to_rule: (version, t) => option(Rule.t) =
       | T_LetAnn => Some(T_LetAnn_TV) // Note(zhiyao): replace
       | T_FunAnn => Some(T_FunAnn_TV) // Note(zhiyao): replace
       | T_FixAnn => Some(T_FixAnn_TV) // Note(zhiyao): replace
-      | rule => to_rule(ALFA, rule)
+      | _ as rule => to_rule(ALFA, rule)
     )
   | GradualALFA => (
       fun
@@ -390,8 +390,12 @@ let rec to_rule: (version, t) => option(Rule.t) =
       | A_FunAnn => Some(A_FunAnn_GT)
       | A_Fun => Some(A_Fun_GT)
       | S_Ap => Some(S_Ap_GT)
-      | rule => to_rule(RecursiveALFA, rule)
+      | _ as rule => to_rule(RecursiveALFA, rule)
     );
+
+let all_rules_of_version: version => list(t) =
+  version =>
+    all |> List.filter(rule => to_rule(version, rule) |> Option.is_some);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type kind =
@@ -690,6 +694,8 @@ let of_sort: t => sort =
   | Truth_I
   | Falsity_E => PropositionalLogic;
 
+// Note(zhiyao): The keywords are used for facilitating the
+// searching in NinjaKeys.
 let keywords: t => list(string) =
   rule =>
     (show(rule) |> String.split_on_char('_'))
