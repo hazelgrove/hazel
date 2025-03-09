@@ -1020,6 +1020,16 @@ end
         {|[(a=1, b=false), (a=2, b=true)].a|},
         Some(list(int())),
       ),
+      fully_consistent_typecheck(
+        "Projection of labeled tuple with annotation",
+        {|((a=1) : (a=Int)).a|},
+        Some(int()),
+      ),
+      fully_consistent_typecheck(
+        "Projection of labeled tuple list with annotation",
+        {|([(a=1)] : [(a=Int)]).a|},
+        Some(list(int())),
+      ),
     ]
   ),
 );
