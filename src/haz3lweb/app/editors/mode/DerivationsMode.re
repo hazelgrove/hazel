@@ -320,8 +320,7 @@ module Selection = {
 
   let get_derivation_info = (eds: Model.t, pos: t) => {
     let model = Model.get_current(eds);
-    let trees =
-      DerivationMode.grading_report(model).proof_report.verified_tree;
+    let trees = DerivationMode.verify_tree(model);
     let eds = model.editors;
     switch (pos) {
     | (Trees(i, pos), _) =>

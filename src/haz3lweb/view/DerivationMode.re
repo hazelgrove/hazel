@@ -337,6 +337,12 @@ module FakeCode = {
     );
 };
 
+let verify_tree = (model: Model.t) =>
+  DrvGrading.VerifiedTree.mk(
+    model.editors,
+    ~stitched_results=stitched_results(model.cells),
+  );
+
 module View = {
   type view_info = (DerivationTree.pos, DrvGrading.VerifiedTree.info, ed)
   and ed =
@@ -356,12 +362,6 @@ module View = {
       ) => {
     let eds = model.editors;
     let {prelude, setup, trees}: DerivationTree.stitched('a) = model.cells;
-
-    let result_tree =
-      DrvGrading.VerifiedTree.mk(
-        model.editors,
-        ~stitched_results=stitched_results(model.cells),
-      );
 
     let title_view = CellCommon.title_cell(eds.title);
 
@@ -751,7 +751,7 @@ module View = {
              | _ => raise(Failure("DerivationTree.mk: ed<>di inconsistent")),
            ),
          )
-      |> List.map2(Tree.combine, result_tree)
+      |> List.map2(Tree.combine, verify_tree(model))
       |> List.mapi(i =>
            Tree.mapi((pos, (res, ed)) =>
              (DerivationTree.Trees(i, pos), res, ed)
