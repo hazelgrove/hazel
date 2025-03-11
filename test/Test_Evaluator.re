@@ -790,5 +790,14 @@ in fn("hello")|},
         ),
       )
     ),
+    test_case("Builtin with casts", `Quick, () =>
+      parse_and_evaluate_test({|13|}, {|int_mod((1 : ?, 5 : ?) : ?)|})
+    ),
+    test_case("Primitive pivot of list of labeled tuple", `Quick, () =>
+      parse_and_evaluate_test(
+        {|(a=[(j=1)], b=[(j=2)], c=[(j=3)])|},
+        {|primitive_pivot(?, [(l="a", j=1), (l="b", j=2), (l="c", j=3)])|},
+      )
+    ),
   ],
 );
