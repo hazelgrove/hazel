@@ -358,6 +358,19 @@ module Pervasives = {
            List(string()),
            string_split("string_split"),
          )
+      |> fn(
+           "primitive_pivot",
+           Prod([unknown(Internal), list(unknown(Internal))]),
+           Unknown(Internal),
+           binary((lab: DHExp.t, d: DHExp.t) => {
+             print_endline("pivot before: " ++ [%derive.show: DHExp.t](d));
+             let-unbox l = (ListLit, d);
+
+             print_endline("pivot: " ++ [%derive.show: list(DHExp.t)](l));
+
+             Some(Fresh.Exp.tuple([]));
+           }),
+         )
     )
     |> VarMap.concat(
          _,

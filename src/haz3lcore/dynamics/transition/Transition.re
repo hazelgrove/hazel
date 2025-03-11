@@ -187,6 +187,7 @@ module Transition = (EV: EV_MODE) => {
         d,
       )
       : 'a => {
+    print_endline("Transitioning: " ++ DHExp.show(d));
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t =>
@@ -382,12 +383,16 @@ module Transition = (EV: EV_MODE) => {
         );
       Value;
     | Ap(dir, d1, d2) =>
+      print_endline("Ap");
+      print_endline("d2: " ++ DHExp.show(d2));
       let. _ = otherwise(env, (d1, d2) => Ap(dir, d1, d2) |> rewrap)
       and. d1' =
         req_final(req(state, env), d1 => Ap1(dir, d1, d2) |> wrap_ctx, d1)
       and. d2' =
         req_final(req(state, env), d2 => Ap2(dir, d1, d2) |> wrap_ctx, d2);
       let-unbox unboxed_fun = (Fun, d1');
+      print_endline("d2': " ++ DHExp.show(d2'));
+
       switch (unboxed_fun) {
       | Constructor(_) => Constructor
       | FunEnv(dp, d3, function_lexical_env) =>
@@ -442,6 +447,7 @@ module Transition = (EV: EV_MODE) => {
           is_value: false,
         })
       | BuiltinFun(ident) =>
+        print_endline("BuiltinFun");
         let builtin =
           VarMap.lookup(Builtins.forms_init, ident)
           |> OptUtil.get(() => {
