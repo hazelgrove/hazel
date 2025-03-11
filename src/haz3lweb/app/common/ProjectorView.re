@@ -1,7 +1,6 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
-open ProjectorBase;
 open Util;
 open Util.OptUtil.Syntax;
 open Util.Web;
@@ -16,7 +15,7 @@ module Model = {
   };
 
   type projector_data = {
-    p: ProjectorBase.trad,
+    id: Id.t,
     info: ProjectorBase.info,
     measurement: Measured.measurement,
     offside_base: int,
@@ -42,7 +41,7 @@ module Model = {
 
   let mk_status =
       (
-        p: ProjectorBase.trad,
+        kind: ProjectorCore.Kind.t,
         ~editor_active: bool,
         ~indicated: option(Indicated.piece),
         ~selection_ids: list(Id.t),
@@ -54,14 +53,14 @@ module Model = {
       |> Option.value(~default=Sort.Exp),
     error:
       Option.map(Info.is_error, info.statics) |> Option.value(~default=false),
-    kind: p.kind,
+    kind,
     indication: editor_active ? indication(indicated, id) : None,
     selected: editor_active ? List.mem(id, selection_ids) : false,
   };
 
   let mk =
       (
-        projectors: Id.Map.t(ProjectorBase.trad),
+        components: list(EditorManagerModel.component),
         measured: Measured.t,
         selection_ids: list(Id.t),
         indicated: option(Indicated.piece),
@@ -70,18 +69,24 @@ module Model = {
         editor_active: bool,
       ) => {
     List.filter_map(
-      ((id, _)) => {
-        let* p = Id.Map.find_opt(id, projectors);
-        let+ measurement = Id.Map.find_opt(p.id, measured.projectors);
-        let info = ProjectorInfo.mk_info(p.id, p.syntax, ~statics, ~dynamics);
+      ({id, kind, _} as component: EditorManagerModel.component) => {
+        let* kind = kind;
+        let+ measurement = Id.Map.find_opt(id, measured.projectors);
+        let info =
+          ProjectorInfo.mk_info(
+            id,
+            EditorManagerModel.piece_of_component(component),
+            ~statics,
+            ~dynamics,
+          );
         {
-          p,
+          id,
           info,
           measurement,
           offside_base: offside_base(~offset=4, measurement, measured),
           status:
             mk_status(
-              p,
+              kind,
               ~editor_active,
               ~indicated,
               ~selection_ids,
@@ -90,7 +95,7 @@ module Model = {
             ),
         };
       },
-      Id.Map.bindings(projectors),
+      components,
     );
   };
 };
@@ -202,11 +207,11 @@ let split_views =
       font_metrics: FontMetrics.t,
       f: Id.t => ProjectorBase.View.t,
       ~focus,
-      {p, offside_base, measurement, status, _}: Model.projector_data,
+      {id, offside_base, measurement, status, _}: Model.projector_data,
     )
     : (Node.t, Node.t, option(Node.t)) => {
   let wrapper = view_wrapper(~focus, ~font_metrics, ~measurement, ~status);
-  let views = f(p.id);
+  let views = f(id);
   switch (views) {
   | Tylr(_) => failwith("Tylrlmao")
   | Pro(views) =>

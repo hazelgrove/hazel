@@ -52,7 +52,8 @@ module Model = {
     add_projector: _ => None,
     undo_action: None,
     redo_action: None,
-    projectors: Some(model.editor.syntax.projectors), //TODO(andrew): make sure this routes
+    //projectors: Some(model.editor.syntax.projectors), //TODO(andrew): make sure this routes
+    indicated_projector: None, //TODO(andrew): should this be populated?
     of_projector: None,
   };
 

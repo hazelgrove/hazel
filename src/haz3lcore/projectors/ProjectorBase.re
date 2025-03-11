@@ -12,8 +12,8 @@ open Virtual_dom.Vdom;
 
 /* The type of syntax which a projector can replace.
  * Right now projectors can replace a single piece */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type syntax = Base.piece;
+// [@deriving (show({with_path: false}), sexp, yojson)]
+// type syntax = Base.piece;
 
 //TODO(andrew)
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -89,7 +89,7 @@ module View = {
     };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type seg = (~background: bool=?, Sort.t, list(syntax)) => Node.t;
+  type seg = (~background: bool=?, Sort.t, list(Base.piece)) => Node.t;
 
   let mk = (~underlay=None, ~overlay=None, ~offside=None, inline) =>
     Pro({inline: Some(inline), underlay, overlay, offside});

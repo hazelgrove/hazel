@@ -19,7 +19,6 @@ let go_z =
       statics: CachedStatics.t,
       a: Action.t,
       module M: Move.S,
-      //projectors: Id.Map.t(ProjectorBase.trad),
       z: Zipper.t,
     )
     : Action.Result.t(Zipper.t) => {
@@ -139,6 +138,7 @@ let go_z =
           switch (z.selection.content) {
           | [Projector(_)] => None
           | seg =>
+            //TODO(andrew): .... Any() below?
             let+ piece =
               switch (MakeTerm.for_projection(_ => Any(), seg)) {
               | None => None

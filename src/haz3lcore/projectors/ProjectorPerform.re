@@ -25,7 +25,7 @@ open OptUtil.Syntax;
 
 let init =
     (kind: ProjectorCore.Kind.t, projector_id, seg: Base.segment)
-    : option(syntax) =>
+    : option(Base.piece) =>
   /* Projected syntax always gets parenthesized, but only the contents
    * of those parentheses are passed to the projector implementations  */
   //TODO(andrew)

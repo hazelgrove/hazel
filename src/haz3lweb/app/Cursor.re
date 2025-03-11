@@ -1,3 +1,9 @@
+type indicated_projector = {
+  direction: Util.Direction.t,
+  kind: Haz3lcore.ProjectorCore.Kind.t,
+  term: Haz3lcore.Any.t,
+};
+
 type cursor('update) = {
   info: option(Haz3lcore.Info.t),
   selected_text: option(unit => string),
@@ -10,7 +16,7 @@ type cursor('update) = {
   add_projector: Haz3lcore.ProjectorCore.Kind.t => option('update),
   undo_action: option('update),
   redo_action: option('update),
-  projectors: option(Haz3lcore.Id.Map.t(Haz3lcore.ProjectorBase.trad)),
+  indicated_projector: option(indicated_projector),
   of_projector: option(Haz3lcore.Id.t => Haz3lcore.Any.t),
 };
 
@@ -44,7 +50,7 @@ let empty = {
   add_projector: _ => None,
   undo_action: None,
   redo_action: None,
-  projectors: None,
+  indicated_projector: None,
   of_projector: None,
 };
 

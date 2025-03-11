@@ -220,7 +220,7 @@ module Deco =
   let tiles = M.editor.syntax.tiles;
   let measured = M.editor.syntax.measured;
   let rows = measured.rows;
-  let projectors = M.editor.syntax.projectors;
+  //let projectors = M.editor.syntax.projectors;
   let error_ids = M.statics.error_ids;
   let color_highlights = M.globals.color_highlights;
   let segment = M.editor.syntax.segment;
@@ -457,10 +457,11 @@ module Deco =
 
   let error_view = (id: Id.t) =>
     try(
-      switch (Id.Map.find_opt(id, projectors)) {
-      | Some(p) =>
+      switch (Some() /*Id.Map.find_opt(id, projectors)*/) {
+      | Some(_) =>
         /* Special case for projectors as they are not in tile map */
-        let shapes = ProjectorBase.shapes(p);
+        //TODO(andrew): re-generalize shapes here
+        let shapes = Nib.Shape.(Convex, Convex);
         let measurement = Id.Map.find(id, measured.projectors);
         div_c(
           "errors-piece",

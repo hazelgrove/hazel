@@ -233,7 +233,22 @@ module Focus = {
         Some(Update.Manage(Project({parent: selection.component, kind}))),
       undo_action: Some(Undo(selection.component)),
       redo_action: Some(Redo(selection.component)),
-      projectors: Some(component.editor.syntax.projectors), //TODO(andrew): make sure this routes
+      //projectors: Some(component.editor.syntax.projectors), //TODO(andrew): make sure this routes
+      indicated_projector: {
+        open OptUtil.Syntax;
+        let editor = component.editor;
+        let* (piece, d, _) = Indicated.for_index(editor.state.zipper);
+        let* (kind, term) =
+          switch (piece) {
+          | Projector({id}) =>
+            let component = Model.get_component(id, model);
+            let* kind = component.kind;
+            let term = Update.mk_term(id, model);
+            Some((kind, term));
+          | _ => None
+          };
+        Some({direction: d, kind, term});
+      },
       of_projector: Some(id => Update.mk_term(id, model)),
     };
   };
@@ -368,7 +383,8 @@ module View = {
           projector_view,
           globals.font_metrics,
           ProjectorView.Model.mk(
-            component.editor.syntax.projectors,
+            model.components,
+            //component.editor.syntax.projectors,
             component.editor.syntax.measured,
             component.editor.syntax.selection_ids,
             Indicated.piece(component.editor.state.zipper),

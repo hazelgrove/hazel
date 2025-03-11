@@ -15,7 +15,8 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | TextArea => (module Cook(TextAreaProj.M))
   };
 
-let init = (kind: ProjectorCore.Kind.t, id, any: Term.Any.t): option(syntax) => {
+let init =
+    (kind: ProjectorCore.Kind.t, id, any: Term.Any.t): option(Base.piece) => {
   let (module P) = to_module(kind);
   switch (P.can_project(any)) {
   | false => None
@@ -24,7 +25,8 @@ let init = (kind: ProjectorCore.Kind.t, id, any: Term.Any.t): option(syntax) => 
 };
 
 let init_or_noop =
-    (kind: ProjectorCore.Kind.t, id, syntax: syntax, any: Term.Any.t): syntax =>
+    (kind: ProjectorCore.Kind.t, id, syntax: Base.piece, any: Term.Any.t)
+    : Base.piece =>
   switch (init(kind, id, any)) {
   | Some(pr) => pr
   | None => syntax

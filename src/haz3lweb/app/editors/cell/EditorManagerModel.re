@@ -147,7 +147,7 @@ let component_to_piece = (component: component): Piece.t => {
 
 let assemble = (model: t): Segment.t => {
   print_endline("assemble");
-  let swap_out = (go, piece: Piece.t): Segment.t => {
+  let swap_out = (_go, piece: Piece.t): Segment.t => {
     print_endline("swap_out");
     switch (piece) {
     | Projector(pr) =>

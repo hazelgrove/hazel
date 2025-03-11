@@ -24,7 +24,7 @@ module CachedSyntax = {
     terms: TermMap.t,
     /* Since the introduction of shape_map below, caching projectors
      * here is almost vesigial (currently used only for error deco) */
-    projectors: Id.Map.t(ProjectorBase.trad),
+    //projectors: Id.Map.t(ProjectorBase.trad),
     /* The shape_map is used to leave space for projectors in the
      * underlying editor. In principle calculating this can involve
      * both static and dynamic information, so we cache this for perf */
@@ -50,7 +50,7 @@ module CachedSyntax = {
       measured: Measured.of_segment(segment, projector_shapes),
       selection_ids: Selection.selection_ids(z.selection),
       terms,
-      projectors,
+      //projectors,
       shape_map: projector_shapes,
     };
   };

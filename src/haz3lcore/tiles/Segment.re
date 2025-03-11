@@ -801,7 +801,7 @@ module IDs = {
     | Tile(t) => Tile({...t, children: List.map(replace, t.children), id})
     | Grout(grout) => Grout({...grout, id})
     | Secondary(w) => Secondary({...w, id})
-    | Projector(p) => failwith("Segment: IDs.all: Projectors not supported")
+    | Projector(_p) => failwith("Segment: IDs.all: Projectors not supported")
     /* Need to keep projector and contained piece id in-sync */
     // let id = Id.mk();
     // let syntax = replace_piece(~id, p.syntax);
