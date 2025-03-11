@@ -94,6 +94,19 @@ let repack = (type a, kind: kind(a), x: a): t =>
   | String => String(x)
   };
 
+// Mpte[Matt]: return wrapper needed for polymorphic types
+type cls_wrapper =
+  | W(kind('a)): cls_wrapper;
+
+let (let.cls) = (type b, cls: cls, f: cls_wrapper => b): b =>
+  switch (cls) {
+  | Int => f(W(Int))
+  | Nat => f(W(Nat))
+  | Float => f(W(Float))
+  | Bool => f(W(Bool))
+  | String => f(W(String))
+  };
+
 /* ========== CONVERSION ========== */
 
 let convert =
@@ -161,5 +174,25 @@ let to_literal = (e: t): string =>
 /* ========== BUILTINS ========== */
 
 type builtin =
-  | OneFun(t => Either.t(t, InvalidOperationError.t))
-  | TwoFun((t, t) => Either.t(t, InvalidOperationError.t));
+  | OneFun(kind('a), kind('b), 'a => Either.t('b, InvalidOperationError.t))
+    : builtin
+  | TwoFun(
+      kind('a),
+      kind('b),
+      kind('c),
+      ('a, 'b) => Either.t('c, InvalidOperationError.t),
+    )
+    : builtin;
+
+let converter_builtins =
+  ListUtil.cross(all_of_cls, all_of_cls)
+  |> List.map(((cls1, cls2)) =>
+       (
+         cls_string_lower(cls2) ++ "_of_" ++ cls_string_lower(cls1),
+         {
+           let.cls W(cls1) = cls1;
+           let.cls W(cls2) = cls2;
+           OneFun(cls1, cls2, convert(cls1, cls2));
+         },
+       )
+     );

@@ -326,3 +326,58 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   | Bool(And) => Defined(Bool, Bool, Bool, just((&&))) // Note: booleans have extra short-cutting rules in transition
   | Bool(Or) => Defined(Bool, Bool, Bool, just((||)))
   };
+
+/* ========== BUILTINS ========== */
+
+let op_name = (op: op_bin): string =>
+  switch (op) {
+  | Int(Plus) => "int_plus"
+  | Int(Minus) => "int_minus"
+  | Int(Times) => "int_times"
+  | Int(Power) => "int_power"
+  | Int(Divide) => "int_divide"
+  | Int(LessThan) => "int_lt"
+  | Int(LessThanOrEqual) => "int_lte"
+  | Int(GreaterThan) => "int_gt"
+  | Int(GreaterThanOrEqual) => "int_gte"
+  | Int(Equals) => "int_eq"
+  | Int(NotEquals) => "int_neq"
+  | Nat(Plus) => "nat_plus"
+  | Nat(Minus) => "nat_minus"
+  | Nat(Times) => "nat_times"
+  | Nat(Power) => "nat_power"
+  | Nat(Divide) => "nat_divide"
+  | Nat(LessThan) => "nat_lt"
+  | Nat(LessThanOrEqual) => "nat_lte"
+  | Nat(GreaterThan) => "nat_gt"
+  | Nat(GreaterThanOrEqual) => "nat_gte"
+  | Nat(Equals) => "nat_eq"
+  | Nat(NotEquals) => "nat_neq"
+  | Float(Plus) => "float_plus"
+  | Float(Minus) => "float_minus"
+  | Float(Times) => "float_times"
+  | Float(Power) => "float_power"
+  | Float(Divide) => "float_divide"
+  | Float(LessThan) => "float_lt"
+  | Float(LessThanOrEqual) => "float_lte"
+  | Float(GreaterThan) => "float_gt"
+  | Float(GreaterThanOrEqual) => "float_gte"
+  | Float(Equals) => "float_eq"
+  | Float(NotEquals) => "float_neq"
+  | String(Concat) => "string_concat"
+  | String(Equals) => "string_eq"
+  | Bool(And) => "bool_and"
+  | Bool(Or) => "bool_or"
+  };
+
+let builtins = {
+  CONST_RENAMEMO.(
+    all_of_op_bin
+    |> List.filter_map(op =>
+         switch (semantics_of_bin_op(op)) {
+         | Undefined => None
+         | Defined(x, y, z, f) => Some((op_name(op), TwoFun(x, y, z, f)))
+         }
+       )
+  );
+};

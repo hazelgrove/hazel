@@ -87,31 +87,6 @@ module Pervasives = {
       Some(bool(Float.is_nan(f)));
     };
 
-    let string_of_int = d => {
-      let-unbox n = (CONST_RENAMEME(Int), d);
-      Some(string(string_of_int(n)));
-    };
-
-    let string_of_float = d => {
-      let-unbox f = (CONST_RENAMEME(Float), d);
-      Some(string(string_of_float(f)));
-    };
-
-    let string_of_bool = d => {
-      let-unbox b = (CONST_RENAMEME(Bool), d);
-      Some(string(string_of_bool(b)));
-    };
-
-    let int_of_float = d => {
-      let-unbox f = (CONST_RENAMEME(Float), d);
-      Some(int(int_of_float(f)));
-    };
-
-    let float_of_int = d => {
-      let-unbox n = (CONST_RENAMEME(Int), d);
-      Some(float(float_of_int(n)));
-    };
-
     let abs = d => {
       let-unbox n = (CONST_RENAMEME(Int), d);
       Some(int(abs(n)));
@@ -135,28 +110,6 @@ module Pervasives = {
     let asin = float_op(asin);
     let acos = float_op(acos);
     let atan = float_op(atan);
-
-    let of_string =
-        (
-          convert: string => option('a),
-          wrap: 'a => DHExp.t,
-          name: string,
-          d: DHExp.t,
-        ) => {
-      let-unbox s = (CONST_RENAMEME(String), d);
-      switch (convert(s)) {
-      | Some(n) => Some(wrap(n))
-      | None =>
-        let d' = builtin_fun(name);
-        let d' = ap(Forward, d', d);
-        let d' = dynamic_error_hole(d', InvalidOfString);
-        Some(d');
-      };
-    };
-
-    let int_of_string = of_string(int_of_string_opt, n => int(n));
-    let float_of_string = of_string(float_of_string_opt, f => float(f));
-    let bool_of_string = of_string(bool_of_string_opt, b => bool(b));
 
     let int_mod = name =>
       binary((d1, d2) => {
@@ -232,6 +185,44 @@ module Pervasives = {
   open Impls;
 
   // Update src/haz3lmenhir/Lexer.mll when any new builtin is added
+
+  let of_atom_builtin = (b: CONST_RENAMEMO.builtin): builtin => {
+    switch (b) {
+    | OneFun(k1, k2, f) =>
+      Fn(
+        CONST_RENAMET(k1 |> CONST_RENAMEMO.cls_of_kind) |> Typ.fresh,
+        CONST_RENAMET(k2 |> CONST_RENAMEMO.cls_of_kind) |> Typ.fresh,
+        (d: DHExp.t) => {
+          let-unbox x = (CONST_RENAMEME(k1), d);
+          switch (f(x)) {
+          | L(x) =>
+            Some(CONST_RENAMEME(CONST_RENAMEMO.repack(k2, x)) |> Exp.fresh)
+          | R(_) => None
+          };
+        },
+      )
+    | TwoFun(k1, k2, k3, f) =>
+      Fn(
+        Prod([
+          CONST_RENAMET(k1 |> CONST_RENAMEMO.cls_of_kind) |> Typ.fresh,
+          CONST_RENAMET(k2 |> CONST_RENAMEMO.cls_of_kind) |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+        CONST_RENAMET(k3 |> CONST_RENAMEMO.cls_of_kind) |> Typ.fresh,
+        [@warning "-8"] (d: DHExp.t) => {
+          let-unbox [x, y] = (Tuple(2), d);
+          let-unbox x = (CONST_RENAMEME(k1), x);
+          let-unbox y = (CONST_RENAMEME(k2), y);
+          switch (f(x, y)) {
+          | L(x) =>
+            Some(CONST_RENAMEME(CONST_RENAMEMO.repack(k3, x)) |> Exp.fresh)
+          | R(_) => None
+          };
+        },
+      )
+    };
+  };
+
   let builtins =
     Fresh.Typ.(
       VarMap.empty
@@ -255,54 +246,6 @@ module Pervasives = {
            is_infinite,
          )
       |> fn("is_nan", CONST_RENAMET(Float), CONST_RENAMET(Bool), is_nan)
-      |> fn(
-           "int_of_float",
-           CONST_RENAMET(Float),
-           CONST_RENAMET(Int),
-           int_of_float,
-         )
-      |> fn(
-           "float_of_int",
-           CONST_RENAMET(Int),
-           CONST_RENAMET(Float),
-           float_of_int,
-         )
-      |> fn(
-           "string_of_int",
-           CONST_RENAMET(Int),
-           CONST_RENAMET(String),
-           string_of_int,
-         )
-      |> fn(
-           "string_of_float",
-           CONST_RENAMET(Float),
-           CONST_RENAMET(String),
-           string_of_float,
-         )
-      |> fn(
-           "string_of_bool",
-           CONST_RENAMET(Bool),
-           CONST_RENAMET(String),
-           string_of_bool,
-         )
-      |> fn(
-           "int_of_string",
-           CONST_RENAMET(String),
-           CONST_RENAMET(Int),
-           int_of_string("int_of_string"),
-         )
-      |> fn(
-           "float_of_string",
-           CONST_RENAMET(String),
-           CONST_RENAMET(Float),
-           float_of_string("float_of_string"),
-         )
-      |> fn(
-           "bool_of_string",
-           CONST_RENAMET(String),
-           CONST_RENAMET(Bool),
-           bool_of_string("bool_of_string"),
-         )
       |> fn("abs", CONST_RENAMET(Int), CONST_RENAMET(Int), abs)
       |> fn(
            "abs_float",
@@ -364,7 +307,21 @@ module Pervasives = {
            List(string()),
            string_split("string_split"),
          )
-    );
+    )
+    |> VarMap.concat(
+         _,
+         List.map(
+           ((n, b)) => (n, of_atom_builtin(b)),
+           CONST_RENAMEMO.converter_builtins,
+         ),
+       )
+    |> VarMap.concat(
+         _,
+         List.map(
+           ((n, b)) => (n, of_atom_builtin(b)),
+           Operators.builtins,
+         ),
+       );
 };
 
 let entries =
