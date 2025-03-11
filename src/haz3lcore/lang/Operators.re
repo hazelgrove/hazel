@@ -63,6 +63,7 @@ type op_bin_string =
 type op_un =
   | Meta(op_un_meta)
   | Int(op_un_int)
+  | Nat(op_un_int)
   | Bool(op_un_bool);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
@@ -77,6 +78,41 @@ type op_bin =
 type ap_direction =
   | Forward
   | Reverse;
+
+/* ========== ELABORATION ========== */
+
+let replace_literal =
+    (lit: CONST_RENAMEMO.t, use_mode: option(mode)): CONST_RENAMEMO.t => {
+  switch (lit, use_mode) {
+  | (_, None) => lit
+  | (Int(n) | Nat(n), Some(Int)) => Int(n)
+  | (Int(n) | Nat(n), Some(Nat)) => Nat(n)
+  | (Float(n), _) => Float(n)
+  | (Bool(b), _) => Bool(b)
+  | (String(s), _) => String(s)
+  };
+};
+
+let replace_un_op = (op: op_un, use_mode: option(mode)): op_un => {
+  switch (op, use_mode) {
+  | (op, None) => op
+  | (Int(op) | Nat(op), Some(Int)) => Int(op)
+  | (Int(op) | Nat(op), Some(Nat)) => Nat(op)
+  | (Bool(op), _) => Bool(op)
+  | (Meta(op), _) => Meta(op)
+  };
+};
+
+let replace_bin_op = (op: op_bin, use_mode: option(mode)): op_bin => {
+  switch (op, use_mode) {
+  | (op, None) => op
+  | (Int(op) | Nat(op), Some(Int)) => Int(op)
+  | (Int(op) | Nat(op), Some(Nat)) => Nat(op)
+  | (Float(op), _) => Float(op)
+  | (Bool(op), _) => Bool(op)
+  | (String(op), _) => String(op)
+  };
+};
 
 /* ========== PRINTING ========== */
 
@@ -96,6 +132,7 @@ let show_unop: op_un => string =
   fun
   | Meta(op) => show_op_un_meta(op)
   | Bool(op) => show_op_un_bool(op)
+  | Nat(op)
   | Int(op) => show_op_un_int(op);
 
 let show_op_bin_bool: op_bin_bool => string =
@@ -203,7 +240,7 @@ let bin_op_to_string = (op: op_bin): string => {
 /* ========== SEMANTICS ========== */
 
 type un_semantics =
-  | Fun(
+  | Defined(
       CONST_RENAMEMO.kind('a),
       CONST_RENAMEMO.kind('b),
       'a => Either.t('b, InvalidOperationError.t),
@@ -213,10 +250,12 @@ type un_semantics =
 
 let just = (f, x) => Either.L(f(x));
 
-let semantics_of_un_op = (mode: mode, op: op_un_int): un_semantics =>
-  switch (mode, op) {
-  | (Int, Minus) => Fun(Int, Int, just((~-)))
-  | (Nat, Minus) => Undefined
+let semantics_of_un_op = (op: op_un): un_semantics =>
+  switch (op) {
+  | Int(Minus) => Defined(Int, Int, just(x => - x))
+  | Nat(Minus) => Undefined
+  | Bool(Not) => Defined(Bool, Bool, just(x => !x))
+  | Meta(Unquote) => Undefined
   };
 
 type bin_semantics =
@@ -261,7 +300,7 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   | Nat(Minus) => Undefined
   | Nat(Times) => Defined(Nat, Nat, Nat, just(( * )))
   | Nat(Power) => Defined(Nat, Nat, Nat, just(IntUtil.ipow))
-  | Nat(Divide) => Undefined
+  | Nat(Divide) => Defined(Nat, Nat, Nat, int_divide)
   | Nat(LessThan) => Defined(Nat, Nat, Bool, just((<)))
   | Nat(LessThanOrEqual) => Defined(Nat, Nat, Bool, just((<=)))
   | Nat(GreaterThan) => Defined(Nat, Nat, Bool, just((>)))

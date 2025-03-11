@@ -49,7 +49,7 @@ let testable_info_error_exp =
 let testable_error: testable(Info.error) =
   testable(Fmt.using(Info.show_error, Fmt.string), (==));
 
-let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init);
+let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 
 let parse_exp = (s: string) => {
   switch (MakeTerm.parse_exp(s)) {

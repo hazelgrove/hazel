@@ -115,6 +115,7 @@ module Operators = {
         | Unquote => Unquote
         },
       )
+    | Nat(i)
     | Int(i) =>
       Int(
         switch (i) {

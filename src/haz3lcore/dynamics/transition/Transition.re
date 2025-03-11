@@ -486,36 +486,31 @@ module Transition = (EV: EV_MODE) => {
     | UnOp(Meta(Unquote), _) =>
       let. _ = otherwise(env, d);
       Indet;
-    | UnOp(Int(Minus), d1) =>
-      let. _ = otherwise(env, d1 => UnOp(Int(Minus), d1) |> rewrap)
+    | UnOp(op, d1) =>
+      let. _ = otherwise(env, d1 => UnOp(op, d1) |> rewrap)
       and. d1' =
-        req_final(
-          req(state, env),
-          c => UnOp(Int(Minus), c) |> wrap_ctx,
-          d1,
-        );
-      let-unbox n = (CONST_RENAMEME(Int), d1');
-      Step({
-        expr: int(- n),
-        state_update,
-        kind: UnOp(Int(Minus)),
-        is_value: true,
-      });
-    | UnOp(Bool(Not), d1) =>
-      let. _ = otherwise(env, d1 => UnOp(Bool(Not), d1) |> rewrap)
-      and. d1' =
-        req_final(
-          req(state, env),
-          c => UnOp(Bool(Not), c) |> wrap_ctx,
-          d1,
-        );
-      let-unbox b = (CONST_RENAMEME(Bool), d1');
-      Step({
-        expr: bool(!b),
-        state_update,
-        kind: UnOp(Bool(Not)),
-        is_value: true,
-      });
+        req_final(req(state, env), d1 => UnOp(op, d1) |> wrap_ctx, d1);
+      switch (Operators.semantics_of_un_op(op)) {
+      | Undefined => Indet
+      | Defined(in_ty, out_ty, f) =>
+        let-unbox n = (CONST_RENAMEME(in_ty), d1');
+        let expr =
+          switch (f(n)) {
+          | Either.L(return_value) =>
+            // operator was successful
+            CONST_RENAMEME(CONST_RENAMEMO.repack(out_ty, return_value))
+            |> Exp.fresh
+          | Either.R(error) =>
+            // e.g. divide by zero
+            dynamic_error_hole(UnOp(op, d1) |> rewrap, error)
+          };
+        Step({
+          expr,
+          state_update,
+          kind: UnOp(op),
+          is_value: true,
+        });
+      };
     | BinOp(Bool(And), d1, d2) =>
       let. _ = otherwise(env, d1 => BinOp(Bool(And), d1, d2) |> rewrap)
       and. d1' =
@@ -878,7 +873,7 @@ let stepper_justification: step_kind => string =
   | DeferredAp => "deferred application"
   | BuiltinWrap => "wrap builtin"
   | BuiltinAp(s) => "evaluate " ++ s
-  | UnOp(Int(Minus))
+  | UnOp(Int(Minus) | Nat(Minus))
   | BinOp(Nat(Plus | Minus | Times | Power | Divide))
   | BinOp(Float(Plus | Minus | Times | Power | Divide))
   | BinOp(Int(Plus | Minus | Times | Power | Divide)) => "arithmetic"

@@ -23,7 +23,7 @@ let parse_exp = (s: string) => {
   };
 };
 let elaborate = u =>
-  Elaborator.elaborate(Statics.mk(CoreSettings.on, Builtins.ctx_init, u), u)
+  Elaborator.elaborate(Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u), u)
   |> fst;
 
 let probe_test =

@@ -27,7 +27,7 @@ type entry =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  use_mode: Operators.mode,
+  use_mode: option(Operators.mode), // None if elaboration has already occurred
   entries: list(entry),
 };
 
@@ -152,7 +152,7 @@ let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t =
     @ ctx.entries,
 };
 
-let set_use_mode = (ctx: t, use_mode: Operators.mode): t => {
+let set_use_mode = (ctx: t, use_mode: option(Operators.mode)): t => {
   ...ctx,
   use_mode,
 };
@@ -244,8 +244,12 @@ let filter_stepper_filter_variables = (ctx: t): t => {
 let shadows_typ = (ctx: t, name: string): bool =>
   Form.is_base_typ(name) || lookup_tvar(ctx, name) != None;
 
-let empty = {
-  use_mode: Operators.default_mode,
+let empty_pre_elaboration = {
+  use_mode: Some(Operators.default_mode),
+  entries: [],
+};
+let empty_post_elaboration = {
+  use_mode: None,
   entries: [],
 };
 

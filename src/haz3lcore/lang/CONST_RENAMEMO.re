@@ -48,6 +48,14 @@ let cls_of_t: t => cls =
   | Bool(_) => Bool
   | String(_) => String;
 
+let cls_string_lower: cls => string =
+  fun
+  | Int => "int"
+  | Nat => "nat"
+  | Float => "float"
+  | Bool => "bool"
+  | String => "string";
+
 /* ========== MATCHING ========== */
 
 let unbox = (type a, request: kind(a), e: t): option(a) =>
@@ -88,6 +96,58 @@ let repack = (type a, kind: kind(a), x: a): t =>
 
 /* ========== CONVERSION ========== */
 
+let convert =
+    (type a, type b, from: kind(a), to_: kind(b), v: a)
+    : Either.t(b, InvalidOperationError.t) => {
+  switch (from, to_) {
+  | (Int, Int) => L(v)
+  | (Int, Nat) => v < 0 ? R(InvalidOperationError.NegativeNat) : L(v)
+  | (Int, Bool) => L(v != 0)
+  | (Int, Float) => L(float_of_int(v))
+  | (Int, String) => L(string_of_int(v))
+
+  | (Nat, Nat) => L(v)
+  | (Nat, Int) => L(v)
+  | (Nat, Bool) => L(v != 0)
+  | (Nat, Float) => L(float_of_int(v))
+  | (Nat, String) => L(string_of_int(v))
+
+  | (Float, Float) => L(v)
+  | (Float, Int) => L(int_of_float(v))
+  | (Float, Nat) => L(int_of_float(v))
+  | (Float, Bool) => L(v != 0.0)
+  | (Float, String) => L(string_of_float(v))
+
+  | (Bool, Bool) => L(v)
+  | (Bool, Int) => L(v ? 1 : 0)
+  | (Bool, Nat) => L(v ? 1 : 0)
+  | (Bool, Float) => L(v ? 1.0 : 0.0)
+  | (Bool, String) => L(string_of_bool(v))
+
+  | (String, String) => L(v)
+  | (String, Int) =>
+    switch (int_of_string_opt(v)) {
+    | Some(i) => L(i)
+    | None => R(InvalidOperationError.InvalidOfString)
+    }
+  | (String, Nat) =>
+    switch (int_of_string_opt(v)) {
+    | Some(i) => i < 0 ? R(InvalidOperationError.NegativeNat) : L(i)
+    | None => R(InvalidOperationError.InvalidOfString)
+    }
+  | (String, Float) =>
+    switch (float_of_string_opt(v)) {
+    | Some(f) => L(f)
+    | None => R(InvalidOperationError.InvalidOfString)
+    }
+  | (String, Bool) =>
+    switch (bool_of_string_opt(v)) {
+    | Some(b) => L(b)
+    | None => R(InvalidOperationError.InvalidOfString)
+    }
+  };
+};
+
 let to_literal = (e: t): string =>
   switch (e) {
   | Int(i) => i |> string_of_int
@@ -98,12 +158,8 @@ let to_literal = (e: t): string =>
   | String(s) => "\"" ++ s ++ "\""
   };
 
-// let convert = (type a, type b, from: kind(a), to_: kind(b), x: a): b =>
-//   switch (from, to_) {
-//   | _ => failwith("TODO: Conversion implemented yet")
-//   };
+/* ========== BUILTINS ========== */
 
-// let to_string = (e: t): string => {
-//   let V(v, k) = unpack(e);
-//   convert(k, String, v);
-// };
+type builtin =
+  | OneFun(t => Either.t(t, InvalidOperationError.t))
+  | TwoFun((t, t) => Either.t(t, InvalidOperationError.t));

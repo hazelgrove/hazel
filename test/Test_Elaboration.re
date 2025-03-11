@@ -8,7 +8,7 @@ let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
 let ids = List.init(12, _ => Id.mk());
 let id_at = x => x |> List.nth(ids);
 
-let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init);
+let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 let dhexp_of_uexp = u => Elaborator.elaborate(mk_map(u), u) |> fst;
 let alco_check = dhexp_typ |> Alcotest.check;
 let parse_exp = (s: string) => {
