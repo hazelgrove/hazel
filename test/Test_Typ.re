@@ -10,7 +10,7 @@ let tests = (
       () => {
         let t =
           Typ.join(
-            Ctx.empty,
+            Builtins.ctx_init(Some(Int)),
             Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
             Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           );

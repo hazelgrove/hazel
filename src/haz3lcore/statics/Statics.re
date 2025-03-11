@@ -118,21 +118,6 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
 
 let syn = Unknown(SynSwitch) |> Typ.temp;
 
-let typ_exp_unop: Operators.op_un => (Typ.t, Typ.t) =
-  fun
-  | Meta(Unquote) => (
-      Var("$Meta") |> Typ.temp,
-      Unknown(Internal) |> Typ.temp,
-    )
-  | Bool(Not) => (
-      CONST_RENAMET(Bool) |> Typ.temp,
-      CONST_RENAMET(Bool) |> Typ.temp,
-    )
-  | Int(Minus) => (
-      CONST_RENAMET(Int) |> Typ.temp,
-      CONST_RENAMET(Int) |> Typ.temp,
-    );
-
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, Map.t) =>
   switch (any) {
@@ -334,16 +319,10 @@ and uexp_to_info_map =
     | Deferral(position) =>
       add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
     | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
-    | CONST_RENAMEME(Bool(_)) =>
-      atomic(Just(CONST_RENAMET(Bool) |> Typ.temp))
-    | CONST_RENAMEME(Int(_)) =>
-      atomic(Just(CONST_RENAMET(Int) |> Typ.temp))
-    | CONST_RENAMEME(Float(_)) =>
-      atomic(Just(CONST_RENAMET(Float) |> Typ.temp))
-    | CONST_RENAMEME(String(_)) =>
-      atomic(Just(CONST_RENAMET(String) |> Typ.temp))
-    | CONST_RENAMEME(Nat(_)) =>
-      atomic(Just(CONST_RENAMET(Nat) |> Typ.temp))
+    | CONST_RENAMEME(c) =>
+      let c = Operators.replace_literal(c, ctx.use_mode); // Replace literal if necessary due to `use`
+      let ty = CONST_RENAMET(CONST_RENAMEMO.cls_of_t(c)) |> Typ.temp;
+      atomic(Just(ty));
     | ListLit(es) =>
       let ids = List.map(Exp.rep_id, es);
       let inner_ana_ty = Typ.matched_list(ctx, ana);
@@ -405,15 +384,31 @@ and uexp_to_info_map =
       let (e, m) = go(~ana=ty_in, e, m);
       add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
     | UnOp(op, e) =>
-      let (ty_in, ty_out) = typ_exp_unop(op);
-      let (e, m) = go(~ana=ty_in, e, m);
-      add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
+      let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
+      let op_semantics = Operators.semantics_of_un_op(op);
+      switch (op_semantics) {
+      | Undefined =>
+        let (_, m) = go(~mode=Syn, e, m);
+        add(
+          ~self=BadToken(Operators.show_unop(op)),
+          ~co_ctx=CoCtx.empty,
+          m,
+        );
+      | Defined(ty_in, ty_out, _) =>
+        let ty_in =
+          CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(ty_in)) |> Typ.temp;
+        let ty_out =
+          CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(ty_out)) |> Typ.temp;
+        let (e, m) = go(~ana=ty_in, e, m);
+        add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
+      };
     | BinOp(op, e1, e2) =>
+      let op = Operators.replace_bin_op(op, ctx.use_mode); // Replace op if necessary due to `use`
       let op_semantics = Operators.semantics_of_bin_op(op);
       switch (op_semantics) {
       | Undefined =>
-        let (_e1, m) = go(~mode=Syn, e1, m);
-        let (_e2, m) = go(~mode=Syn, e2, m);
+        let (_, m) = go(~mode=Syn, e1, m);
+        let (_, m) = go(~mode=Syn, e2, m);
         add(
           ~self=BadToken(Operators.bin_op_to_string(op)),
           ~co_ctx=CoCtx.empty,
@@ -622,7 +617,7 @@ and uexp_to_info_map =
         ? atomic(Duplicate(name, self)) : atomic(self);
     | BuiltinFun(string) =>
       add'(
-        ~self=Self.of_exp_var(Builtins.ctx_init, string),
+        ~self=Self.of_exp_var(Builtins.ctx_init(None), string),
         ~co_ctx=CoCtx.empty,
         m,
       )
@@ -1070,7 +1065,7 @@ and uexp_to_info_map =
         };
       let ctx' =
         switch (use_mode) {
-        | Some(m) => Ctx.set_use_mode(ctx, m)
+        | Some(mode) => Ctx.set_use_mode(ctx, Some(mode))
         | None => ctx
         };
       let (body, m) = go'(~ctx=ctx', ~mode, body, m);
@@ -1267,33 +1262,35 @@ and upat_to_info_map =
       add(~self=IsMulti, ~ctx, ~constraint_=Coverage.Constraint.Hole, m);
     | Invalid(token) => hole(BadToken(token))
     | EmptyHole => hole(Just(unknown))
-    | CONST_RENAMEME(Nat(nat)) =>
-      atomic(
-        Just(CONST_RENAMET(Nat) |> Typ.temp),
-        Coverage.Constraint.Nat(nat),
-      )
-    | CONST_RENAMEME(Int(int)) =>
-      atomic(
-        Just(CONST_RENAMET(Int) |> Typ.temp),
-        Coverage.Constraint.Int(int),
-      )
-    | CONST_RENAMEME(Float(float)) =>
-      atomic(
-        Just(CONST_RENAMET(Float) |> Typ.temp),
-        Coverage.Constraint.Float(float),
-      )
-    | Tuple([]) =>
-      atomic(Just(Prod([]) |> Typ.temp), Coverage.Constraint.Tuple([]))
-    | CONST_RENAMEME(Bool(bool)) =>
-      atomic(
-        Just(CONST_RENAMET(Bool) |> Typ.temp),
-        bool ? Coverage.Constraint.true_ : Coverage.Constraint.false_,
-      )
-    | CONST_RENAMEME(String(string)) =>
-      atomic(
-        Just(CONST_RENAMET(String) |> Typ.temp),
-        Coverage.Constraint.String(string),
-      )
+    | CONST_RENAMEME(c) =>
+      let c = Operators.replace_literal(c, ctx.use_mode);
+      switch (c) {
+      | Nat(nat) =>
+        atomic(
+          Just(CONST_RENAMET(Nat) |> Typ.temp),
+          Coverage.Constraint.Nat(nat),
+        )
+      | Int(int) =>
+        atomic(
+          Just(CONST_RENAMET(Int) |> Typ.temp),
+          Coverage.Constraint.Int(int),
+        )
+      | Float(float) =>
+        atomic(
+          Just(CONST_RENAMET(Float) |> Typ.temp),
+          Coverage.Constraint.Float(float),
+        )
+      | Bool(bool) =>
+        atomic(
+          Just(CONST_RENAMET(Bool) |> Typ.temp),
+          bool ? Coverage.Constraint.true_ : Coverage.Constraint.false_,
+        )
+      | String(string) =>
+        atomic(
+          Just(CONST_RENAMET(String) |> Typ.temp),
+          Coverage.Constraint.String(string),
+        )
+      };
     | ListLit(ps) =>
       let ids = List.map(Pat.rep_id, ps);
       let mode = Typ.matched_list(ctx, ana);

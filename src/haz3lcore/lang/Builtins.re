@@ -367,40 +367,43 @@ module Pervasives = {
     );
 };
 
-let ctx_init: Ctx.t = {
-  let meta_cons_map: ConstructorMap.t(Typ.t) = [
-    Variant("$e", [Id.mk()], None),
-    Variant("$v", [Id.mk()], None),
-  ];
-  let meta =
-    Ctx.TVarEntry({
-      name: "$Meta",
-      id: Id.invalid,
-      kind: Ctx.Singleton(Fresh.Typ.sum(meta_cons_map)),
-    });
-  Ctx.{
-    use_mode: Operators.default_mode,
-    entries:
-      List.map(
-        fun
-        | (name, Const(typ, _)) =>
-          Ctx.VarEntry({
-            name,
-            typ,
-            id: Id.invalid,
-          })
-        | (name, Fn(t1, t2, _)) =>
-          Ctx.VarEntry({
-            name,
-            typ: Fresh.Typ.arrow(t1, t2),
-            id: Id.invalid,
-          }),
-        Pervasives.builtins,
-      ),
-  }
-  |> Ctx.extend(_, meta)
-  |> Ctx.add_ctrs(_, "$Meta", Id.invalid, meta_cons_map);
-};
+let entries =
+  List.map(
+    fun
+    | (name, Const(typ, _)) =>
+      Ctx.VarEntry({
+        name,
+        typ,
+        id: Id.invalid,
+      })
+    | (name, Fn(t1, t2, _)) =>
+      Ctx.VarEntry({
+        name,
+        typ: Fresh.Typ.arrow(t1, t2),
+        id: Id.invalid,
+      }),
+    Pervasives.builtins,
+  );
+
+let ctx_init: option(Operators.mode) => Ctx.t =
+  use_mode => {
+    let meta_cons_map: ConstructorMap.t(Typ.t) = [
+      Variant("$e", [Id.mk()], None),
+      Variant("$v", [Id.mk()], None),
+    ];
+    let meta =
+      Ctx.TVarEntry({
+        name: "$Meta",
+        id: Id.invalid,
+        kind: Ctx.Singleton(Fresh.Typ.sum(meta_cons_map)),
+      });
+    Ctx.{
+      use_mode,
+      entries,
+    }
+    |> Ctx.extend(_, meta)
+    |> Ctx.add_ctrs(_, "$Meta", Id.invalid, meta_cons_map);
+  };
 
 let forms_init: forms =
   List.filter_map(

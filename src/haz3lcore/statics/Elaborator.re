@@ -119,16 +119,11 @@ let rec elaborate_pattern =
   let (term, rewrap) = Pat.unwrap(upat);
   let dpat =
     switch (term) {
-    | CONST_RENAMEME(Int(_)) =>
-      upat |> cast_from(CONST_RENAMET(Int) |> Typ.temp)
-    | CONST_RENAMEME(Bool(_)) =>
-      upat |> cast_from(CONST_RENAMET(Bool) |> Typ.temp)
-    | CONST_RENAMEME(Float(_)) =>
-      upat |> cast_from(CONST_RENAMET(Float) |> Typ.temp)
-    | CONST_RENAMEME(String(_)) =>
-      upat |> cast_from(CONST_RENAMET(String) |> Typ.temp)
-    | CONST_RENAMEME(Nat(_)) =>
-      upat |> cast_from(CONST_RENAMET(Nat) |> Typ.temp)
+    | CONST_RENAMEME(c) =>
+      let c = Operators.replace_literal(c, ctx.use_mode);
+      CONST_RENAMEME(c)
+      |> rewrap
+      |> cast_from(CONST_RENAMET(c |> CONST_RENAMEMO.cls_of_t) |> Typ.temp);
     | ListLit(ps) =>
       let (ps, tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
       let inner_type =
@@ -315,8 +310,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       Probe(e' |> cast_from(ty), probe) |> rewrap;
     | Deferral(_) => uexp
     | CONST_RENAMEME(c) =>
-      uexp
-      |> cast_from(CONST_RENAMET(c |> CONST_RENAMEMO.cls_of_t) |> Typ.temp)
+      let c = Operators.replace_literal(c, ctx.use_mode);
+      CONST_RENAMEME(c)
+      |> rewrap
+      |> cast_from(CONST_RENAMET(c |> CONST_RENAMEMO.cls_of_t) |> Typ.temp);
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let inner_type =
@@ -581,17 +578,22 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         |> rewrap
       | _ => EmptyHole |> rewrap |> cast_from(Typ.temp(Unknown(Internal)))
       }
-    | UnOp(Int(Minus), e) =>
+    | UnOp(op, e) =>
+      let op = Operators.replace_un_op(op, ctx.use_mode);
       let (e', t) = elaborate(m, e);
-      UnOp(Int(Minus), fresh_cast(e', t, CONST_RENAMET(Int) |> Typ.temp))
-      |> rewrap
-      |> cast_from(CONST_RENAMET(Int) |> Typ.temp);
-    | UnOp(Bool(Not), e) =>
-      let (e', t) = elaborate(m, e);
-      UnOp(Bool(Not), fresh_cast(e', t, CONST_RENAMET(Bool) |> Typ.temp))
-      |> rewrap
-      |> cast_from(CONST_RENAMET(Bool) |> Typ.temp);
+      let semantics = Operators.semantics_of_un_op(op);
+      switch (semantics) {
+      | Undefined =>
+        UnOp(op, fresh_cast(e', t, Unknown(Internal) |> Typ.temp))
+        |> rewrap
+        |> cast_from(Unknown(Internal) |> Typ.temp)
+      | Defined(t1, t2, _) =>
+        let t1 = CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(t1)) |> Typ.temp;
+        let t2 = CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(t2)) |> Typ.temp;
+        UnOp(op, fresh_cast(e', t, t1)) |> rewrap |> cast_from(t2);
+      };
     | BinOp(op, e1, e2) =>
+      let op = Operators.replace_bin_op(op, ctx.use_mode);
       let (e1', t1) = elaborate(m, e1);
       let (e2', t2) = elaborate(m, e2);
       let semantics = Operators.semantics_of_bin_op(op);
@@ -615,7 +617,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | BuiltinFun(fn) =>
       uexp
       |> cast_from(
-           Ctx.lookup_var(Builtins.ctx_init, fn)
+           Ctx.lookup_var(Builtins.ctx_init(None), fn)
            |> Option.map((x: Ctx.var_entry) => x.typ)
            |> Option.value(~default=Typ.temp(Unknown(Internal))),
          )

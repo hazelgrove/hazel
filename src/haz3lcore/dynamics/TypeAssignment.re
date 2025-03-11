@@ -288,7 +288,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
         CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(ty_out)) |> Typ.temp;
       Typ.equal(ty1, ty1') && Typ.equal(ty2, ty2') ? Some(ty_out) : None;
     };
-  | UnOp(Int(Minus), d) =>
+  | UnOp(Int(Minus) | Nat(Minus), d) =>
     let* ty = typ_of_dhexp(ctx, m, d);
     Typ.equal(ty, CONST_RENAMET(Int) |> Typ.temp)
       ? Some(CONST_RENAMET(Int) |> Typ.temp) : None;
@@ -381,7 +381,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
 };
 
 let property_test = (uexp_typ: Typ.t, dhexp: DHExp.t, m: Statics.Map.t): bool => {
-  let dhexp_typ = typ_of_dhexp(Builtins.ctx_init, m, dhexp);
+  let dhexp_typ = typ_of_dhexp(Builtins.ctx_init(None), m, dhexp);
 
   switch (dhexp_typ) {
   | None => false
