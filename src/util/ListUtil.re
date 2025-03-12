@@ -451,6 +451,21 @@ let findi_opt: ('x => bool, list('x)) => option((int, 'x)) =
        );
   };
 
+let find_with_rest:
+  type a b. (a => option(b), list(a)) => option((b, list(a))) =
+  (f, xs) => {
+    let rec go = (xs, acc) =>
+      switch (xs) {
+      | [] => None
+      | [x, ...xs] =>
+        switch (f(x)) {
+        | None => go(xs, [x, ...acc])
+        | Some(y) => Some((y, List.rev_append(acc, xs)))
+        }
+      };
+    go(xs, []);
+  };
+
 let init_fold: (int, 'b, (int, 'b) => ('b, 'a)) => ('b, list('a)) =
   (n, b, f) => {
     let range = List.init(n, n => n);
