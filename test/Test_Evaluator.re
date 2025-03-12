@@ -23,7 +23,10 @@ let parse_exp = (s: string) => {
   };
 };
 let elaborate = u =>
-  Elaborator.elaborate(Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u), u)
+  Elaborator.elaborate(
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u),
+    u,
+  )
   |> fst;
 
 let probe_test =
@@ -300,7 +303,11 @@ let test_multi_arg_builtin_cast = () =>
           Unknown(Internal) |> Typ.fresh,
         ])
         |> Typ.fresh,
-        Prod([CONST_RENAMET(String) |> Typ.fresh, CONST_RENAMET(String) |> Typ.fresh]) |> Typ.fresh,
+        Prod([
+          CONST_RENAMET(String) |> Typ.fresh,
+          CONST_RENAMET(String) |> Typ.fresh,
+        ])
+        |> Typ.fresh,
       )
       |> Exp.fresh,
     )

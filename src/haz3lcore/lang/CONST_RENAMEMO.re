@@ -76,7 +76,7 @@ let unbox = (type a, request: kind(a), e: t): option(a) =>
 type wrapper =
   | V('a, kind('a)): wrapper;
 
-let unpack = (type a, e: t): wrapper =>
+let unpack = (e: t): wrapper =>
   switch (e) {
   | Int(i) => V(i, Int)
   | Nat(i) => V(i, Nat)
@@ -166,7 +166,7 @@ let to_literal = (e: t): string =>
   | Int(i) => i |> string_of_int
   | Nat(i) => i |> string_of_int
   // TODO: do floats print right?
-  | Float(f) => f |> string_of_float
+  | Float(f) => Printf.sprintf("%f", f)
   | Bool(b) => b |> string_of_bool
   | String(s) => "\"" ++ s ++ "\""
   };

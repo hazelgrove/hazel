@@ -216,7 +216,11 @@ module PlainTests = {
     Let(
       Cast(
         Var("f") |> Pat.fresh,
-        Arrow(CONST_RENAMET(Int) |> Typ.fresh, CONST_RENAMET(Int) |> Typ.fresh) |> Typ.fresh,
+        Arrow(
+          CONST_RENAMET(Int) |> Typ.fresh,
+          CONST_RENAMET(Int) |> Typ.fresh,
+        )
+        |> Typ.fresh,
         Unknown(Internal) |> Typ.fresh,
       )
       |> Pat.fresh,
@@ -431,13 +435,25 @@ module PlainTests = {
           Var("add") |> Pat.fresh,
           Parens(
             Prod([
-              TupLabel(Label("street") |> Typ.fresh, CONST_RENAMET(String) |> Typ.fresh)
+              TupLabel(
+                Label("street") |> Typ.fresh,
+                CONST_RENAMET(String) |> Typ.fresh,
+              )
               |> Typ.fresh,
-              TupLabel(Label("city") |> Typ.fresh, CONST_RENAMET(String) |> Typ.fresh)
+              TupLabel(
+                Label("city") |> Typ.fresh,
+                CONST_RENAMET(String) |> Typ.fresh,
+              )
               |> Typ.fresh,
-              TupLabel(Label("state") |> Typ.fresh, CONST_RENAMET(String) |> Typ.fresh)
+              TupLabel(
+                Label("state") |> Typ.fresh,
+                CONST_RENAMET(String) |> Typ.fresh,
+              )
               |> Typ.fresh,
-              TupLabel(Label("zipcode") |> Typ.fresh, CONST_RENAMET(Int) |> Typ.fresh)
+              TupLabel(
+                Label("zipcode") |> Typ.fresh,
+                CONST_RENAMET(Int) |> Typ.fresh,
+              )
               |> Typ.fresh,
             ])
             |> Typ.fresh,
@@ -551,12 +567,21 @@ module PlainTests = {
           Var("val") |> Pat.fresh,
           Parens(
             Prod([
-              TupLabel(Label("a") |> Typ.fresh, CONST_RENAMET(Int) |> Typ.fresh)
+              TupLabel(
+                Label("a") |> Typ.fresh,
+                CONST_RENAMET(Int) |> Typ.fresh,
+              )
               |> Typ.fresh,
-              TupLabel(Label("b") |> Typ.fresh, CONST_RENAMET(String) |> Typ.fresh)
+              TupLabel(
+                Label("b") |> Typ.fresh,
+                CONST_RENAMET(String) |> Typ.fresh,
+              )
               |> Typ.fresh,
               CONST_RENAMET(Float) |> Typ.fresh,
-              TupLabel(Label("c") |> Typ.fresh, CONST_RENAMET(Bool) |> Typ.fresh)
+              TupLabel(
+                Label("c") |> Typ.fresh,
+                CONST_RENAMET(Bool) |> Typ.fresh,
+              )
               |> Typ.fresh,
             ])
             |> Typ.fresh,
@@ -672,7 +697,10 @@ module PlainTests = {
               Var("x") |> Pat.fresh,
               Parens(
                 Prod([
-                  TupLabel(Label("l") |> Typ.fresh, CONST_RENAMET(String) |> Typ.fresh)
+                  TupLabel(
+                    Label("l") |> Typ.fresh,
+                    CONST_RENAMET(String) |> Typ.fresh,
+                  )
                   |> Typ.fresh,
                 ])
                 |> Typ.fresh,
@@ -750,7 +778,10 @@ module PlainTests = {
             Var("x") |> Exp.fresh,
             Some(
               Prod([
-                TupLabel(Label("a") |> Typ.fresh, CONST_RENAMET(Int) |> Typ.fresh)
+                TupLabel(
+                  Label("a") |> Typ.fresh,
+                  CONST_RENAMET(Int) |> Typ.fresh,
+                )
                 |> Typ.fresh,
               ])
               |> Typ.fresh,
@@ -788,7 +819,10 @@ module PlainTests = {
             Var("x") |> Exp.fresh,
             Some(
               Prod([
-                TupLabel(Label("a") |> Typ.fresh, CONST_RENAMET(Int) |> Typ.fresh)
+                TupLabel(
+                  Label("a") |> Typ.fresh,
+                  CONST_RENAMET(Int) |> Typ.fresh,
+                )
                 |> Typ.fresh,
               ])
               |> Typ.fresh,
