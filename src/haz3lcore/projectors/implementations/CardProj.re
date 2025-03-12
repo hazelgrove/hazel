@@ -97,36 +97,65 @@ let to_sort = (sort: sort): Sort.t =>
   };
 
 module SyntaxTerm = {
-  open SyntaxUtil;
+  let rec strip_wraps_pat = (p: Pat.t): Pat.t => {
+    switch (p.term) {
+    | Parens(inner) =>
+      switch (inner.term) {
+      | Tuple(_) => p
+      | _ => strip_wraps_pat(inner)
+      }
+    | _ => p
+    };
+  };
+  let rec strip_wraps_exp = (e: Exp.t): Exp.t => {
+    switch (e.term) {
+    | Parens(inner) =>
+      switch (inner.term) {
+      | Tuple(_) => e
+      | _ => strip_wraps_exp(inner)
+      }
+    | _ => e
+    };
+  };
+
+  open IdTagged.FreshGrammar;
+  open OptUtil.Syntax;
+
   let card_to_exp = ((suit, rank): card): Term.Exp.t =>
-    Exp.mk_wrapped_tuple([
-      Exp.mk_constructor(Sexplib.Sexp.to_string(sexp_of_suit(suit))),
-      Exp.mk_constructor(Sexplib.Sexp.to_string(sexp_of_rank(rank))),
-    ]);
+    Exp.parens(
+      Exp.tuple([
+        Exp.constructor(Sexplib.Sexp.to_string(sexp_of_suit(suit)), None),
+        Exp.constructor(Sexplib.Sexp.to_string(sexp_of_rank(rank)), None),
+      ]),
+    );
 
   let card_to_pat = ((suit, rank): card): Term.Pat.t =>
-    Pat.mk_wrapped_tuple([
-      switch (suit) {
-      | UnknownS => Pat.mk_wild()
-      | _ => Pat.mk_constructor(Sexplib.Sexp.to_string(sexp_of_suit(suit)))
-      },
-      switch (rank) {
-      | UnknownR => Pat.mk_wild()
-      | _ => Pat.mk_constructor(Sexplib.Sexp.to_string(sexp_of_rank(rank)))
-      },
-    ]);
+    Pat.parens(
+      Pat.tuple([
+        switch (suit) {
+        | UnknownS => Pat.wild()
+        | _ =>
+          Pat.constructor(Sexplib.Sexp.to_string(sexp_of_suit(suit)), None)
+        },
+        switch (rank) {
+        | UnknownR => Pat.wild()
+        | _ =>
+          Pat.constructor(Sexplib.Sexp.to_string(sexp_of_rank(rank)), None)
+        },
+      ]),
+    );
 
   let syntax_to_any = ((sort, collection): state): Term.Any.t => {
     let collection_to_exp = (collection: collection): Term.Exp.t =>
       switch (collection) {
       | Card(card) => card_to_exp(card)
-      | Hand(hand) => Exp.mk_listlit(List.map(card_to_exp, hand))
+      | Hand(hand) => Exp.list_lit(List.map(card_to_exp, hand))
       };
 
     let collection_to_pat = (collection: collection): Term.Pat.t =>
       switch (collection) {
       | Card(card) => card_to_pat(card)
-      | Hand(hand) => Pat.mk_listlit(List.map(card_to_pat, hand))
+      | Hand(hand) => Pat.list_lit(List.map(card_to_pat, hand))
       };
 
     switch (sort) {
@@ -146,8 +175,6 @@ module SyntaxTerm = {
     | r => Some(r)
     | exception _ => None
     };
-
-  open OptUtil.Syntax;
 
   let rec exp_to_card = (term: Term.Exp.t): option(card) => {
     switch (term.term) {
@@ -190,7 +217,7 @@ module SyntaxTerm = {
   let any_to_syntax = (term: Term.Any.t): option(state) => {
     switch (term) {
     | Exp(term) =>
-      switch (Exp.strip_wraps(term).term) {
+      switch (strip_wraps_exp(term).term) {
       | ListLit(terms) =>
         let+ cards = terms |> List.map(exp_to_card) |> OptUtil.sequence;
         (Exp, Hand(cards));
@@ -199,7 +226,7 @@ module SyntaxTerm = {
         (Exp, Card(card));
       }
     | Pat(term) =>
-      switch (Pat.strip_wraps(term).term) {
+      switch (strip_wraps_pat(term).term) {
       | ListLit(terms) =>
         let+ cards = terms |> List.map(pat_to_card) |> OptUtil.sequence;
         (Pat, Hand(cards));
