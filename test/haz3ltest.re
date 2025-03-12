@@ -5,6 +5,7 @@ let (suite, _) =
     ~and_exit=false,
     "HazelTests",
     [
+      Test_ListUtil.tests,
       Test_Grammar.tests,
       Test_ExpToSegment.tests,
       Test_LabeledTuple.tests,
@@ -14,9 +15,8 @@ let (suite, _) =
       Test_Typ.tests,
       Test_Statics.tests,
       Test_Coverage.tests,
-      Test_Evaluator.tests,
-      Test_ListUtil.tests,
       Test_Unboxing.tests,
+      Test_Evaluator.tests,
     ]
     @ Test_Elaboration.tests
     @ Test_Introduce.tests,
