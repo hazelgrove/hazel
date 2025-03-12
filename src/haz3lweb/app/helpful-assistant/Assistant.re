@@ -712,7 +712,15 @@ module Update = {
       print_endline("Discussion: " ++ discussion);
       print_endline("Completion: " ++ completion);
       // First add the discussion message
-      let discussion_message = text_message_of_str(discussion, LLM);
+      let discussion_message =
+        if (discussion === "") {
+          text_message_of_str(
+            "The model did not return a discussion for this completion.",
+            LLM,
+          );
+        } else {
+          text_message_of_str(discussion, LLM);
+        };
       let model_with_discussion =
         add_message_to_model(
           mode,
