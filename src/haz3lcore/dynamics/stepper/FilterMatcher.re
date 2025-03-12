@@ -201,8 +201,8 @@ let rec matches_exp =
       TermBase.StepperFilterKind.fast_equal(df, ff) && matches_exp(dd, fd)
     | (Filter(_), _) => false
 
-    | (CONST_RENAMEME(x), CONST_RENAMEME(y)) => x == y
-    | (CONST_RENAMEME(_), _) => false
+    | (Atom(x), Atom(y)) => x == y
+    | (Atom(_), _) => false
 
     | (Label(dv), Label(fv)) => dv == fv
     | (Label(_), _) => false

@@ -20,7 +20,7 @@ let parse_exp = (s: string) => {
 
 module PlainTests = {
   let u1: Exp.t = {
-    term: CONST_RENAMEME(Int(8)),
+    term: Atom(Int(8)),
     annotation: {
       ids: [id_at(0)],
     },
@@ -54,10 +54,7 @@ module PlainTests = {
   let u4: Exp.t =
     Let(
       Tuple([Var("a") |> Pat.fresh, Var("b") |> Pat.fresh]) |> Pat.fresh,
-      Tuple([
-        CONST_RENAMEME(Int(4)) |> Exp.fresh,
-        CONST_RENAMEME(Int(6)) |> Exp.fresh,
-      ])
+      Tuple([Atom(Int(4)) |> Exp.fresh, Atom(Int(6)) |> Exp.fresh])
       |> Exp.fresh,
       BinOp(Int(Minus), Var("a") |> Exp.fresh, Var("b") |> Exp.fresh)
       |> Exp.fresh,
@@ -70,7 +67,7 @@ module PlainTests = {
   let u5 =
     BinOp(
       Int(Plus),
-      CONST_RENAMEME(Bool(false)) |> Exp.fresh,
+      Atom(Bool(false)) |> Exp.fresh,
       Var("y") |> Exp.fresh,
     )
     |> Exp.fresh;
@@ -79,15 +76,15 @@ module PlainTests = {
     BinOp(
       Int(Plus),
       FailedCast(
-        CONST_RENAMEME(Bool(false)) |> Exp.fresh,
-        CONST_RENAMET(Bool) |> Typ.fresh,
-        CONST_RENAMET(Int) |> Typ.fresh,
+        Atom(Bool(false)) |> Exp.fresh,
+        Atom(Bool) |> Typ.fresh,
+        Atom(Int) |> Typ.fresh,
       )
       |> Exp.fresh,
       Cast(
         Var("y") |> Exp.fresh,
         Unknown(Internal) |> Typ.fresh,
-        CONST_RENAMET(Int) |> Typ.fresh,
+        Atom(Int) |> Typ.fresh,
       )
       |> Exp.fresh,
     )
@@ -102,9 +99,9 @@ module PlainTests = {
 
   let u6: Exp.t =
     If(
-      CONST_RENAMEME(Bool(false)) |> Exp.fresh,
-      CONST_RENAMEME(Int(8)) |> Exp.fresh,
-      CONST_RENAMEME(Int(6)) |> Exp.fresh,
+      Atom(Bool(false)) |> Exp.fresh,
+      Atom(Int(8)) |> Exp.fresh,
+      Atom(Int(6)) |> Exp.fresh,
     )
     |> Exp.fresh;
 
@@ -121,8 +118,8 @@ module PlainTests = {
       Var("x") |> Pat.fresh,
       BinOp(
         Int(Plus),
-        CONST_RENAMEME(Int(4)) |> Exp.fresh,
-        CONST_RENAMEME(Int(5)) |> Exp.fresh,
+        Atom(Int(4)) |> Exp.fresh,
+        Atom(Int(5)) |> Exp.fresh,
       )
       |> Exp.fresh,
       None,
@@ -135,8 +132,8 @@ module PlainTests = {
       Var("x") |> Pat.fresh,
       BinOp(
         Int(Plus),
-        CONST_RENAMEME(Int(4)) |> Exp.fresh,
-        CONST_RENAMEME(Int(5)) |> Exp.fresh,
+        Atom(Int(4)) |> Exp.fresh,
+        Atom(Int(5)) |> Exp.fresh,
       )
       |> Exp.fresh,
       Some(Unknown(Hole(EmptyHole)) |> Typ.fresh),
@@ -157,19 +154,13 @@ module PlainTests = {
     Match(
       BinOp(
         Int(Equals),
-        CONST_RENAMEME(Int(4)) |> Exp.fresh,
-        CONST_RENAMEME(Int(3)) |> Exp.fresh,
+        Atom(Int(4)) |> Exp.fresh,
+        Atom(Int(3)) |> Exp.fresh,
       )
       |> Exp.fresh,
       [
-        (
-          CONST_RENAMEME(Bool(true)) |> Pat.fresh,
-          CONST_RENAMEME(Int(24)) |> Exp.fresh,
-        ),
-        (
-          CONST_RENAMEME(Bool(false)) |> Pat.fresh,
-          CONST_RENAMEME(Bool(false)) |> Exp.fresh,
-        ),
+        (Atom(Bool(true)) |> Pat.fresh, Atom(Int(24)) |> Exp.fresh),
+        (Atom(Bool(false)) |> Pat.fresh, Atom(Bool(false)) |> Exp.fresh),
       ],
     )
     |> Exp.fresh;
@@ -178,25 +169,25 @@ module PlainTests = {
     Match(
       BinOp(
         Int(Equals),
-        CONST_RENAMEME(Int(4)) |> Exp.fresh,
-        CONST_RENAMEME(Int(3)) |> Exp.fresh,
+        Atom(Int(4)) |> Exp.fresh,
+        Atom(Int(3)) |> Exp.fresh,
       )
       |> Exp.fresh,
       [
         (
-          CONST_RENAMEME(Bool(true)) |> Pat.fresh,
+          Atom(Bool(true)) |> Pat.fresh,
           Cast(
-            CONST_RENAMEME(Int(24)) |> Exp.fresh,
-            CONST_RENAMET(Int) |> Typ.fresh,
+            Atom(Int(24)) |> Exp.fresh,
+            Atom(Int) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
           |> Exp.fresh,
         ),
         (
-          CONST_RENAMEME(Bool(false)) |> Pat.fresh,
+          Atom(Bool(false)) |> Pat.fresh,
           Cast(
-            CONST_RENAMEME(Bool(false)) |> Exp.fresh,
-            CONST_RENAMET(Bool) |> Typ.fresh,
+            Atom(Bool(false)) |> Exp.fresh,
+            Atom(Bool) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
           |> Exp.fresh,
@@ -216,27 +207,19 @@ module PlainTests = {
     Let(
       Cast(
         Var("f") |> Pat.fresh,
-        Arrow(
-          CONST_RENAMET(Int) |> Typ.fresh,
-          CONST_RENAMET(Int) |> Typ.fresh,
-        )
-        |> Typ.fresh,
+        Arrow(Atom(Int) |> Typ.fresh, Atom(Int) |> Typ.fresh) |> Typ.fresh,
         Unknown(Internal) |> Typ.fresh,
       )
       |> Pat.fresh,
       Fun(
         Var("x") |> Pat.fresh,
-        BinOp(
-          Int(Plus),
-          CONST_RENAMEME(Int(1)) |> Exp.fresh,
-          Var("x") |> Exp.fresh,
-        )
+        BinOp(Int(Plus), Atom(Int(1)) |> Exp.fresh, Var("x") |> Exp.fresh)
         |> Exp.fresh,
         None,
         None,
       )
       |> Exp.fresh,
-      CONST_RENAMEME(Int(55)) |> Exp.fresh,
+      Atom(Int(55)) |> Exp.fresh,
     )
     |> Exp.fresh;
 
@@ -245,17 +228,13 @@ module PlainTests = {
       Var("f") |> Pat.fresh,
       Fun(
         Var("x") |> Pat.fresh,
-        BinOp(
-          Int(Plus),
-          CONST_RENAMEME(Int(1)) |> Exp.fresh,
-          Var("x") |> Exp.fresh,
-        )
+        BinOp(Int(Plus), Atom(Int(1)) |> Exp.fresh, Var("x") |> Exp.fresh)
         |> Exp.fresh,
-        Some(CONST_RENAMET(Int) |> Typ.fresh),
+        Some(Atom(Int) |> Typ.fresh),
         Some("f"),
       )
       |> Exp.fresh,
-      CONST_RENAMEME(Int(55)) |> Exp.fresh,
+      Atom(Int(55)) |> Exp.fresh,
     )
     |> Exp.fresh;
 
@@ -272,8 +251,8 @@ module PlainTests = {
       DeferredAp(
         Var("string_sub") |> Exp.fresh,
         [
-          CONST_RENAMEME(String("hello")) |> Exp.fresh,
-          CONST_RENAMEME(Int(1)) |> Exp.fresh,
+          Atom(String("hello")) |> Exp.fresh,
+          Atom(Int(1)) |> Exp.fresh,
           Deferral(InAp) |> Exp.fresh,
         ],
       )
@@ -282,8 +261,8 @@ module PlainTests = {
         DeferredAp(
           Var("string_sub") |> Exp.fresh,
           [
-            CONST_RENAMEME(String("hello")) |> Exp.fresh,
-            CONST_RENAMEME(Int(1)) |> Exp.fresh,
+            Atom(String("hello")) |> Exp.fresh,
+            Atom(Int(1)) |> Exp.fresh,
             Deferral(InAp) |> Exp.fresh,
           ],
         )
@@ -299,13 +278,13 @@ module PlainTests = {
         DeferredAp(
           Var("string_sub") |> Exp.fresh,
           [
-            CONST_RENAMEME(String("hello")) |> Exp.fresh,
-            CONST_RENAMEME(Int(1)) |> Exp.fresh,
+            Atom(String("hello")) |> Exp.fresh,
+            Atom(Int(1)) |> Exp.fresh,
             Deferral(InAp) |> Exp.fresh,
           ],
         )
         |> Exp.fresh,
-        CONST_RENAMEME(Int(2)) |> Exp.fresh,
+        Atom(Int(2)) |> Exp.fresh,
       )
       |> Exp.fresh,
       dhexp_of_uexp(
@@ -314,13 +293,13 @@ module PlainTests = {
           DeferredAp(
             Var("string_sub") |> Exp.fresh,
             [
-              CONST_RENAMEME(String("hello")) |> Exp.fresh,
-              CONST_RENAMEME(Int(1)) |> Exp.fresh,
+              Atom(String("hello")) |> Exp.fresh,
+              Atom(Int(1)) |> Exp.fresh,
               Deferral(InAp) |> Exp.fresh,
             ],
           )
           |> Exp.fresh,
-          CONST_RENAMEME(Int(2)) |> Exp.fresh,
+          Atom(Int(2)) |> Exp.fresh,
         )
         |> Exp.fresh,
       ),
@@ -364,8 +343,8 @@ module PlainTests = {
             Deferral(InAp) |> Exp.fresh,
             Deferral(InAp) |> Exp.fresh,
             Cast(
-              CONST_RENAMEME(Int(3)) |> Exp.fresh,
-              CONST_RENAMET(Int) |> Typ.fresh,
+              Atom(Int(3)) |> Exp.fresh,
+              Atom(Int) |> Typ.fresh,
               Unknown(Internal) |> Typ.fresh,
             )
             |> Exp.fresh,
@@ -374,14 +353,14 @@ module PlainTests = {
         |> Exp.fresh,
         Tuple([
           Cast(
-            CONST_RENAMEME(Float(1.)) |> Exp.fresh,
-            CONST_RENAMET(Float) |> Typ.fresh,
+            Atom(Float(1.)) |> Exp.fresh,
+            Atom(Float) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
           |> Exp.fresh,
           Cast(
-            CONST_RENAMEME(Bool(true)) |> Exp.fresh,
-            CONST_RENAMET(Bool) |> Typ.fresh,
+            Atom(Bool(true)) |> Exp.fresh,
+            Atom(Bool) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           ])
@@ -398,13 +377,13 @@ module PlainTests = {
             [
               Deferral(InAp) |> Exp.fresh,
               Deferral(InAp) |> Exp.fresh,
-              CONST_RENAMEME(Int(3)) |> Exp.fresh,
+              Atom(Int(3)) |> Exp.fresh,
             ],
           )
           |> Exp.fresh,
           Tuple([
-            CONST_RENAMEME(Float(1.)) |> Exp.fresh,
-            CONST_RENAMEME(Bool(true)) |> Exp.fresh,
+            Atom(Float(1.)) |> Exp.fresh,
+            Atom(Bool(true)) |> Exp.fresh,
           ])
           |> Exp.fresh,
         )
@@ -437,22 +416,22 @@ module PlainTests = {
             Prod([
               TupLabel(
                 Label("street") |> Typ.fresh,
-                CONST_RENAMET(String) |> Typ.fresh,
+                Atom(String) |> Typ.fresh,
               )
               |> Typ.fresh,
               TupLabel(
                 Label("city") |> Typ.fresh,
-                CONST_RENAMET(String) |> Typ.fresh,
+                Atom(String) |> Typ.fresh,
               )
               |> Typ.fresh,
               TupLabel(
                 Label("state") |> Typ.fresh,
-                CONST_RENAMET(String) |> Typ.fresh,
+                Atom(String) |> Typ.fresh,
               )
               |> Typ.fresh,
               TupLabel(
                 Label("zipcode") |> Typ.fresh,
-                CONST_RENAMET(Int) |> Typ.fresh,
+                Atom(Int) |> Typ.fresh,
               )
               |> Typ.fresh,
             ])
@@ -464,10 +443,10 @@ module PlainTests = {
         |> Pat.fresh,
         Parens(
           Tuple([
-            CONST_RENAMEME(String("123 Maple St")) |> Exp.fresh,
-            CONST_RENAMEME(String("Ann Arbor")) |> Exp.fresh,
-            CONST_RENAMEME(String("MI")) |> Exp.fresh,
-            CONST_RENAMEME(Int(48103)) |> Exp.fresh,
+            Atom(String("123 Maple St")) |> Exp.fresh,
+            Atom(String("Ann Arbor")) |> Exp.fresh,
+            Atom(String("MI")) |> Exp.fresh,
+            Atom(Int(48103)) |> Exp.fresh,
           ])
           |> Exp.fresh,
         )
@@ -482,22 +461,22 @@ module PlainTests = {
         Tuple([
           TupLabel(
             Label("street") |> Exp.fresh,
-            CONST_RENAMEME(String("123 Maple St")) |> Exp.fresh,
+            Atom(String("123 Maple St")) |> Exp.fresh,
           )
           |> Exp.fresh,
           TupLabel(
             Label("city") |> Exp.fresh,
-            CONST_RENAMEME(String("Ann Arbor")) |> Exp.fresh,
+            Atom(String("Ann Arbor")) |> Exp.fresh,
           )
           |> Exp.fresh,
           TupLabel(
             Label("state") |> Exp.fresh,
-            CONST_RENAMEME(String("MI")) |> Exp.fresh,
+            Atom(String("MI")) |> Exp.fresh,
           )
           |> Exp.fresh,
           TupLabel(
             Label("zipcode") |> Exp.fresh,
-            CONST_RENAMEME(Int(48103)) |> Exp.fresh,
+            Atom(Int(48103)) |> Exp.fresh,
           )
           |> Exp.fresh,
         ])
@@ -515,7 +494,7 @@ module PlainTests = {
       Tuple([
         TupLabel(
           Label("label") |> Exp.fresh,
-          CONST_RENAMEME(String("a string value")) |> Exp.fresh,
+          Atom(String("a string value")) |> Exp.fresh,
         )
         |> Exp.fresh,
       ])
@@ -524,7 +503,7 @@ module PlainTests = {
         Tuple([
           TupLabel(
             Label("label") |> Exp.fresh,
-            CONST_RENAMEME(String("a string value")) |> Exp.fresh,
+            Atom(String("a string value")) |> Exp.fresh,
           )
           |> Exp.fresh,
         ])
@@ -538,10 +517,7 @@ module PlainTests = {
       Let(
         Var("x") |> Pat.fresh,
         Tuple([
-          TupLabel(
-            Label("l") |> Exp.fresh,
-            CONST_RENAMEME(String("a")) |> Exp.fresh,
-          )
+          TupLabel(Label("l") |> Exp.fresh, Atom(String("a")) |> Exp.fresh)
           |> Exp.fresh,
         ])
         |> Exp.fresh,
@@ -567,21 +543,12 @@ module PlainTests = {
           Var("val") |> Pat.fresh,
           Parens(
             Prod([
-              TupLabel(
-                Label("a") |> Typ.fresh,
-                CONST_RENAMET(Int) |> Typ.fresh,
-              )
+              TupLabel(Label("a") |> Typ.fresh, Atom(Int) |> Typ.fresh)
               |> Typ.fresh,
-              TupLabel(
-                Label("b") |> Typ.fresh,
-                CONST_RENAMET(String) |> Typ.fresh,
-              )
+              TupLabel(Label("b") |> Typ.fresh, Atom(String) |> Typ.fresh)
               |> Typ.fresh,
-              CONST_RENAMET(Float) |> Typ.fresh,
-              TupLabel(
-                Label("c") |> Typ.fresh,
-                CONST_RENAMET(Bool) |> Typ.fresh,
-              )
+              Atom(Float) |> Typ.fresh,
+              TupLabel(Label("c") |> Typ.fresh, Atom(Bool) |> Typ.fresh)
               |> Typ.fresh,
             ])
             |> Typ.fresh,
@@ -592,16 +559,16 @@ module PlainTests = {
         |> Pat.fresh,
         Parens(
           Tuple([
-            CONST_RENAMEME(Int(1)) |> Exp.fresh,
-            CONST_RENAMEME(Float(1.0)) |> Exp.fresh,
+            Atom(Int(1)) |> Exp.fresh,
+            Atom(Float(1.0)) |> Exp.fresh,
             TupLabel(
               Label("c") |> Exp.fresh,
-              CONST_RENAMEME(Bool(true)) |> Exp.fresh,
+              Atom(Bool(true)) |> Exp.fresh,
             )
             |> Exp.fresh,
             TupLabel(
               Label("b") |> Exp.fresh,
-              CONST_RENAMEME(String("a")) |> Exp.fresh,
+              Atom(String("a")) |> Exp.fresh,
             )
             |> Exp.fresh,
           ])
@@ -616,21 +583,12 @@ module PlainTests = {
       Let(
         Var("val") |> Pat.fresh,
         Tuple([
-          TupLabel(
-            Label("a") |> Exp.fresh,
-            CONST_RENAMEME(Int(1)) |> Exp.fresh,
-          )
+          TupLabel(Label("a") |> Exp.fresh, Atom(Int(1)) |> Exp.fresh)
           |> Exp.fresh,
-          TupLabel(
-            Label("b") |> Exp.fresh,
-            CONST_RENAMEME(String("a")) |> Exp.fresh,
-          )
+          TupLabel(Label("b") |> Exp.fresh, Atom(String("a")) |> Exp.fresh)
           |> Exp.fresh,
-          CONST_RENAMEME(Float(1.0)) |> Exp.fresh,
-          TupLabel(
-            Label("c") |> Exp.fresh,
-            CONST_RENAMEME(Bool(true)) |> Exp.fresh,
-          )
+          Atom(Float(1.0)) |> Exp.fresh,
+          TupLabel(Label("c") |> Exp.fresh, Atom(Bool(true)) |> Exp.fresh)
           |> Exp.fresh,
         ])
         |> Exp.fresh,
@@ -683,7 +641,7 @@ module PlainTests = {
           Tuple([
             TupLabel(
               Label("l") |> Exp.fresh,
-              CONST_RENAMEME(String("a")) |> Exp.fresh,
+              Atom(String("a")) |> Exp.fresh,
             )
             |> Exp.fresh,
           ])
@@ -699,7 +657,7 @@ module PlainTests = {
                 Prod([
                   TupLabel(
                     Label("l") |> Typ.fresh,
-                    CONST_RENAMET(String) |> Typ.fresh,
+                    Atom(String) |> Typ.fresh,
                   )
                   |> Typ.fresh,
                 ])
@@ -709,7 +667,7 @@ module PlainTests = {
               Unknown(Internal) |> Typ.fresh,
             )
             |> Pat.fresh,
-            Parens(CONST_RENAMEME(String("a")) |> Exp.fresh) |> Exp.fresh,
+            Parens(Atom(String("a")) |> Exp.fresh) |> Exp.fresh,
             Var("x") |> Exp.fresh,
           )
           |> Exp.fresh,
@@ -726,7 +684,7 @@ module PlainTests = {
           Tuple([
             TupLabel(
               Label("a") |> Exp.fresh,
-              CONST_RENAMEME(String("hello")) |> Exp.fresh,
+              Atom(String("hello")) |> Exp.fresh,
             )
             |> Exp.fresh,
           ])
@@ -748,7 +706,7 @@ module PlainTests = {
           Tuple([
             TupLabel(
               Label("zip") |> Exp.fresh,
-              CONST_RENAMEME(Int(12345)) |> Exp.fresh,
+              Atom(Int(12345)) |> Exp.fresh,
             )
             |> Exp.fresh,
           ])
@@ -778,10 +736,7 @@ module PlainTests = {
             Var("x") |> Exp.fresh,
             Some(
               Prod([
-                TupLabel(
-                  Label("a") |> Typ.fresh,
-                  CONST_RENAMET(Int) |> Typ.fresh,
-                )
+                TupLabel(Label("a") |> Typ.fresh, Atom(Int) |> Typ.fresh)
                 |> Typ.fresh,
               ])
               |> Typ.fresh,
@@ -790,10 +745,7 @@ module PlainTests = {
           )
           |> Exp.fresh,
           Tuple([
-            TupLabel(
-              Label("a") |> Exp.fresh,
-              CONST_RENAMEME(Int(1)) |> Exp.fresh,
-            )
+            TupLabel(Label("a") |> Exp.fresh, Atom(Int(1)) |> Exp.fresh)
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -819,10 +771,7 @@ module PlainTests = {
             Var("x") |> Exp.fresh,
             Some(
               Prod([
-                TupLabel(
-                  Label("a") |> Typ.fresh,
-                  CONST_RENAMET(Int) |> Typ.fresh,
-                )
+                TupLabel(Label("a") |> Typ.fresh, Atom(Int) |> Typ.fresh)
                 |> Typ.fresh,
               ])
               |> Typ.fresh,
@@ -831,10 +780,7 @@ module PlainTests = {
           )
           |> Exp.fresh,
           Tuple([
-            TupLabel(
-              Label("a") |> Exp.fresh,
-              CONST_RENAMEME(Int(1)) |> Exp.fresh,
-            )
+            TupLabel(Label("a") |> Exp.fresh, Atom(Int(1)) |> Exp.fresh)
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -852,9 +798,9 @@ module PlainTests = {
             TupLabel(
               Label("c") |> Exp.fresh,
               FailedCast(
-                CONST_RENAMEME(Int(1)) |> Exp.fresh,
-                CONST_RENAMET(Int) |> Typ.fresh,
-                CONST_RENAMET(String) |> Typ.fresh,
+                Atom(Int(1)) |> Exp.fresh,
+                Atom(Int) |> Typ.fresh,
+                Atom(String) |> Typ.fresh,
               )
               |> Exp.fresh,
             )
@@ -878,7 +824,7 @@ module PlainTests = {
               Tuple([
                 TupLabel(
                   Label("c") |> Exp.fresh,
-                  CONST_RENAMEME(String("")) |> Exp.fresh,
+                  Atom(String("")) |> Exp.fresh,
                 )
                 |> Exp.fresh,
               ])
@@ -922,10 +868,7 @@ module PlainTests = {
           )
           |> Exp.fresh,
           Tuple([
-            TupLabel(
-              Label("a") |> Exp.fresh,
-              CONST_RENAMEME(Int(1)) |> Exp.fresh,
-            )
+            TupLabel(Label("a") |> Exp.fresh, Atom(Int(1)) |> Exp.fresh)
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -940,10 +883,7 @@ module PlainTests = {
         Let(
           Var("x") |> Pat.fresh,
           Tuple([
-            TupLabel(
-              Label("a") |> Exp.fresh,
-              CONST_RENAMEME(Int(1)) |> Exp.fresh,
-            )
+            TupLabel(Label("a") |> Exp.fresh, Atom(Int(1)) |> Exp.fresh)
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -1050,7 +990,7 @@ module MenhirElaborationTests = {
   let bin_op_uexp: Exp.t =
     BinOp(
       Int(Plus),
-      CONST_RENAMEME(Bool(false)) |> Exp.fresh,
+      Atom(Bool(false)) |> Exp.fresh,
       Var("y") |> Exp.fresh,
     )
     |> Exp.fresh;
@@ -1075,19 +1015,13 @@ module MenhirElaborationTests = {
     Match(
       BinOp(
         Int(Equals),
-        CONST_RENAMEME(Int(4)) |> Exp.fresh,
-        CONST_RENAMEME(Int(3)) |> Exp.fresh,
+        Atom(Int(4)) |> Exp.fresh,
+        Atom(Int(3)) |> Exp.fresh,
       )
       |> Exp.fresh,
       [
-        (
-          CONST_RENAMEME(Bool(true)) |> Pat.fresh,
-          CONST_RENAMEME(Int(24)) |> Exp.fresh,
-        ),
-        (
-          CONST_RENAMEME(Bool(false)) |> Pat.fresh,
-          CONST_RENAMEME(Bool(false)) |> Exp.fresh,
-        ),
+        (Atom(Bool(true)) |> Pat.fresh, Atom(Int(24)) |> Exp.fresh),
+        (Atom(Bool(false)) |> Pat.fresh, Atom(Bool(false)) |> Exp.fresh),
       ],
     )
     |> Exp.fresh;
@@ -1101,9 +1035,9 @@ module MenhirElaborationTests = {
   //Consistent if statement menhir test
   let consistent_if_uexp: Exp.t =
     If(
-      CONST_RENAMEME(Bool(false)) |> Exp.fresh,
-      CONST_RENAMEME(Int(8)) |> Exp.fresh,
-      CONST_RENAMEME(Int(6)) |> Exp.fresh,
+      Atom(Bool(false)) |> Exp.fresh,
+      Atom(Int(8)) |> Exp.fresh,
+      Atom(Int(6)) |> Exp.fresh,
     )
     |> Exp.fresh;
 
@@ -1120,7 +1054,7 @@ module MenhirElaborationTests = {
   //Single integer menhir test
   let single_int_str = "8";
   let single_int_uexp: Exp.t = {
-    term: CONST_RENAMEME(Int(8)),
+    term: Atom(Int(8)),
     annotation: {
       ids: [id_at(0)],
     },
@@ -1137,10 +1071,7 @@ module MenhirElaborationTests = {
   let let_exp_uexp: Exp.t =
     Let(
       Tuple([Var("a") |> Pat.fresh, Var("b") |> Pat.fresh]) |> Pat.fresh,
-      Tuple([
-        CONST_RENAMEME(Int(4)) |> Exp.fresh,
-        CONST_RENAMEME(Int(6)) |> Exp.fresh,
-      ])
+      Tuple([Atom(Int(4)) |> Exp.fresh, Atom(Int(6)) |> Exp.fresh])
       |> Exp.fresh,
       BinOp(Int(Minus), Var("a") |> Exp.fresh, Var("b") |> Exp.fresh)
       |> Exp.fresh,
@@ -1156,13 +1087,9 @@ module MenhirElaborationTests = {
   let typ_ap_str = "(typfun x -> 4)@<Int>";
   let typ_ap_uexp: Exp.t =
     TypAp(
-      TypFun(
-        Var("x") |> TPat.fresh,
-        CONST_RENAMEME(Int(4)) |> Exp.fresh,
-        None,
-      )
+      TypFun(Var("x") |> TPat.fresh, Atom(Int(4)) |> Exp.fresh, None)
       |> Exp.fresh,
-      CONST_RENAMET(Int) |> Typ.fresh,
+      Atom(Int) |> Typ.fresh,
     )
     |> Exp.fresh;
   let typ_ap_menhir = () =>
@@ -1171,9 +1098,9 @@ module MenhirElaborationTests = {
   let failed_cast_str = "1 ?{Int => String}";
   let failed_cast_uexp: Exp.t =
     FailedCast(
-      CONST_RENAMEME(Int(1)) |> Exp.fresh,
-      CONST_RENAMET(Int) |> Typ.fresh,
-      CONST_RENAMET(String) |> Typ.fresh,
+      Atom(Int(1)) |> Exp.fresh,
+      Atom(Int) |> Typ.fresh,
+      Atom(String) |> Typ.fresh,
     )
     |> Exp.fresh;
   let failed_cast_menhir = () =>
@@ -1201,8 +1128,8 @@ module MenhirElaborationTests = {
       DynamicErrorHole(
         BinOp(
           Int(Divide),
-          CONST_RENAMEME(Int(1)) |> Exp.fresh,
-          CONST_RENAMEME(Int(0)) |> Exp.fresh,
+          Atom(Int(1)) |> Exp.fresh,
+          Atom(Int(0)) |> Exp.fresh,
         )
         |> Exp.fresh,
         InvalidOperationError.DivideByZero,
@@ -1244,7 +1171,7 @@ module MenhirElaborationTests = {
 
   let test_str = "test 1 ?{Int => Bool} end";
   let test_uexp: Exp.t = {
-    term: Test(CONST_RENAMEME(Int(1)) |> Exp.fresh),
+    term: Test(Atom(Int(1)) |> Exp.fresh),
     annotation: {
       ids: [id_at(0)],
     },
@@ -1255,11 +1182,11 @@ module MenhirElaborationTests = {
   let filter_str = "eval 1 in 0";
   let stepper_filter_kind: TermBase.stepper_filter_kind_t =
     Filter({
-      pat: CONST_RENAMEME(Int(1)) |> Exp.fresh,
+      pat: Atom(Int(1)) |> Exp.fresh,
       act: (FilterAction.Eval, FilterAction.All),
     });
   let filter_uexp: Exp.t = {
-    term: Filter(stepper_filter_kind, CONST_RENAMEME(Int(0)) |> Exp.fresh),
+    term: Filter(stepper_filter_kind, Atom(Int(0)) |> Exp.fresh),
     annotation: {
       ids: [id_at(0)],
     },
@@ -1282,9 +1209,9 @@ undef
   let list_exp_uexp: Exp.t = {
     term:
       ListLit([
-        CONST_RENAMEME(Int(1)) |> Exp.fresh,
-        CONST_RENAMEME(Int(2)) |> Exp.fresh,
-        CONST_RENAMEME(Int(3)) |> Exp.fresh,
+        Atom(Int(1)) |> Exp.fresh,
+        Atom(Int(2)) |> Exp.fresh,
+        Atom(Int(3)) |> Exp.fresh,
       ]),
     annotation: {
       ids: [id_at(0)],
@@ -1307,7 +1234,7 @@ x
     term:
       TyAlias(
         Var("x") |> TPat.fresh,
-        CONST_RENAMET(Int) |> Typ.fresh,
+        Atom(Int) |> Typ.fresh,
         Var("x") |> Exp.fresh,
       ),
     annotation: {
@@ -1325,15 +1252,9 @@ x
   let list_concat_uexp: Exp.t = {
     term:
       ListConcat(
-        ListLit([
-          CONST_RENAMEME(Int(1)) |> Exp.fresh,
-          CONST_RENAMEME(Int(2)) |> Exp.fresh,
-        ])
+        ListLit([Atom(Int(1)) |> Exp.fresh, Atom(Int(2)) |> Exp.fresh])
         |> Exp.fresh,
-        ListLit([
-          CONST_RENAMEME(Int(3)) |> Exp.fresh,
-          CONST_RENAMEME(Int(4)) |> Exp.fresh,
-        ])
+        ListLit([Atom(Int(3)) |> Exp.fresh, Atom(Int(4)) |> Exp.fresh])
         |> Exp.fresh,
       ),
     annotation: {
@@ -1349,7 +1270,7 @@ x
 
   let unop_str = "-1";
   let unop_uexp: Exp.t = {
-    term: UnOp(Int(Minus), CONST_RENAMEME(Int(1)) |> Exp.fresh),
+    term: UnOp(Int(Minus), Atom(Int(1)) |> Exp.fresh),
     annotation: {
       ids: [id_at(0)],
     },
@@ -1359,11 +1280,7 @@ x
 
   let seq_str = "1; 2";
   let seq_uexp: Exp.t = {
-    term:
-      Seq(
-        CONST_RENAMEME(Int(1)) |> Exp.fresh,
-        CONST_RENAMEME(Int(2)) |> Exp.fresh,
-      ),
+    term: Seq(Atom(Int(1)) |> Exp.fresh, Atom(Int(2)) |> Exp.fresh),
     annotation: {
       ids: [id_at(0)],
     },
@@ -1373,12 +1290,7 @@ x
 
   let fixf_str = "fix x -> 1{Int => Unknown Internal}";
   let fixf_uexp: Exp.t = {
-    term:
-      FixF(
-        Var("x") |> Pat.fresh,
-        CONST_RENAMEME(Int(1)) |> Exp.fresh,
-        None,
-      ),
+    term: FixF(Var("x") |> Pat.fresh, Atom(Int(1)) |> Exp.fresh, None),
     annotation: {
       ids: [id_at(0)],
     },

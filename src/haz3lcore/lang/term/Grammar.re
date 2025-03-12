@@ -56,7 +56,7 @@ and exp_term('a) =
   | FailedCast(exp_t('a), typ_t('a), typ_t('a))
   | Deferral(deferral_position_t)
   | Undefined
-  | CONST_RENAMEME(CONST_RENAMEMO.t)
+  | Atom(Atom.t)
   | ListLit(list(exp_t('a)))
   /* The type double-option field of this constructor is required to assign the correct
      statics to constructors after evaluation. In dynamic expressions `Some(None)` means
@@ -100,7 +100,7 @@ and pat_term('a) =
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | Wild
-  | CONST_RENAMEME(CONST_RENAMEMO.t)
+  | Atom(Atom.t)
   | ListLit(list(pat_t('a)))
   | Constructor(string, option(option(typ_t('a)))) // see comment on constructor expressions
   | Cons(pat_t('a), pat_t('a))
@@ -115,7 +115,7 @@ and pat_term('a) =
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
-  | CONST_RENAMET(CONST_RENAMEMO.cls)
+  | Atom(Atom.cls)
   | Var(string)
   | List(typ_t('a))
   | Arrow(typ_t('a), typ_t('a))
@@ -183,7 +183,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           )
         | Deferral(pos) => Deferral(pos)
         | Undefined => Undefined
-        | CONST_RENAMEME(c) => CONST_RENAMEME(c)
+        | Atom(c) => Atom(c)
         | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
         | Constructor(s, t) =>
           Constructor(s, Option.map(Option.map(map_typ_annotation(f)), t))
@@ -304,7 +304,7 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | MultiHole(l) =>
           MultiHole(List.map(x => map_any_annotation(f, x), l))
         | Wild => Wild
-        | CONST_RENAMEME(c) => CONST_RENAMEME(c)
+        | Atom(c) => Atom(c)
         | ListLit(l) => ListLit(List.map(x => map_pat_annotation(f, x), l))
         | Constructor(s, t) =>
           Constructor(s, Option.map(Option.map(map_typ_annotation(f)), t))
@@ -337,7 +337,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
       term:
         switch (term) {
         | Unknown(p) => Unknown(map_type_provenance_annotation(f, p))
-        | CONST_RENAMET(c) => CONST_RENAMET(c)
+        | Atom(c) => Atom(c)
         | Var(s) => Var(s)
         | List(t) => List(map_typ_annotation(f, t))
         | Arrow(t1, t2) =>
@@ -486,27 +486,27 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let basic = (~ann=?, c): exp_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMEME(c),
+      term: Atom(c),
       annotation: default_annotation(ann),
     };
     let bool = (~ann=?, b): exp_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMEME(Bool(b)),
+      term: Atom(Bool(b)),
       annotation: default_annotation(ann),
     };
     let int = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMEME(Int(i)),
+      term: Atom(Int(i)),
       annotation: default_annotation(ann),
     };
     let float = (~ann=?, f): exp_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMEME(Float(f)),
+      term: Atom(Float(f)),
       annotation: default_annotation(ann),
     };
     let string = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMEME(String(s)),
+      term: Atom(String(s)),
       annotation: default_annotation(ann),
     };
     let nat = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMEME(Nat(i)),
+      term: Atom(Nat(i)),
       annotation: default_annotation(ann),
     };
     let list_lit = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
@@ -648,27 +648,27 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let basic = (~ann=?, c): pat_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMEME(c),
+      term: Atom(c),
       annotation: default_annotation(ann),
     };
     let int = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMEME(Int(i)),
+      term: Atom(Int(i)),
       annotation: default_annotation(ann),
     };
     let float = (~ann=?, f): pat_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMEME(Float(f)),
+      term: Atom(Float(f)),
       annotation: default_annotation(ann),
     };
     let bool = (~ann=?, b): pat_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMEME(Bool(b)),
+      term: Atom(Bool(b)),
       annotation: default_annotation(ann),
     };
     let string = (~ann=?, s): pat_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMEME(String(s)),
+      term: Atom(String(s)),
       annotation: default_annotation(ann),
     };
     let nat = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMEME(Nat(i)),
+      term: Atom(Nat(i)),
       annotation: default_annotation(ann),
     };
     let list_lit = (~ann=?, l): pat_t(DefaultAnnotation.t) => {
@@ -723,23 +723,23 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let int = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMET(Int),
+      term: Atom(Int),
       annotation: default_annotation(ann),
     };
     let float = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMET(Float),
+      term: Atom(Float),
       annotation: default_annotation(ann),
     };
     let bool = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMET(Bool),
+      term: Atom(Bool),
       annotation: default_annotation(ann),
     };
     let string = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMET(String),
+      term: Atom(String),
       annotation: default_annotation(ann),
     };
     let nat = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: CONST_RENAMET(Nat),
+      term: Atom(Nat),
       annotation: default_annotation(ann),
     };
     let var = (~ann=?, s): typ_t(DefaultAnnotation.t) => {

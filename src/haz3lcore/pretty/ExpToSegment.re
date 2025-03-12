@@ -37,7 +37,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   // Indivisible forms never need parentheses around them
   | Var(_)
   | Invalid(_)
-  | CONST_RENAMEME(Bool(_) | Int(_) | Float(_) | String(_) | Nat(_))
+  | Atom(Bool(_) | Int(_) | Float(_) | String(_) | Nat(_))
   | EmptyHole
   | Deferral(_)
   | BuiltinFun(_)
@@ -92,7 +92,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   | Wild
   | Invalid(_)
   | Var(_)
-  | CONST_RENAMEME(Bool(_) | Int(_) | Float(_) | String(_) | Nat(_))
+  | Atom(Bool(_) | Int(_) | Float(_) | String(_) | Nat(_))
   | Constructor(_)
   | Label(_)
   | TupLabel(_) => Precedence.max
@@ -120,7 +120,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
   | Var(_)
-  | CONST_RENAMET(_)
+  | Atom(_)
   | Label(_)
   | TupLabel(_) => Precedence.max
 
@@ -176,7 +176,7 @@ let rec parenthesize =
   // Indivisible forms dont' change
   | Var(_)
   | Invalid(_)
-  | CONST_RENAMEME(_)
+  | Atom(_)
   | EmptyHole
   //| Constructor(_) // Not indivisible because of the type annotation!
   | Deferral(_)
@@ -390,7 +390,7 @@ and parenthesize_pat =
   // Indivisible forms dont' change
   | Var(_)
   | Invalid(_)
-  | CONST_RENAMEME(_)
+  | Atom(_)
   | EmptyHole
   | Constructor(_)
   | Tuple([]) => pat
@@ -465,7 +465,7 @@ and parenthesize_typ =
   | Unknown(Internal)
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
-  | CONST_RENAMET(_) => typ
+  | Atom(_) => typ
 
   // Other forms
   | Parens(t) =>
@@ -751,8 +751,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       }),
     ]);
   | Undefined => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "undefined")
-  | CONST_RENAMEME(c) =>
-    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, CONST_RENAMEMO.to_literal(c))
+  | Atom(c) =>
+    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Atom.to_literal(c))
   // TODO: Make sure types are correct
   | Constructor(c, _t) =>
     // let id = Id.mk();
@@ -1114,8 +1114,8 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     ]);
   | Wild => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_")
   | Var(v) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, v)
-  | CONST_RENAMEME(c) =>
-    text_to_pretty(pat |> Pat.rep_id, Sort.Pat, CONST_RENAMEMO.to_literal(c))
+  | Atom(c) =>
+    text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Atom.to_literal(c))
   | Constructor(c, _) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, c)
   | ListLit([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "[]")
   | ListLit([x, ...xs]) =>
@@ -1262,14 +1262,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     );
 
   | Var(v) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v)
-  | CONST_RENAMET(Int) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
-  | CONST_RENAMET(Float) =>
-    text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float")
-  | CONST_RENAMET(Bool) =>
-    text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool")
-  | CONST_RENAMET(String) =>
-    text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "String")
-  | CONST_RENAMET(Nat) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Nat")
+  | Atom(Int) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
+  | Atom(Float) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float")
+  | Atom(Bool) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool")
+  | Atom(String) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "String")
+  | Atom(Nat) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Nat")
   | List(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);

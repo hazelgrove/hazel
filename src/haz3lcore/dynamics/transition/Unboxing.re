@@ -35,7 +35,7 @@ type unboxed_fun =
   | DeferredAp(DHExp.t, list(DHExp.t));
 
 type unbox_request('a) =
-  | CONST_RENAMEME(CONST_RENAMEMO.kind('a)): unbox_request('a)
+  | Atom(Atom.kind('a)): unbox_request('a)
   | Label: unbox_request(string)
   | Tuple(int): unbox_request(list(DHExp.t))
   | TupLabel(DHPat.t): unbox_request(DHExp.t)
@@ -103,8 +103,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       }
 
     /* Base types are always already unboxed because of the ITCastID rule*/
-    | (CONST_RENAMEME(r), CONST_RENAMEME(x)) =>
-      switch (CONST_RENAMEMO.unbox(r, x)) {
+    | (Atom(r), Atom(x)) =>
+      switch (Atom.unbox(r, x)) {
       | Some(x) => Matches(x)
       | None => DoesNotMatch
       }
@@ -241,8 +241,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
        in elaboration or in the cast calculus. */
     | (
         _,
-        CONST_RENAMEME(_) | Label(_) | Constructor(_) | BuiltinFun(_) |
-        Deferral(_) |
+        Atom(_) | Label(_) | Constructor(_) | BuiltinFun(_) | Deferral(_) |
         DeferredAp(_) |
         ListLit(_) |
         Cons(_) |
@@ -256,15 +255,15 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       switch (request) {
       | TupLabel(_) =>
         raise(EvaluatorError.Exception(InvalidBoxedTupLabel(expr)))
-      | CONST_RENAMEME(Bool) =>
+      | Atom(Bool) =>
         raise(EvaluatorError.Exception(InvalidBoxedBoolLit(expr)))
-      | CONST_RENAMEME(Int) =>
+      | Atom(Int) =>
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(expr)))
-      | CONST_RENAMEME(Float) =>
+      | Atom(Float) =>
         raise(EvaluatorError.Exception(InvalidBoxedFloatLit(expr)))
-      | CONST_RENAMEME(String) =>
+      | Atom(String) =>
         raise(EvaluatorError.Exception(InvalidBoxedStringLit(expr)))
-      | CONST_RENAMEME(Nat) =>
+      | Atom(Nat) =>
         raise(EvaluatorError.Exception(InvalidBoxedNatLit(expr)))
       | Label => raise(EvaluatorError.Exception(InvalidBoxedLabel(expr)))
       | Tuple(_) => raise(EvaluatorError.Exception(InvalidBoxedTuple(expr)))

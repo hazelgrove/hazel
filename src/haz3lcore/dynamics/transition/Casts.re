@@ -54,7 +54,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
     | _ => false;
   switch (Typ.term_of(ty)) {
   | Unknown(_) => Hole
-  | CONST_RENAMET(_)
+  | Atom(_)
   | Label(_)
   | TupLabel(_, {term: Unknown(_), _})
   | Var(_)

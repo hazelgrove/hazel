@@ -110,7 +110,7 @@ type pat =
   | CastPat(pat, typ, typ)
   | EmptyHolePat
   | WildPat
-  | CONST_RENAMEMEPat(Haz3lcore.CONST_RENAMEMO.t)
+  | AtomPat(Haz3lcore.Atom.t)
   | VarPat(string)
   | ConstructorPat(string, option(option(typ)))
   | TuplePat(list(pat))
@@ -134,7 +134,7 @@ type deferral_pos =
 
 [@deriving (show({with_path: false}), sexp, eq)]
 type exp =
-  | CONST_RENAMEME(Haz3lcore.CONST_RENAMEMO.t)
+  | Atom(Haz3lcore.Atom.t)
   | Var(string)
   | Constructor(string, option(option(typ)))
   | ListExp(list(exp))
@@ -295,11 +295,11 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
   QCheck.Gen.(
     let leaf =
       oneof([
-        map(x => CONST_RENAMEME(Int(x)), small_int),
-        map(x => CONST_RENAMEME(String(x)), gen_string_literal),
-        map(x => CONST_RENAMEME(Float(x)), QCheck.pos_float.gen), // Floats are positive because we use UnOp minus
+        map(x => Atom(Int(x)), small_int),
+        map(x => Atom(String(x)), gen_string_literal),
+        map(x => Atom(Float(x)), QCheck.pos_float.gen), // Floats are positive because we use UnOp minus
         map(x => Var(x), gen_ident),
-        map(x => CONST_RENAMEME(Bool(x)), bool),
+        map(x => Atom(Bool(x)), bool),
         pure(EmptyHole),
         pure(TupleExp([])),
         pure(ListExp([])),
@@ -558,11 +558,11 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
             oneof([
               return(WildPat),
               return(EmptyHolePat),
-              map(x => CONST_RENAMEMEPat(Int(x)), small_int),
-              map(x => CONST_RENAMEMEPat(Float(x)), QCheck.pos_float.gen),
+              map(x => AtomPat(Int(x)), small_int),
+              map(x => AtomPat(Float(x)), QCheck.pos_float.gen),
               map(x => VarPat(x), gen_ident),
-              map(x => CONST_RENAMEMEPat(String(x)), gen_string_literal),
-              map(x => CONST_RENAMEMEPat(Bool(x)), bool),
+              map(x => AtomPat(String(x)), gen_string_literal),
+              map(x => AtomPat(Bool(x)), bool),
               map(x => ConstructorPat(x, None), gen_constructor_ident),
               return(TuplePat([])),
               return(ListPat([])),

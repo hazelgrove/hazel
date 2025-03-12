@@ -221,14 +221,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
       | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
       | ([t], []) when Form.is_bool(t) =>
-        ret(CONST_RENAMEME(Bool(bool_of_string(t))))
+        ret(Atom(Bool(bool_of_string(t))))
       | ([t], []) when Form.is_undefined(t) => ret(Undefined)
       | ([t], []) when Form.is_int(t) =>
-        ret(CONST_RENAMEME(Int(int_of_string(t))))
+        ret(Atom(Int(int_of_string(t))))
       | ([t], []) when Form.is_string(t) =>
-        ret(CONST_RENAMEME(String(Form.strip_quotes(t))))
+        ret(Atom(String(Form.strip_quotes(t))))
       | ([t], []) when Form.is_float(t) =>
-        ret(CONST_RENAMEME(Float(float_of_string(t))))
+        ret(Atom(Float(float_of_string(t))))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_ctr(t) => ret(Constructor(t, None))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
@@ -487,14 +487,12 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         switch (tile) {
         | ([t], []) when Form.is_empty_tuple(t) => Tuple([])
         | ([t], []) when Form.is_empty_list(t) => ListLit([])
-        | ([t], []) when Form.is_bool(t) =>
-          CONST_RENAMEME(Bool(bool_of_string(t)))
+        | ([t], []) when Form.is_bool(t) => Atom(Bool(bool_of_string(t)))
         | ([t], []) when Form.is_float(t) =>
-          CONST_RENAMEME(Float(float_of_string(t)))
-        | ([t], []) when Form.is_int(t) =>
-          CONST_RENAMEME(Int(int_of_string(t)))
+          Atom(Float(float_of_string(t)))
+        | ([t], []) when Form.is_int(t) => Atom(Int(int_of_string(t)))
         | ([t], []) when Form.is_string(t) =>
-          CONST_RENAMEME(String(Form.strip_quotes(t)))
+          Atom(String(Form.strip_quotes(t)))
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) => Constructor(t, None)
@@ -604,11 +602,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(
         switch (tile) {
         | ([t], []) when Form.is_empty_tuple(t) => Prod([])
-        | (["Bool"], []) => CONST_RENAMET(Bool)
-        | (["Int"], []) => CONST_RENAMET(Int)
-        | (["Float"], []) => CONST_RENAMET(Float)
-        | (["String"], []) => CONST_RENAMET(String)
-        | (["Nat"], []) => CONST_RENAMET(Nat)
+        | (["Bool"], []) => Atom(Bool)
+        | (["Int"], []) => Atom(Int)
+        | (["Float"], []) => Atom(Float)
+        | (["String"], []) => Atom(String)
+        | (["Nat"], []) => Atom(Nat)
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term

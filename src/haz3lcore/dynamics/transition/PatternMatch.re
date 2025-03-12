@@ -18,9 +18,9 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
   | EmptyHole
   | MultiHole(_)
   | Wild => Matches(Environment.empty)
-  | CONST_RENAMEME(c) =>
-    let V(value, kind) = CONST_RENAMEMO.unpack(c);
-    let* d' = Unboxing.unbox(CONST_RENAMEME(kind), d);
+  | Atom(c) =>
+    let V(value, kind) = Atom.unpack(c);
+    let* d' = Unboxing.unbox(Atom(kind), d);
     value == d' ? Matches(Environment.empty) : DoesNotMatch;
   | ListLit(xs) =>
     let* s' = Unboxing.unbox(ListLitn(List.length(xs)), d);

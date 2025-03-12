@@ -81,8 +81,7 @@ type ap_direction =
 
 /* ========== ELABORATION ========== */
 
-let replace_literal =
-    (lit: CONST_RENAMEMO.t, use_mode: option(mode)): CONST_RENAMEMO.t => {
+let replace_literal = (lit: Atom.t, use_mode: option(mode)): Atom.t => {
   switch (lit, use_mode) {
   | (_, None) => lit
   | (Int(n) | Nat(n), Some(Int)) => Int(n)
@@ -241,8 +240,8 @@ let bin_op_to_string = (op: op_bin): string => {
 
 type un_semantics =
   | Defined(
-      CONST_RENAMEMO.kind('a),
-      CONST_RENAMEMO.kind('b),
+      Atom.kind('a),
+      Atom.kind('b),
       'a => Either.t('b, InvalidOperationError.t),
     )
     : un_semantics
@@ -260,9 +259,9 @@ let semantics_of_un_op = (op: op_un): un_semantics =>
 
 type bin_semantics =
   | Defined(
-      CONST_RENAMEMO.kind('a),
-      CONST_RENAMEMO.kind('b),
-      CONST_RENAMEMO.kind('c),
+      Atom.kind('a),
+      Atom.kind('b),
+      Atom.kind('c),
       ('a, 'b) => Either.t('c, InvalidOperationError.t),
     )
     : bin_semantics
@@ -371,7 +370,7 @@ let op_name = (op: op_bin): string =>
   };
 
 let builtins = {
-  CONST_RENAMEMO.(
+  Atom.(
     all_of_op_bin
     |> List.filter_map(op =>
          switch (semantics_of_bin_op(op)) {

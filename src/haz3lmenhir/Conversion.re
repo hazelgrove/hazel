@@ -202,7 +202,7 @@ module rec Exp: {
   let rec of_menhir_ast = (exp: AST.exp): IndicatedG.exp => {
     switch (exp) {
     | InvalidExp(s) => invalid(s)
-    | CONST_RENAMEME(c) => basic(c)
+    | Atom(c) => basic(c)
     | Var(x) => var(x)
     | Constructor(x, ty) =>
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
@@ -315,7 +315,7 @@ module rec Exp: {
   let rec of_core = (exp: IndicatedG.exp): AST.exp => {
     switch (exp.term) {
     | Invalid(_) => InvalidExp("Invalid")
-    | CONST_RENAMEME(c) => CONST_RENAMEME(c)
+    | Atom(c) => Atom(c)
     | Var(x) => Var(x)
     | Deferral(InAp) => Deferral
     | ListLit(l) => ListExp(List.map(of_core, l))
@@ -454,11 +454,11 @@ and Typ: {
   };
   let rec of_core = (typ: IndicatedG.typ): AST.typ => {
     switch (typ.term) {
-    | CONST_RENAMET(Int) => IntType
-    | CONST_RENAMET(Float) => FloatType
-    | CONST_RENAMET(String) => StringType
-    | CONST_RENAMET(Bool) => BoolType
-    | CONST_RENAMET(Nat) => NatType
+    | Atom(Int) => IntType
+    | Atom(Float) => FloatType
+    | Atom(String) => StringType
+    | Atom(Bool) => BoolType
+    | Atom(Nat) => NatType
     | Var(x) => TypVar(x)
     | Prod(ts) => TupleType(List.map(of_core, ts))
     | List(t) => ArrayType(of_core(t))
@@ -516,7 +516,7 @@ and Pat: {
   let rec of_menhir_ast = (pat: AST.pat): IndicatedG.pat => {
     switch (pat) {
     | InvalidPat(s) => invalid(s)
-    | CONST_RENAMEMEPat(c) => basic(c)
+    | AtomPat(c) => basic(c)
     | CastPat(p, t1, t2) =>
       parens(
         cast(
@@ -547,7 +547,7 @@ and Pat: {
   let rec of_core = (pat: IndicatedG.pat): AST.pat => {
     switch (pat.term) {
     | Invalid(_) => InvalidPat("Invalid")
-    | CONST_RENAMEME(c) => CONST_RENAMEMEPat(c)
+    | Atom(c) => AtomPat(c)
     | Var(x) => VarPat(x)
     | Constructor(x, ty) =>
       ConstructorPat(x, Option.map(Option.map(Typ.of_core), ty))
