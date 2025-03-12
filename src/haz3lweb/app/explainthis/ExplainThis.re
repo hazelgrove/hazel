@@ -1910,6 +1910,7 @@ let get_doc =
               ),
             OpExp.bool_un_not,
           );
+        | Float(Minus) // TODO[Matt]: finish
         | Nat(Minus)
         | Int(Minus) =>
           let exp_id = List.nth(IdTagged.ids(exp), 0);

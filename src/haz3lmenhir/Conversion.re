@@ -116,6 +116,7 @@ module Operators = {
         },
       )
     | Nat(i)
+    | Float(i)
     | Int(i) =>
       Int(
         switch (i) {
@@ -132,7 +133,7 @@ module Operators = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let float_op_of_menhir_ast = (op: AST.op_bin_float): op_bin_float => {
+  let float_op_of_menhir_ast = (op: AST.op_bin_float): op_bin_num => {
     switch (op) {
     | Plus => Plus
     | Minus => Minus
@@ -165,7 +166,7 @@ module Operators = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let int_op_of_menhir_ast = (op: AST.op_bin_int): op_bin_int => {
+  let int_op_of_menhir_ast = (op: AST.op_bin_int): op_bin_num => {
     switch (op) {
     | Plus => Plus
     | Minus => Minus

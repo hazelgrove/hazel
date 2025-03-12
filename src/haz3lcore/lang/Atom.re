@@ -165,7 +165,6 @@ let to_literal = (e: t): string =>
   switch (e) {
   | Int(i) => i |> string_of_int
   | Nat(i) => i |> string_of_int
-  // TODO: do floats print right?
   | Float(f) => Printf.sprintf("%f", f)
   | Bool(b) => b |> string_of_bool
   | String(s) => "\"" ++ s ++ "\""

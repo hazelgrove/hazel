@@ -1057,6 +1057,7 @@ and uexp_to_info_map =
         switch (typ.term |> Typ.weak_head_normalize(ctx) |> Typ.term_of) {
         | Atom(Nat) => Some(Nat)
         | Atom(Int) => Some(Int)
+        | Atom(Float) => Some(Float)
         | _ => None
         };
       let ctx' =
@@ -1068,6 +1069,8 @@ and uexp_to_info_map =
       let self: Self.t =
         switch (use_mode) {
         | Some(_) => Just(body.ty)
+        | None when Typ.fast_equal(Unknown(Internal) |> Typ.temp, typ.term) =>
+          Just(body.ty)
         | None =>
           InvalidUseMode({
             bad_typ: typ.term,

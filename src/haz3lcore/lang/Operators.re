@@ -3,7 +3,8 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
   | Nat
-  | Int;
+  | Int
+  | Float;
 
 let default_mode = Int;
 
@@ -27,21 +28,7 @@ type op_bin_bool =
   | Or;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
-type op_bin_int =
-  | Plus
-  | Minus
-  | Times
-  | Power
-  | Divide
-  | LessThan
-  | LessThanOrEqual
-  | GreaterThan
-  | GreaterThanOrEqual
-  | Equals
-  | NotEquals;
-
-[@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
-type op_bin_float =
+type op_bin_num =
   | Plus
   | Minus
   | Times
@@ -64,13 +51,14 @@ type op_un =
   | Meta(op_un_meta)
   | Int(op_un_int)
   | Nat(op_un_int)
+  | Float(op_un_int)
   | Bool(op_un_bool);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_bin =
-  | Int(op_bin_int)
-  | Nat(op_bin_int)
-  | Float(op_bin_float)
+  | Int(op_bin_num)
+  | Nat(op_bin_num)
+  | Float(op_bin_num)
   | Bool(op_bin_bool)
   | String(op_bin_string);
 
@@ -86,6 +74,7 @@ let replace_literal = (lit: Atom.t, use_mode: option(mode)): Atom.t => {
   | (_, None) => lit
   | (Int(n) | Nat(n), Some(Int)) => Int(n)
   | (Int(n) | Nat(n), Some(Nat)) => Nat(n)
+  | (Int(n) | Nat(n), Some(Float)) => Float(Float.of_int(n))
   | (Float(n), _) => Float(n)
   | (Bool(b), _) => Bool(b)
   | (String(s), _) => String(s)
@@ -95,8 +84,9 @@ let replace_literal = (lit: Atom.t, use_mode: option(mode)): Atom.t => {
 let replace_un_op = (op: op_un, use_mode: option(mode)): op_un => {
   switch (op, use_mode) {
   | (op, None) => op
-  | (Int(op) | Nat(op), Some(Int)) => Int(op)
-  | (Int(op) | Nat(op), Some(Nat)) => Nat(op)
+  | (Int(op) | Nat(op) | Float(op), Some(Int)) => Int(op)
+  | (Int(op) | Nat(op) | Float(op), Some(Nat)) => Nat(op)
+  | (Int(op) | Nat(op) | Float(op), Some(Float)) => Float(op)
   | (Bool(op), _) => Bool(op)
   | (Meta(op), _) => Meta(op)
   };
@@ -107,6 +97,7 @@ let replace_bin_op = (op: op_bin, use_mode: option(mode)): op_bin => {
   | (op, None) => op
   | (Int(op) | Nat(op), Some(Int)) => Int(op)
   | (Int(op) | Nat(op), Some(Nat)) => Nat(op)
+  | (Int(op) | Nat(op), Some(Float)) => Float(op)
   | (Float(op), _) => Float(op)
   | (Bool(op), _) => Bool(op)
   | (String(op), _) => String(op)
@@ -131,6 +122,7 @@ let show_unop: op_un => string =
   fun
   | Meta(op) => show_op_un_meta(op)
   | Bool(op) => show_op_un_bool(op)
+  | Float(op)
   | Nat(op)
   | Int(op) => show_op_un_int(op);
 
@@ -139,7 +131,7 @@ let show_op_bin_bool: op_bin_bool => string =
   | And => "Boolean Conjunction"
   | Or => "Boolean Disjunction";
 
-let show_op_bin_int: op_bin_int => string =
+let show_op_bin_num: op_bin_num => string =
   fun
   | Plus => "Integer Addition"
   | Minus => "Integer Subtraction"
@@ -153,20 +145,6 @@ let show_op_bin_int: op_bin_int => string =
   | Equals => "Integer Equality"
   | NotEquals => "Integer Inequality";
 
-let show_op_bin_float: op_bin_float => string =
-  fun
-  | Plus => "Float Addition"
-  | Minus => "Float Subtraction"
-  | Times => "Float Multiplication"
-  | Power => "Float Exponentiation"
-  | Divide => "Float Division"
-  | LessThan => "Float Less Than"
-  | LessThanOrEqual => "Float Less Than or Equal"
-  | GreaterThan => "Float Greater Than"
-  | GreaterThanOrEqual => "Float Greater Than or Equal"
-  | Equals => "Float Equality"
-  | NotEquals => "Float Inequality";
-
 let show_op_bin_string: op_bin_string => string =
   fun
   | Concat => "String Concatenation"
@@ -174,9 +152,9 @@ let show_op_bin_string: op_bin_string => string =
 
 let show_binop: op_bin => string =
   fun
-  | Int(op) => show_op_bin_int(op)
-  | Nat(op) => show_op_bin_int(op)
-  | Float(op) => show_op_bin_float(op)
+  | Int(op) => show_op_bin_num(op)
+  | Nat(op) => show_op_bin_num(op)
+  | Float(op) => show_op_bin_num(op)
   | Bool(op) => show_op_bin_bool(op)
   | String(op) => show_op_bin_string(op);
 
@@ -187,7 +165,7 @@ let bool_op_to_string = (op: op_bin_bool): string => {
   };
 };
 
-let int_op_to_string = (op: op_bin_int): string => {
+let int_op_to_string = (op: op_bin_num): string => {
   switch (op) {
   | Plus => "+"
   | Minus => "-"
@@ -203,7 +181,7 @@ let int_op_to_string = (op: op_bin_int): string => {
   };
 };
 
-let float_op_to_string = (op: op_bin_float): string => {
+let float_op_to_string = (op: op_bin_num): string => {
   switch (op) {
   | Plus => "+."
   | Minus => "-."
@@ -252,6 +230,7 @@ let just = (f, x) => Either.L(f(x));
 let semantics_of_un_op = (op: op_un): un_semantics =>
   switch (op) {
   | Int(Minus) => Defined(Int, Int, just(x => - x))
+  | Float(Minus) => Defined(Float, Float, just(x => -. x))
   | Nat(Minus) => Undefined
   | Bool(Not) => Defined(Bool, Bool, just(x => !x))
   | Meta(Unquote) => Undefined
