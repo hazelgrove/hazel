@@ -606,5 +606,24 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "find with rest",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          option(pair(string, list(int))),
+          "Found",
+          Some(("found", [1, 2, 4, 5])),
+          ListUtil.find_with_rest(i => i > 2 ? Some("found") : None, xs),
+        );
+        check(
+          option(pair(string, list(int))),
+          "Not found",
+          None,
+          ListUtil.find_with_rest(i => i > 5 ? Some("found") : None, xs),
+        );
+      },
+    ),
   ],
 );
