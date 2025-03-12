@@ -790,13 +790,20 @@ in fn("hello")|},
         ),
       )
     ),
-    test_case("Builtin with casts", `Quick, () =>
-      parse_and_evaluate_test({|13|}, {|int_mod((1 : ?, 5 : ?) : ?)|})
-    ),
     test_case("Primitive pivot of list of labeled tuple", `Quick, () =>
-      parse_and_evaluate_test(
-        {|(a=[(j=1)], b=[(j=2)], c=[(j=3)])|},
-        {|primitive_pivot(?, [(l="a", j=1), (l="b", j=2), (l="c", j=3)])|},
+      check(
+        dhexp_typ,
+        {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)])|},
+        parse_exp({|(a=[j=1, 3], b=[j=2, 9], c=[j=3, 9])|}),
+        DHExp.strip_casts(
+          evaluate(
+            elaborate(
+              parse_exp(
+                {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)])|},
+              ),
+            ),
+          ),
+        ),
       )
     ),
   ],

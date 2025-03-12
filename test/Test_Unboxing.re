@@ -1,11 +1,18 @@
 open Alcotest;
 open Haz3lcore;
 
+module F = IdTagged.FreshGrammar;
+
+let exp = testable(Exp.pp, DHExp.fast_equal);
+
 let unboxed_testable = (inner_testable: testable('a)) =>
   testable(
     Fmt.using(Unboxing.show_unboxed(pp(inner_testable)), Fmt.string),
     Unboxing.equal_unboxed(equal(inner_testable)),
   );
+
+let big_int_testable =
+  testable(Fmt.using(Bigint.to_string, Fmt.string), Bigint.equal);
 let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
 
 let test_does_not_match = (name, type_testable, request, term) =>
@@ -302,6 +309,40 @@ let tests = (
           )
           |> fresh,
         ),
+      ),
+      test_case("Unboxing integer", `Quick, () => {
+        check(
+          unboxed_testable(big_int_testable),
+          "8",
+          Matches(Bigint.of_int(8)),
+          unbox(Atom(Int), F.Exp.int(Bigint.of_int(8))),
+        )
+      }),
+      test_case(
+        "Pivot request",
+        `Quick,
+        () => {
+          let actual =
+            unbox(
+              TupleElementPivot("a"),
+              F.Exp.(
+                tuple([
+                  tup_label(label("a"), string("aval")),
+                  tup_label(label("b"), string("bval")),
+                ])
+              ),
+            );
+          let expected = (
+            "aval",
+            F.Exp.[tup_label(label("b"), string("bval"))],
+          );
+          check(
+            unboxed_testable(pair(string, list(exp))),
+            "Pivot request",
+            Matches(expected),
+            actual,
+          );
+        },
       ),
     ]
   ),

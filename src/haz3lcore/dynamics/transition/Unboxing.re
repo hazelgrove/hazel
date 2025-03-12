@@ -46,7 +46,9 @@ type unbox_request('a) =
   | SumNoArg(string): unbox_request(unit)
   | SumWithArg(string): unbox_request(DHExp.t)
   | TypFun: unbox_request(unboxed_tfun)
-  | Fun: unbox_request(unboxed_fun);
+  | Fun: unbox_request(unboxed_fun)
+  | TupleElementPivot(LabeledTuple.label)
+    : unbox_request((LabeledTuple.label, list(DHExp.t)));
 
 [@deriving (show({with_path: false}), eq)]
 type unboxed('a) =
@@ -102,7 +104,32 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | TupLabel(_, e) => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
       | _ => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
       }
+    | (TupleElementPivot(_), Cast(d, _, {term: Unknown(_), _})) =>
+      unbox(request, d)
+    | (TupleElementPivot(l), Tuple(ds)) =>
+      let found_pivot: option((string, list(Exp.t))) =
+        ListUtil.find_with_rest(
+          exp => {
+            switch (Exp.match_tup_label(DHExp.strip_casts(exp))) {
+            // TODO: I need a better plan than stripping casts
+            | Some((name, {term: Atom(String(e)), _})) when name == l =>
+              Some(e)
+            | (d: option((string, TermBase.exp_t))) =>
+              print_endline("Not found: " ++ Exp.show(exp));
+              print_endline(
+                "\td: "
+                ++ [%derive.show: option((string, TermBase.exp_t))](d),
+              );
 
+              None;
+            }
+          },
+          ds,
+        );
+      switch (found_pivot) {
+      | None => DoesNotMatch
+      | Some(a) => Matches(a)
+      };
     /* Base types are always already unboxed because of the ITCastID rule*/
     | (Atom(r), Atom(x)) =>
       switch (Atom.unbox(r, x)) {
@@ -279,6 +306,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         raise(EvaluatorError.Exception(InvalidBoxedSumConstructor(expr)))
       | Fun => raise(EvaluatorError.Exception(InvalidBoxedFun(expr)))
       | TypFun => raise(EvaluatorError.Exception(InvalidBoxedTypFun(expr)))
+      | TupleElementPivot(_) =>
+        raise(EvaluatorError.Exception(InvalidBoxedTuple(expr))) // todo: better error message
       }
 
     /* Forms that are not yet or will never be a value */

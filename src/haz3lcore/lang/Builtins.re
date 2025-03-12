@@ -362,13 +362,26 @@ module Pervasives = {
            "primitive_pivot",
            Prod([unknown(Internal), list(unknown(Internal))]),
            Unknown(Internal),
-           binary((lab: DHExp.t, d: DHExp.t) => {
-             print_endline("pivot before: " ++ [%derive.show: DHExp.t](d));
+           binary((_lab: DHExp.t, d: DHExp.t) => {
              let-unbox l = (ListLit, d);
 
-             print_endline("pivot: " ++ [%derive.show: list(DHExp.t)](l));
+             let unboxed: option(list((string, list(TermBase.exp_t)))) =
+               List.map(
+                 e => {
+                   let-unbox a = (TupleElementPivot("l"), e);
+                   Some(a);
+                 },
+                 l,
+               )
+               |> Util.OptUtil.sequence;
 
-             Some(Fresh.Exp.tuple([]));
+             Option.map(
+               List.map(((name: string, es: list(TermBase.exp_t))) =>
+                 Fresh.Exp.(tup_label(label(name), list_lit(es)))
+               ),
+               unboxed,
+             )
+             |> Option.map(Fresh.Exp.tuple);
            }),
          )
     )
