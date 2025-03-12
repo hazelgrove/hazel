@@ -307,6 +307,7 @@ and Exp: {
       && Typ.fast_equal(t2, t4)
     | (Deferral(d1), Deferral(d2)) => d1 == d2
     | (CONST_RENAMEME(c1), CONST_RENAMEME(c2)) => c1 == c2
+    | (Label(l1), Label(l2)) => l1 == l2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Constructor(c1, Some(Some(ty1))), Constructor(c2, Some(Some(ty2)))) =>

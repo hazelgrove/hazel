@@ -350,7 +350,11 @@ let tests = (
               TyAlias(
                 Var("x") |> TPat.fresh,
                 Arrow(
-                  Arrow(CONST_RENAMET(Int) |> Typ.fresh, CONST_RENAMET(Bool) |> Typ.fresh) |> Typ.fresh,
+                  Arrow(
+                    CONST_RENAMET(Int) |> Typ.fresh,
+                    CONST_RENAMET(Bool) |> Typ.fresh,
+                  )
+                  |> Typ.fresh,
                   Var("x") |> Typ.fresh,
                 )
                 |> Typ.fresh,
