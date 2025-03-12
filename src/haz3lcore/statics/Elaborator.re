@@ -119,11 +119,9 @@ let rec elaborate_pattern =
   let (term, rewrap) = Pat.unwrap(upat);
   let dpat =
     switch (term) {
-    | CONST_RENAMEME(c) =>
+    | Atom(c) =>
       let c = Operators.replace_literal(c, ctx.use_mode);
-      CONST_RENAMEME(c)
-      |> rewrap
-      |> cast_from(CONST_RENAMET(c |> CONST_RENAMEMO.cls_of_t) |> Typ.temp);
+      Atom(c) |> rewrap |> cast_from(Atom(c |> Atom.cls_of_t) |> Typ.temp);
     | ListLit(ps) =>
       let (ps, tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
       let inner_type =
@@ -309,11 +307,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
       Probe(e' |> cast_from(ty), probe) |> rewrap;
     | Deferral(_) => uexp
-    | CONST_RENAMEME(c) =>
+    | Atom(c) =>
       let c = Operators.replace_literal(c, ctx.use_mode);
-      CONST_RENAMEME(c)
-      |> rewrap
-      |> cast_from(CONST_RENAMET(c |> CONST_RENAMEMO.cls_of_t) |> Typ.temp);
+      Atom(c) |> rewrap |> cast_from(Atom(c |> Atom.cls_of_t) |> Typ.temp);
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let inner_type =
@@ -515,7 +511,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let ty =
         Typ.join(ctx, tyt, tyf)
         |> Option.value(~default=Typ.temp(Unknown(Internal)));
-      let c'' = fresh_cast(c', tyc, CONST_RENAMET(Bool) |> Typ.temp);
+      let c'' = fresh_cast(c', tyc, Atom(Bool) |> Typ.temp);
       let t'' = fresh_cast(t', tyt, ty);
       let f'' = fresh_cast(f', tyf, ty);
       If(c'', t'', f'') |> rewrap |> cast_from(ty);
@@ -525,7 +521,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       Seq(e1', e2') |> rewrap |> cast_from(ty2);
     | Test(e) =>
       let (e', t) = elaborate(m, e);
-      Test(fresh_cast(e', t, CONST_RENAMET(Bool) |> Typ.temp))
+      Test(fresh_cast(e', t, Atom(Bool) |> Typ.temp))
       |> rewrap
       |> cast_from(Prod([]) |> Typ.temp);
     | Filter(kind, e) =>
@@ -588,8 +584,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         |> rewrap
         |> cast_from(Unknown(Internal) |> Typ.temp)
       | Defined(t1, t2, _) =>
-        let t1 = CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(t1)) |> Typ.temp;
-        let t2 = CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(t2)) |> Typ.temp;
+        let t1 = Atom(Atom.cls_of_kind(t1)) |> Typ.temp;
+        let t2 = Atom(Atom.cls_of_kind(t2)) |> Typ.temp;
         UnOp(op, fresh_cast(e', t, t1)) |> rewrap |> cast_from(t2);
       };
     | BinOp(op, e1, e2) =>
@@ -607,9 +603,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         |> rewrap
         |> cast_from(Unknown(Internal) |> Typ.temp)
       | Defined(t1', t2', t3', _) =>
-        let t1' = CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(t1')) |> Typ.temp;
-        let t2' = CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(t2')) |> Typ.temp;
-        let t3' = CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(t3')) |> Typ.temp;
+        let t1' = Atom(Atom.cls_of_kind(t1')) |> Typ.temp;
+        let t2' = Atom(Atom.cls_of_kind(t2')) |> Typ.temp;
+        let t3' = Atom(Atom.cls_of_kind(t3')) |> Typ.temp;
         BinOp(op, fresh_cast(e1', t1, t1'), fresh_cast(e2', t2, t2'))
         |> rewrap
         |> cast_from(t3');

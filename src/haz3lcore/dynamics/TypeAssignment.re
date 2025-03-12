@@ -93,9 +93,8 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | MultiHole(_) => Some([])
     | Parens(dhp)
     | Probe(dhp, _) => dhpat_var_entry(dhp, ty)
-    | CONST_RENAMEME(c) =>
-      Typ.equal(ty, CONST_RENAMET(CONST_RENAMEMO.cls_of_t(c)) |> Typ.temp)
-        ? Some([]) : None
+    | Atom(c) =>
+      Typ.equal(ty, Atom(Atom.cls_of_t(c)) |> Typ.temp) ? Some([]) : None
     | Constructor(_) => Some([]) // TODO: make this stricter
     | Cast(dhp, ty1, ty2) =>
       Typ.equal(ty, ty2) ? dhpat_var_entry(dhp, ty1) : None
@@ -132,8 +131,7 @@ let rec dhpat_synthesize = (dhpat: DHPat.t, ctx: Ctx.t): option(Typ.t) => {
   | MultiHole(_) => Some(Unknown(Internal) |> Typ.temp)
   | Parens(dhp)
   | Probe(dhp, _) => dhpat_synthesize(dhp, ctx)
-  | CONST_RENAMEME(c) =>
-    Some(CONST_RENAMET(CONST_RENAMEMO.cls_of_t(c)) |> Typ.temp)
+  | Atom(c) => Some(Atom(Atom.cls_of_t(c)) |> Typ.temp)
   | Cast(_, _, ty) => Some(ty)
   };
 };
@@ -268,10 +266,9 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     Some(var.typ);
   | Test(dtest) =>
     let* ty = typ_of_dhexp(ctx, m, dtest);
-    Typ.equal(ty, CONST_RENAMET(Bool) |> Typ.temp)
+    Typ.equal(ty, Atom(Bool) |> Typ.temp)
       ? Some(Prod([]) |> Typ.temp) : None;
-  | CONST_RENAMEME(c) =>
-    Some(CONST_RENAMET(c |> CONST_RENAMEMO.cls_of_t) |> Typ.temp)
+  | Atom(c) => Some(Atom(c |> Atom.cls_of_t) |> Typ.temp)
   | BinOp(op, d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
@@ -282,20 +279,19 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
       && Typ.equal(ty2, Unknown(Internal) |> Typ.temp)
         ? Some(Unknown(Internal) |> Typ.temp) : None
     | Defined(ty1', ty2', ty_out, _) =>
-      let ty1' = CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(ty1')) |> Typ.temp;
-      let ty2' = CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(ty2')) |> Typ.temp;
-      let ty_out =
-        CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(ty_out)) |> Typ.temp;
+      let ty1' = Atom(Atom.cls_of_kind(ty1')) |> Typ.temp;
+      let ty2' = Atom(Atom.cls_of_kind(ty2')) |> Typ.temp;
+      let ty_out = Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp;
       Typ.equal(ty1, ty1') && Typ.equal(ty2, ty2') ? Some(ty_out) : None;
     };
   | UnOp(Int(Minus) | Nat(Minus), d) =>
     let* ty = typ_of_dhexp(ctx, m, d);
-    Typ.equal(ty, CONST_RENAMET(Int) |> Typ.temp)
-      ? Some(CONST_RENAMET(Int) |> Typ.temp) : None;
+    Typ.equal(ty, Atom(Int) |> Typ.temp)
+      ? Some(Atom(Int) |> Typ.temp) : None;
   | UnOp(Bool(Not), d) =>
     let* ty = typ_of_dhexp(ctx, m, d);
-    Typ.equal(ty, CONST_RENAMET(Bool) |> Typ.temp)
-      ? Some(CONST_RENAMET(Bool) |> Typ.temp) : None;
+    Typ.equal(ty, Atom(Bool) |> Typ.temp)
+      ? Some(Atom(Bool) |> Typ.temp) : None;
   | UnOp(Meta(Unquote), d) =>
     let* ty = typ_of_dhexp(ctx, m, d);
     Some(ty);
@@ -366,7 +362,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     }
   | If(d_scrut, d1, d2) =>
     let* ty = typ_of_dhexp(ctx, m, d_scrut);
-    if (Typ.equal(ty, CONST_RENAMET(Bool) |> Typ.temp)) {
+    if (Typ.equal(ty, Atom(Bool) |> Typ.temp)) {
       let* ty1 = typ_of_dhexp(ctx, m, d1);
       let* ty2 = typ_of_dhexp(ctx, m, d2);
       Typ.equal(ty1, ty2) ? Some(ty1) : None;

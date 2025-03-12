@@ -580,11 +580,11 @@ let get_doc =
         );
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
-      | CONST_RENAMEME(Bool(b)) => get_message(TerminalExp.bool_exps(b))
-      | CONST_RENAMEME(Int(i)) => get_message(TerminalExp.int_exps(i))
-      | CONST_RENAMEME(Float(f)) => get_message(TerminalExp.float_exps(f))
-      | CONST_RENAMEME(String(s)) => get_message(TerminalExp.string_exps(s))
-      | CONST_RENAMEME(Nat(i)) => get_message(TerminalExp.nat_exps(i))
+      | Atom(Bool(b)) => get_message(TerminalExp.bool_exps(b))
+      | Atom(Int(i)) => get_message(TerminalExp.int_exps(i))
+      | Atom(Float(f)) => get_message(TerminalExp.float_exps(f))
+      | Atom(String(s)) => get_message(TerminalExp.string_exps(s))
+      | Atom(Nat(i)) => get_message(TerminalExp.nat_exps(i))
       | ListLit(terms) =>
         get_message(
           ~format=
@@ -710,7 +710,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_wild);
           }
-        | CONST_RENAMEME(Int(i) | Nat(i)) =>
+        | Atom(Int(i) | Nat(i)) =>
           if (FunctionExp.function_intlit_exp.id
               == get_specificity_level(FunctionExp.functions_int)) {
             get_message(
@@ -735,7 +735,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_int);
           }
-        | CONST_RENAMEME(Float(f)) =>
+        | Atom(Float(f)) =>
           if (FunctionExp.function_floatlit_exp.id
               == get_specificity_level(FunctionExp.functions_float)) {
             get_message(
@@ -760,7 +760,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_float);
           }
-        | CONST_RENAMEME(Bool(b)) =>
+        | Atom(Bool(b)) =>
           if (FunctionExp.function_boollit_exp.id
               == get_specificity_level(FunctionExp.functions_bool)) {
             get_message(
@@ -785,7 +785,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_bool);
           }
-        | CONST_RENAMEME(String(s)) =>
+        | Atom(String(s)) =>
           if (FunctionExp.function_strlit_exp.id
               == get_specificity_level(FunctionExp.functions_str)) {
             get_message(
@@ -1308,7 +1308,7 @@ let get_doc =
           } else {
             basic(LetExp.lets_wild);
           }
-        | CONST_RENAMEME(Int(i) | Nat(i)) =>
+        | Atom(Int(i) | Nat(i)) =>
           if (LetExp.let_int_exp.id == get_specificity_level(LetExp.lets_int)) {
             get_message(
               ~colorings=
@@ -1333,7 +1333,7 @@ let get_doc =
               LetExp.lets_int,
             );
           }
-        | CONST_RENAMEME(Float(f)) =>
+        | Atom(Float(f)) =>
           if (LetExp.let_float_exp.id
               == get_specificity_level(LetExp.lets_float)) {
             // TODO Make sure everywhere printing the float literal print it prettier
@@ -1360,7 +1360,7 @@ let get_doc =
               LetExp.lets_float,
             );
           }
-        | CONST_RENAMEME(Bool(b)) =>
+        | Atom(Bool(b)) =>
           if (LetExp.let_bool_exp.id
               == get_specificity_level(LetExp.lets_bool)) {
             get_message(
@@ -1386,7 +1386,7 @@ let get_doc =
               LetExp.lets_bool,
             );
           }
-        | CONST_RENAMEME(String(s)) =>
+        | Atom(String(s)) =>
           if (LetExp.let_str_exp.id == get_specificity_level(LetExp.lets_str)) {
             get_message(
               ~colorings=
@@ -2029,7 +2029,7 @@ let get_doc =
     | EmptyHole => get_message(HolePat.empty_hole)
     | MultiHole(_) => get_message(HolePat.multi_hole)
     | Wild => get_message(TerminalPat.wild)
-    | CONST_RENAMEME(Int(i) | Nat(i)) =>
+    | Atom(Int(i) | Nat(i)) =>
       get_message(
         ~format=
           Some(
@@ -2038,7 +2038,7 @@ let get_doc =
           ),
         TerminalPat.intlit(i),
       )
-    | CONST_RENAMEME(Float(f)) =>
+    | Atom(Float(f)) =>
       get_message(
         ~format=
           Some(
@@ -2047,7 +2047,7 @@ let get_doc =
           ),
         TerminalPat.floatlit(f),
       )
-    | CONST_RENAMEME(Bool(b)) =>
+    | Atom(Bool(b)) =>
       get_message(
         ~format=
           Some(
@@ -2056,7 +2056,7 @@ let get_doc =
           ),
         TerminalPat.boollit(b),
       )
-    | CONST_RENAMEME(String(s)) =>
+    | Atom(String(s)) =>
       get_message(
         ~format=
           Some(
@@ -2280,11 +2280,11 @@ let get_doc =
     | Unknown(Internal)
     | Unknown(Hole(EmptyHole)) => get_message(HoleTyp.empty_hole)
     | Unknown(Hole(MultiHole(_))) => get_message(HoleTyp.multi_hole)
-    | CONST_RENAMET(Int) => get_message(TerminalTyp.int)
-    | CONST_RENAMET(Float) => get_message(TerminalTyp.float)
-    | CONST_RENAMET(Bool) => get_message(TerminalTyp.bool)
-    | CONST_RENAMET(String) => get_message(TerminalTyp.str)
-    | CONST_RENAMET(Nat) => get_message(TerminalTyp.nat)
+    | Atom(Int) => get_message(TerminalTyp.int)
+    | Atom(Float) => get_message(TerminalTyp.float)
+    | Atom(Bool) => get_message(TerminalTyp.bool)
+    | Atom(String) => get_message(TerminalTyp.str)
+    | Atom(Nat) => get_message(TerminalTyp.nat)
     | List(elem) =>
       let elem_id = List.nth(IdTagged.ids(elem), 0);
       get_message(

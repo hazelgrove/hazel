@@ -319,9 +319,9 @@ and uexp_to_info_map =
     | Deferral(position) =>
       add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
     | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
-    | CONST_RENAMEME(c) =>
+    | Atom(c) =>
       let c = Operators.replace_literal(c, ctx.use_mode); // Replace literal if necessary due to `use`
-      let ty = CONST_RENAMET(CONST_RENAMEMO.cls_of_t(c)) |> Typ.temp;
+      let ty = Atom(Atom.cls_of_t(c)) |> Typ.temp;
       atomic(Just(ty));
     | ListLit(es) =>
       let ids = List.map(Exp.rep_id, es);
@@ -395,10 +395,8 @@ and uexp_to_info_map =
           m,
         );
       | Defined(ty_in, ty_out, _) =>
-        let ty_in =
-          CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(ty_in)) |> Typ.temp;
-        let ty_out =
-          CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(ty_out)) |> Typ.temp;
+        let ty_in = Atom(Atom.cls_of_kind(ty_in)) |> Typ.temp;
+        let ty_out = Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp;
         let (e, m) = go(~ana=ty_in, e, m);
         add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
       };
@@ -415,10 +413,9 @@ and uexp_to_info_map =
           m,
         );
       | Defined(ty1, ty2, ty_out, _) =>
-        let ty1 = CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(ty1)) |> Typ.temp;
-        let ty2 = CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(ty2)) |> Typ.temp;
-        let ty_out =
-          CONST_RENAMET(CONST_RENAMEMO.cls_of_kind(ty_out)) |> Typ.temp;
+        let ty1 = Atom(Atom.cls_of_kind(ty1)) |> Typ.temp;
+        let ty2 = Atom(Atom.cls_of_kind(ty2)) |> Typ.temp;
+        let ty_out = Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp;
         let (e1, m) = go(~ana=ty1, e1, m);
         let (e2, m) = go(~ana=ty2, e2, m);
         add(
@@ -670,7 +667,7 @@ and uexp_to_info_map =
       | _ => add(~self=WantTuple, ~co_ctx=info_e2.co_ctx, m)
       };
     | Test(e) =>
-      let (e, m) = go(~mode=Ana(CONST_RENAMET(Bool) |> Typ.temp), e, m);
+      let (e, m) = go(~mode=Ana(Atom(Bool) |> Typ.temp), e, m);
       add(~self=Just(Prod([]) |> Typ.temp), ~co_ctx=e.co_ctx, m);
     | Filter(Filter({pat: cond, _}), body) =>
       let (cond, m) =
@@ -910,8 +907,7 @@ and uexp_to_info_map =
       );
     | If(e0, e1, e2) =>
       let branch_ids = List.map(Exp.rep_id, [e1, e2]);
-      let (cond, m) =
-        go(~mode=Ana(CONST_RENAMET(Bool) |> Typ.temp), e0, m);
+      let (cond, m) = go(~mode=Ana(Atom(Bool) |> Typ.temp), e0, m);
       let (cons, m) = go(~mode, e1, m);
       let (alt, m) = go(~mode, e2, m);
       add(
@@ -1059,8 +1055,8 @@ and uexp_to_info_map =
       let (typ, m) = utyp_to_info_map(~ctx, ~ancestors, typ, m);
       let use_mode: option(Operators.mode) =
         switch (typ.term |> Typ.weak_head_normalize(ctx) |> Typ.term_of) {
-        | CONST_RENAMET(Nat) => Some(Nat)
-        | CONST_RENAMET(Int) => Some(Int)
+        | Atom(Nat) => Some(Nat)
+        | Atom(Int) => Some(Int)
         | _ => None
         };
       let ctx' =
@@ -1262,32 +1258,26 @@ and upat_to_info_map =
       add(~self=IsMulti, ~ctx, ~constraint_=Coverage.Constraint.Hole, m);
     | Invalid(token) => hole(BadToken(token))
     | EmptyHole => hole(Just(unknown))
-    | CONST_RENAMEME(c) =>
+    | Atom(c) =>
       let c = Operators.replace_literal(c, ctx.use_mode);
       switch (c) {
       | Nat(nat) =>
-        atomic(
-          Just(CONST_RENAMET(Nat) |> Typ.temp),
-          Coverage.Constraint.Nat(nat),
-        )
+        atomic(Just(Atom(Nat) |> Typ.temp), Coverage.Constraint.Nat(nat))
       | Int(int) =>
-        atomic(
-          Just(CONST_RENAMET(Int) |> Typ.temp),
-          Coverage.Constraint.Int(int),
-        )
+        atomic(Just(Atom(Int) |> Typ.temp), Coverage.Constraint.Int(int))
       | Float(float) =>
         atomic(
-          Just(CONST_RENAMET(Float) |> Typ.temp),
+          Just(Atom(Float) |> Typ.temp),
           Coverage.Constraint.Float(float),
         )
       | Bool(bool) =>
         atomic(
-          Just(CONST_RENAMET(Bool) |> Typ.temp),
+          Just(Atom(Bool) |> Typ.temp),
           bool ? Coverage.Constraint.true_ : Coverage.Constraint.false_,
         )
       | String(string) =>
         atomic(
-          Just(CONST_RENAMET(String) |> Typ.temp),
+          Just(Atom(String) |> Typ.temp),
           Coverage.Constraint.String(string),
         )
       };
@@ -1631,7 +1621,7 @@ and utyp_to_info_map =
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
     add(m);
   | Unknown(_)
-  | CONST_RENAMET(_) => add(m)
+  | Atom(_) => add(m)
   | Var(_) =>
     /* Names are resolved in Info.status_typ */
     add(m)

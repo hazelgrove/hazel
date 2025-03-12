@@ -73,27 +73,27 @@ module Pervasives = {
     };
 
     let is_finite = d => {
-      let-unbox f = (CONST_RENAMEME(Float), d);
+      let-unbox f = (Atom(Float), d);
       Some(bool(Float.is_finite(f)));
     };
 
     let is_infinite = d => {
-      let-unbox f = (CONST_RENAMEME(Float), d);
+      let-unbox f = (Atom(Float), d);
       Some(bool(Float.is_infinite(f)));
     };
 
     let is_nan = d => {
-      let-unbox f = (CONST_RENAMEME(Float), d);
+      let-unbox f = (Atom(Float), d);
       Some(bool(Float.is_nan(f)));
     };
 
     let abs = d => {
-      let-unbox n = (CONST_RENAMEME(Int), d);
+      let-unbox n = (Atom(Int), d);
       Some(int(abs(n)));
     };
 
     let float_op = (fn, d) => {
-      let-unbox f = (CONST_RENAMEME(Float), d);
+      let-unbox f = (Atom(Float), d);
       Some(float(fn(f)));
     };
 
@@ -113,8 +113,8 @@ module Pervasives = {
 
     let int_mod = name =>
       binary((d1, d2) => {
-        let-unbox m = (CONST_RENAMEME(Int), d1);
-        let-unbox n = (CONST_RENAMEME(Int), d2);
+        let-unbox m = (Atom(Int), d1);
+        let-unbox n = (Atom(Int), d2);
         if (n == 0) {
           Some(
             dynamic_error_hole(
@@ -128,31 +128,31 @@ module Pervasives = {
       });
 
     let string_length = d => {
-      let-unbox s = (CONST_RENAMEME(String), d);
+      let-unbox s = (Atom(String), d);
       Some(int(String.length(s)));
     };
 
     let string_compare =
       binary((d1, d2) => {
-        let-unbox s1 = (CONST_RENAMEME(String), d1);
-        let-unbox s2 = (CONST_RENAMEME(String), d2);
+        let-unbox s1 = (Atom(String), d1);
+        let-unbox s2 = (Atom(String), d2);
         Some(int(String.compare(s1, s2)));
       });
 
     let string_trim = d => {
-      let-unbox s = (CONST_RENAMEME(String), d);
+      let-unbox s = (Atom(String), d);
       Some(string(String.trim(s)));
     };
 
     let string_of: DHExp.t => option(string) =
       d => {
-        let-unbox s = (CONST_RENAMEME(String), d);
+        let-unbox s = (Atom(String), d);
         Some(s);
       };
 
     let string_concat =
       binary((d1, d2) => {
-        let-unbox s1 = (CONST_RENAMEME(String), d1);
+        let-unbox s1 = (Atom(String), d1);
         let-unbox xs = (ListLit, d2);
         let* xs' = List.map(string_of, xs) |> Util.OptUtil.sequence;
         Some(string(String.concat(s1, xs')));
@@ -160,9 +160,9 @@ module Pervasives = {
 
     let string_sub = name =>
       ternary((d1, d2, d3) => {
-        let-unbox s = (CONST_RENAMEME(String), d1);
-        let-unbox idx = (CONST_RENAMEME(Int), d2);
-        let-unbox len = (CONST_RENAMEME(Int), d3);
+        let-unbox s = (Atom(String), d1);
+        let-unbox idx = (Atom(Int), d2);
+        let-unbox len = (Atom(Int), d3);
         try(Some(string(String.sub(s, idx, len)))) {
         | _ =>
           let d' = BuiltinFun(name) |> DHExp.fresh;
@@ -174,8 +174,8 @@ module Pervasives = {
 
     let string_split = _ =>
       binary((d1, d2) => {
-        let-unbox s = (CONST_RENAMEME(String), d1);
-        let-unbox sep = (CONST_RENAMEME(String), d2);
+        let-unbox s = (Atom(String), d1);
+        let-unbox sep = (Atom(String), d2);
         let split_str = Util.StringUtil.plain_split(sep, s);
         let split_str' = List.map(s => string(s), split_str);
         Some(list_lit(split_str'));
@@ -186,17 +186,16 @@ module Pervasives = {
 
   // Update src/haz3lmenhir/Lexer.mll when any new builtin is added
 
-  let of_atom_builtin = (b: CONST_RENAMEMO.builtin): builtin => {
+  let of_atom_builtin = (b: Atom.builtin): builtin => {
     switch (b) {
     | OneFun(k1, k2, f) =>
       Fn(
-        CONST_RENAMET(k1 |> CONST_RENAMEMO.cls_of_kind) |> Typ.fresh,
-        CONST_RENAMET(k2 |> CONST_RENAMEMO.cls_of_kind) |> Typ.fresh,
+        Atom(k1 |> Atom.cls_of_kind) |> Typ.fresh,
+        Atom(k2 |> Atom.cls_of_kind) |> Typ.fresh,
         (d: DHExp.t) => {
-          let-unbox x = (CONST_RENAMEME(k1), d);
+          let-unbox x = (Atom(k1), d);
           switch (f(x)) {
-          | L(x) =>
-            Some(CONST_RENAMEME(CONST_RENAMEMO.repack(k2, x)) |> Exp.fresh)
+          | L(x) => Some(Atom(Atom.repack(k2, x)) |> Exp.fresh)
           | R(_) => None
           };
         },
@@ -204,18 +203,17 @@ module Pervasives = {
     | TwoFun(k1, k2, k3, f) =>
       Fn(
         Prod([
-          CONST_RENAMET(k1 |> CONST_RENAMEMO.cls_of_kind) |> Typ.fresh,
-          CONST_RENAMET(k2 |> CONST_RENAMEMO.cls_of_kind) |> Typ.fresh,
+          Atom(k1 |> Atom.cls_of_kind) |> Typ.fresh,
+          Atom(k2 |> Atom.cls_of_kind) |> Typ.fresh,
         ])
         |> Typ.fresh,
-        CONST_RENAMET(k3 |> CONST_RENAMEMO.cls_of_kind) |> Typ.fresh,
+        Atom(k3 |> Atom.cls_of_kind) |> Typ.fresh,
         [@warning "-8"] (d: DHExp.t) => {
           let-unbox [x, y] = (Tuple(2), d);
-          let-unbox x = (CONST_RENAMEME(k1), x);
-          let-unbox y = (CONST_RENAMEME(k2), y);
+          let-unbox x = (Atom(k1), x);
+          let-unbox y = (Atom(k2), y);
           switch (f(x, y)) {
-          | L(x) =>
-            Some(CONST_RENAMEME(CONST_RENAMEMO.repack(k3, x)) |> Exp.fresh)
+          | L(x) => Some(Atom(Atom.repack(k3, x)) |> Exp.fresh)
           | R(_) => None
           };
         },
@@ -226,79 +224,49 @@ module Pervasives = {
   let builtins =
     Fresh.Typ.(
       VarMap.empty
-      |> const("infinity", CONST_RENAMET(Float), infinity)
-      |> const("neg_infinity", CONST_RENAMET(Float), neg_infinity)
-      |> const("nan", CONST_RENAMET(Float), nan)
-      |> const("epsilon_float", CONST_RENAMET(Float), epsilon_float)
-      |> const("pi", CONST_RENAMET(Float), pi)
-      |> const("max_int", CONST_RENAMET(Int), max_int)
-      |> const("min_int", CONST_RENAMET(Int), min_int)
-      |> fn(
-           "is_finite",
-           CONST_RENAMET(Float),
-           CONST_RENAMET(Bool),
-           is_finite,
-         )
-      |> fn(
-           "is_infinite",
-           CONST_RENAMET(Float),
-           CONST_RENAMET(Bool),
-           is_infinite,
-         )
-      |> fn("is_nan", CONST_RENAMET(Float), CONST_RENAMET(Bool), is_nan)
-      |> fn("abs", CONST_RENAMET(Int), CONST_RENAMET(Int), abs)
-      |> fn(
-           "abs_float",
-           CONST_RENAMET(Float),
-           CONST_RENAMET(Float),
-           abs_float,
-         )
-      |> fn("ceil", CONST_RENAMET(Float), CONST_RENAMET(Float), ceil)
-      |> fn("floor", CONST_RENAMET(Float), CONST_RENAMET(Float), floor)
-      |> fn("exp", CONST_RENAMET(Float), CONST_RENAMET(Float), exp)
-      |> fn("log", CONST_RENAMET(Float), CONST_RENAMET(Float), log)
-      |> fn("log10", CONST_RENAMET(Float), CONST_RENAMET(Float), log10)
-      |> fn("sqrt", CONST_RENAMET(Float), CONST_RENAMET(Float), sqrt)
-      |> fn("sin", CONST_RENAMET(Float), CONST_RENAMET(Float), sin)
-      |> fn("cos", CONST_RENAMET(Float), CONST_RENAMET(Float), cos)
-      |> fn("tan", CONST_RENAMET(Float), CONST_RENAMET(Float), tan)
-      |> fn("asin", CONST_RENAMET(Float), CONST_RENAMET(Float), asin)
-      |> fn("acos", CONST_RENAMET(Float), CONST_RENAMET(Float), acos)
-      |> fn("atan", CONST_RENAMET(Float), CONST_RENAMET(Float), atan)
-      |> fn(
-           "mod",
-           Prod([int(), int()]),
-           CONST_RENAMET(Int),
-           int_mod("mod"),
-         )
-      |> fn(
-           "string_length",
-           CONST_RENAMET(String),
-           CONST_RENAMET(Int),
-           string_length,
-         )
+      |> const("infinity", Atom(Float), infinity)
+      |> const("neg_infinity", Atom(Float), neg_infinity)
+      |> const("nan", Atom(Float), nan)
+      |> const("epsilon_float", Atom(Float), epsilon_float)
+      |> const("pi", Atom(Float), pi)
+      |> const("max_int", Atom(Int), max_int)
+      |> const("min_int", Atom(Int), min_int)
+      |> fn("is_finite", Atom(Float), Atom(Bool), is_finite)
+      |> fn("is_infinite", Atom(Float), Atom(Bool), is_infinite)
+      |> fn("is_nan", Atom(Float), Atom(Bool), is_nan)
+      |> fn("abs", Atom(Int), Atom(Int), abs)
+      |> fn("abs_float", Atom(Float), Atom(Float), abs_float)
+      |> fn("ceil", Atom(Float), Atom(Float), ceil)
+      |> fn("floor", Atom(Float), Atom(Float), floor)
+      |> fn("exp", Atom(Float), Atom(Float), exp)
+      |> fn("log", Atom(Float), Atom(Float), log)
+      |> fn("log10", Atom(Float), Atom(Float), log10)
+      |> fn("sqrt", Atom(Float), Atom(Float), sqrt)
+      |> fn("sin", Atom(Float), Atom(Float), sin)
+      |> fn("cos", Atom(Float), Atom(Float), cos)
+      |> fn("tan", Atom(Float), Atom(Float), tan)
+      |> fn("asin", Atom(Float), Atom(Float), asin)
+      |> fn("acos", Atom(Float), Atom(Float), acos)
+      |> fn("atan", Atom(Float), Atom(Float), atan)
+      |> fn("mod", Prod([int(), int()]), Atom(Int), int_mod("mod"))
+      |> fn("string_length", Atom(String), Atom(Int), string_length)
       |> fn(
            "string_compare",
            Prod([string(), string()]),
-           CONST_RENAMET(Int),
+           Atom(Int),
            string_compare,
          )
-      |> fn(
-           "string_trim",
-           CONST_RENAMET(String),
-           CONST_RENAMET(String),
-           string_trim,
-         )
+      |> fn("string_trim", Atom(String), Atom(String), string_trim)
       |> fn(
            "string_concat",
            Prod([string(), list(string())]),
-           CONST_RENAMET(String),
+           Atom(String),
            string_concat,
          )
       |> fn(
            "string_sub",
            Prod([string(), int(), int()]),
-           CONST_RENAMET(String),
+           Atom(String),
            string_sub("string_sub"),
          )
       |> fn(
@@ -312,7 +280,7 @@ module Pervasives = {
          _,
          List.map(
            ((n, b)) => (n, of_atom_builtin(b)),
-           CONST_RENAMEMO.converter_builtins,
+           Atom.converter_builtins,
          ),
        )
     |> VarMap.concat(

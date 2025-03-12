@@ -3,7 +3,7 @@ open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
-  | CONST_RENAMET(CONST_RENAMEMO.cls)
+  | Atom(Atom.cls)
   | Invalid
   | EmptyHole
   | MultiHole
@@ -81,7 +81,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Unknown(Hole(MultiHole(_))) => MultiHole
   | Unknown(SynSwitch) => SynSwitch
   | Unknown(Internal) => Internal
-  | CONST_RENAMET(c) => CONST_RENAMET(c)
+  | Atom(c) => Atom(c)
   | List(_) => List
   | Arrow(_) => Arrow
   | Var(_) => Var
@@ -101,7 +101,7 @@ let show_cls: cls => string =
   | EmptyHole => "Empty type hole"
   | SynSwitch => "Synthetic type"
   | Internal => "Internal type"
-  | CONST_RENAMET(_) => "Base type"
+  | Atom(_) => "Base type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
   | List => "List type"
@@ -121,7 +121,7 @@ let rec is_arrow = (typ: t) => {
   | TupLabel(_, typ) => is_arrow(typ)
   | Arrow(_) => true
   | Unknown(_)
-  | CONST_RENAMET(_)
+  | Atom(_)
   | List(_)
   | Label(_)
   | Prod(_)
@@ -139,7 +139,7 @@ let rec is_forall = (typ: t) => {
   | TupLabel(_, typ) => is_forall(typ)
   | Forall(_) => true
   | Unknown(_)
-  | CONST_RENAMET(_)
+  | Atom(_)
   | Arrow(_)
   | List(_)
   | Label(_)
@@ -201,7 +201,7 @@ let rec match_tup_label = ty =>
 let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (term_of(ty)) {
   | Unknown(_)
-  | CONST_RENAMET(_)
+  | Atom(_)
   | Label(_) => []
   | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Var(v) => List.mem(v, bound) ? [] : [v]
@@ -291,8 +291,8 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
      second type to preserve synthesized type variable names, which
      come from user annotations. */
   | (Forall(_), _) => None
-  | (CONST_RENAMET(c1), CONST_RENAMET(c2)) when c1 == c2 => Some(ty1)
-  | (CONST_RENAMET(_), _) => None
+  | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
+  | (Atom(_), _) => None
   | (Label(_), Label("")) => Some(ty1)
   | (Label(""), Label(_)) => Some(ty2)
   | (Label(name1), Label(name2))
@@ -339,7 +339,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Unknown(SynSwitch), _) => t2
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
-  | (CONST_RENAMET(_), _)
+  | (Atom(_), _)
   | (Label(_), _)
   | (Var(_), _)
   | (Ap(_), _)
@@ -399,7 +399,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
     | None => ty
     }
   | Unknown(_)
-  | CONST_RENAMET(_)
+  | Atom(_)
   | Label(_) => ty
   | Parens(t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
@@ -653,7 +653,7 @@ let rec needs_parens = (ty: t): bool =>
   | Parens(ty) => needs_parens(ty)
   | Ap(_)
   | Unknown(_)
-  | CONST_RENAMET(_)
+  | Atom(_)
   | Label(_)
   | TupLabel(_, _)
   | List(_) /* is already wrapped in [] */
@@ -679,11 +679,11 @@ let rec pretty_print = (ty: t): string =>
   | Parens(ty) => pretty_print(ty)
   | Ap(_)
   | Unknown(_) => "?"
-  | CONST_RENAMET(Int) => "Int"
-  | CONST_RENAMET(Float) => "Float"
-  | CONST_RENAMET(Bool) => "Bool"
-  | CONST_RENAMET(String) => "String"
-  | CONST_RENAMET(Nat) => "Nat"
+  | Atom(Int) => "Int"
+  | Atom(Float) => "Float"
+  | Atom(Bool) => "Bool"
+  | Atom(String) => "String"
+  | Atom(Nat) => "Nat"
   | Var(tvar) => tvar
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)

@@ -222,7 +222,7 @@ and Exp: {
         switch (term) {
         | EmptyHole
         | Invalid(_)
-        | CONST_RENAMEME(_)
+        | Atom(_)
         | Constructor(_)
         | Label(_)
         | Deferral(_)
@@ -306,7 +306,7 @@ and Exp: {
       && Typ.fast_equal(t1, t3)
       && Typ.fast_equal(t2, t4)
     | (Deferral(d1), Deferral(d2)) => d1 == d2
-    | (CONST_RENAMEME(c1), CONST_RENAMEME(c2)) => c1 == c2
+    | (Atom(c1), Atom(c2)) => c1 == c2
     | (Label(l1), Label(l2)) => l1 == l2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
@@ -378,7 +378,7 @@ and Exp: {
     | (Invalid(_), _)
     | (FailedCast(_), _)
     | (Deferral(_), _)
-    | (CONST_RENAMEME(_), _)
+    | (Atom(_), _)
     | (Label(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
@@ -462,7 +462,7 @@ and Pat: {
         | EmptyHole
         | Invalid(_)
         | Wild
-        | CONST_RENAMEME(_)
+        | Atom(_)
         | Constructor(_)
         | Label(_)
         | Var(_) => term
@@ -496,7 +496,7 @@ and Pat: {
       && List.equal(Any.fast_equal, xs, ys)
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (Wild, Wild) => true
-    | (CONST_RENAMEME(c1), CONST_RENAMEME(c2)) => c1 == c2
+    | (Atom(c1), Atom(c2)) => c1 == c2
     | (Label(s1), Label(s2)) => s1 == s2
     | (Constructor(c1, Some(Some(t1))), Constructor(c2, Some(Some(t2)))) =>
       c1 == c2 && Typ.fast_equal(t1, t2)
@@ -518,7 +518,7 @@ and Pat: {
     | (MultiHole(_), _)
     | (Invalid(_), _)
     | (Wild, _)
-    | (CONST_RENAMEME(_), _)
+    | (Atom(_), _)
     | (Label(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
@@ -587,7 +587,7 @@ and Typ: {
         | Unknown(Hole(Invalid(_)))
         | Unknown(SynSwitch)
         | Unknown(Internal)
-        | CONST_RENAMET(_)
+        | Atom(_)
         | Label(_)
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
@@ -622,7 +622,7 @@ and Typ: {
     | Some(str) =>
       let (term, rewrap) = Grammar.Annotated.unwrap(ty);
       switch (term) {
-      | CONST_RENAMET(_) => ty
+      | Atom(_) => ty
       | Label(name) => Grammar.Label(name) |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
@@ -680,8 +680,8 @@ and Typ: {
       }
     | (Rec(_), _) => false
     | (Forall(_), _) => false
-    | (CONST_RENAMET(name1), CONST_RENAMET(name2)) => name1 == name2
-    | (CONST_RENAMET(_), _) => false
+    | (Atom(name1), Atom(name2)) => name1 == name2
+    | (Atom(_), _) => false
     | (Label(name1), Label(name2)) =>
       LabeledTuple.match_labels(name1, name2)
     | (Label(_), _) => false

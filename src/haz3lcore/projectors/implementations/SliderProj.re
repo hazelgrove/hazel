@@ -10,7 +10,7 @@ module M: Projector = {
 
   let int_of = (any: Any.t): option(int) =>
     switch (any) {
-    | Exp({term: CONST_RENAMEME(Int(i)), _}) => Some(i)
+    | Exp({term: Atom(Int(i)), _}) => Some(i)
     | _ => None
     };
 
@@ -35,7 +35,7 @@ module M: Projector = {
         | Exp(t) =>
           Exp({
             ...t,
-            term: CONST_RENAMEME(Int(int_of_string(v))),
+            term: Atom(Int(int_of_string(v))),
           })
         | _ => failwith("Slider: Put: not integer literal"),
         info.syntax,

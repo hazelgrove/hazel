@@ -14,11 +14,11 @@ module Typ = {
   let unk: Typ.t = Unknown(Internal) |> Typ.fresh;
 
   let of_const_mono_delim: list((Token.t, Typ.t)) = [
-    ("true", CONST_RENAMET(Bool) |> Typ.fresh),
-    ("false", CONST_RENAMET(Bool) |> Typ.fresh),
+    ("true", Atom(Bool) |> Typ.fresh),
+    ("false", Atom(Bool) |> Typ.fresh),
     //("[]", List(unk)), / *NOTE: would need to refactor buffer for this to show up */
     //("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
-    ("\"\"", CONST_RENAMET(String) |> Typ.fresh), /* NOTE: Irrelevent as second quote appears automatically */
+    ("\"\"", Atom(String) |> Typ.fresh), /* NOTE: Irrelevent as second quote appears automatically */
     ("_", unk),
   ];
 
@@ -41,34 +41,34 @@ module Typ = {
     //("::", List(unk)), /* annoying in patterns. TODO: add codepath to show only if Ana(List(_)) */
     ("@", List(unk)),
     (";", Unknown(Internal)),
-    ("&&", CONST_RENAMET(Bool)),
-    ("\\/", CONST_RENAMET(Bool)),
-    ("||", CONST_RENAMET(Bool)),
-    ("$==", CONST_RENAMET(Bool)),
-    ("==.", CONST_RENAMET(Bool)),
-    ("==", CONST_RENAMET(Bool)),
-    ("!", CONST_RENAMET(Bool)),
-    //("!=", CONST_RENAMET(Bool)), /* annoying as != is more common */
-    //("!=.", CONST_RENAMET(Bool)), /* annoying as != is more common */
-    ("<", CONST_RENAMET(Bool)),
-    (">", CONST_RENAMET(Bool)),
-    ("<=", CONST_RENAMET(Bool)),
-    (">=", CONST_RENAMET(Bool)),
-    ("<.", CONST_RENAMET(Bool)),
-    (">.", CONST_RENAMET(Bool)),
-    ("<=.", CONST_RENAMET(Bool)),
-    (">=.", CONST_RENAMET(Bool)),
-    ("+", CONST_RENAMET(Int)),
-    ("-", CONST_RENAMET(Int)),
-    ("*", CONST_RENAMET(Int)),
-    ("/", CONST_RENAMET(Int)),
-    ("**", CONST_RENAMET(Int)),
-    ("+.", CONST_RENAMET(Float)),
-    ("-.", CONST_RENAMET(Float)),
-    ("*.", CONST_RENAMET(Float)),
-    ("/.", CONST_RENAMET(Float)),
-    ("**.", CONST_RENAMET(Float)),
-    ("++", CONST_RENAMET(String)),
+    ("&&", Atom(Bool)),
+    ("\\/", Atom(Bool)),
+    ("||", Atom(Bool)),
+    ("$==", Atom(Bool)),
+    ("==.", Atom(Bool)),
+    ("==", Atom(Bool)),
+    ("!", Atom(Bool)),
+    //("!=", Atom(Bool)), /* annoying as != is more common */
+    //("!=.", Atom(Bool)), /* annoying as != is more common */
+    ("<", Atom(Bool)),
+    (">", Atom(Bool)),
+    ("<=", Atom(Bool)),
+    (">=", Atom(Bool)),
+    ("<.", Atom(Bool)),
+    (">.", Atom(Bool)),
+    ("<=.", Atom(Bool)),
+    (">=.", Atom(Bool)),
+    ("+", Atom(Int)),
+    ("-", Atom(Int)),
+    ("*", Atom(Int)),
+    ("/", Atom(Int)),
+    ("**", Atom(Int)),
+    ("+.", Atom(Float)),
+    ("-.", Atom(Float)),
+    ("*.", Atom(Float)),
+    ("/.", Atom(Float)),
+    ("**.", Atom(Float)),
+    ("++", Atom(String)),
   ];
 
   let expected: Info.t => Typ.t =

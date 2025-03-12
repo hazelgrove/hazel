@@ -300,7 +300,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d => Test(d) |> rewrap)
       and. d' = req_final(req(state, env), d => Test(d) |> wrap_ctx, d'');
       let result: TestStatus.t =
-        switch (Unboxing.unbox(CONST_RENAMEME(Bool), d')) {
+        switch (Unboxing.unbox(Atom(Bool), d')) {
         | DoesNotMatch
         | IndetMatch => Indet
         | Matches(b) => b ? Pass : Fail
@@ -462,7 +462,7 @@ module Transition = (EV: EV_MODE) => {
     | Deferral(_) =>
       let. _ = otherwise(env, d);
       Indet;
-    | CONST_RENAMEME(_)
+    | Atom(_)
     | Label(_)
     | Constructor(_)
     | BuiltinFun(_) =>
@@ -473,7 +473,7 @@ module Transition = (EV: EV_MODE) => {
       and. c' =
         req_final(req(state, env), c => If1(c, d1, d2) |> wrap_ctx, c);
       let.wrap_closure _ = env;
-      let-unbox b = (CONST_RENAMEME(Bool), c');
+      let-unbox b = (Atom(Bool), c');
       Step({
         expr: {
           b ? d1 : d2;
@@ -493,13 +493,12 @@ module Transition = (EV: EV_MODE) => {
       switch (Operators.semantics_of_un_op(op)) {
       | Undefined => Indet
       | Defined(in_ty, out_ty, f) =>
-        let-unbox n = (CONST_RENAMEME(in_ty), d1');
+        let-unbox n = (Atom(in_ty), d1');
         let expr =
           switch (f(n)) {
           | Either.L(return_value) =>
             // operator was successful
-            CONST_RENAMEME(CONST_RENAMEMO.repack(out_ty, return_value))
-            |> Exp.fresh
+            Atom(Atom.repack(out_ty, return_value)) |> Exp.fresh
           | Either.R(error) =>
             // e.g. divide by zero
             dynamic_error_hole(UnOp(op, d1) |> rewrap, error)
@@ -520,7 +519,7 @@ module Transition = (EV: EV_MODE) => {
           d1,
         );
       let.wrap_closure _ = env;
-      let-unbox b1 = (CONST_RENAMEME(Bool), d1');
+      let-unbox b1 = (Atom(Bool), d1');
       Step({
         expr: b1 ? d2 : bool(false),
         state_update,
@@ -536,7 +535,7 @@ module Transition = (EV: EV_MODE) => {
           d1,
         );
       let.wrap_closure _ = env;
-      let-unbox b1 = (CONST_RENAMEME(Bool), d1');
+      let-unbox b1 = (Atom(Bool), d1');
       Step({
         expr: b1 ? bool(true) : d2,
         state_update,
@@ -557,14 +556,13 @@ module Transition = (EV: EV_MODE) => {
       switch (Operators.semantics_of_bin_op(op)) {
       | Undefined => Indet
       | Defined(in_ty1, in_ty2, out_ty, f) =>
-        let-unbox n1 = (CONST_RENAMEME(in_ty1), d1);
-        let-unbox n2 = (CONST_RENAMEME(in_ty2), d2);
+        let-unbox n1 = (Atom(in_ty1), d1);
+        let-unbox n2 = (Atom(in_ty2), d2);
         let expr =
           switch (f(n1, n2)) {
           | Either.L(return_value) =>
             // operator was successful
-            CONST_RENAMEME(CONST_RENAMEMO.repack(out_ty, return_value))
-            |> Exp.fresh
+            Atom(Atom.repack(out_ty, return_value)) |> Exp.fresh
           | Either.R(error) =>
             // e.g. divide by zero
             dynamic_error_hole(BinOp(op, d1, d2) |> rewrap, error)

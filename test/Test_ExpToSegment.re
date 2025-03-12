@@ -85,7 +85,7 @@ let tests = (
               children: [],
             }),
           ],
-          exp_to_segment(Exp.temp(CONST_RENAMEME(Int(1)))),
+          exp_to_segment(Exp.temp(Atom(Int(1)))),
         );
         check(
           segment,
@@ -99,7 +99,7 @@ let tests = (
               children: [],
             }),
           ],
-          exp_to_segment(Exp.temp(CONST_RENAMEME(String("hello")))),
+          exp_to_segment(Exp.temp(Atom(String("hello")))),
         );
       },
     ),
@@ -121,7 +121,7 @@ let tests = (
               Cast(
                 ListLit([]) |> Pat.fresh,
                 Sum([Variant("Jg", [], None)]) |> Typ.fresh,
-                CONST_RENAMET(Float) |> Typ.fresh,
+                Atom(Float) |> Typ.fresh,
               )
               |> Pat.fresh,
               EmptyHole |> Exp.fresh,
@@ -164,10 +164,7 @@ let tests = (
           Some(
             exp_to_segment(
               Exp.temp(
-                Tuple([
-                  Exp.temp(CONST_RENAMEME(Int(1))),
-                  Exp.temp(CONST_RENAMEME(Int(2))),
-                ]),
+                Tuple([Exp.temp(Atom(Int(1))), Exp.temp(Atom(Int(2)))]),
               ),
             ),
           ),
@@ -189,7 +186,7 @@ let tests = (
                   Exp.temp(
                     TupLabel(
                       Exp.temp(Label("x")),
-                      Exp.temp(CONST_RENAMEME(Int(1))),
+                      Exp.temp(Atom(Int(1))),
                     ),
                   ),
                 ]),
@@ -216,11 +213,11 @@ let tests = (
               [
                 (
                   Constructor("A", None) |> Pat.fresh,
-                  CONST_RENAMEME(Int(1)) |> Exp.fresh,
+                  Atom(Int(1)) |> Exp.fresh,
                 ),
                 (
                   Constructor("B", None) |> Pat.fresh,
-                  CONST_RENAMEME(Int(2)) |> Exp.fresh,
+                  Atom(Int(2)) |> Exp.fresh,
                 ),
               ],
             )
@@ -245,8 +242,8 @@ let tests = (
             DeferredAp(
               Var("string_sub") |> Exp.fresh,
               [
-                CONST_RENAMEME(String("hello")) |> Exp.fresh,
-                CONST_RENAMEME(Int(1)) |> Exp.fresh,
+                Atom(String("hello")) |> Exp.fresh,
+                Atom(Int(1)) |> Exp.fresh,
                 Deferral(InAp) |> Exp.fresh,
               ],
             )
@@ -267,9 +264,7 @@ let tests = (
       `Quick,
       () => {
         let segment =
-          segmentize(
-            Test(CONST_RENAMEME(Bool(true)) |> Exp.fresh) |> Exp.fresh,
-          );
+          segmentize(Test(Atom(Bool(true)) |> Exp.fresh) |> Exp.fresh);
         let serialized = Printer.of_segment(~holes=Some("?"), segment);
 
         check(string, "Test of true", {|test true end|}, serialized);
@@ -282,11 +277,8 @@ let tests = (
         let segment =
           segmentize(
             Filter(
-              Filter({
-                pat: CONST_RENAMEME(Int(1)) |> Exp.fresh,
-                act: (Step, One),
-              }),
-              CONST_RENAMEME(Int(2)) |> Exp.fresh,
+              Filter({pat: Atom(Int(1)) |> Exp.fresh, act: (Step, One)}),
+              Atom(Int(2)) |> Exp.fresh,
             )
             |> Exp.fresh,
           );
@@ -307,11 +299,11 @@ let tests = (
             segmentize(
               BinOp(
                 Int(Power),
-                CONST_RENAMEME(Int(2)) |> Exp.fresh,
+                Atom(Int(2)) |> Exp.fresh,
                 BinOp(
                   Int(Power),
-                  CONST_RENAMEME(Int(3)) |> Exp.fresh,
-                  CONST_RENAMEME(Int(4)) |> Exp.fresh,
+                  Atom(Int(3)) |> Exp.fresh,
+                  Atom(Int(4)) |> Exp.fresh,
                 )
                 |> Exp.fresh,
               )
@@ -330,11 +322,11 @@ let tests = (
                 Int(Power),
                 BinOp(
                   Int(Power),
-                  CONST_RENAMEME(Int(2)) |> Exp.fresh,
-                  CONST_RENAMEME(Int(3)) |> Exp.fresh,
+                  Atom(Int(2)) |> Exp.fresh,
+                  Atom(Int(3)) |> Exp.fresh,
                 )
                 |> Exp.fresh,
-                CONST_RENAMEME(Int(4)) |> Exp.fresh,
+                Atom(Int(4)) |> Exp.fresh,
               )
               |> Exp.fresh,
             ),
@@ -350,15 +342,12 @@ let tests = (
               TyAlias(
                 Var("x") |> TPat.fresh,
                 Arrow(
-                  Arrow(
-                    CONST_RENAMET(Int) |> Typ.fresh,
-                    CONST_RENAMET(Bool) |> Typ.fresh,
-                  )
+                  Arrow(Atom(Int) |> Typ.fresh, Atom(Bool) |> Typ.fresh)
                   |> Typ.fresh,
                   Var("x") |> Typ.fresh,
                 )
                 |> Typ.fresh,
-                CONST_RENAMEME(Int(1)) |> Exp.fresh,
+                Atom(Int(1)) |> Exp.fresh,
               )
               |> Exp.fresh,
             ),

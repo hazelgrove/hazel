@@ -17,7 +17,7 @@ let flat_ellipses_term_pat = (): TermBase.pat_t =>
 let is_flat_ellipses = (term: IdTagged.t(Exp.term)): bool =>
   switch (term.term) {
   | Invalid(s) => s == flat_ellipses
-  | CONST_RENAMEME(String(s)) => s == flat_ellipses
+  | Atom(String(s)) => s == flat_ellipses
   | Constructor(s, _) => s == flat_ellipses
   | Var(s) => s == flat_ellipses
   | _ => false
@@ -127,10 +127,10 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
 
     // Atomic string cases
     | Invalid(x) => Invalid(abbreviate_str(available^, x))
-    | CONST_RENAMEME(String(s)) =>
+    | Atom(String(s)) =>
       let str = abbreviate_str(available^, s);
       available := available^ - 2; // for quotes in printed representation
-      CONST_RENAMEME(String(str));
+      Atom(String(str));
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
     | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)
@@ -141,12 +141,11 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
     | Tuple([]) => Tuple([])
     | Deferral(pos) => Deferral(pos)
     | Undefined => wrap_or(Undefined, "undefined")
-    | CONST_RENAMEME(Bool(b)) =>
-      wrap_or(CONST_RENAMEME(Bool(b)), string_of_bool(b))
-    | CONST_RENAMEME(Int(n) | Nat(n)) =>
+    | Atom(Bool(b)) => wrap_or(Atom(Bool(b)), string_of_bool(b))
+    | Atom(Int(n) | Nat(n)) =>
       //TODO: smarter number summarization?
-      wrap_or(CONST_RENAMEME(Int(n)), string_of_int(n))
-    | CONST_RENAMEME(Float(f)) =>
+      wrap_or(Atom(Int(n)), string_of_int(n))
+    | Atom(Float(f)) =>
       Invalid(abbreviate_str(available^, string_of_float(f)))
 
     // composite literal cases
@@ -621,18 +620,15 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
     | Wild => Wild
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
-    | CONST_RENAMEME(Int(n)) =>
-      wrap_or(CONST_RENAMEME(Int(n)), string_of_int(n))
-    | CONST_RENAMEME(Nat(n)) =>
-      wrap_or(CONST_RENAMEME(Nat(n)), string_of_int(n))
-    | CONST_RENAMEME(Float(f)) =>
+    | Atom(Int(n)) => wrap_or(Atom(Int(n)), string_of_int(n))
+    | Atom(Nat(n)) => wrap_or(Atom(Nat(n)), string_of_int(n))
+    | Atom(Float(f)) =>
       Invalid(abbreviate_str(available^, string_of_float(f)))
-    | CONST_RENAMEME(String(s)) =>
+    | Atom(String(s)) =>
       let str = abbreviate_str(available^, s);
       available := available^ - 2; // for quotes in printed representation
-      CONST_RENAMEME(String(str));
-    | CONST_RENAMEME(Bool(b)) =>
-      wrap_or(CONST_RENAMEME(Bool(b)), string_of_bool(b))
+      Atom(String(str));
+    | Atom(Bool(b)) => wrap_or(Atom(Bool(b)), string_of_bool(b))
     | Cons(p1, p2) =>
       if (available^ < 4) {
         indet_term_pat;
@@ -772,35 +768,35 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
   let term: Typ.term =
     switch (typ |> Typ.term_of) {
     | Unknown(prov) => Unknown(prov)
-    | CONST_RENAMET(Int) =>
+    | Atom(Int) =>
       if (available^ < 3) {
         indet_term_typ;
       } else {
-        CONST_RENAMET(Int);
+        Atom(Int);
       }
-    | CONST_RENAMET(Nat) =>
+    | Atom(Nat) =>
       if (available^ < 3) {
         indet_term_typ;
       } else {
-        CONST_RENAMET(Nat);
+        Atom(Nat);
       }
-    | CONST_RENAMET(Float) =>
+    | Atom(Float) =>
       if (available^ < 5) {
         indet_term_typ;
       } else {
-        CONST_RENAMET(Float);
+        Atom(Float);
       }
-    | CONST_RENAMET(Bool) =>
+    | Atom(Bool) =>
       if (available^ < 4) {
         indet_term_typ;
       } else {
-        CONST_RENAMET(Bool);
+        Atom(Bool);
       }
-    | CONST_RENAMET(String) =>
+    | Atom(String) =>
       if (available^ < 6) {
         indet_term_typ;
       } else {
-        CONST_RENAMET(String);
+        Atom(String);
       }
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
