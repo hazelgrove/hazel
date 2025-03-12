@@ -81,7 +81,7 @@ let go_z =
       let* (p, _, _) = Indicated.piece''(z);
       Piece.is_term(p)
         ? Select.parent_of_indicated(z, statics.info_map)
-        : Select.current_term_psuedo(z);
+        : Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z);
     | _ => None
     };
   };
@@ -119,7 +119,7 @@ let go_z =
     ProjectorPerform.go(
       Move.jump_to_id_indicated,
       Move.jump_to_side_of_id,
-      Select.current_term,
+      Select.current_term(~defs_exclude_bodies=false, ~case_rules=false),
       a,
       z,
     )
@@ -153,7 +153,9 @@ let go_z =
     | None => Error(Action.Failure.Cant_select)
     };
   | Select(Term(Current)) =>
-    switch (Select.current_term(z)) {
+    switch (
+      Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z)
+    ) {
     | None => Error(Cant_select)
     | Some(z) => Ok(z)
     }

@@ -89,11 +89,6 @@ module Make = (M: Move.S) => {
     };
   };
 
-  let current_term = (z: Zipper.t): option(Zipper.t) => {
-    let* id = current_term_id(z);
-    term(id, z);
-  };
-
   let grow_right_until_case_or_rule =
     Move.do_until(go(Local(Right(ByToken))), Piece.is_case_or_rule);
 
@@ -109,15 +104,19 @@ module Make = (M: Move.S) => {
     shrink_left_until_not_case_or_rule_or_space(z);
   };
 
-  let current_term_psuedo = (z: Zipper.t) => {
-    /* Similar to current_term, except that we consider case rules
-     * and let/type definitions (without their bodies) to be 'pseudoterms',
-     * currently used for purposes of term-based selection. */
+  /* Select the currently indicated term. Optionally, we can consider
+   * definitions to not include their bodies, and we can consider case
+   * rules as separate pseudo-terms. */
+  let current_term =
+      (~defs_exclude_bodies: bool, ~case_rules: bool, z: Zipper.t) => {
     let* (p, _, _) = Indicated.piece''(z);
     switch (p) {
-    | Tile({label: ["let" | "type", ..._], _}) => current_tile(z)
-    | Tile({label: ["|", "=>"], _}) => containing_rule(z)
-    | _ => current_term(z)
+    | Tile({label: ["let" | "type", ..._], _}) when defs_exclude_bodies =>
+      current_tile(z)
+    | Tile({label: ["|", "=>"], _}) when case_rules => containing_rule(z)
+    | _ =>
+      let* id = current_term_id(z);
+      term(id, z);
     };
   };
 
@@ -181,6 +180,22 @@ module Make = (M: Move.S) => {
     };
   };
 
+  /* If the indicated term is the body of a definition
+   * (let or type), return the id of the body, otherwise None */
+  let def_body_indicated =
+      (z: Zipper.t, info_map: Statics.Map.t): option(Id.t) => {
+    let* id = Indicated.index(z);
+    let* statics = Statics.Map.lookup(id, info_map);
+    let* parent_id = statics |> Info.ancestors_of |> ListUtil.hd_opt;
+    let* ci_parent = Statics.Map.lookup(parent_id, info_map);
+    switch (ci_parent) {
+    | InfoExp({term: {term: Let(_, _, body) | TyAlias(_, _, body), _}, _}) =>
+      let body_id = IdTagged.rep_id(body);
+      id == body_id ? Some(body_id) : None;
+    | _ => None
+    };
+  };
+
   let parent_id = (z: Zipper.t, info_map) => {
     let* base_id = Indicated.index(z);
     /* Rules aren't counted as terms in the base syntax,
@@ -195,7 +210,20 @@ module Make = (M: Move.S) => {
 
   let parent_of_indicated = (z: Zipper.t, info_map) => {
     let* id = parent_id(z, info_map);
-    let* z = Move.jump_to_id_indicated(z, id);
-    current_term_psuedo(z);
+    let* z' = Move.jump_to_id_indicated(z, id);
+    /* Annoying special case here: In general when selecting the parent term
+     * we can just use the current term logic, for which we're using the option
+     * that definitions count as 'pseudo-terms', meaning their bodies won't be
+     * selected. But if the indicated term is the body of a definition, this
+     * would result in the parent selection excluding that body, which feels
+     * very weird. Take care in refactoring this, as it's very easy to miss
+     * this case, or to overgeneralize this case (note in particular that
+     * the name and def terms of a def should not exhibit this behavior,
+     * only the body. */
+    switch (def_body_indicated(z, info_map)) {
+    | Some(_) =>
+      current_term(~defs_exclude_bodies=false, ~case_rules=true, z')
+    | None => current_term(~defs_exclude_bodies=true, ~case_rules=true, z')
+    };
   };
 };

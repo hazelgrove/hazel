@@ -203,12 +203,21 @@ let prevent_in_read_only_editor = (a: t) => {
   };
 };
 
-/* Currently animations are disabled during selection
- * to paper over a weird interaction with scroll-to-caret */
+/* Currently animations are disabled during drag selection
+ * to paper over a weird interaction with scroll-to-caret.
+ * There is assuredly a better way to handle it but the
+ * approaches I tried weren't wholly successful. */
 let should_animate: t => bool =
   fun
-  | Select(_)
-  | Unselect(_) => false
+  | Select(s) =>
+    switch (s) {
+    | Resize(_) => false
+    | All
+    | Smart(_)
+    | Tile(_)
+    | Term(_) => true
+    }
+  | Unselect(_)
   | Paste(_)
   | Cut
   | Reparse
@@ -221,13 +230,5 @@ let should_animate: t => bool =
   | Move(_)
   | Jump(_)
   | RotateBackpack
-  | MoveToBackpackTarget(_) => true
-  | Project(p) =>
-    switch (p) {
-    | SetSyntax(_)
-    | SetModel(_)
-    | SetIndicated(_)
-    | RemoveIndicated
-    | Focus(_)
-    | Escape(_) => true
-    };
+  | MoveToBackpackTarget(_)
+  | Project(_) => true;
