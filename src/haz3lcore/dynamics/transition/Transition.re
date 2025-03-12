@@ -871,7 +871,7 @@ let stepper_justification: step_kind => string =
   | DeferredAp => "deferred application"
   | BuiltinWrap => "wrap builtin"
   | BuiltinAp(s) => "evaluate " ++ s
-  | UnOp(Int(Minus) | Nat(Minus))
+  | UnOp(Int(Minus) | Nat(Minus) | Float(Minus))
   | BinOp(Nat(Plus | Minus | Times | Power | Divide))
   | BinOp(Float(Plus | Minus | Times | Power | Divide))
   | BinOp(Int(Plus | Minus | Times | Power | Divide)) => "arithmetic"

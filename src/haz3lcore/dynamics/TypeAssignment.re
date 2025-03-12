@@ -284,7 +284,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
       let ty_out = Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp;
       Typ.equal(ty1, ty1') && Typ.equal(ty2, ty2') ? Some(ty_out) : None;
     };
-  | UnOp(Int(Minus) | Nat(Minus), d) =>
+  | UnOp(Int(Minus) | Nat(Minus) | Float(Minus), d) =>
     let* ty = typ_of_dhexp(ctx, m, d);
     Typ.equal(ty, Atom(Int) |> Typ.temp)
       ? Some(Atom(Int) |> Typ.temp) : None;
