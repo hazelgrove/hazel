@@ -1265,9 +1265,17 @@ and upat_to_info_map =
       let c = Operators.replace_literal(c, ctx.use_mode);
       switch (c) {
       | Nat(nat) =>
-        atomic(Just(Atom(Nat) |> Typ.temp), Coverage.Constraint.Nat(nat))
+        atomic(
+          Just(Atom(Nat) |> Typ.temp),
+          Coverage.Constraint.BigInt(nat),
+        )
       | Int(int) =>
-        atomic(Just(Atom(Int) |> Typ.temp), Coverage.Constraint.Int(int))
+        atomic(
+          Just(Atom(Int) |> Typ.temp),
+          Coverage.Constraint.BigInt(int),
+        )
+      | SInt(int) =>
+        atomic(Just(Atom(Int) |> Typ.temp), Coverage.Constraint.SInt(int))
       | Float(float) =>
         atomic(
           Just(Atom(Float) |> Typ.temp),

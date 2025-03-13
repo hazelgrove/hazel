@@ -54,8 +54,8 @@ module Pervasives = {
     let nan = float(Float.nan);
     let epsilon_float = float(epsilon_float);
     let pi = float(Float.pi);
-    let max_int = int(Int.max_int);
-    let min_int = int(Int.min_int);
+    let max_int = sint(Int.max_int);
+    let min_int = sint(Int.min_int);
 
     [@warning "-8"]
     // let-unbox guarantees that the tuple will have length 2
@@ -89,7 +89,7 @@ module Pervasives = {
 
     let abs = d => {
       let-unbox n = (Atom(Int), d);
-      Some(int(abs(n)));
+      Some(int(Bigint.abs(n)));
     };
 
     let float_op = (fn, d) => {
@@ -115,7 +115,7 @@ module Pervasives = {
       binary((d1, d2) => {
         let-unbox m = (Atom(Int), d1);
         let-unbox n = (Atom(Int), d2);
-        if (n == 0) {
+        if (n == Bigint.zero) {
           Some(
             dynamic_error_hole(
               ap(Forward, builtin_fun(name), d1),
@@ -123,20 +123,20 @@ module Pervasives = {
             ),
           );
         } else {
-          Some(int(m mod n));
+          Some(int(Bigint.(%)(m, n)));
         };
       });
 
     let string_length = d => {
       let-unbox s = (Atom(String), d);
-      Some(int(String.length(s)));
+      Some(int(String.length(s) |> Bigint.of_int));
     };
 
     let string_compare =
       binary((d1, d2) => {
         let-unbox s1 = (Atom(String), d1);
         let-unbox s2 = (Atom(String), d2);
-        Some(int(String.compare(s1, s2)));
+        Some(int(String.compare(s1, s2) |> Bigint.of_int));
       });
 
     let string_trim = d => {
@@ -163,8 +163,18 @@ module Pervasives = {
         let-unbox s = (Atom(String), d1);
         let-unbox idx = (Atom(Int), d2);
         let-unbox len = (Atom(Int), d3);
-        try(Some(string(String.sub(s, idx, len)))) {
-        | _ =>
+        try(
+          Some(
+            string(
+              String.sub(
+                s,
+                idx |> Bigint.to_int |> Option.get,
+                len |> Bigint.to_int |> Option.get,
+              ),
+            ),
+          )
+        ) {
+        | Invalid_argument(_) =>
           let d' = BuiltinFun(name) |> DHExp.fresh;
           let d' = Ap(Forward, d', d1) |> DHExp.fresh;
           let d' = DynamicErrorHole(d', IndexOutOfBounds) |> DHExp.fresh;

@@ -497,6 +497,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Atom(Int(i)),
       annotation: default_annotation(ann),
     };
+    let sint = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
+      term: Atom(SInt(i)),
+      annotation: default_annotation(ann),
+    };
     let float = (~ann=?, f): exp_t(DefaultAnnotation.t) => {
       term: Atom(Float(f)),
       annotation: default_annotation(ann),
@@ -506,7 +510,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let nat = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
-      term: Atom(Nat(i)),
+      term: Atom(Nat(Bigint.of_int(i))),
       annotation: default_annotation(ann),
     };
     let list_lit = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
@@ -655,6 +659,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Atom(Int(i)),
       annotation: default_annotation(ann),
     };
+    let sint = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
+      term: Atom(SInt(i)),
+      annotation: default_annotation(ann),
+    };
     let float = (~ann=?, f): pat_t(DefaultAnnotation.t) => {
       term: Atom(Float(f)),
       annotation: default_annotation(ann),
@@ -724,6 +732,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let int = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
       term: Atom(Int),
+      annotation: default_annotation(ann),
+    };
+    let sint = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: Atom(SInt),
       annotation: default_annotation(ann),
     };
     let float = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {

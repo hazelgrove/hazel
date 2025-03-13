@@ -582,6 +582,7 @@ let get_doc =
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
       | Atom(Bool(b)) => get_message(TerminalExp.bool_exps(b))
       | Atom(Int(i)) => get_message(TerminalExp.int_exps(i))
+      | Atom(SInt(i)) => get_message(TerminalExp.sint_exps(i))
       | Atom(Float(f)) => get_message(TerminalExp.float_exps(f))
       | Atom(String(s)) => get_message(TerminalExp.string_exps(s))
       | Atom(Nat(i)) => get_message(TerminalExp.nat_exps(i))
@@ -710,6 +711,31 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_wild);
           }
+        | Atom(SInt(i)) =>
+          if (FunctionExp.function_sintlit_exp.id
+              == get_specificity_level(FunctionExp.functions_sint)) {
+            get_message(
+              ~colorings=
+                FunctionExp.function_sintlit_exp_coloring_ids(
+                  ~pat_id,
+                  ~body_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%d%s%s"),
+                      Id.to_string(pat_id),
+                      i,
+                      Id.to_string(pat_id),
+                      Id.to_string(body_id),
+                    ),
+                ),
+              FunctionExp.functions_sint,
+            );
+          } else {
+            basic(FunctionExp.functions_sint);
+          }
         | Atom(Int(i) | Nat(i)) =>
           if (FunctionExp.function_intlit_exp.id
               == get_specificity_level(FunctionExp.functions_int)) {
@@ -725,7 +751,7 @@ let get_doc =
                     Printf.sprintf(
                       Scanf.format_from_string(msg, "%s%s%s%s"),
                       Id.to_string(pat_id),
-                      string_of_int(i),
+                      Bigint.to_string(i),
                       Id.to_string(pat_id),
                       Id.to_string(body_id),
                     ),
@@ -1320,7 +1346,7 @@ let get_doc =
                       Scanf.format_from_string(msg, "%s%s%s%s%s"),
                       Id.to_string(def_id),
                       Id.to_string(pat_id),
-                      string_of_int(i),
+                      Bigint.to_string(i),
                       Id.to_string(def_id),
                       Id.to_string(body_id),
                     ),
@@ -1331,6 +1357,32 @@ let get_doc =
             /* TODO The coloring for the syntactic form is sometimes wrong here and some other places when switching between forms and specificity levels... maybe a Safari issue... */
             basic(
               LetExp.lets_int,
+            );
+          }
+        | Atom(SInt(i)) =>
+          if (LetExp.let_sint_exp.id
+              == get_specificity_level(LetExp.lets_sint)) {
+            get_message(
+              ~colorings=
+                LetExp.let_sint_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%d%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                      i,
+                      Id.to_string(def_id),
+                      Id.to_string(body_id),
+                    ),
+                ),
+              LetExp.lets_sint,
+            );
+          } else {
+            /* TODO The coloring for the syntactic form is sometimes wrong here... */
+            basic(
+              LetExp.lets_sint,
             );
           }
         | Atom(Float(f)) =>
@@ -2035,9 +2087,22 @@ let get_doc =
         ~format=
           Some(
             msg =>
-              Printf.sprintf(Scanf.format_from_string(msg, "%i%i"), i, i),
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                i |> Bigint.to_string,
+                i |> Bigint.to_string,
+              ),
           ),
         TerminalPat.intlit(i),
+      )
+    | Atom(SInt(i)) =>
+      get_message(
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(Scanf.format_from_string(msg, "%d%d"), i, i),
+          ),
+        TerminalPat.sintlit(i),
       )
     | Atom(Float(f)) =>
       get_message(
@@ -2282,6 +2347,7 @@ let get_doc =
     | Unknown(Hole(EmptyHole)) => get_message(HoleTyp.empty_hole)
     | Unknown(Hole(MultiHole(_))) => get_message(HoleTyp.multi_hole)
     | Atom(Int) => get_message(TerminalTyp.int)
+    | Atom(SInt) => get_message(TerminalTyp.sint)
     | Atom(Float) => get_message(TerminalTyp.float)
     | Atom(Bool) => get_message(TerminalTyp.bool)
     | Atom(String) => get_message(TerminalTyp.str)

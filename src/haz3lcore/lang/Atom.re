@@ -5,6 +5,7 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
   | Int
+  | SInt
   | Nat
   | Float
   | Bool
@@ -13,16 +14,18 @@ type cls =
 /* This type is like cls, but each variant is associated with a type, allowing
    us to use the ocaml type checker to check we're using payloads correctly */
 type kind('a) =
-  | Int: kind(int)
-  | Nat: kind(int)
+  | Int: kind(Bigint.t)
+  | SInt: kind(int)
+  | Nat: kind(Bigint.t)
   | Float: kind(float)
   | Bool: kind(bool)
   | String: kind(string);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
-  | Int(int)
-  | Nat(int)
+  | Int(Bigint.t)
+  | SInt(int)
+  | Nat(Bigint.t)
   | Float
       // This equality condition is used to say that two floats are equal if they are equal in the ExpToSegment serialization
       (
@@ -34,6 +37,7 @@ type t =
 let cls_of_kind = (type a, kind: kind(a)): cls =>
   switch (kind) {
   | Int => Int
+  | SInt => SInt
   | Nat => Nat
   | Float => Float
   | Bool => Bool
@@ -43,6 +47,7 @@ let cls_of_kind = (type a, kind: kind(a)): cls =>
 let cls_of_t: t => cls =
   fun
   | Int(_) => Int
+  | SInt(_) => SInt
   | Nat(_) => Nat
   | Float(_) => Float
   | Bool(_) => Bool
@@ -51,6 +56,7 @@ let cls_of_t: t => cls =
 let cls_string_lower: cls => string =
   fun
   | Int => "int"
+  | SInt => "sint"
   | Nat => "nat"
   | Float => "float"
   | Bool => "bool"
@@ -62,6 +68,8 @@ let unbox = (type a, request: kind(a), e: t): option(a) =>
   switch (request, e) {
   | (Int, Int(i)) => Some(i)
   | (Int, _) => None
+  | (SInt, SInt(i)) => Some(i)
+  | (SInt, _) => None
   | (Nat, Nat(i)) => Some(i)
   | (Nat, _) => None
   | (Float, Float(f)) => Some(f)
@@ -79,6 +87,7 @@ type wrapper =
 let unpack = (e: t): wrapper =>
   switch (e) {
   | Int(i) => V(i, Int)
+  | SInt(i) => V(i, SInt)
   | Nat(i) => V(i, Nat)
   | Float(f) => V(f, Float)
   | Bool(b) => V(b, Bool)
@@ -88,6 +97,7 @@ let unpack = (e: t): wrapper =>
 let repack = (type a, kind: kind(a), x: a): t =>
   switch (kind) {
   | Int => Int(x)
+  | SInt => SInt(x)
   | Nat => Nat(x)
   | Float => Float(x)
   | Bool => Bool(x)
@@ -101,6 +111,7 @@ type cls_wrapper =
 let (let.cls) = (type b, cls: cls, f: cls_wrapper => b): b =>
   switch (cls) {
   | Int => f(W(Int))
+  | SInt => f(W(SInt))
   | Nat => f(W(Nat))
   | Float => f(W(Float))
   | Bool => f(W(Bool))
@@ -114,38 +125,66 @@ let convert =
     : Either.t(b, InvalidOperationError.t) => {
   switch (from, to_) {
   | (Int, Int) => L(v)
-  | (Int, Nat) => v < 0 ? R(InvalidOperationError.NegativeNat) : L(v)
-  | (Int, Bool) => L(v != 0)
-  | (Int, Float) => L(float_of_int(v))
-  | (Int, String) => L(string_of_int(v))
+  | (Int, SInt) =>
+    switch (Bigint.to_int(v)) {
+    | Some(i) => L(i)
+    | None => R(InvalidOperationError.IntegerTooBig)
+    }
+  | (Int, Nat) =>
+    v < Bigint.zero ? R(InvalidOperationError.NegativeNat) : L(v)
+  | (Int, Float) => L(Bigint.to_float(v))
+  | (Int, Bool) => L(v != Bigint.zero)
+  | (Int, String) => L(Bigint.to_string(v))
+
+  | (SInt, SInt) => L(v)
+  | (SInt, Int) => L(Bigint.of_int(v))
+  | (SInt, Nat) =>
+    v < 0 ? R(InvalidOperationError.NegativeNat) : L(Bigint.of_int(v))
+  | (SInt, Bool) => L(v != 0)
+  | (SInt, Float) => L(float_of_int(v))
+  | (SInt, String) => L(string_of_int(v))
 
   | (Nat, Nat) => L(v)
+  | (Nat, SInt) =>
+    switch (Bigint.to_int(v)) {
+    | Some(i) => L(i)
+    | None => R(InvalidOperationError.IntegerTooBig)
+    }
   | (Nat, Int) => L(v)
-  | (Nat, Bool) => L(v != 0)
-  | (Nat, Float) => L(float_of_int(v))
-  | (Nat, String) => L(string_of_int(v))
+  | (Nat, Bool) => L(v != Bigint.zero)
+  | (Nat, Float) => L(Bigint.to_float(v))
+  | (Nat, String) => L(Bigint.to_string(v))
 
   | (Float, Float) => L(v)
-  | (Float, Int) => L(int_of_float(v))
-  | (Float, Nat) => L(int_of_float(v))
+  | (Float, SInt) => L(int_of_float(v))
+  | (Float, Int) => L(Bigint.of_float(v))
+  | (Float, Nat) =>
+    v < 0.0 ? R(InvalidOperationError.NegativeNat) : L(Bigint.of_float(v))
   | (Float, Bool) => L(v != 0.0)
   | (Float, String) => L(string_of_float(v))
 
   | (Bool, Bool) => L(v)
-  | (Bool, Int) => L(v ? 1 : 0)
-  | (Bool, Nat) => L(v ? 1 : 0)
+  | (Bool, SInt) => L(v ? 1 : 0)
+  | (Bool, Nat) => L(v ? Bigint.one : Bigint.zero)
+  | (Bool, Int) => L(v ? Bigint.one : Bigint.zero)
   | (Bool, Float) => L(v ? 1.0 : 0.0)
   | (Bool, String) => L(string_of_bool(v))
 
   | (String, String) => L(v)
-  | (String, Int) =>
+  | (String, SInt) =>
     switch (int_of_string_opt(v)) {
     | Some(i) => L(i)
     | None => R(InvalidOperationError.InvalidOfString)
     }
+  | (String, Int) =>
+    switch (Bigint.of_string_opt(v)) {
+    | Some(i) => L(i)
+    | None => R(InvalidOperationError.InvalidOfString)
+    }
   | (String, Nat) =>
-    switch (int_of_string_opt(v)) {
-    | Some(i) => i < 0 ? R(InvalidOperationError.NegativeNat) : L(i)
+    switch (Bigint.of_string_opt(v)) {
+    | Some(i) =>
+      i < Bigint.zero ? R(InvalidOperationError.NegativeNat) : L(i)
     | None => R(InvalidOperationError.InvalidOfString)
     }
   | (String, Float) =>
@@ -163,8 +202,9 @@ let convert =
 
 let to_literal = (e: t): string =>
   switch (e) {
-  | Int(i) => i |> string_of_int
-  | Nat(i) => i |> string_of_int
+  | Int(i) => i |> Bigint.to_string
+  | Nat(i) => i |> Bigint.to_string
+  | SInt(i) => i |> string_of_int
   | Float(f) => Printf.sprintf("%f", f)
   | Bool(b) => b |> string_of_bool
   | String(s) => "\"" ++ s ++ "\""

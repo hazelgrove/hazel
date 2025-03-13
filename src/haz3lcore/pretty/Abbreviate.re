@@ -144,7 +144,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
     | Atom(Bool(b)) => wrap_or(Atom(Bool(b)), string_of_bool(b))
     | Atom(Int(n) | Nat(n)) =>
       //TODO: smarter number summarization?
-      wrap_or(Atom(Int(n)), string_of_int(n))
+      wrap_or(Atom(Int(n)), Bigint.to_string(n))
+    | Atom(SInt(n)) => wrap_or(Atom(SInt(n)), string_of_int(n))
     | Atom(Float(f)) =>
       Invalid(abbreviate_str(available^, string_of_float(f)))
 
@@ -230,6 +231,12 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         ~make_term=e' => UnOp(Bool(Not), e'),
         e,
       )
+    | UnOp(Float(Minus), e) =>
+      handle_unary(
+        ~cost=1, // "~"
+        ~make_term=e' => UnOp(Float(Minus), e'),
+        e,
+      )
     | UnOp(Nat(Minus), e) =>
       handle_unary(
         ~cost=1, // "-"
@@ -240,12 +247,6 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       handle_unary(
         ~cost=1, // "-"
         ~make_term=e' => UnOp(Int(Minus), e'),
-        e,
-      )
-    | UnOp(Float(Minus), e) =>
-      handle_unary(
-        ~cost=1, // "-"
-        ~make_term=e' => UnOp(Float(Minus), e'),
         e,
       )
     | UnOp(Meta(Unquote), e) =>
@@ -626,8 +627,9 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
     | Wild => Wild
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
-    | Atom(Int(n)) => wrap_or(Atom(Int(n)), string_of_int(n))
-    | Atom(Nat(n)) => wrap_or(Atom(Nat(n)), string_of_int(n))
+    | Atom(Int(n)) => wrap_or(Atom(Int(n)), Bigint.to_string(n))
+    | Atom(Nat(n)) => wrap_or(Atom(Nat(n)), Bigint.to_string(n))
+    | Atom(SInt(n)) => wrap_or(Atom(SInt(n)), string_of_int(n))
     | Atom(Float(f)) =>
       Invalid(abbreviate_str(available^, string_of_float(f)))
     | Atom(String(s)) =>
@@ -779,6 +781,12 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         indet_term_typ;
       } else {
         Atom(Int);
+      }
+    | Atom(SInt) =>
+      if (available^ < 3) {
+        indet_term_typ;
+      } else {
+        Atom(SInt);
       }
     | Atom(Nat) =>
       if (available^ < 3) {

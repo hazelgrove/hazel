@@ -224,7 +224,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(Atom(Bool(bool_of_string(t))))
       | ([t], []) when Form.is_undefined(t) => ret(Undefined)
       | ([t], []) when Form.is_int(t) =>
-        ret(Atom(Int(int_of_string(t))))
+        ret(Atom(Int(Bigint.of_string(t))))
       | ([t], []) when Form.is_string(t) =>
         ret(Atom(String(Form.strip_quotes(t))))
       | ([t], []) when Form.is_float(t) =>
@@ -490,7 +490,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         | ([t], []) when Form.is_bool(t) => Atom(Bool(bool_of_string(t)))
         | ([t], []) when Form.is_float(t) =>
           Atom(Float(float_of_string(t)))
-        | ([t], []) when Form.is_int(t) => Atom(Int(int_of_string(t)))
+        | ([t], []) when Form.is_int(t) => Atom(Int(Bigint.of_string(t)))
         | ([t], []) when Form.is_string(t) =>
           Atom(String(Form.strip_quotes(t)))
         | ([t], []) when Form.is_var(t) => Var(t)

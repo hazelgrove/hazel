@@ -24,6 +24,7 @@ type fun_examples =
   | Basic
   | Wild
   | IntLit
+  | SIntLit
   | FloatLit
   | BoolLit
   | StrLit
@@ -144,6 +145,7 @@ type pat_sub_form_id =
   | EmptyHole
   | MultiHole
   | Wild
+  | SInt
   | Int
   | Float
   | Bool
@@ -169,6 +171,7 @@ type form_id =
   | DeferralExp
   | BoolExp
   | IntExp
+  | SIntExp
   | NatExp
   | FloatExp
   | StringExp
@@ -270,6 +273,7 @@ type group_id =
   | DeferralExp
   | BoolExp
   | IntExp
+  | SIntExp
   | NatExp
   | FloatExp
   | StringExp
@@ -303,6 +307,7 @@ type group_id =
   | MultiHolePat
   | WildPat
   | IntPat
+  | SIntPat
   | FloatPat
   | BoolPat
   | StrPat

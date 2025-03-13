@@ -85,7 +85,7 @@ let tests = (
               children: [],
             }),
           ],
-          exp_to_segment(Exp.temp(Atom(Int(1)))),
+          exp_to_segment(Exp.temp(Atom(Int(Bigint.of_int(1))))),
         );
         check(
           segment,
@@ -164,7 +164,10 @@ let tests = (
           Some(
             exp_to_segment(
               Exp.temp(
-                Tuple([Exp.temp(Atom(Int(1))), Exp.temp(Atom(Int(2)))]),
+                Tuple([
+                  Exp.temp(Atom(Int(Bigint.of_int(1)))),
+                  Exp.temp(Atom(Int(Bigint.of_int(2)))),
+                ]),
               ),
             ),
           ),
@@ -186,7 +189,7 @@ let tests = (
                   Exp.temp(
                     TupLabel(
                       Exp.temp(Label("x")),
-                      Exp.temp(Atom(Int(1))),
+                      Exp.temp(Atom(Int(Bigint.of_int(1)))),
                     ),
                   ),
                 ]),
@@ -213,11 +216,11 @@ let tests = (
               [
                 (
                   Constructor("A", None) |> Pat.fresh,
-                  Atom(Int(1)) |> Exp.fresh,
+                  Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
                 ),
                 (
                   Constructor("B", None) |> Pat.fresh,
-                  Atom(Int(2)) |> Exp.fresh,
+                  Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
                 ),
               ],
             )
@@ -243,7 +246,7 @@ let tests = (
               Var("string_sub") |> Exp.fresh,
               [
                 Atom(String("hello")) |> Exp.fresh,
-                Atom(Int(1)) |> Exp.fresh,
+                Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
                 Deferral(InAp) |> Exp.fresh,
               ],
             )
@@ -277,8 +280,11 @@ let tests = (
         let segment =
           segmentize(
             Filter(
-              Filter({pat: Atom(Int(1)) |> Exp.fresh, act: (Step, One)}),
-              Atom(Int(2)) |> Exp.fresh,
+              Filter({
+                pat: Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+                act: (Step, One),
+              }),
+              Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
             )
             |> Exp.fresh,
           );
@@ -299,11 +305,11 @@ let tests = (
             segmentize(
               BinOp(
                 Int(Power),
-                Atom(Int(2)) |> Exp.fresh,
+                Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
                 BinOp(
                   Int(Power),
-                  Atom(Int(3)) |> Exp.fresh,
-                  Atom(Int(4)) |> Exp.fresh,
+                  Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
+                  Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
                 )
                 |> Exp.fresh,
               )
@@ -322,11 +328,11 @@ let tests = (
                 Int(Power),
                 BinOp(
                   Int(Power),
-                  Atom(Int(2)) |> Exp.fresh,
-                  Atom(Int(3)) |> Exp.fresh,
+                  Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
+                  Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
                 )
                 |> Exp.fresh,
-                Atom(Int(4)) |> Exp.fresh,
+                Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
               )
               |> Exp.fresh,
             ),
@@ -347,7 +353,7 @@ let tests = (
                   Var("x") |> Typ.fresh,
                 )
                 |> Typ.fresh,
-                Atom(Int(1)) |> Exp.fresh,
+                Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
               )
               |> Exp.fresh,
             ),

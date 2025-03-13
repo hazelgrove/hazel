@@ -135,7 +135,8 @@ let is_potential_token = t =>
 let int_regexp = regexp("^-?\\d+[0-9_]*$");
 let is_float = match(regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$"));
 let is_arbitary_float = x => x != "." && x != "-" && is_float(x);
-let is_int = str => match(int_regexp, str) && int_of_string_opt(str) != None;
+let is_int = str =>
+  match(int_regexp, str) && Bigint.of_string_opt(str) != None;
 /* NOTE: The is_arbitary_int check is necessary to prevent
    minuses from being parsed as part of the int token. */
 

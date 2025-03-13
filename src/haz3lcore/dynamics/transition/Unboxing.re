@@ -257,6 +257,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         raise(EvaluatorError.Exception(InvalidBoxedTupLabel(expr)))
       | Atom(Bool) =>
         raise(EvaluatorError.Exception(InvalidBoxedBoolLit(expr)))
+      | Atom(SInt)
       | Atom(Int) =>
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(expr)))
       | Atom(Float) =>
