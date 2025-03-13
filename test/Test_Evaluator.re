@@ -855,5 +855,24 @@ in fn("hello")|},
         ),
       )
     ),
+    test_case(
+      "pivoted list of labeled tuples with multiple entries", `Quick, () =>
+      check(
+        dhexp_typ,
+        {|primitive_pivot(?,  [(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true))])|},
+        parse_exp(
+          {|(a=[(1, true), (4, true)], b=[(2, true)], c=[(3, true)])|},
+        ),
+        DHExp.strip_casts(
+          evaluate(
+            elaborate(
+              parse_exp(
+                {|primitive_pivot(?,  [(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)])|},
+              ),
+            ),
+          ),
+        ),
+      )
+    ),
   ],
 );
