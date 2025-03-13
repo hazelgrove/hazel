@@ -110,7 +110,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Cast(d, _, {term: Prod([{term: Unknown(Internal), _}]), _}),
       ) =>
       unbox(request, d)
-
     | (
         LabeledTupleProjection(l),
         Cast(
@@ -136,10 +135,10 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       unbox(request, d)
     | (LabeledTupleProjection(l), Tuple(ds)) =>
       switch (LabeledTuple.find_label(Exp.match_tup_label, ds, l)) {
-      | Some({term: TupLabel(_, _), _}) => Matches(expr) // Choosing to just return the original expression here
+      | Some(_) => Matches(expr) // Choosing to just return the original expression here
       | _ => IndetMatch // TODO Should this be DoesNotMatch?
       }
-    | (LabeledTupleProjection(l), ListLit(ds)) => Matches(expr)
+    | (LabeledTupleProjection(_), ListLit(_)) => Matches(expr)
     | (TupleElementPivot(_), Cast(d, _, {term: Unknown(_), _})) =>
       unbox(request, d)
     | (TupleElementPivot(l), Tuple(ds)) =>

@@ -449,6 +449,41 @@ let tests = (
           );
         },
       ),
+      test_case(
+        "Dot projection of casted tup label",
+        `Quick,
+        () => {
+          open F;
+          let orig =
+            Exp.(
+              tuple([
+                cast(
+                  tup_label(
+                    label("j"),
+                    cast(
+                      int(Bigint.of_int(1)),
+                      Typ.int(),
+                      Typ.unknown(Internal),
+                    ),
+                  ),
+                  Typ.(tup_label(unknown(Internal), unknown(Internal))),
+                  Typ.unknown(Internal),
+                ),
+                cast(
+                  int(Bigint.of_int(3)),
+                  Typ.int(),
+                  Typ.unknown(Internal),
+                ),
+              ])
+            );
+          check(
+            unboxed_testable(exp),
+            "Dot projection of casted tup label",
+            Matches(orig),
+            unbox(LabeledTupleProjection("j"), orig),
+          );
+        },
+      ),
     ]
   ),
 );
