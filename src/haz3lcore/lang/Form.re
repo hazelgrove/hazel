@@ -83,6 +83,9 @@ let is_secondary = t =>
 let string_regexp = regexp("^\"[^\n]*\"$"); /* Multiline strings not supported */
 let is_string = t =>
   match(string_regexp, t) && List.length(String.split_on_char('"', t)) < 4;
+
+let single_quote_label_regexp = regexp("^\'[^\'\n]*\'$");
+let is_single_quote_label = t => match(single_quote_label_regexp, t);
 let string_delim = "\"";
 let empty_string = string_delim ++ string_delim;
 let is_string_delim = (==)(string_delim);
@@ -130,7 +133,8 @@ let is_potential_token = t =>
   is_potential_operand(t)
   || is_potential_operator(t)
   || is_string(t)
-  || is_comment(t);
+  || is_comment(t)
+  || is_single_quote_label(t);
 
 let int_regexp = regexp("^-?\\d+[0-9_]*$");
 let is_float = match(regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$"));
@@ -231,6 +235,7 @@ type atomic_form =
   | ExplicitHole
   | Wild
   | String
+  | SingleQuoteLabel
   | IntLit
   | FloatLit
   | BoolLit
@@ -252,6 +257,10 @@ let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
     )
   | Wild => (is_wild, [mk_op(Pat, [])])
   | String => (is_string, [mk_op(Exp, []), mk_op(Pat, [])])
+  | SingleQuoteLabel => (
+      is_single_quote_label,
+      [mk_op(Exp, []), mk_op(Pat, [])],
+    )
   | IntLit => (is_int, [mk_op(Exp, []), mk_op(Pat, [])])
   | FloatLit => (is_float, [mk_op(Exp, []), mk_op(Pat, [])])
   | BoolLit => (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])
