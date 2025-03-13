@@ -809,13 +809,30 @@ in fn("hello")|},
     test_case("Projection of pivoted list of labeled tuples", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)])|},
+        {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)]).a|},
         parse_exp({|[(j=1, 3)]|}),
         DHExp.strip_casts(
           evaluate(
             elaborate(
               parse_exp(
                 {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)]).a|},
+              ),
+            ),
+          ),
+        ),
+      )
+    ),
+    test_case(
+      "Nested projection of pivoted list of labeled tuples", `Quick, () =>
+      check(
+        dhexp_typ,
+        {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)])|},
+        parse_exp({|[1]|}),
+        DHExp.strip_casts(
+          evaluate(
+            elaborate(
+              parse_exp(
+                {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)]).a.j|},
               ),
             ),
           ),

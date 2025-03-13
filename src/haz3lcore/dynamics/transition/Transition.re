@@ -629,8 +629,19 @@ module Transition = (EV: EV_MODE) => {
         | Matches(d1'') =>
           switch (DHExp.term_of(d1''), DHExp.term_of(d2')) {
           | (Tuple(ds), Label(name)) =>
-            switch (LabeledTuple.find_label(Exp.match_tup_label, ds, name)) {
-            | Some({term: TupLabel(_, exp), _}) =>
+            let projected =
+              List.find_map(
+                d => {
+                  switch (Exp.match_tup_label(d)) {
+                  | Some((s, e)) when name == s => Some(e)
+                  | _ => None
+                  }
+                },
+                ds,
+              );
+
+            switch (projected) {
+            | Some(exp) =>
               Step({
                 expr: exp,
                 state_update,
@@ -638,7 +649,7 @@ module Transition = (EV: EV_MODE) => {
                 is_value: false,
               })
             | _ => Indet
-            }
+            };
           | (TupLabel(_, d), Label(name)) =>
             LabeledTuple.has_same_labels(
               Exp.match_tup_label(d1'),
