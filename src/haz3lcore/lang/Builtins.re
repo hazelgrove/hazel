@@ -365,19 +365,20 @@ module Pervasives = {
            binary((_lab: DHExp.t, d: DHExp.t) => {
              let-unbox l = (ListLit, d);
 
-             let unboxed: option(list((string, list(TermBase.exp_t)))) =
+             let unboxed: option(list((string, TermBase.exp_t))) =
                List.map(
                  e => {
-                   let-unbox a = (TupleElementPivot("l"), e);
-                   Some(a);
+                   let-unbox (name, es) = (TupleElementPivot("l"), e);
+                   Some((name, Tuple(es) |> Exp.fresh));
                  },
                  l,
                )
                |> Util.OptUtil.sequence;
 
+             // TODO Do the actual group by instead of just pivotting
              Option.map(
-               List.map(((name: string, es: list(TermBase.exp_t))) =>
-                 Fresh.Exp.(tup_label(label(name), list_lit(es)))
+               List.map(((name: string, e: TermBase.exp_t)) =>
+                 Fresh.Exp.(tup_label(label(name), list_lit([e])))
                ),
                unboxed,
              )

@@ -148,6 +148,15 @@ let tests =
           {|let x : (l=Int, l2=String) = (l=32, l2="") in x|},
         )
       ),
+      test_case("Unparenthesized labeled tuple element in list", `Quick, () => {
+        exp_check(
+          list_lit([
+            tuple([tup_label(label("l"), int(Bigint.of_int(32)))]),
+            int(Bigint.of_int(1)),
+          ]),
+          {|[l=32, 1]|},
+        )
+      }),
       test_case("Malformed label in singleton tuple", `Quick, () =>
         exp_check(
           parens(
