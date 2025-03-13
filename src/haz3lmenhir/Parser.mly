@@ -261,7 +261,7 @@ nonAscriptingPat:
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { CastPat(ConstructorPat(c, None), UnknownType(Internal), t) }
     | p = IDENT { VarPat(p) }
-    | i = INT { AtomPat (Int i) }
+    | i = INT { AtomPat (Int (Bigint.of_int i)) }
     | f = FLOAT { AtomPat (Float f) }
     | s = STRING { AtomPat (String s)}
     | TRUE {AtomPat (Bool true)}
@@ -317,7 +317,7 @@ tupExpEntry:
 
 exp:
     | b = binExp { b }
-    | i = INT { Atom (Int i) }
+    | i = INT { Atom (Int (Bigint.of_int i)) }
     | f = FLOAT { Atom (Float f) }
     | v = IDENT { Var v }
     | c = CONSTRUCTOR_IDENT { Constructor(c, None)}

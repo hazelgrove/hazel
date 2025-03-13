@@ -404,6 +404,7 @@ and Typ: {
     switch (typ) {
     | InvalidTyp(s) => unknown(Hole(Invalid(s)))
     | IntType => int()
+    | SIntType => sint()
     | FloatType => float()
     | BoolType => bool()
     | StringType => string()
@@ -456,6 +457,7 @@ and Typ: {
   let rec of_core = (typ: IndicatedG.typ): AST.typ => {
     switch (typ.term) {
     | Atom(Int) => IntType
+    | Atom(SInt) => SIntType
     | Atom(Float) => FloatType
     | Atom(String) => StringType
     | Atom(Bool) => BoolType

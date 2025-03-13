@@ -84,6 +84,7 @@ type tpat =
 [@deriving (show({with_path: false}), sexp, eq)]
 type typ =
   | IntType
+  | SIntType
   | StringType
   | FloatType
   | BoolType
@@ -295,7 +296,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
   QCheck.Gen.(
     let leaf =
       oneof([
-        map(x => Atom(Int(x)), small_int),
+        map(x => Atom(Int(x |> Bigint.of_int)), small_int),
         map(x => Atom(String(x)), gen_string_literal),
         map(x => Atom(Float(x)), QCheck.pos_float.gen), // Floats are positive because we use UnOp minus
         map(x => Var(x), gen_ident),
@@ -558,7 +559,7 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
             oneof([
               return(WildPat),
               return(EmptyHolePat),
-              map(x => AtomPat(Int(x)), small_int),
+              map(x => AtomPat(Int(x |> Bigint.of_int)), small_int),
               map(x => AtomPat(Float(x)), QCheck.pos_float.gen),
               map(x => VarPat(x), gen_ident),
               map(x => AtomPat(String(x)), gen_string_literal),

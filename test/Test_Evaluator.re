@@ -92,18 +92,18 @@ let parse_and_evaluate_test =
 let test_int = () =>
   evaluation_test(
     "8",
-    Atom(Int(8)) |> Exp.fresh,
-    Atom(Int(8)) |> Exp.fresh,
+    Atom(Int(Bigint.of_int(8))) |> Exp.fresh,
+    Atom(Int(Bigint.of_int(8))) |> Exp.fresh,
   );
 
 let test_sum = () =>
   evaluation_test(
     "4 + 5",
-    Atom(Int(9)) |> Exp.fresh,
+    Atom(Int(Bigint.of_int(9))) |> Exp.fresh,
     BinOp(
       Int(Plus),
-      Atom(Int(4)) |> Exp.fresh,
-      Atom(Int(5)) |> Exp.fresh,
+      Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
+      Atom(Int(Bigint.of_int(5))) |> Exp.fresh,
     )
     |> Exp.fresh,
   );
@@ -111,12 +111,18 @@ let test_sum = () =>
 let test_labeled_tuple_projection = () =>
   evaluation_test(
     "(a=1, b=2, c=?).a",
-    Atom(Int(1)) |> Exp.fresh,
+    Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
     Dot(
       Tuple([
-        TupLabel(Label("a") |> Exp.fresh, Atom(Int(1)) |> Exp.fresh)
+        TupLabel(
+          Label("a") |> Exp.fresh,
+          Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+        )
         |> Exp.fresh,
-        TupLabel(Label("b") |> Exp.fresh, Atom(Int(2)) |> Exp.fresh)
+        TupLabel(
+          Label("b") |> Exp.fresh,
+          Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
+        )
         |> Exp.fresh,
         TupLabel(Label("c") |> Exp.fresh, EmptyHole |> Exp.fresh)
         |> Exp.fresh,
@@ -134,7 +140,7 @@ let test_function_application = () =>
     Ap(
       Forward,
       Var("float_of_int") |> Exp.fresh,
-      Atom(Int(1)) |> Exp.fresh,
+      Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
     )
     |> Exp.fresh,
   );
@@ -149,12 +155,12 @@ let test_function_deferral = () =>
         Var("string_sub") |> Exp.fresh,
         [
           Atom(String("hello")) |> Exp.fresh,
-          Atom(Int(1)) |> Exp.fresh,
+          Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
           Deferral(InAp) |> Exp.fresh,
         ],
       )
       |> Exp.fresh,
-      Atom(Int(2)) |> Exp.fresh,
+      Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
     )
     |> Exp.fresh,
   );
@@ -189,7 +195,7 @@ let test_ap_of_hole_deferral = () =>
           )
           |> Exp.fresh,
           Cast(
-            Atom(Int(3)) |> Exp.fresh,
+            Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
             Atom(Int) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
@@ -242,7 +248,7 @@ let test_ap_of_hole_deferral = () =>
           Deferral(InAp) |> Exp.fresh,
           Deferral(InAp) |> Exp.fresh,
           Cast(
-            Atom(Int(3)) |> Exp.fresh,
+            Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
             Atom(Int) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
@@ -272,7 +278,7 @@ let test_ap_of_hole_deferral = () =>
 let test_multi_arg_builtin_cast = () =>
   evaluation_test(
     "string_compare((\"Hello\", \"World\"):(?, ?))",
-    Atom(Int(-1)) |> Exp.fresh,
+    Atom(Int(Bigint.of_int(-1))) |> Exp.fresh,
     Ap(
       Forward,
       BuiltinFun("string_compare") |> Exp.fresh,
@@ -308,17 +314,17 @@ let test_multi_arg_builtin_cast = () =>
 let test_variable_capture = () =>
   evaluation_test(
     {|let u = 5 in let f = fun () -> u in let u = 3 in f()|},
-    Atom(Int(5)) |> Exp.fresh,
+    Atom(Int(Bigint.of_int(5))) |> Exp.fresh,
     Let(
       Var("u") |> Pat.fresh,
-      Atom(Int(5)) |> Exp.fresh,
+      Atom(Int(Bigint.of_int(5))) |> Exp.fresh,
       Let(
         Var("f") |> Pat.fresh,
         Fun(Tuple([]) |> Pat.fresh, Var("u") |> Exp.fresh, None, None)
         |> Exp.fresh,
         Let(
           Var("u") |> Pat.fresh,
-          Atom(Int(3)) |> Exp.fresh,
+          Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
           Ap(Forward, Var("f") |> Exp.fresh, Tuple([]) |> Exp.fresh)
           |> Exp.fresh,
         )
@@ -347,13 +353,13 @@ let test_unevaluated_if = () =>
     "let x = 5 in if ? then x else x",
     If(
       EmptyHole |> Exp.fresh,
-      Atom(Int(5)) |> Exp.fresh,
-      Atom(Int(5)) |> Exp.fresh,
+      Atom(Int(Bigint.of_int(5))) |> Exp.fresh,
+      Atom(Int(Bigint.of_int(5))) |> Exp.fresh,
     )
     |> Exp.fresh,
     Let(
       Var("x") |> Pat.fresh,
-      Atom(Int(5)) |> Exp.fresh,
+      Atom(Int(Bigint.of_int(5))) |> Exp.fresh,
       If(
         EmptyHole |> Exp.fresh,
         Var("x") |> Exp.fresh,
@@ -368,7 +374,7 @@ let test_invalid_constructor_match = () => {
   let invalid_constructor_match =
     Let(
       Constructor("T", Some(None)) |> Pat.fresh,
-      Atom(Int(1)) |> Exp.fresh,
+      Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
       EmptyHole |> Exp.fresh,
     )
     |> Exp.fresh
@@ -383,13 +389,18 @@ let test_invalid_constructor_match = () => {
 let test_typfun_application = () =>
   evaluation_test(
     "(typfun T -> fun x -> 1)@<Int>(2)",
-    Atom(Int(1)) |> Exp.fresh,
+    Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
     Ap(
       Forward,
       TypAp(
         TypFun(
           Var("T") |> TPat.fresh,
-          Fun(Var("x") |> Pat.fresh, Atom(Int(1)) |> Exp.fresh, None, None)
+          Fun(
+            Var("x") |> Pat.fresh,
+            Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+            None,
+            None,
+          )
           |> Exp.fresh,
           None,
         )
@@ -397,7 +408,7 @@ let test_typfun_application = () =>
         Atom(Int) |> Typ.fresh,
       )
       |> Exp.fresh,
-      Atom(Int(2)) |> Exp.fresh,
+      Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
     )
     |> Exp.fresh,
   );
@@ -461,8 +472,9 @@ in fn("hello")|},
     test_case("Negative integer literal", `Quick, () =>
       evaluation_test(
         "-8",
-        Atom(Int(-8)) |> Exp.fresh,
-        UnOp(Int(Minus), Atom(Int(8)) |> Exp.fresh) |> Exp.fresh,
+        Atom(Int(Bigint.of_int(-8))) |> Exp.fresh,
+        UnOp(Int(Minus), Atom(Int(Bigint.of_int(8))) |> Exp.fresh)
+        |> Exp.fresh,
       )
     ),
     test_case("Simple probe", `Quick, () => {
@@ -476,14 +488,14 @@ in fn("hello")|},
                 expected_probe(
                   BinOp(
                     Int(Plus),
-                    expected_probe(Atom(Int(1)), []),
-                    expected_probe(Atom(Int(2)), []),
+                    expected_probe(Atom(Int(Bigint.of_int(1))), []),
+                    expected_probe(Atom(Int(Bigint.of_int(2))), []),
                   ),
                   [],
                 ),
                 {refs: []},
               ),
-              [probed_value(Atom(Int(3)))],
+              [probed_value(Atom(Int(Bigint.of_int(3))))],
             ),
             expected_probe(Var("x"), []),
           ),
@@ -525,11 +537,11 @@ in fn("hello")|},
                   pp(
                     Var("x"),
                     [
-                      Atom(Int(5)),
-                      Atom(Int(4)),
-                      Atom(Int(3)),
-                      Atom(Int(2)),
-                      Atom(Int(1)),
+                      Atom(Int(Bigint.of_int(5))),
+                      Atom(Int(Bigint.of_int(4))),
+                      Atom(Int(Bigint.of_int(3))),
+                      Atom(Int(Bigint.of_int(2))),
+                      Atom(Int(Bigint.of_int(1))),
                     ],
                   ),
                   np(
@@ -537,19 +549,19 @@ in fn("hello")|},
                       p(
                         Var("x"),
                         [
-                          Atom(Int(5)),
-                          Atom(Int(4)),
-                          Atom(Int(3)),
-                          Atom(Int(2)),
-                          Atom(Int(1)),
+                          Atom(Int(Bigint.of_int(5))),
+                          Atom(Int(Bigint.of_int(4))),
+                          Atom(Int(Bigint.of_int(3))),
+                          Atom(Int(Bigint.of_int(2))),
+                          Atom(Int(Bigint.of_int(1))),
                         ],
                       ),
                       [
                         (
-                          npp(Atom(Int(1))),
+                          npp(Atom(Int(Bigint.of_int(1)))),
                           p(
-                            Atom(Int(1)),
-                            [Atom(Int(1))],
+                            Atom(Int(Bigint.of_int(1))),
+                            [Atom(Int(Bigint.of_int(1)))],
                           ),
                         ),
                         (
@@ -565,15 +577,15 @@ in fn("hello")|},
                                     BinOp(
                                       Int(Minus),
                                       np(Var("x")),
-                                      np(Atom(Int(1))),
+                                      np(Atom(Int(Bigint.of_int(1)))),
                                     ),
                                   ),
                                 ),
                                 [
-                                  Atom(Int(1)),
-                                  Atom(Int(2)),
-                                  Atom(Int(6)),
-                                  Atom(Int(24)),
+                                  Atom(Int(Bigint.of_int(1))),
+                                  Atom(Int(Bigint.of_int(2))),
+                                  Atom(Int(Bigint.of_int(6))),
+                                  Atom(Int(Bigint.of_int(24))),
                                 ],
                               ),
                               p(
@@ -583,10 +595,10 @@ in fn("hello")|},
                                   np(Var("r")),
                                 ),
                                 [
-                                  Atom(Int(2)),
-                                  Atom(Int(6)),
-                                  Atom(Int(24)),
-                                  Atom(Int(120)),
+                                  Atom(Int(Bigint.of_int(2))),
+                                  Atom(Int(Bigint.of_int(6))),
+                                  Atom(Int(Bigint.of_int(24))),
+                                  Atom(Int(Bigint.of_int(120))),
                                 ],
                               ),
                             ),
@@ -600,7 +612,11 @@ in fn("hello")|},
                 ),
               ),
               np(
-                Ap(Forward, np(Var("fact")), np(Atom(Int(5)))),
+                Ap(
+                  Forward,
+                  np(Var("fact")),
+                  np(Atom(Int(Bigint.of_int(5)))),
+                ),
               ),
             ),
           ),
@@ -632,7 +648,9 @@ in fn("hello")|},
                     Parens(
                       npt(
                         Prod([
-                          npt(TupLabel(npt(Label("l")), npt(Atom(String)))),
+                          npt(
+                            TupLabel(npt(Label("l")), npt(Atom(String))),
+                          ),
                         ]),
                       ),
                     ),
@@ -647,14 +665,8 @@ in fn("hello")|},
                     {
                       term:
                         TupLabel(
-                          {
-                            term: Label("l"),
-                            annotation: (),
-                          },
-                          {
-                            term: Atom(String("a")),
-                            annotation: (),
-                          },
+                          {term: Label("l"), annotation: ()},
+                          {term: Atom(String("a")), annotation: ()},
                         ),
                       annotation: (),
                     },
@@ -691,7 +703,9 @@ in fn("hello")|},
               npt(
                 Parens(
                   npt(
-                    Prod([npt(TupLabel(npt(Label("l")), npt(Atom(String))))]),
+                    Prod([
+                      npt(TupLabel(npt(Label("l")), npt(Atom(String)))),
+                    ]),
                   ),
                 ),
               ),
@@ -729,14 +743,8 @@ in fn("hello")|},
                         {
                           term:
                             TupLabel(
-                              {
-                                term: Label("l"),
-                                annotation: (),
-                              },
-                              {
-                                term: Atom(String("a")),
-                                annotation: (),
-                              },
+                              {term: Label("l"), annotation: ()},
+                              {term: Atom(String("a")), annotation: ()},
                             ),
                           annotation: (),
                         },
@@ -747,7 +755,9 @@ in fn("hello")|},
                     Parens(
                       npt(
                         Prod([
-                          npt(TupLabel(npt(Label("l")), npt(Atom(String)))),
+                          npt(
+                            TupLabel(npt(Label("l")), npt(Atom(String))),
+                          ),
                         ]),
                       ),
                     ),

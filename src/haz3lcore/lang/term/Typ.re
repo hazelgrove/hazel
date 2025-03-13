@@ -684,6 +684,7 @@ let rec pretty_print = (ty: t): string =>
   | Atom(Bool) => "Bool"
   | Atom(String) => "String"
   | Atom(Nat) => "Nat"
+  | Atom(SInt) => "SInt"
   | Var(tvar) => tvar
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)

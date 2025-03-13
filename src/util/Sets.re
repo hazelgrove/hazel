@@ -1,5 +1,11 @@
 module IntSet =
   Set.Make({
+    type t = Bigint.t;
+    let compare = Bigint.compare;
+  });
+
+module SIntSet =
+  Set.Make({
     type t = int;
     let compare = compare;
   });

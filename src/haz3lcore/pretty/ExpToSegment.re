@@ -37,7 +37,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   // Indivisible forms never need parentheses around them
   | Var(_)
   | Invalid(_)
-  | Atom(Bool(_) | Int(_) | Float(_) | String(_) | Nat(_))
+  | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
   | EmptyHole
   | Deferral(_)
   | BuiltinFun(_)
@@ -92,7 +92,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   | Wild
   | Invalid(_)
   | Var(_)
-  | Atom(Bool(_) | Int(_) | Float(_) | String(_) | Nat(_))
+  | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
   | Constructor(_)
   | Label(_)
   | TupLabel(_) => Precedence.max
@@ -1263,6 +1263,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
 
   | Var(v) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v)
   | Atom(Int) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
+  | Atom(SInt) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "SInt")
   | Atom(Float) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float")
   | Atom(Bool) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool")
   | Atom(String) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "String")

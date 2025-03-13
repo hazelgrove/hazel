@@ -74,7 +74,8 @@ let replace_literal = (lit: Atom.t, use_mode: option(mode)): Atom.t => {
   | (_, None) => lit
   | (Int(n) | Nat(n), Some(Int)) => Int(n)
   | (Int(n) | Nat(n), Some(Nat)) => Nat(n)
-  | (Int(n) | Nat(n), Some(Float)) => Float(Float.of_int(n))
+  | (Int(n) | Nat(n), Some(Float)) => Float(Bigint.to_float(n))
+  | (SInt(n), _) => SInt(n)
   | (Float(n), _) => Float(n)
   | (Bool(b), _) => Bool(b)
   | (String(s), _) => String(s)
@@ -229,7 +230,7 @@ let just = (f, x) => Either.L(f(x));
 
 let semantics_of_un_op = (op: op_un): un_semantics =>
   switch (op) {
-  | Int(Minus) => Defined(Int, Int, just(x => - x))
+  | Int(Minus) => Defined(Int, Int, just(Bigint.neg))
   | Float(Minus) => Defined(Float, Float, just(x => -. x))
   | Nat(Minus) => Undefined
   | Bool(Not) => Defined(Bool, Bool, just(x => !x))
@@ -248,23 +249,23 @@ type bin_semantics =
 
 let just = (f, x, y) => Either.L(f(x, y));
 let int_power = (x, y) =>
-  if (y < 0) {
+  if (y < Bigint.zero) {
     Either.R(InvalidOperationError.NegativeExponent);
   } else {
-    Either.L(IntUtil.ipow(x, y));
+    Either.L(Bigint.pow(x, y));
   };
 let int_divide = (x, y) =>
-  if (y === 0) {
+  if (Bigint.equal(y, Bigint.zero)) {
     Either.R(InvalidOperationError.DivideByZero);
   } else {
-    Either.L(x / y);
+    Either.L(Bigint.(/)(x, y));
   };
 
 let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   switch (op) {
-  | Int(Plus) => Defined(Int, Int, Int, just((+)))
-  | Int(Minus) => Defined(Int, Int, Int, just((-)))
-  | Int(Times) => Defined(Int, Int, Int, just(( * )))
+  | Int(Plus) => Defined(Int, Int, Int, just(Bigint.(+)))
+  | Int(Minus) => Defined(Int, Int, Int, just(Bigint.(-)))
+  | Int(Times) => Defined(Int, Int, Int, just(Bigint.( * )))
   | Int(Power) => Defined(Int, Int, Int, int_power)
   | Int(Divide) => Defined(Int, Int, Int, int_divide)
   | Int(LessThan) => Defined(Int, Int, Bool, just((<)))
@@ -274,10 +275,10 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   | Int(Equals) => Defined(Int, Int, Bool, just((==)))
   | Int(NotEquals) => Defined(Int, Int, Bool, just((!=)))
 
-  | Nat(Plus) => Defined(Nat, Nat, Nat, just((+)))
+  | Nat(Plus) => Defined(Nat, Nat, Nat, just(Bigint.(+)))
   | Nat(Minus) => Undefined
-  | Nat(Times) => Defined(Nat, Nat, Nat, just(( * )))
-  | Nat(Power) => Defined(Nat, Nat, Nat, just(IntUtil.ipow))
+  | Nat(Times) => Defined(Nat, Nat, Nat, just(Bigint.( * )))
+  | Nat(Power) => Defined(Nat, Nat, Nat, just(Bigint.pow))
   | Nat(Divide) => Defined(Nat, Nat, Nat, int_divide)
   | Nat(LessThan) => Defined(Nat, Nat, Bool, just((<)))
   | Nat(LessThanOrEqual) => Defined(Nat, Nat, Bool, just((<=)))
