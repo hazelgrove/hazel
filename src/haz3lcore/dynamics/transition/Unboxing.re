@@ -48,7 +48,8 @@ type unbox_request('a) =
   | TypFun: unbox_request(unboxed_tfun)
   | Fun: unbox_request(unboxed_fun)
   | TupleElementPivot(LabeledTuple.label)
-    : unbox_request((LabeledTuple.label, list(DHExp.t)));
+    : unbox_request((LabeledTuple.label, list(DHExp.t)))
+  | LabeledTupleProjection(LabeledTuple.label): unbox_request(DHExp.t);
 
 [@deriving (show({with_path: false}), eq)]
 type unboxed('a) =
@@ -104,6 +105,41 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | TupLabel(_, e) => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
       | _ => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
       }
+    | (
+        LabeledTupleProjection(_),
+        Cast(d, _, {term: Prod([{term: Unknown(Internal), _}]), _}),
+      ) =>
+      unbox(request, d)
+
+    | (
+        LabeledTupleProjection(l),
+        Cast(
+          d,
+          _,
+          {
+            term:
+              Prod([
+                {
+                  term:
+                    TupLabel(
+                      {term: Label(l'), _},
+                      {term: Unknown(Internal), _},
+                    ),
+                  _,
+                },
+              ]),
+            _,
+          },
+        ),
+      )
+        when l == l' =>
+      unbox(request, d)
+    | (LabeledTupleProjection(l), Tuple(ds)) =>
+      switch (LabeledTuple.find_label(Exp.match_tup_label, ds, l)) {
+      | Some({term: TupLabel(_, _), _}) => Matches(expr) // Choosing to just return the original expression here
+      | _ => IndetMatch // TODO Should this be DoesNotMatch?
+      }
+    | (LabeledTupleProjection(l), ListLit(ds)) => Matches(expr)
     | (TupleElementPivot(_), Cast(d, _, {term: Unknown(_), _})) =>
       unbox(request, d)
     | (TupleElementPivot(l), Tuple(ds)) =>
@@ -307,6 +343,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | Fun => raise(EvaluatorError.Exception(InvalidBoxedFun(expr)))
       | TypFun => raise(EvaluatorError.Exception(InvalidBoxedTypFun(expr)))
       | TupleElementPivot(_) =>
+        raise(EvaluatorError.Exception(InvalidBoxedTuple(expr))) // todo: better error message
+      | LabeledTupleProjection(_) =>
         raise(EvaluatorError.Exception(InvalidBoxedTuple(expr))) // todo: better error message
       }
 

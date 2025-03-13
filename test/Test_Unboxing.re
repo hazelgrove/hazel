@@ -344,6 +344,111 @@ let tests = (
           );
         },
       ),
+      test_case(
+        "Dot projection",
+        `Quick,
+        () => {
+          open F;
+          let uncasted_tuple =
+            Exp.(
+              tuple([
+                tup_label(
+                  label("a"),
+                  list_lit([
+                    cast(
+                      tup_label(
+                        label("j"),
+                        cast(
+                          int(Bigint.of_int(1)),
+                          Typ.int(),
+                          Typ.unknown(Internal),
+                        ),
+                      ),
+                      Typ.tup_label(
+                        Typ.unknown(Internal),
+                        Typ.unknown(Internal),
+                      ),
+                      Typ.unknown(Internal),
+                    ),
+                    cast(
+                      int(Bigint.of_int(3)),
+                      Typ.int(),
+                      Typ.unknown(Internal),
+                    ),
+                  ]),
+                ),
+                tup_label(
+                  label("b"),
+                  list_lit([
+                    cast(
+                      tup_label(
+                        label("j"),
+                        cast(
+                          int(Bigint.of_int(2)),
+                          Typ.int(),
+                          Typ.unknown(Internal),
+                        ),
+                      ),
+                      Typ.tup_label(
+                        Typ.unknown(Internal),
+                        Typ.unknown(Internal),
+                      ),
+                      Typ.unknown(Internal),
+                    ),
+                    cast(
+                      int(Bigint.of_int(9)),
+                      Typ.int(),
+                      Typ.unknown(Internal),
+                    ),
+                  ]),
+                ),
+                tup_label(
+                  label("c"),
+                  list_lit([
+                    cast(
+                      tup_label(
+                        label("j"),
+                        cast(
+                          int(Bigint.of_int(3)),
+                          Typ.int(),
+                          Typ.unknown(Internal),
+                        ),
+                      ),
+                      Typ.tup_label(
+                        Typ.unknown(Internal),
+                        Typ.unknown(Internal),
+                      ),
+                      Typ.unknown(Internal),
+                    ),
+                    cast(
+                      int(Bigint.of_int(9)),
+                      Typ.int(),
+                      Typ.unknown(Internal),
+                    ),
+                  ]),
+                ),
+              ])
+            );
+          let casted_tuple =
+            Exp.(
+              cast(
+                cast(
+                  uncasted_tuple,
+                  Typ.unknown(Internal),
+                  Typ.prod([Typ.unknown(Internal)]),
+                ),
+                Typ.(prod([unknown(Internal)])),
+                Typ.(prod([tup_label(label("a"), unknown(Internal))])),
+              )
+            );
+          check(
+            unboxed_testable(exp),
+            "Dot projection",
+            Matches(uncasted_tuple),
+            unbox(LabeledTupleProjection("a"), casted_tuple),
+          );
+        },
+      ),
     ]
   ),
 );
