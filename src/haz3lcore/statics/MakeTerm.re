@@ -227,6 +227,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(Atom(Int(Bigint.of_string(t))))
       | ([t], []) when Form.is_string(t) =>
         ret(Atom(String(Form.strip_quotes(t))))
+      | ([t], []) when Form.is_single_quote_label(t) =>
+        ret(Label(String.sub(t, 1, String.length(t) - 2)))
       | ([t], []) when Form.is_float(t) =>
         ret(Atom(Float(float_of_string(t))))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
@@ -508,6 +510,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         | ([t], []) when Form.is_int(t) => Atom(Int(Bigint.of_string(t)))
         | ([t], []) when Form.is_string(t) =>
           Atom(String(Form.strip_quotes(t)))
+        | ([t], []) when Form.is_single_quote_label(t) =>
+          Label(String.sub(t, 1, String.length(t) - 2))
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) => Constructor(t, None)
