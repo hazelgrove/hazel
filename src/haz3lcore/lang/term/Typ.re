@@ -130,7 +130,6 @@ let show_cls: cls => string =
   | TFun => "Type Function"
   | Forall => "Forall type";
 
-
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
   | Parens(typ)
@@ -241,7 +240,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Rec(x, ty)
   | Forall(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
-  | TFun(x,ty) =>
+  | TFun(x, ty, _) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
   };
 
@@ -362,9 +361,8 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     List(ty) |> temp;
   | (List(_), _) => None
   | (Ap(_), _) => failwith("Type join of ap")
-  | (TFun(x,ty1),TFun(y,ty2)) => 
-    join'(ty1,ty2) //very very questionable
-  | (TFun(_),_) => None
+  | (TFun(x, ty1, v1), TFun(y, ty2, v2)) => join'(ty1, ty2) //very very questionable
+  | (TFun(_), _) => None
   };
 };
 
@@ -386,9 +384,9 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Ap(_), _)
   | (Rec(_), _)
   | (Forall(_), _) => t1
-  | (TFun(_),_) => failwith("Type Function in dynamics")
-  //think about failwith 
-// These might
+  | (TFun(_), _) => failwith("Type Function in dynamics")
+  //think about failwith
+  // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
@@ -462,8 +460,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
   | Forall(name, ty) =>
     Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
-  | TFun(tpat,ty) => 
-    TFun(tpat, normalize(ctx,ty)) |> rewrap
+  | TFun(tpat, ty, var) => TFun(tpat, normalize(ctx, ty), var) |> rewrap
   };
 };
 
@@ -683,8 +680,11 @@ let rec pretty_print = (ty: t): string =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | Forall(tv, t) =>
     "forall " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
-  | TFun(var,ty) =>
-    "Type Function " ++ pretty_print_tvar(var) ++ " -> " ++ pretty_print(ty)
+  | TFun(pat, ty, _) =>
+    switch (pat.term) {
+    | Var(x) => "Type Function " ++ x ++ " -> " ++ pretty_print(ty)
+    | _ => "Type Function ->" ++ pretty_print(ty)
+    } //omit var for now, not super sure why
   }
 and ctr_pretty_print =
   fun

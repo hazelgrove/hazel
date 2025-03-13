@@ -119,6 +119,7 @@ module Ctr = {
     | String
     | Arrow(_)
     | Forall(_)
+    | TFun(_) // i think? -- idk how to tell if the internal type variable is normalized or not however
     | Var(_) => Infinite
     | Parens(_)
     | Ap(_)

@@ -41,133 +41,6 @@ let stop = (_, x) => x;
  */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-<<<<<<< HEAD:src/haz3lcore/statics/TermBase.re
-type any_t =
-  | Exp(exp_t)
-  | Pat(pat_t)
-  | Typ(typ_t)
-  | TPat(tpat_t)
-  | Rul(rul_t)
-  | Any(unit)
-and exp_term =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t))
-  | DynamicErrorHole(exp_t, InvalidOperationError.t)
-  | FailedCast(exp_t, typ_t, typ_t)
-  | Deferral(deferral_position_t)
-  | Undefined
-  | Bool(bool)
-  | Int(int)
-  | Float(float)
-  | String(string)
-  | ListLit(list(exp_t))
-  | Constructor(string, typ_t) // Typ.t field is only meaningful in dynamic expressions
-  | Fun(pat_t, exp_t, option(typ_t), option(Var.t)) // typ_t field is only used to display types in results
-  | TypFun(tpat_t, exp_t, option(Var.t))
-  | Tuple(list(exp_t))
-  | Var(Var.t)
-  | Let(pat_t, exp_t, exp_t)
-  | FixF(pat_t, exp_t, option(closure_environment_t))
-  | TyDef(tpat_t, typ_t, exp_t)
-  | Ap(Operators.ap_direction, exp_t, exp_t)
-  | TypAp(exp_t, typ_t)
-  | DeferredAp(exp_t, list(exp_t))
-  | If(exp_t, exp_t, exp_t)
-  | Seq(exp_t, exp_t)
-  | Test(exp_t)
-  | Filter(stepper_filter_kind_t, exp_t)
-  | Closure([@show.opaque] closure_environment_t, exp_t)
-  | Parens(exp_t) // (
-  | Cons(exp_t, exp_t)
-  | ListConcat(exp_t, exp_t)
-  | UnOp(Operators.op_un, exp_t)
-  | BinOp(Operators.op_bin, exp_t, exp_t)
-  | BuiltinFun(string)
-  | Match(exp_t, list((pat_t, exp_t)))
-  /* INVARIANT: in dynamic expressions, casts must be between
-     two consistent types. Both types should be normalized in
-     dynamics for the cast calculus to work right. */
-  | Cast(exp_t, typ_t, typ_t)
-  | Label(string)
-  | TupLabel(exp_t, exp_t)
-  | Dot(exp_t, exp_t)
-and exp_t = IdTagged.t(exp_term)
-and pat_term =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t))
-  | Wild
-  | Int(int)
-  | Float(float)
-  | Bool(bool)
-  | String(string)
-  | ListLit(list(pat_t))
-  | Constructor(string, typ_t) // Typ.t field is only meaningful in dynamic patterns
-  | Cons(pat_t, pat_t)
-  | Var(Var.t)
-  | Tuple(list(pat_t))
-  | Parens(pat_t)
-  | Ap(pat_t, pat_t)
-  | Cast(pat_t, typ_t, typ_t)
-  | Label(string)
-  | TupLabel(pat_t, pat_t)
-and pat_t = IdTagged.t(pat_term)
-and typ_term =
-  | Unknown(type_provenance)
-  | Int
-  | Float
-  | Bool
-  | String
-  | Var(string)
-  | List(typ_t)
-  | Arrow(typ_t, typ_t)
-  | Sum(ConstructorMap.t(typ_t))
-  | Prod(list(typ_t))
-  | Parens(typ_t)
-  | TFun(tpat_t,typ_t,option(Var.t))
-    // | Fun(
-    //   pat_t,
-    //   exp_t,
-    //   [@show.opaque] option(closure_environment_t),
-    //   option(Var.t),
-    // )
-  | Ap(typ_t, typ_t) //represents Tree(Int) in a type annotation
-  | Rec(tpat_t, typ_t)
-  | Forall(tpat_t, typ_t)
-  | Label(string)
-  | TupLabel(typ_t, typ_t)
-and typ_t = IdTagged.t(typ_term)
-and tpat_term =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t))
-  | Var(string)
-  | Ap(tpat_term, tpat_term) //represents Tree(a)
-and tpat_t = IdTagged.t(tpat_term)
-and rul_term =
-  | Invalid(string)
-  | Hole(list(any_t))
-  | Rules(exp_t, list((pat_t, exp_t)))
-and rul_t = IdTagged.t(rul_term)
-and environment_t = VarBstMap.Ordered.t_(exp_t)
-and closure_environment_t = (Id.t, environment_t)
-and stepper_filter_kind_t =
-  | Filter(filter)
-  | Residue(int, FilterAction.t)
-and type_hole =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t))
-and type_provenance =
-  | SynSwitch
-  | Hole(type_hole)
-  | Internal
-and filter = {
-  pat: exp_t,
-  act: FilterAction.t,
-};
-=======
 type any_t = Grammar.any_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp_t = Grammar.exp_t(IdTagged.IdTag.t);
@@ -203,7 +76,6 @@ type type_provenance = Grammar.type_provenance(IdTagged.IdTag.t);
 type filter = Grammar.filter(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type deferral_position_t = Grammar.deferral_position_t;
->>>>>>> dev:src/haz3lcore/lang/term/TermBase.re
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -732,7 +604,7 @@ and Typ: {
           )
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
-        | TFun(tp,t,var) => TFun(tp,typ_map_term(t),var) //can't recurse further on a pattern 
+        | TFun(tp, t, var) => TFun(tp, typ_map_term(t), var) //can't recurse further on a pattern
         },
     };
     x |> f_typ(rec_call);
@@ -766,7 +638,7 @@ and Typ: {
       | Var(y) => str == y ? s : Var(y) |> rewrap
       | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
       | Ap(t1, t2) => Ap(subst(s, x, t1), subst(s, x, t2)) |> rewrap
-      | TFun(pat, ty,var) => TFun(pat, subst(s,x,ty),var) |> rewrap //double check this in OH
+      | TFun(pat, ty, var) => TFun(pat, subst(s, x, ty), var) |> rewrap //double check this in OH
       };
     | None => ty
     };
@@ -839,8 +711,9 @@ and Typ: {
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
     // Ignore the variable when considering equality
-    | (TFun(tp1,ty1,_),TFun(tp2,ty2,_)) => tp1 == tp2 && eq_internal(~alpha_equivalence,n,ty1,ty2)
-    | (TFun(_),_) => false
+    | (TFun(tp1, ty1, _), TFun(tp2, ty2, _)) =>
+      tp1 == tp2 && eq_internal(~alpha_equivalence, n, ty1, ty2)
+    | (TFun(_), _) => false
     };
   };
 

@@ -49,7 +49,7 @@ and exp_term('a) =
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
   | FixF(pat_t('a), exp_t('a), option(closure_environment_t('a)))
-  | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
+  | TyDef(tpat_t('a), typ_t('a), exp_t('a))
   | Ap(Operators.ap_direction, exp_t('a), exp_t('a))
   | TypAp(exp_t('a), typ_t('a))
   | DeferredAp(exp_t('a), list(exp_t('a)))
@@ -104,7 +104,14 @@ and typ_term('a) =
   | Label(string)
   | TupLabel(typ_t('a), typ_t('a))
   | Parens(typ_t('a))
-  | Ap(typ_t('a), typ_t('a))
+  | TFun(tpat_t('a), typ_t('a), option(Var.t))
+  // | Fun(
+  //   pat_t,
+  //   exp_t,
+  //   [@show.opaque] option(closure_environment_t),
+  //   option(Var.t),
+  // )
+  | Ap(typ_t('a), typ_t('a)) //Represents Tree(Int) in a type annotation
   | Rec(tpat_t('a), typ_t('a))
   | Forall(tpat_t('a), typ_t('a))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
@@ -113,6 +120,8 @@ and tpat_term('a) =
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | Var(string)
+  | Ap(tpat_term('a), tpat_term('a)) //Represents Tree(a) in a type pattern binding
+// key idea is that a tpat_ap is part of a larger TFun.
 and tpat_t('a) = Annotated.t(tpat_term('a), 'a)
 and rul_term('a) =
   | Invalid(string)
@@ -190,8 +199,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           )
         | FixF(p, e, _) =>
           FixF(map_pat_annotation(f, p), map_exp_annotation(f, e), None)
-        | TyAlias(p, t, e) =>
-          TyAlias(
+        | TyDef(p, t, e) =>
+          TyDef(
             map_tpat_annotation(f, p),
             map_typ_annotation(f, t),
             map_exp_annotation(f, e),
@@ -333,6 +342,8 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
           TupLabel(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Sum(m) =>
           Sum(ConstructorMap.map_preserving(map_typ_annotation(f), m))
+        | TFun(pat, ty, var) =>
+          TFun(map_tpat_annotation(f, pat), map_typ_annotation(f, ty), var)
         },
       annotation: new_annotation,
     };
@@ -349,6 +360,7 @@ and map_tpat_annotation: 'a 'b. ('a => 'b, tpat_t('a)) => tpat_t('b) =
         | MultiHole(l) =>
           MultiHole(List.map(x => map_any_annotation(f, x), l))
         | Var(s) => Var(s)
+        | Ap(_, _) => failwith("idk what's going on here")
         },
       annotation: new_annotation,
     };

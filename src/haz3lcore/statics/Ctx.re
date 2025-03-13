@@ -5,7 +5,6 @@ type kind =
   | Singleton(TermBase.typ_t)
   | Arrow(TermBase.typ_t, TermBase.typ_t)
   | Abstract;
-  
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type var_entry = {
@@ -84,7 +83,7 @@ let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
 
 let is_alias = (ctx: t, name: string): bool =>
   switch (lookup_tvar(ctx, name)) {
-  | Some(Arrow(_,_))
+  | Some(Arrow(_, _))
   | Some(Singleton(_)) => true
   | Some(Abstract)
   | None => false
@@ -94,20 +93,20 @@ let is_abstract = (ctx: t, name: string): bool =>
   switch (lookup_tvar(ctx, name)) {
   | Some(Abstract) => true
   | Some(Singleton(_))
-  | Some(Arrow(_,_))
+  | Some(Arrow(_, _))
   | None => false
   };
 
-let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) => 
+let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
   switch (lookup_tvar(ctx, name)) {
-  | Some(Arrow(_,ty2)) => Some(ty2) //i'm not positive what this should be doing here
+  | Some(Arrow(_, ty2)) => Some(ty2) //i'm not positive what this should be doing here
   | Some(Singleton(ty)) => Some(ty)
   | Some(Abstract) => None
   | None =>
     Some(
       (Unknown(Hole(Invalid(name))): TermBase.Typ.term) |> IdTagged.fresh,
     )
-  }; 
+  };
 
 let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t =>
   List.filter_map(

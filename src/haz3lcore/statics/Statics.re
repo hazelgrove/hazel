@@ -976,6 +976,7 @@ and uexp_to_info_map =
           go'(~ctx, ~mode, body, m);
         let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
         add(~self=Just(ty_body), ~co_ctx, m);
+      | Ap(_) => failwith("later problem")
       };
     };
   };
@@ -1576,6 +1577,11 @@ and utyp_to_info_map =
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
+  | TFun(utpat, ty, _) =>
+    let m =
+      utyp_to_info_map(ty, ~ctx, ~ancestors, ~expects=TypeExpected, m) |> snd;
+    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    add(m);
   };
 }
 and utpat_to_info_map =
@@ -1597,7 +1603,7 @@ and utpat_to_info_map =
     add(m);
   | Invalid(_)
   | EmptyHole
-  | Ap(_) 
+  | Ap(_)
   | Var(_) => add(m)
   };
 }
