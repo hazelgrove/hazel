@@ -43,7 +43,7 @@ let type_binder = 15;
 
 let unquote = 21;
 // $_____
-let dot = 22;
+let dot = 22 |> left_associative;
 let ap = 23;
 // _____(x)
 // 5 : _____
