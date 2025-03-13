@@ -362,28 +362,32 @@ module Pervasives = {
            "primitive_pivot",
            Prod([unknown(Internal), list(unknown(Internal))]),
            Unknown(Internal),
-           binary((_lab: DHExp.t, d: DHExp.t) => {
-             let-unbox l = (ListLit, d);
-             let unboxed: option(list((string, list(TermBase.exp_t)))) =
-               List.map(
-                 e => {
-                   let-unbox (name, es) = (TupleElementPivot("l"), e);
-                   Some((name, Tuple(es) |> Exp.fresh));
-                 },
-                 l,
-               )
-               |> Util.OptUtil.sequence
-               |> Option.map(List.rev)  // We have to reverse because ListUtil.group_by
-               |> Option.map(ListUtil.group_by(fst))
-               |> Option.map(List.map(PairUtil.map_snd(List.map(snd))));
+           binary((lab: DHExp.t, d: DHExp.t) => {
+             switch (lab.term) {
+             | Label(name) =>
+               let-unbox l = (List, d);
+               let unboxed: option(list((string, list(TermBase.exp_t)))) =
+                 List.map(
+                   e => {
+                     let-unbox (name, es) = (TupleElementPivot(name), e);
+                     Some((name, Tuple(es) |> Exp.fresh));
+                   },
+                   l,
+                 )
+                 |> Util.OptUtil.sequence
+                 |> Option.map(List.rev)  // We have to reverse because ListUtil.group_by
+                 |> Option.map(ListUtil.group_by(fst))
+                 |> Option.map(List.map(PairUtil.map_snd(List.map(snd))));
 
-             Option.map(
-               List.map(((name: string, es)) =>
-                 Fresh.Exp.(tup_label(label(name), list_lit(es)))
-               ),
-               unboxed,
-             )
-             |> Option.map(Fresh.Exp.tuple);
+               Option.map(
+                 List.map(((name: string, es)) =>
+                   Fresh.Exp.(tup_label(label(name), list_lit(es)))
+                 ),
+                 unboxed,
+               )
+               |> Option.map(Fresh.Exp.tuple);
+             | _ => None
+             }
            }),
          )
     )
