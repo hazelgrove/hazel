@@ -237,7 +237,22 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {annotation: {ids}, term: Tuple(es)} => (ListLit(es), ids)
+        | {annotation: {ids}, term: Tuple(es)} => (
+            ListLit(
+              List.map(
+                (list_item: Grammar.exp_t(IdTagged.IdTag.t)) => {
+                  let (e, rewrap) = IdTagged.unwrap(list_item);
+                  switch (e) {
+                  | TupLabel(_) =>
+                    rewrap(Tuple([e |> Exp.fresh]): TermBase.exp_term)
+                  | _ => list_item
+                  };
+                },
+                es,
+              ),
+            ),
+            ids,
+          )
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
