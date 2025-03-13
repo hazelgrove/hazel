@@ -623,42 +623,52 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d1 => Dot1(d1, d2) |> wrap_ctx, d1)
       and. d2' =
         req_final(req(state, env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
-      switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
-      | (Tuple(ds), Label(name)) =>
-        switch (LabeledTuple.find_label(Exp.match_tup_label, ds, name)) {
-        | Some({term: TupLabel(_, exp), _}) =>
-          Step({
-            expr: exp,
-            state_update,
-            kind: Dot,
-            is_value: false,
-          })
-        | _ => Indet
-        }
-      | (TupLabel(_, d), Label(name)) =>
-        LabeledTuple.has_same_labels(
-          Exp.match_tup_label(d1'),
-          Some((name, d)),
-        )
-          ? Step({
-              expr: d,
+      switch (DHExp.term_of(d2')) {
+      | Label(name) =>
+        switch (Unboxing.unbox(LabeledTupleProjection(name), d1')) {
+        | Matches(d1'') =>
+          switch (DHExp.term_of(d1''), DHExp.term_of(d2')) {
+          | (Tuple(ds), Label(name)) =>
+            switch (LabeledTuple.find_label(Exp.match_tup_label, ds, name)) {
+            | Some({term: TupLabel(_, exp), _}) =>
+              Step({
+                expr: exp,
+                state_update,
+                kind: Dot,
+                is_value: false,
+              })
+            | _ => Indet
+            }
+          | (TupLabel(_, d), Label(name)) =>
+            LabeledTuple.has_same_labels(
+              Exp.match_tup_label(d1'),
+              Some((name, d)),
+            )
+              ? Step({
+                  expr: d,
+                  state_update,
+                  kind: Dot,
+                  is_value: false,
+                })
+              : Indet
+          | (ListLit(ds), Label(_) as lab) =>
+            let mapped =
+              List.map(d => Dot(d, lab |> Exp.fresh) |> Exp.fresh, ds);
+            let ls = ListLit(mapped) |> Exp.fresh;
+            Step({
+              expr: ls,
               state_update,
               kind: Dot,
               is_value: false,
-            })
-          : Indet
-      | (ListLit(ds), Label(_) as lab) =>
-        let mapped =
-          List.map(d => Dot(d, lab |> Exp.fresh) |> Exp.fresh, ds);
-        let ls = ListLit(mapped) |> Exp.fresh;
-        Step({
-          expr: ls,
-          state_update,
-          kind: Dot,
-          is_value: false,
-        });
+            });
+          | _ => Indet
+          }
+        | _ => Indet
+        }
+
       | _ => Indet
       };
+
     | TupLabel(label, d1) =>
       let. _ = otherwise(env, d1 => TupLabel(label, d1) |> rewrap)
       and. _ =
