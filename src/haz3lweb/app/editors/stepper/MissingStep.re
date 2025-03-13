@@ -345,7 +345,7 @@ module View = {
         Web.Node.div(
           ~attrs=[Web.Attr.classes(["proof-selection-buttons"])],
           [
-            proof_button(~callback=Ui_effect.Ignore, "Evaluate"),
+            proof_button(~callback=Ui_effect.Ignore, "Evaluate"), // Evaluate does nothing right now
             proof_button(~callback=inject(ProposeRewrite), "Rewrite ▼"),
             proof_button(~callback=inject(ToggleAxioms), "Axioms ▼"),
             proof_button(~callback=signal(AddInduction), "Cases"),
