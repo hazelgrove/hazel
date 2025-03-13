@@ -794,7 +794,7 @@ in fn("hello")|},
       check(
         dhexp_typ,
         {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)])|},
-        parse_exp({|(a=[j=1, 3], b=[j=2, 9], c=[j=3, 9])|}),
+        parse_exp({|a=[(j=1, 3)], b=[(j=2, 9)], c=[(j=3, 9)]|}),
         DHExp.strip_casts(
           evaluate(
             elaborate(
@@ -811,10 +811,12 @@ in fn("hello")|},
         dhexp_typ,
         {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)])|},
         parse_exp({|[(j=1, 3)]|}),
-        evaluate(
-          elaborate(
-            parse_exp(
-              {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)]).a|},
+        DHExp.strip_casts(
+          evaluate(
+            elaborate(
+              parse_exp(
+                {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)]).a|},
+              ),
             ),
           ),
         ),
