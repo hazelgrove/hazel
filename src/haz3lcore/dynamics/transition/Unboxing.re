@@ -142,7 +142,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (TupleElementPivot(_), Cast(d, _, {term: Unknown(_), _})) =>
       unbox(request, d)
     | (TupleElementPivot(_), Cast(d, ty1, ty2))
-        when Typ.is_consistent([], ty1, ty2) =>
+        when Typ.is_consistent(Ctx.empty_pre_elaboration, ty1, ty2) =>
       // TODO: This is a hack. We need a better way to handle this than an empty context.
       unbox(request, d)
     | (TupleElementPivot(l), Tuple(ds)) =>
