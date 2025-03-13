@@ -839,5 +839,21 @@ in fn("hello")|},
         ),
       )
     ),
+    test_case("Pivoting list bound to variable", `Quick, () =>
+      check(
+        dhexp_typ,
+        {|let i = [(l="a", j=1, 3)] in primitive_pivot(?, i).a|},
+        parse_exp({|[(j=1, 3)]|}),
+        DHExp.strip_casts(
+          evaluate(
+            elaborate(
+              parse_exp(
+                {|let i = [(l="a", j=1, 3)] in primitive_pivot(?, i).a|},
+              ),
+            ),
+          ),
+        ),
+      )
+    ),
   ],
 );
