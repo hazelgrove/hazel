@@ -793,13 +793,13 @@ in fn("hello")|},
     test_case("Primitive pivot of list of labeled tuple", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)])|},
+        {|primitive_pivot('l',  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)])|},
         parse_exp({|a=[(j=1, 3)], b=[(j=2, 9)], c=[(j=3, 9)]|}),
         DHExp.strip_casts(
           evaluate(
             elaborate(
               parse_exp(
-                {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)])|},
+                {|primitive_pivot('l',  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)])|},
               ),
             ),
           ),
@@ -809,13 +809,13 @@ in fn("hello")|},
     test_case("Projection of pivoted list of labeled tuples", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)]).a|},
+        {|primitive_pivot('l',  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)]).a|},
         parse_exp({|[(j=1, 3)]|}),
         DHExp.strip_casts(
           evaluate(
             elaborate(
               parse_exp(
-                {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)]).a|},
+                {|primitive_pivot('l',  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)]).a|},
               ),
             ),
           ),
@@ -826,13 +826,13 @@ in fn("hello")|},
       "Nested projection of pivoted list of labeled tuples", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)])|},
+        {|primitive_pivot('l',  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)])|},
         parse_exp({|[1]|}),
         DHExp.strip_casts(
           evaluate(
             elaborate(
               parse_exp(
-                {|primitive_pivot(?,  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)]).a.j|},
+                {|primitive_pivot('l',  [(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)]).a.j|},
               ),
             ),
           ),
@@ -842,13 +842,13 @@ in fn("hello")|},
     test_case("Pivoting list bound to variable", `Quick, () =>
       check(
         dhexp_typ,
-        {|let i = [(l="a", j=1, 3)] in primitive_pivot(?, i).a|},
+        {|let i = [(l="a", j=1, 3)] in primitive_pivot('l', i).a|},
         parse_exp({|[(j=1, 3)]|}),
         DHExp.strip_casts(
           evaluate(
             elaborate(
               parse_exp(
-                {|let i = [(l="a", j=1, 3)] in primitive_pivot(?, i).a|},
+                {|let i = [(l="a", j=1, 3)] in primitive_pivot('l', i).a|},
               ),
             ),
           ),
@@ -859,7 +859,7 @@ in fn("hello")|},
       "pivoted list of labeled tuples with multiple entries", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot(?,  [(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true))])|},
+        {|primitive_pivot('l',  [(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true))])|},
         parse_exp(
           {|(a=[(1, true), (4, true)], b=[(2, true)], c=[(3, true)])|},
         ),
@@ -867,7 +867,7 @@ in fn("hello")|},
           evaluate(
             elaborate(
               parse_exp(
-                {|primitive_pivot(?,  [(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)])|},
+                {|primitive_pivot('l',  [(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)])|},
               ),
             ),
           ),
