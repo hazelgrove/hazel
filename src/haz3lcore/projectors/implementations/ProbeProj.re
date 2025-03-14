@@ -110,16 +110,7 @@ let rm_opaques:
 let hide_env = (info: info): bool =>
   switch (info.statics) {
   | Some(
-      InfoExp({
-        term:
-          {
-            term:
-              Var(_) | Parens({term: Var(_), _}) |
-              Probe({term: Var(_), _}, _),
-            _,
-          },
-        _,
-      }),
+      InfoExp({term: {term: Var(_) | Probe({term: Var(_), _}, _), _}, _}),
     ) =>
     true
   | Some(InfoPat(_)) => true
@@ -129,14 +120,7 @@ let hide_env = (info: info): bool =>
 let cur_ap = (info: info) =>
   switch (info.statics) {
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
-  | Some(InfoExp({term: {term: Parens({term: Ap(_), _} as ap), _}, _})) =>
-    Some(Term.Exp.rep_id(ap))
-  | Some(
-      InfoExp({
-        term: {term: Parens({term: Parens({term: Ap(_), _} as ap), _}), _},
-        _,
-      }),
-    ) =>
+  | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _})) =>
     Some(Term.Exp.rep_id(ap))
   | _ => None
   };

@@ -140,7 +140,12 @@ let select_view =
         //Attr.string_property("value", value),
       ],
       [active, ...rest]
-      |> List.map(k => option([text(ProjectorCore.Kind.name(k))])),
+      |> List.map(k =>
+           option(
+             ~attrs=[Attr.title(keyboard_shortcut_of(k))],
+             [text(ProjectorCore.Kind.name(k))],
+           )
+         ),
     )
   };
 };
