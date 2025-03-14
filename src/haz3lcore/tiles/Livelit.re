@@ -143,15 +143,15 @@ let error: t = {
   name: "error",
   expansion_t: Typ.temp(Unknown(Internal)),
   expansion_f: (_model: Exp.t) =>
-    DHExp.fresh(String("Syntax error -- are statics enabled?")),
+    DHExp.fresh(String("Cannot display livelit -- are statics enabled?")),
   model_t: Typ.temp(Unknown(Internal)),
   model_default: "I SHOULD NEVER APPEAR",
   projector: (_model: list(model_piece), _) =>
     Node.div(
       ~attrs=[Attr.class_("livelit")],
-      [Node.text("Error livelit -- are statics enabled?")],
+      [Node.text("Cannot display livelit -- are statics enabled?")],
     ),
-  size: Inline(20),
+  size: Inline(100),
   id: Id.invalid,
 };
 

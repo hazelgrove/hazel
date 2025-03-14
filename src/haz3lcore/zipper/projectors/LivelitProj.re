@@ -109,7 +109,7 @@ module M: Projector = {
       };
     switch (Ctx.lookup_livelit(ctx, llname)) {
     | Some(ll) => ll.size
-    | None => ProjectorCore.Inline(20)
+    | None => ProjectorCore.Inline(32)
     };
   };
   let update = (model, _) => model;
@@ -163,7 +163,7 @@ module M: Projector = {
     | None =>
       Node.div(
         ~attrs=[Attr.class_("livelit")],
-        [Node.text("Error livelit -- are statics enabled?")],
+        [Node.text("Cannot display livelit -- are statics enabled?")],
       )
     | Some(ll) =>
       /* Ignore the first piece, which is the livelit invocation */

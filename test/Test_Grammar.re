@@ -75,7 +75,6 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
         module M = {
           include VarBstMap.Ordered;
         };
-
         closure(closure_environment(Id.mk(), M.empty), empty_hole());
       | Parens => parens(empty_hole())
       | Cons => cons(empty_hole(), empty_hole())
