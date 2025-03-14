@@ -46,6 +46,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | BuiltinFun(_)
   | Undefined
   | Label(_)
+  | Constructor(_)
   | TupLabel(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
@@ -57,7 +58,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
 
   // Other forms
   | UnOp(Meta(Unquote), _) => Precedence.unquote
-  | Constructor(_) // Constructor is here because we currently always add a type annotation to constructors
+
   | Cast(_)
   | FailedCast(_) => Precedence.cast
   | Ap(Forward, _, _)

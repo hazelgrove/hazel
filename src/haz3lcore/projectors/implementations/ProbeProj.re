@@ -564,7 +564,7 @@ let env_val =
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
     [
-      Node.text(en.binding.name ++ "⇒"),
+      Node.text(en.binding.name ++ " ≡ "),
       switch (en.value) {
       | Opaque => Node.text("Opaque")
       | Val(d) =>
@@ -641,7 +641,7 @@ let nav_bar_view = (num_total: int, local) => {
 };
 
 let equals_view =
-  div(~attrs=[Attr.classes(["live-equals"])], [text("⇒")]);
+  div(~attrs=[Attr.classes(["live-equals"])], [text("≡")]);
 
 let offside_view =
     (

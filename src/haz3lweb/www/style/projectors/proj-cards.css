@@ -137,37 +137,15 @@
   }
 }
 
-.projector.card.indicated.Left
-  > .card-wrapper
-  > .card-scene
-  > .card-sprite.front,
-.projector.card.indicated.Left .hand > *:first-child .card-sprite.front,
-.projector.card.indicated.Right
-  > .card-wrapper.flipped
-  > .card-scene
-  > .card-sprite.front,
-.projector.card.indicated.Right
-  .hand
-  > .card-wrapper.flipped
-  > *:first-child
-  .card-sprite.front {
+.projector.card.indicated.Left > .card-wrapper .card-sprite.front,
+.projector.card.indicated.Left > .card-wrapper.flipped .card-sprite.back,
+.projector.card.indicated.Left .hand > *:first-child .card-sprite.front {
   animation: blink-shadow 1s infinite !important;
 }
 
-.projector.card.indicated.Right
-  > .card-wrapper
-  > .card-scene
-  > .card-sprite.front,
-.projector.card.indicated.Right .hand > *:last-child .card-sprite.front,
-.projector.card.indicated.Left
-  > .card-wrapper.flipped
-  > .card-scene
-  > .card-sprite.front,
-.projector.card.indicated.Left
-  .hand
-  > .card-wrapper.flipped
-  > *:first-child
-  .card-sprite.front {
+.projector.card.indicated.Right > .card-wrapper .card-sprite.front,
+.projector.card.indicated.Right > .card-wrapper.flipped .card-sprite.back,
+.projector.card.indicated.Right .hand > *:last-child .card-sprite.front {
   animation: blink-shadow-right 1s infinite !important;
 }
 
@@ -205,6 +183,11 @@
   filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
     drop-shadow(1.5px 0px 0px black) drop-shadow(0px 1.5px 0px black)
     drop-shadow(2px 2px 0px #6666);
+}
+.projector.card.indicated.Pat .hand .card-sprite:hover {
+  filter: drop-shadow(-1px 0px 0px var(--PAT))
+    drop-shadow(0px -1px 0px var(--PAT)) drop-shadow(1.5px 0px 0px var(--PAT))
+    drop-shadow(0px 1.5px 0px var(--PAT)) drop-shadow(2px 2px 0px #6666);
 }
 
 /* CHOOSER */

@@ -12,13 +12,14 @@
   left: -1em;
 }
 
-.code-container {
-  position: relative;
-}
-
 #main .code-editor {
   /* Only code in primary editor is selectable atm */
   cursor: text;
+}
+
+#main.Scratch,
+#main.Documentation {
+  background-color: var(--cell-active);
 }
 
 .cell {
@@ -38,18 +39,6 @@
   display: flex;
   flex-direction: column;
   gap: 1em;
-}
-
-.Scratch .cell {
-  background-color: var(--cell-active);
-}
-
-.Documentation .cell {
-  background-color: var(--cell-active);
-}
-
-.cell:has(.code-editor.selected) {
-  background-color: var(--cell-active);
 }
 
 .result .cell-item {

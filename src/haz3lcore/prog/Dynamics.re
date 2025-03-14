@@ -33,9 +33,10 @@ module Probe = {
      * being used in the live probe UI, for (putative, unbenchmarked)
      * performance purposes for worker de/serialization */
     let elide = (env: Environment.t, d: DHExp.t) =>
-      switch (d.term) {
+      switch ((d |> DHExp.strip_casts).term) {
       | Fun(_)
-      | FixF(_) => Opaque
+      | FixF(_)
+      | Closure(_) => Opaque
       | _ => Val(d |> DHExp.strip_casts |> Exp.substitute_closures(env))
       };
 
