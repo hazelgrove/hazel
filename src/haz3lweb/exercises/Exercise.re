@@ -425,15 +425,19 @@ let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
       Filter({
         act: FilterAction.(act, One),
         pat: {
-          term: Constructor("$e", Unknown(Internal) |> Typ.temp),
-          copied: false,
-          ids: [Id.mk()],
+          term: Constructor("$e", Some(Unknown(Internal) |> Typ.fresh)),
+          annotation: {
+            copied: false,
+            ids: [Id.mk()],
+          },
         },
       }),
       term,
     ),
-  copied: false,
-  ids: [Id.mk()],
+  annotation: {
+    copied: false,
+    ids: [Id.mk()],
+  },
 };
 
 let wrap = (term, editor: Editor.t): TermItem.t => {term, editor};

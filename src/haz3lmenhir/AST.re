@@ -98,6 +98,7 @@ type typ =
   | RecType(tpat, typ)
   | LabelType(string)
   | TupLabelType(typ, typ)
+  | IndicationTyp(typ)
 and sumterm =
   | Variant(string, option(typ))
   | BadEntry(typ)
@@ -113,7 +114,7 @@ type pat =
       [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
     )
   | VarPat(string)
-  | ConstructorPat(string, typ)
+  | ConstructorPat(string, option(typ))
   | StringPat(string)
   | TuplePat(list(pat))
   | BoolPat(bool)
@@ -122,7 +123,8 @@ type pat =
   | ApPat(pat, pat)
   | InvalidPat(string) // Menhir parser doesn't actually support invalid pats
   | TupLabelPat(pat, pat)
-  | LabelPat(string);
+  | LabelPat(string)
+  | IndicationPat(pat);
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type if_consistency =
@@ -143,7 +145,7 @@ type exp =
         [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
       )
   | Var(string)
-  | Constructor(string, typ)
+  | Constructor(string, option(typ))
   | String(string)
   | ListExp(list(exp))
   | TupleExp(list(exp))
@@ -174,7 +176,8 @@ type exp =
   | InvalidExp(string)
   | TypAp(exp, typ)
   | DynamicErrorHole(exp, string)
-  | TyAlias(tpat, typ, exp);
+  | TyAlias(tpat, typ, exp)
+  | IndicationExp(exp);
 
 /**
  * Generates a random CONSTRUCTOR_IDENT string. Used for CONSTRUCTOR_IDENT in the lexer.
@@ -349,7 +352,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
             },
             {
               let+ name = gen_constructor_ident;
-              Constructor(name, UnknownType(Internal));
+              Constructor(name, None);
             },
             {
               let* op = gen_bin_op;
@@ -570,10 +573,7 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
               map(x => VarPat(x), gen_ident),
               map(x => StringPat(x), gen_string_literal),
               map(x => BoolPat(x), bool),
-              map(
-                x => ConstructorPat(x, UnknownType(Internal)),
-                gen_constructor_ident,
-              ),
+              map(x => ConstructorPat(x, None), gen_constructor_ident),
               return(TuplePat([])),
               return(ListPat([])),
             ]);
@@ -616,10 +616,7 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
               {
                 let* constructor = gen_constructor_ident;
                 let+ p = self(n - 1);
-                ApPat(
-                  ConstructorPat(constructor, UnknownType(Internal)),
-                  p,
-                );
+                ApPat(ConstructorPat(constructor, None), p);
               }, // The parser only handles ApPat with a constructor
               {
                 let* p = self((n - 1) / 2);

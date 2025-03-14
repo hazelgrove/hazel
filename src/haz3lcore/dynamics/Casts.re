@@ -119,7 +119,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       switch (DHExp.term_of(d1)) {
       | Cast(d2, t3, {term: Unknown(_), _}) =>
         /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
-        if (Typ.eq(t3, t2)) {
+        if (Typ.equal(t3, t2)) {
           Some
             (d2); // Rule ITCastSucceed
         } else {
@@ -159,7 +159,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Ground, NotGroundOrHole(_)) =>
       switch (DHExp.term_of(d1)) {
       | Cast(d2, t3, _) =>
-        if (Typ.eq(t3, t2)) {
+        if (Typ.equal(t3, t2)) {
           Some(d2);
         } else {
           None;
@@ -172,7 +172,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
 
     | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
       /* they might be eq in this case, so remove cast if so */
-      if (Typ.eq(t1, t2)) {
+      if (Typ.equal(t1, t2)) {
         Some
           (d1); // Rule ITCastId
       } else {
@@ -202,7 +202,7 @@ let pattern_fixup = (p: DHPat.t): DHPat.t => {
       let (p1, d1) = unwrap_casts(p1);
       (
         p1,
-        {term: Cast(d1, t1, t2), copied: p.copied, ids: p.ids}
+        {term: Cast(d1, t1, t2), annotation: p.annotation}
         |> transition_multiple,
       );
     | _ => (p, hole)
@@ -213,7 +213,7 @@ let pattern_fixup = (p: DHPat.t): DHPat.t => {
     | EmptyHole => p
     | Cast(d1, t1, t2) =>
       let p1 = rewrap_casts((p, d1));
-      {term: Cast(p1, t1, t2), copied: d.copied, ids: d.ids};
+      {term: Cast(p1, t1, t2), annotation: d.annotation};
     | FailedCast(d1, t1, t2) =>
       let p1 = rewrap_casts((p, d1));
       {
@@ -223,8 +223,7 @@ let pattern_fixup = (p: DHPat.t): DHPat.t => {
             Typ.fresh(Unknown(Internal)),
             t2,
           ),
-        copied: d.copied,
-        ids: d.ids,
+        annotation: d.annotation,
       };
     | _ => failwith("unexpected term in rewrap_casts")
     };

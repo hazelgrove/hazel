@@ -44,6 +44,14 @@ let equal_constructor =
   | (Variant(_), BadEntry(_)) => false
   };
 
+let is_empty = (x: t('a)): bool =>
+  List.for_all(
+    fun
+    | Variant(_, _, _) => false
+    | BadEntry(_) => true,
+    x,
+  );
+
 let same_constructor =
     (eq: ('a, 'a) => bool, x: variant('a), y: variant('a)): bool =>
   switch (x, y) {
@@ -182,7 +190,7 @@ let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) => {
   };
 };
 
-let map = (f: option('a) => option('b), m: t('a)): t('b) => {
+let map = (type a, f: option(a) => option(a), m: t(a)): t(a) => {
   List.map(
     fun
     | Variant(ctr, args, value) => Variant(ctr, args, f(value))
@@ -191,10 +199,23 @@ let map = (f: option('a) => option('b), m: t('a)): t('b) => {
   );
 };
 
+let map_preserving = (type a, type b, f: a => b, m: t(a)): t(b) => {
+  List.map(
+    fun
+    | Variant(ctr, args, Some(value)) =>
+      Variant(ctr, args, Some(f(value)))
+    | Variant(ctr, args, None) => Variant(ctr, args, None)
+    | BadEntry(value) => BadEntry(f(value)),
+    m,
+  );
+};
+
+// TODO: maybe define a variant here instead of double option
 let get_entry = (ctr, m) =>
   List.find_map(
     fun
-    | Variant(ctr', _, value) when Constructor.equal(ctr, ctr') => value
+    | Variant(ctr', _, value) when Constructor.equal(ctr, ctr') =>
+      Some(value)
     | Variant(_)
     | BadEntry(_) => None,
     m,

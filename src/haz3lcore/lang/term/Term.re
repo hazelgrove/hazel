@@ -1,5 +1,5 @@
 module Pat = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
   type cls =
     | Invalid
     | EmptyHole
@@ -22,7 +22,7 @@ module Pat = {
 
   include TermBase.Pat;
 
-  let rep_id = ({ids, _}: t) => {
+  let rep_id = ({annotation: {ids, _}, _}: t) => {
     assert(ids != []);
     List.hd(ids);
   };
@@ -39,7 +39,7 @@ module Pat = {
     | [_, ..._] => MultiHole(tms)
     };
 
-  let cls_of_term: term => cls =
+  let cls_of_term: Grammar.pat_term('a) => cls =
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
@@ -333,12 +333,11 @@ module Pat = {
 };
 
 module Exp = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
   type cls =
     | Invalid
     | EmptyHole
     | MultiHole
-    | StaticErrorHole
     | DynamicErrorHole
     | FailedCast
     | Deferral
@@ -356,14 +355,12 @@ module Exp = {
     | Tuple
     | Dot
     | Var
-    | MetaVar
     | Let
     | FixF
     | TyAlias
     | Ap
     | TypAp
     | DeferredAp
-    | Pipeline
     | If
     | Seq
     | Test
@@ -380,6 +377,16 @@ module Exp = {
 
   include TermBase.Exp;
 
+  let temp: term => t =
+    term => {
+      term,
+      annotation: {
+        ids: [Id.invalid],
+        copied: false,
+      },
+    };
+  let fresh: term => t = IdTagged.fresh;
+
   let hole = (tms: list(TermBase.Any.t)): term =>
     switch (tms) {
     | [] => EmptyHole
@@ -387,11 +394,10 @@ module Exp = {
     };
 
   let rep_id: t => Id.t = IdTagged.rep_id;
-  let fresh: term => t = IdTagged.fresh;
   let term_of: t => term = IdTagged.term_of;
   let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
-  let cls_of_term: term => cls =
+  let cls_of_term: Grammar.exp_term('a) => cls =
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
@@ -438,7 +444,6 @@ module Exp = {
     | Invalid => "Invalid expression"
     | MultiHole => "Broken expression"
     | EmptyHole => "Empty expression hole"
-    | StaticErrorHole => "Static error hole"
     | DynamicErrorHole => "Dynamic error hole"
     | FailedCast => "Failed cast"
     | Deferral => "Deferral"
@@ -456,14 +461,12 @@ module Exp = {
     | TupLabel => "Labeled Tuple Item"
     | Dot => "Dot operator"
     | Var => "Variable reference"
-    | MetaVar => "Meta variable reference"
     | Let => "Let expression"
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
     | TypAp => "Type application"
     | DeferredAp => "Partial Application"
-    | Pipeline => "Pipeline expression"
     | If => "If expression"
     | Seq => "Sequence expression"
     | Test => "Test"
@@ -685,7 +688,15 @@ module Exp = {
       'a.
       (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
      =
-      (continue, exp) => {...exp, ids: [Id.mk()]} |> continue;
+      (continue, exp) =>
+        {
+          ...exp,
+          annotation: {
+            ...exp.annotation,
+            ids: [Id.mk()],
+          },
+        }
+        |> continue;
     (
       map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
       Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
@@ -865,20 +876,20 @@ module Exp = {
 module Rul = {
   include TermBase.Rul;
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type cls =
     | Rule;
 
   // example of awkwardness induced by having forms like rules
   // that may have a different-sorted child with no delimiters
   // (eg scrut with no rules)
-  let ids = (~any_ids, {ids, term, _}: t) =>
+  let ids = (~any_ids, {term, annotation: {ids, _}}: t) =>
     switch (ids) {
     | [_, ..._] => ids
     | [] =>
       switch (term) {
       | Hole([tm, ..._]) => any_ids(tm)
-      | Rules(scrut, []) => scrut.ids
+      | Rules(scrut, []) => IdTagged.ids(scrut)
       | _ => []
       }
     };
@@ -908,10 +919,10 @@ module Any = {
 
   let rec ids: TermBase.any_t => list(Id.t) =
     fun
-    | Exp(tm) => tm.ids
-    | Pat(tm) => tm.ids
-    | Typ(tm) => tm.ids
-    | TPat(tm) => tm.ids
+    | Exp(tm) => IdTagged.ids(tm)
+    | Pat(tm) => IdTagged.ids(tm)
+    | Typ(tm) => IdTagged.ids(tm)
+    | TPat(tm) => IdTagged.ids(tm)
     | Rul(tm) => Rul.ids(~any_ids=ids, tm)
     | Any () => [];
 
