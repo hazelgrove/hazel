@@ -98,9 +98,9 @@ module EvaluatorEVMode: {
 
 module Eval = Transition(EvaluatorEVMode);
 
-let rec evaluate = (state, env, d) => {
+let rec evaluate = (~in_closure=?, state, env, d) => {
   open Trampoline.Syntax;
-  let.trampoline u = Eval.transition(evaluate, state, env, d);
+  let.trampoline u = Eval.transition(evaluate, ~in_closure?, state, env, d);
   switch (u) {
   | (Final, x) => (EvaluatorEVMode.Final, x) |> Trampoline.return
   | (Uneval, x) => Trampoline.Next(() => evaluate(state, env, x))

@@ -68,9 +68,9 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
   let init = ();
-  let can_project = p => true;
+  let can_project = _p => true;
   let can_focus = false;
-  let placeholder = (model, info) => {
+  let placeholder = (_model, info) => {
     let llname =
       switch (info.ci) {
       | Some(InfoExp(exp)) =>
@@ -78,7 +78,7 @@ module M: Projector = {
         switch (term) {
         | Parens(args) =>
           switch (args.term) {
-          | Ap(_dir, ll_Exp, args) =>
+          | Ap(_dir, ll_Exp, _args) =>
             let (ll_term, _) = Exp.unwrap(ll_Exp);
             switch (ll_term) {
             | LivelitName(name) => name
@@ -187,10 +187,11 @@ module M: Projector = {
       ll.projector(model_pieces, replace);
     };
   };
-  let focus = ((id: Id.t, d: option(Direction.t))) => {
-    JsUtil.get_elem_by_id(of_id(id))##focus;
-    switch (d) {
-    | _ => ()
-    };
-  };
+  //   let focus = ((id: Id.t, d: option(Direction.t))) => {
+  //     JsUtil.get_elem_by_id(of_id(id))##focus;
+  //     switch (d) {
+  //     | _ => ()
+  //     };
+  //   };
+  let focus = _ => ();
 };

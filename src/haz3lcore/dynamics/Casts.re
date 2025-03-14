@@ -58,12 +58,18 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Int
   | Float
   | String
+  | Label(_)
+  | TupLabel(_, {term: Unknown(_), _})
   | Var(_)
   | Rec(_)
   | Forall(_, {term: Unknown(_), _})
   | Arrow({term: Unknown(_), _}, {term: Unknown(_), _})
   | List({term: Unknown(_), _}) => Ground
   | Parens(ty) => ground_cases_of(ty)
+  | TupLabel(label, _) =>
+    NotGroundOrHole(
+      TupLabel(label, Unknown(Internal) |> Typ.temp) |> Typ.temp,
+    )
   | Prod(tys) =>
     if (List.for_all(
           fun
@@ -113,7 +119,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       switch (DHExp.term_of(d1)) {
       | Cast(d2, t3, {term: Unknown(_), _}) =>
         /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
-        if (Typ.eq(t3, t2)) {
+        if (Typ.equal(t3, t2)) {
           Some
             (d2); // Rule ITCastSucceed
         } else {
@@ -153,7 +159,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Ground, NotGroundOrHole(_)) =>
       switch (DHExp.term_of(d1)) {
       | Cast(d2, t3, _) =>
-        if (Typ.eq(t3, t2)) {
+        if (Typ.equal(t3, t2)) {
           Some(d2);
         } else {
           None;
@@ -166,7 +172,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
 
     | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
       /* they might be eq in this case, so remove cast if so */
-      if (Typ.eq(t1, t2)) {
+      if (Typ.equal(t1, t2)) {
         Some
           (d1); // Rule ITCastId
       } else {

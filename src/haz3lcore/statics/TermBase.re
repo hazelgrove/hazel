@@ -53,7 +53,6 @@ type any_t =
   | Typ(typ_t)
   | TPat(tpat_t)
   | Rul(rul_t)
-  | Nul(unit)
   | Any(unit)
 and exp_term =
   | Invalid(string)
@@ -69,13 +68,8 @@ and exp_term =
   | String(string)
   | LivelitName(string)
   | ListLit(list(exp_t))
-  | Constructor(string, typ_t) // Typ.t field is only meaningful in dynamic expressions
-  | Fun(
-      pat_t,
-      exp_t,
-      [@show.opaque] option(closure_environment_t),
-      option(Var.t),
-    )
+  | Constructor(string, option(typ_t)) // Typ.t field is only meaningful in dynamic expressions
+  | Fun(pat_t, exp_t, option(typ_t), option(Var.t)) // typ_t field is only used to display types in results
   | TypFun(tpat_t, exp_t, option(Var.t))
   | Tuple(list(exp_t))
   | Var(Var.t)
@@ -101,6 +95,9 @@ and exp_term =
      two consistent types. Both types should be normalized in
      dynamics for the cast calculus to work right. */
   | Cast(exp_t, typ_t, typ_t)
+  | Label(string)
+  | TupLabel(exp_t, exp_t)
+  | Dot(exp_t, exp_t)
 and exp_t = IdTagged.t(exp_term)
 and pat_term =
   | Invalid(string)
@@ -113,13 +110,15 @@ and pat_term =
   | String(string)
   | LivelitName(string)
   | ListLit(list(pat_t))
-  | Constructor(string, typ_t) // Typ.t field is only meaningful in dynamic patterns
+  | Constructor(string, option(typ_t)) // Typ.t field is only meaningful in dynamic patterns
   | Cons(pat_t, pat_t)
   | Var(Var.t)
   | Tuple(list(pat_t))
   | Parens(pat_t)
   | Ap(pat_t, pat_t)
   | Cast(pat_t, typ_t, typ_t)
+  | Label(string)
+  | TupLabel(pat_t, pat_t)
 and pat_t = IdTagged.t(pat_term)
 and typ_term =
   | Unknown(type_provenance)
@@ -136,6 +135,8 @@ and typ_term =
   | Ap(typ_t, typ_t)
   | Rec(tpat_t, typ_t)
   | Forall(tpat_t, typ_t)
+  | Label(string)
+  | TupLabel(typ_t, typ_t)
 and typ_t = IdTagged.t(typ_term)
 and tpat_term =
   | Invalid(string)
@@ -183,6 +184,7 @@ module rec Any: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
@@ -211,7 +213,6 @@ module rec Any: {
         )
       | Rul(x) =>
         Rul(Rul.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
-      | Nul () => Nul()
       | Any () => Any()
       };
     x |> f_any(rec_call);
@@ -224,16 +225,16 @@ module rec Any: {
     | (Typ(x), Typ(y)) => Typ.fast_equal(x, y)
     | (TPat(x), TPat(y)) => TPat.fast_equal(x, y)
     | (Rul(x), Rul(y)) => Rul.fast_equal(x, y)
-    | (Nul (), Nul ()) => true
     | (Any (), Any ()) => true
     | (Exp(_), _)
     | (Pat(_), _)
     | (Typ(_), _)
     | (TPat(_), _)
     | (Rul(_), _)
-    | (Nul (), _)
     | (Any (), _) => false
     };
+
+  let equal = fast_equal;
 }
 and Exp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -255,6 +256,7 @@ and Exp: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = exp_term;
@@ -303,6 +305,7 @@ and Exp: {
         | Float(_)
         | Constructor(_)
         | String(_)
+        | Label(_)
         | Deferral(_)
         | Var(_)
         | LivelitName(_)
@@ -312,10 +315,18 @@ and Exp: {
         | FailedCast(e, t1, t2) =>
           FailedCast(exp_map_term(e), typ_map_term(t1), typ_map_term(t2))
         | ListLit(ts) => ListLit(List.map(exp_map_term, ts))
-        | Fun(p, e, env, f) =>
-          Fun(pat_map_term(p), exp_map_term(e), env, f)
+        | Fun(p, e, t, f) =>
+          Fun(
+            pat_map_term(p),
+            exp_map_term(e),
+            Option.map(typ_map_term, t),
+            f,
+          )
         | TypFun(tp, e, f) => TypFun(tpat_map_term(tp), exp_map_term(e), f)
+        | TupLabel(label, e) =>
+          TupLabel(exp_map_term(label), exp_map_term(e))
         | Tuple(xs) => Tuple(List.map(exp_map_term, xs))
+        | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
         | FixF(p, e, env) => FixF(pat_map_term(p), exp_map_term(e), env)
@@ -374,14 +385,16 @@ and Exp: {
     | (Int(i1), Int(i2)) => i1 == i2
     | (Float(f1), Float(f2)) => f1 == f2
     | (String(s1), String(s2)) => s1 == s2
+    | (Label(s1), Label(s2)) => s1 == s2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
-    | (Constructor(c1, ty1), Constructor(c2, ty2)) =>
+    | (Constructor(c1, Some(ty1)), Constructor(c2, Some(ty2))) =>
       c1 == c2 && Typ.fast_equal(ty1, ty2)
-    | (Fun(p1, e1, env1, _), Fun(p2, e2, env2, _)) =>
+    | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
+    | (Fun(p1, e1, t1, _), Fun(p2, e2, t2, _)) =>
       Pat.fast_equal(p1, p2)
       && fast_equal(e1, e2)
-      && Option.equal(ClosureEnvironment.id_equal, env1, env2)
+      && Option.equal(Typ.fast_equal, t1, t2)
     | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
       TPat.fast_equal(tp1, tp2) && fast_equal(e1, e2)
     | (Tuple(xs), Tuple(ys)) =>
@@ -434,6 +447,10 @@ and Exp: {
          )
     | (Cast(e1, t1, t2), Cast(e2, t3, t4)) =>
       fast_equal(e1, e2) && Typ.fast_equal(t1, t3) && Typ.fast_equal(t2, t4)
+    | (TupLabel(e1, e2), TupLabel(e3, e4)) =>
+      fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (Dot(e1, e2), Dot(e3, e4)) =>
+      fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Invalid(_), _)
     | (FailedCast(_), _)
     | (Deferral(_), _)
@@ -441,12 +458,15 @@ and Exp: {
     | (Int(_), _)
     | (Float(_), _)
     | (String(_), _)
+    | (Label(_), _)
     | (LivelitName(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
     | (Fun(_), _)
     | (TypFun(_), _)
     | (Tuple(_), _)
+    | (TupLabel(_), _)
+    | (Dot(_), _)
     | (Var(_), _)
     | (Let(_), _)
     | (FixF(_), _)
@@ -470,6 +490,7 @@ and Exp: {
     | (EmptyHole, _)
     | (Undefined, _) => false
     };
+  let equal = fast_equal;
 }
 and Pat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -490,6 +511,7 @@ and Pat: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = pat_term;
@@ -524,6 +546,7 @@ and Pat: {
         | Float(_)
         | Constructor(_)
         | String(_)
+        | Label(_)
         | LivelitName(_)
         | Var(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
@@ -531,6 +554,8 @@ and Pat: {
         | Ap(e1, e2) => Ap(pat_map_term(e1), pat_map_term(e2))
         | Cons(e1, e2) => Cons(pat_map_term(e1), pat_map_term(e2))
         | Tuple(xs) => Tuple(List.map(pat_map_term, xs))
+        | TupLabel(label, e) =>
+          TupLabel(pat_map_term(label), pat_map_term(e))
         | Parens(e) => Parens(pat_map_term(e))
         | Cast(e, t1, t2) =>
           Cast(pat_map_term(e), typ_map_term(t1), typ_map_term(t2))
@@ -553,13 +578,17 @@ and Pat: {
     | (Int(i1), Int(i2)) => i1 == i2
     | (Float(f1), Float(f2)) => f1 == f2
     | (String(s1), String(s2)) => s1 == s2
-    | (Constructor(c1, t1), Constructor(c2, t2)) =>
+    | (Label(s1), Label(s2)) => s1 == s2
+    | (Constructor(c1, Some(t1)), Constructor(c2, Some(t2))) =>
       c1 == c2 && Typ.fast_equal(t1, t2)
+    | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
     | (Var(v1), Var(v2)) => v1 == v2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Cons(x1, y1), Cons(x2, y2)) =>
       fast_equal(x1, x2) && fast_equal(y1, y2)
+    | (TupLabel(label1, d1'), TupLabel(label2, d2')) =>
+      fast_equal(label1, label2) && fast_equal(d1', d2')
     | (Tuple(xs), Tuple(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Ap(x1, y1), Ap(x2, y2)) => fast_equal(x1, x2) && fast_equal(y1, y2)
@@ -573,15 +602,18 @@ and Pat: {
     | (Int(_), _)
     | (Float(_), _)
     | (String(_), _)
+    | (Label(_), _)
     | (LivelitName(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
     | (Cons(_), _)
     | (Var(_), _)
+    | (TupLabel(_), _)
     | (Tuple(_), _)
     | (Ap(_), _)
     | (Cast(_), _) => false
     };
+  let equal = fast_equal;
 }
 and Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -605,7 +637,8 @@ and Typ: {
 
   let subst: (t, TPat.t, t) => t;
 
-  let fast_equal: (t, t) => bool;
+  let fast_equal: (~alpha_equivalence: bool=?, t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = typ_term;
@@ -642,12 +675,15 @@ and Typ: {
         | Int
         | Float
         | String
+        | Label(_)
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>
           Unknown(Hole(MultiHole(List.map(any_map_term, things))))
         | Ap(e1, e2) => Ap(typ_map_term(e1), typ_map_term(e2))
         | Prod(xs) => Prod(List.map(typ_map_term, xs))
+        | TupLabel(label, e) =>
+          TupLabel(typ_map_term(label), typ_map_term(e))
         | Parens(e) => Parens(typ_map_term(e))
         | Arrow(t1, t2) => Arrow(typ_map_term(t1), typ_map_term(t2))
         | Sum(variants) =>
@@ -677,10 +713,12 @@ and Typ: {
       | Float => Float |> rewrap
       | Bool => Bool |> rewrap
       | String => String |> rewrap
+      | Label(name) => Label(name) |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
       | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
+      | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
       | Sum(sm) =>
         Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
       | Forall(tp2, ty)
@@ -702,19 +740,33 @@ and Typ: {
   /* Type Equality: This coincides with alpha equivalence for normalized types.
      Other types may be equivalent but this will not detect so if they are not normalized. */
 
-  let rec eq_internal = (n: int, t1: t, t2: t) => {
+  let rec eq_internal = (~alpha_equivalence: bool, n: int, t1: t, t2: t) => {
     switch (IdTagged.term_of(t1), IdTagged.term_of(t2)) {
-    | (Parens(t1), _) => eq_internal(n, t1, t2)
-    | (_, Parens(t2)) => eq_internal(n, t1, t2)
+    | (Parens(t1), _) => eq_internal(~alpha_equivalence, n, t1, t2)
+    | (_, Parens(t2)) => eq_internal(~alpha_equivalence, n, t1, t2)
+    | (TupLabel(label1, t1'), TupLabel(label2, t2')) =>
+      eq_internal(~alpha_equivalence, n, label1, label2)
+      && eq_internal(~alpha_equivalence, n, t1', t2')
+    | (TupLabel(_), _) => false
     | (Rec(x1, t1), Rec(x2, t2))
     | (Forall(x1, t1), Forall(x2, t2)) =>
-      let alpha_subst =
-        subst({
-          term: Var("=" ++ string_of_int(n)),
-          copied: false,
-          ids: [Id.invalid],
-        });
-      eq_internal(n + 1, alpha_subst(x1, t1), alpha_subst(x2, t2));
+      if (alpha_equivalence) {
+        let alpha_subst =
+          subst({
+            term: Var("=" ++ string_of_int(n)),
+            copied: false,
+            ids: [Id.invalid],
+          });
+        eq_internal(
+          ~alpha_equivalence,
+          n + 1,
+          alpha_subst(x1, t1),
+          alpha_subst(x2, t2),
+        );
+      } else {
+        TPat.fast_equal(x1, x2)
+        && eq_internal(~alpha_equivalence, n + 1, t1, t2);
+      }
     | (Rec(_), _) => false
     | (Forall(_), _) => false
     | (Int, Int) => true
@@ -725,28 +777,36 @@ and Typ: {
     | (Bool, _) => false
     | (String, String) => true
     | (String, _) => false
+    | (Label(name1), Label(name2)) =>
+      LabeledTuple.match_labels(name1, name2)
+    | (Label(_), _) => false
     | (Ap(t1, t2), Ap(t1', t2')) =>
-      eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
+      eq_internal(~alpha_equivalence, n, t1, t1')
+      && eq_internal(~alpha_equivalence, n, t2, t2')
     | (Ap(_), _) => false
     | (Unknown(_), Unknown(_)) => true
     | (Unknown(_), _) => false
     | (Arrow(t1, t2), Arrow(t1', t2')) =>
-      eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
+      eq_internal(~alpha_equivalence, n, t1, t1')
+      && eq_internal(~alpha_equivalence, n, t2, t2')
     | (Arrow(_), _) => false
-    | (Prod(tys1), Prod(tys2)) => List.equal(eq_internal(n), tys1, tys2)
+    | (Prod(tys1), Prod(tys2)) =>
+      List.equal(eq_internal(~alpha_equivalence, n), tys1, tys2)
     | (Prod(_), _) => false
-    | (List(t1), List(t2)) => eq_internal(n, t1, t2)
+    | (List(t1), List(t2)) => eq_internal(~alpha_equivalence, n, t1, t2)
     | (List(_), _) => false
     | (Sum(sm1), Sum(sm2)) =>
       /* Does not normalize the types. */
-      ConstructorMap.equal(eq_internal(n), sm1, sm2)
+      ConstructorMap.equal(eq_internal(~alpha_equivalence, n), sm1, sm2)
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
     };
   };
 
-  let fast_equal = eq_internal(0);
+  let fast_equal = (~alpha_equivalence=true, t1, t2) =>
+    eq_internal(~alpha_equivalence, 0, t1, t2);
+  let equal: (t, t) => bool = fast_equal(~alpha_equivalence=true);
 }
 and TPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -769,6 +829,7 @@ and TPat: {
   let tyvar_of_utpat: t => option(string);
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = tpat_term;
@@ -819,6 +880,7 @@ and TPat: {
     | (MultiHole(_), _)
     | (Var(_), _) => false
     };
+  let equal = fast_equal;
 }
 and Rul: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -839,6 +901,7 @@ and Rul: {
     t;
 
   let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = rul_term;
@@ -899,6 +962,7 @@ and Rul: {
     | (Hole(_), _)
     | (Rules(_), _) => false
     };
+  let equal = fast_equal;
 }
 
 and Environment: {
