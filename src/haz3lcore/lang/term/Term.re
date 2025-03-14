@@ -358,7 +358,6 @@ module Exp = {
     | Let
     | FixF
     | TyAlias
-    | LivelitAp
     | Ap
     | TypAp
     | DeferredAp
@@ -426,7 +425,6 @@ module Exp = {
     | TyAlias(_) => TyAlias
     | Ap(_, e1, _) =>
       switch (e1.term) {
-      | LivelitName(_) => LivelitAp
       | _ => Ap
       }
     | TypAp(_) => TypAp
@@ -471,7 +469,6 @@ module Exp = {
     | Let => "Let expression"
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
-    | LivelitAp => "Livelit application"
     | Ap => "Application"
     | TypAp => "Type application"
     | DeferredAp => "Partial Application"
