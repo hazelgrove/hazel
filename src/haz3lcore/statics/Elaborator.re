@@ -232,7 +232,6 @@ let rec elaborate_pattern =
     | Cast(p, _, _) =>
       let (p', ty) = elaborate_pattern(m, p);
       p' |> cast_from(ty |> Typ.normalize(ctx) |> Typ.all_ids_temp);
-    | LivelitName(_) => upat |> cast_from(String |> Typ.temp)
     | Constructor(c, _) =>
       let mode =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {

@@ -1,4 +1,4 @@
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
   | Invalid
   | EmptyHole
@@ -17,7 +17,7 @@ let hole = (tms: list(TermBase.Any.t)): TermBase.TPat.term =>
   | [_, ..._] => MultiHole(tms)
   };
 
-let cls_of_term: term => cls =
+let cls_of_term: Grammar.tpat_term('a) => cls =
   fun
   | Invalid(_) => Invalid
   | EmptyHole => EmptyHole
@@ -31,4 +31,11 @@ let show_cls: cls => string =
   | EmptyHole => "Empty type alias hole"
   | Var => "Type alias";
 
-let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
+let temp: term => t =
+  term => {
+    term,
+    annotation: {
+      ids: [Id.invalid],
+      copied: false,
+    },
+  };

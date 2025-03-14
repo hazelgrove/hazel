@@ -26,7 +26,6 @@ let rec find_var_upat = (name: string, upat: Pat.t): bool => {
   | Bool(_)
   | String(_)
   | Label(_)
-  | LivelitName(_)
   | Constructor(_) => false
   | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
   | TupLabel(_, up) => find_var_upat(name, up)
@@ -67,7 +66,6 @@ let rec find_in_let =
         ul,
       );
     }
-  | (LivelitName(_), _)
   | (Var(_), _)
   | (Tuple(_), _)
   | (
@@ -157,7 +155,6 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | Bool(_)
   | String(_)
   | Label(_)
-  | LivelitName(_)
   | Constructor(_) => false
   | Cons(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
