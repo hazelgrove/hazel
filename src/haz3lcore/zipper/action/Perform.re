@@ -25,62 +25,6 @@ let go_z =
   module Move = Move.Make(M);
   module Select = Select.Make(M);
 
-  let introduce = (z: Zipper.t) => {
-    switch (Indicated.ci_of(z, statics.info_map)) {
-    | None => None
-    | Some(
-        InfoExp({
-          cls: Exp(EmptyHole),
-          status: NotInHole(Common(Ana(Consistent({ana, _})))),
-          ctx,
-          _,
-        }),
-      ) =>
-      let seg =
-        switch (Typ.term_of(Typ.weak_head_normalize(ctx, ana))) {
-        | Arrow(_, _) =>
-          Some(
-            ExpToSegment.exp_to_segment(
-              ~settings={
-                inline: true,
-                fold_case_clauses: false,
-                fold_fn_bodies: false,
-                hide_fixpoints: false,
-                fold_cast_types: false,
-                show_filters: true,
-              },
-              Fun(EmptyHole |> Pat.fresh, EmptyHole |> Exp.fresh, None, None)
-              |> Exp.fresh,
-            ),
-          )
-        | Prod(ts) =>
-          Some(
-            ExpToSegment.exp_to_segment(
-              ~settings={
-                inline: true,
-                fold_case_clauses: false,
-                fold_fn_bodies: false,
-                hide_fixpoints: false,
-                fold_cast_types: false,
-                show_filters: true,
-              },
-              Tuple(List.init(List.length(ts), _ => EmptyHole |> Exp.fresh))
-              |> Exp.fresh,
-            ),
-          )
-        | _ => None
-        };
-
-      Option.map(
-        seg =>
-          Zipper.put_selection(Selection.mk(seg), z)
-          |> remold_regrout(Left, _),
-        seg,
-      );
-    | _ => None
-    };
-  };
-
   let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
     open Util.OptUtil.Syntax;
     let* z = Printer.zipper_of_string(~zipper_init=z, str);
@@ -140,7 +84,8 @@ let go_z =
     | Some(z) => Ok(z)
     }
   | Introduce =>
-    introduce(z) |> Result.of_option(~error=Action.Failure.CantIntroduce)
+    Introduce.introduce(statics.info_map, z)
+    |> Result.of_option(~error=Action.Failure.CantIntroduce)
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
     switch (Destruct.go(Left, z)) {
