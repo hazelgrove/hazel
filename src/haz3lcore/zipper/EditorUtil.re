@@ -18,6 +18,9 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | TypFun(_)
   | FixF(_)
   | Tuple(_)
+  | TupLabel(_)
+  | Label(_)
+  | Dot(_)
   | Var(_)
   | Ap(_)
   | TypAp(_)
@@ -54,7 +57,7 @@ let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
       Filter({
         act: FilterAction.(act, One),
         pat: {
-          term: Constructor("$e", Unknown(Internal) |> Typ.fresh),
+          term: Constructor("$e", Some(Unknown(Internal) |> Typ.fresh)),
           copied: false,
           ids: [Id.mk()],
         },

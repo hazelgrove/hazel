@@ -29,21 +29,30 @@ type join_type =
 type t =
   | Just(Typ.t) /* Just a regular type */
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
-  | BadToken(Token.t) /* Invalid expression token, treated as hole */
+  | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
+  | BadToken(Token.t) /* Invalid expression token, continues with undefined behavior */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
+  | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
+  | InvalidLabel(LabeledTuple.label) /* Invalid label in a labeled tuple */
+  | TupleLabelError({
+      malformed_labels: list(Any.t), // Labels that are not of the right syntactic form
+      duplicate_labels: list(LabeledTuple.label),
+      invalid_labels: list(LabeledTuple.label), // Labels that are present but aren't present in the analyzed type
+      typ: Typ.t,
+    }) /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
       name: Constructor.t,
       syn_ty: option(Typ.t),
-    })
-  /* Constructors have special ana logic */
+    }) /* Constructors have special ana logic */
+  | WantTuple /* Want a Tuple, found not-tuple */
+  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label)) /* Currently used by the dot operator for a label not found */
   | IsLivelitName({
       name: string,
       exp_t: Typ.t,
     });
-/* Livelit name, treated as hole */
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_partial_ap =
   | NoDeferredArgs
   | ArityMismatch({
@@ -77,12 +86,19 @@ let join_of = (j: join_type, ty: Typ.t): Typ.t =>
 let typ_of: (Ctx.t, t) => option(Typ.t) =
   _ctx =>
     fun
-    | Just(typ) => Some(typ)
+    | Just(typ)
+    | Duplicate(_, Just(typ))
+    | TupleLabelError({typ, _}) => Some(typ)
     | IsLivelitName({exp_t, _}) => Some(exp_t)
     | IsConstructor({syn_ty, _}) => syn_ty
     | BadToken(_)
     | BadTrivAp(_)
     | IsMulti
+    | Duplicate(_)
+    | WantTuple
+    | LabelNotFound(_)
+    | BadLabel(_)
+    | InvalidLabel(_)
     | NoJoin(_) => None;
 
 let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
@@ -117,16 +133,35 @@ let of_exp_livelit_name = (ctx: Ctx.t, name: string): exp => {
   };
 };
 
-/* The self of a ctr depends on the ctx, but a
-   lookup failure doesn't necessarily means its
-   free; it may be given a type analytically */
-let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
+let of_exp_livelit_name = (ctx: Ctx.t, name: string): exp => {
+  let res = Ctx.lookup_livelit(ctx, name);
+  switch (res) {
+  | None => Free(name)
+  | Some(livelit) =>
+    Common(IsLivelitName({name: livelit.name, exp_t: livelit.expansion_t}))
+  };
+};
+
+let of_ctr =
+    (ctx: Ctx.t, name: Constructor.t, mode: Mode.t, ty: option(Typ.t)): t =>
+  // this has gotten a bit complex, depends on mode
   IsConstructor({
     name,
     syn_ty:
-      switch (Ctx.lookup_ctr(ctx, name)) {
-      | None => None
-      | Some({typ, _}) => Some(typ)
+      switch (ty) {
+      | Some(_) => ty
+      | None =>
+        switch (mode) {
+        | SynFun
+        | Syn
+        | Ana({term: Unknown(_), _}) =>
+          switch (Ctx.lookup_ctr(ctx, name)) {
+          | None => None
+          | Some({typ, _}) => Some(typ)
+          }
+        | Ana(_) => Mode.ctr_ana_typ(ctx, mode, name)
+        | SynTypFun => None
+        }
       },
   });
 

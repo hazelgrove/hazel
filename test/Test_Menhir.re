@@ -48,14 +48,17 @@ let make_term_parse = (s: string) =>
     MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term,
   );
 
-let menhir_matches = (exp: Term.Exp.t, actual: string) =>
-  alco_check(
-    "menhir matches expected parse",
-    exp,
+let menhir_parse = (s: string) => {
+  let (e, _) =
     Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-      Haz3lmenhir.Interface.parse_program(actual),
-    ),
-  );
+      Haz3lmenhir.Interface.parse_program(s),
+    );
+  e;
+};
+
+let menhir_matches = (exp: Term.Exp.t, actual: string) => {
+  alco_check("menhir matches expected parse", exp, menhir_parse(actual));
+};
 
 let menhir_only_test = (name: string, exp: Term.Exp.t, actual: string) =>
   test_case(name, `Quick, () => {menhir_matches(exp, actual)});
@@ -84,9 +87,7 @@ let menhir_maketerm_equivalent_test =
     alco_check(
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
-      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-        Haz3lmenhir.Interface.parse_program(actual),
-      ),
+      menhir_parse(actual),
     )
   });
 
@@ -101,7 +102,10 @@ let qcheck_menhir_maketerm_equivalent_test =
     ~count=100,
     QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
     exp => {
-      let core_exp = Conversion.Exp.of_menhir_ast(exp);
+      let core_exp = {
+        let (e, _) = Conversion.Exp.of_menhir_ast(exp);
+        e;
+      };
 
       let segment =
         ExpToSegment.exp_to_segment(
@@ -113,8 +117,10 @@ let qcheck_menhir_maketerm_equivalent_test =
       let serialized = Printer.of_segment(~holes=Some("?"), segment);
       let make_term_parsed = make_term_parse(serialized);
       let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
-      let menhir_parsed_converted =
-        Haz3lmenhir.Conversion.Exp.of_menhir_ast(menhir_parsed);
+      let menhir_parsed_converted = {
+        let (e, _) = Haz3lmenhir.Conversion.Exp.of_menhir_ast(menhir_parsed);
+        e;
+      };
 
       switch (
         Haz3lcore.DHExp.fast_equal(make_term_parsed, menhir_parsed_converted)
@@ -133,8 +139,6 @@ let qcheck_menhir_maketerm_equivalent_test =
  * We generate an expression, convert it to the core representation, convert it to a segment,
  * serialize it, parse it with Menhir, and compare to the original.
  *
- * TODO This fails due to types not being serialized on constructors
- *  and some other ExpToSegment inconsistencies
  *
  * Filter and Test not implemented
  * Deferral serializing as "deferral"
@@ -149,7 +153,10 @@ let qcheck_menhir_serialized_equivalent_test =
     ~count=1000,
     QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
     exp => {
-      let core_exp = Conversion.Exp.of_menhir_ast(exp);
+      let core_exp = {
+        let (e, _) = Conversion.Exp.of_menhir_ast(exp);
+        e;
+      };
 
       let segment =
         ExpToSegment.exp_to_segment(
@@ -258,13 +265,13 @@ let tests = (
     menhir_only_test("Unit", Tuple([]) |> Exp.fresh, "()"),
     menhir_only_test(
       "Constructor",
-      Constructor("A", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
+      Constructor("A", None) |> Exp.fresh,
       "A",
     ),
     menhir_only_test(
       "Constructor cast",
       Cast(
-        Constructor("A", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
+        Constructor("A", None) |> Exp.fresh,
         Unknown(Internal) |> Typ.fresh,
         Int |> Typ.fresh,
       )
@@ -273,13 +280,13 @@ let tests = (
     ),
     menhir_only_test(
       "Constructor of specific sum type",
-      Constructor("A", Int |> Typ.fresh) |> Exp.fresh,
+      Constructor("A", Some(Int |> Typ.fresh)) |> Exp.fresh,
       "A ~ Int",
     ),
     // TODO Fix for the tests below
     menhir_only_test(
       "Constructor with Type Variable",
-      Constructor("A", Var("T") |> Typ.fresh) |> Exp.fresh,
+      Constructor("A", Some(Var("T") |> Typ.fresh)) |> Exp.fresh,
       "A ~ T",
     ),
     full_parser_test(
@@ -453,7 +460,7 @@ let tests = (
         |> Pat.fresh,
         Ap(
           Forward,
-          Constructor("C", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
+          Constructor("C", None) |> Exp.fresh,
           Int(7) |> Exp.fresh,
         )
         |> Exp.fresh,
@@ -525,6 +532,7 @@ let tests = (
       "and less than precedence",
       "true && 23 < int_of_float(51.00)" // TODO This looks like a bug in MakeTerm
     ),
+    menhir_maketerm_equivalent_test("Singleton labeled tuple", {|(h = 1)|}),
     menhir_maketerm_equivalent_test(
       ~speed_level=`Slow,
       "Altered Documentation Buffer: Basic Reference",
@@ -544,7 +552,7 @@ let comparison =
 in
 
 let float: Float = 0.1 in
-let artihmetic = 0. *. 1. +. 2. /. 3. -. 4. **. 5. in
+let arithmetic = 0. *. 1. +. 2. /. 3. -. 4. **. 5. in
 let comparison =
   (0. ==. 0., 0. <. 1., 1. <=. 1., 2. >. 1., 1. >=. 1.)
 in
@@ -822,7 +830,6 @@ let ex5 = list_of_mylist(x) in
       {|type ? = ((+ ? + ?)) in []|},
     ),
     QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
-    // Disabled due to bugs in ExpToSegment
     QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
   ],
 );
