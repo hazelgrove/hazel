@@ -7,12 +7,12 @@ open Util.Web;
 /* Helpers for rendering code text with holes and syntax highlighting */
 
 /* Tab projectors add linebreaks after the end of their line */
-let deferred_linebreaks: ref(list(int)) = ref([]);
+let deferred_linebreaks: ref(int) = ref(0);
 
-let consume_deferred_linebreaks = () => {
-  let max_deferred_linebreaks = List.fold_left(max, 0, deferred_linebreaks^);
-  deferred_linebreaks := [];
-  max_deferred_linebreaks;
+let consume_deferred_linebreaks = (): int => {
+  let ret = deferred_linebreaks^;
+  deferred_linebreaks := 0;
+  ret;
 };
 
 let of_delim' =
@@ -88,7 +88,7 @@ let of_projector = (expected_sort, indent, shape: ProjectorCore.Shape.t) => {
     | Tab(0)
     | Block(0) => ProjectorCore.Shape.token(shape)
     | Tab(num_lb) =>
-      deferred_linebreaks := [num_lb, ...deferred_linebreaks^];
+      deferred_linebreaks := max(num_lb, deferred_linebreaks^);
       ProjectorCore.Shape.token(shape);
     | Block(_) =>
       String.make(consume_deferred_linebreaks(), '\n')
@@ -106,7 +106,7 @@ module Text =
            let font_metrics: FontMetrics.t;
          },
        ) => {
-  deferred_linebreaks := [];
+  deferred_linebreaks := 0;
 
   let m = p => Measured.find_p(~msg="Text", p, M.map);
   let rec of_segment =

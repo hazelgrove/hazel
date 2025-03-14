@@ -267,17 +267,17 @@ let is_indented_map = (seg: Segment.t) => {
 };
 
 /* Tab projectors add linebreaks after the end of their line */
-let deferred_linebreaks: ref(list(int)) = ref([]);
+let deferred_linebreaks: ref(int) = ref(0);
 
-let consume_deferred_linebreaks = () => {
-  let max_deferred_linebreaks = List.fold_left(max, 0, deferred_linebreaks^);
-  deferred_linebreaks := [];
-  max_deferred_linebreaks;
+let consume_deferred_linebreaks = (): int => {
+  let ret = deferred_linebreaks^;
+  deferred_linebreaks := 0;
+  ret;
 };
 
 let of_segment =
     (seg: Segment.t, shape_map: Id.Map.t(ProjectorCore.Shape.t)): t => {
-  deferred_linebreaks := [];
+  deferred_linebreaks := 0;
   let is_indented = is_indented_map(seg);
 
   // recursive across seg's bidelimited containers
@@ -351,7 +351,7 @@ let of_segment =
               | Tab(0)
               | Block(0) => 0
               | Tab(num_lb) =>
-                deferred_linebreaks := [num_lb, ...deferred_linebreaks^];
+                deferred_linebreaks := max(num_lb, deferred_linebreaks^);
                 num_lb;
               | Block(num_lb) => num_lb + consume_deferred_linebreaks()
               };

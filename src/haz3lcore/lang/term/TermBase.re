@@ -293,8 +293,9 @@ and Exp: {
     | (Parens(x), _) => fast_equal(x, e2)
     | (_, DynamicErrorHole(x, _))
     | (_, Parens(x)) => fast_equal(e1, x)
-    /* Below is kind of a hack to make EvalResult.calculate go after adding a projector.
-     * We should clarify syntactic/semantic equality here */
+    /* Hack to make EvalResult.calculate recalc after adding a probe.
+     * We should clarify syntactic/semantic equality here,
+     * See https://github.com/hazelgrove/hazel/issues/1563 */
     | (Probe(x1, _), Probe(x2, _)) => fast_equal(x1, x2)
     | (Probe(_, _), _) => false
     | (EmptyHole, EmptyHole) => true
@@ -917,7 +918,6 @@ and ClosureEnvironment: {
 
   let of_environment: Environment.t => t;
 
-  let id_of: t => Id.t;
   let map_of: t => Environment.t;
   let call_stack_of: t => Probe.call_stack;
 
@@ -929,7 +929,6 @@ and ClosureEnvironment: {
     (~ap_id: Id.t=?, ~call_stack: Probe.call_stack, Environment.t, t) => t;
 
   let to_list: t => list((Var.t, Exp.t));
-  let without_keys: (list(Var.t), t) => t;
 } = {
   module Inner: {
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -970,8 +969,6 @@ and ClosureEnvironment: {
 
   let update_env = (f, env) => env |> map_of |> f |> of_environment;
 
-  let without_keys = keys => update_env(Environment.without_keys(keys));
-
   /* Extend the environment with new bindings. ~ap_id is an optional argument which
    * will add an entry in a stack of function application syntax ids, used to
    * represent and track the call stack for use by live value probes. */
@@ -989,31 +986,6 @@ and ClosureEnvironment: {
       call_stack: Option.to_list(ap_id) @ call_stack,
     };
   };
-  //TODO(andrew): cleanup below
-  // let update_keep_id = (f, env) => env |> map_of |> f |> wrap(env |> id_of);
-  // let extend = (env, xr) =>
-  //   env |> update(map => Environment.extend(map, xr));
-  // let extend_keep_id = (env, xr) =>
-  //   env |> update_keep_id(map => Environment.extend(map, xr));
-  // let union = (env1, env2) =>
-  //   env2 |> update(map2 => Environment.union(env1 |> map_of, map2));
-  // let union_keep_id = (env1, env2) =>
-  //   env2 |> update_keep_id(map2 => Environment.union(env1 |> map_of, map2));
-  // let map = (f, env) => env |> update(Environment.mapo(f));
-  // let map_keep_id = (f, env) => env |> update_keep_id(Environment.mapo(f));
-  // let filter = (f, env) => env |> update(Environment.filtero(f));
-  // let filter_keep_id = (f, env) =>
-  //   env |> update_keep_id(Environment.filtero(f));
-  // let fold = (f, init, env) => env |> map_of |> Environment.foldo(f, init);
-  // let placeholder = wrap(Id.invalid, Environment.empty);
-  // let without_keys = keys => update(Environment.without_keys(keys));
-  // let with_symbolic_keys = (keys, env) =>
-  //   List.fold_right(
-  //     (key, env) =>
-  //       extend(env, (key, (Var(key): exp_term) |> IdTagged.fresh)),
-  //     keys,
-  //     env,
-  //   );
 }
 and StepperFilterKind: {
   [@deriving (show({with_path: false}), sexp, yojson)]

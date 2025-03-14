@@ -41,8 +41,8 @@ module Js = {
     {
       top: container_rect##.top,
       left: container_rect##.left,
-      height: Js.Optdef.get(container_rect##.height, _ => (-1.0)),
-      width: Js.Optdef.get(container_rect##.width, _ => (-1.0)),
+      height: Js.Optdef.get(container_rect##.height, _ => 0.0),
+      width: Js.Optdef.get(container_rect##.width, _ => 0.0),
     };
   };
 
@@ -107,7 +107,6 @@ open Js;
  * Otherwise, report both new & old metrics */
 type change =
   | New(box)
-  //| Removed(box)
   | Existing(box, box);
 
 /* Specify a transition for an element */
