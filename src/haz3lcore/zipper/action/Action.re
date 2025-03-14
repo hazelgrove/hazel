@@ -85,7 +85,7 @@ type t =
   | MoveToBackpackTarget(planar)
   | Pick_up
   | Put_down
-  | Refine;
+  | Introduce;
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -101,7 +101,7 @@ module Failure = {
     | CantAccept
     | Cant_undo
     | Cant_redo
-    | CantRefine;
+    | CantIntroduce;
 
   exception Exception(t);
 };
@@ -120,7 +120,7 @@ let is_edit: t => bool =
   | Destruct(_)
   | Pick_up
   | Put_down
-  | Refine
+  | Introduce
   | Buffer(Accept | Clear | Set(_)) => true
   | Copy
   | Move(_)
@@ -159,7 +159,7 @@ let is_historic: t => bool =
   | Destruct(_)
   | Pick_up
   | Put_down
-  | Refine => true
+  | Introduce => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
@@ -188,7 +188,7 @@ let prevent_in_read_only_editor = (a: t) => {
   | Put_down
   | RotateBackpack
   | MoveToBackpackTarget(_)
-  | Refine => true
+  | Introduce => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_) => true

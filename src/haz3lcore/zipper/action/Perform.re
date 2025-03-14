@@ -25,7 +25,7 @@ let go_z =
   module Move = Move.Make(M);
   module Select = Select.Make(M);
 
-  let refine = (z: Zipper.t) => {
+  let introduce = (z: Zipper.t) => {
     switch (Indicated.ci_of(z, statics.info_map)) {
     | None => None
     | Some(
@@ -139,7 +139,8 @@ let go_z =
     | None => Error(CantPaste)
     | Some(z) => Ok(z)
     }
-  | Refine => refine(z) |> Result.of_option(~error=Action.Failure.CantRefine)
+  | Introduce =>
+    introduce(z) |> Result.of_option(~error=Action.Failure.CantIntroduce)
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
     switch (Destruct.go(Left, z)) {
