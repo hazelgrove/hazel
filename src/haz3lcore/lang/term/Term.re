@@ -399,7 +399,7 @@ module Exp = {
   let term_of: t => term = IdTagged.term_of;
   let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
-  let cls_of_term: Grammar.exp_term('a) => cls =
+  let cls_of_term: type a. Grammar.exp_term(a) => cls =
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
@@ -425,7 +425,7 @@ module Exp = {
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
     | Ap(_, e1, _) =>
-      switch (e1 |> term_of) {
+      switch (e1.term) {
       | LivelitName(_) => LivelitAp
       | _ => Ap
       }
