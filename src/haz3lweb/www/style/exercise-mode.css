@@ -20,6 +20,10 @@
   min-width: auto;
 }
 
+#main.Exercises .cell:has(.code-editor.selected) {
+  background-color: var(--cell-active);
+}
+
 #main.Exercises .cell-caption {
   color: var(--ui-header-text);
   font-size: 0.8em;

@@ -576,7 +576,7 @@
 .projector.probe .live-env .live-env-entry {
   display: flex;
   flex-direction: row;
-  gap: 0.3em;
+  white-space: pre;
   align-items: baseline;
   color: var(--GB0);
   font-family: var(--code-font);

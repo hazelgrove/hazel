@@ -1,5 +1,9 @@
 /* Code text and decoration style */
 
+.code-container {
+  position: relative;
+}
+
 /* Use this style for all text that should
  * be formatted like code, even if it's not
  * going to be inside an editor. For example,

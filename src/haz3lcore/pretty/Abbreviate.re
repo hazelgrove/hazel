@@ -142,9 +142,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
     | Int(n) =>
       //TODO: smarter number summarization?
       wrap_or(Int(n), string_of_int(n))
-    | Float(f) =>
-      //TODO: smarter number summarization?
-      wrap_or(Float(f), string_of_float(f))
+    | Float(f) => Invalid(abbreviate_str(available^, string_of_float(f)))
 
     // composite literal cases
     | ListLit(xs) =>
@@ -557,7 +555,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
     | Int(n) => wrap_or(Int(n), string_of_int(n))
-    | Float(f) => wrap_or(Float(f), string_of_float(f))
+    | Float(f) => Invalid(abbreviate_str(available^, string_of_float(f)))
     | String(s) =>
       let str = abbreviate_str(available^, s);
       available := available^ - 2; // for quotes in printed representation
