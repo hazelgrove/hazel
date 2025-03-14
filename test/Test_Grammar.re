@@ -63,7 +63,6 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
           Typ.unknown(Hole(EmptyHole)),
           empty_hole(),
         )
-      | LivelitAp => livelit_ap(Forward, empty_hole(), empty_hole())
       | Ap => ap(Forward, empty_hole(), empty_hole())
       | TypAp => typ_ap(empty_hole(), Typ.unknown(Hole(EmptyHole)))
       | DeferredAp => deferred_ap(empty_hole(), [empty_hole()])
