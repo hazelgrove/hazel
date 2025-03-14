@@ -22,8 +22,6 @@
 }
 .projector.card.selected > svg {
   stroke-width: 0.5px;
-  stroke: var(--shard-selected);
-  /* filter: drop-shadow(0px 1px 0 var(--shadow-nul)); */
 }
 
 .base .projector.card.selected .card-scene {
@@ -31,20 +29,6 @@
 }
 .projector.card {
   z-index: var(--projector-z); /* hack? to get above selection shard */
-}
-
-.underlays .projector.card:not(.selected) > svg,
-.underlays .projector.card.indicated:not(.selected) > svg {
-  display: none;
-}
-.underlays .projector.card.selected {
-  /* z-index: 3; */
-}
-.underlays .projector.card.selected > svg {
-  display: block;
-  /* filter: drop-shadow(1px 1px 0 var(--shadow-nul)); */
-  stroke-width: 0.5px;
-  stroke: var(--BR2);
 }
 
 /* Singleton */

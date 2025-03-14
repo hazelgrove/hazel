@@ -48,11 +48,6 @@
   z-index: var(--projector-overlay-z);
 }
 
-.projectors .underlays .projector {
-  pointer-events: none;
-  z-index: var(--projector-underlay-z);
-}
-
 .projector > svg {
   fill: var(--shard_projector);
 }
