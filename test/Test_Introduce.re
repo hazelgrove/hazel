@@ -77,4 +77,11 @@ let tests = [
       ),
     ],
   ),
+  ("Introduce.introduce", [test_case("", `Quick, () => {
+     let foo = Printer.zipper_of_string("let x : (Int, Int) = ? in x");
+
+
+
+     ()
+  })]),
 ];
