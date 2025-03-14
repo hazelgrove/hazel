@@ -185,7 +185,8 @@ module Update = {
       // Check b is valid
       let* b =
         List.find_opt(
-          (b': Model.b) => b'.step.d_loc.ids == b.step.d_loc.ids,
+          (b': Model.b) =>
+            IdTagged.ids(b'.step.d_loc) == IdTagged.ids(b.step.d_loc),
           next_steps,
         );
 
@@ -193,7 +194,13 @@ module Update = {
       let state = ref(state);
       let+ next_expr =
         EvaluatorStep.take_step(state, b.step.env, b.step.d_loc);
-      let next_expr = {...next_expr, ids: b.to_ids};
+      let next_expr = {
+        ...next_expr,
+        annotation: {
+          ...next_expr.annotation,
+          ids: b.to_ids,
+        },
+      };
       let next_state = state^;
       let previous_substitutions =
         (

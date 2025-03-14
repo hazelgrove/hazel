@@ -19,17 +19,38 @@ let parse_exp = (s: string) => {
 };
 
 module PlainTests = {
-  let u1: Exp.t = {ids: [id_at(0)], term: Int(8), copied: false};
+  let u1: Exp.t = {
+    term: Int(8),
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
+  };
   let single_integer = () =>
     alco_check("Integer literal 8", u1, dhexp_of_uexp(u1));
 
-  let u2: Exp.t = {ids: [id_at(0)], term: EmptyHole, copied: false};
+  let u2: Exp.t = {
+    term: EmptyHole,
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
+  };
   let empty_hole = () => alco_check("Empty hole", u2, dhexp_of_uexp(u2));
 
   let u3: Exp.t = {
-    ids: [id_at(0)],
-    term: Parens({ids: [id_at(1)], term: Var("y"), copied: false}),
-    copied: false,
+    term:
+      Parens({
+        term: Var("y"),
+        annotation: {
+          copied: false,
+          ids: [id_at(1)],
+        },
+      }),
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
   };
 
   let free_var = () => alco_check("free variable", u3, dhexp_of_uexp(u3));
@@ -861,8 +882,11 @@ module MenhirElaborationTests = {
   let alco_check_menhir = (name: string, dhexp: string, uexp: Term.Exp.t) =>
     alco_check(
       name,
-      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-        Haz3lmenhir.Interface.parse_program(dhexp),
+      Grammar.map_exp_annotation(
+        _ => IdTagged.IdTag.fresh(),
+        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+          Haz3lmenhir.Interface.parse_program(dhexp),
+        ),
       ),
       dhexp_of_uexp(uexp),
     );
@@ -870,18 +894,29 @@ module MenhirElaborationTests = {
   //Test for an empty hole
   let empty_hole_str = "?";
   let empty_hole_uexp: Exp.t = {
-    ids: [id_at(0)],
     term: EmptyHole,
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
   };
   let empty_hole_menhir = () =>
     alco_check_menhir("Empty hole (menhir)", empty_hole_str, empty_hole_uexp);
 
   //Test for a free variable
   let free_var_uexp: Exp.t = {
-    ids: [id_at(0)],
-    term: Parens({ids: [id_at(1)], term: Var("y"), copied: false}),
-    copied: false,
+    term:
+      Parens({
+        term: Var("y"),
+        annotation: {
+          ids: [id_at(1)],
+          copied: false,
+        },
+      }),
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
   };
   let free_var_menhir = () =>
     alco_check_menhir(
@@ -946,9 +981,11 @@ module MenhirElaborationTests = {
   //Single integer menhir test
   let single_int_str = "8";
   let single_int_uexp: Exp.t = {
-    ids: [id_at(0)],
     term: Int(8),
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
   };
   let single_integer_menhir = () =>
     alco_check_menhir(
@@ -995,19 +1032,30 @@ module MenhirElaborationTests = {
       failed_cast_uexp,
     );
 
+  let constructor_str = "X";
+  let constructor_uexp: Exp.t = Constructor("X", None) |> Exp.fresh;
+  let constructor_menhir = () =>
+    alco_check_menhir(
+      "Constructor test (menhir)",
+      constructor_str,
+      constructor_uexp,
+    );
+
   /*
    <<1 / 2 ? `a`>>
        */
   let dynamic_error_hole_str = "<<(1/0) ? `DivideByZero`>> {Unknown Internal => Int}";
   let dynamic_error_hole_uexp: Exp.t = {
-    ids: [id_at(0)],
     term:
       DynamicErrorHole(
         BinOp(Int(Divide), Int(1) |> Exp.fresh, Int(0) |> Exp.fresh)
         |> Exp.fresh,
         InvalidOperationError.DivideByZero,
       ),
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
   };
   let dynamic_error_hole_menhir = () =>
     alco_check_menhir(
@@ -1018,9 +1066,11 @@ module MenhirElaborationTests = {
 
   let builtin_fun_str = "infinity";
   let builtin_fun_uexp: Exp.t = {
-    ids: [id_at(0)],
     term: BuiltinFun("infinity"),
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
   };
   let builtin_fun_menhir = () =>
     alco_check_menhir(
@@ -1030,15 +1080,23 @@ module MenhirElaborationTests = {
     );
 
   let undef_str = "undef";
-  let undef_uexp: Exp.t = {ids: [id_at(0)], term: Undefined, copied: false};
+  let undef_uexp: Exp.t = {
+    term: Undefined,
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
+  };
   let undef_menhir = () =>
     alco_check_menhir("Undef test (menhir)", undef_str, undef_uexp);
 
   let test_str = "test 1 ?{Int => Bool} end";
   let test_uexp: Exp.t = {
-    ids: [id_at(0)],
     term: Test(Int(1) |> Exp.fresh),
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
   };
   let test_menhir = () =>
     alco_check_menhir("Test failed (menhir)", test_str, test_uexp);
@@ -1050,9 +1108,11 @@ module MenhirElaborationTests = {
       act: (FilterAction.Eval, FilterAction.All),
     });
   let filter_uexp: Exp.t = {
-    ids: [id_at(0)],
     term: Filter(stepper_filter_kind, Int(0) |> Exp.fresh),
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
   };
   let filter_menhir = () =>
     alco_check_menhir("Filter test (menhir)", filter_str, filter_uexp);
@@ -1070,14 +1130,16 @@ undef
 
   let list_exp_str = "[1, 2, 3]";
   let list_exp_uexp: Exp.t = {
-    ids: [id_at(0)],
     term:
       ListLit([
         Int(1) |> Exp.fresh,
         Int(2) |> Exp.fresh,
         Int(3) |> Exp.fresh,
       ]),
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
   };
   let list_exp_menhir = () =>
     alco_check_menhir("List exp (menhir)", list_exp_str, list_exp_uexp);
@@ -1093,14 +1155,16 @@ undef
 x
 ";
   let ty_alias_uexp: Exp.t = {
-    ids: [id_at(0)],
     term:
       TyAlias(
         Var("x") |> TPat.fresh,
         Int |> Typ.fresh,
         Var("x") |> Exp.fresh,
       ),
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
   };
   let ty_alias_menhir = () =>
     alco_check_menhir(
@@ -1111,13 +1175,15 @@ x
 
   let list_concat_str = "[1, 2] @ [3, 4]";
   let list_concat_uexp: Exp.t = {
-    ids: [id_at(0)],
     term:
       ListConcat(
         ListLit([Int(1) |> Exp.fresh, Int(2) |> Exp.fresh]) |> Exp.fresh,
         ListLit([Int(3) |> Exp.fresh, Int(4) |> Exp.fresh]) |> Exp.fresh,
       ),
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
   };
   let list_concat_menhir = () =>
     alco_check_menhir(
@@ -1128,27 +1194,33 @@ x
 
   let unop_str = "-1";
   let unop_uexp: Exp.t = {
-    ids: [id_at(0)],
     term: UnOp(Int(Minus), Int(1) |> Exp.fresh),
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
   };
   let unop_menhir = () =>
     alco_check_menhir("Unary operation test (menhir)", unop_str, unop_uexp);
 
   let seq_str = "1; 2";
   let seq_uexp: Exp.t = {
-    ids: [id_at(0)],
     term: Seq(Int(1) |> Exp.fresh, Int(2) |> Exp.fresh),
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
   };
   let seq_menhir = () =>
     alco_check_menhir("Sequence test (menhir)", seq_str, seq_uexp);
 
   let fixf_str = "fix x -> 1{Int => Unknown Internal}";
   let fixf_uexp: Exp.t = {
-    ids: [id_at(0)],
     term: FixF(Var("x") |> Pat.fresh, Int(1) |> Exp.fresh, None),
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+      copied: false,
+    },
   };
   let fixf_menhir = () =>
     alco_check_menhir("FixF test (menhir)", fixf_str, fixf_uexp);
@@ -1163,6 +1235,7 @@ x
       dynamic_error_hole_menhir,
     ),
     test_case("Failed cast test (menhir)", `Quick, failed_cast_menhir),
+    test_case("Constructor test (menhir)", `Quick, constructor_menhir),
     test_case("Type ap test (menhir)", `Quick, typ_ap_menhir),
     test_case("Let expression for a tuple (menhir)", `Quick, let_exp_menhir),
     test_case("Single integer (menhir)", `Quick, single_integer_menhir),

@@ -1,7 +1,7 @@
 open Haz3lmenhir;
 open Alcotest;
 open Haz3lcore;
-
+module Fresh = IdTagged.FreshGrammar;
 let alco_check =
   testable(
     Fmt.using(Haz3lcore.Exp.show, Fmt.string),
@@ -20,7 +20,7 @@ let strip_parens_and_add_builtins =
             VarMap.lookup(Haz3lcore.Builtins.Pervasives.builtins, x);
           cont(
             switch (builtin) {
-            | Some(Fn(_, _, _)) => cont(BuiltinFun(x) |> Exp.fresh)
+            | Some(Fn(_, _, _)) => cont(Fresh.Exp.builtin_fun(x))
             | Some(Const(_, _))
             | None => cont(e)
             },
@@ -52,8 +52,11 @@ let menhir_matches = (exp: Term.Exp.t, actual: string) =>
   alco_check(
     "menhir matches expected parse",
     exp,
-    Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-      Haz3lmenhir.Interface.parse_program(actual),
+    Grammar.map_exp_annotation(
+      _: IdTagged.IdTag.t => {ids: [Id.invalid], copied: false},
+      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+        Haz3lmenhir.Interface.parse_program(actual),
+      ),
     ),
   );
 
@@ -84,8 +87,11 @@ let menhir_maketerm_equivalent_test =
     alco_check(
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
-      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-        Haz3lmenhir.Interface.parse_program(actual),
+      Grammar.map_exp_annotation(
+        _: IdTagged.IdTag.t => {ids: [Id.invalid], copied: false},
+        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+          Haz3lmenhir.Interface.parse_program(actual),
+        ),
       ),
     )
   });
@@ -101,7 +107,9 @@ let qcheck_menhir_maketerm_equivalent_test =
     ~count=100,
     QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
     exp => {
-      let core_exp = Conversion.Exp.of_menhir_ast(exp);
+      let unit_exp = Conversion.Exp.of_menhir_ast(exp);
+      let core_exp =
+        Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp);
 
       let segment =
         ExpToSegment.exp_to_segment(
@@ -117,7 +125,13 @@ let qcheck_menhir_maketerm_equivalent_test =
         Haz3lmenhir.Conversion.Exp.of_menhir_ast(menhir_parsed);
 
       switch (
-        Haz3lcore.DHExp.fast_equal(make_term_parsed, menhir_parsed_converted)
+        Haz3lcore.DHExp.fast_equal(
+          make_term_parsed,
+          Grammar.map_exp_annotation(
+            _ => IdTagged.IdTag.fresh(),
+            menhir_parsed_converted,
+          ),
+        )
       ) {
       | true => true
       | false => false
@@ -147,8 +161,9 @@ let qcheck_menhir_serialized_equivalent_test =
     ~count=1000,
     QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
     exp => {
-      let core_exp = Conversion.Exp.of_menhir_ast(exp);
-
+      let unit_exp = Conversion.Exp.of_menhir_ast(exp);
+      let core_exp =
+        Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp);
       let segment =
         ExpToSegment.exp_to_segment(
           ~settings={
@@ -167,367 +182,258 @@ let qcheck_menhir_serialized_equivalent_test =
     },
   );
 
-let tests = (
-  "MenhirParser",
-  [
-    full_parser_test("Integer Literal", Int(8) |> Exp.fresh, "8"),
-    full_parser_test(
-      "Fun",
-      Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None, None)
-      |> Exp.fresh,
-      "fun x -> x",
-    ),
-    full_parser_test(
-      "String Literal",
-      String("Hello World") |> Exp.fresh,
-      {|"Hello World"|},
-    ),
-    full_parser_test("Bool Literal", Bool(true) |> Exp.fresh, "true"),
-    full_parser_test("Empty Hole", EmptyHole |> Exp.fresh, "?"),
-    full_parser_test("Var", Var("x") |> Exp.fresh, "x"),
-    full_parser_test(
-      "Parens",
-      Parens(Var("y") |> Exp.fresh) |> Exp.fresh,
-      "(y)",
-    ),
-    full_parser_test(
-      "BinOp",
-      BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
-      |> Exp.fresh,
-      "4 + 5",
-    ),
-    full_parser_test(
-      "Let",
-      Let(
-        Var("x") |> Pat.fresh,
-        Int(5) |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      "let x = 5 in x",
-    ),
-    full_parser_test(
-      "Tuple",
-      Tuple([Int(4) |> Exp.fresh, Int(5) |> Exp.fresh]) |> Exp.fresh,
-      "(4, 5)",
-    ),
-    full_parser_test(
-      "Match",
-      Match(
-        Int(4) |> Exp.fresh,
-        [
-          (Int(1) |> Pat.fresh, String("hello") |> Exp.fresh),
-          (Wild |> Pat.fresh, String("world") |> Exp.fresh),
-        ],
-      )
-      |> Exp.fresh,
-      {|case 4
-         | 1 => "hello"
-         | _ => "world"
-        end|},
-    ),
-    full_parser_test(
-      "If",
-      If(Bool(true) |> Exp.fresh, Int(8) |> Exp.fresh, Int(6) |> Exp.fresh)
-      |> Exp.fresh,
-      "if true then 8 else 6",
-    ),
-    full_parser_test(
-      "Deferred Ap",
-      DeferredAp(Var("x") |> Exp.fresh, [Deferral(InAp) |> Exp.fresh])
-      |> Exp.fresh,
-      "x(_)",
-    ),
-    full_parser_test(
-      "Cons",
-      Cons(Int(1) |> Exp.fresh, ListLit([]) |> Exp.fresh) |> Exp.fresh,
-      "1 :: []",
-    ),
-    full_parser_test(
-      "ListLit",
-      ListLit([
-        Int(1) |> Exp.fresh,
-        Int(2) |> Exp.fresh,
-        Int(3) |> Exp.fresh,
-      ])
-      |> Exp.fresh,
-      "[1, 2, 3]",
-    ),
-    menhir_only_test("Unit", Tuple([]) |> Exp.fresh, "()"),
-    menhir_only_test(
-      "Constructor",
-      Constructor("A", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
-      "A",
-    ),
-    menhir_only_test(
-      "Constructor cast",
-      Cast(
-        Constructor("A", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
-        Unknown(Internal) |> Typ.fresh,
-        Int |> Typ.fresh,
-      )
-      |> Exp.fresh,
-      "A : Int",
-    ),
-    menhir_only_test(
-      "Constructor of specific sum type",
-      Constructor("A", Int |> Typ.fresh) |> Exp.fresh,
-      "A ~ Int",
-    ),
-    // TODO Fix for the tests below
-    menhir_only_test(
-      "Constructor with Type Variable",
-      Constructor("A", Var("T") |> Typ.fresh) |> Exp.fresh,
-      "A ~ T",
-    ),
-    full_parser_test(
-      "Type Variable",
-      Let(
-        Cast(
-          Var("x") |> Pat.fresh,
-          Var("T") |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Pat.fresh,
-        EmptyHole |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      "let x : T = ? in x",
-    ),
-    full_parser_test(
-      "Type Alias",
-      TyAlias(Var("x") |> TPat.fresh, Int |> Typ.fresh, Int(1) |> Exp.fresh)
-      |> Exp.fresh,
-      "type x = Int in 1",
-    ),
-    full_parser_test(
-      "Test",
-      Test(
-        BinOp(Int(Equals), Int(3) |> Exp.fresh, Int(3) |> Exp.fresh)
-        |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      "test 3 == 3 end",
-    ),
-    full_parser_test(
-      "Filter",
-      Filter(
-        Filter({act: (Eval, All), pat: Int(3) |> Exp.fresh}),
-        Int(3) |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      "eval 3 in 3" // TODO Use other filter commands
-    ),
-    full_parser_test(
-      "List Concat",
-      ListConcat(
-        ListLit([Int(1) |> Exp.fresh, Int(2) |> Exp.fresh]) |> Exp.fresh,
-        ListLit([Int(3) |> Exp.fresh, Int(4) |> Exp.fresh]) |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      "[1, 2] @ [3, 4]",
-    ),
-    full_parser_test(
-      "times and divide precendence",
-      BinOp(
-        Int(Divide),
-        BinOp(Int(Times), Int(1) |> Exp.fresh, Int(2) |> Exp.fresh)
-        |> Exp.fresh,
-        Int(3) |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      "1 * 2 / 3",
-    ),
-    full_parser_test(
-      "plus and minus precendence",
-      BinOp(
-        Int(Plus),
-        BinOp(Int(Minus), Int(1) |> Exp.fresh, Int(2) |> Exp.fresh)
-        |> Exp.fresh,
-        Int(3) |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      "1 - 2 + 3",
-    ),
-    full_parser_test(
-      "Integer Ops",
-      BinOp(
-        Int(GreaterThanOrEqual),
-        BinOp(
-          Int(Minus),
-          BinOp(
-            Int(Plus),
-            UnOp(Int(Minus), Int(1) |> Exp.fresh) |> Exp.fresh,
-            Int(2) |> Exp.fresh,
-          )
-          |> Exp.fresh,
-          BinOp(
-            Int(Times),
-            BinOp(Int(Divide), Int(3) |> Exp.fresh, Int(4) |> Exp.fresh)
-            |> Exp.fresh,
-            BinOp(Int(Power), Int(5) |> Exp.fresh, Int(6) |> Exp.fresh)
-            |> Exp.fresh,
-          )
-          |> Exp.fresh,
-        )
-        |> Exp.fresh,
-        Int(8) |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      "-1 + 2 - 3 / 4 * 5 ** 6 >= 8",
-    ),
-    full_parser_test("Float", Float(1.) |> Exp.fresh, "1."),
-    full_parser_test(
-      "Float Ops",
-      BinOp(
-        Float(LessThan),
-        BinOp(
-          Float(Minus),
-          Float(2.) |> Exp.fresh,
-          BinOp(
-            Float(Times),
-            BinOp(
-              Float(Divide),
-              Float(3.) |> Exp.fresh,
-              Float(4.) |> Exp.fresh,
-            )
-            |> Exp.fresh,
-            BinOp(
-              Float(Power),
-              Float(5.) |> Exp.fresh,
-              Float(6.) |> Exp.fresh,
-            )
-            |> Exp.fresh,
-          )
-          |> Exp.fresh,
-        )
-        |> Exp.fresh,
-        Float(8.) |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      "2. -. 3. /. 4. *. 5. **. 6. <. 8.",
-    ),
-    full_parser_test(
-      "Let binding with type ascription",
-      Let(
-        Cast(
-          Var("x") |> Pat.fresh,
-          Int |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Pat.fresh,
-        Int(5) |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      "let (x: Int) = 5 in x",
-    ),
-    menhir_only_test(
-      "named_function",
-      Fun(
-        (Var("x"): Pat.term) |> Pat.fresh,
-        BinOp(Int(Plus), Var("x") |> Exp.fresh, Int(5) |> Exp.fresh)
-        |> Exp.fresh,
-        None,
-        Some("f"),
-      )
-      |> Exp.fresh,
-      "named_fun f x -> x + 5",
-    ),
-    full_parser_test(
-      "basic sum type",
-      Let(
-        Cast(
-          Var("x") |> Pat.fresh,
-          Sum([
-            Variant("A", [], None),
-            Variant("B", [], None),
-            Variant("C", [], Some(Int |> Typ.fresh)),
-          ])
-          |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Pat.fresh,
-        Ap(
-          Forward,
-          Constructor("C", Unknown(Internal) |> Typ.fresh) |> Exp.fresh,
-          Int(7) |> Exp.fresh,
-        )
-        |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      "let x : +A +B +C(Int) = C(7) in x",
-    ),
-    menhir_maketerm_equivalent_test("Empty Type Hole", "let g: ? = 7 in g"),
-    menhir_maketerm_equivalent_test(
-      "Pattern with type ascription",
-      "fun (b : Bool) -> b",
-    ),
-    full_parser_test(
-      "Type Hole in arrow cast",
-      Fun(
-        Cast(
-          Var("b") |> Pat.fresh,
-          Parens(
-            Arrow(
-              Unknown(Hole(EmptyHole)) |> Typ.fresh,
-              Unknown(Hole(EmptyHole)) |> Typ.fresh,
-            )
-            |> Typ.fresh,
-          )
-          |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Pat.fresh,
-        EmptyHole |> Exp.fresh,
-        None,
-        None,
-      )
-      |> Exp.fresh,
-      "fun (b : ? -> ?) -> ?",
-    ),
-    full_parser_test(
-      "multiargument function",
-      Ap(
-        Forward,
-        Var("f") |> Exp.fresh,
-        Tuple([Int(1) |> Exp.fresh, Int(2) |> Exp.fresh]) |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      "f(1, 2)",
-    ),
-    menhir_maketerm_equivalent_test(
-      "partial sum type",
-      "type Partial = +Ok(?) + ? in ?",
-    ),
-    menhir_maketerm_equivalent_test(
-      "Function with type variable",
-      "fun (x : a) -> x",
-    ),
-    menhir_maketerm_equivalent_test("Sequence addition precedence", "1+2;3"),
-    menhir_maketerm_equivalent_test(
-      "And app precedence",
-      "exp_equal(e1, e3) && exp_equal(e2, e4)",
-    ),
-    menhir_maketerm_equivalent_test(
-      "Negation precedence with multiplication",
-      "-num*1",
-    ),
-    menhir_maketerm_equivalent_test(
-      "Concatenation association",
-      "1::2::3::[]",
-    ),
-    menhir_maketerm_equivalent_test(
-      "and less than precedence",
-      "true && 23 < int_of_float(51.00)" // TODO This looks like a bug in MakeTerm
-    ),
-    menhir_maketerm_equivalent_test("Singleton labeled tuple", {|(h = 1)|}),
-    menhir_maketerm_equivalent_test(
-      ~speed_level=`Slow,
-      "Altered Documentation Buffer: Basic Reference",
-      {|
+let tests =
+  Fresh.(
+    "MenhirParser",
+    Exp.[
+      full_parser_test("Integer Literal", int(8), "8"),
+      full_parser_test(
+        "Fun",
+        fn(Pat.var("x"), var("x"), None, None),
+        "fun x -> x",
+      ),
+      full_parser_test(
+        "String Literal",
+        string("Hello World"),
+        {|"Hello World"|},
+      ),
+      full_parser_test("Bool Literal", bool(true), "true"),
+      full_parser_test("Empty Hole", empty_hole(), "?"),
+      full_parser_test("Var", var("x"), "x"),
+      full_parser_test("Parens", parens(var("y")), "(y)"),
+      full_parser_test(
+        "bin_op",
+        bin_op(Int(Plus), int(4), int(5)),
+        "4 + 5",
+      ),
+      full_parser_test(
+        "Let",
+        let_(Fresh.Pat.var("x"), int(5), var("x")),
+        "let x = 5 in x",
+      ),
+      full_parser_test("Tuple", tuple([int(4), int(5)]), "(4, 5)"),
+      full_parser_test(
+        "Match",
+        match(
+          int(4),
+          [(Pat.int(1), string("hello")), (Pat.wild(), string("world"))],
+        ),
+        {|case 4
+       | 1 => "hello"
+       | _ => "world"
+      end|},
+      ),
+      full_parser_test(
+        "If",
+        if_(bool(true), int(8), int(6)),
+        "if true then 8 else 6",
+      ),
+      full_parser_test(
+        "Deferred Ap",
+        deferred_ap(var("x"), [deferral(InAp)]),
+        "x(_)",
+      ),
+      full_parser_test("Cons", cons(int(1), list_lit([])), "1 :: []"),
+      full_parser_test(
+        "ListLit",
+        list_lit([int(1), int(2), int(3)]),
+        "[1, 2, 3]",
+      ),
+      menhir_only_test("Unit", tuple([]), "()"),
+      menhir_only_test("Constructor", constructor("A", None), "A"),
+      menhir_only_test(
+        "Constructor cast",
+        cast(constructor("A", None), Typ.unknown(Internal), Typ.int()),
+        "A : Int",
+      ),
+      menhir_only_test(
+        "Constructor of specific sum type",
+        constructor("A", Some(Typ.int())),
+        "A ~ Int",
+      ),
+      // TODO Fix for the tests below
+      menhir_only_test(
+        "Constructor with Type Variable",
+        constructor("A", Some(Typ.var("T"))),
+        "A ~ T",
+      ),
+      full_parser_test(
+        "Type Variable",
+        let_(
+          Pat.cast(Pat.var("x"), Typ.var("T"), Typ.unknown(Internal)),
+          empty_hole(),
+          var("x"),
+        ),
+        "let x : T = ? in x",
+      ),
+      full_parser_test(
+        "Type Alias",
+        ty_alias(TPat.var("x"), Typ.int(), int(1)),
+        "type x = Int in 1",
+      ),
+      full_parser_test(
+        "Test",
+        test(bin_op(Int(Equals), int(3), int(3))),
+        "test 3 == 3 end",
+      ),
+      full_parser_test(
+        "Filter",
+        filter(Filter({act: (Eval, All), pat: int(3)}), int(3)),
+        "eval 3 in 3" // TODO Use other filter commands
+      ),
+      full_parser_test(
+        "List Concat",
+        list_concat(
+          list_lit([int(1), int(2)]),
+          list_lit([int(3), int(4)]),
+        ),
+        "[1, 2] @ [3, 4]",
+      ),
+      full_parser_test(
+        "times and divide precendence",
+        bin_op(Int(Divide), bin_op(Int(Times), int(1), int(2)), int(3)),
+        "1 * 2 / 3",
+      ),
+      full_parser_test(
+        "plus and minus precendence",
+        bin_op(Int(Plus), bin_op(Int(Minus), int(1), int(2)), int(3)),
+        "1 - 2 + 3",
+      ),
+      full_parser_test(
+        "Integer Ops",
+        bin_op(
+          Int(GreaterThanOrEqual),
+          bin_op(
+            Int(Minus),
+            bin_op(Int(Plus), un_op(Int(Minus), int(1)), int(2)),
+            bin_op(
+              Int(Times),
+              bin_op(Int(Divide), int(3), int(4)),
+              bin_op(Int(Power), int(5), int(6)),
+            ),
+          ),
+          int(8),
+        ),
+        "-1 + 2 - 3 / 4 * 5 ** 6 >= 8",
+      ),
+      full_parser_test("Float", float(1.), "1."),
+      full_parser_test(
+        "Float Ops",
+        bin_op(
+          Float(LessThan),
+          bin_op(
+            Float(Minus),
+            float(2.),
+            bin_op(
+              Float(Times),
+              bin_op(Float(Divide), float(3.), float(4.)),
+              bin_op(Float(Power), float(5.), float(6.)),
+            ),
+          ),
+          float(8.),
+        ),
+        "2. -. 3. /. 4. *. 5. **. 6. <. 8.",
+      ),
+      full_parser_test(
+        "Let binding with type ascription",
+        let_(
+          Pat.cast(Pat.var("x"), Typ.int(), Typ.unknown(Internal)),
+          int(5),
+          var("x"),
+        ),
+        "let (x: Int) = 5 in x",
+      ),
+      menhir_only_test(
+        "named_function",
+        fn(
+          Pat.var("x"),
+          bin_op(Int(Plus), var("x"), int(5)),
+          None,
+          Some("f"),
+        ),
+        "named_fun f x -> x + 5",
+      ),
+      full_parser_test(
+        "basic sum type",
+        let_(
+          Pat.cast(
+            Pat.var("x"),
+            Typ.sum([
+              Variant("A", [], None),
+              Variant("B", [], None),
+              Variant("C", [], Some(Typ.int())),
+            ]),
+            Typ.unknown(Internal),
+          ),
+          ap(Forward, constructor("C", None), int(7)),
+          var("x"),
+        ),
+        "let x : +A +B +C(Int) = C(7) in x",
+      ),
+      menhir_maketerm_equivalent_test("Empty Type Hole", "let g: ? = 7 in g"),
+      menhir_maketerm_equivalent_test(
+        "Pattern with type ascription",
+        "fun (b : Bool) -> b",
+      ),
+      full_parser_test(
+        "Type Hole in arrow cast",
+        fn(
+          Pat.cast(
+            Pat.var("b"),
+            Typ.(
+              parens(
+                arrow(
+                  unknown(TypeProvenance.hole(EmptyHole)),
+                  unknown(TypeProvenance.hole(EmptyHole)),
+                ),
+              )
+            ),
+            Typ.unknown(Internal),
+          ),
+          empty_hole(),
+          None,
+          None,
+        ),
+        "fun (b : ? -> ?) -> ?",
+      ),
+      full_parser_test(
+        "multiargument function",
+        ap(Forward, var("f"), tuple([int(1), int(2)])),
+        "f(1, 2)",
+      ),
+      menhir_maketerm_equivalent_test(
+        "partial sum type",
+        "type Partial = +Ok(?) + ? in ?",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Function with type variable",
+        "fun (x : a) -> x",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Sequence addition precedence",
+        "1+2;3",
+      ),
+      menhir_maketerm_equivalent_test(
+        "And app precedence",
+        "exp_equal(e1, e3) && exp_equal(e2, e4)",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Negation precedence with multiplication",
+        "-num*1",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Concatenation association",
+        "1::2::3::[]",
+      ),
+      menhir_maketerm_equivalent_test(
+        "and less than precedence",
+        "true && 23 < int_of_float(51.00)" // TODO This looks like a bug in MakeTerm
+      ),
+      menhir_maketerm_equivalent_test("Singleton labeled tuple", {|(h = 1)|}),
+      menhir_maketerm_equivalent_test(
+        ~speed_level=`Slow,
+        "Altered Documentation Buffer: Basic Reference",
+        {|
 let empty_hole = ? in
 
 let non_empty_hole : Int = true in
@@ -627,11 +533,11 @@ test 2 + 2 == 5 end;
 
 2 + 2
     |},
-    ),
-    menhir_maketerm_equivalent_test(
-      ~speed_level=`Slow,
-      "Altered Documentation Buffer: Projectors",
-      {|
+      ),
+      menhir_maketerm_equivalent_test(
+        ~speed_level=`Slow,
+        "Altered Documentation Buffer: Projectors",
+        {|
 let fold = (((((((((((()))))))))))) in
 let folds: (Int -> Bool) = ? in
 let guard: Bool = true in
@@ -647,11 +553,11 @@ let ______ = "a shift   malicious" in
 let box: Int = "malicious" in
 if true && (23 < int_of_float(51.00))
 then ______ else "its: " ++ box    |},
-    ),
-    menhir_maketerm_equivalent_test(
-      ~speed_level=`Slow,
-      "Altered Documentation Buffer: Types & Static Errors",
-      {|
+      ),
+      menhir_maketerm_equivalent_test(
+        ~speed_level=`Slow,
+        "Altered Documentation Buffer: Types & Static Errors",
+        {|
 let _ = unbound in
 let Undefined = Undefined in
 let true = 2 in
@@ -696,11 +602,11 @@ let _: [Int] = 1.0::[2] in
 let _: [Int] = 1::[2.0] in
 "BYE"
 |},
-    ),
-    menhir_maketerm_equivalent_test(
-      ~speed_level=`Slow,
-      "Altered Documentation Buffer: adt dynamics",
-      {|
+      ),
+      menhir_maketerm_equivalent_test(
+        ~speed_level=`Slow,
+        "Altered Documentation Buffer: adt dynamics",
+        {|
 type Exp =
   + Var(String)
   + Lam(String, Exp)
@@ -765,12 +671,12 @@ test result_equal(
   go(Ap(Lam("yo", Var("yo")), Lam("bro", Var("bro")))),
 Ok(Lam("bro", Var("bro")))) end
 |},
-    ),
-    menhir_maketerm_equivalent_test(
-      // Variable names are renamed due to lexing overtaking e, t, p, and tp
-      ~speed_level=`Slow,
-      "Altered Documentation Buffer: Polymorphism",
-      {|let id = typfun A -> (fun (x : A) -> x) in
+      ),
+      menhir_maketerm_equivalent_test(
+        // Variable names are renamed due to lexing overtaking e, t, p, and tp
+        ~speed_level=`Slow,
+        "Altered Documentation Buffer: Polymorphism",
+        {|let id = typfun A -> (fun (x : A) -> x) in
 let ex1 = id@<Int>(1) in
 let const : forall A -> (forall B -> (A -> B -> A)) =
 typfun A -> (typfun B -> (fun x -> fun y -> x)) in
@@ -798,29 +704,29 @@ end in
 let ex5 = list_of_mylist(x) in
 (ex1, ex2, ex3, ex4, ex5)
     |},
-    ),
-    // This fails because MakeTerm can't handle left to right keyword prefixes.
-    skip_menhir_maketerm_equivalent_test(
-      "Prefixed keyword parses",
-      {|let ? = ina in ?|},
-    ),
-    skip_menhir_maketerm_equivalent_test(
-      "Sum type messed up in make term",
-      {|type ? = rec ? -> + Aramj -> Bool in ?|},
-    ),
-    skip_menhir_maketerm_equivalent_test(
-      "List concat and typap",
-      {|type ? = (+ Ulog, () -> Float) in let (()) = (()) in 0.001536|},
-    ),
-    skip_menhir_maketerm_equivalent_test(
-      "Sum in product in typeap",
-      {|((fun _ -> b)) @< [(+ Kfgii, Float)] >|},
-    ),
-    skip_menhir_maketerm_equivalent_test(
-      "Non-unique constructors currently throws in equality",
-      {|type ? = ((+ ? + ?)) in []|},
-    ),
-    QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
-    QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
-  ],
-);
+      ),
+      // This fails because MakeTerm can't handle left to right keyword prefixes.
+      skip_menhir_maketerm_equivalent_test(
+        "Prefixed keyword parses",
+        {|let ? = ina in ?|},
+      ),
+      skip_menhir_maketerm_equivalent_test(
+        "Sum type messed up in make term",
+        {|type ? = rec ? -> + Aramj -> Bool in ?|},
+      ),
+      skip_menhir_maketerm_equivalent_test(
+        "List concat and typap",
+        {|type ? = (+ Ulog, () -> Float) in let (()) = (()) in 0.001536|},
+      ),
+      skip_menhir_maketerm_equivalent_test(
+        "Sum in product in typeap",
+        {|((fun _ -> b)) @< [(+ Kfgii, Float)] >|},
+      ),
+      skip_menhir_maketerm_equivalent_test(
+        "Non-unique constructors currently throws in equality",
+        {|type ? = ((+ ? + ?)) in []|},
+      ),
+      QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
+      QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
+    ],
+  );
