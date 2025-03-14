@@ -98,13 +98,20 @@ let toggle_view =
     (
       ~inject: Action.project => Ui_effect.t(unit),
       applicable_projectors: Applicable.t,
+      cursor: Cursor.cursor(Editors.Update.t),
     ) =>
   switch (applicable_projectors) {
   | None => div(~attrs=[clss(["toggle-switch", "inactive"])], [knob])
   | Some((active, _)) =>
     div(
       ~attrs=[
-        clss(["toggle-switch", "active"]),
+        clss(
+          ["toggle-switch"]
+          @ (
+            Applicable.indicated_kind(cursor.editor) == None
+              ? [] : ["active"]
+          ),
+        ),
         Attr.on_mousedown(_ => inject(SetIndicated(Specific(active)))),
       ],
       [knob],
@@ -128,16 +135,15 @@ let select_view =
   switch (applicable_projectors) {
   | None => select(~attrs=[Attr.id("projector-select")], [])
   | Some((active, rest)) =>
+    let value = ProjectorCore.Kind.name(active);
     select(
       ~attrs=[
         Attr.id("projector-select"),
         Attr.title(keyboard_shortcut_of(active)),
         Attr.on_change((_, name) => {
-          let value = ProjectorCore.Kind.name(active);
           JsUtil.set_select_value("projector-select", value);
           inject(SetIndicated(Specific(ProjectorCore.Kind.of_name(name))));
         }),
-        //Attr.string_property("value", value),
       ],
       [active, ...rest]
       |> List.map(k =>
@@ -146,7 +152,7 @@ let select_view =
              [text(ProjectorCore.Kind.name(k))],
            )
          ),
-    )
+    );
   };
 };
 
@@ -155,6 +161,6 @@ let view = (~inject, cursor: Cursor.cursor(Editors.Update.t)) => {
   div(
     ~attrs=[Attr.id("projectors")],
     [select_view(~inject, applicable_projectors)]
-    @ [toggle_view(~inject, applicable_projectors)],
+    @ [toggle_view(~inject, applicable_projectors, cursor)],
   );
 };

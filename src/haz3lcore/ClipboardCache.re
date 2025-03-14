@@ -14,9 +14,6 @@ let set = (seg: option(Segment.t), str: string): unit =>
   | _ => ()
   };
 
-let intersection = (ids1: list(Id.t), ids2: list(Id.t)): list(Id.t) =>
-  List.filter(id => List.mem(id, ids2), ids1);
-
 let get = (pasted: string): Action.t => {
   /* Note the trimming of leading whitespace on each line */
   let trim = Util.StringUtil.trim_leading;
