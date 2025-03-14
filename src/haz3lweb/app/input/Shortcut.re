@@ -220,8 +220,8 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     mk_shortcut(
       ~mdIcon="bolt",
       ~section="Refactoring",
-      "Refine",
-      Globals(ActiveEditor(Refine)),
+      "Introduce",
+      Globals(ActiveEditor(Introduce)),
     ),
   ]
   @ (if (ExerciseSettings.show_instructor) {instructor_shortcuts} else {[]});

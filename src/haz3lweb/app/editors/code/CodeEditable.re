@@ -53,7 +53,7 @@ module Update = {
              | Copy
              | Cut
              | Reparse
-             | Refine => true
+             | Introduce => true
              | Project(_)
              | Unselect(_)
              | Select(All) => false
