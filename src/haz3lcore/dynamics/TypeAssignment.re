@@ -91,7 +91,6 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Float(_) => Typ.equal(ty, Float |> Typ.temp) ? Some([]) : None
     | Bool(_) => Typ.equal(ty, Bool |> Typ.temp) ? Some([]) : None
     | String(_) => Typ.equal(ty, String |> Typ.temp) ? Some([]) : None
-    | LivelitName(_) => Typ.equal(ty, String |> Typ.temp) ? Some([]) : None
     | Constructor(_) => Some([]) // TODO: make this stricter
     | Cast(dhp, ty1, ty2) =>
       Typ.equal(ty, ty2) ? dhpat_var_entry(dhp, ty1) : None
@@ -131,7 +130,6 @@ let rec dhpat_synthesize = (dhpat: DHPat.t, ctx: Ctx.t): option(Typ.t) => {
   | Float(_) => Some(Float |> Typ.temp)
   | Bool(_) => Some(Bool |> Typ.temp)
   | String(_) => Some(String |> Typ.temp)
-  | LivelitName(_) => Some(String |> Typ.temp)
   | Cast(_, _, ty) => Some(ty)
   };
 };

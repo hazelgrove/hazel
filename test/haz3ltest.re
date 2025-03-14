@@ -5,6 +5,7 @@ let (suite, _) =
     ~and_exit=false,
     "HazelTests",
     [
+      Test_Grammar.tests,
       Test_ExpToSegment.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,

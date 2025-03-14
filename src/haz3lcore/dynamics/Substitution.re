@@ -15,7 +15,6 @@ let rec binds_var = (m: Statics.Map.t, x: Var.t, dp: DHPat.t): bool =>
     | Bool(_)
     | String(_)
     | Label(_)
-    | LivelitName(_)
     | Constructor(_) => false
     | Cast(y, _, _)
     | Parens(y) => binds_var(m, x, y)

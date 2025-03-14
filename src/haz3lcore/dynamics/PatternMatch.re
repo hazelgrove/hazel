@@ -29,7 +29,6 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
   | String(s) =>
     let* s' = Unboxing.unbox(String, d);
     s == s' ? Matches(Environment.empty) : DoesNotMatch;
-  | LivelitName(_) => IndetMatch
   | ListLit(xs) =>
     let* s' = Unboxing.unbox(ListLit(List.length(xs)), d);
     List.map2(matches, xs, s')
