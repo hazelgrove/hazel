@@ -125,6 +125,14 @@ let tests =
             );
           },
         ),
+        test_case("Singleton Variant", `Quick, () => {
+          check(
+            option(exp),
+            "Function",
+            Some(Exp.(constructor("A", None))),
+            introduce_expression(Typ.(sum([Variant("A", [], None)]))),
+          )
+        }),
       ],
     ),
     (

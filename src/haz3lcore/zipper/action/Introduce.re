@@ -11,6 +11,7 @@ let introduce_expression = (ty: Typ.t): option(Exp.t) => {
       Tuple(List.init(List.length(ts), _ => EmptyHole |> Exp.fresh))
       |> Exp.fresh,
     )
+  | Sum([Variant(c, _, None)]) => Some(Constructor(c, None) |> Exp.fresh)
   | _ => None
   };
 };
