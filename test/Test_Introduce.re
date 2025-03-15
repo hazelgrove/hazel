@@ -134,6 +134,42 @@ let tests =
             );
           },
         ),
+        test_case(
+          "Function",
+          `Quick,
+          () => {
+            open Util.OptUtil.Syntax; // TODO Figure out a way to make this work with whitespace. We probably need a token for the empty hole
+            // We could use ? but then we need to make sure introduce removes the ? when it introduces
+            let serialized = {
+              let* zip = Printer.zipper_of_string("let x : Int -> Int =in x");
+              let exp = MakeTerm.from_zip_for_sem(zip).term;
+              let* hole_id =
+                find_id(
+                  e =>
+                    switch (e.term) {
+                    | EmptyHole => true
+                    | _ => false
+                    },
+                  exp,
+                );
+              let x = Editor.Model.mk(zip);
+              module Move = Move.Make((val Editor.Model.to_move_s(x)));
+              let* zip = Move.jump_to_id(zip, hole_id);
+              let* zip = Move.go(Local(Right(ByChar)), zip); // To get on the hole itself
+              let statics =
+                Statics.mk(CoreSettings.on, Builtins.ctx_init, exp);
+              let+ zip = Introduce.introduce(statics, zip);
+              Printer.zipper_to_string(~holes=Some("?"), zip);
+            };
+
+            check(
+              option(string),
+              "Introduce",
+              Some("let x : Int -> Int =fun ? -> ?in x"),
+              serialized,
+            );
+          },
+        ),
       ],
     ),
   ];
