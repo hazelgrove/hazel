@@ -84,7 +84,8 @@ let go_z =
     | Some(z) => Ok(z)
     }
   | Introduce =>
-    Introduce.introduce(statics.info_map, z)
+    Select.current_term(z)
+    |> Option.bind(_, Introduce.introduce(statics.info_map, _))
     |> Result.of_option(~error=Action.Failure.CantIntroduce)
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
