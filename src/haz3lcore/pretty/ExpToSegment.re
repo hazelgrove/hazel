@@ -1307,11 +1307,12 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   };
 };
 
-let exp_to_segment = (~settings: Settings.t, exp: Exp.t): Segment.t => {
+let exp_to_segment =
+    (~already_paren=false, ~settings: Settings.t, exp: Exp.t): Segment.t => {
   let exp =
     exp
     |> Exp.substitute_closures(Builtins.env_init)
-    |> parenthesize(~show_filters=settings.show_filters);
+    |> parenthesize(~already_paren, ~show_filters=settings.show_filters);
   let p = exp_to_pretty(~settings, exp);
   p |> PrettySegment.select;
 };
