@@ -23,6 +23,38 @@ let find_id = (p: Exp.t => bool, e: Exp.t): option(Id.t) => {
   };
 };
 
+let introduction_test = (before: string, expected: string) => {
+  open Util.OptUtil.Syntax;
+
+  let serialized = {
+    let* zip = Printer.zipper_of_string(before);
+    let exp = MakeTerm.from_zip_for_sem(zip).term;
+    let* hole_id =
+      find_id(
+        e =>
+          switch (e.term) {
+          | EmptyHole => true
+          | _ => false
+          },
+        exp,
+      );
+    let x = Editor.Model.mk(zip);
+    module Move = Move.Make((val Editor.Model.to_move_s(x)));
+    module Select = Select.Make((val Editor.Model.to_move_s(x)));
+    let* zip = Move.jump_to_id(zip, hole_id);
+    print_endline("Here");
+    let* zip = Move.go(Local(Right(ByChar)), zip); // To get on the hole itself
+    print_endline("Here2");
+    let* zip = Select.current_term(zip);
+    print_endline("Selection: " ++ Selection.show(zip.selection));
+    let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init, exp);
+    let+ zip = Introduce.introduce(statics, zip);
+    Printer.zipper_to_string(~holes=Some("?"), zip);
+  };
+
+  check(option(string), "Introduce", Some(expected), serialized);
+};
+
 let tests =
   IdTagged.FreshGrammar.[
     (
@@ -98,154 +130,36 @@ let tests =
     (
       "Introduce.introduce",
       [
-        test_case(
-          "Tuple",
-          `Quick,
-          () => {
-            open Util.OptUtil.Syntax; // TODO Figure out a way to make this work with whitespace. We probably need a token for the empty hole
-            // We could use ? but then we need to make sure introduce removes the ? when it introduces
-            let serialized = {
-              let* zip = Printer.zipper_of_string("let x : (Int, Int) =in x");
-              let exp = MakeTerm.from_zip_for_sem(zip).term;
-              let* hole_id =
-                find_id(
-                  e =>
-                    switch (e.term) {
-                    | EmptyHole => true
-                    | _ => false
-                    },
-                  exp,
-                );
-              let x = Editor.Model.mk(zip);
-              module Move = Move.Make((val Editor.Model.to_move_s(x)));
-              let* zip = Move.jump_to_id(zip, hole_id);
-              let* zip = Move.go(Local(Right(ByChar)), zip); // To get on the hole itself
-              let statics =
-                Statics.mk(CoreSettings.on, Builtins.ctx_init, exp);
-              let+ zip = Introduce.introduce(statics, zip);
-              Printer.zipper_to_string(~holes=Some("?"), zip);
-            };
-
-            check(
-              option(string),
-              "Introduce",
-              Some("let x : (Int, Int) =(?, ?)in x"),
-              serialized,
-            );
-          },
-        ),
-        test_case(
-          "Function",
-          `Quick,
-          () => {
-            open Util.OptUtil.Syntax; // TODO Figure out a way to make this work with whitespace. We probably need a token for the empty hole
-            // We could use ? but then we need to make sure introduce removes the ? when it introduces
-            let serialized = {
-              let* zip = Printer.zipper_of_string("let x : Int -> Int =in x");
-              let exp = MakeTerm.from_zip_for_sem(zip).term;
-              let* hole_id =
-                find_id(
-                  e =>
-                    switch (e.term) {
-                    | EmptyHole => true
-                    | _ => false
-                    },
-                  exp,
-                );
-              let x = Editor.Model.mk(zip);
-              module Move = Move.Make((val Editor.Model.to_move_s(x)));
-              let* zip = Move.jump_to_id(zip, hole_id);
-              let* zip = Move.go(Local(Right(ByChar)), zip); // To get on the hole itself
-              let statics =
-                Statics.mk(CoreSettings.on, Builtins.ctx_init, exp);
-              let+ zip = Introduce.introduce(statics, zip);
-              Printer.zipper_to_string(~holes=Some("?"), zip);
-            };
-
-            check(
-              option(string),
-              "Introduce",
-              Some("let x : Int -> Int =fun ? -> ?in x"),
-              serialized,
-            );
-          },
-        ),
-        test_case(
-          "Already parenthesized tuple",
-          `Quick,
-          () => {
-            open Util.OptUtil.Syntax; // TODO Figure out a way to make this work with whitespace. We probably need a token for the empty hole
-            // We could use ? but then we need to make sure introduce removes the ? when it introduces
-            let serialized = {
-              let* zip =
-                Printer.zipper_of_string("let x : (Int, Int) = ( ) in x");
-              let exp = MakeTerm.from_zip_for_sem(zip).term;
-              let* hole_id =
-                find_id(
-                  e =>
-                    switch (e.term) {
-                    | EmptyHole => true
-                    | _ => false
-                    },
-                  exp,
-                );
-              let x = Editor.Model.mk(zip);
-              module Move = Move.Make((val Editor.Model.to_move_s(x)));
-              let* zip = Move.jump_to_id(zip, hole_id);
-              let* zip = Move.go(Local(Right(ByChar)), zip); // To get on the hole itself
-              let statics =
-                Statics.mk(CoreSettings.on, Builtins.ctx_init, exp);
-              let+ zip = Introduce.introduce(statics, zip);
-              Printer.zipper_to_string(~holes=Some("?"), zip);
-            };
-
-            check(
-              option(string),
-              "Introduce",
-              Some("let x : (Int, Int) = (?, ? ) in x"), // TODO this trailing space does not appear in the actual output
-              serialized,
-            );
-          },
-        ),
-        test_case(
-          "Nested tuple",
-          `Quick,
-          () => {
-            open Util.OptUtil.Syntax; // TODO Figure out a way to make this work with whitespace. We probably need a token for the empty hole
-            // We could use ? but then we need to make sure introduce removes the ? when it introduces
-            let serialized = {
-              let* zip =
-                Printer.zipper_of_string(
-                  "let x : (Int, (Int, Int)) = (1,  ) in x",
-                );
-              let exp = MakeTerm.from_zip_for_sem(zip).term;
-              let* hole_id =
-                find_id(
-                  e =>
-                    switch (e.term) {
-                    | EmptyHole => true
-                    | _ => false
-                    },
-                  exp,
-                );
-              let x = Editor.Model.mk(zip);
-              module Move = Move.Make((val Editor.Model.to_move_s(x)));
-              let* zip = Move.jump_to_id(zip, hole_id);
-              let* zip = Move.go(Local(Right(ByChar)), zip); // To get on the hole itself
-              let statics =
-                Statics.mk(CoreSettings.on, Builtins.ctx_init, exp);
-              let+ zip = Introduce.introduce(statics, zip);
-              Printer.zipper_to_string(~holes=Some("?"), zip);
-            };
-
-            check(
-              option(string),
-              "Introduce",
-              Some("let x : (Int, (Int, Int)) = (1,(?, ?)  ) in x"), // TODO this trailing space does not appear in the actual output
-              serialized,
-            );
-          },
-        ),
+        test_case("Tuple", `Quick, () => {
+          introduction_test(
+            "let x : (Int, Int) =in x",
+            "let x : (Int, Int) =(?, ?)in x",
+          )
+        }),
+        test_case("Function", `Quick, () => {
+          introduction_test(
+            "let x : Int -> Int =in x",
+            "let x : Int -> Int =fun ? -> ?in x",
+          )
+        }),
+        test_case("Already parenthesized tuple", `Quick, () => {
+          introduction_test(
+            "let x : (Int, Int) = ( ) in x",
+            "let x : (Int, Int) = (?, ? ) in x",
+          )
+        }),
+        test_case("Nested tuple", `Quick, () => {
+          introduction_test(
+            "let x : (Int, (Int, Int)) = (1,  ) in x",
+            "let x : (Int, (Int, Int)) = (1,(?, ?)  ) in x",
+          )
+        }),
+        test_case("Explicit hole", `Quick, () => {
+          introduction_test(
+            "let x : (Int, Int) = ? in x",
+            "let x : (Int, Int) = (?, ?) in x",
+          )
+        }),
       ],
     ),
   ];
