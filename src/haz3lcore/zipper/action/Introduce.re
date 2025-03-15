@@ -51,6 +51,7 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
         ),
         expression,
       );
+
     Option.map(
       seg =>
         Zipper.put_selection(Selection.mk(seg), z)
