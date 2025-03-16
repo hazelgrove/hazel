@@ -133,6 +133,14 @@ let tests =
             introduce_expression(Typ.(sum([Variant("A", [], None)]))),
           )
         }),
+        test_case("Type fun", `Quick, () => {
+          check(
+            option(exp),
+            "Function",
+            Some(Exp.(typ_fun(TPat.empty_hole(), empty_hole(), None))),
+            introduce_expression(Typ.(forall(TPat.var("a"), var("a")))),
+          )
+        }),
       ],
     ),
     (
