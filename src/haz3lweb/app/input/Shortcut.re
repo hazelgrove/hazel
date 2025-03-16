@@ -247,8 +247,7 @@ let from_shortcut =
      val section = Js.Optdef.option(shortcut.section);
      val handler =
        () => {
-         let foo = shortcut.update_action;
-         switch (foo) {
+         switch (shortcut.update_action) {
          | Some(update) => schedule_action(update)
          | None =>
            print_endline("Could not find action for " ++ shortcut.label)
