@@ -220,6 +220,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     mk_shortcut(
       ~mdIcon="bolt",
       ~section="Refactoring",
+      ~hotkey=Keyboard.meta(sys) ++ "+i",
       "Introduce",
       Globals(ActiveEditor(Introduce)),
     ),
