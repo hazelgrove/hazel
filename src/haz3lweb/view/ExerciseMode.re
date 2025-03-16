@@ -145,7 +145,6 @@ module Update = {
             editor: {
               editor,
               statics: cell.editor.statics,
-              //TODO(andrew): does below make sense?
               dynamics: EvalResult.Model.dynamics(cell.result),
             },
             result: cell.result,

@@ -60,12 +60,6 @@ let elaborated_type =
         ctx,
         co_ctx,
         new_term,
-        // switch (uexp.term) {
-        // /* This is an attempted hack to work to get probes to work
-        //  * TODO(andrew) */
-        // | Probe(_, _) => uexp
-        // | _ => new_term
-        // },
       )
     | _ => raise(MissingTypeInfo)
     };
@@ -105,12 +99,6 @@ let elaborated_pat_type =
         ctx,
         prev_synswitch,
         new_term,
-        // switch (upat.term) {
-        // /* This is an attempted hack to work to get probes to work
-        //  * TODO(andrew) */
-        // | Probe(_, _) => upat
-        // | _ => new_term
-        // },
         label_inference,
       )
     | _ => raise(MissingTypeInfo)
