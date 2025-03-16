@@ -32,4 +32,6 @@ let add_test: (t, Id.t, TestMap.instance_report) => t;
 
 let get_tests: t => TestMap.t;
 
-let put_tests: (TestMap.t, t) => t;
+let add_closure: (t, Dynamics.Probe.Closure.t) => t;
+
+let get_probes: t => Dynamics.Probe.Map.t;

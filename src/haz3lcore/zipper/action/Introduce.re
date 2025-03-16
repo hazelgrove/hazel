@@ -49,6 +49,7 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
           hide_fixpoints: false,
           fold_cast_types: false,
           show_filters: true,
+          show_unknown_as_hole: true,
         },
         expression,
       );

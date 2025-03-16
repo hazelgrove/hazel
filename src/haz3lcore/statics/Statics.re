@@ -33,6 +33,53 @@ module Info = Info;
 module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(Info.t);
+
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type errors = Id.Map.t(Info.error);
+
+  let empty = Id.Map.empty;
+  let lookup = Id.Map.find_opt;
+
+  let error_ids = (info_map: t): list(Id.t) =>
+    Id.Map.fold(
+      (id, info, acc) =>
+        /* Second clause is to eliminate non-representative ids,
+         * which will not be found in the measurements map */
+        Info.is_error(info) && id == Info.id_of(info) ? [id, ...acc] : acc,
+      info_map,
+      [],
+    );
+
+  let errors = (map: t): list((Id.t, Info.error)) =>
+    Id.Map.fold(
+      (id, info: Info.t, acc) =>
+        Option.to_list(Info.error_of(info) |> Option.map(x => (id, x)))
+        @ acc,
+      map,
+      [],
+    );
+
+  let collect_errors = (map: t): errors =>
+    Id.Map.filter_map(
+      (_: Uuidm.t, info: Info.t) => {Info.error_of(info)},
+      map,
+    );
+
+  /* The ids of binding sites for for all references in term with `id` */
+  let refs_in = (m: t, id: Id.t): Binding.s =>
+    switch (lookup(id, m)) {
+    | Some(InfoExp({co_ctx, ctx, _})) =>
+      co_ctx
+      |> VarMap.to_list
+      |> List.map(((n, _)) => Ctx.binding_of(ctx, n))
+    | _ => []
+    };
+
+  let bound_in = (m: t, id: Id.t): Binding.s =>
+    switch (lookup(id, m)) {
+    | Some(InfoPat({term, _})) => Term.Pat.bindings(term)
+    | _ => []
+    };
 };
 
 let map_m = (f, xs, m: Map.t) =>
@@ -257,12 +304,29 @@ and uexp_to_info_map =
         original_expression,
         m,
       );
+
+    /* Special case for probes, which would otherwise lose their id association here */
     let elaborated_exp =
-      rewrap(
-        Tuple([
-          TupLabel(Label(l) |> Exp.fresh, original_expression) |> Exp.fresh,
-        ]),
-      );
+      switch (term) {
+      | Probe(_, p) =>
+        rewrap(
+          Probe(
+            Tuple([
+              TupLabel(Label(l) |> Exp.fresh, original_expression)
+              |> Exp.fresh,
+            ])
+            |> Exp.fresh,
+            p,
+          ),
+        )
+      | _ =>
+        rewrap(
+          Tuple([
+            TupLabel(Label(l) |> Exp.fresh, original_expression) |> Exp.fresh,
+          ]),
+        )
+      };
+
     // We need to reanalyze the elaborated expression to get the statics in the map for the label and tuple
     let (info, m) =
       uexp_to_info_map(~ctx, ~mode, ~ancestors, elaborated_exp, m);
@@ -346,7 +410,8 @@ and uexp_to_info_map =
         m,
       )
     | DynamicErrorHole(e, _)
-    | Parens(e) =>
+    | Parens(e)
+    | Probe(e, _) =>
       let (e, m) = go(~mode, e, m);
       add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) when is_in_filter =>
@@ -1107,12 +1172,27 @@ and upat_to_info_map =
         original_expression,
         m,
       );
+    /* Special case for probes, which would otherwise lose their id association here */
     let elaborated_pat =
-      rewrap(
-        Tuple([
-          TupLabel(Label(l) |> Pat.fresh, original_expression) |> Pat.fresh,
-        ]),
-      );
+      switch (term) {
+      | Probe(_, p) =>
+        rewrap(
+          Probe(
+            Tuple([
+              TupLabel(Label(l) |> Pat.fresh, original_expression)
+              |> Pat.fresh,
+            ])
+            |> Pat.fresh,
+            p,
+          ),
+        )
+      | _ =>
+        rewrap(
+          Tuple([
+            TupLabel(Label(l) |> Pat.fresh, original_expression) |> Pat.fresh,
+          ]),
+        )
+      };
     let (info, m) =
       upat_to_info_map(
         ~ctx,
@@ -1406,7 +1486,8 @@ and upat_to_info_map =
       List.exists(l => name == l, duplicates)
         ? atomic(Duplicate(name, self), Coverage.Constraint.Truth)
         : atomic(self, Coverage.Constraint.Truth);
-    | Parens(p) =>
+    | Parens(p)
+    | Probe(p, _) =>
       let (p, m) = go(~ctx, ~mode, p, m);
       add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     | Constructor(ctr, ty) =>
@@ -1689,22 +1770,3 @@ let get_pat_error_at = (info_map: Map.t, id: Id.t) => {
        }
      );
 };
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type error_map = Id.Map.t(Info.error);
-
-let error_ids = (info_map: Map.t): list(Id.t) =>
-  Id.Map.fold(
-    (id, info, acc) =>
-      /* Second clause is to eliminate non-representative ids,
-       * which will not be found in the measurements map */
-      Info.is_error(info) && id == Info.id_of(info) ? [id, ...acc] : acc,
-    info_map,
-    [],
-  );
-
-let collect_errors = (map: Map.t): error_map =>
-  Id.Map.filter_map(
-    (_: Uuidm.t, info: Info.t) => {Info.error_of(info)},
-    map,
-  );
