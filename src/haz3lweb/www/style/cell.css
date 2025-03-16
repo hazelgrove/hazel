@@ -69,6 +69,11 @@
   padding: 1em;
 }
 
+.slide {
+  padding: 1em;
+  padding-left: 1.2em;
+}
+
 .slide h1 {
   margin-top: 0;
   color: var(--BR4);
