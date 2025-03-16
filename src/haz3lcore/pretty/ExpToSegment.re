@@ -10,6 +10,7 @@ module Settings = {
     hide_fixpoints: bool,
     fold_cast_types: bool,
     show_filters: bool,
+    show_unknown_as_hole: bool,
   };
 
   let of_core = (~inline, settings: CoreSettings.t) => {
@@ -19,6 +20,7 @@ module Settings = {
     hide_fixpoints: !settings.evaluation.show_fixpoints,
     fold_cast_types: !settings.evaluation.show_casts,
     show_filters: settings.evaluation.show_stepper_filters,
+    show_unknown_as_hole: true,
   };
 };
 
@@ -44,17 +46,19 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | BuiltinFun(_)
   | Undefined
   | Label(_)
+  | Constructor(_)
   | TupLabel(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
   | Parens(_)
+  | Probe(_)
   | ListLit(_)
   | Test(_)
   | Match(_) => Precedence.max
 
   // Other forms
   | UnOp(Meta(Unquote), _) => Precedence.unquote
-  | Constructor(_) // Constructor is here because we currently always add a type annotation to constructors
+
   | Cast(_)
   | FailedCast(_) => Precedence.cast
   | Ap(Forward, _, _)
@@ -100,7 +104,8 @@ let external_precedence_pat = (dp: Pat.t) =>
 
   // Same goes for forms which are already surrounded
   | ListLit(_)
-  | Parens(_) => Precedence.max
+  | Parens(_)
+  | Probe(_) => Precedence.max
 
   // Other forms
   | Cons(_) => Precedence.cons
@@ -312,6 +317,12 @@ let rec parenthesize =
   | Parens(e) =>
     Parens(parenthesize(~already_paren=true, e) |> paren_at(Precedence.min))
     |> rewrap
+  | Probe(e, pr) =>
+    Probe(
+      parenthesize(~already_paren=true, e) |> paren_at(Precedence.min),
+      pr,
+    )
+    |> rewrap
   | Cons(e1, e2) =>
     Cons(
       parenthesize(e1) |> paren_at(Precedence.cons),
@@ -388,6 +399,13 @@ and parenthesize_pat =
     Parens(
       parenthesize_pat(~already_paren=true, p)
       |> paren_pat_at(Precedence.min),
+    )
+    |> rewrap
+  | Probe(p, pr) =>
+    Probe(
+      parenthesize_pat(~already_paren=true, p)
+      |> paren_pat_at(Precedence.min),
+      pr,
     )
     |> rewrap
   | Cons(p1, p2) =>
@@ -594,6 +612,9 @@ let should_add_space = (s1, s2) =>
         && !Form.is_keyword(s1)
         && String.starts_with(s2, ~prefix="(") =>
     false
+  | _ when String.ends_with(s1, ~suffix="…") =>
+    /* Hack case for probe projector abbreviations */
+    false
   | _ => true
   };
 
@@ -663,27 +684,25 @@ let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
 
 let fold_if = (condition, pieces) =>
   if (condition) {
-    [
-      ProjectorPerform.Update.init(
-        Fold,
-        mk_form(ParensExp, Id.mk(), [pieces]),
-      ),
-    ];
+    let syntax = mk_form(ParensExp, Id.mk(), [pieces]);
+    switch (MakeTerm.for_projection([syntax])) {
+    | None => failwith("ExpToSegment.fold_if")
+    | Some(any) => [ProjectorInit.init_or_noop(Fold, syntax, any)]
+    };
   } else {
     pieces;
   };
 
 let fold_fun_if = (condition, f_name: string, pieces) =>
   if (condition) {
-    [
-      ProjectorPerform.Update.init_from_str(
-        Fold,
-        mk_form(ParensExp, Id.mk(), [pieces]),
-        ({text: f_name}: FoldProj.t)
-        |> FoldProj.sexp_of_t
-        |> Sexplib.Sexp.to_string,
-      ),
-    ];
+    let syntax = mk_form(ParensExp, Id.mk(), [pieces]);
+    let str = FoldProj.sexp_of_t({text: f_name}) |> Sexplib.Sexp.to_string;
+    switch (MakeTerm.for_projection([syntax])) {
+    | None => failwith("ExpToSegment.fold_fun_if")
+    | Some(any) => [
+        ProjectorInit.init_or_noop_from_str(Fold, syntax, any, str),
+      ]
+    };
   } else {
     pieces;
   };
@@ -786,7 +805,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
     ListUtil.flat_intersperse(Grout({id, shape: Concave}), es);
-  | Parens({term: Fun(p, e, _, _), _} as inner_exp) =>
+  | Parens({term: Fun(p, e, _, _), _} as inner_exp)
+  | Probe({term: Fun(p, e, _, _), _} as inner_exp, _) =>
     // TODO: Add optional newlines
     let id = inner_exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
@@ -982,6 +1002,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     [mk_form(ParensExp, id, [e])];
+  | Probe(e, _) =>
+    /* Not sure about this case*/
+    go(e)
   | Cons(e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1139,6 +1162,9 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let id = pat |> Pat.rep_id;
     let+ p = go(p);
     [mk_form(ParensPat, id, [p])];
+  | Probe(p, _) =>
+    /* Not sure about this case*/
+    go(p)
   | MultiHole(es) =>
     let id = pat |> Pat.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
@@ -1189,12 +1215,17 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Unknown(Internal)
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole)) =>
-    let id = typ |> Typ.rep_id;
-    p_just([Grout({id, shape: Convex})]);
+    if (settings.show_unknown_as_hole) {
+      let id = typ |> Typ.rep_id;
+      p_just([Grout({id, shape: Convex})]);
+    } else {
+      text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "?");
+    }
   | Unknown(Hole(MultiHole(es))) =>
     let id = typ |> Typ.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
     ListUtil.flat_intersperse(Grout({id, shape: Concave}), es);
+
   | Var(v) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v)
   | Int => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
   | Float => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float")

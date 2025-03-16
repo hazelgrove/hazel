@@ -16,6 +16,7 @@ module Model = {
     editor: {
       editor,
       statics: CachedStatics.empty,
+      dynamics: Dynamics.Map.empty,
     },
     result: EvalResult.Model.init,
   };
@@ -68,7 +69,13 @@ module Update = {
       )
       : Model.t => {
     let editor =
-      CodeEditable.Update.calculate(~settings, ~is_edited, ~stitch, editor);
+      CodeEditable.Update.calculate(
+        ~settings,
+        ~is_edited,
+        ~stitch,
+        ~dynamics=EvalResult.Model.dynamics(result),
+        editor,
+      );
     let result =
       EvalResult.Update.calculate(
         ~settings={...settings, assist: false},

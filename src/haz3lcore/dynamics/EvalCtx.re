@@ -26,6 +26,8 @@ type term =
   | Dot1(t, DHExp.t)
   | Dot2(DHExp.t, t)
   | Test(t)
+  | Parens(t)
+  | Probe(t, Probe.t)
   | ListLit(t, (list(DHExp.t), list(DHExp.t)))
   | MultiHole(t, (list(Any.t), list(Any.t)))
   | Cons1(t, DHExp.t)
@@ -91,6 +93,12 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | Test(ctx) =>
       let d1 = compose(ctx, d);
       Test(d1) |> wrap;
+    | Parens(ctx) =>
+      let d1 = compose(ctx, d);
+      Parens(d1) |> wrap;
+    | Probe(ctx, p) =>
+      let d1 = compose(ctx, d);
+      Probe(d1, p) |> wrap;
     | UnOp(op, ctx) =>
       let d1 = compose(ctx, d);
       UnOp(op, d1) |> wrap;
