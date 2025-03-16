@@ -38,15 +38,12 @@ let introduction_test = (before: string, expected: string) => {
           },
         exp,
       );
-    let x = Editor.Model.mk(zip);
-    module Move = Move.Make((val Editor.Model.to_move_s(x)));
-    module Select = Select.Make((val Editor.Model.to_move_s(x)));
+    module S = (val Editor.Model.to_move_s(Editor.Model.mk(zip)));
+    module Move = Move.Make(S);
+    module Select = Select.Make(S);
     let* zip = Move.jump_to_id(zip, hole_id);
-    print_endline("Here");
     let* zip = Move.go(Local(Right(ByChar)), zip); // To get on the hole itself
-    print_endline("Here2");
     let* zip = Select.current_term(zip);
-    print_endline("Selection: " ++ Selection.show(zip.selection));
     let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init, exp);
     let+ zip = Introduce.introduce(statics, zip);
     Printer.zipper_to_string(~holes=Some("?"), zip);
