@@ -175,7 +175,7 @@ let tests =
             introduction_test("let x : +A = ? in x", "let x : +A = A in x");
             introduction_test(
               "let x : +B(Int) = ? in x",
-              "let x : +B(Int) = B(?) in x",
+              "let x : +B(Int) = (B)(?) in x",
             );
           },
         ),
