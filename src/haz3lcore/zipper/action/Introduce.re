@@ -17,6 +17,11 @@ let introduce_expression = (ty: Typ.t): option(Exp.t) => {
       Ap(Forward, Constructor(c, None) |> Exp.fresh, EmptyHole |> Exp.fresh)
       |> Exp.fresh,
     )
+  | Forall(_, _) =>
+    Some(
+      TypFun(EmptyHole |> TPat.fresh, EmptyHole |> Exp.fresh, None)
+      |> Exp.fresh,
+    )
   | _ => None
   };
 };
