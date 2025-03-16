@@ -717,7 +717,6 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     | Projector({syntax, _} as pr) =>
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
-      //TODO(andrew): be more selective about unparening
       let seg = Piece.unparenthesize(syntax);
       [go_s(sort, Segment.skel(seg), seg)];
     | Tile({mold, shards, children, _}) =>
