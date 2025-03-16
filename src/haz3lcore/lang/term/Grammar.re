@@ -59,6 +59,7 @@ and exp_term('a) =
   | Filter(stepper_filter_kind_t('a), exp_t('a))
   | Closure([@show.opaque] closure_environment_t('a), exp_t('a))
   | Parens(exp_t('a)) // (
+  | Probe(exp_t('a), Probe.t)
   | Cons(exp_t('a), exp_t('a))
   | ListConcat(exp_t('a), exp_t('a))
   | UnOp(Operators.op_un, exp_t('a))
@@ -87,6 +88,7 @@ and pat_term('a) =
   | Label(string)
   | TupLabel(pat_t('a), pat_t('a))
   | Parens(pat_t('a))
+  | Probe(pat_t('a), Probe.t)
   | Ap(pat_t('a), pat_t('a))
   | Cast(pat_t('a), typ_t('a), typ_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
@@ -120,7 +122,11 @@ and rul_term('a) =
   | Rules(exp_t('a), list((pat_t('a), exp_t('a))))
 and rul_t('a) = Annotated.t(rul_term('a), 'a)
 and environment_t('a) = VarBstMap.Ordered.t_(exp_t('a))
-and closure_environment_t('a) = (Id.t, environment_t('a))
+and closure_environment_t('a) = {
+  id: Id.t,
+  env: environment_t('a),
+  call_stack: Probe.call_stack,
+}
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
   | Residue(int, FilterAction.t)
@@ -225,6 +231,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_exp_annotation(f, e),
           )
         | Parens(e) => Parens(map_exp_annotation(f, e))
+        | Probe(e, probe) => Probe(map_exp_annotation(f, e), probe)
         | Cons(e1, e2) =>
           Cons(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | ListConcat(e1, e2) =>
@@ -292,6 +299,7 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | TupLabel(p1, p2) =>
           TupLabel(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Parens(p) => Parens(map_pat_annotation(f, p))
+        | Probe(p, probe) => Probe(map_pat_annotation(f, p), probe)
         | Ap(p1, p2) =>
           Ap(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Cast(p, t1, t2) =>
@@ -388,11 +396,10 @@ and map_stepper_filter_kind_annotation:
   }
 and map_closure_environment_annotation:
   type a b. (a => b, closure_environment_t(a)) => closure_environment_t(b) =
-  (f, (id, env)) => {
-    (
-      id,
-      VarBstMap.Ordered.mapo(((_, y)) => map_exp_annotation(f, y), env),
-    );
+  (f, {id, env, call_stack}) => {
+    id,
+    env: VarBstMap.Ordered.mapo(((_, y)) => map_exp_annotation(f, y), env),
+    call_stack,
   }
 
 and map_type_provenance_annotation:
@@ -561,6 +568,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Parens(e),
       annotation: default_annotation(ann),
     };
+    let probe = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
+      term: Probe(e1, e2),
+      annotation: default_annotation(ann),
+    };
     let cons = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
       term: Cons(e1, e2),
       annotation: default_annotation(ann),
@@ -653,6 +664,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let parens = (~ann=?, p): pat_t(DefaultAnnotation.t) => {
       term: Parens(p),
+      annotation: default_annotation(ann),
+    };
+    let probe = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
+      term: Probe(p1, p2),
       annotation: default_annotation(ann),
     };
     let ap = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
@@ -771,8 +786,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   };
 
   let closure_environment =
-      (id, env): closure_environment_t(DefaultAnnotation.t) => {
-    (id, environment(env));
+      (~callstack, id, env): closure_environment_t(DefaultAnnotation.t) => {
+    id,
+    env: environment(env),
+    call_stack: callstack,
   };
 
   module StepperFilter = {

@@ -43,7 +43,8 @@ let introduction_test = (before: string, expected: string) => {
     module Select = Select.Make(S);
     let* zip = Move.jump_to_id(zip, hole_id);
     let* zip = Move.go(Local(Right(ByChar)), zip); // To get on the hole itself
-    let* zip = Select.current_term(zip);
+    let* zip =
+      Select.current_term(~defs_exclude_bodies=false, ~case_rules=false, zip);
     let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init, exp);
     let+ zip = Introduce.introduce(statics, zip);
     Printer.zipper_to_string(~holes=Some("?"), zip);
@@ -180,7 +181,7 @@ let tests =
             introduction_test("let x : +A = ? in x", "let x : +A = A in x");
             introduction_test(
               "let x : +B(Int) = ? in x",
-              "let x : +B(Int) = (B)(?) in x",
+              "let x : +B(Int) = B(?) in x",
             );
           },
         ),

@@ -7,17 +7,7 @@ type t =
   | Rul
   | Exp;
 
-type gadt('a) =
-  | AnySort: gadt(TermBase.Any.t)
-  | PatSort: gadt(TermBase.Pat.t)
-  | TypSort: gadt(TermBase.Typ.t)
-  | TPatSort: gadt(TermBase.TPat.t)
-  | RulSort: gadt(TermBase.Rul.t)
-  | ExpSort: gadt(TermBase.Exp.t);
-
 let root = Exp;
-
-let all = [Any, Pat, Typ, Rul, Exp, TPat];
 
 let consistent = (s, s') =>
   switch (s, s') {

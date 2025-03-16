@@ -196,3 +196,10 @@ let filter_stepper_filter_variables = (ctx: t): t =>
 
 let shadows_typ = (ctx: t, name: string): bool =>
   Form.is_base_typ(name) || lookup_tvar(ctx, name) != None;
+
+/* The binding (binding site id and name) of `name` in `ctx` */
+let binding_of = (ctx: t, name: Var.t): Binding.t =>
+  switch (lookup_var(ctx, name)) {
+  | Some({id, _}) => {id, name}
+  | _ => {id: Id.invalid, name}
+  };

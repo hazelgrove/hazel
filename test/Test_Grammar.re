@@ -75,8 +75,12 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
           include VarBstMap.Ordered;
         };
 
-        closure(closure_environment(Id.mk(), M.empty), empty_hole());
+        closure(
+          closure_environment(~callstack=[], Id.mk(), M.empty),
+          empty_hole(),
+        );
       | Parens => parens(empty_hole())
+      | Probe => probe(empty_hole(), Probe.empty)
       | Cons => cons(empty_hole(), empty_hole())
       | UnOp(op) => un_op(op, empty_hole())
       | BinOp(op) => bin_op(op, empty_hole(), empty_hole())
@@ -108,6 +112,7 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Label => label("label")
       | TupLabel => tup_label(label("label"), empty_hole())
       | Parens => parens(empty_hole())
+      | Probe => probe(empty_hole(), Probe.empty)
       | Ap => ap(empty_hole(), empty_hole())
       | Cast => cast(empty_hole(), Typ.int(), Typ.string())
       | Wild => wild()

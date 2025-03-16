@@ -13,6 +13,13 @@ let evaluation_test = (msg, expected, unevaluated) =>
     |> ProgramResult.Result.unbox
     |> Exp.substitute_closures(Builtins.env_init),
   );
+
+let evaluate_probes = unevaluated =>
+  unevaluated
+  |> Evaluator.evaluate'(Builtins.env_init)
+  |> fst
+  |> EvaluatorState.get_probes;
+
 let parse_exp = (s: string) => {
   switch (MakeTerm.parse_exp(s)) {
   | Some(e) => e
@@ -22,6 +29,56 @@ let parse_exp = (s: string) => {
 let elaborate = u =>
   Elaborator.elaborate(Statics.mk(CoreSettings.on, Builtins.ctx_init, u), u)
   |> fst;
+
+let probe_test =
+    (msg: string, expected: Grammar.exp_t(list(Grammar.exp_t(unit)))) => {
+  let fresh: Exp.t =
+    Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), expected);
+  let elaborated = elaborate(fresh);
+  let probes = evaluate_probes(elaborated);
+  let probed: Grammar.exp_t(list(Grammar.exp_t(unit))) =
+    Grammar.map_exp_annotation(
+      ({ids, _}: IdTagged.IdTag.t) => {
+        let probe_closures = Dynamics.Map.lookup(List.hd(ids), probes);
+        Option.map(
+          List.map((c: Dynamics.Probe.Closure.t) =>
+            Grammar.map_exp_annotation(_ => (), DHExp.strip_casts(c.value))
+          ), // Idk why there's casts on the probed values
+          probe_closures,
+        )
+        |> Option.value(~default=[]);
+      },
+      fresh,
+    );
+
+  check(
+    testable(
+      Fmt.using(
+        [%derive.show: Grammar.exp_t(list(Grammar.exp_t(unit)))],
+        Fmt.string,
+      ),
+      Grammar.equal_exp_t(List.equal(Grammar.equal_exp_t(Unit.equal))),
+    ),
+    msg,
+    expected,
+    probed,
+  );
+};
+
+let probed_value = (exp): Grammar.exp_t(unit) => {
+  term: exp,
+  annotation: (),
+};
+let expected_probe =
+    (exp, probes): Grammar.exp_t(list(Grammar.exp_t(unit))) => {
+  term: exp,
+  annotation: probes,
+};
+let expected_probe_pat =
+    (exp, probes): Grammar.pat_t(list(Grammar.exp_t(unit))) => {
+  term: exp,
+  annotation: probes,
+};
 let parse_and_evaluate = (s: string) =>
   ProgramResult.Result.unbox(
     snd(Evaluator.evaluate'(Builtins.env_init, elaborate(parse_exp(s)))),
@@ -390,6 +447,258 @@ in fn("hello")|},
         Int(-8) |> Exp.fresh,
         UnOp(Int(Minus), Int(8) |> Exp.fresh) |> Exp.fresh,
       )
+    ),
+    test_case("Simple probe", `Quick, () => {
+      probe_test(
+        "let x = 1 + 2 in 4",
+        expected_probe(
+          Let(
+            expected_probe_pat(Var("x"), []),
+            expected_probe(
+              Probe(
+                expected_probe(
+                  BinOp(
+                    Int(Plus),
+                    expected_probe(Int(1), []),
+                    expected_probe(Int(2), []),
+                  ),
+                  [],
+                ),
+                {refs: []},
+              ),
+              [probed_value(Int(3))],
+            ),
+            expected_probe(Var("x"), []),
+          ),
+          [],
+        ),
+      )
+    }),
+    test_case(
+      "Probes in factorial function",
+      `Quick,
+      () => {
+        // TODO Better helpers. We really need a way to build these with a builder for the "free element".
+        let npp = expected_probe_pat(_, []);
+        let np = expected_probe(_, []);
+        let p = (p, es: list(Grammar.exp_term(unit))) =>
+          expected_probe(
+            Probe(np(p), {refs: []}),
+            List.map(Grammar.Annotated.empty, es),
+          );
+        let pp = (p, es: list(Grammar.exp_term(unit))) =>
+          expected_probe_pat(
+            Probe(npp(p), {refs: []}),
+            List.map(Grammar.Annotated.empty, es),
+          );
+
+        probe_test(
+          {|let fact = fun x ->
+           case x
+             | 1 => 1
+             | _ =>
+             let r = fact(x-1)
+             in x*r
+         end in fact(5)|},
+          np(
+            Let(
+              npp(Var("fact")),
+              np(
+                Fun(
+                  pp(
+                    Var("x"),
+                    [Int(5), Int(4), Int(3), Int(2), Int(1)],
+                  ),
+                  np(
+                    Match(
+                      p(
+                        Var("x"),
+                        [Int(5), Int(4), Int(3), Int(2), Int(1)],
+                      ),
+                      [
+                        (npp(Int(1)), p(Int(1), [Int(1)])),
+                        (
+                          npp(Wild),
+                          np(
+                            Let(
+                              npp(Var("r")),
+                              p(
+                                Ap(
+                                  Forward,
+                                  np(Var("fact")),
+                                  np(
+                                    BinOp(
+                                      Int(Minus),
+                                      np(Var("x")),
+                                      np(Int(1)),
+                                    ),
+                                  ),
+                                ),
+                                [Int(1), Int(2), Int(6), Int(24)],
+                              ),
+                              p(
+                                BinOp(
+                                  Int(Times),
+                                  np(Var("x")),
+                                  np(Var("r")),
+                                ),
+                                [Int(2), Int(6), Int(24), Int(120)],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  None,
+                  None,
+                ),
+              ),
+              np(Ap(Forward, np(Var("fact")), np(Int(5)))),
+            ),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "Evaluate probe around inferred labeled tuple",
+      `Quick,
+      () => {
+        let npp = expected_probe_pat(_, []);
+        let np = expected_probe(_, []);
+        let p = (p, es: list(Grammar.exp_term(unit))) =>
+          expected_probe(
+            Probe(np(p), {refs: []}),
+            List.map(Grammar.Annotated.empty, es),
+          );
+        let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
+          term: t,
+          annotation: [],
+        };
+        let uexp =
+          np(
+            Let(
+              npp(
+                Cast(
+                  npp(Var("x")),
+                  npt(
+                    Parens(
+                      npt(
+                        Prod([
+                          npt(TupLabel(npt(Label("l")), npt(String))),
+                        ]),
+                      ),
+                    ),
+                  ),
+                  npt(Unknown(Internal)),
+                ),
+              ),
+              p(
+                String("a"),
+                [
+                  Tuple([
+                    {
+                      term:
+                        TupLabel(
+                          {term: Label("l"), annotation: ()},
+                          {term: String("a"), annotation: ()},
+                        ),
+                      annotation: (),
+                    },
+                  ]),
+                ],
+              ),
+              np(Var("x")),
+            ),
+          );
+        probe_test({|let x : (a=String) = PROBE("a") in x|}, uexp);
+      },
+    ),
+    test_case(
+      "Evaluate probe around inferred labeled tuple",
+      `Quick,
+      () => {
+        let np = expected_probe(_, []);
+        let p = (p, es: list(Grammar.exp_term(unit))) =>
+          expected_probe(
+            Probe(np(p), {refs: []}),
+            List.map(Grammar.Annotated.empty, es),
+          );
+        let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
+          term: t,
+          annotation: [],
+        };
+        let uexp =
+          np(
+            Cast(
+              p(String("a"), [String("a")]),
+              npt(
+                Parens(
+                  npt(
+                    Prod([npt(TupLabel(npt(Label("l")), npt(String)))]),
+                  ),
+                ),
+              ),
+              npt(Unknown(Internal)),
+            ),
+          );
+
+        probe_test({|PROBE("a") : (a=String)|}, uexp);
+      },
+    ),
+    test_case(
+      "Evaluate probe around inferred singleton labeled tuple in pattern",
+      `Quick,
+      () => {
+        let npp = expected_probe_pat(_, []);
+        let np = expected_probe(_, []);
+        let p = (p, es: list(Grammar.exp_term(unit))) =>
+          expected_probe_pat(
+            Probe(npp(p), {refs: []}),
+            List.map(Grammar.Annotated.empty, es),
+          );
+        let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
+          term: t,
+          annotation: [],
+        };
+        let uexp =
+          np(
+            Let(
+              npp(
+                Cast(
+                  p(
+                    Var("x"),
+                    [
+                      Tuple([
+                        {
+                          term:
+                            TupLabel(
+                              {term: Label("l"), annotation: ()},
+                              {term: String("a"), annotation: ()},
+                            ),
+                          annotation: (),
+                        },
+                      ]),
+                    ],
+                  ),
+                  npt(
+                    Parens(
+                      npt(
+                        Prod([
+                          npt(TupLabel(npt(Label("l")), npt(String))),
+                        ]),
+                      ),
+                    ),
+                  ),
+                  npt(Unknown(Internal)),
+                ),
+              ),
+              np(String("a")),
+              np(Var("x")),
+            ),
+          );
+        probe_test({|let PROBE(x) : (a=String) = "a" in x|}, uexp);
+      },
     ),
   ],
 );
