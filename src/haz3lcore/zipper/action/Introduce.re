@@ -12,6 +12,11 @@ let introduce_expression = (ty: Typ.t): option(Exp.t) => {
       |> Exp.fresh,
     )
   | Sum([Variant(c, _, None)]) => Some(Constructor(c, None) |> Exp.fresh)
+  | Sum([Variant(c, _, Some(_))]) =>
+    Some(
+      Ap(Forward, Constructor(c, None) |> Exp.fresh, EmptyHole |> Exp.fresh)
+      |> Exp.fresh,
+    )
   | _ => None
   };
 };
