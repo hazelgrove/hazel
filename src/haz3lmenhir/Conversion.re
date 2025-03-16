@@ -353,6 +353,7 @@ module rec Exp: {
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Closure(_) => raise(Failure("Closure not supported"))
     | Parens(e) => of_core(e)
+    | Probe(e, _) => of_core(e)
     | Constructor(s, typ) => Constructor(s, Option.map(Typ.of_core, typ))
     | DeferredAp(e, es) =>
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
@@ -549,6 +550,7 @@ and Pat: {
     | Cast(p, t1, t2) =>
       CastPat(of_core(p), Typ.of_core(t1), Typ.of_core(t2))
     | Parens(p) => of_core(p)
+    | Probe(p, _) => of_core(p)
     | Label(s) => LabelPat(s)
     | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))
     };

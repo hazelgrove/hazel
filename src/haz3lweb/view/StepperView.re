@@ -273,6 +273,7 @@ module Update = {
                 CodeSelectable.Update.calculate(
                   ~settings=settings |> Calc.get_value,
                   ~is_edited=false,
+                  ~dynamics=Dynamics.Map.empty, // No projectors in stepper atm
                   ~stitch=x =>
                   x
                 ),
