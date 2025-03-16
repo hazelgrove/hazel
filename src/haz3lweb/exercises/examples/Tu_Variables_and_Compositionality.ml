@@ -2,6 +2,7 @@ open Haz3lcore
 
 let exercise : Tutorial.spec =
   {
+    id = Option.get (Id.of_string "b4c5d6e7-8901-2345-6abc-def789012345");
     title = "Variables";
     module_name = "Tu_Variables";
     prompt =
@@ -231,6 +232,7 @@ let exercise : Tutorial.spec =
 
 let comp_exercise : Tutorial.spec =
   {
+    id = Option.get (Id.of_string "c5d6e7f8-9012-3456-7abc-def890123456");
     title = "Compositionality";
     module_name = "Tu_Compositionality";
     prompt =

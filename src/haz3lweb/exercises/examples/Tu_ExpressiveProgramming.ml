@@ -2,6 +2,7 @@ open Haz3lcore
 
 let exercise : Tutorial.spec =
   {
+    id = Option.get (Id.of_string "d0e1f2a3-4567-8901-2abc-def345678901");
     title = "Expressive Programming";
     module_name = "Tu_ExpressiveProgramming";
     prompt =

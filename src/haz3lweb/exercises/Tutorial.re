@@ -47,6 +47,7 @@ let validate_point_distribution =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type p('code) = {
+  id: Id.t,
   title: string,
   // description: string,
   version: int,
@@ -64,15 +65,12 @@ type p('code) = {
   //   syntax_tests,
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type key = (string, int);
-
-let key_of = p => {
-  (p.title, p.version);
+let id_of = p => {
+  p.id;
 };
 
-let find_key_opt = (key, specs: list(p('code))) => {
-  specs |> Util.ListUtil.findi_opt(spec => key_of(spec) == key);
+let find_id_opt = (id, specs: list(p('code))) => {
+  specs |> Util.ListUtil.findi_opt(spec => id_of(spec) == id);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -93,6 +91,7 @@ type transitionary_spec = p(CodeString.t);
 
 let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
   {
+    id: p.id,
     title: p.title,
     // description: p.description,
     version: p.version,
@@ -128,13 +127,10 @@ type eds = p(Editor.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type state = {eds};
 
-let key_of_state = eds => key_of(eds);
-
 // [@deriving (show({with_path: false}), sexp, yojson)]
 // type persistent_state = list((pos, PersistentZipper.t));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_state = {
-  focus: pos,
   title: string,
   // description: string,
   editors: list((pos, PersistentZipper.t)),
@@ -307,6 +303,7 @@ let zipper_of_code = code => {
 let eds_of_spec =
     (
       {
+        id,
         title,
         // description,
         version,
@@ -345,6 +342,7 @@ let eds_of_spec =
     {tests, hints};
   };
   {
+    id,
     title,
     // description,
     version,
@@ -595,6 +593,7 @@ let blank_spec = (~title) => {
   let wrapper = false;
   let show_report = true;
   {
+    id: Id.mk(),
     title,
     // description,
     version: 1,
@@ -610,35 +609,65 @@ let blank_spec = (~title) => {
   };
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_exercise_mode = list((pos, PersistentZipper.t));
+let persist = (state: state, ~instructor_mode: bool) => {
+  let zippers =
+    positioned_editors(state.eds)
+    |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
+    |> List.map(((pos, editor: Editor.t)) => {
+         (pos, PersistentZipper.persist(editor.state.zipper))
+       });
+  {
+    editors: zippers,
+    title: state.eds.title,
+    wrapper: state.eds.wrapper,
+    show_report: state.eds.show_report,
+  };
+};
 
-let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
+let unpersist =
+    (
+      {
+        wrapper,
+        show_report,
+        editors,
+        title,
+        // hidden_bugs,
+        // prompt,
+        // point_distribution,
+        // required,
+        // module_name,
+        // syntax_tests,
+      }: persistent_state,
+      ~spec: spec,
+      ~instructor_mode: bool,
+    )
+    : state => {
   // Js.Console.log2("Wrapper:", spec.wrapper);
   // Printf.printf("Wrapper: %b\n", spec.wrapper);
   let lookup = (pos, default) =>
     if (visible_in(pos, ~instructor_mode)) {
-      positioned_zippers
-      |> List.assoc_opt(pos)
-      |> Option.map(PersistentZipper.unpersist)
-      |> Option.value(~default);
+      let persisted_zipper = List.assoc(pos, editors);
+      let zipper = PersistentZipper.unpersist(persisted_zipper);
+      Editor.Model.mk(zipper);
     } else {
-      default;
+      Editor.Model.mk(default);
     };
   let your_impl = lookup(YourImpl, spec.your_impl);
   let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
   {
-    title: spec.title,
-    // description: spec.description,
-    version: spec.version,
-    module_name: spec.module_name,
-    your_impl,
-    prompt: spec.prompt,
-    hidden_tests: {
-      tests: hidden_tests_tests,
-      hints: spec.hidden_tests.hints,
+    eds: {
+      id: spec.id,
+      title,
+      module_name: spec.module_name,
+      prompt: spec.prompt,
+      your_impl,
+      hidden_tests: {
+        tests: hidden_tests_tests,
+        hints: spec.hidden_tests.hints,
+      },
+      version: spec.version,
+      wrapper,
+      show_report,
     },
-    wrapper: spec.wrapper,
-    show_report: spec.show_report,
   };
 };

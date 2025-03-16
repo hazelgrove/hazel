@@ -45,7 +45,7 @@ module Store = {
     | Tutorial =>
       Model.Tutorial(
         TutorialsMode.Store.load(~settings, ~instructor_mode)
-        |> TutorialsMode.Model.unpersist(~settings, ~instructor_mode),
+        |> TutorialsMode.Model.unpersist(~instructor_mode),
       )
     | Exercises =>
       Model.Exercises(
@@ -173,7 +173,6 @@ module Update = {
           ~instructor_mode=globals.settings.instructor_mode,
         )
         |> TutorialsMode.Model.unpersist(
-             ~settings=globals.settings.core,
              ~instructor_mode=globals.settings.instructor_mode,
            ),
       )

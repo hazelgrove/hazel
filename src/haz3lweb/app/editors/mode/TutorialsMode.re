@@ -12,34 +12,33 @@ module Model = {
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {
-    cur_exercise: Tutorial.key,
-    exercise_data: list((Tutorial.key, TutorialMode.Model.persistent)),
+    cur_exercise: Haz3lcore.Id.t,
+    exercise_data: list((Haz3lcore.Id.t, TutorialMode.Model.persistent)),
   };
   let persist = (~instructor_mode, model): persistent => {
-    cur_exercise:
-      Tutorial.key_of_state(
-        List.nth(model.exercises, model.current).editors,
-      ),
-    exercise_data:
-      List.map(
-        (exercise: TutorialMode.Model.t) =>
-          (
-            Tutorial.key_of_state(exercise.editors),
-            TutorialMode.Model.persist(~instructor_mode, exercise),
-          ),
-        model.exercises,
-      ),
+    {
+      cur_exercise: List.nth(model.exercises, model.current).editors.id,
+      exercise_data:
+        List.map(
+          (exercise: TutorialMode.Model.t) =>
+            (
+              exercise.editors.id,
+              TutorialMode.Model.persist(~instructor_mode, exercise),
+            ),
+          model.exercises,
+        ),
+    };
   };
-  let unpersist = (~settings, ~instructor_mode, persistent: persistent) => {
+  let unpersist = (~instructor_mode, persistent: persistent) => {
     let exercises =
       List.map2(
-        TutorialMode.Model.unpersist(~settings, ~instructor_mode),
-        persistent.exercise_data |> List.map(snd),
+        TutorialMode.Model.unpersist(~instructor_mode),
         TutorialSettings.exercises,
+        persistent.exercise_data |> List.map(snd),
       );
     let current =
       ListUtil.findi_opt(
-        spec => Tutorial.key_of(spec) == persistent.cur_exercise,
+        (spec: Tutorial.spec) => spec.id == persistent.cur_exercise,
         TutorialSettings.exercises,
       )
       |> Option.map(fst)
@@ -51,17 +50,17 @@ module Model = {
 module StoreTutorialKey =
   Store.F({
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Tutorial.key;
+    type t = Haz3lcore.Id.t;
     let default = () =>
-      List.nth(TutorialSettings.exercises, 0) |> Tutorial.key_of;
+      List.nth(TutorialSettings.exercises, 0) |> Tutorial.id_of;
     let key = Store.CurrentTutorial;
   });
 module Store = {
   let keystring_of_key = key => {
-    key |> Tutorial.sexp_of_key |> Sexplib.Sexp.to_string;
+    key |> Haz3lcore.Id.to_string;
   };
   let save_exercise = (exercise: TutorialMode.Model.t, ~instructor_mode) => {
-    let key = Tutorial.key_of_state(exercise.editors);
+    let key = Tutorial.id_of(exercise.editors);
     let value = TutorialMode.Model.persist(exercise, ~instructor_mode);
     module S =
       Store.F({
@@ -73,7 +72,7 @@ module Store = {
     S.save(value);
   };
   let init_exercise = (~settings, spec, ~instructor_mode) => {
-    let key = Tutorial.key_of(spec);
+    let key = Tutorial.id_of(spec);
     let exercise =
       TutorialMode.Model.of_spec(spec, ~settings, ~instructor_mode);
     save_exercise(exercise, ~instructor_mode);
@@ -96,7 +95,7 @@ module Store = {
   };
   let save = (model: Model.t, ~instructor_mode) => {
     let exercise = List.nth(model.exercises, model.current);
-    let key = Tutorial.key_of(exercise.editors);
+    let key = Tutorial.id_of(exercise.editors);
     save_exercise(exercise, ~instructor_mode);
     StoreTutorialKey.save(key);
   };
@@ -107,7 +106,7 @@ module Store = {
     let exercise_data =
       List.map(
         spec => {
-          let key = Tutorial.key_of(spec);
+          let key = Tutorial.id_of(spec);
           (key, load_exercise(~settings, key, spec, ~instructor_mode));
         },
         TutorialSettings.exercises,
@@ -120,7 +119,7 @@ module Store = {
       exercise_data:
         List.map(
           spec => {
-            let key = Tutorial.key_of(spec);
+            let key = Tutorial.id_of(spec);
             (key, load_exercise(~settings, key, spec, ~instructor_mode));
           },
           TutorialSettings.exercises,
@@ -136,20 +135,14 @@ module Store = {
       ((key, value)) => {
         let n =
           ListUtil.findi_opt(
-            spec => Tutorial.key_of(spec) == key,
+            spec => Tutorial.id_of(spec) == key,
             tutorial_specs,
           )
           |> Option.get
           |> fst;
         let spec = List.nth(tutorial_specs, n);
         save_exercise(
-          value
-          |> TutorialMode.Model.unpersist(
-               ~settings,
-               ~instructor_mode,
-               _,
-               spec,
-             ),
+          value |> TutorialMode.Model.unpersist(~instructor_mode, spec),
           ~instructor_mode,
         );
       },

@@ -26,19 +26,18 @@ module Model = {
     {spec, editors, cells};
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = Tutorial.persistent_exercise_mode;
-  let persist = (exercise: t, ~instructor_mode: bool) => {
-    Tutorial.positioned_editors(exercise.editors)
-    |> List.filter(((pos, _)) =>
-         Tutorial.visible_in(pos, ~instructor_mode)
-       )
-    |> List.map(((pos, editor: Editor.t)) =>
-         (pos, editor.state.zipper |> PersistentZipper.persist)
-       );
-  };
-  let unpersist = (~instructor_mode, positioned_zippers, spec) => {
-    let spec = Tutorial.unpersist(~instructor_mode, positioned_zippers, spec);
-    of_spec(~instructor_mode, spec);
+  type persistent = Tutorial.persistent_state;
+  let persist = (exercise: t, ~instructor_mode: bool) =>
+    Tutorial.persist({eds: exercise.editors}, ~instructor_mode);
+  let unpersist = (~instructor_mode, spec, persistent) => {
+    let editors = Tutorial.unpersist(~spec, ~instructor_mode, persistent).eds;
+    let term_item_to_cell = (item: Tutorial.TermItem.t): CellEditor.Model.t => {
+      CellEditor.Model.mk(item.editor);
+    };
+    let cells =
+      Tutorial.stitch_term(editors)
+      |> Tutorial.map_stitched(_ => term_item_to_cell);
+    {spec, editors, cells};
   };
   let all_tests_passed = (exercise: t) => {
     let test_results =
@@ -253,6 +252,7 @@ module Update = {
        statics to take */
     let editors: Tutorial.p('a) = {
       {
+        id: model.editors.id,
         // let calculate = Editor.Update.calculate(~is_edited);
 
         title: model.editors.title,

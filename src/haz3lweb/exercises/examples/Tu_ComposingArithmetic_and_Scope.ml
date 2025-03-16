@@ -2,6 +2,7 @@ open Haz3lcore
 
 let exercise : Tutorial.spec =
   {
+    id = Option.get (Id.of_string "f6a7b8c9-d012-3456-789a-bcdef0123456");
     title = "Composing Arithmetic Expressions";
     module_name = "Tu_ComposingArithmetic";
     prompt =
@@ -139,6 +140,7 @@ let exercise : Tutorial.spec =
 
 let scope_exercise : Tutorial.spec =
   {
+    id = Option.get (Id.of_string "a7b8c9d0-1234-5678-9abc-def012345678");
     title = "Scope";
     module_name = "Tu_Scope";
     prompt =
