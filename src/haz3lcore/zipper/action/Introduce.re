@@ -35,29 +35,27 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
         _,
       }),
     ) =>
-    let expression = introduce_expression(Typ.weak_head_normalize(ctx, ana));
+    open Util.OptUtil.Syntax;
+
+    let+ expression =
+      introduce_expression(Typ.weak_head_normalize(ctx, ana));
     let seg =
-      Option.map(
-        ExpToSegment.exp_to_segment(
-          ~already_paren=already_parenthesized(z),
-          ~settings={
-            inline: true,
-            fold_case_clauses: false,
-            fold_fn_bodies: false,
-            hide_fixpoints: false,
-            fold_cast_types: false,
-            show_filters: true,
-          },
-        ),
+      ExpToSegment.exp_to_segment(
+        ~already_paren=already_parenthesized(z),
+        ~settings={
+          inline: true,
+          fold_case_clauses: false,
+          fold_fn_bodies: false,
+          hide_fixpoints: false,
+          fold_cast_types: false,
+          show_filters: true,
+        },
         expression,
       );
 
-    Option.map(
-      seg =>
-        Zipper.put_selection(Selection.mk(seg), z)
-        |> Zipper.remold_regrout(Left, _),
-      seg,
-    );
+    z
+    |> Zipper.put_selection(Selection.mk(seg), _)
+    |> Zipper.remold_regrout(Left, _);
   | _ => None
   };
 };
