@@ -1,29 +1,18 @@
 let introduce_expression = (ty: Typ.t): option(Exp.t) => {
-  switch (ty.term) {
-  | Arrow(_, _) =>
-    Some(
-      Fun(EmptyHole |> Pat.fresh, EmptyHole |> Exp.fresh, None, None)
-      |> Exp.fresh,
+  IdTagged.FreshGrammar.(
+    Exp.(
+      switch (ty.term) {
+      | Arrow(_, _) => Some(fn(Pat.empty_hole(), empty_hole(), None, None))
+      | Prod(ts) =>
+        Some(tuple(List.init(List.length(ts), _ => empty_hole())))
+      | Sum([Variant(c, _, None)]) => Some(constructor(c, None))
+      | Sum([Variant(c, _, Some(_))]) =>
+        Some(ap(Forward, constructor(c, None), empty_hole()))
+      | Forall(_, _) => Some(typ_fun(TPat.empty_hole(), empty_hole(), None))
+      | _ => None
+      }
     )
-
-  | Prod(ts) =>
-    Some(
-      Tuple(List.init(List.length(ts), _ => EmptyHole |> Exp.fresh))
-      |> Exp.fresh,
-    )
-  | Sum([Variant(c, _, None)]) => Some(Constructor(c, None) |> Exp.fresh)
-  | Sum([Variant(c, _, Some(_))]) =>
-    Some(
-      Ap(Forward, Constructor(c, None) |> Exp.fresh, EmptyHole |> Exp.fresh)
-      |> Exp.fresh,
-    )
-  | Forall(_, _) =>
-    Some(
-      TypFun(EmptyHole |> TPat.fresh, EmptyHole |> Exp.fresh, None)
-      |> Exp.fresh,
-    )
-  | _ => None
-  };
+  );
 };
 
 let already_parenthesized = (z: Zipper.t) => {
