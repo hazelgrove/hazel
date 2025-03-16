@@ -352,5 +352,13 @@ let tests = (
     test_case("Function call", `Quick, () => {
       equivalent_to_make_term("a(1, 2)")
     }),
+    test_case(
+      "Singleton constructor",
+      `Quick,
+      () => {
+        equivalent_to_make_term("A");
+        equivalent_to_make_term("B(1)");
+      },
+    ),
   ],
 );
