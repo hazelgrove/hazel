@@ -86,12 +86,6 @@ let annotations = (d: DHExp.t, slices) => {
 // The holes may also exist inside the closures, so must be substituted there too
 // Also evaluate the substitutions within closures in order to maintain that closures only contain values. (Somewhat inefficient)
 let subst = (d, {hole_id, enum, slice}) => {
-  print_endline(
-    "ATTEMPTING SUBST: "
-    ++ Id.show(hole_id)
-    ++ "\nInserting "
-    ++ TypSlice.show(slice),
-  );
   let rec subst_term = (d', d) =>
     d
     |> DHExp.map_term(~f_exp=(continue, d'') =>
