@@ -50,6 +50,7 @@
     (>= 2.1.0)
     :with-test))
   ocaml-lsp-server
+  ocaml-index
   qcheck
   qcheck-alcotest
   ppx_deriving_qcheck))
