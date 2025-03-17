@@ -81,7 +81,10 @@ let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
   Grammar.map_exp_annotation(
     (_annotation): IdTagged.IdTag.t => {
       let id = Id.mk();
-      {ids: [id], copied: false};
+      {
+        ids: [id],
+        copied: false,
+      };
     },
     exp,
   );
@@ -114,7 +117,7 @@ let inconsistent_typecheck = (name, exp) => {
     () => {
       let s = statics(exp);
 
-      let errors = List.map(snd, Id.Map.to_list(Statics.collect_errors(s)));
+      let errors = List.map(snd, Statics.Map.errors(s));
 
       Alcotest.check(
         neg(list(testable_error)),
@@ -132,7 +135,7 @@ let fully_consistent_typecheck = (name, serialized, expected) => {
     () => {
       let exp = parse_exp(serialized);
       let s = statics(exp);
-      let errors = List.map(snd, Id.Map.to_list(Statics.collect_errors(s)));
+      let errors = List.map(snd, Statics.Map.errors(s));
       Alcotest.check(list(testable_error), "Static Errors", [], errors);
       Alcotest.check(
         Alcotest.option(testable_typ),
@@ -273,7 +276,10 @@ let tests = (
                         Exp(
                           Common(
                             Inconsistent(
-                              Expectation({ana: string(), syn: bool()}),
+                              Expectation({
+                                ana: string(),
+                                syn: bool(),
+                              }),
                             ),
                           ),
                         )
@@ -320,7 +326,10 @@ let tests = (
                         Exp(
                           Common(
                             Inconsistent(
-                              Expectation({ana: string(), syn: int()}),
+                              Expectation({
+                                ana: string(),
+                                syn: int(),
+                              }),
                             ),
                           ),
                         )
@@ -948,7 +957,10 @@ let tests = (
                       Exp(
                         Common(
                           Inconsistent(
-                            Expectation({ana: int(), syn: string()}),
+                            Expectation({
+                              ana: int(),
+                              syn: string(),
+                            }),
                           ),
                         ),
                       )

@@ -4,120 +4,7 @@ open Virtual_dom.Vdom;
 open Node;
 open SvgUtil;
 
-type tip = option(Nib.Shape.t);
-
-type shard_dims = {
-  font_metrics: FontMetrics.t,
-  measurement: Measured.measurement,
-  tips: (option(Nib.Shape.t), option(Nib.Shape.t)),
-};
-
-let simple_shard =
-    (
-      {font_metrics, tips: (l, r), measurement}: shard_dims,
-      ~absolute=true,
-      ~attr=[],
-      classes,
-    )
-    : t =>
-  DecUtil.code_svg_sized(
-    ~font_metrics,
-    ~measurement,
-    ~base_cls=["shard"] @ classes,
-    ~path_cls=[],
-    ~absolute,
-    ~attr,
-    DecUtil.shard_path(
-      (
-        Option.map(Nib.Shape.direction_of(Left), l),
-        Option.map(Nib.Shape.direction_of(Right), r),
-      ),
-      measurement.last.col - measurement.origin.col,
-      measurement.last.row - measurement.origin.row,
-    ),
-  );
-
-let relative_shard = (shard_dims: shard_dims) =>
-  simple_shard(~absolute=false, shard_dims, []);
-
-let tips_of_shapes = ((l, r): (Nib.Shape.t, Nib.Shape.t)): (tip, tip) => (
-  Some(l),
-  Some(r),
-);
-
-let simple_shard_indicated =
-    (
-      ~attr=?,
-      ~base_cls="indicated",
-      shard_dims,
-      ~sort: Sort.t,
-      ~at_caret: bool,
-    )
-    : t =>
-  simple_shard(
-    ~attr?,
-    shard_dims,
-    [base_cls, Sort.to_string(sort)] @ (at_caret ? ["caret"] : []),
-  );
-
-let simple_shards_indicated =
-    (
-      ~attr: option(list(Attr.t))=?,
-      ~base_cls=?,
-      ~font_metrics: FontMetrics.t,
-      ~caret: (Id.t, int),
-      (id, mold, shards),
-    )
-    : list(t) =>
-  List.map(
-    ((index, measurement)) => {
-      simple_shard_indicated(
-        ~attr?,
-        ~base_cls?,
-        {
-          font_metrics,
-          measurement,
-          tips: tips_of_shapes(Mold.nib_shapes(~index, mold)),
-        },
-        ~sort=mold.out,
-        ~at_caret=caret == (id, index),
-      )
-    },
-    shards,
-  );
-
-let simple_shard_selected = (shard_dims, buffer): t =>
-  simple_shard(shard_dims, ["selected"] @ (buffer ? ["buffer"] : []));
-
-let simple_shards_selected =
-    (~font_metrics: FontMetrics.t, mold, buffer, shards) =>
-  List.map(
-    ((index, measurement)) =>
-      simple_shard_selected(
-        {
-          font_metrics,
-          measurement,
-          tips: tips_of_shapes(Mold.nib_shapes(~index, mold)),
-        },
-        buffer,
-      ),
-    shards,
-  );
-
-let simple_shard_error = simple_shard(_, ["error"]);
-
-let simple_shards_errors = (~font_metrics: FontMetrics.t, mold, shards) =>
-  List.map(
-    ((index, measurement)) =>
-      simple_shard_error({
-        font_metrics,
-        measurement,
-        tips: tips_of_shapes(Mold.nib_shapes(~index, mold)),
-      }),
-    shards,
-  );
-
-let shadowfudge = Path.cmdfudge(~y=DecUtil.shadow_adj);
+let shadowfudge = Path.cmdfudge(~y=ShardDec.shadow_dy /. 2.);
 
 let shards_of_tiles = tiles =>
   tiles
@@ -131,7 +18,7 @@ let rep_tips = (tiles: list((Id.t, Mold.t, Measured.Shards.t))) => {
   assert(tiles != []);
   let (_, rep_mold, _) = List.hd(tiles);
   let (l, r) = rep_mold.nibs;
-  let (l, r) = tips_of_shapes((l.shape, r.shape));
+  let (l, r) = ShardDec.tips_of_shapes((l.shape, r.shape));
   (
     Option.map(Nib.Shape.direction_of(Left), l),
     Option.map(Nib.Shape.direction_of(Right), r),
@@ -158,16 +45,21 @@ let bi_lines =
              i,
              ((_, l: Measured.measurement), (_, r: Measured.measurement)),
            ) => {
-           let offset = i == 0 ? -. DecUtil.shard_offset(dl) : 0.;
+           let offset = i == 0 ? -. ShardDec.offset_of(dl) : 0.;
            let length =
              i == 0
-               ? DecUtil.shard_length(r.origin.col - l.origin.col, dl, dr)
+               ? ShardDec.length_of(r.origin.col - l.origin.col, dl, dr)
                  +. 0.2
                : float_of_int(r.origin.col - l.origin.col) +. 0.2;
            (
              l.origin,
              SvgUtil.Path.[
-               shadowfudge(M({x: offset, y: 1.0})),
+               shadowfudge(
+                 M({
+                   x: offset,
+                   y: 1.0,
+                 }),
+               ),
                H({x: length}),
              ],
            );
@@ -183,11 +75,16 @@ let bi_lines =
          let origin' = snd(List.hd(row_shards')).origin;
          let indent = Measured.Rows.find(origin.row, rows).indent;
          let v_delta = origin'.col == indent ? (-1) : 0;
-         let offset = i == 0 ? -. DecUtil.shard_offset(dl) : 0.;
+         let offset = i == 0 ? -. ShardDec.offset_of(dl) : 0.;
          (
            origin,
            SvgUtil.Path.[
-             shadowfudge(M({x: offset, y: 1.0})),
+             shadowfudge(
+               M({
+                 x: offset,
+                 y: 1.0,
+               }),
+             ),
              h_(~dx=indent - origin.col),
              shadowfudge(v_(~dy=origin'.row - origin.row + v_delta)),
              h_(~dx=origin'.col - indent),
@@ -219,9 +116,9 @@ let uni_lines =
   open SvgUtil.Path;
   let shards = shards_of_tiles(tiles);
   let (dl, _) = rep_tips(tiles);
-  let offset = -. DecUtil.shard_offset(dl);
-  let hook_dx = DecUtil.short_tip_width /. 2.;
-  let hook_dy = DecUtil.short_tip_height /. 4.;
+  let offset = -. ShardDec.offset_of(dl);
+  let hook_dx = ShardDec.tip_width /. 2.;
+  let hook_dy = ShardDec.tip_height /. 4.;
   let l_line = {
     let (_, m_first) = List.hd(shards);
     let (_, m_last_of_first) = {
@@ -244,9 +141,17 @@ let uni_lines =
           ? (
             m_first.origin,
             [
-              shadowfudge(M({x: 0., y: 1.0})),
+              shadowfudge(
+                M({
+                  x: 0.,
+                  y: 1.0,
+                }),
+              ),
               h(~x=l.col - m_first.origin.col),
-              L_({dx: -. hook_dx, dy: -. hook_dy}),
+              L_({
+                dx: -. hook_dx,
+                dy: -. hook_dy,
+              }),
             ],
           )
           : (
@@ -260,7 +165,12 @@ let uni_lines =
                   shadowfudge(v(~y=l.row - m_last_of_first.origin.row)),
                 ]
                 : [
-                  shadowfudge(M({x: offset, y: 1.0})),
+                  shadowfudge(
+                    M({
+                      x: offset,
+                      y: 1.0,
+                    }),
+                  ),
                   h(~x=indent - m_first.origin.col),
                   shadowfudge(v(~y=l.row + 1 - m_first.origin.row)),
                   h(~x=max_col - m_first.origin.col),
@@ -269,7 +179,10 @@ let uni_lines =
             )
             @ [
               h(~x=l.col - m_first.origin.col),
-              L_({dx: -. hook_dx, dy: hook_dy}),
+              L_({
+                dx: -. hook_dx,
+                dy: hook_dy,
+              }),
             ],
           ),
       ];
@@ -279,7 +192,12 @@ let uni_lines =
   };
   let r_line = {
     let (_, m_last) = ListUtil.last(shards);
-    let hook = [L_({dx: hook_dx, dy: -. hook_dy})];
+    let hook = [
+      L_({
+        dx: hook_dx,
+        dy: -. hook_dy,
+      }),
+    ];
     if (r.row == m_last.last.row && r.col > m_last.last.col) {
       [
         (
@@ -345,7 +263,7 @@ let uni_lines =
      );
 };
 
-let indicated =
+let term =
     (
       ~attr=?,
       ~font_metrics: FontMetrics.t,
@@ -357,15 +275,50 @@ let indicated =
       range,
     )
     : list(Node.t) => {
-  List.concat_map(
-    simple_shards_indicated(
+  let shard_of = (id, mold, (index, measurement)) =>
+    ShardDec.simple(
       ~attr?,
-      ~font_metrics,
-      ~caret,
-      ~base_cls=?base_clss,
-    ),
-    tiles,
-  )
+      {
+        font_metrics,
+        measurement,
+        tips: ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
+      },
+      Option.to_list(base_clss)
+      @ ["indicated", Sort.to_string(mold.out)]
+      @ (caret == (id, index) ? ["caret"] : []),
+    );
+  let shard_decos =
+    List.concat_map(
+      ((id, mold, shards)) => List.map(shard_of(id, mold), shards),
+      tiles,
+    );
+  shard_decos
   @ uni_lines(~line_clss, ~font_metrics, ~rows, range, tiles)
   @ bi_lines(~line_clss, ~font_metrics, ~rows, tiles);
+};
+
+let error_term =
+    (
+      ~font_metrics,
+      ~rows: Measured.Rows.t,
+      range: (Measured.Point.t, Measured.Point.t),
+      tiles: list((Id.t, Mold.t, Measured.Shards.t)),
+    ) => {
+  let shard_of = (mold, (index, measurement)) =>
+    ShardDec.simple(
+      {
+        font_metrics,
+        measurement,
+        tips: ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
+      },
+      ["error"],
+    );
+  let shard_decos =
+    List.concat_map(
+      ((_, mold, shards)) => List.map(shard_of(mold), shards),
+      tiles,
+    );
+  shard_decos
+  @ uni_lines(~font_metrics, ~rows, range, tiles, ~line_clss=[])
+  @ bi_lines(~font_metrics, ~rows, tiles, ~line_clss=[]);
 };

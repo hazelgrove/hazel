@@ -34,7 +34,7 @@ type livelit_entry = {
   projector:
     (list(model_piece), Base.piece => Ui_effect.t(unit)) =>
     Virtual_dom.Vdom.Node.t,
-  size: ProjectorCore.shape,
+  size: ProjectorShape.t,
   explain_this: list(string),
   id: Id.t,
 };
@@ -55,11 +55,26 @@ let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
   extend(ctx, TVarEntry(tvar_entry));
 
 let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
-  extend_tvar(ctx, {name, id, kind: Singleton(ty)});
+  extend_tvar(
+    ctx,
+    {
+      name,
+      id,
+      kind: Singleton(ty),
+    },
+  );
 
 let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
   switch (TPat.tyvar_of_utpat(tvar)) {
-  | Some(name) => extend_tvar(ctx, {kind: Abstract, name, id: Id.invalid})
+  | Some(name) =>
+    extend_tvar(
+      ctx,
+      {
+        kind: Abstract,
+        name,
+        id: Id.invalid,
+      },
+    )
   | None => ctx
   };
 
@@ -239,3 +254,16 @@ let filter_stepper_filter_variables = (ctx: t): t =>
 
 let shadows_typ = (ctx: t, name: string): bool =>
   Form.is_base_typ(name) || lookup_tvar(ctx, name) != None;
+
+/* The binding (binding site id and name) of `name` in `ctx` */
+let binding_of = (ctx: t, name: Var.t): Binding.t =>
+  switch (lookup_var(ctx, name)) {
+  | Some({id, _}) => {
+      id,
+      name,
+    }
+  | _ => {
+      id: Id.invalid,
+      name,
+    }
+  };

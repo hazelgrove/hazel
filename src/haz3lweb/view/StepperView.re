@@ -144,7 +144,10 @@ module Update = {
                    )
                    |> ((u: Updated.t('a)) => u.model);
                  let editor = Calc.NewValue(editor);
-                 {...a, editor};
+                 {
+                   ...a,
+                   editor,
+                 };
                }),
              )
           |> Aba.mk(_, model.history |> Aba.get_bs),
@@ -163,9 +166,17 @@ module Update = {
     |> List.map(
          fun
          | (FilterAction.Step, x) =>
-           Model.{hidden: false, step: x, to_ids: [Id.mk()]}
+           Model.{
+             hidden: false,
+             step: x,
+             to_ids: [Id.mk()],
+           }
          | (FilterAction.Eval, x) =>
-           Model.{hidden: true, step: x, to_ids: [Id.mk()]},
+           Model.{
+             hidden: true,
+             step: x,
+             to_ids: [Id.mk()],
+           },
        );
 
   let get_next_a =
@@ -273,11 +284,17 @@ module Update = {
                 CodeSelectable.Update.calculate(
                   ~settings=settings |> Calc.get_value,
                   ~is_edited=false,
+                  ~dynamics=Dynamics.Map.empty, // No projectors in stepper atm
                   ~stitch=x =>
                   x
                 ),
               )
-           |> (editor => {...a, editor})
+           |> (
+             editor => {
+               ...a,
+               editor,
+             }
+           )
          }),
        );
   };

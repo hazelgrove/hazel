@@ -9,12 +9,13 @@ let alco_check =
   )
   |> Alcotest.check;
 
-let strip_parens_and_add_builtins =
+let strip_Wrap_and_add_builtins =
   Exp.map_term(
     ~f_exp=
       (cont: TermBase.exp_t => TermBase.exp_t, e: TermBase.exp_t) =>
         switch (e.term) {
-        | Parens(e) => cont(e)
+        | Parens(e)
+        | Probe(e, _) => cont(e)
         | Var(x) =>
           let builtin =
             VarMap.lookup(Haz3lcore.Builtins.Pervasives.builtins, x);
@@ -30,7 +31,8 @@ let strip_parens_and_add_builtins =
     ~f_pat=
       (cont, e) =>
         switch (e.term) {
-        | Parens(e) => cont(e)
+        | Parens(e)
+        | Probe(e, _) => cont(e)
         | _ => cont(e)
         },
     ~f_typ=
@@ -44,7 +46,7 @@ let strip_parens_and_add_builtins =
 
 // Existing recovering parser
 let make_term_parse = (s: string) =>
-  strip_parens_and_add_builtins(
+  strip_Wrap_and_add_builtins(
     MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term,
   );
 
@@ -53,7 +55,11 @@ let menhir_matches = (exp: Term.Exp.t, actual: string) =>
     "menhir matches expected parse",
     exp,
     Grammar.map_exp_annotation(
-      _: IdTagged.IdTag.t => {ids: [Id.invalid], copied: false},
+      _: IdTagged.IdTag.t =>
+        {
+          ids: [Id.invalid],
+          copied: false,
+        },
       Haz3lmenhir.Conversion.Exp.of_menhir_ast(
         Haz3lmenhir.Interface.parse_program(actual),
       ),
@@ -88,7 +94,11 @@ let menhir_maketerm_equivalent_test =
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
       Grammar.map_exp_annotation(
-        _: IdTagged.IdTag.t => {ids: [Id.invalid], copied: false},
+        _: IdTagged.IdTag.t =>
+          {
+            ids: [Id.invalid],
+            copied: false,
+          },
         Haz3lmenhir.Conversion.Exp.of_menhir_ast(
           Haz3lmenhir.Interface.parse_program(actual),
         ),
@@ -173,6 +183,7 @@ let qcheck_menhir_serialized_equivalent_test =
             hide_fixpoints: false,
             fold_cast_types: false,
             show_filters: true,
+            show_unknown_as_hole: true,
           },
           core_exp,
         );
@@ -278,7 +289,13 @@ let tests =
       ),
       full_parser_test(
         "Filter",
-        filter(Filter({act: (Eval, All), pat: int(3)}), int(3)),
+        filter(
+          Filter({
+            act: (Eval, All),
+            pat: int(3),
+          }),
+          int(3),
+        ),
         "eval 3 in 3" // TODO Use other filter commands
       ),
       full_parser_test(

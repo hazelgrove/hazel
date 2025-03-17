@@ -50,7 +50,11 @@ type bad_token_cls =
   | Other
   | BadInt;
 
-let mk = (expansion, label, mold) => {label, mold, expansion};
+let mk = (expansion, label, mold) => {
+  label,
+  mold,
+  expansion,
+};
 
 /* Abbreviations for expansion behaviors */
 let ss: expansion = (Static, Static);
@@ -94,6 +98,7 @@ let strip_quotes = s =>
   } else {
     String.sub(s, 1, String.length(s) - 2);
   };
+
 let string_quote = s => "\"" ++ s ++ "\"";
 
 let keywords = [
@@ -227,6 +232,8 @@ let bad_token_cls: string => bad_token_cls =
     | _ when is_bad_int(t) => BadInt
     | _ => Other
     };
+
+let mk_parens = (sort: Sort.t) => mk(ii, tuple_lbl, mk_op(sort, [sort]));
 
 /* B. Operands:
    Order in this type determines relative remolding
@@ -425,9 +432,9 @@ let get: compound_form => t =
   | ListLitPat => mk(ii, ["[", "]"], mk_op(Pat, [Pat]))
   | ListTyp => mk(ii, ["[", "]"], mk_op(Typ, [Typ]))
   //NOTE(andrew): parens being below aps is load-bearing, unfortunately
-  | ParensExp => mk(ii, ["(", ")"], mk_op(Exp, [Exp]))
-  | ParensPat => mk(ii, ["(", ")"], mk_op(Pat, [Pat]))
-  | ParensTyp => mk(ii, ["(", ")"], mk_op(Typ, [Typ]))
+  | ParensExp => mk_parens(Exp)
+  | ParensPat => mk_parens(Pat)
+  | ParensTyp => mk_parens(Typ)
   | ApExpEmpty => mk(ii, ["()"], mk_post(P.ap, Exp, []))
   | ApExp => mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))
   | ApPat => mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))

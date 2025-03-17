@@ -260,7 +260,11 @@ let emotion: t = {
       ],
     );
   },
-  size: Block({row: 10, col: 20}),
+  size:
+    Block({
+      row: 10,
+      col: 20,
+    }),
   id: Id.invalid,
 };
 

@@ -43,19 +43,23 @@ type select =
   | Tile(rel)
   | Term(rel);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type chooser =
+  | Specific(ProjectorCore.Kind.t)
+  | ChooseLivelit;
+
 /* This type defines the top-level actions used to manage
  * projectors,as distinguished from external_action,
  * which defines the actions available internally to all projectors,
  * and from each projector's own internal action type */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type project =
-  | SetIndicated(Base.kind) /* Project syntax at caret */
-  | ToggleIndicated(Base.kind) /* Un/Project syntax at caret */
-  | Remove([@equal (_, _) => true] Id.t) /* Remove projector at Id */
-  | SetSyntax([@equal (_, _) => true] Id.t, Piece.t) /* Set underlying syntax */
-  | SetModel([@equal (_, _) => true] Id.t, string) /* Set serialized projector model */
-  | Focus([@equal (_, _) => true] Id.t, option(Util.Direction.t)) /* Pass control to projector */
-  | Escape([@equal (_, _) => true] Id.t, Direction.t); /* Pass control to parent editor */
+  | SetIndicated(chooser) /* Project syntax at caret */
+  | RemoveIndicated /* Remove projector at caret */
+  | SetSyntax(Id.t, Base.segment) /* Set underlying syntax */
+  | SetModel(Id.t, string) /* Set serialized projector model */
+  | Focus(Id.t, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
+  | Escape(Id.t, Direction.t); /* Pass control to parent editor */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type agent =
@@ -67,11 +71,16 @@ type buffer =
   | Clear
   | Accept;
 
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
+[@deriving (show({with_path: false}), sexp, yojson)]
+type paste =
+  | String(string)
+  | Segment(Segment.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Reparse
   | Buffer(buffer)
-  | Paste(string)
+  | Paste(paste)
   | Copy
   | Cut
   | Project(project)
@@ -131,8 +140,7 @@ let is_edit: t => bool =
     | SetSyntax(_)
     | SetModel(_)
     | SetIndicated(_)
-    | ToggleIndicated(_)
-    | Remove(_) => true
+    | RemoveIndicated => true
     | Focus(_)
     | Escape(_) => false
     };
@@ -161,8 +169,7 @@ let is_historic: t => bool =
     | SetSyntax(_)
     | SetModel(_)
     | SetIndicated(_)
-    | ToggleIndicated(_)
-    | Remove(_) => true
+    | RemoveIndicated => true
     | Focus(_)
     | Escape(_) => false
     };
@@ -189,10 +196,39 @@ let prevent_in_read_only_editor = (a: t) => {
     | SetSyntax(_) => true
     | SetModel(_)
     | SetIndicated(_)
-    | ToggleIndicated(_)
-    | Remove(_)
+    | RemoveIndicated
     | Focus(_)
     | Escape(_) => false
     }
   };
 };
+
+/* Currently animations are disabled during drag selection
+ * to paper over a weird interaction with scroll-to-caret.
+ * There is assuredly a better way to handle it but the
+ * approaches I tried weren't wholly successful. */
+let should_animate: t => bool =
+  fun
+  | Select(s) =>
+    switch (s) {
+    | Resize(_) => false
+    | All
+    | Smart(_)
+    | Tile(_)
+    | Term(_) => true
+    }
+  | Unselect(_)
+  | Paste(_)
+  | Cut
+  | Reparse
+  | Insert(_)
+  | Destruct(_)
+  | Pick_up
+  | Put_down
+  | Buffer(Accept | Clear | Set(_))
+  | Copy
+  | Move(_)
+  | Jump(_)
+  | RotateBackpack
+  | MoveToBackpackTarget(_)
+  | Project(_) => true;

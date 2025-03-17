@@ -323,9 +323,18 @@ let ctx_init: Ctx.t = {
     });
   List.map(
     fun
-    | (name, Const(typ, _)) => Ctx.VarEntry({name, typ, id: Id.invalid})
+    | (name, Const(typ, _)) =>
+      Ctx.VarEntry({
+        name,
+        typ,
+        id: Id.invalid,
+      })
     | (name, Fn(t1, t2, _)) =>
-      Ctx.VarEntry({name, typ: Fresh.Typ.arrow(t1, t2), id: Id.invalid}),
+      Ctx.VarEntry({
+        name,
+        typ: Fresh.Typ.arrow(t1, t2),
+        id: Id.invalid,
+      }),
     Pervasives.builtins,
   )
   |> List.append(livelits_init)

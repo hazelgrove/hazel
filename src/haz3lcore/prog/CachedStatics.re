@@ -35,7 +35,7 @@ let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 let init_from_term = (~settings, term): t => {
   let ctx_init = Builtins.ctx_init;
   let info_map = Statics.mk(settings, ctx_init, term);
-  let error_ids = Statics.error_ids(info_map);
+  let error_ids = Statics.Map.error_ids(info_map);
   let elaborated =
     switch () {
     | _ when !settings.statics => dh_err("Statics disabled")
@@ -47,7 +47,12 @@ let init_from_term = (~settings, term): t => {
       | Elaborates(d, _, _) => d
       }
     };
-  {term, elaborated, info_map, error_ids};
+  {
+    term,
+    elaborated,
+    info_map,
+    error_ids,
+  };
 };
 
 let init = (~settings: CoreSettings.t, ~stitch, z: Zipper.t): t => {

@@ -14,7 +14,10 @@ let persist = (zipper: Zipper.t) => {
 };
 
 let persist_text_only = (s: string) => {
-  {zipper: "", backup_text: s};
+  {
+    zipper: "",
+    backup_text: s,
+  };
 };
 
 let unpersist = (persisted: t) =>

@@ -7,44 +7,123 @@ type t = {
   nibs: Nibs.t,
 };
 
-let flip_nibs = m => {...m, nibs: Nibs.flip(m.nibs)};
+let flip_nibs = m => {
+  ...m,
+  nibs: Nibs.flip(m.nibs),
+};
 
 let mk_op = (out, in_) => {
-  let n = Nib.{shape: Convex, sort: out};
-  {out, in_, nibs: (n, n)};
+  let n =
+    Nib.{
+      shape: Convex,
+      sort: out,
+    };
+  {
+    out,
+    in_,
+    nibs: (n, n),
+  };
 };
 let mk_pre = (p, out, in_) => {
-  let l = Nib.{shape: Convex, sort: out};
-  let r = Nib.{shape: Concave(p), sort: out};
-  {out, in_, nibs: (l, r)};
+  let l =
+    Nib.{
+      shape: Convex,
+      sort: out,
+    };
+  let r =
+    Nib.{
+      shape: Concave(p),
+      sort: out,
+    };
+  {
+    out,
+    in_,
+    nibs: (l, r),
+  };
 };
 let mk_post = (p, out, in_) => {
-  let l = Nib.{shape: Concave(p), sort: out};
-  let r = Nib.{shape: Convex, sort: out};
-  {out, in_, nibs: (l, r)};
+  let l =
+    Nib.{
+      shape: Concave(p),
+      sort: out,
+    };
+  let r =
+    Nib.{
+      shape: Convex,
+      sort: out,
+    };
+  {
+    out,
+    in_,
+    nibs: (l, r),
+  };
 };
 let mk_bin = (~l=?, ~r=?, p, out, in_) => {
   let l = Option.value(l, ~default=out);
   let r = Option.value(r, ~default=out);
-  let nib = sort => Nib.{sort, shape: Concave(p)};
-  {out, in_, nibs: (nib(l), nib(r))};
+  let nib = sort =>
+    Nib.{
+      sort,
+      shape: Concave(p),
+    };
+  {
+    out,
+    in_,
+    nibs: (nib(l), nib(r)),
+  };
 };
 
 // forms where tips can be different than out sort
 let mk_pre' = (p, out, sort_l, in_, sort_r) => {
-  let l = Nib.{shape: Convex, sort: sort_l};
-  let r = Nib.{shape: Concave(p), sort: sort_r};
-  {out, in_, nibs: (l, r)};
+  let l =
+    Nib.{
+      shape: Convex,
+      sort: sort_l,
+    };
+  let r =
+    Nib.{
+      shape: Concave(p),
+      sort: sort_r,
+    };
+  {
+    out,
+    in_,
+    nibs: (l, r),
+  };
 };
 let mk_post' = (p, out, sort_l, in_, sort_r) => {
-  let l = Nib.{shape: Concave(p), sort: sort_l};
-  let r = Nib.{shape: Convex, sort: sort_r};
-  {out, in_, nibs: (l, r)};
+  let l =
+    Nib.{
+      shape: Concave(p),
+      sort: sort_l,
+    };
+  let r =
+    Nib.{
+      shape: Convex,
+      sort: sort_r,
+    };
+  {
+    out,
+    in_,
+    nibs: (l, r),
+  };
 };
 let mk_bin' = (p, out, sort_l, in_, sort_r) => {
-  let l = Nib.{shape: Concave(p), sort: sort_l};
-  let r = Nib.{shape: Concave(p), sort: sort_r};
-  {out, in_, nibs: (l, r)};
+  let l =
+    Nib.{
+      shape: Concave(p),
+      sort: sort_l,
+    };
+  let r =
+    Nib.{
+      shape: Concave(p),
+      sort: sort_r,
+    };
+  {
+    out,
+    in_,
+    nibs: (l, r),
+  };
 };
 
 let nibs = (~index=?, mold: t): Nibs.t =>
@@ -54,10 +133,19 @@ let nibs = (~index=?, mold: t): Nibs.t =>
     let (l, r) = mold.nibs;
     let in_ = mold.in_;
     let l =
-      i == 0 ? l : Nib.{shape: Shape.concave(), sort: List.nth(in_, i - 1)};
+      i == 0
+        ? l
+        : Nib.{
+            shape: Shape.concave(),
+            sort: List.nth(in_, i - 1),
+          };
     let r =
       i == List.length(in_)
-        ? r : Nib.{shape: Shape.concave(), sort: List.nth(in_, i)};
+        ? r
+        : Nib.{
+            shape: Shape.concave(),
+            sort: List.nth(in_, i),
+          };
     (l, r);
   };
 
@@ -72,10 +160,18 @@ let of_grout: (Grout.t, Sort.t) => t =
       // TODO(d): revisit this when reformulating molds
       switch (g.shape) {
       | Convex =>
-        let n = Nib.{shape: Convex, sort};
+        let n =
+          Nib.{
+            shape: Convex,
+            sort,
+          };
         (n, n);
       | Concave =>
-        let n = Nib.{shape: Concave(Precedence.min), sort};
+        let n =
+          Nib.{
+            shape: Concave(Precedence.min),
+            sort,
+          };
         (n, n);
       },
     out: sort,

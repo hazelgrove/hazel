@@ -77,6 +77,9 @@
 
 .cell-result .equiv {
   font-family: var(--code-font);
+  display: flex;
+  align-items: center;
+  height: 26px;
 }
 
 .result {
@@ -215,8 +218,8 @@
 
 .tile-next-step path,
 .tile-next-step path *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
-  border: 1px var(--G1);
-  fill: var(--G1);
+  border: 1px var(--G1) !important;
+  fill: var(--G1) !important;
   cursor: pointer;
 }
 
@@ -309,18 +312,18 @@
 }
 
 .tile-next-step .tile-path.Exp.indicated {
-  fill: var(--G1)
+  fill: var(--G1);
 }
 
 .tile-taken-step .tile-path.Exp.indicated {
-  fill: var(--BR1)
+  fill: var(--BR1);
 }
 
 svg.tile-next-step {
   pointer-events: all;
   cursor: pointer;
-  z-index: var(--test-result-z);
-  filter: drop-shadow(1px 1px var(--G2));
+  z-index: var(--projector-overlay-z);
+  filter: drop-shadow(1px 1px var(--G2)) !important;
 }
 
 svg.tile-next-step-top {
@@ -328,11 +331,11 @@ svg.tile-next-step-top {
   cursor: pointer;
   visibility: hidden;
   z-index: var(--stepper-interactive-z);
-  filter: drop-shadow(1px 1px var(--G2));
+  filter: drop-shadow(1px 1px var(--G2)) !important;
 }
 
 svg.tile-taken-step {
-  filter: drop-shadow(1px 1px var(--BR1));
+  filter: drop-shadow(1px 1px var(--BR1)) !important;
 }
 
 .cell-result .code {
