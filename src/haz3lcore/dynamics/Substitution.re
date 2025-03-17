@@ -17,7 +17,8 @@ let rec binds_var = (m: Statics.Map.t, x: Var.t, dp: DHPat.t): bool =>
     | Label(_)
     | Constructor(_) => false
     | Cast(y, _, _)
-    | Parens(y) => binds_var(m, x, y)
+    | Parens(y)
+    | Probe(y, _) => binds_var(m, x, y)
     | Var(y) => Var.equal(x, y)
     | TupLabel(_, dp) => binds_var(m, x, dp)
     | Tuple(dps) => dps |> List.exists(binds_var(m, x))
@@ -153,6 +154,9 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | Parens(d4) =>
     let d4' = subst_var(m, d1, x, d4);
     Parens(d4') |> rewrap;
+  | Probe(d4, pr) =>
+    let d4' = subst_var(m, d1, x, d4);
+    Probe(d4', pr) |> rewrap;
   | Deferral(_) => d2
   | DeferredAp(d3, d4s) =>
     let d3 = subst_var(m, d1, x, d3);
@@ -167,33 +171,28 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
 and subst_var_env =
     (m, d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t)
     : ClosureEnvironment.t => {
-  let id = env |> ClosureEnvironment.id_of;
-  let map =
-    env
-    |> ClosureEnvironment.map_of
-    |> Environment.foldo(
-         ((x', d': DHExp.t), map) => {
-           let d' =
-             switch (DHExp.term_of(d')) {
-             /* Substitute each previously substituted binding into the
-              * fixpoint. */
-             | FixF(_) =>
-               map
-               |> Environment.foldo(
-                    ((x'', d''), d) => subst_var(m, d'', x'', d),
-                    d',
-                  )
-             | _ => d'
-             };
+  Environment.foldo(
+    ((x', d': DHExp.t), map) => {
+      let d' =
+        switch (DHExp.term_of(d')) {
+        /* Substitute each previously substituted binding into the
+         * fixpoint. */
+        | FixF(_) =>
+          map
+          |> Environment.foldo(
+               ((x'', d''), d) => subst_var(m, d'', x'', d),
+               d',
+             )
+        | _ => d'
+        };
 
-           /* Substitute. */
-           let d' = subst_var(m, d1, x, d');
-           Environment.extend(map, (x', d'));
-         },
-         Environment.empty,
-       );
-
-  ClosureEnvironment.wrap(id, map);
+      /* Substitute. */
+      let d' = subst_var(m, d1, x, d');
+      Environment.extend(map, (x', d'));
+    },
+    Environment.empty,
+  )
+  |> ClosureEnvironment.update_env(_, env);
 }
 
 and subst_var_filter =

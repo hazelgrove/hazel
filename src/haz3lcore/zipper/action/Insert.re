@@ -176,7 +176,13 @@ let init_projector =
   let (module P) = Projector.to_module(kind);
   switch (P.can_project(syntax)) {
   | false => syntax
-  | true => Projector({id: Piece.id(syntax), kind, model: P.init, syntax})
+  | true =>
+    Projector({
+      id: Piece.id(syntax),
+      kind,
+      model: P.init,
+      syntax,
+    })
   };
 };
 

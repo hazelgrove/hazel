@@ -53,4 +53,7 @@ type t = {
 
 let shape = n => n.shape;
 
-let flip = (nib: t) => {...nib, shape: Shape.flip(nib.shape)};
+let flip = (nib: t) => {
+  ...nib,
+  shape: Shape.flip(nib.shape),
+};

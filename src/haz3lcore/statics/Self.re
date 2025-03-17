@@ -129,7 +129,12 @@ let of_exp_livelit_name = (ctx: Ctx.t, name: string): exp => {
   switch (res) {
   | None => Free(name)
   | Some(livelit) =>
-    Common(IsLivelitName({name: livelit.name, exp_t: livelit.expansion_t}))
+    Common(
+      IsLivelitName({
+        name: livelit.name,
+        exp_t: livelit.expansion_t,
+      }),
+    )
   };
 };
 
@@ -138,7 +143,12 @@ let of_exp_livelit_name = (ctx: Ctx.t, name: string): exp => {
   switch (res) {
   | None => Free(name)
   | Some(livelit) =>
-    Common(IsLivelitName({name: livelit.name, exp_t: livelit.expansion_t}))
+    Common(
+      IsLivelitName({
+        name: livelit.name,
+        exp_t: livelit.expansion_t,
+      }),
+    )
   };
 };
 
@@ -169,7 +179,12 @@ let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   let expected = List.length(ty_ins);
   let actual = List.length(args);
   if (expected != actual) {
-    IsBadPartialAp(ArityMismatch({expected, actual}));
+    IsBadPartialAp(
+      ArityMismatch({
+        expected,
+        actual,
+      }),
+    );
   } else if (List.for_all(Exp.is_deferral, args)) {
     IsBadPartialAp(NoDeferredArgs);
   } else {
@@ -184,7 +199,13 @@ let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   };
 };
 
-let add_source = List.map2((id, ty) => Typ.{id, ty});
+let add_source =
+  List.map2((id, ty) =>
+    Typ.{
+      id,
+      ty,
+    }
+  );
 
 let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {

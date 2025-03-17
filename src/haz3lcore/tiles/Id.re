@@ -81,6 +81,10 @@ let show = id =>
     to_string(id),
   );
 
+let str3 = (id: t) => id |> to_string |> String.sub(_, 0, 3);
+let str8 = (id: t) => id |> to_string |> String.sub(_, 0, 8);
+let cls = (id: t) => "id" ++ str8(id);
+
 [@deriving (sexp, yojson)]
 type binding('v) = (t, 'v);
 
@@ -138,7 +142,10 @@ module Uf: {
     refs: ref(Map.t(M.rref('a))),
     store: M.store('a),
   };
-  let init = () => {refs: ref(Map.empty), store: M.new_store()};
+  let init = () => {
+    refs: ref(Map.empty),
+    store: M.new_store(),
+  };
   let rref = (id, s) => Map.find(id, s.refs^);
   let add = (id, a, s) =>
     switch (Map.find_opt(id, s.refs^)) {

@@ -57,7 +57,10 @@ let rec replacePieceInSyntax =
                 )
            );
       /* Return a new Tile with updated children */
-      Tile({...tile, children: newChildren});
+      Tile({
+        ...tile,
+        children: newChildren,
+      });
     }
   | _ => syntaxNode
   };
@@ -173,7 +176,12 @@ module M: Projector = {
       /* Combine args and pieces into model_piece records */
       let model_pieces =
         List.map2(
-          (arg, piece): Ctx.model_piece => {{model: arg, piece}},
+          (arg, piece): Ctx.model_piece => {
+            {
+              model: arg,
+              piece,
+            }
+          },
           args,
           pieces,
         );

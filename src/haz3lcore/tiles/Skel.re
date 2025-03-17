@@ -93,7 +93,10 @@ module Stacks = {
     shunted: list(ip),
   };
 
-  let empty = {output: [], shunted: []};
+  let empty = {
+    output: [],
+    shunted: [],
+  };
 
   let rec pop_chain =
           (~popped=[], shunted: list(ip)): (list(ip), list(ip)) =>
@@ -137,8 +140,8 @@ module Stacks = {
       let split_kids = n =>
         try(ListUtil.split_n(n, stacks.output) |> PairUtil.map_fst(List.rev)) {
         | _ =>
-          print_endline(show(stacks));
-          failwith("Skel.push_output: split_kids: index out of bounds");
+          //prerr_endline(show(stacks));
+          failwith("Skel.push_output: split_kids: index out of bounds")
         };
       let output =
         switch (l, r) {
@@ -159,7 +162,13 @@ module Stacks = {
           let (kids, r) = ListUtil.split_last(kids);
           [Bin(l, Aba.mk(is, kids), r), ...output];
         };
-      push_output(~prec?, {shunted, output});
+      push_output(
+        ~prec?,
+        {
+          shunted,
+          output,
+        },
+      );
     };
   };
 
@@ -170,7 +179,10 @@ module Stacks = {
       | Convex => stacks
       | Concave(prec) => push_output(~prec, stacks)
       };
-    {...stacks, shunted: [ip, ...stacks.shunted]};
+    {
+      ...stacks,
+      shunted: [ip, ...stacks.shunted],
+    };
   };
 
   let finish = stacks => push_output(stacks);

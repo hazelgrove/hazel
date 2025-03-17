@@ -130,7 +130,11 @@ module Update = {
             action,
             model.editors,
           );
-        {...model, editors, selection};
+        {
+          ...model,
+          editors,
+          selection,
+        };
       };
     | InitImportAll(file) =>
       JsUtil.read_file(file, data =>
@@ -161,7 +165,10 @@ module Update = {
             action,
             model.editors,
           );
-        {...model, editors};
+        {
+          ...model,
+          editors,
+        };
       };
     | Undo =>
       let cursor_info =
@@ -179,7 +186,10 @@ module Update = {
             action,
             model.editors,
           );
-        {...model, editors};
+        {
+          ...model,
+          editors,
+        };
       };
     | Redo =>
       let cursor_info =
@@ -197,7 +207,10 @@ module Update = {
             action,
             model.editors,
           );
-        {...model, editors};
+        {
+          ...model,
+          editors,
+        };
       };
     };
   };
@@ -226,12 +239,23 @@ module Update = {
           action,
           model.editors,
         );
-      {...model, editors};
+      {
+        ...model,
+        editors,
+      };
     | ExplainThis(action) =>
       let* explain_this =
         ExplainThisUpdate.set_update(model.explain_this, action);
-      {...model, explain_this};
-    | MakeActive(selection) => {...model, selection} |> Updated.return
+      {
+        ...model,
+        explain_this,
+      };
+    | MakeActive(selection) =>
+      {
+        ...model,
+        selection,
+      }
+      |> Updated.return
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
@@ -268,7 +292,11 @@ module Update = {
         cursor_info.info,
       );
     let globals = Globals.Update.calculate(color_highlights, model.globals);
-    {...model, globals, editors};
+    {
+      ...model,
+      globals,
+      editors,
+    };
   };
 };
 
@@ -335,15 +363,17 @@ module View = {
         Effect.Ignore;
       }),
       Attr.on_copy(_ => {
-        JsUtil.copy(
-          (cursor.selected_text |> Option.value(~default=() => ""))(),
-        );
+        let str = (cursor.selected_text |> Option.value(~default=() => ""))();
+        /* Note that we cannot use the ClipboardCache system here unless
+         * we refine it further to replace unique ids on paste */
+        Haz3lcore.ClipboardCache.set(cursor.selection, str);
+        JsUtil.copy(str);
         Effect.Ignore;
       }),
       Attr.on_cut(_ => {
-        JsUtil.copy(
-          (cursor.selected_text |> Option.value(~default=() => ""))(),
-        );
+        let str = (cursor.selected_text |> Option.value(~default=() => ""))();
+        Haz3lcore.ClipboardCache.set(cursor.selection, str);
+        JsUtil.copy(str);
         Option.map(
           inject,
           Selection.handle_key_event(
@@ -365,11 +395,12 @@ module View = {
     ]
     @ [
       Attr.on_paste(evt => {
-        let pasted_text =
-          Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-          |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
         Dom.preventDefault(evt);
-        switch (cursor.editor_action(Paste(pasted_text))) {
+        let action =
+          Js.to_string(evt##.clipboardData##getData(Js.string("text")))
+          |> Haz3lcore.ClipboardCache.get
+          |> cursor.editor_action;
+        switch (action) {
         | None => Effect.Ignore
         | Some(action) => inject(Editors(action))
         };
@@ -505,7 +536,7 @@ module View = {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
-      [FontSpecimen.view, DecUtil.filters, JsUtil.clipboard_shim]
+      [FontSpecimen.view, JsUtil.clipboard_shim]
       @ main_view(~get_log_and, ~cursor, ~inject, model),
     );
   };

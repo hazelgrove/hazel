@@ -38,7 +38,7 @@ module Typ = {
   let of_infix_delim: list((Token.t, Typ.term)) = [
     //("|>", Unknown(Internal)), /* annoying during case rules */
     (",", Prod([unk, unk])), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
-    ("::", List(unk)), /* annoying in patterns */
+    //("::", List(unk)), /* annoying in patterns. TODO: add codepath to show only if Ana(List(_)) */
     ("@", List(unk)),
     (";", Unknown(Internal)),
     ("&&", Bool),
@@ -181,18 +181,29 @@ let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
   | Exp =>
     List.map(
       ((content, ty)) =>
-        Suggestion.{content, strategy: Exp(Common(NewForm(ty)))},
+        Suggestion.{
+          content,
+          strategy: Exp(Common(NewForm(ty))),
+        },
       filtered,
     )
   | Pat =>
     List.map(
       ((content, ty)) =>
-        Suggestion.{content, strategy: Pat(Common(NewForm(ty)))},
+        Suggestion.{
+          content,
+          strategy: Pat(Common(NewForm(ty))),
+        },
       filtered,
     )
   | _ =>
     delims
-    |> List.map(content => Suggestion.{content, strategy: Typ(NewForm)})
+    |> List.map(content =>
+         Suggestion.{
+           content,
+           strategy: Typ(NewForm),
+         }
+       )
   };
 };
 

@@ -31,4 +31,7 @@ let labeled_pat: form = {
     examples: [labeled_example_1, labeled_example_2],
   };
 };
-let labeled_pats: group = {id: LabeledPat, forms: [labeled_pat]};
+let labeled_pats: group = {
+  id: LabeledPat,
+  forms: [labeled_pat],
+};

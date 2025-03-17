@@ -3,8 +3,8 @@ open Haz3lcore;
 
 let testable_error_map =
   testable(
-    Fmt.using(Statics.show_error_map, Fmt.string),
-    Statics.equal_error_map,
+    Fmt.using(Statics.Map.show_errors, Fmt.string),
+    Statics.Map.equal_errors,
   );
 
 let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init);
@@ -25,7 +25,7 @@ let has_errors = (name: string, exp: string, errors: list(Info.error)) => {
         Haz3lmenhir.Conversion.Exp.get_indicated_ids(indicated_exp);
 
       let s = statics(e);
-      let actual_errors = Statics.collect_errors(s);
+      let actual_errors = Statics.Map.collect_errors(s);
       let expected_errors = Id.Map.of_list(List.combine(ids, errors));
       Alcotest.check(
         testable_error_map,
