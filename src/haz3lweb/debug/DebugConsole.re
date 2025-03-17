@@ -67,7 +67,7 @@ let print =
           |> ChatLSP.Print.seg;
         ChatLSP.ErrorPrint.mk(
           ~init_ctx=Builtins.ctx_init,
-          ~mode=Syn,
+          Zipper.init(),
           whole_program_str,
         );
       }
