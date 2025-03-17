@@ -365,7 +365,7 @@ module Pervasives = {
            binary((lab: DHExp.t, d: DHExp.t) => {
              switch (lab.term) {
              | Label(name) =>
-               let-unbox l = (List, d);
+               let-unbox l = (ListLit, d);
                let unboxed: option(list((string, list(TermBase.exp_t)))) =
                  List.map(
                    e => {
