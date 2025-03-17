@@ -126,7 +126,13 @@ let rec add_n_rows = (origin: Point.t, row_indent, n: abs_indent, map: t): t =>
   | _ =>
     map
     |> add_n_rows(origin, row_indent, n - 1)
-    |> add_row(origin.row + n - 1, {indent: row_indent, max_col: origin.col})
+    |> add_row(
+         origin.row + n - 1,
+         {
+           indent: row_indent,
+           max_col: origin.col,
+         },
+       )
   };
 
 let singleton_w = (w, m) => empty |> add_w(w, m);
@@ -171,7 +177,10 @@ let find_t = (t: Tile.t, map): measurement => {
     }) {
     | _ => failwith("find_t: inconsistent shard infor between tile and map")
     };
-  {origin: first.origin, last: last.last};
+  {
+    origin: first.origin,
+    last: last.last,
+  };
 };
 let find_p = (~msg="", p: Piece.t, map): measurement =>
   try(
@@ -203,7 +212,10 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
             shards,
             "find_by_id",
           );
-        Some({origin: first.origin, last: last.last});
+        Some({
+          origin: first.origin,
+          last: last.last,
+        });
       | None =>
         switch (Id.Map.find_opt(id, map.projectors)) {
         | Some(m) => Some(m)
@@ -329,18 +341,46 @@ let of_segment =
               };
             let map =
               map
-              |> add_w(w, {origin, last})
+              |> add_w(
+                   w,
+                   {
+                     origin,
+                     last,
+                   },
+                 )
               |> add_n_rows(origin, row_indent, num_extra_rows);
             (indent, last, map);
           | Secondary(w) =>
             let wspace_length =
               Unicode.length(Secondary.get_string(w.content));
-            let last = {...origin, col: origin.col + wspace_length};
-            let map = map |> add_w(w, {origin, last});
+            let last = {
+              ...origin,
+              col: origin.col + wspace_length,
+            };
+            let map =
+              map
+              |> add_w(
+                   w,
+                   {
+                     origin,
+                     last,
+                   },
+                 );
             (contained_indent, last, map);
           | Grout(g) =>
-            let last = {...origin, col: origin.col + 1};
-            let map = map |> add_g(g, {origin, last});
+            let last = {
+              ...origin,
+              col: origin.col + 1,
+            };
+            let map =
+              map
+              |> add_g(
+                   g,
+                   {
+                     origin,
+                     last,
+                   },
+                 );
             (contained_indent, last, map);
           | Projector(p) =>
             let row_indent = container_indent + contained_indent;
@@ -367,7 +407,13 @@ let of_segment =
             let map =
               map
               |> add_n_rows(origin, row_indent, num_extra_rows)
-              |> add_pr(p, {origin, last});
+              |> add_pr(
+                   p,
+                   {
+                     origin,
+                     last,
+                   },
+                 );
             (contained_indent, last, map);
           | Tile(t) =>
             let extra_rows = (token, origin, map) => {
@@ -386,7 +432,16 @@ let of_segment =
               let token = List.nth(t.label, shard);
               let map = extra_rows(token, origin, map);
               let last = last_of_token(token, origin);
-              let map = add_s(t.id, shard, {origin, last}, map);
+              let map =
+                add_s(
+                  t.id,
+                  shard,
+                  {
+                    origin,
+                    last,
+                  },
+                  map,
+                );
               (last, map);
             };
             let (last, map) =

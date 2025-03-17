@@ -66,6 +66,15 @@ let tuple_pat_size3: form = {
   };
 };
 
-let tuple: group = {id: TuplePat, forms: [tuple_pat]};
-let tuple2: group = {id: Tuple2Pat, forms: [tuple_pat_size2, tuple_pat]};
-let tuple3: group = {id: Tuple3Pat, forms: [tuple_pat_size3, tuple_pat]};
+let tuple: group = {
+  id: TuplePat,
+  forms: [tuple_pat],
+};
+let tuple2: group = {
+  id: Tuple2Pat,
+  forms: [tuple_pat_size2, tuple_pat],
+};
+let tuple3: group = {
+  id: Tuple3Pat,
+  forms: [tuple_pat_size3, tuple_pat],
+};
