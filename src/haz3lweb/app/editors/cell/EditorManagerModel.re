@@ -18,26 +18,29 @@ type t = {
   dynamics: Dynamics.Map.t,
 };
 
-let piece_of_component = (component: component): Piece.t =>
+let piece_of_component = (component: component): option(Piece.t) =>
   switch (component.editor.state.zipper |> Zipper.zip) {
-  | [hd] => hd
+  | [hd] => Some(hd)
   | seg =>
-    print_endline("piece_of_component: " ++ Segment.show(seg));
     //TODO: make less representable
-    failwith("Assumption: zipper zips to singleton segment");
+    print_endline("piece_of_component: " ++ Segment.show(seg));
+
+    prerr_endline("Assumption: zipper zips to singleton segment");
+    None;
   };
 let component_to_trad = (component: component): option(ProjectorBase.trad) =>
+  //TODO(andrew): make the hurting stapp
   switch (component.kind) {
   | Some(kind) =>
-    Some({
+    open OptUtil.Syntax;
+    let+ piece = piece_of_component(component);
+    ProjectorBase.{
       id: component.id,
       kind,
       model: component.model,
-      syntax: piece_of_component(component),
-    })
-  | None =>
-    prerr_endline("EditorManager.component_to_trad: None TODO");
-    None;
+      syntax: piece,
+    };
+  | None => None
   };
 
 let mk = editor => {

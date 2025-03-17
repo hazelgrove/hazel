@@ -627,8 +627,8 @@ let go_em = (seg, ~of_projector: Id.t => Any.t): Any.t => {
     unsorted(~of_projector, skel, seg),
     Segment.sort_of(skel, seg),
   );
-  print_endline("SORT: " ++ Sort.show(sort));
-  print_endline("UNSORTED: " ++ show_unsorted(unsorted));
+  // print_endline("SORT: " ++ Sort.show(sort));
+  // print_endline("UNSORTED: " ++ show_unsorted(unsorted));
   switch (sort) {
   | Exp => TermBase.Exp(exp(unsorted))
   | Pat => Pat(pat(unsorted))

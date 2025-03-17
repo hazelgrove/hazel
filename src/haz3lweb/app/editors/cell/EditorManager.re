@@ -136,16 +136,16 @@ module Update = {
     };
     switch (component.kind) {
     | Some(kind) =>
-      print_endline("MK_TERM in EditorManager");
+      //print_endline("MK_TERM in EditorManager");
       let (module P) = ProjectorInit.to_module(kind);
-      P.mk_term(
-        ~id,
-        ~from_segment,
-        ~segment=[component |> Model.piece_of_component],
-      );
+      switch (Model.piece_of_component(component)) {
+      | None => failwith("No piece of component")
+      | Some(piece) => P.mk_term(~id, ~from_segment, ~segment=[piece])
+      };
     | None =>
-      print_endline("NONE in EditorManager");
-      from_segment([component |> Model.piece_of_component]);
+      component.editor.state.zipper
+      |> Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true)
+      |> from_segment
     };
   };
 
@@ -340,14 +340,18 @@ module View = {
       };
     switch (component.kind) {
     | Some(kind) =>
-      let syntax = Model.piece_of_component(component);
+      let piece =
+        switch (Model.piece_of_component(component)) {
+        | None => failwith("No piece of component")
+        | Some(piece) => piece
+        };
       let (module P) = ProjectorInit.to_module(kind);
       P.view(
         component.model,
         ~local=x => inject(Update.SetModel(component.id, x)),
         ProjectorInfo.mk_info(
           component.id,
-          syntax,
+          piece,
           ~statics=model.statics.info_map,
           ~dynamics,
         ),

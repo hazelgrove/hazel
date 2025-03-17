@@ -71,14 +71,9 @@ module Model = {
     List.filter_map(
       ({id, kind, _} as component: EditorManagerModel.component) => {
         let* kind = kind;
+        let* piece = EditorManagerModel.piece_of_component(component);
         let+ measurement = Id.Map.find_opt(id, measured.projectors);
-        let info =
-          ProjectorInfo.mk_info(
-            id,
-            EditorManagerModel.piece_of_component(component),
-            ~statics,
-            ~dynamics,
-          );
+        let info = ProjectorInfo.mk_info(id, piece, ~statics, ~dynamics);
         {
           id,
           info,
