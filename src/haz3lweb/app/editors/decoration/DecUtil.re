@@ -16,7 +16,12 @@ type fdims = {
   top: float,
 };
 
-let fzero: fdims = {width: 0., height: 0., left: 0., top: 0.};
+let fzero: fdims = {
+  width: 0.,
+  height: 0.,
+  left: 0.,
+  top: 0.,
+};
 
 let pos_str = (~d: dims, ~fudge: fdims=fzero, font_metrics: FontMetrics.t) =>
   Printf.sprintf(
@@ -52,7 +57,15 @@ let code_svg_sized =
       paths: list(SvgUtil.Path.cmd),
     ) => {
   let d = abs_dims(measurement);
-  let d = absolute ? d : {left: 0, top: 0, width: d.width, height: d.height};
+  let d =
+    absolute
+      ? d
+      : {
+        left: 0,
+        top: 0,
+        width: d.width,
+        height: d.height,
+      };
   create_svg(
     "svg",
     ~attrs=

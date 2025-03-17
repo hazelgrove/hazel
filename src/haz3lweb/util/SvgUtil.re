@@ -47,16 +47,32 @@ module Path = {
   let cmdfudge = (~x=0., ~y=0., c: cmd): cmd => {
     let (h, v) = (x, y);
     switch (c) {
-    | M({x, y}) => M({x: x +. h, y: y +. v})
-    | L({x, y}) => L({x: x +. h, y: y +. v})
+    | M({x, y}) =>
+      M({
+        x: x +. h,
+        y: y +. v,
+      })
+    | L({x, y}) =>
+      L({
+        x: x +. h,
+        y: y +. v,
+      })
     | H({x}) => H({x: x +. h})
     | V({y}) => V({y: y +. v})
     | _ => c
     };
   };
 
-  let m = (~x, ~y) => M({x: Float.of_int(x), y: Float.of_int(y)});
-  let l_ = (~dx, ~dy) => L_({dx: Float.of_int(dx), dy: Float.of_int(dy)});
+  let m = (~x, ~y) =>
+    M({
+      x: Float.of_int(x),
+      y: Float.of_int(y),
+    });
+  let l_ = (~dx, ~dy) =>
+    L_({
+      dx: Float.of_int(dx),
+      dy: Float.of_int(dy),
+    });
   let h = (~x) => H({x: Float.of_int(x)});
   let h_ = (~dx) => H_({dx: Float.of_int(dx)});
   let v = (~y) => V({y: Float.of_int(y)});
@@ -65,8 +81,16 @@ module Path = {
   let scale_cmd = (~scale_x=1., ~scale_y=1.) =>
     fun
     | (Z | M(_) | L(_) | H(_) | V(_) | A_(_)) as cmd => cmd
-    | M_({dx, dy}) => M_({dx: scale_x *. dx, dy: scale_y *. dy})
-    | L_({dx, dy}) => L_({dx: scale_x *. dx, dy: scale_y *. dy})
+    | M_({dx, dy}) =>
+      M_({
+        dx: scale_x *. dx,
+        dy: scale_y *. dy,
+      })
+    | L_({dx, dy}) =>
+      L_({
+        dx: scale_x *. dx,
+        dy: scale_y *. dy,
+      })
     | H_({dx}) => H_({dx: scale_x *. dx})
     | V_({dy}) => V_({dy: scale_y *. dy});
 
@@ -79,8 +103,16 @@ module Path = {
   let translate_cmd = (v: Vector.t) =>
     fun
     | (Z | M_(_) | L_(_) | H_(_) | V_(_) | A_(_)) as cmd => cmd
-    | M({x, y}) => M({x: x +. v.dx, y: y +. v.dy})
-    | L({x, y}) => L({x: x +. v.dx, y: y +. v.dy})
+    | M({x, y}) =>
+      M({
+        x: x +. v.dx,
+        y: y +. v.dy,
+      })
+    | L({x, y}) =>
+      L({
+        x: x +. v.dx,
+        y: y +. v.dy,
+      })
     | H({x}) => H({x: x +. v.dx})
     | V({y}) => V({y: y +. v.dy});
   let translate = v => List.map(translate_cmd(v));
