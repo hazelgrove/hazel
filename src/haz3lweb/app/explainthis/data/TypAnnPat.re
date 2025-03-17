@@ -19,4 +19,7 @@ let typann_pat: form = {
   };
 };
 
-let typann: group = {id: TypAnnPat, forms: [typann_pat]};
+let typann: group = {
+  id: TypAnnPat,
+  forms: [typann_pat],
+};
