@@ -18,6 +18,7 @@ module Model = {
     expr: Calc.saved(Exp.t),
     state: Calc.saved(EvaluatorState.t),
     editor: Calc.saved(CodeSelectable.Model.t), // Also Updated.
+    hypotheses: Calc.saved(ProofCtx.t),
     // Updated
     step_kind,
     next_step: option(step),
@@ -57,7 +58,7 @@ module Model = {
     // Updated
     pattern: CodeEditable.Model.t,
     // Calculated
-    elab_pattern: Calc.saved(Exp.t),
+    elab_pattern: Calc.saved(Pat.t),
     inner_exp: Calc.saved(Exp.t),
     step,
     last_exp: Calc.saved(Exp.t),
@@ -90,6 +91,7 @@ module Model = {
     expr: Calc.Pending,
     state: Calc.Pending,
     editor: Calc.Pending,
+    hypotheses: Calc.Pending,
     step_kind: init_missing_step,
     next_step: None,
     hidden: Calc.Pending,
@@ -156,6 +158,7 @@ module Update = {
     | AddInduction
     | AddForall
     | AddAxiomStep(Exp.t, Exp.t)
+    | UseHypothesis(int)
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   and single_step = unit
@@ -247,6 +250,28 @@ module Update = {
       }
       |> return;
     | (AddAxiomStep(_, _), _, _) => model |> return_quiet
+    | (UseHypothesis(i), MissingStep(m), _) =>
+      switch (
+        List.nth_opt(
+          m.hypothesis_locs |> Calc.get_saved_exc(~print="UseHypothesis"),
+          i,
+        )
+      ) {
+      | Some((at_id, at_exp, with_exp)) =>
+        {
+          ...model,
+          step_kind:
+            Model.AxiomStep({
+              at_id,
+              at_exp,
+              with_exp,
+              next_exp: Calc.Pending,
+            }),
+        }
+        |> return
+      | None => model |> return_quiet
+      }
+    | (UseHypothesis(_), _, _) => model |> return_quiet
     };
   }
 
@@ -357,7 +382,27 @@ module Update = {
         Substitution.subst(Builtins.env_init, elab);
       };
     let state = Calc.OldValue(EvaluatorState.init);
-    let root = calculate_step(~settings, ctx, elab_subst, state, root) |> fst;
+    let root =
+      calculate_step(
+        ~settings,
+        ctx,
+        elab_subst,
+        state,
+        Calc.OldValue(
+          []
+          |> ProofCtx.add_entry(
+               "IH",
+               BinOp(
+                 Int(Equals),
+                 Int(123) |> Exp.fresh,
+                 Int(456) |> Exp.fresh,
+               )
+               |> Exp.fresh,
+             ),
+        ),
+        root,
+      )
+      |> fst;
     {
       cached_settings: settings |> Calc.save,
       cached_elab: elab |> Calc.save,
@@ -372,7 +417,16 @@ module Update = {
         ctx: Calc.t(Ctx.t),
         expr: Calc.t(Exp.t),
         state: Calc.t(EvaluatorState.t),
-        {expr: _, state: _, editor, step_kind, next_step, hidden}: Model.step,
+        hypotheses: Calc.t(ProofCtx.t),
+        {
+          expr: _,
+          state: _,
+          hypotheses: _,
+          editor,
+          step_kind,
+          next_step,
+          hidden,
+        }: Model.step,
       )
       : (Model.step, Calc.t(Exp.t)) => {
     let editor =
@@ -394,6 +448,7 @@ module Update = {
         ctx,
         expr,
         state,
+        hypotheses,
         step_kind,
         hidden,
         editor,
@@ -403,7 +458,14 @@ module Update = {
       | Some((next_expr, next_state)) =>
         let next_step = Option.value(~default=Model.init_step, next_step);
         let (next_step, last_expr) =
-          calculate_step(~settings, ctx, next_expr, next_state, next_step);
+          calculate_step(
+            ~settings,
+            ctx,
+            next_expr,
+            next_state,
+            hypotheses,
+            next_step,
+          );
         (Some(next_step), last_expr);
       | None => (None, expr)
       };
@@ -411,6 +473,7 @@ module Update = {
       Model.{
         expr: expr |> Calc.save,
         state: state |> Calc.save,
+        hypotheses: hypotheses |> Calc.save,
         editor: editor |> Calc.save,
         step_kind,
         next_step,
@@ -425,21 +488,66 @@ module Update = {
         ctx: Calc.t(Ctx.t),
         expr: Calc.t(Exp.t),
         state: Calc.t(EvaluatorState.t),
+        hypotheses,
         step_kind: Model.step_kind,
         hidden: Calc.saved(bool),
         editor: Calc.t(CodeSelectable.Model.t),
       ) => {
     switch (step_kind) {
     | SingleStep(m) =>
-      calculate_single_step(~settings, expr, ctx, state, m, hidden, editor)
+      calculate_single_step(
+        ~settings,
+        expr,
+        ctx,
+        hypotheses,
+        state,
+        m,
+        hidden,
+        editor,
+      )
     | InductionStep(m) =>
-      calculate_induction_step(~settings, ctx, expr, state, m, hidden)
+      calculate_induction_step(
+        ~settings,
+        ctx,
+        expr,
+        state,
+        hypotheses,
+        m,
+        hidden,
+      )
     | ForallStep(m) =>
-      calculate_forall_step(~settings, ctx, expr, state, m, hidden, editor)
+      calculate_forall_step(
+        ~settings,
+        ctx,
+        expr,
+        state,
+        hypotheses,
+        m,
+        hidden,
+        editor,
+      )
     | MissingStep(m) =>
-      calculate_missing_step(~settings, expr, ctx, state, m, hidden, editor)
+      calculate_missing_step(
+        ~settings,
+        expr,
+        ctx,
+        state,
+        hypotheses,
+        m,
+        hidden,
+        editor,
+      )
     | AxiomStep(m) =>
-      calculate_axiom_step(~settings, expr, ctx, state, m, hidden, editor)
+      calculate_axiom_step(
+        ~settings,
+        expr,
+        ctx,
+        state,
+        hypotheses,
+        m,
+        hidden,
+        editor,
+      )
     };
   }
 
@@ -449,6 +557,7 @@ module Update = {
         exp,
         ctx,
         state,
+        hypotheses,
         missing_step: MissingStep.Model.t,
         hidden,
         editor: Calc.t(CodeSelectable.Model.t),
@@ -487,6 +596,7 @@ module Update = {
         ~settings,
         exp |> Calc.make_new,
         ctx |> Calc.make_new,
+        hypotheses |> Calc.make_new,
         state |> Calc.make_new,
         Model.{evalobj, next_exp: Calc.Pending, next_state: Calc.Pending},
         hidden,
@@ -498,6 +608,7 @@ module Update = {
             ~settings=settings |> Calc.get_value,
             exp,
             ctx,
+            hypotheses,
             state,
             next_steps,
             missing_step,
@@ -515,6 +626,7 @@ module Update = {
         ~settings,
         exp,
         ctx,
+        hypotheses,
         state,
         {evalobj, next_exp, next_state},
         hidden,
@@ -588,13 +700,15 @@ module Update = {
            exp |> Calc.make_new,
            ctx |> Calc.make_new,
            state |> Calc.make_new,
+           hypotheses,
            MissingStep.Model.init,
            hidden,
            editor,
          )
        )
 
-  and calculate_induction_step = (~settings, ctx, exp, state, m, hidden) => {
+  and calculate_induction_step =
+      (~settings, ctx, exp, state, hypotheses, m, hidden) => {
     let {
       scrut,
       cases,
@@ -618,6 +732,7 @@ module Update = {
         CodeEditable.Model.get_statics(scrut).elaborated,
         elab_scrut,
       );
+
     let cases =
       List.map(
         (
@@ -632,10 +747,12 @@ module Update = {
             );
           let elab_pattern =
             Calc.set(
-              ~eq=Exp.fast_equal,
-              CodeEditable.Model.get_statics(pattern).elaborated,
+              ~eq=Pat.fast_equal,
+              CodeEditable.Model.get_statics(pattern).elaborated
+              |> ProofHacks.exp_to_pat,
               elab_pattern,
             );
+
           let inner_exp =
             inner_exp
             |> {
@@ -643,7 +760,11 @@ module Update = {
               let.calc elab_pattern = elab_pattern
               and.calc elab_scrut = elab_scrut
               and.calc exp = exp;
-              DHExp.replace_exp(elab_scrut, elab_pattern, exp);
+              DHExp.replace_exp(
+                elab_scrut,
+                elab_pattern |> ProofHacks.pat_to_exp,
+                exp,
+              );
             };
           let (stepper, last_exp) =
             calculate_step(
@@ -651,6 +772,7 @@ module Update = {
               ctx,
               inner_exp,
               state,
+              hypotheses,
               stepper,
             );
           Model.{
@@ -706,7 +828,16 @@ module Update = {
   }
 
   and calculate_forall_step =
-      (~settings, ctx, exp, state, m: Model.forall_step, hidden, editor) =>
+      (
+        ~settings,
+        ctx,
+        exp,
+        state,
+        hypotheses,
+        m: Model.forall_step,
+        hidden,
+        editor,
+      ) =>
     {
       open OptUtil.Syntax;
       let {inner_exp, bindings, inner_stepper}: Model.forall_step = m;
@@ -728,7 +859,14 @@ module Update = {
         |> Calc.to_option
         |> Option.map(Calc.to_pair);
       let (inner_stepper, _) =
-        calculate_step(~settings, bindings, inner_exp, state, inner_stepper);
+        calculate_step(
+          ~settings,
+          bindings,
+          inner_exp,
+          state,
+          hypotheses,
+          inner_stepper,
+        );
       (
         Model.ForallStep({
           inner_exp: inner_exp |> Calc.save,
@@ -745,13 +883,15 @@ module Update = {
            exp |> Calc.make_new,
            ctx |> Calc.make_new,
            state |> Calc.make_new,
+           hypotheses,
            MissingStep.Model.init,
            hidden,
            editor,
          )
        })
 
-  and calculate_axiom_step = (~settings, exp, ctx, state, m, hidden, editor) =>
+  and calculate_axiom_step =
+      (~settings, exp, ctx, state, hypotheses, m, hidden, editor) =>
     {
       let {at_id, at_exp, with_exp, next_exp}: Model.axiom_step = m;
       open OptUtil.Syntax;
@@ -781,6 +921,7 @@ module Update = {
            exp |> Calc.make_new,
            ctx |> Calc.make_new,
            state |> Calc.make_new,
+           hypotheses |> Calc.make_new,
            MissingStep.Model.init,
            hidden,
            editor,
@@ -1030,13 +1171,20 @@ module View = {
                )
           | _ => []
           };
+        let hypotheses =
+          switch (model.step_kind) {
+          | Model.MissingStep(m) =>
+            m.hypothesis_locs |> Calc.get_saved_exc(~print="Hypotheses Locs")
+          | _ => []
+          };
         let editor =
           StepperEditor.View.view(
             ~globals,
             ~signal=
               fun
               | MakeActive => signal(MakeActive(Here()))
-              | TakeStep(int) => inject(StepForward(int)),
+              | TakeStep(int) => inject(StepForward(int))
+              | Hypothesis(int) => inject(UseHypothesis(int)),
             ~inject=x => inject(EditorAction(x)),
             ~selected=
               switch (selected) {
@@ -1070,6 +1218,7 @@ module View = {
               editor: model.editor |> Calc.get_saved_exc(~print="Editor"),
               taken_steps,
               next_steps,
+              hypotheses: hypotheses |> List.map(((x, _, _)) => x),
             },
           );
         let justification =

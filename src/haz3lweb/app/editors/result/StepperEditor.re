@@ -11,6 +11,7 @@ module Model = {
     // Read-only
     taken_steps: list(Id.t),
     next_steps: list(Id.t),
+    hypotheses: list(Id.t),
   };
 };
 
@@ -27,6 +28,7 @@ module Update = {
       editor,
       taken_steps: model.taken_steps,
       next_steps: model.next_steps,
+      hypotheses: model.hypotheses,
     };
   };
 
@@ -35,12 +37,12 @@ module Update = {
         ~settings,
         ~is_edited,
         ~stitch,
-        {editor, taken_steps, next_steps}: Model.t,
+        {editor, taken_steps, next_steps, hypotheses}: Model.t,
       )
       : Model.t => {
     let editor =
       CodeSelectable.Update.calculate(~settings, ~is_edited, ~stitch, editor);
-    {editor, taken_steps, next_steps};
+    {editor, taken_steps, next_steps, hypotheses};
   };
 };
 
@@ -56,7 +58,8 @@ module Selection = {
 module View = {
   type event =
     | MakeActive
-    | TakeStep(int);
+    | TakeStep(int)
+    | Hypothesis(int);
 
   let view =
       (
@@ -75,7 +78,8 @@ module View = {
         });
       overlays
       @ Deco.taken_steps(model.taken_steps)
-      @ Deco.next_steps(model.next_steps, ~inject=x => signal(TakeStep(x)));
+      @ Deco.next_steps(model.next_steps, ~inject=x => signal(TakeStep(x)))
+      @ Deco.next_steps(model.hypotheses, ~inject=x => signal(Hypothesis(x)));
     };
     CodeSelectable.View.view(
       ~signal=

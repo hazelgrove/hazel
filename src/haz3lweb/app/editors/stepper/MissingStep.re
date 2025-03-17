@@ -23,6 +23,7 @@ module Model = {
     selected_id: Calc.saved(option(Id.t)),
     selected_exp: Calc.saved(option(Exp.t)),
     rewrites: Calc.saved(option(rewrites)),
+    hypothesis_locs: Calc.saved(list((Id.t, Exp.t, Exp.t))),
     open_box,
   };
 
@@ -31,6 +32,7 @@ module Model = {
     selected_id: Calc.Pending,
     selected_exp: Calc.Pending,
     rewrites: Calc.Pending,
+    hypothesis_locs: Calc.Pending,
     open_box: NoneOpen,
   };
 
@@ -99,9 +101,17 @@ module Update = {
         ~settings,
         exp,
         ctx: Calc.t(Ctx.t),
+        hypotheses: Calc.t(ProofCtx.t),
         _state,
         new_next_steps,
-        {next_steps: _, rewrites, selected_exp, selected_id, open_box}: Model.t,
+        {
+          next_steps: _,
+          rewrites,
+          selected_exp,
+          selected_id,
+          open_box,
+          hypothesis_locs,
+        }: Model.t,
         editor,
       )
       : Model.t => {
@@ -140,6 +150,14 @@ module Update = {
         open OptUtil.Syntax;
         let* exp' = exp;
         Some(Model.{rewrites: ProofCtx.get_rewrites(Axioms.v, exp')});
+      };
+    let hypothesis_locs =
+      hypothesis_locs
+      |> {
+        let.calc exp = exp
+        and.calc hypotheses = hypotheses;
+        print_endline("Calculating hypothesis locations");
+        hypotheses |> ProofCtx.get_rewrites_and_locations(_, exp);
       };
     let open_box =
       switch (open_box) {
@@ -180,6 +198,7 @@ module Update = {
       rewrites: rewrites |> Calc.save,
       selected_exp: selected_exp |> Calc.save,
       selected_id: selected_id |> Calc.save,
+      hypothesis_locs: hypothesis_locs |> Calc.save,
       open_box,
     };
   };

@@ -1,9 +1,11 @@
 open Util;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type conclusion =
   | Equality(Exp.t, Exp.t)
   | Other(Exp.t);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   bindings: Ctx.t,
   assumptions: list(Exp.t),

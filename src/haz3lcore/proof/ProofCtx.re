@@ -1,9 +1,13 @@
+open Util;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type entry = {
   name: string,
   exp: Exp.t,
   rule: ProofRule.t,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = list(entry);
 
 let empty = [];
@@ -46,3 +50,25 @@ let rec get_rewrites = (ctx: t, exp: Exp.t) =>
     };
   | [_, ...rs] => get_rewrites(rs, exp)
   };
+
+let get_rewrites_and_locations =
+    (ctx: t, exp: Exp.t): list((Id.t, Exp.t, Exp.t)) => {
+  let result: ref(list((Id.t, Exp.t, Exp.t))) = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, exp) => {
+          result :=
+            (
+              get_rewrites(ctx, exp)
+              |> List.map(e => (exp |> Exp.rep_id, exp, e))
+            )
+            @ result^;
+          cont(exp);
+        },
+      exp,
+    );
+  print_endline("RESULT");
+  print_endline(result^ |> List.length |> string_of_int);
+  result^;
+};
