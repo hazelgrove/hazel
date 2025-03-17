@@ -1,6 +1,7 @@
 open Util;
 open OptUtil.Syntax;
 open Haz3lcore;
+module StringSet = Set.Make(String);
 
 let prn = Printf.sprintf;
 
@@ -201,8 +202,15 @@ module ErrorPrint = {
     };
   };
 
-  let get_parse_errs = (completion: string): Result.t(Zipper.t, string) =>
-    switch (Printer.zipper_of_string(completion)) {
+  let get_parse_errs =
+      (sketch_z: Zipper.t, completion: string): Result.t(Zipper.t, string) =>
+    switch (
+      {
+        let* sketch_z = Destruct.go(Left, sketch_z);
+        let* sketch_z = Destruct.go(Left, sketch_z);
+        Perform.paste(sketch_z, completion);
+      }
+    ) {
     | None => Error("Undocumented parse error, no feedback available")
     | Some(completion_z) =>
       //TODO: For syntax errors, also collect bad syntax eg % operator
@@ -221,22 +229,34 @@ module ErrorPrint = {
       }
     };
 
-  let mk_errors = (~init_ctx, ~mode, reply: string): t =>
-    switch (get_parse_errs(reply)) {
+  let mk_errors = (~init_ctx, sketch_z: Zipper.t, reply: string): t =>
+    switch (get_parse_errs(sketch_z, reply)) {
     | Error(err) => ParseError(err)
-    | Ok(completion_z) =>
+    | Ok(full_z) =>
       //TODO: This is implictly specialized for expressions only
-      let (top_ci, info_map) = statics_of_exp_zipper(init_ctx, completion_z);
-      let static_errs =
-        get_top_level_errs(init_ctx, mode, top_ci) @ collect_static(info_map);
-      if (List.length(static_errs) == 0) {
+      let (_, info_map) = statics_of_exp_zipper(init_ctx, sketch_z);
+      let static_errs_sketch = collect_static(info_map);
+      let (_, info_map) = statics_of_exp_zipper(init_ctx, full_z);
+      let static_errs_full = collect_static(info_map);
+      if (List.length(static_errs_full) == 0) {
         NoErrors;
       } else {
-        StaticErrors(static_errs);
+        let sketch_errs = StringSet.of_list(static_errs_sketch);
+        let new_errs =
+          List.filter(
+            err => !StringSet.mem(err, sketch_errs),
+            static_errs_full,
+          );
+        if (List.length(new_errs) == 0) {
+          NoErrors;
+        } else {
+          StaticErrors(new_errs);
+        };
       };
     };
 
-  let mk = (~init_ctx: Ctx.t, ~mode: Mode.t, reply: string): option(string) => {
+  let mk =
+      (~init_ctx: Ctx.t, sketch_z: Zipper.t, reply: string): option(string) => {
     let wrap = (intro, errs) =>
       [intro]
       @ errs
@@ -245,7 +265,7 @@ module ErrorPrint = {
         "Please respond ONLY with the update suggestion",
       ]
       |> String.concat("\n");
-    let error_report = mk_errors(~init_ctx, ~mode, reply);
+    let error_report = mk_errors(~init_ctx, sketch_z, reply);
     switch (error_report) {
     | NoErrors => None
     | ParseError(err) =>
@@ -902,17 +922,12 @@ module Prompt = {
     @ [{role: User, content: user_message}];
   };
 
-  let mk_error = (ci: Info.t, reply: string): option(string) => {
+  let mk_error =
+      (ci: Info.t, sketch_z: Zipper.t, reply: string): option(string) => {
     /* TODO: This should maybe take whole JSON convo
      * so far and return an appended version */
     //TODO: Proper errors
-    let* mode =
-      switch (ci) {
-      | InfoExp({mode, _}) => Some(mode)
-      | InfoPat({mode, _}) => Some(mode)
-      | _ => None
-      };
     let init_ctx = Info.ctx_of(ci);
-    ErrorPrint.mk(~init_ctx, ~mode, reply);
+    ErrorPrint.mk(~init_ctx, sketch_z, reply);
   };
 };
