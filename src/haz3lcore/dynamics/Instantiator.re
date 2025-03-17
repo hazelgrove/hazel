@@ -1,30 +1,22 @@
 open Transition;
 
-type inst_cls =
-  | None
-  | Hole(DHExp.t)
-  | HoleCast(DHExp.t, TypSlice.t)
-  | IndetPat(DHExp.t, list(DHPat.t));
-
-// Locates the cast term or match term to instantiate and extracts the hole's rep_id and cast's return type slice
+// Locates the cast term to instantiate and extracts the hole's rep_id and cast's return type slice
 module InstantiatorEVMode: {
-  include EV_MODE with type result = inst_cls and type state = unit;
+  include
+    EV_MODE with
+      type result = option((DHExp.t, option(TypSlice.t))) and
+      type state = unit;
 } = {
   type state = unit;
-  type result = inst_cls;
+  type result = option((DHExp.t, option(TypSlice.t)));
 
   type requirement('a) = (result, 'a);
   type requirements('a, 'b) = (result, 'a, 'b);
 
-  // Precedence combining holes/casts/matches
   let combine = (h1: result, h2: result): result =>
-    switch (h1, h2) {
-    | (None, _) => h2
-    | (Hole(_), None)
-    | (Hole(_), Hole(_)) => h1
-    | (Hole(_), _) => h2
-    | (HoleCast(_), _) => h1
-    | (IndetPat(_), _) => h1
+    switch (h1) {
+    | Some(d) => Some(d)
+    | None => h2
     };
 
   let req_final:
@@ -50,17 +42,12 @@ module InstantiatorEVMode: {
       switch (rl(a), Exp.term_of(d)) {
       | (Step(_), _) => failwith("Step possible before hole instantiation") // Assume full reduction before instantiation
       // Pattern match on casts to retrieve the type to instantiate the hole
-      | (Constructor, Cast(_, t1, t2))
-          // Note: t1 should always be unknown, but checking to be safe
-          when TypSlice.is_unknown(t1) =>
-        switch (h) {
-        | Hole(d') => HoleCast(d', t2) // Note: d' must be the term in the cast
-        | _ => h
-        }
+      | (Constructor, Cast(d', t1, t2))
+          when Some((d', None)) == h && TypSlice.is_unknown(t1) =>
+        Some((d', Some(t2))) // Note: t1 should always be unknown, but checking to be safe
       | (Constructor, _)
       | (Value, _) => h
-      | (IndetMatch(rules), _) => failwith("TODO: pattern matching")
-      | (Indet, _) => combine(h, Hole(d))
+      | (Indet, _) => combine(h, Some((d, None)))
       };
     };
 
@@ -82,10 +69,8 @@ let instantiate = (env, d) => {
   let env = ClosureEnvironment.of_environment(env);
   switch (find((), env, d)) {
   | None
-  | Hole(_) => Futures.empty
-  | HoleCast(hole, slc) =>
+  | Some((_, None)) => Futures.empty
+  | Some((hole, Some(slc))) =>
     Instantiation.(construct(DHExp.rep_id(hole), slc) |> subst(d))
-  | IndetPat(indet, pat) =>
-    failwith("TODO: Instantiating indets against pattern")
   };
 };

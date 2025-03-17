@@ -282,8 +282,7 @@ module Decompose = {
           switch (rl(v)) {
           | Constructor => Result.BoxedValue
           | Value => Result.BoxedValue
-          | Indet
-          | IndetMatch(_) => Result.Indet
+          | Indet => Result.Indet
           | Step(s) => Result.Step([EvalObj.mk(Mark, env, undo, s.kind)])
           // TODO: Actually show these exceptions to the user!
           | exception (EvaluatorError.Exception(_)) => Result.Indet
@@ -332,8 +331,7 @@ module TakeStep = {
         Some(expr);
       | Constructor
       | Value
-      | Indet
-      | IndetMatch(_) => None
+      | Indet => None
       };
 
     let (and.) = (x1, x2) => (x1, x2);
