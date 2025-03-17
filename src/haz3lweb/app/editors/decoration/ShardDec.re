@@ -43,7 +43,16 @@ let caret_run = (shape: option(Direction.t)) =>
   };
 
 let chevronf = (run: float, rise: float): list(SvgUtil.Path.cmd) =>
-  SvgUtil.Path.[L_({dx: -. run, dy: rise}), L_({dx: +. run, dy: rise})];
+  SvgUtil.Path.[
+    L_({
+      dx: -. run,
+      dy: rise,
+    }),
+    L_({
+      dx: +. run,
+      dy: rise,
+    }),
+  ];
 
 let chevron = (direction: option(Direction.t), drawing_from: Direction.t) =>
   chevronf(
@@ -55,7 +64,14 @@ let chonky_path_base =
     ((l, r), x_offset, length: float, height: float): list(SvgUtil.Path.cmd) => {
   List.flatten(
     SvgUtil.Path.[
-      [M({x: -. x_offset, y: 0.}), H_({dx: length}), V({y: height})],
+      [
+        M({
+          x: -. x_offset,
+          y: 0.,
+        }),
+        H_({dx: length}),
+        V({y: height}),
+      ],
       chevron(r, Right),
       [H_({dx: -. length}), v(~y=1)],
       chevron(l, Left),

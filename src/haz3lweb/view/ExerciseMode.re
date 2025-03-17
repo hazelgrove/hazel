@@ -26,7 +26,11 @@ module Model = {
     let cells =
       Exercise.stitch_term(editors)
       |> Exercise.map_stitched(_ => term_item_to_cell);
-    {spec, editors, cells};
+    {
+      spec,
+      editors,
+      cells,
+    };
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -112,7 +116,10 @@ module Update = {
           ) =>
       let cell = Exercise.get_stitched(pos, model.cells);
       let* new_cell = CellEditor.Update.update(~settings, action, cell);
-      {...model, cells: Exercise.put_stitched(pos, model.cells, new_cell)};
+      {
+        ...model,
+        cells: Exercise.put_stitched(pos, model.cells, new_cell),
+      };
     | Editor(_, ResultAction(_)) => Updated.return_quiet(model) // TODO: I think this case should never happen
     | ResetEditor(pos) =>
       let spec = Exercise.main_editor_of_state(~selection=pos, model.spec);
@@ -126,7 +133,11 @@ module Update = {
     | ResetExercise =>
       let new_editors =
         Exercise.map(model.spec, Editor.Model.mk, Editor.Model.mk);
-      {...model, editors: new_editors} |> Updated.return;
+      {
+        ...model,
+        editors: new_editors,
+      }
+      |> Updated.return;
     };
   };
 
@@ -167,7 +178,11 @@ module Update = {
           let result':
             Haz3lcore.ProgramResult.t(Haz3lcore.ProgramResult.inner) =
             switch (result) {
-            | Ok((r, s)) => ResultOk({result: r, state: s})
+            | Ok((r, s)) =>
+              ResultOk({
+                result: r,
+                state: s,
+              })
             | Error(e) => ResultFail(e)
             };
           schedule_action(
@@ -259,7 +274,11 @@ module Update = {
         syntax_tests: model.editors.syntax_tests,
       };
     };
-    {spec: model.spec, editors, cells};
+    {
+      spec: model.spec,
+      editors,
+      cells,
+    };
   };
 };
 

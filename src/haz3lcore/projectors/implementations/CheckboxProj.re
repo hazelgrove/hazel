@@ -32,7 +32,11 @@ module M: Projector = {
     switch (
       info.utility.lift_syntax(
         fun
-        | Exp({term: Bool(b), _} as t) => Exp({...t, term: Bool(!b)})
+        | Exp({term: Bool(b), _} as t) =>
+          Exp({
+            ...t,
+            term: Bool(!b),
+          })
         | _ => failwith("Checkbox: Toggle: not boolean literal"),
         info.syntax,
       )
