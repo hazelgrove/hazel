@@ -98,6 +98,7 @@ type rule =
     })
   | Constructor
   | Indet
+  | IndetMatch(list(DHPat.t))
   | Value;
 
 let (let-unbox) = ((request, v), f) =>
@@ -140,9 +141,9 @@ module Transition = (EV: EV_MODE) => {
   // Default state update
   let state_update = () => ();
 
-  let (let.match) = ((env, match_result: PatternMatch.match_result), r) =>
-    switch (match_result) {
-    | IndetMatch
+  let (let.match) = ((env, dp, d), r) =>
+    switch (matches(dp, d)) {
+    | IndetMatch => IndetMatch([dp])
     | DoesNotMatch => Indet
     | Matches(env') => r(evaluate_extend_env(env', env))
     };
@@ -152,14 +153,14 @@ module Transition = (EV: EV_MODE) => {
   let wrap_closure_when_done = (~in_closure, expr, env, r: rule) =>
     switch (in_closure, r) {
     | (_, Step(_)) => r
-    | (None, Constructor | Indet | Value) =>
+    | (None, Constructor | Indet | IndetMatch(_) | Value) =>
       Step({
         expr: Closure(env, expr) |> fresh,
         state_update,
         kind: WrapClosure,
         is_value: false,
       })
-    | (Some(f), Constructor | Indet | Value) =>
+    | (Some(f), Constructor | Indet | IndetMatch(_) | Value) =>
       f();
       r;
     };
@@ -224,7 +225,7 @@ module Transition = (EV: EV_MODE) => {
       and. d1' =
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = env;
-      let.match env' = (env, matches(dp, d1'));
+      let.match env' = (env, dp, d1');
       Step({
         expr: Closure(env', d2) |> fresh,
         state_update,
@@ -365,7 +366,7 @@ module Transition = (EV: EV_MODE) => {
       switch (unboxed_fun) {
       | Constructor(_) => Constructor
       | FunEnv(dp, d3, env') =>
-        let.match env'' = (env', matches(dp, d2'));
+        let.match env'' = (env', dp, d2');
         Step({
           expr: Closure(env'', d3) |> fresh,
           state_update,
@@ -726,7 +727,7 @@ module Transition = (EV: EV_MODE) => {
         })
       | None =>
         let.wrap_closure _ = env;
-        Indet;
+        IndetMatch(rules |> List.map(fst));
       };
     | Closure(env', d) =>
       // HACK [Matt] This ref is a hack to ensure that we don't get into an infinite loop

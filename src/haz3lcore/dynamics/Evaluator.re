@@ -59,7 +59,8 @@ module EvaluatorEVMode: {
       Trampoline.return((Uneval, expr));
     | Constructor
     | Value
-    | Indet => Trampoline.return((Final, c))
+    | Indet
+    | IndetMatch(_) => Trampoline.return((Final, c))
     };
   };
 };

@@ -38,7 +38,8 @@ module ValueCheckerEVMode: {
     switch (r, rule(v)) {
     | (_, Constructor) => r
     | (Expr, Indet) => Expr
-    | (_, Indet) => Indet
+    | (_, Indet)
+    | (_, IndetMatch(_)) => Indet
     | (_, Value) => Value
     | (_, Step(_)) => Expr
     };

@@ -35,13 +35,15 @@ module CastErrCheckerEVMode: {
   let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
     ((h, a, d), rl) => {
       switch (rl(a), Exp.term_of(d)) {
-      | (Indet, FailedCast(_, _, _)) => true
+      | (Indet, FailedCast(_, _, _))
+      | (IndetMatch(_), FailedCast(_, _, _)) => true
       | (Step(_), _) =>
         failwith("Step possible before cast failure checking") // Assume full reduction before instantiation
       // Pattern match on casts to retrieve the type to instantiate the hole
       | (Constructor, _)
       | (Value, _)
-      | (Indet, _) => h
+      | (Indet, _)
+      | (IndetMatch(_), _) => h
       };
     };
 

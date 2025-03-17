@@ -61,8 +61,9 @@ let print =
     (
       switch (inst) {
       | None => "No Hole"
-      | Some((d, None)) => "Hole with no cast"
-      | Some((d, Some(slc))) => "Cast Hole"
+      | Hole(d) => "Hole with no cast/match"
+      | HoleCast(d, slc) => "Cast Hole"
+      | IndetPat(indet, pat) => "Pattern match"
       }
     )
     |> print;
