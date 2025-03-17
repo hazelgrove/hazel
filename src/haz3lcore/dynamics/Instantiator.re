@@ -23,10 +23,7 @@ module InstantiatorEVMode: {
     | (Hole(_), None)
     | (Hole(_), Hole(_)) => h1
     | (Hole(_), _) => h2
-    | (HoleCast(_), None)
-    | (HoleCast(_), Hole(_))
-    | (HoleCast(_), HoleCast(_)) => h1
-    | (HoleCast(_), IndetPat(_)) => h2
+    | (HoleCast(_), _) => h1
     | (IndetPat(_), _) => h1
     };
 
@@ -62,7 +59,7 @@ module InstantiatorEVMode: {
         }
       | (Constructor, _)
       | (Value, _) => h
-      | (IndetMatch(rules, d'), _) => combine(h, IndetPat(d', rules))
+      | (IndetMatch(rules), _) => failwith("TODO: pattern matching")
       | (Indet, _) => combine(h, Hole(d))
       };
     };
@@ -87,7 +84,7 @@ let instantiate = (env, d) => {
   | None
   | Hole(_) => Futures.empty
   | HoleCast(hole, slc) =>
-    Instantiation.(construct_typ(DHExp.rep_id(hole), slc) |> subst(d))
+    Instantiation.(construct(DHExp.rep_id(hole), slc) |> subst(d))
   | IndetPat(indet, pat) =>
     failwith("TODO: Instantiating indets against pattern")
   };

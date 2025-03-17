@@ -98,7 +98,7 @@ type rule =
     })
   | Constructor
   | Indet
-  | IndetMatch(list(DHPat.t), DHExp.t)
+  | IndetMatch(list(DHPat.t))
   | Value;
 
 let (let-unbox) = ((request, v), f) =>
@@ -143,7 +143,7 @@ module Transition = (EV: EV_MODE) => {
 
   let (let.match) = ((env, dp, d), r) =>
     switch (matches(dp, d)) {
-    | IndetMatch => IndetMatch([dp], d)
+    | IndetMatch => IndetMatch([dp])
     | DoesNotMatch => Indet
     | Matches(env') => r(evaluate_extend_env(env', env))
     };
@@ -701,7 +701,7 @@ module Transition = (EV: EV_MODE) => {
       Constructor;
     | Match(d1, rules) =>
       let. _ = otherwise(env, d1 => Match(d1, rules) |> rewrap)
-      and. d1' =
+      and. d1 =
         req_final(
           req(state, env),
           d1 => MatchScrut(d1, rules) |> wrap_ctx,
@@ -711,7 +711,7 @@ module Transition = (EV: EV_MODE) => {
         fun
         | [] => None
         | [(dp, d2), ...rules] =>
-          switch (matches(dp, d1')) {
+          switch (matches(dp, d1)) {
           | Matches(env') => Some((env', d2))
           | DoesNotMatch => next_rule(rules)
           | IndetMatch => None
@@ -727,7 +727,7 @@ module Transition = (EV: EV_MODE) => {
         })
       | None =>
         let.wrap_closure _ = env;
-        IndetMatch(rules |> List.map(fst), d1');
+        IndetMatch(rules |> List.map(fst));
       };
     | Closure(env', d) =>
       // HACK [Matt] This ref is a hack to ensure that we don't get into an infinite loop

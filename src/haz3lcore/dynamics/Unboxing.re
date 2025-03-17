@@ -60,12 +60,94 @@ let fixup_cast = Casts.transition_multiple;
 
 let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
   (request, expr) => {
+    //TODO: move all these to TypSlice
+    let unparens = TypSlice.unparens;
+    let unlist =
+      TypSlice.map_merge(
+        ~drop_incr=true,
+        fun
+        | List(x) => TypSlice.t_of_typ_t(x)
+        | _ => failwith("Not a list"),
+        fun
+        | List(x) => x
+        | _ => failwith("Not a a list"),
+      );
+    let unprod = (s: TypSlice.t) => {
+      let unprod =
+        TypSlice.apply(
+          fun
+          | Prod(tys) => tys |> List.map(TypSlice.t_of_typ_t)
+          | _ => failwith("Not a product"),
+          fun
+          | Prod(ss) => ss
+          | _ => failwith("Not a product"),
+        );
+      let s = TypSlice.term_of(s);
+      switch (s) {
+      | `Typ(_)
+      | `SliceIncr(_) => unprod(s) // Drop incremental slices
+      | `SliceGlobal(_, slice_global) =>
+        unprod(s) |> List.map(TypSlice.wrap_global(slice_global))
+      };
+    };
+
+    let unarrow = (s: TypSlice.t) => {
+      let unarrow =
+        TypSlice.apply(
+          fun
+          | Arrow(ty1, ty2) =>
+            (ty1, ty2) |> TupleUtil.map2(TypSlice.t_of_typ_t)
+          | _ => failwith("Not an arrow"),
+          fun
+          | Arrow(s1, s2) => (s1, s2)
+          | _ => failwith("Not an arrow"),
+        );
+      let s = TypSlice.term_of(s);
+      switch (s) {
+      | `Typ(_)
+      | `SliceIncr(_) => unarrow(s) // Drop incremental slices
+      | `SliceGlobal(_, slice_global) =>
+        unarrow(s) |> TupleUtil.map2(TypSlice.wrap_global(slice_global))
+      };
+    };
+    // get forall term
+    let unforall = (s: TypSlice.t) => {
+      // TODO: Move these into TypSlice.re?
+      let unforall =
+        TypSlice.apply(
+          fun
+          | Forall(tpat, ty) => (tpat, ty |> TypSlice.t_of_typ_t)
+          | _ => failwith("Not a forall"),
+          fun
+          | Forall(tpat, s) => (tpat, s)
+          | _ => failwith("Not a forall"),
+        );
+      let s = TypSlice.term_of(s);
+      switch (s) {
+      | `Typ(_)
+      | `SliceIncr(_) => unforall(s) // Drop incremental slices
+      | `SliceGlobal(_, slice_global) =>
+        unforall(s)
+        |> (((x, y)) => (x, y |> TypSlice.wrap_global(slice_global)))
+      };
+    };
+
+    let get_sum =
+      TypSlice.apply(
+        fun
+        | Sum(m) => m |> ConstructorMap.map_vals(TypSlice.t_of_typ_t)
+        | _ => failwith("Not a sum"),
+        fun
+        | Sum(m) => m
+        | _ => failwith("Not a sum"),
+      );
+
     switch (request, DHExp.term_of(expr)) {
     /* Remove parentheses from casts */
     | (_, Cast(d, s1, s2)) when TypSlice.is_parens(s1) =>
-      unbox(request, Cast(d, TypSlice.unparens(s1), s2) |> DHExp.fresh)
+      unbox(request, Cast(d, unparens(s1), s2) |> DHExp.fresh)
     | (_, Cast(d, s1, s2)) when TypSlice.is_parens(s2) =>
-      unbox(request, Cast(d, s1, TypSlice.unparens(s2)) |> DHExp.fresh)
+      unbox(request, Cast(d, s1, unparens(s2)) |> DHExp.fresh)
     /* Base types are always already unboxed because of the ITCastID rule*/
     | (Bool, Bool(b)) => Matches(b)
     | (Int, Int(i)) => Matches(i)
@@ -84,11 +166,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       // TODO: consider if incremental slices on the list should be retained or not here. (currently not)
       let* l = unbox(List, l);
       let l =
-        List.map(
-          d =>
-            Cast(d, TypSlice.unlist(s1), TypSlice.unlist(s2)) |> DHExp.fresh,
-          l,
-        );
+        List.map(d => Cast(d, unlist(s1), unlist(s2)) |> DHExp.fresh, l);
       let l = List.map(fixup_cast, l);
       Matches(l);
     | (Cons, Cast(l, s1, s2))
@@ -100,9 +178,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | [] => DoesNotMatch
       | [x, ...xs] =>
         Matches((
-          Cast(x, TypSlice.unlist(s1), TypSlice.unlist(s2))
-          |> DHExp.fresh
-          |> fixup_cast,
+          Cast(x, unlist(s1), unlist(s2)) |> DHExp.fresh |> fixup_cast,
           Cast(ListLit(xs) |> DHExp.fresh, s1, s2) |> DHExp.fresh,
         ))
       };
@@ -111,10 +187,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Tuple(n), Tuple(t)) when List.length(t) == n => Matches(t)
     | (Tuple(_), Tuple(_)) => DoesNotMatch
     | (Tuple(n), Cast(t, s1, s2))
-        when
-          n == List.length(TypSlice.unprod(s1))
-          && n == List.length(TypSlice.unprod(s2)) =>
-      let (s1s, s2s) = (TypSlice.unprod(s1), TypSlice.unprod(s2));
+        when n == List.length(unprod(s1)) && n == List.length(unprod(s2)) =>
+      let (s1s, s2s) = (unprod(s1), unprod(s2));
       let* t = unbox(Tuple(n), t);
       let t =
         ListUtil.map3(
@@ -137,11 +211,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
           TypSlice.is_sum(~ignore_parens=false, s1)
           && TypSlice.is_sum(~ignore_parens=false, s2)
           && (
-            ConstructorMap.has_constructor_no_args(
-              name,
-              TypSlice.get_sum(s2.term),
-            )
-            || ConstructorMap.has_bad_entry(TypSlice.get_sum(s2.term))
+            ConstructorMap.has_constructor_no_args(name, get_sum(s2.term))
+            || ConstructorMap.has_bad_entry(get_sum(s2.term))
           ) =>
       let* d1 = unbox(SumNoArg(name), d1);
       Matches(d1);
@@ -164,8 +235,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         | None => None
         };
       switch (
-        get_entry_or_bad(TypSlice.get_sum(s1.term)),
-        get_entry_or_bad(TypSlice.get_sum(s2.term)),
+        get_entry_or_bad(get_sum(s1.term)),
+        get_entry_or_bad(get_sum(s2.term)),
       ) {
       | (Some(x), Some(y)) =>
         let* d1 = unbox(SumWithArg(name), d1);
@@ -180,10 +251,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       Matches(FunEnv(dp, d3, env'))
     | (Fun, Cast(d3', s1, s2))
         when TypSlice.is_arrow(s1) && TypSlice.is_arrow(s2) =>
-      let ((s1, s2), (s1', s2')) = (
-        TypSlice.unarrow(s1),
-        TypSlice.unarrow(s2),
-      );
+      let ((s1, s2), (s1', s2')) = (unarrow(s1), unarrow(s2));
       Matches(FunCast(d3', s1, s2, s1', s2'));
     | (Fun, BuiltinFun(name)) => Matches(BuiltinFun(name))
     | (Fun, DeferredAp(d1, ds)) => Matches(DeferredAp(d1, ds))
@@ -194,10 +262,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     // Note: We might be able to handle this cast like other casts
     | (TypFun, Cast(d'', s1, s2))
         when TypSlice.is_forall(s1) && TypSlice.is_forall(s2) =>
-      let ((tp1, s1'), (tp2, s2')) = (
-        TypSlice.unforall(s1),
-        TypSlice.unforall(s2),
-      );
+      let ((tp1, s1'), (tp2, s2')) = (unforall(s1), unforall(s2));
       Matches(TFunCast(d'', tp1, s1', tp2, s2'));
 
     /* Any cast from unknown is indet */
