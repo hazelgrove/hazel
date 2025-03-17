@@ -7,7 +7,8 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 1.2em;
+  /* gap: 1.2em; */
+  gap: 0;
   background-color: var(--ui-bkg) !important;
   ;
 }
@@ -293,7 +294,8 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
   font-size: 16px;
   color: #333;
-  max-width: 200px;
+  max-width: 600px;
+  gap: 2em;
   /* height: 75px; */
 }
 
@@ -302,7 +304,7 @@
   color: #d39e00;
   /* Darker yellow */
   font-size: 15px;
-  margin-bottom: 5px;
+  margin-bottom: 2px;
 }
 
 .hint-content {
@@ -322,7 +324,7 @@
   vertical-align: top;
 }
 
-.next-button {
+/* .next-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -330,16 +332,16 @@
   font-size: 32px;
   font-weight: bold;
   color: white;
-  background-color: #007bff; /* Blue background */
+  background-color: #007bff; 
   border-radius: 5px;
   cursor: pointer;
   transition: background-color 0.3s ease, transform 0.2s ease;
   text-decoration: none;
   user-select: none;
-}
-
+} */
+/* 
 .next-button:hover {
-  background-color: #0056b3; /* Darker blue */
+  background-color: #0056b3;
   transform: scale(1.05);
 }
 
@@ -349,7 +351,103 @@
 
 
 .next-button::after {
-  content: "➡"; /* Unicode for a bigger right arrow */
-  font-size: 40px; /* Make the arrow even bigger */
+  content: "➡"; 
+  font-size: 40px; 
   margin-left: 10px;
+} */
+
+#main.Tutorial .title-cell {
+  display: flex;
+  align-items: flex-start; /* Align to the left */
+  justify-content: flex-start;
+  width: 100%;
+  padding: 0 !important;
+  margin: 0 !important;
 }
+
+#main.Tutorial .title-cell .title-text {
+  font-size: 2rem;
+  font-weight: bold;
+  color: var(--BR4);
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+
+/* #main.Tutorial .description {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+#main.Tutorial .title-cell {
+  margin-bottom: 0 !important; 
+  padding-bottom: 0 !important;
+} */
+
+/* #main.Tutorial .description {
+  margin-top: 0 !important;  
+  margin-bottom: 0 !important; 
+  padding: 0 !important;
+} */
+
+#main.Tutorial .cell {
+  width: 100%;
+  text-align: left;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* #main.Tutorial .cell>* {
+  padding: 0 !important;
+} */
+
+/* #main.Tutorial .cell-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0.5em; 
+  padding: 0 !important;
+  margin: 0 !important;
+} */
+
+/* #main.Tutorial .cell:has(.code-editor.selected) {
+  background-color: var(--cell-active);
+  padding: 0 !important;
+} */
+
+/* #main.Tutorial .tutorial-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;  
+  gap: 0.2em;  
+} */
+
+
+#main.Tutorial .title-cell {
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+#main.Tutorial .description {
+  margin-top: 0 !important;
+  margin-bottom: 0.2em !important;
+  padding: 0 !important;
+}
+#main.Tutorial .tutorial-content {
+  display: flex;
+  flex-direction: column;
+  gap: .5em; /* Adjusts space between sections */
+}
+
+/* Reduce spacing between title and description */
+#main.Tutorial .tutorial-header {
+  margin-bottom: 5em !important;
+  padding-bottom: 5em !important;
+  max-width: 600px;
+  margin-bottom: 0.2em !important;
+  gap: 2em;
+}
+
+

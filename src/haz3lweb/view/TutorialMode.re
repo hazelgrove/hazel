@@ -480,14 +480,14 @@ module View = {
                         ),
                       ],
                     ),
-                    div(
-                      ~attrs=[Attr.class_("next-button")],
-                      [
-                        Widgets.button(Icons.info, _ =>
-                          inject(MoveToNextExercise)
-                        ),
-                      ],
-                    ),
+                    // div(
+                    //   ~attrs=[Attr.class_("next-button")],
+                    //   [
+                    //     Widgets.button(Icons.info, _ =>
+                    //       inject(MoveToNextExercise)
+                    //     ),
+                    //   ],
+                    // ),
                     // ],
                     // ),
                   ],
@@ -537,16 +537,37 @@ module View = {
           );
         },
       );
-    [title_view, prompt_view, hint_view]
-    @ render_cells(
-        globals.settings,
-        []
-        @ [
-          your_impl_view,
-          // raw_result_view,
-          hidden_tests_view,
-          impl_grading_view,
-        ],
+    let tutorial_header =
+      div(
+        ~attrs=[Attr.class_("tutorial-header")],
+        [title_view, prompt_view, hint_view]
+        @ render_cells(
+            globals.settings,
+            [your_impl_view, hidden_tests_view, impl_grading_view],
+          ),
       );
+    // let tutorial_body =
+    //   div(
+    //     ~attrs=[Attr.class_("tutorial-body")],
+    //     render_cells(
+    //       globals.settings,
+    //       [your_impl_view, hidden_tests_view, impl_grading_view],
+    //     ),
+    //   );
+    // let tutorial_content = div(
+    //   ~attrs=[Attr.class_("tutorial-content")],
+    //   [tutorial_header, tutorial_body]
+    // );
+    [tutorial_header];
+    // @ render_cells(
+    //     globals.settings,
+    //     []
+    //     @ [
+    //       your_impl_view,
+    //       // raw_result_view,
+    //       hidden_tests_view,
+    //       impl_grading_view,
+    //     ],
+    //   );
   };
 };
