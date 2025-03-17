@@ -31,50 +31,40 @@ let char_lits =
 let string_lits = char_lits; // TODO: all strings, this is a huge state space though...
 
 let fresh_hole = () => DHExp.hole([]) |> DHExp.fresh;
-let rec enum_typ: TypSlice.t => Futures.t =
-  slc => {
-    switch (TypSlice.typ_term_of(slc)) {
-    | Var(_) => failwith("Expeted normalised types during instantiation")
-    | Unknown(_) => fresh_hole() |> singleton
-    | Bool => bool_lits
-    | Int => int_lits
-    | Float => float_lits
-    | String => string_lits
-    | Parens(_) => enum_typ(TypSlice.unparens(slc))
-    // NOTE: Arrow instantiation only produces constant functions, are there situations where a constant function is not enough?
-    | Arrow(_, _) =>
-      Fun(EmptyHole |> DHPat.fresh, fresh_hole(), None, None)
-      |> DHExp.fresh
-      |> singleton // TODO: Check casting logic for potential need for re-elaboration?
-    | List(_) =>
-      Sequence.of_list([
-        ListLit([]) |> DHExp.fresh,
-        Cons(
-          fresh_hole(),
-          Cast(fresh_hole(), TypSlice.hole([]) |> TypSlice.fresh, slc)
-          |> DHExp.fresh,
-        )
-        |> DHExp.fresh,
-      ])
-    | Prod(ts) =>
-      Tuple(List.init(List.length(ts), _ => fresh_hole()))
-      |> DHExp.fresh
-      |> singleton
-    | Sum(_) => failwith("TODO")
-    | Ap(_)
-    | Forall(_)
-    | Rec(_) => failwith("Extension Task") // Normalised types should mean these aren't even needed much?
-    };
-  };
-//TODO: Instantiation from a pattern:
-let rec enum_pat: DHPat.t => Futures.t =
+let rec enum_typ: Typ.term => Futures.t =
   fun
-  | _ => failwith("TODO");
+  | Var(_) => failwith("Expeted normalised types during instantiation")
+  | Unknown(_) => fresh_hole() |> singleton
+  | Bool => bool_lits
+  | Int => int_lits
+  | Float => float_lits
+  | String => string_lits
+  | Parens(t) => enum_typ(Typ.term_of(t))
+  // NOTE: Arrow instantiation only produces constant functions, are there situations where a constant function is not enough?
+  | Arrow(_, _) =>
+    Fun(EmptyHole |> DHPat.fresh, fresh_hole(), None, None)
+    |> DHExp.fresh
+    |> singleton // TODO: Check casting logic for potential need for re-elaboration?
+  | List(_) =>
+    unfold_step(~init=0, ~f=i =>
+      Yield({
+        value: ListLit(List.init(i, _ => fresh_hole())) |> DHExp.fresh,
+        state: i + 1,
+      })
+    )
+  | Prod(ts) =>
+    Tuple(List.init(List.length(ts), _ => fresh_hole()))
+    |> DHExp.fresh
+    |> singleton
+  | Sum(_) => failwith("TODO")
+  | Ap(_)
+  | Forall(_)
+  | Rec(_) => failwith("Extension Task"); // Normalised types should mean these aren't even needed much?
 
 let construct = (hole_id: Id.t, slice: TypSlice.t) => {
   hole_id,
   slice,
-  enum: enum_typ(slice),
+  enum: enum_typ(slice |> TypSlice.typ_term_of),
 };
 
 // Substitutes all terms with a rep_id corresponding to the hole id to give every possible instantiation
