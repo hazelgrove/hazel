@@ -410,6 +410,14 @@ let rec t_of_typ_t_sliced = ({ids, _} as ty: Typ.t): t => {
   |> rewrap;
 };
 
+// Creates a slice from the ids of a pat_t annotation.
+// Dynamic patterns contain all required information to be a type
+let t_of_annot = ({term, _}: TermBase.Pat.t): t =>
+  switch (term) {
+  | Cast(_, t1, _) => t1
+  | _ => failwith("Not an annotation")
+  };
+
 let t_of_slc_typ_t = (ty: slc_typ_t): t => {
   let (ty, rewrap) = ty |> IdTagged.unwrap;
   `SliceIncr((Slice(ty): typslc_typ_term, empty_slice_incr)) |> rewrap;

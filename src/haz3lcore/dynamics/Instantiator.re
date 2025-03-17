@@ -1,22 +1,36 @@
 open Transition;
 
+// Instantiate Holes within casts by using type information
+// Match scrutinee terms which are note within casts can have multiple valid types. Nondeterministically add these annotations
+type inst_cls =
+  | None
+  | Hole(DHExp.t)
+  | HoleCast(DHExp.t, TypSlice.t)
+  | Match(DHExp.t, list(TypSlice.t));
+
 // Locates the cast term to instantiate and extracts the hole's rep_id and cast's return type slice
 module InstantiatorEVMode: {
-  include
-    EV_MODE with
-      type result = option((DHExp.t, option(TypSlice.t))) and
-      type state = unit;
+  include EV_MODE with type result = inst_cls and type state = unit;
 } = {
   type state = unit;
-  type result = option((DHExp.t, option(TypSlice.t)));
+  type result = inst_cls;
 
   type requirement('a) = (result, 'a);
   type requirements('a, 'b) = (result, 'a, 'b);
 
+  // Precedence combining holes -> matches -> casts
+  // Important that holes on the left side takes precedence (so first hole term found is propagated)
   let combine = (h1: result, h2: result): result =>
-    switch (h1) {
-    | Some(d) => Some(d)
-    | None => h2
+    switch (h1, h2) {
+    | (None, _) => h2
+    | (Hole(_), None)
+    | (Hole(_), Hole(_)) => h1
+    | (Hole(_), _) => h2
+    | (Match(_), None)
+    | (Match(_), Hole(_))
+    | (Match(_), Match(_)) => h1
+    | (Match(_), HoleCast(_)) => h2
+    | (HoleCast(_), _) => h1
     };
 
   let req_final:
@@ -43,11 +57,19 @@ module InstantiatorEVMode: {
       | (Step(_), _) => failwith("Step possible before hole instantiation") // Assume full reduction before instantiation
       // Pattern match on casts to retrieve the type to instantiate the hole
       | (Constructor, Cast(d', t1, t2))
-          when Some((d', None)) == h && TypSlice.is_unknown(t1) =>
-        Some((d', Some(t2))) // Note: t1 should always be unknown, but checking to be safe
+          when Hole(d') == h && TypSlice.is_unknown(t1) =>
+        HoleCast(d', t2) // Note: t1 should always be unknown, but checking to be safe
       | (Constructor, _)
       | (Value, _) => h
-      | (Indet, _) => combine(h, Some((d, None)))
+      | (Indet, Match(d', branches)) =>
+        combine(
+          h,
+          Match(
+            d',
+            branches |> List.map(fst) |> List.map(TypSlice.t_of_annot) // TODO: Remove duplicates
+          ),
+        )
+      | (Indet, _) => combine(h, Hole(d))
       };
     };
 
@@ -69,8 +91,15 @@ let instantiate = (env, d) => {
   let env = ClosureEnvironment.of_environment(env);
   switch (find((), env, d)) {
   | None
-  | Some((_, None)) => Futures.empty
-  | Some((hole, Some(slc))) =>
+  | Hole(_) => Futures.empty
+  | HoleCast(hole, slc) =>
     Instantiation.(construct(DHExp.rep_id(hole), slc) |> subst(d))
+  // All indet match scrutinees which did not contain inner hole casts must be holes/errors. So substitution by id will work.
+  | Match(hole, slcs) =>
+    Instantiation.(
+      annotations(hole, slcs)
+      |> List.map(subst(d))
+      |> Util.Sequence.round_robin
+    )
   };
 };

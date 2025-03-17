@@ -31,6 +31,7 @@ let char_lits =
 let string_lits = char_lits; // TODO: all strings, this is a huge state space though...
 
 let fresh_hole = () => DHExp.hole([]) |> DHExp.fresh;
+let fresh_hole_slice = () => TypSlice.hole([]) |> TypSlice.fresh;
 let rec enum_typ: Typ.term => Futures.t =
   fun
   | Var(_) => failwith("Expeted normalised types during instantiation")
@@ -67,6 +68,17 @@ let construct = (hole_id: Id.t, slice: TypSlice.t) => {
   enum: enum_typ(slice |> TypSlice.typ_term_of),
 };
 
+let annotations = (d: DHExp.t, slices) => {
+  slices
+  |> List.map(slice =>
+       {
+         hole_id: DHExp.rep_id(d),
+         slice,
+         enum: Cast(d, fresh_hole_slice(), slice) |> DHExp.fresh |> singleton,
+       }
+     );
+};
+
 // Substitutes all terms with a rep_id corresponding to the hole id to give every possible instantiation
 // Wrapping in a cast from the slice to the hole type to allow evaluation to proceed
 // i.e. ? : ? -> Int may instantiate to 0 : Int -> ? -> Int
@@ -74,12 +86,17 @@ let construct = (hole_id: Id.t, slice: TypSlice.t) => {
 // The holes may also exist inside the closures, so must be substituted there too
 // Also evaluate the substitutions within closures in order to maintain that closures only contain values. (Somewhat inefficient)
 let subst = (d, {hole_id, enum, slice}) => {
+  print_endline(
+    "ATTEMPTING SUBST: "
+    ++ Id.show(hole_id)
+    ++ "\nInserting "
+    ++ TypSlice.show(slice),
+  );
   let rec subst_term = (d', d) =>
     d
     |> DHExp.map_term(~f_exp=(continue, d'') =>
          DHExp.rep_id(d'') == hole_id
-           ? Cast(d', slice, TypSlice.hole([]) |> TypSlice.fresh)
-             |> DHExp.fresh
+           ? Cast(d', slice, fresh_hole_slice()) |> DHExp.fresh
            : (
              switch (DHExp.term_of(d'')) {
              | Closure(env, d) => {
