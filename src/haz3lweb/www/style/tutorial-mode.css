@@ -294,7 +294,7 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
   font-size: 16px;
   color: #333;
-  max-width: 600px;
+  max-width: 100%;
   gap: 2em;
   /* height: 75px; */
 }
@@ -445,7 +445,7 @@
 #main.Tutorial .tutorial-header {
   margin-bottom: 5em !important;
   padding-bottom: 5em !important;
-  max-width: 600px;
+  max-width: 100%;
   margin-bottom: 0.2em !important;
   gap: 2em;
 }
