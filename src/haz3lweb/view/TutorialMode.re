@@ -459,11 +459,11 @@ module View = {
       };
     let impl_grading_view =
       Always(
-        if (test_count == 1) {
+        if (test_count > 0) {
           let checkmark_view =
             switch (Tutorial.get_stitched(HiddenTests, stitched_tests)) {
             | Some(test_results) =>
-              if (test_results.total == 1 && test_results.passing == 1) {
+              if (test_results.total == test_results.passing) {
                 // ✅ Test case has passed -> Show check mark next to hint with a button
                 div(
                   ~attrs=[Attr.class_("checkmark-container")],
