@@ -63,7 +63,7 @@ let print =
       | None => "No Hole"
       | Hole(d) => "Hole with no cast/match"
       | HoleCast(d, slc) => "Cast Hole"
-      | IndetPat(indet, pat) => "Pattern match"
+      | IndetPat(indet, pat) => "Pattern match: " ++ DHExp.show(indet)
       }
     )
     |> print;

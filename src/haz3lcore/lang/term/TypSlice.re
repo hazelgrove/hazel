@@ -982,6 +982,84 @@ let unparens =
     | _ => failwith("Not a parens"),
   );
 
+let unlist =
+  map_merge(
+    ~drop_incr=true,
+    fun
+    | List(x) => t_of_typ_t(x)
+    | _ => failwith("Not a list"),
+    fun
+    | List(x) => x
+    | _ => failwith("Not a a list"),
+  );
+let unprod = (s: t) => {
+  let unprod =
+    apply(
+      fun
+      | Prod(tys) => tys |> List.map(t_of_typ_t)
+      | _ => failwith("Not a product"),
+      fun
+      | Prod(ss) => ss
+      | _ => failwith("Not a product"),
+    );
+  let s = term_of(s);
+  switch (s) {
+  | `Typ(_)
+  | `SliceIncr(_) => unprod(s) // Drop incremental slices
+  | `SliceGlobal(_, slice_global) =>
+    unprod(s) |> List.map(wrap_global(slice_global))
+  };
+};
+
+let unarrow = (s: t) => {
+  let unarrow =
+    apply(
+      fun
+      | Arrow(ty1, ty2) => (ty1, ty2) |> TupleUtil.map2(t_of_typ_t)
+      | _ => failwith("Not an arrow"),
+      fun
+      | Arrow(s1, s2) => (s1, s2)
+      | _ => failwith("Not an arrow"),
+    );
+  let s = term_of(s);
+  switch (s) {
+  | `Typ(_)
+  | `SliceIncr(_) => unarrow(s) // Drop incremental slices
+  | `SliceGlobal(_, slice_global) =>
+    unarrow(s) |> TupleUtil.map2(wrap_global(slice_global))
+  };
+};
+// get forall term
+let unforall = (s: t) => {
+  // TODO: Move these into TypSlice.re?
+  let unforall =
+    apply(
+      fun
+      | Forall(tpat, ty) => (tpat, ty |> t_of_typ_t)
+      | _ => failwith("Not a forall"),
+      fun
+      | Forall(tpat, s) => (tpat, s)
+      | _ => failwith("Not a forall"),
+    );
+  let s = term_of(s);
+  switch (s) {
+  | `Typ(_)
+  | `SliceIncr(_) => unforall(s) // Drop incremental slices
+  | `SliceGlobal(_, slice_global) =>
+    unforall(s) |> (((x, y)) => (x, y |> wrap_global(slice_global)))
+  };
+};
+
+let get_sum =
+  apply(
+    fun
+    | Sum(m) => m |> ConstructorMap.map_vals(t_of_typ_t)
+    | _ => failwith("Not a sum"),
+    fun
+    | Sum(m) => m
+    | _ => failwith("Not a sum"),
+  );
+
 // Normalisation
 let rec weak_head_normalize = (ctx: Ctx.t, s: t): t => {
   let (_, rewrap) = s |> IdTagged.unwrap;
