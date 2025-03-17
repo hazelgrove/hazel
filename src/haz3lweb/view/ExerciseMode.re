@@ -36,7 +36,10 @@ module Model = {
       CellEditor.Model.mk_from_manager(item.editor);
     };
     let term_of = (editor: EditorManager.Model.t): Exp.t =>
-      (EditorManager.Update.assemble(editor) |> MakeTerm.go).term;
+      switch (EditorManager.Update.mk_term(editor.root_id, editor)) {
+      | Exp(term) => term
+      | t => failwith("ExerciseMode: Not root?" ++ Any.show(t))
+      };
     let cells =
       Exercise.stitch_term(term_of, editors)
       |> Exercise.map_stitched(_ => term_item_to_cell);
@@ -191,7 +194,10 @@ module Update = {
   let calculate =
       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
     let term_of = (editor: EditorManager.Model.t): Exp.t =>
-      (EditorManager.Update.assemble(editor) |> MakeTerm.go).term;
+      switch (EditorManager.Update.mk_term(editor.root_id, editor)) {
+      | Exp(term) => term
+      | t => failwith("ExerciseMode: calculate: Not root?" ++ Any.show(t))
+      };
     let stitched_elabs = Exercise.stitch_term(term_of, model.editors);
     let worker_request = ref([]);
     let queue_worker = (pos, expr) => {

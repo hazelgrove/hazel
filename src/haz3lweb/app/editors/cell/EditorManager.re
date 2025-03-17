@@ -149,7 +149,7 @@ module Update = {
     };
   };
 
-  let assemble = Model.assemble;
+  //let assemble = Model.assemble;
   //TODO(andrew):
   let mk_trad_map = components =>
     List.filter_map(EditorManagerModel.component_to_trad, components)

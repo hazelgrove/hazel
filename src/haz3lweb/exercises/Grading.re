@@ -403,7 +403,10 @@ module SyntaxReport = {
 
   let mk = (~your_impl: EditorManager.Model.t, ~tests: syntax_tests): t => {
     let user_impl_term =
-      (your_impl |> EditorManager.Update.assemble |> MakeTerm.go).term;
+      switch (EditorManager.Update.mk_term(your_impl.root_id, your_impl)) {
+      | Exp(term) => term
+      | t => failwith("Grading: Not root?" ++ Any.show(t))
+      };
     let predicates =
       List.map(((_, p)) => SyntaxTest.predicate_fn(p), tests);
     let hints = List.map(((h, _)) => h, tests);

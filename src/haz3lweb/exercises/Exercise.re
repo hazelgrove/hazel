@@ -552,7 +552,9 @@ let export_module = (module_name, {eds, _}: state) => {
 };
 
 let transitionary_editor_pp = (fmt, editor: EditorManagerModel.t) => {
-  let zipper = EditorManagerModel.assemble(editor);
+  //TODO(andrew): below is bullshit
+  let zipper =
+    EditorManagerModel.get_root_editor(editor).state.zipper |> Zipper.zip;
   let code = Printer.to_string_basic(zipper |> Zipper.unzip);
   Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
 };
