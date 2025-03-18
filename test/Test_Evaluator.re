@@ -874,5 +874,24 @@ in fn("hello")|},
         ),
       )
     ),
+    test_case(
+      "melted list of labeled tuples with multiple entries", `Quick, () =>
+      check(
+        dhexp_typ,
+        {|melt('column', 'value', [(quiz1=12, quiz2=8, quiz3=9, quiz4=77), (quiz1=12, quiz2=8, quiz3=12, quiz4=77)])|},
+        parse_exp(
+          {|[(column="quiz1", value=12), (column="quiz2", value=8), (column="quiz3", value=9), (column="quiz4", value=77), (column="quiz1", value=12), (column="quiz2", value=8), (column="quiz3", value=12), (column="quiz4", value=77)]|},
+        ),
+        DHExp.strip_casts(
+          evaluate(
+            elaborate(
+              parse_exp(
+                {|melt('column', 'val', [(quiz1=12, quiz2=8, quiz3=9, quiz4=77), (quiz1=12, quiz2=8, quiz3=12, quiz4=77)])|},
+              ),
+            ),
+          ),
+        ),
+      )
+    ),
   ],
 );
