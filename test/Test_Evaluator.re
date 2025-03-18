@@ -886,7 +886,7 @@ in fn("hello")|},
           evaluate(
             elaborate(
               parse_exp(
-                {|melt('column', 'val', [(quiz1=12, quiz2=8, quiz3=9, quiz4=77), (quiz1=12, quiz2=8, quiz3=12, quiz4=77)])|},
+                {|melt('column', 'value', [(quiz1=12, quiz2=8, quiz3=9, quiz4=77), (quiz1=12, quiz2=8, quiz3=12, quiz4=77)])|},
               ),
             ),
           ),
