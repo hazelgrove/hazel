@@ -46,7 +46,7 @@ let nibs =
     },
     t => Some(Tile.nibs(t)),
     p => {
-      let (l, r) = ProjectorBase.shapes(p);
+      let (l, r) = ProjectorCore.shapes(p);
       Some(
         Nib.(
           {
@@ -103,7 +103,7 @@ let shapes =
     _ => None,
     g => Some(Grout.shapes(g)),
     t => Some(Tile.shapes(t)),
-    p => Some(ProjectorBase.shapes(p)),
+    p => Some(ProjectorCore.shapes(p)),
   );
 
 let is_convex = (p: t): bool =>
