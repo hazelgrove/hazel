@@ -49,7 +49,8 @@ type unbox_request('a) =
   | Fun: unbox_request(unboxed_fun)
   | TupleElementPivot(LabeledTuple.label)
     : unbox_request((LabeledTuple.label, list(DHExp.t)))
-  | LabeledTupleProjection(LabeledTuple.label): unbox_request(DHExp.t);
+  | LabeledTupleProjection(LabeledTuple.label): unbox_request(DHExp.t)
+  | LabeledTupleEntries: unbox_request(list((LabeledTuple.label, DHExp.t)));
 
 [@deriving (show({with_path: false}), eq)]
 type unboxed('a) =
@@ -169,6 +170,39 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | None => DoesNotMatch
       | Some(a) => Matches(a)
       };
+    | (LabeledTupleEntries, Cast(d, _, {term: Unknown(_), _})) =>
+      unbox(request, d)
+    | (LabeledTupleEntries, Cast(d, ty1, ty2))
+        when Typ.is_consistent(Ctx.empty_pre_elaboration, ty1, ty2) =>
+      // TODO: This is a hack. We need a better way to handle this than an empty context.
+      unbox(request, d)
+    | (LabeledTupleEntries, Tuple(ds)) =>
+      let rec strip_outer_casts = (d: Exp.t) => {
+        switch (d.term) {
+        | Cast(d, t1, t2)
+            when Typ.is_consistent(Ctx.empty_pre_elaboration, t1, t2) =>
+          strip_outer_casts(d)
+        | _ =>
+          print_endline("Leaving alone: " ++ Exp.show(d));
+          d;
+        };
+      };
+      let entries =
+        List.map(
+          (d: Exp.t) =>
+            switch (strip_outer_casts(d).term) {
+            | TupLabel({term: Label(l), _}, e) => Some((l, e))
+            | _ => None
+            },
+          ds,
+        )
+        |> OptUtil.sequence;
+
+      switch (entries) {
+      | Some(entries) => Matches(entries)
+      | None => DoesNotMatch
+      };
+
     /* Base types are always already unboxed because of the ITCastID rule*/
     | (Atom(r), Atom(x)) =>
       switch (Atom.unbox(r, x)) {
@@ -349,6 +383,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         raise(EvaluatorError.Exception(InvalidBoxedTuple(expr))) // todo: better error message
       | LabeledTupleProjection(_) =>
         raise(EvaluatorError.Exception(InvalidBoxedTuple(expr))) // todo: better error message
+      | LabeledTupleEntries =>
+        print_endline(Exp.show(expr));
+        raise(EvaluatorError.Exception(InvalidBoxedTuple(expr))); // todo: better error message
       }
 
     /* Forms that are not yet or will never be a value */

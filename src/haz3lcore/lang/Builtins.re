@@ -366,7 +366,8 @@ module Pervasives = {
              switch (lab.term) {
              | Label(name) =>
                let-unbox l = (ListLit, d);
-               let unboxed: option(list((string, list(TermBase.exp_t)))) =
+               let unboxed:
+                 option(list((LabeledTuple.label, list(TermBase.exp_t)))) =
                  List.map(
                    e => {
                      let-unbox (name, es) = (TupleElementPivot(name), e);
@@ -386,6 +387,50 @@ module Pervasives = {
                  unboxed,
                )
                |> Option.map(Fresh.Exp.tuple);
+             | _ => None
+             }
+           }),
+         )
+      |> fn(
+           "melt",
+           Prod([
+             unknown(Internal),
+             unknown(Internal),
+             list(unknown(Internal)),
+           ]),
+           Unknown(Internal),
+           ternary((col_lab: DHExp.t, val_lab: DHExp.t, d: DHExp.t) => {
+             switch (col_lab.term, val_lab.term) {
+             | (Label(col_lab), Label(val_lab)) =>
+               let-unbox l = (ListLit, d);
+               let bar =
+                 List.map(
+                   e => {
+                     let-unbox entries = (LabeledTupleEntries, e);
+
+                     Some(
+                       List.map(
+                         ((name, e)) =>
+                           IdTagged.FreshGrammar.Exp.(
+                             tuple([
+                               tup_label(label(col_lab), string(name)),
+                               tup_label(label(val_lab), e),
+                             ])
+                           ),
+                         entries,
+                       ),
+                     );
+                   },
+                   l,
+                 );
+
+               let unboxed =
+                 bar
+                 |> Util.OptUtil.sequence
+                 |> Option.map(List.flatten)
+                 |> Option.map(IdTagged.FreshGrammar.Exp.list_lit);
+
+               unboxed;
              | _ => None
              }
            }),
