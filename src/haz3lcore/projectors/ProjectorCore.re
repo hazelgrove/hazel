@@ -138,3 +138,5 @@ module Shape = {
       };
   };
 };
+/* Projectors currently are all convex */
+let shapes = (_: t('a)): Nibs.shapes => Nib.Shape.(Convex, Convex);
