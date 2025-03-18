@@ -16,7 +16,7 @@ module Kind = {
   /* The different kinds of projector. New projector
    * types need to be registered here in order to be
    * able to create and update their instances */
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
     | Fold
     | Info
@@ -70,7 +70,7 @@ module Kind = {
 };
 
 /* Projectors in syntax */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t('syntax) = {
   id: Id.t,
   kind: Kind.t,
@@ -97,7 +97,7 @@ module Shape = {
    * if there are multiple Tab projectors on a line, the
    * total extra linebreaks inserted is the maxium required
    * to accomodate them */
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type vertical =
     | Inline
     | Tab(int)
