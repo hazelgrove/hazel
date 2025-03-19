@@ -115,13 +115,22 @@ module Update = {
     | SendSketchMessage(Id.t, AssistantSettings.mode)
     | SendErrorMessage(
         string,
+        Zipper.t,
         Info.t,
         int,
         Id.t,
         AssistantSettings.mode,
         Id.t,
       )
-    | ErrorRespond(string, Info.t, int, Id.t, AssistantSettings.mode, Id.t)
+    | ErrorRespond(
+        string,
+        Zipper.t,
+        Info.t,
+        int,
+        Id.t,
+        AssistantSettings.mode,
+        Id.t,
+      )
     | Respond(Model.message, AssistantSettings.mode, Id.t)
     | SetKey(string)
     | NewChat
@@ -656,6 +665,7 @@ module Update = {
               schedule_action(
                 ErrorRespond(
                   content,
+                  editor.editor.state.zipper,
                   ci,
                   ChatLSP.Options.init.error_rounds_max,
                   tileId,
@@ -693,7 +703,7 @@ module Update = {
           |> Updated.return_quiet
         };
       };
-    | ErrorRespond(response, ci, fuel, tileId, mode, chat_id) =>
+    | ErrorRespond(response, sketch_z, ci, fuel, tileId, mode, chat_id) =>
       // Split response into discussion and completion
       let code_pattern =
         Str.regexp(
@@ -712,7 +722,15 @@ module Update = {
       print_endline("Discussion: " ++ discussion);
       print_endline("Completion: " ++ completion);
       // First add the discussion message
-      let discussion_message = text_message_of_str(discussion, LLM);
+      let discussion_message =
+        if (discussion === "") {
+          text_message_of_str(
+            "The model did not return a discussion for this completion.",
+            LLM,
+          );
+        } else {
+          text_message_of_str(discussion, LLM);
+        };
       let model_with_discussion =
         add_message_to_model(
           mode,
@@ -725,7 +743,7 @@ module Update = {
       // Then handle the completion as before
       let completion_message =
         code_message_of_str(completion, LLM, Some(tileId));
-      switch (ChatLSP.Prompt.mk_error(ci, completion)) {
+      switch (ChatLSP.Prompt.mk_error(ci, sketch_z, completion)) {
       | None =>
         print_endline("ERROR ROUNDS (Non-error Response): " ++ completion);
         check_descriptor(
@@ -742,7 +760,15 @@ module Update = {
           "ERROR ROUNDS (Error-causing Response): " ++ completion,
         );
         schedule_action(
-          SendErrorMessage(error, ci, fuel - 1, tileId, mode, chat_id),
+          SendErrorMessage(
+            error,
+            sketch_z,
+            ci,
+            fuel - 1,
+            tileId,
+            mode,
+            chat_id,
+          ),
         );
       };
       add_message_to_model(
@@ -753,7 +779,7 @@ module Update = {
         ~is_final=true,
       )
       |> Updated.return_quiet;
-    | SendErrorMessage(error, ci, fuel, tileId, mode, chat_id) =>
+    | SendErrorMessage(error, sketch_z, ci, fuel, tileId, mode, chat_id) =>
       let error_message =
         text_message_of_str(
           "Your previous response caused the following error. Please fix it in your response: "
@@ -821,7 +847,15 @@ module Update = {
               switch (OpenRouter.handle_chat(req)) {
               | Some({content, _}) =>
                 schedule_action(
-                  ErrorRespond(content, ci, fuel, tileId, mode, curr_chat.id),
+                  ErrorRespond(
+                    content,
+                    sketch_z,
+                    ci,
+                    fuel,
+                    tileId,
+                    mode,
+                    curr_chat.id,
+                  ),
                 )
               | None =>
                 print_endline(

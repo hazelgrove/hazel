@@ -1,6 +1,7 @@
 open Util;
 open OptUtil.Syntax;
 open Haz3lcore;
+module StringSet = Set.Make(String);
 
 let prn = Printf.sprintf;
 
@@ -201,8 +202,15 @@ module ErrorPrint = {
     };
   };
 
-  let get_parse_errs = (completion: string): Result.t(Zipper.t, string) =>
-    switch (Printer.zipper_of_string(completion)) {
+  let get_parse_errs =
+      (sketch_z: Zipper.t, completion: string): Result.t(Zipper.t, string) =>
+    switch (
+      {
+        let* sketch_z = Destruct.go(Left, sketch_z);
+        let* sketch_z = Destruct.go(Left, sketch_z);
+        Perform.paste(sketch_z, completion);
+      }
+    ) {
     | None => Error("Undocumented parse error, no feedback available")
     | Some(completion_z) =>
       //TODO: For syntax errors, also collect bad syntax eg % operator
@@ -221,22 +229,34 @@ module ErrorPrint = {
       }
     };
 
-  let mk_errors = (~init_ctx, ~mode, reply: string): t =>
-    switch (get_parse_errs(reply)) {
+  let mk_errors = (~init_ctx, sketch_z: Zipper.t, reply: string): t =>
+    switch (get_parse_errs(sketch_z, reply)) {
     | Error(err) => ParseError(err)
-    | Ok(completion_z) =>
+    | Ok(full_z) =>
       //TODO: This is implictly specialized for expressions only
-      let (top_ci, info_map) = statics_of_exp_zipper(init_ctx, completion_z);
-      let static_errs =
-        get_top_level_errs(init_ctx, mode, top_ci) @ collect_static(info_map);
-      if (List.length(static_errs) == 0) {
+      let (_, info_map) = statics_of_exp_zipper(init_ctx, sketch_z);
+      let static_errs_sketch = collect_static(info_map);
+      let (_, info_map) = statics_of_exp_zipper(init_ctx, full_z);
+      let static_errs_full = collect_static(info_map);
+      if (List.length(static_errs_full) == 0) {
         NoErrors;
       } else {
-        StaticErrors(static_errs);
+        let sketch_errs = StringSet.of_list(static_errs_sketch);
+        let new_errs =
+          List.filter(
+            err => !StringSet.mem(err, sketch_errs),
+            static_errs_full,
+          );
+        if (List.length(new_errs) == 0) {
+          NoErrors;
+        } else {
+          StaticErrors(new_errs);
+        };
       };
     };
 
-  let mk = (~init_ctx: Ctx.t, ~mode: Mode.t, reply: string): option(string) => {
+  let mk =
+      (~init_ctx: Ctx.t, sketch_z: Zipper.t, reply: string): option(string) => {
     let wrap = (intro, errs) =>
       [intro]
       @ errs
@@ -245,7 +265,7 @@ module ErrorPrint = {
         "Please respond ONLY with the update suggestion",
       ]
       |> String.concat("\n");
-    let error_report = mk_errors(~init_ctx, ~mode, reply);
+    let error_report = mk_errors(~init_ctx, sketch_z, reply);
     switch (error_report) {
     | NoErrors => None
     | ParseError(err) =>
@@ -587,7 +607,7 @@ let List.length: [(String, Bool)]-> Int =
 |},
       RelevantType.expected(Ana(Typ.fresh(Int)), ~ctx=[]),
       {|
-DISCUSSION
+Discussion:
 The function List.length takes a list of (String, Bool) tuples and returns an Int. The natural way to compute the length of a list is through recursion.
 The base case for an empty list is 0, and for a non-empty list, we increment the count and recursively call List.length on the tail.
 ```
@@ -609,7 +629,7 @@ let List.mapi: ((Int, Bool) -> Bool, [Bool]) -> [Bool]=
         ~ctx=[],
       ),
       {|
-DISCUSSION
+Discussion:
 The function List.mapi applies a function f to each element of a list while keeping track of the index. The helper function go does this recursively.
 The base case returns an empty list. In the recursive case, f(idx, hd) is applied to the head, and go(idx + 1, tl) is called recursively on the tail to process the rest of the list.
 ```
@@ -634,7 +654,7 @@ in
         ~ctx=[],
       ),
       {|
-DISCUSSION
+Discussion:
 The function total_capacity takes a Container and returns an Int. The Pod variant stores a Bool, which likely indicates whether the pod is active.
 The condition if !b && true simplifies to if !b, meaning inactive pods have a capacity of 1, while active ones have 0.
 The CapsuleCluster variant contains two integers, which are multiplied together to represent the total capacity.
@@ -651,7 +671,7 @@ fun c ->
       "let f = ?? in f(5)",
       RelevantType.expected(Syn, ~ctx=[]),
       {|
-DISCUSSION
+Discussion:
 The expression let f = ?? in f(5) means f should be a function that can take an integer input. A function of type fun x:Int -> ?? is defined, but its body is missing.
 Since no constraints are placed on the output type, the hole could be filled with any valid expression.
 ```
@@ -669,7 +689,7 @@ fun maybe_num ->
  | None => if !condition then 0 else y + 1 end in|},
       RelevantType.expected(Ana(Typ.fresh(Int)), ~ctx=[]),
       {|
-DISCUSSION
+Discussion:
 The function get extracts a value from an Option type. If Some(x), the function should return x, as x is already of type Int.
 The None case considers a condition; if !condition is true, it returns 0, otherwise, it returns y + 1.
 Since x is an Int, returning it in the Some case maintains type consistency.
@@ -682,7 +702,7 @@ x
       "let num_or_zero = fun maybe_num ->\n case maybe_num\n | Some(num) => ?? \n| None => 0 end in",
       RelevantType.expected(Syn, ~ctx=[]),
       {|
-DISCUSSION
+Discussion:
 The function num_or_zero takes an Option(Int) and returns an Int. If the input is Some(num), it should return num, as num is already an integer.
 If None, the function defaults to returning 0. This ensures type consistency while preserving the stored number when available.
 ```
@@ -704,7 +724,7 @@ num
         ~ctx=[],
       ),
       {|
-DISCUSSION
+Discussion:
 The function merge_sort sorts a list of integers. A common approach to implementing merge sort involves:
 1. Splitting the list into two halves (split).
 2. Recursively sorting both halves (merge_sort_helper).
@@ -719,7 +739,7 @@ fun list ->\nlet split: [Int]->([Int],[Int]) = fun left, right -> ?\nin\nlet mer
       "type MenuItem =\n+ Breakfast(Int, Int)\n+ Lunch(Float)\nin\nlet per_lunch_unit = 0.95 in\nlet price: MenuItem-> Float   = fun m ->\ncase m\n| Breakfast(x, y) => ??\n| Lunch(f) => f *. per_lunch_unit\nend\nin price(Breakfast(1,2))/.3.",
       RelevantType.expected(Ana(Typ.fresh(Var("MenuItem"))), ~ctx=[]),
       {|
-DISCUSSION
+Discussion:
 The function price computes the cost of a MenuItem. The Lunch variant already has a predefined price calculation. For Breakfast(x, y), an expression must return a Float, but the completion is missing.
 The function should ensure a proper numeric computation based on x and y.
 ```
@@ -757,7 +777,7 @@ test 2 == List.nth(List.sort(fun a, b -> a<b, [4,1,3,2]), 1) end
         ~ctx=[],
       ),
       {|
-DISCUSSION
+Discussion:
 The function List.merge merges two sorted lists using a comparator function cmp. The List.sort function applies merge sort, using merge_sort_helper to recursively divide and sort the list.
 The base cases return [] or a single-element list. The recursive case splits the list into two halves and merges sorted sublists.
 ```
@@ -789,7 +809,7 @@ module SystemPrompt = {
     "- DO NOT provide multiple code suggestions",
     "- DO NOT include any text after the code block",
     "- Here is an example of the format you should follow:",
-    "- DISCUSSION",
+    "- Discussion:",
     "- The function takes an integer n as input and returns a float.",
     "- The base case returns 1.0 when n is 0, ensuring the function adheres to the expected Float return type.",
     "- For all other cases, the function returns 2.0, maintaining consistency in return type while providing a simple branching structure.",
@@ -902,17 +922,12 @@ module Prompt = {
     @ [{role: User, content: user_message}];
   };
 
-  let mk_error = (ci: Info.t, reply: string): option(string) => {
+  let mk_error =
+      (ci: Info.t, sketch_z: Zipper.t, reply: string): option(string) => {
     /* TODO: This should maybe take whole JSON convo
      * so far and return an appended version */
     //TODO: Proper errors
-    let* mode =
-      switch (ci) {
-      | InfoExp({mode, _}) => Some(mode)
-      | InfoPat({mode, _}) => Some(mode)
-      | _ => None
-      };
     let init_ctx = Info.ctx_of(ci);
-    ErrorPrint.mk(~init_ctx, ~mode, reply);
+    ErrorPrint.mk(~init_ctx, sketch_z, reply);
   };
 };
