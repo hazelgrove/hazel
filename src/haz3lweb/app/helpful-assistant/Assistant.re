@@ -258,15 +258,30 @@ module Update = {
         chat_id: Id.t,
         ~is_final: bool,
       ) => {
+    let filter_chat_messages =
+        (messages: list(Model.message)): list(Model.message) => {
+      List.filter(
+        (msg: Model.message) => msg != await_llm_response,
+        messages,
+      );
+    };
     let (past_chats, _) = get_mode_info(mode, model);
     let chat_to_update = Id.Map.find(chat_id, past_chats);
     let messages = {
       switch (message.party) {
-      | LS => chat_to_update.messages @ [message, await_llm_response]
+      | LS =>
+        let chat_to_update_messages =
+          filter_chat_messages(chat_to_update.messages);
+        chat_to_update_messages @ [message, await_llm_response];
       | LLM =>
-        let messages = ListUtil.leading(chat_to_update.messages) @ [message];
+        let chat_to_update_messages =
+          filter_chat_messages(chat_to_update.messages);
+        let messages = chat_to_update_messages @ [message];
         is_final ? messages : messages @ [await_llm_response];
-      | System => chat_to_update.messages @ [message]
+      | System =>
+        let chat_to_update_messages =
+          filter_chat_messages(chat_to_update.messages);
+        chat_to_update_messages @ [message];
       };
     };
     Model.{
@@ -403,7 +418,7 @@ module Update = {
       : unit => {
     let (past_chats, _) = get_mode_info(mode, model);
     let curr_chat = Id.Map.find(chat_id, past_chats);
-    Id.Map.cardinal(past_chats) <= 6
+    List.length(curr_chat.messages) <= 6
       ? form_descriptor(
           ~model,
           ~schedule_action,
@@ -411,7 +426,7 @@ module Update = {
           ~mode,
         )
       : ();
-    // Only create a summary up to the first 3 exchanges
+    // Only create a summary up to the first few exchanges
   };
 
   let check_req =
@@ -743,16 +758,17 @@ module Update = {
       // Then handle the completion as before
       let completion_message =
         code_message_of_str(completion, LLM, Some(tileId));
+      print_endline("HERE HERE HERE");
+      check_descriptor(
+        ~model,
+        ~schedule_action,
+        ~message=completion_message,
+        ~mode,
+        ~chat_id,
+      );
       switch (ChatLSP.Prompt.mk_error(ci, sketch_z, completion)) {
       | None =>
         print_endline("ERROR ROUNDS (Non-error Response): " ++ completion);
-        check_descriptor(
-          ~model,
-          ~schedule_action,
-          ~message=completion_message,
-          ~mode,
-          ~chat_id,
-        );
         schedule_action(RemoveAndSuggest(completion, tileId));
       | Some(error) =>
         print_endline("ERROR ROUNDS (Error): " ++ error);
