@@ -60,6 +60,7 @@ module Model = {
     // Calculated
     elab_pattern: Calc.saved(Pat.t),
     inner_exp: Calc.saved(Exp.t),
+    inner_hyps: Calc.saved(list(Exp.t)),
     step,
     last_exp: Calc.saved(Exp.t),
   }
@@ -71,6 +72,7 @@ module Model = {
     cases: list(case),
     // Calculated
     elab_scrut: Calc.saved(Exp.t),
+    scrut_ty: Calc.saved(Typ.t),
     result: Calc.saved(Exp.t),
     result_state: Calc.saved(EvaluatorState.t),
     induction_valid: Calc.saved(induction_valid),
@@ -101,6 +103,7 @@ module Model = {
     scrut: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
     cases: [],
     elab_scrut: Calc.Pending,
+    scrut_ty: Calc.Pending,
     result: Calc.Pending,
     result_state: Calc.Pending,
     induction_valid: Calc.Pending,
@@ -321,6 +324,7 @@ module Update = {
           pattern: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
           elab_pattern: Calc.Pending,
           inner_exp: Calc.Pending,
+          inner_hyps: Calc.Pending,
           step: Model.init_step,
           last_exp: Calc.Pending,
         };
@@ -713,6 +717,7 @@ module Update = {
       scrut,
       cases,
       elab_scrut,
+      scrut_ty,
       result: _,
       result_state: _,
       induction_valid: _,
@@ -732,27 +737,54 @@ module Update = {
         CodeEditable.Model.get_statics(scrut).elaborated,
         elab_scrut,
       );
-
+    let scrut_ty =
+      Calc.set(
+        ~eq=Typ.fast_equal,
+        CodeEditable.Model.get_statics(scrut).info_map
+        |> Id.Map.find_opt(
+             Exp.rep_id(CodeEditable.Model.get_statics(scrut).elaborated),
+           )
+        |> (
+          fun
+          | Some(Info.InfoExp({ty, _})) => ty
+          | _ => Typ.fresh(Unknown(Internal))
+        ),
+        scrut_ty,
+      );
     let cases =
       List.map(
         (
-          Model.{pattern, elab_pattern, inner_exp, step: stepper, last_exp: _},
+          Model.{
+            pattern,
+            elab_pattern,
+            inner_exp,
+            inner_hyps,
+            step: stepper,
+            last_exp: _,
+          },
         ) => {
           let pattern =
             CodeEditable.Update.calculate(
               ~settings=Calc.get_value(settings),
               ~is_edited=true,
-              ~stitch=x => x,
+              ~stitch=
+                x =>
+                  Fun(
+                    ProofHacks.exp_to_pat(x),
+                    EmptyHole |> Exp.fresh,
+                    None,
+                    None,
+                  )
+                  |> Exp.fresh,
               pattern,
             );
           let elab_pattern =
             Calc.set(
               ~eq=Pat.fast_equal,
               CodeEditable.Model.get_statics(pattern).elaborated
-              |> ProofHacks.exp_to_pat,
+              |> ProofHacks.remove_wrapping_function,
               elab_pattern,
             );
-
           let inner_exp =
             inner_exp
             |> {
@@ -765,6 +797,35 @@ module Update = {
                 elab_pattern |> ProofHacks.pat_to_exp,
                 exp,
               );
+            };
+          let inner_hyps =
+            inner_hyps
+            |> {
+              let.calc elab_pattern = elab_pattern
+              and.calc elab_scrut = elab_scrut
+              and.calc scrut_ty = scrut_ty;
+              let elab_pattern_exp = elab_pattern |> ProofHacks.pat_to_exp;
+              let inductive_variables =
+                elab_pattern
+                |> ProofHacks.get_inductive_hypotheses(
+                     CodeEditable.Model.get_statics(scrut).info_map,
+                     scrut_ty,
+                   ); // Make this update on infomap update
+              let eq_hyp =
+                Exp.fresh(BinOp(Int(Equals), elab_pattern_exp, elab_scrut));
+              let inductive_hypotheses =
+                List.map(
+                  (x: string) =>
+                    Exp.fresh(
+                      BinOp(
+                        Int(Equals),
+                        Var(x) |> Exp.fresh,
+                        Var("IH") |> Exp.fresh,
+                      ),
+                    ),
+                  inductive_variables,
+                );
+              [eq_hyp] @ inductive_hypotheses;
             };
           let (stepper, last_exp) =
             calculate_step(
@@ -779,6 +840,7 @@ module Update = {
             pattern,
             elab_pattern: elab_pattern |> Calc.save,
             inner_exp: inner_exp |> Calc.save,
+            inner_hyps: inner_hyps |> Calc.save,
             step: stepper,
             last_exp: last_exp |> Calc.save,
           };
@@ -817,6 +879,7 @@ module Update = {
         scrut,
         cases,
         elab_scrut: elab_scrut |> Calc.save,
+        scrut_ty: scrut_ty |> Calc.save,
         result,
         result_state,
         induction_valid,
