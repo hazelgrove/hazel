@@ -289,6 +289,7 @@ module Update = {
             : [
               Action.Select(Tile(Id(tile, Direction.Left))),
               Action.Destruct(Direction.Left),
+              Action.Insert(" "),
               Action.Buffer(Set(LLMSug(response))),
             ];
         // Apply each action in sequence
