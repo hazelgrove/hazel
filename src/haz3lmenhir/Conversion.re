@@ -35,7 +35,7 @@ module Operators = {
     };
   };
 
-  let op_un_int_of_menhir_ast = (op: AST.op_un_int): op_un_int => {
+  let op_un_int_of_menhir_ast = (op: AST.op_un_int): op_un_num => {
     switch (op) {
     | Minus => Minus
     };
@@ -58,6 +58,7 @@ module Operators = {
   let of_core_op_bin = (op: op_bin): AST.bin_op => {
     switch (op) {
     | Nat(op_int)
+    | SInt(op_int)
     | Int(op_int) =>
       IntOp(
         switch (op_int) {
@@ -117,6 +118,7 @@ module Operators = {
       )
     | Nat(i)
     | Float(i)
+    | SInt(i)
     | Int(i) =>
       Int(
         switch (i) {

@@ -871,15 +871,20 @@ let stepper_justification: step_kind => string =
   | DeferredAp => "deferred application"
   | BuiltinWrap => "wrap builtin"
   | BuiltinAp(s) => "evaluate " ++ s
-  | UnOp(Int(Minus) | Nat(Minus) | Float(Minus))
+  | UnOp(Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus))
+  | BinOp(SInt(Plus | Minus | Times | Power | Divide))
   | BinOp(Nat(Plus | Minus | Times | Power | Divide))
   | BinOp(Float(Plus | Minus | Times | Power | Divide))
   | BinOp(Int(Plus | Minus | Times | Power | Divide)) => "arithmetic"
   | BinOp(Nat(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual))
   | BinOp(Int(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual))
   | BinOp(
+      SInt(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual),
+    )
+  | BinOp(
       Float(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual),
     ) => "comparison"
+  | BinOp(SInt(Equals | NotEquals))
   | BinOp(Nat(Equals | NotEquals))
   | BinOp(Int(Equals | NotEquals))
   | BinOp(Float(Equals | NotEquals))

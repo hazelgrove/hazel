@@ -231,6 +231,12 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         ~make_term=e' => UnOp(Bool(Not), e'),
         e,
       )
+    | UnOp(SInt(Minus), e) =>
+      handle_unary(
+        ~cost=1, // "-"
+        ~make_term=e' => UnOp(SInt(Minus), e'),
+        e,
+      )
     | UnOp(Float(Minus), e) =>
       handle_unary(
         ~cost=1, // "~"

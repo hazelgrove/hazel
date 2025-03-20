@@ -604,6 +604,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | ([t], []) when Form.is_empty_tuple(t) => Prod([])
         | (["Bool"], []) => Atom(Bool)
         | (["Int"], []) => Atom(Int)
+        | (["SInt"], []) => Atom(SInt)
         | (["Float"], []) => Atom(Float)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
