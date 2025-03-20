@@ -1963,6 +1963,7 @@ let get_doc =
             OpExp.bool_un_not,
           );
         | Float(Minus) // TODO[Matt]: finish
+        | SInt(Minus)
         | Nat(Minus)
         | Int(Minus) =>
           let exp_id = List.nth(IdTagged.ids(exp), 0);
@@ -1986,32 +1987,43 @@ let get_doc =
         let (group, coloring_ids) =
           switch (op) {
           | Nat(Plus)
+          | SInt(Plus)
           | Int(Plus) => (int_plus, int_plus_exp_coloring_ids)
           | Nat(Minus)
+          | SInt(Minus)
           | Int(Minus) => (int_minus, int_minus_exp_coloring_ids)
           | Nat(Times)
+          | SInt(Times)
           | Int(Times) => (int_times, int_times_exp_coloring_ids)
           | Nat(Power)
+          | SInt(Power)
           | Int(Power) => (int_power, int_power_exp_coloring_ids)
           | Nat(Divide)
+          | SInt(Divide)
           | Int(Divide) => (int_divide, int_divide_exp_coloring_ids)
           | Nat(LessThan)
+          | SInt(LessThan)
           | Int(LessThan) => (int_less_than, int_lt_exp_coloring_ids)
           | Nat(LessThanOrEqual)
+          | SInt(LessThanOrEqual)
           | Int(LessThanOrEqual) => (
               int_less_than_equal,
               int_lte_exp_coloring_ids,
             )
           | Nat(GreaterThan)
+          | SInt(GreaterThan)
           | Int(GreaterThan) => (int_greater_than, int_gt_exp_coloring_ids)
           | Nat(GreaterThanOrEqual)
+          | SInt(GreaterThanOrEqual)
           | Int(GreaterThanOrEqual) => (
               int_greater_than_equal,
               int_gte_exp_coloring_ids,
             )
           | Nat(Equals)
+          | SInt(Equals)
           | Int(Equals) => (int_equal, int_eq_exp_coloring_ids)
           | Nat(NotEquals)
+          | SInt(NotEquals)
           | Int(NotEquals) => (int_not_equal, int_neq_exp_coloring_ids)
           | Float(Plus) => (float_plus, float_plus_exp_coloring_ids)
           | Float(Minus) => (float_minus, float_minus_exp_coloring_ids)

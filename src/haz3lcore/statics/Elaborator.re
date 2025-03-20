@@ -121,7 +121,12 @@ let rec elaborate_pattern =
     switch (term) {
     | Atom(c) =>
       let c = Operators.replace_literal(c, ctx.use_mode);
-      Atom(c) |> rewrap |> cast_from(Atom(c |> Atom.cls_of_t) |> Typ.temp);
+      switch (c) {
+      | L(c) =>
+        Atom(c) |> rewrap |> cast_from(Atom(c |> Atom.cls_of_t) |> Typ.temp)
+      | R(BadInt(s)) =>
+        Invalid(s) |> rewrap |> cast_from(Unknown(Internal) |> Typ.temp)
+      };
     | ListLit(ps) =>
       let (ps, tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
       let inner_type =
@@ -309,7 +314,12 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Deferral(_) => uexp
     | Atom(c) =>
       let c = Operators.replace_literal(c, ctx.use_mode);
-      Atom(c) |> rewrap |> cast_from(Atom(c |> Atom.cls_of_t) |> Typ.temp);
+      switch (c) {
+      | L(c) =>
+        Atom(c) |> rewrap |> cast_from(Atom(c |> Atom.cls_of_t) |> Typ.temp)
+      | R(BadInt(s)) =>
+        Invalid(s) |> rewrap |> cast_from(Unknown(Internal) |> Typ.temp)
+      };
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let inner_type =

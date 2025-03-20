@@ -321,8 +321,13 @@ and uexp_to_info_map =
     | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
     | Atom(c) =>
       let c = Operators.replace_literal(c, ctx.use_mode); // Replace literal if necessary due to `use`
-      let ty = Atom(Atom.cls_of_t(c)) |> Typ.temp;
-      atomic(Just(ty));
+      switch (c) {
+      | L(c) =>
+        let ty = Atom(Atom.cls_of_t(c)) |> Typ.temp;
+        atomic(Just(ty));
+      | R(BadInt(str)) => atomic(BadToken(str))
+      };
+
     | ListLit(es) =>
       let ids = List.map(Exp.rep_id, es);
       let inner_ana_ty = Typ.matched_list(ctx, ana);
@@ -1058,6 +1063,7 @@ and uexp_to_info_map =
         | Atom(Nat) => Some(Nat)
         | Atom(Int) => Some(Int)
         | Atom(Float) => Some(Float)
+        | Atom(SInt) => Some(SInt)
         | _ => None
         };
       let ctx' =
@@ -1264,33 +1270,34 @@ and upat_to_info_map =
     | Atom(c) =>
       let c = Operators.replace_literal(c, ctx.use_mode);
       switch (c) {
-      | Nat(nat) =>
+      | L(Nat(nat)) =>
         atomic(
           Just(Atom(Nat) |> Typ.temp),
           Coverage.Constraint.BigInt(nat),
         )
-      | Int(int) =>
+      | L(Int(int)) =>
         atomic(
           Just(Atom(Int) |> Typ.temp),
           Coverage.Constraint.BigInt(int),
         )
-      | SInt(int) =>
+      | L(SInt(int)) =>
         atomic(Just(Atom(Int) |> Typ.temp), Coverage.Constraint.SInt(int))
-      | Float(float) =>
+      | L(Float(float)) =>
         atomic(
           Just(Atom(Float) |> Typ.temp),
           Coverage.Constraint.Float(float),
         )
-      | Bool(bool) =>
+      | L(Bool(bool)) =>
         atomic(
           Just(Atom(Bool) |> Typ.temp),
           bool ? Coverage.Constraint.true_ : Coverage.Constraint.false_,
         )
-      | String(string) =>
+      | L(String(string)) =>
         atomic(
           Just(Atom(String) |> Typ.temp),
           Coverage.Constraint.String(string),
         )
+      | R(BadInt(str)) => hole(BadToken(str))
       };
     | ListLit(ps) =>
       let ids = List.map(Pat.rep_id, ps);
