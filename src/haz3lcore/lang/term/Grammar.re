@@ -510,7 +510,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let nat = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
-      term: Atom(Nat(Bigint.of_int(i))),
+      term: Atom(Nat(i)),
       annotation: default_annotation(ann),
     };
     let list_lit = (~ann=?, l): exp_t(DefaultAnnotation.t) => {

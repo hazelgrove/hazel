@@ -149,17 +149,31 @@ let show_op_bin_bool: op_bin_bool => string =
 
 let show_op_bin_num: op_bin_num => string =
   fun
-  | Plus => "Integer Addition"
-  | Minus => "Integer Subtraction"
-  | Times => "Integer Multiplication"
-  | Power => "Integer Exponentiation"
-  | Divide => "Integer Division"
-  | LessThan => "Integer Less Than"
-  | LessThanOrEqual => "Integer Less Than or Equal"
-  | GreaterThan => "Integer Greater Than"
-  | GreaterThanOrEqual => "Integer Greater Than or Equal"
-  | Equals => "Integer Equality"
-  | NotEquals => "Integer Inequality";
+  | Plus => "Addition"
+  | Minus => "Subtraction"
+  | Times => "Multiplication"
+  | Power => "Exponentiation"
+  | Divide => "Division"
+  | LessThan => "Less Than"
+  | LessThanOrEqual => "Less Than or Equal"
+  | GreaterThan => "Greater Than"
+  | GreaterThanOrEqual => "Greater Than or Equal"
+  | Equals => "Equality"
+  | NotEquals => "Inequality";
+
+let show_op_bin_float: op_bin_num => string =
+  fun
+  | Plus => "Float Addition"
+  | Minus => "Float Subtraction"
+  | Times => "Float Multiplication"
+  | Power => "Float Exponentiation"
+  | Divide => "Float Division"
+  | LessThan => "Float Less Than"
+  | LessThanOrEqual => "Float Less Than or Equal"
+  | GreaterThan => "Float Greater Than"
+  | GreaterThanOrEqual => "Float Greater Than or Equal"
+  | Equals => "Float Equality"
+  | NotEquals => "Float Inequality";
 
 let show_op_bin_string: op_bin_string => string =
   fun
@@ -170,8 +184,8 @@ let show_binop: op_bin => string =
   fun
   | Int(op)
   | SInt(op)
-  | Nat(op)
-  | Float(op) => show_op_bin_num(op)
+  | Nat(op) => show_op_bin_num(op)
+  | Float(op) => show_op_bin_float(op)
   | Bool(op) => show_op_bin_bool(op)
   | String(op) => show_op_bin_string(op);
 
@@ -241,7 +255,7 @@ type un_semantics =
       'a => Either.t('b, InvalidOperationError.t),
     )
     : un_semantics
-  | Undefined;
+  | Undefined(string);
 
 let just = (f, x) => Either.L(f(x));
 
@@ -250,9 +264,9 @@ let semantics_of_un_op = (op: op_un): un_semantics =>
   | Int(Minus) => Defined(Int, Int, just(Bigint.neg))
   | Float(Minus) => Defined(Float, Float, just(x => -. x))
   | SInt(Minus) => Defined(SInt, SInt, just(x => - x))
-  | Nat(Minus) => Undefined
+  | Nat(Minus) => Undefined("Cannot negate a natural number")
   | Bool(Not) => Defined(Bool, Bool, just(x => !x))
-  | Meta(Unquote) => Undefined
+  | Meta(Unquote) => failwith("semantics of Meta Unquote") // should be unreachable
   };
 
 type bin_semantics =
@@ -263,7 +277,7 @@ type bin_semantics =
       ('a, 'b) => Either.t('c, InvalidOperationError.t),
     )
     : bin_semantics
-  | Undefined;
+  | Undefined(string);
 
 let just = (f, x, y) => Either.L(f(x, y));
 let int_power = (x, y) =>
@@ -318,7 +332,10 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   | SInt(NotEquals) => Defined(SInt, SInt, Bool, just((!=)))
 
   | Nat(Plus) => Defined(Nat, Nat, Nat, just(Bigint.(+)))
-  | Nat(Minus) => Undefined
+  | Nat(Minus) =>
+    Undefined(
+      "Cannot subtract natural numbers, for truncated subtraction use `monus`",
+    )
   | Nat(Times) => Defined(Nat, Nat, Nat, just(Bigint.( * )))
   | Nat(Power) => Defined(Nat, Nat, Nat, just(Bigint.pow))
   | Nat(Divide) => Defined(Nat, Nat, Nat, int_divide)
@@ -407,7 +424,7 @@ let builtins = {
     all_of_op_bin
     |> List.filter_map(op =>
          switch (semantics_of_bin_op(op)) {
-         | Undefined => None
+         | Undefined(_) => None
          | Defined(x, y, z, f) => Some((op_name(op), TwoFun(x, y, z, f)))
          }
        )

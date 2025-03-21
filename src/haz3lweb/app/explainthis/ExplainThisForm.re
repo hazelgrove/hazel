@@ -100,6 +100,7 @@ type example_id =
   | TupleLabeled2
   | TupleLabeled3
   | Let(let_examples)
+  | UseExp1
   | TypFunAp
   | FunAp
   | ConAp
@@ -195,6 +196,7 @@ type form_id =
   | DeferredApExp
   | IfExp
   | SeqExp
+  | UseExp
   | TestExp
   | UnOpExp(Operators.op_un)
   | BinOpExp(Operators.op_bin)
@@ -304,6 +306,7 @@ type group_id =
   | CaseExp
   | TyAliasExp
   | PipelineExp
+  | UseExp
   | EmptyHolePat
   | MultiHolePat
   | WildPat

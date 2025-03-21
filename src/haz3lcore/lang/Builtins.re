@@ -127,6 +127,17 @@ module Pervasives = {
         };
       });
 
+    let monus =
+      binary((d1, d2) => {
+        let-unbox m = (Atom(Nat), d1);
+        let-unbox n = (Atom(Nat), d2);
+        if (Bigint.(<=)(m, n)) {
+          Some(nat(Bigint.zero));
+        } else {
+          Some(nat(Bigint.(m - n)));
+        };
+      });
+
     let string_length = d => {
       let-unbox s = (Atom(String), d);
       Some(int(String.length(s) |> Bigint.of_int));
@@ -258,6 +269,7 @@ module Pervasives = {
       |> fn("asin", Atom(Float), Atom(Float), asin)
       |> fn("acos", Atom(Float), Atom(Float), acos)
       |> fn("atan", Atom(Float), Atom(Float), atan)
+      |> fn("monus", Prod([nat(), nat()]), Atom(Nat), monus)
       |> fn("mod", Prod([int(), int()]), Atom(Int), int_mod("mod"))
       |> fn("string_length", Atom(String), Atom(Int), string_length)
       |> fn(

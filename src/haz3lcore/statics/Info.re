@@ -48,6 +48,8 @@ type error_inconsistent =
 type error_no_type =
   /* Invalid expression token, treated as hole */
   | BadToken(Token.t)
+  /* Invalid operator for current use mode, treated as hole */
+  | BadOperator(string)
   /* Empty application of function with inconsistent type */
   | BadTrivAp(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
@@ -418,6 +420,7 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
     }
   | (FreeConstructor(name), _) => InHole(NoType(FreeConstructor(name)))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
+  | (BadOperator(op), _) => InHole(NoType(BadOperator(op)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
   | (InvalidLabel(label), _) => InHole(NoType(InvalidLabel(label)))
@@ -712,6 +715,7 @@ let fixed_typ_err_common: error_common => Typ.t =
     ])
     |> Typ.temp
   | NoType(BadToken(_))
+  | NoType(BadOperator(_))
   | NoType(BadTrivAp(_))
   | NoType(WantTuple)
   | NoType(LabelNotFound(_))

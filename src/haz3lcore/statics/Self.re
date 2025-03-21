@@ -31,6 +31,7 @@ type t =
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
   | BadToken(Token.t) /* Invalid expression token, continues with undefined behavior */
+  | BadOperator(string) /* Invalid operator, continues with undefined behavior */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
   | InvalidLabel(LabeledTuple.label) /* Invalid label in a labeled tuple */
@@ -97,6 +98,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
       )
     | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
     | BadToken(_)
+    | BadOperator(_)
     | BadTrivAp(_)
     | IsMulti
     | Duplicate(_)

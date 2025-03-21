@@ -491,7 +491,7 @@ module Transition = (EV: EV_MODE) => {
       and. d1' =
         req_final(req(state, env), d1 => UnOp(op, d1) |> wrap_ctx, d1);
       switch (Operators.semantics_of_un_op(op)) {
-      | Undefined => Indet
+      | Undefined(_) => Indet
       | Defined(in_ty, out_ty, f) =>
         let-unbox n = (Atom(in_ty), d1');
         let expr =
@@ -554,7 +554,7 @@ module Transition = (EV: EV_MODE) => {
         );
       // Operator semantics are defined in Operators.re
       switch (Operators.semantics_of_bin_op(op)) {
-      | Undefined => Indet
+      | Undefined(_) => Indet
       | Defined(in_ty1, in_ty2, out_ty, f) =>
         let-unbox n1 = (Atom(in_ty1), d1);
         let-unbox n2 = (Atom(in_ty2), d2);
