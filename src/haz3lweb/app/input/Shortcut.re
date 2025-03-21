@@ -9,7 +9,13 @@ type t = {
 };
 
 let mk_shortcut = (~hotkey=?, ~mdIcon=?, ~section=?, label, update_action): t => {
-  {update_action: Some(update_action), hotkey, label, mdIcon, section};
+  {
+    update_action: Some(update_action),
+    hotkey,
+    label,
+    mdIcon,
+    section,
+  };
 };
 
 let instructor_shortcuts: list(t) = [
@@ -94,6 +100,34 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~section="Selection",
       "Select All",
       Globals(ActiveEditor(Select(All))),
+    ),
+    mk_shortcut(
+      ~hotkey="alt+f",
+      ~mdIcon="camera",
+      ~section="Projection",
+      "Fold",
+      Globals(ActiveEditor(Project(SetIndicated(Specific(Fold))))),
+    ),
+    mk_shortcut(
+      ~hotkey="alt+v",
+      ~mdIcon="camera",
+      ~section="Projection",
+      "Probe",
+      Globals(ActiveEditor(Project(SetIndicated(Specific(Probe))))),
+    ),
+    mk_shortcut(
+      ~hotkey="alt+t",
+      ~mdIcon="camera",
+      ~section="Projection",
+      "Type",
+      Globals(ActiveEditor(Project(SetIndicated(Specific(Info))))),
+    ),
+    mk_shortcut(
+      ~hotkey="alt+l",
+      ~mdIcon="camera",
+      ~section="Projection",
+      "Livelit",
+      Globals(ActiveEditor(Project(SetIndicated(ChooseLivelit)))),
     ),
     mk_shortcut(
       ~section="Settings",
@@ -247,7 +281,8 @@ let from_shortcut =
            print_endline("Could not find action for " ++ shortcut.label)
          };
        }
-   }];
+   }
+  ];
 };
 
 let options = (schedule_action: Page.Update.t => unit) => {

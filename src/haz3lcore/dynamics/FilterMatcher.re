@@ -1,11 +1,4 @@
-let evaluate_extend_env =
-    (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
-    : ClosureEnvironment.t => {
-  to_extend
-  |> ClosureEnvironment.map_of
-  |> Environment.union(new_bindings)
-  |> ClosureEnvironment.of_environment;
-};
+let evaluate_extend_env = ClosureEnvironment.extend_eval(~call_stack=[]);
 
 let evaluate_extend_env_with_pat =
     (
@@ -22,12 +15,12 @@ let evaluate_extend_env_with_pat =
       Environment.singleton((
         fname,
         {
-          ids,
-          copied,
-          IdTagged.term: (
-            FixF(pat, exp, Some(to_extend)): TermBase.exp_term
-          ),
-        },
+          annotation: {
+            ids,
+            copied,
+          },
+          term: FixF(pat, exp, Some(to_extend)),
+        }: TermBase.exp_t,
       )),
       to_extend,
     )
@@ -41,7 +34,13 @@ let evaluate_extend_env_with_pat =
             (
               Let(
                 pat,
-                {ids, copied, term: FixF(pat, exp, Some(to_extend))},
+                {
+                  term: FixF(pat, exp, Some(to_extend)),
+                  annotation: {
+                    ids,
+                    copied,
+                  },
+                },
                 (Var(binding): TermBase.exp_term) |> IdTagged.fresh,
               ): TermBase.exp_term
             )
@@ -104,8 +103,8 @@ let rec matches_exp =
     true;
   } else {
     switch (d |> DHExp.term_of, f |> DHExp.term_of) {
-    | (Parens(d), _) => matches_exp(d, f)
-    | (_, Parens(f)) => matches_exp(d, f)
+    | (Parens(d) | Probe(d, _), _) => matches_exp(d, f)
+    | (_, Parens(f) | Probe(f, _)) => matches_exp(d, f)
 
     | (Constructor("$e", _), _) => failwith("$e in matched expression")
     | (Constructor("$v", _), _) => failwith("$v in matched expression")
@@ -132,16 +131,44 @@ let rec matches_exp =
       | Some((denv, fenv)) => matches_exp(~denv, dc, ~fenv, fc)
       }
     | (FixF(dp, dc, None), _) =>
-      let denv = evaluate_extend_env_with_pat(d.ids, d.copied, dp, dc, denv);
+      let denv =
+        evaluate_extend_env_with_pat(
+          IdTagged.ids(d),
+          IdTagged.copied(d),
+          dp,
+          dc,
+          denv,
+        );
       matches_exp(~denv, dc, ~fenv, f);
     | (FixF(dp, dc, Some(denv)), _) =>
-      let denv = evaluate_extend_env_with_pat(d.ids, d.copied, dp, dc, denv);
+      let denv =
+        evaluate_extend_env_with_pat(
+          IdTagged.ids(d),
+          IdTagged.copied(d),
+          dp,
+          dc,
+          denv,
+        );
       matches_exp(~denv, dc, ~fenv, f);
     | (_, FixF(fp, fc, None)) =>
-      let fenv = evaluate_extend_env_with_pat(f.ids, f.copied, fp, fc, fenv);
+      let fenv =
+        evaluate_extend_env_with_pat(
+          IdTagged.ids(f),
+          IdTagged.copied(f),
+          fp,
+          fc,
+          fenv,
+        );
       matches_exp(~denv, d, ~fenv, fc);
     | (_, FixF(fp, fc, Some(fenv))) =>
-      let fenv = evaluate_extend_env_with_pat(f.ids, f.copied, fp, fc, fenv);
+      let fenv =
+        evaluate_extend_env_with_pat(
+          IdTagged.ids(f),
+          IdTagged.copied(f),
+          fp,
+          fc,
+          fenv,
+        );
       matches_exp(~denv, d, ~fenv, fc);
 
     | (_, Constructor("$v", _)) =>
@@ -154,7 +181,11 @@ let rec matches_exp =
     | (_, EmptyHole)
     | (_, Constructor("$e", _)) => true
 
-    | (Cast(d, _, _), Cast(f, _, _)) => matches_exp(d, f)
+    | (Cast(d, dty1, dty2), Cast(f, fty1, fty2)) =>
+      matches_exp(d, f)
+      && matches_typ(dty1, fty1)
+      && matches_typ(dty2, fty2)
+    | (Cast(_), _) => false
     | (Closure(denv, d), Closure(fenv, f)) =>
       matches_exp(~denv, d, ~fenv, f)
 
@@ -163,7 +194,6 @@ let rec matches_exp =
     | (_, FailedCast(f, _, _)) => matches_exp(d, f)
 
     | (Closure(denv, d), _) => matches_exp(~denv, d, f)
-    | (Cast(d, _, _), _) => matches_exp(d, f)
     | (FailedCast(d, _, _), _) => matches_exp(d, f)
     | (Filter(Residue(_), d), _) => matches_exp(d, f)
 
@@ -214,6 +244,13 @@ let rec matches_exp =
     | (String(dv), String(fv)) => dv == fv
     | (String(_), _) => false
 
+    | (Label(dv), Label(fv)) => dv == fv
+    | (Label(_), _) => false
+
+    | (TupLabel(dl, dv), TupLabel(fl, fv)) =>
+      matches_exp(dl, fl) && matches_exp(dv, fv)
+    | (TupLabel(_), _) => false
+
     | (
         Constructor(_),
         Ap(_, {term: Constructor("~MVal", _), _}, {term: Tuple([]), _}),
@@ -225,17 +262,27 @@ let rec matches_exp =
     | (BuiltinFun(dn), BuiltinFun(fn)) => dn == fn
     | (BuiltinFun(_), _) => false
 
-    | (TypFun(pat1, d1, s1), TypFun(pat2, d2, s2)) =>
-      s1 == s2 && matches_utpat(pat1, pat2) && matches_exp(d1, d2)
+    | (TypFun(dpat, d, _), TypFun(fpat, f, _)) =>
+      switch (dpat |> IdTagged.term_of, fpat |> IdTagged.term_of) {
+      | (_, EmptyHole) => matches_exp(d, f)
+      | _ =>
+        let id = alpha_magic ++ Uuidm.to_string(Uuidm.v(`V4));
+        let d' =
+          DHExp.ty_subst(
+            (Var(id): TermBase.Typ.term) |> IdTagged.fresh,
+            dpat,
+            d,
+          );
+        let f' =
+          DHExp.ty_subst(
+            (Var(id): TermBase.Typ.term) |> IdTagged.fresh,
+            fpat,
+            f,
+          );
+        matches_exp(d', f');
+      }
     | (TypFun(_), _) => false
-
-    | (Fun(dp1, d1, Some(denv), _), Fun(fp1, f1, Some(fenv), _)) =>
-      matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
-    | (Fun(dp1, d1, Some(denv), _), Fun(fp1, f1, None, _)) =>
-      matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
-    | (Fun(dp1, d1, None, _), Fun(fp1, f1, Some(fenv), _)) =>
-      matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
-    | (Fun(dp1, d1, None, _), Fun(fp1, f1, None, _)) =>
+    | (Fun(dp1, d1, _, _), Fun(fp1, f1, _, _)) =>
       matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
     | (Fun(_), _) => false
 
@@ -284,6 +331,10 @@ let rec matches_exp =
     | (ListLit(dv), ListLit(fv)) =>
       List.fold_left2((acc, d, f) => acc && matches_exp(d, f), true, dv, fv)
     | (ListLit(_), _) => false
+
+    | (Dot(d1, d2), Dot(f1, f2)) =>
+      matches_exp(d1, f1) && matches_exp(d2, f2)
+    | (Dot(_), _) => false
 
     | (Tuple(dv), Tuple(fv)) =>
       List.fold_left2((acc, d, f) => acc && matches_exp(d, f), true, dv, fv)
@@ -372,7 +423,7 @@ and matches_fun =
 }
 
 and matches_typ = (d: Typ.t, f: Typ.t) => {
-  Typ.eq(d, f);
+  Typ.equal(d, f);
 }
 
 and matches_utpat = (d: TPat.t, f: TPat.t): bool => {

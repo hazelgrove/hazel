@@ -13,13 +13,23 @@
 open Util;
 open Any;
 
+/* Hack: Temporary construct internal to maketerm
+ * to handle probe parsing; see `tokens` below */
+let probe_wrap = ["PROBE_WRAP", "PROBE_WRAP"];
+let is_probe_wrap = (==)(probe_wrap);
+
 // TODO make less hacky
 let tokens =
   Piece.get(
     _ => [],
     _ => [" "],
     (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
-    _ => [],
+    _ =>
+      /* Hack: These act as temporary wrappers for projectors,
+       * which are retained through maketerm so as to be used in
+       * dynamics. These are inserted and removed entirely internal
+       * to maketerm. */
+      probe_wrap,
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -113,26 +123,39 @@ let return = (wrap, ids, tm) => {
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
 /* Strip a projector from a segment and log it in the map */
-let rm_and_log_projectors = (seg: Segment.t): Segment.t =>
-  List.map(
-    fun
-    | Piece.Projector(pr) => {
-        projectors := Id.Map.add(pr.id, pr, projectors^);
-        pr.syntax;
-      }
-    | x => x,
-    seg,
-  );
+let log_projector = (pr: Base.projector): unit => {
+  projectors := Id.Map.add(pr.id, pr, projectors^);
+};
+
+/* Check if a term should be instrumented with a probe.
+ * Precondition: The relevant projector must have been
+ * logged before this is called */
+let should_instrument = (id: Id.t): bool =>
+  switch (Id.Map.find_opt(id, projectors^)) {
+  | Some(pr) =>
+    let (module P) = ProjectorInit.to_module(pr.kind);
+    P.dynamics;
+  | None => failwith("MakeTerm.exp: projector not found")
+  };
 
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
-  | {term: Var(ctr), ids, _} => Variant(ctr, ids, None)
-  | {term: Ap({term: Var(ctr), ids: ids_ctr, _}, u), ids: ids_ap, _} =>
+  | {term: Var(ctr), annotation: {ids, _}} => Variant(ctr, ids, None)
+  | {
+      term: Ap({term: Var(ctr), annotation: {ids: ids_ctr, _}}, u),
+      annotation: {ids: ids_ap, _},
+    } =>
     Variant(ctr, ids_ctr @ ids_ap, Some(u))
   | t => BadEntry(t);
 
 let mk_bad = (ctr, ids, value) => {
-  let t: Typ.t = {ids, copied: false, term: Var(ctr)};
+  let t: Typ.t = {
+    annotation: {
+      ids,
+      copied: false,
+    },
+    term: Var(ctr),
+  };
   switch (value) {
   | None => t
   | Some(u) => Ap(t, u) |> Typ.fresh
@@ -146,7 +169,6 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   | Typ => Typ(typ(unsorted(skel, seg)))
   | Exp => Exp(exp(unsorted(skel, seg)))
   | Rul => Rul(rul(unsorted(skel, seg)))
-  | Nul => Nul() //TODO
   | Any =>
     let tm = unsorted(skel, seg);
     let ids = ids(tm);
@@ -168,7 +190,25 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(e => Exp(e), ids, {ids, copied: false, term});
+  let e: TermBase.exp_t =
+    return(
+      e => Exp(e),
+      ids,
+      {
+        annotation: {
+          ids,
+          copied: false,
+        },
+        term,
+      },
+    );
+  switch (term) {
+  | TupLabel(_) =>
+    // The tile id is the id of the tuple not the tuplabel
+    let (e_term, rewrap) = IdTagged.unwrap(e);
+    rewrap(Tuple([e_term |> Exp.fresh]): Exp.term);
+  | _ => e
+  };
 }
 and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   let ret = (tm: Exp.term) => (tm, []);
@@ -177,7 +217,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     // single-tile case
-    | ([(_id, t)], []) =>
+    | ([(id, t)], []) =>
       switch (t) {
       | ([t], []) when Form.is_empty_tuple(t) => ret(Tuple([]))
       | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
@@ -189,16 +229,24 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(String(Form.strip_quotes(t)))
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
-      | ([t], []) when Form.is_ctr(t) =>
-        ret(Constructor(t, Unknown(Internal) |> Typ.temp))
+      | ([t], []) when Form.is_ctr(t) => ret(Constructor(t, None))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
+      | (label, [Exp(body)]) when is_probe_wrap(label) =>
+        // Temporary wrapping form to persist projector probes
+        ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {ids, copied: false, term: Tuple(es)} => (ListLit(es), ids)
+        | {annotation: {ids, copied: false}, term: Tuple(es)} => (
+            ListLit(es),
+            ids,
+          )
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (["case", "end"], [Rul({ids, term: Rules(scrut, rules), _})]) => (
+      | (
+          ["case", "end"],
+          [Rul({term: Rules(scrut, rules), annotation: {ids, _}})],
+        ) => (
           Match(scrut, rules),
           ids,
         )
@@ -222,13 +270,37 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["hide", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Eval, One), pat: filter}), r)
+          Filter(
+            Filter({
+              act: (Eval, One),
+              pat: filter,
+            }),
+            r,
+          )
         | (["eval", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Eval, All), pat: filter}), r)
+          Filter(
+            Filter({
+              act: (Eval, All),
+              pat: filter,
+            }),
+            r,
+          )
         | (["pause", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Step, One), pat: filter}), r)
+          Filter(
+            Filter({
+              act: (Step, One),
+              pat: filter,
+            }),
+            r,
+          )
         | (["debug", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Step, All), pat: filter}), r)
+          Filter(
+            Filter({
+              act: (Step, All),
+              pat: filter,
+            }),
+            r,
+          )
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
@@ -247,13 +319,21 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           Ap(
             Forward,
             l,
-            {ids: [Id.nullary_ap_flag], copied: false, term: Tuple([])},
+            {
+              annotation: {
+                ids: [Id.nullary_ap_flag],
+                copied: false,
+              },
+              term: Tuple([]),
+            },
           ),
         )
       | (["(", ")"], [Exp(arg)]) =>
         let use_deferral = (arg: Exp.t): Exp.t => {
-          ids: arg.ids,
-          copied: false,
+          annotation: {
+            ids: IdTagged.ids(arg),
+            copied: false,
+          },
           term: Deferral(InAp),
         };
         switch (arg.term) {
@@ -267,7 +347,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 es,
               ),
             ),
-            arg.ids,
+            IdTagged.ids(arg),
           )
         | _ => ret(Ap(Forward, l, arg))
         };
@@ -284,7 +364,22 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | Some(between_kids) =>
+      let tuple_children: list(Exp.t) =
+        [l]
+        @ between_kids
+        @ [r]
+        |> List.map((child: Exp.t) => {
+             switch (child) {
+             | {term: Tuple([{term: TupLabel(_) as tl, _}]), _} as tup =>
+               // We use the Id for the tuple as the ids for the tuplabels
+               let (_, rewrap) = IdTagged.unwrap(tup);
+               rewrap(tl);
+             | _ => child
+             }
+           });
+
+      ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
       | ([(_id, t)], []) =>
@@ -318,6 +413,44 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["="], []) =>
+            switch (l.term) {
+            | Var(name) =>
+              TupLabel(
+                {
+                  annotation: l.annotation,
+                  term: Label(name),
+                },
+                r,
+              )
+            | EmptyHole => TupLabel(l, r)
+            | _ =>
+              let (e_term, rewrap) = IdTagged.unwrap(l);
+
+              TupLabel(
+                rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
+                r,
+              );
+            }
+          | (["."], []) =>
+            switch (r.term) {
+            | Var(name) =>
+              Dot(
+                l,
+                {
+                  annotation: r.annotation,
+                  term: Label(name),
+                },
+              )
+            | EmptyHole => Dot(l, r)
+            | _ =>
+              let (e_term, rewrap) = IdTagged.unwrap(r);
+
+              Dot(
+                l,
+                rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
+              );
+            }
           | (["|>"], []) => Ap(Reverse, r, l)
           | (["@"], []) => ListConcat(l, r)
           | _ => hole(tm)
@@ -331,7 +464,22 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(p => Pat(p), ids, {ids, term, copied: false});
+  let p =
+    return(
+      p => Pat(p),
+      ids,
+      {
+        annotation: {
+          ids,
+          copied: false,
+        },
+        term,
+      },
+    );
+  switch (term) {
+  | TupLabel(_) => Tuple([p]) |> Pat.fresh
+  | _ => p
+  };
 }
 and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   let ret = (term: Pat.term) => (term, []);
@@ -339,7 +487,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
-    | ([(_id, tile)], []) =>
+    | ([(id, tile)], []) =>
       ret(
         switch (tile) {
         | ([t], []) when Form.is_empty_tuple(t) => Tuple([])
@@ -350,13 +498,12 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         | ([t], []) when Form.is_string(t) => String(Form.strip_quotes(t))
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
-        | ([t], []) when Form.is_ctr(t) =>
-          Constructor(t, Unknown(Internal) |> Typ.fresh)
-        | ([t], [])
-            when
-              t != " " && !Form.is_explicit_hole(t) && !Form.is_llm_hole(t) =>
+        | ([t], []) when Form.is_ctr(t) => Constructor(t, None)
+        | ([t], []) when t != " " && !Form.is_explicit_hole(t) && !Form.is_llm_hole(t) =>
           Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
+        | (label, [Pat(body)]) when is_probe_wrap(label) =>
+          should_instrument(id) ? Probe(body, Probe.empty) : body.term
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
           | {term: Tuple(ps), _} => ListLit(ps)
@@ -387,9 +534,42 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     }
   | Bin(Pat(l), tiles, Pat(r)) as tm =>
     switch (is_tuple_pat(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | Some(between_kids) =>
+      let tuple_children =
+        [l]
+        @ between_kids
+        @ [r]
+        |> List.map((child: Pat.t) => {
+             switch (child) {
+             | {term: Tuple([{term: TupLabel(_), _} as tl]), _} => tl
+             | _ => child
+             }
+           });
+      ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
+      | ([(_id, (["="], []))], []) =>
+        switch (l.term) {
+        | Var(name) =>
+          ret(
+            TupLabel(
+              {
+                annotation: l.annotation,
+                term: Label(name),
+              },
+              r,
+            ),
+          )
+        | EmptyHole => ret(TupLabel(l, r))
+        | _ =>
+          let (e_term, rewrap) = IdTagged.unwrap(l);
+          ret(
+            TupLabel(
+              rewrap(MultiHole([Pat(e_term |> Pat.fresh)]): Pat.term),
+              r,
+            ),
+          );
+        }
       | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
       | _ => ret(hole(tm))
       }
@@ -399,7 +579,22 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
 and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(ty => Typ(ty), ids, {ids, term, copied: false});
+  let t =
+    return(
+      ty => Typ(ty),
+      ids,
+      {
+        term,
+        annotation: {
+          ids,
+          copied: false,
+        },
+      },
+    );
+  switch (term) {
+  | TupLabel(_) => Prod([t]) |> Typ.fresh
+  | _ => t
+  };
 }
 and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   let ret = (term: Typ.term) => (term, []);
@@ -417,6 +612,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["String"], []) => String
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
+        | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], [])
             when
@@ -439,7 +635,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     ret(Forall(tpat, t))
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
-  | Pre(tiles, Typ({term: Sum(t0), ids, _})) as tm =>
+  | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
     | ([(_, (["+"], []))], []) => (Sum(t0), ids)
@@ -464,10 +660,36 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
-    | Some(between_kids) => ret(Prod([l] @ between_kids @ [r]))
+    | Some(between_kids) =>
+      let tuple_children: list(Typ.t) =
+        [l]
+        @ between_kids
+        @ [r]
+        |> List.map((child: Typ.t) => {
+             switch (child) {
+             | {term: Prod([{term: TupLabel(_), _} as tl]), _} => tl
+             | _ => child
+             }
+           });
+
+      ret(Prod(tuple_children));
     | None =>
       switch (tiles) {
       | ([(_id, (["->"], []))], []) => ret(Arrow(l, r))
+      | ([(_id, (["="], []))], []) =>
+        switch (l.term) {
+        | Var(name) =>
+          ret(
+            TupLabel(
+              {
+                annotation: l.annotation,
+                term: Label(name),
+              },
+              r,
+            ),
+          )
+        | _ => ret(TupLabel(l, r))
+        }
       | _ => ret(hole(tm))
       }
     }
@@ -476,7 +698,17 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
   let ids = ids(unsorted);
-  return(ty => TPat(ty), ids, {ids, term, copied: false});
+  return(
+    ty => TPat(ty),
+    ids,
+    {
+      term,
+      annotation: {
+        ids,
+        copied: false,
+      },
+    },
+  );
 }
 and tpat_term: unsorted => TPat.term = {
   let ret = (term: TPat.term) => term;
@@ -492,6 +724,7 @@ and tpat_term: unsorted => TPat.term = {
             when
               t != " " && !Form.is_explicit_hole(t) && !Form.is_llm_hole(t) =>
           Invalid(t)
+        | (label, [TPat(body)]) when is_probe_wrap(label) => body.term
         | _ => hole(tm)
         },
       )
@@ -506,7 +739,7 @@ and tpat_term: unsorted => TPat.term = {
 //   let ids = ids(unsorted);
 //   return(r => Rul(r), ids, {ids, term});
 // }
-and rul = (unsorted: unsorted): Rul.t => {
+and rul = (unsorted): Rul.t => {
   let hole: Rul.term = Hole(kids_of_unsorted(unsorted));
   switch (exp(unsorted)) {
   | {term: MultiHole(_), _} =>
@@ -514,28 +747,51 @@ and rul = (unsorted: unsorted): Rul.t => {
     | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
       switch (is_rules(tiles)) {
       | Some((ps, leading_clauses)) => {
-          ids: ids(unsorted),
+          annotation: {
+            ids: ids(unsorted),
+            copied: false,
+          },
           term:
             Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
-          copied: false,
         }
-      | None => {ids: ids(unsorted), term: hole, copied: false}
+      | None => {
+          term: hole,
+          annotation: {
+            ids: ids(unsorted),
+            copied: false,
+          },
+        }
       }
-    | _ => {ids: ids(unsorted), term: hole, copied: false}
+    | _ => {
+        term: hole,
+        annotation: {
+          ids: ids(unsorted),
+          copied: false,
+        },
+      }
     }
-  | e => {ids: [], term: Rules(e, []), copied: false}
+  | e => {
+      term: Rules(e, []),
+      annotation: {
+        ids: [],
+        copied: false,
+      },
+    }
   };
 }
 
 and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
-  let seg = rm_and_log_projectors(seg);
   let tile_kids = (p: Piece.t): list(Term.Any.t) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector(_) => []
+    | Projector({syntax, _} as pr) =>
+      let _ = log_projector(pr);
+      let sort = Piece.sort(syntax) |> fst;
+      let seg = Piece.unparenthesize(syntax);
+      [go_s(sort, Segment.skel(seg), seg)];
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
@@ -585,8 +841,61 @@ let go =
       map := TermMap.empty;
       projectors := Id.Map.empty;
       let term = exp(unsorted(Segment.skel(seg), seg));
-      {term, terms: map^, projectors: projectors^};
+      {
+        term,
+        terms: map^,
+        projectors: projectors^,
+      };
     },
+  );
+
+let for_projection =
+  /* Returns Nul() unless segment represents a well-structured term in isolation.
+   * This means that the term is complete, modulo non-empty holes and sort errors.
+   * Specifically, it ensures there are no incomplete tiles in the segment, and
+   * that no contained sub-segment is non-convex. However, there can still be convex
+   * holes, singleton multiholes representing sort errors, non-singleton multiholes
+   * representing missing infix operators, and invalid tokens. */
+  Core.Memo.general(~cache_size_bound=1000, (seg: Segment.t) =>
+    if (!Segment.deep_tile_complete(seg)) {
+      None; /* Returns None if any subsegment contains incomplete tiles */
+    } else if (Segment.is_padded(seg)) {
+      None; /* Returns None if the segment has secondary around it */
+    } else {
+      switch (Segment.skel(seg)) {
+      | exception _ => None /* Returns None if any subsegment is non-convex */
+      | skel =>
+        let (unsorted, sort) = (
+          unsorted(skel, seg),
+          Segment.sort_of(skel, seg),
+        );
+        switch (sort) {
+        | Exp =>
+          switch (exp(unsorted)) {
+          | {term: Tuple(_), _} => None
+          | _ => Some(Grammar.Exp(exp(unsorted)))
+          }
+        | Pat =>
+          switch (pat(unsorted)) {
+          | {term: Tuple(_), _} => None
+          | _ => Some(Pat(pat(unsorted)))
+          }
+        | Typ =>
+          switch (typ(unsorted)) {
+          | {term: Prod(_), _} => None
+          | _ => Some(Typ(typ(unsorted)))
+          }
+        | TPat =>
+          switch (tpat(unsorted)) {
+          | _ => Some(TPat(tpat(unsorted)))
+          }
+        /* Rul case below prevents returning pseudo-terms
+         * consisting of case scrutinee + rule(s) */
+        | Rul => None
+        | Any => Some(Any()) /* grout */
+        };
+      };
+    }
   );
 
 let from_zip_for_sem =
@@ -600,3 +909,9 @@ let from_zip_for_sem =
     ~cache_size_bound=1000,
     from_zip_for_sem(~dump_backpack=true, ~erase_buffer=true),
   );
+
+let parse_exp = (s: string) => {
+  open OptUtil.Syntax;
+  let+ zip = Printer.zipper_of_string(s);
+  from_zip_for_sem(zip).term;
+};

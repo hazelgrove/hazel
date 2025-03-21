@@ -19,6 +19,7 @@ let context_entry_view = (~globals, entry: Haz3lcore.Ctx.entry): Node.t => {
         hide_fixpoints: false,
         fold_cast_types: false,
         show_filters: false,
+        show_unknown_as_hole: true,
       },
     );
   let div_name = div(~attrs=[clss(["name"])]);
@@ -33,7 +34,7 @@ let context_entry_view = (~globals, entry: Haz3lcore.Ctx.entry): Node.t => {
       [
         div_name([text(name)]),
         div(~attrs=[clss(["seperator"])], [text(":")]),
-        view_type(typ, ~info_map=Haz3lcore.Id.Map.empty),
+        view_type(typ),
       ],
     )
   | TVarEntry({name, kind, _}) =>
@@ -56,13 +57,17 @@ let ctx_view = (~globals, ctx: Haz3lcore.Ctx.t): Node.t =>
     ~attrs=[clss(["context-inspector"])],
     List.map(
       context_entry_view(~globals),
-      ctx |> Haz3lcore.Ctx.filter_duplicates |> List.rev,
+      ctx
+      |> Haz3lcore.Ctx.filter_duplicates
+      |> Haz3lcore.Ctx.filter_stepper_filter_variables
+      |> List.rev,
     ),
   );
 
 let ctx_sorts_view = (~globals, ci: Haz3lcore.Statics.Info.t) =>
   Haz3lcore.Info.ctx_of(ci)
   |> Haz3lcore.Ctx.filter_duplicates
+  |> Haz3lcore.Ctx.filter_stepper_filter_variables
   |> List.rev
   |> List.map(context_entry_view(~globals));
 

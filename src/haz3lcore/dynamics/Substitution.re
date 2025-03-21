@@ -14,10 +14,13 @@ let rec binds_var = (m: Statics.Map.t, x: Var.t, dp: DHPat.t): bool =>
     | Float(_)
     | Bool(_)
     | String(_)
+    | Label(_)
     | Constructor(_) => false
     | Cast(y, _, _)
-    | Parens(y) => binds_var(m, x, y)
-    | Var(y) => Var.eq(x, y)
+    | Parens(y)
+    | Probe(y, _) => binds_var(m, x, y)
+    | Var(y) => Var.equal(x, y)
+    | TupLabel(_, dp) => binds_var(m, x, dp)
     | Tuple(dps) => dps |> List.exists(binds_var(m, x))
     | Cons(dp1, dp2) => binds_var(m, x, dp1) || binds_var(m, x, dp2)
     | ListLit(d_list) =>
@@ -32,7 +35,7 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   let (term, rewrap) = DHExp.unwrap(d2);
   switch (term) {
   | Var(y) =>
-    if (Var.eq(x, y)) {
+    if (Var.equal(x, y)) {
       d1;
     } else {
       d2;
@@ -65,16 +68,13 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
         subst_var(m, d1, x, d3);
       };
     FixF(y, d3, env') |> rewrap;
-  | Fun(dp, d3, env, s) =>
-    /* Function closure shouldn't appear during substitution
-       (which only is called from elaboration currently) */
-    let env' = Option.map(subst_var_env(m, d1, x), env);
+  | Fun(dp, d3, ty, s) =>
     if (binds_var(m, x, dp)) {
-      Fun(dp, d3, env', s) |> rewrap;
+      Fun(dp, d3, ty, s) |> rewrap;
     } else {
       let d3 = subst_var(m, d1, x, d3);
-      Fun(dp, d3, env', s) |> rewrap;
-    };
+      Fun(dp, d3, ty, s) |> rewrap;
+    }
   | TypFun(tpat, d3, s) =>
     TypFun(tpat, subst_var(m, d1, x, d3), s) |> rewrap
   | Closure(env, d3) =>
@@ -93,6 +93,7 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | Int(_)
   | Float(_)
   | String(_)
+  | Label(_)
   | Constructor(_) => d2
   | ListLit(ds) => ListLit(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | Cons(d3, d4) =>
@@ -103,6 +104,11 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     let d3 = subst_var(m, d1, x, d3);
     let d4 = subst_var(m, d1, x, d4);
     ListConcat(d3, d4) |> rewrap;
+  | TupLabel(label, d) => TupLabel(label, subst_var(m, d1, x, d)) |> rewrap
+  | Dot(d3, d4) =>
+    let d3 = subst_var(m, d1, x, d3);
+    let d4 = subst_var(m, d1, x, d4);
+    Dot(d3, d4) |> rewrap;
   | Tuple(ds) => Tuple(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | UnOp(op, d3) =>
     let d3 = subst_var(m, d1, x, d3);
@@ -147,6 +153,9 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | Parens(d4) =>
     let d4' = subst_var(m, d1, x, d4);
     Parens(d4') |> rewrap;
+  | Probe(d4, pr) =>
+    let d4' = subst_var(m, d1, x, d4);
+    Probe(d4', pr) |> rewrap;
   | Deferral(_) => d2
   | DeferredAp(d3, d4s) =>
     let d3 = subst_var(m, d1, x, d3);
@@ -161,33 +170,28 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
 and subst_var_env =
     (m, d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t)
     : ClosureEnvironment.t => {
-  let id = env |> ClosureEnvironment.id_of;
-  let map =
-    env
-    |> ClosureEnvironment.map_of
-    |> Environment.foldo(
-         ((x', d': DHExp.t), map) => {
-           let d' =
-             switch (DHExp.term_of(d')) {
-             /* Substitute each previously substituted binding into the
-              * fixpoint. */
-             | FixF(_) =>
-               map
-               |> Environment.foldo(
-                    ((x'', d''), d) => subst_var(m, d'', x'', d),
-                    d',
-                  )
-             | _ => d'
-             };
+  Environment.foldo(
+    ((x', d': DHExp.t), map) => {
+      let d' =
+        switch (DHExp.term_of(d')) {
+        /* Substitute each previously substituted binding into the
+         * fixpoint. */
+        | FixF(_) =>
+          map
+          |> Environment.foldo(
+               ((x'', d''), d) => subst_var(m, d'', x'', d),
+               d',
+             )
+        | _ => d'
+        };
 
-           /* Substitute. */
-           let d' = subst_var(m, d1, x, d');
-           Environment.extend(map, (x', d'));
-         },
-         Environment.empty,
-       );
-
-  ClosureEnvironment.wrap(id, map);
+      /* Substitute. */
+      let d' = subst_var(m, d1, x, d');
+      Environment.extend(map, (x', d'));
+    },
+    Environment.empty,
+  )
+  |> ClosureEnvironment.update_env(_, env);
 }
 
 and subst_var_filter =

@@ -84,7 +84,12 @@ let stepper_group = (~globals: Globals.t) => {
         s.show_hidden_steps,
         Evaluation(ShowHiddenSteps),
       ),
-      ("⏯️", "Filters", s.show_stepper_filters, Evaluation(ShowFilters)),
+      (
+        "⏯️",
+        "Show filters",
+        s.show_stepper_filters,
+        Evaluation(ShowFilters),
+      ),
     ],
   );
 };
@@ -97,6 +102,12 @@ let dev_group = (~globals) => {
       ("✓", "Benchmarks", globals.settings.benchmark, Benchmark),
       ("𝑒", "Elaboration", globals.settings.core.elaborate, Elaborate),
       ("↵", "Whitespace", globals.settings.secondary_icons, SecondaryIcons),
+      (
+        "a",
+        "Animations",
+        globals.settings.core.flip_animations,
+        FlipAnimations,
+      ),
     ],
   );
 };

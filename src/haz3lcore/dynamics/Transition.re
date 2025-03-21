@@ -23,6 +23,10 @@ open PatternMatch;
     are all enumerated by the <i> field, so i=0 indicates that it is the first
     sub-expression, i=1 the second etc.
 
+    If there are any sub-expressions that are not requirements, and therefore not
+    guaranteed to be run, you should add a `let.wrap_closure () = env` to ensure that
+    the closure isn't lost if the expression is indet.
+
     Finally, we have the Step construct that defines the actual step. Note "Step"s
     should be used if and only if they change the expression. If they do not change
     the expression, use `Constructor` or `Indet`.
@@ -47,7 +51,7 @@ type step_kind =
   | VarLookup
   | Seq
   | LetBind
-  | FunClosure
+  | WrapClosure
   | FixUnwrap
   | FixClosure
   | UpdateTest
@@ -63,6 +67,7 @@ type step_kind =
   | BinIntOp(Operators.op_bin_int)
   | BinFloatOp(Operators.op_bin_float)
   | BinStringOp(Operators.op_bin_string)
+  | Dot
   | Conditional(bool)
   | Projection
   | ListCons
@@ -73,14 +78,7 @@ type step_kind =
   | Cast
   | RemoveTypeAlias
   | RemoveParens;
-let evaluate_extend_env =
-    (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
-    : ClosureEnvironment.t => {
-  to_extend
-  |> ClosureEnvironment.map_of
-  |> Environment.union(new_bindings)
-  |> ClosureEnvironment.of_environment;
-};
+let evaluate_extend_env = ClosureEnvironment.extend_eval;
 
 type rule =
   | Step({
@@ -124,30 +122,80 @@ module type EV_MODE = {
   let otherwise: (ClosureEnvironment.t, 'a) => requirements(unit, 'a);
 
   let update_test: (state, Id.t, TestMap.instance_report) => unit;
+
+  let update_probe: (state, Dynamics.Probe.Closure.t) => unit;
 };
 
 module Transition = (EV: EV_MODE) => {
   open EV;
   open DHExp;
+  open IdTagged.FreshGrammar.Exp;
 
   // Default state update
   let state_update = () => ();
 
-  let (let.match) = ((env, match_result: PatternMatch.match_result), r) =>
+  let (let.match) = ((env, match_result: match_result, call_stack), r) =>
     switch (match_result) {
     | IndetMatch
     | DoesNotMatch => Indet
-    | Matches(env') => r(evaluate_extend_env(env', env))
+    | Matches(env') => r(evaluate_extend_env(env', env, ~call_stack))
+    };
+
+  let capture_closures =
+      (env: ClosureEnvironment.t, state: state, closures, ()): unit =>
+    List.iter(
+      closure => update_probe(state, closure(env.call_stack)),
+      closures,
+    );
+
+  /* Helper function to wrap a closure around an expression. Required for functions, but also for
+     things like if-then-else expressions where the scrutinee is indet, and for hole closures */
+  let wrap_closure_when_done = (~in_closure, expr, env, r: rule) =>
+    switch (in_closure, r) {
+    | (_, Step(_)) => r
+    | (None, Constructor | Indet | Value) =>
+      Step({
+        expr: closure(env, expr),
+        state_update,
+        kind: WrapClosure,
+        is_value: false,
+      })
+    | (Some(f), Constructor | Indet | Value) =>
+      f();
+      r;
     };
 
   /* Note[Matt]: For IDs, I'm currently using a fresh id
      if anything about the current node changes, if only its
      children change, we use rewrap */
 
-  let transition = (req, state, env, d): 'a => {
+  let transition =
+      (
+        req:
+          (
+            ~in_closure: unit => unit=?,
+            state,
+            ClosureEnvironment.t,
+            DHExp.t
+          ) =>
+          'a,
+        ~in_closure=?,
+        state,
+        env,
+        d,
+      )
+      : 'a => {
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
-    let wrap_ctx = (term): EvalCtx.t => Term({term, ids: [rep_id(d)]});
+    let wrap_ctx = (term): EvalCtx.t =>
+      Term({
+        term,
+        ids: [rep_id(d)],
+      });
+
+    let (let.wrap_closure) = (env, f: unit => rule) => {
+      wrap_closure_when_done(~in_closure, d, env, f());
+    };
 
     // Transition rules
     switch (term) {
@@ -167,36 +215,38 @@ module Transition = (EV: EV_MODE) => {
           kind: VarLookup,
           is_value,
         });
-      | None => Indet
+      | None =>
+        let.wrap_closure _ = env;
+        Indet;
       };
     | Seq(d1, d2) =>
       let. _ = otherwise(env, d1 => Seq(d1, d2) |> rewrap)
       and. _ =
         req_final(req(state, env), d1 => Seq1(d1, d2) |> wrap_ctx, d1);
-      Step({expr: d2, state_update, kind: Seq, is_value: false});
+      Step({
+        expr: d2,
+        state_update,
+        kind: Seq,
+        is_value: false,
+      });
     | Let(dp, d1, d2) =>
       let. _ = otherwise(env, d1 => Let(dp, d1, d2) |> rewrap)
       and. d1' =
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
-      let.match env' = (env, matches(dp, d1'));
+      let.wrap_closure _ = env;
+      let {matches, closures} = matches(dp, d1');
+      let.match env' = (env, matches, env.call_stack);
       Step({
-        expr: Closure(env', d2) |> fresh,
-        state_update,
+        expr: closure(env', d2),
+        state_update: capture_closures(env, state, closures),
         kind: LetBind,
         is_value: false,
       });
     | TypFun(_)
-    | Fun(_, _, Some(_), _) =>
+    | Fun(_, _, _, _) =>
       let. _ = otherwise(env, d);
-      Constructor;
-    | Fun(p, d1, None, v) =>
-      let. _ = otherwise(env, d);
-      Step({
-        expr: Fun(p, d1, Some(env), v) |> rewrap,
-        state_update,
-        kind: FunClosure,
-        is_value: true,
-      });
+      let.wrap_closure _ = env;
+      Value;
     | FixF(dp, d1, None) =>
       let. _ = otherwise(env, FixF(dp, d1, None) |> rewrap);
       Step({
@@ -212,11 +262,12 @@ module Transition = (EV: EV_MODE) => {
         let. _ = otherwise(env, d);
         let env'' =
           evaluate_extend_env(
+            ~call_stack=env.call_stack,
             Environment.singleton((f, FixF(dp, d1, Some(env)) |> rewrap)),
             env,
           );
         Step({
-          expr: Closure(env'', d1) |> fresh,
+          expr: closure(env'', d1),
           state_update,
           kind: FixUnwrap,
           is_value: false,
@@ -230,19 +281,18 @@ module Transition = (EV: EV_MODE) => {
             binding =>
               (
                 binding,
-                Let(
-                  dp,
-                  FixF(dp, d1, Some(env)) |> rewrap,
-                  Var(binding) |> fresh,
-                )
-                |> fresh,
+                let_(dp, FixF(dp, d1, Some(env)) |> rewrap, var(binding)),
               ),
             bindings,
           );
         let env'' =
-          evaluate_extend_env(Environment.of_list(substitutions), env);
+          evaluate_extend_env(
+            ~call_stack=env.call_stack,
+            Environment.of_list(substitutions),
+            env,
+          );
         Step({
-          expr: Closure(env'', d1) |> fresh,
+          expr: closure(env'', d1),
           state_update,
           kind: FixUnwrap,
           is_value: false,
@@ -258,7 +308,7 @@ module Transition = (EV: EV_MODE) => {
         | Matches(b) => b ? Pass : Fail
         };
       Step({
-        expr: Tuple([]) |> fresh,
+        expr: tuple([]),
         state_update: () =>
           update_test(state, DHExp.rep_id(d), (d', result)),
         kind: UpdateTest,
@@ -290,12 +340,11 @@ module Transition = (EV: EV_MODE) => {
         /* Rule ITTApCast */
         Step({
           expr:
-            Cast(
-              TypAp(d'', tau) |> Exp.fresh,
+            cast(
+              typ_ap(d'', tau),
               Typ.subst(tau, tp1, t1),
               Typ.subst(tau, tp2, t2),
-            )
-            |> Exp.fresh,
+            ),
           state_update,
           kind: CastTypAp,
           is_value: false,
@@ -325,23 +374,30 @@ module Transition = (EV: EV_MODE) => {
       let-unbox unboxed_fun = (Fun, d1');
       switch (unboxed_fun) {
       | Constructor(_) => Constructor
-      | FunEnv(dp, d3, env') =>
-        let.match env'' = (env', matches(dp, d2'));
-        Step({
-          expr: Closure(env'', d3) |> fresh,
-          state_update,
-          kind: FunAp,
-          is_value: false,
-        });
+      | FunEnv(dp, d3, function_lexical_env) =>
+        let matches = matches(dp, d2');
+        switch (matches.matches) {
+        | IndetMatch
+        | DoesNotMatch => Indet
+        | Matches(function_arg_env) =>
+          let env'' =
+            evaluate_extend_env(
+              ~ap_id=Term.Exp.rep_id(d),
+              ~call_stack=env.call_stack,
+              function_arg_env,
+              function_lexical_env,
+            );
+          Step({
+            expr: closure(env'', d3),
+            state_update: capture_closures(env'', state, matches.closures),
+            kind: FunAp,
+            is_value: false,
+          });
+        };
       | FunCast(d3', ty1, ty2, ty1', ty2') =>
         Step({
-          expr:
-            Cast(
-              Ap(dir, d3', Cast(d2', ty1', ty1) |> fresh) |> fresh,
-              ty2,
-              ty2',
-            )
-            |> fresh,
+          expr: cast(ap(dir, d3', cast(d2', ty1', ty1)), ty2, ty2'),
+
           state_update,
           kind: CastAp,
           is_value: false,
@@ -359,7 +415,12 @@ module Transition = (EV: EV_MODE) => {
              });
         switch (builtin(d2')) {
         | Some(expr) =>
-          Step({expr, state_update, kind: BuiltinAp(ident), is_value: false})
+          Step({
+            expr,
+            state_update,
+            kind: BuiltinAp(ident),
+            is_value: false,
+          })
         | None => Indet
         };
       | DeferredAp(d3, d4s) =>
@@ -376,7 +437,7 @@ module Transition = (EV: EV_MODE) => {
           if (n_args == 1) {
             (
               Tuple(n_args),
-              Tuple([d2]) |> fresh // TODO Should we not be going to a tuple?
+              tuple([d2]) // TODO Should we not be going to a tuple?
             );
           } else {
             (Tuple(n_args), d2);
@@ -394,7 +455,7 @@ module Transition = (EV: EV_MODE) => {
           go(d4s, args);
         };
         Step({
-          expr: Ap(Forward, d3, Tuple(new_args) |> fresh) |> fresh,
+          expr: ap(Forward, d3, tuple(new_args)),
           state_update,
           kind: DeferredAp,
           is_value: false,
@@ -407,6 +468,7 @@ module Transition = (EV: EV_MODE) => {
     | Int(_)
     | Float(_)
     | String(_)
+    | Label(_)
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
@@ -415,6 +477,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, c => If(c, d1, d2) |> rewrap)
       and. c' =
         req_final(req(state, env), c => If1(c, d1, d2) |> wrap_ctx, c);
+      let.wrap_closure _ = env;
       let-unbox b = (Bool, c');
       Step({
         expr: {
@@ -438,7 +501,7 @@ module Transition = (EV: EV_MODE) => {
         );
       let-unbox n = (Int, d1');
       Step({
-        expr: Int(- n) |> fresh,
+        expr: int(- n),
         state_update,
         kind: UnOp(Int(Minus)),
         is_value: true,
@@ -453,7 +516,7 @@ module Transition = (EV: EV_MODE) => {
         );
       let-unbox b = (Bool, d1');
       Step({
-        expr: Bool(!b) |> fresh,
+        expr: bool(!b),
         state_update,
         kind: UnOp(Bool(Not)),
         is_value: true,
@@ -466,9 +529,10 @@ module Transition = (EV: EV_MODE) => {
           d1 => BinOp1(Bool(And), d1, d2) |> wrap_ctx,
           d1,
         );
+      let.wrap_closure _ = env;
       let-unbox b1 = (Bool, d1');
       Step({
-        expr: b1 ? d2 : Bool(false) |> fresh,
+        expr: b1 ? d2 : bool(false),
         state_update,
         kind: BinBoolOp(And),
         is_value: false,
@@ -481,9 +545,10 @@ module Transition = (EV: EV_MODE) => {
           d1 => BinOp1(Bool(Or), d1, d2) |> wrap_ctx,
           d1,
         );
+      let.wrap_closure _ = env;
       let-unbox b1 = (Bool, d1');
       Step({
-        expr: b1 ? Bool(true) |> fresh : d2,
+        expr: b1 ? bool(true) : d2,
         state_update,
         kind: BinBoolOp(Or),
         is_value: false,
@@ -506,32 +571,30 @@ module Transition = (EV: EV_MODE) => {
       let-unbox n2 = (Int, d2');
       Step({
         expr:
-          (
-            switch (op) {
-            | Plus => Int(n1 + n2)
-            | Minus => Int(n1 - n2)
-            | Power when n2 < 0 =>
-              DynamicErrorHole(
-                BinOp(Int(op), d1', d2') |> rewrap,
-                NegativeExponent,
-              )
-            | Power => Int(IntUtil.ipow(n1, n2))
-            | Times => Int(n1 * n2)
-            | Divide when n2 == 0 =>
-              DynamicErrorHole(
-                BinOp(Int(op), d1', d2') |> rewrap,
-                DivideByZero,
-              )
-            | Divide => Int(n1 / n2)
-            | LessThan => Bool(n1 < n2)
-            | LessThanOrEqual => Bool(n1 <= n2)
-            | GreaterThan => Bool(n1 > n2)
-            | GreaterThanOrEqual => Bool(n1 >= n2)
-            | Equals => Bool(n1 == n2)
-            | NotEquals => Bool(n1 != n2)
-            }
-          )
-          |> fresh,
+          switch (op) {
+          | Plus => int(n1 + n2)
+          | Minus => int(n1 - n2)
+          | Power when n2 < 0 =>
+            dynamic_error_hole(
+              BinOp(Int(op), d1', d2') |> rewrap,
+              NegativeExponent,
+            )
+          | Power => int(IntUtil.ipow(n1, n2))
+          | Times => int(n1 * n2)
+          | Divide when n2 == 0 =>
+            dynamic_error_hole(
+              BinOp(Int(op), d1', d2') |> rewrap,
+              DivideByZero,
+            )
+          | Divide => int(n1 / n2)
+          | LessThan => bool(n1 < n2)
+          | LessThanOrEqual => bool(n1 <= n2)
+          | GreaterThan => bool(n1 > n2)
+          | GreaterThanOrEqual => bool(n1 >= n2)
+          | Equals => bool(n1 == n2)
+          | NotEquals => bool(n1 != n2)
+          },
+
         state_update,
         kind: BinIntOp(op),
         // False so that InvalidOperations are caught and made indet by the next step
@@ -556,22 +619,20 @@ module Transition = (EV: EV_MODE) => {
       let-unbox n2 = (Float, d2');
       Step({
         expr:
-          (
-            switch (op) {
-            | Plus => Float(n1 +. n2)
-            | Minus => Float(n1 -. n2)
-            | Power => Float(n1 ** n2)
-            | Times => Float(n1 *. n2)
-            | Divide => Float(n1 /. n2)
-            | LessThan => Bool(n1 < n2)
-            | LessThanOrEqual => Bool(n1 <= n2)
-            | GreaterThan => Bool(n1 > n2)
-            | GreaterThanOrEqual => Bool(n1 >= n2)
-            | Equals => Bool(n1 == n2)
-            | NotEquals => Bool(n1 != n2)
-            }
-          )
-          |> fresh,
+          switch (op) {
+          | Plus => float(n1 +. n2)
+          | Minus => float(n1 -. n2)
+          | Power => float(n1 ** n2)
+          | Times => float(n1 *. n2)
+          | Divide => float(n1 /. n2)
+          | LessThan => bool(n1 < n2)
+          | LessThanOrEqual => bool(n1 <= n2)
+          | GreaterThan => bool(n1 > n2)
+          | GreaterThanOrEqual => bool(n1 >= n2)
+          | Equals => bool(n1 == n2)
+          | NotEquals => bool(n1 != n2)
+          },
+
         state_update,
         kind: BinFloatOp(op),
         is_value: true,
@@ -596,13 +657,54 @@ module Transition = (EV: EV_MODE) => {
       Step({
         expr:
           switch (op) {
-          | Concat => String(s1 ++ s2) |> fresh
-          | Equals => Bool(s1 == s2) |> fresh
+          | Concat => string(s1 ++ s2)
+          | Equals => bool(s1 == s2)
           },
         state_update,
         kind: BinStringOp(op),
         is_value: true,
       });
+    | Dot(d1, d2) =>
+      let. _ = otherwise(env, (d1, d2) => Dot(d1, d2) |> rewrap)
+      and. d1' =
+        req_final(req(state, env), d1 => Dot1(d1, d2) |> wrap_ctx, d1)
+      and. d2' =
+        req_final(req(state, env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
+      switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
+      | (Tuple(ds), Label(name)) =>
+        switch (LabeledTuple.find_label(Exp.match_tup_label, ds, name)) {
+        | Some({term: TupLabel(_, exp), _}) =>
+          Step({
+            expr: exp,
+            state_update,
+            kind: Dot,
+            is_value: false,
+          })
+        | _ => Indet
+        }
+      | (TupLabel(_, d), Label(name)) =>
+        LabeledTuple.has_same_labels(
+          Exp.match_tup_label(d1'),
+          Some((name, d)),
+        )
+          ? Step({
+              expr: d,
+              state_update,
+              kind: Dot,
+              is_value: false,
+            })
+          : Indet
+      | _ => Indet
+      };
+    | TupLabel(label, d1) =>
+      let. _ = otherwise(env, d1 => TupLabel(label, d1) |> rewrap)
+      and. _ =
+        req_final(
+          req(state, env),
+          d1 => TupLabel(label, d1) |> wrap_ctx,
+          d1,
+        );
+      Constructor;
     | Tuple(ds) =>
       let. _ = otherwise(env, ds => Tuple(ds) |> rewrap)
       and. _ =
@@ -620,7 +722,7 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d2 => Cons2(d1, d2) |> wrap_ctx, d2);
       let-unbox ds = (List, d2');
       Step({
-        expr: ListLit([d1', ...ds]) |> fresh,
+        expr: list_lit([d1', ...ds]),
         state_update,
         kind: ListCons,
         is_value: true,
@@ -642,7 +744,7 @@ module Transition = (EV: EV_MODE) => {
       let-unbox ds1 = (List, d1');
       let-unbox ds2 = (List, d2');
       Step({
-        expr: ListLit(ds1 @ ds2) |> fresh,
+        expr: list_lit(ds1 @ ds2),
         state_update,
         kind: ListConcat,
         is_value: true,
@@ -667,48 +769,80 @@ module Transition = (EV: EV_MODE) => {
       let rec next_rule = (
         fun
         | [] => None
-        | [(dp, d2), ...rules] =>
-          switch (matches(dp, d1)) {
-          | Matches(env') => Some((env', d2))
-          | DoesNotMatch => next_rule(rules)
-          | IndetMatch => None
+        | [(dp, d2), ...rules] => {
+            let matches = matches(dp, d1);
+            switch (matches.matches) {
+            | Matches(env') => Some((env', d2, matches.closures))
+            | DoesNotMatch => next_rule(rules)
+            | IndetMatch => None
+            };
           }
       );
       switch (next_rule(rules)) {
-      | Some((env', d2)) =>
+      | Some((env', d2, closures)) =>
         Step({
-          expr: Closure(evaluate_extend_env(env', env), d2) |> fresh,
-          state_update,
+          expr:
+            closure(
+              evaluate_extend_env(env', env, ~call_stack=env.call_stack),
+              d2,
+            ),
+
+          state_update: capture_closures(env, state, closures),
           kind: CaseApply,
           is_value: false,
         })
-      | None => Indet
+      | None =>
+        let.wrap_closure _ = env;
+        Indet;
       };
     | Closure(env', d) =>
+      // HACK [Matt] This ref is a hack to ensure that we don't get into an infinite loop
+      // where we keep deleting and re-adding closures around forms that need closures
+      // e.g. functions.
+      let needs_closure = ref(false);
+      let in_closure = () => needs_closure := true;
       let. _ = otherwise(env, d => Closure(env', d) |> rewrap)
       and. d' =
-        req_final(req(state, env'), d1 => Closure(env', d1) |> wrap_ctx, d);
-      Step({expr: d', state_update, kind: CompleteClosure, is_value: true});
+        req_final(
+          req(~in_closure, state, env'),
+          d1 => Closure(env', d1) |> wrap_ctx,
+          d,
+        );
+      if (needs_closure^) {
+        Constructor;
+      } else {
+        Step({
+          expr: d',
+          state_update,
+          kind: CompleteClosure,
+          is_value: true,
+        });
+      };
     | MultiHole(_) =>
       let. _ = otherwise(env, d);
-      // and. _ =
-      //   req_all_final(
-      //     req(state, env),
-      //     (d1, ds) => MultiHole(d1, ds) |> wrap_ctx,
-      //     ds,
-      //   );
+      let.wrap_closure _ = env;
       Indet;
     | EmptyHole
-    | Invalid(_)
+    | Invalid(_) =>
+      let. _ = otherwise(env, d);
+      // let.wrap_closure _ = env;  // uncomment for hole closures
+      Indet;
     | DynamicErrorHole(_) =>
       let. _ = otherwise(env, d);
+      let.wrap_closure _ = env;
       Indet;
     | Cast(d, t1, t2) =>
       let. _ = otherwise(env, d => Cast(d, t1, t2) |> rewrap)
       and. d' =
         req_final(req(state, env), d => Cast(d, t1, t2) |> wrap_ctx, d);
       switch (Casts.transition(Cast(d', t1, t2) |> rewrap)) {
-      | Some(d) => Step({expr: d, state_update, kind: Cast, is_value: false})
+      | Some(d) =>
+        Step({
+          expr: d,
+          state_update,
+          kind: Cast,
+          is_value: false,
+        })
       | None => Constructor
       };
     | FailedCast(d1, t1, t2) =>
@@ -723,17 +857,51 @@ module Transition = (EV: EV_MODE) => {
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;
+    | Probe(d'', pr) =>
+      /* When evaluated, a probe adds a dynamics info entry
+       * reflecting the evaluation of the contained expression */
+      let. _ = otherwise(env, d => Probe(d, pr) |> rewrap)
+      and. d' =
+        req_final(req(state, env), d => Probe(d, pr) |> wrap_ctx, d'');
+      Step({
+        expr: d',
+        state_update: () => {
+          let call_stack = ClosureEnvironment.call_stack_of(env);
+          let map = ClosureEnvironment.map_of(env);
+          let id = DHExp.rep_id(d);
+          let closure =
+            Dynamics.Probe.Closure.mk(id, d', map, call_stack, pr);
+          update_probe(state, closure);
+        },
+        kind: RemoveParens,
+        is_value: false,
+      });
     | Parens(d) =>
       let. _ = otherwise(env, d);
-      Step({expr: d, state_update, kind: RemoveParens, is_value: false});
+      Step({
+        expr: d,
+        state_update,
+        kind: RemoveParens,
+        is_value: false,
+      });
     | TyAlias(_, _, d) =>
       let. _ = otherwise(env, d);
-      Step({expr: d, state_update, kind: RemoveTypeAlias, is_value: false});
+      Step({
+        expr: d,
+        state_update,
+        kind: RemoveTypeAlias,
+        is_value: false,
+      });
     | Filter(f1, d1) =>
       let. _ = otherwise(env, d1 => Filter(f1, d1) |> rewrap)
       and. d1 =
         req_final(req(state, env), d1 => Filter(f1, d1) |> wrap_ctx, d1);
-      Step({expr: d1, state_update, kind: CompleteFilter, is_value: true});
+      Step({
+        expr: d1,
+        state_update,
+        kind: CompleteFilter,
+        is_value: true,
+      });
     };
   };
 };
@@ -751,6 +919,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | BinIntOp(_)
   | BinFloatOp(_)
   | BinStringOp(_)
+  | Dot
   | UnOp(_)
   | ListCons
   | ListConcat
@@ -767,7 +936,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | CompleteClosure
   | CompleteFilter
   | BuiltinWrap
-  | FunClosure
+  | WrapClosure
   | FixClosure
   | RemoveParens => true;
 
@@ -806,7 +975,8 @@ let stepper_justification: step_kind => string =
   | FixClosure => "fixpoint closure"
   | CompleteFilter => "complete filter"
   | CompleteClosure => "complete closure"
-  | FunClosure => "function closure"
+  | WrapClosure => "wrap closure"
   | RemoveTypeAlias => "define type"
   | RemoveParens => "remove parentheses"
+  | Dot => "Labeled tuple access"
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");

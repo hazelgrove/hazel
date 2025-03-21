@@ -3,11 +3,10 @@
 @import "style/animations.css";
 @import "style/loading.css";
 @import "style/editor.css";
-@import "style/projectors.css";
+@import "style/projectors/proj-base.css";
 @import "style/nut-menu.css";
 @import "style/cursor-inspector.css";
 @import "style/type-display.css";
-@import "style/projectors-panel.css";
 @import "style/explainthis.css";
 @import "style/assistant.css";
 @import "style/sidebar.css";
@@ -129,7 +128,6 @@ select:hover {
   grid-column: 1 / span 2;
   display: flex;
   align-items: center;
-  gap: 1em;
   justify-content: space-between;
   align-items: stretch;
   background-color: var(--ui-bkg);
