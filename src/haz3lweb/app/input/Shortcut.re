@@ -9,13 +9,7 @@ type t = {
 };
 
 let mk_shortcut = (~hotkey=?, ~mdIcon=?, ~section=?, label, update_action): t => {
-  {
-    update_action: Some(update_action),
-    hotkey,
-    label,
-    mdIcon,
-    section,
-  };
+  {update_action: Some(update_action), hotkey, label, mdIcon, section};
 };
 
 let instructor_shortcuts: list(t) = [
@@ -281,8 +275,7 @@ let from_shortcut =
            print_endline("Could not find action for " ++ shortcut.label)
          };
        }
-   }
-  ];
+   }];
 };
 
 let options = (schedule_action: Page.Update.t => unit) => {

@@ -25,7 +25,4 @@ let rec_typ: form = {
   };
 };
 
-let rec_: group = {
-  id: RecTyp,
-  forms: [rec_typ],
-};
+let rec_: group = {id: RecTyp, forms: [rec_typ]};

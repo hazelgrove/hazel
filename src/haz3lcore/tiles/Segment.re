@@ -90,12 +90,7 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   let+ remolded =
     Molds.get(t.label)
     |> List.filter((m: Mold.t) => m.out == s)
-    |> List.map(mold =>
-         {
-           ...t,
-           mold,
-         }
-       )
+    |> List.map(mold => {...t, mold})
     |> (
       fun
       | [_] as ts => ts
@@ -119,10 +114,7 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
       Aba.aba_triples(Aba.mk(remolded.shards, remolded.children)),
       [],
     );
-  {
-    ...remolded,
-    children,
-  };
+  {...remolded, children};
 }
 and remold_typ = (shape, seg: t): t =>
   switch (seg) {
@@ -578,11 +570,7 @@ and regrout_affix =
               t.children,
               [],
             );
-          let p =
-            Piece.Tile({
-              ...t,
-              children,
-            });
+          let p = Piece.Tile({...t, children});
           let (l', r') =
             Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
           let trim = Trim.regrout(d, (r', r), trim);
@@ -611,11 +599,7 @@ let rec reassemble = (seg: t): t =>
     | Some((seg_l, match, seg_r)) =>
       let t = Tile.reassemble(match);
       let children = List.map(reassemble, t.children);
-      let p =
-        Tile.to_piece({
-          ...t,
-          children,
-        });
+      let p = Tile.to_piece({...t, children});
       seg_l @ [p, ...reassemble(seg_r)];
     }
   };
@@ -814,31 +798,14 @@ module IDs = {
   and replace_piece = (~id=?, p: Piece.t): Piece.t => {
     let id = Option.value(~default=Id.mk(), id);
     switch (p) {
-    | Tile(t) =>
-      Tile({
-        ...t,
-        children: List.map(replace, t.children),
-        id,
-      })
-    | Grout(grout) =>
-      Grout({
-        ...grout,
-        id,
-      })
-    | Secondary(w) =>
-      Secondary({
-        ...w,
-        id,
-      })
+    | Tile(t) => Tile({...t, children: List.map(replace, t.children), id})
+    | Grout(grout) => Grout({...grout, id})
+    | Secondary(w) => Secondary({...w, id})
     | Projector(p) =>
       /* Need to keep projector and contained piece id in-sync */
       let id = Id.mk();
       let syntax = replace_piece(~id, p.syntax);
-      Projector({
-        ...p,
-        syntax,
-        id,
-      });
+      Projector({...p, syntax, id});
     };
   };
 

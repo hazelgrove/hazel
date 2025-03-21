@@ -154,10 +154,7 @@ module ShardInfo = {
     counts: Counts.t,
   };
 
-  let init = () => {
-    order: Order.init(),
-    counts: Counts.init(),
-  };
+  let init = () => {order: Order.init(), counts: Counts.init()};
 
   let add_sel = (sel: Selection.t, {counts, order}: t): unit => {
     let ts = Segment.incomplete_tiles(sel.content);

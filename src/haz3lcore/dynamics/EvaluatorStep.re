@@ -19,12 +19,7 @@ module EvalObj = {
     knd: step_kind,
   };
 
-  let mk = (ctx, env, d_loc, knd) => {
-    ctx,
-    env,
-    d_loc,
-    knd,
-  };
+  let mk = (ctx, env, d_loc, knd) => {ctx, env, d_loc, knd};
 
   let get_ctx = (obj: t): EvalCtx.t => {
     obj.ctx;
@@ -70,11 +65,7 @@ let rec matches =
     switch (ctx) {
     | Mark => (act, idx, EvalCtx.Mark)
     | Term({term, ids}) =>
-      let rewrap = term =>
-        EvalCtx.Term({
-          term,
-          ids,
-        });
+      let rewrap = term => EvalCtx.Term({term, ids});
       switch ((term: EvalCtx.term)) {
       | Closure(env, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
@@ -204,10 +195,7 @@ let rec matches =
   | _ when midx == ridx && midx > pidx && mact |> snd == All => (
       ract,
       ridx,
-      Term({
-        term: Filter(Residue(midx, mact), rctx),
-        ids: [Id.mk()],
-      }),
+      Term({term: Filter(Residue(midx, mact), rctx), ids: [Id.mk()]}),
     )
   | _ => (ract, ridx, rctx)
   };
@@ -221,20 +209,8 @@ let should_hide_eval_obj =
     let (act, _, ctx) =
       matches(ClosureEnvironment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
     switch (act) {
-    | (Eval, _) => (
-        Eval,
-        {
-          ...x,
-          ctx,
-        },
-      )
-    | (Step, _) => (
-        Step,
-        {
-          ...x,
-          ctx,
-        },
-      )
+    | (Eval, _) => (Eval, {...x, ctx})
+    | (Step, _) => (Step, {...x, ctx})
     };
   };
 
@@ -245,20 +221,8 @@ let should_hide_step = (~settings, x: step): (FilterAction.action, step) =>
     let (act, _, ctx) =
       matches(ClosureEnvironment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
     switch (act) {
-    | (Eval, _) => (
-        Eval,
-        {
-          ...x,
-          ctx,
-        },
-      )
-    | (Step, _) => (
-        Step,
-        {
-          ...x,
-          ctx,
-        },
-      )
+    | (Eval, _) => (Eval, {...x, ctx})
+    | (Step, _) => (Step, {...x, ctx})
     };
   };
 

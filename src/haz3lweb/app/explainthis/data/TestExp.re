@@ -28,7 +28,4 @@ let test_exp: form = {
   };
 };
 
-let tests: group = {
-  id: TestExp,
-  forms: [test_exp],
-};
+let tests: group = {id: TestExp, forms: [test_exp]};
