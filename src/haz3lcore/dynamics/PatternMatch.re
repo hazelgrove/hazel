@@ -31,7 +31,7 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
     let* s' = Unboxing.unbox(String, d);
     s == s' ? Matches(Environment.empty) : DoesNotMatch;
   | ListLit(xs) =>
-    let* s' = Unboxing.unbox(ListLit(List.length(xs)), d);
+    let* s' = Unboxing.unbox(ListLitn(List.length(xs)), d);
     List.map2(matches, xs, s')
     |> List.fold_left(combine_result, Matches(Environment.empty));
   | Cons(x, xs) =>

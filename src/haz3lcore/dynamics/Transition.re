@@ -695,13 +695,17 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d1 => Cons1(d1, d2) |> wrap_ctx, d1)
       and. d2' =
         req_final(req(state, env), d2 => Cons2(d1, d2) |> wrap_ctx, d2);
-      let-unbox ds = (List, d2');
-      Step({
-        expr: list_lit([d1', ...ds]),
-        state_update,
-        kind: ListCons,
-        is_value: true,
-      });
+      switch (Unboxing.unbox(ListLit, d2')) {
+      | Matches(ds) =>
+        Step({
+          expr: list_lit([d1', ...ds]),
+          state_update,
+          kind: ListCons,
+          is_value: true,
+        })
+      | DoesNotMatch => Indet
+      | IndetMatch => Constructor // Treat list cons with indet tail as constructors
+      };
     | ListConcat(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => ListConcat(d1, d2) |> rewrap)
       and. d1' =
@@ -716,8 +720,8 @@ module Transition = (EV: EV_MODE) => {
           d2 => ListConcat2(d1, d2) |> wrap_ctx,
           d2,
         );
-      let-unbox ds1 = (List, d1');
-      let-unbox ds2 = (List, d2');
+      let-unbox ds1 = (ListLit, d1');
+      let-unbox ds2 = (ListLit, d2');
       Step({
         expr: list_lit(ds1 @ ds2),
         state_update,
