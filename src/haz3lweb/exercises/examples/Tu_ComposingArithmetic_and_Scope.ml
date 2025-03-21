@@ -137,8 +137,7 @@ let exercise : Tutorial.spec =
         hints = [ "Check the expression in the editor!" ];
       };
     display_hint =
-      "Iteratively copy the expression given in the editor into the cell below \
-       👇";
+      "Copy the expression given in the editor into the cell below 👇";
   }
 
 let scope_exercise : Tutorial.spec =
@@ -151,7 +150,11 @@ let scope_exercise : Tutorial.spec =
        available for use. For let expressions, the sub-expression that follows \
        the `in` keyword has the variable bound by the let expression in scope. \
        Hazel's expression decorations show you where the scope of the variable \
-       will end.";
+       will end. \n\
+      \ 1. Define a variable x inside a let expression.\n\
+      \ 2. Assign it the value 5. \n\
+      \ 3. Use x in an arithmetic operation inside the in block to return x + \
+       10";
     wrapper = true;
     show_report = false;
     version = 6;
@@ -174,12 +177,103 @@ let scope_exercise : Tutorial.spec =
             backpack = [];
             relatives =
               {
-                siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
+                siblings =
+                  ( [
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ "test"; "end" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "answer" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "==" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Concave 7; sort = Exp },
+                                            { shape = Concave 7; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "15" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ];
+                        };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ ";" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [];
+                              nibs =
+                                ( { shape = Concave 10; sort = Exp },
+                                  { shape = Concave 10; sort = Exp } );
+                            };
+                          shards = [ 0 ];
+                          children = [];
+                        };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
+                    ],
+                    [ Grout { id = Id.mk (); shape = Convex } ] );
                 ancestors = [];
               };
             caret = Outer;
           };
-        hints = [];
+        hints = [ "Make sure you use x as your variable" ];
       };
-    display_hint = "";
+    display_hint = "Add a `+ 10` to your answer from the previous exercise.";
   }

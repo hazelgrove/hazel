@@ -321,8 +321,12 @@ let cond_ex : Tutorial.spec =
     module_name = "Tu_Conditional_Expressions";
     prompt =
       "Given a boolean expression, we can use it to choose between two \
-       expressions using a `conditional expression`. For example, `if 2 < 3 \
-       then 4 * 4 else 5 * 5` evaluates to `4`.";
+       expressions using a `conditional expression`. \n\
+      \ \n\
+      \       For example, `if 2 < 3 then 4 * 4 else 5 * 5` evaluates to `4`. \n\
+      \ \n\
+      \       Write a conditional expression that checks if the number `162 < \
+       165`. If it is, return `162 / 2`, otherwise return `162 * 3 + 1`.\n";
     wrapper = true;
     show_report = false;
     version = 9;
@@ -345,14 +349,109 @@ let cond_ex : Tutorial.spec =
             backpack = [];
             relatives =
               {
-                siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
+                siblings =
+                  ( [
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ "test"; "end" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "answer" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "==" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Concave 7; sort = Exp },
+                                            { shape = Concave 7; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "131" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ];
+                        };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ ";" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [];
+                              nibs =
+                                ( { shape = Concave 10; sort = Exp },
+                                  { shape = Concave 10; sort = Exp } );
+                            };
+                          shards = [ 0 ];
+                          children = [];
+                        };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
+                    ],
+                    [ Grout { id = Id.mk (); shape = Convex } ] );
                 ancestors = [];
               };
             caret = Outer;
           };
-        hints = [];
+        hints =
+          [
+            "Have you followed the same format at the example for your \
+             expression?";
+          ];
       };
-    display_hint = "";
+    display_hint = "Ensure your `if` `then` expression is correctly formatted.";
   }
 
 let func_ex : Tutorial.spec =
@@ -365,13 +464,11 @@ let func_ex : Tutorial.spec =
        produce other expressions as outputs. For example,  `fun x -> x + 1` is \
        a function that takes an integer expression as input and produces an \
        integer expression as output. Functions in Hazel do not themselves have \
-       names. Instead, you can use a let expression to name a function.\n\
-      \      \n\
-      \      You apply a function to an argument expression by using \
-       parentheses in the usual way. For example, `let f = fun x -> x + 1 in \
-       f(2)` evaluates to `3` . Go through this example in the stepper to see \
-       how substitution of the function for the variable standing for the \
-       function works.";
+       names. Instead, you can use a `let` expression to name a function. \n\
+      \ You apply a function to an argument expression by using parentheses in \
+       the usual way. For example, `let f = fun x -> x + 1 in f(2)` evaluates \
+       to `3` . Go through this example in the stepper to see how substitution \
+       of the function for the variable standing for the function works.";
     wrapper = true;
     show_report = false;
     version = 10;
@@ -394,12 +491,105 @@ let func_ex : Tutorial.spec =
             backpack = [];
             relatives =
               {
-                siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
+                siblings =
+                  ( [
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ "test"; "end" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "answer" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "==" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Concave 7; sort = Exp },
+                                            { shape = Concave 7; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "3" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ];
+                        };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ ";" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [];
+                              nibs =
+                                ( { shape = Concave 10; sort = Exp },
+                                  { shape = Concave 10; sort = Exp } );
+                            };
+                          shards = [ 0 ];
+                          children = [];
+                        };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
+                    ],
+                    [ Grout { id = Id.mk (); shape = Convex } ] );
                 ancestors = [];
               };
             caret = Outer;
           };
-        hints = [];
+        hints = [ "Did you copy in the given expression correctly?" ];
       };
-    display_hint = "";
+    display_hint =
+      "The stepper toggle is located in the bottom right corner of the cell \
+       below 👇";
   }
