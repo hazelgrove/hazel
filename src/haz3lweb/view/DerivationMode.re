@@ -395,7 +395,16 @@ module View = {
       Widgets.button_named(
         Icons.command_palette_sparkle,
         _ => {
-          NinjaKeysRule.open_command_palette(~version=eds.ruleset, ~pos);
+          NinjaKeysRule.open_command_palette(
+            ~version=eds.ruleset, ~update_rule=rule => {
+            ignore(
+              inject(
+                MapEditor(
+                  DerivationTree.switch_rule(~pos, ~rule=Some(rule)),
+                ),
+              ),
+            )
+          });
           Effect.Ignore;
         },
         ~tooltip="Switch Rule",

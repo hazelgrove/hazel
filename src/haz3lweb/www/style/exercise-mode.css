@@ -568,9 +568,13 @@
   border: solid var(--BR1) 1px;
   padding: 0.5rem;
   border-radius: 1rem;
-  display: none;
+  display: block;
   position: fixed;
   z-index: 1000;
+}
+
+#page .hover-rule-spec {
+  display: none;
 }
 
 #ninja-keys-rules {

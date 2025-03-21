@@ -1,151 +1,143 @@
 open Haz3lcore;
 open Js_of_ocaml;
 open Util;
-let pos = ref(DerivationTree.Trees(0, Value));
-let version = ref(RuleImage.PropositionalLogic: RuleImage.version);
-let schedule_action =
-  ref(
-    (
-      _: DerivationTree.p(Editor.Model.t) => DerivationTree.p(Editor.Model.t),
-    ) =>
-    ()
-  );
-let schedule_action_update_hover_rule_spec = ref(() => ());
-let current_hover_rule = ref(Rule.Implies_E);
 
-let from_rule =
-    (rule: Haz3lcore.RuleImage.t)
-    : {
-        .
-        "handler": Js.readonly_prop(unit => unit),
-        "id": Js.readonly_prop(string),
-        "title": Js.readonly_prop(string),
-        "section": Js.readonly_prop(Js.optdef(string)),
-        "keywords": Js.readonly_prop(string),
-      } => {
-  [%js
-   {
-     val id = Haz3lcore.RuleImage.sexp_of_t(rule) |> Sexplib.Sexp.to_string;
-     val title = Haz3lcore.RuleImage.show(rule);
-     val section =
-       Js.Optdef.option(
-         Some(
-           Haz3lcore.RuleImage.show_kind(Haz3lcore.RuleImage.of_kind(rule)),
-         ),
-       );
-     val handler =
-       () =>
-         schedule_action^(
-           DerivationTree.switch_rule(~pos=pos^, ~rule=Some(rule)),
-         );
-     val keywords = Haz3lcore.RuleImage.keywords(rule) |> String.concat(" ")
-   }];
-};
+let action_refresh = ref(() => ());
+let current_hover_rule = ref(Rule.Assumption);
 
-let bind_event_handler = (n: int) => {
-  let _ =
-    Js.Unsafe.eval_string(
-      Format.sprintf(
-        "
-const checkInterval = setInterval(() => {
+let ( let* ) = Js.Opt.case(_, () => Js._false);
 
-const actions = document
-    .getElementById('ninja-keys-rules')
-    .shadowRoot
-    .querySelectorAll('ninja-action');
-if (actions.length != %d) return;
-
-actions.forEach((action, _) => {
-    action.addEventListener(
-        'mouseover',
-        document.body['ninja-keys-rules-handler']);
-});
-
-clearInterval(checkInterval);
-}, 100);
-",
-        n,
+// Wrap a function (to be called by Js setInterval) in a loop call.
+// Clear the interval if the function returns true.
+let loop = (f: unit => bool, interval: float) => {
+  let id_ref = ref(None);
+  id_ref :=
+    Some(
+      Dom_html.window##setInterval(
+        Js.wrap_callback(_ =>
+          if (f()) {
+            switch (id_ref^) {
+            | Some(id) => Dom_html.window##clearInterval(id)
+            | None => ()
+            };
+          }
+        ),
+        Js.float(interval),
       ),
     );
-  ();
 };
 
-let handler = (_ev: Js.t(#Dom.event('a))) => {
-  let document = Dom_html.document;
-  let target_elem = Dom_html.eventTarget(_ev);
-  let shadow_root = Js.Unsafe.get(target_elem, "action");
-  let id = Js.to_string(shadow_root##.id);
-  let rule_image = RuleImage.t_of_sexp(Sexplib.Sexp.of_string(id));
-  let rule = Option.get(RuleImage.to_rule(version^, rule_image));
+let selector = "div.hover-rule-spec";
+let selector_origin = "#page > " ++ selector;
+let selector_copied = "body > " ++ selector;
+let opt_get_origin = () =>
+  Dom_html.document##querySelector(Js.string(selector_origin));
+let opt_get_copied = () =>
+  Dom_html.document##querySelector(Js.string(selector_copied));
 
-  if (current_hover_rule^ != rule) {
-    current_hover_rule := rule;
-    print_endline("Hovering over rule: " ++ Rule.show(rule));
-    schedule_action_update_hover_rule_spec^();
-  };
-
-  /* Mouseenter handler */
-  target_elem##.onmousemove :=
-    Dom.handler(ev => {
-      /* Create text element */
-
-      let text_div =
-        JsUtil.get_elem_by_selector("#page > div.hover-rule-spec");
-      let text_div = text_div##cloneNode(Js.bool(true));
-      let _ =
-        Js.Opt.case(
-          document##querySelector(Js.string("body > div.hover-rule-spec")),
-          () => (),
-          old_text_div => {
-            let _ =
-              document##.body##removeChild((old_text_div :> Js.t(Dom.node)));
-            ();
-          },
-        );
-      let _ = document##.body##appendChild(text_div);
-      let text_div =
-        JsUtil.get_elem_by_selector("body > div.hover-rule-spec");
-      // document##getElementById(Js.string("hover-rule-spec"));
-
-      let mouseX = ev##.clientX; // + Dom_html.window##scrollHeight;
-      let mouseY = Dom_html.window##.innerHeight - ev##.clientY; // + window##.scrollY;
-      text_div##.style##.left := Js.string(Printf.sprintf("%dpx", mouseX));
-      text_div##.style##.bottom := Js.string(Printf.sprintf("%dpx", mouseY));
-      text_div##.style##.display := Js.string("block");
-      Js._true;
-    });
-
-  target_elem##.onmouseout :=
-    Dom.handler(_ => {
-      let text_element =
-        JsUtil.get_elem_by_selector("body > div.hover-rule-spec");
-      text_element##.style##.display := Js.string("none");
-      Js._true;
-    });
-
+let try_remove_copied = _ev => {
+  let* copied = opt_get_copied();
+  let _ = Dom_html.document##.body##removeChild((copied :> Js.t(Dom.node)));
   Js._true;
 };
 
-let set_handler = () => {
-  Js.Unsafe.set(
-    Dom_html.document##.body,
-    "ninja-keys-rules-handler",
-    Dom.handler(handler),
-  );
-};
+let elem = JsUtil.get_elem_by_id("ninja-keys-rules");
+let shadow_root = Js.Unsafe.get(_, "shadowRoot");
 
-let open_command_palette = (~version as version', ~pos as pos'): unit => {
-  let elem = JsUtil.get_elem_by_id("ninja-keys-rules");
-  if (version^ != version') {
-    version := version';
-    let rules = version^ |> Haz3lcore.RuleImage.all_rules_of_version;
+module Open =
+       (
+         M: {
+           let version: RuleImage.version;
+           let update_rule: Haz3lcore.RuleImage.t => unit;
+         },
+       ) => {
+  let copy_hover_rule_spec = (target_elem: Js.t(Dom_html.element), ev) => {
+    let action = Js.Unsafe.get(target_elem, "action");
+    let id = Js.to_string(action##.id);
+    let rule_image = RuleImage.t_of_sexp(Sexplib.Sexp.of_string(id));
+    let rule = Option.get(RuleImage.to_rule(M.version, rule_image));
+    if (current_hover_rule^ != rule) {
+      current_hover_rule := rule;
+      action_refresh^();
+    };
+    let* origin = opt_get_origin();
+    let _ = try_remove_copied(ev);
+    let _ =
+      Dom_html.document##.body##appendChild(origin##cloneNode(Js._true));
+    let* copied = opt_get_copied();
+    let left = ev##.clientX;
+    let bottom = Dom_html.window##.innerHeight - ev##.clientY;
+    copied##.style##.left := Js.string(Printf.sprintf("%dpx", left));
+    copied##.style##.bottom := Js.string(Printf.sprintf("%dpx", bottom));
+    Js._true;
+  };
+
+  let bind_event_handler = (action: Js.t(Dom_html.element)) => {
+    action##.onmousemove := Dom.handler(copy_hover_rule_spec(action));
+    action##.onmouseout := Dom.handler(try_remove_copied);
+    (); // TODO(zhiyao): I don't know why if it's removed, it doesn't work
+  };
+
+  let bind_event_handler_all = () => {
+    let elem_root = shadow_root(elem);
+    let actions = elem_root##querySelectorAll(Js.string("ninja-action"));
+    let _ = actions##forEach(Js.wrap_callback(bind_event_handler));
+    actions##.length != 0;
+  };
+
+  let bind_event_handler_search = () => {
+    let elem_root = shadow_root(elem);
+    let ninja_header = elem_root##querySelector(Js.string("ninja-header"));
+    let shadow_root = shadow_root(ninja_header);
+    let search: Js.t(Dom_html.inputElement) =
+      shadow_root##querySelector(Js.string("#search"));
+    search##.oninput :=
+      Dom.handler(_ev => {Js.bool(bind_event_handler_all())});
+  };
+
+  let from_rule =
+      (rule: Haz3lcore.RuleImage.t)
+      : {
+          .
+          "handler": Js.readonly_prop(unit => unit),
+          "id": Js.readonly_prop(string),
+          "title": Js.readonly_prop(string),
+          "section": Js.readonly_prop(Js.optdef(string)),
+          "keywords": Js.readonly_prop(string),
+        } => {
+    open Haz3lcore.RuleImage;
+    [%js
+     {
+       val id = sexp_of_t(rule) |> Sexplib.Sexp.to_string;
+       val title = show(rule);
+       val section = Js.Optdef.option(Some(show_kind(of_kind(rule))));
+       val handler = () => M.update_rule(rule);
+       val keywords = keywords(rule) |> String.concat(" ")
+     }];
+  };
+
+  let set_data = () => {
     Js.Unsafe.set(
       elem,
       "data",
-      rules |> List.map(from_rule) |> Array.of_list |> Js.array,
+      M.version
+      |> RuleImage.all_rules_of_version
+      |> List.map(from_rule)
+      |> Array.of_list
+      |> Js.array,
     );
-    bind_event_handler(List.length(rules));
   };
-  pos := pos';
+};
+
+let open_command_palette = (~version, ~update_rule): unit => {
+  module Open =
+    Open({
+      let version = version;
+      let update_rule = update_rule;
+    });
+  open Open;
+  set_data();
+  loop(bind_event_handler_all, 100.);
+  bind_event_handler_search();
   Js.Unsafe.meth_call(elem, "open", [||]);
 };
