@@ -136,6 +136,9 @@ let exercise : Tutorial.spec =
           };
         hints = [ "Check the expression in the editor!" ];
       };
+    display_hint =
+      "Iteratively copy the expression given in the editor into the cell below \
+       👇";
   }
 
 let scope_exercise : Tutorial.spec =
@@ -178,4 +181,5 @@ let scope_exercise : Tutorial.spec =
           };
         hints = [];
       };
+    display_hint = "";
   }

@@ -253,50 +253,14 @@ module Update = {
     let editors: Tutorial.p('a) = {
       {
         id: model.editors.id,
-        // let calculate = Editor.Update.calculate(~is_edited);
-
         title: model.editors.title,
-        // description: model.editors.description,
         version: model.editors.version,
         module_name: model.editors.module_name,
         prompt: model.editors.prompt,
-        // point_distribution: model.editors.point_distribution,
-        // prelude:
-        //   calculate(cells.prelude.editor.statics, model.editors.prelude),
-        // correct_impl: model.editors.correct_impl,
-        // calculate(
-        //   // cells.editor.statics,
-        //   model.editors.correct_impl,
-        // ),
-        // your_tests: {
-        //   tests:
-        //     calculate(
-        //       cells.user_tests.editor.statics,
-        //       model.editors.your_tests.tests,
-        //     ),
-        //   required: model.editors.your_tests.required,
-        //   provided: model.editors.your_tests.provided,
-        // },
         your_impl: model.editors.your_impl,
-        // raw_result: model.editors.raw_result,
-        // calculate(cells.user_impl.editor.statics, model.editors.your_impl),
-        // hidden_bugs:
-        //   List.map2(
-        //     (cell: CellEditor.Model.t, editor: Exercise.wrong_impl('a)):
-        //       Exercise.wrong_impl('a) =>
-        //       {
-        //         impl: calculate(cell.editor.statics, editor.impl),
-        //         hint: editor.hint,
-        //       },
-        //     cells.hidden_bugs,
-        //     model.editors.hidden_bugs,
-        //   ),
+        display_hint: model.editors.display_hint,
         hidden_tests: {
           tests: model.editors.hidden_tests.tests,
-          // calculate(
-          //   cells.hidden_tests.editor.statics,
-          //   model.editors.hidden_tests.tests,
-          // ),
           hints: model.editors.hidden_tests.hints,
         },
         wrapper: model.editors.wrapper,
@@ -368,12 +332,6 @@ module View = {
     let eds = model.editors;
     let {user_impl, instructor, hidden_tests}: Tutorial.stitched('a) =
       model.cells;
-    // Printf.printf(
-    //   "User Impl Before View: %s\n",
-    //   CellEditor.Model.show(user_impl),
-    // );
-
-    // let answer_value = raw_result.result;
 
     let stitched_tests =
       Tutorial.map_stitched(
@@ -414,12 +372,7 @@ module View = {
       );
     };
     let title_view = CellCommon.title_cell(eds.title);
-    // let description_view =
-    //   CellCommon.narrative_cell(
-    //     div(~attrs=[Attr.class_("cell-prompt")], [text(eds.description)]),
-    //   );
 
-    // let pre_title_view = CellCommon.title_cell(" ");
     let prompt_view = {
       let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
       let (msg, _) =
@@ -428,50 +381,63 @@ module View = {
     };
     let your_impl_view = {
       Always(
-        editor_view(
-          YourImpl,
-          user_impl,
-          ~caption="Your Implementation",
-          ~result_kind=EvalResults,
+        div(
+          ~attrs=[Attr.class_("your-impl-wrapper")], // 🆕 Add this wrapper
+          [
+            editor_view(
+              YourImpl,
+              user_impl,
+              ~caption="Your Implementation",
+              ~result_kind=EvalResults,
+            ),
+          ],
         ),
       );
     };
-    // Printf.printf(
-    //   "User Impl After View: %s\n",
-    //   CellEditor.Model.show(user_impl),
-    // ):
 
     let hidden_tests_view =
       InstructorOnly(
         () => editor_view(HiddenTests, hidden_tests, ~caption="Hidden Tests"),
       );
-    let hint_view =
-      switch (grading_report.impl_grading_report.hints) {
-      | [hint] =>
-        div(
-          ~attrs=[Attr.class_("hint-cell")],
-          [
-            div(~attrs=[Attr.class_("hint-title")], [text("💡 Hint")]),
-            div(~attrs=[Attr.class_("hint-content")], [text(hint)]),
-          ],
-        )
-      | _ => div([]) // No hint available
-      };
+    let hint_view = {
+      let hint_placeholder =
+        eds.display_hint == "" ? "No hints available." : eds.display_hint;
+
+      let (msg, _) = ExplainThis.mk_translation(~globals, hint_placeholder);
+
+      div(
+        ~attrs=[Attr.class_("hint-cell")],
+        [
+          div(~attrs=[Attr.class_("hint-title")], [text("💡 Hint")]),
+          div(~attrs=[Attr.class_("hint-content")], msg),
+          div(
+            ~attrs=[Attr.class_("hint-with-icon")],
+            [
+              text("Pro tip: Click the "),
+              span(~attrs=[Attr.class_("highlight-icon")], [Icons.info]),
+              text(" button below for more details."),
+            ],
+          ),
+        ],
+      );
+    };
+    // | _ => div([]) // No hint available
+    // };
     let impl_grading_view =
       Always(
         if (test_count > 0) {
           let checkmark_view =
             switch (Tutorial.get_stitched(HiddenTests, stitched_tests)) {
             | Some(test_results) =>
-              if (test_results.total == test_results.passing) {
-                // ✅ Test case has passed -> Show check mark next to hint with a button
+              print_endline(EvalResult.Model.show(hidden_tests.result));
+              let inner_result = hidden_tests.result.result;
+              switch (inner_result) {
+              | Evaluation({result: OldValue(ResultPending), _}) => div([])
+              | Evaluation({result: OldValue(ResultFail(Timeout)), _}) =>
                 div(
                   ~attrs=[Attr.class_("checkmark-container")],
                   [
-                    div(
-                      ~attrs=[Attr.class_("checkmark")],
-                      [text("✔️")],
-                    ),
+                    div(~attrs=[Attr.class_("cross")], [text("✖")]),
                     div(
                       ~attrs=[Attr.class_("report-icon")],
                       [
@@ -480,27 +446,110 @@ module View = {
                         ),
                       ],
                     ),
-                    // div(
-                    //   ~attrs=[Attr.class_("next-button")],
-                    //   [
-                    //     Widgets.button(Icons.info, _ =>
-                    //       inject(MoveToNextExercise)
-                    //     ),
-                    //   ],
-                    // ),
-                    // ],
-                    // ),
                   ],
-                );
-              } else {
-                div(
-                  [] // Don't show check mark if test hasn't passed
-                );
-              }
+                )
+
+              | Evaluation({result: OldValue(ResultOk(_)), _}) =>
+                print_endline("✅ ResultOk match hit!");
+                if (test_results.total == test_results.passing) {
+                  div(
+                    ~attrs=[Attr.class_("checkmark-container")],
+                    [
+                      div(
+                        ~attrs=[Attr.class_("checkmark")],
+                        [text("✔️")],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("report-icon")],
+                        [
+                          Widgets.button(Icons.info, _ =>
+                            inject(Change_report_view)
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                } else {
+                  div(
+                    ~attrs=[Attr.class_("checkmark-container")],
+                    [
+                      div(~attrs=[Attr.class_("cross")], [text("✖")]),
+                      div(
+                        ~attrs=[Attr.class_("report-icon")],
+                        [
+                          Widgets.button(Icons.info, _ =>
+                            inject(Change_report_view)
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                };
+
+              | _ => div([])
+              };
+            // switch (hidden_tests.result) {
+            // | {
+            //     result: Evaluation({result: NewValue(ResultPending), _}),
+            //     _,
+            //   } =>
+            //   None
+            // | {
+            //     result:
+            //       Evaluation({result: NewValue(ResultFail(Timeout)), _}),
+            //     _,
+            //   } =>
+            //   div(
+            //     ~attrs=[Attr.class_("checkmark-container")],
+            //     [
+            //       div(~attrs=[Attr.class_("cross")], [text("✖")]),
+            //       div(
+            //         ~attrs=[Attr.class_("report-icon")],
+            //         [
+            //           Widgets.button(Icons.info, _ =>
+            //             inject(Change_report_view)
+            //           ),
+            //         ],
+            //       ),
+            //     ],
+            //   )
+
+            // | {result: Evaluation({result: NewValue(ResultOk(_)), _}), _} =>
+
+            //   div(
+            //     ~attrs=[Attr.class_("checkmark-container")],
+            //     [
+            //       div(
+            //         ~attrs=[Attr.class_("checkmark")],
+            //         [text("✔️")],
+            //       ),
+            //       div(
+            //         ~attrs=[Attr.class_("report-icon")],
+            //         [
+            //           Widgets.button(Icons.info, _ =>
+            //             inject(Change_report_view)
+            //           ),
+            //         ],
+            //       ),
+            //       // div(
+            //       //   ~attrs=[Attr.class_("next-button")],
+            //       //   [
+            //       //     Widgets.button(Icons.info, _ =>
+            //       //       inject(MoveToNextExercise)
+            //       //     ),
+            //       //   ],
+            //       // ),
+            //       // ],
+            //       // ),
+            //     ],
+            //   )
+            // | _ => div([])
+
+            // }
+
             | None => div([]) // No test results available yet
             };
 
-          // ✅ Fix: Pass children as last positional argument instead of using `~children`
           div([
             checkmark_view,
             eds.show_report

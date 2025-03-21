@@ -56,7 +56,7 @@ type p('code) = {
   //   point_distribution,
   //   prelude: 'code,
   // correct_impl: 'code,
-  //   your_tests: your_tests('code),
+  display_hint: string,
   your_impl: 'code,
   //   hidden_bugs: list(wrong_impl('code)),
   hidden_tests: hidden_tests('code),
@@ -105,6 +105,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
     //   required: p.your_tests.required,
     //   provided: p.your_tests.provided,
     // },
+    display_hint: p.display_hint,
     your_impl: f(p.your_impl),
     // hidden_bugs:
     //   p.hidden_bugs
@@ -132,7 +133,7 @@ type state = {eds};
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_state = {
   title: string,
-  // description: string,
+  display_hint: string,
   editors: list((pos, PersistentZipper.t)),
   wrapper: bool,
   show_report: bool,
@@ -314,7 +315,7 @@ let eds_of_spec =
         // correct_impl,
         // your_tests,
         your_impl,
-        // hidden_bugs,
+        display_hint,
         hidden_tests,
         wrapper,
         show_report,
@@ -352,6 +353,7 @@ let eds_of_spec =
     // prelude,
     // correct_impl,
     // your_tests,
+    display_hint,
     your_impl,
     // hidden_bugs,
     hidden_tests,
@@ -595,7 +597,7 @@ let blank_spec = (~title) => {
   {
     id: Id.mk(),
     title,
-    // description,
+    display_hint: "",
     version: 1,
     module_name: "Blank",
     prompt: "",
@@ -621,6 +623,7 @@ let persist = (state: state, ~instructor_mode: bool) => {
     title: state.eds.title,
     wrapper: state.eds.wrapper,
     show_report: state.eds.show_report,
+    display_hint: state.eds.display_hint,
   };
 };
 
@@ -631,6 +634,7 @@ let unpersist =
         show_report,
         editors,
         title,
+        display_hint,
         // hidden_bugs,
         // prompt,
         // point_distribution,
@@ -654,6 +658,7 @@ let unpersist =
     };
   let your_impl = lookup(YourImpl, spec.your_impl);
   let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
+  // let
   {
     eds: {
       id: spec.id,
@@ -665,6 +670,7 @@ let unpersist =
         tests: hidden_tests_tests,
         hints: spec.hidden_tests.hints,
       },
+      display_hint: spec.display_hint,
       version: spec.version,
       wrapper,
       show_report,

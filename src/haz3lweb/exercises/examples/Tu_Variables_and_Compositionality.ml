@@ -228,6 +228,8 @@ let exercise : Tutorial.spec =
             "Make sure the expression after the keyword in is correct.";
           ];
       };
+    display_hint =
+      "Make sure your expression starts with `let` and ends with `in`.";
   }
 
 let comp_exercise : Tutorial.spec =
@@ -366,4 +368,6 @@ let comp_exercise : Tutorial.spec =
         hints =
           [ "Make sure to embed a let expression as shown in the description!" ];
       };
+    display_hint =
+      "Make sure to embed a `let` expression as shown in the description!";
   }

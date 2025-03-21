@@ -133,4 +133,5 @@ let exercise : Tutorial.spec =
           };
         hints = [ "Reread the question!" ];
       };
+    display_hint = "Type 2 + 2 in the cell below 👇";
   }
