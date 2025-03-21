@@ -49,13 +49,30 @@ let contained_children = (t: t): list((t, Base.segment, t)) =>
   Aba.mk(t.shards, t.children)
   |> Aba.aba_triples
   |> List.map(((l, child, r)) => {
-       let l = {...t, shards: [l], children: []};
-       let r = {...t, shards: [r], children: []};
+       let l = {
+         ...t,
+         shards: [l],
+         children: [],
+       };
+       let r = {
+         ...t,
+         shards: [r],
+         children: [],
+       };
        (l, child, r);
      });
 
 let split_shards = (id, label, mold, shards) =>
-  shards |> List.map(i => {id, label, mold, shards: [i], children: []});
+  shards
+  |> List.map(i =>
+       {
+         id,
+         label,
+         mold,
+         shards: [i],
+         children: [],
+       }
+     );
 
 // postcond: output segment is nonempty
 let disassemble = ({id, label, mold, shards, children}: t): segment => {
