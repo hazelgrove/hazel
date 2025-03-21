@@ -48,11 +48,7 @@ module Ctr = {
 
   let mk = (ctr, num_args) => {
     let string_key = string_of_int(num_args) ++ "~" ++ ctr;
-    {
-      ctr,
-      num_args,
-      string_key,
-    };
+    {ctr, num_args, string_key};
   };
   let num_args_of = (ctr: t): int => ctr.num_args;
 
@@ -158,14 +154,7 @@ module Matrix = {
   type t = list(row);
 
   let of_constraints = (xis: list(Constraint.t)): t => {
-    List.mapi(
-      (idx, xi) =>
-        {
-          idx,
-          cols: [xi],
-        },
-      xis,
-    );
+    List.mapi((idx, xi) => {idx, cols: [xi]}, xis);
   };
 
   let contains_row = (idx: int, m: t): bool =>
@@ -190,10 +179,7 @@ module Submatrices = {
     first_col_redundant_rows: redundant_rows,
   };
 
-  let rev = (s: t): t => {
-    ...s,
-    ctrs: Ctr.Map.map(Matrix.rev, s.ctrs),
-  };
+  let rev = (s: t): t => {...s, ctrs: Ctr.Map.map(Matrix.rev, s.ctrs)};
 
   let empty = {
     ctrs: Ctr.Map.empty,
@@ -335,21 +321,8 @@ module Submatrices = {
       (idx: int, cols: list(Constraint.t), data: option(Matrix.t))
       : option(Matrix.t) =>
     switch (data) {
-    | Some(matrix) =>
-      Some([
-        {
-          idx,
-          cols,
-        },
-        ...matrix,
-      ])
-    | None =>
-      Some([
-        {
-          idx,
-          cols,
-        },
-      ])
+    | Some(matrix) => Some([{idx, cols}, ...matrix])
+    | None => Some([{idx, cols}])
     };
 
   let update_ctrs =
@@ -453,10 +426,7 @@ module Submatrices = {
               include_default
                 ? update_ctrs(Ctr.default_ctr, row.idx, cols, ctrs) : ctrs;
 
-            {
-              ...submatrices,
-              ctrs,
-            };
+            {...submatrices, ctrs};
           }
         },
         empty,
@@ -470,11 +440,7 @@ module Submatrices = {
       | Infinite => seen_truth || seen_hole
       | Finite(_) => seen_truth || seen_hole || seen_all_ctrs
       };
-    {
-      ...submatrices,
-      first_col_exhaustive,
-      first_col_redundant_rows,
-    };
+    {...submatrices, first_col_exhaustive, first_col_redundant_rows};
   };
 };
 
@@ -527,10 +493,7 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
             submatrices.first_col_redundant_rows,
           ),
         );
-      {
-        is_exhaustive,
-        redundant_rows,
-      };
+      {is_exhaustive, redundant_rows};
     }
   };
 };

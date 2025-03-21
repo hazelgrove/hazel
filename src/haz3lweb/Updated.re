@@ -7,10 +7,7 @@ type t('a) = {
 };
 
 let ( let* ) = (updated: t('a), f) => {
-  {
-    ...updated,
-    model: f(updated.model),
-  };
+  {...updated, model: f(updated.model)};
 };
 
 let return =
@@ -21,13 +18,7 @@ let return =
       ~logged=true,
       model: 'a,
     ) => {
-  {
-    model,
-    is_edit,
-    recalculate,
-    scroll_active,
-    logged,
-  };
+  {model, is_edit, recalculate, scroll_active, logged};
 };
 
 let return_quiet =
@@ -38,11 +29,5 @@ let return_quiet =
       ~logged=false,
       model: 'a,
     ) => {
-  {
-    model,
-    is_edit,
-    recalculate,
-    scroll_active,
-    logged,
-  };
+  {model, is_edit, recalculate, scroll_active, logged};
 };

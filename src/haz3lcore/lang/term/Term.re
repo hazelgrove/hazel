@@ -336,12 +336,7 @@ module Pat = {
     | Parens(y)
     | TupLabel(_, y)
     | Probe(y, _) => bindings(y)
-    | Var(name) => [
-        {
-          name,
-          id: rep_id(dp),
-        },
-      ]
+    | Var(name) => [{name, id: rep_id(dp)}]
     | Tuple(dps) => List.flatten(List.map(bindings, dps))
     | Cons(dp1, dp2) => bindings(dp1) @ bindings(dp2)
     | ListLit(dps) => List.flatten(List.map(bindings, dps))
@@ -355,15 +350,8 @@ module Pat = {
     bound_vars(pat)
     |> List.map(name =>
          switch (Ctx.lookup_var(ctx, name)) {
-         | Some({id, _}) =>
-           Binding.{
-             id,
-             name,
-           }
-         | None => {
-             id: Id.invalid,
-             name,
-           }
+         | Some({id, _}) => Binding.{id, name}
+         | None => {id: Id.invalid, name}
          }
        );
 };

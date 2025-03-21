@@ -63,7 +63,4 @@ let case_exp: form = {
   };
 };
 
-let case: group = {
-  id: CaseExp,
-  forms: [case_exp],
-};
+let case: group = {id: CaseExp, forms: [case_exp]};

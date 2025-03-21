@@ -93,10 +93,7 @@ module Stacks = {
     shunted: list(ip),
   };
 
-  let empty = {
-    output: [],
-    shunted: [],
-  };
+  let empty = {output: [], shunted: []};
 
   let rec pop_chain =
           (~popped=[], shunted: list(ip)): (list(ip), list(ip)) =>
@@ -162,13 +159,7 @@ module Stacks = {
           let (kids, r) = ListUtil.split_last(kids);
           [Bin(l, Aba.mk(is, kids), r), ...output];
         };
-      push_output(
-        ~prec?,
-        {
-          shunted,
-          output,
-        },
-      );
+      push_output(~prec?, {shunted, output});
     };
   };
 
@@ -179,10 +170,7 @@ module Stacks = {
       | Convex => stacks
       | Concave(prec) => push_output(~prec, stacks)
       };
-    {
-      ...stacks,
-      shunted: [ip, ...stacks.shunted],
-    };
+    {...stacks, shunted: [ip, ...stacks.shunted]};
   };
 
   let finish = stacks => push_output(stacks);

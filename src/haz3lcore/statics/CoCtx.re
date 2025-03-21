@@ -57,15 +57,7 @@ let union: list(t) => t =
   List.fold_left((co_ctx1, co_ctx2) => co_ctx1 @ co_ctx2, []);
 
 let singleton = (name, id, expected_ty): t => [
-  (
-    name,
-    [
-      {
-        id,
-        expected_ty,
-      },
-    ],
-  ),
+  (name, [{id, expected_ty}]),
 ];
 
 let join: (Ctx.t, list(entry)) => Typ.t =

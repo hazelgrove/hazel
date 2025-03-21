@@ -64,22 +64,10 @@ let cons2_pat: form = {
   };
 };
 
-let listlit: group = {
-  id: ListLitPat,
-  forms: [listlit_pat],
-};
+let listlit: group = {id: ListLitPat, forms: [listlit_pat]};
 
-let listnil: group = {
-  id: ListNilPat,
-  forms: [listnil_pat],
-};
+let listnil: group = {id: ListNilPat, forms: [listnil_pat]};
 
-let cons: group = {
-  id: ConsPat,
-  forms: [cons_base_pat],
-};
+let cons: group = {id: ConsPat, forms: [cons_base_pat]};
 
-let cons2: group = {
-  id: Cons2Pat,
-  forms: [cons2_pat, cons_base_pat],
-};
+let cons2: group = {id: Cons2Pat, forms: [cons2_pat, cons_base_pat]};

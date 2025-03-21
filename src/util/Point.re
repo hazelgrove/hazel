@@ -11,10 +11,7 @@ type t = {
   row,
   col,
 };
-let zero = {
-  row: 0,
-  col: 0,
-};
+let zero = {row: 0, col: 0};
 
 let equals: (t, t) => bool = (p, q) => p.row == q.row && p.col == q.col;
 

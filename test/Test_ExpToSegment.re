@@ -266,10 +266,7 @@ let tests = (
         let segment =
           segmentize(
             Filter(
-              Filter({
-                pat: Int(1) |> Exp.fresh,
-                act: (Step, One),
-              }),
+              Filter({pat: Int(1) |> Exp.fresh, act: (Step, One)}),
               Int(2) |> Exp.fresh,
             )
             |> Exp.fresh,

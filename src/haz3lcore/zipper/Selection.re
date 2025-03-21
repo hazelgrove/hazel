@@ -35,10 +35,7 @@ let selection_ids = (sel: t): list(Id.t) => Segment.ids(sel.content);
 
 let empty = mk(Segment.empty);
 
-let map = (f, sel) => {
-  ...sel,
-  content: f(sel.content),
-};
+let map = (f, sel) => {...sel, content: f(sel.content)};
 
 let toggle_focus = selection => {
   ...selection,
@@ -55,11 +52,7 @@ let push = (p: Piece.t, {focus, content, mode}: t): t => {
       | Right => Segment.snoc(content, p)
       },
     );
-  {
-    focus,
-    content,
-    mode,
-  };
+  {focus, content, mode};
 };
 
 let pop = (sel: t): option((Piece.t, t)) =>
@@ -68,20 +61,8 @@ let pop = (sel: t): option((Piece.t, t)) =>
   | (_, _, None) => None
   | (Left, [p, ...content], _) =>
     let (p, rest) = Piece.pop_l(p);
-    Some((
-      p,
-      {
-        ...sel,
-        content: rest @ content,
-      },
-    ));
+    Some((p, {...sel, content: rest @ content}));
   | (Right, _, Some((content, p))) =>
     let (rest, p) = Piece.pop_r(p);
-    Some((
-      p,
-      {
-        ...sel,
-        content: content @ rest,
-      },
-    ));
+    Some((p, {...sel, content: content @ rest}));
   };

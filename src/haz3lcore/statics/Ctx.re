@@ -34,26 +34,11 @@ let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
   extend(ctx, TVarEntry(tvar_entry));
 
 let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
-  extend_tvar(
-    ctx,
-    {
-      name,
-      id,
-      kind: Singleton(ty),
-    },
-  );
+  extend_tvar(ctx, {name, id, kind: Singleton(ty)});
 
 let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
   switch (TPat.tyvar_of_utpat(tvar)) {
-  | Some(name) =>
-    extend_tvar(
-      ctx,
-      {
-        kind: Abstract,
-        name,
-        id: Id.invalid,
-      },
-    )
+  | Some(name) => extend_tvar(ctx, {kind: Abstract, name, id: Id.invalid})
   | None => ctx
   };
 
@@ -215,12 +200,6 @@ let shadows_typ = (ctx: t, name: string): bool =>
 /* The binding (binding site id and name) of `name` in `ctx` */
 let binding_of = (ctx: t, name: Var.t): Binding.t =>
   switch (lookup_var(ctx, name)) {
-  | Some({id, _}) => {
-      id,
-      name,
-    }
-  | _ => {
-      id: Id.invalid,
-      name,
-    }
+  | Some({id, _}) => {id, name}
+  | _ => {id: Id.invalid, name}
   };
