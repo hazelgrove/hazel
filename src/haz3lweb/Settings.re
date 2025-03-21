@@ -23,6 +23,7 @@ module Model = {
       elaborate: false,
       assist: true,
       dynamics: true,
+      flip_animations: true,
       evaluation: {
         show_case_clauses: true,
         show_fn_bodies: false,
@@ -40,6 +41,7 @@ module Model = {
     instructor_mode: true,
     benchmark: false,
     explainThis: {
+      show: true,
       show_feedback: false,
       highlight: NoHighlight,
     },
@@ -57,7 +59,10 @@ module Model = {
 
   let fix_instructor_mode = settings =>
     if (settings.instructor_mode && !ExerciseSettings.show_instructor) {
-      {...settings, instructor_mode: false};
+      {
+        ...settings,
+        instructor_mode: false,
+      };
     } else {
       settings;
     };
@@ -104,7 +109,8 @@ module Update = {
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
-    | Assistant(AssistantSettings.action);
+    | Assistant(AssistantSettings.action)
+    | FlipAnimations;
 
   let update = (action, settings: Model.t): Updated.t(Model.t) => {
     (
@@ -142,6 +148,13 @@ module Update = {
             assist: !settings.core.assist,
           },
         }
+      | FlipAnimations => {
+          ...settings,
+          core: {
+            ...settings.core,
+            flip_animations: !settings.core.flip_animations,
+          },
+        }
       | Evaluation(u) =>
         let evaluation = settings.core.evaluation;
         let evaluation: Haz3lcore.CoreSettings.Evaluation.t =
@@ -158,7 +171,10 @@ module Update = {
               ...evaluation,
               show_fn_bodies: !evaluation.show_fn_bodies,
             }
-          | ShowCasts => {...evaluation, show_casts: !evaluation.show_casts}
+          | ShowCasts => {
+              ...evaluation,
+              show_casts: !evaluation.show_casts,
+            }
           | ShowFixpoints => {
               ...evaluation,
               show_fixpoints: !evaluation.show_fixpoints,

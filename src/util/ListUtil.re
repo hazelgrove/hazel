@@ -594,3 +594,91 @@ let minimum = (f: 'a => int, xs: list('a)): option('a) =>
       };
     loop(x, f(x), xs);
   };
+
+/* Given two lists, return their maximum common suffix */
+let max_common_suffix = (a: list('a), b: list('a)): list('a) => {
+  let rec loop = (a, b, acc) =>
+    switch (a, b) {
+    | ([], _)
+    | (_, []) => acc
+    | ([ha, ...ta], [hb, ...tb]) when ha == hb =>
+      loop(ta, tb, [ha, ...acc])
+    | _ => acc
+    };
+  loop(List.rev(a), List.rev(b), []);
+};
+
+let common_suffix_length = (s1, s2) =>
+  List.length(max_common_suffix(s1, s2));
+
+let is_suffix_of = (s1, s2) =>
+  common_suffix_length(s1, s2) == List.length(s1);
+
+/* Returns Some(depth) if xs is a suffix of ys at depth, None otherwise */
+
+let suffix_at_depth = (xs: list('a), ys: list('a)): option(int) => {
+  let rec go = (depth: int, xs, ys): option(int) =>
+    if (xs == ys) {
+      Some(depth);
+    } else {
+      switch (ys) {
+      | [] => None
+      | [_, ...rest] => go(depth + 1, xs, rest)
+      };
+    };
+  go(0, xs, ys);
+};
+
+/* list truncated after at most n elementsnts */
+let truncate = (n: int, xs: list('a)): list('a) => {
+  let rec loop = (n, xs, acc) =>
+    switch (n, xs) {
+    | (0, _) => acc
+    | (_, []) => acc
+    | (n, [x, ...xs]) => loop(n - 1, xs, [x, ...acc])
+    };
+  loop(n, xs, []);
+};
+
+/* list without the first n elements, recurse into list until 0 then return rest */
+let rec remove_first_n = (n: int, xs: list('a)): list('a) => {
+  switch (n, xs) {
+  | (0, _) => xs
+  | (_, []) => []
+  | (n, [_x, ...xs]) => remove_first_n(n - 1, xs)
+  };
+};
+
+/* Return at most k elements starting from index i */
+let slice = (i: int, k: int, xs: list('x)): list('x) =>
+  xs |> remove_first_n(i) |> truncate(k);
+
+let rec rotate_n = (n: int, xs: list('a)): list('a) => {
+  let n = IntUtil.modulo(n, List.length(xs));
+  switch (n) {
+  | 0 => xs
+  | _ => rotate_n(n - 1, rotate(xs))
+  };
+};
+
+let take = (n, xs) => {
+  let rec loop = (n, xs, acc) =>
+    switch (n, xs) {
+    | (0, _) => acc
+    | (_, []) => acc
+    | (n, [x, ...xs]) => loop(n - 1, xs, [x, ...acc])
+    };
+  loop(n, xs, []);
+};
+
+/* Move the first element equal to x to the front of the list */
+let lift = (x: 'a, xs: list('a)): list('a) =>
+  List.cons(x, List.filter((!=)(x), xs));
+// for performance, doesn't check the whole list if already above length
+let rec is_length = (n: int, xs: list('a)): bool =>
+  switch (xs) {
+  | [] when n == 0 => true
+  | _ when n <= 0 => false
+  | [] => false
+  | [_, ...xs] => is_length(n - 1, xs)
+  };

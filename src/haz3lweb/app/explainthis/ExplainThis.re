@@ -277,7 +277,7 @@ let expander_deco =
                   CodeViewable.view_segment(
                     ~globals,
                     ~sort=Exp,
-                    ~info_map=Id.Map.empty,
+                    ~shape_map=ProjectorCore.Shape.Map.empty, // Assume no projectors
                     segment,
                   );
                 let classes =
@@ -397,6 +397,7 @@ let example_view =
 let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p)
+  | Probe(p, _)
   | Cast(p, _, _) => bypass_parens_and_annot_pat(p)
   | _ => pat
   };
@@ -404,14 +405,16 @@ let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
 
 let rec bypass_parens_pat = (pat: Pat.t) => {
   switch (pat.term) {
-  | Parens(p) => bypass_parens_pat(p)
+  | Parens(p)
+  | Probe(p, _) => bypass_parens_pat(p)
   | _ => pat
   };
 };
 
 let rec bypass_parens_exp = (exp: Exp.t) => {
   switch (exp.term) {
-  | Parens(e) => bypass_parens_exp(e)
+  | Parens(e)
+  | Probe(e, _) => bypass_parens_exp(e)
   | _ => exp
   };
 };
@@ -496,11 +499,15 @@ let get_doc =
           editor,
         );
       let statics = CachedStatics.empty;
+      let dynamics = Dynamics.Map.empty;
       let highlight_deco = {
         module Deco =
           Deco.Deco({
             let editor = editor;
-            let globals = {...globals, color_highlights: highlights};
+            let globals = {
+              ...globals,
+              color_highlights: highlights,
+            };
             let statics = statics;
           });
         [Deco.color_highlights()];
@@ -510,7 +517,11 @@ let get_doc =
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
           ~sort,
-          {editor, statics},
+          {
+            editor,
+            statics,
+            dynamics,
+          },
         );
       let example_view =
         example_view(
@@ -550,8 +561,8 @@ let get_doc =
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
-        let tpat_id = List.nth(ty_pat.ids, 0);
-        let def_id = List.nth(ty_def.ids, 0);
+        let tpat_id = List.nth(IdTagged.ids(ty_pat), 0);
+        let def_id = List.nth(IdTagged.ids(ty_def), 0);
         get_message(
           ~colorings=
             TyAliasExp.tyalias_base_exp_coloring_ids(~tpat_id, ~def_id),
@@ -586,8 +597,8 @@ let get_doc =
         )
       | TypFun(tpat, body, _) =>
         let basic = group_id => {
-          let tpat_id = List.nth(tpat.ids, 0);
-          let body_id = List.nth(body.ids, 0);
+          let tpat_id = List.nth(IdTagged.ids(tpat), 0);
+          let body_id = List.nth(IdTagged.ids(body), 0);
           get_message(
             ~colorings=
               FunctionExp.function_exp_coloring_ids(
@@ -610,8 +621,8 @@ let get_doc =
         basic(TypFunctionExp.type_functions_basic);
       | Fun(pat, body, _, _) =>
         let basic = group_id => {
-          let pat_id = List.nth(pat.ids, 0);
-          let body_id = List.nth(body.ids, 0);
+          let pat_id = List.nth(IdTagged.ids(pat), 0);
+          let body_id = List.nth(IdTagged.ids(body), 0);
           get_message(
             ~colorings=
               FunctionExp.function_exp_coloring_ids(~pat_id, ~body_id),
@@ -628,8 +639,8 @@ let get_doc =
           );
         };
         let pat = bypass_parens_and_annot_pat(pat);
-        let pat_id = List.nth(pat.ids, 0);
-        let body_id = List.nth(body.ids, 0);
+        let pat_id = List.nth(IdTagged.ids(pat), 0);
+        let body_id = List.nth(IdTagged.ids(body), 0);
         switch (pat.term) {
         | EmptyHole =>
           if (FunctionExp.function_empty_hole_exp.id
@@ -872,8 +883,8 @@ let get_doc =
         | Cons(hd, tl) =>
           if (FunctionExp.function_cons_exp.id
               == get_specificity_level(FunctionExp.functions_cons)) {
-            let hd_id = List.nth(hd.ids, 0);
-            let tl_id = List.nth(tl.ids, 0);
+            let hd_id = List.nth(IdTagged.ids(hd), 0);
+            let tl_id = List.nth(IdTagged.ids(tl), 0);
             get_message(
               ~colorings=
                 FunctionExp.function_cons_exp_coloring_ids(
@@ -917,9 +928,34 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_var);
           }
+        | Tuple([{term: TupLabel(l, p), _}]) =>
+          if (FunctionExp.function_labeled_exp.id
+              == get_specificity_level(FunctionExp.functions_tuplabel)) {
+            get_message(
+              ~colorings=
+                FunctionExp.function_labeled_exp_coloring_ids(
+                  ~label_id=Pat.rep_id(l),
+                  ~pat_id=Pat.rep_id(p),
+                  ~body_id=Exp.rep_id(body),
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(Pat.rep_id(l)),
+                      Id.to_string(Pat.rep_id(p)),
+                      Id.to_string(body_id),
+                    ),
+                ),
+              FunctionExp.functions_tuplabel,
+            );
+          } else {
+            basic(FunctionExp.functions_tuplabel);
+          }
         | Tuple(elements) =>
-          let pat_id = List.nth(pat.ids, 0);
-          let body_id = List.nth(body.ids, 0);
+          let pat_id = List.nth(IdTagged.ids(pat), 0);
+          let body_id = List.nth(IdTagged.ids(body), 0);
           let basic_tuple = group_id => {
             get_message(
               ~colorings=
@@ -946,8 +982,10 @@ let get_doc =
           | 2 =>
             let doc_id = get_specificity_level(FunctionExp.functions_tuple2);
             if (FunctionExp.function_tuple2_exp.id == doc_id) {
-              let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
-              let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
+              let pat1_id =
+                List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
+              let pat2_id =
+                List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
               get_message(
                 ~colorings=
                   FunctionExp.function_tuple2_exp_coloring_ids(
@@ -975,9 +1013,12 @@ let get_doc =
           | 3 =>
             let doc_id = get_specificity_level(FunctionExp.functions_tuple3);
             if (FunctionExp.function_tuple3_exp.id == doc_id) {
-              let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
-              let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
-              let pat3_id = List.nth(List.nth(elements, 2).ids, 0);
+              let pat1_id =
+                List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
+              let pat2_id =
+                List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
+              let pat3_id =
+                List.nth(IdTagged.ids(List.nth(elements, 2)), 0);
               get_message(
                 ~colorings=
                   FunctionExp.function_tuple3_exp_coloring_ids(
@@ -1015,8 +1056,8 @@ let get_doc =
         | Ap(con, arg) =>
           if (FunctionExp.function_ap_exp.id
               == get_specificity_level(FunctionExp.functions_ap)) {
-            let con_id = List.nth(con.ids, 0);
-            let arg_id = List.nth(arg.ids, 0);
+            let con_id = List.nth(IdTagged.ids(con), 0);
+            let arg_id = List.nth(IdTagged.ids(arg), 0);
             get_message(
               ~colorings=
                 FunctionExp.function_ap_exp_coloring_ids(
@@ -1042,8 +1083,8 @@ let get_doc =
         | Constructor(v, _) =>
           if (FunctionExp.function_ctr_exp.id
               == get_specificity_level(FunctionExp.functions_ctr)) {
-            let pat_id = List.nth(pat.ids, 0);
-            let body_id = List.nth(body.ids, 0);
+            let pat_id = List.nth(IdTagged.ids(pat), 0);
+            let body_id = List.nth(IdTagged.ids(body), 0);
             get_message(
               ~colorings=
                 FunctionExp.function_ctr_exp_coloring_ids(~pat_id, ~body_id),
@@ -1063,10 +1104,58 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_ctr);
           }
-        | Invalid(_) => default // Shouldn't get hit
-        | Parens(_) => default // Shouldn't get hit?
+        | TupLabel(_)
+        | Invalid(_)
+        | Parens(_)
+        | Probe(_)
+        | Label(_)
         | Cast(_) => default // Shouldn't get hit?
         };
+      | Label(name) =>
+        get_message(
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(Scanf.format_from_string(msg, "%s"), name),
+            ),
+          LabelTerm.labels(name),
+        )
+      | TupLabel(l, e) =>
+        get_message(
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(Exp.rep_id(l)),
+                  Id.to_string(Exp.rep_id(e)),
+                ),
+            ),
+          ~colorings=
+            TupLabelExp.labeled_exps_coloring_ids(
+              ~label_id=Exp.rep_id(l),
+              ~exp_id=Exp.rep_id(e),
+            ),
+          TupLabelExp.labeled_exps,
+        )
+      | Dot(tup, lab) =>
+        get_message(
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(Exp.rep_id(lab)),
+                  Id.to_string(Exp.rep_id(tup)),
+                ),
+            ),
+          ~colorings=
+            DotExp.dot_coloring_ids(
+              ~tup_id=Exp.rep_id(tup),
+              ~lab_id=Exp.rep_id(lab),
+            ),
+          DotExp.dot_exp,
+        )
       | Tuple(terms) =>
         let basic = group_id =>
           get_message(
@@ -1084,8 +1173,8 @@ let get_doc =
         | 2 =>
           if (TupleExp.tuple_exp_size2.id
               == get_specificity_level(TupleExp.tuples2)) {
-            let exp1_id = List.nth(List.nth(terms, 0).ids, 0);
-            let exp2_id = List.nth(List.nth(terms, 1).ids, 0);
+            let exp1_id = List.nth(IdTagged.ids(List.nth(terms, 0)), 0);
+            let exp2_id = List.nth(IdTagged.ids(List.nth(terms, 1)), 0);
             get_message(
               ~colorings=
                 TupleExp.tuple_exp_size2_coloring_ids(~exp1_id, ~exp2_id),
@@ -1106,9 +1195,9 @@ let get_doc =
         | 3 =>
           if (TupleExp.tuple_exp_size3.id
               == get_specificity_level(TupleExp.tuples3)) {
-            let exp1_id = List.nth(List.nth(terms, 0).ids, 0);
-            let exp2_id = List.nth(List.nth(terms, 1).ids, 0);
-            let exp3_id = List.nth(List.nth(terms, 2).ids, 0);
+            let exp1_id = List.nth(IdTagged.ids(List.nth(terms, 0)), 0);
+            let exp2_id = List.nth(IdTagged.ids(List.nth(terms, 1)), 0);
+            let exp3_id = List.nth(IdTagged.ids(List.nth(terms, 2)), 0);
             get_message(
               ~colorings=
                 TupleExp.tuple_exp_size3_coloring_ids(
@@ -1136,9 +1225,9 @@ let get_doc =
       | Var(n) => get_message(TerminalExp.var_exps(n))
       | Let(pat, def, body) =>
         let pat = bypass_parens_and_annot_pat(pat);
-        let pat_id = List.nth(pat.ids, 0);
-        let def_id = List.nth(def.ids, 0);
-        let body_id = List.nth(body.ids, 0);
+        let pat_id = List.nth(IdTagged.ids(pat), 0);
+        let def_id = List.nth(IdTagged.ids(def), 0);
+        let body_id = List.nth(IdTagged.ids(body), 0);
         let basic = group_id => {
           get_message(
             ~colorings=LetExp.let_base_exp_coloring_ids(~pat_id, ~def_id),
@@ -1395,8 +1484,8 @@ let get_doc =
         | Cons(hd, tl) =>
           if (LetExp.let_cons_exp.id
               == get_specificity_level(LetExp.lets_cons)) {
-            let hd_id = List.nth(hd.ids, 0);
-            let tl_id = List.nth(tl.ids, 0);
+            let hd_id = List.nth(IdTagged.ids(hd), 0);
+            let tl_id = List.nth(IdTagged.ids(tl), 0);
             get_message(
               ~colorings=
                 LetExp.let_cons_exp_coloring_ids(~hd_id, ~tl_id, ~def_id),
@@ -1458,8 +1547,10 @@ let get_doc =
           | 2 =>
             let doc_id = get_specificity_level(LetExp.lets_tuple2);
             if (LetExp.let_tuple2_exp.id == doc_id) {
-              let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
-              let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
+              let pat1_id =
+                List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
+              let pat2_id =
+                List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
               get_message(
                 ~colorings=
                   LetExp.let_tuple2_exp_coloring_ids(
@@ -1488,9 +1579,12 @@ let get_doc =
             let doc_id = get_specificity_level(LetExp.lets_tuple3);
             // TODO Syntactic form can go off page - so can examples - but can scroll, just can't see bottom scroll bar
             if (LetExp.let_tuple3_exp.id == doc_id) {
-              let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
-              let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
-              let pat3_id = List.nth(List.nth(elements, 2).ids, 0);
+              let pat1_id =
+                List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
+              let pat2_id =
+                List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
+              let pat3_id =
+                List.nth(IdTagged.ids(List.nth(elements, 2)), 0);
               get_message(
                 ~colorings=
                   LetExp.let_tuple3_exp_coloring_ids(
@@ -1527,8 +1621,8 @@ let get_doc =
           };
         | Ap(con, arg) =>
           if (LetExp.let_ap_exp.id == get_specificity_level(LetExp.lets_ap)) {
-            let con_id = List.nth(con.ids, 0);
-            let arg_id = List.nth(arg.ids, 0);
+            let con_id = List.nth(IdTagged.ids(con), 0);
+            let arg_id = List.nth(IdTagged.ids(arg), 0);
             get_message(
               ~colorings=
                 LetExp.let_ap_exp_coloring_ids(~con_id, ~arg_id, ~def_id),
@@ -1569,8 +1663,11 @@ let get_doc =
           } else {
             basic(LetExp.lets_ctr);
           }
+        | TupLabel(_)
+        | Label(_)
         | Invalid(_) => default // Shouldn't get hit
-        | Parens(_) => default // Shouldn't get hit?
+        | Parens(_)
+        | Probe(_) => default // Shouldn't get hit?
         | Cast(_) => default // Shouldn't get hit?
         };
       | FixF(pat, body, _) =>
@@ -1588,8 +1685,8 @@ let get_doc =
           ),
         )
       | TypAp(f, typ) =>
-        let f_id = List.nth(f.ids, 0);
-        let typ_id = List.nth(typ.ids, 0);
+        let f_id = List.nth(IdTagged.ids(f), 0);
+        let typ_id = List.nth(IdTagged.ids(typ), 0);
         let basic = (group, format, coloring_ids) => {
           get_message(
             ~colorings=coloring_ids(~f_id, ~typ_id),
@@ -1609,8 +1706,8 @@ let get_doc =
         );
 
       | Ap(Forward, x, arg) =>
-        let x_id = List.nth(x.ids, 0);
-        let arg_id = List.nth(arg.ids, 0);
+        let x_id = List.nth(IdTagged.ids(x), 0);
+        let arg_id = List.nth(IdTagged.ids(arg), 0);
         let basic = (group, format, coloring_ids) => {
           get_message(
             ~colorings=coloring_ids(~x_id, ~arg_id),
@@ -1644,11 +1741,11 @@ let get_doc =
           )
         };
       | DeferredAp(x, args) =>
-        let x_id = List.nth(x.ids, 0);
+        let x_id = List.nth(IdTagged.ids(x), 0);
         let supplied_id = Id.mk();
         let deferred_id = {
           let deferral = List.find(Exp.is_deferral, args);
-          List.nth(deferral.ids, 0);
+          List.nth(IdTagged.ids(deferral), 0);
         };
         switch (mode) {
         | MessageContent(_) =>
@@ -1672,7 +1769,7 @@ let get_doc =
           let color_supplied = List.nth(ColorSteps.child_colors, 1);
           let color_deferred = List.nth(ColorSteps.child_colors, 2);
           let add = (mapping, arg: Exp.t) => {
-            let arg_id = List.nth(arg.ids, 0);
+            let arg_id = List.nth(IdTagged.ids(arg), 0);
             Haz3lcore.Id.Map.add(
               arg_id,
               Exp.is_deferral(arg) ? color_deferred : color_supplied,
@@ -1685,9 +1782,9 @@ let get_doc =
           ([], ([], color_map), []);
         };
       | If(cond, then_, else_) =>
-        let cond_id = List.nth(cond.ids, 0);
-        let then_id = List.nth(then_.ids, 0);
-        let else_id = List.nth(else_.ids, 0);
+        let cond_id = List.nth(IdTagged.ids(cond), 0);
+        let then_id = List.nth(IdTagged.ids(then_), 0);
+        let else_id = List.nth(IdTagged.ids(else_), 0);
         get_message(
           ~colorings=IfExp.if_exp_coloring_ids(~cond_id, ~then_id, ~else_id),
           ~format=
@@ -1703,8 +1800,8 @@ let get_doc =
           IfExp.ifs,
         );
       | Seq(left, right) =>
-        let exp1_id = List.nth(left.ids, 0);
-        let exp2_id = List.nth(right.ids, 0);
+        let exp1_id = List.nth(IdTagged.ids(left), 0);
+        let exp2_id = List.nth(IdTagged.ids(right), 0);
         get_message(
           ~colorings=SeqExp.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
           ~format=
@@ -1748,7 +1845,7 @@ let get_doc =
         )
       | Filter(_) => simple("Internal expression")
       | Test(body) =>
-        let body_id = List.nth(body.ids, 0);
+        let body_id = List.nth(IdTagged.ids(body), 0);
         get_message(
           ~colorings=TestExp.test_exp_coloring_ids(~body_id),
           ~format=
@@ -1761,10 +1858,11 @@ let get_doc =
             ),
           TestExp.tests,
         );
-      | Parens(term) => get_message_exp(term.term) // No Special message?
+      | Parens(term)
+      | Probe(term, _) => get_message_exp(term.term) // No Special message?
       | Cons(hd, tl) =>
-        let hd_id = List.nth(hd.ids, 0);
-        let tl_id = List.nth(tl.ids, 0);
+        let hd_id = List.nth(IdTagged.ids(hd), 0);
+        let tl_id = List.nth(IdTagged.ids(tl), 0);
         get_message(
           ~colorings=ListExp.cons_exp_coloring_ids(~hd_id, ~tl_id),
           ~format=
@@ -1779,8 +1877,8 @@ let get_doc =
           ListExp.listcons,
         );
       | ListConcat(xs, ys) =>
-        let xs_id = List.nth(xs.ids, 0);
-        let ys_id = List.nth(ys.ids, 0);
+        let xs_id = List.nth(IdTagged.ids(xs), 0);
+        let ys_id = List.nth(IdTagged.ids(ys), 0);
         get_message(
           ~colorings=ListExp.concat_exp_coloring_ids(~xs_id, ~ys_id),
           ~format=
@@ -1797,7 +1895,7 @@ let get_doc =
       | UnOp(op, exp) =>
         switch (op) {
         | Bool(Not) =>
-          let exp_id = List.nth(exp.ids, 0);
+          let exp_id = List.nth(IdTagged.ids(exp), 0);
           get_message(
             ~colorings=OpExp.bool_unary_not_exp_coloring_ids(~exp_id),
             ~format=
@@ -1811,7 +1909,7 @@ let get_doc =
             OpExp.bool_un_not,
           );
         | Int(Minus) =>
-          let exp_id = List.nth(exp.ids, 0);
+          let exp_id = List.nth(IdTagged.ids(exp), 0);
           get_message(
             ~colorings=OpExp.int_unary_minus_exp_coloring_ids(~exp_id),
             ~format=
@@ -1873,8 +1971,8 @@ let get_doc =
           | String(Equals) => (string_equal, str_eq_exp_coloring_ids)
           | String(Concat) => (string_concat, str_concat_exp_coloring_ids)
           };
-        let left_id = List.nth(left.ids, 0);
-        let right_id = List.nth(right.ids, 0);
+        let left_id = List.nth(IdTagged.ids(left), 0);
+        let right_id = List.nth(IdTagged.ids(right), 0);
         get_message(
           ~colorings=coloring_ids(~left_id, ~right_id),
           ~format=
@@ -1889,7 +1987,7 @@ let get_doc =
           group,
         );
       | Match(scrut, _rules) =>
-        let scrut_id = List.nth(scrut.ids, 0);
+        let scrut_id = List.nth(IdTagged.ids(scrut), 0);
         get_message(
           ~colorings=CaseExp.case_exp_coloring_ids(~scrut_id),
           ~format=
@@ -1971,8 +2069,8 @@ let get_doc =
         );
       }
     | Cons(hd, tl) =>
-      let hd_id = List.nth(hd.ids, 0);
-      let tl_id = List.nth(tl.ids, 0);
+      let hd_id = List.nth(IdTagged.ids(hd), 0);
+      let tl_id = List.nth(IdTagged.ids(tl), 0);
       let basic = doc =>
         get_message(
           ~colorings=ListPat.cons_base_pat_coloring_ids(~hd_id, ~tl_id),
@@ -1990,8 +2088,8 @@ let get_doc =
       switch (tl.term) {
       | Cons(hd2, tl2) =>
         if (ListPat.cons2_pat.id == get_specificity_level(ListPat.cons2)) {
-          let hd2_id = List.nth(hd2.ids, 0);
-          let tl2_id = List.nth(tl2.ids, 0);
+          let hd2_id = List.nth(IdTagged.ids(hd2), 0);
+          let tl2_id = List.nth(IdTagged.ids(tl2), 0);
           get_message(
             ~colorings=
               ListPat.cons2_pat_coloring_ids(
@@ -2024,6 +2122,32 @@ let get_doc =
           ),
         TerminalPat.var(v),
       )
+    | Label(name) =>
+      get_message(
+        ~format=
+          Some(
+            msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), name),
+          ),
+        LabelTerm.labels(name),
+      )
+    | TupLabel(l, p) =>
+      get_message(
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(Pat.rep_id(l)),
+                Id.to_string(Pat.rep_id(p)),
+              ),
+          ),
+        ~colorings=
+          TupLabelPat.labeled_exps_coloring_ids(
+            ~label_id=Pat.rep_id(l),
+            ~pat_id=Pat.rep_id(p),
+          ),
+        TupLabelPat.labeled_pats,
+      )
     | Tuple(elements) =>
       let basic = group =>
         get_message(
@@ -2041,8 +2165,8 @@ let get_doc =
       | 2 =>
         if (TuplePat.tuple_pat_size2.id
             == get_specificity_level(TuplePat.tuple2)) {
-          let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
-          let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
+          let elem1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
+          let elem2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
           get_message(
             ~colorings=
               TuplePat.tuple_pat_size2_coloring_ids(~elem1_id, ~elem2_id),
@@ -2063,9 +2187,9 @@ let get_doc =
       | 3 =>
         if (TuplePat.tuple_pat_size3.id
             == get_specificity_level(TuplePat.tuple3)) {
-          let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
-          let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
-          let elem3_id = List.nth(List.nth(elements, 2).ids, 0);
+          let elem1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
+          let elem2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
+          let elem3_id = List.nth(IdTagged.ids(List.nth(elements, 2)), 0);
           get_message(
             ~colorings=
               TuplePat.tuple_pat_size3_coloring_ids(
@@ -2091,8 +2215,8 @@ let get_doc =
       | _ => basic(TuplePat.tuple)
       };
     | Ap(con, arg) =>
-      let con_id = List.nth(con.ids, 0);
-      let arg_id = List.nth(arg.ids, 0);
+      let con_id = List.nth(IdTagged.ids(con), 0);
+      let arg_id = List.nth(IdTagged.ids(arg), 0);
       get_message(
         ~colorings=AppPat.ap_pat_coloring_ids(~con_id, ~arg_id),
         ~format=
@@ -2115,8 +2239,8 @@ let get_doc =
         TerminalPat.ctr(con),
       )
     | Cast(pat, typ, _) =>
-      let pat_id = List.nth(pat.ids, 0);
-      let typ_id = List.nth(typ.ids, 0);
+      let pat_id = List.nth(IdTagged.ids(pat), 0);
+      let typ_id = List.nth(IdTagged.ids(typ), 0);
       get_message(
         ~colorings=TypAnnPat.typann_pat_coloring_ids(~pat_id, ~typ_id),
         ~format=
@@ -2131,7 +2255,8 @@ let get_doc =
         TypAnnPat.typann,
       );
     | Invalid(_) => simple("Not a valid pattern")
-    | Parens(_) =>
+    | Parens(_)
+    | Probe(_) =>
       // Shouldn't be hit?
       default
     }
@@ -2146,7 +2271,7 @@ let get_doc =
     | Bool => get_message(TerminalTyp.bool)
     | String => get_message(TerminalTyp.str)
     | List(elem) =>
-      let elem_id = List.nth(elem.ids, 0);
+      let elem_id = List.nth(IdTagged.ids(elem), 0);
       get_message(
         ~colorings=ListTyp.list_typ_coloring_ids(~elem_id),
         ~format=
@@ -2160,8 +2285,8 @@ let get_doc =
         ListTyp.list,
       );
     | Forall(tpat, typ) =>
-      let tpat_id = List.nth(tpat.ids, 0);
-      let tbody_id = List.nth(typ.ids, 0);
+      let tpat_id = List.nth(IdTagged.ids(tpat), 0);
+      let tbody_id = List.nth(IdTagged.ids(typ), 0);
       get_message(
         ~colorings=ForallTyp.forall_typ_coloring_ids(~tpat_id, ~tbody_id),
         ~format=
@@ -2176,8 +2301,8 @@ let get_doc =
         ForallTyp.forall,
       );
     | Rec(tpat, typ) =>
-      let tpat_id = List.nth(tpat.ids, 0);
-      let tbody_id = List.nth(typ.ids, 0);
+      let tpat_id = List.nth(IdTagged.ids(tpat), 0);
+      let tbody_id = List.nth(IdTagged.ids(typ), 0);
       get_message(
         ~colorings=RecTyp.rec_typ_coloring_ids(~tpat_id, ~tbody_id),
         ~format=
@@ -2192,8 +2317,8 @@ let get_doc =
         RecTyp.rec_,
       );
     | Arrow(arg, result) =>
-      let arg_id = List.nth(arg.ids, 0);
-      let result_id = List.nth(result.ids, 0);
+      let arg_id = List.nth(IdTagged.ids(arg), 0);
+      let result_id = List.nth(IdTagged.ids(result), 0);
       let basic = doc =>
         get_message(
           ~colorings=ArrowTyp.arrow_typ_coloring_ids(~arg_id, ~result_id),
@@ -2211,8 +2336,8 @@ let get_doc =
       switch (result.term) {
       | Arrow(arg2, result2) =>
         if (ArrowTyp.arrow3_typ.id == get_specificity_level(ArrowTyp.arrow3)) {
-          let arg2_id = List.nth(arg2.ids, 0);
-          let result2_id = List.nth(result2.ids, 0);
+          let arg2_id = List.nth(IdTagged.ids(arg2), 0);
+          let result2_id = List.nth(IdTagged.ids(result2), 0);
           get_message(
             ~colorings=
               ArrowTyp.arrow3_typ_coloring_ids(
@@ -2237,6 +2362,32 @@ let get_doc =
         }
       | _ => basic(ArrowTyp.arrow)
       };
+    | Label(name) =>
+      get_message(
+        ~format=
+          Some(
+            msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), name),
+          ),
+        LabelTerm.labels(name),
+      )
+    | TupLabel(l, t) =>
+      get_message(
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(Typ.rep_id(l)),
+                Id.to_string(Typ.rep_id(t)),
+              ),
+          ),
+        ~colorings=
+          TupLabelTyp.labeled_exps_coloring_ids(
+            ~label_id=Typ.rep_id(l),
+            ~typ_id=Typ.rep_id(t),
+          ),
+        TupLabelTyp.labeled_typs,
+      )
     | Prod(elements) =>
       let basic = group =>
         get_message(
@@ -2263,8 +2414,8 @@ let get_doc =
         }
       | 2 =>
         if (TupleTyp.tuple2_typ.id == get_specificity_level(TupleTyp.tuple2)) {
-          let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
-          let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
+          let elem1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
+          let elem2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
           get_message(
             ~colorings=TupleTyp.tuple2_typ_coloring_ids(~elem1_id, ~elem2_id),
             ~format=
@@ -2283,9 +2434,9 @@ let get_doc =
         }
       | 3 =>
         if (TupleTyp.tuple3_typ.id == get_specificity_level(TupleTyp.tuple3)) {
-          let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
-          let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
-          let elem3_id = List.nth(List.nth(elements, 2).ids, 0);
+          let elem1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
+          let elem2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
+          let elem3_id = List.nth(IdTagged.ids(List.nth(elements, 2)), 0);
           get_message(
             ~colorings=
               TupleTyp.tuple3_typ_coloring_ids(
@@ -2379,6 +2530,8 @@ let view =
       ~explainThisModel: ExplainThisModel.t,
       info: option(Info.t),
     ) => {
+  // This gets the info from the infomap before singleton autolabelling
+  let info = Option.map(Info.pre_labeled_info, info);
   let (syn_form, (explanation, _), example) =
     get_doc(
       ~globals,

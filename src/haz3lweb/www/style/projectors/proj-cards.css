@@ -1,0 +1,201 @@
+/* CARD SPRITES */
+
+:root {
+  --card-width: 35px;
+  --card-height: 47px;
+}
+
+/* Turn off caret when a block projector is focused */
+.code-deco:has(~ .projectors .projector.card.indicated) #caret .caret-path {
+  fill: #0000;
+}
+.code-deco:has(~ .projectors .projector.card.indicated) .indication {
+  display: none;
+}
+
+.projector.card {
+  perspective: 300px;
+}
+
+.projector.card:not(.selected) > svg {
+  display: none;
+}
+.projector.card.selected > svg {
+  stroke-width: 0.5px;
+}
+
+.base .projector.card.selected .card-scene {
+  filter: brightness(0.71) sepia(1) hue-rotate(11deg) saturate(1.5);
+}
+.projector.card {
+  z-index: var(--projector-z); /* hack? to get above selection shard */
+}
+
+/* Singleton */
+.projector.card > .card-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+}
+
+.projector.card .card-scene {
+  width: var(--card-width);
+  height: var(--card-height);
+  transition: transform 0.25s;
+  transform-style: preserve-3d;
+  position: relative;
+  cursor: pointer;
+}
+
+@keyframes flip-card {
+  0% {
+    transform: rotateY(180deg);
+  }
+  50% {
+    transform: rotateY(160deg);
+  }
+  75% {
+    transform: rotateY(70deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.projector.card .flipped .card-scene {
+  transform: rotateY(180deg);
+  /* animation: flip-card 0.35s;
+  animation-direction: alternate-reverse; */
+}
+
+.card-sprite.back {
+  transform: rotateY(180deg);
+}
+
+.projector.card .card-sprite {
+  position: absolute;
+  backface-visibility: hidden;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  cursor: pointer;
+  width: var(--card-width);
+  height: var(--card-height);
+  image-rendering: pixelated;
+  background-image: url("../../img/cards-pixel-pattern.png");
+  filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
+    drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
+}
+
+.projector.card.Pat .card-sprite {
+  filter: drop-shadow(-1px 0px 0px var(--PAT))
+    drop-shadow(0px -1px 0px var(--PAT)) drop-shadow(1px 0px 0px var(--PAT))
+    drop-shadow(0px 1px 0px var(--PAT));
+}
+
+@keyframes blink-shadow {
+  0%,
+  50% {
+    filter: drop-shadow(0px -1px 0px black) drop-shadow(1px 0px 0px black)
+      drop-shadow(0px 1px 0px black) drop-shadow(-2px 0px 0px red);
+  }
+  51%,
+  100% {
+    filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
+      drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
+  }
+}
+
+@keyframes blink-shadow-right {
+  0%,
+  50% {
+    filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
+      drop-shadow(0px 1px 0px black) drop-shadow(2px 0px 0px red);
+  }
+  51%,
+  100% {
+    filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
+      drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
+  }
+}
+
+.projector.card.indicated.Left > .card-wrapper .card-sprite.front,
+.projector.card.indicated.Left > .card-wrapper.flipped .card-sprite.back,
+.projector.card.indicated.Left .hand > *:first-child .card-sprite.front {
+  animation: blink-shadow 1s infinite !important;
+}
+
+.projector.card.indicated.Right > .card-wrapper .card-sprite.front,
+.projector.card.indicated.Right > .card-wrapper.flipped .card-sprite.back,
+.projector.card.indicated.Right .hand > *:last-child .card-sprite.front {
+  animation: blink-shadow-right 1s infinite !important;
+}
+
+/* HAND */
+
+.card .hand {
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  left: 3px;
+  position: relative;
+}
+
+@keyframes rock-back-and-forth {
+  0% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+
+.projector.card.indicated .hand .card-scene:hover {
+  animation: rock-back-and-forth 0.25s infinite;
+}
+
+.projector.card .hand .card-sprite {
+  transition: transform 0.1s ease-in-out;
+}
+
+.projector.card.indicated .hand .card-sprite:hover {
+  translate: 0px -9px;
+  filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
+    drop-shadow(1.5px 0px 0px black) drop-shadow(0px 1.5px 0px black)
+    drop-shadow(2px 2px 0px #6666);
+}
+.projector.card.indicated.Pat .hand .card-sprite:hover {
+  filter: drop-shadow(-1px 0px 0px var(--PAT))
+    drop-shadow(0px -1px 0px var(--PAT)) drop-shadow(1.5px 0px 0px var(--PAT))
+    drop-shadow(0px 1.5px 0px var(--PAT)) drop-shadow(2px 2px 0px #6666);
+}
+
+/* CHOOSER */
+
+.projector.card .chooser {
+  display: grid;
+  grid-template-columns: repeat(13, 1fr);
+}
+.projector.card .card-wrapper:has(.choose) {
+  z-index: 10000 !important;
+}
+.projector.card:has(.chooser) {
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.projector.card .chooser .card-wrapper:hover {
+  animation: rock-back-and-forth 0.25s infinite;
+}
+
+.projector.card .chooser .card-wrapper.indicated {
+  filter: invert(1);
+}
+.projector.card .chooser .card-wrapper:hover {
+  filter: invert(1);
+  translate: 0px -5px;
+}

@@ -145,7 +145,11 @@ module Update = {
             action,
             model.editors,
           );
-        {...model, editors, selection};
+        {
+          ...model,
+          editors,
+          selection,
+        };
       };
     | InitImportAll(file) =>
       JsUtil.read_file(file, data =>
@@ -177,7 +181,10 @@ module Update = {
             action,
             model.editors,
           );
-        {...model, editors};
+        {
+          ...model,
+          editors,
+        };
       };
     | Undo =>
       let cursor_info =
@@ -196,7 +203,10 @@ module Update = {
             action,
             model.editors,
           );
-        {...model, editors};
+        {
+          ...model,
+          editors,
+        };
       };
     | Redo =>
       let cursor_info =
@@ -215,7 +225,10 @@ module Update = {
             action,
             model.editors,
           );
-        {...model, editors};
+        {
+          ...model,
+          editors,
+        };
       };
     };
   };
@@ -254,7 +267,10 @@ module Update = {
           action,
           model.editors,
         );
-      {...model, editors};
+      {
+        ...model,
+        editors,
+      };
     | ExplainThis(action) =>
       let* explain_this =
         ExplainThisUpdate.set_update(model.explain_this, action);
@@ -351,7 +367,11 @@ module Update = {
         cursor_info.info,
       );
     let globals = Globals.Update.calculate(color_highlights, model.globals);
-    {...model, globals, editors};
+    {
+      ...model,
+      globals,
+      editors,
+    };
   };
 };
 
@@ -652,7 +672,7 @@ module View = {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
-      [FontSpecimen.view, DecUtil.filters, JsUtil.clipboard_shim]
+      [FontSpecimen.view, JsUtil.clipboard_shim]
       @ main_view(~get_log_and, ~cursor, ~inject, model),
     );
   };

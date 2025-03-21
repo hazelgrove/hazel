@@ -19,7 +19,12 @@ module EvalObj = {
     knd: step_kind,
   };
 
-  let mk = (ctx, env, d_loc, knd) => {ctx, env, d_loc, knd};
+  let mk = (ctx, env, d_loc, knd) => {
+    ctx,
+    env,
+    d_loc,
+    knd,
+  };
 
   let get_ctx = (obj: t): EvalCtx.t => {
     obj.ctx;
@@ -65,7 +70,11 @@ let rec matches =
     switch (ctx) {
     | Mark => (act, idx, EvalCtx.Mark)
     | Term({term, ids}) =>
-      let rewrap = term => EvalCtx.Term({term, ids});
+      let rewrap = term =>
+        EvalCtx.Term({
+          term,
+          ids,
+        });
       switch ((term: EvalCtx.term)) {
       | Closure(env, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
@@ -93,10 +102,10 @@ let rec matches =
       | Let2(d1, d2, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Let2(d1, d2, ctx) |> rewrap;
-      | Fun(dp, ctx, env', name) =>
-        let+ ctx =
-          matches(Option.value(~default=env, env'), flt, ctx, exp, act, idx);
-        Fun(dp, ctx, env', name) |> rewrap;
+      | Fun(dp, ctx, ty, name) =>
+        // TODO: Should this env include the bound variables?
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Fun(dp, ctx, ty, name) |> rewrap;
       | FixF(name, ctx, env') =>
         let+ ctx =
           matches(Option.value(~default=env, env'), flt, ctx, exp, act, idx);
@@ -137,9 +146,24 @@ let rec matches =
       | Tuple(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Tuple(ctx, ds) |> rewrap;
+      | TupLabel(label, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        TupLabel(label, ctx) |> rewrap;
+      | Dot1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Dot1(ctx, d2) |> rewrap;
+      | Dot2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Dot2(d1, ctx) |> rewrap;
       | Test(ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Test(ctx) |> rewrap;
+      | Parens(ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Parens(ctx) |> rewrap;
+      | Probe(ctx, pr) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Probe(ctx, pr) |> rewrap;
       | ListLit(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         ListLit(ctx, ds) |> rewrap;
@@ -180,7 +204,10 @@ let rec matches =
   | _ when midx == ridx && midx > pidx && mact |> snd == All => (
       ract,
       ridx,
-      Term({term: Filter(Residue(midx, mact), rctx), ids: [Id.mk()]}),
+      Term({
+        term: Filter(Residue(midx, mact), rctx),
+        ids: [Id.mk()],
+      }),
     )
   | _ => (ract, ridx, rctx)
   };
@@ -194,8 +221,20 @@ let should_hide_eval_obj =
     let (act, _, ctx) =
       matches(ClosureEnvironment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
     switch (act) {
-    | (Eval, _) => (Eval, {...x, ctx})
-    | (Step, _) => (Step, {...x, ctx})
+    | (Eval, _) => (
+        Eval,
+        {
+          ...x,
+          ctx,
+        },
+      )
+    | (Step, _) => (
+        Step,
+        {
+          ...x,
+          ctx,
+        },
+      )
     };
   };
 
@@ -206,8 +245,20 @@ let should_hide_step = (~settings, x: step): (FilterAction.action, step) =>
     let (act, _, ctx) =
       matches(ClosureEnvironment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
     switch (act) {
-    | (Eval, _) => (Eval, {...x, ctx})
-    | (Step, _) => (Step, {...x, ctx})
+    | (Eval, _) => (
+        Eval,
+        {
+          ...x,
+          ctx,
+        },
+      )
+    | (Step, _) => (
+        Step,
+        {
+          ...x,
+          ctx,
+        },
+      )
     };
   };
 
@@ -298,12 +349,14 @@ module Decompose = {
     let otherwise = (env, o) => (o, Result.BoxedValue, env, ());
     let update_test = (state, id, v) =>
       state := EvaluatorState.add_test(state^, id, v);
+    let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
+      state := EvaluatorState.add_closure(state^, closure);
   };
 
   module Decomp = Transition(DecomposeEVMode);
-  let rec decompose = (state, env, exp) => {
+  let rec decompose = (~in_closure=?, state, env, exp) => {
     switch (exp) {
-    | _ => Decomp.transition(decompose, state, env, exp)
+    | _ => Decomp.transition(decompose, ~in_closure?, state, env, exp)
     };
   };
 };
@@ -339,12 +392,21 @@ module TakeStep = {
 
     let update_test = (state, id, v) =>
       state := EvaluatorState.add_test(state^, id, v);
+
+    let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
+      state := EvaluatorState.add_closure(state^, closure);
   };
 
   module TakeStepEV = Transition(TakeStepEVMode);
 
-  let take_step = (state, env, d) =>
-    TakeStepEV.transition((_, _, _) => None, state, env, d)
+  let take_step = (~in_closure=?, state, env, d) =>
+    TakeStepEV.transition(
+      (~in_closure as _=?, _, _, _) => None,
+      ~in_closure?,
+      state,
+      env,
+      d,
+    )
     |> Option.map(DHExp.repair_ids);
 };
 

@@ -11,7 +11,13 @@ let term_of: t => term = IdTagged.term_of;
 let fast_copy: (Id.t, t) => t = IdTagged.fast_copy;
 
 let mk = (ids, term): t => {
-  {ids, copied: true, term};
+  {
+    term,
+    annotation: {
+      ids,
+      copied: true,
+    },
+  };
 };
 
 // TODO: make this function emit a map of changes
@@ -19,7 +25,7 @@ let repair_ids =
   map_term(
     ~f_exp=
       (continue, exp) =>
-        if (exp.copied) {
+        if (IdTagged.copied(exp)) {
           replace_all_ids(exp);
         } else {
           continue(exp);
@@ -45,7 +51,7 @@ let repair_ids_typ =
         },
     ~f_typ=
       (continue, typ) =>
-        if (typ.copied) {
+        if (IdTagged.copied(typ)) {
           replace_all_ids_typ(typ);
         } else {
           continue(typ);
@@ -56,57 +62,46 @@ let repair_ids_typ =
 // Also strips static error holes - kinda like unelaboration
 let rec strip_casts =
   map_term(
+    ~f_pat=
+      (continue, t) =>
+        switch (t.term) {
+        | Cast(p, _, _) => strip_casts_pat(p)
+        | _ => continue(t)
+        },
     ~f_exp=
       (continue, exp) => {
         switch (term_of(exp)) {
-        /* Leave non-casts unchanged */
-        | Tuple(_)
-        | Cons(_)
-        | ListConcat(_)
-        | ListLit(_)
-        | MultiHole(_)
-        | Seq(_)
-        | Filter(_)
-        | Let(_)
-        | FixF(_)
-        | TyAlias(_)
-        | Fun(_)
-        | Ap(_)
-        | Deferral(_)
-        | DeferredAp(_)
-        | Test(_)
-        | BuiltinFun(_)
-        | UnOp(_)
-        | BinOp(_)
-        | Match(_)
-        | Parens(_)
-        | EmptyHole
-        | Invalid(_)
-        | Var(_)
-        | Bool(_)
-        | Int(_)
-        | Float(_)
-        | String(_)
-        | Constructor(_)
-        | DynamicErrorHole(_)
-        | Closure(_)
-        | TypFun(_)
-        | TypAp(_)
-        | Undefined
-        | If(_) => continue(exp)
         /* Remove casts*/
         | Cast(d, _, _) => strip_casts(d)
         /* Keep failed casts*/
-        | FailedCast(_, _, _) => continue(exp)
+        | FailedCast(_, _, _)
+        | _ => continue(exp)
         }
       },
     _,
+  )
+and strip_casts_pat = (p: Pat.t): Pat.t => {
+  Pat.map_term(
+    ~f_pat=
+      (continue, t) =>
+        switch (t.term) {
+        | Cast(p, _, _) => strip_casts_pat(p)
+        | _ => continue(t)
+        },
+    ~f_exp=
+      (continue, t) =>
+        switch (t.term) {
+        | Cast(e, _, _) => strip_casts(e)
+        | _ => continue(t)
+        },
+    p,
   );
+};
 
 let assign_name_if_none = (t, name) => {
   let (term, rewrap) = unwrap(t);
   switch (term) {
-  | Fun(arg, ty, body, None) => Fun(arg, ty, body, name) |> rewrap
+  | Fun(arg, body, typ, None) => Fun(arg, body, typ, name) |> rewrap
   | TypFun(utpat, body, None) => TypFun(utpat, body, name) |> rewrap
   | _ => t
   };
@@ -143,6 +138,9 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Cons(_)
           | ListConcat(_)
           | Tuple(_)
+          | TupLabel(_)
+          | Label(_)
+          | Dot(_)
           | Match(_)
           | DynamicErrorHole(_)
           | Filter(_)
@@ -162,6 +160,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | TyAlias(_)
           | DeferredAp(_)
           | Parens(_)
+          | Probe(_)
           | UnOp(_) => continue(exp)
           },
       exp,

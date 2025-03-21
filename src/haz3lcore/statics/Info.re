@@ -32,7 +32,7 @@ open OptUtil.Syntax;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ancestors = list(Id.t);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_inconsistent =
   /* Self type (syn) inconsistent with expected type (ana) */
   | Expectation({
@@ -44,24 +44,41 @@ type error_inconsistent =
   /* Bad function position */
   | WithArrow(Typ.t);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_no_type =
   /* Invalid expression token, treated as hole */
   | BadToken(Token.t)
   /* Empty application of function with inconsistent type */
   | BadTrivAp(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
-  | FreeConstructor(Constructor.t);
+  | FreeConstructor(Constructor.t)
+  /* Dot Operator is ill-formed */
+  | WantTuple
+  /* Label not found in tuple for dot operator */
+  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
+  /* Sort error used as label in tuple */
+  | BadLabel(Any.t)
+  /* Invalid label in tuple */
+  | InvalidLabel(LabeledTuple.label);
 
 /* Errors which can apply to either expression or patterns */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_common =
   /* Underdetermined: No type can be assigned */
   | NoType(error_no_type)
   /* Overdetermined: Conflicting type expectations */
-  | Inconsistent(error_inconsistent);
+  | Inconsistent(error_inconsistent)
+  /* The error on a specific duplicate label */
+  | DuplicateLabel(LabeledTuple.label, Typ.t)
+  /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
+  | TupleLabelError({
+      malformed_labels: list(Any.t),
+      duplicate_labels: list(LabeledTuple.label),
+      invalid_labels: list(LabeledTuple.label),
+      typ: Typ.t,
+    });
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_exp =
   | FreeVariable(Var.t) /* Unbound variable (not in typing context) */
   | InexhaustiveMatch(option(error_common))
@@ -69,13 +86,13 @@ type error_exp =
   | BadPartialAp(Self.error_partial_ap)
   | Common(error_common);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_pat =
   | ExpectedConstructor /* Only construtors can be applied */
   | Redundant(option(error_pat))
   | Common(error_common);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_ana =
   /* The expected (ana) type and the self (syn) type are
      consistent, as witnessed by their joint type (join) */
@@ -93,35 +110,35 @@ type ok_ana =
       nojoin: list(Typ.t),
     });
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_common =
   | Syn(Typ.t)
   | Ana(ok_ana);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_exp =
   | AnaDeferralConsistent(Typ.t)
   | Common(ok_common);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_pat = ok_common;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status_common =
   | InHole(error_common)
   | NotInHole(ok_common);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status_exp =
   | InHole(error_exp)
   | NotInHole(ok_exp);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status_pat =
   | InHole(error_pat)
   | NotInHole(ok_pat);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status_variant =
   | Unique
   | Duplicate;
@@ -129,9 +146,11 @@ type status_variant =
 /* Expectation imposed on a type by the parent form.
    TODO: This is fundamentally syntactic and should
    eventually be reimplemeted via a seperate sort */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type typ_expects =
   | TypeExpected
+  | TupleExpected
+  | LabelExpected(status_variant, list(LabeledTuple.label)) // list of duplicate labels
   | ConstructorExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
 
@@ -139,56 +158,72 @@ type typ_expects =
    TODO: The three additional errors statuses
    are fundamentally syntactic and should when
    possible be reimplemeted via a seperate sort */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_typ =
   | BadToken(Token.t) /* Invalid token, treated as type hole */
   | FreeTypeVariable(string) /* Free type variable */
   | DuplicateConstructor(Constructor.t) /* Duplicate ctr in same sum */
+  | DuplicateLabels(list(LabeledTuple.label), Typ.t)
+  | Duplicate(LabeledTuple.label, Typ.t)
   | WantTypeFoundAp
+  | WantTuple
+  | WantLabel
   | WantConstructorFoundType(Typ.t)
   | WantConstructorFoundAp;
 
 /* Type ok statuses for cursor inspector */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_typ =
   | Variant(Constructor.t, Typ.t)
   | VariantIncomplete(Typ.t)
   | TypeAlias(string, Typ.t)
-  | Type(Typ.t);
+  | Type(Typ.t)
+  | EmptyLabel;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status_typ =
   | InHole(error_typ)
   | NotInHole(ok_typ);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type type_var_err =
   | Other
   | NotCapitalized;
 
 /* What are we shadowing? */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type shadow_src =
   | BaseTyp
   | TyAlias
   | TyVar;
 
 /* Type pattern term errors */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_tpat =
   | ShadowsType(string, shadow_src)
   | NotAVar(type_var_err);
 
 /* Type pattern ok statuses for cursor inspector */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_tpat =
   | Empty
   | Var(string);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status_tpat =
   | NotInHole(ok_tpat)
   | InHole(error_tpat);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type label_inference('a) =
+  | SingletonLabelInference({
+      label: LabeledTuple.label,
+      pre_labeled_info: 'a,
+    })
+  | MultiLabelInference({
+      reordered: bool,
+      introduced_labels: list(LabeledTuple.label),
+    });
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp = {
@@ -200,7 +235,10 @@ type exp = {
   co_ctx: CoCtx.t, /* Locally free variables */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
-  ty: Typ.t /* DERIVED: Type after nonempty hole fixing */
+  ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
+  label_inference: option(label_inference(exp)), /* Label inference information for the tuple */
+  inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
+  label_sort: bool /* When in the position of a label */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -215,7 +253,10 @@ type pat = {
   cls: Cls.t,
   status: status_pat,
   ty: Typ.t,
-  constraint_: Constraint.t,
+  constraint_: Coverage.Constraint.t,
+  label_inference: option(label_inference(pat)),
+  inferred_label: option(LabeledTuple.label),
+  label_sort: bool /* When in the position of a label */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -254,7 +295,7 @@ type t =
   | InfoTPat(tpat)
   | Secondary(secondary);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error =
   | Exp(error_exp)
   | Pat(error_pat)
@@ -276,6 +317,14 @@ let cls_of: t => Cls.t =
   | InfoTyp({cls, _})
   | InfoTPat({cls, _})
   | Secondary({cls, _}) => cls;
+
+let any_of: t => option(Term.Any.t) =
+  fun
+  | InfoExp({term, _}) => Some(Exp(term))
+  | InfoPat({term, _}) => Some(Pat(term))
+  | InfoTyp({term, _}) => Some(Typ(term))
+  | InfoTPat({term, _}) => Some(TPat(term))
+  | Secondary(_) => None;
 
 let ctx_of: t => Ctx.t =
   fun
@@ -317,7 +366,8 @@ let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
 let pat_ty: pat => Typ.t = ({ty, _}) => ty;
-let pat_constraint: pat => Constraint.t = ({constraint_, _}) => constraint_;
+let pat_constraint: pat => Coverage.Constraint.t =
+  ({constraint_, _}) => constraint_;
 
 let rec status_common =
         (ctx: Ctx.t, mode: Mode.t, self: Self.t): status_common =>
@@ -325,7 +375,7 @@ let rec status_common =
   | (Just(ty), Syn) => NotInHole(Syn(ty))
   | (Just(ty), SynFun) =>
     switch (
-      Typ.join_fix(
+      Typ.join(
         ctx,
         Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
         |> Typ.temp,
@@ -337,7 +387,7 @@ let rec status_common =
     }
   | (Just(ty), SynTypFun) =>
     switch (
-      Typ.join_fix(
+      Typ.join(
         ctx,
         Forall(Var("?") |> TPat.fresh, Unknown(Internal) |> Typ.temp)
         |> Typ.temp,
@@ -349,14 +399,43 @@ let rec status_common =
     }
   | (Just(syn), Ana(ana)) =>
     switch (
-      Typ.join_fix(
+      Typ.join(
         ctx,
         ana,
         syn /* Note: the ordering of ana, syn matters */
       )
     ) {
-    | None => InHole(Inconsistent(Expectation({syn, ana})))
-    | Some(join) => NotInHole(Ana(Consistent({ana, syn, join})))
+    | None =>
+      switch (ana.term, syn.term) {
+      | (Label(_), _) =>
+        InHole(
+          Inconsistent(
+            Expectation({
+              ana,
+              syn,
+            }),
+          ),
+        )
+      | _ =>
+        InHole(
+          Inconsistent(
+            Expectation({
+              ana,
+              syn,
+            }),
+          ),
+        )
+      }
+    | Some(join) =>
+      NotInHole(
+        Ana(
+          Consistent({
+            ana,
+            syn,
+            join,
+          }),
+        ),
+      )
     }
   | (IsConstructor({name, syn_ty}), _) =>
     /* If a ctr is being analyzed against (an arrow type returning)
@@ -370,18 +449,69 @@ let rec status_common =
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
+  | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
+  | (InvalidLabel(label), _) => InHole(NoType(InvalidLabel(label)))
+  | (
+      TupleLabelError({
+        malformed_labels,
+        duplicate_labels,
+        invalid_labels,
+        typ,
+      }),
+      _,
+    ) =>
+    InHole(
+      TupleLabelError({
+        malformed_labels,
+        duplicate_labels,
+        invalid_labels,
+        typ,
+      }),
+    )
+  | (Duplicate(lab, Just(ty)), _) => InHole(DuplicateLabel(lab, ty))
+  | (Duplicate(lab, _), _) =>
+    InHole(DuplicateLabel(lab, Unknown(Internal) |> Typ.temp))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
   | (NoJoin(wrap, tys), Ana(ana)) =>
     let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.temp);
-    switch (Typ.join_fix(ctx, ana, syn)) {
-    | None => InHole(Inconsistent(Expectation({ana, syn})))
+    switch (Typ.join(ctx, ana, syn)) {
+    | None =>
+      switch (ana.term, syn.term) {
+      | (Label(_), Label(_)) =>
+        InHole(
+          Inconsistent(
+            Expectation({
+              ana,
+              syn,
+            }),
+          ),
+        )
+      | (Label(_), _) => InHole(NoType(BadLabel(Typ(syn))))
+      | _ =>
+        InHole(
+          Inconsistent(
+            Expectation({
+              ana,
+              syn,
+            }),
+          ),
+        )
+      }
     | Some(_) =>
       NotInHole(
-        Ana(InternallyInconsistent({ana, nojoin: Typ.of_source(tys)})),
+        Ana(
+          InternallyInconsistent({
+            ana,
+            nojoin: Typ.of_source(tys),
+          }),
+        ),
       )
     };
   | (NoJoin(_, tys), Syn | SynFun | SynTypFun) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
+  | (WantTuple, _) => InHole(NoType(WantTuple))
+  | (LabelNotFound(name, labels), _) =>
+    InHole(NoType(LabelNotFound(name, labels)))
   };
 
 let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
@@ -392,6 +522,8 @@ let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
       | InHole(Common(Inconsistent(Internal(_) | Expectation(_))) as err)
       | InHole(Common(NoType(_)) as err) => Some(err)
       | NotInHole(_) => None
+      | InHole(Common(DuplicateLabel(_)))
+      | InHole(Common(TupleLabelError(_)))
       | InHole(Common(Inconsistent(WithArrow(_))))
       | InHole(ExpectedConstructor | Redundant(_)) =>
         // ExpectedConstructor cannot be a reason to hole-wrap the entire pattern
@@ -428,6 +560,8 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
       | NotInHole(_)
       | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
       | InHole(Common(NoType(_)))
+      | InHole(Common(TupleLabelError(_)))
+      | InHole(Common(DuplicateLabel(_)))
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
           BadPartialAp(_),
@@ -438,10 +572,10 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   | (IsDeferral(InAp), Ana(ana)) => NotInHole(AnaDeferralConsistent(ana))
   | (IsDeferral(_), _) => InHole(UnusedDeferral)
   | (IsBadPartialAp(_ as info), _) => InHole(BadPartialAp(info))
-  | (Common(self_pat), _) =>
-    switch (status_common(ctx, mode, self_pat)) {
+  | (Common(self_exp), _) =>
+    switch (status_common(ctx, mode, self_exp)) {
     | NotInHole(ok_exp) => NotInHole(Common(ok_exp))
-    | InHole(err_pat) => InHole(Common(err_pat))
+    | InHole(err_exp) => InHole(Common(err_exp))
     }
   };
 
@@ -455,7 +589,11 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
 let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
   switch (ty.term) {
   | Unknown(Hole(Invalid(token))) => InHole(BadToken(token))
-  | Unknown(Hole(EmptyHole)) => NotInHole(Type(ty))
+  | Unknown(Hole(EmptyHole)) =>
+    switch (expects) {
+    | LabelExpected(_) => NotInHole(EmptyLabel)
+    | _ => NotInHole(Type(ty))
+    }
   | Var(name) =>
     switch (expects) {
     | VariantExpected(Unique, sum_ty)
@@ -464,6 +602,18 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     | VariantExpected(Duplicate, _)
     | ConstructorExpected(Duplicate, _) =>
       InHole(DuplicateConstructor(name))
+    | TupleExpected =>
+      switch (Ctx.lookup_alias(ctx, name)) {
+      | Some({term: Prod(_), _}) =>
+        NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
+      | _ => InHole(WantTuple)
+      }
+    | LabelExpected(_) =>
+      switch (Ctx.lookup_alias(ctx, name)) {
+      | Some({term: Label(_), _}) =>
+        NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
+      | _ => InHole(WantLabel)
+      }
     | TypeExpected =>
       switch (Ctx.is_alias(ctx, name)) {
       | false =>
@@ -484,11 +634,42 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
         NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant) |> Typ.temp))
       }
     | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
+    | TupleExpected => InHole(WantTuple)
+    | LabelExpected(_) => InHole(WantLabel)
     | TypeExpected => InHole(WantTypeFoundAp)
+    }
+  | Label(name) =>
+    switch (expects) {
+    | TypeExpected => NotInHole(Type(ty))
+    | TupleExpected => InHole(WantTuple)
+    | LabelExpected(Unique, _) => NotInHole(Type(ty))
+    | LabelExpected(Duplicate, dupes) =>
+      List.exists(l => name == l, dupes)
+        ? InHole(Duplicate(name, ty)) : InHole(WantLabel)
+    | ConstructorExpected(_)
+    | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
+    }
+  | Prod(ts) =>
+    switch (expects) {
+    | TypeExpected
+    | TupleExpected =>
+      let duplicate_labels =
+        LabeledTuple.get_duplicate_labels(Typ.match_tup_label, ts);
+
+      if (duplicate_labels == []) {
+        NotInHole(Type(ty));
+      } else {
+        InHole(DuplicateLabels(duplicate_labels, ty));
+      };
+    | LabelExpected(_) => InHole(WantLabel)
+    | ConstructorExpected(_)
+    | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
     }
   | _ =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
+    | TupleExpected => InHole(WantTuple)
+    | LabelExpected(_) => InHole(WantLabel)
     | ConstructorExpected(_)
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
     }
@@ -514,8 +695,8 @@ let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
 /* Determines whether any term is in an error hole. */
 let is_error = (ci: t): bool => {
   switch (ci) {
-  | InfoExp({mode, self, ctx, _}) =>
-    switch (status_exp(ctx, mode, self)) {
+  | InfoExp({status, _}) =>
+    switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
@@ -549,7 +730,20 @@ let fixed_typ_ok: ok_pat => Typ.t =
 
 let fixed_typ_err_common: error_common => Typ.t =
   fun
-  | NoType(_) => Unknown(Internal) |> Typ.temp
+  | NoType(FreeConstructor(c)) =>
+    Sum([
+      ConstructorMap.Variant(c, [Id.invalid], None),
+      ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+    ])
+    |> Typ.temp
+  | NoType(BadToken(_))
+  | NoType(BadTrivAp(_))
+  | NoType(WantTuple)
+  | NoType(LabelNotFound(_))
+  | NoType(BadLabel(_))
+  | NoType(InvalidLabel(_)) => Unknown(Internal) |> Typ.temp
+  | TupleLabelError({typ, _})
+  | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana
   | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
   | Inconsistent(WithArrow(_)) =>
@@ -583,24 +777,6 @@ let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t => {
   };
 };
 
-let fixed_constraint_pat =
-    (
-      upat: Pat.t,
-      ctx,
-      mode: Mode.t,
-      self: Self.pat,
-      constraint_: Constraint.t,
-    )
-    : Constraint.t =>
-  switch (upat.term) {
-  | Cast(_) => constraint_
-  | _ =>
-    switch (fixed_typ_pat(ctx, mode, self) |> Typ.term_of) {
-    | Unknown(_) => Constraint.Hole
-    | _ => constraint_
-    }
-  };
-
 let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
   | InHole(err) => fixed_typ_err(err)
@@ -609,11 +785,36 @@ let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
   };
 
 /* Add derivable attributes for expression terms */
-let derived_exp = (~uexp: Exp.t, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx): exp => {
+let derived_exp =
+    (
+      ~uexp: Exp.t,
+      ~ctx,
+      ~mode,
+      ~ancestors,
+      ~self,
+      ~co_ctx,
+      ~label_inference: option(label_inference(exp)),
+      ~inferred_label: option(LabeledTuple.label),
+      ~label_sort,
+    )
+    : exp => {
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
   let status = status_exp(ctx, mode, self);
   let ty = fixed_typ_exp(ctx, mode, self);
-  {cls, self, ty, mode, status, ctx, co_ctx, ancestors, term: uexp};
+  {
+    cls,
+    self,
+    ty,
+    mode,
+    status,
+    ctx,
+    co_ctx,
+    ancestors,
+    term: uexp,
+    label_inference,
+    inferred_label,
+    label_sort,
+  };
 };
 
 /* Add derivable attributes for pattern terms */
@@ -627,12 +828,14 @@ let derived_pat =
       ~ancestors,
       ~self,
       ~constraint_,
+      ~label_inference,
+      ~inferred_label,
+      ~label_sort,
     )
     : pat => {
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
   let status = status_pat(ctx, mode, self);
   let ty = fixed_typ_pat(ctx, mode, self);
-  let constraint_ = fixed_constraint_pat(upat, ctx, mode, self, constraint_);
   {
     cls,
     self,
@@ -645,6 +848,9 @@ let derived_pat =
     ancestors,
     term: upat,
     constraint_,
+    label_inference,
+    inferred_label,
+    label_sort,
   };
 };
 
@@ -658,14 +864,27 @@ let derived_typ = (~utyp: Typ.t, ~ctx, ~ancestors, ~expects): typ => {
     | (_, cls) => Cls.Typ(cls)
     };
   let status = status_typ(ctx, expects, utyp);
-  {cls, ctx, ancestors, status, expects, term: utyp};
+  {
+    cls,
+    ctx,
+    ancestors,
+    status,
+    expects,
+    term: utyp,
+  };
 };
 
 /* Add derivable attributes for type patterns */
 let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
   let cls = Cls.TPat(TPat.cls_of_term(utpat.term));
   let status = status_tpat(ctx, utpat);
-  {cls, ancestors, status, ctx, term: utpat};
+  {
+    cls,
+    ancestors,
+    status,
+    ctx,
+    term: utpat,
+  };
 };
 
 /* If the info represents some kind of name binding which
@@ -688,5 +907,61 @@ let get_binding_site = (info: t): option(Id.t) => {
 let typ_is_constructor_expected = t =>
   switch (t) {
   | {expects: ConstructorExpected(_) | VariantExpected(_), _} => true
+  | _ => false
+  };
+
+let rec pre_labeled_info = (info: t): t =>
+  switch (info) {
+  | InfoExp({
+      label_inference:
+        Some(SingletonLabelInference({pre_labeled_info: pli, _})),
+      _,
+    }) =>
+    pre_labeled_info(InfoExp(pli))
+  | InfoPat({
+      label_inference:
+        Some(SingletonLabelInference({pre_labeled_info: pli, _})),
+      _,
+    }) =>
+    pre_labeled_info(InfoPat(pli))
+  | _ => info
+  };
+
+// We should just carry this through the rearranging in statics rather than recomputing it
+let derive_label_inference_info = (original_labels, new_labels) => {
+  let introduced_labels =
+    List.filter(
+      l => !List.mem(l, List.filter_map(Fun.id, original_labels)),
+      List.filter_map(Fun.id, new_labels),
+    );
+  let reordered =
+    !
+      List.equal(
+        (a, b) => {
+          switch (a, b) {
+          | (Some(a), Some(b)) => a == b
+          | (Some(a), None) => List.mem(a, introduced_labels) // If we introduce a label, we don't consider it reordered
+          | (None, Some(_)) => false
+          | (None, None) => true
+          }
+        },
+        new_labels,
+        original_labels,
+      );
+
+  MultiLabelInference({
+    reordered,
+    introduced_labels,
+  });
+};
+
+let is_label = (info: t): bool =>
+  switch (info) {
+  | InfoTyp({status: NotInHole(EmptyLabel), _})
+  | InfoTyp({term: {term: Label(_), _}, _})
+  | InfoExp({term: {term: Label(_), _}, _})
+  | InfoPat({term: {term: Label(_), _}, _})
+  | InfoPat({label_sort: true, _})
+  | InfoExp({label_sort: true, _}) => true
   | _ => false
   };

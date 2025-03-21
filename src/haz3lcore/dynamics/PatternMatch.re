@@ -11,7 +11,8 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
     Matches(Environment.union(env1, env2))
   };
 
-let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
+let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
+  let matches = matches(capture);
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
   | EmptyHole
@@ -29,15 +30,10 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
   | String(s) =>
     let* s' = Unboxing.unbox(String, d);
     s == s' ? Matches(Environment.empty) : DoesNotMatch;
-  | Cast({term: ListLit([] as xs), _}, _, _) // Shortcut for empty list pattern match perf
   | ListLit(xs) =>
-    let* s' = Unboxing.unbox(List, d);
-    if (List.length(xs) == List.length(s')) {
-      List.map2(matches, xs, s')
-      |> List.fold_left(combine_result, Matches(Environment.empty));
-    } else {
-      DoesNotMatch;
-    };
+    let* s' = Unboxing.unbox(ListLit(List.length(xs)), d);
+    List.map2(matches, xs, s')
+    |> List.fold_left(combine_result, Matches(Environment.empty));
   | Cons(x, xs) =>
     let* (x', xs') = Unboxing.unbox(Cons, d);
     let* m_x = matches(x, x');
@@ -51,11 +47,54 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
     matches(p2, d2);
   | Ap(_, _) => IndetMatch // TODO: should this fail?
   | Var(x) => Matches(Environment.singleton((x, d)))
+  /* Labels are a special case */
+  | Label(name) =>
+    let* name' = Unboxing.unbox(Label, d);
+    LabeledTuple.match_labels(name, name')
+      ? Matches(Environment.empty) : DoesNotMatch;
+  | TupLabel(_, x) =>
+    let* x' = Unboxing.unbox(TupLabel(dp), d);
+    matches(x, x');
   | Tuple(ps) =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
     List.map2(matches, ps, ds)
     |> List.fold_left(combine_result, Matches(Environment.empty));
   | Parens(p) => matches(p, d)
+  | Probe(p, pr) =>
+    let inner_match = matches(p, d);
+    capture(pr, dp, d, inner_match);
+    inner_match;
   | Cast(p, t1, t2) =>
     matches(p, Cast(d, t2, t1) |> DHExp.fresh |> Casts.transition_multiple)
   };
+};
+
+type closure_closures = list(Probe.call_stack => Dynamics.Probe.Closure.t);
+
+type matches_and_closures = {
+  matches: match_result,
+  closures: closure_closures,
+};
+
+let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
+  /* Closure capture for Probe instrumentation */
+  let closure_closures: ref(closure_closures) = ref([]);
+  let capture =
+      (pr: Probe.t, dp: Term.Pat.t, d: DHExp.t, inner_match: match_result)
+      : unit =>
+    switch (inner_match) {
+    | DoesNotMatch => ()
+    | IndetMatch => ()
+    | Matches(env) =>
+      closure_closures :=
+        List.cons(
+          Dynamics.Probe.Closure.mk(Term.Pat.rep_id(dp), d, env, _, pr),
+          closure_closures^,
+        )
+    };
+  let res = matches(capture, dp, d);
+  {
+    matches: res,
+    closures: closure_closures^,
+  };
+};

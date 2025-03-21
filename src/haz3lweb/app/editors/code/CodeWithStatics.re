@@ -12,11 +12,15 @@ module Model = {
   type t = {
     // Updated:
     editor: Editor.t,
-    // Calculated:
     statics: CachedStatics.t,
+    dynamics: Dynamics.Map.t,
   };
 
-  let mk = editor => {editor, statics: CachedStatics.empty};
+  let mk = editor => {
+    editor,
+    statics: CachedStatics.empty,
+    dynamics: Dynamics.Map.empty,
+  };
 
   let mk_from_exp = (~settings: CoreSettings.t, ~inline=false, term: Exp.t) => {
     ExpToSegment.exp_to_segment(
@@ -30,10 +34,16 @@ module Model = {
 
   let get_statics = (model: t) => model.statics;
 
+  let get_dynamics = (model: t) => model.dynamics;
+
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
     info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
+    indicated_piece:
+      Indicated.piece''(model.editor.state.zipper)
+      |> Option.map(((p, _, _)) => p),
     selected_text:
       Some(() => Printer.to_string_selection(model.editor.state.zipper)),
+    selection: Some(model.editor.state.zipper.selection.content),
     editor: Some(model.editor),
     editor_read_only: true,
     editor_action: x => Some(x),
@@ -55,12 +65,31 @@ module Update = {
 
   /* Calculates the statics for the editor. */
   let calculate =
-      (~settings, ~is_edited, ~stitch, {editor, statics: _}: Model.t)
+      (
+        ~settings,
+        ~is_edited,
+        ~stitch,
+        ~dynamics: Dynamics.Map.t,
+        {editor, statics, dynamics: _}: Model.t,
+      )
       : Model.t => {
-    let statics = CachedStatics.init(~settings, ~stitch, editor.state.zipper);
+    let statics =
+      is_edited
+        ? CachedStatics.init(~settings, ~stitch, editor.state.zipper)
+        : statics;
     let editor =
-      Editor.Update.calculate(~settings, ~is_edited, statics, editor);
-    {editor, statics};
+      Editor.Update.calculate(
+        ~settings,
+        ~is_edited,
+        statics,
+        dynamics,
+        editor,
+      );
+    {
+      editor,
+      statics,
+      dynamics,
+    };
   };
 };
 
@@ -71,10 +100,9 @@ module View = {
   let view =
       (~globals, ~overlays: list(Node.t)=[], ~sort=Sort.root, model: Model.t) => {
     let {
-      statics: {info_map, _},
       editor:
         {
-          syntax: {measured, selection_ids, segment, holes, _},
+          syntax: {measured, selection_ids, segment, shape_map, _},
           state: {zipper: z, _},
           _,
         },
@@ -87,8 +115,7 @@ module View = {
         ~measured,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~segment,
-        ~holes,
-        ~info_map,
+        ~shape_map,
       );
     let statics_decos = {
       module Deco =

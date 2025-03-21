@@ -61,6 +61,9 @@ module EvaluatorEVMode: {
   let update_test = (state, id, v) =>
     state := EvaluatorState.add_test(state^, id, v);
 
+  let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
+    state := EvaluatorState.add_closure(state^, closure);
+
   let req_final = (f, _, x) => {
     let.trampoline x' = Next(() => f(x));
     Trampoline.return(x' |> snd);
@@ -98,9 +101,9 @@ module EvaluatorEVMode: {
 
 module Eval = Transition(EvaluatorEVMode);
 
-let rec evaluate = (state, env, d) => {
+let rec evaluate = (~in_closure=?, state, env, d) => {
   open Trampoline.Syntax;
-  let.trampoline u = Eval.transition(evaluate, state, env, d);
+  let.trampoline u = Eval.transition(evaluate, ~in_closure?, state, env, d);
   switch (u) {
   | (Final, x) => (EvaluatorEVMode.Final, x) |> Trampoline.return
   | (Uneval, x) => Trampoline.Next(() => evaluate(state, env, x))
@@ -133,6 +136,10 @@ let evaluate =
     | exception exn =>
       print_endline("EXN:" ++ Printexc.to_string(exn));
       ResultFail(UnknownException(Printexc.to_string(exn)));
-    | (state, result) => ResultOk({result, state})
+    | (state, result) =>
+      ResultOk({
+        result,
+        state,
+      })
     }
   };

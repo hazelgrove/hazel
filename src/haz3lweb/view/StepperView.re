@@ -144,7 +144,10 @@ module Update = {
                    )
                    |> ((u: Updated.t('a)) => u.model);
                  let editor = Calc.NewValue(editor);
-                 {...a, editor};
+                 {
+                   ...a,
+                   editor,
+                 };
                }),
              )
           |> Aba.mk(_, model.history |> Aba.get_bs),
@@ -163,9 +166,17 @@ module Update = {
     |> List.map(
          fun
          | (FilterAction.Step, x) =>
-           Model.{hidden: false, step: x, to_ids: [Id.mk()]}
+           Model.{
+             hidden: false,
+             step: x,
+             to_ids: [Id.mk()],
+           }
          | (FilterAction.Eval, x) =>
-           Model.{hidden: true, step: x, to_ids: [Id.mk()]},
+           Model.{
+             hidden: true,
+             step: x,
+             to_ids: [Id.mk()],
+           },
        );
 
   let get_next_a =
@@ -185,7 +196,8 @@ module Update = {
       // Check b is valid
       let* b =
         List.find_opt(
-          (b': Model.b) => b'.step.d_loc.ids == b.step.d_loc.ids,
+          (b': Model.b) =>
+            IdTagged.ids(b'.step.d_loc) == IdTagged.ids(b.step.d_loc),
           next_steps,
         );
 
@@ -193,7 +205,13 @@ module Update = {
       let state = ref(state);
       let+ next_expr =
         EvaluatorStep.take_step(state, b.step.env, b.step.d_loc);
-      let next_expr = {...next_expr, ids: b.to_ids};
+      let next_expr = {
+        ...next_expr,
+        annotation: {
+          ...next_expr.annotation,
+          ids: b.to_ids,
+        },
+      };
       let next_state = state^;
       let previous_substitutions =
         (
@@ -266,11 +284,17 @@ module Update = {
                 CodeSelectable.Update.calculate(
                   ~settings=settings |> Calc.get_value,
                   ~is_edited=false,
+                  ~dynamics=Dynamics.Map.empty, // No projectors in stepper atm
                   ~stitch=x =>
                   x
                 ),
               )
-           |> (editor => {...a, editor})
+           |> (
+             editor => {
+               ...a,
+               editor,
+             }
+           )
          }),
        );
   };
