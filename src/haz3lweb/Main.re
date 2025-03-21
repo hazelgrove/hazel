@@ -135,11 +135,17 @@ let start = {
   // Other Initialization
   let on_startup = (schedule_action, ()): unit => {
     NinjaKeys.initialize(Shortcut.options(schedule_action));
-    DerivationMode.NinjaKeysRule.schedule_action :=
+    NinjaKeysRule.set_handler();
+    NinjaKeysRule.schedule_action :=
       (
         update =>
-          schedule_action(Editors(Derivations(DerivationTree(update))))
+          schedule_action(
+            Editors(Derivations(DerivationTree(MapEditor(update)))),
+          )
       );
+    NinjaKeysRule.schedule_action_update_hover_rule_spec :=
+      (() => schedule_action(Refresh));
+
     JsUtil.focus_clipboard_shim();
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(

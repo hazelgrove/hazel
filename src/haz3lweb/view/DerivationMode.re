@@ -213,66 +213,6 @@ module Update = {
   };
 };
 
-module NinjaKeysRule = {
-  open Js_of_ocaml;
-  open Util;
-  let pos = ref(DerivationTree.Trees(0, Value));
-  let version = ref(RuleImage.PropositionalLogic: RuleImage.version);
-  let schedule_action = ref((_: Update.t) => ());
-
-  let from_rule =
-      (schedule_action: Update.t => unit, rule: Haz3lcore.RuleImage.t)
-      : {
-          .
-          "handler": Js.readonly_prop(unit => unit),
-          "id": Js.readonly_prop(string),
-          "title": Js.readonly_prop(string),
-          "section": Js.readonly_prop(Js.optdef(string)),
-          "keywords": Js.readonly_prop(string),
-        } => {
-    [%js
-     {
-       val id = Haz3lcore.RuleImage.show(rule);
-       val title = Haz3lcore.RuleImage.show(rule);
-       val section =
-         Js.Optdef.option(
-           Some(
-             Haz3lcore.RuleImage.show_kind(
-               Haz3lcore.RuleImage.of_kind(rule),
-             ),
-           ),
-         );
-       val handler =
-         () =>
-           schedule_action(
-             Update.MapEditor(
-               DerivationTree.switch_rule(~pos=pos^, ~rule=Some(rule)),
-             ),
-           );
-       val keywords =
-         Haz3lcore.RuleImage.keywords(rule) |> String.concat(" ")
-     }];
-  };
-
-  let open_command_palette = (~version as version', ~pos as pos'): unit => {
-    let elem = JsUtil.get_elem_by_id("ninja-keys-rules");
-    if (version^ != version') {
-      version := version';
-      Js.Unsafe.set(
-        elem,
-        "data",
-        version^
-        |> Haz3lcore.RuleImage.all_rules_of_version
-        |> List.map(from_rule(schedule_action^))
-        |> Array.of_list
-        |> Js.array,
-      );
-    };
-    pos := pos';
-    Js.Unsafe.meth_call(elem, "open", [||]);
-  };
-};
-
 module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]

@@ -558,3 +558,13 @@
 .version-select:hover {
   background: var(--BR2);
 }
+
+.hover-rule-spec {
+  background: var(--cell-active);
+  border: solid var(--BR1) 1px;
+  padding: 0.5rem;
+  border-radius: 1rem;
+  display: none;
+  position: fixed;
+  z-index: 1000;
+}

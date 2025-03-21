@@ -64,6 +64,7 @@ module Update = {
     | ExplainThis(ExplainThisUpdate.update)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
+    | Refresh
     | Start
     | Save;
 
@@ -240,6 +241,7 @@ module Update = {
     | Benchmark(Finish) =>
       Benchmark.finish();
       model |> Updated.return_quiet;
+    | Refresh => model |> Updated.return_quiet(~recalculate=true)
     | Start => model |> return // Triggers recalculation at the start
     | Save =>
       print_endline("Saving...");
@@ -516,6 +518,7 @@ module View = {
       sidebar,
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
+      HoverRuleSpec.view(~globals),
     ];
   };
 
