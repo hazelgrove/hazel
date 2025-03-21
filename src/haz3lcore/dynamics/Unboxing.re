@@ -7,6 +7,7 @@ open Util;
 
     - an indeterminate list cons: e.g. 1 :: ?
     - a list literal or list cons with some casts wrapped around it
+    - an indet term in a cast to a list type
 
     Unboxing is the process of turning a list literal into a list literal if it is a list literal,
     by pushing casts inside data structures, or giving up if it is not a list literal.
@@ -14,6 +15,7 @@ open Util;
     - IndetMatch: Due to holes in the expression it may or may not match the unboxing request
                   depending on possible substitutions of the holes.
                   e.g. 1 :: ? might match a list of length 3 (LitLitn(3))
+                  or   ? : [Int] might match a list (of any length)
     - DoesNotMatch: Could not possibly match the unboxing request
                   e.g. 1 :: ? definitely does NOT match a list of length 0 (ListLitn(0))
 
@@ -48,6 +50,7 @@ type unbox_request('a) =
   | TypFun: unbox_request(unboxed_tfun)
   | Fun: unbox_request(unboxed_fun);
 
+[@deriving (show({with_path: false}), eq)]
 type unboxed('a) =
   | DoesNotMatch
   | IndetMatch
