@@ -29,6 +29,7 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | If(_)
   | Test(_)
   | Parens(_)
+  | Probe(_)
   | Cons(_)
   | ListConcat(_)
   | UnOp(_)

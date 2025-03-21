@@ -73,6 +73,7 @@ let show =
              hide_fixpoints: false,
              fold_cast_types: false,
              show_filters: false,
+             show_unknown_as_hole: false,
            },
            ~sort=Jdmt,
          )
@@ -97,7 +98,7 @@ let show =
     ~globals,
     ~overlays=highlight_deco,
     ~sort=Drv(Jdmt),
-    {editor, statics},
+    {editor, statics, dynamics: Dynamics.Map.empty},
   );
 };
 
@@ -106,7 +107,7 @@ let show_without_statics = (pretty: Segment.t, ~globals: Globals.t): Node.t => {
   CodeWithStatics.View.view(
     ~globals,
     ~sort=Drv(Jdmt),
-    {editor, statics: CachedStatics.empty},
+    {editor, statics: CachedStatics.empty, dynamics: Dynamics.Map.empty},
   );
 };
 

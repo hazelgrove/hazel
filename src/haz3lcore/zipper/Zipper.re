@@ -112,6 +112,11 @@ let unselect = (~erase_buffer=false, z: t): t => {
 let unselect_and_zip = (~erase_buffer=false, z: t): Segment.t =>
   z |> unselect(~erase_buffer) |> zip;
 
+let replace_selection = (focus, segment, z: t): t => {
+  ...z,
+  selection: Selection.mk(~focus, segment),
+};
+
 let update_selection = (selection: Selection.t, z: t): (Selection.t, t) => {
   let old = z.selection;
   // used to be necessary to unselect when selection update

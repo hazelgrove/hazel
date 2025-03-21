@@ -149,23 +149,21 @@ module Make = (M: S) => {
        * we choose between current and previous (undershot) positions */
       | (Over, Over | Exact | Under) =>
         switch (force_progress) {
-        | false =>
-          /* Ideally we would use the same logic as from the below
-           * anchor case here; however that results in strange
-           * behavior when accidentally starting a drag at the end
-           * of a line, which triggers the (invisible) selection of
-           * a linebreak, making it appear that the caret has jumped
-           * to the next line. The downside of leaving this as-is is
-           * that multiline tokens (projectors) do not become part of
-           * the selection when dragging until you're all the way
-           * over them, which is slightly visually jarring */
-          prev
-        | true =>
-          /* Up/down kb movement works by setting a goal one row
-           * below the current. When adjacent to a multiline token,
-           * the nearest next caret position may be multiple lines down.
-           * We must allow this overshoot in order to make progress. */
-          caret_point(prev) == init ? curr : prev
+        /* Ideally we would use the same logic as from the below
+         * anchor case here; however that results in strange
+         * behavior when accidentally starting a drag at the end
+         * of a line, which triggers the (invisible) selection of
+         * a linebreak, making it appear that the caret has jumped
+         * to the next line. The downside of leaving this as-is is
+         * that multiline tokens (projectors) do not become part of
+         * the selection when dragging until you're all the way
+         * over them, which is slightly visually jarring */
+        | false => prev
+        /* Up/down kb movement works by setting a goal one row
+         * below the current. When adjacent to a multiline token,
+         * the nearest next caret position may be multiple lines down.
+         * We must allow this overshoot in order to make progress. */
+        | true => caret_point(prev) == init ? curr : prev
         }
       | (Exact, Over) =>
         switch (anchor) {
@@ -418,7 +416,7 @@ module Make = (M: S) => {
     } else {
       /* Always empty selection on move action,
        * even if we don't actually move */
-      let z = Zipper.unselect(z);
+      let z = Zipper.directional_unselect(z.selection.focus, z);
       switch (move_dispatch(d, z)) {
       | Some(z) => Some(z)
       | None => Some(z)

@@ -161,6 +161,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | TyAlias(_)
           | DeferredAp(_)
           | Parens(_)
+          | Probe(_)
           | UnOp(_) => continue(exp)
           },
       exp,

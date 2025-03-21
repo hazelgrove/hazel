@@ -18,15 +18,6 @@ let class_of =
   | Drv(s) => DrvSort.class_of(s)
   | _ as s => show(s);
 
-type gadt('a) =
-  | DrvSort: gadt(DrvTermBase.Any.t)
-  | AnySort: gadt(TermBase.Any.t)
-  | PatSort: gadt(TermBase.Pat.t)
-  | TypSort: gadt(TermBase.Typ.t)
-  | TPatSort: gadt(TermBase.TPat.t)
-  | RulSort: gadt(TermBase.Rul.t)
-  | ExpSort: gadt(TermBase.Exp.t);
-
 let root = Exp;
 
 let all =

@@ -38,6 +38,8 @@ module rec Any: {
     t;
 
   let eq: (t, t) => bool;
+
+  let sort: t => DrvSort.t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
@@ -75,6 +77,14 @@ module rec Any: {
     | (Typ(_), _) => false
     | (TPat(tp1), TPat(tp2)) => TPat.eq(tp1, tp2)
     | (TPat(_), _) => false
+    };
+
+  let sort = (any: t): DrvSort.t =>
+    switch (any) {
+    | Exp(_) => Exp
+    | Pat(_) => Pat
+    | Typ(_) => Typ
+    | TPat(_) => TPat
     };
 }
 and Exp: {

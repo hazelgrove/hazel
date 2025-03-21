@@ -21,6 +21,10 @@
   min-width: auto;
 }
 
+#main.Exercises .cell:has(.code-editor.selected) {
+  background-color: var(--cell-active);
+}
+
 #main.Exercises .cell-caption {
   color: var(--ui-header-text);
   font-size: 0.8em;
@@ -100,7 +104,7 @@
   margin-left: 0.17em;
   font-size: 64%;
   vertical-align: super;
-  z-index: var(--test-result-z);
+  z-index: var(--projector-overlay-z);
 }
 
 .test-instance.Pass:before,
@@ -567,4 +571,8 @@
   display: none;
   position: fixed;
   z-index: 1000;
+}
+
+#ninja-keys-rules {
+  opacity: 0.8;
 }

@@ -30,6 +30,7 @@ include TermBase.Typ;
 
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
+let rep_id: t => Id.t = IdTagged.rep_id;
 
 let fresh: term => t = IdTagged.fresh;
 /* fresh assigns a random id, whereas temp assigns Id.invalid, which
@@ -43,7 +44,6 @@ let temp: term => t =
       copied: false,
     },
   };
-let rep_id: t => Id.t = IdTagged.rep_id;
 
 let all_ids_temp = {
   let f:

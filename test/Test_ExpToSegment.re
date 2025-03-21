@@ -39,6 +39,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   hide_fixpoints: false,
   fold_cast_types: false,
   show_filters: true,
+  show_unknown_as_hole: true,
 };
 let equivalent_to_make_term = (serialized: string) => {
   switch (Printer.zipper_of_string(serialized, ~root=Exp)) {

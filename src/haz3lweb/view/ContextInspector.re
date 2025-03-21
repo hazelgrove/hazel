@@ -19,6 +19,7 @@ let context_entry_view = (~globals, entry: Haz3lcore.Ctx.entry): Node.t => {
         hide_fixpoints: false,
         fold_cast_types: false,
         show_filters: false,
+        show_unknown_as_hole: true,
       },
     );
   let div_name = div(~attrs=[clss(["name"])]);
@@ -33,7 +34,7 @@ let context_entry_view = (~globals, entry: Haz3lcore.Ctx.entry): Node.t => {
       [
         div_name([text(name)]),
         div(~attrs=[clss(["seperator"])], [text(":")]),
-        view_type(typ, ~info_map=Haz3lcore.Id.Map.empty),
+        view_type(typ),
       ],
     )
   | TVarEntry({name, kind, _}) =>

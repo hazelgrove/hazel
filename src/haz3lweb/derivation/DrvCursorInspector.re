@@ -19,8 +19,8 @@ let drv_view = (~globals, status: DrvInfo.t) => {
         hide_fixpoints: false,
         fold_cast_types: false,
         show_filters: false,
+        show_unknown_as_hole: false,
       },
-      ~info_map=Id.Map.empty,
     );
   let view_type = (typ: Typ.t) =>
     switch (typ.term) {

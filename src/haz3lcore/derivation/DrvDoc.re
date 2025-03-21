@@ -21,6 +21,7 @@ let settings =
     hide_fixpoints: false,
     fold_cast_types: false,
     show_filters: false,
+    show_unknown_as_hole: false,
   };
 
 let f_jdmt: exp_t => Segment.t =

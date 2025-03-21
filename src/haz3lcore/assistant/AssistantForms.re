@@ -50,7 +50,7 @@ module Typ = {
   let of_infix_delim: list((Token.t, Typ.term)) = [
     //("|>", Unknown(Internal)), /* annoying during case rules */
     (",", Prod([unk, unk])), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
-    ("::", List(unk)), /* annoying in patterns */
+    //("::", List(unk)), /* annoying in patterns. TODO: add codepath to show only if Ana(List(_)) */
     ("@", List(unk)),
     (";", Unknown(Internal)),
     ("&&", Bool),

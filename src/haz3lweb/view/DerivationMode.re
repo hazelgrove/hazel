@@ -121,6 +121,7 @@ module Update = {
                 editor: {
                   editor,
                   statics: cell.editor.statics,
+                  dynamics: cell.editor.dynamics,
                 },
                 result: cell.result,
               };
@@ -182,8 +183,17 @@ module Update = {
       {
         ...model.editors,
         prelude:
-          calculate(cells.prelude.editor.statics, model.editors.prelude),
-        setup: calculate(cells.setup.editor.statics, model.editors.setup),
+          calculate(
+            cells.prelude.editor.statics,
+            cells.prelude.editor.dynamics,
+            model.editors.prelude,
+          ),
+        setup:
+          calculate(
+            cells.setup.editor.statics,
+            cells.setup.editor.dynamics,
+            model.editors.setup,
+          ),
         trees: {
           List.map2(Util.Tree.combine, cells.trees, model.editors.trees)
           |> List.map(
@@ -195,7 +205,12 @@ module Update = {
                    ) => {
                      DerivationTree.Abbr.Just(
                        DerivationTree.{
-                         jdmt: calculate(di.editor.statics, jdmt),
+                         jdmt:
+                           calculate(
+                             di.editor.statics,
+                             di.editor.dynamics,
+                             jdmt,
+                           ),
                          rule,
                        },
                      );

@@ -1,5 +1,9 @@
 /* Code text and decoration style */
 
+.code-container {
+  position: relative;
+}
+
 /* Use this style for all text that should
  * be formatted like code, even if it's not
  * going to be inside an editor. For example,
@@ -20,9 +24,12 @@
 
 /* This is a hack to compensating for default linebreak handling
 * preventing a trailing linebreak in code editors from leaving a
-* trailing blank line, as per https://stackoverflow.com/questions/43492826/ */
+* trailing blank line, as per https://stackoverflow.com/questions/43492826/.
+* The mysterious chracter below is a zero-width space, used here
+* to avoid inserting an extraneous whitespace context for inline
+* syntax views, e.g. type views in the cursor inspector */
 .code-text:after {
-  content: " ";
+  content: "​";
 }
 
 /* TOKEN COLORS */
@@ -60,7 +67,8 @@
   color: var(--token-string-lit);
 }
 
-.code .token.in-buffer {
+/* code completion tokens */
+.code .in-buffer {
   color: var(--token-buffer);
 }
 
@@ -98,37 +106,61 @@ svg.shard > path {
   vector-effect: non-scaling-stroke;
 }
 
+svg.shard.indicated {
+  --off-x: 0.85px;
+  --off-y: 1px;
+  --blur: 0;
+}
+
+svg.shard.indicated.Nul {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--shadow-nul));
+}
+svg.shard.indicated.Any {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--shadow-any));
+}
+svg.shard.indicated.Exp {
+  filter: drop-shadow(
+    var(--off-x) var(--off-y) var(--blur) var(--shard-lines-exp)
+  );
+}
+svg.shard.indicated.Pat {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-pat));
+}
+svg.shard.indicated.Typ {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-typ));
+}
+svg.shard.indicated.Rul {
+  filter: drop-shadow(
+    var(--off-x) var(--off-y) var(--blur) var(--shard-lines-rul)
+  );
+}
+svg.shard.indicated.TPat {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-tpat));
+}
+
 svg.shard.indicated.Nul > path {
   fill: var(--shard-nul);
-  filter: url(#drop-shadow-Nul);
 }
 svg.shard.indicated.Any > path {
   fill: var(--shard-any);
-  filter: url(#drop-shadow-Any);
 }
 svg.shard.indicated.Exp > path {
   fill: var(--shard-exp);
-  filter: url(#drop-shadow-Exp);
 }
 svg.shard.indicated.Pat > path {
   fill: var(--shard-pat);
-  filter: url(#drop-shadow-Pat);
 }
 svg.shard.indicated.Typ > path {
   fill: var(--shard-typ);
-  filter: url(#drop-shadow-Typ);
 }
 svg.shard.indicated.Drv > path {
   fill: var(--shard-drv);
-  filter: url(#drop-shadow-Drv);
 }
 svg.shard.indicated.Rul > path {
   fill: var(--shard-rul);
-  filter: url(#drop-shadow-Rul);
 }
 svg.shard.indicated.TPat > path {
   fill: var(--shard-tpat);
-  filter: url(#drop-shadow-TPat);
 }
 
 svg.shard.indicated.caret.Exp > path {
@@ -144,11 +176,12 @@ svg.shard.indicated.caret.Typ > path {
   fill: var(--shard-caret-tpat);
 }
 
-svg.shard.indicated {
-  z-index: var(--tile-z);
-}
 svg.shard.selected {
   z-index: var(--select-z);
+  filter: drop-shadow(1px 1px 0 var(--shadow-nul));
+}
+svg.shard.indicated {
+  z-index: var(--tile-z);
 }
 svg.shard.error {
   z-index: var(--err-hole-z);
@@ -158,12 +191,6 @@ svg.shard.selected > path {
   fill: var(--shard-selected);
   stroke-width: 0.5px;
   stroke: var(--shard-selected);
-  filter: url(#drop-shadow-Nul);
-}
-svg.shard.selected.buffer > path {
-  fill: var(--shard-buffer);
-  stroke-width: 0;
-  filter: none;
 }
 svg.shard.error > path,
 .errors .errors-piece svg .child-line {
@@ -176,46 +203,22 @@ svg.shard.error > path {
   fill: var(--error-hole-fill);
 }
 
-/* SHARD DROP SHADOWS */
+/* Code completion decoration */
 
-#filters {
-  position: fixed;
-  height: 0;
-  width: 0;
+svg.shard.selected.buffer {
+  filter: none;
 }
-
-#drop-shadow-Nul .tile-drop-shadow {
-  flood-color: var(--shadow-nul);
-}
-#drop-shadow-Any .tile-drop-shadow {
-  flood-color: var(--shadow-any);
-}
-#drop-shadow-Exp .tile-drop-shadow {
-  flood-color: var(--shard-lines-exp);
-}
-#drop-shadow-Pat .tile-drop-shadow {
-  flood-color: var(--token-pat);
-}
-#drop-shadow-Typ .tile-drop-shadow {
-  flood-color: var(--token-typ);
-}
-#drop-shadow-Drv .tile-drop-shadow {
-  flood-color: var(--token-drv);
-}
-#drop-shadow-Rul .tile-drop-shadow {
-  flood-color: var(--shard-lines-rul);
-}
-#drop-shadow-TPat .tile-drop-shadow {
-  flood-color: var(--token-tpat);
+svg.shard.selected.buffer > path {
+  fill: #0000;
+  stroke-width: 0;
 }
 
 /* EMPTY HOLE DECO */
 
 .empty-hole {
-  z-index: var(--empty-hole-z);
 }
 
-.empty-hole-path {
+.empty-hole > path {
   fill: var(--empty-hole-fill);
   stroke: var(--empty-hole-stroke);
   stroke-width: 0.75px;
@@ -226,6 +229,7 @@ svg.shard.error > path {
 
 #caret {
   z-index: var(--caret-z);
+  pointer-events: none;
 }
 
 #caret.blink {

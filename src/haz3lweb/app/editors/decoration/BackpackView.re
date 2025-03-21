@@ -3,15 +3,18 @@ open Node;
 open Haz3lcore;
 open Util;
 
-/* Assume this doesn't contain projectors */
-let measured_of = seg => Measured.of_segment(seg, Id.Map.empty);
+let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
 
-let text_view = (seg: Segment.t): list(Node.t) => {
+let measured_of = seg => Measured.of_segment(seg, shape_map); /* Assume this doesn't contain projectors */
+
+let text_view = (font_metrics, seg: Segment.t): list(Node.t) => {
   module Text =
     Code.Text({
       let map = measured_of(seg);
       let settings = Settings.Model.init;
-      let info_map = Id.Map.empty; /* Assume this doesn't contain projectors */
+      let shape_map = shape_map;
+      let font_metrics = font_metrics;
+      let info_map = Id.Map.empty;
     });
   Text.of_segment([], true, Any, seg);
 };
@@ -47,6 +50,7 @@ let backpack_sel_view =
       y_off: float,
       scale: float,
       opacity: float,
+      font_metrics,
       {focus: _, content, _}: Selection.t,
     ) => {
   // Maybe use init sort at caret to prime this
@@ -65,7 +69,7 @@ let backpack_sel_view =
       ),
     ],
     // zwsp necessary for containing box to stretch to contain trailing newline
-    text_view(content) @ [text(Unicode.zwsp)],
+    text_view(font_metrics, content) @ [text(Unicode.zwsp)],
   );
 };
 
@@ -96,7 +100,7 @@ let view =
       | Some((_, side, _)) => side
       | _ => Right
       };
-    DecUtil.shape_adjust(side, shape);
+    ShardDec.shape_adjust(side, shape);
   };
   let caret_adj_px =
     // Figure out why we need this mystery pixel below
@@ -128,7 +132,15 @@ let view =
         let scale = scale_fn(idx);
         let x_offset = x_fn(idx);
         let new_y_offset = y_offset -. dy_fn(idx, base_height);
-        let v = backpack_sel_view(x_offset, new_y_offset, scale, opacity, s);
+        let v =
+          backpack_sel_view(
+            x_offset,
+            new_y_offset,
+            scale,
+            opacity,
+            font_metrics,
+            s,
+          );
         let new_idx = idx + 1;
         let new_opacity = opacity -. opacity_reduction;
         // Am i making this difficult by going backwards?

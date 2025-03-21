@@ -13,6 +13,7 @@ let show = (syntax: Drv.Exp.t, ~globals: Globals.t): Node.t => {
              hide_fixpoints: false,
              fold_cast_types: false,
              show_filters: false,
+             show_unknown_as_hole: false,
            },
            ~sort=Jdmt,
          )
@@ -24,7 +25,11 @@ let show = (syntax: Drv.Exp.t, ~globals: Globals.t): Node.t => {
       ~settings=CoreSettings.on,
       DrvExp(Exp(syntax), Jdmt) |> Exp.fresh,
     );
-  CodeWithStatics.View.view(~globals, ~sort=Drv(Jdmt), {editor, statics});
+  CodeWithStatics.View.view(
+    ~globals,
+    ~sort=Drv(Jdmt),
+    {editor, statics, dynamics: Dynamics.Map.empty},
+  );
 };
 
 let show_without_statics = (pretty: Segment.t, ~globals: Globals.t): Node.t => {
@@ -32,7 +37,7 @@ let show_without_statics = (pretty: Segment.t, ~globals: Globals.t): Node.t => {
   CodeWithStatics.View.view(
     ~globals,
     ~sort=Drv(Jdmt),
-    {editor, statics: CachedStatics.empty},
+    {editor, statics: CachedStatics.empty, dynamics: Dynamics.Map.empty},
   );
 };
 
