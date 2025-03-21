@@ -1,5 +1,5 @@
-import {NinjaKeys} from 'https://esm.sh/ninja-keys';
-import hotkeys from "https://esm.sh/hotkeys-js@3.8.7"
+import {NinjaKeys} from 'ninja-keys';
+import hotkeys from 'hotkeys-js'
 
 
 // This is the default behavior for the hotkeys module but I'm overriding it for the clipboard-shim
