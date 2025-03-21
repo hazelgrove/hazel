@@ -28,4 +28,7 @@ let typfunapp_exp: form = {
   };
 };
 
-let typfunaps: group = {id: TypFunApExp, forms: [typfunapp_exp]};
+let typfunaps: group = {
+  id: TypFunApExp,
+  forms: [typfunapp_exp],
+};

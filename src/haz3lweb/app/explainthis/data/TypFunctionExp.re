@@ -20,10 +20,21 @@ let typfun_var: form = {
     id: TypFunctionExp,
     syntactic_form: form,
     expandable_id:
-      Some((Piece.id(_tp), [Grout({id: Id.mk(), shape: Convex})])),
+      Some((
+        Piece.id(_tp),
+        [
+          Grout({
+            id: Id.mk(),
+            shape: Convex,
+          }),
+        ],
+      )),
     explanation,
     examples: [poly_id_ex],
   };
 };
 
-let type_functions_basic = {id: TypFunctionExp, forms: [typfun_var]};
+let type_functions_basic = {
+  id: TypFunctionExp,
+  forms: [typfun_var],
+};

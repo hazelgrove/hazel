@@ -22,4 +22,9 @@ and tile = {
 and projector = ProjectorCore.t(piece);
 
 // This is for comment insertion
-let mk_secondary = (id, content) => [Secondary({id, content})];
+let mk_secondary = (id, content) => [
+  Secondary({
+    id,
+    content,
+  }),
+];

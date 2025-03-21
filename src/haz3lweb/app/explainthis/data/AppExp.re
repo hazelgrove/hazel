@@ -87,8 +87,17 @@ let deferred_funapp_exp: form = {
   };
 };
 
-let funaps: group = {id: FunApExp, forms: [funapp_exp]};
+let funaps: group = {
+  id: FunApExp,
+  forms: [funapp_exp],
+};
 
-let conaps: group = {id: ConApExp, forms: [conapp_exp]};
+let conaps: group = {
+  id: ConApExp,
+  forms: [conapp_exp],
+};
 
-let deferredaps: group = {id: DeferredApExp, forms: [deferred_funapp_exp]};
+let deferredaps: group = {
+  id: DeferredApExp,
+  forms: [deferred_funapp_exp],
+};
