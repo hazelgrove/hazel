@@ -589,7 +589,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e', t) = elaborate(m, e);
       let semantics = Operators.semantics_of_un_op(op);
       switch (semantics) {
-      | Undefined =>
+      | Undefined(_) =>
         UnOp(op, fresh_cast(e', t, Unknown(Internal) |> Typ.temp))
         |> rewrap
         |> cast_from(Unknown(Internal) |> Typ.temp)
@@ -604,7 +604,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e2', t2) = elaborate(m, e2);
       let semantics = Operators.semantics_of_bin_op(op);
       switch (semantics) {
-      | Undefined =>
+      | Undefined(_) =>
         BinOp(
           op,
           fresh_cast(e1', t1, Unknown(Internal) |> Typ.temp),

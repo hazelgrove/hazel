@@ -274,7 +274,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     let* ty2 = typ_of_dhexp(ctx, m, d2);
     let semantics = Operators.semantics_of_bin_op(op);
     switch (semantics) {
-    | Undefined =>
+    | Undefined(_) =>
       Typ.equal(ty1, Unknown(Internal) |> Typ.temp)
       && Typ.equal(ty2, Unknown(Internal) |> Typ.temp)
         ? Some(Unknown(Internal) |> Typ.temp) : None

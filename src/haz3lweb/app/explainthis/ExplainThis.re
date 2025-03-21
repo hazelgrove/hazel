@@ -556,8 +556,11 @@ let get_doc =
       | DynamicErrorHole(_)
       | FailedCast(_)
       | Closure(_)
-      | Cast(_)
-      | Use(_) /* TODO[Matt]: ExplainThis */
+      | Cast(_) => simple("Internal expression")
+      | Use(t, e) =>
+        message_single(
+          UseExp.single(~typ_id=Typ.rep_id(t), ~body_id=Exp.rep_id(e)),
+        )
       | BuiltinFun(_) => simple("Internal expression")
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)

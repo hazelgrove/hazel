@@ -46,7 +46,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Atom(SInt) => sint(1)
       | Atom(Float) => float(2.)
       | Atom(String) => string("hello")
-      | Atom(Nat) => nat(1)
+      | Atom(Nat) => nat(Bigint.one)
       | ListLit => list_lit([])
       | Constructor => constructor("A", None)
       | Fun => fn(Pat.var("x"), var("x"), None, None)

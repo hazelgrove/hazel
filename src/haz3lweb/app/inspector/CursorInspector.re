@@ -130,6 +130,7 @@ let common_err_view =
       | BadInt => [text("Integer is too large or too small")]
       | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
       }
+    | NoType(BadOperator(msg)) => [text("Invalid operator: "), text(msg)]
     | NoType(BadTrivAp(ty)) => [
         text("Function argument type"),
         view_type(ty),
