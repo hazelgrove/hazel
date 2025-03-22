@@ -426,9 +426,10 @@ module View = {
           | Some("message-input") => ()
           | Some("api-input") => ()
           | _ =>
-            JsUtil.copy(
-              (cursor.selected_text |> Option.value(~default=() => ""))(),
-            )
+            let str =
+              (cursor.selected_text |> Option.value(~default=() => ""))();
+            Haz3lcore.ClipboardCache.set(cursor.selection, str);
+            JsUtil.copy(str);
           };
         | None => ()
         };
@@ -443,9 +444,10 @@ module View = {
           | Some("message-input") => Effect.Ignore
           | Some("api-input") => Effect.Ignore
           | _ =>
-            JsUtil.copy(
-              (cursor.selected_text |> Option.value(~default=() => ""))(),
-            );
+            let str =
+              (cursor.selected_text |> Option.value(~default=() => ""))();
+            Haz3lcore.ClipboardCache.set(cursor.selection, str);
+            JsUtil.copy(str);
             Option.map(
               inject,
               Selection.handle_key_event(
@@ -478,12 +480,9 @@ module View = {
           | Some("message-input") => Effect.Ignore
           | Some("api-input") => Effect.Ignore
           | _ =>
-            let pasted_text =
-              Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-              |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
             Dom.preventDefault(evt);
             let action =
-              pasted_text
+              Js.to_string(evt##.clipboardData##getData(Js.string("text")))
               |> Haz3lcore.ClipboardCache.get
               |> cursor.editor_action;
             switch (action) {
