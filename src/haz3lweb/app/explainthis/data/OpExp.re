@@ -10,17 +10,17 @@ let int_unary_minus_ex = {
 let int_plus_ex = {
   sub_id: Int(Plus),
   term: mk_example("1 + 2"),
-  message: "1 added to 2 evalutes to 3.",
+  message: "1 added to 2 evaluates to 3.",
 };
 let int_minus_ex = {
   sub_id: Int(Minus),
   term: mk_example("2 - 1"),
-  message: "2 minus 1 evalutes to 1.",
+  message: "2 minus 1 evaluates to 1.",
 };
 let int_times_ex = {
   sub_id: Int(Times),
   term: mk_example("1 * 2"),
-  message: "1 multiplied be 2 evalutes to 2.",
+  message: "1 multiplied by 2 evaluates to 2.",
 };
 let int_power_ex = {
   sub_id: Int(Power),
@@ -30,12 +30,12 @@ let int_power_ex = {
 let int_divide_ex = {
   sub_id: Int(Divide),
   term: mk_example("6 / 3"),
-  message: "6 divided by 3 evalutes to 2.",
+  message: "6 divided by 3 evaluates to 2.",
 };
 let int_lt1_ex = {
   sub_id: Int(LessThanTrue),
   term: mk_example("1 < 2"),
-  message: "1 is less than 2, so the expression evalutes to true.",
+  message: "1 is less than 2, so the expression evaluates to true.",
 };
 let int_lt2_ex = {
   sub_id: Int(LessThanFalse),
@@ -45,7 +45,7 @@ let int_lt2_ex = {
 let int_lte1_ex = {
   sub_id: Int(LessThanEqualLess),
   term: mk_example("1 <= 2"),
-  message: "1 is less than 2, so the expression evalutes to true.",
+  message: "1 is less than 2, so the expression evaluates to true.",
 };
 let int_lte2_ex = {
   sub_id: Int(LessThanEqualFalse),
@@ -95,17 +95,17 @@ let int_eq2_ex = {
 let float_plus_ex = {
   sub_id: Float(Plus),
   term: mk_example("1. +. 2.1"),
-  message: "1. added to 2.1 evalutes to 3.1",
+  message: "1. added to 2.1 evaluates to 3.1",
 };
 let float_minus_ex = {
   sub_id: Float(Minus),
   term: mk_example("2. -. 1.1"),
-  message: "2. minus 1.1 evalutes to 0.9",
+  message: "2. minus 1.1 evaluates to 0.9",
 };
 let float_times_ex = {
   sub_id: Float(Times),
   term: mk_example("1. *. 2.2"),
-  message: "1 multiplied be 2.2 evalutes to 2.2.",
+  message: "1 multiplied by 2.2 evaluates to 2.2.",
 };
 let float_power_ex = {
   sub_id: Float(Power),
@@ -115,12 +115,12 @@ let float_power_ex = {
 let float_divide_ex = {
   sub_id: Float(Divide),
   term: mk_example("4.2 /. 2.1"),
-  message: "4.2 divided by 2.1 evalutes to 2.",
+  message: "4.2 divided by 2.1 evaluates to 2.",
 };
 let float_lt1_ex = {
   sub_id: Float(LessThanTrue),
   term: mk_example("1. <. 2.1"),
-  message: "1. is less than 2.1, so the expression evalutes to true.",
+  message: "1. is less than 2.1, so the expression evaluates to true.",
 };
 let float_lt2_ex = {
   sub_id: Float(LessThanFalse),
@@ -130,7 +130,7 @@ let float_lt2_ex = {
 let float_lte1_ex = {
   sub_id: Float(LessThanEqualLess),
   term: mk_example("1. <=. 2.1"),
-  message: "1. is less than 2.1, so the expression evalutes to true.",
+  message: "1. is less than 2.1, so the expression evaluates to true.",
 };
 let float_lte2_ex = {
   sub_id: Float(LessThanEqualFalse),
@@ -185,7 +185,7 @@ let bool_and1_ex = {
 let bool_and2_ex = {
   sub_id: AndTrue,
   term: mk_example("1 < 2 && 3 < 4"),
-  message: "The left operand evaluates to true, so evaluate the right operand. Since the right operand also evalutes to true, the whole expression evaluates to true.",
+  message: "The left operand evaluates to true, so evaluate the right operand. Since the right operand also evaluates to true, the whole expression evaluates to true.",
 };
 let bool_or1_ex = {
   sub_id: OrFalse,
@@ -195,7 +195,7 @@ let bool_or1_ex = {
 let bool_or2_ex = {
   sub_id: OrTrue,
   term: mk_example("3 < 4 \\/ false"),
-  message: "The left operand evalutes to true, so the right operand is not evaluated. The whole expression evaluates to true.",
+  message: "The left operand evaluates to true, so the right operand is not evaluated. The whole expression evaluates to true.",
 };
 let str_eq1_ex = {
   sub_id: StringEqualFalse,
