@@ -135,7 +135,11 @@ let start = {
   // Other Initialization
   let on_startup = (schedule_action, ()): unit => {
     NinjaKeys.initialize(Shortcut.options(schedule_action));
-    NinjaKeysRule.action_refresh := (() => schedule_action(Refresh));
+    DerivationMode.NinjaKeys.schedule_action :=
+      (
+        update =>
+          Editors(Derivations(DerivationTree(update))) |> schedule_action
+      );
 
     JsUtil.focus_clipboard_shim();
     Os.is_mac :=

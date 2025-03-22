@@ -102,7 +102,7 @@ let premises_view = (~spec as {prems, tests, _}: RuleSpec.t, ~rule, ~globals) =>
 };
 
 let view = (~globals: Globals.t) => {
-  let rule = NinjaKeysRule.current_hover_rule^;
+  let rule = DerivationMode.NinjaKeys.current_hover_rule^;
   let RuleSpec.Spec.{concl, _} as spec = RuleSpec.of_spec(rule);
   Node.div(
     ~attrs=[Attr.class_("hover-rule-spec")],
