@@ -78,22 +78,10 @@ let tuple3_typ: form = {
   };
 };
 
-let tuple: group = {
-  id: TupleTyp,
-  forms: [tuple_typ],
-};
+let tuple: group = {id: TupleTyp, forms: [tuple_typ]};
 
-let tuple0: group = {
-  id: Tuple0Typ,
-  forms: [tuple0_typ],
-};
+let tuple0: group = {id: Tuple0Typ, forms: [tuple0_typ]};
 
-let tuple2: group = {
-  id: Tuple2Typ,
-  forms: [tuple2_typ, tuple_typ],
-};
+let tuple2: group = {id: Tuple2Typ, forms: [tuple2_typ, tuple_typ]};
 
-let tuple3: group = {
-  id: Tuple3Typ,
-  forms: [tuple3_typ, tuple_typ],
-};
+let tuple3: group = {id: Tuple3Typ, forms: [tuple3_typ, tuple_typ]};

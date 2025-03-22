@@ -81,10 +81,7 @@ let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
   Grammar.map_exp_annotation(
     (_annotation): IdTagged.IdTag.t => {
       let id = Id.mk();
-      {
-        ids: [id],
-        copied: false,
-      };
+      {ids: [id], copied: false};
     },
     exp,
   );
@@ -276,10 +273,7 @@ let tests = (
                         Exp(
                           Common(
                             Inconsistent(
-                              Expectation({
-                                ana: string(),
-                                syn: bool(),
-                              }),
+                              Expectation({ana: string(), syn: bool()}),
                             ),
                           ),
                         )
@@ -326,10 +320,7 @@ let tests = (
                         Exp(
                           Common(
                             Inconsistent(
-                              Expectation({
-                                ana: string(),
-                                syn: int(),
-                              }),
+                              Expectation({ana: string(), syn: int()}),
                             ),
                           ),
                         )
@@ -957,10 +948,7 @@ let tests = (
                       Exp(
                         Common(
                           Inconsistent(
-                            Expectation({
-                              ana: int(),
-                              syn: string(),
-                            }),
+                            Expectation({ana: int(), syn: string()}),
                           ),
                         ),
                       )

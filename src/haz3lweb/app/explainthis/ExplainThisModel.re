@@ -44,6 +44,7 @@ module Settings = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
+    show: bool,
     show_feedback: bool,
     highlight,
   };
@@ -59,20 +60,10 @@ module Settings = {
     | ToggleShowFeedback
     | SetHighlight(highlight_action);
 
-
-  let init = {
-    show: true,
-    show_feedback: false,
-    highlight: NoHighlight,
-  };
+  let init = {show: true, show_feedback: false, highlight: NoHighlight};
 };
 
-
-let init: t = {
-  specificity_open: false,
-  forms: [],
-  groups: [],
-};
+let init: t = {specificity_open: false, forms: [], groups: []};
 
 let get_explanation_feedback =
     (group_id: group_id, form_id: form_id, model: t): option(feedback_option) => {

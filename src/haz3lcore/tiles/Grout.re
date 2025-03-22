@@ -27,10 +27,7 @@ let mk_fits_shape = (s: Nib.Shape.t): t => {
     | Convex => Concave
     | Concave(_) => Convex
     };
-  {
-    id,
-    shape,
-  };
+  {id, shape};
 };
 //let mk_fits = ((l, r): Nibs.shapes): option(t) =>
 //  Nib.Shape.fits(l, r) ? None : Some(mk_fits_shape(l));

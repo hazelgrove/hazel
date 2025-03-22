@@ -145,11 +145,7 @@ module Update = {
             action,
             model.editors,
           );
-        {
-          ...model,
-          editors,
-          selection,
-        };
+        {...model, editors, selection};
       };
     | InitImportAll(file) =>
       JsUtil.read_file(file, data =>
@@ -181,10 +177,7 @@ module Update = {
             action,
             model.editors,
           );
-        {
-          ...model,
-          editors,
-        };
+        {...model, editors};
       };
     | Undo =>
       let cursor_info =
@@ -203,10 +196,7 @@ module Update = {
             action,
             model.editors,
           );
-        {
-          ...model,
-          editors,
-        };
+        {...model, editors};
       };
     | Redo =>
       let cursor_info =
@@ -225,10 +215,7 @@ module Update = {
             action,
             model.editors,
           );
-        {
-          ...model,
-          editors,
-        };
+        {...model, editors};
       };
     };
   };
@@ -267,10 +254,7 @@ module Update = {
           action,
           model.editors,
         );
-      {
-        ...model,
-        editors,
-      };
+      {...model, editors};
     | ExplainThis(action) =>
       let* explain_this =
         ExplainThisUpdate.set_update(model.explain_this, action);
@@ -367,11 +351,7 @@ module Update = {
         cursor_info.info,
       );
     let globals = Globals.Update.calculate(color_highlights, model.globals);
-    {
-      ...model,
-      globals,
-      editors,
-    };
+    {...model, globals, editors};
   };
 };
 
@@ -502,7 +482,11 @@ module View = {
               Js.to_string(evt##.clipboardData##getData(Js.string("text")))
               |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
             Dom.preventDefault(evt);
-            switch (cursor.editor_action(Paste(pasted_text))) {
+            let action =
+              pasted_text
+              |> Haz3lcore.ClipboardCache.get
+              |> cursor.editor_action;
+            switch (action) {
             | None => Effect.Ignore
             | Some(action) => inject(Editors(action))
             };

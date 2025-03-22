@@ -24,7 +24,4 @@ let tyalias_exp: form = {
   };
 };
 
-let tyalias_exps: group = {
-  id: TyAliasExp,
-  forms: [tyalias_exp],
-};
+let tyalias_exps: group = {id: TyAliasExp, forms: [tyalias_exp]};

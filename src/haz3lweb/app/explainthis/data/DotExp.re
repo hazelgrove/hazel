@@ -34,7 +34,4 @@ let dot_exp: form = {
   };
 };
 
-let dot_exp: group = {
-  id: DotExp,
-  forms: [dot_exp],
-};
+let dot_exp: group = {id: DotExp, forms: [dot_exp]};
