@@ -93,8 +93,5 @@ let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
         )
     };
   let res = matches(capture, dp, d);
-  {
-    matches: res,
-    closures: closure_closures^,
-  };
+  {matches: res, closures: closure_closures^};
 };

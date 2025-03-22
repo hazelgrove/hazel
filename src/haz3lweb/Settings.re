@@ -59,10 +59,7 @@ module Model = {
 
   let fix_instructor_mode = settings =>
     if (settings.instructor_mode && !ExerciseSettings.show_instructor) {
-      {
-        ...settings,
-        instructor_mode: false,
-      };
+      {...settings, instructor_mode: false};
     } else {
       settings;
     };
@@ -171,10 +168,7 @@ module Update = {
               ...evaluation,
               show_fn_bodies: !evaluation.show_fn_bodies,
             }
-          | ShowCasts => {
-              ...evaluation,
-              show_casts: !evaluation.show_casts,
-            }
+          | ShowCasts => {...evaluation, show_casts: !evaluation.show_casts}
           | ShowFixpoints => {
               ...evaluation,
               show_fixpoints: !evaluation.show_fixpoints,

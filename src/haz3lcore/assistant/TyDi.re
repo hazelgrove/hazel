@@ -9,10 +9,7 @@ let suggest_backpack = (z: Zipper.t): list(Suggestion.t) => {
   | [{content, _}, ..._] =>
     switch (content) {
     | [Tile({label, shards: [idx], _})] when Zipper.can_put_down(z) => [
-        {
-          content: List.nth(label, idx),
-          strategy: Any(FromBackpack),
-        },
+        {content: List.nth(label, idx), strategy: Any(FromBackpack)},
       ]
     | _ => []
     }
@@ -62,12 +59,7 @@ let token_to_left = (z: Zipper.t): option(string) =>
  * holds an unparsed string, which is parsed via the same mechanism as
  * Paste only when a suggestion is accepted. */
 let mk_unparsed_buffer = (t: Token.t): Segment.t => {
-  [
-    Secondary({
-      id: Id.mk(),
-      content: Comment(t),
-    }),
-  ];
+  [Secondary({id: Id.mk(), content: Comment(t)})];
 };
 
 /* If 'current' is a proper prefix of 'candidate', return the
@@ -122,12 +114,7 @@ let set_llm_buffer =
     : option(Zipper.t) => {
   let* index = Indicated.index(z);
   let* ci = Id.Map.find_opt(index, info_map);
-  let content =
-    mk_unparsed_buffer(
-      ~sort=Info.sort_of(ci),
-      z.relatives.siblings,
-      response,
-    );
+  let content = mk_unparsed_buffer(response);
   let z = Zipper.set_llm_buffer(z, ~content, ~mode=Unparsed);
   Some(z);
 };

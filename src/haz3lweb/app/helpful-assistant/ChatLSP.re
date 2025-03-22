@@ -12,6 +12,9 @@ let statics_of_exp_zipper =
     ~ancestors=[],
     MakeTerm.from_zip_for_sem(z).term,
     Id.Map.empty,
+    ~duplicates=[],
+    ~expected_labels=None,
+    ~label_sort=false,
   );
 
 module Options = {
@@ -41,7 +44,7 @@ module Print = {
   let seg = (~holes: option(string)=Some(""), segment: Segment.t): string => {
     let segment =
       ZipperBase.MapPiece.of_segment(
-        ProjectorPerform.Update.remove_any_projector,
+        syntax => [ProjectorPerform.remove_any_projector(syntax)],
         segment,
       );
     Printer.to_rows(
@@ -90,6 +93,12 @@ module ErrorPrint = {
     //   prn(
     //     "Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)",
     //   )
+    | NoType(WantTuple) => "Expected a tuple"
+    | NoType(LabelNotFound(_, _)) => "Label not found"
+    | NoType(BadLabel(_)) => "Invalid label"
+    | NoType(InvalidLabel(_)) => "Invalid label"
+    | DuplicateLabel(_, _) => "Duplicate label"
+    | TupleLabelError(_) => "Invalid tuple label"
     | NoType(BadToken(token)) => prn("\"%s\" isn't a valid token", token)
     | NoType(BadTrivAp(ty)) =>
       prn(
@@ -134,7 +143,16 @@ module ErrorPrint = {
       prn("Expected a constructor, found type %s", Print.typ(ty))
     | WantTypeFoundAp => "Constructor application must be in sum"
     | DuplicateConstructor(name) =>
-      prn("Constructor %s already used in this sum", name);
+      prn("Constructor %s already used in this sum", name)
+    | WantTuple => "Expected a tuple"
+    | WantLabel => "Expected a label"
+    | DuplicateLabels(labels, ty) =>
+      prn(
+        "Duplicate labels in type %s: %s",
+        Print.typ(ty),
+        String.concat(", ", labels),
+      )
+    | Duplicate(name, _) => prn("Type %s is already defined", name);
 
   let tpat_error: Info.error_tpat => string =
     fun
@@ -327,6 +345,8 @@ module RelevantType = {
       get_vars(ty) |> List.filter((x': string) => x' != x)
     | Forall(_, ty) => get_vars(ty)
     | Ap(ty1, ty2) => get_vars(ty1) @ get_vars(ty2)
+    | Label(_) => []
+    | TupLabel(_, ty) => get_vars(ty)
     };
 
   let rec collect_aliases_deep =
@@ -466,6 +486,8 @@ module RelevantCtx = {
     | Parens(ty) => 1 + num_nodes(ty)
     | Forall(_, ty) => 1 + num_nodes(ty)
     | Ap(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
+    | Label(_) => 1
+    | TupLabel(_, ty) => 1 + num_nodes(ty)
     };
   };
 
@@ -496,6 +518,8 @@ module RelevantCtx = {
     | Parens(ty) => count_unknowns(ty)
     | Forall(_, ty) => count_unknowns(ty)
     | Ap(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
+    | Label(_) => 0
+    | TupLabel(_, ty) => count_unknowns(ty)
     };
 
   let rec contains_sum_or_var = (ty: Typ.t): bool =>
@@ -515,6 +539,8 @@ module RelevantCtx = {
     | Parens(ty) => contains_sum_or_var(ty)
     | Forall(_, ty) => contains_sum_or_var(ty)
     | Ap(ty1, ty2) => contains_sum_or_var(ty1) || contains_sum_or_var(ty2)
+    | Label(_) => false
+    | TupLabel(_, ty) => contains_sum_or_var(ty)
     };
 
   /* Returns the ratio of type nodes which are the Unknown
@@ -610,8 +636,7 @@ let List.length: [(String, Bool)]-> Int =
 Discussion:
 The function List.length takes a list of (String, Bool) tuples and returns an Int. The natural way to compute the length of a list is through recursion.
 The base case for an empty list is 0, and for a non-empty list, we increment the count and recursively call List.length on the tail.
-```
-case xs
+```case xs
 | [] => 0
 | _::xs => 1 + List.length(xs)
 ```|},
@@ -632,8 +657,7 @@ let List.mapi: ((Int, Bool) -> Bool, [Bool]) -> [Bool]=
 Discussion:
 The function List.mapi applies a function f to each element of a list while keeping track of the index. The helper function go does this recursively.
 The base case returns an empty list. In the recursive case, f(idx, hd) is applied to the head, and go(idx + 1, tl) is called recursively on the tail to process the rest of the list.
-```
-case xs
+```case xs
 | [] => []
 | hd::tl => f(idx, hd)::go(idx + 1, tl)
 ```|},
@@ -658,8 +682,7 @@ Discussion:
 The function total_capacity takes a Container and returns an Int. The Pod variant stores a Bool, which likely indicates whether the pod is active.
 The condition if !b && true simplifies to if !b, meaning inactive pods have a capacity of 1, while active ones have 0.
 The CapsuleCluster variant contains two integers, which are multiplied together to represent the total capacity.
-```
-fun c ->
+```fun c ->
     case c
       | Pod(b) => if !b && true then 1 else 0
       | CapsuleCluster(x, y) => x * y
@@ -780,12 +803,10 @@ test 2 == List.nth(List.sort(fun a, b -> a<b, [4,1,3,2]), 1) end
 Discussion:
 The function List.merge merges two sorted lists using a comparator function cmp. The List.sort function applies merge sort, using merge_sort_helper to recursively divide and sort the list.
 The base cases return [] or a single-element list. The recursive case splits the list into two halves and merges sorted sublists.
-```
-let mid = List.length(l) / 2 in
+```let mid = List.length(l) / 2 in
 let left, right = List.take(mid, l), List.drop(mid, l) in
 List.merge(cmp, merge_sort_helper(left), merge_sort_helper(right))
-```
-|},
+```|},
     ),
   ];
 

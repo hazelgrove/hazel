@@ -32,7 +32,4 @@ let labeled_typ: form = {
     examples: [labeled_example_1, labeled_example_2],
   };
 };
-let labeled_typs: group = {
-  id: LabeledTyp,
-  forms: [labeled_typ],
-};
+let labeled_typs: group = {id: LabeledTyp, forms: [labeled_typ]};

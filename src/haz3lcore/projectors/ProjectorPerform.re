@@ -46,6 +46,12 @@ let remove = (piece: Base.piece, focus: Direction.t, z: Zipper.t): Zipper.t => {
   };
 };
 
+let remove_any_projector = (syntax: syntax) =>
+  switch (syntax) {
+  | Projector(pr) => pr.syntax
+  | x => x
+  };
+
 let update_piece =
     (f: Base.projector => Base.projector, id: Id.t, piece: Base.piece)
     : Base.segment =>
@@ -122,29 +128,8 @@ let go =
     | None => Error(Cant_project)
     }
   | SetSyntax(id, seg) =>
-    Ok(
-      update(
-        p =>
-          {
-            ...p,
-            syntax: Segment.parenthesize(seg),
-          },
-        id,
-        z,
-      ),
-    )
-  | SetModel(id, model) =>
-    Ok(
-      update(
-        pr =>
-          {
-            ...pr,
-            model,
-          },
-        id,
-        z,
-      ),
-    )
+    Ok(update(p => {...p, syntax: Segment.parenthesize(seg)}, id, z))
+  | SetModel(id, model) => Ok(update(pr => {...pr, model}, id, z))
   | Focus(id, kind, d) =>
     switch (d) {
     | None =>
