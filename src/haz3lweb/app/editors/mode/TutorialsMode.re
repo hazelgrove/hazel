@@ -112,6 +112,9 @@ module Store = {
     let key =
       List.nth(TutorialSettings.exercises, model.current) |> Tutorial.id_of;
     StoreTutorialKey.save(key);
+    print_endline(
+      "Saving current tutorial key: " ++ Haz3lcore.Id.to_string(key),
+    );
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type exercise_export = Model.persistent;
