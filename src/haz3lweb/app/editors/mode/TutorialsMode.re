@@ -85,10 +85,20 @@ module Store = {
       Store.F({
         [@deriving (show({with_path: false}), sexp, yojson)]
         type t = TutorialMode.Model.persistent;
+        print_endline(
+          "Loading tutorial with key: " ++ Haz3lcore.Id.to_string(key),
+        );
         let default = () =>
           spec
           |> TutorialMode.Model.of_spec(~settings, ~instructor_mode)
           |> TutorialMode.Model.persist(~instructor_mode);
+        switch (
+          JsUtil.get_localstore(Store.key_to_string(Store.Tutorial(key)))
+        ) {
+        | None => print_endline("No data found! Using default.")
+        | Some(_) => print_endline("Found data, loading from store.")
+        };
+        // let key = spec.id;
         let key = Store.Tutorial(key);
       });
     S.load();
@@ -96,8 +106,11 @@ module Store = {
   let save = (model: Model.t, ~instructor_mode) => {
     print_endline("saving");
     let exercise = List.nth(model.exercises, model.current);
-    let key = Tutorial.id_of(exercise.editors);
+    // let key = Tutorial.id_of(exercise.editors);
+    // let key = spec.id;
     save_exercise(exercise, ~instructor_mode);
+    let key =
+      List.nth(TutorialSettings.exercises, model.current) |> Tutorial.id_of;
     StoreTutorialKey.save(key);
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
