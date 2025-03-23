@@ -208,6 +208,8 @@ module Update = {
   let update =
       (~globals: Globals.t, ~schedule_action, action: t, model: Model.t) => {
     switch (action) {
+    | Tutorial(TutorialMode.Update.MoveToNextExercise) =>
+      Model.{current: model.current + 1, exercises: model.exercises} |> return
     | Tutorial(action) =>
       let current = List.nth(model.exercises, model.current);
       let* new_current =

@@ -88,26 +88,16 @@ module Update = {
       : Updated.t(Model.t) => {
     let instructor_mode = settings.instructor_mode;
     switch (action) {
+    // This MoveToNextExercise is only here so that Tutorial(TutorialMode.Update.MoveToNextExercise)
+    // is called in TutorialsMode. This is a dummy update because this function requires Updated(Model.t)
     | MoveToNextExercise =>
-      let total_exercises = List.length(TutorialSettings.exercises);
-
-      /* Prevent division by zero */
-      let next_index =
-        if (total_exercises == 0) {
-          0;
-        } else {
-          (model.spec.version + 1) mod total_exercises;
-        };
-      let updated_spec = {...model.spec, version: next_index};
-
-      /* Return the properly wrapped model */
-      return(
-        ~is_edit=true,
-        ~recalculate=true, /* Forces UI to refresh */
-        ~scroll_active=true,
-        ~logged=true,
-        {...model, spec: updated_spec} /* Update spec with new version */
-      );
+      Updated.return_quiet({
+        ...model,
+        editors: {
+          ...model.editors,
+          show_report: model.editors.show_report,
+        },
+      })
     | Editor(pos, MainEditor(action))
         when Tutorial.visible_in(pos, ~instructor_mode) =>
       // Redirect to editors
@@ -458,6 +448,14 @@ module View = {
                         [
                           Widgets.button(Icons.info, _ =>
                             inject(Change_report_view)
+                          ),
+                        ],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("next-button")],
+                        [
+                          Widgets.button(Icons.forward, _ =>
+                            inject(MoveToNextExercise)
                           ),
                         ],
                       ),

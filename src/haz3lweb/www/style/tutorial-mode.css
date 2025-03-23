@@ -329,7 +329,8 @@
 
 #main.Tutorial .title-cell {
   display: flex;
-  align-items: flex-start; /* Align to the left */
+  align-items: flex-start;
+  /* Align to the left */
   justify-content: flex-start;
   width: 100%;
   padding: 0 !important;
@@ -363,10 +364,11 @@
   margin-bottom: 2em !important;
   padding: 0 !important;
 }
+
 #main.Tutorial .tutorial-content {
   display: flex;
   flex-direction: column;
-  gap: 2em; 
+  gap: 2em;
 }
 
 /* .cross {
@@ -382,7 +384,8 @@
   width: 80px;
   height: 80px;
   color: black;
-  background-color: #838282;;
+  background-color: #838282;
+  ;
   border-radius: 50%;
   display: flex;
   justify-content: center;
@@ -426,21 +429,24 @@
 }
 
 .cross:hover::after {
-  opacity: 1; /* Show on hover */
+  opacity: 1;
+  /* Show on hover */
 }
 
 .cross {
-  position: relative; 
+  position: relative;
 }
 
 .your-impl-wrapper {
-  margin-bottom: 1em; /* or try 1.5em for bigger space */
+  margin-bottom: 1em;
+  /* or try 1.5em for bigger space */
 }
 
 .hint-with-icon {
   display: flex;
   align-items: center;
-  gap: 0.4em; /* space between text and icon */
+  gap: 0.4em;
+  /* space between text and icon */
   font-size: 0.9em;
   color: #333;
   align-content: right;
@@ -448,7 +454,7 @@
 }
 
 .highlight-icon svg {
-  fill: var(--ci-icon-bkg) !important; 
+  fill: var(--ci-icon-bkg) !important;
 }
 
 /* .highlight-icon {
@@ -458,10 +464,11 @@
 } */
 
 .hint-content code {
-  font-size: 0.75em; /* Smaller font for code blocks */
+  font-size: 0.75em;
+  /* Smaller font for code blocks */
   font-family: monospace;
   background-color: #f5f5f5;
   padding: 1px 1px;
   /* border-radius: 3px; */
-  line-height: 0; 
+  line-height: 0;
 }
