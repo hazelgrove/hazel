@@ -56,6 +56,7 @@ module Store = {
   };
 
   let save = (~instructor_mode, model: Model.t) => {
+    print_endline("looking to save");
     switch (model) {
     | Model.Scratch(m) =>
       StoreMode.save(Scratch);
@@ -66,9 +67,11 @@ module Store = {
         ScratchMode.Model.persist_documentation(m),
       );
     | Model.Tutorial(m) =>
+      print_endline("looking to tutorial");
       StoreMode.save(Tutorial);
       TutorialsMode.Store.save(~instructor_mode, m);
     | Model.Exercises(m) =>
+      print_endline("looking to save exercise");
       StoreMode.save(Exercises);
       ExercisesMode.Store.save(~instructor_mode, m);
     };

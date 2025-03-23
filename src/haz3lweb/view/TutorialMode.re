@@ -98,10 +98,6 @@ module Update = {
         } else {
           (model.spec.version + 1) mod total_exercises;
         };
-      print_endline(
-        "Current Version: " ++ string_of_int(model.spec.version),
-      );
-      print_endline("Next Version: " ++ string_of_int(next_index));
       let updated_spec = {...model.spec, version: next_index};
 
       /* Return the properly wrapped model */
@@ -429,7 +425,6 @@ module View = {
           let checkmark_view =
             switch (Tutorial.get_stitched(HiddenTests, stitched_tests)) {
             | Some(test_results) =>
-              print_endline(EvalResult.Model.show(hidden_tests.result));
               let inner_result = hidden_tests.result.result;
               switch (inner_result) {
               | Evaluation({result: OldValue(ResultPending), _}) => div([])
@@ -450,7 +445,6 @@ module View = {
                 )
 
               | Evaluation({result: OldValue(ResultOk(_)), _}) =>
-                print_endline("✅ ResultOk match hit!");
                 if (test_results.total == test_results.passing) {
                   div(
                     ~attrs=[Attr.class_("checkmark-container")],
@@ -484,7 +478,7 @@ module View = {
                       ),
                     ],
                   );
-                };
+                }
 
               | _ => div([])
               };

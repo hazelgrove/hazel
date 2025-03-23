@@ -94,6 +94,7 @@ module Store = {
     S.load();
   };
   let save = (model: Model.t, ~instructor_mode) => {
+    print_endline("saving");
     let exercise = List.nth(model.exercises, model.current);
     let key = Tutorial.id_of(exercise.editors);
     save_exercise(exercise, ~instructor_mode);
@@ -128,6 +129,7 @@ module Store = {
     |> sexp_of_exercise_export
     |> Sexplib.Sexp.to_string;
   let import = (~settings, data, ~tutorial_specs, ~instructor_mode) => {
+    print_endline("importing");
     let exercise_export =
       data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
     StoreTutorialKey.save(exercise_export.cur_exercise);
