@@ -89,7 +89,8 @@ module Update = {
     | Export
     | Encode
     | AddSlide
-    | RenameSlide;
+    | RenameSlide
+    | DeleteSlide;
 
   let export_scratch_slide = (model: Model.t): unit => {
     Store.save(model |> Model.persist);
@@ -169,6 +170,15 @@ module Update = {
           });
         };
       }
+    | DeleteSlide =>
+      let new_sp = ListUtil.remove_nth(model.current, model.scratchpads);
+
+      Updated.return(
+        {
+          current: model.current - 1,
+          scratchpads: new_sp,
+        }: Model.t,
+      );
     | ResetCurrent =>
       let (key, _) = List.nth(model.scratchpads, model.current);
       let source =

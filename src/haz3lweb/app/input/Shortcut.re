@@ -270,6 +270,12 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~section="Buffers",
       Editors(Scratch(RenameSlide)),
     ),
+    mk_shortcut(
+      ~mdIcon="delete",
+      ~section="Buffers",
+      "Delete Current Buffer",
+      Editors(Scratch(DeleteSlide)),
+    ),
   ]
   @ (if (ExerciseSettings.show_instructor) {instructor_shortcuts} else {[]});
 
