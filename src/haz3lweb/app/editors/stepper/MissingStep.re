@@ -325,7 +325,7 @@ module View = {
         Web.Node.div(
           ~attrs=[
             Web.Attr.classes(["proof-button"]),
-            Web.Attr.on_mousedown(_ =>
+            Web.Attr.on_pointerdown(_ =>
               Virtual_dom.Vdom.Effect.Stop_propagation
             ),
             Web.Attr.on_click(_ =>
