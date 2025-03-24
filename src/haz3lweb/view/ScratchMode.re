@@ -87,7 +87,9 @@ module Update = {
     | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
     | FinishImportScratchpad(option(string))
     | Export
-    | Encode;
+    | Encode
+    | AddSlide
+    | RenameSlide;
 
   let export_scratch_slide = (model: Model.t): unit => {
     Store.save(model |> Model.persist);
@@ -129,6 +131,44 @@ module Update = {
         ...model,
         current,
       };
+    | AddSlide =>
+      let new_key =
+        switch (is_documentation) {
+        | false => string_of_int(List.length(model.scratchpads))
+        | true =>
+          JsUtil.prompt("Enter new buffer name:", "New Buffer Name")
+          |> Option.get
+        };
+      let new_sp: list((string, CellEditor.Model.t)) =
+        model.scratchpads
+        @ [(new_key, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))];
+      Updated.return(
+        {
+          current: List.length(new_sp) - 1,
+          scratchpads: new_sp,
+        }: Model.t,
+      );
+    | RenameSlide =>
+      switch (is_documentation) {
+      | false => model |> return_quiet
+      | true =>
+        let current = List.nth(model.scratchpads, model.current);
+        let new_name = JsUtil.prompt("Enter new buffer name:", fst(current));
+        switch (new_name) {
+        | None => model |> return_quiet
+        | Some(new_name) =>
+          let new_sp =
+            ListUtil.put_nth(
+              model.current,
+              (new_name, snd(current)),
+              model.scratchpads,
+            );
+          Updated.return({
+            ...model,
+            scratchpads: new_sp,
+          });
+        };
+      }
     | ResetCurrent =>
       let (key, _) = List.nth(model.scratchpads, model.current);
       let source =
@@ -179,6 +219,10 @@ module Update = {
 
   let calculate =
       (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
+    print_endline(
+      "List.length: " ++ string_of_int(List.length(model.scratchpads)),
+    );
+    print_endline("model.current: " ++ string_of_int(model.current));
     let (key, ed) = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
