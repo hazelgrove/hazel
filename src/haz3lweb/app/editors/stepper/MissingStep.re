@@ -370,7 +370,7 @@ module View = {
             Web.Node.div(
               ~attrs=[
                 Web.Attr.class_("proof-context-box"),
-                Web.Attr.on_mousedown(_ =>
+                Web.Attr.on_pointerdown(_ =>
                   Virtual_dom.Vdom.Effect.Stop_propagation
                 ),
               ],
