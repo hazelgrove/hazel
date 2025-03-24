@@ -81,7 +81,7 @@ module Update = {
         model: Model.t,
       ) => {
     /* A function passed down to trigger an update within
-       assistant which checks for the insertion of '??' */
+       assistant which checks for the insertion of '??' or '?a' */
     let send_insertion_info = (~char, ~editor) => {
       Assistant.Update.check_req(
         char,
@@ -229,7 +229,7 @@ module Update = {
         model: Model.t,
       ) => {
     /* A function passed down to trigger an update within
-       assistant which checks for the insertion of '??' */
+       assistant which checks for the insertion of '??' or '?a' */
     let send_insertion_info = (~char, ~editor) => {
       Assistant.Update.check_req(
         char,

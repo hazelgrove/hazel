@@ -1,16 +1,18 @@
 open Haz3lcore;
 
-let sanitize_prompt = (prompt: string): string => {
-  //HACK: replacement of ?? below
-  let prompt = Str.global_replace(Str.regexp("\\?\\?"), "", prompt);
-  let prompt =
-    if (Str.string_match(Str.regexp("^\".*\"$"), prompt, 0)) {
-      String.sub(prompt, 1, String.length(prompt) - 2);
-    } else {
-      prompt;
-    };
-  prompt;
-};
+/* Old code
+   let sanitize_prompt = (prompt: string): string => {
+     //HACK: replacement of ?? below
+     let prompt = Str.global_replace(Str.regexp("\\?\\?"), "", prompt);
+     let prompt =
+       if (Str.string_match(Str.regexp("^\".*\"$"), prompt, 0)) {
+         String.sub(prompt, 1, String.length(prompt) - 2);
+       } else {
+         prompt;
+       };
+     prompt;
+   };
+   */
 
 let ask = (body: string): option(OpenRouter.prompt) => {
   /*
