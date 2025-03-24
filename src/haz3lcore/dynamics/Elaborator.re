@@ -311,9 +311,12 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         };
       switch (rewritten_term) {
       | Some(term) =>
+        //print_endline("ELA_NEW uexp_term = " ++ UExp.show_term(term.term));
         let (dhexp, _) = elaborate(m, term);
+        //print_endline("ELA_NEW dhexp = " ++ DHExp.show(dhexp));
         dhexp;
       | None =>
+        //print_endline("ELA_OLD uexp_term = " ++ UExp.show_term(term));
         let add_name: (option(string), DHExp.t) => DHExp.t = (
           (name, exp) => {
             let (term, rewrap) = DHExp.unwrap(exp);
@@ -327,7 +330,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         // print_endline("ELA p(1) = " ++ UPat.show(p));
         // print_endline("ELA m = " ++ Statics.Map.show(m));
         let (p, ty1) = elaborate_pattern(m, p);
-        print_endline("ELA p = " ++ DHPat.show(p));
+        //print_endline("ELA p = " ++ DHPat.show(p));
         let is_recursive =
           Statics.is_recursive(ctx, p, def, ty1)
           && Pat.get_bindings(p)
@@ -335,15 +338,15 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
           |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
         if (!is_recursive) {
           let def = add_name(Pat.get_var(p), def);
-          print_endline("ELA def(1) = " ++ DHExp.show(def));
+          //print_endline("ELA def(1) = " ++ DHExp.show(def));
           let (def, ty2) = elaborate(m, def);
-          print_endline("ELA def(2) = " ++ DHExp.show(def));
+          //print_endline("ELA def(2) = " ++ DHExp.show(def));
           let (body, ty) = elaborate(m, body);
           let result =
             Exp.Let(p, fresh_cast(def, ty2, ty1), body)
             |> rewrap
             |> cast_from(ty);
-          print_endline("ELA result = " ++ DHExp.show(result));
+          print_endline("ELA dhexp = " ++ DHExp.show(result));
           result;
         } else {
           // TODO: Add names to mutually recursive functions

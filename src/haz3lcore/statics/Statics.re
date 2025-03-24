@@ -126,12 +126,37 @@ let typ_exp_unop: Operators.op_un => (Typ.t, Typ.t) =
   | Bool(Not) => (Bool |> Typ.temp, Bool |> Typ.temp)
   | Int(Minus) => (Int |> Typ.temp, Int |> Typ.temp);
 
-let rec caf_input_type = (args: UPat.t): UTyp.t => {
+/*
+ * Function's return:
+ * Pos #1: new pattern purged of casts
+ * Pos #2: Input type
+ * Pos #3: Whether the UPat output is different from input
+ */
+let rec caf_input_type = (args: UPat.t): (UPat.t, UTyp.t, bool) => {
   let (arg_term, arg_rule) = IdTagged.unwrap(args);
   switch (arg_term) {
-  | Tuple(ps) => UTyp.Prod(List.map(caf_input_type, ps)) |> arg_rule
-  | Cast(_, _, t) => t
-  | _ => Unknown(Hole(EmptyHole)) |> arg_rule
+  | Tuple(ps) =>
+    let (arg_list, type_list, modified) =
+      List.fold_right(
+        (arg, (list1, list2, m0)) => {
+          let (arg, typ, m) = caf_input_type(arg);
+          ([arg, ...list1], [typ, ...list2], m || m0);
+        },
+        ps,
+        ([], [], false),
+      );
+    let (new_args, new_type) =
+      if (modified) {
+        (
+          UPat.Tuple(arg_list) |> UPat.fresh,
+          UTyp.Prod(type_list) |> UTyp.fresh,
+        );
+      } else {
+        (args, UTyp.Prod(type_list) |> arg_rule);
+      };
+    (new_args, new_type, modified);
+  | Cast(inner_arg, t, _) => (inner_arg, t, true)
+  | _ => (args, Unknown(Hole(EmptyHole)) |> arg_rule, false)
   };
 };
 
@@ -142,8 +167,9 @@ let check_annotated_function_helper =
   | Ap(func_name, args) =>
     switch (IdTagged.term_of(func_name)) {
     | Var(_) =>
-      let func_type = UTyp.Arrow(caf_input_type(args), ret_type) |> pat_rule;
-      Some((func_name, args, func_type));
+      let (new_arg, in_type, _) = caf_input_type(args);
+      let func_type = UTyp.Arrow(in_type, ret_type) |> pat_rule;
+      Some((func_name, new_arg, func_type));
     | _ => None
     }
   | _ => None
