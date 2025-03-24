@@ -258,6 +258,18 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       "Introduce",
       Globals(ActiveEditor(Introduce)),
     ),
+    mk_shortcut(
+      "Add New Buffer",
+      ~mdIcon="add",
+      ~section="Buffers",
+      Editors(Scratch(AddSlide)),
+    ),
+    mk_shortcut(
+      "Rename Current Buffer",
+      ~mdIcon="edit",
+      ~section="Buffers",
+      Editors(Scratch(RenameSlide)),
+    ),
   ]
   @ (if (ExerciseSettings.show_instructor) {instructor_shortcuts} else {[]});
 
