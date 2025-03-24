@@ -703,3 +703,7 @@ let rec fill_nones = (xs: list(option('a)), ys: list('a)): list('a) =>
   | ([Some(x), ...xs], ys) => [x, ...fill_nones(xs, ys)]
   | _ => failwith("ListUtil.fill_nones: lengths do not match")
   };
+
+let remove_nth = (n: int, xs: list('a)): list('a) =>
+  split_nth(n, xs)
+  |> (((prefix: list('a), _, suffix: list('a))) => prefix @ suffix);
