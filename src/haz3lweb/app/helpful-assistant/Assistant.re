@@ -112,7 +112,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | SendTextMessage(Model.message)
-    | SendSketchMessage(Id.t, AssistantSettings.mode)
+    | SendSketchMessage(Id.t, AssistantSettings.mode, bool)
     | SendErrorMessage(
         string,
         Zipper.t,
@@ -461,27 +461,57 @@ module Update = {
     | (Outer, (_, Some(_))) =>
       switch (Zipper.right_neighbor_monotile(siblings)) {
       | Some(c) =>
-        c == "??"
-          ? {
-            let tileId = Option.get(Indicated.index(z));
-            schedule_action(
-              SendSketchMessage(tileId, AssistantSettings.CodeSuggestion),
-            );
-          }
-          : ()
+        switch (c) {
+        | "??" =>
+          let tileId = Option.get(Indicated.index(z));
+          let advanced_reasoning = false;
+          schedule_action(
+            SendSketchMessage(
+              tileId,
+              AssistantSettings.CodeSuggestion,
+              advanced_reasoning,
+            ),
+          );
+        | "?a" =>
+          let tileId = Option.get(Indicated.index(z));
+          let advanced_reasoning = true;
+          schedule_action(
+            SendSketchMessage(
+              tileId,
+              AssistantSettings.CodeSuggestion,
+              advanced_reasoning,
+            ),
+          );
+        | _ => ()
+        }
       | _ => ()
       }
     | (Outer, (_, None)) =>
       switch (Zipper.left_neighbor_monotile(siblings)) {
       | Some(c) =>
-        c == "??"
-          ? {
-            let tileId = Option.get(Indicated.index(z));
-            schedule_action(
-              SendSketchMessage(tileId, AssistantSettings.CodeSuggestion),
-            );
-          }
-          : ()
+        switch (c) {
+        | "??" =>
+          let tileId = Option.get(Indicated.index(z));
+          let advanced_reasoning = false;
+          schedule_action(
+            SendSketchMessage(
+              tileId,
+              AssistantSettings.CodeSuggestion,
+              advanced_reasoning,
+            ),
+          );
+        | "?a" =>
+          let tileId = Option.get(Indicated.index(z));
+          let advanced_reasoning = true;
+          schedule_action(
+            SendSketchMessage(
+              tileId,
+              AssistantSettings.CodeSuggestion,
+              advanced_reasoning,
+            ),
+          );
+        | _ => ()
+        }
       | _ => ()
       }
     | _ => ()
@@ -616,7 +646,7 @@ module Update = {
       check_descriptor(~model, ~schedule_action, ~message, ~mode, ~chat_id);
       add_message_to_model(mode, model, message, chat_id, ~is_final=true)
       |> Updated.return_quiet;
-    | SendSketchMessage(tileId, mode) =>
+    | SendSketchMessage(tileId, mode, advanced_reasoning) =>
       // Capture the chat we're updating here. This will propogate.
       let (_, curr_chat) = get_mode_info(mode, model);
       let sketch_seg =
@@ -629,7 +659,12 @@ module Update = {
         {
           let* index = Indicated.index(editor.editor.state.zipper);
           let* ci = Id.Map.find_opt(index, editor.statics.info_map);
-          ChatLSP.Prompt.mk_init(ChatLSP.Options.init, ci, sketch_seg);
+          ChatLSP.Prompt.mk_init(
+            ChatLSP.Options.init,
+            ci,
+            sketch_seg,
+            advanced_reasoning,
+          );
         }
       ) {
       | None =>
