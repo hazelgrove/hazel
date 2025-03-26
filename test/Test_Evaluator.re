@@ -8,16 +8,15 @@ let evaluation_test = (msg, expected, unevaluated) =>
     msg,
     expected,
     unevaluated
-    |> Evaluator.evaluate'(Builtins.env_init)
-    |> snd
-    |> ProgramResult.Result.unbox
+    |> Evaluator.evaluate(~env=Builtins.env_init)
+    |> fst
     |> Exp.substitute_closures(Builtins.env_init),
   );
 
 let evaluate_probes = unevaluated =>
   unevaluated
-  |> Evaluator.evaluate'(Builtins.env_init)
-  |> fst
+  |> Evaluator.evaluate(~env=Builtins.env_init)
+  |> snd
   |> EvaluatorState.get_probes;
 
 let parse_exp = (s: string) => {
@@ -80,9 +79,7 @@ let expected_probe_pat =
   annotation: probes,
 };
 let parse_and_evaluate = (s: string) =>
-  ProgramResult.Result.unbox(
-    snd(Evaluator.evaluate'(Builtins.env_init, elaborate(parse_exp(s)))),
-  );
+  fst(Evaluator.evaluate(~env=Builtins.env_init, elaborate(parse_exp(s))));
 
 let parse_and_evaluate_test =
     (~msg: option(string)=?, expected: string, actual: string) =>

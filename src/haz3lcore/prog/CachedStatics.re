@@ -44,7 +44,7 @@ let init_from_term = (~settings, term): t => {
     | _ =>
       switch (elaborate(info_map, term)) {
       | DoesNotElaborate => dh_err("Elaboration returns None")
-      | Elaborates(d, _, _) => d
+      | Elaborates(d, _) => d
       }
     };
   {
