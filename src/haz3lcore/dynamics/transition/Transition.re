@@ -246,12 +246,24 @@ module Transition = (EV: EV_MODE) => {
         is_value: false,
       });
     | Let(dp, d1, d2) =>
+      print_endline("Let");
+      print_endline("\t" ++ DHPat.show(dp));
+      print_endline("\t" ++ DHExp.show(d1));
+      print_endline("\t" ++ DHExp.show(d2));
       let. _ = otherwise(env, d1 => Let(dp, d1, d2) |> rewrap)
       and. d1' =
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = env;
       let {matches, closures} = matches(dp, d1');
       let.match env' = (env, matches, env.call_stack);
+      print_endline("Stepped");
+      print_endline("d1");
+      print_endline(DHExp.show(d1));
+      print_endline("");
+
+      print_endline("env");
+      print_endline(ClosureEnvironment.show(env'));
+      print_endline("");
       Step({
         expr: subst_env(env', d2),
         state_update: capture_closures(env, state, closures),

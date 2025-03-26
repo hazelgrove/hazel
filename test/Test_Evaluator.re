@@ -893,5 +893,49 @@ in fn("hello")|},
         ),
       )
     ),
+    test_case(
+      "Intermediate cast doesn't break evaluation",
+      `Quick,
+      () => {
+        let program = {|let (var=a, val=b) = (var="get_acne", val=true) : ? in b|};
+        let elaborated = elaborate(parse_exp(program));
+        print_endline("Elaborated: " ++ DHExp.show(elaborated));
+
+        check(
+          dhexp_typ,
+          program,
+          parse_exp({|true|}),
+          evaluate(elaborated),
+        );
+      },
+    ),
+    test_case(
+      "Melt result being passed to function",
+      `Quick,
+      () => {
+        let program = {|
+        let filter = fun (pred :(var=String, val=Bool) -> Bool, xs : [(var=String, val=Bool)]) -> case xs
+            | [] => []
+            | (x :: xs) => (if pred(x) then [x] else []) @ filter(pred, xs)
+          end in
+          let jellyAnon : [(get_acne=Bool, red=Bool)] = [
+            (true, false),
+            (true, false),
+            (false, false),
+            (false, true)
+          ] in
+
+          let melted : [(var=String, val=Bool)] = melt('var', 'val', jellyAnon) in
+
+          filter(fun a,b ->b, melted)
+        |};
+        check(
+          dhexp_typ,
+          program,
+          parse_exp({|[(var="get_acne", val=true)]|}),
+          evaluate(elaborate(parse_exp(program))),
+        );
+      },
+    ),
   ],
 );

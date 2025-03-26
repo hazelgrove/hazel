@@ -13,6 +13,7 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
 
 let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
   let matches = matches(capture);
+
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
   | EmptyHole
@@ -69,6 +70,11 @@ type matches_and_closures = {
 };
 
 let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
+  print_endline("Matching");
+  print_endline(Pat.show(dp));
+  print_endline("------");
+  print_endline(DHExp.show(d));
+  print_endline("");
   /* Closure capture for Probe instrumentation */
   let closure_closures: ref(closure_closures) = ref([]);
   let capture =
