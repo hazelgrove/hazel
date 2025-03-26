@@ -16,6 +16,7 @@ let (suite, _) =
       Test_Statics.tests,
       Test_Coverage.tests,
       Test_Unboxing.tests,
+      Test_PatternMatch.tests,
       Test_Evaluator.tests,
     ]
     @ Test_Elaboration.tests
