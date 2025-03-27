@@ -9,6 +9,6 @@
  (action
   (run
    %{project_root}/node_modules/esbuild/bin/esbuild
-   ninja_module.js
+   prebundle.js
    --bundle
    --outfile=bundled.js)))
