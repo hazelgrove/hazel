@@ -905,7 +905,7 @@ in fn("hello")|},
           dhexp_typ,
           program,
           parse_exp({|true|}),
-          evaluate(elaborated),
+          DHExp.strip_casts(evaluate(elaborated)),
         );
       },
     ),
