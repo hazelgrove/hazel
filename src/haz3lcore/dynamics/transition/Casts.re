@@ -56,16 +56,17 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Unknown(_) => Hole
   | Atom(_)
   | Label(_)
-  | TupLabel(_, {term: Unknown(_), _})
+  | TupLabel({term: Unknown(_), _}, {term: Unknown(_), _})
   | Var(_)
   | Rec(_)
   | Forall(_, {term: Unknown(_), _})
   | Arrow({term: Unknown(_), _}, {term: Unknown(_), _})
   | List({term: Unknown(_), _}) => Ground
   | Parens(ty) => ground_cases_of(ty)
-  | TupLabel(label, _) =>
+  | TupLabel(_, _) =>
     NotGroundOrHole(
-      TupLabel(label, Unknown(Internal) |> Typ.temp) |> Typ.temp,
+      TupLabel(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
+      |> Typ.temp,
     )
   | Prod(tys) =>
     if (List.for_all(
@@ -94,97 +95,114 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
 
 /* gives a transition step that can be taken by the cast calculus here if applicable. */
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
-  switch (DHExp.term_of(d)) {
-  | Cast(d1, t1, t2) =>
-    let d1 =
-      if (recursive) {
-        d1 |> transition(~recursive) |> Option.value(~default=d1);
-      } else {
-        d1;
-      };
-    switch (ground_cases_of(t1), ground_cases_of(t2)) {
-    | (Hole, Hole)
-    | (Ground, Ground) =>
-      /* if two types are ground and consistent, then they are eq */
-      Some(d1) // Rule ITCastId
-
-    | (Ground, Hole) =>
-      /* can't remove the cast or do anything else here, so we're done */
-      None
-
-    | (Hole, Ground) =>
-      switch (DHExp.term_of(d1)) {
-      | Cast(d2, t3, {term: Unknown(_), _}) =>
-        /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
-        if (Typ.equal(t3, t2)) {
-          Some
-            (d2); // Rule ITCastSucceed
+  let res =
+    switch (DHExp.term_of(d)) {
+    | Cast(d1, t1, t2) =>
+      let d1 =
+        if (recursive) {
+          d1 |> transition(~recursive) |> Option.value(~default=d1);
         } else {
-          Some
-            (FailedCast(d2, t3, t2) |> DHExp.fresh); // Rule ITCastFail
-        }
-      | _ => None
-      }
-
-    | (Hole, NotGroundOrHole(t2_grounded)) =>
-      /* ITExpand rule */
-      let inner_cast =
-        Cast(d1, t1, t2_grounded |> DHExp.replace_all_ids_typ) |> DHExp.fresh;
-      // HACK: we need to check the inner cast here
-      let inner_cast =
-        switch (transition(~recursive, inner_cast)) {
-        | Some(d1) => d1
-        | None => inner_cast
+          d1;
         };
-      Some(
-        Cast(inner_cast, t2_grounded |> DHExp.replace_all_ids_typ, t2)
-        |> DHExp.fresh,
-      );
+      switch (ground_cases_of(t1), ground_cases_of(t2)) {
+      | (Hole, Hole)
+      | (Ground, Ground) =>
+        /* if two types are ground and consistent, then they are eq */
+        Some(d1) // Rule ITCastId
 
-    | (NotGroundOrHole(t1_grounded), Hole) =>
-      /* ITGround rule */
-      Some(
-        Cast(
-          Cast(d1, t1, t1_grounded |> DHExp.replace_all_ids_typ)
+      | (Ground, Hole) =>
+        /* can't remove the cast or do anything else here, so we're done */
+        None
+
+      | (Hole, Ground) =>
+        switch (DHExp.term_of(d1)) {
+        | Cast(d2, t3, {term: Unknown(_), _}) =>
+          /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
+          if (Typ.equal(t3, t2)) {
+            Some
+              (d2); // Rule ITCastSucceed
+          } else {
+            print_endline("Failed cast");
+            print_endline(DHExp.show(d1));
+            print_endline(Typ.show(t2));
+            print_endline(Typ.show(t3));
+            print_endline("");
+            Some(FailedCast(d2, t3, t2) |> DHExp.fresh); // Rule ITCastFail
+          }
+        | _ => None
+        }
+
+      | (Hole, NotGroundOrHole(t2_grounded)) =>
+        /* ITExpand rule */
+        let inner_cast =
+          Cast(d1, t1, t2_grounded |> DHExp.replace_all_ids_typ)
+          |> DHExp.fresh;
+        // HACK: we need to check the inner cast here
+        let inner_cast =
+          switch (transition(~recursive, inner_cast)) {
+          | Some(d1) => d1
+          | None => inner_cast
+          };
+        Some(
+          Cast(inner_cast, t2_grounded |> DHExp.replace_all_ids_typ, t2)
           |> DHExp.fresh,
-          t1_grounded |> DHExp.replace_all_ids_typ,
-          t2,
-        )
-        |> DHExp.fresh,
-      )
+        );
 
-    | (Ground, NotGroundOrHole(_)) =>
-      switch (DHExp.term_of(d1)) {
-      | Cast(d2, t3, _) =>
-        if (Typ.equal(t3, t2)) {
-          Some(d2);
+      | (NotGroundOrHole(t1_grounded), Hole) =>
+        /* ITGround rule */
+        Some(
+          Cast(
+            Cast(d1, t1, t1_grounded |> DHExp.replace_all_ids_typ)
+            |> DHExp.fresh,
+            t1_grounded |> DHExp.replace_all_ids_typ,
+            t2,
+          )
+          |> DHExp.fresh,
+        )
+
+      | (Ground, NotGroundOrHole(_)) =>
+        switch (DHExp.term_of(d1)) {
+        | Cast(d2, t3, _) =>
+          if (Typ.equal(t3, t2)) {
+            Some(d2);
+          } else {
+            None;
+          }
+        | _ => None
+        }
+      | (NotGroundOrHole(_), Ground) =>
+        /* can't do anything when casting between diseq, non-hole types */
+        None
+
+      | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
+        /* they might be eq in this case, so remove cast if so */
+        if (Typ.equal(t1, t2)) {
+          Some
+            (d1); // Rule ITCastId
         } else {
           None;
         }
-      | _ => None
-      }
-    | (NotGroundOrHole(_), Ground) =>
-      /* can't do anything when casting between diseq, non-hole types */
-      None
-
-    | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
-      /* they might be eq in this case, so remove cast if so */
-      if (Typ.equal(t1, t2)) {
-        Some
-          (d1); // Rule ITCastId
-      } else {
-        None;
-      }
+      };
+    | _ => None
     };
-  | _ => None
-  };
+  print_endline(
+    "Transitioning \n"
+    ++ DHExp.show(d)
+    ++ " to \n"
+    ++ [%derive.show: option(Exp.t)](res)
+    ++ "\n",
+  );
+  res;
 };
 
 let rec transition_multiple = (d: DHExp.t): DHExp.t => {
-  switch (transition(~recursive=true, d)) {
-  | Some(d'') => transition_multiple(d'')
-  | None => d
-  };
+  let res =
+    switch (transition(~recursive=true, d)) {
+    | Some(d'') => transition_multiple(d'')
+    | None => d
+    };
+
+  res;
 };
 
 // So that we don't have to regenerate its id
