@@ -83,7 +83,7 @@ let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
       let id = Id.mk();
       {
         ids: [id],
-        copied: false,
+        
       };
     },
     exp,
@@ -156,7 +156,7 @@ module FTemp =
     type t = IdTagged.IdTag.t;
     let default_value = (): IdTagged.IdTag.t => {
       ids: [Id.invalid],
-      copied: false,
+      
     };
   });
 let tests = (

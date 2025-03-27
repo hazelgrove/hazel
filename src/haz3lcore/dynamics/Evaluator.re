@@ -1,7 +1,5 @@
 open Transition;
 
-open ProgramResult.Result;
-
 // This module defines the stack machine for the evaluator.
 module Trampoline = {
   type t('a) =
@@ -117,8 +115,8 @@ let evaluate = (~env, d: DHExp.t) => {
   let result = Trampoline.run(result);
   let result =
     switch (result) {
-    | (Final, x) => x |> DHExp.repair_ids
-    | (Uneval, x) => x |> DHExp.repair_ids
+    | (Final, x) => x |> Exp.replace_all_ids
+    | (Uneval, x) => x |> Exp.replace_all_ids
     };
   (result, state^);
 };

@@ -58,7 +58,7 @@ let menhir_matches = (exp: Term.Exp.t, actual: string) =>
       _: IdTagged.IdTag.t =>
         {
           ids: [Id.invalid],
-          copied: false,
+          
         },
       Haz3lmenhir.Conversion.Exp.of_menhir_ast(
         Haz3lmenhir.Interface.parse_program(actual),
@@ -97,7 +97,7 @@ let menhir_maketerm_equivalent_test =
         _: IdTagged.IdTag.t =>
           {
             ids: [Id.invalid],
-            copied: false,
+            
           },
         Haz3lmenhir.Conversion.Exp.of_menhir_ast(
           Haz3lmenhir.Interface.parse_program(actual),

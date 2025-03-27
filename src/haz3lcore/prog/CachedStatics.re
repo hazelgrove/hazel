@@ -12,14 +12,12 @@ let empty: t = {
   term: {
     annotation: {
       ids: [Id.invalid],
-      copied: false,
     },
     term: Tuple([]),
   },
   elaborated: {
     annotation: {
       ids: [Id.invalid],
-      copied: false,
     },
     term: Tuple([]),
   },
