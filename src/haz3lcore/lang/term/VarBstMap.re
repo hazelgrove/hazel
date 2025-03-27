@@ -61,6 +61,8 @@ module VarBstMap0 = {
   let to_list = ctx => ctx |> Inner.to_seq |> List.of_seq;
 
   let of_list = bindings => bindings |> List.to_seq |> Inner.of_seq;
+
+  let equal = Inner.equal;
 };
 
 module Ordered = {
@@ -230,6 +232,14 @@ module Ordered = {
   let without_keys = (keys, m) => {
     filterk(((s, _)) => !List.exists(x => x == s, keys), m);
   };
+
+  let equal = (cmp, m1, m2) =>
+    VarBstMap0.equal(cmp, m1.map, m2.map)
+    && List.equal(
+         (x, y) => Var.equal(fst(x), fst(y)),
+         m1.rev_order,
+         m2.rev_order,
+       );
 };
 
 include VarBstMap0;

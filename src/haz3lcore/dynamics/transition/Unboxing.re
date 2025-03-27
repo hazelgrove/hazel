@@ -52,7 +52,7 @@ type unbox_request('a) =
   | LabeledTupleProjection(LabeledTuple.label): unbox_request(DHExp.t)
   | LabeledTupleEntries: unbox_request(list((LabeledTuple.label, DHExp.t)));
 
-[@deriving (show({with_path: false}), eq)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type unboxed('a) =
   | DoesNotMatch
   | IndetMatch
@@ -252,6 +252,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Tuple(_), Tuple(_)) => DoesNotMatch
     | (Tuple(n), Cast(t, {term: Prod(t1s), _}, {term: Prod(t2s), _}))
         when n == List.length(t1s) && n == List.length(t2s) =>
+      print_endline("We casting tuples");
       let* t = unbox(Tuple(n), t);
       let t =
         ListUtil.map3(

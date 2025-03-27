@@ -877,11 +877,11 @@ and Environment: {
   include
      (module type of VarBstMap.Ordered) with
       type t_('a) = VarBstMap.Ordered.t_('a);
-
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = environment_t;
 } = {
   include VarBstMap.Ordered;
-
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = environment_t;
 }
 

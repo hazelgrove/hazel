@@ -1,3 +1,4 @@
+[@deriving (show({with_path: false}), sexp, yojson)]
 type match_result = Unboxing.unboxed(Environment.t);
 let ( let* ) = Unboxing.( let* );
 
@@ -50,6 +51,12 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
     matches(x, x');
   | Tuple(ps) =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
+
+    print_endline("Unboxing tuple");
+    print_endline(DHExp.show(d));
+    print_endline("------");
+    print_endline([%derive.show: list(Exp.t)](ds));
+    print_endline("");
     List.map2(matches, ps, ds)
     |> List.fold_left(combine_result, Matches(Environment.empty));
   | Parens(p) => matches(p, d)
