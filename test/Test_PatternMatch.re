@@ -63,8 +63,20 @@ let tests = (
           "Labeled Tuple with casts",
           Matches(
             Environment.of_list([
-              ("b", Exp.bool(true)),
-              ("a", Exp.string("get_acne")),
+              (
+                "b",
+                Exp.(cast(bool(true), Typ.bool(), Typ.unknown(Internal))),
+              ),
+              (
+                "a",
+                Exp.(
+                  cast(
+                    string("get_acne"),
+                    Typ.string(),
+                    Typ.unknown(Internal),
+                  )
+                ),
+              ),
             ]),
           ),
           matches,
