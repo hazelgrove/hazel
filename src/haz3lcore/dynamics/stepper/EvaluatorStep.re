@@ -369,7 +369,7 @@ module TakeStep = {
       env,
       d,
     )
-    |> Option.map(DHExp.repair_ids);
+    |> Option.map(DHExp.replace_all_ids);
 };
 
 let take_step = TakeStep.take_step;
@@ -410,10 +410,7 @@ let take_step = (step: EvalObj.t) => {
   let+ next_expr = take_step(state, step.env, step.d_loc);
   let next_expr = {
     ...next_expr,
-    annotation: {
-      ...next_expr.annotation,
-      ids: step.d_loc |> IdTagged.ids,
-    },
+    annotation: IdTagged.IdTag.{ids: step.d_loc |> IdTagged.ids},
   };
   let next_state = state^;
   let next_expr =
