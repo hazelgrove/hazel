@@ -22,11 +22,11 @@ let sintlit_pat = (i: int): form => {
   };
 };
 
-let intlit_pat = (i: Bigint.t): form => {
-  let explanation = "Only expressions with value `%i` match the *`%i` pattern*.";
+let intlit_pat = (i: string): form => {
+  let explanation = "Only expressions with value `%s` match the *`%s` pattern*.";
   {
     id: IntPat,
-    syntactic_form: [i |> Bigint.to_string |> abbreviate |> pat],
+    syntactic_form: [i |> abbreviate |> pat],
     expandable_id: None,
     explanation,
     examples: [],
@@ -106,7 +106,7 @@ let wild: group = {
 
 let intlit = (i: Bigint.t): group => {
   id: IntPat,
-  forms: [intlit_pat(i)],
+  forms: [intlit_pat(i |> Bigint.to_string)],
 };
 let sintlit = (i: int): group => {
   id: SIntPat,

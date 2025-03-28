@@ -49,7 +49,7 @@ let int_exp = (n: Bigint.t): form => {
   id: IntExp,
   syntactic_form: [n |> Bigint.to_string |> exp],
   expandable_id: None,
-  explanation: "A signed integer literal.",
+  explanation: "A number literal.",
   examples: [],
 };
 let int_exps = (i: Bigint.t): group => {

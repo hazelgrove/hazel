@@ -65,7 +65,7 @@ module Pervasives = {
     };
 
     [@warning "-8"]
-    // let-unbox guarantees that the tuple will have length 3
+    // let-unbox guarantees that the tuple will have length 3int
     let ternary =
         (f: (DHExp.t, DHExp.t, DHExp.t) => option(DHExp.t), d: DHExp.t) => {
       let-unbox [d1, d2, d3] = (Tuple(3), d);
@@ -124,6 +124,54 @@ module Pervasives = {
           );
         } else {
           Some(int(Bigint.(%)(m, n)));
+        };
+      });
+
+    let sint_mod = name =>
+      binary((d1, d2) => {
+        let-unbox m = (Atom(SInt), d1);
+        let-unbox n = (Atom(SInt), d2);
+        if (n == 0) {
+          Some(
+            dynamic_error_hole(
+              ap(Forward, builtin_fun(name), d1),
+              DivideByZero,
+            ),
+          );
+        } else {
+          Some(sint(m mod n));
+        };
+      });
+
+    let nat_mod = name =>
+      binary((d1, d2) => {
+        let-unbox m = (Atom(Nat), d1);
+        let-unbox n = (Atom(Nat), d2);
+        if (n == Bigint.zero) {
+          Some(
+            dynamic_error_hole(
+              ap(Forward, builtin_fun(name), d1),
+              DivideByZero,
+            ),
+          );
+        } else {
+          Some(nat(Bigint.(%)(m, n)));
+        };
+      });
+
+    let float_mod = name =>
+      binary((d1, d2) => {
+        let-unbox m = (Atom(Float), d1);
+        let-unbox n = (Atom(Float), d2);
+        if (n == 0.0) {
+          Some(
+            dynamic_error_hole(
+              ap(Forward, builtin_fun(name), d1),
+              DivideByZero,
+            ),
+          );
+        } else {
+          Some(float((Float.modf(m /. n) |> fst) *. n));
         };
       });
 
@@ -250,8 +298,8 @@ module Pervasives = {
       |> const("nan", Atom(Float), nan)
       |> const("epsilon_float", Atom(Float), epsilon_float)
       |> const("pi", Atom(Float), pi)
-      |> const("max_int", Atom(Int), max_int)
-      |> const("min_int", Atom(Int), min_int)
+      |> const("max_sint", Atom(SInt), max_int)
+      |> const("min_sint", Atom(SInt), min_int)
       |> fn("is_finite", Atom(Float), Atom(Bool), is_finite)
       |> fn("is_infinite", Atom(Float), Atom(Bool), is_infinite)
       |> fn("is_nan", Atom(Float), Atom(Bool), is_nan)
@@ -270,7 +318,20 @@ module Pervasives = {
       |> fn("acos", Atom(Float), Atom(Float), acos)
       |> fn("atan", Atom(Float), Atom(Float), atan)
       |> fn("monus", Prod([nat(), nat()]), Atom(Nat), monus)
-      |> fn("mod", Prod([int(), int()]), Atom(Int), int_mod("mod"))
+      |> fn("int_mod", Prod([int(), int()]), Atom(Int), int_mod("mod"))
+      |> fn(
+           "sint_mod",
+           Prod([sint(), sint()]),
+           Atom(SInt),
+           sint_mod("mod"),
+         )
+      |> fn("nat_mod", Prod([nat(), nat()]), Atom(Nat), nat_mod("mod"))
+      |> fn(
+           "float_mod",
+           Prod([float(), float()]),
+           Atom(Float),
+           float_mod("mod"),
+         )
       |> fn("string_length", Atom(String), Atom(Int), string_length)
       |> fn(
            "string_compare",

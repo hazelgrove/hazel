@@ -702,10 +702,7 @@ in fn("hello")|},
         let uexp =
           np(
             Cast(
-              p(
-                Atom(String("a")),
-                [Atom(String("a"))],
-              ),
+              p(Atom(String("a")), [Atom(String("a"))]),
               npt(
                 Parens(
                   npt(
