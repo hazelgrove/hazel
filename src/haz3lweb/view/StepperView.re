@@ -207,6 +207,7 @@ module Update = {
           : Aba.t(Model.a, Model.b) => {
     let next_steps = Model.get_next_steps(history);
     let hidden_steps = List.filter((s: Model.b) => s.hidden, next_steps);
+    print_endline("AAAAA");
     switch (hidden_steps) {
     | [] => history
     | [x, ..._] =>
