@@ -53,7 +53,8 @@ let introduction_test = (before: string, expected: string) => {
   check(option(string), "Introduce", Some(expected), serialized);
 };
 
-let introduce_expression = x => introduce_expression(x) |> Option.map(fst);
+let introduce_expression = x =>
+  introduce_expression(x) |> Option.map(((a, _b, _c)) => a);
 
 let tests =
   IdTagged.FreshGrammar.[
@@ -212,6 +213,12 @@ let tests =
           introduction_test(
             "let x : (Int, Int) = ( ) in x",
             "let x : (Int, Int) = (?, ? ) in x",
+          )
+        }),
+        test_case("Partially parenthesized function", `Quick, () => {
+          introduction_test(
+            "let f : (Int, Int) ->Int = fun (a,b) -> a in f(",
+            "let f : (Int, Int) -> Int = ? in f(?, ?)",
           )
         }),
         test_case("Nested tuple", `Quick, () => {
