@@ -1,3 +1,12 @@
+/**
+ * Introduces a new expression of the specified type.
+ *
+ * @param ty - The type of the expression to be introduced.
+ * @return An optional tuple containing:
+ *   - The newly introduced expression (`Exp.t`), which represents the expression to be introduced when the action is triggered on a hole of that type.
+ *   - The `Id.t` which indicates the element the cursor should be on after the new expression is introduced.
+ *   Returns `None` if the introduction fails, meaning there is no form for that type.
+ */
 let introduce_expression = (ty: Typ.t): option((Exp.t, Id.t)) => {
   IdTagged.FreshGrammar.(
     Exp.(
