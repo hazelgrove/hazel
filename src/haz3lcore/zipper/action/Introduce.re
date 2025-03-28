@@ -133,7 +133,7 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
 
     let+ (expression, id, move_left) =
       introduce_expression(Typ.weak_head_normalize(ctx, ana));
-    print_endline("Place cursor on id: " ++ Id.show(id));
+
     let seg =
       ExpToSegment.exp_to_segment(
         ~already_paren=already_parenthesized(z),
