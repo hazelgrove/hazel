@@ -9,6 +9,8 @@ let introduce_expression = (ty: Typ.t): option(Exp.t) => {
       | Sum([Variant(c, _, Some(_))]) =>
         Some(ap(Forward, constructor(c, None), empty_hole()))
       | Forall(_, _) => Some(typ_fun(TPat.empty_hole(), empty_hole(), None))
+      | List(_) => Some(list_lit([]))
+      | String => Some(string(""))
       | _ => None
       }
     )

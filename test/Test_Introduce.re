@@ -139,6 +139,22 @@ let tests =
             introduce_expression(Typ.(forall(TPat.var("a"), var("a")))),
           )
         }),
+        test_case("String", `Quick, () => {
+          check(
+            option(exp),
+            "String",
+            Some(Exp.(string(""))),
+            introduce_expression(Typ.string()),
+          )
+        }),
+        test_case("List", `Quick, () => {
+          check(
+            option(exp),
+            "List",
+            Some(Exp.(list_lit([]))),
+            introduce_expression(Typ.(list(int()))),
+          )
+        }),
       ],
     ),
     (
