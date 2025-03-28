@@ -53,6 +53,8 @@ let introduction_test = (before: string, expected: string) => {
   check(option(string), "Introduce", Some(expected), serialized);
 };
 
+let introduce_expression = x => introduce_expression(x) |> Option.map(fst);
+
 let tests =
   IdTagged.FreshGrammar.[
     (
