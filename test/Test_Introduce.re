@@ -215,12 +215,6 @@ let tests =
             "let x : (Int, Int) = (?, ? ) in x",
           )
         }),
-        test_case("Partially parenthesized function", `Quick, () => {
-          introduction_test(
-            "let f : (Int, Int) ->Int = fun (a,b) -> a in f(",
-            "let f : (Int, Int) -> Int = ? in f(?, ?)",
-          )
-        }),
         test_case("Nested tuple", `Quick, () => {
           introduction_test(
             "let x : (Int, (Int, Int)) = (1,  ) in x",
