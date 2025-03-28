@@ -123,6 +123,40 @@ let tests =
             );
           },
         ),
+        test_case(
+          "Labeled tuples",
+          `Quick,
+          () => {
+            check(
+              option(exp),
+              "Singleton",
+              Some(Exp.(tuple([tup_label(label("l"), empty_hole())]))),
+              introduce_expression(
+                Typ.(prod([tup_label(label("l"), int())])),
+              ),
+            );
+            check(
+              option(exp),
+              "Multiple",
+              Some(
+                Exp.(
+                  tuple([
+                    tup_label(label("l"), empty_hole()),
+                    tup_label(label("l2"), empty_hole()),
+                  ])
+                ),
+              ),
+              introduce_expression(
+                Typ.(
+                  prod([
+                    tup_label(label("l"), int()),
+                    tup_label(label("l2"), string()),
+                  ])
+                ),
+              ),
+            );
+          },
+        ),
         test_case("Singleton Variant", `Quick, () => {
           check(
             option(exp),

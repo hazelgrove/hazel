@@ -4,7 +4,19 @@ let introduce_expression = (ty: Typ.t): option(Exp.t) => {
       switch (ty.term) {
       | Arrow(_, _) => Some(fn(Pat.empty_hole(), empty_hole(), None, None))
       | Prod(ts) =>
-        Some(tuple(List.init(List.length(ts), _ => empty_hole())))
+        Some(
+          tuple(
+            List.map(
+              (ty: Grammar.typ_t(IdTagged.IdTag.t)) =>
+                switch (ty) {
+                | {term: TupLabel({term: Label(l), _}, _), _} =>
+                  tup_label(label(l), empty_hole())
+                | _ => empty_hole()
+                },
+              ts,
+            ),
+          ),
+        )
       | Sum([Variant(c, _, None)]) => Some(constructor(c, None))
       | Sum([Variant(c, _, Some(_))]) =>
         Some(ap(Forward, constructor(c, None), empty_hole()))
