@@ -1,6 +1,6 @@
 /* This .rei file is here to protect you. The get_status function in particular
-   does more than you might expect it to - particularly around stepper filters.
-   Expose other functions from within EvaluatorStep.re at your own peril. */
+   does more bookkeeping than you might expect it to - particularly around stepper
+   filters. Expose other functions from within EvaluatorStep.re at your own peril. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step;
@@ -17,6 +17,7 @@ let get_status: (~settings: CoreSettings.t, Exp.t, EvaluatorState.t) => status; 
 let refresh_step:
   (~settings: CoreSettings.t, Exp.t, EvaluatorState.t, step) => option(step);
 
+// INVARIANT: this take_step function should never return an expression with closures.
 let take_step: step => option((Exp.t, EvaluatorState.t));
 
 let get_step_id: step => Id.t;

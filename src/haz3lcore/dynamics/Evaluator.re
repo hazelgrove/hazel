@@ -118,6 +118,8 @@ let evaluate = (~env, d: DHExp.t) => {
     | (Final, x) => x |> Exp.replace_all_ids
     | (Uneval, x) => x |> Exp.replace_all_ids
     };
+  let result =
+    result |> Exp.substitute_closures(env |> ClosureEnvironment.map_of);
   (result, state^);
 };
 

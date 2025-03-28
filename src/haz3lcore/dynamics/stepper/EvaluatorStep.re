@@ -318,7 +318,14 @@ module Decompose = {
   module Decomp = Transition(DecomposeEVMode);
   let rec decompose = (~in_closure=?, state, env, exp) => {
     switch (exp) {
-    | _ => Decomp.transition(decompose, ~in_closure?, state, env, exp)
+    | _ =>
+      Decomp.transition(
+        decompose,
+        ~in_closure=Option.value(~default=() => (), in_closure),
+        state,
+        env,
+        exp,
+      )
     };
   };
 };
@@ -364,7 +371,7 @@ module TakeStep = {
   let take_step = (~in_closure=?, state, env, d) =>
     TakeStepEV.transition(
       (~in_closure as _=?, _, _, _) => None,
-      ~in_closure?,
+      ~in_closure=Option.value(~default=() => (), in_closure),
       state,
       env,
       d,
@@ -392,9 +399,10 @@ type status =
   | AvailableSteps(list(step));
 
 let get_status = (~settings: CoreSettings.t, exp, state) => {
+  print_endline("EXP: " ++ (exp |> Exp.show));
   let eos =
     decompose(exp, state)
-    |> List.map(should_hide_eval_obj(~settings=settings.evaluation));
+    |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
   switch (List.find_opt(((x, _)) => x == FilterAction.Eval, eos)) {
   | Some((_, x)) => AutoStep(x)
   | None => AvailableSteps(List.map(((_, x)) => x, eos))
@@ -414,7 +422,9 @@ let take_step = (step: EvalObj.t) => {
   };
   let next_state = state^;
   let next_expr =
-    EvalCtx.compose(step.ctx, next_expr) |> Typ.replace_temp_exp;
+    EvalCtx.compose(step.ctx, next_expr)
+    |> Exp.replace_all_ids
+    |> DHExp.substitute_closures(Builtins.env_init);
   (next_expr, next_state);
 };
 
@@ -427,7 +437,7 @@ let refresh_step =
     ) => {
   let eos =
     decompose(exp, state)
-    |> List.map(should_hide_eval_obj(~settings=settings.evaluation));
+    |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
   let* (_, x) =
     List.find_opt(
       ((_, step': step)) =>

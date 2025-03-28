@@ -7,10 +7,7 @@ let evaluation_test = (msg, expected, unevaluated) =>
     dhexp_typ,
     msg,
     expected,
-    unevaluated
-    |> Evaluator.evaluate(~env=Builtins.env_init)
-    |> fst
-    |> Exp.substitute_closures(Builtins.env_init),
+    unevaluated |> Evaluator.evaluate(~env=Builtins.env_init) |> fst,
   );
 
 let evaluate_probes = unevaluated =>
