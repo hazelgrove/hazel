@@ -1260,7 +1260,7 @@ and upat_to_info_map =
     | Invalid(token) => hole(BadToken(token))
     | EmptyHole => hole(Just(unknown))
     | Atom(c) =>
-      let c = Operators.replace_literal(c, ctx.use_mode);
+      let c = Operators.replace_literal(c, ctx.use_mode); // Replace literal if necessary due to `use`
       switch (c) {
       | L(Nat(nat)) =>
         atomic(
@@ -1273,7 +1273,7 @@ and upat_to_info_map =
           Coverage.Constraint.BigInt(int),
         )
       | L(SInt(int)) =>
-        atomic(Just(Atom(Int) |> Typ.temp), Coverage.Constraint.SInt(int))
+        atomic(Just(Atom(SInt) |> Typ.temp), Coverage.Constraint.SInt(int))
       | L(Float(float)) =>
         atomic(
           Just(Atom(Float) |> Typ.temp),
