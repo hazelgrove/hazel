@@ -5,9 +5,11 @@
  * @return An optional tuple containing:
  *   - The newly introduced expression (`Exp.t`), which represents the expression to be introduced when the action is triggered on a hole of that type.
  *   - The `Id.t` which indicates the element the cursor should be on after the new expression is introduced.
+ *   - A boolean indicating whether the cursor should move one to the left after the expression is generated.
+       This is useful for cases where the cursor should be placed inside of an expression like inside of an empty list or string.
  *   Returns `None` if the introduction fails, meaning there is no form for that type.
  */
-let introduce_expression = (ty: Typ.t): option((Exp.t, Id.t)) => {
+let introduce_expression = (ty: Typ.t): option((Exp.t, Id.t, bool)) => {
   IdTagged.FreshGrammar.(
     Exp.(
       switch (ty.term) {
@@ -16,9 +18,12 @@ let introduce_expression = (ty: Typ.t): option((Exp.t, Id.t)) => {
         Some((
           fn(cursor_pat, empty_hole(), None, None),
           List.hd(cursor_pat.annotation.ids),
+          false,
         ));
       | Prod([]) =>
-        Some(tuple([]) |> (exp => (exp, List.hd(exp.annotation.ids))))
+        Some(
+          tuple([]) |> (exp => (exp, List.hd(exp.annotation.ids), false)),
+        )
       | Prod([t, ...ts]) =>
         let tuple_entry = (t: TermBase.Typ.t) => {
           let hole = empty_hole();
@@ -40,11 +45,12 @@ let introduce_expression = (ty: Typ.t): option((Exp.t, Id.t)) => {
             ...List.map(t => t |> tuple_entry |> fst, ts),
           ]),
           head_id,
+          false,
         ));
       | Sum([Variant(c, _, None)]) =>
         Some(
           constructor(c, None)
-          |> (exp => (exp, List.hd(exp.annotation.ids))),
+          |> (exp => (exp, List.hd(exp.annotation.ids), false)),
         )
       | Sum([Variant(c, _, Some(_))]) =>
         Some(
@@ -53,6 +59,7 @@ let introduce_expression = (ty: Typ.t): option((Exp.t, Id.t)) => {
             exp => (
               ap(Forward, constructor(c, None), exp),
               List.hd(exp.annotation.ids),
+              false,
             )
           ),
         )
@@ -63,13 +70,18 @@ let introduce_expression = (ty: Typ.t): option((Exp.t, Id.t)) => {
             exp => (
               typ_fun(exp, empty_hole(), None),
               List.hd(exp.annotation.ids),
+              false,
             )
           ),
         )
       | List(_) =>
-        Some(list_lit([]) |> (exp => (exp, List.hd(exp.annotation.ids))))
+        Some(
+          list_lit([]) |> (exp => (exp, List.hd(exp.annotation.ids), true)),
+        )
       | String =>
-        Some(string("") |> (exp => (exp, List.hd(exp.annotation.ids))))
+        Some(
+          string("") |> (exp => (exp, List.hd(exp.annotation.ids), true)),
+        )
       | _ => None
       }
     )
@@ -119,7 +131,7 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
       | _ => None
       };
 
-    let+ (expression, id) =
+    let+ (expression, id, move_left) =
       introduce_expression(Typ.weak_head_normalize(ctx, ana));
     print_endline("Place cursor on id: " ++ Id.show(id));
     let seg =
@@ -139,7 +151,10 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
     z
     |> Zipper.replace_selection(Left, seg, _)
     |> Zipper.directional_unselect(Left, _)
-    |> move_right_until_id(id, _);
+    |> move_right_until_id(id, _)
+    |> (
+      move_left ? Util.OptUtil.replace(Move.primary(ByChar, Left)) : Fun.id
+    );
   | _ => None
   };
 };
