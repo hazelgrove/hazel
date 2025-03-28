@@ -763,10 +763,10 @@ module Update = {
         if (Str.string_match(code_pattern, response, 0)) {
           let before = String.trim(Str.matched_group(1, response));
           let code = String.trim(Str.matched_group(3, response));
-          (before, code);
+          (before, code |> StringUtil.trim_leading);
         } else {
           print_endline("Regex match failed for: " ++ response);
-          ("", response); // Fallback if no code block found
+          ("", response |> StringUtil.trim_leading); // Fallback if no code block found
         };
       print_endline("Response: " ++ response);
       print_endline("Discussion: " ++ discussion);

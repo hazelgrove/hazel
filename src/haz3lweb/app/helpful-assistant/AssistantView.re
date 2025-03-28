@@ -276,6 +276,9 @@ let api_input =
           ),
           Attr.on_keydown(handle_keydown),
           clss(["api-input"]),
+          Attr.on_copy(_ => {Effect.Stop_propagation}),
+          Attr.on_paste(_ => {Effect.Stop_propagation}),
+          Attr.on_cut(_ => {Effect.Stop_propagation}),
         ],
         (),
       ),
@@ -378,6 +381,9 @@ let message_input =
           Attr.on_focus(_ =>
             signal(MakeActive(ScratchMode.Selection.TextBox))
           ),
+          Attr.on_copy(_ => {Effect.Stop_propagation}),
+          Attr.on_paste(_ => {Effect.Stop_propagation}),
+          Attr.on_cut(_ => {Effect.Stop_propagation}),
           Attr.on_keydown(handle_keydown),
           clss(["message-input"]),
         ],
@@ -479,6 +485,9 @@ let message_display =
                           | System => "system-message"
                           },
                         ]),
+                        Attr.on_copy(_ => {Effect.Stop_propagation}),
+                        Attr.on_paste(_ => {Effect.Stop_propagation}),
+                        Attr.on_cut(_ => {Effect.Stop_propagation}),
                       ],
                       [
                         message.collapsed
@@ -598,6 +607,9 @@ let message_display =
                           | System => "system-message"
                           },
                         ]),
+                        Attr.on_copy(_ => {Effect.Stop_propagation}),
+                        Attr.on_paste(_ => {Effect.Stop_propagation}),
+                        Attr.on_cut(_ => {Effect.Stop_propagation}),
                       ],
                       [
                         message.collapsed
