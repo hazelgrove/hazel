@@ -16,6 +16,13 @@ jobs:
           path: source
       - name: Add the name of the current branch to the environment as BRANCH_NAME
         uses: nelonoel/branch-name@v1.0.1
+      - name: Install node/npm
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'latest'
+      - name: Install NPM dependencies
+        run: npm install
+        working-directory: ./source
       - name: Set-up OCaml
         uses: ocaml/setup-ocaml@v3
         with:
