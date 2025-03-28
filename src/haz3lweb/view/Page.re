@@ -417,80 +417,47 @@ module View = {
         JsUtil.focus_clipboard_shim();
         Effect.Ignore;
       }),
-      Attr.on_copy(evt => {
-        let target = Js.Opt.to_option(evt##.target);
-        switch (target) {
-        | Some(el) =>
-          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          switch (elId) {
-          | Some("message-input") => ()
-          | Some("api-input") => ()
-          | _ =>
-            let str =
-              (cursor.selected_text |> Option.value(~default=() => ""))();
-            Haz3lcore.ClipboardCache.set(cursor.selection, str);
-            JsUtil.copy(str);
-          };
-        | None => ()
-        };
+      Attr.on_copy(_ => {
+        let str = (cursor.selected_text |> Option.value(~default=() => ""))();
+        /* Note that we cannot use the ClipboardCache system here unless
+         * we refine it further to replace unique ids on paste */
+        Haz3lcore.ClipboardCache.set(cursor.selection, str);
+        JsUtil.copy(str);
         Effect.Ignore;
       }),
-      Attr.on_cut(evt => {
-        let target = Js.Opt.to_option(evt##.target);
-        switch (target) {
-        | Some(el) =>
-          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          switch (elId) {
-          | Some("message-input") => Effect.Ignore
-          | Some("api-input") => Effect.Ignore
-          | _ =>
-            let str =
-              (cursor.selected_text |> Option.value(~default=() => ""))();
-            Haz3lcore.ClipboardCache.set(cursor.selection, str);
-            JsUtil.copy(str);
-            Option.map(
-              inject,
-              Selection.handle_key_event(
-                ~selection=Some(model.selection),
-                ~event=
-                  Key.{
-                    key: D("Delete"),
-                    sys: Os.is_mac^ ? Mac : PC,
-                    shift: Up,
-                    meta: Up,
-                    ctrl: Up,
-                    alt: Up,
-                  },
-                model,
-              ),
-            )
-            |> Option.value(~default=Effect.Ignore);
-          };
-        | None => Effect.Ignore
-        };
+      Attr.on_cut(_ => {
+        let str = (cursor.selected_text |> Option.value(~default=() => ""))();
+        Haz3lcore.ClipboardCache.set(cursor.selection, str);
+        JsUtil.copy(str);
+        Option.map(
+          inject,
+          Selection.handle_key_event(
+            ~selection=Some(model.selection),
+            ~event=
+              Key.{
+                key: D("Delete"),
+                sys: Os.is_mac^ ? Mac : PC,
+                shift: Up,
+                meta: Up,
+                ctrl: Up,
+                alt: Up,
+              },
+            model,
+          ),
+        )
+        |> Option.value(~default=Effect.Ignore);
       }),
     ]
     @ [
       Attr.on_paste(evt => {
-        let target = Js.Opt.to_option(evt##.target);
-        switch (target) {
-        | Some(el) =>
-          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          switch (elId) {
-          | Some("message-input") => Effect.Ignore
-          | Some("api-input") => Effect.Ignore
-          | _ =>
-            Dom.preventDefault(evt);
-            let action =
-              Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-              |> Haz3lcore.ClipboardCache.get
-              |> cursor.editor_action;
-            switch (action) {
-            | None => Effect.Ignore
-            | Some(action) => inject(Editors(action))
-            };
-          };
+        Dom.preventDefault(evt);
+        let action =
+          Js.to_string(evt##.clipboardData##getData(Js.string("text")))
+          |> Haz3lcore.ClipboardCache.get
+          |> cursor.editor_action;
+        switch (action) {
         | None => Effect.Ignore
+        | Some(action) => inject(Editors(action))
         };
       }),
     ];
