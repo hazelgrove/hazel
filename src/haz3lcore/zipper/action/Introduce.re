@@ -36,6 +36,15 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
       }),
     ) =>
     open Util.OptUtil.Syntax;
+    let selection = z.selection.content;
+    let selected_expression = MakeTerm.go(selection);
+
+    // This is to prevent replacing an expression that is not an empty hole
+    let* _ =
+      switch (selected_expression.term.term) {
+      | EmptyHole => Some(exp)
+      | _ => None
+      };
 
     let+ expression =
       introduce_expression(Typ.weak_head_normalize(ctx, ana));
