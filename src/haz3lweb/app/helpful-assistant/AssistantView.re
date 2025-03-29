@@ -461,7 +461,6 @@ let message_display =
                       | System => "system"
                       },
                     ]),
-                    Attr.on_click(_ => toggle_collapse(index)),
                   ],
                   [
                     div(
@@ -506,6 +505,20 @@ let message_display =
                               ),
                             )
                           : text(message.content),
+                        div(
+                          ~attrs=[
+                            clss(["collapse-indicator"]),
+                            Attr.on_click(_ => toggle_collapse(index)),
+                            String.length(message.content) >= 200
+                              ? Attr.empty : Attr.hidden,
+                          ],
+                          [
+                            text(
+                              message.collapsed
+                                ? "▼ Show more" : "▲ Show less",
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                     message.party == LLM && tileId != None
@@ -583,7 +596,6 @@ let message_display =
                       | System => "system"
                       },
                     ]),
-                    Attr.on_click(_ => toggle_collapse(index)),
                   ],
                   [
                     div(
@@ -628,6 +640,20 @@ let message_display =
                               ),
                             )
                           : text(message.content),
+                        div(
+                          ~attrs=[
+                            clss(["collapse-indicator"]),
+                            Attr.on_click(_ => toggle_collapse(index)),
+                            String.length(message.content) >= 200
+                              ? Attr.empty : Attr.hidden,
+                          ],
+                          [
+                            text(
+                              message.collapsed
+                                ? "▼ Show more" : "▲ Show less",
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ],
