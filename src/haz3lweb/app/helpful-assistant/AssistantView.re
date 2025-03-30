@@ -371,7 +371,7 @@ let message_input =
           Attr.id("message-input"),
           Attr.placeholder(
             switch (settings.mode) {
-            | SimpleChat => "Ask anything..."
+            | HazelTutor => "Ask a question about Hazel or anything..."
             | CodeSuggestion => "Followup with a question..."
             | TaskCompletion => "Type a task completion..."
             },
@@ -689,7 +689,7 @@ let mode_buttons = (~globals: Globals.t): Node.t => {
   div(
     ~attrs=[clss(["mode-buttons"])],
     [
-      mode_button(SimpleChat, "Chat"),
+      mode_button(HazelTutor, "Tutor"),
       mode_button(CodeSuggestion, "Suggest"),
       mode_button(TaskCompletion, "Compose"),
     ],
@@ -713,7 +713,7 @@ let history_menu =
         ~attrs=[clss(["history-menu-header"])],
         [
           switch (settings.mode) {
-          | SimpleChat => text("Chat History")
+          | HazelTutor => text("Tutor History")
           | CodeSuggestion => text("Suggestion History")
           | TaskCompletion => text("Task History")
           },

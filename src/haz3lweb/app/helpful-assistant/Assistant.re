@@ -226,7 +226,7 @@ module Update = {
 
   let get_mode_info = (mode: AssistantSettings.mode, model: Model.t) => {
     switch (mode) {
-    | SimpleChat => (
+    | HazelTutor => (
         model.chat_history.past_simple_chats,
         Id.Map.find(
           model.current_chats.curr_simple_chat,
@@ -288,7 +288,7 @@ module Update = {
       ...model,
       chat_history: {
         past_simple_chats:
-          mode == SimpleChat
+          mode == HazelTutor
             ? Id.Map.update(
                 chat_to_update.id,
                 maybe_chat =>
@@ -338,7 +338,7 @@ module Update = {
       ...model,
       chat_history: {
         past_simple_chats:
-          mode == SimpleChat
+          mode == HazelTutor
             ? past_chats : model.chat_history.past_simple_chats,
         past_suggestion_chats:
           mode == CodeSuggestion
@@ -352,7 +352,7 @@ module Update = {
       // This is honestly such an edge case that it probably doesn't matter.
       current_chats: {
         curr_simple_chat:
-          mode == SimpleChat ? chat_id : model.current_chats.curr_simple_chat,
+          mode == HazelTutor ? chat_id : model.current_chats.curr_simple_chat,
         curr_suggestion_chat:
           mode == CodeSuggestion
             ? chat_id : model.current_chats.curr_suggestion_chat,
@@ -373,7 +373,7 @@ module Update = {
       : unit => {
     let prompt =
       switch (mode) {
-      | SimpleChat => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 10 words.\n    DO NOT exceed 10 words. Only provide the summarizing title in your response, do not include any other text. Here is the\n    concatenated conversation, with your response and the user's responses, respectively: "
+      | HazelTutor => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 10 words.\n    DO NOT exceed 10 words. Only provide the summarizing title in your response, do not include any other text. Here is the\n    concatenated conversation, with your response and the user's responses, respectively: "
       | CodeSuggestion => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 10 words.\n    DO NOT exceed 10 words. Only provide the summarizing title in your response, do not include any other text. This conversation is known to be a code\n    completion conversation. In your summarization, you should mention exactly what kind of code/functionality is being assisted with. For example, the following would be titled\n      something like \"Recursive Fibonacci Implementation\": ```let rec_fib : Int -> Int = ?? in ?```. Here is the\n    concatenated conversation, with your response and the user's responses, respectively: "
       | TaskCompletion => "Ignore all other input and just output \"You (Hazel Lab Member) need to implement this\""
       };
@@ -518,6 +518,32 @@ module Update = {
     };
   };
 
+  let get_documentation_as_text = () => {
+    let prelude = "You are a helpful assistant whose role is to be a tutor for a user of the Hazel
+                    Programming Language. You are given a list of documentation slides, which are
+                    formatted as follows:
+                    <slide_name>:
+                    <slide_text>
+                    You can and should use these slides to understand and reason about the syntax and semantics
+                    of the Hazel Programming Language, and aid in your response to the user.
+                    ";
+    let (_, slides) = ScratchMode.StoreDocumentation.load();
+    let documentation =
+      slides
+      |> List.map(((name, persistent)) => {
+           let cell_model =
+             CellEditor.Model.unpersist(
+               ~settings=CoreSettings.off,
+               persistent,
+             );
+           let text =
+             Printer.zipper_to_string(cell_model.editor.editor.state.zipper);
+           name ++ ": " ++ text;
+         })
+      |> String.concat("\n\n");
+    prelude ++ "\n\n" ++ documentation;
+  };
+
   let set_buffer = (~response: string, z: Zipper.t): option(Zipper.t) => {
     let zipper_of_response = Option.get(Printer.zipper_of_string(response));
     let seg_of_response =
@@ -547,8 +573,11 @@ module Update = {
       let (_, curr_chat) = get_mode_info(mode, model);
       let collected_chat =
         collect_chat(~messages=curr_chat.messages @ [message]);
-      print_endline(collected_chat);
-      switch (Oracle.ask(collected_chat)) {
+      let tutor_prelude = get_documentation_as_text();
+      let tutor_chat =
+        List.length(curr_chat.messages) == 0
+          ? tutor_prelude ++ "\n\n" ++ collected_chat : collected_chat;
+      switch (Oracle.ask(tutor_chat)) {
       | None =>
         add_message_to_model(
           mode,
