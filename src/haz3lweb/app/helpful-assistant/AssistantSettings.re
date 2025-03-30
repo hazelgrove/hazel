@@ -6,7 +6,7 @@ open Util;
 type mode =
   | CodeSuggestion
   | TaskCompletion
-  | SimpleChat;
+  | HazelTutor;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
