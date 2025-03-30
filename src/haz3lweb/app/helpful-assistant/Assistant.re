@@ -542,6 +542,17 @@ module Update = {
                     - You MUST provide any code examples in the triple backticks format and at the very end of your response.
                     - You should treat the user with respect, and assume they are a beginner Hazel programmer.
                     - Your response should concise, digestible, and easy to understand.
+                    - You SHOULD NOT prelude your code example with 'hazel' or anything similar. That is, your code example should be purely functional hazel code.
+                    - To further reiterate, an example of a bad code example is: ```hazel let x = 1 in x + 1 ```. A good code example is: ```let x = 1 in x + 1 ```.
+                    - Hazel uses typed holes, thus to represent a hole you should either explicitly use the hole operator ? or leave an extra whitespace for a non-explicit hole. An example would be: ```let x = ? in x + 1``` or ```let x = 1 in ``` (note the extra whitespace at the end there).
+                    - Typed holes are NOT defined with '_' or anything else... ONLY use '?' or ' ' (space) to represent a hole.
+                    To further give you information about the Hazel Programming Language, here is a blurb about the language:
+                    Hazel is a live functional programming environment that is able to typecheck, manipulate, and even run incomplete programs, i.e. programs with holes. There are no meaningless editor states.
+                    When programming, we spend a substantial amount of our time working with program text that is not yet a formally complete program, e.g. because there are blank spots, type errors or merge conflicts at various locations.
+                    Conventional programming language definitions assign no formal meaning to structures like these, so we are left without live feedback about the behavior of even complete portions of the program. Moreover, program editors and other tools have no choice but to resort to complex and ad hoc heuristics to provide various useful language services (like code completion, type inspection, and code navigation) without gaps in service.
+                    We are developing a more principled approach to working with incomplete programs, rooted in (contextual modal and gradual) type theory. We model incomplete programs as programs with holes, which (1) stand for parts of the program that are missing; and (2) serve as membranes around parts of the program that are erroneous or, in the collaborative setting, conflicted.
+                    We are first implementing these ideas into Hazel, a web-based programming environment for an Elm/ML-like functional programming language designed around typed-hole-driven development.
+                    Uniquely, every incomplete program that you can construct using Hazel's language of edit actions is both statically and dynamically well-defined, i.e. it has a (possibly incomplete) type, and you can run it to produce a (possibly incomplete) result. Consequently, Hazel serves as an elegant platform for research on the future of programming (and programming education).
                     ";
     let (_, slides) = ScratchMode.StoreDocumentation.load();
     let documentation =
@@ -700,7 +711,7 @@ module Update = {
           (before, code |> StringUtil.trim_leading);
         } else {
           print_endline("Regex match failed for: " ++ response);
-          ("", response |> StringUtil.trim_leading); // Fallback if no code block found
+          (response |> StringUtil.trim_leading, "");
         };
       let discussion_message = text_message_of_str(discussion, LLM);
       if (code_example == "") {
@@ -716,7 +727,7 @@ module Update = {
           model,
           discussion_message,
           chat_id,
-          ~is_final=false,
+          ~is_final=true,
         )
         |> Updated.return_quiet;
       } else {
