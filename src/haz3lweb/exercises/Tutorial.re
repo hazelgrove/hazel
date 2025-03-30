@@ -399,7 +399,7 @@ type stitched('a) = {
   user_impl: 'a, // prelude + your_impl
   //   user_tests: 'a, // prelude + your_impl + your_tests
   //   prelude: 'a, // prelude
-  instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
+  // instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
   //   hidden_bugs: list('a), // prelude + hidden_bugs[i].impl + your_tests,
   hidden_tests: 'a,
   // raw_result: 'a,
@@ -410,7 +410,7 @@ let map_stitched = (f: (pos, 'a) => 'b, s: stitched('a)): stitched('b) => {
   user_impl: f(YourImpl, s.user_impl),
   //   user_tests: f(YourTestsTesting, s.user_tests),
   //   prelude: f(Prelude, s.prelude),
-  instructor: f(YourImpl, s.instructor),
+  // instructor: f(YourImpl, s.instructor),
   //   hidden_bugs: List.mapi((i, p) => f(HiddenBugs(i), p), s.hidden_bugs),
   hidden_tests: f(HiddenTests, s.hidden_tests),
   // raw_result: f(YourImpl, s.raw_result),
@@ -505,14 +505,9 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
   let hidden_tests_term =
     EditorUtil.append_exp(user_impl_term, hidden_tests_term);
 
-  let instructor =
-    eds.wrapper
-      ? EditorUtil.append_exp(wrapped_user_impl, term_of(eds.your_impl))
-      : EditorUtil.append_exp(user_impl_term, term_of(eds.your_impl));
-
   {
     user_impl: wrap(user_impl_term, eds.your_impl),
-    instructor: wrap(instructor, eds.your_impl),
+    // instructor: wrap(instructor, eds.your_impl),
     hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
     // raw_result: wrap((user_impl_term), eds.your_impl),
   };

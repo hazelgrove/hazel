@@ -224,8 +224,11 @@ module Update = {
     print_endline("updating!");
     switch (action) {
     | Globals(action) =>
-      update_global(~globals, ~import_log, ~schedule_action, action, model)
+      print_endline("updating (global)!");
+      update_global(~globals, ~import_log, ~schedule_action, action, model);
+
     | Editors(action) =>
+      print_endline("updating (editors)!");
       let* editors =
         Editors.Update.update(
           ~globals,

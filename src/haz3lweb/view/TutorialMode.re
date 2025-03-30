@@ -213,6 +213,7 @@ module Update = {
             | Ok((r, s)) => ResultOk({result: r, state: s})
             | Error(e) => ResultFail(e)
             };
+          print_endline("scheduling");
           schedule_action(
             Editor(pos', ResultAction(UpdateResult(result'))),
           );
@@ -237,16 +238,22 @@ module Update = {
        one of the editors is shown in two cells, so we arbitrarily choose which
        statics to take */
     let editors: Tutorial.p('a) = {
+      let calculate = Editor.Update.calculate(~settings, ~is_edited);
       {
         id: model.editors.id,
         title: model.editors.title,
         version: model.editors.version,
         module_name: model.editors.module_name,
         prompt: model.editors.prompt,
-        your_impl: model.editors.your_impl,
+        your_impl:
+          calculate(cells.user_impl.editor.statics, model.editors.your_impl),
         display_hint: model.editors.display_hint,
         hidden_tests: {
-          tests: model.editors.hidden_tests.tests,
+          tests:
+            calculate(
+              cells.hidden_tests.editor.statics,
+              model.editors.hidden_tests.tests,
+            ),
           hints: model.editors.hidden_tests.hints,
         },
         wrapper: model.editors.wrapper,
@@ -316,8 +323,7 @@ module View = {
         model: Model.t,
       ) => {
     let eds = model.editors;
-    let {user_impl, instructor, hidden_tests}: Tutorial.stitched('a) =
-      model.cells;
+    let {user_impl, hidden_tests}: Tutorial.stitched('a) = model.cells;
 
     let stitched_tests =
       Tutorial.map_stitched(
@@ -454,7 +460,7 @@ module View = {
                       div(
                         ~attrs=[Attr.class_("next-button")],
                         [
-                          Widgets.button(Icons.forward, _ =>
+                          Widgets.button(Icons.next, _ =>
                             inject(MoveToNextExercise)
                           ),
                         ],

@@ -142,9 +142,9 @@ module Update = {
           m,
         );
       Model.Exercises(exercises);
-    | (Tutorial(_), Exercises(_))
+    | (Tutorial(_), Exercises(_)) => model |> return_quiet
     | (Tutorial(_), Scratch(_))
-    | (Tutorial(_), Documentation(_))
+    | (Tutorial(_), Documentation(_)) => model |> return_quiet
     | (Scratch(_), Exercises(_))
     | (Scratch(_), Tutorial(_))
     | (Exercises(_), Scratch(_))
