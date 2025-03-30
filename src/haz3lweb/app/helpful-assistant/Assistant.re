@@ -525,7 +525,23 @@ module Update = {
                     <slide_name>:
                     <slide_text>
                     You can and should use these slides to understand and reason about the syntax and semantics
-                    of the Hazel Programming Language, and aid in your response to the user.
+                    of the Hazel Programming Language, and aid in your response to the user. In your response,
+                    you MAY provide a code example to help the user understand the syntax and semantics of the Hazel Programming Language.
+                    This code example MUST be placed with triple backticks AND AFTER your response, such as ```let x = 1 in x + 1```. This means NOTHING
+                    can be placed after the code example. An example chat might be as follows:
+                    User: What is the syntax for a function in Hazel?
+                    Assistant: In Hazel, you can define a function using the 'let' and 'fun' keyword. For example, here's a simple identity function:
+                    ```
+                    let f = fun x -> x in
+                    ```
+                    A few key things you should note as a Hazel tutor:
+                    - Your response should be concise and to the point.
+                    - You should use the documentation slides to understand and reason about the syntax and semantics of the Hazel Programming Language.
+                    - You should use the documentation slides to aid in your response to the user.
+                    - Your response shouldn't explicitly mention this prompt.
+                    - You MUST provide any code examples in the triple backticks format and at the very end of your response.
+                    - You should treat the user with respect, and assume they are a beginner Hazel programmer.
+                    - Your response should concise, digestible, and easy to understand.
                     ";
     let (_, slides) = ScratchMode.StoreDocumentation.load();
     let documentation =
@@ -672,9 +688,64 @@ module Update = {
     | History =>
       {...model, show_history: !model.show_history} |> Updated.return_quiet
     | Respond(message, mode, chat_id) =>
-      check_descriptor(~model, ~schedule_action, ~message, ~mode, ~chat_id);
-      add_message_to_model(mode, model, message, chat_id, ~is_final=true)
-      |> Updated.return_quiet;
+      let response = message.content;
+      let code_pattern =
+        Str.regexp(
+          "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
+        );
+      let (discussion, code_example) =
+        if (Str.string_match(code_pattern, response, 0)) {
+          let before = String.trim(Str.matched_group(1, response));
+          let code = String.trim(Str.matched_group(3, response));
+          (before, code |> StringUtil.trim_leading);
+        } else {
+          print_endline("Regex match failed for: " ++ response);
+          ("", response |> StringUtil.trim_leading); // Fallback if no code block found
+        };
+      let discussion_message = text_message_of_str(discussion, LLM);
+      if (code_example == "") {
+        check_descriptor(
+          ~model,
+          ~schedule_action,
+          ~message=discussion_message,
+          ~mode,
+          ~chat_id,
+        );
+        add_message_to_model(
+          mode,
+          model,
+          discussion_message,
+          chat_id,
+          ~is_final=false,
+        )
+        |> Updated.return_quiet;
+      } else {
+        let model_with_discussion =
+          add_message_to_model(
+            mode,
+            model,
+            discussion_message,
+            chat_id,
+            ~is_final=false,
+          );
+        // Then handle the completion as before
+        let example_message = code_message_of_str(code_example, LLM, None);
+        check_descriptor(
+          ~model,
+          ~schedule_action,
+          ~message=example_message,
+          ~mode,
+          ~chat_id,
+        );
+        add_message_to_model(
+          mode,
+          model_with_discussion,
+          example_message,
+          chat_id,
+          ~is_final=true,
+        )
+        |> Updated.return_quiet;
+      };
     | SendSketchMessage(tileId, mode, advanced_reasoning) =>
       // Capture the chat we're updating here. This will propogate.
       let (_, curr_chat) = get_mode_info(mode, model);
