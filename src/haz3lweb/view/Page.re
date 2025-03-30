@@ -40,7 +40,6 @@ module Store = {
   };
 
   let save = (m: Model.t): unit => {
-    print_endline("page save called");
     Editors.Store.save(
       ~instructor_mode=m.globals.settings.instructor_mode,
       m.editors,
@@ -221,14 +220,11 @@ module Update = {
       export_all: Export.export_all,
       get_log_and,
     };
-    print_endline("updating!");
     switch (action) {
     | Globals(action) =>
-      print_endline("updating (global)!");
-      update_global(~globals, ~import_log, ~schedule_action, action, model);
+      update_global(~globals, ~import_log, ~schedule_action, action, model)
 
     | Editors(action) =>
-      print_endline("updating (editors)!");
       let* editors =
         Editors.Update.update(
           ~globals,
@@ -252,7 +248,6 @@ module Update = {
       model |> Updated.return_quiet;
     | Start => model |> return // Triggers recalculation at the start
     | Save =>
-      print_endline("Saving...");
       Store.save(model);
       model |> return_quiet;
     };

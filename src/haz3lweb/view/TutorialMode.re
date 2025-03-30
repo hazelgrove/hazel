@@ -213,7 +213,6 @@ module Update = {
             | Ok((r, s)) => ResultOk({result: r, state: s})
             | Error(e) => ResultFail(e)
             };
-          print_endline("scheduling");
           schedule_action(
             Editor(pos', ResultAction(UpdateResult(result'))),
           );

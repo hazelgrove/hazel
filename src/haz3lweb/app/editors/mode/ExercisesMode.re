@@ -106,7 +106,6 @@ module Store = {
   };
 
   let save = (model: Model.t, ~instructor_mode) => {
-    print_endline("saving");
     let exercise = List.nth(model.exercises, model.current);
     let key = Exercise.key_of(exercise.editors);
     save_exercise(exercise, ~instructor_mode);
