@@ -9,6 +9,7 @@ all: dev
 deps:
 	opam update
 	opam install ./hazel.opam.locked --deps-only --with-test --with-doc
+	npm install
 
 change-deps:
 	opam update
