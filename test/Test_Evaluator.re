@@ -910,6 +910,22 @@ in fn("hello")|},
       },
     ),
     test_case(
+      "Minimized melt",
+      `Quick,
+      () => {
+        let program = {|case melt('var', 'val', [(a=true, b=false)])
+          | (x :: xs) => x
+          | [] =>
+        end|};
+        check(
+          dhexp_typ,
+          program,
+          parse_exp({|(var="a", val=true)|}),
+          DHExp.strip_casts(evaluate(elaborate(parse_exp(program)))),
+        );
+      },
+    ),
+    test_case(
       "Melt result being passed to function",
       `Quick,
       () => {
