@@ -102,7 +102,7 @@ module Model = {
       past_completion_chats:
         add_chat_to_history(init_completion_chat, Id.Map.empty),
     },
-    llm: Gemini_Flash_Lite_2_0,
+    llm: Gemini_Experimental_2point5,
     show_history: false,
     show_api_key: false,
   };
@@ -604,6 +604,7 @@ module Update = {
       let tutor_chat =
         List.length(curr_chat.messages) == 0
           ? tutor_prelude ++ "\n\n" ++ collected_chat : collected_chat;
+      print_endline("tutor_chat: " ++ tutor_chat);
       switch (Oracle.ask(tutor_chat)) {
       | None =>
         add_message_to_model(

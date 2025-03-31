@@ -133,11 +133,12 @@ let select_llm = (~inject, ~assistantModel: Assistant.Model.t): Node.t => {
     let value = Js.to_string(Js.Unsafe.coerce(event)##.target##.value);
     let selected_llm =
       switch (value) {
-      | "Gemini_Flash_Lite_2_0" => OpenRouter.Gemini_Flash_Lite_2_0
-      | "Gemini_Experimental_1206" => OpenRouter.Gemini_Experimental_1206
-      | "Llama_3_1_Nemo" => OpenRouter.Llama_3_1_Nemo
+      | "Gemini_Experimental_2.5" => OpenRouter.Gemini_Experimental_2point5
+      | "Deepseek_R1" => OpenRouter.Deepseek_R1
       | "DeepSeek_V3" => OpenRouter.DeepSeek_V3
-      | _ => OpenRouter.Gemini_Flash_Lite_2_0
+      | "Llama_3_1_Nemo" => OpenRouter.Llama_3_1_Nemo
+      | "Claude_3_5_Sonnet" => OpenRouter.Claude_3_5_Sonnet
+      | _ => OpenRouter.Gemini_Experimental_2point5
       };
     Virtual_dom.Vdom.Effect.Many([
       inject(Assistant.Update.SelectLLM(selected_llm)),
@@ -160,25 +161,30 @@ let select_llm = (~inject, ~assistantModel: Assistant.Model.t): Node.t => {
         [
           option(
             ~attrs=[
-              Attr.value("Gemini_Flash_Lite_2_0"),
+              Attr.value("Gemini_Experimental_2.5"),
               is_selected(
-                OpenRouter.Gemini_Flash_Lite_2_0,
+                OpenRouter.Gemini_Experimental_2point5,
                 assistantModel.llm,
               )
                 ? Attr.selected : Attr.empty,
             ],
-            [text("Gemini Flash Lite 2.0")],
+            [text("Gemini Experimental 2.5")],
           ),
           option(
             ~attrs=[
-              Attr.value("Gemini_Experimental_1206"),
-              is_selected(
-                OpenRouter.Gemini_Experimental_1206,
-                assistantModel.llm,
-              )
+              Attr.value("Deepseek_R1"),
+              is_selected(OpenRouter.Deepseek_R1, assistantModel.llm)
                 ? Attr.selected : Attr.empty,
             ],
-            [text("Gemini Experimental 1206")],
+            [text("Deepseek R1")],
+          ),
+          option(
+            ~attrs=[
+              Attr.value("DeepSeek_V3"),
+              is_selected(OpenRouter.DeepSeek_V3, assistantModel.llm)
+                ? Attr.selected : Attr.empty,
+            ],
+            [text("DeepSeek V3")],
           ),
           option(
             ~attrs=[
@@ -190,11 +196,11 @@ let select_llm = (~inject, ~assistantModel: Assistant.Model.t): Node.t => {
           ),
           option(
             ~attrs=[
-              Attr.value("DeepSeek_V3"),
-              is_selected(OpenRouter.DeepSeek_V3, assistantModel.llm)
+              Attr.value("Claude_3_5_Sonnet"),
+              is_selected(OpenRouter.Claude_3_5_Sonnet, assistantModel.llm)
                 ? Attr.selected : Attr.empty,
             ],
-            [text("DeepSeek V3")],
+            [text("Claude 3.5 Sonnet")],
           ),
         ],
       ),
