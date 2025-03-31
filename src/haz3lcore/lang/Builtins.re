@@ -421,7 +421,10 @@ module Pervasives = {
                                  Typ.(
                                    prod([
                                      tup_label(label(col_lab), string()),
-                                     tup_label(label(val_lab), unknown(Internal)) // TODO We need the actual type of the value
+                                     tup_label(
+                                       label(val_lab),
+                                       unknown(Internal),
+                                     ) // TODO We need the actual type of the value
                                    ])
                                  ),
                                  Typ.unknown(Internal),
