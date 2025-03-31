@@ -149,6 +149,30 @@ let is_complete: t => bool =
   | Tile(t) => Tile.is_complete(t)
   | _ => true;
 
+let replace_id = (id: Id.t, p: t): t =>
+  switch (p) {
+  | Tile(t) =>
+    Tile({
+      ...t,
+      id,
+    })
+  | Grout(g) =>
+    Grout({
+      ...g,
+      id,
+    })
+  | Secondary(w) =>
+    Secondary({
+      ...w,
+      id,
+    })
+  | Projector(p) =>
+    Projector({
+      ...p,
+      id,
+    })
+  };
+
 let mk_tile: (Form.t, list(list(t))) => t =
   (form, children) =>
     Tile({
