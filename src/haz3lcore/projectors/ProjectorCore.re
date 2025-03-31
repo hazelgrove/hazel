@@ -34,6 +34,7 @@ module Kind = {
     SliderF,
     TextArea,
     Card,
+    Livelit,
   ];
 
   let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];

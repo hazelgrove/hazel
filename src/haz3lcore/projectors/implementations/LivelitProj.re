@@ -1,6 +1,7 @@
 open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
+open Node;
 
 let of_id = (id: Id.t) =>
   "id" ++ (id |> Id.to_string |> String.sub(_, 0, 8));
@@ -79,37 +80,27 @@ let replace_piece_in_segment =
 let extract_livelit_name_from_exp = (exp: Exp.t): string => {
   let (term, _) = Exp.unwrap(exp);
   switch (term) {
-  | Parens(args) =>
-    switch (args.term) {
-    | Ap(_dir, ll_exp, _args) =>
-      let (ll_term, _) = Exp.unwrap(ll_exp);
-      switch (ll_term) {
-      | LivelitName(name) => name
-      | _ =>
-        failwith(
-          "LivelitProj: Not a LivelitName term -- " ++ Exp.show(ll_exp),
-        )
-      };
-    | _ => failwith("LivelitProj: Not an Ap term -- " ++ Exp.show(args))
-    }
-  | _ => failwith("LivelitProj: Not a Parens term -- " ++ Exp.show(exp))
+  | Ap(_dir, ll_exp, _args) =>
+    let (ll_term, _) = Exp.unwrap(ll_exp);
+    switch (ll_term) {
+    | LivelitName(name) => name
+    | _ =>
+      failwith("LivelitProj: Not a LivelitName term -- " ++ Exp.show(ll_exp))
+    };
+  | _ => failwith("LivelitProj: Not an Ap term -- " ++ Exp.show(exp))
   };
 };
 
 let extract_args_from_exp = (exp: Exp.t): list(Exp.t) => {
   let (term, _) = Exp.unwrap(exp);
   switch (term) {
-  | Parens(args) =>
-    switch (args.term) {
-    | Ap(_dir, _ll_exp, args) =>
-      let (term, _) = Exp.unwrap(args);
-      switch (term) {
-      | Tuple(lst) => lst
-      | _ => [args]
-      };
-    | _ => failwith("LivelitProj: Not an Ap term -- " ++ Exp.show(args))
-    }
-  | _ => failwith("LivelitProj: Not a Parens term -- " ++ Exp.show(exp))
+  | Ap(_dir, _ll_exp, args) =>
+    let (term, _) = Exp.unwrap(args);
+    switch (term) {
+    | Tuple(lst) => lst
+    | _ => [args]
+    };
+  | _ => failwith("LivelitProj: Not an Ap term -- " ++ Exp.show(exp))
   };
 };
 
@@ -119,8 +110,7 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let init = (_any: Term.Any.t) => None;
-  let can_project = _p => true;
+  let init = (_any: Term.Any.t) => Some();
   let can_focus = false;
   let placeholder = (_model, info) => {
     let llname =
@@ -176,7 +166,10 @@ module M: Projector = {
     let ll = Ctx.lookup_livelit(ctx, ll_name);
 
     switch (ll) {
-    | None => failwith("LivelitProj: Not a Parens term")
+    | None =>
+      ProjectorBase.View.mk(
+        div([text("LivelitProj: No livelit found for " ++ ll_name)]),
+      )
     | Some(ll) =>
       /* Ignore the first piece, which is the livelit invocation */
       let pieces =
