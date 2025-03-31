@@ -26,7 +26,14 @@ let mk_all = (~core_settings, ~instructor_mode, ~log) => {
   let documentation = ScratchMode.StoreDocumentation.export();
   let exercise =
     ExercisesMode.Store.export(~settings=core_settings, ~instructor_mode);
-  {settings, explainThisModel, scratch, documentation, exercise, log};
+  {
+    settings,
+    explainThisModel,
+    scratch,
+    documentation,
+    exercise,
+    log,
+  };
 };
 
 let export_all = (~settings, ~instructor_mode, ~log) => {
