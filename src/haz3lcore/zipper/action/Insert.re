@@ -168,25 +168,6 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
 
 let opt_regrold = d => Option.map(remold_regrout(d));
 
-let init_projector =
-    (kind: ProjectorCore.Kind.t, syntax: ProjectorBase.syntax)
-    : ProjectorBase.syntax => {
-  /* We set the projector id equal to the Piece id for convienence
-   * including cursor-info association. We maintain this invariant
-   * when we update a projector's contained syntax */
-  let (module P) = ProjectorInit.to_module(kind);
-  switch (P.can_project(syntax)) {
-  | false => syntax
-  | true =>
-    Projector({
-      id: Piece.id(syntax),
-      kind,
-      model: P.init,
-      syntax,
-    })
-  };
-};
-
 let move_into_if_stringlit_or_comment = (char, z) =>
   /* This is special-case logic for advancing the caret to position between the quotes
      in newly-created stringlits. The main stringlit special-case is in Zipper.constuct
@@ -239,28 +220,26 @@ let rec go =
       switch (Ctx.lookup_livelit(ctx, name)) {
       // if we find a matching livelit, insert it projected
       | Some(ll) =>
-        // Move to the left
-        let left_z = z |> Zipper.move(Left) |> Option.get;
-        // insert (
-        let leftpar_z = insert(Some(left_z), "(") |> Option.get;
-        // move to the right
-        let right_z = leftpar_z |> Zipper.move(Right) |> Option.get;
-
         let formatted_z =
           "("
           ++ ll.model_default
-          ++ "))"
+          ++ ")"
           |> StringUtil.to_list
-          |> List.fold_left(insert, Some(right_z));
+          |> List.fold_left(insert, Some(z));
 
-        let left_neighbor =
+        let args_and_name =
           switch (formatted_z) {
-          | Some(z) => z.relatives.siblings |> Siblings.left_neighbor
+          | Some(z) =>
+            Some(z.relatives.siblings |> fst |> List.rev |> ListUtil.take(2))
           | None => None
           };
 
         let updated_syntax =
-          init_projector(Livelit, Option.get(left_neighbor));
+          ProjectorInit.init_or_noop(
+            Livelit,
+            Segment.parenthesize(Option.get(args_and_name)),
+            Exp(IdTagged.FreshGrammar.Exp.int(0)),
+          );
 
         let new_left_siblings =
           switch (List.rev(fst(z.relatives.siblings))) {
@@ -272,6 +251,7 @@ let rec go =
           Option.get(formatted_z)
           |> Zipper.update_siblings(((_, r)) => (new_left_siblings, r)),
         );
+
       // No matching livelit found, insert space
       | None => insert_outer(char, z)
       };

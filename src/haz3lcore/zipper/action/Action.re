@@ -43,7 +43,7 @@ type select =
   | Tile(rel)
   | Term(rel);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chooser =
   | Specific(ProjectorCore.Kind.t)
   | ChooseLivelit;
@@ -71,12 +71,12 @@ type buffer =
   | Clear
   | Accept;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type paste =
   | String(string)
   | Segment(Segment.t);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Reparse
   | Buffer(buffer)
