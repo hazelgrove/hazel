@@ -232,14 +232,6 @@ module Ordered = {
   let without_keys = (keys, m) => {
     filterk(((s, _)) => !List.exists(x => x == s, keys), m);
   };
-
-  let equal = (cmp, m1, m2) =>
-    VarBstMap0.equal(cmp, m1.map, m2.map)
-    && List.equal(
-         (x, y) => Var.equal(fst(x), fst(y)),
-         m1.rev_order,
-         m2.rev_order,
-       );
 };
 
 include VarBstMap0;
