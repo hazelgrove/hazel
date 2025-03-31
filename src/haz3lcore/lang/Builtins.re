@@ -398,7 +398,7 @@ module Pervasives = {
              unknown(Internal),
              list(unknown(Internal)),
            ]),
-           Unknown(Internal),
+           List(unknown(Internal)),
            ternary((col_lab: DHExp.t, val_lab: DHExp.t, d: DHExp.t) => {
              switch (col_lab.term, val_lab.term) {
              | (Label(col_lab), Label(val_lab)) =>
