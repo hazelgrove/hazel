@@ -48,7 +48,11 @@ let slider: t = {
       ],
     );
   },
-  size: Inline(20),
+  size:
+    ProjectorCore.Shape.{
+      vertical: Inline,
+      horizontal: 20,
+    },
   id: Id.invalid,
 };
 
@@ -133,7 +137,11 @@ let js: t = {
 
     out;
   },
-  size: Inline(20),
+  size:
+    ProjectorCore.Shape.{
+      vertical: Inline,
+      horizontal: 20,
+    },
   id: Id.invalid,
 };
 
@@ -151,7 +159,11 @@ let error: t = {
       ~attrs=[Attr.class_("livelit")],
       [Node.text("Cannot display livelit -- are statics enabled?")],
     ),
-  size: Inline(100),
+  size:
+    ProjectorCore.Shape.{
+      vertical: Inline,
+      horizontal: 100,
+    },
   id: Id.invalid,
 };
 
@@ -261,10 +273,10 @@ let emotion: t = {
     );
   },
   size:
-    Block({
-      row: 10,
-      col: 20,
-    }),
+    ProjectorCore.Shape.{
+      vertical: Block(20),
+      horizontal: 10,
+    },
   id: Id.invalid,
 };
 

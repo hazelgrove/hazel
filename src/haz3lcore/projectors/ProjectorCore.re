@@ -25,6 +25,7 @@ module Kind = {
     | Slider
     | SliderF
     | Card
+    | Livelit
     | TextArea;
 
   let livelit_projectors: list(t) = [
@@ -49,6 +50,7 @@ module Kind = {
     | Slider => "slider"
     | SliderF => "sliderf"
     | Card => "card"
+    | Livelit => "livelit"
     | TextArea => "text"
     };
 
@@ -64,6 +66,7 @@ module Kind = {
     | "slider" => Slider
     | "sliderf" => SliderF
     | "text" => TextArea
+    | "livelit" => Livelit
     | "card" => Card
     | _ => failwith("Unknown projector kind")
     };

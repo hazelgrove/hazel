@@ -169,11 +169,12 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
 let opt_regrold = d => Option.map(remold_regrout(d));
 
 let init_projector =
-    (kind: Base.kind, syntax: ProjectorBase.syntax): ProjectorBase.syntax => {
+    (kind: ProjectorCore.Kind.t, syntax: ProjectorBase.syntax)
+    : ProjectorBase.syntax => {
   /* We set the projector id equal to the Piece id for convienence
    * including cursor-info association. We maintain this invariant
    * when we update a projector's contained syntax */
-  let (module P) = Projector.to_module(kind);
+  let (module P) = ProjectorInit.to_module(kind);
   switch (P.can_project(syntax)) {
   | false => syntax
   | true =>
