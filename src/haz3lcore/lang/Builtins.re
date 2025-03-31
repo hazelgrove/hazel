@@ -411,11 +411,22 @@ module Pervasives = {
                      Some(
                        List.map(
                          ((name, e)) =>
-                           IdTagged.FreshGrammar.Exp.(
-                             tuple([
-                               tup_label(label(col_lab), string(name)),
-                               tup_label(label(val_lab), e),
-                             ])
+                           IdTagged.FreshGrammar.(
+                             Exp.(
+                               cast(
+                                 tuple([
+                                   tup_label(label(col_lab), string(name)),
+                                   tup_label(label(val_lab), e),
+                                 ]),
+                                 Typ.(
+                                   prod([
+                                     tup_label(label(col_lab), string()),
+                                     tup_label(label(val_lab), unknown(Internal)) // TODO We need the actual type of the value
+                                   ])
+                                 ),
+                                 Typ.unknown(Internal),
+                               )
+                             )
                            ),
                          entries,
                        ),
