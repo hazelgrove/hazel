@@ -57,7 +57,7 @@ module Model = {
     // Updated
     pattern: CodeEditable.Model.t,
     // Calculated
-    elab_pattern: Calc.saved(Exp.t),
+    elab_pattern: Calc.saved(Pat.t),
     inner_exp: Calc.saved(Exp.t),
     step,
     last_exp: Calc.saved(Exp.t),
@@ -70,6 +70,7 @@ module Model = {
     cases: list(case),
     // Calculated
     elab_scrut: Calc.saved(Exp.t),
+    scrut_ty: Calc.saved(Typ.t),
     result: Calc.saved(Exp.t),
     result_state: Calc.saved(EvaluatorState.t),
     induction_valid: Calc.saved(induction_valid),
@@ -99,6 +100,7 @@ module Model = {
     scrut: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
     cases: [],
     elab_scrut: Calc.Pending,
+    scrut_ty: Calc.Pending,
     result: Calc.Pending,
     result_state: Calc.Pending,
     induction_valid: Calc.Pending,
@@ -652,6 +654,7 @@ module Update = {
       scrut,
       cases,
       elab_scrut,
+      scrut_ty,
       result: _,
       result_state: _,
       induction_valid: _,
@@ -673,6 +676,19 @@ module Update = {
         CodeEditable.Model.get_statics(scrut).elaborated,
         elab_scrut,
       );
+    let scrut_ty = {
+      let self_ty =
+        switch (
+          Id.Map.find_opt(
+            Exp.rep_id(CodeEditable.Model.get_statics(scrut).elaborated),
+            CodeEditable.Model.get_statics(scrut).info_map,
+          )
+        ) {
+        | Some(Info.InfoExp({ty, _})) => ty
+        | _ => raise(Elaborator.MissingTypeInfo)
+        };
+      Calc.set(~eq=Typ.fast_equal, self_ty, scrut_ty);
+    };
     let cases =
       List.map(
         (
@@ -683,14 +699,21 @@ module Update = {
               ~is_dynamic_term=true,
               ~settings=Calc.get_value(settings),
               ~dynamics=Dynamics.Map.empty,
-              ~is_edited=true,
-              ~stitch=x => x,
+              ~is_edited=true, // This editor technically edits Exps, but we want a Pat, so we put it in a function to emulate that.
+              ~stitch=
+                x =>
+                  x
+                  |> ProofHacks.exp_to_pat
+                  |> ProofHacks.add_wrapping_function(
+                       ~typ=scrut_ty |> Calc.get_value,
+                     ),
               pattern,
             );
           let elab_pattern =
             Calc.set(
-              ~eq=Exp.fast_equal,
-              CodeEditable.Model.get_statics(pattern).elaborated,
+              ~eq=Pat.fast_equal,
+              CodeEditable.Model.get_statics(pattern).elaborated
+              |> ProofHacks.remove_wrapping_function,
               elab_pattern,
             );
           let inner_exp =
@@ -700,7 +723,11 @@ module Update = {
               let.calc elab_pattern = elab_pattern
               and.calc elab_scrut = elab_scrut
               and.calc exp = exp;
-              DHExp.replace_exp(elab_scrut, elab_pattern, exp);
+              DHExp.replace_exp(
+                elab_scrut,
+                elab_pattern |> ProofHacks.pat_to_exp,
+                exp,
+              );
             };
           let (stepper, last_exp) =
             calculate_step(
@@ -752,6 +779,7 @@ module Update = {
         scrut,
         cases,
         elab_scrut: elab_scrut |> Calc.save,
+        scrut_ty: scrut_ty |> Calc.save,
         result,
         result_state,
         induction_valid,
