@@ -66,6 +66,16 @@ let ( let* ) = (x: unboxed('a), f: 'a => unboxed('b)): unboxed('b) =>
   | Matches(x) => f(x)
   };
 
+let sequence = (l: list(unboxed('a))): unboxed(list('a)) =>
+  List.fold_left(
+    (acc, x) => {
+      let* acc = acc;
+      let* x = x;
+      Matches([x, ...acc]);
+    },
+    Matches([]),
+    l,
+  );
 let fixup_cast = Casts.transition_multiple;
 
 /* This function has a different return type depending on what kind of request
@@ -104,36 +114,23 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* Remove Tuplabels from casts otherwise */
     | (_, Cast(e, {term: TupLabel(_, e1), _}, e2)) =>
       switch (DHExp.term_of(e)) {
-      | TupLabel(_, e) => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
-      | _ => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
+      | TupLabel(_, e) =>
+        unbox(request, fixup_cast(Cast(e, e1, e2) |> DHExp.fresh))
+      | _ => unbox(request, fixup_cast(Cast(e, e1, e2) |> DHExp.fresh))
       }
-    | (
-        LabeledTupleProjection(_),
-        Cast(d, _, {term: Prod([{term: Unknown(Internal), _}]), _}),
-      ) =>
-      unbox(request, d)
-    | (
-        LabeledTupleProjection(l),
-        Cast(
-          d,
-          _,
-          {
-            term:
-              Prod([
-                {
-                  term:
-                    TupLabel(
-                      {term: Label(l'), _},
-                      {term: Unknown(Internal), _},
-                    ),
-                  _,
-                },
-              ]),
-            _,
-          },
-        ),
-      )
-        when l == l' =>
+    | (LabeledTupleProjection(l), Cast(_, _, {term: List(_), _})) =>
+      let* ls: list(TermBase.exp_t) = unbox(List, expr);
+      let* elements: list(TermBase.exp_t) =
+        sequence(List.map(unbox(LabeledTupleProjection(l)), ls));
+      let exp: TermBase.exp_t = ListLit(elements) |> Exp.fresh;
+      Matches(exp);
+    | (LabeledTupleProjection(l), Cast(_, {term: List(_), _}, _)) =>
+      let* ls: list(TermBase.exp_t) = unbox(List, expr);
+      let* elements: list(TermBase.exp_t) =
+        sequence(List.map(unbox(LabeledTupleProjection(l)), ls));
+      let exp: TermBase.exp_t = ListLit(elements) |> Exp.fresh;
+      Matches(exp);
+    | (LabeledTupleProjection(_), Cast(d, _, {term: Prod(_), _})) =>
       unbox(request, d)
     | (LabeledTupleProjection(l), Tuple(ds)) =>
       switch (LabeledTuple.find_label(Exp.match_tup_label, ds, l)) {

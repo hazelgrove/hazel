@@ -955,5 +955,30 @@ in fn("hello")|},
         );
       },
     ),
+    test_case(
+      "Projection of melted data",
+      `Quick,
+      () => {
+        let program = {|let filter = typfun a -> fun (pred :a -> Bool, xs : [a]) -> case xs
+  | [] => []
+  | (x :: xs) => (if pred(x) then [x] else []) @ filter@<a>(pred, xs)
+end in
+
+let jellyAnon : [(get_acne=Bool, red=Bool)] = [
+  (true, false),
+  (true, true)
+] in
+
+let melted : [(var=String, val=Bool)] = melt('var', 'val', jellyAnon) in
+
+filter@<(var=String, val=Bool)>(fun a,b ->b, melted).var|};
+        check(
+          dhexp_typ,
+          program,
+          parse_exp({|["get_acne", "get_acne", "red"]|}),
+          DHExp.strip_casts(evaluate(elaborate(parse_exp(program)))),
+        );
+      },
+    ),
   ],
 );
