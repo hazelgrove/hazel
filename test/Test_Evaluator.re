@@ -948,8 +948,10 @@ in fn("hello")|},
         check(
           dhexp_typ,
           program,
-          parse_exp({|[(var="get_acne", val=true)]|}),
-          evaluate(elaborate(parse_exp(program))),
+          parse_exp(
+            {|[(var="get_acne", val=true), (var="get_acne", val=true), (var="red", val=true)]|},
+          ),
+          DHExp.strip_casts(evaluate(elaborate(parse_exp(program)))),
         );
       },
     ),
