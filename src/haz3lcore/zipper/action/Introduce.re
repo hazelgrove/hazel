@@ -97,8 +97,6 @@ let already_parenthesized = (z: Zipper.t) => {
   |> List.length(_) == 1;
 };
 
-// Do Zipper.move(Right, z) until ZipperBase.left_sib_has_id(z, id)
-// TODO Talk to andrew about whether we can use Move here
 let rec move_right_until_id = (id: Id.t, z: Zipper.t): Zipper.t =>
   ZipperBase.MapPiece.left_sib_has_id(z, id)
     ? z
