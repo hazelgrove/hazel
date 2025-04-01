@@ -185,13 +185,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       };
     | _ => None
     };
-  print_endline(
-    "Transitioning \n"
-    ++ DHExp.show(d)
-    ++ " to \n"
-    ++ [%derive.show: option(Exp.t)](res)
-    ++ "\n",
-  );
+
   res;
 };
 
