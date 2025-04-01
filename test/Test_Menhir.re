@@ -737,5 +737,9 @@ let ex5 = list_of_mylist(x) in
       ),
       QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
       QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
+      menhir_maketerm_equivalent_test(
+        "forall succint syntax",
+        {|  let apply_both : forall A, B -> (forall D -> D -> D) -> (A , B) -> (A , B) = typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in "BYE"|},
+      ),
     ],
   );

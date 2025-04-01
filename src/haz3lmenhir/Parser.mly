@@ -235,7 +235,9 @@ typ:
     | UNKNOWN; INTERNAL { UnknownType(Internal) }
     | QUESTION { UnknownType(EmptyHole) }
     | UNIT { TupleType([]) }
-    | FORALL; a = tpat; DASH_ARROW; t = typ { ForallType(a, t) }
+    | FORALL; pats = separated_nonempty_list(COMMA, tpat); DASH_ARROW; t = typ {
+        List.fold_right (fun pat acc -> ForallType(pat, acc)) pats t
+    }
     | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
@@ -340,7 +342,9 @@ exp:
     | f = funExp {f}
     | FALSE { Bool false }    
     | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
-    | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
+    | TYP_FUN; pats = separated_nonempty_list(COMMA, tpat); DASH_ARROW; e = exp {
+        List.fold_right (fun pat acc -> TypFun(pat, acc)) pats e
+    }
     | QUESTION { EmptyHole }
     | a = filterAction; cond = exp; IN; body = exp { Filter(a, cond, body)} %prec LET_EXP
     | TEST; e = exp; END { Test(e) }
