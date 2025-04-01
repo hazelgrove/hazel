@@ -50,7 +50,8 @@ type unbox_request('a) =
   | TupleElementPivot(LabeledTuple.label)
     : unbox_request((LabeledTuple.label, list(DHExp.t)))
   | LabeledTupleProjection(LabeledTuple.label): unbox_request(DHExp.t)
-  | LabeledTupleEntries: unbox_request(list((LabeledTuple.label, DHExp.t)));
+  | LabeledTupleEntries
+      : unbox_request(list((option(LabeledTuple.label), DHExp.t)));
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type unboxed('a) =
@@ -140,6 +141,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | _ => IndetMatch // TODO Should this be DoesNotMatch?
       }
     | (LabeledTupleProjection(_), ListLit(_)) => Matches(expr)
+    // TODO Do tuple element pivot with LabeledTupleEntries
     | (TupleElementPivot(_), Cast(d, _, {term: Unknown(_), _})) =>
       unbox(request, d)
     | (TupleElementPivot(_), Cast(d, ty1, ty2))
@@ -154,14 +156,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
             // TODO: I need a better plan than stripping casts
             | Some((name, {term: Atom(String(e)), _})) when name == l =>
               Some(e)
-            | (d: option((string, TermBase.exp_t))) =>
-              print_endline("Not found: " ++ Exp.show(exp));
-              print_endline(
-                "\td: "
-                ++ [%derive.show: option((string, TermBase.exp_t))](d),
-              );
-
-              None;
+            | (_d: option((string, TermBase.exp_t))) => None
             }
           },
           ds,
@@ -170,39 +165,97 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | None => DoesNotMatch
       | Some(a) => Matches(a)
       };
-    | (LabeledTupleEntries, Cast(d, _, {term: Unknown(_), _})) =>
-      unbox(request, d)
-    | (LabeledTupleEntries, Cast(d, ty1, ty2))
-        when Typ.is_consistent(Ctx.empty_pre_elaboration, ty1, ty2) =>
-      // TODO: This is a hack. We need a better way to handle this than an empty context.
-      unbox(request, d)
+    | (
+        LabeledTupleEntries,
+        Cast(d, {term: Prod(tys), _}, {term: Unknown(_), _}),
+      ) =>
+      let* entries: list((option(LabeledTuple.label), DHExp.t)) =
+        unbox(request, d);
+
+      if (List.length(entries) == List.length(tys)) {
+        let entries =
+          List.map2(
+            ((lab, e), ty) =>
+              (
+                lab,
+                fixup_cast(
+                  Cast(e, ty, Unknown(Internal) |> Typ.fresh) |> DHExp.fresh,
+                ),
+              ),
+            entries,
+            tys,
+          );
+        Matches(entries);
+      } else {
+        DoesNotMatch;
+      };
+    | (
+        LabeledTupleEntries,
+        Cast(t, {term: Prod(t1s), _}, {term: Prod(t2s), _}),
+      )
+        when List.length(t1s) == List.length(t2s) =>
+      let* t = unbox(LabeledTupleEntries, t);
+      let t =
+        ListUtil.map3(
+          ((lab, d), t1, t2) => {
+            let value_ty1 =
+              Typ.match_tup_label(t1)
+              |> Option.map(snd)
+              |> Option.value(~default=t1);
+            let value_ty2 =
+              Typ.match_tup_label(t2)
+              |> Option.map(snd)
+              |> Option.value(~default=t2);
+
+            (lab, fixup_cast(Cast(d, value_ty1, value_ty2) |> DHExp.fresh));
+          },
+          t,
+          t1s,
+          t2s,
+        );
+      Matches(t);
     | (LabeledTupleEntries, Tuple(ds)) =>
-      let rec strip_outer_casts = (d: Exp.t) => {
+      let rec unbox_tup_label =
+              (d: Exp.t): option((option(LabeledTuple.label), Exp.t)) => {
         switch (d.term) {
-        | Cast(d, t1, t2)
-            when Typ.is_consistent(Ctx.empty_pre_elaboration, t1, t2) =>
-          strip_outer_casts(d)
-        | _ =>
-          print_endline("Leaving alone: " ++ Exp.show(d));
-          d;
+        | TupLabel({term: Label(l), _}, e) => Some((Some(l), e))
+        | Cast(
+            tl,
+            {term: TupLabel(_, ty1), _},
+            {term: TupLabel(_, ty2), _},
+          ) =>
+          Option.map(
+            ((lab, e)) =>
+              (lab, fixup_cast(Cast(e, ty1, ty2) |> DHExp.fresh)),
+            unbox_tup_label(tl),
+          )
+        | Cast(
+            tl,
+            {term: TupLabel(_, ty1), _},
+            {term: Unknown(Internal), _},
+          ) =>
+          Option.map(
+            ((lab, e)) =>
+              (
+                lab,
+                fixup_cast(
+                  Cast(e, ty1, Unknown(Internal) |> Typ.fresh) |> DHExp.fresh,
+                ),
+              ),
+            unbox_tup_label(tl),
+          )
+        | Cast(_) => assert(false) // Figure out what to do here
+        | _ => Some((None, d))
         };
       };
-      let entries =
-        List.map(
-          (d: Exp.t) =>
-            switch (strip_outer_casts(d).term) {
-            | TupLabel({term: Label(l), _}, e) => Some((l, e))
-            | _ => None
-            },
-          ds,
-        )
-        |> OptUtil.sequence;
 
-      switch (entries) {
+      let entries: list(option((option(string), Exp.t))) =
+        List.map(unbox_tup_label, ds);
+
+      switch (OptUtil.sequence(entries)) {
       | Some(entries) => Matches(entries)
       | None => DoesNotMatch
       };
-
     /* Base types are always already unboxed because of the ITCastID rule*/
     | (Atom(r), Atom(x)) =>
       switch (Atom.unbox(r, x)) {
@@ -252,7 +305,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Tuple(_), Tuple(_)) => DoesNotMatch
     | (Tuple(n), Cast(t, {term: Prod(t1s), _}, {term: Prod(t2s), _}))
         when n == List.length(t1s) && n == List.length(t2s) =>
-      print_endline("We casting tuples");
       let* t = unbox(Tuple(n), t);
       let t =
         ListUtil.map3(
@@ -385,8 +437,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | LabeledTupleProjection(_) =>
         raise(EvaluatorError.Exception(InvalidBoxedTuple(expr))) // todo: better error message
       | LabeledTupleEntries =>
-        print_endline(Exp.show(expr));
-        raise(EvaluatorError.Exception(InvalidBoxedTuple(expr))); // todo: better error message
+        raise(EvaluatorError.Exception(InvalidBoxedTuple(expr))) // todo: better error message
       }
 
     /* Forms that are not yet or will never be a value */

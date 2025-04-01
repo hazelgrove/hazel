@@ -406,7 +406,22 @@ module Pervasives = {
                let bar =
                  List.map(
                    e => {
-                     let-unbox entries = (LabeledTupleEntries, e);
+                     let-unbox entries:
+                       list(
+                         (option(string), Grammar.exp_t(IdTagged.IdTag.t)),
+                       ) = (
+                       LabeledTupleEntries,
+                       e,
+                     );
+
+                     let entries:
+                       list((string, Grammar.exp_t(IdTagged.IdTag.t))) =
+                       List.filter_map(
+                         fun
+                         | (Some(name), e) => Some((name, e))
+                         | _ => None,
+                         entries,
+                       );
 
                      Some(
                        List.map(
