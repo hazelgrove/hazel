@@ -65,7 +65,7 @@
 
 .inline-editor-wrapper {
   background-color: var(--light-page-color);
-  padding: 0.2em 0em 0.2em 0.5em;
+  padding: 0.2em 0.5em 0.2em 0.5em;
   clip-path: polygon(0.5em 0%, calc(100% - 0.5em) 0%, 100% 50%, calc(100% - 0.5em) 100%, 0.5em 100%, 0% 50%);
   border: 1px dotted var(--cell-result-border);
 }
