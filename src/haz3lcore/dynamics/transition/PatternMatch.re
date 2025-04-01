@@ -52,11 +52,6 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
   | Tuple(ps) =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
 
-    print_endline("Unboxing tuple");
-    print_endline(DHExp.show(d));
-    print_endline("------");
-    print_endline([%derive.show: list(Exp.t)](ds));
-    print_endline("");
     List.map2(matches, ps, ds)
     |> List.fold_left(combine_result, Matches(Environment.empty));
   | Parens(p) => matches(p, d)
@@ -77,11 +72,6 @@ type matches_and_closures = {
 };
 
 let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
-  print_endline("Matching");
-  print_endline(Pat.show(dp));
-  print_endline("------");
-  print_endline(DHExp.show(d));
-  print_endline("");
   /* Closure capture for Probe instrumentation */
   let closure_closures: ref(closure_closures) = ref([]);
   let capture =
