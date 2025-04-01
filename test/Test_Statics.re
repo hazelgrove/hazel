@@ -976,6 +976,11 @@ let tests = (
         {|let x : forall a -> a = in let y : forall b -> b = x in 1|},
         Some(int()),
       ),
+      fully_consistent_typecheck(
+        "Fixpoint in function position",
+        {|(fix f : (Int -> Int) -> fun x -> x + 1)(3)|},
+        Some(int()),
+      ),
     ]
   ),
 );
