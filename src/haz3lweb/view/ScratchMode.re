@@ -229,10 +229,6 @@ module Update = {
 
   let calculate =
       (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
-    print_endline(
-      "List.length: " ++ string_of_int(List.length(model.scratchpads)),
-    );
-    print_endline("model.current: " ++ string_of_int(model.current));
     let (key, ed) = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
