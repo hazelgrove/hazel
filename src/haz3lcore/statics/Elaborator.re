@@ -291,6 +291,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
 
   let (elaborated_type, ctx, co_ctx, statics_pseudo_elaborated) =
     elaborated_type(m, uexp);
+
   let cast_from = (ty, exp) => fresh_cast(exp, ty, elaborated_type);
   let (_, rewrap) = Exp.unwrap(uexp);
   let uexp = rewrap(statics_pseudo_elaborated.term);

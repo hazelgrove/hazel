@@ -6,6 +6,7 @@ type all = {
   explainThisModel: string,
   scratch: string,
   exercise: string,
+  tutorial: string,
   documentation: string,
   log: string,
 };
@@ -16,6 +17,7 @@ type all_f22 = {
   settings: string,
   scratch: string,
   exercise: string,
+  tutorial: string,
   log: string,
 };
 
@@ -24,6 +26,8 @@ let mk_all = (~core_settings, ~instructor_mode, ~log) => {
   let explainThisModel = ExplainThisModel.Store.export();
   let scratch = ScratchMode.Store.export();
   let documentation = ScratchMode.StoreDocumentation.export();
+  let tutorial =
+    TutorialsMode.Store.export(~settings=core_settings, ~instructor_mode);
   let exercise =
     ExercisesMode.Store.export(~settings=core_settings, ~instructor_mode);
   {
@@ -32,6 +36,7 @@ let mk_all = (~core_settings, ~instructor_mode, ~log) => {
     scratch,
     documentation,
     exercise,
+    tutorial,
     log,
   };
 };
@@ -40,7 +45,7 @@ let export_all = (~settings, ~instructor_mode, ~log) => {
   mk_all(~core_settings=settings, ~instructor_mode, ~log) |> yojson_of_all;
 };
 
-let import_all = (~import_log: string => unit, data, ~specs) => {
+let import_all = (~import_log: string => unit, data, ~specs, ~tutorial_specs) => {
   let all =
     try(data |> Yojson.Safe.from_string |> all_of_yojson) {
     | _ =>
@@ -49,6 +54,7 @@ let import_all = (~import_log: string => unit, data, ~specs) => {
         settings: all_f22.settings,
         scratch: all_f22.scratch,
         documentation: "",
+        tutorial: all_f22.tutorial,
         exercise: all_f22.exercise,
         log: all_f22.log,
         explainThisModel: "",
@@ -63,6 +69,12 @@ let import_all = (~import_log: string => unit, data, ~specs) => {
     ~settings=settings.core,
     all.exercise,
     ~specs,
+    ~instructor_mode,
+  );
+  TutorialsMode.Store.import(
+    ~settings=settings.core,
+    all.tutorial,
+    ~tutorial_specs,
     ~instructor_mode,
   );
   import_log(all.log);

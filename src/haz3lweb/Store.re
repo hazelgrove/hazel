@@ -7,6 +7,8 @@ type key =
   | Mode
   | Scratch
   | Documentation
+  | Tutorial(Haz3lcore.Id.t)
+  | CurrentTutorial
   | CurrentExercise
   | Exercise(Exercise.key);
 
@@ -17,6 +19,8 @@ let key_to_string =
   | Mode => "MODE"
   | Scratch => "SAVE_SCRATCH"
   | Documentation => "SAVE_DOCUMENTATION"
+  | Tutorial(id) => Haz3lcore.Id.to_string(id)
+  | CurrentTutorial => "CUR_TUTORIAL"
   | CurrentExercise => "CUR_EXERCISE"
   | Exercise(key) => key |> Exercise.sexp_of_key |> Sexplib.Sexp.to_string;
 

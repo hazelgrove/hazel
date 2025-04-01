@@ -143,7 +143,12 @@ module Update = {
       model |> return_quiet;
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
-      Export.import_all(~import_log, data, ~specs=ExerciseSettings.exercises);
+      Export.import_all(
+        ~import_log,
+        data,
+        ~specs=ExerciseSettings.exercises,
+        ~tutorial_specs=TutorialSettings.exercises,
+      );
       Store.load() |> return;
     | ExportPersistentData =>
       Store.save(model);
