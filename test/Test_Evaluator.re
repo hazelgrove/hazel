@@ -413,6 +413,45 @@ let test_typfun_application = () =>
     |> Exp.fresh,
   );
 
+let qcheck_evaluator_does_not_crash_test =
+  Haz3lmenhir.(
+    QCheck.Test.make(
+      ~name="Evaluator does not crash",
+      ~count=10000,
+      QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
+      exp => {
+        let unit_exp = Conversion.Exp.of_menhir_ast(exp);
+        let core_exp =
+          Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp);
+
+        switch (
+          Evaluator.evaluate(~env=Builtins.env_init, elaborate(core_exp))
+        ) {
+        | (_, _) => true
+        | exception e =>
+          print_endline(
+            "ExpToSegment: "
+            ++ Printer.of_segment(
+                 ~holes=Some("?"),
+                 ExpToSegment.exp_to_segment(
+                   ~settings={
+                     inline: true,
+                     fold_case_clauses: false,
+                     fold_fn_bodies: false,
+                     hide_fixpoints: false,
+                     fold_cast_types: false,
+                     show_filters: true,
+                     show_unknown_as_hole: true,
+                   },
+                   core_exp,
+                 ),
+               ),
+          );
+          raise(e);
+        };
+      },
+    )
+  );
 let tests = (
   "Evaluator",
   [
@@ -781,5 +820,6 @@ in fn("hello")|},
         probe_test({|let PROBE(x) : (a=String) = "a" in x|}, uexp);
       },
     ),
+    QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
   ],
 );
