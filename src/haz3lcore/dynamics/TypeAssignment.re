@@ -232,7 +232,13 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* tys = List.map(typ_of_dhexp(ctx, m), d2s) |> OptUtil.sequence;
     let* (tyl, tyr) = Typ.matched_arrow_strict(ctx, ty1);
-    let* tyls = Typ.matched_args_strict(ctx, tyl, List.length(tys));
+    let* tyls =
+      Typ.matched_args_strict(ctx, tyl, List.length(tys))
+      |> (
+        fun
+        | L(x) => Some(x)
+        | R(_) => None
+      );
     let* combined = ListUtil.combine_opt(tyls, d2s);
     let without_deferrals =
       List.filter(((_, d)) => !DHExp.is_deferral(d), combined);

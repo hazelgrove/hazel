@@ -1,4 +1,3 @@
-open Util;
 /* STATICS.re
 
    This module determines the statics semantics of a program.
@@ -252,7 +251,7 @@ and uexp_to_info_map =
   let uexp_to_info_map =
       (
         ~ctx,
-        ~ana=Unknown(Internal) |> Typ.temp,
+        ~ana=Unknown(SynSwitch) |> Typ.temp,
         ~is_in_filter=is_in_filter,
         ~ancestors=ancestors,
         ~duplicates=[],
@@ -711,7 +710,17 @@ and uexp_to_info_map =
       );
     | Constructor(ctr, ty) => atomic(Self.of_ctr(ctx, ctr, ana, ty))
     | Ap(_, fn, arg) =>
-      let fn_ana = Arrow(Unknown(SynSwitch) |> Typ.temp, ana) |> Typ.temp;
+      /* This logic lets us treat constructors differently to functions in
+         terms of error localization */
+      let fn_ana =
+        switch (Exp.ctr_name(fn)) {
+        | Some(name) =>
+          switch (Self.ctr_ana_typ(ctx, ana, name)) {
+          | Some(ty_ana) => ty_ana
+          | None => Arrow(syn, syn) |> Typ.temp
+          }
+        | None => Arrow(syn, syn) |> Typ.temp
+        };
       let (fn, m) = go(~ana=fn_ana, fn, m);
       let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
 
@@ -723,10 +732,7 @@ and uexp_to_info_map =
       add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
     | TypAp(fn, utyp) =>
       let typfn_ana =
-        Forall(
-          Var("syntypfun") |> TPat.fresh,
-          Unknown(SynSwitch) |> Typ.temp,
-        )  /* TODO: naming the type variable? */
+        Forall(EmptyHole |> TPat.fresh, Unknown(SynSwitch) |> Typ.temp)
         |> Typ.temp;
       let (fn, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
@@ -741,42 +747,59 @@ and uexp_to_info_map =
       | None => add(~self=Just(ty_body), ~co_ctx=fn.co_ctx, m) /* invalid name matches with no free type variables. */
       };
     | DeferredAp(fn, args) =>
-      let (ana_in, ana_out) = Typ.matched_arrow(ctx, ana);
-      let num_args = List.length(args);
-      let num_deferrals = ListUtil.count_pred(Exp.is_deferral, args);
-      let deferred_ins = Typ.matched_args(ctx, ana_in, num_deferrals); // possible static error: mismatched number of deferrals
-      let syn_tys =
-        List.map(
-          x =>
-            Exp.is_deferral(x)
-              ? None : Some(Unknown(SynSwitch) |> Typ.temp),
-          args,
-        );
+      /* This logic lets us treat constructors differently to functions in
+         terms of error localization */
       let fn_ana =
-        Arrow(
-          Prod(ListUtil.fill_nones(syn_tys, deferred_ins)) |> Typ.temp,
-          ana_out,
-        )
-        |> Typ.temp;
+        switch (Exp.ctr_name(fn)) {
+        | Some(name) =>
+          switch (Self.ctr_ana_typ(ctx, ana, name)) {
+          | Some(ty_ana) => ty_ana
+          | None => Arrow(syn, syn) |> Typ.temp
+          }
+        | None => Arrow(syn, syn) |> Typ.temp
+        };
       let (fn, m) = go(~ana=fn_ana, fn, m);
       let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
-      let ty_ins = Typ.matched_args(ctx, ty_in, num_args);
-      let (args, m) = map_m_go(m, ty_ins, args);
-      let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
-      let self: Self.exp =
-        Self.of_deferred_ap(
-          args |> List.map((x: Info.exp) => x.term),
-          ty_ins,
-          ty_out,
+      let num_args = List.length(args);
+      switch (Typ.matched_args_strict(ctx, ty_in, num_args)) {
+      | L(ty_ins) =>
+        let (args_infos, m) = map_m_go(m, ty_ins, args);
+        let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args_infos));
+        let ty_in' =
+          List.combine(ty_ins, args)
+          |> List.filter(((_, e)) => Exp.is_deferral(e))
+          |> List.map(fst)
+          |> (
+            fun
+            | [x] => x
+            | xs => Prod(xs) |> Typ.temp
+          );
+        add(
+          ~self=Just(Arrow(ty_in', ty_out) |> Typ.temp),
+          ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
+          m,
         );
-      add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]), m);
+      | R(expected) =>
+        let ty_ins = List.init(num_args, _ => Unknown(Internal) |> Typ.temp);
+        let (args, m) = map_m_go(m, ty_ins, args);
+        let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
+        add'(
+          ~self=
+            IsBadPartialAp(
+              ArityMismatch({
+                expected,
+                actual: num_args,
+              }),
+            ),
+          ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
+          m,
+        );
+      };
     | Fun(p, e, typ, _) =>
       let (mode_pat, mode_body) = Typ.matched_arrow(ctx, ana);
       let mode_pat = Option.value(~default=mode_pat, typ);
-      print_endline("mode_pat: " ++ Typ.show(mode_pat));
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);
-      print_endline("ty_pat: " ++ Typ.show(p'.ty));
       let (e, m) = go'(~ctx=p'.ctx, ~ana=mode_body, e, m);
       /* add co_ctx to pattern */
       let (p, m) =
@@ -789,36 +812,33 @@ and uexp_to_info_map =
       let self =
         is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
       add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
-    | TypFun({term: Var(name), _} as utpat, body, _)
-        when !Ctx.shadows_typ(ctx, name) =>
-      let mode_body = {
-        let (name_expected_opt, item) = Typ.matched_forall(ctx, ana);
-        switch (name_expected_opt) {
-        | Some(name_expected) =>
-          Typ.subst(Var(name) |> Typ.temp, name_expected, item)
-        | _ => item
-        };
-      };
-      let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
-      let ctx_body =
-        Ctx.extend_tvar(
-          ctx,
-          {
-            name,
-            id: TPat.rep_id(utpat),
-            kind: Abstract,
-          },
-        );
-      let (body, m) = go'(~ctx=ctx_body, ~ana=mode_body, body, m);
-      add(
-        ~self=Just(Forall(utpat, body.ty) |> Typ.temp),
-        ~co_ctx=body.co_ctx,
-        m,
-      );
     | TypFun(utpat, body, _) =>
-      let (_, mode_body) = Typ.matched_forall(ctx, ana);
+      let (name_expected_opt, item) = Typ.matched_forall(ctx, ana);
+      let (mode_body, ctx_body) =
+        switch (TPat.tyvar_of_utpat(utpat)) {
+        | Some(name) when !Ctx.shadows_typ(ctx, name) =>
+          let mode_body = {
+            switch (name_expected_opt) {
+            | Some(name_expected) =>
+              Typ.subst(Var(name) |> Typ.temp, name_expected, item)
+            | _ => item
+            };
+          };
+          let ctx_body =
+            Ctx.extend_tvar(
+              ctx,
+              {
+                name,
+                id: TPat.rep_id(utpat),
+                kind: Abstract,
+              },
+            );
+          (mode_body, ctx_body);
+        | Some(_)
+        | None => (item, ctx)
+        };
       let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
-      let (body, m) = go(~ana=mode_body, body, m);
+      let (body, m) = go'(~ctx=ctx_body, ~ana=mode_body, body, m);
       add(
         ~self=Just(Forall(utpat, body.ty) |> Typ.temp),
         ~co_ctx=body.co_ctx,
