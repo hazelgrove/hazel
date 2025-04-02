@@ -50,8 +50,8 @@ export default defineConfig({
           },
         ],
     }),
-    watchExternalPlugin('../../../_build/default/src/haz3lweb/www/worker.js'),
-    watchExternalPlugin('../../../_build/default/src/haz3lweb/www/bundled.js'),
-    watchExternalPlugin('../../../_build/default/src/haz3lweb/www/hazel.js'),
+    watchExternalPlugin('./_build/default/src/haz3lweb/www/worker.js'),
+    watchExternalPlugin('./_build/default/src/haz3lweb/www/bundled.js'),
+    watchExternalPlugin('./_build/default/src/haz3lweb/www/hazel.js'),
   ],
 });
