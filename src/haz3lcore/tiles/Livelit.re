@@ -25,7 +25,7 @@ let slider: t = {
     },
   model_t: Typ.temp(Int),
   model_default: "50",
-  projector: (model: list(Ctx.model_piece), update, id: Id.t) => {
+  projector: (model: list(Ctx.model_piece), update, _id: Id.t) => {
     let Ctx.{model, piece} = List.nth(model, 0);
     let n =
       switch (model.term) {
@@ -59,7 +59,7 @@ let js: t = {
     },
   model_t: Typ.temp(Prod([Typ.temp(String), Typ.temp(String)])),
   model_default: "\"1 + 1\", \"\"",
-  projector: (models: list(model_piece), update, id: Id.t) => {
+  projector: (models: list(model_piece), update, _id: Id.t) => {
     /* We expect exactly two model pieces: (code, result). */
     let ((code_model, _code_piece), (_result_model, result_piece)) =
       switch (models) {
@@ -126,7 +126,7 @@ let emotion: t = {
     },
   model_default: "50",
   model_t: Typ.temp(Int),
-  projector: (model: list(model_piece), update, id: Id.t) => {
+  projector: (model: list(model_piece), update, _id: Id.t) => {
     let {model, piece} = List.nth(model, 0);
     let n =
       switch (model.term) {

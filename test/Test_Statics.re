@@ -164,6 +164,11 @@ let tests = (
   FTemp.(
     Typ.[
       fully_consistent_typecheck(
+        "Livelit with valid param",
+        "^slider(10)",
+        Some(Typ.(int())),
+      ),
+      fully_consistent_typecheck(
         "Function with unknown param",
         "fun x -> 4 + 5",
         Some(Typ.(arrow(unknown(Internal), int()))),
@@ -950,6 +955,35 @@ let tests = (
             bin_op(
               Int(Plus),
               int(1),
+              string(
+                ~ann=
+                  Some(
+                    FTemp.Typ.(
+                      Exp(
+                        Common(
+                          Inconsistent(
+                            Expectation({
+                              ana: int(),
+                              syn: string(),
+                            }),
+                          ),
+                        ),
+                      )
+                    ),
+                  ),
+                "hello",
+              ),
+            )
+          ),
+        )
+      }),
+      test_case("Livelit error annotations", `Quick, () => {
+        annotated_tree_test(
+          "Inconsistent expectation on plus",
+          FIError.Exp.(
+            ap(
+              Forward,
+              livelit_name("slider"),
               string(
                 ~ann=
                   Some(
