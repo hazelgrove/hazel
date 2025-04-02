@@ -5,11 +5,13 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type chat_models =
-  | Gemini_Experimental_2point5
+  | Gemini_Experimental_2_5
+  | Gemini_Flash_2_0
   | Deepseek_R1
   | DeepSeek_V3
   | Llama_3_1_Nemo
-  | Claude_3_5_Sonnet;
+  | Claude_3_5_Sonnet
+  | Claude_3_7_Sonnet;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type role =
@@ -50,11 +52,13 @@ type reply = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 let string_of_chat_model =
   fun
-  | Gemini_Experimental_2point5 => "google/gemini-2.5-pro-exp-03-25:free"
+  | Gemini_Experimental_2_5 => "google/gemini-2.5-pro-exp-03-25:free"
+  | Gemini_Flash_2_0 => "google/gemini-2.0-flash-001"
   | Deepseek_R1 => "deepseek/deepseek-r1:free"
   | DeepSeek_V3 => "deepseek/deepseek-chat-v3-0324:free"
   | Llama_3_1_Nemo => "nvidia/llama-3.1-nemotron-70b-instruct:free"
-  | Claude_3_5_Sonnet => "anthropic/claude-3.5-sonnet";
+  | Claude_3_5_Sonnet => "anthropic/claude-3.5-sonnet"
+  | Claude_3_7_Sonnet => "anthropic/claude-3.7-sonnet";
 
 let string_of_role =
   fun
@@ -64,7 +68,7 @@ let string_of_role =
   | Function => "function";
 
 let default_params = {
-  llm: Gemini_Experimental_2point5,
+  llm: Gemini_Experimental_2_5,
   temperature: 1.0,
   top_p: 1.0,
 };
@@ -86,11 +90,13 @@ let body = (~params: params, messages: prompt): Json.t => {
 
 let lookup_key = (llm: chat_models) =>
   switch (llm) {
-  | Gemini_Experimental_2point5 => Store.Generic.load("API")
+  | Gemini_Experimental_2_5 => Store.Generic.load("API")
+  | Gemini_Flash_2_0 => Store.Generic.load("API")
   | Deepseek_R1 => Store.Generic.load("API")
   | DeepSeek_V3 => Store.Generic.load("API")
   | Llama_3_1_Nemo => Store.Generic.load("API")
   | Claude_3_5_Sonnet => Store.Generic.load("API")
+  | Claude_3_7_Sonnet => Store.Generic.load("API")
   };
 
 let chat = (~key, ~body, ~handler): unit => {
@@ -110,11 +116,13 @@ let chat = (~key, ~body, ~handler): unit => {
 let start_chat = (~params, ~key, prompt: prompt, handler): unit => {
   let body = body(~params, prompt);
   switch (params.llm) {
-  | Gemini_Experimental_2point5 => chat(~key, ~body, ~handler)
+  | Gemini_Experimental_2_5 => chat(~key, ~body, ~handler)
+  | Gemini_Flash_2_0 => chat(~key, ~body, ~handler)
   | Deepseek_R1 => chat(~key, ~body, ~handler)
   | DeepSeek_V3 => chat(~key, ~body, ~handler)
   | Llama_3_1_Nemo => chat(~key, ~body, ~handler)
   | Claude_3_5_Sonnet => chat(~key, ~body, ~handler)
+  | Claude_3_7_Sonnet => chat(~key, ~body, ~handler)
   };
 };
 
