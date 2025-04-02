@@ -397,7 +397,8 @@ and parenthesize_pat =
   | Float(_)
   | String(_)
   | EmptyHole
-  | Constructor(_) => pat
+  | Constructor(_)
+  | Tuple([]) => pat
 
   // Other forms
   | Wild => pat
@@ -579,11 +580,12 @@ and parenthesize_rul = (~show_filters: bool, rul: Rul.t): Rul.t => {
   };
 }
 
-and parenthesize_any = (~show_filters: bool, any: Any.t): Any.t =>
+and parenthesize_any =
+    (~already_paren=false, ~show_filters: bool, any: Any.t): Any.t =>
   switch (any) {
-  | Exp(e) => Exp(parenthesize(~show_filters, e))
-  | Pat(p) => Pat(parenthesize_pat(~show_filters, p))
-  | Typ(t) => Typ(parenthesize_typ(~show_filters, t))
+  | Exp(e) => Exp(parenthesize(~already_paren, ~show_filters, e))
+  | Pat(p) => Pat(parenthesize_pat(~already_paren, ~show_filters, p))
+  | Typ(t) => Typ(parenthesize_typ(~already_paren, ~show_filters, t))
   | TPat(tp) => TPat(parenthesize_tpat(~show_filters, tp))
   | Rul(r) => Rul(parenthesize_rul(~show_filters, r))
   | Any(_) => any
@@ -1414,8 +1416,11 @@ let typ_to_segment = (~settings, typ: Typ.t): Segment.t => {
   p |> PrettySegment.select;
 };
 
-let any_to_segment = (~settings, any: Any.t): Segment.t => {
-  let any = any |> parenthesize_any;
-  let p = any_to_pretty(~settings, any(~show_filters=settings.show_filters));
+let any_to_segment =
+    (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t => {
+  let any =
+    any
+    |> parenthesize_any(~already_paren, ~show_filters=settings.show_filters);
+  let p = any_to_pretty(~settings, any);
   p |> PrettySegment.select;
 };
