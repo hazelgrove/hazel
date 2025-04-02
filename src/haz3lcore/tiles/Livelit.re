@@ -15,10 +15,7 @@ type t = Ctx.livelit_entry;
 
 /* Slider livelit */
 let slider: t = {
-  explain_this: [
-    "A slider livelit -- a simple integer input from 0 to 100.",
-    "Usage: ^slider(n: Int) -> Int",
-  ],
+  explain_this: ["A slider livelit -- a simple integer input from 0 to 100."],
   name: "slider",
   expansion_t: Typ.temp(Int),
   expansion_f: (model: Exp.t) =>
