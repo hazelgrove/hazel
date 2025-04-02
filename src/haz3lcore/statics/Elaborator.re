@@ -334,8 +334,6 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Fun(p, e, _, n) =>
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', tye) = elaborate(m, e);
-      print_endline("typ: " ++ Typ.show(typ));
-      print_endline("tye: " ++ Typ.show(tye));
       Fun(p', e', Some(typ), n)
       |> rewrap
       |> cast_from(Arrow(typ, tye) |> Typ.temp);

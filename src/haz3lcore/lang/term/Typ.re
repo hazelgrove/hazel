@@ -548,21 +548,23 @@ let matched_list = (ctx, ty) =>
   matched_list_strict(ctx, ty)
   |> Option.value(~default=Unknown(Internal) |> temp);
 
-let rec matched_args_strict = (ctx, ty, arity) => {
+let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_args_strict(ctx, ty, arity)
-  | Prod(tys) when List.length(tys) == arity => Some(tys)
-  | _ when arity == 1 => Some([ty])
-  | Unknown(SynSwitch) =>
-    Some(List.init(arity, _ => Unknown(SynSwitch) |> temp))
-  | _ => None
+  | Prod(tys) when List.length(tys) == arity => L(tys)
+  | Prod(tys) => R(List.length(tys))
+  | _ when arity == 1 => L([ty])
+  | Unknown((SynSwitch | Internal) as p) =>
+    L(List.init(arity, _ => Unknown(p) |> temp))
+  | _ => R(1)
   };
 };
 
-let matched_args = (ctx, ty, arity) => {
-  matched_args_strict(ctx, ty, arity)
-  |> Option.value(~default=List.init(arity, _ => Unknown(Internal) |> temp));
-};
+let matched_args = (ctx, ty, arity) =>
+  switch (matched_args_strict(ctx, ty, arity)) {
+  | L(tys) => tys
+  | R(_) => List.init(arity, _ => Unknown(Internal) |> temp)
+  };
 
 let matched_label = (ctx, ty): option((t, t)) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
@@ -618,7 +620,20 @@ let rec is_syn = (ty: t): bool =>
   | TupLabel(_, x)
   | Parens(x) => is_syn(x)
   | Unknown(SynSwitch) => true
-  | _ => false
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String
+  | Label(_)
+  | Var(_)
+  | Ap(_)
+  | Rec(_)
+  | Forall(_)
+  | List(_)
+  | Arrow(_)
+  | Prod(_)
+  | Sum(_) => false
   };
 
 let rec is_syn_fun = (ty: t): bool =>
@@ -626,7 +641,19 @@ let rec is_syn_fun = (ty: t): bool =>
   | TupLabel(_, x)
   | Parens(x) => is_syn_fun(x)
   | Arrow(t1, t2) => is_syn(t1) && is_syn_fun(t2)
-  | _ => false
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String
+  | Label(_)
+  | Var(_)
+  | Ap(_)
+  | Rec(_)
+  | Forall(_)
+  | List(_)
+  | Prod(_)
+  | Sum(_) => false
   };
 
 let rec is_syn_plus = (ty: t): bool =>
@@ -636,7 +663,18 @@ let rec is_syn_plus = (ty: t): bool =>
   | Unknown(SynSwitch) => true
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
   | Forall(_, t) => is_syn(t)
-  | _ => false
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String
+  | Label(_)
+  | Var(_)
+  | Ap(_)
+  | Rec(_)
+  | List(_)
+  | Prod(_)
+  | Sum(_) => false
   };
 
 /* Does the type require parentheses when on the left of an arrow for printing? */
