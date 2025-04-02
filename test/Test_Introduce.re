@@ -4,16 +4,21 @@ open Introduce;
 
 let exp = testable(Fmt.using(DHExp.show, Fmt.string), DHExp.fast_equal);
 
-let find_id = (p: Exp.t => bool, e: Exp.t): option(Id.t) => {
+let find_hole_id = (e: Exp.t): option(Id.t) => {
   exception Found(Id.t);
   switch (
     Exp.map_term(
+      ~f_pat=
+        (continue, p) =>
+          switch (p.term) {
+          | EmptyHole => raise(Found(IdTagged.rep_id(p)))
+          | _ => continue(p)
+          },
       ~f_exp=
         (continue, e) =>
-          if (p(e)) {
-            raise(Found(IdTagged.rep_id(e)));
-          } else {
-            continue(e);
+          switch (e.term) {
+          | EmptyHole => raise(Found(IdTagged.rep_id(e)))
+          | _ => continue(e)
           },
       e,
     )
@@ -29,15 +34,7 @@ let introduction_test = (before: string, expected: string) => {
   let serialized = {
     let* zip = Printer.zipper_of_string(before);
     let exp = MakeTerm.from_zip_for_sem(zip).term;
-    let* hole_id =
-      find_id(
-        e =>
-          switch (e.term) {
-          | EmptyHole => true
-          | _ => false
-          },
-        exp,
-      );
+    let* hole_id = find_hole_id(exp);
     module S = (val Editor.Model.to_move_s(Editor.Model.mk(zip)));
     module Move = Move.Make(S);
     module Select = Select.Make(S);
@@ -195,7 +192,7 @@ let tests =
       ],
     ),
     (
-      "Introduce.introduce",
+      "Introduce.introduce.expression",
       [
         test_case("Tuple", `Quick, () => {
           introduction_test(
@@ -235,6 +232,46 @@ let tests =
             introduction_test(
               "let x : +B(Int) = ? in x",
               "let x : +B(Int) = B(?) in x",
+            );
+          },
+        ),
+      ],
+    ),
+    (
+      "Introduce.introduce.pattern",
+      [
+        test_case(
+          "Tuple Pattern",
+          `Quick,
+          () => {
+            introduction_test(
+              "let ? : () = () in 1",
+              "let () : () = () in 1",
+            );
+            introduction_test(
+              "let x : (Int, Int) -> Int = fun ? -> 1 in x",
+              "let x : (Int, Int) -> Int = fun (?, ?) -> 1 in x",
+            );
+            introduction_test(
+              "let x : (Int, (Int, Int)) -> Int = fun (a, ?) -> 1 in x",
+              "let x : (Int, (Int, Int)) -> Int = fun (a, (?, ?)) -> 1 in x",
+            );
+          },
+        ),
+        test_case("Tuple Pattern already parenthesized", `Quick, () => {
+          introduction_test(
+            "let x : (Int, Int) -> Int = fun (?) -> 1 in x",
+            "let x : (Int, Int) -> Int = fun (?, ?) -> 1 in x",
+          )
+        }),
+        test_case(
+          "Singleton Variant",
+          `Quick,
+          () => {
+            introduction_test("let ? : +A = A in 1", "let A : +A = A in 1");
+            introduction_test(
+              "let ? : +A(Int) = A(1) in 1",
+              "let A(?) : +A(Int) = A(1) in 1",
             );
           },
         ),
