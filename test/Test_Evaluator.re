@@ -385,6 +385,22 @@ let test_typfun_application = () =>
     |> Exp.fresh,
   );
 
+let test_livelit = (livelit: Livelit.t) => {
+  let model = livelit.model_default;
+  let expected_eval =
+    switch (livelit.name) {
+    | "emotion" => {|"neutral"|}
+    | "slider" => {|50|}
+    | "js" => {|""|} // In testing!
+    | _ => Alcotest.fail("Unknown Livelit " ++ livelit.name)
+    };
+
+  parse_and_evaluate_test(
+    expected_eval,
+    "^" ++ livelit.name ++ "(" ++ model ++ ")",
+  );
+};
+
 let tests = (
   "Evaluator",
   [
@@ -712,5 +728,8 @@ in fn("hello")|},
         probe_test({|let PROBE(x) : (a=String) = "a" in x|}, uexp);
       },
     ),
+    test_case("Ensure evaluation of livelit is as expected", `Quick, () => {
+      List.iter(test_livelit, Livelit.livelits)
+    }),
   ],
 );
