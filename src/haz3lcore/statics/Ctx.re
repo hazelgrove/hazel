@@ -106,7 +106,7 @@ let get_id: entry => Id.t =
   | VarEntry({id, _})
   | ConstructorEntry({id, _})
   | TVarEntry({id, _}) => id
-  | LivelitEntry({name, _}) => Option.get(Id.of_string(name));
+  | LivelitEntry({name, _}) => Id.mk_str(name);
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
