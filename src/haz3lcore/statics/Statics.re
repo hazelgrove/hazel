@@ -222,7 +222,7 @@ and uexp_to_info_map =
       ~override_self: option(Self.exp)=?,
       ~inferred_label: option(LabeledTuple.label)=?,
       ~label_sort,
-      {annotation: {ids, copied: _}, term} as uexp: Exp.t,
+      {annotation: {ids}, term} as uexp: Exp.t,
       m: Map.t,
     )
     : (Info.exp, Map.t) => {
@@ -424,7 +424,6 @@ and uexp_to_info_map =
       let e: Exp.t = {
         annotation: {
           ids: IdTagged.ids(e),
-          copied: false,
         },
         term:
           switch (e.term) {
@@ -1745,8 +1744,7 @@ and variant_to_info_map =
         {
           term: Var(ctr),
           annotation: {
-            ids,
-            copied: false,
+            ids: ids,
           },
         },
         m,

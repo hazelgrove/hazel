@@ -686,7 +686,6 @@ and Typ: {
           subst({
             term: Var("=" ++ string_of_int(n)),
             annotation: {
-              copied: false,
               ids: [Id.invalid],
             },
           });

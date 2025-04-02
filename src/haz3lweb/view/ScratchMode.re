@@ -364,7 +364,8 @@ module View = {
         | Previous =>
           inject(
             SwitchSlide(
-              (model.current - 1) mod List.length(model.scratchpads),
+              (model.current + List.length(model.scratchpads) - 1)
+              mod List.length(model.scratchpads),
             ),
           )
         | Next =>
