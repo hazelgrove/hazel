@@ -53,7 +53,7 @@ let context_entry_view = (~globals, entry: Haz3lcore.Ctx.entry): Node.t => {
     div(
       ~attrs=[
         Attr.on_click(_ => globals.inject_global(jump_to(entry))),
-        clss(["context-entry", "code", "livelit"]),
+        clss(["context-entry", "code", "livelit-entry"]),
       ],
       [
         div_name([text("^" ++ name)]),
