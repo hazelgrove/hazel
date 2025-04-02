@@ -10,7 +10,10 @@ let free_variables =
       | None =>
         let joint_use_typ = CoCtx.join(ctx, entries);
         if (Typ.is_consistent(ctx, expected_ty, joint_use_typ)) {
-          Some({content: name, strategy: Pat(FromCoCtx(joint_use_typ))});
+          Some({
+            content: name,
+            strategy: Pat(FromCoCtx(joint_use_typ)),
+          });
         } else {
           None;
         };
@@ -26,7 +29,10 @@ let bound_variables = (ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
     fun
     | Ctx.VarEntry({typ, name, _})
         when Typ.is_consistent(ctx, ty_expect, typ) =>
-      Some({content: name, strategy: Exp(Common(FromCtx(typ)))})
+      Some({
+        content: name,
+        strategy: Exp(Common(FromCtx(typ))),
+      })
     | _ => None,
     ctx,
   );
@@ -39,7 +45,10 @@ let bound_constructors =
     fun
     | Ctx.ConstructorEntry({typ, name, _})
         when Typ.is_consistent(ctx, ty, typ) =>
-      Some({content: name, strategy: wrap(FromCtx(typ))})
+      Some({
+        content: name,
+        strategy: wrap(FromCtx(typ)),
+      })
     | _ => None,
     ctx,
   );
@@ -72,7 +81,10 @@ let bound_constructor_aps = (wrap, ty: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
         when
           Typ.is_consistent(ctx, ty, ty_out)
           && !Typ.is_consistent(ctx, ty, ty_arr) =>
-      Some({content: name ++ "(", strategy: wrap(FromCtxAp(ty_out))})
+      Some({
+        content: name ++ "(",
+        strategy: wrap(FromCtxAp(ty_out)),
+      })
     | _ => None,
     ctx,
   );
@@ -82,7 +94,10 @@ let typ_context_entries = (ctx: Ctx.t): list(Suggestion.t) =>
   List.filter_map(
     fun
     | Ctx.TVarEntry({kind: Singleton(_), name, _}) =>
-      Some({content: name, strategy: Typ(FromCtx)})
+      Some({
+        content: name,
+        strategy: Typ(FromCtx),
+      })
     | _ => None,
     ctx,
   );

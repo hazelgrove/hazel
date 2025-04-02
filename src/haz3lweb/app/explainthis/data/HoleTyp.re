@@ -6,7 +6,12 @@ let empty_hole_typ: form = {
   let explanation = "This marks a type that needs to be filled in.";
   {
     id: EmptyHoleTyp,
-    syntactic_form: [Grout({id: Id.mk(), shape: Convex})],
+    syntactic_form: [
+      Grout({
+        id: Id.mk(),
+        shape: Convex,
+      }),
+    ],
     expandable_id: None,
     explanation,
     examples: [],
@@ -25,6 +30,12 @@ let multi_hole_typ: form = {
   };
 };
 
-let empty_hole: group = {id: EmptyHoleTyp, forms: [empty_hole_typ]};
+let empty_hole: group = {
+  id: EmptyHoleTyp,
+  forms: [empty_hole_typ],
+};
 
-let multi_hole: group = {id: MultiHoleTyp, forms: [multi_hole_typ]};
+let multi_hole: group = {
+  id: MultiHoleTyp,
+  forms: [multi_hole_typ],
+};
