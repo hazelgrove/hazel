@@ -51,7 +51,7 @@ let checkEquality = (expr1, expr2): bool => {
 let check_rewrite = (_from: Exp.t, _to: Exp.t): bool => {
   // TODO maybe type-check a bit here so that we don't have to handle
   // differing types on the Algebrite side
-  // Or maybe Matt will guarantee _from and _to always have the same type
+  // Or maybe the stepper itself will guarantee _from and _to always have the same type
   // perhaps some Cast
 
   // TODO return Some(bool) instead of bool in case we encounter a case we can't handle?
