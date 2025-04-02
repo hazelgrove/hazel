@@ -24,7 +24,12 @@ let ask = (body: string): option(OpenRouter.prompt) => {
   switch (String.trim(body)) {
   | "" => None
   | _ =>
-    let input = [{OpenRouter.role: User, OpenRouter.content: body}];
+    let input = [
+      {
+        OpenRouter.role: User,
+        OpenRouter.content: body,
+      },
+    ];
     Some(input);
   };
 };

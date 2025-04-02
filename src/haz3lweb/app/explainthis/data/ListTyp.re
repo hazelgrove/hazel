@@ -18,4 +18,7 @@ let list_typ: form = {
   };
 };
 
-let list: group = {id: ListTyp, forms: [list_typ]};
+let list: group = {
+  id: ListTyp,
+  forms: [list_typ],
+};

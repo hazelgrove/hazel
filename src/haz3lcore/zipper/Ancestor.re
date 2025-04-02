@@ -47,7 +47,13 @@ let sorted_children = (a: t) => {
 };
 
 let remold = (a: t): list(t) =>
-  Molds.get(a.label) |> List.map(mold => {...a, mold});
+  Molds.get(a.label)
+  |> List.map(mold =>
+       {
+         ...a,
+         mold,
+       }
+     );
 
 let sort = (a: t): Sort.t => {
   let (pre, suf) = a.shards;
