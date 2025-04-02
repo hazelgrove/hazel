@@ -135,7 +135,15 @@ module M: Projector = {
   };
   let update = (model, _, _) => model;
 
-  let focusable = Focusable.non;
+  let focus_pointer = (id: Id.t) => {
+    JsUtil.get_elem_by_id(Id.cls(id))##focus;
+  };
+
+  let focusable =
+    Focusable.{
+      pointer: Some(focus_pointer),
+      keyboard: None,
+    };
 
   let dynamics = false;
 
@@ -196,7 +204,15 @@ module M: Projector = {
       };
 
       /* Call the projector function */
-      View.mk(ll.projector(model_pieces, replace));
+      View.mk(
+        Node.div(
+          ~attrs=[Attr.class_(ll_name), Attr.id(Id.cls(info.id))],
+          switch (ll.projector(model_pieces, replace, info.id)) {
+          | Node(node) => [node]
+          | List(nodes) => nodes
+          },
+        ),
+      );
     };
   };
 };

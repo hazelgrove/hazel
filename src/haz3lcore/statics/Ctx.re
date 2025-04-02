@@ -24,6 +24,9 @@ type model_piece = {
   piece: Base.piece,
 };
 
+type node_or_list =
+  | Node(Virtual_dom.Vdom.Node.t)
+  | List(list(Virtual_dom.Vdom.Node.t));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type livelit_entry = {
   name: string,
@@ -32,8 +35,8 @@ type livelit_entry = {
   expansion_t: TermBase.Typ.t,
   expansion_f: TermBase.Exp.t => TermBase.Exp.t,
   projector:
-    (list(model_piece), Base.piece => Ui_effect.t(unit)) =>
-    Virtual_dom.Vdom.Node.t,
+    (list(model_piece), Base.piece => Ui_effect.t(unit), Id.t) =>
+    node_or_list,
   size: ProjectorCore.Shape.t,
   explain_this: list(string),
 };

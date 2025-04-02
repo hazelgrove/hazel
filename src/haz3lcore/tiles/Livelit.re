@@ -28,7 +28,7 @@ let slider: t = {
     },
   model_t: Typ.temp(Int),
   model_default: "50",
-  projector: (model: list(Ctx.model_piece), update) => {
+  projector: (model: list(Ctx.model_piece), update, id: Id.t) => {
     let Ctx.{model, piece} = List.nth(model, 0);
     let n =
       switch (model.term) {
@@ -36,16 +36,11 @@ let slider: t = {
       | _ => failwith("Slider livelit: not given int")
       };
 
-    Node.div(
-      ~attrs=[Attr.class_("slider")],
-      [
-        Util.Web.range(
-          ~attrs=[
-            Attr.on_input((_, v) => update(put(v, Piece.id(piece)))),
-          ],
-          string_of_int(n),
-        ),
-      ],
+    Node(
+      Util.Web.range(
+        ~attrs=[Attr.on_input((_, v) => update(put(v, Piece.id(piece))))],
+        string_of_int(n),
+      ),
     );
   },
   size:
@@ -67,7 +62,7 @@ let js: t = {
     },
   model_t: Typ.temp(Prod([Typ.temp(String), Typ.temp(String)])),
   model_default: "\"1 + 1\", \"\"",
-  projector: (models: list(model_piece), update) => {
+  projector: (models: list(model_piece), update, id: Id.t) => {
     /* We expect exactly two model pieces: (code, result). */
     let ((code_model, _code_piece), (_result_model, result_piece)) =
       switch (models) {
@@ -87,26 +82,18 @@ let js: t = {
 
     let result = Js_of_ocaml.Js.Unsafe.eval_string("String(" ++ code ++ ")");
 
-    let out =
-      Node.div(
-        ~attrs=[Attr.class_("js")],
-        [
-          /* compute button */
-          Node.button(
-            ~attrs=[
-              Attr.on_click(_ => {
-                update(put("\"" ++ result ++ "\"", Piece.id(result_piece)))
-              }),
-            ],
-            [Node.text("Compute")],
-          ),
-          /* A bit of UI showing code and/or result. */
-          Node.div([Node.text("Code: " ++ code)]),
-          Node.div([Node.text("Result: " ++ result)]),
+    List([
+      Node.div([Node.text("Code: " ++ code)]),
+      /* compute button */
+      Node.button(
+        ~attrs=[
+          Attr.on_click(_ => {
+            update(put("\"" ++ result ++ "\"", Piece.id(result_piece)))
+          }),
         ],
-      );
-
-    out;
+        [Node.text("Compute")],
+      ),
+    ]);
   },
   size:
     ProjectorCore.Shape.{
@@ -142,7 +129,7 @@ let emotion: t = {
     },
   model_default: "50",
   model_t: Typ.temp(Int),
-  projector: (model: list(model_piece), update) => {
+  projector: (model: list(model_piece), update, id: Id.t) => {
     let {model, piece} = List.nth(model, 0);
     let n =
       switch (model.term) {
@@ -155,70 +142,64 @@ let emotion: t = {
     let pathData =
       "M60 130 Q100 " ++ Printf.sprintf("%.1f", 130.0 -. smile) ++ " 140 130";
 
-    Node.div(
-      ~attrs=[Attr.class_("emotion")],
-      [
-        Node.create_svg(
-          "svg",
-          ~attrs=[
-            Attr.create("width", "200"),
-            Attr.create("height", "200"),
-          ],
-          [
-            Node.create_svg(
-              "circle",
-              ~attrs=[
-                Attr.create("cx", "100"),
-                Attr.create("cy", "100"),
-                Attr.create("r", "90"),
-                Attr.create("fill", "yellow"),
-                Attr.create("stroke", "black"),
-              ],
-              [],
-            ),
-            Node.create_svg(
-              "circle",
-              ~attrs=[
-                Attr.create("cx", "65"),
-                Attr.create("cy", "80"),
-                Attr.create("r", "10"),
-                Attr.create("fill", "black"),
-              ],
-              [],
-            ),
-            Node.create_svg(
-              "circle",
-              ~attrs=[
-                Attr.create("cx", "135"),
-                Attr.create("cy", "80"),
-                Attr.create("r", "10"),
-                Attr.create("fill", "black"),
-              ],
-              [],
-            ),
-            Node.create_svg(
-              "path",
-              ~attrs=[
-                Attr.create("d", pathData),
-                Attr.create("stroke", "black"),
-                Attr.create("fill", "transparent"),
-                Attr.create("stroke-width", "5"),
-              ],
-              [],
-            ),
-          ],
-        ),
-        Util.Web.range(
-          ~attrs=[
-            Attr.value(string_of_int(n)),
-            Attr.on_input((_, v) => update(put(v, Piece.id(piece)))),
-          ],
-          ~min="0",
-          ~max="100",
-          string_of_int(n),
-        ),
-      ],
-    );
+    List([
+      Node.create_svg(
+        "svg",
+        ~attrs=[Attr.create("width", "200"), Attr.create("height", "200")],
+        [
+          Node.create_svg(
+            "circle",
+            ~attrs=[
+              Attr.create("cx", "100"),
+              Attr.create("cy", "100"),
+              Attr.create("r", "90"),
+              Attr.create("fill", "yellow"),
+              Attr.create("stroke", "black"),
+            ],
+            [],
+          ),
+          Node.create_svg(
+            "circle",
+            ~attrs=[
+              Attr.create("cx", "65"),
+              Attr.create("cy", "80"),
+              Attr.create("r", "10"),
+              Attr.create("fill", "black"),
+            ],
+            [],
+          ),
+          Node.create_svg(
+            "circle",
+            ~attrs=[
+              Attr.create("cx", "135"),
+              Attr.create("cy", "80"),
+              Attr.create("r", "10"),
+              Attr.create("fill", "black"),
+            ],
+            [],
+          ),
+          Node.create_svg(
+            "path",
+            ~attrs=[
+              Attr.create("d", pathData),
+              Attr.create("stroke", "black"),
+              Attr.create("fill", "transparent"),
+              Attr.create("stroke-width", "5"),
+            ],
+            [],
+          ),
+        ],
+      ),
+      Util.Web.range(
+        ~attrs=[
+          Attr.value(string_of_int(n)),
+          Attr.on_input((_, v) => update(put(v, Piece.id(piece)))),
+        ],
+        ~min="0",
+        ~max="100",
+        string_of_int(n),
+      ),
+    ]);
   },
   size:
     ProjectorCore.Shape.{
