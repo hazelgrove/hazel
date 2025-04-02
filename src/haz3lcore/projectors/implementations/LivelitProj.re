@@ -199,6 +199,4 @@ module M: Projector = {
       View.mk(ll.projector(model_pieces, replace));
     };
   };
-
-  let focus = _ => ();
 };

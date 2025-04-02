@@ -53,20 +53,16 @@ let slider: t = {
       vertical: Inline,
       horizontal: 20,
     },
-  id: Id.invalid,
 };
 
-/* JS livelit -- broken */
+/* JS livelit */
 let js: t = {
-  explain_this: [
-    "JavaScript execution livelit",
-    "Usage: ^js(code: String, result: String) -> String",
-  ],
+  explain_this: ["JavaScript execution livelit"],
   name: "js",
   expansion_t: Typ.temp(String),
   expansion_f: (model: Exp.t) =>
     switch (model.term) {
-    | Tuple([_code, result]) => DHExp.fresh(Tuple([result]))
+    | Tuple([_code, result]) => result
     | _ => DHExp.fresh(Undefined)
     },
   model_t: Typ.temp(Prod([Typ.temp(String), Typ.temp(String)])),
@@ -89,42 +85,17 @@ let js: t = {
       | _ => failwith("JS livelit: 'code' is not a string")
       };
 
-    /* We'll store the updated result here when code is run. */
-    let hidden_result_id = Uuidm.to_string(Piece.id(result_piece));
-
-    let result = Js_of_ocaml.Js.Unsafe.eval_string(code);
-
-    let hidden_input =
-      Node.input(
-        ~attrs=[
-          Attr.id(hidden_result_id),
-          Attr.value(""),
-          Attr.on_input((_, new_text) => {
-            print_endline("Updating result: " ++ new_text);
-            update(put(new_text, Piece.id(result_piece)));
-          }),
-        ],
-        (),
-      );
+    let result = Js_of_ocaml.Js.Unsafe.eval_string("String(" ++ code ++ ")");
 
     let out =
       Node.div(
-        ~attrs=[Attr.class_("livelit")],
+        ~attrs=[Attr.class_("js")],
         [
-          /* Hidden input to store the current result. */
-          hidden_input,
           /* compute button */
           Node.button(
             ~attrs=[
               Attr.on_click(_ => {
-                let unsafe_code =
-                  "document.getElementById('"
-                  ++ hidden_result_id
-                  ++ "').value = String("
-                  ++ result
-                  ++ ")";
-                print_endline("Running code: " ++ unsafe_code);
-                Js_of_ocaml.Js.Unsafe.eval_string(unsafe_code);
+                update(put("\"" ++ result ++ "\"", Piece.id(result_piece)))
               }),
             ],
             [Node.text("Compute")],
@@ -142,35 +113,12 @@ let js: t = {
       vertical: Inline,
       horizontal: 20,
     },
-  id: Id.invalid,
-};
-
-/* Syntax error livelit */
-let error: t = {
-  explain_this: ["A syntax error livelit"],
-  name: "error",
-  expansion_t: Typ.temp(Unknown(Internal)),
-  expansion_f: (_model: Exp.t) =>
-    DHExp.fresh(String("Cannot display livelit -- are statics enabled?")),
-  model_t: Typ.temp(Unknown(Internal)),
-  model_default: "I SHOULD NEVER APPEAR",
-  projector: (_model: list(model_piece), _) =>
-    Node.div(
-      ~attrs=[Attr.class_("livelit")],
-      [Node.text("Cannot display livelit -- are statics enabled?")],
-    ),
-  size:
-    ProjectorCore.Shape.{
-      vertical: Inline,
-      horizontal: 100,
-    },
-  id: Id.invalid,
 };
 
 /* Inline Emotion livelit
-       - Draws a face with eyes and a mouth
-       - Shows a slider below the face
-       - The mouth shape changes based on the slider’s value.
+          - Draws a face with eyes and a mouth
+          - Shows a slider below the face
+          - The mouth shape changes based on the slider’s value.
    */
 let emotion: t = {
   explain_this: ["An emotion livelit"],
@@ -208,7 +156,7 @@ let emotion: t = {
       "M60 130 Q100 " ++ Printf.sprintf("%.1f", 130.0 -. smile) ++ " 140 130";
 
     Node.div(
-      ~attrs=[Attr.class_("livelit")],
+      ~attrs=[Attr.class_("emotion")],
       [
         Node.create_svg(
           "svg",
@@ -274,10 +222,9 @@ let emotion: t = {
   },
   size:
     ProjectorCore.Shape.{
-      vertical: Block(20),
-      horizontal: 10,
+      vertical: Block(10),
+      horizontal: 20,
     },
-  id: Id.invalid,
 };
 
-let livelits: list(t) = [slider, emotion, error];
+let livelits: list(t) = [slider, emotion, js];
