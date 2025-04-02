@@ -162,6 +162,15 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
     show_filters: true,
     show_unknown_as_hole: true,
   };
+  let add_segment_to_zipper = (move_left, id, seg, z) => {
+    z
+    |> Zipper.replace_selection(Left, seg, _)
+    |> Zipper.directional_unselect(Left, _)
+    |> move_right_until_id(id, _)
+    |> (
+      move_left ? Util.OptUtil.replace(Move.primary(ByChar, Left)) : Fun.id
+    );
+  };
 
   switch (Indicated.ci_of(z, statics)) {
   | None => None
@@ -193,13 +202,8 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
         ~settings,
         expression,
       );
-    z
-    |> Zipper.replace_selection(Left, seg, _)
-    |> Zipper.directional_unselect(Left, _)
-    |> move_right_until_id(id, _)
-    |> (
-      move_left ? Util.OptUtil.replace(Move.primary(ByChar, Left)) : Fun.id
-    );
+    add_segment_to_zipper(move_left, id, seg, z);
+
   | Some(
       InfoPat({
         cls: Pat(EmptyHole),
@@ -222,6 +226,7 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
 
     let+ (pattern, id) =
       introduce_pattern(Typ.weak_head_normalize(ctx, ana));
+    let move_left = false;
 
     let seg =
       ExpToSegment.any_to_segment(
@@ -229,10 +234,59 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
         ~settings,
         Pat(pattern),
       );
-    z
-    |> Zipper.replace_selection(Left, seg, _)
-    |> Zipper.directional_unselect(Left, _)
-    |> move_right_until_id(id, _);
+
+    add_segment_to_zipper(move_left, id, seg, z);
   | _ => None
   };
 };
+
+// module type Introducable = {
+//   type t;
+//   let parse: Segment.t => t;
+//   let is_hole: t => bool;
+
+//   let introduce: Typ.t => option((t, Id.t, bool));
+//   let exp_to_segment:
+//     (~settings: ExpToSegment.Settings.t, t, bool) => Segment.t;
+// };
+
+// module IntroducePat: Introducable = {
+//   type t = Pat.t;
+//   let parse = selection =>
+//     MakeTerm.(pat(unsorted(Segment.skel(selection), selection)));
+//   let is_hole = (pat: Pat.t) => {
+//     switch (pat.term) {
+//     | EmptyHole => true
+//     | _ => false
+//     };
+//   };
+//   let introduce = ty =>
+//     ty |> introduce_pattern |> Option.map(((a, b)) => (a, b, false));
+//   let exp_to_segment = (~settings, pattern, already_parenthesized) =>
+//     ExpToSegment.any_to_segment(
+//       ~already_paren=already_parenthesized,
+//       ~settings,
+//       Pat(pattern),
+//     );
+// };
+
+// module IntroduceExp: Introducable = {
+//   type t = Exp.t;
+//   let parse = selection =>
+//     MakeTerm.(exp(unsorted(Segment.skel(selection), selection)));
+//   let is_hole = (exp: Exp.t) => {
+//     switch (exp.term) {
+//     | EmptyHole => true
+//     | _ => false
+//     };
+//   };
+//   let introduce = ty =>
+//     ty |> introduce_expression |> Option.map(((a, b, c)) => (a, b, c));
+//   let exp_to_segment = (~settings, expression, already_parenthesized) =>
+//     ExpToSegment.exp_to_segment(
+//       ~already_paren=already_parenthesized,
+//       ~settings,
+//       expression,
+//     );
+// };
+
