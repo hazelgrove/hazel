@@ -1,6 +1,5 @@
 open Haz3lcore;
 open Alcotest;
-open Introduce;
 
 let exp = testable(Fmt.using(DHExp.show, Fmt.string), DHExp.fast_equal);
 

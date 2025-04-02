@@ -1,13 +1,3 @@
-let rec move_right_until_id = (id: Id.t, z: Zipper.t): Zipper.t =>
-  ZipperBase.MapPiece.left_sib_has_id(z, id)
-    ? z
-    : (
-      switch (Zipper.move(Right, z)) {
-      | None => z
-      | Some(z) => move_right_until_id(id, z)
-      }
-    );
-
 module type Introducable = {
   type t;
   let parse: Segment.t => t;
@@ -182,61 +172,30 @@ module IntroduceExp: Introducable with type t = Exp.t = {
     );
 };
 
-module Introduce' = (I: Introducable) => {
-  let introduce = (z: Zipper.t, ty: Typ.t, ctx: Ctx.t) => {
-    let settings: ExpToSegment.Settings.t = {
-      inline: true,
-      fold_case_clauses: false,
-      fold_fn_bodies: false,
-      hide_fixpoints: false,
-      fold_cast_types: false,
-      show_filters: true,
-      show_unknown_as_hole: true,
-    };
-
-    let already_parenthesized = (z: Zipper.t) => {
-      let sibs = Siblings.trim_secondary(ZipperBase.sibs_with_sel(z));
-      let parent = Ancestors.parent(z.relatives.ancestors);
-      Option.map((p: Ancestor.t) => p.label, parent) == Some(["(", ")"])
-      && sibs
-      |> (((l, r)) => l @ r)
-      |> List.length(_) == 1;
-    };
-    let add_segment_to_zipper = (move_left, id, seg, z) => {
-      z
-      |> Zipper.replace_selection(Left, seg, _)
-      |> Zipper.directional_unselect(Left, _)
-      |> move_right_until_id(id, _)
-      |> (
-        move_left ? Util.OptUtil.replace(Move.primary(ByChar, Left)) : Fun.id
+module Make =
+       (I: Introducable)
+       : {
+         let introduce: (Zipper.t, Typ.t, Ctx.t) => option(Zipper.t);
+       } => {
+  let rec move_right_until_id = (id: Id.t, z: Zipper.t): Zipper.t =>
+    ZipperBase.MapPiece.left_sib_has_id(z, id)
+      ? z
+      : (
+        switch (Zipper.move(Right, z)) {
+        | None => z
+        | Some(z) => move_right_until_id(id, z)
+        }
       );
-    };
-    open Util.OptUtil.Syntax;
-    let selection = z.selection.content;
-    let selected_pattern = I.parse(selection);
 
-    // This is to prevent replacing an pattern that is not an empty hole
-    let* _ = I.is_hole(selected_pattern) ? Some() : None;
-
-    let+ (term, id, move_left) =
-      I.introduce(Typ.weak_head_normalize(ctx, ty));
-
-    let seg = I.to_segment(~settings, term, already_parenthesized(z));
-
-    add_segment_to_zipper(move_left, id, seg, z);
+  let already_parenthesized = (z: Zipper.t) => {
+    let sibs = Siblings.trim_secondary(ZipperBase.sibs_with_sel(z));
+    let parent = Ancestors.parent(z.relatives.ancestors);
+    Option.map((p: Ancestor.t) => p.label, parent) == Some(["(", ")"])
+    && sibs
+    |> (((l, r)) => l @ r)
+    |> List.length(_) == 1;
   };
-};
 
-let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
-  let settings: ExpToSegment.Settings.t = {
-    inline: true,
-    fold_case_clauses: false,
-    fold_fn_bodies: false,
-    hide_fixpoints: false,
-    fold_cast_types: false,
-    show_filters: true,
-    show_unknown_as_hole: true,
-  };
   let add_segment_to_zipper = (move_left, id, seg, z) => {
     z
     |> Zipper.replace_selection(Left, seg, _)
@@ -247,6 +206,37 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
     );
   };
 
+  let introduce = (z: Zipper.t, ty: Typ.t, ctx: Ctx.t) => {
+    open Util.OptUtil.Syntax;
+    let selection = z.selection.content;
+    let selected_term = I.parse(selection);
+
+    // This is to prevent replacing an pattern that is not an empty hole
+    let* _ = I.is_hole(selected_term) ? Some() : None;
+
+    let+ (term, id, move_left) =
+      I.introduce(Typ.weak_head_normalize(ctx, ty));
+
+    let seg =
+      I.to_segment(
+        ~settings={
+          inline: true,
+          fold_case_clauses: false,
+          fold_fn_bodies: false,
+          hide_fixpoints: false,
+          fold_cast_types: false,
+          show_filters: true,
+          show_unknown_as_hole: true,
+        },
+        term,
+        already_parenthesized(z),
+      );
+
+    add_segment_to_zipper(move_left, id, seg, z);
+  };
+};
+
+let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
   switch (Indicated.ci_of(z, statics)) {
   | None => None
   | Some(
@@ -257,7 +247,7 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
         _,
       }),
     ) =>
-    module IP = Introduce'(IntroduceExp);
+    module IP = Make(IntroduceExp);
     IP.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
 
   | Some(
@@ -268,7 +258,7 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
         _,
       }),
     ) =>
-    module IP = Introduce'(IntroducePat);
+    module IP = Make(IntroducePat);
     IP.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
   | _ => None
   };
