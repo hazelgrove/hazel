@@ -150,5 +150,14 @@ let tests =
       test_case("Scientific notation floating point", `Quick, () =>
         exp_check(float(1.2e30), "1.2e30")
       ),
+      test_case("Livelit name parsing", `Quick, () =>
+        exp_check(livelit_name("slider"), "^slider")
+      ),
+      test_case("Livelit ap parsing", `Quick, () =>
+        exp_check(
+          ap(Forward, livelit_name("slider"), int(50)),
+          "^slider(50)",
+        )
+      ),
     ],
   );
