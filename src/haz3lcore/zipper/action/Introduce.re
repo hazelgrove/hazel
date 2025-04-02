@@ -1,147 +1,3 @@
-/**
- * Introduces a new expression of the specified type.
- *
- * @param ty - The type of the expression to be introduced.
- * @return An optional tuple containing:
- *   - The newly introduced expression (`Exp.t`), which represents the expression to be introduced when the action is triggered on a hole of that type.
- *   - The `Id.t` which indicates the element the cursor should be on after the new expression is introduced.
- *   - A boolean indicating whether the cursor should move one to the left after the expression is generated.
-       This is useful for cases where the cursor should be placed inside of an expression like inside of an empty list or string.
- *   Returns `None` if the introduction fails, meaning there is no form for that type.
- */
-let introduce_expression = (ty: Typ.t): option((Exp.t, Id.t, bool)) => {
-  IdTagged.FreshGrammar.(
-    Exp.(
-      switch (ty.term) {
-      | Arrow(_, _) =>
-        let cursor_pat = Pat.empty_hole();
-        Some((
-          fn(cursor_pat, empty_hole(), None, None),
-          List.hd(cursor_pat.annotation.ids),
-          false,
-        ));
-      | Prod([]) =>
-        Some(
-          tuple([]) |> (exp => (exp, List.hd(exp.annotation.ids), false)),
-        )
-      | Prod([t, ...ts]) =>
-        let tuple_entry = (t: TermBase.Typ.t) => {
-          let hole = empty_hole();
-          (
-            switch (t) {
-            | {term: TupLabel({term: Label(l), _}, _), _} =>
-              tup_label(label(l), hole)
-            | _ => hole
-            },
-            List.hd(hole.annotation.ids),
-          );
-        };
-
-        let (head_element, head_id) = tuple_entry(t);
-
-        Some((
-          tuple([
-            head_element,
-            ...List.map(t => t |> tuple_entry |> fst, ts),
-          ]),
-          head_id,
-          false,
-        ));
-      | Sum([Variant(c, _, None)]) =>
-        Some(
-          constructor(c, None)
-          |> (exp => (exp, List.hd(exp.annotation.ids), false)),
-        )
-      | Sum([Variant(c, _, Some(_))]) =>
-        Some(
-          empty_hole()
-          |> (
-            exp => (
-              ap(Forward, constructor(c, None), exp),
-              List.hd(exp.annotation.ids),
-              false,
-            )
-          ),
-        )
-      | Forall(_, _) =>
-        Some(
-          TPat.empty_hole()
-          |> (
-            exp => (
-              typ_fun(exp, empty_hole(), None),
-              List.hd(exp.annotation.ids),
-              false,
-            )
-          ),
-        )
-      | List(_) =>
-        Some(
-          list_lit([]) |> (exp => (exp, List.hd(exp.annotation.ids), true)),
-        )
-      | String =>
-        Some(
-          string("") |> (exp => (exp, List.hd(exp.annotation.ids), true)),
-        )
-      | _ => None
-      }
-    )
-  );
-};
-
-/**
- * Introduces a new pattern of the specified type.
- *
- * @param ty - The type of the pattern to be introduced.
- * @return An optional tuple containing:
- *   - The newly introduced pattern (`Pat.t`), which represents the pattern to be introduced when the action is triggered on a pattern hole of that type.
- *   - The `Id.t` which indicates the element the cursor should be on after the new pattern is introduced.
- *   Returns `None` if the introduction fails, meaning there is no form for that type.
- */
-let introduce_pattern = (ty: Typ.t): option((Pat.t, Id.t)) => {
-  IdTagged.FreshGrammar.(
-    Pat.(
-      switch (ty.term) {
-      | Prod([]) =>
-        Some(tuple([]) |> (pat => (pat, List.hd(pat.annotation.ids))))
-      | Prod([_, ...ts]) =>
-        let (head_element, head_id) =
-          empty_hole() |> (hole => (hole, List.hd(hole.annotation.ids)));
-
-        Some((
-          tuple([head_element, ...List.map(_ => empty_hole(), ts)]),
-          head_id,
-        ));
-      | Sum([Variant(c, _, None)]) =>
-        Some(
-          constructor(c, None)
-          |> (pat => (pat, List.hd(pat.annotation.ids))),
-        )
-      | Sum([Variant(c, _, Some(_))]) =>
-        Some(
-          empty_hole()
-          |> (
-            pat => (
-              ap(constructor(c, None), pat),
-              List.hd(pat.annotation.ids),
-            )
-          ),
-        )
-
-      | _ => None
-      }
-    )
-  );
-};
-
-let already_parenthesized = (z: Zipper.t) => {
-  let sibs = Siblings.trim_secondary(ZipperBase.sibs_with_sel(z));
-  let parent = Ancestors.parent(z.relatives.ancestors);
-  Option.map((p: Ancestor.t) => p.label, parent) == Some(["(", ")"])
-  && sibs
-  |> (((l, r)) => l @ r)
-  |> List.length(_) == 1;
-};
-
 let rec move_right_until_id = (id: Id.t, z: Zipper.t): Zipper.t =>
   ZipperBase.MapPiece.left_sib_has_id(z, id)
     ? z
@@ -151,6 +7,225 @@ let rec move_right_until_id = (id: Id.t, z: Zipper.t): Zipper.t =>
       | Some(z) => move_right_until_id(id, z)
       }
     );
+
+module type Introducable = {
+  type t;
+  let parse: Segment.t => t;
+  let is_hole: t => bool;
+
+  /**
+ * Introduces a new term of the specified type.
+ *
+ * @param ty - The type of the term to be introduced.
+ * @return An optional tuple containing:
+ *   - The newly introduced term, which represents the expression to be introduced when the action is triggered on a hole of that type.
+ *   - The `Id.t` which indicates the element the cursor should be on after the new term is introduced.
+ *   - A boolean indicating whether the cursor should move one to the left after the term is generated.
+       This is useful for cases where the cursor should be placed inside of an term like inside of an empty list or string.
+ *   Returns `None` if the introduction fails, meaning there is no form for that type.
+ */
+  let introduce: Typ.t => option((t, Id.t, bool));
+  let to_segment: (~settings: ExpToSegment.Settings.t, t, bool) => Segment.t;
+};
+
+module IntroducePat: Introducable with type t = Pat.t = {
+  type t = Pat.t;
+  let parse = selection =>
+    MakeTerm.(pat(unsorted(Segment.skel(selection), selection)));
+  let is_hole = (pat: Pat.t) => {
+    switch (pat.term) {
+    | EmptyHole => true
+    | _ => false
+    };
+  };
+
+  let introduce = (ty: Typ.t) =>
+    (
+      IdTagged.FreshGrammar.(
+        Pat.(
+          switch (ty.term) {
+          | Prod([]) =>
+            Some(tuple([]) |> (pat => (pat, List.hd(pat.annotation.ids))))
+          | Prod([_, ...ts]) =>
+            let (head_element, head_id) =
+              empty_hole() |> (hole => (hole, List.hd(hole.annotation.ids)));
+
+            Some((
+              tuple([head_element, ...List.map(_ => empty_hole(), ts)]),
+              head_id,
+            ));
+          | Sum([Variant(c, _, None)]) =>
+            Some(
+              constructor(c, None)
+              |> (pat => (pat, List.hd(pat.annotation.ids))),
+            )
+          | Sum([Variant(c, _, Some(_))]) =>
+            Some(
+              empty_hole()
+              |> (
+                pat => (
+                  ap(constructor(c, None), pat),
+                  List.hd(pat.annotation.ids),
+                )
+              ),
+            )
+
+          | _ => None
+          }
+        )
+      ):
+        option((Pat.t, Id.t))
+    )
+    |> Option.map(((a, b)) => (a, b, false));
+  let to_segment = (~settings, pattern, already_parenthesized) =>
+    ExpToSegment.any_to_segment(
+      ~already_paren=already_parenthesized,
+      ~settings,
+      Pat(pattern),
+    );
+};
+
+module IntroduceExp: Introducable with type t = Exp.t = {
+  type t = Exp.t;
+  let parse = selection =>
+    MakeTerm.(exp(unsorted(Segment.skel(selection), selection)));
+  let is_hole = (exp: Exp.t) => {
+    switch (exp.term) {
+    | EmptyHole => true
+    | _ => false
+    };
+  };
+  let introduce = (ty: Typ.t) =>
+    IdTagged.FreshGrammar.(
+      Exp.(
+        switch (ty.term) {
+        | Arrow(_, _) =>
+          let cursor_pat = Pat.empty_hole();
+          Some((
+            fn(cursor_pat, empty_hole(), None, None),
+            List.hd(cursor_pat.annotation.ids),
+            false,
+          ));
+        | Prod([]) =>
+          Some(
+            tuple([]) |> (exp => (exp, List.hd(exp.annotation.ids), false)),
+          )
+        | Prod([t, ...ts]) =>
+          let tuple_entry = (t: TermBase.Typ.t) => {
+            let hole = empty_hole();
+            (
+              switch (t) {
+              | {term: TupLabel({term: Label(l), _}, _), _} =>
+                tup_label(label(l), hole)
+              | _ => hole
+              },
+              List.hd(hole.annotation.ids),
+            );
+          };
+
+          let (head_element, head_id) = tuple_entry(t);
+
+          Some((
+            tuple([
+              head_element,
+              ...List.map(t => t |> tuple_entry |> fst, ts),
+            ]),
+            head_id,
+            false,
+          ));
+        | Sum([Variant(c, _, None)]) =>
+          Some(
+            constructor(c, None)
+            |> (exp => (exp, List.hd(exp.annotation.ids), false)),
+          )
+        | Sum([Variant(c, _, Some(_))]) =>
+          Some(
+            empty_hole()
+            |> (
+              exp => (
+                ap(Forward, constructor(c, None), exp),
+                List.hd(exp.annotation.ids),
+                false,
+              )
+            ),
+          )
+        | Forall(_, _) =>
+          Some(
+            TPat.empty_hole()
+            |> (
+              exp => (
+                typ_fun(exp, empty_hole(), None),
+                List.hd(exp.annotation.ids),
+                false,
+              )
+            ),
+          )
+        | List(_) =>
+          Some(
+            list_lit([])
+            |> (exp => (exp, List.hd(exp.annotation.ids), true)),
+          )
+        | String =>
+          Some(
+            string("") |> (exp => (exp, List.hd(exp.annotation.ids), true)),
+          )
+        | _ => None
+        }
+      )
+    )
+    |> Option.map(((a, b, c)) => (a, b, c));
+  let to_segment = (~settings, expression, already_parenthesized) =>
+    ExpToSegment.exp_to_segment(
+      ~already_paren=already_parenthesized,
+      ~settings,
+      expression,
+    );
+};
+
+module Introduce' = (I: Introducable) => {
+  let introduce = (z: Zipper.t, ty: Typ.t, ctx: Ctx.t) => {
+    let settings: ExpToSegment.Settings.t = {
+      inline: true,
+      fold_case_clauses: false,
+      fold_fn_bodies: false,
+      hide_fixpoints: false,
+      fold_cast_types: false,
+      show_filters: true,
+      show_unknown_as_hole: true,
+    };
+
+    let already_parenthesized = (z: Zipper.t) => {
+      let sibs = Siblings.trim_secondary(ZipperBase.sibs_with_sel(z));
+      let parent = Ancestors.parent(z.relatives.ancestors);
+      Option.map((p: Ancestor.t) => p.label, parent) == Some(["(", ")"])
+      && sibs
+      |> (((l, r)) => l @ r)
+      |> List.length(_) == 1;
+    };
+    let add_segment_to_zipper = (move_left, id, seg, z) => {
+      z
+      |> Zipper.replace_selection(Left, seg, _)
+      |> Zipper.directional_unselect(Left, _)
+      |> move_right_until_id(id, _)
+      |> (
+        move_left ? Util.OptUtil.replace(Move.primary(ByChar, Left)) : Fun.id
+      );
+    };
+    open Util.OptUtil.Syntax;
+    let selection = z.selection.content;
+    let selected_pattern = I.parse(selection);
+
+    // This is to prevent replacing an pattern that is not an empty hole
+    let* _ = I.is_hole(selected_pattern) ? Some() : None;
+
+    let+ (term, id, move_left) =
+      I.introduce(Typ.weak_head_normalize(ctx, ty));
+
+    let seg = I.to_segment(~settings, term, already_parenthesized(z));
+
+    add_segment_to_zipper(move_left, id, seg, z);
+  };
+};
 
 let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
   let settings: ExpToSegment.Settings.t = {
@@ -182,27 +257,8 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
         _,
       }),
     ) =>
-    open Util.OptUtil.Syntax;
-    let selection = z.selection.content;
-    let selected_expression = MakeTerm.go(selection);
-
-    // This is to prevent replacing an expression that is not an empty hole
-    let* _ =
-      switch (selected_expression.term.term) {
-      | EmptyHole => Some()
-      | _ => None
-      };
-
-    let+ (expression, id, move_left) =
-      introduce_expression(Typ.weak_head_normalize(ctx, ana));
-
-    let seg =
-      ExpToSegment.exp_to_segment(
-        ~already_paren=already_parenthesized(z),
-        ~settings,
-        expression,
-      );
-    add_segment_to_zipper(move_left, id, seg, z);
+    module IP = Introduce'(IntroduceExp);
+    IP.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
 
   | Some(
       InfoPat({
@@ -212,81 +268,8 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
         _,
       }),
     ) =>
-    open Util.OptUtil.Syntax;
-    let selection = z.selection.content;
-    let selected_pattern =
-      MakeTerm.(pat(unsorted(Segment.skel(selection), selection)));
-
-    // This is to prevent replacing an pattern that is not an empty hole
-    let* _ =
-      switch (selected_pattern.term) {
-      | EmptyHole => Some()
-      | _ => None
-      };
-
-    let+ (pattern, id) =
-      introduce_pattern(Typ.weak_head_normalize(ctx, ana));
-    let move_left = false;
-
-    let seg =
-      ExpToSegment.any_to_segment(
-        ~already_paren=already_parenthesized(z),
-        ~settings,
-        Pat(pattern),
-      );
-
-    add_segment_to_zipper(move_left, id, seg, z);
+    module IP = Introduce'(IntroducePat);
+    IP.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
   | _ => None
   };
 };
-
-// module type Introducable = {
-//   type t;
-//   let parse: Segment.t => t;
-//   let is_hole: t => bool;
-
-//   let introduce: Typ.t => option((t, Id.t, bool));
-//   let exp_to_segment:
-//     (~settings: ExpToSegment.Settings.t, t, bool) => Segment.t;
-// };
-
-// module IntroducePat: Introducable = {
-//   type t = Pat.t;
-//   let parse = selection =>
-//     MakeTerm.(pat(unsorted(Segment.skel(selection), selection)));
-//   let is_hole = (pat: Pat.t) => {
-//     switch (pat.term) {
-//     | EmptyHole => true
-//     | _ => false
-//     };
-//   };
-//   let introduce = ty =>
-//     ty |> introduce_pattern |> Option.map(((a, b)) => (a, b, false));
-//   let exp_to_segment = (~settings, pattern, already_parenthesized) =>
-//     ExpToSegment.any_to_segment(
-//       ~already_paren=already_parenthesized,
-//       ~settings,
-//       Pat(pattern),
-//     );
-// };
-
-// module IntroduceExp: Introducable = {
-//   type t = Exp.t;
-//   let parse = selection =>
-//     MakeTerm.(exp(unsorted(Segment.skel(selection), selection)));
-//   let is_hole = (exp: Exp.t) => {
-//     switch (exp.term) {
-//     | EmptyHole => true
-//     | _ => false
-//     };
-//   };
-//   let introduce = ty =>
-//     ty |> introduce_expression |> Option.map(((a, b, c)) => (a, b, c));
-//   let exp_to_segment = (~settings, expression, already_parenthesized) =>
-//     ExpToSegment.exp_to_segment(
-//       ~already_paren=already_parenthesized,
-//       ~settings,
-//       expression,
-//     );
-// };
-
