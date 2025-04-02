@@ -218,7 +218,7 @@ let rec go =
     | Some(ctx) =>
       let name = Form.parse_livelit(t);
       switch (Ctx.lookup_livelit(ctx, name)) {
-      // if we find a matching livelit, insert it projected
+      // if we find a matching livelit, insert it, projected
       | Some(ll) =>
         let formatted_z =
           "("
@@ -238,7 +238,7 @@ let rec go =
           ProjectorInit.init_or_noop(
             Livelit,
             Segment.parenthesize(Option.get(args_and_name)),
-            Exp(IdTagged.FreshGrammar.Exp.int(0)),
+            Exp(IdTagged.FreshGrammar.Exp.empty_hole()),
           );
 
         let new_left_siblings =
