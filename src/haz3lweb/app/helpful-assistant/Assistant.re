@@ -102,7 +102,7 @@ module Model = {
       past_completion_chats:
         add_chat_to_history(init_completion_chat, Id.Map.empty),
     },
-    llm: Gemini_Experimental_2point5,
+    llm: OpenRouter.Gemini_Experimental_2_5,
     show_history: false,
     show_api_key: false,
   };
@@ -741,18 +741,19 @@ module Update = {
             ~is_final=false,
           );
         // Then handle the completion as before
-        let example_message = code_message_of_str(code_example, LLM, None);
+        let message_with_example =
+          code_message_of_str(code_example, LLM, None);
         check_descriptor(
           ~model,
           ~schedule_action,
-          ~message=example_message,
+          ~message=message_with_example,
           ~mode,
           ~chat_id,
         );
         add_message_to_model(
           mode,
           model_with_discussion,
-          example_message,
+          message_with_example,
           chat_id,
           ~is_final=true,
         )

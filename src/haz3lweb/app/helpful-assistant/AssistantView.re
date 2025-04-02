@@ -133,12 +133,14 @@ let select_llm = (~inject, ~assistantModel: Assistant.Model.t): Node.t => {
     let value = Js.to_string(Js.Unsafe.coerce(event)##.target##.value);
     let selected_llm =
       switch (value) {
-      | "Gemini_Experimental_2.5" => OpenRouter.Gemini_Experimental_2point5
+      | "Gemini_Experimental_2.5" => OpenRouter.Gemini_Experimental_2_5
+      | "Gemini_Flash_2_0" => OpenRouter.Gemini_Flash_2_0
       | "Deepseek_R1" => OpenRouter.Deepseek_R1
       | "DeepSeek_V3" => OpenRouter.DeepSeek_V3
       | "Llama_3_1_Nemo" => OpenRouter.Llama_3_1_Nemo
       | "Claude_3_5_Sonnet" => OpenRouter.Claude_3_5_Sonnet
-      | _ => OpenRouter.Gemini_Experimental_2point5
+      | "Claude_3_7_Sonnet" => OpenRouter.Claude_3_7_Sonnet
+      | _ => OpenRouter.Gemini_Experimental_2_5
       };
     Virtual_dom.Vdom.Effect.Many([
       inject(Assistant.Update.SelectLLM(selected_llm)),
@@ -163,12 +165,20 @@ let select_llm = (~inject, ~assistantModel: Assistant.Model.t): Node.t => {
             ~attrs=[
               Attr.value("Gemini_Experimental_2.5"),
               is_selected(
-                OpenRouter.Gemini_Experimental_2point5,
+                OpenRouter.Gemini_Experimental_2_5,
                 assistantModel.llm,
               )
                 ? Attr.selected : Attr.empty,
             ],
-            [text("Gemini Experimental 2.5")],
+            [text("Gemini Experimental 2.5 (Free)")],
+          ),
+          option(
+            ~attrs=[
+              Attr.value("Gemini_Flash_2_0"),
+              is_selected(OpenRouter.Gemini_Flash_2_0, assistantModel.llm)
+                ? Attr.selected : Attr.empty,
+            ],
+            [text("Gemini Flash 2.0")],
           ),
           option(
             ~attrs=[
@@ -176,7 +186,7 @@ let select_llm = (~inject, ~assistantModel: Assistant.Model.t): Node.t => {
               is_selected(OpenRouter.Deepseek_R1, assistantModel.llm)
                 ? Attr.selected : Attr.empty,
             ],
-            [text("Deepseek R1")],
+            [text("Deepseek R1 (Free)")],
           ),
           option(
             ~attrs=[
@@ -184,7 +194,7 @@ let select_llm = (~inject, ~assistantModel: Assistant.Model.t): Node.t => {
               is_selected(OpenRouter.DeepSeek_V3, assistantModel.llm)
                 ? Attr.selected : Attr.empty,
             ],
-            [text("DeepSeek V3")],
+            [text("DeepSeek V3 (Free)")],
           ),
           option(
             ~attrs=[
@@ -192,7 +202,7 @@ let select_llm = (~inject, ~assistantModel: Assistant.Model.t): Node.t => {
               is_selected(OpenRouter.Llama_3_1_Nemo, assistantModel.llm)
                 ? Attr.selected : Attr.empty,
             ],
-            [text("Llama 3.1 Nemotron 70B")],
+            [text("Llama 3.1 Nemotron 70B (Free)")],
           ),
           option(
             ~attrs=[
@@ -201,6 +211,14 @@ let select_llm = (~inject, ~assistantModel: Assistant.Model.t): Node.t => {
                 ? Attr.selected : Attr.empty,
             ],
             [text("Claude 3.5 Sonnet")],
+          ),
+          option(
+            ~attrs=[
+              Attr.value("Claude_3_7_Sonnet"),
+              is_selected(OpenRouter.Claude_3_7_Sonnet, assistantModel.llm)
+                ? Attr.selected : Attr.empty,
+            ],
+            [text("Claude 3.7 Sonnet")],
           ),
         ],
       ),
@@ -527,26 +545,6 @@ let message_display =
                         ),
                       ],
                     ),
-                    message.party == LLM && tileId != None
-                      ? div(
-                          ~attrs=[
-                            clss(["resuggest-button"]),
-                            Attr.on_click(_ =>
-                              Virtual_dom.Vdom.Effect.Many([
-                                inject(
-                                  Assistant.Update.Resuggest(
-                                    message.content,
-                                    Option.get(tileId),
-                                  ),
-                                ),
-                                Virtual_dom.Vdom.Effect.Stop_propagation,
-                              ])
-                            ),
-                            Attr.title("Resuggest"),
-                          ],
-                          [text("resuggest")],
-                        )
-                      : None,
                   ],
                 ),
                 div(
@@ -587,6 +585,26 @@ let message_display =
                     ),
                   ],
                 ),
+                message.party == LLM && tileId != None
+                  ? div(
+                      ~attrs=[
+                        clss(["resuggest-button"]),
+                        Attr.on_click(_ =>
+                          Virtual_dom.Vdom.Effect.Many([
+                            inject(
+                              Assistant.Update.Resuggest(
+                                message.content,
+                                Option.get(tileId),
+                              ),
+                            ),
+                            Virtual_dom.Vdom.Effect.Stop_propagation,
+                          ])
+                        ),
+                        Attr.title("Resuggest"),
+                      ],
+                      [text("resuggest")],
+                    )
+                  : None,
               ]
           | None =>
             message.content == "..." && message.party == LLM

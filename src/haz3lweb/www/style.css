@@ -100,7 +100,7 @@ select:hover {
   display: flex;
   flex-direction: column;
   border-left: 0.6px solid var(--BR2);
-  overflow-y: scroll;
+  overflow-y: auto;
   overflow-x: hidden;
   width: max-content;
   background-color: var(--T2);
