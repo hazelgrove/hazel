@@ -36,6 +36,5 @@ let temp: term => t =
     term,
     annotation: {
       ids: [Id.invalid],
-      copied: false,
     },
   };
