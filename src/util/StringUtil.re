@@ -73,3 +73,19 @@ let trim_leading = (s: string): string => {
   |> Re.Str.global_replace(Re.Str.regexp("^[ ]*"), "")  // Remove leading spaces at start
   |> Re.Str.global_replace(Re.Str.regexp("\n[ ]*"), "\n"); // Remove leading spaces after newlines
 };
+
+let compress = (s: string): string => {
+  let result =
+    Js_of_ocaml.Js.Unsafe.eval_string("encodeURIComponent(`" ++ s ++ "`)")
+    |> Js_of_ocaml.Js.to_string;
+  JsUtil.log(result);
+  result;
+};
+
+let decompress = (s: string): string => {
+  let result =
+    Js_of_ocaml.Js.Unsafe.eval_string("decodeURIComponent(`" ++ s ++ "`)")
+    |> Js_of_ocaml.Js.to_string;
+  JsUtil.log(result);
+  result;
+};

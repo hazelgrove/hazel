@@ -13,6 +13,8 @@ let persist = (zipper: Zipper.t) => {
   };
 };
 
+let to_string = (zipper: Zipper.t) => Printer.to_string_basic(zipper);
+
 let unpersist = (persisted: t) =>
   try(Sexplib.Sexp.of_string(persisted.zipper) |> Zipper.t_of_sexp) {
   | _ =>
