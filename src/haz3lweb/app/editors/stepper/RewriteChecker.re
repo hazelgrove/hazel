@@ -7,6 +7,14 @@ let rec print_exp_for_algebrite = (exp: Exp.t): string =>
   // TODO Nats?
   | Float(value) => string_of_float(value)
   | Bool(value) => string_of_bool(value)
+  // We have to manually map ** (power) to ^ in Algebrite.
+  | BinOp(Int(Power), exp_left, exp_right) =>
+    "("
+    ++ print_exp_for_algebrite(exp_left)
+    ++ " ^ "
+    ++ print_exp_for_algebrite(exp_right)
+    ++ ")"
+  // The other operators should work fine as-is.
   | BinOp(op, exp_left, exp_right) =>
     "("
     ++ print_exp_for_algebrite(exp_left)
