@@ -85,7 +85,7 @@ let var_exp = (n: string): form => {
   id: VarExp,
   syntactic_form: [n |> abbreviate |> exp],
   expandable_id: None,
-  explanation: "Takes the value of the expression that it was bound to. , hi! This is a test.",
+  explanation: "Takes the value of the expression that it was bound to... This is a test!",
   examples: [],
 };
 let var_exps = (x: string): group => {
