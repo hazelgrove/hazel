@@ -81,10 +81,7 @@ let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
   Grammar.map_exp_annotation(
     (_annotation): IdTagged.IdTag.t => {
       let id = Id.mk();
-      {
-        ids: [id],
-        copied: false,
-      };
+      {ids: [id]};
     },
     exp,
   );
@@ -154,10 +151,7 @@ module FIError =
 module FTemp =
   Grammar.Factory({
     type t = IdTagged.IdTag.t;
-    let default_value = (): IdTagged.IdTag.t => {
-      ids: [Id.invalid],
-      copied: false,
-    };
+    let default_value = (): IdTagged.IdTag.t => {ids: [Id.invalid]};
   });
 let tests = (
   "Statics",

@@ -28,7 +28,7 @@ module Result = {
  */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type inner = {
-  result: Result.t,
+  result: Exp.t,
   state: EvaluatorState.t,
 };
 
@@ -45,7 +45,7 @@ type t('a) =
   | ResultFail(error)
   | ResultPending;
 
-let get_dhexp = (r: inner) => Result.unbox(r.result);
+let get_dhexp = (r: inner) => r.result;
 let get_state = (r: inner) => r.state;
 
 let map = (f: 'a => 'b, r: t('a)) =>
