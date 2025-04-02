@@ -16,18 +16,6 @@ type t;
  */
 let init: t;
 
-/**
-  [take_step es] is [es] with the updated step count.
- */
-let take_step: t => t;
-
-/**
-  [get_step es] is the number of steps taken.
- */
-let get_step: t => int;
-
-let put_step: (int, t) => t;
-
 let add_test: (t, Id.t, TestMap.instance_report) => t;
 
 let get_tests: t => TestMap.t;

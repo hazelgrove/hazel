@@ -40,7 +40,6 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
       term: Seq(e1, e2),
       annotation: {
         ids: [Id.mk()],
-        copied: false,
       },
     }
   | Seq(e11, e12) =>
@@ -49,7 +48,6 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
       term: Seq(e11, e12'),
       annotation: {
         ids: IdTagged.ids(e1),
-        copied: false,
       },
     };
   | Filter(kind, ebody) =>
@@ -58,7 +56,6 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
       term: Filter(kind, ebody'),
       annotation: {
         ids: IdTagged.ids(e1),
-        copied: false,
       },
     };
   | Let(p, edef, ebody) =>
@@ -67,7 +64,6 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
       term: Let(p, edef, ebody'),
       annotation: {
         ids: IdTagged.ids(e1),
-        copied: false,
       },
     };
   | TyAlias(tp, tdef, ebody) =>
@@ -76,7 +72,6 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
       term: TyAlias(tp, tdef, ebody'),
       annotation: {
         ids: IdTagged.ids(e1),
-        copied: false,
       },
     };
   };
@@ -90,7 +85,6 @@ let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
         pat: {
           term: Constructor("$e", Some(Unknown(Internal) |> Typ.fresh)),
           annotation: {
-            copied: false,
             ids: [Id.mk()],
           },
         },
@@ -98,7 +92,6 @@ let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
       term,
     ),
   annotation: {
-    copied: false,
     ids: [Id.mk()],
   },
 };
