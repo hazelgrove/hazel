@@ -3,19 +3,22 @@ module Model = {
   type mode =
     | Scratch
     | Documentation
-    | Exercises;
+    | Exercises
+    | Config;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Scratch(ScratchMode.Model.t)
     | Documentation(ScratchMode.Model.t)
-    | Exercises(ExercisesMode.Model.t);
+    | Exercises(ExercisesMode.Model.t)
+    | Config(ScratchMode.Model.t);
 
   let mode_string: t => string =
     fun
     | Scratch(_) => "Scratch"
     | Documentation(_) => "Documentation"
-    | Exercises(_) => "Exercises";
+    | Exercises(_) => "Exercises"
+    | Config(_) => "Configuration";
 };
 
 module StoreMode =
@@ -44,6 +47,11 @@ module Store = {
         ExercisesMode.Store.load(~settings, ~instructor_mode)
         |> ExercisesMode.Model.unpersist(~settings, ~instructor_mode),
       )
+    | Config =>
+      Model.Documentation(
+        ScratchMode.StoreDocumentation.load()
+        |> ScratchMode.Model.unpersist_documentation(~settings),
+      )
     };
   };
 
@@ -60,6 +68,11 @@ module Store = {
     | Model.Exercises(m) =>
       StoreMode.save(Exercises);
       ExercisesMode.Store.save(~instructor_mode, m);
+    | Model.Config(m) =>
+      StoreMode.save(Config);
+      ScratchMode.StoreDocumentation.save(
+        ScratchMode.Model.persist_documentation(m),
+      );
     };
   };
 };
@@ -87,6 +100,7 @@ module Update = {
           m,
         );
       Model.Scratch(scratch);
+    | (Scratch(action), Config(m))
     | (Scratch(action), Documentation(m)) =>
       let* scratch =
         ScratchMode.Update.update(
@@ -108,9 +122,11 @@ module Update = {
       Model.Exercises(exercises);
     | (Scratch(_), Exercises(_))
     | (Exercises(_), Scratch(_))
+    | (Exercises(_), Config(_))
     | (Exercises(_), Documentation(_)) => model |> return_quiet
     | (SwitchMode(Scratch), Scratch(_))
     | (SwitchMode(Documentation), Documentation(_))
+    | (SwitchMode(Config), Config(_))
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
       Model.Scratch(
@@ -120,6 +136,14 @@ module Update = {
       |> return
     | (SwitchMode(Documentation), _) =>
       Model.Documentation(
+        ScratchMode.StoreDocumentation.load()
+        |> ScratchMode.Model.unpersist_documentation(
+             ~settings=globals.settings.core,
+           ),
+      )
+      |> return
+    | (SwitchMode(Config), _) =>
+      Model.Config(
         ScratchMode.StoreDocumentation.load()
         |> ScratchMode.Model.unpersist_documentation(
              ~settings=globals.settings.core,
@@ -161,6 +185,15 @@ module Update = {
           m,
         ),
       )
+    | Model.Config(m) =>
+      Model.Documentation(
+        ScratchMode.Update.calculate(
+          ~schedule_action=a => schedule_action(Scratch(a)),
+          ~settings,
+          ~is_edited,
+          m,
+        ),
+      )
     | Model.Exercises(m) =>
       Model.Exercises(
         ExercisesMode.Update.calculate(
@@ -189,12 +222,17 @@ module Selection = {
     | (Scratch(selection), Documentation(m)) =>
       let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
       Update.Scratch(ci);
+    | (Scratch(selection), Config(m)) =>
+      let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
+      Update.Scratch(ci);
+
     | (Exercises(selection), Exercises(m)) =>
       let+ ci = ExercisesMode.Selection.get_cursor_info(~selection, m);
       Update.Exercises(ci);
     | (Scratch(_), Exercises(_))
     | (Exercises(_), Scratch(_))
-    | (Exercises(_), Documentation(_)) => empty
+    | (Exercises(_), Documentation(_))
+    | (Exercises(_), Config(_)) => empty
     };
   };
 
@@ -207,12 +245,17 @@ module Selection = {
     | (Some(Scratch(selection)), Documentation(m)) =>
       ScratchMode.Selection.handle_key_event(~selection, ~event, m)
       |> Option.map(x => Update.Scratch(x))
+    | (Some(Scratch(selection)), Config(m)) =>
+      ScratchMode.Selection.handle_key_event(~selection, ~event, m)
+      |> Option.map(x => Update.Scratch(x))
+
     | (Some(Exercises(selection)), Exercises(m)) =>
       ExercisesMode.Selection.handle_key_event(~selection, ~event, m)
       |> Option.map(x => Update.Exercises(x))
     | (Some(Scratch(_)), Exercises(_))
     | (Some(Exercises(_)), Scratch(_))
     | (Some(Exercises(_)), Documentation(_))
+    | (Some(Exercises(_)), Config(_))
     | (None, _) => None
     };
   };
@@ -223,6 +266,7 @@ module Selection = {
     | Scratch(m) =>
       ScratchMode.Selection.jump_to_tile(tile, m)
       |> Option.map(((x, y)) => (Update.Scratch(x), Scratch(y)))
+    | Config(m)
     | Documentation(m) =>
       ScratchMode.Selection.jump_to_tile(tile, m)
       |> Option.map(((x, y)) => (Update.Scratch(x), Scratch(y)))
@@ -235,6 +279,7 @@ module Selection = {
     fun
     | Model.Scratch(_) => Scratch(MainEditor)
     | Model.Documentation(_) => Scratch(MainEditor)
+    | Model.Config(_) => Scratch(MainEditor)
     | Model.Exercises(_) => Exercises((Exercise.Prelude, MainEditor));
 };
 
@@ -282,6 +327,20 @@ module View = {
         ~inject=a => Update.Scratch(a) |> inject,
         m,
       )
+    | Config(m) =>
+      ScratchMode.View.view(
+        ~signal=
+          fun
+          | MakeActive(s) => signal(MakeActive(Scratch(s))),
+        ~globals,
+        ~selected=
+          switch (selection) {
+          | Some(Scratch(s)) => Some(s)
+          | _ => None
+          },
+        ~inject=a => Update.Scratch(a) |> inject,
+        m,
+      )
     | Exercises(m) =>
       ExercisesMode.View.view(
         ~signal=
@@ -301,6 +360,7 @@ module View = {
   let file_menu = (~globals, ~inject, editors: Model.t) =>
     switch (editors) {
     | Scratch(s)
+    | Config(s)
     | Documentation(s) =>
       ScratchMode.View.file_menu(
         ~globals,
@@ -328,6 +388,7 @@ module View = {
                 | "Scratch" => inject(Update.SwitchMode(Scratch))
                 | "Documentation" => inject(Update.SwitchMode(Documentation))
                 | "Exercises" => inject(Update.SwitchMode(Exercises))
+                | "Configuration" => inject(Update.SwitchMode(Config))
                 | _ => failwith("Invalid mode")
               ),
             ],
@@ -337,9 +398,10 @@ module View = {
                 | Scratch(_) => "Scratch"
                 | Documentation(_) => "Documentation"
                 | Exercises(_) => "Exercises"
+                | Config(_) => "Configuration"
                 },
               ),
-              ["Scratch", "Documentation", "Exercises"],
+              ["Scratch", "Documentation", "Configuration", "Exercises"],
             ),
           ),
         ],
@@ -355,6 +417,13 @@ module View = {
           m,
         )
       | Documentation(m) =>
+        ScratchMode.View.top_bar(
+          ~globals,
+          ~named_slides=true,
+          ~inject=a => Update.Scratch(a) |> inject,
+          m,
+        )
+      | Config(m) =>
         ScratchMode.View.top_bar(
           ~globals,
           ~named_slides=true,
