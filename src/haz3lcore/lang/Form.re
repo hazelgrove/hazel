@@ -11,8 +11,6 @@ module P = Precedence;
    table, for compound forms.
    The wrapping functions seen in both of those tables determine the
    shape, precedence, and expansion behavior of the form.
-
-   convex_monos tale doesn't exist?
    */
 
 /* A label is the textual expression of a form's delimiters */

@@ -51,8 +51,7 @@ echo-html-dir:
 	@echo $(HTML_DIR)
 
 serve:
-	cd $(HTML_DIR); python3 -m http.server 8000 --bind 127.0.0.1
-
+	cd $(HTML_DIR); python3 -m http.server 8000
 serve2:
 	cd $(HTML_DIR); python3 -m http.server 8001
 
