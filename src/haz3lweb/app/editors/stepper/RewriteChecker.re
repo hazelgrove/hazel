@@ -36,10 +36,7 @@ let rec print_exp_for_algebrite = (exp: Exp.t): string =>
 
 let checkEquality = (expr1, expr2): bool => {
   let algebrite = Js.Unsafe.global##.Algebrite;
-  print_endline(expr1);
-  print_endline(expr2);
   let diffExpr = Printf.sprintf("simplify((%s)-(%s))", expr1, expr2);
-  print_endline(diffExpr);
   let algebrite_result = algebrite##run(Js.string(diffExpr));
   switch (Js.to_string(algebrite_result)) {
   | "0" => true
@@ -55,8 +52,6 @@ let check_rewrite = (_from: Exp.t, _to: Exp.t): bool => {
   // perhaps some Cast
 
   // TODO return Some(bool) instead of bool in case we encounter a case we can't handle?
-  print_endline(Exp.show(_from));
-  print_endline(Exp.show(_to));
   let left_str = print_exp_for_algebrite(_from);
   let right_str = print_exp_for_algebrite(_to);
   if (left_str == "Unknown" || right_str == "Unknown") {
