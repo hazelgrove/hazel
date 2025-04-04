@@ -1,10 +1,18 @@
 # Livelits
 
-A livelit is a live GUI widget which can be inserted into expressions, which can elaborate to a value of some given type. To invoke a livelit, insert the name of the livelit (always prefixed with ^) then space.
+## Background
+Hazel implements a version of the live literals (livelits) mechanism described in [our PLDI 2021 paper](https://hazel.org/papers/livelits-pldi2021.pdf), currently limited to:
 
-Each livelit maintains an internal model, which should not be interacted with by an end-user. When testing a livelit you've created, you can unproject the livelit and edit this internal model directly.
+  - No parameters
+  - No splices
+  - No user-defined livelits (only builtins)
 
-Livelits live in the context, so they can be viewed using the context inspector, but currently there is no way to add one during runtime. In order to add a new livelit, it needs to be defined in `/src/haz3lcore/tiles/Livelit.re`, and added to the built-in context.
+## Overview
+A livelit is a live GUI widget which can be inserted into expressions and generates code by expansion to an expression of some given type. To invoke a livelit, insert the name of the livelit (always prefixed with ^) then press space.
+
+Each livelit maintains an internal model, which we do not intend clients of the livelit to interact with. When testing a livelit you've created, you can unproject the livelit (by clicking the button on the bottom right of the Hazel UI) and edit this internal model directly.
+
+Livelits live in the typing context, so they can be viewed using the context inspector, but currently there is no way to add new user-defined livelits. 
 
 ## Writing a livelit
 A livelit is defined by a record of the following type:
