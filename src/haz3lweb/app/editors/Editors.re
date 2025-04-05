@@ -48,8 +48,8 @@ module Store = {
         |> ExercisesMode.Model.unpersist(~settings, ~instructor_mode),
       )
     | Config =>
-      Model.Documentation(
-        ScratchMode.StoreDocumentation.load()
+      Model.Config(
+        ScratchMode.StoreConfig.load()
         |> ScratchMode.Model.unpersist_documentation(~settings),
       )
     };
@@ -70,7 +70,7 @@ module Store = {
       ExercisesMode.Store.save(~instructor_mode, m);
     | Model.Config(m) =>
       StoreMode.save(Config);
-      ScratchMode.StoreDocumentation.save(
+      ScratchMode.StoreConfig.save(
         ScratchMode.Model.persist_documentation(m),
       );
     };
@@ -144,7 +144,7 @@ module Update = {
       |> return
     | (SwitchMode(Config), _) =>
       Model.Config(
-        ScratchMode.StoreDocumentation.load()
+        ScratchMode.StoreConfig.load()
         |> ScratchMode.Model.unpersist_documentation(
              ~settings=globals.settings.core,
            ),

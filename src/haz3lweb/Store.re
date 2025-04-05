@@ -7,6 +7,7 @@ type key =
   | Mode
   | Scratch
   | Documentation
+  | Configuration
   | CurrentExercise
   | Exercise(Exercise.key);
 
@@ -17,6 +18,7 @@ let key_to_string =
   | Mode => "MODE"
   | Scratch => "SAVE_SCRATCH"
   | Documentation => "SAVE_DOCUMENTATION"
+  | Configuration => "SAVE_CONFIGURATION"
   | CurrentExercise => "CUR_EXERCISE"
   | Exercise(key) => key |> Exercise.sexp_of_key |> Sexplib.Sexp.to_string;
 

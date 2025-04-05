@@ -4,4 +4,5 @@ open Util;
 type t = {
   scratch: (int, list(CellEditor.Model.persistent)),
   documentation: (int, list((string, CellEditor.Model.persistent))),
+  configuration: (int, list((string, CellEditor.Model.persistent))),
 };

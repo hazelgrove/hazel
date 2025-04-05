@@ -208,3 +208,14 @@ let set_select_value = (select_id, value) => {
     Js_of_ocaml.Js.string(value),
   );
 };
+
+let set_css_variable = (name: string, value: string) => {
+  let doc = Dom_html.document;
+  let root = doc##.documentElement;
+  let style: Js.t(Dom_html.cssStyleDeclaration) = root##.style;
+
+  let foo =
+    style##setProperty(Js.string(name), Js.string(value), Js.undefined);
+
+  ();
+};

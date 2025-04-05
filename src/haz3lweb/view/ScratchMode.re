@@ -28,6 +28,7 @@ module Model = {
       ),
   };
 
+  // TODO Rename to persist_named
   let persist_documentation = model => (
     model.current,
     List.map(
@@ -36,6 +37,7 @@ module Model = {
     ),
   );
 
+  // TODO Rename to unpersist_named
   let unpersist_documentation = (~settings, (current, slides)) => {
     current,
     scratchpads:
@@ -52,6 +54,14 @@ module StoreDocumentation =
     type t = Model.persistent;
     let key = Store.Documentation;
     let default = () => Init.startup.documentation;
+  });
+
+module StoreConfig =
+  Store.F({
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = Model.persistent;
+    let key = Store.Configuration;
+    let default = () => Init.startup.configuration;
   });
 
 module Store =
@@ -172,7 +182,14 @@ module Update = {
       WorkerClient.request(
         worker_request^,
         ~handler=
-          r =>
+          r => {
+            print_endline(
+              "Worker result: " ++ [%derive.show: WorkerServer.Response.t](r),
+            );
+            switch (r) {
+            | Ok(_) => JsUtil.set_css_variable("--SAND", "black")
+            };
+
             schedule_action(
               CellAction(
                 ResultAction(
@@ -188,7 +205,8 @@ module Update = {
                   ),
                 ),
               ),
-            ),
+            );
+          },
         ~timeout=
           _ =>
             schedule_action(

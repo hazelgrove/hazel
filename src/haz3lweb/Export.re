@@ -72,6 +72,7 @@ let export_persistent = () => {
   let data: PersistentData.t = {
     documentation: ScratchMode.StoreDocumentation.load(),
     scratch: ScratchMode.Store.load(),
+    configuration: ScratchMode.StoreConfig.load(),
   };
   let contents =
     "let startup : PersistentData.t = " ++ PersistentData.show(data);
