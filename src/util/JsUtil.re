@@ -214,7 +214,7 @@ let set_css_variable = (name: string, value: string) => {
   let root = doc##.documentElement;
   let style: Js.t(Dom_html.cssStyleDeclaration) = root##.style;
 
-  let foo =
+  let _ =
     style##setProperty(Js.string(name), Js.string(value), Js.undefined);
 
   ();

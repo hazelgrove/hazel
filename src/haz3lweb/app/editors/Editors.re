@@ -152,17 +152,13 @@ module Update = {
       )
       |> return
     | (SwitchMode(Config), _) =>
-      print_endline("Switching to config");
-      let foo =
-        Model.Config(
-          ScratchMode.StoreConfig.load()
-          |> ScratchMode.Model.unpersist_documentation(
-               ~settings=globals.settings.core,
-             ),
-        )
-        |> return;
-      print_endline(Model.show(foo.model));
-      foo;
+      Model.Config(
+        ScratchMode.StoreConfig.load()
+        |> ScratchMode.Model.unpersist_documentation(
+             ~settings=globals.settings.core,
+           ),
+      )
+      |> return
     | (SwitchMode(Exercises), _) =>
       Model.Exercises(
         ExercisesMode.Store.load(
