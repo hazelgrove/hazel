@@ -100,7 +100,16 @@ module Update = {
           m,
         );
       Model.Scratch(scratch);
-    | (Scratch(action), Config(m))
+    | (Scratch(action), Config(m)) =>
+      let* scratch =
+        ScratchMode.Update.update(
+          ~settings=globals.settings,
+          ~schedule_action=a => schedule_action(Scratch(a)),
+          ~is_documentation=true,
+          action,
+          m,
+        );
+      Model.Config(scratch);
     | (Scratch(action), Documentation(m)) =>
       let* scratch =
         ScratchMode.Update.update(
