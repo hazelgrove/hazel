@@ -407,7 +407,6 @@ module Exp = {
       term,
       annotation: {
         ids: [Id.invalid],
-        copied: false,
       },
     };
   let fresh: term => t = IdTagged.fresh;
@@ -722,7 +721,6 @@ module Exp = {
         {
           ...exp,
           annotation: {
-            ...exp.annotation,
             ids: [Id.mk()],
           },
         }

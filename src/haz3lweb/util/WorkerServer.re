@@ -17,7 +17,7 @@ module Response = {
   [@deriving (show, sexp, yojson)]
   type value =
     Result.t(
-      (Haz3lcore.ProgramResult.Result.t, Haz3lcore.EvaluatorState.t),
+      (Haz3lcore.Exp.t, Haz3lcore.EvaluatorState.t),
       Haz3lcore.ProgramResult.error,
     );
   [@deriving (show, sexp, yojson)]
@@ -28,7 +28,7 @@ module Response = {
 };
 
 let work = (res: Request.value): Response.value =>
-  switch (Haz3lcore.Evaluator.evaluate'(Haz3lcore.Builtins.env_init, res)) {
+  switch (Haz3lcore.Evaluator.evaluate(~env=Haz3lcore.Builtins.env_init, res)) {
   | exception (Haz3lcore.EvaluatorError.Exception(reason)) =>
     print_endline(
       "EvaluatorError:" ++ Haz3lcore.EvaluatorError.show(reason),
@@ -39,7 +39,7 @@ let work = (res: Request.value): Response.value =>
     Error(
       Haz3lcore.ProgramResult.UnknownException(Printexc.to_string(exn)),
     );
-  | (state, result) => Ok((result, state))
+  | (result, state) => Ok((result, state))
   };
 
 let on_request = (req: string): unit =>

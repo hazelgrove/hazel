@@ -378,7 +378,7 @@ module rec Exp: {
           if (indicated) {
             Dynarray.add_last(indicated_ids, id);
           };
-          {ids: [id], copied: false};
+          {ids: [id]};
         },
         indicated_exp,
       );

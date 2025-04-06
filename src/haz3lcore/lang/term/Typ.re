@@ -40,7 +40,6 @@ let temp: term => t =
     term,
     annotation: {
       ids: [Id.invalid],
-      copied: false,
     },
   };
 
@@ -53,7 +52,6 @@ let all_ids_temp = {
       {
         term: exp.term,
         annotation: {
-          ...exp.annotation,
           ids: [Id.invalid],
         },
       }
