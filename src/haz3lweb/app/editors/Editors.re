@@ -152,13 +152,17 @@ module Update = {
       )
       |> return
     | (SwitchMode(Config), _) =>
-      Model.Config(
-        ScratchMode.StoreConfig.load()
-        |> ScratchMode.Model.unpersist_documentation(
-             ~settings=globals.settings.core,
-           ),
-      )
-      |> return
+      print_endline("Switching to config");
+      let foo =
+        Model.Config(
+          ScratchMode.StoreConfig.load()
+          |> ScratchMode.Model.unpersist_documentation(
+               ~settings=globals.settings.core,
+             ),
+        )
+        |> return;
+      print_endline(Model.show(foo.model));
+      foo;
     | (SwitchMode(Exercises), _) =>
       Model.Exercises(
         ExercisesMode.Store.load(
@@ -195,7 +199,7 @@ module Update = {
         ),
       )
     | Model.Config(m) =>
-      Model.Documentation(
+      Model.Config(
         ScratchMode.Update.calculate(
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
