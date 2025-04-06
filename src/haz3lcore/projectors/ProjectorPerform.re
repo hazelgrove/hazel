@@ -122,8 +122,29 @@ let go =
     | None => Error(Cant_project)
     }
   | SetSyntax(id, seg) =>
-    Ok(update(p => {...p, syntax: Segment.parenthesize(seg)}, id, z))
-  | SetModel(id, model) => Ok(update(pr => {...pr, model}, id, z))
+    Ok(
+      update(
+        p =>
+          {
+            ...p,
+            syntax: Segment.parenthesize(seg),
+          },
+        id,
+        z,
+      ),
+    )
+  | SetModel(id, model) =>
+    Ok(
+      update(
+        pr =>
+          {
+            ...pr,
+            model,
+          },
+        id,
+        z,
+      ),
+    )
   | Focus(id, kind, d) =>
     switch (d) {
     | None =>

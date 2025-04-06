@@ -19,4 +19,7 @@ let ap_pat: form = {
   };
 };
 
-let ap: group = {id: ApPat, forms: [ap_pat]};
+let ap: group = {
+  id: ApPat,
+  forms: [ap_pat],
+};

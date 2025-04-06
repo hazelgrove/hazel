@@ -264,13 +264,37 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["hide", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Eval, One), pat: filter}), r)
+          Filter(
+            Filter({
+              act: (Eval, One),
+              pat: filter,
+            }),
+            r,
+          )
         | (["eval", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Eval, All), pat: filter}), r)
+          Filter(
+            Filter({
+              act: (Eval, All),
+              pat: filter,
+            }),
+            r,
+          )
         | (["pause", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Step, One), pat: filter}), r)
+          Filter(
+            Filter({
+              act: (Step, One),
+              pat: filter,
+            }),
+            r,
+          )
         | (["debug", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Step, All), pat: filter}), r)
+          Filter(
+            Filter({
+              act: (Step, All),
+              pat: filter,
+            }),
+            r,
+          )
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
@@ -384,7 +408,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["="], []) =>
             switch (l.term) {
             | Var(name) =>
-              TupLabel({annotation: l.annotation, term: Label(name)}, r)
+              TupLabel(
+                {
+                  annotation: l.annotation,
+                  term: Label(name),
+                },
+                r,
+              )
             | EmptyHole => TupLabel(l, r)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(l);
@@ -397,7 +427,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["."], []) =>
             switch (r.term) {
             | Var(name) =>
-              Dot(l, {annotation: r.annotation, term: Label(name)})
+              Dot(
+                l,
+                {
+                  annotation: r.annotation,
+                  term: Label(name),
+                },
+              )
             | EmptyHole => Dot(l, r)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(r);
@@ -506,7 +542,15 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | ([(_id, (["="], []))], []) =>
         switch (l.term) {
         | Var(name) =>
-          ret(TupLabel({annotation: l.annotation, term: Label(name)}, r))
+          ret(
+            TupLabel(
+              {
+                annotation: l.annotation,
+                term: Label(name),
+              },
+              r,
+            ),
+          )
         | EmptyHole => ret(TupLabel(l, r))
         | _ =>
           let (e_term, rewrap) = IdTagged.unwrap(l);
@@ -623,7 +667,15 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       | ([(_id, (["="], []))], []) =>
         switch (l.term) {
         | Var(name) =>
-          ret(TupLabel({annotation: l.annotation, term: Label(name)}, r))
+          ret(
+            TupLabel(
+              {
+                annotation: l.annotation,
+                term: Label(name),
+              },
+              r,
+            ),
+          )
         | _ => ret(TupLabel(l, r))
         }
       | _ => ret(hole(tm))
@@ -770,7 +822,11 @@ let go =
       map := TermMap.empty;
       projectors := Id.Map.empty;
       let term = exp(unsorted(Segment.skel(seg), seg));
-      {term, terms: map^, projectors: projectors^};
+      {
+        term,
+        terms: map^,
+        projectors: projectors^,
+      };
     },
   );
 

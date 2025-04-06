@@ -132,7 +132,10 @@ module Update = {
                    )
                    |> ((u: Updated.t('a)) => u.model);
                  let editor = Calc.NewValue(editor);
-                 {...a, editor};
+                 {
+                   ...a,
+                   editor,
+                 };
                }),
              )
           |> Aba.mk(_, model.history |> Aba.get_bs),
@@ -237,7 +240,12 @@ module Update = {
                   x
                 ),
               )
-           |> (editor => {...a, editor})
+           |> (
+             editor => {
+               ...a,
+               editor,
+             }
+           )
          }),
        );
   };

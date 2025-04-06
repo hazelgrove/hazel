@@ -30,4 +30,7 @@ let undefined_exp: form = {
   };
 };
 
-let undefined_exps: group = {id: UndefinedExp, forms: [undefined_exp]};
+let undefined_exps: group = {
+  id: UndefinedExp,
+  forms: [undefined_exp],
+};
