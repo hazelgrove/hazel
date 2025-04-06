@@ -182,14 +182,7 @@ module Update = {
       WorkerClient.request(
         worker_request^,
         ~handler=
-          r => {
-            print_endline(
-              "Worker result: " ++ [%derive.show: WorkerServer.Response.t](r),
-            );
-            switch (r) {
-            | Ok(_) => JsUtil.set_css_variable("--SAND", "black")
-            };
-
+          r =>
             schedule_action(
               CellAction(
                 ResultAction(
@@ -205,8 +198,7 @@ module Update = {
                   ),
                 ),
               ),
-            );
-          },
+            ),
         ~timeout=
           _ =>
             schedule_action(
