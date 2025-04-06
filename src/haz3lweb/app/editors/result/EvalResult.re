@@ -152,11 +152,8 @@ module Update = {
             result:
               NewValue(
                 Haz3lcore.ProgramResult.map(
-                  ({result: r, state: s}: Haz3lcore.ProgramResult.inner) => {
-                    let exp =
-                      Haz3lcore.ProgramResult.Result.unbox(r)
-                      |> Haz3lcore.DHExp.replace_all_ids;
-                    (exp, s);
+                  ({result: exp, state: s}: Haz3lcore.ProgramResult.inner) => {
+                    (exp, s)
                   },
                   update,
                 ),
@@ -206,9 +203,8 @@ module Update = {
                 elab,
                 result: {
                   switch (WorkerServer.work(elab)) {
-                  | Ok((r, state)) =>
-                    let exp = Haz3lcore.ProgramResult.Result.unbox(r);
-                    NewValue(Haz3lcore.ProgramResult.ResultOk((exp, state)));
+                  | Ok((exp, state)) =>
+                    NewValue(Haz3lcore.ProgramResult.ResultOk((exp, state)))
                   | Error(e) =>
                     NewValue(Haz3lcore.ProgramResult.ResultFail(e))
                   };
