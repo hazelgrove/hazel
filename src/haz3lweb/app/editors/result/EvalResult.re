@@ -105,7 +105,7 @@ module Update = {
     | UpdateResult(Haz3lcore.ProgramResult.t(Haz3lcore.ProgramResult.inner));
 
   // Update is meant to make minimal changes to the model, and calculate will do the rest.
-  let update = (~settings, action, model: Model.t): Updated.t(Model.t) =>
+  let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     switch (action, model) {
     | (ToggleStepper, {kind: Stepper, _}) =>
       {
@@ -155,6 +155,24 @@ module Update = {
         UpdateResult(update),
         {result: Evaluation({elab, editor, cached_settings, _}), _},
       ) =>
+      print_endline(show(action));
+      let _ =
+        switch (update) {
+        | ResultOk({result, _}) =>
+          switch (result.term) {
+          | Int(i) =>
+            let color =
+              "#"
+              ++ string_of_int(i)
+              ++ string_of_int(i)
+              ++ string_of_int(i);
+            JsUtil.set_css_variable("--SAND", color);
+          | String(color) => JsUtil.set_css_variable("--SAND", color)
+          | _ => ()
+          }
+        | _ => ()
+        };
+
       {
         ...model,
         result:
@@ -180,9 +198,10 @@ module Update = {
           previous_probes: Model.probe_results(x),
         }
       )
-      |> Updated.return
+      |> Updated.return;
     | (UpdateResult(_), _) => model |> Updated.return_quiet
     };
+  };
 
   let calculate =
       (
