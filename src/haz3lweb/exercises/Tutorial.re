@@ -502,8 +502,8 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
   Printf.printf("Wrapper: %b\n", eds.wrapper);
 
   let user_impl_term = {
-    eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
-                                                               // eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
+    eds.your_impl |> term_of;
+                            // eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
   };
 
   // let user_impl_term =
