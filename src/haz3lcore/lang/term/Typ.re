@@ -14,6 +14,8 @@ type cls =
   | String
   | Arrow
   | Prod
+  | TupLabel
+  | Label
   | Sum
   | List
   | Var
@@ -33,6 +35,29 @@ let fresh: term => t = IdTagged.fresh;
    shortly after, it makes sense to use it. */
 let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
 let rep_id: t => Id.t = IdTagged.rep_id;
+
+let all_ids_temp = {
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, exp) => {...exp, ids: [Id.invalid]} |> continue;
+  map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
+};
+
+let (replace_temp, replace_temp_exp) = {
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, exp) =>
+      {...exp, ids: exp.ids == [Id.invalid] ? [Id.mk()] : exp.ids}
+      |> continue;
+  (
+    map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    TermBase.Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+  );
+};
 
 let hole = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
   switch (tms) {
@@ -55,6 +80,8 @@ let cls_of_term: term => cls =
   | Arrow(_) => Arrow
   | Var(_) => Var
   | Prod(_) => Prod
+  | TupLabel(_) => TupLabel
+  | Label(_) => Label
   | Parens(_) => Parens
   | Ap(_) => Ap
   | Sum(_) => Sum
@@ -76,7 +103,9 @@ let show_cls: cls => string =
   | Constructor => "Sum constructor"
   | List => "List type"
   | Arrow => "Function type"
-  | Prod => "Product type"
+  | Prod => "Tuple type"
+  | TupLabel => "Labeled tuple item type"
+  | Label => "Label"
   | Sum => "Sum type"
   | Parens => "Parenthesized type"
   | Ap => "Constructor application"
@@ -93,7 +122,9 @@ let is_parens = (typ: t) => {
   | Bool
   | String
   | List(_)
+  | Label(_)
   | Prod(_)
+  | TupLabel(_)
   | Var(_)
   | Ap(_)
   | Sum(_)
@@ -105,7 +136,7 @@ let is_parens = (typ: t) => {
 // ignore_parens=false can give a syntactic notion (e.g. for use in pattern matching).
 let rec is_arrow = (~ignore_parens=true, typ: t) => {
   switch (typ.term) {
-  | Parens(typ) => ignore_parens ? false : is_arrow(typ)
+  | Parens(typ) => is_arrow(typ)
   | Arrow(_) => true
   | Unknown(_)
   | Int
@@ -113,7 +144,9 @@ let rec is_arrow = (~ignore_parens=true, typ: t) => {
   | Bool
   | String
   | List(_)
+  | Label(_)
   | Prod(_)
+  | TupLabel(_)
   | Var(_)
   | Ap(_)
   | Sum(_)
@@ -133,6 +166,8 @@ let rec is_unknown = (~ignore_parens=true, typ: t) => {
   | String
   | List(_)
   | Prod(_)
+  | Label(_)
+  | TupLabel(_)
   | Var(_)
   | Ap(_)
   | Sum(_)
@@ -152,6 +187,8 @@ let rec is_list = (~ignore_parens=true, typ: t) => {
   | String
   | Arrow(_)
   | Prod(_)
+  | Label(_)
+  | TupLabel(_)
   | Var(_)
   | Ap(_)
   | Sum(_)
@@ -162,7 +199,8 @@ let rec is_list = (~ignore_parens=true, typ: t) => {
 
 let rec is_forall = (~ignore_parens=true, typ: t) => {
   switch (typ.term) {
-  | Parens(typ) => ignore_parens ? false : is_forall(typ)
+  | Parens(typ)
+  | TupLabel(_, typ) => ignore_parens ? false : is_forall(typ)
   | Forall(_) => true
   | Unknown(_)
   | Int
@@ -171,6 +209,7 @@ let rec is_forall = (~ignore_parens=true, typ: t) => {
   | String
   | Arrow(_)
   | List(_)
+  | Label(_)
   | Prod(_)
   | Var(_)
   | Ap(_)
@@ -178,6 +217,7 @@ let rec is_forall = (~ignore_parens=true, typ: t) => {
   | Rec(_) => false
   };
 };
+
 let rec is_sum = (~ignore_parens=true, typ: t) => {
   switch (typ.term) {
   | Parens(typ) => ignore_parens ? false : is_sum(typ)
@@ -190,6 +230,71 @@ let rec is_sum = (~ignore_parens=true, typ: t) => {
   | Arrow(_)
   | List(_)
   | Prod(_)
+  | Label(_)
+  | TupLabel(_)
+  | Var(_)
+  | Ap(_)
+  | Forall(_)
+  | Rec(_) => false
+  };
+};
+
+let rec is_tuplabel = (~ignore_parens=true, typ: t) => {
+  switch (typ.term) {
+  | Parens(typ) => ignore_parens ? false : is_tuplabel(typ)
+  | TupLabel(_) => true
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String
+  | Arrow(_)
+  | List(_)
+  | Prod(_)
+  | Label(_)
+  | Sum(_)
+  | Var(_)
+  | Ap(_)
+  | Forall(_)
+  | Rec(_) => false
+  };
+};
+
+let rec is_prod = (~ignore_parens=true, typ: t) => {
+  switch (typ.term) {
+  | Parens(typ) => ignore_parens ? false : is_prod(typ)
+  | Prod(_) => true
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String
+  | Arrow(_)
+  | List(_)
+  | TupLabel(_)
+  | Label(_)
+  | Sum(_)
+  | Var(_)
+  | Ap(_)
+  | Forall(_)
+  | Rec(_) => false
+  };
+};
+
+let rec is_label = (~ignore_parens=true, typ: t) => {
+  switch (typ.term) {
+  | Parens(typ) => ignore_parens ? false : is_label(typ)
+  | Label(_) => true
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String
+  | Arrow(_)
+  | List(_)
+  | TupLabel(_)
+  | Prod(_)
+  | Sum(_)
   | Var(_)
   | Ap(_)
   | Forall(_)
@@ -226,13 +331,25 @@ let join_type_provenance =
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
+let rec match_tup_label = ty =>
+  switch (term_of(ty)) {
+  | Parens(ty) => match_tup_label(ty)
+  | TupLabel(label, t') =>
+    switch (term_of(label)) {
+    | Label(name) => Some((name, t'))
+    | _ => None
+    }
+  | _ => None
+  };
+
 let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (term_of(ty)) {
   | Unknown(_)
   | Int
   | Float
   | Bool
-  | String => []
+  | String
+  | Label(_) => []
   | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | Parens(ty) => free_vars(~bound, ty)
@@ -240,6 +357,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
   | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
+  | TupLabel(_, ty) => free_vars(~bound, ty)
   | Rec(x, ty)
   | Forall(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
@@ -349,6 +467,12 @@ let rec join_using =
     | (Bool, _) => None
     | (String, String) => Some((ty1, Left))
     | (String, _) => None
+    | (Label(_), Label("")) => Some((ty1, Left))
+    | (Label(""), Label(_)) => Some((ty2, Right))
+    | (Label(name1), Label(name2))
+        when LabeledTuple.match_labels(name1, name2) =>
+      Some((ty1, Left))
+    | (Label(_), _) => None
     | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
       let* (ty1, branch_used1) = join'(ty1, ty1');
       let+ (ty2, branch_used2) = join'(ty2, ty2');
@@ -357,14 +481,26 @@ let rec join_using =
         combine_branches_used(branch_used1, branch_used2),
       );
     | (Arrow(_), _) => None
-    | (Prod(tys1), Prod(tys2)) =>
-      let* joins = ListUtil.map2_opt(join', tys1, tys2);
-      let+ joins = OptUtil.sequence(joins);
-      let (tys, branches_used) = ListUtil.unzip(joins);
+    | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
+      let* (lab, branch_used1) = join'(lab1, lab2);
+      let+ (ty, branch_used2) = join'(ty1', ty2');
       (
-        Prod(tys) |> temp,
-        List.fold_left(combine_branches_used, None, branches_used),
+        TupLabel(lab, ty) |> temp,
+        combine_branches_used(branch_used1, branch_used2),
       );
+    | (TupLabel(_), _) => None
+    | (Prod(tys1), Prod(tys2)) =>
+      if (List.length(tys1) != List.length(tys2)) {
+        None;
+      } else {
+        let* joins = ListUtil.map2_opt(join', tys1, tys2);
+        let+ joins = OptUtil.sequence(joins);
+        let (tys, branches_used) = ListUtil.unzip(joins);
+        (
+          Prod(tys) |> temp,
+          List.fold_left(combine_branches_used, None, branches_used),
+        );
+      }
     | (Prod(_), _) => None
     | (Sum(sm1), Sum(sm2)) =>
       let+ (sm', branches_used) =
@@ -404,6 +540,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Float, _)
   | (Bool, _)
   | (String, _)
+  | (Label(_), _)
   | (Var(_), _)
   | (Ap(_), _)
   | (Rec(_), _)
@@ -418,6 +555,10 @@ let rec match_synswitch = (t1: t, t2: t) => {
     let tys = List.map2(match_synswitch, tys1, tys2);
     Prod(tys) |> rewrap1;
   | (Prod(_), _) => t1
+  | (TupLabel(label1, ty1), TupLabel(label2, ty2)) =>
+    TupLabel(match_synswitch(label1, label2), match_synswitch(ty1, ty2))
+    |> rewrap1
+  | (TupLabel(_, _), _) => t1
   | (Sum(sm1), Sum(sm2)) =>
     let sm' = ConstructorMap.match_synswitch(match_synswitch, eq, sm1, sm2);
     Sum(sm') |> rewrap1;
@@ -460,13 +601,16 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Int
   | Float
   | Bool
-  | String => ty
+  | String
+  | Label(_) => ty
   | Parens(t) => Parens(normalize(ctx, t)) |> rewrap
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
+  | TupLabel(label, ty) =>
+    TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
   | Sum(ts) =>
     Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts)) |> rewrap
   | Rec(tpat, ty) =>
@@ -506,18 +650,57 @@ let matched_forall = (ctx, ty) =>
   matched_forall_strict(ctx, ty)
   |> Option.value(~default=(None, Unknown(Internal) |> temp));
 
-let rec matched_prod_strict = (ctx, length, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_prod_strict(ctx, length, ty)
-  | Prod(tys) when List.length(tys) == length => Some(tys)
-  | Unknown(SynSwitch) =>
-    Some(List.init(length, _ => Unknown(SynSwitch) |> temp))
-  | _ => None
+let rec get_labels = (ctx, ty): list(option(string)) => {
+  let ty = weak_head_normalize(ctx, ty);
+  switch (term_of(ty)) {
+  | Parens(ty) => get_labels(ctx, ty)
+  | Prod(tys) => List.map(x => Option.map(fst, match_tup_label(x)), tys)
+  | _ => []
+  };
+};
+
+let rec matched_prod_strict:
+  type a.
+    (Ctx.t, list(a), a => option((string, a)), t, (string, a) => a) =>
+    (list(a), option(list(t))) =
+  (ctx: Ctx.t, es, get_label_es, ty: t, constructor) => {
+    switch (term_of(weak_head_normalize(ctx, ty))) {
+    | Parens(ty) =>
+      matched_prod_strict(ctx, es, get_label_es, ty, constructor)
+    | Prod(tys: list(t)) =>
+      if (List.length(es) != List.length(tys)) {
+        (es, None);
+      } else {
+        (
+          LabeledTuple.rearrange(
+            match_tup_label,
+            get_label_es,
+            tys,
+            es,
+            constructor,
+          ),
+          Some(tys),
+        );
+      }
+    | Unknown(SynSwitch) => (
+        es,
+        Some(List.init(List.length(es), _ => Unknown(SynSwitch) |> temp)),
+      )
+    | _ => (es, None)
+    };
   };
 
-let matched_prod = (ctx, length, ty) =>
-  matched_prod_strict(ctx, length, ty)
-  |> Option.value(~default=List.init(length, _ => Unknown(Internal) |> temp));
+let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
+  let (es, tys_opt) =
+    matched_prod_strict(ctx, es, get_label_es, ty, constructor);
+  (
+    es,
+    tys_opt
+    |> Option.value(
+         ~default=List.init(List.length(es), _ => Unknown(Internal) |> temp),
+       ),
+  );
+};
 
 let rec matched_list_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
@@ -574,6 +757,14 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   };
 };
 
+let rec is_unknown = (~ignore_parens=true, ty: t): bool =>
+  switch (ty |> term_of) {
+  | TupLabel(_, x)
+  | Parens(x) => ignore_parens ? is_unknown(x) : false
+  | Unknown(_) => true
+  | _ => false
+  };
+
 /* Does the type require parentheses when on the left of an arrow for printing? */
 let rec needs_parens = (ty: t): bool =>
   switch (term_of(ty)) {
@@ -582,13 +773,15 @@ let rec needs_parens = (ty: t): bool =>
   | Unknown(_)
   | Int
   | Float
-  | String
+  | Label(_)
   | Bool
+  | String
+  | TupLabel(_, _)
+  | List(_) /* is already wrapped in [] */
   | Var(_) => false
   | Rec(_, _)
-  | Forall(_, _) => true
-  | List(_) => false /* is already wrapped in [] */
-  | Arrow(_, _) => true
+  | Forall(_, _)
+  | Arrow(_, _)
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
   };
@@ -634,6 +827,8 @@ let rec pretty_print = (ty: t): string =>
          ts,
        )
     ++ ")"
+  | Label(name) => name
+  | TupLabel(label, t) => pretty_print(label) ++ "=" ++ pretty_print(t)
   | Rec(tv, t) =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | Forall(tv, t) =>
@@ -651,3 +846,43 @@ and paren_pretty_print = typ =>
   } else {
     pretty_print(typ);
   };
+
+/**
+ * Removes duplicate labels from a given list of types inside a tuple.
+ *
+ * This function takes a list of types and returns a new list with all
+ * duplicate labels replaced with their first occurence and the unknown type.
+ *
+ * @param duplicate_labels - The list of duplicate labels.
+ * @param tys - The list of types to remove duplicates from.
+ * @return A new list of types with duplicates removed.
+ */
+let remove_duplicate_labels =
+    (~duplicate_labels: list(LabeledTuple.label), tys: list(t)): list(t) => {
+  snd(
+    List.fold_left(
+      ((seen_duplicates, deduplicated_types), ty) => {
+        let tup_label = match_tup_label(ty);
+        switch (tup_label) {
+        | Some((l, _))
+            when
+              List.mem(l, duplicate_labels) && List.mem(l, seen_duplicates) => (
+            seen_duplicates,
+            deduplicated_types,
+          )
+        | Some((l, _)) when List.mem(l, duplicate_labels) => (
+            [l] @ seen_duplicates,
+            deduplicated_types
+            @ [
+              TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
+            ],
+          )
+        | Some(_) => (seen_duplicates, deduplicated_types @ [ty])
+        | None => (seen_duplicates, deduplicated_types @ [ty])
+        };
+      },
+      ([], []),
+      tys,
+    ),
+  );
+};

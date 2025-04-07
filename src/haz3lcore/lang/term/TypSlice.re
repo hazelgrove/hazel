@@ -207,6 +207,102 @@ let rec apply_t = (f_typ, f_slc, s: t) => {
   };
 };
 
+let typslc_typ_t_of_typ = (ty: Typ.t): typslc_typ_t => {
+  let (ty, rewrap) = ty |> IdTagged.unwrap;
+  (Typ(ty): typslc_typ_term) |> rewrap;
+};
+
+let typslc_typ_t_of_slc = (s: slc_typ_t): typslc_typ_t => {
+  let (s, rewrap) = s |> IdTagged.unwrap;
+  (Slice(s): typslc_typ_term) |> rewrap;
+};
+
+let t_of_typ_t = (ty: Typ.t): t => {
+  let (ty, rewrap) = ty |> IdTagged.unwrap;
+  `Typ(ty) |> rewrap;
+};
+
+// Creates a slice from the ids of a typ_t. Used in creating slices of type annotations.
+// This could instead be done directly in parsing.
+let rec t_of_typ_t_sliced = ({ids, _} as ty: Typ.t): t => {
+  let (ty, rewrap) = ty |> IdTagged.unwrap;
+  (
+    switch (ty) {
+    | Unknown(_) => (`Typ(ty): term) // Don't slice holes
+    | Int => `SliceIncr((Typ(Int), slice_of_ids(ids)))
+    | Bool => `SliceIncr((Typ(Bool), slice_of_ids(ids)))
+    | Float => `SliceIncr((Typ(Float), slice_of_ids(ids)))
+    | String => `SliceIncr((Typ(String), slice_of_ids(ids)))
+    | Var(name) => `SliceIncr((Typ(Var(name)), slice_of_ids(ids)))
+    | Label(name) => `SliceIncr((Typ(Label(name)), slice_of_ids(ids)))
+    // Note: ctx slice not relevant in the above (types used in local scope)
+    | List(t) =>
+      `SliceIncr((Slice(List(t_of_typ_t_sliced(t))), slice_of_ids(ids)))
+    | Parens(t) =>
+      `SliceIncr((Slice(Parens(t_of_typ_t_sliced(t))), slice_of_ids(ids)))
+    | Arrow(t1, t2) =>
+      `SliceIncr((
+        Slice(Arrow(t_of_typ_t_sliced(t1), t_of_typ_t_sliced(t2))),
+        slice_of_ids(ids),
+      ))
+    | Ap(t1, t2) =>
+      `SliceIncr((
+        Slice(Ap(t_of_typ_t_sliced(t1), t_of_typ_t_sliced(t2))),
+        slice_of_ids(ids),
+      ))
+    | Sum(m) =>
+      `SliceIncr((
+        Slice(Sum(m |> ConstructorMap.map_vals(t_of_typ_t_sliced))),
+        slice_of_ids(ids),
+      ))
+    | Prod(ts) =>
+      `SliceIncr((
+        Slice(Prod(List.map(t_of_typ_t_sliced, ts))),
+        slice_of_ids(ids),
+      ))
+    | TupLabel(t1, t2) =>
+      `SliceIncr((
+        Slice(TupLabel(t_of_typ_t_sliced(t1), t_of_typ_t_sliced(t2))),
+        slice_of_ids(ids),
+      ))
+    | Rec(tpat, t) =>
+      `SliceIncr((
+        Slice(Rec(tpat, t_of_typ_t_sliced(t))),
+        slice_of_ids(ids),
+      ))
+    | Forall(tpat, t) =>
+      `SliceIncr((
+        Slice(Forall(tpat, t_of_typ_t_sliced(t))),
+        slice_of_ids(ids),
+      ))
+    }
+  )
+  |> rewrap;
+};
+
+// Creates a slice from the ids of a pat_t annotation.
+// Dynamic patterns contain all required information to be a type
+let t_of_annot = ({term, _}: TermBase.Pat.t): t =>
+  switch (term) {
+  | Cast(_, t1, _) => t1
+  | _ => failwith("Not an annotation")
+  };
+
+let t_of_slc_typ_t = (ty: slc_typ_t): t => {
+  let (ty, rewrap) = ty |> IdTagged.unwrap;
+  `SliceIncr((Slice(ty): typslc_typ_term, empty_slice_incr)) |> rewrap;
+};
+
+let rec typslc_typ_term_of_term = (s: term): typslc_typ_term =>
+  switch (s) {
+  | `Typ(ty) => Typ(ty)
+  | `SliceIncr(s, _) => s
+  | `SliceGlobal(s, _) => typslc_typ_term_of_term((s :> term))
+  };
+
+let rec term_of_slc_typ_term = (s: slc_typ_term): term =>
+  `SliceIncr((Slice(s), empty_slice_incr));
+
 let hole = (tms: list(TermBase.Any.t)): TermBase.TypSlice.term =>
   switch (tms) {
   | [] => `Typ(Unknown(Hole(EmptyHole)))
@@ -258,7 +354,8 @@ let rec full_slice: term => slc_global =
       | Rec(_, s)
       | Forall(_, s) => full_slice(s |> term_of)
       | Arrow(s1, s2)
-      | Ap(s1, s2) =>
+      | Ap(s1, s2)
+      | TupLabel(s1, s2) =>
         union_slice_global(
           full_slice(s1 |> term_of),
           full_slice(s2 |> term_of),
@@ -294,6 +391,12 @@ let is_list = (~ignore_parens=?, s: t) =>
   s |> typ_of |> Typ.is_list(~ignore_parens?);
 let is_sum = (~ignore_parens=?, s: t) =>
   s |> typ_of |> Typ.is_sum(~ignore_parens?);
+let is_tuplabel = (~ignore_parens=?, s: t) =>
+  s |> typ_of |> Typ.is_tuplabel(~ignore_parens?);
+let is_prod = (~ignore_parens=?, s: t) =>
+  s |> typ_of |> Typ.is_prod(~ignore_parens?);
+let is_label = (~ignore_parens=?, s: t) =>
+  s |> typ_of |> Typ.is_label(~ignore_parens?);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type source = {
@@ -305,6 +408,33 @@ type source = {
 let of_source = List.map((source: source) => source.ty);
 
 let join_type_provenance = Typ.join_type_provenance;
+
+// TODO: What do do with slices here?
+let rec match_tup_label = (ty: t): option((string, t)) => {
+  let (_, rewrap) = IdTagged.unwrap(ty);
+  let (_, rewrap') = IdTagged.unwrap(ty);
+  switch (term_of(ty)) {
+  | `Typ(ty) =>
+    Typ.match_tup_label(ty |> rewrap)
+    |> Option.map(((x, ty)) => (x, t_of_typ_t(ty)))
+  | `SliceIncr(Typ(ty), slice) =>
+    match_tup_label(ty |> rewrap |> t_of_typ_t)
+    |> Option.map(((x, s)) => (x, s |> wrap_incr(slice)))
+  | `SliceIncr(Slice(slc), _) =>
+    switch (slc) {
+    | Parens(ty) => match_tup_label(ty)
+    | TupLabel(label, t') =>
+      switch (label |> typ_term_of) {
+      | Label(name) => Some((name, t'))
+      | _ => None
+      }
+    | _ => None
+    }
+  | `SliceGlobal(s, slice) =>
+    match_tup_label((s :> term) |> rewrap')
+    |> Option.map(((x, s)) => (x, s |> wrap_global(slice)))
+  };
+};
 
 let rec free_vars = s => s |> typ_of |> Typ.free_vars;
 
@@ -343,96 +473,6 @@ let unroll = (s: t): t => {
  Other types may be equivalent but this will not detect so if they are not normalized. */
 let eq = (t1: t, t2: t): bool => fast_equal(t1, t2);
 
-let typslc_typ_t_of_typ = (ty: Typ.t): typslc_typ_t => {
-  let (ty, rewrap) = ty |> IdTagged.unwrap;
-  (Typ(ty): typslc_typ_term) |> rewrap;
-};
-
-let typslc_typ_t_of_slc = (s: slc_typ_t): typslc_typ_t => {
-  let (s, rewrap) = s |> IdTagged.unwrap;
-  (Slice(s): typslc_typ_term) |> rewrap;
-};
-
-let t_of_typ_t = (ty: Typ.t): t => {
-  let (ty, rewrap) = ty |> IdTagged.unwrap;
-  `Typ(ty) |> rewrap;
-};
-
-// Creates a slice from the ids of a typ_t. Used in creating slices of type annotations.
-// This could instead be done directly in parsing.
-let rec t_of_typ_t_sliced = ({ids, _} as ty: Typ.t): t => {
-  let (ty, rewrap) = ty |> IdTagged.unwrap;
-  (
-    switch (ty) {
-    | Unknown(_) => (`Typ(ty): term) // Don't slice holes
-    | Int => `SliceIncr((Typ(Int), slice_of_ids(ids)))
-    | Bool => `SliceIncr((Typ(Bool), slice_of_ids(ids)))
-    | Float => `SliceIncr((Typ(Float), slice_of_ids(ids)))
-    | String => `SliceIncr((Typ(String), slice_of_ids(ids)))
-    | Var(name) => `SliceIncr((Typ(Var(name)), slice_of_ids(ids)))
-    // Note: ctx slice not relevant in the above (types used in local scope)
-    | List(t) =>
-      `SliceIncr((Slice(List(t_of_typ_t_sliced(t))), slice_of_ids(ids)))
-    | Parens(t) =>
-      `SliceIncr((Slice(Parens(t_of_typ_t_sliced(t))), slice_of_ids(ids)))
-    | Arrow(t1, t2) =>
-      `SliceIncr((
-        Slice(Arrow(t_of_typ_t_sliced(t1), t_of_typ_t_sliced(t2))),
-        slice_of_ids(ids),
-      ))
-    | Ap(t1, t2) =>
-      `SliceIncr((
-        Slice(Ap(t_of_typ_t_sliced(t1), t_of_typ_t_sliced(t2))),
-        slice_of_ids(ids),
-      ))
-    | Sum(m) =>
-      `SliceIncr((
-        Slice(Sum(m |> ConstructorMap.map_vals(t_of_typ_t_sliced))),
-        slice_of_ids(ids),
-      ))
-    | Prod(ts) =>
-      `SliceIncr((
-        Slice(Prod(List.map(t_of_typ_t_sliced, ts))),
-        slice_of_ids(ids),
-      ))
-    | Rec(tpat, t) =>
-      `SliceIncr((
-        Slice(Rec(tpat, t_of_typ_t_sliced(t))),
-        slice_of_ids(ids),
-      ))
-    | Forall(tpat, t) =>
-      `SliceIncr((
-        Slice(Forall(tpat, t_of_typ_t_sliced(t))),
-        slice_of_ids(ids),
-      ))
-    }
-  )
-  |> rewrap;
-};
-
-// Creates a slice from the ids of a pat_t annotation.
-// Dynamic patterns contain all required information to be a type
-let t_of_annot = ({term, _}: TermBase.Pat.t): t =>
-  switch (term) {
-  | Cast(_, t1, _) => t1
-  | _ => failwith("Not an annotation")
-  };
-
-let t_of_slc_typ_t = (ty: slc_typ_t): t => {
-  let (ty, rewrap) = ty |> IdTagged.unwrap;
-  `SliceIncr((Slice(ty): typslc_typ_term, empty_slice_incr)) |> rewrap;
-};
-
-let rec typslc_typ_term_of_term = (s: term): typslc_typ_term =>
-  switch (s) {
-  | `Typ(ty) => Typ(ty)
-  | `SliceIncr(s, _) => s
-  | `SliceGlobal(s, _) => typslc_typ_term_of_term((s :> term))
-  };
-
-let rec term_of_slc_typ_term = (s: slc_typ_term): term =>
-  `SliceIncr((Slice(s), empty_slice_incr));
-
 /* Lattice join on slices. This is a LUB join in the hazel2
    sense in that any type dominates Unknown. The optional
    resolve parameter specifies whether, in the case of a type
@@ -447,6 +487,7 @@ let rec term_of_slc_typ_term = (s: slc_typ_term): term =>
       TODO: Proof that this computes a minimal code slice which synthesises
       the same join type.
    */
+// Horrible code duplication here.
 let rec join_using =
         (
           ~resolve=false,
@@ -494,7 +535,7 @@ let rec join_using =
       `SliceIncr(Slice(s1'), slice_incr1),
       `SliceIncr(Slice(s2'), slice_incr2),
     ) =>
-    //TODO: remove redundancy here with the above case... somehow?
+    //TODO: remove redundancy here with the below cases... somehow?
     switch (s1', s2') {
     | (_, Parens(s2)) => join'(s1, s2)
     | (Parens(s1), _) => join'(s1, s2)
@@ -552,6 +593,22 @@ let rec join_using =
         branch_used,
       );
     | (Arrow(_), _) => None
+    | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
+      let* (lab, branch_used1) = join'(lab1, lab2);
+      let+ (ty, branch_used2) = join'(ty1', ty2');
+      (
+        `SliceIncr((
+          Slice(TupLabel(lab, ty)),
+          choose_branch(
+            combine_branches_used(branch_used1, branch_used2),
+            slice_incr1,
+            slice_incr2,
+          ),
+        ))
+        |> temp,
+        combine_branches_used(branch_used1, branch_used2),
+      );
+    | (TupLabel(_), _) => None
     | (Prod(ss1), Prod(ss2)) =>
       let* joins = ListUtil.map2_opt(join', ss1, ss2);
       let+ joins = OptUtil.sequence(joins);
@@ -670,6 +727,22 @@ let rec join_using =
         branch_used,
       );
     | (Arrow(_), _) => None
+    | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
+      let* (lab, branch_used1) = join'(lab1, lab2 |> t_of_typ_t);
+      let+ (ty, branch_used2) = join'(ty1', ty2' |> t_of_typ_t);
+      (
+        `SliceIncr((
+          Slice(TupLabel(lab, ty)),
+          choose_branch(
+            combine_branches_used(branch_used1, branch_used2),
+            slice_incr,
+            empty_slice_incr,
+          ),
+        ))
+        |> temp,
+        combine_branches_used(branch_used1, branch_used2),
+      );
+    | (TupLabel(_), _) => None
     | (Prod(ss1), Prod(tys2)) =>
       let* joins = ListUtil.map2_opt(join', ss1, List.map(t_of_typ_t, tys2));
       let+ joins = OptUtil.sequence(joins);
@@ -774,6 +847,7 @@ let rec join_using =
     | (Float, _) => None
     | (Bool, _) => None
     | (String, _) => None
+    | (Label(_), _) => None
     | (Arrow(ty1, ty2), Arrow(s1', s2')) =>
       let* (s1, branch_used1) = join'(ty1 |> t_of_typ_t, s1');
       let+ (s2, branch_used2) = join'(ty2 |> t_of_typ_t, s2');
@@ -787,6 +861,22 @@ let rec join_using =
         branch_used,
       );
     | (Arrow(_), _) => None
+    | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
+      let* (lab, branch_used1) = join'(lab1 |> t_of_typ_t, lab2);
+      let+ (ty, branch_used2) = join'(ty1' |> t_of_typ_t, ty2');
+      (
+        `SliceIncr((
+          Slice(TupLabel(lab, ty)),
+          choose_branch(
+            combine_branches_used(branch_used1, branch_used2),
+            empty_slice_incr,
+            slice_incr2,
+          ),
+        ))
+        |> temp,
+        combine_branches_used(branch_used1, branch_used2),
+      );
+    | (TupLabel(_), _) => None
     | (Prod(tys1), Prod(ss2)) =>
       let* joins = ListUtil.map2_opt(join', List.map(t_of_typ_t, tys1), ss2);
       let+ joins = OptUtil.sequence(joins);
@@ -855,6 +945,7 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) =>
 
 /* REQUIRES NORMALIZED TYPES
    Remove synswitches from t1 by matching against t2 */
+// Left slices being retained ONLY.
 let rec match_synswitch =
         ({term: term1, _} as s1: t, {term: term2, _} as s2: t): t => {
   let rewrap1 = term' => {...s1, term: term'};
@@ -916,6 +1007,20 @@ let rec match_synswitch =
       let ss = List.map2(match_synswitch, ss1, List.map(t_of_typ_t, tys2));
       (`SliceIncr((Slice(Prod(ss)), slice_incr)): term) |> rewrap1;
     | (Prod(_), _) => s1
+    | (TupLabel(label1, ty1), TupLabel(label2, ty2)) =>
+      (
+        `SliceIncr((
+          Slice(
+            TupLabel(
+              match_synswitch(label1, label2 |> t_of_typ_t),
+              match_synswitch(ty1, ty2 |> t_of_typ_t),
+            ),
+          ),
+          slice_incr,
+        )): term
+      )
+      |> rewrap1
+    | (TupLabel(_, _), _) => s1
     | (Sum(sm1), Sum(sm2)) =>
       let sm2 = ConstructorMap.map_vals(t_of_typ_t, sm2);
       let sm' = ConstructorMap.match_synswitch(match_synswitch, eq, sm1, sm2);
@@ -952,6 +1057,20 @@ let rec match_synswitch =
     | (Prod(ss1), Prod(ss2)) when List.length(ss1) == List.length(ss2) =>
       let ss = List.map2(match_synswitch, ss1, ss2);
       (`SliceIncr((Slice(Prod(ss)), slice_incr1)): term) |> rewrap1;
+    | (TupLabel(label1, ty1), TupLabel(label2, ty2)) =>
+      (
+        `SliceIncr((
+          Slice(
+            TupLabel(
+              match_synswitch(label1, label2),
+              match_synswitch(ty1, ty2),
+            ),
+          ),
+          slice_incr1,
+        )): term
+      )
+      |> rewrap1
+    | (TupLabel(_, _), _) => s1
     | (Prod(_), _) => s1
     | (Sum(sm1), Sum(sm2)) =>
       let sm' = ConstructorMap.match_synswitch(match_synswitch, eq, sm1, sm2);
@@ -1040,7 +1159,6 @@ let unarrow = (s: t) => {
 };
 // get forall term
 let unforall = (s: t) => {
-  // TODO: Move these into TypSlice.re?
   let unforall =
     apply(
       fun
@@ -1056,6 +1174,35 @@ let unforall = (s: t) => {
   | `SliceIncr(_) => unforall(s) // Drop incremental slices
   | `SliceGlobal(_, slice_global) =>
     unforall(s) |> (((x, y)) => (x, y |> wrap_global(slice_global)))
+  };
+};
+
+let unlabel = (s: t) => {
+  apply(
+    fun
+    | Label(name) => name
+    | _ => failwith("Not a label"),
+    _ => failwith("Not a label"),
+    term_of(s),
+  );
+};
+
+let untuplabel = (s: t) => {
+  let untuplabel =
+    apply(
+      fun
+      | TupLabel(label, ty) => (label |> t_of_typ_t, ty |> t_of_typ_t)
+      | _ => failwith("Not a tuplabel"),
+      fun
+      | TupLabel(label, s) => (label, s)
+      | _ => failwith("Not a tuplabel"),
+    );
+  let s = term_of(s);
+  switch (s) {
+  | `Typ(_)
+  | `SliceIncr(_) => untuplabel(s) // Drop incremental slices
+  | `SliceGlobal(_, slice_global) =>
+    untuplabel(s) |> TupleUtil.map2(wrap_global(slice_global))
   };
 };
 
@@ -1104,6 +1251,10 @@ let rec normalize = (ctx: Ctx.t, s: t): t => {
       |> rewrap
     | Prod(ts) =>
       Prod(List.map(normalize(ctx), ts)) |> wrap_empty_incr |> rewrap
+    | TupLabel(label, ty) =>
+      TupLabel(normalize(ctx, label), normalize(ctx, ty))
+      |> wrap_empty_incr
+      |> rewrap
     | Sum(ts) =>
       Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts))
       |> wrap_empty_incr
@@ -1176,30 +1327,73 @@ let matched_forall = (ctx, ty) =>
   matched_forall_strict(ctx, ty)
   |> Option.value(~default=(None, `Typ(Unknown(Internal)) |> temp));
 
-let rec matched_prod_strict = (ctx, length, s) => {
-  let (_, rewrap) = s |> IdTagged.unwrap;
-  switch (term_of(weak_head_normalize(ctx, s))) {
-  | `Typ(ty)
-  | `SliceIncr(Typ(ty), _) =>
-    Typ.matched_prod_strict(ctx, length, ty |> rewrap)
-    |> Option.map(List.map(t_of_typ_t))
-  | `SliceIncr(Slice(s'), _) =>
-    switch (s') {
-    | Parens(_) => matched_prod_strict(ctx, length, unparens(s))
-    | Prod(tys) when List.length(tys) == length => Some(tys)
-    | _ => None
-    }
-  | `SliceGlobal(s, slice_global) =>
-    matched_prod_strict(ctx, length, (s :> term) |> fresh)
-    |> Option.map(List.map(wrap_global(slice_global)))
+let rec matched_prod_strict:
+  type a.
+    (Ctx.t, list(a), a => option((string, a)), t, (string, a) => a) =>
+    (list(a), option(list(t))) =
+  (ctx: Ctx.t, es, get_label_es, ty: t, constructor) => {
+    let (_, rewrap) = ty |> IdTagged.unwrap;
+    switch (term_of(weak_head_normalize(ctx, ty))) {
+    | `Typ(ty)
+    | `SliceIncr(Typ(ty), _) =>
+      Typ.matched_prod_strict(
+        ctx,
+        es,
+        get_label_es,
+        ty |> rewrap,
+        constructor,
+      )
+      |> (((x, y)) => (x, y |> Option.map(List.map(t_of_typ_t))))
+    | `SliceIncr(Slice(ty), _) =>
+      switch (ty) {
+      | Parens(ty) =>
+        matched_prod_strict(ctx, es, get_label_es, ty, constructor)
+      | Prod(tys: list(t)) =>
+        if (List.length(es) != List.length(tys)) {
+          (es, None);
+        } else {
+          (
+            LabeledTuple.rearrange(
+              match_tup_label,
+              get_label_es,
+              tys,
+              es,
+              constructor,
+            ),
+            Some(tys),
+          );
+        }
+      | _ => (es, None)
+      }
+    | `SliceGlobal(s, slice_global) =>
+      matched_prod_strict(
+        ctx,
+        es,
+        get_label_es,
+        (s :> term) |> fresh,
+        constructor,
+      )
+      |> (
+        ((x, y)) => (
+          x,
+          y |> Option.map(List.map(wrap_global(slice_global))),
+        )
+      )
+    };
   };
-};
 
-let matched_prod = (ctx, length, ty) =>
-  matched_prod_strict(ctx, length, ty)
-  |> Option.value(
-       ~default=List.init(length, _ => `Typ(Unknown(Internal)) |> temp),
-     );
+let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
+  let (es, tys_opt) =
+    matched_prod_strict(ctx, es, get_label_es, ty, constructor);
+  (
+    es,
+    tys_opt
+    |> Option.value(
+         ~default=
+           List.init(List.length(es), _ => `Typ(Unknown(Internal)) |> temp),
+       ),
+  );
+};
 
 let rec matched_list_strict = (ctx, s) => {
   let (_, rewrap) = s |> IdTagged.unwrap;
@@ -1353,3 +1547,51 @@ and paren_pretty_print = typ =>
   } else {
     pretty_print(typ);
   };
+
+let get_labels = (ctx, s) => Typ.get_labels(ctx, typ_of(s));
+
+/**
+ * Removes duplicate labels from a given list of types inside a tuple.
+ *
+ * This function takes a list of types and returns a new list with all
+ * duplicate labels replaced with their first occurence and the unknown type.
+ *
+ * @param duplicate_labels - The list of duplicate labels.
+ * @param tys - The list of types to remove duplicates from.
+ * @return A new list of types with duplicates removed.
+ */
+let remove_duplicate_labels =
+    (~duplicate_labels: list(LabeledTuple.label), tys: list(t)): list(t) => {
+  snd(
+    List.fold_left(
+      ((seen_duplicates, deduplicated_types), ty) => {
+        let tup_label = match_tup_label(ty);
+        switch (tup_label) {
+        | Some((l, _))
+            when
+              List.mem(l, duplicate_labels) && List.mem(l, seen_duplicates) => (
+            seen_duplicates,
+            deduplicated_types,
+          )
+        | Some((l, _)) when List.mem(l, duplicate_labels) => (
+            [l] @ seen_duplicates,
+            deduplicated_types
+            @ [
+              `Typ(
+                TupLabel(
+                  Label(l) |> Typ.temp,
+                  Unknown(Internal) |> Typ.temp,
+                ),
+              )
+              |> temp,
+            ],
+          )
+        | Some(_) => (seen_duplicates, deduplicated_types @ [ty])
+        | None => (seen_duplicates, deduplicated_types @ [ty])
+        };
+      },
+      ([], []),
+      tys,
+    ),
+  );
+};

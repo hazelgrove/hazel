@@ -29,26 +29,27 @@ module Make =
     |> concat;
   let string_lits = char_lits; // TODO: all strings, this is a huge state space though...
   let rec enum_typ: (Typ.term, Environment.t) => t(DHExp.t) =
-    (t, ctx) =>
+    (t, env) =>
       switch (t) {
-      | Var(_) => failwith("Expeted normalised types during instantiation")
+      | Var(_) => failwith("Expeted normalised types during instantiation?")
+      | Label(name) => return(Label(name) |> DHExp.temp)
       | Unknown(_) => return(fresh_hole())
       | Bool => bool_lits
       | Int => int_lits
       | Float => float_lits
       | String => string_lits
-      | Parens(t) => enum_typ(Typ.term_of(t), ctx)
+      | Parens(t) => enum_typ(Typ.term_of(t), env)
       // NOTE: Arrow instantiation does not currently instantiate different patterns or bindings
       // The above is not required for finding cast errors, but would be desirable for program generation or logic programming.
       | Arrow(_, t2) =>
-        enum_typ(Typ.term_of(t2), ctx)
+        enum_typ(Typ.term_of(t2), env)
         >>| (e => Fun(EmptyHole |> DHPat.fresh, e, None, None) |> DHExp.fresh) // TODO: Check casting logic for potential need for re-elaboration?
       | List(_) =>
         return(ListLit([]) |> DHExp.fresh)
         <||> return(Cons(fresh_hole(), fresh_hole()) |> DHExp.fresh)
       | Prod(ts) =>
         ts
-        |> List.map(t => enum_typ(Typ.term_of(t), ctx))
+        |> List.map(t => enum_typ(Typ.term_of(t), env))
         |> (
           l =>
             List.fold_right(
@@ -62,6 +63,10 @@ module Make =
             )
             >>| (l => Tuple(l) |> DHExp.fresh)
         )
+      | TupLabel(label, ty) =>
+        let. label = enum_typ(Typ.term_of(label), env);
+        let. body = enum_typ(Typ.term_of(ty), env);
+        return(TupLabel(label, body) |> DHExp.fresh);
       | Sum(_) => failwith("TODO")
       | Ap(_)
       | Forall(_)

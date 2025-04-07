@@ -25,8 +25,10 @@ let rec find_var_upat = (name: string, upat: Pat.t): bool => {
   | Float(_)
   | Bool(_)
   | String(_)
+  | Label(_)
   | Constructor(_) => false
   | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
+  | TupLabel(_, up) => find_var_upat(name, up)
   | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l)
@@ -51,6 +53,8 @@ let rec find_in_let =
   | (_, Parens(ue)) => find_in_let(name, upat, ue, l)
   | (Cast(up, _, _), _) => find_in_let(name, up, def, l)
   | (Var(x), Fun(_)) => x == name ? [def, ...l] : l
+  | (TupLabel(_, up), TupLabel(_, ue)) => find_in_let(name, up, ue, l)
+  | (TupLabel(_, up), _) => find_in_let(name, up, def, l)
   | (Tuple(pl), Tuple(ul)) =>
     if (List.length(pl) != List.length(ul)) {
       l;
@@ -67,6 +71,7 @@ let rec find_in_let =
   | (
       EmptyHole | Wild | Invalid(_) | MultiHole(_) | Int(_) | Float(_) | Bool(_) |
       String(_) |
+      Label(_) |
       ListLit(_) |
       Constructor(_) |
       Cons(_, _) |
@@ -89,6 +94,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | TypFun(_, body, _)
   | FixF(_, body, _)
   | Fun(_, body, _, _) => l |> find_fn(name, body)
+  | TupLabel(_, u1)
   | TypAp(u1, _)
   | Parens(u1)
   | Cast(u1, _, _)
@@ -98,6 +104,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | Closure(_, u1)
   | Filter(_, u1) => l |> find_fn(name, u1)
   | Ap(_, u1, u2)
+  | Dot(u1, u2)
   | Seq(u1, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)
@@ -124,6 +131,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | Int(_)
   | Float(_)
   | String(_)
+  | Label(_)
   | Constructor(_)
   | Undefined
   | BuiltinFun(_)
@@ -145,6 +153,7 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | Float(_)
   | Bool(_)
   | String(_)
+  | Label(_)
   | Constructor(_) => false
   | Cons(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
@@ -155,6 +164,7 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
       false,
       l,
     )
+  | TupLabel(_, up) => var_mention_upat(name, up)
   | Parens(up) => var_mention_upat(name, up)
   | Ap(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
@@ -175,6 +185,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Int(_)
   | Float(_)
   | String(_)
+  | Label(_)
   | Constructor(_)
   | Undefined
   | Deferral(_) => false
@@ -192,6 +203,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Parens(u)
   | UnOp(_, u)
   | TyAlias(_, _, u)
+  | TupLabel(_, u)
   | Filter(_, u) => var_mention(name, u)
   | DynamicErrorHole(u, _) => var_mention(name, u)
   | FailedCast(u, _, _) => var_mention(name, u)
@@ -201,6 +213,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | BuiltinFun(_) => false
   | Cast(d, _, _) => var_mention(name, d)
   | Ap(_, u1, u2)
+  | Dot(u1, u2)
   | Seq(u1, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)
@@ -236,6 +249,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Int(_)
   | Float(_)
   | String(_)
+  | Label(_)
   | Constructor(_)
   | Undefined
   | Deferral(_) => false
@@ -253,6 +267,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Parens(u)
   | UnOp(_, u)
   | TyAlias(_, _, u)
+  | TupLabel(_, u)
   | Filter(_, u) => var_applied(name, u)
   | TypAp(u, _) =>
     switch (u.term) {
@@ -278,6 +293,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Cons(u1, u2)
   | Seq(u1, u2)
   | ListConcat(u1, u2)
+  | Dot(u1, u2)
   | BinOp(_, u1, u2) => var_applied(name, u1) || var_applied(name, u2)
   | If(u1, u2, u3) =>
     var_applied(name, u1) || var_applied(name, u2) || var_applied(name, u3)
@@ -327,6 +343,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Int(_)
   | Float(_)
   | String(_)
+  | Label(_)
   | Constructor(_)
   | Undefined
   | Var(_)
@@ -344,6 +361,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Test(_) => false
   | TyAlias(_, _, u)
   | Cast(u, _, _)
+  | TupLabel(_, u)
   | Filter(_, u)
   | Closure(_, u)
   | TypFun(_, u, _)
@@ -356,6 +374,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Seq(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)
+  | Dot(u1, u2)
   | BinOp(_, u1, u2) => !(var_mention(name, u1) || var_mention(name, u2))
   | If(u1, u2, u3) =>
     var_mention(name, u1)

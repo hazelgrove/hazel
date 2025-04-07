@@ -70,3 +70,9 @@ let view_typ = (~globals: Globals.t, ~settings, typ: TypSlice.t) => {
   |> ExpToSegment.typ_to_segment(~settings)
   |> view_segment(~globals, ~sort=Typ);
 };
+
+let view_any = (~globals: Globals.t, ~settings, any: Any.t) => {
+  any
+  |> ExpToSegment.any_to_segment(~settings)
+  |> view_segment(~globals, ~sort=Any);
+};

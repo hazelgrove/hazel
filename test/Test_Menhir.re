@@ -133,8 +133,6 @@ let qcheck_menhir_maketerm_equivalent_test =
  * We generate an expression, convert it to the core representation, convert it to a segment,
  * serialize it, parse it with Menhir, and compare to the original.
  *
- * TODO This fails due to types not being serialized on constructors
- *  and some other ExpToSegment inconsistencies
  *
  * Filter and Test not implemented
  * Deferral serializing as "deferral"
@@ -527,6 +525,7 @@ let tests = (
       "and less than precedence",
       "true && 23 < int_of_float(51.00)" // TODO This looks like a bug in MakeTerm
     ),
+    menhir_maketerm_equivalent_test("Singleton labeled tuple", {|(h = 1)|}),
     menhir_maketerm_equivalent_test(
       ~speed_level=`Slow,
       "Altered Documentation Buffer: Basic Reference",
@@ -824,7 +823,6 @@ let ex5 = list_of_mylist(x) in
       {|type ? = ((+ ? + ?)) in []|},
     ),
     QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
-    // Disabled due to bugs in ExpToSegment
     QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
   ],
 );

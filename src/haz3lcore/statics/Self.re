@@ -29,13 +29,24 @@ type join_type =
 type t =
   | Just(TypSlice.t) /* Just a regular type */
   | NoJoin(join_type, list(TypSlice.source)) /* Inconsistent types for e.g match, listlits */
-  | BadToken(Token.t) /* Invalid expression token, treated as hole */
+  | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
+  | BadToken(Token.t) /* Invalid expression token, continues with undefined behavior */
   | BadTrivAp(TypSlice.t) /* Trivial (nullary) ap on function that doesn't take triv */
+  | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
+  | InvalidLabel(LabeledTuple.label) /* Invalid label in a labeled tuple */
+  | TupleLabelError({
+      malformed_labels: list(Any.t), // Labels that are not of the right syntactic form
+      duplicate_labels: list(LabeledTuple.label),
+      invalid_labels: list(LabeledTuple.label), // Labels that are present but aren't present in the analyzed type
+      typ: TypSlice.t,
+    }) /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
       name: Constructor.t,
       syn_ty: option(TypSlice.t),
-    }); /* Constructors have special ana logic */
+    }) /* Constructors have special ana logic */
+  | WantTuple /* Want a Tuple, found not-tuple */
+  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label)); /* Currently used by the dot operator for a label not found */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_partial_ap =
@@ -73,11 +84,18 @@ let join_of = (j: join_type, ty: TypSlice.t): TypSlice.t =>
 let typ_of: (Ctx.t, t) => option(TypSlice.t) =
   _ctx =>
     fun
-    | Just(typ) => Some(typ)
+    | Just(typ)
+    | Duplicate(_, Just(typ))
+    | TupleLabelError({typ, _}) => Some(typ)
     | IsConstructor({syn_ty, _}) => syn_ty
     | BadToken(_)
     | BadTrivAp(_)
     | IsMulti
+    | Duplicate(_)
+    | WantTuple
+    | LabelNotFound(_)
+    | BadLabel(_)
+    | InvalidLabel(_)
     | NoJoin(_) => None;
 
 let typ_of_exp: (Ctx.t, exp) => option(TypSlice.t) =
@@ -415,4 +433,34 @@ let of_annot = (~skip_slices=true, ids: list(Id.t), ty: TypSlice.t): t => {
   Just(
     /*create_slices*/ ty |> TypSlice.(wrap_global(slice_of_ids(ids))),
   );
+};
+
+let of_tuple =
+    (ids, ~duplicate_labels, ~malformed_labels, ~invalid_labels, ty_list) => {
+  let ty_list = TypSlice.remove_duplicate_labels(~duplicate_labels, ty_list);
+
+  List.is_empty(malformed_labels)
+  && List.is_empty(duplicate_labels)
+  && List.is_empty(invalid_labels)
+    ? Just(
+        `SliceIncr((Slice(Prod(ty_list)), TypSlice.slice_of_ids(ids)))
+        |> TypSlice.temp,
+      )
+    : TupleLabelError({
+        malformed_labels,
+        duplicate_labels,
+        invalid_labels,
+        typ:
+          `SliceIncr((Slice(Prod(ty_list)), TypSlice.slice_of_ids(ids)))
+          |> TypSlice.temp,
+      });
+};
+
+let of_label = (ids, name, ~duplicates) => {
+  let self =
+    Just(
+      `SliceIncr((Typ(Label(name)), TypSlice.slice_of_ids(ids)))
+      |> TypSlice.temp,
+    );
+  List.exists(l => name == l, duplicates) ? Duplicate(name, self) : self;
 };

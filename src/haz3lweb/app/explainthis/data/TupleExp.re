@@ -12,6 +12,23 @@ let tuple_example_2 = {
   term: mk_example("(1, 2, 3)"),
   message: "A tuple with first element 1, second element 2, and third element 3.",
 };
+
+let tuple_example_labeled_1 = {
+  sub_id: TupleLabeled1,
+  term: mk_example("(x=1)"),
+  message: "A labeled tuple with the label x and the element 1.",
+};
+let tuple_example_labeled_2 = {
+  sub_id: TupleLabeled2,
+  term: mk_example("(1, y=2)"),
+  message: "A tuple with first element 1 and second element 2 with the label y.",
+};
+let tuple_example_labeled_3 = {
+  sub_id: TupleLabeled3,
+  term: mk_example("(x=1, 4, y=2)"),
+  message: "A tuple with first element 1 labeled with x, second element 4 unlabelled, and third element 2 with label y.",
+};
+
 let tuple_exp: form = {
   let explanation = "The tuple has %s elements.";
   let comma = comma_exp();
@@ -21,7 +38,12 @@ let tuple_exp: form = {
     expandable_id:
       Some((Piece.id(comma), [exp("e1"), comma_exp(), exp("...")])),
     explanation,
-    examples: [tuple_example_1, tuple_example_2],
+    examples: [
+      tuple_example_1,
+      tuple_example_2,
+      tuple_example_labeled_1,
+      tuple_example_labeled_2,
+    ],
   };
 };
 let _exp1 = exp("e1");
@@ -39,7 +61,7 @@ let tuple_exp_size2: form = {
     expandable_id:
       Some((Piece.id(comma), [exp("e1"), comma_exp(), exp("e2")])),
     explanation,
-    examples: [tuple_example_1],
+    examples: [tuple_example_1, tuple_example_labeled_2],
   };
 };
 let _exp1 = exp("e1");
@@ -73,7 +95,7 @@ let tuple_exp_size3: form = {
         [exp("e1"), comma_exp(), exp("e2"), comma_exp(), exp("e3")],
       )),
     explanation,
-    examples: [tuple_example_2],
+    examples: [tuple_example_2, tuple_example_labeled_3],
   };
 };
 

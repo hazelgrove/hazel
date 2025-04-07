@@ -92,16 +92,53 @@ let of_forall = (ctx: Ctx.t, name_opt: option(string), mode: t): t =>
     };
   };
 
-let of_prod = (ids, ctx: Ctx.t, mode: t, length): list(t) =>
+let of_label = (ids, mode: t): option((t, t)) =>
   switch (mode) {
   | Syn
   | SynFun
-  | SynTypFun => List.init(length, _ => Syn)
+  | SynTypFun => Some((Syn, Syn))
+  | Ana(s) when TypSlice.is_tuplabel(s, ~ignore_parens=false) =>
+    let (label, val_ty) = TypSlice.untuplabel(s);
+    switch (label |> TypSlice.typ_term_of) {
+    | Label(mode_label) =>
+      Some((
+        Ana(
+          TypSlice.(
+            Label(mode_label)
+            |> Typ.temp
+            |> t_of_typ_t
+            |> wrap_global(slice_of_ids(ids))
+          ),
+        ),
+        Ana(val_ty),
+      ))
+    | _ => None
+    };
+  | Ana(_) => None
+  };
+
+let of_prod =
+    (
+      ids,
+      ctx: Ctx.t,
+      mode: t,
+      es: list('a),
+      filt: 'a => option((string, 'a)),
+      constructor: (string, 'a) => 'a,
+    )
+    : (list('a), list(t)) =>
+  switch (mode) {
+  | Syn
+  | SynFun
+  | SynTypFun => (es, List.init(List.length(es), _ => Syn))
   | Ana(ty) =>
-    ty
-    |> TypSlice.matched_prod(ctx, length)
-    |> List.map(TypSlice.(wrap_global(slice_of_ids(ids))))
-    |> List.map(ana)
+    let (es, tys) = TypSlice.matched_prod(ctx, es, filt, ty, constructor);
+    (
+      es,
+      tys
+      |> List.map(TypSlice.(wrap_global(slice_of_ids(ids))))
+      |> List.map(ana),
+    );
   };
 
 let of_cons_hd = (ids: list(Id.t), ctx: Ctx.t, mode: t): t =>

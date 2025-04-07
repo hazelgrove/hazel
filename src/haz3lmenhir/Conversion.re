@@ -204,12 +204,14 @@ module rec Exp: {
     // | OutsideAp => Deferral(OutsideAp)
     // }
     | ListExp(l) => ListLit(List.map(of_menhir_ast, l))
-    | TupleExp(t) =>
-      if (List.length(t) == 1) {
-        Parens(of_menhir_ast(List.hd(t)));
-      } else {
-        Parens(Tuple(List.map(of_menhir_ast, t)) |> Haz3lcore.Exp.fresh);
-      }
+    | TupleExp([TupLabel(_) as tl]) =>
+      Parens(Tuple([of_menhir_ast(tl)]) |> Haz3lcore.Exp.fresh)
+    | TupleExp([e]) => Parens(of_menhir_ast(e))
+    | TupleExp(e) =>
+      Parens(Tuple(List.map(of_menhir_ast, e)) |> Haz3lcore.Exp.fresh)
+    | Label(s) => Label(s)
+    | TupLabel(e1, e2) => TupLabel(of_menhir_ast(e1), of_menhir_ast(e2))
+    | Dot(e1, e2) => Dot(of_menhir_ast(e1), of_menhir_ast(e2))
     | Let(p, e1, e2) =>
       Let(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
     | FixF(p, e) => FixF(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
@@ -363,6 +365,9 @@ module rec Exp: {
     | DeferredAp(e, es) =>
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
+    | Label(s) => Label(s)
+    | TupLabel(e1, e2) => TupLabel(of_core(e1), of_core(e2))
+    | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
     };
   };
@@ -391,6 +396,9 @@ and Typ: {
     | TupleType([t]) => Parens(of_menhir_ast(t))
     | TupleType(ts) =>
       Parens(Prod(List.map(of_menhir_ast, ts)) |> Haz3lcore.Typ.fresh)
+    | LabelType(s) => Label(s)
+    | TupLabelType(t1, t2) =>
+      TupLabel(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => List(of_menhir_ast(t))
     | ArrowType(t1, t2) => Arrow(of_menhir_ast(t1), of_menhir_ast(t2))
     | SumTyp(sumterms) =>
@@ -439,6 +447,8 @@ and Typ: {
     | Forall(tp, t) => ForallType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
     | Parens(t) => of_core(t)
+    | Label(s) => LabelType(s)
+    | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
     | Ap(_) => raise(Failure("Ap not supported"))
     | Sum(constructors) =>
       let sumterms =
@@ -513,6 +523,8 @@ and Pat: {
     | BoolPat(b) => Bool(b)
     | EmptyHolePat => EmptyHole
     | WildPat => Wild
+    | LabelPat(s) => Label(s)
+    | TupLabelPat(p1, p2) => TupLabel(of_menhir_ast(p1), of_menhir_ast(p2))
     | ListPat(l) => ListLit(List.map(of_menhir_ast, l))
     };
   }
@@ -542,6 +554,8 @@ and Pat: {
         Typ.of_core(t2 |> Haz3lcore.TypSlice.typ_of),
       )
     | Parens(p) => of_core(p)
+    | Label(s) => LabelPat(s)
+    | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))
     };
   };
 };

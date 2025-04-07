@@ -22,15 +22,24 @@ let suggest = (ci: Info.t, z: Zipper.t): list(Suggestion.t) => {
    * may not be desirable in other ways, for example maybe we want
    * recency bias in ctx. Revisit this later. I'm sorting before
    * combination because we want backpack candidates to show up first */
-  suggest_backpack(z)
-  @ (
-    AssistantForms.suggest_operand(ci)
-    @ AssistantForms.suggest_leading(ci)
-    @ AssistantCtx.suggest_variable(ci)
-    @ AssistantCtx.suggest_lookahead_variable(ci)
-    |> List.sort(Suggestion.compare)
-  )
-  @ (AssistantForms.suggest_operator(ci) |> List.sort(Suggestion.compare));
+  switch (ci) {
+  | InfoExp({cls: Exp(Label), _})
+  | InfoPat({cls: Pat(Label), _})
+  | InfoTyp({cls: TypSlice((_, Label)), _})
+  | InfoExp({cls: Exp(TupLabel), _})
+  | InfoPat({cls: Pat(TupLabel), _})
+  | InfoTyp({cls: TypSlice((_, TupLabel)), _}) => [] // TODO: Autocomplete for labels
+  | _ =>
+    suggest_backpack(z)
+    @ (
+      AssistantForms.suggest_operand(ci)
+      @ AssistantForms.suggest_leading(ci)
+      @ AssistantCtx.suggest_variable(ci)
+      @ AssistantCtx.suggest_lookahead_variable(ci)
+      |> List.sort(Suggestion.compare)
+    )
+    @ (AssistantForms.suggest_operator(ci) |> List.sort(Suggestion.compare))
+  };
 };
 
 /* If there is a monotile to the left of the caret, return it. We
