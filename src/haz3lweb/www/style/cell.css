@@ -18,7 +18,7 @@
 }
 
 #main.Scratch,
-#main.Documentation
+#main.Documentation,
 #main.Configuration {
   background-color: var(--cell-active);
 }
