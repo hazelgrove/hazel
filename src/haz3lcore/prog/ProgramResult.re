@@ -32,10 +32,7 @@ type inner = {
   state: EvaluatorState.t,
 };
 
-type indet = {
-  results: Futures.t,
-  // TODO: threading states through each future
-};
+type indet = {results: list(DHExp.t)};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error =

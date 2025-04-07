@@ -4,6 +4,7 @@ open Haz3lcore;
    It was originally directly in Keyboard, but that added a handler
    dependency on the model, which is technically against architecture */
 
+open IndetEvaluator.Make(Nondeterminism.DFS);
 let print =
     (~settings: Settings.t, editor: CodeWithStatics.Model.t, key: string)
     : unit => {
@@ -35,11 +36,10 @@ let print =
     };
   | "F8" => statics.elaborated |> Exp.show |> print
   | "F9" =>
-    let futures =
-      statics.elaborated |> IndetEvaluator.evaluate'(Builtins.env_init);
+    let results = statics.elaborated |> values(Builtins.env_init);
     let _ =
-      Util.Sequence.take(futures, 30)
-      |> Util.Sequence.to_list
+      results
+      |> Nondeterminism.DFS.run_n(~solutions=30)
       |> List.mapi((i, d) =>
            print(
              "Instantiation "
@@ -54,15 +54,12 @@ let print =
     let inst =
       statics.elaborated
       |> Evaluator.evaluate''(Builtins.env_init)
-      |> Instantiator.find(
-           (),
-           Builtins.env_init |> ClosureEnvironment.of_environment,
-         );
+      |> RedexHoleType.find(Builtins.env_init);
     (
       switch (inst) {
       | None => "No Hole"
-      | Hole(d) => "Hole with no cast"
-      | HoleCast(d, slc) => "Cast Hole"
+      | Hole(id) => "Hole with no cast"
+      | HoleCast(id, slc) => "Cast Hole"
       | Match(_) => "Match Hole"
       }
     )

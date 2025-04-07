@@ -27,13 +27,12 @@ module Response = {
   let deserialize = sexp => sexp |> Sexplib.Sexp.of_string |> t_of_sexp;
 };
 
+open Haz3lcore.IndetEvaluator.Make(Haz3lcore.Nondeterminism.DFS);
 let work = (res: Request.value, search, n): Response.value =>
   switch (
     res
     |> Haz3lcore.(
-         search
-           ? SearchProc.evaluate'(Builtins.env_init)
-           : IndetEvaluator.evaluate'(Builtins.env_init)
+         search ? cast_errors(Builtins.env_init) : values(Builtins.env_init)
        )
   ) {
   | exception (Haz3lcore.EvaluatorError.Exception(reason)) =>
@@ -49,7 +48,11 @@ let work = (res: Request.value, search, n): Response.value =>
   //| (state, result) => Ok((result, state))
   | results =>
     Ok((
-      BoxedValue(results |> Haz3lcore.Futures.nth(n)),
+      BoxedValue(
+        results
+        |> Haz3lcore.Nondeterminism.DFS.run_n(~solutions=n)
+        |> (l => List.nth(l, n)),
+      ),
       Haz3lcore.EvaluatorState.init,
     ))
   };

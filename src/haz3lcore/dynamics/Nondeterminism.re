@@ -31,14 +31,14 @@ module type Search = {
   // Disjunction
   let choice: (t('a), t('a)) => t('a);
 
-  // Infinite disjunction
-  let concat: Sequence.t(t('a)) => t('a);
+  // Folding disjunction
+  let concat: list(t('a)) => t('a);
 
   // Fair disjunction
   let fchoice: (t('a), t('a)) => t('a);
 
-  // Infinite fair disjuction / interleaving
-  let interleave: Sequence.t(t('a)) => t('a);
+  // Folding fair disjuction / interleaving
+  let interleave: list(t('a)) => t('a);
   // interleave(s) is fold(fchoice, fail, s) but fully fair
 
   let wrap: t('a) => t('a);
@@ -90,6 +90,8 @@ module DFS: Search = {
   let wrap = x => x;
 
   let fjoin = interleave;
+  let concat = s => s |> of_list |> concat;
+  let interleave = s => s |> of_list |> interleave;
 
   let once = hd;
   let ifte = (s, ~thn, ~els) =>
@@ -134,62 +136,44 @@ module BFS = {
   open Sequence;
   // These inner sequences are _bags_.
   // Their order of elements doe not matter.
-  type t('a) = Sequence.t(Sequence.t('a));
+  type t('a) = Sequence.t(list('a));
   let fair_fold = fold;
 
-  let return = x => return(return(x));
+  let return = x => return([x]);
   let fail = empty;
 
   let choice = (s1, s2) =>
     zip_full(s1, s2)
     >>| (
       fun
-      | `Both(b1, b2) => append(b1, b2)
+      | `Both(b1, b2) => b1 @ b2
       | `Left(b)
       | `Right(b) => b
     );
-  let fchoice = (s1, s2) =>
-    zip_full(s1, s2)
-    >>| (
-      fun
-      | `Both(b1, b2) => [b1, b2] |> of_list |> interleave
-      | `Left(b)
-      | `Right(b) => b
-    );
+  let fchoice = choice;
 
   let concat = fold(~init=fail, ~f=choice);
 
-  let interleave = fold(~init=fail, ~f=fchoice); // TEST
+  let interleave = fold(~init=fail, ~f=fchoice);
 
-  let rec bind_gen = (m, f) =>
+  let rec bind_gen =
+          (m: t('a), f: 'a => t('b)): Generator.t(unit, list('b)) =>
     switch (next(m)) {
     | None => Generator.return()
     | Some((d, ds)) =>
-      switch (next(concat(d >>| f))) {
+      switch (next(List.fold_right(choice, d |> List.map(f), fail))) {
       | None =>
-        Generator.(bind)(Generator.yield(empty), ~f=() => bind_gen(ds, f))
+        Generator.(bind)(Generator.yield([]), ~f=() => bind_gen(ds, f))
       | Some((d', ds')) =>
         Generator.(bind)(Generator.yield(d'), ~f=() =>
           Generator.of_sequence(choice(ds', bind(ds, ~f)))
         )
       }
     }
-  and bind = (m, ~f) => Generator.run(bind_gen(m, f));
+  and bind = (m: t('a), ~f: 'a => t('b)): t('b) =>
+    Generator.run(bind_gen(m, f));
 
-  let rec fbind_gen = (m, f) =>
-    switch (next(m)) {
-    | None => Generator.return()
-    | Some((d, ds)) =>
-      switch (next(interleave(d >>| f))) {
-      | None =>
-        Generator.(bind)(Generator.yield(empty), ~f=() => fbind_gen(ds, f))
-      | Some((d', ds')) =>
-        Generator.(bind)(Generator.yield(d'), ~f=() =>
-          Generator.of_sequence(fchoice(ds', fbind(ds, ~f)))
-        )
-      }
-    }
-  and fbind = (m, ~f) => Generator.run(fbind_gen(m, f));
+  let fbind = bind;
 
   let map = (m, ~f) => m >>| (m' => m' >>| f);
 
@@ -199,7 +183,10 @@ module BFS = {
   let wrap = m => append(empty, m);
 
   let once = m =>
-    m |> find(~f=b => !is_empty(b)) |> Option.map(hd) |> Option.join;
+    m
+    |> find(~f=b => !List.is_empty(b))
+    |> Option.map(List.hd)
+    |> Option.join;
   let ifte = (m, ~thn, ~els) =>
     switch (once(m)) {
     | None => els
@@ -239,16 +226,13 @@ module BFS = {
 };
 
 // Optional bound limits
-type bounds = {
-  width: int,
-  depth: int,
-};
-let zero_bound = {width: 0, depth: 0};
+type bound = {depth: int};
+let zero_bound = {depth: 0};
 
 module type BoundsConfig = {
-  let init: bounds; // Initial bounds
+  let init: bound; // Initial bounds
   // Returns none if iteration should stop after some bound
-  let inc: bounds => option(bounds);
+  let inc: bound => option(bound);
 };
 
 module ConstIncrConfig =
@@ -257,9 +241,8 @@ module ConstIncrConfig =
           let init: int;
         })
        : BoundsConfig => {
-  let init = {width: Incr.init, depth: Incr.init};
-  let inc = ({width, depth}) =>
-    Some({width: width + Incr.incr_const, depth: depth + Incr.incr_const});
+  let init = {depth: Incr.init};
+  let inc = ({depth}) => Some({depth: depth + Incr.incr_const});
 };
 
 let const_incr_config = (~init, ~inc) => {
@@ -270,9 +253,9 @@ let const_incr_config = (~init, ~inc) => {
   ((module ConstIncrConfig(Incr)): (module BoundsConfig));
 };
 
-// Search bounded in width and depth
+// DFS Search bounded in depth
 module Bounded = (Config: BoundsConfig) : Search => {
-  type t('a) = bounds => list(('a, bounds));
+  type t('a) = bound => list(('a, bound));
 
   let return = (x, bound) => [(x, bound)];
   let fail = _bound => [];
@@ -287,13 +270,8 @@ module Bounded = (Config: BoundsConfig) : Search => {
 
   let wrap = m =>
     fun
-    | {width: 0, depth: 0} => []
-    | {width: 0, depth} => m({width: 0, depth: depth - 1})
-    | {width, depth: 0} => m({width: width - 1, depth: 0})
-    // Very inefficient, but space complexity still better than BFS
-    // Could extend to model bound minimums to improve this
-    | {width, depth} =>
-      m({width: width - 1, depth}) @ m({width, depth: depth - 1});
+    | {depth: 0} => []
+    | {depth} => m({depth: depth - 1});
 
   let map: type a b. (t(a), ~f: a => b) => t(b) =
     (m, ~f) => bind(m, ~f=x => return(f(x)));
@@ -301,19 +279,12 @@ module Bounded = (Config: BoundsConfig) : Search => {
   let fjoin = join;
 
   let concat = (ms, bound) =>
-    ms |> Sequence.to_list |> List.fold_left((acc, m) => acc @ m(bound), []);
+    ms |> List.fold_left((acc, m) => acc @ m(bound), []);
   let interleave = concat;
 
-  let (-) = ({width: w, depth: d}, {width: w', depth: d'}) => {
-    width: w - w',
-    depth: d - d',
-  };
-  let (>) = ({width: w, depth: d}, {width: w', depth: d'}) =>
-    w > w' || d > d';
-  let max = ({width: w, depth: d}, {width: w', depth: d'}) => {
-    width: max(w, w'),
-    depth: max(d, d'),
-  };
+  let (-) = ({depth: d}, {depth: d'}) => {depth: d - d'};
+  let (>) = ({depth: d}, {depth: d'}) => d > d';
+  let max = ({depth: d}, {depth: d'}) => {depth: max(d, d')};
   let run = m =>
     Sequence.unfold(
       ~init=(zero_bound, Some(Config.init)),
