@@ -595,7 +595,7 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
       | Rec({term: Var(x), _}, ty_body) =>
         switch (Ctx.lookup_alias(ctx, x)) {
         | None => unroll(ty)
-        | Some(_) => ty_body
+        | Some(_) => unroll(ty)
         }
       | _ => ty
       };
