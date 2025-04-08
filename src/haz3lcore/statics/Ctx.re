@@ -196,5 +196,24 @@ let filter_duplicates = (ctx: t): t =>
      )
   |> (((ctx, _, _)) => List.rev(ctx));
 
+let filter_stepper_filter_variables = (ctx: t): t =>
+  ctx
+  |> List.fold_left(
+       (ctx, entry) => {
+         switch (entry) {
+         | VarEntry({name, _})
+         | ConstructorEntry({name, _})
+         | TVarEntry({name, _}) =>
+           if (String.starts_with(~prefix="$", name)) {
+             ctx;
+           } else {
+             [entry, ...ctx];
+           }
+         }
+       },
+       [],
+     )
+  |> List.rev;
+
 let shadows_typ = (ctx: t, name: string): bool =>
   Form.is_base_typ(name) || lookup_tvar(ctx, name) != None;
