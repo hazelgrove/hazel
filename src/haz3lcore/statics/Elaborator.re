@@ -236,17 +236,21 @@ let rec elaborate_pattern =
         };
       let t =
         switch (Self.ctr_ana_typ(ctx, ana_ty, c), Ctx.lookup_ctr(ctx, c)) {
-        | (Some(ana_ty), _) => ana_ty
-        | (_, Some({typ: syn_ty, _})) => syn_ty
-        | _ =>
-          Sum([
-            ConstructorMap.Variant(c, [Id.invalid], None),
-            ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
-          ])
-          |> Typ.temp
+        | (Some(ana_ty), _) => Some(Typ.normalize(ctx, ana_ty))
+        | (_, Some({typ: syn_ty, _})) => Some(Typ.normalize(ctx, syn_ty))
+        | _ => None
         };
-      let t = t |> Typ.normalize(ctx);
-      Constructor(c, Some(Some(t))) |> rewrap |> cast_from(t);
+      let ty =
+        OptUtil.get(
+          () =>
+            Sum([
+              ConstructorMap.Variant(c, [Id.invalid], None),
+              ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+            ])
+            |> Typ.temp,
+          t,
+        );
+      Constructor(c, Some(t)) |> rewrap |> cast_from(ty);
     };
   (dpat, elaborated_type);
 };
@@ -346,6 +350,16 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         | Common(FreeConstructor(_)) => Some(None)
         | _ => Some(Some(Typ.normalize(ctx, ty)))
         };
+      let ty =
+        OptUtil.get(
+          () =>
+            Sum([
+              ConstructorMap.Variant(c, [Id.invalid], None),
+              ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+            ])
+            |> Typ.temp,
+          t,
+        );
       Constructor(c, t) |> rewrap |> cast_from(ty);
     | Fun(p, e, _, n) =>
       let (p', typ) = elaborate_pattern(m, p, false);
