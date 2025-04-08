@@ -69,6 +69,10 @@ module type Search = {
     let (<||>): (t('a), t('a)) => t('a);
     // Fair Choice
     let (<|>): (t('a), t('a)) => t('a);
+
+    // Lazy Application
+    let (@@): ('a => 'b, 'a) => 'b;
+    let (|>-): ('a, 'a => 'b) => 'b;
   };
 
   // Let binding syntax
@@ -120,6 +124,10 @@ module DFS: Search = {
     let (<||>) = choice;
     // Fair Choice
     let (<|>) = fchoice;
+
+    // Lazy Application
+    let (@@) = (f, x) => f(x);
+    let (|>-) = (x, f) => f(x);
   };
 
   module Syntax = {
@@ -212,6 +220,10 @@ module BFS: Search = {
     let (<||>) = choice;
     // Fair Choice
     let (<|>) = fchoice;
+
+    // Lazy Application
+    let (@@) = (f, x) => f(x);
+    let (|>-) = (x, f) => f(x);
   };
 
   module Syntax = {
@@ -331,6 +343,10 @@ module Bounded = (Config: BoundsConfig) : Search => {
     let (<||>) = choice;
     // Fair Choice
     let (<|>) = fchoice;
+
+    // Lazy Application
+    let (@@) = (f, x) => f(x);
+    let (|>-) = (x, f) => f(x);
   };
 
   module Syntax = {

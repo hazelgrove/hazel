@@ -17,11 +17,10 @@ module Make =
     return(Bool(true) |> DHExp.fresh)
     <||> return(Bool(false) |> DHExp.fresh);
   // Using bind to carefully avoid infinite recursion as OCaml is strict.
-  // To represent lazily 
+  // To represent lazily
   let rec ints_from = n =>
-    return(n) <||> wrap(return(n) >>- (n => ints_from(n + 1)));
-  let rec ints_to = n =>
-    return(n) <||> wrap(return(n) >>- (n => ints_to(n - 1)));
+    return(n) <||> wrap(n |>- (n => ints_from(n + 1)));
+  let rec ints_to = n => return(n) <||> wrap(n |>- (n => ints_to(n - 1)));
   let ints = ints_to(0) <|> ints_from(1);
   let int_lits = ints >>| (i => Int(i) |> DHExp.fresh);
   let float_lits = ints >>| (i => Float(Float.of_int(i)) |> DHExp.fresh); // Approximating floats by just enumerating ints
@@ -145,7 +144,7 @@ module Make =
       |> (
         fun
         | None => fail // No hole in redex
-        | Hole(id) => fail // No useful type information present
+        | Hole(_) => fail // No useful type information present
         | HoleCast(id, t) =>
           enum_typ(t, env) >>| (d' => subst_term(d', id, d))
         | Match(d, branches) => fail // TODO!  May be possible to refactor branch to inside RedexHoleType, by using the indetmatch returns from unboxing in transition?

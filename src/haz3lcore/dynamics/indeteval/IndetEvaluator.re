@@ -24,8 +24,8 @@ module Make = (S: Search) => {
     | BoxedValue => logic(d, Searching.BoxedValue)
     | Indet =>
       logic(d, Indet)
-      <|> wrap(Instantiation.instantiate(env, d) >>- search(logic, env))
-    | Step(d') => logic(d, Expr) <|> wrap(search(logic, env, d'))
+      <|> wrap(d |>- Instantiation.instantiate(env) >>- search(logic, env))
+    | Step(d') => logic(d, Expr) <|> wrap(d' |>- search(logic, env))
     | exception (EvaluatorError.Exception(_)) => fail
     };
   };
