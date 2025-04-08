@@ -114,7 +114,12 @@ let stepper_group = (~globals: Globals.t) => {
         s.show_hidden_steps,
         Evaluation(ShowHiddenSteps),
       ),
-      ("⏯️", "Filters", s.show_stepper_filters, Evaluation(ShowFilters)),
+      (
+        "⏯️",
+        "Show filters",
+        s.show_stepper_filters,
+        Evaluation(ShowFilters),
+      ),
     ],
   );
 };

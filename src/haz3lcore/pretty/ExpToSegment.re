@@ -18,7 +18,7 @@ module Settings = {
     fold_fn_bodies: !settings.evaluation.show_fn_bodies,
     hide_fixpoints: !settings.evaluation.show_fixpoints,
     fold_cast_types: !settings.evaluation.show_casts,
-    show_filters: false,
+    show_filters: settings.evaluation.show_stepper_filters,
   };
 };
 
@@ -333,12 +333,6 @@ let rec parenthesize =
     )
     |> rewrap
   | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
-  // | Filter(f, e) =>
-  //   Filter(
-  //     f, // TODO: Filters
-  //     parenthesize(e) |> paren_at(Precedence.min),
-  //   )
-  //   |> rewrap
   | Parens(e) =>
     Parens(parenthesize(~already_paren=true, e) |> paren_at(Precedence.min))
     |> rewrap
@@ -798,14 +792,18 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let* p = go(pat);
     let+ e = go(e);
-    let form =
-      switch (act) {
-      | (Step, One) => Form.FilterPause
-      | (Step, All) => Form.FilterDebug
-      | (Eval, One) => Form.FilterHide
-      | (Eval, All) => Form.FilterEval
-      };
-    [mk_form(form, id, [p])] @ e;
+    settings.show_filters
+      ? {
+        let form =
+          switch (act) {
+          | (Step, One) => Form.FilterPause
+          | (Step, All) => Form.FilterDebug
+          | (Eval, One) => Form.FilterHide
+          | (Eval, All) => Form.FilterEval
+          };
+        [mk_form(form, id, [p])] @ e;
+      }
+      : e;
   // Forms which should be removed by substitute_closures
   | Closure(_) => failwith("closure not removed before printing")
   // Other cases
