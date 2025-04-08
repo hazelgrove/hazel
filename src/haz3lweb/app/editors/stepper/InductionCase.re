@@ -11,6 +11,7 @@ module Model = {
     inner_exp: Calc.saved(Exp.t),
     step: 'step,
     last_exp: Calc.saved(Exp.t),
+    hypo_points: Calc.saved(list(Exp.t)),
   };
 
   let init = step => {
@@ -19,6 +20,7 @@ module Model = {
     inner_exp: Calc.Pending,
     step,
     last_exp: Calc.Pending,
+    hypo_points: Calc.Pending,
   };
 };
 
@@ -67,7 +69,14 @@ module Update = {
         ctx,
         exp,
         state,
-        Model.{pattern, elab_pattern, inner_exp, step: stepper, last_exp: _}:
+        Model.{
+          pattern,
+          elab_pattern,
+          inner_exp,
+          step: stepper,
+          hypo_points,
+          last_exp: _,
+        }:
           Model.t(step_model),
       ) => {
     let pattern =
@@ -104,6 +113,19 @@ module Update = {
           exp,
         );
       };
+    let hypo_points =
+      hypo_points
+      |> {
+        open Calc.Syntax;
+        let.calc elab_pattern = elab_pattern
+        and.calc scrut_ty = scrut_ty;
+        ProofHacks.get_inductive_hypotheses(
+          CodeEditable.Model.get_statics(pattern).info_map,
+          scrut_ty,
+          elab_pattern,
+        )
+        |> List.map(v => Exp.fresh(Var(v)));
+      };
     let (stepper, last_exp) =
       calculate_step(
         ~settings, // TODO: this is a little ugly
@@ -116,6 +138,7 @@ module Update = {
       pattern,
       elab_pattern: elab_pattern |> Calc.save,
       inner_exp: inner_exp |> Calc.save,
+      hypo_points: hypo_points |> Calc.save,
       step: stepper,
       last_exp: last_exp |> Calc.save,
     };
@@ -228,6 +251,31 @@ module View = {
         div_c(
           "induction-case-header",
           [Node.text("Pattern "), pattern_editor],
+        ),
+        div_c(
+          "induction-case-hypotheses",
+          List.flatten(
+            List.map(
+              x =>
+                [
+                  CodeViewable.view_segment(
+                    ~globals,
+                    ~sort=Exp,
+                    ~shape_map=ProjectorCore.Shape.Map.empty,
+                    ExpToSegment.exp_to_segment(
+                      ~settings=
+                        ExpToSegment.Settings.of_core(
+                          ~inline=true,
+                          globals.settings.core,
+                        ),
+                      x,
+                    ),
+                  ),
+                  Node.text(", "),
+                ],
+              model.hypo_points |> Calc.get_saved_exc,
+            ),
+          ),
         ),
       ]
       @ stepper_view,
