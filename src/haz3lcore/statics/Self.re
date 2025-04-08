@@ -137,7 +137,7 @@ let ctr_ana_typ =
       let* ty_entry = ConstructorMap.get_entry(ctr, ctrs);
       switch (ty_entry) {
       | None => None
-      | Some(_) => Some(ty_ana)
+      | Some(ty_in) => Some(Arrow(ty_in, ty_out) |> Typ.temp)
       };
     | _ =>
       let* ctrs = Typ.get_sum_constructors(ctx, ty_ana);

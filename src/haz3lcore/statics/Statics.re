@@ -1699,7 +1699,7 @@ and utyp_to_info_map =
         {
           name,
           id: TPat.rep_id(utpat),
-          kind: Abstract,
+          kind: Singleton(utyp),
         },
       );
     let m =
