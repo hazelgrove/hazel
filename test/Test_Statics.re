@@ -1086,7 +1086,7 @@ let tests = (
                 TypSlice.(
                   is_parens(s)
                   && is_prod(unparens(s), ~ignore_parens=false)
-                  && List.length(unprod(unparens(s))) == 1
+                  && List.length(unprod(unparens(s))) == 2
                 ) => (
               s,
               tuple,
@@ -1157,7 +1157,8 @@ let tests = (
         let tuple =
           switch (exp.term) {
           | Cast({term: Parens({term: Tuple(_), _} as tuple), _}, _, _) => tuple
-          | _ => Alcotest.fail("Unexpected form")
+          | _ =>
+            Alcotest.fail("Unexpected form " ++ [%derive.show: Exp.t](exp))
           };
 
         let s = statics(exp);
