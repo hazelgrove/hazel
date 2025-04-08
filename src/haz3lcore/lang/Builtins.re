@@ -200,7 +200,7 @@ module Pervasives = {
     let string_concat =
       binary((d1, d2) => {
         let-unbox s1 = (String, d1);
-        let-unbox xs = (List, d2);
+        let-unbox xs = (ListLit, d2);
         let* xs' = List.map(string_of, xs) |> Util.OptUtil.sequence;
         Some(string(String.concat(s1, xs')));
       });

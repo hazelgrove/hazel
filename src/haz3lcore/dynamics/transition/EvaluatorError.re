@@ -12,6 +12,7 @@ type t =
   | InvalidBoxedIntLit(DHExp.t)
   | InvalidBoxedFloatLit(DHExp.t)
   | InvalidBoxedListLit(DHExp.t)
+  | InvalidBoxedListCons(DHExp.t)
   | InvalidBoxedStringLit(DHExp.t)
   | InvalidBoxedLabel(DHExp.t)
   | InvalidBoxedSumConstructor(DHExp.t)
