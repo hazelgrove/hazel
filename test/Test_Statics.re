@@ -35,17 +35,19 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
 let testable_info_error_exp =
   testable(Fmt.using(Info.show_error_exp, Fmt.string), eq_info_error_exp);
 
-let status_exp: testable(Info.status_exp) =
-  testable(Fmt.using(Info.show_status_exp, Fmt.string), (==));
+let testable_error: testable(Info.error) =
+  testable(Fmt.using(Info.show_error, Fmt.string), (==));
 module FreshId = {
-  let arrow = (a, b) => Arrow(a, b) |> Typ.fresh;
-  let unknown = a => Unknown(a) |> Typ.fresh;
-  let int = Typ.fresh(Int);
-  let float = Typ.fresh(Float);
-  let prod = a => Prod(a) |> Typ.fresh;
-  let label = a => Label(a) |> Typ.fresh;
-  let tup_label = (a, b) => TupLabel(a, b) |> Typ.fresh;
-  let string = Typ.fresh(String);
+  let arrow = (a, b) =>
+    Arrow(a, b) |> TypSlice.term_of_slc_typ_term |> TypSlice.fresh;
+  let unknown = a => Unknown(a) |> Typ.fresh |> TypSlice.t_of_typ_t;
+  let int = Typ.fresh(Int) |> TypSlice.t_of_typ_t;
+  let float = Typ.fresh(Float) |> TypSlice.t_of_typ_t;
+  let prod = a => Prod(a) |> TypSlice.term_of_slc_typ_term |> TypSlice.fresh;
+  let label = a => Label(a) |> Typ.fresh |> TypSlice.t_of_typ_t;
+  let tup_label = (a, b) =>
+    TupLabel(a, b) |> TypSlice.term_of_slc_typ_term |> TypSlice.fresh;
+  let string = Typ.fresh(String) |> TypSlice.t_of_typ_t;
 };
 let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init);
 let alco_check = Alcotest.option(testable_typ) |> Alcotest.check;
@@ -79,20 +81,11 @@ let inconsistent_typecheck = (name, exp) => {
     `Quick,
     () => {
       let s = statics(exp);
-      let errors: list(Info.status_exp) =
-        List.map(
-          (id: Id.t) => {
-            let info = Id.Map.find(id, s);
-            switch (info) {
-            | InfoExp(ie) => ie.status
-            | _ => fail("Expected InfoExp")
-            };
-          },
-          Statics.Map.error_ids(s),
-        );
+
+      let errors = List.map(snd, Statics.collect_errors(s));
 
       Alcotest.check(
-        neg(list(status_exp)),
+        neg(list(testable_error)),
         "Missing Static Errors",
         [],
         errors,
@@ -106,23 +99,9 @@ let fully_consistent_typecheck = (name, serialized, expected, exp) => {
     `Quick,
     () => {
       let s = statics(exp);
-      let errors =
-        List.map(
-          (id: Id.t) => {
-            let info = Id.Map.find(id, s);
-            switch (info) {
-            | InfoExp(ie) => ie.status
-            | _ => fail("Expected InfoExp")
-            };
-          },
-          Statics.Map.error_ids(s),
-        );
-      Alcotest.check(list(status_exp), "Static Errors", [], errors);
-      alco_check(
-        serialized,
-        expected |> Option.map(TypSlice.t_of_typ_t),
-        type_of(exp),
-      );
+      let errors = List.map(snd, Statics.collect_errors(s));
+      Alcotest.check(list(testable_error), "Static Errors", [], errors);
+      alco_check(serialized, expected, type_of(exp));
     },
   );
 };
@@ -233,7 +212,7 @@ let simple_inconsistency =
 let unapplied_function = () =>
   alco_check(
     "Unknown param",
-    Some(FreshId.(arrow(unknown(Internal), int)) |> TypSlice.t_of_typ_t),
+    Some(FreshId.(arrow(unknown(Internal), int))),
     type_of(
       Fun(
         Var("x") |> Pat.fresh,
@@ -267,12 +246,7 @@ let tests = (
       "x : Int => 4 + 5",
       Some(arrow(int, int)),
       Fun(
-        Cast(
-          Var("x") |> Pat.fresh,
-          int |> TypSlice.t_of_typ_t,
-          unknown(Internal) |> TypSlice.t_of_typ_t,
-        )
-        |> Pat.fresh,
+        Cast(Var("x") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
         BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
         |> Exp.fresh,
         None,
@@ -305,18 +279,8 @@ let tests = (
       Some(arrow(prod([int, int]), int)),
       Fun(
         Tuple([
-          Cast(
-            Var("x") |> Pat.fresh,
-            int |> TypSlice.t_of_typ_t,
-            unknown(Internal) |> TypSlice.t_of_typ_t,
-          )
-          |> Pat.fresh,
-          Cast(
-            Var("y") |> Pat.fresh,
-            int |> TypSlice.t_of_typ_t,
-            unknown(Internal) |> TypSlice.t_of_typ_t,
-          )
-          |> Pat.fresh,
+          Cast(Var("x") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
+          Cast(Var("y") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
         ])
         |> Pat.fresh,
         BinOp(Int(Plus), Var("x") |> Exp.fresh, Var("y") |> Exp.fresh)
@@ -332,18 +296,8 @@ let tests = (
       Some(arrow(prod([int, int]), int)),
       Fun(
         Tuple([
-          Cast(
-            Var("x") |> Pat.fresh,
-            int |> TypSlice.t_of_typ_t,
-            unknown(Internal) |> TypSlice.t_of_typ_t,
-          )
-          |> Pat.fresh,
-          Cast(
-            Var("y") |> Pat.fresh,
-            int |> TypSlice.t_of_typ_t,
-            unknown(Internal) |> TypSlice.t_of_typ_t,
-          )
-          |> Pat.fresh,
+          Cast(Var("x") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
+          Cast(Var("y") |> Pat.fresh, int, unknown(Internal)) |> Pat.fresh,
         ])
         |> Pat.fresh,
         BinOp(Int(Plus), Var("x") |> Exp.fresh, Var("y") |> Exp.fresh)
@@ -383,7 +337,8 @@ let tests = (
         Prod([
           TupLabel(Label("l") |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
         ])
-        |> Typ.fresh,
+        |> Typ.fresh
+        |> TypSlice.t_of_typ_t,
       ),
       Let(
         Var("x") |> Pat.fresh,
@@ -424,7 +379,8 @@ let tests = (
         Prod([
           TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh) |> Typ.fresh,
         ])
-        |> Typ.fresh,
+        |> Typ.fresh
+        |> TypSlice.t_of_typ_t,
       ),
       Let(
         Cast(
@@ -475,7 +431,8 @@ let tests = (
         Prod([
           TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh) |> Typ.fresh,
         ])
-        |> Typ.fresh,
+        |> Typ.fresh
+        |> TypSlice.t_of_typ_t,
       ),
       Let(
         Cast(
@@ -513,7 +470,8 @@ let tests = (
           TupLabel(Label("l2") |> Typ.fresh, String |> Typ.fresh)
           |> Typ.fresh,
         ])
-        |> Typ.fresh,
+        |> Typ.fresh
+        |> TypSlice.t_of_typ_t,
       ),
       Parens(
         Tuple([
@@ -535,7 +493,8 @@ let tests = (
           |> Typ.fresh,
           TupLabel(Label("age") |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
         ])
-        |> Typ.fresh,
+        |> Typ.fresh
+        |> TypSlice.t_of_typ_t,
       ),
       Let(
         Cast(
@@ -581,14 +540,15 @@ let tests = (
           )
           |> Typ.fresh,
         ])
-        |> Typ.fresh,
+        |> Typ.fresh
+        |> TypSlice.t_of_typ_t,
       ),
       parse_exp({|let y : (l=(l=Int)) = (l=1) in y|}),
     ),
     fully_consistent_typecheck(
       "Reconstructed labeled tuple without values",
       {|let x : (l=|},
-      Some(Unknown(Internal) |> Typ.fresh),
+      Some(Unknown(Internal) |> Typ.fresh |> TypSlice.t_of_typ_t),
       Let(
         Cast(
           Var("x") |> Pat.fresh,
@@ -623,7 +583,8 @@ let tests = (
           )
           |> Typ.fresh,
         ])
-        |> Typ.fresh,
+        |> Typ.fresh
+        |> TypSlice.t_of_typ_t,
       ),
       parse_exp({|let x : (a=?) = (a=1) in x|}),
     ),
@@ -642,7 +603,8 @@ let tests = (
           )
           |> Typ.fresh,
         ])
-        |> Typ.fresh,
+        |> Typ.fresh
+        |> TypSlice.t_of_typ_t,
       ),
       parse_exp({|let x : (b=c=String) = b="" in x|}),
     ),
@@ -671,7 +633,8 @@ let tests = (
           )
           |> Typ.fresh,
         ])
-        |> Typ.fresh,
+        |> Typ.fresh
+        |> TypSlice.t_of_typ_t,
       ),
       parse_exp({|let x : (a=b=c=?) = b=? in x|}),
     ),
@@ -1187,6 +1150,24 @@ let tests = (
           Statics.get_error_at(s, IdTagged.rep_id(tuple)),
         );
       },
+    ),
+    fully_consistent_typecheck(
+      "Forall alpha equivalent in cast",
+      {|let x : forall a -> a = in (x : forall b -> b)|},
+      Some(
+        Forall(Var("b") |> TPat.fresh, Var("b") |> Typ.fresh)
+        |> Typ.fresh
+        |> TypSlice.t_of_typ_t,
+      ),
+      parse_exp({|let x : forall a -> a = in (x : forall b -> b)|}),
+    ),
+    fully_consistent_typecheck(
+      "Forall alpha equivalent in let",
+      {|let x : forall a -> a = in let y : forall b -> b = x in 1|},
+      Some(int),
+      parse_exp(
+        {|let x : forall a -> a = in let y : forall b -> b = x in 1|},
+      ),
     ),
   ],
 );

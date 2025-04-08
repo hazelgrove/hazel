@@ -437,14 +437,14 @@ let rec join_using =
       (Rec(tp1, ty_body) |> temp, branch_used);
     | (Rec(_), _) => None
     | (Forall(x1, ty1), Forall(x2, ty2)) =>
-      let ctx = Ctx.extend_dummy_tvar(ctx, x1);
       let ty1' =
         switch (TPat.tyvar_of_utpat(x2)) {
         | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
         | None => ty1
         };
+      let ctx = Ctx.extend_dummy_tvar(ctx, x2);
       let+ (ty_body, branch_used) = join_using(~resolve, ctx, ty1', ty2);
-      (Forall(x1, ty_body) |> temp, branch_used);
+      (Forall(x2, ty_body) |> temp, branch_used);
     /* Note for above: there is no danger of free variable capture as
        subst itself performs capture avoiding substitution. However this
        may generate internal type variable names that in corner cases can

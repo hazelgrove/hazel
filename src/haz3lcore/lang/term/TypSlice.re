@@ -557,16 +557,16 @@ let rec join_using =
       );
     | (Rec(_), _) => None
     | (Forall(x1, s1), Forall(x2, s2)) =>
-      let ctx = Ctx.extend_dummy_tvar(ctx, x1);
       let ty1' =
         switch (TPat.tyvar_of_utpat(x2)) {
         | Some(x2) => subst(`Typ(Var(x2)) |> temp, x1, s1)
         | None => s1
         };
+      let ctx = Ctx.extend_dummy_tvar(ctx, x2);
       let+ (s_body, branch_used) = join_using(~resolve, ctx, ty1', s2);
       (
         `SliceIncr((
-          Slice(Forall(x1, s_body)),
+          Slice(Forall(x2, s_body)),
           choose_branch(branch_used, slice_incr1, slice_incr2),
         ))
         |> temp,
@@ -680,17 +680,17 @@ let rec join_using =
       );
     | (Rec(_), _) => None
     | (Forall(x1, s1), Forall(x2, ty2)) =>
-      let ctx = Ctx.extend_dummy_tvar(ctx, x1);
       let s1' =
         switch (TPat.tyvar_of_utpat(x2)) {
         | Some(x2) => subst(`Typ(Var(x2)) |> temp, x1, s1)
         | None => s1
         };
+      let ctx = Ctx.extend_dummy_tvar(ctx, x2);
       let+ (s_body, branch_used) =
         join_using(~resolve, ctx, s1', ty2 |> t_of_typ_t);
       (
         `SliceIncr((
-          Slice(Forall(x1, s_body)),
+          Slice(Forall(x2, s_body)),
           choose_branch(branch_used, slice_incr, empty_slice_incr),
         ))
         |> temp,
@@ -805,16 +805,16 @@ let rec join_using =
       );
     | (Rec(_), _) => None
     | (Forall(x1, ty1), Forall(x2, s2)) =>
-      let ctx = Ctx.extend_dummy_tvar(ctx, x1);
       let s1' =
         switch (TPat.tyvar_of_utpat(x2)) {
         | Some(x2) => subst(`Typ(Var(x2)) |> temp, x1, ty1 |> t_of_typ_t)
         | None => s1
         };
+      let ctx = Ctx.extend_dummy_tvar(ctx, x2);
       let+ (s_body, branch_used) = join_using(~resolve, ctx, s1', s2);
       (
         `SliceIncr((
-          Slice(Forall(x1, s_body)),
+          Slice(Forall(x2, s_body)),
           choose_branch(branch_used, empty_slice_incr, slice_incr2),
         ))
         |> temp,

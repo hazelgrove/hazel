@@ -156,8 +156,8 @@ let rec matches_exp =
 
     | (Cast(d, dty1, dty2), Cast(f, fty1, fty2)) =>
       matches_exp(d, f)
-      && matches_typ(dty1, fty1)
-      && matches_typ(dty2, fty2)
+      && matches_typ(TypSlice.typ_of(dty1), TypSlice.typ_of(fty1))
+      && matches_typ(TypSlice.typ_of(dty2), TypSlice.typ_of(fty2))
     | (Cast(_), _) => false
     | (Closure(denv, d), Closure(fenv, f)) =>
       matches_exp(~denv, d, ~fenv, f)
