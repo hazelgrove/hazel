@@ -63,8 +63,6 @@ type rul_t = Grammar.rul_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type rul_term = Grammar.rul_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type environment_t = Grammar.environment_t(IdTagged.IdTag.t);
-[@deriving (show({with_path: false}), sexp, yojson)]
 type closure_environment_t = Grammar.closure_environment_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type stepper_filter_kind_t = Grammar.stepper_filter_kind_t(IdTagged.IdTag.t);
@@ -897,46 +895,37 @@ and Rul: {
   let equal = fast_equal;
 }
 
-and Environment: {
-  include
-     (module type of VarBstMap.Ordered) with
-      type t_('a) = VarBstMap.Ordered.t_('a);
-
-  type t = environment_t;
-} = {
-  include VarBstMap.Ordered;
-
-  type t = environment_t;
-}
-
 and ClosureEnvironment: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = closure_environment_t;
 
   let empty: t;
 
-  let of_environment: Environment.t => t;
+  let of_environment: Environment.t(Exp.t) => t;
 
-  let map_of: t => Environment.t;
+  let map_of: t => Environment.t(Exp.t);
   let call_stack_of: t => Probe.call_stack;
 
   let id_equal: (closure_environment_t, closure_environment_t) => bool;
 
   let lookup: (t, Var.t) => option(Exp.t);
-  let update_env: (Environment.t => Environment.t, t) => t;
+  let update_env: (Environment.t(Exp.t) => Environment.t(Exp.t), t) => t;
   let extend_eval:
-    (~ap_id: Id.t=?, ~call_stack: Probe.call_stack, Environment.t, t) => t;
-
-  let to_list: t => list((Var.t, Exp.t));
+    (
+      ~ap_id: Id.t=?,
+      ~call_stack: Probe.call_stack,
+      Environment.t(Exp.t),
+      t
+    ) =>
+    t;
 } = {
   module Inner: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = closure_environment_t;
 
-    let wrap: (Id.t, Environment.t, Probe.call_stack) => t;
-
+    let wrap: (Id.t, Environment.t(Exp.t), Probe.call_stack) => t;
     let id_of: t => Id.t;
-    let map_of: t => Environment.t;
+    let map_of: t => Environment.t(Exp.t);
     let call_stack_of: t => Probe.call_stack;
   } = {
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -957,8 +946,6 @@ and ClosureEnvironment: {
   };
   include Inner;
 
-  let to_list = env => env |> map_of |> Environment.to_listo;
-
   let of_environment = env => wrap(Id.mk(), env, []);
 
   /* Equals only needs to check environment id's (faster than structural equality
@@ -968,7 +955,7 @@ and ClosureEnvironment: {
   let empty = Environment.empty |> of_environment;
 
   let lookup = (env, x) =>
-    env |> map_of |> (map => Environment.lookup(map, x));
+    env |> map_of |> (map => Environment.lookup(x, map));
 
   let update_env = (f, env) => env |> map_of |> f |> of_environment;
 
@@ -979,13 +966,13 @@ and ClosureEnvironment: {
       (
         ~ap_id: option(Id.t)=?,
         ~call_stack: Probe.call_stack,
-        new_bindings: Environment.t,
+        new_bindings: Environment.t(Exp.t),
         env_to_extend: t,
       )
       : t => {
     {
       id: Id.mk(),
-      env: Environment.union(new_bindings, map_of(env_to_extend)),
+      env: Environment.concat(new_bindings, map_of(env_to_extend)),
       call_stack: Option.to_list(ap_id) @ call_stack,
     };
   };

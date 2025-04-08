@@ -19,7 +19,7 @@ let free_variables =
         };
       | Some(_) => None
       },
-    co_ctx,
+    co_ctx |> VarMap.to_assoc_list,
   );
 };
 
@@ -27,14 +27,14 @@ let free_variables =
 let bound_variables = (ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
   List.filter_map(
     fun
-    | Ctx.VarEntry({typ, name, _})
+    | (name, Ctx.VarEntry({typ, _}))
         when Typ.is_consistent(ctx, ty_expect, typ) =>
       Some({
         content: name,
         strategy: Exp(Common(FromCtx(typ))),
       })
     | _ => None,
-    ctx,
+    VarMap.to_assoc_list(ctx),
   );
 
 let bound_constructors =
@@ -43,21 +43,21 @@ let bound_constructors =
   /* get names of all constructor entries consistent with ty */
   List.filter_map(
     fun
-    | Ctx.ConstructorEntry({typ, name, _})
+    | (name, Ctx.ConstructorEntry({typ, _}))
         when Typ.is_consistent(ctx, ty, typ) =>
       Some({
         content: name,
         strategy: wrap(FromCtx(typ)),
       })
     | _ => None,
-    ctx,
+    VarMap.to_assoc_list(ctx),
   );
 
 /* Suggest applying a function from the ctx which returns an appropriate type */
 let bound_aps = (ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
   List.filter_map(
     fun
-    | Ctx.VarEntry({typ: {term: Arrow(_, ty_out), _} as ty_arr, name, _})
+    | (name, Ctx.VarEntry({typ: {term: Arrow(_, ty_out), _} as ty_arr, _}))
         when
           Typ.is_consistent(ctx, ty_expect, ty_out)
           && !Typ.is_consistent(ctx, ty_expect, ty_arr) => {
@@ -67,17 +67,19 @@ let bound_aps = (ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
         });
       }
     | _ => None,
-    ctx,
+    VarMap.to_assoc_list(ctx),
   );
 
 let bound_constructor_aps = (wrap, ty: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
   List.filter_map(
     fun
-    | Ctx.ConstructorEntry({
-        typ: {term: Arrow(_, ty_out), _} as ty_arr,
+    | (
         name,
-        _,
-      })
+        Ctx.ConstructorEntry({
+          typ: {term: Arrow(_, ty_out), _} as ty_arr,
+          _,
+        }),
+      )
         when
           Typ.is_consistent(ctx, ty, ty_out)
           && !Typ.is_consistent(ctx, ty, ty_arr) =>
@@ -86,20 +88,20 @@ let bound_constructor_aps = (wrap, ty: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
         strategy: wrap(FromCtxAp(ty_out)),
       })
     | _ => None,
-    ctx,
+    VarMap.to_assoc_list(ctx),
   );
 
 /* Suggest bound type aliases in type annotations or definitions */
 let typ_context_entries = (ctx: Ctx.t): list(Suggestion.t) =>
   List.filter_map(
     fun
-    | Ctx.TVarEntry({kind: Singleton(_), name, _}) =>
+    | (name, Ctx.TVarEntry({kind: Singleton(_), _})) =>
       Some({
         content: name,
         strategy: Typ(FromCtx),
       })
     | _ => None,
-    ctx,
+    VarMap.to_assoc_list(ctx),
   );
 
 let suggest_variable = (ci: Info.t): list(Suggestion.t) => {

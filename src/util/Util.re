@@ -23,6 +23,7 @@ module Point = Point;
 module Calc = Calc;
 module Sets = Sets;
 module Maps = Maps;
+module OrderedMultiMap = OrderedMultiMap;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

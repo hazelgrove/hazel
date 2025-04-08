@@ -745,7 +745,7 @@ module Exp = {
 
   let rec substitute_closures =
           (
-            env: Environment.t,
+            env: Environment.t(TermBase.Exp.t),
             old_bound_vars: list(string),
             new_bound_vars: list(string),
           ) =>
@@ -756,7 +756,7 @@ module Exp = {
           switch (term) {
           // Variables: lookup if bound
           | Var(x) =>
-            switch (Environment.lookup(env, x)) {
+            switch (Environment.lookup(x, env)) {
             | Some(e) =>
               e
               |> replace_all_ids

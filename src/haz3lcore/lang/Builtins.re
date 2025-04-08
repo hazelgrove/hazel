@@ -17,10 +17,10 @@ type builtin =
   | Fn(Typ.t, Typ.t, DHExp.t => option(DHExp.t));
 
 [@deriving (show({with_path: false}), sexp)]
-type t = VarMap.t_(builtin);
+type t = VarMap.t(builtin);
 
 [@deriving (show({with_path: false}), sexp)]
-type forms = VarMap.t_(DHExp.t => option(DHExp.t));
+type forms = VarMap.t(DHExp.t => option(DHExp.t));
 
 let const = (name: Var.t, typ: Typ.term, v: DHExp.t, builtins: t): t =>
   VarMap.extend(builtins, (name, Const(typ |> Typ.fresh, v)));
@@ -312,23 +312,22 @@ let ctx_init: Ctx.t = {
     Variant("$e", [Id.mk()], None),
     Variant("$v", [Id.mk()], None),
   ];
-  let meta =
+  let meta = (
+    "$Meta",
     Ctx.TVarEntry({
-      name: "$Meta",
       id: Id.invalid,
       kind: Ctx.Singleton(Fresh.Typ.sum(meta_cons_map)),
-    });
-  List.map(
+    }),
+  );
+  VarMap.mapo(
     fun
-    | (name, Const(typ, _)) =>
+    | (_, Const(typ, _)) =>
       Ctx.VarEntry({
-        name,
         typ,
         id: Id.invalid,
       })
-    | (name, Fn(t1, t2, _)) =>
+    | (_, Fn(t1, t2, _)) =>
       Ctx.VarEntry({
-        name,
         typ: Fresh.Typ.arrow(t1, t2),
         id: Id.invalid,
       }),
@@ -339,20 +338,18 @@ let ctx_init: Ctx.t = {
 };
 
 let forms_init: forms =
-  List.filter_map(
+  VarMap.filter_map(
     fun
     | (_, Const(_)) => None
     | (name, Fn(_, _, f)) => Some((name, f)),
     Pervasives.builtins,
   );
 
-let env_init: Environment.t =
-  List.fold_left(
-    env =>
-      fun
-      | (name, Const(_, d)) => Environment.extend(env, (name, d))
-      | (name, Fn(_)) =>
-        Environment.extend(env, (name, Fresh.Exp.builtin_fun(name))),
-    Environment.empty,
+let env_init: Environment.t(Exp.t) =
+  VarMap.mapo(
+    fun
+    | (_, Const(_, d)) => Environment.Concrete(d)
+    | (name, Fn(_, _, f)) =>
+      Environment.Concrete(Fresh.Exp.builtin_fun(name)),
     Pervasives.builtins,
   );

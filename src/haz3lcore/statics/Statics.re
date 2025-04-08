@@ -70,7 +70,7 @@ module Map = {
     switch (lookup(id, m)) {
     | Some(InfoExp({co_ctx, ctx, _})) =>
       co_ctx
-      |> VarMap.to_list
+      |> VarMap.to_assoc_list
       |> List.map(((n, _)) => Ctx.binding_of(ctx, n))
     | _ => []
     };
@@ -780,8 +780,8 @@ and uexp_to_info_map =
       let ctx_body =
         Ctx.extend_tvar(
           ctx,
+          name,
           {
-            name,
             id: TPat.rep_id(utpat),
             kind: Abstract,
           },
@@ -1281,13 +1281,12 @@ and upat_to_info_map =
         );
       let entry =
         Ctx.VarEntry({
-          name,
           id: Pat.rep_id(upat),
           typ: ctx_typ,
         });
       add(
         ~self=Just(unknown),
-        ~ctx=Ctx.extend(ctx, entry),
+        ~ctx=Ctx.extend(ctx, (name, entry)),
         ~constraint_=Coverage.Constraint.Truth,
         m,
       );
@@ -1629,8 +1628,8 @@ and utyp_to_info_map =
     let body_ctx =
       Ctx.extend_tvar(
         ctx,
+        name,
         {
-          name,
           id: TPat.rep_id(utpat),
           kind: Abstract,
         },
@@ -1656,8 +1655,8 @@ and utyp_to_info_map =
     let body_ctx =
       Ctx.extend_tvar(
         ctx,
+        name,
         {
-          name,
           id: TPat.rep_id(utpat),
           kind: Abstract,
         },

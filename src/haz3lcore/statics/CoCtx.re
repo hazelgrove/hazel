@@ -1,5 +1,4 @@
 open Util;
-
 /* Co-contexts:
 
    A typing co-context (dual to a typing context), is a map between
@@ -36,8 +35,7 @@ type entry = {
 /* Each co-context entry is a list of the uses of a variable
    within some scope, including their type demands */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = VarMap.t_(list(entry));
-
+type t = VarMap.t(list(entry));
 let empty: t = VarMap.empty;
 
 let mk = (ctx_before: Ctx.t, ctx_after, co_ctx: t): t => {
@@ -52,12 +50,8 @@ let mk = (ctx_before: Ctx.t, ctx_after, co_ctx: t): t => {
   );
 };
 
-/* Note: this currently shadows in the case of duplicates */
-let union: list(t) => t =
-  List.fold_left((co_ctx1, co_ctx2) => co_ctx1 @ co_ctx2, []);
-
-let singleton = (name, id, expected_ty): t => [
-  (
+let singleton = (name, id, expected_ty): t =>
+  VarMap.singleton(
     name,
     [
       {
@@ -65,8 +59,7 @@ let singleton = (name, id, expected_ty): t => [
         expected_ty,
       },
     ],
-  ),
-];
+  );
 
 let join: (Ctx.t, list(entry)) => Typ.t =
   (ctx, entries) => {
@@ -78,3 +71,14 @@ let join: (Ctx.t, list(entry)) => Typ.t =
     | Some(ty) => ty
     };
   };
+
+let union_2 = (co_ctx1, co_ctx2) =>
+  VarMap.map2(
+    (_name, entries1, entries2) =>
+      Option.value(~default=[], entries1)
+      @ Option.value(~default=[], entries2),
+    co_ctx1,
+    co_ctx2,
+  );
+
+let union = (co_ctxs: list(t)) => List.fold_left(union_2, empty, co_ctxs);

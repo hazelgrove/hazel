@@ -117,6 +117,12 @@ let hd_opt =
   | [] => None
   | [hd, ..._] => Some(hd);
 
+let tl_opt = (xs: list('x)): option(list('x)) =>
+  switch (xs) {
+  | [] => None
+  | [_hd, ...tl] => Some(tl)
+  };
+
 let rec nth_opt = (n, xs) =>
   n < 0
     ? None

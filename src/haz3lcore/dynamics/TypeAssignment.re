@@ -32,7 +32,7 @@ let ground = (ty: Typ.t): bool => {
 
 let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) => {
   let rec dhpat_var_entry =
-          (dhpat: DHPat.t, ty: Typ.t): option(list(Ctx.entry)) => {
+          (dhpat: DHPat.t, ty: Typ.t): option(list((Var.t, Ctx.entry))) => {
     let ty' = ty;
     let ty =
       switch (ty.term) {
@@ -43,11 +43,10 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Var(name) =>
       let entry =
         Ctx.VarEntry({
-          name,
           id: Id.invalid,
           typ: ty,
         });
-      Some([entry]);
+      Some([(name, entry)]);
     | Label(name) =>
       Typ.equal(ty, Label(name) |> Typ.temp) ? Some([]) : None
     | TupLabel(_, dp1) =>
@@ -145,15 +144,17 @@ let rec env_extend_ctx =
         (env: ClosureEnvironment.t, m: Statics.Map.t, ctx: Ctx.t)
         : option(Ctx.t) => {
   let+ l =
-    env
-    |> ClosureEnvironment.to_list
+    env.env
+    |> VarMap.to_assoc_list
     |> List.map(((name, de)) => {
          let+ ty = typ_of_dhexp(ctx, m, de);
-         Ctx.VarEntry({
+         (
            name,
-           id: Id.invalid,
-           typ: ty,
-         });
+           Ctx.VarEntry({
+             id: Id.invalid,
+             typ: ty,
+           }),
+         );
        })
     |> OptUtil.sequence;
   List.fold_left((ctx, var_entry) => Ctx.extend(ctx, var_entry), ctx, l);

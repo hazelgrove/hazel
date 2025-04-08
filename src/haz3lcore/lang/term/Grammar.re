@@ -130,10 +130,9 @@ and rul_term('a) =
   | Hole(list(any_t('a)))
   | Rules(exp_t('a), list((pat_t('a), exp_t('a))))
 and rul_t('a) = Annotated.t(rul_term('a), 'a)
-and environment_t('a) = VarBstMap.Ordered.t_(exp_t('a))
 and closure_environment_t('a) = {
   id: Id.t,
-  env: environment_t('a),
+  env: Environment.t(exp_t('a)),
   call_stack: Probe.call_stack,
 }
 and stepper_filter_kind_t('a) =
@@ -413,7 +412,11 @@ and map_closure_environment_annotation:
   type a b. (a => b, closure_environment_t(a)) => closure_environment_t(b) =
   (f, {id, env, call_stack}) => {
     id,
-    env: VarBstMap.Ordered.mapo(((_, y)) => map_exp_annotation(f, y), env),
+    env:
+      Environment.mapo(
+        ((_, y: exp_t(a))) => map_exp_annotation(f, y),
+        env,
+      ),
     call_stack,
   }
 
@@ -796,8 +799,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
   };
 
-  let environment = (env): environment_t(DefaultAnnotation.t) => {
-    VarBstMap.Ordered.mapo(((_, y)) => map_exp_annotation(x => x, y), env);
+  let environment = (env): Environment.t(exp_t(DefaultAnnotation.t)) => {
+    Environment.mapo(((_, y)) => map_exp_annotation(x => x, y), env);
   };
 
   let closure_environment =
