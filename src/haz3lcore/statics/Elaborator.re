@@ -503,9 +503,13 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (args', tys) = List.map(elaborate(m), args) |> ListUtil.unzip;
       let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
       let (args, ty_fargs) =
-        Typ.matched_prod(ctx, args, Exp.match_tup_label, tyf1, (name, b) =>
-          TupLabel(Label(name) |> Exp.fresh, b) |> Exp.fresh
-        );
+        if (List.length(args) > 1) {
+          Typ.matched_prod(ctx, args, Exp.match_tup_label, tyf1, (name, b) =>
+            TupLabel(Label(name) |> Exp.fresh, b) |> Exp.fresh
+          );
+        } else {
+          (args, [tyf1]);
+        };
       let prod_args =
         switch (ty_fargs) {
         | [ty] => ty
