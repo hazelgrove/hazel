@@ -491,18 +491,17 @@ let eq = (t1: t, t2: t): bool => fast_equal(t1, t2);
 let rec join_using =
         (
           ~resolve=false,
-          ~fix,
           ctx: Ctx.t,
           {term: term1, _} as s1: t,
           {term: term2, _} as s2: t,
         )
         : option((t, BranchUsed.t)) => {
-  let join' = join_using(~resolve, ~fix, ctx);
+  let join' = join_using(~resolve, ctx);
   let rewrap1 = term' => {...s1, term: term'};
   let rewrap2 = term' => {...s2, term: term'};
   open BranchUsed;
   let join_typ_rewrap = (f, ty1, ty2) =>
-    Typ.join_using(~resolve, ~fix, ctx, ty1 |> rewrap1, ty2 |> rewrap2)
+    Typ.join_using(~resolve, ctx, ty1 |> rewrap1, ty2 |> rewrap2)
     |> Option.map(((ty, b)) => {
          let (ty', rewrap') = ty |> IdTagged.unwrap;
          (ty', b) |> f |> (((ty', b)) => (rewrap'(ty'), b));
@@ -547,7 +546,7 @@ let rec join_using =
         | Some(x2) => subst(`Typ(Var(x2)) |> temp, tp1, s1)
         | None => s1
         };
-      let+ (s_body, branch_used) = join_using(~resolve, ~fix, ctx, s1', s2);
+      let+ (s_body, branch_used) = join_using(~resolve, ctx, s1', s2);
       (
         `SliceIncr((
           Slice(Rec(tp1, s_body)),
@@ -564,7 +563,7 @@ let rec join_using =
         | Some(x2) => subst(`Typ(Var(x2)) |> temp, x1, s1)
         | None => s1
         };
-      let+ (s_body, branch_used) = join_using(~resolve, ~fix, ctx, ty1', s2);
+      let+ (s_body, branch_used) = join_using(~resolve, ctx, ty1', s2);
       (
         `SliceIncr((
           Slice(Forall(x1, s_body)),
@@ -626,12 +625,7 @@ let rec join_using =
     | (Prod(_), _) => None
     | (Sum(sm1), Sum(sm2)) =>
       let+ (sm', branches_used) =
-        ConstructorMap.join_using(
-          eq,
-          join_using(~resolve, ~fix, ctx),
-          sm1,
-          sm2,
-        );
+        ConstructorMap.join(eq, join_using(~resolve, ctx), sm1, sm2);
       let branch_used =
         List.fold_left(combine_branches_used, None, branches_used);
       (
@@ -661,12 +655,7 @@ let rec join_using =
     switch (s1', ty2) {
     | (_, Parens(ty2)) => join'(s1, ty2 |> t_of_typ_t)
     | (Parens(s1), _) => join'(s1, s2)
-    | (_, Unknown(Hole(_))) when fix =>
-      /* NOTE(andrew): This is load bearing
-         for ensuring that function literals get appropriate
-         casts. Documentation/Dynamics has regression tests */
-      Some((s2, Right)) // TODO: Check this rule
-    | (_, Unknown(Internal | SynSwitch)) => Some((s1, Left))
+    | (_, Unknown(_)) => Some((s1, Left))
     | (_, Var(name)) =>
       let* s_name = Ctx.lookup_alias(ctx, name);
       let+ (s_join, branch_used) = join'(s_name, s1);
@@ -680,7 +669,7 @@ let rec join_using =
         | None => s1
         };
       let+ (s_body, branch_used) =
-        join_using(~resolve, ~fix, ctx, s1', ty2 |> t_of_typ_t);
+        join_using(~resolve, ctx, s1', ty2 |> t_of_typ_t);
       (
         `SliceIncr((
           Slice(Rec(tp1, s_body)),
@@ -698,7 +687,7 @@ let rec join_using =
         | None => s1
         };
       let+ (s_body, branch_used) =
-        join_using(~resolve, ~fix, ctx, s1', ty2 |> t_of_typ_t);
+        join_using(~resolve, ctx, s1', ty2 |> t_of_typ_t);
       (
         `SliceIncr((
           Slice(Forall(x1, s_body)),
@@ -761,12 +750,7 @@ let rec join_using =
     | (Sum(sm1), Sum(sm2)) =>
       let sm2 = ConstructorMap.map_vals(t_of_typ_t, sm2);
       let+ (sm', branches_used) =
-        ConstructorMap.join_using(
-          eq,
-          join_using(~resolve, ~fix, ctx),
-          sm1,
-          sm2,
-        );
+        ConstructorMap.join(eq, join_using(~resolve, ctx), sm1, sm2);
       let branch_used =
         List.fold_left(combine_branches_used, None, branches_used);
       (
@@ -810,7 +794,7 @@ let rec join_using =
         | Some(x2) => subst(`Typ(Var(x2)) |> temp, tp1, ty1 |> t_of_typ_t)
         | None => s1
         };
-      let+ (s_body, branch_used) = join_using(~resolve, ~fix, ctx, s1', s2);
+      let+ (s_body, branch_used) = join_using(~resolve, ctx, s1', s2);
       (
         `SliceIncr((
           Slice(Rec(tp1, s_body)),
@@ -827,7 +811,7 @@ let rec join_using =
         | Some(x2) => subst(`Typ(Var(x2)) |> temp, x1, ty1 |> t_of_typ_t)
         | None => s1
         };
-      let+ (s_body, branch_used) = join_using(~resolve, ~fix, ctx, s1', s2);
+      let+ (s_body, branch_used) = join_using(~resolve, ctx, s1', s2);
       (
         `SliceIncr((
           Slice(Forall(x1, s_body)),
@@ -895,12 +879,7 @@ let rec join_using =
     | (Sum(sm1), Sum(sm2)) =>
       let sm1 = ConstructorMap.map_vals(t_of_typ_t, sm1);
       let+ (sm', branches_used) =
-        ConstructorMap.join_using(
-          eq,
-          join_using(~resolve, ~fix, ctx),
-          sm1,
-          sm2,
-        );
+        ConstructorMap.join(eq, join_using(~resolve, ctx), sm1, sm2);
       let branch_used =
         List.fold_left(combine_branches_used, None, branches_used);
       (
@@ -940,8 +919,8 @@ let rec join_using =
   };
 };
 
-let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) =>
-  join_using(~resolve, ~fix, ctx, ty1, ty2) |> Option.map(fst);
+let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) =>
+  join_using(~resolve, ctx, ty1, ty2) |> Option.map(fst);
 
 /* REQUIRES NORMALIZED TYPES
    Remove synswitches from t1 by matching against t2 */
@@ -1086,17 +1065,15 @@ let rec match_synswitch =
   };
 };
 
-let join_fix = join(~fix=true);
-
 let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
   List.fold_left(
-    (acc, ty) => OptUtil.and_then(join(~fix=false, ctx, ty), acc),
+    (acc, ty) => OptUtil.and_then(join(ctx, ty), acc),
     Some(empty),
     ts,
   );
 
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
-  join(~fix=false, ctx, ty1, ty2) != None;
+  join(ctx, ty1, ty2) != None;
 
 // Destructuring constructs
 let unparens =

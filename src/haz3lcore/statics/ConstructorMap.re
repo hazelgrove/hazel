@@ -101,16 +101,16 @@ let venn_regions =
   go(xs, ys, [], [], []);
 };
 
-let join_entry_using =
+let join_entry =
     (
-      join_using: ('a, 'a) => option(('a, BranchUsed.t)),
+      join: ('a, 'a) => option(('a, BranchUsed.t)),
       (x: variant('a), y: variant('a)),
     )
     : option((variant('a), BranchUsed.t)) =>
   switch (x, y) {
   | (Variant(ctr1, ids1, Some(value1)), Variant(ctr2, _, Some(value2)))
       when Constructor.equal(ctr1, ctr2) =>
-    let+ (value, branch_used) = join_using(value1, value2);
+    let+ (value, branch_used) = join(value1, value2);
     (Variant(ctr1, ids1, Some(value)), branch_used);
   | (Variant(ctr1, ids1, None), Variant(ctr2, _, None))
       when Constructor.equal(ctr1, ctr2) =>
@@ -119,16 +119,16 @@ let join_entry_using =
   | _ => None
   };
 
-let join_using =
+let join =
     (
       eq: ('a, 'a) => bool,
-      join_using: ('a, 'a) => option(('a, BranchUsed.t)),
+      join: ('a, 'a) => option(('a, BranchUsed.t)),
       m1: t('a),
       m2: t('a),
     )
     : option((t('a), list(BranchUsed.t))) => {
   let (inter, left, right) = venn_regions(same_constructor(eq), m1, m2);
-  let join_entries = List.filter_map(join_entry_using(join_using), inter);
+  let join_entries = List.filter_map(join_entry(join), inter);
   let (join_variants, branches_used) = ListUtil.unzip(join_entries);
   if (List.length(join_entries) == List.length(inter)) {
     switch (

@@ -63,10 +63,7 @@ let of_arrow = (ids, ctx: Ctx.t, mode: t, ty: option(TypSlice.t)): (t, t) =>
     ty |> TypSlice.matched_arrow(ctx) |> TupleUtil.map2(ana)
   | (Ana(ty), Some(ty')) =>
     let (t1, t2) = ty |> TypSlice.matched_arrow(ctx);
-    (
-      TypSlice.join(~fix=true, ctx, t1, ty') |> Option.value(~default=ty'),
-      t2,
-    )
+    (TypSlice.join(ctx, t1, ty') |> Option.value(~default=ty'), t2)
     |> TupleUtil.map2(t =>
          Ana(TypSlice.wrap_incr(TypSlice.slice_of_ids(ids), t))
        );

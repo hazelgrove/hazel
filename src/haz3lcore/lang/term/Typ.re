@@ -391,22 +391,17 @@ let eq = (t1: t, t2: t): bool => fast_equal(t1, t2);
 // join used leaves from either: none, left branch, right branch, or both.
 // None here occurs if both branches are Unknown.
 let rec join_using =
-        (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t)
+        (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t)
         : option((t, BranchUsed.t)) => {
-  let join' = join_using(~resolve, ~fix, ctx);
+  let join' = join_using(~resolve, ctx);
   BranchUsed.(
     switch (term_of(ty1), term_of(ty2)) {
     | (_, Parens(ty2)) => join'(ty1, ty2)
     | (Parens(ty1), _) => join'(ty1, ty2)
-    | (_, Unknown(Hole(_))) when fix =>
-      /* NOTE(andrew): This is load bearing
-         for ensuring that function literals get appropriate
-         casts. Documentation/Dynamics has regression tests */
-      Some((ty2, Right)) // TODO: Check this rule
     | (Unknown(p1), Unknown(p2)) =>
       Some((Unknown(join_type_provenance(p1, p2)) |> temp, None))
     | (Unknown(_), _) => Some((ty2, Right))
-    | (_, Unknown(Internal | SynSwitch)) => Some((ty1, Left))
+    | (_, Unknown(_)) => Some((ty1, Left))
     | (Var(n1), Var(n2)) =>
       if (n1 == n2) {
         Some((ty1, Left));
@@ -438,8 +433,7 @@ let rec join_using =
         | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
         | None => ty1
         };
-      let+ (ty_body, branch_used) =
-        join_using(~resolve, ~fix, ctx, ty1', ty2);
+      let+ (ty_body, branch_used) = join_using(~resolve, ctx, ty1', ty2);
       (Rec(tp1, ty_body) |> temp, branch_used);
     | (Rec(_), _) => None
     | (Forall(x1, ty1), Forall(x2, ty2)) =>
@@ -449,8 +443,7 @@ let rec join_using =
         | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
         | None => ty1
         };
-      let+ (ty_body, branch_used) =
-        join_using(~resolve, ~fix, ctx, ty1', ty2);
+      let+ (ty_body, branch_used) = join_using(~resolve, ctx, ty1', ty2);
       (Forall(x1, ty_body) |> temp, branch_used);
     /* Note for above: there is no danger of free variable capture as
        subst itself performs capture avoiding substitution. However this
@@ -504,12 +497,7 @@ let rec join_using =
     | (Prod(_), _) => None
     | (Sum(sm1), Sum(sm2)) =>
       let+ (sm', branches_used) =
-        ConstructorMap.join_using(
-          eq,
-          join_using(~resolve, ~fix, ctx),
-          sm1,
-          sm2,
-        );
+        ConstructorMap.join(eq, join_using(~resolve, ctx), sm1, sm2);
       (
         Sum(sm') |> temp,
         List.fold_left(combine_branches_used, None, branches_used),
@@ -524,8 +512,8 @@ let rec join_using =
   );
 };
 
-let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) =>
-  join_using(~resolve, ~fix, ctx, ty1, ty2) |> Option.map(fst);
+let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) =>
+  join_using(~resolve, ctx, ty1, ty2) |> Option.map(fst);
 
 /* REQUIRES NORMALIZED TYPES
    Remove synswitches from t1 by matching against t2 */
@@ -566,17 +554,15 @@ let rec match_synswitch = (t1: t, t2: t) => {
   };
 };
 
-let join_fix = join(~fix=true);
-
 let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
   List.fold_left(
-    (acc, ty) => OptUtil.and_then(join(~fix=false, ctx, ty), acc),
+    (acc, ty) => OptUtil.and_then(join(ctx, ty), acc),
     Some(empty),
     ts,
   );
 
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
-  join(~fix=false, ctx, ty1, ty2) != None;
+  join(ctx, ty1, ty2) != None;
 
 let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
   switch (term_of(ty)) {
