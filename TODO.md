@@ -96,3 +96,5 @@ end```
 - [X] Parentheses not highlighted in slices (likely due to type normliasation?)
 - [ ] Type application not highlighted in slice, e.g: let f : forall A -> A -> A = typfun B -> fun x -> x in f@<Int>**(** 2 **)**. This is because (probably): type slice substitution drops all slices (as `Var(_)` appears only in Typ. and Typ.subst is used here)
 - [X] Cast slice stack overflows see: `let f : forall A -> A -> A = typfun B -> fun x -> x in f@<Int>(2)`
+- [ ] Forall Type Checking failure (see failed test)
+- [ ] Labeled Tuple Elaboration failures (see tests)
