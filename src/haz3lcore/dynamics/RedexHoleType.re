@@ -73,6 +73,7 @@ module InstantiatorEVMode: {
     ((h1, a, cb), (h2, c)) => (combine(h1, h2), (a, c), cb(c));
 
   let update_test = (_, _, _) => ();
+  let update_probe = (_, _) => ();
 };
 
 module Instantiator = Transition(InstantiatorEVMode);

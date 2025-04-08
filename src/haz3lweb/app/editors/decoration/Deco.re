@@ -7,16 +7,16 @@ type shard_data = (Measured.measurement, Nibs.shapes);
 let sel_shard_svg =
     (
       ~index=?,
-      ~start_shape: PieceDec.tip,
+      ~start_shape: ShardDec.tip,
       measurement: Measured.measurement,
       p: Piece.t,
     )
-    : (Measured.measurement, (PieceDec.tip, PieceDec.tip)) => (
+    : (Measured.measurement, (ShardDec.tip, ShardDec.tip)) => (
   measurement,
   switch (p) {
-  | Tile(t) => Mold.nib_shapes(~index?, t.mold) |> PieceDec.tips_of_shapes
+  | Tile(t) => Mold.nib_shapes(~index?, t.mold) |> ShardDec.tips_of_shapes
   | Grout(g) =>
-    Mold.nib_shapes(Mold.of_grout(g, Any)) |> PieceDec.tips_of_shapes
+    Mold.nib_shapes(Mold.of_grout(g, Any)) |> ShardDec.tips_of_shapes
   | Secondary(_) => (
       Option.map(
         (s: Nib.Shape.t) =>
@@ -28,10 +28,7 @@ let sel_shard_svg =
       ),
       None,
     )
-  | Projector(p) =>
-    ProjectorBase.mold_of(p, Any)
-    |> Mold.nib_shapes
-    |> PieceDec.tips_of_shapes
+  | Projector(p) => p |> ProjectorBase.shapes |> ShardDec.tips_of_shapes
   },
 );
 
@@ -60,23 +57,24 @@ let multiline_shard =
     ]
   )
   |> List.concat;
+
 module HighlightSegment =
        (
          M: {
            let measured: Measured.t;
-           let info_map: Statics.Map.t;
+           let shape_map: ProjectorCore.Shape.Map.t;
            let font_metrics: FontMetrics.t;
          },
        ) => {
   let find_g = Measured.find_g(~msg="Highlight.of_piece", _, M.measured);
   let find_w = Measured.find_w(~msg="Highlight.of_piece", _, M.measured);
   let rec of_piece =
-          (start_shape: PieceDec.tip, p: Piece.t)
+          (start_shape: ShardDec.tip, p: Piece.t)
           : (
-              PieceDec.tip,
+              ShardDec.tip,
               list(
                 option(
-                  (Measured.measurement, (PieceDec.tip, PieceDec.tip)),
+                  (Measured.measurement, (ShardDec.tip, ShardDec.tip)),
                 ),
               ),
             ) => {
@@ -115,14 +113,24 @@ module HighlightSegment =
     let shape_at = index => Some(snd(Mold.nibs(~index, t.mold)).shape);
     let children_shards =
       t.children |> List.mapi(index => of_segment(shape_at(index)));
+    if (List.length(tile_shards) != List.length(children_shards) + 1) {
+      failwith(
+        "Deco.of_tile: shard mismatch:"
+        ++ "tile: "
+        ++ Tile.show(t)
+        ++ "tile_Shards:"
+        ++ string_of_int(List.length(tile_shards))
+        ++ ", children_Shards:"
+        ++ string_of_int(List.length(children_shards)),
+      );
+    };
     ListUtil.interleave(tile_shards, children_shards) |> List.flatten;
   }
   and of_projector = (~start_shape, p: Base.projector): list(option(_)) =>
     switch (Measured.find_pr_opt(p, M.measured)) {
     | None => failwith("Deco.of_projector: missing measurement")
     | Some(_m) =>
-      let ci = Id.Map.find_opt(p.id, M.info_map);
-      let token = Projector.placeholder(p, ci);
+      let shape = ProjectorCore.Shape.Map.lookup(p.id, M.shape_map);
       /* Handling this internal to ProjectorsView at the moment because the
        * commented-out strategy doesn't work well, since the inserted str8-
        * edged lines vertical edge placement doesn't account for whether
@@ -133,7 +141,12 @@ module HighlightSegment =
       //   m,
       //   (Some(Convex), Some(Convex)),
       // );
-      let num_lb = StringUtil.num_linebreaks(token);
+      let num_lb =
+        switch (shape.vertical) {
+        | Inline => 0
+        | Tab(num_lbs) => num_lbs
+        | Block(num_lbs) => num_lbs
+        };
       if (num_lb == 0) {
         [
           Some(
@@ -149,14 +162,14 @@ module HighlightSegment =
       };
     }
   and of_segment =
-      (start_shape: PieceDec.tip, seg: Segment.t): list(option(_)) => {
+      (start_shape: ShardDec.tip, seg: Segment.t): list(option(_)) => {
     seg
     |> ListUtil.fold_left_map(of_piece, start_shape)
     |> snd
     |> List.flatten;
   }
   and go =
-      (segment: Segment.t, shape_init: PieceDec.tip, classes): list(Node.t) =>
+      (segment: Segment.t, shape_init: ShardDec.tip, classes): list(Node.t) =>
     /* We draw a single deco per row by dividing partionining the shards
      * into linebreak-seperated segments, then combining the measurements
      * and shapes of the first and last shard of each segment. Ideally we
@@ -169,11 +182,26 @@ module HighlightSegment =
          (Measured.{origin: m1.origin, last: m2.last}, (l1, r2))
        )
     |> List.map(((measurement, tips)) =>
-         PieceDec.simple_shard(
+         ShardDec.simple(
            {font_metrics: M.font_metrics, measurement, tips},
            classes,
          )
        );
+};
+
+let quick_select_deco = (segment: Segment.t): Node.t => {
+  let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
+  module Highlight =
+    HighlightSegment({
+      let measured = Measured.of_segment(segment, shape_map);
+      let shape_map = shape_map;
+      let font_metrics =
+        FontMetrics.{row_height: 25.125, col_width: 10.390625};
+    });
+  switch (Highlight.go(segment, Some(Convex), [])) {
+  | exception _exn => Node.div([])
+  | ya => div_c("quick-select-deco", ya)
+  };
 };
 
 module Deco =
@@ -217,7 +245,7 @@ module Deco =
   module Highlight =
     HighlightSegment({
       let measured = M.editor.syntax.measured;
-      let info_map = M.statics.info_map;
+      let shape_map = M.editor.syntax.shape_map;
       let font_metrics = font_metrics;
     });
 
@@ -256,14 +284,17 @@ module Deco =
     | Some((Projector(p), _, _)) =>
       switch (Measured.find_pr_opt(p, M.editor.syntax.measured)) {
       | Some(measurement) => [
-          PieceDec.simple_shard_indicated(
+          ShardDec.simple(
             {
               font_metrics,
               measurement,
-              tips: p |> ProjectorBase.shapes |> PieceDec.tips_of_shapes,
+              tips: p |> ProjectorBase.shapes |> ShardDec.tips_of_shapes,
             },
-            ~sort=ProjectorBase.mold_of(p, Exp).out,
-            ~at_caret=true,
+            [
+              p.syntax |> Piece.sort |> fst |> Sort.to_string,
+              "caret",
+              "indicated",
+            ],
           ),
         ]
       | None => []
@@ -286,7 +317,7 @@ module Deco =
       | None => []
       | Some(range) =>
         let tiles = all_tiles(p);
-        PieceDec.indicated(
+        IndicationDec.term(
           ~line_clss=[],
           ~font_metrics,
           ~rows,
@@ -432,37 +463,26 @@ module Deco =
         div_c(
           "errors-piece",
           [
-            PieceDec.simple_shard_error({
-              font_metrics,
-              tips: PieceDec.tips_of_shapes(shapes),
-              measurement,
-            }),
+            ShardDec.simple(
+              {
+                font_metrics,
+                tips: ShardDec.tips_of_shapes(shapes),
+                measurement,
+              },
+              ["error"],
+            ),
           ],
         );
       | None =>
         let p = Piece.Tile(tile(id));
-        let tiles = all_tiles(p);
-        let shard_decos =
-          tiles
-          |> List.map(((_, mold, shards)) =>
-               PieceDec.simple_shards_errors(~font_metrics, mold, shards)
-             )
-          |> List.flatten;
         switch (term_range(p)) {
         | Some(range) =>
-          let rows = measured.rows;
-          let decos =
-            shard_decos
-            @ PieceDec.uni_lines(
-                ~font_metrics,
-                ~rows,
-                range,
-                tiles,
-                ~line_clss=[],
-              )
-            @ PieceDec.bi_lines(~font_metrics, ~rows, tiles, ~line_clss=[]);
-          div_c("errors-piece", decos);
-        | None => div_c("errors-piece", shard_decos)
+          let tiles = all_tiles(p);
+          div_c(
+            "errors-piece",
+            IndicationDec.error_term(~font_metrics, ~rows, range, tiles),
+          );
+        | None => div_c("errors-piece", [])
         };
       }
     ) {
@@ -503,7 +523,7 @@ module Deco =
         };
         Option.map(
           x => {
-            PieceDec.indicated(
+            IndicationDec.term(
               ~base_clss="tile-next-step",
               ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => {inject(i)})],
               ~line_clss=["next-step-line"],
@@ -513,7 +533,7 @@ module Deco =
               ~tiles=[(id, mold, shards)],
               x,
             )
-            @ PieceDec.indicated(
+            @ IndicationDec.term(
                 ~base_clss="tile-next-step-top",
                 ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => {inject(i)})],
                 ~line_clss=["next-step-line"],
@@ -551,7 +571,7 @@ module Deco =
             Some((l, r));
           };
         };
-        PieceDec.indicated(
+        IndicationDec.term(
           ~base_clss="tile-taken-step",
           ~line_clss=["taken-step-line"],
           ~font_metrics,
@@ -579,37 +599,26 @@ module Deco =
         div_c(
           "slice-piece",
           [
-            PieceDec.simple_shard_slice({
-              font_metrics,
-              tips: PieceDec.tips_of_shapes(shapes),
-              measurement,
-            }),
+            ShardDec.simple(
+              {
+                font_metrics,
+                tips: ShardDec.tips_of_shapes(shapes),
+                measurement,
+              },
+              ["slice"],
+            ),
           ],
         );
       | None =>
         let p = Piece.Tile(tile(id));
-        let tiles = all_tiles(p);
-        let shard_decos =
-          tiles
-          |> List.map(((_, mold, shards)) =>
-               PieceDec.simple_shards_slice(~font_metrics, mold, shards)
-             )
-          |> List.flatten;
         switch (term_range(p)) {
         | Some(range) =>
-          let rows = measured.rows;
-          let decos =
-            shard_decos
-            @ PieceDec.uni_lines(
-                ~font_metrics,
-                ~rows,
-                range,
-                tiles,
-                ~line_clss=[],
-              )
-            @ PieceDec.bi_lines(~font_metrics, ~rows, tiles, ~line_clss=[]);
-          div_c("slice-piece", decos);
-        | None => div_c("slice-piece", shard_decos)
+          let tiles = all_tiles(p);
+          div_c(
+            "slice-piece",
+            IndicationDec.error_term(~font_metrics, ~rows, range, tiles),
+          );
+        | None => div_c("slice-piece", [])
         };
       }
     ) {

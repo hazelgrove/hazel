@@ -37,6 +37,15 @@ let go_z =
     remold_regrout(Left, z);
   };
 
+  let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
+    let replace_selection = (z, focus, segment): Zipper.t =>
+      {...z, selection: Selection.mk(~focus, segment)}
+      |> Zipper.unselect
+      |> Zipper.remold_regrout(Util.Direction.Right)
+      |> Zipper.remold_regrout(Util.Direction.Left);
+    replace_selection(z, z.selection.focus, segment);
+  };
+
   let buffer_accept = (z): option(Zipper.t) =>
     switch (z.selection.mode) {
     | Normal => None
@@ -72,17 +81,18 @@ let go_z =
       let* (p, _, _) = Indicated.piece''(z);
       Piece.is_term(p)
         ? Select.parent_of_indicated(z, statics.info_map)
-        : Select.nice_term(z);
+        : Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z);
     | _ => None
     };
   };
 
   switch (a) {
-  | Paste(clipboard) =>
+  | Paste(String(clipboard)) =>
     switch (paste(z, clipboard)) {
     | None => Error(CantPaste)
     | Some(z) => Ok(z)
     }
+  | Paste(Segment(segment)) => Ok(paste_segment(z, segment))
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
     switch (Destruct.go(Left, z)) {
@@ -109,6 +119,7 @@ let go_z =
     ProjectorPerform.go(
       Move.jump_to_id_indicated,
       Move.jump_to_side_of_id,
+      Select.current_term(~defs_exclude_bodies=false, ~case_rules=false),
       a,
       z,
     )
@@ -132,16 +143,19 @@ let go_z =
     let z = Zipper.directional_unselect(z.selection.focus, z);
     Ok(z);
   | Select(All) =>
-    switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
-    | Some(z) =>
-      switch (Select.go(Extreme(Down), z)) {
-      | Some(z) => Ok(z)
-      | None => Error(Action.Failure.Cant_select)
-      }
+    let z =
+      switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
+      | Some(z) => z
+      | None => z
+      };
+    switch (Select.go(Extreme(Down), z)) {
+    | Some(z) => Ok(z)
     | None => Error(Action.Failure.Cant_select)
-    }
+    };
   | Select(Term(Current)) =>
-    switch (Select.current_term(z)) {
+    switch (
+      Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z)
+    ) {
     | None => Error(Cant_select)
     | Some(z) => Ok(z)
     }

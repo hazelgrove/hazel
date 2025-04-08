@@ -43,8 +43,7 @@ let get = (label: Label.t): list(Mold.t) =>
       );
       [Mold.mk_op(Any, [])];
     | (false, false) =>
-      //TODO(andrew): this is triggered in all instant expand cases ([]()|, etc)
-      //Printf.printf("Warning: Molds.get: unhandled mono: '%s'\n", t);
+      /* This fallthrough covers all instant expand cases ([]()|, etc) */
       [Mold.mk_op(Any, [])]
     }
   | (lbl, None) =>

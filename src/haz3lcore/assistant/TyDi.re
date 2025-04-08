@@ -58,10 +58,8 @@ let token_to_left = (z: Zipper.t): option(string) =>
 /* The selection buffer used by TyDi is currently unstructured; it simply
  * holds an unparsed string, which is parsed via the same mechanism as
  * Paste only when a suggestion is accepted. */
-let mk_unparsed_buffer =
-    (~sort: Sort.t, sibs: Siblings.t, t: Token.t): Segment.t => {
-  let mold = Siblings.mold_fitting_between(sort, Precedence.max, sibs);
-  [Tile({id: Id.mk(), label: [t], shards: [0], children: [], mold})];
+let mk_unparsed_buffer = (t: Token.t): Segment.t => {
+  [Secondary({id: Id.mk(), content: Comment(t)})];
 };
 
 /* If 'current' is a proper prefix of 'candidate', return the
@@ -79,7 +77,7 @@ let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
 /* Returns the text content of the suggestion buffer */
 let get_buffer = (z: Zipper.t): option(Token.t) =>
   switch (z.selection.mode, z.selection.content) {
-  | (Buffer(Unparsed), [Tile({label: [completion], _})]) =>
+  | (Buffer(Unparsed), [Secondary({content: Comment(completion), _})]) =>
     Some(completion)
   | _ => None
   };
@@ -105,12 +103,7 @@ let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
        );
   let* top_suggestion = suggestions |> Util.ListUtil.hd_opt;
   let* suggestion_suffix = suffix_of(top_suggestion.content, tok_to_left);
-  let content =
-    mk_unparsed_buffer(
-      ~sort=Info.sort_of(ci),
-      z.relatives.siblings,
-      suggestion_suffix,
-    );
+  let content = mk_unparsed_buffer(suggestion_suffix);
   let z = Zipper.set_buffer(z, ~content, ~mode=Unparsed);
   Some(z);
 };

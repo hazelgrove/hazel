@@ -311,6 +311,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Filter(_) |
         Closure(_) |
         Parens(_) |
+        Probe(_) |
         Cons(_) |
         ListConcat(_) |
         Dot(_) |

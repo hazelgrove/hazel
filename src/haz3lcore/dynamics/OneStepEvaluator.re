@@ -69,6 +69,8 @@ module OneStepEVMode: {
   let atom = otherwise;
   let update_test = (state, id, v) =>
     state := EvaluatorState.add_test(state^, id, v);
+  let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
+    state := EvaluatorState.add_closure(state^, closure);
 };
 
 module OneStep = Transition(OneStepEVMode);

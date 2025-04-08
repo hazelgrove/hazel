@@ -132,6 +132,12 @@ let dev_group = (~globals) => {
       ("✓", "Benchmarks", globals.settings.benchmark, Benchmark),
       ("𝑒", "Elaboration", globals.settings.core.elaborate, Elaborate),
       ("↵", "Whitespace", globals.settings.secondary_icons, SecondaryIcons),
+      (
+        "a",
+        "Animations",
+        globals.settings.core.flip_animations,
+        FlipAnimations,
+      ),
     ],
   );
 };

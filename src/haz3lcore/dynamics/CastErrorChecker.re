@@ -28,6 +28,7 @@ module CastErrCheckerEVMode: {
 
   let otherwise: (ClosureEnvironment.t, 'a) => requirements(unit, 'a) =
     (_, r) => (false, (), r);
+  let update_probe = (_, _) => ();
 
   let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
     ((h, a, d), rl) => {

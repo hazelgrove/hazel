@@ -21,6 +21,7 @@ module Model = {
       elaborate: false,
       assist: true,
       dynamics: true,
+      flip_animations: true,
       evaluation: {
         show_case_clauses: true,
         show_fn_bodies: false,
@@ -94,6 +95,7 @@ module Update = {
     | InstructorMode
     | Evaluation(evaluation)
     | ExplainThis(ExplainThisModel.Settings.action)
+    | FlipAnimations
     | NextIndet
     | PrevIndet
     | Search;
@@ -132,6 +134,13 @@ module Update = {
             ...settings.core,
             statics: !settings.core.assist || settings.core.statics,
             assist: !settings.core.assist,
+          },
+        }
+      | FlipAnimations => {
+          ...settings,
+          core: {
+            ...settings.core,
+            flip_animations: !settings.core.flip_animations,
           },
         }
       | Evaluation(u) =>

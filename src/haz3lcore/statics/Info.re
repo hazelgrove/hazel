@@ -318,6 +318,14 @@ let cls_of: t => Cls.t =
   | InfoTPat({cls, _})
   | Secondary({cls, _}) => cls;
 
+let any_of: t => option(Term.Any.t) =
+  fun
+  | InfoExp({term, _}) => Some(Exp(term))
+  | InfoPat({term, _}) => Some(Pat(term))
+  | InfoTyp({term, _}) => Some(TypSlice(term))
+  | InfoTPat({term, _}) => Some(TPat(term))
+  | Secondary(_) => None;
+
 let ctx_of: t => Ctx.t =
   fun
   | InfoExp({ctx, _})

@@ -149,6 +149,12 @@ let rec matches =
       | Test(ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Test(ctx) |> rewrap;
+      | Parens(ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Parens(ctx) |> rewrap;
+      | Probe(ctx, pr) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Probe(ctx, pr) |> rewrap;
       | ListLit(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         ListLit(ctx, ds) |> rewrap;
@@ -308,6 +314,8 @@ module Decompose = {
     let atom = otherwise;
     let update_test = (state, id, v) =>
       state := EvaluatorState.add_test(state^, id, v);
+    let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
+      state := EvaluatorState.add_closure(state^, closure);
   };
 
   module Decomp = Transition(DecomposeEVMode);
@@ -350,6 +358,9 @@ module TakeStep = {
 
     let update_test = (state, id, v) =>
       state := EvaluatorState.add_test(state^, id, v);
+
+    let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
+      state := EvaluatorState.add_closure(state^, closure);
   };
 
   module TakeStepEV = Transition(TakeStepEVMode);

@@ -418,7 +418,7 @@ module Make = (M: S) => {
     } else {
       /* Always empty selection on move action,
        * even if we don't actually move */
-      let z = Zipper.unselect(z);
+      let z = Zipper.directional_unselect(z.selection.focus, z);
       switch (move_dispatch(d, z)) {
       | Some(z) => Some(z)
       | None => Some(z)
