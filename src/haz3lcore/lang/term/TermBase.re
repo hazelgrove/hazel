@@ -975,9 +975,10 @@ and TypSlice: {
     ) =>
     t;
 
-  let typ_of: t => Typ.t;
-  let typ_term_of_term: term => Typ.term;
-  let typ_term_of_slice_typ_term: slc_typ_term => Typ.term;
+  let typ_of: Grammar.typslice_t('a) => Grammar.typ_t('a);
+  let typ_term_of_term: Grammar.typslice_term('a) => Grammar.typ_term('a);
+  let typ_term_of_slice_typ_term:
+    Grammar.slice_typ_term('a) => Grammar.typ_term('a);
 
   let subst: (t, TPat.t, t) => t;
 
@@ -1011,31 +1012,42 @@ and TypSlice: {
 
   type sum_map = ConstructorMap.t(t);
 
-  let rec typ_term_of_slice_typ_term = (s: slc_typ_term): Typ.term =>
-    switch (s) {
-    | List(s) => List(typ_of(s))
-    | Arrow(s1, s2) => Arrow(typ_of(s1), typ_of(s2))
-    | Sum(m) => Sum(ConstructorMap.map_preserving(typ_of, m))
-    | Prod(ss) => Prod(List.map(typ_of, ss))
-    | TupLabel(s1, s2) => TupLabel(typ_of(s1), typ_of(s2))
-    | Parens(s) => Parens(typ_of(s))
-    | Ap(s1, s2) => Ap(typ_of(s1), typ_of(s2))
-    | Rec(pat, s) => Rec(pat, typ_of(s))
-    | Forall(pat, s) => Forall(pat, typ_of(s))
-    }
-  and typ_term_of_term = (term: term): Typ.term => {
-    switch (term) {
-    | `Typ(ty)
-    | `SliceIncr(Typ(ty), _) => ty
-    | `SliceIncr(Slice(s), _) => typ_term_of_slice_typ_term(s)
+  // Would make more sense to make annotations entirely parametric and do away with IdTagged.t, as other annotation types are used in menhrir, tests etc.
 
-    | `SliceGlobal(s', _) => typ_term_of_term((s' :> term))
+
+  let rec typ_term_of_slice_typ_term:
+    type a. Grammar.slice_typ_term(a) => Grammar.typ_term(a) =
+    s =>
+      switch (s) {
+      | List(s) => List(typ_of(s))
+      | Arrow(s1, s2) => Arrow(typ_of(s1), typ_of(s2))
+      | Sum(m) => Sum(ConstructorMap.map_preserving(typ_of, m))
+      | Prod(ss) => Prod(List.map(typ_of, ss))
+      | TupLabel(s1, s2) => TupLabel(typ_of(s1), typ_of(s2))
+      | Parens(s) => Parens(typ_of(s))
+      | Ap(s1, s2) => Ap(typ_of(s1), typ_of(s2))
+      | Rec(pat, s) => Rec(pat, typ_of(s))
+      | Forall(pat, s) => Forall(pat, typ_of(s))
+      }
+
+  and typ_term_of_term:
+    type a. Grammar.typslice_term(a) => Grammar.typ_term(a) =
+    term => {
+      switch (term) {
+      | `Typ(ty)
+      | `SliceIncr(Typ(ty), _) => ty
+      | `SliceIncr(Slice(s), _) => typ_term_of_slice_typ_term(s)
+
+      | `SliceGlobal(s', _) =>
+        typ_term_of_term((s' :> Grammar.typslice_term(a)))
+      };
+    }
+
+  and typ_of: type a. Grammar.typslice_t(a) => Grammar.typ_t(a) =
+    s => {
+      let {term, annotation}: Grammar.typslice_t(a) = s;
+      {term: term |> typ_term_of_term, annotation};
     };
-  }
-  and typ_of = (s: t) => {
-    let (term, rewrap) = IdTagged.unwrap(s);
-    term |> typ_term_of_term |> rewrap;
-  };
 
   let map_term =
       (

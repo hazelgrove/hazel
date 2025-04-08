@@ -1,14 +1,14 @@
 open Util;
 open OptUtil.Syntax;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type cls_typ = Typ.cls;
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type cls_slc =
   | Typ
   | SliceIncr
   | SliceGlobal;
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type cls = (cls_slc, cls_typ);
 
 include TermBase.TypSlice;
@@ -234,6 +234,13 @@ let t_of_typ_t = (ty: Typ.t): t => {
   let (ty, rewrap) = ty |> IdTagged.unwrap;
   `Typ(ty) |> rewrap;
 };
+
+// TODO: Keep type id annotations parametric throughout (main branch Hazel change)
+let t_of_typ_t_parametric: type a. Grammar.typ_t(a) => Grammar.typslice_t(a) =
+  ty => {
+    let {term, annotation}: Grammar.typ_t(a) = ty;
+    {term: `Typ(term), annotation};
+  };
 
 // Creates a slice from the ids of a typ_t. Used in creating slices of type annotations.
 // This could instead be done directly in parsing.
