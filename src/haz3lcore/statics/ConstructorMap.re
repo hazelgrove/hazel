@@ -195,7 +195,7 @@ let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) => {
   };
 };
 
-let map = (f: option('a) => option('a), m: t('a)): t('a) => {
+let map = (type a, f: option(a) => option(a), m: t(a)): t(a) => {
   List.map(
     fun
     | Variant(ctr, args, value) => Variant(ctr, args, f(value))
@@ -204,7 +204,18 @@ let map = (f: option('a) => option('a), m: t('a)): t('a) => {
   );
 };
 
-let map_vals = (f: 'a => 'b, m: t('a)): t('b) =>
+let map_preserving = (type a, type b, f: a => b, m: t(a)): t(b) => {
+  List.map(
+    fun
+    | Variant(ctr, args, Some(value)) =>
+      Variant(ctr, args, Some(f(value)))
+    | Variant(ctr, args, None) => Variant(ctr, args, None)
+    | BadEntry(value) => BadEntry(f(value)),
+    m,
+  );
+};
+
+let map_preserving = (f: 'a => 'b, m: t('a)): t('b) =>
   List.map(
     fun
     | Variant(ctr, args, val_opt) =>

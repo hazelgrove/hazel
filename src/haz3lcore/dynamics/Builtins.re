@@ -341,7 +341,7 @@ let ctx_init: Ctx.t = {
        _,
        "$Meta",
        Id.invalid,
-       meta_cons_map |> ConstructorMap.map_vals(TypSlice.t_of_typ_t),
+       meta_cons_map |> ConstructorMap.map_preserving(TypSlice.t_of_typ_t),
      );
 };
 

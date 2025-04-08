@@ -11,7 +11,13 @@ let term_of: t => term = IdTagged.term_of;
 let fast_copy: (Id.t, t) => t = IdTagged.fast_copy;
 
 let mk = (ids, term): t => {
-  {ids, copied: true, term};
+  {
+    term,
+    annotation: {
+      ids,
+      copied: true,
+    },
+  };
 };
 
 // TODO: make this function emit a map of changes
@@ -19,7 +25,7 @@ let repair_ids =
   map_term(
     ~f_exp=
       (continue, exp) =>
-        if (exp.copied) {
+        if (IdTagged.copied(exp)) {
           replace_all_ids(exp);
         } else {
           continue(exp);
@@ -52,14 +58,14 @@ let repair_ids_typ =
         },
     ~f_typ=
       (continue, typ) =>
-        if (typ.copied) {
+        if (IdTagged.copied(typ)) {
           replace_all_ids_typ(typ);
         } else {
           continue(typ);
         },
     ~f_typslice=
       (continue, typ) =>
-        if (typ.copied) {
+        if (IdTagged.copied(typ)) {
           replace_all_ids_typslice(typ);
         } else {
           continue(typ);

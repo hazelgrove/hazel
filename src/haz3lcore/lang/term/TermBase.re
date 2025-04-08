@@ -2,17 +2,6 @@ open Util;
 
 let continue = x => x;
 let stop = (_, x) => x;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type deferral_position_t =
-  | InAp
-  | OutsideAp;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type var_cls =
-  | Var(Var.t)
-  | TVar(Var.t)
-  | Ctr(Var.t)
-  | Alias(Var.t);
 
 /*
    This megafile contains the definitions of the expression data types in
@@ -54,160 +43,67 @@ type var_cls =
  */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type any_t =
-  | Exp(exp_t)
-  | Pat(pat_t)
-  | Typ(typ_t) // Guaranteed not a slice
-  | TypSlice(typslice_t) // Might be a slice
-  | TPat(tpat_t)
-  | Rul(rul_t)
-  | Any(unit)
-and exp_term =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t))
-  | DynamicErrorHole(exp_t, InvalidOperationError.t)
-  | FailedCast(exp_t, typslice_t, typslice_t)
-  | Deferral(deferral_position_t)
-  | Undefined
-  | Bool(bool)
-  | Int(int)
-  | Float(float)
-  | String(string)
-  | ListLit(list(exp_t))
-  | Constructor(string, option(typ_t)) // Typ.t field is only meaningful in dynamic expressions
-  | Fun(pat_t, exp_t, option(typslice_t), option(Var.t)) // typ_t field is only used to display types in results
-  | TypFun(tpat_t, exp_t, option(Var.t))
-  | Tuple(list(exp_t))
-  | Var(Var.t)
-  | Let(pat_t, exp_t, exp_t)
-  | FixF(pat_t, exp_t, option(closure_environment_t))
-  | TyAlias(tpat_t, typ_t, exp_t)
-  | Ap(Operators.ap_direction, exp_t, exp_t)
-  | TypAp(exp_t, typ_t)
-  | DeferredAp(exp_t, list(exp_t))
-  | If(exp_t, exp_t, exp_t)
-  | Seq(exp_t, exp_t)
-  | Test(exp_t)
-  | Filter(stepper_filter_kind_t, exp_t)
-  | Closure([@show.opaque] closure_environment_t, exp_t)
-  | Parens(exp_t) // (
-  | Cons(exp_t, exp_t)
-  | ListConcat(exp_t, exp_t)
-  | UnOp(Operators.op_un, exp_t)
-  | BinOp(Operators.op_bin, exp_t, exp_t)
-  | BuiltinFun(string)
-  | Match(exp_t, list((pat_t, exp_t)))
-  /* INVARIANT: in dynamic expressions, casts must be between
-     two consistent types. Both types should be normalized in
-     dynamics for the cast calculus to work right. */
-  | Cast(exp_t, typslice_t, typslice_t)
-  | Label(string)
-  | TupLabel(exp_t, exp_t)
-  | Dot(exp_t, exp_t)
-and exp_t = IdTagged.t(exp_term)
-and pat_term =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t))
-  | Wild
-  | Int(int)
-  | Float(float)
-  | Bool(bool)
-  | String(string)
-  | ListLit(list(pat_t))
-  | Constructor(string, option(typ_t)) // Typ.t field is only meaningful in dynamic patterns
-  | Cons(pat_t, pat_t)
-  | Var(Var.t)
-  | Tuple(list(pat_t))
-  | Parens(pat_t)
-  | Ap(pat_t, pat_t)
-  | Cast(pat_t, typslice_t, typslice_t)
-  | Label(string)
-  | TupLabel(pat_t, pat_t)
-and pat_t = IdTagged.t(pat_term)
-and typ_term =
-  | Unknown(type_provenance)
-  | Int
-  | Float
-  | Bool
-  | String
-  | Var(string)
-  | List(typ_t)
-  | Arrow(typ_t, typ_t)
-  | Sum(ConstructorMap.t(typ_t))
-  | Prod(list(typ_t))
-  | Parens(typ_t)
-  | Ap(typ_t, typ_t)
-  | Rec(tpat_t, typ_t)
-  | Forall(tpat_t, typ_t)
-  | Label(string)
-  | TupLabel(typ_t, typ_t)
-and typ_t = IdTagged.t(typ_term)
-// Applies only to the type constructor
-and slice_incr = {
-  [@show.opaque]
-  ctx_used: list(var_cls),
-  [@show.opaque]
-  term_ids: list(Id.t),
-}
-// TODO: make ctx_used a map
-and slice_global =
-  // Applies to all subterms (the entire type)
-  slice_incr
-and slice_typ_term =
-  | List(typslice_t)
-  | Arrow(typslice_t, typslice_t)
-  | Sum(ConstructorMap.t(typslice_t))
-  | Prod(list(typslice_t))
-  | Parens(typslice_t)
-  | Ap(typslice_t, typslice_t)
-  | Rec(tpat_t, typslice_t)
-  | Forall(tpat_t, typslice_t)
-  | TupLabel(typslice_t, typslice_t)
-and slice_typ_t =
-  | IdTagged(slice_typ_term)
-and typslice_typ_term =
-  | Typ(typ_term)
-  | Slice(slice_typ_term)
-and slice_incr_term = (typslice_typ_term, slice_incr)
-and typslice_incr_term = [ | `Typ(typ_term) | `SliceIncr(slice_incr_term)] // May be coerced to a typslice_term
-and typslice_incr_t = IdTagged.t(typslice_incr_term)
-and slice_global_term = (typslice_incr_term, slice_global)
-and typslice_term = [
-  | `Typ(typ_term)
-  | `SliceIncr(slice_incr_term)
-  | `SliceGlobal(slice_global_term)
-]
-and typslice_t = IdTagged.t(typslice_term)
-and tpat_term =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t))
-  | Var(string)
-and tpat_t = IdTagged.t(tpat_term)
-and rul_term =
-  | Invalid(string)
-  | Hole(list(any_t))
-  | Rules(exp_t, list((pat_t, exp_t)))
-and rul_t = IdTagged.t(rul_term)
-and environment_t = VarBstMap.Ordered.t_(exp_t)
-and closure_environment_t = (Id.t, environment_t)
-and stepper_filter_kind_t =
-  | Filter(filter)
-  | Residue(int, FilterAction.t)
-and type_hole =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t))
-and type_provenance =
-  | SynSwitch
-  | Hole(type_hole)
-  | Internal
-and filter = {
-  pat: exp_t,
-  act: FilterAction.t,
-};
+type any_t = Grammar.any_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type exp_t = Grammar.exp_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type exp_term = Grammar.exp_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type pat_t = Grammar.pat_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type pat_term = Grammar.pat_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typ_t = Grammar.typ_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typ_term = Grammar.typ_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type slice_incr = Grammar.slice_incr;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type slice_global = Grammar.slice_global;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type slice_typ_term = Grammar.slice_typ_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type slice_typ_t = Grammar.slice_typ_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typslice_typ_term = Grammar.typslice_typ_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typslice_typ_t = Grammar.typslice_typ_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type slice_incr_term = Grammar.slice_incr_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typslice_incr_term = Grammar.typslice_incr_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typslice_incr_t = Grammar.typslice_incr_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type slice_global_term = Grammar.slice_global_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typslice_term = Grammar.typslice_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typslice_t = Grammar.typslice_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tpat_t = Grammar.tpat_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tpat_term = Grammar.tpat_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type rul_t = Grammar.rul_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type rul_term = Grammar.rul_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type environment_t = Grammar.environment_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type closure_environment_t = Grammar.closure_environment_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type stepper_filter_kind_t = Grammar.stepper_filter_kind_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type type_hole = Grammar.type_hole(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type type_provenance = Grammar.type_provenance(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type filter = Grammar.filter(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type deferral_position_t = Grammar.deferral_position_t;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type var_cls = Grammar.var_cls;
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -243,7 +139,7 @@ module rec Any: {
         ~f_any=continue,
         x,
       ) => {
-    let rec_call = y =>
+    let rec_call = (y: t): t =>
       switch (y) {
       | Exp(x) =>
         Exp(
@@ -328,7 +224,7 @@ module rec Any: {
     x |> f_any(rec_call);
   };
 
-  let fast_equal = (x, y) =>
+  let fast_equal = (x: t, y: t) =>
     switch (x, y) {
     | (Exp(x), Exp(y)) => Exp.fast_equal(x, y)
     | (Pat(x), Pat(y)) => Pat.fast_equal(x, y)
@@ -537,8 +433,8 @@ and Exp: {
     x |> f_exp(rec_call);
   };
 
-  let rec fast_equal = (e1, e2) =>
-    switch (e1 |> IdTagged.term_of, e2 |> IdTagged.term_of) {
+  let rec fast_equal = (e1: t, e2: t) =>
+    switch (e1 |> Grammar.Annotated.term_of, e2 |> IdTagged.term_of) {
     | (DynamicErrorHole(x, _), _)
     | (Parens(x), _) => fast_equal(x, e2)
     | (_, DynamicErrorHole(x, _))
@@ -982,8 +878,10 @@ and Typ: {
         let alpha_subst =
           subst({
             term: Var("=" ++ string_of_int(n)),
-            copied: false,
-            ids: [Id.invalid],
+            annotation: {
+              copied: false,
+              ids: [Id.invalid],
+            },
           });
         eq_internal(
           ~alpha_equivalence,
@@ -1117,7 +1015,7 @@ and TypSlice: {
     switch (s) {
     | List(s) => List(typ_of(s))
     | Arrow(s1, s2) => Arrow(typ_of(s1), typ_of(s2))
-    | Sum(m) => Sum(ConstructorMap.map_vals(typ_of, m))
+    | Sum(m) => Sum(ConstructorMap.map_preserving(typ_of, m))
     | Prod(ss) => Prod(List.map(typ_of, ss))
     | TupLabel(s1, s2) => TupLabel(typ_of(s1), typ_of(s2))
     | Parens(s) => Parens(typ_of(s))
@@ -1188,7 +1086,7 @@ and TypSlice: {
         | List(s) => List(typslice_map_term(s))
         | Arrow(s1, s2) =>
           Arrow(typslice_map_term(s1), typslice_map_term(s2))
-        | Sum(m) => Sum(ConstructorMap.map_vals(typslice_map_term, m))
+        | Sum(m) => Sum(ConstructorMap.map_preserving(typslice_map_term, m))
         | Prod(ss) => Prod(List.map(typslice_map_term, ss))
         | TupLabel(s1, s2) =>
           TupLabel(typslice_map_term(s1), typslice_map_term(s2))
@@ -1207,7 +1105,10 @@ and TypSlice: {
           let (ty, rewrap'') = typ_map_term(ty |> rewrap) |> IdTagged.unwrap;
           (`SliceIncr((Typ(ty), slice_incr)): typslice_incr_term) |> rewrap'';
         | `SliceIncr(Slice(s), slice_incr) =>
-          `SliceIncr((Slice(rec_call_incr_typ(s)), slice_incr)) |> rewrap'
+          (
+            `SliceIncr((Slice(rec_call_incr_typ(s)), slice_incr)): typslice_incr_term
+          )
+          |> rewrap'
         };
       switch (term) {
       | `Typ(_) as s
@@ -1244,7 +1145,7 @@ and TypSlice: {
         `SliceIncr((
           Slice(
             switch (TPat.tyvar_of_utpat(x)) {
-            | Some(str) =>
+            | Some(_) =>
               switch (s) {
               | Arrow(s1, s2) => Arrow(subst(s1), subst(s2))
               | Prod(ss) => Prod(List.map(subst, ss))
@@ -1602,7 +1503,8 @@ and ClosureEnvironment: {
   let without_keys = keys => update(Environment.without_keys(keys));
   let with_symbolic_keys = (keys, env) =>
     List.fold_right(
-      (key, env) => extend(env, (key, Var(key) |> IdTagged.fresh)),
+      (key, env) =>
+        extend(env, (key, (Var(key): exp_term) |> IdTagged.fresh)),
       keys,
       env,
     );

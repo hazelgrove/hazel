@@ -127,19 +127,21 @@ let add_ctrs =
             switch (typ) {
             | None => `Typ(Var(name): TermBase.typ_term) |> IdTagged.fresh
             | Some(typ) =>
-              `SliceIncr((
-                Slice(
-                  Arrow(
-                    typ,
-                    `SliceGlobal((
-                      `Typ(Var(name): TermBase.typ_term),
-                      {ctx_used: [], term_ids: name_ids}: TermBase.slice_global,
-                    ))
-                    |> IdTagged.fresh: TermBase.typslice_t,
+              (
+                `SliceIncr((
+                  Slice(
+                    Arrow(
+                      typ,
+                      `SliceGlobal((
+                        `Typ(Var(name): TermBase.typ_term),
+                        {ctx_used: [], term_ids: name_ids}: TermBase.slice_global,
+                      ))
+                      |> IdTagged.fresh,
+                    ),
                   ),
-                ): TermBase.typslice_typ_term,
-                {ctx_used: [], term_ids: [id]}: TermBase.slice_incr,
-              ))
+                  {ctx_used: [], term_ids: [id]},
+                )): TermBase.typslice_term
+              )
               |> IdTagged.fresh
             },
         }),

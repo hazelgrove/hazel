@@ -10,13 +10,17 @@ type t = {
 
 let empty: t = {
   term: {
-    ids: [Id.invalid],
-    copied: false,
+    annotation: {
+      ids: [Id.invalid],
+      copied: false,
+    },
     term: Tuple([]),
   },
   elaborated: {
-    ids: [Id.invalid],
-    copied: false,
+    annotation: {
+      ids: [Id.invalid],
+      copied: false,
+    },
     term: Tuple([]),
   },
   info_map: Id.Map.empty,

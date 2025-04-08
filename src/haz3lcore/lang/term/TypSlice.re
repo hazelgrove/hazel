@@ -25,7 +25,14 @@ let fresh: term => t = IdTagged.fresh;
 /* fresh assigns a random id, whereas temp assigns Id.invalid, which
    is a lot faster, and since we so often make types and throw them away
    shortly after, it makes sense to use it. */
-let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
+let temp: term => t =
+  term => {
+    term,
+    annotation: {
+      ids: [Id.invalid],
+      copied: false,
+    },
+  };
 let rep_id: t => Id.t = IdTagged.rep_id;
 
 let all_ids_temp = {
@@ -33,7 +40,15 @@ let all_ids_temp = {
     'a.
     (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
    =
-    (continue, exp) => {...exp, ids: [Id.invalid]} |> continue;
+    (continue, exp) =>
+      {
+        term: exp.term,
+        annotation: {
+          ...exp.annotation,
+          ids: [Id.invalid],
+        },
+      }
+      |> continue;
   map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
 };
 
@@ -42,9 +57,7 @@ let (replace_temp, replace_temp_exp) = {
     'a.
     (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
    =
-    (continue, exp) =>
-      {...exp, ids: exp.ids == [Id.invalid] ? [Id.mk()] : exp.ids}
-      |> continue;
+    (continue, exp) => IdTagged.replace_temp(exp) |> continue;
   (
     map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
     TermBase.Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
@@ -224,7 +237,7 @@ let t_of_typ_t = (ty: Typ.t): t => {
 
 // Creates a slice from the ids of a typ_t. Used in creating slices of type annotations.
 // This could instead be done directly in parsing.
-let rec t_of_typ_t_sliced = ({ids, _} as ty: Typ.t): t => {
+let rec t_of_typ_t_sliced = ({annotation: {ids, _}, _} as ty: Typ.t): t => {
   let (ty, rewrap) = ty |> IdTagged.unwrap;
   (
     switch (ty) {
@@ -252,7 +265,7 @@ let rec t_of_typ_t_sliced = ({ids, _} as ty: Typ.t): t => {
       ))
     | Sum(m) =>
       `SliceIncr((
-        Slice(Sum(m |> ConstructorMap.map_vals(t_of_typ_t_sliced))),
+        Slice(Sum(m |> ConstructorMap.map_preserving(t_of_typ_t_sliced))),
         slice_of_ids(ids),
       ))
     | Prod(ts) =>
@@ -756,7 +769,7 @@ let rec join_using =
       );
     | (Prod(_), _) => None
     | (Sum(sm1), Sum(sm2)) =>
-      let sm2 = ConstructorMap.map_vals(t_of_typ_t, sm2);
+      let sm2 = ConstructorMap.map_preserving(t_of_typ_t, sm2);
       let+ (sm', branches_used) =
         ConstructorMap.join(eq, join_using(~resolve, ctx), sm1, sm2);
       let branch_used =
@@ -889,7 +902,7 @@ let rec join_using =
       );
     | (Prod(_), _) => None
     | (Sum(sm1), Sum(sm2)) =>
-      let sm1 = ConstructorMap.map_vals(t_of_typ_t, sm1);
+      let sm1 = ConstructorMap.map_preserving(t_of_typ_t, sm1);
       let+ (sm', branches_used) =
         ConstructorMap.join(eq, join_using(~resolve, ctx), sm1, sm2);
       let branch_used =
@@ -1013,7 +1026,7 @@ let rec match_synswitch =
       |> rewrap1
     | (TupLabel(_, _), _) => s1
     | (Sum(sm1), Sum(sm2)) =>
-      let sm2 = ConstructorMap.map_vals(t_of_typ_t, sm2);
+      let sm2 = ConstructorMap.map_preserving(t_of_typ_t, sm2);
       let sm' = ConstructorMap.match_synswitch(match_synswitch, eq, sm1, sm2);
       (`SliceIncr((Slice(Sum(sm')), slice_incr)): term) |> rewrap1;
     | (Sum(_), _) => s1
@@ -1198,7 +1211,7 @@ let untuplabel = (s: t) => {
 let get_sum =
   apply(
     fun
-    | Sum(m) => m |> ConstructorMap.map_vals(t_of_typ_t)
+    | Sum(m) => m |> ConstructorMap.map_preserving(t_of_typ_t)
     | _ => failwith("Not a sum"),
     fun
     | Sum(m) => m
@@ -1434,7 +1447,7 @@ let rec get_sum_constructors =
   | `Typ(ty)
   | `SliceIncr(Typ(ty), _) =>
     Typ.get_sum_constructors(ctx, ty |> rewrap)
-    |> Option.map(ConstructorMap.map_vals(t_of_typ_t))
+    |> Option.map(ConstructorMap.map_preserving(t_of_typ_t))
   | `SliceIncr(Slice(s'), _) =>
     switch (s') {
     | Parens(_) => get_sum_constructors(ctx, unparens(s))
@@ -1478,7 +1491,7 @@ let rec get_sum_constructors =
       | `SliceIncr(Typ(Sum(sm)), _)
       | `SliceGlobal(`Typ(Sum(sm)), _)
       | `SliceGlobal(`SliceIncr(Typ(Sum(sm)), _), _) =>
-        Some(ConstructorMap.map_vals(t_of_typ_t, sm))
+        Some(ConstructorMap.map_preserving(t_of_typ_t, sm))
       | `SliceIncr(Slice(Sum(sm)), _)
       | `SliceGlobal(`SliceIncr(Slice(Sum(sm)), _), _) => Some(sm)
       | #term => None

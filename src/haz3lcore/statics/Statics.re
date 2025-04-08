@@ -168,7 +168,7 @@ and uexp_to_info_map =
       ~override_self: option(Self.exp)=?,
       ~inferred_label: option(LabeledTuple.label)=?,
       ~label_sort,
-      {ids, copied: _, term} as uexp: Exp.t,
+      {annotation: {ids, copied: _}, term} as uexp: Exp.t,
       m: Map.t,
     )
     : (Info.exp, Map.t) => {
@@ -273,7 +273,7 @@ and uexp_to_info_map =
         ),
     };
 
-    (info, add_info(elaborated_exp.ids, InfoExp(info), m));
+    (info, add_info(IdTagged.ids(elaborated_exp), InfoExp(info), m));
   };
   let atomic = self => {
     add(~self, ~co_ctx=CoCtx.empty, m);
@@ -351,8 +351,10 @@ and uexp_to_info_map =
       add(~self=e.ty |> Self.of_parens(ids), ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) when is_in_filter =>
       let e: Exp.t = {
-        ids: e.ids,
-        copied: false,
+        annotation: {
+          ids: IdTagged.ids(e),
+          copied: false,
+        },
         term:
           switch (e.term) {
           | Var("e") =>
@@ -706,7 +708,8 @@ and uexp_to_info_map =
       let (fn, m) = go(~mode=fn_mode, fn, m);
       let (ty_in, ty_out) = TypSlice.matched_arrow(ctx, fn.ty);
       let (arg, m) = go(~mode=ty_in |> Mode.of_ap_arg(ids), arg, m);
-      let self: Self.t = Self.of_ap(ids, ctx, arg.term.ids, ty_in, ty_out); // TODO: Re-add incremental ids used in arrow type ty_in -> ty_out
+      let self: Self.t =
+        Self.of_ap(ids, ctx, IdTagged.ids(arg.term), ty_in, ty_out); // TODO: Re-add incremental ids used in arrow type ty_in -> ty_out
       add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
     | TypAp(fn, utyp) =>
       let typfn_mode = Mode.typap_mode;
@@ -977,7 +980,7 @@ and uexp_to_info_map =
                   ~inferred_label=info.inferred_label,
                   ~label_sort=info.label_sort,
                 );
-              add_info(p.ids, InfoPat(info), m);
+              add_info(IdTagged.ids(p), InfoPat(info), m);
             | _ => failwith("Invalid sort for pattern.")
             };
           },
@@ -1137,7 +1140,7 @@ and upat_to_info_map =
       ~override_self: option(Self.t)=?,
       ~inferred_label=?,
       ~label_sort=false,
-      {ids, term, _} as upat: Pat.t,
+      {annotation: {ids, _}, term} as upat: Pat.t,
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
@@ -1264,7 +1267,7 @@ and upat_to_info_map =
         ),
     };
 
-    (info, add_info(elaborated_pat.ids, InfoPat(info), m));
+    (info, add_info(IdTagged.ids(elaborated_pat), InfoPat(info), m));
   };
 
   let default_case = () =>
@@ -1662,7 +1665,7 @@ and utyp_to_info_map =
       ~ctx,
       ~expects=Info.TypeExpected,
       ~ancestors,
-      {ids, term, _} as utyp: TypSlice.t,
+      {annotation: {ids, _}, term} as utyp: TypSlice.t,
       m: Map.t,
     )
     : (Info.typ, Map.t) => {
@@ -1745,7 +1748,7 @@ and utyp_to_info_map =
         List.fold_left(
           variant_to_info_map(~ctx, ~ancestors, ~ty_sum=utyp),
           (m, []),
-          ConstructorMap.map_vals(TypSlice.t_of_typ_t, variants),
+          ConstructorMap.map_preserving(TypSlice.t_of_typ_t, variants),
         );
       add(m);
     | Forall({term: Var(name), _} as utpat, tbody) =>
@@ -1921,7 +1924,12 @@ and utyp_to_info_map =
   TypSlice.apply(f_typ, f_slc, term);
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, {ids, term, _} as utpat: TPat.t, m: Map.t)
+    (
+      ~ctx,
+      ~ancestors,
+      {annotation: {ids, _}, term} as utpat: TPat.t,
+      m: Map.t,
+    )
     : (Info.tpat, Map.t) => {
   let add = m => {
     let info = Info.derived_tpat(~utpat, ~ctx, ~ancestors);
@@ -1957,7 +1965,13 @@ and variant_to_info_map =
           List.mem(ctr, ctrs) ? Duplicate : Unique,
           ty_sum,
         ),
-        {term: `Typ(Var(ctr)), ids, copied: false},
+        {
+          term: `Typ(Var(ctr)),
+          annotation: {
+            ids,
+            copied: false,
+          },
+        },
         m,
       )
       |> snd;
