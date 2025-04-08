@@ -17,7 +17,7 @@ let fresh_cast = (d: DHExp.t, t1: TypSlice.t, t2: TypSlice.t): Exp.t => {
   switch (d.term) {
   | Label(_) => d
   | _ =>
-    TypSlice.eq(t1, t2)
+    TypSlice.equal(t1, t2)
       ? d
       : {
         let d': Exp.t =
@@ -35,7 +35,7 @@ let fresh_pat_cast = (p: DHPat.t, t1: TypSlice.t, t2: TypSlice.t): DHPat.t => {
   switch (p.term) {
   | Label(_) => p
   | _ =>
-    TypSlice.eq(t1, t2)
+    TypSlice.equal(t1, t2)
       ? p
       : {
         Cast(
@@ -295,7 +295,7 @@ let rec elaborate_pattern =
         | _ => raise(MissingTypeInfo)
         };
       let t =
-        switch (Mode.ctr_ana_typ(ctx, mode, c), Ctx.lookup_ctr(ctx, c)) {
+        switch (Mode.ctr_ana_typ([], ctx, mode, c), Ctx.lookup_ctr(ctx, c)) {
         | (Some(ana_ty), _) => ana_ty
         | (_, Some({typ: syn_ty, _})) => syn_ty
         | _ =>
@@ -307,7 +307,7 @@ let rec elaborate_pattern =
           |> TypSlice.t_of_typ_t
         };
       let t = t |> TypSlice.normalize(ctx);
-      Constructor(c, t |> TypSlice.typ_of) |> rewrap |> cast_from(t);
+      Constructor(c, Some(t |> TypSlice.typ_of)) |> rewrap |> cast_from(t);
     };
   (dpat, elaborated_type);
 };
@@ -401,19 +401,19 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
         | _ => raise(MissingTypeInfo)
         };
       let t =
-        switch (Mode.ctr_ana_typ(ctx, mode, c), Ctx.lookup_ctr(ctx, c)) {
-        | (Some(ana_ty), _) => ana_ty
-        | (_, Some({typ: syn_ty, _})) => syn_ty
-        | _ =>
-          Sum([
-            ConstructorMap.Variant(c, [Id.invalid], None),
-            ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
-          ])
-          |> Typ.temp
-          |> TypSlice.t_of_typ_t
+        switch (Mode.ctr_ana_typ([], ctx, mode, c), Ctx.lookup_ctr(ctx, c)) {
+        | (Some(ana_ty), _) => Some(TypSlice.normalize(ctx, ana_ty))
+        | (_, Some({typ: syn_ty, _})) =>
+          Some(TypSlice.normalize(ctx, syn_ty))
+        | _ => None
         };
-      let t = t |> TypSlice.normalize(ctx) |> TypSlice.all_ids_temp;
-      Constructor(c, t |> TypSlice.typ_of) |> rewrap |> cast_from(t);
+      switch (t) {
+      | Some(ty) =>
+        Constructor(c, t |> Option.map(TypSlice.typ_of))
+        |> rewrap
+        |> cast_from(ty)
+      | None => Constructor(c, t |> Option.map(TypSlice.typ_of)) |> rewrap
+      };
     | Fun(p, e, _, n) =>
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', tye) = elaborate(m, e);
@@ -710,9 +710,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
       switch (e.term) {
       // TODO: confirm whether these types are correct
       | Var("e") =>
-        Constructor("$e", Unknown(Internal) |> Typ.temp) |> rewrap
+        Constructor("$e", Some(Unknown(Internal) |> Typ.fresh)) |> rewrap
       | Var("v") =>
-        Constructor("$v", Unknown(Internal) |> Typ.temp) |> rewrap
+        Constructor("$v", Some(Unknown(Internal) |> Typ.fresh)) |> rewrap
       | _ =>
         EmptyHole
         |> rewrap

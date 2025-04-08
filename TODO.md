@@ -98,3 +98,4 @@ end```
 - [X] Cast slice stack overflows see: `let f : forall A -> A -> A = typfun B -> fun x -> x in f@<Int>(2)`
 - [ ] Forall Type Checking failure (see failed test)
 - [ ] Labeled Tuple Elaboration failures (see tests)
+- [ ] Pattern NoTyp(FreeConstructor) unnecessarily acting (see tests)

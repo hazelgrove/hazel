@@ -120,18 +120,14 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
 
     | (Hole, Ground) =>
       switch (DHExp.term_of(d1)) {
-      | Cast(d2, t3, t4) =>
-        switch (TypSlice.typ_of(t4) |> Typ.term_of) {
-        | Unknown(_) =>
-          /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
-          if (TypSlice.eq(t3, t2)) {
-            Some
-              (d2); // Rule ITCastSucceed
-          } else {
-            Some
-              (FailedCast(d2, t3, t2) |> DHExp.fresh); // Rule ITCastFail
-          }
-        | _ => None
+      | Cast(d2, t3, t4) when TypSlice.is_unknown(t4) =>
+        /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
+        if (TypSlice.eq(t3, t2)) {
+          Some
+            (d2); // Rule ITCastSucceed
+        } else {
+          Some
+            (FailedCast(d2, t3, t2) |> DHExp.fresh); // Rule ITCastFail
         }
       | _ => None
       }

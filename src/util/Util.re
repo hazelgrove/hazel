@@ -22,6 +22,8 @@ module Os = Os;
 module Point = Point;
 module Calc = Calc;
 module Sequence = Base.Sequence;
+module Sets = Sets;
+module Maps = Maps;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

@@ -208,7 +208,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         when TypSlice.is_sum(s1) && TypSlice.is_sum(s2) =>
       let get_entry_or_bad = s =>
         switch (ConstructorMap.get_entry(name, s)) {
-        | Some(x) => Some(x)
+        | Some(Some(x)) => Some(x)
+        | Some(None) => None
         | None when ConstructorMap.has_bad_entry(s) =>
           Some(`Typ(Unknown(Internal)) |> TypSlice.temp)
         | None => None

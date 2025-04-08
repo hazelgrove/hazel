@@ -211,31 +211,37 @@ let of_list_lit = (ids: list(Id.t), ctx: Ctx.t, length, mode: t): list(t) =>
   List.init(length, _ => of_list(ids, ctx, mode));
 
 let ctr_ana_typ =
-    (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(TypSlice.t) => {
+    (ids, ctx: Ctx.t, mode: t, ctr: Constructor.t): option(TypSlice.t) => {
   /* If a ctr is being analyzed against (an arrow type returning)
      a sum type having that ctr as a variant, we consider the
      ctr's type to be determined by the sum type */
   switch (mode) {
+  | Ana(ana) when TypSlice.is_arrow(ana) =>
+    let (_, ty_out) = TypSlice.unarrow(ana);
+    let* ctrs = TypSlice.get_sum_constructors(ctx, ty_out);
+    let* ty_entry = ConstructorMap.get_entry(ctr, ctrs);
+    switch (ty_entry) {
+    | None => None
+    | Some(_) =>
+      Some(ana |> TypSlice.wrap_global(TypSlice.slice_of_ids(ids)))
+    };
   | Ana(ty_ana) =>
-    let ty_ana =
-      switch (TypSlice.matched_arrow_strict(ctx, ty_ana)) {
-      | Some((_, ty_ana)) => ty_ana
-      | None => ty_ana
-      };
-    let+ ctrs = TypSlice.get_sum_constructors(ctx, ty_ana);
-    let ty_entry = ConstructorMap.get_entry(ctr, ctrs);
+    let* ctrs = TypSlice.get_sum_constructors(ctx, ty_ana);
+    let+ ty_entry = ConstructorMap.get_entry(ctr, ctrs);
     switch (ty_entry) {
     | None => ty_ana
     | Some(ty_in) =>
-      `SliceIncr((Slice(Arrow(ty_in, ty_ana)), TypSlice.empty_slice_incr))
+      Arrow(ty_in, ty_ana)
+      |> TypSlice.term_of_slc_typ_term
       |> TypSlice.temp
+      |> TypSlice.wrap_global(TypSlice.slice_of_ids(ids))
     };
   | _ => None
   };
 };
 
-let of_ctr_in_ap = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(t) =>
-  switch (ctr_ana_typ(ctx, mode, ctr)) {
+let of_ctr_in_ap = (ids, ctx: Ctx.t, mode: t, ctr: Constructor.t): option(t) =>
+  switch (ctr_ana_typ(ids, ctx, mode, ctr)) {
   | Some(ty_ana) when TypSlice.is_arrow(ty_ana) => Some(Ana(ty_ana))
   | Some(ty_ana) =>
     /* Consider for example "let _ : +Yo = Yo("lol") in..."
@@ -255,14 +261,14 @@ let of_ctr_in_ap = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(t) =>
   | None => None
   };
 
-let of_ap = (ctx, mode, ctr: option(Constructor.t)): t =>
+let of_ap = (ids, ctx, mode, ctr: option(Constructor.t)): t =>
   /* If a ctr application is being analyzed against a sum type for
      which that ctr is a variant, then we consider the ctr to be in
      analytic mode against an arrow returning that sum type; otherwise
      we use the typical mode for function applications */
   switch (ctr) {
   | Some(name) =>
-    switch (of_ctr_in_ap(ctx, mode, name)) {
+    switch (of_ctr_in_ap(ids, ctx, mode, name)) {
     | Some(mode) => mode
     | _ => SynFun
     }
