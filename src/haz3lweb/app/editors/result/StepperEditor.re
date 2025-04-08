@@ -47,7 +47,11 @@ module Update = {
         ~dynamics,
         editor,
       );
-    {editor, taken_steps, next_steps};
+    {
+      editor,
+      taken_steps,
+      next_steps,
+    };
   };
 };
 

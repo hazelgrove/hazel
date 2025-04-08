@@ -55,7 +55,11 @@ let menhir_matches = (exp: Term.Exp.t, actual: string) =>
     "menhir matches expected parse",
     exp,
     Grammar.map_exp_annotation(
-      _: IdTagged.IdTag.t => {ids: [Id.invalid], copied: false},
+      _: IdTagged.IdTag.t =>
+        {
+          ids: [Id.invalid],
+          copied: false,
+        },
       Haz3lmenhir.Conversion.Exp.of_menhir_ast(
         Haz3lmenhir.Interface.parse_program(actual),
       ),
@@ -90,7 +94,11 @@ let menhir_maketerm_equivalent_test =
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
       Grammar.map_exp_annotation(
-        _: IdTagged.IdTag.t => {ids: [Id.invalid], copied: false},
+        _: IdTagged.IdTag.t =>
+          {
+            ids: [Id.invalid],
+            copied: false,
+          },
         Haz3lmenhir.Conversion.Exp.of_menhir_ast(
           Haz3lmenhir.Interface.parse_program(actual),
         ),
@@ -289,7 +297,13 @@ let tests =
       ),
       full_parser_test(
         "Filter",
-        filter(Filter({act: (Eval, All), pat: int(3)}), int(3)),
+        filter(
+          Filter({
+            act: (Eval, All),
+            pat: int(3),
+          }),
+          int(3),
+        ),
         "eval 3 in 3" // TODO Use other filter commands
       ),
       full_parser_test(

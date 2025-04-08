@@ -828,7 +828,11 @@ and uexp_to_info_map =
       let ctx_body =
         Ctx.extend_tvar(
           ctx,
-          {name, id: TPat.rep_id(utpat), kind: Abstract},
+          {
+            name,
+            id: TPat.rep_id(utpat),
+            kind: Abstract,
+          },
         );
       let (body, m) = go'(~ctx=ctx_body, ~mode=mode_body, body, m);
       add(
@@ -1409,7 +1413,12 @@ and upat_to_info_map =
           mode,
           Common(Just(`Typ(Unknown(Internal)) |> TypSlice.temp)),
         );
-      let entry = Ctx.VarEntry({name, id: Pat.rep_id(upat), typ: ctx_typ});
+      let entry =
+        Ctx.VarEntry({
+          name,
+          id: Pat.rep_id(upat),
+          typ: ctx_typ,
+        });
       add(
         ~self=Just(unknown),
         ~ctx=Ctx.extend(ctx, entry),
@@ -1836,7 +1845,11 @@ and utyp_to_info_map =
       let body_ctx =
         Ctx.extend_tvar(
           ctx,
-          {name, id: TPat.rep_id(utpat), kind: Abstract},
+          {
+            name,
+            id: TPat.rep_id(utpat),
+            kind: Abstract,
+          },
         );
       let m =
         utyp_to_info_map(
@@ -1865,7 +1878,11 @@ and utyp_to_info_map =
       let body_ctx =
         Ctx.extend_tvar(
           ctx,
-          {name, id: TPat.rep_id(utpat), kind: Abstract},
+          {
+            name,
+            id: TPat.rep_id(utpat),
+            kind: Abstract,
+          },
         );
       let m =
         utyp_to_info_map(
@@ -1959,7 +1976,11 @@ and utyp_to_info_map =
       let body_ctx =
         Ctx.extend_tvar(
           ctx,
-          {name, id: TPat.rep_id(utpat), kind: Abstract},
+          {
+            name,
+            id: TPat.rep_id(utpat),
+            kind: Abstract,
+          },
         );
       let m =
         utyp_to_info_map(
@@ -1982,7 +2003,11 @@ and utyp_to_info_map =
       let body_ctx =
         Ctx.extend_tvar(
           ctx,
-          {name, id: TPat.rep_id(utpat), kind: Abstract},
+          {
+            name,
+            id: TPat.rep_id(utpat),
+            kind: Abstract,
+          },
         );
       let m =
         utyp_to_info_map(

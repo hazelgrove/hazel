@@ -88,21 +88,42 @@ let ctr_pat = (name: string): form => {
   };
 };
 
-let wild: group = {id: WildPat, forms: [wild_pat]};
+let wild: group = {
+  id: WildPat,
+  forms: [wild_pat],
+};
 
-let intlit = (i: int): group => {id: IntPat, forms: [intlit_pat(i)]};
+let intlit = (i: int): group => {
+  id: IntPat,
+  forms: [intlit_pat(i)],
+};
 
 let floatlit = (f: float): group => {
   id: FloatPat,
   forms: [floatlit_pat(f)],
 };
 
-let boollit = (b: bool): group => {id: BoolPat, forms: [boollit_pat(b)]};
+let boollit = (b: bool): group => {
+  id: BoolPat,
+  forms: [boollit_pat(b)],
+};
 
-let strlit = (s: string): group => {id: StrPat, forms: [strlit_pat(s)]};
+let strlit = (s: string): group => {
+  id: StrPat,
+  forms: [strlit_pat(s)],
+};
 
-let triv: group = {id: TrivPat, forms: [triv_pat]};
+let triv: group = {
+  id: TrivPat,
+  forms: [triv_pat],
+};
 
-let var = (name: string): group => {id: VarPat, forms: [var_pat(name)]};
+let var = (name: string): group => {
+  id: VarPat,
+  forms: [var_pat(name)],
+};
 
-let ctr = (name: string): group => {id: CtrPat, forms: [ctr_pat(name)]};
+let ctr = (name: string): group => {
+  id: CtrPat,
+  forms: [ctr_pat(name)],
+};

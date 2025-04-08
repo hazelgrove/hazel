@@ -64,7 +64,10 @@ let (replace_temp, replace_temp_exp) = {
   );
 };
 
-let empty_slice_incr: slc_incr = {ctx_used: [], term_ids: []};
+let empty_slice_incr: slc_incr = {
+  ctx_used: [],
+  term_ids: [],
+};
 let empty_slice_global = empty_slice_incr;
 
 let union_slice_incr: (slc_incr, slc_incr) => slc_incr =
@@ -78,7 +81,10 @@ let union_slice_global: (slc_global, slc_global) => slc_global =
     term_ids: c1 @ c2,
   };
 
-let slice_of_ids = (term_ids): slc_incr => {ctx_used: [], term_ids};
+let slice_of_ids = (term_ids): slc_incr => {
+  ctx_used: [],
+  term_ids,
+};
 let slice_of_ctx = (ctx_used: list(ctx_var)): slc_incr => {
   ctx_used,
   term_ids: [],
@@ -239,7 +245,10 @@ let t_of_typ_t = (ty: Typ.t): t => {
 let t_of_typ_t_parametric: type a. Grammar.typ_t(a) => Grammar.typslice_t(a) =
   ty => {
     let {term, annotation}: Grammar.typ_t(a) = ty;
-    {term: `Typ(term), annotation};
+    {
+      term: `Typ(term),
+      annotation,
+    };
   };
 
 // Creates a slice from the ids of a typ_t. Used in creating slices of type annotations.
@@ -517,8 +526,14 @@ let rec join_using =
         )
         : option((t, BranchUsed.t)) => {
   let join' = join_using(~resolve, ctx);
-  let rewrap1 = term' => {...s1, term: term'};
-  let rewrap2 = term' => {...s2, term: term'};
+  let rewrap1 = term' => {
+    ...s1,
+    term: term',
+  };
+  let rewrap2 = term' => {
+    ...s2,
+    term: term',
+  };
   open BranchUsed;
   let join_typ_rewrap = (f, ty1, ty2) =>
     Typ.join_using(~resolve, ctx, ty1 |> rewrap1, ty2 |> rewrap2)
@@ -959,8 +974,14 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) =>
 // Left slices being retained ONLY.
 let rec match_synswitch =
         ({term: term1, _} as s1: t, {term: term2, _} as s2: t): t => {
-  let rewrap1 = term' => {...s1, term: term'};
-  let rewrap2 = term' => {...s2, term: term'};
+  let rewrap1 = term' => {
+    ...s1,
+    term: term',
+  };
+  let rewrap2 = term' => {
+    ...s2,
+    term: term',
+  };
   switch (term1, term2) {
   | (`Typ(ty1), _) =>
     `Typ(Typ.match_synswitch(ty1 |> rewrap1, s2 |> typ_of) |> Typ.term_of)
@@ -1448,7 +1469,10 @@ let rec matched_args = (ctx, default_arity, s) => {
 
 let rec get_sum_constructors =
         (ctx: Ctx.t, {term, _} as s: t): option(sum_map) => {
-  let rewrap = term' => {...s, term: term'};
+  let rewrap = term' => {
+    ...s,
+    term: term',
+  };
   let s = weak_head_normalize(ctx, s);
   switch (term) {
   | `Typ(ty)

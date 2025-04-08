@@ -10,7 +10,10 @@ let free_variables =
       | None =>
         let joint_use_typ = CoCtx.join(ctx, entries) |> TypSlice.typ_of;
         if (Typ.is_consistent(ctx, expected_ty, joint_use_typ)) {
-          Some({content: name, strategy: Pat(FromCoCtx(joint_use_typ))});
+          Some({
+            content: name,
+            strategy: Pat(FromCoCtx(joint_use_typ)),
+          });
         } else {
           None;
         };
@@ -42,7 +45,10 @@ let bound_constructors =
     fun
     | Ctx.ConstructorEntry({typ, name, _})
         when Typ.is_consistent(ctx, ty, typ |> TypSlice.typ_of) =>
-      Some({content: name, strategy: wrap(FromCtx(typ |> TypSlice.typ_of))})
+      Some({
+        content: name,
+        strategy: wrap(FromCtx(typ |> TypSlice.typ_of)),
+      })
     | _ => None,
     ctx,
   );
@@ -76,7 +82,10 @@ let bound_constructor_aps = (wrap, ty: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
           when
             Typ.is_consistent(ctx, ty, ty_out)
             && !Typ.is_consistent(ctx, ty, ty_arr |> TypSlice.typ_of) =>
-        Some({content: name ++ "(", strategy: wrap(FromCtxAp(ty_out))})
+        Some({
+          content: name ++ "(",
+          strategy: wrap(FromCtxAp(ty_out)),
+        })
       | _ => None
       }
     | _ => None,
@@ -88,7 +97,10 @@ let typ_context_entries = (ctx: Ctx.t): list(Suggestion.t) =>
   List.filter_map(
     fun
     | Ctx.TVarEntry({kind: Singleton(_), name, _}) =>
-      Some({content: name, strategy: Typ(FromCtx)})
+      Some({
+        content: name,
+        strategy: Typ(FromCtx),
+      })
     | _ => None,
     ctx,
   );

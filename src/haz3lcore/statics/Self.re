@@ -172,7 +172,12 @@ let of_deferred_ap =
   let expected = List.length(ty_ins);
   let actual = List.length(args);
   if (expected != actual) {
-    IsBadPartialAp(ArityMismatch({expected, actual}));
+    IsBadPartialAp(
+      ArityMismatch({
+        expected,
+        actual,
+      }),
+    );
   } else if (List.for_all(Exp.is_deferral, args)) {
     IsBadPartialAp(NoDeferredArgs);
   } else {
@@ -194,7 +199,13 @@ let of_deferred_ap =
   };
 };
 
-let add_source = List.map2((id, ty) => TypSlice.{id, ty});
+let add_source =
+  List.map2((id, ty) =>
+    TypSlice.{
+      id,
+      ty,
+    }
+  );
 
 let of_match =
     (ids: list(Id.t), ctx: Ctx.t, tys: list(TypSlice.t), c_ids: list(Id.t))

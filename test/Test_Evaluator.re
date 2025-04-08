@@ -614,8 +614,14 @@ in fn("hello")|},
                     {
                       term:
                         TupLabel(
-                          {term: Label("l"), annotation: ()},
-                          {term: String("a"), annotation: ()},
+                          {
+                            term: Label("l"),
+                            annotation: (),
+                          },
+                          {
+                            term: String("a"),
+                            annotation: (),
+                          },
                         ),
                       annotation: (),
                     },
@@ -688,8 +694,14 @@ in fn("hello")|},
                         {
                           term:
                             TupLabel(
-                              {term: Label("l"), annotation: ()},
-                              {term: String("a"), annotation: ()},
+                              {
+                                term: Label("l"),
+                                annotation: (),
+                              },
+                              {
+                                term: String("a"),
+                                annotation: (),
+                              },
                             ),
                           annotation: (),
                         },

@@ -9,9 +9,18 @@ module Annotated = {
   };
 
   let term_of = x => x.term;
-  let unwrap = x => (x.term, term' => {...x, term: term'});
+  let unwrap = x => (
+    x.term,
+    term' => {
+      ...x,
+      term: term',
+    },
+  );
 
-  let empty = term => {term, annotation: ()};
+  let empty = term => {
+    term,
+    annotation: (),
+  };
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -302,7 +311,10 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_typslice_annotation(f, t2),
           )
         };
-      {term, annotation: new_annotation};
+      {
+        term,
+        annotation: new_annotation,
+      };
     }:
       exp_t(b)
   )
@@ -402,12 +414,30 @@ and map_typslice_incr_annotation:
     switch (term) {
     | `Typ(ty) =>
       let {term, annotation}: typ_t('b) =
-        map_typ_annotation(f, {term: ty, annotation});
-      {term: `Typ(term), annotation};
+        map_typ_annotation(
+          f,
+          {
+            term: ty,
+            annotation,
+          },
+        );
+      {
+        term: `Typ(term),
+        annotation,
+      };
     | `SliceIncr(Typ(ty), slice) =>
       let {term, annotation}: typ_t('b) =
-        map_typ_annotation(f, {term: ty, annotation});
-      {term: `SliceIncr((Typ(term), slice)), annotation};
+        map_typ_annotation(
+          f,
+          {
+            term: ty,
+            annotation,
+          },
+        );
+      {
+        term: `SliceIncr((Typ(term), slice)),
+        annotation,
+      };
     | `SliceIncr(Slice(s), slice) => {
         term:
           `SliceIncr((
@@ -466,10 +496,25 @@ and map_typslice_annotation:
     switch (term) {
     | `SliceGlobal(s, slice) =>
       let {term, annotation}: typslice_incr_t('b) =
-        map_typslice_incr_annotation(f, {term: s, annotation});
-      {term: `SliceGlobal((term, slice)), annotation};
+        map_typslice_incr_annotation(
+          f,
+          {
+            term: s,
+            annotation,
+          },
+        );
+      {
+        term: `SliceGlobal((term, slice)),
+        annotation,
+      };
     | (`Typ(_) | `SliceIncr(_)) as s => (
-        map_typslice_incr_annotation(f, {term: s, annotation}) :>
+        map_typslice_incr_annotation(
+          f,
+          {
+            term: s,
+            annotation,
+          },
+        ) :>
           typslice_t('b)
       )
     };
@@ -519,7 +564,10 @@ and map_stepper_filter_kind_annotation:
   (f, e) => {
     switch (e) {
     | Filter(filter) =>
-      Filter({pat: map_exp_annotation(f, filter.pat), act: filter.act})
+      Filter({
+        pat: map_exp_annotation(f, filter.pat),
+        act: filter.act,
+      })
     | Residue(i, act) => Residue(i, act)
     };
   }
@@ -903,20 +951,47 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let list = (~ann=?, t): typslice_t(DefaultAnnotation.t) => {
-      term: `SliceIncr((Slice(List(t)), {term_ids: [], ctx_used: []})),
+      term:
+        `SliceIncr((
+          Slice(List(t)),
+          {
+            term_ids: [],
+            ctx_used: [],
+          },
+        )),
       annotation: default_annotation(ann),
     };
     let arrow = (~ann=?, t1, t2): typslice_t(DefaultAnnotation.t) => {
       term:
-        `SliceIncr((Slice(Arrow(t1, t2)), {term_ids: [], ctx_used: []})),
+        `SliceIncr((
+          Slice(Arrow(t1, t2)),
+          {
+            term_ids: [],
+            ctx_used: [],
+          },
+        )),
       annotation: default_annotation(ann),
     };
     let sum = (~ann=?, m): typslice_t(DefaultAnnotation.t) => {
-      term: `SliceIncr((Slice(Sum(m)), {term_ids: [], ctx_used: []})),
+      term:
+        `SliceIncr((
+          Slice(Sum(m)),
+          {
+            term_ids: [],
+            ctx_used: [],
+          },
+        )),
       annotation: default_annotation(ann),
     };
     let prod = (~ann=?, l): typslice_t(DefaultAnnotation.t) => {
-      term: `SliceIncr((Slice(Prod(l)), {term_ids: [], ctx_used: []})),
+      term:
+        `SliceIncr((
+          Slice(Prod(l)),
+          {
+            term_ids: [],
+            ctx_used: [],
+          },
+        )),
       annotation: default_annotation(ann),
     };
     let label = (~ann=?, l): typslice_t(DefaultAnnotation.t) => {
@@ -927,25 +1002,55 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term:
         `SliceIncr((
           Slice(TupLabel(t1, t2)),
-          {term_ids: [], ctx_used: []},
+          {
+            term_ids: [],
+            ctx_used: [],
+          },
         )),
       annotation: default_annotation(ann),
     };
     let parens = (~ann=?, t): typslice_t(DefaultAnnotation.t) => {
-      term: `SliceIncr((Slice(Parens(t)), {term_ids: [], ctx_used: []})),
+      term:
+        `SliceIncr((
+          Slice(Parens(t)),
+          {
+            term_ids: [],
+            ctx_used: [],
+          },
+        )),
       annotation: default_annotation(ann),
     };
     let ap = (~ann=?, t1, t2): typslice_t(DefaultAnnotation.t) => {
-      term: `SliceIncr((Slice(Ap(t1, t2)), {term_ids: [], ctx_used: []})),
+      term:
+        `SliceIncr((
+          Slice(Ap(t1, t2)),
+          {
+            term_ids: [],
+            ctx_used: [],
+          },
+        )),
       annotation: default_annotation(ann),
     };
     let rec_ = (~ann=?, tp, t): typslice_t(DefaultAnnotation.t) => {
-      term: `SliceIncr((Slice(Rec(tp, t)), {term_ids: [], ctx_used: []})),
+      term:
+        `SliceIncr((
+          Slice(Rec(tp, t)),
+          {
+            term_ids: [],
+            ctx_used: [],
+          },
+        )),
       annotation: default_annotation(ann),
     };
     let forall = (~ann=?, tp, t): typslice_t(DefaultAnnotation.t) => {
       term:
-        `SliceIncr((Slice(Forall(tp, t)), {term_ids: [], ctx_used: []})),
+        `SliceIncr((
+          Slice(Forall(tp, t)),
+          {
+            term_ids: [],
+            ctx_used: [],
+          },
+        )),
       annotation: default_annotation(ann),
     };
   };
@@ -997,7 +1102,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
 
   module StepperFilter = {
     let filter = (f): stepper_filter_kind_t(DefaultAnnotation.t) => {
-      Filter({pat: map_exp_annotation(x => x, f.pat), act: f.act});
+      Filter({
+        pat: map_exp_annotation(x => x, f.pat),
+        act: f.act,
+      });
     };
     let residue = (i, act): stepper_filter_kind_t(DefaultAnnotation.t) => {
       Residue(i, act);

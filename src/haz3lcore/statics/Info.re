@@ -412,10 +412,35 @@ let rec status_common =
     ) {
     | None =>
       switch (TypSlice.typ_of(ana).term, syn.term) {
-      | (Label(_), _) => InHole(Inconsistent(Expectation({ana, syn})))
-      | _ => InHole(Inconsistent(Expectation({ana, syn})))
+      | (Label(_), _) =>
+        InHole(
+          Inconsistent(
+            Expectation({
+              ana,
+              syn,
+            }),
+          ),
+        )
+      | _ =>
+        InHole(
+          Inconsistent(
+            Expectation({
+              ana,
+              syn,
+            }),
+          ),
+        )
       }
-    | Some(join) => NotInHole(Ana(Consistent({ana, syn, join})))
+    | Some(join) =>
+      NotInHole(
+        Ana(
+          Consistent({
+            ana,
+            syn,
+            join,
+          }),
+        ),
+      )
     }
   | (IsConstructor({name, syn_ty}), _) =>
     /* If a ctr is being analyzed against (an arrow type returning)
@@ -465,13 +490,33 @@ let rec status_common =
     | None =>
       switch (TypSlice.typ_of(ana).term, TypSlice.typ_of(ana).term) {
       | (Label(_), Label(_)) =>
-        InHole(Inconsistent(Expectation({ana, syn})))
+        InHole(
+          Inconsistent(
+            Expectation({
+              ana,
+              syn,
+            }),
+          ),
+        )
       | (Label(_), _) => InHole(NoType(BadLabel(TypSlice(syn))))
-      | _ => InHole(Inconsistent(Expectation({ana, syn})))
+      | _ =>
+        InHole(
+          Inconsistent(
+            Expectation({
+              ana,
+              syn,
+            }),
+          ),
+        )
       }
     | Some(_) =>
       NotInHole(
-        Ana(InternallyInconsistent({ana, nojoin: TypSlice.of_source(tys)})),
+        Ana(
+          InternallyInconsistent({
+            ana,
+            nojoin: TypSlice.of_source(tys),
+          }),
+        ),
       )
     };
   | (NoJoin(_, tys), Syn | SynFun | SynTypFun) =>
@@ -555,7 +600,10 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
    free, and whether a ctr name is a dupe. */
 let status_typ =
     (ctx: Ctx.t, expects: typ_expects, ty: TypSlice.t): status_typ => {
-  let rewrap = term => {...ty, term};
+  let rewrap = term => {
+    ...ty,
+    term,
+  };
   let f_typ = (ty: Typ.term): status_typ =>
     switch (ty) {
     | Unknown(Hole(Invalid(token))) => InHole(BadToken(token))
@@ -922,14 +970,27 @@ let derived_typ = (~utyp: TypSlice.t, ~ctx, ~ancestors, ~expects): typ => {
     | (_, cls) => Cls.TypSlice(cls)
     };
   let status = status_typ(ctx, expects, utyp);
-  {cls, ctx, ancestors, status, expects, term: utyp};
+  {
+    cls,
+    ctx,
+    ancestors,
+    status,
+    expects,
+    term: utyp,
+  };
 };
 
 /* Add derivable attributes for type patterns */
 let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
   let cls = Cls.TPat(TPat.cls_of_term(utpat.term));
   let status = status_tpat(ctx, utpat);
-  {cls, ancestors, status, ctx, term: utpat};
+  {
+    cls,
+    ancestors,
+    status,
+    ctx,
+    term: utpat,
+  };
 };
 
 /* If the info represents some kind of name binding which
@@ -1001,7 +1062,10 @@ let derive_label_inference_info = (original_labels, new_labels) => {
         original_labels,
       );
 
-  MultiLabelInference({reordered, introduced_labels});
+  MultiLabelInference({
+    reordered,
+    introduced_labels,
+  });
 };
 
 let is_label = (info: t): bool =>

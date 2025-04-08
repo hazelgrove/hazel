@@ -1070,7 +1070,10 @@ and TypSlice: {
   and typ_of: type a. Grammar.typslice_t(a) => Grammar.typ_t(a) =
     s => {
       let {term, annotation}: Grammar.typslice_t(a) = s;
-      {term: term |> typ_term_of_term, annotation};
+      {
+        term: term |> typ_term_of_term,
+        annotation,
+      };
     };
 
   let map_term =
@@ -1460,7 +1463,11 @@ and ClosureEnvironment: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = closure_environment_t;
 
-    let wrap = (id, env, call_stack): t => {id, env, call_stack};
+    let wrap = (id, env, call_stack): t => {
+      id,
+      env,
+      call_stack,
+    };
 
     let id_of = (t: t) => t.id;
     let map_of = (t: t) => t.env;
@@ -1539,7 +1546,11 @@ and StepperFilterKind: {
 
   let map = (mapper, filter: t): t => {
     switch (filter) {
-    | Filter({act, pat}) => Filter({act, pat: mapper(pat)})
+    | Filter({act, pat}) =>
+      Filter({
+        act,
+        pat: mapper(pat),
+      })
     | Residue(idx, act) => Residue(idx, act)
     };
   };
@@ -1566,7 +1577,11 @@ and StepperFilterKind: {
       );
     (
       fun
-      | Filter({pat: e, act}) => Filter({pat: exp_map_term(e), act})
+      | Filter({pat: e, act}) =>
+        Filter({
+          pat: exp_map_term(e),
+          act,
+        })
       | Residue(i, a) => Residue(i, a):
         t => t
     );
