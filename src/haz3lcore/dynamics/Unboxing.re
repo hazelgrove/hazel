@@ -35,6 +35,7 @@ type unbox_request('a) =
   | Tuple(int): unbox_request(list(DHExp.t))
   | TupLabel(DHPat.t): unbox_request(DHExp.t)
   | List: unbox_request(list(DHExp.t))
+  | ListLit(int): unbox_request(list(DHExp.t)) // This request is used for performance reasons to prevent casting lists of the wrong length
   | Cons: unbox_request((DHExp.t, DHExp.t))
   | SumNoArg(string): unbox_request(unit)
   | SumWithArg(string): unbox_request(DHExp.t)
@@ -110,6 +111,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
 
     /* Lists can be either lists or list casts */
     | (List, ListLit(l)) => Matches(l)
+    | (ListLit(n), ListLit(l)) when ListUtil.is_length(n, l) => Matches(l)
+    | (ListLit(_), ListLit(_)) => DoesNotMatch
     | (Cons, ListLit([x, ...xs])) =>
       Matches((x, ListLit(xs) |> DHExp.fresh))
     | (Cons, ListLit([])) => DoesNotMatch
@@ -119,6 +122,17 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
           && TypSlice.is_list(~ignore_parens=false, s2) =>
       // TODO: consider if incremental slices on the list should be retained or not here. (currently not)
       let* l = unbox(List, l);
+      let l =
+        List.map(
+          d =>
+            Cast(d, TypSlice.unlist(s1), TypSlice.unlist(s2)) |> DHExp.fresh,
+          l,
+        );
+      let l = List.map(fixup_cast, l);
+      Matches(l);
+    | (ListLit(n), Cast(l, s1, s2))
+        when TypSlice.is_list(s1) && TypSlice.is_list(s2) =>
+      let* l = unbox(ListLit(n), l);
       let l =
         List.map(
           d =>
@@ -225,6 +239,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Fun, DeferredAp(d1, ds)) => Matches(DeferredAp(d1, ds))
 
     /* TypFun-like things can look like the following when values */
+    | (TypFun, Closure(env', {term: TypFun(utpat, tfbody, name), _})) =>
+      Matches(TypFun(utpat, Closure(env', tfbody) |> Exp.fresh, name))
     | (TypFun, TypFun(utpat, tfbody, name)) =>
       Matches(TypFun(utpat, tfbody, name))
     // Note: We might be able to handle this cast like other casts
@@ -269,6 +285,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | Label => raise(EvaluatorError.Exception(InvalidBoxedLabel(expr)))
       | Tuple(_) => raise(EvaluatorError.Exception(InvalidBoxedTuple(expr)))
       | List
+      | ListLit(_)
       | Cons => raise(EvaluatorError.Exception(InvalidBoxedListLit(expr)))
       | SumNoArg(_)
       | SumWithArg(_) =>

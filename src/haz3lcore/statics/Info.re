@@ -775,7 +775,20 @@ let fixed_typ_ok: ok_pat => TypSlice.t =
 
 let fixed_typ_err_common: error_common => TypSlice.t =
   fun
-  | NoType(_) => `Typ(Unknown(Internal)) |> TypSlice.temp
+  | NoType(FreeConstructor(c)) =>
+    Sum([
+      ConstructorMap.Variant(c, [Id.invalid], None),
+      ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+    ])
+    |> Typ.temp
+    |> TypSlice.t_of_typ_t
+  | NoType(BadToken(_))
+  | NoType(BadTrivAp(_))
+  | NoType(WantTuple)
+  | NoType(LabelNotFound(_))
+  | NoType(BadLabel(_))
+  | NoType(InvalidLabel(_)) =>
+    Unknown(Internal) |> Typ.temp |> TypSlice.t_of_typ_t
   | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana

@@ -298,7 +298,13 @@ let rec elaborate_pattern =
         switch (Mode.ctr_ana_typ(ctx, mode, c), Ctx.lookup_ctr(ctx, c)) {
         | (Some(ana_ty), _) => ana_ty
         | (_, Some({typ: syn_ty, _})) => syn_ty
-        | _ => `Typ(Unknown(Internal)) |> TypSlice.temp
+        | _ =>
+          Sum([
+            ConstructorMap.Variant(c, [Id.invalid], None),
+            ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+          ])
+          |> Typ.temp
+          |> TypSlice.t_of_typ_t
         };
       let t = t |> TypSlice.normalize(ctx);
       Constructor(c, t |> TypSlice.typ_of) |> rewrap |> cast_from(t);
@@ -398,7 +404,13 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
         switch (Mode.ctr_ana_typ(ctx, mode, c), Ctx.lookup_ctr(ctx, c)) {
         | (Some(ana_ty), _) => ana_ty
         | (_, Some({typ: syn_ty, _})) => syn_ty
-        | _ => `Typ(Unknown(Internal)) |> TypSlice.temp
+        | _ =>
+          Sum([
+            ConstructorMap.Variant(c, [Id.invalid], None),
+            ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+          ])
+          |> Typ.temp
+          |> TypSlice.t_of_typ_t
         };
       let t = t |> TypSlice.normalize(ctx) |> TypSlice.all_ids_temp;
       Constructor(c, t |> TypSlice.typ_of) |> rewrap |> cast_from(t);
