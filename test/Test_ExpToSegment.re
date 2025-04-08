@@ -356,5 +356,27 @@ let tests = (
     test_case("Function call", `Quick, () => {
       equivalent_to_make_term("a(1, 2)")
     }),
+    test_case("Unit pattern", `Quick, () => {
+      check(
+        string,
+        "Unit pattern",
+        "()",
+        Printer.of_segment(
+          ~holes=Some("?"),
+          ExpToSegment.any_to_segment(
+            ~settings={
+              inline: true,
+              fold_case_clauses: false,
+              fold_fn_bodies: false,
+              hide_fixpoints: false,
+              fold_cast_types: false,
+              show_filters: true,
+              show_unknown_as_hole: true,
+            },
+            Pat(Tuple([]) |> Pat.fresh),
+          ),
+        ),
+      )
+    }),
   ],
 );
