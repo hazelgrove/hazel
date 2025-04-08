@@ -49,8 +49,12 @@ let work = (res: Request.value, search, n): Response.value =>
   | results =>
     Ok((
       results
-      |> Haz3lcore.Nondeterminism.DFS.run_n(~solutions=n)
-      |> (l => List.nth(l, n)),
+      |> Haz3lcore.Nondeterminism.DFS.run_n(~solutions=n + 1)
+      |> (l => List.nth_opt(l, n))
+      |> Option.value(
+           ~default=
+             Var("No more instantiations possible.") |> Haz3lcore.DHExp.fresh,
+         ),
       Haz3lcore.EvaluatorState.init // TODO: thread state
     ))
   };

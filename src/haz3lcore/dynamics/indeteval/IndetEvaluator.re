@@ -47,6 +47,7 @@ module Make = (S: Search) => {
   };
 
   // Standard expressions to search for
+  let all = search(Searching.all);
   let boxed_values = search(Searching.boxed_values);
   let indet_values = search(Searching.indet_values);
   let expressions = search(Searching.expressions);

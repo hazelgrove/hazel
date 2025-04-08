@@ -10,6 +10,8 @@ module Make = (S: Search) => {
   type t('a) = (DHExp.t, tag) => S.t('a);
   type expert_t('a) = (DHExp.t, expert_tag) => (S.t('a), S.t(DHExp.t));
 
+  let all: t('a) = S.((d, _) => return(d));
+
   let boxed_values: t('a) =
     S.(
       d =>

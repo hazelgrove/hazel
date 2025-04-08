@@ -38,7 +38,7 @@ let print =
     };
   | "F8" => statics.elaborated |> Exp.show |> print
   | "F9" =>
-    let results = statics.elaborated |> values(Builtins.env_init);
+    let results = statics.elaborated |> all(Builtins.env_init);
     let _ =
       results
       |> Nondeterminism.DFS.run_n(~solutions=30)
