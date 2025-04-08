@@ -136,7 +136,8 @@ let is_parens = (typ: t) => {
 // ignore_parens=false can give a syntactic notion (e.g. for use in pattern matching).
 let rec is_arrow = (~ignore_parens=true, typ: t) => {
   switch (typ.term) {
-  | Parens(typ) => is_arrow(typ)
+  | Parens(typ)
+  | TupLabel(_, typ) => ignore_parens ? is_arrow(typ) : false
   | Arrow(_) => true
   | Unknown(_)
   | Int
@@ -146,7 +147,6 @@ let rec is_arrow = (~ignore_parens=true, typ: t) => {
   | List(_)
   | Label(_)
   | Prod(_)
-  | TupLabel(_)
   | Var(_)
   | Ap(_)
   | Sum(_)
@@ -220,7 +220,8 @@ let rec is_forall = (~ignore_parens=true, typ: t) => {
 
 let rec is_sum = (~ignore_parens=true, typ: t) => {
   switch (typ.term) {
-  | Parens(typ) => ignore_parens ? false : is_sum(typ)
+  | Parens(typ)
+  | TupLabel(_, typ) => ignore_parens ? false : is_sum(typ)
   | Sum(_) => true
   | Unknown(_)
   | Int
@@ -231,7 +232,6 @@ let rec is_sum = (~ignore_parens=true, typ: t) => {
   | List(_)
   | Prod(_)
   | Label(_)
-  | TupLabel(_)
   | Var(_)
   | Ap(_)
   | Forall(_)
