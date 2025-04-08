@@ -76,6 +76,12 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (_, Cast(d, x, {term: Parens(y), _})) =>
       unbox(request, Cast(d, x, y) |> DHExp.fresh)
 
+    /* $e and $v could have any type, but are indet */
+
+    | (_, UnOp(Meta(Unquote), _)) => IndetMatch
+    | (_, Constructor(c, _)) when String.starts_with(c, ~prefix="$") =>
+      IndetMatch
+
     /* TupLabels can be anything except for tuplabels with unmatching labels */
     | (TupLabel(tuplabel), TupLabel(_, e)) =>
       if (Option.equal(
