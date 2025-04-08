@@ -567,7 +567,11 @@ let rec join_using =
       (
         `SliceIncr((
           Slice(Forall(x2, s_body)),
-          choose_branch(branch_used, slice_incr1, slice_incr2),
+          choose_branch(
+            combine_branches_used(branch_used, Right),
+            slice_incr1,
+            slice_incr2,
+          ),
         ))
         |> temp,
         branch_used,
@@ -691,7 +695,11 @@ let rec join_using =
       (
         `SliceIncr((
           Slice(Forall(x2, s_body)),
-          choose_branch(branch_used, slice_incr, empty_slice_incr),
+          choose_branch(
+            combine_branches_used(branch_used, Right),
+            slice_incr,
+            empty_slice_incr,
+          ),
         ))
         |> temp,
         branch_used,
@@ -815,7 +823,11 @@ let rec join_using =
       (
         `SliceIncr((
           Slice(Forall(x2, s_body)),
-          choose_branch(branch_used, empty_slice_incr, slice_incr2),
+          choose_branch(
+            combine_branches_used(branch_used, Right),
+            empty_slice_incr,
+            slice_incr2,
+          ),
         ))
         |> temp,
         branch_used,

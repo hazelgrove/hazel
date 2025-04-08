@@ -444,7 +444,10 @@ let rec join_using =
         };
       let ctx = Ctx.extend_dummy_tvar(ctx, x2);
       let+ (ty_body, branch_used) = join_using(~resolve, ctx, ty1', ty2);
-      (Forall(x2, ty_body) |> temp, branch_used);
+      (
+        Forall(x2, ty_body) |> temp,
+        combine_branches_used(branch_used, Right),
+      );
     /* Note for above: there is no danger of free variable capture as
        subst itself performs capture avoiding substitution. However this
        may generate internal type variable names that in corner cases can
