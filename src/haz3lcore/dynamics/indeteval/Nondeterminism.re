@@ -16,6 +16,10 @@ module type Search = {
   // Fair conjunction
   let fbind: (t('a), ~f: 'a => t('b)) => t('b);
 
+  // Lazily apply a function, used to avoid OCaml strictness causing infinite overflow
+  // apply(f, x) is return(x) >>= x => f(x)
+  let apply: ('a => t('b), 'a) => t('b);
+
   // Mapping
   let map: (t('a), ~f: 'a => 'b) => t('b);
   let join: t(t('a)) => t('a);
@@ -52,7 +56,7 @@ module type Search = {
 
   // Retrieving answers
   let run: t('a) => Sequence.t('a);
-  let run_n: (~solutions: int, t('a)) => list('a);
+  let run_n: (t('a), ~solutions: int) => list('a);
 
   module Infix: {
     // Conjunction
@@ -88,6 +92,7 @@ module DFS: Search = {
   let fchoice = (s1, s2) => [s1, s2] |> of_list |> interleave;
   let fbind = (s, ~f) => interleave(s >>| f);
   let wrap = x => x;
+  let apply = (f, x) => bind(return(x), ~f);
 
   let fjoin = interleave;
   let concat = s => s |> of_list |> concat;
@@ -102,7 +107,7 @@ module DFS: Search = {
   let guard = b => b ? return() : fail;
 
   let run = x => x;
-  let run_n = (~solutions, s) => take(s, solutions) |> to_list;
+  let run_n = (s, ~solutions) => take(s, solutions) |> to_list;
 
   module Infix = {
     // Conjunction
@@ -132,7 +137,7 @@ module DFS: Search = {
   };
 };
 
-module BFS = {
+module BFS: Search = {
   open Sequence;
   // These inner sequences are _bags_.
   // Their order of elements doe not matter.
@@ -152,9 +157,9 @@ module BFS = {
     );
   let fchoice = choice;
 
-  let concat = fold(~init=fail, ~f=choice);
+  let concat = l => List.fold_right(choice, l, fail);
 
-  let interleave = fold(~init=fail, ~f=fchoice);
+  let interleave = l => List.fold_right(fchoice, l, fail);
 
   let rec bind_gen =
           (m: t('a), f: 'a => t('b)): Generator.t(unit, list('b)) =>
@@ -175,18 +180,16 @@ module BFS = {
 
   let fbind = bind;
 
-  let map = (m, ~f) => m >>| (m' => m' >>| f);
+  let map = (m, ~f) => m >>| List.map(f);
 
   let join: t(t('a)) => t('a) = m => bind(m, ~f=x => x);
   let fjoin = m => fbind(m, ~f=x => x);
 
   let wrap = m => append(empty, m);
+  let apply = (f, x) => bind(return(x), ~f);
 
   let once = m =>
-    m
-    |> find(~f=b => !List.is_empty(b))
-    |> Option.map(List.hd)
-    |> Option.join;
+    m |> find(~f=b => !List.is_empty(b)) |> Option.map(List.hd);
   let ifte = (m, ~thn, ~els) =>
     switch (once(m)) {
     | None => els
@@ -194,8 +197,9 @@ module BFS = {
     };
   let guard = b => b ? return() : fail;
 
-  let run = Sequence.interleave;
-  let run_n = (~solutions, m) => take(Sequence.interleave(m), solutions);
+  let run = m => m |> Sequence.map(~f=Sequence.of_list) |> Sequence.concat;
+  let run_n = (m, ~solutions) =>
+    Sequence.take(run(m), solutions) |> Sequence.to_list;
 
   module Infix = {
     // Conjunction
@@ -272,6 +276,7 @@ module Bounded = (Config: BoundsConfig) : Search => {
     fun
     | {depth: 0} => []
     | {depth} => m({depth: depth - 1});
+  let apply = (f, x) => bind(return(x), ~f);
 
   let map: type a b. (t(a), ~f: a => b) => t(b) =
     (m, ~f) => bind(m, ~f=x => return(f(x)));
@@ -304,7 +309,7 @@ module Bounded = (Config: BoundsConfig) : Search => {
     )
     |> Sequence.concat;
 
-  let run_n = (~solutions, m) =>
+  let run_n = (m, ~solutions) =>
     Sequence.(take(run(m), solutions) |> to_list);
 
   let once = m => m |> run_n(~solutions=1) |> Util.ListUtil.hd_opt;

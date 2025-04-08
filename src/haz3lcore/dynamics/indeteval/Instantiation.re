@@ -16,8 +16,12 @@ module Make =
   let bool_lits =
     return(Bool(true) |> DHExp.fresh)
     <||> return(Bool(false) |> DHExp.fresh);
-  let rec ints_from = n => return(n) <||> wrap(ints_from(n + 1));
-  let rec ints_to = n => return(n) <||> wrap(ints_to(n - 1));
+  // Using bind to carefully avoid infinite recursion as OCaml is strict.
+  // To represent lazily 
+  let rec ints_from = n =>
+    return(n) <||> wrap(return(n) >>- (n => ints_from(n + 1)));
+  let rec ints_to = n =>
+    return(n) <||> wrap(return(n) >>- (n => ints_to(n - 1)));
   let ints = ints_to(0) <|> ints_from(1);
   let int_lits = ints >>| (i => Int(i) |> DHExp.fresh);
   let float_lits = ints >>| (i => Float(Float.of_int(i)) |> DHExp.fresh); // Approximating floats by just enumerating ints
