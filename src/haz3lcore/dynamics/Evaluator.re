@@ -10,21 +10,56 @@ module Trampoline = {
   type callstack('a, 'b) =
     | Finished: callstack('a, 'a)
     | Continue('a => t('b), callstack('b, 'c)): callstack('a, 'c);
-
-  let rec run: type a b. (t(b), callstack(b, a)) => a =
-    (t: t(b), callstack: callstack(b, a)) => (
-      switch (t) {
-      | Bind(t, f) => (run(t, Continue(f, callstack)): a)
-      | Next(f) => run(f(), callstack)
-      | Done(x) =>
-        switch (callstack) {
-        | Finished => x
-        | Continue(f, callstack) => run(f(x), callstack)
-        }
+  let rec run:
+    type a b.
+      (~step_limit: int=?, ~step_counter: int=?, t(b), callstack(b, a)) => a =
+    (
+      ~step_limit: option(int)=?,
+      ~step_counter=0,
+      t: t(b),
+      callstack: callstack(b, a),
+    ) => (
+      // if (step_counter > 0 && step_counter mod 1000 == 0) {
+      //   print_endline(
+      //     "Step: "
+      //     ++ string_of_int(step_counter)
+      //     ++ ", "
+      //     ++ string_of_int(Option.value(~default=0, step_limit)),
+      //   );
+      // };
+      {
+        switch (step_limit) {
+        | Some(x) when x <= step_counter =>
+          raise(Failure("Step limit reached"))
+        | _ => ()
+        };
+        switch (t) {
+        | Bind(t, f) =>
+          run(
+            ~step_limit?,
+            ~step_counter=step_counter + 1,
+            t,
+            Continue(f, callstack),
+          )
+        | Next(f) =>
+          run(~step_limit?, ~step_counter=step_counter + 1, f(), callstack)
+        | Done(x) =>
+          switch (callstack) {
+          | Finished => x
+          | Continue(f, callstack) =>
+            run(
+              ~step_limit?,
+              ~step_counter=step_counter + 1,
+              f(x),
+              callstack,
+            )
+          }
+        };
       }: a
     );
 
-  let run = run(_, Finished);
+  let run = (~step_limit: option(int)=?, t) =>
+    run(~step_limit?, t, Finished);
 
   let return = x => Done(x);
 
@@ -116,11 +151,11 @@ let rec evaluate = (~in_closure=?, state, env, d) => {
   };
 };
 
-let evaluate = (~env, d: DHExp.t) => {
+let evaluate = (~step_limit: option(int)=?, ~env, d: DHExp.t) => {
   let state = ref(EvaluatorState.init);
   let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);
-  let result = Trampoline.run(result);
+  let result = Trampoline.run(~step_limit?, result);
   let result =
     switch (result) {
     | (Final, x) => x |> Exp.replace_all_ids
