@@ -17,7 +17,7 @@ module Response = {
   [@deriving (show, sexp, yojson)]
   type value =
     Result.t(
-      (Haz3lcore.ProgramResult.Result.t, Haz3lcore.EvaluatorState.t),
+      (Haz3lcore.Exp.t, Haz3lcore.EvaluatorState.t),
       Haz3lcore.ProgramResult.error,
     );
   [@deriving (show, sexp, yojson)]
@@ -48,12 +48,10 @@ let work = (res: Request.value, search, n): Response.value =>
   //| (state, result) => Ok((result, state))
   | results =>
     Ok((
-      BoxedValue(
-        results
-        |> Haz3lcore.Nondeterminism.DFS.run_n(~solutions=n)
-        |> (l => List.nth(l, n)),
-      ),
-      Haz3lcore.EvaluatorState.init,
+      results
+      |> Haz3lcore.Nondeterminism.DFS.run_n(~solutions=n)
+      |> (l => List.nth(l, n)),
+      Haz3lcore.EvaluatorState.init // TODO: thread state
     ))
   };
 

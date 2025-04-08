@@ -14,64 +14,10 @@ let mk = (ids, term): t => {
   {
     term,
     annotation: {
-      ids,
-      copied: true,
+      ids: ids,
     },
   };
 };
-
-// TODO: make this function emit a map of changes
-let repair_ids =
-  map_term(
-    ~f_exp=
-      (continue, exp) =>
-        if (IdTagged.copied(exp)) {
-          replace_all_ids(exp);
-        } else {
-          continue(exp);
-        },
-    ~f_typ=
-      (continue, typ) =>
-        if (Typ.rep_id(typ) == Id.invalid) {
-          replace_all_ids_typ(typ);
-        } else {
-          continue(typ);
-        },
-    ~f_typslice=
-      (continue, typ) =>
-        if (TypSlice.rep_id(typ) == Id.invalid) {
-          replace_all_ids_typslice(typ);
-        } else {
-          continue(typ);
-        },
-    _,
-  );
-
-let repair_ids_typ =
-  Typ.map_term(
-    ~f_exp=
-      (continue, exp) =>
-        if (Exp.rep_id(exp) == Id.invalid) {
-          replace_all_ids(exp);
-        } else {
-          continue(exp);
-        },
-    ~f_typ=
-      (continue, typ) =>
-        if (IdTagged.copied(typ)) {
-          replace_all_ids_typ(typ);
-        } else {
-          continue(typ);
-        },
-    ~f_typslice=
-      (continue, typ) =>
-        if (IdTagged.copied(typ)) {
-          replace_all_ids_typslice(typ);
-        } else {
-          continue(typ);
-        },
-    _,
-  );
 
 // Also strips static error holes - kinda like unelaboration
 let rec strip_casts =

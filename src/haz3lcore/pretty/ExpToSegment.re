@@ -805,10 +805,9 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
   };
 
 /* We assume that parentheses have already been added as necessary, and
-      that the expression has no DynamicErrorHoles, Casts, or FailedCasts
+      that the expression has no Closures, DynamicErrorHoles, Casts, or FailedCasts
    */
 let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
-  let exp = Exp.substitute_closures(Environment.empty, exp);
   let go = (~inline=settings.inline) =>
     exp_to_pretty(
       ~settings={
@@ -1602,10 +1601,7 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
 };
 
 let exp_to_segment = (~settings: Settings.t, exp: Exp.t): Segment.t => {
-  let exp =
-    exp
-    |> Exp.substitute_closures(Builtins.env_init)
-    |> parenthesize(~show_filters=settings.show_filters);
+  let exp = exp |> parenthesize(~show_filters=settings.show_filters);
   let p = exp_to_pretty(~settings, exp);
   p |> PrettySegment.select;
 };

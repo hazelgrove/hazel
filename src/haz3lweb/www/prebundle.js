@@ -1,5 +1,7 @@
-import {NinjaKeys} from 'https://unpkg.com/ninja-keys?module';
-import hotkeys from "https://unpkg.com/hotkeys-js@3.8.7?module"
+
+// This file is bundled into bundle.js as part of the build process.
+import {NinjaKeys} from 'ninja-keys';
+import hotkeys from 'hotkeys-js'
 
 
 // This is the default behavior for the hotkeys module but I'm overriding it for the clipboard-shim

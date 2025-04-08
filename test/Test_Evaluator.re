@@ -7,17 +7,13 @@ let evaluation_test = (msg, expected, unevaluated) =>
     dhexp_typ,
     msg,
     expected,
-    unevaluated
-    |> Evaluator.evaluate'(Builtins.env_init)
-    |> snd
-    |> ProgramResult.Result.unbox
-    |> Exp.substitute_closures(Builtins.env_init),
+    unevaluated |> Evaluator.evaluate(~env=Builtins.env_init) |> fst,
   );
 
 let evaluate_probes = unevaluated =>
   unevaluated
-  |> Evaluator.evaluate'(Builtins.env_init)
-  |> fst
+  |> Evaluator.evaluate(~env=Builtins.env_init)
+  |> snd
   |> EvaluatorState.get_probes;
 
 let parse_exp = (s: string) => {
@@ -80,9 +76,7 @@ let expected_probe_pat =
   annotation: probes,
 };
 let parse_and_evaluate = (s: string) =>
-  ProgramResult.Result.unbox(
-    snd(Evaluator.evaluate'(Builtins.env_init, elaborate(parse_exp(s)))),
-  );
+  fst(Evaluator.evaluate(~env=Builtins.env_init, elaborate(parse_exp(s))));
 
 let parse_and_evaluate_test =
     (~msg: option(string)=?, expected: string, actual: string) =>

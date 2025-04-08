@@ -23,7 +23,6 @@ module PlainTests = {
     term: Int(8),
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
   let single_integer = () =>
@@ -33,7 +32,6 @@ module PlainTests = {
     term: EmptyHole,
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
   let empty_hole = () => alco_check("Empty hole", u2, dhexp_of_uexp(u2));
@@ -43,13 +41,11 @@ module PlainTests = {
       Parens({
         term: Var("y"),
         annotation: {
-          copied: false,
           ids: [id_at(1)],
         },
       }),
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
 
@@ -911,7 +907,6 @@ module MenhirElaborationTests = {
     term: EmptyHole,
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
   let empty_hole_menhir = () =>
@@ -924,12 +919,10 @@ module MenhirElaborationTests = {
         term: Var("y"),
         annotation: {
           ids: [id_at(1)],
-          copied: false,
         },
       }),
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
   let free_var_menhir = () =>
@@ -998,7 +991,6 @@ module MenhirElaborationTests = {
     term: Int(8),
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
   let single_integer_menhir = () =>
@@ -1072,7 +1064,6 @@ module MenhirElaborationTests = {
       ),
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
   let dynamic_error_hole_menhir = () =>
@@ -1087,7 +1078,6 @@ module MenhirElaborationTests = {
     term: BuiltinFun("infinity"),
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
   let builtin_fun_menhir = () =>
@@ -1102,7 +1092,6 @@ module MenhirElaborationTests = {
     term: Undefined,
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
   let undef_menhir = () =>
@@ -1113,7 +1102,6 @@ module MenhirElaborationTests = {
     term: Test(Int(1) |> Exp.fresh),
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
   let test_menhir = () =>
@@ -1129,7 +1117,6 @@ module MenhirElaborationTests = {
     term: Filter(stepper_filter_kind, Int(0) |> Exp.fresh),
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
   let filter_menhir = () =>
@@ -1156,7 +1143,6 @@ undef
       ]),
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
   let list_exp_menhir = () =>
@@ -1181,7 +1167,6 @@ x
       ),
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
   let ty_alias_menhir = () =>
@@ -1200,7 +1185,6 @@ x
       ),
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
   let list_concat_menhir = () =>
@@ -1215,7 +1199,6 @@ x
     term: UnOp(Int(Minus), Int(1) |> Exp.fresh),
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
   let unop_menhir = () =>
@@ -1226,7 +1209,6 @@ x
     term: Seq(Int(1) |> Exp.fresh, Int(2) |> Exp.fresh),
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
   let seq_menhir = () =>
@@ -1237,7 +1219,6 @@ x
     term: FixF(Var("x") |> Pat.fresh, Int(1) |> Exp.fresh, None),
     annotation: {
       ids: [id_at(0)],
-      copied: false,
     },
   };
   let fixf_menhir = () =>

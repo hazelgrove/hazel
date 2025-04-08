@@ -1,14 +1,5 @@
+open Util;
 open Transition;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type step = {
-  d: DHExp.t, // technically can be calculated from d_loc and ctx
-  state: EvaluatorState.t,
-  d_loc: DHExp.t, // the expression at the location given by ctx
-  d_loc': DHExp.t,
-  ctx: EvalCtx.t,
-  knd: step_kind,
-};
 
 module EvalObj = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -25,11 +16,6 @@ module EvalObj = {
     d_loc,
     knd,
   };
-
-  let get_ctx = (obj: t): EvalCtx.t => {
-    obj.ctx;
-  };
-  let get_kind = (obj: t): step_kind => obj.knd;
 
   let wrap = (f: EvalCtx.t => EvalCtx.t, obj: t) => {
     ...obj,
@@ -238,30 +224,6 @@ let should_hide_eval_obj =
     };
   };
 
-let should_hide_step = (~settings, x: step): (FilterAction.action, step) =>
-  if (should_hide_step_kind(~settings, x.knd)) {
-    (Eval, x);
-  } else {
-    let (act, _, ctx) =
-      matches(ClosureEnvironment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
-    switch (act) {
-    | (Eval, _) => (
-        Eval,
-        {
-          ...x,
-          ctx,
-        },
-      )
-    | (Step, _) => (
-        Step,
-        {
-          ...x,
-          ctx,
-        },
-      )
-    };
-  };
-
 module Decompose = {
   module Result = {
     type t =
@@ -357,7 +319,14 @@ module Decompose = {
   module Decomp = Transition(DecomposeEVMode);
   let rec decompose = (~in_closure=?, state, env, exp) => {
     switch (exp) {
-    | _ => Decomp.transition(decompose, ~in_closure?, state, env, exp)
+    | _ =>
+      Decomp.transition(
+        decompose,
+        ~in_closure=Option.value(~default=() => (), in_closure),
+        state,
+        env,
+        exp,
+      )
     };
   };
 };
@@ -404,12 +373,12 @@ module TakeStep = {
   let take_step = (~in_closure=?, state, env, d) =>
     TakeStepEV.transition(
       (~in_closure as _=?, _, _, _) => None,
-      ~in_closure?,
+      ~in_closure=Option.value(~default=() => (), in_closure),
       state,
       env,
       d,
     )
-    |> Option.map(DHExp.repair_ids);
+    |> Option.map(DHExp.replace_all_ids);
 };
 
 let take_step = TakeStep.take_step;
@@ -418,4 +387,64 @@ let decompose = (d: DHExp.t, es: EvaluatorState.t) => {
   let env = ClosureEnvironment.of_environment(Builtins.env_init);
   let rs = Decompose.decompose(ref(es), env, d);
   Decompose.Result.unbox(rs);
+};
+
+/* ========== PUBLIC METHODS ========== */
+open OptUtil.Syntax;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type step = EvalObj.t;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type status =
+  | AutoStep(step)
+  | AvailableSteps(list(step));
+
+let get_status = (~settings: CoreSettings.t, exp, state) => {
+  print_endline("EXP: " ++ (exp |> Exp.show));
+  let eos =
+    decompose(exp, state)
+    |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
+  switch (List.find_opt(((x, _)) => x == FilterAction.Eval, eos)) {
+  | Some((_, x)) => AutoStep(x)
+  | None => AvailableSteps(List.map(((_, x)) => x, eos))
+  };
+};
+
+let get_step_id = (step: step): Id.t => step.d_loc |> DHExp.rep_id;
+
+let get_step_kind = (step: step): step_kind => step.knd;
+
+let take_step = (step: EvalObj.t) => {
+  let state = ref(EvaluatorState.init); // HACK: state isn't actually carried through the stepper...
+  let+ next_expr = take_step(state, step.env, step.d_loc);
+  let next_expr = {
+    ...next_expr,
+    annotation: IdTagged.IdTag.{ids: step.d_loc |> IdTagged.ids},
+  };
+  let next_state = state^;
+  let next_expr =
+    EvalCtx.compose(step.ctx, next_expr)
+    |> Exp.replace_all_ids
+    |> DHExp.substitute_closures(Builtins.env_init);
+  (next_expr, next_state);
+};
+
+let refresh_step =
+    (
+      ~settings: CoreSettings.t,
+      exp: Exp.t,
+      state: EvaluatorState.t,
+      step: step,
+    ) => {
+  let eos =
+    decompose(exp, state)
+    |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
+  let* (_, x) =
+    List.find_opt(
+      ((_, step': step)) =>
+        IdTagged.ids(step'.d_loc) == IdTagged.ids(step.d_loc),
+      eos,
+    );
+  Some(x);
 };

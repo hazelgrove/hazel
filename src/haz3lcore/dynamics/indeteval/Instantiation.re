@@ -80,7 +80,8 @@ module Make =
       e =>
         Cast(e, t, TypSlice.hole([]) |> TypSlice.fresh)
         |> DHExp.fresh
-        |> Evaluator.evaluate''(Builtins.env_init)
+        |> Evaluator.evaluate(~env=Builtins.env_init)
+        |> fst
     ); // Evaluate to fixup casts
 
   // Hole Substitution. Replaces all holes of id: hole_id with an instantiation
@@ -100,7 +101,8 @@ module Make =
                      |> ClosureEnvironment.map(((_, d)) =>
                           d
                           |> subst_term(d', hole_id)
-                          |> Evaluator.evaluate''(Builtins.env_init)
+                          |> Evaluator.evaluate(~env=Builtins.env_init)
+                          |> fst
                         ),
                      continue(d),
                    ),
@@ -116,7 +118,8 @@ module Make =
                           ClosureEnvironment.map(((_, d)) =>
                             d
                             |> subst_term(d', hole_id)
-                            |> Evaluator.evaluate''(Builtins.env_init)
+                            |> Evaluator.evaluate(~env=Builtins.env_init)
+                            |> fst
                           ),
                         ),
                    ),

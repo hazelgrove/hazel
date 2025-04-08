@@ -9,7 +9,7 @@ exception MissingTypeInfo;
 module ElaborationResult = {
   [@deriving sexp]
   type t =
-    | Elaborates(DHExp.t, TypSlice.t, Delta.t)
+    | Elaborates(DHExp.t, TypSlice.t)
     | DoesNotElaborate;
 };
 
@@ -887,5 +887,5 @@ let fix_typ_ids =
 let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t =>
   switch (elaborate(m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
-  | (d, ty) => Elaborates(d |> fix_typ_ids, ty, Delta.empty)
+  | (d, ty) => Elaborates(d |> fix_typ_ids, ty)
   };
