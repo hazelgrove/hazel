@@ -976,6 +976,21 @@ let tests = (
         {|let x : forall a -> a = in let y : forall b -> b = x in 1|},
         Some(int()),
       ),
+      fully_consistent_typecheck(
+        "Fixpoint in function position",
+        {|(fix f : (Int -> Int) -> fun x -> x + 1)(3)|},
+        Some(int()),
+      ),
+      fully_consistent_typecheck(
+        "nested_sum_constructors",
+        {|
+case (? : (rec t -> +Z+S(t)))
+  | S(S(x)) => 1
+  | _ => 2
+end
+        |},
+        Some(int()),
+      ),
     ]
   ),
 );
