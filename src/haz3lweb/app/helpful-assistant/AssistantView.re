@@ -284,7 +284,7 @@ let api_input =
       input(
         ~attrs=[
           Attr.id("api-input"),
-          Attr.placeholder("Enter your API key..."),
+          Attr.placeholder("Enter your OpenRouter API key..."),
           Attr.type_("password"),
           Attr.property("autocomplete", Js.Unsafe.inject("off")),
           Attr.on_focus(_ =>
@@ -299,30 +299,48 @@ let api_input =
         (),
       ),
       div(
-        ~attrs=[clss(["chat-button"]), Attr.on_click(submit_key)],
-        [Widgets.button_named(~tooltip="Update API Key", None, submit_key)],
-      ),
-      div(
-        ~attrs=[clss(["chat-button"]), Attr.on_click(toggle_visibility)],
+        ~attrs=[clss(["assistant-info-container"])],
         [
-          Widgets.button_named(
-            ~tooltip="Show/Hide Key",
-            None,
-            toggle_visibility,
+          text("You can find or create an OpenRouter API key "),
+          a(
+            ~attrs=[
+              Attr.href("https://openrouter.ai/settings/keys"),
+              Attr.target("_blank"),
+            ],
+            [text("here")],
           ),
         ],
       ),
+      div(
+        ~attrs=[clss(["chat-button"]), Attr.on_click(submit_key)],
+        [Widgets.button_named(~tooltip="Update API Key", None, submit_key)],
+      ),
       div(~attrs=[clss(["text-display"])], [text("Current API Key:\n")]),
       div(
-        ~attrs=[clss(["api-key-display"]), Attr.id("api-key-display")],
+        ~attrs=[clss(["api-key-row"])],
         [
-          text(
-            switch (Store.Generic.load("API")) {
-            | Some(key) when String.length(key) > 0 =>
-              assistantModel.show_api_key
-                ? key : String.make(String.length(key), '*')
-            | _ => "No API key set"
-            },
+          div(
+            ~attrs=[clss(["api-key-display"]), Attr.id("api-key-display")],
+            [
+              text(
+                switch (Store.Generic.load("API")) {
+                | Some(key) when String.length(key) > 0 =>
+                  assistantModel.show_api_key
+                    ? key : String.make(String.length(key), '*')
+                | _ => "No API key set"
+                },
+              ),
+            ],
+          ),
+          div(
+            ~attrs=[clss(["toggle-show-button"])],
+            [
+              Widgets.button(
+                ~tooltip="Show/Hide Key",
+                assistantModel.show_api_key ? Icons.visible : Icons.invisible,
+                toggle_visibility,
+              ),
+            ],
           ),
         ],
       ),
