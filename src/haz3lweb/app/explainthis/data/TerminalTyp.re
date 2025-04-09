@@ -2,10 +2,32 @@ open Example;
 open ExplainThisForm;
 
 let int_typ: form = {
-  let explanation = "The `Int` type classifies 32-bit signed integer values.";
+  let explanation = "The `Int` type classifies (unbounded) integer values.";
   {
     id: IntTyp,
-    syntactic_form: [typ("Int")],
+    syntactic_form: [typ("SInt")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let sint_typ: form = {
+  let explanation = "The `SInt` type classifies 32-bit signed integer values.";
+  {
+    id: SIntTyp,
+    syntactic_form: [typ("SInt")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let nat_typ: form = {
+  let explanation = "The `Nat` type classifies natural numbers (integers >= 0).";
+  {
+    id: NatTyp,
+    syntactic_form: [typ("Nat")],
     expandable_id: None,
     explanation,
     examples: [],
@@ -59,6 +81,14 @@ let var_typ = (name: string): form => {
 let int: group = {
   id: IntTyp,
   forms: [int_typ],
+};
+let sint: group = {
+  id: IntTyp,
+  forms: [int_typ],
+};
+let nat: group = {
+  id: NatTyp,
+  forms: [nat_typ],
 };
 
 let float: group = {

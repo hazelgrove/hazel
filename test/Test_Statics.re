@@ -49,7 +49,7 @@ let testable_info_error_exp =
 let testable_error: testable(Info.error) =
   testable(Fmt.using(Info.show_error, Fmt.string), (==));
 
-let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init);
+let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 
 let parse_exp = (s: string) => {
   switch (MakeTerm.parse_exp(s)) {
@@ -204,7 +204,9 @@ let tests = (
             Exp.(
               let_(
                 Pat.(var("x")),
-                parens(tuple([int(1), int(2)])),
+                parens(
+                  tuple([int(Bigint.of_int(1)), int(Bigint.of_int(2))]),
+                ),
                 let_(
                   Pat.(
                     cast(
@@ -329,7 +331,7 @@ let tests = (
                         )
                       ),
                     ),
-                  1,
+                  Bigint.of_int(1),
                 ),
                 var("x"),
               )
@@ -482,7 +484,7 @@ let tests = (
                         ),
                       ),
                     [
-                      int(1),
+                      int(Bigint.of_int(1)),
                       float(1.2),
                       tup_label(
                         ~ann=
@@ -603,7 +605,7 @@ let tests = (
                           ),
                         "a",
                       ),
-                      int(3),
+                      int(Bigint.of_int(3)),
                     ),
                   ],
                 ),
@@ -624,14 +626,18 @@ let tests = (
                       Common(
                         NoType(
                           BadLabel(
-                            Exp(FTemp.Exp.(multi_hole([Exp(int(1))]))),
+                            Exp(
+                              FTemp.Exp.(
+                                multi_hole([Exp(int(Bigint.of_int(1)))])
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                tuple([int(1), int(2)]),
-                multi_hole([Exp(int(1))]),
+                tuple([int(Bigint.of_int(1)), int(Bigint.of_int(2))]),
+                multi_hole([Exp(int(Bigint.of_int(1)))]),
               )
             )
           ),
@@ -730,7 +736,13 @@ let tests = (
                           Common(
                             TupleLabelError({
                               malformed_labels: [
-                                Exp.(Exp(multi_hole([Exp(int(1))]))),
+                                Exp.(
+                                  Exp(
+                                    multi_hole([
+                                      Exp(int(Bigint.of_int(1))),
+                                    ]),
+                                  )
+                                ),
                               ],
                               duplicate_labels: [],
                               invalid_labels: [],
@@ -755,7 +767,13 @@ let tests = (
                               Common(
                                 TupleLabelError({
                                   malformed_labels: [
-                                    Exp.(Exp(multi_hole([Exp(int(1))]))),
+                                    Exp.(
+                                      Exp(
+                                        multi_hole([
+                                          Exp(int(Bigint.of_int(1))),
+                                        ]),
+                                      )
+                                    ),
                                   ],
                                   duplicate_labels: [],
                                   invalid_labels: [],
@@ -776,18 +794,24 @@ let tests = (
                                 Common(
                                   NoType(
                                     BadLabel(
-                                      Exp.(Exp(multi_hole([Exp(int(1))]))),
+                                      Exp.(
+                                        Exp(
+                                          multi_hole([
+                                            Exp(int(Bigint.of_int(1))),
+                                          ]),
+                                        )
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
                             )
                           ),
-                        [Exp(int(1))],
+                        [Exp(int(Bigint.of_int(1)))],
                       ),
                       string("hello"),
                     ),
-                    tup_label(label("a"), int(3)),
+                    tup_label(label("a"), int(Bigint.of_int(3))),
                   ],
                 ),
               )
@@ -884,7 +908,7 @@ let tests = (
                               ),
                             "c",
                           ),
-                          int(1),
+                          int(Bigint.of_int(1)),
                         );
                       },
                       tup_label(label("a"), string("hello")),
@@ -925,8 +949,8 @@ let tests = (
                         ),
                       ),
                     [
-                      tup_label(label("a"), int(1)),
-                      tup_label(label("b"), int(2)),
+                      tup_label(label("a"), int(Bigint.of_int(1))),
+                      tup_label(label("b"), int(Bigint.of_int(2))),
                     ],
                   ),
                 ),
@@ -943,7 +967,7 @@ let tests = (
           FIError.Exp.(
             bin_op(
               Int(Plus),
-              int(1),
+              int(Bigint.of_int(1)),
               string(
                 ~ann=
                   Some(

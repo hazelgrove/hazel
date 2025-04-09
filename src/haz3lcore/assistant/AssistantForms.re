@@ -14,11 +14,11 @@ module Typ = {
   let unk: Typ.t = Unknown(Internal) |> Typ.fresh;
 
   let of_const_mono_delim: list((Token.t, Typ.t)) = [
-    ("true", Bool |> Typ.fresh),
-    ("false", Bool |> Typ.fresh),
+    ("true", Atom(Bool) |> Typ.fresh),
+    ("false", Atom(Bool) |> Typ.fresh),
     //("[]", List(unk)), / *NOTE: would need to refactor buffer for this to show up */
     //("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
-    ("\"\"", String |> Typ.fresh), /* NOTE: Irrelevent as second quote appears automatically */
+    ("\"\"", Atom(String) |> Typ.fresh), /* NOTE: Irrelevent as second quote appears automatically */
     ("_", unk),
   ];
 
@@ -41,34 +41,34 @@ module Typ = {
     //("::", List(unk)), /* annoying in patterns. TODO: add codepath to show only if Ana(List(_)) */
     ("@", List(unk)),
     (";", Unknown(Internal)),
-    ("&&", Bool),
-    ("\\/", Bool),
-    ("||", Bool),
-    ("$==", Bool),
-    ("==.", Bool),
-    ("==", Bool),
-    ("!", Bool),
-    //("!=", Bool), /* annoying as != is more common */
-    //("!=.", Bool), /* annoying as != is more common */
-    ("<", Bool),
-    (">", Bool),
-    ("<=", Bool),
-    (">=", Bool),
-    ("<.", Bool),
-    (">.", Bool),
-    ("<=.", Bool),
-    (">=.", Bool),
-    ("+", Int),
-    ("-", Int),
-    ("*", Int),
-    ("/", Int),
-    ("**", Int),
-    ("+.", Float),
-    ("-.", Float),
-    ("*.", Float),
-    ("/.", Float),
-    ("**.", Float),
-    ("++", String),
+    ("&&", Atom(Bool)),
+    ("\\/", Atom(Bool)),
+    ("||", Atom(Bool)),
+    ("$==", Atom(Bool)),
+    ("==.", Atom(Bool)),
+    ("==", Atom(Bool)),
+    ("!", Atom(Bool)),
+    //("!=", Atom(Bool)), /* annoying as != is more common */
+    //("!=.", Atom(Bool)), /* annoying as != is more common */
+    ("<", Atom(Bool)),
+    (">", Atom(Bool)),
+    ("<=", Atom(Bool)),
+    (">=", Atom(Bool)),
+    ("<.", Atom(Bool)),
+    (">.", Atom(Bool)),
+    ("<=.", Atom(Bool)),
+    (">=.", Atom(Bool)),
+    ("+", Atom(Int)),
+    ("-", Atom(Int)),
+    ("*", Atom(Int)),
+    ("/", Atom(Int)),
+    ("**", Atom(Int)),
+    ("+.", Atom(Float)),
+    ("-.", Atom(Float)),
+    ("*.", Atom(Float)),
+    ("/.", Atom(Float)),
+    ("**.", Atom(Float)),
+    ("++", Atom(String)),
   ];
 
   let expected: Info.t => Typ.t =

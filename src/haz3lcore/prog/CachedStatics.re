@@ -30,8 +30,8 @@ let elaborate =
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
-let init_from_term = (~settings, term): t => {
-  let ctx_init = Builtins.ctx_init;
+let init_from_term = (~settings, ~is_dynamic_term, term): t => {
+  let ctx_init = Builtins.ctx_init(is_dynamic_term ? None : Some(Int));
   let info_map = Statics.mk(settings, ctx_init, term);
   let error_ids = Statics.Map.error_ids(info_map);
   let elaborated =
@@ -53,10 +53,11 @@ let init_from_term = (~settings, term): t => {
   };
 };
 
-let init = (~settings: CoreSettings.t, ~stitch, z: Zipper.t): t => {
+let init =
+    (~settings: CoreSettings.t, ~is_dynamic_term, ~stitch, z: Zipper.t): t => {
   let term = MakeTerm.from_zip_for_sem(z).term |> stitch;
-  init_from_term(~settings, term);
+  init_from_term(~settings, ~is_dynamic_term, term);
 };
 
-let init = (~settings: CoreSettings.t, ~stitch, z: Zipper.t) =>
-  settings.statics ? init(~settings, ~stitch, z) : empty;
+let init = (~settings: CoreSettings.t, ~is_dynamic_term, ~stitch, z: Zipper.t) =>
+  settings.statics ? init(~settings, ~stitch, ~is_dynamic_term, z) : empty;

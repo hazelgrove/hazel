@@ -31,6 +31,7 @@ type t =
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
   | BadToken(Token.t) /* Invalid expression token, continues with undefined behavior */
+  | BadOperator(string) /* Invalid operator, continues with undefined behavior */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
   | InvalidLabel(LabeledTuple.label) /* Invalid label in a labeled tuple */
@@ -43,7 +44,11 @@ type t =
   | IsMulti /* Multihole, treated as hole */
   | FreeConstructor(Constructor.t) /* Constructor not bound in context or ana type */
   | WantTuple /* Want a Tuple, found not-tuple */
-  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label)); /* Currently used by the dot operator for a label not found */
+  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
+  | InvalidUseMode({
+      bad_typ: Typ.t,
+      inner_typ: Typ.t,
+    }); /* Currently used by the dot operator for a label not found */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_partial_ap =
@@ -91,7 +96,9 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
         ])
         |> Typ.temp,
       )
+    | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
     | BadToken(_)
+    | BadOperator(_)
     | BadTrivAp(_)
     | IsMulti
     | Duplicate(_)

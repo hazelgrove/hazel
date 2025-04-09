@@ -119,10 +119,14 @@ let rec elaborate_pattern =
   let (term, rewrap) = Pat.unwrap(upat);
   let dpat =
     switch (term) {
-    | Int(_) => upat |> cast_from(Int |> Typ.temp)
-    | Bool(_) => upat |> cast_from(Bool |> Typ.temp)
-    | Float(_) => upat |> cast_from(Float |> Typ.temp)
-    | String(_) => upat |> cast_from(String |> Typ.temp)
+    | Atom(c) =>
+      let c = Operators.replace_literal(c, ctx.use_mode);
+      switch (c) {
+      | L(c) =>
+        Atom(c) |> rewrap |> cast_from(Atom(c |> Atom.cls_of_t) |> Typ.temp)
+      | R(BadInt(s)) =>
+        Invalid(s) |> rewrap |> cast_from(Unknown(Internal) |> Typ.temp)
+      };
     | ListLit(ps) =>
       let (ps, tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
       let inner_type =
@@ -308,10 +312,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
       Probe(e' |> cast_from(ty), probe) |> rewrap;
     | Deferral(_) => uexp
-    | Int(_) => uexp |> cast_from(Int |> Typ.temp)
-    | Bool(_) => uexp |> cast_from(Bool |> Typ.temp)
-    | Float(_) => uexp |> cast_from(Float |> Typ.temp)
-    | String(_) => uexp |> cast_from(String |> Typ.temp)
+    | Atom(c) =>
+      let c = Operators.replace_literal(c, ctx.use_mode);
+      switch (c) {
+      | L(c) =>
+        Atom(c) |> rewrap |> cast_from(Atom(c |> Atom.cls_of_t) |> Typ.temp)
+      | R(BadInt(s)) =>
+        Invalid(s) |> rewrap |> cast_from(Unknown(Internal) |> Typ.temp)
+      };
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let inner_type =
@@ -456,6 +464,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', tye) = elaborate(m, e);
       FixF(p', fresh_cast(e', tye, typ), env) |> rewrap |> cast_from(typ);
+    // These forms are removed in elaboration
+    | Use(_, e)
     | TyAlias(_, _, e) =>
       let (e', tye) = elaborate(m, e);
       e' |> cast_from(tye);
@@ -511,7 +521,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let ty =
         Typ.join(ctx, tyt, tyf)
         |> Option.value(~default=Typ.temp(Unknown(Internal)));
-      let c'' = fresh_cast(c', tyc, Bool |> Typ.temp);
+      let c'' = fresh_cast(c', tyc, Atom(Bool) |> Typ.temp);
       let t'' = fresh_cast(t', tyt, ty);
       let f'' = fresh_cast(f', tyf, ty);
       If(c'', t'', f'') |> rewrap |> cast_from(ty);
@@ -521,7 +531,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       Seq(e1', e2') |> rewrap |> cast_from(ty2);
     | Test(e) =>
       let (e', t) = elaborate(m, e);
-      Test(fresh_cast(e', t, Bool |> Typ.temp))
+      Test(fresh_cast(e', t, Atom(Bool) |> Typ.temp))
       |> rewrap
       |> cast_from(Prod([]) |> Typ.temp);
     | Filter(kind, e) =>
@@ -574,106 +584,46 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         |> rewrap
       | _ => EmptyHole |> rewrap |> cast_from(Typ.temp(Unknown(Internal)))
       }
-    | UnOp(Int(Minus), e) =>
+    | UnOp(op, e) =>
+      let op = Operators.replace_un_op(op, ctx.use_mode);
       let (e', t) = elaborate(m, e);
-      UnOp(Int(Minus), fresh_cast(e', t, Int |> Typ.temp))
-      |> rewrap
-      |> cast_from(Int |> Typ.temp);
-    | UnOp(Bool(Not), e) =>
-      let (e', t) = elaborate(m, e);
-      UnOp(Bool(Not), fresh_cast(e', t, Bool |> Typ.temp))
-      |> rewrap
-      |> cast_from(Bool |> Typ.temp);
-    | BinOp(Int(Plus | Minus | Times | Power | Divide) as op, e1, e2) =>
+      let semantics = Operators.semantics_of_un_op(op);
+      switch (semantics) {
+      | Undefined(_) =>
+        UnOp(op, fresh_cast(e', t, Unknown(Internal) |> Typ.temp))
+        |> rewrap
+        |> cast_from(Unknown(Internal) |> Typ.temp)
+      | Defined(t1, t2, _) =>
+        let t1 = Atom(Atom.cls_of_kind(t1)) |> Typ.temp;
+        let t2 = Atom(Atom.cls_of_kind(t2)) |> Typ.temp;
+        UnOp(op, fresh_cast(e', t, t1)) |> rewrap |> cast_from(t2);
+      };
+    | BinOp(op, e1, e2) =>
+      let op = Operators.replace_bin_op(op, ctx.use_mode);
       let (e1', t1) = elaborate(m, e1);
       let (e2', t2) = elaborate(m, e2);
-      BinOp(
-        op,
-        fresh_cast(e1', t1, Int |> Typ.temp),
-        fresh_cast(e2', t2, Int |> Typ.temp),
-      )
-      |> rewrap
-      |> cast_from(Int |> Typ.temp);
-    | BinOp(
-        Int(
-          LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual |
-          Equals |
-          NotEquals,
-        ) as op,
-        e1,
-        e2,
-      ) =>
-      let (e1', t1) = elaborate(m, e1);
-      let (e2', t2) = elaborate(m, e2);
-      BinOp(
-        op,
-        fresh_cast(e1', t1, Int |> Typ.temp),
-        fresh_cast(e2', t2, Int |> Typ.temp),
-      )
-      |> rewrap
-      |> cast_from(Bool |> Typ.temp);
-    | BinOp(Bool(And | Or) as op, e1, e2) =>
-      let (e1', t1) = elaborate(m, e1);
-      let (e2', t2) = elaborate(m, e2);
-      BinOp(
-        op,
-        fresh_cast(e1', t1, Bool |> Typ.temp),
-        fresh_cast(e2', t2, Bool |> Typ.temp),
-      )
-      |> rewrap
-      |> cast_from(Bool |> Typ.temp);
-    | BinOp(Float(Plus | Minus | Times | Divide | Power) as op, e1, e2) =>
-      let (e1', t1) = elaborate(m, e1);
-      let (e2', t2) = elaborate(m, e2);
-      BinOp(
-        op,
-        fresh_cast(e1', t1, Float |> Typ.temp),
-        fresh_cast(e2', t2, Float |> Typ.temp),
-      )
-      |> rewrap
-      |> cast_from(Float |> Typ.temp);
-    | BinOp(
-        Float(
-          LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual |
-          Equals |
-          NotEquals,
-        ) as op,
-        e1,
-        e2,
-      ) =>
-      let (e1', t1) = elaborate(m, e1);
-      let (e2', t2) = elaborate(m, e2);
-      BinOp(
-        op,
-        fresh_cast(e1', t1, Float |> Typ.temp),
-        fresh_cast(e2', t2, Float |> Typ.temp),
-      )
-      |> rewrap
-      |> cast_from(Bool |> Typ.temp);
-    | BinOp(String(Concat) as op, e1, e2) =>
-      let (e1', t1) = elaborate(m, e1);
-      let (e2', t2) = elaborate(m, e2);
-      BinOp(
-        op,
-        fresh_cast(e1', t1, String |> Typ.temp),
-        fresh_cast(e2', t2, String |> Typ.temp),
-      )
-      |> rewrap
-      |> cast_from(String |> Typ.temp);
-    | BinOp(String(Equals) as op, e1, e2) =>
-      let (e1', t1) = elaborate(m, e1);
-      let (e2', t2) = elaborate(m, e2);
-      BinOp(
-        op,
-        fresh_cast(e1', t1, String |> Typ.temp),
-        fresh_cast(e2', t2, String |> Typ.temp),
-      )
-      |> rewrap
-      |> cast_from(Bool |> Typ.temp);
+      let semantics = Operators.semantics_of_bin_op(op);
+      switch (semantics) {
+      | Undefined(_) =>
+        BinOp(
+          op,
+          fresh_cast(e1', t1, Unknown(Internal) |> Typ.temp),
+          fresh_cast(e2', t2, Unknown(Internal) |> Typ.temp),
+        )
+        |> rewrap
+        |> cast_from(Unknown(Internal) |> Typ.temp)
+      | Defined(t1', t2', t3', _) =>
+        let t1' = Atom(Atom.cls_of_kind(t1')) |> Typ.temp;
+        let t2' = Atom(Atom.cls_of_kind(t2')) |> Typ.temp;
+        let t3' = Atom(Atom.cls_of_kind(t3')) |> Typ.temp;
+        BinOp(op, fresh_cast(e1', t1, t1'), fresh_cast(e2', t2, t2'))
+        |> rewrap
+        |> cast_from(t3');
+      };
     | BuiltinFun(fn) =>
       uexp
       |> cast_from(
-           Ctx.lookup_var(Builtins.ctx_init, fn)
+           Ctx.lookup_var(Builtins.ctx_init(None), fn)
            |> Option.map((x: Ctx.var_entry) => x.typ)
            |> Option.value(~default=Typ.temp(Unknown(Internal))),
          )
