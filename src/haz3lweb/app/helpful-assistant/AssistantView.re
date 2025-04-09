@@ -832,7 +832,7 @@ let view =
       ~assistantModel: Assistant.Model.t,
     ) => {
   div(
-    ~attrs=[Attr.id("side-bar")],
+    ~attrs=[Attr.id("side-bar"), Attr.tabindex(1)],
     [
       div(
         ~attrs=[Attr.id("assistant")],
