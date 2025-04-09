@@ -573,17 +573,32 @@ module RelevantCtx = {
       fun
       | Ctx.VarEntry({typ, name, _})
           when Typ.is_consistent(ctx, ty_expect, typ) =>
-        Some({name, typ, depth: 0, matched_type: typ})
+        Some({
+          name,
+          typ,
+          depth: 0,
+          matched_type: typ,
+        })
       | Ctx.VarEntry({typ: {term: Arrow(_, return_ty), _} as typ, name, _})
           when Typ.is_consistent(ctx, ty_expect, return_ty) =>
-        Some({name, typ, matched_type: return_ty, depth: 1})
+        Some({
+          name,
+          typ,
+          matched_type: return_ty,
+          depth: 1,
+        })
       | Ctx.VarEntry({
           typ: {term: Arrow(_, {term: Arrow(_, return_ty), _}), _} as typ,
           name,
           _,
         })
           when Typ.is_consistent(ctx, ty_expect, return_ty) =>
-        Some({name, typ, matched_type: return_ty, depth: 2})
+        Some({
+          name,
+          typ,
+          matched_type: return_ty,
+          depth: 2,
+        })
       | _ => None,
       ctx,
     );
@@ -1142,7 +1157,10 @@ module Prompt = {
             content:
               mk_user_message(sketch, ~expected_ty, ~relevant_ctx=None),
           },
-          {role: Assistant, content: completion},
+          {
+            role: Assistant,
+            content: completion,
+          },
         ],
       advanced_reasoning
         ? AdvancedReasoningSamples.get(num_examples)
@@ -1160,10 +1178,18 @@ module Prompt = {
     let+ user_message =
       static_context(options, ci, sketch, advanced_reasoning);
     OpenRouter.[
-      {role: System, content: SystemPrompt.mk(options, advanced_reasoning)},
+      {
+        role: System,
+        content: SystemPrompt.mk(options, advanced_reasoning),
+      },
     ]
     @ samples(options.num_examples, advanced_reasoning)
-    @ [{role: User, content: user_message}];
+    @ [
+      {
+        role: User,
+        content: user_message,
+      },
+    ];
   };
 
   let mk_error =
