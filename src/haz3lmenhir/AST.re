@@ -585,7 +585,7 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
                           self(n),
                           {
                             let* l = gen_label;
-                            let+ p = self(n - 1);
+                            let+ p = self(size - 1);
                             TupLabelPat(LabelPat(l), p);
                           },
                         ]),
