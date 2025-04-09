@@ -10,7 +10,7 @@ module M: Projector = {
 
   let bool_of = (any: Any.t): option(bool) =>
     switch (any) {
-    | Exp({term: Bool(b), _}) => Some(b)
+    | Exp({term: Atom(Bool(b)), _}) => Some(b)
     | _ => None
     };
 
@@ -32,10 +32,10 @@ module M: Projector = {
     switch (
       info.utility.lift_syntax(
         fun
-        | Exp({term: Bool(b), _} as t) =>
+        | Exp({term: Atom(Bool(b)), _} as t) =>
           Exp({
             ...t,
-            term: Bool(!b),
+            term: Atom(Bool(!b)),
           })
         | _ => failwith("Checkbox: Toggle: not boolean literal"),
         info.syntax,
