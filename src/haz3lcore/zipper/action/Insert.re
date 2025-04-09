@@ -219,40 +219,40 @@ let rec go =
       let name = Form.parse_livelit(t);
       switch (Ctx.lookup_livelit(ctx, name)) {
       // if we find a matching livelit, insert it, projected
-      | Some(ll) =>
-        let formatted_z =
-          "("
-          ++ ll.model_default
-          ++ ")"
-          |> StringUtil.to_list
-          |> List.fold_left(insert, Some(z));
+      | Some(ll) => Some(z)
+      //     let formatted_z =
+      //       "("
+      //       ++ ll.model_default
+      //       ++ ")"
+      //       |> StringUtil.to_list
+      //       |> List.fold_left(insert, Some(z));
 
-        let args_and_name =
-          switch (formatted_z) {
-          | Some(z) =>
-            Some(z.relatives.siblings |> fst |> List.rev |> ListUtil.take(2))
-          | None => None
-          };
+      //     let args_and_name =
+      //       switch (formatted_z) {
+      //       | Some(z) =>
+      //         Some(z.relatives.siblings |> fst |> List.rev |> ListUtil.take(2))
+      //       | None => None
+      //       };
 
-        let updated_syntax =
-          ProjectorInit.init_or_noop(
-            Livelit,
-            Segment.parenthesize(Option.get(args_and_name)),
-            Exp(IdTagged.FreshGrammar.Exp.empty_hole()),
-          );
+      //     let updated_syntax =
+      //       ProjectorInit.init_or_noop(
+      //         Livelit,
+      //         Segment.parenthesize(Option.get(args_and_name)),
+      //         Exp(IdTagged.FreshGrammar.Exp.empty_hole()),
+      //       );
 
-        let new_left_siblings =
-          switch (List.rev(fst(z.relatives.siblings))) {
-          | [_hd, ...tl] => List.rev([updated_syntax, ...tl])
-          | [] => []
-          };
+      //     let new_left_siblings =
+      //       switch (List.rev(fst(z.relatives.siblings))) {
+      //       | [_hd, ...tl] => List.rev([updated_syntax, ...tl])
+      //       | [] => []
+      //       };
 
-        Some(
-          Option.get(formatted_z)
-          |> Zipper.update_siblings(((_, r)) => (new_left_siblings, r)),
-        );
+      //     Some(
+      //       Option.get(formatted_z)
+      //       |> Zipper.update_siblings(((_, r)) => (new_left_siblings, r)),
+      //     );
 
-      // No matching livelit found, insert space
+      //   // No matching livelit found, insert space
       | None => insert_outer(char, z)
       };
     | None => insert(Some(z), char)

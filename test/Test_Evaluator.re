@@ -26,6 +26,11 @@ let elaborate = u =>
   Elaborator.elaborate(Statics.mk(CoreSettings.on, Builtins.ctx_init, u), u)
   |> fst;
 
+let exp_to_segment =
+  ExpToSegment.(
+    exp_to_segment(~settings=Settings.of_core(~inline=true, CoreSettings.on))
+  );
+
 let probe_test =
     (msg: string, expected: Grammar.exp_t(list(Grammar.exp_t(unit)))) => {
   let fresh: Exp.t =
@@ -379,7 +384,7 @@ let test_typfun_application = () =>
     |> Exp.fresh,
   );
 
-let test_livelit = (livelit: Livelit.t) => {
+let test_livelit = (livelit: LivelitCtx.raw_livelit) => {
   let model = livelit.model_default;
   let expected_eval =
     switch (livelit.name) {
@@ -391,7 +396,7 @@ let test_livelit = (livelit: Livelit.t) => {
 
   parse_and_evaluate_test(
     expected_eval,
-    "^" ++ livelit.name ++ "(" ++ model ++ ")",
+    "^" ++ livelit.name ++ "(" ++ Segment.show(exp_to_segment(model)) ++ ")",
   );
 };
 
