@@ -251,13 +251,13 @@ let tests =
       ),
       menhir_only_test(
         "Constructor of specific sum type",
-        constructor("A", Some(Typ.int())),
+        constructor("A", Some(Some(Typ.int()))),
         "A ~ Int",
       ),
       // TODO Fix for the tests below
       menhir_only_test(
         "Constructor with Type Variable",
-        constructor("A", Some(Typ.var("T"))),
+        constructor("A", Some(Some(Typ.var("T")))),
         "A ~ T",
       ),
       full_parser_test(

@@ -52,10 +52,10 @@ let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
 
 let elaborated_type =
     (m: Statics.Map.t, uexp: Exp.t): (Typ.t, Ctx.t, CoCtx.t, Exp.t) => {
-  let (mode, self_ty, ctx, co_ctx, term) =
+  let (ana_ty, self_ty, ctx, co_ctx, term) =
     switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
-    | Some(Info.InfoExp({mode, ty, ctx, co_ctx, term: new_term, _})) => (
-        mode,
+    | Some(Info.InfoExp({ana, ty, ctx, co_ctx, term: new_term, _})) => (
+        ana,
         ty,
         ctx,
         co_ctx,
@@ -63,29 +63,17 @@ let elaborated_type =
       )
     | _ => raise(MissingTypeInfo)
     };
-  let elab_ty =
-    switch (mode) {
-    | Syn => self_ty
-    | SynFun =>
-      let (ty1, ty2) = Typ.matched_arrow(ctx, self_ty);
-      Arrow(ty1, ty2) |> Typ.temp;
-    | SynTypFun =>
-      let (tpat, ty) = Typ.matched_forall(ctx, self_ty);
-      let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHole));
-      Forall(tpat, ty) |> Typ.temp;
-    // We need to remove the synswitches from this type.
-    | Ana(ana_ty) => Typ.match_synswitch(ana_ty, self_ty)
-    };
+  let elab_ty = Typ.match_synswitch(ana_ty, self_ty);
   (elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp, ctx, co_ctx, term);
 };
 
 let elaborated_pat_type =
     (m: Statics.Map.t, upat: Pat.t): (Typ.t, Ctx.t, Pat.t) => {
-  let (mode, self_ty, ctx, prev_synswitch, term, label_inference) =
+  let (ana_ty, self_ty, ctx, prev_synswitch, term, label_inference) =
     switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
     | Some(
         Info.InfoPat({
-          mode,
+          ana,
           ty,
           ctx,
           prev_synswitch,
@@ -94,7 +82,7 @@ let elaborated_pat_type =
           _,
         }),
       ) => (
-        mode,
+        ana,
         ty,
         ctx,
         prev_synswitch,
@@ -104,29 +92,18 @@ let elaborated_pat_type =
     | _ => raise(MissingTypeInfo)
     };
   let elab_ty =
-    switch (mode) {
-    | Syn => self_ty
-    | SynFun =>
-      let (ty1, ty2) = Typ.matched_arrow(ctx, self_ty);
-      Arrow(ty1, ty2) |> Typ.temp;
-    | SynTypFun =>
-      let (tpat, ty) = Typ.matched_forall(ctx, self_ty);
-      let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHole));
-      Forall(tpat, ty) |> Typ.temp;
-    | Ana(ana_ty) =>
-      switch (prev_synswitch) {
-      | None => ana_ty
-      | Some(syn_ty) =>
-        // Autolabelling for singleton labeled tuples
-        switch (label_inference) {
-        | Some(SingletonLabelInference({label: l, _})) =>
-          Typ.match_synswitch(
-            Prod([TupLabel(Label(l) |> Typ.temp, syn_ty) |> Typ.temp])
-            |> Typ.temp,
-            ana_ty,
-          )
-        | _ => Typ.match_synswitch(syn_ty, ana_ty)
-        }
+    switch (prev_synswitch) {
+    | None => Typ.match_synswitch(self_ty, ana_ty)
+    | Some(syn_ty) =>
+      // Autolabelling for singleton labeled tuples
+      switch (label_inference) {
+      | Some(SingletonLabelInference({label: l, _})) =>
+        Typ.match_synswitch(
+          Prod([TupLabel(Label(l) |> Typ.temp, syn_ty) |> Typ.temp])
+          |> Typ.temp,
+          ana_ty,
+        )
+      | _ => Typ.match_synswitch(syn_ty, ana_ty)
       }
     };
   (elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp, ctx, term);
@@ -241,13 +218,13 @@ let rec elaborate_pattern =
       )
       |> rewrap;
     | Constructor(c, _) =>
-      let mode =
+      let ana_ty =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
-        | Some(Info.InfoPat({mode, _})) => mode
+        | Some(Info.InfoPat({ana, _})) => ana
         | _ => raise(MissingTypeInfo)
         };
       let t =
-        switch (Mode.ctr_ana_typ(ctx, mode, c), Ctx.lookup_ctr(ctx, c)) {
+        switch (Self.ctr_ana_typ(ctx, ana_ty, c), Ctx.lookup_ctr(ctx, c)) {
         | (Some(ana_ty), _) => ana_ty
         | (_, Some({typ: syn_ty, _})) => syn_ty
         | _ =>
@@ -258,7 +235,7 @@ let rec elaborate_pattern =
           |> Typ.temp
         };
       let t = t |> Typ.normalize(ctx);
-      Constructor(c, Some(t)) |> rewrap |> cast_from(t);
+      Constructor(c, Some(Some(t))) |> rewrap |> cast_from(t);
     };
   (dpat, elaborated_type);
 };
@@ -343,21 +320,17 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let ds' = List.map2((d, t) => fresh_cast(d, t, inner_type), ds, tys);
       ListLit(ds') |> rewrap |> cast_from(List(inner_type) |> Typ.temp);
     | Constructor(c, _) =>
-      let mode =
+      let (self, ty) =
         switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
-        | Some(Info.InfoExp({mode, _})) => mode
+        | Some(Info.InfoExp({self, ty, _})) => (self, ty)
         | _ => raise(MissingTypeInfo)
         };
       let t =
-        switch (Mode.ctr_ana_typ(ctx, mode, c), Ctx.lookup_ctr(ctx, c)) {
-        | (Some(ana_ty), _) => Some(Typ.normalize(ctx, ana_ty))
-        | (_, Some({typ: syn_ty, _})) => Some(Typ.normalize(ctx, syn_ty))
-        | _ => None
+        switch (self) {
+        | Common(FreeConstructor(_)) => Some(None)
+        | _ => Some(Some(Typ.normalize(ctx, ty)))
         };
-      switch (t) {
-      | Some(ty) => Constructor(c, t) |> rewrap |> cast_from(ty)
-      | None => Constructor(c, t) |> rewrap
-      };
+      Constructor(c, t) |> rewrap |> cast_from(ty);
     | Fun(p, e, _, n) =>
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', tye) = elaborate(m, e);
@@ -594,9 +567,11 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       switch (e.term) {
       // TODO: confirm whether these types are correct
       | Var("e") =>
-        Constructor("$e", Some(Unknown(Internal) |> Typ.fresh)) |> rewrap
+        Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh)))
+        |> rewrap
       | Var("v") =>
-        Constructor("$v", Some(Unknown(Internal) |> Typ.fresh)) |> rewrap
+        Constructor("$v", Some(Some(Unknown(Internal) |> Typ.fresh)))
+        |> rewrap
       | _ => EmptyHole |> rewrap |> cast_from(Typ.temp(Unknown(Internal)))
       }
     | UnOp(Int(Minus), e) =>

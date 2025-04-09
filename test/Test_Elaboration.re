@@ -326,20 +326,16 @@ module PlainTests = {
           ],
         )
         |> Exp.fresh,
-        Tuple([
-          Cast(
-            Float(1.) |> Exp.fresh,
-            Float |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
+        Cast(
+          Tuple([Float(1.) |> Exp.fresh, Bool(true) |> Exp.fresh])
           |> Exp.fresh,
-          Cast(
-            Bool(true) |> Exp.fresh,
-            Bool |> Typ.fresh,
+          Prod([Float |> Typ.fresh, Bool |> Typ.fresh]) |> Typ.fresh,
+          Prod([
             Unknown(Internal) |> Typ.fresh,
-          )
-          |> Exp.fresh,
-        ])
+            Unknown(Internal) |> Typ.fresh,
+          ])
+          |> Typ.fresh,
+        )
         |> Exp.fresh,
       )
       |> Exp.fresh,
@@ -1024,7 +1020,7 @@ module MenhirElaborationTests = {
       failed_cast_uexp,
     );
 
-  let constructor_str = "X";
+  let constructor_str = "X/~";
   let constructor_uexp: Exp.t = Constructor("X", None) |> Exp.fresh;
   let constructor_menhir = () =>
     alco_check_menhir(

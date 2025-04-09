@@ -370,8 +370,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Label(_), _)
   | (Var(_), _)
   | (Ap(_), _)
-  | (Rec(_), _)
-  | (Forall(_), _) => t1
+  | (Rec(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -391,6 +390,9 @@ let rec match_synswitch = (t1: t, t2: t) => {
       ConstructorMap.match_synswitch(match_synswitch, equal, sm1, sm2);
     Sum(sm') |> rewrap1;
   | (Sum(_), _) => t1
+  // HACK[Matt]: The only possible forall is `Forall Syn -> Syn`
+  | (Forall(_), Forall(_)) => t2
+  | (Forall(_), _) => t1
   };
 };
 
@@ -455,7 +457,13 @@ let rec matched_arrow_strict = (ctx, ty) =>
   | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
   | Unknown(SynSwitch) =>
     Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
-  | _ => None
+  | _ =>
+    print_endline("matched_arrow_strict: None");
+    print_endline(
+      "term_of(weak_head_normalize(ctx, ty)): "
+      ++ show_term(term_of(weak_head_normalize(ctx, ty))),
+    );
+    None;
   };
 
 let matched_arrow = (ctx, ty) =>
@@ -469,7 +477,7 @@ let rec matched_forall_strict = (ctx, ty) =>
   | Parens(ty) => matched_forall_strict(ctx, ty)
   | Forall(t, ty) => Some((Some(t), ty))
   | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
-  | _ => None // (None, Unknown(Internal) |> temp)
+  | _ => None
   };
 
 let matched_forall = (ctx, ty) =>
@@ -540,15 +548,31 @@ let matched_list = (ctx, ty) =>
   matched_list_strict(ctx, ty)
   |> Option.value(~default=Unknown(Internal) |> temp);
 
-let rec matched_args = (ctx, default_arity, ty) => {
-  let ty' = weak_head_normalize(ctx, ty);
-  switch (term_of(ty')) {
-  | Parens(ty) => matched_args(ctx, default_arity, ty)
-  | Prod([_, ..._] as tys) => tys
-  | Unknown(_) => List.init(default_arity, _ => ty')
-  | _ => [ty']
+let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
+  switch (term_of(weak_head_normalize(ctx, ty))) {
+  | Parens(ty) => matched_args_strict(ctx, ty, arity)
+  | Prod(tys) when List.length(tys) == arity => L(tys)
+  | Prod(tys) => R(List.length(tys))
+  | _ when arity == 1 => L([ty])
+  | Unknown((SynSwitch | Internal) as p) =>
+    L(List.init(arity, _ => Unknown(p) |> temp))
+  | _ => R(1)
   };
 };
+
+let matched_args = (ctx, ty, arity) =>
+  switch (matched_args_strict(ctx, ty, arity)) {
+  | L(tys) => tys
+  | R(_) => List.init(arity, _ => Unknown(Internal) |> temp)
+  };
+
+let matched_label = (ctx, ty): option((t, t)) =>
+  switch (term_of(weak_head_normalize(ctx, ty))) {
+  | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))
+  | Unknown(SynSwitch) =>
+    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
+  | _ => None
+  };
 
 let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   let ty = weak_head_normalize(ctx, ty);
@@ -571,7 +595,7 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
       | Rec({term: Var(x), _}, ty_body) =>
         switch (Ctx.lookup_alias(ctx, x)) {
         | None => unroll(ty)
-        | Some(_) => ty_body
+        | Some(_) => unroll(ty)
         }
       | _ => ty
       };
@@ -589,6 +613,68 @@ let rec is_unknown = (ty: t): bool =>
   | Parens(x) => is_unknown(x)
   | Unknown(_) => true
   | _ => false
+  };
+
+let rec is_syn = (ty: t): bool =>
+  switch (ty |> term_of) {
+  | TupLabel(_, x)
+  | Parens(x) => is_syn(x)
+  | Unknown(SynSwitch) => true
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String
+  | Label(_)
+  | Var(_)
+  | Ap(_)
+  | Rec(_)
+  | Forall(_)
+  | List(_)
+  | Arrow(_)
+  | Prod(_)
+  | Sum(_) => false
+  };
+
+let rec is_syn_fun = (ty: t): bool =>
+  switch (ty |> term_of) {
+  | TupLabel(_, x)
+  | Parens(x) => is_syn_fun(x)
+  | Arrow(t1, t2) => is_syn(t1) && is_syn_fun(t2)
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String
+  | Label(_)
+  | Var(_)
+  | Ap(_)
+  | Rec(_)
+  | Forall(_)
+  | List(_)
+  | Prod(_)
+  | Sum(_) => false
+  };
+
+let rec is_syn_plus = (ty: t): bool =>
+  switch (ty |> term_of) {
+  | TupLabel(_, x)
+  | Parens(x) => is_syn_plus(x)
+  | Unknown(SynSwitch) => true
+  | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
+  | Forall(_, t) => is_syn(t)
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String
+  | Label(_)
+  | Var(_)
+  | Ap(_)
+  | Rec(_)
+  | List(_)
+  | Prod(_)
+  | Sum(_) => false
   };
 
 /* Does the type require parentheses when on the left of an arrow for printing? */

@@ -210,7 +210,10 @@ let rec parenthesize =
   | Filter(Residue(_), x) => x |> parenthesize
   // Other forms
   | Constructor(c, t) =>
-    Constructor(c, Option.map(ty => paren_typ_at(Precedence.cast, ty), t))
+    Constructor(
+      c,
+      Option.map(Option.map(paren_typ_at(Precedence.cast)), t),
+    )
     |> rewrap
   | Fun(p, e, typ, n) =>
     Fun(
@@ -1358,7 +1361,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
 }
 and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   switch (tpat |> IdTagged.term_of) {
-  | Invalid(t) => text_to_pretty(tpat |> TPat.rep_id, Sort.Typ, t)
+  | Invalid(t) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t)
   | EmptyHole =>
     let id = tpat |> TPat.rep_id;
     p_just([
@@ -1377,7 +1380,7 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
       }),
       xs,
     );
-  | Var(v) => text_to_pretty(tpat |> TPat.rep_id, Sort.Typ, v)
+  | Var(v) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v)
   };
 }
 and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
