@@ -132,6 +132,7 @@ module Update = {
         Id.t,
       )
     | Respond(Model.message, AssistantSettings.mode, Id.t)
+    | SendSystemMessage(string, AssistantSettings.mode, Id.t)
     | SetKey(string)
     | NewChat
     | DeleteChat(Id.t)
@@ -142,7 +143,8 @@ module Update = {
     | Resuggest(string, Id.t)
     | Describe(string, AssistantSettings.mode, Id.t)
     | SwitchChat(Id.t)
-    | ToggleAPIVisibility;
+    | ToggleAPIVisibility
+    | FilterLoadingMessages;
 
   let code_message_of_str =
       (response: string, party: Model.party, tileId: option(Id.t))
@@ -250,6 +252,20 @@ module Update = {
     };
   };
 
+  let filter_chat_messages =
+      (messages: list(Model.message)): list(Model.message) => {
+    List.filter(
+      (message: Model.message) => {
+        !(
+          message.party == LLM
+          && message.content == "..."
+          && !message.collapsed
+        )
+      },
+      messages,
+    );
+  };
+
   let add_message_to_model =
       (
         mode: AssistantSettings.mode,
@@ -258,13 +274,6 @@ module Update = {
         chat_id: Id.t,
         ~is_final: bool,
       ) => {
-    let filter_chat_messages =
-        (messages: list(Model.message)): list(Model.message) => {
-      List.filter(
-        (msg: Model.message) => msg != await_llm_response,
-        messages,
-      );
-    };
     let (past_chats, _) = get_mode_info(mode, model);
     let chat_to_update = Id.Map.find(chat_id, past_chats);
     let messages = {
@@ -293,11 +302,7 @@ module Update = {
                 chat_to_update.id,
                 maybe_chat =>
                   switch (maybe_chat) {
-                  | Some(chat) =>
-                    Some({
-                      ...chat,
-                      messages,
-                    })
+                  | Some(chat) => Some({...chat, messages})
                   | None => None
                   },
                 model.chat_history.past_simple_chats,
@@ -309,11 +314,7 @@ module Update = {
                 chat_to_update.id,
                 maybe_chat =>
                   switch (maybe_chat) {
-                  | Some(chat) =>
-                    Some({
-                      ...chat,
-                      messages,
-                    })
+                  | Some(chat) => Some({...chat, messages})
                   | None => None
                   },
                 model.chat_history.past_suggestion_chats,
@@ -325,11 +326,7 @@ module Update = {
                 chat_to_update.id,
                 maybe_chat =>
                   switch (maybe_chat) {
-                  | Some(chat) =>
-                    Some({
-                      ...chat,
-                      messages,
-                    })
+                  | Some(chat) => Some({...chat, messages})
                   | None => None
                   },
                 model.chat_history.past_completion_chats,
@@ -407,15 +404,12 @@ module Update = {
     | Some(prompt') =>
       let llm = model.llm;
       let key = Option.get(Store.Generic.load("API"));
-      let params: OpenRouter.params = {
-        llm,
-        temperature: 1.0,
-        top_p: 1.0,
-      };
+      let params: OpenRouter.params = {llm, temperature: 1.0, top_p: 1.0};
       OpenRouter.start_chat(~params, ~key, prompt', req =>
         switch (OpenRouter.handle_chat(req)) {
-        | Some({content, _}) =>
+        | Some(Reply({content, _})) =>
           schedule_action(Describe(content, mode, chat.id))
+        | Some(Error(_)) => () // Don't need to handle error since we have "New Chat" descriptor as failsafe
         | None =>
           print_endline("Assistant: response parse failed (form_descriptor)")
         }
@@ -438,10 +432,7 @@ module Update = {
       ? form_descriptor(
           ~model,
           ~schedule_action,
-          ~chat={
-            ...curr_chat,
-            messages: curr_chat.messages @ [message],
-          },
+          ~chat={...curr_chat, messages: curr_chat.messages @ [message]},
           ~mode,
         )
       : ();
@@ -643,17 +634,25 @@ module Update = {
         let llm = model.llm;
         switch (Store.Generic.load("API")) {
         | Some(key) =>
-          let params: OpenRouter.params = {
-            llm,
-            temperature: 1.0,
-            top_p: 1.0,
-          };
+          let params: OpenRouter.params = {llm, temperature: 1.0, top_p: 1.0};
           OpenRouter.start_chat(~params, ~key, prompt, req =>
             switch (OpenRouter.handle_chat(req)) {
-            | Some({content, _}) =>
+            | Some(Reply({content, _})) =>
               schedule_action(
                 Respond(
                   text_message_of_str(content, LLM),
+                  mode,
+                  curr_chat.id,
+                ),
+              )
+            | Some(Error({message, code})) =>
+              schedule_action(
+                SendSystemMessage(
+                  "Error: "
+                  ++ message
+                  ++ " (code: "
+                  ++ string_of_int(code)
+                  ++ ")",
                   mode,
                   curr_chat.id,
                 ),
@@ -721,11 +720,7 @@ module Update = {
           : resculpt_model(mode, model, filtered_past_chats, curr_chat.id);
       updated_model |> Updated.return_quiet;
     | History =>
-      {
-        ...model,
-        show_history: !model.show_history,
-      }
-      |> Updated.return_quiet
+      {...model, show_history: !model.show_history} |> Updated.return_quiet
     | Respond(message, mode, chat_id) =>
       let response = message.content;
       let code_pattern =
@@ -844,14 +839,10 @@ module Update = {
         let llm = model.llm;
         switch (Store.Generic.load("API")) {
         | Some(key) =>
-          let params: OpenRouter.params = {
-            llm,
-            temperature: 1.0,
-            top_p: 1.0,
-          };
+          let params: OpenRouter.params = {llm, temperature: 1.0, top_p: 1.0};
           OpenRouter.start_chat(~params, ~key, openrouter_prompt, req =>
             switch (OpenRouter.handle_chat(req)) {
-            | Some({content, _}) =>
+            | Some(Reply({content, _})) =>
               let index =
                 Option.get(Indicated.index(editor.editor.state.zipper));
               let ci =
@@ -867,10 +858,24 @@ module Update = {
                   curr_chat.id,
                 ),
               );
+            | Some(Error({message, code})) =>
+              print_endline("Error here");
+              schedule_action(
+                SendSystemMessage(
+                  "Error: "
+                  ++ message
+                  ++ " (code: "
+                  ++ string_of_int(code)
+                  ++ ")",
+                  mode,
+                  curr_chat.id,
+                ),
+              );
             | None =>
+              print_endline("Non-error but None");
               print_endline(
                 "Assistant: response parse failed (SendSketchMessage)",
-              )
+              );
             }
           );
           add_message_to_model(
@@ -1040,7 +1045,7 @@ module Update = {
             };
             OpenRouter.start_chat(~params, ~key, openrouter_prompt, req =>
               switch (OpenRouter.handle_chat(req)) {
-              | Some({content, _}) =>
+              | Some(Reply({content, _})) =>
                 schedule_action(
                   ErrorRespond(
                     content,
@@ -1048,6 +1053,18 @@ module Update = {
                     ci,
                     fuel,
                     tileId,
+                    mode,
+                    curr_chat.id,
+                  ),
+                )
+              | Some(Error({message, code})) =>
+                schedule_action(
+                  SendSystemMessage(
+                    "Error: "
+                    ++ message
+                    ++ " (code: "
+                    ++ string_of_int(code)
+                    ++ ")",
                     mode,
                     curr_chat.id,
                   ),
@@ -1083,6 +1100,15 @@ module Update = {
           };
         };
       };
+    | SendSystemMessage(content, mode, chat_id) =>
+      add_message_to_model(
+        mode,
+        model,
+        {party: System, code: None, content, collapsed: false},
+        chat_id,
+        ~is_final=true,
+      )
+      |> Updated.return_quiet
     // Concat LS' error message and await_llm_response (... animation)
     // This works even if out of fuel, as both Respond and ErrorRespond
     // remove await_llm_response
@@ -1093,10 +1119,7 @@ module Update = {
         List.mapi(
           (i: int, msg: Model.message) =>
             if (i == index) {
-              {
-                ...msg,
-                collapsed: !msg.collapsed,
-              };
+              {...msg, collapsed: !msg.collapsed};
             } else {
               msg;
             },
@@ -1108,22 +1131,14 @@ module Update = {
           opt_chat =>
             switch (opt_chat) {
             | Some(chat: Model.chat) =>
-              Some({
-                ...chat,
-                messages: updated_chat,
-              })
+              Some({...chat, messages: updated_chat})
             | None => None
             },
           past_chats,
         );
       resculpt_model(mode, model, updated_past_chats, curr_chat.id)
       |> Updated.return_quiet;
-    | SelectLLM(llm) =>
-      {
-        ...model,
-        llm,
-      }
-      |> Updated.return_quiet
+    | SelectLLM(llm) => {...model, llm} |> Updated.return_quiet
     | RemoveAndSuggest(response, tileId) =>
       // Only side effects in the editor are performed here
       add_suggestion(~response, tileId, false);
@@ -1139,11 +1154,7 @@ module Update = {
           chat_id,
           opt_chat =>
             switch (opt_chat) {
-            | Some(chat: Model.chat) =>
-              Some({
-                ...chat,
-                descriptor: content,
-              })
+            | Some(chat: Model.chat) => Some({...chat, descriptor: content})
             | None => None
             },
           past_chats,
@@ -1155,9 +1166,33 @@ module Update = {
       let (past_chats, _) = get_mode_info(mode, model);
       resculpt_model(mode, model, past_chats, chat_id) |> Updated.return_quiet;
     | ToggleAPIVisibility =>
-      {
+      {...model, show_api_key: !model.show_api_key} |> Updated.return_quiet
+    | FilterLoadingMessages =>
+      Model.{
         ...model,
-        show_api_key: !model.show_api_key,
+        chat_history: {
+          past_simple_chats:
+            Id.Map.map(
+              (chat: Model.chat) => {
+                {...chat, messages: filter_chat_messages(chat.messages)}
+              },
+              model.chat_history.past_simple_chats,
+            ),
+          past_suggestion_chats:
+            Id.Map.map(
+              (chat: Model.chat) => {
+                {...chat, messages: filter_chat_messages(chat.messages)}
+              },
+              model.chat_history.past_suggestion_chats,
+            ),
+          past_completion_chats:
+            Id.Map.map(
+              (chat: Model.chat) => {
+                {...chat, messages: filter_chat_messages(chat.messages)}
+              },
+              model.chat_history.past_completion_chats,
+            ),
+        },
       }
       |> Updated.return_quiet
     };
