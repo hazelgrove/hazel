@@ -423,16 +423,22 @@ let test_livelit = (livelit: LivelitCtx.raw_livelit) => {
   let expected_eval =
     switch (livelit.name) {
     | "slider" => Atom(SInt(50)) |> Exp.fresh
+    | "emotion" => Atom(String("neutral")) |> Exp.fresh
+    | "js" => Atom(String("")) |> Exp.fresh
     | _ => Alcotest.fail("Unknown Livelit " ++ livelit.name)
+    };
+
+  let model_string =
+    switch (model) {
+    | {term: Tuple(_), _} =>
+      Printer.of_segment(~holes=None, exp_to_segment(model))
+    | _ =>
+      "(" ++ Printer.of_segment(~holes=None, exp_to_segment(model)) ++ ")"
     };
 
   parse_and_evaluate_test(
     Printer.of_segment(~holes=None, exp_to_segment(expected_eval)),
-    "^"
-    ++ livelit.name
-    ++ "("
-    ++ Printer.of_segment(~holes=None, exp_to_segment(model))
-    ++ ")",
+    "^" ++ livelit.name ++ model_string,
   );
 };
 
