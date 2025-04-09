@@ -358,7 +358,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
               ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
             ])
             |> Typ.temp,
-          t,
+          t |> Option.join,
         );
       Constructor(c, t) |> rewrap |> cast_from(ty);
     | Fun(p, e, _, n) =>
