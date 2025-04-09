@@ -118,53 +118,6 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
 
 let syn = Unknown(SynSwitch) |> Typ.temp;
 
-let typ_exp_binop_bin_int: Operators.op_bin_int => Typ.t =
-  fun
-  | (Plus | Minus | Times | Power | Divide) as _op => Int |> Typ.temp
-  | (
-      LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals |
-      NotEquals
-    ) as _op =>
-    Bool |> Typ.temp;
-
-let typ_exp_binop_bin_float: Operators.op_bin_float => Typ.t =
-  fun
-  | (Plus | Minus | Times | Power | Divide) as _op => Float |> Typ.temp
-  | (
-      LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals |
-      NotEquals
-    ) as _op =>
-    Bool |> Typ.temp;
-
-let typ_exp_binop_bin_string: Operators.op_bin_string => Typ.t =
-  fun
-  | Concat => String |> Typ.temp
-  | Equals => Bool |> Typ.temp;
-
-let typ_exp_binop: Operators.op_bin => (Typ.t, Typ.t, Typ.t) =
-  fun
-  | Bool(And | Or) => (Bool |> Typ.temp, Bool |> Typ.temp, Bool |> Typ.temp)
-  | Int(op) => (Int |> Typ.temp, Int |> Typ.temp, typ_exp_binop_bin_int(op))
-  | Float(op) => (
-      Float |> Typ.temp,
-      Float |> Typ.temp,
-      typ_exp_binop_bin_float(op),
-    )
-  | String(op) => (
-      String |> Typ.temp,
-      String |> Typ.temp,
-      typ_exp_binop_bin_string(op),
-    );
-
-let typ_exp_unop: Operators.op_un => (Typ.t, Typ.t) =
-  fun
-  | Meta(Unquote) => (
-      Var("$Meta") |> Typ.temp,
-      Unknown(Internal) |> Typ.temp,
-    )
-  | Bool(Not) => (Bool |> Typ.temp, Bool |> Typ.temp)
-  | Int(Minus) => (Int |> Typ.temp, Int |> Typ.temp);
-
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, Map.t) =>
   switch (any) {
@@ -366,10 +319,15 @@ and uexp_to_info_map =
     | Deferral(position) =>
       add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
     | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
-    | Bool(_) => atomic(Just(Bool |> Typ.temp))
-    | Int(_) => atomic(Just(Int |> Typ.temp))
-    | Float(_) => atomic(Just(Float |> Typ.temp))
-    | String(_) => atomic(Just(String |> Typ.temp))
+    | Atom(c) =>
+      let c = Operators.replace_literal(c, ctx.use_mode); // Replace literal if necessary due to `use`
+      switch (c) {
+      | L(c) =>
+        let ty = Atom(Atom.cls_of_t(c)) |> Typ.temp;
+        atomic(Just(ty));
+      | R(BadInt(str)) => atomic(BadToken(str))
+      };
+
     | ListLit(es) =>
       let ids = List.map(Exp.rep_id, es);
       let inner_ana_ty = Typ.matched_list(ctx, ana);
@@ -431,18 +389,38 @@ and uexp_to_info_map =
       let (e, m) = go(~ana=ty_in, e, m);
       add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
     | UnOp(op, e) =>
-      let (ty_in, ty_out) = typ_exp_unop(op);
-      let (e, m) = go(~ana=ty_in, e, m);
-      add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
+      let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
+      let op_semantics = Operators.semantics_of_un_op(op);
+      switch (op_semantics) {
+      | Undefined(msg) =>
+        let (_, m) = go(~ana=syn, e, m);
+        add(~self=BadOperator(msg), ~co_ctx=CoCtx.empty, m);
+      | Defined(ty_in, ty_out, _) =>
+        let ty_in = Atom(Atom.cls_of_kind(ty_in)) |> Typ.temp;
+        let ty_out = Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp;
+        let (e, m) = go(~ana=ty_in, e, m);
+        add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
+      };
     | BinOp(op, e1, e2) =>
-      let (ty1, ty2, ty_out) = typ_exp_binop(op);
-      let (e1, m) = go(~ana=ty1, e1, m);
-      let (e2, m) = go(~ana=ty2, e2, m);
-      add(
-        ~self=Just(ty_out),
-        ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
-        m,
-      );
+      let op = Operators.replace_bin_op(op, ctx.use_mode); // Replace op if necessary due to `use`
+      let op_semantics = Operators.semantics_of_bin_op(op);
+      switch (op_semantics) {
+      | Undefined(msg) =>
+        let (_, m) = go(~ana=syn, e1, m);
+        let (_, m) = go(~ana=syn, e2, m);
+        add(~self=BadOperator(msg), ~co_ctx=CoCtx.empty, m);
+      | Defined(ty1, ty2, ty_out, _) =>
+        let ty1 = Atom(Atom.cls_of_kind(ty1)) |> Typ.temp;
+        let ty2 = Atom(Atom.cls_of_kind(ty2)) |> Typ.temp;
+        let ty_out = Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp;
+        let (e1, m) = go(~ana=ty1, e1, m);
+        let (e2, m) = go(~ana=ty2, e2, m);
+        add(
+          ~self=Just(ty_out),
+          ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
+          m,
+        );
+      };
     | Tuple(es) =>
       let expected_labels =
         switch (Typ.weak_head_normalize(ctx, ana).term) {
@@ -633,7 +611,7 @@ and uexp_to_info_map =
         ? atomic(Duplicate(name, self)) : atomic(self);
     | BuiltinFun(string) =>
       add'(
-        ~self=Self.of_exp_var(Builtins.ctx_init, string),
+        ~self=Self.of_exp_var(Builtins.ctx_init(None), string),
         ~co_ctx=CoCtx.empty,
         m,
       )
@@ -686,7 +664,7 @@ and uexp_to_info_map =
       | _ => add(~self=WantTuple, ~co_ctx=info_e2.co_ctx, m)
       };
     | Test(e) =>
-      let (e, m) = go(~ana=Bool |> Typ.temp, e, m);
+      let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
       add(~self=Just(Prod([]) |> Typ.temp), ~co_ctx=e.co_ctx, m);
     | Filter(Filter({pat: cond, _}), body) =>
       let (cond, m) =
@@ -926,7 +904,7 @@ and uexp_to_info_map =
       );
     | If(e0, e1, e2) =>
       let branch_ids = List.map(Exp.rep_id, [e1, e2]);
-      let (cond, m) = go(~ana=Bool |> Typ.temp, e0, m);
+      let (cond, m) = go(~ana=Atom(Bool) |> Typ.temp, e0, m);
       let (cons, m) = go(~ana, e1, m);
       let (alt, m) = go(~ana, e2, m);
       add(
@@ -1070,6 +1048,34 @@ and uexp_to_info_map =
         let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
         add(~self=Just(ty_body), ~co_ctx, m);
       };
+    | Use(typ, body) =>
+      let (typ, m) = utyp_to_info_map(~ctx, ~ancestors, typ, m);
+      let use_mode: option(Operators.mode) =
+        switch (typ.term |> Typ.weak_head_normalize(ctx) |> Typ.term_of) {
+        | Atom(Nat) => Some(Nat)
+        | Atom(Int) => Some(Int)
+        | Atom(Float) => Some(Float)
+        | Atom(SInt) => Some(SInt)
+        | _ => None
+        };
+      let ctx' =
+        switch (use_mode) {
+        | Some(mode) => Ctx.set_use_mode(ctx, Some(mode))
+        | None => ctx
+        };
+      let (body, m) = go'(~ctx=ctx', ~ana, body, m);
+      let self: Self.t =
+        switch (use_mode) {
+        | Some(_) => Just(body.ty)
+        | None when Typ.fast_equal(Unknown(Internal) |> Typ.temp, typ.term) =>
+          Just(body.ty)
+        | None =>
+          InvalidUseMode({
+            bad_typ: typ.term,
+            inner_typ: body.ty,
+          })
+        };
+      add(~self, ~co_ctx=body.co_ctx, m);
     };
   };
 
@@ -1253,19 +1259,38 @@ and upat_to_info_map =
       add(~self=IsMulti, ~ctx, ~constraint_=Coverage.Constraint.Hole, m);
     | Invalid(token) => hole(BadToken(token))
     | EmptyHole => hole(Just(unknown))
-    | Int(int) =>
-      atomic(Just(Int |> Typ.temp), Coverage.Constraint.Int(int))
-    | Float(float) =>
-      atomic(Just(Float |> Typ.temp), Coverage.Constraint.Float(float))
-    | Tuple([]) =>
-      atomic(Just(Prod([]) |> Typ.temp), Coverage.Constraint.Tuple([]))
-    | Bool(bool) =>
-      atomic(
-        Just(Bool |> Typ.temp),
-        bool ? Coverage.Constraint.true_ : Coverage.Constraint.false_,
-      )
-    | String(string) =>
-      atomic(Just(String |> Typ.temp), Coverage.Constraint.String(string))
+    | Atom(c) =>
+      let c = Operators.replace_literal(c, ctx.use_mode); // Replace literal if necessary due to `use`
+      switch (c) {
+      | L(Nat(nat)) =>
+        atomic(
+          Just(Atom(Nat) |> Typ.temp),
+          Coverage.Constraint.BigInt(nat),
+        )
+      | L(Int(int)) =>
+        atomic(
+          Just(Atom(Int) |> Typ.temp),
+          Coverage.Constraint.BigInt(int),
+        )
+      | L(SInt(int)) =>
+        atomic(Just(Atom(SInt) |> Typ.temp), Coverage.Constraint.SInt(int))
+      | L(Float(float)) =>
+        atomic(
+          Just(Atom(Float) |> Typ.temp),
+          Coverage.Constraint.Float(float),
+        )
+      | L(Bool(bool)) =>
+        atomic(
+          Just(Atom(Bool) |> Typ.temp),
+          bool ? Coverage.Constraint.true_ : Coverage.Constraint.false_,
+        )
+      | L(String(string)) =>
+        atomic(
+          Just(Atom(String) |> Typ.temp),
+          Coverage.Constraint.String(string),
+        )
+      | R(BadInt(str)) => hole(BadToken(str))
+      };
     | ListLit(ps) =>
       let ids = List.map(Pat.rep_id, ps);
       let mode = Typ.matched_list(ctx, ana);
@@ -1606,10 +1631,7 @@ and utyp_to_info_map =
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
     add(m);
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String => add(m)
+  | Atom(_) => add(m)
   | Var(_) =>
     /* Names are resolved in Info.status_typ */
     add(m)

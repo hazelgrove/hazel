@@ -155,7 +155,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
             list_lit([])
             |> (exp => (exp, List.hd(exp.annotation.ids), true)),
           )
-        | String =>
+        | Atom(String) =>
           Some(
             string("") |> (exp => (exp, List.hd(exp.annotation.ids), true)),
           )

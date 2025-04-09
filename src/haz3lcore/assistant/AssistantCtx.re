@@ -34,7 +34,7 @@ let bound_variables = (ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
         strategy: Exp(Common(FromCtx(typ))),
       })
     | _ => None,
-    ctx,
+    ctx.entries,
   );
 
 let bound_constructors =
@@ -50,7 +50,7 @@ let bound_constructors =
         strategy: wrap(FromCtx(typ)),
       })
     | _ => None,
-    ctx,
+    ctx.entries,
   );
 
 /* Suggest applying a function from the ctx which returns an appropriate type */
@@ -67,7 +67,7 @@ let bound_aps = (ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
         });
       }
     | _ => None,
-    ctx,
+    ctx.entries,
   );
 
 let bound_constructor_aps = (wrap, ty: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
@@ -86,7 +86,7 @@ let bound_constructor_aps = (wrap, ty: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
         strategy: wrap(FromCtxAp(ty_out)),
       })
     | _ => None,
-    ctx,
+    ctx.entries,
   );
 
 /* Suggest bound type aliases in type annotations or definitions */
@@ -99,7 +99,7 @@ let typ_context_entries = (ctx: Ctx.t): list(Suggestion.t) =>
         strategy: Typ(FromCtx),
       })
     | _ => None,
-    ctx,
+    ctx.entries,
   );
 
 let suggest_variable = (ci: Info.t): list(Suggestion.t) => {
@@ -164,14 +164,14 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
         List.init(List.length(tys), _ => ",") |> String.concat(" ");
       List.map(restrategize(" )" ++ commas), exp_aps(ty))
       @ List.map(restrategize(commas), exp_refs(ty));
-    | Bool =>
+    | Atom(Bool) =>
       /* TODO: Find a UI to make these less confusing */
-      exp_refs(Int |> Typ.fresh)
-      @ exp_refs(Float |> Typ.fresh)
-      @ exp_refs(String |> Typ.fresh)
-      @ exp_aps(Int |> Typ.fresh)
-      @ exp_aps(Float |> Typ.fresh)
-      @ exp_aps(String |> Typ.fresh)
+      exp_refs(Atom(Int) |> Typ.fresh)
+      @ exp_refs(Atom(Float) |> Typ.fresh)
+      @ exp_refs(Atom(String) |> Typ.fresh)
+      @ exp_aps(Atom(Int) |> Typ.fresh)
+      @ exp_aps(Atom(Float) |> Typ.fresh)
+      @ exp_aps(Atom(String) |> Typ.fresh)
     | _ => []
     };
   | InfoPat({ana, co_ctx, _}) =>

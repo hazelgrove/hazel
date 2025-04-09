@@ -48,6 +48,8 @@ type error_inconsistent =
 type error_no_type =
   /* Invalid expression token, treated as hole */
   | BadToken(Token.t)
+  /* Invalid operator for current use mode, treated as hole */
+  | BadOperator(string)
   /* Empty application of function with inconsistent type */
   | BadTrivAp(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
@@ -76,6 +78,10 @@ type error_common =
       duplicate_labels: list(LabeledTuple.label),
       invalid_labels: list(LabeledTuple.label),
       typ: Typ.t,
+    })
+  | InvalidUseMode({
+      bad_typ: Typ.t,
+      inner_typ: Typ.t,
     });
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -414,9 +420,17 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
     }
   | (FreeConstructor(name), _) => InHole(NoType(FreeConstructor(name)))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
+  | (BadOperator(op), _) => InHole(NoType(BadOperator(op)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
   | (InvalidLabel(label), _) => InHole(NoType(InvalidLabel(label)))
+  | (InvalidUseMode({bad_typ, inner_typ}), _) =>
+    InHole(
+      InvalidUseMode({
+        bad_typ,
+        inner_typ,
+      }),
+    )
   | (
       TupleLabelError({
         malformed_labels,
@@ -488,6 +502,7 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
       | InHole(Common(Inconsistent(Internal(_) | Expectation(_))) as err)
       | InHole(Common(NoType(_)) as err) => Some(err)
       | NotInHole(_) => None
+      | InHole(Common(InvalidUseMode(_)))
       | InHole(Common(DuplicateLabel(_)))
       | InHole(Common(TupleLabelError(_)))
       | InHole(Common(Inconsistent(WithArrow(_))))
@@ -523,6 +538,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
       | InHole(Common(NoType(_)))
       | InHole(Common(TupleLabelError(_)))
       | InHole(Common(DuplicateLabel(_)))
+      | InHole(Common(InvalidUseMode(_)))
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
           BadPartialAp(_),
@@ -699,11 +715,13 @@ let fixed_typ_err_common: error_common => Typ.t =
     ])
     |> Typ.temp
   | NoType(BadToken(_))
+  | NoType(BadOperator(_))
   | NoType(BadTrivAp(_))
   | NoType(WantTuple)
   | NoType(LabelNotFound(_))
   | NoType(BadLabel(_))
   | NoType(InvalidLabel(_)) => Unknown(Internal) |> Typ.temp
+  | InvalidUseMode({inner_typ, _}) => inner_typ
   | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana

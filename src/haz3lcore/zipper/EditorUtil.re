@@ -7,10 +7,7 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | FailedCast(_)
   | Undefined
   | Deferral(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | Atom(_)
   | ListLit(_)
   | Constructor(_)
   | Closure(_)
@@ -69,6 +66,14 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
     let ebody' = append_exp(ebody, e2);
     {
       term: TyAlias(tp, tdef, ebody'),
+      annotation: {
+        ids: IdTagged.ids(e1),
+      },
+    };
+  | Use(t, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: Use(t, ebody'),
       annotation: {
         ids: IdTagged.ids(e1),
       },

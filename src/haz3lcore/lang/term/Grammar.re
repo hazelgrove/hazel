@@ -56,10 +56,7 @@ and exp_term('a) =
   | FailedCast(exp_t('a), typ_t('a), typ_t('a))
   | Deferral(deferral_position_t)
   | Undefined
-  | Bool(bool)
-  | Int(int)
-  | Float(float)
-  | String(string)
+  | Atom(Atom.t)
   | ListLit(list(exp_t('a)))
   /* The type double-option field of this constructor is required to assign the correct
      statics to constructors after evaluation. In dynamic expressions `Some(None)` means
@@ -76,6 +73,7 @@ and exp_term('a) =
   | Let(pat_t('a), exp_t('a), exp_t('a))
   | FixF(pat_t('a), exp_t('a), option(closure_environment_t('a)))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
+  | Use(typ_t('a), exp_t('a))
   | Ap(Operators.ap_direction, exp_t('a), exp_t('a))
   | TypAp(exp_t('a), typ_t('a))
   | DeferredAp(exp_t('a), list(exp_t('a)))
@@ -102,10 +100,7 @@ and pat_term('a) =
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | Wild
-  | Int(int)
-  | Float(float)
-  | Bool(bool)
-  | String(string)
+  | Atom(Atom.t)
   | ListLit(list(pat_t('a)))
   | Constructor(string, option(option(typ_t('a)))) // see comment on constructor expressions
   | Cons(pat_t('a), pat_t('a))
@@ -120,10 +115,7 @@ and pat_term('a) =
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(Atom.cls)
   | Var(string)
   | List(typ_t('a))
   | Arrow(typ_t('a), typ_t('a))
@@ -191,10 +183,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           )
         | Deferral(pos) => Deferral(pos)
         | Undefined => Undefined
-        | Bool(b) => Bool(b)
-        | Int(i) => Int(i)
-        | Float(f) => Float(f)
-        | String(s) => String(s)
+        | Atom(c) => Atom(c)
         | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
         | Constructor(s, t) =>
           Constructor(s, Option.map(Option.map(map_typ_annotation(f)), t))
@@ -228,6 +217,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_typ_annotation(f, t),
             map_exp_annotation(f, e),
           )
+        | Use(t, e) =>
+          Use(map_typ_annotation(f, t), map_exp_annotation(f, e))
         | Ap(d, e1, e2) =>
           Ap(d, map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | TypAp(e, t) =>
@@ -313,10 +304,7 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | MultiHole(l) =>
           MultiHole(List.map(x => map_any_annotation(f, x), l))
         | Wild => Wild
-        | Int(i) => Int(i)
-        | Float(f) => Float(f)
-        | Bool(b) => Bool(b)
-        | String(s) => String(s)
+        | Atom(c) => Atom(c)
         | ListLit(l) => ListLit(List.map(x => map_pat_annotation(f, x), l))
         | Constructor(s, t) =>
           Constructor(s, Option.map(Option.map(map_typ_annotation(f)), t))
@@ -349,10 +337,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
       term:
         switch (term) {
         | Unknown(p) => Unknown(map_type_provenance_annotation(f, p))
-        | Int => Int
-        | Float => Float
-        | Bool => Bool
-        | String => String
+        | Atom(c) => Atom(c)
         | Var(s) => Var(s)
         | List(t) => List(map_typ_annotation(f, t))
         | Arrow(t1, t2) =>
@@ -500,20 +485,32 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Undefined,
       annotation: default_annotation(ann),
     };
+    let basic = (~ann=?, c): exp_t(DefaultAnnotation.t) => {
+      term: Atom(c),
+      annotation: default_annotation(ann),
+    };
     let bool = (~ann=?, b): exp_t(DefaultAnnotation.t) => {
-      term: Bool(b),
+      term: Atom(Bool(b)),
       annotation: default_annotation(ann),
     };
     let int = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
-      term: Int(i),
+      term: Atom(Int(i)),
+      annotation: default_annotation(ann),
+    };
+    let sint = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
+      term: Atom(SInt(i)),
       annotation: default_annotation(ann),
     };
     let float = (~ann=?, f): exp_t(DefaultAnnotation.t) => {
-      term: Float(f),
+      term: Atom(Float(f)),
       annotation: default_annotation(ann),
     };
     let string = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
-      term: String(s),
+      term: Atom(String(s)),
+      annotation: default_annotation(ann),
+    };
+    let nat = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
+      term: Atom(Nat(i)),
       annotation: default_annotation(ann),
     };
     let list_lit = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
@@ -562,6 +559,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let ty_alias = (~ann=?, p, t, e): exp_t(DefaultAnnotation.t) => {
       term: TyAlias(p, t, e),
+      annotation: default_annotation(ann),
+    };
+    let use = (~ann=?, t, e): exp_t(DefaultAnnotation.t) => {
+      term: Use(t, e),
       annotation: default_annotation(ann),
     };
     let ap = (~ann=?, d, e1, e2): exp_t(DefaultAnnotation.t) => {
@@ -650,20 +651,32 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Wild,
       annotation: default_annotation(ann),
     };
+    let basic = (~ann=?, c): pat_t(DefaultAnnotation.t) => {
+      term: Atom(c),
+      annotation: default_annotation(ann),
+    };
     let int = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
-      term: Int(i),
+      term: Atom(Int(i)),
+      annotation: default_annotation(ann),
+    };
+    let sint = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
+      term: Atom(SInt(i)),
       annotation: default_annotation(ann),
     };
     let float = (~ann=?, f): pat_t(DefaultAnnotation.t) => {
-      term: Float(f),
+      term: Atom(Float(f)),
       annotation: default_annotation(ann),
     };
     let bool = (~ann=?, b): pat_t(DefaultAnnotation.t) => {
-      term: Bool(b),
+      term: Atom(Bool(b)),
       annotation: default_annotation(ann),
     };
     let string = (~ann=?, s): pat_t(DefaultAnnotation.t) => {
-      term: String(s),
+      term: Atom(String(s)),
+      annotation: default_annotation(ann),
+    };
+    let nat = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
+      term: Atom(Nat(i)),
       annotation: default_annotation(ann),
     };
     let list_lit = (~ann=?, l): pat_t(DefaultAnnotation.t) => {
@@ -718,19 +731,27 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let int = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Int,
+      term: Atom(Int),
+      annotation: default_annotation(ann),
+    };
+    let sint = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: Atom(SInt),
       annotation: default_annotation(ann),
     };
     let float = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Float,
+      term: Atom(Float),
       annotation: default_annotation(ann),
     };
     let bool = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Bool,
+      term: Atom(Bool),
       annotation: default_annotation(ann),
     };
     let string = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: String,
+      term: Atom(String),
+      annotation: default_annotation(ann),
+    };
+    let nat = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: Atom(Nat),
       annotation: default_annotation(ann),
     };
     let var = (~ann=?, s): typ_t(DefaultAnnotation.t) => {

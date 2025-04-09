@@ -3,15 +3,12 @@ open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
+  | Atom(Atom.cls)
   | Invalid
   | EmptyHole
   | MultiHole
   | SynSwitch
   | Internal
-  | Int
-  | Float
-  | Bool
-  | String
   | Arrow
   | Prod
   | TupLabel
@@ -84,10 +81,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Unknown(Hole(MultiHole(_))) => MultiHole
   | Unknown(SynSwitch) => SynSwitch
   | Unknown(Internal) => Internal
-  | Int => Int
-  | Float => Float
-  | Bool => Bool
-  | String => String
+  | Atom(c) => Atom(c)
   | List(_) => List
   | Arrow(_) => Arrow
   | Var(_) => Var
@@ -107,10 +101,7 @@ let show_cls: cls => string =
   | EmptyHole => "Empty type hole"
   | SynSwitch => "Synthetic type"
   | Internal => "Internal type"
-  | Int
-  | Float
-  | String
-  | Bool => "Base type"
+  | Atom(_) => "Base type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
   | List => "List type"
@@ -130,10 +121,7 @@ let rec is_arrow = (typ: t) => {
   | TupLabel(_, typ) => is_arrow(typ)
   | Arrow(_) => true
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | List(_)
   | Label(_)
   | Prod(_)
@@ -151,10 +139,7 @@ let rec is_forall = (typ: t) => {
   | TupLabel(_, typ) => is_forall(typ)
   | Forall(_) => true
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Arrow(_)
   | List(_)
   | Label(_)
@@ -216,10 +201,7 @@ let rec match_tup_label = ty =>
 let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (term_of(ty)) {
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Label(_) => []
   | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Var(v) => List.mem(v, bound) ? [] : [v]
@@ -309,14 +291,8 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
      second type to preserve synthesized type variable names, which
      come from user annotations. */
   | (Forall(_), _) => None
-  | (Int, Int) => Some(ty1)
-  | (Int, _) => None
-  | (Float, Float) => Some(ty1)
-  | (Float, _) => None
-  | (Bool, Bool) => Some(ty1)
-  | (Bool, _) => None
-  | (String, String) => Some(ty1)
-  | (String, _) => None
+  | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
+  | (Atom(_), _) => None
   | (Label(_), Label("")) => Some(ty1)
   | (Label(""), Label(_)) => Some(ty2)
   | (Label(name1), Label(name2))
@@ -363,10 +339,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Unknown(SynSwitch), _) => t2
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
-  | (Int, _)
-  | (Float, _)
-  | (Bool, _)
-  | (String, _)
+  | (Atom(_), _)
   | (Label(_), _)
   | (Var(_), _)
   | (Ap(_), _)
@@ -426,10 +399,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
     | None => ty
     }
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Label(_) => ty
   | Parens(t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
@@ -621,10 +591,7 @@ let rec is_syn = (ty: t): bool =>
   | Parens(x) => is_syn(x)
   | Unknown(SynSwitch) => true
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Label(_)
   | Var(_)
   | Ap(_)
@@ -642,10 +609,7 @@ let rec is_syn_fun = (ty: t): bool =>
   | Parens(x) => is_syn_fun(x)
   | Arrow(t1, t2) => is_syn(t1) && is_syn_fun(t2)
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Label(_)
   | Var(_)
   | Ap(_)
@@ -664,10 +628,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
   | Forall(_, t) => is_syn(t)
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Label(_)
   | Var(_)
   | Ap(_)
@@ -683,11 +644,8 @@ let rec needs_parens = (ty: t): bool =>
   | Parens(ty) => needs_parens(ty)
   | Ap(_)
   | Unknown(_)
-  | Int
-  | Float
+  | Atom(_)
   | Label(_)
-  | Bool
-  | String
   | TupLabel(_, _)
   | List(_) /* is already wrapped in [] */
   | Var(_) => false
@@ -712,10 +670,12 @@ let rec pretty_print = (ty: t): string =>
   | Parens(ty) => pretty_print(ty)
   | Ap(_)
   | Unknown(_) => "?"
-  | Int => "Int"
-  | Float => "Float"
-  | Bool => "Bool"
-  | String => "String"
+  | Atom(Int) => "Int"
+  | Atom(Float) => "Float"
+  | Atom(Bool) => "Bool"
+  | Atom(String) => "String"
+  | Atom(Nat) => "Nat"
+  | Atom(SInt) => "SInt"
   | Var(tvar) => tvar
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)
