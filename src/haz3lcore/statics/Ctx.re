@@ -27,26 +27,13 @@ type model_piece = {
 type node_or_list =
   | Node(Virtual_dom.Vdom.Node.t)
   | List(list(Virtual_dom.Vdom.Node.t));
-[@deriving (show({with_path: false}), sexp, yojson)]
-type livelit_entry = {
-  name: string,
-  model_t: TermBase.Typ.t,
-  model_default: string,
-  expansion_t: TermBase.Typ.t,
-  expansion_f: TermBase.Exp.t => TermBase.Exp.t,
-  projector:
-    (list(model_piece), Base.piece => Ui_effect.t(unit), Id.t) =>
-    node_or_list,
-  size: ProjectorCore.Shape.t,
-  explain_this: list(string),
-};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry =
   | VarEntry(var_entry)
   | ConstructorEntry(var_entry)
   | TVarEntry(tvar_entry)
-  | LivelitEntry(livelit_entry);
+  | LivelitEntry(LivelitCtx.raw_livelit);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = list(entry);
@@ -96,7 +83,7 @@ let lookup_tvar_id = (ctx: t, name: string): option(Id.t) =>
     ctx,
   );
 
-let lookup_livelit = (ctx: t, name: string): option(livelit_entry) =>
+let lookup_livelit = (ctx: t, name: string): option(LivelitCtx.raw_livelit) =>
   List.find_map(
     fun
     | LivelitEntry(v) when v.name == name => Some(v)
@@ -115,14 +102,6 @@ let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
     fun
     | VarEntry(v) when v.name == name => Some(v)
-    | _ => None,
-    ctx,
-  );
-
-let lookup_livelit = (ctx: t, name: string): option(livelit_entry) =>
-  List.find_map(
-    fun
-    | LivelitEntry(v) when v.name == name => Some(v)
     | _ => None,
     ctx,
   );

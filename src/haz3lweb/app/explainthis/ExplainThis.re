@@ -565,7 +565,7 @@ let get_doc =
       | BuiltinFun(_) => simple("Internal expression")
       | LivelitName(s) =>
         switch (Ctx.lookup_livelit(Info.ctx_of(Option.get(info)), s)) {
-        | Some(ll) => simple_list(ll.explain_this)
+        | Some(ll) => simple_list(["Livelit: " ++ ll.name])
         | None => simple("Livelit name not found")
         }
       | EmptyHole => get_message(HoleExp.empty_hole_exps)

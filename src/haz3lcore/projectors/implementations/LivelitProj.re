@@ -6,42 +6,6 @@ open Node;
 let of_id = (id: Id.t) =>
   "id" ++ (id |> Id.to_string |> String.sub(_, 0, 8));
 
-/* Define a function to collect all leaf pieces from a tile */
-let rec leaf_pieces_from_node =
-        (node: Base.piece, ~ignored_labels: list(list(string)))
-        : list(Piece.t) =>
-  switch (node) {
-  | Tile(tile) =>
-    /* Check if this tile's label is in the ignored labels */
-    let should_ignore =
-      List.exists(label => label == tile.label, ignored_labels);
-    if (should_ignore) {
-      [];
-        /* Ignore this tile */
-    } else if (tile.children == []) {
-      [
-        /* It's a leaf piece */
-        Piece.Tile(tile),
-      ];
-    } else {
-      /* Recurse into the children */
-      tile.children
-      |> List.concat_map(segment =>
-           segment
-           |> List.concat_map(child_node =>
-                leaf_pieces_from_node(child_node, ~ignored_labels)
-              )
-         );
-    };
-  | _ => []
-  };
-
-let leaf_pieces_from_segment =
-    (segment: Base.segment, ~ignored_labels: list(list(string)))
-    : list(Piece.t) => {
-  segment |> List.concat_map(leaf_pieces_from_node(_, ~ignored_labels));
-};
-
 let rec replace_piece_node =
         (node: Base.piece, piece_to_replace: Piece.t): Base.piece =>
   switch (node) {
@@ -77,63 +41,68 @@ let replace_piece_in_segment =
   segment |> List.map(node => replace_piece_node(node, piece_to_replace));
 };
 
-let extract_livelit_name_from_exp = (exp: Exp.t): string => {
-  let (term, _) = Exp.unwrap(exp);
-  switch (term) {
-  | Ap(_dir, ll_exp, _args) =>
-    let (ll_term, _) = Exp.unwrap(ll_exp);
-    switch (ll_term) {
-    | LivelitName(name) => name
-    | _ =>
-      failwith("LivelitProj: Not a LivelitName term -- " ++ Exp.show(ll_exp))
-    };
-  | _ => failwith("LivelitProj: Not an Ap term -- " ++ Exp.show(exp))
-  };
-};
-
-let extract_args_from_exp = (exp: Exp.t): list(Exp.t) => {
-  let (term, _) = Exp.unwrap(exp);
-  switch (term) {
-  | Ap(_dir, _ll_exp, args) =>
-    let (term, _) = Exp.unwrap(args);
-    switch (term) {
-    | Tuple(lst) => lst
-    | _ => [args]
-    };
-  | _ => failwith("LivelitProj: Not an Ap term -- " ++ Exp.show(exp))
-  };
-};
-
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = unit;
+  type action = LivelitCtx.action_exp;
+
+  let get = (info: info) =>
+    switch (info.statics) {
+    | Some(
+        InfoExp({
+          term: {term: Ap(_dir, {term: LivelitName(llname), _}, model), _},
+          _,
+        }),
+      ) =>
+      Some((llname, model))
+    | _ =>
+      print_endline("Warning - LivelitProj.get: Not an InfoExp term");
+      None;
+    };
 
   let init = (_any: Term.Any.t) => Some();
   let can_focus = false;
   let placeholder = (_model, info) => {
-    let llname =
-      switch (info.statics) {
-      | Some(InfoExp(exp)) => extract_livelit_name_from_exp(exp.term)
-      | _ =>
-        print_endline(
-          "Warning - LivelitProj.placeholder: Not an InfoExp term",
-        );
-        "error";
-      };
+    switch (get(info), info.statics) {
+    | (Some((llname, _)), Some(InfoExp(exp))) =>
+      /* Get the livelit size */
+      switch (Ctx.lookup_livelit(exp.ctx, llname)) {
+      | Some(ll) => ll.size
+      | None =>
+        /* Default size */
+        ProjectorCore.Shape.inline(32)
+      }
+    | _ =>
+      /* Default size */
+      ProjectorCore.Shape.inline(32)
+    };
+  };
+  let update = (_, info, action: LivelitCtx.action_exp) => {
+    print_endline("LivelitProj.update " ++ Exp.show(action));
 
     let ctx =
       switch (info.statics) {
       | Some(InfoExp(exp)) => exp.ctx
       | _ => []
       };
-    switch (Ctx.lookup_livelit(ctx, llname)) {
-    | Some(ll) => ll.size
-    | None => ProjectorCore.Shape.inline(32)
+
+    switch (get(info)) {
+    | Some((llname, model)) =>
+      let ll = Ctx.lookup_livelit(ctx, llname);
+      switch (ll) {
+      | Some(ll) =>
+        let new_model = ll.update(action, model);
+        let seg = info.utility.term_to_seg(Exp(new_model));
+        print_endline("new segment update: " ++ Segment.show(seg));
+        ();
+      | None =>
+        print_endline("Warning - LivelitProj.update: not found in context")
+      };
+    | None => print_endline("Warning - LivelitProj.update: get is empty")
     };
+    ();
   };
-  let update = (model, _, _) => model;
 
   let focus_pointer = (id: Id.t) => {
     JsUtil.get_elem_by_id(Id.cls(id))##focus;
@@ -151,68 +120,41 @@ module M: Projector = {
       (
         _,
         info,
-        ~local as _,
-        ~parent: external_action => Ui_effect.t(unit),
+        ~local: action => Ui_effect.t(unit),
+        ~parent as _,
         ~view_seg as _,
       ) => {
-    let (ll_name, args): (string, list(Exp.t)) =
-      switch (info.statics) {
-      | Some(InfoExp(exp)) => (
-          extract_livelit_name_from_exp(exp.term),
-          extract_args_from_exp(exp.term),
-        )
-      | _ =>
-        print_endline("Warning - LivelitProj.view: Not an InfoExp term");
-        ("error", []);
-      };
-
     let ctx =
       switch (info.statics) {
       | Some(InfoExp(exp)) => exp.ctx
       | _ => []
       };
-    let ll = Ctx.lookup_livelit(ctx, ll_name);
 
-    switch (ll) {
-    | None =>
-      ProjectorBase.View.mk(
-        div([text("LivelitProj: No livelit found for " ++ ll_name)]),
-      )
-    | Some(ll) =>
-      /* Ignore the first piece, which is the livelit invocation */
-      let pieces =
-        List.tl(
-          leaf_pieces_from_segment(info.syntax, ~ignored_labels=[[","]]),
-        );
+    let node =
+      switch (get(info)) {
+      | Some((ll_name, args)) =>
+        let ll = Ctx.lookup_livelit(ctx, ll_name);
 
-      /* Combine args and pieces into model_piece records */
-      let model_pieces =
-        List.map2(
-          (arg, piece): Ctx.model_piece => {
-            {
-              model: arg,
-              piece,
-            }
-          },
-          args,
-          pieces,
-        );
-
-      let replace = (piece: Base.piece) => {
-        let new_syntax = replace_piece_in_segment(info.syntax, piece);
-        parent(SetSyntax(new_syntax));
+        switch (ll) {
+        | Some(ll) =>
+          let list_contents =
+            switch (ll.view(args, local)) {
+            | Node(node) => [node]
+            | List(nodes) => nodes
+            };
+          Node.div(
+            ~attrs=[Attr.class_(ll_name), Attr.id(Id.cls(info.id))],
+            list_contents,
+          );
+        | None =>
+          print_endline("Warning - LivelitProj.view: not found in context");
+          Node.text("No livelit found");
+        };
+      | None =>
+        print_endline("Warning - LivelitProj.view: get is empty");
+        Node.text("No livelit found");
       };
 
-      /* Call the projector function */
-      View.mk(
-        Node.div(
-          ~attrs=[Attr.class_(ll_name), Attr.id(Id.cls(info.id))],
-          switch (ll.projector(model_pieces, replace, info.id)) {
-          | Node(node) => [node]
-          | List(nodes) => nodes
-          },
-        ),
-      );
-    };
+    View.mk(node);
   };
 };
