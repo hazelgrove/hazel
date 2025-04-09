@@ -393,7 +393,7 @@ and uexp_to_info_map =
       let op_semantics = Operators.semantics_of_un_op(op);
       switch (op_semantics) {
       | Undefined(msg) =>
-        let (_, m) = go(~mode=Syn, e, m);
+        let (_, m) = go(~ana=syn, e, m);
         add(~self=BadOperator(msg), ~co_ctx=CoCtx.empty, m);
       | Defined(ty_in, ty_out, _) =>
         let ty_in = Atom(Atom.cls_of_kind(ty_in)) |> Typ.temp;
@@ -406,8 +406,8 @@ and uexp_to_info_map =
       let op_semantics = Operators.semantics_of_bin_op(op);
       switch (op_semantics) {
       | Undefined(msg) =>
-        let (_, m) = go(~mode=Syn, e1, m);
-        let (_, m) = go(~mode=Syn, e2, m);
+        let (_, m) = go(~ana=syn, e1, m);
+        let (_, m) = go(~ana=syn, e2, m);
         add(~self=BadOperator(msg), ~co_ctx=CoCtx.empty, m);
       | Defined(ty1, ty2, ty_out, _) =>
         let ty1 = Atom(Atom.cls_of_kind(ty1)) |> Typ.temp;
@@ -664,7 +664,7 @@ and uexp_to_info_map =
       | _ => add(~self=WantTuple, ~co_ctx=info_e2.co_ctx, m)
       };
     | Test(e) =>
-      let (e, m) = go(~mode=Ana(Atom(Bool) |> Typ.temp), e, m);
+      let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
       add(~self=Just(Prod([]) |> Typ.temp), ~co_ctx=e.co_ctx, m);
     | Filter(Filter({pat: cond, _}), body) =>
       let (cond, m) =
@@ -904,9 +904,9 @@ and uexp_to_info_map =
       );
     | If(e0, e1, e2) =>
       let branch_ids = List.map(Exp.rep_id, [e1, e2]);
-      let (cond, m) = go(~mode=Ana(Atom(Bool) |> Typ.temp), e0, m);
-      let (cons, m) = go(~mode, e1, m);
-      let (alt, m) = go(~mode, e2, m);
+      let (cond, m) = go(~ana=Atom(Bool) |> Typ.temp, e0, m);
+      let (cons, m) = go(~ana, e1, m);
+      let (alt, m) = go(~ana, e2, m);
       add(
         ~self=Self.match(ctx, [cons.ty, alt.ty], branch_ids),
         ~co_ctx=CoCtx.union([cond.co_ctx, cons.co_ctx, alt.co_ctx]),
@@ -1063,7 +1063,7 @@ and uexp_to_info_map =
         | Some(mode) => Ctx.set_use_mode(ctx, Some(mode))
         | None => ctx
         };
-      let (body, m) = go'(~ctx=ctx', ~mode, body, m);
+      let (body, m) = go'(~ctx=ctx', ~ana, body, m);
       let self: Self.t =
         switch (use_mode) {
         | Some(_) => Just(body.ty)

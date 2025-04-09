@@ -591,10 +591,7 @@ let rec is_syn = (ty: t): bool =>
   | Parens(x) => is_syn(x)
   | Unknown(SynSwitch) => true
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Label(_)
   | Var(_)
   | Ap(_)
@@ -612,10 +609,7 @@ let rec is_syn_fun = (ty: t): bool =>
   | Parens(x) => is_syn_fun(x)
   | Arrow(t1, t2) => is_syn(t1) && is_syn_fun(t2)
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Label(_)
   | Var(_)
   | Ap(_)
@@ -634,10 +628,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
   | Forall(_, t) => is_syn(t)
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Label(_)
   | Var(_)
   | Ap(_)
