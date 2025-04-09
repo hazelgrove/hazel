@@ -397,7 +397,8 @@ and parenthesize_pat =
   | Float(_)
   | String(_)
   | EmptyHole
-  | Constructor(_) => pat
+  | Constructor(_)
+  | Tuple([]) => pat
 
   // Other forms
   | Wild => pat
@@ -579,11 +580,12 @@ and parenthesize_rul = (~show_filters: bool, rul: Rul.t): Rul.t => {
   };
 }
 
-and parenthesize_any = (~show_filters: bool, any: Any.t): Any.t =>
+and parenthesize_any =
+    (~already_paren=false, ~show_filters: bool, any: Any.t): Any.t =>
   switch (any) {
-  | Exp(e) => Exp(parenthesize(~show_filters, e))
-  | Pat(p) => Pat(parenthesize_pat(~show_filters, p))
-  | Typ(t) => Typ(parenthesize_typ(~show_filters, t))
+  | Exp(e) => Exp(parenthesize(~already_paren, ~show_filters, e))
+  | Pat(p) => Pat(parenthesize_pat(~already_paren, ~show_filters, p))
+  | Typ(t) => Typ(parenthesize_typ(~already_paren, ~show_filters, t))
   | TPat(tp) => TPat(parenthesize_tpat(~show_filters, tp))
   | Rul(r) => Rul(parenthesize_rul(~show_filters, r))
   | Any(_) => any
@@ -714,10 +716,9 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
   };
 
 /* We assume that parentheses have already been added as necessary, and
-      that the expression has no DynamicErrorHoles, Casts, or FailedCasts
+      that the expression has no Closures, DynamicErrorHoles, Casts, or FailedCasts
    */
 let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
-  let exp = Exp.substitute_closures(Environment.empty, exp);
   let go = (~inline=settings.inline) =>
     exp_to_pretty(
       ~settings={
@@ -1398,11 +1399,10 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   };
 };
 
-let exp_to_segment = (~settings: Settings.t, exp: Exp.t): Segment.t => {
+let exp_to_segment =
+    (~already_paren=false, ~settings: Settings.t, exp: Exp.t): Segment.t => {
   let exp =
-    exp
-    |> Exp.substitute_closures(Builtins.env_init)
-    |> parenthesize(~show_filters=settings.show_filters);
+    exp |> parenthesize(~already_paren, ~show_filters=settings.show_filters);
   let p = exp_to_pretty(~settings, exp);
   p |> PrettySegment.select;
 };
@@ -1413,8 +1413,11 @@ let typ_to_segment = (~settings, typ: Typ.t): Segment.t => {
   p |> PrettySegment.select;
 };
 
-let any_to_segment = (~settings, any: Any.t): Segment.t => {
-  let any = any |> parenthesize_any;
-  let p = any_to_pretty(~settings, any(~show_filters=settings.show_filters));
+let any_to_segment =
+    (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t => {
+  let any =
+    any
+    |> parenthesize_any(~already_paren, ~show_filters=settings.show_filters);
+  let p = any_to_pretty(~settings, any);
   p |> PrettySegment.select;
 };
