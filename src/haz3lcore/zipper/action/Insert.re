@@ -226,10 +226,20 @@ let rec go =
               ~settings=Settings.of_core(~inline=true, CoreSettings.on),
             )
           );
-        print_endline("Found livelit " ++ ll.name);
-        let model_segment = [
-          Segment.parenthesize(ll.model_default |> exp_to_segment),
-        ];
+
+        let model_segment =
+          switch (ll.model_default) {
+          | {term: Tuple(_), _} =>
+            print_endline(
+              "Livelit model is a tuple! " ++ Exp.show(ll.model_default),
+            );
+            ll.model_default |> exp_to_segment;
+          | _ =>
+            print_endline(
+              "Livelit model is not a tuple! " ++ Exp.show(ll.model_default),
+            );
+            [Segment.parenthesize(ll.model_default |> exp_to_segment)];
+          };
 
         let model_zipper =
           model_segment
