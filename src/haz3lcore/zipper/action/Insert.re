@@ -219,7 +219,22 @@ let rec go =
       let name = Form.parse_livelit(t);
       switch (Ctx.lookup_livelit(ctx, name)) {
       // if we find a matching livelit, insert it, projected
-      | Some(ll) => Some(z)
+      | Some(ll) =>
+        let exp_to_segment =
+          ExpToSegment.(
+            exp_to_segment(
+              ~settings=Settings.of_core(~inline=true, CoreSettings.on),
+            )
+          );
+        print_endline("Found livelit " ++ ll.name);
+        let model_segment = ll.model_default |> exp_to_segment;
+        print_endline("Model segment: " ++ Segment.show(model_segment));
+        Some(
+          z
+          |> Zipper.update_siblings(((l, r)) =>
+               (Segment.concat([l, model_segment]), r)
+             ),
+        );
       //     let formatted_z =
       //       "("
       //       ++ ll.model_default

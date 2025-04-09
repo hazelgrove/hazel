@@ -52,7 +52,7 @@ let testable_error: testable(Info.error) =
 let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init);
 
 let parse_exp = (s: string) => {
-  switch (MakeTerm.parse_exp(s)) {
+  switch (Parse.parse_exp(s)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };
