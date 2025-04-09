@@ -1,13 +1,9 @@
 open Virtual_dom.Vdom;
 open ProjectorCore;
 open LivelitCtx;
+open Grammar;
 
 type livelit_name = string;
-
-let put: (string, Uuidm.t) => Piece.t =
-  (s, id) => {
-    Piece.replace_id(id, Piece.mk_mono(Exp, s));
-  };
 
 module Slider: BuiltinLivelit = {
   let name = "slider";
@@ -24,7 +20,7 @@ module Slider: BuiltinLivelit = {
     (x: model_exp) =>
       switch (x.term) {
       | Int(n) => n
-      | _ => 0
+      | _ => (-1)
       };
   let model_default: model_t = 50;
 
@@ -47,18 +43,30 @@ module Slider: BuiltinLivelit = {
       };
     };
 
-  let hazel_action_t: TermBase.Typ.t = Typ.temp(Prod([]));
+  /* You could also make this just an Int */
+  let hazel_action_t: TermBase.Typ.t =
+    Sum([Variant("SetModel", [], Some(Int |> Typ.fresh))]) |> Typ.fresh;
   let action_to_hazel: action_t => action_exp =
     (action: action_t) =>
       switch (action) {
-      | _ => DHExp.fresh(Int(0))
-      //   | SetModel(n) => DHExp.fresh(Prod([Int(n)]))
+      | SetModel(n) =>
+        Ap(
+          Forward,
+          Constructor("SetModel", Some(Int |> Typ.fresh)) |> DHExp.fresh,
+          Int(n) |> DHExp.fresh,
+        )
+        |> DHExp.fresh
       };
   let action_from_hazel: action_exp => action_t =
     (action: action_exp) => {
       switch (action.term) {
-      //   | Prod([Int(n)]) => SetModel(n)
-      | _ => SetModel(0)
+      | Ap(
+          Forward,
+          {term: Constructor("SetModel", _), _},
+          {term: Int(n), _},
+        ) =>
+        SetModel(n)
+      | _ => SetModel(-1)
       };
     };
 

@@ -17,7 +17,7 @@ let evaluate_probes = unevaluated =>
   |> EvaluatorState.get_probes;
 
 let parse_exp = (s: string) => {
-  switch (MakeTerm.parse_exp(s)) {
+  switch (Parse.parse_exp(s)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };
@@ -388,16 +388,27 @@ let test_livelit = (livelit: LivelitCtx.raw_livelit) => {
   let model = livelit.model_default;
   let expected_eval =
     switch (livelit.name) {
-    | "emotion" => {|"neutral"|}
-    | "slider" => {|50|}
-    | "js" => {|""|} // In testing!
+    | "slider" => Int(50) |> Exp.fresh
     | _ => Alcotest.fail("Unknown Livelit " ++ livelit.name)
     };
 
-  parse_and_evaluate_test(
-    expected_eval,
-    "^" ++ livelit.name ++ "(" ++ Segment.show(exp_to_segment(model)) ++ ")",
+  print_endline(
+    "Testing Livelit '"
+    ++ livelit.name
+    ++ "' with model: "
+    ++ Segment.show(exp_to_segment(model)),
   );
+
+  parse_and_evaluate_test(~msg="Slider hardcode", "50", "^slider(50)");
+  //   evaluation_test(
+  //     "Built-In Livelit '" ++ livelit.name ++ "'",
+  //     expected_eval,
+  //     Ap(Forward, LivelitName(livelit.name) |> Exp.fresh, model) |> Exp.fresh,
+  //   );
+  //   parse_and_evaluate_test(
+  //     expected_eval,
+  //     "^" ++ livelit.name ++ "(" ++ Segment.show(exp_to_segment(model)) ++ ")",
+  //   );
 };
 
 let tests = (

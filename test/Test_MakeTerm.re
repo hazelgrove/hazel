@@ -8,7 +8,7 @@ module Fresh = IdTagged.FreshGrammar;
 let exp_typ = testable(Fmt.using(Exp.show, Fmt.string), Exp.fast_equal);
 
 let parse_exp = (s: string) => {
-  switch (MakeTerm.parse_exp(s)) {
+  switch (Parse.parse_exp(s)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };
