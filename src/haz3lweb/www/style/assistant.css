@@ -276,6 +276,49 @@
     width: 100%;
     align-items: center;
     margin-top: 1em;
+    margin-bottom: 1em;
+    position: relative;
+}
+
+#assistant .api-key-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    justify-content: center;
+    position: relative;
+}
+
+#assistant .toggle-show-button {
+    position: absolute;
+    right: 20px;
+    top: -30px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+#assistant .toggle-show-button button {
+    background-color: var(--SAND);
+    color: var(--STONE);
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.8em;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+#assistant .toggle-show-button button:hover {
+    background-color: var(--T1);
+    box-shadow: 0px 2px 4px var(--SHADOW);
+}
+
+#assistant .toggle-show-button button:active {
+    background-color: var(--T3);
 }
 
 #assistant .api-input {
@@ -287,6 +330,7 @@
     border: none;
     transition: all 0.3s ease;
     margin-bottom: 10px;
+    padding-right: 40px; /* Add padding to prevent text from going under the button */
 }
 
 #assistant .api-input:focus {
@@ -338,16 +382,6 @@
   color: var(--STONE);
   opacity: 0.7;
   margin-bottom: 5px;
-}
-
-#assistant .api-key-container {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-  align-items: center;
-  margin-top: 1em;
-  margin-bottom: 1em;
 }
 
 #assistant .text-display {
@@ -657,4 +691,25 @@
   background: var(--SAND);
   border-radius: 4px;
   margin: 4px 0;
+}
+
+#assistant .assistant-info-container {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8em;
+    color: var(--STONE);
+    opacity: 0.7;
+    margin-bottom: 10px;
+}
+
+#assistant .assistant-info-container a {
+    color: var(--G0);
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+#assistant .assistant-info-container a:hover {
+    opacity: 0.8;
+    text-decoration: underline;
 }
