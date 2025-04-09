@@ -145,7 +145,11 @@ let of_usage = (choices: Json.t): option(usage) => {
   let* prompt_tokens = int_field(choices, "prompt_tokens");
   let* completion_tokens = int_field(choices, "completion_tokens");
   let+ total_tokens = int_field(choices, "total_tokens");
-  {prompt_tokens, completion_tokens, total_tokens};
+  {
+    prompt_tokens,
+    completion_tokens,
+    total_tokens,
+  };
 };
 
 let first_message_content = (choices: Json.t): option(string) => {
@@ -162,7 +166,10 @@ let parse_errs = (json: Json.t): option(error) => {
   let* message = Json.str(message);
   let* code = Json.dot("code", error);
   let+ code = Json.int(code);
-  {message, code};
+  {
+    message,
+    code,
+  };
 };
 
 let handle_chat = (~db=ignore, response: option(Json.t)): option(result) => {
@@ -176,10 +183,22 @@ let handle_chat = (~db=ignore, response: option(Json.t)): option(result) => {
     let* usage = Json.dot("usage", json);
     let* content = first_message_content(choices);
     let+ usage = of_usage(usage);
-    Reply({content, usage});
+    Reply({
+      content,
+      usage,
+    });
   };
 };
 
 let add_to_prompt = (prompt, ~assistant, ~user): prompt =>
   prompt
-  @ [{role: Assistant, content: assistant}, {role: User, content: user}];
+  @ [
+    {
+      role: Assistant,
+      content: assistant,
+    },
+    {
+      role: User,
+      content: user,
+    },
+  ];

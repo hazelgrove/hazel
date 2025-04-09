@@ -56,12 +56,27 @@ let var_typ = (name: string): form => {
   };
 };
 
-let int: group = {id: IntTyp, forms: [int_typ]};
+let int: group = {
+  id: IntTyp,
+  forms: [int_typ],
+};
 
-let float: group = {id: FloatTyp, forms: [float_typ]};
+let float: group = {
+  id: FloatTyp,
+  forms: [float_typ],
+};
 
-let bool: group = {id: BoolTyp, forms: [bool_typ]};
+let bool: group = {
+  id: BoolTyp,
+  forms: [bool_typ],
+};
 
-let str: group = {id: StrTyp, forms: [str_typ]};
+let str: group = {
+  id: StrTyp,
+  forms: [str_typ],
+};
 
-let var = (name: string): group => {id: VarTyp, forms: [var_typ(name)]};
+let var = (name: string): group => {
+  id: VarTyp,
+  forms: [var_typ(name)],
+};

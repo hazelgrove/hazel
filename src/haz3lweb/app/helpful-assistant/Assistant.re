@@ -290,7 +290,11 @@ module Update = {
                 chat_to_update.id,
                 maybe_chat =>
                   switch (maybe_chat) {
-                  | Some(chat) => Some({...chat, messages})
+                  | Some(chat) =>
+                    Some({
+                      ...chat,
+                      messages,
+                    })
                   | None => None
                   },
                 model.chat_history.past_simple_chats,
@@ -302,7 +306,11 @@ module Update = {
                 chat_to_update.id,
                 maybe_chat =>
                   switch (maybe_chat) {
-                  | Some(chat) => Some({...chat, messages})
+                  | Some(chat) =>
+                    Some({
+                      ...chat,
+                      messages,
+                    })
                   | None => None
                   },
                 model.chat_history.past_suggestion_chats,
@@ -314,7 +322,11 @@ module Update = {
                 chat_to_update.id,
                 maybe_chat =>
                   switch (maybe_chat) {
-                  | Some(chat) => Some({...chat, messages})
+                  | Some(chat) =>
+                    Some({
+                      ...chat,
+                      messages,
+                    })
                   | None => None
                   },
                 model.chat_history.past_completion_chats,
@@ -364,7 +376,12 @@ module Update = {
     switch (String.trim(body)) {
     | "" => None
     | _ =>
-      let input = [{OpenRouter.role: User, OpenRouter.content: body}];
+      let input = [
+        {
+          OpenRouter.role: User,
+          OpenRouter.content: body,
+        },
+      ];
       Some(input);
     };
   };
@@ -401,7 +418,11 @@ module Update = {
     | Some(prompt') =>
       let llm = model.llm;
       let key = Option.get(Store.Generic.load("API"));
-      let params: OpenRouter.params = {llm, temperature: 1.0, top_p: 1.0};
+      let params: OpenRouter.params = {
+        llm,
+        temperature: 1.0,
+        top_p: 1.0,
+      };
       OpenRouter.start_chat(~params, ~key, prompt', req =>
         switch (OpenRouter.handle_chat(req)) {
         | Some(Reply({content, _})) =>
@@ -429,7 +450,10 @@ module Update = {
       ? form_descriptor(
           ~model,
           ~schedule_action,
-          ~chat={...curr_chat, messages: curr_chat.messages @ [message]},
+          ~chat={
+            ...curr_chat,
+            messages: curr_chat.messages @ [message],
+          },
           ~mode,
         )
       : ();
@@ -611,7 +635,11 @@ module Update = {
         let llm = model.llm;
         switch (Store.Generic.load("API")) {
         | Some(key) =>
-          let params: OpenRouter.params = {llm, temperature: 1.0, top_p: 1.0};
+          let params: OpenRouter.params = {
+            llm,
+            temperature: 1.0,
+            top_p: 1.0,
+          };
           OpenRouter.start_chat(~params, ~key, prompt, req =>
             switch (OpenRouter.handle_chat(req)) {
             | Some(Reply({content, _})) =>
@@ -697,7 +725,11 @@ module Update = {
           : resculpt_model(mode, model, filtered_past_chats, curr_chat.id);
       updated_model |> Updated.return_quiet;
     | History =>
-      {...model, show_history: !model.show_history} |> Updated.return_quiet
+      {
+        ...model,
+        show_history: !model.show_history,
+      }
+      |> Updated.return_quiet
     | Respond(message, mode, chat_id) =>
       let response = message.content;
       let code_pattern =
@@ -798,7 +830,11 @@ module Update = {
         let llm = model.llm;
         switch (Store.Generic.load("API")) {
         | Some(key) =>
-          let params: OpenRouter.params = {llm, temperature: 1.0, top_p: 1.0};
+          let params: OpenRouter.params = {
+            llm,
+            temperature: 1.0,
+            top_p: 1.0,
+          };
           OpenRouter.start_chat(~params, ~key, openrouter_prompt, req =>
             switch (OpenRouter.handle_chat(req)) {
             | Some(Reply({content, _})) =>
@@ -1063,7 +1099,12 @@ module Update = {
       add_message_to_model(
         mode,
         model,
-        {party: System, code: None, content, collapsed: false},
+        {
+          party: System,
+          code: None,
+          content,
+          collapsed: false,
+        },
         chat_id,
         ~is_final=true,
       )
@@ -1078,7 +1119,10 @@ module Update = {
         List.mapi(
           (i: int, msg: Model.message) =>
             if (i == index) {
-              {...msg, collapsed: !msg.collapsed};
+              {
+                ...msg,
+                collapsed: !msg.collapsed,
+              };
             } else {
               msg;
             },
@@ -1090,14 +1134,22 @@ module Update = {
           opt_chat =>
             switch (opt_chat) {
             | Some(chat: Model.chat) =>
-              Some({...chat, messages: updated_chat})
+              Some({
+                ...chat,
+                messages: updated_chat,
+              })
             | None => None
             },
           past_chats,
         );
       resculpt_model(mode, model, updated_past_chats, curr_chat.id)
       |> Updated.return_quiet;
-    | SelectLLM(llm) => {...model, llm} |> Updated.return_quiet
+    | SelectLLM(llm) =>
+      {
+        ...model,
+        llm,
+      }
+      |> Updated.return_quiet
     | RemoveAndSuggest(response, tileId) =>
       // Only side effects in the editor are performed here
       add_suggestion(~response, tileId, false);
@@ -1113,7 +1165,11 @@ module Update = {
           chat_id,
           opt_chat =>
             switch (opt_chat) {
-            | Some(chat: Model.chat) => Some({...chat, descriptor: content})
+            | Some(chat: Model.chat) =>
+              Some({
+                ...chat,
+                descriptor: content,
+              })
             | None => None
             },
           past_chats,
@@ -1125,7 +1181,11 @@ module Update = {
       let (past_chats, _) = get_mode_info(mode, model);
       resculpt_model(mode, model, past_chats, chat_id) |> Updated.return_quiet;
     | ToggleAPIVisibility =>
-      {...model, show_api_key: !model.show_api_key} |> Updated.return_quiet
+      {
+        ...model,
+        show_api_key: !model.show_api_key,
+      }
+      |> Updated.return_quiet
     | FilterLoadingMessages =>
       Model.{
         ...model,
@@ -1133,21 +1193,30 @@ module Update = {
           past_simple_chats:
             Id.Map.map(
               (chat: Model.chat) => {
-                {...chat, messages: filter_chat_messages(chat.messages)}
+                {
+                  ...chat,
+                  messages: filter_chat_messages(chat.messages),
+                }
               },
               model.chat_history.past_simple_chats,
             ),
           past_suggestion_chats:
             Id.Map.map(
               (chat: Model.chat) => {
-                {...chat, messages: filter_chat_messages(chat.messages)}
+                {
+                  ...chat,
+                  messages: filter_chat_messages(chat.messages),
+                }
               },
               model.chat_history.past_suggestion_chats,
             ),
           past_completion_chats:
             Id.Map.map(
               (chat: Model.chat) => {
-                {...chat, messages: filter_chat_messages(chat.messages)}
+                {
+                  ...chat,
+                  messages: filter_chat_messages(chat.messages),
+                }
               },
               model.chat_history.past_completion_chats,
             ),
