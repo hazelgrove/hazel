@@ -156,6 +156,7 @@
     -webkit-user-select: text;
     -ms-user-select: text;
     user-select: text;
+    white-space: pre-wrap;
 }
 
 #assistant .message-identifier {

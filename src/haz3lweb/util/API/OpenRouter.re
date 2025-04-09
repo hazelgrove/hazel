@@ -50,6 +50,16 @@ type reply = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type error = {
+  message: string,
+  code: int,
+};
+
+type result =
+  | Reply(reply)
+  | Error(error);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 let string_of_chat_model =
   fun
   | Gemini_Experimental_2_5 => "google/gemini-2.5-pro-exp-03-25:free"
@@ -135,11 +145,7 @@ let of_usage = (choices: Json.t): option(usage) => {
   let* prompt_tokens = int_field(choices, "prompt_tokens");
   let* completion_tokens = int_field(choices, "completion_tokens");
   let+ total_tokens = int_field(choices, "total_tokens");
-  {
-    prompt_tokens,
-    completion_tokens,
-    total_tokens,
-  };
+  {prompt_tokens, completion_tokens, total_tokens};
 };
 
 let first_message_content = (choices: Json.t): option(string) => {
@@ -150,29 +156,30 @@ let first_message_content = (choices: Json.t): option(string) => {
   Json.str(content);
 };
 
-let handle_chat = (~db=ignore, response: option(Json.t)): option(reply) => {
+let parse_errs = (json: Json.t): option(error) => {
+  let* error = Json.dot("error", json);
+  let* message = Json.dot("message", error);
+  let* message = Json.str(message);
+  let* code = Json.dot("code", error);
+  let+ code = Json.int(code);
+  {message, code};
+};
+
+let handle_chat = (~db=ignore, response: option(Json.t)): option(result) => {
   db("OpenAI: Chat response:");
   Option.map(r => r |> Json.to_string |> db, response) |> ignore;
   let* json = response;
-  let* choices = Json.dot("choices", json);
-  let* usage = Json.dot("usage", json);
-  let* content = first_message_content(choices);
-  let+ usage = of_usage(usage);
-  {
-    content,
-    usage,
+  switch (parse_errs(json)) {
+  | Some(e) => Some(Error(e))
+  | None =>
+    let* choices = Json.dot("choices", json);
+    let* usage = Json.dot("usage", json);
+    let* content = first_message_content(choices);
+    let+ usage = of_usage(usage);
+    Reply({content, usage});
   };
 };
 
 let add_to_prompt = (prompt, ~assistant, ~user): prompt =>
   prompt
-  @ [
-    {
-      role: Assistant,
-      content: assistant,
-    },
-    {
-      role: User,
-      content: user,
-    },
-  ];
+  @ [{role: Assistant, content: assistant}, {role: User, content: user}];
