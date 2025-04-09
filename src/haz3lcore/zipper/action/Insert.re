@@ -227,13 +227,14 @@ let rec go =
             )
           );
         print_endline("Found livelit " ++ ll.name);
-        let model_segment = ll.model_default |> exp_to_segment;
+        let model_segment = [
+          Segment.parenthesize(ll.model_default |> exp_to_segment),
+        ];
         print_endline("Model segment: " ++ Segment.show(model_segment));
         Some(
           z
-          |> Zipper.update_siblings(((l, r)) =>
-               (Segment.concat([l, model_segment]), r)
-             ),
+          |> Zipper.replace_selection(Left, model_segment, _)
+          |> Zipper.directional_unselect(Left, _),
         );
       //     let formatted_z =
       //       "("

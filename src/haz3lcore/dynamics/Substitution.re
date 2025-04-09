@@ -10,10 +10,7 @@ let rec binds_var = (m: Statics.Map.t, x: Var.t, dp: DHPat.t): bool =>
     | MultiHole(_)
     | Wild
     | Invalid(_)
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
+    | Atom(_)
     | Label(_)
     | Constructor(_) => false
     | Cast(y, _, _)
@@ -89,10 +86,7 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     Ap(dir, d3, d4) |> rewrap;
   | BuiltinFun(_) => d2
   | Test(d3) => Test(subst_var(m, d1, x, d3)) |> rewrap
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | Atom(_)
   | Label(_)
   | LivelitName(_)
   | Constructor(_) => d2
@@ -151,6 +145,9 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | TyAlias(tp, ut, d4) =>
     let d4' = subst_var(m, d1, x, d4);
     TyAlias(tp, ut, d4') |> rewrap;
+  | Use(t, d) =>
+    let d' = subst_var(m, d1, x, d);
+    Use(t, d') |> rewrap;
   | Parens(d4) =>
     let d4' = subst_var(m, d1, x, d4);
     Parens(d4') |> rewrap;

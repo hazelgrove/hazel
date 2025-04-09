@@ -84,7 +84,7 @@ module M: Projector = {
     let ctx =
       switch (info.statics) {
       | Some(InfoExp(exp)) => exp.ctx
-      | _ => []
+      | _ => Ctx.empty
       };
 
     switch (get(info)) {
@@ -127,7 +127,7 @@ module M: Projector = {
     let ctx =
       switch (info.statics) {
       | Some(InfoExp(exp)) => exp.ctx
-      | _ => []
+      | _ => Ctx.empty
       };
 
     let node =

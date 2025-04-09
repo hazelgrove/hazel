@@ -98,6 +98,10 @@ let go_z =
     | None => Error(CantPaste)
     | Some(z) => Ok(z)
     }
+  | Introduce =>
+    Select.current_term(~defs_exclude_bodies=false, ~case_rules=false, z)
+    |> Option.bind(_, Introduce.introduce(statics.info_map, _))
+    |> Result.of_option(~error=Action.Failure.CantIntroduce)
   | Paste(Segment(segment)) => Ok(paste_segment(z, segment))
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
@@ -206,7 +210,7 @@ let go_z =
     let ctx =
       switch (Id.Map.find_opt(id, statics.info_map)) {
       | Some(ci) => Info.ctx_of(ci)
-      | None => []
+      | None => Ctx.empty
       };
 
     z

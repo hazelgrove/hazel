@@ -8,23 +8,23 @@ type livelit_name = string;
 module Slider: BuiltinLivelit = {
   let name = "slider";
 
-  type model_t = int;
-  type expansion_t = int;
+  type model_t = Bigint.t;
+  type expansion_t = Bigint.t;
   type action_t =
     | SetModel(model_t);
 
-  let hazel_model_t: TermBase.Typ.t = Typ.temp(Int);
+  let hazel_model_t: TermBase.Typ.t = Typ.temp(Atom(Int));
   let model_to_hazel: model_t => model_exp =
-    (x: model_t) => DHExp.fresh(Int(x));
+    (x: model_t) => DHExp.fresh(Atom(Int(x)));
   let model_from_hazel: model_exp => model_t =
     (x: model_exp) =>
       switch (x.term) {
-      | Int(n) => n
-      | _ => (-1)
+      | Atom(Int(n)) => n
+      | _ => Bigint.of_int(-1)
       };
-  let model_default: model_t = 50;
+  let model_default: model_t = Bigint.of_int(50);
 
-  let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Int);
+  let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(Int));
   let expansion_f: model_t => expansion_t =
     (x: model_t) =>
       switch (x) {
@@ -33,7 +33,7 @@ module Slider: BuiltinLivelit = {
   let expansion_to_hazel: expansion_t => expansion_exp =
     (x: expansion_t) =>
       switch (x) {
-      | n => DHExp.fresh(Int(n))
+      | n => DHExp.fresh(Atom(Int(n)))
       };
   let update: (action_t, model_t) => model_t =
     (action: action_t, _model: model_t) => {
@@ -45,15 +45,17 @@ module Slider: BuiltinLivelit = {
 
   /* You could also make this just an Int */
   let hazel_action_t: TermBase.Typ.t =
-    Sum([Variant("SetModel", [], Some(Int |> Typ.fresh))]) |> Typ.fresh;
+    Sum([Variant("SetModel", [], Some(Atom(Int) |> Typ.fresh))])
+    |> Typ.fresh;
   let action_to_hazel: action_t => action_exp =
     (action: action_t) =>
       switch (action) {
       | SetModel(n) =>
         Ap(
           Forward,
-          Constructor("SetModel", Some(Int |> Typ.fresh)) |> DHExp.fresh,
-          Int(n) |> DHExp.fresh,
+          Constructor("SetModel", Some(Some(Atom(Int) |> Typ.fresh)))
+          |> DHExp.fresh,
+          Atom(Int(n)) |> DHExp.fresh,
         )
         |> DHExp.fresh
       };
@@ -63,10 +65,10 @@ module Slider: BuiltinLivelit = {
       | Ap(
           Forward,
           {term: Constructor("SetModel", _), _},
-          {term: Int(n), _},
+          {term: Atom(Int(n)), _},
         ) =>
         SetModel(n)
-      | _ => SetModel(-1)
+      | _ => SetModel(Bigint.of_int(-1))
       };
     };
 
@@ -75,17 +77,17 @@ module Slider: BuiltinLivelit = {
       let n = model;
 
       List([
-        Node.div([Node.text("Slider value: " ++ string_of_int(n))]),
+        Node.div([Node.text("Slider value: " ++ Bigint.to_string(n))]),
         Util.Web.range(
           ~attrs=[
-            Attr.value(string_of_int(n)),
+            Attr.value(Bigint.to_string(n)),
             Attr.on_input((_, v: string) => {
-              send_action(SetModel(int_of_string(v)))
+              send_action(SetModel(Bigint.of_string(v)))
             }),
           ],
           ~min="0",
           ~max="100",
-          string_of_int(n),
+          Bigint.to_string(n),
         ),
       ]);
     };

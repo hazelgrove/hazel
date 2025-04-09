@@ -20,20 +20,25 @@ let tests =
   Fresh.(
     "MakeTerm",
     Exp.[
-      test_case("Integer Literal", `Quick, () => exp_check(int(0), "0")),
+      test_case("Integer Literal", `Quick, () =>
+        exp_check(int(Bigint.zero), "0")
+      ),
       test_case("Float literal", `Quick, () =>
         exp_check(float(2.000000), "2.000000")
       ),
       test_case("Empty Hole", `Quick, () => exp_check(empty_hole(), "?")),
       test_case("Free Variable", `Quick, () => exp_check(var("x"), "x")),
       test_case("Parenthesized Expression", `Quick, () =>
-        exp_check(parens(int(0)), "(0)")
+        exp_check(parens(int(Bigint.zero)), "(0)")
       ),
       test_case("Floating operation", `Quick, () =>
         exp_check(bin_op(Float(Plus), float(1.0), float(2.0)), "1. +. 2.")
       ),
       test_case("Let Expression", `Quick, () =>
-        exp_check(let_(Pat.var("x"), int(1), var("x")), "let x = 1 in x")
+        exp_check(
+          let_(Pat.var("x"), int(Bigint.one), var("x")),
+          "let x = 1 in x",
+        )
       ),
       test_case("Function Application", `Quick, () =>
         exp_check(ap(Forward, var("f"), var("x")), "f(x)")
@@ -43,7 +48,7 @@ let tests =
           let_(
             Pat.var("f"),
             fn(Pat.var("x"), var("x"), None, None), // It seems as though the function naming happens during elaboration and not during parsing
-            int(1),
+            int(Bigint.one),
           ),
           "let f = fun x -> x in 1",
         )
@@ -63,7 +68,7 @@ let tests =
       ),
       test_case("Type Alias", `Quick, () =>
         exp_check(
-          ty_alias(TPat.var("x"), Typ.int(), int(1)),
+          ty_alias(TPat.var("x"), Typ.int(), int(Bigint.one)),
           "type x = Int in 1",
         )
       ),
@@ -85,7 +90,9 @@ let tests =
         exp_check(
           let_(
             Pat.var("x"),
-            parens(tuple([tup_label(label("l"), int(32))])),
+            parens(
+              tuple([tup_label(label("l"), int(Bigint.of_int(32)))]),
+            ),
             let_(
               Pat.(
                 cast(
@@ -106,7 +113,7 @@ let tests =
         exp_check(
           parens(
             tuple([
-              tup_label(label("l"), int(32)),
+              tup_label(label("l"), int(Bigint.of_int(32))),
               tup_label(label("l2"), string("")),
             ]),
           ),
@@ -132,7 +139,7 @@ let tests =
             ),
             parens(
               tuple([
-                tup_label(label("l"), int(32)),
+                tup_label(label("l"), int(Bigint.of_int(32))),
                 tup_label(label("l2"), string("")),
               ]),
             ),
@@ -143,7 +150,14 @@ let tests =
       ),
       test_case("Malformed label in singleton tuple", `Quick, () =>
         exp_check(
-          parens(tuple([tup_label(multi_hole([Exp(int(1))]), int(3))])),
+          parens(
+            tuple([
+              tup_label(
+                multi_hole([Exp(int(Bigint.of_int(1)))]),
+                int(Bigint.of_int(3)),
+              ),
+            ]),
+          ),
           "(1=3)",
         )
       ),
@@ -155,7 +169,7 @@ let tests =
       ),
       test_case("Livelit ap parsing", `Quick, () =>
         exp_check(
-          ap(Forward, livelit_name("slider"), int(50)),
+          ap(Forward, livelit_name("slider"), int(Bigint.of_int(50))),
           "^slider(50)",
         )
       ),
