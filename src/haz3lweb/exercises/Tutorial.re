@@ -469,7 +469,7 @@ let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
         pat: {
           term: Constructor("$e", Some(Unknown(Internal) |> Typ.fresh)),
           annotation: {
-            copied: false,
+            // copied: false,
             ids: [Id.mk()],
           },
         },
@@ -477,7 +477,7 @@ let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
       term,
     ),
   annotation: {
-    copied: false,
+    // copied: false,
     ids: [Id.mk()],
   },
 };
