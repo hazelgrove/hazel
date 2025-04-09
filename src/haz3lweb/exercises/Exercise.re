@@ -107,10 +107,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
     hidden_bugs:
       p.hidden_bugs
       |> List.map(wrong_impl => {
-           {
-             impl: f_hidden(wrong_impl.impl),
-             hint: wrong_impl.hint,
-           }
+           {impl: f_hidden(wrong_impl.impl), hint: wrong_impl.hint}
          }),
     hidden_tests: {
       tests: f_hidden(p.hidden_tests.tests),
@@ -144,14 +141,8 @@ let main_editor_of_state = (~selection: pos, eds) =>
 
 let put_main_editor = (~selection: pos, eds: p('a), editor: 'a): p('a) =>
   switch (selection) {
-  | Prelude => {
-      ...eds,
-      prelude: editor,
-    }
-  | CorrectImpl => {
-      ...eds,
-      correct_impl: editor,
-    }
+  | Prelude => {...eds, prelude: editor}
+  | CorrectImpl => {...eds, correct_impl: editor}
   | YourTestsValidation
   | YourTestsTesting => {
       ...eds,
@@ -160,19 +151,13 @@ let put_main_editor = (~selection: pos, eds: p('a), editor: 'a): p('a) =>
         tests: editor,
       },
     }
-  | YourImpl => {
-      ...eds,
-      your_impl: editor,
-    }
+  | YourImpl => {...eds, your_impl: editor}
   | HiddenBugs(n) => {
       ...eds,
       hidden_bugs:
         Util.ListUtil.put_nth(
           n,
-          {
-            ...List.nth(eds.hidden_bugs, n),
-            impl: editor,
-          },
+          {...List.nth(eds.hidden_bugs, n), impl: editor},
           eds.hidden_bugs,
         ),
     }
@@ -267,24 +252,14 @@ let transition: transitionary_spec => spec =
     let correct_impl = zipper_of_code(correct_impl);
     let your_tests = {
       let tests = zipper_of_code(your_tests.tests);
-      {
-        tests,
-        required: your_tests.required,
-        provided: your_tests.provided,
-      };
+      {tests, required: your_tests.required, provided: your_tests.provided};
     };
     let your_impl = zipper_of_code(your_impl);
     let hidden_bugs =
       List.fold_left(
         (acc, {impl, hint}) => {
           let impl = zipper_of_code(impl);
-          acc
-          @ [
-            {
-              impl,
-              hint,
-            },
-          ];
+          acc @ [{impl, hint}];
         },
         [],
         hidden_bugs,
@@ -292,10 +267,7 @@ let transition: transitionary_spec => spec =
     let hidden_tests = {
       let {tests, hints} = hidden_tests;
       let tests = zipper_of_code(tests);
-      {
-        tests,
-        hints,
-      };
+      {tests, hints};
     };
     {
       title,
@@ -336,29 +308,19 @@ let eds_of_spec =
   let correct_impl = editor_of_serialization(correct_impl);
   let your_tests = {
     let tests = editor_of_serialization(your_tests.tests);
-    {
-      tests,
-      required: your_tests.required,
-      provided: your_tests.provided,
-    };
+    {tests, required: your_tests.required, provided: your_tests.provided};
   };
   let your_impl = editor_of_serialization(your_impl);
   let hidden_bugs =
     hidden_bugs
     |> List.map(({impl, hint}) => {
          let impl = editor_of_serialization(impl);
-         {
-           impl,
-           hint,
-         };
+         {impl, hint};
        });
   let hidden_tests = {
     let {tests, hints} = hidden_tests;
     let tests = editor_of_serialization(tests);
-    {
-      tests,
-      hints,
-    };
+    {tests, hints};
   };
   {
     title,
@@ -445,34 +407,16 @@ let map2_stitched =
 
 let put_stitched = (pos, s: stitched('a), x: 'a): stitched('a) =>
   switch (pos) {
-  | YourTestsValidation => {
-      ...s,
-      test_validation: x,
-    }
-  | YourImpl => {
-      ...s,
-      user_impl: x,
-    }
-  | YourTestsTesting => {
-      ...s,
-      user_tests: x,
-    }
-  | Prelude => {
-      ...s,
-      prelude: x,
-    }
-  | CorrectImpl => {
-      ...s,
-      instructor: x,
-    }
+  | YourTestsValidation => {...s, test_validation: x}
+  | YourImpl => {...s, user_impl: x}
+  | YourTestsTesting => {...s, user_tests: x}
+  | Prelude => {...s, prelude: x}
+  | CorrectImpl => {...s, instructor: x}
   | HiddenBugs(i) => {
       ...s,
       hidden_bugs: Util.ListUtil.put_nth(i, x, s.hidden_bugs),
     }
-  | HiddenTests => {
-      ...s,
-      hidden_tests: x,
-    }
+  | HiddenTests => {...s, hidden_tests: x}
   };
 
 let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
@@ -496,10 +440,7 @@ let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
   },
 };
 
-let wrap = (term, editor: Editor.t): TermItem.t => {
-  term,
-  editor,
-};
+let wrap = (term, editor: Editor.t): TermItem.t => {term, editor};
 
 let term_of = (editor: Editor.t): Exp.t =>
   MakeTerm.from_zip_for_sem(editor.state.zipper).term;
@@ -647,10 +588,7 @@ let blank_spec =
       num_wrong_impls,
       i => {
         let zipper = Zipper.next_blank();
-        {
-          impl: zipper,
-          hint: "TODO: hint " ++ string_of_int(i),
-        };
+        {impl: zipper, hint: "TODO: hint " ++ string_of_int(i)};
       },
     );
   let hidden_tests_tests = Zipper.next_blank();
@@ -698,16 +636,7 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
     List.fold_left(
       ((i, hidden_bugs: list(wrong_impl('a))), {impl, hint}) => {
         let impl = lookup(HiddenBugs(i), impl);
-        (
-          i + 1,
-          hidden_bugs
-          @ [
-            {
-              impl,
-              hint,
-            },
-          ],
-        );
+        (i + 1, hidden_bugs @ [{impl, hint}]);
       },
       (0, []),
       spec.hidden_bugs,

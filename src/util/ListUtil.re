@@ -273,9 +273,6 @@ let rec fold_left_map =
     (final, [y, ...ys]);
   };
 
-let concat_strings = (strings: list(string)): string =>
-  List.fold_left((acc, str) => acc ++ str, "", strings);
-
 let rec take_while = (p: 'x => bool, xs: list('x)): (list('x), list('x)) =>
   switch (xs) {
   | [] => ([], [])

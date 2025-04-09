@@ -86,7 +86,7 @@ module Update = {
   let update =
       (
         ~schedule_action,
-        ~send_insertion_info,
+        ~send_assistant_insertion_info,
         ~settings: Settings.t,
         ~is_documentation: bool,
         action,
@@ -97,29 +97,17 @@ module Update = {
       let (key, ed) = List.nth(model.scratchpads, model.current);
       let* new_ed = CellEditor.Update.update(~settings, a, ed);
       switch (a) {
-      | MainEditor(action) =>
-        switch (action) {
-        | Perform(a) =>
-          switch (a) {
-          | Insert(char) => send_insertion_info(~char, ~editor=new_ed.editor)
-          | _ => ()
-          }
-        | _ => ()
-        }
+      // Check for assistant hole completion triggers
+      | MainEditor(Perform(Insert(char))) =>
+        send_assistant_insertion_info(~char, ~editor=new_ed.editor)
       | _ => ()
       };
       let new_sp =
         ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
-      {
-        ...model,
-        scratchpads: new_sp,
-      };
+      {...model, scratchpads: new_sp};
     | SwitchSlide(i) =>
       let* current = i |> Updated.return;
-      {
-        ...model,
-        current,
-      };
+      {...model, current};
     | ResetCurrent =>
       let (key, _) = List.nth(model.scratchpads, model.current);
       let source =
@@ -154,11 +142,7 @@ module Update = {
 
       let scratchpads =
         ListUtil.put_nth(model.current, (key, new_data), model.scratchpads);
-      {
-        ...model,
-        scratchpads,
-      }
-      |> Updated.return;
+      {...model, scratchpads} |> Updated.return;
     | Export =>
       export_scratch_slide(model);
       model |> Updated.return_quiet;
@@ -192,10 +176,7 @@ module Update = {
                   UpdateResult(
                     switch (r |> List.hd |> snd) {
                     | Ok((r, s)) =>
-                      Haz3lcore.ProgramResult.ResultOk({
-                        result: r,
-                        state: s,
-                      })
+                      Haz3lcore.ProgramResult.ResultOk({result: r, state: s})
                     | Error(e) => Haz3lcore.ProgramResult.ResultFail(e)
                     },
                   ),
@@ -211,10 +192,7 @@ module Update = {
     };
     let new_sp =
       ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
-    {
-      ...model,
-      scratchpads: new_sp,
-    };
+    {...model, scratchpads: new_sp};
   };
 };
 
@@ -228,10 +206,10 @@ module Selection = {
 
   let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
     switch (selection) {
-    | Cell(s) =>
+    | Cell(selection) =>
       let+ a =
         CellEditor.Selection.get_cursor_info(
-          ~selection=s,
+          ~selection,
           List.nth(model.scratchpads, model.current) |> snd,
         );
       Update.CellAction(a);
@@ -242,14 +220,14 @@ module Selection = {
   let handle_key_event =
       (~selection, ~event: Key.t, model: Model.t): option(Update.t) =>
     switch (selection) {
-    | Cell(s) =>
+    | Cell(selection) =>
       switch (event) {
       | {key: D(key), sys: Mac | PC, shift: Up, meta: Down, ctrl: Up, alt: Up}
           when Keyboard.is_digit(key) =>
         Some(Update.SwitchSlide(int_of_string(key)))
       | _ =>
         CellEditor.Selection.handle_key_event(
-          ~selection=s,
+          ~selection,
           ~event,
           List.nth(model.scratchpads, model.current) |> snd,
         )

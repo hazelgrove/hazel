@@ -23,8 +23,5 @@ type t = {
   vertical,
 };
 
-let inline = (width: int): t => {
-  horizontal: width,
-  vertical: Inline,
-};
+let inline = (width: int): t => {horizontal: width, vertical: Inline};
 let default: t = inline(0);

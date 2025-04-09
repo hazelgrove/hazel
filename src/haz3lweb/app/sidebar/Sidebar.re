@@ -17,7 +17,7 @@ let explain_this_tab = (~globals: Globals.t): Node.t => {
   let switch_explain_this = _ =>
     Virtual_dom.Vdom.Effect.Many([
       globals.inject_global(
-        Set(Sidebar(SwitchWindow(LanguageDocumentation))),
+        Set(Sidebar(SwitchPanel(LanguageDocumentation))),
       ),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
@@ -28,7 +28,7 @@ let explain_this_tab = (~globals: Globals.t): Node.t => {
         Icons.explain_this,
         ~tooltip,
         switch_explain_this,
-        globals.settings.sidebar.window == LanguageDocumentation
+        globals.settings.sidebar.panel == LanguageDocumentation
         && globals.settings.sidebar.show,
       ),
     ],
@@ -39,7 +39,7 @@ let assistant_tab = (~globals: Globals.t): Node.t => {
   let tooltip = "Switch to Helpful Assistant";
   let switch_assistant = _ =>
     Virtual_dom.Vdom.Effect.Many([
-      globals.inject_global(Set(Sidebar(SwitchWindow(HelpfulAssistant)))),
+      globals.inject_global(Set(Sidebar(SwitchPanel(HelpfulAssistant)))),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
@@ -49,7 +49,7 @@ let assistant_tab = (~globals: Globals.t): Node.t => {
         Icons.assistant,
         ~tooltip,
         switch_assistant,
-        globals.settings.sidebar.window == HelpfulAssistant
+        globals.settings.sidebar.panel == HelpfulAssistant
         && globals.settings.sidebar.show,
       ),
     ],

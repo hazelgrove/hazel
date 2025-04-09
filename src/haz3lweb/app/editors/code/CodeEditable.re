@@ -32,11 +32,7 @@ module Update = {
       |> (
         fun
         | Ok(editor) =>
-          Model.{
-            editor,
-            statics: model.statics,
-            dynamics: model.dynamics,
-          }
+          Model.{editor, statics: model.statics, dynamics: model.dynamics}
         | Error(err) => raise(Action.Failure.Exception(err))
       )
       |> Updated.return(
@@ -69,22 +65,12 @@ module Update = {
     | Perform(action) => perform(action, model)
     | Undo =>
       switch (Editor.Update.undo(model.editor)) {
-      | Some(editor) =>
-        Model.{
-          ...model,
-          editor,
-        }
-        |> Updated.return
+      | Some(editor) => Model.{...model, editor} |> Updated.return
       | None => model |> Updated.return_quiet
       }
     | Redo =>
       switch (Editor.Update.redo(model.editor)) {
-      | Some(editor) =>
-        Model.{
-          ...model,
-          editor,
-        }
-        |> Updated.return
+      | Some(editor) => Model.{...model, editor} |> Updated.return
       | None => model |> Updated.return_quiet
       }
     | DebugConsole(key) =>

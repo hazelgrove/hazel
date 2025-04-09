@@ -79,7 +79,7 @@ module Update = {
       (
         ~globals: Globals.t,
         ~schedule_action: t => unit,
-        ~send_insertion_info,
+        ~send_assistant_insertion_info,
         action,
         model: Model.t,
       ) => {
@@ -88,7 +88,7 @@ module Update = {
       let* scratch =
         ScratchMode.Update.update(
           ~schedule_action=a => schedule_action(Scratch(a)),
-          ~send_insertion_info,
+          ~send_assistant_insertion_info,
           ~is_documentation=false,
           ~settings=globals.settings,
           action,
@@ -100,7 +100,7 @@ module Update = {
         ScratchMode.Update.update(
           ~settings=globals.settings,
           ~schedule_action=a => schedule_action(Scratch(a)),
-          ~send_insertion_info,
+          ~send_assistant_insertion_info,
           ~is_documentation=true,
           action,
           m,

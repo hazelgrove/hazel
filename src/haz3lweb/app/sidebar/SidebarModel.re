@@ -4,18 +4,18 @@ open Util;
 
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type window =
+  type panel =
     | LanguageDocumentation
     | HelpfulAssistant;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     show: bool,
-    window,
+    panel,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | ToggleShow
-    | SwitchWindow(window);
+    | SwitchPanel(panel);
 };
