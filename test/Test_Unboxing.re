@@ -53,7 +53,7 @@ let test_matches = (name, type_testable, request, term, unboxed) =>
     },
   );
 
-let int_exp = i => Int(i) |> DHExp.fresh;
+let int_exp = i => Atom(Int(Bigint.of_int(i))) |> DHExp.fresh;
 
 let tests = (
   "Unboxing",
@@ -115,12 +115,16 @@ let tests = (
           )
           |> fresh,
           Typ.(List(hole([]) |> fresh) |> fresh),
-          Typ.(List(Int |> fresh) |> fresh),
+          Typ.(List(Atom(Int) |> fresh) |> fresh),
         )
         |> fresh,
         [1, 2, 3]
         |> List.map(i =>
-             Cast(i |> int_exp, Typ.(hole([]) |> fresh), Typ.(Int |> fresh))
+             Cast(
+               i |> int_exp,
+               Typ.(hole([]) |> fresh),
+               Typ.(Atom(Int) |> fresh),
+             )
              |> fresh
            ),
       ),
@@ -181,12 +185,16 @@ let tests = (
           )
           |> fresh,
           Typ.(List(hole([]) |> fresh) |> fresh),
-          Typ.(List(Int |> fresh) |> fresh),
+          Typ.(List(Atom(Int) |> fresh) |> fresh),
         )
         |> fresh,
         [1, 2, 3]
         |> List.map(i =>
-             Cast(i |> int_exp, Typ.(hole([]) |> fresh), Typ.(Int |> fresh))
+             Cast(
+               i |> int_exp,
+               Typ.(hole([]) |> fresh),
+               Typ.(Atom(Int) |> fresh),
+             )
              |> fresh
            ),
       ),
@@ -237,16 +245,20 @@ let tests = (
         Cast(
           Cons(1 |> int_exp, hole([]) |> fresh) |> fresh,
           Typ.(List(hole([]) |> fresh) |> fresh),
-          Typ.(List(Int |> fresh) |> fresh),
+          Typ.(List(Atom(Int) |> fresh) |> fresh),
         )
         |> fresh,
         (
-          Cast(1 |> int_exp, Typ.(hole([]) |> fresh), Typ.(Int |> fresh))
+          Cast(
+            1 |> int_exp,
+            Typ.(hole([]) |> fresh),
+            Typ.(Atom(Int) |> fresh),
+          )
           |> fresh,
           Cast(
             hole([]) |> fresh,
             Typ.(List(hole([]) |> fresh) |> fresh),
-            Typ.(List(Int |> fresh) |> fresh),
+            Typ.(List(Atom(Int) |> fresh) |> fresh),
           )
           |> fresh,
         ),
@@ -263,7 +275,7 @@ let tests = (
           )
           |> fresh,
           Typ.(List(List(hole([]) |> fresh) |> fresh) |> fresh),
-          Typ.(List(List(Int |> fresh) |> fresh) |> fresh),
+          Typ.(List(List(Atom(Int) |> fresh) |> fresh) |> fresh),
         )
         |> fresh,
         (
@@ -275,7 +287,7 @@ let tests = (
             )
             |> fresh,
             Typ.(List(hole([]) |> fresh) |> fresh),
-            Typ.(List(Int |> fresh) |> fresh),
+            Typ.(List(Atom(Int) |> fresh) |> fresh),
           )
           |> fresh,
           Cast(
@@ -286,7 +298,7 @@ let tests = (
             )
             |> fresh,
             Typ.(List(List(hole([]) |> fresh) |> fresh) |> fresh),
-            Typ.(List(List(Int |> fresh) |> fresh) |> fresh),
+            Typ.(List(List(Atom(Int) |> fresh) |> fresh) |> fresh),
           )
           |> fresh,
         ),

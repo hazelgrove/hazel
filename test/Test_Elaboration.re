@@ -365,16 +365,15 @@ module PlainTests = {
           ],
         )
         |> Exp.fresh,
-        Tuple([
-          Cast(
+        Cast(
+          Tuple([
             Atom(Float(1.)) |> Exp.fresh,
-            Atom(Float) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
-          |> Exp.fresh,
-          Cast(
             Atom(Bool(true)) |> Exp.fresh,
-            Atom(Bool) |> Typ.fresh,
+          ])
+          |> Exp.fresh,
+          Prod([Atom(Float) |> Typ.fresh, Atom(Bool) |> Typ.fresh])
+          |> Typ.fresh,
+          Prod([
             Unknown(Internal) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           ])
