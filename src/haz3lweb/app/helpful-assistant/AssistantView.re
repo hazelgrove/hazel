@@ -227,15 +227,7 @@ let select_llm = (~inject, ~assistantModel: Assistant.Model.t): Node.t => {
 };
 
 let settings_box = (~globals: Globals.t, ~inject): Node.t => {
-  div(
-    ~attrs=[clss(["settings-box"])],
-    [
-      // llm_toggle(~globals),
-      // lsp_toggle(~globals),
-      // begin_chat_button(~globals, ~inject),
-      resume_chat_button(~globals),
-    ],
-  );
+  div(~attrs=[clss(["settings-box"])], [resume_chat_button(~globals)]);
 };
 
 let api_input =
@@ -436,7 +428,7 @@ let message_input =
   );
 };
 
-// For aesthetic purposes only :)
+// Indicates that the LLM is thinking/responding
 let loading_dots = () => {
   div(
     ~attrs=[clss(["loading-dots"])],

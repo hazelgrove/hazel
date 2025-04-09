@@ -13,12 +13,18 @@ module Model = {
     | LLM
     | LS;
 
+  // Represents a code segment with an optional tile ID
+  // The outer option indicates if there is any code at all
+  // The inner option indicates if the code is associated with a specific tile
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type code_segment = option((Segment.t, option(Id.t)));
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type message = {
-    party,
-    code: option((Segment.t, option(Id.t))),
-    content: string,
-    collapsed: bool,
+    party, // Who sent the message (System, LLM, or LS)
+    code: code_segment, // Optional code segment with optional tile ID
+    content: string, // The text content of the message
+    collapsed: bool // Whether the message is collapsed in the UI
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -51,7 +57,7 @@ module Model = {
     current_chats,
     chat_history,
     llm: OpenRouter.chat_models,
-    show_history: bool, // TODO: Move this to AssistantSettings.re
+    show_history: bool,
     show_api_key: bool,
   };
 
@@ -59,19 +65,19 @@ module Model = {
     messages: [],
     id: Id.mk(),
     descriptor: "",
-    timestamp: Unix.time(),
+    timestamp: JsUtil.timestamp(),
   };
   let init_suggestion_chat = {
     messages: [],
     id: Id.mk(),
     descriptor: "",
-    timestamp: Unix.time(),
+    timestamp: JsUtil.timestamp(),
   };
   let init_completion_chat = {
     messages: [],
     id: Id.mk(),
     descriptor: "",
-    timestamp: Unix.time(),
+    timestamp: JsUtil.timestamp(),
   };
 
   // Simple helper to save a parameter in call to Id.Map.add
@@ -149,24 +155,6 @@ module Update = {
   let code_message_of_str =
       (response: string, party: Model.party, tileId: option(Id.t))
       : Model.message => {
-    /* Alternate method using Detruct and Insert. We need a memory of cursor location for this however.
-       let z = editor.editor.state.zipper;
-       let z = Option.get(Destruct.go(Direction.Left, z));
-       let z = Option.get(Destruct.go(Direction.Left, z));
-       let z = Option.get(Insert.go(response, z));
-       let segment_of_response =
-         Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, z);
-       {
-         party,
-         code: Some(segment_of_response),
-         content: response,
-         collapsed: String.length(response) >= 200,
-       }; */
-    // Hack(Russ) Uses same logic Andrew uses in Oracle.re to remove "??"
-    // let string_of_sketch =
-    //   Printer.zipper_to_string(editor.editor.state.zipper);
-    // let sketch_with_response =
-    //   Str.global_replace(Str.regexp("\\?\\?"), response, string_of_sketch);
     let zipper_of_response = Printer.zipper_of_string(response);
     switch (zipper_of_response) {
     | Some(z) =>
@@ -372,6 +360,15 @@ module Update = {
     };
   };
 
+  let standardize_prompt = (body: string): option(OpenRouter.prompt) => {
+    switch (String.trim(body)) {
+    | "" => None
+    | _ =>
+      let input = [{OpenRouter.role: User, OpenRouter.content: body}];
+      Some(input);
+    };
+  };
+
   let form_descriptor =
       (
         ~model: Model.t,
@@ -382,8 +379,8 @@ module Update = {
       : unit => {
     let prompt =
       switch (mode) {
-      | HazelTutor => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 10 words.\n    DO NOT exceed 10 words. Only provide the summarizing title in your response, do not include any other text. Here is the\n    concatenated conversation, with your response and the user's responses, respectively: "
-      | CodeSuggestion => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 10 words.\n    DO NOT exceed 10 words. Only provide the summarizing title in your response, do not include any other text. This conversation is known to be a code\n    completion conversation. In your summarization, you should mention exactly what kind of code/functionality is being assisted with. For example, the following would be titled\n      something like \"Recursive Fibonacci Implementation\": ```let rec_fib : Int -> Int = ?? in ?```. Here is the\n    concatenated conversation, with your response and the user's responses, respectively: "
+      | HazelTutor => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 7 words. \n            DO NOT exceed 7 words. Only provide the summarizing title in your response, do not include any other text. Here is the\n            concatenated conversation, with your response and the user's responses, respectively: "
+      | CodeSuggestion => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 7 words.\n            DO NOT exceed 7 words. Only provide the summarizing title in your response, do not include any other text. This conversation is known to be a code\n            completion conversation. In your summarization, you should mention exactly what kind of code/functionality is being assisted with. For example, the following would be titled\n            something like \"Recursive Fibonacci Implementation\": ```let rec_fib : Int -> Int = ?? in ?```. Here is the\n            concatenated conversation, with your response and the user's responses, respectively: "
       | TaskCompletion => "Ignore all other input and just output \"You (Hazel Lab Member) need to implement this\""
       };
     let prompt =
@@ -399,8 +396,8 @@ module Update = {
         prompt,
         chat.messages,
       );
-    switch (Oracle.ask(prompt)) {
-    | None => print_endline("Oracle: prompt generation failed")
+    switch (standardize_prompt(prompt)) {
+    | None => print_endline("Prompt generation failed")
     | Some(prompt') =>
       let llm = model.llm;
       let key = Option.get(Store.Generic.load("API"));
@@ -445,26 +442,6 @@ module Update = {
     let z = editor.editor.state.zipper;
     let caret = z.caret;
     let siblings = z.relatives.siblings;
-
-    /*
-     // Check if cursor is in a hole
-     print_endline("Checking cursor position...");
-     print_endline("Caret: " ++ (caret == Outer ? "Outer" : "Inner"));
-     switch (Indicated.ci_of(z, editor.statics.info_map)) {
-     | Some(ci) =>
-       print_endline("Found cursor info");
-       switch (ci) {
-       | Info.InfoExp({term: {ids: _, copied: _, term: EmptyHole}, _}) =>
-         print_endline("Found empty hole");
-         switch (Indicated.index(z)) {
-         | Some(index) => schedule_action(SendSketch(index))
-         | None => print_endline("No index found for hole")
-         };
-       | _ => ()
-       };
-     | None => ()
-     };
-     */
 
     // Check if user just typed ??
     switch (caret, Zipper.neighbor_monotiles(siblings)) {
@@ -615,7 +592,7 @@ module Update = {
         List.length(curr_chat.messages) == 0
           ? tutor_prelude ++ "\n\n" ++ collected_chat : collected_chat;
       print_endline("tutor_chat: " ++ tutor_chat);
-      switch (Oracle.ask(tutor_chat)) {
+      switch (standardize_prompt(tutor_chat)) {
       | None =>
         add_message_to_model(
           mode,
@@ -623,7 +600,7 @@ module Update = {
           {
             party: System,
             code: None,
-            content: "Oracle: Prompt generation failed.",
+            content: "Prompt generation failed.",
             collapsed: false,
           },
           curr_chat.id,
@@ -697,7 +674,7 @@ module Update = {
         messages: [],
         id: Id.mk(),
         descriptor: "",
-        timestamp: Unix.time(),
+        timestamp: JsUtil.timestamp(),
       };
       let updated_history = Model.add_chat_to_history(new_chat, past_chats);
       print_endline("New chat made");
@@ -811,31 +788,13 @@ module Update = {
             (msg: OpenRouter.message): string => {msg.content},
             openrouter_prompt,
           );
-        let prompt = ListUtil.concat_strings(messages);
+        let prompt = String.concat("\n", messages);
         let message: Model.message = {
           party: LS,
           code: Some((sketch_seg, None)),
           content: prompt,
           collapsed: String.length(prompt) >= 200,
         };
-        /* Old code. Don't need to collect chat here, leads to far too long of prompts.
-           let collected_chat =
-             switch (mode) {
-             | CodeSuggestion =>
-               collect_chat(
-                 ~messages=model.chats.curr_suggestion_chat.messages @ [message],
-               )
-             | TaskCompletion =>
-               collect_chat(
-                 ~messages=model.chats.curr_completion_chat.messages @ [message],
-               )
-             | _ =>
-               print_endline(
-                 "Invalid mode. Cannot perform code completion in chat mode.",
-               );
-               "";
-             };
-           */
         let llm = model.llm;
         switch (Store.Generic.load("API")) {
         | Some(key) =>
@@ -1019,7 +978,7 @@ module Update = {
         let (_, curr_chat) = get_mode_info(mode, model);
         let collected_chat =
           collect_chat(~messages=curr_chat.messages @ [error_message]);
-        switch (Oracle.ask(collected_chat)) {
+        switch (standardize_prompt(collected_chat)) {
         | None =>
           add_message_to_model(
             mode,
@@ -1027,7 +986,7 @@ module Update = {
             {
               party: System,
               code: None,
-              content: "Oracle: Prompt generation failed.",
+              content: "Prompt generation failed.",
               collapsed: false,
             },
             chat_id,

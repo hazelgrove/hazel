@@ -55,19 +55,12 @@ module CachedSyntax = {
     };
   };
 
-  let mark_old: t => t =
-    old => {
-      ...old,
-      old: true,
-    };
+  let mark_old: t => t = old => {...old, old: true};
 
   let calculate = (z: Zipper.t, info_map, dyn_map, old: t) =>
     old.old
       ? init(z, ~info_map, ~dyn_map)
-      : {
-        ...old,
-        selection_ids: Selection.selection_ids(z.selection),
-      };
+      : {...old, selection_ids: Selection.selection_ids(z.selection)};
 };
 
 module State = {
@@ -170,11 +163,7 @@ module Update = {
               ~settings,
               old_statics,
               Buffer(Clear),
-              Model.to_move_s({
-                state,
-                history,
-                syntax,
-              }),
+              Model.to_move_s({state, history, syntax}),
               state.zipper,
             )
             |> Action.Result.ok
@@ -203,10 +192,7 @@ module Update = {
         }
       | _ => None
       };
-    let state = {
-      ...state,
-      col_target,
-    };
+    let state = {...state, col_target};
 
     // 4. Update the zipper
     let+ zipper =
@@ -214,11 +200,7 @@ module Update = {
         ~settings,
         old_statics,
         a,
-        Model.to_move_s({
-          state,
-          history,
-          syntax,
-        }),
+        Model.to_move_s({state, history, syntax}),
         state.zipper,
       );
 
@@ -280,11 +262,7 @@ module Update = {
             ~settings,
             new_statics,
             Buffer(Set(TyDi)),
-            Model.to_move_s({
-              syntax,
-              state,
-              history,
-            }),
+            Model.to_move_s({syntax, state, history}),
             state.zipper,
           )
         ) {

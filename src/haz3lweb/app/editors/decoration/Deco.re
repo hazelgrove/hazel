@@ -179,21 +179,11 @@ module HighlightSegment =
     |> ListUtil.split_at_nones
     |> ListUtil.first_and_last
     |> List.map((((m1, (l1, _)), (m2, (_, r2)))) =>
-         (
-           Measured.{
-             origin: m1.origin,
-             last: m2.last,
-           },
-           (l1, r2),
-         )
+         (Measured.{origin: m1.origin, last: m2.last}, (l1, r2))
        )
     |> List.map(((measurement, tips)) =>
          ShardDec.simple(
-           {
-             font_metrics: M.font_metrics,
-             measurement,
-             tips,
-           },
+           {font_metrics: M.font_metrics, measurement, tips},
            classes,
          )
        );
@@ -206,10 +196,7 @@ let quick_select_deco = (segment: Segment.t): Node.t => {
       let measured = Measured.of_segment(segment, shape_map);
       let shape_map = shape_map;
       let font_metrics =
-        FontMetrics.{
-          row_height: 25.125,
-          col_width: 10.390625,
-        };
+        FontMetrics.{row_height: 25.125, col_width: 10.390625};
     });
   switch (Highlight.go(segment, Some(Convex), [])) {
   | exception _exn => Node.div([])
@@ -253,14 +240,7 @@ module Deco =
       | Some((_, side, _)) => Direction.toggle(side)
       | _ => Right
       };
-    CaretDec.view(
-      ~font_metrics,
-      ~profile={
-        side,
-        origin,
-        shape,
-      },
-    );
+    CaretDec.view(~font_metrics, ~profile={side, origin, shape});
   };
   module Highlight =
     HighlightSegment({
@@ -370,22 +350,12 @@ module Deco =
                | (None, None) => failwith("impossible")
                | (_, Some(p)) =>
                  let m = Measured.find_p(~msg="Deco.targets", p, measured);
-                 Measured.{
-                   origin: m.origin,
-                   last: m.origin,
-                 };
+                 Measured.{origin: m.origin, last: m.origin};
                | (Some(p), _) =>
                  let m = Measured.find_p(~msg="Deco.targets", p, measured);
-                 Measured.{
-                   origin: m.last,
-                   last: m.last,
-                 };
+                 Measured.{origin: m.last, last: m.last};
                };
-             let profile =
-               CaretPosDec.Profile.{
-                 style: `Sibling,
-                 measurement,
-               };
+             let profile = CaretPosDec.Profile.{style: `Sibling, measurement};
              [CaretPosDec.view(~font_metrics, profile)];
            };
          });
@@ -445,10 +415,7 @@ module Deco =
       [m(~x=l.col, ~y=l.row), ...r_edge]
       @ l_edge
       @ [Z]
-      |> translate({
-           dx: Float.of_int(- l.col),
-           dy: Float.of_int(- l.row),
-         });
+      |> translate({dx: Float.of_int(- l.col), dy: Float.of_int(- l.row)});
     (l, r, path) |> deco;
   };
 
@@ -457,10 +424,7 @@ module Deco =
       term_decoration(~id, ((origin, last, path)) =>
         DecUtil.code_svg_sized(
           ~font_metrics,
-          ~measurement={
-            origin,
-            last,
-          },
+          ~measurement={origin, last},
           ~base_cls=clss,
           path,
         )

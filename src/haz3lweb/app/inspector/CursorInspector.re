@@ -95,8 +95,6 @@ let term_view = (~globals: Globals.t, ci) => {
     ],
     [
       ctx_toggle(~globals),
-      // russ todo: this bottom-bar needs to be cleaned up now with
-      //            toggle replaced in favor of persisten sidebar
       div(~attrs=[clss(["term-tag"])], [text(sort)]),
       cls_view(ci),
     ],

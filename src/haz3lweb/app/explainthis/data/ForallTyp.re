@@ -20,7 +20,4 @@ let forall_typ: form = {
   };
 };
 
-let forall: group = {
-  id: ForallTyp,
-  forms: [forall_typ],
-};
+let forall: group = {id: ForallTyp, forms: [forall_typ]};

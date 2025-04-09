@@ -72,6 +72,15 @@ module Update = {
     | Start
     | Save;
 
+  // Helper function to check for insertion of '??' or '?a' and trigger assistant updates
+  let send_assistant_insertion_info = (~char, ~editor, ~schedule_action) => {
+    Assistant.Update.check_req(
+      char,
+      a => schedule_action(Assistant(a)),
+      editor,
+    );
+  };
+
   let update_global =
       (
         ~import_log,
@@ -80,15 +89,6 @@ module Update = {
         action: Globals.Update.t,
         model: Model.t,
       ) => {
-    /* A function passed down to trigger an update within
-       assistant which checks for the insertion of '??' or '?a' */
-    let send_insertion_info = (~char, ~editor) => {
-      Assistant.Update.check_req(
-        char,
-        a => schedule_action(Assistant(a)),
-        editor,
-      );
-    };
     switch (action) {
     | SetMousedown(mousedown) =>
       {
@@ -141,15 +141,12 @@ module Update = {
           Editors.Update.update(
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
-            ~send_insertion_info,
+            ~send_assistant_insertion_info=
+              send_assistant_insertion_info(~schedule_action),
             action,
             model.editors,
           );
-        {
-          ...model,
-          editors,
-          selection,
-        };
+        {...model, editors, selection};
       };
     | InitImportAll(file) =>
       JsUtil.read_file(file, data =>
@@ -177,14 +174,12 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
-            ~send_insertion_info,
+            ~send_assistant_insertion_info=
+              send_assistant_insertion_info(~schedule_action),
             action,
             model.editors,
           );
-        {
-          ...model,
-          editors,
-        };
+        {...model, editors};
       };
     | Undo =>
       let cursor_info =
@@ -199,14 +194,12 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
-            ~send_insertion_info,
+            ~send_assistant_insertion_info=
+              send_assistant_insertion_info(~schedule_action),
             action,
             model.editors,
           );
-        {
-          ...model,
-          editors,
-        };
+        {...model, editors};
       };
     | Redo =>
       let cursor_info =
@@ -221,14 +214,12 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
-            ~send_insertion_info,
+            ~send_assistant_insertion_info=
+              send_assistant_insertion_info(~schedule_action),
             action,
             model.editors,
           );
-        {
-          ...model,
-          editors,
-        };
+        {...model, editors};
       };
     };
   };
@@ -241,15 +232,6 @@ module Update = {
         action: t,
         model: Model.t,
       ) => {
-    /* A function passed down to trigger an update within
-       assistant which checks for the insertion of '??' or '?a' */
-    let send_insertion_info = (~char, ~editor) => {
-      Assistant.Update.check_req(
-        char,
-        a => schedule_action(Assistant(a)),
-        editor,
-      );
-    };
     let globals = {
       ...model.globals,
       export_all: Export.export_all,
@@ -263,53 +245,37 @@ module Update = {
         Editors.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
-          ~send_insertion_info,
+          ~send_assistant_insertion_info=
+            send_assistant_insertion_info(~schedule_action),
           action,
           model.editors,
         );
-      {
-        ...model,
-        editors,
-      };
+      {...model, editors};
     | ExplainThis(action) =>
       let* explain_this =
         ExplainThisUpdate.set_update(model.explain_this, action);
-      {
-        ...model,
-        explain_this,
-      };
+      {...model, explain_this};
     | Assistant(action) =>
       let settings = globals.settings;
       let ed: CellEditor.Model.t =
         switch (model.editors) {
         | Scratch(m) => List.nth(m.scratchpads, m.current) |> snd
         | Documentation(m) => List.nth(m.scratchpads, m.current) |> snd
-        | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl // Todo this is an error
+        | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl
         };
       open Haz3lcore;
       let add_suggestion = (~response: string, tile: Id.t, resuggest: bool) => {
-        /*
-         let tile_content =
-           TileMap.find_opt(tile, ed.editor.editor.syntax.tiles)
-           |> Option.map((tile: Tile.t) => tile.label)
-           |> Option.map(List.hd);
-         switch (tile_content) {
-         | Some(content) => print_endline("tile_content: " ++ content)
-         | None => print_endline("tile_content: None")
-         };
-         */
-        print_endline("resuggest: " ++ string_of_bool(resuggest));
         let actions =
           resuggest
             ? [
               Action.Select(Tile(Id(tile, Direction.Left))),
-              Action.Buffer(Set(LLMSug(response))),
+              Action.Buffer(Set(LLM(response))),
             ]
             : [
               Action.Select(Tile(Id(tile, Direction.Left))),
               Action.Destruct(Direction.Left),
               Action.Insert(" "),
-              Action.Buffer(Set(LLMSug(response))),
+              Action.Buffer(Set(LLM(response))),
             ];
         // Apply each action in sequence
         List.iter(
@@ -332,16 +298,8 @@ module Update = {
           ~schedule_action=a => schedule_action(Assistant(a)),
           ~add_suggestion,
         );
-      {
-        ...model,
-        assistant,
-      };
-    | MakeActive(selection) =>
-      {
-        ...model,
-        selection,
-      }
-      |> Updated.return
+      {...model, assistant};
+    | MakeActive(selection) => {...model, selection} |> Updated.return
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
@@ -378,11 +336,7 @@ module Update = {
         cursor_info.info,
       );
     let globals = Globals.Update.calculate(color_highlights, model.globals);
-    {
-      ...model,
-      globals,
-      editors,
-    };
+    {...model, globals, editors};
   };
 };
 
@@ -592,7 +546,7 @@ module View = {
     let sidebar = {
       let sub =
         globals.settings.sidebar.show
-          ? switch (globals.settings.sidebar.window) {
+          ? switch (globals.settings.sidebar.panel) {
             | LanguageDocumentation =>
               ExplainThis.view(
                 ~globals,
