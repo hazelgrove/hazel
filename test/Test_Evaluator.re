@@ -426,23 +426,14 @@ let test_livelit = (livelit: LivelitCtx.raw_livelit) => {
     | _ => Alcotest.fail("Unknown Livelit " ++ livelit.name)
     };
 
-  print_endline(
-    "Testing Livelit '"
+  parse_and_evaluate_test(
+    Printer.of_segment(~holes=None, exp_to_segment(expected_eval)),
+    "^"
     ++ livelit.name
-    ++ "' with model: "
-    ++ Segment.show(exp_to_segment(model)),
+    ++ "("
+    ++ Printer.of_segment(~holes=None, exp_to_segment(model))
+    ++ ")",
   );
-
-  parse_and_evaluate_test(~msg="Slider hardcode", "50", "^slider(50)");
-  //   evaluation_test(
-  //     "Built-In Livelit '" ++ livelit.name ++ "'",
-  //     expected_eval,
-  //     Ap(Forward, LivelitName(livelit.name) |> Exp.fresh, model) |> Exp.fresh,
-  //   );
-  //   parse_and_evaluate_test(
-  //     expected_eval,
-  //     "^" ++ livelit.name ++ "(" ++ Segment.show(exp_to_segment(model)) ++ ")",
-  //   );
 };
 
 let tests = (

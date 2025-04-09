@@ -230,45 +230,39 @@ let rec go =
         let model_segment = [
           Segment.parenthesize(ll.model_default |> exp_to_segment),
         ];
-        print_endline("Model segment: " ++ Segment.show(model_segment));
+
+        let model_zipper =
+          model_segment
+          |> Segment.to_string(~holes=None)
+          |> StringUtil.to_list
+          |> List.fold_left(insert, Some(z));
+
+        let args_and_name =
+          switch (model_zipper) {
+          | Some(z) =>
+            Some(z.relatives.siblings |> fst |> List.rev |> ListUtil.take(2))
+          | None => None
+          };
+
+        let updated_syntax =
+          ProjectorInit.init_or_noop(
+            Livelit,
+            Segment.parenthesize(Option.get(args_and_name)),
+            Exp(IdTagged.FreshGrammar.Exp.empty_hole()),
+          );
+
+        let new_left_siblings =
+          switch (List.rev(fst(z.relatives.siblings))) {
+          | [_hd, ...tl] => List.rev([updated_syntax, ...tl])
+          | [] => []
+          };
+
         Some(
-          z
-          |> Zipper.replace_selection(Left, model_segment, _)
-          |> Zipper.directional_unselect(Left, _),
+          Option.get(model_zipper)
+          |> Zipper.update_siblings(((_, r)) => (new_left_siblings, r)),
         );
-      //     let formatted_z =
-      //       "("
-      //       ++ ll.model_default
-      //       ++ ")"
-      //       |> StringUtil.to_list
-      //       |> List.fold_left(insert, Some(z));
 
-      //     let args_and_name =
-      //       switch (formatted_z) {
-      //       | Some(z) =>
-      //         Some(z.relatives.siblings |> fst |> List.rev |> ListUtil.take(2))
-      //       | None => None
-      //       };
-
-      //     let updated_syntax =
-      //       ProjectorInit.init_or_noop(
-      //         Livelit,
-      //         Segment.parenthesize(Option.get(args_and_name)),
-      //         Exp(IdTagged.FreshGrammar.Exp.empty_hole()),
-      //       );
-
-      //     let new_left_siblings =
-      //       switch (List.rev(fst(z.relatives.siblings))) {
-      //       | [_hd, ...tl] => List.rev([updated_syntax, ...tl])
-      //       | [] => []
-      //       };
-
-      //     Some(
-      //       Option.get(formatted_z)
-      //       |> Zipper.update_siblings(((_, r)) => (new_left_siblings, r)),
-      //     );
-
-      //   // No matching livelit found, insert space
+      // No matching livelit found, insert space
       | None => insert_outer(char, z)
       };
     | None => insert(Some(z), char)

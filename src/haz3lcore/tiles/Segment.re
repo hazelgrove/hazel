@@ -854,3 +854,21 @@ module IDs = {
     };
   };
 };
+
+let rec to_string = (~holes, seg: t): string =>
+  seg |> List.map(str_from_piece(~holes)) |> String.concat("")
+and str_from_piece = (~holes, p: Piece.t): string =>
+  switch (p) {
+  | Tile(t) => str_from_tile(~holes, t)
+  | Grout({shape: Concave, _}) => " "
+  | Grout({shape: Convex, _}) when holes != None => Option.get(holes)
+  | Grout({shape: Convex, _}) => " "
+  | Secondary(w) =>
+    Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
+  | Projector(p) => to_string(~holes, Piece.unparenthesize(p.syntax))
+  }
+and str_from_tile = (~holes, t: Tile.t): string =>
+  Aba.mk(t.shards, t.children)
+  |> Aba.join(str_from_delim(t), to_string(~holes))
+  |> String.concat("")
+and str_from_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
