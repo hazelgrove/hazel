@@ -11,6 +11,7 @@ src/haz3lweb/exercises/**/*.ml linguist-generated
 
 hazel.opam linguist-generated
 hazel.opam.locked linguist-generated
+package-lock.json linguist-generated
 
 *.md linguist-documentation
 docs/** linguist-documentation

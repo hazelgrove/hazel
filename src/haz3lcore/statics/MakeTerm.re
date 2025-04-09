@@ -151,8 +151,7 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
 let mk_bad = (ctr, ids, value) => {
   let t: Typ.t = {
     annotation: {
-      ids,
-      copied: false,
+      ids: ids,
     },
     term: Var(ctr),
   };
@@ -196,8 +195,7 @@ and exp = unsorted => {
       ids,
       {
         annotation: {
-          ids,
-          copied: false,
+          ids: ids,
         },
         term,
       },
@@ -236,10 +234,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {annotation: {ids, copied: false}, term: Tuple(es)} => (
-            ListLit(es),
-            ids,
-          )
+        | {annotation: {ids}, term: Tuple(es)} => (ListLit(es), ids)
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
@@ -322,7 +317,6 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             {
               annotation: {
                 ids: [Id.nullary_ap_flag],
-                copied: false,
               },
               term: Tuple([]),
             },
@@ -332,7 +326,6 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         let use_deferral = (arg: Exp.t): Exp.t => {
           annotation: {
             ids: IdTagged.ids(arg),
-            copied: false,
           },
           term: Deferral(InAp),
         };
@@ -470,8 +463,7 @@ and pat = unsorted => {
       ids,
       {
         annotation: {
-          ids,
-          copied: false,
+          ids: ids,
         },
         term,
       },
@@ -588,8 +580,7 @@ and typ = unsorted => {
       {
         term,
         annotation: {
-          ids,
-          copied: false,
+          ids: ids,
         },
       },
     );
@@ -706,8 +697,7 @@ and tpat = unsorted => {
     {
       term,
       annotation: {
-        ids,
-        copied: false,
+        ids: ids,
       },
     },
   );
@@ -751,7 +741,6 @@ and rul = (unsorted): Rul.t => {
       | Some((ps, leading_clauses)) => {
           annotation: {
             ids: ids(unsorted),
-            copied: false,
           },
           term:
             Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
@@ -760,7 +749,6 @@ and rul = (unsorted): Rul.t => {
           term: hole,
           annotation: {
             ids: ids(unsorted),
-            copied: false,
           },
         }
       }
@@ -768,7 +756,6 @@ and rul = (unsorted): Rul.t => {
         term: hole,
         annotation: {
           ids: ids(unsorted),
-          copied: false,
         },
       }
     }
@@ -776,7 +763,6 @@ and rul = (unsorted): Rul.t => {
       term: Rules(e, []),
       annotation: {
         ids: [],
-        copied: false,
       },
     }
   };
