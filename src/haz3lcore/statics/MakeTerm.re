@@ -151,8 +151,7 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
 let mk_bad = (ctr, ids, value) => {
   let t: Typ.t = {
     annotation: {
-      ids,
-      copied: false,
+      ids: ids,
     },
     term: Var(ctr),
   };
@@ -196,8 +195,7 @@ and exp = unsorted => {
       ids,
       {
         annotation: {
-          ids,
-          copied: false,
+          ids: ids,
         },
         term,
       },
@@ -222,12 +220,15 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Form.is_empty_tuple(t) => ret(Tuple([]))
       | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
       | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
-      | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))
+      | ([t], []) when Form.is_bool(t) =>
+        ret(Atom(Bool(bool_of_string(t))))
       | ([t], []) when Form.is_undefined(t) => ret(Undefined)
-      | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
+      | ([t], []) when Form.is_int(t) =>
+        ret(Atom(Int(Bigint.of_string(t))))
       | ([t], []) when Form.is_string(t) =>
-        ret(String(Form.strip_quotes(t)))
-      | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
+        ret(Atom(String(Form.strip_quotes(t))))
+      | ([t], []) when Form.is_float(t) =>
+        ret(Atom(Float(float_of_string(t))))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_ctr(t) => ret(Constructor(t, None))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
@@ -236,10 +237,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {annotation: {ids, copied: false}, term: Tuple(es)} => (
-            ListLit(es),
-            ids,
-          )
+        | {annotation: {ids}, term: Tuple(es)} => (ListLit(es), ids)
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
@@ -300,6 +298,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             }),
             r,
           )
+        | (["use", "in"], [Typ(ty)]) => Use(ty, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
@@ -321,7 +320,6 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             {
               annotation: {
                 ids: [Id.nullary_ap_flag],
-                copied: false,
               },
               term: Tuple([]),
             },
@@ -331,7 +329,6 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         let use_deferral = (arg: Exp.t): Exp.t => {
           annotation: {
             ids: IdTagged.ids(arg),
-            copied: false,
           },
           term: Deferral(InAp),
         };
@@ -469,8 +466,7 @@ and pat = unsorted => {
       ids,
       {
         annotation: {
-          ids,
-          copied: false,
+          ids: ids,
         },
         term,
       },
@@ -491,10 +487,12 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         switch (tile) {
         | ([t], []) when Form.is_empty_tuple(t) => Tuple([])
         | ([t], []) when Form.is_empty_list(t) => ListLit([])
-        | ([t], []) when Form.is_bool(t) => Bool(bool_of_string(t))
-        | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
-        | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
-        | ([t], []) when Form.is_string(t) => String(Form.strip_quotes(t))
+        | ([t], []) when Form.is_bool(t) => Atom(Bool(bool_of_string(t)))
+        | ([t], []) when Form.is_float(t) =>
+          Atom(Float(float_of_string(t)))
+        | ([t], []) when Form.is_int(t) => Atom(Int(Bigint.of_string(t)))
+        | ([t], []) when Form.is_string(t) =>
+          Atom(String(Form.strip_quotes(t)))
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) => Constructor(t, None)
@@ -585,8 +583,7 @@ and typ = unsorted => {
       {
         term,
         annotation: {
-          ids,
-          copied: false,
+          ids: ids,
         },
       },
     );
@@ -605,10 +602,12 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(
         switch (tile) {
         | ([t], []) when Form.is_empty_tuple(t) => Prod([])
-        | (["Bool"], []) => Bool
-        | (["Int"], []) => Int
-        | (["Float"], []) => Float
-        | (["String"], []) => String
+        | (["Bool"], []) => Atom(Bool)
+        | (["Int"], []) => Atom(Int)
+        | (["SInt"], []) => Atom(SInt)
+        | (["Float"], []) => Atom(Float)
+        | (["String"], []) => Atom(String)
+        | (["Nat"], []) => Atom(Nat)
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
@@ -701,8 +700,7 @@ and tpat = unsorted => {
     {
       term,
       annotation: {
-        ids,
-        copied: false,
+        ids: ids,
       },
     },
   );
@@ -744,7 +742,6 @@ and rul = (unsorted): Rul.t => {
       | Some((ps, leading_clauses)) => {
           annotation: {
             ids: ids(unsorted),
-            copied: false,
           },
           term:
             Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
@@ -753,7 +750,6 @@ and rul = (unsorted): Rul.t => {
           term: hole,
           annotation: {
             ids: ids(unsorted),
-            copied: false,
           },
         }
       }
@@ -761,7 +757,6 @@ and rul = (unsorted): Rul.t => {
         term: hole,
         annotation: {
           ids: ids(unsorted),
-          copied: false,
         },
       }
     }
@@ -769,7 +764,6 @@ and rul = (unsorted): Rul.t => {
       term: Rules(e, []),
       annotation: {
         ids: [],
-        copied: false,
       },
     }
   };
