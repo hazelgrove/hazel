@@ -5,6 +5,7 @@ open Grammar;
 
 type livelit_name = string;
 
+// referenced in docs/livelits.md
 module Slider: BuiltinLivelit = {
   let name = "slider";
 
@@ -37,13 +38,11 @@ module Slider: BuiltinLivelit = {
       };
   let update: (action_t, model_t) => model_t =
     (action: action_t, _model: model_t) => {
-      /* No action needed for this livelit */
       switch (action) {
       | SetModel(n) => n
       };
     };
 
-  /* You could also make this just an Int */
   let hazel_action_t: TermBase.Typ.t =
     Sum([Variant("SetModel", [], Some(Atom(Int) |> Typ.fresh))])
     |> Typ.fresh;

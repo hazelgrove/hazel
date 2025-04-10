@@ -32,6 +32,7 @@ type raw_livelit = {
   size: ProjectorCore.Shape.t,
 };
 
+// referenced in docs/livelits.md
 module type BuiltinLivelit = {
   let name: string;
   type model_t;
