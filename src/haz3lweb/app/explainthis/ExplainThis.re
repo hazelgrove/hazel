@@ -442,11 +442,6 @@ let get_doc =
     )
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
   let simple = msg => ([], ([text(msg)], (Id.Map.empty, 0)), []);
-  let simple_list = msgs => (
-    [],
-    (List.map(str => Node.div([text(str)]), msgs), (Id.Map.empty, 0)),
-    [],
-  );
   let default = simple("No docs available");
   let get_specificity_level = group_id =>
     fst(ExplainThisModel.get_form_and_options(group_id, docs)).id;
