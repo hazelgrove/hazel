@@ -304,6 +304,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
         pure(EmptyHole),
         pure(TupleExp([])),
         pure(ListExp([])),
+        map(x => Constructor(x, None), gen_constructor_ident),
       ]);
     fix(
       (self: int => t(exp), n) => {
@@ -314,8 +315,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
             leaf,
             {
               let* sizes = gen_sized_array(n);
-              let+ exps =
-                flatten_a(Array.map((size: int) => self(size), sizes));
+              let+ exps = flatten_a(Array.map((n: int) => self(n), sizes));
               ListExp(Array.to_list(exps));
             },
             {
@@ -323,14 +323,14 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
               let+ exps =
                 flatten_a(
                   Array.map(
-                    (size: int) =>
+                    (n: int) =>
                       oneof([
                         {
                           let* l = gen_label;
                           let+ e = self(n - 1);
                           TupLabel(Label(l), e);
                         },
-                        self(size),
+                        self(n),
                       ]),
                     sizes,
                   ),
@@ -342,10 +342,6 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
               Test(inner);
             },
             {
-              let+ name = gen_constructor_ident;
-              Constructor(name, None);
-            },
-            {
               let* op = gen_bin_op;
               let* e1 = self((n - 1) / 2);
               let+ e2 = self((n - 1) / 2);
@@ -353,7 +349,7 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
             },
             {
               let* op = gen_op_un;
-              let+ e = self((n - 1) / 2);
+              let+ e = self(n - 1);
               UnOp(op, e);
             },
             {
@@ -375,12 +371,12 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
             },
             {
               let case = n => {
-                let p = gen_pat_sized(n / 2);
-                let e = self(n / 2);
+                let p = gen_pat_sized((n - 1) / 2);
+                let e = self((n - 1) / 2);
                 tup2(p, e);
               };
-              let* e = self(n - 1 / 2);
-              let* sizes = gen_sized_array(n - 1 / 2);
+              let* e = self((n - 1) / 2);
+              let* sizes = gen_sized_array((n - 1) / 2);
               let+ cases = flatten_a(Array.map(case, sizes));
               CaseExp(e, Array.to_list(cases));
             },
@@ -400,8 +396,8 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
             },
             {
               let* fa = gen_filter_action;
-              let* e1 = self(n - 1);
-              let+ e2 = self(n - 1);
+              let* e1 = self((n - 1) / 2);
+              let+ e2 = self((n - 1) / 2);
               Filter(fa, e1, e2);
             },
             {
@@ -470,7 +466,7 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
             oneof([
               leaf_nodes,
               {
-                let* sizes = gen_non_singleton_array(n);
+                let* sizes = gen_non_singleton_array(n - 1);
                 let+ typs =
                   flatten_a(
                     Array.map(
@@ -479,7 +475,7 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
                           self(size),
                           {
                             let* l = gen_label;
-                            let+ t = self(size - 1);
+                            let+ t = self(size);
                             TupLabelType(LabelType(l), t);
                           },
                         ]),
@@ -516,13 +512,13 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
                 let+ sumterms =
                   flatten_a(
                     Array.map(
-                      (size: int) => {
+                      (n: int) => {
                         frequency([
                           (1, return(BadEntry(UnknownType(EmptyHole)))),
                           (
                             5,
                             {
-                              let* optional_typ = option(self(size));
+                              let* optional_typ = option(self(n - 1));
                               let+ constructor = gen_constructor_ident;
                               Variant(constructor, optional_typ);
                             },
@@ -584,9 +580,9 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
                 let+ pats =
                   flatten_a(
                     Array.map(
-                      (size: int) =>
+                      (n: int) =>
                         oneof([
-                          self(size),
+                          self(n),
                           {
                             let* l = gen_label;
                             let+ p = self(n - 1);
