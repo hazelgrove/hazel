@@ -617,3 +617,500 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
       )
     );
 // TODO Printers, shrinkers stuff
+let rec shrink_exp: QCheck.Shrink.t(exp) =
+  QCheck.(
+    (exp: exp) =>
+      Iter.(
+        (
+          {
+            switch (exp) {
+            | Atom(a) =>
+              switch (a) {
+              | Int(i) =>
+                switch (Bigint.to_int(i)) {
+                | Some(i) =>
+                  Shrink.int(i)
+                  >|= ((i: int) => Atom(Int(Bigint.of_int(i))))
+                | None => Iter.empty
+                }
+              | String(s) =>
+                Shrink.string(s) >|= ((s: string) => Atom(String(s)))
+              | Bool(b) => Shrink.bool(b) >|= ((b: bool) => Atom(Bool(b)))
+              | Nat(n) =>
+                if (Bigint.(<)(n, Bigint.of_int(2))) {
+                  Iter.empty;
+                } else {
+                  return(Atom(Nat(Bigint.(/)(n, Bigint.of_int(2)))));
+                }
+              | SInt(i) => Shrink.int(i) >|= ((i: int) => Atom(SInt(i)))
+              | _ => Iter.empty
+              }
+            | Var(x) => Shrink.string(x) >|= ((x: string) => Var(x)) // TODO This isn't great for vars
+            | Constructor(c, _) =>
+              Shrink.string(c) >|= ((c: string) => Constructor(c, None)) // TODO This isn't great for constructors
+            | ListExp(l) =>
+              let* shrunk = Shrink.list(l, ~shrink=shrink_exp);
+              switch (shrunk) {
+              | [x] => return(ListExp(shrunk)) <+> Iter.return(x)
+              | _ => return(ListExp(shrunk))
+              };
+            | TupleExp(l) =>
+              let* shrunk = Shrink.list(l, ~shrink=shrink_exp);
+              switch (shrunk) {
+              | [] => Iter.return(TupleExp([]))
+              | [x] => Iter.return(x)
+              | _ => return(TupleExp(shrunk))
+              };
+            | BinExp(e1, op, e2) =>
+              {
+                of_list([e1, e2]);
+              }
+              <+> {
+                shrink_exp(e1) >|= (e1 => BinExp(e1, op, e2));
+              }
+              <+> {
+                shrink_exp(e2) >|= (e2 => BinExp(e1, op, e2));
+              }
+            | UnOp(op, e) =>
+              return(e)
+              <+> {
+                let* shrunk = shrink_exp(e);
+                return(UnOp(op, shrunk));
+              }
+            | Let(p, e1, e2) =>
+              of_list([e1, e2])
+              <+> {
+                let* shrunk = shrink_exp(e1);
+                return(Let(p, shrunk, e2));
+              }
+              <+> {
+                let* shrunk = shrink_exp(e2);
+                return(Let(p, e1, shrunk));
+              }
+              <+> {
+                let* shrunk = shrink_pat(p);
+                return(Let(shrunk, e1, e2));
+              }
+            | Fun(p, e, name) =>
+              return(e)
+              <+> {
+                let* shrunk = shrink_exp(e);
+                return(Fun(p, shrunk, name): exp);
+              }
+              <+> {
+                let* shrunk = shrink_pat(p);
+                return(Fun(shrunk, e, name): exp);
+              }
+            | CaseExp(e, cases) =>
+              {
+                return(e);
+              }
+              <+> {
+                let shrink_case: QCheck.Shrink.t((pat, exp)) =
+                  QCheck.(
+                    (
+                      ((pat, exp)) =>
+                        Iter.(
+                          {
+                            let* pat = shrink_pat(pat);
+                            return((pat, exp));
+                          }
+                          <+> {
+                            let* exp = shrink_exp(exp);
+                            return((pat, exp));
+                          }
+                        )
+                    )
+                  );
+                let* shrunk = Shrink.list(cases, ~shrink=shrink_case);
+                return(CaseExp(e, shrunk));
+              }
+            | Label(l) => Shrink.string(l) >|= ((l: string) => Label(l))
+            | TupLabel(e1, e2) =>
+              {
+                return(
+                  e2 // e1 is a label
+                );
+              }
+              <+> {
+                let* shrunk = shrink_exp(e1);
+                return(TupLabel(shrunk, e2));
+              }
+              <+> {
+                let* shrunk = shrink_exp(e2);
+                return(TupLabel(e1, shrunk));
+              }
+            | Dot(e1, e2) =>
+              {
+                return(
+                  e1 // e2 is a label
+                );
+              }
+              <+> {
+                let* shrunk = shrink_exp(e1);
+                return(Dot(shrunk, e2));
+              }
+              <+> {
+                let* shrunk = shrink_exp(e2);
+                return(Dot(e1, shrunk));
+              }
+            | ApExp(e1, e2) =>
+              {
+                of_list([e1, e2]);
+              }
+              <+> {
+                let* shrunk = shrink_exp(e1);
+                return(ApExp(shrunk, e2));
+              }
+              <+> {
+                let* shrunk = shrink_exp(e2);
+                return(ApExp(e1, shrunk));
+              }
+            | TypAp(e, t) =>
+              {
+                return(e);
+              }
+              <+> {
+                let* shrunk = shrink_exp(e);
+                return(TypAp(shrunk, t));
+              }
+              <+> {
+                let* shrunk = shrink_typ(t);
+                return(TypAp(e, shrunk));
+              }
+            | FixF(p, e) =>
+              return(e)
+              <+> {
+                let* shrunk = shrink_exp(e);
+                return(FixF(p, shrunk));
+              }
+              <+> {
+                let* shrunk = shrink_pat(p);
+                return(FixF(shrunk, e));
+              }
+            | Cast(e, t1, t2) =>
+              return(e)
+              <+> {
+                let* shrunk = shrink_exp(e);
+                return(Cast(shrunk, t1, t2));
+              }
+              <+> {
+                let* shrunk = shrink_typ(t1);
+                return(Cast(e, shrunk, t2));
+              }
+              <+> {
+                let* shrunk = shrink_typ(t2);
+                return(Cast(e, t1, shrunk));
+              }
+            | FailedCast(e, t1, t2) =>
+              return(e)
+              <+> {
+                let* shrunk = shrink_exp(e);
+                return(FailedCast(shrunk, t1, t2));
+              }
+              <+> {
+                let* shrunk = shrink_typ(t1);
+                return(FailedCast(e, shrunk, t2));
+              }
+              <+> {
+                let* shrunk = shrink_typ(t2);
+                return(FailedCast(e, t1, shrunk));
+              }
+            | Filter(fa, e1, e2) =>
+              {
+                of_list([e1, e2]);
+              }
+              <+> {
+                let* shrunk = shrink_exp(e1);
+                return(Filter(fa, shrunk, e2));
+              }
+              <+> {
+                let* shrunk = shrink_exp(e2);
+                return(Filter(fa, e1, shrunk));
+              }
+            | Seq(e1, e2) =>
+              {
+                of_list([e1, e2]);
+              }
+              <+> {
+                let* shrunk = shrink_exp(e1);
+                return(Seq(shrunk, e2));
+              }
+              <+> {
+                let* shrunk = shrink_exp(e2);
+                return(Seq(e1, shrunk));
+              }
+            | Test(e) =>
+              return(e)
+              <+> {
+                let* shrunk = shrink_exp(e);
+                return(Test(shrunk));
+              }
+            | Deferral => Iter.empty
+            | TypFun(tpat, e) =>
+              return(e)
+              <+> {
+                let* shrunk = shrink_exp(e);
+                return(TypFun(tpat, shrunk)); // Not worth shrinking tpat
+              }
+            | Cons(e1, e2) =>
+              {
+                of_list([e1, e2]);
+              }
+              <+> {
+                let* shrunk = shrink_exp(e1);
+                return(Cons(shrunk, e2));
+              }
+              <+> {
+                let* shrunk = shrink_exp(e2);
+                return(Cons(e1, shrunk));
+              }
+            | ListConcat(e1, e2) =>
+              {
+                of_list([e1, e2]);
+              }
+              <+> {
+                let* shrunk = shrink_exp(e1);
+                return(ListConcat(shrunk, e2));
+              }
+              <+> {
+                let* shrunk = shrink_exp(e2);
+                return(ListConcat(e1, shrunk));
+              }
+            | DynamicErrorHole(e, s) =>
+              return(e)
+              <+> {
+                let* shrunk = shrink_exp(e);
+                return(DynamicErrorHole(shrunk, s));
+              }
+            | TyAlias(tpat, t, e) =>
+              return(e)
+              <+> {
+                let* shrunk = shrink_exp(e);
+                return(TyAlias(tpat, t, shrunk));
+              }
+              <+> {
+                let* shrunk = shrink_typ(t);
+                return(TyAlias(tpat, shrunk, e));
+              }
+            | Use(t, e) =>
+              return(e)
+              <+> {
+                let* shrunk = shrink_exp(e);
+                return(Use(t, shrunk));
+              }
+              <+> {
+                let* shrunk = shrink_typ(t);
+                return(Use(shrunk, e));
+              }
+            | If(e1, e2, e3) =>
+              {
+                of_list([e1, e2, e3]);
+              }
+              <+> {
+                let* shrunk = shrink_exp(e1);
+                return(If(shrunk, e2, e3));
+              }
+              <+> {
+                let* shrunk = shrink_exp(e2);
+                return(If(e1, shrunk, e3));
+              }
+              <+> {
+                let* shrunk = shrink_exp(e3);
+                return(If(e1, e2, shrunk));
+              }
+            | IndicationExp(_)
+            | EmptyHole
+            | BuiltinFun(_)
+            | Undefined
+            | InvalidExp(_) => Iter.empty
+            };
+          }:
+            QCheck.Iter.t(exp) // TODO implement shrinker
+        )
+      )
+  )
+and shrink_pat: QCheck.Shrink.t(pat) =
+  QCheck.(
+    (pat: pat) =>
+      Iter.(
+        (
+          {
+            switch (pat) {
+            | AtomPat(a) =>
+              switch (a) {
+              | Int(i) =>
+                switch (Bigint.to_int(i)) {
+                | Some(i) =>
+                  Shrink.int(i)
+                  >|= ((i: int) => AtomPat(Int(Bigint.of_int(i))))
+                | None => Iter.empty
+                }
+              | String(s) =>
+                Shrink.string(s) >|= ((s: string) => AtomPat(String(s)))
+              | Bool(b) =>
+                Shrink.bool(b) >|= ((b: bool) => AtomPat(Bool(b)))
+              | Nat(n) =>
+                if (Bigint.(<)(n, Bigint.of_int(2))) {
+                  Iter.empty;
+                } else {
+                  return(AtomPat(Nat(Bigint.(/)(n, Bigint.of_int(2)))));
+                }
+              | SInt(i) => Shrink.int(i) >|= ((i: int) => AtomPat(SInt(i)))
+              | _ => Iter.empty
+              }
+            | VarPat(x) => Shrink.string(x) >|= ((x: string) => VarPat(x))
+            | ConstructorPat(c, _) =>
+              Shrink.string(c) >|= ((c: string) => ConstructorPat(c, None))
+            | ListPat(l) =>
+              let* shrunk = Shrink.list(l, ~shrink=shrink_pat);
+              switch (shrunk) {
+              | [x] => return(ListPat(shrunk)) <+> Iter.return(x)
+              | _ => return(ListPat(shrunk))
+              };
+            | CastPat(p, t1, t2) =>
+              return(p)
+              <+> {
+                let* shrunk = shrink_pat(p);
+                return(CastPat(shrunk, t1, t2));
+              }
+              <+> {
+                let* shrunk = shrink_typ(t1);
+                return(CastPat(p, shrunk, t2));
+              }
+              <+> {
+                let* shrunk = shrink_typ(t2);
+                return(CastPat(p, t1, shrunk));
+              }
+            | ApPat(p1, p2) =>
+              {
+                of_list([p1, p2]);
+              }
+              <+> {
+                let* shrunk = shrink_pat(p1);
+                return(ApPat(shrunk, p2));
+              }
+              <+> {
+                let* shrunk = shrink_pat(p2);
+                return(ApPat(p1, shrunk));
+              }
+            | TuplePat(l) =>
+              let* shrunk = Shrink.list(l, ~shrink=shrink_pat);
+              switch (shrunk) {
+              | [] => Iter.return(TuplePat([]))
+              | [x] => Iter.return(x)
+              | _ => return(TuplePat(shrunk))
+              };
+            | ConsPat(p1, p2) =>
+              {
+                of_list([p1, p2]);
+              }
+              <+> {
+                let* shrunk = shrink_pat(p1);
+                return(ConsPat(shrunk, p2));
+              }
+              <+> {
+                let* shrunk = shrink_pat(p2);
+                return(ConsPat(p1, shrunk));
+              }
+            | TupLabelPat(p1, p2) =>
+              {
+                return(
+                  p2 // p1 is a label
+                );
+              }
+              <+> {
+                let* shrunk = shrink_pat(p1);
+                return(TupLabelPat(shrunk, p2));
+              }
+              <+> {
+                let* shrunk = shrink_pat(p2);
+                return(TupLabelPat(p1, shrunk));
+              }
+            | LabelPat(l) =>
+              Shrink.string(l) >|= ((l: string) => LabelPat(l))
+            | InvalidPat(_)
+            | IndicationPat(_)
+            | WildPat
+            | EmptyHolePat => Iter.empty
+            };
+          }:
+            QCheck.Iter.t(pat) // TODO implement shrinker
+        )
+      )
+  )
+and shrink_typ: QCheck.Shrink.t(typ) =
+  QCheck.(
+    (typ: typ) =>
+      Iter.(
+        switch (typ) {
+        | SumTyp(l) =>
+          let shrink_sumterm: QCheck.Shrink.t(sumterm) =
+            QCheck.(
+              (
+                (sumterm: sumterm) =>
+                  Iter.(
+                    switch (sumterm) {
+                    | Variant(c, _) =>
+                      Shrink.string(c) >|= ((c: string) => Variant(c, None))
+                    | BadEntry(t) =>
+                      let* shrunk = shrink_typ(t);
+                      return(BadEntry(shrunk));
+                    }
+                  )
+              )
+            );
+          let* shrunk = Shrink.list(l, ~shrink=shrink_sumterm);
+          return(SumTyp(shrunk));
+        | TupleType(l) =>
+          let* shrunk = Shrink.list(l, ~shrink=shrink_typ);
+          switch (shrunk) {
+          | [x] => Iter.return(x)
+          | _ => return(TupleType(shrunk))
+          };
+        | ArrayType(t) =>
+          return(t)
+          <+> {
+            let* shrunk = shrink_typ(t);
+            return(ArrayType(shrunk));
+          }
+        | ArrowType(t1, t2) =>
+          of_list([t1, t2])
+          <+> {
+            let* shrunk1 = shrink_typ(t1);
+            return(ArrowType(shrunk1, t2));
+          }
+          <+> {
+            let* shrunk2 = shrink_typ(t2);
+            return(ArrowType(t1, shrunk2));
+          }
+        | TypVar(x) => Shrink.string(x) >|= ((x: string) => TypVar(x))
+        | ForallType(tpat, t) =>
+          let* shrunk = shrink_typ(t);
+          return(ForallType(tpat, shrunk));
+        | RecType(tpat, t) =>
+          let* shrunk = shrink_typ(t);
+          return(RecType(tpat, shrunk));
+        | LabelType(x) => Shrink.string(x) >|= ((x: string) => LabelType(x))
+        | TupLabelType(t1, t2) =>
+          return(t2)
+          <+> {
+            let* shrunk1 = shrink_typ(t1);
+            return(TupLabelType(shrunk1, t2));
+          }
+          <+> {
+            let* shrunk2 = shrink_typ(t2);
+            return(TupLabelType(t1, shrunk2));
+          }
+        | IndicationTyp(_)
+        | IntType
+        | SIntType
+        | StringType
+        | FloatType
+        | BoolType
+        | NatType
+        | UnknownType(_)
+        | InvalidTyp(_) => Iter.empty
+        }
+      )
+  );
