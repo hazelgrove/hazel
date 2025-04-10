@@ -84,9 +84,11 @@ type tpat =
 [@deriving (show({with_path: false}), sexp, eq)]
 type typ =
   | IntType
+  | SIntType
   | StringType
   | FloatType
   | BoolType
+  | NatType
   | SumTyp(sumtype)
   | UnknownType(typ_provenance)
   | TupleType(list(typ))
@@ -109,15 +111,10 @@ type pat =
   | CastPat(pat, typ, typ)
   | EmptyHolePat
   | WildPat
-  | IntPat(int)
-  | FloatPat(
-      [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
-    )
+  | AtomPat(Haz3lcore.Atom.t)
   | VarPat(string)
-  | ConstructorPat(string, option(typ))
-  | StringPat(string)
+  | ConstructorPat(string, option(option(typ)))
   | TuplePat(list(pat))
-  | BoolPat(bool)
   | ConsPat(pat, pat)
   | ListPat(list(pat))
   | ApPat(pat, pat)
@@ -138,15 +135,9 @@ type deferral_pos =
 
 [@deriving (show({with_path: false}), sexp, eq)]
 type exp =
-  | Int(int)
-  | Float
-      // This equality condition is used to say that two floats are equal if they are equal in the ExpToSegment serialization
-      (
-        [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
-      )
+  | Atom(Haz3lcore.Atom.t)
   | Var(string)
-  | Constructor(string, option(typ))
-  | String(string)
+  | Constructor(string, option(option(typ)))
   | ListExp(list(exp))
   | TupleExp(list(exp))
   | BinExp(exp, bin_op, exp)
@@ -159,7 +150,6 @@ type exp =
   | Dot(exp, exp)
   | ApExp(exp, exp)
   | FixF(pat, exp)
-  | Bool(bool)
   | Cast(exp, typ, typ)
   | FailedCast(exp, typ, typ)
   | EmptyHole
@@ -177,6 +167,7 @@ type exp =
   | TypAp(exp, typ)
   | DynamicErrorHole(exp, string)
   | TyAlias(tpat, typ, exp)
+  | Use(typ, exp)
   | IndicationExp(exp);
 
 /**
@@ -305,11 +296,11 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
   QCheck.Gen.(
     let leaf =
       oneof([
-        map(x => Int(x), small_int),
-        map(x => String(x), gen_string_literal),
-        map(x => Float(x), QCheck.pos_float.gen), // Floats are positive because we use UnOp minus
+        map(x => Atom(Int(x |> Bigint.of_int)), small_int),
+        map(x => Atom(String(x)), gen_string_literal),
+        map(x => Atom(Float(x)), QCheck.pos_float.gen), // Floats are positive because we use UnOp minus
         map(x => Var(x), gen_ident),
-        map(x => Bool(x), bool),
+        map(x => Atom(Bool(x)), bool),
         pure(EmptyHole),
         pure(TupleExp([])),
         pure(ListExp([])),
@@ -568,11 +559,11 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
             oneof([
               return(WildPat),
               return(EmptyHolePat),
-              map(x => IntPat(x), small_int),
-              map(x => FloatPat(x), QCheck.pos_float.gen),
+              map(x => AtomPat(Int(x |> Bigint.of_int)), small_int),
+              map(x => AtomPat(Float(x)), QCheck.pos_float.gen),
               map(x => VarPat(x), gen_ident),
-              map(x => StringPat(x), gen_string_literal),
-              map(x => BoolPat(x), bool),
+              map(x => AtomPat(String(x)), gen_string_literal),
+              map(x => AtomPat(Bool(x)), bool),
               map(x => ConstructorPat(x, None), gen_constructor_ident),
               return(TuplePat([])),
               return(ListPat([])),

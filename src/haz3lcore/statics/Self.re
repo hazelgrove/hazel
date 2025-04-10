@@ -31,6 +31,7 @@ type t =
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
   | BadToken(Token.t) /* Invalid expression token, continues with undefined behavior */
+  | BadOperator(string) /* Invalid operator, continues with undefined behavior */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
   | InvalidLabel(LabeledTuple.label) /* Invalid label in a labeled tuple */
@@ -41,12 +42,13 @@ type t =
       typ: Typ.t,
     }) /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | IsMulti /* Multihole, treated as hole */
-  | IsConstructor({
-      name: Constructor.t,
-      syn_ty: option(Typ.t),
-    }) /* Constructors have special ana logic */
+  | FreeConstructor(Constructor.t) /* Constructor not bound in context or ana type */
   | WantTuple /* Want a Tuple, found not-tuple */
-  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label)); /* Currently used by the dot operator for a label not found */
+  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
+  | InvalidUseMode({
+      bad_typ: Typ.t,
+      inner_typ: Typ.t,
+    }); /* Currently used by the dot operator for a label not found */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_partial_ap =
@@ -68,6 +70,7 @@ type exp =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
   | Redundant(pat)
+  | ExpectedConstructor(pat)
   | Common(t);
 
 let join_of = (j: join_type, ty: Typ.t): Typ.t =>
@@ -85,8 +88,17 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | Just(typ)
     | Duplicate(_, Just(typ))
     | TupleLabelError({typ, _}) => Some(typ)
-    | IsConstructor({syn_ty, _}) => syn_ty
+    | FreeConstructor(name) =>
+      Some(
+        Sum([
+          ConstructorMap.Variant(name, [Id.invalid], None),
+          ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+        ])
+        |> Typ.temp,
+      )
+    | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
     | BadToken(_)
+    | BadOperator(_)
     | BadTrivAp(_)
     | IsMulti
     | Duplicate(_)
@@ -109,6 +121,7 @@ let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
   ctx =>
     fun
     | Redundant(pat) => typ_of_pat(ctx, pat)
+    | ExpectedConstructor(pat) => typ_of_pat(ctx, pat)
     | Common(self) => typ_of(ctx, self);
 
 /* The self of a var depends on the ctx; if the
@@ -119,28 +132,51 @@ let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
   | Some(var) => Common(Just(var.typ))
   };
 
+let ctr_ana_typ =
+    (ctx: Ctx.t, ty_ana: Typ.t, ctr: Constructor.t): option(Typ.t) => {
+  /* If a ctr is being analyzed against (an arrow type returning)
+     a sum type having that ctr as a variant, we consider the
+     ctr's type to be determined by the sum type */
+  OptUtil.Syntax.(
+    switch (ty_ana) {
+    | {term: Arrow(_, ty_out), _} =>
+      let* ctrs = Typ.get_sum_constructors(ctx, ty_out);
+      let* ty_entry = ConstructorMap.get_entry(ctr, ctrs);
+      switch (ty_entry) {
+      | None => None
+      | Some(ty_in) => Some(Arrow(ty_in, ty_out) |> Typ.temp)
+      };
+    | _ =>
+      let* ctrs = Typ.get_sum_constructors(ctx, ty_ana);
+      let+ ty_entry = ConstructorMap.get_entry(ctr, ctrs);
+      switch (ty_entry) {
+      | None => ty_ana
+      | Some(ty_in) => Arrow(ty_in, ty_ana) |> Typ.temp
+      };
+    }
+  );
+};
+
 let of_ctr =
-    (ctx: Ctx.t, name: Constructor.t, mode: Mode.t, ty: option(Typ.t)): t =>
-  // this has gotten a bit complex, depends on mode
-  IsConstructor({
-    name,
-    syn_ty:
-      switch (ty) {
-      | Some(_) => ty
-      | None =>
-        switch (mode) {
-        | SynFun
-        | Syn
-        | Ana({term: Unknown(_), _}) =>
-          switch (Ctx.lookup_ctr(ctx, name)) {
-          | None => None
-          | Some({typ, _}) => Some(typ)
-          }
-        | Ana(_) => Mode.ctr_ana_typ(ctx, mode, name)
-        | SynTypFun => None
-        }
-      },
-  });
+    (ctx: Ctx.t, name: Constructor.t, ana: Typ.t, ty: option(option(Typ.t)))
+    : t => {
+  // (1) check to see if type already assigned (e.g. if we are doing statics for results)
+  switch (ty) {
+  | Some(Some(ty)) => Just(ty)
+  | Some(None) => FreeConstructor(name)
+  | None =>
+    // (2) check to see if constructor appears in ana type
+    switch (ctr_ana_typ(ctx, ana, name)) {
+    | Some(ty) => Just(ty)
+    | None =>
+      // (3) check to see if constructor appears in ctx
+      switch (Ctx.lookup_ctr(ctx, name)) {
+      | Some({typ, _}) => Just(typ)
+      | None => FreeConstructor(name)
+      }
+    }
+  };
+};
 
 let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   let expected = List.length(ty_ins);
