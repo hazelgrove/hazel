@@ -234,6 +234,7 @@ module Update = {
            |> Calc.map_if_new(
                 CodeSelectable.Update.calculate(
                   ~settings=settings |> Calc.get_value,
+                  ~is_dynamic_term=true,
                   ~is_edited=false,
                   ~dynamics=Dynamics.Map.empty, // No projectors in stepper atm
                   ~stitch=x =>

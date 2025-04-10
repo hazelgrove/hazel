@@ -41,7 +41,12 @@ let introduction_test = (before: string, expected: string) => {
     let* zip = Move.go(Local(Right(ByChar)), zip); // To get on the hole itself
     let* zip =
       Select.current_term(~defs_exclude_bodies=false, ~case_rules=false, zip);
-    let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init, exp);
+    let statics =
+      Statics.mk(
+        CoreSettings.on,
+        Builtins.ctx_init(Some(Operators.default_mode)),
+        exp,
+      );
     let+ zip = Introduce.introduce(statics, zip);
     Printer.zipper_to_string(~holes=Some("?"), zip);
   };
