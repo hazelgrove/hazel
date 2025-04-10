@@ -6,48 +6,72 @@ open Node;
 let of_id = (id: Id.t) =>
   "id" ++ (id |> Id.to_string |> String.sub(_, 0, 8));
 
-let rec replace_piece_node =
-        (node: Base.piece, piece_to_replace: Piece.t): Base.piece =>
-  switch (node) {
-  | Tile(tile) =>
-    if (tile.id == Piece.id(piece_to_replace)) {
-      /* Replace this tile with the input piece */
-      piece_to_replace;
-    } else if (tile.children == []) {
-      /* Leaf tile, return as is */
-      Tile(tile);
-    } else {
-      /* Recurse into the children */
-      let new_children =
-        tile.children
-        |> List.map(segment =>
-             segment
-             |> List.map(child_node =>
-                  replace_piece_node(child_node, piece_to_replace)
-                )
-           );
-      /* Return a new Tile with updated children */
-      Tile({
-        ...tile,
-        children: new_children,
-      });
-    }
-  | _ => node
+let rec replace_tile_labels =
+        (target: Base.tile, source: Base.tile): Base.tile =>
+  if (List.length(target.children) != List.length(source.children)) {
+    print_endline(
+      "Warning - replace_tile_labels: Tile children have different lengths. Aborting!",
+    );
+    print_endline("Target: " ++ (target |> Tile.show));
+    print_endline("Source: " ++ (source |> Tile.show));
+    target;
+  } else {
+    {
+      ...target,
+      children:
+        List.map2(
+          (t, s) => {replace_segment_labels(t, s)},
+          target.children,
+          source.children,
+        ),
+      label: source.label,
+    };
+  }
+and replace_segment_labels =
+    (target: Base.segment, source: Base.segment): Base.segment =>
+  // Check if both are lists of the same length
+  if (List.length(target) != List.length(source)) {
+    print_endline(
+      "Warning - replace_segment_labels: Segments have different lengths",
+    );
+    print_endline("Target: " ++ (target |> Segment.show));
+    print_endline("Source: " ++ (source |> Segment.show));
+    target;
+  } else {
+    // Process the pair
+    List.map2(
+      (a, b) => {
+        switch (a, b) {
+        | (Base.Tile(t1), Base.Tile(t2)) =>
+          Base.Tile(replace_tile_labels(t1, t2))
+        | _ => a
+        }
+      },
+      target,
+      source,
+    );
   };
 
-let replace_piece_in_segment =
-    (segment: Base.segment, piece_to_replace: Piece.t): Base.segment => {
-  /* Replace the piece in the segment */
-  segment |> List.map(node => replace_piece_node(node, piece_to_replace));
-};
+let replace_model = (segment: Base.segment, new_model: Segment.t) =>
+  switch (segment) {
+  | [name, Tile(old_model)] => [
+      name,
+      List.nth(replace_segment_labels([Tile(old_model)], new_model), 0),
+    ]
+  | _ =>
+    print_endline(
+      "Warning - LivelitProj.replace_model: Livelit segment didn't match expected pattern",
+    );
+    segment;
+  };
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = LivelitCtx.action_exp;
+  type action = unit;
 
-  let get = (info: info) =>
+  let get_model = (info: info) =>
     switch (info.statics) {
     | Some(
         InfoExp({
@@ -64,7 +88,7 @@ module M: Projector = {
   let init = (_any: Term.Any.t) => Some();
   let can_focus = false;
   let placeholder = (_model, info) => {
-    switch (get(info), info.statics) {
+    switch (get_model(info), info.statics) {
     | (Some((llname, _)), Some(InfoExp(exp))) =>
       /* Get the livelit size */
       switch (Ctx.lookup_livelit(exp.ctx, llname)) {
@@ -78,31 +102,10 @@ module M: Projector = {
       ProjectorCore.Shape.inline(32)
     };
   };
-  let update = (_, info, action: LivelitCtx.action_exp) => {
-    print_endline("LivelitProj.update " ++ Exp.show(action));
-
-    let ctx =
-      switch (info.statics) {
-      | Some(InfoExp(exp)) => exp.ctx
-      | _ => Ctx.empty
-      };
-
-    switch (get(info)) {
-    | Some((llname, model)) =>
-      let ll = Ctx.lookup_livelit(ctx, llname);
-      switch (ll) {
-      | Some(ll) =>
-        let new_model = ll.update(action, model);
-        let seg = info.utility.term_to_seg(Exp(new_model));
-        print_endline("new segment update: " ++ Segment.show(seg));
-        ();
-      | None =>
-        print_endline("Warning - LivelitProj.update: not found in context")
-      };
-    | None => print_endline("Warning - LivelitProj.update: get is empty")
+  let update = (_model, _info, action) =>
+    switch (action) {
+    | _ => print_endline("Warning - LivelitProj.update: No action")
     };
-    ();
-  };
 
   let focus_pointer = (id: Id.t) => {
     JsUtil.get_elem_by_id(Id.cls(id))##focus;
@@ -120,8 +123,8 @@ module M: Projector = {
       (
         _,
         info,
-        ~local: action => Ui_effect.t(unit),
-        ~parent as _,
+        ~local as _,
+        ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
         ~view_seg as _,
       ) => {
     let ctx =
@@ -131,14 +134,23 @@ module M: Projector = {
       };
 
     let node =
-      switch (get(info)) {
-      | Some((ll_name, args)) =>
+      switch (get_model(info)) {
+      | Some((ll_name, model)) =>
         let ll = Ctx.lookup_livelit(ctx, ll_name);
 
         switch (ll) {
         | Some(ll) =>
+          let action_callback = (action: LivelitCtx.action_exp) => {
+            let new_model = ll.update(action, model);
+            let new_model_seg =
+              info.utility.term_to_seg(Exp(new_model))
+              |> Segment.unparenthesize
+              |> Segment.parenthesize;
+            parent(SetSyntax(replace_model(info.syntax, [new_model_seg])));
+          };
+
           let list_contents =
-            switch (ll.view(args, local)) {
+            switch (ll.view(model, action_callback)) {
             | Node(node) => [node]
             | List(nodes) => nodes
             };

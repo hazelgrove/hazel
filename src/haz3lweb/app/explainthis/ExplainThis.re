@@ -567,11 +567,7 @@ let get_doc =
           UseExp.single(~typ_id=Typ.rep_id(t), ~body_id=Exp.rep_id(e)),
         )
       | BuiltinFun(_) => simple("Internal expression")
-      | LivelitName(s) =>
-        switch (Ctx.lookup_livelit(Info.ctx_of(Option.get(info)), s)) {
-        | Some(ll) => simple_list(["Livelit: " ++ ll.name])
-        | None => simple("Livelit name not found")
-        }
+      | LivelitName(n) => get_message(TerminalExp.livelit_name_exps(n))
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
@@ -1794,6 +1790,17 @@ let get_doc =
                 Id.to_string(arg_id),
               ),
             AppExp.conapp_exp_coloring_ids,
+          )
+        | LivelitName(_) =>
+          basic(
+            AppExp.livelitaps,
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(x_id),
+                Id.to_string(arg_id),
+              ),
+            AppExp.livelitapp_exp_coloring_ids,
           )
         | _ =>
           basic(

@@ -555,6 +555,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: LivelitName(s),
       annotation: default_annotation(ann),
     };
+    let livelit_ap = (~ann=?, d, e1, e2): exp_t(DefaultAnnotation.t) => {
+      term: Ap(d, e1, e2),
+      annotation: default_annotation(ann),
+    };
     let let_ = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {
       term: Let(p, e1, e2),
       annotation: default_annotation(ann),
