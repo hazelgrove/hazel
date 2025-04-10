@@ -415,39 +415,56 @@ let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
   | _ => ty
   };
 
-let rec normalize = (ctx: Ctx.t, ty: t): t => {
-  let (term, rewrap) = unwrap(ty);
-  switch (term) {
-  | Var(x) =>
-    switch (Ctx.lookup_alias(ctx, x)) {
-    | Some(ty) => normalize(ctx, ty)
-    | None => ty
-    }
-  | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
-  | Label(_) => ty
-  | Parens(t) => normalize(ctx, t)
-  | List(t) => List(normalize(ctx, t)) |> rewrap
-  | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
-  | Arrow(t1, t2) =>
-    Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
-  | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
-  | TupLabel(label, ty) =>
-    TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
-  | Sum(ts) =>
-    Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts)) |> rewrap
-  | Rec(tpat, ty) =>
-    /* NOTE: Dummy tvar added has fake id but shouldn't matter
-       as in current implementation Recs do not occur in the
-       surface syntax, so we won't try to jump to them. */
-    Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
-  | Forall(name, ty) =>
-    Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
-  };
-};
+// let rec normalize = (ctx: Ctx.t, ty: t): t => {
+//   print_endline("inside normalize");
+//   let (term, rewrap) = unwrap(ty);
+//   switch (term) {
+//   | Var(x) =>
+//     print_endline("Var");
+//     switch (Ctx.lookup_alias(ctx, x)) {
+//     | Some(ty) => normalize(ctx, ty)
+//     | None => ty
+//     };
+//   | Unknown(_)
+//   | Int
+//   | Float
+//   | Bool
+//   | String
+//   | Label(_) =>
+//     print_endline("Label match: " ++ pretty_print(ty));
+//     ty;
+//   | Parens(t) =>
+//     print_endline("Parens");
+//     normalize(ctx, t);
+//   | List(t) =>
+//     print_endline("List");
+//     List(normalize(ctx, t)) |> rewrap;
+//   | Ap(t1, t2) =>
+//     print_endline("Ap");
+//     Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap;
+//   | Arrow(t1, t2) =>
+//     print_endline("Arrow");
+//     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap;
+//   | Prod(ts) =>
+//     print_endline("Prod");
+//     Prod(List.map(normalize(ctx), ts)) |> rewrap;
+//   | TupLabel(label, ty) =>
+//     print_endline("Tuplabel");
+//     TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap;
+//   | Sum(ts) =>
+//     print_endline("Sum");
+//     Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts)) |> rewrap;
+//   | Rec(tpat, ty) =>
+//     /* NOTE: Dummy tvar added has fake id but shouldn't matter
+//        as in current implementation Recs do not occur in the
+//        surface syntax, so we won't try to jump to them. */
+//     print_endline("Rec");
+//     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap;
+//   | Forall(name, ty) =>
+//     print_endline("Forall");
+//     Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap;
+//   };
+// };
 
 let rec matched_arrow_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
@@ -672,6 +689,85 @@ and paren_pretty_print = typ =>
   } else {
     pretty_print(typ);
   };
+
+let debug_term = (t: Grammar.typ_term(IdTagged.IdTag.t)): string =>
+  switch (t) {
+  | Label(name) => "Label(" ++ name ++ ")"
+  | Parens(_) => "Parens"
+  | TupLabel(_, _) => "TupLabel"
+  | Unknown(_) => "Unknown"
+  | Arrow(_, _) => "Arrow"
+  | Prod(_) => "Prod"
+  | Int => "Int"
+  | Var(v) => "Var(" ++ v ++ ")"
+  | List(_) => "List"
+  | Sum(_) => "Sum"
+  | Forall(_, _) => "Forall"
+  | Rec(_, _) => "Rec"
+  | Float => "Float"
+  | Bool => "Bool"
+  | String => "String"
+  | Ap(_, _) => "Ap"
+  // | Constructor => "Constructor"
+  // | Internal => "Internal"
+  // | SynSwitch => "SynSwitch"
+  // | EmptyHole => "EmptyHole"
+  // | MultiHole(_) => "MultiHole"
+  // | Invalid(_) => "Invalid"
+  };
+
+
+let rec normalize = (ctx: Ctx.t, ty: t): t => {
+  print_endline("inside normalize");
+  let (term, rewrap) = unwrap(ty);
+  print_endline("normalize: term = " ++ debug_term(term));
+  switch (term) {
+  | Var(x) =>
+    print_endline("Var");
+    switch (Ctx.lookup_alias(ctx, x)) {
+    | Some(ty) => normalize(ctx, ty)
+    | None => ty
+    };
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String
+  | Label(_) =>
+    print_endline("Label match: " ++ pretty_print(ty));
+    ty;
+  | Parens(t) =>
+    print_endline("Parens");
+    normalize(ctx, t);
+  | List(t) =>
+    print_endline("List");
+    List(normalize(ctx, t)) |> rewrap;
+  | Ap(t1, t2) =>
+    print_endline("Ap");
+    Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap;
+  | Arrow(t1, t2) =>
+    print_endline("Arrow");
+    Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap;
+  | Prod(ts) =>
+    print_endline("Prod");
+    Prod(List.map(normalize(ctx), ts)) |> rewrap;
+  | TupLabel(label, ty) =>
+    print_endline("Tuplabel");
+    TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap;
+  | Sum(ts) =>
+    print_endline("Sum");
+    Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts)) |> rewrap;
+  | Rec(tpat, ty) =>
+    /* NOTE: Dummy tvar added has fake id but shouldn't matter
+       as in current implementation Recs do not occur in the
+       surface syntax, so we won't try to jump to them. */
+    print_endline("Rec");
+    Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap;
+  | Forall(name, ty) =>
+    print_endline("Forall");
+    Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap;
+  };
+};
 
 /**
  * Removes duplicate labels from a given list of types inside a tuple.

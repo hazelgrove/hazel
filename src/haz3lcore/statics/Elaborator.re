@@ -32,6 +32,7 @@ let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): Exp.t => {
 };
 
 let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
+  print_endline("fresh_pat_cast");
   switch (p.term) {
   | Label(_) => p
   | _ =>

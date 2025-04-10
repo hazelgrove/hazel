@@ -118,7 +118,11 @@ module rec Any: {
         ~f_typ=continue,
         ~f_tpat=continue,
         ~f_rul=continue,
-        ~f_any=continue,
+        // ~f_any=continue,
+        ~f_any=(rec_call, x) => {
+                 print_endline("Breaking recursion at ~f_any");
+                 rec_call(x);
+               }, /* just return the input without recursing */
         x: any_t,
       ) => {
     let rec_call = (y: any_t): any_t =>
