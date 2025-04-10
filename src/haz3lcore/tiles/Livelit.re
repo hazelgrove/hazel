@@ -296,7 +296,6 @@ module Js: BuiltinLivelit = {
   /* Convert a Hazel expression back to the model. */
   let model_from_hazel: model_exp => model_t =
     (expr: model_exp) => {
-      print_endline("model_from_hazel -- expr: " ++ (expr |> Exp.show));
       switch (expr.term) {
       | Tuple([
           {term: Atom(String(code)), _},

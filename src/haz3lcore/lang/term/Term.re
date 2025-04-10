@@ -378,6 +378,7 @@ module Exp = {
     | Match
     | Cast
     | LivelitName
+    | LivelitAp
     | ListConcat;
 
   include TermBase.Exp;
@@ -426,6 +427,7 @@ module Exp = {
     | Use(_) => Use
     | Ap(_, e1, _) =>
       switch (e1.term) {
+      | LivelitName(_) => LivelitAp
       | _ => Ap
       }
     | TypAp(_) => TypAp
@@ -491,6 +493,7 @@ module Exp = {
     | BuiltinFun => "Built-in Function"
     | Match => "Case expression"
     | LivelitName => "Livelit name"
+    | LivelitAp => "Livelit application"
     | Cast => "Cast expression";
 
   let rec match_tup_label: t => option((LabeledTuple.label, t)) = {

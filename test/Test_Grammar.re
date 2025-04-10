@@ -56,6 +56,8 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Tuple => tuple([])
       | Dot => dot(empty_hole(), empty_hole())
       | LivelitName => livelit_name("^slider")
+      | LivelitAp =>
+        livelit_ap(Forward, livelit_name("^slider"), int(Bigint.one))
       | Var => var("x")
       | Let => let_(Pat.empty_hole(), empty_hole(), empty_hole())
       | FixF => fix_f(Pat.empty_hole(), empty_hole(), None)
