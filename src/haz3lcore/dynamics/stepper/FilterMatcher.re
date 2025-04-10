@@ -3,7 +3,6 @@ let evaluate_extend_env = ClosureEnvironment.extend_eval(~call_stack=[]);
 let evaluate_extend_env_with_pat =
     (
       ids: list(Uuidm.t),
-      copied: bool,
       pat: DHPat.t,
       exp: DHExp.t,
       to_extend: ClosureEnvironment.t,
@@ -16,8 +15,7 @@ let evaluate_extend_env_with_pat =
         fname,
         {
           annotation: {
-            ids,
-            copied,
+            ids: ids,
           },
           term: FixF(pat, exp, Some(to_extend)),
         }: TermBase.exp_t,
@@ -37,8 +35,7 @@ let evaluate_extend_env_with_pat =
                 {
                   term: FixF(pat, exp, Some(to_extend)),
                   annotation: {
-                    ids,
-                    copied,
+                    ids: ids,
                   },
                 },
                 (Var(binding): TermBase.exp_term) |> IdTagged.fresh,
@@ -131,44 +128,16 @@ let rec matches_exp =
       | Some((denv, fenv)) => matches_exp(~denv, dc, ~fenv, fc)
       }
     | (FixF(dp, dc, None), _) =>
-      let denv =
-        evaluate_extend_env_with_pat(
-          IdTagged.ids(d),
-          IdTagged.copied(d),
-          dp,
-          dc,
-          denv,
-        );
+      let denv = evaluate_extend_env_with_pat(IdTagged.ids(d), dp, dc, denv);
       matches_exp(~denv, dc, ~fenv, f);
     | (FixF(dp, dc, Some(denv)), _) =>
-      let denv =
-        evaluate_extend_env_with_pat(
-          IdTagged.ids(d),
-          IdTagged.copied(d),
-          dp,
-          dc,
-          denv,
-        );
+      let denv = evaluate_extend_env_with_pat(IdTagged.ids(d), dp, dc, denv);
       matches_exp(~denv, dc, ~fenv, f);
     | (_, FixF(fp, fc, None)) =>
-      let fenv =
-        evaluate_extend_env_with_pat(
-          IdTagged.ids(f),
-          IdTagged.copied(f),
-          fp,
-          fc,
-          fenv,
-        );
+      let fenv = evaluate_extend_env_with_pat(IdTagged.ids(f), fp, fc, fenv);
       matches_exp(~denv, d, ~fenv, fc);
     | (_, FixF(fp, fc, Some(fenv))) =>
-      let fenv =
-        evaluate_extend_env_with_pat(
-          IdTagged.ids(f),
-          IdTagged.copied(f),
-          fp,
-          fc,
-          fenv,
-        );
+      let fenv = evaluate_extend_env_with_pat(IdTagged.ids(f), fp, fc, fenv);
       matches_exp(~denv, d, ~fenv, fc);
 
     | (_, Constructor("$v", _)) =>
@@ -232,17 +201,8 @@ let rec matches_exp =
       TermBase.StepperFilterKind.fast_equal(df, ff) && matches_exp(dd, fd)
     | (Filter(_), _) => false
 
-    | (Bool(dv), Bool(fv)) => dv == fv
-    | (Bool(_), _) => false
-
-    | (Int(dv), Int(fv)) => dv == fv
-    | (Int(_), _) => false
-
-    | (Float(dv), Float(fv)) => dv == fv
-    | (Float(_), _) => false
-
-    | (String(dv), String(fv)) => dv == fv
-    | (String(_), _) => false
+    | (Atom(x), Atom(y)) => x == y
+    | (Atom(_), _) => false
 
     | (Label(dv), Label(fv)) => dv == fv
     | (Label(_), _) => false
@@ -382,6 +342,8 @@ let rec matches_exp =
     | (TyAlias(dtp, dut, dd), TyAlias(ftp, fut, fd)) =>
       dtp == ftp && dut == fut && matches_exp(dd, fd)
     | (TyAlias(_), _) => false
+    | (Use(d1, d2), Use(f1, f2)) => d1 == f1 && matches_exp(d2, f2)
+    | (Use(_), _) => false
     };
   };
 }

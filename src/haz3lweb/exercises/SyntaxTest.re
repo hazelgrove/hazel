@@ -21,10 +21,7 @@ let rec find_var_upat = (name: string, upat: Pat.t): bool => {
   | Wild
   | Invalid(_)
   | MultiHole(_)
-  | Int(_)
-  | Float(_)
-  | Bool(_)
-  | String(_)
+  | Atom(_)
   | Label(_)
   | Constructor(_) => false
   | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
@@ -71,9 +68,7 @@ let rec find_in_let =
   | (Var(_), _)
   | (Tuple(_), _)
   | (
-      EmptyHole | Wild | Invalid(_) | MultiHole(_) | Int(_) | Float(_) | Bool(_) |
-      String(_) |
-      Label(_) |
+      EmptyHole | Wild | Invalid(_) | MultiHole(_) | Atom(_) | Label(_) |
       ListLit(_) |
       Constructor(_) |
       Cons(_, _) |
@@ -103,6 +98,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | Cast(u1, _, _)
   | UnOp(_, u1)
   | TyAlias(_, _, u1)
+  | Use(_, u1)
   | Test(u1)
   | Closure(_, u1)
   | Filter(_, u1) => l |> find_fn(name, u1)
@@ -130,10 +126,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | MultiHole(_)
   | DynamicErrorHole(_)
   | FailedCast(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | Atom(_)
   | Label(_)
   | Constructor(_)
   | Undefined
@@ -152,10 +145,7 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | Wild
   | Invalid(_)
   | MultiHole(_)
-  | Int(_)
-  | Float(_)
-  | Bool(_)
-  | String(_)
+  | Atom(_)
   | Label(_)
   | Constructor(_) => false
   | Cons(up1, up2) =>
@@ -185,10 +175,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | Atom(_)
   | Label(_)
   | Constructor(_)
   | Undefined
@@ -208,6 +195,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Probe(u, _)
   | UnOp(_, u)
   | TyAlias(_, _, u)
+  | Use(_, u)
   | TupLabel(_, u)
   | Filter(_, u) => var_mention(name, u)
   | DynamicErrorHole(u, _) => var_mention(name, u)
@@ -250,10 +238,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | Atom(_)
   | Label(_)
   | Constructor(_)
   | Undefined
@@ -273,6 +258,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Probe(u, _)
   | UnOp(_, u)
   | TyAlias(_, _, u)
+  | Use(_, u)
   | TupLabel(_, u)
   | Filter(_, u) => var_applied(name, u)
   | TypAp(u, _) =>
@@ -345,10 +331,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | MultiHole(_)
   | DynamicErrorHole(_)
   | FailedCast(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | Atom(_)
   | Label(_)
   | Constructor(_)
   | Undefined
@@ -366,6 +349,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
     !List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
   | Test(_) => false
   | TyAlias(_, _, u)
+  | Use(_, u)
   | Cast(u, _, _)
   | TupLabel(_, u)
   | Filter(_, u)

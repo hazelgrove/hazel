@@ -13,7 +13,8 @@ module Constraint = {
   type t =
     | Truth
     | Hole
-    | Int(int)
+    | BigInt(Bigint.t)
+    | SInt(int)
     | Float(float)
     | String(string)
     | Ap(Constructor.t, option(t))
@@ -58,7 +59,8 @@ module Ctr = {
 
   // Ctrs for primitive types
   // Names here should not be anotherwise valid sum type constructor names.
-  let of_int = n => mk(string_of_int(n), 0);
+  let of_int = n => mk(Bigint.to_string(n), 0);
+  let of_sint = n => mk(string_of_int(n), 0);
   let of_float = x => mk(string_of_float(x), 0);
   let of_string = s => mk("\"" ++ s, 0); // don't need closing quote, just need to distinguish from others
   let tuple_ctr: int => t = n => mk("tuple", n);
@@ -116,11 +118,13 @@ module Ctr = {
           (cons_ctr, [Prod([elt_ty, ty]) |> Typ.temp]),
         ]),
       )
-    | Bool => Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))
+    | Atom(Bool) => Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))
     | Unknown(_) => Unknown
-    | Int // technically int and float are finite, but ya know
-    | Float
-    | String
+    | Atom(Int)
+    | Atom(SInt) // technically sint and float are finite, but ya know
+    | Atom(Float)
+    | Atom(Nat)
+    | Atom(String)
     | Arrow(_)
     | Forall(_)
     | Var(_) => Infinite
@@ -203,6 +207,7 @@ module Submatrices = {
 
   type seen = {
     seen_ints: IntSet.t,
+    seen_sints: SIntSet.t,
     seen_floats: FloatSet.t,
     seen_strings: StringSet.t,
     seen_ctrs: Ctr.Set.t,
@@ -214,6 +219,7 @@ module Submatrices = {
 
   let init_seen = {
     seen_ints: IntSet.empty,
+    seen_sints: SIntSet.empty,
     seen_floats: FloatSet.empty,
     seen_strings: StringSet.empty,
     seen_ctrs: Ctr.Set.empty,
@@ -236,12 +242,22 @@ module Submatrices = {
       (seen, row: Matrix.row) =>
         switch (row.cols) {
         | [] => seen
-        | [Int(n), ..._] => {
+        | [BigInt(n), ..._] => {
             ...seen,
             seen_ints: IntSet.add(n, seen.seen_ints),
             first_col_redundant_rows:
               add_redundant_row_if(
                 IntSet.mem(n, seen.seen_ints) || seen.seen_truth,
+                row.idx,
+                seen.first_col_redundant_rows,
+              ),
+          }
+        | [SInt(n), ..._] => {
+            ...seen,
+            seen_sints: SIntSet.add(n, seen.seen_sints),
+            first_col_redundant_rows:
+              add_redundant_row_if(
+                SIntSet.mem(n, seen.seen_sints) || seen.seen_truth,
                 row.idx,
                 seen.first_col_redundant_rows,
               ),
@@ -365,6 +381,7 @@ module Submatrices = {
   let of_matrix = (m: Matrix.t, all_ctrs: Ctr.all_ctrs): t => {
     let {
       seen_ints: _,
+      seen_sints: _,
       seen_floats: _,
       seen_strings: _,
       seen_ctrs,
@@ -387,7 +404,12 @@ module Submatrices = {
         (submatrices, row: Matrix.row) => {
           switch (row.cols) {
           | [] => submatrices
-          | [Int(n), ...cols] => {
+          | [SInt(n), ...cols] => {
+              ...submatrices,
+              ctrs:
+                update_ctrs(Ctr.of_sint(n), row.idx, cols, submatrices.ctrs),
+            }
+          | [BigInt(n), ...cols] => {
               ...submatrices,
               ctrs:
                 update_ctrs(Ctr.of_int(n), row.idx, cols, submatrices.ctrs),

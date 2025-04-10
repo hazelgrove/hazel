@@ -81,6 +81,7 @@ module Update = {
         ~is_edited,
         ~stitch,
         ~dynamics=EvalResult.Model.dynamics(result),
+        ~is_dynamic_term=false,
         editor,
       );
     let result =

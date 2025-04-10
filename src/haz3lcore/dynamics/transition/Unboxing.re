@@ -3,13 +3,21 @@ open Util;
 /* What is unboxing?
 
    When you have an expression of type list, and it's finished evaluating,
-   is it a list? Sadly not necessarily, it might be:
+   is it a list literal? Sadly not necessarily, it might be:
 
-    - indeterminate, e.g. it has a hole in it
-    - a list with some casts wrapped around it
+    - an indeterminate list cons: e.g. 1 :: ?
+    - a list literal or list cons with some casts wrapped around it
+    - an indet term in a cast to a list type
 
-    Unboxing is the process of turning a list into a list if it is a list,
-    by pushing casts inside data structures, or giving up if it is not a list.
+    Unboxing is the process of turning a list literal into a list literal if it is a list literal,
+    by pushing casts inside data structures, or giving up if it is not a list literal.
+    It may give up in two distinct ways:
+    - IndetMatch: Due to holes in the expression it may or may not match the unboxing request
+                  depending on possible substitutions of the holes.
+                  e.g. 1 :: ? might match a list of length 3 (LitLitn(3))
+                  or   ? : [Int] might match a list (of any length)
+    - DoesNotMatch: Could not possibly match the unboxing request
+                  e.g. 1 :: ? definitely does NOT match a list of length 0 (ListLitn(0))
 
     Note unboxing only works one layer deep, if we have a list of lists then
     the inner lists may still have casts around them after unboxing.
@@ -27,21 +35,19 @@ type unboxed_fun =
   | DeferredAp(DHExp.t, list(DHExp.t));
 
 type unbox_request('a) =
-  | Int: unbox_request(int)
-  | Float: unbox_request(float)
-  | Bool: unbox_request(bool)
-  | String: unbox_request(string)
+  | Atom(Atom.kind('a)): unbox_request('a)
   | Label: unbox_request(string)
   | Tuple(int): unbox_request(list(DHExp.t))
   | TupLabel(DHPat.t): unbox_request(DHExp.t)
-  | List: unbox_request(list(DHExp.t))
-  | ListLit(int): unbox_request(list(DHExp.t)) // This request is used for performance reasons to prevent casting lists of the wrong length
+  | ListLit: unbox_request(list(DHExp.t)) // Unboxes to a known length list LITERAL. Not all list final forms land in this category (e.g. Cons: 1 :: ?)
+  | ListLitn(int): unbox_request(list(DHExp.t)) // This request is used for performance reasons to prevent casting lists of the wrong length and for matching list lits against cons expressions
   | Cons: unbox_request((DHExp.t, DHExp.t))
   | SumNoArg(string): unbox_request(unit)
   | SumWithArg(string): unbox_request(DHExp.t)
   | TypFun: unbox_request(unboxed_tfun)
   | Fun: unbox_request(unboxed_fun);
 
+[@deriving (show({with_path: false}), eq)]
 type unboxed('a) =
   | DoesNotMatch
   | IndetMatch
@@ -97,27 +103,33 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       }
 
     /* Base types are always already unboxed because of the ITCastID rule*/
-    | (Bool, Bool(b)) => Matches(b)
-    | (Int, Int(i)) => Matches(i)
-    | (Float, Float(f)) => Matches(f)
-    | (String, String(s)) => Matches(s)
-    | (Label, Label(s)) => Matches(s)
+    | (Atom(r), Atom(x)) =>
+      switch (Atom.unbox(r, x)) {
+      | Some(x) => Matches(x)
+      | None => DoesNotMatch
+      }
 
-    /* Lists can be either lists or list casts */
-    | (List, ListLit(l)) => Matches(l)
-    | (ListLit(n), ListLit(l)) when ListUtil.is_length(n, l) => Matches(l)
-    | (ListLit(_), ListLit(_)) => DoesNotMatch
+    /* Lists can be either lists or cons with indet tail or list casts */
+    | (ListLit, ListLit(l)) => Matches(l)
+    | (ListLitn(n), ListLit(l)) when ListUtil.is_length(n, l) => Matches(l)
+    | (ListLitn(_), ListLit(_)) => DoesNotMatch
+    /* A cons final form is always indet, so either does NOT match or indet matches with a listliteral*/
+    | (ListLitn(0), Cons(_)) => DoesNotMatch // Cons is not an empty list
+    | (ListLitn(n), Cons(_, xs)) => unbox(ListLitn(n - 1), xs)
+    | (ListLit, Cons(_)) => IndetMatch // WIthout length of ListLit we cannot know
+
     | (Cons, ListLit([x, ...xs])) =>
       Matches((x, ListLit(xs) |> DHExp.fresh))
     | (Cons, ListLit([])) => DoesNotMatch
+    | (Cons, Cons(x, xs)) => Matches((x, xs))
 
-    | (List, Cast(l, {term: List(t1), _}, {term: List(t2), _})) =>
-      let* l = unbox(List, l);
+    | (ListLit, Cast(l, {term: List(t1), _}, {term: List(t2), _})) =>
+      let* l = unbox(ListLit, l);
       let l = List.map(d => Cast(d, t1, t2) |> DHExp.fresh, l);
       let l = List.map(fixup_cast, l);
       Matches(l);
-    | (ListLit(n), Cast(l, {term: List(t1), _}, {term: List(t2), _})) =>
-      let* l = unbox(ListLit(n), l);
+    | (ListLitn(n), Cast(l, {term: List(t1), _}, {term: List(t2), _})) =>
+      let* l = unbox(ListLitn(n), l);
       let l = List.map(d => Cast(d, t1, t2) |> DHExp.fresh, l);
       let l = List.map(fixup_cast, l);
       Matches(l);
@@ -125,13 +137,12 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Cons,
         Cast(l, {term: List(t1), _} as ct1, {term: List(t2), _} as ct2),
       ) =>
-      let* l = unbox(List, l);
+      let* l = unbox(Cons, l);
       switch (l) {
-      | [] => DoesNotMatch
-      | [x, ...xs] =>
+      | (x, xs) =>
         Matches((
           Cast(x, t1, t2) |> DHExp.fresh |> fixup_cast,
-          Cast(ListLit(xs) |> DHExp.fresh, ct1, ct2) |> DHExp.fresh,
+          Cast(xs, ct1, ct2) |> DHExp.fresh,
         ))
       };
 
@@ -230,11 +241,10 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
        in elaboration or in the cast calculus. */
     | (
         _,
-        Bool(_) | Int(_) | Float(_) | String(_) | Label(_) | Constructor(_) |
-        BuiltinFun(_) |
-        Deferral(_) |
+        Atom(_) | Label(_) | Constructor(_) | BuiltinFun(_) | Deferral(_) |
         DeferredAp(_) |
         ListLit(_) |
+        Cons(_) |
         TupLabel(_) |
         Tuple(_) |
         Cast(_) |
@@ -245,16 +255,23 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       switch (request) {
       | TupLabel(_) =>
         raise(EvaluatorError.Exception(InvalidBoxedTupLabel(expr)))
-      | Bool => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(expr)))
-      | Int => raise(EvaluatorError.Exception(InvalidBoxedIntLit(expr)))
-      | Float => raise(EvaluatorError.Exception(InvalidBoxedFloatLit(expr)))
-      | String =>
+      | Atom(Bool) =>
+        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(expr)))
+      | Atom(SInt)
+      | Atom(Int) =>
+        raise(EvaluatorError.Exception(InvalidBoxedIntLit(expr)))
+      | Atom(Float) =>
+        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(expr)))
+      | Atom(String) =>
         raise(EvaluatorError.Exception(InvalidBoxedStringLit(expr)))
+      | Atom(Nat) =>
+        raise(EvaluatorError.Exception(InvalidBoxedNatLit(expr)))
       | Label => raise(EvaluatorError.Exception(InvalidBoxedLabel(expr)))
       | Tuple(_) => raise(EvaluatorError.Exception(InvalidBoxedTuple(expr)))
-      | List
-      | ListLit(_)
-      | Cons => raise(EvaluatorError.Exception(InvalidBoxedListLit(expr)))
+      | ListLit
+      | ListLitn(_) =>
+        raise(EvaluatorError.Exception(InvalidBoxedListLit(expr)))
+      | Cons => raise(EvaluatorError.Exception(InvalidBoxedListCons(expr)))
       | SumNoArg(_)
       | SumWithArg(_) =>
         raise(EvaluatorError.Exception(InvalidBoxedSumConstructor(expr)))
@@ -271,6 +288,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Fun(_, _, _, _) |
         FixF(_) |
         TyAlias(_) |
+        Use(_) |
         Ap(_) |
         If(_) |
         Seq(_) |
@@ -279,7 +297,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Closure(_) |
         Parens(_) |
         Probe(_) |
-        Cons(_) |
         ListConcat(_) |
         Dot(_) |
         UnOp(_) |
