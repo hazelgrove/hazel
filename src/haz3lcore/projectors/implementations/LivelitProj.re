@@ -52,19 +52,6 @@ and replace_segment_labels =
     );
   };
 
-let replace_model = (segment: Base.segment, new_model: Segment.t) =>
-  switch (segment) {
-  | [name, Tile(old_model)] => [
-      name,
-      List.nth(replace_segment_labels([Tile(old_model)], new_model), 0),
-    ]
-  | _ =>
-    print_endline(
-      "Warning - LivelitProj.replace_model: Livelit segment didn't match expected pattern",
-    );
-    segment;
-  };
-
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
@@ -102,6 +89,43 @@ module M: Projector = {
       ProjectorCore.Shape.inline(32)
     };
   };
+
+  let put =
+      (info: info, segment: Segment.t, exp: TermBase.Exp.t): Base.segment => {
+    print_endline("LivelitProj.put: segment: " ++ (segment |> Segment.show));
+    print_endline("LivelitProj.put: exp: " ++ (exp |> TermBase.Exp.show));
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp(t) =>
+          Exp({
+            ...t,
+            term: exp.term,
+          })
+        | _ => failwith("Livelit: Put: did not match expected model"),
+        segment,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("LivelitProj: Put: lift failed")
+    };
+  };
+  let replace_model =
+      (info: info, segment: Base.segment, term: TermBase.Exp.t) =>
+    switch (segment) {
+    | [name, Tile(old_model)] => [
+        name,
+        put(info, List.hd(old_model.children), term)
+        |> Segment.unparenthesize
+        |> Segment.parenthesize,
+      ]
+    | _ =>
+      print_endline(
+        "Warning - LivelitProj.replace_model: Livelit segment didn't match expected pattern",
+      );
+      segment;
+    };
+
   let update = (_model, _info, action) =>
     switch (action) {
     | _ => print_endline("Warning - LivelitProj.update: No action")
@@ -142,11 +166,12 @@ module M: Projector = {
         | Some(ll) =>
           let action_callback = (action: LivelitCtx.action_exp) => {
             let new_model = ll.update(action, model);
-            let new_model_seg =
-              info.utility.term_to_seg(Exp(new_model))
-              |> Segment.unparenthesize
-              |> Segment.parenthesize;
-            parent(SetSyntax(replace_model(info.syntax, [new_model_seg])));
+            // let new_model_seg =
+            //   info.utility.term_to_seg(Exp(new_model))
+            //   |> Segment.unparenthesize
+            //   |> Segment.parenthesize;
+            // parent(SetSyntax(put(info, new_model)));
+            parent(SetSyntax(replace_model(info, info.syntax, new_model)));
           };
 
           let list_contents = ll.view(model, action_callback);

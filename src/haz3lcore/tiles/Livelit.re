@@ -74,7 +74,6 @@ module Slider: BuiltinLivelit = {
   let view = (model: model_t, send_action) => {
     let n = model;
 
-    //   Node(
     Util.Web.range(
       ~attrs=[
         Attr.on_input((_, v: string) => {
@@ -85,7 +84,6 @@ module Slider: BuiltinLivelit = {
       ~max="100",
       Bigint.to_string(n),
     );
-    //   );
   };
 
   let size: ProjectorCore.Shape.t =
