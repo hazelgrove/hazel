@@ -11,7 +11,7 @@ module BoundedDFS =
 module BFS = Nondeterminism.BFS;
 module DFS = Nondeterminism.DFS;
 module SearchBoundedDFS = IndetEvaluator.Make(BoundedDFS);
-module SearchBFS = IndetEvaluator.Make(Nondeterminism.BFS);
+//module SearchBFS = IndetEvaluator.Make(Nondeterminism.BFS);
 module SearchDFS = IndetEvaluator.Make(Nondeterminism.DFS);
 let print =
     (~settings: Settings.t, editor: CodeWithStatics.Model.t, key: string)
