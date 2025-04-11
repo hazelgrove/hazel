@@ -4,7 +4,15 @@ open Haz3lcore;
    It was originally directly in Keyboard, but that added a handler
    dependency on the model, which is technically against architecture */
 
-open IndetEvaluator.Make(Nondeterminism.BFS);
+module BoundedDFS =
+  Nondeterminism.Bounded(
+    (val Nondeterminism.const_incr_config(~init=5, ~inc=5)),
+  );
+module BFS = Nondeterminism.BFS;
+module DFS = Nondeterminism.DFS;
+module SearchBoundedDFS = IndetEvaluator.Make(BoundedDFS);
+module SearchBFS = IndetEvaluator.Make(Nondeterminism.BFS);
+module SearchDFS = IndetEvaluator.Make(Nondeterminism.DFS);
 let print =
     (~settings: Settings.t, editor: CodeWithStatics.Model.t, key: string)
     : unit => {
@@ -40,10 +48,13 @@ let print =
   | "F9" =>
     let results =
       statics.elaborated
-      |> all(~env=Builtins.env_init, ~state=IndetEvaluatorState.init);
+      |> SearchBoundedDFS.all(
+           ~env=Builtins.env_init,
+           ~state=IndetEvaluatorState.init,
+         );
     let _ =
       results
-      |> Nondeterminism.BFS.run_n(~solutions=30)
+      |> BoundedDFS.run_n(~solutions=30)
       |> List.mapi((i, (state, d)) =>
            print(
              "---Result: "
@@ -52,9 +63,7 @@ let print =
              ++ Int.to_string(IndetEvaluatorState.get_instantiations(state))
              ++ "\nTrace Length: "
              ++ Int.to_string(IndetEvaluatorState.get_trace_length(state))
-             ++ "\nInstantiation "
-             ++ Int.to_string(i)
-             ++ ": "
+             ++ "\n"
              ++ Exp.show(d)
              ++ "\n",
            )

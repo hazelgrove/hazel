@@ -16,8 +16,7 @@ module Make =
   let bool_lits =
     return(Bool(true) |> DHExp.fresh)
     <||> return(Bool(false) |> DHExp.fresh);
-  // Using bind to carefully avoid infinite recursion as OCaml is strict.
-  // To represent lazily
+
   let rec ints_from = n =>
     return(n) <||> wrap(n |>- (n => ints_from(n + 1)));
   let rec ints_to = n => return(n) <||> wrap(n |>- (n => ints_to(n - 1)));
