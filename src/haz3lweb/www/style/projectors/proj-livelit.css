@@ -1,4 +1,4 @@
-.livelit > * {
+.livelit * {
     display: flex;
     justify-content: center;
     align-items: center;
@@ -8,7 +8,7 @@
     height: 100%;
 }
 
-.livelit > .slider > input {
+.livelit .slider > input {
   margin: 0;
   filter: sepia(1);
   cursor: pointer;
@@ -16,11 +16,11 @@
   width: 90%;
 }
 
-.livelit > .emotion {
+.livelit .emotion {
     display: flex;
     flex-direction: column;
 }
-.livelit > .emotion > input {
+.livelit .emotion > input {
     margin: 0;
     filter: sepia(1);
     cursor: pointer;
