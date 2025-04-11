@@ -91,12 +91,12 @@ module DFS: Search = {
   include Sequence;
 
   let fail = empty;
+  let apply = (f, x) => bind(return(x), ~f);
 
   let choice = append;
-  let fchoice = (s1, s2) => [s1, s2] |> of_list |> interleave;
+  let fchoice = (s1, s2) => round_robin([s1, s2]);
   let fbind = (s, ~f) => interleave(s >>| f);
   let wrap = x => x;
-  let apply = (f, x) => bind(return(x), ~f);
 
   let fjoin = interleave;
   let concat = s => s |> of_list |> concat;

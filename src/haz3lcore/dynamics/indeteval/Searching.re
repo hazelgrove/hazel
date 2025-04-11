@@ -5,10 +5,12 @@ module Make = (S: Search) => {
     | BoxedValue
     | Indet
     | Expr;
-  type expert_tag = OneStepEvaluator.TryStep.t;
+  type expert_tag = OneStepEvaluator.TryStep.t(DHExp.t);
 
   type t('a) = (DHExp.t, tag) => S.t('a);
-  type expert_t('a) = (DHExp.t, expert_tag) => (S.t('a), S.t(DHExp.t));
+  type expert_t('a, 'state) =
+    ('state, DHExp.t, expert_tag) =>
+    (S.t(('state, 'a)), S.t(('state, DHExp.t)));
 
   let all: t('a) = S.((d, _) => return(d));
 
@@ -56,21 +58,51 @@ module Make = (S: Search) => {
       )
     );
 
-  let no_instantiation: t('a) => expert_t('a) =
+  let no_instantiation: t('a) => expert_t('a, 'state) =
     S.(
-      (logic, d) =>
-        fun
-        | BoxedValue => (logic(d, BoxedValue), fail)
-        | Indet => (logic(d, Indet), fail)
-        | Step(d') => (logic(d, Expr), return(d'))
+      Infix.(
+        (logic, state, d) =>
+          fun
+          | BoxedValue => (logic(d, BoxedValue) >>| (r => (state, r)), fail)
+          | Indet => (logic(d, Indet) >>| (r => (state, r)), fail)
+          | Step(d') => (
+              logic(d, Expr) >>| (r => (state, r)),
+              return((IndetEvaluatorState.incr_trace(1, state), d')),
+            )
+      )
     );
 
-  let deterministic: expert_t('a) =
+  let deterministic: expert_t('a, 'state) =
     S.(
-      d =>
-        fun
-        | BoxedValue
-        | Indet => (fail, fail)
-        | Step(d') => (fail, return(d'))
+      Infix.(
+        (state, d) =>
+          fun
+          | BoxedValue
+          | Indet => (return((state, d)), fail)
+          | Step(d') => (
+              fail,
+              return((IndetEvaluatorState.incr_trace(1, state), d')),
+            )
+      )
     );
+
+  let custom_instantiation:
+    (('state, TermBase.exp_t) => S.t(('state, TermBase.exp_t)), t('a)) =>
+    expert_t('a, 'state) = {
+    S.(
+      Infix.(
+        (instantiator, logic, state, d) =>
+          fun
+          | BoxedValue => (logic(d, BoxedValue) >>| (r => (state, r)), fail)
+          | Indet => (
+              logic(d, Indet) >>| (r => (state, r)),
+              instantiator(state, d),
+            )
+          | Step(d') => (
+              logic(d, Expr) >>| (r => (state, r)),
+              return((IndetEvaluatorState.incr_trace(1, state), d')),
+            )
+      )
+    );
+  };
 };

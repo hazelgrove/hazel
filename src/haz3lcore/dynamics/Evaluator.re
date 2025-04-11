@@ -8,7 +8,7 @@ module EvaluatorEVMode: {
 
   include
     EV_MODE with
-      type state = ref(EvaluatorState.t) and
+      type state = ref(IndetEvaluatorState.t) and
       type result = Trampoline.t((status, DHExp.t));
 } = {
   open Trampoline.Syntax;
@@ -21,12 +21,12 @@ module EvaluatorEVMode: {
   type requirement('a) = Trampoline.t('a);
   type requirements('a, 'b) = Trampoline.t(('a, 'b));
 
-  type state = ref(EvaluatorState.t);
+  type state = ref(IndetEvaluatorState.t);
   let update_test = (state, id, v) =>
-    state := EvaluatorState.add_test(state^, id, v);
+    state := IndetEvaluatorState.add_test(state^, id, v);
 
   let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
-    state := EvaluatorState.add_closure(state^, closure);
+    state := IndetEvaluatorState.add_closure(state^, closure);
 
   let req_final = (f, _, x) => {
     let.trampoline x' = Next(() => f(x));
@@ -76,14 +76,14 @@ let rec evaluate = (~in_closure=?, state, env, d) => {
 };
 
 let evaluate' = (env, d: DHExp.t) => {
-  let state = ref(EvaluatorState.init);
+  let state = ref(IndetEvaluatorState.init);
   let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);
   Trampoline.run(result) |> snd;
 };
 
 let evaluate = (~env, d: DHExp.t) => {
-  let state = ref(EvaluatorState.init);
+  let state = ref(IndetEvaluatorState.init);
   let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);
   let result = Trampoline.run(result);

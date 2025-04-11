@@ -14,7 +14,7 @@ let evaluate_probes = unevaluated =>
   unevaluated
   |> Evaluator.evaluate(~env=Builtins.env_init)
   |> snd
-  |> EvaluatorState.get_probes;
+  |> IndetEvaluatorState.get_probes;
 
 let parse_exp = (s: string) => {
   switch (MakeTerm.parse_exp(s)) {

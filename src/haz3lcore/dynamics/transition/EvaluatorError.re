@@ -19,6 +19,7 @@ type t =
   | InvalidBoxedTupLabel(DHExp.t)
   | InvalidBoxedTuple(DHExp.t)
   | InvalidBuiltin(string)
-  | UnableToInstantiateIndet(DHExp.t);
+  | UnableToInstantiateIndet(DHExp.t)
+  | NoMoreInstantiations(DHExp.t);
 
 exception Exception(t);

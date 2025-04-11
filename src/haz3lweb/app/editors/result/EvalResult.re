@@ -21,7 +21,7 @@ module Model = {
         result:
           Calc.t(
             Haz3lcore.ProgramResult.t(
-              (Haz3lcore.Exp.t, Haz3lcore.EvaluatorState.t),
+              (Haz3lcore.Exp.t, Haz3lcore.IndetEvaluatorState.t),
             ),
           ),
         cached_settings: Calc.saved(Haz3lcore.CoreSettings.t),
@@ -49,7 +49,7 @@ module Model = {
     previous_probes: None,
   };
 
-  let eval_state = (result: result): option(EvaluatorState.t) =>
+  let eval_state = (result: result): option(IndetEvaluatorState.t) =>
     switch (result) {
     | Evaluation(e) =>
       switch (e.result) {
@@ -65,7 +65,7 @@ module Model = {
   let probe_results = (model: t): option(Dynamics.Probe.Map.t) =>
     switch (eval_state(model.result)) {
     | None => model.previous_probes
-    | Some(eval_state) => Some(EvaluatorState.get_probes(eval_state))
+    | Some(eval_state) => Some(IndetEvaluatorState.get_probes(eval_state))
     };
 
   let test_results = (model: t): option(TestResults.t) =>
@@ -396,7 +396,7 @@ module View = {
         elab: Haz3lcore.Exp.t,
         result:
           Haz3lcore.ProgramResult.t(
-            (Haz3lcore.Exp.t, Haz3lcore.EvaluatorState.t),
+            (Haz3lcore.Exp.t, Haz3lcore.IndetEvaluatorState.t),
           ),
         editor: Calc.saved(('a, CodeSelectable.Model.t)),
       ) => {

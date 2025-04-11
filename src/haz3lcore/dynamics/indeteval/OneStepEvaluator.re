@@ -1,81 +1,206 @@
 open Transition;
 
 module TryStep = {
-  type t =
+  type t('a) =
     | Indet
     | BoxedValue
-    | Step(DHExp.t);
+    | Step('a);
 
-  let unbox = (r: t): option(DHExp.t) => {
+  let unbox = (r: t('a)): option('a) => {
     switch (r) {
     | Indet
     | BoxedValue => None
     | Step(e) => Some(e)
     };
   };
+
+  let bind = f =>
+    fun
+    | Indet => Indet
+    | BoxedValue => BoxedValue
+    | Step(s) => f(s);
+
+  let map = f =>
+    fun
+    | Indet => Indet
+    | BoxedValue => BoxedValue
+    | Step(s) => Step(f(s));
+
+  module Syntax = {
+    let ( let* ) = (s, f) => bind(f, s);
+    let (let+) = (s, f) => map(f, s);
+  };
 };
 
-module OneStepEVMode: {
-  include
-    EV_MODE with
-      type result = TryStep.t and type state = ref(EvaluatorState.t);
-} = {
-  type state = ref(EvaluatorState.t);
-  type requirement('a) = (TryStep.t, 'a);
-  type requirements('a, 'b) = (TryStep.t, 'a);
-  type result = TryStep.t;
-
-  let (&&): (TryStep.t, TryStep.t) => TryStep.t =
-    (u, v) =>
-      switch (u, v) {
-      | (Step(e), _) // First step takes precedence
-      | (_, Step(e)) => Step(e)
-      | (Indet, BoxedValue)
-      | (BoxedValue, Indet)
-      | (Indet, Indet) => Indet
-      | (BoxedValue, BoxedValue) => BoxedValue
-      };
-
-  let req_final = (cont, _, d) => {
-    (cont(d), d);
-  };
-
-  let rec req_all_final = (cont, _, ds) =>
-    List.fold_right(
-      ((r, v), (r_acc, v_acc)) => (r && r_acc, [v, ...v_acc]),
-      List.map(req_final(cont, x => x), ds),
-      (BoxedValue, []),
+module WrapStep = {
+  module WrapEVMode: {
+    include
+      EV_MODE with
+        type result = TryStep.t(EvalObj.t) and
+        type state = ref(IndetEvaluatorState.t);
+  } = {
+    type state = ref(IndetEvaluatorState.t);
+    type requirement('a) = (TryStep.t(EvalObj.t), 'a);
+    type requirements('a, 'b) = (
+      'b,
+      TryStep.t(EvalObj.t),
+      ClosureEnvironment.t,
+      'a,
     );
+    type result = TryStep.t(EvalObj.t);
 
-  let (let.) = (rq, rl) =>
-    switch (rq) {
-    | (TryStep.Indet, _) => TryStep.Indet
-    | (TryStep.BoxedValue, v) =>
-      switch (rl(v)) {
-      | Constructor => TryStep.BoxedValue
-      | Value => TryStep.BoxedValue
-      | Indet => TryStep.Indet
-      | Step(s) => TryStep.Step(s.expr)
-      }
-    | (TryStep.Step(_) as r, _) => r
+    let (&&):
+      (TryStep.t(EvalObj.t), TryStep.t(EvalObj.t)) => TryStep.t(EvalObj.t) =
+      (u, v) =>
+        switch (u, v) {
+        | (Step(s), Step(_)) // Get only first step
+        | (Step(s), _)
+        | (_, Step(s)) => Step(s)
+        | (Indet, BoxedValue)
+        | (BoxedValue, Indet)
+        | (Indet, Indet) => Indet
+        | (BoxedValue, BoxedValue) => BoxedValue
+        };
+
+    let req_final = (cont, wr, d) => {
+      (
+        switch (cont(d)) {
+        | TryStep.Indet => TryStep.BoxedValue
+        | BoxedValue => BoxedValue
+        | Step(obj) => Step(EvalObj.wrap(wr, obj))
+        },
+        d,
+      );
     };
 
-  let (and.):
-    (requirements('a, 'c => 'b), requirement('c)) =>
-    requirements(('a, 'c), 'b) =
-    ((r1, v1), (r2, v2)) => (r1 && r2, (v1, v2));
+    let rec req_all_final' = (cont, wr, ds') =>
+      fun
+      | [] => (TryStep.BoxedValue, [])
+      | [d, ...ds] => {
+          let (r1, v) = req_final(cont, wr(_, (ds', ds)), d);
+          let (r2, vs) = req_all_final'(cont, wr, [d, ...ds'], ds);
+          (r1 && r2, [v, ...vs]);
+        };
 
-  let otherwise = (_, _) => (TryStep.BoxedValue, ());
-  let atom = otherwise;
-  let update_test = (state, id, v) =>
-    state := EvaluatorState.add_test(state^, id, v);
-  let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
-    state := EvaluatorState.add_closure(state^, closure);
+    let req_all_final = (cont, wr, ds) => {
+      req_all_final'(cont, wr, [], ds);
+    };
+
+    let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
+      (rq, rl) => {
+        switch (rq) {
+        | (_, TryStep.Indet, _, _) => TryStep.Indet
+        | (undo, BoxedValue, env, v) =>
+          switch (rl(v)) {
+          | Constructor => BoxedValue
+          | Value => BoxedValue
+          | Indet => Indet
+          | Step(s) => Step(EvalObj.mk(Mark, env, undo, s.kind))
+          }
+        | (_, Step(_) as s, _, _) => s
+        };
+      };
+    let (and.):
+      (requirements('a, 'c => 'b), requirement('c)) =>
+      requirements(('a, 'c), 'b) =
+      ((u, r1, env, v1), (r2, v2)) => (u(v2), r1 && r2, env, (v1, v2));
+
+    let otherwise = (env, o) => (o, TryStep.BoxedValue, env, ());
+    let update_test = (state, id, v) =>
+      state := IndetEvaluatorState.add_test(state^, id, v);
+    let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
+      state := IndetEvaluatorState.add_closure(state^, closure);
+  };
+
+  module Wrap = Transition(WrapEVMode);
+  let rec wrap = (~in_closure=?, state, env, exp) => {
+    Wrap.transition(
+      wrap,
+      ~in_closure=Option.value(~default=() => (), in_closure),
+      state,
+      env,
+      exp,
+    );
+  };
+
+  let wrap = (state, env, d) => {
+    let state = ref(state);
+    let env = ClosureEnvironment.of_environment(env);
+    let result = wrap(state, env, d);
+    (result, state^); // Thread state throughout
+  };
 };
 
-module OneStep = Transition(OneStepEVMode);
-let rec step = (~in_closure=?, state, env, exp) => {
-  switch (exp) {
-  | _ => OneStep.transition(step, ~in_closure?, state, env, exp)
+module TakeStep = {
+  module TakeStepEVMode: {
+    include
+      EV_MODE with
+        type result = option(DHExp.t) and
+        type state = ref(IndetEvaluatorState.t);
+  } = {
+    type state = ref(IndetEvaluatorState.t);
+    type requirement('a) = 'a;
+    type requirements('a, 'b) = 'a;
+    type result = option(DHExp.t);
+
+    // Assume that everything is either value or final as required.
+    let req_final = (_, _, d) => d;
+    let req_all_final = (_, _, ds) => ds;
+
+    let (let.) = (rq: requirements('a, DHExp.t), rl: 'a => rule) =>
+      switch (rl(rq)) {
+      | Step({expr, state_update, _}) =>
+        state_update();
+        Some(expr);
+      | Constructor
+      | Value
+      | Indet => None
+      };
+
+    let (and.) = (x1, x2) => (x1, x2);
+
+    let otherwise = (_, _) => ();
+    let atom = otherwise;
+
+    let update_test = (state, id, v) =>
+      state := IndetEvaluatorState.add_test(state^, id, v);
+
+    let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
+      state := IndetEvaluatorState.add_closure(state^, closure);
   };
+
+  module TakeStepEV = Transition(TakeStepEVMode);
+
+  let step = (~in_closure=?, state, env, d) =>
+    TakeStepEV.transition(
+      (~in_closure as _=?, _, _, _) => None,
+      ~in_closure=Option.value(~default=() => (), in_closure),
+      state,
+      env,
+      d,
+    )
+    |> Option.map(DHExp.replace_all_ids);
+};
+
+let take_step = (state, env, exp) => {
+  open TryStep.Syntax;
+  let (step, next_state) = WrapStep.wrap(state, env, exp);
+  let next_state = ref(next_state);
+  let next_step = {
+    let* step = step;
+    switch (TakeStep.step(next_state, step.env, step.d_loc)) {
+    | None => Indet
+    | Some(next_expr) =>
+      let next_step =
+        {
+          term: next_expr.term,
+          annotation: IdTagged.IdTag.{ids: step.d_loc |> IdTagged.ids},
+        }
+        |> EvalCtx.compose(step.ctx)
+        |> Exp.replace_all_ids
+        |> DHExp.substitute_closures(env);
+      Step(next_step);
+    };
+  };
+  (next_step, next_state^);
 };

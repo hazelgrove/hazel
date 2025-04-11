@@ -4,7 +4,7 @@ open Haz3lcore;
    It was originally directly in Keyboard, but that added a handler
    dependency on the model, which is technically against architecture */
 
-open IndetEvaluator.Make(Nondeterminism.DFS);
+open IndetEvaluator.Make(Nondeterminism.BFS);
 let print =
     (~settings: Settings.t, editor: CodeWithStatics.Model.t, key: string)
     : unit => {
@@ -38,13 +38,21 @@ let print =
     };
   | "F8" => statics.elaborated |> Exp.show |> print
   | "F9" =>
-    let results = statics.elaborated |> all(Builtins.env_init);
+    let results =
+      statics.elaborated
+      |> all(~env=Builtins.env_init, ~state=IndetEvaluatorState.init);
     let _ =
       results
-      |> Nondeterminism.DFS.run_n(~solutions=30)
-      |> List.mapi((i, d) =>
+      |> Nondeterminism.BFS.run_n(~solutions=30)
+      |> List.mapi((i, (state, d)) =>
            print(
-             "Instantiation "
+             "---Result: "
+             ++ Int.to_string(i)
+             ++ "\n# of Instantiations: "
+             ++ Int.to_string(IndetEvaluatorState.get_instantiations(state))
+             ++ "\nTrace Length: "
+             ++ Int.to_string(IndetEvaluatorState.get_trace_length(state))
+             ++ "\nInstantiation "
              ++ Int.to_string(i)
              ++ ": "
              ++ Exp.show(d)

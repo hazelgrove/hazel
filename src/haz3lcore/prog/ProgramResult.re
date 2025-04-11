@@ -29,7 +29,7 @@ module Result = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type inner = {
   result: Exp.t,
-  state: EvaluatorState.t,
+  state: IndetEvaluatorState.t,
 };
 
 type indet = {results: list(DHExp.t)};

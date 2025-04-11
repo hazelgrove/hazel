@@ -17,7 +17,7 @@ module Response = {
   [@deriving (show, sexp, yojson)]
   type value =
     Result.t(
-      (Haz3lcore.Exp.t, Haz3lcore.EvaluatorState.t),
+      (Haz3lcore.Exp.t, Haz3lcore.IndetEvaluatorState.t),
       Haz3lcore.ProgramResult.error,
     );
   [@deriving (show, sexp, yojson)]
@@ -32,8 +32,15 @@ let work = (res: Request.value, search, n): Response.value =>
   switch (
     res
     |> Haz3lcore.(
-         search ? cast_errors(Builtins.env_init) : values(Builtins.env_init)
+         search
+           ? cast_errors(
+               ~env=Builtins.env_init,
+               ~state=IndetEvaluatorState.init,
+             )
+           : values(~env=Builtins.env_init, ~state=IndetEvaluatorState.init)
        )
+    |> Haz3lcore.Nondeterminism.DFS.run_n(~solutions=n + 1)
+    |> (l => List.nth_opt(l, n))
   ) {
   | exception (Haz3lcore.EvaluatorError.Exception(reason)) =>
     print_endline(
@@ -46,17 +53,9 @@ let work = (res: Request.value, search, n): Response.value =>
       Haz3lcore.ProgramResult.UnknownException(Printexc.to_string(exn)),
     );
   //| (state, result) => Ok((result, state))
-  | results =>
-    Ok((
-      results
-      |> Haz3lcore.Nondeterminism.DFS.run_n(~solutions=n + 1)
-      |> (l => List.nth_opt(l, n))
-      |> Option.value(
-           ~default=
-             Var("No more instantiations possible.") |> Haz3lcore.DHExp.fresh,
-         ),
-      Haz3lcore.EvaluatorState.init // TODO: thread state
-    ))
+  | None =>
+    Error(Haz3lcore.ProgramResult.EvaulatorError(NoMoreInstantiations(res)))
+  | Some((state, result)) => Ok((result, state))
   };
 
 let on_request = (req: string): unit =>
