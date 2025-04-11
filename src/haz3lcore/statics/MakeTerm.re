@@ -132,8 +132,8 @@ let log_projector = (pr: Base.projector): unit => {
  * logged before this is called */
 let should_instrument = (id: Id.t): bool =>
   switch (Id.Map.find_opt(id, projectors^)) {
-  | Some(pr) =>
-    let (module P) = ProjectorInit.to_module(pr.kind);
+  | Some({model: V(kind, _), _}) =>
+    let (module P) = ProjectorInit.to_module(kind);
     P.dynamics;
   | None => failwith("MakeTerm.exp: projector not found")
   };

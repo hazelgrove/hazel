@@ -208,12 +208,13 @@ let mk_view =
       {p, info, _}: Model.projector_data,
     )
     : View.t => {
-  let (module P) = ProjectorInit.to_module(p.kind);
+  let V(kind, model) = p.model;
+  let (module P) = ProjectorInit.to_module(kind);
   let parent = a => inject(Project(handle(p.id, a)));
   let local = a =>
-    inject(Project(SetModel(p.id, P.update(p.model, info, a))));
+    inject(Project(SetModel(p.id, V(kind, P.update(model, info, a)))));
   let view_seg = (~background=?) => simple_code(~background?, font_metrics);
-  P.view(p.model, info, ~local, ~parent, ~view_seg);
+  P.view(model, info, ~local, ~parent, ~view_seg);
 };
 
 /* Extract and collate different layers of the resulting view
@@ -315,13 +316,18 @@ let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) => {
     Siblings.neighbors(editor.state.zipper.relatives.siblings),
   ) {
   | _ when z.caret != Outer => None
-  | (Some(Left), (Some(Projector({id, kind, _})), _)) =>
+  | (Some(Left), (Some(Projector({id, model, _})), _)) =>
+    let V(kind, _) = model;
     let (module P) = ProjectorInit.to_module(kind);
     P.focusable.keyboard != None
-      ? Some(Focus(id, kind, Some(Right))) : None;
-  | (Some(Right), (_, Some(Projector({id, kind, _})))) =>
+      ? Some(Focus(id, kind |> ProjectorCore.Kind.of_gadt, Some(Right)))
+      : None;
+  | (Some(Right), (_, Some(Projector({id, model, _})))) =>
+    let V(kind, _) = model;
     let (module P) = ProjectorInit.to_module(kind);
-    P.focusable.keyboard != None ? Some(Focus(id, kind, Some(Left))) : None;
+    P.focusable.keyboard != None
+      ? Some(Focus(id, kind |> ProjectorCore.Kind.of_gadt, Some(Left)))
+      : None;
   | _ => None
   };
 };

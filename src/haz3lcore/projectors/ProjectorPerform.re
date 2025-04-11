@@ -146,6 +146,8 @@ let go =
       ),
     )
   | Focus(id, kind, d) =>
+    open ProjectorCore.Kind;
+    let.gadt W(kind) = kind;
     switch (d) {
     | None =>
       /* Focus by mouse click */
@@ -171,7 +173,7 @@ let go =
       | None => ()
       };
       Ok(z);
-    }
+    };
   | Escape(id, d) => Ok(jump_to_side_of_id(d, z, id))
   };
 };

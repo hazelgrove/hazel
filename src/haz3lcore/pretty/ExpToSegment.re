@@ -699,8 +699,10 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
     let str = FoldProj.sexp_of_t({text: f_name}) |> Sexplib.Sexp.to_string;
     switch (MakeTerm.for_projection([syntax])) {
     | None => failwith("ExpToSegment.fold_fun_if")
-    | Some(any) => [
-        ProjectorInit.init_or_noop_from_str(Fold, syntax, any, str),
+    | Some(_) => [
+        Base.Projector(
+          ProjectorCore.mk(Fold, syntax, V(Fold, {text: str})),
+        ),
       ]
     };
   } else {

@@ -36,7 +36,9 @@ module Applicable = {
   let is_applicable =
       (cursor: Cursor.cursor(Editors.Update.t), kind: ProjectorCore.Kind.t)
       : option(ProjectorCore.Kind.t) => {
-    let (module P) = ProjectorInit.to_module(kind);
+    open ProjectorCore.Kind;
+    let.gadt W(kind_gadt) = kind;
+    let (module P) = ProjectorInit.to_module(kind_gadt);
     let* term = target_term(cursor);
     let+ _ = P.init(term);
     kind;

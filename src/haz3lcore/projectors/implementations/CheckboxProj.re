@@ -2,9 +2,10 @@ open Util;
 open ProjectorBase;
 open Virtual_dom.Vdom;
 
-module M: Projector = {
+module M: Projector with type model = unit = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
+  let kind = ProjectorCore.Kind.Checkbox;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
