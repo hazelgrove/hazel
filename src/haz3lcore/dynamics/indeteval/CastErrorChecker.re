@@ -54,6 +54,13 @@ module CastErrCheckerEVMode: {
 module CastErrChecker = Transition(CastErrCheckerEVMode);
 
 let rec contains_error = (~in_closure=?, state, env, d) =>
-  CastErrChecker.transition(contains_error, ~in_closure?, state, env, d);
+  CastErrChecker.transition(
+    contains_error,
+    ~in_closure?,
+    ~mode=`Environment,
+    state,
+    env,
+    d,
+  );
 
 let contains_error = contains_error((), ClosureEnvironment.empty);

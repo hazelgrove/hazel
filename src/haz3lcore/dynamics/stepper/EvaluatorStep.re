@@ -100,6 +100,7 @@ module Decompose = {
       Decomp.transition(
         decompose,
         ~in_closure=Option.value(~default=() => (), in_closure),
+        ~mode=`Substitution,
         state,
         env,
         exp,
@@ -152,6 +153,7 @@ module TakeStep = {
     TakeStepEV.transition(
       (~in_closure as _=?, _, _, _) => None,
       ~in_closure=Option.value(~default=() => (), in_closure),
+      ~mode=`Substitution,
       state,
       env,
       d,

@@ -79,7 +79,14 @@ module InstantiatorEVMode: {
 module Instantiator = Transition(InstantiatorEVMode);
 
 let rec find = (~in_closure=?, state, env, d) =>
-  Instantiator.transition(find, ~in_closure?, state, env, d);
+  Instantiator.transition(
+    find,
+    ~in_closure?,
+    ~mode=`Environment,
+    state,
+    env,
+    d,
+  );
 
 let find = (env, d) => {
   find((), ClosureEnvironment.of_environment(env), d);

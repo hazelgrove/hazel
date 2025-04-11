@@ -30,6 +30,7 @@ type unboxed_tfun =
 type unboxed_fun =
   | Constructor(string)
   | FunEnv(Pat.t, Exp.t, ClosureEnvironment.t)
+  | FunNoEnv(Pat.t, Exp.t)
   | FunCast(DHExp.t, TypSlice.t, TypSlice.t, TypSlice.t, TypSlice.t)
   | BuiltinFun(string)
   | DeferredAp(DHExp.t, list(DHExp.t));
@@ -243,6 +244,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Fun, Constructor(name, _)) => Matches(Constructor(name)) // Perhaps we should check if the constructor actually is a function?
     | (Fun, Closure(env', {term: Fun(dp, d3, _, _), _})) =>
       Matches(FunEnv(dp, d3, env'))
+    | (Fun, Fun(dp, d3, _, _)) => Matches(FunNoEnv(dp, d3))
     | (Fun, Cast(d3', s1, s2))
         when TypSlice.is_arrow(s1) && TypSlice.is_arrow(s2) =>
       let ((s1, s2), (s1', s2')) = (
