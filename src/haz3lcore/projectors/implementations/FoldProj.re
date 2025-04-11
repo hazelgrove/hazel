@@ -4,23 +4,21 @@ open Virtual_dom.Vdom;
 open Node;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  [@default "⋱"]
-  text: string,
-};
+type t = ProjectorCore.Kind.fold_model;
 
-module M: Projector = {
+module M: Projector with type model = t = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = t;
+  let kind = ProjectorCore.Kind.Fold;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let init = _ => Some({text: "⋱"});
+  let init = _ => Some({text: "⋱"}: t);
 
   let focusable = Focusable.non;
   let dynamics = false;
 
-  let placeholder = (m, _) =>
+  let placeholder = (m: t, _) =>
     ProjectorCore.Shape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
   let update = (m, _, _) => m;
 

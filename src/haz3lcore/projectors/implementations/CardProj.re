@@ -3,20 +3,17 @@ open Virtual_dom.Vdom;
 open ProjectorBase;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type mode =
-  | Show
-  | Choose(int)
-  | Flipped;
+type mode = ProjectorCore.Kind.card_mode;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model = {mode};
+type model = mode;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | SetMode(mode);
 
 let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
   switch (model_of_sexp(sexp)) {
-  | exception _ => {mode: Show}
+  | exception _ => Show
   | m => m
   };
 
@@ -454,6 +451,8 @@ module Chooser = {
     );
 };
 
+open ProjectorCore.Kind;
+
 module Singleton = {
   let view =
       (
@@ -605,16 +604,17 @@ type m = model;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a = action;
 
-module M: Projector = {
+module M: Projector with type model = m = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = m;
+  let kind = ProjectorCore.Kind.Card;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
   let focusable = Focusable.non;
   let dynamics = false;
 
   let init = (info: TermBase.Any.t): option(model) =>
-    SyntaxTerm.get_opt(info) != None ? Some({mode: Show}) : None;
+    SyntaxTerm.get_opt(info) != None ? Some(Show) : None;
 
   let placeholder = (_, info): ProjectorCore.Shape.t => {
     horizontal: SyntaxTerm.width_of_any(info),
@@ -623,7 +623,7 @@ module M: Projector = {
 
   let update = (_model, _, action) =>
     switch (action) {
-    | SetMode(mode) => {mode: mode}
+    | SetMode(mode) => mode
     };
 
   let view =
@@ -638,9 +638,9 @@ module M: Projector = {
     inline:
       switch (SyntaxTerm.get(info)) {
       | (sort, Card(card)) =>
-        Singleton.view(info, model.mode, parent, local, to_sort(sort), card)
+        Singleton.view(info, model, parent, local, to_sort(sort), card)
       | (sort, Hand(hand)) =>
-        Hand.view(info, model.mode, parent, local, to_sort(sort), hand)
+        Hand.view(info, model, parent, local, to_sort(sort), hand)
       },
     offside: None,
     overlay: None,

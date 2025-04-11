@@ -859,9 +859,10 @@ let overlay_view = (info: info): Node.t =>
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a = action;
 
-module M: Projector = {
+module M: Projector with type model = unit = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
+  let kind = ProjectorCore.Kind.Probe;
   let model_of_sexp = _ => ();
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;

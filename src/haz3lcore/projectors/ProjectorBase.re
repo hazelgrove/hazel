@@ -131,6 +131,7 @@ module type Projector = {
    * need other state beyond the underlying syntax */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
+  let kind: ProjectorCore.Kind.gadt(model);
   /* An internal action type to be used in actions which
    * update the model. Use `unit` if the basic projector
    * actions (type `action`) above suffice */
@@ -167,39 +168,6 @@ module type Projector = {
   let placeholder: (model, info) => ProjectorCore.Shape.t;
   /* Update the local projector model given an action */
   let update: (model, info, action) => model;
-};
-
-/* A cooked projector is the same as the base module
- * signature except model & action are serialized so
- * they may be used by the Editor without it having
- * specialized knowledge of projector internals */
-module type Cooked =
-  Projector with type model = string and type action = string;
-
-module Cook = (C: Projector) : Cooked => {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = string;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = string;
-  let serialize_m = m => m |> C.sexp_of_model |> Sexplib.Sexp.to_string;
-  let deserialize_m = s => s |> Sexplib.Sexp.of_string |> C.model_of_sexp;
-  let serialize_a = a => a |> C.sexp_of_action |> Sexplib.Sexp.to_string;
-  let deserialize_a = s => s |> Sexplib.Sexp.of_string |> C.action_of_sexp;
-  let init = any => C.init(any) |> Option.map(serialize_m);
-  let focusable = C.focusable;
-  let dynamics = C.dynamics;
-  let view = (m, info, ~local, ~parent, ~view_seg) =>
-    C.view(
-      deserialize_m(m),
-      info,
-      ~local=a => local(serialize_a(a)),
-      ~parent,
-      ~view_seg,
-    );
-  let placeholder = m =>
-    m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
-  let update = (m, i, a) =>
-    C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
 };
 
 /* Projectors currently are all convex */

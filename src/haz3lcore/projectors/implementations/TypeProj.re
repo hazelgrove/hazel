@@ -22,11 +22,11 @@ let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   | None => Typ.fresh(Unknown(Internal))
   };
 
-module M: Projector = {
+module M: Projector with type model = ProjectorCore.Kind.type_model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model =
-    | Expected
-    | Self;
+  type model = ProjectorCore.Kind.type_model;
+
+  let kind = ProjectorCore.Kind.Info;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
@@ -43,6 +43,8 @@ module M: Projector = {
 
   let dynamics = false;
   let focusable = Focusable.non;
+
+  open ProjectorCore.Kind;
 
   let display_ty = (model, statics): option(Typ.t) =>
     switch (model) {

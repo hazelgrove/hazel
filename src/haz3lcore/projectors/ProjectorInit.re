@@ -4,25 +4,32 @@ open ProjectorBase;
  * it can be instantiated. The first-class module created by
  * this function must be reified whenever projector methods
  * are to be called; see `shape` below for an example */
-let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
+let to_module =
+    (type a, kind: ProjectorCore.Kind.gadt(a))
+    : (module Projector with type model = a) =>
   switch (kind) {
-  | Fold => (module Cook(FoldProj.M))
-  | Info => (module Cook(TypeProj.M))
-  | Probe => (module Cook(ProbeProj.M))
-  | Slider => (module Cook(SliderProj.M))
-  | SliderF => (module Cook(SliderFProj.M))
-  | Checkbox => (module Cook(CheckboxProj.M))
-  | TextArea => (module Cook(TextAreaProj.M))
-  | Card => (module Cook(CardProj.M))
+  | Fold => (module FoldProj.M)
+  | Info => (module TypeProj.M)
+  | Probe => (module ProbeProj.M)
+  | Slider => (module SliderProj.M)
+  | SliderF => (module SliderFProj.M)
+  | Checkbox => (module CheckboxProj.M)
+  | TextArea => (module TextAreaProj.M)
+  | Card => (module CardProj.M)
   };
 
 let init =
     (kind: ProjectorCore.Kind.t, syntax: syntax, any: Term.Any.t)
     : option(syntax) => {
-  let (module P) = to_module(kind);
+  open ProjectorCore.Kind;
+  let.gadt W(kind_gadt) = kind;
+  let (module P) = to_module(kind_gadt);
   switch (P.init(any)) {
   | None => None
-  | Some(model) => Some(Projector(ProjectorCore.mk(kind, syntax, model)))
+  | Some(model) =>
+    Some(
+      Base.Projector(ProjectorCore.mk(kind, syntax, V(kind_gadt, model))),
+    )
   };
 };
 
@@ -32,18 +39,3 @@ let init_or_noop =
   | Some(pr) => pr
   | None => syntax
   };
-
-let init_or_noop_from_str =
-    (
-      kind: ProjectorCore.Kind.t,
-      syntax: syntax,
-      any: Term.Any.t,
-      model_str: string,
-    )
-    : syntax => {
-  let (module P) = to_module(kind);
-  switch (P.init(any)) {
-  | None => syntax
-  | Some(_) => Projector(ProjectorCore.mk(kind, syntax, model_str))
-  };
-};

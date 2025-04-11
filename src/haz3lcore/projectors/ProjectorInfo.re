@@ -39,8 +39,9 @@ module ShapeMapSemantics = {
   let from_semantics =
       (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector)
       : ProjectorCore.Shape.t => {
-    let (module P) = ProjectorInit.to_module(p.kind);
-    P.placeholder(p.model, mk_info(p, ~statics, ~dynamics));
+    let V(kind, model) = p.model;
+    let (module P) = ProjectorInit.to_module(kind);
+    P.placeholder(model, mk_info(p, ~statics, ~dynamics));
   };
 
   let mk =
