@@ -32,7 +32,9 @@ module Store = {
     switch (mode) {
     | Scratch =>
       Model.Scratch(
-        ScratchMode.Store.load() |> ScratchMode.Model.unpersist(~settings),
+        ScratchMode.Store.load()
+        |> ScratchMode.Store.integrate_share
+        |> ScratchMode.Model.unpersist(~settings),
       )
     | Documentation =>
       Model.Documentation(
