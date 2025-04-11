@@ -149,14 +149,10 @@ module M: Projector = {
             parent(SetSyntax(replace_model(info.syntax, [new_model_seg])));
           };
 
-          let list_contents =
-            switch (ll.view(model, action_callback)) {
-            | Node(node) => [node]
-            | List(nodes) => nodes
-            };
+          let list_contents = ll.view(model, action_callback);
           Node.div(
             ~attrs=[Attr.class_(ll_name), Attr.id(Id.cls(info.id))],
-            list_contents,
+            [list_contents],
           );
         | None =>
           print_endline("Warning - LivelitProj.view: not found in context");

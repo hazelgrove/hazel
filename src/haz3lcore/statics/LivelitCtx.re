@@ -5,10 +5,6 @@ type model_state = {
   set: TermBase.Exp.t => unit,
 };
 
-type node_or_list =
-  | Node(Virtual_dom.Vdom.Node.t)
-  | List(list(Virtual_dom.Vdom.Node.t));
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model_exp = TermBase.Exp.t /* of type model_t */;
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -28,7 +24,7 @@ type raw_livelit = {
   expansion_f: model_exp => expansion_exp,
   action_t: TermBase.Typ.t,
   update: (action_exp, model_exp) => model_exp,
-  view: (model_exp, send_action) => node_or_list,
+  view: (model_exp, send_action) => Virtual_dom.Vdom.Node.t,
   size: ProjectorCore.Shape.t,
 };
 
@@ -53,7 +49,8 @@ module type BuiltinLivelit = {
   let action_from_hazel: action_exp => action_t;
 
   let update: (action_t, model_t) => model_t;
-  let view: (model_t, action_t => Ui_effect.t(unit)) => node_or_list;
+  let view:
+    (model_t, action_t => Ui_effect.t(unit)) => Virtual_dom.Vdom.Node.t;
   let size: ProjectorCore.Shape.t;
 };
 

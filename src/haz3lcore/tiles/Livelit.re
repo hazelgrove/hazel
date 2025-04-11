@@ -71,23 +71,22 @@ module Slider: BuiltinLivelit = {
       };
     };
 
-  let view: (model_t, action_t => Ui_effect.t(unit)) => node_or_list =
-    (model: model_t, send_action) => {
-      let n = model;
+  let view = (model: model_t, send_action) => {
+    let n = model;
 
-      Node(
-        Util.Web.range(
-          ~attrs=[
-            Attr.on_input((_, v: string) => {
-              send_action(SetModel(Bigint.of_string(v)))
-            }),
-          ],
-          ~min="0",
-          ~max="100",
-          Bigint.to_string(n),
-        ),
-      );
-    };
+    //   Node(
+    Util.Web.range(
+      ~attrs=[
+        Attr.on_input((_, v: string) => {
+          send_action(SetModel(Bigint.of_string(v)))
+        }),
+      ],
+      ~min="0",
+      ~max="100",
+      Bigint.to_string(n),
+    );
+    //   );
+  };
 
   let size: ProjectorCore.Shape.t =
     ProjectorCore.Shape.{
@@ -188,80 +187,74 @@ module Emotion: BuiltinLivelit = {
       horizontal: 20,
     };
 
-  let view: (model_t, action_t => Ui_effect.t(unit)) => node_or_list =
-    (model: model_t, send_action) => {
-      let n = model;
-      let n_int = int_of_string(Bigint.to_string(n));
-      /* Calculate mouth curvature from the model value */
-      let smile = (100.0 -. float_of_int(n_int)) /. 100.0 *. 50.0 -. 25.0;
-      let pathData =
-        "M60 130 Q100 "
-        ++ Printf.sprintf("%.1f", 130.0 -. smile)
-        ++ " 140 130";
+  let view = (model: model_t, send_action) => {
+    let n = model;
+    let n_int = int_of_string(Bigint.to_string(n));
+    /* Calculate mouth curvature from the model value */
+    let smile = (100.0 -. float_of_int(n_int)) /. 100.0 *. 50.0 -. 25.0;
+    let pathData =
+      "M60 130 Q100 " ++ Printf.sprintf("%.1f", 130.0 -. smile) ++ " 140 130";
 
-      List([
-        Node.create_svg(
-          "svg",
-          ~attrs=[
-            Attr.create("width", "200"),
-            Attr.create("height", "200"),
-          ],
-          [
-            Node.create_svg(
-              "circle",
-              ~attrs=[
-                Attr.create("cx", "100"),
-                Attr.create("cy", "100"),
-                Attr.create("r", "90"),
-                Attr.create("fill", "yellow"),
-                Attr.create("stroke", "black"),
-              ],
-              [],
-            ),
-            Node.create_svg(
-              "circle",
-              ~attrs=[
-                Attr.create("cx", "65"),
-                Attr.create("cy", "80"),
-                Attr.create("r", "10"),
-                Attr.create("fill", "black"),
-              ],
-              [],
-            ),
-            Node.create_svg(
-              "circle",
-              ~attrs=[
-                Attr.create("cx", "135"),
-                Attr.create("cy", "80"),
-                Attr.create("r", "10"),
-                Attr.create("fill", "black"),
-              ],
-              [],
-            ),
-            Node.create_svg(
-              "path",
-              ~attrs=[
-                Attr.create("d", pathData),
-                Attr.create("stroke", "black"),
-                Attr.create("fill", "transparent"),
-                Attr.create("stroke-width", "5"),
-              ],
-              [],
-            ),
-          ],
-        ),
-        Util.Web.range(
-          ~attrs=[
-            Attr.on_input((_, v) => {
-              send_action(SetModel(Bigint.of_string(v)))
-            }),
-          ],
-          ~min="0",
-          ~max="100",
-          Bigint.to_string(n),
-        ),
-      ]);
-    };
+    Node.div([
+      Node.create_svg(
+        "svg",
+        ~attrs=[Attr.create("width", "200"), Attr.create("height", "200")],
+        [
+          Node.create_svg(
+            "circle",
+            ~attrs=[
+              Attr.create("cx", "100"),
+              Attr.create("cy", "100"),
+              Attr.create("r", "90"),
+              Attr.create("fill", "yellow"),
+              Attr.create("stroke", "black"),
+            ],
+            [],
+          ),
+          Node.create_svg(
+            "circle",
+            ~attrs=[
+              Attr.create("cx", "65"),
+              Attr.create("cy", "80"),
+              Attr.create("r", "10"),
+              Attr.create("fill", "black"),
+            ],
+            [],
+          ),
+          Node.create_svg(
+            "circle",
+            ~attrs=[
+              Attr.create("cx", "135"),
+              Attr.create("cy", "80"),
+              Attr.create("r", "10"),
+              Attr.create("fill", "black"),
+            ],
+            [],
+          ),
+          Node.create_svg(
+            "path",
+            ~attrs=[
+              Attr.create("d", pathData),
+              Attr.create("stroke", "black"),
+              Attr.create("fill", "transparent"),
+              Attr.create("stroke-width", "5"),
+            ],
+            [],
+          ),
+        ],
+      ),
+      Util.Web.range(
+        ~attrs=[
+          Attr.on_input((_, v) => {
+            send_action(SetModel(Bigint.of_string(v)))
+          }),
+        ],
+        ~min="0",
+        ~max="100",
+        Bigint.to_string(n),
+      ),
+    ]);
+  };
 };
 
 module Js: BuiltinLivelit = {
@@ -401,50 +394,49 @@ module Js: BuiltinLivelit = {
       };
 
   /* Render: show code input, a compute button, and the result. */
-  let view: (model_t, action_t => Ui_effect.t(unit)) => node_or_list =
-    (model: model_t, send_action) => {
-      let {code, result} = model;
+  let view = (model: model_t, send_action) => {
+    let {code, result} = model;
 
-      List([
-        /* Code input field */
-        Node.input(
-          ~attrs=[
-            Attr.type_("text"),
-            Attr.value(code),
-            Attr.on_input((_, v: string) => {
-              /* Update the code, keep the same result */
-              send_action(
-                SetModel({
-                  code: v,
-                  result: model.result,
-                }),
-              )
-            }),
-          ],
-          (),
-        ),
-        /* Compute button */
-        Node.button(
-          ~attrs=[
-            Attr.on_click(_ => {
-              /* Evaluate the code and set the result */
-              let evaluated =
-                Js_of_ocaml.Js.Unsafe.eval_string("String(" ++ code ++ ")");
+    Node.div([
+      /* Code input field */
+      Node.input(
+        ~attrs=[
+          Attr.type_("text"),
+          Attr.value(code),
+          Attr.on_input((_, v: string) => {
+            /* Update the code, keep the same result */
+            send_action(
+              SetModel({
+                code: v,
+                result: model.result,
+              }),
+            )
+          }),
+        ],
+        (),
+      ),
+      /* Compute button */
+      Node.button(
+        ~attrs=[
+          Attr.on_click(_ => {
+            /* Evaluate the code and set the result */
+            let evaluated =
+              Js_of_ocaml.Js.Unsafe.eval_string("String(" ++ code ++ ")");
 
-              send_action(
-                SetModel({
-                  code,
-                  result: Js_of_ocaml.Js.to_string(evaluated),
-                }),
-              );
-            }),
-          ],
-          [Node.text("Compute")],
-        ),
-        /* Display the current result */
-        Node.div([Node.text("Result: " ++ result)]),
-      ]);
-    };
+            send_action(
+              SetModel({
+                code,
+                result: Js_of_ocaml.Js.to_string(evaluated),
+              }),
+            );
+          }),
+        ],
+        [Node.text("Compute")],
+      ),
+      /* Display the current result */
+      Node.div([Node.text("Result: " ++ result)]),
+    ]);
+  };
 
   /* Reasonable default shape. */
   let size: ProjectorCore.Shape.t =
