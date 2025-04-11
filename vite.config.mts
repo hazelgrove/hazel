@@ -22,7 +22,7 @@ function watchExternalPlugin(filePath: string): Plugin {
 export default defineConfig({
   root: "src/haz3lweb/www",
   server: {
-    port: 5173,
+    port: 8000,
     host: true,
   },
   plugins: [
