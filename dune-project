@@ -54,6 +54,7 @@
   qcheck
   qcheck-alcotest
   ppx_deriving_qcheck
+  z3
   bignum))
 
 ; After upgrading to opam 2.2 use with-dev https://opam.ocaml.org/blog/opam-2-2-0/

@@ -1,0 +1,21 @@
+(include_subdirs unqualified)
+
+(test
+ (name testgen)
+ (libraries
+  haz3lmenhir
+  alcotest
+  sexplib
+  base
+  ptmap
+  junit
+  junit_alcotest
+  bisect_ppx.runtime
+  bignum
+  z3)
+ (preprocess
+  (pps
+   ppx_let
+   ppx_sexp_conv
+   ppx_deriving.show
+   ppx_yojson_conv)))
