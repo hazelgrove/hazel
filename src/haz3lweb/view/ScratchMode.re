@@ -61,7 +61,6 @@ module Store = {
     let key = Store.Scratch;
     let default = () => Init.startup.scratch;
   });
-};
 
   let integrate_share = (model: t): t => {
     switch (JsUtil.QueryParams.get_param("share"), model) {
