@@ -312,7 +312,7 @@ module View = {
       Widgets.button_named(
         Icons.export,
         _ => inject(Encode),
-        ~tooltip="Encode Scratchpad",
+        ~tooltip="Encode Scratchpad in URL",
       );
 
     let import_button =
