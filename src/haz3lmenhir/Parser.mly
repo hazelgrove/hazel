@@ -151,10 +151,13 @@ open AST
 
 
 
-%type <AST.exp> exp
-%type <AST.sumtype> sumTyp
+%type <unit AST.exp> exp
+%type <unit AST.pat> pat
+%type <unit AST.typ> typ
 
-%start <AST.exp> program
+%type <unit AST.sumtype> sumTyp
+
+%start <unit AST.exp> program
 
 %%
 
@@ -203,21 +206,21 @@ program:
     | s = stringOp { s }
 
 binExp:
-    | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
+    | e1 = exp; b = binOp; e2 = exp { BinExp (AST.lift e1, b, AST.lift e2) }
 
 tupTypeEntry:
-    | t = typ {t}
-    | label = IDENT; SINGLE_EQUAL; t = typ { TupLabelType(LabelType(label), t) }
+    | t = typ {AST.lift(t)}
+    | label = IDENT; SINGLE_EQUAL; t = typ { AST.lift(TupLabelType(AST.lift(LabelType(label)), AST.lift(t))) }
 
 %inline tupleType:
     | OPEN_PAREN; hd = tupTypeEntry; COMMA; types = separated_list(COMMA, tupTypeEntry); CLOSE_PAREN { TupleType(hd :: types) }
 
 
 %inline sumTerm:
-    | i = CONSTRUCTOR_IDENT; OPEN_PAREN; hd = tupTypeEntry; COMMA; types = separated_list(COMMA, tupTypeEntry); CLOSE_PAREN  { Variant(i, Some(TupleType(hd :: types))) }
-    | i = CONSTRUCTOR_IDENT; OPEN_PAREN; t = typ; CLOSE_PAREN;  { Variant(i, Some(t)) }
+    | i = CONSTRUCTOR_IDENT; OPEN_PAREN; hd = tupTypeEntry; COMMA; types = separated_list(COMMA, tupTypeEntry); CLOSE_PAREN  { Variant(i, Some(AST.lift(TupleType(hd :: types)))) }
+    | i = CONSTRUCTOR_IDENT; OPEN_PAREN; t = typ; CLOSE_PAREN;  { Variant(i, Some(AST.lift(t))) }
     | i = CONSTRUCTOR_IDENT { Variant(i, None) }
-    | QUESTION { BadEntry(UnknownType(EmptyHole)) }
+    | QUESTION { BadEntry(AST.lift(UnknownType(EmptyHole))) }
 
 
 // We don't support sum types without the leading plus in the parser syntax
@@ -236,46 +239,46 @@ typ:
     | UNKNOWN; INTERNAL { UnknownType(Internal) }
     | QUESTION { UnknownType(EmptyHole) }
     | UNIT { TupleType([]) }
-    | FORALL; a = tpat; DASH_ARROW; t = typ { ForallType(a, t) }
+    | FORALL; a = tpat; DASH_ARROW; t = typ { ForallType(a, AST.lift(t)) }
     | t = tupleType { t }
-    | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
-    | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
+    | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(AST.lift(t)) }
+    | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(AST.lift(t1), AST.lift(t2)) }
     | s = sumTyp; { SumTyp(s) }
-    | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, t) }
-    | OPEN_TRIPLE_CURLY; t = typ; CLOSE_TRIPLE_CURLY { IndicationTyp(t) }
+    | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, AST.lift(t)) }
+    | OPEN_TRIPLE_CURLY; t = typ; CLOSE_TRIPLE_CURLY { IndicationTyp(AST.lift(t)) }
     | OPEN_PAREN; t = typ; CLOSE_PAREN { t }
 
 tupPatEntry:
     | p = pat {p}
-    | label = IDENT; SINGLE_EQUAL; p = pat { TupLabelPat(LabelPat(label), p) }
+    | label = IDENT; SINGLE_EQUAL; p = pat { TupLabelPat(AST.lift(LabelPat(label)), AST.lift(p)) }
 
 nonAscriptingPat:
-    | OPEN_TRIPLE_CURLY; p = pat; CLOSE_TRIPLE_CURLY { IndicationPat(p) }
+    | OPEN_TRIPLE_CURLY; p = pat; CLOSE_TRIPLE_CURLY { IndicationPat(AST.lift p) }
     | OPEN_PAREN; p = pat; CLOSE_PAREN { p }
-    | OPEN_PAREN; label = IDENT; SINGLE_EQUAL; p = pat; CLOSE_PAREN { TuplePat([TupLabelPat(LabelPat(label), p)]) }
-    | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_list(COMMA, tupPatEntry); CLOSE_PAREN { TuplePat(p :: pats) }
+    | OPEN_PAREN; label = IDENT; SINGLE_EQUAL; p = pat; CLOSE_PAREN { TuplePat([AST.lift(TupLabelPat(AST.lift(LabelPat(label)), AST.lift(p)))]) }
+    | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_list(COMMA, tupPatEntry); CLOSE_PAREN { TuplePat(AST.lift(p) :: (List.map AST.lift pats)) }
     |  P_PAT; s = STRING { InvalidPat(s) }
     | WILD { WildPat }
     | QUESTION { EmptyHolePat }
-    | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
+    | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(List.map AST.lift l) }
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
-    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { CastPat(ConstructorPat(c, None), UnknownType(Internal), t) }
+    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { CastPat(AST.lift(ConstructorPat(c, None)), AST.lift(UnknownType(Internal)), AST.lift(t)) }
     | p = IDENT { VarPat(p) }
     | i = INT { AtomPat (Int (Bigint.of_int i)) }
     | f = FLOAT { AtomPat (Float f) }
     | s = STRING { AtomPat (String s)}
     | TRUE {AtomPat (Bool true)}
     | FALSE {AtomPat (Bool false)}
-    | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) }
+    | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(AST.lift(f), AST.lift(a)) }
 
 funPat:
-    | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { CastPat(p1, t1, UnknownType(Internal)) }
+    | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { CastPat((AST.lift p1), (AST.lift t1), (AST.lift (UnknownType(Internal)))) }
     | p = nonAscriptingPat; { p }
 
 pat:
-    | p1 = pat; COLON; t1 = typ;  { CastPat(p1, t1, UnknownType(Internal)) }
+    | p1 = pat; COLON; t1 = typ;  { CastPat(AST.lift(p1), AST.lift(t1), AST.lift(UnknownType(Internal))) }
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
-    | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
+    | p1 = pat; CONS; p2 = pat { ConsPat(AST.lift(p1), AST.lift(p2)) } 
     | UNIT { TuplePat([]) }
     | p = nonAscriptingPat; { p }
 
@@ -284,15 +287,15 @@ rul:
     | TURNSTILE; p = pat; EQUAL_ARROW; e = exp; { (p, e) }
 
 case:
-    | CASE; e = exp; l = list(rul); END; { CaseExp(e, l) }
+    | CASE; e = exp; l = list(rul); END; { CaseExp(AST.lift e, List.map (fun ((p, e)) -> (AST.lift p, AST.lift e))  l) }
 
 funExp: 
-    | FUN; p = funPat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) }
-    | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) }
+    | FUN; p = funPat; DASH_ARROW; e1 = exp; { Fun (AST.lift p, AST.lift e1, None) }
+    | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (AST.lift p, AST.lift e1, Some(name)) }
 
 
 %inline ifExp:
-    | IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (e1, e2, e3) } %prec IF_EXP
+    | IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (AST.lift e1, AST.lift e2, AST.lift e3) } %prec IF_EXP
 
 filterAction:
     | PAUSE { Pause }
@@ -307,13 +310,13 @@ tpat:
     | v = CONSTRUCTOR_IDENT {VarTPat v}
 
 unExp:
-    | DOLLAR_SIGN; e = exp {UnOp(Meta(Unquote), e)}
-    | MINUS; e = exp {UnOp(Int(Minus), e)} %prec UMINUS
-    | L_NOT; e = exp {UnOp(Bool(Not), e)}
+    | DOLLAR_SIGN; e = exp {UnOp(Meta(Unquote), AST.lift(e))}
+    | MINUS; e = exp {UnOp(Int(Minus), AST.lift(e))} %prec UMINUS
+    | L_NOT; e = exp {UnOp(Bool(Not), AST.lift(e))}
 
 tupExpEntry:
     | e = exp {e}
-    | label = IDENT; SINGLE_EQUAL; e = exp {TupLabel(Label(label), e)}
+    | label = IDENT; SINGLE_EQUAL; e = exp {TupLabel(AST.lift(Label(label)), AST.lift(e))}
 
 exp:
     | b = binExp { b }
@@ -322,38 +325,38 @@ exp:
     | v = IDENT { Var v }
     | c = CONSTRUCTOR_IDENT { Constructor(c, None)}
     | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) } 
-    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(Some(t))) }
-    | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { Cast(Constructor(c, None), UnknownType(Internal), t) }
+    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(Some(AST.lift t))) }
+    | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { Cast(AST.lift (Constructor(c, None)), AST.lift (UnknownType(Internal)), AST.lift t) }
     | s = STRING { Atom (String s)}
-    | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(e) }
+    | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(AST.lift e) }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
-    | OPEN_PAREN; e = tupExpEntry; COMMA; l = separated_list(COMMA, tupExpEntry); CLOSE_PAREN { TupleExp(e :: l) }
-    | OPEN_PAREN; label = IDENT; SINGLE_EQUAL; e = exp; CLOSE_PAREN { TupleExp([TupLabel(Label(label), e)]) }
+    | OPEN_PAREN; e = tupExpEntry; COMMA; l = separated_list(COMMA, tupExpEntry); CLOSE_PAREN { TupleExp(AST.lift e :: (List.map AST.lift l)) }
+    | OPEN_PAREN; label = IDENT; SINGLE_EQUAL; e = exp; CLOSE_PAREN { TupleExp([AST.lift (TupLabel(AST.lift (Label(label)), AST.lift e))]) }
     | UNIT { TupleExp([]) }
     | c = case { c }
-    | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ListExp(e) }
-    | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) } 
-    | f = exp; OPEN_PAREN; a = exp; COMMA; tl = separated_nonempty_list(COMMA, exp); CLOSE_PAREN { ApExp(f, TupleExp(a :: tl)) } 
-    | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
+    | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ListExp(List.map AST.lift e) }
+    | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(AST.lift f, AST.lift a) } 
+    | f = exp; OPEN_PAREN; a = exp; COMMA; tl = separated_nonempty_list(COMMA, exp); CLOSE_PAREN { ApExp(AST.lift f, AST.lift (TupleExp(AST.lift(a) :: (List.map AST.lift tl)))) } 
+    | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (AST.lift i, AST.lift e1, AST.lift e2) } %prec LET_EXP
     | i = ifExp { i }
-    | e1 = exp; QUESTION; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY {FailedCast(e1, t1, t2)}
-    | e1 = exp; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY { Cast(e1, t1, t2) }
+    | e1 = exp; QUESTION; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY {FailedCast(AST.lift e1, AST.lift t1, AST.lift t2)}
+    | e1 = exp; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY { Cast(AST.lift e1, AST.lift t1, AST.lift t2) }
     | TRUE { Atom (Bool true) }
     | f = funExp {f}
     | FALSE { Atom (Bool false) }    
-    | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
-    | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
+    | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(AST.lift p, AST.lift e) }
+    | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, AST.lift e)}
     | QUESTION { EmptyHole }
-    | a = filterAction; cond = exp; IN; body = exp { Filter(a, cond, body)} %prec LET_EXP
-    | TEST; e = exp; END { Test(e) }
-    | e1 = exp; AT_SYMBOL; e2 = exp { ListConcat(e1, e2) }
-    | e1 = exp; CONS; e2 = exp { Cons(e1, e2) }
-    | e1 = exp; SEMI_COLON; e2 = exp { Seq(e1, e2) }
+    | a = filterAction; cond = exp; IN; body = exp { Filter(a, AST.lift cond, AST.lift body)} %prec LET_EXP
+    | TEST; e = exp; END { Test(AST.lift e) }
+    | e1 = exp; AT_SYMBOL; e2 = exp { ListConcat(AST.lift e1, AST.lift e2) }
+    | e1 = exp; CONS; e2 = exp { Cons(AST.lift e1, AST.lift e2) }
+    | e1 = exp; SEMI_COLON; e2 = exp { Seq(AST.lift e1,AST.lift e2) }
     |  E_EXP; s = STRING; { InvalidExp(s) }
     |  WILD {Deferral}
-    | e = exp; TYP_AP_SYMBOL; ty = typ; GREATER_THAN; {TypAp(e, ty)}
-    | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)} %prec LET_EXP
-    | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = SEXP_STRING; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
+    | e = exp; TYP_AP_SYMBOL; ty = typ; GREATER_THAN; {TypAp(AST.lift e, AST.lift ty)}
+    | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, AST.lift ty, AST.lift e)} %prec LET_EXP
+    | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = SEXP_STRING; GREATER_THAN; GREATER_THAN {DynamicErrorHole(AST.lift e, s)}
     | b = BUILTIN; {BuiltinFun(b)}
     | UNDEF; {Undefined}
     | u = unExp { u }

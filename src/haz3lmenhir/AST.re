@@ -1,5 +1,20 @@
 open Sexplib.Std;
 open Bigint;
+
+module Annotated = {
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t('a, 'b) = {
+    term: 'a,
+    annotation: 'b,
+  };
+};
+let lift = (x): Annotated.t('a, unit) => {
+  {
+    term: x,
+    annotation: (),
+  };
+};
+
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type filter_action =
   | Pause
@@ -82,57 +97,57 @@ type tpat =
   | VarTPat(string);
 
 [@deriving (show({with_path: false}), sexp, eq)]
-type typ =
+type typ('a) =
   | IntType
   | SIntType
   | StringType
   | FloatType
   | BoolType
   | NatType
-  | SumTyp(sumtype)
+  | SumTyp(sumtype('a))
   | UnknownType(typ_provenance)
-  | TupleType(list(typ))
-  | ArrayType(typ)
-  | ArrowType(typ, typ)
+  | TupleType(list(Annotated.t(typ('a), 'a)))
+  | ArrayType(Annotated.t(typ('a), 'a))
+  | ArrowType(Annotated.t(typ('a), 'a), Annotated.t(typ('a), 'a))
   | TypVar(string)
   | InvalidTyp(string)
-  | ForallType(tpat, typ)
-  | RecType(tpat, typ)
+  | ForallType(tpat, Annotated.t(typ('a), 'a))
+  | RecType(tpat, Annotated.t(typ('a), 'a))
   | LabelType(string)
-  | TupLabelType(typ, typ)
-  | IndicationTyp(typ)
-and sumterm =
-  | Variant(string, option(typ))
-  | BadEntry(typ)
-and sumtype = list(sumterm);
+  | TupLabelType(Annotated.t(typ('a), 'a), Annotated.t(typ('a), 'a))
+  | IndicationTyp(Annotated.t(typ('a), 'a))
+and sumterm('a) =
+  | Variant(string, option(Annotated.t(typ('a), 'a)))
+  | BadEntry(Annotated.t(typ('a), 'a))
+and sumtype('a) = list(sumterm('a));
 [@deriving (show({with_path: false}), sexp, eq)]
-
-type atom =   
-  Int(Bigint.t)
+type atom =
+  | Int(Bigint.t)
   | SInt(int)
   | Nat(Bigint.t)
-  | Float
-      (
-        [@equal ((a, b) => true)] float,
-      )
+  | Float(float)
   | Bool(bool)
   | String(string);
 [@deriving (show({with_path: false}), sexp, eq)]
-type pat =
-  | CastPat(pat, typ, typ)
+type pat('a) =
+  | CastPat(
+      Annotated.t(pat('a), 'a),
+      Annotated.t(typ('a), 'a),
+      Annotated.t(typ('a), 'a),
+    )
   | EmptyHolePat
   | WildPat
   | AtomPat(atom)
   | VarPat(string)
-  | ConstructorPat(string, option(option(typ)))
-  | TuplePat(list(pat))
-  | ConsPat(pat, pat)
-  | ListPat(list(pat))
-  | ApPat(pat, pat)
+  | ConstructorPat(string, option(option(Annotated.t(typ('a), 'a))))
+  | TuplePat(list(Annotated.t(pat('a), 'a)))
+  | ConsPat(Annotated.t(pat('a), 'a), Annotated.t(pat('a), 'a))
+  | ListPat(list(Annotated.t(pat('a), 'a)))
+  | ApPat(Annotated.t(pat('a), 'a), Annotated.t(pat('a), 'a))
   | InvalidPat(string) // Menhir parser doesn't actually support invalid pats
-  | TupLabelPat(pat, pat)
+  | TupLabelPat(Annotated.t(pat('a), 'a), Annotated.t(pat('a), 'a))
   | LabelPat(string)
-  | IndicationPat(pat);
+  | IndicationPat(Annotated.t(pat('a), 'a));
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type if_consistency =
@@ -145,38 +160,65 @@ type deferral_pos =
   | OutsideAp;
 
 [@deriving (show({with_path: false}), sexp, eq)]
-type exp =
+type exp('a) =
   | Atom(atom)
   | Var(string)
-  | Constructor(string, option(option(typ)))
-  | ListExp(list(exp))
-  | TupleExp(list(exp))
-  | BinExp(exp, bin_op, exp)
-  | UnOp(op_un, exp)
-  | Let(pat, exp, exp)
-  | Fun(pat, exp, option(string))
-  | CaseExp(exp, list((pat, exp)))
+  | Constructor(string, option(option(Annotated.t(typ('a), 'a))))
+  | ListExp(list(Annotated.t(exp('a), 'a)))
+  | TupleExp(list(Annotated.t(exp('a), 'a)))
+  | BinExp(Annotated.t(exp('a), 'a), bin_op, Annotated.t(exp('a), 'a))
+  | UnOp(op_un, Annotated.t(exp('a), 'a))
+  | Let(
+      Annotated.t(pat('a), 'a),
+      Annotated.t(exp('a), 'a),
+      Annotated.t(exp('a), 'a),
+    )
+  | Fun(
+      Annotated.t(pat('a), 'a),
+      Annotated.t(exp('a), 'a),
+      option(string),
+    )
+  | CaseExp(
+      Annotated.t(exp('a), 'a),
+      list((Annotated.t(pat('a), 'a), Annotated.t(exp('a), 'a))),
+    )
   | Label(string)
-  | TupLabel(exp, exp)
-  | Dot(exp, exp)
-  | ApExp(exp, exp)
-  | FixF(pat, exp)
-  | Cast(exp, typ, typ)
-  | FailedCast(exp, typ, typ)
+  | TupLabel(Annotated.t(exp('a), 'a), Annotated.t(exp('a), 'a))
+  | Dot(Annotated.t(exp('a), 'a), Annotated.t(exp('a), 'a))
+  | ApExp(Annotated.t(exp('a), 'a), Annotated.t(exp('a), 'a))
+  | FixF(Annotated.t(pat('a), 'a), Annotated.t(exp('a), 'a))
+  | Cast(
+      Annotated.t(exp('a), 'a),
+      Annotated.t(typ('a), 'a),
+      Annotated.t(typ('a), 'a),
+    )
+  | FailedCast(
+      Annotated.t(exp('a), 'a),
+      Annotated.t(typ('a), 'a),
+      Annotated.t(typ('a), 'a),
+    )
   | EmptyHole
-  | Filter(filter_action, exp, exp)
+  | Filter(
+      filter_action,
+      Annotated.t(exp('a), 'a),
+      Annotated.t(exp('a), 'a),
+    )
   | BuiltinFun(string)
   | Undefined
-  | Seq(exp, exp)
-  | Test(exp)
+  | Seq(Annotated.t(exp('a), 'a), Annotated.t(exp('a), 'a))
+  | Test(Annotated.t(exp('a), 'a))
   | Deferral
-  | TypFun(tpat, exp)
-  | Cons(exp, exp)
-  | ListConcat(exp, exp)
-  | If(exp, exp, exp)
+  | TypFun(tpat, Annotated.t(exp('a), 'a))
+  | Cons(Annotated.t(exp('a), 'a), Annotated.t(exp('a), 'a))
+  | ListConcat(Annotated.t(exp('a), 'a), Annotated.t(exp('a), 'a))
+  | If(
+      Annotated.t(exp('a), 'a),
+      Annotated.t(exp('a), 'a),
+      Annotated.t(exp('a), 'a),
+    )
   | InvalidExp(string)
-  | TypAp(exp, typ)
-  | DynamicErrorHole(exp, string)
-  | TyAlias(tpat, typ, exp)
-  | Use(typ, exp)
-  | IndicationExp(exp);
+  | TypAp(Annotated.t(exp('a), 'a), Annotated.t(typ('a), 'a))
+  | DynamicErrorHole(Annotated.t(exp('a), 'a), string)
+  | TyAlias(tpat, Annotated.t(typ('a), 'a), Annotated.t(exp('a), 'a))
+  | Use(Annotated.t(typ('a), 'a), Annotated.t(exp('a), 'a))
+  | IndicationExp(Annotated.t(exp('a), 'a));

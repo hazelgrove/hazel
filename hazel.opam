@@ -30,6 +30,7 @@ depends: [
   "qcheck"
   "qcheck-alcotest"
   "ppx_deriving_qcheck"
+  "z3"
   "bignum"
   "odoc" {with-doc}
 ]

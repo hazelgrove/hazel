@@ -18,4 +18,7 @@
    ppx_let
    ppx_sexp_conv
    ppx_deriving.show
+   ppx_deriving.eq
+   ppx_enumerate
+   ppx_deriving_qcheck
    ppx_yojson_conv)))
