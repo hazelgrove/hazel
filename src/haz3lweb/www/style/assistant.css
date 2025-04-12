@@ -337,6 +337,22 @@
     box-shadow: 0px 0px 1px var(--SHADOW), 0 0 0 1px var(--SHADOW);
 }
 
+#assistant .llm-model-id-input {
+    width: 85%;
+    background-color: var(--SAND);
+    padding: 14px;
+    outline: none;
+    border-radius: 3.5px;
+    border: none;
+    transition: all 0.3s ease;
+    margin-bottom: 10px;
+    padding-right: 40px; /* Add padding to prevent text from going under the button */
+}
+
+#assistant .llm-model-id-input:focus {
+    box-shadow: 0px 0px 1px var(--SHADOW), 0 0 0 1px var(--SHADOW);
+}
+
 /* LLM and LSP toggle button containers */
 #assistant .llm-button,
 #assistant .lsp-button {
