@@ -56,7 +56,6 @@ module Model = {
   type t = {
     current_chats,
     chat_history,
-    llm: OpenRouter.chat_models,
     show_history: bool,
     show_api_key: bool,
   };
@@ -108,7 +107,6 @@ module Model = {
       past_completion_chats:
         add_chat_to_history(init_completion_chat, Id.Map.empty),
     },
-    llm: OpenRouter.Gemini_Experimental_2_5,
     show_history: false,
     show_api_key: false,
   };
@@ -140,6 +138,7 @@ module Update = {
     | Respond(Model.message, AssistantSettings.mode, Id.t)
     | SendSystemMessage(string, AssistantSettings.mode, Id.t)
     | SetKey(string)
+    | SetModel(string)
     | NewChat
     | DeleteChat(Id.t)
     | History
@@ -416,10 +415,10 @@ module Update = {
     switch (standardize_prompt(prompt)) {
     | None => print_endline("Prompt generation failed")
     | Some(prompt') =>
-      let llm = model.llm;
+      let model_id = Option.get(Store.Generic.load("MODEL"));
       let key = Option.get(Store.Generic.load("API"));
       let params: OpenRouter.params = {
-        llm,
+        model_id,
         temperature: 1.0,
         top_p: 1.0,
       };
@@ -632,11 +631,10 @@ module Update = {
         )
         |> Updated.return_quiet
       | Some(prompt) =>
-        let llm = model.llm;
-        switch (Store.Generic.load("API")) {
-        | Some(key) =>
+        switch (Store.Generic.load("API"), Store.Generic.load("MODEL")) {
+        | (Some(key), Some(model_id)) =>
           let params: OpenRouter.params = {
-            llm,
+            model_id,
             temperature: 1.0,
             top_p: 1.0,
           };
@@ -676,7 +674,7 @@ module Update = {
             ~is_final=true,
           )
           |> Updated.return_quiet;
-        | None =>
+        | (None, _) =>
           add_message_to_model(
             mode,
             model,
@@ -690,10 +688,27 @@ module Update = {
             ~is_final=true,
           )
           |> Updated.return_quiet
-        };
+        | (_, None) =>
+          add_message_to_model(
+            mode,
+            model,
+            {
+              party: System,
+              code: None,
+              content: "No model ID found. Please set a model ID in the assistant settings.",
+              collapsed: false,
+            },
+            curr_chat.id,
+            ~is_final=true,
+          )
+          |> Updated.return_quiet
+        }
       };
     | SetKey(api_key) =>
       Store.Generic.save("API", api_key);
+      model |> Updated.return_quiet;
+    | SetModel(model_id) =>
+      Store.Generic.save("MODEL", model_id);
       model |> Updated.return_quiet;
     | NewChat =>
       let mode = settings.assistant.mode;
@@ -827,11 +842,10 @@ module Update = {
           content: prompt,
           collapsed: String.length(prompt) >= 200,
         };
-        let llm = model.llm;
-        switch (Store.Generic.load("API")) {
-        | Some(key) =>
+        switch (Store.Generic.load("API"), Store.Generic.load("MODEL")) {
+        | (Some(key), Some(model_id)) =>
           let params: OpenRouter.params = {
-            llm,
+            model_id,
             temperature: 1.0,
             top_p: 1.0,
           };
@@ -881,7 +895,7 @@ module Update = {
             ~is_final=true,
           )
           |> Updated.return_quiet;
-        | None =>
+        | (None, _) =>
           add_message_to_model(
             mode,
             model,
@@ -889,6 +903,20 @@ module Update = {
               party: System,
               code: None,
               content: "No API key found. Please set an API key in the assistant settings.",
+              collapsed: false,
+            },
+            curr_chat.id,
+            ~is_final=true,
+          )
+          |> Updated.return_quiet
+        | (_, None) =>
+          add_message_to_model(
+            mode,
+            model,
+            {
+              party: System,
+              code: None,
+              content: "No API key or model ID found. Please set an API key and model ID in the assistant settings.",
               collapsed: false,
             },
             curr_chat.id,
@@ -1030,11 +1058,10 @@ module Update = {
           )
           |> Updated.return_quiet
         | Some(openrouter_prompt) =>
-          let llm = model.llm;
-          switch (Store.Generic.load("API")) {
-          | Some(key) =>
+          switch (Store.Generic.load("API"), Store.Generic.load("MODEL")) {
+          | (Some(key), Some(model_id)) =>
             let params: OpenRouter.params = {
-              llm,
+              model_id,
               temperature: 1.0,
               top_p: 1.0,
             };
@@ -1078,7 +1105,7 @@ module Update = {
               ~is_final=true,
             )
             |> Updated.return_quiet;
-          | None =>
+          | (_, None) =>
             add_message_to_model(
               mode,
               model,
@@ -1092,7 +1119,21 @@ module Update = {
               ~is_final=true,
             )
             |> Updated.return_quiet
-          };
+          | (None, _) =>
+            add_message_to_model(
+              mode,
+              model,
+              {
+                party: System,
+                code: None,
+                content: "No model ID found. Please set a model ID in the assistant settings.",
+                collapsed: false,
+              },
+              curr_chat.id,
+              ~is_final=true,
+            )
+            |> Updated.return_quiet
+          }
         };
       };
     | SendSystemMessage(content, mode, chat_id) =>
@@ -1145,11 +1186,9 @@ module Update = {
       resculpt_model(mode, model, updated_past_chats, curr_chat.id)
       |> Updated.return_quiet;
     | SelectLLM(llm) =>
-      {
-        ...model,
-        llm,
-      }
-      |> Updated.return_quiet
+      let model_id = OpenRouter.string_of_chat_model(llm);
+      Store.Generic.save("MODEL", model_id);
+      model |> Updated.return_quiet;
     | RemoveAndSuggest(response, tileId) =>
       // Only side effects in the editor are performed here
       add_suggestion(~response, tileId, false);

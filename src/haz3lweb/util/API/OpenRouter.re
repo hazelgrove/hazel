@@ -22,7 +22,7 @@ type role =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type params = {
-  llm: chat_models,
+  model_id: string,
   temperature: float,
   top_p: float,
 };
@@ -78,7 +78,7 @@ let string_of_role =
   | Function => "function";
 
 let default_params = {
-  llm: Gemini_Experimental_2_5,
+  model_id: "",
   temperature: 1.0,
   top_p: 1.0,
 };
@@ -91,23 +91,12 @@ let mk_message = ({role, content}) =>
 
 let body = (~params: params, messages: prompt): Json.t => {
   `Assoc([
-    ("model", `String(string_of_chat_model(params.llm))),
+    ("model", `String(params.model_id)),
     ("temperature", `Float(params.temperature)),
     ("top_p", `Float(params.top_p)),
     ("messages", `List(List.map(mk_message, messages))),
   ]);
 };
-
-let lookup_key = (llm: chat_models) =>
-  switch (llm) {
-  | Gemini_Experimental_2_5 => Store.Generic.load("API")
-  | Gemini_Flash_2_0 => Store.Generic.load("API")
-  | Deepseek_R1 => Store.Generic.load("API")
-  | DeepSeek_V3 => Store.Generic.load("API")
-  | Llama_3_1_Nemo => Store.Generic.load("API")
-  | Claude_3_5_Sonnet => Store.Generic.load("API")
-  | Claude_3_7_Sonnet => Store.Generic.load("API")
-  };
 
 let chat = (~key, ~body, ~handler): unit => {
   print_endline("API: POSTing OpenRouter request");
@@ -125,15 +114,7 @@ let chat = (~key, ~body, ~handler): unit => {
 
 let start_chat = (~params, ~key, prompt: prompt, handler): unit => {
   let body = body(~params, prompt);
-  switch (params.llm) {
-  | Gemini_Experimental_2_5 => chat(~key, ~body, ~handler)
-  | Gemini_Flash_2_0 => chat(~key, ~body, ~handler)
-  | Deepseek_R1 => chat(~key, ~body, ~handler)
-  | DeepSeek_V3 => chat(~key, ~body, ~handler)
-  | Llama_3_1_Nemo => chat(~key, ~body, ~handler)
-  | Claude_3_5_Sonnet => chat(~key, ~body, ~handler)
-  | Claude_3_7_Sonnet => chat(~key, ~body, ~handler)
-  };
+  chat(~key, ~body, ~handler);
 };
 
 let int_field = (json: Json.t, field: string) => {
