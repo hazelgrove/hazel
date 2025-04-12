@@ -284,6 +284,7 @@ let api_input =
   div(
     ~attrs=[clss(["api-key-container"])],
     [
+      div(~attrs=[clss(["title"])], [text("API Key")]),
       input(
         ~attrs=[
           Attr.id("api-input"),
@@ -396,6 +397,7 @@ let llm_model_id_input =
   div(
     ~attrs=[clss(["api-key-container"])],
     [
+      div(~attrs=[clss(["title"])], [text("Model Selection")]),
       input(
         ~attrs=[
           Attr.id("llm-model-id-input"),
@@ -944,7 +946,11 @@ let view =
                 ~attrs=[clss(["header-content"])],
                 [
                   globals.settings.assistant.ongoing_chat
-                    ? mode_buttons(~globals) : text("Assistant Settings"),
+                    ? mode_buttons(~globals)
+                    : div(
+                        ~attrs=[clss(["title"])],
+                        [text("Assistant Settings")],
+                      ),
                   div(
                     ~attrs=[clss(["header-actions"])],
                     [
