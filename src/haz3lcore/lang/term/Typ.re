@@ -716,7 +716,6 @@ let debug_term = (t: Grammar.typ_term(IdTagged.IdTag.t)): string =>
   // | Invalid(_) => "Invalid"
   };
 
-
 let rec normalize = (ctx: Ctx.t, ty: t): t => {
   print_endline("inside normalize");
   let (term, rewrap) = unwrap(ty);
