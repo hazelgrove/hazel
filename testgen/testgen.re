@@ -25,6 +25,23 @@ switch (Z3.Solver.check(solver, [])) {
   let model = Z3.Solver.get_model(solver) |> Option.get;
   print_endline("SAT");
   print_endline(Z3.Model.to_string(model));
+  let decls = Z3.Model.get_decls(model);
+  List.iter(
+    decl => {
+      let name = Z3.FuncDecl.get_name(decl) |> Z3.Symbol.to_string;
+      let value = Z3.Model.get_const_interp(model, decl);
+      print_endline(
+        name
+        ++ " = "
+        ++ Option.value(
+             ~default="None",
+             Option.map(Z3.Expr.to_string, value),
+           ),
+      );
+    },
+    decls,
+  );
+
 | Z3.Solver.UNSATISFIABLE => print_endline("UNSAT")
 | Z3.Solver.UNKNOWN => print_endline("UNKNOWN")
 };
@@ -39,6 +56,8 @@ let example_program =
   );
 
 print_endline([%derive.show: Haz3lmenhir.AST.exp(unit)](example_program));
+
+
 
 let symex_result =
   symbolic_execution(~state=initial_symex_state, example_program);
