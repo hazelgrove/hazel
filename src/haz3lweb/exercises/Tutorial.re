@@ -524,9 +524,6 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
         )
       : term_of(eds.hidden_tests.tests);
 
-  let hidden_tests_term =
-    EditorUtil.append_exp(user_impl_term, hidden_tests_term);
-
   {
     user_impl: wrap(user_impl_term, eds.your_impl),
     // instructor: wrap(instructor, eds.your_impl),

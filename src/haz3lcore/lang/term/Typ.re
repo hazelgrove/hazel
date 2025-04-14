@@ -717,9 +717,7 @@ let debug_term = (t: Grammar.typ_term(IdTagged.IdTag.t)): string =>
   };
 
 let rec normalize = (ctx: Ctx.t, ty: t): t => {
-  print_endline("inside normalize");
   let (term, rewrap) = unwrap(ty);
-  print_endline("normalize: term = " ++ debug_term(term));
   switch (term) {
   | Var(x) =>
     print_endline("Var");
@@ -732,9 +730,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Float
   | Bool
   | String
-  | Label(_) =>
-    print_endline("Label match: " ++ pretty_print(ty));
-    ty;
+  | Label(_) => ty
   | Parens(t) =>
     print_endline("Parens");
     normalize(ctx, t);
