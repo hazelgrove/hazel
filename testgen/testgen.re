@@ -46,25 +46,56 @@ switch (Z3.Solver.check(solver, [])) {
 | Z3.Solver.UNKNOWN => print_endline("UNKNOWN")
 };
 
-print_endline([%derive.show: Haz3lmenhir.AST.exp(unit)](foo));
+// print_endline([%derive.show: Haz3lmenhir.AST.exp(unit)](foo));
 
 let example_program =
   Haz3lmenhir.Interface.parse_program(
-    {|if a > b
+    {|if (a * 2) > b
         then a
-        else (if c > b then {{{ 1 }}} else 2)|},
+        else (if c > ((b + 1) * 3) then {{{ 1 }}} else 2)|},
   );
-
-print_endline([%derive.show: Haz3lmenhir.AST.exp(unit)](example_program));
-
-
 
 let symex_result =
   symbolic_execution(~state=initial_symex_state, example_program);
 
-print_endline([%derive.show: symex_exp](symex_result));
+let assumed: AST.Annotated.t(AST.exp(assumptions), assumptions) =
+  AST.map_exp_annotation(x => x.assumptions, symex_result);
 
-let _ = Z3.Solver.push(solver);
+let solve = (assumptions: assumptions) => {
+  let ctx = Z3.mk_context([("model", "true")]);
+  let constraints =
+    List.map(ConstraintGeneration.generate(ctx), assumptions);
+  let solver = Z3.Solver.mk_solver(ctx, None);
+  Z3.Solver.add(solver, constraints);
+  switch (Z3.Solver.check(solver, [])) {
+  | Z3.Solver.SATISFIABLE =>
+    let model = Z3.Solver.get_model(solver) |> Option.get;
+    let assignments =
+      List.map(
+        decl => {
+          let name = Z3.FuncDecl.get_name(decl) |> Z3.Symbol.to_string;
+          let value = Z3.Model.get_const_interp(model, decl);
+          (name, Option.map(Z3.Expr.to_string, value));
+        },
+        Z3.Model.get_decls(model),
+      );
+    Some(assignments);
+  | _ => None
+  };
+};
+
+let solved = AST.map_exp_annotation(a => solve(a), assumed);
+
+print_endline(
+  [%derive.show:
+    AST.Annotated.t(
+      AST.exp(option(list((string, option(string))))),
+      option(list((string, option(string)))),
+    )
+  ](
+    solved,
+  ),
+);
 
 run_and_report(
   ~and_exit=false,

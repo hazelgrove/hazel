@@ -46,6 +46,8 @@ let rec generate = (ctx: Z3.context, expr: AST.exp(unit)): Z3.Expr.expr => {
     | _ =>
       raise(Failure("Unsupported binary operator: " ++ AST.show_bin_op(op)))
     };
+  | AST.Var(name) =>
+    Z3.Arithmetic.Integer.mk_const(ctx, Z3.Symbol.mk_string(ctx, name)) // TODO : Handle other types
   | AST.Atom(Nat(_))
   | _ =>
     raise(
