@@ -143,6 +143,8 @@
     background-color: var(--UI-Background);
     gap: 10px;
     flex-grow: 1;
+    scroll-behavior: smooth;
+    display: flex;
 }
 
 /* Individual message container */
@@ -292,7 +294,7 @@
 #assistant .toggle-show-button {
     position: absolute;
     right: 20px;
-    top: -30px;
+    top: -22.5px;
     display: flex;
     align-items: center;
     cursor: pointer;
