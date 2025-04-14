@@ -13,7 +13,7 @@
     overflow-x: hidden;
     display: flex;
     flex: 1;
-    width: 3em;
+    width: 2.4em;
     flex-direction: column;
     gap: 1em;
     background-color: var(--ui-bkg);
@@ -31,7 +31,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 5em;
+    height: 6.5em;
     cursor: pointer;
     transition: background-color 0.2s ease;
     fill: var(--BR4);

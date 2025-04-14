@@ -298,7 +298,7 @@ let llm_model_id_input =
     // The API provides price per 1K tokens
     switch (float_of_string_opt(price)) {
     | Some(p) =>
-      let per_million = p *. 1000.0;
+      let per_million = p *. 1000000.0;
       if (per_million == 0.0) {
         "Free";
       } else {
