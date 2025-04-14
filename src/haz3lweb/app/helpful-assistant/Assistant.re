@@ -58,6 +58,7 @@ module Model = {
     chat_history,
     show_history: bool,
     show_api_key: bool,
+    available_models: list(OpenRouter.model_info),
   };
 
   let init_simple_chat = {
@@ -109,6 +110,7 @@ module Model = {
     },
     show_history: false,
     show_api_key: false,
+    available_models: [],
   };
 };
 
@@ -149,7 +151,9 @@ module Update = {
     | Describe(string, AssistantSettings.mode, Id.t)
     | SwitchChat(Id.t)
     | ToggleAPIVisibility
-    | FilterLoadingMessages;
+    | FilterLoadingMessages
+    | SetAvailableModels
+    | SetModels(list(OpenRouter.model_info));
 
   let code_message_of_str =
       (response: string, party: Model.party, tileId: option(Id.t))
@@ -706,6 +710,7 @@ module Update = {
       };
     | SetKey(api_key) =>
       Store.Generic.save("API", api_key);
+      schedule_action(SetAvailableModels);
       model |> Updated.return_quiet;
     | SetModel(model_id) =>
       Store.Generic.save("MODEL", model_id);
@@ -1262,6 +1267,35 @@ module Update = {
         },
       }
       |> Updated.return_quiet
+    | SetAvailableModels =>
+      switch (Store.Generic.load("API")) {
+      | Some(key) =>
+        OpenRouter.get_models(~key, ~handler=response => {
+          switch (response) {
+          | Some(json) =>
+            switch (OpenRouter.parse_models_response(json)) {
+            | Some(models_response) =>
+              schedule_action(SetModels(models_response.data))
+            | None =>
+              print_endline("Assistant: failed to parse models response")
+            }
+          | None =>
+            print_endline(
+              "Assistant: no response received from OpenRouter API",
+            )
+          }
+        });
+        model |> Updated.return_quiet;
+      | None =>
+        print_endline("No API key found. Please set an API key first.");
+        model |> Updated.return_quiet;
+      }
+    | SetModels(models) =>
+      {
+        ...model,
+        available_models: models,
+      }
+      |> Updated.return_quiet
     };
   };
 };
@@ -1270,6 +1304,8 @@ module Store =
   Store.F({
     [@deriving (show({with_path: false}), yojson, sexp)]
     type t = Model.t;
-    let default = () => Model.init;
+    let default = () => {
+      Model.init;
+    };
     let key = Store.Assistant;
   });

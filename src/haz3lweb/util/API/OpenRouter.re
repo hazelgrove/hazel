@@ -183,3 +183,83 @@ let add_to_prompt = (prompt, ~assistant, ~user): prompt =>
       content: user,
     },
   ];
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type pricing = {
+  prompt: string,
+  completion: string,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type model_info = {
+  id: string,
+  name: string,
+  pricing,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type models_response = {data: list(model_info)};
+
+let get_models = (~key, ~handler): unit => {
+  print_endline("API: GETting OpenRouter models");
+  request(
+    ~method=GET,
+    ~url="https://openrouter.ai/api/v1/models",
+    ~headers=[
+      ("Content-Type", "application/json"),
+      ("Authorization", "Bearer " ++ key),
+    ],
+    ~body=`Null,
+    handler,
+  );
+};
+
+let parse_models_response = (json: Json.t): option(models_response) =>
+  try(
+    switch (json) {
+    | `Assoc(fields) =>
+      switch (List.assoc_opt("data", fields)) {
+      | Some(`List(models)) =>
+        let parsed_models =
+          List.filter_map(
+            model =>
+              switch (model) {
+              | `Assoc(model_fields) =>
+                let id_opt = List.assoc_opt("id", model_fields);
+                let name_opt = List.assoc_opt("name", model_fields);
+                let pricing_opt = List.assoc_opt("pricing", model_fields);
+                switch (id_opt, name_opt, pricing_opt) {
+                | (
+                    Some(`String(id)),
+                    Some(`String(name)),
+                    Some(`Assoc(pricing_fields)),
+                  ) =>
+                  let prompt = List.assoc_opt("prompt", pricing_fields);
+                  let completion =
+                    List.assoc_opt("completion", pricing_fields);
+                  switch (prompt, completion) {
+                  | (Some(`String(p)), Some(`String(c))) =>
+                    Some({
+                      id,
+                      name,
+                      pricing: {
+                        prompt: p,
+                        completion: c,
+                      },
+                    })
+                  | _ => None
+                  };
+                | _ => None
+                };
+              | _ => None
+              },
+            models,
+          );
+        Some({data: parsed_models});
+      | _ => None
+      }
+    | _ => None
+    }
+  ) {
+  | _ => None
+  };
