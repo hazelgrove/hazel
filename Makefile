@@ -51,10 +51,13 @@ echo-html-dir:
 	@echo $(HTML_DIR)
 
 serve:
-	cd $(HTML_DIR); python3 -m http.server 8000
+	cd $(HTML_DIR); python3 -m http.server 8000 --bind 0.0.0.0
+
+hot:
+	npx vite
 
 serve2:
-	cd $(HTML_DIR); python3 -m http.server 8001
+	cd $(HTML_DIR); python3 -m http.server 8001 --bind 0.0.0.0
 
 repl:
 	dune utop src/haz3lcore
