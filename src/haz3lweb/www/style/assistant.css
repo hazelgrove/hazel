@@ -413,32 +413,46 @@
 }
 
 .llm-selector {
-    margin: auto;
+    margin: 0.5em auto;
     display: flex;
     flex-direction: column;
     align-items: center;
+    width: 85%;
 }
 
 .llm-label {
     font-weight: bold;
-    margin-right: 10px;
+    margin-bottom: 0.5em;
+    font-size: 0.8em;
+    color: var(--STONE);
 }
 
 .llm-dropdown {
-    padding: 5px;
+    width: 100%;
+    padding: 8px;
     border-radius: 4px;
-    border: 1px solid #ccc;
-    background-color: #fff;
+    border: 1px solid var(--SAND);
+    background-color: var(--SAND);
     cursor: pointer;
+    color: var(--STONE);
+    font-size: 0.9em;
+    transition: all 0.2s ease;
 }
 
 .llm-dropdown:hover {
-    border-color: #888;
+    background-color: var(--T1);
+    box-shadow: 0px 2px 4px var(--SHADOW);
 }
 
 .llm-dropdown:focus {
     outline: none;
-    border-color: #555;
+    box-shadow: 0px 0px 1px var(--SHADOW), 0 0 0 1px var(--SHADOW);
+}
+
+.llm-dropdown option {
+    background-color: var(--UI-Background);
+    color: var(--STONE);
+    padding: 8px;
 }
 
 /* Mode buttons styling */
@@ -731,4 +745,12 @@
 #assistant .assistant-info-container a:hover {
     opacity: 0.8;
     text-decoration: underline;
+}
+
+#assistant .subtitle {
+    font-size: 0.8em;
+    color: var(--STONE);
+    opacity: 0.8;
+    margin: 1em 0 0.5em 0;
+    font-style: italic;
 }

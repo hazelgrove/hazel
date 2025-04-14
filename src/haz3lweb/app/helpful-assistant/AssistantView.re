@@ -128,106 +128,39 @@ let history_button = (~globals: Globals.t, ~inject): Node.t => {
   );
 };
 
-/* LLM Dropdown Menu: To keep or not to keep?
+let select_llm = (~inject, ~assistantModel: Assistant.Model.t): Node.t => {
+  let handle_change = (event, _) => {
+    let value = Js.to_string(Js.Unsafe.coerce(event)##.target##.value);
+    Virtual_dom.Vdom.Effect.Many([
+      inject(Assistant.Update.SetModel(value)),
+      Virtual_dom.Vdom.Effect.Stop_propagation,
+    ]);
+  };
 
-   let select_llm = (~inject, ~assistantModel: Assistant.Model.t): Node.t => {
-     let handle_change = (event, _) => {
-       let value = Js.to_string(Js.Unsafe.coerce(event)##.target##.value);
-       let selected_llm =
-         switch (value) {
-         | "Gemini_Experimental_2.5" => OpenRouter.Gemini_Experimental_2_5
-         | "Gemini_Flash_2_0" => OpenRouter.Gemini_Flash_2_0
-         | "Deepseek_R1" => OpenRouter.Deepseek_R1
-         | "DeepSeek_V3" => OpenRouter.DeepSeek_V3
-         | "Llama_3_1_Nemo" => OpenRouter.Llama_3_1_Nemo
-         | "Claude_3_5_Sonnet" => OpenRouter.Claude_3_5_Sonnet
-         | "Claude_3_7_Sonnet" => OpenRouter.Claude_3_7_Sonnet
-         | _ => OpenRouter.Gemini_Experimental_2_5
-         };
-       Virtual_dom.Vdom.Effect.Many([
-         inject(Assistant.Update.SelectLLM(selected_llm)),
-         Virtual_dom.Vdom.Effect.Stop_propagation,
-       ]);
-     };
-
-     // Helper function to determine if an option should be selected
-     let is_selected =
-         (llm: OpenRouter.chat_models, current_llm: OpenRouter.chat_models) => {
-       llm == current_llm;
-     };
-
-     div(
-       ~attrs=[clss(["llm-selector"])],
-       [
-         label(~attrs=[clss(["llm-label"])], [text("Select LLM Model: ")]),
-         select(
-           ~attrs=[Attr.on_change(handle_change), clss(["llm-dropdown"])],
-           [
-             option(
-               ~attrs=[
-                 Attr.value("Gemini_Experimental_2.5"),
-                 is_selected(
-                   OpenRouter.Gemini_Experimental_2_5,
-                   assistantModel.llm,
-                 )
-                   ? Attr.selected : Attr.empty,
-               ],
-               [text("Gemini Experimental 2.5 (Free)")],
-             ),
-             option(
-               ~attrs=[
-                 Attr.value("Gemini_Flash_2_0"),
-                 is_selected(OpenRouter.Gemini_Flash_2_0, assistantModel.llm)
-                   ? Attr.selected : Attr.empty,
-               ],
-               [text("Gemini Flash 2.0")],
-             ),
-             option(
-               ~attrs=[
-                 Attr.value("Deepseek_R1"),
-                 is_selected(OpenRouter.Deepseek_R1, assistantModel.llm)
-                   ? Attr.selected : Attr.empty,
-               ],
-               [text("Deepseek R1 (Free)")],
-             ),
-             option(
-               ~attrs=[
-                 Attr.value("DeepSeek_V3"),
-                 is_selected(OpenRouter.DeepSeek_V3, assistantModel.llm)
-                   ? Attr.selected : Attr.empty,
-               ],
-               [text("DeepSeek V3 (Free)")],
-             ),
-             option(
-               ~attrs=[
-                 Attr.value("Llama_3_1_Nemo"),
-                 is_selected(OpenRouter.Llama_3_1_Nemo, assistantModel.llm)
-                   ? Attr.selected : Attr.empty,
-               ],
-               [text("Llama 3.1 Nemotron 70B (Free)")],
-             ),
-             option(
-               ~attrs=[
-                 Attr.value("Claude_3_5_Sonnet"),
-                 is_selected(OpenRouter.Claude_3_5_Sonnet, assistantModel.llm)
-                   ? Attr.selected : Attr.empty,
-               ],
-               [text("Claude 3.5 Sonnet")],
-             ),
-             option(
-               ~attrs=[
-                 Attr.value("Claude_3_7_Sonnet"),
-                 is_selected(OpenRouter.Claude_3_7_Sonnet, assistantModel.llm)
-                   ? Attr.selected : Attr.empty,
-               ],
-               [text("Claude 3.7 Sonnet")],
-             ),
-           ],
-         ),
-       ],
-     );
-   };
-   */
+  div(
+    ~attrs=[clss(["llm-selector"])],
+    [
+      label(~attrs=[clss(["llm-label"])], [text("Select LLM Model: ")]),
+      select(
+        ~attrs=[Attr.on_change(handle_change), clss(["llm-dropdown"])],
+        List.map(
+          (model: OpenRouter.model_info) =>
+            option(
+              ~attrs=[
+                Attr.value(model.id),
+                switch (Store.Generic.load("MODEL")) {
+                | Some(current_model) when current_model == model.id => Attr.selected
+                | _ => Attr.empty
+                },
+              ],
+              [text(model.name)],
+            ),
+          assistantModel.available_models,
+        ),
+      ),
+    ],
+  );
+};
 
 let settings_box = (~globals: Globals.t, ~inject): Node.t => {
   div(~attrs=[clss(["settings-box"])], [resume_chat_button(~globals)]);
@@ -242,9 +175,9 @@ let api_input =
     )
     : Node.t => {
   let handle_submission = (api_key: string) => {
-    JsUtil.log("Your API key for this session has been set: " ++ api_key);
     Virtual_dom.Vdom.Effect.Many([
       inject(Assistant.Update.SetKey(api_key)),
+      inject(Assistant.Update.SetAvailableModels),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
@@ -285,6 +218,19 @@ let api_input =
     ~attrs=[clss(["api-key-container"])],
     [
       div(~attrs=[clss(["title"])], [text("API Key")]),
+      div(
+        ~attrs=[clss(["assistant-info-container"])],
+        [
+          text("You can find or create an OpenRouter API key "),
+          a(
+            ~attrs=[
+              Attr.href("https://openrouter.ai/settings/keys"),
+              Attr.target("_blank"),
+            ],
+            [text("here")],
+          ),
+        ],
+      ),
       input(
         ~attrs=[
           Attr.id("api-input"),
@@ -301,19 +247,6 @@ let api_input =
           Attr.on_cut(_ => {Effect.Stop_propagation}),
         ],
         (),
-      ),
-      div(
-        ~attrs=[clss(["assistant-info-container"])],
-        [
-          text("You can find or create an OpenRouter API key "),
-          a(
-            ~attrs=[
-              Attr.href("https://openrouter.ai/settings/keys"),
-              Attr.target("_blank"),
-            ],
-            [text("here")],
-          ),
-        ],
       ),
       div(
         ~attrs=[clss(["chat-button"]), Attr.on_click(submit_key)],
@@ -360,8 +293,22 @@ let llm_model_id_input =
       ~settings: AssistantSettings.t,
     )
     : Node.t => {
+  let format_price_per_million = (price: string): string => {
+    // Convert string to float, multiply by 1000 to get per million tokens
+    // The API provides price per 1K tokens
+    switch (float_of_string_opt(price)) {
+    | Some(p) =>
+      let per_million = p *. 1000.0;
+      if (per_million == 0.0) {
+        "Free";
+      } else {
+        "$" ++ Printf.sprintf("%.4f", per_million);
+      };
+    | None => "Unknown"
+    };
+  };
+
   let handle_submission = (llm_model: string) => {
-    JsUtil.log("Your model id for this session has been set: " ++ llm_model);
     Virtual_dom.Vdom.Effect.Many([
       inject(Assistant.Update.SetModel(llm_model)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
@@ -398,6 +345,24 @@ let llm_model_id_input =
     ~attrs=[clss(["api-key-container"])],
     [
       div(~attrs=[clss(["title"])], [text("Model Selection")]),
+      div(
+        ~attrs=[clss(["assistant-info-container"])],
+        [
+          text("You can find a comprehensive list of OpenRouter models "),
+          a(
+            ~attrs=[
+              Attr.href("https://openrouter.ai/models"),
+              Attr.target("_blank"),
+            ],
+            [text("here")],
+          ),
+        ],
+      ),
+      select_llm(~inject, ~assistantModel),
+      div(
+        ~attrs=[clss(["llm-label"])],
+        [text("Or Enter Model ID Manually:")],
+      ),
       input(
         ~attrs=[
           Attr.id("llm-model-id-input"),
@@ -418,19 +383,6 @@ let llm_model_id_input =
         (),
       ),
       div(
-        ~attrs=[clss(["assistant-info-container"])],
-        [
-          text("You can find a comprehensive list of OpenRouter models "),
-          a(
-            ~attrs=[
-              Attr.href("https://openrouter.ai/models"),
-              Attr.target("_blank"),
-            ],
-            [text("here")],
-          ),
-        ],
-      ),
-      div(
         ~attrs=[clss(["chat-button"]), Attr.on_click(submit_key)],
         [Widgets.button_named(~tooltip="Update Model ID", None, submit_key)],
       ),
@@ -442,6 +394,34 @@ let llm_model_id_input =
             switch (Store.Generic.load("MODEL")) {
             | Some(model_id) when String.length(model_id) > 0 => model_id
             | _ => "No model ID set"
+            },
+          ),
+        ],
+      ),
+      div(
+        ~attrs=[clss(["text-display"])],
+        [text("Model Pricing (per million tokens):\n")],
+      ),
+      div(
+        ~attrs=[clss(["api-key-display"])],
+        [
+          text(
+            switch (Store.Generic.load("MODEL")) {
+            | Some(model_id) when String.length(model_id) > 0 =>
+              let selected_model =
+                List.find_opt(
+                  (model: OpenRouter.model_info) => model.id == model_id,
+                  assistantModel.available_models,
+                );
+              switch (selected_model) {
+              | Some(model) =>
+                "Prompt: "
+                ++ format_price_per_million(model.pricing.prompt)
+                ++ " / Completion: "
+                ++ format_price_per_million(model.pricing.completion)
+              | None => "Pricing information not available"
+              };
+            | _ => "No model selected"
             },
           ),
         ],
