@@ -7,8 +7,9 @@ open Util;
 open Js_of_ocaml;
 
 let format_time_diff = (prior: float): string => {
-  let now = Unix.time();
-  let diff_mins = floor((now -. prior) /. 60.0);
+  let now = JsUtil.timestamp();
+  let diff_seconds = (now -. prior) /. 1000.0;
+  let diff_mins = floor(diff_seconds /. 60.0);
   let diff_hours = floor(diff_mins /. 60.0);
   let diff_days = floor(diff_hours /. 24.0);
 
