@@ -616,7 +616,7 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
         n,
       )
     );
-// TODO Printers, shrinkers stuff
+
 let rec shrink_exp: QCheck.Shrink.t(exp) =
   QCheck.(
     (exp: exp) =>
