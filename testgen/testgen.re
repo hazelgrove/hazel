@@ -50,9 +50,10 @@ switch (Z3.Solver.check(solver, [])) {
 
 let example_program =
   Haz3lmenhir.Interface.parse_program(
-    {|if (a * 2) > b
-        then a
-        else (if c > ((b + 1) * 3) then {{{ 1 }}} else 2)|},
+    {| let x = y in
+       let x = 7 in
+       if x > z + y then 7 else {{{ 8 }}}
+    |},
   );
 
 let symex_result =
@@ -164,6 +165,122 @@ run_and_report(
               ),
             )
           }),
+          test_case("Symbolic execution of let", `Quick, () => {
+            check(
+              symex_exp,
+              "Symbolic execution of let",
+              {
+                term:
+                  Let(
+                    {
+                      term: VarPat("x"),
+                      annotation: initial_symex_state,
+                    },
+                    {
+                      term: Atom(Int(Bigint.of_int(1))),
+                      annotation: initial_symex_state,
+                    },
+                    {
+                      term: Var("x"),
+                      annotation: initial_symex_state,
+                      // annotation: {
+                      //   symbolic_variable_state:
+                      //     VariableState.of_list([
+                      //       (
+                      //         "x",
+                      //         Atom(Int(Bigint.of_int(1))): AST.exp(unit),
+                      //       ),
+                      //     ]),
+                      //   assumptions: [],
+                      // },
+                    },
+                  ),
+                annotation: initial_symex_state,
+              },
+              symbolic_execution(
+                ~state=initial_symex_state,
+                AST.Let(
+                  AST.lift(AST.VarPat("x")),
+                  AST.lift(AST.Atom(Int(Bigint.of_int(1)))),
+                  AST.lift(AST.Var("x")),
+                ),
+              ),
+            )
+          }),
+          // test_case("If predicated on variable", `Quick, () => {
+          //   check(
+          //     symex_exp,
+          //     "If in a let",
+          //     {
+          //       term:
+          //         Let(
+          //           {
+          //             term: VarPat("x"),
+          //             annotation: initial_symex_state,
+          //           },
+          //           {
+          //             term: Var("y"),
+          //             annotation: initial_symex_state,
+          //           },
+          //           {
+          //             term:
+          //               If(
+          //                 {
+          //                   term:
+          //                     BinExp(
+          //                       {
+          //                         term: Var("x"),
+          //                         annotation: initial_symex_state,
+          //                       },
+          //                       IntOp(Equals),
+          //                       {
+          //                         term: Atom(Int(Bigint.of_int(1))),
+          //                         annotation: initial_symex_state,
+          //                       },
+          //                     ),
+          //                   annotation: initial_symex_state,
+          //                 },
+          //                 {
+          //                   term: Atom(Int(Bigint.of_int(0))),
+          //                   annotation: {
+          //                     symbolic_variable_state:
+          //                       VariableState.of_list([
+          //                         (
+          //                           "x",
+          //                           Atom(Int(Bigint.of_int(1))):
+          //                             AST.exp(unit),
+          //                         ),
+          //                       ]),
+          //                     assumptions: [],
+          //                   },
+          //                 },
+          //                 {
+          //                   term: Atom(Int(Bigint.of_int(2))),
+          //                   annotation: initial_symex_state,
+          //                 },
+          //               ),
+          //             annotation: {
+          //               symbolic_variable_state:
+          //                 VariableState.of_list([
+          //                   (
+          //                     "x",
+          //                     Atom(Int(Bigint.of_int(1))): AST.exp(unit),
+          //                   ),
+          //                 ]),
+          //               assumptions: [],
+          //             },
+          //           },
+          //         ),
+          //       annotation: initial_symex_state,
+          //     },
+          //     symbolic_execution(
+          //       ~state=initial_symex_state,
+          //       Haz3lmenhir.Interface.parse_program(
+          //         {|let x = y in if x == 1 then 0 else 2|},
+          //       ),
+          //     ),
+          //   )
+          // }),
         ];
       },
     ),

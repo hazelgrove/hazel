@@ -42,6 +42,40 @@ let initial_symex_state: symex_state = {
   assumptions: initial_assumptions,
 };
 
+let rec substitute =
+        (
+          var_name: string,
+          original_expression: AST.exp(unit),
+          new_expression: AST.exp(unit),
+        ) => {
+  let go:
+    AST.Annotated.t(AST.exp(unit), unit) =>
+    AST.Annotated.t(AST.exp(unit), unit) =
+    x => {
+      {
+        term: substitute(var_name, x.term, new_expression),
+        annotation: (),
+      };
+    };
+  // Subst
+  switch (original_expression) {
+  | Var(name) when name == var_name => new_expression
+  | Var(_) => original_expression
+  | If(cond, then_branch, else_branch) =>
+    If(go(cond), go(then_branch), go(else_branch))
+  | BinExp(left, op, right) => BinExp(go(left), op, go(right))
+  | UnOp(op, x) => UnOp(op, go(x))
+  | Atom(_) => original_expression
+  | _ =>
+    raise(
+      Failure(
+        "Unsupported expression"
+        ++ [%derive.show: AST.exp(unit)](original_expression),
+      ),
+    )
+  };
+};
+
 [@deriving (show({with_path: false}), eq)]
 type symex_exp = AST.Annotated.t(AST.exp(symex_state), symex_state);
 let rec symbolic_execution =
@@ -93,6 +127,36 @@ let rec symbolic_execution =
       term: Atom(atom),
       annotation: state,
     }
+  | Let({term: VarPat(var_name), _}, x, body) =>
+    // Add var -> x to the symbolic variable state in the body
+
+    let x': symex_exp = symbolic_execution(~state, x.term);
+    let x_term: AST.exp(unit) = AST.map_exp_annotation(__ => (), x').term;
+    let body' = symbolic_execution(~state, body.term);
+
+    let body'' =
+      AST.map_exp_annotation(
+        state => {
+          {
+            symbolic_variable_state: state.symbolic_variable_state,
+            assumptions:
+              List.map(substitute(var_name, _, x_term), state.assumptions),
+          }
+        },
+        body',
+      );
+    {
+      term:
+        Let(
+          {
+            term: VarPat(var_name),
+            annotation: x'.annotation,
+          },
+          x',
+          body'',
+        ),
+      annotation: state,
+    };
   | _ =>
     raise(
       Failure(
