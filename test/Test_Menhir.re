@@ -107,7 +107,11 @@ let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir and maketerm are equivalent",
     ~count=100,
-    QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
+    QCheck.make(
+      ~print=AST.show_exp,
+      ~shrink=AST.shrink_exp,
+      AST.gen_exp_sized(7),
+    ),
     exp => {
       let unit_exp = Conversion.Exp.of_menhir_ast(exp);
       let core_exp =
@@ -161,7 +165,11 @@ let qcheck_menhir_serialized_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir through ExpToSegment and back",
     ~count=1000,
-    QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
+    QCheck.make(
+      ~print=AST.show_exp,
+      ~shrink=AST.shrink_exp,
+      AST.gen_exp_sized(7),
+    ),
     exp => {
       let unit_exp = Conversion.Exp.of_menhir_ast(exp);
       let core_exp =
