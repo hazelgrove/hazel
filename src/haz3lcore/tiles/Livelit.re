@@ -18,11 +18,13 @@ module Slider: BuiltinLivelit = {
   let model_to_hazel: model_t => model_exp =
     (x: model_t) => DHExp.fresh(Atom(Int(x)));
   let model_from_hazel: model_exp => model_t =
-    (x: model_exp) =>
+    (x: model_exp) => {
+      print_endline(x |> show_model_exp);
       switch (x.term) {
       | Atom(Int(n)) => n
       | _ => Bigint.of_int(-1)
       };
+    };
   let model_default: model_t = Bigint.of_int(50);
 
   let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(Int));
