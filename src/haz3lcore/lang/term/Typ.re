@@ -603,6 +603,23 @@ let rec is_syn = (ty: t): bool =>
   | Sum(_) => false
   };
 
+let rec is_ana_atom = (ty: t) =>
+  switch (ty |> term_of) {
+  | TupLabel(_, x)
+  | Parens(x) => is_ana_atom(x)
+  | Atom(a) => Some(a)
+  | Unknown(_)
+  | Label(_)
+  | Var(_)
+  | Ap(_)
+  | Rec(_)
+  | Forall(_)
+  | List(_)
+  | Arrow(_)
+  | Prod(_)
+  | Sum(_) => None
+  };
+
 let rec is_syn_fun = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)

@@ -320,7 +320,8 @@ and uexp_to_info_map =
       add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
     | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
     | Atom(c) =>
-      let c = Operators.replace_literal(c, ctx.use_mode); // Replace literal if necessary due to `use`
+      let c =
+        Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode); // Replace literal if necessary due to `use`
       switch (c) {
       | L(c) =>
         let ty = Atom(Atom.cls_of_t(c)) |> Typ.temp;
@@ -1260,7 +1261,8 @@ and upat_to_info_map =
     | Invalid(token) => hole(BadToken(token))
     | EmptyHole => hole(Just(unknown))
     | Atom(c) =>
-      let c = Operators.replace_literal(c, ctx.use_mode); // Replace literal if necessary due to `use`
+      let c =
+        Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode); // Replace literal if necessary due to `use`
       switch (c) {
       | L(Nat(nat)) =>
         atomic(
