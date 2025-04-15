@@ -153,6 +153,43 @@ module FTemp =
     type t = IdTagged.IdTag.t;
     let default_value = (): IdTagged.IdTag.t => {ids: [Id.invalid]};
   });
+
+let show_ast_exp: Haz3lmenhir.AST.exp => string =
+  (exp: Haz3lmenhir.AST.exp) => {
+    open Haz3lmenhir;
+    let core_exp = Conversion.Exp.of_menhir_ast(exp);
+    let core_exp =
+      Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), core_exp);
+    Printer.of_segment(
+      ~holes=Some("?"),
+      ExpToSegment.exp_to_segment(
+        ~settings=
+          ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+        core_exp,
+      ),
+    );
+  };
+
+let qcheck_statics_does_not_crash =
+  Haz3lmenhir.(
+    QCheck.Test.make(
+      ~name="Statics does not crash",
+      ~count=1000,
+      QCheck.make(
+        ~print=show_ast_exp,
+        ~shrink=AST.shrink_exp,
+        AST.gen_exp_sized(50),
+      ),
+      exp => {
+        let unit_exp = Conversion.Exp.of_menhir_ast(exp);
+        let core_exp =
+          Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp);
+        let _ = statics(core_exp);
+        true;
+      },
+    )
+  );
+
 let tests = (
   "Statics",
   FTemp.(
@@ -1015,6 +1052,7 @@ end
         |},
         Some(int()),
       ),
+      QCheck_alcotest.to_alcotest(qcheck_statics_does_not_crash),
     ]
   ),
 );
