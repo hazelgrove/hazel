@@ -475,7 +475,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       | LivelitName(s) =>
         switch (Ctx.lookup_livelit(ctx, s)) {
         | Some(ll) =>
-          let ll_expansion_f = ll.expansion_f(a);
+          let (a', _tya) = elaborate(m, a);
+          let ll_expansion_f = ll.expansion_f(a');
           ll_expansion_f |> cast_from(ll.expansion_t);
         | None => raise(MissingTypeInfo)
         }
