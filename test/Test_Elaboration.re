@@ -966,6 +966,46 @@ in 1|},
         ),
       )
     }),
+    QCheck_alcotest.to_alcotest(
+      Haz3lmenhir.(
+        QCheck.Test.make(
+          ~name="Elaboration does not crash",
+          ~count=1000,
+          QCheck.make(
+            ~print=
+              (exp: Haz3lmenhir.AST.exp) =>
+                Haz3lmenhir.(
+                  Conversion.Exp.of_menhir_ast(exp)
+                  |> Grammar.map_exp_annotation(
+                       _ => IdTagged.IdTag.fresh(),
+                       _,
+                     )
+                  |> ExpToSegment.exp_to_segment(
+                       ~settings=
+                         ExpToSegment.Settings.of_core(
+                           ~inline=true,
+                           CoreSettings.off,
+                         ),
+                       _,
+                     )
+                  |> Printer.of_segment(~holes=Some("?"), _)
+                ),
+            ~shrink=AST.shrink_exp,
+            AST.gen_exp_sized(50),
+          ),
+          exp => {
+            let unit_exp = Conversion.Exp.of_menhir_ast(exp);
+            let core_exp =
+              Grammar.map_exp_annotation(
+                _ => IdTagged.IdTag.fresh(),
+                unit_exp,
+              );
+            let _ = dhexp_of_uexp(core_exp);
+            true;
+          },
+        )
+      ),
+    ),
   ];
 };
 module MenhirElaborationTests = {
