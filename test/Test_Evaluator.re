@@ -445,12 +445,7 @@ let qcheck_evaluator_does_not_crash_test =
       );
 
       switch (e) {
-      | Failure(msg)
-          when
-            List.exists(
-              (==)(msg),
-              ["Sum type has non-unique constructors", "Step limit reached"],
-            ) =>
+      | Failure(msg) when List.exists((==)(msg), ["Step limit reached"]) =>
         print_endline("Skipping failure: " ++ msg);
         true;
       | _ => raise(e)
