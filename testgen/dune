@@ -1,18 +1,10 @@
 (include_subdirs unqualified)
 
-(test
+(library
  (name testgen)
- (libraries
-  haz3lmenhir
-  alcotest
-  sexplib
-  base
-  ptmap
-  junit
-  junit_alcotest
-  bisect_ppx.runtime
-  bignum
-  z3)
+ (modules
+  (:standard \ Main))
+ (libraries sexplib ppx_deriving haz3lmenhir base bignum z3)
  (preprocess
   (pps
    ppx_let
@@ -20,5 +12,17 @@
    ppx_deriving.show
    ppx_deriving.eq
    ppx_enumerate
-   ppx_deriving_qcheck
+   ppx_yojson_conv)))
+
+(executables
+ (names Main)
+ (modules Main)
+ (libraries haz3lmenhir base sexplib bignum z3 testgen)
+ (preprocess
+  (pps
+   ppx_let
+   ppx_sexp_conv
+   ppx_deriving.show
+   ppx_deriving.eq
+   ppx_enumerate
    ppx_yojson_conv)))
