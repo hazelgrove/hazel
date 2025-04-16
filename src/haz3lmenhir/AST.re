@@ -1101,3 +1101,6 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         }
       )
   );
+
+let arb_exp: QCheck.arbitrary(exp) =
+  QCheck.make(~print=show_exp, ~shrink=shrink_exp, gen_exp_sized(50));
