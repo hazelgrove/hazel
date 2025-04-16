@@ -412,67 +412,52 @@ let test_typfun_application = () =>
     )
     |> Exp.fresh,
   );
-let count = ref(0);
-let qcheck_evaluator_does_not_crash_test =
-  Haz3lmenhir.(
-    QCheck.Test.make(
-      ~name="Evaluator does not crash",
-      ~count=100000,
-      QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(20)),
-      exp => {
-        let unit_exp = Conversion.Exp.of_menhir_ast(exp);
-        let core_exp =
-          Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp);
-        // if (count^ mod 10 == 0) {
-        //   print_endline("Evaluating: " ++ string_of_int(count^));
-        // };
-        // count := count^ + 1;
-        switch (
-          Evaluator.evaluate(
-            ~env=Builtins.env_init,
-            ~step_limit=10000,
-            elaborate(core_exp),
-          )
-        ) {
-        | (_, _) => true
-        | exception e =>
-          print_endline(
-            "ExpToSegment: "
-            ++ Printer.of_segment(
-                 ~holes=Some("?"),
-                 ExpToSegment.exp_to_segment(
-                   ~settings={
-                     inline: true,
-                     fold_case_clauses: false,
-                     fold_fn_bodies: false,
-                     hide_fixpoints: false,
-                     fold_cast_types: false,
-                     show_filters: true,
-                     show_unknown_as_hole: true,
-                   },
-                   core_exp,
-                 ),
-               ),
-          );
 
-          switch (e) {
-          | Failure(msg)
-              when
-                List.exists(
-                  (==)(msg),
-                  [
-                    "Sum type has non-unique constructors",
-                    "Step limit reached",
-                  ],
-                ) =>
-            print_endline("Skipping failure: " ++ msg);
-            true;
-          | _ => raise(e)
-          };
-        };
-      },
-    )
-  );
+let qcheck_evaluator_does_not_crash_test =
+  QCheck.Test.make(
+    ~name="Evaluator does not crash", ~count=100000, QCheck_Util.arb_exp, exp => {
+    switch (
+      Evaluator.evaluate(
+        ~env=Builtins.env_init,
+        ~step_limit=10000,
+        elaborate(exp),
+      )
+    ) {
+    | (_, _) => true
+    | exception e =>
+      print_endline(
+        "ExpToSegment: "
+        ++ Printer.of_segment(
+             ~holes=Some("?"),
+             ExpToSegment.exp_to_segment(
+               ~settings={
+                 inline: true,
+                 fold_case_clauses: false,
+                 fold_fn_bodies: false,
+                 hide_fixpoints: false,
+                 fold_cast_types: false,
+                 show_filters: true,
+                 show_unknown_as_hole: true,
+               },
+               exp,
+             ),
+           ),
+      );
+
+      switch (e) {
+      | Failure(msg)
+          when
+            List.exists(
+              (==)(msg),
+              ["Sum type has non-unique constructors", "Step limit reached"],
+            ) =>
+        print_endline("Skipping failure: " ++ msg);
+        true;
+      | _ => raise(e)
+      };
+    }
+  });
+
 let tests = (
   "Evaluator",
   [
