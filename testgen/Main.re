@@ -1,22 +1,14 @@
+// Usage: cat sample_input.hz | dune exec ./Main.exe --
+
 open Testgen;
 open Symex;
 module Z3Int = Z3.Arithmetic.Integer;
 open Haz3lmenhir;
 open Indicated;
 print_endline("Starting tigen");
+let input_program = Stdio.In_channel.input_all(Stdio.stdin);
 let example_program =
-  Haz3lmenhir.Interface.parse_program(
-    {|  
-    let x =
-      if y > 32 
-      then 3 
-    else {{{4}}}  in
-    let a = if x > z + y then 
-    {{{7}}}  else 8 in
-
-    if b > a then x else {{{y}}} 
-    |},
-  );
+  Haz3lmenhir.Interface.parse_program(input_program);
 
 
 
