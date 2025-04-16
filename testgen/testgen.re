@@ -50,8 +50,7 @@ switch (Z3.Solver.check(solver, [])) {
 
 let example_program =
   Haz3lmenhir.Interface.parse_program(
-    {| let x = y in
-       let x = 7 in
+    {| let x = if y > 32 then 3 else 4 in
        if x > z + y then 7 else {{{ 8 }}}
     |},
   );
