@@ -2,64 +2,90 @@ open Junit_alcotest;
 open Symex;
 module Z3Int = Z3.Arithmetic.Integer;
 open Haz3lmenhir;
+open Indicated;
 print_endline("Starting tigen");
-let ctx = Z3.mk_context([("model", "true")]);
-let foo = Z3Int.mk_numeral_i(ctx, 1);
+// let ctx = Z3.mk_context([("model", "true")]);
+// let foo = Z3Int.mk_numeral_i(ctx, 1);
 
-let solver = Z3.Solver.mk_solver(ctx, None);
+// let solver = Z3.Solver.mk_solver(ctx, None);
 
-let foo = Haz3lmenhir.AST.Atom(Int(Bigint.of_int(1)));
-let x = Z3Int.mk_const(ctx, Z3.Symbol.mk_string(ctx, "x"));
-let y = Z3Int.mk_const(ctx, Z3.Symbol.mk_string(ctx, "y"));
+// let foo = Haz3lmenhir.AST.Atom(Int(Bigint.of_int(1)));
+// let x = Z3Int.mk_const(ctx, Z3.Symbol.mk_string(ctx, "x"));
+// let y = Z3Int.mk_const(ctx, Z3.Symbol.mk_string(ctx, "y"));
 
-let x_plus_y = Z3.Arithmetic.mk_add(ctx, [x, y]);
-let constraint1 =
-  Z3.Boolean.mk_eq(ctx, x_plus_y, Z3Int.mk_numeral_i(ctx, 10));
-let constraint2 = Z3.Arithmetic.mk_gt(ctx, x, Z3Int.mk_numeral_i(ctx, 0));
-let constraint3 = Z3.Arithmetic.mk_gt(ctx, y, Z3Int.mk_numeral_i(ctx, 0));
+// let x_plus_y = Z3.Arithmetic.mk_add(ctx, [x, y]);
+// let constraint1 =
+//   Z3.Boolean.mk_eq(ctx, x_plus_y, Z3Int.mk_numeral_i(ctx, 10));
+// let constraint2 = Z3.Arithmetic.mk_gt(ctx, x, Z3Int.mk_numeral_i(ctx, 0));
+// let constraint3 = Z3.Arithmetic.mk_gt(ctx, y, Z3Int.mk_numeral_i(ctx, 0));
 
-Z3.Solver.add(solver, [constraint1, constraint2, constraint3]);
+// Z3.Solver.add(solver, [constraint1, constraint2, constraint3]);
 
-switch (Z3.Solver.check(solver, [])) {
-| Z3.Solver.SATISFIABLE =>
-  let model = Z3.Solver.get_model(solver) |> Option.get;
-  print_endline("SAT");
-  print_endline(Z3.Model.to_string(model));
-  let decls = Z3.Model.get_decls(model);
-  List.iter(
-    decl => {
-      let name = Z3.FuncDecl.get_name(decl) |> Z3.Symbol.to_string;
-      let value = Z3.Model.get_const_interp(model, decl);
-      print_endline(
-        name
-        ++ " = "
-        ++ Option.value(
-             ~default="None",
-             Option.map(Z3.Expr.to_string, value),
-           ),
-      );
-    },
-    decls,
-  );
+// switch (Z3.Solver.check(solver, [])) {
+// | Z3.Solver.SATISFIABLE =>
+//   let model = Z3.Solver.get_model(solver) |> Option.get;
+//   print_endline("SAT");
+//   print_endline(Z3.Model.to_string(model));
+//   let decls = Z3.Model.get_decls(model);
+//   List.iter(
+//     decl => {
+//       let name = Z3.FuncDecl.get_name(decl) |> Z3.Symbol.to_string;
+//       let value = Z3.Model.get_const_interp(model, decl);
+//       print_endline(
+//         name
+//         ++ " = "
+//         ++ Option.value(
+//              ~default="None",
+//              Option.map(Z3.Expr.to_string, value),
+//            ),
+//       );
+//     },
+//     decls,
+//   );
 
-| Z3.Solver.UNSATISFIABLE => print_endline("UNSAT")
-| Z3.Solver.UNKNOWN => print_endline("UNKNOWN")
-};
+// | Z3.Solver.UNSATISFIABLE => print_endline("UNSAT")
+// | Z3.Solver.UNKNOWN => print_endline("UNKNOWN")
+// };
 
 // print_endline([%derive.show: Haz3lmenhir.AST.exp(unit)](foo));
 
 let example_program =
   Haz3lmenhir.Interface.parse_program(
-    {| let x = if y > 32 then 3 else 4 in
-       if x > z + y then 7 else {{{ 8 }}}
+    {|  
+    let x =
+      if y > 32 
+      then 3 
+    else {{{4}}}  in
+    let a = if x > z + y then 
+    {{{7}}}  else 8 in
+
+    if b > a then x else {{{y}}} 
     |},
   );
+
+
+// print indicated exps of example_program using Symex.extract_indicated_exps
+// print_endline(
+//   "Num: indicated exps: " ++ string_of_int(List.length(indicated_exps)),
+// );
+
+let ctx = Z3.mk_context([("model", "true")]);
 
 let symex_result =
   symbolic_execution(~state=initial_symex_state, example_program);
 
 let assumed: AST.Annotated.t(AST.exp(assumptions), assumptions) =
   AST.map_exp_annotation(x => x.assumptions, symex_result);
+
+
+let solved = ReachPoint.solve_indicated_reachability(ctx, assumed);
+
+print_endline("Variable assignments:");
+print_endline(
+  [%derive.show: option(list((string, option(string))))](solved),
+);
+
+
 
 let solve = (assumptions: assumptions) => {
   let ctx = Z3.mk_context([("model", "true")]);
@@ -86,16 +112,16 @@ let solve = (assumptions: assumptions) => {
 
 let solved = AST.map_exp_annotation(a => solve(a), assumed);
 
-print_endline(
-  [%derive.show:
-    AST.Annotated.t(
-      AST.exp(option(list((string, option(string))))),
-      option(list((string, option(string)))),
-    )
-  ](
-    solved,
-  ),
-);
+// print_endline(
+//   [%derive.show:
+//     AST.Annotated.t(
+//       AST.exp(option(list((string, option(string))))),
+//       option(list((string, option(string)))),
+//     )
+//   ](
+//     solved,
+//   ),
+// );
 
 run_and_report(
   ~and_exit=false,

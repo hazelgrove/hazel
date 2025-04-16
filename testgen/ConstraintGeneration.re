@@ -53,6 +53,7 @@ let rec generate = (ctx: Z3.context, expr: AST.exp(unit)): Z3.Expr.expr => {
     Z3.Boolean.mk_ite(ctx, cond', then', else');
   | AST.Var(name) =>
     Z3.Arithmetic.Integer.mk_const(ctx, Z3.Symbol.mk_string(ctx, name)) // TODO : Handle other types
+  | AST.IndicationExp(expr) => generate(ctx, expr.term)
   | AST.Atom(Nat(_))
   | _ =>
     raise(
