@@ -256,9 +256,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         TupLabel(_) |
         Tuple(_) |
         Cast(_) |
-        Ap(_, {term: Constructor(_), _}, _) |
-        TypFun(_) |
-        TypAp(_),
+        TypFun(_, _, _) |
+        Ap(_, {term: Constructor(_), _}, _),
       ) =>
       switch (request) {
       | TupLabel(_) =>
@@ -294,6 +293,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Var(_) |
         Let(_) |
         Fun(_, _, _, _) |
+        TypAp(_) |
         FixF(_) |
         TyAlias(_) |
         Use(_) |
