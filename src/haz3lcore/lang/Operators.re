@@ -76,21 +76,32 @@ type bad_literal =
   | BadInt(string);
 
 let replace_literal =
-    (lit: Atom.t, use_mode: option(mode)): Either.t(Atom.t, bad_literal) => {
-  switch (lit, use_mode) {
-  | (_, None) => L(lit)
-  | (Int(n) | Nat(n), Some(Int)) => L(Int(n))
-  | (Int(n) | Nat(n), Some(Nat)) => L(Nat(n))
-  | (Int(n) | Nat(n), Some(Float)) => L(Float(Bigint.to_float(n)))
-  | (Int(n) | Nat(n), Some(SInt)) =>
+    (lit: Atom.t, ana: option(Atom.cls), use_mode: option(mode))
+    : Either.t(Atom.t, bad_literal) => {
+  switch (lit, ana, use_mode) {
+  | (_, None, None) => L(lit)
+  | (Int(n), Some(Int), _) => L(Int(n))
+  | (Int(n), Some(Nat), _) => L(Nat(n))
+  | (Int(n), Some(Float), _) => L(Float(Bigint.to_float(n)))
+  | (Int(n), Some(SInt), _) =>
     switch (Bigint.to_int(n)) {
     | Some(i) => L(SInt(i))
     | None => R(BadInt(Bigint.to_string(n)))
     }
-  | (SInt(n), _) => L(SInt(n))
-  | (Float(n), _) => L(Float(n))
-  | (Bool(b), _) => L(Bool(b))
-  | (String(s), _) => L(String(s))
+  | (Int(n), _, Some(Int)) => L(Int(n))
+  | (Int(n), _, Some(Nat)) => L(Nat(n))
+  | (Int(n), _, Some(Float)) => L(Float(Bigint.to_float(n)))
+  | (Int(n), _, Some(SInt)) =>
+    switch (Bigint.to_int(n)) {
+    | Some(i) => L(SInt(i))
+    | None => R(BadInt(Bigint.to_string(n)))
+    }
+  | (Int(n), Some(Bool | String), None) => L(Int(n))
+  | (SInt(n), _, _) => L(SInt(n))
+  | (Float(n), _, _) => L(Float(n))
+  | (Bool(b), _, _) => L(Bool(b))
+  | (String(s), _, _) => L(String(s))
+  | (Nat(n), _, _) => L(Nat(n))
   };
 };
 
