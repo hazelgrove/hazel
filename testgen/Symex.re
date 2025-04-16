@@ -159,6 +159,12 @@ let rec symbolic_execution =
         ),
       annotation: state,
     };
+  | UnOp(op, x) =>
+    let x' = symbolic_execution(~state, x.term);
+    {
+      term: UnOp(op, x'),
+      annotation: state,
+    };
   | _ =>
     raise(
       Failure(

@@ -1,0 +1,25 @@
+let temp =
+  if y > 10 then
+    {{{1}}}
+  else
+    3
+in
+
+let adjusted =
+  if temp * 2 > z + 4 then
+    {{{y - x}}}
+  else
+    z + 1
+in
+
+let score =
+  if !(b == 3) then
+    adjusted + 3
+  else
+    {{{temp - x}}}
+in
+
+if score > 10 then
+  score + {{{x}}}
+else
+  adjusted * 2
