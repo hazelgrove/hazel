@@ -1,13 +1,13 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type segment = list(piece)
-and piece =
-  | Tile(tile)
+type segment('p) = list(piece('p))
+and piece('p) =
+  | Tile(tile('p))
   | Grout(Grout.t)
   | Secondary(Secondary.t)
-  | Projector(projector)
-and tile = {
+  | Projector(projector('p))
+and tile('p) = {
   // invariants:
   // - length(mold.in_) + 1 == length(label)
   // - length(shards) <= length(label)
@@ -17,12 +17,12 @@ and tile = {
   label: Label.t,
   mold: Mold.t,
   shards: list(int),
-  children: list(segment),
+  children: list(segment('p)),
 }
-and projector = {
+and projector('p) = {
   id: Id.t,
-  syntax: piece,
-  model: ProjectorCore.model,
+  syntax: piece('p),
+  model: 'p,
 };
 
 // This is for comment insertion

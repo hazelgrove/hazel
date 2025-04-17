@@ -1,6 +1,6 @@
 module type Introducable = {
   type t;
-  let parse: Segment.t => t;
+  let parse: Segment.t('p) => t;
   let is_hole: t => bool;
 
   /**
@@ -15,7 +15,8 @@ module type Introducable = {
  *   Returns `None` if the introduction fails, meaning there is no form for that type.
  */
   let introduce: Typ.t => option((t, Id.t, bool));
-  let to_segment: (~settings: ExpToSegment.Settings.t, t, bool) => Segment.t;
+  let to_segment:
+    (~settings: ExpToSegment.Settings.t, t, bool) => Segment.t('p);
 };
 
 module IntroducePat: Introducable with type t = Pat.t = {

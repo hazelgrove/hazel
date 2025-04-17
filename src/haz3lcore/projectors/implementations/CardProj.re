@@ -235,7 +235,7 @@ module SyntaxTerm = {
     };
   };
 
-  let put = (info, syntax): option(Base.segment) =>
+  let put = (info, syntax): option(Base.segment('p)) =>
     info.utility.lift_syntax(_ => syntax_to_any(syntax), info.syntax);
 
   let get_opt = (any: Any.t): option(state) =>
@@ -244,7 +244,7 @@ module SyntaxTerm = {
     | None => None
     };
 
-  let get = (info: info): state =>
+  let get = (info: info('p)): state =>
     switch (info.syntax |> info.utility.seg_to_term) {
     | Some(syntax) =>
       switch (get_opt(syntax)) {
@@ -260,7 +260,7 @@ module SyntaxTerm = {
     | (_, Hand(hand)) => List.length(hand)
     };
 
-  let width_of_any = (info: info): int =>
+  let width_of_any = (info: info('p)): int =>
     switch (
       info.syntax
       |> info.utility.seg_to_term
@@ -566,7 +566,7 @@ module Hand = {
         info,
         id,
         mode,
-        parent: external_action => Ui_effect.t(unit),
+        parent: external_action('p) => Ui_effect.t(unit),
         local: action => Ui_effect.t(unit),
         sort: Sort.t,
         index: int,
@@ -631,7 +631,7 @@ module M: Projector with type model = m = {
         model,
         info,
         ~local,
-        ~parent: external_action => Ui_effect.t(unit),
+        ~parent: external_action('p) => Ui_effect.t(unit),
         ~view_seg as _,
       )
       : View.t => {

@@ -21,7 +21,7 @@ module M: Projector with type model = unit = {
     | None => None
     };
 
-  let get = (info: info): bool =>
+  let get = (info: info('p)): bool =>
     switch (
       info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(bool_of)
     ) {
@@ -29,7 +29,7 @@ module M: Projector with type model = unit = {
     | None => failwith("Checkbox: Get: not boolean literal")
     };
 
-  let toggle = (info): Base.segment =>
+  let toggle = (info): Base.segment('p) =>
     switch (
       info.utility.lift_syntax(
         fun
@@ -56,7 +56,7 @@ module M: Projector with type model = unit = {
         _,
         info,
         ~local as _,
-        ~parent: external_action => Ui_effect.t(unit),
+        ~parent: external_action('p) => Ui_effect.t(unit),
         ~view_seg as _,
       ) =>
     View.mk(

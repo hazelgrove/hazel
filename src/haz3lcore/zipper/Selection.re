@@ -13,12 +13,12 @@ type mode =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   focus: Direction.t,
-  content: Segment.t,
+  content: Segment.t('p),
   mode,
 };
 
 /* NOTE: backpack no longer uses selection focus */
-let mk = (~mode=Normal, ~focus=Direction.Left, content: Segment.t) => {
+let mk = (~mode=Normal, ~focus=Direction.Left, content: Segment.t('p)) => {
   focus,
   content,
   mode,
@@ -47,7 +47,7 @@ let toggle_focus = selection => {
 
 let is_empty = (selection: t) => selection.content == Segment.empty;
 
-let push = (p: Piece.t, {focus, content, mode}: t): t => {
+let push = (p: Piece.t('p), {focus, content, mode}: t): t => {
   let content =
     Segment.reassemble(
       switch (focus) {
@@ -62,7 +62,7 @@ let push = (p: Piece.t, {focus, content, mode}: t): t => {
   };
 };
 
-let pop = (sel: t): option((Piece.t, t)) =>
+let pop = (sel: t): option((Piece.t('p), t)) =>
   switch (sel.focus, sel.content, ListUtil.split_last_opt(sel.content)) {
   | (_, [], _)
   | (_, _, None) => None

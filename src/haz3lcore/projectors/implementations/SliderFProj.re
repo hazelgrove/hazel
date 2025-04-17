@@ -21,7 +21,7 @@ module M: Projector with type model = unit = {
     | None => None
     };
 
-  let get = (info: info): float =>
+  let get = (info: info('p)): float =>
     switch (
       info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(float_of)
     ) {
@@ -29,7 +29,7 @@ module M: Projector with type model = unit = {
     | None => failwith("SliderF: Get: not float literal")
     };
 
-  let put = (info: info, v: string): Base.segment =>
+  let put = (info: info('p), v: string): Base.segment('p) =>
     switch (
       info.utility.lift_syntax(
         fun
@@ -56,7 +56,7 @@ module M: Projector with type model = unit = {
         _,
         info,
         ~local as _,
-        ~parent: external_action => Ui_effect.t(unit),
+        ~parent: external_action('p) => Ui_effect.t(unit),
         ~view_seg as _,
       ) =>
     View.mk(

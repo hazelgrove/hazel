@@ -4,7 +4,7 @@ open Util;
  * This is the lowermost projectors module; Base depends on
  * this (specifically, it parameterizes the type t below over piece).
  *
- * ProjectorBase then depends on this and on Base.piece,
+ * ProjectorBase then depends on this and on Base.piece('p),
  * and also on Vdom, necessitating its inclusion in Core.
  * The individual projector implementations depend on ProjectorBase.
  * ProjectorInit then depends on the projector implementations.

@@ -6,11 +6,12 @@ exception Invalid_mold;
 exception Empty_tile;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = tile;
+type t('p) = tile('p);
 
-let id = (t: t) => t.id;
+let id = (t: t('p)) => t.id;
 
-let is_complete = (t: t) => List.length(t.label) == List.length(t.shards);
+let is_complete = (t: t('p)) =>
+  List.length(t.label) == List.length(t.shards);
 
 let l_shard = t =>
   OptUtil.get_or_raise(Empty_tile, ListUtil.hd_opt(t.shards));
@@ -23,20 +24,20 @@ let has_end = (d: Direction.t, t) =>
   | Right => r_shard(t) == List.length(t.label) - 1
   };
 
-let nibs = (t: t) => {
+let nibs = (t: t('p)) => {
   let (l, _) = Mold.nibs(~index=l_shard(t), t.mold);
   let (_, r) = Mold.nibs(~index=r_shard(t), t.mold);
   (l, r);
 };
 
-let shapes = (t: t) => {
+let shapes = (t: t('p)) => {
   let (l, r) = nibs(t);
   (l.shape, r.shape);
 };
 
 let to_piece = t => Tile(t);
 
-let sorted_children = ({mold, shards, children, _}: t) =>
+let sorted_children = ({mold, shards, children, _}: t('p)) =>
   Aba.mk(shards, children)
   |> Aba.aba_triples
   |> List.map(((l, child, r)) => {
@@ -45,7 +46,8 @@ let sorted_children = ({mold, shards, children, _}: t) =>
        (l.sort == r.sort ? l.sort : Any, child);
      });
 
-let contained_children = (t: t): list((t, Base.segment, t)) =>
+let contained_children =
+    (t: t('p)): list((t('p), Base.segment('p), t('p))) =>
   Aba.mk(t.shards, t.children)
   |> Aba.aba_triples
   |> List.map(((l, child, r)) => {
@@ -75,18 +77,18 @@ let split_shards = (id, label, mold, shards) =>
      );
 
 // postcond: output segment is nonempty
-let disassemble = ({id, label, mold, shards, children}: t): segment => {
+let disassemble = ({id, label, mold, shards, children}: t('p)): segment('p) => {
   let shards = split_shards(id, label, mold, shards);
   Aba.mk(shards, children)
   |> Aba.join(s => [to_piece(s)], Fun.id)
   |> List.concat;
 };
 
-let disintegrate = ({id, label, mold, shards, _}: t): list(tile) => {
+let disintegrate = ({id, label, mold, shards, _}: t('p)): list(tile('p)) => {
   split_shards(id, label, mold, shards);
 };
 
-let reassemble = (match: Aba.t(t, segment)): t => {
+let reassemble = (match: Aba.t(t('p), segment('p))): t('p) => {
   let t = Aba.hd(match);
   let (shards, children) =
     match
@@ -110,11 +112,11 @@ let reassemble = (match: Aba.t(t, segment)): t => {
   };
 };
 
-let pop_l = (tile: t): (piece, segment) =>
+let pop_l = (tile: t('p)): (piece('p), segment('p)) =>
   disassemble(tile)
   |> ListUtil.split_first_opt
   |> OptUtil.get_or_raise(Empty_tile);
-let pop_r = (tile: t): (segment, piece) =>
+let pop_r = (tile: t('p)): (segment('p), piece('p)) =>
   disassemble(tile)
   |> ListUtil.split_last_opt
   |> OptUtil.get_or_raise(Empty_tile);

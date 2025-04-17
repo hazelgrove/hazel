@@ -1,13 +1,13 @@
 include Base;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = piece;
+type t('p) = piece('p);
 
 let secondary = w => Secondary(w);
 let grout = g => Grout(g);
 let tile = t => Tile(t);
 
-let get = (f_w, f_g, f_t: tile => _, f_p: projector => _, p: t) =>
+let get = (f_w, f_g, f_t: tile('p) => _, f_p: projector('p) => _, p: t('p)) =>
   switch (p) {
   | Secondary(w) => f_w(w)
   | Grout(g) => f_g(g)
@@ -16,7 +16,7 @@ let get = (f_w, f_g, f_t: tile => _, f_p: projector => _, p: t) =>
   };
 
 let id =
-  get(Secondary.id, Grout.id, tile => tile.id, projector => projector.id);
+  get(Secondary.id, Grout.id, tile => tile.id, projector => projector.id, _);
 
 let sort =
   get(
@@ -24,6 +24,7 @@ let sort =
     _ => (Sort.Any, []),
     t => (t.mold.out, t.mold.in_),
     _ => (Sort.Any, []),
+    _,
   );
 
 let nibs =
@@ -60,6 +61,7 @@ let nibs =
         ),
       );
     },
+    _,
   );
 
 let nib_sorts =
@@ -71,18 +73,19 @@ let nib_sorts =
       (l.sort, r.sort);
     },
     _ => (Sort.Any, Sort.Any),
+    _,
   );
 
-let sorted_children = get(_ => [], _ => [], Tile.sorted_children, _ => []);
+let sorted_children = get(_ => [], _ => [], Tile.sorted_children, _ => [], _);
 
-let pop_l = (p: t): (t, segment) =>
+let pop_l = (p: t('p)): (t('p), segment('p)) =>
   switch (p) {
   | Tile(t) => Tile.pop_l(t)
   | Grout(_)
   | Secondary(_)
   | Projector(_) => (p, [])
   };
-let pop_r = (p: t): (segment, t) =>
+let pop_r = (p: t('p)): (segment('p), t('p)) =>
   switch (p) {
   | Tile(t) => Tile.pop_r(t)
   | Grout(_)
@@ -90,7 +93,7 @@ let pop_r = (p: t): (segment, t) =>
   | Projector(_) => ([], p)
   };
 
-let disassemble = (p: t): segment =>
+let disassemble = (p: t('p)): segment('p) =>
   switch (p) {
   | Grout(_)
   | Secondary(_)
@@ -104,52 +107,53 @@ let shapes =
     g => Some(Grout.shapes(g)),
     t => Some(Tile.shapes(t)),
     p => Some(ProjectorBase.shapes(p)),
+    _,
   );
 
-let is_convex = (p: t): bool =>
+let is_convex = (p: t('p)): bool =>
   switch (shapes(p)) {
   | Some((Convex, Convex)) => true
   | _ => false
   };
 
-let is_grout: t => bool =
+let is_grout: t('p) => bool =
   fun
   | Grout(_) => true
   | _ => false;
 
-let is_secondary: t => bool =
+let is_secondary: t('p) => bool =
   fun
   | Secondary(_) => true
   | _ => false;
 
-let is_tile: t => option(Tile.t) =
+let is_tile: t('p) => option(Tile.t('p)) =
   fun
   | Tile(t) => Some(t)
   | _ => None;
 
-let is_projector: t => option(projector) =
+let is_projector: t('p) => option(projector('p)) =
   fun
   | Projector(p) => Some(p)
   | _ => None;
 
-let label: t => option(Label.t) =
+let label: t('p) => option(Label.t) =
   fun
   | Tile({label, _}) => Some(label)
   | _ => None;
 
-let monotile: t => option(Token.t) =
+let monotile: t('p) => option(Token.t) =
   fun
   | Tile({label: [t], _}) => Some(t)
   | Secondary(w) when Secondary.is_comment(w) =>
     Some(Secondary.get_string(w.content))
   | _ => None;
 
-let is_complete: t => bool =
+let is_complete: t('p) => bool =
   fun
   | Tile(t) => Tile.is_complete(t)
   | _ => true;
 
-let mk_tile: (Form.t, list(list(t))) => t =
+let mk_tile: (Form.t, list(list(t('p)))) => t('p) =
   (form, children) =>
     Tile({
       id: Id.mk(),
@@ -159,35 +163,35 @@ let mk_tile: (Form.t, list(list(t))) => t =
       children,
     });
 
-let mk_mono = (sort: Sort.t, string: string): t =>
+let mk_mono = (sort: Sort.t, string: string): t('p) =>
   string |> Form.mk_atomic(sort) |> mk_tile(_, []);
 
-let of_mono = (syntax: t): option(string) =>
+let of_mono = (syntax: t('p)): option(string) =>
   switch (syntax) {
   | Tile({label: [l], _}) => Some(l)
   | _ => None
   };
 
-let is_case_or_rule = (p: t) =>
+let is_case_or_rule = (p: t('p)) =>
   switch (p) {
   | Tile({label: ["case", "end"], _}) => true
   | Tile({label: ["|", "=>"], _}) => true
   | _ => false
   };
-let is_not_case_or_rule_or_space = (p: t) =>
+let is_not_case_or_rule_or_space = (p: t('p)) =>
   switch (p) {
   | Tile({label: ["case", "end"], _}) => false
   | Tile({label: ["|", "=>"], _}) => false
   | Secondary(_) => false
   | _ => true
   };
-let not_comment_or_space = (p: t) =>
+let not_comment_or_space = (p: t('p)) =>
   switch (p) {
   | Secondary(s) => Secondary.is_linebreak(s)
   | _ => true
   };
 
-let is_term = (p: t) =>
+let is_term = (p: t('p)) =>
   switch (p) {
   | Grout(_)
   | Projector(_)
@@ -203,7 +207,7 @@ let is_term = (p: t) =>
 
 /* If the piece is parentheses, return the child. Otherwise,
  * return a singleton segment consisting of the piece */
-let unparenthesize = (piece: t): list(t) =>
+let unparenthesize = (piece: t('p)): list(t('p)) =>
   switch (piece) {
   | Tile({
       label: ["(", ")"],

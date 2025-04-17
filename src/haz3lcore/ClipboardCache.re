@@ -4,9 +4,9 @@
  * instead of reparsing if the clipboard text contents are the
  * same as text serialization of the cached segment */
 
-let cache: ref(option((string, Segment.t))) = ref(None);
+let cache: ref(option((string, Segment.t('p)))) = ref(None);
 
-let set = (seg: option(Segment.t), str: string): unit =>
+let set = (seg: option(Segment.t('p)), str: string): unit =>
   switch (seg) {
   | Some(seg) when Segment.deep_tile_complete(seg) =>
     /* This check makes sure we won't create backpack orphans */

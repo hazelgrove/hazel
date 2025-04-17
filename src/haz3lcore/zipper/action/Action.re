@@ -53,10 +53,10 @@ type chooser =
  * which defines the actions available internally to all projectors,
  * and from each projector's own internal action type */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type project =
+type project('p) =
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
-  | SetSyntax(Id.t, Base.segment) /* Set underlying syntax */
+  | SetSyntax(Id.t, Base.segment('p)) /* Set underlying syntax */
   | SetModel(Id.t, ProjectorCore.model) /* Set serialized projector model */
   | Focus(Id.t, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(Id.t, Direction.t); /* Pass control to parent editor */
@@ -74,7 +74,7 @@ type buffer =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type paste =
   | String(string)
-  | Segment(Segment.t);
+  | Segment(Segment.t('p));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
