@@ -25,7 +25,7 @@ type raw_livelit = {
   action_t: TermBase.Typ.t,
   update: (action_exp, model_exp) => model_exp,
   view: (model_exp, send_action) => Virtual_dom.Vdom.Node.t,
-  size: ProjectorCore.Shape.t,
+  size: ProjectorShape.t,
 };
 
 // referenced in docs/livelits.md
@@ -51,7 +51,7 @@ module type BuiltinLivelit = {
   let update: (action_t, model_t) => model_t;
   let view:
     (model_t, action_t => Ui_effect.t(unit)) => Virtual_dom.Vdom.Node.t;
-  let size: ProjectorCore.Shape.t;
+  let size: ProjectorShape.t;
 };
 
 /* Convert a BuiltinLivelit module into a rawLivelit record */

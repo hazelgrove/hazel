@@ -4,8 +4,12 @@
  */
 open Alcotest;
 open Haz3lcore;
-module Fresh = IdTagged.FreshGrammar;
-let exp_typ = testable(Fmt.using(Exp.show, Fmt.string), Exp.fast_equal);
+module Fresh = Semantics.IdTagged.FreshGrammar;
+let exp_typ =
+  testable(
+    Fmt.using(Semantics.Exp.show, Fmt.string),
+    Semantics.Exp.fast_equal,
+  );
 
 let parse_exp = (s: string) => {
   switch (Parse.parse_exp(s)) {

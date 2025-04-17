@@ -1,5 +1,5 @@
 type cursor('update) = {
-  info: option(Haz3lcore.Info.t),
+  info: option(Semantics.Info.t),
   selected_text: option(unit => string),
   selection: option(Haz3lcore.Segment.t),
   indicated_piece: option(Haz3lcore.Piece.t),

@@ -1,5 +1,5 @@
 open Util;
-open Haz3lcore;
+open Semantics;
 
 /* The result box at the bottom of a cell. This is either the TestResutls
    kind where only a summary of test results is shown, or the EvalResults kind
@@ -17,15 +17,10 @@ module Model = {
   type result =
     | NoElab
     | Evaluation({
-        elab: Haz3lcore.Exp.t,
-        result:
-          Calc.t(
-            Haz3lcore.ProgramResult.t(
-              (Haz3lcore.Exp.t, Haz3lcore.EvaluatorState.t),
-            ),
-          ),
-        cached_settings: Calc.saved(Haz3lcore.CoreSettings.t),
-        editor: Calc.saved((Haz3lcore.Exp.t, CodeSelectable.Model.t)),
+        elab: Exp.t,
+        result: Calc.t(ProgramResult.t((Exp.t, EvaluatorState.t))),
+        cached_settings: Calc.saved(CoreSettings.t),
+        editor: Calc.saved((Exp.t, CodeSelectable.Model.t)),
       })
     | Stepper(StepperView.Model.t);
 
@@ -86,7 +81,7 @@ module Model = {
     | None => Dynamics.Map.mk(Dynamics.Probe.Map.empty)
     };
 
-  let get_elaboration = (model: t): option(Haz3lcore.Exp.t) =>
+  let get_elaboration = (model: t): option(Exp.t) =>
     switch (model.result) {
     | Evaluation({elab, _}) => Some(elab)
     | Stepper(s) => StepperView.Model.get_elaboration(s)
@@ -102,7 +97,7 @@ module Update = {
     | ToggleStepper
     | StepperAction(StepperView.Update.t)
     | EvalEditorAction(CodeSelectable.Update.t)
-    | UpdateResult(Haz3lcore.ProgramResult.t(Haz3lcore.ProgramResult.inner));
+    | UpdateResult(ProgramResult.t(ProgramResult.inner));
 
   // Update is meant to make minimal changes to the model, and calculate will do the rest.
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) =>
@@ -162,8 +157,8 @@ module Update = {
             elab,
             result:
               NewValue(
-                Haz3lcore.ProgramResult.map(
-                  ({result: exp, state: s}: Haz3lcore.ProgramResult.inner) => {
+                ProgramResult.map(
+                  ({result: exp, state: s}: ProgramResult.inner) => {
                     (exp, s)
                   },
                   update,
@@ -186,8 +181,8 @@ module Update = {
 
   let calculate =
       (
-        ~settings: Haz3lcore.CoreSettings.t,
-        ~queue_worker: option(Haz3lcore.Exp.t => unit),
+        ~settings: CoreSettings.t,
+        ~queue_worker: option(Exp.t => unit),
         ~is_edited: bool,
         statics: Haz3lcore.CachedStatics.t,
         model: Model.t,
@@ -200,7 +195,7 @@ module Update = {
           Evaluation,
           Evaluation({elab: elab', result, cached_settings, editor}),
         )
-          when Haz3lcore.Exp.fast_equal(elab, elab') => {
+          when Exp.fast_equal(elab, elab') => {
           ...model,
           result:
             Evaluation({
@@ -221,9 +216,8 @@ module Update = {
                 result: {
                   switch (WorkerServer.work(elab)) {
                   | Ok((exp, state)) =>
-                    NewValue(Haz3lcore.ProgramResult.ResultOk((exp, state)))
-                  | Error(e) =>
-                    NewValue(Haz3lcore.ProgramResult.ResultFail(e))
+                    NewValue(ProgramResult.ResultOk((exp, state)))
+                  | Error(e) => NewValue(ProgramResult.ResultFail(e))
                   };
                 },
                 cached_settings: Pending,
@@ -238,7 +232,7 @@ module Update = {
             result:
               Evaluation({
                 elab,
-                result: NewValue(Haz3lcore.ProgramResult.ResultPending),
+                result: NewValue(ProgramResult.ResultPending),
                 cached_settings: Pending,
                 editor: Pending,
               }),
@@ -361,16 +355,16 @@ module View = {
 
   type event =
     | MakeActive(Selection.t)
-    | JumpTo(Haz3lcore.Id.t);
+    | JumpTo(Id.t);
 
-  let error_msg = (err: Haz3lcore.ProgramResult.error) =>
+  let error_msg = (err: ProgramResult.error) =>
     switch (err) {
-    | EvaulatorError(err) => Haz3lcore.EvaluatorError.show(err)
+    | EvaulatorError(err) => EvaluatorError.show(err)
     | UnknownException(str) => str
     | Timeout => "Evaluation timed out"
     };
 
-  let status_of: Haz3lcore.ProgramResult.t('a) => string =
+  let status_of: ProgramResult.t('a) => string =
     fun
     | ResultPending => "pending"
     | ResultOk(_) => "ok"
@@ -384,11 +378,8 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected,
         ~locked,
-        elab: Haz3lcore.Exp.t,
-        result:
-          Haz3lcore.ProgramResult.t(
-            (Haz3lcore.Exp.t, Haz3lcore.EvaluatorState.t),
-          ),
+        elab: Exp.t,
+        result: ProgramResult.t((Exp.t, EvaluatorState.t)),
         editor: Calc.saved(('a, CodeSelectable.Model.t)),
       ) => {
     let editor =
@@ -406,7 +397,7 @@ module View = {
         ~inject=a => inject(EvalEditorAction(a)),
         ~globals,
         ~selected,
-        ~sort=Haz3lcore.Sort.root,
+        ~sort=Sort.root,
         editor,
       );
     let exn_view =
@@ -496,10 +487,7 @@ module View = {
       (~font_metrics, insts, ms: Haz3lcore.Measured.Shards.t): option(Node.t) =>
     switch (ms) {
     | [(_, {origin: _, last}), ..._] =>
-      let status =
-        insts
-        |> Haz3lcore.TestMap.joint_status
-        |> Haz3lcore.TestStatus.to_string;
+      let status = insts |> TestMap.joint_status |> TestStatus.to_string;
       let pos = DecUtil.abs_position(~font_metrics, last);
       Some(
         Node.div(~attrs=[Attr.classes(["test-result", status]), pos], []),
@@ -511,14 +499,14 @@ module View = {
       (
         ~font_metrics,
         ~measured: Haz3lcore.Measured.t,
-        test_results: Haz3lcore.TestResults.t,
+        test_results: TestResults.t,
       )
       : Web.Node.t =>
     Web.div_c(
       "test-decos",
       List.filter_map(
         ((id, insts)) =>
-          switch (Haz3lcore.Id.Map.find_opt(id, measured.tiles)) {
+          switch (Id.Map.find_opt(id, measured.tiles)) {
           | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
           | None => None
           },
@@ -566,7 +554,7 @@ module View = {
         text("Evaluation disabled, showing elaboration:"),
         switch (Model.get_elaboration(model)) {
         | Some(elab) =>
-          let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
+          let shape_map = Haz3lcore.ProjectorCore.Shape.Map.empty; // assume no projectors
           elab
           |> Haz3lcore.ExpToSegment.(
                exp_to_segment(

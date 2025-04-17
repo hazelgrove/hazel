@@ -8,13 +8,13 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let bool_of = (any: Any.t): option(bool) =>
+  let bool_of = (any: Semantics.Any.t): option(bool) =>
     switch (any) {
     | Exp({term: Atom(Bool(b)), _}) => Some(b)
     | _ => None
     };
 
-  let init = (any: Term.Any.t) =>
+  let init = (any: Semantics.Any.t) =>
     switch (bool_of(any)) {
     | Some(_) => Some()
     | None => None

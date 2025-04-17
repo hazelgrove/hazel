@@ -24,6 +24,11 @@ module Point = Point;
 module Calc = Calc;
 module Sets = Sets;
 module Maps = Maps;
+module Id = Id;
+module Unicode = Unicode;
+module StructureShareSexp = StructureShareSexp;
+module VarMap = VarMap;
+module ProjectorShape = ProjectorShape;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

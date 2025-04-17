@@ -18,7 +18,7 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   };
 
 let init =
-    (kind: ProjectorCore.Kind.t, syntax: syntax, any: Term.Any.t)
+    (kind: ProjectorCore.Kind.t, syntax: syntax, any: Semantics.Any.t)
     : option(syntax) => {
   let (module P) = to_module(kind);
   switch (P.init(any)) {
@@ -28,7 +28,7 @@ let init =
 };
 
 let init_or_noop =
-    (kind: ProjectorCore.Kind.t, syntax: syntax, any: Term.Any.t): syntax =>
+    (kind: ProjectorCore.Kind.t, syntax: syntax, any: Semantics.Any.t): syntax =>
   switch (init(kind, syntax, any)) {
   | Some(pr) => pr
   | None => syntax
@@ -38,7 +38,7 @@ let init_or_noop_from_str =
     (
       kind: ProjectorCore.Kind.t,
       syntax: syntax,
-      any: Term.Any.t,
+      any: Semantics.Term.Any.t,
       model_str: string,
     )
     : syntax => {

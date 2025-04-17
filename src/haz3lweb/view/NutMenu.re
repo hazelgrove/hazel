@@ -2,7 +2,6 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 open Widgets;
-open Haz3lcore;
 
 // COMPONENTS
 
@@ -95,7 +94,7 @@ let stepper_group = (~globals: Globals.t) => {
         Evaluation(ShowFilters),
       ),
       (
-        Unicode.castArrowSym,
+        Util.Unicode.castArrowSym,
         "Show Cast Steps",
         s.show_cast_steps,
         Evaluation(ShowCastSteps),

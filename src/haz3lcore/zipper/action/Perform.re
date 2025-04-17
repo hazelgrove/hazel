@@ -1,5 +1,6 @@
 open Util;
 open Zipper;
+open Semantics;
 
 let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
@@ -10,7 +11,7 @@ let buffer_clear = (z: t): t =>
   | _ => z
   };
 
-let set_buffer = (info_map: Statics.Map.t, z: t): t =>
+let set_buffer = (info_map: Semantics.Statics.Map.t, z: t): t =>
   switch (TyDi.set_buffer(~info_map, z)) {
   | None => z
   | Some(z) => z
@@ -18,7 +19,7 @@ let set_buffer = (info_map: Statics.Map.t, z: t): t =>
 
 let go_z =
     (
-      ~settings as _: CoreSettings.t,
+      ~settings as _: Semantics.CoreSettings.t,
       statics: CachedStatics.t,
       a: Action.t,
       module M: Move.S,
@@ -142,7 +143,7 @@ let go_z =
         open OptUtil.Syntax;
         let* idx = Indicated.index(z);
         let* ci = Id.Map.find_opt(idx, statics.info_map);
-        let* binding_id = Info.get_binding_site(ci);
+        let* binding_id = Semantics.Info.get_binding_site(ci);
         Move.jump_to_id(z, binding_id);
       | TileId(id) => Move.jump_to_id(z, id)
       }

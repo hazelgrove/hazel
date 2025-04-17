@@ -27,7 +27,7 @@ let format_hazel = path => {
 let analyze_hazel = path => {
   let program = read_input(path);
   let parsed = Parse.parse_program(program);
-  open Haz3lcore;
+  open Semantics;
   let static_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), parsed);
   let errors = List.map(snd, Statics.Map.errors(static_map));

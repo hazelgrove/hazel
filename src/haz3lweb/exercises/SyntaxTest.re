@@ -1,4 +1,4 @@
-open Haz3lcore;
+open Semantics;
 open Util;
 
 /*

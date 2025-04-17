@@ -2,8 +2,8 @@ open Junit_alcotest;
 
 Printexc.register_printer(exn => {
   switch (exn) {
-  | Haz3lcore.EvaluatorError.Exception(msg) =>
-    Some(Haz3lcore.EvaluatorError.show(msg))
+  | Semantics.EvaluatorError.Exception(msg) =>
+    Some(Semantics.EvaluatorError.show(msg))
   | _ => None
   }
 });

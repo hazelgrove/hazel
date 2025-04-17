@@ -70,7 +70,7 @@ module Map = {
     switch (lookup(id, m)) {
     | Some(InfoExp({co_ctx, ctx, _})) =>
       co_ctx
-      |> VarMap.to_list
+      |> Util.VarMap.to_list
       |> List.map(((n, _)) => Ctx.binding_of(ctx, n))
     | _ => []
     };

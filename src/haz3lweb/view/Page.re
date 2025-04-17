@@ -390,13 +390,13 @@ module View = {
         let str = (cursor.selected_text |> Option.value(~default=() => ""))();
         /* Note that we cannot use the ClipboardCache system here unless
          * we refine it further to replace unique ids on paste */
-        Haz3lcore.ClipboardCache.set(cursor.selection, str);
+        ClipboardCache.set(cursor.selection, str);
         JsUtil.copy(str);
         Effect.Ignore;
       }),
       Attr.on_cut(_ => {
         let str = (cursor.selected_text |> Option.value(~default=() => ""))();
-        Haz3lcore.ClipboardCache.set(cursor.selection, str);
+        ClipboardCache.set(cursor.selection, str);
         JsUtil.copy(str);
         Option.map(
           inject,
@@ -422,7 +422,7 @@ module View = {
         Dom.preventDefault(evt);
         let action =
           Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-          |> Haz3lcore.ClipboardCache.get
+          |> ClipboardCache.get
           |> cursor.editor_action;
         switch (action) {
         | None => Effect.Ignore

@@ -112,7 +112,7 @@ type pat =
   | CastPat(pat, typ, typ)
   | EmptyHolePat
   | WildPat
-  | AtomPat(Haz3lcore.Atom.t)
+  | AtomPat(Semantics.Atom.t)
   | VarPat(string)
   | ConstructorPat(string, option(option(typ)))
   | TuplePat(list(pat))
@@ -136,7 +136,7 @@ type deferral_pos =
 
 [@deriving (show({with_path: false}), sexp, eq)]
 type exp =
-  | Atom(Haz3lcore.Atom.t)
+  | Atom(Semantics.Atom.t)
   | Var(string)
   | Constructor(string, option(option(typ)))
   | ListExp(list(exp))
@@ -188,7 +188,7 @@ let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
         let* leading = char_range('A', 'Z');
         let+ tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
         let ident = String.make(1, leading) ++ tail;
-        if (List.exists(a => a == ident, Haz3lcore.Form.base_typs)) {
+        if (List.exists(a => a == ident, ["String", "Int", "Float", "Bool"])) {
           "Keyword";
         } else {
           ident;

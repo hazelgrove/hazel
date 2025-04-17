@@ -1,6 +1,6 @@
 open Alcotest;
 open Test_Evaluator_Prelude;
-open Haz3lcore.IdTagged.FreshGrammar;
+open Semantics.IdTagged.FreshGrammar;
 open Exp;
 
 let tests = (

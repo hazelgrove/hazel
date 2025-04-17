@@ -86,11 +86,10 @@ module Slider: BuiltinLivelit = {
     );
   };
 
-  let size: ProjectorCore.Shape.t =
-    ProjectorCore.Shape.{
-      vertical: Inline,
-      horizontal: 20,
-    };
+  let size: Util.ProjectorShape.t = {
+    vertical: Inline,
+    horizontal: 20,
+  };
 };
 
 module Emotion: BuiltinLivelit = {
@@ -180,7 +179,7 @@ module Emotion: BuiltinLivelit = {
       };
 
   let size =
-    ProjectorCore.Shape.{
+    Util.ProjectorShape.{
       vertical: Block(10),
       horizontal: 20,
     };
@@ -432,11 +431,10 @@ module Js: BuiltinLivelit = {
   };
 
   /* Reasonable default shape. */
-  let size: ProjectorCore.Shape.t =
-    ProjectorCore.Shape.{
-      vertical: Inline,
-      horizontal: 40,
-    };
+  let size: Util.ProjectorShape.t = {
+    vertical: Inline,
+    horizontal: 40,
+  };
 };
 
 let livelits: list(raw_livelit) =

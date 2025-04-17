@@ -1,12 +1,9 @@
 open Haz3lmenhir;
 open Alcotest;
-open Haz3lcore;
+open Semantics;
 module Fresh = IdTagged.FreshGrammar;
 let alco_check =
-  testable(
-    Fmt.using(Haz3lcore.Exp.show, Fmt.string),
-    Haz3lcore.DHExp.fast_equal,
-  )
+  (testable(Fmt.using(Exp.show, Fmt.string)))(DHExp.fast_equal)
   |> Alcotest.check;
 
 let strip_Wrap_and_add_builtins =
@@ -17,8 +14,7 @@ let strip_Wrap_and_add_builtins =
         | Parens(e)
         | Probe(e, _) => cont(e)
         | Var(x) =>
-          let builtin =
-            VarMap.lookup(Haz3lcore.Builtins.Pervasives.builtins, x);
+          let builtin = Util.VarMap.lookup(Builtins.Pervasives.builtins, x);
           cont(
             switch (builtin) {
             | Some(Fn(_, _, _)) => cont(Fresh.Exp.builtin_fun(x))
@@ -47,7 +43,10 @@ let strip_Wrap_and_add_builtins =
 // Existing recovering parser
 let make_term_parse = (s: string) =>
   strip_Wrap_and_add_builtins(
-    MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term,
+    Haz3lcore.MakeTerm.from_zip_for_sem(
+      Option.get(Haz3lcore.Printer.zipper_of_string(s)),
+    ).
+      term,
   );
 
 let menhir_matches = (exp: Term.Exp.t, actual: string) =>
@@ -110,20 +109,24 @@ let qcheck_menhir_maketerm_equivalent_test =
     QCheck_Util.arb_exp(~minimal_idents=false, 7),
     core_exp => {
       let segment =
-        ExpToSegment.exp_to_segment(
+        Haz3lcore.ExpToSegment.exp_to_segment(
           ~settings=
-            ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+            Haz3lcore.ExpToSegment.Settings.of_core(
+              ~inline=true,
+              Semantics.CoreSettings.off,
+            ),
           core_exp,
         );
 
-      let serialized = Printer.of_segment(~holes=Some("?"), segment);
+      let serialized =
+        Haz3lcore.Printer.of_segment(~holes=Some("?"), segment);
       let make_term_parsed = make_term_parse(serialized);
       let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
       let menhir_parsed_converted =
         Haz3lmenhir.Conversion.Exp.of_menhir_ast(menhir_parsed);
 
       switch (
-        Haz3lcore.DHExp.fast_equal(
+        DHExp.fast_equal(
           make_term_parsed,
           Grammar.map_exp_annotation(
             _ => IdTagged.IdTag.fresh(),
@@ -163,7 +166,7 @@ let qcheck_menhir_serialized_equivalent_test =
       let core_exp =
         Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp);
       let segment =
-        ExpToSegment.exp_to_segment(
+        Haz3lcore.ExpToSegment.exp_to_segment(
           ~settings={
             inline: true,
             fold_case_clauses: false,
@@ -174,7 +177,8 @@ let qcheck_menhir_serialized_equivalent_test =
           },
           core_exp,
         );
-      let serialized = Printer.of_segment(~holes=Some("?"), segment);
+      let serialized =
+        Haz3lcore.Printer.of_segment(~holes=Some("?"), segment);
       let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
       AST.equal_exp(menhir_parsed, exp);
     },

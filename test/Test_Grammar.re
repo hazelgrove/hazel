@@ -1,4 +1,4 @@
-open Haz3lcore;
+open Semantics;
 open Alcotest;
 let qcheck_map_annotation_test =
   QCheck.Test.make(

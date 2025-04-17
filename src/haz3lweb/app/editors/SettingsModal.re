@@ -1,11 +1,10 @@
 open Virtual_dom.Vdom;
 open Node;
-open Haz3lcore;
 
 let view =
     (
       ~inject: Settings.Update.t => Ui_effect.t(unit),
-      settings: CoreSettings.Evaluation.t,
+      settings: Semantics.CoreSettings.Evaluation.t,
     ) => {
   let modal = div(~attrs=[Attr.class_("settings-modal")]);
   let setting = (icon, name, current, action: Settings.Update.t) =>
@@ -49,7 +48,7 @@ let view =
         Evaluation(ShowFixpoints),
       ),
       setting(
-        Unicode.castArrowSym,
+        Util.Unicode.castArrowSym,
         "show cast steps",
         settings.show_cast_steps,
         Evaluation(ShowCastSteps),

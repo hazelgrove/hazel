@@ -1,6 +1,7 @@
 open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
+open Semantics;
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -22,7 +23,7 @@ module M: Projector = {
       None;
     };
 
-  let init = (any: Term.Any.t) =>
+  let init = (any: Semantics.Term.Any.t) =>
     switch (any) {
     | Exp({term: Ap(_dir, {term: LivelitName(_), _}, _), _})
     | Exp({

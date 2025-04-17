@@ -1,12 +1,12 @@
 include Sexplib.Std;
 
 module IndicatedG =
-  Haz3lcore.Grammar.Factory({
+  Semantics.Grammar.Factory({
     type t = bool;
     let default_value = () => false;
   });
 module FilterAction = {
-  open Haz3lcore.FilterAction;
+  open Semantics.FilterAction;
   let of_menhir_ast = (a: AST.filter_action): t => {
     switch (a) {
     | Eval => (Eval, All)
@@ -27,7 +27,7 @@ module FilterAction = {
 };
 
 module Operators = {
-  open Haz3lcore.Operators;
+  open Semantics.Operators;
 
   let op_un_meta_of_menhir_ast = (op: AST.op_un_meta) => {
     switch (op) {
@@ -199,7 +199,7 @@ module rec Exp: {
   let of_menhir_ast: AST.exp => IndicatedG.exp;
   let of_core: IndicatedG.exp => AST.exp;
   let get_indicated_ids:
-    IndicatedG.exp => (Haz3lcore.Exp.t, list(Haz3lcore.Id.t));
+    IndicatedG.exp => (Semantics.Exp.t, list(Semantics.Id.t));
 } = {
   open IndicatedG.Exp;
   let rec of_menhir_ast = (exp: AST.exp): IndicatedG.exp => {
@@ -245,7 +245,7 @@ module rec Exp: {
         List.mem(AST.Deferral, l)
           ? deferred_ap(of_menhir_ast(e1), List.map(of_menhir_ast, l))
           : ap(
-              Haz3lcore.Operators.Forward,
+              Semantics.Operators.Forward,
               of_menhir_ast(e1),
               of_menhir_ast(args),
             )
@@ -253,7 +253,7 @@ module rec Exp: {
 
       | _ =>
         ap(
-          Haz3lcore.Operators.Forward,
+          Semantics.Operators.Forward,
           of_menhir_ast(e1),
           of_menhir_ast(args),
         )
@@ -306,7 +306,7 @@ module rec Exp: {
     | DynamicErrorHole(e, s) =>
       dynamic_error_hole(
         of_menhir_ast(e),
-        Haz3lcore.InvalidOperationError.t_of_sexp(sexp_of_string(s)),
+        Semantics.InvalidOperationError.t_of_sexp(sexp_of_string(s)),
       )
     | IndicationExp(e) => {
         annotation: true,
@@ -357,7 +357,7 @@ module rec Exp: {
     | DynamicErrorHole(e, s) =>
       DynamicErrorHole(
         of_core(e),
-        Sexplib.Sexp.to_string(Haz3lcore.InvalidOperationError.sexp_of_t(s)),
+        Sexplib.Sexp.to_string(Semantics.InvalidOperationError.sexp_of_t(s)),
       )
     | Deferral(_) => Deferral
     | Filter(Residue(_), _) => raise(Failure("Residue not supported"))
@@ -379,8 +379,8 @@ module rec Exp: {
 
   let get_indicated_ids =
       (indicated_exp: IndicatedG.exp)
-      : (Haz3lcore.Exp.t, list(Haz3lcore.Id.t)) => {
-    open Haz3lcore;
+      : (Semantics.Exp.t, list(Semantics.Id.t)) => {
+    open Semantics;
     // mutable array to gather indicated IDs when generating expressions
     let indicated_ids = Dynarray.create();
     let e =
@@ -426,7 +426,7 @@ and Typ: {
     | ArrayType(t) => list(of_menhir_ast(t))
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
     | SumTyp(sumterms) =>
-      open Haz3lcore;
+      open Semantics;
       let converted_terms: list(ConstructorMap.variant(IndicatedG.typ)) =
         List.map(
           (sumterm: AST.sumterm): ConstructorMap.variant(IndicatedG.typ) =>
@@ -480,7 +480,7 @@ and Typ: {
     | Sum(constructors) =>
       let sumterms =
         List.map(
-          (variant: Haz3lcore.ConstructorMap.variant(IndicatedG.typ)): AST.sumterm => {
+          (variant: Semantics.ConstructorMap.variant(IndicatedG.typ)): AST.sumterm => {
             switch (variant) {
             | Variant(name, _, None) => Variant(name, None)
             | Variant(name, _, Some(t)) => Variant(name, Some(of_core(t)))

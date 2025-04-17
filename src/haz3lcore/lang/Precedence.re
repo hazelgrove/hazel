@@ -108,7 +108,7 @@ let associativity_map: IntMap.t(Direction.t) =
 let associativity = (p: t): option(Direction.t) =>
   IntMap.find_opt(p, associativity_map);
 
-let of_bin_op: Operators.op_bin => t =
+let of_bin_op: Semantics.Operators.op_bin => t =
   fun
   | Nat(op)
   | SInt(op)

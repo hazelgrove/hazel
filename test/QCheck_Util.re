@@ -1,4 +1,5 @@
 open Haz3lcore;
+open Semantics;
 open QCheck;
 open Haz3lmenhir;
 

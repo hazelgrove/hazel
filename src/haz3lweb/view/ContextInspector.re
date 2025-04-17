@@ -6,9 +6,9 @@ let alias_view = (s: string): Node.t =>
   div(~attrs=[clss(["typ-alias-view"])], [text(s)]);
 
 let jump_to = entry =>
-  Globals.Update.JumpToTile(Haz3lcore.Ctx.get_id(entry));
+  Globals.Update.JumpToTile(Semantics.Ctx.get_id(entry));
 
-let context_entry_view = (~globals, entry: Haz3lcore.Ctx.entry): Node.t => {
+let context_entry_view = (~globals, entry: Semantics.Ctx.entry): Node.t => {
   let view_type =
     CodeViewable.view_typ(
       ~globals,
@@ -63,29 +63,29 @@ let context_entry_view = (~globals, entry: Haz3lcore.Ctx.entry): Node.t => {
   };
 };
 
-let ctx_view = (~globals, ctx: Haz3lcore.Ctx.t): Node.t =>
+let ctx_view = (~globals, ctx: Semantics.Ctx.t): Node.t =>
   div(
     ~attrs=[clss(["context-inspector"])],
     List.map(
       context_entry_view(~globals),
       ctx
-      |> Haz3lcore.Ctx.filter_duplicates
-      |> Haz3lcore.Ctx.filter_stepper_filter_variables
+      |> Semantics.Ctx.filter_duplicates
+      |> Semantics.Ctx.filter_stepper_filter_variables
       |> (x => x.entries)
       |> List.rev,
     ),
   );
 
-let ctx_sorts_view = (~globals, ci: Haz3lcore.Statics.Info.t) =>
-  Haz3lcore.Info.ctx_of(ci)
-  |> Haz3lcore.Ctx.filter_duplicates
-  |> Haz3lcore.Ctx.filter_stepper_filter_variables
+let ctx_sorts_view = (~globals, ci: Semantics.Statics.Info.t) =>
+  Semantics.Info.ctx_of(ci)
+  |> Semantics.Ctx.filter_duplicates
+  |> Semantics.Ctx.filter_stepper_filter_variables
   |> (x => x.entries)
   |> List.rev
   |> List.map(context_entry_view(~globals));
 
 let view =
-    (~globals: Globals.t, ci: option(Haz3lcore.Statics.Info.t)): Node.t => {
+    (~globals: Globals.t, ci: option(Semantics.Statics.Info.t)): Node.t => {
   let clss =
     clss(
       ["context-inspector"]

@@ -66,7 +66,10 @@ module Update = {
            },
          );
     switch (action) {
-    | Perform(action) => perform(action, model)
+    | Perform(action) =>
+      settings.core.flip_animations && Action.should_animate(action)
+        ? Animation.request([Animation.Actions.move("caret")]) : ();
+      perform(action, model);
     | Undo =>
       switch (Editor.Update.undo(model.editor)) {
       | Some(editor) =>

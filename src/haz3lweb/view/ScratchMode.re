@@ -204,11 +204,11 @@ module Update = {
                   UpdateResult(
                     switch (r |> List.hd |> snd) {
                     | Ok((r, s)) =>
-                      Haz3lcore.ProgramResult.ResultOk({
+                      Semantics.ProgramResult.ResultOk({
                         result: r,
                         state: s,
                       })
-                    | Error(e) => Haz3lcore.ProgramResult.ResultFail(e)
+                    | Error(e) => Semantics.ProgramResult.ResultFail(e)
                     },
                   ),
                 ),

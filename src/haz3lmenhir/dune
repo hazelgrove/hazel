@@ -1,6 +1,6 @@
 (library
  (name haz3lmenhir)
- (libraries util re sexplib unionFind haz3lcore qcheck-alcotest)
+ (libraries util re sexplib unionFind semantics qcheck-alcotest)
  (modules AST Conversion Interface Lexer Parser)
  (instrumentation
   (backend bisect_ppx))
