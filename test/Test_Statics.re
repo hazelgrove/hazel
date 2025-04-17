@@ -157,7 +157,7 @@ module FTemp =
 let qcheck_statics_does_not_crash =
   QCheck.Test.make(
     ~name="Statics does not crash",
-    ~count=1000,
+    ~count=10000,
     QCheck_Util.arb_exp,
     exp => {
       let _ = statics(exp);
