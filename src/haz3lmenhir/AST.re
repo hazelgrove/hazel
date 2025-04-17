@@ -1048,7 +1048,10 @@ and shrink_typ: QCheck.Shrink.t(typ) =
               )
             );
           let* shrunk = Shrink.list(l, ~shrink=shrink_sumterm);
-          return(SumTyp(shrunk));
+          switch (shrunk) {
+          | [] => Iter.empty
+          | _ => return(SumTyp(shrunk))
+          };
         | TupleType(l) =>
           let* shrunk = Shrink.list(l, ~shrink=shrink_typ);
           switch (shrunk) {
