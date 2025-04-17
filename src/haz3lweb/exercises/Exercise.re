@@ -87,7 +87,7 @@ type pos =
 type spec = p(Zipper.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type transitionary_spec = p(CodeString.t);
+type transitionary_spec = p(string);
 
 let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
   {
@@ -329,7 +329,7 @@ let eds_of_spec =
         hidden_tests,
         syntax_tests,
       },
-      ~settings as _: CoreSettings.t,
+      ~settings as _: Semantics.CoreSettings.t,
     ) => {
   let editor_of_serialization = Editor.Model.mk;
   let prelude = editor_of_serialization(prelude);
@@ -397,7 +397,7 @@ let visible_in = (pos, ~instructor_mode) => {
 
 module TermItem = {
   type t = {
-    term: Exp.t,
+    term: Semantics.Exp.t,
     editor: Editor.t,
   };
 };
@@ -475,14 +475,19 @@ let put_stitched = (pos, s: stitched('a), x: 'a): stitched('a) =>
     }
   };
 
-let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
+let wrap_filter =
+    (act: Semantics.FilterAction.action, term: Semantics.Exp.t)
+    : Semantics.Exp.t => {
   term:
     Filter(
       Filter({
-        act: FilterAction.(act, One),
+        act: Semantics.FilterAction.(act, One),
         pat: {
           term:
-            Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh))),
+            Constructor(
+              "$e",
+              Some(Some(Unknown(Internal) |> Semantics.Typ.fresh)),
+            ),
           annotation: {
             ids: [Id.mk()],
           },
@@ -500,31 +505,113 @@ let wrap = (term, editor: Editor.t): TermItem.t => {
   editor,
 };
 
-let term_of = (editor: Editor.t): Exp.t =>
+let term_of = (editor: Editor.t): Semantics.Exp.t =>
   MakeTerm.from_zip_for_sem(editor.state.zipper).term;
 
+let rec append_exp =
+        (e1: Semantics.Exp.t, e2: Semantics.Exp.t): Semantics.Exp.t => {
+  switch (e1.term) {
+  | EmptyHole
+  | Invalid(_)
+  | MultiHole(_)
+  | DynamicErrorHole(_)
+  | FailedCast(_)
+  | Undefined
+  | Deferral(_)
+  | Atom(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Closure(_)
+  | Fun(_)
+  | TypFun(_)
+  | FixF(_)
+  | Tuple(_)
+  | TupLabel(_)
+  | Label(_)
+  | Dot(_)
+  | Var(_)
+  | Ap(_)
+  | TypAp(_)
+  | DeferredAp(_)
+  | If(_)
+  | Test(_)
+  | Parens(_)
+  | Probe(_)
+  | Cons(_)
+  | ListConcat(_)
+  | LivelitName(_)
+  | UnOp(_)
+  | BinOp(_)
+  | BuiltinFun(_)
+  | Cast(_)
+  | Match(_) => {
+      term: Seq(e1, e2),
+      annotation: {
+        ids: [Id.mk()],
+      },
+    }
+  | Seq(e11, e12) =>
+    let e12' = append_exp(e12, e2);
+    {
+      term: Seq(e11, e12'),
+      annotation: {
+        ids: Semantics.IdTagged.ids(e1),
+      },
+    };
+  | Filter(kind, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: Filter(kind, ebody'),
+      annotation: {
+        ids: Semantics.IdTagged.ids(e1),
+      },
+    };
+  | Let(p, edef, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: Let(p, edef, ebody'),
+      annotation: {
+        ids: Semantics.IdTagged.ids(e1),
+      },
+    };
+  | TyAlias(tp, tdef, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: TyAlias(tp, tdef, ebody'),
+      annotation: {
+        ids: Semantics.IdTagged.ids(e1),
+      },
+    };
+  | Use(t, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: Use(t, ebody'),
+      annotation: {
+        ids: Semantics.IdTagged.ids(e1),
+      },
+    };
+  };
+};
+
 let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
-  EditorUtil.append_exp(
-    EditorUtil.append_exp(term_of(ed1), term_of(ed2)),
-    term_of(ed3),
-  );
+  append_exp(append_exp(term_of(ed1), term_of(ed2)), term_of(ed3));
 
 let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
   let instructor =
     stitch3(eds.prelude, eds.correct_impl, eds.hidden_tests.tests);
   let user_impl_term = {
     let your_impl_term =
-      eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
+      eds.your_impl |> term_of |> wrap_filter(Semantics.FilterAction.Step);
     let prelude_term =
-      eds.prelude |> term_of |> wrap_filter(FilterAction.Eval);
-    EditorUtil.append_exp(prelude_term, your_impl_term);
+      eds.prelude |> term_of |> wrap_filter(Semantics.FilterAction.Eval);
+    append_exp(prelude_term, your_impl_term);
   };
   let test_validation_term =
     stitch3(eds.prelude, eds.correct_impl, eds.your_tests.tests);
   let user_tests_term =
-    EditorUtil.append_exp(user_impl_term, term_of(eds.your_tests.tests));
+    append_exp(user_impl_term, term_of(eds.your_tests.tests));
   let hidden_tests_term =
-    EditorUtil.append_exp(user_impl_term, term_of(eds.hidden_tests.tests));
+    append_exp(user_impl_term, term_of(eds.hidden_tests.tests));
   {
     test_validation: wrap(test_validation_term, eds.your_tests.tests),
     /* Passing tests term to user_impl so probes in impl reflect tests: */

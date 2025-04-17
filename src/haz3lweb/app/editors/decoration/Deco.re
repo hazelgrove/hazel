@@ -277,7 +277,7 @@ module Deco =
     );
 
   let term_range = (p): option((Point.t, Point.t)) => {
-    let id = Any.rep_id(Id.Map.find(Piece.id(p), terms));
+    let id = Semantics.Any.rep_id(Id.Map.find(Piece.id(p), terms));
     switch (TermRanges.find_opt(id, term_ranges)) {
     | None => None
     | Some((p_l, p_r)) =>
@@ -289,7 +289,7 @@ module Deco =
 
   let all_tiles = (p: Piece.t): list((Uuidm.t, Mold.t, Measured.Shards.t)) =>
     Id.Map.find(Piece.id(p), terms)
-    |> Any.ids
+    |> Semantics.Any.ids
     |> List.map(id => {
          let t = tile(id);
          let shards = Measured.find_shards(~msg="all_tiles", t, measured);
@@ -548,7 +548,7 @@ module Deco =
         let shards = Measured.find_shards(t, map);
         let range: option((Measured.Point.t, Measured.Point.t)) = {
           // if (Piece.has_ends(p)) {
-          let id = Id.Map.find(id, terms) |> Any.rep_id;
+          let id = Id.Map.find(id, terms) |> Semantics.Any.rep_id;
           switch (TermRanges.find_opt(id, term_ranges)) {
           | None => None
           | Some((p_l, p_r)) =>
@@ -598,7 +598,7 @@ module Deco =
         let shards = Measured.find_shards(t, map);
         let range: option((Measured.Point.t, Measured.Point.t)) = {
           // if (Piece.has_ends(p)) {
-          let id = Id.Map.find(id, terms) |> Any.rep_id;
+          let id = Id.Map.find(id, terms) |> Semantics.Any.rep_id;
           switch (TermRanges.find_opt(id, term_ranges)) {
           | None => None
           | Some((p_l, p_r)) =>

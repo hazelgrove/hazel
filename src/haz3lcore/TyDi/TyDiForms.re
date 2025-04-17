@@ -1,5 +1,6 @@
 open Util;
 open OptUtil.Syntax;
+open Semantics;
 
 /* This module generates TyDi suggestions which depend
  * neither on the typing context or the backpack */
@@ -172,7 +173,8 @@ module Delims = {
     };
 };
 
-let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
+let suggest_form =
+    (ty_map, delims_of_sort, ci: Info.t): list(TyDiSuggestion.t) => {
   let sort = Info.sort_of(ci);
   let delims = delims_of_sort(sort);
   let filtered =
@@ -181,7 +183,7 @@ let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
   | Exp =>
     List.map(
       ((content, ty)) =>
-        Suggestion.{
+        TyDiSuggestion.{
           content,
           strategy: Exp(Common(NewForm(ty))),
         },
@@ -190,7 +192,7 @@ let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
   | Pat =>
     List.map(
       ((content, ty)) =>
-        Suggestion.{
+        TyDiSuggestion.{
           content,
           strategy: Pat(Common(NewForm(ty))),
         },
@@ -199,7 +201,7 @@ let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
   | _ =>
     delims
     |> List.map(content =>
-         Suggestion.{
+         TyDiSuggestion.{
            content,
            strategy: Typ(NewForm),
          }
@@ -207,7 +209,7 @@ let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
   };
 };
 
-let suggest_operator: Info.t => list(Suggestion.t) =
+let suggest_operator: Info.t => list(TyDiSuggestion.t) =
   info => {
     switch (info) {
     | InfoExp({
@@ -225,8 +227,8 @@ let suggest_operator: Info.t => list(Suggestion.t) =
     };
   };
 
-let suggest_operand: Info.t => list(Suggestion.t) =
+let suggest_operand: Info.t => list(TyDiSuggestion.t) =
   suggest_form(Typ.of_const_mono_delim, Delims.const_mono);
 
-let suggest_leading: Info.t => list(Suggestion.t) =
+let suggest_leading: Info.t => list(TyDiSuggestion.t) =
   suggest_form(Typ.of_leading_delim, Delims.delayed_leading);

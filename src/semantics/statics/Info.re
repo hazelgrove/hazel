@@ -49,7 +49,7 @@ type error_inconsistent =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_no_type =
   /* Invalid expression token, treated as hole */
-  | BadToken(Token.t)
+  | BadToken(string)
   /* Invalid operator for current use mode, treated as hole */
   | BadOperator(string)
   /* Empty application of function with inconsistent type */
@@ -170,7 +170,7 @@ type typ_expects =
    possible be reimplemeted via a seperate sort */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_typ =
-  | BadToken(Token.t) /* Invalid token, treated as type hole */
+  | BadToken(string) /* Invalid token, treated as type hole */
   | FreeTypeVariable(string) /* Free type variable */
   | DuplicateConstructor(Constructor.t) /* Duplicate ctr in same sum */
   | DuplicateLabels(list(LabeledTuple.label), Typ.t)
@@ -677,7 +677,7 @@ let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
   | EmptyHole => NotInHole(Empty)
   | Var(name) when Ctx.shadows_typ(ctx, name) =>
     let f = src => InHole(ShadowsType(name, src));
-    if (Form.is_base_typ(name)) {
+    if (Ctx.is_base_typ(name)) {
       f(BaseTyp);
     } else if (Ctx.is_alias(ctx, name)) {
       f(TyAlias);

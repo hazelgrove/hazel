@@ -35,7 +35,7 @@ module Update = {
         ~settings,
         ~is_edited,
         ~stitch,
-        ~dynamics: Dynamics.Map.t,
+        ~dynamics: Semantics.Dynamics.Map.t,
         {editor, taken_steps, next_steps}: Model.t,
       )
       : Model.t => {

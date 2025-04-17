@@ -30,7 +30,7 @@ type t =
   | Just(Typ.t) /* Just a regular type */
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
-  | BadToken(Token.t) /* Invalid expression token, continues with undefined behavior */
+  | BadToken(string) /* Invalid expression token, continues with undefined behavior */
   | BadOperator(string) /* Invalid operator, continues with undefined behavior */
   | BadLivelitModel(Typ.t) /* Livelit model type is not valid */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */

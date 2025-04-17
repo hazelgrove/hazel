@@ -2,7 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 open Util;
-open Haz3lcore;
+open Semantics;
 
 let errc = "error";
 let okc = "ok";
@@ -89,7 +89,7 @@ let elements_noun: Cls.t => string =
   | cls =>
     failwith("elements_noun: " ++ Cls.show(cls) ++ " cls has no elements");
 
-let code_view_settings: ExpToSegment.Settings.t = {
+let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   inline: true,
   fold_case_clauses: false,
   fold_fn_bodies: false,
@@ -103,7 +103,7 @@ let view_any = (~globals, any: Term.Any.t) =>
   |> CodeViewable.view_any(
        ~globals,
        ~settings=code_view_settings,
-       ~shape_map=ProjectorCore.Shape.Map.empty // assume no projectors
+       ~shape_map=Haz3lcore.ProjectorCore.Shape.Map.empty // assume no projectors
      )
   |> code_box_container;
 
@@ -126,7 +126,7 @@ let common_err_view =
   (
     switch (err) {
     | NoType(BadToken(token)) =>
-      switch (Form.bad_token_cls(token)) {
+      switch (Haz3lcore.Form.bad_token_cls(token)) {
       | BadInt => [text("Integer is too large or too small")]
       | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
       }

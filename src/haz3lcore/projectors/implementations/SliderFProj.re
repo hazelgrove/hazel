@@ -8,13 +8,13 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let float_of = (any: Any.t): option(float) =>
+  let float_of = (any: Semantics.Any.t): option(float) =>
     switch (any) {
     | Exp({term: Atom(Float(f)), _}) => Some(f)
     | _ => None
     };
 
-  let init = (any: Term.Any.t) =>
+  let init = (any: Semantics.Any.t) =>
     switch (float_of(any)) {
     | Some(_) => Some()
     | None => None

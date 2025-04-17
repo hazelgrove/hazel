@@ -2,7 +2,7 @@ open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 
-let string_of = (any: Any.t): option(string) =>
+let string_of = (any: Semantics.Any.t): option(string) =>
   switch (any) {
   | Exp({term: Atom(String(s)), _}) =>
     Some(StringUtil.unescape_linebreaks(s))
@@ -86,7 +86,7 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let init = (any: Term.Any.t) =>
+  let init = (any: Semantics.Any.t) =>
     switch (string_of(any)) {
     | Some(_) => Some()
     | None => None

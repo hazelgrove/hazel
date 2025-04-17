@@ -1,5 +1,5 @@
 open Util;
-open Haz3lcore;
+open Semantics;
 open Sexplib.Std;
 open OptUtil.Syntax;
 

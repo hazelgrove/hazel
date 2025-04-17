@@ -1,5 +1,5 @@
 open Alcotest;
-open Haz3lcore;
+open Semantics;
 
 let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
@@ -52,7 +52,7 @@ let testable_error: testable(Info.error) =
 let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 
 let parse_exp = (s: string) => {
-  switch (Haz3lcore.Parse.parse_exp(s)) {
+  switch (Parse.parse_exp(s)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };

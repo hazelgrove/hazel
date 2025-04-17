@@ -173,7 +173,7 @@ let start = {
         } else {
           ();
         };
-        model.globals.settings.core.statics ? Haz3lcore.Animation.go() : ();
+        model.globals.settings.core.statics ? Animation.go() : ();
       },
       (),
     );
