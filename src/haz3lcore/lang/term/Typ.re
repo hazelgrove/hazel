@@ -562,7 +562,7 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
        the below code will be incorrect! */
     let ty =
       switch (ty |> term_of) {
-      | Rec({term: Var(x), _}, ty_body) =>
+      | Rec({term: Var(x), _}, _ty_body) =>
         switch (Ctx.lookup_alias(ctx, x)) {
         | None => unroll(ty)
         | Some(_) => unroll(ty)
@@ -601,6 +601,23 @@ let rec is_syn = (ty: t): bool =>
   | Arrow(_)
   | Prod(_)
   | Sum(_) => false
+  };
+
+let rec is_ana_atom = (ty: t) =>
+  switch (ty |> term_of) {
+  | TupLabel(_, x)
+  | Parens(x) => is_ana_atom(x)
+  | Atom(a) => Some(a)
+  | Unknown(_)
+  | Label(_)
+  | Var(_)
+  | Ap(_)
+  | Rec(_)
+  | Forall(_)
+  | List(_)
+  | Arrow(_)
+  | Prod(_)
+  | Sum(_) => None
   };
 
 let rec is_syn_fun = (ty: t): bool =>

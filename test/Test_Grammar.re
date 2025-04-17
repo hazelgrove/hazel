@@ -6,6 +6,7 @@ let qcheck_map_annotation_test =
     ~count=100,
     QCheck.make(
       ~print=Haz3lmenhir.AST.show_exp,
+      ~shrink=Haz3lmenhir.AST.shrink_exp,
       Haz3lmenhir.AST.gen_exp_sized(7),
     ),
     exp => {
