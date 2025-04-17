@@ -427,13 +427,7 @@ let rec matched_arrow_strict = (ctx, ty) =>
   | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
   | Unknown(SynSwitch) =>
     Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
-  | _ =>
-    print_endline("matched_arrow_strict: None");
-    print_endline(
-      "term_of(weak_head_normalize(ctx, ty)): "
-      ++ show_term(term_of(weak_head_normalize(ctx, ty))),
-    );
-    None;
+  | _ => None
   };
 
 let matched_arrow = (ctx, ty) =>
