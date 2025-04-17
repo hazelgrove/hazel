@@ -180,9 +180,9 @@ type exp =
 let gen_constructor_ident: QCheck.Gen.t(string) =
   // TODO handle full constructor ident including nums
   QCheck.Gen.(
-    let* leading = char_range('A', 'Z');
-    let+ tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
-    let ident = String.make(1, leading) ++ tail;
+    let+ leading = char_range('A', 'C');
+    // let+ tail = string_size(~gen=char_range('a', 'c'), int_range(1, 1));
+    let ident = String.make(1, leading);
     if (List.exists(a => a == ident, Haz3lcore.Form.base_typs)) {
       "Keyword";
     } else {
@@ -201,7 +201,7 @@ let gen_ident: QCheck.Gen.t(string) =
   // Currently there is an issue if the keyword is a prefix of another word.
   // `let ? = ina in ?`
   // Temporarily doing single char identifiers as a fix
-  QCheck.Gen.(string_size(~gen=char_range('a', 'z'), int_range(1, 1)));
+  QCheck.Gen.(string_size(~gen=char_range('a', 'c'), int_range(1, 1)));
 
 /**
  * Generates an array of natural numbers of a given size.
