@@ -11,7 +11,7 @@
    */
 
 open Util;
-open Any;
+open Semantics;
 
 /* Hack: Temporary construct internal to maketerm
  * to handle probe parsing; see `tokens` below */
@@ -33,17 +33,17 @@ let tokens =
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type tile = (Id.t, Aba.t(Token.t, t));
+type tile = (Id.t, Aba.t(Token.t, Any.t));
 [@deriving (show({with_path: false}), sexp, yojson)]
-type tiles = Aba.t(tile, t);
+type tiles = Aba.t(tile, Any.t);
 let single = (id, subst) => ([(id, subst)], []);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type unsorted =
   | Op(tiles)
-  | Pre(tiles, t)
-  | Post(t, tiles)
-  | Bin(t, tiles, t);
+  | Pre(tiles, Any.t)
+  | Post(Any.t, tiles)
+  | Bin(Any.t, tiles, Any.t);
 
 type t = {
   term: Exp.t,

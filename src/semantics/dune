@@ -1,8 +1,8 @@
 (include_subdirs unqualified)
 
 (library
- (name haz3lcore)
- (libraries semantics util sexplib unionFind uuidm virtual_dom yojson core)
+ (name semantics)
+ (libraries util sexplib unionFind uuidm virtual_dom yojson core)
  (js_of_ocaml)
  (instrumentation
   (backend bisect_ppx))

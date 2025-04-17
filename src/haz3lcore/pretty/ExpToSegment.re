@@ -1,6 +1,10 @@
 open Util;
 open PrettySegment;
 open Base;
+//TODO(andrew): ...
+module Secondary2 = Secondary;
+open Semantics;
+module Secondary = Secondary2;
 
 module Settings = {
   type t = {

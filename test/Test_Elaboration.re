@@ -1,5 +1,5 @@
 open Alcotest;
-open Haz3lcore;
+open Semantics;
 
 /*Create a testable type for dhexp which requires
   an equal function (dhexp_eq) and a print function (dhexp_print) */
@@ -12,7 +12,7 @@ let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 let dhexp_of_uexp = u => Elaborator.elaborate(mk_map(u), u) |> fst;
 let alco_check = dhexp_typ |> Alcotest.check;
 let parse_exp = (s: string) => {
-  switch (MakeTerm.parse_exp(s)) {
+  switch (Haz3lcore.MakeTerm.parse_exp(s)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };

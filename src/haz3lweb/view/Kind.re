@@ -2,7 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 
-let view = (~globals, kind: Haz3lcore.Ctx.kind): Node.t =>
+let view = (~globals, kind: Semantics.Ctx.kind): Node.t =>
   switch (kind) {
   | Singleton(ty) =>
     div_c(

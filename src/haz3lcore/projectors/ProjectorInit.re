@@ -19,7 +19,7 @@ let to_module =
   };
 
 let init =
-    (kind: ProjectorCore.Kind.t, syntax: syntax, any: Term.Any.t)
+    (kind: ProjectorCore.Kind.t, syntax: syntax, any: Semantics.Any.t)
     : option(syntax) => {
   open ProjectorCore.Kind;
   let.gadt W(kind_gadt) = kind;
@@ -34,7 +34,7 @@ let init =
 };
 
 let init_or_noop =
-    (kind: ProjectorCore.Kind.t, syntax: syntax, any: Term.Any.t): syntax =>
+    (kind: ProjectorCore.Kind.t, syntax: syntax, any: Semantics.Any.t): syntax =>
   switch (init(kind, syntax, any)) {
   | Some(pr) => pr
   | None => syntax

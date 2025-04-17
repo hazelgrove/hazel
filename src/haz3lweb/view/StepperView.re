@@ -1,5 +1,5 @@
 open Util;
-open Haz3lcore;
+open Semantics;
 open Sexplib.Std;
 open OptUtil.Syntax;
 
@@ -300,8 +300,7 @@ module Update = {
               let elab =
                 elab
                 |> (
-                  settings.evaluation.show_casts
-                    ? x => x : Haz3lcore.DHExp.strip_casts
+                  settings.evaluation.show_casts ? x => x : DHExp.strip_casts
                 )
                 |> Typ.replace_temp_exp;
               let editor = CodeWithStatics.Model.mk_from_exp(~settings, elab);

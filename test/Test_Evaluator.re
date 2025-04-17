@@ -1,5 +1,5 @@
 open Alcotest;
-open Haz3lcore;
+open Semantics;
 let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
 
 let evaluation_test = (msg, expected, unevaluated) =>
@@ -17,7 +17,7 @@ let evaluate_probes = unevaluated =>
   |> EvaluatorState.get_probes;
 
 let parse_exp = (s: string) => {
-  switch (MakeTerm.parse_exp(s)) {
+  switch (Haz3lcore.MakeTerm.parse_exp(s)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };

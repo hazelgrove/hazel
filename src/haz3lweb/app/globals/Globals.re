@@ -39,7 +39,7 @@ module Model = {
     get_log_and: (string => unit) => unit,
     export_all:
       (
-        ~settings: Haz3lcore.CoreSettings.t,
+        ~settings: Semantics.CoreSettings.t,
         ~instructor_mode: bool,
         ~log: string
       ) =>

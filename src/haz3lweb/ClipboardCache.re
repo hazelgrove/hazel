@@ -1,3 +1,5 @@
+open Haz3lcore;
+
 /* In order to retain projectors on cut/copy/paste, and to speed
  * up pasting after in-editor copy/cut, we maintain a cached of
  * the last copied selection segment and do segment insertion

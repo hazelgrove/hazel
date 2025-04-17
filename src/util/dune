@@ -1,6 +1,16 @@
 (library
  (name util)
- (libraries re base ptmap bonsai bonsai.web virtual_dom yojson bignum)
+ (libraries
+  re
+  base
+  ptmap
+  bonsai
+  bonsai.web
+  virtual_dom
+  yojson
+  bignum
+  uuidm
+  unionFind)
  (js_of_ocaml)
  (instrumentation
   (backend bisect_ppx))
@@ -11,6 +21,7 @@
    ppx_let
    ppx_sexp_conv
    ppx_deriving.show
+   ppx_deriving.eq
    bonsai.ppx_bonsai)))
 
 (env

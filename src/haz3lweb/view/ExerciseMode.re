@@ -176,7 +176,7 @@ module Update = {
         List.iter(((pos, result)) => {
           let pos' = Exercise.pos_of_key(pos);
           let result':
-            Haz3lcore.ProgramResult.t(Haz3lcore.ProgramResult.inner) =
+            Semantics.ProgramResult.t(Semantics.ProgramResult.inner) =
             switch (result) {
             | Ok((r, s)) =>
               ResultOk({
@@ -444,7 +444,7 @@ module View = {
                 Some(prelude_trailing_hole_ctx),
               ) =>
               let specific_ctx =
-                Haz3lcore.Ctx.subtract_prefix(
+                Semantics.Ctx.subtract_prefix(
                   correct_impl_trailing_hole_ctx,
                   prelude_trailing_hole_ctx,
                 );
@@ -471,7 +471,7 @@ module View = {
       editor: {
         editor: editor.editor.editor,
         statics: editor.editor.statics,
-        dynamics: Dynamics.Map.empty,
+        dynamics: Semantics.Dynamics.Map.empty,
       },
       result: editor.result,
     };

@@ -2,7 +2,6 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 open Widgets;
-open Haz3lcore;
 
 // COMPONENTS
 
@@ -71,7 +70,12 @@ let values_group = (~globals: Globals.t) => {
       ("λ", "Functions", s.show_fn_bodies, Evaluation(ShowFnBodies)),
       ("|", "Cases", s.show_case_clauses, Evaluation(ShowCaseClauses)),
       ("f", "Fixpoints", s.show_fixpoints, Evaluation(ShowFixpoints)),
-      (Unicode.castArrowSym, "Casts", s.show_casts, Evaluation(ShowCasts)),
+      (
+        Util.Unicode.castArrowSym,
+        "Casts",
+        s.show_casts,
+        Evaluation(ShowCasts),
+      ),
     ],
   );
 };

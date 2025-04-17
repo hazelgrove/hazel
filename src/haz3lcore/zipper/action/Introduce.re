@@ -1,3 +1,5 @@
+open Semantics;
+
 module type Introducable = {
   type t;
   let parse: Segment.t => t;

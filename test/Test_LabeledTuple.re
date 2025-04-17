@@ -1,5 +1,5 @@
 open Alcotest;
-open Haz3lcore;
+open Semantics;
 
 let test_rearrange = (name, analyzed_types, actual_values, expected_values) =>
   test_case(

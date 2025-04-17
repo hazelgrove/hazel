@@ -1,3 +1,5 @@
+open Semantics;
+
 /* Projector data which is dependent on semantics,
  * separated out for dependency reasons */
 

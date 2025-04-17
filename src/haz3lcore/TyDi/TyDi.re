@@ -1,8 +1,9 @@
 open Util.OptUtil.Syntax;
-open Suggestion;
+open TyDiSuggestion;
+open Semantics;
 
 /* Suggest the token at the top of the backpack, if we can put it down */
-let suggest_backpack = (z: Zipper.t): list(Suggestion.t) => {
+let suggest_backpack = (z: Zipper.t): list(t) => {
   /* Note: Sort check unnecessary here as wouldn't be able to put down */
   switch (z.backpack) {
   | [] => []
@@ -19,7 +20,7 @@ let suggest_backpack = (z: Zipper.t): list(Suggestion.t) => {
   };
 };
 
-let suggest = (ci: Info.t, z: Zipper.t): list(Suggestion.t) => {
+let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
   /* NOTE: Sorting ensures that if we have an exact match already,
    * we won't suggest extending it, but straight-up lexical sorting
    * may not be desirable in other ways, for example maybe we want
@@ -35,13 +36,13 @@ let suggest = (ci: Info.t, z: Zipper.t): list(Suggestion.t) => {
   | _ =>
     suggest_backpack(z)
     @ (
-      AssistantForms.suggest_operand(ci)
-      @ AssistantForms.suggest_leading(ci)
-      @ AssistantCtx.suggest_variable(ci)
-      @ AssistantCtx.suggest_lookahead_variable(ci)
-      |> List.sort(Suggestion.compare)
+      TyDiForms.suggest_operand(ci)
+      @ TyDiForms.suggest_leading(ci)
+      @ TyDiCtx.suggest_variable(ci)
+      @ TyDiCtx.suggest_lookahead_variable(ci)
+      |> List.sort(TyDiSuggestion.compare)
     )
-    @ (AssistantForms.suggest_operator(ci) |> List.sort(Suggestion.compare))
+    @ (TyDiForms.suggest_operator(ci) |> List.sort(TyDiSuggestion.compare))
   };
 };
 
@@ -106,7 +107,7 @@ let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
   let suggestions = suggest(ci, z);
   let suggestions =
     suggestions
-    |> List.filter(({content, _}: Suggestion.t) =>
+    |> List.filter(({content, _}: TyDiSuggestion.t) =>
          String.starts_with(~prefix=tok_to_left, content)
        );
   let* top_suggestion = suggestions |> Util.ListUtil.hd_opt;

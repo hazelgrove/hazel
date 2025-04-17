@@ -1,7 +1,8 @@
-open Util;
+open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t_('a) = list((Token.t, 'a));
+type t_('a) = list((string, 'a));
 
 let empty = [];
 
