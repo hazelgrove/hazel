@@ -652,12 +652,16 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           | _ => return(ListExp(shrunk))
           };
         | TupleExp(l) =>
-          let* shrunk = Shrink.list(l, ~shrink=shrink_exp);
-          switch (shrunk) {
-          | [] => Iter.return(TupleExp([]))
-          | [x] => Iter.return(x)
-          | _ => return(TupleExp(shrunk))
-          };
+          if (List.length(l) <= 1) {
+            Iter.empty;
+          } else {
+            let* shrunk = Shrink.list(l, ~shrink=shrink_exp);
+            switch (shrunk) {
+            | [] => Iter.return(TupleExp([]))
+            | [x] => Iter.return(x)
+            | _ => return(TupleExp(shrunk))
+            };
+          }
         | BinExp(e1, op, e2) =>
           {
             of_list([e1, e2]);
