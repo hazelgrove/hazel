@@ -113,7 +113,7 @@ module M: Projector with type model = unit = {
   let dynamics = false;
   let placeholder = (_, info) => {
     let str = info |> get;
-    ProjectorCore.Shape.{
+    ProjectorShape.{
       vertical: Block(StringUtil.num_linebreaks(str)),
       /* +2 for left and right padding */
       horizontal: 2 + StringUtil.max_line_width(str),

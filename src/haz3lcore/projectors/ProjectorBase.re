@@ -165,7 +165,7 @@ module type Projector = {
     ) =>
     View.t;
   /* The space left for the projector in the base editor */
-  let placeholder: (model, info) => ProjectorCore.Shape.t;
+  let placeholder: (model, info) => ProjectorShape.t;
   /* Update the local projector model given an action */
   let update: (model, info, action) => model;
 };

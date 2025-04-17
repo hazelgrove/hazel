@@ -29,7 +29,7 @@ let view_segment =
     (
       ~globals: Globals.t,
       ~sort: Sort.t,
-      ~shape_map: ProjectorCore.Shape.Map.t,
+      ~shape_map: ProjectorShape.Map.t,
       segment: Segment.t,
     ) => {
   let measured = Measured.of_segment(segment, shape_map);
@@ -38,7 +38,7 @@ let view_segment =
 };
 
 let view_typ = (~globals: Globals.t, ~settings, typ: Typ.t) => {
-  let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
+  let shape_map = ProjectorShape.Map.empty; // assume no projectors
   typ
   |> ExpToSegment.typ_to_segment(~settings)
   |> view_segment(~shape_map, ~globals, ~sort=Typ);

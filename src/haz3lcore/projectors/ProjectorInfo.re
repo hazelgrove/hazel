@@ -38,7 +38,7 @@ let mk_info =
 module ShapeMapSemantics = {
   let from_semantics =
       (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector)
-      : ProjectorCore.Shape.t => {
+      : ProjectorShape.t => {
     let V(kind, model) = p.model;
     let (module P) = ProjectorInit.to_module(kind);
     P.placeholder(model, mk_info(p, ~statics, ~dynamics));
@@ -50,6 +50,6 @@ module ShapeMapSemantics = {
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
       )
-      : Id.Map.t(ProjectorCore.Shape.t) =>
+      : Id.Map.t(ProjectorShape.t) =>
     Id.Map.map(from_semantics(statics, dynamics), proj_map);
 };

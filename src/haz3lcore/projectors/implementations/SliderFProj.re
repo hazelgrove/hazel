@@ -48,7 +48,7 @@ module M: Projector with type model = unit = {
 
   let focusable = Focusable.non;
   let dynamics = false;
-  let placeholder = (_, _) => ProjectorCore.Shape.inline(10);
+  let placeholder = (_, _) => ProjectorShape.inline(10);
   let update = (model, _, _) => model;
 
   let view =

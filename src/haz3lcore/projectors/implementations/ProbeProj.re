@@ -884,7 +884,7 @@ module M: Projector with type model = unit = {
     };
 
   let placeholder = (_, info: info) =>
-    ProjectorCore.Shape.inline(2 + String.length(syntax_str(info.syntax)));
+    ProjectorShape.inline(2 + String.length(syntax_str(info.syntax)));
 
   let update = update;
 

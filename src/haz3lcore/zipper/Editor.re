@@ -28,7 +28,7 @@ module CachedSyntax = {
     /* The shape_map is used to leave space for projectors in the
      * underlying editor. In principle calculating this can involve
      * both static and dynamic information, so we cache this for perf */
-    shape_map: ProjectorCore.Shape.Map.t,
+    shape_map: ProjectorShape.Map.t,
   };
 
   // should not be serializing

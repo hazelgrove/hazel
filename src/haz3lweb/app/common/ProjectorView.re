@@ -175,7 +175,7 @@ let offside_wrapper =
   );
 
 let simple_code = (~background=false, font_metrics, sort, segment): Node.t => {
-  let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
+  let shape_map = ProjectorShape.Map.empty; /* Assume this doesn't contain projectors */
   let map = Measured.of_segment(segment, shape_map);
   module Text =
     Code.Text({

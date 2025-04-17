@@ -92,7 +92,7 @@ module M: Projector with type model = ProjectorCore.Kind.type_model = {
   };
 
   let placeholder = (_m, info) =>
-    ProjectorCore.Shape.inline(3 + String.length(syntax_str(info)));
+    ProjectorShape.inline(3 + String.length(syntax_str(info)));
 
   let syntax_view = (info: info) => info |> syntax_str |> text;
 

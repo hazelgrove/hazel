@@ -616,7 +616,7 @@ module M: Projector with type model = m = {
   let init = (info: TermBase.Any.t): option(model) =>
     SyntaxTerm.get_opt(info) != None ? Some(Show) : None;
 
-  let placeholder = (_, info): ProjectorCore.Shape.t => {
+  let placeholder = (_, info): ProjectorShape.t => {
     horizontal: SyntaxTerm.width_of_any(info),
     vertical: Tab(1),
   };

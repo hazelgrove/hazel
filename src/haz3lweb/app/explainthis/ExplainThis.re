@@ -277,7 +277,7 @@ let expander_deco =
                   CodeViewable.view_segment(
                     ~globals,
                     ~sort=Exp,
-                    ~shape_map=ProjectorCore.Shape.Map.empty, // Assume no projectors
+                    ~shape_map=ProjectorShape.Map.empty, // Assume no projectors
                     segment,
                   );
                 let classes =
