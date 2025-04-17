@@ -28,3 +28,27 @@ let inline = (width: int): t => {
   vertical: Inline,
 };
 let default: t = inline(0);
+
+let token = (shape: t): string =>
+  switch (shape.vertical) {
+  | Inline
+  | Tab(_) => String.make(shape.horizontal, ' ')
+  | Block(num_lb) =>
+    String.make(num_lb, '\n') ++ String.make(shape.horizontal, ' ')
+  };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type shape = t;
+
+module Map = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = Id.Map.t(shape);
+
+  let empty: t = Id.Map.empty;
+
+  let lookup = (id: Id.t, shape_map: t): shape =>
+    switch (Id.Map.find_opt(id, shape_map)) {
+    | None => inline(0) //TODO: error reporting
+    | Some(shape) => shape
+    };
+};

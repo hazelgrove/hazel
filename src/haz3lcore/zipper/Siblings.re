@@ -1,17 +1,17 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = (Segment.t, Segment.t);
+type t = (Segment.t('p), Segment.t('p));
 
 let empty = Segment.(empty, empty);
 
 let no_siblings: t => bool = s => s == empty;
 
-let unzip: (int, Segment.t) => t = ListUtil.split_n;
+let unzip: (int, Segment.t('p)) => t = ListUtil.split_n;
 let zip = (~sel=Segment.empty, (pre, suf): t) =>
   Segment.concat([pre, sel, suf]);
 
-let prepend = (d: Direction.t, seg: Segment.t, (l, r): t): t =>
+let prepend = (d: Direction.t, seg: Segment.t('p), (l, r): t): t =>
   switch (d) {
   | Left => (l @ seg, r)
   | Right => (l, seg @ r)
@@ -34,16 +34,16 @@ let shapes = ((pre, suf): t) => {
   (l, r);
 };
 
-let contains_matching = (t: Tile.t, (pre, suf): t) =>
+let contains_matching = (t: Tile.t('p), (pre, suf): t) =>
   Segment.(contains_matching(t, pre) || contains_matching(t, suf));
 
-let push = (onto: Direction.t, p: Piece.t, (pre, suf): t): t =>
+let push = (onto: Direction.t, p: Piece.t('p), (pre, suf): t): t =>
   switch (onto) {
   | Left => (pre @ [p], suf)
   | Right => (pre, [p, ...suf])
   };
 
-let pop = (from: Direction.t, (pre, suf): t): option((Piece.t, t)) =>
+let pop = (from: Direction.t, (pre, suf): t): option((Piece.t('p), t)) =>
   switch (from) {
   | Left =>
     ListUtil.split_last_opt(pre)
@@ -72,11 +72,13 @@ let regrout = ((pre, suf): t) => {
   ((pre, s_l, trim_l), suf);
 };
 
-let left_neighbor: t => option(Piece.t) = ((l, _)) => ListUtil.last_opt(l);
+let left_neighbor: t => option(Piece.t('p)) =
+  ((l, _)) => ListUtil.last_opt(l);
 
-let right_neighbor: t => option(Piece.t) = ((_, r)) => ListUtil.hd_opt(r);
+let right_neighbor: t => option(Piece.t('p)) =
+  ((_, r)) => ListUtil.hd_opt(r);
 
-let neighbors: t => (option(Piece.t), option(Piece.t)) =
+let neighbors: t => (option(Piece.t('p)), option(Piece.t('p))) =
   n => (left_neighbor(n), right_neighbor(n));
 
 let trim_secondary = ((l_sibs, r_sibs): t) => (

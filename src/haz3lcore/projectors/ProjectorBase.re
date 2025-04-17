@@ -13,27 +13,28 @@ open Virtual_dom.Vdom;
 /* The type of syntax which a projector can replace.
  * Right now projectors can replace a single piece */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type syntax = Base.piece;
+type syntax('p) = Base.piece('p);
 
 /* Global actions available to handlers in all projectors */
-type external_action =
+type external_action('p) =
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
-  | SetSyntax(Base.segment); /* Set underlying syntax */
+  | SetSyntax(Base.segment('p)); /* Set underlying syntax */
 
 /* Syntax utility functions/values for projector use,
  * provided here to resolve cyclic dependency issues */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type utility = {
+type utility('p) = {
   /* Convert a segment to a term */
-  seg_to_term: Base.segment => option(Term.Any.t),
+  seg_to_term: Base.segment('p) => option(Term.Any.t),
   /* Convert a term to a segment */
-  term_to_seg: Any.t => Base.segment,
+  term_to_seg: Any.t => Base.segment('p),
   /* Lifts term->term functions to syntax->syntax. This will
    * proactively attempt to parenthesize resulting non-single
    * piece terms. As such, sorts that do not have parentheses
    * (currently all degenerate cases) will throw an error */
-  lift_syntax: (Any.t => Any.t, Base.segment) => option(Base.segment),
+  lift_syntax:
+    (Any.t => Any.t, Base.segment('p)) => option(Base.segment('p)),
 };
 
 module Focusable = {
@@ -64,7 +65,7 @@ module Focusable = {
 
 /* External info proivded to all projectors */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type info = {
+type info('p) = {
   /* The id of the projector, equal to the id of the root
    * term of the syntax, provided directly here for convenience.
    * This is mostly intended to be used as a persistent unique
@@ -74,7 +75,7 @@ type info = {
   /* The syntax underlying the projector. Currently this
    * is a single piece representing a complete term, but
    * this may be relaxed in the future. */
-  syntax: Base.segment,
+  syntax: Base.segment('p),
   /* Static information about the syntax including type
    * information. Statics may be disabled by the user;
    * this case (None) must be handled by projector authors */
@@ -86,7 +87,7 @@ type info = {
   dynamics: option(Dynamics.Info.t),
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
-  utility,
+  utility: utility('p),
 };
 
 module View = {
@@ -103,7 +104,7 @@ module View = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type seg = (~background: bool=?, Sort.t, list(syntax)) => Node.t;
+  type seg('p) = (~background: bool=?, Sort.t, list(syntax('p))) => Node.t;
 
   let mk = (~overlay=None, ~offside=None, inline) => {
     inline,
@@ -154,22 +155,22 @@ module type Projector = {
   let view:
     (
       model,
-      info,
+      info('p),
       /* A callback for the projector's own actions */
       ~local: action => Ui_effect.t(unit),
       /* A callback for parent editor actions */
-      ~parent: external_action => Ui_effect.t(unit),
+      ~parent: external_action('p) => Ui_effect.t(unit),
       /* Creates a non-interactive embedded syntax view,
        * provided here to address a dependency cycle */
-      ~view_seg: View.seg
+      ~view_seg: View.seg('p)
     ) =>
     View.t;
   /* The space left for the projector in the base editor */
-  let placeholder: (model, info) => ProjectorCore.Shape.t;
+  let placeholder: (model, info('p)) => ProjectorShape.t;
   /* Update the local projector model given an action */
-  let update: (model, info, action) => model;
+  let update: (model, info('p), action) => model;
 };
 
 /* Projectors currently are all convex */
-let shapes = (_: ProjectorCore.t(syntax)): Nibs.shapes =>
+let shapes = (_: Base.projector('p)): Nibs.shapes =>
   Nib.Shape.(Convex, Convex);

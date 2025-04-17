@@ -431,16 +431,16 @@ let abbreviate = (exp: Exp.t, available: int): Exp.t => {
   abbr_exp;
 };
 
-let len_seg = (seg: Segment.t): int =>
+let len_seg = (seg: Segment.t('p)): int =>
   seg |> Printer.of_segment(~holes=Some("?")) |> String.length;
 
-let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
+let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t('p), int) => {
   let seg = utility.term_to_seg(Exp(exp));
   (seg, len_seg(seg));
 };
 
 let abbreviated_seg_of =
-    (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
+    (utility: utility, available: int, exp: Exp.t): (Segment.t('p), int) => {
   let (abbr_exp, _length) =
     exp |> DHExp.strip_casts |> Abbreviate.abbreviate_exp(~available);
   seg_of_exp(utility, abbr_exp);
@@ -884,7 +884,7 @@ module M: Projector with type model = unit = {
     };
 
   let placeholder = (_, info: info) =>
-    ProjectorCore.Shape.inline(2 + String.length(syntax_str(info.syntax)));
+    ProjectorShape.inline(2 + String.length(syntax_str(info.syntax)));
 
   let update = update;
 

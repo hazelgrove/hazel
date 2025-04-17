@@ -6,12 +6,12 @@ exception Empty_shard_affix;
 type step = int;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
+type t('p) = {
   id: Id.t,
   label: Label.t,
   mold: Mold.t,
   shards: (list(int), list(int)),
-  children: (list(Segment.t), list(Segment.t)),
+  children: (list(Segment.t('p)), list(Segment.t('p))),
 };
 
 // TODO(d) revisit naming w.r.t. outer vs inner shards
@@ -31,7 +31,8 @@ let shapes = a => {
   (l.shape, r.shape);
 };
 
-let zip = (child: Segment.t, {id, label, mold, shards, children}: t): Tile.t => {
+let zip =
+    (child: Segment.t('p), {id, label, mold, shards, children}: t): Tile.t => {
   id,
   label,
   mold,
@@ -77,7 +78,7 @@ let disassemble =
   (flatten(shards_l, kids_l), flatten(shards_r, kids_r));
 };
 
-let container_shards = (a: t): (Piece.t, Piece.t) => {
+let container_shards = (a: t): (Piece.t('p), Piece.t('p)) => {
   let (shards_l, shards_r) =
     a.shards
     |> TupleUtil.map2(Tile.split_shards(a.id, a.label, a.mold))
@@ -89,7 +90,8 @@ let container_shards = (a: t): (Piece.t, Piece.t) => {
   (l, r);
 };
 
-let reassemble = (match_l: Aba.t(Tile.t, Segment.t) as 'm, match_r: 'm): t => {
+let reassemble =
+    (match_l: Aba.t(Tile.t, Segment.t('p)) as 'm, match_r: 'm): t => {
   // TODO(d) bit hacky, need to do a flip/orientation pass
   // let match_l = Aba.map_b(Segment.rev, match_l);
   let (t_l, t_r) = Tile.(reassemble(match_l), reassemble(match_r));

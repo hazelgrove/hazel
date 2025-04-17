@@ -19,7 +19,7 @@ module M: Projector with type model = t = {
   let dynamics = false;
 
   let placeholder = (m: t, _) =>
-    ProjectorCore.Shape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
+    ProjectorShape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
   let update = (m, _, _) => m;
 
   let hover_view = (view_seg: View.seg, info: info) => {

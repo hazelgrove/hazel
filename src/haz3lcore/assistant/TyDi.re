@@ -61,7 +61,7 @@ let token_to_left = (z: Zipper.t): option(string) =>
 /* The selection buffer used by TyDi is currently unstructured; it simply
  * holds an unparsed string, which is parsed via the same mechanism as
  * Paste only when a suggestion is accepted. */
-let mk_unparsed_buffer = (t: Token.t): Segment.t => {
+let mk_unparsed_buffer = (t: Token.t): Segment.t('p) => {
   [
     Secondary({
       id: Id.mk(),

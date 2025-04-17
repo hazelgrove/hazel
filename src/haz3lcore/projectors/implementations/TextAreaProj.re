@@ -9,7 +9,7 @@ let string_of = (any: Any.t): option(string) =>
   | _ => None
   };
 
-let get = (info: info): string =>
+let get = (info: info('p)): string =>
   switch (info.syntax |> info.utility.seg_to_term) {
   | Some(s) =>
     switch (string_of(s)) {
@@ -19,7 +19,7 @@ let get = (info: info): string =>
   | None => failwith("TextArea: get: Not string literal")
   };
 
-let put = (info, s: string): Base.segment =>
+let put = (info, s: string): Base.segment('p) =>
   switch (
     info.utility.lift_syntax(
       fun
@@ -61,7 +61,7 @@ let key_handler = (id, ~parent, evt) => {
 };
 
 let textarea =
-    (info, ~parent: external_action => Ui_effect.t(unit), text: string) =>
+    (info, ~parent: external_action('p) => Ui_effect.t(unit), text: string) =>
   Node.textarea(
     ~attrs=[
       Attr.id(Id.cls(info.id)),
@@ -113,7 +113,7 @@ module M: Projector with type model = unit = {
   let dynamics = false;
   let placeholder = (_, info) => {
     let str = info |> get;
-    ProjectorCore.Shape.{
+    ProjectorShape.{
       vertical: Block(StringUtil.num_linebreaks(str)),
       /* +2 for left and right padding */
       horizontal: 2 + StringUtil.max_line_width(str),

@@ -23,7 +23,7 @@ let tokens =
   Piece.get(
     _ => [],
     _ => [" "],
-    (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
+    (t: Tile.t('p)) => t.shards |> List.map(List.nth(t.label)),
     _ =>
       /* Hack: These act as temporary wrappers for projectors,
        * which are retained through maketerm so as to be used in
@@ -123,7 +123,7 @@ let return = (wrap, ids, tm) => {
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
 /* Strip a projector from a segment and log it in the map */
-let log_projector = (pr: Base.projector): unit => {
+let log_projector = (pr: Base.projector('p)): unit => {
   projectors := Id.Map.add(pr.id, pr, projectors^);
 };
 
@@ -161,7 +161,7 @@ let mk_bad = (ctr, ids, value) => {
   };
 };
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
+let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t('p)): Term.Any.t =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
@@ -769,10 +769,10 @@ and rul = (unsorted): Rul.t => {
   };
 }
 
-and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
+and unsorted = (skel: Skel.t, seg: Segment.t('p)): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
-  let tile_kids = (p: Piece.t): list(Term.Any.t) =>
+  let tile_kids = (p: Piece.t('p)): list(Term.Any.t) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
@@ -789,7 +789,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
          })
     };
 
-  let root: Aba.t(Piece.t, Skel.t) =
+  let root: Aba.t(Piece.t('p), Skel.t) =
     Skel.root(skel) |> Aba.map_a(List.nth(seg));
 
   // maintaining this alternating ordered structure
@@ -845,7 +845,7 @@ let for_projection =
    * that no contained sub-segment is non-convex. However, there can still be convex
    * holes, singleton multiholes representing sort errors, non-singleton multiholes
    * representing missing infix operators, and invalid tokens. */
-  Core.Memo.general(~cache_size_bound=1000, (seg: Segment.t) =>
+  Core.Memo.general(~cache_size_bound=1000, (seg: Segment.t('p)) =>
     if (!Segment.deep_tile_complete(seg)) {
       None; /* Returns None if any subsegment contains incomplete tiles */
     } else if (Segment.is_padded(seg)) {

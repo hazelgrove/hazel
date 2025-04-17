@@ -103,7 +103,7 @@ let view_any = (~globals, any: Term.Any.t) =>
   |> CodeViewable.view_any(
        ~globals,
        ~settings=code_view_settings,
-       ~shape_map=ProjectorCore.Shape.Map.empty // assume no projectors
+       ~shape_map=ProjectorShape.Map.empty // assume no projectors
      )
   |> code_box_container;
 

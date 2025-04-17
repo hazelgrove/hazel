@@ -81,18 +81,18 @@ let of_secondary =
   | Comment(str) => [secondary_text("comment", str)]
   };
 
-let of_projector = (expected_sort, indent, shape: ProjectorCore.Shape.t) => {
+let of_projector = (expected_sort, indent, shape: ProjectorShape.t) => {
   let token =
     switch (shape.vertical) {
     | Inline
     | Tab(0)
-    | Block(0) => ProjectorCore.Shape.token(shape)
+    | Block(0) => ProjectorShape.token(shape)
     | Tab(num_lb) =>
       deferred_linebreaks := max(num_lb, deferred_linebreaks^);
-      ProjectorCore.Shape.token(shape);
+      ProjectorShape.token(shape);
     | Block(_) =>
       String.make(consume_deferred_linebreaks(), '\n')
-      ++ ProjectorCore.Shape.token(shape)
+      ++ ProjectorShape.token(shape)
     };
   of_delim'(([token], expected_sort, true, true, indent, 0));
 };
@@ -102,7 +102,7 @@ module Text =
          M: {
            let map: Measured.t;
            let settings: Settings.Model.t;
-           let shape_map: ProjectorCore.Shape.Map.t;
+           let shape_map: ProjectorShape.Map.t;
            let font_metrics: FontMetrics.t;
          },
        ) => {
@@ -146,7 +146,7 @@ module Text =
       of_projector(
         expected_sort,
         m(Projector(p)).origin.col,
-        ProjectorCore.Shape.Map.lookup(p.id, M.shape_map),
+        ProjectorShape.Map.lookup(p.id, M.shape_map),
       )
     };
   }

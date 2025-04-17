@@ -1,15 +1,15 @@
 open Util;
 
 include Id.Map;
-type range = (Piece.t, Piece.t);
-type nonrec t = t(range);
+type range('p) = (Piece.t('p), Piece.t('p));
+type nonrec t('p) = t(range('p));
 
-let union = union((_, range, _) => Some(range));
+let union = union((_, range, _) => Some(range), _);
 
 /* PERF: Up to 50% reduction in some cases by memoizing
  * this function. Might be better though to just do an
  * unmemoized traversal building a hashtbl avoiding unioning */
-let range_hash: Hashtbl.t(Tile.segment, Id.Map.t(range)) =
+let range_hash = (type p): Hashtbl.t(Tile.segment(p), Id.Map.t(range(p))) =>
   Hashtbl.create(1000);
 
 // NOTE: this calculation is out of sync with
@@ -21,8 +21,8 @@ let range_hash: Hashtbl.t(Tile.segment, Id.Map.t(range)) =
 // TODO(d) fix or derive from other info
 //
 // tail-recursive in outer recursion
-let rec mk' = (seg: Segment.t) => {
-  let rec go = (skel: Skel.t): (range, t) => {
+let rec mk' = (seg: Segment.t('p)) => {
+  let rec go = (skel: Skel.t): (range('p), t('p)) => {
     let root = Skel.root(skel) |> Aba.map_a(List.nth(seg));
     let root_l = Aba.first_a(root);
     let root_r = Aba.last_a(root);

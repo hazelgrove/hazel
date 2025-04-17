@@ -40,7 +40,7 @@ let go_z =
     remold_regrout(Left, z);
   };
 
-  let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
+  let paste_segment = (z: Zipper.t, segment: Segment.t('p)): Zipper.t => {
     let replace_selection = (z, focus, segment): Zipper.t =>
       {
         ...z,

@@ -240,7 +240,7 @@ module Make = (M: S) => {
           (
             ~move_first=true,
             move_action: t => option(t),
-            piece_p: Piece.t => bool,
+            piece_p: Piece.t('p) => bool,
             z: t,
           )
           : option(t) => {

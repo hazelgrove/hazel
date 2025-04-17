@@ -54,10 +54,10 @@ let delete_parent = (z: t): t => {
   relatives: Relatives.delete_parent(z.relatives),
 };
 
-let zip = (z: t): Segment.t =>
+let zip = (z: t): Segment.t('p) =>
   Relatives.zip(~sel=z.selection.content, z.relatives);
 
-let unzip = (seg: Segment.t): t => {
+let unzip = (seg: Segment.t('p)): t => {
   selection: Selection.mk([]),
   backpack: [],
   relatives: {
@@ -124,7 +124,7 @@ let unselect = (~erase_buffer=false, z: t): t => {
     relatives,
   };
 };
-let unselect_and_zip = (~erase_buffer=false, z: t): Segment.t =>
+let unselect_and_zip = (~erase_buffer=false, z: t): Segment.t('p) =>
   z |> unselect(~erase_buffer) |> zip;
 
 let replace_selection = (focus, segment, z: t): t => {
@@ -350,7 +350,7 @@ let replace =
 let replace_mono = (d: Direction.t, t: Token.t, z: t): option(t) =>
   replace(~caret=d, ~backpack=Left, [t], z);
 
-let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
+let representative_piece = (z: t): option((Piece.t('p), Direction.t)) => {
   /* The piece to the left of the caret, or if none exists, the piece to the right */
   switch (Siblings.neighbors(sibs_with_sel(z))) {
   | (Some(l), _) => Some((l, Left))
@@ -417,7 +417,7 @@ let can_put_down = z =>
   | None => false
   };
 
-let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
+let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t('p)): t => {
   ...z,
   selection: Selection.mk_buffer(mode, content),
 };

@@ -11,7 +11,7 @@ module ShardInfo = {
     let n = 20;
     let init = () => create(n);
 
-    let lt = (l: Tile.t, r: Tile.t, ord: t): bool => {
+    let lt = (l: Tile.t('p), r: Tile.t('p), ord: t): bool => {
       let (i_l, i_r) = Tile.(r_shard(l), l_shard(r));
       switch (find_opt(ord, (l.id, i_l))) {
       | None => false
@@ -21,7 +21,7 @@ module ShardInfo = {
     let gt = (l, r, ord) => lt(r, l, ord);
     let un = (l, r, ord) => !lt(l, r, ord) && !gt(l, r, ord);
 
-    let disordered = (t: Tile.t, t': Tile.t): bool =>
+    let disordered = (t: Tile.t('p), t': Tile.t('p)): bool =>
       t.id == t'.id
       && {
         let (l, r) = Tile.(l_shard(t), r_shard(t));
@@ -98,7 +98,7 @@ module ShardInfo = {
       counts: Id.Map.t(int),
     };
 
-    let of_tile = (t: Tile.t) => {
+    let of_tile = (t: Tile.t('p)) => {
       labels: Id.Map.singleton(t.id, t.label),
       counts: Id.Map.singleton(t.id, List.length(t.shards)),
     };
@@ -110,8 +110,8 @@ module ShardInfo = {
 
     let mem = (id, m) => Id.Map.mem(id, m.labels);
 
-    let exists_mem = (ts: list(Tile.t), m) =>
-      List.exists((t: Tile.t) => mem(t.id, m), ts);
+    let exists_mem = (ts: list(Tile.t('p)), m) =>
+      List.exists((t: Tile.t('p)) => mem(t.id, m), ts);
 
     let is_complete = (m: t) =>
       m.counts
@@ -124,7 +124,7 @@ module ShardInfo = {
     type t = Id.Uf.store(Count.t);
     include Id.Uf;
     let merge = merge(Count.merge);
-    let add_tile = (t: Tile.t, cs: t): unit =>
+    let add_tile = (t: Tile.t('p), cs: t): unit =>
       switch (get_opt(t.id, cs)) {
       | None => add(t.id, Count.of_tile(t), cs)
       | Some(c) =>
@@ -163,7 +163,7 @@ module ShardInfo = {
     let ts = Segment.incomplete_tiles(sel.content);
     // initialize
     ts
-    |> List.iter((t: Tile.t) => {
+    |> List.iter((t: Tile.t('p)) => {
          Counts.add_tile(t, counts);
          Order.add_tile(t.id, t.label, order);
        });
@@ -171,7 +171,7 @@ module ShardInfo = {
     ignore(
       ts
       |> List.fold_left(
-           (prev: option(Tile.t), curr: Tile.t) => {
+           (prev: option(Tile.t('p)), curr: Tile.t('p)) => {
              switch (prev) {
              | None => ()
              | Some(prev) => Counts.merge(prev.id, curr.id, counts)
@@ -183,7 +183,7 @@ module ShardInfo = {
     );
     // propagate well-nested ordering constraints
     ListUtil.ordered_pairs(ts)
-    |> List.iter(((l: Tile.t, r: Tile.t)) => {
+    |> List.iter(((l: Tile.t('p), r: Tile.t('p))) => {
          let (n_l, n_r) = List.(length(l.label), length(r.label));
          let (i_l, i_r) = Tile.(r_shard(l), l_shard(r));
          Order.set((l.id, i_l), (r.id, i_r), order);
@@ -229,7 +229,7 @@ let push = sel => Selection.is_empty(sel) ? Fun.id : List.cons(sel);
 let push_s: (list(Selection.t), t) => t = List.fold_right(push);
 
 let pop =
-    ((pre, suf): (list(Tile.t), list(Tile.t)), bp: t)
+    ((pre, suf): (list(Tile.t('p)), list(Tile.t('p))), bp: t)
     : option((bool, Selection.t, t)) => {
   open OptUtil.Syntax;
   let* (hd, tl) = ListUtil.split_first_opt(bp);
@@ -261,9 +261,9 @@ let restricted = (bp: t): bool =>
     }
   };
 
-let remove_matching = (ts: list(Tile.t), bp: t) =>
+let remove_matching = (ts: list(Tile.t('p)), bp: t) =>
   List.fold_left(
-    (bp, t: Tile.t) =>
+    (bp, t: Tile.t('p)) =>
       bp
       |> List.map(Selection.map(Segment.remove_matching(t)))
       |> List.filter_map(

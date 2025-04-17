@@ -62,7 +62,7 @@ module HighlightSegment =
        (
          M: {
            let measured: Measured.t;
-           let shape_map: ProjectorCore.Shape.Map.t;
+           let shape_map: ProjectorShape.Map.t;
            let font_metrics: FontMetrics.t;
          },
        ) => {
@@ -130,7 +130,7 @@ module HighlightSegment =
     switch (Measured.find_pr_opt(p, M.measured)) {
     | None => failwith("Deco.of_projector: missing measurement")
     | Some(_m) =>
-      let shape = ProjectorCore.Shape.Map.lookup(p.id, M.shape_map);
+      let shape = ProjectorShape.Map.lookup(p.id, M.shape_map);
       /* Handling this internal to ProjectorsView at the moment because the
        * commented-out strategy doesn't work well, since the inserted str8-
        * edged lines vertical edge placement doesn't account for whether
@@ -200,7 +200,7 @@ module HighlightSegment =
 };
 
 let quick_select_deco = (segment: Segment.t): Node.t => {
-  let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
+  let shape_map = ProjectorShape.Map.empty; // assume no projectors
   module Highlight =
     HighlightSegment({
       let measured = Measured.of_segment(segment, shape_map);

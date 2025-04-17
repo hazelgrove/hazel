@@ -13,7 +13,7 @@ let utility: ProjectorBase.utility = {
       },
     );
   let lift_syntax =
-      (fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) =>
+      (fn: Any.t => Any.t, seg: Base.segment('p)): option(Base.segment('p)) =>
     switch (seg |> seg_to_term) {
     | None => None
     | Some(s) => Some(s |> fn |> term_to_seg)
@@ -37,8 +37,12 @@ let mk_info =
 
 module ShapeMapSemantics = {
   let from_semantics =
-      (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector)
-      : ProjectorCore.Shape.t => {
+      (
+        statics: Statics.Map.t,
+        dynamics: Dynamics.Map.t,
+        p: Base.projector('p),
+      )
+      : ProjectorShape.t => {
     let V(kind, model) = p.model;
     let (module P) = ProjectorInit.to_module(kind);
     P.placeholder(model, mk_info(p, ~statics, ~dynamics));
@@ -46,10 +50,10 @@ module ShapeMapSemantics = {
 
   let mk =
       (
-        proj_map: Id.Map.t(Base.projector),
+        proj_map: Id.Map.t(Base.projector('p)),
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
       )
-      : Id.Map.t(ProjectorCore.Shape.t) =>
+      : Id.Map.t(ProjectorShape.t) =>
     Id.Map.map(from_semantics(statics, dynamics), proj_map);
 };

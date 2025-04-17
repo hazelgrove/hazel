@@ -630,7 +630,7 @@ let text_to_pretty = (id, sort, str): pretty => {
   ]);
 };
 
-let mk_form = (form_name: Form.compound_form, id, children): Piece.t => {
+let mk_form = (form_name: Form.compound_form, id, children): Piece.t('p) => {
   let form: Form.t = Form.get(form_name);
   assert(List.length(children) == List.length(form.mold.in_));
   // Add whitespaces
@@ -667,7 +667,7 @@ let pad_ids = (n: int, ids: list(Id.t)): list(Id.t) => {
   };
 };
 
-let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
+let (@) = (seg1: Segment.t('p), seg2: Segment.t('p)): Segment.t('p) =>
   switch (seg1, seg2) {
   | ([], _) => seg2
   | (_, []) => seg1
@@ -700,9 +700,7 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
     switch (MakeTerm.for_projection([syntax])) {
     | None => failwith("ExpToSegment.fold_fun_if")
     | Some(_) => [
-        Base.Projector(
-          ProjectorCore.mk(Fold, syntax, V(Fold, {text: str})),
-        ),
+        Base.Projector(Base.mk_projector(syntax, V(Fold, {text: str}))),
       ]
     };
   } else {
@@ -1061,7 +1059,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Match(e, rs) =>
     // TODO: Add newlines
     let+ e = go(e)
-    and+ rs: list((Segment.t, Segment.t)) = {
+    and+ rs: list((Segment.t('p), Segment.t('p))) = {
       rs
       |> List.map(((p, e)) =>
            (pat_to_pretty(~settings: Settings.t, p), go(e))
@@ -1394,21 +1392,21 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
 };
 
 let exp_to_segment =
-    (~already_paren=false, ~settings: Settings.t, exp: Exp.t): Segment.t => {
+    (~already_paren=false, ~settings: Settings.t, exp: Exp.t): Segment.t('p) => {
   let exp =
     exp |> parenthesize(~already_paren, ~show_filters=settings.show_filters);
   let p = exp_to_pretty(~settings, exp);
   p |> PrettySegment.select;
 };
 
-let typ_to_segment = (~settings, typ: Typ.t): Segment.t => {
+let typ_to_segment = (~settings, typ: Typ.t): Segment.t('p) => {
   let typ = parenthesize_typ(typ);
   let p = typ_to_pretty(~settings, typ(~show_filters=settings.show_filters));
   p |> PrettySegment.select;
 };
 
 let any_to_segment =
-    (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t => {
+    (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t('p) => {
   let any =
     any
     |> parenthesize_any(~already_paren, ~show_filters=settings.show_filters);

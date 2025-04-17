@@ -4,7 +4,7 @@ open Util;
  * This is the lowermost projectors module; Base depends on
  * this (specifically, it parameterizes the type t below over piece).
  *
- * ProjectorBase then depends on this and on Base.piece,
+ * ProjectorBase then depends on this and on Base.piece('p),
  * and also on Vdom, necessitating its inclusion in Core.
  * The individual projector implementations depend on ProjectorBase.
  * ProjectorInit then depends on the projector implementations.
@@ -126,6 +126,8 @@ module Kind = {
 type model =
   | V(Kind.gadt('a), 'a): model;
 
+let kind_of_model = (V(x, _)) => Kind.of_gadt(x);
+
 let pp_model = (f, model) =>
   Format.fprintf(
     f,
@@ -191,73 +193,3 @@ let yojson_of_model = (model: model): Yojson.Safe.t =>
   | V(Card, m) => `List([`String("card"), m |> Kind.yojson_of_card_mode])
   | V(TextArea, _) => `List([`String("text"), () |> yojson_of_unit])
   };
-
-/* Projectors in syntax */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t('syntax) = {
-  id: Id.t,
-  kind: Kind.t,
-  syntax: 'syntax,
-  model,
-};
-
-let mk = (kind, syntax, model) => {
-  id: Id.mk(),
-  kind,
-  syntax,
-  model,
-};
-
-module Shape = {
-  /* A projector shape determines the space left for
-   * that projector, and how text flows around a projector
-   * in a text editor. All projectors have a horizontal
-   * extend (in characters), and the vertical extent may
-   * be either 1 character (Inline), or it may insert
-   * an additional number of linebreaks, either immediately
-   * after the projector (Block style) or defer them to
-   * the next linebreak (Tab style). In the latter case,
-   * if there are multiple Tab projectors on a line, the
-   * total extra linebreaks inserted is the maxium required
-   * to accomodate them */
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type vertical =
-    | Inline
-    | Tab(int)
-    | Block(int);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    horizontal: int,
-    vertical,
-  };
-  let inline = (width: int): t => {
-    horizontal: width,
-    vertical: Inline,
-  };
-  let default: t = inline(0);
-
-  let token = (shape: t): string =>
-    switch (shape.vertical) {
-    | Inline
-    | Tab(_) => String.make(shape.horizontal, ' ')
-    | Block(num_lb) =>
-      String.make(num_lb, '\n') ++ String.make(shape.horizontal, ' ')
-    };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type shape = t;
-
-  module Map = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Id.Map.t(shape);
-
-    let empty: t = Id.Map.empty;
-
-    let lookup = (id: Id.t, shape_map: t): shape =>
-      switch (Id.Map.find_opt(id, shape_map)) {
-      | None => inline(0) //TODO: error reporting
-      | Some(shape) => shape
-      };
-  };
-};

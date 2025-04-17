@@ -11,12 +11,12 @@ let empty = {
   ancestors: Ancestors.empty,
 };
 
-let push = (d: Direction.t, p: Piece.t, rs: t): t => {
+let push = (d: Direction.t, p: Piece.t('p), rs: t): t => {
   ...rs,
   siblings: Siblings.push(d, p, rs.siblings),
 };
 
-let prepend = (d: Direction.t, seg: Segment.t, rs: t): t => {
+let prepend = (d: Direction.t, seg: Segment.t('p), rs: t): t => {
   let siblings = Siblings.prepend(d, seg, rs.siblings);
   {
     ...rs,
@@ -24,7 +24,7 @@ let prepend = (d: Direction.t, seg: Segment.t, rs: t): t => {
   };
 };
 
-let pop = (d: Direction.t, rs: t): option((Piece.t, t)) =>
+let pop = (d: Direction.t, rs: t): option((Piece.t('p), t)) =>
   switch (Siblings.pop(d, rs.siblings)) {
   | Some((p, siblings)) =>
     Some((
@@ -68,7 +68,7 @@ let local_incomplete_tiles = ({siblings: (pre, suf), ancestors}: t) => {
 
 let parent =
     (~sel=Segment.empty, {siblings: (l_sibs, r_sibs), ancestors}: t)
-    : option(Piece.t) =>
+    : option(Piece.t('p)) =>
   ancestors
   |> Ancestors.parent
   |> Option.map(p => Base.Tile(Ancestor.zip(l_sibs @ sel @ r_sibs, p)));

@@ -3,9 +3,9 @@ open Util.OptUtil.Syntax;
 
 let seg_of_zip = Zipper.seg_without_buffer;
 
-let rec of_segment = (~holes, seg: Segment.t): string =>
+let rec of_segment = (~holes, seg: Segment.t('p)): string =>
   seg |> List.map(of_piece(~holes)) |> String.concat("")
-and of_piece = (~holes, p: Piece.t): string =>
+and of_piece = (~holes, p: Piece.t('p)): string =>
   switch (p) {
   | Tile(t) => of_tile(~holes, t)
   | Grout({shape: Concave, _}) => " "
@@ -15,7 +15,7 @@ and of_piece = (~holes, p: Piece.t): string =>
     Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
   | Projector(p) => of_segment(~holes, Piece.unparenthesize(p.syntax))
   }
-and of_tile = (~holes, t: Tile.t): string =>
+and of_tile = (~holes, t: Tile.t('p)): string =>
   Aba.mk(t.shards, t.children)
   |> Aba.join(of_delim(t), of_segment(~holes))
   |> String.concat("")
@@ -35,7 +35,7 @@ let to_rows =
       ~measured: Measured.t,
       ~caret: option(Point.t),
       ~indent: string,
-      ~segment: Segment.t,
+      ~segment: Segment.t('p),
     )
     : list(string) => {
   let indent_of = i => Measured.Rows.find(i, measured.rows).indent;
@@ -58,7 +58,7 @@ let measured = z =>
   z
   |> ZipperBase.remove_all_projectors
   |> Zipper.seg_without_buffer
-  |> Measured.of_segment(_, ProjectorCore.Shape.Map.empty); // No projectors
+  |> Measured.of_segment(_, ProjectorShape.Map.empty); // No projectors
 
 let pretty_print = (~holes: option(string)=Some(""), z: Zipper.t): string =>
   to_rows(

@@ -570,7 +570,7 @@ module View = {
         text("Evaluation disabled, showing elaboration:"),
         switch (Model.get_elaboration(model)) {
         | Some(elab) =>
-          let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
+          let shape_map = ProjectorShape.Map.empty; // assume no projectors
           elab
           |> Haz3lcore.ExpToSegment.(
                exp_to_segment(

@@ -23,7 +23,8 @@ open OptUtil.Syntax;
  * neighboring infix operation was added which binds tighter. Again,
  * this is the same as would happen if unparenthesizing a subterm. */
 
-let init = (kind: ProjectorCore.Kind.t, seg: Base.segment): option(syntax) =>
+let init =
+    (kind: ProjectorCore.Kind.t, seg: Base.segment('p)): option(syntax) =>
   /* Projected syntax always gets parenthesized, but only the contents
    * of those parentheses are passed to the projector implementations  */
   switch (MakeTerm.for_projection(seg)) {
@@ -47,15 +48,19 @@ let remove = (piece: Base.piece, focus: Direction.t, z: Zipper.t): Zipper.t => {
 };
 
 let update_piece =
-    (f: Base.projector => Base.projector, id: Id.t, piece: Base.piece)
-    : Base.segment =>
+    (
+      f: Base.projector('p) => Base.projector('p),
+      id: Id.t,
+      piece: Base.piece('p),
+    )
+    : Base.segment('p) =>
   switch (piece) {
   | Projector(pr) when pr.id == id => [Base.Projector(f(pr))]
   | x => [x]
   };
 
 let update =
-    (f: Base.projector => Base.projector, id: Id.t, z: ZipperBase.t)
+    (f: Base.projector('p) => Base.projector('p), id: Id.t, z: ZipperBase.t)
     : ZipperBase.t =>
   ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
 
@@ -81,7 +86,8 @@ let go =
     /* If not projected, project. If already same kind, remove. If other kind, change */
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
-    | [Projector(pr)] when pr.kind == kind =>
+    | [Projector({model: V(kind_gadt, _), _} as pr)]
+        when ProjectorCore.Kind.of_gadt(kind_gadt) == kind =>
       Some(remove(pr.syntax, focus, z))
     | [Projector(pr)] =>
       let+ piece = init(kind, Piece.unparenthesize(pr.syntax));

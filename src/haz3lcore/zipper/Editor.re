@@ -3,7 +3,7 @@ open Util;
 module CachedSyntax = {
   type t = {
     old: bool,
-    segment: Segment.t,
+    segment: Segment.t('p),
     measured: Measured.t,
     tiles: TileMap.t,
     selection_ids: list(Id.t),
@@ -24,11 +24,11 @@ module CachedSyntax = {
     terms: TermMap.t,
     /* Since the introduction of shape_map below, caching projectors
      * here is almost vesigial (currently used only for error deco) */
-    projectors: Id.Map.t(Base.projector),
+    projectors: Id.Map.t(Base.projector('p)),
     /* The shape_map is used to leave space for projectors in the
      * underlying editor. In principle calculating this can involve
      * both static and dynamic information, so we cache this for perf */
-    shape_map: ProjectorCore.Shape.Map.t,
+    shape_map: ProjectorShape.Map.t,
   };
 
   // should not be serializing
