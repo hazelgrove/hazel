@@ -27,9 +27,7 @@ let init =
   switch (P.init(any)) {
   | None => None
   | Some(model) =>
-    Some(
-      Base.Projector(ProjectorCore.mk(kind, syntax, V(kind_gadt, model))),
-    )
+    Some(Base.Projector(Base.mk_projector(syntax, V(kind_gadt, model))))
   };
 };
 

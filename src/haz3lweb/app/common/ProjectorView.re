@@ -54,7 +54,7 @@ module Model = {
       |> Option.value(~default=Sort.Exp),
     error:
       Option.map(Info.is_error, info.statics) |> Option.value(~default=false),
-    kind: p.kind,
+    kind: p.model |> ((V(kind, _)) => ProjectorCore.Kind.of_gadt(kind)),
     indication: editor_active ? indication(indicated, id) : None,
     selected: editor_active ? List.mem(id, selection_ids) : false,
   };
@@ -235,7 +235,7 @@ let split_views =
       ~measurement,
       ~status,
       ~id=p.id,
-      ~kind=p.kind,
+      ~kind=p.model |> ProjectorCore.kind_of_model,
     );
   let views = mk_view(inject, font_metrics, projector_data);
   let line_view = {

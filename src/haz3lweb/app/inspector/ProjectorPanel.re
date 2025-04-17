@@ -50,7 +50,7 @@ module Applicable = {
     let* editor = editor;
     let* (piece, _, _) = Indicated.for_index(editor.state.zipper);
     switch (piece) {
-    | Projector({kind, _}) => Some(kind)
+    | Projector({model, _}) => Some(ProjectorCore.kind_of_model(model))
     | _ => None
     };
   };

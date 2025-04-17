@@ -19,7 +19,11 @@ and tile = {
   shards: list(int),
   children: list(segment),
 }
-and projector = ProjectorCore.t(piece);
+and projector = {
+  id: Id.t,
+  syntax: piece,
+  model: ProjectorCore.model,
+};
 
 // This is for comment insertion
 let mk_secondary = (id, content) => [
@@ -28,3 +32,9 @@ let mk_secondary = (id, content) => [
     content,
   }),
 ];
+
+let mk_projector = (syntax, model) => {
+  id: Id.mk(),
+  syntax,
+  model,
+};

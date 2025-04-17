@@ -700,9 +700,7 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
     switch (MakeTerm.for_projection([syntax])) {
     | None => failwith("ExpToSegment.fold_fun_if")
     | Some(_) => [
-        Base.Projector(
-          ProjectorCore.mk(Fold, syntax, V(Fold, {text: str})),
-        ),
+        Base.Projector(Base.mk_projector(syntax, V(Fold, {text: str}))),
       ]
     };
   } else {

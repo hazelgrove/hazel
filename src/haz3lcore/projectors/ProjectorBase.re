@@ -171,5 +171,4 @@ module type Projector = {
 };
 
 /* Projectors currently are all convex */
-let shapes = (_: ProjectorCore.t(syntax)): Nibs.shapes =>
-  Nib.Shape.(Convex, Convex);
+let shapes = (_: Base.projector): Nibs.shapes => Nib.Shape.(Convex, Convex);

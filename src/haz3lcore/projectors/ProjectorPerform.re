@@ -81,7 +81,8 @@ let go =
     /* If not projected, project. If already same kind, remove. If other kind, change */
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
-    | [Projector(pr)] when pr.kind == kind =>
+    | [Projector({model: V(kind_gadt, _), _} as pr)]
+        when ProjectorCore.Kind.of_gadt(kind_gadt) == kind =>
       Some(remove(pr.syntax, focus, z))
     | [Projector(pr)] =>
       let+ piece = init(kind, Piece.unparenthesize(pr.syntax));

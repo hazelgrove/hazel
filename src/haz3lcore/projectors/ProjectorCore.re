@@ -126,6 +126,8 @@ module Kind = {
 type model =
   | V(Kind.gadt('a), 'a): model;
 
+let kind_of_model = (V(x, _)) => Kind.of_gadt(x);
+
 let pp_model = (f, model) =>
   Format.fprintf(
     f,
@@ -191,22 +193,6 @@ let yojson_of_model = (model: model): Yojson.Safe.t =>
   | V(Card, m) => `List([`String("card"), m |> Kind.yojson_of_card_mode])
   | V(TextArea, _) => `List([`String("text"), () |> yojson_of_unit])
   };
-
-/* Projectors in syntax */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t('syntax) = {
-  id: Id.t,
-  kind: Kind.t,
-  syntax: 'syntax,
-  model,
-};
-
-let mk = (kind, syntax, model) => {
-  id: Id.mk(),
-  kind,
-  syntax,
-  model,
-};
 
 module Shape = {
   /* A projector shape determines the space left for
