@@ -107,7 +107,7 @@ let rm_opaques:
   );
 
 /* Don't redundantly show an env for variable references, patterns */
-let hide_env = (info: info): bool =>
+let hide_env = (info: info('p)): bool =>
   switch (info.statics) {
   | Some(
       InfoExp({term: {term: Var(_) | Probe({term: Var(_), _}, _), _}, _}),
@@ -119,7 +119,7 @@ let hide_env = (info: info): bool =>
 
 let show_purps = ref(false);
 
-let cur_ap = (info: info) =>
+let cur_ap = (info: info('p)) =>
   switch (info.statics) {
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
   | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _}))
@@ -153,11 +153,11 @@ module DynCursor = {
     s.call_cursor = closure.call_stack;
   };
 
-  let capture_ap = (info: info): unit => {
+  let capture_ap = (info: info('p)): unit => {
     s.indicated_call = cur_ap(info);
   };
 
-  let capture = (info: info, closure: closure): unit => {
+  let capture = (info: info('p), closure: closure): unit => {
     capture_cursor(closure);
     capture_ap(info);
   };
@@ -170,7 +170,7 @@ module DynCursor = {
 
   /* If one of the current probe's cells is not already selected,
    * select the first one */
-  let probe_default = (info: info): unit =>
+  let probe_default = (info: info('p)): unit =>
     switch (info.dynamics) {
     | Some(closures) when is_in(closures) != None => capture_ap(info)
     | Some(closures) =>
@@ -218,14 +218,14 @@ module DynCursor = {
     | (_, _) => Same
     };
 
-  let cur_call = (info: info, closure: closure) => {
+  let cur_call = (info: info('p), closure: closure) => {
     open OptUtil.Syntax;
     let* lex = cur_ap(info);
     let dyn = closure.call_stack;
     Some([lex, ...dyn]);
   };
 
-  let relation = (info: info, closure: closure): relation => {
+  let relation = (info: info('p), closure: closure): relation => {
     open OptUtil.Syntax;
     let this = closure.call_stack;
     let cursor = s.call_cursor;
@@ -243,7 +243,7 @@ module DynCursor = {
     };
   };
 
-  let clss = (info: info, closure: closure): list(string) => {
+  let clss = (info: info('p), closure: closure): list(string) => {
     let relation = relation(info, closure);
     (
       switch (
@@ -285,7 +285,7 @@ module DynCursor = {
   };
 
   let first_cursor_closure =
-      (info: info, closures: list(closure)): option(closure) => {
+      (info: info('p), closures: list(closure)): option(closure) => {
     let find_cursor =
       List.find_opt(
         (closure: closure) => relation(info, closure).is_call_cursor,
@@ -303,13 +303,13 @@ module DynCursor = {
     |> OptUtil.and_then(ListUtil.hd_opt) == cur_ap(info);
   };
 
-  let is_pinned = (info: info): bool =>
+  let is_pinned = (info: info('p)): bool =>
     switch (OptUtil.and_then(is_in, info.dynamics)) {
     | Some(closure_cursor) => s.pinned_call == cur_call(info, closure_cursor)
     | _ => false
     };
 
-  let pin_call = (info: info): unit =>
+  let pin_call = (info: info('p)): unit =>
     switch (OptUtil.and_then(is_in, info.dynamics)) {
     | Some(closure_cursor) => s.pinned_call = cur_call(info, closure_cursor)
     | _ => ()
@@ -319,7 +319,7 @@ module DynCursor = {
     s.pinned_call = None;
   };
 
-  let toggle_pinned_call = (info: info) =>
+  let toggle_pinned_call = (info: info('p)) =>
     switch (s.pinned_call) {
     | Some(pinned_ap) when ListUtil.hd_opt(pinned_ap) == cur_ap(info) =>
       /* already pinned case */
@@ -351,7 +351,7 @@ module DynCursor = {
 
 module Closures = {
   let filter_frames_by_pin =
-      (info: info, frames: list(closure)): list(closure) =>
+      (info: info('p), frames: list(closure)): list(closure) =>
     switch (DynCursor.s.pinned_call) {
     | Some(pinned_ap) =>
       List.filter(
@@ -363,13 +363,14 @@ module Closures = {
     | None => frames
     };
 
-  let total = (info: info): int =>
+  let total = (info: info('p)): int =>
     switch (info.dynamics) {
     | Some(closures) => List.length(filter_frames_by_pin(info, closures))
     | None => 0
     };
 
-  let select_frames = (info: info, closures: list(closure)): list(closure) => {
+  let select_frames =
+      (info: info('p), closures: list(closure)): list(closure) => {
     let closures = filter_frames_by_pin(info, closures);
     let cursor_idx =
       switch (DynCursor.first_index_of_interest(info, closures)) {
@@ -434,13 +435,14 @@ let abbreviate = (exp: Exp.t, available: int): Exp.t => {
 let len_seg = (seg: Segment.t('p)): int =>
   seg |> Printer.of_segment(~holes=Some("?")) |> String.length;
 
-let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t('p), int) => {
+let seg_of_exp = (utility: utility('p), exp: Exp.t): (Segment.t('p), int) => {
   let seg = utility.term_to_seg(Exp(exp));
   (seg, len_seg(seg));
 };
 
 let abbreviated_seg_of =
-    (utility: utility, available: int, exp: Exp.t): (Segment.t('p), int) => {
+    (utility: utility('p), available: int, exp: Exp.t)
+    : (Segment.t('p), int) => {
   let (abbr_exp, _length) =
     exp |> DHExp.strip_casts |> Abbreviate.abbreviate_exp(~available);
   seg_of_exp(utility, abbr_exp);
@@ -492,8 +494,8 @@ module ValueState = {
 
 let value_view =
     (
-      info: info,
-      utility: utility,
+      info: info('p),
+      utility: utility('p),
       view_seg,
       local,
       closure: closure,
@@ -557,7 +559,7 @@ let value_view =
 };
 
 let env_val =
-    (closure, view_seg, utility: utility, en: Dynamics.Probe.Env.entry)
+    (closure, view_seg, utility: utility('p), en: Dynamics.Probe.Env.entry)
     : Node.t => {
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
@@ -574,7 +576,7 @@ let env_val =
   );
 };
 
-let env_view = (closure: closure, view_seg, utility: utility): Node.t =>
+let env_view = (closure: closure, view_seg, utility: utility('p)): Node.t =>
   Node.div(
     ~attrs=[Attr.classes(["live-env"])],
     closure.env
@@ -585,8 +587,8 @@ let env_view = (closure: closure, view_seg, utility: utility): Node.t =>
 
 let closure_view =
     (
-      info: info,
-      utility: utility,
+      info: info('p),
+      utility: utility('p),
       view_seg,
       local,
       (index: int, closure: closure),
@@ -643,10 +645,10 @@ let equals_view =
 
 let offside_view =
     (
-      info: info,
-      local,
-      view_seg: (~background: bool=?, Sort.t, list(syntax)) => Node.t,
-      utility: utility,
+      info: info('p),
+      local: action => Ui_effect.t(unit),
+      view_seg: View.seg('p),
+      utility: utility('p),
     ) =>
   Node.div(
     ~attrs=[Attr.classes(["live-offside"])],
@@ -664,7 +666,7 @@ let offside_view =
     },
   );
 
-let num_closures_view = (info: info) => {
+let num_closures_view = (info: info('p)) => {
   let num_closures = Closures.total(info);
   let description = num_closures < 1000 ? string_of_int(num_closures) : "1k+";
   div(
@@ -676,7 +678,7 @@ let num_closures_view = (info: info) => {
   );
 };
 
-let pin_view = (info: info) =>
+let pin_view = (info: info('p)) =>
   DynCursor.show_pin(info)
     ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
@@ -693,7 +695,7 @@ let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
 let state: ref(option(Direction.t)) = ref(Option.None);
 
-let move_cursor = (info: info, offset: int): unit =>
+let move_cursor = (info: info('p), offset: int): unit =>
   switch (info.dynamics) {
   | Some(closures) =>
     let closures = Closures.filter_frames_by_pin(info, closures);
@@ -710,7 +712,7 @@ let move_cursor = (info: info, offset: int): unit =>
   | None => ()
   };
 
-let round_up = (utility: utility, closure): unit => {
+let round_up = (utility: utility('p), closure: closure): unit => {
   let (_, cur) =
     abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
   let goal = cur + 1;
@@ -727,7 +729,7 @@ let round_up = (utility: utility, closure): unit => {
   ClosureLength.set(closure.closure_id, find_target(goal));
 };
 
-let round_down = (utility: utility, closure: closure): unit => {
+let round_down = (utility: utility('p), closure: closure): unit => {
   let (_, cur) =
     abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
   let goal = cur - 1;
@@ -743,10 +745,10 @@ let round_down = (utility: utility, closure: closure): unit => {
   ClosureLength.set(closure.closure_id, find_target(goal));
 };
 
-let indicated_closure = (info: info): option(closure) =>
+let indicated_closure = (info: info('p)): option(closure) =>
   OptUtil.and_then(DynCursor.first_cursor_closure(info), info.dynamics);
 
-let key_handler = (local, info: info, _, evt) => {
+let key_handler = (local, info: info('p), _, evt) => {
   open Effect;
   /* PLAN: inter-probe navigation
       ultimately need to be able to issue a parent action to move to and focus on
@@ -801,7 +803,7 @@ let key_handler = (local, info: info, _, evt) => {
   };
 };
 
-let update = ((), info: info, a: action) => {
+let update = ((), info: info('p), a: action) => {
   switch (a) {
   | ChangeLength(id, len) => ClosureLength.set(id, len)
   | ToggleShowAllVals(_) => Window.toggle_mode()
@@ -811,7 +813,13 @@ let update = ((), info: info, a: action) => {
   };
 };
 
-let view = (local, parent, info: info): Node.t =>
+let view =
+    (
+      local: action => Ui_effect.t(unit),
+      parent: external_action('p) => Ui_effect.t(unit),
+      info: info('p),
+    )
+    : Node.t =>
   div(
     ~attrs=[
       Attr.id(Id.cls(info.id)),
@@ -844,7 +852,7 @@ let view = (local, parent, info: info): Node.t =>
     [text(syntax_str(info.syntax)), icon],
   );
 
-let overlay_view = (info: info): Node.t =>
+let overlay_view = (info: info('p)): Node.t =>
   div(
     ~attrs=[
       Attr.classes(
@@ -883,12 +891,19 @@ module M: Projector with type model = unit = {
       keyboard: None,
     };
 
-  let placeholder = (_, info: info) =>
+  let placeholder = (_, info: info('p)) =>
     ProjectorShape.inline(2 + String.length(syntax_str(info.syntax)));
 
   let update = update;
 
-  let view = (_model, info, ~local, ~parent, ~view_seg) =>
+  let view =
+      (
+        _model: unit,
+        info: info('p),
+        ~local: action => Ui_effect.t(unit),
+        ~parent: external_action('p) => Ui_effect.t(unit),
+        ~view_seg: View.seg('p),
+      ) =>
     View.{
       inline: view(local, parent, info),
       overlay: Some(overlay_view(info)),

@@ -2,7 +2,7 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
-let barf = (d: Direction.t, z: t): option(t) => {
+let barf = (d: Direction.t, z: t('p)): option(t('p)) => {
   /* Removes the d-neighboring tile and drops from backpack;
      precondition: the d-neighbor should be a monotile
      string-matching the dropping shard */
@@ -11,7 +11,8 @@ let barf = (d: Direction.t, z: t): option(t) => {
   z;
 };
 
-let delayed_expand = (t: Token.t, caret: Direction.t, z: t): option(t) => {
+let delayed_expand =
+    (t: Token.t, caret: Direction.t, z: t('p)): option(t('p)) => {
   /* Removes the d-neighboring tile and reconstructs it, triggering
      keyword-expansion; precondition: the d-neighbor should be a monotile
      string-matching a keyword of an expanding form */
@@ -20,7 +21,7 @@ let delayed_expand = (t: Token.t, caret: Direction.t, z: t): option(t) => {
   construct(~backpack, ~caret, new_label, z);
 };
 
-let expand_or_barf_left_neighbor = (z as s: t): option(t) =>
+let expand_or_barf_left_neighbor = (z as s: t('p)): option(t('p)) =>
   /* If left neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (left_neighbor_monotile(z.relatives.siblings)) {
@@ -29,7 +30,7 @@ let expand_or_barf_left_neighbor = (z as s: t): option(t) =>
   | _ => Some(s)
   };
 
-let expand_or_barf_right_neighbor = (z as s: t): option(t) =>
+let expand_or_barf_right_neighbor = (z as s: t('p)): option(t('p)) =>
   /* If right neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (right_neighbor_monotile(z.relatives.siblings)) {
@@ -46,7 +47,7 @@ let get_duo_shard = ({label, shards, _}: Tile.t('p)) =>
   };
 
 let neighbor_can_duomerge =
-    (t: Token.t, s: Siblings.t): option((Label.t, Direction.t)) =>
+    (t: Token.t, s: Siblings.t('p)): option((Label.t, Direction.t)) =>
   /* Checks if a neighbor, preferentially the left neighbor, is
      a shard of a duotile which can be merged to form a monotile.
      It returns the resulting (mono)label, and the direction of
@@ -63,7 +64,7 @@ let neighbor_can_duomerge =
   | _ => None
   };
 
-let make_new_tile = (t: Token.t, caret: Direction.t, z: t): t =>
+let make_new_tile = (t: Token.t, caret: Direction.t, z: t('p)): t('p) =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
@@ -79,7 +80,8 @@ let make_new_tile = (t: Token.t, caret: Direction.t, z: t): t =>
       z;
     };
 
-let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) => {
+let expand_neighbors_and_make_new_tile =
+    (char: Token.t, state: t('p)): option(t('p)) => {
   /* Trigger a token boundary event and create a new tile.
      This process potentially involves both neighboring tiles,
      potentially triggering up to 3 expansions or backpack barfs.
@@ -101,7 +103,7 @@ let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) =>
   make_new_tile(char, Left, z);
 };
 
-let replace_tile = (t: Token.t, d: Direction.t, z: t): option(t) => {
+let replace_tile = (t: Token.t, d: Direction.t, z: t('p)): option(t('p)) => {
   let+ z = delete(d, z);
   make_new_tile(t, d, z);
 };
@@ -112,7 +114,7 @@ type appendability =
   | AppendRight(Token.t)
   | MakeNew;
 
-let sibling_appendability: (string, Siblings.t) => appendability =
+let sibling_appendability: (string, Siblings.t('p)) => appendability =
   (char, siblings) =>
     switch (neighbor_monotiles(siblings)) {
     | (Some(t), _) when Molds.allow_append_right(t, char) =>
@@ -122,14 +124,14 @@ let sibling_appendability: (string, Siblings.t) => appendability =
     | _ => MakeNew
     };
 
-let insert_outer = (char: string, z as state: t): option(t) =>
+let insert_outer = (char: string, z as state: t('p)): option(t('p)) =>
   switch (sibling_appendability(char, z.relatives.siblings)) {
   | MakeNew => expand_neighbors_and_make_new_tile(char, state)
   | AppendLeft(t) => replace_tile(t, Left, state)
   | AppendRight(t) => replace_tile(t, Right, state)
   };
 
-let insert_duo = (lbl: Label.t, z: option(t)): option(t) =>
+let insert_duo = (lbl: Label.t, z: option(t('p))): option(t('p)) =>
   z
   |> Option.map(z => Zipper.construct(~caret=Left, ~backpack=Left, lbl, z))
   |> OptUtil.and_then(z => {
@@ -140,12 +142,13 @@ let insert_duo = (lbl: Label.t, z: option(t)): option(t) =>
        |> OptUtil.and_then(Zipper.move(Left))
      });
 
-let insert_monos = (l: Token.t, r: Token.t, z: option(t)): option(t) =>
+let insert_monos =
+    (l: Token.t, r: Token.t, z: option(t('p))): option(t('p)) =>
   z
   |> Option.map(Zipper.construct_mono(Right, r))
   |> Option.map(Zipper.construct_mono(Left, l));
 
-let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
+let split = (z: t('p), char: string, idx: int, t: Token.t): option(t('p)) => {
   /* Current this necessarily creates three tokens; two from splitting
    * the existing one, and a new one. The two splitting tokens may become
    * delimiters of the same time (e.g. `[|]`=>`[<>|]`). In the future it
@@ -188,7 +191,8 @@ let closing_stringlit_or_comment = (char, t) =>
   && Form.is_comment_delim(char);
 
 let go =
-    (char: string, {caret, relatives: {siblings, _}, _} as z: t): option(t) => {
+    (char: string, {caret, relatives: {siblings, _}, _} as z: t('p))
+    : option(t('p)) => {
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destruct(z) : z;
   switch (caret, neighbor_monotiles(siblings)) {

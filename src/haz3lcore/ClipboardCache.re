@@ -14,7 +14,7 @@ let set = (seg: option(Segment.t('p)), str: string): unit =>
   | _ => ()
   };
 
-let get = (pasted: string): Action.t => {
+let get = (pasted: string): Action.t('p) => {
   /* Note the trimming of leading whitespace on each line */
   let trim = Util.StringUtil.trim_leading;
   let trimmed_pasted = trim(pasted);

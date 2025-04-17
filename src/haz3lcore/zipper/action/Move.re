@@ -21,7 +21,7 @@ let movability = (chunkiness: chunkiness, label, delim_idx): movability => {
 };
 
 let neighbor_movability =
-    (chunkiness: chunkiness, {relatives: {siblings, ancestors}, _}: t)
+    (chunkiness: chunkiness, {relatives: {siblings, ancestors}, _}: t('p))
     : (movability, movability) => {
   let movability = movability(chunkiness);
   let (supernhbr_l, supernhbr_r) =
@@ -69,7 +69,8 @@ let inner_start = (d_init, z) =>
 let inner_end = (d, d_init, c_max, z) =>
   z |> Zipper.set_caret(Inner(d_init, c_max)) |> Zipper.move(d);
 
-let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
+let primary =
+    (chunkiness: chunkiness, d: Direction.t, z: t('p)): option(t('p)) => {
   switch (d, z.caret, neighbor_movability(chunkiness, z)) {
   /* this case maybe shouldn't be necessary but currently covers an edge
      (select an open parens to left of a multichar token and press left) */
@@ -90,14 +91,14 @@ let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
 
 module type S = {
   let measured: Measured.t;
-  let term_ranges: TermRanges.t;
+  let term_ranges: TermRanges.t('p);
   let col_target: int;
 };
 
 module Make = (M: S) => {
-  let caret_point = Zipper.caret_point(M.measured);
+  let caret_point = Zipper.caret_point(M.measured, _);
   let primary = primary;
-  let is_at_side_of_row = (d: Direction.t, z: Zipper.t) => {
+  let is_at_side_of_row = (d: Direction.t, z: Zipper.t('p)) => {
     let Point.{row, col} = caret_point(z);
     switch (Zipper.move(d, z)) {
     | None => true
@@ -123,14 +124,14 @@ module Make = (M: S) => {
       (
         ~anchor: option(Measured.Point.t)=?,
         ~force_progress: bool=false,
-        f: (Direction.t, t) => option(t),
+        f: (Direction.t, t('p)) => option(t('p)),
         goal: Measured.Point.t,
-        z: t,
+        z: t('p),
       )
-      : option(t) => {
+      : option(t('p)) => {
     let init = caret_point(z);
     let d_to_goal = direction_to_from(goal, init);
-    let rec go = (prev: t, curr: t) => {
+    let rec go = (prev: t('p), curr: t('p)) => {
       let curr_p = caret_point(curr);
       let x_progress = Point.dcomp(d_to_goal, curr_p.col, goal.col);
       let y_progress = Point.dcomp(d_to_goal, curr_p.row, goal.row);
@@ -188,7 +189,8 @@ module Make = (M: S) => {
       ? None : Some(res);
   };
   let do_vertical =
-      (f: (Direction.t, t) => option(t), d: Direction.t, z: t): option(t) => {
+      (f: (Direction.t, t('p)) => option(t('p)), d: Direction.t, z: t('p))
+      : option(t('p)) => {
     /* Here f should be a function which results in strict d-wards
        movement of the caret. Iterate f until we get to the closet
        caret position to a target derived from the initial position */
@@ -202,7 +204,8 @@ module Make = (M: S) => {
   };
 
   let do_extreme =
-      (f: (Direction.t, t) => option(t), d: planar, z: t): option(t) => {
+      (f: (Direction.t, t('p)) => option(t('p)), d: planar, z: t('p))
+      : option(t('p)) => {
     let cur_p = caret_point(z);
     let goal: Point.t =
       switch (d) {
@@ -226,10 +229,10 @@ module Make = (M: S) => {
     do_towards(f, goal, z);
   };
 
-  let to_start = do_extreme(primary(ByToken), Up);
-  let to_end = do_extreme(primary(ByToken), Down);
+  let to_start = do_extreme(primary(ByToken), Up, _);
+  let to_end = do_extreme(primary(ByToken), Down, _);
 
-  let to_edge: (Direction.t, t) => option(t) =
+  let to_edge: (Direction.t, t('p)) => option(t('p)) =
     fun
     | Left => to_start
     | Right => to_end;
@@ -239,11 +242,11 @@ module Make = (M: S) => {
   let rec do_until =
           (
             ~move_first=true,
-            move_action: t => option(t),
+            move_action: t('p) => option(t('p)),
             piece_p: Piece.t('p) => bool,
-            z: t,
+            z: t('p),
           )
-          : option(t) => {
+          : option(t('p)) => {
     let* z = move_first ? move_action(z) : Some(z);
     let* (piece, _, _) = Indicated.piece'(~no_ws=false, ~ign=_ => false, z);
     if (piece_p(piece)) {
@@ -273,7 +276,7 @@ module Make = (M: S) => {
    * expression with (caret "|") "true && !|flag", the
    * caret is at the leftmost edge of flag, but the not
    * operator ("!") is indicated */
-  let jump_to_id = (z: t, id: Id.t): option(t) => {
+  let jump_to_id = (z: t('p), id: Id.t): option(t('p)) => {
     let* {origin, _} = Measured.find_by_id(id, M.measured);
     let z =
       switch (to_start(z)) {
@@ -306,7 +309,7 @@ module Make = (M: S) => {
    * indicate the target id, move one token to the right.
    * This is an approximate solution (that I believe works
    * for all current cases) */
-  let jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
+  let jump_to_id_indicated = (z: t('p), id: Id.t): option(t('p)) => {
     let* {origin, _} = Measured.find_by_id(id, M.measured);
     let z =
       switch (to_start(z)) {
@@ -327,14 +330,14 @@ module Make = (M: S) => {
     };
   };
 
-  let vertical = (d: Direction.t, z: t): option(t) =>
+  let vertical = (d: Direction.t, z: t('p)): option(t('p)) =>
     z.selection.content == []
       ? do_vertical(primary(ByChar), d, z)
       : Some(Zipper.directional_unselect(d, z));
 
-  let targets_within_row = (z: t): list(t) => {
+  let targets_within_row = (z: t('p)): list(t('p)) => {
     let init = caret_point(z);
-    let rec go = (d: Direction.t, z: t) => {
+    let rec go = (d: Direction.t, z: t('p)) => {
       switch (primary(ByChar, d, z)) {
       | None => []
       | Some(z) =>
@@ -357,7 +360,7 @@ module Make = (M: S) => {
   };
 
   // TODO(d): unify this logic with rest of movement logic
-  let rec to_backpack_target = (d: planar, z: t): option(t) => {
+  let rec to_backpack_target = (d: planar, z: t('p)): option(t('p)) => {
     let done_or_try_again = (d, z) =>
       switch (pop_backpack(z)) {
       | None => to_backpack_target(d, z)
@@ -403,7 +406,8 @@ module Make = (M: S) => {
     };
   };
 
-  let move_dispatch = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
+  let move_dispatch =
+      (d: Action.move, z: Zipper.t('p)): option(Zipper.t('p)) =>
     switch (d) {
     | Goal(Piece(p, d)) => do_until_wrap(Action.of_piece_goal(p), d, z)
     | Goal(Point(goal)) =>
@@ -424,7 +428,7 @@ module Make = (M: S) => {
       )
     };
 
-  let go = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
+  let go = (d: Action.move, z: Zipper.t('p)): option(Zipper.t('p)) =>
     if (Selection.is_empty(z.selection)) {
       move_dispatch(d, z);
     } else {
@@ -438,7 +442,7 @@ module Make = (M: S) => {
     };
 
   let left_until_case_or_rule =
-    do_until(go(Local(Left(ByToken))), Piece.is_case_or_rule);
+    do_until(go(Local(Left(ByToken))), Piece.is_case_or_rule, _);
 
   let left_until_not_comment_or_space = (~move_first) =>
     do_until(

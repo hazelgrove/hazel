@@ -21,18 +21,19 @@ let r_shard = a =>
   ListUtil.last_opt(snd(a.shards))
   |> OptUtil.get_or_raise(Empty_shard_affix);
 
-let nibs = (a: t) => {
+let nibs = (a: t('p)) => {
   let (l, _) = Mold.nibs(~index=l_shard(a), a.mold);
   let (_, r) = Mold.nibs(~index=r_shard(a), a.mold);
   (l, r);
 };
-let shapes = a => {
+let shapes = (a: t('p)) => {
   let (l, r) = nibs(a);
   (l.shape, r.shape);
 };
 
 let zip =
-    (child: Segment.t('p), {id, label, mold, shards, children}: t): Tile.t => {
+    (child: Segment.t('p), {id, label, mold, shards, children}: t('p))
+    : Tile.t('p) => {
   id,
   label,
   mold,
@@ -40,14 +41,14 @@ let zip =
   children: fst(children) @ [child, ...snd(children)],
 };
 
-let sorted_children = (a: t) => {
+let sorted_children = (a: t('p)) => {
   let n = List.length(fst(a.children));
   let t = zip(Segment.empty, a);
   let (l, _, r) = ListUtil.split_nth(n, Tile.sorted_children(t));
   (l, r);
 };
 
-let remold = (a: t): list(t) =>
+let remold = (a: t('p)): list(t('p)) =>
   Molds.get(a.label)
   |> List.map(mold =>
        {
@@ -56,7 +57,7 @@ let remold = (a: t): list(t) =>
        }
      );
 
-let sort = (a: t): Sort.t => {
+let sort = (a: t('p)): Sort.t => {
   let (pre, suf) = a.shards;
   switch (ListUtil.split_last_opt(pre), suf) {
   | (Some((_, i)), [j, ..._]) =>
@@ -68,7 +69,8 @@ let sort = (a: t): Sort.t => {
 };
 
 let disassemble =
-    ({id, label, mold, shards, children: (kids_l, kids_r)}: t): Siblings.t => {
+    ({id, label, mold, shards, children: (kids_l, kids_r)}: t('p))
+    : Siblings.t('p) => {
   let (shards_l, shards_r) =
     shards
     |> TupleUtil.map2(Tile.split_shards(id, label, mold))
@@ -78,7 +80,7 @@ let disassemble =
   (flatten(shards_l, kids_l), flatten(shards_r, kids_r));
 };
 
-let container_shards = (a: t): (Piece.t('p), Piece.t('p)) => {
+let container_shards = (a: t('p)): (Piece.t('p), Piece.t('p)) => {
   let (shards_l, shards_r) =
     a.shards
     |> TupleUtil.map2(Tile.split_shards(a.id, a.label, a.mold))
@@ -91,7 +93,7 @@ let container_shards = (a: t): (Piece.t('p), Piece.t('p)) => {
 };
 
 let reassemble =
-    (match_l: Aba.t(Tile.t, Segment.t('p)) as 'm, match_r: 'm): t => {
+    (match_l: Aba.t(Tile.t('p), Segment.t('p)) as 'm, match_r: 'm): t('p) => {
   // TODO(d) bit hacky, need to do a flip/orientation pass
   // let match_l = Aba.map_b(Segment.rev, match_l);
   let (t_l, t_r) = Tile.(reassemble(match_l), reassemble(match_r));

@@ -2,7 +2,7 @@
    efficient calculation of the best way to add linebreaks etc, but that hasn't been implemented yet, so
    none of these functions do anything yet. (Matt) */
 
-type pretty = Segment.t('p);
+type pretty('p) = Segment.t('p);
 
 let p_concat = (pretty2, pretty1) => pretty1 @ pretty2;
 let p_or = (_pretty2, pretty1) => pretty1;

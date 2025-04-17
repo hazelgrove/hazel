@@ -5,9 +5,9 @@ open OptUtil.Syntax;
 let destruct =
     (
       d: Direction.t,
-      {caret, relatives: {siblings: (l_sibs, r_sibs), _}, _} as z: t,
+      {caret, relatives: {siblings: (l_sibs, r_sibs), _}, _} as z: t('p),
     )
-    : option(t) => {
+    : option(t('p)) => {
   /* Could add checks on valid tokens (all of these hold assuming substring) */
   let last_inner_pos = t => Token.length(t) - 2;
   let delete_right = z =>
@@ -75,7 +75,7 @@ let destruct =
   };
 };
 
-let merge = ((l, r): (Token.t, Token.t), z: t): option(t) =>
+let merge = ((l, r): (Token.t, Token.t), z: t('p)): option(t('p)) =>
   z
   |> Zipper.set_caret(Inner(0, Token.length(l) - 1))  // note monotile assumption
   |> Zipper.delete(Left)
@@ -83,13 +83,13 @@ let merge = ((l, r): (Token.t, Token.t), z: t): option(t) =>
   |> Option.map(Zipper.construct_mono(Right, l ++ r));
 
 /* Check if containing duo form has a mono equivalent e.g. list literals */
-let parent_duomerges = (z: Zipper.t) => {
+let parent_duomerges = (z: Zipper.t('p)) => {
   let* parent = Relatives.parent(z.relatives);
   let* lbl = Piece.label(parent);
   Form.duomerges(lbl);
 };
 
-let go = (d: Direction.t, z: t): option(t) => {
+let go = (d: Direction.t, z: t('p)): option(t('p)) => {
   let* z = destruct(d, z);
   switch (
     parent_duomerges(z),

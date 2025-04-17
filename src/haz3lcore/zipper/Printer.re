@@ -19,9 +19,9 @@ and of_tile = (~holes, t: Tile.t('p)): string =>
   Aba.mk(t.shards, t.children)
   |> Aba.join(of_delim(t), of_segment(~holes))
   |> String.concat("")
-and of_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
+and of_delim = (t: Piece.tile('p), i: int): string => List.nth(t.label, i);
 
-let to_string_basic = (z: Zipper.t): string => {
+let to_string_basic = (z: Zipper.t('p)): string => {
   z |> seg_of_zip |> of_segment(~holes=None);
 };
 
@@ -60,7 +60,8 @@ let measured = z =>
   |> Zipper.seg_without_buffer
   |> Measured.of_segment(_, ProjectorShape.Map.empty); // No projectors
 
-let pretty_print = (~holes: option(string)=Some(""), z: Zipper.t): string =>
+let pretty_print =
+    (~holes: option(string)=Some(""), z: Zipper.t('p)): string =>
   to_rows(
     ~holes,
     ~measured=measured(z),
@@ -71,7 +72,7 @@ let pretty_print = (~holes: option(string)=Some(""), z: Zipper.t): string =>
   |> String.concat("\n");
 
 let zipper_to_string =
-    (~holes: option(string)=Some(""), z: Zipper.t): string =>
+    (~holes: option(string)=Some(""), z: Zipper.t('p)): string =>
   to_rows(
     ~holes,
     ~measured=measured(z),
@@ -81,7 +82,7 @@ let zipper_to_string =
   )
   |> String.concat("\n");
 
-let to_string_selection = (zipper: Zipper.t): string => {
+let to_string_selection = (zipper: Zipper.t('p)): string => {
   to_rows(
     ~measured=measured(zipper),
     ~caret=None,
@@ -93,8 +94,8 @@ let to_string_selection = (zipper: Zipper.t): string => {
 };
 
 let zipper_of_string =
-    (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
-  let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
+    (~zipper_init=Zipper.init(), str: string): option(Zipper.t('p)) => {
+  let insert = (z: option(Zipper.t('p)), c: string): option(Zipper.t('p)) => {
     let* z = z;
     try(c == "\r" ? Some(z) : Insert.go(c, z)) {
     | exn =>

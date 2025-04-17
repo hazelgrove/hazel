@@ -22,7 +22,7 @@ module M: Projector with type model = t = {
     ProjectorShape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
   let update = (m, _, _) => m;
 
-  let hover_view = (view_seg: View.seg, info: info) => {
+  let hover_view = (view_seg: View.seg('p), info: info('p)) => {
     let seg = Segment.unparenthesize(info.syntax);
     let sort = Segment.sort_of(Segment.skel(seg), seg);
     div(
@@ -33,7 +33,7 @@ module M: Projector with type model = t = {
     );
   };
 
-  let view = (m: model, info, ~local as _, ~parent, ~view_seg) =>
+  let view = (m: model, info: info('p), ~local as _, ~parent, ~view_seg) =>
     ProjectorBase.View.mk(
       div(
         ~attrs=[Attr.on_double_click(_ => parent(Remove))],

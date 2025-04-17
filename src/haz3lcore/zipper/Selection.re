@@ -11,7 +11,7 @@ type mode =
   | Buffer(buffer);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
+type t('p) = {
   focus: Direction.t,
   content: Segment.t('p),
   mode,
@@ -26,12 +26,12 @@ let mk = (~mode=Normal, ~focus=Direction.Left, content: Segment.t('p)) => {
 
 let mk_buffer = buffer => mk(~mode=Buffer(buffer), ~focus=Direction.Left);
 
-let is_buffer: t => bool =
+let is_buffer: t('p) => bool =
   fun
   | {mode: Buffer(_), _} => true
   | _ => false;
 
-let selection_ids = (sel: t): list(Id.t) => Segment.ids(sel.content);
+let selection_ids = (sel: t('p)): list(Id.t) => Segment.ids(sel.content);
 
 let empty = mk(Segment.empty);
 
@@ -45,9 +45,9 @@ let toggle_focus = selection => {
   focus: Util.Direction.toggle(selection.focus),
 };
 
-let is_empty = (selection: t) => selection.content == Segment.empty;
+let is_empty = (selection: t('p)) => selection.content == Segment.empty;
 
-let push = (p: Piece.t('p), {focus, content, mode}: t): t => {
+let push = (p: Piece.t('p), {focus, content, mode}: t('p)): t('p) => {
   let content =
     Segment.reassemble(
       switch (focus) {
@@ -62,7 +62,7 @@ let push = (p: Piece.t('p), {focus, content, mode}: t): t => {
   };
 };
 
-let pop = (sel: t): option((Piece.t('p), t)) =>
+let pop = (sel: t('p)): option((Piece.t('p), t('p))) =>
   switch (sel.focus, sel.content, ListUtil.split_last_opt(sel.content)) {
   | (_, [], _)
   | (_, _, None) => None

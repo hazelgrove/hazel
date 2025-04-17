@@ -1,14 +1,14 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type generation = (Ancestor.t, Siblings.t);
+type generation('p) = (Ancestor.t('p), Siblings.t('p));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = list(generation);
+type t('p) = list(generation('p));
 
 let empty = [];
 
-let parent: t => option(Ancestor.t) =
+let parent: t('p) => option(Ancestor.t('p)) =
   fun
   | [] => None
   | [(parent, _), ..._] => Some(parent);
@@ -19,14 +19,14 @@ let sort =
   | [(a, _), ..._] => Ancestor.sort(a);
 
 let zip_gen =
-    (seg: Segment.t('p), (a, (pre, suf)): generation): Segment.t('p) =>
+    (seg: Segment.t('p), (a, (pre, suf)): generation('p)): Segment.t('p) =>
   pre @ [Piece.Tile(Ancestor.zip(seg, a)), ...suf];
-let zip = (seg: Segment.t('p), ancs: t) =>
+let zip = (seg: Segment.t('p), ancs: t('p)) =>
   ancs |> List.fold_left(zip_gen, seg);
 
-let regrout = (ancs: t) =>
+let regrout = (ancs: t('p)) =>
   List.fold_right(
-    ((a, sibs): generation, regrouted) => {
+    ((a, sibs): generation('p), regrouted) => {
       let regrouted = regrouted;
       let ((pre, l, trim_l), (trim_r, r, suf)) = Siblings.regrout(sibs);
       let (l', r') = TupleUtil.map2(Nib.shape, Mold.nibs(a.mold));
@@ -40,7 +40,7 @@ let regrout = (ancs: t) =>
     empty,
   );
 
-let parent_matches = (t: Tile.t('p), ancs: t) =>
+let parent_matches = (t: Tile.t('p), ancs: t('p)) =>
   switch (ancs) {
   | [] => false
   | [(a, _), ..._] => a.id == t.id

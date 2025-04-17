@@ -68,7 +68,7 @@ module M: Projector with type model = ProjectorCore.Kind.type_model = {
       [text(display_mode(model, info))],
     );
 
-  let typ_view = (model, info: info, utility, view_seg: View.seg) => {
+  let typ_view = (model, info: info('p), utility, view_seg: View.seg('p)) => {
     let typ = display_ty(model, info.statics) |> totalize_ty;
     div(
       ~attrs=[Attr.classes(["type-cell"])],
@@ -82,7 +82,7 @@ module M: Projector with type model = ProjectorCore.Kind.type_model = {
     | (ToggleDisplay, Self) => Expected
     };
 
-  let syntax_str = (info: info) => {
+  let syntax_str = (info: info('p)) => {
     let max_len = 30;
     let seg = Segment.unparenthesize(info.syntax);
     let str = Printer.of_segment(~holes=Some("?"), seg);
@@ -94,7 +94,7 @@ module M: Projector with type model = ProjectorCore.Kind.type_model = {
   let placeholder = (_m, info) =>
     ProjectorShape.inline(3 + String.length(syntax_str(info)));
 
-  let syntax_view = (info: info) => info |> syntax_str |> text;
+  let syntax_view = (info: info('p)) => info |> syntax_str |> text;
 
   let icon = div(~attrs=[Attr.classes(["icon"])], []);
 

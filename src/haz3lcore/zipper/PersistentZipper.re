@@ -6,17 +6,17 @@ type t = {
   backup_text: string,
 };
 
-let persist = (zipper: Zipper.t) => {
+let persist = (f, zipper: Zipper.t('p)) => {
   {
-    zipper: Zipper.sexp_of_t(zipper) |> Sexplib.Sexp.to_string,
+    zipper: Zipper.sexp_of_t(f, zipper) |> Sexplib.Sexp.to_string,
     backup_text: Printer.to_string_basic(zipper),
   };
 };
 
-let to_string = (zipper: Zipper.t) => Printer.to_string_basic(zipper);
+let to_string = (zipper: Zipper.t('p)) => Printer.to_string_basic(zipper);
 
-let unpersist = (persisted: t) =>
-  try(Sexplib.Sexp.of_string(persisted.zipper) |> Zipper.t_of_sexp) {
+let unpersist = (f, persisted: t) =>
+  try(Sexplib.Sexp.of_string(persisted.zipper) |> Zipper.t_of_sexp(f)) {
   | _ =>
     print_endline(
       "Warning: using backup text! Serialization may be for an older version of Hazel.",
@@ -27,11 +27,11 @@ let unpersist = (persisted: t) =>
     };
   };
 
-let serialize = (zipper: Zipper.t) => {
-  persist(zipper) |> yojson_of_t |> Yojson.Safe.to_string;
+let serialize = (f, zipper: Zipper.t('p)) => {
+  persist(f, zipper) |> yojson_of_t |> Yojson.Safe.to_string;
 };
 
-let deserialize = (data: string) => {
+let deserialize = (f, data: string) => {
   let persisted = data |> Yojson.Safe.from_string |> t_of_yojson;
-  unpersist(persisted);
+  unpersist(f, persisted);
 };

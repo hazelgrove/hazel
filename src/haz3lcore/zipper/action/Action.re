@@ -72,18 +72,18 @@ type buffer =
   | Accept;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type paste =
+type paste('p) =
   | String(string)
   | Segment(Segment.t('p));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t =
+type t('p) =
   | Reparse
   | Buffer(buffer)
-  | Paste(paste)
+  | Paste(paste('p))
   | Copy
   | Cut
-  | Project(project)
+  | Project(project('p))
   | Move(move)
   | Jump(jump_target)
   | Select(select)
@@ -120,7 +120,7 @@ module Result = {
   type t('success) = Result.t('success, Failure.t);
 };
 
-let is_edit: t => bool =
+let is_edit: t('p) => bool =
   fun
   | Paste(_)
   | Cut
@@ -149,7 +149,7 @@ let is_edit: t => bool =
     };
 
 /* Determines whether undo/redo skips action */
-let is_historic: t => bool =
+let is_historic: t('p) => bool =
   fun
   | Buffer(Set(_) | Clear)
   | Copy
@@ -178,7 +178,7 @@ let is_historic: t => bool =
     | Escape(_) => false
     };
 
-let prevent_in_read_only_editor = (a: t) => {
+let prevent_in_read_only_editor = (a: t('p)) => {
   switch (a) {
   | Copy
   | Move(_)
@@ -212,7 +212,7 @@ let prevent_in_read_only_editor = (a: t) => {
  * to paper over a weird interaction with scroll-to-caret.
  * There is assuredly a better way to handle it but the
  * approaches I tried weren't wholly successful. */
-let should_animate: t => bool =
+let should_animate: t('p) => bool =
   fun
   | Select(s) =>
     switch (s) {

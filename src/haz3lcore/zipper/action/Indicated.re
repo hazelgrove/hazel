@@ -6,11 +6,11 @@ type relation =
   | Parent
   | Sibling;
 
-type piece = (Piece.t('p), Direction.t, relation);
+type piece('p) = (Piece.t('p), Direction.t, relation);
 
 let piece' =
-    (~no_ws: bool, ~ign: Piece.t('p) => bool, z: ZipperBase.t)
-    : option(piece) => {
+    (~no_ws: bool, ~ign: Piece.t('p) => bool, z: ZipperBase.t('p))
+    : option(piece('p)) => {
   /* Returns the piece currently indicated (if any) and which side of
      that piece the caret is on. We favor indicating the piece to the
      (R)ight, but may end up indicating the (P)arent or the (L)eft.
@@ -55,9 +55,9 @@ let piece' =
 };
 
 let piece =
-  piece'(~no_ws=true, ~ign=p => Piece.(is_secondary(p) || is_grout(p)));
+  piece'(~no_ws=true, ~ign=p => Piece.(is_secondary(p) || is_grout(p)), _);
 
-let shard_index = (z: ZipperBase.t): option(int) =>
+let shard_index = (z: ZipperBase.t('p)): option(int) =>
   switch (piece(z)) {
   | None => None
   | Some((p, side, relation)) =>
@@ -86,24 +86,24 @@ let shard_index = (z: ZipperBase.t): option(int) =>
     }
   };
 
-let for_index = piece'(~no_ws=false, ~ign=Piece.is_secondary);
+let for_index = piece'(~no_ws=false, ~ign=Piece.is_secondary, _);
 
-let direction = (z: ZipperBase.t): option(Direction.t) =>
+let direction = (z: ZipperBase.t('p)): option(Direction.t) =>
   switch (piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
   | None => None
   | Some((_, d, _)) => Some(d)
   };
 
-let index = (z: ZipperBase.t): option(Id.t) =>
+let index = (z: ZipperBase.t('p)): option(Id.t) =>
   switch (for_index(z)) {
   | None => None
   | Some((p, _, _)) => Some(Piece.id(p))
   };
 
-let piece'' = piece'(~no_ws=true, ~ign=Piece.is_secondary);
+let piece'' = piece'(~no_ws=true, ~ign=Piece.is_secondary, _);
 
 let ci_of =
-    (z: ZipperBase.t, info_map: Statics.Map.t): option(Statics.Info.t) =>
+    (z: ZipperBase.t('p), info_map: Statics.Map.t): option(Statics.Info.t) =>
   /* This version takes into accounts Secondary, while accounting for the
    * fact that Secondary is not currently added to the info_map. First we
    * try the basic indication function, specifying that we do not want

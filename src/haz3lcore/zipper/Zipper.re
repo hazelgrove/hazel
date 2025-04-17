@@ -2,7 +2,7 @@ open Util;
 open OptUtil.Syntax;
 include ZipperBase;
 
-let init: unit => t =
+let init: unit => t('p) =
   () => {
     selection: Selection.mk([]),
     backpack: [],
@@ -43,21 +43,22 @@ let from_plane: planar => Direction.t =
   | Up => Left
   | Down => Right;
 
-let update_caret = (f: Caret.t => Caret.t, z: t): t => {
+let update_caret = (f: Caret.t => Caret.t, z: t('p)): t('p) => {
   ...z,
   caret: f(z.caret),
 };
-let set_caret = (caret: Caret.t): (t => t) => update_caret(_ => caret);
+let set_caret = (caret: Caret.t): (t('p) => t('p)) =>
+  update_caret(_ => caret);
 
-let delete_parent = (z: t): t => {
+let delete_parent = (z: t('p)): t('p) => {
   ...z,
   relatives: Relatives.delete_parent(z.relatives),
 };
 
-let zip = (z: t): Segment.t('p) =>
+let zip = (z: t('p)): Segment.t('p) =>
   Relatives.zip(~sel=z.selection.content, z.relatives);
 
-let unzip = (seg: Segment.t('p)): t => {
+let unzip = (seg: Segment.t('p)): t('p) => {
   selection: Selection.mk([]),
   backpack: [],
   relatives: {
@@ -67,19 +68,20 @@ let unzip = (seg: Segment.t('p)): t => {
   caret: Outer,
 };
 
-let pop_backpack = (z: t) =>
+let pop_backpack = (z: t('p)) =>
   Backpack.pop(Relatives.local_incomplete_tiles(z.relatives), z.backpack);
 
-let left_neighbor_monotile: Siblings.t => option(Token.t) =
+let left_neighbor_monotile: Siblings.t('p) => option(Token.t) =
   s => s |> Siblings.left_neighbor |> OptUtil.and_then(Piece.monotile);
 
-let right_neighbor_monotile: Siblings.t => option(Token.t) =
+let right_neighbor_monotile: Siblings.t('p) => option(Token.t) =
   s => s |> Siblings.right_neighbor |> OptUtil.and_then(Piece.monotile);
 
-let neighbor_monotiles: Siblings.t => (option(Token.t), option(Token.t)) =
+let neighbor_monotiles:
+  Siblings.t('p) => (option(Token.t), option(Token.t)) =
   s => (left_neighbor_monotile(s), right_neighbor_monotile(s));
 
-let regrout = (d: Direction.t, z: t): t => {
+let regrout = (d: Direction.t, z: t('p)): t('p) => {
   assert(Selection.is_empty(z.selection));
   let relatives = Relatives.regrout(d, z.relatives);
   {
@@ -88,7 +90,7 @@ let regrout = (d: Direction.t, z: t): t => {
   };
 };
 
-let remold = (z: t): t => {
+let remold = (z: t('p)): t('p) => {
   assert(Selection.is_empty(z.selection));
   {
     ...z,
@@ -96,9 +98,10 @@ let remold = (z: t): t => {
   };
 };
 
-let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
+let remold_regrout = (d: Direction.t, z: t('p)): t('p) =>
+  z |> remold |> regrout(d);
 
-let clear_unparsed_buffer = (z: t) =>
+let clear_unparsed_buffer = (z: t('p)): t('p) =>
   switch (z.selection.mode) {
   | Buffer(Unparsed) => {
       ...z,
@@ -107,7 +110,7 @@ let clear_unparsed_buffer = (z: t) =>
   | _ => z
   };
 
-let unselect = (~erase_buffer=false, z: t): t => {
+let unselect = (~erase_buffer=false, z: t('p)): t('p) => {
   /* NOTE(andrew): Erase buffer flag only applies to unparsed buffer,
    * that is, the buffer style that just contains a single flat token.
    * Erasing a buffer that contains arbitrary tiles would be more complex
@@ -124,15 +127,16 @@ let unselect = (~erase_buffer=false, z: t): t => {
     relatives,
   };
 };
-let unselect_and_zip = (~erase_buffer=false, z: t): Segment.t('p) =>
+let unselect_and_zip = (~erase_buffer=false, z: t('p)): Segment.t('p) =>
   z |> unselect(~erase_buffer) |> zip;
 
-let replace_selection = (focus, segment, z: t): t => {
+let replace_selection = (focus, segment, z: t('p)): t('p) => {
   ...z,
   selection: Selection.mk(~focus, segment),
 };
 
-let update_selection = (selection: Selection.t, z: t): (Selection.t, t) => {
+let update_selection =
+    (selection: Selection.t('p), z: t('p)): (Selection.t('p), t('p)) => {
   let old = z.selection;
   // used to be necessary to unselect when selection update
   // included remold/regrout, now no longer necessary if needs
@@ -145,10 +149,10 @@ let update_selection = (selection: Selection.t, z: t): (Selection.t, t) => {
   (old, z);
 };
 
-let put_selection = (sel: Selection.t, z: t): t =>
+let put_selection = (sel: Selection.t('p), z: t('p)): t('p) =>
   snd(update_selection(sel, z));
 
-let grow_selection = (z: t): option(t) => {
+let grow_selection = (z: t('p)): option(t('p)) => {
   let+ (p, relatives) = Relatives.pop(z.selection.focus, z.relatives);
   let selection = Selection.push(p, z.selection);
   {
@@ -159,7 +163,7 @@ let grow_selection = (z: t): option(t) => {
 };
 
 // toggles focus and grows if selection is empty
-let shrink_selection = (z: t): option(t) => {
+let shrink_selection = (z: t('p)): option(t('p)) => {
   switch (Selection.pop(z.selection)) {
   | None =>
     let selection = Selection.toggle_focus(z.selection);
@@ -180,12 +184,12 @@ let shrink_selection = (z: t): option(t) => {
   };
 };
 
-let toggle_focus = (z: t): t => {
+let toggle_focus = (z: t('p)): t('p) => {
   ...z,
   selection: Selection.toggle_focus(z.selection),
 };
 
-let directional_unselect = (d: Direction.t, z: t): t => {
+let directional_unselect = (d: Direction.t, z: t('p)): t('p) => {
   let selection = {
     ...z.selection,
     focus: Direction.toggle(d),
@@ -196,7 +200,7 @@ let directional_unselect = (d: Direction.t, z: t): t => {
   });
 };
 
-let move = (d: Direction.t, z: t): option(t) =>
+let move = (d: Direction.t, z: t('p)): option(t('p)) =>
   if (Selection.is_empty(z.selection)) {
     let+ (p, relatives) = Relatives.pop(d, z.relatives);
     let relatives =
@@ -211,10 +215,10 @@ let move = (d: Direction.t, z: t): option(t) =>
     Some(directional_unselect(d, z));
   };
 
-let select = (d: Direction.t, z: t): option(t) =>
+let select = (d: Direction.t, z: t('p)): option(t('p)) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
 
-let pick_up = (z: t): t => {
+let pick_up = (z: t('p)): t('p) => {
   let (selected, z) = update_selection(Selection.empty, z);
   let selection =
     selected.content
@@ -228,7 +232,7 @@ let pick_up = (z: t): t => {
   };
 };
 
-let destruct = (~destroy_kids=true, z: t): t => {
+let destruct = (~destroy_kids=true, z: t('p)): t('p) => {
   let backpack =
     Backpack.remove_uni_tiles_with_deep_matches(z.backpack, z.selection);
   let (selected, z) = update_selection(Selection.empty, z);
@@ -254,10 +258,10 @@ let destruct = (~destroy_kids=true, z: t): t => {
   };
 };
 
-let delete = (d: Direction.t, z: t): option(t) =>
+let delete = (d: Direction.t, z: t('p)): option(t('p)) =>
   z |> select(d) |> Option.map(destruct);
 
-let put_down = (d: Direction.t, z: t): option(t) => {
+let put_down = (d: Direction.t, z: t('p)): option(t('p)) => {
   let z = destruct(z);
   let* (_, popped, backpack) = pop_backpack(z);
   let z =
@@ -274,7 +278,13 @@ let put_down = (d: Direction.t, z: t): option(t) => {
 };
 
 let rec construct =
-        (~caret: Direction.t, ~backpack: Direction.t, label: Label.t, z: t): t => {
+        (
+          ~caret: Direction.t,
+          ~backpack: Direction.t,
+          label: Label.t,
+          z: t('p),
+        )
+        : t('p) => {
   switch (label) {
   | [t] when Form.is_string_delim(t) =>
     /* Special case for constructing string literals.
@@ -338,19 +348,19 @@ let rec construct =
   };
 };
 
-let construct_mono = (d: Direction.t, t: Token.t, z: t): t =>
+let construct_mono = (d: Direction.t, t: Token.t, z: t('p)): t('p) =>
   construct(~caret=d, ~backpack=Left, [t], z);
 
 let replace =
-    (~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
-    : option(t) =>
+    (~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t('p))
+    : option(t('p)) =>
   /* i.e. select and construct, overwriting the selection */
   z |> delete(caret) |> Option.map(construct(~caret, ~backpack, l));
 
-let replace_mono = (d: Direction.t, t: Token.t, z: t): option(t) =>
+let replace_mono = (d: Direction.t, t: Token.t, z: t('p)): option(t('p)) =>
   replace(~caret=d, ~backpack=Left, [t], z);
 
-let representative_piece = (z: t): option((Piece.t('p), Direction.t)) => {
+let representative_piece = (z: t('p)): option((Piece.t('p), Direction.t)) => {
   /* The piece to the left of the caret, or if none exists, the piece to the right */
   switch (Siblings.neighbors(sibs_with_sel(z))) {
   | (Some(l), _) => Some((l, Left))
@@ -359,7 +369,7 @@ let representative_piece = (z: t): option((Piece.t('p), Direction.t)) => {
   };
 };
 
-let caret_direction = (z: t): option(Direction.t) =>
+let caret_direction = (z: t('p)): option(Direction.t) =>
   /* Direction the caret is facing in */
   switch (z.caret) {
   | Inner(_) => None
@@ -375,7 +385,7 @@ let caret_direction = (z: t): option(Direction.t) =>
     }
   };
 
-let base_point = (measured: Measured.t, z: t): Point.t => {
+let base_point = (measured: Measured.t, z: t('p)): Point.t => {
   switch (representative_piece(z)) {
   | Some((p, d)) =>
     let seg = Piece.disassemble(p);
@@ -395,7 +405,7 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
     }
   };
 };
-let caret_point = (measured, z: t): Point.t => {
+let caret_point = (measured, z: t('p)): Point.t => {
   let Point.{row, col} = base_point(measured, z);
   {
     row,
@@ -403,27 +413,28 @@ let caret_point = (measured, z: t): Point.t => {
   };
 };
 
-let serialize = (z: t): string => {
-  sexp_of_t(z) |> Sexplib.Sexp.to_string;
+let serialize = (f, z: t('p)): string => {
+  sexp_of_t(f, z) |> Sexplib.Sexp.to_string;
 };
 
-let deserialize = (data: string): t => {
-  Sexplib.Sexp.of_string(data) |> t_of_sexp;
+let deserialize = (f, data: string): t('p) => {
+  Sexplib.Sexp.of_string(data) |> t_of_sexp(f);
 };
 
-let can_put_down = z =>
+let can_put_down = (z: t('p)): bool =>
   switch (pop_backpack(z)) {
   | Some(_) => z.caret == Outer
   | None => false
   };
 
-let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t('p)): t => {
+let set_buffer =
+    (~mode: Selection.buffer, ~content: Segment.t('p), z: t('p)): t('p) => {
   ...z,
   selection: Selection.mk_buffer(mode, content),
 };
 
 let is_linebreak_to_right_of_caret =
-    ({relatives: {siblings: (_, r), _}, _}: t): bool => {
+    ({relatives: {siblings: (_, r), _}, _}: t('p)): bool => {
   switch (r) {
   | [Secondary(s), ..._] when Secondary.is_linebreak(s) => true
   | _ => false
@@ -441,7 +452,7 @@ let is_linebreak_to_right_of_caret =
  * for the put_down logic not working right with string lits. To test,
  * try to look at live evaluation while typing inside a string lit with
  * stuff left to drop in backpack with below set: Outer disabled. */
-let try_to_dump_backpack = (zipper: t) => {
+let try_to_dump_backpack = (zipper: t('p)) => {
   switch (zipper.backpack) {
   | [] => zipper
   | _ =>
@@ -449,7 +460,7 @@ let try_to_dump_backpack = (zipper: t) => {
       ...zipper,
       caret: Outer,
     };
-    let rec move_until_cant_put_down = (z_last, z: t) =>
+    let rec move_until_cant_put_down = (z_last, z: t('p)) =>
       if (can_put_down(z) && !is_linebreak_to_right_of_caret(z)) {
         switch (move(Right, z)) {
         | None => z
@@ -458,7 +469,7 @@ let try_to_dump_backpack = (zipper: t) => {
       } else {
         z_last;
       };
-    let rec move_until_can_put_down = (z: t) =>
+    let rec move_until_can_put_down = (z: t('p)) =>
       if (!can_put_down(z)) {
         switch (move(Right, z)) {
         | None => z
@@ -467,7 +478,7 @@ let try_to_dump_backpack = (zipper: t) => {
       } else {
         z;
       };
-    let rec go = (z: t): t =>
+    let rec go = (z: t('p)): t('p) =>
       if (can_put_down(z)) {
         let z_can = move_until_cant_put_down(z, z);
         switch (put_down(Right, z_can)) {
@@ -490,13 +501,15 @@ let try_to_dump_backpack = (zipper: t) => {
   };
 };
 
-let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
+let smart_seg =
+    (~dump_backpack: bool, ~erase_buffer: bool, z: t('p)): Segment.t('p) => {
   let z = erase_buffer ? clear_unparsed_buffer(z) : z;
   let z = dump_backpack ? try_to_dump_backpack(z) : z;
   unselect_and_zip(~erase_buffer, z);
 };
 
-let seg_for_view = smart_seg(~erase_buffer=false, ~dump_backpack=false);
-let seg_for_sem = smart_seg(~erase_buffer=true, ~dump_backpack=true);
+let seg_for_view = smart_seg(~erase_buffer=false, ~dump_backpack=false, _);
+let seg_for_sem = smart_seg(~erase_buffer=true, ~dump_backpack=true, _);
 
-let seg_without_buffer = smart_seg(~erase_buffer=true, ~dump_backpack=false);
+let seg_without_buffer =
+  smart_seg(~erase_buffer=true, ~dump_backpack=false, _);

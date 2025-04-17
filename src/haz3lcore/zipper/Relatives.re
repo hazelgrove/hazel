@@ -1,9 +1,9 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  siblings: Siblings.t,
-  ancestors: Ancestors.t,
+type t('p) = {
+  siblings: Siblings.t('p),
+  ancestors: Ancestors.t('p),
 };
 
 let empty = {
@@ -11,12 +11,12 @@ let empty = {
   ancestors: Ancestors.empty,
 };
 
-let push = (d: Direction.t, p: Piece.t('p), rs: t): t => {
+let push = (d: Direction.t, p: Piece.t('p), rs: t('p)): t('p) => {
   ...rs,
   siblings: Siblings.push(d, p, rs.siblings),
 };
 
-let prepend = (d: Direction.t, seg: Segment.t('p), rs: t): t => {
+let prepend = (d: Direction.t, seg: Segment.t('p), rs: t('p)): t('p) => {
   let siblings = Siblings.prepend(d, seg, rs.siblings);
   {
     ...rs,
@@ -24,7 +24,7 @@ let prepend = (d: Direction.t, seg: Segment.t('p), rs: t): t => {
   };
 };
 
-let pop = (d: Direction.t, rs: t): option((Piece.t('p), t)) =>
+let pop = (d: Direction.t, rs: t('p)): option((Piece.t('p), t('p))) =>
   switch (Siblings.pop(d, rs.siblings)) {
   | Some((p, siblings)) =>
     Some((
@@ -52,10 +52,10 @@ let pop = (d: Direction.t, rs: t): option((Piece.t('p), t)) =>
     }
   };
 
-let zip = (~sel=Segment.empty, {siblings, ancestors}: t) =>
+let zip = (~sel=Segment.empty, {siblings, ancestors}: t('p)) =>
   Ancestors.zip(Siblings.zip(~sel, siblings), ancestors);
 
-let local_incomplete_tiles = ({siblings: (pre, suf), ancestors}: t) => {
+let local_incomplete_tiles = ({siblings: (pre, suf), ancestors}: t('p)) => {
   let sibs =
     switch (ancestors) {
     | [] => (pre, suf)
@@ -67,13 +67,13 @@ let local_incomplete_tiles = ({siblings: (pre, suf), ancestors}: t) => {
 };
 
 let parent =
-    (~sel=Segment.empty, {siblings: (l_sibs, r_sibs), ancestors}: t)
+    (~sel=Segment.empty, {siblings: (l_sibs, r_sibs), ancestors}: t('p))
     : option(Piece.t('p)) =>
   ancestors
   |> Ancestors.parent
   |> Option.map(p => Base.Tile(Ancestor.zip(l_sibs @ sel @ r_sibs, p)));
 
-let delete_parent = ({siblings, ancestors}: t): t => {
+let delete_parent = ({siblings, ancestors}: t('p)): t('p) => {
   switch (ancestors) {
   | [] => {
       siblings,
@@ -86,7 +86,7 @@ let delete_parent = ({siblings, ancestors}: t): t => {
   };
 };
 
-let remold = ({siblings, ancestors}: t): t => {
+let remold = ({siblings, ancestors}: t('p)): t('p) => {
   let s = Ancestors.sort(ancestors);
   let siblings = Siblings.remold(siblings, s);
   {
@@ -95,7 +95,7 @@ let remold = ({siblings, ancestors}: t): t => {
   };
 };
 
-let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
+let regrout = (d: Direction.t, {siblings, ancestors}: t('p)): t('p) => {
   /* Direction is side of grout caret will end up on */
 
   let ancestors = Ancestors.regrout(ancestors);
@@ -145,7 +145,7 @@ let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
   };
 };
 
-let reassemble_parent = (rs: t): t =>
+let reassemble_parent = (rs: t('p)): t('p) =>
   switch (rs.ancestors) {
   | [] => rs
   | [(a, sibs), ...ancs] =>
@@ -155,9 +155,9 @@ let reassemble_parent = (rs: t): t =>
       |> TupleUtil.map2(Aba.trim);
     let flatten_match =
       Aba.fold_right(
-        (t: Tile.t, kid, (shards, kids)) =>
+        (t: Tile.t('p), kid, (shards, kids)) =>
           Aba.mk(t.shards @ shards, t.children @ [kid, ...kids]),
-        (t: Tile.t) => Aba.mk(t.shards, t.children),
+        (t: Tile.t('p)) => Aba.mk(t.shards, t.children),
       );
     let (a, l) =
       switch (l) {
@@ -193,13 +193,13 @@ let reassemble_parent = (rs: t): t =>
     };
   };
 
-let reassemble_siblings = (rs: t) => {
+let reassemble_siblings = (rs: t('p)): t('p) => {
   ...rs,
   siblings: Siblings.reassemble(rs.siblings),
 };
 
-let reassemble = (rs: t): t => {
-  let rec go = (rs: t): t =>
+let reassemble = (rs: t('p)): t('p) => {
+  let rec go = (rs: t('p)): t('p) =>
     switch (Segment.incomplete_tiles(snd(rs.siblings))) {
     | [] => rs
     | [t, ..._] =>

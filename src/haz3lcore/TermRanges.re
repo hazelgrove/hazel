@@ -6,11 +6,13 @@ type nonrec t('p) = t(range('p));
 
 let union = union((_, range, _) => Some(range), _);
 
+//TODO(andrew): reinstate memo
+
 /* PERF: Up to 50% reduction in some cases by memoizing
  * this function. Might be better though to just do an
  * unmemoized traversal building a hashtbl avoiding unioning */
-let range_hash = (type p): Hashtbl.t(Tile.segment(p), Id.Map.t(range(p))) =>
-  Hashtbl.create(1000);
+// let range_hash = (type p): Hashtbl.t(Tile.segment(p), Id.Map.t(range(p))) =>
+//   Hashtbl.create(1000);
 
 // NOTE: this calculation is out of sync with
 // MakeTerm, which matches things like list brackets
@@ -21,7 +23,7 @@ let range_hash = (type p): Hashtbl.t(Tile.segment(p), Id.Map.t(range(p))) =>
 // TODO(d) fix or derive from other info
 //
 // tail-recursive in outer recursion
-let rec mk' = (seg: Segment.t('p)) => {
+let rec mk = (seg: Segment.t('p)) => {
   let rec go = (skel: Skel.t): (range('p), t('p)) => {
     let root = Skel.root(skel) |> Aba.map_a(List.nth(seg));
     let root_l = Aba.first_a(root);
@@ -59,11 +61,11 @@ let rec mk' = (seg: Segment.t('p)) => {
        (map, kid) => union(map, mk(kid)),
        union(empty, snd(go(Segment.skel(seg)))),
      );
-}
-and mk = seg =>
-  try(Hashtbl.find(range_hash, seg)) {
-  | _ =>
-    let res = mk'(seg);
-    Hashtbl.add(range_hash, seg, res);
-    res;
-  };
+};
+// and mk = seg =>
+//   try(Hashtbl.find(range_hash, seg)) {
+//   | _ =>
+//     let res = mk'(seg);
+//     Hashtbl.add(range_hash, seg, res);
+//     res;
+//   };

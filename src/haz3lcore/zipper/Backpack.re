@@ -159,7 +159,7 @@ module ShardInfo = {
     counts: Counts.init(),
   };
 
-  let add_sel = (sel: Selection.t, {counts, order}: t): unit => {
+  let add_sel = (sel: Selection.t('p), {counts, order}: t): unit => {
     let ts = Segment.incomplete_tiles(sel.content);
     // initialize
     ts
@@ -207,11 +207,11 @@ module ShardInfo = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = list(Selection.t);
+type t('p) = list(Selection.t('p));
 
 let empty = [];
 
-let shard_info = (bp: t) => {
+let shard_info = (bp: t('p)) => {
   open ShardInfo;
   let info = init();
   bp |> List.iter(sel => add_sel(sel, info));
@@ -222,15 +222,17 @@ let shard_info = (bp: t) => {
 /* PERF: This becomes very costly when there are a lot of things
    in the backpack; e.g. if you open 23 parens, it's almost 100%
    of the keystoke cost, for a 55x total slowdown  */
-let shard_info = Core.Memo.general(~cache_size_bound=1000, shard_info);
+//let shard_info = Core.Memo.general(~cache_size_bound=1000, shard_info);
+//TODO(andrew): reinstate memo
 
 let push = sel => Selection.is_empty(sel) ? Fun.id : List.cons(sel);
 
-let push_s: (list(Selection.t), t) => t = List.fold_right(push);
+let push_s: (list(Selection.t('p)), t('p)) => t('p) =
+  List.fold_right(push, _);
 
 let pop =
-    ((pre, suf): (list(Tile.t('p)), list(Tile.t('p))), bp: t)
-    : option((bool, Selection.t, t)) => {
+    ((pre, suf): (list(Tile.t('p)), list(Tile.t('p))), bp: t('p))
+    : option((bool, Selection.t('p), t('p))) => {
   open OptUtil.Syntax;
   let* (hd, tl) = ListUtil.split_first_opt(bp);
   switch (Segment.incomplete_tiles(hd.content)) {
@@ -248,7 +250,7 @@ let pop =
   };
 };
 
-let restricted = (bp: t): bool =>
+let restricted = (bp: t('p)): bool =>
   switch (bp) {
   | [] => false
   | [hd, ..._] =>
@@ -261,7 +263,7 @@ let restricted = (bp: t): bool =>
     }
   };
 
-let remove_matching = (ts: list(Tile.t('p)), bp: t) =>
+let remove_matching = (ts: list(Tile.t('p)), bp: t('p)) =>
   List.fold_left(
     (bp, t: Tile.t('p)) =>
       bp
@@ -275,7 +277,7 @@ let remove_matching = (ts: list(Tile.t('p)), bp: t) =>
     ts,
   );
 
-let will_barf = (t: Token.t, bp: t): bool =>
+let will_barf = (t: Token.t, bp: t('p)): bool =>
   /* Does the first selection in the backpack consist
      of a single token which matches the one provided? */
   switch (bp) {
@@ -290,7 +292,8 @@ let will_barf = (t: Token.t, bp: t): bool =>
   | _ => false
   };
 
-let remove_uni_tiles_with_deep_matches = (bp: t, sel: Selection.t): t => {
+let remove_uni_tiles_with_deep_matches =
+    (bp: t('p), sel: Selection.t('p)): t('p) => {
   /* This is a hack to prevent incomplete tiles inside selection tiles
    * from being orphaned on deletion, e.g. if you delete segment "([)"
    * with "]" in the backpack.  */
