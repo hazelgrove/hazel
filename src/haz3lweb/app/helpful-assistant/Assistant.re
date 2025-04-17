@@ -819,14 +819,26 @@ module Update = {
           ~erase_buffer=true,
           editor.editor.state.zipper,
         );
+      let completion_token =
+        (advanced_reasoning ? "?a" : "??")
+        ++ String.sub(Id.to_string(tileId), 0, 3);
       switch (
         {
+          let* sketch_z_with_tag =
+            Perform.paste(editor.editor.state.zipper, completion_token);
+          let sketch_seg =
+            Zipper.smart_seg(
+              ~dump_backpack=true,
+              ~erase_buffer=true,
+              sketch_z_with_tag,
+            );
           let* index = Indicated.index(editor.editor.state.zipper);
           let* ci = Id.Map.find_opt(index, editor.statics.info_map);
           ChatLSP.Prompt.mk_init(
             ChatLSP.Options.init,
             ci,
             sketch_seg,
+            completion_token,
             advanced_reasoning,
           );
         }

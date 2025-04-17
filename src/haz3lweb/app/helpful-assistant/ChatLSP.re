@@ -382,7 +382,7 @@ module RelevantType = {
     };
   };
 
-  let expected = (~ctx: Ctx.t, mode: Mode.t, advanced_reasoning: bool): string => {
+  let expected = (~ctx: Ctx.t, mode: Mode.t, completion_token: string): string => {
     /* TODO: Maybe include more than just the immediate type.
      * like for example, when inside a fn(s), include argument types.
      * Like basically to benefit maximally from included type info,
@@ -390,9 +390,7 @@ module RelevantType = {
      * we might want to either case on or construct. Rxpected type should
      * mostly(?) give us the latter, but not always the former. */
     let prefix =
-      advanced_reasoning
-        ? "# The expected type of the hole ?a is: "
-        : "# The expected type of the hole ?? is: ";
+      "# The expected type of the hole " ++ completion_token ++ " is: ";
     switch (mode) {
     | Ana(ty) =>
       let defs =
@@ -640,23 +638,26 @@ module RelevantCtx = {
 
 module Samples = {
   type t = list((string, string, string));
-
-  let advanced_reasoning = false;
-
-  //TODO: I think some of these examples are syntactically incorrect
-  let samples: t = [
+  let samples = (completion_token: string, advanced_reasoning: bool): t => [
     (
       {|
 let List.length: [(String, Bool)]-> Int =
   fun xs ->
-    ?? end in
+    |}
+      ++ completion_token
+      ++ {| end in
 |},
-      RelevantType.expected(
-        Ana(Typ.fresh(Int)),
-        ~ctx=[],
-        advanced_reasoning,
-      ),
-      {|
+      RelevantType.expected(Ana(Typ.fresh(Int)), ~ctx=[], completion_token),
+      advanced_reasoning
+        ? {|
+Discussion:
+The function List.length takes a list of (String, Bool) tuples and returns an Int. The natural way to compute the length of a list is through recursion.
+The base case for an empty list is 0, and for a non-empty list, we increment the count and recursively call List.length on the tail.
+```case xs
+| [] => 0
+| _::xs => 1 + List.length(xs)
+```|}
+        : {|
 case xs
 | [] => 0
 | _::xs => 1 + List.length(xs)|},
@@ -666,15 +667,26 @@ case xs
 let List.mapi: ((Int, Bool) -> Bool, [Bool]) -> [Bool]=
   fun f, xs ->
     let go: (Int, [Bool])-> [Bool] = fun idx, xs ->
-      ?? end in
+      |}
+      ++ completion_token
+      ++ {| end in
     go(0, xs) in
 |},
       RelevantType.expected(
         Ana(Typ.fresh(List(Typ.fresh(Bool)))),
         ~ctx=[],
-        advanced_reasoning,
+        completion_token,
       ),
-      {|
+      advanced_reasoning
+        ? {|
+Discussion:
+The function List.mapi applies a function f to each element of a list while keeping track of the index. The helper function go does this recursively.
+The base case returns an empty list. In the recursive case, f(idx, hd) is applied to the head, and go(idx + 1, tl) is called recursively on the tail to process the rest of the list.
+```case xs
+| [] => []
+| hd::tl => f(idx, hd)::go(idx + 1, tl)
+```|}
+        : {|
 case xs
 | [] => []
 | hd::tl => f(idx, hd)::go(idx + 1, tl)
@@ -686,7 +698,9 @@ type Container =
   + Pod(Bool)
   + CapsuleCluster(Int, Int) in
 let total_capacity: Container -> Int =
-  ??
+  |}
+      ++ completion_token
+      ++ {|
 in
 |},
       RelevantType.expected(
@@ -694,177 +708,10 @@ in
           Typ.fresh(Arrow(Typ.fresh(Var("Container")), Typ.fresh(Int))),
         ),
         ~ctx=[],
-        advanced_reasoning,
+        completion_token,
       ),
-      {|
-fun c ->
-    case c
-      | Pod(b) => if !b && true then 1 else 0
-      | CapsuleCluster(x, y) => x * y
-    end
-|},
-    ),
-    (
-      "let f = ?? in f(5)",
-      RelevantType.expected(Syn, ~ctx=[], advanced_reasoning),
-      "fun x:Int -> ??",
-    ),
-    (
-      {|let triple = (4, 8, true) in
-let (_, y, condition) = triple in
-let get: Option -> Int =
-fun maybe_num ->
-  case maybe_num
- | Some(x) => ??
- | None => if !condition then 0 else y + 1 end in|},
-      RelevantType.expected(
-        Ana(Typ.fresh(Int)),
-        ~ctx=[],
-        advanced_reasoning,
-      ),
-      "x",
-    ),
-    (
-      "let num_or_zero = fun maybe_num ->\n case maybe_num\n | Some(num) => ?? \n| None => 0 end in",
-      RelevantType.expected(Syn, ~ctx=[], advanced_reasoning),
-      "num",
-    ),
-    (
-      "let merge_sort: [Int]->[Int] =\n??\nin\nmerge_sort([4,1,3,7,2])",
-      RelevantType.expected(
-        Ana(
-          Typ.fresh(
-            Arrow(
-              Typ.fresh(List(Typ.fresh(Int))),
-              Typ.fresh(List(Typ.fresh(Int))),
-            ),
-          ),
-        ),
-        ~ctx=[],
-        advanced_reasoning,
-      ),
-      "fun list ->\nlet split: [Int]->([Int],[Int]) = fun left, right -> ?\nin\nlet merge: ([Int],[Int])->[Int]= ?\nin\nlet merge_sort_helper: [Int]->[Int]= ?\nin\nmerge_sort_helper(list)",
-    ),
-    (
-      "type MenuItem =\n+ Breakfast(Int, Int)\n+ Lunch(Float)\nin\nlet per_lunch_unit = 0.95 in\nlet price: MenuItem-> Float   = fun m ->\ncase m\n| Breakfast(x, y) => ??\n| Lunch(f) => f *. per_lunch_unit\nend\nin price(Breakfast(1,2))/.3.",
-      RelevantType.expected(
-        Ana(Typ.fresh(Var("MenuItem"))),
-        ~ctx=[],
-        advanced_reasoning,
-      ),
-      "fun m ->\ncase m\n| Breakfast(x, y) => ??\n| Lunch(f) => f *. per_lunch_unit\nend",
-    ),
-    (
-      {|
-let List.merge: (( , )->Bool,[ ], [ ]) -> [ ] = fun cmp,left, right ->
-case left, right
-| [], _ => right
-| _, [] => left
-| h1::t1, h2::t2 =>
-if cmp(h1, h2)
-then h1 :: List.merge(cmp, t1, right)
-else h2 :: List.merge(cmp,left, t2)
-end
-in
-
-let List.sort: ((?, ?) -> Bool, [?]) -> [?] =
-fun cmp, list ->
-let merge_sort_helper: [?] -> [?] = fun l ->
-case  l
-| [] => ?
-| [x] => [x]
-| _ => ??
-end
-in merge_sort_helper(list)
-in
-test 2 == List.nth(List.sort(fun a, b -> a<b, [4,1,3,2]), 1) end
-    |},
-      RelevantType.expected(
-        Ana(Typ.fresh(List(Typ.fresh(Unknown(Internal))))),
-        ~ctx=[],
-        advanced_reasoning,
-      ),
-      {|
-let mid = List.length(l) / 2 in
-let left, right = List.take(mid, l), List.drop(mid, l) in
-List.merge(cmp, merge_sort_helper(left), merge_sort_helper(right))
-|},
-    ),
-  ];
-
-  let get = (num_examples: int) =>
-    switch (Util.ListUtil.split_n_opt(num_examples, samples)) {
-    | Some(samples) =>
-      samples |> fst |> List.map(((s, t, u)) => (s, Some(t), u))
-    | None => []
-    };
-};
-
-module AdvancedReasoningSamples = {
-  type t = list((string, string, string));
-  let advanced_reasoning = true;
-
-  //TODO: I think some of these examples are syntactically incorrect
-  let samples: t = [
-    (
-      {|
-let List.length: [(String, Bool)]-> Int =
-  fun xs ->
-    ?a end in
-|},
-      RelevantType.expected(
-        Ana(Typ.fresh(Int)),
-        ~ctx=[],
-        advanced_reasoning,
-      ),
-      {|
-Discussion:
-The function List.length takes a list of (String, Bool) tuples and returns an Int. The natural way to compute the length of a list is through recursion.
-The base case for an empty list is 0, and for a non-empty list, we increment the count and recursively call List.length on the tail.
-```case xs
-| [] => 0
-| _::xs => 1 + List.length(xs)
-```|},
-    ),
-    (
-      {|
-let List.mapi: ((Int, Bool) -> Bool, [Bool]) -> [Bool]=
-  fun f, xs ->
-    let go: (Int, [Bool])-> [Bool] = fun idx, xs ->
-      ?a end in
-    go(0, xs) in
-|},
-      RelevantType.expected(
-        Ana(Typ.fresh(List(Typ.fresh(Bool)))),
-        ~ctx=[],
-        advanced_reasoning,
-      ),
-      {|
-Discussion:
-The function List.mapi applies a function f to each element of a list while keeping track of the index. The helper function go does this recursively.
-The base case returns an empty list. In the recursive case, f(idx, hd) is applied to the head, and go(idx + 1, tl) is called recursively on the tail to process the rest of the list.
-```case xs
-| [] => []
-| hd::tl => f(idx, hd)::go(idx + 1, tl)
-```|},
-    ),
-    (
-      {|
-type Container =
-  + Pod(Bool)
-  + CapsuleCluster(Int, Int) in
-let total_capacity: Container -> Int =
-  ?a
-in
-|},
-      RelevantType.expected(
-        Ana(
-          Typ.fresh(Arrow(Typ.fresh(Var("Container")), Typ.fresh(Int))),
-        ),
-        ~ctx=[],
-        advanced_reasoning,
-      ),
-      {|
+      advanced_reasoning
+        ? {|
 Discussion:
 The function total_capacity takes a Container and returns an Int. The Pod variant stores a Bool, which likely indicates whether the pod is active.
 The condition if !b && true simplifies to if !b, meaning inactive pods have a capacity of 1, while active ones have 0.
@@ -875,19 +722,28 @@ The CapsuleCluster variant contains two integers, which are multiplied together 
       | CapsuleCluster(x, y) => x * y
     end
 ```
+|}
+        : {|
+fun c ->
+    case c
+      | Pod(b) => if !b && true then 1 else 0
+      | CapsuleCluster(x, y) => x * y
+    end
 |},
     ),
     (
-      "let f = ?a in f(5)",
-      RelevantType.expected(Syn, ~ctx=[], advanced_reasoning),
-      {|
+      "let f = " ++ completion_token ++ " in f(5)",
+      RelevantType.expected(Syn, ~ctx=[], completion_token),
+      advanced_reasoning
+        ? {|
 Discussion:
 The expression let f = ?a in f(5) means f should be a function that can take an integer input. A function of type fun x:Int -> ?a is defined, but its body is missing.
 Since no constraints are placed on the output type, the hole could be filled with any valid expression.
 ```
 fun x:Int -> ?a
 ```
-      |},
+      |}
+        : "fun x:Int -> ??",
     ),
     (
       {|let triple = (4, 8, true) in
@@ -895,14 +751,13 @@ let (_, y, condition) = triple in
 let get: Option -> Int =
 fun maybe_num ->
   case maybe_num
- | Some(x) => ?a
+ | Some(x) => |}
+      ++ completion_token
+      ++ {|
  | None => if !condition then 0 else y + 1 end in|},
-      RelevantType.expected(
-        Ana(Typ.fresh(Int)),
-        ~ctx=[],
-        advanced_reasoning,
-      ),
-      {|
+      RelevantType.expected(Ana(Typ.fresh(Int)), ~ctx=[], completion_token),
+      advanced_reasoning
+        ? {|
 Discussion:
 The function get extracts a value from an Option type. If Some(x), the function should return x, as x is already of type Int.
 The None case considers a condition; if !condition is true, it returns 0, otherwise, it returns y + 1.
@@ -910,22 +765,29 @@ Since x is an Int, returning it in the Some case maintains type consistency.
 ```
 x
 ```
-      |},
+      |}
+        : "x",
     ),
     (
-      "let num_or_zero = fun maybe_num ->\n case maybe_num\n | Some(num) => ?a \n| None => 0 end in",
-      RelevantType.expected(Syn, ~ctx=[], advanced_reasoning),
-      {|
+      "let num_or_zero = fun maybe_num ->\n case maybe_num\n | Some(num) => "
+      ++ completion_token
+      ++ " \n| None => 0 end in",
+      RelevantType.expected(Syn, ~ctx=[], completion_token),
+      advanced_reasoning
+        ? {|
 Discussion:
 The function num_or_zero takes an Option(Int) and returns an Int. If the input is Some(num), it should return num, as num is already an integer.
 If None, the function defaults to returning 0. This ensures type consistency while preserving the stored number when available.
 ```
 num
 ```
-      |},
+      |}
+        : "num",
     ),
     (
-      "let merge_sort: [Int]->[Int] =\n?a\nin\nmerge_sort([4,1,3,7,2])",
+      "let merge_sort: [Int]->[Int] =\n"
+      ++ completion_token
+      ++ "\nin\nmerge_sort([4,1,3,7,2])",
       RelevantType.expected(
         Ana(
           Typ.fresh(
@@ -936,9 +798,10 @@ num
           ),
         ),
         ~ctx=[],
-        advanced_reasoning,
+        completion_token,
       ),
-      {|
+      advanced_reasoning
+        ? {|
 Discussion:
 The function merge_sort sorts a list of integers. A common approach to implementing merge sort involves:
 1. Splitting the list into two halves (split).
@@ -948,23 +811,28 @@ The provided structure follows this approach, so we use helper functions to comp
 ```
 fun list ->\nlet split: [Int]->([Int],[Int]) = fun left, right -> ?\nin\nlet merge: ([Int],[Int])->[Int]= ?\nin\nlet merge_sort_helper: [Int]->[Int]= ?\nin\nmerge_sort_helper(list)
 ```
-      |},
+      |}
+        : "fun list ->\nlet split: [Int]->([Int],[Int]) = fun left, right -> ?\nin\nlet merge: ([Int],[Int])->[Int]= ?\nin\nlet merge_sort_helper: [Int]->[Int]= ?\nin\nmerge_sort_helper(list)",
     ),
     (
-      "type MenuItem =\n+ Breakfast(Int, Int)\n+ Lunch(Float)\nin\nlet per_lunch_unit = 0.95 in\nlet price: MenuItem-> Float   = fun m ->\ncase m\n| Breakfast(x, y) => ?a\n| Lunch(f) => f *. per_lunch_unit\nend\nin price(Breakfast(1,2))/.3.",
+      "type MenuItem =\n+ Breakfast(Int, Int)\n+ Lunch(Float)\nin\nlet per_lunch_unit = 0.95 in\nlet price: MenuItem-> Float   = fun m ->\ncase m\n| Breakfast(x, y) => "
+      ++ completion_token
+      ++ "\n| Lunch(f) => f *. per_lunch_unit\nend\nin price(Breakfast(1,2))/.3.",
       RelevantType.expected(
         Ana(Typ.fresh(Var("MenuItem"))),
         ~ctx=[],
-        advanced_reasoning,
+        completion_token,
       ),
-      {|
+      advanced_reasoning
+        ? {|
 Discussion:
 The function price computes the cost of a MenuItem. The Lunch variant already has a predefined price calculation. For Breakfast(x, y), an expression must return a Float, but the completion is missing.
 The function should ensure a proper numeric computation based on x and y.
 ```
 fun m ->\ncase m\n| Breakfast(x, y) => ?a\n| Lunch(f) => f *. per_lunch_unit\nend
 ```
-      |},
+      |}
+        : "fun m ->\ncase m\n| Breakfast(x, y) => ??\n| Lunch(f) => f *. per_lunch_unit\nend",
     ),
     (
       {|
@@ -985,7 +853,9 @@ let merge_sort_helper: [?] -> [?] = fun l ->
 case  l
 | [] => ?
 | [x] => [x]
-| _ => ?a
+| _ => |}
+      ++ completion_token
+      ++ {|
 end
 in merge_sort_helper(list)
 in
@@ -994,21 +864,33 @@ test 2 == List.nth(List.sort(fun a, b -> a<b, [4,1,3,2]), 1) end
       RelevantType.expected(
         Ana(Typ.fresh(List(Typ.fresh(Unknown(Internal))))),
         ~ctx=[],
-        advanced_reasoning,
+        completion_token,
       ),
-      {|
+      advanced_reasoning
+        ? {|
 Discussion:
 The function List.merge merges two sorted lists using a comparator function cmp. The List.sort function applies merge sort, using merge_sort_helper to recursively divide and sort the list.
 The base cases return [] or a single-element list. The recursive case splits the list into two halves and merges sorted sublists.
 ```let mid = List.length(l) / 2 in
 let left, right = List.take(mid, l), List.drop(mid, l) in
 List.merge(cmp, merge_sort_helper(left), merge_sort_helper(right))
-```|},
+```|}
+        : {|
+let mid = List.length(l) / 2 in
+let left, right = List.take(mid, l), List.drop(mid, l) in
+List.merge(cmp, merge_sort_helper(left), merge_sort_helper(right))
+|},
     ),
   ];
 
-  let get = (num_examples: int) =>
-    switch (Util.ListUtil.split_n_opt(num_examples, samples)) {
+  let get =
+      (num_examples: int, completion_token: string, advanced_reasoning: bool) =>
+    switch (
+      Util.ListUtil.split_n_opt(
+        num_examples,
+        samples(completion_token, advanced_reasoning),
+      )
+    ) {
     | Some(samples) =>
       samples |> fst |> List.map(((s, t, u)) => (s, Some(t), u))
     | None => []
@@ -1016,27 +898,48 @@ List.merge(cmp, merge_sort_helper(left), merge_sort_helper(right))
 };
 
 module SystemPrompt = {
-  let main_prompt = [
+  let main_prompt = (completion_token: string) => [
     "CODE COMPLETION INSTRUCTIONS:",
-    "- Reply with a functional, idiomatic replacement for the program hole marked '??' in the provided program sketch",
+    "- Reply with a functional, idiomatic replacement for the program hole marked '"
+    ++ completion_token
+    ++ "' in the provided program sketch",
+    "- The program hole marked '"
+    ++ completion_token
+    ++ "' consists of the hole token '??' appended with a series of characters to help you differentiate between other holes in the program",
     // Uncomment either of the following lines to test error rounds
     // "- However, make sure that your initial response CAUSES A TYPE ERROR in the program. Then, fix it in your second response",
     // "- However, it is CRITICALLY important to make sure that your response ALWAYS CAUSES A TYPE ERROR in the program, no matter how many times you are re-prompted",
-    "- Reply ONLY with a SINGLE replacement term for the unqiue distinguished hole marked '??'",
+    "- Reply ONLY with a SINGLE replacement term for the unqiue distinguished hole marked '"
+    ++ completion_token
+    ++ "'",
     "- Reply ONLY with code",
-    "- DO NOT suggest more replacements for other holes in the sketch (marked '?'), or implicit holes",
-    "- This is critical, and I am going to reiterate it: DO NOT suggest more than one replacement term. It should ONLY be for the hole marked '??'",
-    "- For example, if you are being asked to complete 'let f = ? in ??', your response should ONLY be a single replacement term for the hole marked '??', NOT a replacement term for the hole marked '?'",
-    "- i.e. You should ONLY respond with a function application, or something else which would be a valid replacement term for the hole marked '??'",
+    "- DO NOT suggest more replacements for other holes in the sketch (marked, '?', '??', or '?a'), or implicit holes",
+    "- This is critical, and I am going to reiterate it: DO NOT suggest more than one replacement term. It should ONLY be for the hole marked '"
+    ++ completion_token
+    ++ "'",
+    "- For example, if you are being asked to complete 'let f = ? in "
+    ++ completion_token
+    ++ "', your response should ONLY be a single replacement term for the hole marked '"
+    ++ completion_token
+    ++ "', NOT a replacement term for the hole marked '?'",
+    "- i.e. You should ONLY respond with a function application, or something else which would be a valid replacement term for the hole marked '"
+    ++ completion_token
+    ++ "'",
+    "- If you wish to include a hole in your response, use '??' only, without the appended characters that were used to identify the specific hole you were given",
     "- IT WOULD BE A HUGE MISTAKE TO RESPOND WITH A FUNCTION BODY FOR THE HOLE MARKED '?'",
     "- DO NOT include the program sketch in your reply",
     "- DO NOT include a period at the end of your response and DO NOT use markdown",
   ];
 
-  let advanced_reasoning_prompt = [
+  let advanced_reasoning_prompt = (completion_token: string) => [
     "CODE COMPLETION INSTRUCTIONS:",
     "- First, provide a brief discussion of your approach and reasoning",
-    "- Then, provide your code completion for the hole marked '?a' enclosed in triple backticks",
+    "- Then, provide your code completion for the hole marked '"
+    ++ completion_token
+    ++ "' enclosed in triple backticks",
+    "- The program hole marked '"
+    ++ completion_token
+    ++ "' consists of the hole token '?a' appended with a series of characters to help you differentiate between other holes in the program",
     "- Your response MUST include two parts:",
     "  1. A discussion section explaining your approach",
     "  2. Your code completion inside triple backticks",
@@ -1051,16 +954,29 @@ module SystemPrompt = {
     "  ```",
     "  fun n -> if n == 0 then 1.0 else 2.0",
     "  ```",
-    "- The code completion should be a functional, idiomatic replacement for the program hole marked '?a' in the provided program sketch",
+    "- The code completion should be a functional, idiomatic replacement for the program hole marked '"
+    ++ completion_token
+    ++ "' in the provided program sketch",
     // Uncomment either of the following lines to test error rounds
     // "- However, make sure that your initial response CAUSES A TYPE ERROR in the program. Then, fix it in your second response",
     // "- However, it is CRITICALLY important to make sure that your response ALWAYS CAUSES A TYPE ERROR in the program, no matter how many times you are re-prompted",
-    "- Reply ONLY with a SINGLE replacement term for the unique distinguished hole marked '?a'",
-    "- DO NOT suggest more replacements for other holes in the sketch (marked '?'), or implicit holes",
-    "- This is critical, and I am going to reiterate it: DO NOT suggest more than one replacement term. It should ONLY be for the hole marked '?a'",
-    "- For example, if you are being asked to complete 'let f = ? in ?a', your response should ONLY be a single replacement term for the hole marked '?a', NOT a replacement term for the hole marked '?a",
-    "- i.e. You should ONLY respond with a function application, or something else which would be a valid replacement term for the hole marked '?a'",
-    "- IT WOULD BE A HUGE MISTAKE TO RESPOND WITH A FUNCTION BODY FOR THE HOLE MARKED '?a",
+    "- Reply ONLY with a SINGLE replacement term for the unique distinguished hole marked '"
+    ++ completion_token
+    ++ "'",
+    "- DO NOT suggest more replacements for other holes in the sketch (marked '?', '??', or '?a'), or implicit holes",
+    "- This is critical, and I am going to reiterate it: DO NOT suggest more than one replacement term. It should ONLY be for the hole marked '"
+    ++ completion_token
+    ++ "'",
+    "- For example, if you are being asked to complete 'let f = ? in "
+    ++ completion_token
+    ++ "', your response should ONLY be a single replacement term for the hole marked '"
+    ++ completion_token
+    ++ "', NOT a replacement term for the hole marked '?'",
+    "- i.e. You should ONLY respond with a function application, or something else which would be a valid replacement term for the hole marked '"
+    ++ completion_token
+    ++ "'",
+    "- If you wish to include a hole in your response, use '?a' only, without the appended characters that were used to identify the specific hole you were given",
+    "- IT WOULD BE A HUGE MISTAKE TO RESPOND WITH A FUNCTION BODY FOR THE HOLE MARKED '?'",
     "- DO NOT include the program sketch in your reply",
     "- DO NOT include a period at the end of your response and DO NOT use markdown",
   ];
@@ -1079,13 +995,20 @@ module SystemPrompt = {
   ];
 
   let mk =
-      ({instructions, syntax_notes, _}: Options.t, advanced_reasoning: bool)
+      (
+        {instructions, syntax_notes, _}: Options.t,
+        completion_token: string,
+        advanced_reasoning: bool,
+      )
       : string =>
     String.concat(
       "\n",
       (
         instructions
-          ? advanced_reasoning ? advanced_reasoning_prompt : main_prompt : []
+          ? advanced_reasoning
+              ? advanced_reasoning_prompt(completion_token)
+              : main_prompt(completion_token)
+          : []
       )
       @ (syntax_notes ? hazel_syntax_notes : []),
     );
@@ -1119,7 +1042,7 @@ module Prompt = {
         {expected_type, relevant_ctx, _}: Options.t,
         ci: Info.t,
         sketch: Segment.t,
-        advanced_reasoning: bool,
+        completion_token: string,
       )
       : option(string) => {
     //TODO: Proper errors
@@ -1135,11 +1058,7 @@ module Prompt = {
     let expected_ty =
       expected_type
         ? Some(
-            RelevantType.expected(
-              ~ctx=ctx_at_caret,
-              mode,
-              advanced_reasoning,
-            ),
+            RelevantType.expected(~ctx=ctx_at_caret, mode, completion_token),
           )
         : None;
     let relevant_ctx =
@@ -1148,7 +1067,8 @@ module Prompt = {
   };
 
   let samples =
-      (num_examples: int, advanced_reasoning: bool): list(OpenRouter.message) =>
+      (num_examples: int, completion_token: string, advanced_reasoning: bool)
+      : list(OpenRouter.message) =>
     Util.ListUtil.flat_map(
       ((sketch, expected_ty, completion)): list(OpenRouter.message) =>
         [
@@ -1162,9 +1082,7 @@ module Prompt = {
             content: completion,
           },
         ],
-      advanced_reasoning
-        ? AdvancedReasoningSamples.get(num_examples)
-        : Samples.get(num_examples),
+      Samples.get(num_examples, completion_token, advanced_reasoning),
     );
 
   let mk_init =
@@ -1172,18 +1090,19 @@ module Prompt = {
         options: Options.t,
         ci: Info.t,
         sketch: Segment.t,
+        completion_token: string,
         advanced_reasoning: bool,
       )
       : option(OpenRouter.prompt) => {
-    let+ user_message =
-      static_context(options, ci, sketch, advanced_reasoning);
+    let+ user_message = static_context(options, ci, sketch, completion_token);
     OpenRouter.[
       {
         role: System,
-        content: SystemPrompt.mk(options, advanced_reasoning),
+        content:
+          SystemPrompt.mk(options, completion_token, advanced_reasoning),
       },
     ]
-    @ samples(options.num_examples, advanced_reasoning)
+    @ samples(options.num_examples, completion_token, advanced_reasoning)
     @ [
       {
         role: User,
