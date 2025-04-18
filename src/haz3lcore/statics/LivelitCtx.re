@@ -21,7 +21,7 @@ type raw_livelit = {
   model_t: TermBase.Typ.t,
   model_default: model_exp,
   expansion_t: TermBase.Typ.t,
-  expansion_f: model_exp => expansion_exp,
+  expand: model_exp => expansion_exp,
   action_t: TermBase.Typ.t,
   update: (action_exp, model_exp) => model_exp,
   view: (model_exp, send_action) => Virtual_dom.Vdom.Node.t,
@@ -41,8 +41,8 @@ module type BuiltinLivelit = {
   let model_default: model_t;
 
   let hazel_expansion_t: TermBase.Typ.t; /* defines expansion_exp type */
-  let expansion_f: model_t => expansion_t;
-  let expansion_to_hazel: expansion_t => expansion_exp;
+  let expand: model_t => expansion_t;
+  let expand_to_hazel: expansion_t => expansion_exp;
 
   let hazel_action_t: TermBase.Typ.t; /* defines action_exp type */
   let action_to_hazel: action_t => action_exp;
@@ -61,8 +61,8 @@ let raw_of_builtin = (module B: BuiltinLivelit): raw_livelit => {
   model_t: B.hazel_model_t,
   model_default: B.model_to_hazel(B.model_default),
   expansion_t: B.hazel_expansion_t,
-  expansion_f: (exp: model_exp) =>
-    B.expansion_to_hazel(B.expansion_f(B.model_from_hazel(exp))),
+  expand: (exp: model_exp) =>
+    B.expand_to_hazel(B.expand(B.model_from_hazel(exp))),
   action_t: B.hazel_action_t,
   update: (action: action_exp, model: model_exp) =>
     B.model_to_hazel(
