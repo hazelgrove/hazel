@@ -145,7 +145,7 @@ let mk_bad = (ctr, ids, value) => {
 
 let rec go_s =
         (
-          ~of_projector: 'p => Any.t,
+          ~of_projector,
           ~log_projector: Piece.projector('p) => unit,
           s: Sort.t,
           skel: Skel.t,
@@ -763,7 +763,7 @@ and rul = (unsorted): Rul.t => {
 
 and unsorted =
     (
-      ~of_projector: 'p => Any.t,
+      ~of_projector: ('p, list(Any.t)) => Any.t,
       ~log_projector: Piece.projector('p) => unit,
       skel: Skel.t,
       seg: Segment.t('p),
@@ -773,11 +773,13 @@ and unsorted =
 
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
-  let tile_kids = (p: Piece.t('p)): list(Term.Any.t) =>
+  let rec tile_kids = (p: Piece.t('p)): list(Term.Any.t) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector({model, _}) => [of_projector(model)]
+    | Projector({model, syntax, _}) => [
+        of_projector(model, tile_kids(syntax)),
+      ]
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {

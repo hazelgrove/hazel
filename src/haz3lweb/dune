@@ -17,7 +17,7 @@
   virtual_dom.input_widgets
   util
   ppx_yojson_conv.expander
-  haz3lcore
+  haz3lcorep
   pretty
   omd)
  (js_of_ocaml)
@@ -48,7 +48,7 @@
   virtual_dom.input_widgets
   util
   ppx_yojson_conv.expander
-  haz3lcore
+  haz3lcorep
   pretty
   omd)
  (js_of_ocaml)

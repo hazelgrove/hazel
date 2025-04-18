@@ -1,7 +1,7 @@
 (include_subdirs unqualified)
 
 (library
- (name haz3lcore)
+ (name haz3lcorep)
  (libraries util sexplib unionFind uuidm virtual_dom yojson core)
  (js_of_ocaml)
  (instrumentation

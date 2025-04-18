@@ -3,7 +3,7 @@
 (test
  (name haz3ltest)
  (libraries
-  haz3lcore
+  haz3lcorep
   haz3lweb
   alcotest
   sexplib
