@@ -22,13 +22,13 @@ let go_z =
       statics: CachedStatics.t,
       a: Action.t,
       module M: Move.S,
-      z: Zipper.t,
+      z: Zipper.t('p),
     )
-    : Action.Result.t(Zipper.t) => {
+    : Action.Result.t(Zipper.t('p)) => {
   module Move = Move.Make(M);
   module Select = Select.Make(M);
 
-  let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
+  let paste = (z: Zipper.t('p), str: string): option(Zipper.t('p)) => {
     open Util.OptUtil.Syntax;
     let* z = Printer.zipper_of_string(~zipper_init=z, str);
     /* HACK(andrew): Insert/Destruct below is a hack to deal
@@ -40,8 +40,9 @@ let go_z =
     remold_regrout(Left, z);
   };
 
-  let paste_segment = (z: Zipper.t, segment: Segment.t('p)): Zipper.t => {
-    let replace_selection = (z, focus, segment): Zipper.t =>
+  let paste_segment =
+      (z: Zipper.t('p), segment: Segment.t('p)): Zipper.t('p) => {
+    let replace_selection = (z, focus, segment): Zipper.t('p) =>
       {
         ...z,
         selection: Selection.mk(~focus, segment),
@@ -52,7 +53,7 @@ let go_z =
     replace_selection(z, z.selection.focus, segment);
   };
 
-  let buffer_accept = (z): option(Zipper.t) =>
+  let buffer_accept = (z): option(Zipper.t('p)) =>
     switch (z.selection.mode) {
     | Normal => None
     | Buffer(Unparsed) =>
@@ -77,7 +78,7 @@ let go_z =
       }
     };
 
-  let smart_select = (n, z): option(Zipper.t) => {
+  let smart_select = (n, z): option(Zipper.t('p)) => {
     switch (n) {
     | 2 => Select.indicated_token(z)
     | 3 =>

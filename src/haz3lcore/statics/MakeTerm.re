@@ -45,10 +45,10 @@ type unsorted =
   | Post(t, tiles)
   | Bin(t, tiles, t);
 
-type t = {
+type t('p) = {
   term: Exp.t,
   terms: TermMap.t,
-  projectors: Id.Map.t(Piece.projector),
+  projectors: Id.Map.t(Piece.projector('p)),
 };
 
 let is_nary =
@@ -120,7 +120,7 @@ let return = (wrap, ids, tm) => {
 };
 
 /* Map to collect projector ids */
-let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
+let projectors: ref(Id.Map.t(Piece.projector('p))) = ref(Id.Map.empty);
 
 /* Strip a projector from a segment and log it in the map */
 let log_projector = (pr: Base.projector('p)): unit => {
@@ -132,7 +132,7 @@ let log_projector = (pr: Base.projector('p)): unit => {
  * logged before this is called */
 let should_instrument = (id: Id.t): bool =>
   switch (Id.Map.find_opt(id, projectors^)) {
-  | Some({model: V(kind, _), _}) =>
+  | Some({model: ProjectorCore.V(kind, _), _}) =>
     let (module P) = ProjectorInit.to_module(kind);
     P.dynamics;
   | None => failwith("MakeTerm.exp: projector not found")
@@ -888,7 +888,7 @@ let for_projection =
   );
 
 let from_zip_for_sem =
-    (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
+    (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t('p)) => {
   let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
   go(seg);
 };

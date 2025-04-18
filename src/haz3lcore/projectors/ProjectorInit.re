@@ -19,20 +19,25 @@ let to_module =
   };
 
 let init =
-    (kind: ProjectorCore.Kind.t, syntax: syntax, any: Term.Any.t)
-    : option(syntax) => {
+    (kind: ProjectorCore.Kind.t, syntax: syntax('p), any: Term.Any.t)
+    : option(syntax('p)) => {
   open ProjectorCore.Kind;
   let.gadt W(kind_gadt) = kind;
   let (module P) = to_module(kind_gadt);
   switch (P.init(any)) {
   | None => None
   | Some(model) =>
-    Some(Base.Projector(Base.mk_projector(syntax, V(kind_gadt, model))))
+    Some(
+      Base.Projector(
+        Base.mk_projector(syntax, ProjectorCore.V(kind_gadt, model)),
+      ),
+    )
   };
 };
 
 let init_or_noop =
-    (kind: ProjectorCore.Kind.t, syntax: syntax, any: Term.Any.t): syntax =>
+    (kind: ProjectorCore.Kind.t, syntax: syntax('p), any: Term.Any.t)
+    : syntax('p) =>
   switch (init(kind, syntax, any)) {
   | Some(pr) => pr
   | None => syntax

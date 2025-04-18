@@ -682,15 +682,18 @@ let pin_view = (info: info('p)) =>
   DynCursor.show_pin(info)
     ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
-let syntax_str =
-  Core.Memo.general(seg => {
-    let max_len = 30;
-    let seg = Segment.unparenthesize(seg);
-    let str = Printer.of_segment(~holes=Some("?"), seg);
-    let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
-    String.length(str) > max_len
-      ? String.sub(str, 0, max_len) ++ "..." : str;
-  });
+let syntax_str = (type p, seg: Segment.t(p)) =>
+  Core.Memo.general(
+    (seg: Segment.t(p)) => {
+      let max_len = 30;
+      let seg = Segment.unparenthesize(seg);
+      let str = Printer.of_segment(~holes=Some("?"), seg);
+      let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
+      String.length(str) > max_len
+        ? String.sub(str, 0, max_len) ++ "..." : str;
+    },
+    seg,
+  );
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
 let state: ref(option(Direction.t)) = ref(Option.None);
@@ -815,9 +818,10 @@ let update = ((), info: info('p), a: action) => {
 
 let view =
     (
+      type p,
       local: action => Ui_effect.t(unit),
-      parent: external_action('p) => Ui_effect.t(unit),
-      info: info('p),
+      parent: external_action(p) => Ui_effect.t(unit),
+      info: info(p),
     )
     : Node.t =>
   div(
@@ -898,11 +902,12 @@ module M: Projector with type model = unit = {
 
   let view =
       (
+        type p,
         _model: unit,
-        info: info('p),
+        info: info(p),
         ~local: action => Ui_effect.t(unit),
-        ~parent: external_action('p) => Ui_effect.t(unit),
-        ~view_seg: View.seg('p),
+        ~parent: external_action(p) => Ui_effect.t(unit),
+        ~view_seg: View.seg(p),
       ) =>
     View.{
       inline: view(local, parent, info),

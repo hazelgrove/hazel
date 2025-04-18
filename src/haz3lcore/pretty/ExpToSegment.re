@@ -618,7 +618,7 @@ let should_add_space = (s1, s2) =>
   | _ => true
   };
 
-let text_to_pretty = (id, sort, str): pretty => {
+let text_to_pretty = (id, sort, str): pretty('p) => {
   p_just([
     Tile({
       id,
@@ -710,7 +710,7 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
 /* We assume that parentheses have already been added as necessary, and
       that the expression has no Closures, DynamicErrorHoles, Casts, or FailedCasts
    */
-let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
+let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty('p) => {
   let go = (~inline=settings.inline) =>
     exp_to_pretty(
       ~settings={
@@ -1100,7 +1100,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     ];
   };
 }
-and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
+and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty('a) => {
   let go = pat_to_pretty(~settings: Settings.t);
   switch (pat |> Pat.term_of) {
   | Invalid(t) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, t)
@@ -1205,9 +1205,9 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     p @ [mk_form(Typeann, id, [])] @ t;
   };
 }
-and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
+and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty('a) => {
   let go = typ_to_pretty(~settings: Settings.t);
-  let go_constructor: ConstructorMap.variant(Typ.t) => pretty =
+  let go_constructor: ConstructorMap.variant(Typ.t) => pretty('a) =
     fun
     | Variant(c, ids, None) => {
         text_to_pretty(
@@ -1348,7 +1348,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       );
   };
 }
-and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
+and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty('a) => {
   switch (tpat |> IdTagged.term_of) {
   | Invalid(t) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t)
   | EmptyHole =>
@@ -1372,7 +1372,7 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   | Var(v) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v)
   };
 }
-and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
+and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty('a) => {
   switch (any) {
   | Exp(e) => exp_to_pretty(~settings: Settings.t, e)
   | Pat(p) => pat_to_pretty(~settings: Settings.t, p)

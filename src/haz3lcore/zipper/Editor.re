@@ -61,7 +61,7 @@ module CachedSyntax = {
       old: true,
     };
 
-  let calculate = (z: Zipper.t, info_map, dyn_map, old: t) =>
+  let calculate = (z: Zipper.t('p), info_map, dyn_map, old: t) =>
     old.old
       ? init(z, ~info_map, ~dyn_map)
       : {
@@ -72,8 +72,8 @@ module CachedSyntax = {
 
 module State = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    zipper: Zipper.t,
+  type t('p) = {
+    zipper: Zipper.t('p),
     col_target: option(int),
   };
 };

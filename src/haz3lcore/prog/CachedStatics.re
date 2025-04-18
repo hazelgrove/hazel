@@ -54,10 +54,12 @@ let init_from_term = (~settings, ~is_dynamic_term, term): t => {
 };
 
 let init =
-    (~settings: CoreSettings.t, ~is_dynamic_term, ~stitch, z: Zipper.t): t => {
+    (~settings: CoreSettings.t, ~is_dynamic_term, ~stitch, z: Zipper.t('p))
+    : t => {
   let term = MakeTerm.from_zip_for_sem(z).term |> stitch;
   init_from_term(~settings, ~is_dynamic_term, term);
 };
 
-let init = (~settings: CoreSettings.t, ~is_dynamic_term, ~stitch, z: Zipper.t) =>
+let init =
+    (~settings: CoreSettings.t, ~is_dynamic_term, ~stitch, z: Zipper.t('p)) =>
   settings.statics ? init(~settings, ~stitch, ~is_dynamic_term, z) : empty;

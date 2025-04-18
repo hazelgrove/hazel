@@ -21,8 +21,9 @@ module type Introducable = {
 
 module IntroducePat: Introducable with type t = Pat.t = {
   type t = Pat.t;
-  let parse = selection =>
-    MakeTerm.(pat(unsorted(Segment.skel(selection), selection)));
+  let parse: type p. Segment.t(p) => t =
+    selection =>
+      MakeTerm.(pat(unsorted(Segment.skel(selection), selection)));
   let is_hole = (pat: Pat.t) => {
     switch (pat.term) {
     | EmptyHole => true
@@ -176,9 +177,10 @@ module IntroduceExp: Introducable with type t = Exp.t = {
 module Make =
        (I: Introducable)
        : {
-         let introduce: (Zipper.t, Typ.t, Ctx.t) => option(Zipper.t);
+         let introduce:
+           (Zipper.t('p), Typ.t, Ctx.t) => option(Zipper.t('p));
        } => {
-  let rec move_right_until_id = (id: Id.t, z: Zipper.t): Zipper.t =>
+  let rec move_right_until_id = (id: Id.t, z: Zipper.t('p)): Zipper.t('p) =>
     ZipperBase.MapPiece.left_sib_has_id(z, id)
       ? z
       : (
@@ -188,7 +190,7 @@ module Make =
         }
       );
 
-  let already_parenthesized = (z: Zipper.t) => {
+  let already_parenthesized = (z: Zipper.t('p)) => {
     let sibs = Siblings.trim_secondary(ZipperBase.sibs_with_sel(z));
     let parent = Ancestors.parent(z.relatives.ancestors);
     Option.map((p: Ancestor.t) => p.label, parent) == Some(["(", ")"])
@@ -207,7 +209,7 @@ module Make =
     );
   };
 
-  let introduce = (z: Zipper.t, ty: Typ.t, ctx: Ctx.t) => {
+  let introduce = (z: Zipper.t('p), ty: Typ.t, ctx: Ctx.t) => {
     open Util.OptUtil.Syntax;
     let selection = z.selection.content;
     let selected_term = I.parse(selection);
@@ -237,7 +239,7 @@ module Make =
   };
 };
 
-let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
+let introduce = (statics: Statics.Map.t, z: Zipper.t('p)) => {
   switch (Indicated.ci_of(z, statics)) {
   | None => None
   | Some(

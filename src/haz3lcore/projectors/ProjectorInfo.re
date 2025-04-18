@@ -3,7 +3,7 @@
 
 /* Gather utility functions/values to be sspaed to the projector.
  * See ProjectorBase.utility definition for more information */
-let utility: ProjectorBase.utility = {
+let utility: ProjectorBase.utility('p) = {
   let seg_to_term = MakeTerm.for_projection;
   let term_to_seg =
     ExpToSegment.any_to_segment(
@@ -26,8 +26,12 @@ let utility: ProjectorBase.utility = {
 };
 
 let mk_info =
-    (p: Piece.projector, ~statics: Statics.Map.t, ~dynamics: Dynamics.Map.t)
-    : ProjectorBase.info => {
+    (
+      p: Piece.projector('p),
+      ~statics: Statics.Map.t,
+      ~dynamics: Dynamics.Map.t,
+    )
+    : ProjectorBase.info('p) => {
   id: p.id,
   syntax: Piece.unparenthesize(p.syntax),
   statics: Statics.Map.lookup(p.id, statics),
@@ -43,7 +47,7 @@ module ShapeMapSemantics = {
         p: Base.projector('p),
       )
       : ProjectorShape.t => {
-    let V(kind, model) = p.model;
+    let ProjectorCore.V(kind, model) = p.model;
     let (module P) = ProjectorInit.to_module(kind);
     P.placeholder(model, mk_info(p, ~statics, ~dynamics));
   };
