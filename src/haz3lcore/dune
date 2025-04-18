@@ -2,7 +2,7 @@
 
 (library
  (name haz3lcore)
- (libraries semantics util sexplib unionFind uuidm virtual_dom yojson core)
+ (libraries semantics)
  (js_of_ocaml)
  (instrumentation
   (backend bisect_ppx))
