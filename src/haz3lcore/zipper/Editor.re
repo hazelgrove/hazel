@@ -1,11 +1,11 @@
 open Util;
 
 module CachedSyntax = {
-  type t = {
+  type t('p) = {
     old: bool,
     segment: Segment.t('p),
     measured: Measured.t,
-    tiles: TileMap.t,
+    tiles: TileMap.t('p),
     selection_ids: list(Id.t),
     /* The term-derived data structured below, may differ
      * from the term used for semantics. These terms are identical when
@@ -20,7 +20,7 @@ module CachedSyntax = {
      * some other comments at some of the weakest joints; the biggest
      * issue is that dropping the backpack can add/remove grout, causing
      * certain ids to be present/non-present unexpectedly. */
-    term_ranges: TermRanges.t,
+    term_ranges: TermRanges.t('p),
     terms: TermMap.t,
     /* Since the introduction of shape_map below, caching projectors
      * here is almost vesigial (currently used only for error deco) */
@@ -37,9 +37,10 @@ module CachedSyntax = {
   let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-  let init = (~info_map, ~dyn_map, z): t => {
+  let init = (~projector_to_term, ~info_map, ~dyn_map, z): t('p) => {
     let segment = Zipper.unselect_and_zip(z);
-    let MakeTerm.{term: _, terms, projectors} = MakeTerm.go(segment);
+    let MakeTerm.{term: _, terms, projectors} =
+      MakeTerm.go(segment, ~of_projector=projector_to_term);
     let projector_shapes =
       ProjectorInfo.ShapeMapSemantics.mk(projectors, info_map, dyn_map);
     {
@@ -55,15 +56,16 @@ module CachedSyntax = {
     };
   };
 
-  let mark_old: t => t =
+  let mark_old: t('p) => t('p) =
     old => {
       ...old,
       old: true,
     };
 
-  let calculate = (z: Zipper.t('p), info_map, dyn_map, old: t) =>
+  let calculate =
+      (~projector_to_term, z: Zipper.t('p), info_map, dyn_map, old: t('p)) =>
     old.old
-      ? init(z, ~info_map, ~dyn_map)
+      ? init(z, ~projector_to_term, ~info_map, ~dyn_map)
       : {
         ...old,
         selection_ids: Selection.selection_ids(z.selection),
@@ -80,30 +82,31 @@ module State = {
 
 module History = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type affix = list((Action.t, State.t));
+  type affix('p) = list((Action.t('p), State.t('p)));
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (affix, affix);
+  type t('p) = (affix('p), affix('p));
 
   let empty = ([], []);
 
-  let add = (a: Action.t, state: State.t, (pre, _): t): t => (
+  let add = (a: Action.t('p), state: State.t('p), (pre, _): t('p)): t('p) => (
     [(a, state), ...pre],
     [],
   );
 };
 
+[@warning "-20"]
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
+  type t('p) = {
     // Updated
-    state: State.t,
-    history: History.t,
+    state: State.t('p),
+    history: History.t('p),
     // Calculated
     [@opaque]
-    syntax: CachedSyntax.t,
+    syntax: CachedSyntax.t('p),
   };
 
-  let mk = zipper => {
+  let mk = (~projector_to_term, zipper) => {
     state: {
       zipper,
       col_target: None,
@@ -112,17 +115,20 @@ module Model = {
     syntax:
       CachedSyntax.init(
         zipper,
+        ~projector_to_term,
         ~info_map=Id.Map.empty,
         ~dyn_map=Id.Map.empty,
       ),
   };
 
   type persistent = PersistentZipper.t;
-  let persist = (model: t) => model.state.zipper |> PersistentZipper.persist;
-  let unpersist = p => p |> PersistentZipper.unpersist |> mk;
+  let persist = (f: 'p => 'q, model: t('p)) =>
+    model.state.zipper |> PersistentZipper.persist(f);
+  let unpersist = (f, p) => p |> PersistentZipper.unpersist(f) |> mk;
 
-  let to_move_s = (model: t): (module Move.S) => {
-    module M: Move.S = {
+  let to_move_s = (type p', model: t(p')): (module Move.S with type p = p') => {
+    module M: Move.S with type p = p' = {
+      type p = p';
       let measured = model.syntax.measured;
       let term_ranges = model.syntax.term_ranges;
       let col_target = model.state.col_target |> Option.value(~default=0);
@@ -130,7 +136,7 @@ module Model = {
     (module M);
   };
 
-  let trailing_hole_ctx = (ed: t, info_map: Statics.Map.t) => {
+  let trailing_hole_ctx = (ed: t('p), info_map: Statics.Map.t) => {
     let segment = Zipper.unselect_and_zip(ed.state.zipper);
     let convex_grout = Segment.convex_grout(segment);
     // print_endline(String.concat("; ", List.map(Grout.show, convex_grout)));
@@ -149,16 +155,17 @@ module Model = {
 };
 
 module Update = {
-  type t = Action.t;
+  type t('p) = Action.t('p);
 
   let update =
       (
         ~settings: CoreSettings.t,
-        a: Action.t,
+        ~projector_init,
+        a: Action.t('p),
         old_statics,
-        {state, history, syntax}: Model.t,
+        {state, history, syntax}: Model.t('p),
       )
-      : Action.Result.t(Model.t) => {
+      : Action.Result.t(Model.t('p)) => {
     open Result.Syntax;
     // 1. Clear the autocomplete buffer if relevant
     let state =
@@ -168,6 +175,7 @@ module Update = {
           zipper:
             Perform.go_z(
               ~settings,
+              ~projector_init,
               old_statics,
               Buffer(Clear),
               Model.to_move_s({
@@ -212,6 +220,7 @@ module Update = {
     let+ zipper =
       Perform.go_z(
         ~settings,
+        ~projector_init,
         old_statics,
         a,
         Model.to_move_s({
@@ -236,7 +245,7 @@ module Update = {
     };
   };
 
-  let undo = (ed: Model.t) =>
+  let undo = (ed: Model.t('p)) =>
     switch (ed.history) {
     | ([], _) => None
     | ([(a, prev), ...before], after) =>
@@ -248,7 +257,7 @@ module Update = {
         },
       )
     };
-  let redo = (ed: Model.t) =>
+  let redo = (ed: Model.t('p)) =>
     switch (ed.history) {
     | (_, []) => None
     | (before, [(a, next), ...after]) =>
@@ -267,10 +276,12 @@ module Update = {
   let calculate =
       (
         ~settings: CoreSettings.t,
+        ~projector_init,
+        ~projector_to_term,
         ~is_edited,
         new_statics,
         dyn_map,
-        {syntax, state, history}: Model.t,
+        {syntax, state, history}: Model.t('p),
       ) => {
     // 1. Recalculate the autocomplete buffer if necessary
     let zipper =
@@ -278,6 +289,7 @@ module Update = {
         switch (
           Perform.go_z(
             ~settings,
+            ~projector_init,
             new_statics,
             Buffer(Set(TyDi)),
             Model.to_move_s({
@@ -298,7 +310,13 @@ module Update = {
     let syntax = is_edited ? CachedSyntax.mark_old(syntax) : syntax;
 
     let syntax =
-      CachedSyntax.calculate(zipper, new_statics.info_map, dyn_map, syntax);
+      CachedSyntax.calculate(
+        ~projector_to_term,
+        zipper,
+        new_statics.info_map,
+        dyn_map,
+        syntax,
+      );
 
     // Recombine
     Model.{
@@ -313,4 +331,4 @@ module Update = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = Model.t;
+type t('p) = Model.t('p);

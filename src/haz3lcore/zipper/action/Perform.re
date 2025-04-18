@@ -1,7 +1,7 @@
 open Util;
 open Zipper;
 
-let buffer_clear = (z: t): t =>
+let buffer_clear = (z: t('p)): t('p) =>
   switch (z.selection.mode) {
   | Buffer(_) => {
       ...z,
@@ -10,7 +10,7 @@ let buffer_clear = (z: t): t =>
   | _ => z
   };
 
-let set_buffer = (info_map: Statics.Map.t, z: t): t =>
+let set_buffer = (info_map: Statics.Map.t, z: t('p)): t('p) =>
   switch (TyDi.set_buffer(~info_map, z)) {
   | None => z
   | Some(z) => z
@@ -18,17 +18,19 @@ let set_buffer = (info_map: Statics.Map.t, z: t): t =>
 
 let go_z =
     (
+      type p',
       ~settings as _: CoreSettings.t,
+      ~projector_init,
       statics: CachedStatics.t,
-      a: Action.t,
-      module M: Move.S,
-      z: Zipper.t('p),
+      a: Action.t(p'),
+      module M: Move.S with type p = p',
+      z: Zipper.t(p'),
     )
-    : Action.Result.t(Zipper.t('p)) => {
+    : Action.Result.t(Zipper.t(p')) => {
   module Move = Move.Make(M);
   module Select = Select.Make(M);
 
-  let paste = (z: Zipper.t('p), str: string): option(Zipper.t('p)) => {
+  let paste = (z: Zipper.t(p'), str: string): option(Zipper.t(p')) => {
     open Util.OptUtil.Syntax;
     let* z = Printer.zipper_of_string(~zipper_init=z, str);
     /* HACK(andrew): Insert/Destruct below is a hack to deal
@@ -41,8 +43,8 @@ let go_z =
   };
 
   let paste_segment =
-      (z: Zipper.t('p), segment: Segment.t('p)): Zipper.t('p) => {
-    let replace_selection = (z, focus, segment): Zipper.t('p) =>
+      (z: Zipper.t(p'), segment: Segment.t(p')): Zipper.t(p') => {
+    let replace_selection = (z, focus, segment): Zipper.t(p') =>
       {
         ...z,
         selection: Selection.mk(~focus, segment),
@@ -53,7 +55,7 @@ let go_z =
     replace_selection(z, z.selection.focus, segment);
   };
 
-  let buffer_accept = (z): option(Zipper.t('p)) =>
+  let buffer_accept = (z): option(Zipper.t(p')) =>
     switch (z.selection.mode) {
     | Normal => None
     | Buffer(Unparsed) =>
@@ -78,7 +80,7 @@ let go_z =
       }
     };
 
-  let smart_select = (n, z): option(Zipper.t('p)) => {
+  let smart_select = (n, z): option(Zipper.t(p')) => {
     switch (n) {
     | 2 => Select.indicated_token(z)
     | 3 =>
@@ -128,6 +130,7 @@ let go_z =
   | Buffer(Clear) => Ok(buffer_clear(z))
   | Project(a) =>
     ProjectorPerform.go(
+      ~projector_init,
       Move.jump_to_id_indicated,
       Move.jump_to_side_of_id,
       Select.current_term(~defs_exclude_bodies=false, ~case_rules=false),

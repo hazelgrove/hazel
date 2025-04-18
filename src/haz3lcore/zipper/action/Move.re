@@ -90,8 +90,9 @@ let primary =
 };
 
 module type S = {
+  type p;
   let measured: Measured.t;
-  let term_ranges: TermRanges.t('p);
+  let term_ranges: TermRanges.t(p);
   let col_target: int;
 };
 

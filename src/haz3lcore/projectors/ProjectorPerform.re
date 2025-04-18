@@ -24,7 +24,8 @@ open OptUtil.Syntax;
  * this is the same as would happen if unparenthesizing a subterm. */
 
 let init =
-    (kind: ProjectorCore.Kind.t, seg: Base.segment('p)): option(syntax('p)) =>
+    (~projector_init, kind: ProjectorCore.Kind.t, seg: Base.segment('p))
+    : option(syntax('p)) =>
   /* Projected syntax always gets parenthesized, but only the contents
    * of those parentheses are passed to the projector implementations  */
   switch (
@@ -35,7 +36,14 @@ let init =
     )
   ) {
   | None => None
-  | Some(any) => ProjectorInit.init(kind, Segment.parenthesize(seg), any)
+  | Some(any) =>
+    switch (projector_init(kind, any)) {
+    | None => None
+    | Some(model) =>
+      Some(
+        Base.Projector(Base.mk_projector(Segment.parenthesize(seg), model)),
+      )
+    }
   };
 
 let replace_selection_and_unselect =
@@ -79,15 +87,17 @@ let update =
 
 let go =
     (
+      type p,
+      ~projector_init,
       jump_to_id_indicated,
       jump_to_side_of_id,
-      select_term: Zipper.t('p) => option(Zipper.t('p)),
-      a: Action.project('p),
-      z: Zipper.t('p),
+      select_term: Zipper.t(p) => option(Zipper.t(p)),
+      a: Action.project(p),
+      z: Zipper.t(p),
     )
-    : result(ZipperBase.t('p), Action.Failure.t) => {
+    : result(ZipperBase.t(p), Action.Failure.t) => {
   let setup_selection =
-      (z: Zipper.t('p)): option((Direction.t, Zipper.t('p))) =>
+      (z: Zipper.t(p)): option((Direction.t, Zipper.t(p))) =>
     Selection.is_empty(z.selection)
       ? switch (select_term(z), Indicated.direction(z)) {
         | (Some(z), Some(d)) => Some((Direction.toggle(d), z))
@@ -96,23 +106,23 @@ let go =
       : Some((z.selection.focus, z));
 
   let set_indicated =
-      (z: Zipper.t('p), kind: ProjectorCore.Kind.t): option(Zipper.t('p)) => {
+      (z: Zipper.t(p), kind: ProjectorCore.Kind.t): option(Zipper.t(p)) => {
     /* If not projected, project. If already same kind, remove. If other kind, change */
+    // TODO [Matt]: Make this check the kind again
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
-    | [Projector({model: ProjectorCore.V(kind_gadt, _), _} as pr)]
-        when ProjectorCore.Kind.of_gadt(kind_gadt) == kind =>
-      Some(remove(pr.syntax, focus, z))
-    | [Projector(pr)] =>
-      let+ piece = init(kind, Piece.unparenthesize(pr.syntax));
-      replace_selection_and_unselect(piece, focus, z);
+    | [Projector(pr)] => Some(remove(pr.syntax, focus, z))
+    // | [Projector(pr)] =>
+    //   let+ piece =
+    //     init(~projector_init, kind, Piece.unparenthesize(pr.syntax));
+    //   replace_selection_and_unselect(piece, focus, z);
     | seg =>
-      let+ piece = init(kind, seg);
+      let+ piece = init(~projector_init, kind, seg);
       replace_selection_and_unselect(piece, focus, z);
     };
   };
 
-  let remove_indicated = (z: Zipper.t('p)): option(Zipper.t('p)) => {
+  let remove_indicated = (z: Zipper.t(p)): option(Zipper.t(p)) => {
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
     | [Projector(pr)] => Some(remove(pr.syntax, focus, z))
@@ -163,7 +173,7 @@ let go =
           },
         id,
         z,
-      ),
+      ): ZipperBase.t(p),
     )
   | Focus(id, kind, d) =>
     open ProjectorCore.Kind;
