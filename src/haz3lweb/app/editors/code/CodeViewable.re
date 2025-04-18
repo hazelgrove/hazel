@@ -1,5 +1,4 @@
 open Util.Web;
-open Haz3lcore;
 
 /* Read-only code viewer, no interaction and no statics. All four
    functions do the same thing but take differently-typed inputs. */

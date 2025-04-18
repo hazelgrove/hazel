@@ -187,14 +187,14 @@ module MutationTestingReport = {
   let mk =
       (
         ~test_validation,
-        ~hidden_bugs_state: list(wrong_impl(Haz3lcore.Editor.t)),
+        ~hidden_bugs_state: list(wrong_impl(Editor.t)),
         ~hidden_bugs,
       )
       : t => {
     let results = List.map(hidden_bug_status(test_validation), hidden_bugs);
     let hints =
       List.map(
-        (wrong_impl: wrong_impl(Haz3lcore.Editor.t)) => wrong_impl.hint,
+        (wrong_impl: wrong_impl(Editor.t)) => wrong_impl.hint,
         hidden_bugs_state,
       );
     let results = List.combine(results, hints);
@@ -324,7 +324,7 @@ module MutationTestingReport = {
   //   test_map
   //   |> List.filter(((_id, reports)) =>
   //        List.for_all(
-  //          ((_, status)) => status == Haz3lcore.TestStatus.Pass,
+  //          ((_, status)) => status == TestStatus.Pass,
   //          reports,
   //        )
   //      )
@@ -335,14 +335,14 @@ module MutationTestingReport = {
   //   test_map
   //   |> List.filter(((_id, reports)) =>
   //        List.for_all(
-  //          ((_, status)) => status == Haz3lcore.TestStatus.Fail,
+  //          ((_, status)) => status == TestStatus.Fail,
   //          reports,
   //        )
   //      )
   //   |> List.split
   //   |> fst;
 
-  // let get_test_map = (editors: list(Haz3lcore.Editor.t)) => {
+  // let get_test_map = (editors: list(Editor.t)) => {
   //   let (reference_term, reference_map) = spliced_statics(editors);
   //   let result_reference =
   //     Interface.test_results(reference_map, reference_term);
@@ -401,9 +401,9 @@ module SyntaxReport = {
     percentage,
   };
 
-  let mk = (~your_impl: Haz3lcore.Editor.t, ~tests: syntax_tests): t => {
+  let mk = (~your_impl: Editor.t, ~tests: syntax_tests): t => {
     let user_impl_term =
-      Haz3lcore.MakeTerm.from_zip_for_sem(your_impl.state.zipper).term;
+      MakeTerm.from_zip_for_sem(your_impl.state.zipper).term;
     let predicates =
       List.map(((_, p)) => SyntaxTest.predicate_fn(p), tests);
     let hints = List.map(((h, _)) => h, tests);

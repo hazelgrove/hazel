@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Haz3lcore;
+
 open Util;
 
 let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */

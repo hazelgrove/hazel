@@ -4,7 +4,7 @@ module Profile = {
   type style = [ | `Sibling];
   type t = {
     style,
-    measurement: Haz3lcore.Measured.measurement,
+    measurement: Measured.measurement,
   };
 };
 

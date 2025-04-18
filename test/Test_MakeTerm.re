@@ -3,7 +3,7 @@
  * zippers into expressions.
  */
 open Alcotest;
-open Haz3lcore;
+
 module Fresh = Semantics.IdTagged.FreshGrammar;
 let exp_typ =
   testable(
@@ -12,7 +12,7 @@ let exp_typ =
   );
 
 let parse_exp = (s: string) => {
-  switch (MakeTerm.parse_exp(s)) {
+  switch (Haz3lweb.MakeTerm.parse_exp(s)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };

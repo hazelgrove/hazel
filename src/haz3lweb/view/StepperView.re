@@ -412,7 +412,7 @@ module View = {
 
   type event =
     | HideStepper
-    | JumpTo(Haz3lcore.Id.t)
+    | JumpTo(Id.t)
     | MakeActive(Selection.t);
 
   let view =

@@ -1,4 +1,3 @@
-open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
@@ -427,12 +426,12 @@ module View = {
         {
           let exp_ctx_view = {
             let correct_impl_trailing_hole_ctx =
-              Haz3lcore.Editor.Model.trailing_hole_ctx(
+              Editor.Model.trailing_hole_ctx(
                 eds.correct_impl,
                 instructor.editor.statics.info_map,
               );
             let prelude_trailing_hole_ctx =
-              Haz3lcore.Editor.Model.trailing_hole_ctx(
+              Editor.Model.trailing_hole_ctx(
                 eds.prelude,
                 prelude.editor.statics.info_map,
               );

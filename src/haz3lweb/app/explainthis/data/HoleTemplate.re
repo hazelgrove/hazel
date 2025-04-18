@@ -1,5 +1,4 @@
 open ExplainThisForm;
-open Haz3lcore;
 
 let empty_hole_template = (_sort, str, id): form => {
   let explanation =

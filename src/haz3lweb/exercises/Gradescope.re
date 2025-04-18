@@ -1,5 +1,5 @@
 open Haz3lweb;
-open Haz3lcore;
+
 open Util;
 open Core;
 open Exercise;

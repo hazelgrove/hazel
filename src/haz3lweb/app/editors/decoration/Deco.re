@@ -1,6 +1,5 @@
 open Util;
 open Util.Web;
-open Haz3lcore;
 
 type shard_data = (Measured.measurement, Nibs.shapes);
 

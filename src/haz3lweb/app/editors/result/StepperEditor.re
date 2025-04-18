@@ -1,5 +1,4 @@
 open Util;
-open Haz3lcore;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 

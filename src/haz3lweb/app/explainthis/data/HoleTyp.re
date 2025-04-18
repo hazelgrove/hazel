@@ -1,6 +1,5 @@
 open Example;
 open ExplainThisForm;
-open Haz3lcore;
 
 let empty_hole_typ: form = {
   let explanation = "This marks a type that needs to be filled in.";

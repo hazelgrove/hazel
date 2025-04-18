@@ -29,9 +29,9 @@ let find_hole_id = (e: Exp.t): option(Id.t) => {
 
 let introduction_test = (before: string, expected: string) => {
   open Util.OptUtil.Syntax;
+  open Haz3lweb;
 
   let serialized = {
-    open Haz3lcore;
     let* zip = Printer.zipper_of_string(before);
     let exp = MakeTerm.from_zip_for_sem(zip).term;
     let* hole_id = find_hole_id(exp);
@@ -56,7 +56,7 @@ let introduction_test = (before: string, expected: string) => {
 };
 
 let introduce_expression = (x: Typ.t): option(Exp.t) =>
-  Haz3lcore.Introduce.IntroduceExp.introduce(x)
+  Haz3lweb.Introduce.IntroduceExp.introduce(x)
   |> Option.map(((a, _b, _c)) => a);
 
 let tests =

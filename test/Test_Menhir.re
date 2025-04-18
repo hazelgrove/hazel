@@ -43,8 +43,8 @@ let strip_Wrap_and_add_builtins =
 // Existing recovering parser
 let make_term_parse = (s: string) =>
   strip_Wrap_and_add_builtins(
-    Haz3lcore.MakeTerm.from_zip_for_sem(
-      Option.get(Haz3lcore.Printer.zipper_of_string(s)),
+    Haz3lweb.MakeTerm.from_zip_for_sem(
+      Option.get(Haz3lweb.Printer.zipper_of_string(s)),
     ).
       term,
   );
@@ -117,9 +117,9 @@ let qcheck_menhir_maketerm_equivalent_test =
         Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp);
 
       let segment =
-        Haz3lcore.ExpToSegment.exp_to_segment(
+        Haz3lweb.ExpToSegment.exp_to_segment(
           ~settings=
-            Haz3lcore.ExpToSegment.Settings.of_core(
+            Haz3lweb.ExpToSegment.Settings.of_core(
               ~inline=true,
               Semantics.CoreSettings.off,
             ),
@@ -127,7 +127,7 @@ let qcheck_menhir_maketerm_equivalent_test =
         );
 
       let serialized =
-        Haz3lcore.Printer.of_segment(~holes=Some("?"), segment);
+        Haz3lweb.Printer.of_segment(~holes=Some("?"), segment);
       let make_term_parsed = make_term_parse(serialized);
       let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
       let menhir_parsed_converted =
@@ -178,7 +178,7 @@ let qcheck_menhir_serialized_equivalent_test =
       let core_exp =
         Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp);
       let segment =
-        Haz3lcore.ExpToSegment.exp_to_segment(
+        Haz3lweb.ExpToSegment.exp_to_segment(
           ~settings={
             inline: true,
             fold_case_clauses: false,
@@ -191,7 +191,7 @@ let qcheck_menhir_serialized_equivalent_test =
           core_exp,
         );
       let serialized =
-        Haz3lcore.Printer.of_segment(~holes=Some("?"), segment);
+        Haz3lweb.Printer.of_segment(~holes=Some("?"), segment);
       let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
       AST.equal_exp(menhir_parsed, exp);
     },

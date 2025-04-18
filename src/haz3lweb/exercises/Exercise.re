@@ -1,5 +1,5 @@
 open Util;
-open Haz3lcore;
+
 open Web;
 
 let output_header_grading = _module_name =>

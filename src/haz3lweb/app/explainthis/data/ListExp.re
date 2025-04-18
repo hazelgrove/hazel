@@ -1,4 +1,3 @@
-open Haz3lcore;
 open ExplainThisForm;
 open Example;
 

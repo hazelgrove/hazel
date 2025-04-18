@@ -1,5 +1,5 @@
 open Virtual_dom.Vdom;
-open Haz3lcore;
+
 open SvgUtil.Path;
 
 let s_y = 0.28;

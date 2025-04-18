@@ -1,5 +1,3 @@
-open Haz3lcore;
-
 let mk_secondary: string => Piece.t =
   content =>
     Secondary({

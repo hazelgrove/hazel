@@ -1,7 +1,5 @@
 open Util;
 
-open Haz3lcore;
-
 // TODO Make unified way of using consistent metavariables for syntactic forms
 // TODO Use /tau instead of ty when can do that and still have highlighting work
 

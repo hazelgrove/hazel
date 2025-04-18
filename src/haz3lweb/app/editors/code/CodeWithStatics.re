@@ -1,5 +1,4 @@
 open Util.Web;
-open Haz3lcore;
 
 /* Read-only code viewer with statics, but no interaction. Notably,
    since there is no interaction, the user can see that there is an

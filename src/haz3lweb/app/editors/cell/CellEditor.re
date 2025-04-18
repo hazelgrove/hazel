@@ -1,4 +1,3 @@
-open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 

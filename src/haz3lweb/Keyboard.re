@@ -1,4 +1,3 @@
-open Haz3lcore;
 open Util;
 
 let is_digit = s => StringUtil.(match(regexp("^[0-9]$"), s));

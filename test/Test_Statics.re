@@ -52,7 +52,7 @@ let testable_error: testable(Info.error) =
 let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 
 let parse_exp = (s: string) => {
-  switch (Haz3lcore.MakeTerm.parse_exp(s)) {
+  switch (Haz3lweb.MakeTerm.parse_exp(s)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };

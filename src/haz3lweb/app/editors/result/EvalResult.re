@@ -184,7 +184,7 @@ module Update = {
         ~settings: CoreSettings.t,
         ~queue_worker: option(Exp.t => unit),
         ~is_edited: bool,
-        statics: Haz3lcore.CachedStatics.t,
+        statics: CachedStatics.t,
         model: Model.t,
       ) => {
     let elab = statics.elaborated;
@@ -485,7 +485,7 @@ module View = {
     };
 
   let test_status_icon_view =
-      (~font_metrics, insts, ms: Haz3lcore.Measured.Shards.t): option(Node.t) =>
+      (~font_metrics, insts, ms: Measured.Shards.t): option(Node.t) =>
     switch (ms) {
     | [(_, {origin: _, last}), ..._] =>
       let status = insts |> TestMap.joint_status |> TestStatus.to_string;
@@ -497,11 +497,7 @@ module View = {
     };
 
   let test_result_layer =
-      (
-        ~font_metrics,
-        ~measured: Haz3lcore.Measured.t,
-        test_results: TestResults.t,
-      )
+      (~font_metrics, ~measured: Measured.t, test_results: TestResults.t)
       : Web.Node.t =>
     Web.div_c(
       "test-decos",
@@ -536,7 +532,7 @@ module View = {
     | EvalResults when globals.settings.core.dynamics =>
       let result =
         footer(~globals, ~signal, ~inject, ~result=model, ~selected, ~locked);
-      let test_overlay = (editor: Haz3lcore.Editor.t) =>
+      let test_overlay = (editor: Editor.t) =>
         switch (Model.test_results(model)) {
         | Some(result) => [
             test_result_layer(
@@ -555,9 +551,9 @@ module View = {
         text("Evaluation disabled, showing elaboration:"),
         switch (Model.get_elaboration(model)) {
         | Some(elab) =>
-          let shape_map = Haz3lcore.ProjectorCore.Shape.Map.empty; // assume no projectors
+          let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
           elab
-          |> Haz3lcore.ExpToSegment.(
+          |> ExpToSegment.(
                exp_to_segment(
                  ~settings=
                    Settings.of_core(~inline=false, globals.settings.core),
@@ -576,7 +572,7 @@ module View = {
     | Custom(node) => (
         [node],
         (
-          (editor: Haz3lcore.Editor.t) =>
+          (editor: Editor.t) =>
             switch (Model.test_results(model)) {
             | Some(result) => [
                 test_result_layer(
@@ -593,7 +589,7 @@ module View = {
     // Just showing test results (school mode)
     | TestResults =>
       let test_results = Model.test_results(model);
-      let test_overlay = (editor: Haz3lcore.Editor.t) =>
+      let test_overlay = (editor: Editor.t) =>
         switch (Model.test_results(model)) {
         | Some(result) => [
             test_result_layer(

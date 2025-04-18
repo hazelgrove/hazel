@@ -41,11 +41,8 @@ let apply =
         model,
       )
     ) {
-    | Haz3lcore.Action.Failure.Exception(t) =>
-      Printf.printf(
-        "ERROR: Action.Failure: %s\n",
-        t |> Haz3lcore.Action.Failure.show,
-      );
+    | Action.Failure.Exception(t) =>
+      Printf.printf("ERROR: Action.Failure: %s\n", t |> Action.Failure.show);
       model |> Updated.return_quiet;
     | exc =>
       Printf.printf(

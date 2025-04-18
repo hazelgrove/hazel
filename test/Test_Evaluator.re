@@ -17,7 +17,7 @@ let evaluate_probes = unevaluated =>
   |> EvaluatorState.get_probes;
 
 let parse_exp = (s: string) => {
-  switch (Haz3lcore.MakeTerm.parse_exp(s)) {
+  switch (Haz3lweb.MakeTerm.parse_exp(s)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };

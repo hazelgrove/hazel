@@ -1,4 +1,3 @@
-open Haz3lcore;
 open Util;
 
 /* A CodeEditor that's been restricted to only performing selection with

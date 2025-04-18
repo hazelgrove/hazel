@@ -1,5 +1,3 @@
-open Haz3lcore;
-
 /* This is a place to add ad-hoc debugging print actions.
    It was originally directly in Keyboard, but that added a handler
    dependency on the model, which is technically against architecture */

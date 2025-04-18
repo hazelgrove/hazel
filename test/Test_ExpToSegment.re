@@ -1,7 +1,6 @@
 open Alcotest;
-open Haz3lcore;
 open Semantics;
-open Base;
+open Haz3lweb.Base;
 
 // Id ignoring equality for tiles
 let rec equal_segment = (a: segment, b: segment) => {
@@ -23,6 +22,8 @@ and equal_piece = (a: piece, b: piece) => {
   | _ => false
   };
 };
+
+open Haz3lweb;
 
 let segment = testable(Fmt.using(Segment.show, Fmt.string), equal_segment);
 let exp_to_segment =

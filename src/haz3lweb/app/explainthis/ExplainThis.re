@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
-open Haz3lcore;
+
 open Semantics;
 
 /* If you are adding docs here for new syntax, see PipelineExp.re
@@ -1828,13 +1828,13 @@ let get_doc =
           let color_deferred = List.nth(ColorSteps.child_colors, 2);
           let add = (mapping, arg: Exp.t) => {
             let arg_id = List.nth(IdTagged.ids(arg), 0);
-            Haz3lcore.Id.Map.add(
+            Id.Map.add(
               arg_id,
               Exp.is_deferral(arg) ? color_deferred : color_supplied,
               mapping,
             );
           };
-          let mapping = Haz3lcore.Id.Map.singleton(x_id, color_fn);
+          let mapping = Id.Map.singleton(x_id, color_fn);
           let mapping = List.fold_left(add, mapping, args);
           let color_map = (mapping, List.length(args) + 1);
           ([], ([], color_map), []);
