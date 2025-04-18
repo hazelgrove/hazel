@@ -25,6 +25,7 @@
   Worker
   WorkerServer)
  (libraries
+  projectors
   ezjs_min
   ezjs_idb
   workerServer

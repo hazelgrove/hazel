@@ -28,3 +28,8 @@ let inline = (width: int): t => {
   vertical: Inline,
 };
 let default: t = inline(0);
+
+//TODO(andrew): homeify
+/* Projectors currently are all convex */
+let nibs = (_: ProjectorCore.t(syntax)): Nibs.shapes =>
+  Nib.Shape.(Convex, Convex);

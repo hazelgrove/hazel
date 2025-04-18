@@ -9,7 +9,7 @@ let string_of = (any: Semantics.Any.t): option(string) =>
   | _ => None
   };
 
-let get = (info: info): string =>
+let get = (info: info('s)): string =>
   switch (info.syntax |> info.utility.seg_to_term) {
   | Some(s) =>
     switch (string_of(s)) {
@@ -19,7 +19,7 @@ let get = (info: info): string =>
   | None => failwith("TextArea: get: Not string literal")
   };
 
-let put = (info, s: string): Base.segment =>
+let put = (info: info('s), s: string): 's =>
   switch (
     info.utility.lift_syntax(
       fun
@@ -61,7 +61,7 @@ let key_handler = (id, ~parent, evt) => {
 };
 
 let textarea =
-    (info, ~parent: external_action => Ui_effect.t(unit), text: string) =>
+    (info, ~parent: external_action('s) => Ui_effect.t(unit), text: string) =>
   Node.textarea(
     ~attrs=[
       Attr.id(Id.cls(info.id)),
@@ -80,57 +80,59 @@ let textarea =
     [],
   );
 
-module M: Projector with type model = unit = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = unit;
-  let kind = ProjectorCore.Kind.TextArea;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = unit;
+module Make: Projector =
+  (Syntax: {}) => {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type model = unit;
+    let kind = ProjectorCore.Kind.TextArea;
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type action = unit;
 
-  let init = (any: Semantics.Any.t) =>
-    switch (string_of(any)) {
-    | Some(_) => Some()
-    | None => None
+    let init = (any: Semantics.Any.t) =>
+      switch (string_of(any)) {
+      | Some(_) => Some()
+      | None => None
+      };
+
+    let focus_keyboard = (id: Id.t, d: Direction.t) => {
+      JsUtil.get_elem_by_id(Id.cls(id))##focus;
+      switch (d) {
+      | Left =>
+        Web.TextArea.set_caret_to_start(Web.TextArea.get(Id.cls(id)))
+      | Right => Web.TextArea.set_caret_to_end(Web.TextArea.get(Id.cls(id)))
+      };
     };
 
-  let focus_keyboard = (id: Id.t, d: Direction.t) => {
-    JsUtil.get_elem_by_id(Id.cls(id))##focus;
-    switch (d) {
-    | Left => Web.TextArea.set_caret_to_start(Web.TextArea.get(Id.cls(id)))
-    | Right => Web.TextArea.set_caret_to_end(Web.TextArea.get(Id.cls(id)))
+    let focus_pointer = (id: Id.t) => {
+      JsUtil.get_elem_by_id(Id.cls(id))##focus;
     };
+
+    let focusable =
+      Focusable.{
+        pointer: Some(focus_pointer),
+        keyboard: Some(focus_keyboard),
+      };
+    let dynamics = false;
+    let placeholder = (_, info) => {
+      let str = info |> get;
+      ProjectorCore.Shape.{
+        vertical: Block(StringUtil.num_linebreaks(str)),
+        /* +2 for left and right padding */
+        horizontal: 2 + StringUtil.max_line_width(str),
+      };
+    };
+    let update = (model, _, _) => model;
+
+    let view = (_, info, ~local as _, ~parent, ~view_seg as _) =>
+      View.mk(
+        Node.div(
+          ~attrs=[Attr.classes(["wrapper"])],
+          [
+            Node.div(
+              ~attrs=[Attr.classes(["cols", "code"])],
+              [Node.text("·")] @ [textarea(info, ~parent, info |> get)],
+            ),
+          ],
+        ),
+      );
   };
-
-  let focus_pointer = (id: Id.t) => {
-    JsUtil.get_elem_by_id(Id.cls(id))##focus;
-  };
-
-  let focusable =
-    Focusable.{
-      pointer: Some(focus_pointer),
-      keyboard: Some(focus_keyboard),
-    };
-  let dynamics = false;
-  let placeholder = (_, info) => {
-    let str = info |> get;
-    ProjectorCore.Shape.{
-      vertical: Block(StringUtil.num_linebreaks(str)),
-      /* +2 for left and right padding */
-      horizontal: 2 + StringUtil.max_line_width(str),
-    };
-  };
-  let update = (model, _, _) => model;
-
-  let view = (_, info, ~local as _, ~parent, ~view_seg as _) =>
-    View.mk(
-      Node.div(
-        ~attrs=[Attr.classes(["wrapper"])],
-        [
-          Node.div(
-            ~attrs=[Attr.classes(["cols", "code"])],
-            [Node.text("·")] @ [textarea(info, ~parent, info |> get)],
-          ),
-        ],
-      ),
-    );
-};

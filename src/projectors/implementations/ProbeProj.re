@@ -108,7 +108,7 @@ let rm_opaques:
   );
 
 /* Don't redundantly show an env for variable references, patterns */
-let hide_env = (info: info): bool =>
+let hide_env = (info: info('s)): bool =>
   switch (info.statics) {
   | Some(
       InfoExp({term: {term: Var(_) | Probe({term: Var(_), _}, _), _}, _}),
@@ -120,7 +120,7 @@ let hide_env = (info: info): bool =>
 
 let show_purps = ref(false);
 
-let cur_ap = (info: info) =>
+let cur_ap = (info: info('s)) =>
   switch (info.statics) {
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
   | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _}))
@@ -154,11 +154,11 @@ module DynCursor = {
     s.call_cursor = closure.call_stack;
   };
 
-  let capture_ap = (info: info): unit => {
+  let capture_ap = (info: info('s)): unit => {
     s.indicated_call = cur_ap(info);
   };
 
-  let capture = (info: info, closure: closure): unit => {
+  let capture = (info: info('s), closure: closure): unit => {
     capture_cursor(closure);
     capture_ap(info);
   };
@@ -171,7 +171,7 @@ module DynCursor = {
 
   /* If one of the current probe's cells is not already selected,
    * select the first one */
-  let probe_default = (info: info): unit =>
+  let probe_default = (info: info('s)): unit =>
     switch (info.dynamics) {
     | Some(closures) when is_in(closures) != None => capture_ap(info)
     | Some(closures) =>
@@ -219,14 +219,14 @@ module DynCursor = {
     | (_, _) => Same
     };
 
-  let cur_call = (info: info, closure: closure) => {
+  let cur_call = (info: info('s), closure: closure) => {
     open OptUtil.Syntax;
     let* lex = cur_ap(info);
     let dyn = closure.call_stack;
     Some([lex, ...dyn]);
   };
 
-  let relation = (info: info, closure: closure): relation => {
+  let relation = (info: info('s), closure: closure): relation => {
     open OptUtil.Syntax;
     let this = closure.call_stack;
     let cursor = s.call_cursor;
@@ -244,7 +244,7 @@ module DynCursor = {
     };
   };
 
-  let clss = (info: info, closure: closure): list(string) => {
+  let clss = (info: info('s), closure: closure): list(string) => {
     let relation = relation(info, closure);
     (
       switch (
@@ -286,7 +286,7 @@ module DynCursor = {
   };
 
   let first_cursor_closure =
-      (info: info, closures: list(closure)): option(closure) => {
+      (info: info('s), closures: list(closure)): option(closure) => {
     let find_cursor =
       List.find_opt(
         (closure: closure) => relation(info, closure).is_call_cursor,
@@ -298,19 +298,19 @@ module DynCursor = {
     };
   };
 
-  let show_pin = info => {
+  let show_pin = (info: info('s)) => {
     s.pinned_call != None
     && s.pinned_call
     |> OptUtil.and_then(ListUtil.hd_opt) == cur_ap(info);
   };
 
-  let is_pinned = (info: info): bool =>
+  let is_pinned = (info: info('s)): bool =>
     switch (OptUtil.and_then(is_in, info.dynamics)) {
     | Some(closure_cursor) => s.pinned_call == cur_call(info, closure_cursor)
     | _ => false
     };
 
-  let pin_call = (info: info): unit =>
+  let pin_call = (info: info('s)): unit =>
     switch (OptUtil.and_then(is_in, info.dynamics)) {
     | Some(closure_cursor) => s.pinned_call = cur_call(info, closure_cursor)
     | _ => ()
@@ -320,7 +320,7 @@ module DynCursor = {
     s.pinned_call = None;
   };
 
-  let toggle_pinned_call = (info: info) =>
+  let toggle_pinned_call = (info: info('s)) =>
     switch (s.pinned_call) {
     | Some(pinned_ap) when ListUtil.hd_opt(pinned_ap) == cur_ap(info) =>
       /* already pinned case */
@@ -333,7 +333,7 @@ module DynCursor = {
     let stack = (stack: Probe.call_stack): string =>
       stack |> List.map(Id.str3) |> String.concat("\n");
 
-    let str = (info, closure: closure): string =>
+    let str = (info: info('s), closure: closure): string =>
       "ap:"
       ++ (
         switch (cur_call(info, closure)) {
@@ -352,7 +352,7 @@ module DynCursor = {
 
 module Closures = {
   let filter_frames_by_pin =
-      (info: info, frames: list(closure)): list(closure) =>
+      (info: info('s), frames: list(closure)): list(closure) =>
     switch (DynCursor.s.pinned_call) {
     | Some(pinned_ap) =>
       List.filter(
@@ -364,13 +364,14 @@ module Closures = {
     | None => frames
     };
 
-  let total = (info: info): int =>
+  let total = (info: info('s)): int =>
     switch (info.dynamics) {
     | Some(closures) => List.length(filter_frames_by_pin(info, closures))
     | None => 0
     };
 
-  let select_frames = (info: info, closures: list(closure)): list(closure) => {
+  let select_frames =
+      (info: info('s), closures: list(closure)): list(closure) => {
     let closures = filter_frames_by_pin(info, closures);
     let cursor_idx =
       switch (DynCursor.first_index_of_interest(info, closures)) {
@@ -432,21 +433,6 @@ let abbreviate = (exp: Exp.t, available: int): Exp.t => {
   abbr_exp;
 };
 
-let len_seg = (seg: Segment.t): int =>
-  seg |> Printer.of_segment(~holes=Some("?")) |> String.length;
-
-let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
-  let seg = utility.term_to_seg(Exp(exp));
-  (seg, len_seg(seg));
-};
-
-let abbreviated_seg_of =
-    (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
-  let (abbr_exp, _length) =
-    exp |> DHExp.strip_casts |> Abbreviate.abbreviate_exp(~available);
-  seg_of_exp(utility, abbr_exp);
-};
-
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   open Float;
   let row_height = 10.0;
@@ -491,128 +477,6 @@ module ValueState = {
   let click_coords: ref(option(Point.t)) = ref(Option.None);
 };
 
-let value_view =
-    (
-      info: info,
-      utility: utility,
-      view_seg,
-      local,
-      closure: closure,
-      index: int,
-    ) => {
-  let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
-    if (Js.to_bool(e##.shiftKey)) {
-      let target =
-        e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
-      JsUtil.setPointerCapture(target, e##.pointerId);
-      ValueState.mousedown := Some(target);
-      ValueState.click_coords :=
-        Some({
-          row: e##.clientY,
-          col: e##.clientX,
-        });
-    };
-    DynCursor.capture(info, closure);
-    Effect.Ignore;
-  };
-
-  let val_pointerup = (e: Js.t(Dom_html.pointerEvent)) => {
-    let target =
-      e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
-    if (JsUtil.hasPointerCapture(target, e##.pointerId)) {
-      JsUtil.releasePointerCapture(target, e##.pointerId);
-    };
-    ValueState.mousedown := None;
-    ValueState.click_coords := None;
-    Effect.Ignore;
-  };
-
-  let val_mousemove = (e: Js.t(Dom_html.mouseEvent)) => {
-    switch (ValueState.mousedown^) {
-    | Some(_) when Js.to_bool(e##.shiftKey) =>
-      let goal = pos_rel_to_target(e);
-      local(ChangeLength(closure.closure_id, goal.col));
-    | _ => Effect.Ignore
-    };
-  };
-
-  let (seg, length) =
-    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
-
-  div(
-    ~attrs=[
-      //Attr.title(DynCursor.Debug.str(info, closure)),
-      Attr.classes(
-        ["value", length_cls(length)]
-        @ DynCursor.clss(info, closure)
-        @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
-        @ (!is_value(closure.value) ? ["indet"] : []),
-      ),
-      Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
-      Attr.on_pointerdown(val_pointerdown),
-      Attr.on_pointerup(val_pointerup),
-      Attr.on_mousemove(val_mousemove),
-    ],
-    [view_seg(Sort.Exp, seg)],
-  );
-};
-
-let env_val =
-    (closure, view_seg, utility: utility, en: Dynamics.Probe.Env.entry)
-    : Node.t => {
-  Node.div(
-    ~attrs=[Attr.classes(["live-env-entry"])],
-    [
-      Node.text(en.binding.name ++ " ≡ "),
-      switch (en.value) {
-      | Opaque => Node.text("Opaque")
-      | Val(d) =>
-        let (seg, _) =
-          abbreviated_seg_of(utility, ClosureLength.get(closure), d);
-        view_seg(Sort.Exp, seg);
-      },
-    ],
-  );
-};
-
-let env_view = (closure: closure, view_seg, utility: utility): Node.t =>
-  Node.div(
-    ~attrs=[Attr.classes(["live-env"])],
-    closure.env
-    |> ListUtil.dedup
-    |> rm_opaques
-    |> List.map(env_val(closure, view_seg, utility)),
-  );
-
-let closure_view =
-    (
-      info: info,
-      utility: utility,
-      view_seg,
-      local,
-      (index: int, closure: closure),
-    ) =>
-  div(
-    ~attrs=[Attr.classes(["closure"])],
-    [value_view(info, utility, view_seg, local, closure, index)]
-    @ (hide_env(info) ? [] : [env_view(closure, view_seg, utility)]),
-  );
-
-let closure_group_view =
-    (info, utility, view_seg, local, groups: list(list((int, closure)))) => {
-  let group_views =
-    List.map(
-      closures =>
-        Node.div(
-          ~attrs=[Attr.classes(["closure-group"])],
-          List.map(closure_view(info, utility, view_seg, local), closures),
-        ),
-      groups,
-    );
-  group_views == []
-    ? [] : [div(~attrs=[Attr.classes(["closure-groups"])], group_views)];
-};
-
 let ellipsis_view = (local): Node.t =>
   div(
     ~attrs=[
@@ -642,30 +506,7 @@ let nav_bar_view = (num_total: int, local) => {
 let equals_view =
   div(~attrs=[Attr.classes(["live-equals"])], [text("≡")]);
 
-let offside_view =
-    (
-      info: info,
-      local,
-      view_seg: (~background: bool=?, Sort.t, list(syntax)) => Node.t,
-      utility: utility,
-    ) =>
-  Node.div(
-    ~attrs=[Attr.classes(["live-offside"])],
-    switch (info.dynamics) {
-    | Some(closures) =>
-      let num_total = Closures.total(info);
-      let closures = Closures.select_frames(info, closures);
-      let (num_shown, groups) = Closures.collate(closures);
-      let is_cut_off = num_shown != num_total && num_shown > 0;
-      let extras = [nav_bar_view(num_total, local), ellipsis_view(local)];
-      (num_shown > 0 ? [equals_view] : [])
-      @ closure_group_view(info, utility, view_seg, local, groups)
-      @ (is_cut_off ? extras : []);
-    | _ => []
-    },
-  );
-
-let num_closures_view = (info: info) => {
+let num_closures_view = (info: info('s)) => {
   let num_closures = Closures.total(info);
   let description = num_closures < 1000 ? string_of_int(num_closures) : "1k+";
   div(
@@ -677,24 +518,15 @@ let num_closures_view = (info: info) => {
   );
 };
 
-let pin_view = (info: info) =>
+let pin_view = (info: info('s)) =>
   DynCursor.show_pin(info)
     ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
-let syntax_str =
-  Core.Memo.general(seg => {
-    let max_len = 30;
-    let seg = Segment.unparenthesize(seg);
-    let str = Printer.of_segment(~holes=Some("?"), seg);
-    let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
-    String.length(str) > max_len
-      ? String.sub(str, 0, max_len) ++ "..." : str;
-  });
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
 let state: ref(option(Direction.t)) = ref(Option.None);
 
-let move_cursor = (info: info, offset: int): unit =>
+let move_cursor = (info, offset: int): unit =>
   switch (info.dynamics) {
   | Some(closures) =>
     let closures = Closures.filter_frames_by_pin(info, closures);
@@ -711,98 +543,10 @@ let move_cursor = (info: info, offset: int): unit =>
   | None => ()
   };
 
-let round_up = (utility: utility, closure): unit => {
-  let (_, cur) =
-    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
-  let goal = cur + 1;
-  let (_, max_len) = seg_of_exp(utility, DHExp.strip_casts(closure.value));
-  let rec find_target = (target: int): int => {
-    let attempt_len =
-      abbreviated_seg_of(utility, target, closure.value) |> snd;
-    if (attempt_len < goal && target <= max_len) {
-      find_target(target + 1);
-    } else {
-      target;
-    };
-  };
-  ClosureLength.set(closure.closure_id, find_target(goal));
-};
-
-let round_down = (utility: utility, closure: closure): unit => {
-  let (_, cur) =
-    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
-  let goal = cur - 1;
-  let rec find_target = (target: int): int => {
-    let attempt_len =
-      abbreviated_seg_of(utility, target, closure.value) |> snd;
-    if (attempt_len > goal && target > 0) {
-      find_target(target - 1);
-    } else {
-      target;
-    };
-  };
-  ClosureLength.set(closure.closure_id, find_target(goal));
-};
-
-let indicated_closure = (info: info): option(closure) =>
+let indicated_closure = (info: info('s)): option(closure) =>
   OptUtil.and_then(DynCursor.first_cursor_closure(info), info.dynamics);
 
-let key_handler = (local, info: info, _, evt) => {
-  open Effect;
-  /* PLAN: inter-probe navigation
-      ultimately need to be able to issue a parent action to move to and focus on
-     another projector. for now, should be able to use the Project(Focus(id)) action
-     to do both in one; will need to rethink when we want to /create/ probes as well.
-     the probe that we want to move to is going to depend on the closure cursor, but
-     also maybe the row of the closure we're on. alternatively, can maybe avoid
-     row based logic by using closure creation time instead. In any case, want a function
-     that takes the closure cursor and emits a new closure cursor and the id of a
-     probe to jump to. Not sure this is the best approach at all, but for now maybe
-     we could add all probe data to a common mutable structure in this module, when
-     projectorview.all is called, and use this to calculate the probe id to jump to.
-     like basically we're going to treat this mutable cache as a db, and do certain
-     queries. specifically, return all probe_ids that have a closure with equal
-     closure cursor to current, and take the one with the timestamp closet to but
-     before/after the current closure cursor closure timestamp. */
-  let key = Key.mk(KeyDown, evt);
-  switch (key.key) {
-  | D("Escape") when key.shift == Down =>
-    JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
-    DynCursor.reset();
-    Window.reset();
-    ClosureLength.reset();
-    local(NoOp);
-  | D("Escape") =>
-    JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
-    Ignore;
-  | D("ArrowRight") when key.shift == Down =>
-    switch (indicated_closure(info)) {
-    | Some(closure) => round_up(info.utility, closure)
-    | None => ()
-    };
-    Many([local(NoOp), Stop_propagation, Prevent_default]);
-  | D("ArrowLeft") when key.shift == Down =>
-    switch (indicated_closure(info)) {
-    | Some(closure) => round_down(info.utility, closure)
-    | None => ()
-    };
-    Many([local(NoOp), Stop_propagation, Prevent_default]);
-  | D("ArrowRight") =>
-    move_cursor(info, -1);
-    // hack: Prevent_default below stops aggressive horizontal scroll
-    // noop to trigger redraw
-    Many([local(NoOp), Stop_propagation, Prevent_default]);
-  | D("ArrowLeft") =>
-    move_cursor(info, 1);
-    Many([local(NoOp), Stop_propagation, Prevent_default]);
-  | D(" ") =>
-    Window.toggle_mode();
-    Many([local(NoOp), Stop_propagation, Prevent_default]); // trigger redraw
-  | _ => Many([Stop_propagation])
-  };
-};
-
-let update = ((), info: info, a: action) => {
+let update = ((), info, a: action) => {
   switch (a) {
   | ChangeLength(id, len) => ClosureLength.set(id, len)
   | ToggleShowAllVals(_) => Window.toggle_mode()
@@ -812,40 +556,7 @@ let update = ((), info: info, a: action) => {
   };
 };
 
-let view = (local, parent, info: info): Node.t =>
-  div(
-    ~attrs=[
-      Attr.id(Id.cls(info.id)),
-      Attr.tabindex(0),
-      Attr.on_keydown(key_handler(local, info, parent)),
-      Attr.classes(
-        ["main"]
-        @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
-        @ (DynCursor.is_pinned(info) ? ["pinned"] : []),
-      ),
-      Attr.on_double_click(_ => local(PinAp)),
-      Attr.on_pointerdown(_ => {
-        /* Select a default cell if one is not already selected */
-        DynCursor.probe_default(info);
-        Effect.Ignore;
-      }),
-      Attr.on_pointerup(_ => {
-        JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
-        Effect.Ignore;
-      }),
-      Attr.on_mouseenter(_ => {
-        show_purps := true;
-        local(NoOp);
-      }),
-      Attr.on_mouseleave(_ => {
-        show_purps := false;
-        local(NoOp);
-      }),
-    ],
-    [text(syntax_str(info.syntax)), icon],
-  );
-
-let overlay_view = (info: info): Node.t =>
+let overlay_view = (info): Node.t =>
   div(
     ~attrs=[
       Attr.classes(
@@ -860,39 +571,357 @@ let overlay_view = (info: info): Node.t =>
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a = action;
 
-module M: Projector with type model = unit = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = unit;
-  let kind = ProjectorCore.Kind.Probe;
-  let model_of_sexp = _ => ();
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = a;
+module Make: Projector =
+  (
+    Syntax: {
+      type segment;
+      let unparenthesize: segment => segment;
+      let to_string: segment => string;
+    },
+  ) => {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type model = unit;
+    let kind = ProjectorCore.Kind.Probe;
+    let model_of_sexp = _ => ();
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type action = a;
 
-  let init = (any: Term.Any.t) =>
-    switch (any) {
-    | Exp(_)
-    | Pat(_) => Some()
-    | Any(_) => Some() /* Grout don't have sorts rn */
-    | _ => None
+    let init = (any: Term.Any.t) =>
+      switch (any) {
+      | Exp(_)
+      | Pat(_) => Some()
+      | Any(_) => Some() /* Grout don't have sorts rn */
+      | _ => None
+      };
+
+    let dynamics = true;
+
+    let focusable =
+      Focusable.{
+        pointer: Some(id => JsUtil.get_elem_by_id(Id.cls(id))##focus),
+        keyboard: None,
+      };
+
+    let syntax_str =
+      Core.Memo.general(seg => {
+        let max_len = 30;
+        let seg = Syntax.unparenthesize(seg);
+        let str = Syntax.to_string(seg);
+        let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
+        String.length(str) > max_len
+          ? String.sub(str, 0, max_len) ++ "..." : str;
+      });
+
+    let placeholder = (_, info) =>
+      ProjectorCore.Shape.inline(
+        2 + String.length(syntax_str(info.syntax)),
+      );
+
+    let update = update;
+
+    let len_seg = (seg: Syntax.segment): int =>
+      seg |> Syntax.to_string |> String.length;
+
+    let seg_of_exp = (utility, exp: Exp.t): (Syntax.segment, int) => {
+      let seg = utility.term_to_seg(Exp(exp));
+      (seg, len_seg(seg));
     };
 
-  let dynamics = true;
-
-  let focusable =
-    Focusable.{
-      pointer: Some(id => JsUtil.get_elem_by_id(Id.cls(id))##focus),
-      keyboard: None,
+    let abbreviated_seg_of =
+        (utility, available: int, exp: Exp.t): (Syntax.segment, int) => {
+      let (abbr_exp, _length) =
+        exp |> DHExp.strip_casts |> Abbreviate.abbreviate_exp(~available);
+      seg_of_exp(utility, abbr_exp);
     };
 
-  let placeholder = (_, info: info) =>
-    ProjectorCore.Shape.inline(2 + String.length(syntax_str(info.syntax)));
+    let value_view =
+        (info, utility, view_seg, local, closure: closure, index: int) => {
+      let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
+        if (Js.to_bool(e##.shiftKey)) {
+          let target =
+            e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
+          JsUtil.setPointerCapture(target, e##.pointerId);
+          ValueState.mousedown := Some(target);
+          ValueState.click_coords :=
+            Some({
+              row: e##.clientY,
+              col: e##.clientX,
+            });
+        };
+        DynCursor.capture(info, closure);
+        Effect.Ignore;
+      };
 
-  let update = update;
+      let val_pointerup = (e: Js.t(Dom_html.pointerEvent)) => {
+        let target =
+          e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
+        if (JsUtil.hasPointerCapture(target, e##.pointerId)) {
+          JsUtil.releasePointerCapture(target, e##.pointerId);
+        };
+        ValueState.mousedown := None;
+        ValueState.click_coords := None;
+        Effect.Ignore;
+      };
 
-  let view = (_model, info, ~local, ~parent, ~view_seg) =>
-    View.{
-      inline: view(local, parent, info),
-      overlay: Some(overlay_view(info)),
-      offside: Some(offside_view(info, local, view_seg, info.utility)),
+      let val_mousemove = (e: Js.t(Dom_html.mouseEvent)) => {
+        switch (ValueState.mousedown^) {
+        | Some(_) when Js.to_bool(e##.shiftKey) =>
+          let goal = pos_rel_to_target(e);
+          local(ChangeLength(closure.closure_id, goal.col));
+        | _ => Effect.Ignore
+        };
+      };
+
+      let (seg, length) =
+        abbreviated_seg_of(
+          utility,
+          ClosureLength.get(closure),
+          closure.value,
+        );
+
+      div(
+        ~attrs=[
+          //Attr.title(DynCursor.Debug.str(info, closure)),
+          Attr.classes(
+            ["value", length_cls(length)]
+            @ DynCursor.clss(info, closure)
+            @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
+            @ (!is_value(closure.value) ? ["indet"] : []),
+          ),
+          Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
+          Attr.on_pointerdown(val_pointerdown),
+          Attr.on_pointerup(val_pointerup),
+          Attr.on_mousemove(val_mousemove),
+        ],
+        [view_seg(Sort.Exp, seg)],
+      );
     };
-};
+
+    let env_val =
+        (
+          closure,
+          view_seg,
+          utility: utility('s),
+          en: Dynamics.Probe.Env.entry,
+        )
+        : Node.t => {
+      Node.div(
+        ~attrs=[Attr.classes(["live-env-entry"])],
+        [
+          Node.text(en.binding.name ++ " ≡ "),
+          switch (en.value) {
+          | Opaque => Node.text("Opaque")
+          | Val(d) =>
+            let (seg, _) =
+              abbreviated_seg_of(utility, ClosureLength.get(closure), d);
+            view_seg(Sort.Exp, seg);
+          },
+        ],
+      );
+    };
+
+    let env_view = (closure: closure, view_seg, utility: utility('s)): Node.t =>
+      Node.div(
+        ~attrs=[Attr.classes(["live-env"])],
+        closure.env
+        |> ListUtil.dedup
+        |> rm_opaques
+        |> List.map(env_val(closure, view_seg, utility)),
+      );
+
+    let closure_view =
+        (
+          info: info('s),
+          utility: utility('s),
+          view_seg,
+          local,
+          (index: int, closure: closure),
+        ) =>
+      div(
+        ~attrs=[Attr.classes(["closure"])],
+        [value_view(info, utility, view_seg, local, closure, index)]
+        @ (hide_env(info) ? [] : [env_view(closure, view_seg, utility)]),
+      );
+
+    let closure_group_view =
+        (
+          info,
+          utility,
+          view_seg,
+          local,
+          groups: list(list((int, closure))),
+        ) => {
+      let group_views =
+        List.map(
+          closures =>
+            Node.div(
+              ~attrs=[Attr.classes(["closure-group"])],
+              List.map(
+                closure_view(info, utility, view_seg, local),
+                closures,
+              ),
+            ),
+          groups,
+        );
+      group_views == []
+        ? []
+        : [div(~attrs=[Attr.classes(["closure-groups"])], group_views)];
+    };
+
+    let offside_view = (info, local, view_seg, utility: utility('s)) =>
+      Node.div(
+        ~attrs=[Attr.classes(["live-offside"])],
+        switch (info.dynamics) {
+        | Some(closures) =>
+          let num_total = Closures.total(info);
+          let closures = Closures.select_frames(info, closures);
+          let (num_shown, groups) = Closures.collate(closures);
+          let is_cut_off = num_shown != num_total && num_shown > 0;
+          let extras = [
+            nav_bar_view(num_total, local),
+            ellipsis_view(local),
+          ];
+          (num_shown > 0 ? [equals_view] : [])
+          @ closure_group_view(info, utility, view_seg, local, groups)
+          @ (is_cut_off ? extras : []);
+        | _ => []
+        },
+      );
+
+    let round_up = (utility: utility('s), closure: closure): unit => {
+      let (_, cur) =
+        abbreviated_seg_of(
+          utility,
+          ClosureLength.get(closure),
+          closure.value,
+        );
+      let goal = cur + 1;
+      let (_, max_len) =
+        seg_of_exp(utility, DHExp.strip_casts(closure.value));
+      let rec find_target = (target: int): int => {
+        let attempt_len =
+          abbreviated_seg_of(utility, target, closure.value) |> snd;
+        if (attempt_len < goal && target <= max_len) {
+          find_target(target + 1);
+        } else {
+          target;
+        };
+      };
+      ClosureLength.set(closure.closure_id, find_target(goal));
+    };
+
+    let round_down = (utility: utility('s), closure: closure): unit => {
+      let (_, cur) =
+        abbreviated_seg_of(
+          utility,
+          ClosureLength.get(closure),
+          closure.value,
+        );
+      let goal = cur - 1;
+      let rec find_target = (target: int): int => {
+        let attempt_len =
+          abbreviated_seg_of(utility, target, closure.value) |> snd;
+        if (attempt_len > goal && target > 0) {
+          find_target(target - 1);
+        } else {
+          target;
+        };
+      };
+      ClosureLength.set(closure.closure_id, find_target(goal));
+    };
+
+    let key_handler = (local, info: info('s), _, evt) => {
+      open Effect;
+      /* PLAN: inter-probe navigation
+          ultimately need to be able to issue a parent action to move to and focus on
+         another projector. for now, should be able to use the Project(Focus(id)) action
+         to do both in one; will need to rethink when we want to /create/ probes as well.
+         the probe that we want to move to is going to depend on the closure cursor, but
+         also maybe the row of the closure we're on. alternatively, can maybe avoid
+         row based logic by using closure creation time instead. In any case, want a function
+         that takes the closure cursor and emits a new closure cursor and the id of a
+         probe to jump to. Not sure this is the best approach at all, but for now maybe
+         we could add all probe data to a common mutable structure in this module, when
+         projectorview.all is called, and use this to calculate the probe id to jump to.
+         like basically we're going to treat this mutable cache as a db, and do certain
+         queries. specifically, return all probe_ids that have a closure with equal
+         closure cursor to current, and take the one with the timestamp closet to but
+         before/after the current closure cursor closure timestamp. */
+      let key = Key.mk(KeyDown, evt);
+      switch (key.key) {
+      | D("Escape") when key.shift == Down =>
+        JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
+        DynCursor.reset();
+        Window.reset();
+        ClosureLength.reset();
+        local(NoOp);
+      | D("Escape") =>
+        JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
+        Ignore;
+      | D("ArrowRight") when key.shift == Down =>
+        switch (indicated_closure(info)) {
+        | Some(closure) => round_up(info.utility, closure)
+        | None => ()
+        };
+        Many([local(NoOp), Stop_propagation, Prevent_default]);
+      | D("ArrowLeft") when key.shift == Down =>
+        switch (indicated_closure(info)) {
+        | Some(closure) => round_down(info.utility, closure)
+        | None => ()
+        };
+        Many([local(NoOp), Stop_propagation, Prevent_default]);
+      | D("ArrowRight") =>
+        move_cursor(info, -1);
+        // hack: Prevent_default below stops aggressive horizontal scroll
+        // noop to trigger redraw
+        Many([local(NoOp), Stop_propagation, Prevent_default]);
+      | D("ArrowLeft") =>
+        move_cursor(info, 1);
+        Many([local(NoOp), Stop_propagation, Prevent_default]);
+      | D(" ") =>
+        Window.toggle_mode();
+        Many([local(NoOp), Stop_propagation, Prevent_default]); // trigger redraw
+      | _ => Many([Stop_propagation])
+      };
+    };
+
+    let view = (local, parent, info): Node.t =>
+      div(
+        ~attrs=[
+          Attr.id(Id.cls(info.id)),
+          Attr.tabindex(0),
+          Attr.on_keydown(key_handler(local, info, parent)),
+          Attr.classes(
+            ["main"]
+            @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
+            @ (DynCursor.is_pinned(info) ? ["pinned"] : []),
+          ),
+          Attr.on_double_click(_ => local(PinAp)),
+          Attr.on_pointerdown(_ => {
+            /* Select a default cell if one is not already selected */
+            DynCursor.probe_default(info);
+            Effect.Ignore;
+          }),
+          Attr.on_pointerup(_ => {
+            JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
+            Effect.Ignore;
+          }),
+          Attr.on_mouseenter(_ => {
+            show_purps := true;
+            local(NoOp);
+          }),
+          Attr.on_mouseleave(_ => {
+            show_purps := false;
+            local(NoOp);
+          }),
+        ],
+        [text(syntax_str(info.syntax)), icon],
+      );
+
+    let view = (_model, info, ~local, ~parent, ~view_seg: View.seg('s)) =>
+      View.{
+        inline: view(local, parent, info),
+        overlay: Some(overlay_view(info)),
+        offside: Some(offside_view(info, local, view_seg, info.utility)),
+      };
+  };

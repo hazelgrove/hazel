@@ -13,28 +13,28 @@ open Semantics;
 
 /* The type of syntax which a projector can replace.
  * Right now projectors can replace a single piece */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type syntax = Base.piece;
+// [@deriving (show({with_path: false}), sexp, yojson)]
+// type syntax = Base.piece;
 
 /* Global actions available to handlers in all projectors */
-type external_action =
+type external_action('s) =
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
-  | SetSyntax(Base.segment); /* Set underlying syntax */
+  | SetSyntax('s); /* Set underlying syntax */
 
 /* Syntax utility functions/values for projector use,
  * provided here to resolve cyclic dependency issues */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type utility = {
+type utility('s) = {
   /* Convert a segment to a term */
-  seg_to_term: Base.segment => option(Any.t),
+  seg_to_term: 's => option(Any.t),
   /* Convert a term to a segment */
-  term_to_seg: Any.t => Base.segment,
+  term_to_seg: Any.t => 's,
   /* Lifts term->term functions to syntax->syntax. This will
    * proactively attempt to parenthesize resulting non-single
    * piece terms. As such, sorts that do not have parentheses
    * (currently all degenerate cases) will throw an error */
-  lift_syntax: (Any.t => Any.t, Base.segment) => option(Base.segment),
+  lift_syntax: (Any.t => Any.t, 's) => option('s),
 };
 
 module Focusable = {
@@ -65,7 +65,7 @@ module Focusable = {
 
 /* External info proivded to all projectors */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type info = {
+type info('s) = {
   /* The id of the projector, equal to the id of the root
    * term of the syntax, provided directly here for convenience.
    * This is mostly intended to be used as a persistent unique
@@ -75,7 +75,7 @@ type info = {
   /* The syntax underlying the projector. Currently this
    * is a single piece representing a complete term, but
    * this may be relaxed in the future. */
-  syntax: Base.segment,
+  syntax: 's,
   /* Static information about the syntax including type
    * information. Statics may be disabled by the user;
    * this case (None) must be handled by projector authors */
@@ -87,7 +87,7 @@ type info = {
   dynamics: option(Semantics.Dynamics.Info.t),
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
-  utility,
+  utility: utility('s),
 };
 
 module View = {
@@ -104,7 +104,7 @@ module View = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type seg = (~background: bool=?, Sort.t, list(syntax)) => Node.t;
+  type seg('s) = (~background: bool=?, Sort.t, 's) => Node.t;
 
   let mk = (~overlay=None, ~offside=None, inline) => {
     inline,
@@ -126,7 +126,62 @@ module View = {
  *    the update cycle, use the implementation of the
  *    SetIndicated action in ProjectorPerform as a guide
  *    for how to add/remove projectors in an editor */
-module type Projector = {
+
+module type Syntax = {
+  type segment;
+  let unparenthesize: segment => segment;
+  let to_string: segment => string;
+  let sort_of: segment => Sort.t;
+};
+
+module type Projector =
+  (Syntax: Syntax) =>
+   {
+    /* The internal model type of the projector which will
+     * be serialized and persisted. Use `unit` if you don't
+     * need other state beyond the underlying syntax */
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type model;
+    let kind: ProjectorCore.Kind.gadt(model);
+    /* An internal action type to be used in actions which
+     * update the model. Use `unit` if the basic projector
+     * actions (type `action`) above suffice */
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type action;
+    /* Init should return None if the projector doesn't want
+     * to handle the provided term. Otherwise, it should
+     * return the desired initial state of the model. */
+    let init: Any.t => option(model);
+    /* Does this projector have some notion of internal
+     * positions, whose handling should override the editor
+     * caret & keyboard handlers? If so, provide handlers
+     * here (see Focusable for more information) */
+    let focusable: Focusable.t;
+    /* If dynamics is true, this projector will be
+     * instrumented with a probe to collect dynamic
+     * information during evaluation */
+    let dynamics: bool;
+    /* Renders the DOM views for the projector */
+    let view:
+      (
+        model,
+        info(Syntax.segment),
+        /* A callback for the projector's own actions */
+        ~local: action => Ui_effect.t(unit),
+        /* A callback for parent editor actions */
+        ~parent: external_action(Syntax.segment) => Ui_effect.t(unit),
+        /* Creates a non-interactive embedded syntax view,
+         * provided here to address a dependency cycle */
+        ~view_seg: View.seg(Syntax.segment)
+      ) =>
+      View.t;
+    /* The space left for the projector in the base editor */
+    let placeholder: (model, info(Syntax.segment)) => ProjectorCore.Shape.t;
+    /* Update the local projector model given an action */
+    let update: (model, info(Syntax.segment), action) => model;
+  };
+
+module type ProjectorInstance = {
   /* The internal model type of the projector which will
    * be serialized and persisted. Use `unit` if you don't
    * need other state beyond the underlying syntax */
@@ -155,22 +210,18 @@ module type Projector = {
   let view:
     (
       model,
-      info,
+      info('s),
       /* A callback for the projector's own actions */
       ~local: action => Ui_effect.t(unit),
       /* A callback for parent editor actions */
-      ~parent: external_action => Ui_effect.t(unit),
+      ~parent: external_action('s) => Ui_effect.t(unit),
       /* Creates a non-interactive embedded syntax view,
        * provided here to address a dependency cycle */
-      ~view_seg: View.seg
+      ~view_seg: View.seg('s)
     ) =>
     View.t;
   /* The space left for the projector in the base editor */
-  let placeholder: (model, info) => ProjectorCore.Shape.t;
+  let placeholder: (model, info('s)) => ProjectorCore.Shape.t;
   /* Update the local projector model given an action */
-  let update: (model, info, action) => model;
+  let update: (model, info('s), action) => model;
 };
-
-/* Projectors currently are all convex */
-let shapes = (_: ProjectorCore.t(syntax)): Nibs.shapes =>
-  Nib.Shape.(Convex, Convex);
