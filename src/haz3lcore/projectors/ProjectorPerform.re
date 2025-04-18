@@ -27,7 +27,13 @@ let init =
     (kind: ProjectorCore.Kind.t, seg: Base.segment('p)): option(syntax('p)) =>
   /* Projected syntax always gets parenthesized, but only the contents
    * of those parentheses are passed to the projector implementations  */
-  switch (MakeTerm.for_projection(seg)) {
+  switch (
+    MakeTerm.for_projection(
+      ~of_projector=_ => Any(),
+      ~log_projector=_ => (),
+      seg,
+    )
+  ) {
   | None => None
   | Some(any) => ProjectorInit.init(kind, Segment.parenthesize(seg), any)
   };

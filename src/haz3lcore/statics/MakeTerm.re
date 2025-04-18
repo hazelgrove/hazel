@@ -30,6 +30,7 @@ let tokens =
        * dynamics. These are inserted and removed entirely internal
        * to maketerm. */
       probe_wrap,
+    _,
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -119,25 +120,6 @@ let return = (wrap, ids, tm) => {
   tm;
 };
 
-/* Map to collect projector ids */
-let projectors: ref(Id.Map.t(Piece.projector('p))) = ref(Id.Map.empty);
-
-/* Strip a projector from a segment and log it in the map */
-let log_projector = (pr: Base.projector('p)): unit => {
-  projectors := Id.Map.add(pr.id, pr, projectors^);
-};
-
-/* Check if a term should be instrumented with a probe.
- * Precondition: The relevant projector must have been
- * logged before this is called */
-let should_instrument = (id: Id.t): bool =>
-  switch (Id.Map.find_opt(id, projectors^)) {
-  | Some({model: ProjectorCore.V(kind, _), _}) =>
-    let (module P) = ProjectorInit.to_module(kind);
-    P.dynamics;
-  | None => failwith("MakeTerm.exp: projector not found")
-  };
-
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
   | {term: Var(ctr), annotation: {ids, _}} => Variant(ctr, ids, None)
@@ -161,7 +143,16 @@ let mk_bad = (ctr, ids, value) => {
   };
 };
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t('p)): Term.Any.t =>
+let rec go_s =
+        (
+          ~of_projector: 'p => Any.t,
+          ~log_projector: Piece.projector('p) => unit,
+          s: Sort.t,
+          skel: Skel.t,
+          seg: Segment.t('p),
+        )
+        : Term.Any.t => {
+  let unsorted = unsorted(~of_projector, ~log_projector);
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
@@ -180,11 +171,12 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t('p)): Term.Any.t =>
         if (t.mold.out == Any) {
           Exp(exp(unsorted(skel, seg)));
         } else {
-          go_s(t.mold.out, skel, seg);
+          go_s(~of_projector, ~log_projector, t.mold.out, skel, seg);
         }
       }
     };
-  }
+  };
+}
 
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
@@ -215,7 +207,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     // single-tile case
-    | ([(id, t)], []) =>
+    | ([(_id, t)], []) =>
       switch (t) {
       | ([t], []) when Form.is_empty_tuple(t) => ret(Tuple([]))
       | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
@@ -234,7 +226,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (label, [Exp(body)]) when is_probe_wrap(label) =>
         // Temporary wrapping form to persist projector probes
-        ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
+        ret(Probe(body, Probe.empty))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
         | {annotation: {ids}, term: Tuple(es)} => (ListLit(es), ids)
@@ -457,7 +449,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     }
   | tm => ret(hole(tm));
 }
-and pat = unsorted => {
+and pat = (unsorted: unsorted): Pat.t => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   let p =
@@ -482,7 +474,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
-    | ([(id, tile)], []) =>
+    | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
         | ([t], []) when Form.is_empty_tuple(t) => Tuple([])
@@ -500,7 +492,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (label, [Pat(body)]) when is_probe_wrap(label) =>
-          should_instrument(id) ? Probe(body, Probe.empty) : body.term
+          Probe(body, Probe.empty)
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
           | {term: Tuple(ps), _} => ListLit(ps)
@@ -769,18 +761,23 @@ and rul = (unsorted): Rul.t => {
   };
 }
 
-and unsorted = (skel: Skel.t, seg: Segment.t('p)): unsorted => {
+and unsorted =
+    (
+      ~of_projector: 'p => Any.t,
+      ~log_projector: Piece.projector('p) => unit,
+      skel: Skel.t,
+      seg: Segment.t('p),
+    )
+    : unsorted => {
+  let go_s = go_s(~of_projector, ~log_projector);
+
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
   let tile_kids = (p: Piece.t('p)): list(Term.Any.t) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector({syntax, _} as pr) =>
-      let _ = log_projector(pr);
-      let sort = Piece.sort(syntax) |> fst;
-      let seg = Piece.unparenthesize(syntax);
-      [go_s(sort, Segment.skel(seg), seg)];
+    | Projector({model, _}) => [of_projector(model)]
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
@@ -823,22 +820,34 @@ and unsorted = (skel: Skel.t, seg: Segment.t('p)): unsorted => {
   };
 };
 
-let go =
+let go = (~of_projector, seg: Segment.t('p)) =>
   Core.Memo.general(
     ~cache_size_bound=1000,
     seg => {
       map := TermMap.empty;
-      projectors := Id.Map.empty;
-      let term = exp(unsorted(Segment.skel(seg), seg));
+
+      /* Map to collect projector ids */
+      let projectors: ref(Id.Map.t(Piece.projector('p))) =
+        ref(Id.Map.empty);
+      /* Strip a projector from a segment and log it in the map */
+      let log_projector = (pr: Base.projector('p)): unit => {
+        projectors := Id.Map.add(pr.id, pr, projectors^);
+      };
+
+      let term =
+        exp(
+          unsorted(~of_projector, ~log_projector, Segment.skel(seg), seg),
+        );
       {
         term,
         terms: map^,
         projectors: projectors^,
       };
     },
+    seg,
   );
 
-let for_projection =
+let for_projection = (~of_projector, ~log_projector) =>
   /* Returns Nul() unless segment represents a well-structured term in isolation.
    * This means that the term is complete, modulo non-empty holes and sort errors.
    * Specifically, it ensures there are no incomplete tiles in the segment, and
@@ -855,7 +864,7 @@ let for_projection =
       | exception _ => None /* Returns None if any subsegment is non-convex */
       | skel =>
         let (unsorted, sort) = (
-          unsorted(skel, seg),
+          unsorted(~of_projector, ~log_projector, skel, seg),
           Segment.sort_of(skel, seg),
         );
         switch (sort) {
@@ -897,10 +906,11 @@ let from_zip_for_sem =
   Core.Memo.general(
     ~cache_size_bound=1000,
     from_zip_for_sem(~dump_backpack=true, ~erase_buffer=true),
+    _,
   );
 
-let parse_exp = (s: string) => {
+let parse_exp = (~of_projector, s: string) => {
   open OptUtil.Syntax;
   let+ zip = Printer.zipper_of_string(s);
-  from_zip_for_sem(zip).term;
+  from_zip_for_sem(~of_projector, zip).term;
 };

@@ -684,27 +684,31 @@ let (@) = (seg1: Segment.t('p), seg2: Segment.t('p)): Segment.t('p) =>
 
 let fold_if = (condition, pieces) =>
   if (condition) {
-    let syntax = mk_form(ParensExp, Id.mk(), [pieces]);
-    switch (MakeTerm.for_projection([syntax])) {
-    | None => failwith("ExpToSegment.fold_if")
-    | Some(any) => [ProjectorInit.init_or_noop(Fold, syntax, any)]
-    };
+    // let syntax = mk_form(ParensExp, Id.mk(), [pieces]);
+    // switch (MakeTerm.for_projection([syntax])) {
+    // | None => failwith("ExpToSegment.fold_if")
+    // | Some(any) => [ProjectorInit.init_or_noop(Fold, syntax, any)]
+    // };
+    //TODO(andrew||matt): find a new way to insert these I guess
+    pieces
   } else {
-    pieces;
+    pieces
   };
 
-let fold_fun_if = (condition, f_name: string, pieces) =>
+let fold_fun_if = (condition, _f_name: string, pieces) =>
   if (condition) {
-    let syntax = mk_form(ParensExp, Id.mk(), [pieces]);
-    let str = FoldProj.sexp_of_t({text: f_name}) |> Sexplib.Sexp.to_string;
-    switch (MakeTerm.for_projection([syntax])) {
-    | None => failwith("ExpToSegment.fold_fun_if")
-    | Some(_) => [
-        Base.Projector(Base.mk_projector(syntax, V(Fold, {text: str}))),
-      ]
-    };
+    // let syntax = mk_form(ParensExp, Id.mk(), [pieces]);
+    // let str = FoldProj.sexp_of_t({text: f_name}) |> Sexplib.Sexp.to_string;
+    // switch (MakeTerm.for_projection([syntax])) {
+    // | None => failwith("ExpToSegment.fold_fun_if")
+    // | Some(_) => [
+    //     Base.Projector(Base.mk_projector(syntax, V(Fold, {text: str}))),
+    //   ]
+    // };
+    //TODO(andrew||matt): find a new way to insert these I guess
+    pieces
   } else {
-    pieces;
+    pieces
   };
 
 /* We assume that parentheses have already been added as necessary, and
