@@ -28,12 +28,12 @@ module Slider: BuiltinLivelit = {
   let model_default: model_t = Bigint.of_int(50);
 
   let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(Int));
-  let expansion_f: model_t => expansion_t =
+  let expand: model_t => expansion_t =
     (x: model_t) =>
       switch (x) {
       | n => n
       };
-  let expansion_to_hazel: expansion_t => expansion_exp =
+  let expand_to_hazel: expansion_t => expansion_exp =
     (x: expansion_t) =>
       switch (x) {
       | n => DHExp.fresh(Atom(Int(n)))
@@ -128,7 +128,7 @@ module Emotion: BuiltinLivelit = {
      - less than 40: "sad"
      - greater than 70: "happy"
      - otherwise: "neutral" */
-  let expansion_f: model_t => expansion_t =
+  let expand: model_t => expansion_t =
     (x: model_t) => {
       let n = int_of_string(Bigint.to_string(x));
       if (n < 40) {
@@ -140,7 +140,7 @@ module Emotion: BuiltinLivelit = {
       };
     };
 
-  let expansion_to_hazel: expansion_t => expansion_exp =
+  let expand_to_hazel: expansion_t => expansion_exp =
     (x: expansion_t) => DHExp.fresh(Atom(String(x)));
 
   let update: (action_t, model_t) => model_t =
@@ -313,9 +313,9 @@ module Js: BuiltinLivelit = {
   let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(String));
 
   /* The expansion is just the current `result`. */
-  let expansion_f: model_t => expansion_t = (m: model_t) => m.result;
+  let expand: model_t => expansion_t = (m: model_t) => m.result;
 
-  let expansion_to_hazel: expansion_t => expansion_exp =
+  let expand_to_hazel: expansion_t => expansion_exp =
     (res: expansion_t) => DHExp.fresh(Atom(String(res)));
 
   /* Updating the model means storing the new model. */
