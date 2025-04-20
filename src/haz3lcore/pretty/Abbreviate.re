@@ -17,7 +17,7 @@ let flat_ellipses_term_pat = (): TermBase.pat_t =>
 let is_flat_ellipses = (term: IdTagged.t(Exp.term)): bool =>
   switch (term.term) {
   | Invalid(s) => s == flat_ellipses
-  | String(s) => s == flat_ellipses
+  | Atom(String(s)) => s == flat_ellipses
   | Constructor(s, _) => s == flat_ellipses
   | Var(s) => s == flat_ellipses
   | _ => false
@@ -127,10 +127,10 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
 
     // Atomic string cases
     | Invalid(x) => Invalid(abbreviate_str(available^, x))
-    | String(s) =>
+    | Atom(String(s)) =>
       let str = abbreviate_str(available^, s);
       available := available^ - 2; // for quotes in printed representation
-      String(str);
+      Atom(String(str));
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
     | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)
@@ -141,11 +141,13 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
     | Tuple([]) => Tuple([])
     | Deferral(pos) => Deferral(pos)
     | Undefined => wrap_or(Undefined, "undefined")
-    | Bool(b) => wrap_or(Bool(b), string_of_bool(b))
-    | Int(n) =>
+    | Atom(Bool(b)) => wrap_or(Atom(Bool(b)), string_of_bool(b))
+    | Atom(Int(n) | Nat(n)) =>
       //TODO: smarter number summarization?
-      wrap_or(Int(n), string_of_int(n))
-    | Float(f) => Invalid(abbreviate_str(available^, string_of_float(f)))
+      wrap_or(Atom(Int(n)), Bigint.to_string(n))
+    | Atom(SInt(n)) => wrap_or(Atom(SInt(n)), string_of_int(n))
+    | Atom(Float(f)) =>
+      Invalid(abbreviate_str(available^, string_of_float(f)))
 
     // composite literal cases
     | ListLit(xs) =>
@@ -229,6 +231,24 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         ~make_term=e' => UnOp(Bool(Not), e'),
         e,
       )
+    | UnOp(SInt(Minus), e) =>
+      handle_unary(
+        ~cost=1, // "-"
+        ~make_term=e' => UnOp(SInt(Minus), e'),
+        e,
+      )
+    | UnOp(Float(Minus), e) =>
+      handle_unary(
+        ~cost=1, // "~"
+        ~make_term=e' => UnOp(Float(Minus), e'),
+        e,
+      )
+    | UnOp(Nat(Minus), e) =>
+      handle_unary(
+        ~cost=1, // "-"
+        ~make_term=e' => UnOp(Nat(Minus), e'),
+        e,
+      )
     | UnOp(Int(Minus), e) =>
       handle_unary(
         ~cost=1, // "-"
@@ -244,35 +264,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
 
     // Binary operations
     | BinOp(op, e1, e2) =>
-      let op_str =
-        switch (op) {
-        | Int(Plus) => " + "
-        | Int(Minus) => " - "
-        | Int(Times) => " * "
-        | Int(Divide) => " / "
-        | Int(Equals) => " == "
-        | Int(LessThan) => " < "
-        | Int(GreaterThan) => " > "
-        | Int(LessThanOrEqual) => " <= "
-        | Int(GreaterThanOrEqual) => " >= "
-        | Int(NotEquals) => " != "
-        | Int(Power) => " ** "
-        | Bool(And) => " && "
-        | Bool(Or) => " || "
-        | Float(Plus) => " + "
-        | Float(Minus) => " - "
-        | Float(Times) => " * "
-        | Float(Divide) => " / "
-        | Float(Equals) => " == "
-        | Float(LessThan) => " < "
-        | Float(GreaterThan) => " > "
-        | Float(LessThanOrEqual) => " <= "
-        | Float(GreaterThanOrEqual) => " >= "
-        | Float(NotEquals) => " != "
-        | Float(Power) => " ** "
-        | String(Concat) => " @ "
-        | String(Equals) => " == "
-        };
+      let op_str = Operators.bin_op_to_string(op);
+
       if (available^ <= String.length(op_str)) {
         indet_term;
       } else {
@@ -397,6 +390,36 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
             },
             {
               ...e2,
+              term: indet_term,
+            },
+          );
+        };
+      }
+
+    | Use(t1, e1) =>
+      if (available^ < 3) {
+        indet_term;
+      } else if (available^ <= 3) {
+        Invalid("use");
+      } else if (available^ <= 4) {
+        Invalid("use…");
+      } else if (available^ <= 6) {
+        Invalid("use…in");
+      } else if (available^ <= 8) {
+        Invalid("use…in…");
+      } else {
+        available := available^ - 8;
+        let t1' = abbreviate_typ(t1);
+        if (available^ > 3) {
+          // " = "
+          available := available^ - 3;
+          let e1' = abbreviate_exp(e1);
+          Use(t1', e1');
+        } else {
+          Use(
+            t1',
+            {
+              ...e1,
               term: indet_term,
             },
           );
@@ -610,14 +633,16 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
     | Wild => Wild
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
-    | Int(n) => wrap_or(Int(n), string_of_int(n))
-    | Float(f) => Invalid(abbreviate_str(available^, string_of_float(f)))
-    | String(s) =>
+    | Atom(Int(n)) => wrap_or(Atom(Int(n)), Bigint.to_string(n))
+    | Atom(Nat(n)) => wrap_or(Atom(Nat(n)), Bigint.to_string(n))
+    | Atom(SInt(n)) => wrap_or(Atom(SInt(n)), string_of_int(n))
+    | Atom(Float(f)) =>
+      Invalid(abbreviate_str(available^, string_of_float(f)))
+    | Atom(String(s)) =>
       let str = abbreviate_str(available^, s);
       available := available^ - 2; // for quotes in printed representation
-      String(str);
-    | Bool(b) => wrap_or(Bool(b), string_of_bool(b))
-
+      Atom(String(str));
+    | Atom(Bool(b)) => wrap_or(Atom(Bool(b)), string_of_bool(b))
     | Cons(p1, p2) =>
       if (available^ < 4) {
         indet_term_pat;
@@ -757,29 +782,41 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
   let term: Typ.term =
     switch (typ |> Typ.term_of) {
     | Unknown(prov) => Unknown(prov)
-    | Int =>
+    | Atom(Int) =>
       if (available^ < 3) {
         indet_term_typ;
       } else {
-        Int;
+        Atom(Int);
       }
-    | Float =>
+    | Atom(SInt) =>
+      if (available^ < 3) {
+        indet_term_typ;
+      } else {
+        Atom(SInt);
+      }
+    | Atom(Nat) =>
+      if (available^ < 3) {
+        indet_term_typ;
+      } else {
+        Atom(Nat);
+      }
+    | Atom(Float) =>
       if (available^ < 5) {
         indet_term_typ;
       } else {
-        Float;
+        Atom(Float);
       }
-    | Bool =>
+    | Atom(Bool) =>
       if (available^ < 4) {
         indet_term_typ;
       } else {
-        Bool;
+        Atom(Bool);
       }
-    | String =>
+    | Atom(String) =>
       if (available^ < 6) {
         indet_term_typ;
       } else {
-        String;
+        Atom(String);
       }
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))

@@ -8,9 +8,9 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let int_of = (any: Any.t): option(int) =>
+  let int_of = (any: Any.t): option(Bigint.t) =>
     switch (any) {
-    | Exp({term: Int(i), _}) => Some(i)
+    | Exp({term: Atom(Int(i)), _}) => Some(i)
     | _ => None
     };
 
@@ -20,7 +20,7 @@ module M: Projector = {
     | None => None
     };
 
-  let get = (info: info): int =>
+  let get = (info: info): Bigint.t =>
     switch (
       info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(int_of)
     ) {
@@ -35,7 +35,7 @@ module M: Projector = {
         | Exp(t) =>
           Exp({
             ...t,
-            term: Int(int_of_string(v)),
+            term: Atom(Int(Bigint.of_string(v))),
           })
         | _ => failwith("Slider: Put: not integer literal"),
         info.syntax,
@@ -61,7 +61,7 @@ module M: Projector = {
     View.mk(
       Util.Web.range(
         ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(info, v))))],
-        info |> get |> string_of_int,
+        info |> get |> Bigint.to_string,
       ),
     );
 };
