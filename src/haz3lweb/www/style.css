@@ -9,6 +9,7 @@
 @import "style/type-display.css";
 @import "style/explainthis.css";
 @import "style/exercise-mode.css";
+@import "style/tutorial-mode.css";
 @import "style/cell.css";
 @import "style/dynamics.css";
 @import "style/toggle.css";
@@ -34,6 +35,7 @@ select {
   color: var(--select-text);
   /* text-transform: capitalize; */
 }
+
 select:hover {
   border-radius: 1em;
   background-color: var(--SAND);
