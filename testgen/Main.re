@@ -4,13 +4,9 @@ open Testgen;
 open Symex;
 module Z3Int = Z3.Arithmetic.Integer;
 open Haz3lmenhir;
-open Indicated;
 print_endline("Starting tigen");
 let input_program = Stdio.In_channel.input_all(Stdio.stdin);
-let example_program =
-  Haz3lmenhir.Interface.parse_program(input_program);
-
-
+let example_program = Haz3lmenhir.Interface.parse_program(input_program);
 
 let ctx = Z3.mk_context([("model", "true")]);
 
@@ -20,11 +16,19 @@ let symex_result =
 let assumed: AST.Annotated.t(AST.exp(assumptions), assumptions) =
   AST.map_exp_annotation(x => x.assumptions, symex_result);
 
-
 let solved = ReachPoint.solve_indicated_reachability(ctx, assumed);
-
-print_endline("Variable assignments:");
-print_endline(
-  [%derive.show: option(list((string, option(string))))](solved),
-);
-
+switch(solved) {
+| Satisfiable(assignments) =>
+  print_endline("Satisfiable with assignments:");
+  List.iter(
+    (assignment) => {
+      let (name, value) = assignment;
+      print_endline(name ++ " = " ++ Option.value(~default="None",value));
+    },
+    assignments,
+  );
+| Unsatisfiable =>
+  print_endline("Unsatisfiable assignment");
+| Unknown =>
+  print_endline("Unknown assignment");
+};
