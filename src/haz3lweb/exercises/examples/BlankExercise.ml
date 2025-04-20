@@ -1,5 +1,3 @@
-open Haz3lcore
-
 let exercise : Exercise.spec =
   {
     id =
