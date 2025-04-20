@@ -49,7 +49,12 @@ module Model = {
     let cells =
       Exercise.stitch_term(editors)
       |> Exercise.map_stitched(_ => term_item_to_cell);
-    {spec, editors, cells, editing_flags: editing_flags_false};
+    {
+      spec,
+      editors,
+      cells,
+      editing_flags: editing_flags_false,
+    };
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -66,7 +71,12 @@ module Model = {
     let cells =
       Exercise.stitch_term(editors)
       |> Exercise.map_stitched(_ => term_item_to_cell);
-    {spec, editors, cells, editing_flags: editing_flags_false};
+    {
+      spec,
+      editors,
+      cells,
+      editing_flags: editing_flags_false,
+    };
   };
 };
 
@@ -303,7 +313,10 @@ module Update = {
           ) =>
       let cell = Exercise.get_stitched(pos, model.cells);
       let* new_cell = CellEditor.Update.update(~settings, action, cell);
-      {...model, cells: Exercise.put_stitched(pos, model.cells, new_cell)};
+      {
+        ...model,
+        cells: Exercise.put_stitched(pos, model.cells, new_cell),
+      };
     | Editor(_, ResultAction(_)) => Updated.return_quiet(model) // TODO: I think this case should never happen
     | ResetEditor(pos) =>
       let spec = Exercise.main_editor_of_state(~selection=pos, model.spec);
@@ -317,7 +330,11 @@ module Update = {
     | ResetExercise =>
       let new_editors =
         Exercise.map(model.spec, Editor.Model.mk, Editor.Model.mk);
-      {...model, editors: new_editors} |> Updated.return;
+      {
+        ...model,
+        editors: new_editors,
+      }
+      |> Updated.return;
     | Instructor(action) => instructor_update(~settings, action, model)
     };
   };
@@ -337,6 +354,7 @@ module Update = {
             editor: {
               editor,
               statics: cell.editor.statics,
+              dynamics: EvalResult.Model.dynamics(cell.result),
             },
             result: cell.result,
           }
@@ -358,7 +376,11 @@ module Update = {
           let result':
             Haz3lcore.ProgramResult.t(Haz3lcore.ProgramResult.inner) =
             switch (result) {
-            | Ok((r, s)) => ResultOk({result: r, state: s})
+            | Ok((r, s)) =>
+              ResultOk({
+                result: r,
+                state: s,
+              })
             | Error(e) => ResultFail(e)
             };
           schedule_action(
@@ -385,7 +407,9 @@ module Update = {
        one of the editors is shown in two cells, so we arbitrarily choose which
        statics to take */
     let editors: Exercise.p('a) = {
-      let calculate = Editor.Update.calculate(~settings, ~is_edited);
+      let calculate = (statics, dynamics, ed) =>
+        Editor.Update.calculate(~settings, statics, dynamics, ~is_edited, ed);
+
       {
         id: model.editors.id,
         title: model.editors.title,
@@ -393,29 +417,44 @@ module Update = {
         prompt: model.editors.prompt,
         point_distribution: model.editors.point_distribution,
         prelude:
-          calculate(cells.prelude.editor.statics, model.editors.prelude),
+          calculate(
+            cells.prelude.editor.statics,
+            cells.prelude.editor.dynamics,
+            model.editors.prelude,
+          ),
         correct_impl:
           calculate(
             cells.test_validation.editor.statics,
+            cells.test_validation.editor.dynamics,
             model.editors.correct_impl,
           ),
         your_tests: {
           tests:
             calculate(
               cells.user_tests.editor.statics,
+              cells.user_tests.editor.dynamics,
               model.editors.your_tests.tests,
             ),
           required: model.editors.your_tests.required,
           provided: model.editors.your_tests.provided,
         },
         your_impl:
-          calculate(cells.user_impl.editor.statics, model.editors.your_impl),
+          calculate(
+            cells.user_impl.editor.statics,
+            cells.user_impl.editor.dynamics,
+            model.editors.your_impl,
+          ),
         hidden_bugs:
           List.map2(
             (cell: CellEditor.Model.t, editor: Exercise.wrong_impl('a)):
               Exercise.wrong_impl('a) =>
               {
-                impl: calculate(cell.editor.statics, editor.impl),
+                impl:
+                  calculate(
+                    cell.editor.statics,
+                    cell.editor.dynamics,
+                    editor.impl,
+                  ),
                 hint: editor.hint,
               },
             cells.hidden_bugs,
@@ -425,6 +464,7 @@ module Update = {
           tests:
             calculate(
               cells.hidden_tests.editor.statics,
+              cells.hidden_tests.editor.dynamics,
               model.editors.hidden_tests.tests,
             ),
           hints: model.editors.hidden_tests.hints,
@@ -432,7 +472,12 @@ module Update = {
         syntax_tests: model.editors.syntax_tests,
       };
     };
-    {spec: model.spec, editors, cells, editing_flags: model.editing_flags};
+    {
+      spec: model.spec,
+      editors,
+      cells,
+      editing_flags: model.editing_flags,
+    };
   };
 };
 
@@ -872,6 +917,15 @@ module View = {
         },
       );
 
+    let rm_probe_data = (editor: CellEditor.Model.t): CellEditor.Model.t => {
+      editor: {
+        editor: editor.editor.editor,
+        statics: editor.editor.statics,
+        dynamics: Dynamics.Map.empty,
+      },
+      result: editor.result,
+    };
+
     let your_tests_view = {
       let subcaption =
         globals.settings.instructor_mode
@@ -880,7 +934,8 @@ module View = {
       Always(
         editor_view(
           YourTestsValidation,
-          test_validation,
+          // Remove probe data from this cell to prevent data leaks from correct implementation
+          rm_probe_data(test_validation),
           ~caption="Test Validation",
           ~subcaption,
           ~result_kind=

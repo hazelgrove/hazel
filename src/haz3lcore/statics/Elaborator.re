@@ -9,7 +9,7 @@ exception MissingTypeInfo;
 module ElaborationResult = {
   [@deriving sexp]
   type t =
-    | Elaborates(DHExp.t, Typ.t, Delta.t)
+    | Elaborates(DHExp.t, Typ.t)
     | DoesNotElaborate;
 };
 
@@ -17,7 +17,7 @@ let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): Exp.t => {
   switch (d.term) {
   | Label(_) => d
   | _ =>
-    Typ.eq(t1, t2)
+    Typ.equal(t1, t2)
       ? d
       : {
         let d': Exp.t =
@@ -35,7 +35,7 @@ let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
   switch (p.term) {
   | Label(_) => p
   | _ =>
-    Typ.eq(t1, t2)
+    Typ.equal(t1, t2)
       ? p
       : {
         Cast(
@@ -51,101 +51,89 @@ let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
 };
 
 let elaborated_type =
-    (m: Statics.Map.t, uexp: Exp.t): (Typ.t, Ctx.t, CoCtx.t, Exp.t) => {
-  let (mode, self_ty, ctx, co_ctx, term) =
+    (m: Statics.Map.t, uexp: Exp.t): (Typ.t, Typ.t, Ctx.t, CoCtx.t, Exp.t) => {
+  let (ana_ty, self_ty, ctx, co_ctx, term) =
     switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
-    | Some(Info.InfoExp({mode, ty, ctx, co_ctx, term, _})) => (
-        mode,
+    | Some(Info.InfoExp({ana, ty, ctx, co_ctx, term: new_term, _})) => (
+        ana,
         ty,
         ctx,
         co_ctx,
-        term,
+        new_term,
       )
     | _ => raise(MissingTypeInfo)
     };
-  let elab_ty =
-    switch (mode) {
-    | Syn => self_ty
-    | SynFun =>
-      let (ty1, ty2) = Typ.matched_arrow(ctx, self_ty);
-      Arrow(ty1, ty2) |> Typ.temp;
-    | SynTypFun =>
-      let (tpat, ty) = Typ.matched_forall(ctx, self_ty);
-      let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHole));
-      Forall(tpat, ty) |> Typ.temp;
-    // We need to remove the synswitches from this type.
-    | Ana(ana_ty) => Typ.match_synswitch(ana_ty, self_ty)
-    };
-  (elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp, ctx, co_ctx, term);
+  let elab_ty = Typ.match_synswitch(ana_ty, self_ty);
+  (
+    elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp,
+    ana_ty,
+    ctx,
+    co_ctx,
+    term,
+  );
 };
 
 let elaborated_pat_type =
-    (m: Statics.Map.t, upat: Pat.t): (Typ.t, Ctx.t, Pat.t) => {
-  let (mode, self_ty, ctx, prev_synswitch, term, label_inference) =
+    (m: Statics.Map.t, upat: Pat.t): (Typ.t, Typ.t, Ctx.t, Pat.t) => {
+  let (ana_ty, self_ty, ctx, prev_synswitch, term, label_inference) =
     switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
     | Some(
         Info.InfoPat({
-          mode,
+          ana,
           ty,
           ctx,
           prev_synswitch,
-          term,
+          term: new_term,
           label_inference,
           _,
         }),
       ) => (
-        mode,
+        ana,
         ty,
         ctx,
         prev_synswitch,
-        term,
+        new_term,
         label_inference,
       )
     | _ => raise(MissingTypeInfo)
     };
   let elab_ty =
-    switch (mode) {
-    | Syn => self_ty
-    | SynFun =>
-      let (ty1, ty2) = Typ.matched_arrow(ctx, self_ty);
-      Arrow(ty1, ty2) |> Typ.temp;
-    | SynTypFun =>
-      let (tpat, ty) = Typ.matched_forall(ctx, self_ty);
-      let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHole));
-      Forall(tpat, ty) |> Typ.temp;
-    | Ana(ana_ty) =>
-      switch (prev_synswitch) {
-      | None => ana_ty
-      | Some(syn_ty) =>
-        // Autolabelling for singleton labeled tuples
-        switch (label_inference) {
-        | Some(SingletonLabelInference({label: l, _})) =>
-          Typ.match_synswitch(
-            Prod([TupLabel(Label(l) |> Typ.temp, syn_ty) |> Typ.temp])
-            |> Typ.temp,
-            ana_ty,
-          )
-        | _ => Typ.match_synswitch(syn_ty, ana_ty)
-        }
+    switch (prev_synswitch) {
+    | None => Typ.match_synswitch(self_ty, ana_ty)
+    | Some(syn_ty) =>
+      // Autolabelling for singleton labeled tuples
+      switch (label_inference) {
+      | Some(SingletonLabelInference({label: l, _})) =>
+        Typ.match_synswitch(
+          Prod([TupLabel(Label(l) |> Typ.temp, syn_ty) |> Typ.temp])
+          |> Typ.temp,
+          ana_ty,
+        )
+      | _ => Typ.match_synswitch(syn_ty, ana_ty)
       }
     };
-  (elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp, ctx, term);
+  (elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp, ana_ty, ctx, term);
 };
 
 let rec elaborate_pattern =
         (m: Statics.Map.t, upat: Pat.t, in_container: bool): (Pat.t, Typ.t) => {
   // Pulling upat back out of the statics map for statics level singleton tuple autolabeling
-  let (elaborated_type, ctx, upat) = elaborated_pat_type(m, upat);
+  let (elaborated_type, ana, ctx, upat) = elaborated_pat_type(m, upat);
   let elaborate_pattern = (~in_container=false, m, upat) =>
     elaborate_pattern(m, upat, in_container);
   let cast_from = (ty, exp) => fresh_pat_cast(exp, ty, elaborated_type);
   let (term, rewrap) = Pat.unwrap(upat);
   let dpat =
     switch (term) {
-    | Int(_) => upat |> cast_from(Int |> Typ.temp)
-    | Bool(_) => upat |> cast_from(Bool |> Typ.temp)
-    | Float(_) => upat |> cast_from(Float |> Typ.temp)
-    | String(_) => upat |> cast_from(String |> Typ.temp)
+    | Atom(c) =>
+      let c =
+        Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode);
+      switch (c) {
+      | L(c) =>
+        Atom(c) |> rewrap |> cast_from(Atom(c |> Atom.cls_of_t) |> Typ.temp)
+      | R(BadInt(s)) =>
+        Invalid(s) |> rewrap |> cast_from(Unknown(Internal) |> Typ.temp)
+      };
     | ListLit(ps) =>
       let (ps, tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
       let inner_type =
@@ -227,25 +215,38 @@ let rec elaborate_pattern =
               )
            |> Option.value(~default=Typ.temp(Unknown(Internal))),
          )
-    // Type annotations should already appear
+    // Type annotations should already appeard
     | Parens(p)
     | Cast(p, _, _) =>
       let (p', ty) = elaborate_pattern(m, p);
       p' |> cast_from(ty |> Typ.normalize(ctx) |> Typ.all_ids_temp);
+    | Probe(p, probe) =>
+      let (e', ty) = elaborate_pattern(m, p);
+      let probe = Dynamics.Probe.instrument_pat(m, Pat.rep_id(upat), probe);
+      Probe(
+        e' |> cast_from(ty |> Typ.normalize(ctx) |> Typ.all_ids_temp),
+        probe,
+      )
+      |> rewrap;
     | Constructor(c, _) =>
-      let mode =
+      let ana_ty =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
-        | Some(Info.InfoPat({mode, _})) => mode
+        | Some(Info.InfoPat({ana, _})) => ana
         | _ => raise(MissingTypeInfo)
         };
       let t =
-        switch (Mode.ctr_ana_typ(ctx, mode, c), Ctx.lookup_ctr(ctx, c)) {
+        switch (Self.ctr_ana_typ(ctx, ana_ty, c), Ctx.lookup_ctr(ctx, c)) {
         | (Some(ana_ty), _) => ana_ty
         | (_, Some({typ: syn_ty, _})) => syn_ty
-        | _ => Unknown(Internal) |> Typ.temp
+        | _ =>
+          Sum([
+            ConstructorMap.Variant(c, [Id.invalid], None),
+            ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+          ])
+          |> Typ.temp
         };
       let t = t |> Typ.normalize(ctx);
-      Constructor(c, t) |> rewrap |> cast_from(t);
+      Constructor(c, Some(Some(t))) |> rewrap |> cast_from(t);
     };
   (dpat, elaborated_type);
 };
@@ -276,7 +277,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
   // We store this syntax with the same ID as the original expression and store it on the Info.exp in the Statics.map
   // We are then pulling this out and using it in place of the actual expression.
 
-  let (elaborated_type, ctx, co_ctx, statics_pseudo_elaborated) =
+  let (elaborated_type, ana, ctx, co_ctx, statics_pseudo_elaborated) =
     elaborated_type(m, uexp);
   let cast_from = (ty, exp) => fresh_cast(exp, ty, elaborated_type);
   let (_, rewrap) = Exp.unwrap(uexp);
@@ -307,15 +308,26 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       |> rewrap
       |> cast_from(Typ.temp(Unknown(Internal)));
     | Cast(e, _, _) // We remove these casts because they should be re-inserted in the recursive call
-    | FailedCast(e, _, _)
+    | FailedCast(e, _, _) =>
+      let (e', ty) = elaborate(m, e);
+      Parens(e' |> cast_from(ty)) |> rewrap;
     | Parens(e) =>
       let (e', ty) = elaborate(m, e);
       e' |> cast_from(ty);
+    | Probe(e, probe) =>
+      let (e', ty) = elaborate(m, e);
+      let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
+      Probe(e' |> cast_from(ty), probe) |> rewrap;
     | Deferral(_) => uexp
-    | Int(_) => uexp |> cast_from(Int |> Typ.temp)
-    | Bool(_) => uexp |> cast_from(Bool |> Typ.temp)
-    | Float(_) => uexp |> cast_from(Float |> Typ.temp)
-    | String(_) => uexp |> cast_from(String |> Typ.temp)
+    | Atom(c) =>
+      let c =
+        Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode);
+      switch (c) {
+      | L(c) =>
+        Atom(c) |> rewrap |> cast_from(Atom(c |> Atom.cls_of_t) |> Typ.temp)
+      | R(BadInt(s)) =>
+        Invalid(s) |> rewrap |> cast_from(Unknown(Internal) |> Typ.temp)
+      };
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let inner_type =
@@ -324,19 +336,17 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let ds' = List.map2((d, t) => fresh_cast(d, t, inner_type), ds, tys);
       ListLit(ds') |> rewrap |> cast_from(List(inner_type) |> Typ.temp);
     | Constructor(c, _) =>
-      let mode =
+      let (self, ty) =
         switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
-        | Some(Info.InfoExp({mode, _})) => mode
+        | Some(Info.InfoExp({self, ty, _})) => (self, ty)
         | _ => raise(MissingTypeInfo)
         };
       let t =
-        switch (Mode.ctr_ana_typ(ctx, mode, c), Ctx.lookup_ctr(ctx, c)) {
-        | (Some(ana_ty), _) => ana_ty
-        | (_, Some({typ: syn_ty, _})) => syn_ty
-        | _ => Unknown(Internal) |> Typ.temp
+        switch (self) {
+        | Common(FreeConstructor(_)) => Some(None)
+        | _ => Some(Some(Typ.normalize(ctx, ty)))
         };
-      let t = t |> Typ.normalize(ctx) |> Typ.all_ids_temp;
-      Constructor(c, t) |> rewrap |> cast_from(t);
+      Constructor(c, t) |> rewrap |> cast_from(ty);
     | Fun(p, e, _, n) =>
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', tye) = elaborate(m, e);
@@ -444,14 +454,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         |> Option.get
         |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
       if (!is_recursive) {
-        let def = add_name(Pat.get_var(p), def);
         let (def, ty2) = elaborate(m, def);
+        let def = add_name(Pat.get_var(p), def);
         let (body, ty) = elaborate(m, body);
         Let(p, fresh_cast(def, ty2, ty1), body) |> rewrap |> cast_from(ty);
       } else {
         // TODO: Add names to mutually recursive functions
-        let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
         let (def, ty2) = elaborate(m, def);
+        let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
         let (body, ty) = elaborate(m, body);
         let fixf =
           (FixF(p, fresh_cast(def, ty2, ty1), None): Exp.term)
@@ -462,6 +472,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', tye) = elaborate(m, e);
       FixF(p', fresh_cast(e', tye, typ), env) |> rewrap |> cast_from(typ);
+    // These forms are removed in elaboration
+    | Use(_, e)
     | TyAlias(_, _, e) =>
       let (e', tye) = elaborate(m, e);
       e' |> cast_from(tye);
@@ -517,7 +529,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let ty =
         Typ.join(ctx, tyt, tyf)
         |> Option.value(~default=Typ.temp(Unknown(Internal)));
-      let c'' = fresh_cast(c', tyc, Bool |> Typ.temp);
+      let c'' = fresh_cast(c', tyc, Atom(Bool) |> Typ.temp);
       let t'' = fresh_cast(t', tyt, ty);
       let f'' = fresh_cast(f', tyf, ty);
       If(c'', t'', f'') |> rewrap |> cast_from(ty);
@@ -527,7 +539,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       Seq(e1', e2') |> rewrap |> cast_from(ty2);
     | Test(e) =>
       let (e', t) = elaborate(m, e);
-      Test(fresh_cast(e', t, Bool |> Typ.temp))
+      Test(fresh_cast(e', t, Atom(Bool) |> Typ.temp))
       |> rewrap
       |> cast_from(Prod([]) |> Typ.temp);
     | Filter(kind, e) =>
@@ -535,7 +547,11 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let kind' =
         switch (kind) {
         | Residue(_) => kind
-        | Filter({act, pat}) => Filter({act, pat: elaborate(m, pat) |> fst})
+        | Filter({act, pat}) =>
+          Filter({
+            act,
+            pat: elaborate(m, pat) |> fst,
+          })
         };
       Filter(kind', e') |> rewrap |> cast_from(t);
     | Closure(env, e) =>
@@ -569,111 +585,53 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       switch (e.term) {
       // TODO: confirm whether these types are correct
       | Var("e") =>
-        Constructor("$e", Unknown(Internal) |> Typ.temp) |> rewrap
+        Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh)))
+        |> rewrap
       | Var("v") =>
-        Constructor("$v", Unknown(Internal) |> Typ.temp) |> rewrap
+        Constructor("$v", Some(Some(Unknown(Internal) |> Typ.fresh)))
+        |> rewrap
       | _ => EmptyHole |> rewrap |> cast_from(Typ.temp(Unknown(Internal)))
       }
-    | UnOp(Int(Minus), e) =>
+    | UnOp(op, e) =>
+      let op = Operators.replace_un_op(op, ctx.use_mode);
       let (e', t) = elaborate(m, e);
-      UnOp(Int(Minus), fresh_cast(e', t, Int |> Typ.temp))
-      |> rewrap
-      |> cast_from(Int |> Typ.temp);
-    | UnOp(Bool(Not), e) =>
-      let (e', t) = elaborate(m, e);
-      UnOp(Bool(Not), fresh_cast(e', t, Bool |> Typ.temp))
-      |> rewrap
-      |> cast_from(Bool |> Typ.temp);
-    | BinOp(Int(Plus | Minus | Times | Power | Divide) as op, e1, e2) =>
+      let semantics = Operators.semantics_of_un_op(op);
+      switch (semantics) {
+      | Undefined(_) =>
+        UnOp(op, fresh_cast(e', t, Unknown(Internal) |> Typ.temp))
+        |> rewrap
+        |> cast_from(Unknown(Internal) |> Typ.temp)
+      | Defined(t1, t2, _) =>
+        let t1 = Atom(Atom.cls_of_kind(t1)) |> Typ.temp;
+        let t2 = Atom(Atom.cls_of_kind(t2)) |> Typ.temp;
+        UnOp(op, fresh_cast(e', t, t1)) |> rewrap |> cast_from(t2);
+      };
+    | BinOp(op, e1, e2) =>
+      let op = Operators.replace_bin_op(op, ctx.use_mode);
       let (e1', t1) = elaborate(m, e1);
       let (e2', t2) = elaborate(m, e2);
-      BinOp(
-        op,
-        fresh_cast(e1', t1, Int |> Typ.temp),
-        fresh_cast(e2', t2, Int |> Typ.temp),
-      )
-      |> rewrap
-      |> cast_from(Int |> Typ.temp);
-    | BinOp(
-        Int(
-          LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual |
-          Equals |
-          NotEquals,
-        ) as op,
-        e1,
-        e2,
-      ) =>
-      let (e1', t1) = elaborate(m, e1);
-      let (e2', t2) = elaborate(m, e2);
-      BinOp(
-        op,
-        fresh_cast(e1', t1, Int |> Typ.temp),
-        fresh_cast(e2', t2, Int |> Typ.temp),
-      )
-      |> rewrap
-      |> cast_from(Bool |> Typ.temp);
-    | BinOp(Bool(And | Or) as op, e1, e2) =>
-      let (e1', t1) = elaborate(m, e1);
-      let (e2', t2) = elaborate(m, e2);
-      BinOp(
-        op,
-        fresh_cast(e1', t1, Bool |> Typ.temp),
-        fresh_cast(e2', t2, Bool |> Typ.temp),
-      )
-      |> rewrap
-      |> cast_from(Bool |> Typ.temp);
-    | BinOp(Float(Plus | Minus | Times | Divide | Power) as op, e1, e2) =>
-      let (e1', t1) = elaborate(m, e1);
-      let (e2', t2) = elaborate(m, e2);
-      BinOp(
-        op,
-        fresh_cast(e1', t1, Float |> Typ.temp),
-        fresh_cast(e2', t2, Float |> Typ.temp),
-      )
-      |> rewrap
-      |> cast_from(Float |> Typ.temp);
-    | BinOp(
-        Float(
-          LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual |
-          Equals |
-          NotEquals,
-        ) as op,
-        e1,
-        e2,
-      ) =>
-      let (e1', t1) = elaborate(m, e1);
-      let (e2', t2) = elaborate(m, e2);
-      BinOp(
-        op,
-        fresh_cast(e1', t1, Float |> Typ.temp),
-        fresh_cast(e2', t2, Float |> Typ.temp),
-      )
-      |> rewrap
-      |> cast_from(Bool |> Typ.temp);
-    | BinOp(String(Concat) as op, e1, e2) =>
-      let (e1', t1) = elaborate(m, e1);
-      let (e2', t2) = elaborate(m, e2);
-      BinOp(
-        op,
-        fresh_cast(e1', t1, String |> Typ.temp),
-        fresh_cast(e2', t2, String |> Typ.temp),
-      )
-      |> rewrap
-      |> cast_from(String |> Typ.temp);
-    | BinOp(String(Equals) as op, e1, e2) =>
-      let (e1', t1) = elaborate(m, e1);
-      let (e2', t2) = elaborate(m, e2);
-      BinOp(
-        op,
-        fresh_cast(e1', t1, String |> Typ.temp),
-        fresh_cast(e2', t2, String |> Typ.temp),
-      )
-      |> rewrap
-      |> cast_from(Bool |> Typ.temp);
+      let semantics = Operators.semantics_of_bin_op(op);
+      switch (semantics) {
+      | Undefined(_) =>
+        BinOp(
+          op,
+          fresh_cast(e1', t1, Unknown(Internal) |> Typ.temp),
+          fresh_cast(e2', t2, Unknown(Internal) |> Typ.temp),
+        )
+        |> rewrap
+        |> cast_from(Unknown(Internal) |> Typ.temp)
+      | Defined(t1', t2', t3', _) =>
+        let t1' = Atom(Atom.cls_of_kind(t1')) |> Typ.temp;
+        let t2' = Atom(Atom.cls_of_kind(t2')) |> Typ.temp;
+        let t3' = Atom(Atom.cls_of_kind(t3')) |> Typ.temp;
+        BinOp(op, fresh_cast(e1', t1, t1'), fresh_cast(e2', t2, t2'))
+        |> rewrap
+        |> cast_from(t3');
+      };
     | BuiltinFun(fn) =>
       uexp
       |> cast_from(
-           Ctx.lookup_var(Builtins.ctx_init, fn)
+           Ctx.lookup_var(Builtins.ctx_init(None), fn)
            |> Option.map((x: Ctx.var_entry) => x.typ)
            |> Option.value(~default=Typ.temp(Unknown(Internal))),
          )
@@ -713,5 +671,5 @@ let fix_typ_ids =
 let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t =>
   switch (elaborate(m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
-  | (d, ty) => Elaborates(d |> fix_typ_ids, ty, Delta.empty)
+  | (d, ty) => Elaborates(d |> fix_typ_ids, ty)
   };

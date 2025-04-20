@@ -9,6 +9,7 @@ all: dev
 deps:
 	opam update
 	opam install ./hazel.opam.locked --deps-only --with-test --with-doc
+	npm install
 
 change-deps:
 	opam update
@@ -50,10 +51,13 @@ echo-html-dir:
 	@echo $(HTML_DIR)
 
 serve:
-	cd $(HTML_DIR); python3 -m http.server 8000
+	cd $(HTML_DIR); python3 -m http.server 8000 --bind 0.0.0.0
+
+hot:
+	npx vite
 
 serve2:
-	cd $(HTML_DIR); python3 -m http.server 8001
+	cd $(HTML_DIR); python3 -m http.server 8001 --bind 0.0.0.0
 
 repl:
 	dune utop src/haz3lcore
@@ -71,6 +75,10 @@ coverage:
 	dune runtest --instrument-with bisect_ppx --force
 	bisect-ppx-report summary
 
+ci:
+	dune build --profile dev
+	dune runtest --instrument-with bisect_ppx --force
+	
 generate-coverage-html:
 	bisect-ppx-report html
 

@@ -8,7 +8,10 @@ let triv_exp: form = {
   explanation: "The unique value of type `()`.",
   examples: [],
 };
-let triv_exps: group = {id: TrivExp, forms: [triv_exp]};
+let triv_exps: group = {
+  id: TrivExp,
+  forms: [triv_exp],
+};
 
 let deferral_exp_ex = {
   sub_id: Deferral,
@@ -25,7 +28,10 @@ let deferral_exp: form = {
   explanation: "Marks an argument that has not yet been applied in a partial application.",
   examples: [deferral_exp_ex],
 };
-let deferral_exps: group = {id: DeferralExp, forms: [deferral_exp]};
+let deferral_exps: group = {
+  id: DeferralExp,
+  forms: [deferral_exp],
+};
 
 let bool_exp = (b: bool): form => {
   id: BoolExp,
@@ -34,16 +40,46 @@ let bool_exp = (b: bool): form => {
   explanation: "A boolean literal, either `true` or `false`.",
   examples: [],
 };
-let bool_exps = (b: bool): group => {id: BoolExp, forms: [bool_exp(b)]};
+let bool_exps = (b: bool): group => {
+  id: BoolExp,
+  forms: [bool_exp(b)],
+};
 
-let int_exp = (n: int): form => {
+let int_exp = (n: Bigint.t): form => {
   id: IntExp,
-  syntactic_form: [n |> string_of_int |> exp],
+  syntactic_form: [n |> Bigint.to_string |> exp],
   expandable_id: None,
-  explanation: "A signed integer literal.",
+  explanation: "A number literal.",
   examples: [],
 };
-let int_exps = (i: int): group => {id: IntExp, forms: [int_exp(i)]};
+let int_exps = (i: Bigint.t): group => {
+  id: IntExp,
+  forms: [int_exp(i)],
+};
+
+let sint_exp = (n: int): form => {
+  id: SIntExp,
+  syntactic_form: [n |> string_of_int |> exp],
+  expandable_id: None,
+  explanation: "A system integer literal.",
+  examples: [],
+};
+let sint_exps = (i: int): group => {
+  id: SIntExp,
+  forms: [sint_exp(i)],
+};
+
+let nat_exp = (n: Bigint.t): form => {
+  id: NatExp,
+  syntactic_form: [n |> Bigint.to_string |> exp],
+  expandable_id: None,
+  explanation: "A natural number literal.",
+  examples: [],
+};
+let nat_exps = (i: Bigint.t): group => {
+  id: NatExp,
+  forms: [nat_exp(i)],
+};
 
 let float_exp = (f: float): form => {
   id: FloatExp,
@@ -76,7 +112,10 @@ let var_exp = (n: string): form => {
   explanation: "Takes the value of the expression that it was bound to.",
   examples: [],
 };
-let var_exps = (x: string): group => {id: VarExp, forms: [var_exp(x)]};
+let var_exps = (x: string): group => {
+  id: VarExp,
+  forms: [var_exp(x)],
+};
 
 let ctr_exp = (c: string): form => {
   id: CtrExp,
@@ -85,4 +124,7 @@ let ctr_exp = (c: string): form => {
   explanation: "`%s` is a constructor for a sum type variant.",
   examples: [],
 };
-let ctr = (c: string): group => {id: CtrExp, forms: [ctr_exp(c)]};
+let ctr = (c: string): group => {
+  id: CtrExp,
+  forms: [ctr_exp(c)],
+};

@@ -110,7 +110,11 @@ let start = {
   let%sub size =
     BonsaiUtil.SizeObserver.observer(
       () => JsUtil.get_elem_by_id("font-specimen"),
-      ~default=BonsaiUtil.SizeObserver.Size.{width: 10., height: 10.},
+      ~default=
+        BonsaiUtil.SizeObserver.Size.{
+          width: 10.,
+          height: 10.,
+        },
     );
   let%sub () =
     /* Note: once Bonsai is threaded through the system, we won't need
@@ -120,7 +124,7 @@ let start = {
       size,
       ~callback=
         app_inject
-        |> Bonsai.Value.map(~f=(i, rect: BonsaiUtil.SizeObserver.Size.t) =>
+        |> Bonsai.Value.map(~f=(i, rect: BonsaiUtil.SizeObserver.Size.t) => {
              i(
                Page.Update.Globals(
                  SetFontMetrics({
@@ -129,18 +133,18 @@ let start = {
                  }),
                ),
              )
-           ),
+           }),
     );
 
   // Other Initialization
   let on_startup = (schedule_action, ()): unit => {
-    NinjaKeys.initialize(Shortcut.options(schedule_action));
-    JsUtil.focus_clipboard_shim();
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
         Js.string("MAC"),
       )
       >= 0;
+    NinjaKeys.initialize(Shortcut.options(schedule_action));
+    JsUtil.focus_clipboard_shim();
   };
   let%sub () =
     BonsaiUtil.OnStartup.on_startup(
@@ -160,17 +164,21 @@ let start = {
 
   // Triggers after every update
   let after_display = {
+    let%map model = app_model;
     Bonsai.Effect.of_sync_fun(
-      () =>
+      () => {
         if (scroll_to_caret.contents) {
           scroll_to_caret := false;
           JsUtil.scroll_cursor_into_view_if_needed();
-        },
+        } else {
+          ();
+        };
+        model.globals.settings.core.statics ? Haz3lcore.Animation.go() : ();
+      },
       (),
     );
   };
-  let%sub () =
-    Bonsai.Edge.after_display(after_display |> Bonsai.Value.return);
+  let%sub () = Bonsai.Edge.after_display(after_display);
 
   // View function
   let%arr app_model = app_model

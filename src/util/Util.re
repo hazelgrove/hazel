@@ -1,5 +1,6 @@
 module Aba = Aba;
 module BonsaiUtil = BonsaiUtil;
+module Bigint = BigInt;
 module Direction = Direction;
 module Either = Either;
 module IntMap = IntMap;
@@ -21,6 +22,8 @@ module Key = Key;
 module Os = Os;
 module Point = Point;
 module Calc = Calc;
+module Sets = Sets;
+module Maps = Maps;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

@@ -17,6 +17,11 @@ let intlit_fun_ex = {
   term: mk_example("fun 1 -> 2"),
   message: "When given an argument with value 1, the function throws away the supplied argument and always evaluates to 2.",
 };
+let sintlit_fun_ex = {
+  sub_id: Fun(SIntLit),
+  term: mk_example("fun 1 -> 2"),
+  message: "When given an argument with value 1, the function throws away the supplied argument and always evaluates to 2.",
+};
 let floatlit_fun_ex = {
   sub_id: Fun(FloatLit),
   term: mk_example("fun 1.1 -> 2"),
@@ -114,7 +119,11 @@ let function_exp: form = {
   };
 };
 
-let _pat = Piece.Grout({id: Id.mk(), shape: Convex});
+let _pat =
+  Piece.Grout({
+    id: Id.mk(),
+    shape: Convex,
+  });
 let _exp = exp("e");
 let function_empty_hole_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
@@ -125,7 +134,15 @@ let function_empty_hole_exp: form = {
     id: FunctionExp(EmptyHole),
     syntactic_form: form,
     expandable_id:
-      Some((Piece.id(_pat), [Grout({id: Id.mk(), shape: Convex})])),
+      Some((
+        Piece.id(_pat),
+        [
+          Grout({
+            id: Id.mk(),
+            shape: Convex,
+          }),
+        ],
+      )),
     explanation,
     examples: [basic_fun_ex],
   };
@@ -174,6 +191,21 @@ let function_intlit_exp: form = {
     expandable_id: Some((Piece.id(_pat), [pat("IntLit")])),
     explanation,
     examples: [intlit_fun_ex],
+  };
+};
+let _pat = pat("SIntLit");
+let _exp = exp("e");
+let function_sintlit_exp_coloring_ids =
+  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
+let function_sintlit_exp: form = {
+  let explanation = "The only value that matches the [*argument pattern*](%s) is `%s`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
+  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
+  {
+    id: FunctionExp(SInt),
+    syntactic_form: form,
+    expandable_id: Some((Piece.id(_pat), [pat("SIntLit")])),
+    explanation,
+    examples: [sintlit_fun_ex],
   };
 };
 let _pat = pat("FloatLit");
@@ -480,7 +512,10 @@ let function_ap_exp: form = {
   };
 };
 
-let functions: group = {id: FunctionExp(Base), forms: [function_exp]};
+let functions: group = {
+  id: FunctionExp(Base),
+  forms: [function_exp],
+};
 let functions_empty_hole = {
   id: FunctionExp(EmptyHole),
   forms: [function_empty_hole_exp, function_exp],
@@ -496,6 +531,10 @@ let functions_wild = {
 let functions_int = {
   id: FunctionExp(Int),
   forms: [function_intlit_exp, function_exp],
+};
+let functions_sint = {
+  id: FunctionExp(SInt),
+  forms: [function_sintlit_exp, function_exp],
 };
 let functions_float = {
   id: FunctionExp(Float),
