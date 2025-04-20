@@ -755,7 +755,7 @@ let editor_pp = (fmt, editor: Editor.t) => {
   Format.pp_print_string(fmt, serialization);
 };
 
-let export_module = (module_name, {eds, _}: state) => {
+let export_module = ({eds, _}: state) => {
   let prefix = "open Haz3lcore\n\n" ++ "let exercise: Exercise.spec = \n";
   let record = show_p(editor_pp, eds);
   let data = prefix ++ record ++ "\n";
