@@ -1,6 +1,6 @@
 open Util;
 open Haz3lcore;
-open Web;
+// open Web;
 
 let output_header_grading = _module_name =>
   "module Exercise = GradePrelude.Exercise\n" ++ "let prompt = ()\n";
