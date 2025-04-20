@@ -1,0 +1,13 @@
+let x = if a < b then 3 else 5 in
+let y = if c == d then 4 else 5 in
+let z = if e > f then 6 else {{{ 7 }}} in
+if x < y then
+  if y < z then
+    if x < z then
+      {{{ 1 }}}
+    else
+      2
+  else
+    3
+else
+   4
