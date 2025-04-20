@@ -188,8 +188,7 @@ module Update = {
         ? "Unnamed Exercise Module" : exercise.editors.module_name;
     let filename = module_name ++ ".ml";
     let content_type = "text/plain";
-    let contents =
-      Exercise.export_module(module_name, {eds: exercise.editors});
+    let contents = Exercise.export_module({eds: exercise.editors});
     JsUtil.download_string_file(~filename, ~content_type, ~contents);
   };
 
