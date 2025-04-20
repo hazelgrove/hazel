@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open Bigint;
 
 module Annotated = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]

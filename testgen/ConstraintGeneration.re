@@ -1,4 +1,3 @@
-open Z3;
 open Haz3lmenhir;
 
 let rec generate = (ctx: Z3.context, expr: AST.exp(unit)): Z3.Expr.expr => {
