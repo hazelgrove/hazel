@@ -1,7 +1,11 @@
 open Haz3lcore;
 
 let mk_secondary: string => Piece.t =
-  content => Secondary({id: Id.mk(), content: Whitespace(content)});
+  content =>
+    Secondary({
+      id: Id.mk(),
+      content: Whitespace(content),
+    });
 
 let mk_tile = Piece.mk_tile;
 
@@ -28,10 +32,22 @@ let mk_parens_ancestor = mk_ancestor(Form.get(ParensExp));
 let mk_let_ancestor = mk_ancestor(Form.get(Let));
 let plus = mk_monotile(Form.get(Plus));
 
-let l_sibling: Segment.t = [plus, Grout({id: Id.mk(), shape: Convex})];
+let l_sibling: Segment.t = [
+  plus,
+  Grout({
+    id: Id.mk(),
+    shape: Convex,
+  }),
+];
 let r_sibling: Segment.t = [mk_parens_exp([[int("1"), plus, int("2")]])];
 
-let content: Segment.t = [exp("foo"), Grout({id: Id.mk(), shape: Concave})];
+let content: Segment.t = [
+  exp("foo"),
+  Grout({
+    id: Id.mk(),
+    shape: Concave,
+  }),
+];
 
 let ancestors: Ancestors.t = [
   (mk_parens_ancestor(([], [])), ([mk_fun([[pat("bar")]])], [])),
@@ -118,6 +134,7 @@ let mk_fix = mk_tile(Form.get(Fix));
 let mk_ap_exp = mk_tile(Form.get(ApExp));
 let mk_ap_pat = mk_tile(Form.get(ApPat));
 let mk_let = mk_tile(Form.get(Let));
+let mk_use = mk_tile(Form.get(Use));
 let mk_tyalias = mk_tile(Form.get(TypeAlias));
 let mk_if = mk_tile(Form.get(If));
 let mk_test = mk_tile(Form.get(Test));

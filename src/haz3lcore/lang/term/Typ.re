@@ -1,17 +1,14 @@
 open Util;
 open OptUtil.Syntax;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
+  | Atom(Atom.cls)
   | Invalid
   | EmptyHole
   | MultiHole
   | SynSwitch
   | Internal
-  | Int
-  | Float
-  | Bool
-  | String
   | Arrow
   | Prod
   | TupLabel
@@ -19,7 +16,7 @@ type cls =
   | Sum
   | List
   | Var
-  | Constructor
+  | Constructor // Constructor does not exist on Typ.term it's being used here as a hack for the cursors inspector
   | Parens
   | Ap
   | Rec
@@ -29,19 +26,33 @@ include TermBase.Typ;
 
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
+let rep_id: t => Id.t = IdTagged.rep_id;
+
 let fresh: term => t = IdTagged.fresh;
 /* fresh assigns a random id, whereas temp assigns Id.invalid, which
    is a lot faster, and since we so often make types and throw them away
    shortly after, it makes sense to use it. */
-let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
-let rep_id: t => Id.t = IdTagged.rep_id;
+let temp: term => t =
+  term => {
+    term,
+    annotation: {
+      ids: [Id.invalid],
+    },
+  };
 
 let all_ids_temp = {
   let f:
     'a.
     (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
    =
-    (continue, exp) => {...exp, ids: [Id.invalid]} |> continue;
+    (continue, exp) =>
+      {
+        term: exp.term,
+        annotation: {
+          ids: [Id.invalid],
+        },
+      }
+      |> continue;
   map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
 };
 
@@ -50,9 +61,7 @@ let (replace_temp, replace_temp_exp) = {
     'a.
     (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
    =
-    (continue, exp) =>
-      {...exp, ids: exp.ids == [Id.invalid] ? [Id.mk()] : exp.ids}
-      |> continue;
+    (continue, exp) => IdTagged.replace_temp(exp) |> continue;
   (
     map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
     TermBase.Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
@@ -65,17 +74,14 @@ let hole = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
   | [_, ..._] => Unknown(Hole(MultiHole(tms)))
   };
 
-let cls_of_term: term => cls =
+let cls_of_term: Grammar.typ_term('a) => cls =
   fun
   | Unknown(Hole(Invalid(_))) => Invalid
   | Unknown(Hole(EmptyHole)) => EmptyHole
   | Unknown(Hole(MultiHole(_))) => MultiHole
   | Unknown(SynSwitch) => SynSwitch
   | Unknown(Internal) => Internal
-  | Int => Int
-  | Float => Float
-  | Bool => Bool
-  | String => String
+  | Atom(c) => Atom(c)
   | List(_) => List
   | Arrow(_) => Arrow
   | Var(_) => Var
@@ -95,10 +101,7 @@ let show_cls: cls => string =
   | EmptyHole => "Empty type hole"
   | SynSwitch => "Synthetic type"
   | Internal => "Internal type"
-  | Int
-  | Float
-  | String
-  | Bool => "Base type"
+  | Atom(_) => "Base type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
   | List => "List type"
@@ -118,10 +121,7 @@ let rec is_arrow = (typ: t) => {
   | TupLabel(_, typ) => is_arrow(typ)
   | Arrow(_) => true
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | List(_)
   | Label(_)
   | Prod(_)
@@ -139,10 +139,7 @@ let rec is_forall = (typ: t) => {
   | TupLabel(_, typ) => is_forall(typ)
   | Forall(_) => true
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Arrow(_)
   | List(_)
   | Label(_)
@@ -153,6 +150,13 @@ let rec is_forall = (typ: t) => {
   | Rec(_) => false
   };
 };
+
+let is_void = (typ: t) =>
+  switch (typ.term) {
+  | Sum(ctrs) => ConstructorMap.is_empty(ctrs)
+  | Rec(_, {term: Sum(ctrs), _}) => ConstructorMap.is_empty(ctrs)
+  | _ => false
+  };
 
 /* Functions below this point assume that types have been through the to_typ function above */
 
@@ -197,10 +201,7 @@ let rec match_tup_label = ty =>
 let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (term_of(ty)) {
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Label(_) => []
   | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Var(v) => List.mem(v, bound) ? [] : [v]
@@ -230,7 +231,7 @@ let unroll = (ty: t): t =>
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
-let eq = (t1: t, t2: t): bool => fast_equal(t1, t2);
+let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
 
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown. The optional
@@ -253,16 +254,16 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       let* ty1 = Ctx.lookup_alias(ctx, n1);
       let* ty2 = Ctx.lookup_alias(ctx, n2);
       let+ ty_join = join'(ty1, ty2);
-      !resolve && eq(ty1, ty_join) ? ty1 : ty_join;
+      !resolve && equal(ty1, ty_join) ? ty1 : ty_join;
     }
   | (Var(name), _) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty2);
-    !resolve && eq(ty_name, ty_join) ? ty1 : ty_join;
+    !resolve && equal(ty_name, ty_join) ? ty1 : ty_join;
   | (_, Var(name)) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty1);
-    !resolve && eq(ty_name, ty_join) ? ty2 : ty_join;
+    !resolve && equal(ty_name, ty_join) ? ty2 : ty_join;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
@@ -275,14 +276,14 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     Rec(tp1, ty_body) |> temp;
   | (Rec(_), _) => None
   | (Forall(x1, ty1), Forall(x2, ty2)) =>
-    let ctx = Ctx.extend_dummy_tvar(ctx, x1);
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
       | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
       | None => ty1
       };
+    let ctx = Ctx.extend_dummy_tvar(ctx, x2);
     let+ ty_body = join(~resolve, ctx, ty1', ty2);
-    Forall(x1, ty_body) |> temp;
+    Forall(x2, ty_body) |> temp;
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
      may generate internal type variable names that in corner cases can
@@ -290,14 +291,8 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
      second type to preserve synthesized type variable names, which
      come from user annotations. */
   | (Forall(_), _) => None
-  | (Int, Int) => Some(ty1)
-  | (Int, _) => None
-  | (Float, Float) => Some(ty1)
-  | (Float, _) => None
-  | (Bool, Bool) => Some(ty1)
-  | (Bool, _) => None
-  | (String, String) => Some(ty1)
-  | (String, _) => None
+  | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
+  | (Atom(_), _) => None
   | (Label(_), Label("")) => Some(ty1)
   | (Label(""), Label(_)) => Some(ty2)
   | (Label(name1), Label(name2))
@@ -324,7 +319,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     }
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
-    let+ sm' = ConstructorMap.join(eq, join(~resolve, ctx), sm1, sm2);
+    let+ sm' = ConstructorMap.join(equal, join(~resolve, ctx), sm1, sm2);
     Sum(sm') |> temp;
   | (Sum(_), _) => None
   | (List(ty1), List(ty2)) =>
@@ -344,15 +339,11 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Unknown(SynSwitch), _) => t2
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
-  | (Int, _)
-  | (Float, _)
-  | (Bool, _)
-  | (String, _)
+  | (Atom(_), _)
   | (Label(_), _)
   | (Var(_), _)
   | (Ap(_), _)
-  | (Rec(_), _)
-  | (Forall(_), _) => t1
+  | (Rec(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -368,9 +359,13 @@ let rec match_synswitch = (t1: t, t2: t) => {
     |> rewrap1
   | (TupLabel(_, _), _) => t1
   | (Sum(sm1), Sum(sm2)) =>
-    let sm' = ConstructorMap.match_synswitch(match_synswitch, eq, sm1, sm2);
+    let sm' =
+      ConstructorMap.match_synswitch(match_synswitch, equal, sm1, sm2);
     Sum(sm') |> rewrap1;
   | (Sum(_), _) => t1
+  // HACK[Matt]: The only possible forall is `Forall Syn -> Syn`
+  | (Forall(_), Forall(_)) => t2
+  | (Forall(_), _) => t1
   };
 };
 
@@ -404,12 +399,9 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
     | None => ty
     }
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Label(_) => ty
-  | Parens(t) => Parens(normalize(ctx, t)) |> rewrap
+  | Parens(t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Arrow(t1, t2) =>
@@ -435,7 +427,13 @@ let rec matched_arrow_strict = (ctx, ty) =>
   | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
   | Unknown(SynSwitch) =>
     Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
-  | _ => None
+  | _ =>
+    print_endline("matched_arrow_strict: None");
+    print_endline(
+      "term_of(weak_head_normalize(ctx, ty)): "
+      ++ show_term(term_of(weak_head_normalize(ctx, ty))),
+    );
+    None;
   };
 
 let matched_arrow = (ctx, ty) =>
@@ -449,7 +447,7 @@ let rec matched_forall_strict = (ctx, ty) =>
   | Parens(ty) => matched_forall_strict(ctx, ty)
   | Forall(t, ty) => Some((Some(t), ty))
   | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
-  | _ => None // (None, Unknown(Internal) |> temp)
+  | _ => None
   };
 
 let matched_forall = (ctx, ty) =>
@@ -520,15 +518,31 @@ let matched_list = (ctx, ty) =>
   matched_list_strict(ctx, ty)
   |> Option.value(~default=Unknown(Internal) |> temp);
 
-let rec matched_args = (ctx, default_arity, ty) => {
-  let ty' = weak_head_normalize(ctx, ty);
-  switch (term_of(ty')) {
-  | Parens(ty) => matched_args(ctx, default_arity, ty)
-  | Prod([_, ..._] as tys) => tys
-  | Unknown(_) => List.init(default_arity, _ => ty')
-  | _ => [ty']
+let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
+  switch (term_of(weak_head_normalize(ctx, ty))) {
+  | Parens(ty) => matched_args_strict(ctx, ty, arity)
+  | Prod(tys) when List.length(tys) == arity => L(tys)
+  | Prod(tys) => R(List.length(tys))
+  | _ when arity == 1 => L([ty])
+  | Unknown((SynSwitch | Internal) as p) =>
+    L(List.init(arity, _ => Unknown(p) |> temp))
+  | _ => R(1)
   };
 };
+
+let matched_args = (ctx, ty, arity) =>
+  switch (matched_args_strict(ctx, ty, arity)) {
+  | L(tys) => tys
+  | R(_) => List.init(arity, _ => Unknown(Internal) |> temp)
+  };
+
+let matched_label = (ctx, ty): option((t, t)) =>
+  switch (term_of(weak_head_normalize(ctx, ty))) {
+  | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))
+  | Unknown(SynSwitch) =>
+    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
+  | _ => None
+  };
 
 let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   let ty = weak_head_normalize(ctx, ty);
@@ -548,10 +562,10 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
        the below code will be incorrect! */
     let ty =
       switch (ty |> term_of) {
-      | Rec({term: Var(x), _}, ty_body) =>
+      | Rec({term: Var(x), _}, _ty_body) =>
         switch (Ctx.lookup_alias(ctx, x)) {
         | None => unroll(ty)
-        | Some(_) => ty_body
+        | Some(_) => unroll(ty)
         }
       | _ => ty
       };
@@ -571,17 +585,84 @@ let rec is_unknown = (ty: t): bool =>
   | _ => false
   };
 
+let rec is_syn = (ty: t): bool =>
+  switch (ty |> term_of) {
+  | TupLabel(_, x)
+  | Parens(x) => is_syn(x)
+  | Unknown(SynSwitch) => true
+  | Unknown(_)
+  | Atom(_)
+  | Label(_)
+  | Var(_)
+  | Ap(_)
+  | Rec(_)
+  | Forall(_)
+  | List(_)
+  | Arrow(_)
+  | Prod(_)
+  | Sum(_) => false
+  };
+
+let rec is_ana_atom = (ty: t) =>
+  switch (ty |> term_of) {
+  | TupLabel(_, x)
+  | Parens(x) => is_ana_atom(x)
+  | Atom(a) => Some(a)
+  | Unknown(_)
+  | Label(_)
+  | Var(_)
+  | Ap(_)
+  | Rec(_)
+  | Forall(_)
+  | List(_)
+  | Arrow(_)
+  | Prod(_)
+  | Sum(_) => None
+  };
+
+let rec is_syn_fun = (ty: t): bool =>
+  switch (ty |> term_of) {
+  | TupLabel(_, x)
+  | Parens(x) => is_syn_fun(x)
+  | Arrow(t1, t2) => is_syn(t1) && is_syn_fun(t2)
+  | Unknown(_)
+  | Atom(_)
+  | Label(_)
+  | Var(_)
+  | Ap(_)
+  | Rec(_)
+  | Forall(_)
+  | List(_)
+  | Prod(_)
+  | Sum(_) => false
+  };
+
+let rec is_syn_plus = (ty: t): bool =>
+  switch (ty |> term_of) {
+  | TupLabel(_, x)
+  | Parens(x) => is_syn_plus(x)
+  | Unknown(SynSwitch) => true
+  | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
+  | Forall(_, t) => is_syn(t)
+  | Unknown(_)
+  | Atom(_)
+  | Label(_)
+  | Var(_)
+  | Ap(_)
+  | Rec(_)
+  | List(_)
+  | Prod(_)
+  | Sum(_) => false
+  };
+
 /* Does the type require parentheses when on the left of an arrow for printing? */
 let rec needs_parens = (ty: t): bool =>
   switch (term_of(ty)) {
   | Parens(ty) => needs_parens(ty)
   | Ap(_)
   | Unknown(_)
-  | Int
-  | Float
+  | Atom(_)
   | Label(_)
-  | Bool
-  | String
   | TupLabel(_, _)
   | List(_) /* is already wrapped in [] */
   | Var(_) => false
@@ -606,10 +687,12 @@ let rec pretty_print = (ty: t): string =>
   | Parens(ty) => pretty_print(ty)
   | Ap(_)
   | Unknown(_) => "?"
-  | Int => "Int"
-  | Float => "Float"
-  | Bool => "Bool"
-  | String => "String"
+  | Atom(Int) => "Int"
+  | Atom(Float) => "Float"
+  | Atom(Bool) => "Bool"
+  | Atom(String) => "String"
+  | Atom(Nat) => "Nat"
+  | Atom(SInt) => "SInt"
   | Var(tvar) => tvar
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)

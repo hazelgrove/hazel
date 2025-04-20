@@ -45,6 +45,8 @@ open AST
 %token CLOSE_SQUARE_BRACKET
 %token OPEN_PAREN
 %token CLOSE_PAREN
+%token OPEN_TRIPLE_CURLY
+%token CLOSE_TRIPLE_CURLY
 %token DASH_ARROW
 %token EQUAL_ARROW
 %token SINGLE_EQUAL
@@ -144,6 +146,7 @@ open AST
 
 %left QUESTION
 %left TILDE
+%token SLASH_TILDE
 
 
 
@@ -239,6 +242,7 @@ typ:
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
     | s = sumTyp; { SumTyp(s) }
     | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, t) }
+    | OPEN_TRIPLE_CURLY; t = typ; CLOSE_TRIPLE_CURLY { IndicationTyp(t) }
     | OPEN_PAREN; t = typ; CLOSE_PAREN { t }
 
 tupPatEntry:
@@ -246,6 +250,7 @@ tupPatEntry:
     | label = IDENT; SINGLE_EQUAL; p = pat { TupLabelPat(LabelPat(label), p) }
 
 nonAscriptingPat:
+    | OPEN_TRIPLE_CURLY; p = pat; CLOSE_TRIPLE_CURLY { IndicationPat(p) }
     | OPEN_PAREN; p = pat; CLOSE_PAREN { p }
     | OPEN_PAREN; label = IDENT; SINGLE_EQUAL; p = pat; CLOSE_PAREN { TuplePat([TupLabelPat(LabelPat(label), p)]) }
     | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_list(COMMA, tupPatEntry); CLOSE_PAREN { TuplePat(p :: pats) }
@@ -253,14 +258,14 @@ nonAscriptingPat:
     | WILD { WildPat }
     | QUESTION { EmptyHolePat }
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
-    | c = CONSTRUCTOR_IDENT { ConstructorPat(c, UnknownType(Internal))}
-    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { CastPat(ConstructorPat(c, UnknownType(Internal)), UnknownType(Internal), t) }
+    | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
+    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { CastPat(ConstructorPat(c, None), UnknownType(Internal), t) }
     | p = IDENT { VarPat(p) }
-    | i = INT { IntPat i }
-    | f = FLOAT { FloatPat f }
-    | s = STRING { StringPat s}
-    | TRUE { BoolPat true}
-    | FALSE {BoolPat false}
+    | i = INT { AtomPat (Int (Bigint.of_int i)) }
+    | f = FLOAT { AtomPat (Float f) }
+    | s = STRING { AtomPat (String s)}
+    | TRUE {AtomPat (Bool true)}
+    | FALSE {AtomPat (Bool false)}
     | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) }
 
 funPat:
@@ -312,13 +317,15 @@ tupExpEntry:
 
 exp:
     | b = binExp { b }
-    | i = INT { Int i }
-    | f = FLOAT { Float f }
+    | i = INT { Atom (Int (Bigint.of_int i)) }
+    | f = FLOAT { Atom (Float f) }
     | v = IDENT { Var v }
-    | c = CONSTRUCTOR_IDENT { Constructor(c, UnknownType(Internal))}
-    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, t) }
-    | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { Cast(Constructor(c, UnknownType(Internal)), UnknownType(Internal), t) }
-    | s = STRING { String s}
+    | c = CONSTRUCTOR_IDENT { Constructor(c, None)}
+    | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) } 
+    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(Some(t))) }
+    | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { Cast(Constructor(c, None), UnknownType(Internal), t) }
+    | s = STRING { Atom (String s)}
+    | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(e) }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
     | OPEN_PAREN; e = tupExpEntry; COMMA; l = separated_list(COMMA, tupExpEntry); CLOSE_PAREN { TupleExp(e :: l) }
     | OPEN_PAREN; label = IDENT; SINGLE_EQUAL; e = exp; CLOSE_PAREN { TupleExp([TupLabel(Label(label), e)]) }
@@ -331,9 +338,9 @@ exp:
     | i = ifExp { i }
     | e1 = exp; QUESTION; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY {FailedCast(e1, t1, t2)}
     | e1 = exp; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY { Cast(e1, t1, t2) }
-    | TRUE { Bool true }
+    | TRUE { Atom (Bool true) }
     | f = funExp {f}
-    | FALSE { Bool false }    
+    | FALSE { Atom (Bool false) }    
     | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
     | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
     | QUESTION { EmptyHole }

@@ -1,0 +1,81 @@
+/* PROJECTOR: TEXTAREA */
+
+/* Turn off caret when text projector is focused */
+/* TODO: Generalize this logic to other projectors */
+.code-deco:has(~ .projectors .projector.text *:focus) #caret .caret-path {
+  fill: #0000;
+}
+
+.projector.text {
+  cursor: default;
+}
+
+.projector.text > svg {
+  stroke-width: 0.5px;
+  stroke: var(--BR2);
+}
+
+.projector.text .wrapper {
+  height: 100%;
+  width: 100%;
+  border-radius: 0.1em;
+}
+
+.projector.text.indicated .cols,
+.projector.text:has(textarea:focus) .cols {
+  color: var(--R1);
+}
+
+.projector.text.indicated > svg {
+  fill: var(--textarea-indicated);
+}
+
+.projector.text .cols {
+  height: 100%;
+  margin-left: 2px;
+  margin-right: 2px;
+  display: flex;
+  border-radius: 0 0.1em 0.1em 0.1em;
+  color: var(--SAND);
+  background: repeating-linear-gradient(
+    var(--NONE),
+    var(--NONE) 1.41em,
+    var(--textarea-h-stripe) 1.41em,
+    var(--textarea-h-stripe) 1.47em /* line-height */
+  );
+}
+
+.projector.text.selected .cols {
+  background: repeating-linear-gradient(
+    var(--NONE),
+    var(--NONE) 1.41em,
+    var(--textarea-h-strip-selected) 1.41em,
+    var(--textarea-h-strip-selected) 1.47em /* line-height */
+  );
+}
+.projector.text.selected > svg {
+  filter: drop-shadow(1px 1px 0 var(--shadow-nul));
+}
+
+.projector.text textarea {
+  outline: none;
+  resize: none;
+  width: 100%;
+  caret-color: var(--caret-color);
+  padding: 0;
+  margin: 0;
+  margin-left: -2px;
+  line-height: var(--line-height);
+  font-family: var(--code-font);
+  font-size: inherit;
+  border: none;
+  color: var(--textarea-text);
+  background: none;
+  box-shadow: inset 1px 0 0 var(--textarea-v-stripe);
+  overflow: hidden; /* hack: scrolls in chrome without this? */
+}
+
+.projector.text textarea::selection {
+  color: var(--BLACK);
+  background-color: var(--shard-selected);
+}

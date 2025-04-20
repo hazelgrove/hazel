@@ -9,7 +9,7 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type b = {
     // Constants:
-    step: Haz3lcore.EvaluatorStep.EvalObj.t,
+    step: EvaluatorStep.step,
     to_ids: list(Id.t),
     // Calculated:
     hidden: bool // Depends on settings
@@ -20,7 +20,6 @@ module Model = {
     // Constants:
     expr: Exp.t,
     state: EvaluatorState.t,
-    previous_substitutions: list(Id.t),
     next_steps: list(b),
     // Updated & Calculated:
     editor: Calc.t(CodeSelectable.Model.t),
@@ -64,15 +63,6 @@ module Model = {
       | Pending => EvaluatorState.init
     );
 
-  let get_previous_substitutions = (model: Aba.t(a, b)): list(Id.t) =>
-    model
-    |> Aba.hd
-    |> (
-      fun
-      | Calculated({previous_substitutions, _}) => previous_substitutions
-      | Pending => []
-    );
-
   let get_elaboration = (model: t): option(Exp.t) =>
     model.history
     |> Aba.last_a
@@ -85,8 +75,6 @@ module Model = {
   let can_undo = (model: t) => {
     model.history |> Aba.get_bs |> List.exists((b: b) => !b.hidden);
   };
-
-  type persistent = list(Haz3lcore.EvaluatorStep.EvalObj.persistent);
 };
 
 module Update = {
@@ -144,7 +132,10 @@ module Update = {
                    )
                    |> ((u: Updated.t('a)) => u.model);
                  let editor = Calc.NewValue(editor);
-                 {...a, editor};
+                 {
+                   ...a,
+                   editor,
+                 };
                }),
              )
           |> Aba.mk(_, model.history |> Aba.get_bs),
@@ -154,19 +145,6 @@ module Update = {
   };
 
   open Calc.Syntax;
-
-  let calc_next_steps = (settings: CoreSettings.t, expr, state) =>
-    EvaluatorStep.decompose(expr, state)
-    |> List.map(
-         EvaluatorStep.should_hide_eval_obj(~settings=settings.evaluation),
-       )
-    |> List.map(
-         fun
-         | (FilterAction.Step, x) =>
-           Model.{hidden: false, step: x, to_ids: [Id.mk()]}
-         | (FilterAction.Eval, x) =>
-           Model.{hidden: true, step: x, to_ids: [Id.mk()]},
-       );
 
   let get_next_a =
       (
@@ -179,53 +157,43 @@ module Update = {
     |> Calc.map_saved(Option.some)
     // Only perform below if either previous a or settings have changed
     |> {
-      let.calc {expr: _, state, previous_substitutions, next_steps, _} = prev_a
+      let.calc {expr, state, _} = prev_a
       and.calc settings: Calc.t(CoreSettings.t) = settings;
 
-      // Check b is valid
-      let* b =
-        List.find_opt(
-          (b': Model.b) => b'.step.d_loc.ids == b.step.d_loc.ids,
-          next_steps,
-        );
+      let* step = EvaluatorStep.refresh_step(~settings, expr, state, b.step);
+      let* (next_expr, next_state) = EvaluatorStep.take_step(step);
 
-      // Use b
-      let state = ref(state);
-      let+ next_expr =
-        EvaluatorStep.take_step(state, b.step.env, b.step.d_loc);
-      let next_expr = {...next_expr, ids: b.to_ids};
-      let next_state = state^;
-      let previous_substitutions =
-        (
-          b.step.knd == Transition.VarLookup
-            ? [b.step.d_loc |> Exp.rep_id] : []
-        )
-        @ (
-          previous_substitutions
-          |> List.map((id: Id.t) =>
-               if (id == (b.step.d_loc |> Exp.rep_id)) {
-                 next_expr |> Exp.rep_id;
-               } else {
-                 id;
-               }
-             )
-        );
-      let next_expr =
-        EvalCtx.compose(b.step.ctx, next_expr)
-        |> (
-          settings.evaluation.show_casts ? x => x : Haz3lcore.DHExp.strip_casts
-        )
-        |> Typ.replace_temp_exp;
+      let next_status =
+        EvaluatorStep.get_status(~settings, next_expr, next_state);
+      let next_steps =
+        switch (next_status) {
+        | AutoStep(step) => [
+            Model.{
+              step,
+              to_ids: [Id.mk()],
+              hidden: true,
+            },
+          ]
+        | AvailableSteps(steps) =>
+          List.map(
+            step => {
+              Model.{
+                step,
+                to_ids: [Id.mk()],
+                hidden: false,
+              }
+            },
+            steps,
+          )
+        };
       let editor = CodeWithStatics.Model.mk_from_exp(~settings, next_expr);
-      let next_steps = calc_next_steps(settings, next_expr, next_state);
-      (
+      Some(
         {
           expr: next_expr,
           state: next_state,
-          previous_substitutions,
           editor: Calc.NewValue(editor),
           next_steps,
-        }: Model.a'
+        }: Model.a',
       );
     };
   };
@@ -239,6 +207,7 @@ module Update = {
           : Aba.t(Model.a, Model.b) => {
     let next_steps = Model.get_next_steps(history);
     let hidden_steps = List.filter((s: Model.b) => s.hidden, next_steps);
+    print_endline("AAAAA");
     switch (hidden_steps) {
     | [] => history
     | [x, ..._] =>
@@ -265,12 +234,19 @@ module Update = {
            |> Calc.map_if_new(
                 CodeSelectable.Update.calculate(
                   ~settings=settings |> Calc.get_value,
+                  ~is_dynamic_term=true,
                   ~is_edited=false,
+                  ~dynamics=Dynamics.Map.empty, // No projectors in stepper atm
                   ~stitch=x =>
                   x
                 ),
               )
-           |> (editor => {...a, editor})
+           |> (
+             editor => {
+               ...a,
+               editor,
+             }
+           )
          }),
        );
   };
@@ -329,12 +305,36 @@ module Update = {
                 )
                 |> Typ.replace_temp_exp;
               let editor = CodeWithStatics.Model.mk_from_exp(~settings, elab);
+              let next_status =
+                EvaluatorStep.get_status(
+                  ~settings,
+                  elab,
+                  EvaluatorState.init,
+                );
               let next_steps =
-                calc_next_steps(settings, elab, EvaluatorState.init);
+                switch (next_status) {
+                | AutoStep(step) => [
+                    Model.{
+                      step,
+                      to_ids: [Id.mk()],
+                      hidden: true,
+                    },
+                  ]
+                | AvailableSteps(steps) =>
+                  List.map(
+                    step => {
+                      Model.{
+                        step,
+                        to_ids: [Id.mk()],
+                        hidden: false,
+                      }
+                    },
+                    steps,
+                  )
+                };
               Model.{
                 expr: elab,
                 state: EvaluatorState.init,
-                previous_substitutions: [],
                 editor: Calc.NewValue(editor),
                 next_steps,
               };
@@ -503,7 +503,7 @@ module View = {
                      {
                        editor: a.editor |> Calc.get_value,
                        next_steps: [],
-                       taken_steps: [b.step.d_loc |> Exp.rep_id],
+                       taken_steps: [b.step |> EvaluatorStep.get_step_id],
                      },
                    )
                    |> (x => [x])
@@ -511,7 +511,8 @@ module View = {
                    div(
                      ~attrs=[Attr.classes(["stepper-justification"])],
                      [
-                       b.step.knd
+                       b.step
+                       |> EvaluatorStep.get_step_kind
                        |> Transition.stepper_justification
                        |> Node.text,
                      ],
@@ -575,7 +576,8 @@ module View = {
                   editor: model.editor |> Calc.get_value,
                   next_steps:
                     List.map(
-                      (option: Model.b) => option.step.d_loc |> Exp.rep_id,
+                      (option: Model.b) =>
+                        option.step |> EvaluatorStep.get_step_id,
                       model.next_steps,
                     ),
                   taken_steps: [],

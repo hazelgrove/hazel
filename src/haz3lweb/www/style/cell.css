@@ -2,17 +2,6 @@
  * ~ everything below the main panel, but above the code
  * display in the hierarchy */
 
-#mousedown-overlay {
-  cursor: text;
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 100%;
-  width: 100%;
-  background-color: transparent;
-  z-index: var(--overlay-z);
-}
-
 #clipboard-shim {
   /* probably overkill for hiding it... */
   position: fixed;
@@ -23,13 +12,14 @@
   left: -1em;
 }
 
-.code-container {
-  position: relative;
-}
-
 #main .code-editor {
   /* Only code in primary editor is selectable atm */
   cursor: text;
+}
+
+#main.Scratch,
+#main.Documentation {
+  background-color: var(--cell-active);
 }
 
 .cell {
@@ -51,20 +41,8 @@
   gap: 1em;
 }
 
-.Scratch .cell {
-  background-color: var(--cell-active);
-}
-
-.Documentation .cell {
-  background-color: var(--cell-active);
-}
-
-.cell:has(.code-editor.selected) {
-  background-color: var(--cell-active);
-}
-
 .result .cell-item {
-  padding: 0em
+  padding: 0em;
 }
 
 .title-cell {

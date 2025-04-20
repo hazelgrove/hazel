@@ -60,6 +60,8 @@ rule token =
     | "}" { CLOSE_CURLY }
     | "(" { OPEN_PAREN }
     | ")" { CLOSE_PAREN }
+    | "{{{" { OPEN_TRIPLE_CURLY }
+    | "}}}" { CLOSE_TRIPLE_CURLY }
     | "->" { DASH_ARROW }
     | "=>" { EQUAL_ARROW }
     | "=" { SINGLE_EQUAL }
@@ -124,6 +126,7 @@ rule token =
     | "type" {TYP}
     | "$" {DOLLAR_SIGN}
     | "~" {TILDE}
+    | "/~" {SLASH_TILDE}
     | "?t" {T_TYP}
     | "?p" {P_PAT}
     | "?tp" {TP_TPAT}

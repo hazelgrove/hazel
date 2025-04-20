@@ -31,7 +31,12 @@ module Update = {
       )
       |> (
         fun
-        | Ok(editor) => Model.{editor, statics: model.statics}
+        | Ok(editor) =>
+          Model.{
+            editor,
+            statics: model.statics,
+            dynamics: model.dynamics,
+          }
         | Error(err) => raise(Action.Failure.Exception(err))
       )
       |> Updated.return(
@@ -52,7 +57,8 @@ module Update = {
              | Paste(_)
              | Copy
              | Cut
-             | Reparse => true
+             | Reparse
+             | Introduce => true
              | Project(_)
              | Unselect(_)
              | Select(All) => false
@@ -63,12 +69,22 @@ module Update = {
     | Perform(action) => perform(action, model)
     | Undo =>
       switch (Editor.Update.undo(model.editor)) {
-      | Some(editor) => Model.{...model, editor} |> Updated.return
+      | Some(editor) =>
+        Model.{
+          ...model,
+          editor,
+        }
+        |> Updated.return
       | None => model |> Updated.return_quiet
       }
     | Redo =>
       switch (Editor.Update.redo(model.editor)) {
-      | Some(editor) => Model.{...model, editor} |> Updated.return
+      | Some(editor) =>
+        Model.{
+          ...model,
+          editor,
+        }
+        |> Updated.return
       | None => model |> Updated.return_quiet
       }
     | DebugConsole(key) =>
@@ -162,79 +178,30 @@ module View = {
   type event =
     | MakeActive;
 
-  let get_goal =
-      (
-        ~font_metrics: FontMetrics.t,
-        text_box: Js.t(Dom_html.element),
-        e: Js.t(Dom_html.mouseEvent),
-      ) => {
-    let rect = text_box##getBoundingClientRect;
-    let goal_x = float_of_int(e##.clientX);
-    let goal_y = float_of_int(e##.clientY);
-    Point.{
-      row: Float.to_int((goal_y -. rect##.top) /. font_metrics.row_height),
-      col:
-        Float.(
-          to_int(round((goal_x -. rect##.left) /. font_metrics.col_width))
-        ),
-    };
+  let container_target = (current_target: Js.opt(Js.t(Dom_html.element))) =>
+    current_target
+    |> Js.Opt.get(_, _ => failwith(""))
+    |> JsUtil.get_child_with_class(_, "code-container")
+    |> Option.get;
+
+  module PointerCapture = {
+    /* This uses the Pointer Capture API to keep mouse movement data flowing
+     * to an editor even when the mouse exits the editor element or even
+     * browser window. This is necessary to (for example) be able to select
+     * upwards while auto-scrolling the editor by flinging your mouse to the
+     * top of your screen; otherwise, the selection action stops as the
+     * mouse exits the editor element's bounding box. */
+
+    let set = (target, pointer_id) =>
+      JsUtil.setPointerCapture(container_target(target), pointer_id);
+
+    let release = (target, pointer_id) =>
+      if (JsUtil.hasPointerCapture(container_target(target), pointer_id)) {
+        JsUtil.releasePointerCapture(container_target(target), pointer_id);
+      };
   };
 
-  let mousedown_overlay = (~globals: Globals.t, ~inject) =>
-    Node.div(
-      ~attrs=
-        Attr.[
-          id("mousedown-overlay"),
-          on_mouseup(_ => globals.inject_global(SetMousedown(false))),
-          on_mousemove(e => {
-            let mouse_handler =
-              e##.target |> Js.Opt.get(_, _ => failwith("no target"));
-            let text_box =
-              JsUtil.get_child_with_class(
-                mouse_handler##.parentNode
-                |> Js.Opt.get(_, _ => failwith(""))
-                |> Js.Unsafe.coerce,
-                "code-container",
-              )
-              |> Option.get;
-            let goal =
-              get_goal(~font_metrics=globals.font_metrics, text_box, e);
-            inject(Action.Select(Resize(Goal(Point(goal)))));
-          }),
-        ],
-      [],
-    );
-
-  let mousedown_handler = (~globals: Globals.t, ~signal, ~inject, evt) => {
-    let goal =
-      get_goal(
-        ~font_metrics=globals.font_metrics,
-        evt##.currentTarget
-        |> Js.Opt.get(_, _ => failwith(""))
-        |> JsUtil.get_child_with_class(_, "code-container")
-        |> Option.get,
-        evt,
-      );
-    switch (JsUtil.ctrl_held(evt), JsUtil.num_clicks(evt)) {
-    | (true, _) =>
-      Effect.Many([
-        signal(MakeActive),
-        inject(Action.Move(Goal(Point(goal)))),
-        inject(Action.Jump(BindingSiteOfIndicatedVar)),
-      ])
-    | (false, 1) =>
-      /* Note that we only trigger drag mode (set mousedown)
-       * when the left mouse button (aka button 0) is pressed */
-      Effect.Many(
-        (
-          JsUtil.mouse_button(evt) == 0
-            ? [globals.inject_global(SetMousedown(true))] : []
-        )
-        @ [signal(MakeActive), inject(Action.Move(Goal(Point(goal))))],
-      )
-    | (false, n) => inject(Action.Select(Smart(n)))
-    };
-  };
+  module MouseState = Pointer.MkState();
 
   let view =
       (
@@ -257,29 +224,95 @@ module View = {
     };
     let projectors =
       ProjectorView.all(
-        model.editor.state.zipper,
-        ~cached_statics=model.statics,
-        ~cached_syntax=model.editor.syntax,
-        ~inject=x => inject(Perform(x)),
-        ~font_metrics=globals.font_metrics,
+        x => inject(Perform(x)),
+        signal(MakeActive),
+        globals.font_metrics,
+        ProjectorView.Model.mk(
+          model.editor.syntax.projectors,
+          model.editor.syntax.measured,
+          model.editor.syntax.selection_ids,
+          Indicated.piece(model.editor.state.zipper),
+          model.statics.info_map,
+          model.dynamics,
+          selected,
+        ),
       );
-    let overlays = edit_decos @ overlays @ [projectors];
+    let overlays =
+      [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
+      @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
+      @ projectors;
     let code_view =
       CodeWithStatics.View.view(~globals, ~overlays, ~sort?, model);
-    let mousedown_overlay =
-      selected && globals.mousedown
-        ? [mousedown_overlay(~globals, ~inject=x => inject(Perform(x)))]
-        : [];
-    let on_mousedown =
-      mousedown_handler(~globals, ~signal, ~inject=x => inject(Perform(x)));
+
+    let loc = (e: Pointer.Event.t) =>
+      FontMetrics.get_goal(
+        ~font_metrics=globals.font_metrics,
+        container_target(e.current_target),
+        e.loc,
+      );
+
+    let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) =>
+      switch (mouse) {
+      | {shift: Down, _} =>
+        Effect.Many([
+          signal(MakeActive),
+          inject(Perform(Select(Resize(Goal(Point(loc(mouse))))))),
+        ])
+      | {sys: PC, ctrl: Down, _}
+      | {sys: Mac, meta: Down, _} =>
+        Effect.Many([
+          signal(MakeActive),
+          inject(Perform(Move(Goal(Point(loc(mouse)))))),
+          inject(Perform(Jump(BindingSiteOfIndicatedVar))),
+        ])
+      | {button: Left, _} =>
+        MouseState.pointerdown(loc(mouse));
+        let click_count = MouseState.count();
+        /* Check how many clicks have happened recently
+         * and cycle between options on-click */
+        switch (click_count mod 3 + 1) {
+        | 1 =>
+          /* prepare to drag if the mouse moves */
+          PointerCapture.set(mouse.current_target, pointer_id);
+          Effect.Many([
+            signal(MakeActive),
+            inject(Perform(Move(Goal(Point(loc(mouse)))))),
+          ]);
+        | 2 => inject(Perform(Select(Smart(2))))
+        | 3 => inject(Perform(Select(Smart(3))))
+        | _ => failwith("THEN PERISH")
+        };
+      | _ => Effect.Ignore
+      };
+
+    let toggle_button = (e: Pointer.Event.t, pointer_id: int) => {
+      MouseState.pointerup(loc(e));
+      PointerCapture.release(e.current_target, pointer_id);
+      Effect.Ignore;
+    };
+
+    let drag_select = (pointer: Pointer.Event.t) =>
+      switch (pointer) {
+      | {button: Left, _} when MouseState.is_button_down() =>
+        inject(Perform(Select(Resize(Goal(Point(loc(pointer)))))))
+      | _ => Effect.Ignore
+      };
+
     Node.div(
       ~attrs=[
         Attr.classes(
           ["cell-item", "code-editor"] @ (selected ? ["selected"] : []),
         ),
-        Attr.on_mousedown(on_mousedown),
+        Attr.on_pointerdown(evt =>
+          move_or_select(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
+        ),
+        Attr.on_pointerup(evt =>
+          toggle_button(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
+        ),
+        Attr.on_mousemove(evt => drag_select(Pointer.Event.mk(evt))),
+        Attr.on_wheel(evt => drag_select(Pointer.Event.mk(evt))),
       ],
-      mousedown_overlay @ [code_view],
+      [code_view],
     );
   };
 };

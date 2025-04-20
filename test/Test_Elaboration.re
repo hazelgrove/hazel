@@ -8,7 +8,7 @@ let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
 let ids = List.init(12, _ => Id.mk());
 let id_at = x => x |> List.nth(ids);
 
-let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init);
+let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 let dhexp_of_uexp = u => Elaborator.elaborate(mk_map(u), u) |> fst;
 let alco_check = dhexp_typ |> Alcotest.check;
 let parse_exp = (s: string) => {
@@ -19,17 +19,34 @@ let parse_exp = (s: string) => {
 };
 
 module PlainTests = {
-  let u1: Exp.t = {ids: [id_at(0)], term: Int(8), copied: false};
+  let u1: Exp.t = {
+    term: Atom(Int(Bigint.of_int(8))),
+    annotation: {
+      ids: [id_at(0)],
+    },
+  };
   let single_integer = () =>
     alco_check("Integer literal 8", u1, dhexp_of_uexp(u1));
 
-  let u2: Exp.t = {ids: [id_at(0)], term: EmptyHole, copied: false};
+  let u2: Exp.t = {
+    term: EmptyHole,
+    annotation: {
+      ids: [id_at(0)],
+    },
+  };
   let empty_hole = () => alco_check("Empty hole", u2, dhexp_of_uexp(u2));
 
   let u3: Exp.t = {
-    ids: [id_at(0)],
-    term: Parens({ids: [id_at(1)], term: Var("y"), copied: false}),
-    copied: false,
+    term:
+      Parens({
+        term: Var("y"),
+        annotation: {
+          ids: [id_at(1)],
+        },
+      }),
+    annotation: {
+      ids: [id_at(0)],
+    },
   };
 
   let free_var = () => alco_check("free variable", u3, dhexp_of_uexp(u3));
@@ -37,7 +54,11 @@ module PlainTests = {
   let u4: Exp.t =
     Let(
       Tuple([Var("a") |> Pat.fresh, Var("b") |> Pat.fresh]) |> Pat.fresh,
-      Tuple([Int(4) |> Exp.fresh, Int(6) |> Exp.fresh]) |> Exp.fresh,
+      Tuple([
+        Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
+        Atom(Int(Bigint.of_int(6))) |> Exp.fresh,
+      ])
+      |> Exp.fresh,
       BinOp(Int(Minus), Var("a") |> Exp.fresh, Var("b") |> Exp.fresh)
       |> Exp.fresh,
     )
@@ -47,22 +68,26 @@ module PlainTests = {
     alco_check("Let expression for tuple (a, b)", u4, dhexp_of_uexp(u4));
 
   let u5 =
-    BinOp(Int(Plus), Bool(false) |> Exp.fresh, Var("y") |> Exp.fresh)
+    BinOp(
+      Int(Plus),
+      Atom(Bool(false)) |> Exp.fresh,
+      Var("y") |> Exp.fresh,
+    )
     |> Exp.fresh;
 
   let d5 =
     BinOp(
       Int(Plus),
       FailedCast(
-        Bool(false) |> Exp.fresh,
-        Bool |> Typ.fresh,
-        Int |> Typ.fresh,
+        Atom(Bool(false)) |> Exp.fresh,
+        Atom(Bool) |> Typ.fresh,
+        Atom(Int) |> Typ.fresh,
       )
       |> Exp.fresh,
       Cast(
         Var("y") |> Exp.fresh,
         Unknown(Internal) |> Typ.fresh,
-        Int |> Typ.fresh,
+        Atom(Int) |> Typ.fresh,
       )
       |> Exp.fresh,
     )
@@ -76,7 +101,11 @@ module PlainTests = {
     );
 
   let u6: Exp.t =
-    If(Bool(false) |> Exp.fresh, Int(8) |> Exp.fresh, Int(6) |> Exp.fresh)
+    If(
+      Atom(Bool(false)) |> Exp.fresh,
+      Atom(Int(Bigint.of_int(8))) |> Exp.fresh,
+      Atom(Int(Bigint.of_int(6))) |> Exp.fresh,
+    )
     |> Exp.fresh;
 
   let consistent_if = () =>
@@ -90,7 +119,11 @@ module PlainTests = {
   let f =
     Fun(
       Var("x") |> Pat.fresh,
-      BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
+      BinOp(
+        Int(Plus),
+        Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
+        Atom(Int(Bigint.of_int(5))) |> Exp.fresh,
+      )
       |> Exp.fresh,
       None,
       None,
@@ -100,7 +133,11 @@ module PlainTests = {
   let f' =
     Fun(
       Var("x") |> Pat.fresh,
-      BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh)
+      BinOp(
+        Int(Plus),
+        Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
+        Atom(Int(Bigint.of_int(5))) |> Exp.fresh,
+      )
       |> Exp.fresh,
       Some(Unknown(Hole(EmptyHole)) |> Typ.fresh),
       None,
@@ -118,34 +155,45 @@ module PlainTests = {
 
   let u8: Exp.t =
     Match(
-      BinOp(Int(Equals), Int(4) |> Exp.fresh, Int(3) |> Exp.fresh)
+      BinOp(
+        Int(Equals),
+        Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
+        Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
+      )
       |> Exp.fresh,
       [
-        (Bool(true) |> Pat.fresh, Int(24) |> Exp.fresh),
-        (Bool(false) |> Pat.fresh, Bool(false) |> Exp.fresh),
+        (
+          Atom(Bool(true)) |> Pat.fresh,
+          Atom(Int(Bigint.of_int(24))) |> Exp.fresh,
+        ),
+        (Atom(Bool(false)) |> Pat.fresh, Atom(Bool(false)) |> Exp.fresh),
       ],
     )
     |> Exp.fresh;
 
   let d8: Exp.t =
     Match(
-      BinOp(Int(Equals), Int(4) |> Exp.fresh, Int(3) |> Exp.fresh)
+      BinOp(
+        Int(Equals),
+        Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
+        Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
+      )
       |> Exp.fresh,
       [
         (
-          Bool(true) |> Pat.fresh,
+          Atom(Bool(true)) |> Pat.fresh,
           Cast(
-            Int(24) |> Exp.fresh,
-            Int |> Typ.fresh,
+            Atom(Int(Bigint.of_int(24))) |> Exp.fresh,
+            Atom(Int) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
           |> Exp.fresh,
         ),
         (
-          Bool(false) |> Pat.fresh,
+          Atom(Bool(false)) |> Pat.fresh,
           Cast(
-            Bool(false) |> Exp.fresh,
-            Bool |> Typ.fresh,
+            Atom(Bool(false)) |> Exp.fresh,
+            Atom(Bool) |> Typ.fresh,
             Unknown(Internal) |> Typ.fresh,
           )
           |> Exp.fresh,
@@ -165,19 +213,23 @@ module PlainTests = {
     Let(
       Cast(
         Var("f") |> Pat.fresh,
-        Arrow(Int |> Typ.fresh, Int |> Typ.fresh) |> Typ.fresh,
+        Arrow(Atom(Int) |> Typ.fresh, Atom(Int) |> Typ.fresh) |> Typ.fresh,
         Unknown(Internal) |> Typ.fresh,
       )
       |> Pat.fresh,
       Fun(
         Var("x") |> Pat.fresh,
-        BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
+        BinOp(
+          Int(Plus),
+          Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+          Var("x") |> Exp.fresh,
+        )
         |> Exp.fresh,
         None,
         None,
       )
       |> Exp.fresh,
-      Int(55) |> Exp.fresh,
+      Atom(Int(Bigint.of_int(55))) |> Exp.fresh,
     )
     |> Exp.fresh;
 
@@ -186,13 +238,17 @@ module PlainTests = {
       Var("f") |> Pat.fresh,
       Fun(
         Var("x") |> Pat.fresh,
-        BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
+        BinOp(
+          Int(Plus),
+          Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+          Var("x") |> Exp.fresh,
+        )
         |> Exp.fresh,
-        Some(Int |> Typ.fresh),
+        Some(Atom(Int) |> Typ.fresh),
         Some("f"),
       )
       |> Exp.fresh,
-      Int(55) |> Exp.fresh,
+      Atom(Int(Bigint.of_int(55))) |> Exp.fresh,
     )
     |> Exp.fresh;
 
@@ -209,8 +265,8 @@ module PlainTests = {
       DeferredAp(
         Var("string_sub") |> Exp.fresh,
         [
-          String("hello") |> Exp.fresh,
-          Int(1) |> Exp.fresh,
+          Atom(String("hello")) |> Exp.fresh,
+          Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
           Deferral(InAp) |> Exp.fresh,
         ],
       )
@@ -219,8 +275,8 @@ module PlainTests = {
         DeferredAp(
           Var("string_sub") |> Exp.fresh,
           [
-            String("hello") |> Exp.fresh,
-            Int(1) |> Exp.fresh,
+            Atom(String("hello")) |> Exp.fresh,
+            Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
             Deferral(InAp) |> Exp.fresh,
           ],
         )
@@ -236,13 +292,13 @@ module PlainTests = {
         DeferredAp(
           Var("string_sub") |> Exp.fresh,
           [
-            String("hello") |> Exp.fresh,
-            Int(1) |> Exp.fresh,
+            Atom(String("hello")) |> Exp.fresh,
+            Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
             Deferral(InAp) |> Exp.fresh,
           ],
         )
         |> Exp.fresh,
-        Int(2) |> Exp.fresh,
+        Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
       )
       |> Exp.fresh,
       dhexp_of_uexp(
@@ -251,13 +307,13 @@ module PlainTests = {
           DeferredAp(
             Var("string_sub") |> Exp.fresh,
             [
-              String("hello") |> Exp.fresh,
-              Int(1) |> Exp.fresh,
+              Atom(String("hello")) |> Exp.fresh,
+              Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
               Deferral(InAp) |> Exp.fresh,
             ],
           )
           |> Exp.fresh,
-          Int(2) |> Exp.fresh,
+          Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
         )
         |> Exp.fresh,
       ),
@@ -301,28 +357,28 @@ module PlainTests = {
             Deferral(InAp) |> Exp.fresh,
             Deferral(InAp) |> Exp.fresh,
             Cast(
-              Int(3) |> Exp.fresh,
-              Int |> Typ.fresh,
+              Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
+              Atom(Int) |> Typ.fresh,
               Unknown(Internal) |> Typ.fresh,
             )
             |> Exp.fresh,
           ],
         )
         |> Exp.fresh,
-        Tuple([
-          Cast(
-            Float(1.) |> Exp.fresh,
-            Float |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
+        Cast(
+          Tuple([
+            Atom(Float(1.)) |> Exp.fresh,
+            Atom(Bool(true)) |> Exp.fresh,
+          ])
           |> Exp.fresh,
-          Cast(
-            Bool(true) |> Exp.fresh,
-            Bool |> Typ.fresh,
+          Prod([Atom(Float) |> Typ.fresh, Atom(Bool) |> Typ.fresh])
+          |> Typ.fresh,
+          Prod([
             Unknown(Internal) |> Typ.fresh,
-          )
-          |> Exp.fresh,
-        ])
+            Unknown(Internal) |> Typ.fresh,
+          ])
+          |> Typ.fresh,
+        )
         |> Exp.fresh,
       )
       |> Exp.fresh,
@@ -334,11 +390,14 @@ module PlainTests = {
             [
               Deferral(InAp) |> Exp.fresh,
               Deferral(InAp) |> Exp.fresh,
-              Int(3) |> Exp.fresh,
+              Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
             ],
           )
           |> Exp.fresh,
-          Tuple([Float(1.) |> Exp.fresh, Bool(true) |> Exp.fresh])
+          Tuple([
+            Atom(Float(1.)) |> Exp.fresh,
+            Atom(Bool(true)) |> Exp.fresh,
+          ])
           |> Exp.fresh,
         )
         |> Exp.fresh,
@@ -368,13 +427,25 @@ module PlainTests = {
           Var("add") |> Pat.fresh,
           Parens(
             Prod([
-              TupLabel(Label("street") |> Typ.fresh, String |> Typ.fresh)
+              TupLabel(
+                Label("street") |> Typ.fresh,
+                Atom(String) |> Typ.fresh,
+              )
               |> Typ.fresh,
-              TupLabel(Label("city") |> Typ.fresh, String |> Typ.fresh)
+              TupLabel(
+                Label("city") |> Typ.fresh,
+                Atom(String) |> Typ.fresh,
+              )
               |> Typ.fresh,
-              TupLabel(Label("state") |> Typ.fresh, String |> Typ.fresh)
+              TupLabel(
+                Label("state") |> Typ.fresh,
+                Atom(String) |> Typ.fresh,
+              )
               |> Typ.fresh,
-              TupLabel(Label("zipcode") |> Typ.fresh, Int |> Typ.fresh)
+              TupLabel(
+                Label("zipcode") |> Typ.fresh,
+                Atom(Int) |> Typ.fresh,
+              )
               |> Typ.fresh,
             ])
             |> Typ.fresh,
@@ -385,10 +456,10 @@ module PlainTests = {
         |> Pat.fresh,
         Parens(
           Tuple([
-            String("123 Maple St") |> Exp.fresh,
-            String("Ann Arbor") |> Exp.fresh,
-            String("MI") |> Exp.fresh,
-            Int(48103) |> Exp.fresh,
+            Atom(String("123 Maple St")) |> Exp.fresh,
+            Atom(String("Ann Arbor")) |> Exp.fresh,
+            Atom(String("MI")) |> Exp.fresh,
+            Atom(Int(Bigint.of_int(48103))) |> Exp.fresh,
           ])
           |> Exp.fresh,
         )
@@ -403,17 +474,23 @@ module PlainTests = {
         Tuple([
           TupLabel(
             Label("street") |> Exp.fresh,
-            String("123 Maple St") |> Exp.fresh,
+            Atom(String("123 Maple St")) |> Exp.fresh,
           )
           |> Exp.fresh,
           TupLabel(
             Label("city") |> Exp.fresh,
-            String("Ann Arbor") |> Exp.fresh,
+            Atom(String("Ann Arbor")) |> Exp.fresh,
           )
           |> Exp.fresh,
-          TupLabel(Label("state") |> Exp.fresh, String("MI") |> Exp.fresh)
+          TupLabel(
+            Label("state") |> Exp.fresh,
+            Atom(String("MI")) |> Exp.fresh,
+          )
           |> Exp.fresh,
-          TupLabel(Label("zipcode") |> Exp.fresh, Int(48103) |> Exp.fresh)
+          TupLabel(
+            Label("zipcode") |> Exp.fresh,
+            Atom(Int(Bigint.of_int(48103))) |> Exp.fresh,
+          )
           |> Exp.fresh,
         ])
         |> Exp.fresh,
@@ -430,7 +507,7 @@ module PlainTests = {
       Tuple([
         TupLabel(
           Label("label") |> Exp.fresh,
-          String("a string value") |> Exp.fresh,
+          Atom(String("a string value")) |> Exp.fresh,
         )
         |> Exp.fresh,
       ])
@@ -439,7 +516,7 @@ module PlainTests = {
         Tuple([
           TupLabel(
             Label("label") |> Exp.fresh,
-            String("a string value") |> Exp.fresh,
+            Atom(String("a string value")) |> Exp.fresh,
           )
           |> Exp.fresh,
         ])
@@ -453,7 +530,7 @@ module PlainTests = {
       Let(
         Var("x") |> Pat.fresh,
         Tuple([
-          TupLabel(Label("l") |> Exp.fresh, String("a") |> Exp.fresh)
+          TupLabel(Label("l") |> Exp.fresh, Atom(String("a")) |> Exp.fresh)
           |> Exp.fresh,
         ])
         |> Exp.fresh,
@@ -479,12 +556,12 @@ module PlainTests = {
           Var("val") |> Pat.fresh,
           Parens(
             Prod([
-              TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
+              TupLabel(Label("a") |> Typ.fresh, Atom(Int) |> Typ.fresh)
               |> Typ.fresh,
-              TupLabel(Label("b") |> Typ.fresh, String |> Typ.fresh)
+              TupLabel(Label("b") |> Typ.fresh, Atom(String) |> Typ.fresh)
               |> Typ.fresh,
-              Float |> Typ.fresh,
-              TupLabel(Label("c") |> Typ.fresh, Bool |> Typ.fresh)
+              Atom(Float) |> Typ.fresh,
+              TupLabel(Label("c") |> Typ.fresh, Atom(Bool) |> Typ.fresh)
               |> Typ.fresh,
             ])
             |> Typ.fresh,
@@ -495,11 +572,17 @@ module PlainTests = {
         |> Pat.fresh,
         Parens(
           Tuple([
-            Int(1) |> Exp.fresh,
-            Float(1.0) |> Exp.fresh,
-            TupLabel(Label("c") |> Exp.fresh, Bool(true) |> Exp.fresh)
+            Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+            Atom(Float(1.0)) |> Exp.fresh,
+            TupLabel(
+              Label("c") |> Exp.fresh,
+              Atom(Bool(true)) |> Exp.fresh,
+            )
             |> Exp.fresh,
-            TupLabel(Label("b") |> Exp.fresh, String("a") |> Exp.fresh)
+            TupLabel(
+              Label("b") |> Exp.fresh,
+              Atom(String("a")) |> Exp.fresh,
+            )
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -513,12 +596,15 @@ module PlainTests = {
       Let(
         Var("val") |> Pat.fresh,
         Tuple([
-          TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+          TupLabel(
+            Label("a") |> Exp.fresh,
+            Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+          )
           |> Exp.fresh,
-          TupLabel(Label("b") |> Exp.fresh, String("a") |> Exp.fresh)
+          TupLabel(Label("b") |> Exp.fresh, Atom(String("a")) |> Exp.fresh)
           |> Exp.fresh,
-          Float(1.0) |> Exp.fresh,
-          TupLabel(Label("c") |> Exp.fresh, Bool(true) |> Exp.fresh)
+          Atom(Float(1.0)) |> Exp.fresh,
+          TupLabel(Label("c") |> Exp.fresh, Atom(Bool(true)) |> Exp.fresh)
           |> Exp.fresh,
         ])
         |> Exp.fresh,
@@ -569,7 +655,10 @@ module PlainTests = {
         Let(
           Var("x") |> Pat.fresh,
           Tuple([
-            TupLabel(Label("l") |> Exp.fresh, String("a") |> Exp.fresh)
+            TupLabel(
+              Label("l") |> Exp.fresh,
+              Atom(String("a")) |> Exp.fresh,
+            )
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -582,7 +671,10 @@ module PlainTests = {
               Var("x") |> Pat.fresh,
               Parens(
                 Prod([
-                  TupLabel(Label("l") |> Typ.fresh, String |> Typ.fresh)
+                  TupLabel(
+                    Label("l") |> Typ.fresh,
+                    Atom(String) |> Typ.fresh,
+                  )
                   |> Typ.fresh,
                 ])
                 |> Typ.fresh,
@@ -591,7 +683,7 @@ module PlainTests = {
               Unknown(Internal) |> Typ.fresh,
             )
             |> Pat.fresh,
-            Parens(String("a") |> Exp.fresh) |> Exp.fresh,
+            Parens(Atom(String("a")) |> Exp.fresh) |> Exp.fresh,
             Var("x") |> Exp.fresh,
           )
           |> Exp.fresh,
@@ -606,7 +698,10 @@ module PlainTests = {
         Let(
           Var("x") |> Pat.fresh,
           Tuple([
-            TupLabel(Label("a") |> Exp.fresh, String("hello") |> Exp.fresh)
+            TupLabel(
+              Label("a") |> Exp.fresh,
+              Atom(String("hello")) |> Exp.fresh,
+            )
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -625,7 +720,10 @@ module PlainTests = {
         Let(
           Var("zip_only") |> Pat.fresh,
           Tuple([
-            TupLabel(Label("zip") |> Exp.fresh, Int(12345) |> Exp.fresh)
+            TupLabel(
+              Label("zip") |> Exp.fresh,
+              Atom(Int(Bigint.of_int(12345))) |> Exp.fresh,
+            )
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -654,7 +752,7 @@ module PlainTests = {
             Var("x") |> Exp.fresh,
             Some(
               Prod([
-                TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
+                TupLabel(Label("a") |> Typ.fresh, Atom(Int) |> Typ.fresh)
                 |> Typ.fresh,
               ])
               |> Typ.fresh,
@@ -663,7 +761,10 @@ module PlainTests = {
           )
           |> Exp.fresh,
           Tuple([
-            TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+            TupLabel(
+              Label("a") |> Exp.fresh,
+              Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+            )
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -689,7 +790,7 @@ module PlainTests = {
             Var("x") |> Exp.fresh,
             Some(
               Prod([
-                TupLabel(Label("a") |> Typ.fresh, Int |> Typ.fresh)
+                TupLabel(Label("a") |> Typ.fresh, Atom(Int) |> Typ.fresh)
                 |> Typ.fresh,
               ])
               |> Typ.fresh,
@@ -698,7 +799,10 @@ module PlainTests = {
           )
           |> Exp.fresh,
           Tuple([
-            TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+            TupLabel(
+              Label("a") |> Exp.fresh,
+              Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+            )
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -716,9 +820,9 @@ module PlainTests = {
             TupLabel(
               Label("c") |> Exp.fresh,
               FailedCast(
-                Int(1) |> Exp.fresh,
-                Int |> Typ.fresh,
-                String |> Typ.fresh,
+                Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+                Atom(Int) |> Typ.fresh,
+                Atom(String) |> Typ.fresh,
               )
               |> Exp.fresh,
             )
@@ -740,7 +844,10 @@ module PlainTests = {
             TupLabel(
               Label("b") |> Exp.fresh,
               Tuple([
-                TupLabel(Label("c") |> Exp.fresh, String("") |> Exp.fresh)
+                TupLabel(
+                  Label("c") |> Exp.fresh,
+                  Atom(String("")) |> Exp.fresh,
+                )
                 |> Exp.fresh,
               ])
               |> Exp.fresh,
@@ -783,7 +890,10 @@ module PlainTests = {
           )
           |> Exp.fresh,
           Tuple([
-            TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+            TupLabel(
+              Label("a") |> Exp.fresh,
+              Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+            )
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -798,7 +908,10 @@ module PlainTests = {
         Let(
           Var("x") |> Pat.fresh,
           Tuple([
-            TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh)
+            TupLabel(
+              Label("a") |> Exp.fresh,
+              Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+            )
             |> Exp.fresh,
           ])
           |> Exp.fresh,
@@ -861,8 +974,11 @@ module MenhirElaborationTests = {
   let alco_check_menhir = (name: string, dhexp: string, uexp: Term.Exp.t) =>
     alco_check(
       name,
-      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-        Haz3lmenhir.Interface.parse_program(dhexp),
+      Grammar.map_exp_annotation(
+        _ => IdTagged.IdTag.fresh(),
+        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
+          Haz3lmenhir.Interface.parse_program(dhexp),
+        ),
       ),
       dhexp_of_uexp(uexp),
     );
@@ -870,18 +986,26 @@ module MenhirElaborationTests = {
   //Test for an empty hole
   let empty_hole_str = "?";
   let empty_hole_uexp: Exp.t = {
-    ids: [id_at(0)],
     term: EmptyHole,
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+    },
   };
   let empty_hole_menhir = () =>
     alco_check_menhir("Empty hole (menhir)", empty_hole_str, empty_hole_uexp);
 
   //Test for a free variable
   let free_var_uexp: Exp.t = {
-    ids: [id_at(0)],
-    term: Parens({ids: [id_at(1)], term: Var("y"), copied: false}),
-    copied: false,
+    term:
+      Parens({
+        term: Var("y"),
+        annotation: {
+          ids: [id_at(1)],
+        },
+      }),
+    annotation: {
+      ids: [id_at(0)],
+    },
   };
   let free_var_menhir = () =>
     alco_check_menhir(
@@ -892,7 +1016,11 @@ module MenhirElaborationTests = {
 
   //Menhir test for a binary operation
   let bin_op_uexp: Exp.t =
-    BinOp(Int(Plus), Bool(false) |> Exp.fresh, Var("y") |> Exp.fresh)
+    BinOp(
+      Int(Plus),
+      Atom(Bool(false)) |> Exp.fresh,
+      Var("y") |> Exp.fresh,
+    )
     |> Exp.fresh;
 
   let bin_op_str = "false?{Bool => Int} + y{Unknown Internal => Int}";
@@ -913,11 +1041,18 @@ module MenhirElaborationTests = {
 ";
   let inconsistent_case_uexp: Exp.t =
     Match(
-      BinOp(Int(Equals), Int(4) |> Exp.fresh, Int(3) |> Exp.fresh)
+      BinOp(
+        Int(Equals),
+        Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
+        Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
+      )
       |> Exp.fresh,
       [
-        (Bool(true) |> Pat.fresh, Int(24) |> Exp.fresh),
-        (Bool(false) |> Pat.fresh, Bool(false) |> Exp.fresh),
+        (
+          Atom(Bool(true)) |> Pat.fresh,
+          Atom(Int(Bigint.of_int(24))) |> Exp.fresh,
+        ),
+        (Atom(Bool(false)) |> Pat.fresh, Atom(Bool(false)) |> Exp.fresh),
       ],
     )
     |> Exp.fresh;
@@ -930,7 +1065,11 @@ module MenhirElaborationTests = {
 
   //Consistent if statement menhir test
   let consistent_if_uexp: Exp.t =
-    If(Bool(false) |> Exp.fresh, Int(8) |> Exp.fresh, Int(6) |> Exp.fresh)
+    If(
+      Atom(Bool(false)) |> Exp.fresh,
+      Atom(Int(Bigint.of_int(8))) |> Exp.fresh,
+      Atom(Int(Bigint.of_int(6))) |> Exp.fresh,
+    )
     |> Exp.fresh;
 
   let consistent_if_str = "
@@ -946,9 +1085,10 @@ module MenhirElaborationTests = {
   //Single integer menhir test
   let single_int_str = "8";
   let single_int_uexp: Exp.t = {
-    ids: [id_at(0)],
-    term: Int(8),
-    copied: false,
+    term: Atom(Int(Bigint.of_int(8))),
+    annotation: {
+      ids: [id_at(0)],
+    },
   };
   let single_integer_menhir = () =>
     alco_check_menhir(
@@ -962,7 +1102,11 @@ module MenhirElaborationTests = {
   let let_exp_uexp: Exp.t =
     Let(
       Tuple([Var("a") |> Pat.fresh, Var("b") |> Pat.fresh]) |> Pat.fresh,
-      Tuple([Int(4) |> Exp.fresh, Int(6) |> Exp.fresh]) |> Exp.fresh,
+      Tuple([
+        Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
+        Atom(Int(Bigint.of_int(6))) |> Exp.fresh,
+      ])
+      |> Exp.fresh,
       BinOp(Int(Minus), Var("a") |> Exp.fresh, Var("b") |> Exp.fresh)
       |> Exp.fresh,
     )
@@ -977,8 +1121,13 @@ module MenhirElaborationTests = {
   let typ_ap_str = "(typfun x -> 4)@<Int>";
   let typ_ap_uexp: Exp.t =
     TypAp(
-      TypFun(Var("x") |> TPat.fresh, Int(4) |> Exp.fresh, None) |> Exp.fresh,
-      Int |> Typ.fresh,
+      TypFun(
+        Var("x") |> TPat.fresh,
+        Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
+        None,
+      )
+      |> Exp.fresh,
+      Atom(Int) |> Typ.fresh,
     )
     |> Exp.fresh;
   let typ_ap_menhir = () =>
@@ -986,7 +1135,11 @@ module MenhirElaborationTests = {
 
   let failed_cast_str = "1 ?{Int => String}";
   let failed_cast_uexp: Exp.t =
-    FailedCast(Int(1) |> Exp.fresh, Int |> Typ.fresh, String |> Typ.fresh)
+    FailedCast(
+      Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+      Atom(Int) |> Typ.fresh,
+      Atom(String) |> Typ.fresh,
+    )
     |> Exp.fresh;
   let failed_cast_menhir = () =>
     alco_check_menhir(
@@ -995,9 +1148,8 @@ module MenhirElaborationTests = {
       failed_cast_uexp,
     );
 
-  let constructor_str = "X";
-  let constructor_uexp: Exp.t =
-    Constructor("X", Unknown(Internal) |> Typ.fresh) |> Exp.fresh;
+  let constructor_str = "X/~";
+  let constructor_uexp: Exp.t = Constructor("X", None) |> Exp.fresh;
   let constructor_menhir = () =>
     alco_check_menhir(
       "Constructor test (menhir)",
@@ -1010,14 +1162,19 @@ module MenhirElaborationTests = {
        */
   let dynamic_error_hole_str = "<<(1/0) ? `DivideByZero`>> {Unknown Internal => Int}";
   let dynamic_error_hole_uexp: Exp.t = {
-    ids: [id_at(0)],
     term:
       DynamicErrorHole(
-        BinOp(Int(Divide), Int(1) |> Exp.fresh, Int(0) |> Exp.fresh)
+        BinOp(
+          Int(Divide),
+          Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+          Atom(Int(Bigint.of_int(0))) |> Exp.fresh,
+        )
         |> Exp.fresh,
         InvalidOperationError.DivideByZero,
       ),
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+    },
   };
   let dynamic_error_hole_menhir = () =>
     alco_check_menhir(
@@ -1028,9 +1185,10 @@ module MenhirElaborationTests = {
 
   let builtin_fun_str = "infinity";
   let builtin_fun_uexp: Exp.t = {
-    ids: [id_at(0)],
     term: BuiltinFun("infinity"),
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+    },
   };
   let builtin_fun_menhir = () =>
     alco_check_menhir(
@@ -1040,15 +1198,21 @@ module MenhirElaborationTests = {
     );
 
   let undef_str = "undef";
-  let undef_uexp: Exp.t = {ids: [id_at(0)], term: Undefined, copied: false};
+  let undef_uexp: Exp.t = {
+    term: Undefined,
+    annotation: {
+      ids: [id_at(0)],
+    },
+  };
   let undef_menhir = () =>
     alco_check_menhir("Undef test (menhir)", undef_str, undef_uexp);
 
   let test_str = "test 1 ?{Int => Bool} end";
   let test_uexp: Exp.t = {
-    ids: [id_at(0)],
-    term: Test(Int(1) |> Exp.fresh),
-    copied: false,
+    term: Test(Atom(Int(Bigint.of_int(1))) |> Exp.fresh),
+    annotation: {
+      ids: [id_at(0)],
+    },
   };
   let test_menhir = () =>
     alco_check_menhir("Test failed (menhir)", test_str, test_uexp);
@@ -1056,13 +1220,18 @@ module MenhirElaborationTests = {
   let filter_str = "eval 1 in 0";
   let stepper_filter_kind: TermBase.stepper_filter_kind_t =
     Filter({
-      pat: Int(1) |> Exp.fresh,
+      pat: Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
       act: (FilterAction.Eval, FilterAction.All),
     });
   let filter_uexp: Exp.t = {
-    ids: [id_at(0)],
-    term: Filter(stepper_filter_kind, Int(0) |> Exp.fresh),
-    copied: false,
+    term:
+      Filter(
+        stepper_filter_kind,
+        Atom(Int(Bigint.of_int(0))) |> Exp.fresh,
+      ),
+    annotation: {
+      ids: [id_at(0)],
+    },
   };
   let filter_menhir = () =>
     alco_check_menhir("Filter test (menhir)", filter_str, filter_uexp);
@@ -1080,14 +1249,15 @@ undef
 
   let list_exp_str = "[1, 2, 3]";
   let list_exp_uexp: Exp.t = {
-    ids: [id_at(0)],
     term:
       ListLit([
-        Int(1) |> Exp.fresh,
-        Int(2) |> Exp.fresh,
-        Int(3) |> Exp.fresh,
+        Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+        Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
+        Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
       ]),
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+    },
   };
   let list_exp_menhir = () =>
     alco_check_menhir("List exp (menhir)", list_exp_str, list_exp_uexp);
@@ -1103,14 +1273,15 @@ undef
 x
 ";
   let ty_alias_uexp: Exp.t = {
-    ids: [id_at(0)],
     term:
       TyAlias(
         Var("x") |> TPat.fresh,
-        Int |> Typ.fresh,
+        Atom(Int) |> Typ.fresh,
         Var("x") |> Exp.fresh,
       ),
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+    },
   };
   let ty_alias_menhir = () =>
     alco_check_menhir(
@@ -1121,13 +1292,22 @@ x
 
   let list_concat_str = "[1, 2] @ [3, 4]";
   let list_concat_uexp: Exp.t = {
-    ids: [id_at(0)],
     term:
       ListConcat(
-        ListLit([Int(1) |> Exp.fresh, Int(2) |> Exp.fresh]) |> Exp.fresh,
-        ListLit([Int(3) |> Exp.fresh, Int(4) |> Exp.fresh]) |> Exp.fresh,
+        ListLit([
+          Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+          Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
+        ])
+        |> Exp.fresh,
+        ListLit([
+          Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
+          Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
+        ])
+        |> Exp.fresh,
       ),
-    copied: false,
+    annotation: {
+      ids: [id_at(0)],
+    },
   };
   let list_concat_menhir = () =>
     alco_check_menhir(
@@ -1138,27 +1318,39 @@ x
 
   let unop_str = "-1";
   let unop_uexp: Exp.t = {
-    ids: [id_at(0)],
-    term: UnOp(Int(Minus), Int(1) |> Exp.fresh),
-    copied: false,
+    term: UnOp(Int(Minus), Atom(Int(Bigint.of_int(1))) |> Exp.fresh),
+    annotation: {
+      ids: [id_at(0)],
+    },
   };
   let unop_menhir = () =>
     alco_check_menhir("Unary operation test (menhir)", unop_str, unop_uexp);
 
   let seq_str = "1; 2";
   let seq_uexp: Exp.t = {
-    ids: [id_at(0)],
-    term: Seq(Int(1) |> Exp.fresh, Int(2) |> Exp.fresh),
-    copied: false,
+    term:
+      Seq(
+        Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+        Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
+      ),
+    annotation: {
+      ids: [id_at(0)],
+    },
   };
   let seq_menhir = () =>
     alco_check_menhir("Sequence test (menhir)", seq_str, seq_uexp);
 
   let fixf_str = "fix x -> 1{Int => Unknown Internal}";
   let fixf_uexp: Exp.t = {
-    ids: [id_at(0)],
-    term: FixF(Var("x") |> Pat.fresh, Int(1) |> Exp.fresh, None),
-    copied: false,
+    term:
+      FixF(
+        Var("x") |> Pat.fresh,
+        Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+        None,
+      ),
+    annotation: {
+      ids: [id_at(0)],
+    },
   };
   let fixf_menhir = () =>
     alco_check_menhir("FixF test (menhir)", fixf_str, fixf_uexp);
@@ -1172,8 +1364,8 @@ x
       `Quick,
       dynamic_error_hole_menhir,
     ),
-    test_case("Constructor test (menhir)", `Quick, constructor_menhir),
     test_case("Failed cast test (menhir)", `Quick, failed_cast_menhir),
+    test_case("Constructor test (menhir)", `Quick, constructor_menhir),
     test_case("Type ap test (menhir)", `Quick, typ_ap_menhir),
     test_case("Let expression for a tuple (menhir)", `Quick, let_exp_menhir),
     test_case("Single integer (menhir)", `Quick, single_integer_menhir),

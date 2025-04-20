@@ -56,6 +56,7 @@ let t_of_yojson: Yojson.Safe.t => Uuidm.t =
        )
   | _ => failwith("Uuidm.t_of_yojson: not valid UUID (2)");
 
+[@deriving eq]
 type t = Uuidm.t;
 
 let mk: unit => t = Uuidm.v4_gen(Random.State.make_self_init());
@@ -79,6 +80,10 @@ let show = id =>
     "Option.get(Haz3lcore.Id.of_string(\"%s\"))",
     to_string(id),
   );
+
+let str3 = (id: t) => id |> to_string |> String.sub(_, 0, 3);
+let str8 = (id: t) => id |> to_string |> String.sub(_, 0, 8);
+let cls = (id: t) => "id" ++ str8(id);
 
 [@deriving (sexp, yojson)]
 type binding('v) = (t, 'v);
@@ -137,7 +142,10 @@ module Uf: {
     refs: ref(Map.t(M.rref('a))),
     store: M.store('a),
   };
-  let init = () => {refs: ref(Map.empty), store: M.new_store()};
+  let init = () => {
+    refs: ref(Map.empty),
+    store: M.new_store(),
+  };
   let rref = (id, s) => Map.find(id, s.refs^);
   let add = (id, a, s) =>
     switch (Map.find_opt(id, s.refs^)) {
